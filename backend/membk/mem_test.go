@@ -1,0 +1,50 @@
+package membk
+
+import (
+	"testing"
+
+	"github.com/gravitational/teleport/backend/test"
+
+	. "gopkg.in/check.v1"
+)
+
+func TestMem(t *testing.T) { TestingT(t) }
+
+type MemSuite struct {
+	bk    *MemBackend
+	suite test.BackendSuite
+}
+
+var _ = Suite(&MemSuite{})
+
+func (s *MemSuite) SetUpTest(c *C) {
+	// Initiate a backend with a registry
+	s.bk = New()
+
+	s.suite.ChangesC = make(chan interface{})
+	s.suite.B = s.bk
+}
+
+func (s *MemSuite) TearDownTest(c *C) {
+	c.Assert(s.bk.Close(), IsNil)
+}
+
+func (s *MemSuite) TestUserKeyCRUD(c *C) {
+	s.suite.UserKeyCRUD(c)
+}
+
+func (s *MemSuite) TestUserCACRUD(c *C) {
+	s.suite.UserCACRUD(c)
+}
+
+func (s *MemSuite) TestHostCACRUD(c *C) {
+	s.suite.HostCACRUD(c)
+}
+
+func (s *MemSuite) TestServerCRUD(c *C) {
+	s.suite.ServerCRUD(c)
+}
+
+func (s *MemSuite) TestUsersCRUD(c *C) {
+	s.suite.UsersCRUD(c)
+}
