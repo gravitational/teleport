@@ -36,7 +36,7 @@ The goal of this project is to define a simple SSH infrastrucure that satisfies 
 
 ## Proposed design
 
-![medusa overvioew](https://github.com/clustermind/medusa/raw/master/src/doc/img/MedusaOverview.png "Medusa Overview")
+![medusa overview](https://raw.githubusercontent.com/clustermind/medusa/master/doc/img/MedusaOverview.png "Medusa Overview")
 
 * Use Etcd for configuration, discovery, presence and key store
 * Each server has ssh server heartbeating into the cluster
