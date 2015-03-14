@@ -3,8 +3,8 @@ package command
 import (
 	"fmt"
 
-	"github.com/buger/goterm"
-	"github.com/codegangsta/cli"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/buger/goterm"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codegangsta/cli"
 	"github.com/gravitational/teleport/backend"
 )
 

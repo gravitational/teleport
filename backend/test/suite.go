@@ -8,7 +8,7 @@ import (
 
 	"github.com/gravitational/teleport/backend"
 
-	. "gopkg.in/check.v1"
+	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func TestBackend(t *testing.T) { TestingT(t) }

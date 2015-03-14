@@ -5,8 +5,8 @@ import (
 	"io"
 	"regexp"
 
-	"github.com/mailgun/log"
-	"golang.org/x/crypto/ssh"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
 
 // muxSubsys implements a multiplexing subsystem, in essence it connects to SSH upstreams,

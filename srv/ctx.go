@@ -6,10 +6,10 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/codahale/lunk"
-	"github.com/mailgun/log"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent" // ctxID is a incremental context ID used for debugging and logging purposes
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/agent" // ctxID is a incremental context ID used for debugging and logging purposes
 )
 
 var ctxID int32

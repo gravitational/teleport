@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/codahale/lunk"
-	"github.com/codegangsta/cli"
-	"github.com/mailgun/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/auth"
 	"github.com/gravitational/teleport/auth/openssh"
 	"github.com/gravitational/teleport/backend"

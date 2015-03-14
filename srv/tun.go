@@ -5,8 +5,8 @@ import (
 
 	"strings"
 
-	"github.com/mailgun/log"
-	"golang.org/x/crypto/ssh"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
 
 // tunSubsys is an SSH subsystem for easy tunneling through proxy server

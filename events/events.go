@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"golang.org/x/crypto/ssh"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
 
 // AuthSuccess indicates a successfull connection and authentication attempt

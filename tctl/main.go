@@ -3,8 +3,8 @@ package main
 import (
 	"os"
 
-	"github.com/mailgun/log" // TODO(klizhentas) fix the interface for logging
-	"github.com/gravitational/teleport/tctl/command"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/gravitational/teleport/tctl/command" // TODO(klizhentas) fix the interface for logging
 )
 
 func main() {

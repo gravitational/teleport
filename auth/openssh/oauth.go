@@ -9,7 +9,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/mailgun/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 )
 
 func New() *oauth {

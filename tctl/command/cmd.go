@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/buger/goterm"
-	"github.com/codegangsta/cli"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/buger/goterm"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codegangsta/cli"
 	"github.com/gravitational/teleport/auth"
 	"github.com/gravitational/teleport/utils"
 )

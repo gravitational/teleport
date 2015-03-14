@@ -5,7 +5,7 @@ import (
 
 	"github.com/gravitational/teleport/auth/test"
 
-	. "gopkg.in/check.v1"
+	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func TestO(t *testing.T) { TestingT(t) }

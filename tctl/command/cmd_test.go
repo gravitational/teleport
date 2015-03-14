@@ -12,7 +12,7 @@ import (
 	"github.com/gravitational/teleport/auth/openssh"
 	"github.com/gravitational/teleport/backend/membk"
 
-	. "gopkg.in/check.v1"
+	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 const OK = ".*OK.*"
