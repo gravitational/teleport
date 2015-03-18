@@ -1,0 +1,58 @@
+{
+	"ImportPath": "github.com/gravitational/teleport",
+	"GoVersion": "go1.4.1",
+	"Packages": [
+		"./..."
+	],
+	"Deps": [
+		{
+			"ImportPath": "github.com/buger/goterm",
+			"Rev": "af3f07dadc88b80c7b5a15f26033c6dd979f012f"
+		},
+		{
+			"ImportPath": "github.com/codahale/lunk",
+			"Rev": "3bb9f3be3053e35972e4a0725dd6e44ae203bc99"
+		},
+		{
+			"ImportPath": "github.com/codegangsta/cli",
+			"Comment": "1.2.0-62-gbf4a526",
+			"Rev": "bf4a526f48af7badd25d2cb02d587e1b01be3b50"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/etcdserver/etcdhttp/httptypes",
+			"Comment": "v2.0.4-169-g0a04eec",
+			"Rev": "0a04eec481f24ec616eed8ad52e59eb6d203263e"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/pkg/types",
+			"Comment": "v2.0.4-169-g0a04eec",
+			"Rev": "0a04eec481f24ec616eed8ad52e59eb6d203263e"
+		},
+		{
+			"ImportPath": "github.com/coreos/go-etcd/etcd",
+			"Comment": "v0.4.6-6-g4734e7a",
+			"Rev": "4734e7aca379f0d7fcdf04fbb2101696a4b45ce8"
+		},
+		{
+			"ImportPath": "github.com/julienschmidt/httprouter",
+			"Rev": "b428fda53bb0a764fea9c76c9413512eda291dec"
+		},
+		{
+			"ImportPath": "github.com/kr/pty",
+			"Comment": "release.r56-25-g05017fc",
+			"Rev": "05017fcccf23c823bfdea560dcc958a136e54fb7"
+		},
+		{
+			"ImportPath": "github.com/mailgun/log",
+			"Rev": "b65e83b83bfde331a05016a6bb8055cc96695c30"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/ssh",
+			"Rev": "4ed45ec682102c643324fae5dff8dab085b6c300"
+		},
+		{
+			"ImportPath": "gopkg.in/check.v1",
+			"Rev": "64131543e7896d5bcc6bd5a76287eb75ea96c673"
+		}
+	]
+}
