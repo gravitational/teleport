@@ -36,6 +36,9 @@ cover-package-with-etcd: clean
 	go tool cover -html=/tmp/coverage.out
 
 install: clean
+	go install github.com/gravitational/teleport/Godeps/_workspace/src/github.com/elazarl/go-bindata-assetfs
+	go-bindata-assetfs -pkg="cp" ./assets/...
+	mv bindata_assetfs.go ./cp
 	go install github.com/gravitational/teleport/teleport
 
 run: install
@@ -46,8 +49,12 @@ run: install
              -hostCert=./fixtures/keys/hosts/node.gravitational.io-cert.pub\
              -hostPrivateKey=./fixtures/keys/hosts/node.gravitational.io\
              -authSrv\
+	         -authKey=vnzHIFxaXHtbnzeOCZWcPGimQkr3CH6Ir1XXFLcewxM=\
+             -cpSrv\
+	         -cpAuth="localhost:2023"\
+	         -cpHost="gravitational.io"\
              -backend=etcd\
-             -backendConfig='{"nodes": ["${ETCD_NODE1}","${ETCD_NODE2}","${ETCD_NODE3}"], "key": "/teleport"}'\
+             -backendConfig='{"nodes": ["${ETCD_NODE1}","${ETCD_NODE2}","${ETCD_NODE3}"], "key": "/teleport"}'
 
 profile:
 	go tool pprof http://localhost:6060/debug/pprof/profile

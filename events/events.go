@@ -1,6 +1,7 @@
 package events
 
 import (
+	"encoding/base64"
 	"io"
 	"io/ioutil"
 	"strings"
@@ -45,7 +46,7 @@ func (*AuthAttempt) Schema() string {
 func NewExec(command string, out io.Reader, code int, err error) *Exec {
 	return &Exec{
 		Command: command,
-		Out:     collectOutput(out),
+		Log:     collectOutput(out),
 		Code:    code,
 		Error:   errMsg(err),
 	}
@@ -62,8 +63,8 @@ type Exec struct {
 	// Error is a error if command failed to execute
 	Error string `json:"error"`
 
-	// Out is a captured command output
-	Out string `json:"out"`
+	// Log is a captured command output
+	Log string `json:"out"`
 }
 
 func (*Exec) Schema() string {
@@ -110,5 +111,5 @@ func collectOutput(r io.Reader) string {
 	if err != nil {
 		return err.Error()
 	}
-	return string(b)
+	return base64.StdEncoding.EncodeToString(b)
 }

@@ -44,6 +44,7 @@ func (cmd *Command) Run(args []string) error {
 		newHostCACommand(cmd),
 		newUserCACommand(cmd),
 		newUserCommand(cmd),
+		newSecretCommand(cmd),
 	}
 	return app.Run(args)
 }

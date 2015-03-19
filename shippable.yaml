@@ -11,6 +11,7 @@ before_install:
   - gvm use go$SHIPPABLE_GO_VERSION
   - export GOPATH=/root/workspace/
   - go get golang.org/x/tools/cmd/cover
+  - go install github.com/gravitational/teleport/Godeps/_workspace/src/github.com/elazarl/go-bindata-assetfs
 
 script:
   - echo $GOPATH

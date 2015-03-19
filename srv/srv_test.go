@@ -4,38 +4,45 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"net"
 	"strings"
 	"testing"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/agent"
 	"github.com/gravitational/teleport/auth"
 	"github.com/gravitational/teleport/auth/openssh"
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/membk"
+	"github.com/gravitational/teleport/sshutils"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/agent"
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func TestSrv(t *testing.T) { TestingT(t) }
 
 type SrvSuite struct {
-	srv *Server
-	clt *ssh.Client
-	bk  *membk.MemBackend
-	a   *auth.AuthServer
-	up  *upack
+	srv  *Server
+	clt  *ssh.Client
+	bk   *membk.MemBackend
+	a    *auth.AuthServer
+	up   *upack
+	scrt *secret.Service
 }
 
 var _ = Suite(&SrvSuite{})
 
 func (s *SrvSuite) SetUpSuite(c *C) {
+	key, err := secret.NewKey()
+	c.Assert(err, IsNil)
+	srv, err := secret.New(&secret.Config{KeyBytes: key})
+	c.Assert(err, IsNil)
+	s.scrt = srv
 }
 
 func (s *SrvSuite) SetUpTest(c *C) {
 	s.bk = membk.New()
-	s.a = auth.NewAuthServer(s.bk, openssh.New())
+	s.a = auth.NewAuthServer(s.bk, openssh.New(), s.scrt)
 
 	// set up host private key and certificate
 	c.Assert(s.a.ResetHostCA(""), IsNil)
@@ -47,14 +54,15 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	// set up user CA and set up a user that has access to the server
 	c.Assert(s.a.ResetUserCA(""), IsNil)
 
-	cfg := Config{
-		Addr:     "localhost:0",
-		HostCert: hcert,
-		HostKey:  hpriv,
-		Backend:  s.bk,
-		Shell:    "/bin/sh",
-	}
-	srv, err := New(cfg)
+	signer, err := sshutils.NewHostSigner(hpriv, hcert)
+	c.Assert(err, IsNil)
+
+	srv, err := New(
+		sshutils.Addr{Net: "tcp", Addr: "localhost:0"},
+		[]ssh.Signer{signer},
+		s.bk,
+		SetShell("/bin/sh"),
+	)
 	c.Assert(err, IsNil)
 	s.srv = srv
 
@@ -73,7 +81,8 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		User: "test",
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
 	}
-	client, err := ssh.Dial("tcp", s.srv.l.Addr().String(), sshConfig)
+
+	client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 	c.Assert(err, IsNil)
 	c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
 	s.clt = client
@@ -127,7 +136,7 @@ func (s *SrvSuite) TestMux(c *C) {
 		close(done)
 	}()
 
-	c.Assert(se.RequestSubsystem(fmt.Sprintf("mux:%v/expr 22 + 55", s.srv.l.Addr().String())), IsNil)
+	c.Assert(se.RequestSubsystem(fmt.Sprintf("mux:%v/expr 22 + 55", s.srv.Addr())), IsNil)
 	<-done
 	c.Assert(removeNL(stdout.String()), Matches, ".*77.*")
 }
@@ -150,7 +159,7 @@ func (s *SrvSuite) TestTun(c *C) {
 		close(done)
 	}()
 
-	c.Assert(se.RequestSubsystem(fmt.Sprintf("tun:%v", s.srv.l.Addr().String())), IsNil)
+	c.Assert(se.RequestSubsystem(fmt.Sprintf("tun:%v", s.srv.Addr())), IsNil)
 
 	_, err = io.WriteString(writer, "expr 7 + 70;exit\r\n")
 	c.Assert(err, IsNil)
@@ -180,14 +189,14 @@ func (s *SrvSuite) TestEnv(c *C) {
 
 // TestNoAuth tries to log in with no auth methods and should be rejected
 func (s *SrvSuite) TestNoAuth(c *C) {
-	_, err := ssh.Dial("tcp", s.srv.l.Addr().String(), &ssh.ClientConfig{})
+	_, err := ssh.Dial("tcp", s.srv.Addr(), &ssh.ClientConfig{})
 	c.Assert(err, NotNil)
 }
 
 // TestPasswordAuth tries to log in with empty pass and should be rejected
 func (s *SrvSuite) TestPasswordAuth(c *C) {
 	config := &ssh.ClientConfig{Auth: []ssh.AuthMethod{ssh.Password("")}}
-	_, err := ssh.Dial("tcp", s.srv.l.Addr().String(), config)
+	_, err := ssh.Dial("tcp", s.srv.Addr(), config)
 	c.Assert(err, NotNil)
 }
 
@@ -198,7 +207,7 @@ func (s *SrvSuite) TestClientDisconnect(c *C) {
 		User: "test",
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(s.up.certSigner)},
 	}
-	clt, err := ssh.Dial("tcp", s.srv.l.Addr().String(), config)
+	clt, err := ssh.Dial("tcp", s.srv.Addr(), config)
 	c.Assert(clt, NotNil)
 	c.Assert(err, IsNil)
 
@@ -278,27 +287,4 @@ func removeNL(v string) string {
 	v = strings.Replace(v, "\r", "", -1)
 	v = strings.Replace(v, "\n", "", -1)
 	return v
-}
-
-// netPipe is analogous to net.Pipe, but it uses a real net.Conn, and
-// therefore is buffered (net.Pipe deadlocks if both sides start with
-// a write.). This code is courtesy of crypto/ssh/agent/client_test
-func netPipe() (net.Conn, net.Conn, error) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return nil, nil, err
-	}
-	defer listener.Close()
-	c1, err := net.Dial("tcp", listener.Addr().String())
-	if err != nil {
-		return nil, nil, err
-	}
-
-	c2, err := listener.Accept()
-	if err != nil {
-		c1.Close()
-		return nil, nil, err
-	}
-
-	return c1, c2, nil
 }

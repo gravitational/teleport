@@ -48,3 +48,15 @@ func (s *MemSuite) TestServerCRUD(c *C) {
 func (s *MemSuite) TestUsersCRUD(c *C) {
 	s.suite.UsersCRUD(c)
 }
+
+func (s *MemSuite) TestPasswordHashCRUD(c *C) {
+	s.suite.PasswordHashCRUD(c)
+}
+
+func (s *MemSuite) TestWebSessionCRUD(c *C) {
+	s.suite.WebSessionCRUD(c)
+}
+
+func (s *MemSuite) TestWebTunCRUD(c *C) {
+	s.suite.WebTunCRUD(c)
+}

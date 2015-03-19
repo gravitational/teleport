@@ -45,8 +45,26 @@ func newUserCommand(c *Command) cli.Command {
 					cli.StringFlag{Name: "user", Usage: "User to list keys form"},
 				},
 			},
+			{
+				Name:  "set_pass",
+				Usage: "Set user password",
+				Flags: []cli.Flag{
+					cli.StringFlag{Name: "user", Usage: "User name"},
+					cli.StringFlag{Name: "pass", Usage: "Password"},
+				},
+				Action: c.setPass,
+			},
 		},
 	}
+}
+
+func (cmd *Command) setPass(c *cli.Context) {
+	err := cmd.client.UpsertPassword(c.String("user"), []byte(c.String("pass")))
+	if err != nil {
+		cmd.printError(err)
+		return
+	}
+	cmd.printOK("password has been set for user '%v'", c.String("user"))
 }
 
 func (cmd *Command) upsertKey(c *cli.Context) {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"github.com/gravitational/teleport/sshutils"
 )
 
 // muxSubsys implements a multiplexing subsystem, in essence it connects to SSH upstreams,
@@ -72,10 +73,10 @@ func newMux(s *muxSubsys, addrs []string, user string, signers []ssh.Signer) (*m
 	}
 	m := &mux{
 		s:   s,
-		ups: make(map[string]*upstream),
+		ups: make(map[string]*sshutils.Upstream),
 	}
 	for _, a := range addrs {
-		up, err := connectUpstream(user, a, signers)
+		up, err := sshutils.DialUpstream(user, a, signers)
 		if err != nil {
 			log.Infof("%v failed to connect to %v, err: %v", s, a, err)
 			continue
@@ -90,7 +91,7 @@ func newMux(s *muxSubsys, addrs []string, user string, signers []ssh.Signer) (*m
 
 type mux struct {
 	s   *muxSubsys
-	ups map[string]*upstream
+	ups map[string]*sshutils.Upstream
 }
 
 func (m *mux) String() string {
@@ -108,8 +109,8 @@ func (m *mux) Close() error {
 func (m *mux) pipe(ctx *ctx, ch ssh.Channel, command string) (int, error) {
 	out := make(chan muxResult, len(m.ups))
 	for _, u := range m.ups {
-		go func(u *upstream) {
-			code, err := u.pipe(ctx, ch, command)
+		go func(u *sshutils.Upstream) {
+			code, err := u.PipeCommand(ch, command)
 			result := muxResult{err: err, code: code, u: u}
 			log.Infof("%v %v got %v", ctx, u, &result)
 			out <- result
@@ -125,7 +126,7 @@ func (m *mux) pipe(ctx *ctx, ch ssh.Channel, command string) (int, error) {
 }
 
 type muxResult struct {
-	u    *upstream
+	u    *sshutils.Upstream
 	err  error
 	code int
 }

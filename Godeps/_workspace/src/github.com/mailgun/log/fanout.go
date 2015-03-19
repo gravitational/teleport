@@ -25,6 +25,11 @@ func newFanOut() *fanOutLogger {
 	return fl
 }
 
+func (l *fanOutLogger) setLoggers(lg ...Logger) {
+	l.loggers = []Logger{}
+	l.loggers = append(l.loggers, lg...)
+}
+
 func (l *fanOutLogger) add(lg Logger) {
 	l.loggers = append(l.loggers, lg)
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 	"github.com/gravitational/teleport/auth"
 	"github.com/gravitational/teleport/auth/openssh"
 	"github.com/gravitational/teleport/backend/membk"
@@ -26,16 +27,22 @@ type CmdSuite struct {
 	cmd  *Command
 	out  *bytes.Buffer
 	bk   *membk.MemBackend
+	scrt *secret.Service
 }
 
 var _ = Suite(&CmdSuite{})
 
 func (s *CmdSuite) SetUpSuite(c *C) {
+	key, err := secret.NewKey()
+	c.Assert(err, IsNil)
+	srv, err := secret.New(&secret.Config{KeyBytes: key})
+	c.Assert(err, IsNil)
+	s.scrt = srv
 }
 
 func (s *CmdSuite) SetUpTest(c *C) {
 	s.bk = membk.New()
-	s.asrv = auth.NewAuthServer(s.bk, openssh.New())
+	s.asrv = auth.NewAuthServer(s.bk, openssh.New(), s.scrt)
 	s.srv = httptest.NewServer(auth.NewAPIServer(s.asrv))
 	s.clt = auth.NewClient(s.srv.URL)
 
@@ -100,7 +107,7 @@ func (s *CmdSuite) TestUserCRUD(c *C) {
 	parts := strings.Split(out, "certificate:")
 	c.Assert(len(parts), Equals, 2)
 
-	c.Assert(trim(string(s.bk.Keys["alex"]["key1"].Value)), Equals, trim(parts[1]))
+	c.Assert(trim(string(s.bk.Users["alex"].Keys["key1"].Value)), Equals, trim(parts[1]))
 
 	c.Assert(
 		s.run("user", "ls"),

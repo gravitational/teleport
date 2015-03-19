@@ -10,27 +10,34 @@ import (
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/membk"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func TestAPI(t *testing.T) { TestingT(t) }
 
 type APISuite struct {
-	srv *httptest.Server
-	clt *Client
-	bk  *membk.MemBackend
+	srv  *httptest.Server
+	clt  *Client
+	bk   *membk.MemBackend
+	scrt *secret.Service
+	a    *AuthServer
 }
 
 var _ = Suite(&APISuite{})
 
 func (s *APISuite) SetUpSuite(c *C) {
+	key, err := secret.NewKey()
+	c.Assert(err, IsNil)
+	srv, err := secret.New(&secret.Config{KeyBytes: key})
+	c.Assert(err, IsNil)
+	s.scrt = srv
 }
 
 func (s *APISuite) SetUpTest(c *C) {
 	s.bk = membk.New()
-	s.srv = httptest.NewServer(
-		NewAPIServer(
-			NewAuthServer(s.bk, openssh.New())))
+	s.a = NewAuthServer(s.bk, openssh.New(), s.scrt)
+	s.srv = httptest.NewServer(NewAPIServer(s.a))
 	s.clt = NewClient(s.srv.URL)
 }
 
@@ -123,7 +130,7 @@ func (s *APISuite) TestUserKeyCRUD(c *C) {
 	key := backend.AuthorizedKey{ID: "id", Value: pub}
 	cert, err := s.clt.UpsertUserKey("user1", key, 0)
 	c.Assert(err, IsNil)
-	c.Assert(string(s.bk.Keys["user1"]["id"].Value), DeepEquals, string(cert))
+	c.Assert(string(s.bk.Users["user1"].Keys["id"].Value), DeepEquals, string(cert))
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
 	c.Assert(err, IsNil)
@@ -134,6 +141,85 @@ func (s *APISuite) TestUserKeyCRUD(c *C) {
 	c.Assert(string(keys[0].Value), DeepEquals, string(cert))
 
 	c.Assert(s.clt.DeleteUserKey("user1", "id"), IsNil)
-	_, ok := s.bk.Keys["user1"]["id"]
+	_, ok := s.bk.Users["user1"].Keys["id"]
 	c.Assert(ok, Equals, false)
+}
+
+func (s *APISuite) TestPasswordCRUD(c *C) {
+	pass := []byte("abc123")
+
+	err := s.clt.CheckPassword("user1", pass)
+	c.Assert(err, NotNil)
+
+	c.Assert(s.clt.UpsertPassword("user1", pass), IsNil)
+	c.Assert(s.clt.CheckPassword("user1", pass), IsNil)
+	c.Assert(s.clt.CheckPassword("user1", []byte("abc123123")), NotNil)
+}
+
+func (s *APISuite) TestSessions(c *C) {
+	user := "user1"
+	pass := []byte("abc123")
+
+	c.Assert(s.a.ResetUserCA(""), IsNil)
+
+	ws, err := s.clt.SignIn(user, pass)
+	c.Assert(err, NotNil)
+	c.Assert(ws, Equals, "")
+
+	c.Assert(s.clt.UpsertPassword(user, pass), IsNil)
+
+	ws, err = s.clt.SignIn(user, pass)
+	c.Assert(err, IsNil)
+	c.Assert(ws, Not(Equals), "")
+
+	out, err := s.clt.GetWebSession(user, ws)
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, ws)
+
+	err = s.clt.DeleteWebSession(user, ws)
+	c.Assert(err, IsNil)
+
+	_, err = s.clt.GetWebSession(user, ws)
+	c.Assert(err, NotNil)
+}
+
+func (s *APISuite) TestWebTuns(c *C) {
+	_, err := s.clt.GetWebTun("p1")
+	c.Assert(err, NotNil)
+
+	t := backend.WebTun{
+		Prefix:     "p1",
+		TargetAddr: "http://localhost:5000",
+		ProxyAddr:  "node1.gravitational.io",
+	}
+	c.Assert(s.clt.UpsertWebTun(t, 0), IsNil)
+
+	out, err := s.clt.GetWebTun("p1")
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, &t)
+
+	tuns, err := s.clt.GetWebTuns()
+	c.Assert(err, IsNil)
+	c.Assert(tuns, DeepEquals, []backend.WebTun{t})
+
+	c.Assert(s.clt.DeleteWebTun("p1"), IsNil)
+
+	_, err = s.clt.GetWebTun("p1")
+	c.Assert(err, NotNil)
+}
+
+func (s *APISuite) TestServers(c *C) {
+	out, err := s.clt.GetServers()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
+
+	srv := backend.Server{ID: "id1", Addr: "host:1233"}
+	c.Assert(s.clt.UpsertServer(srv, 0), IsNil)
+
+	srv1 := backend.Server{ID: "id2", Addr: "host:1234"}
+	c.Assert(s.clt.UpsertServer(srv1, 0), IsNil)
+
+	out, err = s.clt.GetServers()
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, []backend.Server{srv, srv1})
 }

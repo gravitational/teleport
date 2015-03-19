@@ -8,15 +8,19 @@
 package auth
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/bcrypt"
 	"github.com/gravitational/teleport/backend"
 )
 
 // Authority implements minimal key-management facility for generating OpenSSH
 //compatible public/private key pairs and OpenSSH certificates
 type Authority interface {
-	GenerateKeyPair(passphrase string) ([]byte, []byte, error)
+	GenerateKeyPair(passphrase string) (privKey []byte, pubKey []byte, err error)
 
 	// GenerateHostCert generates host certificate, it takes pkey as a signing private key (host certificate authority)
 	GenerateHostCert(pkey, key []byte, id, hostname string, ttl time.Duration) ([]byte, error)
@@ -25,17 +29,33 @@ type Authority interface {
 	GenerateUserCert(pkey, key []byte, id, username string, ttl time.Duration) ([]byte, error)
 }
 
-func NewAuthServer(b backend.Backend, a Authority) *AuthServer {
+type Session struct {
+	SID session.SecureID
+	PID session.PlainID
+	WS  backend.WebSession
+}
+
+func NewAuthServer(b backend.Backend, a Authority, scrt *secret.Service) *AuthServer {
 	return &AuthServer{
-		b: b,
-		a: a,
+		b:    b,
+		a:    a,
+		scrt: scrt,
 	}
 }
 
 // AuthServer implements key signing, generation and ACL functionality used by teleport
 type AuthServer struct {
-	b backend.Backend
-	a Authority
+	b    backend.Backend
+	a    Authority
+	scrt *secret.Service
+}
+
+func (s *AuthServer) UpsertServer(srv backend.Server, ttl time.Duration) error {
+	return s.b.UpsertServer(srv, ttl)
+}
+
+func (s *AuthServer) GetServers() ([]backend.Server, error) {
+	return s.b.GetServers()
 }
 
 // UpsertUserKey takes user's public key, generates certificate for it
@@ -121,4 +141,142 @@ func (s *AuthServer) GenerateUserCert(key []byte, id, username string, ttl time.
 	return s.a.GenerateUserCert(hk.Priv, key, id, username, ttl)
 }
 
-const Week = time.Hour * 24 * 7
+func (s *AuthServer) UpsertPassword(user string, password []byte) error {
+	if err := verifyPassword(password); err != nil {
+		return err
+	}
+	hash, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	return s.b.UpsertPasswordHash(user, hash)
+}
+
+func (s *AuthServer) CheckPassword(user string, password []byte) error {
+	if err := verifyPassword(password); err != nil {
+		return err
+	}
+	hash, err := s.b.GetPasswordHash(user)
+	if err != nil {
+		return err
+	}
+	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
+		return &BadParameterError{Msg: "passwords do not match"}
+	}
+	return nil
+}
+
+func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
+	if err := s.CheckPassword(user, password); err != nil {
+		return nil, err
+	}
+	sess, err := s.NewWebSession(user)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.UpsertWebSession(user, sess, time.Hour); err != nil {
+		return nil, err
+	}
+	return sess, nil
+}
+
+func (s *AuthServer) NewWebSession(user string) (*Session, error) {
+	p, err := session.NewID(s.scrt)
+	if err != nil {
+		return nil, err
+	}
+	priv, pub, err := s.GenerateKeyPair("")
+	if err != nil {
+		return nil, err
+	}
+	hk, err := s.b.GetUserCA()
+	if err != nil {
+		return nil, err
+	}
+	cert, err := s.a.GenerateUserCert(hk.Priv, pub, user, user, 0)
+	if err != nil {
+		return nil, err
+	}
+	sess := &Session{
+		SID: p.SID,
+		PID: p.PID,
+		WS:  backend.WebSession{Priv: priv, Pub: cert},
+	}
+	return sess, nil
+}
+
+func (s *AuthServer) UpsertWebSession(user string, sess *Session, ttl time.Duration) error {
+	return s.b.UpsertWebSession(user, string(sess.PID), sess.WS, ttl)
+}
+
+func (s *AuthServer) GetWebSession(user string, sid session.SecureID) (*Session, error) {
+	pid, err := session.DecodeSID(sid, s.scrt)
+	if err != nil {
+		return nil, err
+	}
+	ws, err := s.b.GetWebSession(user, string(pid))
+	if err != nil {
+		return nil, err
+	}
+	return &Session{
+		SID: sid,
+		PID: pid,
+		WS:  *ws,
+	}, nil
+}
+
+func (s *AuthServer) DeleteWebSession(user string, sid session.SecureID) error {
+	pid, err := session.DecodeSID(sid, s.scrt)
+	if err != nil {
+		return err
+	}
+	return s.b.DeleteWebSession(user, string(pid))
+}
+
+func (s *AuthServer) UpsertWebTun(t backend.WebTun, ttl time.Duration) error {
+	return s.b.UpsertWebTun(t, ttl)
+}
+
+func (s *AuthServer) GetWebTun(prefix string) (*backend.WebTun, error) {
+	return s.b.GetWebTun(prefix)
+}
+
+func (s *AuthServer) GetWebTuns() ([]backend.WebTun, error) {
+	return s.b.GetWebTuns()
+}
+
+func (s *AuthServer) DeleteWebTun(prefix string) error {
+	return s.b.DeleteWebTun(prefix)
+}
+
+// make sure password satisfies our requirements (relaxed), mostly to avoid putting garbage in
+func verifyPassword(password []byte) error {
+	if len(password) < MinPasswordLength {
+		return &BadParameterError{
+			Param: "password",
+			Msg:   fmt.Sprintf("password is too short, min length is %v", MinPasswordLength),
+		}
+	}
+	if len(password) > MaxPasswordLength {
+		return &BadParameterError{
+			Param: "password",
+			Msg:   fmt.Sprintf("password is too long, max length is %v", MaxPasswordLength),
+		}
+	}
+	return nil
+}
+
+const (
+	Week              = time.Hour * 24 * 7
+	MinPasswordLength = 6
+	MaxPasswordLength = 128
+)
+
+type BadParameterError struct {
+	Param string
+	Msg   string
+}
+
+func (p *BadParameterError) Error() string {
+	return fmt.Sprintf("bad parameter: %v, err: %v", p.Param, p.Msg)
+}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"github.com/gravitational/teleport/sshutils"
 )
 
 // tunSubsys is an SSH subsystem for easy tunneling through proxy server
@@ -45,10 +46,10 @@ func (t *tunSubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 	if len(signers) == 0 {
 		return fmt.Errorf("%v no signers in the agent", ctx)
 	}
-	up, err := connectUpstream(sconn.User(), fmt.Sprintf("%v:%v", t.host, t.port), signers)
+	up, err := sshutils.DialUpstream(sconn.User(), fmt.Sprintf("%v:%v", t.host, t.port), signers)
 	if err != nil {
 		return fmt.Errorf("%v failed to connect to upstream, error: %v", ctx, err)
 	}
 	ctx.addCloser(up)
-	return up.pipeShell(ctx, ch)
+	return up.PipeShellToCh(ch)
 }
