@@ -27,6 +27,118 @@ func NewClient(addr string) *Client {
 	}
 }
 
+func (c *Client) UpsertServer(s backend.Server, ttl time.Duration) error {
+	_, err := c.PostForm(c.endpoint("servers"), url.Values{
+		"id":   []string{string(s.ID)},
+		"addr": []string{string(s.Addr)},
+		"ttl":  []string{ttl.String()},
+	})
+	return err
+}
+
+func (c *Client) GetServers() ([]backend.Server, error) {
+	out, err := c.Get(c.endpoint("servers"), url.Values{})
+	if err != nil {
+		return nil, err
+	}
+	var re *serversResponse
+	if err := json.Unmarshal(out, &re); err != nil {
+		return nil, err
+	}
+	return re.Servers, nil
+}
+
+func (c *Client) UpsertWebTun(wt backend.WebTun, ttl time.Duration) error {
+	_, err := c.PostForm(c.endpoint("tunnels", "web"), url.Values{
+		"target": []string{string(wt.TargetAddr)},
+		"proxy":  []string{string(wt.ProxyAddr)},
+		"prefix": []string{string(wt.Prefix)},
+		"ttl":    []string{ttl.String()},
+	})
+	return err
+}
+
+func (c *Client) GetWebTuns() ([]backend.WebTun, error) {
+	out, err := c.Get(c.endpoint("tunnels", "web"), url.Values{})
+	if err != nil {
+		return nil, err
+	}
+	var re *webTunsResponse
+	if err := json.Unmarshal(out, &re); err != nil {
+		return nil, err
+	}
+	return re.Tunnels, nil
+}
+
+func (c *Client) GetWebTun(prefix string) (*backend.WebTun, error) {
+	out, err := c.Get(c.endpoint("tunnels", "web", prefix), url.Values{})
+	if err != nil {
+		return nil, err
+	}
+	var re *webTunResponse
+	if err := json.Unmarshal(out, &re); err != nil {
+		return nil, err
+	}
+	return &re.Tunnel, nil
+}
+
+func (c *Client) DeleteWebTun(prefix string) error {
+	return c.Delete(c.endpoint("tunnels", "web", prefix))
+}
+
+func (c *Client) UpsertPassword(user string, password []byte) error {
+	_, err := c.PostForm(
+		c.endpoint("users", user, "web", "password"),
+		url.Values{"password": []string{string(password)}},
+	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) CheckPassword(user string, password []byte) error {
+	_, err := c.PostForm(
+		c.endpoint("users", user, "web", "password", "check"),
+		url.Values{"password": []string{string(password)}},
+	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) SignIn(user string, password []byte) (string, error) {
+	out, err := c.PostForm(
+		c.endpoint("users", user, "web", "signin"),
+		url.Values{"password": []string{string(password)}},
+	)
+	if err != nil {
+		return "", err
+	}
+	var re *sessionResponse
+	if err := json.Unmarshal(out, &re); err != nil {
+		return "", err
+	}
+	return re.SID, nil
+}
+
+func (c *Client) GetWebSession(user string, sid string) (string, error) {
+	out, err := c.Get(c.endpoint("users", user, "web", "sessions", sid), url.Values{})
+	if err != nil {
+		return "", err
+	}
+	var re *sessionResponse
+	if err := json.Unmarshal(out, &re); err != nil {
+		return "", err
+	}
+	return re.SID, nil
+}
+
+func (c *Client) DeleteWebSession(user string, sid string) error {
+	return c.Delete(c.endpoint("users", user, "web", "sessions", sid))
+}
+
 func (c *Client) GetUsers() ([]string, error) {
 	out, err := c.Get(c.endpoint("users"), url.Values{})
 	if err != nil {

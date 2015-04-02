@@ -94,13 +94,15 @@ func GetSeverity() Severity {
 
 // Logging initialization, must be called at the beginning of your cool app.
 func Init(logConfigs []*LogConfig) error {
+	loggers := []Logger{}
 	for _, config := range logConfigs {
 		l, err := NewLogger(config)
 		if err != nil {
 			return err
 		}
-		logger.add(l)
+		loggers = append(loggers, l)
 	}
+	logger.setLoggers(loggers...)
 	return nil
 }
 
@@ -132,7 +134,7 @@ func Warningf(format string, args ...interface{}) {
 
 // Errorf logs to the ERROR, WARNING, and INFO logs.
 func Errorf(format string, args ...interface{}) {
-	errorf(1, logger.warn, format, args...)
+	errorf(1, logger.err, format, args...)
 }
 
 // Fatalf logs to the FATAL, ERROR, WARNING, and INFO logs,

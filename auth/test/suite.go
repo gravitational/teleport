@@ -35,7 +35,6 @@ func (s *AuthSuite) GenerateKeypairPass(c *C) {
 
 	// make sure we can parse the private and public key
 	// TODO(klizhentas) test the private key actually
-
 	_, _, _, _, err = ssh.ParseAuthorizedKey(pub)
 	c.Assert(err, IsNil)
 }

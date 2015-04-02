@@ -10,88 +10,87 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/events"
+	"github.com/gravitational/teleport/sshutils"
 	"github.com/gravitational/teleport/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/agent" // Server implements SSH server that uses configuration backend and certificate-based authentication.
+	// Server implements SSH server that uses configuration backend and certificate-based authentication:
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/agent"
 )
 
 type Server struct {
-	cfg         Config
+	addr        sshutils.Addr
 	certChecker ssh.CertChecker
 	b           backend.Backend
 	rr          resolver
-	l           net.Listener
 	elog        lunk.EventLogger
+	srv         *sshutils.Server
+	hostSigner  ssh.Signer
+	shell       string
 }
 
-type Config struct {
+type ServerOption func(s *Server) error
 
-	// ServerConfig is a go standard library server configuration
-	ssh.ServerConfig
+func SetEventLogger(e lunk.EventLogger) ServerOption {
+	return func(s *Server) error {
+		s.elog = e
+		return nil
+	}
+}
 
-	// Addr is a string with interface:port for server to bind it's listener
-	Addr string
-
-	// Shell holds the path to the shell to execute, e.g. /bin/sh
-	Shell string
-
-	// HostKey is a private key, used for establishing an SSH connection
-	// and is used by SSH server to prove it's identity
-	HostKey []byte
-
-	// HostCert is a host certificate signed by host certificate authority
-	// it is used by clients to identify that the host has a valid identity.
-	HostCert []byte
-
-	// Backend is initialized configuration backend storage, e.g. Etcd
-	Backend backend.Backend
-
-	// EventLogger is an event logger for structured events
-	EventLogger lunk.EventLogger
+func SetShell(shell string) ServerOption {
+	return func(s *Server) error {
+		s.shell = shell
+		return nil
+	}
 }
 
 // New returns an unstarted server
-func New(cfg Config) (*Server, error) {
-	signer, err := newHostSigner(cfg)
+func New(addr sshutils.Addr, signers []ssh.Signer, b backend.Backend, options ...ServerOption) (*Server, error) {
+	s := &Server{
+		addr: addr,
+		b:    b,
+		rr:   &backendResolver{b: b},
+	}
+	s.certChecker = ssh.CertChecker{IsAuthority: s.isAuthority}
+
+	for _, o := range options {
+		if err := o(s); err != nil {
+			return nil, err
+		}
+	}
+	if s.elog == nil {
+		s.elog = utils.NullEventLogger
+	}
+	srv, err := sshutils.NewServer(
+		addr, s, signers, sshutils.AuthMethods{PublicKey: s.keyAuth},
+		sshutils.SetRequestHandler(s))
 	if err != nil {
 		return nil, err
 	}
-	cfg.AddHostKey(signer)
-	if cfg.EventLogger == nil {
-		cfg.EventLogger = utils.NullEventLogger
-	}
-	srv := &Server{
-		b:    cfg.Backend,
-		rr:   &backendResolver{b: cfg.Backend},
-		elog: cfg.EventLogger,
-	}
-	if _, err := srv.getUserCAKey(); err != nil {
-		return nil, err
-	}
+	s.srv = srv
+	return s, nil
+}
 
-	go srv.heartbeatPresence()
-	cfg.PublicKeyCallback = srv.keyAuth
-	srv.cfg = cfg
-	// TODO(klihentas) add revocation checking interface and authority updates
-	srv.certChecker = ssh.CertChecker{IsAuthority: srv.isAuthority}
-	return srv, nil
+func (s *Server) Addr() string {
+	return s.srv.Addr()
 }
 
 func (s *Server) heartbeatPresence() {
 	for {
 		srv := backend.Server{
-			ID:   strings.Replace(s.cfg.Addr, ":", "_", -1),
-			Addr: s.cfg.Addr,
+			ID:   strings.Replace(s.addr.Addr, ":", "_", -1),
+			Addr: s.addr.Addr,
 		}
 		if err := s.b.UpsertServer(srv, 6*time.Second); err != nil {
-			log.Warningf("failed to announce presence: %v", err)
+			log.Warningf("failed to announce %#v presence: %v", srv, err)
 		}
 		time.Sleep(3 * time.Second)
 	}
@@ -133,10 +132,23 @@ func (s *Server) userKeys(user string) ([]ssh.PublicKey, error) {
 	out := []ssh.PublicKey{}
 	for _, ak := range authKeys {
 		key, _, _, _, err := ssh.ParseAuthorizedKey(ak.Value)
-		// we choose to skip malformed keys here instead of aborting
 		if err != nil {
 			return nil, fmt.Errorf(
-				"skipping, failed to parse user public key for user=%v, id=%v, key='%v', err: %v", user, ak.ID, string(ak.Value), err)
+				"failed to parse user public key for user=%v, id=%v, key='%v', err: %v", user, ak.ID, string(ak.Value), err)
+		}
+		out = append(out, key)
+	}
+
+	// TODO(klizhentas) for optional security, we may restrict access to web session keys for some hosts
+	webKeys, err := s.b.GetWebSessions(user)
+	if err != nil {
+		return nil, err
+	}
+	for _, wk := range webKeys {
+		key, _, _, _, err := ssh.ParseAuthorizedKey(wk.Pub)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"failed to parse user public key for user=%v, id=%v, key='%v', err: %v", user, string(wk.Pub), err)
 		}
 		out = append(out, key)
 	}
@@ -175,71 +187,78 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 
 // Close closes listening socket and stops accepting connections
 func (s *Server) Close() error {
-	return s.l.Close()
-}
-
-func (s *Server) acceptConnections() {
-	for {
-		conn, err := s.l.Accept()
-		if err != nil {
-			// our best shot to avoid excessive logging
-			if op, ok := err.(*net.OpError); ok && !op.Timeout() {
-				log.Infof("socket closed: %v", op)
-				return
-			}
-			log.Infof("accept error: %T %v", err, err)
-			return
-		}
-		// initiate an SSH connection, note that we don't need to close the conn here
-		// in case of error as ssh server takes care of this
-		sconn, chans, reqs, err := ssh.NewServerConn(conn, &s.cfg.ServerConfig)
-		if err != nil {
-			log.Infof("failed to initiate connection, err: %v", err)
-			continue
-		}
-
-		// Connection successfully initiated
-		log.Infof("new ssh connection %v -> %v vesion: %v",
-			sconn.RemoteAddr(), sconn.LocalAddr(), string(sconn.ClientVersion()))
-
-		// Print incoming out-of-band Requests
-		go s.handleRequests(reqs)
-		// Accept all channels
-		go s.handleChannels(sconn, chans)
-		// TODO(klizhentas) figure out the right way to close connection
-	}
+	return s.srv.Close()
 }
 
 func (s *Server) Start() error {
-	socket, err := net.Listen("tcp", s.cfg.Addr)
-	if err != nil {
-		return err
-	}
-	s.l = socket
-	go s.acceptConnections()
-	return nil
+	go s.heartbeatPresence()
+	return s.srv.Start()
 }
 
-func (s *Server) handleRequests(reqs <-chan *ssh.Request) {
-	for req := range reqs {
-		log.Infof("recieved out-of-band request: %+v", req)
-	}
+func (s *Server) Wait() {
+	s.srv.Wait()
 }
 
-func (s *Server) handleChannels(sconn *ssh.ServerConn, chans <-chan ssh.NewChannel) {
-	for newCh := range chans {
-		if t := newCh.ChannelType(); t != "session" {
-			newCh.Reject(ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", t))
-			continue
-		}
-		sshCh, requests, err := newCh.Accept()
+func (s *Server) HandleRequest(r *ssh.Request) {
+	log.Infof("recieved out-of-band request: %+v", r)
+}
+
+func (s *Server) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
+	cht := nch.ChannelType()
+	switch cht {
+	case "session": // interactive sessions
+		ch, requests, err := nch.Accept()
 		if err != nil {
 			log.Infof("could not accept channel (%s)", err)
-			continue
 		}
-		// handle session requests
-		go s.handleSessionRequests(sconn, sshCh, requests)
+		go s.handleSessionRequests(sconn, ch, requests)
+	case "direct-tcpip": //port forwarding
+		req, err := sshutils.ParseDirectTCPIPReq(nch.ExtraData())
+		if err != nil {
+			log.Errorf("failed to parse request data: %v, err: %v", string(nch.ExtraData()), err)
+			nch.Reject(ssh.UnknownChannelType, "failed to parse direct-tcpip request")
+		}
+		sshCh, _, err := nch.Accept()
+		if err != nil {
+			log.Infof("could not accept channel (%s)", err)
+		}
+		go s.handleDirectTCPIPRequest(sconn, sshCh, req)
+	default:
+		nch.Reject(ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", cht))
 	}
+}
+
+func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
+	// ctx holds the session context and all associated resources
+	ctx := newCtx(s, sconn)
+	ctx.addCloser(ch)
+	defer ctx.Close()
+
+	log.Infof("%v opened direct-tcpip channel: %#v", ctx, req)
+	addr := fmt.Sprintf("%v:%d", req.Host, req.Port)
+	log.Infof("%v connecting to %v", ctx, addr)
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		log.Infof("%v failed to connect to: %v, err: %v", ctx, addr, err)
+		return
+	}
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		written, err := io.Copy(ch, conn)
+		log.Infof("%v conn to channel copy closed, bytes transferred: %v, err: %v",
+			ctx, written, err)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		written, err := io.Copy(conn, ch)
+		log.Infof("%v channel to conn copy closed, bytes transferred: %v, err: %v",
+			ctx, written, err)
+	}()
+	wg.Wait()
+	log.Infof("%v direct-tcp closed", ctx)
 }
 
 // handleSessionRequests handles out of band session requests once the session channel has been created
@@ -247,6 +266,7 @@ func (s *Server) handleChannels(sconn *ssh.ServerConn, chans <-chan ssh.NewChann
 func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in <-chan *ssh.Request) {
 	// ctx holds the session context and all associated resources
 	ctx := newCtx(s, sconn)
+	log.Infof("%v opened session channel", ctx)
 
 	// closeCh will close the connection and the context once the session closes
 	var closeCh = func() {
@@ -291,6 +311,11 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 			return
 		}
 	}
+}
+
+func (s *Server) fwdDispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+	log.Infof("%v dispatch(req=%v, wantReply=%v)", ctx, req.Type, req.WantReply)
+	return fmt.Errorf("unsupported request type: %v", req.Type)
 }
 
 func (s *Server) dispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
@@ -375,7 +400,7 @@ func (s *Server) handleShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 		ctx.setTerm(t)
 	}
 	t := ctx.getTerm()
-	cmd := exec.Command(s.cfg.Shell)
+	cmd := exec.Command(s.shell)
 	// TODO(klizhentas) figure out linux user policy for launching shells, what user and environment
 	// should we use to execute the shell? the simplest answer is to use current user and env, however
 	// what if we are root?
@@ -392,23 +417,23 @@ func (s *Server) handleShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	// out contains captured command output
 	go func() {
 		written, err := io.Copy(io.MultiWriter(ch, out), t.pty)
-		log.Infof("%v shell to session copy closed, bytes written: %v, err: %v",
+		log.Infof("%v shell to channel copy closed, bytes written: %v, err: %v",
 			ctx, written, err)
 	}()
 	go func() {
-		written, err := io.Copy(io.MultiWriter(t.pty, out), ch)
-		log.Infof("%v session to shell copy closed, bytes written: %v, err: %v",
+		written, err := io.Copy(t.pty, ch)
+		log.Infof("%v channel to shell copy closed, bytes written: %v, err: %v",
 			ctx, written, err)
 	}()
 	go func() {
 		result, err := collectStatus(cmd, cmd.Wait())
 		if err != nil {
 			log.Errorf("%v wait failed: %v", ctx, err)
-			ctx.emit(events.NewShell(s.cfg.Shell, out, -1, err))
+			ctx.emit(events.NewShell(s.shell, out, -1, err))
 		}
 		if result != nil {
 			log.Infof("%v result collected: %v", ctx, result)
-			ctx.emit(events.NewShell(s.cfg.Shell, out, result.code, nil))
+			ctx.emit(events.NewShell(s.shell, out, result.code, nil))
 			ctx.sendResult(*result)
 		}
 	}()
@@ -451,7 +476,7 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 		replyError(req, err)
 		return err
 	}
-	result, err := e.start(s.cfg.Shell, ch)
+	result, err := e.start(s.shell, ch)
 	if err != nil {
 		log.Infof("%v error starting command, %v", ctx, err)
 		replyError(req, err)
@@ -501,27 +526,4 @@ func keysEqual(ak, bk ssh.PublicKey) bool {
 	a := ak.Marshal()
 	b := bk.Marshal()
 	return (len(a) == len(b) && subtle.ConstantTimeCompare(a, b) == 1)
-}
-
-func newHostSigner(cfg Config) (ssh.Signer, error) {
-	hostSigner, err := ssh.ParsePrivateKey(cfg.HostKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse host private key, err: %v", err)
-	}
-
-	hostCAKey, _, _, _, err := ssh.ParseAuthorizedKey(cfg.HostCert)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse server CA certificate '%v', err: %v", string(cfg.HostCert), err)
-	}
-
-	hostCert, ok := hostCAKey.(*ssh.Certificate)
-	if !ok {
-		return nil, fmt.Errorf("expected host CA certificate, got %T ", hostCAKey)
-	}
-
-	signer, err := ssh.NewCertSigner(hostCert, hostSigner)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create certificate signer, err: %v", err)
-	}
-	return signer, nil
 }

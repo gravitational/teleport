@@ -97,3 +97,15 @@ func (s *EtcdSuite) TestServerCRUD(c *C) {
 func (s *EtcdSuite) TestUsersCRUD(c *C) {
 	s.suite.UsersCRUD(c)
 }
+
+func (s *EtcdSuite) TestPasswordHashCRUD(c *C) {
+	s.suite.PasswordHashCRUD(c)
+}
+
+func (s *EtcdSuite) TestWebSessionCRUD(c *C) {
+	s.suite.WebSessionCRUD(c)
+}
+
+func (s *EtcdSuite) TestWebTunCRUD(c *C) {
+	s.suite.WebTunCRUD(c)
+}

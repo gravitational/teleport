@@ -114,6 +114,89 @@ func (s *BackendSuite) ServerCRUD(c *C) {
 	c.Assert(out, DeepEquals, []backend.Server{srv})
 }
 
+func (s *BackendSuite) PasswordHashCRUD(c *C) {
+	_, err := s.B.GetPasswordHash("user1")
+	c.Assert(err, FitsTypeOf, &backend.NotFoundError{})
+
+	err = s.B.UpsertPasswordHash("user1", []byte("hello123"))
+	c.Assert(err, IsNil)
+
+	hash, err := s.B.GetPasswordHash("user1")
+	c.Assert(err, IsNil)
+	c.Assert(hash, DeepEquals, []byte("hello123"))
+
+	err = s.B.UpsertPasswordHash("user1", []byte("hello321"))
+	c.Assert(err, IsNil)
+
+	hash, err = s.B.GetPasswordHash("user1")
+	c.Assert(err, IsNil)
+	c.Assert(hash, DeepEquals, []byte("hello321"))
+}
+
+func (s *BackendSuite) WebSessionCRUD(c *C) {
+	_, err := s.B.GetWebSession("user1", "sid1")
+	c.Assert(err, FitsTypeOf, &backend.NotFoundError{})
+
+	ws := backend.WebSession{Pub: []byte("pub123"), Priv: []byte("priv123")}
+	err = s.B.UpsertWebSession("user1", "sid1", ws, 0)
+	c.Assert(err, IsNil)
+
+	out, err := s.B.GetWebSession("user1", "sid1")
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, &ws)
+
+	ws1 := backend.WebSession{Pub: []byte("pub321"), Priv: []byte("priv321")}
+	err = s.B.UpsertWebSession("user1", "sid1", ws1, 0)
+	c.Assert(err, IsNil)
+
+	out2, err := s.B.GetWebSession("user1", "sid1")
+	c.Assert(err, IsNil)
+	c.Assert(out2, DeepEquals, &ws1)
+
+	sessions, err := s.B.GetWebSessions("user1")
+	c.Assert(err, IsNil)
+	c.Assert(sessions, DeepEquals, []backend.WebSession{*out2})
+
+	c.Assert(s.B.DeleteWebSession("user1", "sid1"), IsNil)
+
+	_, err = s.B.GetWebSession("user1", "sid1")
+	c.Assert(err, FitsTypeOf, &backend.NotFoundError{})
+}
+
+func (s *BackendSuite) WebTunCRUD(c *C) {
+	_, err := s.B.GetWebTun("p1")
+	c.Assert(err, FitsTypeOf, &backend.NotFoundError{})
+
+	t := backend.WebTun{
+		Prefix:     "p1",
+		TargetAddr: "http://localhost:5000",
+		ProxyAddr:  "node1.gravitational.io",
+	}
+	c.Assert(s.B.UpsertWebTun(t, 0), IsNil)
+
+	out, err := s.B.GetWebTun("p1")
+	c.Assert(out, DeepEquals, &t)
+
+	tuns, err := s.B.GetWebTuns()
+	c.Assert(err, IsNil)
+	c.Assert(tuns, DeepEquals, []backend.WebTun{t})
+
+	t1 := backend.WebTun{
+		Prefix:     "p1",
+		TargetAddr: "http://localhost:5001",
+		ProxyAddr:  "node1.gravitational2.io",
+	}
+	c.Assert(s.B.UpsertWebTun(t1, 0), IsNil)
+
+	out, err = s.B.GetWebTun("p1")
+	c.Assert(out, DeepEquals, &t1)
+
+	c.Assert(s.B.DeleteWebTun("p1"), IsNil)
+
+	_, err = s.B.GetWebTun("p1")
+	c.Assert(err, FitsTypeOf, &backend.NotFoundError{})
+}
+
 func toSet(vals []string) map[string]struct{} {
 	out := make(map[string]struct{}, len(vals))
 	for _, v := range vals {

@@ -3,9 +3,11 @@ package backend
 
 import (
 	"fmt"
+	"net/url"
 	"time"
 )
 
+// TODO(klizhentas) this is bloated. Split it into little backend interfaces
 // Backend represents configuration backend implementation for Teleport
 type Backend interface {
 	// UpsertUserCA upserts the user certificate authority keys in OpenSSH authorized_keys format
@@ -51,18 +53,74 @@ type Backend interface {
 	// UpsertServer registers server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
 	UpsertServer(s Server, ttl time.Duration) error
+
+	// UpsertPasswordHash upserts user password hash
+	UpsertPasswordHash(user string, hash []byte) error
+
+	// GetPasswordHash returns the password hash for a given user
+	GetPasswordHash(user string) ([]byte, error)
+
+	// UpsertSession
+	UpsertWebSession(user, sid string, s WebSession, ttl time.Duration) error
+
+	// GetWebSession
+	GetWebSession(user, sid string) (*WebSession, error)
+
+	// GetWebSessions
+	GetWebSessions(user string) ([]WebSession, error)
+
+	// DeleteWebSession
+	DeleteWebSession(user, sid string) error
+
+	UpsertWebTun(WebTun, time.Duration) error
+
+	DeleteWebTun(prefix string) error
+
+	GetWebTun(prefix string) (*WebTun, error)
+
+	GetWebTuns() ([]WebTun, error)
+}
+
+// WebTun is a web tunnel, the SSH tunnel
+// created by the SSH server to a remote web server
+type WebTun struct {
+	Prefix     string `json:"prefix"`
+	ProxyAddr  string `json:"proxy"`
+	TargetAddr string `json:"target"`
+}
+
+func NewWebTun(prefix, proxyAddr, targetAddr string) (*WebTun, error) {
+	if prefix == "" {
+		return nil, &MissingParameterError{Param: "prefix"}
+	}
+	if targetAddr == "" {
+		return nil, &MissingParameterError{Param: "target"}
+	}
+	if proxyAddr == "" {
+		return nil, &MissingParameterError{Param: "proxy"}
+	}
+	if _, err := url.ParseRequestURI(targetAddr); err != nil {
+		return nil, &BadParameterError{Param: "target", Err: err.Error()}
+	}
+	return &WebTun{Prefix: prefix, ProxyAddr: proxyAddr, TargetAddr: targetAddr}, nil
+}
+
+// WebSession
+type WebSession struct {
+	Pub  []byte `json:"pub"`
+	Priv []byte `json:"priv"`
 }
 
 // CA is a set of private and public keys
 type CA struct {
-	Pub  []byte
-	Priv []byte
+	Pub  []byte `json:"pub"`
+	Priv []byte `json:"priv"`
 }
 
 // Server represents a running Teleport server instance
 type Server struct {
-	ID   string
-	Addr string
+	ID   string `json:"id"`
+	Addr string `json:"addr"`
 }
 
 // AuthorizedKey is a key in form of OpenSSH authorized keys
@@ -89,4 +147,13 @@ type MissingParameterError struct {
 
 func (m *MissingParameterError) Error() string {
 	return fmt.Sprintf("missing required parameter '%v'", m.Param)
+}
+
+type BadParameterError struct {
+	Param string
+	Err   string
+}
+
+func (m *BadParameterError) Error() string {
+	return fmt.Sprintf("bad parameter '%v', %v", m.Param, m.Err)
 }
