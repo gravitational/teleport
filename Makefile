@@ -13,6 +13,7 @@ install: remove-temp-files
 	mv bindata_assetfs.go ./cp
 	sed -i 's|github.com/elazarl/go-bindata-assetfs|github.com/gravitational/teleport/Godeps/_workspace/src/github.com/elazarl/go-bindata-assetfs|' ./cp/bindata_assetfs.go
 	go install github.com/gravitational/teleport/teleport
+	go install github.com/gravitational/teleport/tctl
 
 test: remove-temp-files
 	go test -v ./... -cover
