@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/gravitational/teleport/auth"
 	"github.com/gravitational/teleport/auth/openssh"
 	"github.com/gravitational/teleport/backend/membk"
+	"github.com/gravitational/teleport/utils"
 
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
@@ -28,6 +30,7 @@ type CmdSuite struct {
 	out  *bytes.Buffer
 	bk   *membk.MemBackend
 	scrt *secret.Service
+	addr utils.NetAddr
 }
 
 var _ = Suite(&CmdSuite{})
@@ -44,10 +47,18 @@ func (s *CmdSuite) SetUpTest(c *C) {
 	s.bk = membk.New()
 	s.asrv = auth.NewAuthServer(s.bk, openssh.New(), s.scrt)
 	s.srv = httptest.NewServer(auth.NewAPIServer(s.asrv))
-	s.clt = auth.NewClient(s.srv.URL)
+
+	u, err := url.Parse(s.srv.URL)
+	c.Assert(err, IsNil)
+
+	s.addr = utils.NetAddr{Network: "tcp", Addr: u.Host}
+
+	clt, err := auth.NewClientFromNetAddr(s.addr)
+	c.Assert(err, IsNil)
+	s.clt = clt
 
 	s.out = &bytes.Buffer{}
-	s.cmd = &Command{out: s.out, url: s.srv.URL}
+	s.cmd = &Command{out: s.out}
 }
 
 func (s *CmdSuite) TearDownTest(c *C) {
@@ -61,9 +72,9 @@ func (s *CmdSuite) runString(in string) string {
 func (s *CmdSuite) run(params ...string) string {
 	args := []string{"tctl"}
 	args = append(args, params...)
-	args = append(args, fmt.Sprintf("--teleport=%s", s.srv.URL))
+	args = append(args, fmt.Sprintf("--teleport=%v", &s.addr))
 	s.out = &bytes.Buffer{}
-	s.cmd = &Command{out: s.out, url: s.srv.URL}
+	s.cmd = &Command{out: s.out}
 	s.cmd.Run(args)
 	return strings.Replace(s.out.String(), "\n", " ", -1)
 }
@@ -118,6 +129,12 @@ func (s *CmdSuite) TestUserCRUD(c *C) {
 	c.Assert(
 		s.run("user", "delete", "-user", "alex"),
 		Matches, fmt.Sprintf(".*%v.*", "alex"))
+}
+
+func (s *CmdSuite) TestGenerateToken(c *C) {
+	token := s.run(
+		"token", "generate", "-fqdn", "a.example.com", "-ttl", "100s")
+	c.Assert(s.asrv.ValidateToken(token, "a.example.com"), IsNil)
 }
 
 func trim(val string) string {

@@ -3,7 +3,6 @@ package srv
 
 import (
 	"bytes"
-	"crypto/subtle"
 	"fmt"
 	"io"
 	"net"
@@ -13,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/auth"
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/events"
 	"github.com/gravitational/teleport/sshutils"
@@ -26,14 +26,14 @@ import (
 )
 
 type Server struct {
-	addr        sshutils.Addr
+	addr        utils.NetAddr
 	certChecker ssh.CertChecker
-	b           backend.Backend
 	rr          resolver
 	elog        lunk.EventLogger
 	srv         *sshutils.Server
 	hostSigner  ssh.Signer
 	shell       string
+	ap          auth.AccessPoint
 }
 
 type ServerOption func(s *Server) error
@@ -53,11 +53,13 @@ func SetShell(shell string) ServerOption {
 }
 
 // New returns an unstarted server
-func New(addr sshutils.Addr, signers []ssh.Signer, b backend.Backend, options ...ServerOption) (*Server, error) {
+func New(addr utils.NetAddr, signers []ssh.Signer,
+	ap auth.AccessPoint, options ...ServerOption) (*Server, error) {
+
 	s := &Server{
 		addr: addr,
-		b:    b,
-		rr:   &backendResolver{b: b},
+		ap:   ap,
+		rr:   &backendResolver{ap: ap},
 	}
 	s.certChecker = ssh.CertChecker{IsAuthority: s.isAuthority}
 
@@ -89,7 +91,7 @@ func (s *Server) heartbeatPresence() {
 			ID:   strings.Replace(s.addr.Addr, ":", "_", -1),
 			Addr: s.addr.Addr,
 		}
-		if err := s.b.UpsertServer(srv, 6*time.Second); err != nil {
+		if err := s.ap.UpsertServer(srv, 6*time.Second); err != nil {
 			log.Warningf("failed to announce %#v presence: %v", srv, err)
 		}
 		time.Sleep(3 * time.Second)
@@ -97,25 +99,27 @@ func (s *Server) heartbeatPresence() {
 }
 
 func (s *Server) getUserCAKey() (ssh.PublicKey, error) {
-	key, err := s.b.GetUserCAPub()
+	key, err := s.ap.GetUserCAPub()
 	if err != nil {
 		return nil, err
 	}
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse CA public key '%v', err: %v", string(key), err)
+		return nil, fmt.Errorf("failed to parse CA public key '%v', err: %v",
+			string(key), err)
 	}
 	return pubKey, nil
 }
 
-// isAuthority is called during checking the client key, to see if the signing key is the real CA authority key.
+// isAuthority is called during checking the client key, to see if the signing
+// key is the real CA authority key.
 func (s *Server) isAuthority(auth ssh.PublicKey) bool {
 	key, err := s.getUserCAKey()
 	if err != nil {
 		log.Errorf("failed to retrieve user authority key, err: %v", err)
 		return false
 	}
-	if !keysEqual(key, auth) {
+	if !sshutils.KeysEqual(key, auth) {
 		log.Warningf("authority signature check failed, signing keys mismatch")
 		return false
 	}
@@ -124,7 +128,7 @@ func (s *Server) isAuthority(auth ssh.PublicKey) bool {
 
 // userKeys returns keys registered for a given user in a configuration backend
 func (s *Server) userKeys(user string) ([]ssh.PublicKey, error) {
-	authKeys, err := s.b.GetUserKeys(user)
+	authKeys, err := s.ap.GetUserKeys(user)
 	if err != nil {
 		log.Errorf("failed to retrieve user keys for %v, err: %v", user, err)
 		return nil, err
@@ -134,32 +138,35 @@ func (s *Server) userKeys(user string) ([]ssh.PublicKey, error) {
 		key, _, _, _, err := ssh.ParseAuthorizedKey(ak.Value)
 		if err != nil {
 			return nil, fmt.Errorf(
-				"failed to parse user public key for user=%v, id=%v, key='%v', err: %v", user, ak.ID, string(ak.Value), err)
+				"parse err pubkey for user=%v, id=%v, key='%v', err: %v",
+				user, ak.ID, string(ak.Value), err)
 		}
 		out = append(out, key)
 	}
 
-	// TODO(klizhentas) for optional security, we may restrict access to web session keys for some hosts
-	webKeys, err := s.b.GetWebSessions(user)
+	// TODO(klizhentas) for optional security, we may restrict access
+	// to web session keys for some hosts
+	webKeys, err := s.ap.GetWebSessionsKeys(user)
 	if err != nil {
 		return nil, err
 	}
 	for _, wk := range webKeys {
-		key, _, _, _, err := ssh.ParseAuthorizedKey(wk.Pub)
+		key, _, _, _, err := ssh.ParseAuthorizedKey(wk.Value)
 		if err != nil {
 			return nil, fmt.Errorf(
-				"failed to parse user public key for user=%v, id=%v, key='%v', err: %v", user, string(wk.Pub), err)
+				"parse err pubkey for user=%v, id=%v, key='%v', err: %v",
+				user, string(wk.Value), err)
 		}
 		out = append(out, key)
 	}
 	return out, nil
 }
 
-// keyAuth implements SSH client authentication using public keys and is called by the server every time the client connects
+// keyAuth implements SSH client authentication using public keys and is called
+// by the server every time the client connects
 func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 	cid := fmt.Sprintf("conn(%v->%v, user=%v)", conn.RemoteAddr(), conn.LocalAddr(), conn.User())
 	eventID := lunk.NewRootEventID()
-	// log.Infof("%v auth attempt with key %v %v", cid, key.Type(), string(ssh.MarshalAuthorizedKey(key)))
 	log.Infof("%v auth attempt with key %v", cid, key.Type())
 
 	p, err := s.certChecker.Authenticate(conn, key)
@@ -175,7 +182,7 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		return nil, err
 	}
 	for _, k := range keys {
-		if keysEqual(k, key) {
+		if sshutils.KeysEqual(k, key) {
 			log.Infof("%v SUCCESS auth", cid)
 			s.elog.Log(eventID, events.NewAuthAttempt(conn, key, true, nil))
 			return p, nil
@@ -519,11 +526,4 @@ func closeAll(closers ...io.Closer) error {
 		}
 	}
 	return err
-}
-
-// constant time compare of the keys to avoid timing attacks
-func keysEqual(ak, bk ssh.PublicKey) bool {
-	a := ak.Marshal()
-	b := bk.Marshal()
-	return (len(a) == len(b) && subtle.ConstantTimeCompare(a, b) == 1)
 }

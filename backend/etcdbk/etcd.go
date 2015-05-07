@@ -70,6 +70,17 @@ func (b *bk) reconnect() error {
 	return nil
 }
 
+func (b *bk) AcquireLock(token string, ttl time.Duration) error {
+	_, err := b.client.Create(
+		b.key("locks", token), "lock", uint64(ttl/time.Second))
+	return convertErr(err)
+}
+
+func (b *bk) ReleaseLock(token string) error {
+	_, err := b.client.Delete(b.key("locks", token), false)
+	return convertErr(err)
+}
+
 func (b *bk) UpsertUserCA(a backend.CA) error {
 	return b.upsertCA(UserCA, a)
 }
@@ -224,8 +235,8 @@ func (b *bk) GetWebSession(user, sid string) (*backend.WebSession, error) {
 	return sess, nil
 }
 
-func (b *bk) GetWebSessions(user string) ([]backend.WebSession, error) {
-	values := []backend.WebSession{}
+func (b *bk) GetWebSessionsKeys(user string) ([]backend.AuthorizedKey, error) {
+	values := []backend.AuthorizedKey{}
 	re, err := b.client.Get(b.key("users", user, "web", "sessions"), true, true)
 	if err != nil {
 		if notFound(err) {
@@ -244,7 +255,7 @@ func (b *bk) GetWebSessions(user string) ([]backend.WebSession, error) {
 		if err := json.Unmarshal([]byte(sn.Value), &sess); err != nil {
 			return nil, err
 		}
-		values = append(values, *sess)
+		values = append(values, backend.AuthorizedKey{Value: sess.Pub})
 	}
 	return values, nil
 }
@@ -309,6 +320,25 @@ func (b *bk) GetWebTuns() ([]backend.WebTun, error) {
 	return values, nil
 }
 
+func (b *bk) UpsertToken(token, fqdn string, ttl time.Duration) error {
+	_, err := b.client.Set(
+		b.key("tokens", token), fqdn, uint64(ttl/time.Second))
+	return convertErr(err)
+}
+
+func (b *bk) GetToken(token string) (string, error) {
+	re, err := b.client.Get(b.key("tokens", token), false, false)
+	if err != nil {
+		return "", convertErr(err)
+	}
+	return re.Node.Value, nil
+}
+
+func (b *bk) DeleteToken(token string) error {
+	_, err := b.client.Delete(b.key("tokens", token), false)
+	return convertErr(err)
+}
+
 func (b *bk) upsertCA(id string, a backend.CA) error {
 	out, err := json.Marshal(a)
 	if err != nil {
@@ -341,8 +371,11 @@ func convertErr(e error) error {
 	}
 	switch err := e.(type) {
 	case *etcd.EtcdError:
-		if err.ErrorCode == 100 {
+		switch err.ErrorCode {
+		case 100:
 			return &backend.NotFoundError{Message: err.Error()}
+		case 105:
+			return &backend.AlreadyExistsError{Message: err.Error()}
 		}
 	}
 	return e

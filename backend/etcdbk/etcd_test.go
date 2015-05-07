@@ -109,3 +109,11 @@ func (s *EtcdSuite) TestWebSessionCRUD(c *C) {
 func (s *EtcdSuite) TestWebTunCRUD(c *C) {
 	s.suite.WebTunCRUD(c)
 }
+
+func (s *EtcdSuite) TestLocking(c *C) {
+	s.suite.Locking(c)
+}
+
+func (s *EtcdSuite) TestToken(c *C) {
+	s.suite.TokenCRUD(c)
+}

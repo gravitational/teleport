@@ -80,3 +80,37 @@ func (s *AuthSuite) TestSessions(c *C) {
 	_, err = s.a.GetWebSession(user, ws.SID)
 	c.Assert(err, FitsTypeOf, &backend.NotFoundError{})
 }
+
+func (s *AuthSuite) TestTokensCRUD(c *C) {
+	tok, err := s.a.GenerateToken("a.example.com", 0)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.a.ValidateToken(tok, "a.example.com"), IsNil)
+
+	c.Assert(s.a.DeleteToken(tok), IsNil)
+	c.Assert(s.a.DeleteToken(tok), FitsTypeOf, &backend.NotFoundError{})
+	c.Assert(s.a.ValidateToken(tok, "a.example.com"),
+		FitsTypeOf, &backend.NotFoundError{})
+}
+
+func (s *AuthSuite) TestBadTokens(c *C) {
+	// empty
+	err := s.a.ValidateToken("", "")
+	c.Assert(err, NotNil)
+
+	// garbage
+	err = s.a.ValidateToken("bla bla", " hello !!<")
+	c.Assert(err, NotNil)
+
+	// tampered
+	tok, err := s.a.GenerateToken("a.example.com", 0)
+	c.Assert(err, IsNil)
+
+	tampered := string(tok[0]+1) + tok[1:]
+	err = s.a.ValidateToken(tampered, "a.example.com")
+	c.Assert(err, NotNil)
+
+	// wrong fqdn
+	err = s.a.ValidateToken(tok, "b.example.com")
+	c.Assert(err, NotNil)
+}

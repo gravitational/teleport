@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/utils"
+
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/testdata"
@@ -34,7 +36,7 @@ func (s *ServerSuite) TestStartStop(c *C) {
 		nch.Reject(ssh.Prohibited, "nothing to see here")
 	})
 	srv, err := NewServer(
-		Addr{"tcp", "localhost:0"},
+		utils.NetAddr{Network: "tcp", Addr: "localhost:0"},
 		fn,
 		s.signers,
 		AuthMethods{Password: pass("abc123")})

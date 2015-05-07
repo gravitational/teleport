@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/random"
 	"github.com/gravitational/teleport/backend"
 
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
@@ -153,9 +154,9 @@ func (s *BackendSuite) WebSessionCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(out2, DeepEquals, &ws1)
 
-	sessions, err := s.B.GetWebSessions("user1")
+	keys, err := s.B.GetWebSessionsKeys("user1")
 	c.Assert(err, IsNil)
-	c.Assert(sessions, DeepEquals, []backend.WebSession{*out2})
+	c.Assert(keys[0].Value, DeepEquals, out2.Pub)
 
 	c.Assert(s.B.DeleteWebSession("user1", "sid1"), IsNil)
 
@@ -197,10 +198,48 @@ func (s *BackendSuite) WebTunCRUD(c *C) {
 	c.Assert(err, FitsTypeOf, &backend.NotFoundError{})
 }
 
+func (s *BackendSuite) Locking(c *C) {
+	tok := randomToken()
+	ttl := 30 * time.Second
+
+	c.Assert(s.B.AcquireLock(tok, ttl), IsNil)
+	c.Assert(s.B.AcquireLock(tok, ttl),
+		FitsTypeOf, &backend.AlreadyExistsError{})
+
+	c.Assert(s.B.ReleaseLock(tok), IsNil)
+	c.Assert(s.B.ReleaseLock(tok), FitsTypeOf, &backend.NotFoundError{})
+
+	c.Assert(s.B.AcquireLock(tok, 30*time.Second), IsNil)
+}
+
+func (s *BackendSuite) TokenCRUD(c *C) {
+	_, err := s.B.GetToken("token")
+	c.Assert(err, FitsTypeOf, &backend.NotFoundError{})
+
+	c.Assert(s.B.UpsertToken("token", "a.example.com", 0), IsNil)
+
+	out, err := s.B.GetToken("token")
+	c.Assert(out, Equals, "a.example.com")
+	c.Assert(err, IsNil)
+
+	c.Assert(s.B.DeleteToken("token"), IsNil)
+
+	_, err = s.B.GetToken("token")
+	c.Assert(err, FitsTypeOf, &backend.NotFoundError{})
+}
+
 func toSet(vals []string) map[string]struct{} {
 	out := make(map[string]struct{}, len(vals))
 	for _, v := range vals {
 		out[v] = struct{}{}
 	}
 	return out
+}
+
+func randomToken() string {
+	token, err := (&random.CSPRNG{}).HexDigest(32)
+	if err != nil {
+		panic(err)
+	}
+	return token
 }

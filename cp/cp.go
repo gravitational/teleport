@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/gravitational/teleport/auth"
+	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/utils"
+
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/form"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/memlog"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/gravitational/teleport/auth"
-	"github.com/gravitational/teleport/backend"
 )
 
 // cpHandler implements methods for control panel
@@ -20,10 +22,10 @@ type cpHandler struct {
 	httprouter.Router
 	events      memlog.Logger
 	host        string
-	authServers []string
+	authServers []utils.NetAddr
 }
 
-func newCPHandler(host string, auth []string, events memlog.Logger) *cpHandler {
+func newCPHandler(host string, auth []utils.NetAddr, events memlog.Logger) *cpHandler {
 	h := &cpHandler{
 		events:      events,
 		authServers: auth,
@@ -238,8 +240,11 @@ func (s *cpHandler) authForm(w http.ResponseWriter, r *http.Request, p httproute
 }
 
 func (s *cpHandler) auth(user, pass string) (string, error) {
-	clt, err := auth.NewTunClient(s.authServers[0],
-		auth.AuthMethod{Type: "password", User: user, Pass: []byte(pass)})
+	method, err := auth.NewWebPasswordAuth(user, []byte(pass))
+	if err != nil {
+		return "", err
+	}
+	clt, err := auth.NewTunClient(s.authServers[0], user, method)
 	if err != nil {
 		return "", err
 	}
@@ -247,8 +252,11 @@ func (s *cpHandler) auth(user, pass string) (string, error) {
 }
 
 func (s *cpHandler) validateSession(user, sid string) (*ctx, error) {
-	clt, err := auth.NewTunClient(s.authServers[0],
-		auth.AuthMethod{Type: "session", User: user, Pass: []byte(sid)})
+	method, err := auth.NewWebSessionAuth(user, []byte(sid))
+	if err != nil {
+		return nil, err
+	}
+	clt, err := auth.NewTunClient(s.authServers[0], user, method)
 	if err != nil {
 		log.Infof("failed to connect: %v", clt, err)
 		return nil, err

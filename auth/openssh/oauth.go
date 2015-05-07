@@ -46,14 +46,14 @@ func (a *oauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 
 // GenerateHostCert implements call to the following command:
 // ssh-keygen -s server_ca -I host_auth_server -h -n auth.example.com -V +52w /etc/ssh/ssh_host_rsa_key.pub
-func (a *oauth) GenerateHostCert(pkey, key []byte, id, hostname string, ttl time.Duration) ([]byte, error) {
-	dir, err := writeKeys(pkey, key)
+func (a *oauth) GenerateHostCert(cakey, key []byte, id, hostname string, ttl time.Duration) ([]byte, error) {
+	dir, err := writeKeys(cakey, key)
 	defer os.RemoveAll(dir)
 	if err != nil {
 		return nil, err
 	}
 
-	args := []string{"-s", path.Join(dir, "pkey"), "-I", id, "-h", "-n", hostname}
+	args := []string{"-s", path.Join(dir, "ca_key"), "-I", id, "-h", "-n", hostname}
 	args = addTTL(args, ttl)
 	args = append(args, path.Join(dir, "key"))
 
@@ -78,7 +78,7 @@ func (a *oauth) GenerateUserCert(pkey, key []byte, id, username string, ttl time
 		return nil, err
 	}
 
-	args := []string{"-s", path.Join(dir, "pkey"), "-I", id, "-n", username}
+	args := []string{"-s", path.Join(dir, "ca_key"), "-I", id, "-n", username}
 	args = addTTL(args, ttl)
 	args = append(args, path.Join(dir, "key"))
 
@@ -96,15 +96,15 @@ func (a *oauth) GenerateUserCert(pkey, key []byte, id, username string, ttl time
 	return cert, nil
 }
 
-func writeKeys(pkey, key []byte) (string, error) {
-	dir, err := ioutil.TempDir("", "teleport-auth")
+func writeKeys(cakey, key []byte) (string, error) {
+	dir, err := ioutil.TempDir("", "teleport-oauth")
 	if err != nil {
 		return "", err
 	}
-	if err := ioutil.WriteFile(path.Join(dir, "pkey"), pkey, 0600); err != nil {
+	if err := ioutil.WriteFile(path.Join(dir, "ca_key"), cakey, 0400); err != nil {
 		return "", err
 	}
-	if err := ioutil.WriteFile(path.Join(dir, "key"), key, 0600); err != nil {
+	if err := ioutil.WriteFile(path.Join(dir, "key"), key, 0400); err != nil {
 		return "", err
 	}
 	return dir, nil

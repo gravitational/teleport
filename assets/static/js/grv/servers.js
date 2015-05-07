@@ -92,7 +92,8 @@ var ServerRow = React.createClass({
 var ServerForm = React.createClass({
   connect: function(srv) {
       var self = this;
-      var socket = new WebSocket("ws://cp.gravitational.io:2025/api/ssh/connect/"+srv.addr, "proto");
+      var hostport = location.hostname+(location.port ? ':'+location.port: '');
+      var socket = new WebSocket("ws://"+hostport+"/api/ssh/connect/"+srv.addr, "proto");
       socket.onopen = function() {
           self.term = new Terminal({
               cols: 120,
