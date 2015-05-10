@@ -3,18 +3,24 @@ package membk
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/backend"
 )
 
 type MemBackend struct {
+	sync.Mutex
+
 	HostCA *backend.CA
 	UserCA *backend.CA
 
 	Users   map[string]*User
 	Servers map[string]backend.Server
 	WebTuns map[string]backend.WebTun
+	Tokens  map[string]string
+
+	Locks map[string]time.Time
 }
 
 type User struct {
@@ -28,7 +34,37 @@ func New() *MemBackend {
 		Users:   make(map[string]*User),
 		Servers: make(map[string]backend.Server),
 		WebTuns: make(map[string]backend.WebTun),
+		Locks:   make(map[string]time.Time),
+		Tokens:  make(map[string]string),
 	}
+}
+
+func (b *MemBackend) AcquireLock(token string, ttl time.Duration) error {
+	b.Lock()
+	defer b.Unlock()
+
+	expires, ok := b.Locks[token]
+	if ok && expires.After(time.Now()) {
+		return &backend.AlreadyExistsError{
+			Message: fmt.Sprintf("lock %v already locked", token)}
+	}
+	b.Locks[token] = time.Now().Add(ttl)
+	return nil
+}
+
+func (b *MemBackend) ReleaseLock(token string) error {
+	b.Lock()
+	defer b.Unlock()
+
+	expires, ok := b.Locks[token]
+	if !ok || expires.Before(time.Now()) {
+		return &backend.NotFoundError{
+			Message: fmt.Sprintf(
+				"lock %v is deleted or expired", token),
+		}
+	}
+	delete(b.Locks, token)
+	return nil
 }
 
 func (b *MemBackend) Close() error {
@@ -107,6 +143,27 @@ func (b *MemBackend) GetUserKeys(user string) ([]backend.AuthorizedKey, error) {
 		values = append(values, k)
 	}
 	return values, nil
+}
+
+func (b *MemBackend) UpsertToken(token, fqdn string, ttl time.Duration) error {
+	b.Tokens[token] = fqdn
+	return nil
+}
+
+func (b *MemBackend) GetToken(token string) (string, error) {
+	fqdn, ok := b.Tokens[token]
+	if !ok {
+		return "", &backend.NotFoundError{}
+	}
+	return fqdn, nil
+}
+
+func (b *MemBackend) DeleteToken(token string) error {
+	if _, ok := b.Tokens[token]; !ok {
+		return &backend.NotFoundError{}
+	}
+	delete(b.Tokens, token)
+	return nil
 }
 
 func (b *MemBackend) getUser(user string) *User {
@@ -197,17 +254,17 @@ func (b *MemBackend) GetWebSession(user, sid string) (*backend.WebSession, error
 	return &ws, nil
 }
 
-func (b *MemBackend) GetWebSessions(user string) ([]backend.WebSession, error) {
+func (b *MemBackend) GetWebSessionsKeys(user string) ([]backend.AuthorizedKey, error) {
 	u, ok := b.Users[user]
 	if !ok {
 		return nil, &backend.NotFoundError{Message: fmt.Sprintf("user '%v' not found", user)}
 	}
-	out := []backend.WebSession{}
+	out := []backend.AuthorizedKey{}
 	if len(u.Sessions) == 0 {
 		return out, nil
 	}
 	for _, ws := range u.Sessions {
-		out = append(out, ws)
+		out = append(out, backend.AuthorizedKey{Value: ws.Pub})
 	}
 	return out, nil
 }

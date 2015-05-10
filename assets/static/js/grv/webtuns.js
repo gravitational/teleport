@@ -147,13 +147,13 @@ var WebTunForm = React.createClass({
       
       <div className="form-group">
          <label>SSH Proxy</label> 
-         <input placeholder="node.gravitational.io:2022" className="form-control" ref="proxy"/>
+         <input placeholder="host:port" className="form-control" ref="proxy"/>
          <p>SSH proxy in form of host:port will be used to access the target address</p>
       </div>
 
       <div className="form-group">
          <label>SSH Proxy</label> 
-         <input placeholder="http://localhost:8080" className="form-control" ref="target"/>
+         <input placeholder="http://host:port" className="form-control" ref="target"/>
          <p>Target web server address</p>
       </div>
 </BootstrapModal>
@@ -193,12 +193,14 @@ var WebTunRow = React.createClass({
       this.props.onTunDelete(this.props.tun.prefix);
   },
   render: function() {
+      var base = location.hostname.split(".").slice(1).join(".");
+        var hostport = base+(location.port ? ':'+location.port: '');
     return (
 <tr className="tun">
    <td>{this.props.tun.prefix}</td>
    <td>{this.props.tun.proxy}</td>
    <td>{this.props.tun.target}</td>
-   <td><a href={"http://"+this.props.tun.prefix+".gravitational.io:2025"} target="_blank">{"http://"+this.props.tun.prefix+".gravitational.io:2025"}</a></td>
+   <td><a href={"http://"+this.props.tun.prefix+"."+hostport} target="_blank">{"http://"+this.props.tun.prefix+"."+hostport}</a></td>
    <td><a href="#" onClick={this.handleDelete}><i className="fa fa-times text-navy"></i></a></td>
 </tr>
     );

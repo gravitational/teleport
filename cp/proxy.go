@@ -8,24 +8,25 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gravitational/teleport/auth"
+	"github.com/gravitational/teleport/utils"
+
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/oxy/forward"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/route"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/agent"
-	"github.com/gravitational/teleport/auth"
 )
 
 type proxyHandler struct {
 	host   string
 	router route.Router
-	auth   []string
+	auth   []utils.NetAddr
 	id     int32
-
-	cp http.Handler
+	cp     http.Handler
 }
 
-func newProxyHandler(cp http.Handler, auth []string, host string) *proxyHandler {
+func newProxyHandler(cp http.Handler, auth []utils.NetAddr, host string) *proxyHandler {
 	return &proxyHandler{
 		router: route.New(),
 		cp:     cp,
@@ -113,8 +114,10 @@ func (t *tunDialer) getClient() (*ssh.Client, error) {
 		User: t.user,
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(signers...)},
 	}
+	log.Infof("tunDialer.Dial(%v)", t.addr)
 	client, err := ssh.Dial("tcp", t.addr, config)
 	if err != nil {
+		log.Infof("dial %v failed: %v", t.addr, err)
 		return nil, err
 	}
 	t.tun = client
@@ -129,7 +132,7 @@ func (t *tunDialer) Dial(network, address string) (net.Conn, error) {
 	return c.Dial(network, address)
 }
 
-func authClient(authSrv []string, r *http.Request) (string, *auth.TunClient, error) {
+func authClient(authSrv []utils.NetAddr, r *http.Request) (string, *auth.TunClient, error) {
 	cookie, err := r.Cookie("session")
 	if err != nil {
 		return "", nil, fmt.Errorf("no session cookie: %v", err)
@@ -138,9 +141,13 @@ func authClient(authSrv []string, r *http.Request) (string, *auth.TunClient, err
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to decode session cookie: %v", err)
 	}
-	clt, err := auth.NewTunClient(authSrv[0],
-		auth.AuthMethod{Type: "session", User: d.User, Pass: []byte(d.SID)})
+	method, err := auth.NewWebSessionAuth(d.User, []byte(d.SID))
 	if err != nil {
+		return "", nil, err
+	}
+	clt, err := auth.NewTunClient(authSrv[0], d.User, method)
+	if err != nil {
+		log.Errorf("failed to get tunnel client, err: %v", err)
 		return "", nil, err
 	}
 	return d.User, clt, nil

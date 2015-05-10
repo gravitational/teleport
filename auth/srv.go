@@ -59,6 +59,7 @@ func NewAPIServer(s *AuthServer) *APIServer {
 	srv.POST("/v1/users/:user/web/password/check", srv.checkPassword)
 	srv.POST("/v1/users/:user/web/signin", srv.signIn)
 	srv.GET("/v1/users/:user/web/sessions/:sid", srv.getWebSession)
+	srv.GET("/v1/users/:user/web/sessions", srv.getWebSessions)
 	srv.DELETE("/v1/users/:user/web/sessions/:sid", srv.deleteWebSession)
 
 	// Web tunnels
@@ -70,6 +71,9 @@ func NewAPIServer(s *AuthServer) *APIServer {
 	// Servers and presense heartbeat
 	srv.POST("/v1/servers", srv.upsertServer)
 	srv.GET("/v1/servers", srv.getServers)
+
+	// Tokens
+	srv.POST("/v1/tokens", srv.generateToken)
 
 	return srv
 }
@@ -176,6 +180,16 @@ func (s *APIServer) getWebSession(w http.ResponseWriter, r *http.Request, p http
 		return
 	}
 	reply(w, http.StatusOK, &sessionResponse{SID: string(ws.SID)})
+}
+
+func (s *APIServer) getWebSessions(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	user := p[0].Value
+	keys, err := s.s.GetWebSessionsKeys(user)
+	if err != nil {
+		replyErr(w, err)
+		return
+	}
+	reply(w, http.StatusOK, &sessionsResponse{Keys: keys})
 }
 
 func (s *APIServer) signIn(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -402,6 +416,25 @@ func (s *APIServer) generateUserCert(w http.ResponseWriter, r *http.Request, _ h
 	reply(w, http.StatusOK, certResponse{Cert: string(cert)})
 }
 
+func (s *APIServer) generateToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	var fqdn string
+	var ttl time.Duration
+
+	err := form.Parse(r,
+		form.String("fqdn", &fqdn, form.Required()),
+		form.Duration("ttl", &ttl))
+
+	if err != nil {
+		reply(w, http.StatusBadRequest, err.Error())
+	}
+	token, err := s.s.GenerateToken(fqdn, ttl)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	reply(w, http.StatusOK, tokenResponse{Token: string(token)})
+}
+
 func replyErr(w http.ResponseWriter, e error) {
 	switch err := e.(type) {
 	case *backend.NotFoundError:
@@ -452,6 +485,10 @@ type sessionResponse struct {
 	SID string `json:"sid"`
 }
 
+type sessionsResponse struct {
+	Keys []backend.AuthorizedKey `json:"keys"`
+}
+
 type webTunResponse struct {
 	Tunnel backend.WebTun `json:"tunnel"`
 }
@@ -462,6 +499,10 @@ type webTunsResponse struct {
 
 type serversResponse struct {
 	Servers []backend.Server `json:"servers"`
+}
+
+type tokenResponse struct {
+	Token string `json:"token"`
 }
 
 func message(msg string) map[string]interface{} {

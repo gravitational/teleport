@@ -3,7 +3,7 @@ package srv
 import (
 	"strings"
 
-	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/auth"
 )
 
 // resolver is an interface implementing a query resolver,
@@ -15,7 +15,7 @@ type resolver interface {
 // backend resolver is a simple implementation of the resolver
 // that uses servers presence information to find the servers
 type backendResolver struct {
-	b backend.Backend
+	ap auth.AccessPoint
 }
 
 // resolve provides a simple demo resolve functionality,such as globbing, expanding to all hosts
@@ -24,7 +24,7 @@ func (b *backendResolver) resolve(query string) ([]string, error) {
 	// simply expand the query to all known hosts
 	if query == "*" {
 		out := []string{}
-		srvs, err := b.b.GetServers()
+		srvs, err := b.ap.GetServers()
 		if err != nil {
 			return nil, err
 		}

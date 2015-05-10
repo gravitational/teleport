@@ -180,6 +180,40 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 	return sess, nil
 }
 
+func (s *AuthServer) GenerateToken(fqdn string, ttl time.Duration) (string, error) {
+	p, err := session.NewID(s.scrt)
+	if err != nil {
+		return "", err
+	}
+	if err := s.b.UpsertToken(string(p.PID), fqdn, ttl); err != nil {
+		return "", err
+	}
+	return string(p.SID), nil
+}
+
+func (s *AuthServer) ValidateToken(token, fqdn string) error {
+	pid, err := session.DecodeSID(session.SecureID(token), s.scrt)
+	if err != nil {
+		return err
+	}
+	out, err := s.b.GetToken(string(pid))
+	if err != nil {
+		return err
+	}
+	if out != fqdn {
+		return fmt.Errorf("fqdn does not match")
+	}
+	return nil
+}
+
+func (s *AuthServer) DeleteToken(token string) error {
+	pid, err := session.DecodeSID(session.SecureID(token), s.scrt)
+	if err != nil {
+		return err
+	}
+	return s.b.DeleteToken(string(pid))
+}
+
 func (s *AuthServer) NewWebSession(user string) (*Session, error) {
 	p, err := session.NewID(s.scrt)
 	if err != nil {
@@ -223,6 +257,10 @@ func (s *AuthServer) GetWebSession(user string, sid session.SecureID) (*Session,
 		PID: pid,
 		WS:  *ws,
 	}, nil
+}
+
+func (s *AuthServer) GetWebSessionsKeys(user string) ([]backend.AuthorizedKey, error) {
+	return s.b.GetWebSessionsKeys(user)
 }
 
 func (s *AuthServer) DeleteWebSession(user string, sid session.SecureID) error {

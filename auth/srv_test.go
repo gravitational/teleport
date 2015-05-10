@@ -38,7 +38,9 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.bk = membk.New()
 	s.a = NewAuthServer(s.bk, openssh.New(), s.scrt)
 	s.srv = httptest.NewServer(NewAPIServer(s.a))
-	s.clt = NewClient(s.srv.URL)
+	clt, err := NewClient(s.srv.URL)
+	c.Assert(err, IsNil)
+	s.clt = clt
 }
 
 func (s *APISuite) TearDownTest(c *C) {
@@ -221,5 +223,17 @@ func (s *APISuite) TestServers(c *C) {
 
 	out, err = s.clt.GetServers()
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, []backend.Server{srv, srv1})
+
+	servers := map[string]string{}
+	for _, s := range out {
+		servers[s.ID] = s.Addr
+	}
+	expected := map[string]string{"id1": "host:1233", "id2": "host:1234"}
+	c.Assert(servers, DeepEquals, expected)
+}
+
+func (s *APISuite) TestTokens(c *C) {
+	out, err := s.clt.GenerateToken("a.example.com", 0)
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Not(Equals), 0)
 }

@@ -1,16 +1,18 @@
 package auth
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"sync"
 
 	"github.com/gravitational/teleport/sshutils"
+	"github.com/gravitational/teleport/utils"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
@@ -23,20 +25,19 @@ type TunServer struct {
 	l           net.Listener
 	srv         *sshutils.Server
 	hostSigner  ssh.Signer
-	authAddr    string
+	authAddr    utils.NetAddr
 }
 
 type ServerOption func(s *TunServer) error
 
 // New returns an unstarted server
-func NewTunServer(addr sshutils.Addr, hostSigners []ssh.Signer, authURL string, a *AuthServer, opts ...ServerOption) (*TunServer, error) {
-	u, err := url.Parse(authURL)
-	if err != nil {
-		return nil, err
-	}
+func NewTunServer(addr utils.NetAddr, hostSigners []ssh.Signer,
+	authAddr utils.NetAddr, a *AuthServer,
+	opts ...ServerOption) (*TunServer, error) {
+
 	srv := &TunServer{
 		a:        a,
-		authAddr: u.Host,
+		authAddr: authAddr,
 	}
 	for _, o := range opts {
 		if err := o(srv); err != nil {
@@ -47,10 +48,14 @@ func NewTunServer(addr sshutils.Addr, hostSigners []ssh.Signer, authURL string, 
 		addr,
 		srv,
 		hostSigners,
-		sshutils.AuthMethods{Password: srv.passwordAuth})
+		sshutils.AuthMethods{
+			Password:  srv.passwordAuth,
+			PublicKey: srv.keyAuth,
+		})
 	if err != nil {
 		return nil, err
 	}
+	srv.certChecker = ssh.CertChecker{IsAuthority: srv.isAuthority}
 	srv.srv = s
 	return srv, nil
 }
@@ -71,20 +76,32 @@ func (s *TunServer) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	log.Infof("got new channel request: %v", nch.ChannelType())
 	cht := nch.ChannelType()
 	switch cht {
-	case "direct-tcpip":
+	case ReqDirectTCPIP:
+		if !s.haveExt(sconn, ExtHost, ExtWebSession, ExtWebPassword) {
+			nch.Reject(
+				ssh.UnknownChannelType,
+				fmt.Sprintf("register clients can not TCPIP: %v", cht))
+			return
+		}
 		req, err := sshutils.ParseDirectTCPIPReq(nch.ExtraData())
 		if err != nil {
-			log.Errorf("failed to parse request data: %v, err: %v", string(nch.ExtraData()), err)
-			nch.Reject(ssh.UnknownChannelType, "failed to parse direct-tcpip request")
+			log.Errorf("failed to parse request data: %v, err: %v",
+				string(nch.ExtraData()), err)
+			nch.Reject(ssh.UnknownChannelType,
+				"failed to parse direct-tcpip request")
 		}
 		sshCh, _, err := nch.Accept()
 		if err != nil {
 			log.Infof("could not accept channel (%s)", err)
 		}
 		go s.handleDirectTCPIPRequest(sconn, sshCh, req)
-	case WebSessionAgentRequest:
-		if !s.haveSession(sconn) {
-			nch.Reject(ssh.UnknownChannelType, fmt.Sprintf("don't have web session for: %v", cht))
+	case ReqWebSessionAgent:
+		// this is a protective measure, so web requests can be only done
+		// if have session ready
+		if !s.haveExt(sconn, ExtWebSession) {
+			nch.Reject(
+				ssh.UnknownChannelType,
+				fmt.Sprintf("don't have web session for: %v", cht))
 			return
 		}
 		ch, _, err := nch.Accept()
@@ -92,19 +109,63 @@ func (s *TunServer) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 			log.Infof("could not accept channel (%s)", err)
 		}
 		go s.handleWebAgentRequest(sconn, ch)
+	case ReqProvision:
+		if !s.haveExt(sconn, ExtToken) {
+			nch.Reject(
+				ssh.UnknownChannelType,
+				fmt.Sprintf("don't have token for: %v", cht))
+			return
+		}
+		ch, _, err := nch.Accept()
+		if err != nil {
+			log.Infof("could not accept channel (%s)", err)
+		}
+		go s.handleProvisionRequest(sconn, ch)
 	default:
-		nch.Reject(ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", cht))
+		nch.Reject(ssh.UnknownChannelType, fmt.Sprintf(
+			"unknown channel type: %v", cht))
 	}
 }
 
-func (s *TunServer) haveSession(sconn *ssh.ServerConn) bool {
-	return sconn.Permissions != nil && sconn.Permissions.Extensions[SessionExt] != ""
+// isAuthority is called during checking the client key, to see if the signing
+// key is the real CA authority key.
+func (s *TunServer) isAuthority(auth ssh.PublicKey) bool {
+	key, err := s.a.GetHostCAPub()
+	if err != nil {
+		log.Errorf("failed to retrieve user authority key, err: %v", err)
+		return false
+	}
+	cert, _, _, _, err := ssh.ParseAuthorizedKey(key)
+	if err != nil {
+		log.Errorf("failed to parse CA cert '%v', err: %v", string(key), err)
+		return false
+	}
+
+	if !sshutils.KeysEqual(cert, auth) {
+		log.Warningf("authority signature check failed, signing keys mismatch")
+		return false
+	}
+	return true
+}
+
+func (s *TunServer) haveExt(sconn *ssh.ServerConn, ext ...string) bool {
+	if sconn.Permissions == nil {
+		return false
+	}
+	for _, e := range ext {
+		if sconn.Permissions.Extensions[e] != "" {
+			return true
+		}
+	}
+	return true
 }
 
 func (s *TunServer) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel) {
 	defer ch.Close()
 	a := agent.NewKeyring()
-	sessionID := session.SecureID(sconn.Permissions.Extensions[SessionExt])
+	log.Infof("handleWebAgentRequest start for %v", sconn.RemoteAddr())
+
+	sessionID := session.SecureID(sconn.Permissions.Extensions[ExtWebSession])
 
 	ws, err := s.a.GetWebSession(sconn.User(), sessionID)
 	if err != nil {
@@ -138,15 +199,19 @@ func (s *TunServer) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel)
 	}
 }
 
+// this direct tcp-ip request ignores port and host requested by client
+// and always forwards it to the local auth server listening on local socket
 func (s *TunServer) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	defer ch.Close()
 
-	log.Infof("opened direct-tcpip channel: %v", req)
-	addr := fmt.Sprintf("%v:%d", req.Host, req.Port)
+	log.Infof("handleDirectTCPIPRequest start to %v:%d", req.Host, req.Port)
+
+	log.Infof("opened direct-tcpip channel to server: %v", req)
 	log.Infof("connecting to %v", s.authAddr)
-	conn, err := net.Dial("tcp", s.authAddr)
+
+	conn, err := net.Dial(s.authAddr.Network, s.authAddr.Addr)
 	if err != nil {
-		log.Infof("failed to connect to: %v, err: %v", s.authAddr, addr)
+		log.Infof("%v failed to connect to: %v, err: %v", s.authAddr.Addr, err)
 		return
 	}
 	wg := &sync.WaitGroup{}
@@ -166,38 +231,173 @@ func (s *TunServer) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Chann
 	log.Infof("direct-tcp closed")
 }
 
-func (s *TunServer) passwordAuth(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
-	var am *AuthMethod
-	if err := json.Unmarshal(password, &am); err != nil {
+func (s *TunServer) handleProvisionRequest(sconn *ssh.ServerConn, ch ssh.Channel) {
+	defer ch.Close()
+
+	password := []byte(sconn.Permissions.Extensions[ExtToken])
+
+	var ab *authBucket
+	if err := json.Unmarshal(password, &ab); err != nil {
+		log.Errorf("token error: %v", err)
+		return
+	}
+
+	k, pub, err := s.a.GenerateKeyPair("")
+	if err != nil {
+		log.Errorf("gen key pair error: %v", err)
+		return
+	}
+	c, err := s.a.GenerateHostCert(pub, ab.User, ab.User, 0)
+	if err != nil {
+		log.Errorf("gen cert error: %v", err)
+		return
+	}
+
+	keys := &PackedKeys{
+		Key:  k,
+		Cert: c,
+	}
+	data, err := json.Marshal(keys)
+	if err != nil {
+		log.Errorf("gen marshal error: %v", err)
+		return
+	}
+
+	if _, err := io.Copy(ch.Stderr(), bytes.NewReader(data)); err != nil {
+		log.Errorf("key transfer error: %v", err)
+		return
+	}
+
+	log.Infof("keys for %v transferred successfully", ab.User)
+	if err := s.a.DeleteToken(string(ab.Pass)); err != nil {
+		log.Errorf("failed to delete token: %v", err)
+	}
+}
+
+func (s *TunServer) keyAuth(
+	conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+	cid := fmt.Sprintf(
+		"conn(%v->%v, user=%v)", conn.RemoteAddr(),
+		conn.LocalAddr(), conn.User())
+
+	log.Infof("%v auth attempt with key %v", cid, key.Type())
+
+	err := s.certChecker.CheckHostKey(conn.User(), conn.RemoteAddr(), key)
+	if err != nil {
+		log.Warningf("conn(%v->%v, user=%v) ERROR: failed auth user %v, err: %v",
+			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
 		return nil, err
 	}
-	log.Infof("got authentication attempt for user '%v' type '%v'", conn.User(), am.Type)
-	switch am.Type {
+
+	perms := &ssh.Permissions{
+		Extensions: map[string]string{
+			ExtHost: conn.User(),
+		},
+	}
+
+	return perms, nil
+}
+
+func (s *TunServer) passwordAuth(
+	conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+	var ab *authBucket
+	if err := json.Unmarshal(password, &ab); err != nil {
+		return nil, err
+	}
+	log.Infof("got authentication attempt for user '%v' type '%v'", conn.User(), ab.Type)
+	switch ab.Type {
 	case "password":
-		if err := s.a.CheckPassword(conn.User(), am.Pass); err != nil {
+		if err := s.a.CheckPassword(conn.User(), ab.Pass); err != nil {
 			log.Errorf("Password auth error: %v", err)
 			return nil, err
 		}
+		perms := &ssh.Permissions{
+			Extensions: map[string]string{
+				ExtWebPassword: "<password>",
+			},
+		}
 		log.Infof("password authenticated user: '%v'", conn.User())
-		return nil, nil
+		return perms, nil
 	case "session":
-		perms := &ssh.Permissions{Extensions: map[string]string{"session@teleport": string(am.Pass)}}
-		if _, err := s.a.GetWebSession(conn.User(), session.SecureID(am.Pass)); err != nil {
+		// we use extra permissions mechanism to keep the connection data
+		// after authorization, in this case the session
+		perms := &ssh.Permissions{
+			Extensions: map[string]string{
+				ExtWebSession: string(ab.Pass),
+			},
+		}
+		if _, err := s.a.GetWebSession(conn.User(), session.SecureID(ab.Pass)); err != nil {
 			log.Errorf("session resume error: %v", err)
 			return nil, err
 		}
 		log.Infof("session authenticated user: '%v'", conn.User())
 		return perms, nil
+	case "provision-token":
+		if err := s.a.ValidateToken(string(ab.Pass), ab.User); err != nil {
+			log.Errorf("%v token validation error: %v", ab.User, err)
+		}
+		perms := &ssh.Permissions{
+			Extensions: map[string]string{
+				ExtToken: string(password),
+			}}
+		log.Infof("session authenticated prov. token: '%v'", conn.User())
+		return perms, nil
 	default:
-		log.Errorf("unsupported auth method: '%v'", am.Type)
-		return nil, fmt.Errorf("unsupported auth method: '%v'", am.Type)
+		log.Errorf("unsupported auth method: '%v'", ab.Type)
+		return nil, fmt.Errorf("unsupported auth method: '%v'", ab.Type)
 	}
 }
 
-type AuthMethod struct {
-	User string
-	Type string
-	Pass []byte
+// authBucket uses password to transport app-specific user name and
+// auth-type in addition to the password to support auth
+type authBucket struct {
+	User string `json:"user"`
+	Type string `json:"type"`
+	Pass []byte `json:"pass"`
+}
+
+func NewTokenAuth(fqdn, token string) ([]ssh.AuthMethod, error) {
+	data, err := json.Marshal(authBucket{
+		Type: AuthToken,
+		User: fqdn,
+		Pass: []byte(token),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
+}
+
+func NewWebSessionAuth(user string, session []byte) ([]ssh.AuthMethod, error) {
+	data, err := json.Marshal(authBucket{
+		Type: AuthWebSession,
+		User: user,
+		Pass: session,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
+}
+
+func NewWebPasswordAuth(user string, password []byte) ([]ssh.AuthMethod, error) {
+	data, err := json.Marshal(authBucket{
+		Type: AuthWebPassword,
+		User: user,
+		Pass: password,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
+}
+
+func NewHostAuth(key, cert []byte) ([]ssh.AuthMethod, error) {
+	signer, err := sshutils.NewHostSigner(key, cert)
+	if err != nil {
+		return nil, err
+	}
+	return []ssh.AuthMethod{ssh.PublicKeys(signer)}, nil
 }
 
 type TunClient struct {
@@ -205,18 +405,21 @@ type TunClient struct {
 	dialer *TunDialer
 }
 
-func NewTunClient(addr string, auth AuthMethod) (*TunClient, error) {
+func NewTunClient(addr utils.NetAddr, user string, auth []ssh.AuthMethod) (*TunClient, error) {
 	tc := &TunClient{
-		dialer: &TunDialer{Auth: auth, Addr: addr},
+		dialer: &TunDialer{auth: auth, addr: addr, user: user},
 	}
-	tc.Client = Client{
-		addr: "http://addr",
-		client: &http.Client{
+	clt, err := NewClient(
+		"http://stub:0",
+		roundtrip.HTTPClient(&http.Client{
 			Transport: &http.Transport{
 				Dial: tc.dialer.Dial,
 			},
-		},
+		}))
+	if err != nil {
+		return nil, err
 	}
+	tc.Client = *clt
 	return tc, nil
 }
 
@@ -230,10 +433,10 @@ func (c *TunClient) Close() error {
 
 type TunDialer struct {
 	sync.Mutex
-	Addr string
-	Auth AuthMethod
-
-	tun *ssh.Client
+	auth []ssh.AuthMethod
+	user string
+	tun  *ssh.Client
+	addr utils.NetAddr
 }
 
 func (t *TunDialer) Close() error {
@@ -248,7 +451,7 @@ func (t *TunDialer) GetAgent() (agent.Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	ch, _, err := t.tun.OpenChannel(WebSessionAgentRequest, nil)
+	ch, _, err := t.tun.OpenChannel(ReqWebSessionAgent, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -262,15 +465,12 @@ func (t *TunDialer) getClient() (*ssh.Client, error) {
 	if t.tun != nil {
 		return t.tun, nil
 	}
-	bytes, err := json.Marshal(t.Auth)
-	if err != nil {
-		return nil, err
-	}
+
 	config := &ssh.ClientConfig{
-		User: t.Auth.User,
-		Auth: []ssh.AuthMethod{ssh.Password(string(bytes))},
+		User: t.user,
+		Auth: t.auth,
 	}
-	client, err := ssh.Dial("tcp", t.Addr, config)
+	client, err := ssh.Dial(t.addr.Network, t.addr.Addr, config)
 	if err != nil {
 		return nil, err
 	}
@@ -287,6 +487,16 @@ func (t *TunDialer) Dial(network, address string) (net.Conn, error) {
 }
 
 const (
-	WebSessionAgentRequest = "web-session-agent@teleport"
-	SessionExt             = "session@teleport"
+	ReqWebSessionAgent = "web-session-agent@teleport"
+	ReqProvision       = "provision@teleport"
+	ReqDirectTCPIP     = "direct-tcpip"
+
+	ExtWebSession  = "web-session@teleport"
+	ExtWebPassword = "web-password@teleport"
+	ExtToken       = "provision@teleport"
+	ExtHost        = "host@teleport"
+
+	AuthWebPassword = "password"
+	AuthWebSession  = "session"
+	AuthToken       = "provision-token"
 )

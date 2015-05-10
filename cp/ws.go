@@ -2,16 +2,19 @@ package cp
 
 import (
 	"fmt"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/net/websocket"
+
 	"net/http"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/sshutils"
+	"github.com/gravitational/teleport/utils"
+
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/net/websocket"
 )
 
 // wsHandler
 type wsHandler struct {
-	authServers []string
+	authServers []utils.NetAddr
 	ctx         *ctx
 	addr        string
 	up          *sshutils.Upstream

@@ -60,3 +60,11 @@ func (s *MemSuite) TestWebSessionCRUD(c *C) {
 func (s *MemSuite) TestWebTunCRUD(c *C) {
 	s.suite.WebTunCRUD(c)
 }
+
+func (s *MemSuite) TestLocking(c *C) {
+	s.suite.Locking(c)
+}
+
+func (s *MemSuite) TestToken(c *C) {
+	s.suite.TokenCRUD(c)
+}

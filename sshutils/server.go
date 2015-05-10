@@ -1,15 +1,17 @@
 package sshutils
 
 import (
+	"crypto/subtle"
 	"fmt"
 	"net"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"github.com/gravitational/teleport/utils"
 )
 
 type Server struct {
-	addr           Addr
+	addr           utils.NetAddr
 	l              net.Listener
 	closeC         chan struct{}
 	newChanHandler NewChanHandler
@@ -17,14 +19,10 @@ type Server struct {
 	cfg            ssh.ServerConfig
 }
 
-type Addr struct {
-	Net  string
-	Addr string
-}
-
 type ServerOption func(cfg *Server) error
 
-func NewServer(a Addr, h NewChanHandler, hostSigners []ssh.Signer, ah AuthMethods, opts ...ServerOption) (*Server, error) {
+func NewServer(a utils.NetAddr, h NewChanHandler, hostSigners []ssh.Signer,
+	ah AuthMethods, opts ...ServerOption) (*Server, error) {
 	if err := checkArguments(a, h, hostSigners, ah); err != nil {
 		return nil, err
 	}
@@ -66,12 +64,12 @@ func (s *Server) Addr() string {
 }
 
 func (s *Server) Start() error {
-	socket, err := net.Listen(s.addr.Net, s.addr.Addr)
+	socket, err := net.Listen(s.addr.Network, s.addr.Addr)
 	if err != nil {
 		return err
 	}
 	s.l = socket
-	log.Infof("created listening socket: %v", err)
+	log.Infof("created listening socket: %v", socket.Addr())
 	go s.acceptConnections()
 	return nil
 }
@@ -164,8 +162,8 @@ type AuthMethods struct {
 	NoClient  bool
 }
 
-func checkArguments(a Addr, h NewChanHandler, hostSigners []ssh.Signer, ah AuthMethods) error {
-	if a.Addr == "" || a.Net == "" {
+func checkArguments(a utils.NetAddr, h NewChanHandler, hostSigners []ssh.Signer, ah AuthMethods) error {
+	if a.Addr == "" || a.Network == "" {
 		return fmt.Errorf("specify network and the address for listening socket")
 	}
 	if h == nil {
@@ -182,3 +180,10 @@ func checkArguments(a Addr, h NewChanHandler, hostSigners []ssh.Signer, ah AuthM
 
 type PublicKeyFunc func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error)
 type PasswordFunc func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error)
+
+// KeysEqual is constant time compare of the keys to avoid timing attacks
+func KeysEqual(ak, bk ssh.PublicKey) bool {
+	a := ak.Marshal()
+	b := bk.Marshal()
+	return (len(a) == len(b) && subtle.ConstantTimeCompare(a, b) == 1)
+}

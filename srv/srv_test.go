@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/membk"
 	"github.com/gravitational/teleport/sshutils"
+	"github.com/gravitational/teleport/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
@@ -58,7 +59,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	srv, err := New(
-		sshutils.Addr{Net: "tcp", Addr: "localhost:0"},
+		utils.NetAddr{Network: "tcp", Addr: "localhost:0"},
 		[]ssh.Signer{signer},
 		s.bk,
 		SetShell("/bin/sh"),

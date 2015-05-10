@@ -14,7 +14,6 @@ import (
 )
 
 type Command struct {
-	url    string
 	client *auth.Client
 	out    io.Writer
 	in     io.Reader
@@ -28,12 +27,20 @@ func NewCommand() *Command {
 }
 
 func (cmd *Command) Run(args []string) error {
-	url, args, err := findURL(args)
+	addr, args, err := findAddr(args)
 	if err != nil {
 		return err
 	}
-	cmd.url = url
-	cmd.client = auth.NewClient(cmd.url)
+	a, err := utils.ParseAddr(addr)
+	if err != nil {
+		return err
+	}
+	clt, err := auth.NewClientFromNetAddr(*a)
+	if err != nil {
+		return err
+	}
+
+	cmd.client = clt
 
 	app := cli.NewApp()
 	app.Name = "tctl"
@@ -44,6 +51,7 @@ func (cmd *Command) Run(args []string) error {
 		newHostCACommand(cmd),
 		newUserCACommand(cmd),
 		newUserCommand(cmd),
+		newTokenCommand(cmd),
 		newSecretCommand(cmd),
 	}
 	return app.Run(args)
@@ -97,7 +105,7 @@ func (cmd *Command) printInfo(message string, params ...interface{}) {
 
 // This function extracts url from the command line regardless of it's position
 // this is a workaround, as cli libary does not support "superglobal" urls yet.
-func findURL(args []string) (string, []string, error) {
+func findAddr(args []string) (string, []string, error) {
 	for i, arg := range args {
 		if strings.HasPrefix(arg, "--teleport=") || strings.HasPrefix(arg, "-teleport=") {
 			out := strings.Split(arg, "=")
@@ -105,12 +113,12 @@ func findURL(args []string) (string, []string, error) {
 		} else if strings.HasPrefix(arg, "-teleport") || strings.HasPrefix(arg, "--teleport") {
 			// This argument should not be the last one
 			if i > len(args)-2 {
-				return "", nil, fmt.Errorf("provide a valid URL")
+				return "", nil, fmt.Errorf("provide a valid address")
 			}
 			return args[i+1], cut(i, i+2, args), nil
 		}
 	}
-	return "http://localhost:2023", args, nil
+	return DefaultTeleportURL, args, nil
 }
 
 func cut(i, j int, args []string) []string {
@@ -125,4 +133,4 @@ func flags() []cli.Flag {
 	}
 }
 
-const DefaultTeleportURL = "localhost:2023"
+const DefaultTeleportURL = "unix:///tmp/teleport.auth.sock"

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/memlog"
+	"github.com/gravitational/teleport/utils"
 )
 
 // CPSrv implements Control Panel server
@@ -14,7 +15,7 @@ type CPServer struct {
 }
 
 type Config struct {
-	AuthSrv []string
+	AuthSrv []utils.NetAddr
 	LogSrv  memlog.Logger
 	Host    string
 }

@@ -17,7 +17,7 @@ func ReadPath(path string) ([]byte, error) {
 	}
 	bytes, err := ioutil.ReadFile(abs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read private host key by path '%v', error: %v", abs, err)
+		return nil, err
 	}
 	return bytes, nil
 }

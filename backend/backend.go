@@ -10,6 +10,12 @@ import (
 // TODO(klizhentas) this is bloated. Split it into little backend interfaces
 // Backend represents configuration backend implementation for Teleport
 type Backend interface {
+	// Grab a lock that will be released automatically in ttl time
+	AcquireLock(token string, ttl time.Duration) error
+
+	// Grab a lock that will be released automatically in ttl time
+	ReleaseLock(token string) error
+
 	// UpsertUserCA upserts the user certificate authority keys in OpenSSH authorized_keys format
 	UpsertUserCA(CA) error
 
@@ -66,8 +72,8 @@ type Backend interface {
 	// GetWebSession
 	GetWebSession(user, sid string) (*WebSession, error)
 
-	// GetWebSessions
-	GetWebSessions(user string) ([]WebSession, error)
+	// GetWebSessionsKeys
+	GetWebSessionsKeys(user string) ([]AuthorizedKey, error)
 
 	// DeleteWebSession
 	DeleteWebSession(user, sid string) error
@@ -79,6 +85,11 @@ type Backend interface {
 	GetWebTun(prefix string) (*WebTun, error)
 
 	GetWebTuns() ([]WebTun, error)
+
+	// Tokens are provisioning tokens for the auth server
+	UpsertToken(token, fqdn string, ttl time.Duration) error
+	GetToken(token string) (string, error)
+	DeleteToken(token string) error
 }
 
 // WebTun is a web tunnel, the SSH tunnel
@@ -138,6 +149,18 @@ func (n *NotFoundError) Error() string {
 		return n.Message
 	} else {
 		return "Object not found"
+	}
+}
+
+type AlreadyExistsError struct {
+	Message string
+}
+
+func (n *AlreadyExistsError) Error() string {
+	if n.Message != "" {
+		return n.Message
+	} else {
+		return "Object already exists"
 	}
 }
 
