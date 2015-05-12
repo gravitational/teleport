@@ -3,6 +3,8 @@ package form
 
 import (
 	"fmt"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"time"
 
@@ -32,8 +34,18 @@ type Param func(r *http.Request) error
 //        // handle error here
 //   }
 func Parse(r *http.Request, params ...Param) error {
-	if err := r.ParseForm(); err != nil {
+	mtype, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil {
 		return err
+	}
+	if mtype == "multipart/form-data" {
+		if err := r.ParseMultipartForm(maxMemoryBytes); err != nil {
+			return err
+		}
+	} else {
+		if err := r.ParseForm(); err != nil {
+			return err
+		}
 	}
 	for _, p := range params {
 		if err := p(r); err != nil {
@@ -51,7 +63,7 @@ func Duration(name string, out *time.Duration, predicates ...Predicate) Param {
 				return err
 			}
 		}
-		v := r.PostForm.Get(name)
+		v := r.Form.Get(name)
 		if v == "" {
 			return nil
 		}
@@ -72,7 +84,7 @@ func String(name string, out *string, predicates ...Predicate) Param {
 				return err
 			}
 		}
-		*out = r.PostForm.Get(name)
+		*out = r.Form.Get(name)
 		return nil
 	}
 }
@@ -80,7 +92,7 @@ func String(name string, out *string, predicates ...Predicate) Param {
 // Int extracts the integer argument in decimal format e.g. "10"
 func Int(name string, out *int, predicates ...Predicate) Param {
 	return func(r *http.Request) error {
-		v := r.PostForm.Get(name)
+		v := r.Form.Get(name)
 		for _, p := range predicates {
 			if err := p.Pass(name, r); err != nil {
 				return err
@@ -94,6 +106,58 @@ func Int(name string, out *int, predicates ...Predicate) Param {
 			return &BadParameterError{Param: name, Message: err.Error()}
 		}
 		*out = p
+		return nil
+	}
+}
+
+// StringSlice extracts the string slice of arguments by name
+func StringSlice(name string, out *[]string, predicates ...Predicate) Param {
+	return func(r *http.Request) error {
+		for _, p := range predicates {
+			if err := p.Pass(name, r); err != nil {
+				return err
+			}
+		}
+		*out = make([]string, len(r.Form[name]))
+		copy(*out, r.Form[name])
+		return nil
+	}
+}
+
+// FileSlice reads the files uploaded with name parameter and initialized
+// the slice of files. The files should be closed by the callee after
+// usage, by executing f.Close() on each of them
+// files slice will be nil if there's an error
+func FileSlice(name string, files *Files, predicates ...Predicate) Param {
+	return func(r *http.Request) error {
+		err := r.ParseMultipartForm(maxMemoryBytes)
+		if err != nil {
+			return err
+		}
+		if r.MultipartForm == nil && r.MultipartForm.File == nil {
+			return fmt.Errorf("missing form")
+		}
+		for _, p := range predicates {
+			if err := p.Pass(name, r); err != nil {
+				return err
+			}
+		}
+
+		fhs := r.MultipartForm.File[name]
+		if len(fhs) == 0 {
+			*files = []multipart.File{}
+			return nil
+		}
+
+		*files = make([]multipart.File, len(fhs))
+		for i, fh := range fhs {
+			f, err := fh.Open()
+			if err != nil {
+				files.Close()
+				return err
+			}
+			(*files)[i] = f
+		}
 		return nil
 	}
 }
@@ -115,7 +179,7 @@ func (p PredicateFunc) Pass(param string, r *http.Request) error {
 // it returns MissingParameterError when parameter is not present
 func Required() Predicate {
 	return PredicateFunc(func(param string, r *http.Request) error {
-		if r.PostForm.Get(param) == "" {
+		if r.Form.Get(param) == "" {
 			return &MissingParameterError{Param: param}
 		}
 		return nil
@@ -141,4 +205,33 @@ type BadParameterError struct {
 
 func (p *BadParameterError) Error() string {
 	return fmt.Sprintf("bad parameter '%v', error: %v", p.Param, p.Message)
+}
+
+const maxMemoryBytes = 64 * 1024
+
+// Files is a slice of multipart.File that provides additional
+// convenient method to close all files as a single operation
+type Files []multipart.File
+
+func (fs *Files) Close() error {
+	e := &FilesCloseError{}
+	for _, f := range *fs {
+		if f != nil {
+			if err := f.Close(); err != nil {
+				e.Errors = append(e.Errors, err)
+			}
+		}
+	}
+	if len(e.Errors) != 0 {
+		return e
+	}
+	return nil
+}
+
+type FilesCloseError struct {
+	Errors []error
+}
+
+func (p *FilesCloseError) Error() string {
+	return fmt.Sprintf("failed to close files, error: %v", p.Errors)
 }

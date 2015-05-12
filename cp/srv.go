@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/memlog"
 	"github.com/gravitational/teleport/utils"
 )
 
@@ -16,7 +15,6 @@ type CPServer struct {
 
 type Config struct {
 	AuthSrv []utils.NetAddr
-	LogSrv  memlog.Logger
 	Host    string
 }
 
@@ -24,13 +22,10 @@ func NewServer(cfg Config) (*CPServer, error) {
 	if len(cfg.AuthSrv) == 0 {
 		return nil, fmt.Errorf("need at least one auth server")
 	}
-	if cfg.LogSrv == nil {
-		return nil, fmt.Errorf("need an event logger service")
-	}
 	if cfg.Host == "" {
 		return nil, fmt.Errorf("need an base host")
 	}
-	cp := newCPHandler(cfg.Host, cfg.AuthSrv, cfg.LogSrv)
+	cp := newCPHandler(cfg.Host, cfg.AuthSrv)
 	proxy := newProxyHandler(cp, cfg.AuthSrv, cfg.Host)
 	return &CPServer{
 		cfg: cfg,

@@ -22,10 +22,12 @@ import (
 type Authority interface {
 	GenerateKeyPair(passphrase string) (privKey []byte, pubKey []byte, err error)
 
-	// GenerateHostCert generates host certificate, it takes pkey as a signing private key (host certificate authority)
+	// GenerateHostCert generates host certificate, it takes pkey as a signing
+	// private key (host certificate authority)
 	GenerateHostCert(pkey, key []byte, id, hostname string, ttl time.Duration) ([]byte, error)
 
-	// GenerateHostCert generates user certificate, it takes pkey as a signing private key (user certificate authority)
+	// GenerateHostCert generates user certificate, it takes pkey as a signing
+	// private key (user certificate authority)
 	GenerateUserCert(pkey, key []byte, id, username string, ttl time.Duration) ([]byte, error)
 }
 
@@ -43,7 +45,8 @@ func NewAuthServer(b backend.Backend, a Authority, scrt *secret.Service) *AuthSe
 	}
 }
 
-// AuthServer implements key signing, generation and ACL functionality used by teleport
+// AuthServer implements key signing, generation and ACL functionality
+// used by teleport
 type AuthServer struct {
 	b    backend.Backend
 	a    Authority
@@ -59,9 +62,12 @@ func (s *AuthServer) GetServers() ([]backend.Server, error) {
 }
 
 // UpsertUserKey takes user's public key, generates certificate for it
-// and adds it to the authorized keys database. It returns certificate signed by user CA in case of success,
-// error otherwise. The certificate will be valid for the duration of the ttl passed in.
-func (s *AuthServer) UpsertUserKey(user string, key backend.AuthorizedKey, ttl time.Duration) ([]byte, error) {
+// and adds it to the authorized keys database. It returns certificate signed
+// by user CA in case of success, error otherwise. The certificate will be
+// valid for the duration of the ttl passed in.
+func (s *AuthServer) UpsertUserKey(
+	user string, key backend.AuthorizedKey, ttl time.Duration) ([]byte, error) {
+
 	cert, err := s.GenerateUserCert(key.Value, key.ID, user, ttl)
 	if err != nil {
 		return nil, err
@@ -90,7 +96,7 @@ func (s *AuthServer) DeleteUserKey(user, key string) error {
 	return s.b.DeleteUserKey(user, key)
 }
 
-// GenerateKeyPair generates private and public key pair of OpenSSH style certificates
+// GenerateKeyPair generates private and public key pair of OpenSSH certs
 func (s *AuthServer) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 	return s.a.GenerateKeyPair(pass)
 }
@@ -123,8 +129,11 @@ func (s *AuthServer) GetUserCAPub() ([]byte, error) {
 	return s.b.GetUserCAPub()
 }
 
-// GenerateHostCert generates host certificate, it takes pkey as a signing private key (host certificate authority)
-func (s *AuthServer) GenerateHostCert(key []byte, id, hostname string, ttl time.Duration) ([]byte, error) {
+// GenerateHostCert generates host certificate, it takes pkey as a signing
+// private key (host certificate authority)
+func (s *AuthServer) GenerateHostCert(
+	key []byte, id, hostname string, ttl time.Duration) ([]byte, error) {
+
 	hk, err := s.b.GetHostCA()
 	if err != nil {
 		return nil, err
@@ -132,8 +141,11 @@ func (s *AuthServer) GenerateHostCert(key []byte, id, hostname string, ttl time.
 	return s.a.GenerateHostCert(hk.Priv, key, id, hostname, ttl)
 }
 
-// GenerateHostCert generates user certificate, it takes pkey as a signing private key (user certificate authority)
-func (s *AuthServer) GenerateUserCert(key []byte, id, username string, ttl time.Duration) ([]byte, error) {
+// GenerateHostCert generates user certificate, it takes pkey as a signing
+// private key (user certificate authority)
+func (s *AuthServer) GenerateUserCert(
+	key []byte, id, username string, ttl time.Duration) ([]byte, error) {
+
 	hk, err := s.b.GetUserCA()
 	if err != nil {
 		return nil, err
@@ -287,18 +299,21 @@ func (s *AuthServer) DeleteWebTun(prefix string) error {
 	return s.b.DeleteWebTun(prefix)
 }
 
-// make sure password satisfies our requirements (relaxed), mostly to avoid putting garbage in
+// make sure password satisfies our requirements (relaxed),
+// mostly to avoid putting garbage in
 func verifyPassword(password []byte) error {
 	if len(password) < MinPasswordLength {
 		return &BadParameterError{
 			Param: "password",
-			Msg:   fmt.Sprintf("password is too short, min length is %v", MinPasswordLength),
+			Msg: fmt.Sprintf(
+				"password is too short, min length is %v", MinPasswordLength),
 		}
 	}
 	if len(password) > MaxPasswordLength {
 		return &BadParameterError{
 			Param: "password",
-			Msg:   fmt.Sprintf("password is too long, max length is %v", MaxPasswordLength),
+			Msg: fmt.Sprintf(
+				"password is too long, max length is %v", MaxPasswordLength),
 		}
 	}
 	return nil

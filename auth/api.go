@@ -4,6 +4,7 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/memlog"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/oxy/trace"
 	"github.com/gravitational/teleport/utils"
@@ -15,7 +16,8 @@ func StartHTTPServer(a string, srv *AuthServer) error {
 		return err
 	}
 	t, err := trace.New(
-		NewAPIServer(srv), log.GetLogger().Writer(log.SeverityInfo))
+		NewAPIServer(srv, memlog.New()),
+		log.GetLogger().Writer(log.SeverityInfo))
 	if err != nil {
 		return err
 	}

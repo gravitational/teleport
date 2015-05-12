@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -51,8 +52,8 @@ func (c *Client) convertResponse(re *roundtrip.Response, err error) (*roundtrip.
 	return re, nil
 }
 
-func (c *Client) PostForm(endpoint string, vals url.Values) (*roundtrip.Response, error) {
-	return c.convertResponse(c.Client.PostForm(endpoint, vals))
+func (c *Client) PostForm(endpoint string, vals url.Values, files ...roundtrip.File) (*roundtrip.Response, error) {
+	return c.convertResponse(c.Client.PostForm(endpoint, vals, files...))
 }
 
 func (c *Client) Get(u string, params url.Values) (*roundtrip.Response, error) {
@@ -76,6 +77,31 @@ func (c *Client) GenerateToken(fqdn string, ttl time.Duration) (string, error) {
 		return "", err
 	}
 	return re.Token, nil
+}
+
+func (c *Client) SubmitEvents(events [][]byte) error {
+	files := make([]roundtrip.File, len(events))
+	for i, e := range events {
+		files[i] = roundtrip.File{
+			Name:     "event",
+			Filename: "event.json",
+			Reader:   bytes.NewReader(e),
+		}
+	}
+	_, err := c.PostForm(c.Endpoint("events"), url.Values{}, files...)
+	return err
+}
+
+func (c *Client) GetEvents() ([]interface{}, error) {
+	out, err := c.Get(c.Endpoint("events"), url.Values{})
+	if err != nil {
+		return nil, err
+	}
+	var re *eventsResponse
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return nil, err
+	}
+	return re.Events, nil
 }
 
 func (c *Client) UpsertServer(s backend.Server, ttl time.Duration) error {
@@ -325,4 +351,23 @@ func (c *Client) ResetHostCA() error {
 func (c *Client) ResetUserCA() error {
 	_, err := c.PostForm(c.Endpoint("ca", "user", "keys"), url.Values{})
 	return err
+}
+
+func (c *Client) GetLogWriter() *LogWriter {
+	return &LogWriter{clt: c}
+}
+
+type LogWriter struct {
+	clt *Client
+}
+
+func (w *LogWriter) Write(data []byte) (int, error) {
+	if err := w.clt.SubmitEvents([][]byte{data}); err != nil {
+		return 0, err
+	}
+	return len(data), nil
+}
+
+func (w *LogWriter) LastEvents() ([]interface{}, error) {
+	return w.clt.GetEvents()
 }

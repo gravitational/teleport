@@ -14,6 +14,7 @@ import (
 	"github.com/gravitational/teleport/sshutils"
 	"github.com/gravitational/teleport/utils"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/memlog"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
@@ -48,7 +49,7 @@ func (s *TunSuite) TearDownTest(c *C) {
 func (s *TunSuite) SetUpTest(c *C) {
 	s.bk = membk.New()
 	s.a = NewAuthServer(s.bk, openssh.New(), s.scrt)
-	s.srv = httptest.NewServer(NewAPIServer(s.a))
+	s.srv = httptest.NewServer(NewAPIServer(s.a, memlog.New()))
 
 	// set up host private key and certificate
 	c.Assert(s.a.ResetHostCA(""), IsNil)
@@ -81,7 +82,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	l, err := net.Listen("unix", socketPath)
 	c.Assert(err, IsNil)
 
-	h := NewAPIServer(s.a)
+	h := NewAPIServer(s.a, memlog.New())
 	srv := &httptest.Server{
 		Listener: l,
 		Config: &http.Server{

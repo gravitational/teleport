@@ -11,7 +11,6 @@ import (
 	"github.com/gravitational/teleport/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/form"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/memlog"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
@@ -20,14 +19,12 @@ import (
 // cpHandler implements methods for control panel
 type cpHandler struct {
 	httprouter.Router
-	events      memlog.Logger
 	host        string
 	authServers []utils.NetAddr
 }
 
-func newCPHandler(host string, auth []utils.NetAddr, events memlog.Logger) *cpHandler {
+func newCPHandler(host string, auth []utils.NetAddr) *cpHandler {
 	h := &cpHandler{
-		events:      events,
 		authServers: auth,
 		host:        host,
 	}
@@ -141,7 +138,13 @@ func (s *cpHandler) upsertWebTun(w http.ResponseWriter, r *http.Request, _ httpr
 }
 
 func (s *cpHandler) getEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *ctx) {
-	roundtrip.ReplyJSON(w, http.StatusOK, s.events.LastEvents())
+	events, err := c.clt.GetEvents()
+	if err != nil {
+		log.Errorf("failed to retrieve events: %v")
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	roundtrip.ReplyJSON(w, http.StatusOK, events)
 }
 
 func (s *cpHandler) keysIndex(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *ctx) {
