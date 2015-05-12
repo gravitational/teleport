@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"mime/multipart"
 
 	"net/http"
 	"net/url"
@@ -85,11 +86,47 @@ func (c *Client) Endpoint(params ...string) string {
 //
 // c.PostForm(c.Endpoint("users"), url.Values{"name": []string{"John"}})
 //
-func (c *Client) PostForm(endpoint string, vals url.Values) (*Response, error) {
+func (c *Client) PostForm(endpoint string, vals url.Values, files ...File) (*Response, error) {
 	return c.RoundTrip(func() (*http.Response, error) {
-		return c.client.Post(
-			endpoint, "application/x-www-form-urlencoded",
-			strings.NewReader(vals.Encode()))
+		if len(files) == 0 {
+			return c.client.Post(
+				endpoint, "application/x-www-form-urlencoded",
+				strings.NewReader(vals.Encode()))
+		}
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+
+		// write simple fields
+		for name, vals := range vals {
+			for _, val := range vals {
+				if err := writer.WriteField(name, val); err != nil {
+					return nil, err
+				}
+			}
+		}
+
+		// add files
+		for _, f := range files {
+			w, err := writer.CreateFormFile(f.Name, f.Filename)
+			if err != nil {
+				return nil, err
+			}
+			_, err = io.Copy(w, f.Reader)
+			if err != nil {
+				return nil, err
+			}
+		}
+		boundary := writer.Boundary()
+		if err := writer.Close(); err != nil {
+			return nil, err
+		}
+		req, err := http.NewRequest("POST", endpoint, body)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type",
+			fmt.Sprintf(`multipart/form-data;boundary="%v"`, boundary))
+		return c.client.Do(req)
 	})
 }
 
@@ -165,4 +202,11 @@ func (r *Response) Reader() io.Reader {
 // Bytes reads all http response body bytes in memory and returns the result
 func (r *Response) Bytes() []byte {
 	return r.body.Bytes()
+}
+
+// File is a file-like object that can be posted to the files
+type File struct {
+	Name     string
+	Filename string
+	Reader   io.Reader
 }

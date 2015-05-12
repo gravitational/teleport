@@ -2,9 +2,11 @@ package roundtrip
 
 import (
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -97,6 +99,58 @@ func (s *ClientSuite) TestCustomClient(c *C) {
 
 	_, err = clt.Get(clt.Endpoint("a"), url.Values{})
 	c.Assert(err, NotNil)
+}
+
+func (s *ClientSuite) TestPostMultipartForm(c *C) {
+	var u *url.URL
+	var params url.Values
+	var method string
+	var data []string
+	srv := serveHandler(func(w http.ResponseWriter, r *http.Request) {
+		u = r.URL
+		c.Assert(r.ParseMultipartForm(64<<20), IsNil)
+		params = r.Form
+		method = r.Method
+
+		c.Assert(r.MultipartForm, NotNil)
+		c.Assert(len(r.MultipartForm.File["a"]), Not(Equals), 0)
+
+		fhs := r.MultipartForm.File["a"]
+		for _, fh := range fhs {
+			f, err := fh.Open()
+			c.Assert(err, IsNil)
+			val, err := ioutil.ReadAll(f)
+			c.Assert(err, IsNil)
+			data = append(data, string(val))
+		}
+
+		io.WriteString(w, "hello back")
+
+	})
+	defer srv.Close()
+
+	clt := newC(srv.URL, "v1")
+	values := url.Values{"a": []string{"b"}}
+	out, err := clt.PostForm(
+		clt.Endpoint("a", "b"),
+		values,
+		File{
+			Name:     "a",
+			Filename: "a.json",
+			Reader:   strings.NewReader("file 1")},
+		File{
+			Name:     "a",
+			Filename: "a.json",
+			Reader:   strings.NewReader("file 2")},
+	)
+
+	c.Assert(err, IsNil)
+	c.Assert(string(out.Bytes()), Equals, "hello back")
+	c.Assert(u.String(), DeepEquals, "/v1/a/b")
+
+	c.Assert(method, Equals, "POST")
+	c.Assert(params, DeepEquals, values)
+	c.Assert(data, DeepEquals, []string{"file 1", "file 2"})
 }
 
 func newC(addr, version string) *testClient {

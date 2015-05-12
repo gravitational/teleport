@@ -10,6 +10,7 @@ import (
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/membk"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/memlog"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
@@ -37,7 +38,7 @@ func (s *APISuite) SetUpSuite(c *C) {
 func (s *APISuite) SetUpTest(c *C) {
 	s.bk = membk.New()
 	s.a = NewAuthServer(s.bk, openssh.New(), s.scrt)
-	s.srv = httptest.NewServer(NewAPIServer(s.a))
+	s.srv = httptest.NewServer(NewAPIServer(s.a, memlog.New()))
 	clt, err := NewClient(s.srv.URL)
 	c.Assert(err, IsNil)
 	s.clt = clt
@@ -230,6 +231,22 @@ func (s *APISuite) TestServers(c *C) {
 	}
 	expected := map[string]string{"id1": "host:1233", "id2": "host:1234"}
 	c.Assert(servers, DeepEquals, expected)
+}
+
+func (s *APISuite) TestEvents(c *C) {
+	err := s.clt.SubmitEvents(
+		[][]byte{
+			[]byte(`{"e": "event 1"}`),
+			[]byte(`{"e": "event 2"}`)})
+	c.Assert(err, IsNil)
+
+	out, err := s.clt.GetEvents()
+	c.Assert(err, IsNil)
+	expected := []interface{}{
+		map[string]interface{}{"e": "event 2"},
+		map[string]interface{}{"e": "event 1"},
+	}
+	c.Assert(out, DeepEquals, expected)
 }
 
 func (s *APISuite) TestTokens(c *C) {

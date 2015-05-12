@@ -9,11 +9,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 	"github.com/gravitational/teleport/auth"
 	"github.com/gravitational/teleport/auth/openssh"
 	"github.com/gravitational/teleport/backend/membk"
 	"github.com/gravitational/teleport/utils"
+
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/memlog"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
@@ -46,7 +48,7 @@ func (s *CmdSuite) SetUpSuite(c *C) {
 func (s *CmdSuite) SetUpTest(c *C) {
 	s.bk = membk.New()
 	s.asrv = auth.NewAuthServer(s.bk, openssh.New(), s.scrt)
-	s.srv = httptest.NewServer(auth.NewAPIServer(s.asrv))
+	s.srv = httptest.NewServer(auth.NewAPIServer(s.asrv, memlog.New()))
 
 	u, err := url.Parse(s.srv.URL)
 	c.Assert(err, IsNil)

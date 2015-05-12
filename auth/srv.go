@@ -3,10 +3,13 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"time"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/form"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/memlog"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
@@ -21,12 +24,14 @@ type Config struct {
 // APISrv implements http API server for authority
 type APIServer struct {
 	httprouter.Router
-	s *AuthServer
+	s    *AuthServer
+	elog memlog.Logger
 }
 
-func NewAPIServer(s *AuthServer) *APIServer {
+func NewAPIServer(s *AuthServer, elog memlog.Logger) *APIServer {
 	srv := &APIServer{
-		s: s,
+		s:    s,
+		elog: elog,
 	}
 	srv.Router = *httprouter.New()
 
@@ -74,6 +79,10 @@ func NewAPIServer(s *AuthServer) *APIServer {
 
 	// Tokens
 	srv.POST("/v1/tokens", srv.generateToken)
+
+	// Events
+	srv.POST("/v1/events", srv.submitEvents)
+	srv.GET("/v1/events", srv.getEvents)
 
 	return srv
 }
@@ -435,6 +444,51 @@ func (s *APIServer) generateToken(w http.ResponseWriter, r *http.Request, _ http
 	reply(w, http.StatusOK, tokenResponse{Token: string(token)})
 }
 
+func (s *APIServer) submitEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	var events form.Files
+
+	err := form.Parse(r,
+		form.FileSlice("event", &events))
+	if err != nil {
+		reply(w, http.StatusBadRequest, err.Error())
+	}
+
+	if len(events) == 0 {
+		reply(w, http.StatusBadRequest,
+			fmt.Errorf("at least one event is required"))
+	}
+
+	defer func() {
+		// don't let get the error get lost
+		if err := events.Close(); err != nil {
+			log.Errorf("failed to close files: %v", err)
+		}
+	}()
+
+	// submit events
+	for _, e := range events {
+		data, err := ioutil.ReadAll(e)
+		if err != nil {
+			log.Errorf("failed to read event: %v", err)
+			reply(w, http.StatusBadRequest, fmt.Errorf("failed to read event"))
+			return
+		}
+		if _, err := s.elog.Write(data); err != nil {
+			log.Errorf("failed to write event: %v", err)
+			reply(w, http.StatusInternalServerError,
+				fmt.Errorf("failed to write event"))
+			return
+		}
+	}
+
+	reply(w, http.StatusOK, message("events submitted"))
+}
+
+func (s *APIServer) getEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	roundtrip.ReplyJSON(
+		w, http.StatusOK, &eventsResponse{Events: s.elog.LastEvents()})
+}
+
 func replyErr(w http.ResponseWriter, e error) {
 	switch err := e.(type) {
 	case *backend.NotFoundError:
@@ -503,6 +557,10 @@ type serversResponse struct {
 
 type tokenResponse struct {
 	Token string `json:"token"`
+}
+
+type eventsResponse struct {
+	Events []interface{} `json:"events"`
 }
 
 func message(msg string) map[string]interface{} {

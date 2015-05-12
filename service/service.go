@@ -20,7 +20,6 @@ import (
 
 type TeleportService struct {
 	Supervisor
-	log memlog.Logger
 }
 
 func NewTeleport(cfg Config) (*TeleportService, error) {
@@ -34,7 +33,6 @@ func NewTeleport(cfg Config) (*TeleportService, error) {
 
 	t := &TeleportService{}
 	t.Supervisor = *New()
-	t.log = memlog.New()
 
 	if cfg.Auth.Enabled {
 		if err := initAuth(t, cfg); err != nil {
@@ -77,7 +75,7 @@ func initAuth(t *TeleportService, cfg Config) error {
 
 	// register HTTP API endpoint
 	t.RegisterFunc(func() error {
-		apisrv := auth.NewAPIServer(asrv)
+		apisrv := auth.NewAPIServer(asrv, memlog.New())
 		t, err := trace.New(apisrv, log.GetLogger().Writer(log.SeverityInfo))
 		if err != nil {
 			log.Fatalf("failed to start: %v", err)
@@ -115,7 +113,6 @@ func initCP(t *TeleportService, cfg Config) error {
 	}
 	csrv, err := cp.NewServer(cp.Config{
 		AuthSrv: cfg.AuthServers,
-		LogSrv:  t.log,
 		Host:    cfg.CP.Domain,
 	})
 	if err != nil {
@@ -150,16 +147,16 @@ func initSSH(t *TeleportService, cfg Config) error {
 func initSSHEndpoint(t *TeleportService, cfg Config) error {
 	signer, err := auth.ReadKeys(cfg.FQDN, cfg.DataDir)
 
-	elog := &FanOutEventLogger{
-		Loggers: []lunk.EventLogger{
-			lunk.NewTextEventLogger(log.GetLogger().Writer(log.SeverityInfo)),
-			lunk.NewJSONEventLogger(t.log),
-		}}
-
 	client, err := auth.NewTunClient(
 		cfg.AuthServers[0],
 		cfg.FQDN,
 		[]ssh.AuthMethod{ssh.PublicKeys(signer)})
+
+	elog := &FanOutEventLogger{
+		Loggers: []lunk.EventLogger{
+			lunk.NewTextEventLogger(log.GetLogger().Writer(log.SeverityInfo)),
+			lunk.NewJSONEventLogger(client.GetLogWriter()),
+		}}
 
 	s, err := srv.New(cfg.SSH.Addr,
 		[]ssh.Signer{signer},
