@@ -4,11 +4,15 @@
 
 Teleport is presented in three distinct loosely coupled roles:
 
+* Auth server
+* SSH node
+* Web access portal
+
 **Auth server**
 
-This server is connected to Etcd backend and acts as:
+Auth server is connected to Etcd backend and acts as:
 
-* SSH user and host certificate authority server.
+* User and host certificate authority server.
  Read more about SSH authorities in this [intro article](https://www.digitalocean.com/community/tutorials/how-to-create-an-ssh-ca-to-validate-hosts-and-clients-with-ubuntu)
 * Web and SSH keys access checker - it grants revokes access to users
 * Audit logs collector, every other SSH node ships access logs to it
