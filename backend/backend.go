@@ -95,8 +95,13 @@ type Backend interface {
 // WebTun is a web tunnel, the SSH tunnel
 // created by the SSH server to a remote web server
 type WebTun struct {
-	Prefix     string `json:"prefix"`
-	ProxyAddr  string `json:"proxy"`
+	// Prefix is a domain prefix that will be used
+	// to serve this tunnel
+	Prefix string `json:"prefix"`
+	// ProxyAddr is the address of the SSH server
+	// that will be acting as a SSH proxy
+	ProxyAddr string `json:"proxy"`
+	// TargetAddr is the target http address of the server
 	TargetAddr string `json:"target"`
 }
 
