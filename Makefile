@@ -54,24 +54,25 @@ cover-package-with-etcd: remove-temp-files
 
 run-auth:
 	go install github.com/gravitational/teleport/teleport
+	rm -f /tmp/teleport.auth.sock
 	teleport -auth\
              -authBackend=etcd\
              -authBackendConfig='{"nodes": ["${ETCD_NODE1}"], "key": "/teleport"}'\
              -authDomain=gravitational.io\
-             -authHTTPAddr=tcp://localhost:8080\
              -log=console\
              -logSeverity=INFO\
              -dataDir=/tmp\
              -fqdn=auth.gravitational.io
 run-ssh:
 	go install github.com/gravitational/teleport/teleport
+	tctl token generate --output=/tmp/token -fqdn=node1.gravitational.io
 	teleport -ssh\
              -log=console\
              -logSeverity=INFO\
              -dataDir=/tmp\
              -fqdn=node1.gravitational.io\
-             -authServer=tcp://auth.gravitational.io:33001\
-             -sshToken=token
+             -sshToken=/tmp/token\
+             -authServer=tcp://auth.gravitational.io:33000
 
 run-cp: install-assets
 	go install github.com/gravitational/teleport/teleport
@@ -81,7 +82,7 @@ run-cp: install-assets
              -logSeverity=INFO\
              -dataDir=/tmp\
              -fqdn=node2.gravitational.io\
-             -authServer=tcp://auth.gravitational.io:33001
+             -authServer=tcp://auth.gravitational.io:33000
 
 profile:
 	go tool pprof http://localhost:6060/debug/pprof/profile

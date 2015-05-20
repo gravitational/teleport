@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"strings"
 
 	"github.com/gravitational/teleport/utils"
 
@@ -12,7 +14,11 @@ import (
 )
 
 func Register(fqdn, dataDir, token string, servers []utils.NetAddr) error {
-	method, err := NewTokenAuth(fqdn, token)
+	tok, err := readToken(token)
+	if err != nil {
+		return err
+	}
+	method, err := NewTokenAuth(fqdn, tok)
 	if err != nil {
 		return err
 	}
@@ -41,6 +47,18 @@ func Register(fqdn, dataDir, token string, servers []utils.NetAddr) error {
 		return err
 	}
 	return writeKeys(fqdn, dataDir, keys.Key, keys.Cert)
+}
+
+func readToken(token string) (string, error) {
+	if !strings.HasPrefix(token, "/") {
+		return token, nil
+	}
+	// treat it as a file
+	out, err := ioutil.ReadFile(token)
+	if err != nil {
+		return "", nil
+	}
+	return string(out), nil
 }
 
 type PackedKeys struct {

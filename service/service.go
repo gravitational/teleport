@@ -181,7 +181,7 @@ func initSSHEndpoint(t *TeleportService, cfg Config) error {
 
 func initSSHRegister(t *TeleportService, cfg Config) error {
 	t.RegisterFunc(func() error {
-		log.Infof("teleport:ssh connecting to auth servers")
+		log.Infof("teleport:ssh connecting to auth servers %v", cfg.SSH.Token)
 		if err := auth.Register(
 			cfg.FQDN, cfg.DataDir, cfg.SSH.Token, cfg.AuthServers); err != nil {
 			log.Errorf("teleport:ssh register failed: %v", err)

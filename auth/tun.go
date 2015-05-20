@@ -334,7 +334,9 @@ func (s *TunServer) passwordAuth(
 		return perms, nil
 	case "provision-token":
 		if err := s.a.ValidateToken(string(ab.Pass), ab.User); err != nil {
-			log.Errorf("%v token validation error: %v", ab.User, err)
+			err := fmt.Errorf("%v token validation error: %v", ab.User, err)
+			log.Errorf("%v", err)
+			return nil, err
 		}
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
