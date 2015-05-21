@@ -4,15 +4,9 @@ ETCD_FLAGS := TELEPORT_TEST_ETCD_NODES=${ETCD_NODES}
 
 .PHONY: install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd install-assets docs-serve
 
-install: remove-temp-files install-assets
-	go get github.com/jteeuwen/go-bindata/go-bindata
-	go install github.com/gravitational/teleport/Godeps/_workspace/src/github.com/elazarl/go-bindata-assetfs/go-bindata-assetfs
-	go-bindata-assetfs -pkg="cp" ./assets/...
-	mv bindata_assetfs.go ./cp
-	sed -i 's|github.com/elazarl/go-bindata-assetfs|github.com/gravitational/teleport/Godeps/_workspace/src/github.com/elazarl/go-bindata-assetfs|' ./cp/bindata_assetfs.go
+install: remove-temp-files
 	go install github.com/gravitational/teleport/teleport
 	go install github.com/gravitational/teleport/tctl
-
 
 install-assets:
 	go get github.com/jteeuwen/go-bindata/go-bindata
