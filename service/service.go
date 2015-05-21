@@ -56,6 +56,9 @@ func NewTeleport(cfg Config) (*TeleportService, error) {
 }
 
 func initAuth(t *TeleportService, cfg Config) error {
+	if cfg.DataDir == "" {
+		return fmt.Errorf("please supply data directory")
+	}
 	a := cfg.Auth
 	if a.Domain == "" {
 		return fmt.Errorf("please provide auth domain, e.g. example.com")
@@ -128,6 +131,9 @@ func initCP(t *TeleportService, cfg Config) error {
 }
 
 func initSSH(t *TeleportService, cfg Config) error {
+	if cfg.DataDir == "" {
+		return fmt.Errorf("please supply data directory")
+	}
 	if len(cfg.AuthServers) == 0 {
 		return fmt.Errorf("supply at least one auth server")
 	}
@@ -212,9 +218,6 @@ func initLogging(ltype, severity string) error {
 }
 
 func validateConfig(cfg Config) error {
-	if cfg.DataDir == "" {
-		return fmt.Errorf("please supply data directory")
-	}
 	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.CP.Enabled {
 		return fmt.Errorf("supply at least one of Auth, SSH or CP roles")
 	}
