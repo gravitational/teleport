@@ -9,7 +9,7 @@ import (
 
 	"github.com/gravitational/teleport/backend"
 
-	"github.com/boltdb/bolt"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/boltdb/bolt"
 )
 
 type BoltBackend struct {
