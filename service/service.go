@@ -6,6 +6,7 @@ import (
 	"github.com/gravitational/teleport/auth"
 	"github.com/gravitational/teleport/auth/openssh"
 	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/backend/boltbk"
 	"github.com/gravitational/teleport/backend/etcdbk"
 	"github.com/gravitational/teleport/cp"
 	"github.com/gravitational/teleport/srv"
@@ -203,6 +204,8 @@ func initBackend(btype, bcfg string) (backend.Backend, error) {
 	switch btype {
 	case "etcd":
 		return etcdbk.FromString(bcfg)
+	case "bolt":
+		return boltbk.FromString(bcfg)
 	}
 	return nil, fmt.Errorf("unsupported backend type: %v", btype)
 }
