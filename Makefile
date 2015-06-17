@@ -50,13 +50,14 @@ run-auth:
 	go install github.com/gravitational/teleport/teleport
 	rm -f /tmp/teleport.auth.sock
 	teleport -auth\
-             -authBackend=etcd\
-             -authBackendConfig='{"nodes": ["${ETCD_NODE1}"], "key": "/teleport"}'\
+             -authBackend=bolt\
+             -authBackendConfig='{"path": "/tmp/teleport.auth.db"}'\
              -authDomain=gravitational.io\
              -log=console\
              -logSeverity=INFO\
              -dataDir=/tmp\
              -fqdn=auth.gravitational.io
+
 run-ssh:
 	go install github.com/gravitational/teleport/teleport
 	tctl token generate --output=/tmp/token -fqdn=node1.gravitational.io
