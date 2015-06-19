@@ -67,6 +67,9 @@ func (b *BoltBackend) GetUsers() ([]string, error) {
 	out := []string{}
 	err := b.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("users"))
+		if b == nil {
+			return nil
+		}
 		c := b.Cursor()
 		for k, _ := c.First(); k != nil; k, _ = c.Next() {
 			out = append(out, string(k))
@@ -191,6 +194,9 @@ func (b *BoltBackend) GetServers() ([]backend.Server, error) {
 	values := []backend.Server{}
 	err := b.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("servers"))
+		if b == nil {
+			return nil
+		}
 		c := b.Cursor()
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			var key *backend.Server

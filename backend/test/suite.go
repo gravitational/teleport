@@ -56,12 +56,16 @@ func (s *BackendSuite) UserKeyCRUD(c *C) {
 }
 
 func (s *BackendSuite) UsersCRUD(c *C) {
+	u, err := s.B.GetUsers()
+	c.Assert(err, IsNil)
+	c.Assert(len(u), Equals, 0)
+
 	k := backend.AuthorizedKey{ID: "id1", Value: []byte("val1")}
 
 	c.Assert(s.B.UpsertUserKey("user1", k, 0), IsNil)
 	c.Assert(s.B.UpsertUserKey("user2", k, 0), IsNil)
 
-	u, err := s.B.GetUsers()
+	u, err = s.B.GetUsers()
 	c.Assert(err, IsNil)
 	c.Assert(toSet(u), DeepEquals, map[string]struct{}{"user1": struct{}{}, "user2": struct{}{}})
 
@@ -107,10 +111,14 @@ func (s *BackendSuite) HostCACRUD(c *C) {
 }
 
 func (s *BackendSuite) ServerCRUD(c *C) {
+	out, err := s.B.GetServers()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
+
 	srv := backend.Server{ID: "srv1", Addr: "localhost:2022"}
 	c.Assert(s.B.UpsertServer(srv, 0), IsNil)
 
-	out, err := s.B.GetServers()
+	out, err = s.B.GetServers()
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []backend.Server{srv})
 }
