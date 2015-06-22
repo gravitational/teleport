@@ -129,6 +129,9 @@ func (b *BoltBackend) GetUserKeys(user string) ([]backend.AuthorizedKey, error) 
 	err := b.db.View(func(tx *bolt.Tx) error {
 		bkt, err := getBucket(tx, []string{"users", user, "keys"})
 		if err != nil {
+			if _, ok := err.(*backend.NotFoundError); ok {
+				return nil
+			}
 			return err
 		}
 		c := bkt.Cursor()
@@ -240,6 +243,9 @@ func (b *BoltBackend) GetWebSessionsKeys(user string) ([]backend.AuthorizedKey, 
 	err := b.db.View(func(tx *bolt.Tx) error {
 		bkt, err := getBucket(tx, []string{"users", user, "web-sessions"})
 		if err != nil {
+			if _, ok := err.(*backend.NotFoundError); ok {
+				return nil
+			}
 			return err
 		}
 		c := bkt.Cursor()
