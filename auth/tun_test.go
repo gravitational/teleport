@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"path/filepath"
 
-	"github.com/gravitational/teleport/auth/openssh"
+	authority "github.com/gravitational/teleport/auth/native"
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/membk"
 	"github.com/gravitational/teleport/sshutils"
@@ -48,7 +48,7 @@ func (s *TunSuite) TearDownTest(c *C) {
 
 func (s *TunSuite) SetUpTest(c *C) {
 	s.bk = membk.New()
-	s.a = NewAuthServer(s.bk, openssh.New(), s.scrt)
+	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)
 	s.srv = httptest.NewServer(NewAPIServer(s.a, memlog.New()))
 
 	// set up host private key and certificate

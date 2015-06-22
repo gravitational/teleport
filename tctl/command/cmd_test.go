@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/auth"
-	"github.com/gravitational/teleport/auth/openssh"
+	authority "github.com/gravitational/teleport/auth/native"
 	"github.com/gravitational/teleport/backend/membk"
 	"github.com/gravitational/teleport/utils"
 
@@ -47,7 +47,7 @@ func (s *CmdSuite) SetUpSuite(c *C) {
 
 func (s *CmdSuite) SetUpTest(c *C) {
 	s.bk = membk.New()
-	s.asrv = auth.NewAuthServer(s.bk, openssh.New(), s.scrt)
+	s.asrv = auth.NewAuthServer(s.bk, authority.New(), s.scrt)
 	s.srv = httptest.NewServer(auth.NewAPIServer(s.asrv, memlog.New()))
 
 	u, err := url.Parse(s.srv.URL)

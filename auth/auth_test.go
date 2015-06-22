@@ -2,7 +2,7 @@ package auth
 
 import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
-	"github.com/gravitational/teleport/auth/openssh"
+	authority "github.com/gravitational/teleport/auth/native"
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/membk"
 
@@ -27,7 +27,7 @@ func (s *AuthSuite) SetUpSuite(c *C) {
 
 func (s *AuthSuite) SetUpTest(c *C) {
 	s.bk = membk.New()
-	s.a = NewAuthServer(s.bk, openssh.New(), s.scrt)
+	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)
 }
 
 func (s *AuthSuite) TestPasswordCRUD(c *C) {
