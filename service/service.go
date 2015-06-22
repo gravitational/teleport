@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/gravitational/teleport/auth"
-	"github.com/gravitational/teleport/auth/openssh"
+	authority "github.com/gravitational/teleport/auth/native"
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/boltbk"
 	"github.com/gravitational/teleport/backend/etcdbk"
@@ -71,7 +71,7 @@ func initAuth(t *TeleportService, cfg Config) error {
 	}
 
 	asrv, signer, err := auth.Init(
-		b, openssh.New(), cfg.FQDN, cfg.Auth.Domain, cfg.DataDir)
+		b, authority.New(), cfg.FQDN, cfg.Auth.Domain, cfg.DataDir)
 	if err != nil {
 		log.Errorf("failed to init auth server: %v", err)
 		return err

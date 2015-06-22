@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/auth"
-	"github.com/gravitational/teleport/auth/openssh"
+	authority "github.com/gravitational/teleport/auth/native"
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/membk"
 	"github.com/gravitational/teleport/sshutils"
@@ -43,7 +43,7 @@ func (s *SrvSuite) SetUpSuite(c *C) {
 
 func (s *SrvSuite) SetUpTest(c *C) {
 	s.bk = membk.New()
-	s.a = auth.NewAuthServer(s.bk, openssh.New(), s.scrt)
+	s.a = auth.NewAuthServer(s.bk, authority.New(), s.scrt)
 
 	// set up host private key and certificate
 	c.Assert(s.a.ResetHostCA(""), IsNil)

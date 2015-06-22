@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
-	"github.com/gravitational/teleport/auth/openssh"
+	authority "github.com/gravitational/teleport/auth/native"
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/membk"
 
@@ -37,7 +37,7 @@ func (s *APISuite) SetUpSuite(c *C) {
 
 func (s *APISuite) SetUpTest(c *C) {
 	s.bk = membk.New()
-	s.a = NewAuthServer(s.bk, openssh.New(), s.scrt)
+	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)
 	s.srv = httptest.NewServer(NewAPIServer(s.a, memlog.New()))
 	clt, err := NewClient(s.srv.URL)
 	c.Assert(err, IsNil)
