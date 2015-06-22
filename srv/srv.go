@@ -98,32 +98,47 @@ func (s *Server) heartbeatPresence() {
 	}
 }
 
-func (s *Server) getUserCAKey() (ssh.PublicKey, error) {
+func (s *Server) getTrustedCAKeys() ([]ssh.PublicKey, error) {
+	out := []ssh.PublicKey{}
+	authKeys := [][]byte{}
 	key, err := s.ap.GetUserCAPub()
 	if err != nil {
 		return nil, err
 	}
-	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
+	authKeys = append(authKeys, key)
+
+	certs, err := s.ap.GetRemoteCerts(backend.UserCert, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse CA public key '%v', err: %v",
-			string(key), err)
+		return nil, err
 	}
-	return pubKey, nil
+	for _, c := range certs {
+		authKeys = append(authKeys, c.Value)
+	}
+	for _, ak := range authKeys {
+		pk, _, _, _, err := ssh.ParseAuthorizedKey(ak)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse CA public key '%v', err: %v",
+				string(ak), err)
+		}
+		out = append(out, pk)
+	}
+	return out, nil
 }
 
 // isAuthority is called during checking the client key, to see if the signing
 // key is the real CA authority key.
 func (s *Server) isAuthority(auth ssh.PublicKey) bool {
-	key, err := s.getUserCAKey()
+	keys, err := s.getTrustedCAKeys()
 	if err != nil {
-		log.Errorf("failed to retrieve user authority key, err: %v", err)
+		log.Errorf("failed to retrieve trused keys, err: %v", err)
 		return false
 	}
-	if !sshutils.KeysEqual(key, auth) {
-		log.Warningf("authority signature check failed, signing keys mismatch")
-		return false
+	for _, k := range keys {
+		if sshutils.KeysEqual(k, auth) {
+			return true
+		}
 	}
-	return true
+	return false
 }
 
 // userKeys returns keys registered for a given user in a configuration backend
@@ -176,20 +191,22 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
 		return nil, err
 	}
-	keys, err := s.userKeys(conn.User())
-	if err != nil {
-		log.Errorf("failed to retrieve user keys: %v", err)
-		return nil, err
-	}
-	for _, k := range keys {
-		if sshutils.KeysEqual(k, key) {
-			log.Infof("%v SUCCESS auth", cid)
-			s.elog.Log(eventID, events.NewAuthAttempt(conn, key, true, nil))
-			return p, nil
-		}
-	}
-	log.Infof("%v FAIL auth, no matching keys found", cid)
-	return nil, fmt.Errorf("authentication failed")
+	return p, nil
+	/*
+		TODO(klizhentas) replace this with revocation checking
+				keys, err := s.userKeys(conn.User())
+				if err != nil {
+					log.Errorf("failed to retrieve user keys: %v", err)
+					return nil, err
+				}
+				for _, k := range keys {
+					if sshutils.KeysEqual(k, key) {
+						log.Infof("%v SUCCESS auth", cid)
+						s.elog.Log(eventID, events.NewAuthAttempt(conn, key, true, nil))
+						return p, nil
+					}
+				}
+	*/
 }
 
 // Close closes listening socket and stops accepting connections
@@ -336,7 +353,7 @@ func (s *Server) dispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Reques
 		return s.handlePTYReq(ch, req, ctx)
 	case "shell":
 		// SSH client asked to launch shell, we allocate PTY and start shell session
-		return s.handleShell(ch, req, ctx)
+		return s.handleShell(sconn, ch, req, ctx)
 	case "env":
 		// we currently ignore setting any environment variables via SSH for security purposes
 		return s.handleEnv(ch, req, ctx)
@@ -396,7 +413,7 @@ func (s *Server) handleSubsystem(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 	return nil
 }
 
-func (s *Server) handleShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+func (s *Server) handleShell(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	log.Infof("%v handleShell()", ctx)
 	if ctx.getTerm() == nil {
 		t, err := newTerm()
@@ -436,11 +453,11 @@ func (s *Server) handleShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 		result, err := collectStatus(cmd, cmd.Wait())
 		if err != nil {
 			log.Errorf("%v wait failed: %v", ctx, err)
-			ctx.emit(events.NewShell(s.shell, out, -1, err))
+			ctx.emit(events.NewShell(sconn, s.shell, out, -1, err))
 		}
 		if result != nil {
 			log.Infof("%v result collected: %v", ctx, result)
-			ctx.emit(events.NewShell(s.shell, out, result.code, nil))
+			ctx.emit(events.NewShell(sconn, s.shell, out, result.code, nil))
 			ctx.sendResult(*result)
 		}
 	}()

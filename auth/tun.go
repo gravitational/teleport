@@ -395,7 +395,7 @@ func NewWebPasswordAuth(user string, password []byte) ([]ssh.AuthMethod, error) 
 }
 
 func NewHostAuth(key, cert []byte) ([]ssh.AuthMethod, error) {
-	signer, err := sshutils.NewHostSigner(key, cert)
+	signer, err := sshutils.NewSigner(key, cert)
 	if err != nil {
 		return nil, err
 	}
@@ -431,6 +431,12 @@ func (c *TunClient) GetAgent() (agent.Agent, error) {
 
 func (c *TunClient) Close() error {
 	return c.dialer.Close()
+}
+
+func (c *TunClient) GetDialer() AccessPointDialer {
+	return func() (net.Conn, error) {
+		return c.dialer.Dial(c.dialer.addr.Network, "accesspoint:0")
+	}
 }
 
 type TunDialer struct {
@@ -502,3 +508,6 @@ const (
 	AuthWebSession  = "session"
 	AuthToken       = "provision-token"
 )
+
+// AccessPointDialer dials to auth access point  remote HTTP api
+type AccessPointDialer func() (net.Conn, error)

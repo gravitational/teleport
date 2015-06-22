@@ -58,7 +58,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", 0)
 	c.Assert(err, IsNil)
 
-	signer, err := sshutils.NewHostSigner(hpriv, hcert)
+	signer, err := sshutils.NewSigner(hpriv, hcert)
 	c.Assert(err, IsNil)
 	s.signer = signer
 	u, err := url.Parse(s.srv.URL)

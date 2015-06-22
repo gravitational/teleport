@@ -62,6 +62,56 @@ func (b *BoltBackend) Close() error {
 	return nil
 }
 
+func (b *BoltBackend) UpsertRemoteCert(cert backend.RemoteCert, ttl time.Duration) error {
+	return b.upsertKey([]string{"certs", cert.Type, "hosts", cert.FQDN}, cert.ID, cert.Value)
+}
+
+func (b *BoltBackend) GetRemoteCerts(ctype string, fqdn string) ([]backend.RemoteCert, error) {
+	out := []backend.RemoteCert{}
+	err := b.db.View(func(tx *bolt.Tx) error {
+		hosts := []string{}
+		if fqdn == "" {
+			bkt, err := getBucket(tx, []string{"certs", ctype, "hosts"})
+			if err != nil {
+				if isNotFound(err) {
+					return nil
+				}
+				return err
+			}
+			c := bkt.Cursor()
+			for k, _ := c.First(); k != nil; k, _ = c.Next() {
+				hosts = append(hosts, string(k))
+			}
+		} else {
+			hosts = []string{fqdn}
+		}
+		for _, h := range hosts {
+			bkt, err := getBucket(tx, []string{"certs", ctype, "hosts", h})
+			if err != nil {
+				return err
+			}
+			c := bkt.Cursor()
+			for k, v := c.First(); k != nil; k, v = c.Next() {
+				out = append(out, backend.RemoteCert{
+					Type:  ctype,
+					FQDN:  h,
+					ID:    string(k),
+					Value: v,
+				})
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (b *BoltBackend) DeleteRemoteCert(ctype string, fqdn, id string) error {
+	return b.deleteKey([]string{"certs", ctype, "hosts", fqdn}, id)
+}
+
 // GetUsers  returns a list of users registered in the backend
 func (b *BoltBackend) GetUsers() ([]string, error) {
 	out := []string{}
@@ -422,4 +472,9 @@ func getBucket(b *bolt.Tx, buckets []string) (*bolt.Bucket, error) {
 		}
 	}
 	return bkt, nil
+}
+
+func isNotFound(err error) bool {
+	_, ok := err.(*backend.NotFoundError)
+	return ok
 }

@@ -236,6 +236,61 @@ func (s *BackendSuite) TokenCRUD(c *C) {
 	c.Assert(err, FitsTypeOf, &backend.NotFoundError{})
 }
 
+func (s *BackendSuite) RemoteCertCRUD(c *C) {
+	out, err := s.B.GetRemoteCerts(backend.HostCert, "")
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, []backend.RemoteCert{})
+
+	ca := backend.RemoteCert{
+		Type:  backend.HostCert,
+		ID:    "c1",
+		FQDN:  "example.com",
+		Value: []byte("hello"),
+	}
+	c.Assert(s.B.UpsertRemoteCert(ca, 0), IsNil)
+
+	out, err = s.B.GetRemoteCerts(backend.HostCert, ca.FQDN)
+	c.Assert(err, IsNil)
+	c.Assert(out[0], DeepEquals, ca)
+
+	ca2 := backend.RemoteCert{
+		Type:  backend.HostCert,
+		ID:    "c2",
+		FQDN:  "example.org",
+		Value: []byte("hello2"),
+	}
+	c.Assert(s.B.UpsertRemoteCert(ca2, 0), IsNil)
+
+	out, err = s.B.GetRemoteCerts(backend.HostCert, ca2.FQDN)
+	c.Assert(err, IsNil)
+	c.Assert(out[0], DeepEquals, ca2)
+
+	out, err = s.B.GetRemoteCerts(backend.HostCert, "")
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 2)
+
+	certs := make(map[string]backend.RemoteCert)
+	for _, c := range out {
+		certs[c.FQDN+c.ID] = c
+	}
+	c.Assert(certs[ca.FQDN+ca.ID], DeepEquals, ca)
+	c.Assert(certs[ca2.FQDN+ca2.ID], DeepEquals, ca2)
+
+	// Update ca
+	ca.Value = []byte("hello updated")
+	c.Assert(s.B.UpsertRemoteCert(ca, 0), IsNil)
+
+	out, err = s.B.GetRemoteCerts(backend.HostCert, ca.FQDN)
+	c.Assert(err, IsNil)
+	c.Assert(out[0], DeepEquals, ca)
+
+	err = s.B.DeleteRemoteCert(backend.HostCert, ca.FQDN, ca.ID)
+	c.Assert(err, IsNil)
+
+	err = s.B.DeleteRemoteCert(backend.HostCert, ca.FQDN, ca.ID)
+	c.Assert(err, FitsTypeOf, &backend.NotFoundError{})
+}
+
 func toSet(vals []string) map[string]struct{} {
 	out := make(map[string]struct{}, len(vals))
 	for _, v := range vals {

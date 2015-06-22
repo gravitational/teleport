@@ -71,12 +71,15 @@ func (*Exec) Schema() string {
 	return "teleport.exec"
 }
 
-func NewShell(shell string, log io.Reader, code int, err error) *Shell {
+func NewShell(conn ssh.ConnMetadata, shell string, log io.Reader, code int, err error) *Shell {
 	return &Shell{
-		Shell: shell,
-		Log:   collectOutput(log),
-		Code:  code,
-		Error: errMsg(err),
+		Shell:      shell,
+		Log:        collectOutput(log),
+		Code:       code,
+		Error:      errMsg(err),
+		User:       conn.User(),
+		LocalAddr:  conn.LocalAddr().String(),
+		RemoteAddr: conn.RemoteAddr().String(),
 	}
 }
 
@@ -93,6 +96,15 @@ type Shell struct {
 
 	// Log is a captured session log
 	Log string `json:"log"`
+
+	// User is SSH user
+	User string `json:"user"`
+
+	// LocalAddr local connecting address
+	LocalAddr string `json:"laddr"`
+
+	// RemoteAddr remote connecting address
+	RemoteAddr string `json:"raddr"`
 }
 
 func (*Shell) Schema() string {

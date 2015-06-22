@@ -79,7 +79,7 @@ func (cmd *Command) upsertKey(c *cli.Context) {
 		cmd.printError(err)
 		return
 	}
-	fmt.Fprintf(cmd.out, "certificate:\n%v", string(signed))
+	fmt.Fprintf(cmd.out, "%v", string(signed))
 }
 
 func (cmd *Command) deleteUser(c *cli.Context) {

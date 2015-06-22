@@ -115,12 +115,9 @@ func (s *CmdSuite) TestUserCRUD(c *C) {
 	fkey.Write(pub)
 
 	out := s.run("user", "upsert_key", "-user", "alex", "-keyid", "key1", "-key", fkey.Name())
-	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "certificate:"))
+	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", pub))
 
-	parts := strings.Split(out, "certificate:")
-	c.Assert(len(parts), Equals, 2)
-
-	c.Assert(trim(string(s.bk.Users["alex"].Keys["key1"].Value)), Equals, trim(parts[1]))
+	c.Assert(trim(string(s.bk.Users["alex"].Keys["key1"].Value)), Equals, trim(out))
 
 	c.Assert(
 		s.run("user", "ls"),
@@ -137,6 +134,30 @@ func (s *CmdSuite) TestGenerateToken(c *C) {
 	token := s.run(
 		"token", "generate", "-fqdn", "a.example.com", "-ttl", "100s")
 	c.Assert(s.asrv.ValidateToken(token, "a.example.com"), IsNil)
+}
+
+func (s *CmdSuite) TestRemoteCertCRUD(c *C) {
+	c.Assert(s.asrv.ResetUserCA(""), IsNil)
+
+	_, pub, err := s.asrv.GenerateKeyPair("")
+	c.Assert(err, IsNil)
+
+	fkey, err := ioutil.TempFile("", "teleport")
+	c.Assert(err, IsNil)
+	defer fkey.Close()
+	fkey.Write(pub)
+
+	out := s.run("remoteca", "upsert", "-id", "id1", "-type", "user", "-fqdn", "example.com", "-path", fkey.Name())
+	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "upserted"))
+	c.Assert(trim(string(s.bk.RemoteCerts[0].Value)), Equals, trim(string(pub)))
+
+	out = s.run("remoteca", "ls", "-type", "user")
+	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "example.com"))
+
+	out = s.run("remoteca", "rm", "-type", "user", "-fqdn", "example.com", "-id", "id1")
+	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "deleted"))
+
+	c.Assert(len(s.bk.RemoteCerts), Equals, 0)
 }
 
 func trim(val string) string {

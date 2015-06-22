@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/gravitational/teleport/auth"
 	authority "github.com/gravitational/teleport/auth/native"
@@ -10,6 +11,7 @@ import (
 	"github.com/gravitational/teleport/backend/etcdbk"
 	"github.com/gravitational/teleport/cp"
 	"github.com/gravitational/teleport/srv"
+	"github.com/gravitational/teleport/tun"
 	"github.com/gravitational/teleport/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
@@ -53,6 +55,12 @@ func NewTeleport(cfg Config) (*TeleportService, error) {
 		}
 	}
 
+	if cfg.Tun.Enabled {
+		if err := initTun(t, cfg); err != nil {
+			return nil, err
+		}
+	}
+
 	return t, nil
 }
 
@@ -89,7 +97,7 @@ func initAuth(t *TeleportService, cfg Config) error {
 		return utils.StartHTTPServer(a.HTTPAddr, t)
 	})
 
-	// register SSH endpoint
+	// register auth SSH-based endpoint
 	t.RegisterFunc(func() error {
 		tsrv, err := auth.NewTunServer(
 			a.SSHAddr, []ssh.Signer{signer},
@@ -146,7 +154,7 @@ func initSSH(t *TeleportService, cfg Config) error {
 		// this means the server has not been initialized yet we are starting
 		// the registering client that attempts to connect ot the auth server
 		// and provision the keys
-		return initSSHRegister(t, cfg)
+		return initRegister(t, cfg.SSH.Token, cfg)
 	}
 	return initSSHEndpoint(t, cfg)
 }
@@ -186,16 +194,87 @@ func initSSHEndpoint(t *TeleportService, cfg Config) error {
 	return nil
 }
 
-func initSSHRegister(t *TeleportService, cfg Config) error {
+func initRegister(t *TeleportService, token string, cfg Config) error {
+	// we are on the same server as the auth endpoint
+	// and there's no token. we can handle this
+	if cfg.Auth.Enabled && token == "" {
+		log.Infof("registering in embedded mode, connecting to local auth server")
+		clt, err := auth.NewClientFromNetAddr(cfg.Auth.HTTPAddr)
+		if err != nil {
+			log.Errorf("failed to instantiate client: %v", err)
+			return err
+		}
+		token, err = clt.GenerateToken(cfg.FQDN, 30*time.Second)
+		if err != nil {
+			log.Errorf("failed to generate token: %v", err)
+		}
+		return err
+	}
 	t.RegisterFunc(func() error {
-		log.Infof("teleport:ssh connecting to auth servers %v", cfg.SSH.Token)
+		log.Infof("teleport:register connecting to auth servers %v", cfg.SSH.Token)
 		if err := auth.Register(
-			cfg.FQDN, cfg.DataDir, cfg.SSH.Token, cfg.AuthServers); err != nil {
+			cfg.FQDN, cfg.DataDir, token, cfg.AuthServers); err != nil {
 			log.Errorf("teleport:ssh register failed: %v", err)
 			return err
 		}
-		log.Infof("teleport:ssh registered successfully, starting SSH endpoint")
+		log.Infof("teleport:register registered successfully")
 		return initSSHEndpoint(t, cfg)
+	})
+	return nil
+}
+
+func initTun(t *TeleportService, cfg Config) error {
+	if cfg.DataDir == "" {
+		return fmt.Errorf("please supply data directory")
+	}
+	if len(cfg.AuthServers) == 0 {
+		return fmt.Errorf("supply at least one auth server")
+	}
+	haveKeys, err := auth.HaveKeys(cfg.FQDN, cfg.DataDir)
+	if err != nil {
+		return err
+	}
+	if !haveKeys {
+		// this means the server has not been initialized yet we are starting
+		// the registering client that attempts to connect ot the auth server
+		// and provision the keys
+		return initRegister(t, cfg.Tun.Token, cfg)
+	}
+	return initTunAgent(t, cfg)
+}
+
+func initTunAgent(t *TeleportService, cfg Config) error {
+	signer, err := auth.ReadKeys(cfg.FQDN, cfg.DataDir)
+
+	client, err := auth.NewTunClient(
+		cfg.AuthServers[0],
+		cfg.FQDN,
+		[]ssh.AuthMethod{ssh.PublicKeys(signer)})
+
+	elog := &FanOutEventLogger{
+		Loggers: []lunk.EventLogger{
+			lunk.NewTextEventLogger(log.GetLogger().Writer(log.SeverityInfo)),
+			lunk.NewJSONEventLogger(client.GetLogWriter()),
+		}}
+
+	a, err := tun.NewAgent(
+		cfg.Tun.SrvAddr,
+		cfg.FQDN,
+		[]ssh.Signer{signer},
+		client,
+		tun.SetEventLogger(elog))
+	if err != nil {
+		return err
+	}
+
+	t.RegisterFunc(func() error {
+		log.Infof("teleport ws agent starting")
+		if err := a.Start(); err != nil {
+			log.Fatalf("failed to start: %v", err)
+			return err
+		}
+		a.Wait()
+		return nil
 	})
 	return nil
 }
@@ -221,8 +300,8 @@ func initLogging(ltype, severity string) error {
 }
 
 func validateConfig(cfg Config) error {
-	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.CP.Enabled {
-		return fmt.Errorf("supply at least one of Auth, SSH or CP roles")
+	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.CP.Enabled && !cfg.Tun.Enabled {
+		return fmt.Errorf("supply at least one of Auth, SSH, CP or Tun roles")
 	}
 	return nil
 }
@@ -252,6 +331,7 @@ type Config struct {
 	SSH  SSHConfig
 	Auth AuthConfig
 	CP   CPConfig
+	Tun  TunConfig
 }
 
 type AuthConfig struct {
@@ -274,4 +354,10 @@ type CPConfig struct {
 	Enabled bool
 	Addr    utils.NetAddr
 	Domain  string
+}
+
+type TunConfig struct {
+	Token   string
+	Enabled bool
+	SrvAddr utils.NetAddr
 }

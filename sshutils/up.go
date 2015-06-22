@@ -7,6 +7,19 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
 
+func NewUpstream(clt *ssh.Client) (*Upstream, error) {
+	session, err := clt.NewSession()
+	if err != nil {
+		clt.Close()
+		return nil, err
+	}
+	return &Upstream{
+		addr:    clt.Conn.RemoteAddr().String(),
+		client:  clt,
+		session: session,
+	}, nil
+}
+
 func DialUpstream(username, addr string, signers []ssh.Signer) (*Upstream, error) {
 	sshConfig := &ssh.ClientConfig{
 		User: username,

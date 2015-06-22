@@ -55,7 +55,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	// set up user CA and set up a user that has access to the server
 	c.Assert(s.a.ResetUserCA(""), IsNil)
 
-	signer, err := sshutils.NewHostSigner(hpriv, hcert)
+	signer, err := sshutils.NewSigner(hpriv, hcert)
 	c.Assert(err, IsNil)
 
 	srv, err := New(

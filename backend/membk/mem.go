@@ -20,7 +20,8 @@ type MemBackend struct {
 	WebTuns map[string]backend.WebTun
 	Tokens  map[string]string
 
-	Locks map[string]time.Time
+	Locks       map[string]time.Time
+	RemoteCerts []backend.RemoteCert
 }
 
 type User struct {
@@ -69,6 +70,42 @@ func (b *MemBackend) ReleaseLock(token string) error {
 
 func (b *MemBackend) Close() error {
 	return nil
+}
+
+// Remote Certificate management
+func (b *MemBackend) UpsertRemoteCert(crt backend.RemoteCert, ttl time.Duration) error {
+	for i, c := range b.RemoteCerts {
+		if c.ID == crt.ID && c.FQDN == crt.FQDN && c.Type == crt.Type {
+			b.RemoteCerts[i] = crt
+			return nil
+		}
+	}
+	b.RemoteCerts = append(b.RemoteCerts, crt)
+	return nil
+}
+
+func (b *MemBackend) GetRemoteCerts(ctype string, fqdn string) ([]backend.RemoteCert, error) {
+	out := []backend.RemoteCert{}
+	for _, c := range b.RemoteCerts {
+		if c.Type != ctype {
+			continue
+		}
+		if fqdn != "" && fqdn != c.FQDN {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out, nil
+}
+
+func (b *MemBackend) DeleteRemoteCert(ctype string, fqdn, id string) error {
+	for i, c := range b.RemoteCerts {
+		if c.ID == id && c.FQDN == fqdn && c.Type == ctype {
+			b.RemoteCerts = append(b.RemoteCerts[:i], b.RemoteCerts[i+1:]...)
+			return nil
+		}
+	}
+	return &backend.NotFoundError{}
 }
 
 // GetUsers  returns a list of users registered in the backend

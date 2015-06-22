@@ -117,3 +117,7 @@ func (s *EtcdSuite) TestLocking(c *C) {
 func (s *EtcdSuite) TestToken(c *C) {
 	s.suite.TokenCRUD(c)
 }
+
+func (s *EtcdSuite) TestRemoteCert(c *C) {
+	s.suite.RemoteCertCRUD(c)
+}

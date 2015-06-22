@@ -6,25 +6,23 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
 
-func NewHostSigner(key, cert []byte) (ssh.Signer, error) {
-	hostSigner, err := ssh.ParsePrivateKey(key)
+func NewSigner(keyBytes, certBytes []byte) (ssh.Signer, error) {
+	keySigner, err := ssh.ParsePrivateKey(keyBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse host private key, err: %v", err)
 	}
 
-	hostCAKey, _, _, _, err := ssh.ParseAuthorizedKey(cert)
+	pubkey, _, _, _, err := ssh.ParseAuthorizedKey(certBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse server CA certificate '%v', err: %v", string(cert), err)
+		return nil, fmt.Errorf(
+			"failed to parse server CA certificate '%v', err: %v",
+			string(certBytes), err)
 	}
 
-	hostCert, ok := hostCAKey.(*ssh.Certificate)
+	cert, ok := pubkey.(*ssh.Certificate)
 	if !ok {
-		return nil, fmt.Errorf("expected host CA certificate, got %T ", hostCAKey)
+		return nil, fmt.Errorf("expected CA certificate, got %T ", pubkey)
 	}
 
-	signer, err := ssh.NewCertSigner(hostCert, hostSigner)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create certificate signer, err: %v", err)
-	}
-	return signer, nil
+	return ssh.NewCertSigner(cert, keySigner)
 }

@@ -128,7 +128,7 @@ func ReadKeys(fqdn, dataDir string) (ssh.Signer, error) {
 		return nil, err
 	}
 
-	return sshutils.NewHostSigner(key, cert)
+	return sshutils.NewSigner(key, cert)
 }
 
 func HaveKeys(fqdn, dataDir string) (bool, error) {
