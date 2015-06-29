@@ -113,6 +113,78 @@ func (b *bk) GetHostCAPub() ([]byte, error) {
 	return ca.Pub, nil
 }
 
+func (b *bk) UpsertRemoteCert(cert backend.RemoteCert, ttl time.Duration) error {
+	_, err := b.client.Set(b.key("certs", cert.Type, "hosts", cert.FQDN, cert.ID), string(cert.Value), uint64(ttl/time.Second))
+	return convertErr(err)
+}
+
+func (b *bk) getKeys(key string) ([]string, error) {
+	vals := []string{}
+	re, err := b.client.Get(key, true, false)
+	if err != nil {
+		if notFound(err) {
+			return vals, nil
+		}
+		return nil, convertErr(err)
+	}
+	if !isDir(re.Node) {
+		return nil, fmt.Errorf("expected directory")
+	}
+	for _, n := range re.Node.Nodes {
+		vals = append(vals, suffix(n.Key))
+	}
+	return vals, nil
+}
+
+func (b *bk) GetRemoteCerts(ctype, fqdn string) ([]backend.RemoteCert, error) {
+	certs := []backend.RemoteCert{}
+	if ctype == "" {
+		return nil, fmt.Errorf("provide certificate type")
+	}
+	var hosts []string
+	var err error
+	if fqdn != "" {
+		hosts = []string{fqdn}
+	} else {
+		if hosts, err = b.getKeys(b.key("certs", ctype, "hosts")); err != nil {
+			return nil, err
+		}
+	}
+
+	// for each host, get a list of ids
+	hs := make(map[string][]string)
+	for _, h := range hosts {
+		vals, err := b.getKeys(b.key("certs", ctype, "hosts", h))
+		if err != nil {
+			return nil, err
+		}
+		hs[h] = vals
+	}
+
+	// now, for each id retrieve it's value
+	for h, ids := range hs {
+		for _, id := range ids {
+			re, err := b.client.Get(b.key("certs", ctype, "hosts", h), true, true)
+			if err != nil {
+				return nil, convertErr(err)
+			}
+			cert := backend.RemoteCert{
+				Value: []byte(re.Node.Nodes[0].Value),
+				Type:  ctype,
+				FQDN:  h,
+				ID:    id,
+			}
+			certs = append(certs, cert)
+		}
+	}
+	return certs, nil
+}
+
+func (b *bk) DeleteRemoteCert(ctype, fqdn, id string) error {
+	_, err := b.client.Delete(b.key("certs", ctype, "hosts", fqdn, id), true)
+	return convertErr(err)
+}
+
 // GetUsers  returns a list of users registered in the backend
 func (b *bk) GetUsers() ([]string, error) {
 	values := []string{}

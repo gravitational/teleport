@@ -6,7 +6,7 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 )
 
-// Supervisor implements the simple service logick
+// Supervisor implements the simple service logic
 type Supervisor struct {
 	state int
 	sync.Mutex

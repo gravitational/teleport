@@ -59,6 +59,11 @@ func NewAPIServer(s *AuthServer, elog memlog.Logger) *APIServer {
 	// Generating keypairs
 	srv.POST("/v1/keypair", srv.generateKeyPair)
 
+	// Operations on remote authorities we trust
+	srv.POST("/v1/ca/remote/:type/hosts/:fqdn", srv.upsertRemoteCert)
+	srv.DELETE("/v1/ca/remote/:type/hosts/:fqdn/:id", srv.deleteRemoteCert)
+	srv.GET("/v1/ca/remote/:type", srv.getRemoteCerts)
+
 	// Passwords and sessions
 	srv.POST("/v1/users/:user/web/password", srv.upsertPassword)
 	srv.POST("/v1/users/:user/web/password/check", srv.checkPassword)
@@ -514,6 +519,51 @@ func reply(w http.ResponseWriter, code int, message interface{}) {
 	w.Write(out)
 }
 
+func (s *APIServer) upsertRemoteCert(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	var id, key string
+	var ttl time.Duration
+
+	ctype, fqdn := p[0].Value, p[1].Value
+
+	err := form.Parse(r,
+		form.String("key", &key, form.Required()),
+		form.String("id", &id, form.Required()),
+		form.Duration("ttl", &ttl))
+	if err != nil {
+		replyErr(w, err)
+		return
+	}
+	cert := backend.RemoteCert{ID: id, Value: []byte(key), FQDN: fqdn, Type: ctype}
+	if err := s.s.UpsertRemoteCert(cert, ttl); err != nil {
+		replyErr(w, err)
+		return
+	}
+	reply(w, http.StatusOK, remoteCertResponse{RemoteCert: cert})
+}
+
+func (s *APIServer) getRemoteCerts(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	fqdn := r.URL.Query().Get("fqdn")
+	ctype := p[0].Value
+
+	certs, err := s.s.GetRemoteCerts(ctype, fqdn)
+	if err != nil {
+		fmt.Printf("error: %v", err)
+		log.Infof("error: %v", err)
+		replyErr(w, err)
+		return
+	}
+	reply(w, http.StatusOK, &remoteCertsResponse{RemoteCerts: certs})
+}
+
+func (s *APIServer) deleteRemoteCert(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	ctype, fqdn, id := p[0].Value, p[1].Value, p[2].Value
+	if err := s.s.DeleteRemoteCert(ctype, fqdn, id); err != nil {
+		replyErr(w, err)
+		return
+	}
+	reply(w, http.StatusOK, message(fmt.Sprintf("cert '%v' deleted", id)))
+}
+
 type pubKeyResponse struct {
 	PubKey string `json:"pubkey"`
 }
@@ -524,6 +574,14 @@ type pubKeysResponse struct {
 
 type certResponse struct {
 	Cert string `json:"cert"`
+}
+
+type remoteCertResponse struct {
+	RemoteCert backend.RemoteCert `hson:"remote_cert"`
+}
+
+type remoteCertsResponse struct {
+	RemoteCerts []backend.RemoteCert `hson:"remote_certs"`
 }
 
 type usersResponse struct {

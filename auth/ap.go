@@ -26,4 +26,7 @@ type AccessPoint interface {
 	// GetWebSessionsKeys returns a list of generated public keys
 	// associated with user web session
 	GetWebSessionsKeys(user string) ([]backend.AuthorizedKey, error)
+
+	// GetRemoteCerts returns a list of trusted remote certificates
+	GetRemoteCerts(ctype, fqdn string) ([]backend.RemoteCert, error)
 }

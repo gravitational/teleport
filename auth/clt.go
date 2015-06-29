@@ -35,7 +35,12 @@ func NewClientFromNetAddr(
 				return net.Dial(a.Network, a.Addr)
 			}}}
 	params = append(params, roundtrip.HTTPClient(client))
-	return NewClient("http://placeholder:0", params...)
+	u := url.URL{
+		Scheme: "http",
+		Host:   "placeholder",
+		Path:   a.Path,
+	}
+	return NewClient(u.String(), params...)
 }
 
 func NewClient(addr string, params ...roundtrip.ClientParam) (*Client, error) {
@@ -78,6 +83,41 @@ func (c *Client) Get(u string, params url.Values) (*roundtrip.Response, error) {
 // Delete issues http Delete Request to the server
 func (c *Client) Delete(u string) (*roundtrip.Response, error) {
 	return c.convertResponse(c.Client.Delete(u))
+}
+
+func (c *Client) UpsertRemoteCert(cert backend.RemoteCert, ttl time.Duration) error {
+	out, err := c.PostForm(c.Endpoint("ca", "remote", cert.Type, "hosts", cert.FQDN), url.Values{
+		"key": []string{string(cert.Value)},
+		"ttl": []string{ttl.String()},
+		"id":  []string{cert.ID},
+	})
+	if err != nil {
+		return err
+	}
+	var re *remoteCertResponse
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) GetRemoteCerts(ctype string, fqdn string) ([]backend.RemoteCert, error) {
+	out, err := c.Get(c.Endpoint("ca", "remote", ctype), url.Values{
+		"fqdn": []string{fqdn},
+	})
+	if err != nil {
+		return nil, err
+	}
+	var re *remoteCertsResponse
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return nil, err
+	}
+	return re.RemoteCerts, nil
+}
+
+func (c *Client) DeleteRemoteCert(ctype string, fqdn, id string) error {
+	_, err := c.Delete(c.Endpoint("ca", "remote", ctype, "hosts", fqdn, id))
+	return err
 }
 
 // GenerateToken creates a special provisioning token for the SSH server

@@ -68,3 +68,7 @@ func (s *MemSuite) TestLocking(c *C) {
 func (s *MemSuite) TestToken(c *C) {
 	s.suite.TokenCRUD(c)
 }
+
+func (s *MemSuite) TestRemoteCert(c *C) {
+	s.suite.RemoteCertCRUD(c)
+}

@@ -254,3 +254,25 @@ func (s *APISuite) TestTokens(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Not(Equals), 0)
 }
+
+func (s *APISuite) TestRemoteCACRUD(c *C) {
+
+	key := backend.RemoteCert{
+		FQDN:  "example.com",
+		ID:    "id",
+		Value: []byte("hello1"),
+		Type:  backend.UserCert,
+	}
+	err := s.clt.UpsertRemoteCert(key, 0)
+	c.Assert(err, IsNil)
+
+	certs, err := s.clt.GetRemoteCerts(key.Type, key.FQDN)
+	c.Assert(err, IsNil)
+	c.Assert(certs[0], DeepEquals, key)
+
+	err = s.clt.DeleteRemoteCert(key.Type, key.FQDN, key.ID)
+	c.Assert(err, IsNil)
+
+	err = s.clt.DeleteRemoteCert(key.Type, key.FQDN, key.ID)
+	c.Assert(err, FitsTypeOf, &backend.NotFoundError{})
+}

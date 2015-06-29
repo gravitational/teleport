@@ -9,6 +9,7 @@ import (
 type NetAddr struct {
 	Addr    string
 	Network string
+	Path    string
 }
 
 func (a *NetAddr) String() string {
@@ -22,7 +23,7 @@ func ParseAddr(a string) (*NetAddr, error) {
 	}
 	switch u.Scheme {
 	case "tcp":
-		return &NetAddr{Addr: u.Host, Network: u.Scheme}, nil
+		return &NetAddr{Addr: u.Host, Network: u.Scheme, Path: u.Path}, nil
 	case "unix":
 		return &NetAddr{Addr: u.Path, Network: u.Scheme}, nil
 	default:

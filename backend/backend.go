@@ -22,6 +22,11 @@ type Backend interface {
 	// GetUserCAPub returns the user certificate authority public key
 	GetUserCAPub() ([]byte, error)
 
+	// Remote Certificate management
+	UpsertRemoteCert(RemoteCert, time.Duration) error
+	GetRemoteCerts(ctype string, fqdn string) ([]RemoteCert, error)
+	DeleteRemoteCert(ctype string, fqdn, id string) error
+
 	// GetCA returns private, public key and certificate for user CA
 	GetUserCA() (*CA, error)
 
@@ -185,3 +190,15 @@ type BadParameterError struct {
 func (m *BadParameterError) Error() string {
 	return fmt.Sprintf("bad parameter '%v', %v", m.Param, m.Err)
 }
+
+type RemoteCert struct {
+	Type  string
+	ID    string
+	FQDN  string
+	Value []byte
+}
+
+const (
+	HostCert = "host"
+	UserCert = "user"
+)

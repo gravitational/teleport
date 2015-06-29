@@ -46,8 +46,7 @@ cover-package-with-etcd: remove-temp-files
 	${ETCD_FLAGS} go test -v ./$(p)  -coverprofile=/tmp/coverage.out
 	go tool cover -html=/tmp/coverage.out
 
-run-auth:
-	go install github.com/gravitational/teleport/teleport
+run-auth: install
 	rm -f /tmp/teleport.auth.sock
 	teleport -auth\
              -authBackend=bolt\
@@ -58,8 +57,7 @@ run-auth:
              -dataDir=/tmp\
              -fqdn=auth.gravitational.io
 
-run-ssh:
-	go install github.com/gravitational/teleport/teleport
+run-ssh: install
 	tctl token generate --output=/tmp/token -fqdn=node1.gravitational.io
 	teleport -ssh\
              -log=console\
@@ -69,8 +67,7 @@ run-ssh:
              -sshToken=/tmp/token\
              -authServer=tcp://auth.gravitational.io:33000
 
-run-cp: install-assets
-	go install github.com/gravitational/teleport/teleport
+run-cp: install install-assets
 	teleport -cp\
              -cpDomain=gravitational.io\
              -log=console\
@@ -78,6 +75,34 @@ run-cp: install-assets
              -dataDir=/tmp\
              -fqdn=node2.gravitational.io\
              -authServer=tcp://auth.gravitational.io:33000
+
+run-tun: install
+	tctl token generate --output=/tmp/token -fqdn=node1.gravitational.io
+	teleport -tun\
+             -log=console\
+             -logSeverity=INFO\
+             -dataDir=/tmp\
+             -fqdn=node1.gravitational.io\
+             -tunToken=/tmp/token\
+             -tunSrvAddr=tcp://lens.gravitational.io:34000\
+             -authServer=tcp://auth.gravitational.io:33000
+
+
+run-embedded: install
+	rm -f /tmp/teleport.auth.sock
+	teleport -auth\
+             -authBackend=bolt\
+             -authBackendConfig='{"path": "/tmp/teleport.auth.db"}'\
+             -authDomain=gravitational.io\
+             -log=console\
+             -logSeverity=INFO\
+             -dataDir=/tmp\
+             -fqdn=auth.gravitational.io\
+             -ssh\
+             -authServer=tcp://auth.gravitational.io:33000\
+	         -tun\
+             -tunSrvAddr=tcp://lens.vendor.io:34000
+
 
 profile:
 	go tool pprof http://localhost:6060/debug/pprof/profile

@@ -100,12 +100,31 @@ func main() {
 		&cfg.CP.Domain, "cpDomain", "",
 		"control panel domain to serve, e.g. example.com")
 
+	// Outbound tunnel role options
+	flag.BoolVar(&cfg.Tun.Enabled, "tun", false, "enable outbound tunnel")
+
+	flag.Var(
+		utils.NewNetAddrVal(
+			utils.NetAddr{
+				Network: "tcp",
+				Addr:    "localhost:33006",
+			}, &cfg.Tun.SrvAddr),
+		"tunSrvAddr", "tun agent dial address")
+
+	flag.StringVar(
+		&cfg.Tun.Token, "tunToken", "",
+		"one time provisioning token for tun agent to register with authority")
+
 	flag.Parse()
 
 	// some variables can be set via environment variables
 	// TODO(klizhentas) - implement
 	if os.Getenv("TELEPORT_SSH_TOKEN") != "" {
 		cfg.SSH.Token = os.Getenv("TELEPORT_SSH_TOKEN")
+	}
+
+	if os.Getenv("TELEPORT_TUN_TOKEN") != "" {
+		cfg.Tun.Token = os.Getenv("TELEPORT_TUN_TOKEN")
 	}
 
 	srv, err := service.NewTeleport(cfg)

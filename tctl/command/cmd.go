@@ -50,6 +50,7 @@ func (cmd *Command) Run(args []string) error {
 	app.Commands = []cli.Command{
 		newHostCACommand(cmd),
 		newUserCACommand(cmd),
+		newRemoteCACommand(cmd),
 		newUserCommand(cmd),
 		newTokenCommand(cmd),
 		newSecretCommand(cmd),

@@ -101,6 +101,18 @@ func (s *AuthServer) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 	return s.a.GenerateKeyPair(pass)
 }
 
+func (s *AuthServer) UpsertRemoteCert(cert backend.RemoteCert, ttl time.Duration) error {
+	return s.b.UpsertRemoteCert(cert, ttl)
+}
+
+func (s *AuthServer) GetRemoteCerts(ctype string, fqdn string) ([]backend.RemoteCert, error) {
+	return s.b.GetRemoteCerts(ctype, fqdn)
+}
+
+func (s *AuthServer) DeleteRemoteCert(ctype string, fqdn, id string) error {
+	return s.b.DeleteRemoteCert(ctype, fqdn, id)
+}
+
 // ResetHostCA generates host certificate authority and updates the backend
 func (s *AuthServer) ResetHostCA(pass string) error {
 	priv, pub, err := s.a.GenerateKeyPair(pass)

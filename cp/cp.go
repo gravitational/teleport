@@ -371,6 +371,7 @@ func executeTemplate(w http.ResponseWriter, name string, data interface{}) {
 		log.Errorf("Execute template: %v", err)
 		replyErr(w, http.StatusInternalServerError, fmt.Errorf("internal render error"))
 	}
+
 }
 
 type ctx struct {
