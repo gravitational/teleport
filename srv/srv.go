@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/sshutils"
 	"github.com/gravitational/teleport/utils"
 
+	"code.google.com/p/go-uuid/uuid"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
@@ -417,52 +418,67 @@ func (s *Server) handleSubsystem(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 func (s *Server) handleShell(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	log.Infof("%v handleShell(%v)", ctx, string(req.Payload))
 
-	sess := newShellSession(s, sconn, ch, ctx)
-	if err := sess.Start(); err != nil {
-		return err
+	sid, ok := ctx.getEnv(SessionVar)
+	if !ok {
+		sid = uuid.New()
 	}
+	return s.joinShell(sid, sconn, ch, req, ctx)
+}
+
+func (s *Server) newShell(sid string, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+	log.Infof("%v upsertShell(%v)", ctx, string(req.Payload))
 	s.Lock()
 	defer s.Unlock()
+
+	sess := newShellSession(sid, s)
+	if err := sess.start(sconn, ch, ctx); err != nil {
+		return err
+	}
 	s.shellSessions[sess.id] = sess
 	log.Infof("%v created session: %v", ctx, sess.id)
-	ctx.addCloser(closerFunc(func() error {
-		s.removeShell(ctx, sess.id)
-		return nil
-	}))
-
 	return nil
 }
 
-func (s *Server) joinShell(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx, sid string) error {
-	log.Infof("%v joinShell(%v)", ctx, string(req.Payload))
-
-	sess, err := s.findSession(sid)
-	if err != nil {
-		log.Errorf("%v error: %v", ctx, err)
-		return err
-	}
-	return sess.Join(sconn, ch, req, ctx)
+func (s *Server) emit(eid lunk.EventID, e lunk.Event) {
+	s.elog.Log(eid, e)
 }
 
-func (s *Server) removeShell(ctx *ctx, id string) {
+func (s *Server) joinShell(sid string, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+	log.Infof("%v joinShell(%v)", ctx, string(req.Payload))
+	sess, found := s.findSession(sid)
+	if !found {
+		log.Infof("%v create new shell: %v", ctx, sid)
+		return s.newShell(sid, sconn, ch, req, ctx)
+	}
+	log.Infof("%v joining shell: %v", ctx, sess.id)
+	sess.join(sconn, ch, req, ctx)
+	return nil
+}
+
+func (s *Server) removeShell(id string) {
 	s.Lock()
 	defer s.Unlock()
-	log.Infof("%v removing shell %v from the active sessions", ctx, id)
+	log.Infof("%v removing shell %v from the active sessions", s, id)
 	delete(s.shellSessions, id)
 }
 
-func (s *Server) findSession(id string) (*shellSession, error) {
+func (s *Server) findSession(id string) (*shellSession, bool) {
 	s.Lock()
 	defer s.Unlock()
 	sess, ok := s.shellSessions[id]
 	if !ok {
-		return nil, fmt.Errorf("session: %v not found", id)
+		return nil, false
 	}
-	return sess, nil
+	return sess, true
 }
 
 func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	log.Infof("%v handleEnv()", ctx)
+	log.Infof("%v handleEnv(%v)", ctx, string(req.Payload))
+	var e env
+	if err := ssh.Unmarshal(req.Payload, &e); err != nil {
+		return fmt.Errorf("failed to parse env request, error: %v", err)
+	}
+	ctx.setEnv(e.Name, e.Value)
 	return nil
 }
 
@@ -547,3 +563,10 @@ type closerFunc func() error
 func (f closerFunc) Close() error {
 	return f()
 }
+
+type env struct {
+	Name  string
+	Value string
+}
+
+const SessionVar = "TELEPORT_SESSION"
