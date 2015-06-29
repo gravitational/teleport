@@ -2,12 +2,9 @@
 package srv
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net"
-	"os"
-	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -26,14 +23,16 @@ import (
 )
 
 type Server struct {
-	addr        utils.NetAddr
-	certChecker ssh.CertChecker
-	rr          resolver
-	elog        lunk.EventLogger
-	srv         *sshutils.Server
-	hostSigner  ssh.Signer
-	shell       string
-	ap          auth.AccessPoint
+	sync.Mutex
+	addr          utils.NetAddr
+	certChecker   ssh.CertChecker
+	rr            resolver
+	elog          lunk.EventLogger
+	srv           *sshutils.Server
+	hostSigner    ssh.Signer
+	shell         string
+	ap            auth.AccessPoint
+	shellSessions map[string]*shellSession
 }
 
 type ServerOption func(s *Server) error
@@ -57,9 +56,10 @@ func New(addr utils.NetAddr, signers []ssh.Signer,
 	ap auth.AccessPoint, options ...ServerOption) (*Server, error) {
 
 	s := &Server{
-		addr: addr,
-		ap:   ap,
-		rr:   &backendResolver{ap: ap},
+		addr:          addr,
+		ap:            ap,
+		rr:            &backendResolver{ap: ap},
+		shellSessions: make(map[string]*shellSession),
 	}
 	s.certChecker = ssh.CertChecker{IsAuthority: s.isAuthority}
 
@@ -303,8 +303,9 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 	for {
 		select {
 		case creq := <-ctx.close:
-			// this means that the session process stopped and desies to close the session and the channel
-			// e.g. shell has stopped and won't send any data back to client any more
+			// this means that the session process stopped and desires to close
+			// the session and the channel e.g. shell has stopped and won't send
+			// any data back to client any more
 			log.Infof("close session request: %v", creq.reason)
 			closeCh()
 			return
@@ -397,7 +398,7 @@ func (s *Server) handleWinChange(ch ssh.Channel, req *ssh.Request, ctx *ctx) err
 
 func (s *Server) handleSubsystem(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	log.Infof("%v handleSubsystem()", ctx)
-	sb, err := parseSubsystemRequest(req)
+	sb, err := parseSubsystemRequest(s, req)
 	if err != nil {
 		log.Infof("%v failed to parse subsystem request: %v", ctx, err)
 		return err
@@ -414,54 +415,50 @@ func (s *Server) handleSubsystem(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 }
 
 func (s *Server) handleShell(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	log.Infof("%v handleShell()", ctx)
-	if ctx.getTerm() == nil {
-		t, err := newTerm()
-		if err != nil {
-			log.Infof("handleShell failed to create term: %v", err)
-			return err
-		}
-		ctx.setTerm(t)
-	}
-	t := ctx.getTerm()
-	cmd := exec.Command(s.shell)
-	// TODO(klizhentas) figure out linux user policy for launching shells, what user and environment
-	// should we use to execute the shell? the simplest answer is to use current user and env, however
-	// what if we are root?
-	cmd.Env = []string{"TERM=xterm", fmt.Sprintf("HOME=%v", os.Getenv("HOME"))}
-	if err := t.run(cmd); err != nil {
-		log.Infof("%v failed to start shell: %v", ctx, err)
+	log.Infof("%v handleShell(%v)", ctx, string(req.Payload))
+
+	sess := newShellSession(s, sconn, ch, ctx)
+	if err := sess.Start(); err != nil {
 		return err
 	}
-	log.Infof("%v starting shell input/output streaming", ctx)
-	// Pipe session to shell and visa-versa capturing input and output
-	out := &bytes.Buffer{}
-	// TODO(klizhentas) implement capturing as a thread safe factored out feature
-	// what is important is that writes and reads to buffer should be protected
-	// out contains captured command output
-	go func() {
-		written, err := io.Copy(io.MultiWriter(ch, out), t.pty)
-		log.Infof("%v shell to channel copy closed, bytes written: %v, err: %v",
-			ctx, written, err)
-	}()
-	go func() {
-		written, err := io.Copy(t.pty, ch)
-		log.Infof("%v channel to shell copy closed, bytes written: %v, err: %v",
-			ctx, written, err)
-	}()
-	go func() {
-		result, err := collectStatus(cmd, cmd.Wait())
-		if err != nil {
-			log.Errorf("%v wait failed: %v", ctx, err)
-			ctx.emit(events.NewShell(sconn, s.shell, out, -1, err))
-		}
-		if result != nil {
-			log.Infof("%v result collected: %v", ctx, result)
-			ctx.emit(events.NewShell(sconn, s.shell, out, result.code, nil))
-			ctx.sendResult(*result)
-		}
-	}()
+	s.Lock()
+	defer s.Unlock()
+	s.shellSessions[sess.id] = sess
+	log.Infof("%v created session: %v", ctx, sess.id)
+	ctx.addCloser(closerFunc(func() error {
+		s.removeShell(ctx, sess.id)
+		return nil
+	}))
+
 	return nil
+}
+
+func (s *Server) joinShell(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx, sid string) error {
+	log.Infof("%v joinShell(%v)", ctx, string(req.Payload))
+
+	sess, err := s.findSession(sid)
+	if err != nil {
+		log.Errorf("%v error: %v", ctx, err)
+		return err
+	}
+	return sess.Join(sconn, ch, req, ctx)
+}
+
+func (s *Server) removeShell(ctx *ctx, id string) {
+	s.Lock()
+	defer s.Unlock()
+	log.Infof("%v removing shell %v from the active sessions", ctx, id)
+	delete(s.shellSessions, id)
+}
+
+func (s *Server) findSession(id string) (*shellSession, error) {
+	s.Lock()
+	defer s.Unlock()
+	sess, ok := s.shellSessions[id]
+	if !ok {
+		return nil, fmt.Errorf("session: %v not found", id)
+	}
+	return sess, nil
 }
 
 func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
@@ -543,4 +540,10 @@ func closeAll(closers ...io.Closer) error {
 		}
 	}
 	return err
+}
+
+type closerFunc func() error
+
+func (f closerFunc) Close() error {
+	return f()
 }

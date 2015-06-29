@@ -104,6 +104,22 @@ run-embedded: install
              -tunSrvAddr=tcp://lens.vendor.io:34000
 
 
+run-simple: install
+	rm -f /tmp/teleport.auth.sock
+	teleport -auth\
+             -authBackend=bolt\
+             -authBackendConfig='{"path": "/tmp/teleport.auth.db"}'\
+             -authDomain=gravitational.io\
+             -log=console\
+             -logSeverity=INFO\
+             -dataDir=/var/lib/teleport\
+             -fqdn=auth.gravitational.io\
+             -ssh\
+             -authServer=tcp://auth.gravitational.io:33000\
+			 -cp\
+             -cpDomain=gravitational.io\
+
+
 profile:
 	go tool pprof http://localhost:6060/debug/pprof/profile
 
