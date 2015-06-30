@@ -49,7 +49,7 @@
 		},
 		{
 			"ImportPath": "github.com/gravitational/form",
-			"Rev": "c517afe011873196a66137df5ab729187250a4f0"
+			"Rev": "ea8c8540621d9f858c3615d9e0d583f90e21fb6f"
 		},
 		{
 			"ImportPath": "github.com/gravitational/memlog",

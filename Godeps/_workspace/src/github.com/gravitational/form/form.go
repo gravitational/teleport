@@ -76,6 +76,27 @@ func Duration(name string, out *time.Duration, predicates ...Predicate) Param {
 	}
 }
 
+// Time extracts duration expressed as in RFC 3339 format
+func Time(name string, out *time.Time, predicates ...Predicate) Param {
+	return func(r *http.Request) error {
+		for _, p := range predicates {
+			if err := p.Pass(name, r); err != nil {
+				return err
+			}
+		}
+		v := r.Form.Get(name)
+		if v == "" {
+			return nil
+		}
+		var t time.Time
+		if err := t.UnmarshalText([]byte(v)); err != nil {
+			return &BadParameterError{Param: name, Message: err.Error()}
+		}
+		*out = t
+		return nil
+	}
+}
+
 // String extracts the argument by name as is without any changes
 func String(name string, out *string, predicates ...Predicate) Param {
 	return func(r *http.Request) error {

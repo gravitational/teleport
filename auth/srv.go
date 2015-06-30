@@ -584,13 +584,13 @@ func (s *APIServer) upsertSessionParty(w http.ResponseWriter, r *http.Request, p
 		form.String("site", &party.Site, form.Required()),
 		form.String("user", &party.User, form.Required()),
 		form.String("server", &party.Server, form.Required()),
+		form.Time("last_active", &party.LastActive),
 		form.Duration("ttl", &ttl),
 	)
 	if err != nil {
 		replyErr(w, err)
 		return
 	}
-	party.LastActive = time.Now()
 	if err := s.se.UpsertParty(sid, party, ttl); err != nil {
 		replyErr(w, err)
 		return
