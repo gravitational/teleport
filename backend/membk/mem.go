@@ -40,6 +40,26 @@ func New() *MemBackend {
 	}
 }
 
+func (b *MemBackend) GetKeys(path []string) ([]string, error) {
+	return nil, nil
+}
+
+func (b *MemBackend) UpsertVal(path []string, key string, val []byte, ttl time.Duration) error {
+	return nil
+}
+
+func (b *MemBackend) GetVal(path []string, key string) ([]byte, error) {
+	return nil, nil
+}
+
+func (b *MemBackend) DeleteKey(path []string, key string) error {
+	return nil
+}
+
+func (b *MemBackend) DeleteBucket(path []string, key string) error {
+	return nil
+}
+
 func (b *MemBackend) AcquireLock(token string, ttl time.Duration) error {
 	b.Lock()
 	defer b.Unlock()

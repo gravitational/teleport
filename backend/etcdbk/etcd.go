@@ -4,6 +4,7 @@ package etcdbk
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -68,6 +69,39 @@ func (b *bk) key(keys ...string) string {
 func (b *bk) reconnect() error {
 	b.client = etcd.NewClient(b.nodes)
 	return nil
+}
+
+func (b *bk) GetKeys(path []string) ([]string, error) {
+	keys, err := b.getKeys(b.key(path...))
+	if err != nil {
+		return nil, err
+	}
+	sort.Sort(sort.StringSlice(keys))
+	return keys, nil
+}
+
+func (b *bk) UpsertVal(path []string, key string, val []byte, ttl time.Duration) error {
+	_, err := b.client.Set(
+		b.key(append(path, key)...), string(val), uint64(ttl/time.Second))
+	return convertErr(err)
+}
+
+func (b *bk) GetVal(path []string, key string) ([]byte, error) {
+	re, err := b.client.Get(b.key(append(path, key)...), false, false)
+	if err != nil {
+		return nil, convertErr(err)
+	}
+	return []byte(re.Node.Value), nil
+}
+
+func (b *bk) DeleteKey(path []string, key string) error {
+	_, err := b.client.Delete(b.key(append(path, key)...), false)
+	return convertErr(err)
+}
+
+func (b *bk) DeleteBucket(path []string, key string) error {
+	_, err := b.client.Delete(b.key(append(path, key)...), false)
+	return convertErr(err)
 }
 
 func (b *bk) AcquireLock(token string, ttl time.Duration) error {

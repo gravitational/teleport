@@ -10,10 +10,11 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/form"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/memlog"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
+	websession "github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/session"
 )
 
 type Config struct {
@@ -26,12 +27,14 @@ type APIServer struct {
 	httprouter.Router
 	s    *AuthServer
 	elog memlog.Logger
+	se   session.SessionServer
 }
 
-func NewAPIServer(s *AuthServer, elog memlog.Logger) *APIServer {
+func NewAPIServer(s *AuthServer, elog memlog.Logger, se session.SessionServer) *APIServer {
 	srv := &APIServer{
 		s:    s,
 		elog: elog,
+		se:   se,
 	}
 	srv.Router = *httprouter.New()
 
@@ -88,6 +91,12 @@ func NewAPIServer(s *AuthServer, elog memlog.Logger) *APIServer {
 	// Events
 	srv.POST("/v1/events", srv.submitEvents)
 	srv.GET("/v1/events", srv.getEvents)
+
+	// Sesssions
+	srv.POST("/v1/sessions/:id/parties", srv.upsertSessionParty)
+	srv.GET("/v1/sessions", srv.getSessions)
+	srv.GET("/v1/sessions/:id", srv.getSession)
+	srv.DELETE("/v1/sessions/:id", srv.deleteSession)
 
 	return srv
 }
@@ -178,7 +187,7 @@ func (s *APIServer) getWebTuns(w http.ResponseWriter, r *http.Request, p httprou
 
 func (s *APIServer) deleteWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	user, sid := p[0].Value, p[1].Value
-	err := s.s.DeleteWebSession(user, session.SecureID(sid))
+	err := s.s.DeleteWebSession(user, websession.SecureID(sid))
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -188,12 +197,12 @@ func (s *APIServer) deleteWebSession(w http.ResponseWriter, r *http.Request, p h
 
 func (s *APIServer) getWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	user, sid := p[0].Value, p[1].Value
-	ws, err := s.s.GetWebSession(user, session.SecureID(sid))
+	ws, err := s.s.GetWebSession(user, websession.SecureID(sid))
 	if err != nil {
 		replyErr(w, err)
 		return
 	}
-	reply(w, http.StatusOK, &sessionResponse{SID: string(ws.SID)})
+	reply(w, http.StatusOK, &webSessionResponse{SID: string(ws.SID)})
 }
 
 func (s *APIServer) getWebSessions(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -203,7 +212,7 @@ func (s *APIServer) getWebSessions(w http.ResponseWriter, r *http.Request, p htt
 		replyErr(w, err)
 		return
 	}
-	reply(w, http.StatusOK, &sessionsResponse{Keys: keys})
+	reply(w, http.StatusOK, &webSessionsResponse{Keys: keys})
 }
 
 func (s *APIServer) signIn(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -221,7 +230,7 @@ func (s *APIServer) signIn(w http.ResponseWriter, r *http.Request, p httprouter.
 		replyErr(w, err)
 		return
 	}
-	reply(w, http.StatusOK, &sessionResponse{SID: string(ws.SID)})
+	reply(w, http.StatusOK, &webSessionResponse{SID: string(ws.SID)})
 }
 
 func (s *APIServer) upsertPassword(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -564,6 +573,59 @@ func (s *APIServer) deleteRemoteCert(w http.ResponseWriter, r *http.Request, p h
 	reply(w, http.StatusOK, message(fmt.Sprintf("cert '%v' deleted", id)))
 }
 
+func (s *APIServer) upsertSessionParty(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	var party session.Party
+
+	sid := p[0].Value
+	var ttl time.Duration
+
+	err := form.Parse(r,
+		form.String("id", &party.ID, form.Required()),
+		form.String("site", &party.Site, form.Required()),
+		form.String("user", &party.User, form.Required()),
+		form.String("server", &party.Server, form.Required()),
+		form.Duration("ttl", &ttl),
+	)
+	if err != nil {
+		replyErr(w, err)
+		return
+	}
+	party.LastActive = time.Now()
+	if err := s.se.UpsertParty(sid, party, ttl); err != nil {
+		replyErr(w, err)
+		return
+	}
+	reply(w, http.StatusOK, partyResponse{Party: party})
+}
+
+func (s *APIServer) getSessions(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	sessions, err := s.se.GetSessions()
+	if err != nil {
+		replyErr(w, err)
+		return
+	}
+	reply(w, http.StatusOK, &sessionsResponse{Sessions: sessions})
+}
+
+func (s *APIServer) getSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	sid := p[0].Value
+	se, err := s.se.GetSession(sid)
+	if err != nil {
+		replyErr(w, err)
+		return
+	}
+	reply(w, http.StatusOK, &sessionResponse{Session: *se})
+}
+
+func (s *APIServer) deleteSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	sid := p[0].Value
+	if err := s.se.DeleteSession(sid); err != nil {
+		replyErr(w, err)
+		return
+	}
+	reply(w, http.StatusOK, message(fmt.Sprintf("session %v was deleted", sid)))
+}
+
 type pubKeyResponse struct {
 	PubKey string `json:"pubkey"`
 }
@@ -593,11 +655,11 @@ type keyPairResponse struct {
 	PubKey  string `json:"pubkey"`
 }
 
-type sessionResponse struct {
+type webSessionResponse struct {
 	SID string `json:"sid"`
 }
 
-type sessionsResponse struct {
+type webSessionsResponse struct {
 	Keys []backend.AuthorizedKey `json:"keys"`
 }
 
@@ -619,6 +681,18 @@ type tokenResponse struct {
 
 type eventsResponse struct {
 	Events []interface{} `json:"events"`
+}
+
+type partyResponse struct {
+	Party session.Party `json:"party"`
+}
+
+type sessionsResponse struct {
+	Sessions []session.Session `json:"sessions"`
+}
+
+type sessionResponse struct {
+	Session session.Session `json:"session"`
 }
 
 func message(msg string) map[string]interface{} {

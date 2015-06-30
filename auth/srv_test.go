@@ -2,13 +2,15 @@ package auth
 
 import (
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 	authority "github.com/gravitational/teleport/auth/native"
 	"github.com/gravitational/teleport/backend"
-	"github.com/gravitational/teleport/backend/membk"
+	"github.com/gravitational/teleport/backend/boltbk"
+	"github.com/gravitational/teleport/session"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/memlog"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
@@ -20,9 +22,10 @@ func TestAPI(t *testing.T) { TestingT(t) }
 type APISuite struct {
 	srv  *httptest.Server
 	clt  *Client
-	bk   *membk.MemBackend
+	bk   *boltbk.BoltBackend
 	scrt *secret.Service
 	a    *AuthServer
+	dir  string
 }
 
 var _ = Suite(&APISuite{})
@@ -36,9 +39,13 @@ func (s *APISuite) SetUpSuite(c *C) {
 }
 
 func (s *APISuite) SetUpTest(c *C) {
-	s.bk = membk.New()
+	s.dir = c.MkDir()
+	var err error
+	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
+	c.Assert(err, IsNil)
+
 	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)
-	s.srv = httptest.NewServer(NewAPIServer(s.a, memlog.New()))
+	s.srv = httptest.NewServer(NewAPIServer(s.a, memlog.New(), session.New(s.bk)))
 	clt, err := NewClient(s.srv.URL)
 	c.Assert(err, IsNil)
 	s.clt = clt
@@ -46,28 +53,42 @@ func (s *APISuite) SetUpTest(c *C) {
 
 func (s *APISuite) TearDownTest(c *C) {
 	s.srv.Close()
+	s.bk.Close()
 }
 
 func (s *APISuite) TestHostCACRUD(c *C) {
 	c.Assert(s.clt.ResetHostCA(), IsNil)
-	ca := s.bk.HostCA
+
+	hca, err := s.bk.GetHostCA()
+	c.Assert(err, IsNil)
+
 	c.Assert(s.clt.ResetHostCA(), IsNil)
-	c.Assert(ca, Not(DeepEquals), s.bk.HostCA)
+
+	hca2, err := s.bk.GetHostCA()
+	c.Assert(err, IsNil)
+
+	c.Assert(hca, Not(DeepEquals), hca2)
 
 	key, err := s.clt.GetHostCAPub()
 	c.Assert(err, IsNil)
-	c.Assert(key, DeepEquals, s.bk.HostCA.Pub)
+	c.Assert(key, DeepEquals, hca2.Pub)
 }
 
 func (s *APISuite) TestUserCACRUD(c *C) {
 	c.Assert(s.clt.ResetUserCA(), IsNil)
-	ca := s.bk.UserCA
+
+	uca, err := s.bk.GetUserCA()
+	c.Assert(err, IsNil)
+
 	c.Assert(s.clt.ResetUserCA(), IsNil)
-	c.Assert(ca, Not(DeepEquals), s.bk.UserCA)
+	uca2, err := s.bk.GetUserCA()
+	c.Assert(err, IsNil)
+
+	c.Assert(uca, Not(DeepEquals), uca2)
 
 	key, err := s.clt.GetUserCAPub()
 	c.Assert(err, IsNil)
-	c.Assert(key, DeepEquals, s.bk.UserCA.Pub)
+	c.Assert(key, DeepEquals, uca2.Pub)
 }
 
 func (s *APISuite) TestGenerateKeyPair(c *C) {
@@ -133,19 +154,18 @@ func (s *APISuite) TestUserKeyCRUD(c *C) {
 	key := backend.AuthorizedKey{ID: "id", Value: pub}
 	cert, err := s.clt.UpsertUserKey("user1", key, 0)
 	c.Assert(err, IsNil)
-	c.Assert(string(s.bk.Users["user1"].Keys["id"].Value), DeepEquals, string(cert))
+
+	keys, err := s.bk.GetUserKeys("user1")
+	c.Assert(err, IsNil)
+	c.Assert(string(keys[0].Value), DeepEquals, string(cert))
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
 	c.Assert(err, IsNil)
 
-	keys, err := s.clt.GetUserKeys("user1")
-	c.Assert(err, IsNil)
-	c.Assert(len(keys), Equals, 1)
-	c.Assert(string(keys[0].Value), DeepEquals, string(cert))
-
 	c.Assert(s.clt.DeleteUserKey("user1", "id"), IsNil)
-	_, ok := s.bk.Users["user1"].Keys["id"]
-	c.Assert(ok, Equals, false)
+	keys, err = s.bk.GetUserKeys("user1")
+	c.Assert(err, IsNil)
+	c.Assert(len(keys), Equals, 0)
 }
 
 func (s *APISuite) TestPasswordCRUD(c *C) {
@@ -256,7 +276,6 @@ func (s *APISuite) TestTokens(c *C) {
 }
 
 func (s *APISuite) TestRemoteCACRUD(c *C) {
-
 	key := backend.RemoteCert{
 		FQDN:  "example.com",
 		ID:    "id",
@@ -275,4 +294,27 @@ func (s *APISuite) TestRemoteCACRUD(c *C) {
 
 	err = s.clt.DeleteRemoteCert(key.Type, key.FQDN, key.ID)
 	c.Assert(err, FitsTypeOf, &backend.NotFoundError{})
+}
+
+func (s *APISuite) TestSharedSessions(c *C) {
+	out, err := s.clt.GetSessions()
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, []session.Session{})
+
+	p1 := session.Party{
+		ID:         "p1",
+		User:       "bob",
+		Site:       "example.com",
+		Server:     "localhost:1",
+		LastActive: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+	}
+	c.Assert(s.clt.UpsertParty("s1", p1, 0), IsNil)
+
+	out, err = s.clt.GetSessions()
+	c.Assert(err, IsNil)
+	sess := session.Session{
+		ID:      "s1",
+		Parties: []session.Party{p1},
+	}
+	c.Assert(out, DeepEquals, []session.Session{sess})
 }

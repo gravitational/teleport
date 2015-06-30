@@ -11,6 +11,7 @@ import (
 	authority "github.com/gravitational/teleport/auth/native"
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/membk"
+	"github.com/gravitational/teleport/session"
 	"github.com/gravitational/teleport/sshutils"
 	"github.com/gravitational/teleport/utils"
 
@@ -49,7 +50,7 @@ func (s *TunSuite) TearDownTest(c *C) {
 func (s *TunSuite) SetUpTest(c *C) {
 	s.bk = membk.New()
 	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)
-	s.srv = httptest.NewServer(NewAPIServer(s.a, memlog.New()))
+	s.srv = httptest.NewServer(NewAPIServer(s.a, memlog.New(), session.New(s.bk)))
 
 	// set up host private key and certificate
 	c.Assert(s.a.ResetHostCA(""), IsNil)
@@ -82,7 +83,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	l, err := net.Listen("unix", socketPath)
 	c.Assert(err, IsNil)
 
-	h := NewAPIServer(s.a, memlog.New())
+	h := NewAPIServer(s.a, memlog.New(), session.New(s.bk))
 	srv := &httptest.Server{
 		Listener: l,
 		Config: &http.Server{

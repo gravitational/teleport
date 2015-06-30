@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/session"
 	"github.com/gravitational/teleport/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
@@ -83,6 +84,58 @@ func (c *Client) Get(u string, params url.Values) (*roundtrip.Response, error) {
 // Delete issues http Delete Request to the server
 func (c *Client) Delete(u string) (*roundtrip.Response, error) {
 	return c.convertResponse(c.Client.Delete(u))
+}
+
+func (c *Client) GetSessions() ([]session.Session, error) {
+	out, err := c.Get(c.Endpoint("sessions"), url.Values{})
+	if err != nil {
+		return nil, err
+	}
+	var re *sessionsResponse
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return nil, err
+	}
+	return re.Sessions, nil
+}
+
+func (c *Client) GetSession(id string) (*session.Session, error) {
+	out, err := c.Get(c.Endpoint("sessions", id), url.Values{})
+	if err != nil {
+		return nil, err
+	}
+	var re *sessionResponse
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return nil, err
+	}
+	return &re.Session, nil
+}
+
+func (c *Client) DeleteSession(id string) error {
+	_, err := c.Delete(c.Endpoint("sessions", id))
+	return err
+}
+
+func (c *Client) UpsertParty(id string, p session.Party, ttl time.Duration) error {
+	a, err := p.LastActive.MarshalText()
+	if err != nil {
+		return err
+	}
+	out, err := c.PostForm(c.Endpoint("sessions", id, "parties"), url.Values{
+		"id":          []string{p.ID},
+		"site":        []string{p.Site},
+		"user":        []string{p.User},
+		"server":      []string{p.Server},
+		"ttl":         []string{ttl.String()},
+		"last_active": []string{string(a)},
+	})
+	if err != nil {
+		return err
+	}
+	var re *partyResponse
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *Client) UpsertRemoteCert(cert backend.RemoteCert, ttl time.Duration) error {
@@ -267,7 +320,7 @@ func (c *Client) SignIn(user string, password []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var re *sessionResponse
+	var re *webSessionResponse
 	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
 		return "", err
 	}
@@ -282,7 +335,7 @@ func (c *Client) GetWebSession(user string, sid string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var re *sessionResponse
+	var re *webSessionResponse
 	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
 		return "", err
 	}
@@ -300,7 +353,7 @@ func (c *Client) GetWebSessionsKeys(
 	if err != nil {
 		return nil, err
 	}
-	var re *sessionsResponse
+	var re *webSessionsResponse
 	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
 		return nil, err
 	}

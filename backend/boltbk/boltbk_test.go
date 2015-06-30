@@ -77,3 +77,11 @@ func (s *BoltSuite) TestToken(c *C) {
 func (s *BoltSuite) TestRemoteCert(c *C) {
 	s.suite.RemoteCertCRUD(c)
 }
+
+func (s *BoltSuite) TestBasicCRUD(c *C) {
+	s.suite.BasicCRUD(c)
+}
+
+func (s *BoltSuite) TestExpiration(c *C) {
+	s.suite.Expiration(c)
+}

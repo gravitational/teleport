@@ -291,6 +291,42 @@ func (s *BackendSuite) RemoteCertCRUD(c *C) {
 	c.Assert(err, FitsTypeOf, &backend.NotFoundError{})
 }
 
+func (s *BackendSuite) BasicCRUD(c *C) {
+	keys, err := s.B.GetKeys([]string{"keys"})
+	c.Assert(err, IsNil)
+	c.Assert(keys, DeepEquals, []string{})
+
+	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "bkey", []byte("val1"), 0), IsNil)
+	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "akey", []byte("val2"), 0), IsNil)
+
+	keys, err = s.B.GetKeys([]string{"a", "b"})
+	c.Assert(err, IsNil)
+	c.Assert(keys, DeepEquals, []string{"akey", "bkey"})
+
+	out, err := s.B.GetVal([]string{"a", "b"}, "bkey")
+	c.Assert(err, IsNil)
+	c.Assert(string(out), Equals, "val1")
+
+	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "bkey", []byte("val-updated"), 0), IsNil)
+	out, err = s.B.GetVal([]string{"a", "b"}, "bkey")
+	c.Assert(err, IsNil)
+	c.Assert(string(out), Equals, "val-updated")
+
+	c.Assert(s.B.DeleteKey([]string{"a", "b"}, "bkey"), IsNil)
+	c.Assert(s.B.DeleteKey([]string{"a", "b"}, "bkey"), FitsTypeOf, &backend.NotFoundError{})
+}
+
+func (s *BackendSuite) Expiration(c *C) {
+	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "bkey", []byte("val1"), time.Second), IsNil)
+	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "akey", []byte("val2"), 0), IsNil)
+
+	time.Sleep(2 * time.Second)
+
+	keys, err := s.B.GetKeys([]string{"a", "b"})
+	c.Assert(err, IsNil)
+	c.Assert(keys, DeepEquals, []string{"akey"})
+}
+
 func toSet(vals []string) map[string]struct{} {
 	out := make(map[string]struct{}, len(vals))
 	for _, v := range vals {

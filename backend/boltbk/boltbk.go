@@ -4,6 +4,7 @@ package boltbk
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -28,6 +29,69 @@ func New(path string) (*BoltBackend, error) {
 		db:    db,
 		locks: make(map[string]time.Time),
 	}, nil
+}
+
+func (b *BoltBackend) GetKeys(path []string) ([]string, error) {
+	keys, err := b.getKeys(path)
+	if err != nil {
+		if isNotFound(err) {
+			return []string{}, nil
+		}
+		return nil, err
+	}
+	// now do an iteration to expire keys
+	for _, key := range keys {
+		b.GetVal(path, key)
+	}
+	keys, err = b.getKeys(path)
+	if err != nil {
+		if isNotFound(err) {
+			return []string{}, nil
+		}
+		return nil, err
+	}
+	sort.Sort(sort.StringSlice(keys))
+	return keys, nil
+}
+
+func (b *BoltBackend) UpsertVal(path []string, key string, val []byte, ttl time.Duration) error {
+	v := &kv{
+		Created: time.Now(),
+		Value:   val,
+		TTL:     ttl,
+	}
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	return b.upsertKey(path, key, bytes)
+}
+
+func (b *BoltBackend) GetVal(path []string, key string) ([]byte, error) {
+	var val []byte
+	if err := b.getKey(path, key, &val); err != nil {
+		return nil, err
+	}
+	var k *kv
+	if err := json.Unmarshal(val, &k); err != nil {
+		return nil, err
+	}
+	if k.TTL != 0 && time.Now().Sub(k.Created) > k.TTL {
+		if err := b.deleteKey(path, key); err != nil {
+			return nil, err
+		}
+		return nil, &backend.NotFoundError{
+			Message: fmt.Sprintf("%v: %v not found", path, key)}
+	}
+	return k.Value, nil
+}
+
+func (b *BoltBackend) DeleteKey(path []string, key string) error {
+	return b.deleteKey(path, key)
+}
+
+func (b *BoltBackend) DeleteBucket(path []string, bucket string) error {
+	return b.deleteBucket(path, bucket)
 }
 
 func (b *BoltBackend) AcquireLock(token string, ttl time.Duration) error {
@@ -240,7 +304,7 @@ func (b *BoltBackend) DeleteUserKey(user, keyID string) error {
 }
 
 func (b *BoltBackend) UpsertServer(s backend.Server, ttl time.Duration) error {
-	return b.upsertJSONKey([]string{"servers"}, "val", s)
+	return b.upsertJSONKey([]string{"servers"}, s.ID, s)
 }
 
 func (b *BoltBackend) GetServers() ([]backend.Server, error) {
@@ -444,6 +508,25 @@ func (b *BoltBackend) getKey(buckets []string, key string, val *[]byte) error {
 	})
 }
 
+func (b *BoltBackend) getKeys(buckets []string) ([]string, error) {
+	out := []string{}
+	err := b.db.View(func(tx *bolt.Tx) error {
+		bkt, err := getBucket(tx, buckets)
+		if err != nil {
+			return err
+		}
+		c := bkt.Cursor()
+		for k, _ := c.First(); k != nil; k, _ = c.Next() {
+			out = append(out, string(k))
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func upsertBucket(b *bolt.Tx, buckets []string) (*bolt.Bucket, error) {
 	bkt, err := b.CreateBucketIfNotExists([]byte(buckets[0]))
 	if err != nil {
@@ -477,4 +560,10 @@ func getBucket(b *bolt.Tx, buckets []string) (*bolt.Bucket, error) {
 func isNotFound(err error) bool {
 	_, ok := err.(*backend.NotFoundError)
 	return ok
+}
+
+type kv struct {
+	Created time.Time     `json:"created"`
+	TTL     time.Duration `json:"ttl"`
+	Value   []byte        `json:"val"`
 }
