@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/teleport/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/net/websocket"
 )
 
@@ -46,7 +47,12 @@ func (w *wsHandler) connectUpstream() (*sshutils.Upstream, error) {
 	if err != nil {
 		return nil, fmt.Errorf("no signers: %v", err)
 	}
-	return sshutils.DialUpstream(w.ctx.user, w.addr, signers)
+	up, err := sshutils.DialUpstream(w.ctx.user, w.addr, signers)
+	if err != nil {
+		return nil, err
+	}
+	up.GetSession().SendRequest(sshutils.SetEnvReq, false, ssh.Marshal(sshutils.EnvReq{Name: sshutils.SessionEnvVar, Value: "hello"}))
+	return up, nil
 }
 
 func (w *wsHandler) Handler() http.Handler {

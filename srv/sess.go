@@ -17,35 +17,118 @@ import (
 	"github.com/gravitational/teleport/events"
 )
 
-type shellSession struct {
+type sessionRegistry struct {
 	sync.Mutex
+	sessions map[string]*session
+	srv      *Server
+}
+
+func (s *sessionRegistry) newShell(sid string, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+	log.Infof("%v newShell(%v)", ctx, string(req.Payload))
+
+	sess := newSession(sid, s)
+	if err := sess.start(sconn, ch, ctx); err != nil {
+		return err
+	}
+	s.sessions[sess.id] = sess
+	log.Infof("%v created session: %v", ctx, sess.id)
+	return nil
+}
+
+func (s *sessionRegistry) joinShell(sid string, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+	log.Infof("%v joinShell(%v)", ctx, string(req.Payload))
+	s.Lock()
+	defer s.Unlock()
+
+	sess, found := s.findSession(sid)
+	if !found {
+		log.Infof("%v creating new session: %v", ctx, sid)
+		return s.newShell(sid, sconn, ch, req, ctx)
+	}
+	log.Infof("%v joining session: %v", ctx, sess.id)
+	sess.join(sconn, ch, req, ctx)
+	return nil
+}
+
+func (s *sessionRegistry) leaveShell(sid, pid string) error {
+	s.Lock()
+	defer s.Unlock()
+
+	sess, found := s.findSession(sid)
+	if !found {
+		return fmt.Errorf("session %v not found", sid)
+	}
+	if err := sess.leave(pid); err != nil {
+		log.Errorf("failed to leave session: %v", err)
+		return err
+	}
+	if len(sess.parties) != 0 {
+		return nil
+	}
+	log.Infof("last party left %v, removing from server", sess)
+	delete(s.sessions, sess.id)
+	if err := sess.Close(); err != nil {
+		log.Errorf("failed to close: %v", err)
+		return err
+	}
+	return nil
+}
+
+func (s *sessionRegistry) broadcastResult(sid string, r execResult) error {
+	s.Lock()
+	defer s.Unlock()
+
+	sess, found := s.findSession(sid)
+	if !found {
+		return fmt.Errorf("session %v not found", sid)
+	}
+	sess.broadcastResult(r)
+	return nil
+}
+
+func (s *sessionRegistry) findSession(id string) (*session, bool) {
+	sess, ok := s.sessions[id]
+	if !ok {
+		return nil, false
+	}
+	return sess, true
+}
+
+func newSessionRegistry(srv *Server) *sessionRegistry {
+	return &sessionRegistry{
+		srv:      srv,
+		sessions: make(map[string]*session),
+	}
+}
+
+type session struct {
 	id      string
 	eid     lunk.EventID
-	s       *Server
+	r       *sessionRegistry
 	writer  *multiWriter
-	parties map[string]*shellParty
+	parties map[string]*party
 	t       *term
 }
 
-func newShellSession(id string, s *Server) *shellSession {
-	return &shellSession{
+func newSession(id string, r *sessionRegistry) *session {
+	return &session{
 		id:      id,
-		s:       s,
-		parties: make(map[string]*shellParty),
+		r:       r,
+		parties: make(map[string]*party),
 		writer:  newMultiWriter(),
 	}
 }
 
-func (s *shellSession) Close() error {
+func (s *session) Close() error {
 	if s.t != nil {
 		return s.t.Close()
 	}
 	return nil
 }
 
-func (s *shellSession) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
+func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	s.eid = ctx.eid
-	p := newShellParty(s, sconn, ch, ctx)
+	p := newParty(s, sconn, ch, ctx)
 	if p.ctx.getTerm() != nil {
 		s.t = p.ctx.getTerm()
 		p.ctx.setTerm(nil)
@@ -56,7 +139,7 @@ func (s *shellSession) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) er
 			return err
 		}
 	}
-	cmd := exec.Command(s.s.shell)
+	cmd := exec.Command(s.r.srv.shell)
 	// TODO(klizhentas) figure out linux user policy for launching shells,
 	// what user and environment should we use to execute the shell? the simplest
 	// answer is to use current user and env, however  what if we are root?
@@ -87,56 +170,41 @@ func (s *shellSession) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) er
 		result, err := collectStatus(cmd, cmd.Wait())
 		if err != nil {
 			log.Errorf("%v wait failed: %v", p.ctx, err)
-			s.s.emit(ctx.eid, events.NewShell(sconn, s.s.shell, out, -1, err))
+			s.r.srv.emit(ctx.eid, events.NewShell(sconn, s.r.srv.shell, out, -1, err))
 		}
 		if result != nil {
 			log.Infof("%v result collected: %v", p.ctx, result)
-			s.s.emit(ctx.eid, events.NewShell(sconn, s.s.shell, out, result.code, nil))
-			s.broadcastResult(*result)
+			s.r.srv.emit(ctx.eid, events.NewShell(sconn, s.r.srv.shell, out, result.code, nil))
+			s.r.broadcastResult(s.id, *result)
+			log.Infof("%v result broadcasted", p.ctx)
 		}
 	}()
 
 	return nil
 }
 
-func (s *shellSession) broadcastResult(r execResult) {
-	s.Lock()
-	defer s.Unlock()
+func (s *session) broadcastResult(r execResult) {
 	for _, p := range s.parties {
 		p.ctx.sendResult(r)
 	}
 }
 
-func (s *shellSession) String() string {
-	return fmt.Sprintf("shellSession(id=%v, parties=%v)", s.id, len(s.parties))
+func (s *session) String() string {
+	return fmt.Sprintf("session(id=%v, parties=%v)", s.id, len(s.parties))
 }
 
-func (s *shellSession) leave(id string) error {
-	s.Lock()
-	defer s.Unlock()
-
+func (s *session) leave(id string) error {
 	p, ok := s.parties[id]
 	if !ok {
 		return fmt.Errorf("failed to find party: %v", id)
 	}
-	log.Infof("%v is leaving %v", p, s.id)
+	log.Infof("%v is leaving %v", p, s)
 	delete(s.parties, p.id)
 	s.writer.deleteWriter(p.id)
-	if len(s.parties) != 0 {
-		return nil
-	}
-	log.Infof("%v last party left, removing from server", s)
-	s.s.removeShell(s.id)
-	if err := s.Close(); err != nil {
-		log.Errorf("failed to close: %v", s.t)
-		return err
-	}
 	return nil
 }
 
-func (s *shellSession) addParty(p *shellParty) {
-	s.Lock()
-	defer s.Unlock()
+func (s *session) addParty(p *party) {
 	s.parties[p.id] = p
 	s.writer.addWriter(p.id, p)
 	p.ctx.addCloser(p)
@@ -147,8 +215,8 @@ func (s *shellSession) addParty(p *shellParty) {
 	}()
 }
 
-func (s *shellSession) join(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) (*shellParty, error) {
-	p := newShellParty(s, sconn, ch, ctx)
+func (s *session) join(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) (*party, error) {
+	p := newParty(s, sconn, ch, ctx)
 	s.addParty(p)
 	return p, nil
 }
@@ -170,7 +238,7 @@ func (j *joinSubsys) String() string {
 }
 
 func (j *joinSubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	if err := j.srv.joinShell(j.sid, sconn, ch, req, ctx); err != nil {
+	if err := j.srv.reg.joinShell(j.sid, sconn, ch, req, ctx); err != nil {
 		log.Errorf("error: %v", err)
 		return err
 	}
@@ -222,8 +290,8 @@ func (t *multiWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func newShellParty(s *shellSession, sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) *shellParty {
-	return &shellParty{
+func newParty(s *session, sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) *party {
+	return &party{
 		id:    uuid.New(),
 		sconn: sconn,
 		ch:    ch,
@@ -232,23 +300,23 @@ func newShellParty(s *shellSession, sconn *ssh.ServerConn, ch ssh.Channel, ctx *
 	}
 }
 
-type shellParty struct {
+type party struct {
 	id    string
-	s     *shellSession
+	s     *session
 	sconn *ssh.ServerConn
 	ch    ssh.Channel
 	ctx   *ctx
 }
 
-func (p *shellParty) Write(bytes []byte) (int, error) {
+func (p *party) Write(bytes []byte) (int, error) {
 	return p.ch.Write(bytes)
 }
 
-func (p *shellParty) String() string {
+func (p *party) String() string {
 	return fmt.Sprintf("%v party(id=%v)", p.ctx, p.id)
 }
 
-func (p *shellParty) Close() error {
+func (p *party) Close() error {
 	log.Infof("%v closing", p)
-	return p.s.leave(p.id)
+	return p.s.r.leaveShell(p.s.id, p.id)
 }

@@ -29,6 +29,7 @@ func DialUpstream(username, addr string, signers []ssh.Signer) (*Upstream, error
 	if err != nil {
 		return nil, err
 	}
+
 	session, err := client.NewSession()
 	if err != nil {
 		client.Close()
@@ -45,6 +46,10 @@ type Upstream struct {
 	addr    string
 	client  *ssh.Client
 	session *ssh.Session
+}
+
+func (u *Upstream) GetSession() *ssh.Session {
+	return u.session
 }
 
 func (u *Upstream) Close() error {

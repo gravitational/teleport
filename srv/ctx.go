@@ -153,7 +153,7 @@ func (c *ctx) String() string {
 }
 
 func (c *ctx) setEnv(key, val string) {
-	log.Infof("%v.setEnv(%v=%v)", c, key, val)
+	log.Infof("%v setEnv(%v=%v)", c, key, val)
 	c.env[key] = val
 }
 

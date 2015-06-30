@@ -25,15 +25,15 @@ import (
 
 type Server struct {
 	sync.Mutex
-	addr          utils.NetAddr
-	certChecker   ssh.CertChecker
-	rr            resolver
-	elog          lunk.EventLogger
-	srv           *sshutils.Server
-	hostSigner    ssh.Signer
-	shell         string
-	ap            auth.AccessPoint
-	shellSessions map[string]*shellSession
+	addr        utils.NetAddr
+	certChecker ssh.CertChecker
+	rr          resolver
+	elog        lunk.EventLogger
+	srv         *sshutils.Server
+	hostSigner  ssh.Signer
+	shell       string
+	ap          auth.AccessPoint
+	reg         *sessionRegistry
 }
 
 type ServerOption func(s *Server) error
@@ -57,11 +57,11 @@ func New(addr utils.NetAddr, signers []ssh.Signer,
 	ap auth.AccessPoint, options ...ServerOption) (*Server, error) {
 
 	s := &Server{
-		addr:          addr,
-		ap:            ap,
-		rr:            &backendResolver{ap: ap},
-		shellSessions: make(map[string]*shellSession),
+		addr: addr,
+		ap:   ap,
+		rr:   &backendResolver{ap: ap},
 	}
+	s.reg = newSessionRegistry(s)
 	s.certChecker = ssh.CertChecker{IsAuthority: s.isAuthority}
 
 	for _, o := range options {
@@ -416,68 +416,26 @@ func (s *Server) handleSubsystem(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 }
 
 func (s *Server) handleShell(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	log.Infof("%v handleShell(%v)", ctx, string(req.Payload))
+	log.Infof("%v handleShell()", ctx)
 
-	sid, ok := ctx.getEnv(SessionVar)
+	sid, ok := ctx.getEnv(sshutils.SessionEnvVar)
 	if !ok {
 		sid = uuid.New()
 	}
-	return s.joinShell(sid, sconn, ch, req, ctx)
-}
-
-func (s *Server) newShell(sid string, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	log.Infof("%v upsertShell(%v)", ctx, string(req.Payload))
-	s.Lock()
-	defer s.Unlock()
-
-	sess := newShellSession(sid, s)
-	if err := sess.start(sconn, ch, ctx); err != nil {
-		return err
-	}
-	s.shellSessions[sess.id] = sess
-	log.Infof("%v created session: %v", ctx, sess.id)
-	return nil
+	return s.reg.joinShell(sid, sconn, ch, req, ctx)
 }
 
 func (s *Server) emit(eid lunk.EventID, e lunk.Event) {
 	s.elog.Log(eid, e)
 }
 
-func (s *Server) joinShell(sid string, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	log.Infof("%v joinShell(%v)", ctx, string(req.Payload))
-	sess, found := s.findSession(sid)
-	if !found {
-		log.Infof("%v create new shell: %v", ctx, sid)
-		return s.newShell(sid, sconn, ch, req, ctx)
-	}
-	log.Infof("%v joining shell: %v", ctx, sess.id)
-	sess.join(sconn, ch, req, ctx)
-	return nil
-}
-
-func (s *Server) removeShell(id string) {
-	s.Lock()
-	defer s.Unlock()
-	log.Infof("%v removing shell %v from the active sessions", s, id)
-	delete(s.shellSessions, id)
-}
-
-func (s *Server) findSession(id string) (*shellSession, bool) {
-	s.Lock()
-	defer s.Unlock()
-	sess, ok := s.shellSessions[id]
-	if !ok {
-		return nil, false
-	}
-	return sess, true
-}
-
 func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	log.Infof("%v handleEnv(%v)", ctx, string(req.Payload))
-	var e env
+	var e sshutils.EnvReq
 	if err := ssh.Unmarshal(req.Payload, &e); err != nil {
+		log.Errorf("%v handleEnv(err=%v)", err)
 		return fmt.Errorf("failed to parse env request, error: %v", err)
 	}
+	log.Infof("%v handleEnv(%#v)", ctx, e)
 	ctx.setEnv(e.Name, e.Value)
 	return nil
 }
@@ -563,10 +521,3 @@ type closerFunc func() error
 func (f closerFunc) Close() error {
 	return f()
 }
-
-type env struct {
-	Name  string
-	Value string
-}
-
-const SessionVar = "TELEPORT_SESSION"
