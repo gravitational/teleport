@@ -29,7 +29,7 @@ var SessionsPage = React.createClass({
           <LeftNavBar current="sessions"/>
           <div id="page-wrapper" className="gray-bg">
             <TopNavBar/>
-            <PageHeader title="Sessions" url="/sessions"/>
+            <PageHeader title="Active Sessions" url="/sessions"/>
             <div className="wrapper wrapper-content animated fadeInRight">
               <Box>
                 <SessionsTable sessions={this.state.sessions}/>
@@ -47,40 +47,44 @@ var SessionsTable = React.createClass({
   render: function() {
     var onConnect = this.props.onConnect
     var onDisconnect = this.props.onDisconnect
-    var rows = this.props.sessions.map(function (se, index) {
+      var rows = this.props.sessions.map(function (se, index) {
+          return (
+              <SessionRow se={se} key={index}/>
+          );
+      });
       return (
-        <SessionRow se={se} key={index}/>
-      );
-    });
-    return (
-<table className="table table-striped">
-   <thead>
-      <tr>
-         <th></th>
-         <th>Parties</th>
-      </tr>
-   </thead>
-   <tbody>
-      {rows}
-   </tbody>
-</table>);
+          <table className="table table-striped">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>LastActive</th>
+                <th>Connected users</th>
+                <th>Connect</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows}
+            </tbody>
+          </table>);
   }
 });
 
 
 var SessionRow = React.createClass({
     render: function() {
-        var se = this.props.se;
-        var parties = this.props.se.parties.map(function (p, index) {
+        var se = parseSession(this.props.se);
+        var users = se.users.map(function (u, index) {
             return (
-                    <a href={"/sessions/"+se.id}><span className="label">{p.user} &rarr; {p.server}</span></a>
+                <a href={"/sessions/"+se.id}>{u}&nbsp;</a>
             );
-        });        
+        });
         return (
-                <tr>
-                <td><a href="/sessions"><i className="fa fa-tty text-navy"></i></a></td>
-                <td>{parties}</td>
-                </tr>
+            <tr>
+              <td><a href={"/sessions/"+se.id}>{se.id}</a></td>
+              <td>{timeSince(se.last_active)} ago</td>
+              <td>{users}</td>              
+              <td><a href={"/sessions/"+se.id}><i className="fa fa-tty text-navy"></i></a></td>
+            </tr>
         );
   }
 });

@@ -127,11 +127,30 @@ func (u *Upstream) PipeShell(rw io.ReadWriter) error {
 	if err != nil {
 		return fmt.Errorf("fail to pipe stdin: %v", err)
 	}
-	go io.Copy(targetStdin, rw)
-	go io.Copy(rw, targetStderr)
-	go io.Copy(rw, targetStdout)
+	closeC := make(chan error, 4)
+
 	if err := u.session.Shell(); err != nil {
 		return err
 	}
-	return u.session.Wait()
+
+	go func() {
+		_, err := io.Copy(targetStdin, rw)
+		closeC <- err
+	}()
+
+	go func() {
+		_, err := io.Copy(rw, targetStderr)
+		closeC <- err
+	}()
+
+	go func() {
+		_, err := io.Copy(rw, targetStdout)
+		closeC <- err
+	}()
+
+	go func() {
+		closeC <- u.session.Wait()
+	}()
+
+	return <-closeC
 }

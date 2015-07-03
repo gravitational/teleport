@@ -40,11 +40,27 @@ func (s *BoltSuite) TestSessionsCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []Session{})
 
+	c.Assert(s.srv.UpsertSession("sid1", 10*time.Second), IsNil)
+
+	out, err = s.srv.GetSessions()
+	c.Assert(err, IsNil)
+	sess := Session{
+		ID:      "sid1",
+		Parties: []Party{},
+	}
+	c.Assert(out, DeepEquals, []Session{sess})
+}
+
+func (s *BoltSuite) TestPartiesCRUD(c *C) {
+	out, err := s.srv.GetSessions()
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, []Session{})
+
 	p1 := Party{
 		ID:         "p1",
 		User:       "bob",
 		Site:       "example.com",
-		Server:     "localhost:1",
+		ServerAddr: "localhost:1",
 		LastActive: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
 	}
 	c.Assert(s.srv.UpsertParty("s1", p1, 0), IsNil)
@@ -62,7 +78,7 @@ func (s *BoltSuite) TestSessionsCRUD(c *C) {
 		ID:         "p2",
 		User:       "alice",
 		Site:       "example.com",
-		Server:     "localhost:2",
+		ServerAddr: "localhost:2",
 		LastActive: time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC),
 	}
 	c.Assert(s.srv.UpsertParty("s1", p2, 0), IsNil)

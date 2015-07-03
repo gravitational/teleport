@@ -115,6 +115,21 @@ func (c *Client) DeleteSession(id string) error {
 	return err
 }
 
+func (c *Client) UpsertSession(id string, ttl time.Duration) error {
+	out, err := c.PostForm(c.Endpoint("sessions"), url.Values{
+		"id":  []string{id},
+		"ttl": []string{ttl.String()},
+	})
+	if err != nil {
+		return err
+	}
+	var re *sessionResponse
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Client) UpsertParty(id string, p session.Party, ttl time.Duration) error {
 	a, err := p.LastActive.MarshalText()
 	if err != nil {

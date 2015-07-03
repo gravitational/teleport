@@ -94,6 +94,7 @@ func NewAPIServer(s *AuthServer, elog memlog.Logger, se session.SessionServer) *
 
 	// Sesssions
 	srv.POST("/v1/sessions/:id/parties", srv.upsertSessionParty)
+	srv.POST("/v1/sessions", srv.upsertSession)
 	srv.GET("/v1/sessions", srv.getSessions)
 	srv.GET("/v1/sessions/:id", srv.getSession)
 	srv.DELETE("/v1/sessions/:id", srv.deleteSession)
@@ -571,6 +572,24 @@ func (s *APIServer) deleteRemoteCert(w http.ResponseWriter, r *http.Request, p h
 		return
 	}
 	reply(w, http.StatusOK, message(fmt.Sprintf("cert '%v' deleted", id)))
+}
+
+func (s *APIServer) upsertSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	var sid string
+	var ttl time.Duration
+
+	err := form.Parse(r,
+		form.String("id", &sid, form.Required()),
+		form.Duration("ttl", &ttl))
+	if err != nil {
+		replyErr(w, err)
+		return
+	}
+	if err := s.se.UpsertSession(sid, ttl); err != nil {
+		replyErr(w, err)
+		return
+	}
+	reply(w, http.StatusOK, sessionResponse{Session: session.Session{ID: sid}})
 }
 
 func (s *APIServer) upsertSessionParty(w http.ResponseWriter, r *http.Request, p httprouter.Params) {

@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"path/filepath"
+	"time"
 
+	"code.google.com/p/go-uuid/uuid"
 	"github.com/gravitational/teleport/auth"
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/utils"
@@ -50,6 +53,7 @@ func newCPHandler(host string, auth []utils.NetAddr, assetsDir string) *cpHandle
 	h.GET("/webtuns", h.needsAuth(h.webTunsIndex))
 	h.GET("/servers", h.needsAuth(h.serversIndex))
 	h.GET("/sessions", h.needsAuth(h.sessionsIndex))
+	h.POST("/sessions", h.needsAuth(h.newSession))
 	h.GET("/sessions/:id", h.needsAuth(h.sessionIndex))
 
 	// JSON API methods
@@ -65,12 +69,11 @@ func newCPHandler(host string, auth []utils.NetAddr, assetsDir string) *cpHandle
 	// Web tunnels
 	h.GET("/api/tunnels/web", h.needsAuth(h.getWebTuns))
 	h.POST("/api/tunnels/web", h.needsAuth(h.upsertWebTun))
-
 	h.GET("/api/tunnels/web/:prefix", h.needsAuth(h.getWebTun))
 	h.DELETE("/api/tunnels/web/:prefix", h.needsAuth(h.deleteWebTun))
 
 	// Remote access to SSH server
-	h.GET("/api/ssh/connect/:server", h.needsAuth(h.connect))
+	h.GET("/api/ssh/connect/:server/sessions/:sid", h.needsAuth(h.connect))
 
 	// Operations with servers
 	h.GET("/api/servers", h.needsAuth(h.getServers))
@@ -99,18 +102,28 @@ func (s *cpHandler) getSessions(w http.ResponseWriter, r *http.Request, _ httpro
 func (s *cpHandler) getSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *ctx) {
 	ses, err := c.clt.GetSession(p[0].Value)
 	if err != nil {
-		log.Errorf("failed to retrieve sessions: %v", err)
-		replyErr(w, http.StatusInternalServerError, err)
-		return
+		if !backend.IsNotFound(err) {
+			log.Errorf("failed to retrieve session: %v", err)
+			replyErr(w, http.StatusInternalServerError, err)
+			return
+		}
+		if err = c.clt.UpsertSession(p[0].Value, 60*time.Second); err != nil {
+			log.Errorf("failed to upsert session: %v", err)
+			replyErr(w, http.StatusInternalServerError, err)
+			return
+		}
+		if ses, err = c.clt.GetSession(p[0].Value); err != nil {
+			log.Errorf("failed to upsert session: %v", err)
+			replyErr(w, http.StatusInternalServerError, err)
+			return
+		}
 	}
-
 	srvs, err := c.clt.GetServers()
 	if err != nil {
 		log.Errorf("failed to retrieve servers: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
-
 	roundtrip.ReplyJSON(w, http.StatusOK,
 		map[string]interface{}{
 			"session": ses,
@@ -130,7 +143,12 @@ func (s *cpHandler) getServers(w http.ResponseWriter, r *http.Request, _ httprou
 
 func (s *cpHandler) connect(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *ctx) {
 	log.Infof("connect request authorized to: %v", p[0].Value)
-	ws := wsHandler{authServers: s.authServers, ctx: c, addr: p[0].Value}
+	ws := wsHandler{
+		authServers: s.authServers,
+		ctx:         c,
+		addr:        p[0].Value,
+		sid:         p[1].Value,
+	}
 	defer ws.Close()
 	ws.Handler().ServeHTTP(w, r)
 }
@@ -214,12 +232,35 @@ func (s *cpHandler) serversIndex(w http.ResponseWriter, r *http.Request, _ httpr
 	executeTemplate(w, "servers", nil)
 }
 
+func (s *cpHandler) newSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *ctx) {
+	var server string
+	err := form.Parse(r, form.String("server", &server))
+	if err != nil {
+		log.Errorf("failed to parse form: %v", err)
+		roundtrip.ReplyJSON(w, http.StatusBadRequest, message(err.Error()))
+		return
+	}
+	sid := uuid.New()
+	if err := c.clt.UpsertSession(sid, 30*time.Second); err != nil {
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	u := url.URL{
+		Path: fmt.Sprintf("/sessions/%v", sid),
+	}
+	u.Query().Set("server", server)
+	http.Redirect(w, r, u.String(), http.StatusFound)
+}
+
 func (s *cpHandler) sessionsIndex(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *ctx) {
 	executeTemplate(w, "sessions", nil)
 }
 
 func (s *cpHandler) sessionIndex(w http.ResponseWriter, r *http.Request, p httprouter.Params, _ *ctx) {
-	executeTemplate(w, "session", map[string]interface{}{"SessionID": p[0].Value})
+	executeTemplate(w, "session", map[string]interface{}{
+		"SessionID":  p[0].Value,
+		"ServerAddr": r.URL.Query().Get("server"),
+	})
 }
 
 func (s *cpHandler) getKeys(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *ctx) {

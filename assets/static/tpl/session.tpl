@@ -12,8 +12,10 @@
     <script type="text/javascript" src="/static/js/term.js"></script>
     <script type="text/javascript">
        session = {
-           id: "{{.SessionID}}"
+           id: "{{.SessionID}}",
+           first_server: "{{.ServerAddr}}"
        };
-    </script>    
+    </script>
+    <script type="text/javascript" src="/static/js/grv/sessionlib.js"></script>
     <script type="text/jsx" src="/static/js/grv/session.jsx"></script>
 {{ end }}

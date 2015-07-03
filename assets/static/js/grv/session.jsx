@@ -2,7 +2,7 @@
 
 var SessionPage = React.createClass({
     getInitialState: function(){        
-        return parseSession({session: {id: session.id, parties: []}, servers: {}});
+        return parseSessionWithServers({id: session.id, parties: [], first_server: session.first_server}, []);
     },
     componentDidMount: function() {
         this.reload();
@@ -16,7 +16,7 @@ var SessionPage = React.createClass({
               if(this.modalOpen == true) {
                   return
               }
-              this.setState(parseSession(data));
+              this.setState(parseSessionWithServers(data.session, data.servers));
           }.bind(this),
           error: function(xhr, status, err) {
               console.error(this.props.url, status, err.toString());
@@ -32,7 +32,7 @@ var SessionPage = React.createClass({
                 <PageHeader title={"Session '"+session.id+"'"} url={"/sessions" + session.id}/>
                 <div className="wrapper wrapper-content animated fadeInRight">
                   <div className="row">
-                    <div className="col-lg-9">
+                    <div className="col-lg-9" style={{width: '920px'}}>
                       <ConsoleBox session={this.state.session}/>
                     </div>
                     <div className="col-lg-3">
@@ -69,7 +69,7 @@ var ActivityBox = React.createClass({
         return (
             <div className="ibox float-e-margins">
               <div className="ibox-title">
-                <h5>Activity</h5>
+                <h5>Active Users</h5>
               </div>
               <div className="ibox-content">
                 <div className="feed-activity-list">
@@ -101,7 +101,7 @@ var ConsoleBox = React.createClass({
         $(parent).append('<div id="'+self.term_id(srv)+'"></div>');
         var termNode = document.getElementById(this.term_id(srv));
         var hostport = location.hostname+(location.port ? ':'+location.port: '');
-        var socket = new WebSocket("ws://"+hostport+"/api/ssh/connect/"+srv, "proto");
+        var socket = new WebSocket("ws://"+hostport+"/api/ssh/connect/"+srv+"/sessions/"+self.props.session.id, "proto");
         var term = new Terminal({
             cols: 120,
             rows: 32,
@@ -130,7 +130,10 @@ var ConsoleBox = React.createClass({
         this.selected_server = null;
         this.terms = {};
         this.select().chosen({}).change(this.onSelect);
-        this.drawSelect(this.props.session);        
+        this.drawSelect(this.props.session);
+        if(this.props.session.first_server != "") {
+            this.connectToServer(this.props.session.first_server);
+        }
     },
     shouldComponentUpdate: function() {
         return false;
@@ -154,6 +157,9 @@ var ConsoleBox = React.createClass({
         }        
     },
     onSelect: function(e) {
+        if(e.target.value == "") {
+            return
+        }
         this.selected_server = e.target.value;
         this.connectToServer(this.selected_server);
         $("#session-follow").removeClass("btn-primary");
@@ -162,7 +168,7 @@ var ConsoleBox = React.createClass({
     drawSelect: function(se) {
         var s = this.select();
         s.empty();
-        s.append('<option value="conenct">Connect to server</option>');        
+        s.append('<option value="">Connect to server</option>');        
         for( var i = 0; i < se.servers.length; ++i) {
             var srv = se.servers[i];
             var selected = this.current_server == srv.addr ? ' selected="selected"': "";
@@ -215,67 +221,3 @@ React.render(
   <SessionPage url={"/api/sessions/"+session.id} pollInterval={2000}/>,
   document.body
 );
-
-function sortByActivity(x, y) {
-    if(!x.was_active && !y.was_active) {
-        return 0;
-    }
-    if(!y.was_active) {
-        return -1;
-    }                
-    if(!x.was_active) {
-        return 1;
-    }
-    if (x.last_active < y.last_active) {
-        return 1;
-    }
-    if (x.last_active > y.last_active) {
-        return -1;
-    }
-    return 0;
-}
-
-function parseSession(s) {
-    var se = s.session;
-    var servers = s.servers;
-
-    var session = {
-        id: se.id,
-        servers: [],
-        parties: [],
-    };
-
-    var smap = {};
-    for (var i = 0; i < servers.length; i ++ ) {
-        smap[servers[i].addr] = servers[i];
-    }
-
-    var sa = {};
-    
-    for(var i = 0; i < se.parties.length; ++i) {
-        var p = se.parties[i];
-        p.last_active = new Date(p.last_active);
-        p.was_active = true;
-        p.server = smap[p.server_addr];
-        session.parties.push(p);
-
-        if(!sa.hasOwnProperty(p.server_addr)) {
-            sa[p.server_addr] = p.last_active;
-        }
-        if(sa[p.server_addr] < p.last_active) {
-            sa[p.server_addr] = p.last_active;
-        }
-    }
-
-    for (var i = 0; i < servers.length; i ++ ) {
-        var srv = servers[i];
-        srv.was_active = sa.hasOwnProperty(srv.addr);
-        srv.last_active = sa[srv.addr];
-        session.servers.push(srv);
-    }
-
-    session.servers.sort(sortByActivity);
-    session.parties.sort(sortByActivity);
-
-    return {session: session};
-}

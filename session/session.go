@@ -10,6 +10,7 @@ type SessionServer interface {
 	GetSessions() ([]Session, error)
 	GetSession(id string) (*Session, error)
 	DeleteSession(id string) error
+	UpsertSession(id string, ttl time.Duration) error
 	UpsertParty(id string, p Party, ttl time.Duration) error
 }
 
@@ -64,8 +65,12 @@ func (s *server) GetSession(id string) (*Session, error) {
 	return &Session{ID: id, Parties: out}, nil
 }
 
+func (s *server) UpsertSession(id string, ttl time.Duration) error {
+	return s.bk.UpsertVal([]string{"sessions", id}, "val", []byte("val"), ttl)
+}
+
 func (s *server) UpsertParty(id string, p Party, ttl time.Duration) error {
-	if err := s.bk.UpsertVal([]string{"sessions", id}, "val", []byte("val"), ttl); err != nil {
+	if err := s.UpsertSession(id, ttl); err != nil {
 		return err
 	}
 	return s.bk.UpsertJSONVal([]string{"sessions", id, "parties"}, p.ID, p, ttl)

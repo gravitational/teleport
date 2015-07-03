@@ -19,6 +19,7 @@ type wsHandler struct {
 	ctx         *ctx
 	addr        string
 	up          *sshutils.Upstream
+	sid         string
 }
 
 func (w *wsHandler) Close() error {
@@ -35,7 +36,8 @@ func (w *wsHandler) connect(ws *websocket.Conn) {
 		return
 	}
 	w.up = up
-	w.up.PipeShell(ws)
+	err = w.up.PipeShell(ws)
+	log.Infof("Pipe shell finished with: %v", err)
 }
 
 func (w *wsHandler) connectUpstream() (*sshutils.Upstream, error) {
@@ -51,7 +53,12 @@ func (w *wsHandler) connectUpstream() (*sshutils.Upstream, error) {
 	if err != nil {
 		return nil, err
 	}
-	up.GetSession().SendRequest(sshutils.SetEnvReq, false, ssh.Marshal(sshutils.EnvReq{Name: sshutils.SessionEnvVar, Value: "hello"}))
+	up.GetSession().SendRequest(
+		sshutils.SetEnvReq, false,
+		ssh.Marshal(sshutils.EnvReq{
+			Name:  sshutils.SessionEnvVar,
+			Value: w.sid,
+		}))
 	return up, nil
 }
 

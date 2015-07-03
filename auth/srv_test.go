@@ -301,6 +301,22 @@ func (s *APISuite) TestSharedSessions(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []session.Session{})
 
+	c.Assert(s.clt.UpsertSession("s1", 0), IsNil)
+
+	out, err = s.clt.GetSessions()
+	c.Assert(err, IsNil)
+	sess := session.Session{
+		ID:      "s1",
+		Parties: []session.Party{},
+	}
+	c.Assert(out, DeepEquals, []session.Session{sess})
+}
+
+func (s *APISuite) TestSharedSessionsParties(c *C) {
+	out, err := s.clt.GetSessions()
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, []session.Session{})
+
 	p1 := session.Party{
 		ID:         "p1",
 		User:       "bob",
