@@ -69,7 +69,6 @@ var SessionsTable = React.createClass({
   }
 });
 
-
 var SessionRow = React.createClass({
     render: function() {
         var se = parseSession(this.props.se);
