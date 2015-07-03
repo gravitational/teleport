@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/teleport/auth"
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/events"
+	rsession "github.com/gravitational/teleport/session"
 	"github.com/gravitational/teleport/sshutils"
 	"github.com/gravitational/teleport/utils"
 
@@ -34,6 +35,7 @@ type Server struct {
 	shell       string
 	ap          auth.AccessPoint
 	reg         *sessionRegistry
+	se          rsession.SessionServer
 }
 
 type ServerOption func(s *Server) error
@@ -48,6 +50,13 @@ func SetEventLogger(e lunk.EventLogger) ServerOption {
 func SetShell(shell string) ServerOption {
 	return func(s *Server) error {
 		s.shell = shell
+		return nil
+	}
+}
+
+func SetSessionServer(srv rsession.SessionServer) ServerOption {
+	return func(s *Server) error {
+		s.se = srv
 		return nil
 	}
 }
@@ -86,10 +95,14 @@ func (s *Server) Addr() string {
 	return s.srv.Addr()
 }
 
+func (s *Server) ID() string {
+	return strings.Replace(s.addr.Addr, ":", "_", -1)
+}
+
 func (s *Server) heartbeatPresence() {
 	for {
 		srv := backend.Server{
-			ID:   strings.Replace(s.addr.Addr, ":", "_", -1),
+			ID:   s.ID(),
 			Addr: s.addr.Addr,
 		}
 		if err := s.ap.UpsertServer(srv, 6*time.Second); err != nil {

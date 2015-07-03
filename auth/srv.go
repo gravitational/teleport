@@ -583,7 +583,7 @@ func (s *APIServer) upsertSessionParty(w http.ResponseWriter, r *http.Request, p
 		form.String("id", &party.ID, form.Required()),
 		form.String("site", &party.Site, form.Required()),
 		form.String("user", &party.User, form.Required()),
-		form.String("server", &party.Server, form.Required()),
+		form.String("server_addr", &party.ServerAddr, form.Required()),
 		form.Time("last_active", &party.LastActive),
 		form.Duration("ttl", &ttl),
 	)

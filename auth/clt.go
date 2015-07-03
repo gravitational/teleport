@@ -124,7 +124,7 @@ func (c *Client) UpsertParty(id string, p session.Party, ttl time.Duration) erro
 		"id":          []string{p.ID},
 		"site":        []string{p.Site},
 		"user":        []string{p.User},
-		"server":      []string{p.Server},
+		"server_addr": []string{p.ServerAddr},
 		"ttl":         []string{ttl.String()},
 		"last_active": []string{string(a)},
 	})

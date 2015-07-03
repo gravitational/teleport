@@ -2,19 +2,21 @@ package srv
 
 import (
 	"bytes"
-
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
+
+	"github.com/gravitational/teleport/events"
+	rsession "github.com/gravitational/teleport/session"
 
 	"code.google.com/p/go-uuid/uuid"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
-	"github.com/gravitational/teleport/events"
 )
 
 type sessionRegistry struct {
@@ -108,6 +110,7 @@ type session struct {
 	writer  *multiWriter
 	parties map[string]*party
 	t       *term
+	closeC  chan bool
 }
 
 func newSession(id string, r *sessionRegistry) *session {
@@ -124,6 +127,19 @@ func (s *session) Close() error {
 		return s.t.Close()
 	}
 	return nil
+}
+
+func (s *session) upsertSessionParty(sid string, p *party, ttl time.Duration) error {
+	if s.r.srv.se == nil {
+		return nil
+	}
+	return s.r.srv.se.UpsertParty(sid, rsession.Party{
+		ID:         p.id,
+		User:       p.user,
+		ServerAddr: p.serverAddr,
+		Site:       p.site,
+		LastActive: p.getLastActive(),
+	}, ttl)
 }
 
 func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
@@ -209,9 +225,23 @@ func (s *session) addParty(p *party) {
 	s.writer.addWriter(p.id, p)
 	p.ctx.addCloser(p)
 	go func() {
-		written, err := io.Copy(s.t.pty, p.ch)
+		written, err := io.Copy(s.t.pty, p)
 		log.Infof("%v channel to shell copy closed, bytes written: %v, err: %v",
 			p.ctx, written, err)
+	}()
+	go func() {
+		for {
+			select {
+			case <-p.closeC:
+				log.Infof("%v closed, stopped heartbeat", p)
+				return
+			case <-time.After(1 * time.Second):
+			}
+			if err := s.upsertSessionParty(s.id, p, 10*time.Second); err != nil {
+				log.Warningf("%v failed to upsert session party: %v", p, err)
+			}
+			log.Infof("%v upserted session party", p)
+		}
 	}()
 }
 
@@ -292,20 +322,47 @@ func (t *multiWriter) Write(p []byte) (n int, err error) {
 
 func newParty(s *session, sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) *party {
 	return &party{
-		id:    uuid.New(),
-		sconn: sconn,
-		ch:    ch,
-		ctx:   ctx,
-		s:     s,
+		user:       sconn.User(),
+		serverAddr: s.r.srv.addr.Addr,
+		site:       sconn.RemoteAddr().String(),
+		id:         uuid.New(),
+		sconn:      sconn,
+		ch:         ch,
+		ctx:        ctx,
+		s:          s,
+		closeC:     make(chan bool),
 	}
 }
 
 type party struct {
-	id    string
-	s     *session
-	sconn *ssh.ServerConn
-	ch    ssh.Channel
-	ctx   *ctx
+	sync.Mutex
+	user       string
+	serverAddr string
+	site       string
+	id         string
+	s          *session
+	sconn      *ssh.ServerConn
+	ch         ssh.Channel
+	ctx        *ctx
+	closeC     chan bool
+	lastActive time.Time
+}
+
+func (p *party) updateActivity() {
+	p.Lock()
+	defer p.Unlock()
+	p.lastActive = time.Now()
+}
+
+func (p *party) getLastActive() time.Time {
+	p.Lock()
+	defer p.Unlock()
+	return p.lastActive
+}
+
+func (p *party) Read(bytes []byte) (int, error) {
+	p.updateActivity()
+	return p.ch.Read(bytes)
 }
 
 func (p *party) Write(bytes []byte) (int, error) {
@@ -318,5 +375,6 @@ func (p *party) String() string {
 
 func (p *party) Close() error {
 	log.Infof("%v closing", p)
+	close(p.closeC)
 	return p.s.r.leaveShell(p.s.id, p.id)
 }

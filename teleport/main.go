@@ -88,6 +88,10 @@ func main() {
 	flag.BoolVar(&cfg.CP.Enabled, "cp", false,
 		"enable Control Panel endpoint")
 
+	flag.StringVar(
+		&cfg.CP.AssetsDir, "cpAssetsDir", "",
+		"path to control panel assets")
+
 	flag.Var(
 		utils.NewNetAddrVal(
 			utils.NetAddr{

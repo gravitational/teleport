@@ -11,6 +11,7 @@
     <link href="/static/font-awesome/css/font-awesome.min.css" rel="stylesheet">
     <link href="/static/css/animate.css" rel="stylesheet">
     <link href="/static/css/style.min.css" rel="stylesheet">
+    <link href="/static/css/plugins/chosen/chosen.css" rel="stylesheet">
 </head>
 
 <body>
@@ -28,7 +29,9 @@
     <!-- Custom and plugin javascript -->
     <script src="/static/js/inspinia.js"></script>
     <script src="/static/js/plugins/pace/pace.min.js"></script>
-
+    <script src="/static/js/plugins/chosen/chosen.jquery.js"></script>
+    
+    <script src="/static/js/grv/lib.js"></script>    
     <script type="text/jsx" src="/static/js/grv/modal.js"></script>
     <script type="text/jsx" src="/static/js/grv/frame.js"></script>
     {{ template "script" . }}

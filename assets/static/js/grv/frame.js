@@ -42,7 +42,7 @@ var LeftNavBar = React.createClass({
             <li className={this.className("keys")}>
                 <a href="/keys">
                     <i className="fa fa-laptop"></i>
-                    <span className="nav-label">SSH Keys</span>
+                    <span className="nav-label">Keys</span>
                 </a>
             </li>
             <li className={this.className("events")}>
@@ -60,7 +60,13 @@ var LeftNavBar = React.createClass({
             <li className={this.className("servers")}>
                 <a href="/servers">
                     <i className="fa fa-hdd-o"></i>
-                    <span className="nav-label">SSH Servers</span>
+                    <span className="nav-label">Servers</span>
+                </a>
+            </li>
+            <li className={this.className("sessions")}>
+                <a href="/sessions">
+                    <i className="fa fa-wechat"></i>
+                    <span className="nav-label">Sessions</span>
                 </a>
             </li>
         </ul>

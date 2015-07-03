@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 
 	"github.com/gravitational/teleport/auth"
 	"github.com/gravitational/teleport/backend"
@@ -14,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/mailgun/ttlmap"
 )
 
 // cpHandler implements methods for control panel
@@ -21,12 +23,21 @@ type cpHandler struct {
 	httprouter.Router
 	host        string
 	authServers []utils.NetAddr
+	sessions    *ttlmap.TtlMap
 }
 
-func newCPHandler(host string, auth []utils.NetAddr) *cpHandler {
+func newCPHandler(host string, auth []utils.NetAddr, assetsDir string) *cpHandler {
+	initTemplates(assetsDir)
+
+	m, err := ttlmap.NewMap(1024)
+	if err != nil {
+		panic(err)
+	}
+
 	h := &cpHandler{
 		authServers: auth,
 		host:        host,
+		sessions:    m,
 	}
 	h.GET("/login", h.login)
 	h.GET("/logout", h.logout)
@@ -38,6 +49,8 @@ func newCPHandler(host string, auth []utils.NetAddr) *cpHandler {
 	h.GET("/events", h.needsAuth(h.eventsIndex))
 	h.GET("/webtuns", h.needsAuth(h.webTunsIndex))
 	h.GET("/servers", h.needsAuth(h.serversIndex))
+	h.GET("/sessions", h.needsAuth(h.sessionsIndex))
+	h.GET("/sessions/:id", h.needsAuth(h.sessionIndex))
 
 	// JSON API methods
 
@@ -62,9 +75,47 @@ func newCPHandler(host string, auth []utils.NetAddr) *cpHandler {
 	// Operations with servers
 	h.GET("/api/servers", h.needsAuth(h.getServers))
 
-	// Serve vendored static assets
-	h.Handler("GET", "/static/*filepath", http.FileServer(assetFS()))
+	// Static assets
+	h.Handler("GET", "/static/*filepath",
+		http.FileServer(http.Dir(filepath.Join(assetsDir, "assets"))))
+
+	// Operations with sessions
+	h.GET("/api/sessions", h.needsAuth(h.getSessions))
+	h.GET("/api/sessions/:id", h.needsAuth(h.getSession))
+
 	return h
+}
+
+func (s *cpHandler) getSessions(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *ctx) {
+	ses, err := c.clt.GetSessions()
+	if err != nil {
+		log.Errorf("failed to retrieve sessions: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	roundtrip.ReplyJSON(w, http.StatusOK, ses)
+}
+
+func (s *cpHandler) getSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *ctx) {
+	ses, err := c.clt.GetSession(p[0].Value)
+	if err != nil {
+		log.Errorf("failed to retrieve sessions: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	srvs, err := c.clt.GetServers()
+	if err != nil {
+		log.Errorf("failed to retrieve servers: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	roundtrip.ReplyJSON(w, http.StatusOK,
+		map[string]interface{}{
+			"session": ses,
+			"servers": srvs,
+		})
 }
 
 func (s *cpHandler) getServers(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *ctx) {
@@ -163,6 +214,14 @@ func (s *cpHandler) serversIndex(w http.ResponseWriter, r *http.Request, _ httpr
 	executeTemplate(w, "servers", nil)
 }
 
+func (s *cpHandler) sessionsIndex(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *ctx) {
+	executeTemplate(w, "sessions", nil)
+}
+
+func (s *cpHandler) sessionIndex(w http.ResponseWriter, r *http.Request, p httprouter.Params, _ *ctx) {
+	executeTemplate(w, "session", map[string]interface{}{"SessionID": p[0].Value})
+}
+
 func (s *cpHandler) getKeys(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *ctx) {
 	keys, err := c.clt.GetUserKeys(c.user)
 	if err != nil {
@@ -255,6 +314,12 @@ func (s *cpHandler) auth(user, pass string) (string, error) {
 }
 
 func (s *cpHandler) validateSession(user, sid string) (*ctx, error) {
+	val, ok := s.sessions.Get(user + sid)
+	if ok {
+		log.Infof("retrieving session from cache")
+		return val.(*ctx), nil
+	}
+
 	method, err := auth.NewWebSessionAuth(user, []byte(sid))
 	if err != nil {
 		return nil, err
@@ -269,11 +334,18 @@ func (s *cpHandler) validateSession(user, sid string) (*ctx, error) {
 		return nil, err
 	}
 	log.Infof("session validated")
-	return &ctx{
+
+	c := &ctx{
 		clt:  clt,
 		user: user,
 		sid:  sid,
-	}, nil
+	}
+	if err := s.sessions.Set(user+sid, c, 600); err != nil {
+		log.Infof("something is wrong: %v", err)
+		return nil, err
+	}
+
+	return c, nil
 }
 
 func (s *cpHandler) setSession(w http.ResponseWriter, user, sid string) error {
@@ -321,7 +393,6 @@ func (s *cpHandler) needsAuth(fn authHandle) httprouter.Handle {
 			http.Redirect(w, r, "/login", http.StatusFound)
 			return
 		}
-		defer ctx.Close()
 		fn(w, r, p, ctx)
 	}
 	return nil

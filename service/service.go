@@ -10,6 +10,7 @@ import (
 	"github.com/gravitational/teleport/backend/boltbk"
 	"github.com/gravitational/teleport/backend/etcdbk"
 	"github.com/gravitational/teleport/cp"
+	"github.com/gravitational/teleport/session"
 	"github.com/gravitational/teleport/srv"
 	"github.com/gravitational/teleport/tun"
 	"github.com/gravitational/teleport/utils"
@@ -87,7 +88,7 @@ func initAuth(t *TeleportService, cfg Config) error {
 
 	// register HTTP API endpoint
 	t.RegisterFunc(func() error {
-		apisrv := auth.NewAPIServer(asrv, memlog.New())
+		apisrv := auth.NewAPIServer(asrv, memlog.New(), session.New(b))
 		t, err := trace.New(apisrv, log.GetLogger().Writer(log.SeverityInfo))
 		if err != nil {
 			log.Fatalf("failed to start: %v", err)
@@ -124,8 +125,9 @@ func initCP(t *TeleportService, cfg Config) error {
 		return fmt.Errorf("cp hostname is required")
 	}
 	csrv, err := cp.NewServer(cp.Config{
-		AuthSrv: cfg.AuthServers,
-		Host:    cfg.CP.Domain,
+		AuthSrv:   cfg.AuthServers,
+		Host:      cfg.CP.Domain,
+		AssetsDir: cfg.CP.AssetsDir,
 	})
 	if err != nil {
 		log.Errorf("failed to start CP server: %v", err)
@@ -177,7 +179,8 @@ func initSSHEndpoint(t *TeleportService, cfg Config) error {
 		[]ssh.Signer{signer},
 		client,
 		srv.SetShell(cfg.SSH.Shell),
-		srv.SetEventLogger(elog))
+		srv.SetEventLogger(elog),
+		srv.SetSessionServer(client))
 	if err != nil {
 		return err
 	}
@@ -351,9 +354,10 @@ type SSHConfig struct {
 }
 
 type CPConfig struct {
-	Enabled bool
-	Addr    utils.NetAddr
-	Domain  string
+	Enabled   bool
+	Addr      utils.NetAddr
+	Domain    string
+	AssetsDir string
 }
 
 type TunConfig struct {

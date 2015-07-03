@@ -76,14 +76,14 @@ func (s *server) DeleteSession(id string) error {
 }
 
 type Session struct {
-	ID      string `json:"id"`
-	Parties []Party
+	ID      string  `json:"id"`
+	Parties []Party `json:"parties"`
 }
 
 type Party struct {
 	ID         string    `json:"id"`
 	Site       string    `json:"site"`
 	User       string    `json:"user"`
-	Server     string    `json:"server"`
+	ServerAddr string    `json:"server_addr"`
 	LastActive time.Time `json:"last_active"`
 }
