@@ -14,6 +14,7 @@ import (
 	"github.com/gravitational/teleport/events"
 	rsession "github.com/gravitational/teleport/session"
 	"github.com/gravitational/teleport/sshutils"
+	"github.com/gravitational/teleport/sshutils/scp"
 	"github.com/gravitational/teleport/utils"
 
 	"code.google.com/p/go-uuid/uuid"
@@ -484,6 +485,16 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 		replyError(req, err)
 		return err
 	}
+
+	if scp.IsSCP(e.cmdName) {
+		log.Infof("%v detected SCP command: %v", ctx, e.cmdName)
+		if err := s.handleSCP(ch, req, ctx, e.cmdName); err != nil {
+			log.Errorf("%v handleSCP() err: %v", ctx, err)
+			return err
+		}
+		return ch.Close()
+	}
+
 	result, err := e.start(s.shell, ch)
 	if err != nil {
 		log.Infof("%v error starting command, %v", ctx, err)
@@ -506,6 +517,30 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 			ctx.sendResult(*result)
 		}
 	}()
+	return nil
+}
+
+func (s *Server) handleSCP(ch ssh.Channel, req *ssh.Request, ctx *ctx, args string) error {
+	log.Infof("%v handleSCP(cmd=%v)", ctx, args)
+	cmd, err := scp.ParseCommand(args)
+	if err != nil {
+		log.Errorf("%v failed to parse command: %v", ctx, cmd)
+		return fmt.Errorf("failure: %v", err)
+	}
+	log.Infof("%v handleSCP(cmd=%#v)", ctx, cmd)
+	srv, err := scp.New(*cmd)
+	if err != nil {
+		log.Errorf("%v failed to create scp server: %v", ctx)
+		return err
+	}
+	if err := srv.Serve(ch); err != nil {
+		log.Errorf("%v error serving: %v", ctx, err)
+		return err
+	}
+	_, err = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(0)}))
+	if err != nil {
+		log.Infof("%v failed to send scp exit status: %v", ctx, err)
+	}
 	return nil
 }
 
