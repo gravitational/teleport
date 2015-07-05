@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
 
 const (
@@ -29,14 +28,14 @@ func New(cmd Command) (*Server, error) {
 	return &Server{cmd: cmd}, nil
 }
 
-func (s *Server) Serve(ch ssh.Channel) error {
+func (s *Server) Serve(ch io.ReadWriter) error {
 	if s.cmd.Source {
 		return s.serveSource(ch)
 	}
 	return s.serveSink(ch)
 }
 
-func (s *Server) serveSource(ch ssh.Channel) error {
+func (s *Server) serveSource(ch io.ReadWriter) error {
 	log.Infof("serving source")
 
 	r := newReader(ch)
@@ -72,7 +71,7 @@ func (s *Server) serveSource(ch ssh.Channel) error {
 	return nil
 }
 
-func (s *Server) sendDir(r *reader, ch ssh.Channel, fi os.FileInfo, path string) error {
+func (s *Server) sendDir(r *reader, ch io.ReadWriter, fi os.FileInfo, path string) error {
 	_, err := fmt.Fprintf(ch, "D%04o 0 %s\n", fi.Mode()&os.ModePerm, fi.Name())
 	if err != nil {
 		return err
@@ -115,7 +114,7 @@ func (s *Server) sendDir(r *reader, ch ssh.Channel, fi os.FileInfo, path string)
 	return nil
 }
 
-func (s *Server) sendFile(r *reader, ch ssh.Channel, fi os.FileInfo, path string) error {
+func (s *Server) sendFile(r *reader, ch io.ReadWriter, fi os.FileInfo, path string) error {
 	_, err := fmt.Fprintf(ch, "C%04o %d %s\n", fi.Mode()&os.ModePerm, fi.Size(), fi.Name())
 	if err != nil {
 		return err
@@ -147,7 +146,7 @@ func (s *Server) sendFile(r *reader, ch ssh.Channel, fi os.FileInfo, path string
 	return r.read()
 }
 
-func (s *Server) serveSink(ch ssh.Channel) error {
+func (s *Server) serveSink(ch io.ReadWriter) error {
 	log.Infof("serving sink")
 
 	if err := sendOK(ch); err != nil {
@@ -161,7 +160,7 @@ func (s *Server) serveSink(ch ssh.Channel) error {
 		if err != nil {
 			if err == io.EOF {
 				log.Infof("got EOF")
-				return sendOK(ch)
+				return nil
 			}
 			log.Errorf("error reading: %v", err)
 			return err
@@ -195,7 +194,7 @@ func (s *Server) serveSink(ch ssh.Channel) error {
 	}
 }
 
-func (s *Server) processCommand(ch ssh.Channel, st *state, b byte, line string) error {
+func (s *Server) processCommand(ch io.ReadWriter, st *state, b byte, line string) error {
 	switch b {
 	case WarnByte:
 		log.Warningf("got warning: %v", line)
@@ -240,7 +239,7 @@ func (s *Server) processCommand(ch ssh.Channel, st *state, b byte, line string) 
 	return fmt.Errorf("got unrecognized command: %v", string(b))
 }
 
-func (s *Server) receiveFile(st *state, cmd NewFileCmd, ch ssh.Channel) error {
+func (s *Server) receiveFile(st *state, cmd NewFileCmd, ch io.ReadWriter) error {
 	path := st.makePath(s.cmd.Target, cmd.Name)
 	f, err := os.Create(path)
 	if err != nil {
@@ -266,7 +265,7 @@ func (s *Server) receiveFile(st *state, cmd NewFileCmd, ch ssh.Channel) error {
 	return nil
 }
 
-func (s *Server) receiveDir(st *state, cmd NewFileCmd, ch ssh.Channel) error {
+func (s *Server) receiveDir(st *state, cmd NewFileCmd, ch io.ReadWriter) error {
 	path := st.makePath(s.cmd.Target, cmd.Name)
 	mode := os.FileMode(int(cmd.Mode) & int(os.ModePerm))
 	err := os.Mkdir(path, mode)
@@ -366,19 +365,18 @@ func ParseMtime(line string) (*MtimeCmd, error) {
 			return nil, err
 		}
 	}
-
 	return &MtimeCmd{
 		Mtime: time.Unix(vars[0], vars[1]),
 		Atime: time.Unix(vars[2], vars[3]),
 	}, nil
 }
 
-func sendOK(ch ssh.Channel) error {
+func sendOK(ch io.ReadWriter) error {
 	_, err := ch.Write([]byte{OKByte})
 	return err
 }
 
-func sendError(ch ssh.Channel, message string) error {
+func sendError(ch io.ReadWriter, message string) error {
 	bytes := make([]byte, 0, len(message)+2)
 	bytes = append(bytes, ErrByte)
 	bytes = append(bytes, message...)
