@@ -30,6 +30,126 @@ func New(cmd Command) (*Server, error) {
 }
 
 func (s *Server) Serve(ch ssh.Channel) error {
+	if s.cmd.Source {
+		return s.serveSource(ch)
+	}
+	return s.serveSink(ch)
+}
+
+func (s *Server) serveSource(ch ssh.Channel) error {
+	log.Infof("serving source")
+
+	r := newReader(ch)
+
+	if err := r.read(); err != nil {
+		return err
+	}
+
+	f, err := os.Stat(s.cmd.Target)
+	if err != nil {
+		log.Infof("failed to stat file: %v", err)
+		return sendError(ch, err.Error())
+	}
+
+	if f.IsDir() && !s.cmd.Recursive {
+		return sendError(
+			ch, fmt.Sprintf(
+				"%v is not a file, turn recursive mode to copy dirs",
+				s.cmd.Target))
+	}
+
+	if f.IsDir() {
+		if err := s.sendDir(r, ch, f, s.cmd.Target); err != nil {
+			return sendError(ch, err.Error())
+		}
+	} else {
+		if err := s.sendFile(r, ch, f, s.cmd.Target); err != nil {
+			return sendError(ch, err.Error())
+		}
+	}
+
+	log.Infof("send completed")
+	return nil
+}
+
+func (s *Server) sendDir(r *reader, ch ssh.Channel, fi os.FileInfo, path string) error {
+	_, err := fmt.Fprintf(ch, "D%04o 0 %s\n", fi.Mode()&os.ModePerm, fi.Name())
+	if err != nil {
+		return err
+	}
+	if err := r.read(); err != nil {
+		log.Errorf("reader failed")
+		return err
+	}
+	log.Infof("sendDir got OK")
+	f, err := os.Open(path)
+	if err != nil {
+		log.Errorf("failed to open: %v", err)
+		return err
+	}
+	fis, err := f.Readdir(0)
+	if err != nil {
+		log.Errorf("failed to read directory: %v")
+		return err
+	}
+
+	for _, sfi := range fis {
+		if sfi.IsDir() {
+			err := s.sendDir(r, ch, sfi, filepath.Join(path, sfi.Name()))
+			if err != nil {
+				log.Errorf("failed to send dir: %v", err)
+				return err
+			}
+		} else {
+			err := s.sendFile(r, ch, sfi, filepath.Join(path, sfi.Name()))
+			if err != nil {
+				log.Errorf("failed to send file: %v", err)
+				return err
+			}
+		}
+	}
+	if _, err = fmt.Fprintf(ch, "E\n"); err != nil {
+		log.Errorf("failed to send end dir: %v", err)
+		return err
+	}
+	return nil
+}
+
+func (s *Server) sendFile(r *reader, ch ssh.Channel, fi os.FileInfo, path string) error {
+	_, err := fmt.Fprintf(ch, "C%04o %d %s\n", fi.Mode()&os.ModePerm, fi.Size(), fi.Name())
+	if err != nil {
+		return err
+	}
+	if err := r.read(); err != nil {
+		log.Errorf("reader failed")
+		return err
+	}
+	log.Infof("sendFile got OK")
+	f, err := os.Open(path)
+	if err != nil {
+		log.Errorf("failed to open: %v", err)
+		return err
+	}
+	defer f.Close()
+	n, err := io.Copy(ch, f)
+	if err != nil {
+		log.Errorf("failed copying: %v", err)
+		return err
+	}
+	if n != fi.Size() {
+		err := fmt.Errorf("short write: %v", n)
+		log.Errorf(err.Error())
+		return err
+	}
+	if err := sendOK(ch); err != nil {
+		return err
+	}
+	return r.read()
+}
+
+func (s *Server) serveSink(ch ssh.Channel) error {
+	log.Infof("serving sink")
+
 	if err := sendOK(ch); err != nil {
 		return err
 	}
@@ -285,4 +405,48 @@ func (st *state) pop() error {
 
 func (st *state) makePath(target, filename string) string {
 	return filepath.Join(target, filepath.Join(st.path...), filename)
+}
+
+func newReader(r io.Reader) *reader {
+	return &reader{
+		b: make([]byte, 1),
+		s: bufio.NewScanner(r),
+		r: r,
+	}
+}
+
+type reader struct {
+	b []byte
+	s *bufio.Scanner
+	r io.Reader
+}
+
+func (r *reader) read() error {
+	n, err := r.r.Read(r.b)
+	if err != nil {
+		log.Errorf("got error: %v", err)
+		return err
+	}
+	if n < 1 {
+		return fmt.Errorf("unexpected error, read 0 bytes")
+	}
+
+	switch r.b[0] {
+	case OKByte:
+		log.Infof("got OK")
+		return nil
+	case WarnByte, ErrByte:
+		r.s.Scan()
+		if err := r.s.Err(); err != nil {
+			log.Errorf("failed to read response: %v", err)
+			return err
+		}
+		if r.b[0] == ErrByte {
+			log.Errorf("error: %v", fmt.Errorf(r.s.Text()))
+			return err
+		}
+		log.Warningf("warn: %v", r.s.Text())
+		return nil
+	}
+	return fmt.Errorf("unrecognized command: %#v", r.b)
 }
