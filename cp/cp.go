@@ -4,6 +4,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -55,6 +57,7 @@ func newCPHandler(host string, auth []utils.NetAddr, assetsDir string) *cpHandle
 	h.GET("/sessions", h.needsAuth(h.sessionsIndex))
 	h.POST("/sessions", h.needsAuth(h.newSession))
 	h.GET("/sessions/:id", h.needsAuth(h.sessionIndex))
+	h.POST("/servers/:id/files", h.needsAuth(h.uploadFile))
 
 	// JSON API methods
 
@@ -87,6 +90,35 @@ func newCPHandler(host string, auth []utils.NetAddr, assetsDir string) *cpHandle
 	h.GET("/api/sessions/:id", h.needsAuth(h.getSession))
 
 	return h
+}
+
+func (s *cpHandler) uploadFile(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *ctx) {
+	file, fh, err := r.FormFile("file")
+	if err != nil {
+		log.Errorf("file err: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	defer file.Close()
+	f, err := ioutil.TempFile("", "test")
+	if err != nil {
+		log.Errorf("file err: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	defer f.Close()
+	if _, err := io.Copy(f, file); err != nil {
+		log.Errorf("file err: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	log.Infof("%v uploaded", fh.Filename)
+	res := map[string]interface{}{
+		"result": map[string]interface{}{
+			"name": fh.Filename,
+		},
+	}
+	roundtrip.ReplyJSON(w, http.StatusOK, res)
 }
 
 func (s *cpHandler) getSessions(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *ctx) {

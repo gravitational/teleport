@@ -12,6 +12,9 @@
     <link href="/static/css/animate.css" rel="stylesheet">
     <link href="/static/css/style.min.css" rel="stylesheet">
     <link href="/static/css/plugins/chosen/chosen.css" rel="stylesheet">
+    <link href="/static/css/plugins/toastr/toastr.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/plugins/fileupload/jquery.fileupload.css">
+    <link rel="stylesheet" href="/static/css/plugins/fileupload/jquery.fileupload-ui.css">
 </head>
 
 <body>
@@ -30,9 +33,16 @@
     <script src="/static/js/inspinia.js"></script>
     <script src="/static/js/plugins/pace/pace.min.js"></script>
     <script src="/static/js/plugins/chosen/chosen.jquery.js"></script>
-    
+
+    <script src="/static/js/jquery.ui.widget.js"></script>
+    <script src="/static/js/jquery.iframe-transport.js"></script>
+    <script src="/static/js/jquery.fileupload.js"></script>
+    <script src="/static/js/jquery.fileupload-process.js"></script>
+    <script src="/static/js/plugins/toastr/toastr.min.js"></script>
+
+    <!-- Gravity stuff -->
     <script src="/static/js/grv/lib.js"></script>    
-    <script type="text/jsx" src="/static/js/grv/modal.js"></script>
+    <script type="text/jsx" src="/static/js/grv/modal.jsx"></script>
     <script type="text/jsx" src="/static/js/grv/frame.js"></script>
     {{ template "script" . }}
 </body>

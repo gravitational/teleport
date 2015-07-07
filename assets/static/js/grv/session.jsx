@@ -1,6 +1,13 @@
 'use strict';
 
 var SessionPage = React.createClass({
+    onServerSelect: function(addr) {
+        this.current_server = addr;
+        this.refs.upload.onServerSelect(this.current_server);
+    },
+    getCurrentServer() {
+        return this.current_server || null;
+    },
     getInitialState: function(){        
         return parseSessionWithServers({id: session.id, parties: [], first_server: session.first_server}, []);
     },
@@ -23,6 +30,9 @@ var SessionPage = React.createClass({
           }.bind(this)
       });
     },
+    onUpload: function(){
+        this.refs.upload.open();
+    },
     render: function() {
         return (
             <div id="wrapper">
@@ -33,7 +43,7 @@ var SessionPage = React.createClass({
                 <div className="wrapper wrapper-content animated fadeInRight">
                   <div className="row">
                     <div className="col-lg-9" style={{width: '920px'}}>
-                      <ConsoleBox session={this.state.session}/>
+                      <ConsoleBox session={this.state.session} onServerSelect={this.onServerSelect} onUpload={this.onUpload}/>
                     </div>
                     <div className="col-lg-3">
                       <ActivityBox session={this.state.session}/>
@@ -42,6 +52,7 @@ var SessionPage = React.createClass({
                 </div>
                 <PageFooter/>
               </div>
+              <UploadForm ref="upload" getCurrentServer={this.getCurrentServer}/>
             </div>
         );
     }
@@ -153,7 +164,8 @@ var ConsoleBox = React.createClass({
         if (this.current_server != addr && addr != "") {
             var prev = this.current_server;
             this.current_server = addr;
-            this.connect(this.props.session.id, prev, addr);
+            this.props.onServerSelect(addr);
+            this.connect(this.props.session.id, prev, addr);            
         }        
     },
     onSelect: function(e) {
@@ -203,8 +215,15 @@ var ConsoleBox = React.createClass({
   <div className="ibox-title">
     <select data-placeholder="Connect to server..." className="chosen-select" ref="select" style={{width: '350px'}}>
     </select>
-    <div className="btn-group pull-right">
-      <button id="session-follow" className="btn btn-primary" type="button" onClick={self.onFollow}>watching activity</button>
+    <div className="pull-right">
+      <button id="session-follow" className="btn btn-default" type="button" onClick={self.onFollow} style={{marginRight: '5px'}}>following activity</button>
+      <div className="btn-group pull-right">
+        <button data-toggle="dropdown" className="btn btn-primary dropdown-toggle">Actions <span className="caret"></span></button>
+        <ul className="dropdown-menu">
+          <li><a href="#" onClick={this.props.onUpload}><i className="fa fa-upload"></i>&nbsp;<span>Upload</span></a></li>
+          <li><a href="#"><i className="fa fa-download"></i>&nbsp;<span>Download</span></a></li>
+        </ul>
+      </div>
     </div>
   </div>
   <div className="ibox-content">
@@ -217,7 +236,132 @@ var ConsoleBox = React.createClass({
     }
 });
 
+
+var UploadForm = React.createClass({
+    files: function(){
+        return $(React.findDOMNode(this.refs.files));
+    },
+    upload: function(){
+        return $(React.findDOMNode(this.refs.fileupload));
+    },
+    onServerSelect: function(addr) {
+    },
+    shouldComponentUpdate: function() {
+        return false;
+    },
+    componentDidMount: function() {
+    },
+    filesList: function() {
+        var list = [];
+        for(var i = 0; i < this.items.length; i++) {
+            console.log(this.items[i]);
+            for(var j = 0; j < this.items[i].files.length; j++) {
+                list.push(this.items[i].files[j].name);
+            }
+        }
+        return list;
+    },
+    open: function(srv) {
+        this.items = [];
+        this.uploaded = 0;
+        var self = this;
+        var upload = this.upload();
+        var files = this.files();
+        upload.fileupload({
+            autoUpload: false,
+            url: '/servers/'+self.props.getCurrentServer()+'/files',
+            add: function (e, data) {
+                self.items.push(data);
+                data.context = {};
+                $.each(data.files, function (index, file) {
+                    var item = $('<li class="list-group-item"/>');
+                    var ok = $('<i class="fa fa-check pull-right" style="display:none;"/>')
+                        var handle = $('<div/>').text(file.name + " ("+formatBytes(file.size)+")");
+                    handle.append(ok);
+                    handle.appendTo(item);
+                    item.appendTo(files);                
+                    data.context[file.name] = ok;
+                });
+            },
+            submit: function (e, data) {
+                var path = $(React.findDOMNode(self.refs.path));
+                data.formData = {
+                    path: path.val(),
+                    addr: self.props.getCurrentServer()
+                };            
+                if (!data.formData.path) {
+                    path.focus();
+                    return false;
+                }
+            },
+            done: function (e, data) {
+                self.uploaded += 1;
+                for(var i = 0; i < data.files.length; ++i) {
+                    $(data.context[data.files[i].name]).show();
+                }
+                if(self.uploaded == self.items.length) {
+                    var message = "files "+ self.filesList().join() +" uploaded on "+ self.props.getCurrentServer();
+                    self.onClose();
+                    toastr.success(message);                
+                }
+            },
+            fail: function (e, data) {
+                toastr.error("files upload failed, try again");
+                self.onClose();
+            },
+        });
+        this.refs.modal.open();
+    },
+    onClose: function() {
+        $(React.findDOMNode(this.refs.modal)).find(":input,:button,a").attr("disabled", false);        
+        this.refs.modal.setConfirmText("Confirm");
+        for(var i = 0; i < this.items.length; i++) {            
+            //this.items[i].abort();
+        }
+        this.items = [];
+        this.upload().fileupload('destroy');
+        this.files().empty();
+        this.refs.modal.close();
+    },
+    onUpload: function() {
+        this.refs.modal.setConfirmText("Uploading...");
+        $(React.findDOMNode(this.refs.modal)).find(":input,:button,a").attr("disabled", true);
+        for(var i =0; i < this.items.length; i++ ) {
+            this.items[i].submit();
+        }
+    },
+    render: function() {
+        return (
+            <BootstrapModal dialogClass="modal-dialog" icon="fa fa-upload" ref="modal"
+                            cancel="Cancel" confirm="Upload" onConfirm={this.onUpload}
+                            onCancel={this.onClose} title="Upload files">
+              <form method="get" className="form-horizontal">
+              <div className="form-group">
+                <label className="col-sm-4 control-label">Directory on server</label>
+                <div className="col-sm-8">
+                  <input type="text" className="form-control" defaultValue="/tmp" ref="path"></input>
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="col-sm-4 control-label">Files</label>
+                <div className="col-sm-8">
+                  <ol className="list-group" ref="files"></ol>
+                <span className="btn btn-success fileinput-button">
+                  <i className="glyphicon glyphicon-plus"></i>
+                  <span>Add files...</span>
+                  <input ref="fileupload" type="file" name="file" multiple/>
+                </span>
+                </div>                
+              </div>
+              </form>
+            </BootstrapModal>
+        );
+  }
+});
+
+
 React.render(
   <SessionPage url={"/api/sessions/"+session.id} pollInterval={2000}/>,
   document.body
+
 );
