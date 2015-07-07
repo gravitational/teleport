@@ -29,5 +29,8 @@ func parseSubsystemRequest(srv *Server, req *ssh.Request) (subsystem, error) {
 	if strings.HasPrefix(s.Name, "join:") {
 		return parseJoinSubsys(s.Name, srv)
 	}
+	if strings.HasPrefix(s.Name, "ls:") {
+		return parseLSSubsys(s.Name)
+	}
 	return nil, fmt.Errorf("unrecognized subsystem: %v", s.Name)
 }

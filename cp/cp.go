@@ -1,6 +1,7 @@
 package cp
 
 import (
+	"archive/tar"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -8,12 +9,15 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"time"
 
 	"code.google.com/p/go-uuid/uuid"
 	"github.com/gravitational/teleport/auth"
 	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/sshutils"
+	"github.com/gravitational/teleport/sshutils/scp"
 	"github.com/gravitational/teleport/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/form"
@@ -58,6 +62,8 @@ func newCPHandler(host string, auth []utils.NetAddr, assetsDir string) *cpHandle
 	h.POST("/sessions", h.needsAuth(h.newSession))
 	h.GET("/sessions/:id", h.needsAuth(h.sessionIndex))
 	h.POST("/servers/:id/files", h.needsAuth(h.uploadFile))
+	h.GET("/servers/:id/ls", h.needsAuth(h.ls))
+	h.GET("/servers/:id/download", h.needsAuth(h.downloadFiles))
 
 	// JSON API methods
 
@@ -92,6 +98,135 @@ func newCPHandler(host string, auth []utils.NetAddr, assetsDir string) *cpHandle
 	return h
 }
 
+func (s *cpHandler) ls(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *ctx) {
+	root := r.URL.Query().Get("node")
+	log.Infof("!!!! LS: root: %v", root)
+
+	addr := p[0].Value
+
+	up, err := c.connectUpstream(addr)
+	if err != nil {
+		log.Errorf("file err: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	session := up.GetSession()
+
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		log.Errorf("file err: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if err := session.RequestSubsystem(fmt.Sprintf("ls:%v", root)); err != nil {
+		log.Errorf("file err: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	out, err := ioutil.ReadAll(stdout)
+	if err != nil {
+		log.Errorf("file err: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	var nodes []utils.FileNode
+	if err := json.Unmarshal(out, &nodes); err != nil {
+		log.Errorf("file err: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	jsnodes := make([]interface{}, len(nodes))
+	for i, n := range nodes {
+		var icon string
+		if n.Dir {
+			icon = "fa fa-folder"
+		} else {
+			icon = "fa fa-file-code-o"
+		}
+		jsnodes[i] = jsNode{
+			ID:       filepath.Join(n.Parent, n.Name),
+			Text:     n.Name,
+			Children: n.Dir,
+			Icon:     icon,
+		}
+
+	}
+	roundtrip.ReplyJSON(w, http.StatusOK, jsnodes)
+}
+
+func (s *cpHandler) downloadFiles(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *ctx) {
+
+	addr := p[0].Value
+
+	files := r.URL.Query()["path"]
+	if len(files) == 0 {
+		replyErr(w, http.StatusInternalServerError, fmt.Errorf("need some files"))
+		return
+	}
+
+	dir, err := ioutil.TempDir("", "test")
+	if err != nil {
+		log.Errorf("file err: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			log.Infof("failed to remove temp file")
+		}
+	}()
+
+	for _, p := range files {
+		target := filepath.Join(dir, filepath.Dir(p))
+		if err := os.MkdirAll(target, 0755); err != nil {
+			log.Errorf("file err: %v", err)
+			replyErr(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		up, err := c.connectUpstream(addr)
+		if err != nil {
+			log.Errorf("file err: %v", err)
+			replyErr(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		rw, err := up.CommandRW(fmt.Sprintf("scp -v -f %v", p))
+		uploader, err := scp.New(scp.Command{Sink: true, Target: dir})
+		if err != nil {
+			log.Errorf("file err: %v", err)
+			replyErr(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		if err := uploader.Serve(rw); err != nil {
+			log.Errorf("file err: %v", err)
+			replyErr(w, http.StatusInternalServerError, err)
+			return
+		}
+		if err := up.Close(); err != nil && err != io.EOF {
+			log.Errorf("file err: %v", err)
+			replyErr(w, http.StatusInternalServerError, err)
+			return
+		}
+	}
+
+	ck := &http.Cookie{
+		Domain: fmt.Sprintf(".%v", s.host),
+		Name:   "fileDownload",
+		Value:  "true",
+		Path:   "/",
+	}
+	http.SetCookie(w, ck)
+	w.Header().Set("Content-Disposition", "attachment; filename=download.tar")
+	writeArchive(dir, w)
+}
+
 func (s *cpHandler) uploadFile(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *ctx) {
 	file, fh, err := r.FormFile("file")
 	if err != nil {
@@ -100,14 +235,62 @@ func (s *cpHandler) uploadFile(w http.ResponseWriter, r *http.Request, _ httprou
 		return
 	}
 	defer file.Close()
-	f, err := ioutil.TempFile("", "test")
+
+	path, addr := r.Form.Get("path"), r.Form.Get("addr")
+
+	up, err := c.connectUpstream(addr)
 	if err != nil {
 		log.Errorf("file err: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
-	defer f.Close()
+
+	dir, err := ioutil.TempDir("", "test")
+	if err != nil {
+		log.Errorf("file err: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	fpath := filepath.Join(dir, fh.Filename)
+
+	f, err := os.Create(fpath)
+	if err != nil {
+		log.Errorf("file err: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
 	if _, err := io.Copy(f, file); err != nil {
+		log.Errorf("file err: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if err := f.Close(); err != nil {
+		log.Errorf("file err: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			log.Infof("failed to remove temp file")
+		}
+	}()
+
+	log.Infof("!!!!! 0 I am here")
+	rw, err := up.CommandRW(fmt.Sprintf("scp -v -t %v", path))
+	log.Infof("!!!!! 0 I am here 2")
+	uploader, err := scp.New(scp.Command{Source: true, Target: f.Name()})
+	if err != nil {
+		log.Errorf("file err: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if err := uploader.Serve(rw); err != nil {
+		log.Errorf("file err: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if err := up.Close(); err != nil {
 		log.Errorf("file err: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
 		return
@@ -531,4 +714,60 @@ func (c *ctx) Close() error {
 	return nil
 }
 
+func (c *ctx) connectUpstream(addr string) (*sshutils.Upstream, error) {
+	agent, err := c.clt.GetAgent()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get agent: %v", err)
+	}
+	signers, err := agent.Signers()
+	if err != nil {
+		return nil, fmt.Errorf("no signers: %v", err)
+	}
+	return sshutils.DialUpstream(c.user, addr, signers)
+}
+
 type authHandle func(http.ResponseWriter, *http.Request, httprouter.Params, *ctx)
+
+type jsNode struct {
+	ID       string `json:"id"`
+	Text     string `json:"text"`
+	Children bool   `json:"children"`
+	Icon     string `json:"icon"`
+}
+
+func writeArchive(root_directory string, w io.Writer) error {
+	ar := tar.NewWriter(w)
+
+	walkFn := func(path string, info os.FileInfo, err error) error {
+		if info.Mode().IsDir() {
+			return nil
+		}
+		// Because of scoping we can reference the external root_directory variable
+		new_path := path[len(root_directory):]
+		if len(new_path) == 0 {
+			return nil
+		}
+		fr, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer fr.Close()
+
+		if h, err := tar.FileInfoHeader(info, new_path); err != nil {
+			return err
+		} else {
+			h.Name = new_path
+			if err = ar.WriteHeader(h); err != nil {
+				return err
+			}
+		}
+		if length, err := io.Copy(ar, fr); err != nil {
+			return err
+		} else {
+			fmt.Println(length)
+		}
+		return nil
+	}
+
+	return filepath.Walk(root_directory, walkFn)
+}

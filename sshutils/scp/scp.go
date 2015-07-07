@@ -136,7 +136,7 @@ func (s *Server) sendFile(r *reader, ch io.ReadWriter, fi os.FileInfo, path stri
 		return err
 	}
 	if n != fi.Size() {
-		err := fmt.Errorf("short write: %v", n)
+		err := fmt.Errorf("short write: %v %v", n, fi.Size())
 		log.Errorf(err.Error())
 		return err
 	}

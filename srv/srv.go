@@ -533,14 +533,20 @@ func (s *Server) handleSCP(ch ssh.Channel, req *ssh.Request, ctx *ctx, args stri
 		log.Errorf("%v failed to create scp server: %v", ctx)
 		return err
 	}
+	// TODO(klizhentas) current version of handling exec is incorrect.
+	// req.Reply should be sent as long as command start is done,
+	// not at the end. This is my fix for SCP only:
+	req.Reply(true, nil)
 	if err := srv.Serve(ch); err != nil {
 		log.Errorf("%v error serving: %v", ctx, err)
 		return err
 	}
+	log.Infof("SCP serve finished", ctx)
 	_, err = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(0)}))
 	if err != nil {
 		log.Infof("%v failed to send scp exit status: %v", ctx, err)
 	}
+	log.Infof("SCP sent exit status", ctx)
 	return nil
 }
 

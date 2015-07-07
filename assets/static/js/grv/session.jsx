@@ -33,6 +33,9 @@ var SessionPage = React.createClass({
     onUpload: function(){
         this.refs.upload.open();
     },
+    onDownload: function(){
+        this.refs.download.open();
+    },    
     render: function() {
         return (
             <div id="wrapper">
@@ -43,7 +46,10 @@ var SessionPage = React.createClass({
                 <div className="wrapper wrapper-content animated fadeInRight">
                   <div className="row">
                     <div className="col-lg-9" style={{width: '920px'}}>
-                      <ConsoleBox session={this.state.session} onServerSelect={this.onServerSelect} onUpload={this.onUpload}/>
+                      <ConsoleBox session={this.state.session}
+                                  onServerSelect={this.onServerSelect}
+                                  onUpload={this.onUpload}
+                                  onDownload={this.onDownload}/>
                     </div>
                     <div className="col-lg-3">
                       <ActivityBox session={this.state.session}/>
@@ -53,6 +59,7 @@ var SessionPage = React.createClass({
                 <PageFooter/>
               </div>
               <UploadForm ref="upload" getCurrentServer={this.getCurrentServer}/>
+              <DownloadForm ref="download" getCurrentServer={this.getCurrentServer}/>
             </div>
         );
     }
@@ -221,7 +228,7 @@ var ConsoleBox = React.createClass({
         <button data-toggle="dropdown" className="btn btn-primary dropdown-toggle">Actions <span className="caret"></span></button>
         <ul className="dropdown-menu">
           <li><a href="#" onClick={this.props.onUpload}><i className="fa fa-upload"></i>&nbsp;<span>Upload</span></a></li>
-          <li><a href="#"><i className="fa fa-download"></i>&nbsp;<span>Download</span></a></li>
+          <li><a href="#" onClick={this.props.onDownload}><i className="fa fa-download"></i>&nbsp;<span>Download</span></a></li>
         </ul>
       </div>
     </div>
@@ -302,7 +309,7 @@ var UploadForm = React.createClass({
                 if(self.uploaded == self.items.length) {
                     var message = "files "+ self.filesList().join() +" uploaded on "+ self.props.getCurrentServer();
                     self.onClose();
-                    toastr.success(message);                
+                    toastr.success(message);
                 }
             },
             fail: function (e, data) {
@@ -314,7 +321,7 @@ var UploadForm = React.createClass({
     },
     onClose: function() {
         $(React.findDOMNode(this.refs.modal)).find(":input,:button,a").attr("disabled", false);        
-        this.refs.modal.setConfirmText("Confirm");
+        this.refs.modal.setConfirmText("Upload");
         for(var i = 0; i < this.items.length; i++) {            
             //this.items[i].abort();
         }
@@ -354,6 +361,92 @@ var UploadForm = React.createClass({
                 </div>                
               </div>
               </form>
+            </BootstrapModal>
+        );
+  }
+});
+
+
+
+var DownloadForm = React.createClass({
+    shouldComponentUpdate: function() {
+        return false;
+    },
+    componentDidMount: function() {
+    },
+    open: function(srv) {
+        var self = this;
+        $(React.findDOMNode(this.refs.tree)).jstree({
+            'core' : {
+                'check_callback' : true,
+                'data' : {
+                    'url' : function (node) {
+                        if(node.id === "#") {
+                            return '/servers/'+self.props.getCurrentServer()+'/ls?node=/';
+                        }
+                        return '/servers/'+self.props.getCurrentServer()+'/ls?node='+node.id; 
+                    },
+                    'data' : function (node) {
+                        return { 'id' : node.id };
+                    }
+                },
+                'plugins' : [ 'types', 'dnd' ],
+                'types' : {
+                    'default' : {
+                        'icon' : 'fa fa-folder'
+                    },
+                    'html' : {
+                        'icon' : 'fa fa-file-code-o'
+                    },
+                    'svg' : {
+                        'icon' : 'fa fa-file-picture-o'
+                    },
+                    'css' : {
+                        'icon' : 'fa fa-file-code-o'
+                    },
+                    'img' : {
+                        'icon' : 'fa fa-file-image-o'
+                    },
+                    'js' : {
+                        'icon' : 'fa fa-file-text-o'
+                    }
+                }
+            }
+        });
+        this.refs.modal.open();
+    },
+    onClose: function() {
+        var tree = $(React.findDOMNode(this.refs.tree)).jstree(true);
+        tree.destroy()
+        this.refs.modal.close();
+    },
+    onDownload: function() {
+        var tree = $(React.findDOMNode(this.refs.tree)).jstree(true);
+        var files = tree.get_selected();
+        if(files.length==0) {
+            return;
+        }
+        var downloads = [];
+        for(var i = 0; i < files.length; i++) {
+            downloads.push({name: 'path', value: files[i]});
+        }
+        this.refs.modal.close();
+        $.fileDownload('/servers/'+this.props.getCurrentServer()+'/download?'+$.param(downloads), {
+            successCallback: function (url) {
+                toastr.success("files " + files.join() + "downloaded");
+            },
+            failCallback: function (html, url) {
+                toastr.error("files " + files.join() + "failed to download");
+            }
+        });
+    },
+    render: function() {
+        return (
+            <BootstrapModal dialogClass="modal-dialog" icon="fa fa-download" ref="modal"
+                            cancel="Cancel" confirm="Download" onConfirm={this.onDownload}
+                            onCancel={this.onClose} title="Download files">
+              <div ref="tree">
+              </div>
             </BootstrapModal>
         );
   }

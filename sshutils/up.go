@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 
+	//	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
 
@@ -60,7 +61,28 @@ func (m *Upstream) String() string {
 	return fmt.Sprintf("upstream(addr=%v)", m.addr)
 }
 
-func (u *Upstream) PipeCommand(ch ssh.Channel, command string) (int, error) {
+func (u *Upstream) Wait() error {
+	return u.session.Wait()
+}
+
+func (u *Upstream) CommandRW(command string) (io.ReadWriter, error) {
+	stdout, err := u.session.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("fail to pipe stdout: %v", err)
+	}
+	stdin, err := u.session.StdinPipe()
+	if err != nil {
+		return nil, fmt.Errorf("fail to pipe stdin: %v", err)
+	}
+	err = u.session.Start(command)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"pipe failed to start command %v, err: %v", command, err)
+	}
+	return &combo{r: stdout, w: stdin}, nil
+}
+
+func (u *Upstream) PipeCommand(ch io.ReadWriter, command string) (int, error) {
 	stderr, err := u.session.StderrPipe()
 	if err != nil {
 		return -1, fmt.Errorf("fail to pipe stderr: %v", err)
@@ -73,20 +95,40 @@ func (u *Upstream) PipeCommand(ch ssh.Channel, command string) (int, error) {
 	if err != nil {
 		return -1, fmt.Errorf("fail to pipe stdin: %v", err)
 	}
-	// TODO(klizhentas) close stdin/stdout ?
-	go io.Copy(stdin, ch)
-	go io.Copy(ch.Stderr(), stderr)
-	go io.Copy(ch, stdout)
+	closeC := make(chan error, 4)
+
 	err = u.session.Start(command)
 	if err != nil {
-		return -1, fmt.Errorf("pipe failed to start command %v, err: %v", command, err)
+		return -1, fmt.Errorf(
+			"pipe failed to start command %v, err: %v", command, err)
 	}
-	err = u.session.Wait()
+
+	go func() {
+		_, err := io.Copy(stdin, ch)
+		closeC <- err
+	}()
+
+	go func() {
+		_, err := io.Copy(ch, stderr)
+		closeC <- err
+	}()
+
+	go func() {
+		_, err := io.Copy(ch, stdout)
+		closeC <- err
+	}()
+
+	go func() {
+		closeC <- u.session.Wait()
+	}()
+
+	err = <-closeC
 	if err != nil {
 		if err, ok := err.(*ssh.ExitError); ok {
 			return err.ExitStatus(), nil
 		} else {
-			return -1, fmt.Errorf("%v failed to wait for ssh command: %v", u, err)
+			return -1, fmt.Errorf(
+				"%v failed to wait for ssh command: %v", u, err)
 		}
 	}
 	return 0, nil
@@ -153,4 +195,17 @@ func (u *Upstream) PipeShell(rw io.ReadWriter) error {
 	}()
 
 	return <-closeC
+}
+
+type combo struct {
+	r io.Reader
+	w io.Writer
+}
+
+func (c *combo) Read(b []byte) (int, error) {
+	return c.r.Read(b)
+}
+
+func (c *combo) Write(b []byte) (int, error) {
+	return c.w.Write(b)
 }
