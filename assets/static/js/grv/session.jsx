@@ -227,8 +227,8 @@ var ConsoleBox = React.createClass({
       <div className="btn-group pull-right">
         <button data-toggle="dropdown" className="btn btn-primary dropdown-toggle">Actions <span className="caret"></span></button>
         <ul className="dropdown-menu">
-          <li><a href="#" onClick={this.props.onUpload}><i className="fa fa-upload"></i>&nbsp;<span>Upload</span></a></li>
-          <li><a href="#" onClick={this.props.onDownload}><i className="fa fa-download"></i>&nbsp;<span>Download</span></a></li>
+          <li><a href="#" onClick={this.props.onUpload}><i className="fa fa-upload"></i>&nbsp;<span>Upload files to server</span></a></li>
+          <li><a href="#" onClick={this.props.onDownload}><i className="fa fa-download"></i>&nbsp;<span>Download files from server</span></a></li>
         </ul>
       </div>
     </div>
@@ -417,7 +417,7 @@ var DownloadForm = React.createClass({
     },
     onClose: function() {
         var tree = $(React.findDOMNode(this.refs.tree)).jstree(true);
-        tree.destroy()
+        tree.destroy();
         this.refs.modal.close();
     },
     onDownload: function() {
@@ -430,6 +430,7 @@ var DownloadForm = React.createClass({
         for(var i = 0; i < files.length; i++) {
             downloads.push({name: 'path', value: files[i]});
         }
+        tree.destroy();
         this.refs.modal.close();
         $.fileDownload('/servers/'+this.props.getCurrentServer()+'/download?'+$.param(downloads), {
             successCallback: function (url) {
