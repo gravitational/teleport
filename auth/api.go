@@ -4,20 +4,21 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/memlog"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/oxy/trace"
+	"github.com/gravitational/teleport/events"
 	"github.com/gravitational/teleport/session"
 	"github.com/gravitational/teleport/utils"
+
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/oxy/trace"
 )
 
-func StartHTTPServer(a string, srv *AuthServer, se session.SessionServer) error {
+func StartHTTPServer(a string, srv *AuthServer, elog events.Log, se session.SessionServer) error {
 	addr, err := utils.ParseAddr(a)
 	if err != nil {
 		return err
 	}
 	t, err := trace.New(
-		NewAPIServer(srv, memlog.New(), se),
+		NewAPIServer(srv, elog, se),
 		log.GetLogger().Writer(log.SeverityInfo))
 	if err != nil {
 		return err

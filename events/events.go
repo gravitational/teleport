@@ -54,6 +54,11 @@ func NewExec(command string, out io.Reader, code int, err error) *Exec {
 
 // Exec is a result of execution of a remote command on the target server
 type Exec struct {
+	// User is SSH user
+	User string `json:"user"`
+
+	SessionID string `json:"sid"`
+
 	// Command is a command name with arguments
 	Command string `json:"command"`
 
@@ -85,6 +90,8 @@ func NewShell(conn ssh.ConnMetadata, shell string, log io.Reader, code int, err 
 
 // Shell is a result of execution of a in interactive shell
 type Shell struct {
+	SessionID string `json:"sid"`
+
 	// Shell is a shell name
 	Shell string `json:"command"`
 

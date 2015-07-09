@@ -135,7 +135,7 @@ func (b *BoltBackend) GetRemoteCerts(ctype string, fqdn string) ([]backend.Remot
 	err := b.db.View(func(tx *bolt.Tx) error {
 		hosts := []string{}
 		if fqdn == "" {
-			bkt, err := getBucket(tx, []string{"certs", ctype, "hosts"})
+			bkt, err := GetBucket(tx, []string{"certs", ctype, "hosts"})
 			if err != nil {
 				if isNotFound(err) {
 					return nil
@@ -150,7 +150,7 @@ func (b *BoltBackend) GetRemoteCerts(ctype string, fqdn string) ([]backend.Remot
 			hosts = []string{fqdn}
 		}
 		for _, h := range hosts {
-			bkt, err := getBucket(tx, []string{"certs", ctype, "hosts", h})
+			bkt, err := GetBucket(tx, []string{"certs", ctype, "hosts", h})
 			if err != nil {
 				return err
 			}
@@ -241,7 +241,7 @@ func (b *BoltBackend) GetUserKeys(user string) ([]backend.AuthorizedKey, error) 
 	}
 	values := []backend.AuthorizedKey{}
 	err := b.db.View(func(tx *bolt.Tx) error {
-		bkt, err := getBucket(tx, []string{"users", user, "keys"})
+		bkt, err := GetBucket(tx, []string{"users", user, "keys"})
 		if err != nil {
 			if _, ok := err.(*backend.NotFoundError); ok {
 				return nil
@@ -355,7 +355,7 @@ func (b *BoltBackend) GetWebSession(user, sid string) (*backend.WebSession, erro
 func (b *BoltBackend) GetWebSessionsKeys(user string) ([]backend.AuthorizedKey, error) {
 	values := []backend.AuthorizedKey{}
 	err := b.db.View(func(tx *bolt.Tx) error {
-		bkt, err := getBucket(tx, []string{"users", user, "web-sessions"})
+		bkt, err := GetBucket(tx, []string{"users", user, "web-sessions"})
 		if err != nil {
 			if _, ok := err.(*backend.NotFoundError); ok {
 				return nil
@@ -404,7 +404,7 @@ func (b *BoltBackend) DeleteWebTun(prefix string) error {
 func (b *BoltBackend) GetWebTuns() ([]backend.WebTun, error) {
 	out := []backend.WebTun{}
 	err := b.db.View(func(tx *bolt.Tx) error {
-		bkt, err := getBucket(tx, []string{"web-tuns"})
+		bkt, err := GetBucket(tx, []string{"web-tuns"})
 		if err != nil {
 			return err
 		}
@@ -426,7 +426,7 @@ func (b *BoltBackend) GetWebTuns() ([]backend.WebTun, error) {
 
 func (b *BoltBackend) deleteBucket(buckets []string, bucket string) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
-		bkt, err := getBucket(tx, buckets)
+		bkt, err := GetBucket(tx, buckets)
 		if err != nil {
 			return err
 		}
@@ -440,7 +440,7 @@ func (b *BoltBackend) deleteBucket(buckets []string, bucket string) error {
 
 func (b *BoltBackend) deleteKey(buckets []string, key string) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
-		bkt, err := getBucket(tx, buckets)
+		bkt, err := GetBucket(tx, buckets)
 		if err != nil {
 			return err
 		}
@@ -453,7 +453,7 @@ func (b *BoltBackend) deleteKey(buckets []string, key string) error {
 
 func (b *BoltBackend) upsertKey(buckets []string, key string, bytes []byte) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
-		bkt, err := upsertBucket(tx, buckets)
+		bkt, err := UpsertBucket(tx, buckets)
 		if err != nil {
 			return err
 		}
@@ -467,7 +467,7 @@ func (b *BoltBackend) upsertJSONKey(buckets []string, key string, val interface{
 		return err
 	}
 	return b.db.Update(func(tx *bolt.Tx) error {
-		bkt, err := upsertBucket(tx, buckets)
+		bkt, err := UpsertBucket(tx, buckets)
 		if err != nil {
 			return err
 		}
@@ -477,7 +477,7 @@ func (b *BoltBackend) upsertJSONKey(buckets []string, key string, val interface{
 
 func (b *BoltBackend) getJSONKey(buckets []string, key string, val interface{}) error {
 	return b.db.View(func(tx *bolt.Tx) error {
-		bkt, err := getBucket(tx, buckets)
+		bkt, err := GetBucket(tx, buckets)
 		if err != nil {
 			return err
 		}
@@ -493,7 +493,7 @@ func (b *BoltBackend) getJSONKey(buckets []string, key string, val interface{}) 
 
 func (b *BoltBackend) getKey(buckets []string, key string, val *[]byte) error {
 	return b.db.View(func(tx *bolt.Tx) error {
-		bkt, err := getBucket(tx, buckets)
+		bkt, err := GetBucket(tx, buckets)
 		if err != nil {
 			return err
 		}
@@ -511,7 +511,7 @@ func (b *BoltBackend) getKey(buckets []string, key string, val *[]byte) error {
 func (b *BoltBackend) getKeys(buckets []string) ([]string, error) {
 	out := []string{}
 	err := b.db.View(func(tx *bolt.Tx) error {
-		bkt, err := getBucket(tx, buckets)
+		bkt, err := GetBucket(tx, buckets)
 		if err != nil {
 			return err
 		}
@@ -527,7 +527,7 @@ func (b *BoltBackend) getKeys(buckets []string) ([]string, error) {
 	return out, nil
 }
 
-func upsertBucket(b *bolt.Tx, buckets []string) (*bolt.Bucket, error) {
+func UpsertBucket(b *bolt.Tx, buckets []string) (*bolt.Bucket, error) {
 	bkt, err := b.CreateBucketIfNotExists([]byte(buckets[0]))
 	if err != nil {
 		return nil, err
@@ -541,7 +541,7 @@ func upsertBucket(b *bolt.Tx, buckets []string) (*bolt.Bucket, error) {
 	return bkt, nil
 }
 
-func getBucket(b *bolt.Tx, buckets []string) (*bolt.Bucket, error) {
+func GetBucket(b *bolt.Tx, buckets []string) (*bolt.Bucket, error) {
 	bkt := b.Bucket([]byte(buckets[0]))
 	if bkt == nil {
 		return nil, &backend.NotFoundError{

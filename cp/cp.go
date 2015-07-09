@@ -16,6 +16,7 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 	"github.com/gravitational/teleport/auth"
 	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/events"
 	"github.com/gravitational/teleport/sshutils"
 	"github.com/gravitational/teleport/sshutils/scp"
 	"github.com/gravitational/teleport/utils"
@@ -422,12 +423,19 @@ func (s *cpHandler) upsertWebTun(w http.ResponseWriter, r *http.Request, _ httpr
 }
 
 func (s *cpHandler) getEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *ctx) {
-	events, err := c.clt.GetEvents()
+	f, err := events.FilterFromURL(r.URL.Query())
 	if err != nil {
-		log.Errorf("failed to retrieve events: %v")
+		log.Errorf("failed to retrieve events: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
+	events, err := c.clt.GetEvents(*f)
+	if err != nil {
+		log.Errorf("failed to retrieve events: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	log.Infof("got events: %v", events)
 	roundtrip.ReplyJSON(w, http.StatusOK, events)
 }
 

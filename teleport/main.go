@@ -54,11 +54,19 @@ func main() {
 
 	flag.StringVar(
 		&cfg.Auth.Backend, "authBackend", "etcd",
-		"auth backend type, currently only 'etcd'")
+		"auth backend type, 'etcd' or 'bolt'")
 
 	flag.StringVar(
 		&cfg.Auth.BackendConfig, "authBackendConfig", "",
 		"auth backend-specific configuration string")
+
+	flag.StringVar(
+		&cfg.Auth.EventBackend, "authEventBackend", "bolt",
+		"event backend type, currently only 'bolt'")
+
+	flag.StringVar(
+		&cfg.Auth.EventBackendConfig, "authEventBackendConfig", "",
+		"event backend-specific configuration string")
 
 	flag.Var(
 		utils.NewNetAddrVal(

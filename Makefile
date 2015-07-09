@@ -110,6 +110,8 @@ run-simple: install
              -authBackend=bolt\
              -authBackendConfig='{"path": "/tmp/teleport.auth.db"}'\
              -authDomain=gravitational.io\
+	         -authEventBackend=bolt\
+             -authEventBackendConfig='{"path": "/tmp/teleport.event.db"}'\
              -log=console\
              -logSeverity=INFO\
              -dataDir=/var/lib/teleport\
@@ -118,7 +120,7 @@ run-simple: install
              -authServer=tcp://auth.gravitational.io:33000\
 			 -cp\
              -cpAssetsDir=$(GOPATH)/src/github.com/gravitational/teleport\
-             -cpDomain=gravitational.io\
+             -cpDomain=gravitational.io
 
 run-ssh2: install
 	tctl token generate --output=/tmp/token -fqdn=node1.gravitational.io

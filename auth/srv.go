@@ -7,14 +7,16 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/events"
+	"github.com/gravitational/teleport/session"
+
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/form"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/memlog"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
 	websession "github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/gravitational/teleport/backend"
-	"github.com/gravitational/teleport/session"
 )
 
 type Config struct {
@@ -26,11 +28,11 @@ type Config struct {
 type APIServer struct {
 	httprouter.Router
 	s    *AuthServer
-	elog memlog.Logger
+	elog events.Log
 	se   session.SessionServer
 }
 
-func NewAPIServer(s *AuthServer, elog memlog.Logger, se session.SessionServer) *APIServer {
+func NewAPIServer(s *AuthServer, elog events.Log, se session.SessionServer) *APIServer {
 	srv := &APIServer{
 		s:    s,
 		elog: elog,
@@ -488,7 +490,14 @@ func (s *APIServer) submitEvents(w http.ResponseWriter, r *http.Request, _ httpr
 			reply(w, http.StatusBadRequest, fmt.Errorf("failed to read event"))
 			return
 		}
-		if _, err := s.elog.Write(data); err != nil {
+		var e *lunk.Entry
+		if err := json.Unmarshal(data, &e); err != nil {
+			log.Errorf("failed to read event: %v", err)
+			reply(w, http.StatusBadRequest, fmt.Errorf("failed to read event"))
+			return
+		}
+
+		if err := s.elog.LogEntry(*e); err != nil {
 			log.Errorf("failed to write event: %v", err)
 			reply(w, http.StatusInternalServerError,
 				fmt.Errorf("failed to write event"))
@@ -500,8 +509,19 @@ func (s *APIServer) submitEvents(w http.ResponseWriter, r *http.Request, _ httpr
 }
 
 func (s *APIServer) getEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	roundtrip.ReplyJSON(
-		w, http.StatusOK, &eventsResponse{Events: s.elog.LastEvents()})
+	f, err := events.FilterFromURL(r.URL.Query())
+	if err != nil {
+		log.Errorf("failed to parse filter: %v", err)
+		reply(w, http.StatusBadRequest, fmt.Errorf("failed to parse filter"))
+		return
+	}
+	es, err := s.elog.GetEvents(*f)
+	if err != nil {
+		log.Errorf("failed to get events: %v", err)
+		reply(w, http.StatusInternalServerError, fmt.Errorf("failed to get events"))
+		return
+	}
+	roundtrip.ReplyJSON(w, http.StatusOK, &eventsResponse{Events: es})
 }
 
 func replyErr(w http.ResponseWriter, e error) {
@@ -699,7 +719,7 @@ type tokenResponse struct {
 }
 
 type eventsResponse struct {
-	Events []interface{} `json:"events"`
+	Events []lunk.Entry `json:"events"`
 }
 
 type partyResponse struct {

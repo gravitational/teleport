@@ -10,9 +10,11 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/events"
 	"github.com/gravitational/teleport/session"
 	"github.com/gravitational/teleport/utils"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
 )
 
@@ -211,24 +213,32 @@ func (c *Client) GenerateToken(fqdn string, ttl time.Duration) (string, error) {
 	return re.Token, nil
 }
 
-// Submit events submits structured audit events in JSON serialized
-// format to the auth server.
-func (c *Client) SubmitEvents(events [][]byte) error {
-	files := make([]roundtrip.File, len(events))
-	for i, e := range events {
-		files[i] = roundtrip.File{
-			Name:     "event",
-			Filename: "event.json",
-			Reader:   bytes.NewReader(e),
-		}
+func (c *Client) Log(id lunk.EventID, e lunk.Event) {
+	en := lunk.NewEntry(id, e)
+	en.Time = time.Now()
+	c.LogEntry(en)
+}
+
+func (c *Client) LogEntry(en lunk.Entry) error {
+	bt, err := json.Marshal(en)
+	if err != nil {
+		return err
 	}
-	_, err := c.PostForm(c.Endpoint("events"), url.Values{}, files...)
+	file := roundtrip.File{
+		Name:     "event",
+		Filename: "event.json",
+		Reader:   bytes.NewReader(bt),
+	}
+	_, err = c.PostForm(c.Endpoint("events"), url.Values{}, file)
 	return err
 }
 
-// GetEvents returns last 20 audit events recorded by the auth server
-func (c *Client) GetEvents() ([]interface{}, error) {
-	out, err := c.Get(c.Endpoint("events"), url.Values{})
+func (c *Client) GetEvents(filter events.Filter) ([]lunk.Entry, error) {
+	vals, err := events.FilterToURL(filter)
+	if err != nil {
+		return nil, err
+	}
+	out, err := c.Get(c.Endpoint("events"), vals)
 	if err != nil {
 		return nil, err
 	}
@@ -553,25 +563,4 @@ func (c *Client) ResetHostCA() error {
 func (c *Client) ResetUserCA() error {
 	_, err := c.PostForm(c.Endpoint("ca", "user", "keys"), url.Values{})
 	return err
-}
-
-// GetLogWriter returns a io.Writer - compatible object
-// that can be used by lunk.EventLogger to ship audit logs to the auth server
-func (c *Client) GetLogWriter() *LogWriter {
-	return &LogWriter{clt: c}
-}
-
-type LogWriter struct {
-	clt *Client
-}
-
-func (w *LogWriter) Write(data []byte) (int, error) {
-	if err := w.clt.SubmitEvents([][]byte{data}); err != nil {
-		return 0, err
-	}
-	return len(data), nil
-}
-
-func (w *LogWriter) LastEvents() ([]interface{}, error) {
-	return w.clt.GetEvents()
 }

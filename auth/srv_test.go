@@ -6,14 +6,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 	authority "github.com/gravitational/teleport/auth/native"
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/boltbk"
+	"github.com/gravitational/teleport/events/boltlog"
+	"github.com/gravitational/teleport/events/test"
 	"github.com/gravitational/teleport/session"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/memlog"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
@@ -23,6 +24,7 @@ type APISuite struct {
 	srv  *httptest.Server
 	clt  *Client
 	bk   *boltbk.BoltBackend
+	bl   *boltlog.BoltLog
 	scrt *secret.Service
 	a    *AuthServer
 	dir  string
@@ -44,8 +46,11 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
 
+	s.bl, err = boltlog.New(filepath.Join(s.dir, "eventsdb"))
+	c.Assert(err, IsNil)
+
 	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)
-	s.srv = httptest.NewServer(NewAPIServer(s.a, memlog.New(), session.New(s.bk)))
+	s.srv = httptest.NewServer(NewAPIServer(s.a, s.bl, session.New(s.bk)))
 	clt, err := NewClient(s.srv.URL)
 	c.Assert(err, IsNil)
 	s.clt = clt
@@ -54,6 +59,7 @@ func (s *APISuite) SetUpTest(c *C) {
 func (s *APISuite) TearDownTest(c *C) {
 	s.srv.Close()
 	s.bk.Close()
+	s.bl.Close()
 }
 
 func (s *APISuite) TestHostCACRUD(c *C) {
@@ -254,19 +260,8 @@ func (s *APISuite) TestServers(c *C) {
 }
 
 func (s *APISuite) TestEvents(c *C) {
-	err := s.clt.SubmitEvents(
-		[][]byte{
-			[]byte(`{"e": "event 1"}`),
-			[]byte(`{"e": "event 2"}`)})
-	c.Assert(err, IsNil)
-
-	out, err := s.clt.GetEvents()
-	c.Assert(err, IsNil)
-	expected := []interface{}{
-		map[string]interface{}{"e": "event 2"},
-		map[string]interface{}{"e": "event 1"},
-	}
-	c.Assert(out, DeepEquals, expected)
+	suite := test.EventSuite{L: s.clt}
+	suite.EventsCRUD(c)
 }
 
 func (s *APISuite) TestTokens(c *C) {

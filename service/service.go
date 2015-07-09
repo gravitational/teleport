@@ -10,13 +10,14 @@ import (
 	"github.com/gravitational/teleport/backend/boltbk"
 	"github.com/gravitational/teleport/backend/etcdbk"
 	"github.com/gravitational/teleport/cp"
+	"github.com/gravitational/teleport/events"
+	"github.com/gravitational/teleport/events/boltlog"
 	"github.com/gravitational/teleport/session"
 	"github.com/gravitational/teleport/srv"
 	"github.com/gravitational/teleport/tun"
 	"github.com/gravitational/teleport/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/memlog"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/oxy/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
@@ -79,6 +80,12 @@ func initAuth(t *TeleportService, cfg Config) error {
 		return err
 	}
 
+	elog, err := initEventBackend(
+		cfg.Auth.EventBackend, cfg.Auth.EventBackendConfig)
+	if err != nil {
+		return err
+	}
+
 	asrv, signer, err := auth.Init(
 		b, authority.New(), cfg.FQDN, cfg.Auth.Domain, cfg.DataDir)
 	if err != nil {
@@ -88,7 +95,7 @@ func initAuth(t *TeleportService, cfg Config) error {
 
 	// register HTTP API endpoint
 	t.RegisterFunc(func() error {
-		apisrv := auth.NewAPIServer(asrv, memlog.New(), session.New(b))
+		apisrv := auth.NewAPIServer(asrv, elog, session.New(b))
 		t, err := trace.New(apisrv, log.GetLogger().Writer(log.SeverityInfo))
 		if err != nil {
 			log.Fatalf("failed to start: %v", err)
@@ -172,7 +179,7 @@ func initSSHEndpoint(t *TeleportService, cfg Config) error {
 	elog := &FanOutEventLogger{
 		Loggers: []lunk.EventLogger{
 			lunk.NewTextEventLogger(log.GetLogger().Writer(log.SeverityInfo)),
-			lunk.NewJSONEventLogger(client.GetLogWriter()),
+			client,
 		}}
 
 	s, err := srv.New(cfg.SSH.Addr,
@@ -257,7 +264,7 @@ func initTunAgent(t *TeleportService, cfg Config) error {
 	elog := &FanOutEventLogger{
 		Loggers: []lunk.EventLogger{
 			lunk.NewTextEventLogger(log.GetLogger().Writer(log.SeverityInfo)),
-			lunk.NewJSONEventLogger(client.GetLogWriter()),
+			client,
 		}}
 
 	a, err := tun.NewAgent(
@@ -288,6 +295,14 @@ func initBackend(btype, bcfg string) (backend.Backend, error) {
 		return etcdbk.FromString(bcfg)
 	case "bolt":
 		return boltbk.FromString(bcfg)
+	}
+	return nil, fmt.Errorf("unsupported backend type: %v", btype)
+}
+
+func initEventBackend(btype, bcfg string) (events.Log, error) {
+	switch btype {
+	case "bolt":
+		return boltlog.FromString(bcfg)
 	}
 	return nil, fmt.Errorf("unsupported backend type: %v", btype)
 }
@@ -338,12 +353,16 @@ type Config struct {
 }
 
 type AuthConfig struct {
-	Enabled       bool
-	HTTPAddr      utils.NetAddr
-	SSHAddr       utils.NetAddr
-	Domain        string
+	Enabled  bool
+	HTTPAddr utils.NetAddr
+	SSHAddr  utils.NetAddr
+	Domain   string
+
 	Backend       string
 	BackendConfig string
+
+	EventBackend       string
+	EventBackendConfig string
 }
 
 type SSHConfig struct {

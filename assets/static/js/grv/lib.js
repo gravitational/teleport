@@ -35,3 +35,19 @@ function formatBytes(bytes,decimals) {
    var i = Math.floor(Math.log(bytes) / Math.log(k));
    return (bytes / Math.pow(k, i)).toPrecision(dm) + ' ' + sizes[i];
 }
+
+
+function toRFC3339(dt) {
+    return (dt.getUTCFullYear() + "-" + zeroPad(dt.getUTCMonth() + 1, 2) + "-" + zeroPad(dt.getUTCDate(),2) + "T" +
+            zeroPad(dt.getUTCHours(),2) + ":" + zeroPad(dt.getUTCMinutes(),2)  + ":" + zeroPad(dt.getUTCSeconds(),2) + "." + dt.getUTCMilliseconds() + "Z");
+}
+
+function zeroPad(num, numZeros) {
+    var n = Math.abs(num);
+    var zeros = Math.max(0, numZeros - Math.floor(n).toString().length );
+    var zeroString = Math.pow(10,zeros).toString().substr(1);
+    if( num < 0 ) {
+        zeroString = '-' + zeroString;
+    }
+    return zeroString+n;
+}
