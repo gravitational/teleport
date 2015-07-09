@@ -108,10 +108,10 @@ run-simple: install
 	rm -f /tmp/teleport.auth.sock
 	teleport -auth\
              -authBackend=bolt\
-             -authBackendConfig='{"path": "/tmp/teleport.auth.db"}'\
+             -authBackendConfig='{"path": "/var/lib/teleport/teleport.auth.db"}'\
              -authDomain=gravitational.io\
 	         -authEventBackend=bolt\
-             -authEventBackendConfig='{"path": "/tmp/teleport.event.db"}'\
+             -authEventBackendConfig='{"path": "/var/lib/teleport/teleport.event.db"}'\
              -log=console\
              -logSeverity=INFO\
              -dataDir=/var/lib/teleport\

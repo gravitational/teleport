@@ -186,11 +186,11 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 		result, err := collectStatus(cmd, cmd.Wait())
 		if err != nil {
 			log.Errorf("%v wait failed: %v", p.ctx, err)
-			s.r.srv.emit(ctx.eid, events.NewShell(sconn, s.r.srv.shell, out, -1, err))
+			s.r.srv.emit(ctx.eid, events.NewShell(s.id, sconn, s.r.srv.shell, out, -1, err))
 		}
 		if result != nil {
 			log.Infof("%v result collected: %v", p.ctx, result)
-			s.r.srv.emit(ctx.eid, events.NewShell(sconn, s.r.srv.shell, out, result.code, nil))
+			s.r.srv.emit(ctx.eid, events.NewShell(s.id, sconn, s.r.srv.shell, out, result.code, nil))
 			s.r.broadcastResult(s.id, *result)
 			log.Infof("%v result broadcasted", p.ctx)
 		}

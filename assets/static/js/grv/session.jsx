@@ -8,8 +8,13 @@ var SessionPage = React.createClass({
     getCurrentServer() {
         return this.current_server || null;
     },
-    getInitialState: function(){        
-        return parseSessionWithServers({id: session.id, parties: [], first_server: session.first_server}, []);
+    getInitialState: function(){
+        var state = parseSessionWithServers({
+            id: session.id,
+            parties: [],
+            first_server: session.first_server}, []);
+        state.session.events = [];
+        return state;
     },
     componentDidMount: function() {
         this.reload();
@@ -23,7 +28,9 @@ var SessionPage = React.createClass({
               if(this.modalOpen == true) {
                   return
               }
-              this.setState(parseSessionWithServers(data.session, data.servers));
+              var state = parseSessionWithServers(data.session, data.servers);
+              state.session.events = data.events;              
+              this.setState(state);
           }.bind(this),
           error: function(xhr, status, err) {
               console.error(this.props.url, status, err.toString());
@@ -51,8 +58,8 @@ var SessionPage = React.createClass({
                                   onUpload={this.onUpload}
                                   onDownload={this.onDownload}/>
                     </div>
-                    <div className="col-lg-3">
-                      <ActivityBox session={this.state.session}/>
+                    <div className="col-lg-6" style={{width: '920px'}}>
+                      <EventsBox session={this.state.session}/>
                     </div>
                   </div>
                 </div>
@@ -75,7 +82,7 @@ var ActivityBox = React.createClass({
                   <a href="#" className="pull-left">
                     <i className="fa fa-user"></i>
                   </a>
-                  <div className="media-body=">
+                  <div className="media-body">
                     <small className="pull-right">{timeSince(p.last_active)} ago</small>
                     <strong>{p.user}</strong> typed in <strong>{p.server.addr}</strong> server.<br/>
                     <small className="text-muted">{p.last_active.toLocaleString()}</small>
@@ -87,12 +94,161 @@ var ActivityBox = React.createClass({
         return (
             <div className="ibox float-e-margins">
               <div className="ibox-title">
-                <h5>Active Users</h5>
+                <h5><i className="fa fa-user"></i>&nbsp;&nbsp;Connected users</h5>
               </div>
               <div className="ibox-content">
                 <div className="feed-activity-list">
                   {parties}
                 </div>
+              </div>
+            </div>
+        );
+    }
+});
+
+var EventsBox = React.createClass({    
+    componentWillUpdate: function() {        
+        var node = React.findDOMNode(this.refs.discussion);
+        this.shouldScrollBottom = node.scrollTop + node.offsetHeight === node.scrollHeight;
+    },
+    componentDidUpdate: function() {
+        if (this.shouldScrollBottom) {
+            var node = React.findDOMNode(this.refs.discussion);
+            node.scrollTop = node.scrollHeight
+        }
+    },
+    sendMessage: function(message) {
+        var box = $(React.findDOMNode(this.refs.message));
+        $.ajax({
+            url: "/api/sessions/" +session.id +"/messages",
+            type: "POST",
+            dataType: 'json',
+            data: JSON.stringify(message),
+            success: function(data) {
+                box.val("");
+            }.bind(this),
+            error: function(xhr, status, err) {
+                toastr.error("failed to send message, try again");
+            }.bind(this)
+        });
+    },
+    describeEvent: function(event) {
+        switch (event.schema) {
+            case "teleport.shell":
+                return {
+                    icon: "fa fa-tty",
+                    user: event.properties.user,
+                    action: ("typed in terminal from '"+ event.properties.remoteaddr+"' on '" + event.properties.localaddr+"'")
+                };
+            case "teleport.exec":
+                return {
+                    icon: "fa fa-tty",
+                    user: event.properties.user,
+                    action: ("executed remote command '" + event.properties.command +
+                             "from "+ event.properties.localaddr+"' on server '"+
+                             event.properties.remoteaddr+"'")
+                };
+            case "teleport.message":
+                return {
+                    icon: "fa fa-comment",
+                    user: event.properties.user,
+                    action: event.properties.message
+                };
+        }
+        return {icon: "fa fa-question text-navy", user: event.properties.user};
+    },
+    onMessage: function(e) {
+        var key = e.nativeEvent.keyCode;
+        if (key != 13) {
+            return
+        }
+        var box = $(React.findDOMNode(this.refs.message));
+        var message = box.val();
+        this.sendMessage(message)
+    },
+    render: function() {
+        var self = this;        
+        var se = this.props.session;
+
+        var users = se.parties.map(function(p, index) {
+            var secondsAgo = Math.floor((new Date() - p.last_active) / 1000);
+            var labelClass = secondsAgo < 60?"pull-right label label-primary": "pull-right label";
+            return (
+                <div className="chat-user">
+                  <span className={labelClass}>{timeSince(p.last_active)} ago</span>
+                  <div className="chat-user-name">
+                    <i className="fa fa-user"></i>&nbsp;&nbsp;
+                    <a href="#">{p.user}  &rarr; {p.server.addr}</a>
+                  </div>
+                </div>
+            );
+        });
+        se.events.reverse()
+        var events = se.events.map(function(e, index) {
+            var d = self.describeEvent(e);
+            var tm = new Date(e.time);
+            return (
+                <div className="chat-message left">
+                  <div className="vertical-timeline-icon navy-bg" style={{top: 'auto', left: 'auto', position: 'relative', float: 'left'}}>
+                    <i className={d.icon}/>
+                  </div>
+                  <div className="message">
+                    <a className="message-author" href="#"> {d.user} </a>
+                    <span className="message-date">{timeSince(tm)} ago</span>
+                    <span className="message-content">
+                      {d.action}
+                    </span>
+                  </div>
+                </div>);
+        });        
+
+        return (
+            <div className="ibox chat-view">
+                <div className="ibox-title">
+                  <i className="fa fa-wechat" style={{marginRight: '6px'}}/>Events and Chat
+                </div>
+                <div className="ibox-content">
+                  <div className="row">
+                    <div className="col-md-9">
+                      <div className="chat-discussion" ref="discussion">
+                        {events}
+                      </div>
+                    </div>
+                    <div className="col-md-3">
+                      <div className="chat-users">
+                        <div className="users-list">
+                          {users}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="row">
+                    <div className="col-lg-12">
+                      <div className="chat-message-form">
+                        <div className="form-group">
+                          <textarea className="form-control message-input"
+                                    ref="message"
+                                    placeholder="Enter message text"
+                                    onKeyPress={this.onMessage}></textarea>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>);
+
+
+
+
+        return (
+            <div className="ibox float-e-margins">
+              <div className="ibox-title">
+                <h5><i className="fa fa-chat-o"></i>Chat</h5>
+              </div>
+              <div className="ibox-content">
+                <div className="feed-activity-list">
+                  {events}
+                </div>                
               </div>
             </div>
         );

@@ -39,8 +39,11 @@ func Init(b backend.Backend, a Authority,
 	// check that user CA and host CA are present and set the certs if needed
 	asrv := NewAuthServer(b, a, scrt)
 
+	log.Infof("I AM HERE")
 	if _, e := asrv.GetHostCAPub(); e != nil {
+		log.Infof("Host CA error: %v", e)
 		if _, ok := e.(*backend.NotFoundError); ok {
+			log.Infof("Reseting host CA")
 			if err := asrv.ResetHostCA(""); err != nil {
 				return nil, nil, err
 			}
@@ -48,7 +51,9 @@ func Init(b backend.Backend, a Authority,
 	}
 
 	if _, e := asrv.GetUserCAPub(); e != nil {
+		log.Infof("User CA error: %v", e)
 		if _, ok := e.(*backend.NotFoundError); ok {
+			log.Infof("Reseting host CA")
 			if err := asrv.ResetUserCA(""); err != nil {
 				return nil, nil, err
 			}
@@ -127,6 +132,9 @@ func ReadKeys(fqdn, dataDir string) (ssh.Signer, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	pk, _, _, _, _ := ssh.ParseAuthorizedKey(cert)
+	fmt.Printf("auth key: ", string(ssh.MarshalAuthorizedKey(pk.(*ssh.Certificate).SignatureKey)))
 
 	return sshutils.NewSigner(key, cert)
 }

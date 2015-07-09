@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/sshutils/scp"
 	"github.com/gravitational/teleport/utils"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/form"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
@@ -62,6 +63,7 @@ func newCPHandler(host string, auth []utils.NetAddr, assetsDir string) *cpHandle
 	h.GET("/sessions", h.needsAuth(h.sessionsIndex))
 	h.POST("/sessions", h.needsAuth(h.newSession))
 	h.GET("/sessions/:id", h.needsAuth(h.sessionIndex))
+
 	h.POST("/servers/:id/files", h.needsAuth(h.uploadFile))
 	h.GET("/servers/:id/ls", h.needsAuth(h.ls))
 	h.GET("/servers/:id/download", h.needsAuth(h.downloadFiles))
@@ -75,6 +77,7 @@ func newCPHandler(host string, auth []utils.NetAddr, assetsDir string) *cpHandle
 
 	// Event log
 	h.GET("/api/events", h.needsAuth(h.getEvents))
+	h.POST("/api/sessions/:id/messages", h.needsAuth(h.sendMessage))
 
 	// Web tunnels
 	h.GET("/api/tunnels/web", h.needsAuth(h.getWebTuns))
@@ -276,9 +279,7 @@ func (s *cpHandler) uploadFile(w http.ResponseWriter, r *http.Request, _ httprou
 		}
 	}()
 
-	log.Infof("!!!!! 0 I am here")
 	rw, err := up.CommandRW(fmt.Sprintf("scp -v -t %v", path))
-	log.Infof("!!!!! 0 I am here 2")
 	uploader, err := scp.New(scp.Command{Source: true, Target: f.Name()})
 	if err != nil {
 		log.Errorf("file err: %v", err)
@@ -315,6 +316,31 @@ func (s *cpHandler) getSessions(w http.ResponseWriter, r *http.Request, _ httpro
 	roundtrip.ReplyJSON(w, http.StatusOK, ses)
 }
 
+func (s *cpHandler) sendMessage(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *ctx) {
+	sid := p[0].Value
+
+	b, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Errorf("failed to retrieve sessions: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	var message string
+	if err := json.Unmarshal(b, &message); err != nil {
+		log.Errorf("failed to unmarshal: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	c.clt.Log(lunk.NewRootEventID(), &events.Message{
+		SessionID: sid,
+		User:      c.user,
+		Message:   message,
+	})
+
+	roundtrip.ReplyJSON(w, http.StatusOK, "ok")
+}
+
 func (s *cpHandler) getSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *ctx) {
 	ses, err := c.clt.GetSession(p[0].Value)
 	if err != nil {
@@ -334,6 +360,18 @@ func (s *cpHandler) getSession(w http.ResponseWriter, r *http.Request, p httprou
 			return
 		}
 	}
+	f := events.Filter{
+		SessionID: p[0].Value,
+		Order:     events.Desc,
+		Limit:     20,
+		Start:     time.Now(),
+	}
+	events, err := c.clt.GetEvents(f)
+	if err != nil {
+		log.Errorf("failed to retrieve servers: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
 	srvs, err := c.clt.GetServers()
 	if err != nil {
 		log.Errorf("failed to retrieve servers: %v", err)
@@ -344,6 +382,7 @@ func (s *cpHandler) getSession(w http.ResponseWriter, r *http.Request, p httprou
 		map[string]interface{}{
 			"session": ses,
 			"servers": srvs,
+			"events":  events,
 		})
 }
 

@@ -76,8 +76,35 @@ func (*Exec) Schema() string {
 	return "teleport.exec"
 }
 
-func NewShell(conn ssh.ConnMetadata, shell string, log io.Reader, code int, err error) *Shell {
+// Message is a user message sent in a session
+type Message struct {
+	// User is SSH user
+	User string `json:"user"`
+
+	SessionID string `json:"sid"`
+
+	// Message
+	Message string `json:"message"`
+}
+
+func (*Message) Schema() string {
+	return "teleport.message"
+}
+
+type SCP struct {
+	// User is SSH user
+	User string `json:"user"`
+
+	SessionID string `json:"sid"`
+}
+
+func (*SCP) Schema() string {
+	return "teleport.scp"
+}
+
+func NewShell(sid string, conn ssh.ConnMetadata, shell string, log io.Reader, code int, err error) *Shell {
 	return &Shell{
+		SessionID:  sid,
 		Shell:      shell,
 		Log:        collectOutput(log),
 		Code:       code,
