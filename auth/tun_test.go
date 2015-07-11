@@ -12,6 +12,8 @@ import (
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/membk"
 	"github.com/gravitational/teleport/events/boltlog"
+	"github.com/gravitational/teleport/recorder"
+	"github.com/gravitational/teleport/recorder/boltrec"
 	"github.com/gravitational/teleport/session"
 	"github.com/gravitational/teleport/sshutils"
 	"github.com/gravitational/teleport/utils"
@@ -32,6 +34,7 @@ type TunSuite struct {
 	signer ssh.Signer
 	bl     *boltlog.BoltLog
 	dir    string
+	rec    recorder.Recorder
 }
 
 var _ = Suite(&TunSuite{})
@@ -48,6 +51,9 @@ func (s *TunSuite) SetUpSuite(c *C) {
 
 	s.bl, err = boltlog.New(filepath.Join(s.dir, "eventsdb"))
 	c.Assert(err, IsNil)
+
+	s.rec, err = boltrec.New(s.dir)
+	c.Assert(err, IsNil)
 }
 
 func (s *TunSuite) TearDownTest(c *C) {
@@ -57,7 +63,8 @@ func (s *TunSuite) TearDownTest(c *C) {
 func (s *TunSuite) SetUpTest(c *C) {
 	s.bk = membk.New()
 	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)
-	s.srv = httptest.NewServer(NewAPIServer(s.a, s.bl, session.New(s.bk)))
+	s.srv = httptest.NewServer(
+		NewAPIServer(s.a, s.bl, session.New(s.bk), s.rec))
 
 	// set up host private key and certificate
 	c.Assert(s.a.ResetHostCA(""), IsNil)
@@ -90,7 +97,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	l, err := net.Listen("unix", socketPath)
 	c.Assert(err, IsNil)
 
-	h := NewAPIServer(s.a, s.bl, session.New(s.bk))
+	h := NewAPIServer(s.a, s.bl, session.New(s.bk), s.rec)
 	srv := &httptest.Server{
 		Listener: l,
 		Config: &http.Server{

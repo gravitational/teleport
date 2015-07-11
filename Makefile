@@ -106,12 +106,15 @@ run-embedded: install
 
 run-simple: install
 	rm -f /tmp/teleport.auth.sock
+	mkdir -p /var/lib/teleport/records
 	teleport -auth\
              -authBackend=bolt\
              -authBackendConfig='{"path": "/var/lib/teleport/teleport.auth.db"}'\
              -authDomain=gravitational.io\
 	         -authEventBackend=bolt\
              -authEventBackendConfig='{"path": "/var/lib/teleport/teleport.event.db"}'\
+	         -authRecordBackend=bolt\
+             -authRecordBackendConfig='{"path": "/var/lib/teleport/records"}'\
              -log=console\
              -logSeverity=INFO\
              -dataDir=/var/lib/teleport\

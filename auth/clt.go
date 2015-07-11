@@ -7,10 +7,12 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/events"
+	"github.com/gravitational/teleport/recorder"
 	"github.com/gravitational/teleport/session"
 	"github.com/gravitational/teleport/utils"
 
@@ -247,6 +249,14 @@ func (c *Client) GetEvents(filter events.Filter) ([]lunk.Entry, error) {
 		return nil, err
 	}
 	return re.Events, nil
+}
+
+func (c *Client) GetChunkWriter(id string) (recorder.ChunkWriteCloser, error) {
+	return &chunkRW{c: c, id: id}, nil
+}
+
+func (c *Client) GetChunkReader(id string) (recorder.ChunkReadCloser, error) {
+	return &chunkRW{c: c, id: id}, nil
 }
 
 // UpsertServer is used by SSH servers to reprt their presense
@@ -563,4 +573,47 @@ func (c *Client) ResetHostCA() error {
 func (c *Client) ResetUserCA() error {
 	_, err := c.PostForm(c.Endpoint("ca", "user", "keys"), url.Values{})
 	return err
+}
+
+type chunkRW struct {
+	c  *Client
+	id string
+}
+
+func (c *chunkRW) ReadChunks(start int, end int) ([]recorder.Chunk, error) {
+	out, err := c.c.Get(c.c.Endpoint("records", c.id, "chunks"), url.Values{
+		"start": []string{strconv.Itoa(start)},
+		"end":   []string{strconv.Itoa(end)},
+	})
+	if err != nil {
+		return nil, err
+	}
+	var re *chunksResponse
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return nil, err
+	}
+	return re.Chunks, nil
+}
+
+func (c *chunkRW) WriteChunks(chs []recorder.Chunk) error {
+	files := make([]roundtrip.File, len(chs))
+
+	for i, ch := range chs {
+		bt, err := json.Marshal(ch)
+		if err != nil {
+			return err
+		}
+		files[i] = roundtrip.File{
+			Name:     "chunk",
+			Filename: "chunk.json",
+			Reader:   bytes.NewReader(bt),
+		}
+	}
+	_, err := c.c.PostForm(
+		c.c.Endpoint("records", c.id, "chunks"), url.Values{}, files...)
+	return err
+}
+
+func (c *chunkRW) Close() error {
+	return nil
 }

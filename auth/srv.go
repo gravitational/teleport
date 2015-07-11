@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/events"
+	"github.com/gravitational/teleport/recorder"
 	"github.com/gravitational/teleport/session"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
@@ -30,13 +32,15 @@ type APIServer struct {
 	s    *AuthServer
 	elog events.Log
 	se   session.SessionServer
+	rec  recorder.Recorder
 }
 
-func NewAPIServer(s *AuthServer, elog events.Log, se session.SessionServer) *APIServer {
+func NewAPIServer(s *AuthServer, elog events.Log, se session.SessionServer, rec recorder.Recorder) *APIServer {
 	srv := &APIServer{
 		s:    s,
 		elog: elog,
 		se:   se,
+		rec:  rec,
 	}
 	srv.Router = *httprouter.New()
 
@@ -83,7 +87,7 @@ func NewAPIServer(s *AuthServer, elog events.Log, se session.SessionServer) *API
 	srv.GET("/v1/tunnels/web/:prefix", srv.getWebTun)
 	srv.DELETE("/v1/tunnels/web/:prefix", srv.deleteWebTun)
 
-	// Servers and presense heartbeat
+	// Servers and presence heartbeat
 	srv.POST("/v1/servers", srv.upsertServer)
 	srv.GET("/v1/servers", srv.getServers)
 
@@ -93,6 +97,10 @@ func NewAPIServer(s *AuthServer, elog events.Log, se session.SessionServer) *API
 	// Events
 	srv.POST("/v1/events", srv.submitEvents)
 	srv.GET("/v1/events", srv.getEvents)
+
+	// Recorded sessions
+	srv.POST("/v1/records/:sid/chunks", srv.submitChunks)
+	srv.GET("/v1/records/:sid/chunks", srv.getChunks)
 
 	// Sesssions
 	srv.POST("/v1/sessions/:id/parties", srv.upsertSessionParty)
@@ -524,6 +532,109 @@ func (s *APIServer) getEvents(w http.ResponseWriter, r *http.Request, _ httprout
 	roundtrip.ReplyJSON(w, http.StatusOK, &eventsResponse{Events: es})
 }
 
+func (s *APIServer) submitChunks(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	sid := p[0].Value
+
+	wr, err := s.rec.GetChunkWriter(sid)
+	if err != nil {
+		log.Errorf("failed to get writer: %v", err)
+		reply(w, http.StatusInternalServerError,
+			fmt.Errorf("failed to write event"))
+		return
+	}
+	defer wr.Close()
+
+	var rawChunks form.Files
+	err = form.Parse(r, form.FileSlice("chunk", &rawChunks))
+	if err != nil {
+		reply(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if len(rawChunks) == 0 {
+		reply(w, http.StatusBadRequest,
+			fmt.Errorf("at least one chunk is required"))
+		return
+	}
+
+	defer func() {
+		// don't let get the error get lost
+		if err := rawChunks.Close(); err != nil {
+			log.Errorf("failed to close files: %v", err)
+			return
+		}
+	}()
+
+	// decode chunks
+	chunks := make([]recorder.Chunk, len(rawChunks))
+	for i, c := range rawChunks {
+		data, err := ioutil.ReadAll(c)
+		if err != nil {
+			log.Errorf("failed to read event: %v", err)
+			reply(w, http.StatusBadRequest, fmt.Errorf("failed to read event"))
+			return
+		}
+		var ch *recorder.Chunk
+		if err := json.Unmarshal(data, &ch); err != nil {
+			log.Errorf("failed to decode chunk: %v", err)
+			reply(w, http.StatusInternalServerError,
+				fmt.Errorf("failed to decode chunk"))
+			return
+		}
+		chunks[i] = *ch
+	}
+
+	if err := wr.WriteChunks(chunks); err != nil {
+		log.Errorf("failed to decode chunk: %v", err)
+		reply(w, http.StatusInternalServerError,
+			fmt.Errorf("failed to decode chunk"))
+		return
+	}
+
+	reply(w, http.StatusOK, message("chunks submitted"))
+}
+
+func (s *APIServer) getChunks(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	sid := p[0].Value
+
+	st, en := r.URL.Query().Get("start"), r.URL.Query().Get("end")
+	start, err := strconv.Atoi(st)
+	if err != nil {
+		log.Errorf("failed to convert: %v", err)
+		reply(w, http.StatusInternalServerError,
+			fmt.Errorf("failed to convert"))
+		return
+	}
+	end, err := strconv.Atoi(en)
+	if err != nil {
+
+		log.Errorf("failed to convert: %v", err)
+		reply(w, http.StatusInternalServerError,
+			fmt.Errorf("failed to convert"))
+		return
+	}
+
+	re, err := s.rec.GetChunkReader(sid)
+	if err != nil {
+
+		log.Errorf("failed to get reader: %v", err)
+		reply(w, http.StatusInternalServerError,
+			fmt.Errorf("failed to get reader"))
+		return
+	}
+	defer re.Close()
+
+	chunks, err := re.ReadChunks(start, end)
+	if err != nil {
+		panic(fmt.Sprintf("here: %v", err))
+		log.Errorf("failed to read chunks: %v", err)
+		reply(w, http.StatusInternalServerError,
+			fmt.Errorf("failed to read chunks"))
+		return
+	}
+	roundtrip.ReplyJSON(w, http.StatusOK, &chunksResponse{Chunks: chunks})
+}
+
 func replyErr(w http.ResponseWriter, e error) {
 	switch err := e.(type) {
 	case *backend.NotFoundError:
@@ -720,6 +831,10 @@ type tokenResponse struct {
 
 type eventsResponse struct {
 	Events []lunk.Entry `json:"events"`
+}
+
+type chunksResponse struct {
+	Chunks []recorder.Chunk `json:"chunks"`
 }
 
 type partyResponse struct {

@@ -2,10 +2,10 @@
 
 var EventsPage = React.createClass({
     showEvent: function(e){
-        if(e.schema != "teleport.shell") {
+        if(e.schema != "teleport.session") {
             return;
         }
-        this.refs.event.show(atob(e.properties.log));
+        this.refs.event.show(e.properties.recordid);
     },
     getInitialState: function(){
         return {entries: []};
@@ -111,8 +111,10 @@ var EventRow = React.createClass({
                     return {icon: "fa fa-user text-navy", text: "successfull auth"};
                 }
                 return {icon: "fa fa-user text-warning", text: "unsucessfull auth: " + event.properties.error};
-            case "teleport.shell":
-                return {icon: "fa fa-tty text-navy", text: "view session log"};
+            case "teleport.session":
+                return {icon: "fa fa-tty text-navy", text: "replay session"};
+            case "teleport.message":
+                return {icon: "fa fa-wechat text-navy", text: event.properties.message};
             case "teleport.exec":
                 return {icon: "fa fa-tty text-navy", text: event.properties.command + " " + atob(event.properties.log).substring(0, 100)};
         }
@@ -136,7 +138,44 @@ var EventRow = React.createClass({
 });
 
 var EventForm = React.createClass({
-    show: function(log) {
+    iterChunks: function(rid, chunk) {
+        console.log("record id: %v chunk", rid, chunk);
+        var self = this;
+        $.ajax({
+            url: "/api/records/" +rid +"/chunks?"+$.param([{name: "start", value: chunk}, {name: "end", value: chunk+1}]),
+            type: "GET",
+            dataType: 'json',
+            success: function(data) {
+                if(data.length == 0) {
+                    console.log("end of playback");
+                    self.term.write("end of playback");
+                    return
+                }
+                self.writeChunk(data, 0, function(){
+                    self.iterChunks(rid, chunk+data.length);
+                });
+            }.bind(this),
+            error: function(xhr, status, err) {
+                toastr.error("failed to connect to server, try again");
+            }.bind(this)
+        });
+    },
+    writeChunk: function(chunks, i, fin) {
+        var self = this;        
+        var ms = chunks[i].delay/1000000;
+        setTimeout(function() {
+            self.term.write(atob(chunks[i].data));
+            if(i + 1 < chunks.length) {
+                console.log("not fin");
+                self.writeChunk(chunks, i + 1, fin);
+            } else {
+                console.log("fin");
+                fin();
+            }
+        }, ms);
+    },
+    show: function(rid) {
+        this.iter = 0
         this.term = new Terminal({
             cols: 120,
             rows: 24,
@@ -145,18 +184,12 @@ var EventForm = React.createClass({
             cursorBlink: false
         });
         this.term.open(React.findDOMNode(this.refs.term));
-        var self = this;
-        var i = 0;
-        var write = function(){
-            if(i >= log.length) {
-                return
-            }
-            self.term.write(log[i]);
-            i++;
-            setTimeout(write, 40);
+        this.refs.modal.open();        
+        if(rid == "") {
+            this.term.write("this session was not recorded, or recording was deleted");
+        } else {
+            this.iterChunks(rid, 1);
         }
-        this.refs.modal.open();
-        write();
     },
     close: function() {
         this.term.destroy();

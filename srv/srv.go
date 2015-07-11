@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/teleport/auth"
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/events"
+	"github.com/gravitational/teleport/recorder"
 	rsession "github.com/gravitational/teleport/session"
 	"github.com/gravitational/teleport/sshutils"
 	"github.com/gravitational/teleport/sshutils/scp"
@@ -37,6 +38,7 @@ type Server struct {
 	ap          auth.AccessPoint
 	reg         *sessionRegistry
 	se          rsession.SessionServer
+	rec         recorder.Recorder
 }
 
 type ServerOption func(s *Server) error
@@ -58,6 +60,13 @@ func SetShell(shell string) ServerOption {
 func SetSessionServer(srv rsession.SessionServer) ServerOption {
 	return func(s *Server) error {
 		s.se = srv
+		return nil
+	}
+}
+
+func SetRecorder(rec recorder.Recorder) ServerOption {
+	return func(s *Server) error {
+		s.rec = rec
 		return nil
 	}
 }

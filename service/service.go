@@ -12,6 +12,8 @@ import (
 	"github.com/gravitational/teleport/cp"
 	"github.com/gravitational/teleport/events"
 	"github.com/gravitational/teleport/events/boltlog"
+	"github.com/gravitational/teleport/recorder"
+	"github.com/gravitational/teleport/recorder/boltrec"
 	"github.com/gravitational/teleport/session"
 	"github.com/gravitational/teleport/srv"
 	"github.com/gravitational/teleport/tun"
@@ -86,6 +88,12 @@ func initAuth(t *TeleportService, cfg Config) error {
 		return err
 	}
 
+	rec, err := initRecordBackend(
+		cfg.Auth.RecordBackend, cfg.Auth.RecordBackendConfig)
+	if err != nil {
+		return err
+	}
+
 	asrv, signer, err := auth.Init(
 		b, authority.New(), cfg.FQDN, cfg.Auth.Domain, cfg.DataDir)
 	if err != nil {
@@ -95,7 +103,7 @@ func initAuth(t *TeleportService, cfg Config) error {
 
 	// register HTTP API endpoint
 	t.RegisterFunc(func() error {
-		apisrv := auth.NewAPIServer(asrv, elog, session.New(b))
+		apisrv := auth.NewAPIServer(asrv, elog, session.New(b), rec)
 		t, err := trace.New(apisrv, log.GetLogger().Writer(log.SeverityInfo))
 		if err != nil {
 			log.Fatalf("failed to start: %v", err)
@@ -187,7 +195,8 @@ func initSSHEndpoint(t *TeleportService, cfg Config) error {
 		client,
 		srv.SetShell(cfg.SSH.Shell),
 		srv.SetEventLogger(elog),
-		srv.SetSessionServer(client))
+		srv.SetSessionServer(client),
+		srv.SetRecorder(client))
 	if err != nil {
 		return err
 	}
@@ -307,6 +316,14 @@ func initEventBackend(btype, bcfg string) (events.Log, error) {
 	return nil, fmt.Errorf("unsupported backend type: %v", btype)
 }
 
+func initRecordBackend(btype, bcfg string) (recorder.Recorder, error) {
+	switch btype {
+	case "bolt":
+		return boltrec.FromString(bcfg)
+	}
+	return nil, fmt.Errorf("unsupported backend type: %v", btype)
+}
+
 func initLogging(ltype, severity string) error {
 	s, err := log.SeverityFromString(severity)
 	if err != nil {
@@ -363,6 +380,9 @@ type AuthConfig struct {
 
 	EventBackend       string
 	EventBackendConfig string
+
+	RecordBackend       string
+	RecordBackendConfig string
 }
 
 type SSHConfig struct {

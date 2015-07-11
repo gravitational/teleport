@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport/events"
+	"github.com/gravitational/teleport/recorder"
 	"github.com/gravitational/teleport/session"
 	"github.com/gravitational/teleport/utils"
 
@@ -12,13 +13,13 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/oxy/trace"
 )
 
-func StartHTTPServer(a string, srv *AuthServer, elog events.Log, se session.SessionServer) error {
+func StartHTTPServer(a string, srv *AuthServer, elog events.Log, se session.SessionServer, rec recorder.Recorder) error {
 	addr, err := utils.ParseAddr(a)
 	if err != nil {
 		return err
 	}
 	t, err := trace.New(
-		NewAPIServer(srv, elog, se),
+		NewAPIServer(srv, elog, se, rec),
 		log.GetLogger().Writer(log.SeverityInfo))
 	if err != nil {
 		return err

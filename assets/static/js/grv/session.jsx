@@ -134,11 +134,11 @@ var EventsBox = React.createClass({
     },
     describeEvent: function(event) {
         switch (event.schema) {
-            case "teleport.shell":
+            case "teleport.session":
                 return {
                     icon: "fa fa-tty",
                     user: event.properties.user,
-                    action: ("typed in terminal from '"+ event.properties.remoteaddr+"' on '" + event.properties.localaddr+"'")
+                    action: ("opened shell session from '"+ event.properties.remoteaddr+"' on '" + event.properties.localaddr+"'")
                 };
             case "teleport.exec":
                 return {
@@ -228,7 +228,7 @@ var EventsBox = React.createClass({
                         <div className="form-group">
                           <textarea className="form-control message-input"
                                     ref="message"
-                                    placeholder="Enter message text"
+                                    placeholder="Enter text to send message"
                                     onKeyPress={this.onMessage}></textarea>
                         </div>
                       </div>
@@ -236,9 +236,6 @@ var EventsBox = React.createClass({
                   </div>
                 </div>
               </div>);
-
-
-
 
         return (
             <div className="ibox float-e-margins">

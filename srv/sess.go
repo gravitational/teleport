@@ -1,7 +1,6 @@
 package srv
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/events"
+	"github.com/gravitational/teleport/recorder"
 	rsession "github.com/gravitational/teleport/session"
 
 	"code.google.com/p/go-uuid/uuid"
@@ -110,6 +110,7 @@ type session struct {
 	writer  *multiWriter
 	parties map[string]*party
 	t       *term
+	cw      *chunkWriter
 	closeC  chan bool
 }
 
@@ -123,10 +124,14 @@ func newSession(id string, r *sessionRegistry) *session {
 }
 
 func (s *session) Close() error {
+	var err error
 	if s.t != nil {
-		return s.t.Close()
+		err = s.t.Close()
 	}
-	return nil
+	if s.cw != nil {
+		err = s.cw.Close()
+	}
+	return err
 }
 
 func (s *session) upsertSessionParty(sid string, p *party, ttl time.Duration) error {
@@ -166,16 +171,21 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	}
 	log.Infof("%v starting shell input/output streaming", p.ctx)
 
-	// Pipe session to shell and visa-versa capturing input and output
-	out := &bytes.Buffer{}
-
-	// TODO(klizhentas) implement capturing as a thread safe factored out feature
-	// what is important is that writes and reads to buffer should be protected
-	// out contains captured command output
-	s.writer.addWriter("capture", out)
-
+	if s.r.srv.rec != nil {
+		w, err := newChunkWriter(s.r.srv.rec)
+		if err != nil {
+			log.Errorf("failed to create recorder: %v", err)
+			return err
+		}
+		s.cw = w
+		s.r.srv.emit(ctx.eid, events.NewShellSession(s.id, sconn, s.r.srv.shell, w.rid))
+		s.writer.addWriter("capture", w)
+	} else {
+		s.r.srv.emit(ctx.eid, events.NewShellSession(s.id, sconn, s.r.srv.shell, ""))
+	}
 	s.addParty(p)
 
+	// Pipe session to shell and visa-versa capturing input and output
 	go func() {
 		written, err := io.Copy(s.writer, s.t.pty)
 		log.Infof("%v shell to channel copy closed, bytes written: %v, err: %v",
@@ -186,11 +196,8 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 		result, err := collectStatus(cmd, cmd.Wait())
 		if err != nil {
 			log.Errorf("%v wait failed: %v", p.ctx, err)
-			s.r.srv.emit(ctx.eid, events.NewShell(s.id, sconn, s.r.srv.shell, out, -1, err))
 		}
 		if result != nil {
-			log.Infof("%v result collected: %v", p.ctx, result)
-			s.r.srv.emit(ctx.eid, events.NewShell(s.id, sconn, s.r.srv.shell, out, result.code, nil))
 			s.r.broadcastResult(s.id, *result)
 			log.Infof("%v result broadcasted", p.ctx)
 		}
@@ -377,4 +384,42 @@ func (p *party) Close() error {
 	log.Infof("%v closing", p)
 	close(p.closeC)
 	return p.s.r.leaveShell(p.s.id, p.id)
+}
+
+func newChunkWriter(rec recorder.Recorder) (*chunkWriter, error) {
+	id := uuid.New()
+	cw, err := rec.GetChunkWriter(id)
+	if err != nil {
+		return nil, err
+	}
+	return &chunkWriter{
+		w:   cw,
+		rid: id,
+	}, nil
+}
+
+type chunkWriter struct {
+	before time.Time
+	rid    string
+	w      recorder.ChunkWriteCloser
+}
+
+func (l *chunkWriter) Write(b []byte) (int, error) {
+	diff := time.Duration(0)
+	if l.before.IsZero() {
+		l.before = time.Now()
+	} else {
+		now := time.Now()
+		diff = now.Sub(l.before)
+		l.before = now
+	}
+	cs := []recorder.Chunk{recorder.Chunk{Delay: diff, Data: b}}
+	if err := l.w.WriteChunks(cs); err != nil {
+		return 0, err
+	}
+	return len(b), nil
+}
+
+func (l *chunkWriter) Close() error {
+	return l.w.Close()
 }

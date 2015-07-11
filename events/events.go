@@ -102,13 +102,11 @@ func (*SCP) Schema() string {
 	return "teleport.scp"
 }
 
-func NewShell(sid string, conn ssh.ConnMetadata, shell string, log io.Reader, code int, err error) *Shell {
-	return &Shell{
+func NewShellSession(sid string, conn ssh.ConnMetadata, shell string, recordID string) *ShellSession {
+	return &ShellSession{
 		SessionID:  sid,
 		Shell:      shell,
-		Log:        collectOutput(log),
-		Code:       code,
-		Error:      errMsg(err),
+		RecordID:   recordID,
 		User:       conn.User(),
 		LocalAddr:  conn.LocalAddr().String(),
 		RemoteAddr: conn.RemoteAddr().String(),
@@ -116,20 +114,14 @@ func NewShell(sid string, conn ssh.ConnMetadata, shell string, log io.Reader, co
 }
 
 // Shell is a result of execution of a in interactive shell
-type Shell struct {
+type ShellSession struct {
 	SessionID string `json:"sid"`
 
 	// Shell is a shell name
 	Shell string `json:"command"`
 
-	// Code is a return code of a shell
-	Code int `json:"code"`
-
-	// Error is a error if shell failed to execute
-	Error string `json:"error"`
-
-	// Log is a captured session log
-	Log string `json:"log"`
+	// RecordID holds the id with the session recording
+	RecordID string `json: "rid"`
 
 	// User is SSH user
 	User string `json:"user"`
@@ -141,8 +133,8 @@ type Shell struct {
 	RemoteAddr string `json:"raddr"`
 }
 
-func (*Shell) Schema() string {
-	return "teleport.shell"
+func (*ShellSession) Schema() string {
+	return "teleport.session"
 }
 
 func errMsg(err error) string {

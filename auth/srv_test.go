@@ -10,10 +10,15 @@ import (
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/boltbk"
 	"github.com/gravitational/teleport/events/boltlog"
-	"github.com/gravitational/teleport/events/test"
+	etest "github.com/gravitational/teleport/events/test"
+	rtest "github.com/gravitational/teleport/recorder/test"
+
+	"github.com/gravitational/teleport/recorder"
+	"github.com/gravitational/teleport/recorder/boltrec"
 	"github.com/gravitational/teleport/session"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
@@ -26,6 +31,7 @@ type APISuite struct {
 	bk   *boltbk.BoltBackend
 	bl   *boltlog.BoltLog
 	scrt *secret.Service
+	rec  recorder.Recorder
 	a    *AuthServer
 	dir  string
 }
@@ -38,6 +44,8 @@ func (s *APISuite) SetUpSuite(c *C) {
 	srv, err := secret.New(&secret.Config{KeyBytes: key})
 	c.Assert(err, IsNil)
 	s.scrt = srv
+
+	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
 }
 
 func (s *APISuite) SetUpTest(c *C) {
@@ -49,8 +57,11 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.bl, err = boltlog.New(filepath.Join(s.dir, "eventsdb"))
 	c.Assert(err, IsNil)
 
+	s.rec, err = boltrec.New(s.dir)
+	c.Assert(err, IsNil)
+
 	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)
-	s.srv = httptest.NewServer(NewAPIServer(s.a, s.bl, session.New(s.bk)))
+	s.srv = httptest.NewServer(NewAPIServer(s.a, s.bl, session.New(s.bk), s.rec))
 	clt, err := NewClient(s.srv.URL)
 	c.Assert(err, IsNil)
 	s.clt = clt
@@ -260,8 +271,13 @@ func (s *APISuite) TestServers(c *C) {
 }
 
 func (s *APISuite) TestEvents(c *C) {
-	suite := test.EventSuite{L: s.clt}
+	suite := etest.EventSuite{L: s.clt}
 	suite.EventsCRUD(c)
+}
+
+func (s *APISuite) TestRecorder(c *C) {
+	suite := rtest.RecorderSuite{R: s.clt}
+	suite.Recorder(c)
 }
 
 func (s *APISuite) TestTokens(c *C) {

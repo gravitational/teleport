@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"code.google.com/p/go-uuid/uuid"
@@ -98,6 +99,9 @@ func newCPHandler(host string, auth []utils.NetAddr, assetsDir string) *cpHandle
 	// Operations with sessions
 	h.GET("/api/sessions", h.needsAuth(h.getSessions))
 	h.GET("/api/sessions/:id", h.needsAuth(h.getSession))
+
+	// Records playback
+	h.GET("/api/records/:id/chunks", h.needsAuth(h.getChunks))
 
 	return h
 }
@@ -314,6 +318,41 @@ func (s *cpHandler) getSessions(w http.ResponseWriter, r *http.Request, _ httpro
 		return
 	}
 	roundtrip.ReplyJSON(w, http.StatusOK, ses)
+}
+
+func (s *cpHandler) getChunks(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *ctx) {
+	st, en := r.URL.Query().Get("start"), r.URL.Query().Get("end")
+	start, err := strconv.Atoi(st)
+	if err != nil {
+		log.Errorf("failed to convert: %v", err)
+		replyErr(w, http.StatusBadRequest,
+			fmt.Errorf("failed to convert"))
+		return
+	}
+	end, err := strconv.Atoi(en)
+	if err != nil {
+		log.Errorf("failed to convert: %v", err)
+		replyErr(w, http.StatusBadRequest,
+			fmt.Errorf("failed to convert"))
+		return
+	}
+
+	recordID := p[0].Value
+	rdr, err := c.clt.GetChunkReader(recordID)
+	if err != nil {
+		log.Errorf("failed to retrieve reader: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	defer rdr.Close()
+	chunks, err := rdr.ReadChunks(start, end)
+	if err != nil {
+		log.Errorf("failed to get chunks: %v", err)
+		replyErr(w, http.StatusInternalServerError,
+			fmt.Errorf("failed to get chunks"))
+		return
+	}
+	roundtrip.ReplyJSON(w, http.StatusOK, chunks)
 }
 
 func (s *cpHandler) sendMessage(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *ctx) {

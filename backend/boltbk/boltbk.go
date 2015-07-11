@@ -503,7 +503,8 @@ func (b *BoltBackend) getKey(buckets []string, key string, val *[]byte) error {
 				Message: fmt.Sprintf("%v %v not found", buckets, key),
 			}
 		}
-		*val = bytes
+		*val = make([]byte, len(bytes))
+		copy(*val, bytes)
 		return nil
 	})
 }
