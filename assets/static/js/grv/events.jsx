@@ -61,6 +61,14 @@ var EventsBox = React.createClass({
 });
 
 var EventsContainer = React.createClass({
+    componentDidMount: function(){
+        var el = $(React.findDOMNode(this.refs.daterange));
+        el.find('.input-daterange').datepicker({
+            keyboardNavigation: false,
+            forceParse: false,
+            autoclose: true
+        });
+    },
     render: function() {
         var show = this.props.onShowEvent
         var events = this.props.events.map(function (server, index) {
@@ -69,8 +77,31 @@ var EventsContainer = React.createClass({
             );
         });
         return (
-            <div id="vertical-timeline" className="vertical-container">
-              {events}
+            <div>
+              <div className="row">
+                <div className="col-lg-8">
+                  <div data-toggle="buttons" className="btn-group">
+                    <label className="btn btn-sm btn-white active"> <input id="40" name="options" type="radio"/> Last 40 Events </label>
+                    <label className="btn btn-sm btn-white"> <input id="100" name="options" type="radio"/> Last 100 Events </label>
+                  </div>
+                </div>
+                <div className="col-lg-4">
+                  <div className="form-group" ref="daterange">
+                    <div className="input-daterange input-group" id="datepicker">
+                      <input type="text" className="input-sm form-control" name="start" value="05/14/2014"/>
+                      <span className="input-group-addon">to</span>
+                      <input type="text" className="input-sm form-control" name="end" value="05/22/2014"/>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="row">
+                <div className="col-lg-12">
+                  <div id="vertical-timeline" className="vertical-container">
+                    {events}
+                  </div>
+                </div>
+              </div>
             </div>);
     }
 });

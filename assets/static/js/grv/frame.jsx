@@ -158,9 +158,7 @@ var Box = React.createClass({
                     </div>
                   </div>
                   <div className="ibox-content">
-                    <div className="table-responsive">
-                      {this.props.children}
-                    </div>
+                    {this.props.children}
                   </div>
                 </div>
               </div>

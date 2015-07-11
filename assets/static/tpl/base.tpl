@@ -16,6 +16,7 @@
     <link href="/static/css/plugins/fileupload/jquery.fileupload.css" rel="stylesheet">
     <link href="/static/css/plugins/fileupload/jquery.fileupload-ui.css" rel="stylesheet">
     <link href="/static/css/plugins/jsTree/style.min.css" rel="stylesheet">
+    <link href="/static/css/plugins/datapicker/datepicker3.css" rel="stylesheet">
 </head>
 
 <body>
@@ -42,6 +43,7 @@
     <script src="/static/js/plugins/toastr/toastr.min.js"></script>
     <script src="/static/js/plugins/jsTree/jstree.min.js"></script>
     <script src="/static/js/plugins/download/jquery.fileDownload.js"></script>
+    <script src="/static/js/plugins/datapicker/bootstrap-datepicker.js"></script>
 
     <!-- Gravity stuff -->
     <script src="/static/js/grv/lib.js"></script>    
