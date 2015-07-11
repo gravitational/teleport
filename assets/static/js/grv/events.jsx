@@ -138,42 +138,6 @@ var EventRow = React.createClass({
 });
 
 var EventForm = React.createClass({
-    iterChunks: function(rid, chunk) {
-        console.log("record id: %v chunk", rid, chunk);
-        var self = this;
-        $.ajax({
-            url: "/api/records/" +rid +"/chunks?"+$.param([{name: "start", value: chunk}, {name: "end", value: chunk+1}]),
-            type: "GET",
-            dataType: 'json',
-            success: function(data) {
-                if(data.length == 0) {
-                    console.log("end of playback");
-                    self.term.write("end of playback");
-                    return
-                }
-                self.writeChunk(data, 0, function(){
-                    self.iterChunks(rid, chunk+data.length);
-                });
-            }.bind(this),
-            error: function(xhr, status, err) {
-                toastr.error("failed to connect to server, try again");
-            }.bind(this)
-        });
-    },
-    writeChunk: function(chunks, i, fin) {
-        var self = this;        
-        var ms = chunks[i].delay/1000000;
-        setTimeout(function() {
-            self.term.write(atob(chunks[i].data));
-            if(i + 1 < chunks.length) {
-                console.log("not fin");
-                self.writeChunk(chunks, i + 1, fin);
-            } else {
-                console.log("fin");
-                fin();
-            }
-        }, ms);
-    },
     show: function(rid) {
         this.iter = 0
         this.term = new Terminal({
@@ -184,14 +148,19 @@ var EventForm = React.createClass({
             cursorBlink: false
         });
         this.term.open(React.findDOMNode(this.refs.term));
-        this.refs.modal.open();        
+        this.refs.modal.open();
         if(rid == "") {
             this.term.write("this session was not recorded, or recording was deleted");
+            this.player = null;
         } else {
-            this.iterChunks(rid, 1);
+            this.player = new Player(rid, this.term);
+            this.player.start();
         }
     },
     close: function() {
+        if(this.player != null) {
+            this.player.stop();
+        }
         this.term.destroy();
         this.refs.modal.close();
     },
