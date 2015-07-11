@@ -42,6 +42,9 @@ Player.prototype.writeChunk = function(chunks, i, fin) {
         return;
     }
     var ms = chunks[i].delay/1000000;
+    if(ms > 300) {
+        ms = 300; // fast forward long periods of inactivity
+    }
     setTimeout(function() {
         self.term.write(atob(chunks[i].data));
         if(i + 1 < chunks.length) {
