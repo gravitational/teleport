@@ -2,10 +2,7 @@
 
 var EventsPage = React.createClass({
     showEvent: function(e){
-        if(e.schema != "teleport.session") {
-            return;
-        }
-        this.refs.event.show(e.properties.recordid);
+        this.refs.event.show(e);
     },
     getInitialState: function(){
         return {entries: []};
@@ -138,7 +135,11 @@ var EventRow = React.createClass({
 });
 
 var EventForm = React.createClass({
-    show: function(rid) {
+    show: function(e) {
+        if(e.schema != "teleport.session") {
+            return;
+        }
+        var rid = e.properties.recordid;
         this.iter = 0
         this.term = new Terminal({
             cols: 120,

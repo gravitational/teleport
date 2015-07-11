@@ -1,6 +1,9 @@
 'use strict';
 
 var SessionPage = React.createClass({
+    onShowEvent: function(e) {
+        this.refs.event.show(e);
+    },
     onServerSelect: function(addr) {
         this.current_server = addr;
         this.refs.upload.onServerSelect(this.current_server);
@@ -59,7 +62,7 @@ var SessionPage = React.createClass({
                                   onDownload={this.onDownload}/>
                     </div>
                     <div className="col-lg-6" style={{width: '920px'}}>
-                      <EventsBox session={this.state.session}/>
+                      <ChatBox session={this.state.session} onShowEvent={this.onShowEvent}/>
                     </div>
                   </div>
                 </div>
@@ -67,6 +70,7 @@ var SessionPage = React.createClass({
               </div>
               <UploadForm ref="upload" getCurrentServer={this.getCurrentServer}/>
               <DownloadForm ref="download" getCurrentServer={this.getCurrentServer}/>
+              <EventForm ref="event"/>
             </div>
         );
     }
@@ -106,7 +110,7 @@ var ActivityBox = React.createClass({
     }
 });
 
-var EventsBox = React.createClass({    
+var ChatBox = React.createClass({
     componentWillUpdate: function() {        
         var node = React.findDOMNode(this.refs.discussion);
         this.shouldScrollBottom = node.scrollTop + node.offsetHeight === node.scrollHeight;
@@ -132,13 +136,18 @@ var EventsBox = React.createClass({
             }.bind(this)
         });
     },
-    describeEvent: function(event) {
+    describeEvent: function(event, index) {
+        var self = this;
+        var showEvent = function(){
+            self.props.onShowEvent(event);
+        }
         switch (event.schema) {
             case "teleport.session":
                 return {
                     icon: "fa fa-tty",
                     user: event.properties.user,
-                    action: ("opened shell session from '"+ event.properties.remoteaddr+"' on '" + event.properties.localaddr+"'")
+                    action: (<span> opened shell session from {event.properties.remoteaddr} on {event.properties.localaddr}&nbsp;&nbsp;
+              <a onClick={showEvent}><i className="fa fa-play-circle"></i></a></span>),
                 };
             case "teleport.exec":
                 return {
@@ -183,9 +192,9 @@ var EventsBox = React.createClass({
                 </div>
             );
         });
-        se.events.reverse()
+        se.events.reverse();
         var events = se.events.map(function(e, index) {
-            var d = self.describeEvent(e);
+            var d = self.describeEvent(e, index);
             var tm = new Date(e.time);
             return (
                 <div className="chat-message left">
