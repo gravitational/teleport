@@ -34,10 +34,10 @@ var EventsPage = React.createClass({
               <LeftNavBar current="events"/>
               <div id="page-wrapper" className="gray-bg">
                 <TopNavBar/>
-                <PageHeader title="Cluster Events" url="/events"/>
+                <PageHeader title="Timeline" url="/events"/>
                 <div className="wrapper wrapper-content animated fadeInRight">
-                  <Box>
-                    <EventsBox entries={this.state.entries} onShowEvent={this.showEvent}/>
+                  <Box colClass="col-lg-8">
+                    <EventsBox events={this.state.entries} onShowEvent={this.showEvent}/>
                   </Box>
                 </div>
                 <PageFooter/>
@@ -47,91 +47,118 @@ var EventsPage = React.createClass({
     }
 });
 
-
 var EventsBox = React.createClass({
     render: function() {
-        if (this.props.entries.length == 0) {
+        if (this.props.events.length == 0) {
             return (
                 <div className="text-center m-t-lg">
-                  <h1>Logged Events</h1>
-                  <small>There are no events logged. Log in via SSH to watch the events.</small><br/><br/>
+                  <h1>Events</h1>
+                  <small>There are no events that registered in this site.</small><br/><br/>
                 </div>);
         }
-        return (
-            <div>
-              <EventsTable {...this.props}/>
-            </div>
-        );
+        return (<EventsContainer {...this.props}/>);
     }
 });
 
-
-var EventsTable = React.createClass({
+var EventsContainer = React.createClass({
     render: function() {
         var show = this.props.onShowEvent
-        var keyNodes = this.props.entries.map(function (event, index) {
+        var events = this.props.events.map(function (server, index) {
             return (
-                <EventRow event={event} key={index} onShowEvent={show}></EventRow>
+                <EventBlock event={server} key={index} onShowEvent={show}/>
             );
         });
         return (
-            <table className="table table-striped">
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>Time</th>
-                  <th>Event</th>
-                  <th>User</th>
-                  <th>Client IP</th>
-                  <th>Remote IP</th>
-                  <th>Data</th>
-                </tr>
-              </thead>
-              <tbody>
-                {keyNodes}
-              </tbody>
-            </table>
-        );
+            <div id="vertical-timeline" className="vertical-container">
+              {events}
+            </div>);
     }
 });
 
-
-var EventRow = React.createClass({
+var EventBlock = React.createClass({
     showEvent: function(e) {
         e.preventDefault();
         this.props.onShowEvent(this.props.event);
     },
     describe: function(event) {
+        var info = {
+            ago: timeSince(new Date(event.time)),
+            time: new Date(event.time).toLocaleString(),
+            user: event.properties.user,
+            remoteaddr: event.properties.remoteaddr,
+            localaddr: event.properties.localaddr,
+            props: {},
+        };
         switch (event.schema) {
-            case "teleport.auth.attempt":
-                if (event.properties.success == "true") {
-                    return {icon: "fa fa-user text-navy", text: "successfull auth"};
-                }
-                return {icon: "fa fa-user text-warning", text: "unsucessfull auth: " + event.properties.error};
-            case "teleport.session":
-                return {icon: "fa fa-tty text-navy", text: "replay session"};
-            case "teleport.message":
-                return {icon: "fa fa-wechat text-navy", text: event.properties.message};
-            case "teleport.exec":
-                return {icon: "fa fa-tty text-navy", text: event.properties.command + " " + atob(event.properties.log).substring(0, 100)};
+        case "teleport.message":
+            info.props = {
+                bg: "lazur-bg",
+                icon: "fa fa-comment",
+                text: "sent message",
+                well: event.properties.message,
+            };
+            break;
+        case "teleport.auth.attempt":
+            if (event.properties.success == "true") {
+                info.props = {
+                    bg: "lazur-bg",
+                    icon: "fa fa-user",
+                    text: "logged in"
+                };
+            } else {
+                info.props = {
+                    bg: "yellow-bg",
+                    icon: "fa fa-user",
+                    text: "could not log in: " + event.properties.error
+                };
+            }
+            break;
+        case "teleport.session":
+            info.props = {
+                bg: "blue-bg",
+                icon: "fa fa-user",
+                text: "opened shell session"
+            };
+            break;
+        case "teleport.exec":
+            info.props = {
+                bg: "lazur-bg",
+                icon: "fa fa-tty",
+                text: event.properties.command
+            };
+            break;
+        default:
+            info.props = {
+                bg: "lazur-bg",
+                icon: "fa fa-question",
+                text: "performed unknown action: "+event.schema
+            };
         }
-        return {icon: "fa fa-question text-navy", text: "unrecognized event: "+event.schema};
+        return info;
     },
     render: function() {
         var e = this.props.event;
         var d = this.describe(e);
+        var well = d.props.hasOwnProperty("well")?(<div className="well">{d.props.well}</div>):'';
         return (
-            <tr className="key">
-              <td><a href="#"><i className={d.icon}></i></a></td>
-              <td>{e.time}</td>
-              <td>{e.schema}</td>
-              <td>{e.properties.user}</td>
-              <td>{e.properties.localaddr}</td>
-              <td>{e.properties.remoteaddr}</td>
-              <td><a href="#" onClick={this.showEvent}>{d.text}</a></td>
-            </tr>
-        );
-    }
+            <div className="vertical-timeline-block">
+              <div className={"vertical-timeline-icon " + d.props.bg}>
+                <i className={d.props.icon}></i>
+              </div>
+              <div className="vertical-timeline-content">
+                   <div className="media-body">
+                    <small className="pull-right">{d.ago} ago</small>
+                    <strong>{d.user}</strong> {d.props.text} <strong>{d.localaddr}</strong><br/>
+                    <small className="text-muted">{d.time}</small>
+                    {well}
+                    <div className="actions">
+                      <a href="#" onClick={this.showEvent} className="btn btn-xs btn-white"><i className="fa fa-folder"></i> View</a>
+                    </div>
+                  </div>
+              </div>
+            </div>
+    );
+  }
 });
 
 var EventForm = React.createClass({

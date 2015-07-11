@@ -3,26 +3,26 @@
 var UserBarItem = React.createClass({
     render: function() {
         return (
-<li className="nav-header">
-    <div className="dropdown profile-element">
-        <a data-toggle="dropdown" className="dropdown-toggle" href="#">
-            <span className="clear">
-                <span className="block m-t-xs">
-                    <strong className="font-bold">David Williams</strong>
-                </span>
-            <span className="text-muted text-xs block">
-                Engineer <b className="caret"></b></span>
-            </span>
-       </a>
-       <ul className="dropdown-menu animated fadeInRight m-t-xs">
-            <li><a href="/logout">Logout</a></li>
-       </ul>
-    </div>
-    <div className="logo-element">
-        Gravitational Teleport
-    </div>
-</li>
-);
+            <li className="nav-header">
+              <div className="dropdown profile-element">
+                <a data-toggle="dropdown" className="dropdown-toggle" href="#">
+                  <span className="clear">
+                    <span className="block m-t-xs">
+                      <strong className="font-bold">David Williams</strong>
+                    </span>
+                    <span className="text-muted text-xs block">
+                      Engineer <b className="caret"></b></span>
+                  </span>
+                </a>
+                <ul className="dropdown-menu animated fadeInRight m-t-xs">
+                  <li><a href="/logout">Logout</a></li>
+                </ul>
+              </div>
+              <div className="logo-element">
+                Gravitational Teleport
+              </div>
+            </li>
+        );
     }
 });
 
@@ -48,7 +48,7 @@ var LeftNavBar = React.createClass({
             <li className={this.className("events")}>
                 <a href="/events">
                     <i className="fa fa-list"></i>
-                    <span className="nav-label">Cluster Events</span>
+                    <span className="nav-label">Timeline</span>
                 </a>
             </li>
             <li className={this.className("webtuns")}>
@@ -139,31 +139,32 @@ var PageFooter = React.createClass({
 
 var Box = React.createClass({
     render: function() {
+        var colClass = this.props.colClass || "col-lg-12";
         return (
-<div className="row">
-   <div className="col-lg-12">
-      <div className="ibox float-e-margins">
-         <div className="ibox-title">
-            <h5>{this.props.title}</h5>
-            <div className="ibox-tools">
-               <a className="collapse-link fa fa-chevron-up" style={{fontStyle:"italic"}}></a> 
-               <a className="dropdown-toggle fa fa-wrench" data-toggle="dropdown" href="#" style={{fontStyle:"italic"}}></a>
-               <ul className="dropdown-menu dropdown-user">
-                  <li>
-                     <a href="#">Config option 1</a>
-                  </li>
-               </ul>
-               <a className="close-link fa fa-times" style={{fontStyle:"italic"}}></a>
+            <div className="row">
+              <div className={colClass}>
+                <div className="ibox float-e-margins">
+                  <div className="ibox-title">
+                    <h5>{this.props.title}</h5>
+                    <div className="ibox-tools">
+                      <a className="collapse-link fa fa-chevron-up" style={{fontStyle:"italic"}}></a> 
+                      <a className="dropdown-toggle fa fa-wrench" data-toggle="dropdown" href="#" style={{fontStyle:"italic"}}></a>
+                      <ul className="dropdown-menu dropdown-user">
+                        <li>
+                          <a href="#">Config option 1</a>
+                        </li>
+                      </ul>
+                      <a className="close-link fa fa-times" style={{fontStyle:"italic"}}></a>
+                    </div>
+                  </div>
+                  <div className="ibox-content">
+                    <div className="table-responsive">
+                      {this.props.children}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-         </div>
-         <div className="ibox-content">
-            <div className="table-responsive">
-                {this.props.children}
-            </div>
-         </div>
-      </div>
-   </div>
-</div>
-);
+        );
     }
 });

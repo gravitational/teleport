@@ -46,7 +46,7 @@
     <!-- Gravity stuff -->
     <script src="/static/js/grv/lib.js"></script>    
     <script type="text/jsx" src="/static/js/grv/modal.jsx"></script>
-    <script type="text/jsx" src="/static/js/grv/frame.js"></script>
+    <script type="text/jsx" src="/static/js/grv/frame.jsx"></script>
     {{ template "script" . }}
 </body>
 </html>
