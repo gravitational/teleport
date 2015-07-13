@@ -108,7 +108,6 @@ func newCPHandler(host string, auth []utils.NetAddr, assetsDir string) *cpHandle
 
 func (s *cpHandler) ls(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *ctx) {
 	root := r.URL.Query().Get("node")
-	log.Infof("!!!! LS: root: %v", root)
 
 	addr := p[0].Value
 

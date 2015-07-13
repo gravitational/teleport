@@ -92,7 +92,8 @@ func New(addr utils.NetAddr, signers []ssh.Signer,
 		s.elog = utils.NullEventLogger
 	}
 	srv, err := sshutils.NewServer(
-		addr, s, signers, sshutils.AuthMethods{PublicKey: s.keyAuth},
+		addr, s, signers,
+		sshutils.AuthMethods{PublicKey: s.keyAuth},
 		sshutils.SetRequestHandler(s))
 	if err != nil {
 		return nil, err
@@ -373,7 +374,7 @@ func (s *Server) dispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Reques
 	case "exec":
 		// exec is a remote execution of a program, does not use PTY
 		return s.handleExec(ch, req, ctx)
-	case "pty-req":
+	case sshutils.PTYReq:
 		// SSH client asked to allocate PTY
 		return s.handlePTYReq(ch, req, ctx)
 	case "shell":
@@ -386,7 +387,7 @@ func (s *Server) dispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Reques
 		// subsystems are SSH subsystems defined in http://tools.ietf.org/html/rfc4254 6.6
 		// they are in essence SSH session extensions, allowing to implement new SSH commands
 		return s.handleSubsystem(sconn, ch, req, ctx)
-	case "window-change":
+	case sshutils.WindowChangeReq:
 		return s.handleWinChange(ch, req, ctx)
 	case "auth-agent-req@openssh.com":
 		// This happens when SSH client has agent forwarding enabled, in this case
@@ -453,7 +454,7 @@ func (s *Server) emit(eid lunk.EventID, e lunk.Event) {
 }
 
 func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	var e sshutils.EnvReq
+	var e sshutils.EnvReqParams
 	if err := ssh.Unmarshal(req.Payload, &e); err != nil {
 		log.Errorf("%v handleEnv(err=%v)", err)
 		return fmt.Errorf("failed to parse env request, error: %v", err)

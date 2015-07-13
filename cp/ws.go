@@ -55,9 +55,15 @@ func (w *wsHandler) connectUpstream() (*sshutils.Upstream, error) {
 	}
 	up.GetSession().SendRequest(
 		sshutils.SetEnvReq, false,
-		ssh.Marshal(sshutils.EnvReq{
+		ssh.Marshal(sshutils.EnvReqParams{
 			Name:  sshutils.SessionEnvVar,
 			Value: w.sid,
+		}))
+	up.GetSession().SendRequest(
+		sshutils.PTYReq, false,
+		ssh.Marshal(sshutils.PTYReqParams{
+			W: 120,
+			H: 32,
 		}))
 	return up, nil
 }
