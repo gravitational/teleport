@@ -62,8 +62,8 @@ var KeysPage = React.createClass({
    <LeftNavBar current="keys"/>
    <div id="page-wrapper" className="gray-bg">
        <TopNavBar/>
-       <PageHeader title="SSH Keys" url="/keys"/>
-       <div className="wrapper wrapper-content animated fadeInRight">
+            <PageHeader icon="fa fa-key" title="Keys"/>
+            <div className="wrapper wrapper-content animated fadeInRight">
             <Box>
               <KeysBox keys={this.state.keys} onOpenKeyForm={this.openKeyForm} onKeyDelete={this.deleteKey}/>
             </Box>            
@@ -231,6 +231,6 @@ var KeyRow = React.createClass({
 
 
 React.render(
-  <KeysPage url="/api/keys"/>,
-  document.body
+    <KeysPage url={grv.path("api", "keys")}/>,
+    document.body
 );

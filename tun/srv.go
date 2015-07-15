@@ -24,9 +24,8 @@ type RemoteSite interface {
 	ConnectToServer(addr, user string, auth []ssh.AuthMethod) (*ssh.Client, error)
 	GetLastConnected() time.Time
 	GetName() string
-	GetServers() ([]backend.Server, error)
 	GetStatus() string
-	GetEvents(events.Filter) ([]lunk.Entry, error)
+	GetClient() *auth.Client
 }
 
 type Server interface {
@@ -172,6 +171,10 @@ type remoteSite struct {
 	lastActive time.Time
 	srv        *server
 	clt        *auth.Client
+}
+
+func (s *remoteSite) GetClient() *auth.Client {
+	return s.clt
 }
 
 func (s *remoteSite) GetEvents(filter events.Filter) ([]lunk.Entry, error) {

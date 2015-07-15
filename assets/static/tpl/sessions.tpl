@@ -9,7 +9,7 @@
 {{ end }}
 
 {{ define "script" }}
-    <script type="text/javascript" src="/static/js/term.js"></script>
-    <script type="text/javascript" src="/static/js/grv/sessionlib.js"></script>    
-    <script type="text/jsx" src="/static/js/grv/sessions.jsx"></script>
+    <script type="text/javascript" src="{{Path "/static/js/term.js"}}"></script>
+    <script type="text/javascript" src="{{Path "/static/js/grv/sessionlib.js"}}"></script>
+    <script type="text/jsx" src="{{Path "/static/js/grv/sessions.jsx"}}"></script>
 {{ end }}

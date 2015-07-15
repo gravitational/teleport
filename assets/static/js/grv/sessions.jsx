@@ -29,7 +29,7 @@ var SessionsPage = React.createClass({
           <LeftNavBar current="sessions"/>
           <div id="page-wrapper" className="gray-bg">
             <TopNavBar/>
-            <PageHeader title="Active Sessions" url="/sessions"/>
+            <PageHeader title="Active Sessions" icon="fa fa-wechat"/>
             <div className="wrapper wrapper-content animated fadeInRight">
               <Box>
                 <SessionsTable sessions={this.state.sessions}/>
@@ -74,21 +74,21 @@ var SessionRow = React.createClass({
         var se = parseSession(this.props.se);
         var users = se.users.map(function (u, index) {
             return (
-                <a href={"/sessions/"+se.id}>{u}&nbsp;</a>
+                <a href={grv.path("sessions", se.id)}>{u}&nbsp;</a>
             );
         });
         return (
             <tr>
-              <td><a href={"/sessions/"+se.id}>{se.id}</a></td>
+              <td><a href={grv.path("sessions", se.id)}>{se.id}</a></td>
               <td>{timeSince(se.last_active)} ago</td>
               <td>{users}</td>              
-              <td><a href={"/sessions/"+se.id}><i className="fa fa-tty text-navy"></i></a></td>
+              <td><a href={grv.path("sessions", se.id)}><i className="fa fa-tty text-navy"></i></a></td>
             </tr>
         );
   }
 });
 
 React.render(
-  <SessionsPage url="/api/sessions" pollInterval={1000}/>,
+  <SessionsPage url={grv.path("api", "sessions")} pollInterval={1000}/>,
   document.body
 );

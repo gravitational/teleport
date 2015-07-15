@@ -617,3 +617,45 @@ func (c *chunkRW) WriteChunks(chs []recorder.Chunk) error {
 func (c *chunkRW) Close() error {
 	return nil
 }
+
+// TOODO(klizhentas) this should be just including appropriate backends
+type ClientI interface {
+	GetSessions() ([]session.Session, error)
+	GetSession(id string) (*session.Session, error)
+	DeleteSession(id string) error
+	UpsertSession(id string, ttl time.Duration) error
+	UpsertParty(id string, p session.Party, ttl time.Duration) error
+	UpsertRemoteCert(cert backend.RemoteCert, ttl time.Duration) error
+	GetRemoteCerts(ctype string, fqdn string) ([]backend.RemoteCert, error)
+	DeleteRemoteCert(ctype string, fqdn, id string) error
+	GenerateToken(fqdn string, ttl time.Duration) (string, error)
+	Log(id lunk.EventID, e lunk.Event)
+	LogEntry(en lunk.Entry) error
+	GetEvents(filter events.Filter) ([]lunk.Entry, error)
+	GetChunkWriter(id string) (recorder.ChunkWriteCloser, error)
+	GetChunkReader(id string) (recorder.ChunkReadCloser, error)
+	UpsertServer(s backend.Server, ttl time.Duration) error
+	GetServers() ([]backend.Server, error)
+	UpsertWebTun(wt backend.WebTun, ttl time.Duration) error
+	GetWebTuns() ([]backend.WebTun, error)
+	GetWebTun(prefix string) (*backend.WebTun, error)
+	DeleteWebTun(prefix string) error
+	UpsertPassword(user string, password []byte) error
+	CheckPassword(user string, password []byte) error
+	SignIn(user string, password []byte) (string, error)
+	GetWebSession(user string, sid string) (string, error)
+	GetWebSessionsKeys(user string) ([]backend.AuthorizedKey, error)
+	DeleteWebSession(user string, sid string) error
+	GetUsers() ([]string, error)
+	DeleteUser(user string) error
+	UpsertUserKey(username string, key backend.AuthorizedKey, ttl time.Duration) ([]byte, error)
+	GetUserKeys(user string) ([]backend.AuthorizedKey, error)
+	DeleteUserKey(username string, id string) error
+	GetHostCAPub() ([]byte, error)
+	GetUserCAPub() ([]byte, error)
+	GenerateKeyPair(pass string) ([]byte, []byte, error)
+	GenerateHostCert(key []byte, id, hostname string, ttl time.Duration) ([]byte, error)
+	GenerateUserCert(key []byte, id, user string, ttl time.Duration) ([]byte, error)
+	ResetHostCA() error
+	ResetUserCA() error
+}

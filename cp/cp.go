@@ -1,8 +1,6 @@
 package cp
 
 import (
-	"archive/tar"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,10 +13,9 @@ import (
 	"time"
 
 	"code.google.com/p/go-uuid/uuid"
-	"github.com/gravitational/teleport/auth"
+
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/events"
-	"github.com/gravitational/teleport/sshutils"
 	"github.com/gravitational/teleport/sshutils/scp"
 	"github.com/gravitational/teleport/utils"
 
@@ -27,30 +24,22 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/mailgun/ttlmap"
 )
 
-// cpHandler implements methods for control panel
-type cpHandler struct {
+// CPHandler implements methods for control panel
+type CPHandler struct {
 	httprouter.Router
-	host        string
-	authServers []utils.NetAddr
-	sessions    *ttlmap.TtlMap
+	auth   AuthHandler
+	prefix string
 }
 
-func newCPHandler(host string, auth []utils.NetAddr, assetsDir string) *cpHandler {
-	initTemplates(assetsDir)
-
-	m, err := ttlmap.NewMap(1024)
-	if err != nil {
-		panic(err)
+func NewCPHandler(auth AuthHandler, assetsDir, prefix string) *CPHandler {
+	h := &CPHandler{
+		auth:   auth,
+		prefix: prefix,
 	}
 
-	h := &cpHandler{
-		authServers: auth,
-		host:        host,
-		sessions:    m,
-	}
+	h.initTemplates(assetsDir)
 	h.GET("/login", h.login)
 	h.GET("/logout", h.logout)
 	h.POST("/auth", h.authForm)
@@ -106,12 +95,37 @@ func newCPHandler(host string, auth []utils.NetAddr, assetsDir string) *cpHandle
 	return h
 }
 
-func (s *cpHandler) ls(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *ctx) {
+func (s *CPHandler) needsAuth(fn RequestHandler) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		Cookie, err := r.Cookie("session")
+		if err != nil {
+			log.Infof("error getting Cookie: %v", err)
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+		d, err := DecodeCookie(Cookie.Value)
+		if err != nil {
+			log.Warningf("failed to decode Cookie '%v', err: %v", Cookie.Value, err)
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+		ctx, err := s.auth.ValidateSession(d.User, d.SID)
+		if err != nil {
+			log.Warningf("failed to validate session: %v", err)
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+		fn(w, r, p, ctx)
+	}
+	return nil
+}
+
+func (s *CPHandler) ls(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) {
 	root := r.URL.Query().Get("node")
 
 	addr := p[0].Value
 
-	up, err := c.connectUpstream(addr)
+	up, err := c.ConnectUpstream(addr)
 	if err != nil {
 		log.Errorf("file err: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
@@ -166,7 +180,7 @@ func (s *cpHandler) ls(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	roundtrip.ReplyJSON(w, http.StatusOK, jsnodes)
 }
 
-func (s *cpHandler) downloadFiles(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *ctx) {
+func (s *CPHandler) downloadFiles(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) {
 
 	addr := p[0].Value
 
@@ -196,7 +210,7 @@ func (s *cpHandler) downloadFiles(w http.ResponseWriter, r *http.Request, p http
 			return
 		}
 
-		up, err := c.connectUpstream(addr)
+		up, err := c.ConnectUpstream(addr)
 		if err != nil {
 			log.Errorf("file err: %v", err)
 			replyErr(w, http.StatusInternalServerError, err)
@@ -224,17 +238,17 @@ func (s *cpHandler) downloadFiles(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	ck := &http.Cookie{
-		Domain: fmt.Sprintf(".%v", s.host),
+		Domain: fmt.Sprintf(".%v", s.auth.GetHost()),
 		Name:   "fileDownload",
 		Value:  "true",
 		Path:   "/",
 	}
 	http.SetCookie(w, ck)
 	w.Header().Set("Content-Disposition", "attachment; filename=download.tar")
-	writeArchive(dir, w)
+	utils.WriteArchive(dir, w)
 }
 
-func (s *cpHandler) uploadFile(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *ctx) {
+func (s *CPHandler) uploadFile(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) {
 	file, fh, err := r.FormFile("file")
 	if err != nil {
 		log.Errorf("file err: %v", err)
@@ -245,7 +259,7 @@ func (s *cpHandler) uploadFile(w http.ResponseWriter, r *http.Request, _ httprou
 
 	path, addr := r.Form.Get("path"), r.Form.Get("addr")
 
-	up, err := c.connectUpstream(addr)
+	up, err := c.ConnectUpstream(addr)
 	if err != nil {
 		log.Errorf("file err: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
@@ -309,8 +323,8 @@ func (s *cpHandler) uploadFile(w http.ResponseWriter, r *http.Request, _ httprou
 	roundtrip.ReplyJSON(w, http.StatusOK, res)
 }
 
-func (s *cpHandler) getSessions(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *ctx) {
-	ses, err := c.clt.GetSessions()
+func (s *CPHandler) getSessions(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) {
+	ses, err := c.GetClient().GetSessions()
 	if err != nil {
 		log.Errorf("failed to retrieve sessions: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
@@ -319,7 +333,7 @@ func (s *cpHandler) getSessions(w http.ResponseWriter, r *http.Request, _ httpro
 	roundtrip.ReplyJSON(w, http.StatusOK, ses)
 }
 
-func (s *cpHandler) getChunks(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *ctx) {
+func (s *CPHandler) getChunks(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) {
 	st, en := r.URL.Query().Get("start"), r.URL.Query().Get("end")
 	start, err := strconv.Atoi(st)
 	if err != nil {
@@ -337,7 +351,7 @@ func (s *cpHandler) getChunks(w http.ResponseWriter, r *http.Request, p httprout
 	}
 
 	recordID := p[0].Value
-	rdr, err := c.clt.GetChunkReader(recordID)
+	rdr, err := c.GetClient().GetChunkReader(recordID)
 	if err != nil {
 		log.Errorf("failed to retrieve reader: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
@@ -354,7 +368,7 @@ func (s *cpHandler) getChunks(w http.ResponseWriter, r *http.Request, p httprout
 	roundtrip.ReplyJSON(w, http.StatusOK, chunks)
 }
 
-func (s *cpHandler) sendMessage(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *ctx) {
+func (s *CPHandler) sendMessage(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) {
 	sid := p[0].Value
 
 	b, err := ioutil.ReadAll(r.Body)
@@ -370,29 +384,29 @@ func (s *cpHandler) sendMessage(w http.ResponseWriter, r *http.Request, p httpro
 		return
 	}
 
-	c.clt.Log(lunk.NewRootEventID(), &events.Message{
+	c.GetClient().Log(lunk.NewRootEventID(), &events.Message{
 		SessionID: sid,
-		User:      c.user,
+		User:      c.GetUser(),
 		Message:   message,
 	})
 
 	roundtrip.ReplyJSON(w, http.StatusOK, "ok")
 }
 
-func (s *cpHandler) getSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *ctx) {
-	ses, err := c.clt.GetSession(p[0].Value)
+func (s *CPHandler) getSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) {
+	ses, err := c.GetClient().GetSession(p[0].Value)
 	if err != nil {
 		if !backend.IsNotFound(err) {
 			log.Errorf("failed to retrieve session: %v", err)
 			replyErr(w, http.StatusInternalServerError, err)
 			return
 		}
-		if err = c.clt.UpsertSession(p[0].Value, 60*time.Second); err != nil {
+		if err = c.GetClient().UpsertSession(p[0].Value, 60*time.Second); err != nil {
 			log.Errorf("failed to upsert session: %v", err)
 			replyErr(w, http.StatusInternalServerError, err)
 			return
 		}
-		if ses, err = c.clt.GetSession(p[0].Value); err != nil {
+		if ses, err = c.GetClient().GetSession(p[0].Value); err != nil {
 			log.Errorf("failed to upsert session: %v", err)
 			replyErr(w, http.StatusInternalServerError, err)
 			return
@@ -404,13 +418,13 @@ func (s *cpHandler) getSession(w http.ResponseWriter, r *http.Request, p httprou
 		Limit:     20,
 		Start:     time.Now(),
 	}
-	events, err := c.clt.GetEvents(f)
+	events, err := c.GetClient().GetEvents(f)
 	if err != nil {
 		log.Errorf("failed to retrieve servers: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
-	srvs, err := c.clt.GetServers()
+	srvs, err := c.GetClient().GetServers()
 	if err != nil {
 		log.Errorf("failed to retrieve servers: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
@@ -424,8 +438,8 @@ func (s *cpHandler) getSession(w http.ResponseWriter, r *http.Request, p httprou
 		})
 }
 
-func (s *cpHandler) getServers(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *ctx) {
-	servers, err := c.clt.GetServers()
+func (s *CPHandler) getServers(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) {
+	servers, err := c.GetClient().GetServers()
 	if err != nil {
 		log.Errorf("failed to retrieve servers: %v")
 		replyErr(w, http.StatusInternalServerError, err)
@@ -434,20 +448,19 @@ func (s *cpHandler) getServers(w http.ResponseWriter, r *http.Request, _ httprou
 	roundtrip.ReplyJSON(w, http.StatusOK, servers)
 }
 
-func (s *cpHandler) connect(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *ctx) {
+func (s *CPHandler) connect(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) {
 	log.Infof("connect request authorized to: %v", p[0].Value)
 	ws := wsHandler{
-		authServers: s.authServers,
-		ctx:         c,
-		addr:        p[0].Value,
-		sid:         p[1].Value,
+		ctx:  c,
+		addr: p[0].Value,
+		sid:  p[1].Value,
 	}
 	defer ws.Close()
 	ws.Handler().ServeHTTP(w, r)
 }
 
-func (s *cpHandler) getWebTun(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *ctx) {
-	tun, err := c.clt.GetWebTun(p[0].Value)
+func (s *CPHandler) getWebTun(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) {
+	tun, err := c.GetClient().GetWebTun(p[0].Value)
 	if err != nil {
 		replyErr(w, http.StatusInternalServerError, err)
 		return
@@ -455,25 +468,25 @@ func (s *cpHandler) getWebTun(w http.ResponseWriter, r *http.Request, p httprout
 	roundtrip.ReplyJSON(w, http.StatusOK, tun)
 }
 
-func (s *cpHandler) deleteWebTun(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *ctx) {
-	if err := c.clt.DeleteWebTun(p[0].Value); err != nil {
+func (s *CPHandler) deleteWebTun(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) {
+	if err := c.GetClient().DeleteWebTun(p[0].Value); err != nil {
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
 	roundtrip.ReplyJSON(w, http.StatusOK, "deleted")
 }
 
-func (s *cpHandler) getWebTuns(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *ctx) {
-	tuns, err := c.clt.GetWebTuns()
+func (s *CPHandler) getWebTuns(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) {
+	tuns, err := c.GetClient().GetWebTuns()
 	if err != nil {
-		log.Errorf("failed to retrieve tunnels: %v")
+		log.Errorf("failed to retrieve tunnels: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
 	roundtrip.ReplyJSON(w, http.StatusOK, tuns)
 }
 
-func (s *cpHandler) upsertWebTun(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *ctx) {
+func (s *CPHandler) upsertWebTun(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) {
 	var prefix, target, proxy string
 
 	err := form.Parse(r,
@@ -491,7 +504,7 @@ func (s *cpHandler) upsertWebTun(w http.ResponseWriter, r *http.Request, _ httpr
 		roundtrip.ReplyJSON(w, http.StatusBadRequest, message(err.Error()))
 		return
 	}
-	if err := c.clt.UpsertWebTun(*wt, 0); err != nil {
+	if err := c.GetClient().UpsertWebTun(*wt, 0); err != nil {
 		log.Errorf("failed to upsert keys: %v", err)
 		roundtrip.ReplyJSON(w, http.StatusBadRequest, err.Error())
 		return
@@ -499,14 +512,14 @@ func (s *cpHandler) upsertWebTun(w http.ResponseWriter, r *http.Request, _ httpr
 	roundtrip.ReplyJSON(w, http.StatusOK, wt)
 }
 
-func (s *cpHandler) getEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *ctx) {
+func (s *CPHandler) getEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) {
 	f, err := events.FilterFromURL(r.URL.Query())
 	if err != nil {
 		log.Errorf("failed to retrieve events: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
-	events, err := c.clt.GetEvents(*f)
+	events, err := c.GetClient().GetEvents(*f)
 	if err != nil {
 		log.Errorf("failed to retrieve events: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
@@ -516,23 +529,23 @@ func (s *cpHandler) getEvents(w http.ResponseWriter, r *http.Request, _ httprout
 	roundtrip.ReplyJSON(w, http.StatusOK, events)
 }
 
-func (s *cpHandler) keysIndex(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *ctx) {
-	executeTemplate(w, "keys", nil)
+func (s *CPHandler) keysIndex(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ Context) {
+	s.executeTemplate(w, "keys", nil)
 }
 
-func (s *cpHandler) eventsIndex(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *ctx) {
-	executeTemplate(w, "events", nil)
+func (s *CPHandler) eventsIndex(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ Context) {
+	s.executeTemplate(w, "events", nil)
 }
 
-func (s *cpHandler) webTunsIndex(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *ctx) {
-	executeTemplate(w, "webtuns", nil)
+func (s *CPHandler) webTunsIndex(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ Context) {
+	s.executeTemplate(w, "webtuns", nil)
 }
 
-func (s *cpHandler) serversIndex(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *ctx) {
-	executeTemplate(w, "servers", nil)
+func (s *CPHandler) serversIndex(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ Context) {
+	s.executeTemplate(w, "servers", nil)
 }
 
-func (s *cpHandler) newSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *ctx) {
+func (s *CPHandler) newSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) {
 	var server string
 	err := form.Parse(r, form.String("server", &server))
 	if err != nil {
@@ -541,30 +554,31 @@ func (s *cpHandler) newSession(w http.ResponseWriter, r *http.Request, _ httprou
 		return
 	}
 	sid := uuid.New()
-	if err := c.clt.UpsertSession(sid, 30*time.Second); err != nil {
+	if err := c.GetClient().UpsertSession(sid, 30*time.Second); err != nil {
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
 	u := url.URL{
-		Path: fmt.Sprintf("/sessions/%v", sid),
+		Path: s.Path("sessions", sid),
 	}
 	u.Query().Set("server", server)
 	http.Redirect(w, r, u.String(), http.StatusFound)
 }
 
-func (s *cpHandler) sessionsIndex(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *ctx) {
-	executeTemplate(w, "sessions", nil)
+func (s *CPHandler) sessionsIndex(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ Context) {
+	s.executeTemplate(w, "sessions", nil)
 }
 
-func (s *cpHandler) sessionIndex(w http.ResponseWriter, r *http.Request, p httprouter.Params, _ *ctx) {
-	executeTemplate(w, "session", map[string]interface{}{
+func (s *CPHandler) sessionIndex(w http.ResponseWriter, r *http.Request, p httprouter.Params, _ Context) {
+	s.executeTemplate(w, "session", map[string]interface{}{
 		"SessionID":  p[0].Value,
 		"ServerAddr": r.URL.Query().Get("server"),
 	})
 }
 
-func (s *cpHandler) getKeys(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *ctx) {
-	keys, err := c.clt.GetUserKeys(c.user)
+func (s *CPHandler) getKeys(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) {
+	keys, err := c.GetClient().GetUserKeys(c.GetUser())
+	log.Infof("Keys: %v", keys)
 	if err != nil {
 		log.Errorf("failed to retrieve keys: %v")
 		replyErr(w, http.StatusInternalServerError, err)
@@ -573,7 +587,7 @@ func (s *cpHandler) getKeys(w http.ResponseWriter, r *http.Request, _ httprouter
 	roundtrip.ReplyJSON(w, http.StatusOK, keys)
 }
 
-func (s *cpHandler) postKey(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *ctx) {
+func (s *CPHandler) postKey(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) {
 	var key, id string
 
 	err := form.Parse(r,
@@ -584,7 +598,7 @@ func (s *cpHandler) postKey(w http.ResponseWriter, r *http.Request, _ httprouter
 		roundtrip.ReplyJSON(w, http.StatusBadRequest, message(err.Error()))
 		return
 	}
-	cert, err := c.clt.UpsertUserKey(c.user, backend.AuthorizedKey{ID: id, Value: []byte(key)}, 0)
+	cert, err := c.GetClient().UpsertUserKey(c.GetUser(), backend.AuthorizedKey{ID: id, Value: []byte(key)}, 0)
 	if err != nil {
 		log.Errorf("failed to upsert keys: %v", err)
 		roundtrip.ReplyJSON(w, http.StatusBadRequest, message("invalid key format"))
@@ -593,10 +607,10 @@ func (s *cpHandler) postKey(w http.ResponseWriter, r *http.Request, _ httprouter
 	roundtrip.ReplyJSON(w, http.StatusOK, backend.AuthorizedKey{ID: key, Value: cert})
 }
 
-func (s *cpHandler) deleteKey(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *ctx) {
+func (s *CPHandler) deleteKey(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) {
 	key := p[0].Value
 
-	err := c.clt.DeleteUserKey(c.user, key)
+	err := c.GetClient().DeleteUserKey(c.GetUser(), key)
 	if err != nil {
 		log.Errorf("failed to upsert keys: %v", err)
 		roundtrip.ReplyJSON(w, http.StatusBadRequest, message("invalid key format"))
@@ -605,20 +619,16 @@ func (s *cpHandler) deleteKey(w http.ResponseWriter, r *http.Request, p httprout
 	roundtrip.ReplyJSON(w, http.StatusOK, message("key deleted"))
 }
 
-func (s *cpHandler) login(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	executeTemplate(w, "login", nil)
+func (s *CPHandler) login(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	s.executeTemplate(w, "login", nil)
 }
 
-func (s *cpHandler) logout(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	if err := s.clearSession(w); err != nil {
-		log.Errorf("failed to clear session: %v", err)
-		replyErr(w, http.StatusInternalServerError, fmt.Errorf("failed to logout"))
-		return
-	}
-	http.Redirect(w, r, "/login", http.StatusFound)
+func (s *CPHandler) logout(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	s.auth.ClearSession(w)
+	http.Redirect(w, r, s.Path("login"), http.StatusFound)
 }
 
-func (s *cpHandler) authForm(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (s *CPHandler) authForm(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	var user, pass string
 
 	err := form.Parse(r,
@@ -629,150 +639,24 @@ func (s *cpHandler) authForm(w http.ResponseWriter, r *http.Request, p httproute
 		replyErr(w, http.StatusBadRequest, err)
 		return
 	}
-	sid, err := s.auth(user, pass)
+	sid, err := s.auth.Auth(user, pass)
 	if err != nil {
 		log.Warningf("auth error: %v", err)
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
-	if err := s.setSession(w, user, sid); err != nil {
+	if err := s.auth.SetSession(w, user, sid); err != nil {
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
-func (s *cpHandler) auth(user, pass string) (string, error) {
-	method, err := auth.NewWebPasswordAuth(user, []byte(pass))
-	if err != nil {
-		return "", err
+func (s *CPHandler) executeTemplate(w http.ResponseWriter, name string, data map[string]interface{}) {
+	if data == nil {
+		data = map[string]interface{}{}
 	}
-	clt, err := auth.NewTunClient(s.authServers[0], user, method)
-	if err != nil {
-		return "", err
-	}
-	return clt.SignIn(user, []byte(pass))
-}
-
-func (s *cpHandler) validateSession(user, sid string) (*ctx, error) {
-	val, ok := s.sessions.Get(user + sid)
-	if ok {
-		log.Infof("retrieving session from cache")
-		return val.(*ctx), nil
-	}
-
-	method, err := auth.NewWebSessionAuth(user, []byte(sid))
-	if err != nil {
-		return nil, err
-	}
-	clt, err := auth.NewTunClient(s.authServers[0], user, method)
-	if err != nil {
-		log.Infof("failed to connect: %v", clt, err)
-		return nil, err
-	}
-	if _, err := clt.GetWebSession(user, sid); err != nil {
-		log.Infof("session not found: %v", err)
-		return nil, err
-	}
-	log.Infof("session validated")
-
-	c := &ctx{
-		clt:  clt,
-		user: user,
-		sid:  sid,
-	}
-	if err := s.sessions.Set(user+sid, c, 600); err != nil {
-		log.Infof("something is wrong: %v", err)
-		return nil, err
-	}
-
-	return c, nil
-}
-
-func (s *cpHandler) setSession(w http.ResponseWriter, user, sid string) error {
-	d, err := encodeCookie(user, sid)
-	if err != nil {
-		return err
-	}
-	c := &http.Cookie{
-		Domain: fmt.Sprintf(".%v", s.host),
-		Name:   "session",
-		Value:  d,
-		Path:   "/",
-	}
-	http.SetCookie(w, c)
-	return nil
-}
-
-func (s *cpHandler) clearSession(w http.ResponseWriter) error {
-	http.SetCookie(w, &http.Cookie{
-		Domain: fmt.Sprintf(".%v", s.host),
-		Name:   "session",
-		Value:  "",
-		Path:   "/",
-	})
-	return nil
-}
-
-func (s *cpHandler) needsAuth(fn authHandle) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		cookie, err := r.Cookie("session")
-		if err != nil {
-			log.Infof("getting cookie: %v", err)
-			http.Redirect(w, r, "/login", http.StatusFound)
-			return
-		}
-		d, err := decodeCookie(cookie.Value)
-		if err != nil {
-			log.Warningf("failed to decode cookie '%v', err: %v", cookie.Value, err)
-			http.Redirect(w, r, "/login", http.StatusFound)
-			return
-		}
-		ctx, err := s.validateSession(d.User, d.SID)
-		if err != nil {
-			log.Warningf("failed to validate session: %v", err)
-			http.Redirect(w, r, "/login", http.StatusFound)
-			return
-		}
-		fn(w, r, p, ctx)
-	}
-	return nil
-}
-
-func replyErr(w http.ResponseWriter, code int, err error) {
-	roundtrip.ReplyJSON(w, code, message(err.Error()))
-}
-
-func message(msg string) map[string]interface{} {
-	return map[string]interface{}{"message": msg}
-}
-
-type cookie struct {
-	User string
-	SID  string
-}
-
-func encodeCookie(user, sid string) (string, error) {
-	bytes, err := json.Marshal(cookie{User: user, SID: sid})
-	if err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(bytes), nil
-}
-
-func decodeCookie(b string) (*cookie, error) {
-	bytes, err := hex.DecodeString(b)
-	if err != nil {
-		return nil, err
-	}
-	var c *cookie
-	if err := json.Unmarshal(bytes, &c); err != nil {
-		return nil, err
-	}
-	return c, nil
-}
-
-func executeTemplate(w http.ResponseWriter, name string, data interface{}) {
+	data["Prefix"] = s.prefix
 	tpl, ok := templates[name]
 	if !ok {
 		replyErr(w, http.StatusInternalServerError, fmt.Errorf("template '%v' not found", name))
@@ -783,76 +667,19 @@ func executeTemplate(w http.ResponseWriter, name string, data interface{}) {
 		log.Errorf("Execute template: %v", err)
 		replyErr(w, http.StatusInternalServerError, fmt.Errorf("internal render error"))
 	}
-
 }
 
-type ctx struct {
-	sid  string
-	user string
-	clt  *auth.TunClient
+func replyErr(w http.ResponseWriter, code int, err error) {
+	roundtrip.ReplyJSON(w, code, message(err.Error()))
 }
 
-func (c *ctx) Close() error {
-	if c.clt != nil {
-		return c.clt.Close()
-	}
-	return nil
+func message(msg string) map[string]interface{} {
+	return map[string]interface{}{"message": msg}
 }
-
-func (c *ctx) connectUpstream(addr string) (*sshutils.Upstream, error) {
-	agent, err := c.clt.GetAgent()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get agent: %v", err)
-	}
-	signers, err := agent.Signers()
-	if err != nil {
-		return nil, fmt.Errorf("no signers: %v", err)
-	}
-	return sshutils.DialUpstream(c.user, addr, signers)
-}
-
-type authHandle func(http.ResponseWriter, *http.Request, httprouter.Params, *ctx)
 
 type jsNode struct {
 	ID       string `json:"id"`
 	Text     string `json:"text"`
 	Children bool   `json:"children"`
 	Icon     string `json:"icon"`
-}
-
-func writeArchive(root_directory string, w io.Writer) error {
-	ar := tar.NewWriter(w)
-
-	walkFn := func(path string, info os.FileInfo, err error) error {
-		if info.Mode().IsDir() {
-			return nil
-		}
-		// Because of scoping we can reference the external root_directory variable
-		new_path := path[len(root_directory):]
-		if len(new_path) == 0 {
-			return nil
-		}
-		fr, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer fr.Close()
-
-		if h, err := tar.FileInfoHeader(info, new_path); err != nil {
-			return err
-		} else {
-			h.Name = new_path
-			if err = ar.WriteHeader(h); err != nil {
-				return err
-			}
-		}
-		if length, err := io.Copy(ar, fr); err != nil {
-			return err
-		} else {
-			fmt.Println(length)
-		}
-		return nil
-	}
-
-	return filepath.Walk(root_directory, walkFn)
 }

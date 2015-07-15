@@ -39,7 +39,6 @@ func Init(b backend.Backend, a Authority,
 	// check that user CA and host CA are present and set the certs if needed
 	asrv := NewAuthServer(b, a, scrt)
 
-	log.Infof("I AM HERE")
 	if _, e := asrv.GetHostCAPub(); e != nil {
 		log.Infof("Host CA error: %v", e)
 		if _, ok := e.(*backend.NotFoundError); ok {

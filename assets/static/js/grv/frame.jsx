@@ -40,31 +40,31 @@ var LeftNavBar = React.createClass({
         <ul className="nav" id="side-menu">
             <UserBarItem/>
             <li className={this.className("keys")}>
-                <a href="/keys">
-                    <i className="fa fa-laptop"></i>
+                <a href={grv.path("keys")}>
+                    <i className="fa fa-key"></i>
                     <span className="nav-label">Keys</span>
                 </a>
             </li>
             <li className={this.className("events")}>
-                <a href="/events">
+                <a href={grv.path("events")}>
                     <i className="fa fa-list"></i>
                     <span className="nav-label">Timeline</span>
                 </a>
             </li>
             <li className={this.className("webtuns")}>
-                <a href="/webtuns">
+                <a href={grv.path("webtuns")}>
                     <i className="fa fa-arrows-h"></i>
                     <span className="nav-label">Web Tunnels</span>
                 </a>
             </li>
             <li className={this.className("servers")}>
-                <a href="/servers">
+                <a href={grv.path("servers")}>
                     <i className="fa fa-hdd-o"></i>
                     <span className="nav-label">Servers</span>
                 </a>
             </li>
             <li className={this.className("sessions")}>
-                <a href="/sessions">
+                <a href={grv.path("sessions")}>
                     <i className="fa fa-wechat"></i>
                     <span className="nav-label">Sessions</span>
                 </a>
@@ -106,19 +106,23 @@ var TopNavBar = React.createClass({
 
 var PageHeader = React.createClass({
     render: function() {
+        var brs = this.props.breadcrumbs || [];
         return (
-<div className="row wrapper border-bottom white-bg page-heading">
-   <div className="col-lg-10">
-      <h2>{this.props.title}</h2>
-      <ol className="breadcrumb">
-         <li className="active">
-            <a href={this.props.url}>{this.props.title}</a>
-         </li>
-      </ol>
-   </div>
-   <div className="col-lg-2">
-   </div>
-</div>);
+            <div className="row wrapper border-bottom white-bg page-heading">
+              <div className="col-lg-10">
+                <h2><i className={this.props.icon}></i> {this.props.title}</h2>
+                <ol className="breadcrumb">
+                  {brs.map(function(b, idx) {
+                      if (idx == brs.length -1 ) {
+                          return <li className="active"><a href={b.url}><strong>{b.title}</strong></a></li>;
+                      }
+                      return <li><a href={b.url}>{b.title}</a></li>;
+                   })}
+                </ol>
+              </div>
+              <div className="col-lg-2">
+              </div>
+            </div>);
     }
 });
 

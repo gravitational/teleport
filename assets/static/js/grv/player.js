@@ -18,7 +18,7 @@ Player.prototype.iterChunks = function(chunk) {
     console.log("iterChunks: ", chunk);
     var self = this;
     $.ajax({
-        url: "/api/records/" +self.rid +"/chunks?"+$.param([{name: "start", value: chunk}, {name: "end", value: chunk+1}]),
+        url: grv.path("api", "records", self.rid, "chunks") + "?"+$.param([{name: "start", value: chunk}, {name: "end", value: chunk+1}]),
         type: "GET",
         dataType: 'json',
         success: function(data) {

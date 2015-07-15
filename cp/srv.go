@@ -26,7 +26,11 @@ func NewServer(cfg Config) (*CPServer, error) {
 	if cfg.Host == "" {
 		return nil, fmt.Errorf("need an base host")
 	}
-	cp := newCPHandler(cfg.Host, cfg.AuthSrv, cfg.AssetsDir)
+	auth, err := NewLocalAuth(cfg.Host, cfg.AuthSrv)
+	if err != nil {
+		return nil, err
+	}
+	cp := NewCPHandler(auth, cfg.AssetsDir, "")
 	proxy := newProxyHandler(cp, cfg.AuthSrv, cfg.Host)
 	return &CPServer{
 		cfg: cfg,

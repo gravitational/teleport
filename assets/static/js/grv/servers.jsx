@@ -1,54 +1,54 @@
 'use strict';
 
 var ServersPage = React.createClass({
-  getInitialState: function(){
-      return {servers: []};
-  },
-  componentDidMount: function() {
-      this.reload();
+    getInitialState: function(){
+        return {servers: []};
+    },
+    componentDidMount: function() {
+        this.reload();
       setInterval(this.reload, this.props.pollInterval);
-  },
+    },
     connect: function(srv){
         this.refs.server.value = srv;
         React.findDOMNode(this.refs.session).submit();
-  },
-  disconnect: function(srv){
-  },
-  reload: function(){
-    $.ajax({
-      url: this.props.url,
-      dataType: 'json',
-      success: function(data) {
-        if(this.modalOpen == true) {
-           return
-        }
-        this.setState({servers: data});
-      }.bind(this),
-      error: function(xhr, status, err) {
-        console.error(this.props.url, status, err.toString());
-      }.bind(this)
-    });
-  },
-  render: function() {
-    return (
-<div id="wrapper">
-   <LeftNavBar current="servers"/>
-   <div id="page-wrapper" className="gray-bg">
-       <TopNavBar/>
-       <PageHeader title="SSH Servers" url="/servers"/>
-       <div className="wrapper wrapper-content animated fadeInRight">
-            <Box>
-                <ServersTable servers={this.state.servers}  onConnect={this.connect}/>
-            </Box>            
-       </div>
-       <PageFooter/>
-   </div>
-   <form ref="session" action="/sessions" method="POST" style={{display: 'none'}}>
-     <input name="server" type="text" ref="server"/>
-   </form>
-</div>
-    );
-  }
+    },
+    disconnect: function(srv){
+    },
+    reload: function(){
+        $.ajax({
+            url: this.props.url,
+            dataType: 'json',
+            success: function(data) {
+                if(this.modalOpen == true) {
+                    return
+                }
+                this.setState({servers: data});
+            }.bind(this),
+            error: function(xhr, status, err) {
+                console.error(this.props.url, status, err.toString());
+            }.bind(this)
+        });
+    },
+    render: function() {
+        return (
+            <div id="wrapper">
+              <LeftNavBar current="servers"/>
+              <div id="page-wrapper" className="gray-bg">
+                <TopNavBar/>
+                <PageHeader title="SSH Servers" icon="fa fa-hdd-o"/>
+                <div className="wrapper wrapper-content animated fadeInRight">
+                  <Box>
+                    <ServersTable servers={this.state.servers}  onConnect={this.connect}/>
+                  </Box>            
+                </div>
+                <PageFooter/>
+              </div>
+              <form ref="session" action={grv.path("sessions")} method="POST" style={{display: 'none'}}>
+                <input name="server" type="text" ref="server"/>
+              </form>
+            </div>
+        );
+    }
 });
 
 
@@ -93,6 +93,6 @@ var ServerRow = React.createClass({
 });
 
 React.render(
-  <ServersPage url="/api/servers" pollInterval={2000}/>,
+  <ServersPage url={grv.path("api","servers")} pollInterval={2000}/>,
   document.body
 );

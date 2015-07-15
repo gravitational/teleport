@@ -34,7 +34,7 @@ var EventsPage = React.createClass({
               <LeftNavBar current="events"/>
               <div id="page-wrapper" className="gray-bg">
                 <TopNavBar/>
-                <PageHeader title="Timeline" url="/events"/>
+                <PageHeader icon="fa fa-list" title="Timeline"/>
                 <div className="wrapper wrapper-content animated fadeInRight">
                   <Box colClass="col-lg-8">
                     <EventsBox events={this.state.entries} onShowEvent={this.showEvent}/>
@@ -239,6 +239,6 @@ var EventForm = React.createClass({
 
 
 React.render(
-  <EventsPage url="/api/events" pollInterval={2000}/>,
+  <EventsPage url={grv.path("api", "events")} pollInterval={2000}/>,
   document.body
 );

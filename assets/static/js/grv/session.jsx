@@ -123,7 +123,7 @@ var ChatBox = React.createClass({
     sendMessage: function(message) {
         var box = $(React.findDOMNode(this.refs.message));
         $.ajax({
-            url: "/api/sessions/" +session.id +"/messages",
+            url: grv.path("api", "sessions", session.id, "messages"),
             type: "POST",
             dataType: 'json',
             data: JSON.stringify(message),
@@ -280,7 +280,7 @@ var ConsoleBox = React.createClass({
         $(parent).append('<div id="'+self.term_id(srv)+'"></div>');
         var termNode = document.getElementById(this.term_id(srv));
         var hostport = location.hostname+(location.port ? ':'+location.port: '');
-        var socket = new WebSocket("ws://"+hostport+"/api/ssh/connect/"+srv+"/sessions/"+self.props.session.id, "proto");
+        var socket = new WebSocket("ws://"+hostport+grv.path("api", "ssh", "connect", srv, "sessions", self.props.session.id), "proto");
         var term = new Terminal({
             cols: 120,
             rows: 32,
@@ -616,7 +616,7 @@ var DownloadForm = React.createClass({
 
 
 React.render(
-  <SessionPage url={"/api/sessions/"+session.id} pollInterval={2000}/>,
+  <SessionPage url={grv.path("api", "sessions", session.id)} pollInterval={2000}/>,
   document.body
 
 );
