@@ -8,7 +8,7 @@ import (
 var templates map[string]*template.Template
 
 func (s *CPHandler) Path(params ...string) string {
-	out := append([]string{"/", s.prefix}, params...)
+	out := append([]string{"/", s.cfg.URLPrefix}, params...)
 	return filepath.Join(out...)
 }
 

@@ -30,7 +30,7 @@ func NewServer(cfg Config) (*CPServer, error) {
 	if err != nil {
 		return nil, err
 	}
-	cp := NewCPHandler(auth, cfg.AssetsDir, "")
+	cp := NewCPHandler(HandlerConfig{Auth: auth, AssetsDir: cfg.AssetsDir})
 	proxy := newProxyHandler(cp, cfg.AuthSrv, cfg.Host)
 	return &CPServer{
 		cfg: cfg,

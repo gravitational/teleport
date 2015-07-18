@@ -30,7 +30,7 @@ var SessionsPage = React.createClass({
           <div id="page-wrapper" className="gray-bg">
             <TopNavBar/>
             <PageHeader title="Active Sessions" icon="fa fa-wechat"/>
-            <div className="wrapper wrapper-content animated fadeInRight">
+            <div className="wrapper wrapper-content">
               <Box>
                 <SessionsTable sessions={this.state.sessions}/>
               </Box>

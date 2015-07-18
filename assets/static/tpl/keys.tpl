@@ -9,5 +9,5 @@
 {{ end }}
 
 {{ define "script" }}    
-    <script type="text/jsx" src="{{Path "/static/js/grv/keys.js"}}"></script>
+    <script type="text/jsx" src="{{Path "/static/js/grv/keys.jsx"}}"></script>
 {{ end }}

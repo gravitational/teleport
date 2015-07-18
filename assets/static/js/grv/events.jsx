@@ -1,6 +1,12 @@
 'use strict';
 
 var EventsPage = React.createClass({
+    onStartChange: function(e) {
+        console.log(e.value);
+    },
+    onEndChange: function(e) {
+        console.log(e.value);
+    },
     showEvent: function(e){
         this.refs.event.show(e);
     },
@@ -35,9 +41,9 @@ var EventsPage = React.createClass({
               <div id="page-wrapper" className="gray-bg">
                 <TopNavBar/>
                 <PageHeader icon="fa fa-list" title="Timeline"/>
-                <div className="wrapper wrapper-content animated fadeInRight">
+                <div className="wrapper wrapper-content">
                   <Box colClass="col-lg-8">
-                    <EventsBox events={this.state.entries} onShowEvent={this.showEvent}/>
+                    <EventsBox events={this.state.entries} onShowEvent={this.showEvent} onStartChange={this.onStartChange} onEndChange={this.onEndChange}/>
                   </Box>
                 </div>
                 <PageFooter/>
@@ -67,6 +73,8 @@ var EventsContainer = React.createClass({
             keyboardNavigation: false,
             forceParse: false,
             autoclose: true
+        }).on('changeDate', function(e){
+            console.log(e)
         });
     },
     render: function() {
@@ -88,9 +96,9 @@ var EventsContainer = React.createClass({
                 <div className="col-lg-4">
                   <div className="form-group" ref="daterange">
                     <div className="input-daterange input-group" id="datepicker">
-                      <input type="text" className="input-sm form-control" name="start" value="05/14/2014"/>
+                      <input type="text" className="input-sm form-control" name="start" onChange={this.props.onStartChange}/>
                       <span className="input-group-addon">to</span>
-                      <input type="text" className="input-sm form-control" name="end" value="05/22/2014"/>
+                      <input type="text" className="input-sm form-control" name="end" onChange={this.props.onEndChange}/>
                     </div>
                   </div>
                 </div>

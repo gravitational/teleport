@@ -62,7 +62,7 @@ var WebTunsPage = React.createClass({
               <div id="page-wrapper" className="gray-bg">
                 <TopNavBar/>
                 <PageHeader title="Web Tunnels" icon="fa fa-arrows-h"/>
-                <div className="wrapper wrapper-content animated fadeInRight">
+                <div className="wrapper wrapper-content">
                   <Box>
                     <WebTunsBox tuns={this.state.tuns} onOpenTunForm={this.openTunForm} onTunDelete={this.deleteTun}/>
                   </Box>            

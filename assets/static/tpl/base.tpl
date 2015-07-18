@@ -48,14 +48,15 @@
     <!-- Gravity stuff -->
     <script type="text/javascript">
        grv = {
-           prefix: "{{.Prefix}}",
+           prefix: "{{.Cfg.URLPrefix}}",
            path: function() {
-               var path = ["{{.Prefix}}" != ""? "{{.Prefix}}":""];
+               var path = ["{{.Cfg.URLPrefix}}" != ""? "{{.Cfg.URLPrefix}}":""];
                for(var i = 0; i < arguments.length; i++) {
                     path.push(arguments[i]);
                } 
                return path.join("/");
-           }
+           },
+           nav_sections: {{.Cfg.NavSections}}
        };
     </script>    
     <script src="{{Path "/static/js/grv/lib.js"}}"></script>    

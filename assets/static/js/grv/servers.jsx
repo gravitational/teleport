@@ -36,7 +36,7 @@ var ServersPage = React.createClass({
               <div id="page-wrapper" className="gray-bg">
                 <TopNavBar/>
                 <PageHeader title="SSH Servers" icon="fa fa-hdd-o"/>
-                <div className="wrapper wrapper-content animated fadeInRight">
+                <div className="wrapper wrapper-content">
                   <Box>
                     <ServersTable servers={this.state.servers}  onConnect={this.connect}/>
                   </Box>            

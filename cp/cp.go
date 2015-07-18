@@ -29,17 +29,32 @@ import (
 // CPHandler implements methods for control panel
 type CPHandler struct {
 	httprouter.Router
-	auth   AuthHandler
-	prefix string
+	cfg HandlerConfig
 }
 
-func NewCPHandler(auth AuthHandler, assetsDir, prefix string) *CPHandler {
+type HandlerConfig struct {
+	Auth        AuthHandler
+	AssetsDir   string
+	NavSections []NavSection
+	URLPrefix   string
+}
+
+type NavSection struct {
+	Title string `json:"title"`
+	URL   string `json:"url"`
+	Icon  string `json:"icon"`
+}
+
+func NewCPHandler(cfg HandlerConfig) *CPHandler {
+	if len(cfg.NavSections) == 0 {
+		// to avoid panics during iterations
+		cfg.NavSections = []NavSection{}
+	}
 	h := &CPHandler{
-		auth:   auth,
-		prefix: prefix,
+		cfg: cfg,
 	}
 
-	h.initTemplates(assetsDir)
+	h.initTemplates(cfg.AssetsDir)
 	h.GET("/login", h.login)
 	h.GET("/logout", h.logout)
 	h.POST("/auth", h.authForm)
@@ -83,7 +98,7 @@ func NewCPHandler(auth AuthHandler, assetsDir, prefix string) *CPHandler {
 
 	// Static assets
 	h.Handler("GET", "/static/*filepath",
-		http.FileServer(http.Dir(filepath.Join(assetsDir, "assets"))))
+		http.FileServer(http.Dir(filepath.Join(cfg.AssetsDir, "assets"))))
 
 	// Operations with sessions
 	h.GET("/api/sessions", h.needsAuth(h.getSessions))
@@ -109,7 +124,7 @@ func (s *CPHandler) needsAuth(fn RequestHandler) httprouter.Handle {
 			http.Redirect(w, r, "/login", http.StatusFound)
 			return
 		}
-		ctx, err := s.auth.ValidateSession(d.User, d.SID)
+		ctx, err := s.cfg.Auth.ValidateSession(d.User, d.SID)
 		if err != nil {
 			log.Warningf("failed to validate session: %v", err)
 			http.Redirect(w, r, "/login", http.StatusFound)
@@ -238,7 +253,7 @@ func (s *CPHandler) downloadFiles(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	ck := &http.Cookie{
-		Domain: fmt.Sprintf(".%v", s.auth.GetHost()),
+		Domain: fmt.Sprintf(".%v", s.cfg.Auth.GetHost()),
 		Name:   "fileDownload",
 		Value:  "true",
 		Path:   "/",
@@ -624,7 +639,7 @@ func (s *CPHandler) login(w http.ResponseWriter, r *http.Request, _ httprouter.P
 }
 
 func (s *CPHandler) logout(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	s.auth.ClearSession(w)
+	s.cfg.Auth.ClearSession(w)
 	http.Redirect(w, r, s.Path("login"), http.StatusFound)
 }
 
@@ -639,13 +654,13 @@ func (s *CPHandler) authForm(w http.ResponseWriter, r *http.Request, p httproute
 		replyErr(w, http.StatusBadRequest, err)
 		return
 	}
-	sid, err := s.auth.Auth(user, pass)
+	sid, err := s.cfg.Auth.Auth(user, pass)
 	if err != nil {
 		log.Warningf("auth error: %v", err)
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
-	if err := s.auth.SetSession(w, user, sid); err != nil {
+	if err := s.cfg.Auth.SetSession(w, user, sid); err != nil {
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -656,7 +671,7 @@ func (s *CPHandler) executeTemplate(w http.ResponseWriter, name string, data map
 	if data == nil {
 		data = map[string]interface{}{}
 	}
-	data["Prefix"] = s.prefix
+	data["Cfg"] = s.cfg
 	tpl, ok := templates[name]
 	if !ok {
 		replyErr(w, http.StatusInternalServerError, fmt.Errorf("template '%v' not found", name))

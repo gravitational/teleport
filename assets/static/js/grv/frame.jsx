@@ -33,42 +33,31 @@ var LeftNavBar = React.createClass({
         }
         return "";
     },
+    items: function() {
+        return grv.nav_sections.concat([
+            {icon: "fa fa-key", url: grv.path("keys"), title: "Keys", key: "keys"},
+            {icon: "fa fa-list", url: grv.path("events"), title: "Timeline", key: "events"},
+            {icon: "fa fa-arrows-h", url: grv.path("webtuns"), title: "Web Tunnels", key: "webtuns"},
+            {icon: "fa fa-hdd-o", url: grv.path("servers"), title: "Instances", key: "servers"},
+            {icon: "fa fa-wechat", url: grv.path("sessions"), title: "Sessions", key: "sessions"},
+        ]);
+    },
     render: function(){
+        var self = this;
+        var items = this.items().map(function(i, index){
+            return (<li className={self.className(i.key)}>
+                <a href={i.url}>
+                    <i className={i.icon}></i>
+                    <span className="nav-label">{i.title}</span>
+                </a>
+            </li>);
+        });
         return (
 <nav className="navbar-default navbar-static-side" role="navigation">
     <div className="sidebar-collapse">
         <ul className="nav" id="side-menu">
             <UserBarItem/>
-            <li className={this.className("keys")}>
-                <a href={grv.path("keys")}>
-                    <i className="fa fa-key"></i>
-                    <span className="nav-label">Keys</span>
-                </a>
-            </li>
-            <li className={this.className("events")}>
-                <a href={grv.path("events")}>
-                    <i className="fa fa-list"></i>
-                    <span className="nav-label">Timeline</span>
-                </a>
-            </li>
-            <li className={this.className("webtuns")}>
-                <a href={grv.path("webtuns")}>
-                    <i className="fa fa-arrows-h"></i>
-                    <span className="nav-label">Web Tunnels</span>
-                </a>
-            </li>
-            <li className={this.className("servers")}>
-                <a href={grv.path("servers")}>
-                    <i className="fa fa-hdd-o"></i>
-                    <span className="nav-label">Servers</span>
-                </a>
-            </li>
-            <li className={this.className("sessions")}>
-                <a href={grv.path("sessions")}>
-                    <i className="fa fa-wechat"></i>
-                    <span className="nav-label">Sessions</span>
-                </a>
-            </li>
+            {items}
         </ul>
     </div>
 </nav>

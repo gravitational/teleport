@@ -52,7 +52,7 @@ var SessionPage = React.createClass({
               <LeftNavBar current="sessions"/>
               <div id="page-wrapper" className="gray-bg">
                 <TopNavBar/>
-                <div className="wrapper wrapper-content animated fadeInRight">
+                <div className="wrapper wrapper-content">
                   <div className="row">
                     <div className="col-lg-9" style={{width: '920px'}}>
                       <ConsoleBox session={this.state.session}
