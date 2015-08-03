@@ -13,8 +13,8 @@ import (
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/ttlmap"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
-	"github.com/mailgun/ttlmap"
 )
 
 type Cookie struct {

@@ -6,6 +6,11 @@
 	],
 	"Deps": [
 		{
+			"ImportPath": "code.google.com/p/go-uuid/uuid",
+			"Comment": "null-15",
+			"Rev": "35bc42037350f0078e3c974c6ea690f1926603ab"
+		},
+		{
 			"ImportPath": "code.google.com/p/go.crypto/nacl/secretbox",
 			"Comment": "null-236",
 			"Rev": "69e2a90ed92d03812364aeb947b7068dc42e561e"
@@ -42,10 +47,6 @@
 			"ImportPath": "github.com/coreos/go-etcd/etcd",
 			"Comment": "v0.4.6-6-g4734e7a",
 			"Rev": "4734e7aca379f0d7fcdf04fbb2101696a4b45ce8"
-		},
-		{
-			"ImportPath": "github.com/elazarl/go-bindata-assetfs",
-			"Rev": "d44555cb0afb41633351d244ac5bd286c502f98f"
 		},
 		{
 			"ImportPath": "github.com/gravitational/form",
@@ -89,6 +90,10 @@
 			"Rev": "f8741d1789ec85faeede37702eadbf5acb945e85"
 		},
 		{
+			"ImportPath": "github.com/mailgun/minheap",
+			"Rev": "7c28d80e2ada649fc8ab1a37b86d30a2633bd47c"
+		},
+		{
 			"ImportPath": "github.com/mailgun/oxy/forward",
 			"Rev": "0c3e45a1f7b20e1f818612ad4f42abfc0923f3d5"
 		},
@@ -111,6 +116,10 @@
 		{
 			"ImportPath": "github.com/mailgun/timetools",
 			"Rev": "7e6055773c5137efbeb3bd2410d705fe10ab6bfd"
+		},
+		{
+			"ImportPath": "github.com/mailgun/ttlmap",
+			"Rev": "51994f8e1aad271eb214e725379dde8bd4c90acf"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/bcrypt",
@@ -139,6 +148,11 @@
 		{
 			"ImportPath": "gopkg.in/check.v1",
 			"Rev": "64131543e7896d5bcc6bd5a76287eb75ea96c673"
+		},
+		{
+			"ImportPath": "gopkg.in/mgo.v2/bson",
+			"Comment": "r2015.01.24",
+			"Rev": "c6a7dce14133ccac2dcac3793f1d6e2ef048503a"
 		}
 	]
 }

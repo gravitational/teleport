@@ -16,8 +16,8 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/oxy/forward"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
-	"github.com/mailgun/oxy/forward"
 )
 
 type RemoteSite interface {

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
-	. "gopkg.in/check.v1"
+	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func TestSCP(t *testing.T) { TestingT(t) }

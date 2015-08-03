@@ -12,8 +12,7 @@ import (
 	"strconv"
 	"time"
 
-	"code.google.com/p/go-uuid/uuid"
-
+	"github.com/gravitational/teleport/Godeps/_workspace/src/code.google.com/p/go-uuid/uuid"
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/events"
 	"github.com/gravitational/teleport/sshutils/scp"
