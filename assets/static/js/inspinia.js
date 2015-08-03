@@ -1,5 +1,18 @@
-// Custom scripts
+/*
+ *
+ *   INSPINIA - Responsive Admin Theme
+ *   version 2.2
+ *
+ */
+
 $(document).ready(function () {
+
+    // Add body-small class if window less than 768px
+    if ($(this).width() < 769) {
+        $('body').addClass('body-small')
+    } else {
+        $('body').removeClass('body-small')
+    }
 
     // MetsiMenu
     $('#side-menu').metisMenu();
@@ -24,6 +37,36 @@ $(document).ready(function () {
         content.remove();
     });
 
+    // Close menu in canvas mode
+    $('.close-canvas-menu').click( function() {
+        $("body").toggleClass("mini-navbar");
+        SmoothlyMenu();
+    });
+
+    // Open close right sidebar
+    $('.right-sidebar-toggle').click(function(){
+        $('#right-sidebar').toggleClass('sidebar-open');
+    });
+
+    // Initialize slimscroll for right sidebar
+    $('.sidebar-container').slimScroll({
+        height: '100%',
+        railOpacity: 0.4,
+        wheelStep: 10
+    });
+
+    // Open close small chat
+    $('.open-small-chat').click(function(){
+        $(this).children().toggleClass('fa-comments').toggleClass('fa-remove');
+        $('.small-chat-box').toggleClass('active');
+    });
+
+    // Initialize slimscroll for small chat
+    $('.small-chat-box .content').slimScroll({
+        height: '234px',
+        railOpacity: 0.4
+    });
+
     // Small todo handler
     $('.check-link').click( function(){
         var button = $(this).find('i');
@@ -33,52 +76,89 @@ $(document).ready(function () {
         return false;
     });
 
-    // minimalize menu
+    // Minimalize menu
     $('.navbar-minimalize').click(function () {
         $("body").toggleClass("mini-navbar");
         SmoothlyMenu();
-    })
 
-    // tooltips
+    });
+
+    // Tooltips demo
     $('.tooltip-demo').tooltip({
         selector: "[data-toggle=tooltip]",
         container: "body"
-    })
+    });
 
     // Move modal to body
     // Fix Bootstrap backdrop issu with animation.css
-    $('.modal').appendTo("body")
+    $('.modal').appendTo("body");
 
     // Full height of sidebar
     function fix_height() {
         var heightWithoutNavbar = $("body > #wrapper").height() - 61;
         $(".sidebard-panel").css("min-height", heightWithoutNavbar + "px");
-        var windowWidth = $( window ).height();
-        $("#page-wrapper").css("min-height", windowWidth + 'px');
+
+        var navbarHeigh = $('nav.navbar-default').height();
+        var wrapperHeigh = $('#page-wrapper').height();
+
+        if(navbarHeigh > wrapperHeigh){
+            $('#page-wrapper').css("min-height", navbarHeigh + "px");
+        }
+
+        if(navbarHeigh < wrapperHeigh){
+            $('#page-wrapper').css("min-height", $(window).height()  + "px");
+        }
+
+        if ($('body').hasClass('fixed-nav')) {
+            $('#page-wrapper').css("min-height", $(window).height() - 60 + "px");
+        }
+
     }
     fix_height();
 
     // Fixed Sidebar
-    // unComment this only whe you have a fixed-sidebar
-            //    $(window).bind("load", function() {
-            //        if($("body").hasClass('fixed-sidebar')) {
-            //            $('.sidebar-collapse').slimScroll({
-            //                height: 'auto',
-            //                railOpacity: 0.9,
-            //            });
-            //        }
-            //    })
-
-    $(window).bind("load resize click scroll", function() {
-        if(!$("body").hasClass('body-small')) {
-            fix_height();
+    $(window).bind("load", function () {
+        if ($("body").hasClass('fixed-sidebar')) {
+            $('.sidebar-collapse').slimScroll({
+                height: '100%',
+                railOpacity: 0.9
+            });
         }
     })
 
+    // Move right sidebar top after scroll
+    $(window).scroll(function(){
+        if ($(window).scrollTop() > 0 && !$('body').hasClass('fixed-nav') ) {
+            $('#right-sidebar').addClass('sidebar-top');
+        } else {
+            $('#right-sidebar').removeClass('sidebar-top');
+        }
+    });
+
+    $(window).bind("load resize scroll", function() {
+        if(!$("body").hasClass('body-small')) {
+            fix_height();
+        }
+    });
+
     $("[data-toggle=popover]")
         .popover();
+
+    // Add slimscroll to element
+    $('.full-height-scroll').slimscroll({
+        height: '100%'
+    })
 });
 
+
+// Minimalize menu when screen is less than 768px
+$(window).bind("resize", function () {
+    if ($(this).width() < 769) {
+        $('body').addClass('body-small')
+    } else {
+        $('body').removeClass('body-small')
+    }
+});
 
 // For demo purpose - animation css script
 function animationHover(element, animation){
@@ -95,17 +175,6 @@ function animationHover(element, animation){
         });
 }
 
-// Minimalize menu when screen is less than 768px
-$(function() {
-    $(window).bind("load resize", function() {
-        if ($(this).width() < 769) {
-            $('body').addClass('body-small')
-        } else {
-            $('body').removeClass('body-small')
-        }
-    })
-})
-
 function SmoothlyMenu() {
     if (!$('body').hasClass('mini-navbar') || $('body').hasClass('body-small')) {
         // Hide menu in order to smoothly turn on when maximize menu
@@ -115,7 +184,7 @@ function SmoothlyMenu() {
             function () {
                 $('#side-menu').fadeIn(500);
             }, 100);
-    } else if ($('body').hasClass('fixed-sidebar')){
+    } else if ($('body').hasClass('fixed-sidebar')) {
         $('#side-menu').hide();
         setTimeout(
             function () {
@@ -126,21 +195,4 @@ function SmoothlyMenu() {
         $('#side-menu').removeAttr('style');
     }
 }
-
-// Dragable panels
-function WinMove() {
-    var element = "[class*=col]";
-    var handle = ".ibox-title";
-    var connect = "[class*=col]";
-    $(element).sortable(
-        {
-            handle: handle,
-            connectWith: connect,
-            tolerance: 'pointer',
-            forcePlaceholderSize: true,
-            opacity: 0.8,
-        })
-        .disableSelection();
-};
-
 

@@ -183,7 +183,9 @@ type PasswordFunc func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions
 
 // KeysEqual is constant time compare of the keys to avoid timing attacks
 func KeysEqual(ak, bk ssh.PublicKey) bool {
-	a := ak.Marshal()
-	b := bk.Marshal()
+	fmt.Printf("AK: %v\n", string(ssh.MarshalAuthorizedKey(ak)))
+	fmt.Printf("BK: %v\n", string(ssh.MarshalAuthorizedKey(bk)))
+	a := ssh.Marshal(ak)
+	b := ssh.Marshal(bk)
 	return (len(a) == len(b) && subtle.ConstantTimeCompare(a, b) == 1)
 }

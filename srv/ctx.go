@@ -23,6 +23,9 @@ type closeMsg struct {
 // PTYs, and other resources. ctx can be used to attach resources
 // that should be closed once the session closes.
 type ctx struct {
+	// env is a list of environment variables passed to the session
+	env map[string]string
+
 	// srv is a pointer to the server holding the context
 	srv *Server
 
@@ -149,8 +152,19 @@ func (c *ctx) String() string {
 	return fmt.Sprintf("sess(%v->%v, user=%v, id=%v)", c.info.RemoteAddr(), c.info.LocalAddr(), c.info.User(), c.id)
 }
 
+func (c *ctx) setEnv(key, val string) {
+	log.Infof("%v setEnv(%v=%v)", c, key, val)
+	c.env[key] = val
+}
+
+func (c *ctx) getEnv(key string) (string, bool) {
+	val, ok := c.env[key]
+	return val, ok
+}
+
 func newCtx(srv *Server, info ssh.ConnMetadata) *ctx {
 	return &ctx{
+		env:    make(map[string]string),
 		eid:    lunk.NewRootEventID(),
 		info:   info,
 		id:     int(atomic.AddInt32(&ctxID, int32(1))),

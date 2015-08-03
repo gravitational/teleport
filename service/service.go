@@ -10,12 +10,16 @@ import (
 	"github.com/gravitational/teleport/backend/boltbk"
 	"github.com/gravitational/teleport/backend/etcdbk"
 	"github.com/gravitational/teleport/cp"
+	"github.com/gravitational/teleport/events"
+	"github.com/gravitational/teleport/events/boltlog"
+	"github.com/gravitational/teleport/recorder"
+	"github.com/gravitational/teleport/recorder/boltrec"
+	"github.com/gravitational/teleport/session"
 	"github.com/gravitational/teleport/srv"
 	"github.com/gravitational/teleport/tun"
 	"github.com/gravitational/teleport/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/memlog"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/oxy/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
@@ -78,6 +82,18 @@ func initAuth(t *TeleportService, cfg Config) error {
 		return err
 	}
 
+	elog, err := initEventBackend(
+		cfg.Auth.EventBackend, cfg.Auth.EventBackendConfig)
+	if err != nil {
+		return err
+	}
+
+	rec, err := initRecordBackend(
+		cfg.Auth.RecordBackend, cfg.Auth.RecordBackendConfig)
+	if err != nil {
+		return err
+	}
+
 	asrv, signer, err := auth.Init(
 		b, authority.New(), cfg.FQDN, cfg.Auth.Domain, cfg.DataDir)
 	if err != nil {
@@ -87,7 +103,7 @@ func initAuth(t *TeleportService, cfg Config) error {
 
 	// register HTTP API endpoint
 	t.RegisterFunc(func() error {
-		apisrv := auth.NewAPIServer(asrv, memlog.New())
+		apisrv := auth.NewAPIServer(asrv, elog, session.New(b), rec)
 		t, err := trace.New(apisrv, log.GetLogger().Writer(log.SeverityInfo))
 		if err != nil {
 			log.Fatalf("failed to start: %v", err)
@@ -124,8 +140,9 @@ func initCP(t *TeleportService, cfg Config) error {
 		return fmt.Errorf("cp hostname is required")
 	}
 	csrv, err := cp.NewServer(cp.Config{
-		AuthSrv: cfg.AuthServers,
-		Host:    cfg.CP.Domain,
+		AuthSrv:   cfg.AuthServers,
+		Host:      cfg.CP.Domain,
+		AssetsDir: cfg.CP.AssetsDir,
 	})
 	if err != nil {
 		log.Errorf("failed to start CP server: %v", err)
@@ -170,14 +187,16 @@ func initSSHEndpoint(t *TeleportService, cfg Config) error {
 	elog := &FanOutEventLogger{
 		Loggers: []lunk.EventLogger{
 			lunk.NewTextEventLogger(log.GetLogger().Writer(log.SeverityInfo)),
-			lunk.NewJSONEventLogger(client.GetLogWriter()),
+			client,
 		}}
 
 	s, err := srv.New(cfg.SSH.Addr,
 		[]ssh.Signer{signer},
 		client,
 		srv.SetShell(cfg.SSH.Shell),
-		srv.SetEventLogger(elog))
+		srv.SetEventLogger(elog),
+		srv.SetSessionServer(client),
+		srv.SetRecorder(client))
 	if err != nil {
 		return err
 	}
@@ -254,7 +273,7 @@ func initTunAgent(t *TeleportService, cfg Config) error {
 	elog := &FanOutEventLogger{
 		Loggers: []lunk.EventLogger{
 			lunk.NewTextEventLogger(log.GetLogger().Writer(log.SeverityInfo)),
-			lunk.NewJSONEventLogger(client.GetLogWriter()),
+			client,
 		}}
 
 	a, err := tun.NewAgent(
@@ -285,6 +304,22 @@ func initBackend(btype, bcfg string) (backend.Backend, error) {
 		return etcdbk.FromString(bcfg)
 	case "bolt":
 		return boltbk.FromString(bcfg)
+	}
+	return nil, fmt.Errorf("unsupported backend type: %v", btype)
+}
+
+func initEventBackend(btype, bcfg string) (events.Log, error) {
+	switch btype {
+	case "bolt":
+		return boltlog.FromString(bcfg)
+	}
+	return nil, fmt.Errorf("unsupported backend type: %v", btype)
+}
+
+func initRecordBackend(btype, bcfg string) (recorder.Recorder, error) {
+	switch btype {
+	case "bolt":
+		return boltrec.FromString(bcfg)
 	}
 	return nil, fmt.Errorf("unsupported backend type: %v", btype)
 }
@@ -335,12 +370,19 @@ type Config struct {
 }
 
 type AuthConfig struct {
-	Enabled       bool
-	HTTPAddr      utils.NetAddr
-	SSHAddr       utils.NetAddr
-	Domain        string
+	Enabled  bool
+	HTTPAddr utils.NetAddr
+	SSHAddr  utils.NetAddr
+	Domain   string
+
 	Backend       string
 	BackendConfig string
+
+	EventBackend       string
+	EventBackendConfig string
+
+	RecordBackend       string
+	RecordBackendConfig string
 }
 
 type SSHConfig struct {
@@ -351,9 +393,10 @@ type SSHConfig struct {
 }
 
 type CPConfig struct {
-	Enabled bool
-	Addr    utils.NetAddr
-	Domain  string
+	Enabled   bool
+	Addr      utils.NetAddr
+	Domain    string
+	AssetsDir string
 }
 
 type TunConfig struct {

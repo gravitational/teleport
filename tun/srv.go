@@ -9,9 +9,11 @@ import (
 
 	"github.com/gravitational/teleport/auth"
 	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/events"
 	"github.com/gravitational/teleport/sshutils"
 	"github.com/gravitational/teleport/utils"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
@@ -22,9 +24,8 @@ type RemoteSite interface {
 	ConnectToServer(addr, user string, auth []ssh.AuthMethod) (*ssh.Client, error)
 	GetLastConnected() time.Time
 	GetName() string
-	GetServers() ([]backend.Server, error)
 	GetStatus() string
-	GetEvents() ([]interface{}, error)
+	GetClient() *auth.Client
 }
 
 type Server interface {
@@ -172,8 +173,12 @@ type remoteSite struct {
 	clt        *auth.Client
 }
 
-func (s *remoteSite) GetEvents() ([]interface{}, error) {
-	return s.clt.GetEvents()
+func (s *remoteSite) GetClient() *auth.Client {
+	return s.clt
+}
+
+func (s *remoteSite) GetEvents(filter events.Filter) ([]lunk.Entry, error) {
+	return s.clt.GetEvents(filter)
 }
 
 func (s *remoteSite) String() string {

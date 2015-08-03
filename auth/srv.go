@@ -5,15 +5,20 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/events"
+	"github.com/gravitational/teleport/recorder"
+	"github.com/gravitational/teleport/session"
+
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/form"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/memlog"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
+	websession "github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/gravitational/teleport/backend"
 )
 
 type Config struct {
@@ -25,13 +30,17 @@ type Config struct {
 type APIServer struct {
 	httprouter.Router
 	s    *AuthServer
-	elog memlog.Logger
+	elog events.Log
+	se   session.SessionServer
+	rec  recorder.Recorder
 }
 
-func NewAPIServer(s *AuthServer, elog memlog.Logger) *APIServer {
+func NewAPIServer(s *AuthServer, elog events.Log, se session.SessionServer, rec recorder.Recorder) *APIServer {
 	srv := &APIServer{
 		s:    s,
 		elog: elog,
+		se:   se,
+		rec:  rec,
 	}
 	srv.Router = *httprouter.New()
 
@@ -78,7 +87,7 @@ func NewAPIServer(s *AuthServer, elog memlog.Logger) *APIServer {
 	srv.GET("/v1/tunnels/web/:prefix", srv.getWebTun)
 	srv.DELETE("/v1/tunnels/web/:prefix", srv.deleteWebTun)
 
-	// Servers and presense heartbeat
+	// Servers and presence heartbeat
 	srv.POST("/v1/servers", srv.upsertServer)
 	srv.GET("/v1/servers", srv.getServers)
 
@@ -88,6 +97,17 @@ func NewAPIServer(s *AuthServer, elog memlog.Logger) *APIServer {
 	// Events
 	srv.POST("/v1/events", srv.submitEvents)
 	srv.GET("/v1/events", srv.getEvents)
+
+	// Recorded sessions
+	srv.POST("/v1/records/:sid/chunks", srv.submitChunks)
+	srv.GET("/v1/records/:sid/chunks", srv.getChunks)
+
+	// Sesssions
+	srv.POST("/v1/sessions/:id/parties", srv.upsertSessionParty)
+	srv.POST("/v1/sessions", srv.upsertSession)
+	srv.GET("/v1/sessions", srv.getSessions)
+	srv.GET("/v1/sessions/:id", srv.getSession)
+	srv.DELETE("/v1/sessions/:id", srv.deleteSession)
 
 	return srv
 }
@@ -178,7 +198,7 @@ func (s *APIServer) getWebTuns(w http.ResponseWriter, r *http.Request, p httprou
 
 func (s *APIServer) deleteWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	user, sid := p[0].Value, p[1].Value
-	err := s.s.DeleteWebSession(user, session.SecureID(sid))
+	err := s.s.DeleteWebSession(user, websession.SecureID(sid))
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -188,12 +208,12 @@ func (s *APIServer) deleteWebSession(w http.ResponseWriter, r *http.Request, p h
 
 func (s *APIServer) getWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	user, sid := p[0].Value, p[1].Value
-	ws, err := s.s.GetWebSession(user, session.SecureID(sid))
+	ws, err := s.s.GetWebSession(user, websession.SecureID(sid))
 	if err != nil {
 		replyErr(w, err)
 		return
 	}
-	reply(w, http.StatusOK, &sessionResponse{SID: string(ws.SID)})
+	reply(w, http.StatusOK, &webSessionResponse{SID: string(ws.SID)})
 }
 
 func (s *APIServer) getWebSessions(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -203,7 +223,7 @@ func (s *APIServer) getWebSessions(w http.ResponseWriter, r *http.Request, p htt
 		replyErr(w, err)
 		return
 	}
-	reply(w, http.StatusOK, &sessionsResponse{Keys: keys})
+	reply(w, http.StatusOK, &webSessionsResponse{Keys: keys})
 }
 
 func (s *APIServer) signIn(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -221,7 +241,7 @@ func (s *APIServer) signIn(w http.ResponseWriter, r *http.Request, p httprouter.
 		replyErr(w, err)
 		return
 	}
-	reply(w, http.StatusOK, &sessionResponse{SID: string(ws.SID)})
+	reply(w, http.StatusOK, &webSessionResponse{SID: string(ws.SID)})
 }
 
 func (s *APIServer) upsertPassword(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -478,7 +498,14 @@ func (s *APIServer) submitEvents(w http.ResponseWriter, r *http.Request, _ httpr
 			reply(w, http.StatusBadRequest, fmt.Errorf("failed to read event"))
 			return
 		}
-		if _, err := s.elog.Write(data); err != nil {
+		var e *lunk.Entry
+		if err := json.Unmarshal(data, &e); err != nil {
+			log.Errorf("failed to read event: %v", err)
+			reply(w, http.StatusBadRequest, fmt.Errorf("failed to read event"))
+			return
+		}
+
+		if err := s.elog.LogEntry(*e); err != nil {
 			log.Errorf("failed to write event: %v", err)
 			reply(w, http.StatusInternalServerError,
 				fmt.Errorf("failed to write event"))
@@ -490,8 +517,122 @@ func (s *APIServer) submitEvents(w http.ResponseWriter, r *http.Request, _ httpr
 }
 
 func (s *APIServer) getEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	roundtrip.ReplyJSON(
-		w, http.StatusOK, &eventsResponse{Events: s.elog.LastEvents()})
+	f, err := events.FilterFromURL(r.URL.Query())
+	if err != nil {
+		log.Errorf("failed to parse filter: %v", err)
+		reply(w, http.StatusBadRequest, fmt.Errorf("failed to parse filter"))
+		return
+	}
+	es, err := s.elog.GetEvents(*f)
+	if err != nil {
+		log.Errorf("failed to get events: %v", err)
+		reply(w, http.StatusInternalServerError, fmt.Errorf("failed to get events"))
+		return
+	}
+	roundtrip.ReplyJSON(w, http.StatusOK, &eventsResponse{Events: es})
+}
+
+func (s *APIServer) submitChunks(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	sid := p[0].Value
+
+	wr, err := s.rec.GetChunkWriter(sid)
+	if err != nil {
+		log.Errorf("failed to get writer: %v", err)
+		reply(w, http.StatusInternalServerError,
+			fmt.Errorf("failed to write event"))
+		return
+	}
+	defer wr.Close()
+
+	var rawChunks form.Files
+	err = form.Parse(r, form.FileSlice("chunk", &rawChunks))
+	if err != nil {
+		reply(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if len(rawChunks) == 0 {
+		reply(w, http.StatusBadRequest,
+			fmt.Errorf("at least one chunk is required"))
+		return
+	}
+
+	defer func() {
+		// don't let get the error get lost
+		if err := rawChunks.Close(); err != nil {
+			log.Errorf("failed to close files: %v", err)
+			return
+		}
+	}()
+
+	// decode chunks
+	chunks := make([]recorder.Chunk, len(rawChunks))
+	for i, c := range rawChunks {
+		data, err := ioutil.ReadAll(c)
+		if err != nil {
+			log.Errorf("failed to read event: %v", err)
+			reply(w, http.StatusBadRequest, fmt.Errorf("failed to read event"))
+			return
+		}
+		var ch *recorder.Chunk
+		if err := json.Unmarshal(data, &ch); err != nil {
+			log.Errorf("failed to decode chunk: %v", err)
+			reply(w, http.StatusInternalServerError,
+				fmt.Errorf("failed to decode chunk"))
+			return
+		}
+		chunks[i] = *ch
+	}
+
+	if err := wr.WriteChunks(chunks); err != nil {
+		log.Errorf("failed to decode chunk: %v", err)
+		reply(w, http.StatusInternalServerError,
+			fmt.Errorf("failed to decode chunk"))
+		return
+	}
+
+	reply(w, http.StatusOK, message("chunks submitted"))
+}
+
+func (s *APIServer) getChunks(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	sid := p[0].Value
+
+	st, en := r.URL.Query().Get("start"), r.URL.Query().Get("end")
+	start, err := strconv.Atoi(st)
+	if err != nil {
+		log.Errorf("failed to convert: %v", err)
+		reply(w, http.StatusInternalServerError,
+			fmt.Errorf("failed to convert"))
+		return
+	}
+	end, err := strconv.Atoi(en)
+	if err != nil {
+
+		log.Errorf("failed to convert: %v", err)
+		reply(w, http.StatusInternalServerError,
+			fmt.Errorf("failed to convert"))
+		return
+	}
+
+	re, err := s.rec.GetChunkReader(sid)
+	if err != nil {
+
+		log.Errorf("failed to get reader: %v", err)
+		reply(w, http.StatusInternalServerError,
+			fmt.Errorf("failed to get reader"))
+		return
+	}
+	defer re.Close()
+
+	chunks, err := re.ReadChunks(start, end)
+	if err != nil {
+		panic(fmt.Sprintf("here: %v", err))
+		log.Errorf("failed to read chunks: %v", err)
+		reply(w, http.StatusInternalServerError,
+			fmt.Errorf("failed to read chunks"))
+		return
+	}
+	roundtrip.ReplyJSON(w, http.StatusOK, &chunksResponse{Chunks: chunks})
 }
 
 func replyErr(w http.ResponseWriter, e error) {
@@ -564,6 +705,77 @@ func (s *APIServer) deleteRemoteCert(w http.ResponseWriter, r *http.Request, p h
 	reply(w, http.StatusOK, message(fmt.Sprintf("cert '%v' deleted", id)))
 }
 
+func (s *APIServer) upsertSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	var sid string
+	var ttl time.Duration
+
+	err := form.Parse(r,
+		form.String("id", &sid, form.Required()),
+		form.Duration("ttl", &ttl))
+	if err != nil {
+		replyErr(w, err)
+		return
+	}
+	if err := s.se.UpsertSession(sid, ttl); err != nil {
+		replyErr(w, err)
+		return
+	}
+	reply(w, http.StatusOK, sessionResponse{Session: session.Session{ID: sid}})
+}
+
+func (s *APIServer) upsertSessionParty(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	var party session.Party
+
+	sid := p[0].Value
+	var ttl time.Duration
+
+	err := form.Parse(r,
+		form.String("id", &party.ID, form.Required()),
+		form.String("site", &party.Site, form.Required()),
+		form.String("user", &party.User, form.Required()),
+		form.String("server_addr", &party.ServerAddr, form.Required()),
+		form.Time("last_active", &party.LastActive),
+		form.Duration("ttl", &ttl),
+	)
+	if err != nil {
+		replyErr(w, err)
+		return
+	}
+	if err := s.se.UpsertParty(sid, party, ttl); err != nil {
+		replyErr(w, err)
+		return
+	}
+	reply(w, http.StatusOK, partyResponse{Party: party})
+}
+
+func (s *APIServer) getSessions(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	sessions, err := s.se.GetSessions()
+	if err != nil {
+		replyErr(w, err)
+		return
+	}
+	reply(w, http.StatusOK, &sessionsResponse{Sessions: sessions})
+}
+
+func (s *APIServer) getSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	sid := p[0].Value
+	se, err := s.se.GetSession(sid)
+	if err != nil {
+		replyErr(w, err)
+		return
+	}
+	reply(w, http.StatusOK, &sessionResponse{Session: *se})
+}
+
+func (s *APIServer) deleteSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	sid := p[0].Value
+	if err := s.se.DeleteSession(sid); err != nil {
+		replyErr(w, err)
+		return
+	}
+	reply(w, http.StatusOK, message(fmt.Sprintf("session %v was deleted", sid)))
+}
+
 type pubKeyResponse struct {
 	PubKey string `json:"pubkey"`
 }
@@ -593,11 +805,11 @@ type keyPairResponse struct {
 	PubKey  string `json:"pubkey"`
 }
 
-type sessionResponse struct {
+type webSessionResponse struct {
 	SID string `json:"sid"`
 }
 
-type sessionsResponse struct {
+type webSessionsResponse struct {
 	Keys []backend.AuthorizedKey `json:"keys"`
 }
 
@@ -618,7 +830,23 @@ type tokenResponse struct {
 }
 
 type eventsResponse struct {
-	Events []interface{} `json:"events"`
+	Events []lunk.Entry `json:"events"`
+}
+
+type chunksResponse struct {
+	Chunks []recorder.Chunk `json:"chunks"`
+}
+
+type partyResponse struct {
+	Party session.Party `json:"party"`
+}
+
+type sessionsResponse struct {
+	Sessions []session.Session `json:"sessions"`
+}
+
+type sessionResponse struct {
+	Session session.Session `json:"session"`
 }
 
 func message(msg string) map[string]interface{} {

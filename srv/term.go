@@ -6,6 +6,8 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/gravitational/teleport/sshutils"
+
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/kr/pty"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
@@ -20,25 +22,8 @@ type term struct {
 	done bool
 }
 
-type ptyReq struct {
-	Env   string
-	W     uint32
-	H     uint32
-	Wpx   uint32
-	Hpx   uint32
-	Modes string
-}
-
-type winChangeReq struct {
-	W     uint32
-	H     uint32
-	Wpx   uint32
-	Hpx   uint32
-	Modes string
-}
-
-func parsePTYReq(req *ssh.Request) (*ptyReq, error) {
-	var r ptyReq
+func parsePTYReq(req *ssh.Request) (*sshutils.PTYReqParams, error) {
+	var r sshutils.PTYReqParams
 	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
 		log.Infof("failed to parse PTY request: %v", err)
 		return nil, err
@@ -57,7 +42,7 @@ func newTerm() (*term, error) {
 }
 
 func reqPTY(req *ssh.Request) (*term, error) {
-	var r ptyReq
+	var r sshutils.PTYReqParams
 	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
 		log.Infof("failed to parse PTY request: %v", err)
 		return nil, err
@@ -73,7 +58,7 @@ func reqPTY(req *ssh.Request) (*term, error) {
 }
 
 func (t *term) reqWinChange(req *ssh.Request) error {
-	var r winChangeReq
+	var r sshutils.WinChangeReqParams
 	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
 		log.Infof("failed to parse window change request: %v", err)
 		return err

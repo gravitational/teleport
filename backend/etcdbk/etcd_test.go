@@ -121,3 +121,11 @@ func (s *EtcdSuite) TestToken(c *C) {
 func (s *EtcdSuite) TestRemoteCert(c *C) {
 	s.suite.RemoteCertCRUD(c)
 }
+
+func (s *EtcdSuite) TestBasicCRUD(c *C) {
+	s.suite.BasicCRUD(c)
+}
+
+func (s *EtcdSuite) TestExpiration(c *C) {
+	s.suite.Expiration(c)
+}

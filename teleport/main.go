@@ -54,11 +54,27 @@ func main() {
 
 	flag.StringVar(
 		&cfg.Auth.Backend, "authBackend", "etcd",
-		"auth backend type, currently only 'etcd'")
+		"auth backend type, 'etcd' or 'bolt'")
 
 	flag.StringVar(
 		&cfg.Auth.BackendConfig, "authBackendConfig", "",
 		"auth backend-specific configuration string")
+
+	flag.StringVar(
+		&cfg.Auth.EventBackend, "authEventBackend", "bolt",
+		"event backend type, currently only 'bolt'")
+
+	flag.StringVar(
+		&cfg.Auth.EventBackendConfig, "authEventBackendConfig", "",
+		"event backend-specific configuration string")
+
+	flag.StringVar(
+		&cfg.Auth.RecordBackend, "authRecordBackend", "bolt",
+		"event backend type, currently only 'bolt'")
+
+	flag.StringVar(
+		&cfg.Auth.RecordBackendConfig, "authRecordBackendConfig", "",
+		"event backend-specific configuration string")
 
 	flag.Var(
 		utils.NewNetAddrVal(
@@ -87,6 +103,10 @@ func main() {
 	// CP role options
 	flag.BoolVar(&cfg.CP.Enabled, "cp", false,
 		"enable Control Panel endpoint")
+
+	flag.StringVar(
+		&cfg.CP.AssetsDir, "cpAssetsDir", "",
+		"path to control panel assets")
 
 	flag.Var(
 		utils.NewNetAddrVal(

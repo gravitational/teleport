@@ -14,8 +14,9 @@ type CPServer struct {
 }
 
 type Config struct {
-	AuthSrv []utils.NetAddr
-	Host    string
+	AuthSrv   []utils.NetAddr
+	Host      string
+	AssetsDir string
 }
 
 func NewServer(cfg Config) (*CPServer, error) {
@@ -25,7 +26,11 @@ func NewServer(cfg Config) (*CPServer, error) {
 	if cfg.Host == "" {
 		return nil, fmt.Errorf("need an base host")
 	}
-	cp := newCPHandler(cfg.Host, cfg.AuthSrv)
+	auth, err := NewLocalAuth(cfg.Host, cfg.AuthSrv)
+	if err != nil {
+		return nil, err
+	}
+	cp := NewCPHandler(HandlerConfig{Auth: auth, AssetsDir: cfg.AssetsDir})
 	proxy := newProxyHandler(cp, cfg.AuthSrv, cfg.Host)
 	return &CPServer{
 		cfg: cfg,

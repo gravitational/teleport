@@ -9,5 +9,5 @@
 {{ end }}
 
 {{ define "script" }}    
-    <script type="text/jsx" src="/static/js/grv/webtuns.js"></script>
+    <script type="text/jsx" src="{{Path "/static/js/grv/webtuns.jsx"}}"></script>
 {{ end }}

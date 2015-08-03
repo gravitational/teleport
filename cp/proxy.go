@@ -137,7 +137,7 @@ func authClient(authSrv []utils.NetAddr, r *http.Request) (string, *auth.TunClie
 	if err != nil {
 		return "", nil, fmt.Errorf("no session cookie: %v", err)
 	}
-	d, err := decodeCookie(cookie.Value)
+	d, err := DecodeCookie(cookie.Value)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to decode session cookie: %v", err)
 	}

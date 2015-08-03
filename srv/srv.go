@@ -2,12 +2,9 @@
 package srv
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net"
-	"os"
-	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -15,9 +12,13 @@ import (
 	"github.com/gravitational/teleport/auth"
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/events"
+	"github.com/gravitational/teleport/recorder"
+	rsession "github.com/gravitational/teleport/session"
 	"github.com/gravitational/teleport/sshutils"
+	"github.com/gravitational/teleport/sshutils/scp"
 	"github.com/gravitational/teleport/utils"
 
+	"code.google.com/p/go-uuid/uuid"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
@@ -26,6 +27,7 @@ import (
 )
 
 type Server struct {
+	sync.Mutex
 	addr        utils.NetAddr
 	certChecker ssh.CertChecker
 	rr          resolver
@@ -34,6 +36,9 @@ type Server struct {
 	hostSigner  ssh.Signer
 	shell       string
 	ap          auth.AccessPoint
+	reg         *sessionRegistry
+	se          rsession.SessionServer
+	rec         recorder.Recorder
 }
 
 type ServerOption func(s *Server) error
@@ -52,6 +57,20 @@ func SetShell(shell string) ServerOption {
 	}
 }
 
+func SetSessionServer(srv rsession.SessionServer) ServerOption {
+	return func(s *Server) error {
+		s.se = srv
+		return nil
+	}
+}
+
+func SetRecorder(rec recorder.Recorder) ServerOption {
+	return func(s *Server) error {
+		s.rec = rec
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr, signers []ssh.Signer,
 	ap auth.AccessPoint, options ...ServerOption) (*Server, error) {
@@ -61,6 +80,7 @@ func New(addr utils.NetAddr, signers []ssh.Signer,
 		ap:   ap,
 		rr:   &backendResolver{ap: ap},
 	}
+	s.reg = newSessionRegistry(s)
 	s.certChecker = ssh.CertChecker{IsAuthority: s.isAuthority}
 
 	for _, o := range options {
@@ -72,7 +92,8 @@ func New(addr utils.NetAddr, signers []ssh.Signer,
 		s.elog = utils.NullEventLogger
 	}
 	srv, err := sshutils.NewServer(
-		addr, s, signers, sshutils.AuthMethods{PublicKey: s.keyAuth},
+		addr, s, signers,
+		sshutils.AuthMethods{PublicKey: s.keyAuth},
 		sshutils.SetRequestHandler(s))
 	if err != nil {
 		return nil, err
@@ -85,10 +106,14 @@ func (s *Server) Addr() string {
 	return s.srv.Addr()
 }
 
+func (s *Server) ID() string {
+	return strings.Replace(s.addr.Addr, ":", "_", -1)
+}
+
 func (s *Server) heartbeatPresence() {
 	for {
 		srv := backend.Server{
-			ID:   strings.Replace(s.addr.Addr, ":", "_", -1),
+			ID:   s.ID(),
 			Addr: s.addr.Addr,
 		}
 		if err := s.ap.UpsertServer(srv, 6*time.Second); err != nil {
@@ -303,8 +328,9 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 	for {
 		select {
 		case creq := <-ctx.close:
-			// this means that the session process stopped and desies to close the session and the channel
-			// e.g. shell has stopped and won't send any data back to client any more
+			// this means that the session process stopped and desires to close
+			// the session and the channel e.g. shell has stopped and won't send
+			// any data back to client any more
 			log.Infof("close session request: %v", creq.reason)
 			closeCh()
 			return
@@ -348,7 +374,7 @@ func (s *Server) dispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Reques
 	case "exec":
 		// exec is a remote execution of a program, does not use PTY
 		return s.handleExec(ch, req, ctx)
-	case "pty-req":
+	case sshutils.PTYReq:
 		// SSH client asked to allocate PTY
 		return s.handlePTYReq(ch, req, ctx)
 	case "shell":
@@ -361,7 +387,7 @@ func (s *Server) dispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Reques
 		// subsystems are SSH subsystems defined in http://tools.ietf.org/html/rfc4254 6.6
 		// they are in essence SSH session extensions, allowing to implement new SSH commands
 		return s.handleSubsystem(sconn, ch, req, ctx)
-	case "window-change":
+	case sshutils.WindowChangeReq:
 		return s.handleWinChange(ch, req, ctx)
 	case "auth-agent-req@openssh.com":
 		// This happens when SSH client has agent forwarding enabled, in this case
@@ -397,7 +423,7 @@ func (s *Server) handleWinChange(ch ssh.Channel, req *ssh.Request, ctx *ctx) err
 
 func (s *Server) handleSubsystem(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	log.Infof("%v handleSubsystem()", ctx)
-	sb, err := parseSubsystemRequest(req)
+	sb, err := parseSubsystemRequest(s, req)
 	if err != nil {
 		log.Infof("%v failed to parse subsystem request: %v", ctx, err)
 		return err
@@ -415,57 +441,26 @@ func (s *Server) handleSubsystem(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 
 func (s *Server) handleShell(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	log.Infof("%v handleShell()", ctx)
-	if ctx.getTerm() == nil {
-		t, err := newTerm()
-		if err != nil {
-			log.Infof("handleShell failed to create term: %v", err)
-			return err
-		}
-		ctx.setTerm(t)
+
+	sid, ok := ctx.getEnv(sshutils.SessionEnvVar)
+	if !ok {
+		sid = uuid.New()
 	}
-	t := ctx.getTerm()
-	cmd := exec.Command(s.shell)
-	// TODO(klizhentas) figure out linux user policy for launching shells, what user and environment
-	// should we use to execute the shell? the simplest answer is to use current user and env, however
-	// what if we are root?
-	cmd.Env = []string{"TERM=xterm", fmt.Sprintf("HOME=%v", os.Getenv("HOME"))}
-	if err := t.run(cmd); err != nil {
-		log.Infof("%v failed to start shell: %v", ctx, err)
-		return err
-	}
-	log.Infof("%v starting shell input/output streaming", ctx)
-	// Pipe session to shell and visa-versa capturing input and output
-	out := &bytes.Buffer{}
-	// TODO(klizhentas) implement capturing as a thread safe factored out feature
-	// what is important is that writes and reads to buffer should be protected
-	// out contains captured command output
-	go func() {
-		written, err := io.Copy(io.MultiWriter(ch, out), t.pty)
-		log.Infof("%v shell to channel copy closed, bytes written: %v, err: %v",
-			ctx, written, err)
-	}()
-	go func() {
-		written, err := io.Copy(t.pty, ch)
-		log.Infof("%v channel to shell copy closed, bytes written: %v, err: %v",
-			ctx, written, err)
-	}()
-	go func() {
-		result, err := collectStatus(cmd, cmd.Wait())
-		if err != nil {
-			log.Errorf("%v wait failed: %v", ctx, err)
-			ctx.emit(events.NewShell(sconn, s.shell, out, -1, err))
-		}
-		if result != nil {
-			log.Infof("%v result collected: %v", ctx, result)
-			ctx.emit(events.NewShell(sconn, s.shell, out, result.code, nil))
-			ctx.sendResult(*result)
-		}
-	}()
-	return nil
+	return s.reg.joinShell(sid, sconn, ch, req, ctx)
+}
+
+func (s *Server) emit(eid lunk.EventID, e lunk.Event) {
+	s.elog.Log(eid, e)
 }
 
 func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	log.Infof("%v handleEnv()", ctx)
+	var e sshutils.EnvReqParams
+	if err := ssh.Unmarshal(req.Payload, &e); err != nil {
+		log.Errorf("%v handleEnv(err=%v)", err)
+		return fmt.Errorf("failed to parse env request, error: %v", err)
+	}
+	log.Infof("%v handleEnv(%#v)", ctx, e)
+	ctx.setEnv(e.Name, e.Value)
 	return nil
 }
 
@@ -500,6 +495,16 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 		replyError(req, err)
 		return err
 	}
+
+	if scp.IsSCP(e.cmdName) {
+		log.Infof("%v detected SCP command: %v", ctx, e.cmdName)
+		if err := s.handleSCP(ch, req, ctx, e.cmdName); err != nil {
+			log.Errorf("%v handleSCP() err: %v", ctx, err)
+			return err
+		}
+		return ch.Close()
+	}
+
 	result, err := e.start(s.shell, ch)
 	if err != nil {
 		log.Infof("%v error starting command, %v", ctx, err)
@@ -525,6 +530,36 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	return nil
 }
 
+func (s *Server) handleSCP(ch ssh.Channel, req *ssh.Request, ctx *ctx, args string) error {
+	log.Infof("%v handleSCP(cmd=%v)", ctx, args)
+	cmd, err := scp.ParseCommand(args)
+	if err != nil {
+		log.Errorf("%v failed to parse command: %v", ctx, cmd)
+		return fmt.Errorf("failure: %v", err)
+	}
+	log.Infof("%v handleSCP(cmd=%#v)", ctx, cmd)
+	srv, err := scp.New(*cmd)
+	if err != nil {
+		log.Errorf("%v failed to create scp server: %v", ctx)
+		return err
+	}
+	// TODO(klizhentas) current version of handling exec is incorrect.
+	// req.Reply should be sent as long as command start is done,
+	// not at the end. This is my fix for SCP only:
+	req.Reply(true, nil)
+	if err := srv.Serve(ch); err != nil {
+		log.Errorf("%v error serving: %v", ctx, err)
+		return err
+	}
+	log.Infof("SCP serve finished", ctx)
+	_, err = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(0)}))
+	if err != nil {
+		log.Infof("%v failed to send scp exit status: %v", ctx, err)
+	}
+	log.Infof("SCP sent exit status", ctx)
+	return nil
+}
+
 func replyError(req *ssh.Request, err error) {
 	if req.WantReply {
 		req.Reply(false, []byte(err.Error()))
@@ -543,4 +578,10 @@ func closeAll(closers ...io.Closer) error {
 		}
 	}
 	return err
+}
+
+type closerFunc func() error
+
+func (f closerFunc) Close() error {
+	return f()
 }

@@ -7,11 +7,16 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/events"
+	"github.com/gravitational/teleport/recorder"
+	"github.com/gravitational/teleport/session"
 	"github.com/gravitational/teleport/utils"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
 )
 
@@ -85,6 +90,73 @@ func (c *Client) Delete(u string) (*roundtrip.Response, error) {
 	return c.convertResponse(c.Client.Delete(u))
 }
 
+func (c *Client) GetSessions() ([]session.Session, error) {
+	out, err := c.Get(c.Endpoint("sessions"), url.Values{})
+	if err != nil {
+		return nil, err
+	}
+	var re *sessionsResponse
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return nil, err
+	}
+	return re.Sessions, nil
+}
+
+func (c *Client) GetSession(id string) (*session.Session, error) {
+	out, err := c.Get(c.Endpoint("sessions", id), url.Values{})
+	if err != nil {
+		return nil, err
+	}
+	var re *sessionResponse
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return nil, err
+	}
+	return &re.Session, nil
+}
+
+func (c *Client) DeleteSession(id string) error {
+	_, err := c.Delete(c.Endpoint("sessions", id))
+	return err
+}
+
+func (c *Client) UpsertSession(id string, ttl time.Duration) error {
+	out, err := c.PostForm(c.Endpoint("sessions"), url.Values{
+		"id":  []string{id},
+		"ttl": []string{ttl.String()},
+	})
+	if err != nil {
+		return err
+	}
+	var re *sessionResponse
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) UpsertParty(id string, p session.Party, ttl time.Duration) error {
+	a, err := p.LastActive.MarshalText()
+	if err != nil {
+		return err
+	}
+	out, err := c.PostForm(c.Endpoint("sessions", id, "parties"), url.Values{
+		"id":          []string{p.ID},
+		"site":        []string{p.Site},
+		"user":        []string{p.User},
+		"server_addr": []string{p.ServerAddr},
+		"ttl":         []string{ttl.String()},
+		"last_active": []string{string(a)},
+	})
+	if err != nil {
+		return err
+	}
+	var re *partyResponse
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Client) UpsertRemoteCert(cert backend.RemoteCert, ttl time.Duration) error {
 	out, err := c.PostForm(c.Endpoint("ca", "remote", cert.Type, "hosts", cert.FQDN), url.Values{
 		"key": []string{string(cert.Value)},
@@ -143,24 +215,32 @@ func (c *Client) GenerateToken(fqdn string, ttl time.Duration) (string, error) {
 	return re.Token, nil
 }
 
-// Submit events submits structured audit events in JSON serialized
-// format to the auth server.
-func (c *Client) SubmitEvents(events [][]byte) error {
-	files := make([]roundtrip.File, len(events))
-	for i, e := range events {
-		files[i] = roundtrip.File{
-			Name:     "event",
-			Filename: "event.json",
-			Reader:   bytes.NewReader(e),
-		}
+func (c *Client) Log(id lunk.EventID, e lunk.Event) {
+	en := lunk.NewEntry(id, e)
+	en.Time = time.Now()
+	c.LogEntry(en)
+}
+
+func (c *Client) LogEntry(en lunk.Entry) error {
+	bt, err := json.Marshal(en)
+	if err != nil {
+		return err
 	}
-	_, err := c.PostForm(c.Endpoint("events"), url.Values{}, files...)
+	file := roundtrip.File{
+		Name:     "event",
+		Filename: "event.json",
+		Reader:   bytes.NewReader(bt),
+	}
+	_, err = c.PostForm(c.Endpoint("events"), url.Values{}, file)
 	return err
 }
 
-// GetEvents returns last 20 audit events recorded by the auth server
-func (c *Client) GetEvents() ([]interface{}, error) {
-	out, err := c.Get(c.Endpoint("events"), url.Values{})
+func (c *Client) GetEvents(filter events.Filter) ([]lunk.Entry, error) {
+	vals, err := events.FilterToURL(filter)
+	if err != nil {
+		return nil, err
+	}
+	out, err := c.Get(c.Endpoint("events"), vals)
 	if err != nil {
 		return nil, err
 	}
@@ -169,6 +249,14 @@ func (c *Client) GetEvents() ([]interface{}, error) {
 		return nil, err
 	}
 	return re.Events, nil
+}
+
+func (c *Client) GetChunkWriter(id string) (recorder.ChunkWriteCloser, error) {
+	return &chunkRW{c: c, id: id}, nil
+}
+
+func (c *Client) GetChunkReader(id string) (recorder.ChunkReadCloser, error) {
+	return &chunkRW{c: c, id: id}, nil
 }
 
 // UpsertServer is used by SSH servers to reprt their presense
@@ -267,7 +355,7 @@ func (c *Client) SignIn(user string, password []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var re *sessionResponse
+	var re *webSessionResponse
 	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
 		return "", err
 	}
@@ -282,7 +370,7 @@ func (c *Client) GetWebSession(user string, sid string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var re *sessionResponse
+	var re *webSessionResponse
 	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
 		return "", err
 	}
@@ -300,7 +388,7 @@ func (c *Client) GetWebSessionsKeys(
 	if err != nil {
 		return nil, err
 	}
-	var re *sessionsResponse
+	var re *webSessionsResponse
 	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
 		return nil, err
 	}
@@ -487,23 +575,87 @@ func (c *Client) ResetUserCA() error {
 	return err
 }
 
-// GetLogWriter returns a io.Writer - compatible object
-// that can be used by lunk.EventLogger to ship audit logs to the auth server
-func (c *Client) GetLogWriter() *LogWriter {
-	return &LogWriter{clt: c}
+type chunkRW struct {
+	c  *Client
+	id string
 }
 
-type LogWriter struct {
-	clt *Client
-}
-
-func (w *LogWriter) Write(data []byte) (int, error) {
-	if err := w.clt.SubmitEvents([][]byte{data}); err != nil {
-		return 0, err
+func (c *chunkRW) ReadChunks(start int, end int) ([]recorder.Chunk, error) {
+	out, err := c.c.Get(c.c.Endpoint("records", c.id, "chunks"), url.Values{
+		"start": []string{strconv.Itoa(start)},
+		"end":   []string{strconv.Itoa(end)},
+	})
+	if err != nil {
+		return nil, err
 	}
-	return len(data), nil
+	var re *chunksResponse
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return nil, err
+	}
+	return re.Chunks, nil
 }
 
-func (w *LogWriter) LastEvents() ([]interface{}, error) {
-	return w.clt.GetEvents()
+func (c *chunkRW) WriteChunks(chs []recorder.Chunk) error {
+	files := make([]roundtrip.File, len(chs))
+
+	for i, ch := range chs {
+		bt, err := json.Marshal(ch)
+		if err != nil {
+			return err
+		}
+		files[i] = roundtrip.File{
+			Name:     "chunk",
+			Filename: "chunk.json",
+			Reader:   bytes.NewReader(bt),
+		}
+	}
+	_, err := c.c.PostForm(
+		c.c.Endpoint("records", c.id, "chunks"), url.Values{}, files...)
+	return err
+}
+
+func (c *chunkRW) Close() error {
+	return nil
+}
+
+// TOODO(klizhentas) this should be just including appropriate backends
+type ClientI interface {
+	GetSessions() ([]session.Session, error)
+	GetSession(id string) (*session.Session, error)
+	DeleteSession(id string) error
+	UpsertSession(id string, ttl time.Duration) error
+	UpsertParty(id string, p session.Party, ttl time.Duration) error
+	UpsertRemoteCert(cert backend.RemoteCert, ttl time.Duration) error
+	GetRemoteCerts(ctype string, fqdn string) ([]backend.RemoteCert, error)
+	DeleteRemoteCert(ctype string, fqdn, id string) error
+	GenerateToken(fqdn string, ttl time.Duration) (string, error)
+	Log(id lunk.EventID, e lunk.Event)
+	LogEntry(en lunk.Entry) error
+	GetEvents(filter events.Filter) ([]lunk.Entry, error)
+	GetChunkWriter(id string) (recorder.ChunkWriteCloser, error)
+	GetChunkReader(id string) (recorder.ChunkReadCloser, error)
+	UpsertServer(s backend.Server, ttl time.Duration) error
+	GetServers() ([]backend.Server, error)
+	UpsertWebTun(wt backend.WebTun, ttl time.Duration) error
+	GetWebTuns() ([]backend.WebTun, error)
+	GetWebTun(prefix string) (*backend.WebTun, error)
+	DeleteWebTun(prefix string) error
+	UpsertPassword(user string, password []byte) error
+	CheckPassword(user string, password []byte) error
+	SignIn(user string, password []byte) (string, error)
+	GetWebSession(user string, sid string) (string, error)
+	GetWebSessionsKeys(user string) ([]backend.AuthorizedKey, error)
+	DeleteWebSession(user string, sid string) error
+	GetUsers() ([]string, error)
+	DeleteUser(user string) error
+	UpsertUserKey(username string, key backend.AuthorizedKey, ttl time.Duration) ([]byte, error)
+	GetUserKeys(user string) ([]backend.AuthorizedKey, error)
+	DeleteUserKey(username string, id string) error
+	GetHostCAPub() ([]byte, error)
+	GetUserCAPub() ([]byte, error)
+	GenerateKeyPair(pass string) ([]byte, []byte, error)
+	GenerateHostCert(key []byte, id, hostname string, ttl time.Duration) ([]byte, error)
+	GenerateUserCert(key []byte, id, user string, ttl time.Duration) ([]byte, error)
+	ResetHostCA() error
+	ResetUserCA() error
 }

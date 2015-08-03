@@ -27,25 +27,32 @@ func (s *FormSuite) TestFormOK(c *C) {
 	var str string
 	var i int
 	var d time.Duration
+	var t time.Time
 	srv := serveHandler(func(w http.ResponseWriter, r *http.Request) {
 		err = Parse(r,
 			String("svar", &str),
 			Int("ivar", &i),
 			Duration("dvar", &d),
+			Time("tvar", &t),
 		)
 	})
 	defer srv.Close()
 
+	dt := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
+	bytes, err := dt.MarshalText()
+	c.Assert(err, IsNil)
 	http.PostForm(srv.URL, url.Values{
 		"svar": []string{"hello"},
 		"ivar": []string{"77"},
 		"dvar": []string{"100s"},
+		"tvar": []string{string(bytes)},
 	})
 
 	c.Assert(err, IsNil)
 	c.Assert(str, Equals, "hello")
 	c.Assert(i, Equals, 77)
 	c.Assert(d, Equals, 100*time.Second)
+	c.Assert(t, Equals, dt)
 }
 
 func (s *FormSuite) TestStringRequiredMissing(c *C) {

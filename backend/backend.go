@@ -10,6 +10,12 @@ import (
 // TODO(klizhentas) this is bloated. Split it into little backend interfaces
 // Backend represents configuration backend implementation for Teleport
 type Backend interface {
+	GetKeys(path []string) ([]string, error)
+	UpsertVal(path []string, key string, val []byte, ttl time.Duration) error
+	GetVal(path []string, key string) ([]byte, error)
+	DeleteKey(path []string, key string) error
+	DeleteBucket(path []string, bkt string) error
+
 	// Grab a lock that will be released automatically in ttl time
 	AcquireLock(token string, ttl time.Duration) error
 
@@ -202,3 +208,8 @@ const (
 	HostCert = "host"
 	UserCert = "user"
 )
+
+func IsNotFound(e error) bool {
+	_, ok := e.(*NotFoundError)
+	return ok
+}
