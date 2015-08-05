@@ -437,7 +437,7 @@ var UploadForm = React.createClass({
         var files = this.files();
         upload.fileupload({
             autoUpload: false,
-            url: '/servers/'+self.props.getCurrentServer()+'/files',
+            url: grv.path('servers', self.props.getCurrentServer(), 'files'),
             add: function (e, data) {
                 self.items.push(data);
                 data.context = {};
@@ -543,9 +543,9 @@ var DownloadForm = React.createClass({
                 'data' : {
                     'url' : function (node) {
                         if(node.id === "#") {
-                            return '/servers/'+self.props.getCurrentServer()+'/ls?node=/';
+                            return grv.path('servers', self.props.getCurrentServer(), 'ls') + '?node=/';
                         }
-                        return '/servers/'+self.props.getCurrentServer()+'/ls?node='+node.id; 
+                        return grv.path('servers', self.props.getCurrentServer(), 'ls') +'?node='+node.id;
                     },
                     'data' : function (node) {
                         return { 'id' : node.id };
@@ -593,7 +593,7 @@ var DownloadForm = React.createClass({
         }
         tree.destroy();
         this.refs.modal.close();
-        $.fileDownload('/servers/'+this.props.getCurrentServer()+'/download?'+$.param(downloads), {
+        $.fileDownload(grv.path('servers', this.props.getCurrentServer(),'download') + "?"+$.param(downloads), {
             successCallback: function (url) {
                 toastr.success("files " + files.join() + "downloaded");
             },

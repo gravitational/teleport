@@ -80,10 +80,12 @@ func (a *Agent) handleDisconnect() {
 
 func (a *Agent) reconnect() error {
 	var err error
-	for i := 0; i < 10; i++ {
+	i := 0
+	for {
+		i += 1
 		if err = a.connect(); err != nil {
 			log.Infof("%v connect attempt %v: %v", a, i, err)
-			time.Sleep(time.Duration(i) * time.Second)
+			time.Sleep(time.Duration(min(i, 10)) * time.Second)
 			continue
 		}
 		return nil
@@ -320,3 +322,10 @@ const (
 	RemoteSiteStatusOffline = "offline"
 	RemoteSiteStatusOnline  = "online"
 )
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}

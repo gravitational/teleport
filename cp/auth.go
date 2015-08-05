@@ -149,7 +149,6 @@ func (s *LocalAuth) Auth(user, pass string) (string, error) {
 func (s *LocalAuth) ValidateSession(user, sid string) (Context, error) {
 	val, ok := s.sessions.Get(user + sid)
 	if ok {
-		log.Infof("retrieving session from cache")
 		return val.(Context), nil
 	}
 

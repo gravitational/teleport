@@ -539,7 +539,6 @@ func (s *CPHandler) getEvents(w http.ResponseWriter, r *http.Request, _ httprout
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
-	log.Infof("got events: %v", events)
 	roundtrip.ReplyJSON(w, http.StatusOK, events)
 }
 
