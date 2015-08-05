@@ -40,7 +40,7 @@ func main() {
 		utils.NewNetAddrVal(
 			utils.NetAddr{
 				Network: "tcp",
-				Addr:    "localhost:33001",
+				Addr:    "127.0.0.1:33001",
 			}, &cfg.SSH.Addr),
 		"sshAddr", "SSH endpoint listening address")
 
@@ -88,7 +88,7 @@ func main() {
 		utils.NewNetAddrVal(
 			utils.NetAddr{
 				Network: "tcp",
-				Addr:    "localhost:33000",
+				Addr:    "127.0.0.1:33000",
 			}, &cfg.Auth.SSHAddr),
 		"authSSHAddr", "Auth Server SSH tunnel API listening address")
 
@@ -112,7 +112,7 @@ func main() {
 		utils.NewNetAddrVal(
 			utils.NetAddr{
 				Network: "tcp",
-				Addr:    "localhost:33002",
+				Addr:    "127.0.0.1:33002",
 			}, &cfg.CP.Addr),
 		"cpAddr", "CP server web listening address")
 
@@ -127,7 +127,7 @@ func main() {
 		utils.NewNetAddrVal(
 			utils.NetAddr{
 				Network: "tcp",
-				Addr:    "localhost:33006",
+				Addr:    "127.0.0.1:33006",
 			}, &cfg.Tun.SrvAddr),
 		"tunSrvAddr", "tun agent dial address")
 
