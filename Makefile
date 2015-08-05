@@ -99,7 +99,7 @@ run-embedded: install
 	         -authRecordBackend=bolt\
              -authRecordBackendConfig='{"path": "/var/lib/teleport/records"}'\
              -log=console\
-             -logSeverity=INFO\
+             -logSeverity=WARN\
              -dataDir=/var/lib/teleport\
              -fqdn=auth.gravitational.io\
              -ssh\

@@ -53,6 +53,10 @@
 			"Rev": "ea8c8540621d9f858c3615d9e0d583f90e21fb6f"
 		},
 		{
+			"ImportPath": "github.com/gravitational/log",
+			"Rev": "98626d832dffff30597c32885f39d3fc7011e121"
+		},
+		{
 			"ImportPath": "github.com/gravitational/memlog",
 			"Rev": "c9e50a23077fb898ed083fd28ef479647f5c3b8c"
 		},
@@ -80,10 +84,6 @@
 		{
 			"ImportPath": "github.com/mailgun/lemma/secret",
 			"Rev": "6070cc657b5c35791ea56b0e47fb78644c7270f3"
-		},
-		{
-			"ImportPath": "github.com/mailgun/log",
-			"Rev": "dc4c847abf1dd6c0e5424c3204fdb74cc471a666"
 		},
 		{
 			"ImportPath": "github.com/mailgun/metrics",
@@ -148,11 +148,6 @@
 		{
 			"ImportPath": "gopkg.in/check.v1",
 			"Rev": "64131543e7896d5bcc6bd5a76287eb75ea96c673"
-		},
-		{
-			"ImportPath": "gopkg.in/mgo.v2/bson",
-			"Comment": "r2015.01.24",
-			"Rev": "c6a7dce14133ccac2dcac3793f1d6e2ef048503a"
 		}
 	]
 }

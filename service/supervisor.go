@@ -3,7 +3,7 @@ package service
 import (
 	"sync"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 )
 
 // Supervisor implements the simple service logic

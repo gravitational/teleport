@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 	"github.com/gravitational/teleport/utils"
 )
@@ -183,8 +183,6 @@ type PasswordFunc func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions
 
 // KeysEqual is constant time compare of the keys to avoid timing attacks
 func KeysEqual(ak, bk ssh.PublicKey) bool {
-	fmt.Printf("AK: %v\n", string(ssh.MarshalAuthorizedKey(ak)))
-	fmt.Printf("BK: %v\n", string(ssh.MarshalAuthorizedKey(bk)))
 	a := ssh.Marshal(ak)
 	b := ssh.Marshal(bk)
 	return (len(a) == len(b) && subtle.ConstantTimeCompare(a, b) == 1)

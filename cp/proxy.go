@@ -11,7 +11,7 @@ import (
 	"github.com/gravitational/teleport/auth"
 	"github.com/gravitational/teleport/utils"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/oxy/forward"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/route"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"

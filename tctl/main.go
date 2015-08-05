@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/tctl/command" // TODO(klizhentas) fix the interface for logging
 )
 
