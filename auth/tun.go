@@ -205,7 +205,6 @@ func (s *TunServer) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Chann
 	defer ch.Close()
 
 	log.Infof("handleDirectTCPIPRequest start to %v:%d", req.Host, req.Port)
-
 	log.Infof("opened direct-tcpip channel to server: %v", req)
 	log.Infof("connecting to %v", s.authAddr)
 
@@ -214,18 +213,22 @@ func (s *TunServer) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Chann
 		log.Infof("%v failed to connect to: %v, err: %v", s.authAddr.Addr, err)
 		return
 	}
+	defer conn.Close()
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		written, err := io.Copy(ch, conn)
 		log.Infof("conn to channel copy closed, bytes transferred: %v, err: %v", written, err)
+		ch.Close()
 	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		written, err := io.Copy(conn, ch)
 		log.Infof("channel to conn copy closed, bytes transferred: %v, err: %v", written, err)
+		conn.Close() //  it is important to close this connection, otherwise this goroutine will hang forever
+		// because the copoy from conn to ch can be never closed unless the connection is closed
 	}()
 	wg.Wait()
 	log.Infof("direct-tcp closed")
@@ -405,23 +408,26 @@ func NewHostAuth(key, cert []byte) ([]ssh.AuthMethod, error) {
 type TunClient struct {
 	Client
 	dialer *TunDialer
+	tr     *http.Transport
 }
 
 func NewTunClient(addr utils.NetAddr, user string, auth []ssh.AuthMethod) (*TunClient, error) {
 	tc := &TunClient{
 		dialer: &TunDialer{auth: auth, addr: addr, user: user},
 	}
+	tr := &http.Transport{
+		Dial: tc.dialer.Dial,
+	}
 	clt, err := NewClient(
 		"http://stub:0",
 		roundtrip.HTTPClient(&http.Client{
-			Transport: &http.Transport{
-				Dial: tc.dialer.Dial,
-			},
+			Transport: tr,
 		}))
 	if err != nil {
 		return nil, err
 	}
 	tc.Client = *clt
+	tc.tr = tr
 	return tc, nil
 }
 
@@ -430,6 +436,7 @@ func (c *TunClient) GetAgent() (agent.Agent, error) {
 }
 
 func (c *TunClient) Close() error {
+	c.tr.CloseIdleConnections()
 	return c.dialer.Close()
 }
 
