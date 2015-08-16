@@ -134,6 +134,7 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 }
 
 func (a *Agent) connect() error {
+	log.Infof("agent connect")
 	c, err := ssh.Dial(a.addr.Network, a.addr.Addr, &ssh.ClientConfig{
 		User:            a.fqdn,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(a.signers...)},

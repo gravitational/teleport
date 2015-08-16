@@ -113,7 +113,7 @@ type AuthHandler interface {
 }
 
 func NewLocalAuth(host string, servers []utils.NetAddr) (*LocalAuth, error) {
-	m, err := ttlmap.NewMap(1024)
+	m, err := ttlmap.NewMap(1024, ttlmap.CallOnExpire(CloseContext))
 	if err != nil {
 		return nil, err
 	}
@@ -132,6 +132,15 @@ type LocalAuth struct {
 
 func (s *LocalAuth) GetHost() string {
 	return s.host
+}
+
+func CloseContext(key string, val interface{}) {
+	log.Infof("closing context %v", key)
+	ctx := val.(Context)
+	err := ctx.Close()
+	if err != nil {
+		log.Errorf("failed closing context: %v", err)
+	}
 }
 
 func (s *LocalAuth) Auth(user, pass string) (string, error) {
