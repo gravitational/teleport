@@ -145,6 +145,7 @@ func (s *CPHandler) ls(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
+	defer up.Close()
 
 	session := up.GetSession()
 
@@ -230,7 +231,11 @@ func (s *CPHandler) downloadFiles(w http.ResponseWriter, r *http.Request, p http
 			replyErr(w, http.StatusInternalServerError, err)
 			return
 		}
-
+		defer func() {
+			if err := up.Close(); err != nil && err != io.EOF {
+				log.Errorf("file err: %v", err)
+			}
+		}()
 		rw, err := up.CommandRW(fmt.Sprintf("scp -v -f %v", p))
 		uploader, err := scp.New(scp.Command{Sink: true, Target: dir})
 		if err != nil {
@@ -240,11 +245,6 @@ func (s *CPHandler) downloadFiles(w http.ResponseWriter, r *http.Request, p http
 		}
 
 		if err := uploader.Serve(rw); err != nil {
-			log.Errorf("file err: %v", err)
-			replyErr(w, http.StatusInternalServerError, err)
-			return
-		}
-		if err := up.Close(); err != nil && err != io.EOF {
 			log.Errorf("file err: %v", err)
 			replyErr(w, http.StatusInternalServerError, err)
 			return
@@ -279,6 +279,7 @@ func (s *CPHandler) uploadFile(w http.ResponseWriter, r *http.Request, _ httprou
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
+	defer up.Close()
 
 	dir, err := ioutil.TempDir("", "test")
 	if err != nil {
@@ -294,12 +295,8 @@ func (s *CPHandler) uploadFile(w http.ResponseWriter, r *http.Request, _ httprou
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
+	defer f.Close()
 	if _, err := io.Copy(f, file); err != nil {
-		log.Errorf("file err: %v", err)
-		replyErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	if err := f.Close(); err != nil {
 		log.Errorf("file err: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
 		return
@@ -319,11 +316,6 @@ func (s *CPHandler) uploadFile(w http.ResponseWriter, r *http.Request, _ httprou
 	}
 
 	if err := uploader.Serve(rw); err != nil {
-		log.Errorf("file err: %v", err)
-		replyErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	if err := up.Close(); err != nil {
 		log.Errorf("file err: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
 		return

@@ -119,7 +119,7 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/ttlmap",
-			"Rev": "51994f8e1aad271eb214e725379dde8bd4c90acf"
+			"Rev": "16b258d86efc53ac5cf3e550604f566c32624fab"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/bcrypt",

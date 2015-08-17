@@ -2,16 +2,39 @@ package ttlmap
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/minheap"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/timetools"
-	"time"
 )
+
+type TtlMapOption func(m *TtlMap) error
+
+// Clock sets the time provider clock, handy for testing
+func Clock(c timetools.TimeProvider) TtlMapOption {
+	return func(m *TtlMap) error {
+		m.TimeProvider = c
+		return nil
+	}
+}
+
+type Callback func(key string, el interface{})
+
+// CallOnExpire will call this callback on expiration of elements
+func CallOnExpire(cb Callback) TtlMapOption {
+	return func(m *TtlMap) error {
+		m.onExpire = cb
+		return nil
+	}
+}
 
 type TtlMap struct {
 	capacity     int
 	elements     map[string]*mapElement
 	expiryTimes  *minheap.MinHeap
 	TimeProvider timetools.TimeProvider
+	// onExpire callback will be called when element is expired
+	onExpire Callback
 }
 
 type mapElement struct {
@@ -20,24 +43,35 @@ type mapElement struct {
 	heapEl *minheap.Element
 }
 
-func NewMap(capacity int) (*TtlMap, error) {
-	return NewMapWithProvider(capacity, &timetools.RealTime{})
-}
-
-func NewMapWithProvider(capacity int, timeProvider timetools.TimeProvider) (*TtlMap, error) {
+func NewMap(capacity int, opts ...TtlMapOption) (*TtlMap, error) {
 	if capacity <= 0 {
 		return nil, fmt.Errorf("Capacity should be > 0")
 	}
+
+	m := &TtlMap{
+		capacity:    capacity,
+		elements:    make(map[string]*mapElement),
+		expiryTimes: minheap.NewMinHeap(),
+	}
+
+	for _, o := range opts {
+		if err := o(m); err != nil {
+			return nil, err
+		}
+	}
+
+	if m.TimeProvider == nil {
+		m.TimeProvider = &timetools.RealTime{}
+	}
+
+	return m, nil
+}
+
+func NewMapWithProvider(capacity int, timeProvider timetools.TimeProvider) (*TtlMap, error) {
 	if timeProvider == nil {
 		return nil, fmt.Errorf("Please pass timeProvider")
 	}
-
-	return &TtlMap{
-		capacity:     capacity,
-		elements:     make(map[string]*mapElement),
-		expiryTimes:  minheap.NewMinHeap(),
-		TimeProvider: timeProvider,
-	}, nil
+	return NewMap(capacity, Clock(timeProvider))
 }
 
 func (m *TtlMap) Set(key string, value interface{}, ttlSeconds int) error {
@@ -134,6 +168,11 @@ func (m *TtlMap) expireElement(mapEl *mapElement) bool {
 	if mapEl.heapEl.Priority > now {
 		return false
 	}
+
+	if m.onExpire != nil {
+		m.onExpire(mapEl.key, mapEl.value)
+	}
+
 	delete(m.elements, mapEl.key)
 	m.expiryTimes.RemoveEl(mapEl.heapEl)
 	return true

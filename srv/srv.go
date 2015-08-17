@@ -291,6 +291,7 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel,
 		log.Infof("%v failed to connect to: %v, err: %v", ctx, addr, err)
 		return
 	}
+	defer conn.Close()
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
@@ -298,6 +299,7 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel,
 		written, err := io.Copy(ch, conn)
 		log.Infof("%v conn to channel copy closed, bytes transferred: %v, err: %v",
 			ctx, written, err)
+		ch.Close()
 	}()
 	wg.Add(1)
 	go func() {
@@ -305,6 +307,7 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel,
 		written, err := io.Copy(conn, ch)
 		log.Infof("%v channel to conn copy closed, bytes transferred: %v, err: %v",
 			ctx, written, err)
+		conn.Close()
 	}()
 	wg.Wait()
 	log.Infof("%v direct-tcp closed", ctx)

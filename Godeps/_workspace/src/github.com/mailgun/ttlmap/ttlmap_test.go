@@ -1,10 +1,11 @@
 package ttlmap
 
 import (
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/timetools"
-	. "launchpad.net/gocheck"
 	"testing"
 	"time"
+
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/timetools"
+	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -20,8 +21,9 @@ func (s *TestSuite) SetUpTest(c *C) {
 	s.timeProvider = &timetools.FreezedTime{CurrentTime: start}
 }
 
-func (s *TestSuite) newMap(capacity int) *TtlMap {
-	m, err := NewMapWithProvider(capacity, s.timeProvider)
+func (s *TestSuite) newMap(capacity int, opts ...TtlMapOption) *TtlMap {
+	opts = append(opts, Clock(s.timeProvider))
+	m, err := NewMap(capacity, opts...)
 	if err != nil {
 		panic(err)
 	}
@@ -287,6 +289,7 @@ func (s *TestSuite) TestIncrementRemovesLastUsed(c *C) {
 	val, exists, err = m.GetInt("b")
 	c.Assert(err, Equals, nil)
 	c.Assert(exists, Equals, true)
+
 	c.Assert(val, Equals, 2)
 
 	val, exists, err = m.GetInt("c")
@@ -307,4 +310,44 @@ func (s *TestSuite) TestIncrementUpdatesTtl(c *C) {
 	c.Assert(err, Equals, nil)
 	c.Assert(exists, Equals, true)
 	c.Assert(val, Equals, 2)
+}
+
+func (s *TestSuite) TestUpdate(c *C) {
+	m := s.newMap(1)
+
+	m.Increment("a", 1, 1)
+	m.Increment("a", 1, 10)
+
+	s.advanceSeconds(1)
+
+	val, exists, err := m.GetInt("a")
+	c.Assert(err, Equals, nil)
+	c.Assert(exists, Equals, true)
+	c.Assert(val, Equals, 2)
+}
+
+func (s *TestSuite) TestCallOnExpire(c *C) {
+	var called bool
+	var key string
+	var val interface{}
+	m := s.newMap(1, CallOnExpire(func(k string, el interface{}) {
+		called = true
+		key = k
+		val = el
+	}))
+
+	err := m.Set("a", 1, 1)
+	c.Assert(err, Equals, nil)
+
+	valI, exists := m.Get("a")
+	c.Assert(exists, Equals, true)
+	c.Assert(valI, Equals, 1)
+
+	s.advanceSeconds(1)
+
+	_, exists = m.Get("a")
+	c.Assert(exists, Equals, false)
+	c.Assert(called, Equals, true)
+	c.Assert(key, Equals, "a")
+	c.Assert(val, Equals, 1)
 }
