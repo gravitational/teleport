@@ -8,56 +8,6 @@ import (
 	"github.com/gravitational/teleport/backend"
 )
 
-/*func newUserCommand(c *Command) cli.Command {
-	return cli.Command{
-		Name:  "user",
-		Usage: "Operations with registered users",
-		Subcommands: []cli.Command{
-			{
-				Name:   "ls",
-				Usage:  "List users registered in teleport",
-				Action: c.getUsers,
-			},
-			{
-				Name:   "delete",
-				Usage:  "Delete user",
-				Action: c.deleteUser,
-				Flags: []cli.Flag{
-					cli.StringFlag{Name: "user", Usage: "User to delete"},
-				},
-			},
-			{
-				Name:  "upsert_key",
-				Usage: "Grant access to the user key, returns signed certificate",
-				Flags: []cli.Flag{
-					cli.StringFlag{Name: "user", Usage: "User holding the key"},
-					cli.StringFlag{Name: "keyid", Usage: "SSH key ID"},
-					cli.StringFlag{Name: "key", Usage: "Path to public key"},
-					cli.DurationFlag{Name: "ttl", Usage: "Access time to live, certificate and access entry will expire when set"},
-				},
-				Action: c.upsertKey,
-			},
-			{
-				Name:   "ls_keys",
-				Usage:  "List user's keys registered in teleport",
-				Action: c.getUserKeys,
-				Flags: []cli.Flag{
-					cli.StringFlag{Name: "user", Usage: "User to list keys form"},
-				},
-			},
-			{
-				Name:  "set_pass",
-				Usage: "Set user password",
-				Flags: []cli.Flag{
-					cli.StringFlag{Name: "user", Usage: "User name"},
-					cli.StringFlag{Name: "pass", Usage: "Password"},
-				},
-				Action: c.setPass,
-			},
-		},
-	}
-}*/
-
 func (cmd *Command) setPass(user, pass string) {
 	err := cmd.client.UpsertPassword(user, []byte(pass))
 	if err != nil {
