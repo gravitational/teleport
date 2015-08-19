@@ -3,11 +3,10 @@ package command
 import (
 	"fmt"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codegangsta/cli"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 )
 
-func newSecretCommand(c *Command) cli.Command {
+/*func newSecretCommand(c *Command) cli.Command {
 	return cli.Command{
 		Name:  "secret",
 		Usage: "Operations with secret tokens",
@@ -19,9 +18,9 @@ func newSecretCommand(c *Command) cli.Command {
 			},
 		},
 	}
-}
+}*/
 
-func (cmd *Command) newKey(c *cli.Context) {
+func (cmd *Command) newKey() {
 	key, err := secret.NewKey()
 	if err != nil {
 		cmd.printError(fmt.Errorf("failed to generate key: %v", err))

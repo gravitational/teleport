@@ -4,11 +4,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"time"
-
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codegangsta/cli"
 )
 
-func newTokenCommand(c *Command) cli.Command {
+/*func newTokenCommand(c *Command) cli.Command {
 	return cli.Command{
 		Name:  "token",
 		Usage: "Generates provisioning tokens",
@@ -25,19 +23,21 @@ func newTokenCommand(c *Command) cli.Command {
 			},
 		},
 	}
-}
+}*/
 
-func (cmd *Command) generateToken(c *cli.Context) {
-	token, err := cmd.client.GenerateToken(c.String("fqdn"), c.Duration("ttl"))
+func (cmd *Command) generateToken(fqdn string, ttl time.Duration,
+	output string) {
+
+	token, err := cmd.client.GenerateToken(fqdn, ttl)
 	if err != nil {
 		cmd.printError(err)
 		return
 	}
-	if c.String("output") == "" {
+	if output == "" {
 		fmt.Fprintf(cmd.out, token)
 		return
 	}
-	err = ioutil.WriteFile(c.String("output"), []byte(token), 0644)
+	err = ioutil.WriteFile(output, []byte(token), 0644)
 	if err != nil {
 		cmd.printError(err)
 	}
