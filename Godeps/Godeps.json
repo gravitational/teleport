@@ -69,6 +69,10 @@
 			"Rev": "dbae1e3eb55898f793640ff091929c6893fba69c"
 		},
 		{
+			"ImportPath": "github.com/gravitational/trace",
+			"Rev": "a2e1dddd4f3fa799922c2aa2ef65d783355839fc"
+		},
+		{
 			"ImportPath": "github.com/julienschmidt/httprouter",
 			"Rev": "b428fda53bb0a764fea9c76c9413512eda291dec"
 		},

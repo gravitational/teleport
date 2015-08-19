@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/backend"
-	"github.com/gravitational/trace"
 )
 
 // cfg represents JSON config for bolt backlend
