@@ -55,10 +55,10 @@ func (cmd *Command) Run(args []string) error {
 	remotecaUpsertFqdn := remotecaUpsert.Flag("fqdn", "FQDN of the remote party").Required().String()
 	remotecaUpsertType := remotecaUpsert.Flag("type", "Cert type (host or user)").Required().String()
 	remotecaUpsertPath := remotecaUpsert.Flag("path", "Cert path (reads from stdout if omitted)").Required().ExistingFile()
-	remotecaUpsertTtl := remotecaUpsert.Flag("ttl", "ttl for certificate to be trusted").Required().Duration()
+	remotecaUpsertTtl := remotecaUpsert.Flag("ttl", "ttl for certificate to be trusted").Duration()
 
 	remotecaLs := remoteca.Command("ls", "List trusted remote certificates")
-	remotecaLsFqdn := remotecaLs.Flag("fqdn", "FQDN of the remote party").Required().String()
+	remotecaLsFqdn := remotecaLs.Flag("fqdn", "FQDN of the remote party").String()
 	remotecaLsType := remotecaLs.Flag("type", "Cert type (host or user)").Required().String()
 
 	remotecaRm := remoteca.Command("rm", "Remote remote CA from list of trusted certs")
@@ -91,7 +91,7 @@ func (cmd *Command) Run(args []string) error {
 	userUpsertkeyUser := userUpsertkey.Flag("user", "User holding the key").Required().String()
 	userUpsertkeyKeyid := userUpsertkey.Flag("key-id", "SSH key ID").Required().String()
 	userUpsertkeyKey := userUpsertkey.Flag("key", "Path to public key").Required().ExistingFile()
-	userUpsertkeyTtl := userUpsertkey.Flag("ttl", "Access time to live, certificate and access entry will expire when set").Required().Duration()
+	userUpsertkeyTtl := userUpsertkey.Flag("ttl", "Access time to live, certificate and access entry will expire when set").Duration()
 
 	userLskeys := user.Command("ls-keys", "List user's keys registered in teleport")
 	userLskeysUser := userLskeys.Flag("user", "User to list keys form").Required().String()
