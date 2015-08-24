@@ -11,6 +11,10 @@ type PresenceService struct {
 	backend backend.Backend
 }
 
+func NewPresenceService(backend backend.Backend) *PresenceService {
+	return &PresenceService{backend}
+}
+
 // GetServers returns a list of registered servers
 func (s *PresenceService) GetServers() ([]Server, error) {
 	IDs, err := s.backend.GetKeys([]string{"servers"})

@@ -9,8 +9,17 @@ import (
 	"github.com/gravitational/teleport/backend"
 )
 
+const (
+	HostCert = "host"
+	UserCert = "user"
+)
+
 type CAService struct {
 	backend backend.Backend
+}
+
+func NewCAService(backend backend.Backend) *CAService {
+	return &CAService{backend}
 }
 
 // UpsertUserCA upserts the user certificate authority keys in OpenSSH authorized_keys format
@@ -20,7 +29,7 @@ func (s *CAService) UpsertUserCA(ca CA) error {
 		log.Errorf(err.Error())
 		return err
 	}
-	err = s.backend.UpsertVal([]string{}, "userca", out, 0)
+	err = s.backend.UpsertVal([]string{"ca"}, "userca", out, 0)
 	if err != nil {
 		log.Errorf(err.Error())
 	}
@@ -29,10 +38,10 @@ func (s *CAService) UpsertUserCA(ca CA) error {
 
 // GetCA returns private, public key and certificate for user CA
 func (s *CAService) GetUserCA() (*CA, error) {
-	val, err := s.backend.GetVal([]string{}, "userca")
+	val, err := s.backend.GetVal([]string{"ca"}, "userca")
 	if err != nil {
 		log.Errorf(err.Error())
-		return nil, err
+		return nil, convertErr(err)
 	}
 
 	var ca CA
@@ -47,10 +56,10 @@ func (s *CAService) GetUserCA() (*CA, error) {
 
 // GetUserCAPub returns the user certificate authority public key
 func (s *CAService) GetUserCAPub() ([]byte, error) {
-	val, err := s.backend.GetVal([]string{}, "userca")
+	val, err := s.backend.GetVal([]string{"ca"}, "userca")
 	if err != nil {
 		log.Errorf(err.Error())
-		return nil, err
+		return nil, convertErr(err)
 	}
 
 	var ca CA
@@ -65,7 +74,7 @@ func (s *CAService) GetUserCAPub() ([]byte, error) {
 
 func (s *CAService) UpsertRemoteCert(rc RemoteCert,
 	ttl time.Duration) error {
-	if rc.Type != "host" && rc.Type != "user" {
+	if rc.Type != HostCert && rc.Type != UserCert {
 		return fmt.Errorf("Unknown certificate type '", rc.Type, "'")
 	}
 
@@ -85,7 +94,7 @@ func (s *CAService) UpsertRemoteCert(rc RemoteCert,
 func (s *CAService) GetRemoteCerts(ctype string,
 	fqdn string) ([]RemoteCert, error) {
 
-	if ctype != "host" && ctype != "user" {
+	if ctype != HostCert && ctype != UserCert {
 		log.Errorf("Unknown certificate type '" + ctype + "'")
 		return nil, fmt.Errorf("Unknown certificate type '" + ctype + "'")
 	}
@@ -95,7 +104,7 @@ func (s *CAService) GetRemoteCerts(ctype string,
 			"hosts", fqdn})
 		if err != nil {
 			log.Errorf(err.Error())
-			return nil, err
+			return nil, convertErr(err)
 		}
 		certs := make([]RemoteCert, len(IDs))
 		for i, id := range IDs {
@@ -113,10 +122,10 @@ func (s *CAService) GetRemoteCerts(ctype string,
 		return certs, nil
 	} else {
 		FQDNs, err := s.backend.GetKeys([]string{"certs", ctype,
-			"hosts", fqdn})
+			"hosts"})
 		if err != nil {
 			log.Errorf(err.Error())
-			return nil, err
+			return nil, convertErr(err)
 		}
 		allCerts := make([]RemoteCert, 0)
 		for _, f := range FQDNs {
@@ -132,10 +141,15 @@ func (s *CAService) GetRemoteCerts(ctype string,
 }
 
 func (s *CAService) DeleteRemoteCert(ctype, fqdn, id string) error {
-	return s.backend.DeleteKey(
+	if ctype != HostCert && ctype != UserCert {
+		log.Errorf("Unknown certificate type '" + ctype + "'")
+		return fmt.Errorf("Unknown certificate type '" + ctype + "'")
+	}
+
+	return convertErr(s.backend.DeleteKey(
 		[]string{"certs", ctype, "hosts", fqdn},
 		id,
-	)
+	))
 }
 
 // UpsertHostCA upserts host certificate authority keys in OpenSSH authorized_keys format
@@ -145,7 +159,7 @@ func (s *CAService) UpsertHostCA(ca CA) error {
 		log.Errorf(err.Error())
 		return err
 	}
-	err = s.backend.UpsertVal([]string{}, "hostca", out, 0)
+	err = s.backend.UpsertVal([]string{"ca"}, "hostca", out, 0)
 	if err != nil {
 		log.Errorf(err.Error())
 	}
@@ -154,10 +168,10 @@ func (s *CAService) UpsertHostCA(ca CA) error {
 
 // GetHostCA returns private, public key and certificate for host CA
 func (s *CAService) GetHostCA() (*CA, error) {
-	val, err := s.backend.GetVal([]string{}, "hostca")
+	val, err := s.backend.GetVal([]string{"ca"}, "hostca")
 	if err != nil {
 		log.Errorf(err.Error())
-		return nil, err
+		return nil, convertErr(err)
 	}
 
 	var ca CA
@@ -172,10 +186,10 @@ func (s *CAService) GetHostCA() (*CA, error) {
 
 // GetHostCACert returns the host certificate authority certificate
 func (s *CAService) GetHostCAPub() ([]byte, error) {
-	val, err := s.backend.GetVal([]string{}, "hostca")
+	val, err := s.backend.GetVal([]string{"ca"}, "hostca")
 	if err != nil {
 		log.Errorf(err.Error())
-		return nil, err
+		return nil, convertErr(err)
 	}
 
 	var ca CA

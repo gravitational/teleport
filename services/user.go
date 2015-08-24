@@ -11,6 +11,10 @@ type UserService struct {
 	backend backend.Backend
 }
 
+func NewUserService(backend backend.Backend) *UserService {
+	return &UserService{backend}
+}
+
 // Upsert Public key in OpenSSH authorized Key format
 // user is a user name, keyID is a unique IDentifier for the key
 // in case if ttl is 0, the key will be upserted permanently, otherwise
@@ -19,6 +23,9 @@ func (s *UserService) UpsertUserKey(user string, key AuthorizedKey,
 	ttl time.Duration) error {
 	err := s.backend.UpsertVal([]string{"users", user, "keys"},
 		key.ID, key.Value, ttl)
+	if err != nil {
+		panic("21321")
+	}
 	return err
 }
 
@@ -28,7 +35,7 @@ func (s *UserService) GetUserKeys(user string) ([]AuthorizedKey, error) {
 	IDs, err := s.backend.GetKeys([]string{"users", user, "keys"})
 	if err != nil {
 		log.Errorf(err.Error())
-		return nil, err
+		return nil, convertErr(err)
 	}
 
 	keys := make([]AuthorizedKey, len(IDs))
@@ -61,7 +68,7 @@ func (s *UserService) DeleteUser(user string) error {
 	if err != nil {
 		log.Errorf(err.Error())
 	}
-	return err
+	return convertErr(err)
 }
 
 // DeleteUserKey deletes user key by given ID
@@ -70,7 +77,7 @@ func (s *UserService) DeleteUserKey(user, key string) error {
 	if err != nil {
 		log.Errorf(err.Error())
 	}
-	return err
+	return convertErr(err)
 }
 
 type AuthorizedKey struct {

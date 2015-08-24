@@ -11,6 +11,10 @@ type ProvisioningService struct {
 	backend backend.Backend
 }
 
+func NewProvisioningService(backend backend.Backend) *ProvisioningService {
+	return &ProvisioningService{backend}
+}
+
 // Tokens are provisioning tokens for the auth server
 func (s *ProvisioningService) UpsertToken(token, fqdn string, ttl time.Duration) error {
 	err := s.backend.UpsertVal([]string{"tokens"}, token, []byte(fqdn), ttl)
@@ -21,7 +25,7 @@ func (s *ProvisioningService) GetToken(token string) (string, error) {
 	fqdn, err := s.backend.GetVal([]string{"tokens"}, token)
 	if err != nil {
 		log.Errorf(err.Error())
-		return "", err
+		return "", convertErr(err)
 	}
 	return string(fqdn), nil
 }
@@ -30,5 +34,5 @@ func (s *ProvisioningService) DeleteToken(token string) error {
 	if err != nil {
 		log.Errorf(err.Error())
 	}
-	return err
+	return convertErr(err)
 }

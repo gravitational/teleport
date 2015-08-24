@@ -13,6 +13,10 @@ type WebService struct {
 	backend backend.Backend
 }
 
+func NewWebService(backend backend.Backend) *WebService {
+	return &WebService{backend}
+}
+
 // UpsertPasswordHash upserts user password hash
 func (s *WebService) UpsertPasswordHash(user string, hash []byte) error {
 	err := s.backend.UpsertVal([]string{"web", "users", user},
@@ -28,7 +32,7 @@ func (s *WebService) GetPasswordHash(user string) ([]byte, error) {
 	hash, err := s.backend.GetVal([]string{"web", "users", user}, "pwd")
 	if err != nil {
 		log.Errorf(err.Error())
-		return nil, err
+		return nil, convertErr(err)
 	}
 	return hash, err
 }
@@ -60,7 +64,7 @@ func (s *WebService) GetWebSession(user, sid string) (*WebSession, error) {
 	)
 	if err != nil {
 		log.Errorf(err.Error())
-		return nil, err
+		return nil, convertErr(err)
 	}
 
 	var session WebSession
@@ -78,7 +82,7 @@ func (s *WebService) GetWebSessionsKeys(user string) ([]AuthorizedKey, error) {
 	keys, err := s.backend.GetKeys([]string{"web", "users", user, "sessions"})
 	if err != nil {
 		log.Errorf(err.Error())
-		return nil, err
+		return nil, convertErr(err)
 	}
 
 	values := make([]AuthorizedKey, len(keys))
@@ -102,7 +106,7 @@ func (s *WebService) DeleteWebSession(user, sid string) error {
 	if err != nil {
 		log.Errorf(err.Error())
 	}
-	return err
+	return convertErr(err)
 }
 
 func (s *WebService) UpsertWebTun(tun WebTun, ttl time.Duration) error {
@@ -133,7 +137,7 @@ func (s *WebService) DeleteWebTun(prefix string) error {
 	if err != nil {
 		log.Errorf(err.Error())
 	}
-	return err
+	return convertErr(err)
 }
 func (s *WebService) GetWebTun(prefix string) (*WebTun, error) {
 	val, err := s.backend.GetVal(
@@ -142,7 +146,7 @@ func (s *WebService) GetWebTun(prefix string) (*WebTun, error) {
 	)
 	if err != nil {
 		log.Errorf(err.Error())
-		return nil, err
+		return nil, convertErr(err)
 	}
 
 	var tun WebTun
