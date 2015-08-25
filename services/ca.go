@@ -2,11 +2,11 @@ package services
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/gravitational/log"
 	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/trace"
 )
 
 const (
@@ -27,11 +27,12 @@ func (s *CAService) UpsertUserCA(ca CA) error {
 	out, err := json.Marshal(ca)
 	if err != nil {
 		log.Errorf(err.Error())
-		return err
+		return trace.Wrap(err)
 	}
 	err = s.backend.UpsertVal([]string{"ca"}, "userca", out, 0)
 	if err != nil {
 		log.Errorf(err.Error())
+		return trace.Wrap(err)
 	}
 	return err
 }
@@ -48,7 +49,7 @@ func (s *CAService) GetUserCA() (*CA, error) {
 	err = json.Unmarshal(val, &ca)
 	if err != nil {
 		log.Errorf(err.Error())
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	return &ca, nil
@@ -66,7 +67,7 @@ func (s *CAService) GetUserCAPub() ([]byte, error) {
 	err = json.Unmarshal(val, &ca)
 	if err != nil {
 		log.Errorf(err.Error())
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	return ca.Pub, nil
@@ -75,7 +76,7 @@ func (s *CAService) GetUserCAPub() ([]byte, error) {
 func (s *CAService) UpsertRemoteCert(rc RemoteCert,
 	ttl time.Duration) error {
 	if rc.Type != HostCert && rc.Type != UserCert {
-		return fmt.Errorf("Unknown certificate type '", rc.Type, "'")
+		return trace.Errorf("Unknown certificate type '", rc.Type, "'")
 	}
 
 	err := s.backend.UpsertVal(
@@ -85,6 +86,7 @@ func (s *CAService) UpsertRemoteCert(rc RemoteCert,
 
 	if err != nil {
 		log.Errorf(err.Error())
+		return trace.Wrap(err)
 	}
 	return err
 }
@@ -96,7 +98,7 @@ func (s *CAService) GetRemoteCerts(ctype string,
 
 	if ctype != HostCert && ctype != UserCert {
 		log.Errorf("Unknown certificate type '" + ctype + "'")
-		return nil, fmt.Errorf("Unknown certificate type '" + ctype + "'")
+		return nil, trace.Errorf("Unknown certificate type '" + ctype + "'")
 	}
 
 	if fqdn != "" {
@@ -115,7 +117,7 @@ func (s *CAService) GetRemoteCerts(ctype string,
 				[]string{"certs", ctype, "hosts", fqdn}, id)
 			if err != nil {
 				log.Errorf(err.Error())
-				return nil, err
+				return nil, trace.Wrap(err)
 			}
 			certs[i].Value = value
 		}
@@ -131,7 +133,7 @@ func (s *CAService) GetRemoteCerts(ctype string,
 		for _, f := range FQDNs {
 			certs, err := s.GetRemoteCerts(ctype, f)
 			if err != nil {
-				return nil, err
+				return nil, trace.Wrap(err)
 			}
 			allCerts = append(allCerts, certs...)
 		}
@@ -143,13 +145,19 @@ func (s *CAService) GetRemoteCerts(ctype string,
 func (s *CAService) DeleteRemoteCert(ctype, fqdn, id string) error {
 	if ctype != HostCert && ctype != UserCert {
 		log.Errorf("Unknown certificate type '" + ctype + "'")
-		return fmt.Errorf("Unknown certificate type '" + ctype + "'")
+		return trace.Errorf("Unknown certificate type '" + ctype + "'")
 	}
 
-	return convertErr(s.backend.DeleteKey(
+	err := convertErr(s.backend.DeleteKey(
 		[]string{"certs", ctype, "hosts", fqdn},
 		id,
 	))
+
+	if err != nil {
+		log.Errorf(err.Error())
+		return err
+	}
+	return nil
 }
 
 // UpsertHostCA upserts host certificate authority keys in OpenSSH authorized_keys format
@@ -157,11 +165,12 @@ func (s *CAService) UpsertHostCA(ca CA) error {
 	out, err := json.Marshal(ca)
 	if err != nil {
 		log.Errorf(err.Error())
-		return err
+		return trace.Wrap(err)
 	}
 	err = s.backend.UpsertVal([]string{"ca"}, "hostca", out, 0)
 	if err != nil {
 		log.Errorf(err.Error())
+		return trace.Wrap(err)
 	}
 	return err
 }
@@ -178,7 +187,7 @@ func (s *CAService) GetHostCA() (*CA, error) {
 	err = json.Unmarshal(val, &ca)
 	if err != nil {
 		log.Errorf(err.Error())
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	return &ca, nil
@@ -196,7 +205,7 @@ func (s *CAService) GetHostCAPub() ([]byte, error) {
 	err = json.Unmarshal(val, &ca)
 	if err != nil {
 		log.Errorf(err.Error())
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	return ca.Pub, nil

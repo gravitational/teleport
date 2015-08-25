@@ -5,6 +5,7 @@ import (
 
 	"github.com/gravitational/log"
 	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/trace"
 )
 
 type LockService struct {
@@ -32,11 +33,17 @@ func (s *LockService) AcquireLock(token string, ttl time.Duration) error {
 	err = s.backend.UpsertVal([]string{"locks"}, token, []byte("lock"), ttl)
 	if err != nil {
 		log.Errorf(err.Error())
+		return trace.Wrap(err)
 	}
 	return err
 
 }
 
 func (s *LockService) ReleaseLock(token string) error {
-	return convertErr(s.backend.DeleteKey([]string{"locks"}, token))
+	err := s.backend.DeleteKey([]string{"locks"}, token)
+	if err != nil {
+		log.Errorf(err.Error())
+		return convertErr(err)
+	}
+	return nil
 }

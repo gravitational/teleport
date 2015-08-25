@@ -5,6 +5,7 @@ import (
 
 	"github.com/gravitational/log"
 	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/trace"
 )
 
 type UserService struct {
@@ -23,9 +24,6 @@ func (s *UserService) UpsertUserKey(user string, key AuthorizedKey,
 	ttl time.Duration) error {
 	err := s.backend.UpsertVal([]string{"users", user, "keys"},
 		key.ID, key.Value, ttl)
-	if err != nil {
-		panic("21321")
-	}
 	return err
 }
 
@@ -44,7 +42,7 @@ func (s *UserService) GetUserKeys(user string) ([]AuthorizedKey, error) {
 			id)
 		if err != nil {
 			log.Errorf(err.Error())
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
 		keys[i].ID = id
 		keys[i].Value = value
@@ -57,7 +55,7 @@ func (s *UserService) GetUsers() ([]string, error) {
 	users, err := s.backend.GetKeys([]string{"users"})
 	if err != nil {
 		log.Errorf(err.Error())
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	return users, nil
 }

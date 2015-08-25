@@ -7,6 +7,7 @@ import (
 
 	"github.com/gravitational/log"
 	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/trace"
 )
 
 type WebService struct {
@@ -23,6 +24,7 @@ func (s *WebService) UpsertPasswordHash(user string, hash []byte) error {
 		"pwd", hash, 0)
 	if err != nil {
 		log.Errorf(err.Error())
+		return trace.Wrap(err)
 	}
 	return err
 }
@@ -44,13 +46,14 @@ func (s *WebService) UpsertWebSession(user, sid string,
 	bytes, err := json.Marshal(session)
 	if err != nil {
 		log.Errorf(err.Error())
-		return err
+		return trace.Wrap(err)
 	}
 
 	err = s.backend.UpsertVal([]string{"web", "users", user, "sessions"},
 		sid, bytes, ttl)
 	if err != nil {
 		log.Errorf(err.Error())
+		return trace.Wrap(err)
 	}
 	return err
 
@@ -71,7 +74,7 @@ func (s *WebService) GetWebSession(user, sid string) (*WebSession, error) {
 	err = json.Unmarshal(val, &session)
 	if err != nil {
 		log.Errorf(err.Error())
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	return &session, nil
@@ -90,7 +93,7 @@ func (s *WebService) GetWebSessionsKeys(user string) ([]AuthorizedKey, error) {
 		session, err := s.GetWebSession(user, key)
 		if err != nil {
 			log.Errorf(err.Error())
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
 		values[i].Value = session.Pub
 	}
@@ -118,15 +121,16 @@ func (s *WebService) UpsertWebTun(tun WebTun, ttl time.Duration) error {
 	bytes, err := json.Marshal(tun)
 	if err != nil {
 		log.Errorf(err.Error())
-		return err
+		return trace.Wrap(err)
 	}
 
 	err = s.backend.UpsertVal([]string{"web", "tunnels"},
 		tun.Prefix, bytes, ttl)
 	if err != nil {
 		log.Errorf(err.Error())
+		return trace.Wrap(err)
 	}
-	return err
+	return nil
 }
 
 func (s *WebService) DeleteWebTun(prefix string) error {
@@ -153,7 +157,7 @@ func (s *WebService) GetWebTun(prefix string) (*WebTun, error) {
 	err = json.Unmarshal(val, &tun)
 	if err != nil {
 		log.Errorf(err.Error())
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	return &tun, nil
@@ -170,7 +174,7 @@ func (s *WebService) GetWebTuns() ([]WebTun, error) {
 		tun, err := s.GetWebTun(key)
 		if err != nil {
 			log.Errorf(err.Error())
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
 		tuns[i] = *tun
 	}

@@ -5,6 +5,7 @@ import (
 
 	"github.com/gravitational/log"
 	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/trace"
 )
 
 type PresenceService struct {
@@ -20,14 +21,14 @@ func (s *PresenceService) GetServers() ([]Server, error) {
 	IDs, err := s.backend.GetKeys([]string{"servers"})
 	if err != nil {
 		log.Errorf(err.Error())
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	servers := make([]Server, len(IDs))
 	for i, id := range IDs {
 		addr, err := s.backend.GetVal([]string{"servers"}, id)
 		if err != nil {
 			log.Errorf(err.Error())
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
 		servers[i].ID = id
 		servers[i].Addr = string(addr)
@@ -42,6 +43,7 @@ func (s *PresenceService) UpsertServer(server Server, ttl time.Duration) error {
 		server.ID, []byte(server.Addr), ttl)
 	if err != nil {
 		log.Errorf(err.Error())
+		return trace.Wrap(err)
 	}
 	return err
 }

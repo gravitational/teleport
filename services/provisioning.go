@@ -5,6 +5,7 @@ import (
 
 	"github.com/gravitational/log"
 	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/trace"
 )
 
 type ProvisioningService struct {
@@ -18,7 +19,11 @@ func NewProvisioningService(backend backend.Backend) *ProvisioningService {
 // Tokens are provisioning tokens for the auth server
 func (s *ProvisioningService) UpsertToken(token, fqdn string, ttl time.Duration) error {
 	err := s.backend.UpsertVal([]string{"tokens"}, token, []byte(fqdn), ttl)
-	return err
+	if err != nil {
+		log.Errorf(err.Error())
+		return trace.Wrap(err)
+	}
+	return nil
 
 }
 func (s *ProvisioningService) GetToken(token string) (string, error) {
