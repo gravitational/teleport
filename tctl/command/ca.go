@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/buger/goterm"
-	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/services"
 )
 
 func (cmd *Command) resetHostCA(confirm bool) {
@@ -58,7 +58,7 @@ func (cmd *Command) upsertRemoteCert(id, fqdn, certType, path string, ttl time.D
 		cmd.printError(err)
 		return
 	}
-	cert := backend.RemoteCert{
+	cert := services.RemoteCert{
 		FQDN:  fqdn,
 		Type:  certType,
 		ID:    id,
@@ -89,7 +89,7 @@ func (cmd *Command) deleteRemoteCert(id, fqdn, certType string) {
 	cmd.printOK("certificate deleted")
 }
 
-func remoteCertsView(certs []backend.RemoteCert) string {
+func remoteCertsView(certs []services.RemoteCert) string {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
 	fmt.Fprint(t, "Type\tFQDN\tID\tValue\n")
 	if len(certs) == 0 {

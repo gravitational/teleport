@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/random"
 	"github.com/gravitational/teleport/backend"
 
@@ -90,7 +91,7 @@ func (s *ServicesTestSuite) UsersCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(toSet(u), DeepEquals, map[string]struct{}{"user2": struct{}{}})
 
-	c.Assert(s.UserS.DeleteUser("user1"), FitsTypeOf, &NotFoundError{})
+	c.Assert(s.UserS.DeleteUser("user1"), FitsTypeOf, &teleport.NotFoundError{})
 }
 
 func (s *ServicesTestSuite) UserCACRUD(c *C) {
@@ -140,7 +141,7 @@ func (s *ServicesTestSuite) ServerCRUD(c *C) {
 
 func (s *ServicesTestSuite) PasswordHashCRUD(c *C) {
 	_, err := s.WebS.GetPasswordHash("user1")
-	c.Assert(err, FitsTypeOf, &NotFoundError{})
+	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 
 	err = s.WebS.UpsertPasswordHash("user1", []byte("hello123"))
 	c.Assert(err, IsNil)
@@ -159,7 +160,7 @@ func (s *ServicesTestSuite) PasswordHashCRUD(c *C) {
 
 func (s *ServicesTestSuite) WebSessionCRUD(c *C) {
 	_, err := s.WebS.GetWebSession("user1", "sid1")
-	c.Assert(err, FitsTypeOf, &NotFoundError{})
+	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 
 	ws := WebSession{Pub: []byte("pub123"), Priv: []byte("priv123")}
 	err = s.WebS.UpsertWebSession("user1", "sid1", ws, 0)
@@ -184,12 +185,12 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *C) {
 	c.Assert(s.WebS.DeleteWebSession("user1", "sid1"), IsNil)
 
 	_, err = s.WebS.GetWebSession("user1", "sid1")
-	c.Assert(err, FitsTypeOf, &NotFoundError{})
+	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 }
 
 func (s *ServicesTestSuite) WebTunCRUD(c *C) {
 	_, err := s.WebS.GetWebTun("p1")
-	c.Assert(err, FitsTypeOf, &NotFoundError{})
+	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 
 	t := WebTun{
 		Prefix:     "p1",
@@ -218,7 +219,7 @@ func (s *ServicesTestSuite) WebTunCRUD(c *C) {
 	c.Assert(s.WebS.DeleteWebTun("p1"), IsNil)
 
 	_, err = s.WebS.GetWebTun("p1")
-	c.Assert(err, FitsTypeOf, &NotFoundError{})
+	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 }
 
 func (s *ServicesTestSuite) Locking(c *C) {
@@ -227,17 +228,17 @@ func (s *ServicesTestSuite) Locking(c *C) {
 
 	c.Assert(s.LockS.AcquireLock(tok, ttl), IsNil)
 	c.Assert(s.LockS.AcquireLock(tok, ttl),
-		FitsTypeOf, &AlreadyAcquiredError{})
+		FitsTypeOf, &teleport.AlreadyAcquiredError{})
 
 	c.Assert(s.LockS.ReleaseLock(tok), IsNil)
-	c.Assert(s.LockS.ReleaseLock(tok), FitsTypeOf, &NotFoundError{})
+	c.Assert(s.LockS.ReleaseLock(tok), FitsTypeOf, &teleport.NotFoundError{})
 
 	c.Assert(s.LockS.AcquireLock(tok, 30*time.Second), IsNil)
 }
 
 func (s *ServicesTestSuite) TokenCRUD(c *C) {
 	_, err := s.ProvisioningS.GetToken("token")
-	c.Assert(err, FitsTypeOf, &NotFoundError{})
+	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 
 	c.Assert(s.ProvisioningS.UpsertToken("token", "a.example.com", 0), IsNil)
 
@@ -248,7 +249,7 @@ func (s *ServicesTestSuite) TokenCRUD(c *C) {
 	c.Assert(s.ProvisioningS.DeleteToken("token"), IsNil)
 
 	_, err = s.ProvisioningS.GetToken("token")
-	c.Assert(err, FitsTypeOf, &NotFoundError{})
+	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 }
 
 func (s *ServicesTestSuite) RemoteCertCRUD(c *C) {
@@ -303,7 +304,7 @@ func (s *ServicesTestSuite) RemoteCertCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	err = s.CAS.DeleteRemoteCert(HostCert, ca.FQDN, ca.ID)
-	c.Assert(err, FitsTypeOf, &NotFoundError{})
+	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 }
 
 func toSet(vals []string) map[string]struct{} {

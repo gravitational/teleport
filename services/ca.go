@@ -41,8 +41,7 @@ func (s *CAService) UpsertUserCA(ca CA) error {
 func (s *CAService) GetUserCA() (*CA, error) {
 	val, err := s.backend.GetVal([]string{"ca"}, "userca")
 	if err != nil {
-		log.Errorf(err.Error())
-		return nil, convertErr(err)
+		return nil, err
 	}
 
 	var ca CA
@@ -59,8 +58,7 @@ func (s *CAService) GetUserCA() (*CA, error) {
 func (s *CAService) GetUserCAPub() ([]byte, error) {
 	val, err := s.backend.GetVal([]string{"ca"}, "userca")
 	if err != nil {
-		log.Errorf(err.Error())
-		return nil, convertErr(err)
+		return nil, err
 	}
 
 	var ca CA
@@ -106,7 +104,7 @@ func (s *CAService) GetRemoteCerts(ctype string,
 			"hosts", fqdn})
 		if err != nil {
 			log.Errorf(err.Error())
-			return nil, convertErr(err)
+			return nil, err
 		}
 		certs := make([]RemoteCert, len(IDs))
 		for i, id := range IDs {
@@ -127,7 +125,7 @@ func (s *CAService) GetRemoteCerts(ctype string,
 			"hosts"})
 		if err != nil {
 			log.Errorf(err.Error())
-			return nil, convertErr(err)
+			return nil, err
 		}
 		allCerts := make([]RemoteCert, 0)
 		for _, f := range FQDNs {
@@ -148,16 +146,12 @@ func (s *CAService) DeleteRemoteCert(ctype, fqdn, id string) error {
 		return trace.Errorf("Unknown certificate type '" + ctype + "'")
 	}
 
-	err := convertErr(s.backend.DeleteKey(
+	err := s.backend.DeleteKey(
 		[]string{"certs", ctype, "hosts", fqdn},
 		id,
-	))
+	)
 
-	if err != nil {
-		log.Errorf(err.Error())
-		return err
-	}
-	return nil
+	return err
 }
 
 // UpsertHostCA upserts host certificate authority keys in OpenSSH authorized_keys format
@@ -179,8 +173,7 @@ func (s *CAService) UpsertHostCA(ca CA) error {
 func (s *CAService) GetHostCA() (*CA, error) {
 	val, err := s.backend.GetVal([]string{"ca"}, "hostca")
 	if err != nil {
-		log.Errorf(err.Error())
-		return nil, convertErr(err)
+		return nil, err
 	}
 
 	var ca CA
@@ -197,8 +190,7 @@ func (s *CAService) GetHostCA() (*CA, error) {
 func (s *CAService) GetHostCAPub() ([]byte, error) {
 	val, err := s.backend.GetVal([]string{"ca"}, "hostca")
 	if err != nil {
-		log.Errorf(err.Error())
-		return nil, convertErr(err)
+		return nil, err
 	}
 
 	var ca CA

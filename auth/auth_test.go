@@ -1,18 +1,25 @@
 package auth
 
 import (
+	"path/filepath"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 	authority "github.com/gravitational/teleport/auth/native"
 	"github.com/gravitational/teleport/backend"
-	"github.com/gravitational/teleport/backend/membk"
+	"github.com/gravitational/teleport/backend/boltbk"
+
+	"github.com/gravitational/log"
 
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 type AuthSuite struct {
-	bk   *membk.MemBackend
+	bk   backend.Backend
 	scrt *secret.Service
 	a    *AuthServer
+
+	dir string
 }
 
 var _ = Suite(&AuthSuite{})
@@ -23,10 +30,16 @@ func (s *AuthSuite) SetUpSuite(c *C) {
 	srv, err := secret.New(&secret.Config{KeyBytes: key})
 	c.Assert(err, IsNil)
 	s.scrt = srv
+
+	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
 }
 
 func (s *AuthSuite) SetUpTest(c *C) {
-	s.bk = membk.New()
+	s.dir = c.MkDir()
+	var err error
+	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
+	c.Assert(err, IsNil)
+
 	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)
 }
 
@@ -34,11 +47,11 @@ func (s *AuthSuite) TestPasswordCRUD(c *C) {
 	pass := []byte("abc123")
 
 	err := s.a.CheckPassword("user1", pass)
-	c.Assert(err, FitsTypeOf, &backend.NotFoundError{})
+	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 
 	c.Assert(s.a.UpsertPassword("user1", pass), IsNil)
 	c.Assert(s.a.CheckPassword("user1", pass), IsNil)
-	c.Assert(s.a.CheckPassword("user1", []byte("abc123123")), FitsTypeOf, &BadParameterError{})
+	c.Assert(s.a.CheckPassword("user1", []byte("abc123123")), FitsTypeOf, &teleport.BadParameterError{})
 }
 
 func (s *AuthSuite) TestPasswordGarbage(c *C) {
@@ -49,7 +62,7 @@ func (s *AuthSuite) TestPasswordGarbage(c *C) {
 	}
 	for _, g := range garbage {
 		err := s.a.CheckPassword("user1", g)
-		c.Assert(err, FitsTypeOf, &BadParameterError{})
+		c.Assert(err, FitsTypeOf, &teleport.BadParameterError{})
 	}
 }
 
@@ -61,7 +74,7 @@ func (s *AuthSuite) TestSessions(c *C) {
 	pass := []byte("abc123")
 
 	ws, err := s.a.SignIn(user, pass)
-	c.Assert(err, FitsTypeOf, &backend.NotFoundError{})
+	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 	c.Assert(ws, IsNil)
 
 	c.Assert(s.a.UpsertPassword(user, pass), IsNil)
@@ -78,7 +91,7 @@ func (s *AuthSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = s.a.GetWebSession(user, ws.SID)
-	c.Assert(err, FitsTypeOf, &backend.NotFoundError{})
+	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 }
 
 func (s *AuthSuite) TestTokensCRUD(c *C) {
@@ -88,9 +101,9 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(s.a.ValidateToken(tok, "a.example.com"), IsNil)
 
 	c.Assert(s.a.DeleteToken(tok), IsNil)
-	c.Assert(s.a.DeleteToken(tok), FitsTypeOf, &backend.NotFoundError{})
+	c.Assert(s.a.DeleteToken(tok), FitsTypeOf, &teleport.NotFoundError{})
 	c.Assert(s.a.ValidateToken(tok, "a.example.com"),
-		FitsTypeOf, &backend.NotFoundError{})
+		FitsTypeOf, &teleport.NotFoundError{})
 }
 
 func (s *AuthSuite) TestBadTokens(c *C) {

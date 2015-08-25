@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/events/boltlog"
 	"github.com/gravitational/teleport/recorder"
 	"github.com/gravitational/teleport/recorder/boltrec"
+	"github.com/gravitational/teleport/services"
 	"github.com/gravitational/teleport/session"
 	"github.com/gravitational/teleport/utils"
 
@@ -36,12 +37,19 @@ type CmdSuite struct {
 	clt  *auth.Client
 	cmd  *Command
 	out  *bytes.Buffer
-	bk   *boltbk.BoltBackend
+	bk   backend.Backend
 	bl   *boltlog.BoltLog
 	scrt *secret.Service
 	rec  recorder.Recorder
 	addr utils.NetAddr
 	dir  string
+
+	CAS           *services.CAService
+	LockS         *services.LockService
+	PresenceS     *services.PresenceService
+	ProvisioningS *services.ProvisioningService
+	UserS         *services.UserService
+	WebS          *services.WebService
 }
 
 var _ = Suite(&CmdSuite{})
@@ -83,6 +91,13 @@ func (s *CmdSuite) SetUpTest(c *C) {
 
 	s.out = &bytes.Buffer{}
 	s.cmd = &Command{out: s.out}
+
+	s.CAS = services.NewCAService(s.bk)
+	s.LockS = services.NewLockService(s.bk)
+	s.PresenceS = services.NewPresenceService(s.bk)
+	s.ProvisioningS = services.NewProvisioningService(s.bk)
+	s.UserS = services.NewUserService(s.bk)
+	s.WebS = services.NewWebService(s.bk)
 }
 
 func (s *CmdSuite) TearDownTest(c *C) {
@@ -108,7 +123,7 @@ func (s *CmdSuite) TestHostCACRUD(c *C) {
 		s.run("host-ca", "reset", "--confirm"),
 		Matches, fmt.Sprintf(".*%v.*", "regenerated"))
 
-	hostCA, err := s.bk.GetHostCA()
+	hostCA, err := s.CAS.GetHostCA()
 	c.Assert(err, IsNil)
 	c.Assert(hostCA, NotNil)
 
@@ -122,7 +137,7 @@ func (s *CmdSuite) TestUserCACRUD(c *C) {
 		s.run("user-ca", "reset", "--confirm"),
 		Matches, fmt.Sprintf(".*%v.*", "regenerated"))
 
-	userCA, err := s.bk.GetUserCA()
+	userCA, err := s.CAS.GetUserCA()
 	c.Assert(err, IsNil)
 	c.Assert(userCA, NotNil)
 	c.Assert(userCA, NotNil)
@@ -146,8 +161,8 @@ func (s *CmdSuite) TestUserCRUD(c *C) {
 	out := s.run("user", "upsert-key", "--user", "alex", "--key-id", "key1", "--key", fkey.Name())
 	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", pub))
 
-	var keys []backend.AuthorizedKey
-	keys, err = s.bk.GetUserKeys("alex")
+	var keys []services.AuthorizedKey
+	keys, err = s.UserS.GetUserKeys("alex")
 	c.Assert(err, IsNil)
 	c.Assert(trim(keys[0].ID), Equals, "key1")
 	c.Assert(trim(string(keys[0].Value)), Equals, trim(out))
@@ -183,8 +198,8 @@ func (s *CmdSuite) TestRemoteCertCRUD(c *C) {
 	out := s.run("remote-ca", "upsert", "--id", "id1", "--type", "user", "--fqdn", "example.com", "--path", fkey.Name())
 	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "upserted"))
 
-	var remoteCerts []backend.RemoteCert
-	remoteCerts, err = s.bk.GetRemoteCerts("user", "example.com")
+	var remoteCerts []services.RemoteCert
+	remoteCerts, err = s.CAS.GetRemoteCerts("user", "example.com")
 	c.Assert(err, IsNil)
 	c.Assert(trim(string(remoteCerts[0].Value)), Equals, trim(string(pub)))
 
@@ -194,7 +209,7 @@ func (s *CmdSuite) TestRemoteCertCRUD(c *C) {
 	out = s.run("remote-ca", "rm", "--type", "user", "--fqdn", "example.com", "--id", "id1")
 	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "deleted"))
 
-	remoteCerts, err = s.bk.GetRemoteCerts("user", "")
+	remoteCerts, err = s.CAS.GetRemoteCerts("user", "")
 	c.Assert(len(remoteCerts), Equals, 0)
 }
 

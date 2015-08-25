@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/auth"
-	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/events"
+	"github.com/gravitational/teleport/services"
 	"github.com/gravitational/teleport/sshutils"
 	"github.com/gravitational/teleport/utils"
 
@@ -273,7 +273,7 @@ func (s *remoteSite) ConnectToServer(server, user string, auth []ssh.AuthMethod)
 	return ssh.NewClient(conn, chans, reqs), nil
 }
 
-func (s *remoteSite) GetServers() ([]backend.Server, error) {
+func (s *remoteSite) GetServers() ([]services.Server, error) {
 	return s.clt.GetServers()
 }
 

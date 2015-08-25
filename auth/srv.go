@@ -8,9 +8,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/events"
 	"github.com/gravitational/teleport/recorder"
+	"github.com/gravitational/teleport/services"
 	"github.com/gravitational/teleport/session"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
@@ -125,7 +127,7 @@ func (s *APIServer) upsertServer(w http.ResponseWriter, r *http.Request, p httpr
 		replyErr(w, err)
 		return
 	}
-	if err := s.s.UpsertServer(backend.Server{ID: id, Addr: addr}, ttl); err != nil {
+	if err := s.s.UpsertServer(services.Server{ID: id, Addr: addr}, ttl); err != nil {
 		replyErr(w, err)
 		return
 	}
@@ -155,7 +157,7 @@ func (s *APIServer) upsertWebTun(w http.ResponseWriter, r *http.Request, p httpr
 		replyErr(w, err)
 		return
 	}
-	t, err := backend.NewWebTun(prefix, proxyAddr, targetAddr)
+	t, err := services.NewWebTun(prefix, proxyAddr, targetAddr)
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -292,7 +294,7 @@ func (s *APIServer) upsertUserKey(w http.ResponseWriter, r *http.Request, p http
 		replyErr(w, err)
 		return
 	}
-	cert, err := s.s.UpsertUserKey(p[0].Value, backend.AuthorizedKey{ID: id, Value: []byte(key)}, ttl)
+	cert, err := s.s.UpsertUserKey(p[0].Value, services.AuthorizedKey{ID: id, Value: []byte(key)}, ttl)
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -637,10 +639,10 @@ func (s *APIServer) getChunks(w http.ResponseWriter, r *http.Request, p httprout
 
 func replyErr(w http.ResponseWriter, e error) {
 	switch err := e.(type) {
-	case *backend.NotFoundError:
+	case *teleport.NotFoundError:
 		reply(w, http.StatusNotFound, message(err.Error()))
 		return
-	case *backend.MissingParameterError, *BadParameterError, *form.MissingParameterError, *form.BadParameterError:
+	case *teleport.MissingParameterError, *teleport.BadParameterError, *form.MissingParameterError, *form.BadParameterError:
 		reply(w, http.StatusBadRequest, message(err.Error()))
 		return
 	}
@@ -674,7 +676,7 @@ func (s *APIServer) upsertRemoteCert(w http.ResponseWriter, r *http.Request, p h
 		replyErr(w, err)
 		return
 	}
-	cert := backend.RemoteCert{ID: id, Value: []byte(key), FQDN: fqdn, Type: ctype}
+	cert := services.RemoteCert{ID: id, Value: []byte(key), FQDN: fqdn, Type: ctype}
 	if err := s.s.UpsertRemoteCert(cert, ttl); err != nil {
 		replyErr(w, err)
 		return
@@ -781,7 +783,7 @@ type pubKeyResponse struct {
 }
 
 type pubKeysResponse struct {
-	PubKeys []backend.AuthorizedKey `json:"pubkeys"`
+	PubKeys []services.AuthorizedKey `json:"pubkeys"`
 }
 
 type certResponse struct {
@@ -789,11 +791,11 @@ type certResponse struct {
 }
 
 type remoteCertResponse struct {
-	RemoteCert backend.RemoteCert `hson:"remote_cert"`
+	RemoteCert services.RemoteCert `hson:"remote_cert"`
 }
 
 type remoteCertsResponse struct {
-	RemoteCerts []backend.RemoteCert `hson:"remote_certs"`
+	RemoteCerts []services.RemoteCert `hson:"remote_certs"`
 }
 
 type usersResponse struct {
@@ -810,19 +812,19 @@ type webSessionResponse struct {
 }
 
 type webSessionsResponse struct {
-	Keys []backend.AuthorizedKey `json:"keys"`
+	Keys []services.AuthorizedKey `json:"keys"`
 }
 
 type webTunResponse struct {
-	Tunnel backend.WebTun `json:"tunnel"`
+	Tunnel services.WebTun `json:"tunnel"`
 }
 
 type webTunsResponse struct {
-	Tunnels []backend.WebTun `json:"tunnels"`
+	Tunnels []services.WebTun `json:"tunnels"`
 }
 
 type serversResponse struct {
-	Servers []backend.Server `json:"servers"`
+	Servers []services.Server `json:"servers"`
 }
 
 type tokenResponse struct {

@@ -78,50 +78,6 @@ func (s *EtcdSuite) TestFromString(c *C) {
 	c.Assert(b, NotNil)
 }
 
-func (s *EtcdSuite) TestUserKeyCRUD(c *C) {
-	s.suite.UserKeyCRUD(c)
-}
-
-func (s *EtcdSuite) TestUserCACRUD(c *C) {
-	s.suite.UserCACRUD(c)
-}
-
-func (s *EtcdSuite) TestHostCACRUD(c *C) {
-	s.suite.HostCACRUD(c)
-}
-
-func (s *EtcdSuite) TestServerCRUD(c *C) {
-	s.suite.ServerCRUD(c)
-}
-
-func (s *EtcdSuite) TestUsersCRUD(c *C) {
-	s.suite.UsersCRUD(c)
-}
-
-func (s *EtcdSuite) TestPasswordHashCRUD(c *C) {
-	s.suite.PasswordHashCRUD(c)
-}
-
-func (s *EtcdSuite) TestWebSessionCRUD(c *C) {
-	s.suite.WebSessionCRUD(c)
-}
-
-func (s *EtcdSuite) TestWebTunCRUD(c *C) {
-	s.suite.WebTunCRUD(c)
-}
-
-func (s *EtcdSuite) TestLocking(c *C) {
-	s.suite.Locking(c)
-}
-
-func (s *EtcdSuite) TestToken(c *C) {
-	s.suite.TokenCRUD(c)
-}
-
-func (s *EtcdSuite) TestRemoteCert(c *C) {
-	s.suite.RemoteCertCRUD(c)
-}
-
 func (s *EtcdSuite) TestBasicCRUD(c *C) {
 	s.suite.BasicCRUD(c)
 }

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/gravitational/log"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/trace"
 )
@@ -20,10 +21,10 @@ func NewLockService(backend backend.Backend) *LockService {
 func (s *LockService) AcquireLock(token string, ttl time.Duration) error {
 	_, err := s.backend.GetVal([]string{"locks"}, token)
 	if err == nil {
-		return &AlreadyAcquiredError{""}
+		return &teleport.AlreadyAcquiredError{""}
 	} else {
 		switch err.(type) {
-		case *backend.NotFoundError:
+		case *teleport.NotFoundError:
 		default:
 			log.Errorf(err.Error())
 			return err
@@ -43,7 +44,7 @@ func (s *LockService) ReleaseLock(token string) error {
 	err := s.backend.DeleteKey([]string{"locks"}, token)
 	if err != nil {
 		log.Errorf(err.Error())
-		return convertErr(err)
+		return err
 	}
 	return nil
 }

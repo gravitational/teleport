@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/auth"
-	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/events"
 	"github.com/gravitational/teleport/recorder"
+	"github.com/gravitational/teleport/services"
 	rsession "github.com/gravitational/teleport/session"
 	"github.com/gravitational/teleport/sshutils"
 	"github.com/gravitational/teleport/sshutils/scp"
@@ -112,7 +112,7 @@ func (s *Server) ID() string {
 
 func (s *Server) heartbeatPresence() {
 	for {
-		srv := backend.Server{
+		srv := services.Server{
 			ID:   s.ID(),
 			Addr: s.addr.Addr,
 		}
@@ -132,7 +132,7 @@ func (s *Server) getTrustedCAKeys() ([]ssh.PublicKey, error) {
 	}
 	authKeys = append(authKeys, key)
 
-	certs, err := s.ap.GetRemoteCerts(backend.UserCert, "")
+	certs, err := s.ap.GetRemoteCerts(services.UserCert, "")
 	if err != nil {
 		return nil, err
 	}

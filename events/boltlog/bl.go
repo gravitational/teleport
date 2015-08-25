@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/backend/boltbk"
 	"github.com/gravitational/teleport/events"
 
@@ -88,7 +88,7 @@ func (b *BoltLog) GetEvents(f events.Filter) ([]lunk.Entry, error) {
 			bkt, err = boltbk.GetBucket(tx, []string{"events"})
 		}
 		if err != nil {
-			if backend.IsNotFound(err) {
+			if teleport.IsNotFound(err) {
 				return nil
 			}
 			return err

@@ -11,10 +11,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/bcrypt"
 	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/services"
 )
 
 // Authority implements minimal key-management facility for generating OpenSSH
@@ -34,31 +36,47 @@ type Authority interface {
 type Session struct {
 	SID session.SecureID
 	PID session.PlainID
-	WS  backend.WebSession
+	WS  services.WebSession
 }
 
-func NewAuthServer(b backend.Backend, a Authority, scrt *secret.Service) *AuthServer {
-	return &AuthServer{
-		b:    b,
-		a:    a,
-		scrt: scrt,
-	}
+func NewAuthServer(bk backend.Backend, a Authority, scrt *secret.Service) *AuthServer {
+	as := AuthServer{}
+
+	as.bk = bk
+	as.a = a
+	as.scrt = scrt
+
+	as.caS = services.NewCAService(as.bk)
+	as.lockS = services.NewLockService(as.bk)
+	as.presenceS = services.NewPresenceService(as.bk)
+	as.provisioningS = services.NewProvisioningService(as.bk)
+	as.userS = services.NewUserService(as.bk)
+	as.webS = services.NewWebService(as.bk)
+
+	return &as
 }
 
 // AuthServer implements key signing, generation and ACL functionality
 // used by teleport
 type AuthServer struct {
-	b    backend.Backend
+	bk   backend.Backend
 	a    Authority
 	scrt *secret.Service
+
+	caS           *services.CAService
+	lockS         *services.LockService
+	presenceS     *services.PresenceService
+	provisioningS *services.ProvisioningService
+	userS         *services.UserService
+	webS          *services.WebService
 }
 
-func (s *AuthServer) UpsertServer(srv backend.Server, ttl time.Duration) error {
-	return s.b.UpsertServer(srv, ttl)
+func (s *AuthServer) UpsertServer(srv services.Server, ttl time.Duration) error {
+	return s.presenceS.UpsertServer(srv, ttl)
 }
 
-func (s *AuthServer) GetServers() ([]backend.Server, error) {
-	return s.b.GetServers()
+func (s *AuthServer) GetServers() ([]services.Server, error) {
+	return s.presenceS.GetServers()
 }
 
 // UpsertUserKey takes user's public key, generates certificate for it
@@ -66,34 +84,34 @@ func (s *AuthServer) GetServers() ([]backend.Server, error) {
 // by user CA in case of success, error otherwise. The certificate will be
 // valid for the duration of the ttl passed in.
 func (s *AuthServer) UpsertUserKey(
-	user string, key backend.AuthorizedKey, ttl time.Duration) ([]byte, error) {
+	user string, key services.AuthorizedKey, ttl time.Duration) ([]byte, error) {
 
 	cert, err := s.GenerateUserCert(key.Value, key.ID, user, ttl)
 	if err != nil {
 		return nil, err
 	}
 	key.Value = cert
-	if err := s.b.UpsertUserKey(user, key, ttl); err != nil {
+	if err := s.userS.UpsertUserKey(user, key, ttl); err != nil {
 		return nil, err
 	}
 	return cert, nil
 }
 
 func (s *AuthServer) GetUsers() ([]string, error) {
-	return s.b.GetUsers()
+	return s.userS.GetUsers()
 }
 
 func (s *AuthServer) DeleteUser(user string) error {
-	return s.b.DeleteUser(user)
+	return s.userS.DeleteUser(user)
 }
 
-func (s *AuthServer) GetUserKeys(user string) ([]backend.AuthorizedKey, error) {
-	return s.b.GetUserKeys(user)
+func (s *AuthServer) GetUserKeys(user string) ([]services.AuthorizedKey, error) {
+	return s.userS.GetUserKeys(user)
 }
 
 // DeleteUserKey deletes user key by given ID
 func (s *AuthServer) DeleteUserKey(user, key string) error {
-	return s.b.DeleteUserKey(user, key)
+	return s.userS.DeleteUserKey(user, key)
 }
 
 // GenerateKeyPair generates private and public key pair of OpenSSH certs
@@ -101,16 +119,16 @@ func (s *AuthServer) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 	return s.a.GenerateKeyPair(pass)
 }
 
-func (s *AuthServer) UpsertRemoteCert(cert backend.RemoteCert, ttl time.Duration) error {
-	return s.b.UpsertRemoteCert(cert, ttl)
+func (s *AuthServer) UpsertRemoteCert(cert services.RemoteCert, ttl time.Duration) error {
+	return s.caS.UpsertRemoteCert(cert, ttl)
 }
 
-func (s *AuthServer) GetRemoteCerts(ctype string, fqdn string) ([]backend.RemoteCert, error) {
-	return s.b.GetRemoteCerts(ctype, fqdn)
+func (s *AuthServer) GetRemoteCerts(ctype string, fqdn string) ([]services.RemoteCert, error) {
+	return s.caS.GetRemoteCerts(ctype, fqdn)
 }
 
 func (s *AuthServer) DeleteRemoteCert(ctype string, fqdn, id string) error {
-	return s.b.DeleteRemoteCert(ctype, fqdn, id)
+	return s.caS.DeleteRemoteCert(ctype, fqdn, id)
 }
 
 // ResetHostCA generates host certificate authority and updates the backend
@@ -119,7 +137,7 @@ func (s *AuthServer) ResetHostCA(pass string) error {
 	if err != nil {
 		return err
 	}
-	return s.b.UpsertHostCA(backend.CA{Pub: pub, Priv: priv})
+	return s.caS.UpsertHostCA(services.CA{Pub: pub, Priv: priv})
 }
 
 // ResetHostCA generates user certificate authority and updates the backend
@@ -128,17 +146,17 @@ func (s *AuthServer) ResetUserCA(pass string) error {
 	if err != nil {
 		return err
 	}
-	return s.b.UpsertUserCA(backend.CA{Pub: pub, Priv: priv})
+	return s.caS.UpsertUserCA(services.CA{Pub: pub, Priv: priv})
 }
 
 // GetHostCAPub returns a public key for host key signing authority
 func (s *AuthServer) GetHostCAPub() ([]byte, error) {
-	return s.b.GetHostCAPub()
+	return s.caS.GetHostCAPub()
 }
 
 // GetHostCAPub returns a public key for user key signing authority
 func (s *AuthServer) GetUserCAPub() ([]byte, error) {
-	return s.b.GetUserCAPub()
+	return s.caS.GetUserCAPub()
 }
 
 // GenerateHostCert generates host certificate, it takes pkey as a signing
@@ -146,7 +164,7 @@ func (s *AuthServer) GetUserCAPub() ([]byte, error) {
 func (s *AuthServer) GenerateHostCert(
 	key []byte, id, hostname string, ttl time.Duration) ([]byte, error) {
 
-	hk, err := s.b.GetHostCA()
+	hk, err := s.caS.GetHostCA()
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +176,7 @@ func (s *AuthServer) GenerateHostCert(
 func (s *AuthServer) GenerateUserCert(
 	key []byte, id, username string, ttl time.Duration) ([]byte, error) {
 
-	hk, err := s.b.GetUserCA()
+	hk, err := s.caS.GetUserCA()
 	if err != nil {
 		return nil, err
 	}
@@ -173,19 +191,19 @@ func (s *AuthServer) UpsertPassword(user string, password []byte) error {
 	if err != nil {
 		return err
 	}
-	return s.b.UpsertPasswordHash(user, hash)
+	return s.webS.UpsertPasswordHash(user, hash)
 }
 
 func (s *AuthServer) CheckPassword(user string, password []byte) error {
 	if err := verifyPassword(password); err != nil {
 		return err
 	}
-	hash, err := s.b.GetPasswordHash(user)
+	hash, err := s.webS.GetPasswordHash(user)
 	if err != nil {
 		return err
 	}
 	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
-		return &BadParameterError{Msg: "passwords do not match"}
+		return &teleport.BadParameterError{Err: "passwords do not match"}
 	}
 	return nil
 }
@@ -209,7 +227,7 @@ func (s *AuthServer) GenerateToken(fqdn string, ttl time.Duration) (string, erro
 	if err != nil {
 		return "", err
 	}
-	if err := s.b.UpsertToken(string(p.PID), fqdn, ttl); err != nil {
+	if err := s.provisioningS.UpsertToken(string(p.PID), fqdn, ttl); err != nil {
 		return "", err
 	}
 	return string(p.SID), nil
@@ -220,7 +238,7 @@ func (s *AuthServer) ValidateToken(token, fqdn string) error {
 	if err != nil {
 		return err
 	}
-	out, err := s.b.GetToken(string(pid))
+	out, err := s.provisioningS.GetToken(string(pid))
 	if err != nil {
 		return err
 	}
@@ -235,7 +253,7 @@ func (s *AuthServer) DeleteToken(token string) error {
 	if err != nil {
 		return err
 	}
-	return s.b.DeleteToken(string(pid))
+	return s.provisioningS.DeleteToken(string(pid))
 }
 
 func (s *AuthServer) NewWebSession(user string) (*Session, error) {
@@ -247,7 +265,7 @@ func (s *AuthServer) NewWebSession(user string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	hk, err := s.b.GetUserCA()
+	hk, err := s.caS.GetUserCA()
 	if err != nil {
 		return nil, err
 	}
@@ -258,13 +276,13 @@ func (s *AuthServer) NewWebSession(user string) (*Session, error) {
 	sess := &Session{
 		SID: p.SID,
 		PID: p.PID,
-		WS:  backend.WebSession{Priv: priv, Pub: cert},
+		WS:  services.WebSession{Priv: priv, Pub: cert},
 	}
 	return sess, nil
 }
 
 func (s *AuthServer) UpsertWebSession(user string, sess *Session, ttl time.Duration) error {
-	return s.b.UpsertWebSession(user, string(sess.PID), sess.WS, ttl)
+	return s.webS.UpsertWebSession(user, string(sess.PID), sess.WS, ttl)
 }
 
 func (s *AuthServer) GetWebSession(user string, sid session.SecureID) (*Session, error) {
@@ -272,7 +290,7 @@ func (s *AuthServer) GetWebSession(user string, sid session.SecureID) (*Session,
 	if err != nil {
 		return nil, err
 	}
-	ws, err := s.b.GetWebSession(user, string(pid))
+	ws, err := s.webS.GetWebSession(user, string(pid))
 	if err != nil {
 		return nil, err
 	}
@@ -283,8 +301,8 @@ func (s *AuthServer) GetWebSession(user string, sid session.SecureID) (*Session,
 	}, nil
 }
 
-func (s *AuthServer) GetWebSessionsKeys(user string) ([]backend.AuthorizedKey, error) {
-	return s.b.GetWebSessionsKeys(user)
+func (s *AuthServer) GetWebSessionsKeys(user string) ([]services.AuthorizedKey, error) {
+	return s.webS.GetWebSessionsKeys(user)
 }
 
 func (s *AuthServer) DeleteWebSession(user string, sid session.SecureID) error {
@@ -292,39 +310,39 @@ func (s *AuthServer) DeleteWebSession(user string, sid session.SecureID) error {
 	if err != nil {
 		return err
 	}
-	return s.b.DeleteWebSession(user, string(pid))
+	return s.webS.DeleteWebSession(user, string(pid))
 }
 
-func (s *AuthServer) UpsertWebTun(t backend.WebTun, ttl time.Duration) error {
-	return s.b.UpsertWebTun(t, ttl)
+func (s *AuthServer) UpsertWebTun(t services.WebTun, ttl time.Duration) error {
+	return s.webS.UpsertWebTun(t, ttl)
 }
 
-func (s *AuthServer) GetWebTun(prefix string) (*backend.WebTun, error) {
-	return s.b.GetWebTun(prefix)
+func (s *AuthServer) GetWebTun(prefix string) (*services.WebTun, error) {
+	return s.webS.GetWebTun(prefix)
 }
 
-func (s *AuthServer) GetWebTuns() ([]backend.WebTun, error) {
-	return s.b.GetWebTuns()
+func (s *AuthServer) GetWebTuns() ([]services.WebTun, error) {
+	return s.webS.GetWebTuns()
 }
 
 func (s *AuthServer) DeleteWebTun(prefix string) error {
-	return s.b.DeleteWebTun(prefix)
+	return s.webS.DeleteWebTun(prefix)
 }
 
 // make sure password satisfies our requirements (relaxed),
 // mostly to avoid putting garbage in
 func verifyPassword(password []byte) error {
 	if len(password) < MinPasswordLength {
-		return &BadParameterError{
+		return &teleport.BadParameterError{
 			Param: "password",
-			Msg: fmt.Sprintf(
+			Err: fmt.Sprintf(
 				"password is too short, min length is %v", MinPasswordLength),
 		}
 	}
 	if len(password) > MaxPasswordLength {
-		return &BadParameterError{
+		return &teleport.BadParameterError{
 			Param: "password",
-			Msg: fmt.Sprintf(
+			Err: fmt.Sprintf(
 				"password is too long, max length is %v", MaxPasswordLength),
 		}
 	}
@@ -336,12 +354,3 @@ const (
 	MinPasswordLength = 6
 	MaxPasswordLength = 128
 )
-
-type BadParameterError struct {
-	Param string
-	Msg   string
-}
-
-func (p *BadParameterError) Error() string {
-	return fmt.Sprintf("bad parameter: %v, err: %v", p.Param, p.Msg)
-}

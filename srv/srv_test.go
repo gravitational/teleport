@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/gravitational/teleport/auth"
 	authority "github.com/gravitational/teleport/auth/native"
-	"github.com/gravitational/teleport/backend"
-	"github.com/gravitational/teleport/backend/membk"
+	"github.com/gravitational/teleport/backend/boltbk"
+	"github.com/gravitational/teleport/services"
 	"github.com/gravitational/teleport/sshutils"
 	"github.com/gravitational/teleport/utils"
 
@@ -25,10 +26,11 @@ func TestSrv(t *testing.T) { TestingT(t) }
 type SrvSuite struct {
 	srv  *Server
 	clt  *ssh.Client
-	bk   *membk.MemBackend
+	bk   *boltbk.BoltBackend
 	a    *auth.AuthServer
 	up   *upack
 	scrt *secret.Service
+	dir  string
 }
 
 var _ = Suite(&SrvSuite{})
@@ -42,7 +44,11 @@ func (s *SrvSuite) SetUpSuite(c *C) {
 }
 
 func (s *SrvSuite) SetUpTest(c *C) {
-	s.bk = membk.New()
+	s.dir = c.MkDir()
+	var err error
+	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
+	c.Assert(err, IsNil)
+
 	s.a = auth.NewAuthServer(s.bk, authority.New(), s.scrt)
 
 	// set up host private key and certificate
@@ -61,7 +67,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	srv, err := New(
 		utils.NetAddr{Network: "tcp", Addr: "localhost:0"},
 		[]ssh.Signer{signer},
-		s.bk,
+		auth.NewBackendAccessPoint(s.bk),
 		SetShell("/bin/sh"),
 	)
 	c.Assert(err, IsNil)
@@ -248,7 +254,7 @@ func newUpack(user string, a *auth.AuthServer) (*upack, error) {
 		return nil, err
 	}
 
-	ucert, err := a.UpsertUserKey(user, backend.AuthorizedKey{ID: user, Value: upub}, 0)
+	ucert, err := a.UpsertUserKey(user, services.AuthorizedKey{ID: user, Value: upub}, 0)
 	if err != nil {
 		return nil, err
 	}

@@ -29,15 +29,11 @@ func (s *ProvisioningService) UpsertToken(token, fqdn string, ttl time.Duration)
 func (s *ProvisioningService) GetToken(token string) (string, error) {
 	fqdn, err := s.backend.GetVal([]string{"tokens"}, token)
 	if err != nil {
-		log.Errorf(err.Error())
-		return "", convertErr(err)
+		return "", err
 	}
 	return string(fqdn), nil
 }
 func (s *ProvisioningService) DeleteToken(token string) error {
 	err := s.backend.DeleteKey([]string{"tokens"}, token)
-	if err != nil {
-		log.Errorf(err.Error())
-	}
-	return convertErr(err)
+	return err
 }

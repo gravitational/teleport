@@ -3,6 +3,7 @@ package session
 import (
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/backend"
 )
 
@@ -32,7 +33,7 @@ func (s *server) GetSessions() ([]Session, error) {
 	out := []Session{}
 	for _, sid := range keys {
 		se, err := s.GetSession(sid)
-		if backend.IsNotFound(err) {
+		if teleport.IsNotFound(err) {
 			continue
 		}
 		out = append(out, *se)
@@ -55,7 +56,7 @@ func (s *server) GetSession(id string) (*Session, error) {
 		var p *Party
 		err := s.bk.GetJSONVal([]string{"sessions", id, "parties"}, pk, &p)
 		if err != nil {
-			if backend.IsNotFound(err) { // key was expired
+			if teleport.IsNotFound(err) { // key was expired
 				continue
 			}
 			return nil, err
