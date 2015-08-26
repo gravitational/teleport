@@ -1,2 +1,0 @@
-# memlog
-Memory backed log

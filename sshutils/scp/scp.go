@@ -339,9 +339,11 @@ func ParseNewFile(line string) (*NewFileCmd, error) {
 
 	var err error
 	if c.Mode, err = strconv.ParseInt(parts[0], 8, 32); err != nil {
+		log.Errorf(err.Error())
 		return nil, err
 	}
 	if c.Length, err = strconv.ParseUint(parts[1], 10, 64); err != nil {
+		log.Errorf(err.Error())
 		return nil, err
 	}
 	c.Name = parts[2]

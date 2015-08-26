@@ -3,10 +3,10 @@ package services
 import (
 	"time"
 
-	"github.com/gravitational/log"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/backend"
-	"github.com/gravitational/trace"
 )
 
 type LockService struct {
