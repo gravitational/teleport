@@ -62,7 +62,7 @@
 		},
 		{
 			"ImportPath": "github.com/gravitational/log",
-			"Rev": "98626d832dffff30597c32885f39d3fc7011e121"
+			"Rev": "8e1bbf1bba0515719dbb17adf1da20b5390ac8da"
 		},
 		{
 			"ImportPath": "github.com/gravitational/roundtrip",

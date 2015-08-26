@@ -46,7 +46,7 @@ func (s *TunSuite) SetUpSuite(c *C) {
 	srv, err := secret.New(&secret.Config{KeyBytes: key})
 	c.Assert(err, IsNil)
 	s.scrt = srv
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+	log.Initialize("console", "WARN")
 
 }
 

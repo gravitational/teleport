@@ -20,7 +20,7 @@ type BoltSuite struct {
 var _ = Suite(&BoltSuite{})
 
 func (s *BoltSuite) SetUpSuite(c *C) {
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+	log.Initialize("console", "WARN")
 }
 
 func (s *BoltSuite) SetUpTest(c *C) {

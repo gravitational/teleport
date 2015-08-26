@@ -31,7 +31,7 @@ func (s *AuthSuite) SetUpSuite(c *C) {
 	c.Assert(err, IsNil)
 	s.scrt = srv
 
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+	log.Initialize("console", "WARN")
 }
 
 func (s *AuthSuite) SetUpTest(c *C) {

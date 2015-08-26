@@ -53,7 +53,7 @@ func (s *APISuite) SetUpSuite(c *C) {
 	c.Assert(err, IsNil)
 	s.scrt = srv
 
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+	log.Initialize("console", "WARN")
 }
 
 func (s *APISuite) SetUpTest(c *C) {
