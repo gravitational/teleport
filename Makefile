@@ -16,19 +16,19 @@ install-assets:
 	sed -i 's|github.com/elazarl/go-bindata-assetfs|github.com/gravitational/teleport/Godeps/_workspace/src/github.com/elazarl/go-bindata-assetfs|' ./cp/bindata_assetfs.go
 
 test: remove-temp-files
-	go test -v ./... -cover
+	go test -v -test.parallel=0 ./... -cover
 
 test-with-etcd: remove-temp-files
-	${ETCD_FLAGS} go test -v ./... -cover
+	${ETCD_FLAGS} go test -v -test.parallel=0 ./... -cover
 
 remove-temp-files:
 	find . -name flymake_* -delete
 
 test-package: remove-temp-files
-	go test -v ./$(p)
+	go test -v -test.parallel=0 ./$(p)
 
 test-package-with-etcd: remove-temp-files
-	${ETCD_FLAGS} go test -v ./$(p)
+	${ETCD_FLAGS} go test -v -test.parallel=0 ./$(p)
 
 update:
 	rm -rf Godeps/

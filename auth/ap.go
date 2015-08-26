@@ -33,25 +33,25 @@ type AccessPoint interface {
 }
 
 type BackendAccessPoint struct {
-	caS           *services.CAService
-	presenceS     *services.PresenceService
-	provisioningS *services.ProvisioningService
-	userS         *services.UserService
-	webS          *services.WebService
+	*services.CAService
+	*services.PresenceService
+	*services.ProvisioningService
+	*services.UserService
+	*services.WebService
 }
 
 func NewBackendAccessPoint(bk backend.Backend) *BackendAccessPoint {
 	ap := BackendAccessPoint{}
-	ap.caS = services.NewCAService(bk)
-	ap.presenceS = services.NewPresenceService(bk)
-	ap.provisioningS = services.NewProvisioningService(bk)
-	ap.userS = services.NewUserService(bk)
-	ap.webS = services.NewWebService(bk)
+	ap.CAService = services.NewCAService(bk)
+	ap.PresenceService = services.NewPresenceService(bk)
+	ap.ProvisioningService = services.NewProvisioningService(bk)
+	ap.UserService = services.NewUserService(bk)
+	ap.WebService = services.NewWebService(bk)
 
 	return &ap
 }
 
-// GetServers returns a list of registered servers
+/*// GetServers returns a list of registered servers
 func (ap *BackendAccessPoint) GetServers() ([]services.Server, error) {
 	return ap.presenceS.GetServers()
 }
@@ -83,3 +83,4 @@ func (ap *BackendAccessPoint) GetWebSessionsKeys(user string) ([]services.Author
 func (ap *BackendAccessPoint) GetRemoteCerts(ctype, fqdn string) ([]services.RemoteCert, error) {
 	return ap.caS.GetRemoteCerts(ctype, fqdn)
 }
+*/
