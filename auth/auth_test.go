@@ -43,29 +43,6 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)
 }
 
-func (s *AuthSuite) TestPasswordCRUD(c *C) {
-	pass := []byte("abc123")
-
-	err := s.a.CheckPassword("user1", pass)
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
-
-	c.Assert(s.a.UpsertPassword("user1", pass), IsNil)
-	c.Assert(s.a.CheckPassword("user1", pass), IsNil)
-	c.Assert(s.a.CheckPassword("user1", []byte("abc123123")), FitsTypeOf, &teleport.BadParameterError{})
-}
-
-func (s *AuthSuite) TestPasswordGarbage(c *C) {
-	garbage := [][]byte{
-		nil,
-		make([]byte, MaxPasswordLength+1),
-		make([]byte, MinPasswordLength-1),
-	}
-	for _, g := range garbage {
-		err := s.a.CheckPassword("user1", g)
-		c.Assert(err, FitsTypeOf, &teleport.BadParameterError{})
-	}
-}
-
 // TODO(klizhentas) introduce more thorough tests, test more edge cases
 func (s *AuthSuite) TestSessions(c *C) {
 	c.Assert(s.a.ResetUserCA(""), IsNil)

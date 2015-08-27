@@ -6,9 +6,11 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/bcrypt"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/backend"
 )
 
@@ -172,6 +174,51 @@ func (s *WebService) GetWebTuns() ([]WebTun, error) {
 	return tuns, nil
 }
 
+func (s *WebService) UpsertPassword(user string, password []byte) error {
+	if err := verifyPassword(password); err != nil {
+		return err
+	}
+	hash, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	return s.UpsertPasswordHash(user, hash)
+}
+
+func (s *WebService) CheckPassword(user string, password []byte) error {
+	if err := verifyPassword(password); err != nil {
+		return err
+	}
+	hash, err := s.GetPasswordHash(user)
+	if err != nil {
+		return err
+	}
+	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
+		return &teleport.BadParameterError{Err: "passwords do not match"}
+	}
+	return nil
+}
+
+// make sure password satisfies our requirements (relaxed),
+// mostly to avoid putting garbage in
+func verifyPassword(password []byte) error {
+	if len(password) < MinPasswordLength {
+		return &teleport.BadParameterError{
+			Param: "password",
+			Err: fmt.Sprintf(
+				"password is too short, min length is %v", MinPasswordLength),
+		}
+	}
+	if len(password) > MaxPasswordLength {
+		return &teleport.BadParameterError{
+			Param: "password",
+			Err: fmt.Sprintf(
+				"password is too long, max length is %v", MaxPasswordLength),
+		}
+	}
+	return nil
+}
+
 type WebSession struct {
 	Pub  []byte `json:"pub"`
 	Priv []byte `json:"priv"`
@@ -205,3 +252,8 @@ func NewWebTun(prefix, proxyAddr, targetAddr string) (*WebTun, error) {
 	}
 	return &WebTun{Prefix: prefix, ProxyAddr: proxyAddr, TargetAddr: targetAddr}, nil
 }
+
+const (
+	MinPasswordLength = 6
+	MaxPasswordLength = 128
+)

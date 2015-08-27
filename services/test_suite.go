@@ -307,6 +307,29 @@ func (s *ServicesTestSuite) RemoteCertCRUD(c *C) {
 	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 }
 
+func (s *ServicesTestSuite) TestPasswordCRUD(c *C) {
+	pass := []byte("abc123")
+
+	err := s.WebS.CheckPassword("user1", pass)
+	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+
+	c.Assert(s.WebS.UpsertPassword("user1", pass), IsNil)
+	c.Assert(s.WebS.CheckPassword("user1", pass), IsNil)
+	c.Assert(s.WebS.CheckPassword("user1", []byte("abc123123")), FitsTypeOf, &teleport.BadParameterError{})
+}
+
+func (s *ServicesTestSuite) TestPasswordGarbage(c *C) {
+	garbage := [][]byte{
+		nil,
+		make([]byte, MaxPasswordLength+1),
+		make([]byte, MinPasswordLength-1),
+	}
+	for _, g := range garbage {
+		err := s.WebS.CheckPassword("user1", g)
+		c.Assert(err, FitsTypeOf, &teleport.BadParameterError{})
+	}
+}
+
 func toSet(vals []string) map[string]struct{} {
 	out := make(map[string]struct{}, len(vals))
 	for _, v := range vals {
