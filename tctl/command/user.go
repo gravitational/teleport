@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/buger/goterm"
-	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/services"
 )
 
 func (cmd *Command) setPass(user, pass string) {
@@ -24,7 +24,7 @@ func (cmd *Command) upsertKey(user, keyID, key string, ttl time.Duration) {
 		return
 	}
 	signed, err := cmd.client.UpsertUserKey(
-		user, backend.AuthorizedKey{ID: keyID, Value: bytes}, ttl)
+		user, services.AuthorizedKey{ID: keyID, Value: bytes}, ttl)
 	if err != nil {
 		cmd.printError(err)
 		return
@@ -72,7 +72,7 @@ func usersView(users []string) string {
 	return t.String()
 }
 
-func keysView(keys []backend.AuthorizedKey) string {
+func keysView(keys []services.AuthorizedKey) string {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
 	fmt.Fprint(t, "KeyID\tKey\n")
 	if len(keys) == 0 {

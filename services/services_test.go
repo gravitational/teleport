@@ -4,9 +4,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/teleport/backend/boltbk"
-
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/gravitational/teleport/backend/boltbk"
 )
 
 func TestBolt(t *testing.T) { TestingT(t) }
@@ -18,6 +18,10 @@ type BoltSuite struct {
 }
 
 var _ = Suite(&BoltSuite{})
+
+func (s *BoltSuite) SetUpSuite(c *C) {
+	log.Initialize("console", "WARN")
+}
 
 func (s *BoltSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()

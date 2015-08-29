@@ -3,10 +3,14 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/bcrypt"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/backend"
 )
 
@@ -33,8 +37,7 @@ func (s *WebService) UpsertPasswordHash(user string, hash []byte) error {
 func (s *WebService) GetPasswordHash(user string) ([]byte, error) {
 	hash, err := s.backend.GetVal([]string{"web", "users", user}, "pwd")
 	if err != nil {
-		log.Errorf(err.Error())
-		return nil, convertErr(err)
+		return nil, err
 	}
 	return hash, err
 }
@@ -66,8 +69,7 @@ func (s *WebService) GetWebSession(user, sid string) (*WebSession, error) {
 		sid,
 	)
 	if err != nil {
-		log.Errorf(err.Error())
-		return nil, convertErr(err)
+		return nil, err
 	}
 
 	var session WebSession
@@ -84,8 +86,7 @@ func (s *WebService) GetWebSession(user, sid string) (*WebSession, error) {
 func (s *WebService) GetWebSessionsKeys(user string) ([]AuthorizedKey, error) {
 	keys, err := s.backend.GetKeys([]string{"web", "users", user, "sessions"})
 	if err != nil {
-		log.Errorf(err.Error())
-		return nil, convertErr(err)
+		return nil, err
 	}
 
 	values := make([]AuthorizedKey, len(keys))
@@ -106,10 +107,7 @@ func (s *WebService) DeleteWebSession(user, sid string) error {
 		[]string{"web", "users", user, "sessions"},
 		sid,
 	)
-	if err != nil {
-		log.Errorf(err.Error())
-	}
-	return convertErr(err)
+	return err
 }
 
 func (s *WebService) UpsertWebTun(tun WebTun, ttl time.Duration) error {
@@ -138,10 +136,7 @@ func (s *WebService) DeleteWebTun(prefix string) error {
 		[]string{"web", "tunnels"},
 		prefix,
 	)
-	if err != nil {
-		log.Errorf(err.Error())
-	}
-	return convertErr(err)
+	return err
 }
 func (s *WebService) GetWebTun(prefix string) (*WebTun, error) {
 	val, err := s.backend.GetVal(
@@ -149,8 +144,7 @@ func (s *WebService) GetWebTun(prefix string) (*WebTun, error) {
 		prefix,
 	)
 	if err != nil {
-		log.Errorf(err.Error())
-		return nil, convertErr(err)
+		return nil, err
 	}
 
 	var tun WebTun
@@ -165,7 +159,6 @@ func (s *WebService) GetWebTun(prefix string) (*WebTun, error) {
 func (s *WebService) GetWebTuns() ([]WebTun, error) {
 	keys, err := s.backend.GetKeys([]string{"web", "tunnels"})
 	if err != nil {
-		log.Errorf(err.Error())
 		return nil, err
 	}
 
@@ -179,6 +172,51 @@ func (s *WebService) GetWebTuns() ([]WebTun, error) {
 		tuns[i] = *tun
 	}
 	return tuns, nil
+}
+
+func (s *WebService) UpsertPassword(user string, password []byte) error {
+	if err := verifyPassword(password); err != nil {
+		return err
+	}
+	hash, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	return s.UpsertPasswordHash(user, hash)
+}
+
+func (s *WebService) CheckPassword(user string, password []byte) error {
+	if err := verifyPassword(password); err != nil {
+		return err
+	}
+	hash, err := s.GetPasswordHash(user)
+	if err != nil {
+		return err
+	}
+	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
+		return &teleport.BadParameterError{Err: "passwords do not match"}
+	}
+	return nil
+}
+
+// make sure password satisfies our requirements (relaxed),
+// mostly to avoid putting garbage in
+func verifyPassword(password []byte) error {
+	if len(password) < MinPasswordLength {
+		return &teleport.BadParameterError{
+			Param: "password",
+			Err: fmt.Sprintf(
+				"password is too short, min length is %v", MinPasswordLength),
+		}
+	}
+	if len(password) > MaxPasswordLength {
+		return &teleport.BadParameterError{
+			Param: "password",
+			Err: fmt.Sprintf(
+				"password is too long, max length is %v", MaxPasswordLength),
+		}
+	}
+	return nil
 }
 
 type WebSession struct {
@@ -198,3 +236,24 @@ type WebTun struct {
 	// TargetAddr is the target http address of the server
 	TargetAddr string `json:"target"`
 }
+
+func NewWebTun(prefix, proxyAddr, targetAddr string) (*WebTun, error) {
+	if prefix == "" {
+		return nil, &teleport.MissingParameterError{Param: "prefix"}
+	}
+	if targetAddr == "" {
+		return nil, &teleport.MissingParameterError{Param: "target"}
+	}
+	if proxyAddr == "" {
+		return nil, &teleport.MissingParameterError{Param: "proxy"}
+	}
+	if _, err := url.ParseRequestURI(targetAddr); err != nil {
+		return nil, &teleport.BadParameterError{Param: "target", Err: err.Error()}
+	}
+	return &WebTun{Prefix: prefix, ProxyAddr: proxyAddr, TargetAddr: targetAddr}, nil
+}
+
+const (
+	MinPasswordLength = 6
+	MaxPasswordLength = 128
+)

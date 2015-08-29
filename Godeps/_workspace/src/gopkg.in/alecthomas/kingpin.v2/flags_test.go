@@ -47,13 +47,15 @@ func TestInvalidFlagDefaultCanBeOverridden(t *testing.T) {
 func TestRequiredFlag(t *testing.T) {
 	app := New("test", "")
 	app.Version("0.0.0")
-	app.Terminate(nil)
+	exits := 0
+	app.Terminate(func(int) { exits++ })
 	app.Flag("a", "").Required().Bool()
 	_, err := app.Parse([]string{"--a"})
 	assert.NoError(t, err)
 	_, err = app.Parse([]string{})
 	assert.Error(t, err)
 	_, err = app.Parse([]string{"--version"})
+	assert.Equal(t, 1, exits)
 }
 
 func TestShortFlag(t *testing.T) {

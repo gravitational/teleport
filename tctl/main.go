@@ -9,7 +9,7 @@ import (
 
 func main() {
 
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+	log.Initialize("console", "INFO")
 
 	cmd := command.NewCommand()
 	err := cmd.Run(os.Args)

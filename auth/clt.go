@@ -10,9 +10,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/events"
 	"github.com/gravitational/teleport/recorder"
+	"github.com/gravitational/teleport/services"
 	"github.com/gravitational/teleport/session"
 	"github.com/gravitational/teleport/utils"
 
@@ -63,7 +64,7 @@ func (c *Client) convertResponse(
 		return nil, err
 	}
 	if re.Code() == http.StatusNotFound {
-		return nil, &backend.NotFoundError{Message: string(re.Bytes())}
+		return nil, &teleport.NotFoundError{Message: string(re.Bytes())}
 	}
 	if re.Code() < 200 || re.Code() > 299 {
 		return nil, fmt.Errorf("error: %v", string(re.Bytes()))
@@ -157,7 +158,7 @@ func (c *Client) UpsertParty(id string, p session.Party, ttl time.Duration) erro
 	return nil
 }
 
-func (c *Client) UpsertRemoteCert(cert backend.RemoteCert, ttl time.Duration) error {
+func (c *Client) UpsertRemoteCert(cert services.RemoteCert, ttl time.Duration) error {
 	out, err := c.PostForm(c.Endpoint("ca", "remote", cert.Type, "hosts", cert.FQDN), url.Values{
 		"key": []string{string(cert.Value)},
 		"ttl": []string{ttl.String()},
@@ -173,7 +174,7 @@ func (c *Client) UpsertRemoteCert(cert backend.RemoteCert, ttl time.Duration) er
 	return nil
 }
 
-func (c *Client) GetRemoteCerts(ctype string, fqdn string) ([]backend.RemoteCert, error) {
+func (c *Client) GetRemoteCerts(ctype string, fqdn string) ([]services.RemoteCert, error) {
 	out, err := c.Get(c.Endpoint("ca", "remote", ctype), url.Values{
 		"fqdn": []string{fqdn},
 	})
@@ -261,7 +262,7 @@ func (c *Client) GetChunkReader(id string) (recorder.ChunkReadCloser, error) {
 
 // UpsertServer is used by SSH servers to reprt their presense
 // to the auth servers in form of hearbeat expiring after ttl period.
-func (c *Client) UpsertServer(s backend.Server, ttl time.Duration) error {
+func (c *Client) UpsertServer(s services.Server, ttl time.Duration) error {
 	_, err := c.PostForm(c.Endpoint("servers"), url.Values{
 		"id":   []string{string(s.ID)},
 		"addr": []string{string(s.Addr)},
@@ -271,7 +272,7 @@ func (c *Client) UpsertServer(s backend.Server, ttl time.Duration) error {
 }
 
 // GetServers returns the list of servers registered in the cluster.
-func (c *Client) GetServers() ([]backend.Server, error) {
+func (c *Client) GetServers() ([]services.Server, error) {
 	out, err := c.Get(c.Endpoint("servers"), url.Values{})
 	if err != nil {
 		return nil, err
@@ -285,8 +286,8 @@ func (c *Client) GetServers() ([]backend.Server, error) {
 
 // UpsertWebTun creates a persistent SSH tunnel to the specified web target
 // server that is valid for ttl period.
-// See backend.WebTun documentation for details
-func (c *Client) UpsertWebTun(wt backend.WebTun, ttl time.Duration) error {
+// See services.WebTun documentation for details
+func (c *Client) UpsertWebTun(wt services.WebTun, ttl time.Duration) error {
 	_, err := c.PostForm(c.Endpoint("tunnels", "web"), url.Values{
 		"target": []string{string(wt.TargetAddr)},
 		"proxy":  []string{string(wt.ProxyAddr)},
@@ -297,7 +298,7 @@ func (c *Client) UpsertWebTun(wt backend.WebTun, ttl time.Duration) error {
 }
 
 // GetWebTuns returns a list of web tunnels supported by the system
-func (c *Client) GetWebTuns() ([]backend.WebTun, error) {
+func (c *Client) GetWebTuns() ([]services.WebTun, error) {
 	out, err := c.Get(c.Endpoint("tunnels", "web"), url.Values{})
 	if err != nil {
 		return nil, err
@@ -310,7 +311,7 @@ func (c *Client) GetWebTuns() ([]backend.WebTun, error) {
 }
 
 // GetWebTun retruns the web tunel details by it unique prefix
-func (c *Client) GetWebTun(prefix string) (*backend.WebTun, error) {
+func (c *Client) GetWebTun(prefix string) (*services.WebTun, error) {
 	out, err := c.Get(c.Endpoint("tunnels", "web", prefix), url.Values{})
 	if err != nil {
 		return nil, err
@@ -382,7 +383,7 @@ func (c *Client) GetWebSession(user string, sid string) (string, error) {
 // certificate generated, that is stored for the duration of this web
 // session. These keys are used to access SSH servers via web portal.
 func (c *Client) GetWebSessionsKeys(
-	user string) ([]backend.AuthorizedKey, error) {
+	user string) ([]services.AuthorizedKey, error) {
 
 	out, err := c.Get(c.Endpoint("users", user, "web", "sessions"), url.Values{})
 	if err != nil {
@@ -425,7 +426,7 @@ func (c *Client) DeleteUser(user string) error {
 // by user CA in case of success, error otherwise. The certificate will be
 // valid for the duration of the ttl passed in.
 func (c *Client) UpsertUserKey(username string,
-	key backend.AuthorizedKey, ttl time.Duration) ([]byte, error) {
+	key services.AuthorizedKey, ttl time.Duration) ([]byte, error) {
 
 	out, err := c.PostForm(c.Endpoint("users", username, "keys"), url.Values{
 		"key": []string{string(key.Value)},
@@ -445,7 +446,7 @@ func (c *Client) UpsertUserKey(username string,
 // GetUserKeys returns a list of keys registered for this user.
 // This list does not include the temporary keys associated with user
 // web sessions.
-func (c *Client) GetUserKeys(user string) ([]backend.AuthorizedKey, error) {
+func (c *Client) GetUserKeys(user string) ([]services.AuthorizedKey, error) {
 	out, err := c.Get(c.Endpoint("users", user, "keys"), url.Values{})
 	if err != nil {
 		return nil, err
@@ -625,8 +626,8 @@ type ClientI interface {
 	DeleteSession(id string) error
 	UpsertSession(id string, ttl time.Duration) error
 	UpsertParty(id string, p session.Party, ttl time.Duration) error
-	UpsertRemoteCert(cert backend.RemoteCert, ttl time.Duration) error
-	GetRemoteCerts(ctype string, fqdn string) ([]backend.RemoteCert, error)
+	UpsertRemoteCert(cert services.RemoteCert, ttl time.Duration) error
+	GetRemoteCerts(ctype string, fqdn string) ([]services.RemoteCert, error)
 	DeleteRemoteCert(ctype string, fqdn, id string) error
 	GenerateToken(fqdn string, ttl time.Duration) (string, error)
 	Log(id lunk.EventID, e lunk.Event)
@@ -634,22 +635,22 @@ type ClientI interface {
 	GetEvents(filter events.Filter) ([]lunk.Entry, error)
 	GetChunkWriter(id string) (recorder.ChunkWriteCloser, error)
 	GetChunkReader(id string) (recorder.ChunkReadCloser, error)
-	UpsertServer(s backend.Server, ttl time.Duration) error
-	GetServers() ([]backend.Server, error)
-	UpsertWebTun(wt backend.WebTun, ttl time.Duration) error
-	GetWebTuns() ([]backend.WebTun, error)
-	GetWebTun(prefix string) (*backend.WebTun, error)
+	UpsertServer(s services.Server, ttl time.Duration) error
+	GetServers() ([]services.Server, error)
+	UpsertWebTun(wt services.WebTun, ttl time.Duration) error
+	GetWebTuns() ([]services.WebTun, error)
+	GetWebTun(prefix string) (*services.WebTun, error)
 	DeleteWebTun(prefix string) error
 	UpsertPassword(user string, password []byte) error
 	CheckPassword(user string, password []byte) error
 	SignIn(user string, password []byte) (string, error)
 	GetWebSession(user string, sid string) (string, error)
-	GetWebSessionsKeys(user string) ([]backend.AuthorizedKey, error)
+	GetWebSessionsKeys(user string) ([]services.AuthorizedKey, error)
 	DeleteWebSession(user string, sid string) error
 	GetUsers() ([]string, error)
 	DeleteUser(user string) error
-	UpsertUserKey(username string, key backend.AuthorizedKey, ttl time.Duration) ([]byte, error)
-	GetUserKeys(user string) ([]backend.AuthorizedKey, error)
+	UpsertUserKey(username string, key services.AuthorizedKey, ttl time.Duration) ([]byte, error)
+	GetUserKeys(user string) ([]services.AuthorizedKey, error)
 	DeleteUserKey(username string, id string) error
 	GetHostCAPub() ([]byte, error)
 	GetUserCAPub() ([]byte, error)

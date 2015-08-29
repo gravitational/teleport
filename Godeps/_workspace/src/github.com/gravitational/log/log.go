@@ -106,6 +106,22 @@ func Init(logConfigs []*LogConfig) error {
 	return nil
 }
 
+func Initialize(name, severity string) error {
+	sev, err := SeverityFromString(severity)
+	if err != nil {
+		fmt.Printf("WARNING, failed to parse severity, err: %v", err)
+		return err
+	}
+	SetSeverity(sev)
+	l, err := NewLogger(&LogConfig{Name: name})
+	if err != nil {
+		fmt.Printf("WARNING, failed to init logger, err: %v", err)
+		return err
+	}
+	logger.setLoggers(l)
+	return nil
+}
+
 // Make a proper logger from a given configuration.
 func NewLogger(config *LogConfig) (Logger, error) {
 	switch config.Name {

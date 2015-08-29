@@ -21,7 +21,7 @@ type SCPSuite struct {
 var _ = Suite(&SCPSuite{})
 
 func (s *SCPSuite) SetUpSuite(c *C) {
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+	log.Initialize("console", "WARN")
 }
 
 func (s *SCPSuite) TestSendFile(c *C) {

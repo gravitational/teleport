@@ -22,7 +22,7 @@ type ServerSuite struct {
 var _ = Suite(&ServerSuite{})
 
 func (s *ServerSuite) SetUpSuite(c *C) {
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+	log.Initialize("console", "WARN")
 
 	pk, err := ssh.ParsePrivateKey(testdata.PEMBytes["ecdsa"])
 	c.Assert(err, IsNil)

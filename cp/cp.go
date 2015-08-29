@@ -12,9 +12,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/code.google.com/p/go-uuid/uuid"
-	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/events"
+	"github.com/gravitational/teleport/services"
 	"github.com/gravitational/teleport/sshutils/scp"
 	"github.com/gravitational/teleport/utils"
 
@@ -402,7 +403,7 @@ func (s *CPHandler) sendMessage(w http.ResponseWriter, r *http.Request, p httpro
 func (s *CPHandler) getSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) {
 	ses, err := c.GetClient().GetSession(p[0].Value)
 	if err != nil {
-		if !backend.IsNotFound(err) {
+		if !teleport.IsNotFound(err) {
 			log.Errorf("failed to retrieve session: %v", err)
 			replyErr(w, http.StatusInternalServerError, err)
 			return
@@ -504,7 +505,7 @@ func (s *CPHandler) upsertWebTun(w http.ResponseWriter, r *http.Request, _ httpr
 		roundtrip.ReplyJSON(w, http.StatusBadRequest, message(err.Error()))
 		return
 	}
-	wt, err := backend.NewWebTun(prefix, proxy, target)
+	wt, err := services.NewWebTun(prefix, proxy, target)
 	if err != nil {
 		log.Errorf("failed to parse form: %v", err)
 		roundtrip.ReplyJSON(w, http.StatusBadRequest, message(err.Error()))
@@ -603,13 +604,13 @@ func (s *CPHandler) postKey(w http.ResponseWriter, r *http.Request, _ httprouter
 		roundtrip.ReplyJSON(w, http.StatusBadRequest, message(err.Error()))
 		return
 	}
-	cert, err := c.GetClient().UpsertUserKey(c.GetUser(), backend.AuthorizedKey{ID: id, Value: []byte(key)}, 0)
+	cert, err := c.GetClient().UpsertUserKey(c.GetUser(), services.AuthorizedKey{ID: id, Value: []byte(key)}, 0)
 	if err != nil {
 		log.Errorf("failed to upsert keys: %v", err)
 		roundtrip.ReplyJSON(w, http.StatusBadRequest, message("invalid key format"))
 		return
 	}
-	roundtrip.ReplyJSON(w, http.StatusOK, backend.AuthorizedKey{ID: key, Value: cert})
+	roundtrip.ReplyJSON(w, http.StatusOK, services.AuthorizedKey{ID: key, Value: cert})
 }
 
 func (s *CPHandler) deleteKey(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) {

@@ -13,8 +13,8 @@ import (
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/bcrypt"
 	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/services"
 )
 
 // Authority implements minimal key-management facility for generating OpenSSH
@@ -34,31 +34,39 @@ type Authority interface {
 type Session struct {
 	SID session.SecureID
 	PID session.PlainID
-	WS  backend.WebSession
+	WS  services.WebSession
 }
 
-func NewAuthServer(b backend.Backend, a Authority, scrt *secret.Service) *AuthServer {
-	return &AuthServer{
-		b:    b,
-		a:    a,
-		scrt: scrt,
-	}
+func NewAuthServer(bk backend.Backend, a Authority, scrt *secret.Service) *AuthServer {
+	as := AuthServer{}
+
+	as.bk = bk
+	as.Authority = a
+	as.scrt = scrt
+
+	as.CAService = services.NewCAService(as.bk)
+	as.LockService = services.NewLockService(as.bk)
+	as.PresenceService = services.NewPresenceService(as.bk)
+	as.ProvisioningService = services.NewProvisioningService(as.bk)
+	as.UserService = services.NewUserService(as.bk)
+	as.WebService = services.NewWebService(as.bk)
+
+	return &as
 }
 
 // AuthServer implements key signing, generation and ACL functionality
 // used by teleport
 type AuthServer struct {
-	b    backend.Backend
-	a    Authority
+	bk backend.Backend
+	Authority
 	scrt *secret.Service
-}
 
-func (s *AuthServer) UpsertServer(srv backend.Server, ttl time.Duration) error {
-	return s.b.UpsertServer(srv, ttl)
-}
-
-func (s *AuthServer) GetServers() ([]backend.Server, error) {
-	return s.b.GetServers()
+	*services.CAService
+	*services.LockService
+	*services.PresenceService
+	*services.ProvisioningService
+	*services.UserService
+	*services.WebService
 }
 
 // UpsertUserKey takes user's public key, generates certificate for it
@@ -66,79 +74,35 @@ func (s *AuthServer) GetServers() ([]backend.Server, error) {
 // by user CA in case of success, error otherwise. The certificate will be
 // valid for the duration of the ttl passed in.
 func (s *AuthServer) UpsertUserKey(
-	user string, key backend.AuthorizedKey, ttl time.Duration) ([]byte, error) {
+	user string, key services.AuthorizedKey, ttl time.Duration) ([]byte, error) {
 
 	cert, err := s.GenerateUserCert(key.Value, key.ID, user, ttl)
 	if err != nil {
 		return nil, err
 	}
 	key.Value = cert
-	if err := s.b.UpsertUserKey(user, key, ttl); err != nil {
+	if err := s.UserService.UpsertUserKey(user, key, ttl); err != nil {
 		return nil, err
 	}
 	return cert, nil
 }
 
-func (s *AuthServer) GetUsers() ([]string, error) {
-	return s.b.GetUsers()
-}
-
-func (s *AuthServer) DeleteUser(user string) error {
-	return s.b.DeleteUser(user)
-}
-
-func (s *AuthServer) GetUserKeys(user string) ([]backend.AuthorizedKey, error) {
-	return s.b.GetUserKeys(user)
-}
-
-// DeleteUserKey deletes user key by given ID
-func (s *AuthServer) DeleteUserKey(user, key string) error {
-	return s.b.DeleteUserKey(user, key)
-}
-
-// GenerateKeyPair generates private and public key pair of OpenSSH certs
-func (s *AuthServer) GenerateKeyPair(pass string) ([]byte, []byte, error) {
-	return s.a.GenerateKeyPair(pass)
-}
-
-func (s *AuthServer) UpsertRemoteCert(cert backend.RemoteCert, ttl time.Duration) error {
-	return s.b.UpsertRemoteCert(cert, ttl)
-}
-
-func (s *AuthServer) GetRemoteCerts(ctype string, fqdn string) ([]backend.RemoteCert, error) {
-	return s.b.GetRemoteCerts(ctype, fqdn)
-}
-
-func (s *AuthServer) DeleteRemoteCert(ctype string, fqdn, id string) error {
-	return s.b.DeleteRemoteCert(ctype, fqdn, id)
-}
-
 // ResetHostCA generates host certificate authority and updates the backend
 func (s *AuthServer) ResetHostCA(pass string) error {
-	priv, pub, err := s.a.GenerateKeyPair(pass)
+	priv, pub, err := s.Authority.GenerateKeyPair(pass)
 	if err != nil {
 		return err
 	}
-	return s.b.UpsertHostCA(backend.CA{Pub: pub, Priv: priv})
+	return s.CAService.UpsertHostCA(services.CA{Pub: pub, Priv: priv})
 }
 
 // ResetHostCA generates user certificate authority and updates the backend
 func (s *AuthServer) ResetUserCA(pass string) error {
-	priv, pub, err := s.a.GenerateKeyPair(pass)
+	priv, pub, err := s.Authority.GenerateKeyPair(pass)
 	if err != nil {
 		return err
 	}
-	return s.b.UpsertUserCA(backend.CA{Pub: pub, Priv: priv})
-}
-
-// GetHostCAPub returns a public key for host key signing authority
-func (s *AuthServer) GetHostCAPub() ([]byte, error) {
-	return s.b.GetHostCAPub()
-}
-
-// GetHostCAPub returns a public key for user key signing authority
-func (s *AuthServer) GetUserCAPub() ([]byte, error) {
-	return s.b.GetUserCAPub()
+	return s.CAService.UpsertUserCA(services.CA{Pub: pub, Priv: priv})
 }
 
 // GenerateHostCert generates host certificate, it takes pkey as a signing
@@ -146,11 +110,11 @@ func (s *AuthServer) GetUserCAPub() ([]byte, error) {
 func (s *AuthServer) GenerateHostCert(
 	key []byte, id, hostname string, ttl time.Duration) ([]byte, error) {
 
-	hk, err := s.b.GetHostCA()
+	hk, err := s.CAService.GetHostCA()
 	if err != nil {
 		return nil, err
 	}
-	return s.a.GenerateHostCert(hk.Priv, key, id, hostname, ttl)
+	return s.Authority.GenerateHostCert(hk.Priv, key, id, hostname, ttl)
 }
 
 // GenerateHostCert generates user certificate, it takes pkey as a signing
@@ -158,36 +122,11 @@ func (s *AuthServer) GenerateHostCert(
 func (s *AuthServer) GenerateUserCert(
 	key []byte, id, username string, ttl time.Duration) ([]byte, error) {
 
-	hk, err := s.b.GetUserCA()
+	hk, err := s.CAService.GetUserCA()
 	if err != nil {
 		return nil, err
 	}
-	return s.a.GenerateUserCert(hk.Priv, key, id, username, ttl)
-}
-
-func (s *AuthServer) UpsertPassword(user string, password []byte) error {
-	if err := verifyPassword(password); err != nil {
-		return err
-	}
-	hash, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
-	if err != nil {
-		return err
-	}
-	return s.b.UpsertPasswordHash(user, hash)
-}
-
-func (s *AuthServer) CheckPassword(user string, password []byte) error {
-	if err := verifyPassword(password); err != nil {
-		return err
-	}
-	hash, err := s.b.GetPasswordHash(user)
-	if err != nil {
-		return err
-	}
-	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
-		return &BadParameterError{Msg: "passwords do not match"}
-	}
-	return nil
+	return s.Authority.GenerateUserCert(hk.Priv, key, id, username, ttl)
 }
 
 func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
@@ -209,7 +148,7 @@ func (s *AuthServer) GenerateToken(fqdn string, ttl time.Duration) (string, erro
 	if err != nil {
 		return "", err
 	}
-	if err := s.b.UpsertToken(string(p.PID), fqdn, ttl); err != nil {
+	if err := s.ProvisioningService.UpsertToken(string(p.PID), fqdn, ttl); err != nil {
 		return "", err
 	}
 	return string(p.SID), nil
@@ -220,7 +159,7 @@ func (s *AuthServer) ValidateToken(token, fqdn string) error {
 	if err != nil {
 		return err
 	}
-	out, err := s.b.GetToken(string(pid))
+	out, err := s.ProvisioningService.GetToken(string(pid))
 	if err != nil {
 		return err
 	}
@@ -235,7 +174,7 @@ func (s *AuthServer) DeleteToken(token string) error {
 	if err != nil {
 		return err
 	}
-	return s.b.DeleteToken(string(pid))
+	return s.ProvisioningService.DeleteToken(string(pid))
 }
 
 func (s *AuthServer) NewWebSession(user string) (*Session, error) {
@@ -247,24 +186,24 @@ func (s *AuthServer) NewWebSession(user string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	hk, err := s.b.GetUserCA()
+	hk, err := s.CAService.GetUserCA()
 	if err != nil {
 		return nil, err
 	}
-	cert, err := s.a.GenerateUserCert(hk.Priv, pub, user, user, 0)
+	cert, err := s.Authority.GenerateUserCert(hk.Priv, pub, user, user, 0)
 	if err != nil {
 		return nil, err
 	}
 	sess := &Session{
 		SID: p.SID,
 		PID: p.PID,
-		WS:  backend.WebSession{Priv: priv, Pub: cert},
+		WS:  services.WebSession{Priv: priv, Pub: cert},
 	}
 	return sess, nil
 }
 
 func (s *AuthServer) UpsertWebSession(user string, sess *Session, ttl time.Duration) error {
-	return s.b.UpsertWebSession(user, string(sess.PID), sess.WS, ttl)
+	return s.WebService.UpsertWebSession(user, string(sess.PID), sess.WS, ttl)
 }
 
 func (s *AuthServer) GetWebSession(user string, sid session.SecureID) (*Session, error) {
@@ -272,7 +211,7 @@ func (s *AuthServer) GetWebSession(user string, sid session.SecureID) (*Session,
 	if err != nil {
 		return nil, err
 	}
-	ws, err := s.b.GetWebSession(user, string(pid))
+	ws, err := s.WebService.GetWebSession(user, string(pid))
 	if err != nil {
 		return nil, err
 	}
@@ -283,65 +222,14 @@ func (s *AuthServer) GetWebSession(user string, sid session.SecureID) (*Session,
 	}, nil
 }
 
-func (s *AuthServer) GetWebSessionsKeys(user string) ([]backend.AuthorizedKey, error) {
-	return s.b.GetWebSessionsKeys(user)
-}
-
 func (s *AuthServer) DeleteWebSession(user string, sid session.SecureID) error {
 	pid, err := session.DecodeSID(sid, s.scrt)
 	if err != nil {
 		return err
 	}
-	return s.b.DeleteWebSession(user, string(pid))
-}
-
-func (s *AuthServer) UpsertWebTun(t backend.WebTun, ttl time.Duration) error {
-	return s.b.UpsertWebTun(t, ttl)
-}
-
-func (s *AuthServer) GetWebTun(prefix string) (*backend.WebTun, error) {
-	return s.b.GetWebTun(prefix)
-}
-
-func (s *AuthServer) GetWebTuns() ([]backend.WebTun, error) {
-	return s.b.GetWebTuns()
-}
-
-func (s *AuthServer) DeleteWebTun(prefix string) error {
-	return s.b.DeleteWebTun(prefix)
-}
-
-// make sure password satisfies our requirements (relaxed),
-// mostly to avoid putting garbage in
-func verifyPassword(password []byte) error {
-	if len(password) < MinPasswordLength {
-		return &BadParameterError{
-			Param: "password",
-			Msg: fmt.Sprintf(
-				"password is too short, min length is %v", MinPasswordLength),
-		}
-	}
-	if len(password) > MaxPasswordLength {
-		return &BadParameterError{
-			Param: "password",
-			Msg: fmt.Sprintf(
-				"password is too long, max length is %v", MaxPasswordLength),
-		}
-	}
-	return nil
+	return s.WebService.DeleteWebSession(user, string(pid))
 }
 
 const (
-	Week              = time.Hour * 24 * 7
-	MinPasswordLength = 6
-	MaxPasswordLength = 128
+	Week = time.Hour * 24 * 7
 )
-
-type BadParameterError struct {
-	Param string
-	Msg   string
-}
-
-func (p *BadParameterError) Error() string {
-	return fmt.Sprintf("bad parameter: %v, err: %v", p.Param, p.Msg)
-}

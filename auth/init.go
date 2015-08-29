@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/services"
 	"github.com/gravitational/teleport/sshutils"
 	"github.com/gravitational/teleport/utils"
 
@@ -26,10 +28,12 @@ func Init(b backend.Backend, a Authority,
 		return nil, nil, fmt.Errorf("path can not be empty")
 	}
 
-	if err := b.AcquireLock(authDomain, 60*time.Second); err != nil {
+	lockService := services.NewLockService(b)
+	err := lockService.AcquireLock(authDomain, 60*time.Second)
+	if err != nil {
 		return nil, nil, err
 	}
-	defer b.ReleaseLock(authDomain)
+	defer lockService.ReleaseLock(authDomain)
 
 	scrt, err := InitSecret(dataDir)
 	if err != nil {
@@ -41,7 +45,7 @@ func Init(b backend.Backend, a Authority,
 
 	if _, e := asrv.GetHostCAPub(); e != nil {
 		log.Infof("Host CA error: %v", e)
-		if _, ok := e.(*backend.NotFoundError); ok {
+		if _, ok := e.(*teleport.NotFoundError); ok {
 			log.Infof("Reseting host CA")
 			if err := asrv.ResetHostCA(""); err != nil {
 				return nil, nil, err
@@ -51,7 +55,7 @@ func Init(b backend.Backend, a Authority,
 
 	if _, e := asrv.GetUserCAPub(); e != nil {
 		log.Infof("User CA error: %v", e)
-		if _, ok := e.(*backend.NotFoundError); ok {
+		if _, ok := e.(*teleport.NotFoundError); ok {
 			log.Infof("Reseting host CA")
 			if err := asrv.ResetUserCA(""); err != nil {
 				return nil, nil, err

@@ -325,13 +325,7 @@ func initRecordBackend(btype, bcfg string) (recorder.Recorder, error) {
 }
 
 func initLogging(ltype, severity string) error {
-	s, err := log.SeverityFromString(severity)
-	if err != nil {
-		return err
-	}
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: ltype}})
-	log.SetSeverity(s)
-	return nil
+	return log.Initialize(ltype, severity)
 }
 
 func validateConfig(cfg Config) error {

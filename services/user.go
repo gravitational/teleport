@@ -32,8 +32,7 @@ func (s *UserService) UpsertUserKey(user string, key AuthorizedKey,
 func (s *UserService) GetUserKeys(user string) ([]AuthorizedKey, error) {
 	IDs, err := s.backend.GetKeys([]string{"users", user, "keys"})
 	if err != nil {
-		log.Errorf(err.Error())
-		return nil, convertErr(err)
+		return nil, err
 	}
 
 	keys := make([]AuthorizedKey, len(IDs))
@@ -54,7 +53,6 @@ func (s *UserService) GetUserKeys(user string) ([]AuthorizedKey, error) {
 func (s *UserService) GetUsers() ([]string, error) {
 	users, err := s.backend.GetKeys([]string{"users"})
 	if err != nil {
-		log.Errorf(err.Error())
 		return nil, trace.Wrap(err)
 	}
 	return users, nil
@@ -63,19 +61,13 @@ func (s *UserService) GetUsers() ([]string, error) {
 // DeleteUser deletes a user with all the keys from the backend
 func (s *UserService) DeleteUser(user string) error {
 	err := s.backend.DeleteBucket([]string{"users"}, user)
-	if err != nil {
-		log.Errorf(err.Error())
-	}
-	return convertErr(err)
+	return err
 }
 
 // DeleteUserKey deletes user key by given ID
 func (s *UserService) DeleteUserKey(user, key string) error {
 	err := s.backend.DeleteKey([]string{"users", user, "keys"}, key)
-	if err != nil {
-		log.Errorf(err.Error())
-	}
-	return convertErr(err)
+	return err
 }
 
 type AuthorizedKey struct {

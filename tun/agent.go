@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/auth"
-	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/services"
 	"github.com/gravitational/teleport/sshutils"
 	"github.com/gravitational/teleport/utils"
 
@@ -113,7 +113,7 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 		log.Errorf("error spliting hostport(%v), err: %v", hostport, err)
 		return err
 	}
-	certs, err := a.clt.GetRemoteCerts(backend.HostCert, hostname)
+	certs, err := a.clt.GetRemoteCerts(services.HostCert, hostname)
 	if err != nil {
 		log.Errorf("failed to fetch remote certs: %v", err)
 		return err

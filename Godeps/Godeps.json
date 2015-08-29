@@ -62,7 +62,7 @@
 		},
 		{
 			"ImportPath": "github.com/gravitational/log",
-			"Rev": "98626d832dffff30597c32885f39d3fc7011e121"
+			"Rev": "8e1bbf1bba0515719dbb17adf1da20b5390ac8da"
 		},
 		{
 			"ImportPath": "github.com/gravitational/roundtrip",
@@ -155,8 +155,8 @@
 		},
 		{
 			"ImportPath": "gopkg.in/alecthomas/kingpin.v2",
-			"Comment": "v2.0.11",
-			"Rev": "3eb8ffbc54a2f5e806181081e23098b67fe06d06"
+			"Comment": "v2.0.12",
+			"Rev": "639879d6110b1b0409410c7b737ef0bb18325038"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",

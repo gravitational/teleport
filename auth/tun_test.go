@@ -9,11 +9,11 @@ import (
 	"path/filepath"
 
 	authority "github.com/gravitational/teleport/auth/native"
-	"github.com/gravitational/teleport/backend"
-	"github.com/gravitational/teleport/backend/membk"
+	"github.com/gravitational/teleport/backend/boltbk"
 	"github.com/gravitational/teleport/events/boltlog"
 	"github.com/gravitational/teleport/recorder"
 	"github.com/gravitational/teleport/recorder/boltrec"
+	"github.com/gravitational/teleport/services"
 	"github.com/gravitational/teleport/session"
 	"github.com/gravitational/teleport/sshutils"
 	"github.com/gravitational/teleport/utils"
@@ -25,7 +25,7 @@ import (
 )
 
 type TunSuite struct {
-	bk   *membk.MemBackend
+	bk   *boltbk.BoltBackend
 	scrt *secret.Service
 
 	srv    *httptest.Server
@@ -40,20 +40,14 @@ type TunSuite struct {
 var _ = Suite(&TunSuite{})
 
 func (s *TunSuite) SetUpSuite(c *C) {
-	s.dir = c.MkDir()
 
 	key, err := secret.NewKey()
 	c.Assert(err, IsNil)
 	srv, err := secret.New(&secret.Config{KeyBytes: key})
 	c.Assert(err, IsNil)
 	s.scrt = srv
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+	log.Initialize("console", "WARN")
 
-	s.bl, err = boltlog.New(filepath.Join(s.dir, "eventsdb"))
-	c.Assert(err, IsNil)
-
-	s.rec, err = boltrec.New(s.dir)
-	c.Assert(err, IsNil)
 }
 
 func (s *TunSuite) TearDownTest(c *C) {
@@ -61,7 +55,17 @@ func (s *TunSuite) TearDownTest(c *C) {
 }
 
 func (s *TunSuite) SetUpTest(c *C) {
-	s.bk = membk.New()
+	s.dir = c.MkDir()
+	var err error
+	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
+	c.Assert(err, IsNil)
+
+	s.bl, err = boltlog.New(filepath.Join(s.dir, "eventsdb"))
+	c.Assert(err, IsNil)
+
+	s.rec, err = boltrec.New(s.dir)
+	c.Assert(err, IsNil)
+
 	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)
 	s.srv = httptest.NewServer(
 		NewAPIServer(s.a, s.bl, session.New(s.bk), s.rec))
@@ -133,7 +137,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	c.Assert(err, IsNil)
 
 	err = clt.UpsertServer(
-		backend.Server{ID: "a.example.com", Addr: "hello"}, 0)
+		services.Server{ID: "a.example.com", Addr: "hello"}, 0)
 	c.Assert(err, IsNil)
 }
 

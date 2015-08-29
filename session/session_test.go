@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/backend/boltbk"
 
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
@@ -104,8 +104,8 @@ func (s *BoltSuite) TestPartiesCRUD(c *C) {
 
 	// Delete session
 	c.Assert(s.srv.DeleteSession("s1"), IsNil)
-	c.Assert(s.srv.DeleteSession("s1"), FitsTypeOf, &backend.NotFoundError{})
+	c.Assert(s.srv.DeleteSession("s1"), FitsTypeOf, &teleport.NotFoundError{})
 
 	_, err = s.srv.GetSession("s1")
-	c.Assert(err, FitsTypeOf, &backend.NotFoundError{})
+	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 }

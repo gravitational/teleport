@@ -415,9 +415,9 @@ type enumValue struct {
 	options []string
 }
 
-func newEnumFlag(target **string, options ...string) *enumValue {
+func newEnumFlag(target *string, options ...string) *enumValue {
 	return &enumValue{
-		value:   *target,
+		value:   target,
 		options: options,
 	}
 }
