@@ -50,37 +50,3 @@ func NewBackendAccessPoint(bk backend.Backend) *BackendAccessPoint {
 
 	return &ap
 }
-
-/*// GetServers returns a list of registered servers
-func (ap *BackendAccessPoint) GetServers() ([]services.Server, error) {
-	return ap.presenceS.GetServers()
-}
-
-// UpsertServer registers server presence, permanently if ttl is 0 or
-// for the specified duration with second resolution if it's >= 1 second
-func (ap *BackendAccessPoint) UpsertServer(s services.Server, ttl time.Duration) error {
-	return ap.presenceS.UpsertServer(s, ttl)
-}
-
-// GetUserCAPub returns the user certificate authority public key
-func (ap *BackendAccessPoint) GetUserCAPub() ([]byte, error) {
-	return ap.caS.GetUserCAPub()
-}
-
-// GetUserKeys returns a list of authorized keys for a given user
-// in a OpenSSH key authorized_keys format
-func (ap *BackendAccessPoint) GetUserKeys(user string) ([]services.AuthorizedKey, error) {
-	return ap.userS.GetUserKeys(user)
-}
-
-// GetWebSessionsKeys returns a list of generated public keys
-// associated with user web session
-func (ap *BackendAccessPoint) GetWebSessionsKeys(user string) ([]services.AuthorizedKey, error) {
-	return ap.webS.GetWebSessionsKeys(user)
-}
-
-// GetRemoteCerts returns a list of trusted remote certificates
-func (ap *BackendAccessPoint) GetRemoteCerts(ctype, fqdn string) ([]services.RemoteCert, error) {
-	return ap.caS.GetRemoteCerts(ctype, fqdn)
-}
-*/

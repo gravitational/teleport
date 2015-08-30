@@ -42,9 +42,5 @@ func (s *LockService) AcquireLock(token string, ttl time.Duration) error {
 
 func (s *LockService) ReleaseLock(token string) error {
 	err := s.backend.DeleteKey([]string{"locks"}, token)
-	if err != nil {
-		log.Errorf(err.Error())
-		return err
-	}
-	return nil
+	return err
 }
