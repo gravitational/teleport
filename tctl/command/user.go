@@ -8,7 +8,7 @@ import (
 	"github.com/gravitational/teleport/services"
 )
 
-func (cmd *Command) setPass(user, pass string) {
+func (cmd *Command) SetPass(user, pass string) {
 	err := cmd.client.UpsertPassword(user, []byte(pass))
 	if err != nil {
 		cmd.printError(err)
@@ -17,7 +17,7 @@ func (cmd *Command) setPass(user, pass string) {
 	cmd.printOK("password has been set for user '%v'", user)
 }
 
-func (cmd *Command) upsertKey(user, keyID, key string, ttl time.Duration) {
+func (cmd *Command) UpsertKey(user, keyID, key string, ttl time.Duration) {
 	bytes, err := cmd.readInput(key)
 	if err != nil {
 		cmd.printError(err)
@@ -32,7 +32,7 @@ func (cmd *Command) upsertKey(user, keyID, key string, ttl time.Duration) {
 	fmt.Fprintf(cmd.out, "%v", string(signed))
 }
 
-func (cmd *Command) deleteUser(user string) {
+func (cmd *Command) DeleteUser(user string) {
 	if err := cmd.client.DeleteUser(user); err != nil {
 		cmd.printError(err)
 		return
@@ -40,7 +40,7 @@ func (cmd *Command) deleteUser(user string) {
 	cmd.printOK("User %v deleted", user)
 }
 
-func (cmd *Command) getUsers() {
+func (cmd *Command) GetUsers() {
 	users, err := cmd.client.GetUsers()
 	if err != nil {
 		cmd.printError(err)
@@ -50,7 +50,7 @@ func (cmd *Command) getUsers() {
 	fmt.Fprintf(cmd.out, usersView(users))
 }
 
-func (cmd *Command) getUserKeys(user string) {
+func (cmd *Command) GetUserKeys(user string) {
 	keys, err := cmd.client.GetUserKeys(user)
 	if err != nil {
 		cmd.printError(err)

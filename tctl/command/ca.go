@@ -8,7 +8,7 @@ import (
 	"github.com/gravitational/teleport/services"
 )
 
-func (cmd *Command) resetHostCA(confirm bool) {
+func (cmd *Command) ResetHostCA(confirm bool) {
 	if !confirm && !cmd.confirm("Reseting private and public keys for Host CA. This will invalidate all signed host certs. Continue?") {
 		cmd.printError(fmt.Errorf("aborted by user"))
 		return
@@ -20,7 +20,7 @@ func (cmd *Command) resetHostCA(confirm bool) {
 	cmd.printOK("CA keys have been regenerated")
 }
 
-func (cmd *Command) getHostCAPub() {
+func (cmd *Command) GetHostCAPub() {
 	key, err := cmd.client.GetHostCAPub()
 	if err != nil {
 		cmd.printError(err)
@@ -30,7 +30,7 @@ func (cmd *Command) getHostCAPub() {
 	fmt.Fprintf(cmd.out, string(key))
 }
 
-func (cmd *Command) resetUserCA(confirm bool) {
+func (cmd *Command) ResetUserCA(confirm bool) {
 	if !confirm && !cmd.confirm("Reseting private and public keys for User CA. This will invalidate all signed user certs. Continue?") {
 		cmd.printError(fmt.Errorf("aborted by user"))
 		return
@@ -42,7 +42,7 @@ func (cmd *Command) resetUserCA(confirm bool) {
 	cmd.printOK("CA keys have been regenerated")
 }
 
-func (cmd *Command) getUserCAPub() {
+func (cmd *Command) GetUserCAPub() {
 	key, err := cmd.client.GetUserCAPub()
 	if err != nil {
 		cmd.printError(err)
@@ -52,7 +52,7 @@ func (cmd *Command) getUserCAPub() {
 	fmt.Fprintf(cmd.out, string(key))
 }
 
-func (cmd *Command) upsertRemoteCert(id, fqdn, certType, path string, ttl time.Duration) {
+func (cmd *Command) UpsertRemoteCert(id, fqdn, certType, path string, ttl time.Duration) {
 	val, err := cmd.readInput(path)
 	if err != nil {
 		cmd.printError(err)
@@ -71,7 +71,7 @@ func (cmd *Command) upsertRemoteCert(id, fqdn, certType, path string, ttl time.D
 	cmd.printOK("Remote cert have been upserted")
 }
 
-func (cmd *Command) getRemoteCerts(fqdn, certType string) {
+func (cmd *Command) GetRemoteCerts(fqdn, certType string) {
 	certs, err := cmd.client.GetRemoteCerts(certType, fqdn)
 	if err != nil {
 		cmd.printError(err)
@@ -80,7 +80,7 @@ func (cmd *Command) getRemoteCerts(fqdn, certType string) {
 	fmt.Fprintf(cmd.out, remoteCertsView(certs))
 }
 
-func (cmd *Command) deleteRemoteCert(id, fqdn, certType string) {
+func (cmd *Command) DeleteRemoteCert(id, fqdn, certType string) {
 	err := cmd.client.DeleteRemoteCert(certType, fqdn, id)
 	if err != nil {
 		cmd.printError(err)

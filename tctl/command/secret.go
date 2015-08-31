@@ -6,7 +6,7 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 )
 
-func (cmd *Command) newKey() {
+func (cmd *Command) NewKey() {
 	key, err := secret.NewKey()
 	if err != nil {
 		cmd.printError(fmt.Errorf("failed to generate key: %v", err))

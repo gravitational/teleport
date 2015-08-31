@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func (cmd *Command) generateToken(fqdn string, ttl time.Duration,
+func (cmd *Command) GenerateToken(fqdn string, ttl time.Duration,
 	output string) {
 
 	token, err := cmd.client.GenerateToken(fqdn, ttl)

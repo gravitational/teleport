@@ -27,6 +27,14 @@ func NewCommand() *Command {
 	}
 }
 
+func (cmd *Command) SetClient(client *auth.Client) {
+	cmd.client = client
+}
+
+func (cmd *Command) SetOut(out io.Writer) {
+	cmd.out = out
+}
+
 func (cmd *Command) Run(args []string) error {
 	app := kingpin.New("tctl", "CLI for key management of teleport SSH cluster")
 	authUrl := app.Flag("auth", "Teleport URL").Default(DefaultTeleportURL).String()
@@ -116,46 +124,46 @@ func (cmd *Command) Run(args []string) error {
 	switch selectedCommand {
 	// Host CA
 	case hostCaReset.FullCommand():
-		cmd.resetHostCA(*hostCaResetConfirm)
+		cmd.ResetHostCA(*hostCaResetConfirm)
 	case hostCaPubKey.FullCommand():
-		cmd.getHostCAPub()
+		cmd.GetHostCAPub()
 
 	// User CA
 	case userCaReset.FullCommand():
-		cmd.resetUserCA(*userCaResetConfirm)
+		cmd.ResetUserCA(*userCaResetConfirm)
 	case userCaPubKey.FullCommand():
-		cmd.getUserCAPub()
+		cmd.GetUserCAPub()
 
 	// Remote CA
 	case remoteCaUpsert.FullCommand():
-		cmd.upsertRemoteCert(*remoteCaUpsertID, *remoteCaUpsertFQDN,
+		cmd.UpsertRemoteCert(*remoteCaUpsertID, *remoteCaUpsertFQDN,
 			*remoteCaUpsertType, *remoteCaUpsertPath, *remoteCaUpsertTTL)
 	case remoteCaLs.FullCommand():
-		cmd.getRemoteCerts(*remoteCaLsFQDN, *remoteCaLsType)
+		cmd.GetRemoteCerts(*remoteCaLsFQDN, *remoteCaLsType)
 	case remoteCaRm.FullCommand():
-		cmd.deleteRemoteCert(*remoteCaRmID, *remoteCaRmFQDN, *remoteCaRmType)
+		cmd.DeleteRemoteCert(*remoteCaRmID, *remoteCaRmFQDN, *remoteCaRmType)
 
 	// Secret
 	case secretNew.FullCommand():
-		cmd.newKey()
+		cmd.NewKey()
 
 	// Token
 	case tokenGenerate.FullCommand():
-		cmd.generateToken(*tokenGenerateFQDN, *tokenGenerateTTL,
+		cmd.GenerateToken(*tokenGenerateFQDN, *tokenGenerateTTL,
 			*tokenGenerateOutput)
 
 	// User
 	case userLs.FullCommand():
-		cmd.getUsers()
+		cmd.GetUsers()
 	case userDelete.FullCommand():
-		cmd.deleteUser(*userDeleteUser)
+		cmd.DeleteUser(*userDeleteUser)
 	case userUpsertKey.FullCommand():
-		cmd.upsertKey(*userUpsertKeyUser, *userUpsertKeyKeyID,
+		cmd.UpsertKey(*userUpsertKeyUser, *userUpsertKeyKeyID,
 			*userUpsertKeyKey, *userUpsertKeyTTL)
 	case userLsKeys.FullCommand():
-		cmd.getUserKeys(*userLsKeysUser)
+		cmd.GetUserKeys(*userLsKeysUser)
 	case userSetPass.FullCommand():
-		cmd.setPass(*userSetPassUser, *userSetPassPass)
+		cmd.SetPass(*userSetPassUser, *userSetPassPass)
 	}
 
 	return nil
