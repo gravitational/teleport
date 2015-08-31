@@ -28,8 +28,14 @@ func Init(b backend.Backend, a Authority,
 		return nil, nil, fmt.Errorf("path can not be empty")
 	}
 
+	err := os.MkdirAll(dataDir, os.ModeDir|0755)
+	if err != nil {
+		log.Errorf(err.Error())
+		return nil, nil, err
+	}
+
 	lockService := services.NewLockService(b)
-	err := lockService.AcquireLock(authDomain, 60*time.Second)
+	err = lockService.AcquireLock(authDomain, 60*time.Second)
 	if err != nil {
 		return nil, nil, err
 	}
