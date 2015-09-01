@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/buger/goterm"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codegangsta/cli"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/alecthomas/kingpin.v2"
 	"github.com/gravitational/teleport/auth"
 	"github.com/gravitational/teleport/utils"
@@ -213,18 +212,6 @@ func (cmd *Command) printOK(message string, params ...interface{}) {
 
 func (cmd *Command) printInfo(message string, params ...interface{}) {
 	fmt.Fprintf(cmd.out, "INFO: %s\n", fmt.Sprintf(message, params...))
-}
-
-func cut(i, j int, args []string) []string {
-	s := []string{}
-	s = append(s, args[:i]...)
-	return append(s, args[j:]...)
-}
-
-func flags() []cli.Flag {
-	return []cli.Flag{
-		cli.StringFlag{Name: "auth", Value: DefaultTeleportURL, Usage: "Teleport URL"},
-	}
 }
 
 const DefaultTeleportURL = "unix:///tmp/teleport.auth.sock"
