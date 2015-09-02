@@ -64,7 +64,7 @@ func main() {
 	)
 
 	cfg.Auth.Domain = app.Flag("auth-domain", "authentication server domain name, e.g. example.com").String()
-	cfg.SSH.Token = app.Flag("ssh-token", "one time provisioning token for SSH node to register with authority").String()
+	cfg.SSH.Token = app.Flag("ssh-token", "one time provisioning token for SSH node to register with authority").OverrideDefaultFromEnvar("TELEPORT_SSH_TOKEN").String()
 
 	// CP role options
 	cfg.CP.Enabled = app.Flag("cp", "enable Control Panel endpoint").Default("false").Bool()
@@ -91,19 +91,9 @@ func main() {
 			}, &cfg.Tun.SrvAddr),
 	)
 
-	cfg.Tun.Token = app.Flag("tun-token", "one time provisioning token for tun agent to register with authority").String()
+	cfg.Tun.Token = app.Flag("tun-token", "one time provisioning token for tun agent to register with authority").OverrideDefaultFromEnvar("TELEPORT_TUN_TOKEN").String()
 
 	kingpin.MustParse(app.Parse(os.Args[1:]))
-
-	// some variables can be set via environment variables
-	// TODO(klizhentas) - implement
-	if os.Getenv("TELEPORT_SSH_TOKEN") != "" {
-		*cfg.SSH.Token = os.Getenv("TELEPORT_SSH_TOKEN")
-	}
-
-	if os.Getenv("TELEPORT_TUN_TOKEN") != "" {
-		*cfg.Tun.Token = os.Getenv("TELEPORT_TUN_TOKEN")
-	}
 
 	srv, err := service.NewTeleport(cfg)
 	if err != nil {

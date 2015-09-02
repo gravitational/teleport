@@ -72,7 +72,6 @@ func initAuth(t *TeleportService, cfg Config) error {
 	if *cfg.DataDir == "" {
 		return fmt.Errorf("please supply data directory")
 	}
-	//a := cfg.Auth
 	if *cfg.Auth.Domain == "" {
 		return fmt.Errorf("please provide auth domain, e.g. example.com")
 	}
