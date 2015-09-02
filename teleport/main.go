@@ -1,151 +1,99 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/service"
 	"github.com/gravitational/teleport/utils"
+
+	"github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/alecthomas/kingpin.v2"
 )
 
 func main() {
 	cfg := service.Config{}
 
-	flag.StringVar(
-		&cfg.Log, "log", "console",
-		"log output, currently 'console' or 'syslog'")
+	app := kingpin.New("teleport", "Teleport is a clustering SSH server and SSH certificate authority that provides audit logs, web access, command multiplexing and more.")
+	cfg.Log = app.Flag("log", "log output, currently 'console' or 'syslog'").Default("console").String()
+	cfg.LogSeverity = app.Flag("log-severity", "log severity, INFO or WARN or ERROR").Default("WARN").String()
 
-	flag.StringVar(
-		&cfg.LogSeverity, "logSeverity", "WARN",
-		"log severity, INFO or WARN or ERROR")
+	cfg.DataDir = app.Flag("data-dir", "path to directory where teleport stores it's state").Required().String()
 
-	flag.StringVar(
-		&cfg.DataDir, "dataDir", "",
-		"path to directory where teleport stores it's state")
+	cfg.FQDN = app.Flag("fqdn", "fqdn of this server, e.g. node1.example.com, should be unique").String()
 
-	flag.StringVar(
-		&cfg.FQDN, "fqdn", "",
-		"fqdn of this server, e.g. node1.example.com, should be unique")
+	app.Flag("auth-server", "list of SSH auth server endpoints").SetValue(
+		utils.NewNetAddrList(&cfg.AuthServers),
+	)
 
-	flag.Var(utils.NewNetAddrList(&cfg.AuthServers),
-		"authServer", "list of SSH auth server endpoints")
+	cfg.SSH.Enabled = app.Flag("ssh", "enable SSH server endpoint").Default("false").Bool()
 
-	// SSH specific role options
-	flag.BoolVar(&cfg.SSH.Enabled, "ssh", false,
-		"enable SSH server endpoint")
-
-	flag.Var(
+	app.Flag("ssh-addr", "SSH endpoint listening address").SetValue(
 		utils.NewNetAddrVal(
 			utils.NetAddr{
 				Network: "tcp",
 				Addr:    "127.0.0.1:33001",
 			}, &cfg.SSH.Addr),
-		"sshAddr", "SSH endpoint listening address")
+	)
 
-	flag.StringVar(
-		&cfg.SSH.Shell, "sshShell", "/bin/bash",
-		"path to shell to launch for interactive sessions")
+	cfg.SSH.Shell = app.Flag("ssh-shell", "path to shell to launch for interactive sessions").Default("/bin/bash").String()
 
 	// Auth server role options
-	flag.BoolVar(&cfg.Auth.Enabled, "auth", false,
-		"enable Authentication server endpoint")
+	cfg.Auth.Enabled = app.Flag("auth", "enable Authentication server endpoint").Default("false").Bool()
+	cfg.Auth.Backend = app.Flag("auth-backend", "auth backend type, 'etcd' or 'bolt'").Default("etcd").String()
+	cfg.Auth.BackendConfig = app.Flag("auth-backend-config", "auth backend-specific configuration string").String()
+	cfg.Auth.EventBackend = app.Flag("auth-event-backend", "event backend type, currently only 'bolt'").Default("bolt").String()
+	cfg.Auth.EventBackendConfig = app.Flag("auth-event-backend-config", "event backend-specific configuration string").String()
+	cfg.Auth.RecordBackend = app.Flag("auth-record-backend", "event backend type, currently only 'bolt'").Default("bolt").String()
+	cfg.Auth.RecordBackendConfig = app.Flag("auth-record-backend-config", "event backend-specific configuration string").String()
 
-	flag.StringVar(
-		&cfg.Auth.Backend, "authBackend", "etcd",
-		"auth backend type, 'etcd' or 'bolt'")
-
-	flag.StringVar(
-		&cfg.Auth.BackendConfig, "authBackendConfig", "",
-		"auth backend-specific configuration string")
-
-	flag.StringVar(
-		&cfg.Auth.EventBackend, "authEventBackend", "bolt",
-		"event backend type, currently only 'bolt'")
-
-	flag.StringVar(
-		&cfg.Auth.EventBackendConfig, "authEventBackendConfig", "",
-		"event backend-specific configuration string")
-
-	flag.StringVar(
-		&cfg.Auth.RecordBackend, "authRecordBackend", "bolt",
-		"event backend type, currently only 'bolt'")
-
-	flag.StringVar(
-		&cfg.Auth.RecordBackendConfig, "authRecordBackendConfig", "",
-		"event backend-specific configuration string")
-
-	flag.Var(
+	app.Flag("auth-http-addr", "Auth Server HTTP API listening address").SetValue(
 		utils.NewNetAddrVal(
 			utils.NetAddr{
 				Network: "unix",
 				Addr:    "/tmp/teleport.auth.sock",
 			}, &cfg.Auth.HTTPAddr),
-		"authHTTPAddr", "Auth Server HTTP API listening address")
+	)
 
-	flag.Var(
+	app.Flag("auth-ssh-addr", "Auth Server SSH tunnel API listening address").SetValue(
 		utils.NewNetAddrVal(
 			utils.NetAddr{
 				Network: "tcp",
 				Addr:    "127.0.0.1:33000",
 			}, &cfg.Auth.SSHAddr),
-		"authSSHAddr", "Auth Server SSH tunnel API listening address")
+	)
 
-	flag.StringVar(
-		&cfg.Auth.Domain, "authDomain", "",
-		"authentication server domain name, e.g. example.com")
-
-	flag.StringVar(
-		&cfg.SSH.Token, "sshToken", "",
-		"one time provisioning token for SSH node to register with authority")
+	cfg.Auth.Domain = app.Flag("auth-domain", "authentication server domain name, e.g. example.com").String()
+	cfg.SSH.Token = app.Flag("ssh-token", "one time provisioning token for SSH node to register with authority").OverrideDefaultFromEnvar("TELEPORT_SSH_TOKEN").String()
 
 	// CP role options
-	flag.BoolVar(&cfg.CP.Enabled, "cp", false,
-		"enable Control Panel endpoint")
+	cfg.CP.Enabled = app.Flag("cp", "enable Control Panel endpoint").Default("false").Bool()
+	cfg.CP.AssetsDir = app.Flag("cp-assets-dir", "path to control panel assets").String()
 
-	flag.StringVar(
-		&cfg.CP.AssetsDir, "cpAssetsDir", "",
-		"path to control panel assets")
-
-	flag.Var(
+	app.Flag("cp-addr", "CP server web listening address").SetValue(
 		utils.NewNetAddrVal(
 			utils.NetAddr{
 				Network: "tcp",
 				Addr:    "127.0.0.1:33002",
 			}, &cfg.CP.Addr),
-		"cpAddr", "CP server web listening address")
+	)
 
-	flag.StringVar(
-		&cfg.CP.Domain, "cpDomain", "",
-		"control panel domain to serve, e.g. example.com")
+	cfg.CP.Domain = app.Flag("cp-domain", "control panel domain to serve, e.g. example.com").String()
 
 	// Outbound tunnel role options
-	flag.BoolVar(&cfg.Tun.Enabled, "tun", false, "enable outbound tunnel")
+	cfg.Tun.Enabled = app.Flag("tun", "enable outbound tunnel").Default("false").Bool()
 
-	flag.Var(
+	app.Flag("tun-srv-addr", "tun agent dial address").SetValue(
 		utils.NewNetAddrVal(
 			utils.NetAddr{
 				Network: "tcp",
 				Addr:    "127.0.0.1:33006",
 			}, &cfg.Tun.SrvAddr),
-		"tunSrvAddr", "tun agent dial address")
+	)
 
-	flag.StringVar(
-		&cfg.Tun.Token, "tunToken", "",
-		"one time provisioning token for tun agent to register with authority")
+	cfg.Tun.Token = app.Flag("tun-token", "one time provisioning token for tun agent to register with authority").OverrideDefaultFromEnvar("TELEPORT_TUN_TOKEN").String()
 
-	flag.Parse()
-
-	// some variables can be set via environment variables
-	// TODO(klizhentas) - implement
-	if os.Getenv("TELEPORT_SSH_TOKEN") != "" {
-		cfg.SSH.Token = os.Getenv("TELEPORT_SSH_TOKEN")
-	}
-
-	if os.Getenv("TELEPORT_TUN_TOKEN") != "" {
-		cfg.Tun.Token = os.Getenv("TELEPORT_TUN_TOKEN")
-	}
+	kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	srv, err := service.NewTeleport(cfg)
 	if err != nil {

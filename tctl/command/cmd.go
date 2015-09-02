@@ -83,7 +83,7 @@ func (cmd *Command) Run(args []string) error {
 
 	tokenGenerate := token.Command("generate", "Generate provisioning token for server with fqdn")
 	tokenGenerateFQDN := tokenGenerate.Flag("fqdn", "FQDN of the server").Required().String()
-	tokenGenerateTTL := tokenGenerate.Flag("ttl", "Time to live").Default("120").Duration()
+	tokenGenerateTTL := tokenGenerate.Flag("ttl", "Time to live").Default("120s").Duration()
 	tokenGenerateOutput := tokenGenerate.Flag("output", "Optional output file").String()
 
 	// User
