@@ -170,7 +170,7 @@ func initSSH(t *TeleportService, cfg Config) error {
 		// this means the server has not been initialized yet we are starting
 		// the registering client that attempts to connect ot the auth server
 		// and provision the keys
-		return initRegister(t, *cfg.SSH.Token, cfg)
+		return initRegister(t, *cfg.SSH.Token, cfg, initSSHEndpoint)
 	}
 	return initSSHEndpoint(t, cfg)
 }
@@ -212,7 +212,8 @@ func initSSHEndpoint(t *TeleportService, cfg Config) error {
 	return nil
 }
 
-func initRegister(t *TeleportService, token string, cfg Config) error {
+func initRegister(t *TeleportService, token string, cfg Config,
+	initFunc func(*TeleportService, Config) error) error {
 	// we are on the same server as the auth endpoint
 	// and there's no token. we can handle this
 	if cfg.Auth.Enabled && token == "" {
@@ -236,7 +237,7 @@ func initRegister(t *TeleportService, token string, cfg Config) error {
 			return err
 		}
 		log.Infof("teleport:register registered successfully")
-		return initSSHEndpoint(t, cfg)
+		return initFunc(t, cfg)
 	})
 	return nil
 }
@@ -256,7 +257,7 @@ func initTun(t *TeleportService, cfg Config) error {
 		// this means the server has not been initialized yet we are starting
 		// the registering client that attempts to connect ot the auth server
 		// and provision the keys
-		return initRegister(t, *cfg.Tun.Token, cfg)
+		return initRegister(t, *cfg.Tun.Token, cfg, initTunAgent)
 	}
 	return initTunAgent(t, cfg)
 }

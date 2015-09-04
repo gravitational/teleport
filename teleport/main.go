@@ -62,12 +62,12 @@ func main() {
 	srv, err := service.NewTeleport(cfg)
 	if err != nil {
 		fmt.Printf("error starting teleport: %v\n", err)
-		return
+		os.Exit(-1)
 	}
 
 	if err := srv.Start(); err != nil {
 		log.Errorf("teleport failed to start with error: %v", err)
-		return
+		os.Exit(-1)
 	}
 	srv.Wait()
 }
@@ -162,7 +162,11 @@ func getFilledConfig(args []string, commandIsFirst bool) service.Config {
 
 	cfg.Tun.Token = tunCmd.Flag("token", "one time provisioning token for tun agent to register with authority").OverrideDefaultFromEnvar("TELEPORT_TUN_TOKEN").String()
 
-	kingpin.MustParse(app.Parse(args))
+	_, err := app.Parse(args)
+	if err != nil {
+		fmt.Printf("Error: %s, try --help\n", err.Error())
+		os.Exit(-1)
+	}
 
 	return cfg
 
