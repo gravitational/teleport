@@ -41,25 +41,25 @@ func NewTeleport(cfg Config) (*TeleportService, error) {
 	t := &TeleportService{}
 	t.Supervisor = *New()
 
-	if *cfg.Auth.Enabled {
+	if cfg.Auth.Enabled {
 		if err := initAuth(t, cfg); err != nil {
 			return nil, err
 		}
 	}
 
-	if *cfg.CP.Enabled {
+	if cfg.CP.Enabled {
 		if err := initCP(t, cfg); err != nil {
 			return nil, err
 		}
 	}
 
-	if *cfg.SSH.Enabled {
+	if cfg.SSH.Enabled {
 		if err := initSSH(t, cfg); err != nil {
 			return nil, err
 		}
 	}
 
-	if *cfg.Tun.Enabled {
+	if cfg.Tun.Enabled {
 		if err := initTun(t, cfg); err != nil {
 			return nil, err
 		}
@@ -170,7 +170,7 @@ func initSSH(t *TeleportService, cfg Config) error {
 		// this means the server has not been initialized yet we are starting
 		// the registering client that attempts to connect ot the auth server
 		// and provision the keys
-		return initRegister(t, *cfg.SSH.Token, cfg)
+		return initRegister(t, *cfg.SSH.Token, cfg, initSSHEndpoint)
 	}
 	return initSSHEndpoint(t, cfg)
 }
@@ -212,10 +212,11 @@ func initSSHEndpoint(t *TeleportService, cfg Config) error {
 	return nil
 }
 
-func initRegister(t *TeleportService, token string, cfg Config) error {
+func initRegister(t *TeleportService, token string, cfg Config,
+	initFunc func(*TeleportService, Config) error) error {
 	// we are on the same server as the auth endpoint
 	// and there's no token. we can handle this
-	if *cfg.Auth.Enabled && token == "" {
+	if cfg.Auth.Enabled && token == "" {
 		log.Infof("registering in embedded mode, connecting to local auth server")
 		clt, err := auth.NewClientFromNetAddr(cfg.Auth.HTTPAddr)
 		if err != nil {
@@ -236,7 +237,7 @@ func initRegister(t *TeleportService, token string, cfg Config) error {
 			return err
 		}
 		log.Infof("teleport:register registered successfully")
-		return initSSHEndpoint(t, cfg)
+		return initFunc(t, cfg)
 	})
 	return nil
 }
@@ -256,7 +257,7 @@ func initTun(t *TeleportService, cfg Config) error {
 		// this means the server has not been initialized yet we are starting
 		// the registering client that attempts to connect ot the auth server
 		// and provision the keys
-		return initRegister(t, *cfg.Tun.Token, cfg)
+		return initRegister(t, *cfg.Tun.Token, cfg, initTunAgent)
 	}
 	return initTunAgent(t, cfg)
 }
@@ -328,7 +329,7 @@ func initLogging(ltype, severity string) error {
 }
 
 func validateConfig(cfg Config) error {
-	if !*cfg.Auth.Enabled && !*cfg.SSH.Enabled && !*cfg.CP.Enabled && !*cfg.Tun.Enabled {
+	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.CP.Enabled && !cfg.Tun.Enabled {
 		return fmt.Errorf("supply at least one of Auth, SSH, CP or Tun roles")
 	}
 	return nil
@@ -363,7 +364,7 @@ type Config struct {
 }
 
 type AuthConfig struct {
-	Enabled  *bool
+	Enabled  bool
 	HTTPAddr utils.NetAddr
 	SSHAddr  utils.NetAddr
 	Domain   *string
@@ -380,13 +381,13 @@ type AuthConfig struct {
 
 type SSHConfig struct {
 	Token   *string
-	Enabled *bool
+	Enabled bool
 	Addr    utils.NetAddr
 	Shell   *string
 }
 
 type CPConfig struct {
-	Enabled   *bool
+	Enabled   bool
 	Addr      utils.NetAddr
 	Domain    *string
 	AssetsDir *string
@@ -394,6 +395,6 @@ type CPConfig struct {
 
 type TunConfig struct {
 	Token   *string
-	Enabled *bool
+	Enabled bool
 	SrvAddr utils.NetAddr
 }

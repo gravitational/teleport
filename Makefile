@@ -48,103 +48,110 @@ cover-package-with-etcd: remove-temp-files
 
 run-auth: install
 	rm -f /tmp/teleport.auth.sock
-	teleport --auth\
-             --auth-backend=bolt\
-             --auth-backend-config='{"path": "/tmp/teleport.auth.db"}'\
-	     --auth-event-backend-config='{"path": "/tmp/teleport.event.db"}'\
-	     --auth-record-backend-config='{"path": "/tmp/teleport.records.db"}'\
-             --auth-domain=gravitational.io\
-	     --auth-ssh-addr=tcp://0.0.0.0:32000\
+	teleport\
              --log=console\
              --log-severity=INFO\
              --data-dir=/tmp\
-             --fqdn=auth.gravitational.io
+             --fqdn=auth.gravitational.io\
+	   auth\
+             --backend=bolt\
+             --backend-config='{"path": "/tmp/teleport.auth.db"}'\
+	     --event-backend-config='{"path": "/tmp/teleport.event.db"}'\
+	     --record-backend-config='{"path": "/tmp/teleport.records.db"}'\
+             --domain=gravitational.io\
+	     --ssh-addr=tcp://0.0.0.0:33000
 
 run-ssh: install
 	tctl token generate --output=/tmp/token --fqdn=node1.gravitational.io
-	teleport --ssh\
+	teleport\
              --log=console\
              --log-severity=INFO\
              --data-dir=/tmp\
              --fqdn=node1.gravitational.io\
-             --ssh-token=/tmp/token\
-             --auth-server=tcp://0.0.0.0:32000
+             --auth-server=tcp://0.0.0.0:33000\
+	   ssh\
+             --token=/tmp/token\
 
-run-cp: install install-assets
-	teleport -cp\
-             --cp-domain=gravitational.io\
+run-cp: install #install-assets
+	teleport\
              --log=console\
              --log-severity=INFO\
              --data-dir=/tmp\
              --fqdn=node2.gravitational.io\
-             --auth-server=tcp://auth.gravitational.io:33000
+             --auth-server=tcp://127.0.0.1:33000\
+	   cp\
+             --domain=gravitational.io
 
 run-tun: install
 	tctl token generate --output=/tmp/token --fqdn=node1.gravitational.io
-	teleport --tun\
+	teleport\
              --log=console\
              --log-severity=INFO\
              --data-dir=/var/lib/teleport\
              --fqdn=node1.gravitational.io\
+             --auth-server=tcp://auth.gravitational.io:33000\
+	   tun\
              --tun-token=/tmp/token\
              --tun-srv-addr=tcp://lens.gravitational.io:34000\
-             --auth-server=tcp://auth.gravitational.io:33000
+
 
 
 run-embedded: install
 	rm -f /tmp/teleport.auth.sock
-	teleport --auth\
-             --auth-backend=bolt\
-             --auth-backend-config='{"path": "/var/lib/teleport/teleport.auth.db"}'\
-             --auth-domain=gravitational.io\
-	     --auth-event-backend=bolt\
-             --auth-event-backend-config='{"path": "/var/lib/teleport/teleport.event.db"}'\
-	     --auth-record-backend=bolt\
-             --auth-record-backend-config='{"path": "/var/lib/teleport/records"}'\
+	teleport\
              --log=console\
              --log-severity=WARN\
              --data-dir=/var/lib/teleport\
              --fqdn=auth.gravitational.io\
-             --ssh\
-             --auth-server=tcp://auth.gravitational.io:33000\
-	     --tun\
-             --tun-srv-addr=tcp://lens.vendor.io:34000\
-			 -cp\
-             --cp-assets-dir=$(GOPATH)/src/github.com/gravitational/teleport\
-             --cp-domain=gravitational.io
+	   auth\
+             --backend=bolt\
+             --backend-config='{"path": "/var/lib/teleport/teleport.auth.db"}'\
+             --domain=gravitational.io\
+	     --event-backend=bolt\
+             --event-backend-config='{"path": "/var/lib/teleport/teleport.event.db"}'\
+	     --record-backend=bolt\
+             --record-backend-config='{"path": "/var/lib/teleport/records"}'\
+           ssh\
+	   tun\
+             --srv-addr=tcp://lens.vendor.io:34000\
+	   cp\
+             --assets-dir=$(GOPATH)/src/github.com/gravitational/teleport\
+             --domain=gravitational.io
 
 
 run-simple: install
 	rm -f /tmp/teleport.auth.sock
 	mkdir -p /var/lib/teleport/records
-	teleport --auth\
-             --auth-backend=bolt\
-             --auth-backend-config='{"path": "/var/lib/teleport/teleport.auth.db"}'\
-             --auth-domain=gravitational.io\
-	     --auth-event-backend=bolt\
-             --auth-event-backend-config='{"path": "/var/lib/teleport/teleport.event.db"}'\
-	     --auth-record-backend=bolt\
-             --auth-record-backend-config='{"path": "/var/lib/teleport/records"}'\
+	teleport\
              --log=console\
              --log-severity=INFO\
              --data-dir=/var/lib/teleport\
              --fqdn=auth.gravitational.io\
-             --ssh\
-             --auth-server=tcp://auth.gravitational.io:33000\
-	     --cp\
-             --cp-assets-dir=$(GOPATH)/src/github.com/gravitational/teleport\
-             --cp-domain=gravitational.io
+             --auth-server=tcp://127.0.0.1:33000\
+	   auth\
+             --backend=bolt\
+             --backend-config='{"path": "/var/lib/teleport/teleport.auth.db"}'\
+             --domain=gravitational.io\
+	     --event-backend=bolt\
+             --event-backend-config='{"path": "/var/lib/teleport/teleport.event.db"}'\
+	     --record-backend=bolt\
+             --record-backend-config='{"path": "/var/lib/teleport/records"}'\
+          ssh\
+	  cp\
+             --assets-dir=$(GOPATH)/src/github.com/gravitational/teleport\
+             --domain=gravitational.io
 
 run-ssh2: install
-	tctl token generate --output=/tmp/token -fqdn=node1.gravitational.io
-	teleport -ssh\
-             --ssh-addr=tcp://localhost:34001\
+	tctl token generate --output=/tmp/token --fqdn=node3.gravitational.io
+	teleport\
              --log=console\
              --log-severity=INFO\
              --data-dir=/tmp\
-             --fqdn=node1.gravitational.io\
-             --ssh-token=/tmp/token\
-             --auth-server=tcp://auth.gravitational.io:33000
+             --fqdn=node3.gravitational.io\
+             --auth-server=tcp://0.0.0.0:33000\
+	   ssh\
+             --addr=tcp://localhost:34001\
+             --token=/tmp/token\
 
 
 profile:
