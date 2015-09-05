@@ -1,0 +1,12 @@
+body {
+    background-color: #000
+}
+.nav-header {
+    background: transparent
+}
+.navbar-default {
+    border-color: #ff0000
+}
+#wrapper {
+    border-color: #ff00ff
+}
