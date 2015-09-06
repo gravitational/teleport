@@ -10,9 +10,9 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 )
 
+// Secure encrypted session id
 type SecureID string
 
-// Secure encrypted session id
 // Plain text unique session id
 type PlainID string
 
@@ -22,7 +22,7 @@ type IDPair struct {
 	PID PlainID
 }
 
-func NewID(s *secret.Service) (*IDPair, error) {
+func NewID(s secret.SecretService) (*IDPair, error) {
 	p := &random.CSPRNG{}
 	bytes, err := p.Bytes(32)
 	if err != nil {
@@ -34,12 +34,12 @@ func NewID(s *secret.Service) (*IDPair, error) {
 		return nil, err
 	}
 	id := fmt.Sprintf("%v.%v",
-		base64.URLEncoding.EncodeToString(sealed.Ciphertext),
-		base64.URLEncoding.EncodeToString(sealed.Nonce))
+		sealed.CiphertextHex(),
+		sealed.NonceHex())
 	return &IDPair{SID: SecureID(id), PID: PlainID(pid)}, nil
 }
 
-func DecodeSID(sid SecureID, s *secret.Service) (PlainID, error) {
+func DecodeSID(sid SecureID, s secret.SecretService) (PlainID, error) {
 	out := strings.Split(string(sid), ".")
 	if len(out) != 2 {
 		return "", &MalformedSessionError{S: sid, Msg: "invalid format, missing separator"}

@@ -26,7 +26,7 @@ import (
 
 type TunSuite struct {
 	bk   *boltbk.BoltBackend
-	scrt *secret.Service
+	scrt secret.SecretService
 
 	srv    *httptest.Server
 	tsrv   *TunServer

@@ -29,7 +29,7 @@ type SrvSuite struct {
 	bk   *boltbk.BoltBackend
 	a    *auth.AuthServer
 	up   *upack
-	scrt *secret.Service
+	scrt secret.SecretService
 	dir  string
 }
 

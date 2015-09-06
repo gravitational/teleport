@@ -164,7 +164,7 @@ func HaveKeys(fqdn, dataDir string) (bool, error) {
 	return true, nil
 }
 
-func InitSecret(dataDir string) (*secret.Service, error) {
+func InitSecret(dataDir string) (secret.SecretService, error) {
 	keyPath := secretKeyPath(dataDir)
 	exists, err := pathExists(keyPath)
 	if err != nil {
@@ -186,7 +186,7 @@ func InitSecret(dataDir string) (*secret.Service, error) {
 	return ReadSecret(dataDir)
 }
 
-func ReadSecret(dataDir string) (*secret.Service, error) {
+func ReadSecret(dataDir string) (secret.SecretService, error) {
 	keyPath := secretKeyPath(dataDir)
 	bytes, err := ioutil.ReadFile(keyPath)
 	if err != nil {

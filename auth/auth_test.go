@@ -16,7 +16,7 @@ import (
 
 type AuthSuite struct {
 	bk   backend.Backend
-	scrt *secret.Service
+	scrt secret.SecretService
 	a    *AuthServer
 
 	dir string

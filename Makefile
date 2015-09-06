@@ -7,6 +7,7 @@ ETCD_FLAGS := TELEPORT_TEST_ETCD_NODES=${ETCD_NODES}
 install: remove-temp-files
 	go install github.com/gravitational/teleport/teleport
 	go install github.com/gravitational/teleport/tctl
+	go install github.com/gravitational/teleport/telescope/telescope
 
 install-assets:
 	go get github.com/jteeuwen/go-bindata/go-bindata

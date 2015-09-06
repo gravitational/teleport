@@ -39,3 +39,28 @@ func TestEncryptDecryptCycle(t *testing.T) {
 		t.Errorf("Contents do not match: %v, %v", message, out)
 	}
 }
+
+func TestEncryptDecryptCyclePackage(t *testing.T) {
+	randomProvider = &random.FakeRNG{}
+
+	key, err := NewKey()
+	if err != nil {
+		t.Errorf("Got unexpected response from NewKey: %v", err)
+	}
+
+	message := []byte("hello, box!")
+	sealed, err := Seal(message, key)
+	if err != nil {
+		t.Errorf("Got unexpected response from Seal: %v", err)
+	}
+
+	out, err := Open(sealed, key)
+	if err != nil {
+		t.Errorf("Got unexpected response from Open: %v", err)
+	}
+
+	// compare the messages
+	if subtle.ConstantTimeCompare(message, out) != 1 {
+		t.Errorf("Contents do not match: %v, %v", message, out)
+	}
+}

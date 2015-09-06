@@ -37,11 +37,6 @@
 			"Rev": "3bb9f3be3053e35972e4a0725dd6e44ae203bc99"
 		},
 		{
-			"ImportPath": "github.com/codegangsta/cli",
-			"Comment": "1.2.0-62-gbf4a526",
-			"Rev": "bf4a526f48af7badd25d2cb02d587e1b01be3b50"
-		},
-		{
 			"ImportPath": "github.com/coreos/etcd/etcdserver/etcdhttp/httptypes",
 			"Comment": "v2.0.4-169-g0a04eec",
 			"Rev": "0a04eec481f24ec616eed8ad52e59eb6d203263e"
@@ -70,7 +65,7 @@
 		},
 		{
 			"ImportPath": "github.com/gravitational/session",
-			"Rev": "dbae1e3eb55898f793640ff091929c6893fba69c"
+			"Rev": "17a4dfcc96712ecbd688c769ccd0634deab6e52f"
 		},
 		{
 			"ImportPath": "github.com/gravitational/trace",
@@ -87,11 +82,13 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/lemma/random",
-			"Rev": "6070cc657b5c35791ea56b0e47fb78644c7270f3"
+			"Comment": "0.0.1-4-g9c38c9b",
+			"Rev": "9c38c9b26d0df3b21d60715da7e1f55e2fd0b739"
 		},
 		{
 			"ImportPath": "github.com/mailgun/lemma/secret",
-			"Rev": "6070cc657b5c35791ea56b0e47fb78644c7270f3"
+			"Comment": "0.0.1-4-g9c38c9b",
+			"Rev": "9c38c9b26d0df3b21d60715da7e1f55e2fd0b739"
 		},
 		{
 			"ImportPath": "github.com/mailgun/metrics",
@@ -161,6 +158,11 @@
 		{
 			"ImportPath": "gopkg.in/check.v1",
 			"Rev": "64131543e7896d5bcc6bd5a76287eb75ea96c673"
+		},
+		{
+			"ImportPath": "gopkg.in/mgo.v2/bson",
+			"Comment": "r2015.06.03-4-gf4923a5",
+			"Rev": "f4923a569136442e900b8cf5c1a706c0a8b0883c"
 		}
 	]
 }

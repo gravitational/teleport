@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/session"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/form"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/ttlmap"
 	"github.com/gravitational/teleport/cp"

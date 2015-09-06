@@ -30,8 +30,8 @@ run: install
          --cp-assets-dir=$(GOPATH)/src/github.com/gravitational/teleport\
          --fqdn=telescope.vendor.io\
          --domain=vendor.io\
-         --tun-addr=tcp://telescope.vendor.io:34000\
-         --web-addr=tcp://telescope.vendor.io:35000\
+         --tun-addr=tcp://localhost:34000\
+         --web-addr=tcp://localhost:35000\
          --backend=bolt\
          --backend-config='{"path": "/var/lib/teleport/telescope.db"}'
 

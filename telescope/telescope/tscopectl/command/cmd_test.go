@@ -40,7 +40,7 @@ type CmdSuite struct {
 	out  *bytes.Buffer
 	bk   backend.Backend
 	bl   *boltlog.BoltLog
-	scrt *secret.Service
+	scrt secret.SecretService
 	rec  recorder.Recorder
 	addr utils.NetAddr
 	dir  string

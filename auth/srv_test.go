@@ -31,7 +31,7 @@ type APISuite struct {
 	clt  *Client
 	bk   *boltbk.BoltBackend
 	bl   *boltlog.BoltLog
-	scrt *secret.Service
+	scrt secret.SecretService
 	rec  recorder.Recorder
 	a    *AuthServer
 	dir  string

@@ -37,7 +37,7 @@ type Session struct {
 	WS  services.WebSession
 }
 
-func NewAuthServer(bk backend.Backend, a Authority, scrt *secret.Service) *AuthServer {
+func NewAuthServer(bk backend.Backend, a Authority, scrt secret.SecretService) *AuthServer {
 	as := AuthServer{}
 
 	as.bk = bk
@@ -59,7 +59,7 @@ func NewAuthServer(bk backend.Backend, a Authority, scrt *secret.Service) *AuthS
 type AuthServer struct {
 	bk backend.Backend
 	Authority
-	scrt *secret.Service
+	scrt secret.SecretService
 
 	*services.CAService
 	*services.LockService
