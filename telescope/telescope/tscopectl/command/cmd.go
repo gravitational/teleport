@@ -10,7 +10,7 @@ import (
 
 func RunCmd(cmd *command.Command, args []string) error {
 	app := kingpin.New("tscopectl", "CLI for Telescope key management")
-	telescopeUrl := app.Flag("telescope", "Telescope URL").Default(DefaultTelescopeURL).String()
+	telescopeUrl := app.Flag("telescope", "Telescope auth URL").Default(DefaultTelescopeURL).String()
 
 	// Host CA
 	hostCa := app.Command("host-ca", "Operations with host certificate authority")

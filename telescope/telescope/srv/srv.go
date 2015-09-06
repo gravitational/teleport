@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/lens/Godeps/_workspace/src/github.com/gravitational/session"
+	"github.com/gravitational/session"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/form"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"

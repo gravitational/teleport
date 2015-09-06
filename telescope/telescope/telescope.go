@@ -1,119 +1,98 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 
-	"github.com/gravitational/teleport/telescope/telescope/srv"
-
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 	"github.com/gravitational/teleport/auth"
 	authority "github.com/gravitational/teleport/auth/native"
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/boltbk"
 	"github.com/gravitational/teleport/backend/etcdbk"
 	"github.com/gravitational/teleport/service"
+	"github.com/gravitational/teleport/telescope/telescope/srv"
 	"github.com/gravitational/teleport/tun"
 	"github.com/gravitational/teleport/utils"
+
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/alecthomas/kingpin.v2"
 )
 
 type Config struct {
-	Log         string
-	LogSeverity string
+	Log         *string
+	LogSeverity *string
 
 	TunAddr      utils.NetAddr
 	WebAddr      utils.NetAddr
 	AuthHTTPAddr utils.NetAddr
 	AuthSSHAddr  utils.NetAddr
 
-	DataDir string
+	DataDir *string
 
-	FQDN        string
-	Domain      string
-	AssetsDir   string
-	CPAssetsDir string
+	FQDN        *string
+	Domain      *string
+	AssetsDir   *string
+	CPAssetsDir *string
 
-	TLSKeyFile  string
-	TLSCertFile string
+	TLSKeyFile  *string
+	TLSCertFile *string
 
-	Backend       string
-	BackendConfig string
+	Backend       *string
+	BackendConfig *string
 }
 
 func main() {
 	cfg := Config{}
 
-	flag.StringVar(
-		&cfg.Log, "log", "console",
-		"log output, currently 'console' or 'syslog'")
+	app := kingpin.New("telescope", "Telescope is a service that receives inbound connections from remote teleport clusters and provides access to them")
 
-	flag.StringVar(
-		&cfg.LogSeverity, "logSeverity", "WARN",
-		"log severity, INFO or WARN or ERROR")
+	cfg.Log = app.Flag("log", "Log output, currently 'console' or 'syslog'").Default("console").String()
+	cfg.LogSeverity = app.Flag("log-severity", "Log severity, INFO or WARN or ERROR").Default("WARN").String()
+	cfg.FQDN = app.Flag("fqdn", "Telescope host FQDN").String()
+	cfg.Domain = app.Flag("domain", "Telescope auth domain").String()
 
-	flag.StringVar(
-		&cfg.FQDN, "fqdn", "", "telescope host fqdn")
-
-	flag.StringVar(
-		&cfg.Domain, "domain", "", "telescope auth domain")
-
-	flag.Var(
+	app.Flag("auth-http-addr", "Telescope auth server address").SetValue(
 		utils.NewNetAddrVal(
 			utils.NetAddr{
 				Network: "unix",
 				Addr:    "/tmp/telescope.auth.sock",
 			}, &cfg.AuthHTTPAddr),
-		"authHTTPAddr", "auth server address")
+	)
 
-	flag.Var(
+	app.Flag("auth-ssh-addr", "Telescope auth ssh server address").SetValue(
 		utils.NewNetAddrVal(
 			utils.NetAddr{
 				Network: "tcp",
 				Addr:    "localhost:33008",
 			}, &cfg.AuthSSHAddr),
-		"authSSHAddr", "auth ssh server address")
+	)
 
-	flag.Var(
+	app.Flag("tun-addr", "Telescope tun agent dial address").SetValue(
 		utils.NewNetAddrVal(
 			utils.NetAddr{
 				Network: "tcp",
 				Addr:    "localhost:33006",
 			}, &cfg.TunAddr),
-		"tunAddr", "tun agent dial address")
+	)
 
-	flag.Var(
+	app.Flag("web-addr", "Web address").SetValue(
 		utils.NewNetAddrVal(
 			utils.NetAddr{
 				Network: "tcp",
 				Addr:    "localhost:33007",
 			}, &cfg.WebAddr),
-		"webAddr", "web address")
+	)
 
-	flag.StringVar(&cfg.DataDir, "dataDir", "", "data dir")
+	cfg.DataDir = app.Flag("data-dir", "Data directory").Required().String()
+	cfg.AssetsDir = app.Flag("assets-dir", "Assets directory").Default(".").String()
+	cfg.CPAssetsDir = app.Flag("cp-assets-dir", "Control panel assets directory").Default(".").String()
+	cfg.Backend = app.Flag("backend", "Auth backend type, currently only 'etcd'").Default("etcd").String()
+	cfg.BackendConfig = app.Flag("backend-config", "Auth backend-specific configuration string").String()
+	cfg.TLSKeyFile = app.Flag("tls-key", "TLS private key filename").String()
+	cfg.TLSCertFile = app.Flag("tls-cert", "TLS Certificate filename").String()
 
-	flag.StringVar(
-		&cfg.AssetsDir, "assetsDir", ".", "assets dir")
-
-	flag.StringVar(
-		&cfg.CPAssetsDir, "cpAssetsDir", ".", "assets dir")
-
-	flag.StringVar(
-		&cfg.Backend, "backend", "etcd",
-		"auth backend type, currently only 'etcd'")
-
-	flag.StringVar(
-		&cfg.BackendConfig, "backendConfig", "",
-		"auth backend-specific configuration string")
-
-	flag.StringVar(
-		&cfg.TLSKeyFile, "tlskey", "", "TLS private key filename")
-
-	flag.StringVar(
-		&cfg.TLSCertFile, "tlscert", "", "TLS Certificate filename")
-
-	flag.Parse()
+	kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	if err := run(cfg); err != nil {
 		fmt.Fprintf(os.Stderr, err.Error())
@@ -134,27 +113,27 @@ func run(cfg Config) error {
 }
 
 func NewService(cfg Config) (*Service, error) {
-	sev, err := log.SeverityFromString(cfg.LogSeverity)
+	sev, err := log.SeverityFromString(*cfg.LogSeverity)
 	if err != nil {
 		return nil, err
 	}
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: cfg.Log}})
+	log.Init([]*log.LogConfig{&log.LogConfig{Name: *cfg.Log}})
 	log.SetSeverity(sev)
 
 	log.Infof("starting with config:\n %#v", cfg)
 
-	if cfg.DataDir == "" {
+	if *cfg.DataDir == "" {
 		return nil, fmt.Errorf("please supply data directory")
 	}
 
-	b, err := initBackend(cfg.Backend, cfg.BackendConfig)
+	b, err := initBackend(*cfg.Backend, *cfg.BackendConfig)
 	if err != nil {
 		log.Errorf("failed to initialize backend: %v", err)
 		return nil, err
 	}
 
 	asrv, hostSigner, err := auth.Init(
-		b, authority.New(), cfg.FQDN, cfg.Domain, cfg.DataDir)
+		b, authority.New(), *cfg.FQDN, *cfg.Domain, *cfg.DataDir)
 	if err != nil {
 		log.Errorf("failed to init auth server: %v", err)
 		return nil, err
@@ -228,22 +207,22 @@ func (s *Service) addStart() error {
 		wsrv, err := srv.New(s.cfg.WebAddr,
 			srv.Config{
 				Tun:         tsrv,
-				AssetsDir:   s.cfg.AssetsDir,
-				CPAssetsDir: s.cfg.CPAssetsDir,
+				AssetsDir:   *s.cfg.AssetsDir,
+				CPAssetsDir: *s.cfg.CPAssetsDir,
 				AuthAddr:    s.cfg.AuthSSHAddr,
-				FQDN:        s.cfg.FQDN})
+				FQDN:        *s.cfg.FQDN})
 		if err != nil {
 			log.Errorf("failed to launch web server: %v", err)
 			return err
 		}
 		log.Infof("telescope web server starting")
 
-		if (s.cfg.TLSCertFile != "") && (s.cfg.TLSKeyFile != "") {
+		if (*s.cfg.TLSCertFile != "") && (*s.cfg.TLSKeyFile != "") {
 			err := srv.ListenAndServeTLS(
 				wsrv.Server.Addr,
 				wsrv.Handler,
-				s.cfg.TLSCertFile,
-				s.cfg.TLSKeyFile,
+				*s.cfg.TLSCertFile,
+				*s.cfg.TLSKeyFile,
 			)
 			if err != nil {
 				log.Errorf("failed to start: %v", err)

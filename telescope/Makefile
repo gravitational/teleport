@@ -23,7 +23,7 @@ cover-package: remove-temp-files
 
 run: install
 	rm -f /tmp/telescope.auth.sock
-	telescope -log=console\
+	telescope --log=console\
          --log-severity=INFO\
          --data-dir=/var/lib/teleport/telescope\
          --assets-dir=$(GOPATH)/src/github.com/gravitational/teleport/telescope\

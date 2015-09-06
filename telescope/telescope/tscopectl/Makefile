@@ -1,7 +1,7 @@
-test: clean
+test: install
 	go test -v ./command -cover
 
-test-grep: clean
+test-grep: install
 	go test -v ./command  -check.f=$(e)
 
 cover: test
