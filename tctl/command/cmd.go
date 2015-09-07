@@ -77,6 +77,7 @@ func (cmd *Command) Run(args []string) error {
 	secret := app.Command("secret", "Operations with secret tokens")
 
 	secretNew := secret.Command("new", "Generate new secret key")
+	secretNewKeyFileName := secretNew.Flag("filename", "If filename is provided, the key will be saved to that file").Default("").String()
 
 	// Token
 	token := app.Command("token", "Generates provisioning tokens")
@@ -144,7 +145,7 @@ func (cmd *Command) Run(args []string) error {
 
 	// Secret
 	case secretNew.FullCommand():
-		cmd.NewKey()
+		cmd.NewKey(*secretNewKeyFileName)
 
 	// Token
 	case tokenGenerate.FullCommand():

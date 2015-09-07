@@ -8,6 +8,7 @@ import (
 	authority "github.com/gravitational/teleport/auth/native"
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/boltbk"
+	"github.com/gravitational/teleport/backend/encryptedbk"
 	"github.com/gravitational/teleport/backend/etcdbk"
 	"github.com/gravitational/teleport/cp"
 	"github.com/gravitational/teleport/events"
@@ -76,7 +77,8 @@ func initAuth(t *TeleportService, cfg Config) error {
 		return fmt.Errorf("please provide auth domain, e.g. example.com")
 	}
 
-	b, err := initBackend(*cfg.Auth.Backend, *cfg.Auth.BackendConfig)
+	b, err := initBackend(*cfg.Auth.Backend,
+		*cfg.Auth.BackendConfig, *cfg.Auth.BackendEncryptionKey)
 	if err != nil {
 		return err
 	}
@@ -298,14 +300,33 @@ func initTunAgent(t *TeleportService, cfg Config) error {
 	return nil
 }
 
-func initBackend(btype, bcfg string) (backend.Backend, error) {
+func initBackend(btype, bcfg, encryptionKeyFile string) (backend.Backend, error) {
+	var bk backend.Backend
+	var err error
+
 	switch btype {
 	case "etcd":
-		return etcdbk.FromString(bcfg)
+		bk, err = etcdbk.FromString(bcfg)
 	case "bolt":
-		return boltbk.FromString(bcfg)
+		bk, err = boltbk.FromString(bcfg)
+	default:
+		return nil, fmt.Errorf("unsupported backend type: %v", btype)
 	}
-	return nil, fmt.Errorf("unsupported backend type: %v", btype)
+	if err != nil {
+		log.Errorf(err.Error())
+		return nil, err
+	}
+
+	if len(encryptionKeyFile) == 0 {
+		return bk, nil
+	} else {
+		encryptedBk, err := encryptedbk.New(bk, encryptionKeyFile)
+		if err != nil {
+			log.Errorf(err.Error())
+			return nil, err
+		}
+		return encryptedBk, nil
+	}
 }
 
 func initEventBackend(btype, bcfg string) (events.Log, error) {
@@ -369,8 +390,9 @@ type AuthConfig struct {
 	SSHAddr  utils.NetAddr
 	Domain   *string
 
-	Backend       *string
-	BackendConfig *string
+	Backend              *string
+	BackendConfig        *string
+	BackendEncryptionKey *string
 
 	EventBackend       *string
 	EventBackendConfig *string

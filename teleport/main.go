@@ -112,6 +112,7 @@ func getFilledConfig(args []string, commandIsFirst bool) service.Config {
 
 	cfg.Auth.Backend = authCmd.Flag("backend", "backend type, 'etcd' or 'bolt'").Default("etcd").String()
 	cfg.Auth.BackendConfig = authCmd.Flag("backend-config", "backend-specific configuration string").Required().String()
+	cfg.Auth.BackendEncryptionKey = authCmd.Flag("backend-encrypt-key-path", "If key file is provided, backend will be encrypted with that key").Default("").String()
 	cfg.Auth.EventBackend = authCmd.Flag("event-backend", "event backend type, currently only 'bolt'").Default("bolt").String()
 	cfg.Auth.EventBackendConfig = authCmd.Flag("event-backend-config", "event backend-specific configuration string").Required().String()
 	cfg.Auth.RecordBackend = authCmd.Flag("record-backend", "event backend type, currently only 'bolt'").Default("bolt").String()
