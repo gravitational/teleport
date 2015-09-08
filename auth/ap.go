@@ -20,6 +20,9 @@ type AccessPoint interface {
 	// GetUserCAPub returns the user certificate authority public key
 	GetUserCAPub() ([]byte, error)
 
+	// GetUserCAPub returns the host certificate authority public key
+	GetHostCAPub() ([]byte, error)
+
 	// GetUserKeys returns a list of authorized keys for a given user
 	// in a OpenSSH key authorized_keys format
 	GetUserKeys(user string) ([]services.AuthorizedKey, error)

@@ -161,7 +161,8 @@ type Service struct {
 }
 
 func (s *Service) addStart() error {
-	tsrv, err := tun.NewServer(s.cfg.TunAddr, []ssh.Signer{s.hs})
+	tsrv, err := tun.NewServer(s.cfg.TunAddr, []ssh.Signer{s.hs},
+		auth.NewBackendAccessPoint(s.b))
 	if err != nil {
 		log.Errorf("failed to start server: %v", err)
 		return err

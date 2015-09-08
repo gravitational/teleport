@@ -28,6 +28,25 @@ func RunCmd(cmd *command.Command, args []string) error {
 
 	userCaPubKey := userCa.Command("pub-key", "Print user certificate authority public key")
 
+	// Remote CA
+	remoteCa := app.Command("remote-ca", "Operations with remote certificate authority")
+
+	remoteCaUpsert := remoteCa.Command("upsert", "Upsert remote certificate to trust")
+	remoteCaUpsertID := remoteCaUpsert.Flag("id", "Certificate id").Required().String()
+	remoteCaUpsertFQDN := remoteCaUpsert.Flag("fqdn", "FQDN of the remote party").Required().String()
+	remoteCaUpsertType := remoteCaUpsert.Flag("type", "Cert type (host or user)").Required().String()
+	remoteCaUpsertPath := remoteCaUpsert.Flag("path", "Cert path (reads from stdout if omitted)").Required().ExistingFile()
+	remoteCaUpsertTTL := remoteCaUpsert.Flag("ttl", "ttl for certificate to be trusted").Duration()
+
+	remoteCaLs := remoteCa.Command("ls", "List trusted remote certificates")
+	remoteCaLsFQDN := remoteCaLs.Flag("fqdn", "FQDN of the remote party").String()
+	remoteCaLsType := remoteCaLs.Flag("type", "Cert type (host or user)").Required().String()
+
+	remoteCaRm := remoteCa.Command("rm", "Remote remote CA from list of trusted certs")
+	remoteCaRmID := remoteCaRm.Flag("id", "Certificate id").Required().String()
+	remoteCaRmFQDN := remoteCaRm.Flag("fqdn", "FQDN of the remote party").Required().String()
+	remoteCaRmType := remoteCaRm.Flag("type", "Cert type (host or user)").Required().String()
+
 	// Secret
 	secret := app.Command("secret", "Operations with secret tokens")
 
@@ -80,6 +99,15 @@ func RunCmd(cmd *command.Command, args []string) error {
 		cmd.ResetUserCA(*userCaResetConfirm)
 	case userCaPubKey.FullCommand():
 		cmd.GetUserCAPub()
+
+	// Remote CA
+	case remoteCaUpsert.FullCommand():
+		cmd.UpsertRemoteCert(*remoteCaUpsertID, *remoteCaUpsertFQDN,
+			*remoteCaUpsertType, *remoteCaUpsertPath, *remoteCaUpsertTTL)
+	case remoteCaLs.FullCommand():
+		cmd.GetRemoteCerts(*remoteCaLsFQDN, *remoteCaLsType)
+	case remoteCaRm.FullCommand():
+		cmd.DeleteRemoteCert(*remoteCaRmID, *remoteCaRmFQDN, *remoteCaRmType)
 
 	// Secret
 	case secretNew.FullCommand():

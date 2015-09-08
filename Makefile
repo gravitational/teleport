@@ -90,10 +90,10 @@ run-tun: install
              --log-severity=INFO\
              --data-dir=/var/lib/teleport\
              --fqdn=node1.gravitational.io\
-             --auth-server=tcp://auth.gravitational.io:33000\
+             --auth-server=tcp://0.0.0.0:33000\
 	   tun\
              --tun-token=/tmp/token\
-             --tun-srv-addr=tcp://lens.gravitational.io:34000\
+             --tun-srv-addr=tcp://0.0.0.0:34000\
 
 
 
@@ -114,7 +114,7 @@ run-embedded: install
              --record-backend-config='{"path": "/var/lib/teleport/records"}'\
            ssh\
 	   tun\
-             --srv-addr=tcp://lens.vendor.io:34000\
+             --srv-addr=tcp://telescope.vendor.io:34000\
 	   cp\
              --assets-dir=$(GOPATH)/src/github.com/gravitational/teleport\
              --domain=gravitational.io

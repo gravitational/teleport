@@ -38,6 +38,7 @@ type Server interface {
 type server struct {
 	sync.RWMutex
 
+	ap          auth.AccessPoint
 	certChecker ssh.CertChecker
 	l           net.Listener
 	srv         *sshutils.Server
@@ -46,9 +47,11 @@ type server struct {
 }
 
 // New returns an unstarted server
-func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer) (Server, error) {
+func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
+	ap auth.AccessPoint) (Server, error) {
 	srv := &server{
 		sites: []*remoteSite{},
+		ap:    ap,
 	}
 	s, err := sshutils.NewServer(
 		addr,
@@ -105,7 +108,44 @@ func (s *server) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 // isAuthority is called during checking the client key, to see if the signing
 // key is the real CA authority key.
 func (s *server) isAuthority(auth ssh.PublicKey) bool {
-	return true
+	keys, err := s.getTrustedCAKeys()
+	if err != nil {
+		log.Errorf("failed to retrieve trused keys, err: %v", err)
+		return false
+	}
+	for _, k := range keys {
+		if sshutils.KeysEqual(k, auth) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *server) getTrustedCAKeys() ([]ssh.PublicKey, error) {
+	out := []ssh.PublicKey{}
+	authKeys := [][]byte{}
+	key, err := s.ap.GetHostCAPub()
+	if err != nil {
+		return nil, err
+	}
+	authKeys = append(authKeys, key)
+
+	certs, err := s.ap.GetRemoteCerts(services.HostCert, "")
+	if err != nil {
+		return nil, err
+	}
+	for _, c := range certs {
+		authKeys = append(authKeys, c.Value)
+	}
+	for _, ak := range authKeys {
+		pk, _, _, _, err := ssh.ParseAuthorizedKey(ak)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse CA public key '%v', err: %v",
+				string(ak), err)
+		}
+		out = append(out, pk)
+	}
+	return out, nil
 }
 
 func (s *server) keyAuth(
@@ -115,7 +155,21 @@ func (s *server) keyAuth(
 		conn.LocalAddr(), conn.User())
 
 	log.Infof("%v auth attempt with key %v", cid, key.Type())
-	return nil, nil
+
+	err := s.certChecker.CheckHostKey(conn.User(), conn.RemoteAddr(), key)
+	if err != nil {
+		log.Warningf("conn(%v->%v, user=%v) ERROR: failed auth user %v, err: %v",
+			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
+		return nil, err
+	}
+
+	perms := &ssh.Permissions{
+		Extensions: map[string]string{
+			ExtHost: conn.User(),
+		},
+	}
+
+	return perms, nil
 }
 
 func (s *server) upsertSite(c ssh.Conn) (*remoteSite, error) {
@@ -331,3 +385,5 @@ func (c *chConn) SetReadDeadline(t time.Time) error {
 func (c *chConn) SetWriteDeadline(t time.Time) error {
 	return nil
 }
+
+const ExtHost = "host@teleport"
