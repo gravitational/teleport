@@ -11,6 +11,7 @@ type Backend interface {
 	GetKeys(path []string) ([]string, error)
 	UpsertVal(path []string, key string, val []byte, ttl time.Duration) error
 	GetVal(path []string, key string) ([]byte, error)
+	GetValAndTTL(path []string, key string) ([]byte, time.Duration, error)
 	DeleteKey(path []string, key string) error
 	DeleteBucket(path []string, bkt string) error
 }

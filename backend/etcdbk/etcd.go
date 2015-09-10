@@ -94,6 +94,14 @@ func (b *bk) GetVal(path []string, key string) ([]byte, error) {
 	return []byte(re.Node.Value), nil
 }
 
+func (b *bk) GetValAndTTL(path []string, key string) ([]byte, time.Duration, error) {
+	re, err := b.client.Get(b.key(append(path, key)...), false, false)
+	if err != nil {
+		return nil, 0, convertErr(err)
+	}
+	return []byte(re.Node.Value), time.Duration(re.Node.TTL) * time.Second, nil
+}
+
 func (b *bk) DeleteKey(path []string, key string) error {
 	_, err := b.client.Delete(b.key(append(path, key)...), false)
 	return convertErr(err)

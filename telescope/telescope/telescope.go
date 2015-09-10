@@ -91,7 +91,7 @@ func main() {
 	cfg.CPAssetsDir = app.Flag("cp-assets-dir", "Control panel assets directory").Default(".").String()
 	cfg.Backend = app.Flag("backend", "Auth backend type, currently only 'etcd'").Default("etcd").String()
 	cfg.BackendConfig = app.Flag("backend-config", "Auth backend-specific configuration string").String()
-	cfg.BackendEncryptionKey = app.Flag("backend-encrypt-key-path", "If key file is provided, backend will be encrypted with that key").Default("").String()
+	cfg.BackendEncryptionKey = app.Flag("backend-key", "If key file is provided, backend will be encrypted with that key").Default("").String()
 	cfg.TLSKeyFile = app.Flag("tls-key", "TLS private key filename").String()
 	cfg.TLSCertFile = app.Flag("tls-cert", "TLS Certificate filename").String()
 
@@ -266,7 +266,7 @@ func initBackend(btype, bcfg, encryptionKeyFile string) (backend.Backend, error)
 	if len(encryptionKeyFile) == 0 {
 		return bk, nil
 	} else {
-		encryptedBk, err := encryptedbk.New(bk, encryptionKeyFile)
+		encryptedBk, err := encryptedbk.New(bk, []string{encryptionKeyFile})
 		if err != nil {
 			log.Errorf(err.Error())
 			return nil, err

@@ -90,6 +90,25 @@ func (b *BoltBackend) GetVal(path []string, key string) ([]byte, error) {
 	return k.Value, nil
 }
 
+func (b *BoltBackend) GetValAndTTL(path []string, key string) ([]byte, time.Duration, error) {
+	var val []byte
+	if err := b.getKey(path, key, &val); err != nil {
+		return nil, 0, err
+	}
+	var k *kv
+	if err := json.Unmarshal(val, &k); err != nil {
+		return nil, 0, err
+	}
+	if k.TTL != 0 && time.Now().Sub(k.Created) > k.TTL {
+		if err := b.deleteKey(path, key); err != nil {
+			return nil, 0, err
+		}
+		return nil, 0, &teleport.NotFoundError{
+			Message: fmt.Sprintf("%v: %v not found", path, key)}
+	}
+	return k.Value, k.Created.Add(k.TTL).Sub(time.Now()), nil
+}
+
 func (b *BoltBackend) DeleteKey(path []string, key string) error {
 	return b.deleteKey(path, key)
 }
