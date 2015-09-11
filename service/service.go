@@ -320,7 +320,7 @@ func initBackend(btype, bcfg, encryptionKeyFile string) (backend.Backend, error)
 	if len(encryptionKeyFile) == 0 {
 		return bk, nil
 	} else {
-		encryptedBk, err := encryptedbk.New(bk, []string{encryptionKeyFile})
+		encryptedBk, err := encryptedbk.New(bk, encryptionKeyFile)
 		if err != nil {
 			log.Errorf(err.Error())
 			return nil, err

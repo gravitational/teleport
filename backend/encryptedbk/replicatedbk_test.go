@@ -6,7 +6,6 @@ import (
 
 	"github.com/gravitational/teleport/backend/boltbk"
 	"github.com/gravitational/teleport/backend/test"
-	"github.com/gravitational/teleport/tctl/command"
 
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
@@ -24,19 +23,9 @@ var _ = Suite(&ReplicatedBkSuite{})
 func (s *ReplicatedBkSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
 
-	cmd := command.Command{}
-	keyFilenames := []string{
-		filepath.Join(s.dir, "key1"),
-		filepath.Join(s.dir, "key2"),
-		filepath.Join(s.dir, "key3"),
-	}
-	for _, key := range keyFilenames {
-		err := cmd.NewKey(key)
-		c.Assert(err, IsNil)
-	}
 	boltBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
-	s.bk, err = New(boltBk, keyFilenames)
+	s.bk, err = New(boltBk, filepath.Join(s.dir, "keysDB"))
 	c.Assert(err, IsNil)
 
 	s.suite.ChangesC = make(chan interface{})
@@ -54,6 +43,10 @@ func (s *ReplicatedBkSuite) TestExpiration(c *C) {
 	s.suite.Expiration(c)
 }
 
+func (s *ReplicatedBkSuite) TestLock(c *C) {
+	s.suite.Locking(c)
+}
+
 func (s *ReplicatedBkSuite) TestDataIsReplicated(c *C) {
 	// saving value
 	c.Assert(s.bk.UpsertVal([]string{"a", "b"}, "bkey", []byte("val1"), 0), IsNil)
@@ -64,7 +57,7 @@ func (s *ReplicatedBkSuite) TestDataIsReplicated(c *C) {
 	c.Assert(string(out), Equals, "val1")
 
 	// checking value as it saved
-	out, err = s.bk.ebks[0].bk.GetVal(append(s.bk.ebks[0].prefix, "a", "b"), "bkey")
+	out, err = s.bk.baseBk.GetVal(append(s.bk.ebk[0].prefix, "a", "b"), "bkey")
 	c.Assert(err, IsNil)
 	c.Assert(string(out) == "val1", Equals, false)
 

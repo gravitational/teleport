@@ -41,3 +41,7 @@ func (s *BoltSuite) TestBasicCRUD(c *C) {
 func (s *BoltSuite) TestExpiration(c *C) {
 	s.suite.Expiration(c)
 }
+
+func (s *BoltSuite) TestLock(c *C) {
+	s.suite.Locking(c)
+}

@@ -6,7 +6,8 @@ import (
 
 	"github.com/gravitational/teleport/backend/boltbk"
 	"github.com/gravitational/teleport/backend/test"
-	"github.com/gravitational/teleport/tctl/command"
+
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
@@ -24,13 +25,11 @@ var _ = Suite(&EncryptedBkSuite{})
 func (s *EncryptedBkSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
 
-	cmd := command.Command{}
-	keyFilename := filepath.Join(s.dir, "key")
-	err := cmd.NewKey(keyFilename)
+	key, err := secret.NewKey()
 	c.Assert(err, IsNil)
 	boltBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
-	s.bk, err = newEncryptedBackend(boltBk, keyFilename)
+	s.bk, err = newEncryptedBackend(boltBk, Key{ID: "key25", Value: key[:]})
 	c.Assert(err, IsNil)
 
 	s.suite.ChangesC = make(chan interface{})
@@ -46,6 +45,10 @@ func (s *EncryptedBkSuite) TestBasicCRUD(c *C) {
 
 func (s *EncryptedBkSuite) TestExpiration(c *C) {
 	s.suite.Expiration(c)
+}
+
+func (s *EncryptedBkSuite) TestLock(c *C) {
+	s.suite.Locking(c)
 }
 
 func (s *EncryptedBkSuite) TestDataIsEncrypted(c *C) {

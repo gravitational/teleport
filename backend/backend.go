@@ -14,4 +14,9 @@ type Backend interface {
 	GetValAndTTL(path []string, key string) ([]byte, time.Duration, error)
 	DeleteKey(path []string, key string) error
 	DeleteBucket(path []string, bkt string) error
+	// Grab a lock that will be released automatically in ttl time
+	AcquireLock(token string, ttl time.Duration) error
+
+	// Grab a lock that will be released automatically in ttl time
+	ReleaseLock(token string) error
 }

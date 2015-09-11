@@ -85,3 +85,7 @@ func (s *EtcdSuite) TestBasicCRUD(c *C) {
 func (s *EtcdSuite) TestExpiration(c *C) {
 	s.suite.Expiration(c)
 }
+
+func (s *EtcdSuite) TestLock(c *C) {
+	s.suite.Locking(c)
+}

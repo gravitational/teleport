@@ -251,6 +251,34 @@ func GetBucket(b *bolt.Tx, buckets []string) (*bolt.Bucket, error) {
 	return bkt, nil
 }
 
+func (b *BoltBackend) AcquireLock(token string, ttl time.Duration) error {
+	b.Lock()
+	defer b.Unlock()
+
+	expires, ok := b.locks[token]
+	if ok && expires.After(time.Now()) {
+		return &teleport.AlreadyAcquiredError{
+			Message: fmt.Sprintf("lock %v already locked", token)}
+	}
+	b.locks[token] = time.Now().Add(ttl)
+	return nil
+}
+
+func (b *BoltBackend) ReleaseLock(token string) error {
+	b.Lock()
+	defer b.Unlock()
+
+	expires, ok := b.locks[token]
+	if !ok || expires.Before(time.Now()) {
+		return &teleport.NotFoundError{
+			Message: fmt.Sprintf(
+				"lock %v is deleted or expired", token),
+		}
+	}
+	delete(b.locks, token)
+	return nil
+}
+
 type kv struct {
 	Created time.Time     `json:"created"`
 	TTL     time.Duration `json:"ttl"`

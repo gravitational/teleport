@@ -76,6 +76,20 @@ func (s *BackendSuite) Expiration(c *C) {
 	c.Assert(keys, DeepEquals, []string{"akey"})
 }
 
+func (s *BackendSuite) Locking(c *C) {
+	tok := randomToken()
+	ttl := 30 * time.Second
+
+	c.Assert(s.B.AcquireLock(tok, ttl), IsNil)
+	c.Assert(s.B.AcquireLock(tok, ttl),
+		FitsTypeOf, &teleport.AlreadyAcquiredError{})
+
+	c.Assert(s.B.ReleaseLock(tok), IsNil)
+	c.Assert(s.B.ReleaseLock(tok), FitsTypeOf, &teleport.NotFoundError{})
+
+	c.Assert(s.B.AcquireLock(tok, 30*time.Second), IsNil)
+}
+
 func toSet(vals []string) map[string]struct{} {
 	out := make(map[string]struct{}, len(vals))
 	for _, v := range vals {

@@ -13,18 +13,18 @@ import (
 )
 
 type EncryptedBackend struct {
-	bk          backend.Backend
-	secret      secret.SecretService
-	prefix      []string
-	EncodingKey string
+	bk     backend.Backend
+	secret secret.SecretService
+	prefix []string
+	KeyID  string
 }
 
-func newEncryptedBackend(backend backend.Backend, keyFileName string) (*EncryptedBackend, error) {
+func newEncryptedBackend(backend backend.Backend, key Key) (*EncryptedBackend, error) {
 	var err error
 
-	conf := secret.Config{
-		KeyPath: keyFileName,
-	}
+	conf := secret.Config{}
+	conf.KeyBytes = &[secret.SecretKeyLength]byte{}
+	copy(conf.KeyBytes[:], key.Value)
 
 	encryptedBk := EncryptedBackend{}
 	encryptedBk.bk = backend
@@ -34,8 +34,8 @@ func newEncryptedBackend(backend backend.Backend, keyFileName string) (*Encrypte
 		return nil, err
 	}
 
-	encryptedBk.prefix = []string{rootDir, url.QueryEscape(keyFileName)}
-	encryptedBk.EncodingKey = keyFileName
+	encryptedBk.prefix = []string{rootDir, url.QueryEscape(key.ID)}
+	encryptedBk.KeyID = key.ID
 
 	return &encryptedBk, nil
 }
@@ -51,6 +51,10 @@ func (b *EncryptedBackend) IsExisting() bool {
 func (b *EncryptedBackend) SetExistence() error {
 	return b.UpsertVal(append(b.prefix, "exist"),
 		"exist", []byte("ok"), 0)
+}
+
+func (b *EncryptedBackend) DeleteAll() error {
+	return b.bk.DeleteBucket(b.prefix[:len(b.prefix)-1], b.prefix[len(b.prefix)-1])
 }
 
 func (b *EncryptedBackend) GetKeys(path []string) ([]string, error) {
@@ -135,6 +139,14 @@ func (b *EncryptedBackend) GetValAndTTL(path []string, key string) ([]byte, time
 	}
 
 	return val, ttl, nil
+}
+
+func (b *EncryptedBackend) AcquireLock(token string, ttl time.Duration) error {
+	return b.bk.AcquireLock(token, ttl)
+}
+
+func (b *EncryptedBackend) ReleaseLock(token string) error {
+	return b.bk.ReleaseLock(token)
 }
 
 const (

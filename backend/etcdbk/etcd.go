@@ -112,6 +112,29 @@ func (b *bk) DeleteBucket(path []string, key string) error {
 	return convertErr(err)
 }
 
+func (b *bk) AcquireLock(token string, ttl time.Duration) error {
+	_, e := b.client.Create(
+		b.key("locks", token), "lock", uint64(ttl/time.Second))
+	if e == nil {
+		return nil
+	}
+	switch err := e.(type) {
+	case *etcd.EtcdError:
+		switch err.ErrorCode {
+		case 100:
+			return &teleport.NotFoundError{Message: err.Error()}
+		case 105:
+			return &teleport.AlreadyExistsError{Message: err.Error()}
+		}
+	}
+	return e
+}
+
+func (b *bk) ReleaseLock(token string) error {
+	_, err := b.client.Delete(b.key("locks", token), false)
+	return convertErr(err)
+}
+
 func (b *bk) getKeys(key string) ([]string, error) {
 	vals := []string{}
 	re, err := b.client.Get(key, true, false)
