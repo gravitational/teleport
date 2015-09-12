@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"path"
 	"time"
 
 	"github.com/gravitational/teleport/auth"
@@ -77,8 +78,8 @@ func initAuth(t *TeleportService, cfg Config) error {
 		return fmt.Errorf("please provide auth domain, e.g. example.com")
 	}
 
-	b, err := initBackend(*cfg.Auth.Backend,
-		*cfg.Auth.BackendConfig, *cfg.Auth.BackendEncryptionKey)
+	b, err := initBackend(*cfg.Auth.Backend, *cfg.Auth.BackendConfig,
+		*cfg.DataDir, *cfg.Auth.BackendReadonly)
 	if err != nil {
 		return err
 	}
@@ -300,7 +301,8 @@ func initTunAgent(t *TeleportService, cfg Config) error {
 	return nil
 }
 
-func initBackend(btype, bcfg, encryptionKeyFile string) (backend.Backend, error) {
+func initBackend(btype, bcfg, dataDir string,
+	backendReadonly bool) (*encryptedbk.ReplicatedBackend, error) {
 	var bk backend.Backend
 	var err error
 
@@ -317,16 +319,14 @@ func initBackend(btype, bcfg, encryptionKeyFile string) (backend.Backend, error)
 		return nil, err
 	}
 
-	if len(encryptionKeyFile) == 0 {
-		return bk, nil
-	} else {
-		encryptedBk, err := encryptedbk.New(bk, encryptionKeyFile)
-		if err != nil {
-			log.Errorf(err.Error())
-			return nil, err
-		}
-		return encryptedBk, nil
+	keyStorage := path.Join(dataDir, "backend_keys")
+	encryptedBk, err := encryptedbk.NewReplicatedBackend(bk,
+		keyStorage, backendReadonly)
+	if err != nil {
+		log.Errorf(err.Error())
+		return nil, err
 	}
+	return encryptedBk, nil
 }
 
 func initEventBackend(btype, bcfg string) (events.Log, error) {
@@ -390,9 +390,9 @@ type AuthConfig struct {
 	SSHAddr  utils.NetAddr
 	Domain   *string
 
-	Backend              *string
-	BackendConfig        *string
-	BackendEncryptionKey *string
+	Backend         *string
+	BackendConfig   *string
+	BackendReadonly *bool
 
 	EventBackend       *string
 	EventBackendConfig *string

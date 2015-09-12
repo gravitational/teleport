@@ -11,6 +11,7 @@ import (
 	"github.com/gravitational/teleport/auth"
 	authority "github.com/gravitational/teleport/auth/native"
 	"github.com/gravitational/teleport/backend/boltbk"
+	"github.com/gravitational/teleport/backend/encryptedbk"
 	"github.com/gravitational/teleport/services"
 	"github.com/gravitational/teleport/sshutils"
 	"github.com/gravitational/teleport/utils"
@@ -26,7 +27,7 @@ func TestSrv(t *testing.T) { TestingT(t) }
 type SrvSuite struct {
 	srv  *Server
 	clt  *ssh.Client
-	bk   *boltbk.BoltBackend
+	bk   *encryptedbk.ReplicatedBackend
 	a    *auth.AuthServer
 	up   *upack
 	scrt secret.SecretService
@@ -45,8 +46,10 @@ func (s *SrvSuite) SetUpSuite(c *C) {
 
 func (s *SrvSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
-	var err error
-	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
+
+	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
+	c.Assert(err, IsNil)
+	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk, filepath.Join(s.dir, "keys"), false)
 	c.Assert(err, IsNil)
 
 	s.a = auth.NewAuthServer(s.bk, authority.New(), s.scrt)

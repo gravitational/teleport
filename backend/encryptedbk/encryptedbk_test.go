@@ -7,8 +7,8 @@ import (
 	"github.com/gravitational/teleport/backend/boltbk"
 	"github.com/gravitational/teleport/backend/test"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
-
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
@@ -21,6 +21,10 @@ type EncryptedBkSuite struct {
 }
 
 var _ = Suite(&EncryptedBkSuite{})
+
+func (s *EncryptedBkSuite) SetUpSuite(c *C) {
+	log.Initialize("console", "WARN")
+}
 
 func (s *EncryptedBkSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
@@ -49,6 +53,10 @@ func (s *EncryptedBkSuite) TestExpiration(c *C) {
 
 func (s *EncryptedBkSuite) TestLock(c *C) {
 	s.suite.Locking(c)
+}
+
+func (s *EncryptedBkSuite) TestValueAndTTL(c *C) {
+	s.suite.ValueAndTTl(c)
 }
 
 func (s *EncryptedBkSuite) TestDataIsEncrypted(c *C) {

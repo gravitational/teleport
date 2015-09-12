@@ -108,6 +108,26 @@ func (cmd *Command) Run(args []string) error {
 	userSetPassUser := userSetPass.Flag("user", "User name").Required().String()
 	userSetPassPass := userSetPass.Flag("pass", "Password").Required().String()
 
+	// Backend keys
+	backendKey := app.Command("backend-keys", "Operation with backend encryption keys")
+
+	backendKeyLs := backendKey.Command("ls", "List all the keys that this servers has")
+
+	backendKeyGenerate := backendKey.Command("generate", "Generate a new encrypting key and make a copy of all the backend data using this key")
+	backendKeyGenerateID := backendKeyGenerate.Flag("id", "key id").Required().String()
+
+	backendKeyImport := backendKey.Command("import", "Import key from file")
+	backendKeyImportFile := backendKeyImport.Flag("file", "filename").Required().ExistingFile()
+
+	backendKeyExport := backendKey.Command("export", "Export key to file")
+	backendKeyExportFile := backendKeyExport.Flag("dir", "output directory").Required().ExistingFileOrDir()
+	backendKeyExportID := backendKeyExport.Flag("id", "key id").Required().String()
+
+	backendKeyDelete := backendKey.Command("delete", "Delete key from that server storage and delete all the data encrypted using this key from backend")
+	backendKeyDeleteID := backendKeyDelete.Flag("id", "key id").Required().String()
+
+	backendKeyLsRemote := backendKey.Command("ls-remote", "List all the keys that remote backend actually use for encrypting")
+
 	selectedCommand := kingpin.MustParse(app.Parse(args[1:]))
 
 	a, err := utils.ParseAddr(*authUrl)
@@ -164,6 +184,20 @@ func (cmd *Command) Run(args []string) error {
 		cmd.GetUserKeys(*userLsKeysUser)
 	case userSetPass.FullCommand():
 		cmd.SetPass(*userSetPassUser, *userSetPassPass)
+
+	//Backend keys
+	case backendKeyLs.FullCommand():
+		cmd.GetBackendKeys()
+	case backendKeyGenerate.FullCommand():
+		cmd.GenerateBackendKey(*backendKeyGenerateID)
+	case backendKeyImport.FullCommand():
+		cmd.ImportBackendKey(*backendKeyImportFile)
+	case backendKeyExport.FullCommand():
+		cmd.ExportBackendKey(*backendKeyExportFile, *backendKeyExportID)
+	case backendKeyDelete.FullCommand():
+		cmd.DeleteBackendKey(*backendKeyDeleteID)
+	case backendKeyLsRemote.FullCommand():
+		cmd.GetRemoteBackendKeys()
 	}
 
 	return nil

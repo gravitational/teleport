@@ -12,8 +12,8 @@ import (
 
 	"github.com/gravitational/teleport/auth"
 	authority "github.com/gravitational/teleport/auth/native"
-	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/boltbk"
+	"github.com/gravitational/teleport/backend/encryptedbk"
 	"github.com/gravitational/teleport/events/boltlog"
 	"github.com/gravitational/teleport/recorder"
 	"github.com/gravitational/teleport/recorder/boltrec"
@@ -37,7 +37,7 @@ type CmdSuite struct {
 	clt  *auth.Client
 	cmd  *Command
 	out  *bytes.Buffer
-	bk   backend.Backend
+	bk   *encryptedbk.ReplicatedBackend
 	bl   *boltlog.BoltLog
 	scrt secret.SecretService
 	rec  recorder.Recorder
@@ -66,8 +66,10 @@ func (s *CmdSuite) SetUpSuite(c *C) {
 
 func (s *CmdSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
-	var err error
-	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
+
+	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
+	c.Assert(err, IsNil)
+	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk, filepath.Join(s.dir, "keys"), false)
 	c.Assert(err, IsNil)
 
 	s.bl, err = boltlog.New(filepath.Join(s.dir, "eventsdb"))

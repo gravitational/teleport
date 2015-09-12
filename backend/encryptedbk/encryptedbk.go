@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/backend"
 )
 
@@ -24,7 +25,7 @@ func newEncryptedBackend(backend backend.Backend, key Key) (*EncryptedBackend, e
 
 	conf := secret.Config{}
 	conf.KeyBytes = &[secret.SecretKeyLength]byte{}
-	copy(conf.KeyBytes[:], key.Value)
+	copy(conf.KeyBytes[:], key.Value[:])
 
 	encryptedBk := EncryptedBackend{}
 	encryptedBk.bk = backend
@@ -41,7 +42,7 @@ func newEncryptedBackend(backend backend.Backend, key Key) (*EncryptedBackend, e
 }
 
 func (b *EncryptedBackend) IsExisting() bool {
-	exists, err := b.GetVal(append(b.prefix, "exist"), "exist")
+	exists, err := b.GetVal([]string{"exist"}, "exist")
 	if err != nil {
 		return false
 	}
@@ -49,7 +50,7 @@ func (b *EncryptedBackend) IsExisting() bool {
 }
 
 func (b *EncryptedBackend) SetExistence() error {
-	return b.UpsertVal(append(b.prefix, "exist"),
+	return b.UpsertVal([]string{"exist"},
 		"exist", []byte("ok"), 0)
 }
 
@@ -98,7 +99,9 @@ func (b *EncryptedBackend) UpsertVal(path []string, key string, val []byte, ttl 
 func (b *EncryptedBackend) GetVal(path []string, key string) ([]byte, error) {
 	sealedBytesJSON, err := b.bk.GetVal(append(b.prefix, path...), key)
 	if err != nil {
-		log.Errorf(err.Error())
+		if !teleport.IsNotFound(err) {
+			log.Errorf(err.Error())
+		}
 		return nil, err
 	}
 

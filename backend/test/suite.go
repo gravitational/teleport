@@ -76,18 +76,51 @@ func (s *BackendSuite) Expiration(c *C) {
 	c.Assert(keys, DeepEquals, []string{"akey"})
 }
 
+func (s *BackendSuite) ValueAndTTl(c *C) {
+	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "bkey",
+		[]byte("val1"), 2000*time.Millisecond), IsNil)
+
+	time.Sleep(500 * time.Millisecond)
+
+	value, ttl, err := s.B.GetValAndTTL([]string{"a", "b"}, "bkey")
+	c.Assert(err, IsNil)
+	c.Assert(string(value), DeepEquals, "val1")
+	ttlIsRight := (ttl < 1900*time.Millisecond) && (ttl > 1100*time.Millisecond)
+	c.Assert(ttlIsRight, Equals, true)
+}
+
 func (s *BackendSuite) Locking(c *C) {
-	tok := randomToken()
-	ttl := 30 * time.Second
+	tok1 := "token1"
+	tok2 := "token2"
 
-	c.Assert(s.B.AcquireLock(tok, ttl), IsNil)
-	c.Assert(s.B.AcquireLock(tok, ttl),
-		FitsTypeOf, &teleport.AlreadyAcquiredError{})
+	c.Assert(s.B.ReleaseLock(tok1), FitsTypeOf, &teleport.NotFoundError{})
 
-	c.Assert(s.B.ReleaseLock(tok), IsNil)
-	c.Assert(s.B.ReleaseLock(tok), FitsTypeOf, &teleport.NotFoundError{})
+	c.Assert(s.B.AcquireLock(tok1, 30*time.Second), IsNil)
+	x := 7
+	go func() {
+		time.Sleep(1 * time.Second)
+		x = 9
+		c.Assert(s.B.ReleaseLock(tok1), IsNil)
+	}()
+	c.Assert(s.B.AcquireLock(tok1, 0), IsNil)
+	x = x * 2
+	c.Assert(x, Equals, 18)
+	c.Assert(s.B.ReleaseLock(tok1), IsNil)
 
-	c.Assert(s.B.AcquireLock(tok, 30*time.Second), IsNil)
+	y := 0
+	go func() {
+		c.Assert(s.B.AcquireLock(tok1, 0), IsNil)
+		c.Assert(s.B.AcquireLock(tok2, 0), IsNil)
+
+		c.Assert(s.B.ReleaseLock(tok1), IsNil)
+		c.Assert(s.B.ReleaseLock(tok2), IsNil)
+		y = 15
+	}()
+
+	time.Sleep(1 * time.Second)
+	c.Assert(y, Equals, 15)
+
+	c.Assert(s.B.ReleaseLock(tok1), FitsTypeOf, &teleport.NotFoundError{})
 }
 
 func toSet(vals []string) map[string]struct{} {

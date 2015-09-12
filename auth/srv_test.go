@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/auth/native"
 	"github.com/gravitational/teleport/backend/boltbk"
+	"github.com/gravitational/teleport/backend/encryptedbk"
 	"github.com/gravitational/teleport/events/boltlog"
 	etest "github.com/gravitational/teleport/events/test"
 	rtest "github.com/gravitational/teleport/recorder/test"
@@ -29,7 +30,7 @@ func TestAPI(t *testing.T) { TestingT(t) }
 type APISuite struct {
 	srv  *httptest.Server
 	clt  *Client
-	bk   *boltbk.BoltBackend
+	bk   *encryptedbk.ReplicatedBackend
 	bl   *boltlog.BoltLog
 	scrt secret.SecretService
 	rec  recorder.Recorder
@@ -58,8 +59,10 @@ func (s *APISuite) SetUpSuite(c *C) {
 
 func (s *APISuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
-	var err error
-	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
+
+	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
+	c.Assert(err, IsNil)
+	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk, filepath.Join(s.dir, "keys"), false)
 	c.Assert(err, IsNil)
 
 	s.bl, err = boltlog.New(filepath.Join(s.dir, "eventsdb"))
@@ -84,7 +87,6 @@ func (s *APISuite) SetUpTest(c *C) {
 
 func (s *APISuite) TearDownTest(c *C) {
 	s.srv.Close()
-	s.bk.Close()
 	s.bl.Close()
 }
 

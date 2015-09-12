@@ -106,7 +106,12 @@ func (b *BoltBackend) GetValAndTTL(path []string, key string) ([]byte, time.Dura
 		return nil, 0, &teleport.NotFoundError{
 			Message: fmt.Sprintf("%v: %v not found", path, key)}
 	}
-	return k.Value, k.Created.Add(k.TTL).Sub(time.Now()), nil
+	var newTTL time.Duration
+	newTTL = 0
+	if k.TTL != 0 {
+		newTTL = k.Created.Add(k.TTL).Sub(time.Now())
+	}
+	return k.Value, newTTL, nil
 }
 
 func (b *BoltBackend) DeleteKey(path []string, key string) error {
@@ -252,16 +257,22 @@ func GetBucket(b *bolt.Tx, buckets []string) (*bolt.Bucket, error) {
 }
 
 func (b *BoltBackend) AcquireLock(token string, ttl time.Duration) error {
-	b.Lock()
-	defer b.Unlock()
-
-	expires, ok := b.locks[token]
-	if ok && expires.After(time.Now()) {
-		return &teleport.AlreadyAcquiredError{
-			Message: fmt.Sprintf("lock %v already locked", token)}
+	for {
+		b.Lock()
+		expires, ok := b.locks[token]
+		if ok && expires.After(time.Now()) {
+			b.Unlock()
+			time.Sleep(100 * time.Millisecond)
+		} else {
+			if ttl == 0 {
+				b.locks[token] = time.Time{}
+			} else {
+				b.locks[token] = time.Now().Add(ttl)
+			}
+			b.Unlock()
+			return nil
+		}
 	}
-	b.locks[token] = time.Now().Add(ttl)
-	return nil
 }
 
 func (b *BoltBackend) ReleaseLock(token string) error {
@@ -269,7 +280,7 @@ func (b *BoltBackend) ReleaseLock(token string) error {
 	defer b.Unlock()
 
 	expires, ok := b.locks[token]
-	if !ok || expires.Before(time.Now()) {
+	if !ok || (!expires.IsZero() && expires.Before(time.Now())) {
 		return &teleport.NotFoundError{
 			Message: fmt.Sprintf(
 				"lock %v is deleted or expired", token),

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path"
 
 	"github.com/gravitational/teleport/auth"
 	authority "github.com/gravitational/teleport/auth/native"
@@ -39,9 +40,9 @@ type Config struct {
 	TLSKeyFile  *string
 	TLSCertFile *string
 
-	Backend              *string
-	BackendConfig        *string
-	BackendEncryptionKey *string
+	Backend         *string
+	BackendConfig   *string
+	BackendReadonly *bool
 }
 
 func main() {
@@ -91,7 +92,7 @@ func main() {
 	cfg.CPAssetsDir = app.Flag("cp-assets-dir", "Control panel assets directory").Default(".").String()
 	cfg.Backend = app.Flag("backend", "Auth backend type, currently only 'etcd'").Default("etcd").String()
 	cfg.BackendConfig = app.Flag("backend-config", "Auth backend-specific configuration string").String()
-	cfg.BackendEncryptionKey = app.Flag("backend-key", "If key file is provided, backend will be encrypted with that key").Default("").String()
+	cfg.BackendReadonly = app.Flag("backend-readonly", "If provided, backend will work in readonly mode").Bool()
 	cfg.TLSKeyFile = app.Flag("tls-key", "TLS private key filename").String()
 	cfg.TLSCertFile = app.Flag("tls-cert", "TLS Certificate filename").String()
 
@@ -129,8 +130,8 @@ func NewService(cfg Config) (*Service, error) {
 		return nil, fmt.Errorf("please supply data directory")
 	}
 
-	b, err := initBackend(*cfg.Backend,
-		*cfg.BackendConfig, *cfg.BackendEncryptionKey)
+	b, err := initBackend(*cfg.Backend, *cfg.BackendConfig,
+		*cfg.DataDir, *cfg.BackendReadonly)
 	if err != nil {
 		log.Errorf("failed to initialize backend: %v", err)
 		return nil, err
@@ -246,7 +247,8 @@ func (s *Service) addStart() error {
 	return nil
 }
 
-func initBackend(btype, bcfg, encryptionKeyFile string) (backend.Backend, error) {
+func initBackend(btype, bcfg, dataDir string,
+	backendReadonly bool) (*encryptedbk.ReplicatedBackend, error) {
 	var bk backend.Backend
 	var err error
 
@@ -263,14 +265,12 @@ func initBackend(btype, bcfg, encryptionKeyFile string) (backend.Backend, error)
 		return nil, err
 	}
 
-	if len(encryptionKeyFile) == 0 {
-		return bk, nil
-	} else {
-		encryptedBk, err := encryptedbk.New(bk, encryptionKeyFile)
-		if err != nil {
-			log.Errorf(err.Error())
-			return nil, err
-		}
-		return encryptedBk, nil
+	keyStorage := path.Join(dataDir, "tscope_backend_keys")
+	encryptedBk, err := encryptedbk.NewReplicatedBackend(bk,
+		keyStorage, backendReadonly)
+	if err != nil {
+		log.Errorf(err.Error())
+		return nil, err
 	}
+	return encryptedBk, nil
 }

@@ -576,6 +576,87 @@ func (c *Client) ResetUserCA() error {
 	return err
 }
 
+// GetBackendKeys returns IDs of all the backend encrypting keys that
+// this server has
+func (c *Client) GetBackendKeys() ([]string, error) {
+	out, err := c.Get(c.Endpoint("backend", "keys"), url.Values{})
+	if err != nil {
+		return nil, err
+	}
+	var ids *backendKeysResponse
+	if err := json.Unmarshal(out.Bytes(), &ids); err != nil {
+		return nil, err
+	}
+	return ids.Ids, err
+}
+
+// GetRemoteBackendKeys returns IDs of all the backend encrypting case
+// that are actually used on remote backend
+func (c *Client) GetRemoteBackendKeys() ([]string, error) {
+	out, err := c.Get(c.Endpoint("backend", "remote", "keys"), url.Values{})
+	if err != nil {
+		return nil, err
+	}
+	var ids *backendKeysResponse
+	if err := json.Unmarshal(out.Bytes(), &ids); err != nil {
+		return nil, err
+	}
+	return ids.Ids, err
+}
+
+// GenerateBackendKey generates a new backend encrypting key with the
+// given id and then backend makes a copy of all the data using the
+// generated key for encryption
+func (c *Client) GenerateBackendKey(keyID string) error {
+	_, err := c.PostForm(c.Endpoint("backend", "generatekey"), url.Values{
+		"id": []string{keyID}})
+	return err
+}
+
+// DeleteBackendKey deletes the backend encrypting key and all the data
+// encrypted with the key
+func (c *Client) DeleteBackendKey(keyID string) error {
+	out, err := c.Delete(c.Endpoint("backend", "keys", keyID))
+	if err != nil {
+		return err
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		return err
+	}
+	fmt.Println(resp["message"].(string))
+	return err
+}
+
+// AddBackendKey adds the given encrypting key. If backend works not in
+// readonly mode, backend makes a copy of the data using the key for
+// encryption
+func (c *Client) AddBackendKey(keyJSON string) (id string, e error) {
+	out, err := c.PostForm(c.Endpoint("backend", "keys"), url.Values{
+		"key": []string{keyJSON}})
+	if err != nil {
+		return "", err
+	}
+	var ids *backendKeysResponse
+	if err := json.Unmarshal(out.Bytes(), &ids); err != nil {
+		return "", err
+	}
+	return ids.Ids[0], err
+}
+
+// GetBackendKeys returns the backend encrypting key.
+func (c *Client) GetBackendKey(keyID string) (keyJSON string, e error) {
+	out, err := c.Get(c.Endpoint("backend", "keys", keyID), url.Values{})
+	if err != nil {
+		return "", err
+	}
+	var key *backendKeyResponse
+	if err := json.Unmarshal(out.Bytes(), &key); err != nil {
+		return "", err
+	}
+	return key.Key, err
+}
+
 type chunkRW struct {
 	c  *Client
 	id string

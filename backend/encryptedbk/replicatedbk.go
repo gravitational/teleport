@@ -21,12 +21,16 @@ type ReplicatedBackend struct {
 	readonly   bool
 }
 
-func New(backend backend.Backend, keysFile string) (*ReplicatedBackend, error) {
+func NewReplicatedBackend(backend backend.Backend, keysFile string, readonly bool) (*ReplicatedBackend, error) {
 	var err error
+	backend.AcquireLock(lock1, 0)
+	defer backend.ReleaseLock(lock1)
+
 	repBk := ReplicatedBackend{}
 	repBk.mutex = &sync.Mutex{}
 	repBk.baseBk = backend
 	repBk.keyStorage, err = boltbk.New(keysFile)
+	repBk.readonly = readonly
 
 	remoteKeys, _ := backend.GetKeys([]string{rootDir})
 	if len(remoteKeys) != 0 {
@@ -37,6 +41,10 @@ func New(backend backend.Backend, keysFile string) (*ReplicatedBackend, error) {
 	if err != nil {
 		log.Errorf(err.Error())
 		return nil, err
+	}
+
+	if readonly {
+		log.Infof("Backend start in readonly mode")
 	}
 
 	return &repBk, nil
@@ -77,7 +85,6 @@ func (b *ReplicatedBackend) initFromExistingBk() error {
 		}
 	}
 
-	b.readonly = false
 	for _, remoteKey := range remoteKeys {
 		localKeyExists := false
 		for _, bk := range b.ebk {
@@ -97,8 +104,6 @@ func (b *ReplicatedBackend) initFromExistingBk() error {
 func (b *ReplicatedBackend) initFromEmptyBk() error {
 	log.Infof("Starting with empty backend")
 
-	b.readonly = false
-
 	localKeys, err := b.GetAllEncryptingKeys()
 	if err != nil {
 		log.Errorf(err.Error())
@@ -107,7 +112,7 @@ func (b *ReplicatedBackend) initFromEmptyBk() error {
 
 	if len(localKeys) == 0 {
 		log.Infof("No local backend encrypting keys were found, generating new key 'key0'")
-		return b.NewEncryptingKey("key0", false)
+		return b.GenerateEncryptingKey("key0", false)
 	} else {
 
 		for _, key := range localKeys {
@@ -163,14 +168,20 @@ func (b *ReplicatedBackend) DeleteKey(path []string, key string) error {
 		return trace.Errorf("Can't modify backend data without all the remote encrypting keys. Backend work in readonly mode")
 	}
 
+	var resultErr error
+	resultErr = nil
+
 	for _, bk := range b.ebk {
 		err := bk.DeleteKey(path, key)
 		if err != nil {
-			log.Errorf(err.Error())
-			return err
+			resultErr = err
+			if !teleport.IsNotFound(err) {
+				log.Errorf(err.Error())
+				return err
+			}
 		}
 	}
-	return nil
+	return resultErr
 }
 
 func (b *ReplicatedBackend) DeleteBucket(path []string, bkt string) error {
@@ -226,8 +237,8 @@ func (b *ReplicatedBackend) GetVal(path []string, key string) ([]byte, error) {
 	defer b.mutex.Unlock()
 
 	if len(b.ebk) == 0 {
-		log.Errorf("Backen can't be accessed because there are no valid local encrypting keys")
-		return nil, trace.Errorf("Backen can't be accessed because there are no valid local encrypting keys")
+		log.Errorf("Backend can't be accessed because there are no valid local encrypting keys")
+		return nil, trace.Errorf("Backend can't be accessed because there are no valid local encrypting keys")
 	}
 
 	var err error
@@ -237,7 +248,9 @@ func (b *ReplicatedBackend) GetVal(path []string, key string) ([]byte, error) {
 		if err == nil {
 			return val, nil
 		}
-		log.Warningf("Key %s is not valid", bk.KeyID)
+		if !teleport.IsNotFound(err) {
+			log.Warningf("Key %s is not valid", bk.KeyID)
+		}
 	}
 	return nil, err
 }
@@ -254,7 +267,9 @@ func (b *ReplicatedBackend) GetValAndTTL(path []string, key string) ([]byte, tim
 		if err == nil {
 			return val, ttl, nil
 		}
-		log.Warningf("Key %s is not valid", bk.KeyID)
+		if !teleport.IsNotFound(err) {
+			log.Warningf("Key %s is not valid", bk.KeyID)
+		}
 	}
 	return nil, 0, err
 }
@@ -267,7 +282,7 @@ func (b *ReplicatedBackend) ReleaseLock(token string) error {
 	return b.baseBk.ReleaseLock(token)
 }
 
-func (b *ReplicatedBackend) NewEncryptingKey(id string, copyData bool) error {
+func (b *ReplicatedBackend) GenerateEncryptingKey(id string, copyData bool) error {
 	if b.readonly {
 		log.Errorf("Can't generate new backend encrypting key without all the encrypting keys used in remote backend. Backend work in readonly mode")
 		return trace.Errorf("Can't generate new backend encrypting key without all the encrypting keys used in remote backend. Backend work in readonly mode")
@@ -287,7 +302,9 @@ func (b *ReplicatedBackend) NewEncryptingKey(id string, copyData bool) error {
 func (b *ReplicatedBackend) GetEncryptingKey(id string) (Key, error) {
 	value, err := b.keyStorage.GetVal([]string{"values"}, id)
 	if err != nil {
-		log.Errorf(err.Error())
+		if !teleport.IsNotFound(err) {
+			log.Errorf(err.Error())
+		}
 		return Key{}, err
 	}
 	var key Key
@@ -320,8 +337,8 @@ func (b *ReplicatedBackend) AddEncryptingKey(key Key, copyData bool) error {
 
 	_, err := b.GetEncryptingKey(key.ID)
 	if err == nil {
-		log.Errorf("Error: Key %s already exists", key)
-		return trace.Errorf("Error: Key %s already exists", key)
+		log.Errorf("Error: Key %s already exists", key.ID)
+		return trace.Errorf("Error: Key %s already exists", key.ID)
 	}
 	if !teleport.IsNotFound(err) {
 		log.Errorf(err.Error())
@@ -344,6 +361,7 @@ func (b *ReplicatedBackend) AddEncryptingKey(key Key, copyData bool) error {
 	}
 	bk.SetExistence()
 	b.ebk = append(b.ebk, bk)
+	log.Infof("Key %s was added", key.ID)
 	return nil
 }
 
@@ -382,7 +400,7 @@ func (b *ReplicatedBackend) ListRemoteEncryptingKeys() ([]string, error) {
 // copy path and all the subpaths from one encrypted backend to another
 func (b *ReplicatedBackend) copy(src, dest *EncryptedBackend, path []string) error {
 	keys, err := src.GetKeys(path)
-	if err == nil {
+	if err == nil && len(keys) != 0 {
 		for _, key := range keys {
 			err = b.copy(src, dest, append(path, key))
 			if err != nil {
@@ -392,6 +410,9 @@ func (b *ReplicatedBackend) copy(src, dest *EncryptedBackend, path []string) err
 	} else {
 		val, ttl, err := src.GetValAndTTL(path[:len(path)-1], path[len(path)-1])
 		if err != nil {
+			if teleport.IsNotFound(err) {
+				return nil
+			}
 			log.Errorf(err.Error())
 			return err
 		}
@@ -408,3 +429,5 @@ type Key struct {
 	ID    string
 	Value []byte
 }
+
+const lock1 = "replicated"

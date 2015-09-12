@@ -7,6 +7,7 @@ import (
 	"github.com/gravitational/teleport/backend/boltbk"
 	"github.com/gravitational/teleport/backend/test"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
@@ -20,12 +21,16 @@ type ReplicatedBkSuite struct {
 
 var _ = Suite(&ReplicatedBkSuite{})
 
+func (s *ReplicatedBkSuite) SetUpSuite(c *C) {
+	log.Initialize("console", "WARN")
+}
+
 func (s *ReplicatedBkSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
 
 	boltBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
-	s.bk, err = New(boltBk, filepath.Join(s.dir, "keysDB"))
+	s.bk, err = NewReplicatedBackend(boltBk, filepath.Join(s.dir, "keysDB"), false)
 	c.Assert(err, IsNil)
 
 	s.suite.ChangesC = make(chan interface{})
@@ -47,6 +52,10 @@ func (s *ReplicatedBkSuite) TestLock(c *C) {
 	s.suite.Locking(c)
 }
 
+func (s *ReplicatedBkSuite) TestValueAndTTL(c *C) {
+	s.suite.ValueAndTTl(c)
+}
+
 func (s *ReplicatedBkSuite) TestDataIsReplicated(c *C) {
 	// saving value
 	c.Assert(s.bk.UpsertVal([]string{"a", "b"}, "bkey", []byte("val1"), 0), IsNil)
@@ -61,4 +70,29 @@ func (s *ReplicatedBkSuite) TestDataIsReplicated(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(out) == "val1", Equals, false)
 
+}
+
+func (s *ReplicatedBkSuite) TestGenerateSeveralKeys(c *C) {
+	c.Assert(s.bk.UpsertVal([]string{"a1"}, "b1", []byte("val1"), 0), IsNil)
+
+	c.Assert(s.bk.GenerateEncryptingKey("key2", true), IsNil)
+	val, err := s.bk.GetVal([]string{"a1"}, "b1")
+	c.Assert(err, IsNil)
+	c.Assert(string(val), Equals, "val1")
+
+	c.Assert(s.bk.UpsertVal([]string{"a2"}, "b2", []byte("val2"), 0), IsNil)
+
+	c.Assert(s.bk.DeleteEncryptingKey("key0"), IsNil)
+	val, err = s.bk.GetVal([]string{"a1"}, "b1")
+	c.Assert(err, IsNil)
+	c.Assert(string(val), Equals, "val1")
+	val, err = s.bk.GetVal([]string{"a2"}, "b2")
+	c.Assert(err, IsNil)
+	c.Assert(string(val), Equals, "val2")
+	c.Assert(s.bk.UpsertVal([]string{"a3"}, "b3", []byte("val3"), 0), IsNil)
+
+	c.Assert(s.bk.GenerateEncryptingKey("key3", true), IsNil)
+	val, err = s.bk.GetVal([]string{"a1"}, "b1")
+	c.Assert(err, IsNil)
+	c.Assert(string(val), Equals, "val1")
 }

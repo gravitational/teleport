@@ -89,3 +89,7 @@ func (s *EtcdSuite) TestExpiration(c *C) {
 func (s *EtcdSuite) TestLock(c *C) {
 	s.suite.Locking(c)
 }
+
+func (s *EtcdSuite) TestValueAndTTL(c *C) {
+	s.suite.ValueAndTTl(c)
+}

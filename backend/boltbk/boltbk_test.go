@@ -45,3 +45,7 @@ func (s *BoltSuite) TestExpiration(c *C) {
 func (s *BoltSuite) TestLock(c *C) {
 	s.suite.Locking(c)
 }
+
+func (s *BoltSuite) TestValueAndTTL(c *C) {
+	s.suite.ValueAndTTl(c)
+}
