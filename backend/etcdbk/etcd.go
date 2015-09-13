@@ -91,6 +91,9 @@ func (b *bk) GetVal(path []string, key string) ([]byte, error) {
 	if err != nil {
 		return nil, convertErr(err)
 	}
+	if re.Node.Dir {
+		return nil, &teleport.NotFoundError{Message: "Trying to get value of bucket"}
+	}
 	return []byte(re.Node.Value), nil
 }
 
@@ -108,7 +111,7 @@ func (b *bk) DeleteKey(path []string, key string) error {
 }
 
 func (b *bk) DeleteBucket(path []string, key string) error {
-	_, err := b.client.Delete(b.key(append(path, key)...), false)
+	_, err := b.client.Delete(b.key(append(path, key)...), true)
 	return convertErr(err)
 }
 

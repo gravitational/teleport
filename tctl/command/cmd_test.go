@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http/httptest"
 	"net/url"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -213,6 +214,48 @@ func (s *CmdSuite) TestRemoteCertCRUD(c *C) {
 
 	remoteCerts, err = s.CAS.GetRemoteCerts("user", "")
 	c.Assert(len(remoteCerts), Equals, 0)
+}
+
+func (s *CmdSuite) TestBackendKeys(c *C) {
+	// running TestRemoteCertCRUD while changing some keys
+	s.run("backend-keys", "generate", "--id", "key45")
+	out := s.run("backend-keys", "ls")
+	c.Assert(out, DeepEquals, "This server has these keys: key0 key45 ")
+	out = s.run("backend-keys", "ls-remote")
+	c.Assert(out, DeepEquals, "Remote backend use these keys for encryption: key0 key45 ")
+	s.run("backend-keys", "export", "--id", "key45", "--dir", s.dir)
+
+	c.Assert(s.asrv.ResetUserCA(""), IsNil)
+	_, pub, err := s.asrv.GenerateKeyPair("")
+	c.Assert(err, IsNil)
+	fkey, err := ioutil.TempFile("", "teleport")
+	c.Assert(err, IsNil)
+	defer fkey.Close()
+	fkey.Write(pub)
+	out = s.run("remote-ca", "upsert", "--id", "id1", "--type", "user", "--fqdn", "example.com", "--path", fkey.Name())
+	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "upserted"))
+
+	s.run("backend-keys", "delete", "--id", "key45")
+
+	var remoteCerts []services.RemoteCert
+	remoteCerts, err = s.CAS.GetRemoteCerts("user", "example.com")
+	c.Assert(err, IsNil)
+	c.Assert(trim(string(remoteCerts[0].Value)), Equals, trim(string(pub)))
+
+	s.run("backend-keys", "import", "--file", path.Join(s.dir, "key45.bkey"))
+	s.run("backend-keys", "delete", "--id", "key0")
+	out = s.run("backend-keys", "ls")
+	c.Assert(out, DeepEquals, "This server has these keys: key45 ")
+	out = s.run("backend-keys", "ls-remote")
+	c.Assert(out, DeepEquals, "Remote backend use these keys for encryption: key45 ")
+
+	out = s.run("remote-ca", "ls", "--type", "user")
+	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "example.com"))
+	out = s.run("remote-ca", "rm", "--type", "user", "--fqdn", "example.com", "--id", "id1")
+	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "deleted"))
+	remoteCerts, err = s.CAS.GetRemoteCerts("user", "")
+	c.Assert(len(remoteCerts), Equals, 0)
+
 }
 
 func trim(val string) string {

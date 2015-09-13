@@ -33,7 +33,7 @@ func (s *BkKeysService) GetBackendKeys() ([]string, error) {
 // GetRemoteBackendKeys returns IDs of all the backend encrypting case
 // that are actually used on remote backend
 func (s *BkKeysService) GetRemoteBackendKeys() ([]string, error) {
-	return s.backend.ListRemoteEncryptingKeys()
+	return s.backend.GetRemoteEncryptingKeys()
 }
 
 // GenerateBackendKey generates a new backend encrypting key with the

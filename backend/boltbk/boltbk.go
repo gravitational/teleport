@@ -32,7 +32,7 @@ func New(path string) (*BoltBackend, error) {
 }
 
 func (b *BoltBackend) Close() error {
-	return nil
+	return b.db.Close()
 }
 
 func (b *BoltBackend) GetKeys(path []string) ([]string, error) {
@@ -260,7 +260,7 @@ func (b *BoltBackend) AcquireLock(token string, ttl time.Duration) error {
 	for {
 		b.Lock()
 		expires, ok := b.locks[token]
-		if ok && expires.After(time.Now()) {
+		if ok && (expires.IsZero() || expires.After(time.Now())) {
 			b.Unlock()
 			time.Sleep(100 * time.Millisecond)
 		} else {

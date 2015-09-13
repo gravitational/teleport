@@ -35,10 +35,22 @@ func newEncryptedBackend(backend backend.Backend, key Key) (*EncryptedBackend, e
 		return nil, err
 	}
 
-	encryptedBk.prefix = []string{rootDir, url.QueryEscape(key.ID)}
+	encryptedBk.prefix = []string{rootDir, idToPath(key.ID)}
 	encryptedBk.KeyID = key.ID
 
 	return &encryptedBk, nil
+}
+
+func idToPath(id string) string {
+	return url.QueryEscape(id)
+}
+
+func pathToID(path string) string {
+	id, err := url.QueryUnescape(path)
+	if err != nil {
+		panic(err.Error())
+	}
+	return id
 }
 
 func (b *EncryptedBackend) IsExisting() bool {

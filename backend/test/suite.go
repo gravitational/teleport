@@ -48,6 +48,11 @@ func (s *BackendSuite) BasicCRUD(c *C) {
 	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "bkey", []byte("val1"), 0), IsNil)
 	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "akey", []byte("val2"), 0), IsNil)
 
+	_, err = s.B.GetVal([]string{"a"}, "b")
+	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	keys, _ = s.B.GetKeys([]string{"a", "b", "bkey"})
+	c.Assert(len(keys), Equals, 0)
+
 	keys, err = s.B.GetKeys([]string{"a", "b"})
 	c.Assert(err, IsNil)
 	c.Assert(keys, DeepEquals, []string{"akey", "bkey"})
@@ -63,6 +68,15 @@ func (s *BackendSuite) BasicCRUD(c *C) {
 
 	c.Assert(s.B.DeleteKey([]string{"a", "b"}, "bkey"), IsNil)
 	c.Assert(s.B.DeleteKey([]string{"a", "b"}, "bkey"), FitsTypeOf, &teleport.NotFoundError{})
+
+	c.Assert(s.B.UpsertVal([]string{"a", "c"}, "xkey", []byte("val3"), 0), IsNil)
+	c.Assert(s.B.UpsertVal([]string{"a", "c"}, "ykey", []byte("val4"), 0), IsNil)
+	c.Assert(s.B.DeleteBucket([]string{"a"}, "c"), IsNil)
+	_, err = s.B.GetVal([]string{"a", "c"}, "xkey")
+	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	_, err = s.B.GetVal([]string{"a", "c"}, "ykey")
+	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+
 }
 
 func (s *BackendSuite) Expiration(c *C) {
@@ -97,6 +111,18 @@ func (s *BackendSuite) Locking(c *C) {
 
 	c.Assert(s.B.AcquireLock(tok1, 30*time.Second), IsNil)
 	x := 7
+	go func() {
+		time.Sleep(1 * time.Second)
+		x = 9
+		c.Assert(s.B.ReleaseLock(tok1), IsNil)
+	}()
+	c.Assert(s.B.AcquireLock(tok1, 0), IsNil)
+	x = x * 2
+	c.Assert(x, Equals, 18)
+	c.Assert(s.B.ReleaseLock(tok1), IsNil)
+
+	c.Assert(s.B.AcquireLock(tok1, 0), IsNil)
+	x = 7
 	go func() {
 		time.Sleep(1 * time.Second)
 		x = 9
