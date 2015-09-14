@@ -30,6 +30,10 @@ func NewReplicatedBackend(backend backend.Backend, keysFile string, readonly boo
 	repBk.mutex = &sync.Mutex{}
 	repBk.baseBk = backend
 	repBk.keyStorage, err = boltbk.New(keysFile)
+	if err != nil {
+		log.Errorf(err.Error())
+		return nil, err
+	}
 	repBk.readonly = readonly
 
 	remoteKeys, _ := backend.GetKeys([]string{rootDir})
@@ -97,7 +101,7 @@ func (b *ReplicatedBackend) initFromExistingBk() error {
 		}
 
 		if !localKeyExists {
-			log.Infof("Remote key %s is not provided in the local keys. Backend will work in readonly mode")
+			log.Infof("Remote key %s is not provided in the local keys. Backend will work in readonly mode", remoteKey)
 			b.readonly = true
 		}
 	}
@@ -136,13 +140,10 @@ func (b *ReplicatedBackend) initFromEmptyBk() error {
 }
 
 func (b *ReplicatedBackend) GetKeys(path []string) ([]string, error) {
+	b.checkKeysAreProvided()
+
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-
-	if len(b.ebk) == 0 {
-		log.Errorf("Backen can't be accessed because there are no valid local encrypting keys")
-		return nil, trace.Errorf("Backen can't be accessed because there are no valid local encrypting keys")
-	}
 
 	var err error
 	err = trace.Errorf("Backen can't be accessed because there are no valid local encrypting keys")
@@ -161,13 +162,10 @@ func (b *ReplicatedBackend) GetKeys(path []string) ([]string, error) {
 }
 
 func (b *ReplicatedBackend) DeleteKey(path []string, key string) error {
+	b.checkKeysAreProvided()
+
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-
-	if len(b.ebk) == 0 {
-		log.Errorf("Backen can't be accessed because there are no valid local encrypting keys")
-		return trace.Errorf("Backen can't be accessed because there are no valid local encrypting keys")
-	}
 
 	if b.readonly {
 		log.Errorf("Can't modify backend data without all the remote encrypting keys. Backend work in readonly mode")
@@ -191,13 +189,10 @@ func (b *ReplicatedBackend) DeleteKey(path []string, key string) error {
 }
 
 func (b *ReplicatedBackend) DeleteBucket(path []string, bkt string) error {
+	b.checkKeysAreProvided()
+
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-
-	if len(b.ebk) == 0 {
-		log.Errorf("Backen can't be accessed because there are no valid local encrypting keys")
-		return trace.Errorf("Backen can't be accessed because there are no valid local encrypting keys")
-	}
 
 	if b.readonly {
 		log.Errorf("Can't modify backend data without all the remote encrypting keys. Backend work in readonly mode")
@@ -215,13 +210,10 @@ func (b *ReplicatedBackend) DeleteBucket(path []string, bkt string) error {
 }
 
 func (b *ReplicatedBackend) UpsertVal(path []string, key string, val []byte, ttl time.Duration) error {
+	b.checkKeysAreProvided()
+
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-
-	if len(b.ebk) == 0 {
-		log.Errorf("Backen can't be accessed because there are no valid local encrypting keys")
-		return trace.Errorf("Backen can't be accessed because there are no valid local encrypting keys")
-	}
 
 	if b.readonly {
 		log.Errorf("Can't modify backend data without all the remote encrypting keys. Backend work in readonly mode")
@@ -239,13 +231,10 @@ func (b *ReplicatedBackend) UpsertVal(path []string, key string, val []byte, ttl
 }
 
 func (b *ReplicatedBackend) GetVal(path []string, key string) ([]byte, error) {
+	b.checkKeysAreProvided()
+
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-
-	if len(b.ebk) == 0 {
-		log.Errorf("Backend can't be accessed because there are no valid local encrypting keys")
-		return nil, trace.Errorf("Backend can't be accessed because there are no valid local encrypting keys")
-	}
 
 	var err error
 	for _, bk := range b.ebk {
@@ -262,6 +251,8 @@ func (b *ReplicatedBackend) GetVal(path []string, key string) ([]byte, error) {
 }
 
 func (b *ReplicatedBackend) GetValAndTTL(path []string, key string) ([]byte, time.Duration, error) {
+	b.checkKeysAreProvided()
+
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
@@ -300,8 +291,8 @@ func (b *ReplicatedBackend) GenerateEncryptingKey(id string, copyData bool) erro
 
 func (b *ReplicatedBackend) generateEncryptingKey(id string, copyData bool) error {
 	if b.readonly {
-		log.Errorf("Can't generate new backend encrypting key without all the encrypting keys used in remote backend. Backend work in readonly mode")
-		return trace.Errorf("Can't generate new backend encrypting key without all the encrypting keys used in remote backend. Backend work in readonly mode")
+		log.Errorf("Can't generate new backend encrypting key without all the encrypting keys used on the remote backend. Backend works in readonly mode")
+		return trace.Errorf("Can't generate new backend encrypting key without all the encrypting keys used on the remote backend. Backend works in readonly mode")
 	}
 
 	keyValue, err := secret.NewKey()
@@ -498,6 +489,20 @@ func (b *ReplicatedBackend) copy(src, dest *EncryptedBackend, path []string) err
 		}
 	}
 	return nil
+}
+
+func (b *ReplicatedBackend) checkKeysAreProvided() {
+	if len(b.ebk) == 0 {
+		log.Errorf("Backen can't be accessed because there are no valid local encrypting keys")
+		for {
+			log.Warningf("Please provide valid backend keys. Use tctl (or tscopectl) to add backend keys.")
+			time.Sleep(2 * time.Second)
+			if len(b.ebk) > 0 {
+				log.Infof("Backend started in readonly mode")
+				return
+			}
+		}
+	}
 }
 
 type Key struct {

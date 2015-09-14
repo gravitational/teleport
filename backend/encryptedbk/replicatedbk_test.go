@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/backend/boltbk"
@@ -167,13 +168,15 @@ func (s *ReplicatedBkSuite) TestSeveralAuthServers(c *C) {
 	c.Assert(localIDs, DeepEquals, []string{})
 	c.Assert(remoteIDs, DeepEquals, []string{"key/2", "key0"})
 
-	_, err = bk2.GetVal([]string{"a1"}, "b1")
-	c.Assert(err, NotNil)
-	c.Assert(bk2.UpsertVal([]string{"a2"}, "b2", []byte("val2"), 0), NotNil)
-
-	c.Assert(bk2.AddEncryptingKey(key2, true), IsNil)
+	x := 5
+	go func() {
+		time.Sleep(1 * time.Second)
+		x = 7
+		c.Assert(bk2.AddEncryptingKey(key2, true), IsNil)
+	}()
 
 	val, err := bk2.GetVal([]string{"a1"}, "b1")
+	c.Assert(x, Equals, 7)
 	c.Assert(err, IsNil)
 	c.Assert(string(val), Equals, "val1")
 

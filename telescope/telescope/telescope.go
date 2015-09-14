@@ -137,14 +137,14 @@ func NewService(cfg Config) (*Service, error) {
 		return nil, err
 	}
 
-	asrv, hostSigner, err := auth.Init(
+	asrv, err := auth.Init(
 		b, authority.New(), *cfg.FQDN, *cfg.Domain, *cfg.DataDir)
 	if err != nil {
 		log.Errorf("failed to init auth server: %v", err)
 		return nil, err
 	}
 
-	s := &Service{cfg: cfg, b: b, a: asrv, hs: hostSigner}
+	s := &Service{cfg: cfg, b: b, a: asrv}
 	s.Supervisor = *service.New()
 	if err := s.addStart(); err != nil {
 		return nil, err
@@ -154,31 +154,12 @@ func NewService(cfg Config) (*Service, error) {
 
 type Service struct {
 	service.Supervisor
-	b  backend.Backend
-	a  *auth.AuthServer
-	hs ssh.Signer
-
+	b   backend.Backend
+	a   *auth.AuthServer
 	cfg Config
 }
 
 func (s *Service) addStart() error {
-	tsrv, err := tun.NewServer(s.cfg.TunAddr, []ssh.Signer{s.hs},
-		auth.NewBackendAccessPoint(s.b))
-	if err != nil {
-		log.Errorf("failed to start server: %v", err)
-		return err
-	}
-
-	s.RegisterFunc(func() error {
-		log.Infof("telescope tunnel server starting")
-		if err := tsrv.Start(); err != nil {
-			log.Errorf("failed to start: %v", err)
-			return err
-		}
-		tsrv.Wait()
-		return nil
-	})
-
 	asrv := auth.NewAPIServer(s.a, nil, nil, nil)
 
 	// register Auth HTTP API endpoint
@@ -191,56 +172,80 @@ func (s *Service) addStart() error {
 		return nil
 	})
 
-	// register auth SSH-based endpoint
 	s.RegisterFunc(func() error {
-		tsrv, err := auth.NewTunServer(
-			s.cfg.AuthSSHAddr, []ssh.Signer{s.hs},
-			s.cfg.AuthHTTPAddr,
-			s.a)
+		var err error
+		signer, err := auth.InitKeys(s.a, *s.cfg.FQDN, *s.cfg.DataDir)
 		if err != nil {
-			log.Errorf("failed to start teleport ssh tunnel")
+			log.Errorf(err.Error())
 			return err
 		}
-		if err := tsrv.Start(); err != nil {
-			log.Errorf("failed to start teleport ssh endpoint: %v", err)
-			return err
-		}
-		return nil
-	})
 
-	// Register control panel web server
-	s.RegisterFunc(func() error {
-		wsrv, err := srv.New(s.cfg.WebAddr,
-			srv.Config{
-				Tun:         tsrv,
-				AssetsDir:   *s.cfg.AssetsDir,
-				CPAssetsDir: *s.cfg.CPAssetsDir,
-				AuthAddr:    s.cfg.AuthSSHAddr,
-				FQDN:        *s.cfg.FQDN})
+		tsrv, err := tun.NewServer(s.cfg.TunAddr, []ssh.Signer{signer},
+			auth.NewBackendAccessPoint(s.b))
 		if err != nil {
-			log.Errorf("failed to launch web server: %v", err)
+			log.Errorf("failed to start server: %v", err)
 			return err
 		}
-		log.Infof("telescope web server starting")
 
-		if (*s.cfg.TLSCertFile != "") && (*s.cfg.TLSKeyFile != "") {
-			err := srv.ListenAndServeTLS(
-				wsrv.Server.Addr,
-				wsrv.Handler,
-				*s.cfg.TLSCertFile,
-				*s.cfg.TLSKeyFile,
-			)
+		// register auth SSH-based endpoint
+		s.RegisterFunc(func() error {
+			tun, err := auth.NewTunServer(
+				s.cfg.AuthSSHAddr, []ssh.Signer{signer},
+				s.cfg.AuthHTTPAddr,
+				s.a)
 			if err != nil {
-				log.Errorf("failed to start: %v", err)
+				log.Errorf("failed to start teleport ssh tunnel")
 				return err
 			}
-		} else {
+			if err := tun.Start(); err != nil {
+				log.Errorf("failed to start teleport ssh endpoint: %v", err)
+				return err
+			}
+			return nil
+		})
 
-			if err := wsrv.ListenAndServe(); err != nil {
-				log.Errorf("failed to start: %v", err)
+		// Register control panel web server
+		s.RegisterFunc(func() error {
+			wsrv, err := srv.New(s.cfg.WebAddr,
+				srv.Config{
+					Tun:         tsrv,
+					AssetsDir:   *s.cfg.AssetsDir,
+					CPAssetsDir: *s.cfg.CPAssetsDir,
+					AuthAddr:    s.cfg.AuthSSHAddr,
+					FQDN:        *s.cfg.FQDN})
+			if err != nil {
+				log.Errorf("failed to launch web server: %v", err)
 				return err
 			}
+			log.Infof("telescope web server starting")
+
+			if (*s.cfg.TLSCertFile != "") && (*s.cfg.TLSKeyFile != "") {
+				err := srv.ListenAndServeTLS(
+					wsrv.Server.Addr,
+					wsrv.Handler,
+					*s.cfg.TLSCertFile,
+					*s.cfg.TLSKeyFile,
+				)
+				if err != nil {
+					log.Errorf("failed to start: %v", err)
+					return err
+				}
+			} else {
+
+				if err := wsrv.ListenAndServe(); err != nil {
+					log.Errorf("failed to start: %v", err)
+					return err
+				}
+			}
+			return nil
+		})
+
+		log.Infof("telescope tunnel server starting")
+		if err := tsrv.Start(); err != nil {
+			log.Errorf("failed to start: %v", err)
+			return err
 		}
+		tsrv.Wait()
 		return nil
 	})
 

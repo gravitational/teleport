@@ -132,6 +132,8 @@ func (b *bk) AcquireLock(token string, ttl time.Duration) error {
 			default:
 				return e
 			}
+		default:
+			return e
 		}
 	}
 }

@@ -96,7 +96,7 @@ func initAuth(t *TeleportService, cfg Config) error {
 		return err
 	}
 
-	asrv, signer, err := auth.Init(
+	asrv, err := auth.Init(
 		b, authority.New(), *cfg.FQDN, *cfg.Auth.Domain, *cfg.DataDir)
 	if err != nil {
 		log.Errorf("failed to init auth server: %v", err)
@@ -117,6 +117,12 @@ func initAuth(t *TeleportService, cfg Config) error {
 
 	// register auth SSH-based endpoint
 	t.RegisterFunc(func() error {
+		signer, err := auth.InitKeys(asrv, *cfg.FQDN, *cfg.DataDir)
+		if err != nil {
+			log.Errorf(err.Error())
+			return err
+		}
+
 		tsrv, err := auth.NewTunServer(
 			cfg.Auth.SSHAddr, []ssh.Signer{signer},
 			cfg.Auth.HTTPAddr,
@@ -131,6 +137,7 @@ func initAuth(t *TeleportService, cfg Config) error {
 		}
 		return nil
 	})
+
 	return nil
 }
 
@@ -173,9 +180,15 @@ func initSSH(t *TeleportService, cfg Config) error {
 		// this means the server has not been initialized yet we are starting
 		// the registering client that attempts to connect ot the auth server
 		// and provision the keys
-		return initRegister(t, *cfg.SSH.Token, cfg, initSSHEndpoint)
+		t.RegisterFunc(func() error {
+			return initRegister(t, *cfg.SSH.Token, cfg, initSSHEndpoint)
+		})
+		return nil
 	}
-	return initSSHEndpoint(t, cfg)
+	t.RegisterFunc(func() error {
+		return initSSHEndpoint(t, cfg)
+	})
+	return nil
 }
 
 func initSSHEndpoint(t *TeleportService, cfg Config) error {
@@ -204,6 +217,9 @@ func initSSHEndpoint(t *TeleportService, cfg Config) error {
 	}
 
 	t.RegisterFunc(func() error {
+		if cfg.Auth.Enabled {
+			time.Sleep(2 * time.Second)
+		}
 		log.Infof("teleport ssh starting on %v", cfg.SSH.Addr)
 		if err := s.Start(); err != nil {
 			log.Fatalf("failed to start: %v", err)
@@ -220,6 +236,7 @@ func initRegister(t *TeleportService, token string, cfg Config,
 	// we are on the same server as the auth endpoint
 	// and there's no token. we can handle this
 	if cfg.Auth.Enabled && token == "" {
+		time.Sleep(2 * time.Second)
 		log.Infof("registering in embedded mode, connecting to local auth server")
 		clt, err := auth.NewClientFromNetAddr(cfg.Auth.HTTPAddr)
 		if err != nil {
@@ -233,6 +250,9 @@ func initRegister(t *TeleportService, token string, cfg Config,
 		return err
 	}
 	t.RegisterFunc(func() error {
+		if cfg.Auth.Enabled {
+			time.Sleep(2 * time.Second)
+		}
 		log.Infof("teleport:register connecting to auth servers %v", *cfg.SSH.Token)
 		if err := auth.Register(
 			*cfg.FQDN, *cfg.DataDir, token, cfg.AuthServers); err != nil {
