@@ -2,9 +2,8 @@ package encryptedbk
 
 import (
 	"path/filepath"
-	"reflect"
+	"sort"
 	"testing"
-	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/backend/boltbk"
@@ -17,7 +16,7 @@ import (
 func TestReplicatedBk(t *testing.T) { TestingT(t) }
 
 type ReplicatedBkSuite struct {
-	bk    *ReplicatedBackend
+	bk    *MasterReplicatedBackend
 	suite test.BackendSuite
 	dir   string
 }
@@ -33,7 +32,7 @@ func (s *ReplicatedBkSuite) SetUpTest(c *C) {
 
 	boltBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
-	s.bk, err = NewReplicatedBackend(boltBk, filepath.Join(s.dir, "keysDB"), false)
+	s.bk, err = NewMasterReplicatedBackend(boltBk, filepath.Join(s.dir, "keysDB"), nil)
 	c.Assert(err, IsNil)
 
 	s.suite.ChangesC = make(chan interface{})
@@ -45,6 +44,10 @@ func (s *ReplicatedBkSuite) TearDownTest(c *C) {
 
 func (s *ReplicatedBkSuite) TestBasicCRUD(c *C) {
 	s.suite.BasicCRUD(c)
+}
+
+func (s *ReplicatedBkSuite) TestCompareAndSwap(c *C) {
+	s.suite.CompareAndSwap(c)
 }
 
 func (s *ReplicatedBkSuite) TestExpiration(c *C) {
@@ -59,7 +62,7 @@ func (s *ReplicatedBkSuite) TestValueAndTTL(c *C) {
 	s.suite.ValueAndTTl(c)
 }
 
-func (s *ReplicatedBkSuite) TestDataIsReplicated(c *C) {
+func (s *ReplicatedBkSuite) TestDataIsEncrypted(c *C) {
 	// saving value
 	c.Assert(s.bk.UpsertVal([]string{"a", "b"}, "bkey", []byte("val1"), 0), IsNil)
 
@@ -77,19 +80,59 @@ func (s *ReplicatedBkSuite) TestDataIsReplicated(c *C) {
 
 func (s *ReplicatedBkSuite) TestSeveralKeys(c *C) {
 	c.Assert(s.bk.UpsertVal([]string{"a1"}, "b1", []byte("val1"), 0), IsNil)
-	c.Assert(s.bk.DeleteEncryptingKey("key0"), NotNil)
 
-	c.Assert(s.bk.GenerateEncryptingKey("key2", true), IsNil)
+	keys, err := s.bk.GetLocalSealKeys()
+	c.Assert(err, IsNil)
+	c.Assert(len(keys), Equals, 1)
+	key0ID := keys[0].ID
+
+	c.Assert(s.bk.DeleteSealKey(key0ID), NotNil)
+
 	val, err := s.bk.GetVal([]string{"a1"}, "b1")
 	c.Assert(err, IsNil)
 	c.Assert(string(val), Equals, "val1")
-	c.Assert(s.bk.UpsertVal([]string{"a2"}, "b2", []byte("val2"), 0), IsNil)
-	c.Assert(s.bk.GenerateEncryptingKey("key2", true), NotNil)
 
-	key0, err := s.bk.GetEncryptingKey("key0")
+	c.Assert(len(s.bk.signCheckingKeys), Equals, 1)
+
+	key2, err := s.bk.GenerateSealKey("key2")
+
+	///c.Assert(s.bk.ebk[1].encryptor.AddSignCheckingKey(keys[0]), IsNil) ///
+	val, err = s.bk.ebk[1].GetVal([]string{"a1"}, "b1")
+	c.Assert(err, IsNil)
+	c.Assert(string(val), Equals, "val1")
+
+	c.Assert(s.bk.ebk[0].VerifySign(), IsNil)
+	c.Assert(s.bk.ebk[1].VerifySign(), IsNil)
+
+	c.Assert(s.bk.RewriteData(), IsNil)
+
+	c.Assert(err, IsNil)
+	c.Assert(len(key2.ID) > 0, Equals, true)
+	c.Assert(key2.Name, Equals, "key2")
+	val, err = s.bk.GetVal([]string{"a1"}, "b1")
+	c.Assert(err, IsNil)
+	c.Assert(string(val), Equals, "val1")
+	c.Assert(s.bk.UpsertVal([]string{"a2"}, "b2", []byte("val2"), 0), IsNil)
+	_, err = s.bk.GenerateSealKey("key2")
+	c.Assert(err, NotNil)
+
+	key0, err := s.bk.GetLocalSealKey(key0ID)
 	c.Assert(err, IsNil)
 
-	c.Assert(s.bk.DeleteEncryptingKey("key0"), IsNil)
+	c.Assert(len(s.bk.signCheckingKeys), Equals, 2)
+
+	//_, err = s.bk.GenerateSealKey("key5") //
+	//c.Assert(err, IsNil)                  //
+
+	c.Assert(s.bk.DeleteSealKey(key0ID), IsNil)
+	//c.Assert(s.bk.DeleteSealKey(key2.ID), IsNil)
+	c.Assert(len(s.bk.signCheckingKeys), Equals, 1)
+	//val, err = s.bk.GetVal([]string{"a1"}, "b1")
+	//c.Assert(string(val), Equals, "val1")
+	//c.Assert(err, NotNil)
+
+	//c.Assert(s.bk.RewriteData(), IsNil)
+
 	val, err = s.bk.GetVal([]string{"a1"}, "b1")
 	c.Assert(err, IsNil)
 	c.Assert(string(val), Equals, "val1")
@@ -98,73 +141,99 @@ func (s *ReplicatedBkSuite) TestSeveralKeys(c *C) {
 	c.Assert(string(val), Equals, "val2")
 	c.Assert(s.bk.UpsertVal([]string{"a3"}, "b3", []byte("val3"), 0), IsNil)
 
-	c.Assert(s.bk.GenerateEncryptingKey("key3", true), IsNil)
+	key3, err := s.bk.GenerateSealKey("key3")
+	c.Assert(err, IsNil)
+	c.Assert(len(key3.ID) > 0, Equals, true)
 	val, err = s.bk.GetVal([]string{"a1"}, "b1")
 	c.Assert(err, IsNil)
 	c.Assert(string(val), Equals, "val1")
 	c.Assert(s.bk.UpsertVal([]string{"a4"}, "b4", []byte("val4"), 0), IsNil)
 
-	localKeys, err := s.bk.GetAllEncryptingKeys()
+	localKeys, err := s.bk.GetLocalSealKeys()
 	c.Assert(err, IsNil)
 	localIDs := make([]string, len(localKeys))
 	for i, _ := range localKeys {
 		localIDs[i] = localKeys[i].ID
 	}
-	remoteIDs, err := s.bk.GetRemoteEncryptingKeys()
+	if localIDs[0] == key2.ID {
+		c.Assert(localIDs, DeepEquals, []string{key2.ID, key3.ID})
+	} else {
+		c.Assert(localIDs, DeepEquals, []string{key3.ID, key2.ID})
+	}
+
+	remoteKeys, err := s.bk.GetClusterPublicSealKeys()
 	c.Assert(err, IsNil)
-	c.Assert(localIDs, DeepEquals, []string{"key2", "key3"})
-	c.Assert(remoteIDs, DeepEquals, []string{"key2", "key3"})
+	remoteIDs := make([]string, len(remoteKeys))
+	for i, _ := range remoteKeys {
+		remoteIDs[i] = remoteKeys[i].ID
+	}
+	if remoteIDs[0] == key2.ID {
+		c.Assert(remoteIDs, DeepEquals, []string{key2.ID, key3.ID})
+	} else {
+		c.Assert(remoteIDs, DeepEquals, []string{key3.ID, key2.ID})
+	}
 
 	_, err = s.bk.GetVal([]string{"a10"}, "b10")
 	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 
-	c.Assert(s.bk.AddEncryptingKey(key0, true), IsNil)
-	c.Assert(s.bk.AddEncryptingKey(key0, true), NotNil)
+	c.Assert(s.bk.AddSealKey(key0), IsNil)
+	c.Assert(s.bk.AddSealKey(key0), NotNil)
 	val, err = s.bk.GetVal([]string{"a1"}, "b1")
 	c.Assert(err, IsNil)
 	c.Assert(string(val), Equals, "val1")
 	c.Assert(s.bk.UpsertVal([]string{"a5"}, "b5", []byte("val5"), 0), IsNil)
 
-	localKeys, err = s.bk.GetAllEncryptingKeys()
+	localKeys, err = s.bk.GetLocalSealKeys()
 	c.Assert(err, IsNil)
 	localIDs = make([]string, len(localKeys))
 	for i, _ := range localKeys {
 		localIDs[i] = localKeys[i].ID
 	}
-	remoteIDs, err = s.bk.GetRemoteEncryptingKeys()
+	remoteKeys, err = s.bk.GetClusterPublicSealKeys()
 	c.Assert(err, IsNil)
-	c.Assert(localIDs, DeepEquals, []string{"key0", "key2", "key3"})
-	c.Assert(remoteIDs, DeepEquals, []string{"key0", "key2", "key3"})
+	remoteIDs = make([]string, len(remoteKeys))
+	for i, _ := range remoteKeys {
+		remoteIDs[i] = remoteKeys[i].ID
+	}
 
-	keysAreEqual1 := reflect.DeepEqual(localKeys[0].Value, localKeys[1].Value)
-	keysAreEqual2 := reflect.DeepEqual(localKeys[0].Value, localKeys[2].Value)
-	keysAreEqual3 := reflect.DeepEqual(localKeys[2].Value, localKeys[1].Value)
-	c.Assert(keysAreEqual1, Equals, false)
-	c.Assert(keysAreEqual2, Equals, false)
-	c.Assert(keysAreEqual3, Equals, false)
+	expectedIDs := []string{key0.ID, key2.ID, key3.ID}
+	sort.Strings(expectedIDs)
+	sort.Strings(localIDs)
+	sort.Strings(remoteIDs)
 
-	c.Assert(s.bk.DeleteEncryptingKey("key2"), IsNil)
-	c.Assert(s.bk.DeleteEncryptingKey("key0"), IsNil)
-	c.Assert(s.bk.DeleteEncryptingKey("key3"), NotNil)
+	c.Assert(localIDs, DeepEquals, expectedIDs)
+	c.Assert(remoteIDs, DeepEquals, expectedIDs)
+
+	c.Assert(s.bk.DeleteSealKey(key2.ID), IsNil)
+	c.Assert(s.bk.DeleteSealKey(key0.ID), IsNil)
+	c.Assert(s.bk.DeleteSealKey(key3.ID), NotNil)
 }
 
 func (s *ReplicatedBkSuite) TestSeveralAuthServers(c *C) {
-	c.Assert(s.bk.UpsertVal([]string{"a1"}, "b1", []byte("val1"), 0), IsNil)
-	c.Assert(s.bk.GenerateEncryptingKey("key/2", true), IsNil)
-	key2, err := s.bk.GetEncryptingKey("key/2")
+	/*c.Assert(s.bk.UpsertVal([]string{"a1"}, "b1", []byte("val1"), 0), IsNil)
+
+	bk2, err := NewMasterReplicatedBackend(s.bk.baseBk, filepath.Join(s.dir, "keysDB_2"), nil)
 	c.Assert(err, IsNil)
 
-	bk2, err := NewReplicatedBackend(s.bk.baseBk, filepath.Join(s.dir, "keysDB_2"), false)
+
+	key2description, err := s.bk.GenerateSealKey("key/2")
+	c.Assert(err, IsNil)
+	key2, err := s.bk.GetLocalSealKey(key2description.ID)
 	c.Assert(err, IsNil)
 
-	localKeys, err := bk2.GetAllEncryptingKeys()
+
+	localKeys, err := bk2.GetLocalSealKeys()
 	c.Assert(err, IsNil)
 	localIDs := make([]string, len(localKeys))
 	for i, _ := range localKeys {
 		localIDs[i] = localKeys[i].ID
 	}
-	remoteIDs, err := bk2.GetRemoteEncryptingKeys()
+	remoteKeys, err := bk2.GetClusterSealKeys()
 	c.Assert(err, IsNil)
+	remoteIDs := make([]string, len(remoteKeys))
+	for i, _ := range localKeys {
+		localIDs[i] = localKeys[i].ID
+	}
 	c.Assert(localIDs, DeepEquals, []string{})
 	c.Assert(remoteIDs, DeepEquals, []string{"key/2", "key0"})
 
@@ -198,5 +267,5 @@ func (s *ReplicatedBkSuite) TestSeveralAuthServers(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(val), Equals, "val1")
 
-	c.Assert(bk2.UpsertVal([]string{"a2"}, "b2", []byte("val2"), 0), IsNil)
+	c.Assert(bk2.UpsertVal([]string{"a2"}, "b2", []byte("val2"), 0), IsNil)*/
 }

@@ -5,10 +5,10 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/backend/boltbk"
+	"github.com/gravitational/teleport/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/backend/test"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
@@ -18,23 +18,28 @@ type EncryptedBkSuite struct {
 	bk    *EncryptedBackend
 	suite test.BackendSuite
 	dir   string
+	key   encryptor.Key
 }
 
 var _ = Suite(&EncryptedBkSuite{})
 
 func (s *EncryptedBkSuite) SetUpSuite(c *C) {
 	log.Initialize("console", "WARN")
+	var err error
+	s.key, err = encryptor.GenerateGPGKey("key01")
+	c.Assert(err, IsNil)
+
 }
 
 func (s *EncryptedBkSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
 
-	key, err := secret.NewKey()
-	c.Assert(err, IsNil)
 	boltBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
-	s.bk, err = newEncryptedBackend(boltBk, Key{ID: "key25", Value: key[:]})
+	s.bk, err = newEncryptedBackend(boltBk, s.key)
 	c.Assert(err, IsNil)
+	s.bk.encryptor.SetSignKey(s.key)
+	s.bk.encryptor.AddSignCheckingKey(s.key.Public())
 
 	s.suite.ChangesC = make(chan interface{})
 	s.suite.B = s.bk
@@ -45,6 +50,10 @@ func (s *EncryptedBkSuite) TearDownTest(c *C) {
 
 func (s *EncryptedBkSuite) TestBasicCRUD(c *C) {
 	s.suite.BasicCRUD(c)
+}
+
+func (s *EncryptedBkSuite) TestCompareAndSwap(c *C) {
+	s.suite.CompareAndSwap(c)
 }
 
 func (s *EncryptedBkSuite) TestExpiration(c *C) {

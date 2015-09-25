@@ -59,6 +59,12 @@ func (b *BoltBackend) GetKeys(path []string) ([]string, error) {
 }
 
 func (b *BoltBackend) UpsertVal(path []string, key string, val []byte, ttl time.Duration) error {
+	b.Lock()
+	defer b.Unlock()
+	return b.upsertVal(path, key, val, ttl)
+}
+
+func (b *BoltBackend) upsertVal(path []string, key string, val []byte, ttl time.Duration) error {
 	v := &kv{
 		Created: time.Now(),
 		Value:   val,
@@ -69,6 +75,34 @@ func (b *BoltBackend) UpsertVal(path []string, key string, val []byte, ttl time.
 		return err
 	}
 	return b.upsertKey(path, key, bytes)
+}
+
+func (b *BoltBackend) CompareAndSwap(path []string, key string, val []byte, ttl time.Duration, prevVal []byte) ([]byte, error) {
+	b.Lock()
+	defer b.Unlock()
+
+	storedVal, err := b.GetVal(path, key)
+
+	if teleport.IsNotFound(err) {
+		storedVal = []byte{}
+		err = nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if string(prevVal) == string(storedVal) {
+		err = b.upsertVal(path, key, val, ttl)
+		if err != nil {
+			return nil, err
+		}
+		return storedVal, nil
+	} else {
+		return storedVal, &teleport.CompareFailedError{
+			Message: "Expected '" + string(prevVal) + "', obtained '" + string(storedVal) + "'",
+		}
+	}
+
 }
 
 func (b *BoltBackend) GetVal(path []string, key string) ([]byte, error) {
@@ -115,10 +149,14 @@ func (b *BoltBackend) GetValAndTTL(path []string, key string) ([]byte, time.Dura
 }
 
 func (b *BoltBackend) DeleteKey(path []string, key string) error {
+	b.Lock()
+	defer b.Unlock()
 	return b.deleteKey(path, key)
 }
 
 func (b *BoltBackend) DeleteBucket(path []string, bucket string) error {
+	b.Lock()
+	defer b.Unlock()
 	return b.deleteBucket(path, bucket)
 }
 

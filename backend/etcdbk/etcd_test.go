@@ -82,6 +82,10 @@ func (s *EtcdSuite) TestBasicCRUD(c *C) {
 	s.suite.BasicCRUD(c)
 }
 
+func (s *EtcdSuite) TestCompareAndSwap(c *C) {
+	s.suite.CompareAndSwap(c)
+}
+
 func (s *EtcdSuite) TestExpiration(c *C) {
 	s.suite.Expiration(c)
 }

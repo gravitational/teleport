@@ -19,4 +19,6 @@ type Backend interface {
 
 	// Grab a lock that will be released automatically in ttl time
 	ReleaseLock(token string) error
+
+	CompareAndSwap(path []string, key string, val []byte, ttl time.Duration, prevVal []byte) ([]byte, error)
 }

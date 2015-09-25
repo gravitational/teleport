@@ -79,6 +79,38 @@ func (s *BackendSuite) BasicCRUD(c *C) {
 
 }
 
+func (s *BackendSuite) CompareAndSwap(c *C) {
+	prev, err := s.B.CompareAndSwap([]string{"a", "b"}, "bkey", []byte("val10"), 0, []byte("1231"))
+	c.Assert(err, FitsTypeOf, &teleport.CompareFailedError{})
+	c.Assert(string(prev), DeepEquals, "")
+
+	prev, err = s.B.CompareAndSwap([]string{"a", "b"}, "bkey", []byte("val1"), 0, []byte{})
+	c.Assert(err, IsNil)
+	c.Assert(string(prev), DeepEquals, "")
+
+	prev, err = s.B.CompareAndSwap([]string{"a", "b"}, "bkey", []byte("val2"), 0, []byte{})
+	c.Assert(err, FitsTypeOf, &teleport.CompareFailedError{})
+	c.Assert(string(prev), DeepEquals, "val1")
+
+	prev, err = s.B.CompareAndSwap([]string{"a", "b"}, "bkey", []byte("val2"), 0, []byte("abcd"))
+	c.Assert(err, FitsTypeOf, &teleport.CompareFailedError{})
+	c.Assert(string(prev), DeepEquals, "val1")
+
+	out, err := s.B.GetVal([]string{"a", "b"}, "bkey")
+	c.Assert(err, IsNil)
+	c.Assert(string(out), Equals, "val1")
+
+	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "anotherkey", []byte("val3"), 0), IsNil)
+
+	prev, err = s.B.CompareAndSwap([]string{"a", "b"}, "bkey", []byte("val4"), 0, []byte("val1"))
+	c.Assert(err, IsNil)
+	c.Assert(string(prev), DeepEquals, "val1")
+
+	out, err = s.B.GetVal([]string{"a", "b"}, "bkey")
+	c.Assert(err, IsNil)
+	c.Assert(string(out), Equals, "val4")
+}
+
 func (s *BackendSuite) Expiration(c *C) {
 	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "bkey", []byte("val1"), time.Second), IsNil)
 	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "akey", []byte("val2"), 0), IsNil)

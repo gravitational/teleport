@@ -86,6 +86,28 @@ func (b *bk) UpsertVal(path []string, key string, val []byte, ttl time.Duration)
 	return convertErr(err)
 }
 
+func (b *bk) CompareAndSwap(path []string, key string, val []byte, ttl time.Duration, prevVal []byte) ([]byte, error) {
+	resp, err := b.client.CompareAndSwap(
+		b.key(append(path, key)...),
+		string(val),
+		uint64(ttl/time.Second),
+		string(prevVal),
+		0,
+	)
+
+	err = convertErr(err)
+	if err != nil {
+		if teleport.IsCompareFailed(err) {
+			e := &teleport.CompareFailedError{
+				Message: "Expected '" + string(prevVal) + "', obtained '" + resp.PrevNode.Value + "'",
+			}
+			return []byte(resp.PrevNode.Value), e
+		}
+		return nil, convertErr(err)
+	}
+	return []byte(resp.PrevNode.Value), nil
+}
+
 func (b *bk) GetVal(path []string, key string) ([]byte, error) {
 	re, err := b.client.Get(b.key(append(path, key)...), false, false)
 	if err != nil {
@@ -177,6 +199,8 @@ func convertErr(e error) error {
 			return &teleport.NotFoundError{Message: err.Error()}
 		case 105:
 			return &teleport.AlreadyExistsError{Message: err.Error()}
+		case 101:
+			return &teleport.CompareFailedError{Message: err.Error()}
 		}
 	}
 	return e
