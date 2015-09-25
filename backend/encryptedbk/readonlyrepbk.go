@@ -1,5 +1,6 @@
 package encryptedbk
 
+/*
 import (
 	"sync"
 	"time"
@@ -124,50 +125,18 @@ func (b *ReadonlyReplicatedBackend) AddSealKey(key encryptor.Key) error {
 }
 
 func (b *ReadonlyReplicatedBackend) DeleteSealKey(id string) error {
-	b.mutex.Lock()
-	defer b.mutex.Unlock()
-	b.baseBk.AcquireLock(bkLock, 0)
-	defer b.baseBk.ReleaseLock(bkLock)
-
-	anotherValidKey := false
-	for _, bk := range b.ebk {
-		if bk.KeyID != id && len(bk.GetSealKeyName()) > 0 {
-			anotherValidKey = true
-		}
-	}
-
-	if !anotherValidKey {
-		log.Warningf("Key %s is the last valid key on this server, it can't be deleted", id)
-		return trace.Errorf("Key %s is the last valid key on this server, it can't be deleted", id)
-	}
-
-	err := b.keyStore.DeleteKey(id)
-	if err != nil && !teleport.IsNotFound(err) {
-		log.Errorf(err.Error())
-		return err
-	}
-
-	if !teleport.IsNotFound(err) {
-		log.Infof("Key %s was deleted from local keys", id)
-	}
-
-	for i, bk := range b.ebk {
-		if bk.KeyID == id {
-			err := bk.DeleteAll()
-			if err != nil {
-				log.Errorf(err.Error())
-				return err
-			}
-			b.ebk = append(b.ebk[:i], b.ebk[i+1:]...)
-			log.Infof("Key %s was deleted from remote backend keys", id)
-			return nil
-		}
-	}
-
-	err = b.baseBk.DeleteBucket([]string{rootDir}, id)
-	if err == nil {
-		log.Infof("Key %s was deleted from remote backend keys", id)
-	}
-
-	return nil
+	return &teleport.ReadonlyError{}
 }
+
+func (b *ReadonlyReplicatedBackend) SetSignKey(key encryptor.Key) error {
+	return &teleport.ReadonlyError{}
+}
+
+func (b *ReadonlyReplicatedBackend) GetSignKey() (encryptor.Key, error) {
+	return encryptor.Key{}, &teleport.ReadonlyError{}
+}
+
+func (b *ReadonlyReplicatedBackend) RewriteData() error {
+	return &teleport.ReadonlyError{}
+}
+*/

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/backend/boltbk"
+	"github.com/gravitational/teleport/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/backend/test"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
@@ -210,62 +211,49 @@ func (s *ReplicatedBkSuite) TestSeveralKeys(c *C) {
 }
 
 func (s *ReplicatedBkSuite) TestSeveralAuthServers(c *C) {
-	/*c.Assert(s.bk.UpsertVal([]string{"a1"}, "b1", []byte("val1"), 0), IsNil)
+	c.Assert(s.bk.UpsertVal([]string{"a1"}, "b1", []byte("val1"), 0), IsNil)
+	key1, err := s.bk.GetSignKey()
+	c.Assert(err, IsNil)
+	key1public := key1.Public()
 
-	bk2, err := NewMasterReplicatedBackend(s.bk.baseBk, filepath.Join(s.dir, "keysDB_2"), nil)
+	key2, err := encryptor.GenerateGPGKey("key/2")
 	c.Assert(err, IsNil)
 
+	c.Assert(s.bk.AddSealKey(key2.Public()), IsNil)
 
-	key2description, err := s.bk.GenerateSealKey("key/2")
+	bk2, err := NewMasterReplicatedBackend(s.bk.baseBk,
+		filepath.Join(s.dir, "keysDB_2"),
+		[]encryptor.Key{key2, key1public})
 	c.Assert(err, IsNil)
-	key2, err := s.bk.GetLocalSealKey(key2description.ID)
-	c.Assert(err, IsNil)
-
-
-	localKeys, err := bk2.GetLocalSealKeys()
-	c.Assert(err, IsNil)
-	localIDs := make([]string, len(localKeys))
-	for i, _ := range localKeys {
-		localIDs[i] = localKeys[i].ID
-	}
-	remoteKeys, err := bk2.GetClusterSealKeys()
-	c.Assert(err, IsNil)
-	remoteIDs := make([]string, len(remoteKeys))
-	for i, _ := range localKeys {
-		localIDs[i] = localKeys[i].ID
-	}
-	c.Assert(localIDs, DeepEquals, []string{})
-	c.Assert(remoteIDs, DeepEquals, []string{"key/2", "key0"})
-
-	x := 5
-	go func() {
-		time.Sleep(1 * time.Second)
-		x = 7
-		c.Assert(bk2.AddEncryptingKey(key2, true), IsNil)
-	}()
 
 	val, err := bk2.GetVal([]string{"a1"}, "b1")
-	c.Assert(x, Equals, 7)
 	c.Assert(err, IsNil)
 	c.Assert(string(val), Equals, "val1")
 
-	c.Assert(bk2.UpsertVal([]string{"a2"}, "b2", []byte("val2"), 0), NotNil)
-
-	_, err = s.bk.GetVal([]string{"a2"}, "b2")
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
-	c.Assert(bk2.DeleteEncryptingKey("key/2"), NotNil)
-
-	// making bk2 master
-
-	c.Assert(bk2.DeleteEncryptingKey("key0"), IsNil)
-
-	// after restarting bk2 should be master
-	bk2.keyStorage.(*boltbk.BoltBackend).Close()
-	bk2, err = NewReplicatedBackend(s.bk.baseBk, filepath.Join(s.dir, "keysDB_2"), false)
-
-	val, err = bk2.GetVal([]string{"a1"}, "b1")
+	val, err = s.bk.GetVal([]string{"a1"}, "b1")
 	c.Assert(err, IsNil)
 	c.Assert(string(val), Equals, "val1")
 
-	c.Assert(bk2.UpsertVal([]string{"a2"}, "b2", []byte("val2"), 0), IsNil)*/
+	c.Assert(bk2.UpsertVal([]string{"a1"}, "b2", []byte("val2"), 0), IsNil)
+
+	val, err = bk2.GetVal([]string{"a1"}, "b2")
+	c.Assert(err, IsNil)
+	c.Assert(string(val), Equals, "val2")
+
+	val, err = s.bk.GetVal([]string{"a1"}, "b2")
+	c.Assert(err, IsNil)
+	c.Assert(string(val), Equals, "val2")
+
+	_, err = NewMasterReplicatedBackend(s.bk.baseBk,
+		filepath.Join(s.dir, "keysDB_3"), nil)
+	c.Assert(err, NotNil)
+
+	key3, err := encryptor.GenerateGPGKey("key/2")
+	c.Assert(err, IsNil)
+
+	_, err = NewMasterReplicatedBackend(s.bk.baseBk,
+		filepath.Join(s.dir, "keysDB_4"),
+		[]encryptor.Key{key3})
+	c.Assert(err, NotNil)
+
 }

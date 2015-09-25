@@ -36,10 +36,9 @@ func (s *EncryptedBkSuite) SetUpTest(c *C) {
 
 	boltBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
-	s.bk, err = newEncryptedBackend(boltBk, s.key)
+	s.bk, err = newEncryptedBackend(boltBk, s.key, s.key,
+		[]encryptor.Key{s.key.Public()})
 	c.Assert(err, IsNil)
-	s.bk.encryptor.SetSignKey(s.key)
-	s.bk.encryptor.AddSignCheckingKey(s.key.Public())
 
 	s.suite.ChangesC = make(chan interface{})
 	s.suite.B = s.bk

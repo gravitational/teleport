@@ -37,17 +37,15 @@ type ReplicatedBackend interface {
 	UpdateLocalKeysFromCluster() error
 
 	SetSignKey(key encryptor.Key) error
-	GetSignKey() encryptor.Key
-	RewriteData() error
-	//AddSignCheckingKey(key encryptor.Key) error
+	GetSignKey() (encryptor.Key, error)
+	RewriteData() error //rewrites data using current sign key
 }
 
 type MasterReplicatedBackend struct {
-	baseBk   backend.Backend
-	ebk      []*EncryptedBackend
-	mutex    *sync.Mutex
-	keyStore KeyStore
-	//signStore        KeyStore
+	baseBk           backend.Backend
+	ebk              []*EncryptedBackend
+	mutex            *sync.Mutex
+	keyStore         KeyStore
 	signKey          encryptor.Key
 	signCheckingKeys []encryptor.Key
 }
@@ -63,24 +61,19 @@ func NewMasterReplicatedBackend(backend backend.Backend, keysFile string, additi
 	defer repBk.mutex.Unlock()
 	repBk.baseBk = backend
 	repBk.keyStore, err = NewKeyStore(keysFile)
-	//repBk.signStore, err = NewKeyStore(path.Join(dataDir, "signStore"))
 	if err != nil {
 		log.Errorf(err.Error())
 		return nil, err
 	}
 
-	remoteKeys, err := backend.GetKeys([]string{rootDir})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	//if len(remoteKeys) == 0 {
 	for _, key := range additionalKeys {
-		err = repBk.keyStore.AddKey(key)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if !repBk.keyStore.HasKey(key.ID) {
+			err := repBk.keyStore.AddKey(key)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
-	//}
 
 	localKeys, err := repBk.keyStore.GetKeys()
 	if err != nil {
@@ -97,13 +90,11 @@ func NewMasterReplicatedBackend(backend backend.Backend, keysFile string, additi
 		}
 	}
 
+	remoteKeys, err := backend.GetKeys([]string{rootDir})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if len(remoteKeys) != 0 {
-		/*for _, key := range additionalKeys {
-			repBk.addSealKey(key, true)
-			if err != nil {
-				log.Errorf(err.Error())
-			}
-		}*/
 		err = repBk.initFromExistingBk(additionalKeys)
 	} else {
 		err = repBk.initFromEmptyBk()
@@ -113,12 +104,9 @@ func NewMasterReplicatedBackend(backend backend.Backend, keysFile string, additi
 		return nil, err
 	}
 
-	//localKeys, err := repBk.GetLocalSealKeys()
-
 	go repBk.regularActions()
 
-	log.Infof(" ", len(repBk.ebk))
-
+	log.Infof("Backend was initialized")
 	return &repBk, nil
 }
 
@@ -134,17 +122,16 @@ func (b *MasterReplicatedBackend) initFromExistingBk(additionalKeys []encryptor.
 		return trace.Errorf("Can't initialize backend: no backend seal keys were provided")
 	}
 
-	/*remoteKeys, err := b.baseBk.GetKeys([]string{keysDir})
-	if err != nil {
-		return trace.Wrap(err)
-	}*/
-
 	// first initialize only backends, that can decrypt data
 	for _, key := range localKeys {
-		bk, err := newEncryptedBackend(b.baseBk, key)
+		bk, err := newEncryptedBackend(b.baseBk, key, b.signKey, b.signCheckingKeys)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		/*if err := bk.encryptor.AddSignCheckingKey(key); err != nil {
+			return trace.Wrap(err)
+		}*/
 
 		if bk.VerifySign() == nil {
 			b.ebk = append(b.ebk, bk)
@@ -155,94 +142,10 @@ func (b *MasterReplicatedBackend) initFromExistingBk(additionalKeys []encryptor.
 		return trace.Errorf("Can't initialize backend: no valid backend seal keys were provided")
 	}
 
-	if err := b.UpdateLocalKeysFromCluster(); err != nil {
+	if err := b.updateLocalKeysFromCluster(); err != nil {
 		return trace.Wrap(err)
 	}
-
-	/*	activeKeys, err := b.getClusterPublicSealKeys()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// initialize backends from active public keys
-		for _, key := range activeKeys {
-			alreadyInitialized := false
-			for _, bk := range b.ebk {
-				if bk.KeyID == key.ID {
-					alreadyInitialized = true
-					break
-				}
-			}
-			if !alreadyInitialized {
-				bk, err := newEncryptedBackend(b.baseBk, key)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				b.ebk = append(b.ebk, bk)
-			}
-		}
-
-		// delete unused local keys from keystore
-		for _, key := range localKeys {
-			alreadyInitialized := false
-			for _, bk := range b.ebk {
-				if bk.KeyID == key.ID {
-					alreadyInitialized = true
-					break
-				}
-			}
-			if !alreadyInitialized {
-				b.keyStore.DeleteKey(key.ID)
-			}
-		}*/
-
-	/*for _, key := range additionalKeys {
-		err := b.addSealKey(key, true)
-		if err != nil && !teleport.IsAlredyExists(err) {
-			return trace.Wrap(err)
-		}
-	}*/
-
-	/*publicKeys, err := b.getClusterPublicSealKeys()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, key := range publicKeys {
-		alreadyUsed := false
-		for _, bk := range b.ebk {
-			if bk.KeyID == key.ID {
-				alreadyUsed = true
-				break
-			}
-		}
-		if !alreadyUsed {
-
-		}
-	}*/
-
-	/*for _, remoteKey := range remoteKeys {
-		localKeyExists := false
-		for _, bk := range b.ebk {
-			if remoteKey == bk.KeyID {
-				localKeyExists = true
-			}
-		}
-
-		if !localKeyExists {
-			log.Infof("Remote key %s is not provided in the local keys. Backend will work in readonly mode", remoteKey)
-			b.readonly = true
-		}
-	}*/
 	return nil
-}
-
-func (b *MasterReplicatedBackend) regularActions() {
-	for {
-		time.Sleep(time.Minute)
-		if err := b.updateLocalKeysFromCluster(); err != nil {
-			log.Errorf(err.Error())
-		}
-	}
 }
 
 func (b *MasterReplicatedBackend) initFromEmptyBk() error {
@@ -261,7 +164,8 @@ func (b *MasterReplicatedBackend) initFromEmptyBk() error {
 	} else {
 
 		for _, key := range localKeys {
-			bk, err := newEncryptedBackend(b.baseBk, key)
+			bk, err := newEncryptedBackend(b.baseBk, key,
+				b.signKey, b.signCheckingKeys)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -283,6 +187,15 @@ func (b *MasterReplicatedBackend) initFromEmptyBk() error {
 	}
 }
 
+func (b *MasterReplicatedBackend) regularActions() {
+	for {
+		time.Sleep(time.Minute)
+		if err := b.updateLocalKeysFromCluster(); err != nil {
+			log.Errorf(err.Error())
+		}
+	}
+}
+
 func (b *MasterReplicatedBackend) GetKeys(path []string) ([]string, error) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
@@ -292,7 +205,6 @@ func (b *MasterReplicatedBackend) GetKeys(path []string) ([]string, error) {
 func (b *MasterReplicatedBackend) getKeys(path []string) ([]string, error) {
 	var e error
 	e = trace.Errorf("")
-	log.Infof("len ", len(b.ebk))
 	for _, bk := range b.ebk {
 		if bk.VerifySign() == nil {
 			var keys []string
@@ -500,19 +412,6 @@ func (b *MasterReplicatedBackend) GetLocalSealKeys() ([]encryptor.Key, error) {
 
 func (b *MasterReplicatedBackend) getLocalSealKeys() ([]encryptor.Key, error) {
 	return b.keyStore.GetKeys()
-	/*ids, err := b.keyStore.GetKeyIDs()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	keys := make([]encryptor.Key, len(ids))
-	for i, id := range ids {
-		keys[i], err = b.keyStore.GetKey(id)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	return keys, nil*/
 }
 
 func (b *MasterReplicatedBackend) AddSealKey(key encryptor.Key) error {
@@ -549,7 +448,8 @@ func (b *MasterReplicatedBackend) addSealKey(key encryptor.Key, copyData bool) e
 		return trace.Wrap(err)
 	}
 
-	bk, err := newEncryptedBackend(b.baseBk, key)
+	bk, err := newEncryptedBackend(b.baseBk, key,
+		b.signKey, b.signCheckingKeys)
 	if err != nil {
 		log.Errorf(err.Error())
 		return err
@@ -567,7 +467,7 @@ func (b *MasterReplicatedBackend) addSealKey(key encryptor.Key, copyData bool) e
 		return trace.Wrap(err)
 	}
 
-	if copyData && len(b.ebk) > 0 && len(bk.GetSealKeyName()) == 0 {
+	if copyData && len(b.ebk) > 0 {
 		copied := false
 		for _, ebk := range b.ebk {
 			if ebk.VerifySign() == nil {
@@ -586,9 +486,6 @@ func (b *MasterReplicatedBackend) addSealKey(key encryptor.Key, copyData bool) e
 		}
 	}
 
-	if len(bk.GetSealKeyName()) == 0 {
-		bk.SetSealKeyName(key.Name)
-	}
 	b.ebk = append(b.ebk, bk)
 
 	if err := b.addSignCheckingKey(key); err != nil {
@@ -600,10 +497,6 @@ func (b *MasterReplicatedBackend) addSealKey(key encryptor.Key, copyData bool) e
 	}
 
 	if err := bk.Sign(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := bk.VerifySign(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -669,24 +562,12 @@ func (b *MasterReplicatedBackend) DeleteSealKey(id string) error {
 		deletedGlobally = true
 		log.Infof("Key %s was deleted from remote backend keys", id)
 	}
-	b.baseBk.DeleteKey([]string{keysDir}, id)
 
 	if err := b.deleteClusterPublicKey(id); err == nil {
 		deletedGlobally = true
 	}
 
-	for i := len(b.signCheckingKeys) - 1; i >= 0; i-- {
-		if b.signCheckingKeys[i].ID == id {
-			b.signCheckingKeys = append(b.signCheckingKeys[:i],
-				b.signCheckingKeys[i+1:]...)
-		}
-	}
-
-	for _, bk := range b.ebk {
-		if err := bk.encryptor.DeleteSignCheckingKey(id); err != nil {
-			return trace.Wrap(err)
-		}
-	}
+	b.deleteSignCheckingKey(id)
 
 	if !deletedGlobally && !deletedLocally {
 		return trace.Errorf("Key " + id + " was not found in local and cluster keys")
@@ -724,26 +605,6 @@ func (b *MasterReplicatedBackend) getClusterPublicSealKeys() ([]encryptor.Key, e
 	}
 
 	return keys, nil
-	/*ids, err := b.baseBk.GetKeys([]string{keysDir})
-
-	keys := []encryptor.KeyDescription{}
-	for _, id := range ids {
-		name, err := b.baseBk.GetVal([]string{keysDir}, id)
-		if err == nil && len(name) != 0 {
-			key := encryptor.KeyDescription{
-				ID:   id,
-				Name: string(name),
-			}
-			keys = append(keys, key)
-		}
-	}
-
-	if err != nil {
-		log.Errorf(err.Error())
-		return nil, err
-	}
-
-	return keys, nil*/
 }
 
 func (b *MasterReplicatedBackend) SetSignKey(key encryptor.Key) error {
@@ -763,21 +624,15 @@ func (b *MasterReplicatedBackend) setSignKey(key encryptor.Key) error {
 	return nil
 }
 
-func (b *MasterReplicatedBackend) GetSignKey() encryptor.Key {
+func (b *MasterReplicatedBackend) GetSignKey() (encryptor.Key, error) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-	return b.getSignKey()
-}
+	if len(b.signKey.PrivateValue) == 0 {
+		return encryptor.Key{}, trace.Errorf("Sign key is not set")
+	}
 
-func (b *MasterReplicatedBackend) getSignKey() encryptor.Key {
-	return b.signKey
+	return b.signKey, nil
 }
-
-/*func (b *MasterReplicatedBackend) AddSignCheckingKey(key encryptor.Key) error {
-	b.mutex.Lock()
-	defer b.mutex.Unlock()
-	return b.addSignCheckingKey(key)
-}*/
 
 func (b *MasterReplicatedBackend) addSignCheckingKey(key encryptor.Key) error {
 	for _, ebk := range b.ebk {
@@ -787,6 +642,23 @@ func (b *MasterReplicatedBackend) addSignCheckingKey(key encryptor.Key) error {
 		}
 	}
 	b.signCheckingKeys = append(b.signCheckingKeys, key)
+	return nil
+}
+
+func (b *MasterReplicatedBackend) deleteSignCheckingKey(id string) error {
+	for i := len(b.signCheckingKeys) - 1; i >= 0; i-- {
+		if b.signCheckingKeys[i].ID == id {
+			b.signCheckingKeys = append(b.signCheckingKeys[:i],
+				b.signCheckingKeys[i+1:]...)
+		}
+	}
+
+	for _, bk := range b.ebk {
+		if err := bk.encryptor.DeleteSignCheckingKey(id); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -909,18 +781,20 @@ func (b *MasterReplicatedBackend) updateLocalKeysFromCluster() error {
 			}
 		}
 		if !alreadyInitialized {
-			bk, err := newEncryptedBackend(b.baseBk, key)
+			bk, err := newEncryptedBackend(b.baseBk, key,
+				b.signKey, b.signCheckingKeys)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			b.ebk = append(b.ebk, bk)
+			if err := b.addSignCheckingKey(key); err != nil {
+				return trace.Wrap(err)
+			}
+
 		}
 
 		if !b.keyStore.HasKey(key.ID) {
 			if err := b.keyStore.AddKey(key); err != nil {
-				return trace.Wrap(err)
-			}
-			if err := b.addSignCheckingKey(key); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -937,6 +811,7 @@ func (b *MasterReplicatedBackend) updateLocalKeysFromCluster() error {
 		}
 		if !alreadyInitialized {
 			b.keyStore.DeleteKey(key.ID)
+			b.deleteSignCheckingKey(key.ID)
 		}
 	}
 
@@ -944,59 +819,5 @@ func (b *MasterReplicatedBackend) updateLocalKeysFromCluster() error {
 
 }
 
-/*func (b *MasterReplicatedBackend) getPublicKeysList() ([]encryptor.Key, error) {
-	ids, err := b.getKeys([]string{publicKeysPath})
-
-	keys := []encryptor.Key{}
-
-	for _, id := range ids {
-		keyJSON, err := b.getVal([]string{publicKeysPath}, id)
-		if err == nil {
-			var key encryptor.Key
-			err = json.Unmarshal(keyJSON, key)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			keys := append(keys, key)
-		}
-	}
-
-	return keys, nil
-}*
-
-// Deletes all untrusted public keys from backend.
-// A key is trusted only if it was received directly from another node.
-func (b *MasterReplicatedBackend) DeleteUntrustedData(keyID string) error {
-	for bk := range b.ebk {
-		ids, err := bk.GetKeys([]string{publicKeysPath})
-
-		for _, id := range ids {
-			keyJSON, err := bk.GetVal([]string{publicKeysPath}, id)
-			if err == nil {
-				var key encryptor.Key
-				err = json.Unmarshal(keyJSON, key)
-				if err == nil && key.ID == keyID {
-					bk.DeleteKey([]string{publicKeysPath}, id)
-				}
-			}
-		}
-	}
-}
-
-/*func (b *MasterReplicatedBackend) checkKeysAreProvided() {
-	if len(b.ebk) == 0 {
-		log.Errorf("Backen can't be accessed because there are no valid local encrypting keys")
-		for {
-			log.Warningf("Please provide valid backend keys. Use tctl (or tscopectl) to add backend keys.")
-			time.Sleep(2 * time.Second)
-			if len(b.ebk) > 0 {
-				log.Infof("Backend started in readonly mode")
-				return
-			}
-		}
-	}
-}*/
-
 const bkLock = "replicated"
-const mySign = "mysign"
 const publicKeysPath = "publickeys"

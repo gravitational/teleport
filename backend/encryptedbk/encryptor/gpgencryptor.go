@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"io/ioutil"
 	"sync"
-	//"time"
 
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/packet"
@@ -67,7 +66,6 @@ func (e *GPGEncryptor) SetSignKey(key Key) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	//	e.signEntity = &(*signEntity)
 	return nil
 }
 
@@ -94,7 +92,6 @@ func (e *GPGEncryptor) DeleteSignCheckingKey(keyID string) error {
 	selectedEntities := []int{}
 
 	for i, entity := range e.signCheckingEntities {
-		// converting entity to Key to check its keyID
 		bufPub := new(bytes.Buffer)
 		if err := entity.Serialize(bufPub); err != nil {
 			return trace.Wrap(err)
@@ -122,10 +119,12 @@ func (e *GPGEncryptor) DeleteSignCheckingKey(keyID string) error {
 }
 
 func (e *GPGEncryptor) Encrypt(data []byte) ([]byte, error) {
+	if e.publicEntity == nil {
+		return nil, trace.Errorf("Used key doesn't have public value to encrypt")
+	}
 	entityList := openpgp.EntityList{e.publicEntity}
 	// encrypt string
 	buf := new(bytes.Buffer)
-	//w, err := openpgp.Encrypt(buf, entityList, nil, nil, nil)
 	w, err := openpgp.Encrypt(buf, entityList, e.signEntity, nil, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -143,31 +142,16 @@ func (e *GPGEncryptor) Encrypt(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	//encStr := base64.StdEncoding.EncodeToString(bytes)
 
 	return bytes, nil
 }
 
 func (e *GPGEncryptor) Decrypt(data []byte) ([]byte, error) {
+	if e.privateEntity == nil {
+		return nil, trace.Errorf("Used key doesn't have private value to decrypt")
+	}
 	entityList := append(openpgp.EntityList{e.privateEntity},
 		e.signCheckingEntities...)
-
-	/*entity = entityList[0]
-
-	// Get the passphrase and read the private key.
-	  // Have not touched the encrypted string yet
-	  passphraseByte := []byte(passphrase)
-	  log.Println("Decrypting private key using passphrase")
-	  entity.PrivateKey.Decrypt(passphraseByte)
-	  for _, subkey := range entity.Subkeys {
-	      subkey.PrivateKey.Decrypt(passphraseByte)
-	  }
-	*/
-	// Decode the base64 string
-	/*dec, err := base64.StdEncoding.DecodeString(encString)
-	  if err != nil {
-	      return "", err
-	  }*/
 
 	// Decrypt it with the contents of the private key
 	md, err := openpgp.ReadMessage(bytes.NewBuffer(data), entityList, nil, nil)
@@ -196,49 +180,6 @@ func GenerateGPGKey(name string) (Key, error) {
 	if err != nil {
 		return Key{}, trace.Wrap(err)
 	}
-
-	/////////////////////////
-
-	/*usrIdstring := ""
-	for _, uIds := range entity.Identities {
-		usrIdstring = uIds.Name
-
-	}
-
-	var priKey = entity.PrivateKey
-	var sig = new(packet.Signature)
-	//Prepare sign with our configs/////IS IT A MUST ??
-	sig.Hash = crypto.SHA256
-	sig.PubKeyAlgo = priKey.PubKeyAlgo
-	sig.CreationTime = time.Now()
-	dur := new(uint32)
-	*dur = uint32(365 * 24 * 60 * 60)
-	sig.SigLifetimeSecs = dur //a year
-	issuerUint := new(uint64)
-	*issuerUint = priKey.KeyId
-	sig.IssuerKeyId = issuerUint
-	sig.SigType = packet.SigTypeGenericCert
-
-	err = sig.SignKey(entity.PrimaryKey, entity.PrivateKey, nil)
-	if err != nil {
-		return Key{}, trace.Wrap(err)
-	}
-	err = sig.SignUserId(usrIdstring, entity.PrimaryKey, entity.PrivateKey, nil)
-	if err != nil {
-		return Key{}, trace.Wrap(err)
-	}
-
-	entity.SignIdentity(usrIdstring, entity, nil)
-
-	/////////*/
-
-	/*for _, id := range entity.Identities {
-		err := id.SelfSignature.SignUserId(id.UserId.Id,
-			entity.PrimaryKey, entity.PrivateKey, nil)
-		if err != nil {
-			return Key{}, trace.Wrap(err)
-		}
-	}*/
 
 	bufPriv := new(bytes.Buffer)
 	if err := entity.SerializePrivate(bufPriv, nil); err != nil {

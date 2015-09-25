@@ -19,7 +19,8 @@ type EncryptedBackend struct {
 	KeyID     string
 }
 
-func newEncryptedBackend(backend backend.Backend, key encryptor.Key) (*EncryptedBackend, error) {
+func newEncryptedBackend(backend backend.Backend, key encryptor.Key,
+	signKey encryptor.Key, signCheckingKeys []encryptor.Key) (*EncryptedBackend, error) {
 	var err error
 
 	ebk := EncryptedBackend{}
@@ -33,20 +34,17 @@ func newEncryptedBackend(backend backend.Backend, key encryptor.Key) (*Encrypted
 	ebk.prefix = []string{rootDir, key.ID}
 	ebk.KeyID = key.ID
 
-	return &ebk, nil
-}
-
-func (b *EncryptedBackend) GetSealKeyName() string {
-	name, err := b.bk.GetVal([]string{keysDir}, b.KeyID)
-	if err != nil {
-		return ""
+	if err := ebk.encryptor.SetSignKey(signKey); err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return string(name)
-}
 
-func (b *EncryptedBackend) SetSealKeyName(name string) error {
-	return b.bk.UpsertVal([]string{keysDir}, b.KeyID,
-		[]byte(name), 0)
+	for _, key := range signCheckingKeys {
+		if err := ebk.encryptor.AddSignCheckingKey(key); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return &ebk, nil
 }
 
 // Add special value.
@@ -184,5 +182,6 @@ func (b *EncryptedBackend) ReleaseLock(token string) error {
 
 const (
 	rootDir = "data"
-	keysDir = "activekeys"
+
+//	keysDir = "activekeys"
 )
