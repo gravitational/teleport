@@ -2,66 +2,65 @@ package command
 
 import (
 	"fmt"
-	"io/ioutil"
+	"github.com/gravitational/teleport/backend/encryptedbk"
 	"path"
+	"text/tabwriter"
 )
 
 func (cmd *Command) GetBackendKeys() {
-	ids, err := cmd.client.GetBackendKeys()
+	keys, err := cmd.client.GetSealKeys()
 	if err != nil {
 		cmd.printError(err)
 		return
 	}
-	res := "This server has these keys:"
-	for _, id := range ids {
-		res += " " + id
+	w := tabwriter.NewWriter(cmd.out, 0, 5, 0, '\t', 0)
+	for _, key := range keys {
+		s := key.ID + "\t"
+		if len(key.PrivateValue) != 0 {
+			s += "private\t"
+		} else {
+			s += "\t"
+		}
+		s += key.Name + "\t"
+		fmt.Fprintln(w, s)
 	}
-	res += "\n"
-	fmt.Fprintf(cmd.out, res)
-}
-
-func (cmd *Command) GetRemoteBackendKeys() {
-	ids, err := cmd.client.GetRemoteBackendKeys()
-	if err != nil {
-		cmd.printError(err)
-		return
-	}
-	res := "Remote backend use these keys for encryption:"
-	for _, id := range ids {
-		res += " " + id
-	}
-	res += "\n"
-	fmt.Fprintf(cmd.out, res)
+	fmt.Fprintln(w)
+	w.Flush()
 }
 
 func (cmd *Command) GenerateBackendKey(id string) {
-	err := cmd.client.GenerateBackendKey(id)
+	key, err := cmd.client.GenerateSealKey(id)
 	if err != nil {
 		cmd.printError(err)
 		return
 	}
-	cmd.printOK("Key " + id + " was generated")
+	cmd.printOK("Key " + key.ID + " was generated")
 }
 
 func (cmd *Command) ImportBackendKey(filename string) {
-	keyJSON, err := ioutil.ReadFile(filename)
-	id, err := cmd.client.AddBackendKey(string(keyJSON))
+	key, err := encryptedbk.LoadKeyFromFile(filename)
 	if err != nil {
 		cmd.printError(err)
 		return
 	}
-	cmd.printOK("Key " + id + " was imported from " + filename)
+
+	err = cmd.client.AddSealKey(key)
+	if err != nil {
+		cmd.printError(err)
+		return
+	}
+	cmd.printOK("Key " + key.ID + " was imported from " + filename)
 }
 
 func (cmd *Command) ExportBackendKey(dir, id string) {
-	keyJSON, err := cmd.client.GetBackendKey(id)
+	key, err := cmd.client.GetSealKey(id)
 	if err != nil {
 		cmd.printError(err)
 		return
 	}
-	filename := path.Join(dir, id+".bkey")
+	filename := path.Join(dir, key.ID+".bkey")
 
-	err = ioutil.WriteFile(filename, ([]byte)(keyJSON), 0700)
+	err = encryptedbk.SaveKeyToFile(key, filename)
 	if err != nil {
 		cmd.printError(fmt.Errorf("failed to save key: %v", err))
 		return
@@ -70,7 +69,7 @@ func (cmd *Command) ExportBackendKey(dir, id string) {
 }
 
 func (cmd *Command) DeleteBackendKey(id string) {
-	err := cmd.client.DeleteBackendKey(id)
+	err := cmd.client.DeleteSealKey(id)
 	if err != nil {
 		cmd.printError(err)
 		return

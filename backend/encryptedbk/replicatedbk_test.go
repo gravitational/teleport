@@ -17,7 +17,7 @@ import (
 func TestReplicatedBk(t *testing.T) { TestingT(t) }
 
 type ReplicatedBkSuite struct {
-	bk    *MasterReplicatedBackend
+	bk    *ReplicatedBackend
 	suite test.BackendSuite
 	dir   string
 }
@@ -33,7 +33,7 @@ func (s *ReplicatedBkSuite) SetUpTest(c *C) {
 
 	boltBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
-	s.bk, err = NewMasterReplicatedBackend(boltBk, filepath.Join(s.dir, "keysDB"), nil)
+	s.bk, err = NewReplicatedBackend(boltBk, filepath.Join(s.dir, "keysDB"), nil)
 	c.Assert(err, IsNil)
 
 	s.suite.ChangesC = make(chan interface{})
@@ -82,7 +82,7 @@ func (s *ReplicatedBkSuite) TestDataIsEncrypted(c *C) {
 func (s *ReplicatedBkSuite) TestSeveralKeys(c *C) {
 	c.Assert(s.bk.UpsertVal([]string{"a1"}, "b1", []byte("val1"), 0), IsNil)
 
-	keys, err := s.bk.GetLocalSealKeys()
+	keys, err := s.bk.GetSealKeys()
 	c.Assert(err, IsNil)
 	c.Assert(len(keys), Equals, 1)
 	key0ID := keys[0].ID
@@ -117,7 +117,7 @@ func (s *ReplicatedBkSuite) TestSeveralKeys(c *C) {
 	_, err = s.bk.GenerateSealKey("key2")
 	c.Assert(err, NotNil)
 
-	key0, err := s.bk.GetLocalSealKey(key0ID)
+	key0, err := s.bk.GetSealKey(key0ID)
 	c.Assert(err, IsNil)
 
 	c.Assert(len(s.bk.signCheckingKeys), Equals, 2)
@@ -150,7 +150,7 @@ func (s *ReplicatedBkSuite) TestSeveralKeys(c *C) {
 	c.Assert(string(val), Equals, "val1")
 	c.Assert(s.bk.UpsertVal([]string{"a4"}, "b4", []byte("val4"), 0), IsNil)
 
-	localKeys, err := s.bk.GetLocalSealKeys()
+	localKeys, err := s.bk.GetSealKeys()
 	c.Assert(err, IsNil)
 	localIDs := make([]string, len(localKeys))
 	for i, _ := range localKeys {
@@ -162,7 +162,7 @@ func (s *ReplicatedBkSuite) TestSeveralKeys(c *C) {
 		c.Assert(localIDs, DeepEquals, []string{key3.ID, key2.ID})
 	}
 
-	remoteKeys, err := s.bk.GetClusterPublicSealKeys()
+	remoteKeys, err := s.bk.getClusterPublicSealKeys()
 	c.Assert(err, IsNil)
 	remoteIDs := make([]string, len(remoteKeys))
 	for i, _ := range remoteKeys {
@@ -184,13 +184,13 @@ func (s *ReplicatedBkSuite) TestSeveralKeys(c *C) {
 	c.Assert(string(val), Equals, "val1")
 	c.Assert(s.bk.UpsertVal([]string{"a5"}, "b5", []byte("val5"), 0), IsNil)
 
-	localKeys, err = s.bk.GetLocalSealKeys()
+	localKeys, err = s.bk.GetSealKeys()
 	c.Assert(err, IsNil)
 	localIDs = make([]string, len(localKeys))
 	for i, _ := range localKeys {
 		localIDs[i] = localKeys[i].ID
 	}
-	remoteKeys, err = s.bk.GetClusterPublicSealKeys()
+	remoteKeys, err = s.bk.getClusterPublicSealKeys()
 	c.Assert(err, IsNil)
 	remoteIDs = make([]string, len(remoteKeys))
 	for i, _ := range remoteKeys {
@@ -221,7 +221,7 @@ func (s *ReplicatedBkSuite) TestSeveralAuthServers(c *C) {
 
 	c.Assert(s.bk.AddSealKey(key2.Public()), IsNil)
 
-	bk2, err := NewMasterReplicatedBackend(s.bk.baseBk,
+	bk2, err := NewReplicatedBackend(s.bk.baseBk,
 		filepath.Join(s.dir, "keysDB_2"),
 		[]encryptor.Key{key2, key1public})
 	c.Assert(err, IsNil)
@@ -244,14 +244,14 @@ func (s *ReplicatedBkSuite) TestSeveralAuthServers(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(val), Equals, "val2")
 
-	_, err = NewMasterReplicatedBackend(s.bk.baseBk,
+	_, err = NewReplicatedBackend(s.bk.baseBk,
 		filepath.Join(s.dir, "keysDB_3"), nil)
 	c.Assert(err, NotNil)
 
 	key3, err := encryptor.GenerateGPGKey("key/2")
 	c.Assert(err, IsNil)
 
-	_, err = NewMasterReplicatedBackend(s.bk.baseBk,
+	_, err = NewReplicatedBackend(s.bk.baseBk,
 		filepath.Join(s.dir, "keysDB_4"),
 		[]encryptor.Key{key3})
 	c.Assert(err, NotNil)

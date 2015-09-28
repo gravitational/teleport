@@ -10,6 +10,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/events"
 	"github.com/gravitational/teleport/recorder"
 	"github.com/gravitational/teleport/services"
@@ -112,47 +113,37 @@ func NewAPIServer(s *AuthServer, elog events.Log, se session.SessionServer, rec 
 	srv.DELETE("/v1/sessions/:id", srv.deleteSession)
 
 	// Backend Keys
-	srv.GET("/v1/backend/keys", srv.getBackendKeys)
-	srv.GET("/v1/backend/remote/keys", srv.getRemoteBackendKeys)
-	srv.GET("/v1/backend/keys/:id", srv.getBackendKey)
-	srv.DELETE("/v1/backend/keys/:id", srv.deleteBackendKey)
-	srv.POST("/v1/backend/keys", srv.addBackendKey)
-	srv.POST("/v1/backend/generatekey", srv.generateBackendKey)
+	srv.GET("/v1/backend/keys", srv.getSealKeys)
+	srv.GET("/v1/backend/keys/:id", srv.getSealKey)
+	srv.DELETE("/v1/backend/keys/:id", srv.deleteSealKey)
+	srv.POST("/v1/backend/keys", srv.addSealKey)
+	srv.POST("/v1/backend/generatekey", srv.generateSealKey)
 
 	return srv
 }
 
-func (s *APIServer) getBackendKeys(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	keys, err := s.s.GetBackendKeys()
+func (s *APIServer) getSealKeys(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	keys, err := s.s.GetSealKeys()
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	reply(w, http.StatusOK, backendKeysResponse{Ids: keys})
+	reply(w, http.StatusOK, sealKeysResponse{Keys: keys})
 }
 
-func (s *APIServer) getRemoteBackendKeys(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	keys, err := s.s.GetRemoteBackendKeys()
-	if err != nil {
-		reply(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	reply(w, http.StatusOK, backendKeysResponse{Ids: keys})
-}
-
-func (s *APIServer) getBackendKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (s *APIServer) getSealKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	id := p[0].Value
-	key, err := s.s.GetBackendKey(id)
+	key, err := s.s.GetSealKey(id)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	reply(w, http.StatusOK, backendKeyResponse{Key: key})
+	reply(w, http.StatusOK, sealKeyResponse{Key: key})
 }
 
-func (s *APIServer) deleteBackendKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (s *APIServer) deleteSealKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	id := p[0].Value
-	err := s.s.DeleteBackendKey(id)
+	err := s.s.DeleteSealKey(id)
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -160,41 +151,47 @@ func (s *APIServer) deleteBackendKey(w http.ResponseWriter, r *http.Request, p h
 	reply(w, http.StatusOK, message("Key "+id+" was deleted"))
 }
 
-func (s *APIServer) addBackendKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	var key string
+func (s *APIServer) addSealKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	var keyJSON string
 	err := form.Parse(r,
-		form.String("key", &key, form.Required()),
+		form.String("keyJSON", &keyJSON, form.Required()),
 	)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	id, err := s.s.AddBackendKey(key)
+	var key encryptor.Key
+	if err := json.Unmarshal([]byte(keyJSON), &key); err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	err = s.s.AddSealKey(key)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	reply(w, http.StatusOK, backendKeysResponse{Ids: []string{id}})
+	reply(w, http.StatusOK, message("ok"))
 
 }
 
-func (s *APIServer) generateBackendKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	var id string
+func (s *APIServer) generateSealKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	var name string
 	err := form.Parse(r,
-		form.String("id", &id, form.Required()),
+		form.String("name", &name, form.Required()),
 	)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	err = s.s.GenerateBackendKey(id)
+	key, err := s.s.GenerateSealKey(name)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	reply(w, http.StatusOK, message("Key "+id+"was generaged"))
+	reply(w, http.StatusOK, sealKeyResponse{Key: key})
 }
 
 func (s *APIServer) upsertServer(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -934,12 +931,12 @@ type sessionResponse struct {
 	Session session.Session `json:"session"`
 }
 
-type backendKeyResponse struct {
-	Key string
+type sealKeyResponse struct {
+	Key encryptor.Key
 }
 
-type backendKeysResponse struct {
-	Ids []string
+type sealKeysResponse struct {
+	Keys []encryptor.Key
 }
 
 func message(msg string) map[string]interface{} {

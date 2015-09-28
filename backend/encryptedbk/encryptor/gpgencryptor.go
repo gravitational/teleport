@@ -29,7 +29,7 @@ func NewGPGEncryptor(key Key) (*GPGEncryptor, error) {
 	e.Mutex = &sync.Mutex{}
 
 	if key.PublicValue == nil && key.PrivateValue == nil {
-		return nil, trace.Errorf("No values were found in the provided key")
+		return nil, trace.Errorf("no values were found in the provided key")
 	}
 
 	if key.PublicValue != nil {
@@ -58,7 +58,7 @@ func (e *GPGEncryptor) SetSignKey(key Key) error {
 	defer e.Unlock()
 
 	if key.PrivateValue == nil {
-		return trace.Errorf("No private key was provided in the sign key")
+		return trace.Errorf("no private key was provided in the sign key")
 	}
 	var err error
 	e.signEntity, err = openpgp.ReadEntity(
@@ -74,7 +74,7 @@ func (e *GPGEncryptor) AddSignCheckingKey(key Key) error {
 	defer e.Unlock()
 
 	if key.PublicValue == nil {
-		return trace.Errorf("No public key was provided in the sign checking key")
+		return trace.Errorf("no public key was provided in the sign checking key")
 	}
 	signCheckingEntity, err := openpgp.ReadEntity(
 		packet.NewReader(bytes.NewBuffer(key.PublicValue)))
@@ -120,7 +120,7 @@ func (e *GPGEncryptor) DeleteSignCheckingKey(keyID string) error {
 
 func (e *GPGEncryptor) Encrypt(data []byte) ([]byte, error) {
 	if e.publicEntity == nil {
-		return nil, trace.Errorf("Used key doesn't have public value to encrypt")
+		return nil, trace.Errorf("used key doesn't have public value to encrypt")
 	}
 	entityList := openpgp.EntityList{e.publicEntity}
 	// encrypt string
@@ -148,7 +148,7 @@ func (e *GPGEncryptor) Encrypt(data []byte) ([]byte, error) {
 
 func (e *GPGEncryptor) Decrypt(data []byte) ([]byte, error) {
 	if e.privateEntity == nil {
-		return nil, trace.Errorf("Used key doesn't have private value to decrypt")
+		return nil, trace.Errorf("used key doesn't have private value to decrypt")
 	}
 	entityList := append(openpgp.EntityList{e.privateEntity},
 		e.signCheckingEntities...)
@@ -165,7 +165,7 @@ func (e *GPGEncryptor) Decrypt(data []byte) ([]byte, error) {
 	}
 
 	if md.SignatureError != nil || md.Signature == nil {
-		return nil, trace.Errorf("Failed to validate signature %s", md.SignatureError)
+		return nil, trace.Errorf("failed to validate signature %s", md.SignatureError)
 	}
 
 	return bytes, nil
@@ -176,7 +176,7 @@ func GenerateGPGKey(name string) (Key, error) {
 	conf := packet.Config{}
 	conf.DefaultHash = crypto.SHA256
 
-	entity, err := openpgp.NewEntity(name, "safds", "wfwq", &conf)
+	entity, err := openpgp.NewEntity(name, "", "", &conf)
 	if err != nil {
 		return Key{}, trace.Wrap(err)
 	}

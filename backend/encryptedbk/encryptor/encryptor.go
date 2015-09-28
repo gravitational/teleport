@@ -21,8 +21,3 @@ func (key Key) Public() Key {
 	}
 	return pub
 }
-
-type KeyDescription struct {
-	Name string
-	ID   string
-}

@@ -1,11 +1,8 @@
 package services
 
 import (
-	"encoding/json"
 	"time"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/backend"
 )
 
@@ -46,8 +43,8 @@ func (les *LeaderElectionService) Subscribe(c chan Event) {
 
 func (les *LeaderElectionService) Disable() {
 	les.enabled = false
-	_, _ := les.bk.CompareAndSwap(
-		path, "master", []byte{},
+	_, _ = les.bk.CompareAndSwap(
+		les.path, "master", []byte{},
 		masterLifetime, []byte(les.serverID),
 	)
 }
@@ -56,12 +53,12 @@ func (les *LeaderElectionService) AcquireMaster() bool {
 	if les.weAreMaster {
 
 		prevVal, err := les.bk.CompareAndSwap(
-			path, "master", []byte(les.serverID),
+			les.path, "master", []byte(les.serverID),
 			masterLifetime, []byte(les.serverID),
 		)
 		if err != nil && len(prevVal) == 0 {
 			prevVal, err = les.bk.CompareAndSwap(
-				path, "master", []byte(les.serverID),
+				les.path, "master", []byte(les.serverID),
 				masterLifetime, []byte{},
 			)
 		}
@@ -73,8 +70,8 @@ func (les *LeaderElectionService) AcquireMaster() bool {
 
 	} else {
 
-		prevVal, err = les.bk.CompareAndSwap(
-			path, "master", []byte(les.serverID),
+		_, err := les.bk.CompareAndSwap(
+			les.path, "master", []byte(les.serverID),
 			masterLifetime, []byte{},
 		)
 		if err == nil {

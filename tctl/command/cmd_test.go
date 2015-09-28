@@ -70,7 +70,7 @@ func (s *CmdSuite) SetUpTest(c *C) {
 
 	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
-	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk, filepath.Join(s.dir, "keys"), false)
+	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk, filepath.Join(s.dir, "keys"), nil)
 	c.Assert(err, IsNil)
 
 	s.bl, err = boltlog.New(filepath.Join(s.dir, "eventsdb"))
@@ -218,12 +218,21 @@ func (s *CmdSuite) TestRemoteCertCRUD(c *C) {
 
 func (s *CmdSuite) TestBackendKeys(c *C) {
 	// running TestRemoteCertCRUD while changing some keys
-	s.run("backend-keys", "generate", "--id", "key45")
-	out := s.run("backend-keys", "ls")
-	c.Assert(out, DeepEquals, "This server has these keys: key0 key45 ")
-	out = s.run("backend-keys", "ls-remote")
-	c.Assert(out, DeepEquals, "Remote backend use these keys for encryption: key0 key45 ")
-	s.run("backend-keys", "export", "--id", "key45", "--dir", s.dir)
+
+	out := s.run("backend-keys", "generate", "--name", "key45")
+	c.Assert(out, Matches, fmt.Sprintf(".*was generated.*"))
+
+	keys, err := s.asrv.GetSealKeys()
+	c.Assert(err, IsNil)
+	c.Assert(len(keys), Equals, 2)
+
+	out = s.run("backend-keys", "ls")
+	for _, key := range keys {
+		c.Assert(out, Matches, fmt.Sprintf(".*%v.*", key.ID))
+		c.Assert(out, Matches, fmt.Sprintf(".*%v.*", key.Name))
+	}
+
+	s.run("backend-keys", "export", "--id", keys[0].ID, "--dir", s.dir)
 
 	c.Assert(s.asrv.ResetUserCA(""), IsNil)
 	_, pub, err := s.asrv.GenerateKeyPair("")
@@ -235,19 +244,22 @@ func (s *CmdSuite) TestBackendKeys(c *C) {
 	out = s.run("remote-ca", "upsert", "--id", "id1", "--type", "user", "--fqdn", "example.com", "--path", fkey.Name())
 	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "upserted"))
 
-	s.run("backend-keys", "delete", "--id", "key45")
+	s.run("backend-keys", "delete", "--id", keys[0].ID)
+
+	return
 
 	var remoteCerts []services.RemoteCert
 	remoteCerts, err = s.CAS.GetRemoteCerts("user", "example.com")
 	c.Assert(err, IsNil)
 	c.Assert(trim(string(remoteCerts[0].Value)), Equals, trim(string(pub)))
 
-	s.run("backend-keys", "import", "--file", path.Join(s.dir, "key45.bkey"))
-	s.run("backend-keys", "delete", "--id", "key0")
+	s.run("backend-keys", "import", "--file", path.Join(s.dir, keys[0].ID+".bkey"))
+	s.run("backend-keys", "delete", "--id", keys[1].ID)
 	out = s.run("backend-keys", "ls")
 	c.Assert(out, DeepEquals, "This server has these keys: key45 ")
-	out = s.run("backend-keys", "ls-remote")
-	c.Assert(out, DeepEquals, "Remote backend use these keys for encryption: key45 ")
+	out = s.run("backend-keys", "ls")
+	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", keys[0].ID))
+	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", keys[0].Name))
 
 	out = s.run("remote-ca", "ls", "--type", "user")
 	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "example.com"))

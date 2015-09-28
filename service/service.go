@@ -341,7 +341,7 @@ func initBackend(btype, bcfg, dataDir string,
 
 	keyStorage := path.Join(dataDir, "backend_keys")
 	encryptedBk, err := encryptedbk.NewReplicatedBackend(bk,
-		keyStorage, backendReadonly)
+		keyStorage, nil)
 	if err != nil {
 		log.Errorf(err.Error())
 		return nil, err

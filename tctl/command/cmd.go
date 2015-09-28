@@ -114,7 +114,7 @@ func (cmd *Command) Run(args []string) error {
 	backendKeyLs := backendKey.Command("ls", "List all the keys that this servers has")
 
 	backendKeyGenerate := backendKey.Command("generate", "Generate a new encrypting key and make a copy of all the backend data using this key")
-	backendKeyGenerateID := backendKeyGenerate.Flag("id", "key id").Required().String()
+	backendKeyGenerateName := backendKeyGenerate.Flag("name", "key name").Required().String()
 
 	backendKeyImport := backendKey.Command("import", "Import key from file")
 	backendKeyImportFile := backendKeyImport.Flag("file", "filename").Required().ExistingFile()
@@ -125,8 +125,6 @@ func (cmd *Command) Run(args []string) error {
 
 	backendKeyDelete := backendKey.Command("delete", "Delete key from that server storage and delete all the data encrypted using this key from backend")
 	backendKeyDeleteID := backendKeyDelete.Flag("id", "key id").Required().String()
-
-	backendKeyLsRemote := backendKey.Command("ls-remote", "List all the keys that remote backend actually use for encrypting")
 
 	selectedCommand := kingpin.MustParse(app.Parse(args[1:]))
 
@@ -189,15 +187,13 @@ func (cmd *Command) Run(args []string) error {
 	case backendKeyLs.FullCommand():
 		cmd.GetBackendKeys()
 	case backendKeyGenerate.FullCommand():
-		cmd.GenerateBackendKey(*backendKeyGenerateID)
+		cmd.GenerateBackendKey(*backendKeyGenerateName)
 	case backendKeyImport.FullCommand():
 		cmd.ImportBackendKey(*backendKeyImportFile)
 	case backendKeyExport.FullCommand():
 		cmd.ExportBackendKey(*backendKeyExportFile, *backendKeyExportID)
 	case backendKeyDelete.FullCommand():
 		cmd.DeleteBackendKey(*backendKeyDeleteID)
-	case backendKeyLsRemote.FullCommand():
-		cmd.GetRemoteBackendKeys()
 	}
 
 	return nil

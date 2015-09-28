@@ -39,7 +39,7 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	var err error
 	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
-	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk, filepath.Join(s.dir, "keys"), false)
+	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk, filepath.Join(s.dir, "keys"), nil)
 	c.Assert(err, IsNil)
 
 	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)

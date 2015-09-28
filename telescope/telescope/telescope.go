@@ -131,7 +131,7 @@ func NewService(cfg Config) (*Service, error) {
 	}
 
 	b, err := initBackend(*cfg.Backend, *cfg.BackendConfig,
-		*cfg.DataDir, *cfg.BackendReadonly)
+		*cfg.DataDir, nil)
 	if err != nil {
 		log.Errorf("failed to initialize backend: %v", err)
 		return nil, err
@@ -253,7 +253,7 @@ func (s *Service) addStart() error {
 }
 
 func initBackend(btype, bcfg, dataDir string,
-	backendReadonly bool) (*encryptedbk.ReplicatedBackend, error) {
+	additionalKeys []string) (*encryptedbk.ReplicatedBackend, error) {
 	var bk backend.Backend
 	var err error
 
@@ -272,7 +272,7 @@ func initBackend(btype, bcfg, dataDir string,
 
 	keyStorage := path.Join(dataDir, "tscope_backend_keys")
 	encryptedBk, err := encryptedbk.NewReplicatedBackend(bk,
-		keyStorage, backendReadonly)
+		keyStorage, nil)
 	if err != nil {
 		log.Errorf(err.Error())
 		return nil, err

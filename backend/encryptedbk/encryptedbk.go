@@ -182,6 +182,4 @@ func (b *EncryptedBackend) ReleaseLock(token string) error {
 
 const (
 	rootDir = "data"
-
-//	keysDir = "activekeys"
 )
