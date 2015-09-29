@@ -50,6 +50,8 @@ func (s *BackendSuite) BasicCRUD(c *C) {
 
 	_, err = s.B.GetVal([]string{"a"}, "b")
 	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	_, err = s.B.GetVal([]string{"a", "b"}, "x")
+	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 	keys, _ = s.B.GetKeys([]string{"a", "b", "bkey"})
 	c.Assert(len(keys), Equals, 0)
 
@@ -82,11 +84,11 @@ func (s *BackendSuite) BasicCRUD(c *C) {
 func (s *BackendSuite) CompareAndSwap(c *C) {
 	prev, err := s.B.CompareAndSwap([]string{"a", "b"}, "bkey", []byte("val10"), 0, []byte("1231"))
 	c.Assert(err, FitsTypeOf, &teleport.CompareFailedError{})
-	c.Assert(string(prev), DeepEquals, "")
+	c.Assert(len(prev), Equals, 0)
 
 	prev, err = s.B.CompareAndSwap([]string{"a", "b"}, "bkey", []byte("val1"), 0, []byte{})
 	c.Assert(err, IsNil)
-	c.Assert(string(prev), DeepEquals, "")
+	c.Assert(len(prev), Equals, 0)
 
 	prev, err = s.B.CompareAndSwap([]string{"a", "b"}, "bkey", []byte("val2"), 0, []byte{})
 	c.Assert(err, FitsTypeOf, &teleport.CompareFailedError{})
@@ -126,12 +128,12 @@ func (s *BackendSuite) ValueAndTTl(c *C) {
 	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "bkey",
 		[]byte("val1"), 2000*time.Millisecond), IsNil)
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 
 	value, ttl, err := s.B.GetValAndTTL([]string{"a", "b"}, "bkey")
 	c.Assert(err, IsNil)
 	c.Assert(string(value), DeepEquals, "val1")
-	ttlIsRight := (ttl < 1900*time.Millisecond) && (ttl > 1100*time.Millisecond)
+	ttlIsRight := (ttl < 1400*time.Millisecond) && (ttl > 600*time.Millisecond)
 	c.Assert(ttlIsRight, Equals, true)
 }
 

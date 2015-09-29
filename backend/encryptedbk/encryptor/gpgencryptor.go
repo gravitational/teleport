@@ -143,7 +143,9 @@ func (e *GPGEncryptor) Encrypt(data []byte) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return bytes, nil
+	hexString := hex.EncodeToString(bytes)
+
+	return []byte(hexString), nil
 }
 
 func (e *GPGEncryptor) Decrypt(data []byte) ([]byte, error) {
@@ -153,8 +155,14 @@ func (e *GPGEncryptor) Decrypt(data []byte) ([]byte, error) {
 	entityList := append(openpgp.EntityList{e.privateEntity},
 		e.signCheckingEntities...)
 
+	hexString := string(data)
+	encryptedBytes, err := hex.DecodeString(hexString)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Decrypt it with the contents of the private key
-	md, err := openpgp.ReadMessage(bytes.NewBuffer(data), entityList, nil, nil)
+	md, err := openpgp.ReadMessage(bytes.NewBuffer(encryptedBytes), entityList, nil, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

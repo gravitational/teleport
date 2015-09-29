@@ -10,6 +10,7 @@ import (
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/boltbk"
 	"github.com/gravitational/teleport/backend/encryptedbk"
+	"github.com/gravitational/teleport/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/backend/etcdbk"
 	"github.com/gravitational/teleport/service"
 	"github.com/gravitational/teleport/telescope/telescope/srv"
@@ -40,9 +41,9 @@ type Config struct {
 	TLSKeyFile  *string
 	TLSCertFile *string
 
-	Backend         *string
-	BackendConfig   *string
-	BackendReadonly *bool
+	Backend              *string
+	BackendConfig        *string
+	BackendAdditionalKey *string
 }
 
 func main() {
@@ -92,7 +93,7 @@ func main() {
 	cfg.CPAssetsDir = app.Flag("cp-assets-dir", "Control panel assets directory").Default(".").String()
 	cfg.Backend = app.Flag("backend", "Auth backend type, currently only 'etcd'").Default("etcd").String()
 	cfg.BackendConfig = app.Flag("backend-config", "Auth backend-specific configuration string").String()
-	cfg.BackendReadonly = app.Flag("backend-readonly", "If provided, backend will work in readonly mode").Bool()
+	cfg.BackendAdditionalKey = app.Flag("backend-add-key", "Additional backend seal key filename.").String()
 	cfg.TLSKeyFile = app.Flag("tls-key", "TLS private key filename").String()
 	cfg.TLSCertFile = app.Flag("tls-cert", "TLS Certificate filename").String()
 
@@ -131,20 +132,20 @@ func NewService(cfg Config) (*Service, error) {
 	}
 
 	b, err := initBackend(*cfg.Backend, *cfg.BackendConfig,
-		*cfg.DataDir, nil)
+		*cfg.DataDir, *cfg.BackendAdditionalKey)
 	if err != nil {
 		log.Errorf("failed to initialize backend: %v", err)
 		return nil, err
 	}
 
-	asrv, err := auth.Init(
+	asrv, hostSigner, err := auth.Init(
 		b, authority.New(), *cfg.FQDN, *cfg.Domain, *cfg.DataDir)
 	if err != nil {
 		log.Errorf("failed to init auth server: %v", err)
 		return nil, err
 	}
 
-	s := &Service{cfg: cfg, b: b, a: asrv}
+	s := &Service{cfg: cfg, b: b, a: asrv, hs: hostSigner}
 	s.Supervisor = *service.New()
 	if err := s.addStart(); err != nil {
 		return nil, err
@@ -154,12 +155,31 @@ func NewService(cfg Config) (*Service, error) {
 
 type Service struct {
 	service.Supervisor
-	b   backend.Backend
-	a   *auth.AuthServer
+	b  backend.Backend
+	a  *auth.AuthServer
+	hs ssh.Signer
+
 	cfg Config
 }
 
 func (s *Service) addStart() error {
+	tsrv, err := tun.NewServer(s.cfg.TunAddr, []ssh.Signer{s.hs},
+		auth.NewBackendAccessPoint(s.b))
+	if err != nil {
+		log.Errorf("failed to start server: %v", err)
+		return err
+	}
+
+	s.RegisterFunc(func() error {
+		log.Infof("telescope tunnel server starting")
+		if err := tsrv.Start(); err != nil {
+			log.Errorf("failed to start: %v", err)
+			return err
+		}
+		tsrv.Wait()
+		return nil
+	})
+
 	asrv := auth.NewAPIServer(s.a, nil, nil, nil)
 
 	// register Auth HTTP API endpoint
@@ -172,80 +192,56 @@ func (s *Service) addStart() error {
 		return nil
 	})
 
+	// register auth SSH-based endpoint
 	s.RegisterFunc(func() error {
-		var err error
-		signer, err := auth.InitKeys(s.a, *s.cfg.FQDN, *s.cfg.DataDir)
+		tsrv, err := auth.NewTunServer(
+			s.cfg.AuthSSHAddr, []ssh.Signer{s.hs},
+			s.cfg.AuthHTTPAddr,
+			s.a)
 		if err != nil {
-			log.Errorf(err.Error())
+			log.Errorf("failed to start teleport ssh tunnel")
 			return err
 		}
-
-		tsrv, err := tun.NewServer(s.cfg.TunAddr, []ssh.Signer{signer},
-			auth.NewBackendAccessPoint(s.b))
-		if err != nil {
-			log.Errorf("failed to start server: %v", err)
-			return err
-		}
-
-		// register auth SSH-based endpoint
-		s.RegisterFunc(func() error {
-			tun, err := auth.NewTunServer(
-				s.cfg.AuthSSHAddr, []ssh.Signer{signer},
-				s.cfg.AuthHTTPAddr,
-				s.a)
-			if err != nil {
-				log.Errorf("failed to start teleport ssh tunnel")
-				return err
-			}
-			if err := tun.Start(); err != nil {
-				log.Errorf("failed to start teleport ssh endpoint: %v", err)
-				return err
-			}
-			return nil
-		})
-
-		// Register control panel web server
-		s.RegisterFunc(func() error {
-			wsrv, err := srv.New(s.cfg.WebAddr,
-				srv.Config{
-					Tun:         tsrv,
-					AssetsDir:   *s.cfg.AssetsDir,
-					CPAssetsDir: *s.cfg.CPAssetsDir,
-					AuthAddr:    s.cfg.AuthSSHAddr,
-					FQDN:        *s.cfg.FQDN})
-			if err != nil {
-				log.Errorf("failed to launch web server: %v", err)
-				return err
-			}
-			log.Infof("telescope web server starting")
-
-			if (*s.cfg.TLSCertFile != "") && (*s.cfg.TLSKeyFile != "") {
-				err := srv.ListenAndServeTLS(
-					wsrv.Server.Addr,
-					wsrv.Handler,
-					*s.cfg.TLSCertFile,
-					*s.cfg.TLSKeyFile,
-				)
-				if err != nil {
-					log.Errorf("failed to start: %v", err)
-					return err
-				}
-			} else {
-
-				if err := wsrv.ListenAndServe(); err != nil {
-					log.Errorf("failed to start: %v", err)
-					return err
-				}
-			}
-			return nil
-		})
-
-		log.Infof("telescope tunnel server starting")
 		if err := tsrv.Start(); err != nil {
-			log.Errorf("failed to start: %v", err)
+			log.Errorf("failed to start teleport ssh endpoint: %v", err)
 			return err
 		}
-		tsrv.Wait()
+		return nil
+	})
+
+	// Register control panel web server
+	s.RegisterFunc(func() error {
+		wsrv, err := srv.New(s.cfg.WebAddr,
+			srv.Config{
+				Tun:         tsrv,
+				AssetsDir:   *s.cfg.AssetsDir,
+				CPAssetsDir: *s.cfg.CPAssetsDir,
+				AuthAddr:    s.cfg.AuthSSHAddr,
+				FQDN:        *s.cfg.FQDN})
+		if err != nil {
+			log.Errorf("failed to launch web server: %v", err)
+			return err
+		}
+		log.Infof("telescope web server starting")
+
+		if (*s.cfg.TLSCertFile != "") && (*s.cfg.TLSKeyFile != "") {
+			err := srv.ListenAndServeTLS(
+				wsrv.Server.Addr,
+				wsrv.Handler,
+				*s.cfg.TLSCertFile,
+				*s.cfg.TLSKeyFile,
+			)
+			if err != nil {
+				log.Errorf("failed to start: %v", err)
+				return err
+			}
+		} else {
+
+			if err := wsrv.ListenAndServe(); err != nil {
+				log.Errorf("failed to start: %v", err)
+				return err
+			}
+		}
 		return nil
 	})
 
@@ -253,7 +249,7 @@ func (s *Service) addStart() error {
 }
 
 func initBackend(btype, bcfg, dataDir string,
-	additionalKeys []string) (*encryptedbk.ReplicatedBackend, error) {
+	additionalKey string) (*encryptedbk.ReplicatedBackend, error) {
 	var bk backend.Backend
 	var err error
 
@@ -271,8 +267,16 @@ func initBackend(btype, bcfg, dataDir string,
 	}
 
 	keyStorage := path.Join(dataDir, "tscope_backend_keys")
+	addKeys := []encryptor.Key{}
+	if len(additionalKey) != 0 {
+		addKey, err := encryptedbk.LoadKeyFromFile(additionalKey)
+		if err != nil {
+			return nil, err
+		}
+		addKeys = append(addKeys, addKey)
+	}
 	encryptedBk, err := encryptedbk.NewReplicatedBackend(bk,
-		keyStorage, nil)
+		keyStorage, addKeys)
 	if err != nil {
 		log.Errorf(err.Error())
 		return nil, err

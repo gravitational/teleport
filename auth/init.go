@@ -19,65 +19,68 @@ import (
 )
 
 func Init(b *encryptedbk.ReplicatedBackend, a Authority,
-	fqdn, authDomain, dataDir string) (*AuthServer, error) {
+	fqdn, authDomain, dataDir string) (*AuthServer, ssh.Signer, error) {
 
 	if authDomain == "" {
-		return nil, fmt.Errorf("node name can not be empty")
+		return nil, nil, fmt.Errorf("node name can not be empty")
 	}
 	if dataDir == "" {
-		return nil, fmt.Errorf("path can not be empty")
+		return nil, nil, fmt.Errorf("path can not be empty")
 	}
 
 	err := os.MkdirAll(dataDir, os.ModeDir|0755)
 	if err != nil {
 		log.Errorf(err.Error())
-		return nil, err
+		return nil, nil, err
 	}
 
 	lockService := services.NewLockService(b)
 	err = lockService.AcquireLock(authDomain, 60*time.Second)
 	if err != nil {
-		log.Errorf(err.Error())
-		return nil, err
+		return nil, nil, err
 	}
 	defer lockService.ReleaseLock(authDomain)
 
 	scrt, err := InitSecret(dataDir)
 	if err != nil {
-		log.Errorf(err.Error())
-		return nil, err
+		return nil, nil, err
 	}
 
 	// check that user CA and host CA are present and set the certs if needed
 	asrv := NewAuthServer(b, a, scrt)
 
-	return asrv, nil
+	if _, e := asrv.GetHostCAPub(); e != nil {
+		log.Infof("Host CA error: %v", e)
+		if _, ok := e.(*teleport.NotFoundError); ok {
+			log.Infof("Reseting host CA")
+			if err := asrv.ResetHostCA(""); err != nil {
+				return nil, nil, err
+			}
+		}
+	}
+
+	if _, e := asrv.GetUserCAPub(); e != nil {
+		log.Infof("User CA error: %v", e)
+		if _, ok := e.(*teleport.NotFoundError); ok {
+			log.Infof("Reseting host CA")
+			if err := asrv.ResetUserCA(""); err != nil {
+				return nil, nil, err
+			}
+		}
+	}
+
+	signer, err := InitKeys(asrv, fqdn, dataDir)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return asrv, signer, nil
 }
 
 // initialize this node's host certificate signed by host authority
 func InitKeys(a *AuthServer, fqdn, dataDir string) (ssh.Signer, error) {
 	if fqdn == "" {
 		return nil, fmt.Errorf("fqdn can not be empty")
-	}
-
-	if _, e := a.GetHostCAPub(); e != nil {
-		log.Infof("Host CA error: %v", e)
-		if _, ok := e.(*teleport.NotFoundError); ok {
-			log.Infof("Reseting host CA")
-			if err := a.ResetHostCA(""); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	if _, e := a.GetUserCAPub(); e != nil {
-		log.Infof("User CA error: %v", e)
-		if _, ok := e.(*teleport.NotFoundError); ok {
-			log.Infof("Reseting host CA")
-			if err := a.ResetUserCA(""); err != nil {
-				return nil, err
-			}
-		}
 	}
 
 	kp, cp := keysPath(fqdn, dataDir)
@@ -95,16 +98,13 @@ func InitKeys(a *AuthServer, fqdn, dataDir string) (ssh.Signer, error) {
 	if !keyExists || !certExists {
 		k, pub, err := a.GenerateKeyPair("")
 		if err != nil {
-			log.Errorf(err.Error())
 			return nil, err
 		}
 		c, err := a.GenerateHostCert(pub, fqdn, fqdn, 0)
 		if err != nil {
-			log.Errorf(err.Error())
 			return nil, err
 		}
 		if err := writeKeys(fqdn, dataDir, k, c); err != nil {
-			log.Errorf(err.Error())
 			return nil, err
 		}
 	}

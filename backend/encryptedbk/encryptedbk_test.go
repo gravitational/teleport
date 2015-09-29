@@ -24,7 +24,7 @@ type EncryptedBkSuite struct {
 var _ = Suite(&EncryptedBkSuite{})
 
 func (s *EncryptedBkSuite) SetUpSuite(c *C) {
-	log.Initialize("console", "WARN")
+	log.Initialize("console", "ERROR")
 	var err error
 	s.key, err = encryptor.GenerateGPGKey("key01")
 	c.Assert(err, IsNil)

@@ -149,6 +149,9 @@ func (b *ReplicatedBackend) initFromEmptyBk() error {
 				if err := b.setSignKey(key); err != nil {
 					return trace.Wrap(err)
 				}
+				if err := bk.VerifySign(); err != nil {
+					return trace.Wrap(err)
+				}
 			}
 			if err := b.addSignCheckingKey(key.Public()); err != nil {
 				return trace.Wrap(err)
@@ -464,6 +467,12 @@ func (b *ReplicatedBackend) addSealKey(key encryptor.Key, copyData bool) error {
 
 	if err := bk.Sign(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if len(key.PrivateValue) > 0 {
+		if err := bk.VerifySign(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil

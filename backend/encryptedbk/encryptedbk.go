@@ -57,9 +57,11 @@ func (b *EncryptedBackend) Sign() error {
 func (b *EncryptedBackend) VerifySign() error {
 	val, err := b.GetVal([]string{}, "sign")
 	if err != nil {
+		log.Errorf(err.Error())
 		return err
 	}
 	if string(val) != b.KeyID {
+		log.Errorf(err.Error())
 		return trace.Errorf("Can't verify sign")
 	}
 	return nil

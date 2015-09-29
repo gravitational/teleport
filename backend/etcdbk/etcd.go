@@ -87,25 +87,67 @@ func (b *bk) UpsertVal(path []string, key string, val []byte, ttl time.Duration)
 }
 
 func (b *bk) CompareAndSwap(path []string, key string, val []byte, ttl time.Duration, prevVal []byte) ([]byte, error) {
-	resp, err := b.client.CompareAndSwap(
-		b.key(append(path, key)...),
-		string(val),
-		uint64(ttl/time.Second),
-		string(prevVal),
-		0,
-	)
+	var err error
+	var resp *etcd.Response
+	if len(prevVal) != 0 {
+		resp, err = b.client.CompareAndSwap(
+			b.key(append(path, key)...),
+			string(val),
+			uint64(ttl/time.Second),
+			string(prevVal),
+			0,
+		)
+	} else {
+		resp, err = b.client.Create(
+			b.key(append(path, key)...),
+			string(val),
+			uint64(ttl/time.Second),
+		)
+	}
 
 	err = convertErr(err)
+
+	if err != nil && !teleport.IsNotFound(err) {
+		var e error
+		resp, e = b.client.Get(
+			b.key(append(path, key)...),
+			false, false,
+		)
+		if e != nil {
+			return nil, e
+		}
+	}
+
+	prevValStr := ""
+	if len(prevVal) > 0 {
+		prevValStr = string(prevVal)
+	}
 	if err != nil {
 		if teleport.IsCompareFailed(err) {
 			e := &teleport.CompareFailedError{
-				Message: "Expected '" + string(prevVal) + "', obtained '" + resp.PrevNode.Value + "'",
+				Message: "Expected '" + prevValStr + "', obtained '" + resp.Node.Value + "'",
 			}
-			return []byte(resp.PrevNode.Value), e
+			return []byte(resp.Node.Value), e
+		}
+		if teleport.IsNotFound(err) {
+			e := &teleport.CompareFailedError{
+				Message: "Expected '" + prevValStr + "', obtained ''",
+			}
+			return []byte{}, e
+		}
+		if teleport.IsAlredyExists(err) {
+			e := &teleport.CompareFailedError{
+				Message: "Expected '', obtained '" + resp.Node.Value + "'",
+			}
+			return []byte(resp.Node.Value), e
 		}
 		return nil, convertErr(err)
 	}
-	return []byte(resp.PrevNode.Value), nil
+	if resp.PrevNode != nil {
+		return []byte(resp.PrevNode.Value), nil
+	} else {
+		return nil, nil
+	}
 }
 
 func (b *bk) GetVal(path []string, key string) ([]byte, error) {

@@ -25,7 +25,7 @@ type ReplicatedBkSuite struct {
 var _ = Suite(&ReplicatedBkSuite{})
 
 func (s *ReplicatedBkSuite) SetUpSuite(c *C) {
-	log.Initialize("console", "INFO")
+	log.Initialize("console", "ERROR")
 }
 
 func (s *ReplicatedBkSuite) SetUpTest(c *C) {

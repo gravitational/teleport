@@ -10,6 +10,7 @@ import (
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/boltbk"
 	"github.com/gravitational/teleport/backend/encryptedbk"
+	"github.com/gravitational/teleport/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/backend/etcdbk"
 	"github.com/gravitational/teleport/cp"
 	"github.com/gravitational/teleport/events"
@@ -79,7 +80,7 @@ func initAuth(t *TeleportService, cfg Config) error {
 	}
 
 	b, err := initBackend(*cfg.Auth.Backend, *cfg.Auth.BackendConfig,
-		*cfg.DataDir, *cfg.Auth.BackendReadonly)
+		*cfg.DataDir, *cfg.Auth.BackendAdditionalKey)
 	if err != nil {
 		return err
 	}
@@ -96,7 +97,7 @@ func initAuth(t *TeleportService, cfg Config) error {
 		return err
 	}
 
-	asrv, err := auth.Init(
+	asrv, signer, err := auth.Init(
 		b, authority.New(), *cfg.FQDN, *cfg.Auth.Domain, *cfg.DataDir)
 	if err != nil {
 		log.Errorf("failed to init auth server: %v", err)
@@ -117,12 +118,6 @@ func initAuth(t *TeleportService, cfg Config) error {
 
 	// register auth SSH-based endpoint
 	t.RegisterFunc(func() error {
-		signer, err := auth.InitKeys(asrv, *cfg.FQDN, *cfg.DataDir)
-		if err != nil {
-			log.Errorf(err.Error())
-			return err
-		}
-
 		tsrv, err := auth.NewTunServer(
 			cfg.Auth.SSHAddr, []ssh.Signer{signer},
 			cfg.Auth.HTTPAddr,
@@ -137,7 +132,6 @@ func initAuth(t *TeleportService, cfg Config) error {
 		}
 		return nil
 	})
-
 	return nil
 }
 
@@ -180,15 +174,9 @@ func initSSH(t *TeleportService, cfg Config) error {
 		// this means the server has not been initialized yet we are starting
 		// the registering client that attempts to connect ot the auth server
 		// and provision the keys
-		t.RegisterFunc(func() error {
-			return initRegister(t, *cfg.SSH.Token, cfg, initSSHEndpoint)
-		})
-		return nil
+		return initRegister(t, *cfg.SSH.Token, cfg, initSSHEndpoint)
 	}
-	t.RegisterFunc(func() error {
-		return initSSHEndpoint(t, cfg)
-	})
-	return nil
+	return initSSHEndpoint(t, cfg)
 }
 
 func initSSHEndpoint(t *TeleportService, cfg Config) error {
@@ -217,9 +205,6 @@ func initSSHEndpoint(t *TeleportService, cfg Config) error {
 	}
 
 	t.RegisterFunc(func() error {
-		if cfg.Auth.Enabled {
-			time.Sleep(2 * time.Second)
-		}
 		log.Infof("teleport ssh starting on %v", cfg.SSH.Addr)
 		if err := s.Start(); err != nil {
 			log.Fatalf("failed to start: %v", err)
@@ -236,7 +221,6 @@ func initRegister(t *TeleportService, token string, cfg Config,
 	// we are on the same server as the auth endpoint
 	// and there's no token. we can handle this
 	if cfg.Auth.Enabled && token == "" {
-		time.Sleep(2 * time.Second)
 		log.Infof("registering in embedded mode, connecting to local auth server")
 		clt, err := auth.NewClientFromNetAddr(cfg.Auth.HTTPAddr)
 		if err != nil {
@@ -250,9 +234,6 @@ func initRegister(t *TeleportService, token string, cfg Config,
 		return err
 	}
 	t.RegisterFunc(func() error {
-		if cfg.Auth.Enabled {
-			time.Sleep(2 * time.Second)
-		}
 		log.Infof("teleport:register connecting to auth servers %v", *cfg.SSH.Token)
 		if err := auth.Register(
 			*cfg.FQDN, *cfg.DataDir, token, cfg.AuthServers); err != nil {
@@ -322,7 +303,7 @@ func initTunAgent(t *TeleportService, cfg Config) error {
 }
 
 func initBackend(btype, bcfg, dataDir string,
-	backendReadonly bool) (*encryptedbk.ReplicatedBackend, error) {
+	additionalKey string) (*encryptedbk.ReplicatedBackend, error) {
 	var bk backend.Backend
 	var err error
 
@@ -340,8 +321,16 @@ func initBackend(btype, bcfg, dataDir string,
 	}
 
 	keyStorage := path.Join(dataDir, "backend_keys")
+	addKeys := []encryptor.Key{}
+	if len(additionalKey) != 0 {
+		addKey, err := encryptedbk.LoadKeyFromFile(additionalKey)
+		if err != nil {
+			return nil, err
+		}
+		addKeys = append(addKeys, addKey)
+	}
 	encryptedBk, err := encryptedbk.NewReplicatedBackend(bk,
-		keyStorage, nil)
+		keyStorage, addKeys)
 	if err != nil {
 		log.Errorf(err.Error())
 		return nil, err
@@ -410,9 +399,9 @@ type AuthConfig struct {
 	SSHAddr  utils.NetAddr
 	Domain   *string
 
-	Backend         *string
-	BackendConfig   *string
-	BackendReadonly *bool
+	Backend              *string
+	BackendConfig        *string
+	BackendAdditionalKey *string
 
 	EventBackend       *string
 	EventBackendConfig *string

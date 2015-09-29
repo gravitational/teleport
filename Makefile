@@ -102,7 +102,7 @@ run-embedded: install
 	rm -f /tmp/teleport.auth.sock
 	teleport\
              --log=console\
-             --log-severity=WARN\
+             --log-severity=INFO\
              --data-dir=/var/lib/teleport\
              --fqdn=auth.vendor.io\
 	   auth\
