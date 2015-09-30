@@ -166,6 +166,9 @@ func (b *bk) GetValAndTTL(path []string, key string) ([]byte, time.Duration, err
 	if err != nil {
 		return nil, 0, convertErr(err)
 	}
+	if re.Node.Dir {
+		return nil, 0, &teleport.NotFoundError{Message: "Trying to get value of bucket"}
+	}
 	return []byte(re.Node.Value), time.Duration(re.Node.TTL) * time.Second, nil
 }
 

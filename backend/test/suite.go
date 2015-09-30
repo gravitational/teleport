@@ -50,8 +50,13 @@ func (s *BackendSuite) BasicCRUD(c *C) {
 
 	_, err = s.B.GetVal([]string{"a"}, "b")
 	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	_, _, err = s.B.GetValAndTTL([]string{"a"}, "b")
+	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 	_, err = s.B.GetVal([]string{"a", "b"}, "x")
 	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	_, _, err = s.B.GetValAndTTL([]string{"a", "b"}, "x")
+	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+
 	keys, _ = s.B.GetKeys([]string{"a", "b", "bkey"})
 	c.Assert(len(keys), Equals, 0)
 
@@ -62,6 +67,10 @@ func (s *BackendSuite) BasicCRUD(c *C) {
 	out, err := s.B.GetVal([]string{"a", "b"}, "bkey")
 	c.Assert(err, IsNil)
 	c.Assert(string(out), Equals, "val1")
+	out, ttl, err := s.B.GetValAndTTL([]string{"a", "b"}, "bkey")
+	c.Assert(err, IsNil)
+	c.Assert(string(out), Equals, "val1")
+	c.Assert(ttl, Equals, time.Duration(0))
 
 	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "bkey", []byte("val-updated"), 0), IsNil)
 	out, err = s.B.GetVal([]string{"a", "b"}, "bkey")
@@ -70,6 +79,8 @@ func (s *BackendSuite) BasicCRUD(c *C) {
 
 	c.Assert(s.B.DeleteKey([]string{"a", "b"}, "bkey"), IsNil)
 	c.Assert(s.B.DeleteKey([]string{"a", "b"}, "bkey"), FitsTypeOf, &teleport.NotFoundError{})
+	_, err = s.B.GetVal([]string{"a", "b"}, "bkey")
+	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 
 	c.Assert(s.B.UpsertVal([]string{"a", "c"}, "xkey", []byte("val3"), 0), IsNil)
 	c.Assert(s.B.UpsertVal([]string{"a", "c"}, "ykey", []byte("val4"), 0), IsNil)

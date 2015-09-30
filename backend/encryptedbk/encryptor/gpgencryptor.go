@@ -149,6 +149,10 @@ func (e *GPGEncryptor) Encrypt(data []byte) ([]byte, error) {
 }
 
 func (e *GPGEncryptor) Decrypt(data []byte) ([]byte, error) {
+	if len(data) == 0 {
+		return nil, trace.Errorf("Decryption error: empty input data")
+	}
+
 	if e.privateEntity == nil {
 		return nil, trace.Errorf("used key doesn't have private value to decrypt")
 	}

@@ -79,8 +79,7 @@ func initAuth(t *TeleportService, cfg Config) error {
 		return fmt.Errorf("please provide auth domain, e.g. example.com")
 	}
 
-	b, err := initBackend(*cfg.Auth.Backend, *cfg.Auth.BackendConfig,
-		*cfg.DataDir, *cfg.Auth.BackendAdditionalKey)
+	b, err := initBackend(cfg)
 	if err != nil {
 		return err
 	}
@@ -302,38 +301,55 @@ func initTunAgent(t *TeleportService, cfg Config) error {
 	return nil
 }
 
-func initBackend(btype, bcfg, dataDir string,
-	additionalKey string) (*encryptedbk.ReplicatedBackend, error) {
+func initBackend(cfg Config) (*encryptedbk.ReplicatedBackend, error) {
 	var bk backend.Backend
 	var err error
 
-	switch btype {
+	switch *cfg.Auth.Backend {
 	case "etcd":
-		bk, err = etcdbk.FromString(bcfg)
+		bk, err = etcdbk.FromString(*cfg.Auth.BackendConfig)
 	case "bolt":
-		bk, err = boltbk.FromString(bcfg)
+		bk, err = boltbk.FromString(*cfg.Auth.BackendConfig)
 	default:
-		return nil, fmt.Errorf("unsupported backend type: %v", btype)
+		return nil, fmt.Errorf("unsupported backend type: %v",
+			*cfg.Auth.Backend)
 	}
 	if err != nil {
 		log.Errorf(err.Error())
 		return nil, err
 	}
 
-	keyStorage := path.Join(dataDir, "backend_keys")
+	keyStorage := path.Join(*cfg.DataDir, "backend_keys")
 	addKeys := []encryptor.Key{}
-	if len(additionalKey) != 0 {
-		addKey, err := encryptedbk.LoadKeyFromFile(additionalKey)
+	if len(*cfg.Auth.BackendAdditionalKey) != 0 {
+		addKey, err := encryptedbk.LoadKeyFromFile(*cfg.Auth.BackendAdditionalKey)
 		if err != nil {
 			return nil, err
 		}
 		addKeys = append(addKeys, addKey)
 	}
+
 	encryptedBk, err := encryptedbk.NewReplicatedBackend(bk,
 		keyStorage, addKeys)
+
 	if err != nil {
 		log.Errorf(err.Error())
-		return nil, err
+		log.Infof("Initializing backend as follower node")
+		myKey, err := encryptor.GenerateGPGKey(*cfg.FQDN + " key")
+		if err != nil {
+			return nil, err
+		}
+		masterKey, err := auth.RegisterNewAuth(*cfg.FQDN, *cfg.Auth.Token,
+			myKey.Public(), cfg.AuthServers)
+		if err != nil {
+			return nil, err
+		}
+		log.Infof(" ", myKey, masterKey)
+		encryptedBk, err = encryptedbk.NewReplicatedBackend(bk,
+			keyStorage, []encryptor.Key{myKey, masterKey})
+		if err != nil {
+			return nil, err
+		}
 	}
 	return encryptedBk, nil
 }
@@ -408,6 +424,8 @@ type AuthConfig struct {
 
 	RecordBackend       *string
 	RecordBackendConfig *string
+
+	Token *string
 }
 
 type SSHConfig struct {

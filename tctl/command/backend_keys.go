@@ -13,7 +13,7 @@ func (cmd *Command) GetBackendKeys() {
 		cmd.printError(err)
 		return
 	}
-	w := tabwriter.NewWriter(cmd.out, 0, 5, 0, '\t', 0)
+	w := tabwriter.NewWriter(cmd.out, 10, 20, 0, '\t', 0)
 	for _, key := range keys {
 		s := key.ID + "\t"
 		if len(key.PrivateValue) != 0 {
@@ -21,6 +21,7 @@ func (cmd *Command) GetBackendKeys() {
 		} else {
 			s += "\t"
 		}
+		//escapedName := strings.Replace(key.Name, " ", "_", -1)
 		s += key.Name + "\t"
 		fmt.Fprintln(w, s)
 	}

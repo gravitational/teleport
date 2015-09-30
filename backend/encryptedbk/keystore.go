@@ -18,6 +18,7 @@ type KeyStore interface {
 	GetKey(keyID string) (encryptor.Key, error)
 	GetKeys() ([]encryptor.Key, error)
 	DeleteKey(keyID string) error
+	Close()
 }
 
 type BoltKeyStore struct {
@@ -143,4 +144,8 @@ func LoadKeyFromFile(filename string) (encryptor.Key, error) {
 	}
 
 	return key, nil
+}
+
+func (b *BoltKeyStore) Close() {
+	b.bolt.Close()
 }

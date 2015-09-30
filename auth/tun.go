@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/gravitational/teleport/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/sshutils"
 	"github.com/gravitational/teleport/utils"
 
@@ -121,6 +122,19 @@ func (s *TunServer) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 			log.Infof("could not accept channel (%s)", err)
 		}
 		go s.handleProvisionRequest(sconn, ch)
+	case ReqNewAuth:
+		if !s.haveExt(sconn, ExtToken) {
+			nch.Reject(
+				ssh.UnknownChannelType,
+				fmt.Sprintf("don't have token for: %v", cht))
+			return
+		}
+		ch, _, err := nch.Accept()
+		if err != nil {
+			log.Infof("could not accept channel (%s)", err)
+		}
+		go s.handleNewAuthRequest(sconn, ch)
+
 	default:
 		nch.Reject(ssh.UnknownChannelType, fmt.Sprintf(
 			"unknown channel type: %v", cht))
@@ -268,6 +282,65 @@ func (s *TunServer) handleProvisionRequest(sconn *ssh.ServerConn, ch ssh.Channel
 
 	if _, err := io.Copy(ch.Stderr(), bytes.NewReader(data)); err != nil {
 		log.Errorf("key transfer error: %v", err)
+		return
+	}
+
+	log.Infof("keys for %v transferred successfully", ab.User)
+	if err := s.a.DeleteToken(string(ab.Pass)); err != nil {
+		log.Errorf("failed to delete token: %v", err)
+	}
+}
+
+func (s *TunServer) handleNewAuthRequest(sconn *ssh.ServerConn, ch ssh.Channel) {
+	defer ch.Close()
+
+	log.Infof("Registering new auth server")
+
+	password := []byte(sconn.Permissions.Extensions[ExtToken])
+
+	var ab *authBucket
+	if err := json.Unmarshal(password, &ab); err != nil {
+		log.Errorf("token error: %v", err)
+		return
+	}
+
+	buf := &bytes.Buffer{}
+	if _, err := io.Copy(buf, ch.Stderr()); err != nil {
+		log.Errorf("failed to read remote key from channel: %v", err)
+		return
+	}
+
+	var remoteKey encryptor.Key
+	if err := json.Unmarshal(buf.Bytes(), &remoteKey); err != nil {
+		log.Errorf("key unmarshal error: %v", err)
+		return
+	}
+
+	if err := s.a.AddSealKey(remoteKey); err != nil {
+		log.Errorf("Can't add remote key to backend: %v", err)
+		return
+	}
+
+	myKey, err := s.a.GetSignKey()
+	if err != nil {
+		log.Errorf("can't get backend sign key: %v", err)
+		return
+	}
+	myKey = myKey.Public()
+
+	data, err := json.Marshal(myKey)
+	if err != nil {
+		log.Errorf("gen marshal error: %v", err)
+		return
+	}
+
+	if _, err := io.Copy(ch.Stderr(), bytes.NewReader(data)); err != nil {
+		log.Errorf("key transfer error: %v", err)
+		return
+	}
+
+	if err := ch.CloseWrite(); err != nil {
+		log.Errorf("Can't close write: &v", err)
 		return
 	}
 
@@ -505,6 +578,7 @@ const (
 	ReqWebSessionAgent = "web-session-agent@teleport"
 	ReqProvision       = "provision@teleport"
 	ReqDirectTCPIP     = "direct-tcpip"
+	ReqNewAuth         = "new-auth@teleport"
 
 	ExtWebSession  = "web-session@teleport"
 	ExtWebPassword = "web-password@teleport"

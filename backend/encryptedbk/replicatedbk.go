@@ -27,9 +27,10 @@ type ReplicatedBackend struct {
 
 func NewReplicatedBackend(backend backend.Backend, keysFile string, additionalKeys []encryptor.Key) (*ReplicatedBackend, error) {
 	var err error
-	backend.AcquireLock(bkLock, 0)
+	log.Infof("0")
+	backend.AcquireLock(bkLock, time.Minute)
 	defer backend.ReleaseLock(bkLock)
-
+	log.Infof("1")
 	repBk := ReplicatedBackend{}
 	repBk.mutex = &sync.Mutex{}
 	repBk.mutex.Lock()
@@ -41,10 +42,13 @@ func NewReplicatedBackend(backend backend.Backend, keysFile string, additionalKe
 		return nil, err
 	}
 
+	log.Infof("2")
+
 	for _, key := range additionalKeys {
 		if !repBk.keyStore.HasKey(key.ID) {
 			err := repBk.keyStore.AddKey(key)
 			if err != nil {
+				repBk.keyStore.Close()
 				return nil, trace.Wrap(err)
 			}
 		}
@@ -52,14 +56,19 @@ func NewReplicatedBackend(backend backend.Backend, keysFile string, additionalKe
 
 	localKeys, err := repBk.keyStore.GetKeys()
 	if err != nil {
+		repBk.keyStore.Close()
 		return nil, trace.Wrap(err)
 	}
+	log.Infof("Available %v local seal keys:", len(localKeys))
 	for _, key := range localKeys {
+		log.Infof(key.Name)
 		if err := repBk.addSignCheckingKey(key.Public()); err != nil {
+			repBk.keyStore.Close()
 			return nil, err
 		}
 		if len(key.PrivateValue) != 0 {
-			if err := repBk.setSignKey(key); err != nil {
+			if err := repBk.setSignKey(key, false); err != nil {
+				repBk.keyStore.Close()
 				return nil, err
 			}
 		}
@@ -67,6 +76,7 @@ func NewReplicatedBackend(backend backend.Backend, keysFile string, additionalKe
 
 	remoteKeys, err := backend.GetKeys([]string{rootDir})
 	if err != nil {
+		repBk.keyStore.Close()
 		return nil, trace.Wrap(err)
 	}
 	if len(remoteKeys) != 0 {
@@ -76,6 +86,7 @@ func NewReplicatedBackend(backend backend.Backend, keysFile string, additionalKe
 	}
 	if err != nil {
 		log.Errorf(err.Error())
+		repBk.keyStore.Close()
 		return nil, err
 	}
 
@@ -134,6 +145,12 @@ func (b *ReplicatedBackend) initFromEmptyBk() error {
 		return err
 	} else {
 
+		/*for _, key := range localKeys {
+			if err := b.addSealKey(key, true); err != nil {
+				return trace.Wrap(err)
+			}
+		}*/
+
 		for _, key := range localKeys {
 			bk, err := newEncryptedBackend(b.baseBk, key,
 				b.signKey, b.signCheckingKeys)
@@ -146,14 +163,20 @@ func (b *ReplicatedBackend) initFromEmptyBk() error {
 			}
 			b.ebk = append(b.ebk, bk)
 			if len(key.PrivateValue) != 0 {
-				if err := b.setSignKey(key); err != nil {
+				/*if err := b.setSignKey(key); err != nil {
 					return trace.Wrap(err)
-				}
+				}*/
 				if err := bk.VerifySign(); err != nil {
 					return trace.Wrap(err)
 				}
 			}
 			if err := b.addSignCheckingKey(key.Public()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		for _, key := range localKeys {
+			if err := b.upsertKeyToPublicKeysList(key); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -195,7 +218,10 @@ func (b *ReplicatedBackend) getKeys(path []string) ([]string, error) {
 func (b *ReplicatedBackend) DeleteKey(path []string, key string) error {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
+	return b.deleteKey(path, key)
+}
 
+func (b *ReplicatedBackend) deleteKey(path []string, key string) error {
 	var resultErr error
 	resultErr = nil
 
@@ -246,7 +272,7 @@ func (b *ReplicatedBackend) upsertVal(path []string, key string, val []byte, ttl
 func (b *ReplicatedBackend) CompareAndSwap(path []string, key string, val []byte, ttl time.Duration, prevVal []byte) ([]byte, error) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-	b.baseBk.AcquireLock(bkLock, 0)
+	b.baseBk.AcquireLock(bkLock, time.Minute)
 	defer b.baseBk.ReleaseLock(bkLock)
 
 	storedVal, err := b.getVal(path, key)
@@ -311,17 +337,19 @@ func (b *ReplicatedBackend) getValAndTTL(path []string, key string) ([]byte, tim
 }
 
 func (b *ReplicatedBackend) AcquireLock(token string, ttl time.Duration) error {
+	log.Infof("Acquire")
 	return b.baseBk.AcquireLock(token, ttl)
 }
 
 func (b *ReplicatedBackend) ReleaseLock(token string) error {
+	log.Infof("Release")
 	return b.baseBk.ReleaseLock(token)
 }
 
 func (b *ReplicatedBackend) GenerateSealKey(name string) (encryptor.Key, error) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-	b.baseBk.AcquireLock(bkLock, 0)
+	b.baseBk.AcquireLock(bkLock, time.Minute)
 	defer b.baseBk.ReleaseLock(bkLock)
 	return b.generateSealKey(name, true)
 }
@@ -343,7 +371,7 @@ func (b *ReplicatedBackend) generateSealKey(name string, copyData bool) (encrypt
 	}
 
 	if len(b.signKey.PrivateValue) == 0 {
-		if err := b.setSignKey(key); err != nil {
+		if err := b.setSignKey(key, false); err != nil {
 			return encryptor.Key{}, trace.Wrap(err)
 		}
 	}
@@ -352,9 +380,9 @@ func (b *ReplicatedBackend) generateSealKey(name string, copyData bool) (encrypt
 		return encryptor.Key{}, trace.Wrap(err)
 	}
 
-	if err := b.setSignKey(key); err != nil {
+	/*if err := b.setSignKey(key, true); err != nil {
 		return encryptor.Key{}, trace.Wrap(err)
-	}
+	}*/
 
 	return key, nil
 }
@@ -362,7 +390,7 @@ func (b *ReplicatedBackend) generateSealKey(name string, copyData bool) (encrypt
 func (b *ReplicatedBackend) GetSealKey(id string) (encryptor.Key, error) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-	b.baseBk.AcquireLock(bkLock, 0)
+	b.baseBk.AcquireLock(bkLock, time.Minute)
 	defer b.baseBk.ReleaseLock(bkLock)
 	return b.getLocalSealKey(id)
 }
@@ -374,7 +402,7 @@ func (b *ReplicatedBackend) getLocalSealKey(id string) (encryptor.Key, error) {
 func (b *ReplicatedBackend) GetSealKeys() ([]encryptor.Key, error) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-	b.baseBk.AcquireLock(bkLock, 0)
+	b.baseBk.AcquireLock(bkLock, time.Minute)
 	defer b.baseBk.ReleaseLock(bkLock)
 	return b.getLocalSealKeys()
 }
@@ -386,7 +414,7 @@ func (b *ReplicatedBackend) getLocalSealKeys() ([]encryptor.Key, error) {
 func (b *ReplicatedBackend) AddSealKey(key encryptor.Key) error {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-	b.baseBk.AcquireLock(bkLock, 0)
+	b.baseBk.AcquireLock(bkLock, time.Minute)
 	defer b.baseBk.ReleaseLock(bkLock)
 	return b.addSealKey(key, true)
 }
@@ -481,9 +509,12 @@ func (b *ReplicatedBackend) addSealKey(key encryptor.Key, copyData bool) error {
 func (b *ReplicatedBackend) DeleteSealKey(id string) error {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-	b.baseBk.AcquireLock(bkLock, 0)
+	b.baseBk.AcquireLock(bkLock, time.Minute)
 	defer b.baseBk.ReleaseLock(bkLock)
+	return b.deleteSealKey(id, true)
+}
 
+func (b *ReplicatedBackend) deleteSealKey(id string, rewriteData bool) error {
 	anotherValidKey := false
 	var anotherKey encryptor.Key
 	for _, bk := range b.ebk {
@@ -503,13 +534,13 @@ func (b *ReplicatedBackend) DeleteSealKey(id string) error {
 	}
 
 	if b.signKey.ID == id {
-		if err := b.setSignKey(anotherKey); err != nil {
+		if err := b.setSignKey(anotherKey, rewriteData); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	if err := b.rewriteData(); err != nil {
+	/*if err := b.rewriteData(); err != nil {
 		return trace.Wrap(err)
-	}
+	}*/
 
 	deletedLocally := false
 	deletedGlobally := false
@@ -558,7 +589,7 @@ func (b *ReplicatedBackend) getClusterPublicSealKeys() ([]encryptor.Key, error) 
 	}
 
 	keys := []encryptor.Key{}
-
+	log.Infof("%v cluster keys:", len(ids))
 	for _, id := range ids {
 		keyJSON, err := b.getVal([]string{publicKeysPath}, id)
 		if err == nil {
@@ -567,7 +598,10 @@ func (b *ReplicatedBackend) getClusterPublicSealKeys() ([]encryptor.Key, error) 
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			log.Infof(key.Name)
 			keys = append(keys, key)
+		} else {
+			log.Errorf(err.Error())
 		}
 	}
 
@@ -577,10 +611,10 @@ func (b *ReplicatedBackend) getClusterPublicSealKeys() ([]encryptor.Key, error) 
 func (b *ReplicatedBackend) SetSignKey(key encryptor.Key) error {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-	return b.setSignKey(key)
+	return b.setSignKey(key, true)
 }
 
-func (b *ReplicatedBackend) setSignKey(key encryptor.Key) error {
+func (b *ReplicatedBackend) setSignKey(key encryptor.Key, rewriteData bool) error {
 	for _, ebk := range b.ebk {
 		err := ebk.encryptor.SetSignKey(key)
 		if err != nil {
@@ -588,6 +622,9 @@ func (b *ReplicatedBackend) setSignKey(key encryptor.Key) error {
 		}
 	}
 	b.signKey = key
+	if rewriteData {
+		b.rewriteData()
+	}
 	return nil
 }
 
@@ -701,24 +738,7 @@ func (b *ReplicatedBackend) upsertKeyToPublicKeysList(key encryptor.Key) error {
 }
 
 func (b *ReplicatedBackend) deleteClusterPublicKey(keyID string) error {
-	for _, bk := range b.ebk {
-		ids, _ := bk.GetKeys([]string{publicKeysPath})
-
-		for _, id := range ids {
-			if id == keyID {
-				keyJSON, err := bk.GetVal([]string{publicKeysPath}, id)
-				if err == nil {
-					var key encryptor.Key
-					err = json.Unmarshal(keyJSON, &key)
-					if err == nil && key.ID == keyID {
-
-						bk.DeleteKey([]string{publicKeysPath}, id)
-					}
-				}
-			}
-		}
-	}
-	return nil
+	return b.deleteKey([]string{publicKeysPath}, keyID)
 }
 
 func (b *ReplicatedBackend) UpdateLocalKeysFromCluster() error {
@@ -769,16 +789,17 @@ func (b *ReplicatedBackend) updateLocalKeysFromCluster() error {
 
 	// delete unused local keys from keystore
 	for _, key := range localKeys {
-		alreadyInitialized := false
-		for _, bk := range b.ebk {
-			if bk.KeyID == key.ID {
-				alreadyInitialized = true
+		active := false
+		for _, actkey := range activeKeys {
+			if actkey.ID == key.ID {
+				active = true
 				break
 			}
 		}
-		if !alreadyInitialized {
-			b.keyStore.DeleteKey(key.ID)
-			b.deleteSignCheckingKey(key.ID)
+		if !active {
+			if err := b.deleteSealKey(key.ID, false); err != nil {
+				log.Errorf(err.Error())
+			}
 		}
 	}
 

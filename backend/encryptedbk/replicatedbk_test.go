@@ -256,4 +256,22 @@ func (s *ReplicatedBkSuite) TestSeveralAuthServers(c *C) {
 		[]encryptor.Key{key3})
 	c.Assert(err, NotNil)
 
+	key4, err := encryptor.GenerateGPGKey("key4")
+	c.Assert(err, IsNil)
+
+	c.Assert(s.bk.AddSealKey(key4.Public()), IsNil)
+
+	bk4, err := NewReplicatedBackend(s.bk.baseBk,
+		filepath.Join(s.dir, "keysDB_5"),
+		[]encryptor.Key{key4, key1public})
+	c.Assert(err, IsNil)
+
+	c.Assert(len(bk4.ebk), Equals, 3)
+	bk4Keys, err := bk4.keyStore.GetKeys()
+	c.Assert(err, IsNil)
+	c.Assert(len(bk4Keys), Equals, 3)
+	c.Assert(bk4.keyStore.HasKey(key1public.ID), Equals, true)
+	c.Assert(bk4.keyStore.HasKey(key2.ID), Equals, true)
+	c.Assert(bk4.keyStore.HasKey(key4.ID), Equals, true)
+
 }
