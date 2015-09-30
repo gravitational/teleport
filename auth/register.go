@@ -11,7 +11,6 @@ import (
 	"github.com/gravitational/teleport/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/utils"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
@@ -86,16 +85,13 @@ func RegisterNewAuth(fqdn, token string, publicSealKey encryptor.Key,
 		return encryptor.Key{}, trace.Errorf("gen marshal error: %v", err)
 	}
 
-	log.Infof("1")
 	if _, err := io.Copy(ch.Stderr(), bytes.NewReader(data)); err != nil {
 		return encryptor.Key{}, trace.Errorf("key transfer error: %v", err)
 	}
-	log.Infof("2")
 
 	if err := ch.CloseWrite(); err != nil {
 		return encryptor.Key{}, trace.Errorf("Can't close write: &v", err)
 	}
-	log.Infof("3")
 
 	// reading master public seal key from the channel
 	buf := &bytes.Buffer{}
@@ -103,13 +99,10 @@ func RegisterNewAuth(fqdn, token string, publicSealKey encryptor.Key,
 		return encryptor.Key{}, fmt.Errorf("failed to read key from channel: %v", err)
 	}
 
-	log.Infof("4")
-
 	if err := json.NewDecoder(buf).Decode(&masterKey); err != nil {
 		return encryptor.Key{}, err
 	}
 
-	log.Infof("5")
 	return masterKey, nil
 }
 

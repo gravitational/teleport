@@ -27,10 +27,8 @@ type ReplicatedBackend struct {
 
 func NewReplicatedBackend(backend backend.Backend, keysFile string, additionalKeys []encryptor.Key) (*ReplicatedBackend, error) {
 	var err error
-	log.Infof("0")
 	backend.AcquireLock(bkLock, time.Minute)
 	defer backend.ReleaseLock(bkLock)
-	log.Infof("1")
 	repBk := ReplicatedBackend{}
 	repBk.mutex = &sync.Mutex{}
 	repBk.mutex.Lock()
@@ -41,8 +39,6 @@ func NewReplicatedBackend(backend backend.Backend, keysFile string, additionalKe
 		log.Errorf(err.Error())
 		return nil, err
 	}
-
-	log.Infof("2")
 
 	for _, key := range additionalKeys {
 		if !repBk.keyStore.HasKey(key.ID) {
@@ -145,12 +141,6 @@ func (b *ReplicatedBackend) initFromEmptyBk() error {
 		return err
 	} else {
 
-		/*for _, key := range localKeys {
-			if err := b.addSealKey(key, true); err != nil {
-				return trace.Wrap(err)
-			}
-		}*/
-
 		for _, key := range localKeys {
 			bk, err := newEncryptedBackend(b.baseBk, key,
 				b.signKey, b.signCheckingKeys)
@@ -163,9 +153,6 @@ func (b *ReplicatedBackend) initFromEmptyBk() error {
 			}
 			b.ebk = append(b.ebk, bk)
 			if len(key.PrivateValue) != 0 {
-				/*if err := b.setSignKey(key); err != nil {
-					return trace.Wrap(err)
-				}*/
 				if err := bk.VerifySign(); err != nil {
 					return trace.Wrap(err)
 				}
@@ -380,10 +367,6 @@ func (b *ReplicatedBackend) generateSealKey(name string, copyData bool) (encrypt
 		return encryptor.Key{}, trace.Wrap(err)
 	}
 
-	/*if err := b.setSignKey(key, true); err != nil {
-		return encryptor.Key{}, trace.Wrap(err)
-	}*/
-
 	return key, nil
 }
 
@@ -538,9 +521,6 @@ func (b *ReplicatedBackend) deleteSealKey(id string, rewriteData bool) error {
 			return trace.Wrap(err)
 		}
 	}
-	/*if err := b.rewriteData(); err != nil {
-		return trace.Wrap(err)
-	}*/
 
 	deletedLocally := false
 	deletedGlobally := false
@@ -589,7 +569,6 @@ func (b *ReplicatedBackend) getClusterPublicSealKeys() ([]encryptor.Key, error) 
 	}
 
 	keys := []encryptor.Key{}
-	log.Infof("%v cluster keys:", len(ids))
 	for _, id := range ids {
 		keyJSON, err := b.getVal([]string{publicKeysPath}, id)
 		if err == nil {
@@ -598,7 +577,6 @@ func (b *ReplicatedBackend) getClusterPublicSealKeys() ([]encryptor.Key, error) 
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			log.Infof(key.Name)
 			keys = append(keys, key)
 		} else {
 			log.Errorf(err.Error())

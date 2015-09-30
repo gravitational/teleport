@@ -63,25 +63,6 @@ run-auth: install
              --domain=vendor.io\
 	     --ssh-addr=tcp://0.0.0.0:33000
 
-run-auth2: install
-	#rm -f /tmp/teleport2.auth.sock
-	#tctl token generate --output=/tmp/token --fqdn=auth2.vendor.io
-	teleport\
-             --log=console\
-             --log-severity=INFO\
-             --data-dir=/tmp\
-             --fqdn=auth2.vendor.io\
-	     --auth-server=tcp://0.0.0.0:33010\
-	   auth\
-             --backend=bolt\
-             --backend-config='{"path": "/tmp/teleport2.auth.db"}'\
-	     --event-backend-config='{"path": "/tmp/teleport2.event.db"}'\
-	     --record-backend-config='{"path": "/tmp/teleport2.records.db"}'\
-             --domain=vendor.io\
-	     --ssh-addr=tcp://0.0.0.0:33010\
-	     --http-addr=unix:/tmp/teleport2.auth.sock\
-	     --token=/tmp/token
-
 
 
 run-ssh: install

@@ -21,7 +21,6 @@ func (cmd *Command) GetBackendKeys() {
 		} else {
 			s += "\t"
 		}
-		//escapedName := strings.Replace(key.Name, " ", "_", -1)
 		s += key.Name + "\t"
 		fmt.Fprintln(w, s)
 	}

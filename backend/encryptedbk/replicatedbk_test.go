@@ -122,17 +122,8 @@ func (s *ReplicatedBkSuite) TestSeveralKeys(c *C) {
 
 	c.Assert(len(s.bk.signCheckingKeys), Equals, 2)
 
-	//_, err = s.bk.GenerateSealKey("key5") //
-	//c.Assert(err, IsNil)                  //
-
 	c.Assert(s.bk.DeleteSealKey(key0ID), IsNil)
-	//c.Assert(s.bk.DeleteSealKey(key2.ID), IsNil)
 	c.Assert(len(s.bk.signCheckingKeys), Equals, 1)
-	//val, err = s.bk.GetVal([]string{"a1"}, "b1")
-	//c.Assert(string(val), Equals, "val1")
-	//c.Assert(err, NotNil)
-
-	//c.Assert(s.bk.RewriteData(), IsNil)
 
 	val, err = s.bk.GetVal([]string{"a1"}, "b1")
 	c.Assert(err, IsNil)
