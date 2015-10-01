@@ -5,7 +5,7 @@
 // This code was translated into a form compatible with 6a from the public
 // domain sources in SUPERCOP: http://bench.cr.yp.to/supercop.html
 
-// +build amd64,!gccgo
+// +build amd64,!gccgo,!appengine
 
 // func poly1305(out *[16]byte, m *byte, mlen uint64, key *[32]key)
 TEXT ·poly1305(SB),0,$224-32

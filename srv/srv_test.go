@@ -84,7 +84,11 @@ func (s *SrvSuite) SetUpTest(c *C) {
 
 	// set up an agent server and a client that uses agent for forwarding
 	keyring := agent.NewKeyring()
-	c.Assert(keyring.Add(up.pkey, up.pcert, ""), IsNil)
+	addedKey := agent.AddedKey{
+		PrivateKey:  up.pkey,
+		Certificate: up.pcert,
+	}
+	c.Assert(keyring.Add(addedKey), IsNil)
 	s.up = up
 
 	sshConfig := &ssh.ClientConfig{

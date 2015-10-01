@@ -6,7 +6,7 @@
   Package agent implements a client to an ssh-agent daemon.
 
 References:
-  [PROTOCOL.agent]:    http://www.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent
+  [PROTOCOL.agent]:    http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent?rev=HEAD
 */
 package agent
 
@@ -36,9 +36,8 @@ type Agent interface {
 	// in [PROTOCOL.agent] section 2.6.2.
 	Sign(key ssh.PublicKey, data []byte) (*ssh.Signature, error)
 
-	// Insert adds a private key to the agent. If a certificate
-	// is given, that certificate is added as public key.
-	Add(s interface{}, cert *ssh.Certificate, comment string) error
+	// Add adds a private key to the agent.
+	Add(key AddedKey) error
 
 	// Remove removes all identities with the given public key.
 	Remove(key ssh.PublicKey) error
@@ -54,6 +53,24 @@ type Agent interface {
 
 	// Signers returns signers for all the known keys.
 	Signers() ([]ssh.Signer, error)
+}
+
+// AddedKey describes an SSH key to be added to an Agent.
+type AddedKey struct {
+	// PrivateKey must be a *rsa.PrivateKey, *dsa.PrivateKey or
+	// *ecdsa.PrivateKey, which will be inserted into the agent.
+	PrivateKey interface{}
+	// Certificate, if not nil, is communicated to the agent and will be
+	// stored with the key.
+	Certificate *ssh.Certificate
+	// Comment is an optional, free-form string.
+	Comment string
+	// LifetimeSecs, if not zero, is the number of seconds that the
+	// agent will store the key for.
+	LifetimeSecs uint32
+	// ConfirmBeforeUse, if true, requests that the agent confirm with the
+	// user before each use of this key.
+	ConfirmBeforeUse bool
 }
 
 // See [PROTOCOL.agent], section 3.
@@ -368,36 +385,39 @@ func unmarshal(packet []byte) (interface{}, error) {
 }
 
 type rsaKeyMsg struct {
-	Type     string `sshtype:"17"`
-	N        *big.Int
-	E        *big.Int
-	D        *big.Int
-	Iqmp     *big.Int // IQMP = Inverse Q Mod P
-	P        *big.Int
-	Q        *big.Int
-	Comments string
+	Type        string `sshtype:"17"`
+	N           *big.Int
+	E           *big.Int
+	D           *big.Int
+	Iqmp        *big.Int // IQMP = Inverse Q Mod P
+	P           *big.Int
+	Q           *big.Int
+	Comments    string
+	Constraints []byte `ssh:"rest"`
 }
 
 type dsaKeyMsg struct {
-	Type     string `sshtype:"17"`
-	P        *big.Int
-	Q        *big.Int
-	G        *big.Int
-	Y        *big.Int
-	X        *big.Int
-	Comments string
+	Type        string `sshtype:"17"`
+	P           *big.Int
+	Q           *big.Int
+	G           *big.Int
+	Y           *big.Int
+	X           *big.Int
+	Comments    string
+	Constraints []byte `ssh:"rest"`
 }
 
 type ecdsaKeyMsg struct {
-	Type     string `sshtype:"17"`
-	Curve    string
-	KeyBytes []byte
-	D        *big.Int
-	Comments string
+	Type        string `sshtype:"17"`
+	Curve       string
+	KeyBytes    []byte
+	D           *big.Int
+	Comments    string
+	Constraints []byte `ssh:"rest"`
 }
 
 // Insert adds a private key to the agent.
-func (c *client) insertKey(s interface{}, comment string) error {
+func (c *client) insertKey(s interface{}, comment string, constraints []byte) error {
 	var req []byte
 	switch k := s.(type) {
 	case *rsa.PrivateKey:
@@ -406,37 +426,46 @@ func (c *client) insertKey(s interface{}, comment string) error {
 		}
 		k.Precompute()
 		req = ssh.Marshal(rsaKeyMsg{
-			Type:     ssh.KeyAlgoRSA,
-			N:        k.N,
-			E:        big.NewInt(int64(k.E)),
-			D:        k.D,
-			Iqmp:     k.Precomputed.Qinv,
-			P:        k.Primes[0],
-			Q:        k.Primes[1],
-			Comments: comment,
+			Type:        ssh.KeyAlgoRSA,
+			N:           k.N,
+			E:           big.NewInt(int64(k.E)),
+			D:           k.D,
+			Iqmp:        k.Precomputed.Qinv,
+			P:           k.Primes[0],
+			Q:           k.Primes[1],
+			Comments:    comment,
+			Constraints: constraints,
 		})
 	case *dsa.PrivateKey:
 		req = ssh.Marshal(dsaKeyMsg{
-			Type:     ssh.KeyAlgoDSA,
-			P:        k.P,
-			Q:        k.Q,
-			G:        k.G,
-			Y:        k.Y,
-			X:        k.X,
-			Comments: comment,
+			Type:        ssh.KeyAlgoDSA,
+			P:           k.P,
+			Q:           k.Q,
+			G:           k.G,
+			Y:           k.Y,
+			X:           k.X,
+			Comments:    comment,
+			Constraints: constraints,
 		})
 	case *ecdsa.PrivateKey:
 		nistID := fmt.Sprintf("nistp%d", k.Params().BitSize)
 		req = ssh.Marshal(ecdsaKeyMsg{
-			Type:     "ecdsa-sha2-" + nistID,
-			Curve:    nistID,
-			KeyBytes: elliptic.Marshal(k.Curve, k.X, k.Y),
-			D:        k.D,
-			Comments: comment,
+			Type:        "ecdsa-sha2-" + nistID,
+			Curve:       nistID,
+			KeyBytes:    elliptic.Marshal(k.Curve, k.X, k.Y),
+			D:           k.D,
+			Comments:    comment,
+			Constraints: constraints,
 		})
 	default:
 		return fmt.Errorf("agent: unsupported key type %T", s)
 	}
+
+	// if constraints are present then the message type needs to be changed.
+	if len(constraints) != 0 {
+		req[0] = agentAddIdConstrained
+	}
+
 	resp, err := c.call(req)
 	if err != nil {
 		return err
@@ -448,40 +477,57 @@ func (c *client) insertKey(s interface{}, comment string) error {
 }
 
 type rsaCertMsg struct {
-	Type      string `sshtype:"17"`
-	CertBytes []byte
-	D         *big.Int
-	Iqmp      *big.Int // IQMP = Inverse Q Mod P
-	P         *big.Int
-	Q         *big.Int
-	Comments  string
+	Type        string `sshtype:"17"`
+	CertBytes   []byte
+	D           *big.Int
+	Iqmp        *big.Int // IQMP = Inverse Q Mod P
+	P           *big.Int
+	Q           *big.Int
+	Comments    string
+	Constraints []byte `ssh:"rest"`
 }
 
 type dsaCertMsg struct {
-	Type      string `sshtype:"17"`
-	CertBytes []byte
-	X         *big.Int
-	Comments  string
+	Type        string `sshtype:"17"`
+	CertBytes   []byte
+	X           *big.Int
+	Comments    string
+	Constraints []byte `ssh:"rest"`
 }
 
 type ecdsaCertMsg struct {
-	Type      string `sshtype:"17"`
-	CertBytes []byte
-	D         *big.Int
-	Comments  string
+	Type        string `sshtype:"17"`
+	CertBytes   []byte
+	D           *big.Int
+	Comments    string
+	Constraints []byte `ssh:"rest"`
 }
 
 // Insert adds a private key to the agent. If a certificate is given,
 // that certificate is added instead as public key.
-func (c *client) Add(s interface{}, cert *ssh.Certificate, comment string) error {
-	if cert == nil {
-		return c.insertKey(s, comment)
+func (c *client) Add(key AddedKey) error {
+	var constraints []byte
+
+	if secs := key.LifetimeSecs; secs != 0 {
+		constraints = append(constraints, agentConstrainLifetime)
+
+		var secsBytes [4]byte
+		binary.BigEndian.PutUint32(secsBytes[:], secs)
+		constraints = append(constraints, secsBytes[:]...)
+	}
+
+	if key.ConfirmBeforeUse {
+		constraints = append(constraints, agentConstrainConfirm)
+	}
+
+	if cert := key.Certificate; cert == nil {
+		return c.insertKey(key.PrivateKey, key.Comment, constraints)
 	} else {
-		return c.insertCert(s, cert, comment)
+		return c.insertCert(key.PrivateKey, cert, key.Comment, constraints)
 	}
 }
 
-func (c *client) insertCert(s interface{}, cert *ssh.Certificate, comment string) error {
+func (c *client) insertCert(s interface{}, cert *ssh.Certificate, comment string, constraints []byte) error {
 	var req []byte
 	switch k := s.(type) {
 	case *rsa.PrivateKey:
@@ -490,13 +536,14 @@ func (c *client) insertCert(s interface{}, cert *ssh.Certificate, comment string
 		}
 		k.Precompute()
 		req = ssh.Marshal(rsaCertMsg{
-			Type:      cert.Type(),
-			CertBytes: cert.Marshal(),
-			D:         k.D,
-			Iqmp:      k.Precomputed.Qinv,
-			P:         k.Primes[0],
-			Q:         k.Primes[1],
-			Comments:  comment,
+			Type:        cert.Type(),
+			CertBytes:   cert.Marshal(),
+			D:           k.D,
+			Iqmp:        k.Precomputed.Qinv,
+			P:           k.Primes[0],
+			Q:           k.Primes[1],
+			Comments:    comment,
+			Constraints: constraints,
 		})
 	case *dsa.PrivateKey:
 		req = ssh.Marshal(dsaCertMsg{
@@ -514,6 +561,11 @@ func (c *client) insertCert(s interface{}, cert *ssh.Certificate, comment string
 		})
 	default:
 		return fmt.Errorf("agent: unsupported key type %T", s)
+	}
+
+	// if constraints are present then the message type needs to be changed.
+	if len(constraints) != 0 {
+		req[0] = agentAddIdConstrained
 	}
 
 	signer, err := ssh.NewSignerFromKey(s)

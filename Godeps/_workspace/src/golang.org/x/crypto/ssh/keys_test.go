@@ -57,12 +57,12 @@ func TestUnsupportedCurves(t *testing.T) {
 		t.Fatalf("GenerateKey: %v", err)
 	}
 
-	if _, err = NewSignerFromKey(raw); err == nil || !strings.Contains(err.Error(), "only P256") {
-		t.Fatalf("NewPrivateKey should not succeed with P224, got: %v", err)
+	if _, err = NewSignerFromKey(raw); err == nil || !strings.Contains(err.Error(), "only P-256") {
+		t.Fatalf("NewPrivateKey should not succeed with P-224, got: %v", err)
 	}
 
-	if _, err = NewPublicKey(&raw.PublicKey); err == nil || !strings.Contains(err.Error(), "only P256") {
-		t.Fatalf("NewPublicKey should not succeed with P224, got: %v", err)
+	if _, err = NewPublicKey(&raw.PublicKey); err == nil || !strings.Contains(err.Error(), "only P-256") {
+		t.Fatalf("NewPublicKey should not succeed with P-224, got: %v", err)
 	}
 }
 

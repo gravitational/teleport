@@ -204,7 +204,14 @@ func (s *TunServer) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel)
 		log.Errorf("session error, not a cert: %T", pub)
 		return
 	}
-	if err := a.Add(priv, cert, "web-session@teleport"); err != nil {
+	addedKey := agent.AddedKey{
+		PrivateKey:       priv,
+		Certificate:      cert,
+		Comment:          "web-session@teleport",
+		LifetimeSecs:     0,
+		ConfirmBeforeUse: false,
+	}
+	if err := a.Add(addedKey); err != nil {
 		log.Errorf("failed to add: %v", err)
 		return
 	}

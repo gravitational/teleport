@@ -9,9 +9,11 @@ package ssh
 import (
 	"bytes"
 	crypto_rand "crypto/rand"
+	"errors"
 	"io"
 	"io/ioutil"
 	"math/rand"
+	"net"
 	"testing"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/terminal"
@@ -624,5 +626,149 @@ func simpleEchoHandler(ch Channel, in <-chan *Request, t *testing.T) {
 	_, err = ch.Write(data)
 	if err != nil {
 		t.Errorf("handler write error: %v", err)
+	}
+}
+
+func TestSessionID(t *testing.T) {
+	c1, c2, err := netPipe()
+	if err != nil {
+		t.Fatalf("netPipe: %v", err)
+	}
+	defer c1.Close()
+	defer c2.Close()
+
+	serverID := make(chan []byte, 1)
+	clientID := make(chan []byte, 1)
+
+	serverConf := &ServerConfig{
+		NoClientAuth: true,
+	}
+	serverConf.AddHostKey(testSigners["ecdsa"])
+	clientConf := &ClientConfig{
+		User: "user",
+	}
+
+	go func() {
+		conn, chans, reqs, err := NewServerConn(c1, serverConf)
+		if err != nil {
+			t.Fatalf("server handshake: %v", err)
+		}
+		serverID <- conn.SessionID()
+		go DiscardRequests(reqs)
+		for ch := range chans {
+			ch.Reject(Prohibited, "")
+		}
+	}()
+
+	go func() {
+		conn, chans, reqs, err := NewClientConn(c2, "", clientConf)
+		if err != nil {
+			t.Fatalf("client handshake: %v", err)
+		}
+		clientID <- conn.SessionID()
+		go DiscardRequests(reqs)
+		for ch := range chans {
+			ch.Reject(Prohibited, "")
+		}
+	}()
+
+	s := <-serverID
+	c := <-clientID
+	if bytes.Compare(s, c) != 0 {
+		t.Errorf("server session ID (%x) != client session ID (%x)", s, c)
+	} else if len(s) == 0 {
+		t.Errorf("client and server SessionID were empty.")
+	}
+}
+
+type noReadConn struct {
+	readSeen bool
+	net.Conn
+}
+
+func (c *noReadConn) Close() error {
+	return nil
+}
+
+func (c *noReadConn) Read(b []byte) (int, error) {
+	c.readSeen = true
+	return 0, errors.New("noReadConn error")
+}
+
+func TestInvalidServerConfiguration(t *testing.T) {
+	c1, c2, err := netPipe()
+	if err != nil {
+		t.Fatalf("netPipe: %v", err)
+	}
+	defer c1.Close()
+	defer c2.Close()
+
+	serveConn := noReadConn{Conn: c1}
+	serverConf := &ServerConfig{}
+
+	NewServerConn(&serveConn, serverConf)
+	if serveConn.readSeen {
+		t.Fatalf("NewServerConn attempted to Read() from Conn while configuration is missing host key")
+	}
+
+	serverConf.AddHostKey(testSigners["ecdsa"])
+
+	NewServerConn(&serveConn, serverConf)
+	if serveConn.readSeen {
+		t.Fatalf("NewServerConn attempted to Read() from Conn while configuration is missing authentication method")
+	}
+}
+
+func TestHostKeyAlgorithms(t *testing.T) {
+	serverConf := &ServerConfig{
+		NoClientAuth: true,
+	}
+	serverConf.AddHostKey(testSigners["rsa"])
+	serverConf.AddHostKey(testSigners["ecdsa"])
+
+	connect := func(clientConf *ClientConfig, want string) {
+		var alg string
+		clientConf.HostKeyCallback = func(h string, a net.Addr, key PublicKey) error {
+			alg = key.Type()
+			return nil
+		}
+		c1, c2, err := netPipe()
+		if err != nil {
+			t.Fatalf("netPipe: %v", err)
+		}
+		defer c1.Close()
+		defer c2.Close()
+
+		go NewServerConn(c1, serverConf)
+		_, _, _, err = NewClientConn(c2, "", clientConf)
+		if err != nil {
+			t.Fatalf("NewClientConn: %v", err)
+		}
+		if alg != want {
+			t.Errorf("selected key algorithm %s, want %s", alg, want)
+		}
+	}
+
+	// By default, we get the preferred algorithm, which is ECDSA 256.
+
+	clientConf := &ClientConfig{}
+	connect(clientConf, KeyAlgoECDSA256)
+
+	// Client asks for RSA explicitly.
+	clientConf.HostKeyAlgorithms = []string{KeyAlgoRSA}
+	connect(clientConf, KeyAlgoRSA)
+
+	c1, c2, err := netPipe()
+	if err != nil {
+		t.Fatalf("netPipe: %v", err)
+	}
+	defer c1.Close()
+	defer c2.Close()
+
+	go NewServerConn(c1, serverConf)
+	clientConf.HostKeyAlgorithms = []string{"nonexistent-hostkey-algo"}
+	_, _, _, err = NewClientConn(c2, "", clientConf)
+	if err == nil {
+		t.Fatal("succeeded connecting with unknown hostkey algorithm")
 	}
 }
