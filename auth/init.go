@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/backend/encryptedbk"
 	"github.com/gravitational/teleport/services"
 	"github.com/gravitational/teleport/sshutils"
 	"github.com/gravitational/teleport/utils"
@@ -18,7 +18,7 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
 
-func Init(b backend.Backend, a Authority,
+func Init(b *encryptedbk.ReplicatedBackend, a Authority,
 	fqdn, authDomain, dataDir string) (*AuthServer, ssh.Signer, error) {
 
 	if authDomain == "" {
@@ -164,7 +164,7 @@ func HaveKeys(fqdn, dataDir string) (bool, error) {
 	return true, nil
 }
 
-func InitSecret(dataDir string) (*secret.Service, error) {
+func InitSecret(dataDir string) (secret.SecretService, error) {
 	keyPath := secretKeyPath(dataDir)
 	exists, err := pathExists(keyPath)
 	if err != nil {
@@ -186,7 +186,7 @@ func InitSecret(dataDir string) (*secret.Service, error) {
 	return ReadSecret(dataDir)
 }
 
-func ReadSecret(dataDir string) (*secret.Service, error) {
+func ReadSecret(dataDir string) (secret.SecretService, error) {
 	keyPath := secretKeyPath(dataDir)
 	bytes, err := ioutil.ReadFile(keyPath)
 	if err != nil {

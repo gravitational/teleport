@@ -11,10 +11,11 @@ package test
 import (
 	"bytes"
 	"errors"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
 
 func TestRunCommandSuccess(t *testing.T) {
@@ -279,6 +280,9 @@ func TestCiphers(t *testing.T) {
 	var config ssh.Config
 	config.SetDefaults()
 	cipherOrder := config.Ciphers
+	// This cipher will not be tested when commented out in cipher.go it will
+	// fallback to the next available as per line 292.
+	cipherOrder = append(cipherOrder, "aes128-cbc")
 
 	for _, ciph := range cipherOrder {
 		server := newServer(t)
@@ -312,6 +316,25 @@ func TestMACs(t *testing.T) {
 			conn.Close()
 		} else {
 			t.Fatalf("failed for MAC %q", mac)
+		}
+	}
+}
+
+func TestKeyExchanges(t *testing.T) {
+	var config ssh.Config
+	config.SetDefaults()
+	kexOrder := config.KeyExchanges
+	for _, kex := range kexOrder {
+		server := newServer(t)
+		defer server.Shutdown()
+		conf := clientConfig()
+		// Don't fail if sshd doesnt have the kex.
+		conf.KeyExchanges = append([]string{kex}, kexOrder...)
+		conn, err := server.TryDial(conf)
+		if err == nil {
+			conn.Close()
+		} else {
+			t.Errorf("failed for kex %q", kex)
 		}
 	}
 }

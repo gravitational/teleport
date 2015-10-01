@@ -6,8 +6,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 	authority "github.com/gravitational/teleport/auth/native"
-	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/boltbk"
+	"github.com/gravitational/teleport/backend/encryptedbk"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 
@@ -15,8 +15,8 @@ import (
 )
 
 type AuthSuite struct {
-	bk   backend.Backend
-	scrt *secret.Service
+	bk   *encryptedbk.ReplicatedBackend
+	scrt secret.SecretService
 	a    *AuthServer
 
 	dir string
@@ -37,7 +37,9 @@ func (s *AuthSuite) SetUpSuite(c *C) {
 func (s *AuthSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
 	var err error
-	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
+	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
+	c.Assert(err, IsNil)
+	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk, filepath.Join(s.dir, "keys"), nil)
 	c.Assert(err, IsNil)
 
 	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)

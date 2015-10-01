@@ -32,7 +32,7 @@ func New(path string) (*BoltBackend, error) {
 }
 
 func (b *BoltBackend) Close() error {
-	return nil
+	return b.db.Close()
 }
 
 func (b *BoltBackend) GetKeys(path []string) ([]string, error) {
@@ -59,6 +59,12 @@ func (b *BoltBackend) GetKeys(path []string) ([]string, error) {
 }
 
 func (b *BoltBackend) UpsertVal(path []string, key string, val []byte, ttl time.Duration) error {
+	b.Lock()
+	defer b.Unlock()
+	return b.upsertVal(path, key, val, ttl)
+}
+
+func (b *BoltBackend) upsertVal(path []string, key string, val []byte, ttl time.Duration) error {
 	v := &kv{
 		Created: time.Now(),
 		Value:   val,
@@ -69,6 +75,34 @@ func (b *BoltBackend) UpsertVal(path []string, key string, val []byte, ttl time.
 		return err
 	}
 	return b.upsertKey(path, key, bytes)
+}
+
+func (b *BoltBackend) CompareAndSwap(path []string, key string, val []byte, ttl time.Duration, prevVal []byte) ([]byte, error) {
+	b.Lock()
+	defer b.Unlock()
+
+	storedVal, err := b.GetVal(path, key)
+
+	if teleport.IsNotFound(err) {
+		storedVal = []byte{}
+		err = nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if string(prevVal) == string(storedVal) {
+		err = b.upsertVal(path, key, val, ttl)
+		if err != nil {
+			return nil, err
+		}
+		return storedVal, nil
+	} else {
+		return storedVal, &teleport.CompareFailedError{
+			Message: "Expected '" + string(prevVal) + "', obtained '" + string(storedVal) + "'",
+		}
+	}
+
 }
 
 func (b *BoltBackend) GetVal(path []string, key string) ([]byte, error) {
@@ -90,11 +124,39 @@ func (b *BoltBackend) GetVal(path []string, key string) ([]byte, error) {
 	return k.Value, nil
 }
 
+func (b *BoltBackend) GetValAndTTL(path []string, key string) ([]byte, time.Duration, error) {
+	var val []byte
+	if err := b.getKey(path, key, &val); err != nil {
+		return nil, 0, err
+	}
+	var k *kv
+	if err := json.Unmarshal(val, &k); err != nil {
+		return nil, 0, err
+	}
+	if k.TTL != 0 && time.Now().Sub(k.Created) > k.TTL {
+		if err := b.deleteKey(path, key); err != nil {
+			return nil, 0, err
+		}
+		return nil, 0, &teleport.NotFoundError{
+			Message: fmt.Sprintf("%v: %v not found", path, key)}
+	}
+	var newTTL time.Duration
+	newTTL = 0
+	if k.TTL != 0 {
+		newTTL = k.Created.Add(k.TTL).Sub(time.Now())
+	}
+	return k.Value, newTTL, nil
+}
+
 func (b *BoltBackend) DeleteKey(path []string, key string) error {
+	b.Lock()
+	defer b.Unlock()
 	return b.deleteKey(path, key)
 }
 
 func (b *BoltBackend) DeleteBucket(path []string, bucket string) error {
+	b.Lock()
+	defer b.Unlock()
 	return b.deleteBucket(path, bucket)
 }
 
@@ -230,6 +292,40 @@ func GetBucket(b *bolt.Tx, buckets []string) (*bolt.Bucket, error) {
 		}
 	}
 	return bkt, nil
+}
+
+func (b *BoltBackend) AcquireLock(token string, ttl time.Duration) error {
+	for {
+		b.Lock()
+		expires, ok := b.locks[token]
+		if ok && (expires.IsZero() || expires.After(time.Now())) {
+			b.Unlock()
+			time.Sleep(100 * time.Millisecond)
+		} else {
+			if ttl == 0 {
+				b.locks[token] = time.Time{}
+			} else {
+				b.locks[token] = time.Now().Add(ttl)
+			}
+			b.Unlock()
+			return nil
+		}
+	}
+}
+
+func (b *BoltBackend) ReleaseLock(token string) error {
+	b.Lock()
+	defer b.Unlock()
+
+	expires, ok := b.locks[token]
+	if !ok || (!expires.IsZero() && expires.Before(time.Now())) {
+		return &teleport.NotFoundError{
+			Message: fmt.Sprintf(
+				"lock %v is deleted or expired", token),
+		}
+	}
+	delete(b.locks, token)
+	return nil
 }
 
 type kv struct {

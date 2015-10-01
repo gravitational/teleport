@@ -112,10 +112,12 @@ func getFilledConfig(args []string, commandIsFirst bool) service.Config {
 
 	cfg.Auth.Backend = authCmd.Flag("backend", "backend type, 'etcd' or 'bolt'").Default("etcd").String()
 	cfg.Auth.BackendConfig = authCmd.Flag("backend-config", "backend-specific configuration string").Required().String()
+	cfg.Auth.BackendAdditionalKey = authCmd.Flag("backend-add-key", "Additional backend seal key filename.").String()
 	cfg.Auth.EventBackend = authCmd.Flag("event-backend", "event backend type, currently only 'bolt'").Default("bolt").String()
 	cfg.Auth.EventBackendConfig = authCmd.Flag("event-backend-config", "event backend-specific configuration string").Required().String()
 	cfg.Auth.RecordBackend = authCmd.Flag("record-backend", "event backend type, currently only 'bolt'").Default("bolt").String()
 	cfg.Auth.RecordBackendConfig = authCmd.Flag("record-backend-config", "event backend-specific configuration string").Required().String()
+	cfg.Auth.Token = authCmd.Flag("token", "one time provisioning token for follower Auth node to register with authority").OverrideDefaultFromEnvar("TELEPORT_AUTH_TOKEN").String()
 
 	authCmd.Flag("http-addr", "auth HTTP API listening address").SetValue(
 		utils.NewNetAddrVal(

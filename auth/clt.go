@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/events"
 	"github.com/gravitational/teleport/recorder"
 	"github.com/gravitational/teleport/services"
@@ -574,6 +575,73 @@ func (c *Client) ResetHostCA() error {
 func (c *Client) ResetUserCA() error {
 	_, err := c.PostForm(c.Endpoint("ca", "user", "keys"), url.Values{})
 	return err
+}
+
+// GetBackendKeys returns IDs of all the backend encrypting keys that
+// this server has
+func (c *Client) GetSealKeys() ([]encryptor.Key, error) {
+	out, err := c.Get(c.Endpoint("backend", "keys"), url.Values{})
+	if err != nil {
+		return nil, err
+	}
+	var res sealKeysResponse
+	if err := json.Unmarshal(out.Bytes(), &res); err != nil {
+		return nil, err
+	}
+	return res.Keys, err
+}
+
+// GenerateBackendKey generates a new backend encrypting key with the
+// given id and then backend makes a copy of all the data using the
+// generated key for encryption
+func (c *Client) GenerateSealKey(keyName string) (encryptor.Key, error) {
+	out, err := c.PostForm(c.Endpoint("backend", "generatekey"), url.Values{
+		"name": []string{keyName}})
+	if err != nil {
+		return encryptor.Key{}, err
+	}
+
+	var res sealKeyResponse
+	if err := json.Unmarshal(out.Bytes(), &res); err != nil {
+		return encryptor.Key{}, err
+	}
+	return res.Key, err
+}
+
+// DeleteBackendKey deletes the backend encrypting key and all the data
+// encrypted with the key
+func (c *Client) DeleteSealKey(keyID string) error {
+	_, err := c.Delete(c.Endpoint("backend", "keys", keyID))
+	if err != nil {
+		return err
+	}
+	return err
+}
+
+// AddBackendKey adds the given encrypting key. If backend works not in
+// readonly mode, backend makes a copy of the data using the key for
+// encryption
+func (c *Client) AddSealKey(key encryptor.Key) error {
+	keyJSON, err := json.Marshal(key)
+	if err != nil {
+		return err
+	}
+	_, err = c.PostForm(c.Endpoint("backend", "keys"), url.Values{
+		"key": []string{string(keyJSON)}})
+	return err
+}
+
+// GetBackendKeys returns the backend encrypting key.
+func (c *Client) GetSealKey(keyID string) (encryptor.Key, error) {
+	out, err := c.Get(c.Endpoint("backend", "keys", keyID), url.Values{})
+	if err != nil {
+		return encryptor.Key{}, err
+	}
+	var key sealKeyResponse
+	if err := json.Unmarshal(out.Bytes(), &key); err != nil {
+		return encryptor.Key{}, err
+	}
+	return key.Key, nil
 }
 
 type chunkRW struct {

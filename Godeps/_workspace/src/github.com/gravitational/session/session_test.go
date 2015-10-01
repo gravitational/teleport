@@ -4,13 +4,14 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
+
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1" // note that we don't vendor libraries dependencies, only end daemons deps are vendored
 )
 
 func TestSession(t *testing.T) { TestingT(t) }
 
 type SessionSuite struct {
-	srv *secret.Service
+	srv secret.SecretService
 }
 
 var _ = Suite(&SessionSuite{})

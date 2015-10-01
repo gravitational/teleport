@@ -86,12 +86,90 @@ func (b *bk) UpsertVal(path []string, key string, val []byte, ttl time.Duration)
 	return convertErr(err)
 }
 
+func (b *bk) CompareAndSwap(path []string, key string, val []byte, ttl time.Duration, prevVal []byte) ([]byte, error) {
+	var err error
+	var resp *etcd.Response
+	if len(prevVal) != 0 {
+		resp, err = b.client.CompareAndSwap(
+			b.key(append(path, key)...),
+			string(val),
+			uint64(ttl/time.Second),
+			string(prevVal),
+			0,
+		)
+	} else {
+		resp, err = b.client.Create(
+			b.key(append(path, key)...),
+			string(val),
+			uint64(ttl/time.Second),
+		)
+	}
+
+	err = convertErr(err)
+
+	if err != nil && !teleport.IsNotFound(err) {
+		var e error
+		resp, e = b.client.Get(
+			b.key(append(path, key)...),
+			false, false,
+		)
+		if e != nil {
+			return nil, e
+		}
+	}
+
+	prevValStr := ""
+	if len(prevVal) > 0 {
+		prevValStr = string(prevVal)
+	}
+	if err != nil {
+		if teleport.IsCompareFailed(err) {
+			e := &teleport.CompareFailedError{
+				Message: "Expected '" + prevValStr + "', obtained '" + resp.Node.Value + "'",
+			}
+			return []byte(resp.Node.Value), e
+		}
+		if teleport.IsNotFound(err) {
+			e := &teleport.CompareFailedError{
+				Message: "Expected '" + prevValStr + "', obtained ''",
+			}
+			return []byte{}, e
+		}
+		if teleport.IsAlredyExists(err) {
+			e := &teleport.CompareFailedError{
+				Message: "Expected '', obtained '" + resp.Node.Value + "'",
+			}
+			return []byte(resp.Node.Value), e
+		}
+		return nil, convertErr(err)
+	}
+	if resp.PrevNode != nil {
+		return []byte(resp.PrevNode.Value), nil
+	} else {
+		return nil, nil
+	}
+}
+
 func (b *bk) GetVal(path []string, key string) ([]byte, error) {
 	re, err := b.client.Get(b.key(append(path, key)...), false, false)
 	if err != nil {
 		return nil, convertErr(err)
 	}
+	if re.Node.Dir {
+		return nil, &teleport.NotFoundError{Message: "Trying to get value of bucket"}
+	}
 	return []byte(re.Node.Value), nil
+}
+
+func (b *bk) GetValAndTTL(path []string, key string) ([]byte, time.Duration, error) {
+	re, err := b.client.Get(b.key(append(path, key)...), false, false)
+	if err != nil {
+		return nil, 0, convertErr(err)
+	}
+	if re.Node.Dir {
+		return nil, 0, &teleport.NotFoundError{Message: "Trying to get value of bucket"}
+	}
+	return []byte(re.Node.Value), time.Duration(re.Node.TTL) * time.Second, nil
 }
 
 func (b *bk) DeleteKey(path []string, key string) error {
@@ -100,7 +178,35 @@ func (b *bk) DeleteKey(path []string, key string) error {
 }
 
 func (b *bk) DeleteBucket(path []string, key string) error {
-	_, err := b.client.Delete(b.key(append(path, key)...), false)
+	_, err := b.client.Delete(b.key(append(path, key)...), true)
+	return convertErr(err)
+}
+
+func (b *bk) AcquireLock(token string, ttl time.Duration) error {
+	for {
+		_, e := b.client.Create(
+			b.key("locks", token), "lock", uint64(ttl/time.Second))
+		if e == nil {
+			return nil
+		}
+		switch err := e.(type) {
+		case *etcd.EtcdError:
+			switch err.ErrorCode {
+			case 100:
+				return &teleport.NotFoundError{Message: err.Error()}
+			case 105:
+				time.Sleep(100 * time.Millisecond)
+			default:
+				return e
+			}
+		default:
+			return e
+		}
+	}
+}
+
+func (b *bk) ReleaseLock(token string) error {
+	_, err := b.client.Delete(b.key("locks", token), false)
 	return convertErr(err)
 }
 
@@ -138,6 +244,8 @@ func convertErr(e error) error {
 			return &teleport.NotFoundError{Message: err.Error()}
 		case 105:
 			return &teleport.AlreadyExistsError{Message: err.Error()}
+		case 101:
+			return &teleport.CompareFailedError{Message: err.Error()}
 		}
 	}
 	return e

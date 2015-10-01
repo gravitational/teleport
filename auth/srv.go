@@ -10,6 +10,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/events"
 	"github.com/gravitational/teleport/recorder"
 	"github.com/gravitational/teleport/services"
@@ -111,7 +112,86 @@ func NewAPIServer(s *AuthServer, elog events.Log, se session.SessionServer, rec 
 	srv.GET("/v1/sessions/:id", srv.getSession)
 	srv.DELETE("/v1/sessions/:id", srv.deleteSession)
 
+	// Backend Keys
+	srv.GET("/v1/backend/keys", srv.getSealKeys)
+	srv.GET("/v1/backend/keys/:id", srv.getSealKey)
+	srv.DELETE("/v1/backend/keys/:id", srv.deleteSealKey)
+	srv.POST("/v1/backend/keys", srv.addSealKey)
+	srv.POST("/v1/backend/generatekey", srv.generateSealKey)
+
 	return srv
+}
+
+func (s *APIServer) getSealKeys(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	keys, err := s.s.GetSealKeys()
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	reply(w, http.StatusOK, sealKeysResponse{Keys: keys})
+}
+
+func (s *APIServer) getSealKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	id := p[0].Value
+	key, err := s.s.GetSealKey(id)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	reply(w, http.StatusOK, sealKeyResponse{Key: key})
+}
+
+func (s *APIServer) deleteSealKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	id := p[0].Value
+	err := s.s.DeleteSealKey(id)
+	if err != nil {
+		replyErr(w, err)
+		return
+	}
+	reply(w, http.StatusOK, message("Key "+id+" was deleted"))
+}
+
+func (s *APIServer) addSealKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	var keyJSON string
+	err := form.Parse(r,
+		form.String("keyJSON", &keyJSON, form.Required()),
+	)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	var key encryptor.Key
+	if err := json.Unmarshal([]byte(keyJSON), &key); err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	err = s.s.AddSealKey(key)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	reply(w, http.StatusOK, message("ok"))
+
+}
+
+func (s *APIServer) generateSealKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	var name string
+	err := form.Parse(r,
+		form.String("name", &name, form.Required()),
+	)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	key, err := s.s.GenerateSealKey(name)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	reply(w, http.StatusOK, sealKeyResponse{Key: key})
 }
 
 func (s *APIServer) upsertServer(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -849,6 +929,14 @@ type sessionsResponse struct {
 
 type sessionResponse struct {
 	Session session.Session `json:"session"`
+}
+
+type sealKeyResponse struct {
+	Key encryptor.Key
+}
+
+type sealKeysResponse struct {
+	Keys []encryptor.Key
 }
 
 func message(msg string) map[string]interface{} {

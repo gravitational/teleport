@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="64" height="64">
+	<circle cx="32" cy="32" r="25" stroke="red" stroke-width="7" fill="black" fill-opacity="0.2"/>
+	<rect x="28" y="7" width="8" height="50" fill="red" transform="rotate(45, 32, 32)"/>
+</svg>

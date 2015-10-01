@@ -77,6 +77,7 @@ func (cmd *Command) Run(args []string) error {
 	secret := app.Command("secret", "Operations with secret tokens")
 
 	secretNew := secret.Command("new", "Generate new secret key")
+	secretNewKeyFileName := secretNew.Flag("filename", "If filename is provided, the key will be saved to that file").Default("").String()
 
 	// Token
 	token := app.Command("token", "Generates provisioning tokens")
@@ -106,6 +107,24 @@ func (cmd *Command) Run(args []string) error {
 	userSetPass := user.Command("set-pass", "Set user password")
 	userSetPassUser := userSetPass.Flag("user", "User name").Required().String()
 	userSetPassPass := userSetPass.Flag("pass", "Password").Required().String()
+
+	// Backend keys
+	backendKey := app.Command("backend-keys", "Operation with backend encryption keys")
+
+	backendKeyLs := backendKey.Command("ls", "List all the keys that this servers has")
+
+	backendKeyGenerate := backendKey.Command("generate", "Generate a new encrypting key and make a copy of all the backend data using this key")
+	backendKeyGenerateName := backendKeyGenerate.Flag("name", "key name").Required().String()
+
+	backendKeyImport := backendKey.Command("import", "Import key from file")
+	backendKeyImportFile := backendKeyImport.Flag("file", "filename").Required().ExistingFile()
+
+	backendKeyExport := backendKey.Command("export", "Export key to file")
+	backendKeyExportFile := backendKeyExport.Flag("dir", "output directory").Required().ExistingFileOrDir()
+	backendKeyExportID := backendKeyExport.Flag("id", "key id").Required().String()
+
+	backendKeyDelete := backendKey.Command("delete", "Delete key from that server storage and delete all the data encrypted using this key from backend")
+	backendKeyDeleteID := backendKeyDelete.Flag("id", "key id").Required().String()
 
 	selectedCommand := kingpin.MustParse(app.Parse(args[1:]))
 
@@ -144,7 +163,7 @@ func (cmd *Command) Run(args []string) error {
 
 	// Secret
 	case secretNew.FullCommand():
-		cmd.NewKey()
+		cmd.NewKey(*secretNewKeyFileName)
 
 	// Token
 	case tokenGenerate.FullCommand():
@@ -163,6 +182,18 @@ func (cmd *Command) Run(args []string) error {
 		cmd.GetUserKeys(*userLsKeysUser)
 	case userSetPass.FullCommand():
 		cmd.SetPass(*userSetPassUser, *userSetPassPass)
+
+	//Backend keys
+	case backendKeyLs.FullCommand():
+		cmd.GetBackendKeys()
+	case backendKeyGenerate.FullCommand():
+		cmd.GenerateBackendKey(*backendKeyGenerateName)
+	case backendKeyImport.FullCommand():
+		cmd.ImportBackendKey(*backendKeyImportFile)
+	case backendKeyExport.FullCommand():
+		cmd.ExportBackendKey(*backendKeyExportFile, *backendKeyExportID)
+	case backendKeyDelete.FullCommand():
+		cmd.DeleteBackendKey(*backendKeyDeleteID)
 	}
 
 	return nil

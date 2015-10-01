@@ -6,14 +6,15 @@ import (
 	"io/ioutil"
 	"net/http/httptest"
 	"net/url"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/gravitational/teleport/auth"
 	authority "github.com/gravitational/teleport/auth/native"
-	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/boltbk"
+	"github.com/gravitational/teleport/backend/encryptedbk"
 	"github.com/gravitational/teleport/events/boltlog"
 	"github.com/gravitational/teleport/recorder"
 	"github.com/gravitational/teleport/recorder/boltrec"
@@ -37,9 +38,9 @@ type CmdSuite struct {
 	clt  *auth.Client
 	cmd  *Command
 	out  *bytes.Buffer
-	bk   backend.Backend
+	bk   *encryptedbk.ReplicatedBackend
 	bl   *boltlog.BoltLog
-	scrt *secret.Service
+	scrt secret.SecretService
 	rec  recorder.Recorder
 	addr utils.NetAddr
 	dir  string
@@ -66,8 +67,10 @@ func (s *CmdSuite) SetUpSuite(c *C) {
 
 func (s *CmdSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
-	var err error
-	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
+
+	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
+	c.Assert(err, IsNil)
+	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk, filepath.Join(s.dir, "keys"), nil)
 	c.Assert(err, IsNil)
 
 	s.bl, err = boltlog.New(filepath.Join(s.dir, "eventsdb"))
@@ -211,6 +214,60 @@ func (s *CmdSuite) TestRemoteCertCRUD(c *C) {
 
 	remoteCerts, err = s.CAS.GetRemoteCerts("user", "")
 	c.Assert(len(remoteCerts), Equals, 0)
+}
+
+func (s *CmdSuite) TestBackendKeys(c *C) {
+	// running TestRemoteCertCRUD while changing some keys
+
+	out := s.run("backend-keys", "generate", "--name", "key45")
+	c.Assert(out, Matches, fmt.Sprintf(".*was generated.*"))
+
+	keys, err := s.asrv.GetSealKeys()
+	c.Assert(err, IsNil)
+	c.Assert(len(keys), Equals, 2)
+
+	out = s.run("backend-keys", "ls")
+	for _, key := range keys {
+		c.Assert(out, Matches, fmt.Sprintf(".*%v.*", key.ID))
+		c.Assert(out, Matches, fmt.Sprintf(".*%v.*", key.Name))
+	}
+
+	s.run("backend-keys", "export", "--id", keys[0].ID, "--dir", s.dir)
+
+	c.Assert(s.asrv.ResetUserCA(""), IsNil)
+	_, pub, err := s.asrv.GenerateKeyPair("")
+	c.Assert(err, IsNil)
+	fkey, err := ioutil.TempFile("", "teleport")
+	c.Assert(err, IsNil)
+	defer fkey.Close()
+	fkey.Write(pub)
+	out = s.run("remote-ca", "upsert", "--id", "id1", "--type", "user", "--fqdn", "example.com", "--path", fkey.Name())
+	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "upserted"))
+
+	s.run("backend-keys", "delete", "--id", keys[0].ID)
+
+	return
+
+	var remoteCerts []services.RemoteCert
+	remoteCerts, err = s.CAS.GetRemoteCerts("user", "example.com")
+	c.Assert(err, IsNil)
+	c.Assert(trim(string(remoteCerts[0].Value)), Equals, trim(string(pub)))
+
+	s.run("backend-keys", "import", "--file", path.Join(s.dir, keys[0].ID+".bkey"))
+	s.run("backend-keys", "delete", "--id", keys[1].ID)
+	out = s.run("backend-keys", "ls")
+	c.Assert(out, DeepEquals, "This server has these keys: key45 ")
+	out = s.run("backend-keys", "ls")
+	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", keys[0].ID))
+	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", keys[0].Name))
+
+	out = s.run("remote-ca", "ls", "--type", "user")
+	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "example.com"))
+	out = s.run("remote-ca", "rm", "--type", "user", "--fqdn", "example.com", "--id", "id1")
+	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "deleted"))
+	remoteCerts, err = s.CAS.GetRemoteCerts("user", "")
+	c.Assert(len(remoteCerts), Equals, 0)
+
 }
 
 func trim(val string) string {

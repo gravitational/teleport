@@ -66,9 +66,11 @@ type ServerConfig struct {
 	// attempts.
 	AuthLogCallback func(conn ConnMetadata, method string, err error)
 
-	// ServerVersion is the version identification string to
-	// announce in the public handshake.
+	// ServerVersion is the version identification string to announce in
+	// the public handshake.
 	// If empty, a reasonable default is used.
+	// Note that RFC 4253 section 4.2 requires that this string start with
+	// "SSH-2.0-".
 	ServerVersion string
 }
 
@@ -168,6 +170,10 @@ func (s *connection) serverHandshake(config *ServerConfig) (*Permissions, error)
 		return nil, errors.New("ssh: server has no host keys")
 	}
 
+	if !config.NoClientAuth && config.PasswordCallback == nil && config.PublicKeyCallback == nil && config.KeyboardInteractiveCallback == nil {
+		return nil, errors.New("ssh: no authentication methods configured but NoClientAuth is also false")
+	}
+
 	if config.ServerVersion != "" {
 		s.serverVersion = []byte(config.ServerVersion)
 	} else {
@@ -191,6 +197,9 @@ func (s *connection) serverHandshake(config *ServerConfig) (*Permissions, error)
 	} else if packet[0] != msgNewKeys {
 		return nil, unexpectedMessageError(msgNewKeys, packet[0])
 	}
+
+	// We just did the key change, so the session ID is established.
+	s.sessionID = s.transport.getSessionID()
 
 	var packet []byte
 	if packet, err = s.transport.readPacket(); err != nil {

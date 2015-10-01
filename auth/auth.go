@@ -13,7 +13,7 @@ import (
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
-	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/backend/encryptedbk"
 	"github.com/gravitational/teleport/services"
 )
 
@@ -37,7 +37,7 @@ type Session struct {
 	WS  services.WebSession
 }
 
-func NewAuthServer(bk backend.Backend, a Authority, scrt *secret.Service) *AuthServer {
+func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority, scrt secret.SecretService) *AuthServer {
 	as := AuthServer{}
 
 	as.bk = bk
@@ -50,6 +50,7 @@ func NewAuthServer(bk backend.Backend, a Authority, scrt *secret.Service) *AuthS
 	as.ProvisioningService = services.NewProvisioningService(as.bk)
 	as.UserService = services.NewUserService(as.bk)
 	as.WebService = services.NewWebService(as.bk)
+	as.BkKeysService = services.NewBkKeysService(as.bk)
 
 	return &as
 }
@@ -57,9 +58,9 @@ func NewAuthServer(bk backend.Backend, a Authority, scrt *secret.Service) *AuthS
 // AuthServer implements key signing, generation and ACL functionality
 // used by teleport
 type AuthServer struct {
-	bk backend.Backend
+	bk *encryptedbk.ReplicatedBackend
 	Authority
-	scrt *secret.Service
+	scrt secret.SecretService
 
 	*services.CAService
 	*services.LockService
@@ -67,6 +68,7 @@ type AuthServer struct {
 	*services.ProvisioningService
 	*services.UserService
 	*services.WebService
+	*services.BkKeysService
 }
 
 // UpsertUserKey takes user's public key, generates certificate for it

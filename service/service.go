@@ -2,12 +2,15 @@ package service
 
 import (
 	"fmt"
+	"path"
 	"time"
 
 	"github.com/gravitational/teleport/auth"
 	authority "github.com/gravitational/teleport/auth/native"
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/boltbk"
+	"github.com/gravitational/teleport/backend/encryptedbk"
+	"github.com/gravitational/teleport/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/backend/etcdbk"
 	"github.com/gravitational/teleport/cp"
 	"github.com/gravitational/teleport/events"
@@ -76,7 +79,7 @@ func initAuth(t *TeleportService, cfg Config) error {
 		return fmt.Errorf("please provide auth domain, e.g. example.com")
 	}
 
-	b, err := initBackend(*cfg.Auth.Backend, *cfg.Auth.BackendConfig)
+	b, err := initBackend(cfg)
 	if err != nil {
 		return err
 	}
@@ -298,14 +301,57 @@ func initTunAgent(t *TeleportService, cfg Config) error {
 	return nil
 }
 
-func initBackend(btype, bcfg string) (backend.Backend, error) {
-	switch btype {
+func initBackend(cfg Config) (*encryptedbk.ReplicatedBackend, error) {
+	var bk backend.Backend
+	var err error
+
+	switch *cfg.Auth.Backend {
 	case "etcd":
-		return etcdbk.FromString(bcfg)
+		bk, err = etcdbk.FromString(*cfg.Auth.BackendConfig)
 	case "bolt":
-		return boltbk.FromString(bcfg)
+		bk, err = boltbk.FromString(*cfg.Auth.BackendConfig)
+	default:
+		return nil, fmt.Errorf("unsupported backend type: %v",
+			*cfg.Auth.Backend)
 	}
-	return nil, fmt.Errorf("unsupported backend type: %v", btype)
+	if err != nil {
+		log.Errorf(err.Error())
+		return nil, err
+	}
+
+	keyStorage := path.Join(*cfg.DataDir, "backend_keys")
+	addKeys := []encryptor.Key{}
+	if len(*cfg.Auth.BackendAdditionalKey) != 0 {
+		addKey, err := encryptedbk.LoadKeyFromFile(*cfg.Auth.BackendAdditionalKey)
+		if err != nil {
+			return nil, err
+		}
+		addKeys = append(addKeys, addKey)
+	}
+
+	encryptedBk, err := encryptedbk.NewReplicatedBackend(bk,
+		keyStorage, addKeys)
+
+	if err != nil {
+		log.Errorf(err.Error())
+		log.Infof("Initializing backend as follower node")
+		myKey, err := encryptor.GenerateGPGKey(*cfg.FQDN + " key")
+		if err != nil {
+			return nil, err
+		}
+		masterKey, err := auth.RegisterNewAuth(*cfg.FQDN, *cfg.Auth.Token,
+			myKey.Public(), cfg.AuthServers)
+		if err != nil {
+			return nil, err
+		}
+		log.Infof(" ", myKey, masterKey)
+		encryptedBk, err = encryptedbk.NewReplicatedBackend(bk,
+			keyStorage, []encryptor.Key{myKey, masterKey})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return encryptedBk, nil
 }
 
 func initEventBackend(btype, bcfg string) (events.Log, error) {
@@ -369,14 +415,17 @@ type AuthConfig struct {
 	SSHAddr  utils.NetAddr
 	Domain   *string
 
-	Backend       *string
-	BackendConfig *string
+	Backend              *string
+	BackendConfig        *string
+	BackendAdditionalKey *string
 
 	EventBackend       *string
 	EventBackendConfig *string
 
 	RecordBackend       *string
 	RecordBackendConfig *string
+
+	Token *string
 }
 
 type SSHConfig struct {
