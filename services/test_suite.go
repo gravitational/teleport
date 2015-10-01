@@ -223,17 +223,49 @@ func (s *ServicesTestSuite) WebTunCRUD(c *C) {
 }
 
 func (s *ServicesTestSuite) Locking(c *C) {
-	tok := randomToken()
-	ttl := 30 * time.Second
+	tok1 := "token1"
+	tok2 := "token2"
 
-	c.Assert(s.LockS.AcquireLock(tok, ttl), IsNil)
-	c.Assert(s.LockS.AcquireLock(tok, ttl),
-		FitsTypeOf, &teleport.AlreadyAcquiredError{})
+	c.Assert(s.LockS.ReleaseLock(tok1), FitsTypeOf, &teleport.NotFoundError{})
 
-	c.Assert(s.LockS.ReleaseLock(tok), IsNil)
-	c.Assert(s.LockS.ReleaseLock(tok), FitsTypeOf, &teleport.NotFoundError{})
+	c.Assert(s.LockS.AcquireLock(tok1, 30*time.Second), IsNil)
+	x := 7
+	go func() {
+		time.Sleep(1 * time.Second)
+		x = 9
+		c.Assert(s.LockS.ReleaseLock(tok1), IsNil)
+	}()
+	c.Assert(s.LockS.AcquireLock(tok1, 0), IsNil)
+	x = x * 2
+	c.Assert(x, Equals, 18)
+	c.Assert(s.LockS.ReleaseLock(tok1), IsNil)
 
-	c.Assert(s.LockS.AcquireLock(tok, 30*time.Second), IsNil)
+	c.Assert(s.LockS.AcquireLock(tok1, 0), IsNil)
+	x = 7
+	go func() {
+		time.Sleep(1 * time.Second)
+		x = 9
+		c.Assert(s.LockS.ReleaseLock(tok1), IsNil)
+	}()
+	c.Assert(s.LockS.AcquireLock(tok1, 0), IsNil)
+	x = x * 2
+	c.Assert(x, Equals, 18)
+	c.Assert(s.LockS.ReleaseLock(tok1), IsNil)
+
+	y := 0
+	go func() {
+		c.Assert(s.LockS.AcquireLock(tok1, 0), IsNil)
+		c.Assert(s.LockS.AcquireLock(tok2, 0), IsNil)
+
+		c.Assert(s.LockS.ReleaseLock(tok1), IsNil)
+		c.Assert(s.LockS.ReleaseLock(tok2), IsNil)
+		y = 15
+	}()
+
+	time.Sleep(1 * time.Second)
+	c.Assert(y, Equals, 15)
+
+	c.Assert(s.LockS.ReleaseLock(tok1), FitsTypeOf, &teleport.NotFoundError{})
 }
 
 func (s *ServicesTestSuite) TokenCRUD(c *C) {

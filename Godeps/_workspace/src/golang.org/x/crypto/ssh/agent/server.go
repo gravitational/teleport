@@ -167,7 +167,7 @@ func (s *server) insertIdentity(req []byte) error {
 		}
 		priv.Precompute()
 
-		return s.agent.Add(&priv, nil, k.Comments)
+		return s.agent.Add(AddedKey{PrivateKey: &priv, Comment: k.Comments})
 	}
 	return fmt.Errorf("not implemented: %s", record.Type)
 }

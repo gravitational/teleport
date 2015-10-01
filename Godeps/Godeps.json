@@ -128,23 +128,39 @@
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/bcrypt",
-			"Rev": "4ed45ec682102c643324fae5dff8dab085b6c300"
+			"Rev": "0c93e1ff9f91f0c63bf17b123de503d023434fdd"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/blowfish",
-			"Rev": "4ed45ec682102c643324fae5dff8dab085b6c300"
+			"Rev": "0c93e1ff9f91f0c63bf17b123de503d023434fdd"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/cast5",
+			"Rev": "0c93e1ff9f91f0c63bf17b123de503d023434fdd"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/curve25519",
+			"Rev": "0c93e1ff9f91f0c63bf17b123de503d023434fdd"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/openpgp",
+			"Rev": "0c93e1ff9f91f0c63bf17b123de503d023434fdd"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/poly1305",
-			"Rev": "4ed45ec682102c643324fae5dff8dab085b6c300"
+			"Rev": "0c93e1ff9f91f0c63bf17b123de503d023434fdd"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/ripemd160",
+			"Rev": "0c93e1ff9f91f0c63bf17b123de503d023434fdd"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/salsa20/salsa",
-			"Rev": "4ed45ec682102c643324fae5dff8dab085b6c300"
+			"Rev": "0c93e1ff9f91f0c63bf17b123de503d023434fdd"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/ssh",
-			"Rev": "4ed45ec682102c643324fae5dff8dab085b6c300"
+			"Rev": "0c93e1ff9f91f0c63bf17b123de503d023434fdd"
 		},
 		{
 			"ImportPath": "golang.org/x/net/websocket",
@@ -158,11 +174,6 @@
 		{
 			"ImportPath": "gopkg.in/check.v1",
 			"Rev": "64131543e7896d5bcc6bd5a76287eb75ea96c673"
-		},
-		{
-			"ImportPath": "gopkg.in/mgo.v2/bson",
-			"Comment": "r2015.06.03-4-gf4923a5",
-			"Rev": "f4923a569136442e900b8cf5c1a706c0a8b0883c"
 		}
 	]
 }

@@ -3,11 +3,14 @@ package main
 import (
 	"fmt"
 	"os"
+	"path"
 
 	"github.com/gravitational/teleport/auth"
 	authority "github.com/gravitational/teleport/auth/native"
 	"github.com/gravitational/teleport/backend"
 	"github.com/gravitational/teleport/backend/boltbk"
+	"github.com/gravitational/teleport/backend/encryptedbk"
+	"github.com/gravitational/teleport/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/backend/etcdbk"
 	"github.com/gravitational/teleport/service"
 	"github.com/gravitational/teleport/telescope/telescope/srv"
@@ -38,8 +41,9 @@ type Config struct {
 	TLSKeyFile  *string
 	TLSCertFile *string
 
-	Backend       *string
-	BackendConfig *string
+	Backend              *string
+	BackendConfig        *string
+	BackendAdditionalKey *string
 }
 
 func main() {
@@ -89,6 +93,7 @@ func main() {
 	cfg.CPAssetsDir = app.Flag("cp-assets-dir", "Control panel assets directory").Default(".").String()
 	cfg.Backend = app.Flag("backend", "Auth backend type, currently only 'etcd'").Default("etcd").String()
 	cfg.BackendConfig = app.Flag("backend-config", "Auth backend-specific configuration string").String()
+	cfg.BackendAdditionalKey = app.Flag("backend-add-key", "Additional backend seal key filename.").String()
 	cfg.TLSKeyFile = app.Flag("tls-key", "TLS private key filename").String()
 	cfg.TLSCertFile = app.Flag("tls-cert", "TLS Certificate filename").String()
 
@@ -126,7 +131,8 @@ func NewService(cfg Config) (*Service, error) {
 		return nil, fmt.Errorf("please supply data directory")
 	}
 
-	b, err := initBackend(*cfg.Backend, *cfg.BackendConfig)
+	b, err := initBackend(*cfg.Backend, *cfg.BackendConfig,
+		*cfg.DataDir, *cfg.BackendAdditionalKey)
 	if err != nil {
 		log.Errorf("failed to initialize backend: %v", err)
 		return nil, err
@@ -157,7 +163,8 @@ type Service struct {
 }
 
 func (s *Service) addStart() error {
-	tsrv, err := tun.NewServer(s.cfg.TunAddr, []ssh.Signer{s.hs})
+	tsrv, err := tun.NewServer(s.cfg.TunAddr, []ssh.Signer{s.hs},
+		auth.NewBackendAccessPoint(s.b))
 	if err != nil {
 		log.Errorf("failed to start server: %v", err)
 		return err
@@ -241,12 +248,38 @@ func (s *Service) addStart() error {
 	return nil
 }
 
-func initBackend(btype, bcfg string) (backend.Backend, error) {
+func initBackend(btype, bcfg, dataDir string,
+	additionalKey string) (*encryptedbk.ReplicatedBackend, error) {
+	var bk backend.Backend
+	var err error
+
 	switch btype {
 	case "etcd":
-		return etcdbk.FromString(bcfg)
+		bk, err = etcdbk.FromString(bcfg)
 	case "bolt":
-		return boltbk.FromString(bcfg)
+		bk, err = boltbk.FromString(bcfg)
+	default:
+		return nil, fmt.Errorf("unsupported backend type: %v", btype)
 	}
-	return nil, fmt.Errorf("unsupported backend type: %v", btype)
+	if err != nil {
+		log.Errorf(err.Error())
+		return nil, err
+	}
+
+	keyStorage := path.Join(dataDir, "tscope_backend_keys")
+	addKeys := []encryptor.Key{}
+	if len(additionalKey) != 0 {
+		addKey, err := encryptedbk.LoadKeyFromFile(additionalKey)
+		if err != nil {
+			return nil, err
+		}
+		addKeys = append(addKeys, addKey)
+	}
+	encryptedBk, err := encryptedbk.NewReplicatedBackend(bk,
+		keyStorage, addKeys)
+	if err != nil {
+		log.Errorf(err.Error())
+		return nil, err
+	}
+	return encryptedBk, nil
 }

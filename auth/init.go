@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/backend/encryptedbk"
 	"github.com/gravitational/teleport/services"
 	"github.com/gravitational/teleport/sshutils"
 	"github.com/gravitational/teleport/utils"
@@ -18,7 +18,7 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
 
-func Init(b backend.Backend, a Authority,
+func Init(b *encryptedbk.ReplicatedBackend, a Authority,
 	fqdn, authDomain, dataDir string) (*AuthServer, ssh.Signer, error) {
 
 	if authDomain == "" {

@@ -21,7 +21,7 @@ func TestServer(t *testing.T) {
 
 	go ServeAgent(NewKeyring(), c2)
 
-	testAgentInterface(t, client, testPrivateKeys["rsa"], nil)
+	testAgentInterface(t, client, testPrivateKeys["rsa"], nil, 0)
 }
 
 func TestLockServer(t *testing.T) {
@@ -72,6 +72,6 @@ func TestSetupForwardAgent(t *testing.T) {
 	go ssh.DiscardRequests(reqs)
 
 	agentClient := NewClient(ch)
-	testAgentInterface(t, agentClient, testPrivateKeys["rsa"], nil)
+	testAgentInterface(t, agentClient, testPrivateKeys["rsa"], nil, 0)
 	conn.Close()
 }

@@ -45,6 +45,11 @@ func (n *AlreadyExistsError) Error() string {
 	}
 }
 
+func IsAlredyExists(e error) bool {
+	_, ok := e.(*AlreadyExistsError)
+	return ok
+}
+
 type MissingParameterError struct {
 	Param string
 }
@@ -60,4 +65,35 @@ type BadParameterError struct {
 
 func (m *BadParameterError) Error() string {
 	return fmt.Sprintf("bad parameter '%v', %v", m.Param, m.Err)
+}
+
+type CompareFailedError struct {
+	Message string
+}
+
+func (e *CompareFailedError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	} else {
+		return "Compare failed"
+	}
+
+}
+
+func IsCompareFailed(e error) bool {
+	_, ok := e.(*CompareFailedError)
+	return ok
+}
+
+type ReadonlyError struct {
+	Message string
+}
+
+func (e *ReadonlyError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	} else {
+		return "Object works in readonly and can't modify data"
+	}
+
 }

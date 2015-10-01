@@ -8,6 +8,7 @@ install: remove-temp-files
 	go install github.com/gravitational/teleport/teleport
 	go install github.com/gravitational/teleport/tctl
 	go install github.com/gravitational/teleport/telescope/telescope
+	go install github.com/gravitational/teleport/telescope/telescope/tscopectl
 
 install-assets:
 	go get github.com/jteeuwen/go-bindata/go-bindata
@@ -53,47 +54,49 @@ run-auth: install
              --log=console\
              --log-severity=INFO\
              --data-dir=/tmp\
-             --fqdn=auth.gravitational.io\
+             --fqdn=auth.vendor.io\
 	   auth\
              --backend=bolt\
              --backend-config='{"path": "/tmp/teleport.auth.db"}'\
 	     --event-backend-config='{"path": "/tmp/teleport.event.db"}'\
 	     --record-backend-config='{"path": "/tmp/teleport.records.db"}'\
-             --domain=gravitational.io\
+             --domain=vendor.io\
 	     --ssh-addr=tcp://0.0.0.0:33000
 
+
+
 run-ssh: install
-	tctl token generate --output=/tmp/token --fqdn=node1.gravitational.io
+	tctl token generate --output=/tmp/token --fqdn=node1.vendor.io
 	teleport\
              --log=console\
              --log-severity=INFO\
              --data-dir=/tmp\
-             --fqdn=node1.gravitational.io\
-             --auth-server=tcp://0.0.0.0:33000\
+             --fqdn=node1.vendor.io\
+             --auth-server=tcp://auth.vendor.io:33000\
 	   ssh\
              --token=/tmp/token\
 
-run-cp: install #install-assets
+run-cp: install
 	teleport\
              --log=console\
              --log-severity=INFO\
              --data-dir=/tmp\
-             --fqdn=node2.gravitational.io\
-             --auth-server=tcp://127.0.0.1:33000\
+             --fqdn=cp.vendor.io\
+             --auth-server=tcp://auth.vendor.io:33000\
 	   cp\
-             --domain=gravitational.io
+             --domain=vendor.io
 
 run-tun: install
-	tctl token generate --output=/tmp/token --fqdn=node1.gravitational.io
+	tctl token generate --output=/tmp/token --fqdn=tun.vendor.io
 	teleport\
              --log=console\
              --log-severity=INFO\
              --data-dir=/var/lib/teleport\
-             --fqdn=node1.gravitational.io\
-             --auth-server=tcp://auth.gravitational.io:33000\
+             --fqdn=auth.vendor.io\
+             --auth-server=tcp://auth.vendor.io:33000\
 	   tun\
              --tun-token=/tmp/token\
-             --tun-srv-addr=tcp://lens.gravitational.io:34000\
+             --tun-srv-addr=tcp://telescope.vendor.io:34000\
 
 
 
@@ -101,23 +104,23 @@ run-embedded: install
 	rm -f /tmp/teleport.auth.sock
 	teleport\
              --log=console\
-             --log-severity=WARN\
+             --log-severity=INFO\
              --data-dir=/var/lib/teleport\
-             --fqdn=auth.gravitational.io\
+             --fqdn=auth.vendor.io\
 	   auth\
              --backend=bolt\
              --backend-config='{"path": "/var/lib/teleport/teleport.auth.db"}'\
-             --domain=gravitational.io\
+             --domain=vendor.io\
 	     --event-backend=bolt\
              --event-backend-config='{"path": "/var/lib/teleport/teleport.event.db"}'\
 	     --record-backend=bolt\
              --record-backend-config='{"path": "/var/lib/teleport/records"}'\
            ssh\
 	   tun\
-             --srv-addr=tcp://lens.vendor.io:34000\
+             --srv-addr=tcp://telescope.vendor.io:34000\
 	   cp\
              --assets-dir=$(GOPATH)/src/github.com/gravitational/teleport\
-             --domain=gravitational.io
+             --domain=vendor.io
 
 
 run-simple: install
@@ -127,12 +130,12 @@ run-simple: install
              --log=console\
              --log-severity=INFO\
              --data-dir=/var/lib/teleport\
-             --fqdn=auth.gravitational.io\
-             --auth-server=tcp://127.0.0.1:33000\
+             --fqdn=auth.vendor.io\
+             --auth-server=tcp://0.0.0.0:33000\
 	   auth\
              --backend=bolt\
              --backend-config='{"path": "/var/lib/teleport/teleport.auth.db"}'\
-             --domain=gravitational.io\
+             --domain=vendor.io\
 	     --event-backend=bolt\
              --event-backend-config='{"path": "/var/lib/teleport/teleport.event.db"}'\
 	     --record-backend=bolt\
@@ -140,20 +143,44 @@ run-simple: install
           ssh\
 	  cp\
              --assets-dir=$(GOPATH)/src/github.com/gravitational/teleport\
-             --domain=gravitational.io
+             --domain=vendor.io
 
 run-ssh2: install
-	tctl token generate --output=/tmp/token --fqdn=node3.gravitational.io
+	tctl token generate --output=/tmp/token --fqdn=node3.vendor.io
 	teleport\
              --log=console\
              --log-severity=INFO\
              --data-dir=/tmp\
-             --fqdn=node3.gravitational.io\
+             --fqdn=node3.vendor.io\
              --auth-server=tcp://0.0.0.0:33000\
 	   ssh\
-             --addr=tcp://localhost:34001\
+             --addr=tcp://node3.vendor.io:34001\
              --token=/tmp/token\
 
+run-telescope: install
+	rm -f /tmp/telescope.auth.sock
+	telescope --log=console\
+         --log-severity=INFO\
+         --data-dir=/var/lib/teleport/telescope\
+         --assets-dir=$(GOPATH)/src/github.com/gravitational/teleport/telescope\
+         --cp-assets-dir=$(GOPATH)/src/github.com/gravitational/teleport\
+         --fqdn=telescope.vendor.io\
+         --domain=vendor.io\
+         --tun-addr=tcp://0.0.0.0:34000\
+         --web-addr=tcp://0.0.0.0:35000\
+         --backend=bolt\
+         --backend-config='{"path": "/var/lib/teleport/telescope.db"}'
+
+trust-telescope: 
+	tscopectl user-ca pub-key > /tmp/user.pubkey
+	tscopectl host-ca pub-key > /tmp/host.pubkey
+	tctl remote-ca upsert --type=user --id=user.telescope.vendor.io --fqdn=telescope.vendor.io --path=/tmp/user.pubkey
+	tctl remote-ca upsert --type=host --id=host.telescope.vendor.io --fqdn=telescope.vendor.io --path=/tmp/host.pubkey
+	tctl remote-ca ls --type=user
+	tctl remote-ca ls --type=host
+	tctl host-ca pub-key > /tmp/tscope-host.pubkey
+	tscopectl remote-ca upsert --type=host --id=host.auth.vendor.io --fqdn=auth.vendor.io --path=/tmp/tscope-host.pubkey
+	tscopectl remote-ca ls --type=host
 
 profile:
 	go tool pprof http://localhost:6060/debug/pprof/profile
