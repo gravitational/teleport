@@ -13,13 +13,32 @@ import (
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/boltdb/bolt"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 )
 
 func New(path string) (*boltRecorder, error) {
-	return &boltRecorder{
+	br := boltRecorder{
 		path: path,
 		dbs:  make(map[string]*boltRW),
-	}, nil
+	}
+
+	// test if the path is exists
+	testRef, err := br.getRef("testRecord")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = testRef.WriteChunks([]recorder.Chunk{recorder.Chunk{
+		Data: []byte{1, 2, 3},
+	}})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := br.decRef(testRef.rw); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &br, nil
 }
 
 type boltRecorder struct {

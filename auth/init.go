@@ -28,7 +28,7 @@ func Init(b *encryptedbk.ReplicatedBackend, a Authority,
 		return nil, nil, fmt.Errorf("path can not be empty")
 	}
 
-	err := os.MkdirAll(dataDir, os.ModeDir|0755)
+	err := os.MkdirAll(dataDir, os.ModeDir|0777)
 	if err != nil {
 		log.Errorf(err.Error())
 		return nil, nil, err
