@@ -13,7 +13,7 @@ import (
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
-	"github.com/gravitational/teleport/backend/encryptedbk"
+	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/services"
 )
 

@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/backend/encryptedbk/encryptor"
-	"github.com/gravitational/teleport/events"
-	"github.com/gravitational/teleport/recorder"
+	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/services"
-	"github.com/gravitational/teleport/session"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"

@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/events"
-	"github.com/gravitational/teleport/recorder"
-	rsession "github.com/gravitational/teleport/session"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/recorder"
+	rsession "github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/code.google.com/p/go-uuid/uuid"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"

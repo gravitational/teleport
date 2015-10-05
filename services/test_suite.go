@@ -6,7 +6,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/random"
-	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/lib/backend"
 
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )

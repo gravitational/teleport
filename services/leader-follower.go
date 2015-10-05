@@ -3,7 +3,7 @@ package services
 import (
 	"time"
 
-	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 type LeaderElectionService struct {

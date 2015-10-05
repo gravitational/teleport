@@ -9,7 +9,7 @@ import (
 
 	"github.com/gravitational/teleport/auth"
 	"github.com/gravitational/teleport/services"
-	"github.com/gravitational/teleport/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"

@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/auth"
-	"github.com/gravitational/teleport/events"
-	"github.com/gravitational/teleport/recorder"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/services"
-	rsession "github.com/gravitational/teleport/session"
-	"github.com/gravitational/teleport/sshutils"
-	"github.com/gravitational/teleport/sshutils/scp"
+	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/code.google.com/p/go-uuid/uuid"

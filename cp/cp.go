@@ -14,9 +14,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/code.google.com/p/go-uuid/uuid"
-	"github.com/gravitational/teleport/events"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/services"
-	"github.com/gravitational/teleport/sshutils/scp"
+	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"

@@ -10,10 +10,10 @@ import (
 
 	"github.com/gravitational/teleport/auth"
 	authority "github.com/gravitational/teleport/auth/native"
-	"github.com/gravitational/teleport/backend/boltbk"
-	"github.com/gravitational/teleport/backend/encryptedbk"
+	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/services"
-	"github.com/gravitational/teleport/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"

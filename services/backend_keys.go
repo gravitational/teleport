@@ -1,7 +1,7 @@
 package services
 
 import (
-	"github.com/gravitational/teleport/backend/encryptedbk"
+	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 )
 
 type BkKeysService struct {

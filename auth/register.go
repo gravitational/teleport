@@ -8,7 +8,7 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/gravitational/teleport/backend/encryptedbk/encryptor"
+	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"

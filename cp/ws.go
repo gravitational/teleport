@@ -3,7 +3,7 @@ package cp
 import (
 	"net/http"
 
-	"github.com/gravitational/teleport/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"

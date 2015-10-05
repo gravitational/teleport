@@ -4,9 +4,9 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/gravitational/teleport/events"
-	"github.com/gravitational/teleport/recorder"
-	"github.com/gravitational/teleport/session"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/recorder"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"

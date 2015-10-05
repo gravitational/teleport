@@ -6,7 +6,7 @@ import (
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
-	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 const (

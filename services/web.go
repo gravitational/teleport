@@ -11,7 +11,7 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/bcrypt"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/backend"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 type WebService struct {
