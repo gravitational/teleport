@@ -12,9 +12,9 @@ import (
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
-	"github.com/gravitational/teleport/auth"
-	authority "github.com/gravitational/teleport/auth/native"
-	"github.com/gravitational/teleport/utils"
+	"github.com/gravitational/teleport/lib/auth"
+	authority "github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/utils"
 
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 
@@ -23,7 +23,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/boltlog"
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
-	"github.com/gravitational/teleport/services"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/tool/tctl/command"
 )

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/buger/goterm"
-	"github.com/gravitational/teleport/services"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func (cmd *Command) SetPass(user, pass string) {

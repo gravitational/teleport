@@ -1,8 +1,8 @@
 package command
 
 import (
-	"github.com/gravitational/teleport/auth"
-	"github.com/gravitational/teleport/utils"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/alecthomas/kingpin.v2"
 	"github.com/gravitational/teleport/tool/tctl/command"
