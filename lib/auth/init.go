@@ -14,62 +14,116 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
 
-func Init(b *encryptedbk.ReplicatedBackend, a Authority,
-	fqdn, authDomain, dataDir string) (*AuthServer, ssh.Signer, error) {
+type InitConfig struct {
+	Backend                *encryptedbk.ReplicatedBackend
+	Authority              Authority
+	FQDN                   string
+	AuthDomain             string
+	DataDir                string
+	SecretKey              string
+	AllowedTokens          map[string]string
+	TrustedUserAuthorities map[string]string
+}
 
-	if authDomain == "" {
+func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
+
+	if cfg.AuthDomain == "" {
 		return nil, nil, fmt.Errorf("node name can not be empty")
 	}
-	if dataDir == "" {
+	if cfg.DataDir == "" {
 		return nil, nil, fmt.Errorf("path can not be empty")
 	}
 
-	err := os.MkdirAll(dataDir, os.ModeDir|0777)
+	err := os.MkdirAll(cfg.DataDir, os.ModeDir|0777)
 	if err != nil {
 		log.Errorf(err.Error())
 		return nil, nil, err
 	}
 
-	lockService := services.NewLockService(b)
-	err = lockService.AcquireLock(authDomain, 60*time.Second)
+	lockService := services.NewLockService(cfg.Backend)
+	err = lockService.AcquireLock(cfg.AuthDomain, 60*time.Second)
 	if err != nil {
 		return nil, nil, err
 	}
-	defer lockService.ReleaseLock(authDomain)
+	defer lockService.ReleaseLock(cfg.AuthDomain)
 
-	scrt, err := InitSecret(dataDir)
+	scrt, err := InitSecret(cfg.DataDir, cfg.SecretKey)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// check that user CA and host CA are present and set the certs if needed
-	asrv := NewAuthServer(b, a, scrt)
+	asrv := NewAuthServer(cfg.Backend, cfg.Authority, scrt)
+
+	// we determine if it's the first start by checking if the CA's are set
+	var firstStart bool
 
 	if _, e := asrv.GetHostCAPub(); e != nil {
-		log.Infof("Host CA error: %v", e)
+
 		if _, ok := e.(*teleport.NotFoundError); ok {
-			log.Infof("Reseting host CA")
+			log.Infof("FIRST START: Generating host CA on first start")
+			firstStart = true
 			if err := asrv.ResetHostCA(""); err != nil {
 				return nil, nil, err
 			}
+		} else {
+			log.Errorf("Host CA error: %v", e)
+			return nil, nil, trace.Wrap(err)
 		}
 	}
 
 	if _, e := asrv.GetUserCAPub(); e != nil {
-		log.Infof("User CA error: %v", e)
+
 		if _, ok := e.(*teleport.NotFoundError); ok {
-			log.Infof("Reseting host CA")
+			log.Infof("FIRST START: Generating user CA")
+			firstStart = true
 			if err := asrv.ResetUserCA(""); err != nil {
-				return nil, nil, err
+				return nil, nil, trace.Wrap(err)
+			}
+		} else {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
+	if firstStart {
+		if len(cfg.AllowedTokens) != 0 {
+			log.Infof("FIRST START: Setting allowed provisioning tokens")
+			for fqdn, token := range cfg.AllowedTokens {
+				log.Infof("FIRST START: upsert provisioning token: fqdn: %v", fqdn)
+				pid, err := session.DecodeSID(session.SecureID(token), scrt)
+				if err != nil {
+					return nil, nil, trace.Wrap(err)
+				}
+				if err := asrv.UpsertToken(string(pid), fqdn, 600*time.Second); err != nil {
+					return nil, nil, trace.Wrap(err)
+				}
+			}
+		}
+
+		if len(cfg.TrustedUserAuthorities) != 0 {
+			log.Infof("FIRST START: Setting trusted user certificate authorities")
+			for fqdn, certBytes := range cfg.AllowedTokens {
+				cert := services.RemoteCert{
+					Type:  services.UserCert,
+					ID:    fqdn, // should be hash with bytes probably instead of id
+					FQDN:  fqdn,
+					Value: []byte(certBytes),
+				}
+				log.Infof("FIRST START: upsert user cert: fqdn: %v", fqdn)
+				if err := asrv.UpsertRemoteCert(cert, 0); err != nil {
+					return nil, nil, trace.Wrap(err)
+				}
 			}
 		}
 	}
 
-	signer, err := InitKeys(asrv, fqdn, dataDir)
+	signer, err := InitKeys(asrv, cfg.FQDN, cfg.DataDir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -164,7 +218,7 @@ func HaveKeys(fqdn, dataDir string) (bool, error) {
 	return true, nil
 }
 
-func InitSecret(dataDir string) (secret.SecretService, error) {
+func InitSecret(dataDir, secretKey string) (secret.SecretService, error) {
 	keyPath := secretKeyPath(dataDir)
 	exists, err := pathExists(keyPath)
 	if err != nil {
@@ -172,12 +226,19 @@ func InitSecret(dataDir string) (secret.SecretService, error) {
 	}
 	if !exists {
 		log.Infof("Secret not found. Writing to %v", keyPath)
-		k, err := secret.NewKey()
-		if err != nil {
-			return nil, err
+		if secretKey == "" {
+			log.Infof("Secret key is not supplied, generating")
+			k, err := secret.NewKey()
+			if err != nil {
+				return nil, err
+			}
+			secretKey = secret.KeyToEncodedString(k)
+		} else {
+			log.Infof("Using secret key provided with configuration")
 		}
+
 		err = ioutil.WriteFile(
-			keyPath, []byte(secret.KeyToEncodedString(k)), 0600)
+			keyPath, []byte(secretKey), 0600)
 		if err != nil {
 			return nil, err
 		}

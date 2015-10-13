@@ -1,0 +1,238 @@
+{
+    "version": "0.0.1",
+    "labels": [
+        {"name": "os", "value": "linux"}
+    ],
+    "commands": [
+        {"name": "start", "args": ["rootfs/usr/bin/teleport", "--env"]}
+    ],
+    "config": {
+        "params": [
+            {
+                "type": "String",
+                "name": "log",
+                "env": "TELEPORT_LOG_OUTPUT"
+            },
+            {
+                "type": "String",
+                "name": "logSeverity",
+                "env": "TELEPORT_LOG_SEVERITY",
+                "cli": {"name": "log-severity"}
+            },
+            {
+                "type": "String",
+                "name": "dataDir",
+                "required": true,
+                "env": "TELEPORT_DATA_DIR",
+                "cli": {"name": "data-dir"}
+            },
+            {
+                "type": "List",
+                "name": "authServers",
+                "spec": {
+                    "type": "String",                    
+                    "name": "authServer",
+                    "env": "TELEPORT_AUTH_SERVERS",
+                    "cli": {"name": "auth-server"}
+                }
+            },
+            {
+                "type": "String",
+                "name": "fqdn",
+                "required": true,
+                "env": "TELEPORT_FQDN"
+            },
+            {
+                "type": "Bool",
+                "name": "authEnabled",
+                "env": "TELEPORT_AUTH_ENABLED",
+                "cli": {"name": "auth-enabled"}
+            },
+            {
+                "type": "String",
+                "name": "authHTTPAddr",
+                "env": "TELEPORT_AUTH_HTTP_ADDR",
+                "cli": {"name": "auth-http-addr"}
+            },
+            {
+                "type": "String",
+                "name": "authSSHAddr",
+                "env": "TELEPORT_AUTH_SSH_ADDR",
+                "cli": {"name": "auth-ssh-addr"}
+            },
+            {
+                "type": "String",
+                "name": "authDomain",
+                "env": "TELEPORT_AUTH_DOMAIN",
+                "cli": {"name": "auth-domain"}
+            },
+            {
+                "type": "String",
+                "name": "authToken",
+                "env": "TELEPORT_AUTH_TOKEN",
+                "cli": {"name": "auth-token"}
+            },
+            {
+                "type": "String",
+                "name": "authSecretKey",
+                "env": "TELEPORT_AUTH_SECRET_KEY",
+                "cli": {"name": "auth-secret-key"}
+            },
+            {
+                "type": "List",
+                "name": "authAllowedTokens",
+                "spec": {
+                    "name": "authAllowedToken",
+                    "env": "TELEPORT_AUTH_ALLOWED_TOKENS",
+                    "type": "KeyVal",
+                    "cli": {"name": "auth-allowed-token"},
+                    "spec": {
+                        "keys": [
+                            {"name": "key", "type":"String"},
+                            {"name": "val", "type":"String"}
+                        ]
+                    }
+                }
+            },
+            {
+                "type": "List",
+                "name": "authTrustedUserAuthorities",
+                "spec": {
+                    "name": "authTrustedUserAuthority",
+                    "env": "TELEPORT_AUTH_TRUSTED_USER_AUTHORITIES",
+                    "type": "KeyVal",
+                    "cli": {"name": "auth-trusted-user-authority"},
+                    "spec": {
+                        "keys": [
+                            {"name": "key", "type":"String"},
+                            {"name": "val", "type":"String"}
+                        ]
+                    }
+                }
+            },
+            {
+                "type": "Enum",
+                "name": "authKeysBackendType",
+                "env": "TELEPORT_AUTH_KEYS_BACKEND_TYPE",
+                "cli": {"name": "auth-keys-backend-type"},                
+                "spec": {
+                    "values": ["bolt", "etcd"]
+                }
+            },
+            {
+                "type": "List",
+                "name": "authKeysBackendParams",
+                "spec": {
+                    "name": "authKeysBackendParam",
+                    "env": "TELEPORT_AUTH_KEYS_BACKEND_PARAMS",
+                    "type": "KeyVal",
+                    "cli": {"name": "auth-keys-backend-param"},
+                    "spec": {
+                        "keys": [
+                            {"name": "key", "type":"String"},
+                            {"name": "val", "type":"String"}
+                        ]
+                    }
+                }
+            },
+            {
+                "type": "String",
+                "name": "authKeysBackendAdditionalToken",
+                "env": "TELEPORT_AUTH_KEYS_BACKEND_ADDITIONAL_TOKEN",
+                "cli": {"name": "auth-keys-backend-additional-token"}
+            },            
+            {
+                "type": "Enum",
+                "name": "authEventsBackendType",
+                "env": "TELEPORT_AUTH_EVENTS_BACKEND_TYPE",
+                "cli": {"name": "auth-events-backend-type"},
+                "spec": {
+                    "values": ["bolt"]
+                }
+            },
+            {
+                "type": "List",
+                "name": "authEventsBackendParams",
+                "spec": {
+                    "name": "authEventsBackendParam",
+                    "env": "TELEPORT_AUTH_EVENTS_BACKEND_PARAMS",
+                    "type": "KeyVal",
+                    "cli": {"name": "auth-events-backend-param"},
+                    "spec": {
+                        "keys": [
+                            {"name": "key", "type":"String"},
+                            {"name": "val", "type":"String"}
+                        ]
+                    }
+                }
+            },
+            {
+                "type": "Enum",
+                "name": "authRecordsBackendType",
+                "env": "TELEPORT_AUTH_RECORDS_BACKEND_TYPE",
+                "cli": {"name": "auth-records-backend-type"},                
+                "spec": {
+                    "values": ["bolt"]
+                }
+            },
+            {
+                "type": "List",
+                "name": "authRecordsBackendParams",
+                "spec": {
+                    "name": "authRecordsBackendParam",
+                    "env": "TELEPORT_AUTH_RECORDS_BACKEND_PARAMS",
+                    "type": "KeyVal",
+                    "cli": {"name": "auth-records-backend-param"},
+                    "spec": {
+                        "keys": [
+                            {"name": "key", "type":"String"},
+                            {"name": "val", "type":"String"}
+                        ]
+                    }
+                }
+            },
+            {
+                "type": "Bool",
+                "name": "sshEnabled",
+                "env": "TELEPORT_SSH_ENABLED",
+                "cli": {"name": "ssh-enabled"}
+            },
+            {
+                "type": "String",
+                "name": "sshToken",
+                "env": "TELEPORT_SSH_TOKEN",
+                "cli": {"name": "ssh-token"}
+            },
+            {
+                "type": "String",
+                "name": "sshAddr",
+                "env": "TELEPORT_SSH_ADDR",
+                "cli": {"name": "ssh-addr"}
+            },
+            {
+                "type": "String",
+                "name": "sshShell",
+                "env": "TELEPORT_SSH_SHELL",
+                "cli": {"name": "ssh-shell"}
+            },
+            {
+                "type": "Bool",
+                "name": "tunEnabled",
+                "env": "TELEPORT_TUN_ENABLED",
+                "cli": {"name": "tun-enabled"}
+            },
+            {
+                "type": "String",
+                "name": "tunToken",
+                "env": "TELEPORT_TUN_TOKEN",
+                "cli": {"name": "tun-token"}
+            },
+            {
+                "type": "String",
+                "name": "tunServerAddr",
+                "env": "TELEPORT_TUN_SERVER_ADDR",
+                "cli": {"name": "tun-server-addr"}
+            }
+        ]
+    }
+}

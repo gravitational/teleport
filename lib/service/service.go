@@ -1,7 +1,6 @@
 package service
 
 import (
-	"fmt"
 	"path"
 	"time"
 
@@ -12,7 +11,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
-	"github.com/gravitational/teleport/lib/cp"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/boltlog"
 	"github.com/gravitational/teleport/lib/recorder"
@@ -24,7 +22,8 @@ import (
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/oxy/trace"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	oxytrace "github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/oxy/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
 
@@ -36,8 +35,16 @@ func NewTeleport(cfg Config) (*TeleportService, error) {
 	if err := validateConfig(cfg); err != nil {
 		return nil, err
 	}
+	setDefaults(&cfg)
 
-	if err := initLogging(*cfg.Log, *cfg.LogSeverity); err != nil {
+	// if user started auth and something else and did not
+	// provide auth address for that something,
+	// the address of the created auth will be used
+	if cfg.Auth.Enabled && len(cfg.AuthServers) == 0 {
+		cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
+	}
+
+	if err := initLogging(cfg.Log.Output, cfg.Log.Severity); err != nil {
 		return nil, err
 	}
 
@@ -46,12 +53,6 @@ func NewTeleport(cfg Config) (*TeleportService, error) {
 
 	if cfg.Auth.Enabled {
 		if err := initAuth(t, cfg); err != nil {
-			return nil, err
-		}
-	}
-
-	if cfg.CP.Enabled {
-		if err := initCP(t, cfg); err != nil {
 			return nil, err
 		}
 	}
@@ -72,11 +73,11 @@ func NewTeleport(cfg Config) (*TeleportService, error) {
 }
 
 func initAuth(t *TeleportService, cfg Config) error {
-	if *cfg.DataDir == "" {
-		return fmt.Errorf("please supply data directory")
+	if cfg.DataDir == "" {
+		return trace.Errorf("please supply data directory")
 	}
-	if *cfg.Auth.Domain == "" {
-		return fmt.Errorf("please provide auth domain, e.g. example.com")
+	if cfg.Auth.Domain == "" {
+		return trace.Errorf("please provide auth domain, e.g. example.com")
 	}
 
 	b, err := initBackend(cfg)
@@ -85,19 +86,26 @@ func initAuth(t *TeleportService, cfg Config) error {
 	}
 
 	elog, err := initEventBackend(
-		*cfg.Auth.EventBackend, *cfg.Auth.EventBackendConfig)
+		cfg.Auth.EventsBackend.Type, cfg.Auth.EventsBackend.Params)
 	if err != nil {
 		return err
 	}
 
 	rec, err := initRecordBackend(
-		*cfg.Auth.RecordBackend, *cfg.Auth.RecordBackendConfig)
+		cfg.Auth.RecordsBackend.Type, cfg.Auth.RecordsBackend.Params)
 	if err != nil {
 		return err
 	}
-
-	asrv, signer, err := auth.Init(
-		b, authority.New(), *cfg.FQDN, *cfg.Auth.Domain, *cfg.DataDir)
+	asrv, signer, err := auth.Init(auth.InitConfig{
+		Backend:                b,
+		Authority:              authority.New(),
+		FQDN:                   cfg.FQDN,
+		AuthDomain:             cfg.Auth.Domain,
+		DataDir:                cfg.DataDir,
+		SecretKey:              cfg.Auth.SecretKey,
+		AllowedTokens:          cfg.Auth.AllowedTokens,
+		TrustedUserAuthorities: cfg.Auth.TrustedUserAuthorities,
+	})
 	if err != nil {
 		log.Errorf("failed to init auth server: %v", err)
 		return err
@@ -106,7 +114,7 @@ func initAuth(t *TeleportService, cfg Config) error {
 	// register HTTP API endpoint
 	t.RegisterFunc(func() error {
 		apisrv := auth.NewAPIServer(asrv, elog, session.New(b), rec)
-		t, err := trace.New(apisrv, log.GetLogger().Writer(log.SeverityInfo))
+		t, err := oxytrace.New(apisrv, log.GetLogger().Writer(log.SeverityInfo))
 		if err != nil {
 			log.Fatalf("failed to start: %v", err)
 		}
@@ -134,38 +142,14 @@ func initAuth(t *TeleportService, cfg Config) error {
 	return nil
 }
 
-func initCP(t *TeleportService, cfg Config) error {
-	if len(cfg.AuthServers) == 0 {
-		return fmt.Errorf("supply at least one auth server")
-	}
-	if len(*cfg.CP.Domain) == 0 {
-		return fmt.Errorf("cp hostname is required")
-	}
-	csrv, err := cp.NewServer(cp.Config{
-		AuthSrv:   cfg.AuthServers,
-		Host:      *cfg.CP.Domain,
-		AssetsDir: *cfg.CP.AssetsDir,
-	})
-	if err != nil {
-		log.Errorf("failed to start CP server: %v", err)
-		return err
-	}
-	log.Infof("teleport control panel starting on %v", cfg.CP.Addr)
-
-	t.RegisterFunc(func() error {
-		return utils.StartHTTPServer(cfg.CP.Addr, csrv)
-	})
-	return nil
-}
-
 func initSSH(t *TeleportService, cfg Config) error {
-	if *cfg.DataDir == "" {
-		return fmt.Errorf("please supply data directory")
+	if cfg.DataDir == "" {
+		return trace.Errorf("please supply data directory")
 	}
 	if len(cfg.AuthServers) == 0 {
-		return fmt.Errorf("supply at least one auth server")
+		return trace.Errorf("supply at least one auth server")
 	}
-	haveKeys, err := auth.HaveKeys(*cfg.FQDN, *cfg.DataDir)
+	haveKeys, err := auth.HaveKeys(cfg.FQDN, cfg.DataDir)
 	if err != nil {
 		return err
 	}
@@ -173,17 +157,17 @@ func initSSH(t *TeleportService, cfg Config) error {
 		// this means the server has not been initialized yet we are starting
 		// the registering client that attempts to connect ot the auth server
 		// and provision the keys
-		return initRegister(t, *cfg.SSH.Token, cfg, initSSHEndpoint)
+		return initRegister(t, cfg.SSH.Token, cfg, initSSHEndpoint)
 	}
 	return initSSHEndpoint(t, cfg)
 }
 
 func initSSHEndpoint(t *TeleportService, cfg Config) error {
-	signer, err := auth.ReadKeys(*cfg.FQDN, *cfg.DataDir)
+	signer, err := auth.ReadKeys(cfg.FQDN, cfg.DataDir)
 
 	client, err := auth.NewTunClient(
 		cfg.AuthServers[0],
-		*cfg.FQDN,
+		cfg.FQDN,
 		[]ssh.AuthMethod{ssh.PublicKeys(signer)})
 
 	elog := &FanOutEventLogger{
@@ -195,7 +179,7 @@ func initSSHEndpoint(t *TeleportService, cfg Config) error {
 	s, err := srv.New(cfg.SSH.Addr,
 		[]ssh.Signer{signer},
 		client,
-		srv.SetShell(*cfg.SSH.Shell),
+		srv.SetShell(cfg.SSH.Shell),
 		srv.SetEventLogger(elog),
 		srv.SetSessionServer(client),
 		srv.SetRecorder(client))
@@ -226,16 +210,16 @@ func initRegister(t *TeleportService, token string, cfg Config,
 			log.Errorf("failed to instantiate client: %v", err)
 			return err
 		}
-		token, err = clt.GenerateToken(*cfg.FQDN, 30*time.Second)
+		token, err = clt.GenerateToken(cfg.FQDN, 30*time.Second)
 		if err != nil {
 			log.Errorf("failed to generate token: %v", err)
 		}
 		return err
 	}
 	t.RegisterFunc(func() error {
-		log.Infof("teleport:register connecting to auth servers %v", *cfg.SSH.Token)
+		log.Infof("teleport:register connecting to auth servers %v", cfg.SSH.Token)
 		if err := auth.Register(
-			*cfg.FQDN, *cfg.DataDir, token, cfg.AuthServers); err != nil {
+			cfg.FQDN, cfg.DataDir, token, cfg.AuthServers); err != nil {
 			log.Errorf("teleport:ssh register failed: %v", err)
 			return err
 		}
@@ -246,13 +230,13 @@ func initRegister(t *TeleportService, token string, cfg Config,
 }
 
 func initTun(t *TeleportService, cfg Config) error {
-	if *cfg.DataDir == "" {
-		return fmt.Errorf("please supply data directory")
+	if cfg.DataDir == "" {
+		return trace.Errorf("please supply data directory")
 	}
 	if len(cfg.AuthServers) == 0 {
-		return fmt.Errorf("supply at least one auth server")
+		return trace.Errorf("supply at least one auth server")
 	}
-	haveKeys, err := auth.HaveKeys(*cfg.FQDN, *cfg.DataDir)
+	haveKeys, err := auth.HaveKeys(cfg.FQDN, cfg.DataDir)
 	if err != nil {
 		return err
 	}
@@ -260,17 +244,17 @@ func initTun(t *TeleportService, cfg Config) error {
 		// this means the server has not been initialized yet we are starting
 		// the registering client that attempts to connect ot the auth server
 		// and provision the keys
-		return initRegister(t, *cfg.Tun.Token, cfg, initTunAgent)
+		return initRegister(t, cfg.Tun.Token, cfg, initTunAgent)
 	}
 	return initTunAgent(t, cfg)
 }
 
 func initTunAgent(t *TeleportService, cfg Config) error {
-	signer, err := auth.ReadKeys(*cfg.FQDN, *cfg.DataDir)
+	signer, err := auth.ReadKeys(cfg.FQDN, cfg.DataDir)
 
 	client, err := auth.NewTunClient(
 		cfg.AuthServers[0],
-		*cfg.FQDN,
+		cfg.FQDN,
 		[]ssh.AuthMethod{ssh.PublicKeys(signer)})
 
 	elog := &FanOutEventLogger{
@@ -280,8 +264,8 @@ func initTunAgent(t *TeleportService, cfg Config) error {
 		}}
 
 	a, err := tun.NewAgent(
-		cfg.Tun.SrvAddr,
-		*cfg.FQDN,
+		cfg.Tun.ServerAddr,
+		cfg.FQDN,
 		[]ssh.Signer{signer},
 		client,
 		tun.SetEventLogger(elog))
@@ -305,24 +289,23 @@ func initBackend(cfg Config) (*encryptedbk.ReplicatedBackend, error) {
 	var bk backend.Backend
 	var err error
 
-	switch *cfg.Auth.Backend {
+	switch cfg.Auth.KeysBackend.Type {
 	case "etcd":
-		bk, err = etcdbk.FromString(*cfg.Auth.BackendConfig)
+		bk, err = etcdbk.FromObject(cfg.Auth.KeysBackend.Params)
 	case "bolt":
-		bk, err = boltbk.FromString(*cfg.Auth.BackendConfig)
+		bk, err = boltbk.FromObject(cfg.Auth.KeysBackend.Params)
 	default:
-		return nil, fmt.Errorf("unsupported backend type: %v",
-			*cfg.Auth.Backend)
+		return nil, trace.Errorf("unsupported backend type: %v", cfg.Auth.KeysBackend.Type)
 	}
 	if err != nil {
 		log.Errorf(err.Error())
 		return nil, err
 	}
 
-	keyStorage := path.Join(*cfg.DataDir, "backend_keys")
+	keyStorage := path.Join(cfg.DataDir, "backend_keys")
 	addKeys := []encryptor.Key{}
-	if len(*cfg.Auth.BackendAdditionalKey) != 0 {
-		addKey, err := encryptedbk.LoadKeyFromFile(*cfg.Auth.BackendAdditionalKey)
+	if len(cfg.Auth.KeysBackend.AdditionalKey) != 0 {
+		addKey, err := encryptedbk.LoadKeyFromFile(cfg.Auth.KeysBackend.AdditionalKey)
 		if err != nil {
 			return nil, err
 		}
@@ -335,11 +318,11 @@ func initBackend(cfg Config) (*encryptedbk.ReplicatedBackend, error) {
 	if err != nil {
 		log.Errorf(err.Error())
 		log.Infof("Initializing backend as follower node")
-		myKey, err := encryptor.GenerateGPGKey(*cfg.FQDN + " key")
+		myKey, err := encryptor.GenerateGPGKey(cfg.FQDN + " key")
 		if err != nil {
 			return nil, err
 		}
-		masterKey, err := auth.RegisterNewAuth(*cfg.FQDN, *cfg.Auth.Token,
+		masterKey, err := auth.RegisterNewAuth(cfg.FQDN, cfg.Auth.Token,
 			myKey.Public(), cfg.AuthServers)
 		if err != nil {
 			return nil, err
@@ -354,20 +337,20 @@ func initBackend(cfg Config) (*encryptedbk.ReplicatedBackend, error) {
 	return encryptedBk, nil
 }
 
-func initEventBackend(btype, bcfg string) (events.Log, error) {
+func initEventBackend(btype string, params interface{}) (events.Log, error) {
 	switch btype {
 	case "bolt":
-		return boltlog.FromString(bcfg)
+		return boltlog.FromObject(params)
 	}
-	return nil, fmt.Errorf("unsupported backend type: %v", btype)
+	return nil, trace.Errorf("unsupported backend type: %v", btype)
 }
 
-func initRecordBackend(btype, bcfg string) (recorder.Recorder, error) {
+func initRecordBackend(btype string, params interface{}) (recorder.Recorder, error) {
 	switch btype {
 	case "bolt":
-		return boltrec.FromString(bcfg)
+		return boltrec.FromObject(params)
 	}
-	return nil, fmt.Errorf("unsupported backend type: %v", btype)
+	return nil, trace.Errorf("unsupported backend type: %v", btype)
 }
 
 func initLogging(ltype, severity string) error {
@@ -375,8 +358,8 @@ func initLogging(ltype, severity string) error {
 }
 
 func validateConfig(cfg Config) error {
-	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.CP.Enabled && !cfg.Tun.Enabled {
-		return fmt.Errorf("supply at least one of Auth, SSH, CP or Tun roles")
+	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.Tun.Enabled {
+		return trace.Errorf("supply at least one of Auth, SSH or Tun roles")
 	}
 	return nil
 }
@@ -389,61 +372,4 @@ func (f *FanOutEventLogger) Log(id lunk.EventID, e lunk.Event) {
 	for _, l := range f.Loggers {
 		l.Log(id, e)
 	}
-}
-
-type Config struct {
-	HostCertPath string
-	HostKeyPath  string
-
-	Log         *string
-	LogSeverity *string
-
-	DataDir *string
-	FQDN    *string
-
-	AuthServers []utils.NetAddr
-
-	SSH  SSHConfig
-	Auth AuthConfig
-	CP   CPConfig
-	Tun  TunConfig
-}
-
-type AuthConfig struct {
-	Enabled  bool
-	HTTPAddr utils.NetAddr
-	SSHAddr  utils.NetAddr
-	Domain   *string
-
-	Backend              *string
-	BackendConfig        *string
-	BackendAdditionalKey *string
-
-	EventBackend       *string
-	EventBackendConfig *string
-
-	RecordBackend       *string
-	RecordBackendConfig *string
-
-	Token *string
-}
-
-type SSHConfig struct {
-	Token   *string
-	Enabled bool
-	Addr    utils.NetAddr
-	Shell   *string
-}
-
-type CPConfig struct {
-	Enabled   bool
-	Addr      utils.NetAddr
-	Domain    *string
-	AssetsDir *string
-}
-
-type TunConfig struct {
-	Token   *string
-	Enabled bool
-	SrvAddr utils.NetAddr
 }

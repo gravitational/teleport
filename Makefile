@@ -4,18 +4,15 @@ ETCD_FLAGS := TELEPORT_TEST_ETCD_NODES=${ETCD_NODES}
 
 .PHONY: install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd install-assets docs-serve
 
-install: remove-temp-files
+install: teleport telescope
+
+teleport: remove-temp-files
 	go install github.com/gravitational/teleport/tool/teleport
 	go install github.com/gravitational/teleport/tool/tctl
+
+telescope: remove-temp-files
 	go install github.com/gravitational/teleport/tool/telescope/telescope
 	go install github.com/gravitational/teleport/tool/tscopectl
-
-install-assets:
-	go get github.com/jteeuwen/go-bindata/go-bindata
-	go install github.com/gravitational/teleport/Godeps/_workspace/src/github.com/elazarl/go-bindata-assetfs/go-bindata-assetfs
-	go-bindata-assetfs -pkg="cp" ./assets/...
-	mv bindata_assetfs.go ./cp
-	sed -i 's|github.com/elazarl/go-bindata-assetfs|github.com/gravitational/teleport/Godeps/_workspace/src/github.com/elazarl/go-bindata-assetfs|' ./cp/bindata_assetfs.go
 
 test: install
 	go test -v -test.parallel=0 ./... -cover
@@ -48,114 +45,32 @@ cover-package-with-etcd: remove-temp-files
 	${ETCD_FLAGS} go test -v ./$(p)  -coverprofile=/tmp/coverage.out
 	go tool cover -html=/tmp/coverage.out
 
-run-auth: install
-	rm -f /tmp/teleport.auth.sock
-	teleport\
-             --log=console\
-             --log-severity=INFO\
-             --data-dir=/tmp\
-             --fqdn=auth.vendor.io\
-	   auth\
-             --backend=bolt\
-             --backend-config='{"path": "/tmp/teleport.auth.db"}'\
-	     --event-backend-config='{"path": "/tmp/teleport.event.db"}'\
-	     --record-backend-config='{"path": "/tmp/teleport.records.db"}'\
-             --domain=vendor.io\
-	     --ssh-addr=tcp://0.0.0.0:33000
+pack-teleport: DIR := $(shell mktemp -d)
+pack-teleport: pkg teleport
+	cp assets/build/teleport/orbit.manifest.json $(DIR)
+	mkdir -p $(DIR)/rootfs/usr/bin
+	cp $(GOPATH)/bin/teleport $(DIR)/rootfs/usr/bin
+	cp $(GOPATH)/bin/tctl $(DIR)/rootfs/usr/bin
+	orbit pack $(DIR) $(PKG)
+	rm -rf $(DIR)
 
+pack-telescope: DIR := $(shell mktemp -d)
+pack-telescope: pkg telescope
+	cp assets/build/telescope/orbit.manifest.json $(DIR)
+	mkdir -p $(DIR)/rootfs/usr/bin $(DIR)/rootfs/etc/web-assets/
+	cp $(GOPATH)/bin/telescope $(DIR)/rootfs/usr/bin
+	cp $(GOPATH)/bin/tscopectl $(DIR)/rootfs/usr/bin
+	cp -r ./assets/web/* $(DIR)/rootfs/etc/web-assets/
+	orbit pack $(DIR) $(PKG)
+	rm -rf $(DIR)
 
-
-run-ssh: install
-	tctl token generate --output=/tmp/token --fqdn=node1.vendor.io
-	teleport\
-             --log=console\
-             --log-severity=INFO\
-             --data-dir=/tmp\
-             --fqdn=node1.vendor.io\
-             --auth-server=tcp://auth.vendor.io:33000\
-	   ssh\
-             --token=/tmp/token\
-
-run-cp: install
-	teleport\
-             --log=console\
-             --log-severity=INFO\
-             --data-dir=/tmp\
-             --fqdn=cp.vendor.io\
-             --auth-server=tcp://auth.vendor.io:33000\
-	   cp\
-             --domain=vendor.io
-
-run-tun: install
-	tctl token generate --output=/tmp/token --fqdn=tun.vendor.io
-	teleport\
-             --log=console\
-             --log-severity=INFO\
-             --data-dir=/var/lib/teleport\
-             --fqdn=auth.vendor.io\
-             --auth-server=tcp://auth.vendor.io:33000\
-	   tun\
-             --tun-token=/tmp/token\
-             --tun-srv-addr=tcp://telescope.vendor.io:34000\
-
-
+pkg:
+	@if [ "$$PKG" = "" ] ; then echo "ERROR: enter PKG parameter:\n\nmake publish PKG=<name>:<sem-ver>, e.g. teleport:0.0.1\n\n" && exit 255; fi
 
 run-embedded: install
 	rm -f /tmp/teleport.auth.sock
-	teleport\
-             --log=console\
-             --log-severity=INFO\
-             --data-dir=/var/lib/teleport\
-             --fqdn=auth.vendor.io\
-	   auth\
-             --backend=bolt\
-             --backend-config='{"path": "/var/lib/teleport/teleport.auth.db"}'\
-             --domain=vendor.io\
-	     --event-backend=bolt\
-             --event-backend-config='{"path": "/var/lib/teleport/teleport.event.db"}'\
-	     --record-backend=bolt\
-             --record-backend-config='{"path": "/var/lib/teleport/records"}'\
-           ssh\
-	   tun\
-             --srv-addr=tcp://telescope.vendor.io:34000\
-	   cp\
-             --assets-dir=$(GOPATH)/src/github.com/gravitational/teleport\
-             --domain=vendor.io
+	teleport --config=examples/embedded.yaml
 
-
-run-simple: install
-	rm -f /tmp/teleport.auth.sock
-	mkdir -p /var/lib/teleport/records
-	teleport\
-             --log=console\
-             --log-severity=INFO\
-             --data-dir=/var/lib/teleport\
-             --fqdn=auth.vendor.io\
-             --auth-server=tcp://0.0.0.0:33000\
-	   auth\
-             --backend=bolt\
-             --backend-config='{"path": "/var/lib/teleport/teleport.auth.db"}'\
-             --domain=vendor.io\
-	     --event-backend=bolt\
-             --event-backend-config='{"path": "/var/lib/teleport/teleport.event.db"}'\
-	     --record-backend=bolt\
-             --record-backend-config='{"path": "/var/lib/teleport/records"}'\
-          ssh\
-	  cp\
-             --assets-dir=$(GOPATH)/src/github.com/gravitational/teleport\
-             --domain=vendor.io
-
-run-ssh2: install
-	tctl token generate --output=/tmp/token --fqdn=node3.vendor.io
-	teleport\
-             --log=console\
-             --log-severity=INFO\
-             --data-dir=/tmp\
-             --fqdn=node3.vendor.io\
-             --auth-server=tcp://0.0.0.0:33000\
-	   ssh\
-             --addr=tcp://node3.vendor.io:34001\
-             --token=/tmp/token\
 
 run-telescope: install
 	rm -f /tmp/telescope.auth.sock

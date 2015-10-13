@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/native"
@@ -13,99 +14,99 @@ import (
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/tool/telescope/telescope/srv"
 	"github.com/gravitational/teleport/lib/tun"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/telescope/telescope/srv"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/alecthomas/kingpin.v2"
 )
 
 type Config struct {
-	Log         *string
-	LogSeverity *string
+	Log service.LogConfig `yaml:"log"`
 
-	TunAddr      utils.NetAddr
-	WebAddr      utils.NetAddr
-	AuthHTTPAddr utils.NetAddr
-	AuthSSHAddr  utils.NetAddr
+	// DataDir is address where telescope stores it's state
+	// like user databases, etcd state and so on
+	DataDir string `yaml:"data_dir" env:"TELESCOPE_DATA_DIR"`
 
-	DataDir *string
+	// FQDN is fully qualified domain name for telescope server
+	FQDN string `yaml:"fqdn" env:"TELESCOPE_FQDN"`
 
-	FQDN        *string
-	Domain      *string
-	AssetsDir   *string
-	CPAssetsDir *string
+	// TunAddr is address where telescope exposes listening socket for it's
+	// bi-directional reverse tunnel (when teleports connect to it)
+	TunAddr utils.NetAddr `yaml:"tun_addr" env:"TELESCOPE_TUN_ADDR"`
+	// WebAddr is address for web portal of telescope
+	WebAddr utils.NetAddr `yaml:"web_addr" env:"TELESCOPE_WEB_ADDR"`
 
-	TLSKeyFile  *string
-	TLSCertFile *string
+	// AuthHTTPAddr is address for telescope's auth server to expose it's HTTP API
+	AuthHTTPAddr utils.NetAddr `yaml:"auth_http_addr" env:"TELESCOPE_AUTH_HTTP_ADDR"`
+	// AuthSSHAddr is addresss for telescope to expose it's HTTP API over SSH tunnel
+	AuthSSHAddr utils.NetAddr `yaml:"auth_ssh_addr" env:"TELESCOPE_AUTH_SSH_ADDR"`
 
-	Backend              *string
-	BackendConfig        *string
-	BackendAdditionalKey *string
+	// Domain is domain name for telescope SSH authority
+	Domain string `yaml:"domain" env:"TELESCOPE_DOMAIN"`
+	// AssetsDir is a directory with telescope's website assets
+	AssetsDir string `yaml:"assets_dir" env:"TELESCOPE_ASSETS_DIR"`
+	// CPAssetsDir is a directory with teleport's website assets that
+	// are used by telescope
+	CPAssetsDir string `yaml:"cp_assets_dir" env:"TELESCOPE_CP_ASSETS_DIR"`
+
+	// TLSKey is a base64 encoded private key used by web portal
+	TLSKey string `yaml:"tls_key" env:"TELESCOPE_TLS_KEY"`
+	// TLSCert is a base64 encoded certificate used by web portal
+	TLSCert string `yaml:"tlscert" env:"TELESCOPE_TLS_CERT"`
+
+	// KeysBackend configures backend that stores encryption keys
+	KeysBackend struct {
+		// Type is a backend type - etcd or boltdb
+		Type string `yaml:"type" env:"TELESCOPE_KEYS_BACKEND_TYPE"`
+		// Params is map with backend specific parameters
+		Params service.KeyVal `yaml:"params,flow" env:"TELESCOPE_KEYS_BACKEND_PARAMS"`
+		// AdditionalKey is a additional signing GPG key
+		AdditionalKey string `yaml:"additional_key" env:"TELESCOPE_KEYS_BACKEND_ADDITIONAL_KEY"`
+	} `yaml:"keys_backend"`
 }
 
 func main() {
-	cfg := Config{}
+	log.Initialize("console", "INFO")
+	if err := run(); err != nil {
+		log.Errorf("telescope error: %v", err)
+		os.Exit(1)
+	}
+	log.Infof("telescope completed successfully")
+}
 
-	app := kingpin.New("telescope", "Telescope is a service that receives inbound connections from remote teleport clusters and provides access to them")
+func run() error {
+	app := kingpin.New("telescope",
+		"Telescope eceives connections from remote teleport clusters and provides access to them")
 
-	cfg.Log = app.Flag("log", "Log output, currently 'console' or 'syslog'").Default("console").String()
-	cfg.LogSeverity = app.Flag("log-severity", "Log severity, INFO or WARN or ERROR").Default("WARN").String()
-	cfg.FQDN = app.Flag("fqdn", "Telescope host FQDN").String()
-	cfg.Domain = app.Flag("domain", "Telescope auth domain").String()
+	configPath := app.Flag("config", "Path to a configuration file in YAML format").ExistingFile()
+	useEnv := app.Flag("env", "Configure teleport from environment variables").Bool()
 
-	app.Flag("auth-http-addr", "Telescope auth server address").SetValue(
-		utils.NewNetAddrVal(
-			utils.NetAddr{
-				Network: "unix",
-				Addr:    "/tmp/telescope.auth.sock",
-			}, &cfg.AuthHTTPAddr),
-	)
+	_, err := app.Parse(os.Args[1:])
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	app.Flag("auth-ssh-addr", "Telescope auth ssh server address").SetValue(
-		utils.NewNetAddrVal(
-			utils.NetAddr{
-				Network: "tcp",
-				Addr:    "localhost:33008",
-			}, &cfg.AuthSSHAddr),
-	)
-
-	app.Flag("tun-addr", "Telescope tun agent dial address").SetValue(
-		utils.NewNetAddrVal(
-			utils.NetAddr{
-				Network: "tcp",
-				Addr:    "localhost:33006",
-			}, &cfg.TunAddr),
-	)
-
-	app.Flag("web-addr", "Web address").SetValue(
-		utils.NewNetAddrVal(
-			utils.NetAddr{
-				Network: "tcp",
-				Addr:    "localhost:33007",
-			}, &cfg.WebAddr),
-	)
-
-	cfg.DataDir = app.Flag("data-dir", "Data directory").Required().String()
-	cfg.AssetsDir = app.Flag("assets-dir", "Assets directory").Default(".").String()
-	cfg.CPAssetsDir = app.Flag("cp-assets-dir", "Control panel assets directory").Default(".").String()
-	cfg.Backend = app.Flag("backend", "Auth backend type, currently only 'etcd'").Default("etcd").String()
-	cfg.BackendConfig = app.Flag("backend-config", "Auth backend-specific configuration string").String()
-	cfg.BackendAdditionalKey = app.Flag("backend-add-key", "Additional backend seal key filename.").String()
-	cfg.TLSKeyFile = app.Flag("tls-key", "TLS private key filename").String()
-	cfg.TLSCertFile = app.Flag("tls-cert", "TLS Certificate filename").String()
+	var cfg Config
+	if *useEnv {
+		if err := service.ParseEnv(&cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	} else if *configPath != "" {
+		if err := service.ParseYAMLFile(*configPath, &cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		return trace.Errorf("Use either --config or --env flags, see --help for details")
+	}
 
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
-	if err := run(cfg); err != nil {
-		fmt.Fprintf(os.Stderr, err.Error())
-		os.Exit(-1)
-	}
-}
+	setDefaults(&cfg)
 
-func run(cfg Config) error {
 	srv, err := NewService(cfg)
 	if err != nil {
 		return err
@@ -117,29 +118,73 @@ func run(cfg Config) error {
 	return nil
 }
 
-func NewService(cfg Config) (*Service, error) {
-	sev, err := log.SeverityFromString(*cfg.LogSeverity)
-	if err != nil {
-		return nil, err
+func setDefaults(cfg *Config) {
+	if cfg.Log.Output == "" {
+		cfg.Log.Output = "console"
 	}
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: *cfg.Log}})
-	log.SetSeverity(sev)
+	if cfg.Log.Severity == "" {
+		cfg.Log.Severity = "INFO"
+	}
+	if cfg.AuthHTTPAddr.IsEmpty() {
+		cfg.AuthHTTPAddr = utils.NetAddr{
+			Network: "unix",
+			Addr:    "/tmp/telescope.auth.sock",
+		}
+	}
+	if cfg.AuthSSHAddr.IsEmpty() {
+		cfg.AuthSSHAddr = utils.NetAddr{
+			Network: "tcp",
+			Addr:    "127.0.0.1:33008",
+		}
+	}
+	if cfg.TunAddr.IsEmpty() {
+		cfg.TunAddr = utils.NetAddr{
+			Network: "tcp",
+			Addr:    "127.0.0.1:33006",
+		}
+	}
+	if cfg.WebAddr.IsEmpty() {
+		cfg.WebAddr = utils.NetAddr{
+			Network: "tcp",
+			Addr:    "127.0.0.1:33007",
+		}
+	}
+}
 
-	log.Infof("starting with config:\n %#v", cfg)
+func NewService(cfg Config) (*Service, error) {
+	err := log.Initialize(cfg.Log.Output, cfg.Log.Severity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	if *cfg.DataDir == "" {
+	cfg.AssetsDir, err = filepath.Abs(cfg.AssetsDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg.CPAssetsDir, err = filepath.Abs(cfg.CPAssetsDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if cfg.DataDir == "" {
 		return nil, fmt.Errorf("please supply data directory")
 	}
 
-	b, err := initBackend(*cfg.Backend, *cfg.BackendConfig,
-		*cfg.DataDir, *cfg.BackendAdditionalKey)
+	log.Infof("starting with config:\n %#v", cfg)
+
+	b, err := initBackend(&cfg)
 	if err != nil {
-		log.Errorf("failed to initialize backend: %v", err)
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
-	asrv, hostSigner, err := auth.Init(
-		b, authority.New(), *cfg.FQDN, *cfg.Domain, *cfg.DataDir)
+	asrv, hostSigner, err := auth.Init(auth.InitConfig{
+		Backend:    b,
+		FQDN:       cfg.FQDN,
+		AuthDomain: cfg.Domain,
+		DataDir:    cfg.DataDir,
+		Authority:  authority.New(),
+	})
 	if err != nil {
 		log.Errorf("failed to init auth server: %v", err)
 		return nil, err
@@ -214,22 +259,23 @@ func (s *Service) addStart() error {
 		wsrv, err := srv.New(s.cfg.WebAddr,
 			srv.Config{
 				Tun:         tsrv,
-				AssetsDir:   *s.cfg.AssetsDir,
-				CPAssetsDir: *s.cfg.CPAssetsDir,
+				AssetsDir:   s.cfg.AssetsDir,
+				CPAssetsDir: s.cfg.CPAssetsDir,
 				AuthAddr:    s.cfg.AuthSSHAddr,
-				FQDN:        *s.cfg.FQDN})
+				FQDN:        s.cfg.FQDN})
 		if err != nil {
 			log.Errorf("failed to launch web server: %v", err)
 			return err
 		}
 		log.Infof("telescope web server starting")
 
-		if (*s.cfg.TLSCertFile != "") && (*s.cfg.TLSKeyFile != "") {
+		if (s.cfg.TLSCert != "") && (s.cfg.TLSKey != "") {
+			log.Infof("found TLS credentials, init TLS listeners")
 			err := srv.ListenAndServeTLS(
 				wsrv.Server.Addr,
 				wsrv.Handler,
-				*s.cfg.TLSCertFile,
-				*s.cfg.TLSKeyFile,
+				s.cfg.TLSCert,
+				s.cfg.TLSKey,
 			)
 			if err != nil {
 				log.Errorf("failed to start: %v", err)
@@ -248,38 +294,36 @@ func (s *Service) addStart() error {
 	return nil
 }
 
-func initBackend(btype, bcfg, dataDir string,
-	additionalKey string) (*encryptedbk.ReplicatedBackend, error) {
+func initBackend(cfg *Config) (*encryptedbk.ReplicatedBackend, error) {
 	var bk backend.Backend
 	var err error
 
-	switch btype {
+	switch cfg.KeysBackend.Type {
 	case "etcd":
-		bk, err = etcdbk.FromString(bcfg)
+		bk, err = etcdbk.FromObject(cfg.KeysBackend.Params)
 	case "bolt":
-		bk, err = boltbk.FromString(bcfg)
+		bk, err = boltbk.FromObject(cfg.KeysBackend.Params)
 	default:
-		return nil, fmt.Errorf("unsupported backend type: %v", btype)
+		err = trace.Errorf("unsupported backend type: %v", cfg.KeysBackend.Type)
 	}
 	if err != nil {
-		log.Errorf(err.Error())
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
-	keyStorage := path.Join(dataDir, "tscope_backend_keys")
+	keyStorage := path.Join(cfg.DataDir, "tscope_backend_keys")
 	addKeys := []encryptor.Key{}
-	if len(additionalKey) != 0 {
-		addKey, err := encryptedbk.LoadKeyFromFile(additionalKey)
+	if len(cfg.KeysBackend.AdditionalKey) != 0 {
+		addKey, err := encryptedbk.LoadKeyFromFile(
+			cfg.KeysBackend.AdditionalKey)
 		if err != nil {
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
 		addKeys = append(addKeys, addKey)
 	}
-	encryptedBk, err := encryptedbk.NewReplicatedBackend(bk,
-		keyStorage, addKeys)
+	encryptedBk, err := encryptedbk.NewReplicatedBackend(
+		bk, keyStorage, addKeys)
 	if err != nil {
-		log.Errorf(err.Error())
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	return encryptedBk, nil
 }

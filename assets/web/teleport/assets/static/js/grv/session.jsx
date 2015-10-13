@@ -280,7 +280,10 @@ var ConsoleBox = React.createClass({
         $(parent).append('<div id="'+self.term_id(srv)+'"></div>');
         var termNode = document.getElementById(this.term_id(srv));
         var hostport = location.hostname+(location.port ? ':'+location.port: '');
-        var socket = new WebSocket("ws://"+hostport+grv.path("api", "ssh", "connect", srv, "sessions", self.props.session.id), "proto");
+        var prefix = location.protocol == "https:"?"wss://":"ws://";
+
+        
+        var socket = new WebSocket(prefix+hostport+grv.path("api", "ssh", "connect", srv, "sessions", self.props.session.id), "proto");
         var term = new Terminal({
             cols: 120,
             rows: 32,

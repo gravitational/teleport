@@ -4,6 +4,8 @@ package boltbk
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 	"time"
@@ -11,6 +13,7 @@ import (
 	"github.com/gravitational/teleport"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/boltdb/bolt"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 )
 
 type BoltBackend struct {
@@ -21,6 +24,18 @@ type BoltBackend struct {
 }
 
 func New(path string) (*BoltBackend, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to convert path")
+	}
+	dir := filepath.Dir(path)
+	s, err := os.Stat(dir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.IsDir() {
+		return nil, trace.Errorf("path %v should be a valid directory '%v'", dir)
+	}
 	db, err := bolt.Open(path, 0600, nil)
 	if err != nil {
 		return nil, err

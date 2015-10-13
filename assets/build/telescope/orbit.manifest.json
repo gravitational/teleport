@@ -1,0 +1,122 @@
+{
+    "version": "0.0.1",
+    "labels": [
+        {"name": "os", "value": "linux"}
+    ],
+    "commands": [
+        {"name": "start", "args": ["rootfs/usr/bin/telescope", "--env"]}
+    ],
+    "config": {
+        "params": [
+            {
+                "type": "String",
+                "name": "log",
+                "env": "TELESCOPE_LOG_OUTPUT"
+            },
+            {
+                "type": "String",
+                "name": "logSeverity",
+                "env": "TELESCOPE_LOG_SEVERITY",
+                "cli": {"name": "log-severity"}
+            },
+            {
+                "type": "String",
+                "name": "dataDir",
+                "required": true,
+                "env": "TELESCOPE_DATA_DIR",
+                "cli": {"name": "data-dir"}
+            },
+            {
+                "type": "String",
+                "name": "fqdn",
+                "required": true,
+                "env": "TELESCOPE_FQDN"
+            },
+            {
+                "type": "String",
+                "name": "tunAddr",
+                "env": "TELESCOPE_TUN_ADDR",
+                "cli": {"name": "tun-addr"}
+            },
+            {
+                "type": "String",
+                "name": "webAddr",
+                "env": "TELESCOPE_WEB_ADDR",
+                "cli": {"name": "web-addr"}
+            },
+            {
+                "type": "String",
+                "name": "authHTTPAddr",
+                "env": "TELESCOPE_AUTH_HTTP_ADDR",
+                "cli": {"name": "auth-http-addr"}
+            },
+            {
+                "type": "String",
+                "name": "authSSHAddr",
+                "env": "TELESCOPE_AUTH_SSH_ADDR",
+                "cli": {"name": "auth-ssh-addr"}
+            },
+            {
+                "type": "String",
+                "name": "domain",
+                "env": "TELESCOPE_DOMAIN",
+                "cli": {"name": "domain"}
+            },
+            {
+                "type": "String",
+                "name": "assetsDir",
+                "env": "TELESCOPE_ASSETS_DIR",
+                "cli": {"name": "assets-dir"}
+            },
+            {
+                "type": "String",
+                "name": "cpAssetsDir",
+                "env": "TELESCOPE_CP_ASSETS_DIR",
+                "cli": {"name": "cp-assets-dir"}
+            },
+            {
+                "type": "String",
+                "name": "tlsKey",
+                "env": "TELESCOPE_TLS_KEY",
+                "cli": {"name": "tls-key"}
+            },
+            {
+                "type": "String",
+                "name": "tlsCert",
+                "env": "TELESCOPE_TLS_CERT",
+                "cli": {"name": "tls-cert"}
+            },            
+            {
+                "type": "Enum",
+                "name": "keysBackendType",
+                "env": "TELESCOPE_KEYS_BACKEND_TYPE",
+                "cli": {"name": "keys-backend-type"},                
+                "spec": {
+                    "values": ["bolt", "etcd"]
+                }
+            },
+            {
+                "type": "List",
+                "name": "keysBackendParams",
+                "spec": {
+                    "name": "keysBackendParam",
+                    "env": "TELESCOPE_KEYS_BACKEND_PARAMS",
+                    "type": "KeyVal",
+                    "cli": {"name": "keys-backend-param"},
+                    "spec": {
+                        "keys": [
+                            {"name": "key", "type":"String"},
+                            {"name": "val", "type":"String"}
+                        ]
+                    }
+                }
+            },
+            {
+                "type": "String",
+                "name": "keysBackendAdditionalToken",
+                "env": "TELESCOPE_KEYS_BACKEND_ADDITIONAL_TOKEN",
+                "cli": {"name": "keys-backend-additional-token"}
+            }
+        ]
+    }
+}
