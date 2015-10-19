@@ -21,10 +21,10 @@ func (s *ConfigSuite) SetUpSuite(c *C) {
 }
 
 func (s *ConfigSuite) TestParseYAML(c *C) {
-	cfg, err := ParseYAML([]byte(configYAML))
+	var cfg Config
+	err := ParseYAML([]byte(configYAML), &cfg)
 	c.Assert(err, IsNil)
-	c.Assert(cfg, NotNil)
-	s.checkVariables(c, cfg)
+	s.checkVariables(c, &cfg)
 }
 
 func (s *ConfigSuite) TestParseEnv(c *C) {
