@@ -2,36 +2,44 @@ package srv
 
 import (
 	"crypto/tls"
+	"encoding/base64"
 	"net/http"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 )
 
 func ListenAndServeTLS(address string, handler http.Handler,
-	certFile, keyFile string) error {
+	cert, key string) error {
 
-	tlsConfig, err := CreateTLSConfiguration(certFile, keyFile)
+	tlsConfig, err := CreateTLSConfiguration(cert, key)
 	if err != nil {
-		log.Errorf(err.Error())
-		return err
+		return trace.Wrap(err)
 	}
 
 	listener, err := tls.Listen("tcp", address, tlsConfig)
 	if err != nil {
-		log.Errorf(err.Error())
-		return err
+		return trace.Wrap(err)
 	}
 
 	return http.Serve(listener, handler)
 }
 
-func CreateTLSConfiguration(certFile, keyFile string) (*tls.Config, error) {
+func CreateTLSConfiguration(certString, keyString string) (*tls.Config, error) {
 	config := &tls.Config{}
 
-	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	certPEM, err := base64.StdEncoding.DecodeString(certString)
 	if err != nil {
-		log.Errorf(err.Error())
-		return nil, err
+		return nil, trace.Wrap(err, "expected base64 encoded cert")
+	}
+
+	keyPEM, err := base64.StdEncoding.DecodeString(keyString)
+	if err != nil {
+		return nil, trace.Wrap(err, "expected base64 encoded key")
+	}
+
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	config.Certificates = []tls.Certificate{cert}
@@ -52,7 +60,8 @@ func CreateTLSConfiguration(certFile, keyFile string) (*tls.Config, error) {
 
 	config.MinVersion = tls.VersionTLS12
 	config.SessionTicketsDisabled = false
-	config.ClientSessionCache = tls.NewLRUClientSessionCache(DefaultLRUCapacity)
+	config.ClientSessionCache = tls.NewLRUClientSessionCache(
+		DefaultLRUCapacity)
 
 	return config, nil
 }

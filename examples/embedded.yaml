@@ -1,0 +1,28 @@
+log:
+  output: console
+  severity: INFO
+
+data_dir: /var/lib/teleport
+fqdn: gravitational.io
+
+ssh:
+  enabled: true
+
+auth:
+  enabled: true
+  domain: a.fqdn
+  token: authtoken
+
+  keys_backend:
+    type: bolt
+    params: {path: "/var/lib/teleport/teleport.auth.db"}
+
+  events_backend:
+    type: bolt
+    params: {path: "/var/lib/teleport/teleport.event.db"}
+
+  records_backend:
+    type: bolt
+    params: {path: "/var/lib/teleport/records.db"}
+
+

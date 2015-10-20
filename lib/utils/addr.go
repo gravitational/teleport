@@ -12,8 +12,38 @@ type NetAddr struct {
 	Path    string
 }
 
+func (a *NetAddr) IsEmpty() bool {
+	return a.Addr == "" && a.Network == "" && a.Path == ""
+}
+
 func (a *NetAddr) String() string {
 	return fmt.Sprintf("%v://%v", a.Network, a.Addr)
+}
+
+func (a *NetAddr) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var addr string
+	err := unmarshal(&addr)
+	if err != nil {
+		return err
+	}
+
+	parsedAddr, err := ParseAddr(addr)
+	if err != nil {
+		return err
+	}
+
+	*a = *parsedAddr
+	return nil
+}
+
+func (a *NetAddr) Set(s string) error {
+	v, err := ParseAddr(s)
+	if err != nil {
+		return err
+	}
+	a.Addr = v.Addr
+	a.Network = v.Network
+	return nil
 }
 
 func ParseAddr(a string) (*NetAddr, error) {

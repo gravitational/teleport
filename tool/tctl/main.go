@@ -8,12 +8,11 @@ import (
 )
 
 func main() {
-
 	log.Initialize("console", "INFO")
 
 	cmd := command.NewCommand()
 	err := cmd.Run(os.Args)
 	if err != nil {
-		log.Infof("error: %s\n", err)
+		log.Errorf("%v", err)
 	}
 }

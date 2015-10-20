@@ -86,6 +86,7 @@ func (cmd *Command) Run(args []string) error {
 	tokenGenerateFQDN := tokenGenerate.Flag("fqdn", "FQDN of the server").Required().String()
 	tokenGenerateTTL := tokenGenerate.Flag("ttl", "Time to live").Default("120s").Duration()
 	tokenGenerateOutput := tokenGenerate.Flag("output", "Optional output file").String()
+	tokenGenerateSecret := tokenGenerate.Flag("secret", "Optional secret key, will be used to generate secure token instead of talking to server").String()
 
 	// User
 	user := app.Command("user", "Operations with registered users")
@@ -167,8 +168,8 @@ func (cmd *Command) Run(args []string) error {
 
 	// Token
 	case tokenGenerate.FullCommand():
-		cmd.GenerateToken(*tokenGenerateFQDN, *tokenGenerateTTL,
-			*tokenGenerateOutput)
+		err = cmd.GenerateToken(*tokenGenerateFQDN, *tokenGenerateTTL,
+			*tokenGenerateOutput, *tokenGenerateSecret)
 
 	// User
 	case userLs.FullCommand():
@@ -196,7 +197,7 @@ func (cmd *Command) Run(args []string) error {
 		cmd.DeleteBackendKey(*backendKeyDeleteID)
 	}
 
-	return nil
+	return err
 }
 
 func (cmd *Command) readInput(path string) ([]byte, error) {

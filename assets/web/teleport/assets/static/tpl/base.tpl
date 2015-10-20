@@ -33,7 +33,6 @@
     
     <!-- Custom and plugin javascript -->
     <script src="{{Path "/static/js/inspinia.js"}}"></script>
-    <script src="{{Path "/static/js/plugins/pace/pace.min.js"}}"></script>
     <script src="{{Path "/static/js/plugins/chosen/chosen.jquery.js"}}"></script>
 
     <script src="{{Path "/static/js/jquery.ui.widget.js"}}"></script>

@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -21,8 +22,15 @@ func New(path string) (*boltRecorder, error) {
 		path: path,
 		dbs:  make(map[string]*boltRW),
 	}
-
-	// test if the path is exists
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to convert path")
+	}
+	if err := os.MkdirAll(path, 0777); err != nil {
+		return nil, trace.Wrap(
+			err, fmt.Sprintf("failed to create '%v' for session records", path))
+	}
+	// test if path is writeable
 	testRef, err := br.getRef("testRecord")
 	if err != nil {
 		return nil, trace.Wrap(err)

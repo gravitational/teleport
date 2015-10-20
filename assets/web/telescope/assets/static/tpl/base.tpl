@@ -27,7 +27,6 @@
     
     <!-- Custom and plugin javascript -->
     <script src="/static/js/inspinia.js"></script>
-    <script src="/static/js/plugins/pace/pace.min.js"></script>
 
     <script type="text/jsx" src="/static/js/grv/modal.js"></script>
     <script type="text/jsx" src="/static/js/grv/frame.js"></script>

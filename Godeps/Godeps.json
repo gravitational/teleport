@@ -52,12 +52,20 @@
 			"Rev": "4734e7aca379f0d7fcdf04fbb2101696a4b45ce8"
 		},
 		{
+			"ImportPath": "github.com/gravitational/configure",
+			"Rev": "725b3af8847feced5316be064a297d7c8a1052b3"
+		},
+		{
 			"ImportPath": "github.com/gravitational/form",
 			"Rev": "ea8c8540621d9f858c3615d9e0d583f90e21fb6f"
 		},
 		{
 			"ImportPath": "github.com/gravitational/log",
 			"Rev": "8e1bbf1bba0515719dbb17adf1da20b5390ac8da"
+		},
+		{
+			"ImportPath": "github.com/gravitational/orbit/lib/utils",
+			"Rev": "fe21737572762319f5e106adf361eac625ca1bc7"
 		},
 		{
 			"ImportPath": "github.com/gravitational/roundtrip",
@@ -174,6 +182,10 @@
 		{
 			"ImportPath": "gopkg.in/check.v1",
 			"Rev": "64131543e7896d5bcc6bd5a76287eb75ea96c673"
+		},
+		{
+			"ImportPath": "gopkg.in/yaml.v2",
+			"Rev": "7ad95dd0798a40da1ccdff6dff35fd177b5edf40"
 		}
 	]
 }
