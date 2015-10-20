@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gravitational/configure"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 	"github.com/gravitational/teleport/lib/utils"
@@ -22,7 +23,7 @@ func (s *ConfigSuite) SetUpSuite(c *C) {
 
 func (s *ConfigSuite) TestParseYAML(c *C) {
 	var cfg Config
-	err := ParseYAML([]byte(configYAML), &cfg)
+	err := configure.ParseYAML([]byte(configYAML), &cfg)
 	c.Assert(err, IsNil)
 	s.checkVariables(c, &cfg)
 }
@@ -61,7 +62,7 @@ func (s *ConfigSuite) TestParseEnv(c *C) {
 		c.Assert(os.Setenv(k, v), IsNil)
 	}
 	var cfg Config
-	err := ParseEnv(&cfg)
+	err := configure.ParseEnv(&cfg)
 	c.Assert(err, IsNil)
 	s.checkVariables(c, &cfg)
 }

@@ -4,9 +4,9 @@ import (
 	"io/ioutil"
 	"strings"
 
+	"github.com/gravitational/configure"
 	outils "github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/orbit/lib/utils"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/yaml.v2"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -15,18 +15,15 @@ func ParseYAMLFile(path string, cfg interface{}) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return ParseYAML(bytes, cfg)
-}
-
-func ParseYAML(data []byte, cfg interface{}) error {
-	rendered, err := renderTemplate(data)
+	rendered, err := renderTemplate(bytes)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := yaml.Unmarshal(rendered, cfg); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return configure.ParseYAML(rendered, cfg)
+}
+
+func ParseEnv(cfg interface{}) error {
+	return configure.ParseEnv(cfg)
 }
 
 type Config struct {

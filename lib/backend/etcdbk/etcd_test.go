@@ -72,8 +72,8 @@ func (s *EtcdSuite) TearDownTest(c *C) {
 	c.Assert(s.bk.Close(), IsNil)
 }
 
-func (s *EtcdSuite) TestFromString(c *C) {
-	b, err := FromString(fmt.Sprintf(`{"nodes": [%#v], "key": "%v"}`, s.nodes[0], s.etcdPrefix))
+func (s *EtcdSuite) TestFromObject(c *C) {
+	b, err := FromObject(map[string]string{"nodes": s.nodes[0], "key": s.etcdPrefix})
 	c.Assert(err, IsNil)
 	c.Assert(b, NotNil)
 }
