@@ -4,7 +4,7 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/gravitational/configure"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/configure"
 	outils "github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/orbit/lib/utils"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/lib/utils"

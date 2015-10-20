@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravitational/configure"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/configure"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 	"github.com/gravitational/teleport/lib/utils"

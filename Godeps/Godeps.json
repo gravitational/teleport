@@ -52,6 +52,10 @@
 			"Rev": "4734e7aca379f0d7fcdf04fbb2101696a4b45ce8"
 		},
 		{
+			"ImportPath": "github.com/gravitational/configure",
+			"Rev": "725b3af8847feced5316be064a297d7c8a1052b3"
+		},
+		{
 			"ImportPath": "github.com/gravitational/form",
 			"Rev": "ea8c8540621d9f858c3615d9e0d583f90e21fb6f"
 		},
