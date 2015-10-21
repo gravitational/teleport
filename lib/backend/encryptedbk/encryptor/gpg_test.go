@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestGPGEncryptor(t *testing.T) { TestingT(t) }
+func TestEncryptor(t *testing.T) { TestingT(t) }
 
 type gpgSuite struct {
 	E *GPGEncryptor

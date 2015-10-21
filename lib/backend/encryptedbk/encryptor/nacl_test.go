@@ -3,10 +3,7 @@ package encryptor
 import (
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 	"reflect"
-	"testing"
 )
-
-func TestNaClEncryptor(t *testing.T) { TestingT(t) }
 
 type naclSuite struct {
 	suite encryptorSuite

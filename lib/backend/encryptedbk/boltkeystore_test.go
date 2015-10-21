@@ -3,7 +3,6 @@ package encryptedbk
 import (
 	"path/filepath"
 	"reflect"
-	"testing"
 
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 
@@ -11,12 +10,12 @@ import (
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
-func TestKeyStore(t *testing.T) { TestingT(t) }
-
 type KeyStoreSuite struct {
 	ks  KeyStore
 	dir string
 }
+
+var _ = Suite(&KeyStoreSuite{})
 
 func (s *KeyStoreSuite) SetUpSuite(c *C) {
 	log.Initialize("console", "WARN")

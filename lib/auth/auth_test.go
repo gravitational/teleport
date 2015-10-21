@@ -8,6 +8,7 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
+	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 
@@ -25,6 +26,7 @@ type AuthSuite struct {
 var _ = Suite(&AuthSuite{})
 
 func (s *AuthSuite) SetUpSuite(c *C) {
+	encryptor.TestMode = true
 	key, err := secret.NewKey()
 	c.Assert(err, IsNil)
 	srv, err := secret.New(&secret.Config{KeyBytes: key})

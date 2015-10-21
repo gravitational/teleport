@@ -15,6 +15,7 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
+	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events/boltlog"
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
@@ -56,6 +57,7 @@ type CmdSuite struct {
 var _ = Suite(&CmdSuite{})
 
 func (s *CmdSuite) SetUpSuite(c *C) {
+	encryptor.TestMode = true
 	key, err := secret.NewKey()
 	c.Assert(err, IsNil)
 	srv, err := secret.New(&secret.Config{KeyBytes: key})
@@ -219,6 +221,8 @@ func (s *CmdSuite) TestRemoteCertCRUD(c *C) {
 func (s *CmdSuite) TestBackendKeys(c *C) {
 	// running TestRemoteCertCRUD while changing some keys
 
+	encryptor.TestMode = false
+
 	out := s.run("backend-keys", "generate", "--name", "key45")
 	c.Assert(out, Matches, fmt.Sprintf(".*was generated.*"))
 
@@ -233,7 +237,6 @@ func (s *CmdSuite) TestBackendKeys(c *C) {
 	}
 
 	s.run("backend-keys", "export", "--id", keys[0].ID, "--dir", s.dir)
-
 	c.Assert(s.asrv.ResetUserCA(""), IsNil)
 	_, pub, err := s.asrv.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -246,8 +249,6 @@ func (s *CmdSuite) TestBackendKeys(c *C) {
 
 	s.run("backend-keys", "delete", "--id", keys[0].ID)
 
-	return
-
 	var remoteCerts []services.RemoteCert
 	remoteCerts, err = s.CAS.GetRemoteCerts("user", "example.com")
 	c.Assert(err, IsNil)
@@ -255,8 +256,6 @@ func (s *CmdSuite) TestBackendKeys(c *C) {
 
 	s.run("backend-keys", "import", "--file", path.Join(s.dir, keys[0].ID+".bkey"))
 	s.run("backend-keys", "delete", "--id", keys[1].ID)
-	out = s.run("backend-keys", "ls")
-	c.Assert(out, DeepEquals, "This server has these keys: key45 ")
 	out = s.run("backend-keys", "ls")
 	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", keys[0].ID))
 	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", keys[0].Name))
@@ -267,6 +266,8 @@ func (s *CmdSuite) TestBackendKeys(c *C) {
 	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "deleted"))
 	remoteCerts, err = s.CAS.GetRemoteCerts("user", "")
 	c.Assert(len(remoteCerts), Equals, 0)
+
+	encryptor.TestMode = true
 
 }
 
