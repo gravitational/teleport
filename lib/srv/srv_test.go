@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/lib/auth"
-	authority "github.com/gravitational/teleport/lib/auth/native"
+	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
@@ -38,7 +38,6 @@ type SrvSuite struct {
 var _ = Suite(&SrvSuite{})
 
 func (s *SrvSuite) SetUpSuite(c *C) {
-	encryptor.TestMode = true
 	key, err := secret.NewKey()
 	c.Assert(err, IsNil)
 	srv, err := secret.New(&secret.Config{KeyBytes: key})
@@ -51,7 +50,9 @@ func (s *SrvSuite) SetUpTest(c *C) {
 
 	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
-	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk, filepath.Join(s.dir, "keys"), nil)
+	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk,
+		filepath.Join(s.dir, "keys"), nil,
+		encryptor.GetTestKey)
 	c.Assert(err, IsNil)
 
 	s.a = auth.NewAuthServer(s.bk, authority.New(), s.scrt)

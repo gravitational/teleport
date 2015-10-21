@@ -321,7 +321,7 @@ func initBackend(cfg *Config) (*encryptedbk.ReplicatedBackend, error) {
 		addKeys = append(addKeys, addKey)
 	}
 	encryptedBk, err := encryptedbk.NewReplicatedBackend(
-		bk, keyStorage, addKeys)
+		bk, keyStorage, addKeys, encryptor.GenerateGPGKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

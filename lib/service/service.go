@@ -313,7 +313,7 @@ func initBackend(cfg Config) (*encryptedbk.ReplicatedBackend, error) {
 	}
 
 	encryptedBk, err := encryptedbk.NewReplicatedBackend(bk,
-		keyStorage, addKeys)
+		keyStorage, addKeys, encryptor.GenerateGPGKey)
 
 	if err != nil {
 		log.Errorf(err.Error())
@@ -329,7 +329,8 @@ func initBackend(cfg Config) (*encryptedbk.ReplicatedBackend, error) {
 		}
 		log.Infof(" ", myKey, masterKey)
 		encryptedBk, err = encryptedbk.NewReplicatedBackend(bk,
-			keyStorage, []encryptor.Key{myKey, masterKey})
+			keyStorage, []encryptor.Key{myKey, masterKey},
+			encryptor.GenerateGPGKey)
 		if err != nil {
 			return nil, err
 		}

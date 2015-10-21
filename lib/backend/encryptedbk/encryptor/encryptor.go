@@ -21,3 +21,5 @@ func (key Key) Public() Key {
 	}
 	return pub
 }
+
+type KeyGenerator func(string) (Key, error)

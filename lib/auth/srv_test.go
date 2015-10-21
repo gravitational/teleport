@@ -49,7 +49,6 @@ type APISuite struct {
 var _ = Suite(&APISuite{})
 
 func (s *APISuite) SetUpSuite(c *C) {
-	encryptor.TestMode = true
 	key, err := secret.NewKey()
 	c.Assert(err, IsNil)
 	srv, err := secret.New(&secret.Config{KeyBytes: key})
@@ -64,7 +63,9 @@ func (s *APISuite) SetUpTest(c *C) {
 
 	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
-	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk, filepath.Join(s.dir, "keys"), nil)
+	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk,
+		filepath.Join(s.dir, "keys"), nil,
+		encryptor.GetTestKey)
 	c.Assert(err, IsNil)
 
 	s.bl, err = boltlog.New(filepath.Join(s.dir, "eventsdb"))

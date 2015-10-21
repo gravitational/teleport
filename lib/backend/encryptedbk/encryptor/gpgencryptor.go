@@ -184,10 +184,6 @@ func (e *GPGEncryptor) Decrypt(data []byte) ([]byte, error) {
 }
 
 func GenerateGPGKey(name string) (Key, error) {
-	if TestMode {
-		return getTestKey()
-	}
-
 	key := Key{}
 	conf := packet.Config{}
 	conf.DefaultHash = crypto.SHA256

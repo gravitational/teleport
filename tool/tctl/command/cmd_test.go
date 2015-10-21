@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/lib/auth"
-	authority "github.com/gravitational/teleport/lib/auth/native"
+	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
@@ -57,7 +57,6 @@ type CmdSuite struct {
 var _ = Suite(&CmdSuite{})
 
 func (s *CmdSuite) SetUpSuite(c *C) {
-	encryptor.TestMode = true
 	key, err := secret.NewKey()
 	c.Assert(err, IsNil)
 	srv, err := secret.New(&secret.Config{KeyBytes: key})
@@ -72,7 +71,9 @@ func (s *CmdSuite) SetUpTest(c *C) {
 
 	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
-	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk, filepath.Join(s.dir, "keys"), nil)
+	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk,
+		filepath.Join(s.dir, "keys"), nil,
+		encryptor.GenerateGPGKey)
 	c.Assert(err, IsNil)
 
 	s.bl, err = boltlog.New(filepath.Join(s.dir, "eventsdb"))
@@ -221,8 +222,6 @@ func (s *CmdSuite) TestRemoteCertCRUD(c *C) {
 func (s *CmdSuite) TestBackendKeys(c *C) {
 	// running TestRemoteCertCRUD while changing some keys
 
-	encryptor.TestMode = false
-
 	out := s.run("backend-keys", "generate", "--name", "key45")
 	c.Assert(out, Matches, fmt.Sprintf(".*was generated.*"))
 
@@ -266,8 +265,6 @@ func (s *CmdSuite) TestBackendKeys(c *C) {
 	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "deleted"))
 	remoteCerts, err = s.CAS.GetRemoteCerts("user", "")
 	c.Assert(len(remoteCerts), Equals, 0)
-
-	encryptor.TestMode = true
 
 }
 

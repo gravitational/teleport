@@ -7,7 +7,6 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 )
 
 func TestServices(t *testing.T) { TestingT(t) }
@@ -22,7 +21,6 @@ var _ = Suite(&BoltSuite{})
 
 func (s *BoltSuite) SetUpSuite(c *C) {
 	log.Initialize("console", "WARN")
-	encryptor.TestMode = true
 }
 
 func (s *BoltSuite) SetUpTest(c *C) {
