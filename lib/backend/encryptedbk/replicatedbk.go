@@ -23,9 +23,12 @@ type ReplicatedBackend struct {
 	keyStore         KeyStore
 	signKey          encryptor.Key
 	signCheckingKeys []encryptor.Key
+	keyGenerator     encryptor.KeyGenerator
 }
 
-func NewReplicatedBackend(backend backend.Backend, keysFile string, additionalKeys []encryptor.Key) (*ReplicatedBackend, error) {
+func NewReplicatedBackend(backend backend.Backend, keysFile string,
+	additionalKeys []encryptor.Key,
+	keyGenerator encryptor.KeyGenerator) (*ReplicatedBackend, error) {
 	var err error
 	backend.AcquireLock(bkLock, time.Minute)
 	defer backend.ReleaseLock(bkLock)
@@ -34,6 +37,7 @@ func NewReplicatedBackend(backend backend.Backend, keysFile string, additionalKe
 	repBk.mutex.Lock()
 	defer repBk.mutex.Unlock()
 	repBk.baseBk = backend
+	repBk.keyGenerator = keyGenerator
 	repBk.keyStore, err = NewKeyStore(keysFile)
 	if err != nil {
 		log.Errorf(err.Error())
@@ -352,7 +356,7 @@ func (b *ReplicatedBackend) generateSealKey(name string, copyData bool) (encrypt
 		}
 	}
 
-	key, err := encryptor.GenerateGPGKey(name)
+	key, err := b.keyGenerator(name)
 	if err != nil {
 		return encryptor.Key{}, trace.Wrap(err)
 	}

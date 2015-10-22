@@ -9,7 +9,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 )
 
-func TestBolt(t *testing.T) { TestingT(t) }
+func TestServices(t *testing.T) { TestingT(t) }
 
 type BoltSuite struct {
 	bk    *boltbk.BoltBackend

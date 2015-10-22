@@ -1,7 +1,6 @@
 package etcdbk
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"testing"

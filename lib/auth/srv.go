@@ -145,7 +145,7 @@ func (s *APIServer) deleteSealKey(w http.ResponseWriter, r *http.Request, p http
 	id := p[0].Value
 	err := s.s.DeleteSealKey(id)
 	if err != nil {
-		replyErr(w, err)
+		reply(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	reply(w, http.StatusOK, message("Key "+id+" was deleted"))
@@ -154,7 +154,7 @@ func (s *APIServer) deleteSealKey(w http.ResponseWriter, r *http.Request, p http
 func (s *APIServer) addSealKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	var keyJSON string
 	err := form.Parse(r,
-		form.String("keyJSON", &keyJSON, form.Required()),
+		form.String("key", &keyJSON, form.Required()),
 	)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())

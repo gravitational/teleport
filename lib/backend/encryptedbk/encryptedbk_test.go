@@ -2,7 +2,6 @@ package encryptedbk
 
 import (
 	"path/filepath"
-	"testing"
 
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
@@ -11,8 +10,6 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
-
-func TestEncryptedBk(t *testing.T) { TestingT(t) }
 
 type EncryptedBkSuite struct {
 	bk    *EncryptedBackend

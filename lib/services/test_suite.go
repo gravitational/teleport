@@ -1,7 +1,6 @@
 package services
 
 import (
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -10,8 +9,6 @@ import (
 
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
-
-func TestServices(t *testing.T) { TestingT(t) }
 
 type ServicesTestSuite struct {
 	CAS           *CAService

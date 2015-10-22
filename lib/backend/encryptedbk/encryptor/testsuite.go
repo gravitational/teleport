@@ -3,12 +3,8 @@
 package encryptor
 
 import (
-	"testing"
-
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
-
-func TestEncryptor(t *testing.T) { TestingT(t) }
 
 type encryptorSuite struct {
 	E Encryptor

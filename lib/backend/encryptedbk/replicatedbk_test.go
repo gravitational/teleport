@@ -33,7 +33,9 @@ func (s *ReplicatedBkSuite) SetUpTest(c *C) {
 
 	boltBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
-	s.bk, err = NewReplicatedBackend(boltBk, filepath.Join(s.dir, "keysDB"), nil)
+	s.bk, err = NewReplicatedBackend(boltBk,
+		filepath.Join(s.dir, "keysDB"), nil,
+		encryptor.GenerateGPGKey)
 	c.Assert(err, IsNil)
 
 	s.suite.ChangesC = make(chan interface{})
@@ -214,7 +216,8 @@ func (s *ReplicatedBkSuite) TestSeveralAuthServers(c *C) {
 
 	bk2, err := NewReplicatedBackend(s.bk.baseBk,
 		filepath.Join(s.dir, "keysDB_2"),
-		[]encryptor.Key{key2, key1public})
+		[]encryptor.Key{key2, key1public},
+		encryptor.GenerateGPGKey)
 	c.Assert(err, IsNil)
 
 	val, err := bk2.GetVal([]string{"a1"}, "b1")
@@ -236,7 +239,8 @@ func (s *ReplicatedBkSuite) TestSeveralAuthServers(c *C) {
 	c.Assert(string(val), Equals, "val2")
 
 	_, err = NewReplicatedBackend(s.bk.baseBk,
-		filepath.Join(s.dir, "keysDB_3"), nil)
+		filepath.Join(s.dir, "keysDB_3"), nil,
+		encryptor.GenerateGPGKey)
 	c.Assert(err, NotNil)
 
 	key3, err := encryptor.GenerateGPGKey("key/2")
@@ -244,7 +248,8 @@ func (s *ReplicatedBkSuite) TestSeveralAuthServers(c *C) {
 
 	_, err = NewReplicatedBackend(s.bk.baseBk,
 		filepath.Join(s.dir, "keysDB_4"),
-		[]encryptor.Key{key3})
+		[]encryptor.Key{key3},
+		encryptor.GenerateGPGKey)
 	c.Assert(err, NotNil)
 
 	key4, err := encryptor.GenerateGPGKey("key4")
@@ -254,7 +259,8 @@ func (s *ReplicatedBkSuite) TestSeveralAuthServers(c *C) {
 
 	bk4, err := NewReplicatedBackend(s.bk.baseBk,
 		filepath.Join(s.dir, "keysDB_5"),
-		[]encryptor.Key{key4, key1public})
+		[]encryptor.Key{key4, key1public},
+		encryptor.GenerateGPGKey)
 	c.Assert(err, IsNil)
 
 	c.Assert(len(bk4.ebk), Equals, 3)

@@ -12,9 +12,10 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/lib/auth"
-	authority "github.com/gravitational/teleport/lib/auth/native"
+	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
+	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events/boltlog"
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
@@ -70,7 +71,9 @@ func (s *CmdSuite) SetUpTest(c *C) {
 
 	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
-	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk, filepath.Join(s.dir, "keys"), nil)
+	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk,
+		filepath.Join(s.dir, "keys"), nil,
+		encryptor.GenerateGPGKey)
 	c.Assert(err, IsNil)
 
 	s.bl, err = boltlog.New(filepath.Join(s.dir, "eventsdb"))
@@ -233,7 +236,6 @@ func (s *CmdSuite) TestBackendKeys(c *C) {
 	}
 
 	s.run("backend-keys", "export", "--id", keys[0].ID, "--dir", s.dir)
-
 	c.Assert(s.asrv.ResetUserCA(""), IsNil)
 	_, pub, err := s.asrv.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -246,8 +248,6 @@ func (s *CmdSuite) TestBackendKeys(c *C) {
 
 	s.run("backend-keys", "delete", "--id", keys[0].ID)
 
-	return
-
 	var remoteCerts []services.RemoteCert
 	remoteCerts, err = s.CAS.GetRemoteCerts("user", "example.com")
 	c.Assert(err, IsNil)
@@ -255,8 +255,6 @@ func (s *CmdSuite) TestBackendKeys(c *C) {
 
 	s.run("backend-keys", "import", "--file", path.Join(s.dir, keys[0].ID+".bkey"))
 	s.run("backend-keys", "delete", "--id", keys[1].ID)
-	out = s.run("backend-keys", "ls")
-	c.Assert(out, DeepEquals, "This server has these keys: key45 ")
 	out = s.run("backend-keys", "ls")
 	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", keys[0].ID))
 	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", keys[0].Name))
