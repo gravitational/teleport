@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gokyle/hotp"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gokyle/hotp"
 
 	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/native"

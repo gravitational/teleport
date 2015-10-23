@@ -1,0 +1,43 @@
+hotpcli: OATH-HOTP command line tool
+
+hotpcli reads the DER-encoded key file specified and prints out the next code,
+updating the key file with the new key. 
+
+
+Usage:
+	hotpcli [-cnw] [-k keyfile] [-u url]
+                -c              Print out an integrity check; this
+                                displays a baseline key value and
+                                the current counter for synchronisation.
+                -k keyfile      Specify the file containing the
+                		key; defaults to hotp.key.
+                -n              Don't update the counter in the key
+                		file.
+                -u url          An OATH-HOTP URL containing the
+                                key-value information to use for
+                                the key.
+		-w		Write the url specified with -u to the
+				key file and exit.
+
+The program automatically updates the key file with the new counter;
+the -n option will allow this behaviour to be overridden. To generate
+a key from a url, pass the -w and -u options; the counter will not be
+updated.
+
+
+LICENSE
+
+Copyright (c) 2013 Kyle Isom <kyle@tyrfingr.is>
+
+Permission to use, copy, modify, and distribute this software for any
+purpose with or without fee is hereby granted, provided that the above 
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. 
+

@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gokyle/hotp"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gokyle/hotp"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"

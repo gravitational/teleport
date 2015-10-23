@@ -16,6 +16,16 @@
 			"Rev": "69e2a90ed92d03812364aeb947b7068dc42e561e"
 		},
 		{
+			"ImportPath": "code.google.com/p/rsc/gf256",
+			"Comment": "null-258",
+			"Rev": "2d8aa6027fab93979a3b4ecdbeb1ba430b489318"
+		},
+		{
+			"ImportPath": "code.google.com/p/rsc/qr",
+			"Comment": "null-258",
+			"Rev": "2d8aa6027fab93979a3b4ecdbeb1ba430b489318"
+		},
+		{
 			"ImportPath": "github.com/alecthomas/template",
 			"Rev": "b867cc6ab45cece8143cfcc6fc9c77cf3f2c23c0"
 		},
@@ -52,6 +62,10 @@
 			"Rev": "4734e7aca379f0d7fcdf04fbb2101696a4b45ce8"
 		},
 		{
+			"ImportPath": "github.com/gokyle/hotp",
+			"Rev": "cab5c36e945092b6fb703b6c785bb06fd0537a0d"
+		},
+		{
 			"ImportPath": "github.com/gravitational/configure",
 			"Rev": "725b3af8847feced5316be064a297d7c8a1052b3"
 		},
@@ -62,10 +76,6 @@
 		{
 			"ImportPath": "github.com/gravitational/log",
 			"Rev": "8e1bbf1bba0515719dbb17adf1da20b5390ac8da"
-		},
-		{
-			"ImportPath": "github.com/gravitational/orbit/lib/utils",
-			"Rev": "fe21737572762319f5e106adf361eac625ca1bc7"
 		},
 		{
 			"ImportPath": "github.com/gravitational/roundtrip",

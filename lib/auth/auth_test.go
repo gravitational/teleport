@@ -10,7 +10,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 
-	"github.com/gokyle/hotp"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gokyle/hotp"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 
