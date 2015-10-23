@@ -1,4 +1,4 @@
-package srv
+package utils
 
 import (
 	"crypto/tls"

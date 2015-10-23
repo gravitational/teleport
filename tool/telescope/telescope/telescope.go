@@ -271,7 +271,7 @@ func (s *Service) addStart() error {
 
 		if (s.cfg.TLSCert != "") && (s.cfg.TLSKey != "") {
 			log.Infof("found TLS credentials, init TLS listeners")
-			err := srv.ListenAndServeTLS(
+			err := utils.ListenAndServeTLS(
 				wsrv.Server.Addr,
 				wsrv.Handler,
 				s.cfg.TLSCert,
