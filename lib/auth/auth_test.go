@@ -10,6 +10,8 @@ import (
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 
+	"github.com/gokyle/hotp"
+
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
@@ -55,13 +57,19 @@ func (s *AuthSuite) TestSessions(c *C) {
 	user := "user1"
 	pass := []byte("abc123")
 
-	ws, err := s.a.SignIn(user, pass)
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	ws, err := s.a.SignIn(user, pass, "654321")
+	c.Assert(err, NotNil)
 	c.Assert(ws, IsNil)
 
-	c.Assert(s.a.UpsertPassword(user, pass), IsNil)
+	hotpURL, _, err := s.a.UpsertPassword(user, pass)
+	c.Assert(err, IsNil)
+	otp, label, err := hotp.FromURL(hotpURL)
+	c.Assert(err, IsNil)
+	c.Assert(label, Equals, "user1")
+	otp.Increment()
 
-	ws, err = s.a.SignIn(user, pass)
+	token1 := otp.OTP()
+	ws, err = s.a.SignIn(user, pass, token1)
 	c.Assert(err, IsNil)
 	c.Assert(ws, NotNil)
 

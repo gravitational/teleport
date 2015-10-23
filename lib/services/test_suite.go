@@ -7,6 +7,8 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/random"
 	"github.com/gravitational/teleport/lib/backend"
 
+	"github.com/gokyle/hotp"
+
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
@@ -336,26 +338,48 @@ func (s *ServicesTestSuite) RemoteCertCRUD(c *C) {
 	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 }
 
-func (s *ServicesTestSuite) TestPasswordCRUD(c *C) {
+func (s *ServicesTestSuite) PasswordCRUD(c *C) {
 	pass := []byte("abc123")
 
-	err := s.WebS.CheckPassword("user1", pass)
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	err := s.WebS.CheckPassword("user1", pass, "123456")
+	c.Assert(err, NotNil)
 
-	c.Assert(s.WebS.UpsertPassword("user1", pass), IsNil)
-	c.Assert(s.WebS.CheckPassword("user1", pass), IsNil)
-	c.Assert(s.WebS.CheckPassword("user1", []byte("abc123123")), FitsTypeOf, &teleport.BadParameterError{})
+	hotpURL, _, err := s.WebS.UpsertPassword("user1", pass)
+	c.Assert(err, IsNil)
+
+	otp, label, err := hotp.FromURL(hotpURL)
+	c.Assert(err, IsNil)
+	c.Assert(label, Equals, "user1")
+	otp.Increment()
+
+	token1 := otp.OTP()
+	c.Assert(s.WebS.CheckPassword("user1", pass, "123456"), FitsTypeOf, &teleport.BadParameterError{})
+	c.Assert(s.WebS.CheckPassword("user1", pass, token1), IsNil)
+	c.Assert(s.WebS.CheckPassword("user1", pass, token1), FitsTypeOf, &teleport.BadParameterError{})
+
+	token2 := otp.OTP()
+	c.Assert(s.WebS.CheckPassword("user1", []byte("abc123123"), token2), FitsTypeOf, &teleport.BadParameterError{})
+	c.Assert(s.WebS.CheckPassword("user1", pass, "123456"), FitsTypeOf, &teleport.BadParameterError{})
+	c.Assert(s.WebS.CheckPassword("user1", pass, token2), IsNil)
+	c.Assert(s.WebS.CheckPassword("user1", pass, token1), FitsTypeOf, &teleport.BadParameterError{})
+
+	token3 := otp.OTP()
+	token4 := otp.OTP()
+	c.Assert(s.WebS.CheckPassword("user1", pass, token4), FitsTypeOf, &teleport.BadParameterError{})
+	c.Assert(s.WebS.CheckPassword("user1", pass, token3), IsNil)
+	c.Assert(s.WebS.CheckPassword("user1", pass, "123456"), FitsTypeOf, &teleport.BadParameterError{})
+	c.Assert(s.WebS.CheckPassword("user1", pass, token4), IsNil)
 }
 
-func (s *ServicesTestSuite) TestPasswordGarbage(c *C) {
+func (s *ServicesTestSuite) PasswordGarbage(c *C) {
 	garbage := [][]byte{
 		nil,
 		make([]byte, MaxPasswordLength+1),
 		make([]byte, MinPasswordLength-1),
 	}
 	for _, g := range garbage {
-		err := s.WebS.CheckPassword("user1", g)
-		c.Assert(err, FitsTypeOf, &teleport.BadParameterError{})
+		err := s.WebS.CheckPassword("user1", g, "123456")
+		c.Assert(err, NotNil)
 	}
 }
 

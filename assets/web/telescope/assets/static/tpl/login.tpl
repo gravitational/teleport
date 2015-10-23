@@ -15,6 +15,10 @@
                 <div class="form-group">
                     <input type="password" name="password" class="form-control" placeholder="Password" required="">
                 </div>
+                <div class="form-group">
+                    <input type="password" name="hotpToken" class="form-control" placeholder="Hotp Token" required="">
+                </div>
+
                 <button type="submit" class="btn btn-primary block full-width m-b">Login</button>
 
                 <a href="#"><small>Forgot password?</small></a>

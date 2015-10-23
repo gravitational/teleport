@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gokyle/hotp"
+
 	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
@@ -208,12 +210,34 @@ func (s *APISuite) TestUserKeyCRUD(c *C) {
 func (s *APISuite) TestPasswordCRUD(c *C) {
 	pass := []byte("abc123")
 
-	err := s.clt.CheckPassword("user1", pass)
+	err := s.WebS.CheckPassword("user1", pass, "123456")
 	c.Assert(err, NotNil)
 
-	c.Assert(s.clt.UpsertPassword("user1", pass), IsNil)
-	c.Assert(s.clt.CheckPassword("user1", pass), IsNil)
-	c.Assert(s.clt.CheckPassword("user1", []byte("abc123123")), NotNil)
+	hotpURL, _, err := s.WebS.UpsertPassword("user1", pass)
+	c.Assert(err, IsNil)
+
+	otp, label, err := hotp.FromURL(hotpURL)
+	c.Assert(err, IsNil)
+	c.Assert(label, Equals, "user1")
+	otp.Increment()
+
+	token1 := otp.OTP()
+	c.Assert(s.WebS.CheckPassword("user1", pass, "123456"), FitsTypeOf, &teleport.BadParameterError{})
+	c.Assert(s.WebS.CheckPassword("user1", pass, token1), IsNil)
+	c.Assert(s.WebS.CheckPassword("user1", pass, token1), FitsTypeOf, &teleport.BadParameterError{})
+
+	token2 := otp.OTP()
+	c.Assert(s.WebS.CheckPassword("user1", []byte("abc123123"), token2), FitsTypeOf, &teleport.BadParameterError{})
+	c.Assert(s.WebS.CheckPassword("user1", pass, "123456"), FitsTypeOf, &teleport.BadParameterError{})
+	c.Assert(s.WebS.CheckPassword("user1", pass, token2), IsNil)
+	c.Assert(s.WebS.CheckPassword("user1", pass, token1), FitsTypeOf, &teleport.BadParameterError{})
+
+	token3 := otp.OTP()
+	token4 := otp.OTP()
+	c.Assert(s.WebS.CheckPassword("user1", pass, token4), FitsTypeOf, &teleport.BadParameterError{})
+	c.Assert(s.WebS.CheckPassword("user1", pass, token3), IsNil)
+	c.Assert(s.WebS.CheckPassword("user1", pass, "123456"), FitsTypeOf, &teleport.BadParameterError{})
+	c.Assert(s.WebS.CheckPassword("user1", pass, token4), IsNil)
 }
 
 func (s *APISuite) TestSessions(c *C) {
@@ -222,13 +246,19 @@ func (s *APISuite) TestSessions(c *C) {
 
 	c.Assert(s.a.ResetUserCA(""), IsNil)
 
-	ws, err := s.clt.SignIn(user, pass)
+	ws, err := s.clt.SignIn(user, pass, "123456")
 	c.Assert(err, NotNil)
 	c.Assert(ws, Equals, "")
 
-	c.Assert(s.clt.UpsertPassword(user, pass), IsNil)
+	hotpURL, _, err := s.a.UpsertPassword(user, pass)
+	c.Assert(err, IsNil)
 
-	ws, err = s.clt.SignIn(user, pass)
+	otp, label, err := hotp.FromURL(hotpURL)
+	c.Assert(err, IsNil)
+	c.Assert(label, Equals, "user1")
+	otp.Increment()
+
+	ws, err = s.clt.SignIn(user, pass, otp.OTP())
 	c.Assert(err, IsNil)
 	c.Assert(ws, Not(Equals), "")
 

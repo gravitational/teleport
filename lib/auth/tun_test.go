@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"path/filepath"
 
+	"github.com/gokyle/hotp"
+
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
@@ -131,9 +133,15 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	user := "test"
 	pass := []byte("pwd123")
 
-	s.a.UpsertPassword(user, pass)
+	hotpURL, _, err := s.a.UpsertPassword(user, pass)
+	c.Assert(err, IsNil)
 
-	authMethod, err := NewWebPasswordAuth(user, pass)
+	otp, label, err := hotp.FromURL(hotpURL)
+	c.Assert(err, IsNil)
+	c.Assert(label, Equals, "test")
+	otp.Increment()
+
+	authMethod, err := NewWebPasswordAuth(user, pass, otp.OTP())
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient(
@@ -152,9 +160,15 @@ func (s *TunSuite) TestSessions(c *C) {
 	user := "ws-test"
 	pass := []byte("ws-abc123")
 
-	c.Assert(s.a.UpsertPassword(user, pass), IsNil)
+	hotpURL, _, err := s.a.UpsertPassword(user, pass)
+	c.Assert(err, IsNil)
 
-	authMethod, err := NewWebPasswordAuth(user, pass)
+	otp, label, err := hotp.FromURL(hotpURL)
+	c.Assert(err, IsNil)
+	c.Assert(label, Equals, "ws-test")
+	otp.Increment()
+
+	authMethod, err := NewWebPasswordAuth(user, pass, otp.OTP())
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient(
@@ -162,9 +176,15 @@ func (s *TunSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 	defer clt.Close()
 
-	c.Assert(clt.UpsertPassword(user, pass), IsNil)
+	hotpURL, _, err = clt.UpsertPassword(user, pass)
+	c.Assert(err, IsNil)
 
-	ws, err := clt.SignIn(user, pass)
+	otp, label, err = hotp.FromURL(hotpURL)
+	c.Assert(err, IsNil)
+	c.Assert(label, Equals, "ws-test")
+	otp.Increment()
+
+	ws, err := clt.SignIn(user, pass, otp.OTP())
 	c.Assert(err, IsNil)
 	c.Assert(ws, Not(Equals), "")
 
@@ -194,9 +214,15 @@ func (s *TunSuite) TestSessionsBadPassword(c *C) {
 	user := "system-test"
 	pass := []byte("system-abc123")
 
-	c.Assert(s.a.UpsertPassword(user, pass), IsNil)
+	hotpURL, _, err := s.a.UpsertPassword(user, pass)
+	c.Assert(err, IsNil)
 
-	authMethod, err := NewWebPasswordAuth(user, pass)
+	otp, label, err := hotp.FromURL(hotpURL)
+	c.Assert(err, IsNil)
+	c.Assert(label, Equals, "system-test")
+	otp.Increment()
+
+	authMethod, err := NewWebPasswordAuth(user, pass, otp.OTP())
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient(
@@ -204,11 +230,16 @@ func (s *TunSuite) TestSessionsBadPassword(c *C) {
 	c.Assert(err, IsNil)
 	defer clt.Close()
 
-	ws, err := clt.SignIn(user, []byte("different-pass"))
+	ws, err := clt.SignIn(user, []byte("different-pass"), "333333")
 	c.Assert(err, NotNil)
 	c.Assert(ws, Equals, "")
 
-	ws, err = clt.SignIn("not-exitsts", pass)
+	ws, err = clt.SignIn("not-exitsts", pass, "444444")
 	c.Assert(err, NotNil)
 	c.Assert(ws, Equals, "")
+
+	ws, err = clt.SignIn(user, pass, "555555")
+	c.Assert(err, NotNil)
+	c.Assert(ws, Equals, "")
+
 }

@@ -106,7 +106,7 @@ type RequestHandler func(http.ResponseWriter, *http.Request, httprouter.Params, 
 
 type AuthHandler interface {
 	GetHost() string
-	Auth(user, pass string) (string, error)
+	Auth(user, pass string, hotpToken string) (string, error)
 	ValidateSession(user, sid string) (Context, error)
 	SetSession(w http.ResponseWriter, user, sid string) error
 	ClearSession(w http.ResponseWriter)
@@ -143,8 +143,8 @@ func CloseContext(key string, val interface{}) {
 	}
 }
 
-func (s *LocalAuth) Auth(user, pass string) (string, error) {
-	method, err := auth.NewWebPasswordAuth(user, []byte(pass))
+func (s *LocalAuth) Auth(user, pass string, hotpToken string) (string, error) {
+	method, err := auth.NewWebPasswordAuth(user, []byte(pass), hotpToken)
 	if err != nil {
 		return "", err
 	}
@@ -152,7 +152,7 @@ func (s *LocalAuth) Auth(user, pass string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return clt.SignIn(user, []byte(pass))
+	return clt.SignIn(user, []byte(pass), hotpToken)
 }
 
 func (s *LocalAuth) ValidateSession(user, sid string) (Context, error) {

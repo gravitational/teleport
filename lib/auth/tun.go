@@ -390,7 +390,7 @@ func (s *TunServer) passwordAuth(
 	log.Infof("got authentication attempt for user '%v' type '%v'", conn.User(), ab.Type)
 	switch ab.Type {
 	case "password":
-		if err := s.a.CheckPassword(conn.User(), ab.Pass); err != nil {
+		if err := s.a.CheckPassword(conn.User(), ab.Pass, ab.HotpToken); err != nil {
 			log.Errorf("Password auth error: %v", err)
 			return nil, err
 		}
@@ -436,9 +436,10 @@ func (s *TunServer) passwordAuth(
 // authBucket uses password to transport app-specific user name and
 // auth-type in addition to the password to support auth
 type authBucket struct {
-	User string `json:"user"`
-	Type string `json:"type"`
-	Pass []byte `json:"pass"`
+	User      string `json:"user"`
+	Type      string `json:"type"`
+	Pass      []byte `json:"pass"`
+	HotpToken string `json:"hotpToken"`
 }
 
 func NewTokenAuth(fqdn, token string) ([]ssh.AuthMethod, error) {
@@ -465,11 +466,12 @@ func NewWebSessionAuth(user string, session []byte) ([]ssh.AuthMethod, error) {
 	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
 }
 
-func NewWebPasswordAuth(user string, password []byte) ([]ssh.AuthMethod, error) {
+func NewWebPasswordAuth(user string, password []byte, hotpToken string) ([]ssh.AuthMethod, error) {
 	data, err := json.Marshal(authBucket{
-		Type: AuthWebPassword,
-		User: user,
-		Pass: password,
+		Type:      AuthWebPassword,
+		User:      user,
+		Pass:      password,
+		HotpToken: hotpToken,
 	})
 	if err != nil {
 		return nil, err

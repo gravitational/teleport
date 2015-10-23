@@ -131,8 +131,8 @@ func (s *AuthServer) GenerateUserCert(
 	return s.Authority.GenerateUserCert(hk.Priv, key, id, username, ttl)
 }
 
-func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
-	if err := s.CheckPassword(user, password); err != nil {
+func (s *AuthServer) SignIn(user string, password []byte, hotpToken string) (*Session, error) {
+	if err := s.CheckPassword(user, password, hotpToken); err != nil {
 		return nil, err
 	}
 	sess, err := s.NewWebSession(user)
