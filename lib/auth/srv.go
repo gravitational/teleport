@@ -312,7 +312,8 @@ func (s *APIServer) signIn(w http.ResponseWriter, r *http.Request, p httprouter.
 	var pass string
 
 	err := form.Parse(r,
-		form.String("password", &pass, form.Required()))
+		form.String("password", &pass, form.Required()),
+	)
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -336,25 +337,30 @@ func (s *APIServer) upsertPassword(w http.ResponseWriter, r *http.Request, p htt
 		return
 	}
 	user := p[0].Value
-	if err := s.s.UpsertPassword(user, []byte(pass)); err != nil {
+	hotpURL, hotpQR, err := s.s.UpsertPassword(user, []byte(pass))
+	if err != nil {
 		replyErr(w, err)
 		return
 	}
 
-	reply(w, http.StatusOK, message(fmt.Sprintf("'%v' user password updated successfully", user)))
+	reply(w, http.StatusOK,
+		&upsertPasswordResponse{HotpURL: hotpURL, HotpQR: hotpQR})
 }
 
 func (s *APIServer) checkPassword(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	var pass string
+	var hotpToken string
 
 	err := form.Parse(r,
-		form.String("password", &pass, form.Required()))
+		form.String("password", &pass, form.Required()),
+		form.String("hotpToken", &hotpToken, form.Required()),
+	)
 	if err != nil {
 		replyErr(w, err)
 		return
 	}
 	user := p[0].Value
-	if err := s.s.CheckPassword(user, []byte(pass)); err != nil {
+	if err := s.s.CheckPassword(user, []byte(pass), hotpToken); err != nil {
 		replyErr(w, err)
 		return
 	}
@@ -937,6 +943,11 @@ type sealKeyResponse struct {
 
 type sealKeysResponse struct {
 	Keys []encryptor.Key
+}
+
+type upsertPasswordResponse struct {
+	HotpURL string
+	HotpQR  []byte
 }
 
 func message(msg string) map[string]interface{} {

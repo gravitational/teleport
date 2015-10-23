@@ -74,17 +74,7 @@ run-embedded: install
 
 run-telescope: install
 	rm -f /tmp/telescope.auth.sock
-	telescope --log=console\
-         --log-severity=INFO\
-         --data-dir=/var/lib/teleport/telescope\
-         --assets-dir=$(GOPATH)/src/github.com/gravitational/teleport/telescope\
-         --cp-assets-dir=$(GOPATH)/src/github.com/gravitational/teleport\
-         --fqdn=telescope.vendor.io\
-         --domain=vendor.io\
-         --tun-addr=tcp://0.0.0.0:34000\
-         --web-addr=tcp://0.0.0.0:35000\
-         --backend=bolt\
-         --backend-config='{"path": "/var/lib/teleport/telescope.db"}'
+	telescope --config=examples/telescope.yaml
 
 trust-telescope: 
 	tscopectl user-ca pub-key > /tmp/user.pubkey

@@ -331,19 +331,28 @@ func (c *Client) DeleteWebTun(prefix string) error {
 }
 
 // UpsertPassword updates web access password for the user
-func (c *Client) UpsertPassword(user string, password []byte) error {
-	_, err := c.PostForm(
+func (c *Client) UpsertPassword(user string,
+	password []byte) (hotpURL string, hotpQR []byte, err error) {
+	out, err := c.PostForm(
 		c.Endpoint("users", user, "web", "password"),
 		url.Values{"password": []string{string(password)}},
 	)
-	return err
+	var re *upsertPasswordResponse
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return "", nil, err
+	}
+	return re.HotpURL, re.HotpQR, err
 }
 
 // CheckPassword checks if the suplied web access password is valid.
-func (c *Client) CheckPassword(user string, password []byte) error {
+func (c *Client) CheckPassword(user string,
+	password []byte, hotpToken string) error {
 	_, err := c.PostForm(
 		c.Endpoint("users", user, "web", "password", "check"),
-		url.Values{"password": []string{string(password)}})
+		url.Values{
+			"password":  []string{string(password)},
+			"hotpToken": []string{hotpToken},
+		})
 	return err
 }
 
@@ -352,7 +361,9 @@ func (c *Client) CheckPassword(user string, password []byte) error {
 func (c *Client) SignIn(user string, password []byte) (string, error) {
 	out, err := c.PostForm(
 		c.Endpoint("users", user, "web", "signin"),
-		url.Values{"password": []string{string(password)}},
+		url.Values{
+			"password": []string{string(password)},
+		},
 	)
 	if err != nil {
 		return "", err
@@ -709,8 +720,8 @@ type ClientI interface {
 	GetWebTuns() ([]services.WebTun, error)
 	GetWebTun(prefix string) (*services.WebTun, error)
 	DeleteWebTun(prefix string) error
-	UpsertPassword(user string, password []byte) error
-	CheckPassword(user string, password []byte) error
+	UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error)
+	CheckPassword(user string, password []byte, hotpToken string) error
 	SignIn(user string, password []byte) (string, error)
 	GetWebSession(user string, sid string) (string, error)
 	GetWebSessionsKeys(user string) ([]services.AuthorizedKey, error)

@@ -1,0 +1,42 @@
+hotpgen: generate new HOTP key values from the command line
+
+Usage:
+
+	hotpgen [-d digits] [-p password] [-r] [label]
+                -d digits       Specify the number of digits to
+                		use, typically 6 or 8; defaults
+				to 6.
+
+		-r		Randomise the initial counter;
+				defaults to false as this is
+				not supported by all clients.
+
+		label		An optional label for the key;
+				for example, an email address
+				or username.
+
+The program will dump out three files; a PNG image, a text file,
+and a DER-encoded key file that can be used with hotpcli.  The text
+file contains the URL encoded in the QR code; the QR code may be
+displayed to users to scan into their mobile apps. If a label is
+provided, the files are named by the label (e.g. label.png and
+label.txt); otherwise, the files are named as the base32-encoded
+URL.
+
+
+LICENSE
+
+Copyright (c) 2013 Kyle Isom <kyle@tyrfingr.is>
+
+Permission to use, copy, modify, and distribute this software for any
+purpose with or without fee is hereby granted, provided that the above 
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. 
+

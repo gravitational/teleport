@@ -60,6 +60,14 @@ func (s *BoltSuite) TestPasswordHashCRUD(c *C) {
 	s.suite.PasswordHashCRUD(c)
 }
 
+func (s *BoltSuite) TestPasswordAndHotpCRUD(c *C) {
+	s.suite.PasswordCRUD(c)
+}
+
+func (s *BoltSuite) TestPasswordGarbage(c *C) {
+	s.suite.PasswordGarbage(c)
+}
+
 func (s *BoltSuite) TestWebSessionCRUD(c *C) {
 	s.suite.WebSessionCRUD(c)
 }

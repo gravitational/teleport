@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"io/ioutil"
 	"time"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/buger/goterm"
@@ -9,12 +10,14 @@ import (
 )
 
 func (cmd *Command) SetPass(user, pass string) {
-	err := cmd.client.UpsertPassword(user, []byte(pass))
+	hotpURL, hotpQR, err := cmd.client.UpsertPassword(user, []byte(pass))
 	if err != nil {
 		cmd.printError(err)
 		return
 	}
-	cmd.printOK("password has been set for user '%v'", user)
+
+	err = ioutil.WriteFile("QR.png", hotpQR, 0777)
+	cmd.printOK("password has been set for user '%v', hotp: %v", user, hotpURL)
 }
 
 func (cmd *Command) UpsertKey(user, keyID, key string, ttl time.Duration) {

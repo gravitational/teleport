@@ -8,6 +8,10 @@ fqdn: gravitational.io
 ssh:
   enabled: true
 
+tun:
+  enabled: true
+  server_addr: tcp://telescope.vendor.io:33006
+
 auth:
   enabled: true
   domain: a.fqdn

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/orbit/lib/utils"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/configure"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 )
 
@@ -60,7 +60,7 @@ func (c *ctx) Env(key string) (string, error) {
 	if !ok {
 		return "", trace.Errorf("environment variable '%v' is not set", key)
 	}
-	values := utils.SplitComma(v)
+	values := configure.SplitComma(v)
 	out := make([]string, len(values))
 	for i, p := range values {
 		out[i] = quoteYAML(p)

@@ -635,17 +635,19 @@ func (s *CPHandler) logout(w http.ResponseWriter, r *http.Request, _ httprouter.
 }
 
 func (s *CPHandler) authForm(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	var user, pass string
+	var user, pass, hotpToken string
 
 	err := form.Parse(r,
 		form.String("username", &user, form.Required()),
-		form.String("password", &pass, form.Required()))
+		form.String("password", &pass, form.Required()),
+		form.String("hotpToken", &hotpToken, form.Required()),
+	)
 
 	if err != nil {
 		replyErr(w, http.StatusBadRequest, err)
 		return
 	}
-	sid, err := s.cfg.Auth.Auth(user, pass)
+	sid, err := s.cfg.Auth.Auth(user, pass, hotpToken)
 	if err != nil {
 		log.Warningf("auth error: %v", err)
 		http.Redirect(w, r, "/login", http.StatusFound)

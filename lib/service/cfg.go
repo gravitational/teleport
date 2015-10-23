@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/configure"
-	outils "github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/orbit/lib/utils"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -110,7 +109,7 @@ type TunConfig struct {
 type NetAddrSlice []utils.NetAddr
 
 func (s *NetAddrSlice) Set(val string) error {
-	values := outils.SplitComma(val)
+	values := configure.SplitComma(val)
 	out := make([]utils.NetAddr, len(values))
 	for i, v := range values {
 		a, err := utils.ParseAddr(v)
@@ -130,7 +129,7 @@ func (kv *KeyVal) Set(v string) error {
 	if len(*kv) == 0 {
 		*kv = make(map[string]string)
 	}
-	for _, i := range outils.SplitComma(v) {
+	for _, i := range configure.SplitComma(v) {
 		vals := strings.SplitN(i, ":", 2)
 		if len(vals) != 2 {
 			return trace.Errorf("extra options should be defined like KEY:VAL")

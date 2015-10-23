@@ -132,7 +132,7 @@ func (s *AuthServer) GenerateUserCert(
 }
 
 func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
-	if err := s.CheckPassword(user, password); err != nil {
+	if err := s.CheckPasswordWOToken(user, password); err != nil {
 		return nil, err
 	}
 	sess, err := s.NewWebSession(user)

@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gokyle/hotp"
+
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/bcrypt"
@@ -40,6 +42,32 @@ func (s *WebService) GetPasswordHash(user string) ([]byte, error) {
 		return nil, err
 	}
 	return hash, err
+}
+
+func (s *WebService) UpsertHOTP(user string, otp *hotp.HOTP) error {
+	bytes, err := hotp.Marshal(otp)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.backend.UpsertVal([]string{"web", "users", user},
+		"hotp", bytes, 0)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *WebService) GetHOTP(user string) (*hotp.HOTP, error) {
+	bytes, err := s.backend.GetVal([]string{"web", "users", user},
+		"hotp")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	otp, err := hotp.Unmarshal(bytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return otp, nil
 }
 
 // UpsertSession
@@ -174,28 +202,84 @@ func (s *WebService) GetWebTuns() ([]WebTun, error) {
 	return tuns, nil
 }
 
-func (s *WebService) UpsertPassword(user string, password []byte) error {
+func (s *WebService) UpsertPassword(user string,
+	password []byte) (hotpURL string, hotpQR []byte, err error) {
+
 	if err := verifyPassword(password); err != nil {
-		return err
+		return "", nil, err
 	}
 	hash, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
 	if err != nil {
-		return err
+		return "", nil, err
 	}
-	return s.UpsertPasswordHash(user, hash)
+
+	otp, err := hotp.GenerateHOTP(6, false)
+	if err != nil {
+		return "", nil, err
+	}
+	hotpQR, err = otp.QR(user)
+	if err != nil {
+		return "", nil, err
+	}
+	hotpURL = otp.URL(user)
+	if err != nil {
+		return "", nil, err
+	}
+	otp.Increment()
+
+	err = s.UpsertPasswordHash(user, hash)
+	if err != nil {
+		return "", nil, err
+	}
+	err = s.UpsertHOTP(user, otp)
+	if err != nil {
+		return "", nil, err
+	}
+
+	return hotpURL, hotpQR, nil
+
 }
 
-func (s *WebService) CheckPassword(user string, password []byte) error {
+func (s *WebService) CheckPassword(user string, password []byte, hotpToken string) error {
 	if err := verifyPassword(password); err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	hash, err := s.GetPasswordHash(user)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
 		return &teleport.BadParameterError{Err: "passwords do not match"}
 	}
+
+	otp, err := s.GetHOTP(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !otp.Check(hotpToken) {
+		return &teleport.BadParameterError{Err: "tokens do not match"}
+	}
+
+	if err := s.UpsertHOTP(user, otp); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// TO DO: not very good
+func (s *WebService) CheckPasswordWOToken(user string, password []byte) error {
+	if err := verifyPassword(password); err != nil {
+		return trace.Wrap(err)
+	}
+	hash, err := s.GetPasswordHash(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
+		return &teleport.BadParameterError{Err: "passwords do not match"}
+	}
+
 	return nil
 }
 
