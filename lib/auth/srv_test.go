@@ -246,7 +246,7 @@ func (s *APISuite) TestSessions(c *C) {
 
 	c.Assert(s.a.ResetUserCA(""), IsNil)
 
-	ws, err := s.clt.SignIn(user, pass, "123456")
+	ws, err := s.clt.SignIn(user, pass)
 	c.Assert(err, NotNil)
 	c.Assert(ws, Equals, "")
 
@@ -258,7 +258,7 @@ func (s *APISuite) TestSessions(c *C) {
 	c.Assert(label, Equals, "user1")
 	otp.Increment()
 
-	ws, err = s.clt.SignIn(user, pass, otp.OTP())
+	ws, err = s.clt.SignIn(user, pass)
 	c.Assert(err, IsNil)
 	c.Assert(ws, Not(Equals), "")
 

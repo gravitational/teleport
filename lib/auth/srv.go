@@ -309,18 +309,17 @@ func (s *APIServer) getWebSessions(w http.ResponseWriter, r *http.Request, p htt
 }
 
 func (s *APIServer) signIn(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	var pass, hotpToken string
+	var pass string
 
 	err := form.Parse(r,
 		form.String("password", &pass, form.Required()),
-		form.String("hotpToken", &hotpToken, form.Required()),
 	)
 	if err != nil {
 		replyErr(w, err)
 		return
 	}
 	user := p[0].Value
-	ws, err := s.s.SignIn(user, []byte(pass), hotpToken)
+	ws, err := s.s.SignIn(user, []byte(pass))
 	if err != nil {
 		replyErr(w, err)
 		return

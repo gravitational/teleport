@@ -184,7 +184,7 @@ func (s *TunSuite) TestSessions(c *C) {
 	c.Assert(label, Equals, "ws-test")
 	otp.Increment()
 
-	ws, err := clt.SignIn(user, pass, otp.OTP())
+	ws, err := clt.SignIn(user, pass)
 	c.Assert(err, IsNil)
 	c.Assert(ws, Not(Equals), "")
 
@@ -230,15 +230,11 @@ func (s *TunSuite) TestSessionsBadPassword(c *C) {
 	c.Assert(err, IsNil)
 	defer clt.Close()
 
-	ws, err := clt.SignIn(user, []byte("different-pass"), "333333")
+	ws, err := clt.SignIn(user, []byte("different-pass"))
 	c.Assert(err, NotNil)
 	c.Assert(ws, Equals, "")
 
-	ws, err = clt.SignIn("not-exitsts", pass, "444444")
-	c.Assert(err, NotNil)
-	c.Assert(ws, Equals, "")
-
-	ws, err = clt.SignIn(user, pass, "555555")
+	ws, err = clt.SignIn("not-exitsts", pass)
 	c.Assert(err, NotNil)
 	c.Assert(ws, Equals, "")
 

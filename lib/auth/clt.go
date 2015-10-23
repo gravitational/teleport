@@ -358,12 +358,11 @@ func (c *Client) CheckPassword(user string,
 
 // SignIn checks if the web access password is valid, and if it is valid
 // returns a secure web session id.
-func (c *Client) SignIn(user string, password []byte, hotpToken string) (string, error) {
+func (c *Client) SignIn(user string, password []byte) (string, error) {
 	out, err := c.PostForm(
 		c.Endpoint("users", user, "web", "signin"),
 		url.Values{
-			"password":  []string{string(password)},
-			"hotpToken": []string{hotpToken},
+			"password": []string{string(password)},
 		},
 	)
 	if err != nil {
@@ -723,7 +722,7 @@ type ClientI interface {
 	DeleteWebTun(prefix string) error
 	UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error)
 	CheckPassword(user string, password []byte, hotpToken string) error
-	SignIn(user string, password []byte, hotpToken string) (string, error)
+	SignIn(user string, password []byte) (string, error)
 	GetWebSession(user string, sid string) (string, error)
 	GetWebSessionsKeys(user string) ([]services.AuthorizedKey, error)
 	DeleteWebSession(user string, sid string) error

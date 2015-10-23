@@ -152,7 +152,7 @@ func (s *LocalAuth) Auth(user, pass string, hotpToken string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return clt.SignIn(user, []byte(pass), hotpToken)
+	return clt.SignIn(user, []byte(pass))
 }
 
 func (s *LocalAuth) ValidateSession(user, sid string) (Context, error) {

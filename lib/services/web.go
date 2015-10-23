@@ -241,9 +241,6 @@ func (s *WebService) UpsertPassword(user string,
 }
 
 func (s *WebService) CheckPassword(user string, password []byte, hotpToken string) error {
-	fmt.Println("***************************************************************************")
-	fmt.Println("Check password", user, password, hotpToken)
-	fmt.Println("###########################################################################")
 	if err := verifyPassword(password); err != nil {
 		return trace.Wrap(err)
 	}
@@ -252,7 +249,7 @@ func (s *WebService) CheckPassword(user string, password []byte, hotpToken strin
 		return trace.Wrap(err)
 	}
 	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
-		return &teleport.BadParameterError{Err: "passwords or tokens do not match"}
+		return &teleport.BadParameterError{Err: "passwords do not match"}
 	}
 
 	otp, err := s.GetHOTP(user)
@@ -260,11 +257,27 @@ func (s *WebService) CheckPassword(user string, password []byte, hotpToken strin
 		return trace.Wrap(err)
 	}
 	if !otp.Check(hotpToken) {
-		return &teleport.BadParameterError{Err: "passwords or tokens do not match"}
+		return &teleport.BadParameterError{Err: "tokens do not match"}
 	}
 
 	if err := s.UpsertHOTP(user, otp); err != nil {
 		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// TO DO: not very good
+func (s *WebService) CheckPasswordWOToken(user string, password []byte) error {
+	if err := verifyPassword(password); err != nil {
+		return trace.Wrap(err)
+	}
+	hash, err := s.GetPasswordHash(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
+		return &teleport.BadParameterError{Err: "passwords do not match"}
 	}
 
 	return nil

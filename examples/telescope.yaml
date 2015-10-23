@@ -6,7 +6,7 @@ data_dir: /var/lib/telescope
 fqdn: gravitational.io
 
 assets_dir: assets/web/telescope
-cp_assets_dir: ./
+cp_assets_dir: assets/web/teleport
 
 fqdn: telescope.vendor.io
 domain: vendor.io
