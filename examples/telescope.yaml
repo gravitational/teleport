@@ -1,0 +1,22 @@
+log:
+  output: console
+  severity: INFO
+
+data_dir: /var/lib/telescope
+fqdn: gravitational.io
+
+assets_dir: assets/web/telescope
+cp_assets_dir: ./
+
+fqdn: telescope.vendor.io
+domain: vendor.io
+
+backend: bolt\
+backend_config: '{"path": "/var/lib/teleport/telescope.db"}'
+
+keys_backend:
+  type: bolt
+  params: {path: "/var/lib/teleport/telescope.auth.db"}
+
+
+
