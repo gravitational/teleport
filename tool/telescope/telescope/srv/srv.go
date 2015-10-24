@@ -140,7 +140,7 @@ func (s *Handler) siteHandler(w http.ResponseWriter, r *http.Request, p httprout
 	prefix := fmt.Sprintf("/tun/%v", siteName)
 	i, ok := s.sites.Get(siteName)
 	if !ok {
-		tauth, err := NewTunAuth(s.auth, s.cfg.Tun, siteName)
+		tauth, err := cp.NewTunAuth(s.auth, s.cfg.Tun, siteName)
 		if err != nil {
 			return err
 		}

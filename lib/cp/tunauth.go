@@ -1,26 +1,26 @@
-package srv
+package cp
 
 import (
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/cp"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tun"
+
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 )
 
 type TunAuth struct {
-	cp.AuthHandler
+	AuthHandler
 	siteName string
 	srv      tun.Server
 }
 
-func NewTunAuth(auth cp.AuthHandler, srv tun.Server, siteName string) (*TunAuth, error) {
+func NewTunAuth(auth AuthHandler, srv tun.Server, siteName string) (*TunAuth, error) {
 	t := &TunAuth{srv: srv, siteName: siteName}
 	t.AuthHandler = auth
 	return t, nil
 }
 
-func (t *TunAuth) ValidateSession(user, sid string) (cp.Context, error) {
+func (t *TunAuth) ValidateSession(user, sid string) (Context, error) {
 	lctx, err := t.AuthHandler.ValidateSession(user, sid)
 	if err != nil {
 		return nil, err
@@ -36,7 +36,7 @@ func (t *TunAuth) ValidateSession(user, sid string) (cp.Context, error) {
 }
 
 type TunContext struct {
-	cp.Context
+	Context
 	site tun.RemoteSite
 }
 
