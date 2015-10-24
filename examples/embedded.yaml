@@ -2,20 +2,25 @@ log:
   output: console
   severity: INFO
 
-data_dir: /var/lib/teleport
-fqdn: gravitational.io
+data_dir: /var/lib/teleport # directory where teleport stores it's state (SSH keys and database data)
+
+hostname: node1.gravitational.io # SSH hostname of this node
 
 ssh:
+  # enable simple ssh endpoint
   enabled: true
 
-tun:
+reverse_tunnel:
+  # this node will try to connect to remote web proxy and establish reverse SSH tunnel
+  # so web proxy can access all the nodes in the cluster through this tunnel
   enabled: true
-  server_addr: tcp://telescope.vendor.io:33006
+  dial_addr: tcp://node1.gravitational.io:33006
 
 auth:
+  # auth is authentication and authorization server for users and hosts
+  # it acts like SSH user CA authority and host CA authority
   enabled: true
-  domain: a.fqdn
-  token: authtoken
+  host_authority_domain: gravitational.io
 
   keys_backend:
     type: bolt
@@ -29,4 +34,8 @@ auth:
     type: bolt
     params: {path: "/var/lib/teleport/records.db"}
 
-
+proxy:
+  # proxy starts web and ssh proxy that allow inbound connections from remote nodes
+  enabled: true
+  assets_dir: assets/web # directory with javascript, html and css for web
+  reverse_tunnel_listen_addr: tcp://node1.gravitational.io:33006

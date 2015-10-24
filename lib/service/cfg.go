@@ -28,14 +28,23 @@ func ParseEnv(cfg interface{}) error {
 type Config struct {
 	Log LogConfig `yaml:"log"`
 
-	DataDir string `yaml:"data_dir" env:"TELEPORT_DATA_DIR"`
-	FQDN    string `yaml:"fqdn" env:"TELEPORT_FQDN"`
+	DataDir  string `yaml:"data_dir" env:"TELEPORT_DATA_DIR"`
+	Hostname string `yaml:"hostname" env:"TELEPORT_HOSTNAME"`
 
 	AuthServers NetAddrSlice `yaml:"auth_servers,flow" env:"TELEPORT_AUTH_SERVERS"`
 
-	SSH  SSHConfig  `yaml:"ssh"`
+	// SSH role an SSH endpoint server
+	SSH SSHConfig `yaml:"ssh"`
+
+	// Auth server authentication and authorizatin server config
 	Auth AuthConfig `yaml:"auth"`
-	Tun  TunConfig  `yaml:"tun"`
+
+	// ReverseTunnnel role creates and mantains outbound SSH reverse tunnel to the proxy
+	ReverseTunnel ReverseTunnelConfig `yaml:"reverse_tunnel"`
+
+	// Proxy is SSH proxy that manages incoming and outbound connections
+	// via multiple reverse tunnels
+	Proxy ProxyConfig `yaml:"proxy"`
 }
 
 type LogConfig struct {
@@ -43,17 +52,44 @@ type LogConfig struct {
 	Severity string `yaml:"severity" env:"TELEPORT_LOG_SEVERITY"`
 }
 
+type ProxyConfig struct {
+	// Enabled turns proxy role on or off for this process
+	Enabled bool `yaml:"enabled" env:"TELEPORT_PROXY_ENABLED"`
+
+	// Token is a provisioning token for new proxy server registering with auth
+	Token string `yaml:"token" env:"TELEPORT_PROXY_TOKEN"`
+
+	// ReverseTunnelListenAddr is address where reverse tunnel dialers connect to
+	ReverseTunnelListenAddr utils.NetAddr `yaml:"reverse_tunnel_listen_addr" env:"TELEPORT_PROXY_REVERSE_TUNNEL_LISTEN_ADDR"`
+
+	// WebAddr is address for web portal of the proxy
+	WebAddr utils.NetAddr `yaml:"web_addr" env:"TELEPORT_PROXY_WEB_ADDR"`
+
+	// AssetsDir is a directory with proxy website assets
+	AssetsDir string `yaml:"assets_dir" env:"TELEPORT_PROXY_ASSETS_DIR"`
+
+	// TLSKey is a base64 encoded private key used by web portal
+	TLSKey string `yaml:"tls_key" env:"TELEPORRT_PROXY_TLS_KEY"`
+	// TLSCert is a base64 encoded certificate used by web portal
+	TLSCert string `yaml:"tlscert" env:"TELEPORT_PROXY_TLS_CERT"`
+}
+
 type AuthConfig struct {
-	// Enabled turns auth role on or off on this machine
+	// Enabled turns auth role on or off for this process
 	Enabled bool `yaml:"enabled" env:"TELEPORT_AUTH_ENABLED"`
+
 	// HTTPAddr is the listening address for HTTP service API
 	HTTPAddr utils.NetAddr `yaml:"http_addr" env:"TELEPORT_AUTH_HTTP_ADDR"`
+
 	// SSHAddr is the listening address of SSH tunnel to HTTP service
 	SSHAddr utils.NetAddr `yaml:"ssh_addr" env:"TELEPORT_AUTH_SSH_ADDR"`
-	// Domain is Host Certificate Authority domain name
-	Domain string `yaml:"domain" env:"TELEPORT_AUTH_DOMAIN"`
+
+	// HostAuthorityDomain is Host Certificate Authority domain name
+	HostAuthorityDomain string `yaml:"host_authority_domain" env:"TELEPORT_AUTH_HOST_AUTHORITY_DOMAIN"`
+
 	// Token is a provisioning token for new auth server joining the cluster
 	Token string `yaml:"token" env:"TELEPORT_AUTH_TOKEN"`
+
 	// SecretKey is an encryption key for secret service, will be used
 	// to initialize secret service if set
 	SecretKey string `yaml:"secret_key" env:"TELEPORT_AUTH_SECRET_KEY"`
@@ -61,7 +97,7 @@ type AuthConfig struct {
 	// AllowedTokens is a set of tokens that will be added as trusted
 	AllowedTokens KeyVal `yaml:"allowed_tokens" env:"TELEPORT_AUTH_ALLOWED_TOKENS"`
 
-	// TrustedUserCertAuthorities is a set of trusted user certificate authorities
+	// TrustedUserAuthorities is a set of trusted user certificate authorities
 	TrustedUserAuthorities KeyVal `yaml:"trusted_user_authorities" env:"TELEPORT_AUTH_TRUSTED_USER_AUTHORITIES"`
 
 	// KeysBackend configures backend that stores encryption keys
@@ -99,11 +135,11 @@ type SSHConfig struct {
 	Shell   string        `yaml:"shell" env:"TELEPORT_SSH_SHELL"`
 }
 
-// TunConfig configures reverse tunnel role
-type TunConfig struct {
-	Enabled    bool          `yaml:"enabled" env:"TELEPORT_TUN_ENABLED"`
-	Token      string        `yaml:"token" env:"TELEPORT_TUN_TOKEN"`
-	ServerAddr utils.NetAddr `yaml:"server_addr" env:"TELEPORT_TUN_SERVER_ADDR"`
+// ReverseTunnelConfig configures reverse tunnel role
+type ReverseTunnelConfig struct {
+	Enabled  bool          `yaml:"enabled" env:"TELEPORT_REVERSE_TUNNEL_ENABLED"`
+	Token    string        `yaml:"token" env:"TELEPORT_REVERSE_TUNNEL_TOKEN"`
+	DialAddr utils.NetAddr `yaml:"dial_addr" env:"TELEPORT_REVERSE_TUNNEL_DIAL_ADDR"`
 }
 
 type NetAddrSlice []utils.NetAddr
@@ -166,6 +202,18 @@ func setDefaults(cfg *Config) {
 		cfg.Auth.SSHAddr = utils.NetAddr{
 			Network: "tcp",
 			Addr:    "127.0.0.1:33000",
+		}
+	}
+	if cfg.Proxy.ReverseTunnelListenAddr.IsEmpty() {
+		cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{
+			Network: "tcp",
+			Addr:    "127.0.0.1:33006",
+		}
+	}
+	if cfg.Proxy.WebAddr.IsEmpty() {
+		cfg.Proxy.WebAddr = utils.NetAddr{
+			Network: "tcp",
+			Addr:    "127.0.0.1:33007",
 		}
 	}
 }

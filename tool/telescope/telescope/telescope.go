@@ -24,51 +24,6 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/alecthomas/kingpin.v2"
 )
 
-type Config struct {
-	Log service.LogConfig `yaml:"log"`
-
-	// DataDir is address where telescope stores it's state
-	// like user databases, etcd state and so on
-	DataDir string `yaml:"data_dir" env:"TELESCOPE_DATA_DIR"`
-
-	// FQDN is fully qualified domain name for telescope server
-	FQDN string `yaml:"fqdn" env:"TELESCOPE_FQDN"`
-
-	// TunAddr is address where telescope exposes listening socket for it's
-	// bi-directional reverse tunnel (when teleports connect to it)
-	TunAddr utils.NetAddr `yaml:"tun_addr" env:"TELESCOPE_TUN_ADDR"`
-	// WebAddr is address for web portal of telescope
-	WebAddr utils.NetAddr `yaml:"web_addr" env:"TELESCOPE_WEB_ADDR"`
-
-	// AuthHTTPAddr is address for telescope's auth server to expose it's HTTP API
-	AuthHTTPAddr utils.NetAddr `yaml:"auth_http_addr" env:"TELESCOPE_AUTH_HTTP_ADDR"`
-	// AuthSSHAddr is addresss for telescope to expose it's HTTP API over SSH tunnel
-	AuthSSHAddr utils.NetAddr `yaml:"auth_ssh_addr" env:"TELESCOPE_AUTH_SSH_ADDR"`
-
-	// Domain is domain name for telescope SSH authority
-	Domain string `yaml:"domain" env:"TELESCOPE_DOMAIN"`
-	// AssetsDir is a directory with telescope's website assets
-	AssetsDir string `yaml:"assets_dir" env:"TELESCOPE_ASSETS_DIR"`
-	// CPAssetsDir is a directory with teleport's website assets that
-	// are used by telescope
-	CPAssetsDir string `yaml:"cp_assets_dir" env:"TELESCOPE_CP_ASSETS_DIR"`
-
-	// TLSKey is a base64 encoded private key used by web portal
-	TLSKey string `yaml:"tls_key" env:"TELESCOPE_TLS_KEY"`
-	// TLSCert is a base64 encoded certificate used by web portal
-	TLSCert string `yaml:"tlscert" env:"TELESCOPE_TLS_CERT"`
-
-	// KeysBackend configures backend that stores encryption keys
-	KeysBackend struct {
-		// Type is a backend type - etcd or boltdb
-		Type string `yaml:"type" env:"TELESCOPE_KEYS_BACKEND_TYPE"`
-		// Params is map with backend specific parameters
-		Params service.KeyVal `yaml:"params,flow" env:"TELESCOPE_KEYS_BACKEND_PARAMS"`
-		// AdditionalKey is a additional signing GPG key
-		AdditionalKey string `yaml:"additional_key" env:"TELESCOPE_KEYS_BACKEND_ADDITIONAL_KEY"`
-	} `yaml:"keys_backend"`
-}
-
 func main() {
 	log.Initialize("console", "INFO")
 	if err := run(); err != nil {
@@ -116,39 +71,6 @@ func run() error {
 	}
 	srv.Wait()
 	return nil
-}
-
-func setDefaults(cfg *Config) {
-	if cfg.Log.Output == "" {
-		cfg.Log.Output = "console"
-	}
-	if cfg.Log.Severity == "" {
-		cfg.Log.Severity = "INFO"
-	}
-	if cfg.AuthHTTPAddr.IsEmpty() {
-		cfg.AuthHTTPAddr = utils.NetAddr{
-			Network: "unix",
-			Addr:    "/tmp/telescope.auth.sock",
-		}
-	}
-	if cfg.AuthSSHAddr.IsEmpty() {
-		cfg.AuthSSHAddr = utils.NetAddr{
-			Network: "tcp",
-			Addr:    "127.0.0.1:33008",
-		}
-	}
-	if cfg.TunAddr.IsEmpty() {
-		cfg.TunAddr = utils.NetAddr{
-			Network: "tcp",
-			Addr:    "127.0.0.1:33006",
-		}
-	}
-	if cfg.WebAddr.IsEmpty() {
-		cfg.WebAddr = utils.NetAddr{
-			Network: "tcp",
-			Addr:    "127.0.0.1:33007",
-		}
-	}
 }
 
 func NewService(cfg Config) (*Service, error) {
@@ -230,7 +152,7 @@ func (s *Service) addStart() error {
 	// register Auth HTTP API endpoint
 	s.RegisterFunc(func() error {
 		log.Infof("telescope auth server starting")
-		if err := utils.StartHTTPServer(s.cfg.AuthHTTPAddr, asrv); err != nil {
+		if err := utils.StartHTTPServer(s.cfg.Auth.HTTPAddr, asrv); err != nil {
 			log.Errorf("failed to start server: %v", err)
 			return err
 		}
@@ -240,8 +162,8 @@ func (s *Service) addStart() error {
 	// register auth SSH-based endpoint
 	s.RegisterFunc(func() error {
 		tsrv, err := auth.NewTunServer(
-			s.cfg.AuthSSHAddr, []ssh.Signer{s.hs},
-			s.cfg.AuthHTTPAddr,
+			s.cfg.Auth.SSHAddr, []ssh.Signer{s.hs},
+			s.cfg.Auth.HTTPAddr,
 			s.a)
 		if err != nil {
 			log.Errorf("failed to start teleport ssh tunnel")
@@ -261,7 +183,7 @@ func (s *Service) addStart() error {
 				Tun:         tsrv,
 				AssetsDir:   s.cfg.AssetsDir,
 				CPAssetsDir: s.cfg.CPAssetsDir,
-				AuthAddr:    s.cfg.AuthSSHAddr,
+				AuthAddr:    s.cfg.Auth.SSHAddr,
 				FQDN:        s.cfg.FQDN})
 		if err != nil {
 			log.Errorf("failed to launch web server: %v", err)
@@ -292,38 +214,4 @@ func (s *Service) addStart() error {
 	})
 
 	return nil
-}
-
-func initBackend(cfg *Config) (*encryptedbk.ReplicatedBackend, error) {
-	var bk backend.Backend
-	var err error
-
-	switch cfg.KeysBackend.Type {
-	case "etcd":
-		bk, err = etcdbk.FromObject(cfg.KeysBackend.Params)
-	case "bolt":
-		bk, err = boltbk.FromObject(cfg.KeysBackend.Params)
-	default:
-		err = trace.Errorf("unsupported backend type: %v", cfg.KeysBackend.Type)
-	}
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	keyStorage := path.Join(cfg.DataDir, "tscope_backend_keys")
-	addKeys := []encryptor.Key{}
-	if len(cfg.KeysBackend.AdditionalKey) != 0 {
-		addKey, err := encryptedbk.LoadKeyFromFile(
-			cfg.KeysBackend.AdditionalKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		addKeys = append(addKeys, addKey)
-	}
-	encryptedBk, err := encryptedbk.NewReplicatedBackend(
-		bk, keyStorage, addKeys, encryptor.GenerateGPGKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return encryptedBk, nil
 }

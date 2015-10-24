@@ -4,15 +4,11 @@ ETCD_FLAGS := TELEPORT_TEST_ETCD_NODES=${ETCD_NODES}
 
 .PHONY: install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd install-assets docs-serve
 
-install: teleport telescope
+install: teleport
 
 teleport: remove-temp-files
 	go install github.com/gravitational/teleport/tool/teleport
 	go install github.com/gravitational/teleport/tool/tctl
-
-telescope: remove-temp-files
-	go install github.com/gravitational/teleport/tool/telescope/telescope
-	go install github.com/gravitational/teleport/tool/tscopectl
 
 test: install
 	go test -v -test.parallel=0 ./... -cover

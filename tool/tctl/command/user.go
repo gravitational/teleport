@@ -15,9 +15,15 @@ func (cmd *Command) SetPass(user, pass string) {
 		cmd.printError(err)
 		return
 	}
-
-	err = ioutil.WriteFile("QR.png", hotpQR, 0777)
-	cmd.printOK("password has been set for user '%v', hotp: %v", user, hotpURL)
+	qrPath := "QR.png"
+	err = ioutil.WriteFile(qrPath, hotpQR, 0666)
+	if err != nil {
+		cmd.printError(err)
+		return
+	}
+	cmd.printOK(
+		"password has been set for user '%v', token: %v, QR token: %v",
+		user, hotpURL, qrPath)
 }
 
 func (cmd *Command) UpsertKey(user, keyID, key string, ttl time.Duration) {
