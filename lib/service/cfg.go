@@ -1,12 +1,15 @@
 package service
 
 import (
+	"encoding/json"
 	"io/ioutil"
 	"strings"
 
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/configure"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func ParseYAMLFile(path string, cfg interface{}) error {
@@ -97,8 +100,8 @@ type AuthConfig struct {
 	// AllowedTokens is a set of tokens that will be added as trusted
 	AllowedTokens KeyVal `yaml:"allowed_tokens" env:"TELEPORT_AUTH_ALLOWED_TOKENS"`
 
-	// TrustedUserAuthorities is a set of trusted user certificate authorities
-	TrustedUserAuthorities KeyVal `yaml:"trusted_user_authorities" env:"TELEPORT_AUTH_TRUSTED_USER_AUTHORITIES"`
+	// TrustedAuthorities is a set of trusted user certificate authorities
+	TrustedAuthorities RemoteCerts `yaml:"trusted_authorities" env:"TELEPORT_AUTH_TRUSTED_AUTHORITIES"`
 
 	// KeysBackend configures backend that stores encryption keys
 	KeysBackend struct {
@@ -173,6 +176,37 @@ func (kv *KeyVal) Set(v string) error {
 		(*kv)[vals[0]] = vals[1]
 	}
 	return nil
+}
+
+type RemoteCert struct {
+	Type  string `json:"type"`
+	ID    string `json:"id"`
+	FQDN  string `json:"fqdn"`
+	Value string `json:"value"`
+}
+
+type RemoteCerts []RemoteCert
+
+func (c *RemoteCerts) SetEnv(v string) error {
+	var certs []RemoteCert
+	if err := json.Unmarshal([]byte(v), &certs); err != nil {
+		return trace.Wrap(err, "expected JSON encoded remote certificate")
+	}
+	*c = certs
+	return nil
+}
+
+func convertRemoteCerts(inCerts RemoteCerts) []services.RemoteCert {
+	outCerts := make([]services.RemoteCert, len(inCerts))
+	for i, v := range inCerts {
+		outCerts[i] = services.RemoteCert{
+			ID:    v.ID,
+			FQDN:  v.FQDN,
+			Type:  v.Type,
+			Value: []byte(v.Value),
+		}
+	}
+	return outCerts
 }
 
 func setDefaults(cfg *Config) {

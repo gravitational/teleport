@@ -4,10 +4,11 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/configure"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestConfig(t *testing.T) { TestingT(t) }
@@ -42,7 +43,7 @@ func (s *ConfigSuite) TestParseEnv(c *C) {
 		"TELEPORT_AUTH_TOKEN":                       "authtoken",
 		"TELEPORT_AUTH_SECRET_KEY":                  "authsecret",
 		"TELEPORT_AUTH_ALLOWED_TOKENS":              "node1.a.fqdn.example.com:token1,node2.a.fqdn.example.com:token2",
-		"TELEPORT_AUTH_TRUSTED_USER_AUTHORITIES":    "a.example.com:cert1,b.example.com:cert2",
+		"TELEPORT_AUTH_TRUSTED_AUTHORITIES":         `[{"type": "user", "fqdn":"a.example.com", "id":"user.a.example.com", "value": "user value a"},{"type": "host", "fqdn":"b.example.com", "id":"host.b.example.com", "value": "host value b"}]`,
 		"TELEPORT_AUTH_KEYS_BACKEND_TYPE":           "bolt",
 		"TELEPORT_AUTH_KEYS_BACKEND_PARAMS":         "path:/keys",
 		"TELEPORT_AUTH_KEYS_BACKEND_ADDITIONAL_KEY": "somekey",
@@ -104,10 +105,18 @@ func (s *ConfigSuite) checkVariables(c *C, cfg *Config) {
 			"node2.a.fqdn.example.com": "token2",
 		})
 
-	c.Assert(cfg.Auth.TrustedUserAuthorities, DeepEquals,
-		KeyVal{
-			"a.example.com": "cert1",
-			"b.example.com": "cert2",
+	c.Assert(cfg.Auth.TrustedAuthorities, DeepEquals,
+		RemoteCerts{
+			{
+				Type:  "user",
+				FQDN:  "a.example.com",
+				ID:    "user.a.example.com",
+				Value: "user value a"},
+			{
+				Type:  "host",
+				FQDN:  "b.example.com",
+				ID:    "host.b.example.com",
+				Value: "host value b"},
 		})
 
 	c.Assert(cfg.Auth.KeysBackend.Type, Equals, "bolt")
@@ -162,9 +171,17 @@ auth:
     node1.a.fqdn.example.com: token1
     node2.a.fqdn.example.com: token2
 
-  trusted_user_authorities: 
-    a.example.com: cert1
-    b.example.com: cert2
+  trusted_authorities: 
+
+    - type: user
+      fqdn: a.example.com
+      id: user.a.example.com
+      value: user value a
+
+    - type: host
+      fqdn: b.example.com
+      id:  host.b.example.com
+      value: host value b
 
   keys_backend:
     type: bolt

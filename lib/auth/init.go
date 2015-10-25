@@ -21,14 +21,14 @@ import (
 )
 
 type InitConfig struct {
-	Backend                *encryptedbk.ReplicatedBackend
-	Authority              Authority
-	FQDN                   string
-	AuthDomain             string
-	DataDir                string
-	SecretKey              string
-	AllowedTokens          map[string]string
-	TrustedUserAuthorities map[string]string
+	Backend            *encryptedbk.ReplicatedBackend
+	Authority          Authority
+	FQDN               string
+	AuthDomain         string
+	DataDir            string
+	SecretKey          string
+	AllowedTokens      map[string]string
+	TrustedAuthorities []services.RemoteCert
 }
 
 func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
@@ -106,16 +106,10 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 			}
 		}
 
-		if len(cfg.TrustedUserAuthorities) != 0 {
-			log.Infof("FIRST START: Setting trusted user certificate authorities")
-			for fqdn, certBytes := range cfg.AllowedTokens {
-				cert := services.RemoteCert{
-					Type:  services.UserCert,
-					ID:    fqdn, // should be hash with bytes probably instead of id
-					FQDN:  fqdn,
-					Value: []byte(certBytes),
-				}
-				log.Infof("FIRST START: upsert user cert: fqdn: %v", fqdn)
+		if len(cfg.TrustedAuthorities) != 0 {
+			log.Infof("FIRST START: Setting trusted certificate authorities")
+			for _, cert := range cfg.TrustedAuthorities {
+				log.Infof("FIRST START: upsert user cert: type: %v fqdn: %v", cert.Type, cert.FQDN)
 				if err := asrv.UpsertRemoteCert(cert, 0); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}

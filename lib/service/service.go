@@ -105,14 +105,14 @@ func InitAuthService(t *TeleportService, dataDir, fqdn string, peers NetAddrSlic
 		return trace.Wrap(err)
 	}
 	asrv, signer, err := auth.Init(auth.InitConfig{
-		Backend:                b,
-		Authority:              authority.New(),
-		FQDN:                   fqdn,
-		AuthDomain:             cfg.HostAuthorityDomain,
-		DataDir:                dataDir,
-		SecretKey:              cfg.SecretKey,
-		AllowedTokens:          cfg.AllowedTokens,
-		TrustedUserAuthorities: cfg.TrustedUserAuthorities,
+		Backend:            b,
+		Authority:          authority.New(),
+		FQDN:               fqdn,
+		AuthDomain:         cfg.HostAuthorityDomain,
+		DataDir:            dataDir,
+		SecretKey:          cfg.SecretKey,
+		AllowedTokens:      cfg.AllowedTokens,
+		TrustedAuthorities: convertRemoteCerts(cfg.TrustedAuthorities),
 	})
 	if err != nil {
 		return trace.Wrap(err)

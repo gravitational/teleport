@@ -95,20 +95,10 @@
                 }
             },
             {
-                "type": "List",
-                "name": "authTrustedUserAuthorities",
-                "spec": {
-                    "name": "authTrustedUserAuthority",
-                    "env": "TELEPORT_AUTH_TRUSTED_USER_AUTHORITIES",
-                    "type": "KeyVal",
-                    "cli": {"name": "auth-trusted-user-authority"},
-                    "spec": {
-                        "keys": [
-                            {"name": "key", "type":"String"},
-                            {"name": "val", "type":"String"}
-                        ]
-                    }
-                }
+                "type": "String",
+                "name": "authTrustedAuthorities",
+                "env": "TELEPORT_AUTH_TRUSTED_AUTHORITIES",
+                "cli": {"name": "auth-trusted-authorities"}
             },
             {
                 "type": "Enum",
