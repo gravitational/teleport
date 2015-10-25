@@ -69,7 +69,7 @@ type ProxyConfig struct {
 	AssetsDir string `yaml:"assets_dir" env:"TELEPORT_PROXY_ASSETS_DIR"`
 
 	// TLSKey is a base64 encoded private key used by web portal
-	TLSKey string `yaml:"tls_key" env:"TELEPORRT_PROXY_TLS_KEY"`
+	TLSKey string `yaml:"tls_key" env:"TELEPORT_PROXY_TLS_KEY"`
 	// TLSCert is a base64 encoded certificate used by web portal
 	TLSCert string `yaml:"tlscert" env:"TELEPORT_PROXY_TLS_CERT"`
 }

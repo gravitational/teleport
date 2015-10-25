@@ -34,11 +34,11 @@ func (s *ConfigSuite) TestParseEnv(c *C) {
 		"TELEPORT_LOG_SEVERITY":                     "INFO",
 		"TELEPORT_AUTH_SERVERS":                     "tcp://localhost:5000,unix:///var/run/auth.sock",
 		"TELEPORT_DATA_DIR":                         "/tmp/data_dir",
-		"TELEPORT_FQDN":                             "fqdn.example.com",
+		"TELEPORT_HOSTNAME":                         "fqdn.example.com",
 		"TELEPORT_AUTH_ENABLED":                     "true",
 		"TELEPORT_AUTH_HTTP_ADDR":                   "tcp://localhost:4444",
 		"TELEPORT_AUTH_SSH_ADDR":                    "tcp://localhost:5555",
-		"TELEPORT_AUTH_DOMAIN":                      "a.fqdn.example.com",
+		"TELEPORT_AUTH_HOST_AUTHORITY_DOMAIN":       "a.fqdn.example.com",
 		"TELEPORT_AUTH_TOKEN":                       "authtoken",
 		"TELEPORT_AUTH_SECRET_KEY":                  "authsecret",
 		"TELEPORT_AUTH_ALLOWED_TOKENS":              "node1.a.fqdn.example.com:token1,node2.a.fqdn.example.com:token2",
@@ -54,9 +54,16 @@ func (s *ConfigSuite) TestParseEnv(c *C) {
 		"TELEPORT_SSH_TOKEN":                        "sshtoken",
 		"TELEPORT_SSH_ADDR":                         "tcp://localhost:1234",
 		"TELEPORT_SSH_SHELL":                        "/bin/bash",
-		"TELEPORT_TUN_ENABLED":                      "true",
-		"TELEPORT_TUN_TOKEN":                        "tuntoken",
-		"TELEPORT_TUN_SERVER_ADDR":                  "tcp://telescope.example.com",
+		"TELEPORT_REVERSE_TUNNEL_ENABLED":           "true",
+		"TELEPORT_REVERSE_TUNNEL_TOKEN":             "tuntoken",
+		"TELEPORT_REVERSE_TUNNEL_DIAL_ADDR":         "tcp://telescope.example.com",
+		"TELEPORT_PROXY_ENABLED":                    "true",
+		"TELEPORT_PROXY_TOKEN":                      "proxytoken",
+		"TELEPORT_PROXY_REVERSE_TUNNEL_LISTEN_ADDR": "tcp://proxy.vendor.io:33006",
+		"TELEPORT_PROXY_WEB_ADDR":                   "tcp://proxy.vendor.io:33007",
+		"TELEPORT_PROXY_ASSETS_DIR":                 "web/assets",
+		"TELEPORT_PROXY_TLS_KEY":                    "base64key",
+		"TELEPORT_PROXY_TLS_CERT":                   "base64cert",
 	}
 	for k, v := range vars {
 		c.Assert(os.Setenv(k, v), IsNil)
@@ -75,7 +82,7 @@ func (s *ConfigSuite) checkVariables(c *C, cfg *Config) {
 
 	// check common section
 	c.Assert(cfg.DataDir, Equals, "/tmp/data_dir")
-	c.Assert(cfg.FQDN, Equals, "fqdn.example.com")
+	c.Assert(cfg.Hostname, Equals, "fqdn.example.com")
 	c.Assert(cfg.AuthServers, DeepEquals, NetAddrSlice{
 		{Network: "tcp", Addr: "localhost:5000"},
 		{Network: "unix", Addr: "/var/run/auth.sock"},
@@ -87,7 +94,7 @@ func (s *ConfigSuite) checkVariables(c *C, cfg *Config) {
 		utils.NetAddr{Network: "tcp", Addr: "localhost:4444"})
 	c.Assert(cfg.Auth.SSHAddr, Equals,
 		utils.NetAddr{Network: "tcp", Addr: "localhost:5555"})
-	c.Assert(cfg.Auth.Domain, Equals, "a.fqdn.example.com")
+	c.Assert(cfg.Auth.HostAuthorityDomain, Equals, "a.fqdn.example.com")
 	c.Assert(cfg.Auth.Token, Equals, "authtoken")
 	c.Assert(cfg.Auth.SecretKey, Equals, "authsecret")
 
@@ -123,11 +130,16 @@ func (s *ConfigSuite) checkVariables(c *C, cfg *Config) {
 	c.Assert(cfg.SSH.Token, Equals, "sshtoken")
 	c.Assert(cfg.SSH.Shell, Equals, "/bin/bash")
 
-	// Tun section
-	c.Assert(cfg.Tun.Enabled, Equals, true)
-	c.Assert(cfg.Tun.ServerAddr, Equals,
+	// ReverseTunnel section
+	c.Assert(cfg.ReverseTunnel.Enabled, Equals, true)
+	c.Assert(cfg.ReverseTunnel.DialAddr, Equals,
 		utils.NetAddr{Network: "tcp", Addr: "telescope.example.com"})
-	c.Assert(cfg.Tun.Token, Equals, "tuntoken")
+	c.Assert(cfg.ReverseTunnel.Token, Equals, "tuntoken")
+
+	c.Assert(cfg.Proxy.Enabled, Equals, true)
+	c.Assert(cfg.Proxy.ReverseTunnelListenAddr, Equals,
+		utils.NetAddr{Network: "tcp", Addr: "proxy.vendor.io:33006"})
+	c.Assert(cfg.Proxy.Token, Equals, "proxytoken")
 }
 
 const configYAML = `
@@ -136,14 +148,14 @@ log:
   severity: INFO
 
 data_dir: /tmp/data_dir
-fqdn: fqdn.example.com
+hostname: fqdn.example.com
 auth_servers: ['tcp://localhost:5000', 'unix:///var/run/auth.sock']
 
 auth:
   enabled: true
   http_addr: 'tcp://localhost:4444'
   ssh_addr: 'tcp://localhost:5555'
-  domain: a.fqdn.example.com
+  host_authority_domain: a.fqdn.example.com
   token: authtoken
   secret_key: authsecret
   allowed_tokens: 
@@ -173,8 +185,17 @@ ssh:
   addr: 'tcp://localhost:1234'
   shell: /bin/bash
 
-tun:
+reverse_tunnel:
   enabled: true
   token: tuntoken
-  server_addr: 'tcp://telescope.example.com'
+  dial_addr: 'tcp://telescope.example.com'
+
+proxy:
+  enabled: true
+  assets_dir: assets/web # directory with javascript, html and css for web
+  token: proxytoken
+  reverse_tunnel_listen_addr: tcp://proxy.vendor.io:33006
+  web_addr: tcp://proxy.vendor.io:33007
+  tls_key: base64key
+  tls_cert: base64cert
 `

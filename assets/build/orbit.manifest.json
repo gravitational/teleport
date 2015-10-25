@@ -38,9 +38,9 @@
             },
             {
                 "type": "String",
-                "name": "fqdn",
+                "name": "hostname",
                 "required": true,
-                "env": "TELEPORT_FQDN"
+                "env": "TELEPORT_HOSTNAME"
             },
             {
                 "type": "Bool",
@@ -62,9 +62,9 @@
             },
             {
                 "type": "String",
-                "name": "authDomain",
-                "env": "TELEPORT_AUTH_DOMAIN",
-                "cli": {"name": "auth-domain"}
+                "name": "authHostAuthorityDomain",
+                "env": "TELEPORT_AUTH_HOST_AUTHORITY_DOMAIN",
+                "cli": {"name": "auth-host-authority-domain"}
             },
             {
                 "type": "String",
@@ -217,21 +217,63 @@
             },
             {
                 "type": "Bool",
-                "name": "tunEnabled",
-                "env": "TELEPORT_TUN_ENABLED",
-                "cli": {"name": "tun-enabled"}
+                "name": "reverseTunnelEnabled",
+                "env": "TELEPORT_REVERSE_TUNNEL_ENABLED",
+                "cli": {"name": "reverse-tunnel-enabled"}
             },
             {
                 "type": "String",
-                "name": "tunToken",
-                "env": "TELEPORT_TUN_TOKEN",
-                "cli": {"name": "tun-token"}
+                "name": "reverseTunnelToken",
+                "env": "TELEPORT_REVERSE_TUNNEL_TOKEN",
+                "cli": {"name": "reverse-tunnel-token"}
             },
             {
                 "type": "String",
-                "name": "tunServerAddr",
-                "env": "TELEPORT_TUN_SERVER_ADDR",
-                "cli": {"name": "tun-server-addr"}
+                "name": "reverseTunnelDialAddr",
+                "env": "TELEPORT_REVERSE_TUNNEL_DIAL_ADDR",
+                "cli": {"name": "reverse-tunnel-dial-addr"}
+            },
+            {
+                "type": "Bool",
+                "name": "proxyEnabled",
+                "env": "TELEPORT_PROXY_ENABLED",
+                "cli": {"name": "proxy-enabled"}
+            },
+            {
+                "type": "String",
+                "name": "proxyToken",
+                "env": "TELEPORT_PROXY_TOKEN",
+                "cli": {"name": "proxy-token"}
+            },
+            {
+                "type": "String",
+                "name": "proxyReverseTunnelListenAddr",
+                "env": "TELEPORT_PROXY_REVERSE_TUNNEL_LISTEN_ADDR",
+                "cli": {"name": "proxy-reverse-tunnel-listen-addr"}
+            },
+            {
+                "type": "String",
+                "name": "proxyWebAddr",
+                "env": "TELEPORT_PROXY_WEB_ADDR",
+                "cli": {"name": "proxy-web-addr"}
+            },
+            {
+                "type": "String",
+                "name": "proxyAssetsDir",
+                "env": "TELEPORT_PROXY_ASSETS_DIR",
+                "cli": {"name": "proxy-assets-dir"}
+            },
+            {
+                "type": "String",
+                "name": "proxyTLSKey",
+                "env": "TELEPORT_PROXY_TLS_KEY",
+                "cli": {"name": "proxy-tls-key"}
+            },
+            {
+                "type": "String",
+                "name": "proxyTLSCert",
+                "env": "TELEPORT_PROXY_TLS_CERT",
+                "cli": {"name": "proxy-tls-cert"}
             }
         ]
     }

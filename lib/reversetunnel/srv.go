@@ -151,14 +151,14 @@ func (s *server) getTrustedCAKeys() ([]ssh.PublicKey, error) {
 func (s *server) keyAuth(
 	conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 	cid := fmt.Sprintf(
-		"conn(%v->%v, user=%v)", conn.RemoteAddr(),
+		"reversetunnelconn(%v->%v, user=%v)", conn.RemoteAddr(),
 		conn.LocalAddr(), conn.User())
 
 	log.Infof("%v auth attempt with key %v", cid, key.Type())
 
 	err := s.certChecker.CheckHostKey(conn.User(), conn.RemoteAddr(), key)
 	if err != nil {
-		log.Warningf("conn(%v->%v, user=%v) ERROR: failed auth user %v, err: %v",
+		log.Warningf("reversetunnel(%v->%v, user=%v) ERROR: failed auth user %v, err: %v",
 			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
 		return nil, err
 	}
