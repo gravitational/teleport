@@ -38,6 +38,14 @@ func (cmd *Command) Run(args []string) error {
 	app := kingpin.New("tctl", "CLI for key management of teleport SSH cluster")
 	authUrl := app.Flag("auth", "Teleport URL").Default(DefaultTeleportURL).String()
 
+	// SSH Key pair
+	keyPair := app.Command("keypair", "Helper operations with SSH keypairs")
+
+	keyPairNew := keyPair.Command("new", "Generate new keypair")
+	keyPairNewPrivate := keyPairNew.Arg("private-key-filename", "File name where private key path will be written").Required().String()
+	keyPairNewPublic := keyPairNew.Arg("public-key-filename", "File name where public key path will be written").Required().String()
+	keyPairNewPass := keyPairNew.Flag("passphrase", "Passphrase to use when encrypting the private key").String()
+
 	// Host CA
 	hostCa := app.Command("host-ca", "Operations with host certificate authority")
 
@@ -141,6 +149,10 @@ func (cmd *Command) Run(args []string) error {
 	cmd.client = clt
 
 	switch selectedCommand {
+	// Host CA
+	case keyPairNew.FullCommand():
+		err = cmd.GenerateKeyPair(*keyPairNewPrivate, *keyPairNewPublic, *keyPairNewPass)
+
 	// Host CA
 	case hostCaReset.FullCommand():
 		cmd.ResetHostCA(*hostCaResetConfirm)

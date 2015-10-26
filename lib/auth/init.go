@@ -29,6 +29,10 @@ type InitConfig struct {
 	SecretKey          string
 	AllowedTokens      map[string]string
 	TrustedAuthorities []services.RemoteCert
+	// HostCA is an optional host certificate authority keypair
+	HostCA *services.CA
+	// UserCA is an optional user certificate authority keypair
+	UserCA *services.CA
 }
 
 func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
@@ -64,13 +68,22 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 	// we determine if it's the first start by checking if the CA's are set
 	var firstStart bool
 
+	// this block will generate user CA authority on first start if it's
+	// not currently present, it will also use optional passed user ca keypair
+	// that can be supplied in configuration
 	if _, e := asrv.GetHostCAPub(); e != nil {
-
 		if _, ok := e.(*teleport.NotFoundError); ok {
-			log.Infof("FIRST START: Generating host CA on first start")
 			firstStart = true
-			if err := asrv.ResetHostCA(""); err != nil {
-				return nil, nil, err
+			if cfg.HostCA != nil {
+				log.Infof("FIRST START: use host CA keypair provided in config")
+				if err := asrv.CAService.UpsertHostCA(*cfg.HostCA); err != nil {
+					return nil, nil, trace.Wrap(err)
+				}
+			} else {
+				log.Infof("FIRST START: Generating host CA on first start")
+				if err := asrv.ResetHostCA(""); err != nil {
+					return nil, nil, err
+				}
 			}
 		} else {
 			log.Errorf("Host CA error: %v", e)
@@ -78,14 +91,24 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 		}
 	}
 
+	// this block will generate user CA authority on first start if it's
+	// not currently present, it will also use optional passed user ca keypair
+	// that can be supplied in configuration
 	if _, e := asrv.GetUserCAPub(); e != nil {
-
 		if _, ok := e.(*teleport.NotFoundError); ok {
-			log.Infof("FIRST START: Generating user CA")
 			firstStart = true
-			if err := asrv.ResetUserCA(""); err != nil {
-				return nil, nil, trace.Wrap(err)
+			if cfg.HostCA != nil {
+				log.Infof("FIRST START: use user CA keypair provided in config")
+				if err := asrv.CAService.UpsertUserCA(*cfg.UserCA); err != nil {
+					return nil, nil, trace.Wrap(err)
+				}
+			} else {
+				log.Infof("FIRST START: Generating user CA")
+				if err := asrv.ResetUserCA(""); err != nil {
+					return nil, nil, trace.Wrap(err)
+				}
 			}
+
 		} else {
 			return nil, nil, trace.Wrap(err)
 		}
