@@ -256,7 +256,8 @@ func (s *WebService) CheckPassword(user string, password []byte, hotpToken strin
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if !otp.Check(hotpToken) {
+
+	if !otp.Scan(hotpToken, 4) {
 		return &teleport.BadParameterError{Err: "tokens do not match", Param: "token"}
 	}
 

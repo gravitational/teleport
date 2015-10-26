@@ -232,12 +232,19 @@ func (s *APISuite) TestPasswordCRUD(c *C) {
 	c.Assert(s.clt.CheckPassword("user1", pass, token2), IsNil)
 	c.Assert(s.clt.CheckPassword("user1", pass, token1), NotNil)
 
-	token3 := otp.OTP()
-	token4 := otp.OTP()
-	c.Assert(s.clt.CheckPassword("user1", pass, token4), NotNil)
-	c.Assert(s.clt.CheckPassword("user1", pass, token3), IsNil)
+	_ = otp.OTP()
+	_ = otp.OTP()
+	_ = otp.OTP()
+	token6 := otp.OTP()
+	token7 := otp.OTP()
+	c.Assert(s.clt.CheckPassword("user1", pass, token7), NotNil)
+	c.Assert(s.clt.CheckPassword("user1", pass, token6), IsNil)
 	c.Assert(s.clt.CheckPassword("user1", pass, "123456"), NotNil)
-	c.Assert(s.clt.CheckPassword("user1", pass, token4), IsNil)
+	c.Assert(s.clt.CheckPassword("user1", pass, token7), IsNil)
+
+	_ = otp.OTP()
+	token9 := otp.OTP()
+	c.Assert(s.clt.CheckPassword("user1", pass, token9), IsNil)
 }
 
 func (s *APISuite) TestSessions(c *C) {
