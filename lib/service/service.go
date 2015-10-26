@@ -104,7 +104,7 @@ func InitAuthService(t *TeleportService, dataDir, fqdn string, peers NetAddrSlic
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	asrv, signer, err := auth.Init(auth.InitConfig{
+	acfg := auth.InitConfig{
 		Backend:            b,
 		Authority:          authority.New(),
 		FQDN:               fqdn,
@@ -113,11 +113,17 @@ func InitAuthService(t *TeleportService, dataDir, fqdn string, peers NetAddrSlic
 		SecretKey:          cfg.SecretKey,
 		AllowedTokens:      cfg.AllowedTokens,
 		TrustedAuthorities: convertRemoteCerts(cfg.TrustedAuthorities),
-	})
+	}
+	if len(cfg.UserCA.PublicKey) != 0 && len(cfg.UserCA.PrivateKey) != 0 {
+		acfg.UserCA = cfg.UserCA.ToCA()
+	}
+	if len(cfg.HostCA.PublicKey) != 0 && len(cfg.HostCA.PrivateKey) != 0 {
+		acfg.HostCA = cfg.HostCA.ToCA()
+	}
+	asrv, signer, err := auth.Init(acfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	// register HTTP API endpoint
 	t.RegisterFunc(func() error {
 		log.Infof("[AUTH] server HTTP endpoint is starting on %v", cfg.HTTPAddr)

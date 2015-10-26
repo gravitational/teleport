@@ -45,6 +45,8 @@ pack-teleport: DIR := $(shell mktemp -d)
 pack-teleport: pkg teleport
 	cp assets/build/orbit.manifest.json $(DIR)
 	mkdir -p $(DIR)/rootfs/usr/bin
+	mkdir -p $(DIR)/rootfs/usr/bin $(DIR)/rootfs/etc/web-assets/
+	cp -r ./assets/web/* $(DIR)/rootfs/etc/web-assets/
 	cp $(GOPATH)/bin/teleport $(DIR)/rootfs/usr/bin
 	cp $(GOPATH)/bin/tctl $(DIR)/rootfs/usr/bin
 	orbit pack $(DIR) $(PKG)

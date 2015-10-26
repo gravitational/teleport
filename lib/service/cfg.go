@@ -224,6 +224,9 @@ func (c *CertificateAuthority) SetEnv(v string) error {
 	}
 	c.PublicKey = ca.PublicKey
 	c.PrivateKey = string(key)
+	if c.PrivateKey == "" || c.PublicKey == "" {
+		return trace.Errorf("both public key and private key should be setup")
+	}
 	return nil
 }
 
@@ -241,11 +244,14 @@ func (c *CertificateAuthority) UnmarshalYAML(unmarshal func(interface{}) error) 
 	}
 	c.PublicKey = ca.PublicKey
 	c.PrivateKey = string(key)
+	if c.PrivateKey == "" || c.PublicKey == "" {
+		return trace.Errorf("both public key and private key should be setup")
+	}
 	return nil
 }
 
-func (c *CertificateAuthority) ToCA() services.CA {
-	return services.CA{
+func (c *CertificateAuthority) ToCA() *services.CA {
+	return &services.CA{
 		Pub:  []byte(c.PublicKey),
 		Priv: []byte(c.PrivateKey),
 	}

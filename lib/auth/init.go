@@ -103,7 +103,7 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 					return nil, nil, trace.Wrap(err)
 				}
 			} else {
-				log.Infof("FIRST START: Generating user CA")
+				log.Infof("FIRST START: Generating user CA on first start")
 				if err := asrv.ResetUserCA(""); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
@@ -132,7 +132,7 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 		if len(cfg.TrustedAuthorities) != 0 {
 			log.Infof("FIRST START: Setting trusted certificate authorities")
 			for _, cert := range cfg.TrustedAuthorities {
-				log.Infof("FIRST START: upsert user cert: type: %v fqdn: %v", cert.Type, cert.FQDN)
+				log.Infof("FIRST START: upsert trusted remote cert: type: %v fqdn: %v", cert.Type, cert.FQDN)
 				if err := asrv.UpsertRemoteCert(cert, 0); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
