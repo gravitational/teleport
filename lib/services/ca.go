@@ -210,8 +210,8 @@ type CA struct {
 }
 
 type RemoteCert struct {
-	Type  string
-	ID    string
-	FQDN  string
-	Value []byte
+	Type  string `json:"type"`
+	ID    string `json:"id"`
+	FQDN  string `json:"fqdn"`
+	Value []byte `json:"value"`
 }

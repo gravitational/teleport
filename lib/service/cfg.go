@@ -1,12 +1,16 @@
 package service
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"io/ioutil"
 	"strings"
 
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/configure"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func ParseYAMLFile(path string, cfg interface{}) error {
@@ -28,14 +32,23 @@ func ParseEnv(cfg interface{}) error {
 type Config struct {
 	Log LogConfig `yaml:"log"`
 
-	DataDir string `yaml:"data_dir" env:"TELEPORT_DATA_DIR"`
-	FQDN    string `yaml:"fqdn" env:"TELEPORT_FQDN"`
+	DataDir  string `yaml:"data_dir" env:"TELEPORT_DATA_DIR"`
+	Hostname string `yaml:"hostname" env:"TELEPORT_HOSTNAME"`
 
 	AuthServers NetAddrSlice `yaml:"auth_servers,flow" env:"TELEPORT_AUTH_SERVERS"`
 
-	SSH  SSHConfig  `yaml:"ssh"`
+	// SSH role an SSH endpoint server
+	SSH SSHConfig `yaml:"ssh"`
+
+	// Auth server authentication and authorizatin server config
 	Auth AuthConfig `yaml:"auth"`
-	Tun  TunConfig  `yaml:"tun"`
+
+	// ReverseTunnnel role creates and mantains outbound SSH reverse tunnel to the proxy
+	ReverseTunnel ReverseTunnelConfig `yaml:"reverse_tunnel"`
+
+	// Proxy is SSH proxy that manages incoming and outbound connections
+	// via multiple reverse tunnels
+	Proxy ProxyConfig `yaml:"proxy"`
 }
 
 type LogConfig struct {
@@ -43,17 +56,45 @@ type LogConfig struct {
 	Severity string `yaml:"severity" env:"TELEPORT_LOG_SEVERITY"`
 }
 
+type ProxyConfig struct {
+	// Enabled turns proxy role on or off for this process
+	Enabled bool `yaml:"enabled" env:"TELEPORT_PROXY_ENABLED"`
+
+	// Token is a provisioning token for new proxy server registering with auth
+	Token string `yaml:"token" env:"TELEPORT_PROXY_TOKEN"`
+
+	// ReverseTunnelListenAddr is address where reverse tunnel dialers connect to
+	ReverseTunnelListenAddr utils.NetAddr `yaml:"reverse_tunnel_listen_addr" env:"TELEPORT_PROXY_REVERSE_TUNNEL_LISTEN_ADDR"`
+
+	// WebAddr is address for web portal of the proxy
+	WebAddr utils.NetAddr `yaml:"web_addr" env:"TELEPORT_PROXY_WEB_ADDR"`
+
+	// AssetsDir is a directory with proxy website assets
+	AssetsDir string `yaml:"assets_dir" env:"TELEPORT_PROXY_ASSETS_DIR"`
+
+	// TLSKey is a base64 encoded private key used by web portal
+	TLSKey string `yaml:"tls_key" env:"TELEPORT_PROXY_TLS_KEY"`
+
+	// TLSCert is a base64 encoded certificate used by web portal
+	TLSCert string `yaml:"tlscert" env:"TELEPORT_PROXY_TLS_CERT"`
+}
+
 type AuthConfig struct {
-	// Enabled turns auth role on or off on this machine
+	// Enabled turns auth role on or off for this process
 	Enabled bool `yaml:"enabled" env:"TELEPORT_AUTH_ENABLED"`
+
 	// HTTPAddr is the listening address for HTTP service API
 	HTTPAddr utils.NetAddr `yaml:"http_addr" env:"TELEPORT_AUTH_HTTP_ADDR"`
+
 	// SSHAddr is the listening address of SSH tunnel to HTTP service
 	SSHAddr utils.NetAddr `yaml:"ssh_addr" env:"TELEPORT_AUTH_SSH_ADDR"`
-	// Domain is Host Certificate Authority domain name
-	Domain string `yaml:"domain" env:"TELEPORT_AUTH_DOMAIN"`
+
+	// HostAuthorityDomain is Host Certificate Authority domain name
+	HostAuthorityDomain string `yaml:"host_authority_domain" env:"TELEPORT_AUTH_HOST_AUTHORITY_DOMAIN"`
+
 	// Token is a provisioning token for new auth server joining the cluster
 	Token string `yaml:"token" env:"TELEPORT_AUTH_TOKEN"`
+
 	// SecretKey is an encryption key for secret service, will be used
 	// to initialize secret service if set
 	SecretKey string `yaml:"secret_key" env:"TELEPORT_AUTH_SECRET_KEY"`
@@ -61,8 +102,18 @@ type AuthConfig struct {
 	// AllowedTokens is a set of tokens that will be added as trusted
 	AllowedTokens KeyVal `yaml:"allowed_tokens" env:"TELEPORT_AUTH_ALLOWED_TOKENS"`
 
-	// TrustedUserCertAuthorities is a set of trusted user certificate authorities
-	TrustedUserAuthorities KeyVal `yaml:"trusted_user_authorities" env:"TELEPORT_AUTH_TRUSTED_USER_AUTHORITIES"`
+	// TrustedAuthorities is a set of trusted user certificate authorities
+	TrustedAuthorities RemoteCerts `yaml:"trusted_authorities" env:"TELEPORT_AUTH_TRUSTED_AUTHORITIES"`
+
+	// UserCA allows to pass preconfigured user certificate authority keypair
+	// to auth server so it will use it on the first start instead of generating
+	// a new keypair
+	UserCA CertificateAuthority `yaml:"user_ca_keypair" env:"TELEPORT_AUTH_USER_CA_KEYPAIR"`
+
+	// HostCA allows to pass preconfigured host certificate authority keypair
+	// to auth server so it will use it on the first start instead of generating
+	// a new keypair
+	HostCA CertificateAuthority `yaml:"host_ca_keypair" env:"TELEPORT_AUTH_HOST_CA_KEYPAIR"`
 
 	// KeysBackend configures backend that stores encryption keys
 	KeysBackend struct {
@@ -99,11 +150,11 @@ type SSHConfig struct {
 	Shell   string        `yaml:"shell" env:"TELEPORT_SSH_SHELL"`
 }
 
-// TunConfig configures reverse tunnel role
-type TunConfig struct {
-	Enabled    bool          `yaml:"enabled" env:"TELEPORT_TUN_ENABLED"`
-	Token      string        `yaml:"token" env:"TELEPORT_TUN_TOKEN"`
-	ServerAddr utils.NetAddr `yaml:"server_addr" env:"TELEPORT_TUN_SERVER_ADDR"`
+// ReverseTunnelConfig configures reverse tunnel role
+type ReverseTunnelConfig struct {
+	Enabled  bool          `yaml:"enabled" env:"TELEPORT_REVERSE_TUNNEL_ENABLED"`
+	Token    string        `yaml:"token" env:"TELEPORT_REVERSE_TUNNEL_TOKEN"`
+	DialAddr utils.NetAddr `yaml:"dial_addr" env:"TELEPORT_REVERSE_TUNNEL_DIAL_ADDR"`
 }
 
 type NetAddrSlice []utils.NetAddr
@@ -139,6 +190,86 @@ func (kv *KeyVal) Set(v string) error {
 	return nil
 }
 
+type RemoteCert struct {
+	Type  string `json:"type"`
+	ID    string `json:"id"`
+	FQDN  string `json:"fqdn"`
+	Value string `json:"value"`
+}
+
+type RemoteCerts []RemoteCert
+
+func (c *RemoteCerts) SetEnv(v string) error {
+	var certs []RemoteCert
+	if err := json.Unmarshal([]byte(v), &certs); err != nil {
+		return trace.Wrap(err, "expected JSON encoded remote certificate")
+	}
+	*c = certs
+	return nil
+}
+
+type CertificateAuthority struct {
+	PublicKey  string `json:"public" yaml:"public"`
+	PrivateKey string `json:"private" yaml:"private"`
+}
+
+func (c *CertificateAuthority) SetEnv(v string) error {
+	var ca CertificateAuthority
+	if err := json.Unmarshal([]byte(v), &ca); err != nil {
+		return trace.Wrap(err, "expected JSON encoded certificate authority")
+	}
+	key, err := base64.StdEncoding.DecodeString(ca.PrivateKey)
+	if err != nil {
+		return trace.Wrap(err, "private key should be base64 encoded")
+	}
+	c.PublicKey = ca.PublicKey
+	c.PrivateKey = string(key)
+	if c.PrivateKey == "" || c.PublicKey == "" {
+		return trace.Errorf("both public key and private key should be setup")
+	}
+	return nil
+}
+
+func (c *CertificateAuthority) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var ca struct {
+		PublicKey  string `json:"public" yaml:"public"`
+		PrivateKey string `json:"private" yaml:"private"`
+	}
+	if err := unmarshal(&ca); err != nil {
+		return trace.Wrap(err)
+	}
+	key, err := base64.StdEncoding.DecodeString(ca.PrivateKey)
+	if err != nil {
+		return trace.Wrap(err, "private key should be base64 encoded")
+	}
+	c.PublicKey = ca.PublicKey
+	c.PrivateKey = string(key)
+	if c.PrivateKey == "" || c.PublicKey == "" {
+		return trace.Errorf("both public key and private key should be setup")
+	}
+	return nil
+}
+
+func (c *CertificateAuthority) ToCA() *services.CA {
+	return &services.CA{
+		Pub:  []byte(c.PublicKey),
+		Priv: []byte(c.PrivateKey),
+	}
+}
+
+func convertRemoteCerts(inCerts RemoteCerts) []services.RemoteCert {
+	outCerts := make([]services.RemoteCert, len(inCerts))
+	for i, v := range inCerts {
+		outCerts[i] = services.RemoteCert{
+			ID:    v.ID,
+			FQDN:  v.FQDN,
+			Type:  v.Type,
+			Value: []byte(v.Value),
+		}
+	}
+	return outCerts
+}
+
 func setDefaults(cfg *Config) {
 	if cfg.Log.Output == "" {
 		cfg.Log.Output = "console"
@@ -166,6 +297,18 @@ func setDefaults(cfg *Config) {
 		cfg.Auth.SSHAddr = utils.NetAddr{
 			Network: "tcp",
 			Addr:    "127.0.0.1:33000",
+		}
+	}
+	if cfg.Proxy.ReverseTunnelListenAddr.IsEmpty() {
+		cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{
+			Network: "tcp",
+			Addr:    "127.0.0.1:33006",
+		}
+	}
+	if cfg.Proxy.WebAddr.IsEmpty() {
+		cfg.Proxy.WebAddr = utils.NetAddr{
+			Network: "tcp",
+			Addr:    "127.0.0.1:33007",
 		}
 	}
 }

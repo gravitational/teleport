@@ -249,15 +249,16 @@ func (s *WebService) CheckPassword(user string, password []byte, hotpToken strin
 		return trace.Wrap(err)
 	}
 	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
-		return &teleport.BadParameterError{Err: "passwords do not match"}
+		return &teleport.BadParameterError{Err: "passwords do not match", Param: "password"}
 	}
 
 	otp, err := s.GetHOTP(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	if !otp.Scan(hotpToken, 4) {
-		return &teleport.BadParameterError{Err: "tokens do not match"}
+		return &teleport.BadParameterError{Err: "tokens do not match", Param: "token"}
 	}
 
 	if err := s.UpsertHOTP(user, otp); err != nil {

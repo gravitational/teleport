@@ -16,6 +16,7 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/agent"
 )
@@ -392,7 +393,7 @@ func (s *TunServer) passwordAuth(
 	case "password":
 		if err := s.a.CheckPassword(conn.User(), ab.Pass, ab.HotpToken); err != nil {
 			log.Errorf("Password auth error: %v", err)
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{

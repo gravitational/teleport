@@ -1,3 +1,6 @@
+# this is an example of teleport server that dials out
+# to the remote proxy (proxy.vendor.io) outside of the organization
+# auth server should trust the certificate for proxy.vendor.io to allow the access
 log:
   output: console
   severity: INFO
@@ -14,7 +17,7 @@ reverse_tunnel:
   # this node will try to connect to remote web proxy and establish reverse SSH tunnel
   # so web proxy can access all the nodes in the cluster through this tunnel
   enabled: true
-  dial_addr: tcp://node1.gravitational.io:33006
+  dial_addr: tcp://proxy.vendor.io:33006
 
 auth:
   # auth is authentication and authorization server for users and hosts
@@ -33,9 +36,3 @@ auth:
   records_backend:
     type: bolt
     params: {path: "/var/lib/teleport/records.db"}
-
-proxy:
-  # proxy starts web and ssh proxy that allow inbound connections from remote nodes
-  enabled: true
-  assets_dir: assets/web # directory with javascript, html and css for web
-  reverse_tunnel_listen_addr: tcp://node1.gravitational.io:33006

@@ -2,11 +2,30 @@ package command
 
 import (
 	"fmt"
+	"io/ioutil"
 	"time"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/buger/goterm"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
+
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/buger/goterm"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 )
+
+func (cmd *Command) GenerateKeyPair(privateKeyPath, publicKeyPath, passphrase string) error {
+	priv, pub, err := native.New().GenerateKeyPair(passphrase)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := ioutil.WriteFile(privateKeyPath, priv, 0600); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := ioutil.WriteFile(publicKeyPath, pub, 0666); err != nil {
+		return trace.Wrap(err)
+	}
+	cmd.printOK("Public and private keys have been written")
+	return nil
+}
 
 func (cmd *Command) ResetHostCA(confirm bool) {
 	if !confirm && !cmd.confirm("Reseting private and public keys for Host CA. This will invalidate all signed host certs. Continue?") {
