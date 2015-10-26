@@ -30,6 +30,7 @@ func (s *ConfigSuite) TestParseYAML(c *C) {
 }
 
 func (s *ConfigSuite) TestParseEnv(c *C) {
+
 	vars := map[string]string{
 		"TELEPORT_LOG_OUTPUT":                       "console",
 		"TELEPORT_LOG_SEVERITY":                     "INFO",
@@ -51,6 +52,8 @@ func (s *ConfigSuite) TestParseEnv(c *C) {
 		"TELEPORT_AUTH_EVENTS_BACKEND_PARAMS":       "path:/events",
 		"TELEPORT_AUTH_RECORDS_BACKEND_TYPE":        "bolt",
 		"TELEPORT_AUTH_RECORDS_BACKEND_PARAMS":      "path:/records",
+		"TELEPORT_AUTH_USER_CA_KEYPAIR":             `{"public": "user ca public key", "private": "dXNlciBjYSBwcml2YXRlIGtleQ=="}`,
+		"TELEPORT_AUTH_HOST_CA_KEYPAIR":             `{"public": "host ca public key", "private": "aG9zdCBjYSBwcml2YXRlIGtleQ=="}`,
 		"TELEPORT_SSH_ENABLED":                      "true",
 		"TELEPORT_SSH_TOKEN":                        "sshtoken",
 		"TELEPORT_SSH_ADDR":                         "tcp://localhost:1234",
@@ -132,6 +135,9 @@ func (s *ConfigSuite) checkVariables(c *C, cfg *Config) {
 	c.Assert(cfg.Auth.RecordsBackend.Params,
 		DeepEquals, KeyVal{"path": "/records"})
 
+	c.Assert(cfg.Auth.UserCA.PublicKey, Equals, "user ca public key")
+	c.Assert(string(cfg.Auth.UserCA.PrivateKey), Equals, "user ca private key")
+
 	// SSH section
 	c.Assert(cfg.SSH.Enabled, Equals, true)
 	c.Assert(cfg.SSH.Addr, Equals,
@@ -170,6 +176,14 @@ auth:
   allowed_tokens: 
     node1.a.fqdn.example.com: token1
     node2.a.fqdn.example.com: token2
+
+  user_ca_keypair:
+    public: user ca public key
+    private: dXNlciBjYSBwcml2YXRlIGtleQ==
+
+  host_ca_keypair:
+    public: host ca public key
+    private: aG9zdCBjYSBwcml2YXRlIGtleQ==
 
   trusted_authorities: 
 

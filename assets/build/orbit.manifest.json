@@ -110,6 +110,18 @@
                 }
             },
             {
+                "type": "String",
+                "name": "authUserCAKeyPair",
+                "env": "TELEPORT_AUTH_USER_CA_KEYPAIR",
+                "cli": {"name": "auth-user-ca-keypair"}
+            },
+            {
+                "type": "String",
+                "name": "authHostCAKeyPair",
+                "env": "TELEPORT_AUTH_HOST_CA_KEYPAIR",
+                "cli": {"name": "auth-host-ca-keypair"}
+            },
+            {
                 "type": "List",
                 "name": "authKeysBackendParams",
                 "spec": {

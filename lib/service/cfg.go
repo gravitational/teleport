@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"io/ioutil"
 	"strings"
@@ -73,6 +74,7 @@ type ProxyConfig struct {
 
 	// TLSKey is a base64 encoded private key used by web portal
 	TLSKey string `yaml:"tls_key" env:"TELEPORT_PROXY_TLS_KEY"`
+
 	// TLSCert is a base64 encoded certificate used by web portal
 	TLSCert string `yaml:"tlscert" env:"TELEPORT_PROXY_TLS_CERT"`
 }
@@ -102,6 +104,16 @@ type AuthConfig struct {
 
 	// TrustedAuthorities is a set of trusted user certificate authorities
 	TrustedAuthorities RemoteCerts `yaml:"trusted_authorities" env:"TELEPORT_AUTH_TRUSTED_AUTHORITIES"`
+
+	// UserCA allows to pass preconfigured user certificate authority keypair
+	// to auth server so it will use it on the first start instead of generating
+	// a new keypair
+	UserCA CertificateAuthority `yaml:"user_ca_keypair" env:"TELEPORT_AUTH_USER_CA_KEYPAIR"`
+
+	// HostCA allows to pass preconfigured host certificate authority keypair
+	// to auth server so it will use it on the first start instead of generating
+	// a new keypair
+	HostCA CertificateAuthority `yaml:"host_ca_keypair" env:"TELEPORT_AUTH_HOST_CA_KEYPAIR"`
 
 	// KeysBackend configures backend that stores encryption keys
 	KeysBackend struct {
@@ -194,6 +206,49 @@ func (c *RemoteCerts) SetEnv(v string) error {
 	}
 	*c = certs
 	return nil
+}
+
+type CertificateAuthority struct {
+	PublicKey  string `json:"public" yaml:"public"`
+	PrivateKey string `json:"private" yaml:"private"`
+}
+
+func (c *CertificateAuthority) SetEnv(v string) error {
+	var ca CertificateAuthority
+	if err := json.Unmarshal([]byte(v), &ca); err != nil {
+		return trace.Wrap(err, "expected JSON encoded certificate authority")
+	}
+	key, err := base64.StdEncoding.DecodeString(ca.PrivateKey)
+	if err != nil {
+		return trace.Wrap(err, "private key should be base64 encoded")
+	}
+	c.PublicKey = ca.PublicKey
+	c.PrivateKey = string(key)
+	return nil
+}
+
+func (c *CertificateAuthority) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var ca struct {
+		PublicKey  string `json:"public" yaml:"public"`
+		PrivateKey string `json:"private" yaml:"private"`
+	}
+	if err := unmarshal(&ca); err != nil {
+		return trace.Wrap(err)
+	}
+	key, err := base64.StdEncoding.DecodeString(ca.PrivateKey)
+	if err != nil {
+		return trace.Wrap(err, "private key should be base64 encoded")
+	}
+	c.PublicKey = ca.PublicKey
+	c.PrivateKey = string(key)
+	return nil
+}
+
+func (c *CertificateAuthority) ToCA() services.CA {
+	return services.CA{
+		Pub:  []byte(c.PublicKey),
+		Priv: []byte(c.PrivateKey),
+	}
 }
 
 func convertRemoteCerts(inCerts RemoteCerts) []services.RemoteCert {
