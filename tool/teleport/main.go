@@ -48,7 +48,6 @@ func run() error {
 	if err != nil {
 		return trace.Wrap(err, "initializing teleport")
 	}
-
 	if err := srv.Start(); err != nil {
 		return trace.Wrap(err, "starting teleport")
 	}
