@@ -29,6 +29,13 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
 
+type RoleConfig struct {
+	DataDir     string
+	Hostname    string
+	AuthServers []utils.NetAddr
+	Auth        AuthConfig
+}
+
 func NewTeleport(cfg Config) (Supervisor, error) {
 	if err := validateConfig(cfg); err != nil {
 		return nil, err
@@ -49,8 +56,7 @@ func NewTeleport(cfg Config) (Supervisor, error) {
 	supervisor := NewSupervisor()
 
 	if cfg.Auth.Enabled {
-		if err := InitAuthService(
-			supervisor, cfg.DataDir, cfg.Hostname, cfg.AuthServers, cfg.Auth); err != nil {
+		if err := InitAuthService(supervisor, cfg.RoleConfig()); err != nil {
 			return nil, err
 		}
 	}
@@ -77,43 +83,43 @@ func NewTeleport(cfg Config) (Supervisor, error) {
 }
 
 // InitAuthService can be called to initialize auth server service
-func InitAuthService(supervisor Supervisor, dataDir, fqdn string, peers NetAddrSlice, cfg AuthConfig) error {
-	if cfg.HostAuthorityDomain == "" {
+func InitAuthService(supervisor Supervisor, cfg RoleConfig) error {
+	if cfg.Auth.HostAuthorityDomain == "" {
 		return trace.Errorf(
 			"please provide host certificate authority domain, e.g. example.com")
 	}
 
-	b, err := initBackend(dataDir, fqdn, peers, cfg)
+	b, err := initBackend(cfg.DataDir, cfg.Hostname, cfg.AuthServers, cfg.Auth)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	elog, err := initEventBackend(
-		cfg.EventsBackend.Type, cfg.EventsBackend.Params)
+		cfg.Auth.EventsBackend.Type, cfg.Auth.EventsBackend.Params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	rec, err := initRecordBackend(
-		cfg.RecordsBackend.Type, cfg.RecordsBackend.Params)
+		cfg.Auth.RecordsBackend.Type, cfg.Auth.RecordsBackend.Params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	acfg := auth.InitConfig{
 		Backend:            b,
 		Authority:          authority.New(),
-		FQDN:               fqdn,
-		AuthDomain:         cfg.HostAuthorityDomain,
-		DataDir:            dataDir,
-		SecretKey:          cfg.SecretKey,
-		AllowedTokens:      cfg.AllowedTokens,
-		TrustedAuthorities: convertRemoteCerts(cfg.TrustedAuthorities),
+		FQDN:               cfg.Hostname,
+		AuthDomain:         cfg.Auth.HostAuthorityDomain,
+		DataDir:            cfg.DataDir,
+		SecretKey:          cfg.Auth.SecretKey,
+		AllowedTokens:      cfg.Auth.AllowedTokens,
+		TrustedAuthorities: convertRemoteCerts(cfg.Auth.TrustedAuthorities),
 	}
-	if len(cfg.UserCA.PublicKey) != 0 && len(cfg.UserCA.PrivateKey) != 0 {
-		acfg.UserCA = cfg.UserCA.ToCA()
+	if len(cfg.Auth.UserCA.PublicKey) != 0 && len(cfg.Auth.UserCA.PrivateKey) != 0 {
+		acfg.UserCA = cfg.Auth.UserCA.ToCA()
 	}
-	if len(cfg.HostCA.PublicKey) != 0 && len(cfg.HostCA.PrivateKey) != 0 {
-		acfg.HostCA = cfg.HostCA.ToCA()
+	if len(cfg.Auth.HostCA.PublicKey) != 0 && len(cfg.Auth.HostCA.PrivateKey) != 0 {
+		acfg.HostCA = cfg.Auth.HostCA.ToCA()
 	}
 	asrv, signer, err := auth.Init(acfg)
 	if err != nil {
@@ -121,21 +127,21 @@ func InitAuthService(supervisor Supervisor, dataDir, fqdn string, peers NetAddrS
 	}
 	// register HTTP API endpoint
 	supervisor.RegisterFunc(func() error {
-		log.Infof("[AUTH] server HTTP endpoint is starting on %v", cfg.HTTPAddr)
+		log.Infof("[AUTH] server HTTP endpoint is starting on %v", cfg.Auth.HTTPAddr)
 		apisrv := auth.NewAPIServer(asrv, elog, session.New(b), rec)
 		t, err := oxytrace.New(apisrv, log.GetLogger().Writer(log.SeverityInfo))
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		return utils.StartHTTPServer(cfg.HTTPAddr, t)
+		return utils.StartHTTPServer(cfg.Auth.HTTPAddr, t)
 	})
 
 	// register auth SSH-based endpoint
 	supervisor.RegisterFunc(func() error {
 		log.Infof("[AUTH] server SSH endpoint is starting")
 		tsrv, err := auth.NewTunServer(
-			cfg.SSHAddr, []ssh.Signer{signer},
-			cfg.HTTPAddr,
+			cfg.Auth.SSHAddr, []ssh.Signer{signer},
+			cfg.Auth.HTTPAddr,
 			asrv)
 		if err != nil {
 			return trace.Wrap(err)
@@ -149,24 +155,9 @@ func InitAuthService(supervisor Supervisor, dataDir, fqdn string, peers NetAddrS
 }
 
 func initSSH(supervisor Supervisor, cfg Config) error {
-	if cfg.DataDir == "" {
-		return trace.Errorf("please supply data directory")
-	}
-	if len(cfg.AuthServers) == 0 {
-		return trace.Errorf("supply at least one auth server")
-	}
-	haveKeys, err := auth.HaveKeys(cfg.Hostname, cfg.DataDir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if !haveKeys {
-		// this means the server has not been initialized yet, we are starting
-		// the registering client that attempts to connect to the auth server
-		// and provision the keys
-		return RegisterWithAuthServer(
-			supervisor, cfg.SSH.Token, cfg, initSSHEndpoint)
-	}
-	return initSSHEndpoint(supervisor, cfg)
+	return RegisterWithAuthServer(supervisor, cfg.SSH.Token, cfg.RoleConfig(), func() error {
+		return initSSHEndpoint(supervisor, cfg)
+	})
 }
 
 func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
@@ -215,55 +206,64 @@ func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
 // RegisterWithAuthServer uses one time provisioning token obtained earlier
 // from the server to get a pair of SSH keys signed by Auth server host
 // certificate authority
-func RegisterWithAuthServer(supervisor Supervisor, token string, cfg Config,
-	initFunc func(Supervisor, Config) error) error {
-	// we are on the same server as the auth endpoint
-	// and there's no token. we can handle this
-	if cfg.Auth.Enabled && token == "" {
-		log.Infof("registering in embedded mode, connecting to local auth server")
-		clt, err := auth.NewClientFromNetAddr(cfg.Auth.HTTPAddr)
-		if err != nil {
-			log.Errorf("failed to instantiate client: %v", err)
-			return trace.Wrap(err)
-		}
-		token, err = clt.GenerateToken(cfg.Hostname, 30*time.Second)
-		if err != nil {
-			log.Errorf("failed to generate token: %v", err)
-		}
-		return trace.Wrap(err)
-	}
-	supervisor.RegisterFunc(func() error {
-		log.Infof("teleport:register connecting to auth servers %v", cfg.SSH.Token)
-		if err := auth.Register(
-			cfg.Hostname, cfg.DataDir, token, cfg.AuthServers); err != nil {
-			log.Errorf("teleport:ssh register failed: %v", err)
-			return trace.Wrap(err)
-		}
-		log.Infof("teleport:register registered successfully")
-		return initFunc(supervisor, cfg)
-	})
-	return nil
-}
-
-func initReverseTunnel(supervisor Supervisor, cfg Config) error {
+func RegisterWithAuthServer(
+	supervisor Supervisor,
+	provisioningToken string,
+	cfg RoleConfig,
+	callback func() error) error {
 	if cfg.DataDir == "" {
 		return trace.Errorf("please supply data directory")
 	}
 	if len(cfg.AuthServers) == 0 {
 		return trace.Errorf("supply at least one auth server")
 	}
+
+	// check host SSH keys
 	haveKeys, err := auth.HaveKeys(cfg.Hostname, cfg.DataDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if !haveKeys {
-		// this means the server has not been initialized yet we are starting
-		// the registering client that attempts to connect ot the auth server
-		// and provision the keys
-		return RegisterWithAuthServer(
-			supervisor, cfg.ReverseTunnel.Token, cfg, initTunAgent)
+	if haveKeys {
+		return callback()
 	}
-	return initTunAgent(supervisor, cfg)
+
+	// this means the server has not been initialized yet, we are starting
+	// the registering client that attempts to connect to the auth server
+	// and provision the keys
+
+	// we are on the same server as the auth endpoint
+	// and there's no token. we can handle this
+	if cfg.Auth.Enabled && provisioningToken == "" {
+		log.Infof("registering in embedded mode, connecting to local auth server")
+		clt, err := auth.NewClientFromNetAddr(cfg.Auth.HTTPAddr)
+		if err != nil {
+			log.Errorf("failed to instantiate client: %v", err)
+			return trace.Wrap(err)
+		}
+		provisioningToken, err = clt.GenerateToken(cfg.Hostname, 30*time.Second)
+		if err != nil {
+			log.Errorf("failed to generate token: %v", err)
+		}
+		return trace.Wrap(err)
+	}
+	supervisor.RegisterFunc(func() error {
+		log.Infof("teleport:register connecting to auth servers %v", provisioningToken)
+		if err := auth.Register(
+			cfg.Hostname, cfg.DataDir, provisioningToken, cfg.AuthServers); err != nil {
+			log.Errorf("teleport:ssh register failed: %v", err)
+			return trace.Wrap(err)
+		}
+		log.Infof("teleport:register registered successfully")
+		return callback()
+	})
+	return nil
+}
+
+func initReverseTunnel(supervisor Supervisor, cfg Config) error {
+	return RegisterWithAuthServer(
+		supervisor, cfg.ReverseTunnel.Token, cfg.RoleConfig(), func() error {
+			return initTunAgent(supervisor, cfg)
+		})
 }
 
 func initTunAgent(supervisor Supervisor, cfg Config) error {
@@ -309,21 +309,11 @@ func initTunAgent(supervisor Supervisor, cfg Config) error {
 }
 
 func initProxy(supervisor Supervisor, cfg Config) error {
-	if len(cfg.AuthServers) == 0 {
-		return trace.Errorf("supply at least one auth server")
-	}
-	haveKeys, err := auth.HaveKeys(cfg.Hostname, cfg.DataDir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if !haveKeys {
-		// this means the server has not been initialized yet, we are starting
-		// the registering client that attempts to connect to the auth server
-		// and provision the keys
-		return RegisterWithAuthServer(
-			supervisor, cfg.Proxy.Token, cfg, initProxyEndpoint)
-	}
-	return initProxyEndpoint(supervisor, cfg)
+	return RegisterWithAuthServer(
+		supervisor, cfg.Proxy.Token, cfg.RoleConfig(),
+		func() error {
+			return initProxyEndpoint(supervisor, cfg)
+		})
 }
 
 func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
