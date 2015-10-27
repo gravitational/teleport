@@ -41,8 +41,8 @@ func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 }
 
 func (n *nauth) GenerateHostCert(pkey, key []byte, id, hostname string, ttl time.Duration) ([]byte, error) {
-	if (ttl > 30*time.Hour) || (ttl < time.Minute) {
-		return nil, trace.Errorf("Fuck off")
+	if (ttl > MaxCertDuration) || (ttl < MinCertDuration) {
+		return nil, trace.Errorf("Wrong certificate ttl")
 	}
 
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
@@ -71,8 +71,8 @@ func (n *nauth) GenerateHostCert(pkey, key []byte, id, hostname string, ttl time
 }
 
 func (n *nauth) GenerateUserCert(pkey, key []byte, id, username string, ttl time.Duration) ([]byte, error) {
-	if (ttl > 30*time.Hour) || (ttl < time.Minute) {
-		return nil, trace.Errorf("Fuck off")
+	if (ttl > MaxCertDuration) || (ttl < MinCertDuration) {
+		return nil, trace.Errorf("Wrong certificate ttl")
 	}
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
 	if err != nil {
@@ -98,3 +98,8 @@ func (n *nauth) GenerateUserCert(pkey, key []byte, id, username string, ttl time
 	}
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
+
+const (
+	MinCertDuration = time.Minute
+	MaxCertDuration = 30 * time.Hour
+)
