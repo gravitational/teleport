@@ -7,6 +7,8 @@ import (
 	"encoding/pem"
 	"time"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
 
@@ -39,6 +41,10 @@ func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 }
 
 func (n *nauth) GenerateHostCert(pkey, key []byte, id, hostname string, ttl time.Duration) ([]byte, error) {
+	if (ttl > 30*time.Hour) || (ttl < time.Minute) {
+		return nil, trace.Errorf("Fuck off")
+	}
+
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
 	if err != nil {
 		return nil, err
@@ -65,6 +71,9 @@ func (n *nauth) GenerateHostCert(pkey, key []byte, id, hostname string, ttl time
 }
 
 func (n *nauth) GenerateUserCert(pkey, key []byte, id, username string, ttl time.Duration) ([]byte, error) {
+	if (ttl > 30*time.Hour) || (ttl < time.Minute) {
+		return nil, trace.Errorf("Fuck off")
+	}
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
 	if err != nil {
 		return nil, err

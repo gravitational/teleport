@@ -48,6 +48,18 @@ func (s *AuthSuite) GenerateHostCert(c *C) {
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
 	c.Assert(err, IsNil)
+
+	_, err = s.A.GenerateHostCert(priv, pub, "user", "user", -20)
+	c.Assert(err, NotNil)
+
+	_, err = s.A.GenerateHostCert(priv, pub, "user", "user", 0)
+	c.Assert(err, NotNil)
+
+	_, err = s.A.GenerateHostCert(priv, pub, "user", "user", 40*time.Hour)
+	c.Assert(err, NotNil)
+
+	_, err = s.A.GenerateHostCert(priv, pub, "auth", "auth.example.com", time.Hour)
+	c.Assert(err, IsNil)
 }
 
 func (s *AuthSuite) GenerateUserCert(c *C) {
@@ -58,5 +70,17 @@ func (s *AuthSuite) GenerateUserCert(c *C) {
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
+	c.Assert(err, IsNil)
+
+	_, err = s.A.GenerateUserCert(priv, pub, "user", "user", -20)
+	c.Assert(err, NotNil)
+
+	_, err = s.A.GenerateUserCert(priv, pub, "user", "user", 0)
+	c.Assert(err, NotNil)
+
+	_, err = s.A.GenerateUserCert(priv, pub, "user", "user", 40*time.Hour)
+	c.Assert(err, NotNil)
+
+	_, err = s.A.GenerateUserCert(priv, pub, "user", "user", time.Hour)
 	c.Assert(err, IsNil)
 }
