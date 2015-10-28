@@ -139,7 +139,7 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := s.UpsertWebSession(user, sess, time.Hour); err != nil {
+	if err := s.UpsertWebSession(user, sess, WebSessionTTL); err != nil {
 		return nil, err
 	}
 	return sess, nil
@@ -192,7 +192,7 @@ func (s *AuthServer) NewWebSession(user string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	cert, err := s.Authority.GenerateUserCert(hk.Priv, pub, user, user, 0)
+	cert, err := s.Authority.GenerateUserCert(hk.Priv, pub, user, user, WebSessionTTL)
 	if err != nil {
 		return nil, err
 	}
@@ -233,5 +233,6 @@ func (s *AuthServer) DeleteWebSession(user string, sid session.SecureID) error {
 }
 
 const (
-	Week = time.Hour * 24 * 7
+	Week          = time.Hour * 24 * 7
+	WebSessionTTL = time.Hour * 10
 )
