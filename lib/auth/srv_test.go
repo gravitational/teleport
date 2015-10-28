@@ -191,7 +191,7 @@ func (s *APISuite) TestUserKeyCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	key := services.AuthorizedKey{ID: "id", Value: pub}
-	cert, err := s.clt.UpsertUserKey("user1", key, 0)
+	cert, err := s.clt.UpsertUserKey("user1", key, 5*time.Minute)
 	c.Assert(err, IsNil)
 
 	keys, err := s.UserS.GetUserKeys("user1")
