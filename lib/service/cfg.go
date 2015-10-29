@@ -51,6 +51,15 @@ type Config struct {
 	Proxy ProxyConfig `yaml:"proxy"`
 }
 
+func (cfg *Config) RoleConfig() RoleConfig {
+	return RoleConfig{
+		DataDir:     cfg.DataDir,
+		Hostname:    cfg.Hostname,
+		AuthServers: cfg.AuthServers,
+		Auth:        cfg.Auth,
+	}
+}
+
 type LogConfig struct {
 	Output   string `yaml:"output" env:"TELEPORT_LOG_OUTPUT"`
 	Severity string `yaml:"severity" env:"TELEPORT_LOG_SEVERITY"`

@@ -7,7 +7,7 @@ log:
 
 data_dir: /var/lib/teleport # directory where teleport stores it's state (SSH keys and database data)
 
-hostname: node1.gravitational.io # SSH hostname of this node
+hostname: node1.site.io # SSH hostname of this node
 
 ssh:
   # enable simple ssh endpoint
@@ -17,13 +17,13 @@ reverse_tunnel:
   # this node will try to connect to remote web proxy and establish reverse SSH tunnel
   # so web proxy can access all the nodes in the cluster through this tunnel
   enabled: true
-  dial_addr: tcp://proxy.vendor.io:33006
+  dial_addr: tcp://node1.gravitational.io:33006
 
 auth:
   # auth is authentication and authorization server for users and hosts
   # it acts like SSH user CA authority and host CA authority
   enabled: true
-  host_authority_domain: gravitational.io
+  host_authority_domain: site.io
 
   keys_backend:
     type: bolt
