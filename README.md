@@ -24,26 +24,25 @@ A Teleport daemon needs to be running on every server in a cluster. Each instanc
 assumes one of these roles:
 
 * Auth server
-* SSH node
-* Web access portal
+* SSH server
+* Proxy
 
 **Auth server**
 
-Auth server is connected to Etcd backend and acts as:
+Auth server is connected to Etcd backend or embedded bolt database and acts as:
 
-* User and host certificate authority server.
- Read more about SSH authorities in this [intro article](https://www.digitalocean.com/community/tutorials/how-to-create-an-ssh-ca-to-validate-hosts-and-clients-with-ubuntu)
-* Web and SSH keys access checker - it grants revokes access to users
-* Audit logs collector, every other SSH node ships access logs to it
+* Teleport Auth Server acts as Authentication and Authorization server,
+* SSH host and user certificate authority
+* Stores audit logs and access records and is the only stateful component in the system.
 
-**Note:** Auth server does not itself provide any support
-for interactive sessions and remote command execution
 
-**SSH node**
+Read more about SSH authorities in this [intro article](https://www.digitalocean.com/community/tutorials/how-to-create-an-ssh-ca-to-validate-hosts-and-clients-with-ubuntu)
 
-SSH node is a stateless node that connects to the the auth server
-authenticating using it's host certificate and relies on Auth server
-for authorization and authentication.
+**Note:** Auth server does not itself provide any support for interactive sessions and remote command execution
+
+**SSH server**
+
+Teleport SSH server is a simple stateless server written in Go that only supports SSH user certificates as authentication method, generates structured events and supports interactive collaborative sessions
 
 **Web access portal**
 
