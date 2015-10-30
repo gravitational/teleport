@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/alecthomas/kingpin.v2"
 )
 
 // KeyVal is map that can parse itself from string, represented as a
@@ -18,7 +20,7 @@ func (kv *KeyVal) Set(v string) error {
 	if len(*kv) == 0 {
 		*kv = make(map[string]string)
 	}
-	for _, i := range SplitComma(v) {
+	for _, i := range cstrings.SplitComma(v) {
 		vals := strings.SplitN(i, ":", 2)
 		if len(vals) != 2 {
 			return trace.Errorf("extra options should be defined like KEY:VAL")
@@ -45,6 +47,14 @@ func (kv *KeyVal) String() string {
 		fmt.Fprintf(b, " ")
 	}
 	return b.String()
+}
+
+// KeyValParam accepts a kingpin setting parameter and returns
+// kingpin-compatible value
+func KeyValParam(s kingpin.Settings) *KeyVal {
+	kv := make(KeyVal)
+	s.SetValue(&kv)
+	return &kv
 }
 
 // KeyValSlice is a list of key value strings

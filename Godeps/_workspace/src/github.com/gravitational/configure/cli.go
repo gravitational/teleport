@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/alecthomas/kingpin.v2"
 )
@@ -139,7 +140,7 @@ func setMap(kv *map[string]string, val string) error {
 	if len(*kv) == 0 {
 		*kv = make(map[string]string)
 	}
-	for _, i := range SplitComma(val) {
+	for _, i := range cstrings.SplitComma(val) {
 		vals := strings.SplitN(i, ":", 2)
 		if len(vals) != 2 {
 			return trace.Errorf("extra options should be defined like KEY:VAL")
