@@ -228,9 +228,6 @@ func ReadKeys(fqdn, dataDir string) (ssh.Signer, error) {
 		return nil, err
 	}
 
-	pk, _, _, _, _ := ssh.ParseAuthorizedKey(cert)
-	fmt.Printf("auth key: ", string(ssh.MarshalAuthorizedKey(pk.(*ssh.Certificate).SignatureKey)))
-
 	return sshutils.NewSigner(key, cert)
 }
 

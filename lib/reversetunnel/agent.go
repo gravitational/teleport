@@ -106,7 +106,6 @@ func (a *Agent) reconnect() error {
 		}
 		return nil
 	}
-	return trace.Wrap(err)
 }
 
 func (a *Agent) Wait() error {

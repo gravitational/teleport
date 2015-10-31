@@ -103,7 +103,7 @@ func (s *Server) sendDir(r *reader, ch io.ReadWriter, fi os.FileInfo, path strin
 	}
 	fis, err := f.Readdir(0)
 	if err != nil {
-		log.Errorf("failed to read directory: %v")
+		log.Errorf("failed to read directory: %v", err)
 		return err
 	}
 

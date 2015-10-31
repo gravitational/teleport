@@ -729,7 +729,6 @@ func (s *APIServer) getChunks(w http.ResponseWriter, r *http.Request, p httprout
 
 	chunks, err := re.ReadChunks(start, end)
 	if err != nil {
-		panic(fmt.Sprintf("here: %v", err))
 		log.Errorf("failed to read chunks: %v", err)
 		reply(w, http.StatusInternalServerError,
 			fmt.Errorf("failed to read chunks"))
@@ -747,7 +746,7 @@ func replyErr(w http.ResponseWriter, e error) {
 		reply(w, http.StatusBadRequest, message(err.Error()))
 		return
 	}
-	log.Errorf("Unexpected error: %v", e)
+	log.Errorf("auth server unexpected error: %v", e)
 	// do not leak the unexpected error to the callee as we are not sure
 	// if it's safe to disclose that information
 	reply(w, http.StatusInternalServerError, message("internal server error"))

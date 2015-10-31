@@ -36,7 +36,7 @@ type server struct {
 
 func New(bk backend.Backend) *server {
 	return &server{
-		bk: backend.JSONCodec{bk},
+		bk: backend.JSONCodec{Backend: bk},
 	}
 }
 

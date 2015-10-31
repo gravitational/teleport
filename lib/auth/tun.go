@@ -363,7 +363,7 @@ func (s *TunServer) handleNewAuthRequest(sconn *ssh.ServerConn, ch ssh.Channel) 
 	}
 
 	if err := ch.CloseWrite(); err != nil {
-		log.Errorf("Can't close write: &v", err)
+		log.Errorf("Can't close write: %v", err)
 		return
 	}
 
