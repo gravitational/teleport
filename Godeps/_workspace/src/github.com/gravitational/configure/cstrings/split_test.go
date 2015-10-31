@@ -1,8 +1,12 @@
-package configure
+package cstrings
 
 import (
+	"testing"
+
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
+
+func TestStrings(t *testing.T) { TestingT(t) }
 
 type USuite struct {
 }

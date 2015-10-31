@@ -61,9 +61,9 @@ run-embedded: install
 	rm -f /tmp/teleport.auth.sock
 	teleport --config=examples/embedded.yaml
 
-# run-embedded-proxy starts a ssh node, auth server and reverse tunnel that connect outside of
+# run-site-to-proxy starts a ssh node, auth server and reverse tunnel that connect outside of
 # the organization server
-run-embedded-proxy: install
+run-site-to-proxy: install
 	rm -f /tmp/teleport.auth.sock
 	teleport --config=examples/embedded-proxy.yaml
 

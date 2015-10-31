@@ -10,6 +10,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/configure"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 )
 
@@ -49,6 +50,15 @@ type Config struct {
 	// Proxy is SSH proxy that manages incoming and outbound connections
 	// via multiple reverse tunnels
 	Proxy ProxyConfig `yaml:"proxy"`
+}
+
+func (cfg *Config) RoleConfig() RoleConfig {
+	return RoleConfig{
+		DataDir:     cfg.DataDir,
+		Hostname:    cfg.Hostname,
+		AuthServers: cfg.AuthServers,
+		Auth:        cfg.Auth,
+	}
 }
 
 type LogConfig struct {
@@ -160,7 +170,7 @@ type ReverseTunnelConfig struct {
 type NetAddrSlice []utils.NetAddr
 
 func (s *NetAddrSlice) Set(val string) error {
-	values := configure.SplitComma(val)
+	values := cstrings.SplitComma(val)
 	out := make([]utils.NetAddr, len(values))
 	for i, v := range values {
 		a, err := utils.ParseAddr(v)
@@ -180,7 +190,7 @@ func (kv *KeyVal) Set(v string) error {
 	if len(*kv) == 0 {
 		*kv = make(map[string]string)
 	}
-	for _, i := range configure.SplitComma(v) {
+	for _, i := range cstrings.SplitComma(v) {
 		vals := strings.SplitN(i, ":", 2)
 		if len(vals) != 2 {
 			return trace.Errorf("extra options should be defined like KEY:VAL")
