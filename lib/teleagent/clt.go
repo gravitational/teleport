@@ -2,6 +2,8 @@ package teleagent
 
 import (
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -30,8 +32,8 @@ func Login(agentAddr string, proxyAddr string, user string,
 		return trace.Wrap(err)
 	}
 
-	_, err = c.PostForm(
-		"http://domainnotused/login",
+	out, err := c.PostForm(
+		"http://localhost/login", //domain is not used because of the custom transport
 		url.Values{
 			"proxyAddr": []string{proxyAddr},
 			"user":      []string{user},
@@ -39,5 +41,13 @@ func Login(agentAddr string, proxyAddr string, user string,
 			"hotpToken": []string{hotpToken},
 			"ttl":       []string{string(ttlJSON)},
 		})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer out.Body.Close()
+
+	body, err := ioutil.ReadAll(out.Body)
+	fmt.Println(string(body))
+
 	return err
 }

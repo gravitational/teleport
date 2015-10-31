@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/ttlmap"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
@@ -107,6 +108,7 @@ type RequestHandler func(http.ResponseWriter, *http.Request, httprouter.Params, 
 type AuthHandler interface {
 	GetHost() string
 	Auth(user, pass string, hotpToken string) (string, error)
+	GetCertificate(c SSHLoginCredentials) ([]byte, error)
 	ValidateSession(user, sid string) (Context, error)
 	SetSession(w http.ResponseWriter, user, sid string) error
 	ClearSession(w http.ResponseWriter)
@@ -153,6 +155,28 @@ func (s *LocalAuth) Auth(user, pass string, hotpToken string) (string, error) {
 		return "", err
 	}
 	return clt.SignIn(user, []byte(pass))
+}
+
+func (s *LocalAuth) GetCertificate(c SSHLoginCredentials) ([]byte, error) {
+	method, err := auth.NewWebPasswordAuth(c.User, []byte(c.Password),
+		c.HOTPToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := auth.NewTunClient(s.authServers[0], c.User, method)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cert, err := clt.GenerateUserCert(c.PubKey, "id_"+c.User, c.User, c.TTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fmt.Println("###################################################")
+	fmt.Println(cert, err)
+
+	return cert, nil
 }
 
 func (s *LocalAuth) ValidateSession(user, sid string) (Context, error) {

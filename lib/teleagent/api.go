@@ -67,6 +67,7 @@ func (s *AgentAPIServer) login(w http.ResponseWriter, r *http.Request, p httprou
 	err = s.ag.Login(proxyAddr, user, pass, hotpToken, ttl)
 	if err != nil {
 		w.Write([]byte("Login error: " + err.Error()))
+		return
 	}
 
 	w.Write([]byte("Logged in successfully"))

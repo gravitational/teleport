@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/recorder"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -21,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/code.google.com/p/go-uuid/uuid"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 	// Server implements SSH server that uses configuration backend and certificate-based authentication:
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/agent"
@@ -39,6 +41,9 @@ type Server struct {
 	reg         *sessionRegistry
 	se          rsession.SessionServer
 	rec         recorder.Recorder
+
+	proxyMode bool
+	proxyTun  reversetunnel.Server
 }
 
 type ServerOption func(s *Server) error
@@ -67,6 +72,14 @@ func SetSessionServer(srv rsession.SessionServer) ServerOption {
 func SetRecorder(rec recorder.Recorder) ServerOption {
 	return func(s *Server) error {
 		s.rec = rec
+		return nil
+	}
+}
+
+func SetProxyMode(tsrv reversetunnel.Server) ServerOption {
+	return func(s *Server) error {
+		s.proxyMode = true
+		s.proxyTun = tsrv
 		return nil
 	}
 }
@@ -254,6 +267,20 @@ func (s *Server) HandleRequest(r *ssh.Request) {
 
 func (s *Server) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	cht := nch.ChannelType()
+
+	if s.proxyMode {
+		if cht == "session" { // interactive sessions
+			ch, requests, err := nch.Accept()
+			if err != nil {
+				log.Infof("could not accept channel (%s)", err)
+			}
+			go s.handleSessionRequests(sconn, ch, requests)
+		} else {
+			nch.Reject(ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", cht))
+		}
+		return
+	}
+
 	switch cht {
 	case "session": // interactive sessions
 		ch, requests, err := nch.Accept()
@@ -373,6 +400,17 @@ func (s *Server) fwdDispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Req
 
 func (s *Server) dispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	log.Infof("%v dispatch(req=%v, wantReply=%v)", ctx, req.Type, req.WantReply)
+	if s.proxyMode {
+		switch req.Type {
+		case "subsystem":
+			return s.handleSubsystem(sconn, ch, req, ctx)
+		case "env":
+			// we currently ignore setting any environment variables via SSH for security purposes
+			return s.handleEnv(ch, req, ctx)
+		default:
+			return trace.Errorf("Proxy doesn't support request type '%v'", req.Type)
+		}
+	}
 	switch req.Type {
 	case "exec":
 		// exec is a remote execution of a program, does not use PTY

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -59,6 +60,9 @@ func NewMultiSiteHandler(cfg MultiSiteConfig) (*MultiSiteHandler, error) {
 
 	h.GET("/", h.needsAuth(h.sitesIndex))
 	h.GET("/web/sites", h.needsAuth(h.sitesIndex))
+
+	// For ssh proxy
+	h.POST("/sshlogin", h.loginSSHProxy)
 
 	// Forward all requests to site handler
 	sh := h.needsAuth(h.siteHandler)
@@ -135,6 +139,27 @@ func (h *MultiSiteHandler) authForm(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	http.Redirect(w, r, "/", http.StatusFound)
+}
+
+func (h *MultiSiteHandler) loginSSHProxy(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	var credJSON string
+
+	err := form.Parse(r,
+		form.String("credentials", &credJSON, form.Required()),
+	)
+	if err != nil {
+		w.Write(sshLoginResponse(nil, err))
+		return
+	}
+
+	var cred SSHLoginCredentials
+	if err := json.Unmarshal([]byte(credJSON), &cred); err != nil {
+		w.Write(sshLoginResponse(nil, err))
+		return
+	}
+
+	cert, err := h.auth.GetCertificate(cred)
+	w.Write(sshLoginResponse(cert, err))
 }
 
 func (s *MultiSiteHandler) siteEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) error {

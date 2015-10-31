@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/tool/teleagent/teleagent"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/teleagent"
 )
 
-func (cmd *Command) TeleagentLogin(agentAddr string, proxyAddr string, ttl time.Duration) {
+func (cmd *Command) AgentLogin(agentAddr string, proxyAddr string, ttl time.Duration) {
 
 	fmt.Fprintf(cmd.out, "Enter your user name:\n")
 	user, err := cmd.readInput("")
@@ -40,6 +41,20 @@ func (cmd *Command) TeleagentLogin(agentAddr string, proxyAddr string, ttl time.
 		cmd.printError(err)
 		return
 	}
+}
 
-	cmd.printOK("Logged in successfully")
+func (cmd *Command) AgentStart(agentAddr string, apiAddr string) {
+	agent := teleagent.TeleAgent{}
+	apiServer := teleagent.NewAgentAPIServer(&agent)
+	if err := agent.Start(agentAddr); err != nil {
+		cmd.printError(trace.Wrap(err))
+		return
+	}
+
+	fmt.Fprintf(cmd.out, "Agent started")
+
+	if err := apiServer.Start(apiAddr); err != nil {
+		cmd.printError(trace.Wrap(err))
+		return
+	}
 }

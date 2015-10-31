@@ -6,9 +6,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
@@ -52,8 +52,13 @@ func (a *TeleAgent) GetAgent() (agent.Agent, error) {
 	ag := agent.NewKeyring()
 
 	for _, key := range a.keys {
+		k, err := ssh.ParseRawPrivateKey(key.Priv)
+		if err != nil {
+			log.Errorf("failed to add: %v", err)
+			return nil, trace.Wrap(err)
+		}
 		addedKey := agent.AddedKey{
-			PrivateKey:       key.Priv,
+			PrivateKey:       k,
 			Certificate:      key.Cert,
 			Comment:          "",
 			LifetimeSecs:     0,
@@ -76,26 +81,16 @@ func (a *TeleAgent) Login(proxyAddr string, user string, pass string,
 		return trace.Wrap(err)
 	}
 
-	method, err := auth.NewWebPasswordAuth(user, []byte(pass), hotpToken)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	addr, err := utils.ParseAddr(proxyAddr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	clt, err := auth.NewTunClient(*addr, user, method)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	cert, err := clt.GenerateUserCert(pub, "id_"+user, user, ttl)
+	cert, err := web.SSHAgentLogin(proxyAddr, user, pass, hotpToken,
+		pub, ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	pcert, _, _, _, err := ssh.ParseAuthorizedKey(cert)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	key := Key{
 		Priv: priv,

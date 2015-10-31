@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,12 +17,14 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/oxy/forward"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
 
 type RemoteSite interface {
 	ConnectToServer(addr, user string, auth []ssh.AuthMethod) (*ssh.Client, error)
+	DialServer(addr string) (net.Conn, error)
 	GetLastConnected() time.Time
 	GetName() string
 	GetStatus() string
@@ -31,6 +34,7 @@ type RemoteSite interface {
 type Server interface {
 	GetSites() []RemoteSite
 	GetSite(name string) (RemoteSite, error)
+	FindSimilarSite(name string) (RemoteSite, error)
 	Start() error
 	Wait()
 }
@@ -219,6 +223,41 @@ func (s *server) GetSite(fqdn string) (RemoteSite, error) {
 	return nil, fmt.Errorf("site not found")
 }
 
+// FindSimilarSite finds the site that is the most similar to fqdn.
+// Returns nil if no sites with such domain name.
+func (s *server) FindSimilarSite(fqdn string) (RemoteSite, error) {
+	s.RLock()
+	defer s.RUnlock()
+
+	result := -1
+	resultSimilarity := 1
+
+	fqdn1 := strings.Split(fqdn, ".")
+	log.Infof("Find: ", fqdn)
+
+	for i, site := range s.sites {
+		log.Infof(site.fqdn)
+		fqdn2 := strings.Split(site.fqdn, ".")
+		similarity := 0
+		for j := 1; (j <= len(fqdn1)) && (j <= len(fqdn2)); j++ {
+			if fqdn1[len(fqdn1)-j] != fqdn2[len(fqdn2)-j] {
+				break
+			}
+			similarity++
+		}
+		if similarity > resultSimilarity {
+			result = i
+			resultSimilarity = similarity
+		}
+	}
+
+	if result != -1 {
+		return s.sites[result], nil
+	} else {
+		return nil, trace.Errorf("Site not found")
+	}
+}
+
 type remoteSite struct {
 	fqdn       string `json:"fqdn"`
 	conn       ssh.Conn
@@ -325,6 +364,26 @@ func (s *remoteSite) ConnectToServer(server, user string, auth []ssh.AuthMethod)
 		return nil, err
 	}
 	return ssh.NewClient(conn, chans, reqs), nil
+}
+
+func (s *remoteSite) DialServer(server string) (net.Conn, error) {
+	// TODO: check if server is known
+	ch, _, err := s.conn.OpenChannel(chanTransport, nil)
+	if err != nil {
+		log.Errorf("remoteSite:connectToServer %v", err)
+		return nil, err
+	}
+	// ask remote channel to dial
+	dialed, err := ch.SendRequest(chanTransportDialReq, true, []byte(server))
+	if err != nil {
+		log.Errorf("failed to process request: %v", err)
+		return nil, err
+	}
+	if !dialed {
+		log.Errorf("remote end failed to dial: %v", err)
+		return nil, fmt.Errorf("remote server %v is not available", server)
+	}
+	return newChConn(s.conn, ch), nil
 }
 
 func (s *remoteSite) GetServers() ([]services.Server, error) {
