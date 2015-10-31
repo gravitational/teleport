@@ -49,7 +49,7 @@ func New(path string) (*BoltBackend, error) {
 		return nil, trace.Wrap(err)
 	}
 	if !s.IsDir() {
-		return nil, trace.Errorf("path %v should be a valid directory '%v'", dir)
+		return nil, trace.Errorf("path '%v' should be a valid directory", dir)
 	}
 	db, err := bolt.Open(path, 0600, nil)
 	if err != nil {
@@ -198,7 +198,7 @@ func (b *BoltBackend) deleteBucket(buckets []string, bucket string) error {
 		}
 		if bkt.Bucket([]byte(bucket)) == nil {
 			return &teleport.NotFoundError{
-				fmt.Sprintf("%v not found", bucket)}
+				Message: fmt.Sprintf("%v not found", bucket)}
 		}
 		return bkt.DeleteBucket([]byte(bucket))
 	})

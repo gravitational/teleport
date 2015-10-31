@@ -232,7 +232,6 @@ func (h *MultiSiteHandler) needsAuth(fn authHandle) httprouter.Handle {
 			return
 		}
 	}
-	return nil
 }
 
 func (h *MultiSiteHandler) executeTemplate(w http.ResponseWriter, name string, data interface{}) {

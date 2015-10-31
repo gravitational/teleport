@@ -249,7 +249,7 @@ func (s *TunSuite) TestSessionsBadPassword(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(ws, Equals, "")
 
-	ws, err = clt.SignIn("not-exitsts", pass)
+	ws, err = clt.SignIn("not-exists", pass)
 	c.Assert(err, NotNil)
 	c.Assert(ws, Equals, "")
 

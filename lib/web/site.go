@@ -149,7 +149,6 @@ func (s *SiteHandler) needsAuth(fn RequestHandler) httprouter.Handle {
 		}
 		fn(w, r, p, ctx)
 	}
-	return nil
 }
 
 func (s *SiteHandler) ls(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) {
@@ -465,7 +464,7 @@ func (s *SiteHandler) getSession(w http.ResponseWriter, r *http.Request, p httpr
 func (s *SiteHandler) getServers(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) {
 	servers, err := c.GetClient().GetServers()
 	if err != nil {
-		log.Errorf("failed to retrieve servers: %v")
+		log.Errorf("failed to retrieve servers: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -603,7 +602,7 @@ func (s *SiteHandler) getKeys(w http.ResponseWriter, r *http.Request, _ httprout
 	keys, err := c.GetClient().GetUserKeys(c.GetUser())
 	log.Infof("Keys: %v", keys)
 	if err != nil {
-		log.Errorf("failed to retrieve keys: %v")
+		log.Errorf("failed to retrieve keys: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}

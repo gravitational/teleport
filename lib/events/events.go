@@ -136,7 +136,7 @@ type ShellSession struct {
 	Shell string `json:"command"`
 
 	// RecordID holds the id with the session recording
-	RecordID string `json: "rid"`
+	RecordID string `json:"rid"`
 
 	// User is SSH user
 	User string `json:"user"`

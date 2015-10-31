@@ -235,7 +235,7 @@ func (s *server) GetSite(fqdn string) (RemoteSite, error) {
 }
 
 type remoteSite struct {
-	fqdn       string `json:"fqdn"`
+	fqdn       string
 	conn       ssh.Conn
 	lastActive time.Time
 	srv        *server

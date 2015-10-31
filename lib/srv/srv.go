@@ -209,7 +209,7 @@ func (s *Server) userKeys(user string) ([]ssh.PublicKey, error) {
 		key, _, _, _, err := ssh.ParseAuthorizedKey(wk.Value)
 		if err != nil {
 			return nil, fmt.Errorf(
-				"parse err pubkey for user=%v, id=%v, key='%v', err: %v",
+				"parse err pubkey for user=%v, key='%v', err: %v",
 				user, string(wk.Value), err)
 		}
 		out = append(out, key)
@@ -232,21 +232,6 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		return nil, err
 	}
 	return p, nil
-	/*
-		TODO(klizhentas) replace this with revocation checking
-				keys, err := s.userKeys(conn.User())
-				if err != nil {
-					log.Errorf("failed to retrieve user keys: %v", err)
-					return nil, err
-				}
-				for _, k := range keys {
-					if sshutils.KeysEqual(k, key) {
-						log.Infof("%v SUCCESS auth", cid)
-						s.elog.Log(eventID, events.NewAuthAttempt(conn, key, true, nil))
-						return p, nil
-					}
-				}
-	*/
 }
 
 // Close closes listening socket and stops accepting connections
@@ -474,7 +459,7 @@ func (s *Server) emit(eid lunk.EventID, e lunk.Event) {
 func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	var e sshutils.EnvReqParams
 	if err := ssh.Unmarshal(req.Payload, &e); err != nil {
-		log.Errorf("%v handleEnv(err=%v)", err)
+		log.Errorf("%v handleEnv(err=%v)", s, err)
 		return fmt.Errorf("failed to parse env request, error: %v", err)
 	}
 	log.Infof("%v handleEnv(%#v)", ctx, e)
@@ -558,7 +543,7 @@ func (s *Server) handleSCP(ch ssh.Channel, req *ssh.Request, ctx *ctx, args stri
 	log.Infof("%v handleSCP(cmd=%#v)", ctx, cmd)
 	srv, err := scp.New(*cmd)
 	if err != nil {
-		log.Errorf("%v failed to create scp server: %v", ctx)
+		log.Errorf("%v failed to create scp server: %v", s, ctx)
 		return err
 	}
 	// TODO(klizhentas) current version of handling exec is incorrect.

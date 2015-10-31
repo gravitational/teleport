@@ -174,7 +174,8 @@ func (b *boltRW) WriteChunks(ch []recorder.Chunk) error {
 		}
 		iterb := ibkt.Get([]byte("val"))
 		if iterb == nil {
-			return &teleport.NotFoundError{fmt.Sprintf("iter not found")}
+			return &teleport.NotFoundError{
+				Message: fmt.Sprintf("iter not found")}
 		}
 		lastChunk := binary.BigEndian.Uint64(iterb)
 		cbkt, err := boltbk.UpsertBucket(tx, []string{"chunks"})
@@ -208,7 +209,8 @@ func (b *boltRW) ReadChunk(chunk uint64) ([]byte, error) {
 		}
 		bytes := cbkt.Get(bin)
 		if bytes == nil {
-			return &teleport.NotFoundError{fmt.Sprintf("chunk not found")}
+			return &teleport.NotFoundError{
+				Message: fmt.Sprintf("chunk not found")}
 		}
 		bt = make([]byte, len(bytes))
 		copy(bt, bytes)

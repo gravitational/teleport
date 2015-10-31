@@ -89,7 +89,7 @@ func (s *CAService) GetUserCAPub() ([]byte, error) {
 func (s *CAService) UpsertRemoteCert(rc RemoteCert,
 	ttl time.Duration) error {
 	if rc.Type != HostCert && rc.Type != UserCert {
-		return trace.Errorf("Unknown certificate type '", rc.Type, "'")
+		return trace.Errorf("unknown certificate type '%v'", rc.Type)
 	}
 
 	err := s.backend.UpsertVal(

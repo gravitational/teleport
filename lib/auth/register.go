@@ -105,7 +105,7 @@ func RegisterNewAuth(fqdn, token string, publicSealKey encryptor.Key,
 	}
 
 	if err := ch.CloseWrite(); err != nil {
-		return encryptor.Key{}, trace.Errorf("Can't close write: &v", err)
+		return encryptor.Key{}, trace.Errorf("Can't close write: %v", err)
 	}
 
 	// reading master public seal key from the channel
