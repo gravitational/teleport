@@ -79,7 +79,7 @@ This should install `teleport` and `tctl` binaries, check that the binaries are 
 ls ${GOPATH}/bin/tctl ${GOPATH}/bin/teleport
 ```
 
-## Quickstart: embedded mode
+## Quickstart
 
 ```shell
 # create the directory where auth server will keep it's local state
@@ -93,7 +93,7 @@ make run-embedded
 
 **Note:** `run-embedded` executes teleport with configuration file in `examples/embedded.yaml` check it out for more details
 
-### Quickstart: Web access via proxy
+### Web access via proxy
 
 Teleport allows to access the cluster via web portal. The web portal is guarded by 2-factor authentication. Here's how to log in:
 
@@ -116,7 +116,7 @@ Check out QR.png file that was written to the local directory and scan QR code. 
 **Note:** If you failed to log in for the first time, try to refresh the token. Teleport will try to sync up your phone and token on the next attempt.
 
 
-### Quickstart: SSH access via proxy
+### SSH access via proxy
 
 This is still in progress, should be merged soon. Follow the progress here:
 
