@@ -28,15 +28,19 @@ func NewID(s secret.SecretService) (*IDPair, error) {
 	if err != nil {
 		return nil, err
 	}
-	pid := []byte(hex.EncodeToString(bytes))
+	return EncodeID(hex.EncodeToString(bytes), s)
+}
+
+func EncodeID(id string, s secret.SecretService) (*IDPair, error) {
+	pid := []byte(id)
 	sealed, err := s.Seal(pid)
 	if err != nil {
 		return nil, err
 	}
-	id := fmt.Sprintf("%v.%v",
-		sealed.CiphertextHex(),
+	encodedID := fmt.Sprintf("%v.%v",
+		sealed.CiphertextHex(), // this is not actually Hex - it's base64 url
 		sealed.NonceHex())
-	return &IDPair{SID: SecureID(id), PID: PlainID(pid)}, nil
+	return &IDPair{SID: SecureID(encodedID), PID: PlainID(pid)}, nil
 }
 
 func DecodeSID(sid SecureID, s secret.SecretService) (PlainID, error) {
@@ -44,6 +48,7 @@ func DecodeSID(sid SecureID, s secret.SecretService) (PlainID, error) {
 	if len(out) != 2 {
 		return "", &MalformedSessionError{S: sid, Msg: "invalid format, missing separator"}
 	}
+
 	ctext, err := base64.URLEncoding.DecodeString(out[0])
 	if err != nil {
 		return "", &MalformedSessionError{S: sid, Msg: err.Error()}
