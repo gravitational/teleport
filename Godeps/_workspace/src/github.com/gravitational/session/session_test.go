@@ -33,6 +33,15 @@ func (s *SessionSuite) TestDecodeOK(c *C) {
 	c.Assert(string(pid), Equals, string(p.PID))
 }
 
+func (s *SessionSuite) TestDecodeHardcodedOK(c *C) {
+	p, err := EncodeID("my-id", s.srv)
+	c.Assert(err, IsNil)
+
+	pid, err := DecodeSID(p.SID, s.srv)
+	c.Assert(err, IsNil)
+	c.Assert(string(pid), Equals, string("my-id"))
+}
+
 func (s *SessionSuite) TestTamperNotOK(c *C) {
 	p, err := NewID(s.srv)
 	c.Assert(err, IsNil)

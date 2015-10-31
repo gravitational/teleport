@@ -13,37 +13,39 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package configure
+package trace
 
 import (
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/configure/test"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
+	"fmt"
+	"testing"
+
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
-type YAMLSuite struct {
-	test.ConfigSuite
+func TestTrace(t *testing.T) { TestingT(t) }
+
+type TraceSuite struct {
 }
 
-var _ = Suite(&YAMLSuite{})
+var _ = Suite(&TraceSuite{})
 
-func (s *YAMLSuite) SetUpSuite(c *C) {
-	log.Initialize("console", "INFO")
+func (s *TraceSuite) TestWrap(c *C) {
+	err := Wrap(Wrap(&TestError{Param: "param"}))
+	c.Assert(err, FitsTypeOf, &TestError{})
+	t := err.(*TestError)
+	c.Assert(len(t.Traces), Equals, 2)
+	c.Assert(err.Error(), Matches, "*.trace_test.go.*")
 }
 
-func (s *YAMLSuite) TestParseEnv(c *C) {
-	raw := `string: string1
-bool: true
-int: -1
-hex: 686578766172
-map: {a: "b", c: "d", "e":f}
-slice: [{a: "b", c: "d"}, {"e":f}]
-nested:
-   nested: nested
-`
+type TestError struct {
+	Traces
+	Param string
+}
 
-	var cfg test.Config
-	err := ParseYAML([]byte(raw), &cfg)
-	c.Assert(err, IsNil)
-	s.CheckVariables(c, &cfg)
+func (n *TestError) Error() string {
+	return fmt.Sprintf("TestError(param=%v,trace=%v)", n.Param, n.Traces)
+}
+
+func (n *TestError) OrigError() error {
+	return n
 }

@@ -67,11 +67,11 @@
 		},
 		{
 			"ImportPath": "github.com/gravitational/configure",
-			"Rev": "af81ee7530fe68dbac8824c44f9fd0b0546c3efb"
+			"Rev": "7bd5338b97b6316584250ac3f2033b376da5a1d1"
 		},
 		{
 			"ImportPath": "github.com/gravitational/form",
-			"Rev": "ea8c8540621d9f858c3615d9e0d583f90e21fb6f"
+			"Rev": "a6a6d7dba4b0e3c049d10987c87a003b53d247f0"
 		},
 		{
 			"ImportPath": "github.com/gravitational/log",
@@ -79,15 +79,15 @@
 		},
 		{
 			"ImportPath": "github.com/gravitational/roundtrip",
-			"Rev": "e7bee8354256fe4ae0d847e4c5d946d3e86f22af"
+			"Rev": "2f369cdcb37a1bca46a788db2ae7c16621f78e17"
 		},
 		{
 			"ImportPath": "github.com/gravitational/session",
-			"Rev": "17a4dfcc96712ecbd688c769ccd0634deab6e52f"
+			"Rev": "241be088afb76f90f6d04fb90055023658587856"
 		},
 		{
 			"ImportPath": "github.com/gravitational/trace",
-			"Rev": "a2e1dddd4f3fa799922c2aa2ef65d783355839fc"
+			"Rev": "ef858f0ffc8fd474f9b5f5706bdcb69bcd4ba733"
 		},
 		{
 			"ImportPath": "github.com/julienschmidt/httprouter",
