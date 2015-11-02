@@ -33,7 +33,7 @@ func (cmd *Command) AgentLogin(agentAddr string, proxyAddr string, ttl time.Dura
 		return
 	}
 
-	fmt.Println(string(user), password, hotpToken)
+	fmt.Fprintf(cmd.out, "Logging in...\n")
 
 	err = teleagent.Login(agentAddr, proxyAddr, string(user), password,
 		hotpToken, ttl)
@@ -41,6 +41,8 @@ func (cmd *Command) AgentLogin(agentAddr string, proxyAddr string, ttl time.Dura
 		cmd.printError(err)
 		return
 	}
+
+	cmd.printOK("Logged in successfully")
 }
 
 func (cmd *Command) AgentStart(agentAddr string, apiAddr string) {

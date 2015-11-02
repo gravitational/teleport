@@ -79,7 +79,7 @@ type ProxyConfig struct {
 	// WebAddr is address for web portal of the proxy
 	WebAddr utils.NetAddr `yaml:"web_addr" env:"TELEPORT_PROXY_WEB_ADDR"`
 
-	// SSHAddr is address for web portal of the proxy
+	// SSHAddr is address of ssh proxy
 	SSHAddr utils.NetAddr `yaml:"ssh_addr" env:"TELEPORT_PROXY_SSH_ADDR"`
 
 	// AssetsDir is a directory with proxy website assets

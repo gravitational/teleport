@@ -2,7 +2,6 @@ package web
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -43,14 +42,10 @@ func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte,
 		return nil, trace.Wrap(err)
 	}
 
-	fmt.Println(string(body))
-
 	var res SSHLoginResponse
 	if err := json.Unmarshal(body, &res); err != nil {
 		return nil, trace.Errorf("error: " + err.Error() + "body: " + string(body))
 	}
-
-	fmt.Println(res)
 
 	if len(res.Err) == 0 {
 		return res.Cert, nil

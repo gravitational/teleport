@@ -70,9 +70,10 @@ func (s *AgentAPIServer) login(w http.ResponseWriter, r *http.Request, p httprou
 		return
 	}
 
-	w.Write([]byte("Logged in successfully"))
+	w.Write([]byte(LoginSuccess))
 }
 
 const (
 	DefaultAgentAPIAddress = "unix:///tmp/teleport.agent.api.sock"
+	LoginSuccess           = "Logged in successfully"
 )

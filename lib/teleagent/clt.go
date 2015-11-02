@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
@@ -14,7 +15,8 @@ import (
 )
 
 func Login(agentAddr string, proxyAddr string, user string,
-	password string, hotpToken string, ttl time.Duration) error {
+	password string, hotpToken string,
+	ttl time.Duration) error {
 
 	pAgentAddr, err := utils.ParseAddr(agentAddr)
 	if err != nil {
@@ -47,7 +49,19 @@ func Login(agentAddr string, proxyAddr string, user string,
 	defer out.Body.Close()
 
 	body, err := ioutil.ReadAll(out.Body)
-	fmt.Println(string(body))
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	return err
+	if string(body) == LoginSuccess {
+		return nil
+	}
+
+	if strings.Contains(string(body), WrongPasswordError) {
+		return fmt.Errorf("Wrong user or password or HOTP token")
+	}
+
+	return fmt.Errorf(string(body))
 }
+
+const WrongPasswordError = "ssh: handshake failed: ssh: unable to authenticate, attempted methods [none password], no supported methods remain"

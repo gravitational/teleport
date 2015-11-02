@@ -173,9 +173,6 @@ func (s *LocalAuth) GetCertificate(c SSHLoginCredentials) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	fmt.Println("###################################################")
-	fmt.Println(cert, err)
-
 	return cert, nil
 }
 
