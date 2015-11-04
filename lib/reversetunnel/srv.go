@@ -245,7 +245,7 @@ func (s *server) FindSimilarSite(fqdn string) (RemoteSite, error) {
 			}
 			similarity++
 		}
-		if similarity > resultSimilarity {
+		if (similarity > resultSimilarity) || (result == -1) {
 			result = i
 			resultSimilarity = similarity
 		}
