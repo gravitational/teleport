@@ -14,11 +14,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func Login(agentAddr string, proxyAddr string, user string,
+func Login(agentAPIAddr string, proxyAddr string, user string,
 	password string, hotpToken string,
 	ttl time.Duration) error {
 
-	pAgentAddr, err := utils.ParseAddr(agentAddr)
+	pAgentAPIAddr, err := utils.ParseAddr(agentAPIAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -26,7 +26,7 @@ func Login(agentAddr string, proxyAddr string, user string,
 	c := &http.Client{
 		Transport: &http.Transport{
 			Dial: func(network, address string) (net.Conn, error) {
-				return net.Dial(pAgentAddr.Network, pAgentAddr.Addr)
+				return net.Dial(pAgentAPIAddr.Network, pAgentAPIAddr.Addr)
 			}}}
 
 	ttlJSON, err := json.Marshal(ttl)

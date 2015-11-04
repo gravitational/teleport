@@ -34,16 +34,14 @@ import (
 func TestSrv(t *testing.T) { TestingT(t) }
 
 type SrvSuite struct {
-	srv                 *Server
-	proxy               *Server
-	clt                 *ssh.Client
-	bk                  *encryptedbk.ReplicatedBackend
-	a                   *auth.AuthServer
-	up                  *upack
-	reverseTunnelServer reversetunnel.Server
-	scrt                secret.SecretService
-	signer              ssh.Signer
-	dir                 string
+	srv    *Server
+	clt    *ssh.Client
+	bk     *encryptedbk.ReplicatedBackend
+	a      *auth.AuthServer
+	up     *upack
+	scrt   secret.SecretService
+	signer ssh.Signer
+	dir    string
 }
 
 var _ = Suite(&SrvSuite{})
@@ -82,24 +80,6 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	ap := auth.NewBackendAccessPoint(s.bk)
-
-	tsrv, err := reversetunnel.NewServer(
-		utils.NetAddr{Network: "tcp", Addr: "localhost:33056"},
-		[]ssh.Signer{s.signer},
-		ap)
-	c.Assert(err, IsNil)
-	c.Assert(tsrv.Start(), IsNil)
-	s.reverseTunnelServer = tsrv
-
-	s.proxy, err = New(
-		utils.NetAddr{Network: "tcp", Addr: "localhost:0"},
-		[]ssh.Signer{s.signer},
-		ap,
-		SetProxyMode(tsrv),
-	)
-	c.Assert(err, IsNil)
-
-	c.Assert(s.proxy.Start(), IsNil)
 
 	srv, err := New(
 		utils.NetAddr{Network: "tcp", Addr: "localhost:30185"},
@@ -217,11 +197,28 @@ func (s *SrvSuite) TestTun(c *C) {
 }
 
 func (s *SrvSuite) TestProxy(c *C) {
+	ap := auth.NewBackendAccessPoint(s.bk)
+	reverseTunnelAddress := utils.NetAddr{Network: "tcp", Addr: "localhost:33056"}
+	reverseTunnelServer, err := reversetunnel.NewServer(
+		reverseTunnelAddress,
+		[]ssh.Signer{s.signer},
+		ap)
+	c.Assert(err, IsNil)
+	c.Assert(reverseTunnelServer.Start(), IsNil)
+
+	proxy, err := New(
+		utils.NetAddr{Network: "tcp", Addr: "localhost:0"},
+		[]ssh.Signer{s.signer},
+		ap,
+		SetProxyMode(reverseTunnelServer),
+	)
+	c.Assert(err, IsNil)
+	c.Assert(proxy.Start(), IsNil)
+
 	// set up SSH client using the user private key for signing
 	up, err := newUpack("test", s.a)
 	c.Assert(err, IsNil)
 
-	// set up an agent server and a client that uses agent for forwarding
 	keyring := agent.NewKeyring()
 	addedKey := agent.AddedKey{
 		PrivateKey:  up.pkey,
@@ -253,7 +250,6 @@ func (s *SrvSuite) TestProxy(c *C) {
 
 	hotpURL, _, err := s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
-
 	otp, _, err := hotp.FromURL(hotpURL)
 	c.Assert(err, IsNil)
 	otp.Increment()
@@ -267,7 +263,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 	defer tunClt.Close()
 
 	rsAgent, err := reversetunnel.NewAgent(
-		utils.NetAddr{Network: "tcp", Addr: "localhost:33056"},
+		reverseTunnelAddress,
 		"localhost",
 		[]ssh.Signer{s.signer}, tunClt)
 	c.Assert(err, IsNil)
@@ -278,7 +274,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
 	}
 
-	client, err := ssh.Dial("tcp", s.proxy.Addr(), sshConfig)
+	client, err := ssh.Dial("tcp", proxy.Addr(), sshConfig)
 	c.Assert(err, IsNil)
 	c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
 
@@ -295,7 +291,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 	// Request opening TCP connection to the remote host
 	c.Assert(se.RequestSubsystem(fmt.Sprintf("proxy:%v", s.srv.Addr())), IsNil)
 
-	local, err := net.ResolveTCPAddr("tcp", s.proxy.Addr())
+	local, err := net.ResolveTCPAddr("tcp", proxy.Addr())
 	c.Assert(err, IsNil)
 	remote, err := net.ResolveTCPAddr("tcp", s.srv.Addr())
 	c.Assert(err, IsNil)

@@ -34,86 +34,73 @@ import (
 )
 
 type TeleagentSuite struct {
-	srv                 *srv.Server
-	proxy               *srv.Server
-	clt                 *ssh.Client
-	bk                  *encryptedbk.ReplicatedBackend
-	a                   *auth.AuthServer
-	reverseTunnelServer reversetunnel.Server
-	scrt                secret.SecretService
-	signer              ssh.Signer
-	dir                 string
 }
 
 var _ = Suite(&TeleagentSuite{})
 
-func (s *TeleagentSuite) SetUpSuite(c *C) {
-	log.Initialize("console", "INFO")
+func (s *TeleagentSuite) TestTeleagent(c *C) {
 	key, err := secret.NewKey()
 	c.Assert(err, IsNil)
-	srv, err := secret.New(&secret.Config{KeyBytes: key})
+	scrt, err := secret.New(&secret.Config{KeyBytes: key})
 	c.Assert(err, IsNil)
-	s.scrt = srv
-}
 
-// TestExec executes a command on a remote server
-func (s *TeleagentSuite) TestTeleagent(c *C) {
-	s.dir = c.MkDir()
+	dir := c.MkDir()
 
-	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
+	baseBk, err := boltbk.New(filepath.Join(dir, "db"))
 	c.Assert(err, IsNil)
-	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk,
-		filepath.Join(s.dir, "keys"), nil,
+	bk, err := encryptedbk.NewReplicatedBackend(baseBk,
+		filepath.Join(dir, "keys"), nil,
 		encryptor.GetTestKey)
 	c.Assert(err, IsNil)
 
-	s.a = auth.NewAuthServer(s.bk, authority.New(), s.scrt)
+	a := auth.NewAuthServer(bk, authority.New(), scrt)
 
 	// set up host private key and certificate
-	c.Assert(s.a.ResetHostCA(""), IsNil)
-	hpriv, hpub, err := s.a.GenerateKeyPair("")
+	c.Assert(a.ResetHostCA(""), IsNil)
+	hpriv, hpub, err := a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
-	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", 0)
+	hcert, err := a.GenerateHostCert(hpub, "localhost", "localhost", 0)
 	c.Assert(err, IsNil)
 
 	// set up user CA and set up a user that has access to the server
-	c.Assert(s.a.ResetUserCA(""), IsNil)
+	c.Assert(a.ResetUserCA(""), IsNil)
 
-	s.signer, err = sshutils.NewSigner(hpriv, hcert)
+	signer, err := sshutils.NewSigner(hpriv, hcert)
 	c.Assert(err, IsNil)
 
-	ap := auth.NewBackendAccessPoint(s.bk)
+	ap := auth.NewBackendAccessPoint(bk)
 
+	reverseTunnelAddress := utils.NetAddr{Network: "tcp", Addr: "localhost:33058"}
 	reverseTunnelServer, err := reversetunnel.NewServer(
-		utils.NetAddr{Network: "tcp", Addr: "localhost:33056"},
-		[]ssh.Signer{s.signer},
+		reverseTunnelAddress,
+		[]ssh.Signer{signer},
 		ap)
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
-	bl, err := boltlog.New(filepath.Join(s.dir, "eventsdb"))
+	bl, err := boltlog.New(filepath.Join(dir, "eventsdb"))
 	c.Assert(err, IsNil)
 
-	rec, err := boltrec.New(s.dir)
+	rec, err := boltrec.New(dir)
 	c.Assert(err, IsNil)
 
 	apiSrv := httptest.NewServer(
-		auth.NewAPIServer(s.a, bl, sess.New(s.bk), rec))
+		auth.NewAPIServer(a, bl, sess.New(bk), rec))
 
 	u, err := url.Parse(apiSrv.URL)
 	c.Assert(err, IsNil)
 
 	tsrv, err := auth.NewTunServer(
 		utils.NetAddr{Network: "tcp", Addr: "localhost:31497"},
-		[]ssh.Signer{s.signer},
-		utils.NetAddr{Network: "tcp", Addr: u.Host}, s.a)
+		[]ssh.Signer{signer},
+		utils.NetAddr{Network: "tcp", Addr: u.Host}, a)
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
 
+	// Creating new user
 	user := "user1"
 	pass := []byte("utndkrn")
-
-	hotpURL, _, err := s.a.UpsertPassword(user, pass)
+	hotpURL, _, err := a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
 
 	otp, _, err := hotp.FromURL(hotpURL)
@@ -129,22 +116,22 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	defer tunClt.Close()
 
 	rsAgent, err := reversetunnel.NewAgent(
-		utils.NetAddr{Network: "tcp", Addr: "localhost:33056"},
+		reverseTunnelAddress,
 		"localhost",
-		[]ssh.Signer{s.signer}, tunClt)
+		[]ssh.Signer{signer}, tunClt)
 	c.Assert(err, IsNil)
 	c.Assert(rsAgent.Start(), IsNil)
 
 	srv, err := srv.New(
 		utils.NetAddr{Network: "tcp", Addr: "localhost:30185"},
-		[]ssh.Signer{s.signer},
+		[]ssh.Signer{signer},
 		ap,
 		srv.SetShell("/bin/sh"),
 	)
 	c.Assert(err, IsNil)
-	s.srv = srv
+	srv = srv
 
-	c.Assert(s.srv.Start(), IsNil)
+	c.Assert(srv.Start(), IsNil)
 
 	webHandler, err := web.NewMultiSiteHandler(
 		web.MultiSiteConfig{
@@ -167,8 +154,8 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 
 	// Starting SSH agent
 
-	agentAddr := "unix://" + filepath.Join(s.dir, "agent.sock")
-	agentAPIAddr := "unix://" + filepath.Join(s.dir, "api.sock")
+	agentAddr := "unix://" + filepath.Join(dir, "agent.sock")
+	agentAPIAddr := "unix://" + filepath.Join(dir, "api.sock")
 
 	agent := teleagent.TeleAgent{}
 	apiServer := teleagent.NewAgentAPIServer(&agent)
@@ -181,41 +168,39 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 		}
 	}()
 
-	// Login agent
-
-	err = teleagent.Login(agentAPIAddr, "http://"+webAddr, string(user), string(pass),
-		otp.OTP(), time.Hour)
-	c.Assert(err, IsNil)
-
+	// Trying to create ssh connection without any keys in the agent
 	agentAddress, err := utils.ParseAddr(agentAddr)
 	c.Assert(err, IsNil)
+
 	sshAgent, err := connectToSSHAgent(agentAddress.Network, agentAddress.Addr)
 	c.Assert(err, IsNil)
 
-	/*// set up SSH client using the user private key for signing
-	up, err := newUpack("test", s.a)
-	c.Assert(err, IsNil)
-
-	// set up an agent server and a client that uses agent for forwarding
-	keyring := agent.NewKeyring()
-	addedKey := agent.AddedKey{
-		PrivateKey:  up.pkey,
-		Certificate: up.pcert,
-	}
-	c.Assert(keyring.Add(addedKey), IsNil)
-	s.up = up
-	*/
 	sshConfig := &ssh.ClientConfig{
 		User: user,
 		Auth: []ssh.AuthMethod{ssh.PublicKeysCallback(sshAgent.Signers)},
 	}
 
-	client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
-	c.Assert(err, IsNil)
-	//c.Assert(sshAgent.ForwardToAgent(client, keyring), IsNil)
-	s.clt = client
+	clt, err := ssh.Dial("tcp", srv.Addr(), sshConfig)
+	c.Assert(err, NotNil)
 
-	se, err := s.clt.NewSession()
+	// Login agent
+	err = teleagent.Login(agentAPIAddr, "http://"+webAddr, string(user), string(pass),
+		otp.OTP(), time.Hour)
+	c.Assert(err, IsNil)
+
+	// Creating ssh connection
+	sshAgent, err = connectToSSHAgent(agentAddress.Network, agentAddress.Addr)
+	c.Assert(err, IsNil)
+
+	sshConfig = &ssh.ClientConfig{
+		User: user,
+		Auth: []ssh.AuthMethod{ssh.PublicKeysCallback(sshAgent.Signers)},
+	}
+
+	clt, err = ssh.Dial("tcp", srv.Addr(), sshConfig)
+	c.Assert(err, IsNil)
+
+	se, err := clt.NewSession()
 	c.Assert(err, IsNil)
 	defer se.Close()
 
@@ -223,8 +208,8 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(strings.Trim(string(out), " \n"), Equals, "5")
 
-	c.Assert(s.clt.Close(), IsNil)
-	c.Assert(s.srv.Close(), IsNil)
+	c.Assert(clt.Close(), IsNil)
+	c.Assert(srv.Close(), IsNil)
 
 }
 
