@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 )
 
@@ -42,16 +41,11 @@ func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte,
 		return nil, trace.Wrap(err)
 	}
 
-	var res SSHLoginResponse
-	if err := json.Unmarshal(body, &res); err != nil {
-		return nil, trace.Errorf("error: " + err.Error() + "body: " + string(body))
+	if out.StatusCode != 200 {
+		return nil, trace.Errorf(string(body))
 	}
 
-	if len(res.Err) == 0 {
-		return res.Cert, nil
-	} else {
-		return res.Cert, trace.Errorf(res.Err)
-	}
+	return body, nil
 }
 
 type SSHLoginCredentials struct {
@@ -60,23 +54,4 @@ type SSHLoginCredentials struct {
 	HOTPToken string
 	PubKey    []byte
 	TTL       time.Duration
-}
-
-type SSHLoginResponse struct {
-	Cert []byte
-	Err  string
-}
-
-func sshLoginResponse(cert []byte, e error) (jsonResponse []byte) {
-	res := SSHLoginResponse{
-		Cert: cert,
-	}
-	if e != nil {
-		res.Err = e.Error()
-	}
-	resJSON, err := json.Marshal(res)
-	if err != nil {
-		log.Errorf(err.Error())
-	}
-	return resJSON
 }

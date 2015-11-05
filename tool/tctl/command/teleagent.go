@@ -46,8 +46,8 @@ func (cmd *Command) AgentLogin(agentAddr string, proxyAddr string, ttl time.Dura
 }
 
 func (cmd *Command) AgentStart(agentAddr string, apiAddr string) {
-	agent := teleagent.TeleAgent{}
-	apiServer := teleagent.NewAgentAPIServer(&agent)
+	agent := teleagent.NewTeleAgent()
+	apiServer := teleagent.NewAgentAPIServer(agent)
 	if err := agent.Start(agentAddr); err != nil {
 		cmd.printError(trace.Wrap(err))
 		return

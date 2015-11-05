@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/ttlmap"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -148,18 +149,25 @@ func (h *MultiSiteHandler) loginSSHProxy(w http.ResponseWriter, r *http.Request,
 		form.String("credentials", &credJSON, form.Required()),
 	)
 	if err != nil {
-		w.Write(sshLoginResponse(nil, err))
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(trace.Wrap(err).Error()))
 		return
 	}
 
 	var cred SSHLoginCredentials
 	if err := json.Unmarshal([]byte(credJSON), &cred); err != nil {
-		w.Write(sshLoginResponse(nil, err))
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(trace.Wrap(err).Error()))
 		return
 	}
 
 	cert, err := h.auth.GetCertificate(cred)
-	w.Write(sshLoginResponse(cert, err))
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(trace.Wrap(err).Error()))
+		return
+	}
+	w.Write(cert)
 }
 
 func (s *MultiSiteHandler) siteEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) error {

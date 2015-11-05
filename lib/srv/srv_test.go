@@ -34,14 +34,15 @@ import (
 func TestSrv(t *testing.T) { TestingT(t) }
 
 type SrvSuite struct {
-	srv    *Server
-	clt    *ssh.Client
-	bk     *encryptedbk.ReplicatedBackend
-	a      *auth.AuthServer
-	up     *upack
-	scrt   secret.SecretService
-	signer ssh.Signer
-	dir    string
+	srv        *Server
+	srvAddress string
+	clt        *ssh.Client
+	bk         *encryptedbk.ReplicatedBackend
+	a          *auth.AuthServer
+	up         *upack
+	scrt       secret.SecretService
+	signer     ssh.Signer
+	dir        string
 }
 
 var _ = Suite(&SrvSuite{})
@@ -80,9 +81,9 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	ap := auth.NewBackendAccessPoint(s.bk)
-
+	s.srvAddress = "localhost:30185"
 	srv, err := New(
-		utils.NetAddr{Network: "tcp", Addr: "localhost:30185"},
+		utils.NetAddr{Network: "tcp", Addr: s.srvAddress},
 		[]ssh.Signer{s.signer},
 		ap,
 		SetShell("/bin/sh"),
@@ -274,22 +275,25 @@ func (s *SrvSuite) TestProxy(c *C) {
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
 	}
 
+	// Trying to connect to unregistered ssh node
+
 	client, err := ssh.Dial("tcp", proxy.Addr(), sshConfig)
 	c.Assert(err, IsNil)
 	c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
 
-	se, err := client.NewSession()
+	se0, err := client.NewSession()
 	c.Assert(err, IsNil)
-	defer se.Close()
+	defer se0.Close()
 
-	writer, err := se.StdinPipe()
+	writer, err := se0.StdinPipe()
 	c.Assert(err, IsNil)
 
-	reader, err := se.StdoutPipe()
+	reader, err := se0.StdoutPipe()
 	c.Assert(err, IsNil)
 
 	// Request opening TCP connection to the remote host
-	c.Assert(se.RequestSubsystem(fmt.Sprintf("proxy:%v", s.srv.Addr())), IsNil)
+	unregisteredAddress := s.srv.Addr() // proper ssh node address but with 127.0.0.1 instead of localhost
+	c.Assert(se0.RequestSubsystem(fmt.Sprintf("proxy:%v", unregisteredAddress)), IsNil)
 
 	local, err := net.ResolveTCPAddr("tcp", proxy.Addr())
 	c.Assert(err, IsNil)
@@ -299,13 +303,49 @@ func (s *SrvSuite) TestProxy(c *C) {
 	pipeNetConn := utils.NewPipeNetConn(
 		reader,
 		writer,
-		se,
+		se0,
 		local,
 		remote,
 	)
 
 	// Open SSH connection via TCP
 	conn, chans, reqs, err := ssh.NewClientConn(pipeNetConn,
+		s.srv.Addr(), sshConfig)
+	c.Assert(err, NotNil)
+
+	// Connect to node using registered address
+	client, err = ssh.Dial("tcp", proxy.Addr(), sshConfig)
+	c.Assert(err, IsNil)
+	c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
+
+	se, err := client.NewSession()
+	c.Assert(err, IsNil)
+	defer se.Close()
+
+	writer, err = se.StdinPipe()
+	c.Assert(err, IsNil)
+
+	reader, err = se.StdoutPipe()
+	c.Assert(err, IsNil)
+
+	// Request opening TCP connection to the remote host
+	c.Assert(se.RequestSubsystem(fmt.Sprintf("proxy:%v", s.srvAddress)), IsNil)
+
+	local, err = net.ResolveTCPAddr("tcp", proxy.Addr())
+	c.Assert(err, IsNil)
+	remote, err = net.ResolveTCPAddr("tcp", s.srv.Addr())
+	c.Assert(err, IsNil)
+
+	pipeNetConn = utils.NewPipeNetConn(
+		reader,
+		writer,
+		se,
+		local,
+		remote,
+	)
+
+	// Open SSH connection via TCP
+	conn, chans, reqs, err = ssh.NewClientConn(pipeNetConn,
 		s.srv.Addr(), sshConfig)
 	c.Assert(err, IsNil)
 

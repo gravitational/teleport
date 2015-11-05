@@ -23,7 +23,7 @@ func NewAgentAPIServer(ag *TeleAgent) *AgentAPIServer {
 	srv.ag = ag
 	srv.Router = *httprouter.New()
 
-	srv.POST("/login", srv.login)
+	srv.POST("/v1/login", srv.login)
 
 	return &srv
 }
@@ -54,18 +54,21 @@ func (s *AgentAPIServer) login(w http.ResponseWriter, r *http.Request, p httprou
 		form.String("ttl", &ttlJSON, form.Required()),
 	)
 	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
 		return
 	}
 
 	var ttl time.Duration
 	if err != json.Unmarshal([]byte(ttlJSON), &ttl) {
+		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
 		return
 	}
 
 	err = s.ag.Login(proxyAddr, user, pass, hotpToken, ttl)
 	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Login error: " + err.Error()))
 		return
 	}

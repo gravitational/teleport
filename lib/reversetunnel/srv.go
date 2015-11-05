@@ -254,7 +254,7 @@ func (s *server) FindSimilarSite(fqdn string) (RemoteSite, error) {
 	if result != -1 {
 		return s.sites[result], nil
 	} else {
-		return nil, trace.Errorf("Site not found")
+		return nil, trace.Errorf("site not found")
 	}
 }
 
@@ -339,18 +339,15 @@ func (s *remoteSite) GetLastConnected() time.Time {
 func (s *remoteSite) ConnectToServer(server, user string, auth []ssh.AuthMethod) (*ssh.Client, error) {
 	ch, _, err := s.conn.OpenChannel(chanTransport, nil)
 	if err != nil {
-		log.Errorf("remoteSite:connectToServer %v", err)
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	// ask remote channel to dial
 	dialed, err := ch.SendRequest(chanTransportDialReq, true, []byte(server))
 	if err != nil {
-		log.Errorf("failed to process request: %v", err)
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	if !dialed {
-		log.Errorf("remote end failed to dial: %v", err)
-		return nil, fmt.Errorf("remote server %v is not available", server)
+		return nil, trace.Errorf("remote server %v is not available", server)
 	}
 	transportConn := newChConn(s.conn, ch)
 	conn, chans, reqs, err := ssh.NewClientConn(
@@ -367,21 +364,29 @@ func (s *remoteSite) ConnectToServer(server, user string, auth []ssh.AuthMethod)
 }
 
 func (s *remoteSite) DialServer(server string) (net.Conn, error) {
-	// TODO: check if server is known
+	serverIsKnown := false
+	knownServers, err := s.GetServers()
+	fmt.Println(server, "Known Servers:", knownServers)
+	for _, srv := range knownServers {
+		if srv.Addr == server {
+			serverIsKnown = true
+		}
+	}
+	serverIsKnown = serverIsKnown
+	if !serverIsKnown {
+		return nil, trace.Errorf("can't dial server %v, server is unknown", server)
+	}
 	ch, _, err := s.conn.OpenChannel(chanTransport, nil)
 	if err != nil {
-		log.Errorf("remoteSite:connectToServer %v", err)
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	// ask remote channel to dial
 	dialed, err := ch.SendRequest(chanTransportDialReq, true, []byte(server))
 	if err != nil {
-		log.Errorf("failed to process request: %v", err)
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	if !dialed {
-		log.Errorf("remote end failed to dial: %v", err)
-		return nil, fmt.Errorf("remote server %v is not available", server)
+		return nil, trace.Errorf("remote server %v is not available", server)
 	}
 	return newChConn(s.conn, ch), nil
 }

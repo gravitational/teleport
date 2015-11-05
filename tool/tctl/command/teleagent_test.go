@@ -157,8 +157,8 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	agentAddr := "unix://" + filepath.Join(dir, "agent.sock")
 	agentAPIAddr := "unix://" + filepath.Join(dir, "api.sock")
 
-	agent := teleagent.TeleAgent{}
-	apiServer := teleagent.NewAgentAPIServer(&agent)
+	agent := teleagent.NewTeleAgent()
+	apiServer := teleagent.NewAgentAPIServer(agent)
 	c.Assert(agent.Start(agentAddr), IsNil)
 
 	go func() {

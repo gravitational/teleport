@@ -3,6 +3,7 @@ package teleagent
 import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"io"
 	"net"
 	"time"
 
@@ -15,7 +16,14 @@ import (
 )
 
 type TeleAgent struct {
-	keys []Key
+	agent agent.Agent
+}
+
+func NewTeleAgent() *TeleAgent {
+	ta := TeleAgent{
+		agent: agent.NewKeyring(),
+	}
+	return &ta
 }
 
 func (a *TeleAgent) Start(agentAddr string) error {
@@ -32,46 +40,21 @@ func (a *TeleAgent) Start(agentAddr string) error {
 	go func() {
 		for {
 			conn, err := l.Accept()
-			ag, err := a.GetAgent()
 			if err != nil {
 				log.Errorf(err.Error())
-			} else {
-				go func() {
-					if err := agent.ServeAgent(ag, conn); err != nil {
+				continue
+			}
+			go func() {
+				if err := agent.ServeAgent(a.agent, conn); err != nil {
+					if err != io.EOF {
 						log.Errorf(err.Error())
 					}
-				}()
-			}
+				}
+			}()
 		}
 	}()
 
 	return nil
-}
-
-func (a *TeleAgent) GetAgent() (agent.Agent, error) {
-	ag := agent.NewKeyring()
-
-	for _, key := range a.keys {
-		k, err := ssh.ParseRawPrivateKey(key.Priv)
-		if err != nil {
-			log.Errorf("failed to add: %v", err)
-			return nil, trace.Wrap(err)
-		}
-		addedKey := agent.AddedKey{
-			PrivateKey:       k,
-			Certificate:      key.Cert,
-			Comment:          "",
-			LifetimeSecs:     0,
-			ConfirmBeforeUse: false,
-		}
-		if err := ag.Add(addedKey); err != nil {
-			log.Errorf("failed to add: %v", err)
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return ag, nil
-
 }
 
 func (a *TeleAgent) Login(proxyAddr string, user string, pass string,
@@ -92,19 +75,22 @@ func (a *TeleAgent) Login(proxyAddr string, user string, pass string,
 		return trace.Wrap(err)
 	}
 
-	key := Key{
-		Priv: priv,
-		Cert: pcert.(*ssh.Certificate),
+	pk, err := ssh.ParseRawPrivateKey(priv)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	addedKey := agent.AddedKey{
+		PrivateKey:       pk,
+		Certificate:      pcert.(*ssh.Certificate),
+		Comment:          "",
+		LifetimeSecs:     0,
+		ConfirmBeforeUse: false,
+	}
+	if err := a.agent.Add(addedKey); err != nil {
+		return trace.Wrap(err)
 	}
 
-	a.keys = append(a.keys, key)
-
 	return nil
-}
-
-type Key struct {
-	Priv []byte
-	Cert *ssh.Certificate
 }
 
 const (

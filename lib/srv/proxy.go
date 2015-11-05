@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
@@ -21,7 +23,7 @@ type proxySubsys struct {
 func parseProxySubsys(name string, srv *Server) (*proxySubsys, error) {
 	out := strings.Split(name, ":")
 	if len(out) != 3 {
-		return nil, fmt.Errorf("invalid format for proxy request: '%v', expected 'proxy:host:port'", name)
+		return nil, trace.Errorf("invalid format for proxy request: '%v', expected 'proxy:host:port'", name)
 	}
 	return &proxySubsys{
 		srv:  srv,
@@ -41,8 +43,31 @@ func (t *proxySubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Re
 	}
 
 	conn, err := remoteSrv.DialServer(t.host + ":" + t.port)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	go io.Copy(ch, conn)
-	io.Copy(conn, ch)
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		_, err := io.Copy(ch, conn)
+		if err != nil {
+			log.Errorf(err.Error())
+		}
+		ch.Close()
+	}()
+	go func() {
+		defer wg.Done()
+		_, err := io.Copy(conn, ch)
+		if err != nil {
+			log.Errorf(err.Error())
+		}
+		conn.Close()
+	}()
+
+	wg.Wait()
+
 	return nil
 }

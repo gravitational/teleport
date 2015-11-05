@@ -266,22 +266,22 @@ func (s *Server) HandleRequest(r *ssh.Request) {
 }
 
 func (s *Server) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
-	cht := nch.ChannelType()
+	channelType := nch.ChannelType()
 
 	if s.proxyMode {
-		if cht == "session" { // interactive sessions
+		if channelType == "session" { // interactive sessions
 			ch, requests, err := nch.Accept()
 			if err != nil {
 				log.Infof("could not accept channel (%s)", err)
 			}
 			go s.handleSessionRequests(sconn, ch, requests)
 		} else {
-			nch.Reject(ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", cht))
+			nch.Reject(ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", channelType))
 		}
 		return
 	}
 
-	switch cht {
+	switch channelType {
 	case "session": // interactive sessions
 		ch, requests, err := nch.Accept()
 		if err != nil {
@@ -300,7 +300,7 @@ func (s *Server) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		}
 		go s.handleDirectTCPIPRequest(sconn, sshCh, req)
 	default:
-		nch.Reject(ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", cht))
+		nch.Reject(ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", channelType))
 	}
 }
 
