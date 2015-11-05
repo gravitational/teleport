@@ -99,6 +99,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	s.srvAddress = "localhost:30185"
 	srv, err := New(
 		utils.NetAddr{Network: "tcp", Addr: s.srvAddress},
+		"localhost",
 		[]ssh.Signer{s.signer},
 		ap,
 		SetShell("/bin/sh"),
@@ -159,7 +160,7 @@ func (s *SrvSuite) TestShell(c *C) {
 	stdout := &bytes.Buffer{}
 	se.Stdout = stdout
 	c.Assert(se.Shell(), IsNil)
-	_, err = io.WriteString(w, "expr 7 + 70;exit\r\n")
+	_, err = io.WriteString(w, "expr 7 + 70\n sleep 1\n exit\n")
 	c.Assert(err, IsNil)
 	c.Assert(se.Wait(), IsNil)
 	c.Assert(removeNL(stdout.String()), Matches, ".*77.*")
@@ -224,6 +225,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 
 	proxy, err := New(
 		utils.NetAddr{Network: "tcp", Addr: "localhost:0"},
+		"localhost",
 		[]ssh.Signer{s.signer},
 		ap,
 		SetProxyMode(reverseTunnelServer),

@@ -325,21 +325,22 @@ func (s *APISuite) TestServers(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	srv := services.Server{ID: "id1", Addr: "host:1233"}
+	srv := services.Server{ID: "id1", Addr: "host:1233", Hostname: "host1"}
 	c.Assert(s.clt.UpsertServer(srv, 0), IsNil)
 
-	srv1 := services.Server{ID: "id2", Addr: "host:1234"}
+	srv1 := services.Server{ID: "id2", Addr: "host:1234", Hostname: "host2"}
 	c.Assert(s.clt.UpsertServer(srv1, 0), IsNil)
 
 	out, err = s.clt.GetServers()
 	c.Assert(err, IsNil)
 
-	servers := map[string]string{}
-	for _, s := range out {
-		servers[s.ID] = s.Addr
+	if out[0].ID == "id1" {
+		c.Assert(out[0], DeepEquals, services.Server{ID: "id1", Addr: "host:1233", Hostname: "host1"})
+		c.Assert(out[1], DeepEquals, services.Server{ID: "id2", Addr: "host:1234", Hostname: "host2"})
+	} else {
+		c.Assert(out[1], DeepEquals, services.Server{ID: "id1", Addr: "host:1233", Hostname: "host1"})
+		c.Assert(out[0], DeepEquals, services.Server{ID: "id2", Addr: "host:1234", Hostname: "host2"})
 	}
-	expected := map[string]string{"id1": "host:1233", "id2": "host:1234"}
-	c.Assert(servers, DeepEquals, expected)
 }
 
 func (s *APISuite) TestEvents(c *C) {

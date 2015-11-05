@@ -281,9 +281,10 @@ func (c *Client) GetChunkReader(id string) (recorder.ChunkReadCloser, error) {
 // to the auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertServer(s services.Server, ttl time.Duration) error {
 	_, err := c.PostForm(c.Endpoint("servers"), url.Values{
-		"id":   []string{string(s.ID)},
-		"addr": []string{string(s.Addr)},
-		"ttl":  []string{ttl.String()},
+		"id":       []string{string(s.ID)},
+		"addr":     []string{string(s.Addr)},
+		"hostname": []string{s.Hostname},
+		"ttl":      []string{ttl.String()},
 	})
 	return err
 }

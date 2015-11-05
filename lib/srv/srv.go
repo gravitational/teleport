@@ -46,6 +46,7 @@ import (
 type Server struct {
 	sync.Mutex
 	addr        utils.NetAddr
+	hostname    string
 	certChecker ssh.CertChecker
 	rr          resolver
 	elog        lunk.EventLogger
@@ -100,13 +101,14 @@ func SetProxyMode(tsrv reversetunnel.Server) ServerOption {
 }
 
 // New returns an unstarted server
-func New(addr utils.NetAddr, signers []ssh.Signer,
+func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
 	ap auth.AccessPoint, options ...ServerOption) (*Server, error) {
 
 	s := &Server{
-		addr: addr,
-		ap:   ap,
-		rr:   &backendResolver{ap: ap},
+		addr:     addr,
+		ap:       ap,
+		rr:       &backendResolver{ap: ap},
+		hostname: hostname,
 	}
 	s.reg = newSessionRegistry(s)
 	s.certChecker = ssh.CertChecker{IsAuthority: s.isAuthority}
@@ -141,8 +143,9 @@ func (s *Server) ID() string {
 func (s *Server) heartbeatPresence() {
 	for {
 		srv := services.Server{
-			ID:   s.ID(),
-			Addr: s.addr.Addr,
+			ID:       s.ID(),
+			Addr:     s.addr.Addr,
+			Hostname: s.hostname,
 		}
 		if err := s.ap.UpsertServer(srv, 6*time.Second); err != nil {
 			log.Warningf("failed to announce %#v presence: %v", srv, err)

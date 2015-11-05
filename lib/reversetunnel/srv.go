@@ -381,16 +381,22 @@ func (s *remoteSite) ConnectToServer(server, user string, auth []ssh.AuthMethod)
 func (s *remoteSite) DialServer(server string) (net.Conn, error) {
 	serverIsKnown := false
 	knownServers, err := s.GetServers()
-	fmt.Println(server, "Known Servers:", knownServers)
+
 	for _, srv := range knownServers {
-		if srv.Addr == server {
-			serverIsKnown = true
+		_, port, err := net.SplitHostPort(srv.Addr)
+		if err != nil {
+			log.Errorf("server %v(%v) has incorrect address format (%v)",
+				srv.Addr, srv.Hostname, err.Error())
+		} else {
+			if (len(srv.Hostname) != 0) && (len(port) != 0) && (server == srv.Hostname+":"+port) {
+				serverIsKnown = true
+			}
 		}
 	}
-	serverIsKnown = serverIsKnown
 	if !serverIsKnown {
 		return nil, trace.Errorf("can't dial server %v, server is unknown", server)
 	}
+
 	ch, _, err := s.conn.OpenChannel(chanTransport, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
