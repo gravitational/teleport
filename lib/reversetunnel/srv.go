@@ -383,10 +383,14 @@ func (s *remoteSite) DialServer(server string) (net.Conn, error) {
 	knownServers, err := s.GetServers()
 
 	for _, srv := range knownServers {
-		x := strings.Split(srv.Addr, ":")
-		port := x[len(x)-1]
-		if server == srv.Hostname+":"+port {
-			serverIsKnown = true
+		_, port, err := net.SplitHostPort(srv.Addr)
+		if err != nil {
+			log.Errorf("server %v(%v) has incorrect address format (%v)",
+				srv.Addr, srv.Hostname, err.Error())
+		} else {
+			if (len(srv.Hostname) != 0) && (len(port) != 0) && (server == srv.Hostname+":"+port) {
+				serverIsKnown = true
+			}
 		}
 	}
 	if !serverIsKnown {

@@ -160,7 +160,7 @@ func (s *SrvSuite) TestShell(c *C) {
 	stdout := &bytes.Buffer{}
 	se.Stdout = stdout
 	c.Assert(se.Shell(), IsNil)
-	_, err = io.WriteString(w, "expr 7 + 70;exit\r\n")
+	_, err = io.WriteString(w, "expr 7 + 70\n sleep 1\n exit\n")
 	c.Assert(err, IsNil)
 	c.Assert(se.Wait(), IsNil)
 	c.Assert(removeNL(stdout.String()), Matches, ".*77.*")
