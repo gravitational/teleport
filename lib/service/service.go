@@ -197,12 +197,14 @@ func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
 	}
 
 	s, err := srv.New(cfg.SSH.Addr,
+		cfg.Hostname,
 		[]ssh.Signer{signer},
 		client,
 		srv.SetShell(cfg.SSH.Shell),
 		srv.SetEventLogger(elog),
 		srv.SetSessionServer(client),
-		srv.SetRecorder(client))
+		srv.SetRecorder(client),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -352,6 +354,7 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 	}
 
 	SSHProxy, err := srv.New(cfg.Proxy.SSHAddr,
+		cfg.Hostname,
 		[]ssh.Signer{signer},
 		client,
 		srv.SetProxyMode(tsrv),

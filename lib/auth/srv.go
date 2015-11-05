@@ -210,19 +210,25 @@ func (s *APIServer) generateSealKey(w http.ResponseWriter, r *http.Request, p ht
 }
 
 func (s *APIServer) upsertServer(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	var id, addr string
+	var id, addr, hostname string
 	var ttl time.Duration
 
 	err := form.Parse(r,
 		form.String("id", &id, form.Required()),
 		form.String("addr", &addr, form.Required()),
+		form.String("hostname", &hostname, form.Required()),
 		form.Duration("ttl", &ttl),
 	)
 	if err != nil {
 		replyErr(w, err)
 		return
 	}
-	if err := s.s.UpsertServer(services.Server{ID: id, Addr: addr}, ttl); err != nil {
+	server := services.Server{
+		ID:       id,
+		Addr:     addr,
+		Hostname: hostname,
+	}
+	if err := s.s.UpsertServer(server, ttl); err != nil {
 		replyErr(w, err)
 		return
 	}

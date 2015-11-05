@@ -124,6 +124,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 
 	srv, err := srv.New(
 		utils.NetAddr{Network: "tcp", Addr: "localhost:30185"},
+		"localhost",
 		[]ssh.Signer{signer},
 		ap,
 		srv.SetShell("/bin/sh"),

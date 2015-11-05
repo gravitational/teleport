@@ -99,6 +99,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	s.srvAddress = "localhost:30185"
 	srv, err := New(
 		utils.NetAddr{Network: "tcp", Addr: s.srvAddress},
+		"localhost",
 		[]ssh.Signer{s.signer},
 		ap,
 		SetShell("/bin/sh"),
@@ -224,6 +225,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 
 	proxy, err := New(
 		utils.NetAddr{Network: "tcp", Addr: "localhost:0"},
+		"localhost",
 		[]ssh.Signer{s.signer},
 		ap,
 		SetProxyMode(reverseTunnelServer),

@@ -165,7 +165,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	c.Assert(err, IsNil)
 
 	err = clt.UpsertServer(
-		services.Server{ID: "a.example.com", Addr: "hello"}, 0)
+		services.Server{ID: "a.example.com", Addr: "hello", Hostname: "hello"}, 0)
 	c.Assert(err, IsNil)
 }
 

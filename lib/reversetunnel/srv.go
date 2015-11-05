@@ -381,16 +381,18 @@ func (s *remoteSite) ConnectToServer(server, user string, auth []ssh.AuthMethod)
 func (s *remoteSite) DialServer(server string) (net.Conn, error) {
 	serverIsKnown := false
 	knownServers, err := s.GetServers()
-	fmt.Println(server, "Known Servers:", knownServers)
+
 	for _, srv := range knownServers {
-		if srv.Addr == server {
+		x := strings.Split(srv.Addr, ":")
+		port := x[len(x)-1]
+		if server == srv.Hostname+":"+port {
 			serverIsKnown = true
 		}
 	}
-	serverIsKnown = serverIsKnown
 	if !serverIsKnown {
 		return nil, trace.Errorf("can't dial server %v, server is unknown", server)
 	}
+
 	ch, _, err := s.conn.OpenChannel(chanTransport, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
