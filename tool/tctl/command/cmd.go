@@ -23,8 +23,11 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/buger/goterm"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/terminal"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/alecthomas/kingpin.v2"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -150,6 +153,18 @@ func (cmd *Command) Run(args []string) error {
 	backendKeyDelete := backendKey.Command("delete", "Delete key from that server storage and delete all the data encrypted using this key from backend")
 	backendKeyDeleteID := backendKeyDelete.Flag("id", "key id").Required().String()
 
+	// Teleagent
+	agent := app.Command("agent", "Teleport ssh agent")
+
+	agentStart := agent.Command("start", "Generate remote server certificate for teleagent ssh agent using your credentials")
+	agentStartAgentAddr := agentStart.Flag("agent-addr", "ssh agent listening address").Default(teleagent.DefaultAgentAddress).String()
+	agentStartAPIAddr := agentStart.Flag("api-addr", "api listening address").Default(teleagent.DefaultAgentAPIAddress).String()
+
+	agentLogin := agent.Command("login", "Generate remote server certificate for teleagent ssh agent using your credentials")
+	agentLoginAgentAddr := agentLogin.Flag("agent-addr", "ssh agent address").Default(teleagent.DefaultAgentAPIAddress).String()
+	agentLoginProxyAddr := agentLogin.Flag("proxy-addr", "FQDN of the remote proxy").Required().String()
+	agentLoginTTL := agentLogin.Flag("ttl", "Certificate duration").Default("10h").Duration()
+
 	selectedCommand := kingpin.MustParse(app.Parse(args[1:]))
 
 	a, err := utils.ParseAddr(*authUrl)
@@ -211,7 +226,7 @@ func (cmd *Command) Run(args []string) error {
 	case userSetPass.FullCommand():
 		cmd.SetPass(*userSetPassUser, *userSetPassPass)
 
-	//Backend keys
+	// Backend keys
 	case backendKeyLs.FullCommand():
 		cmd.GetBackendKeys()
 	case backendKeyGenerate.FullCommand():
@@ -222,6 +237,14 @@ func (cmd *Command) Run(args []string) error {
 		cmd.ExportBackendKey(*backendKeyExportFile, *backendKeyExportID)
 	case backendKeyDelete.FullCommand():
 		cmd.DeleteBackendKey(*backendKeyDeleteID)
+
+	// Teleagent
+	case agentStart.FullCommand():
+		cmd.AgentStart(*agentStartAgentAddr, *agentStartAPIAddr)
+
+	case agentLogin.FullCommand():
+		cmd.AgentLogin(*agentLoginAgentAddr, *agentLoginProxyAddr,
+			*agentLoginTTL)
 	}
 
 	return err
@@ -233,6 +256,14 @@ func (cmd *Command) readInput(path string) ([]byte, error) {
 	}
 	reader := bufio.NewReader(cmd.in)
 	return reader.ReadSlice('\n')
+}
+
+func (cmd *Command) readPassword() (string, error) {
+	password, err := terminal.ReadPassword(0)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(password), nil
 }
 
 func (cmd *Command) confirm(message string) bool {

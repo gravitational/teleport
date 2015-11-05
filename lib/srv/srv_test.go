@@ -19,6 +19,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net"
+	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -28,10 +31,15 @@ import (
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
+	"github.com/gravitational/teleport/lib/events/boltlog"
+	"github.com/gravitational/teleport/lib/recorder/boltrec"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	sess "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gokyle/hotp"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/agent"
@@ -41,13 +49,15 @@ import (
 func TestSrv(t *testing.T) { TestingT(t) }
 
 type SrvSuite struct {
-	srv  *Server
-	clt  *ssh.Client
-	bk   *encryptedbk.ReplicatedBackend
-	a    *auth.AuthServer
-	up   *upack
-	scrt secret.SecretService
-	dir  string
+	srv        *Server
+	srvAddress string
+	clt        *ssh.Client
+	bk         *encryptedbk.ReplicatedBackend
+	a          *auth.AuthServer
+	up         *upack
+	scrt       secret.SecretService
+	signer     ssh.Signer
+	dir        string
 }
 
 var _ = Suite(&SrvSuite{})
@@ -82,13 +92,15 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	// set up user CA and set up a user that has access to the server
 	c.Assert(s.a.ResetUserCA(""), IsNil)
 
-	signer, err := sshutils.NewSigner(hpriv, hcert)
+	s.signer, err = sshutils.NewSigner(hpriv, hcert)
 	c.Assert(err, IsNil)
 
+	ap := auth.NewBackendAccessPoint(s.bk)
+	s.srvAddress = "localhost:30185"
 	srv, err := New(
-		utils.NetAddr{Network: "tcp", Addr: "localhost:0"},
-		[]ssh.Signer{signer},
-		auth.NewBackendAccessPoint(s.bk),
+		utils.NetAddr{Network: "tcp", Addr: s.srvAddress},
+		[]ssh.Signer{s.signer},
+		ap,
 		SetShell("/bin/sh"),
 	)
 	c.Assert(err, IsNil)
@@ -198,6 +210,175 @@ func (s *SrvSuite) TestTun(c *C) {
 
 	<-done
 	c.Assert(removeNL(stdout.String()), Matches, ".*77.*")
+}
+
+func (s *SrvSuite) TestProxy(c *C) {
+	ap := auth.NewBackendAccessPoint(s.bk)
+	reverseTunnelAddress := utils.NetAddr{Network: "tcp", Addr: "localhost:33056"}
+	reverseTunnelServer, err := reversetunnel.NewServer(
+		reverseTunnelAddress,
+		[]ssh.Signer{s.signer},
+		ap)
+	c.Assert(err, IsNil)
+	c.Assert(reverseTunnelServer.Start(), IsNil)
+
+	proxy, err := New(
+		utils.NetAddr{Network: "tcp", Addr: "localhost:0"},
+		[]ssh.Signer{s.signer},
+		ap,
+		SetProxyMode(reverseTunnelServer),
+	)
+	c.Assert(err, IsNil)
+	c.Assert(proxy.Start(), IsNil)
+
+	// set up SSH client using the user private key for signing
+	up, err := newUpack("test", s.a)
+	c.Assert(err, IsNil)
+
+	keyring := agent.NewKeyring()
+	addedKey := agent.AddedKey{
+		PrivateKey:  up.pkey,
+		Certificate: up.pcert,
+	}
+	c.Assert(keyring.Add(addedKey), IsNil)
+
+	bl, err := boltlog.New(filepath.Join(s.dir, "eventsdb"))
+	c.Assert(err, IsNil)
+
+	rec, err := boltrec.New(s.dir)
+	c.Assert(err, IsNil)
+
+	apiSrv := httptest.NewServer(
+		auth.NewAPIServer(s.a, bl, sess.New(s.bk), rec))
+
+	u, err := url.Parse(apiSrv.URL)
+	c.Assert(err, IsNil)
+
+	tsrv, err := auth.NewTunServer(
+		utils.NetAddr{Network: "tcp", Addr: "localhost:31497"},
+		[]ssh.Signer{s.signer},
+		utils.NetAddr{Network: "tcp", Addr: u.Host}, s.a)
+	c.Assert(err, IsNil)
+	c.Assert(tsrv.Start(), IsNil)
+
+	user := "user1"
+	pass := []byte("utndkrn")
+
+	hotpURL, _, err := s.a.UpsertPassword(user, pass)
+	c.Assert(err, IsNil)
+	otp, _, err := hotp.FromURL(hotpURL)
+	c.Assert(err, IsNil)
+	otp.Increment()
+
+	authMethod, err := auth.NewWebPasswordAuth(user, pass, otp.OTP())
+	c.Assert(err, IsNil)
+
+	tunClt, err := auth.NewTunClient(
+		utils.NetAddr{Network: "tcp", Addr: tsrv.Addr()}, user, authMethod)
+	c.Assert(err, IsNil)
+	defer tunClt.Close()
+
+	rsAgent, err := reversetunnel.NewAgent(
+		reverseTunnelAddress,
+		"localhost",
+		[]ssh.Signer{s.signer}, tunClt)
+	c.Assert(err, IsNil)
+	c.Assert(rsAgent.Start(), IsNil)
+
+	sshConfig := &ssh.ClientConfig{
+		User: "test",
+		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+	}
+
+	// Trying to connect to unregistered ssh node
+
+	client, err := ssh.Dial("tcp", proxy.Addr(), sshConfig)
+	c.Assert(err, IsNil)
+	c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
+
+	se0, err := client.NewSession()
+	c.Assert(err, IsNil)
+	defer se0.Close()
+
+	writer, err := se0.StdinPipe()
+	c.Assert(err, IsNil)
+
+	reader, err := se0.StdoutPipe()
+	c.Assert(err, IsNil)
+
+	// Request opening TCP connection to the remote host
+	unregisteredAddress := s.srv.Addr() // proper ssh node address but with 127.0.0.1 instead of localhost
+	c.Assert(se0.RequestSubsystem(fmt.Sprintf("proxy:%v", unregisteredAddress)), IsNil)
+
+	local, err := net.ResolveTCPAddr("tcp", proxy.Addr())
+	c.Assert(err, IsNil)
+	remote, err := net.ResolveTCPAddr("tcp", s.srv.Addr())
+	c.Assert(err, IsNil)
+
+	pipeNetConn := utils.NewPipeNetConn(
+		reader,
+		writer,
+		se0,
+		local,
+		remote,
+	)
+
+	// Open SSH connection via TCP
+	conn, chans, reqs, err := ssh.NewClientConn(pipeNetConn,
+		s.srv.Addr(), sshConfig)
+	c.Assert(err, NotNil)
+
+	// Connect to node using registered address
+	client, err = ssh.Dial("tcp", proxy.Addr(), sshConfig)
+	c.Assert(err, IsNil)
+	c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
+
+	se, err := client.NewSession()
+	c.Assert(err, IsNil)
+	defer se.Close()
+
+	writer, err = se.StdinPipe()
+	c.Assert(err, IsNil)
+
+	reader, err = se.StdoutPipe()
+	c.Assert(err, IsNil)
+
+	// Request opening TCP connection to the remote host
+	c.Assert(se.RequestSubsystem(fmt.Sprintf("proxy:%v", s.srvAddress)), IsNil)
+
+	local, err = net.ResolveTCPAddr("tcp", proxy.Addr())
+	c.Assert(err, IsNil)
+	remote, err = net.ResolveTCPAddr("tcp", s.srv.Addr())
+	c.Assert(err, IsNil)
+
+	pipeNetConn = utils.NewPipeNetConn(
+		reader,
+		writer,
+		se,
+		local,
+		remote,
+	)
+
+	// Open SSH connection via TCP
+	conn, chans, reqs, err = ssh.NewClientConn(pipeNetConn,
+		s.srv.Addr(), sshConfig)
+	c.Assert(err, IsNil)
+
+	// using this connection as regular SSH
+	client2 := ssh.NewClient(conn, chans, reqs)
+	c.Assert(err, IsNil)
+
+	c.Assert(agent.ForwardToAgent(client2, keyring), IsNil)
+
+	se2, err := client2.NewSession()
+	c.Assert(err, IsNil)
+	defer se2.Close()
+
+	out, err := se2.Output("expr 2 + 3")
+	c.Assert(err, IsNil)
+
+	c.Assert(strings.Trim(string(out), " \n"), Equals, "5")
+
 }
 
 // TestPTY requests PTY for an interactive session

@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 )
 
 const CurrentVersion = "v1"
@@ -352,6 +353,9 @@ func (c *Client) UpsertPassword(user string,
 		c.Endpoint("users", user, "web", "password"),
 		url.Values{"password": []string{string(password)}},
 	)
+	if err != nil {
+		return "", nil, trace.Wrap(err)
+	}
 	var re *upsertPasswordResponse
 	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
 		return "", nil, err
@@ -570,12 +574,13 @@ func (c *Client) GenerateUserCert(
 		"ttl":  []string{ttl.String()},
 	})
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	var cert *certResponse
 	if err := json.Unmarshal(out.Bytes(), &cert); err != nil {
 		return nil, err
 	}
+
 	return []byte(cert.Cert), err
 }
 

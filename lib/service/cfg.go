@@ -94,6 +94,9 @@ type ProxyConfig struct {
 	// WebAddr is address for web portal of the proxy
 	WebAddr utils.NetAddr `yaml:"web_addr" env:"TELEPORT_PROXY_WEB_ADDR"`
 
+	// SSHAddr is address of ssh proxy
+	SSHAddr utils.NetAddr `yaml:"ssh_addr" env:"TELEPORT_PROXY_SSH_ADDR"`
+
 	// AssetsDir is a directory with proxy website assets
 	AssetsDir string `yaml:"assets_dir" env:"TELEPORT_PROXY_ASSETS_DIR"`
 
@@ -334,6 +337,12 @@ func setDefaults(cfg *Config) {
 		cfg.Proxy.WebAddr = utils.NetAddr{
 			Network: "tcp",
 			Addr:    "127.0.0.1:33007",
+		}
+	}
+	if cfg.Proxy.SSHAddr.IsEmpty() {
+		cfg.Proxy.SSHAddr = utils.NetAddr{
+			Network: "tcp",
+			Addr:    "127.0.0.1:33008",
 		}
 	}
 }

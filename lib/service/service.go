@@ -351,6 +351,15 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 		return trace.Wrap(err)
 	}
 
+	SSHProxy, err := srv.New(cfg.Proxy.SSHAddr,
+		[]ssh.Signer{signer},
+		client,
+		srv.SetProxyMode(tsrv),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
 	supervisor.RegisterFunc(func() error {
@@ -394,6 +403,16 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
+		}
+		return nil
+	})
+
+	// Register ssh proxy server
+	supervisor.RegisterFunc(func() error {
+		log.Infof("[PROXY] teleport ssh proxy server starting on %v",
+			cfg.Proxy.SSHAddr.Addr)
+		if err := SSHProxy.Start(); err != nil {
+			return trace.Wrap(err)
 		}
 		return nil
 	})
