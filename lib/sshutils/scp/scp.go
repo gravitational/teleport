@@ -237,7 +237,6 @@ func (s *Server) processCommand(ch io.ReadWriter, st *state, b byte, line string
 		if err := s.receiveDir(st, *d, ch); err != nil {
 			return err
 		}
-		st.push(d.Name)
 		return nil
 	case 'E':
 		log.Infof("got end dir command")
@@ -255,7 +254,10 @@ func (s *Server) processCommand(ch io.ReadWriter, st *state, b byte, line string
 }
 
 func (s *Server) receiveFile(st *state, cmd NewFileCmd, ch io.ReadWriter) error {
-	path := st.makePath(s.cmd.Target, cmd.Name)
+	path := s.cmd.Target
+	if s.cmd.Recursive || strings.HasSuffix(s.cmd.Target, "/") {
+		path = st.makePath(s.cmd.Target, cmd.Name)
+	}
 	f, err := os.Create(path)
 	if err != nil {
 		return err
@@ -281,7 +283,13 @@ func (s *Server) receiveFile(st *state, cmd NewFileCmd, ch io.ReadWriter) error 
 }
 
 func (s *Server) receiveDir(st *state, cmd NewFileCmd, ch io.ReadWriter) error {
-	path := st.makePath(s.cmd.Target, cmd.Name)
+	path := s.cmd.Target
+	if strings.HasSuffix(s.cmd.Target, "/") || st.root {
+		path = st.makePath(s.cmd.Target, cmd.Name)
+		st.push(cmd.Name)
+
+	}
+	st.root = true
 	mode := os.FileMode(int(cmd.Mode) & int(os.ModePerm))
 	err := os.Mkdir(path, mode)
 	if err != nil {
@@ -403,6 +411,7 @@ func sendError(ch io.ReadWriter, message string) error {
 }
 
 type state struct {
+	root bool
 	path []string
 }
 
