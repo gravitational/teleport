@@ -161,7 +161,7 @@ func (cmd *Command) Run(args []string) error {
 	agentStartAPIAddr := agentStart.Flag("api-addr", "api listening address").Default(teleagent.DefaultAgentAPIAddress).String()
 
 	agentLogin := agent.Command("login", "Generate remote server certificate for teleagent ssh agent using your credentials")
-	agentLoginAgentAddr := agentLogin.Flag("agent-addr", "ssh agent address").Default(teleagent.DefaultAgentAPIAddress).String()
+	agentLoginAgentAddr := agentLogin.Flag("agent-api-addr", "ssh agent api address").Default(teleagent.DefaultAgentAPIAddress).String()
 	agentLoginProxyAddr := agentLogin.Flag("proxy-addr", "FQDN of the remote proxy").Required().String()
 	agentLoginTTL := agentLogin.Flag("ttl", "Certificate duration").Default("10h").Duration()
 

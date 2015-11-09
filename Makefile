@@ -55,11 +55,15 @@ pack-teleport: pkg teleport
 pkg:
 	@if [ "$$PKG" = "" ] ; then echo "ERROR: enter PKG parameter:\n\nmake publish PKG=<name>:<sem-ver>, e.g. teleport:0.0.1\n\n" && exit 255; fi
 
-# run-embedded-proxy starts a auth server, ssh node and proxy that allows web access 
+# run-embedded starts a auth server, ssh node and proxy that allows web access 
 # to all the nodes
 run-embedded: install
 	rm -f /tmp/teleport.auth.sock
 	teleport --config=examples/embedded.yaml
+
+# run-node starts a ssh node
+run-node: install
+	teleport --config=examples/node.yaml
 
 # run-site-to-proxy starts a ssh node, auth server and reverse tunnel that connect outside of
 # the organization server

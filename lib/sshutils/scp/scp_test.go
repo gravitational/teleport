@@ -95,7 +95,7 @@ func (s *SCPSuite) TestReceiveFile(c *C) {
 	err := ioutil.WriteFile(source, contents, 0666)
 	c.Assert(err, IsNil)
 
-	outDir := c.MkDir()
+	outDir := c.MkDir() + "/"
 
 	srv, err := New(Command{Sink: true, Target: outDir})
 	c.Assert(err, IsNil)
@@ -206,7 +206,7 @@ func (s *SCPSuite) TestReceiveDir(c *C) {
 		filepath.Join(dir, "target2"), []byte("file 2"), 0666)
 	c.Assert(err, IsNil)
 
-	outDir := c.MkDir()
+	outDir := c.MkDir() + "/"
 
 	srv, err := New(Command{Sink: true, Target: outDir, Recursive: true})
 	c.Assert(err, IsNil)

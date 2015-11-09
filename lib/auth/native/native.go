@@ -92,7 +92,7 @@ func (n *nauth) GenerateUserCert(pkey, key []byte, id, username string, ttl time
 	validBefore := uint64(ssh.CertTimeInfinity)
 	if ttl != 0 {
 		b := time.Now().Add(ttl)
-		validBefore = uint64(b.UnixNano())
+		validBefore = uint64(b.Unix())
 	}
 	cert := &ssh.Certificate{
 		ValidPrincipals: []string{username},

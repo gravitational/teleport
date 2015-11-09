@@ -182,6 +182,12 @@ func (s *server) keyAuth(
 		return nil, err
 	}
 
+	if err := s.certChecker.CheckCert(conn.User(), key.(*ssh.Certificate)); err != nil {
+		log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
+			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
+		return nil, trace.Wrap(err)
+	}
+
 	perms := &ssh.Permissions{
 		Extensions: map[string]string{
 			ExtHost: conn.User(),
