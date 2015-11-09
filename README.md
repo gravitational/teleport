@@ -118,7 +118,45 @@ Check out QR.png file that was written to the local directory and scan QR code. 
 
 ### SSH access via proxy
 
-This is still in progress, should be merged soon. Follow the progress here:
+#### OpenSSH
 
-https://github.com/gravitational/teleport/compare/alex/ssh-agent
+To use OpenSSH client with Teleport you need to run Teleport ssh agent on your local machine.
 
+1. First, start the agent
+  
+  ```shell
+  tctl agent start --agent-addr="unix:///tmp/teleport.agent.sock"
+  ```
+2. Then your need to login your agent using your credentials
+  
+  ```shell
+  tctl agent login --proxy-addr=PROXY-ADDR --ttl=10h
+  ```
+  where PROXY-ADDR - address of the remote Teleport proxy, ttl - time you want to be logged in (max 30 Hours).
+  tctl will ask you your username, password and 2nd token.
+3. Modify default agent address
+  
+  ```shell
+  SSH_AUTH_SOCK=/tmp/teleport.agent.sock; export SSH_AUTH_SOCK;
+  ```
+4. To enable connecting via proxy on the OpenSSH client add ProxyCommand to ~/.ssh/config file. For example:
+  
+  ```
+  Host node1.gravitational.io
+    ProxyCommand  ssh -p {proxyport} %r@proxy.gravitational.io -s proxy:%h:%p
+  ```
+5. Then you can connect to your ssh nodes as usual:
+  
+  ```shell
+  ssh -p {nodeport} user@node1.gravitational.io
+  ```
+
+#### Ansible
+
+By default Ansible use OpenSSH client. To make Ansible work with Teleport you need:
+* config your OpenSSH client
+* enable scp mode in the Ansible config file(default /etc/ansible/ansible.cfg):
+  
+  ```
+  scp_if_ssh = True
+  ```
