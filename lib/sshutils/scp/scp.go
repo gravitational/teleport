@@ -254,6 +254,11 @@ func (s *Server) processCommand(ch io.ReadWriter, st *state, b byte, line string
 }
 
 func (s *Server) receiveFile(st *state, cmd NewFileCmd, ch io.ReadWriter) error {
+	// if the dest path ends with "/", destination is a folder, we should
+	// save the file to that folder
+	// if the dest path doesn't end with "/", destination is a target filename
+	// we should save the file to that filename
+	// if the scp command has "-r" flag, desctination is always a folder
 	path := s.cmd.Target
 	if s.cmd.Recursive || strings.HasSuffix(s.cmd.Target, "/") {
 		path = st.makePath(s.cmd.Target, cmd.Name)
@@ -283,13 +288,19 @@ func (s *Server) receiveFile(st *state, cmd NewFileCmd, ch io.ReadWriter) error 
 }
 
 func (s *Server) receiveDir(st *state, cmd NewFileCmd, ch io.ReadWriter) error {
+	// if the dest path ends with "/", we should copy source folder
+	// inside the dest folder
+	// if the dest path doesn't end with "/", we should copy only the
+	// content of the source folder to the dest folder
+	// for all the copied subfolders we should copy source folder
+	// inside dest folder
 	path := s.cmd.Target
-	if strings.HasSuffix(s.cmd.Target, "/") || st.root {
+	if strings.HasSuffix(s.cmd.Target, "/") || st.notRoot {
 		path = st.makePath(s.cmd.Target, cmd.Name)
 		st.push(cmd.Name)
 
 	}
-	st.root = true
+	st.notRoot = true //next calls of receiveDir will be for subfolders
 	mode := os.FileMode(int(cmd.Mode) & int(os.ModePerm))
 	err := os.Mkdir(path, mode)
 	if err != nil {
@@ -411,8 +422,8 @@ func sendError(ch io.ReadWriter, message string) error {
 }
 
 type state struct {
-	root bool
-	path []string
+	notRoot bool
+	path    []string
 }
 
 func (st *state) push(dir string) {
