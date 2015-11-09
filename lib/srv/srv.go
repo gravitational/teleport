@@ -247,6 +247,11 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
 		return nil, err
 	}
+	if err := s.certChecker.CheckCert(conn.User(), key.(*ssh.Certificate)); err != nil {
+		log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
+			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
+		return nil, trace.Wrap(err)
+	}
 	return p, nil
 }
 
