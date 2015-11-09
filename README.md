@@ -153,7 +153,7 @@ To use OpenSSH client with Teleport you need to run Teleport ssh agent on your l
 
 #### Ansible
 
-By default Ansible use OpenSSH client. To make Ansible work with Teleport you need:
+By default Ansible uses OpenSSH client. To make Ansible work with Teleport you need:
 * config your OpenSSH client
 * enable scp mode in the Ansible config file(default /etc/ansible/ansible.cfg):
   
