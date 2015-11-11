@@ -42,19 +42,19 @@ type TunServer struct {
 	l           net.Listener
 	srv         *sshutils.Server
 	hostSigner  ssh.Signer
-	authAddr    utils.NetAddr
+	apiServer   *APIWithRoles
 }
 
 type ServerOption func(s *TunServer) error
 
 // New returns an unstarted server
 func NewTunServer(addr utils.NetAddr, hostSigners []ssh.Signer,
-	authAddr utils.NetAddr, a *AuthServer,
+	apiServer *APIWithRoles, a *AuthServer,
 	opts ...ServerOption) (*TunServer, error) {
 
 	srv := &TunServer{
-		a:        a,
-		authAddr: authAddr,
+		a:         a,
+		apiServer: apiServer,
 	}
 	for _, o := range opts {
 		if err := o(srv); err != nil {
@@ -239,36 +239,18 @@ func (s *TunServer) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel)
 // this direct tcp-ip request ignores port and host requested by client
 // and always forwards it to the local auth server listening on local socket
 func (s *TunServer) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
-	defer ch.Close()
-
-	log.Infof("handleDirectTCPIPRequest start to %v:%d", req.Host, req.Port)
-	log.Infof("opened direct-tcpip channel to server: %v", req)
-	log.Infof("connecting to %v", s.authAddr)
-
-	conn, err := net.Dial(s.authAddr.Network, s.authAddr.Addr)
-	if err != nil {
-		log.Infof("%v failed to connect to: %v, err: %v", s.authAddr.Addr, err)
-		return
+	addr, _ := net.ResolveIPAddr("tcp", "localhost")
+	conn := utils.NewPipeNetConn(
+		ch, ch, ch,
+		addr, addr,
+	)
+	role := sconn.Permissions.Extensions["role"]
+	if role == "" {
+		role = RoleUser
 	}
-	defer conn.Close()
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		written, err := io.Copy(ch, conn)
-		log.Infof("conn to channel copy closed, bytes transferred: %v, err: %v", written, err)
-		ch.Close()
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		written, err := io.Copy(conn, ch)
-		log.Infof("channel to conn copy closed, bytes transferred: %v, err: %v", written, err)
-		conn.Close() //  it is important to close this connection, otherwise this goroutine will hang forever
-		// because the copoy from conn to ch can be never closed unless the connection is closed
-	}()
-	wg.Wait()
-	log.Infof("direct-tcp closed")
+	if err := s.apiServer.HandleConn(conn, role); err != nil {
+		log.Errorf(err.Error())
+	}
 }
 
 func (s *TunServer) handleProvisionRequest(sconn *ssh.ServerConn, ch ssh.Channel) {
@@ -397,6 +379,7 @@ func (s *TunServer) keyAuth(
 	perms := &ssh.Permissions{
 		Extensions: map[string]string{
 			ExtHost: conn.User(),
+			"role":  key.(*ssh.Certificate).Permissions.Extensions["role"],
 		},
 	}
 
@@ -419,6 +402,7 @@ func (s *TunServer) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebPassword: "<password>",
+				"role":         RoleUser,
 			},
 		}
 		log.Infof("password authenticated user: '%v'", conn.User())
@@ -429,6 +413,7 @@ func (s *TunServer) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebSession: string(ab.Pass),
+				"role":        RoleWeb,
 			},
 		}
 		if _, err := s.a.GetWebSession(conn.User(), session.SecureID(ab.Pass)); err != nil {
@@ -446,6 +431,7 @@ func (s *TunServer) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtToken: string(password),
+				"role":   RoleProvisionToken,
 			}}
 		log.Infof("session authenticated prov. token: '%v'", conn.User())
 		return perms, nil

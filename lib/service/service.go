@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
-	oxytrace "github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/oxy/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
 
@@ -140,23 +139,22 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// register HTTP API endpoint
-	supervisor.RegisterFunc(func() error {
-		log.Infof("[AUTH] server HTTP endpoint is starting on %v", cfg.Auth.HTTPAddr)
-		apisrv := auth.NewAPIServer(asrv, elog, session.New(b), rec)
-		t, err := oxytrace.New(apisrv, log.GetLogger().Writer(log.SeverityInfo))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return utils.StartHTTPServer(cfg.Auth.HTTPAddr, t)
-	})
+	apisrv := auth.NewAPIWithRoles(asrv, elog, session.New(b), rec,
+		auth.NewAllowAllPermissions(),
+		[]string{
+			auth.RoleAdmin,
+			auth.RoleNode,
+			auth.RoleReverseTunnel,
+			auth.RoleUser,
+		},
+	)
 
 	// register auth SSH-based endpoint
 	supervisor.RegisterFunc(func() error {
 		log.Infof("[AUTH] server SSH endpoint is starting")
 		tsrv, err := auth.NewTunServer(
 			cfg.Auth.SSHAddr, []ssh.Signer{signer},
-			cfg.Auth.HTTPAddr,
+			apisrv,
 			asrv)
 		if err != nil {
 			return trace.Wrap(err)

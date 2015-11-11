@@ -16,11 +16,6 @@ limitations under the License.
 package auth
 
 import (
-	"io/ioutil"
-	"net"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"path/filepath"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gokyle/hotp"
@@ -47,7 +42,7 @@ type TunSuite struct {
 	bk   *encryptedbk.ReplicatedBackend
 	scrt secret.SecretService
 
-	srv    *httptest.Server
+	srv    *APIWithRoles
 	tsrv   *TunServer
 	a      *AuthServer
 	signer ssh.Signer
@@ -89,8 +84,10 @@ func (s *TunSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)
-	s.srv = httptest.NewServer(
-		NewAPIServer(s.a, s.bl, session.New(s.bk), s.rec))
+	s.srv = NewAPIWithRoles(s.a, s.bl, session.New(s.bk), s.rec,
+		NewAllowAllPermissions(),
+		StandartRoles,
+	)
 
 	// set up host private key and certificate
 	c.Assert(s.a.ResetHostCA(""), IsNil)
@@ -102,13 +99,11 @@ func (s *TunSuite) SetUpTest(c *C) {
 	signer, err := sshutils.NewSigner(hpriv, hcert)
 	c.Assert(err, IsNil)
 	s.signer = signer
-	u, err := url.Parse(s.srv.URL)
-	c.Assert(err, IsNil)
 
 	tsrv, err := NewTunServer(
 		utils.NetAddr{Network: "tcp", Addr: "127.0.0.1:0"},
 		[]ssh.Signer{signer},
-		utils.NetAddr{Network: "tcp", Addr: u.Host}, s.a)
+		s.srv, s.a)
 
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
@@ -116,30 +111,15 @@ func (s *TunSuite) SetUpTest(c *C) {
 }
 
 func (s *TunSuite) TestUnixServerClient(c *C) {
-	d, err := ioutil.TempDir("", "teleport-test")
-	c.Assert(err, IsNil)
-	socketPath := filepath.Join(d, "unix.sock")
-
-	l, err := net.Listen("unix", socketPath)
-	c.Assert(err, IsNil)
-
-	h := NewAPIServer(s.a, s.bl, session.New(s.bk), s.rec)
-	srv := &httptest.Server{
-		Listener: l,
-		Config: &http.Server{
-			Handler: h,
-		},
-	}
-	srv.Start()
-	defer srv.Close()
-
-	u, err := url.Parse(s.srv.URL)
-	c.Assert(err, IsNil)
+	srv := NewAPIWithRoles(s.a, s.bl, session.New(s.bk), s.rec,
+		NewAllowAllPermissions(),
+		StandartRoles,
+	)
 
 	tsrv, err := NewTunServer(
 		utils.NetAddr{Network: "tcp", Addr: "127.0.0.1:0"},
 		[]ssh.Signer{s.signer},
-		utils.NetAddr{Network: "tcp", Addr: u.Host}, s.a)
+		srv, s.a)
 
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)

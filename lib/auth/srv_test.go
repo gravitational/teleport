@@ -92,7 +92,14 @@ func (s *APISuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)
-	s.srv = httptest.NewServer(NewAPIServer(s.a, s.bl, session.New(s.bk), s.rec))
+	s.srv = httptest.NewServer(NewAPIServer(
+		&AuthWithRoles{
+			a:    s.a,
+			elog: s.bl,
+			se:   session.New(s.bk),
+			rec:  s.rec,
+			c:    NewAllowAllPermissions(),
+		}))
 	clt, err := NewClient(s.srv.URL)
 	c.Assert(err, IsNil)
 	s.clt = clt

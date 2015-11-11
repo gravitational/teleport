@@ -22,17 +22,20 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/buger/goterm"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/terminal"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/alecthomas/kingpin.v2"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/buger/goterm"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/terminal"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/alecthomas/kingpin.v2"
 )
 
 type Command struct {
-	client *auth.Client
+	client *auth.TunClient
 	out    io.Writer
 	in     io.Reader
 }
@@ -44,7 +47,7 @@ func NewCommand() *Command {
 	}
 }
 
-func (cmd *Command) SetClient(client *auth.Client) {
+func (cmd *Command) SetClient(client *auth.TunClient) {
 	cmd.client = client
 }
 
@@ -54,7 +57,7 @@ func (cmd *Command) SetOut(out io.Writer) {
 
 func (cmd *Command) Run(args []string) error {
 	app := kingpin.New("tctl", "CLI for key management of teleport SSH cluster")
-	authUrl := app.Flag("auth", "Teleport URL").Default(DefaultTeleportURL).String()
+	configPath := app.Flag("config", "Path to the Teleport configuration file").Default(DefaultConfigPath).String()
 
 	// SSH Key pair
 	keyPair := app.Command("keypair", "Helper operations with SSH keypairs")
@@ -167,16 +170,34 @@ func (cmd *Command) Run(args []string) error {
 
 	selectedCommand := kingpin.MustParse(app.Parse(args[1:]))
 
-	a, err := utils.ParseAddr(*authUrl)
-	if err != nil {
-		return err
-	}
-	clt, err := auth.NewClientFromNetAddr(*a)
-	if err != nil {
-		return err
+	if !strings.HasPrefix(selectedCommand, agent.FullCommand()) {
+		var cfg service.Config
+		if err := service.ParseYAMLFile(*configPath, &cfg); err != nil {
+			return trace.Wrap(err)
+		}
+		if cfg.Auth.Enabled && len(cfg.AuthServers) == 0 {
+			cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
+		}
+
+		signer, err := auth.ReadKeys(cfg.Hostname, cfg.DataDir)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if len(cfg.AuthServers) == 0 {
+			return fmt.Errorf("provide auth server address")
+		}
+
+		cmd.client, err = auth.NewTunClient(
+			cfg.AuthServers[0],
+			cfg.Hostname,
+			[]ssh.AuthMethod{ssh.PublicKeys(signer)})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	cmd.client = clt
+	var err error
 
 	switch selectedCommand {
 	// Host CA
@@ -305,3 +326,4 @@ func (cmd *Command) printInfo(message string, params ...interface{}) {
 }
 
 const DefaultTeleportURL = "unix:///tmp/teleport.auth.sock"
+const DefaultConfigPath = "/var/lib/teleport/teleport.yaml"

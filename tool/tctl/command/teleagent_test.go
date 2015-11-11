@@ -3,8 +3,6 @@ package command
 import (
 	"net"
 	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -83,17 +81,15 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 
 	rec, err := boltrec.New(dir)
 	c.Assert(err, IsNil)
-
-	apiSrv := httptest.NewServer(
-		auth.NewAPIServer(a, bl, sess.New(bk), rec))
-
-	u, err := url.Parse(apiSrv.URL)
-	c.Assert(err, IsNil)
+	apiSrv := auth.NewAPIWithRoles(a, bl, sess.New(bk), rec,
+		auth.NewAllowAllPermissions(),
+		auth.StandartRoles,
+	)
 
 	tsrv, err := auth.NewTunServer(
 		utils.NetAddr{Network: "tcp", Addr: "localhost:31497"},
 		[]ssh.Signer{signer},
-		utils.NetAddr{Network: "tcp", Addr: u.Host}, a)
+		apiSrv, a)
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
 

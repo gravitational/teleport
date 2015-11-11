@@ -19,8 +19,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"net/http/httptest"
-	"net/url"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -36,10 +35,12 @@ import (
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	//	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
@@ -49,17 +50,20 @@ const OK = ".*OK.*"
 func TestTeleportCLI(t *testing.T) { TestingT(t) }
 
 type CmdSuite struct {
-	srv  *httptest.Server
-	asrv *auth.AuthServer
-	clt  *auth.Client
-	cmd  *Command
-	out  *bytes.Buffer
-	bk   *encryptedbk.ReplicatedBackend
-	bl   *boltlog.BoltLog
-	scrt secret.SecretService
-	rec  recorder.Recorder
-	addr utils.NetAddr
-	dir  string
+	tunAddress string
+	cfg        *os.File
+	srv        *auth.APIWithRoles
+	asrv       *auth.AuthServer
+	clt        *auth.TunClient
+	cmd        *Command
+	out        *bytes.Buffer
+	bk         *encryptedbk.ReplicatedBackend
+	bl         *boltlog.BoltLog
+	scrt       secret.SecretService
+	rec        recorder.Recorder
+	addr       utils.NetAddr
+	dir        string
+	tsrv       *auth.TunServer
 
 	CAS           *services.CAService
 	LockS         *services.LockService
@@ -83,6 +87,15 @@ func (s *CmdSuite) SetUpSuite(c *C) {
 
 func (s *CmdSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
+	var err error
+
+	s.tunAddress = "tcp://localhost:31765"
+
+	s.cfg, err = ioutil.TempFile(s.dir, "cfg")
+	c.Assert(err, IsNil)
+	s.cfg.WriteString("data_dir: " + s.dir +
+		"\nhostname: localhost" +
+		"\nauth_servers: \n  - " + s.tunAddress + "")
 
 	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
@@ -97,19 +110,48 @@ func (s *CmdSuite) SetUpTest(c *C) {
 	s.rec, err = boltrec.New(s.dir)
 	c.Assert(err, IsNil)
 
-	s.asrv = auth.NewAuthServer(s.bk, authority.New(), s.scrt)
-	s.srv = httptest.NewServer(auth.NewAPIServer(s.asrv, s.bl,
-		session.New(s.bk), s.rec))
+	acfg := auth.InitConfig{
+		Backend:    s.bk,
+		Authority:  authority.New(),
+		FQDN:       "localhost",
+		AuthDomain: "localhost",
+		DataDir:    s.dir,
+	}
+	asrv, signer, err := auth.Init(acfg)
+	c.Assert(err, IsNil)
+	s.asrv = asrv
 
-	u, err := url.Parse(s.srv.URL)
+	//s.asrv = auth.NewAuthServer(s.bk, authority.New(), s.scrt)
+	s.srv = auth.NewAPIWithRoles(s.asrv, s.bl, session.New(s.bk), s.rec,
+		auth.NewAllowAllPermissions(),
+		auth.StandartRoles,
+	)
+
+	/*c.Assert(s.asrv.ResetHostCA(""), IsNil)
+	hpriv, hpub, err := s.asrv.GenerateKeyPair("")
+	c.Assert(err, IsNil)
+	hcert, err := s.asrv.GenerateHostCert(hpub, "localhost", "localhost", 0)
 	c.Assert(err, IsNil)
 
-	s.addr = utils.NetAddr{Network: "tcp", Addr: u.Host}
+	signer, err := sshutils.NewSigner(hpriv, hcert)
+	c.Assert(err, IsNil)*/
 
-	clt, err := auth.NewClientFromNetAddr(s.addr)
+	tunAddr, err := utils.ParseAddr(s.tunAddress)
+	tsrv, err := auth.NewTunServer(
+		*tunAddr,
+		[]ssh.Signer{signer},
+		s.srv, s.asrv)
 	c.Assert(err, IsNil)
-	s.clt = clt
+	s.tsrv = tsrv
+	c.Assert(tsrv.Start(), IsNil)
 
+	/*client, err := auth.NewTunClient(
+		*tunAddr,
+		"localhost",
+		[]ssh.AuthMethod{ssh.PublicKeys(signer)})
+	c.Assert(err, IsNil)
+
+	s.clt = client*/
 	s.out = &bytes.Buffer{}
 	s.cmd = &Command{out: s.out}
 
@@ -123,6 +165,7 @@ func (s *CmdSuite) SetUpTest(c *C) {
 
 func (s *CmdSuite) TearDownTest(c *C) {
 	s.srv.Close()
+	s.tsrv.Close()
 }
 
 func (s *CmdSuite) runString(in string) string {
@@ -130,12 +173,15 @@ func (s *CmdSuite) runString(in string) string {
 }
 
 func (s *CmdSuite) run(params ...string) string {
-	args := []string{"tctl"}
+	args := []string{"tctl", "--config", s.cfg.Name()}
 	args = append(args, params...)
-	args = append(args, fmt.Sprintf("--auth=%v", &s.addr))
+	//args = append(args, fmt.Sprintf("--auth=%v", &s.addr))
 	s.out = &bytes.Buffer{}
 	s.cmd = &Command{out: s.out}
-	s.cmd.Run(args)
+	err := s.cmd.Run(args)
+	if err != nil {
+		return err.Error()
+	}
 	return strings.Replace(s.out.String(), "\n", " ", -1)
 }
 

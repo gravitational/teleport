@@ -15,7 +15,7 @@ limitations under the License.
 */
 package auth
 
-import (
+/*import (
 	"net"
 	"net/http"
 
@@ -55,3 +55,4 @@ func StartHTTPServer(a string, srv *AuthServer, elog events.Log, se session.Sess
 	}
 	return hsrv.Serve(l)
 }
+*/
