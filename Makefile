@@ -49,7 +49,7 @@ pack-teleport: pkg teleport
 	cp -r ./assets/web/* $(DIR)/rootfs/etc/web-assets/
 	cp $(GOPATH)/bin/teleport $(DIR)/rootfs/usr/bin
 	cp $(GOPATH)/bin/tctl $(DIR)/rootfs/usr/bin
-	orbit pack $(DIR) $(PKG)
+	gravity package import $(DIR) gravitational.io $(PKG) --check-manifest
 	rm -rf $(DIR)
 
 pkg:
