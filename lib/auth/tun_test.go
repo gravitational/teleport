@@ -86,14 +86,14 @@ func (s *TunSuite) SetUpTest(c *C) {
 	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)
 	s.srv = NewAPIWithRoles(s.a, s.bl, session.New(s.bk), s.rec,
 		NewAllowAllPermissions(),
-		StandartRoles,
+		StandardRoles,
 	)
 
 	// set up host private key and certificate
 	c.Assert(s.a.ResetHostCA(""), IsNil)
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
-	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", 0)
+	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", "RoleAdmin", 0)
 	c.Assert(err, IsNil)
 
 	signer, err := sshutils.NewSigner(hpriv, hcert)
@@ -113,7 +113,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 func (s *TunSuite) TestUnixServerClient(c *C) {
 	srv := NewAPIWithRoles(s.a, s.bl, session.New(s.bk), s.rec,
 		NewAllowAllPermissions(),
-		StandartRoles,
+		StandardRoles,
 	)
 
 	tsrv, err := NewTunServer(

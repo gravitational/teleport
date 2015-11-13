@@ -55,7 +55,7 @@ func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	return privPem, pubBytes, nil
 }
 
-func (n *nauth) GenerateHostCert(pkey, key []byte, id, hostname string, ttl time.Duration) ([]byte, error) {
+func (n *nauth) GenerateHostCert(pkey, key []byte, id, hostname, role string, ttl time.Duration) ([]byte, error) {
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
 	if err != nil {
 		return nil, err
@@ -72,7 +72,7 @@ func (n *nauth) GenerateHostCert(pkey, key []byte, id, hostname string, ttl time
 		CertType:        ssh.HostCert,
 	}
 	cert.Permissions.Extensions = make(map[string]string)
-	cert.Permissions.Extensions["role"] = "Admin"
+	cert.Permissions.Extensions["role"] = role
 	signer, err := ssh.ParsePrivateKey(pkey)
 	if err != nil {
 		return nil, err
@@ -103,7 +103,7 @@ func (n *nauth) GenerateUserCert(pkey, key []byte, id, username string, ttl time
 		CertType:        ssh.UserCert,
 	}
 	cert.Permissions.Extensions = make(map[string]string)
-	cert.Permissions.Extensions["role"] = "Admin"
+	cert.Permissions.Extensions["role"] = "User"
 	signer, err := ssh.ParsePrivateKey(pkey)
 	if err != nil {
 		return nil, err

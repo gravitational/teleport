@@ -26,10 +26,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
+	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/services"
+
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 )
 
 // Authority implements minimal key-management facility for generating OpenSSH
@@ -39,7 +42,7 @@ type Authority interface {
 
 	// GenerateHostCert generates host certificate, it takes pkey as a signing
 	// private key (host certificate authority)
-	GenerateHostCert(pkey, key []byte, id, hostname string, ttl time.Duration) ([]byte, error)
+	GenerateHostCert(pkey, key []byte, id, hostname, role string, ttl time.Duration) ([]byte, error)
 
 	// GenerateHostCert generates user certificate, it takes pkey as a signing
 	// private key (user certificate authority)
@@ -125,13 +128,14 @@ func (s *AuthServer) ResetUserCA(pass string) error {
 // GenerateHostCert generates host certificate, it takes pkey as a signing
 // private key (host certificate authority)
 func (s *AuthServer) GenerateHostCert(
-	key []byte, id, hostname string, ttl time.Duration) ([]byte, error) {
+	key []byte, id, hostname, role string,
+	ttl time.Duration) ([]byte, error) {
 
 	hk, err := s.CAService.GetHostCA()
 	if err != nil {
 		return nil, err
 	}
-	return s.Authority.GenerateHostCert(hk.Priv, key, id, hostname, ttl)
+	return s.Authority.GenerateHostCert(hk.Priv, key, id, hostname, role, ttl)
 }
 
 // GenerateHostCert generates user certificate, it takes pkey as a signing
@@ -160,30 +164,102 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 	return sess, nil
 }
 
-func (s *AuthServer) GenerateToken(fqdn string, ttl time.Duration) (string, error) {
+func (s *AuthServer) GenerateToken(fqdn, role string, ttl time.Duration) (string, error) {
 	p, err := session.NewID(s.scrt)
 	if err != nil {
 		return "", err
 	}
-	if err := s.ProvisioningService.UpsertToken(string(p.PID), fqdn, ttl); err != nil {
+	if err := s.ProvisioningService.UpsertToken(string(p.PID), fqdn, role, ttl); err != nil {
 		return "", err
 	}
 	return string(p.SID), nil
 }
 
-func (s *AuthServer) ValidateToken(token, fqdn string) error {
+func (s *AuthServer) ValidateToken(token, fqdn string) (role string, e error) {
 	pid, err := session.DecodeSID(session.SecureID(token), s.scrt)
 	if err != nil {
-		return err
+		return "", trace.Wrap(err)
 	}
-	out, err := s.ProvisioningService.GetToken(string(pid))
+	tok, err := s.ProvisioningService.GetToken(string(pid))
 	if err != nil {
-		return err
+		return "", err
 	}
-	if out != fqdn {
-		return fmt.Errorf("fqdn does not match")
+	if tok.FQDN != fqdn {
+		return "", fmt.Errorf("fqdn does not match")
 	}
-	return nil
+	return tok.Role, nil
+}
+
+func (s *AuthServer) RegisterUsingToken(token, fqdn, role string) (keys PackedKeys, e error) {
+	pid, err := session.DecodeSID(session.SecureID(token), s.scrt)
+	if err != nil {
+		return PackedKeys{}, trace.Wrap(err)
+	}
+	tok, err := s.ProvisioningService.GetToken(string(pid))
+	if err != nil {
+		return PackedKeys{}, err
+	}
+	if tok.FQDN != fqdn {
+		return PackedKeys{}, fmt.Errorf("fqdn does not match")
+	}
+
+	if tok.Role != role {
+		return PackedKeys{}, fmt.Errorf("role does not match")
+	}
+
+	k, pub, err := s.GenerateKeyPair("")
+	if err != nil {
+		return PackedKeys{}, trace.Wrap(err)
+	}
+	c, err := s.GenerateHostCert(pub, fqdn+"_"+role, fqdn, role, 0)
+	if err != nil {
+		return PackedKeys{}, trace.Wrap(err)
+	}
+
+	keys = PackedKeys{
+		Key:  k,
+		Cert: c,
+	}
+
+	if err := s.DeleteToken(token); err != nil {
+		return PackedKeys{}, trace.Wrap(err)
+	}
+
+	return keys, nil
+}
+
+func (s *AuthServer) RegisterNewAuthServer(fqdn, token string,
+	publicSealKey encryptor.Key) (masterKey encryptor.Key, e error) {
+	pid, err := session.DecodeSID(session.SecureID(token), s.scrt)
+	if err != nil {
+		return encryptor.Key{}, trace.Wrap(err)
+	}
+	tok, err := s.ProvisioningService.GetToken(string(pid))
+	if err != nil {
+		return encryptor.Key{}, err
+	}
+	if tok.FQDN != fqdn {
+		return encryptor.Key{}, fmt.Errorf("fqdn does not match")
+	}
+
+	if tok.Role != RoleAuth {
+		return encryptor.Key{}, fmt.Errorf("role does not match")
+	}
+
+	if err := s.DeleteToken(token); err != nil {
+		return encryptor.Key{}, trace.Wrap(err)
+	}
+
+	if err := s.BkKeysService.AddSealKey(publicSealKey); err != nil {
+		return encryptor.Key{}, trace.Wrap(err)
+	}
+
+	localKey, err := s.BkKeysService.GetSignKey()
+	if err != nil {
+		return encryptor.Key{}, trace.Wrap(err)
+	}
+
+	return localKey.Public(), nil
 }
 
 func (s *AuthServer) DeleteToken(token string) error {

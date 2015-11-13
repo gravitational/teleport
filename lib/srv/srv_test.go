@@ -84,7 +84,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(s.a.ResetHostCA(""), IsNil)
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
-	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", 0)
+	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", auth.RoleAdmin, 0)
 	c.Assert(err, IsNil)
 
 	// set up user CA and set up a user that has access to the server
@@ -250,7 +250,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 
 	apiSrv := auth.NewAPIWithRoles(s.a, bl, sess.New(s.bk), rec,
 		auth.NewAllowAllPermissions(),
-		auth.StandartRoles,
+		auth.StandardRoles,
 	)
 
 	tsrv, err := auth.NewTunServer(

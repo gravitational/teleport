@@ -20,6 +20,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -132,13 +133,18 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 	if firstStart {
 		if len(cfg.AllowedTokens) != 0 {
 			log.Infof("FIRST START: Setting allowed provisioning tokens")
-			for fqdn, token := range cfg.AllowedTokens {
+			for fqdn, roleToken := range cfg.AllowedTokens {
+				x := strings.Split(roleToken, ":")
+				if len(x) != 2 {
+					return nil, nil, trace.Errorf("cfg error: incorrect AllowTokens value")
+				}
+				role, token := x[0], x[1]
 				log.Infof("FIRST START: upsert provisioning token: fqdn: %v", fqdn)
 				pid, err := session.DecodeSID(session.SecureID(token), scrt)
 				if err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
-				if err := asrv.UpsertToken(string(pid), fqdn, 600*time.Second); err != nil {
+				if err := asrv.UpsertToken(string(pid), fqdn, role, 600*time.Second); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 			}
@@ -186,7 +192,7 @@ func InitKeys(a *AuthServer, fqdn, dataDir string) (ssh.Signer, error) {
 		if err != nil {
 			return nil, err
 		}
-		c, err := a.GenerateHostCert(pub, fqdn, fqdn, 0)
+		c, err := a.GenerateHostCert(pub, fqdn, fqdn, RoleAdmin, 0)
 		if err != nil {
 			return nil, err
 		}

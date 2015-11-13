@@ -18,7 +18,6 @@ package service
 import (
 	"net/http"
 	"path"
-	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/native"
@@ -168,9 +167,12 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig) error {
 }
 
 func initSSH(supervisor Supervisor, cfg Config) error {
-	return RegisterWithAuthServer(supervisor, cfg.SSH.Token, cfg.RoleConfig(), func() error {
-		return initSSHEndpoint(supervisor, cfg)
-	})
+	return RegisterWithAuthServer(supervisor, cfg.SSH.Token,
+		cfg.RoleConfig(), auth.RoleNode,
+		func() error {
+			return initSSHEndpoint(supervisor, cfg)
+		},
+	)
 }
 
 func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
@@ -225,6 +227,7 @@ func RegisterWithAuthServer(
 	supervisor Supervisor,
 	provisioningToken string,
 	cfg RoleConfig,
+	role string,
 	callback func() error) error {
 	if cfg.DataDir == "" {
 		return trace.Errorf("please supply data directory")
@@ -246,25 +249,10 @@ func RegisterWithAuthServer(
 	// the registering client that attempts to connect to the auth server
 	// and provision the keys
 
-	// we are on the same server as the auth endpoint
-	// and there's no token. we can handle this
-	if cfg.Auth.Enabled && provisioningToken == "" {
-		log.Infof("registering in embedded mode, connecting to local auth server")
-		clt, err := auth.NewClientFromNetAddr(cfg.Auth.HTTPAddr)
-		if err != nil {
-			log.Errorf("failed to instantiate client: %v", err)
-			return trace.Wrap(err)
-		}
-		provisioningToken, err = clt.GenerateToken(cfg.Hostname, 30*time.Second)
-		if err != nil {
-			log.Errorf("failed to generate token: %v", err)
-		}
-		return trace.Wrap(err)
-	}
 	supervisor.RegisterFunc(func() error {
 		log.Infof("teleport:register connecting to auth servers %v", provisioningToken)
 		if err := auth.Register(
-			cfg.Hostname, cfg.DataDir, provisioningToken, cfg.AuthServers); err != nil {
+			cfg.Hostname, cfg.DataDir, provisioningToken, role, cfg.AuthServers); err != nil {
 			log.Errorf("teleport:ssh register failed: %v", err)
 			return trace.Wrap(err)
 		}
@@ -276,9 +264,12 @@ func RegisterWithAuthServer(
 
 func initReverseTunnel(supervisor Supervisor, cfg Config) error {
 	return RegisterWithAuthServer(
-		supervisor, cfg.ReverseTunnel.Token, cfg.RoleConfig(), func() error {
+		supervisor, cfg.ReverseTunnel.Token, cfg.RoleConfig(),
+		auth.RoleReverseTunnel,
+		func() error {
 			return initTunAgent(supervisor, cfg)
-		})
+		},
+	)
 }
 
 func initTunAgent(supervisor Supervisor, cfg Config) error {
@@ -325,10 +316,11 @@ func initTunAgent(supervisor Supervisor, cfg Config) error {
 
 func initProxy(supervisor Supervisor, cfg Config) error {
 	return RegisterWithAuthServer(
-		supervisor, cfg.Proxy.Token, cfg.RoleConfig(),
+		supervisor, cfg.Proxy.Token, cfg.RoleConfig(), auth.RoleProxy,
 		func() error {
 			return initProxyEndpoint(supervisor, cfg)
-		})
+		},
+	)
 }
 
 func initProxyEndpoint(supervisor Supervisor, cfg Config) error {

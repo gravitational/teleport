@@ -218,9 +218,10 @@ func (c *Client) DeleteRemoteCert(ctype string, fqdn, id string) error {
 //
 // The token can be used only once and only to generate the fqdn
 // specified in it.
-func (c *Client) GenerateToken(fqdn string, ttl time.Duration) (string, error) {
+func (c *Client) GenerateToken(fqdn, role string, ttl time.Duration) (string, error) {
 	out, err := c.PostForm(c.Endpoint("tokens"), url.Values{
 		"fqdn": []string{fqdn},
+		"role": []string{role},
 		"ttl":  []string{ttl.String()},
 	})
 	if err != nil {
@@ -231,6 +232,43 @@ func (c *Client) GenerateToken(fqdn string, ttl time.Duration) (string, error) {
 		return "", err
 	}
 	return re.Token, nil
+}
+
+func (c *Client) RegisterUsingToken(token, fqdn, role string) (PackedKeys, error) {
+	out, err := c.PostForm(c.Endpoint("tokens"), url.Values{
+		"token": []string{token},
+		"fqdn":  []string{fqdn},
+		"role":  []string{role},
+	})
+	if err != nil {
+		return PackedKeys{}, err
+	}
+	var keys PackedKeys
+	if err := json.Unmarshal(out.Bytes(), &keys); err != nil {
+		return PackedKeys{}, err
+	}
+	return keys, nil
+}
+
+func (c *Client) RegisterNewAuthServer(fqdn, token string,
+	publicSealKey encryptor.Key) (masterKey encryptor.Key, e error) {
+
+	pkeyJSON, err := json.Marshal(publicSealKey)
+	if err != nil {
+		return encryptor.Key{}, err
+	}
+	out, err := c.PostForm(c.Endpoint("tokens"), url.Values{
+		"token": []string{token},
+		"fqdn":  []string{fqdn},
+		"key":   []string{string(pkeyJSON)},
+	})
+	if err != nil {
+		return encryptor.Key{}, err
+	}
+	if err := json.Unmarshal(out.Bytes(), &masterKey); err != nil {
+		return encryptor.Key{}, err
+	}
+	return masterKey, nil
 }
 
 func (c *Client) Log(id lunk.EventID, e lunk.Event) {
@@ -544,12 +582,13 @@ func (c *Client) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 // plain text format, signs it using Host CA private key and returns the
 // resulting certificate.
 func (c *Client) GenerateHostCert(
-	key []byte, id, hostname string, ttl time.Duration) ([]byte, error) {
+	key []byte, id, hostname, role string, ttl time.Duration) ([]byte, error) {
 
 	out, err := c.PostForm(c.Endpoint("ca", "host", "certs"), url.Values{
 		"key":      []string{string(key)},
 		"id":       []string{id},
 		"hostname": []string{hostname},
+		"role":     []string{role},
 		"ttl":      []string{ttl.String()},
 	})
 	if err != nil {
@@ -729,7 +768,9 @@ type ClientI interface {
 	UpsertRemoteCert(cert services.RemoteCert, ttl time.Duration) error
 	GetRemoteCerts(ctype string, fqdn string) ([]services.RemoteCert, error)
 	DeleteRemoteCert(ctype string, fqdn, id string) error
-	GenerateToken(fqdn string, ttl time.Duration) (string, error)
+	GenerateToken(fqdn, role string, ttl time.Duration) (string, error)
+	RegisterUsingToken(token, fqdn, role string) (keys PackedKeys, e error)
+	RegisterNewAuthServer(fqdn, token string, publicSealKey encryptor.Key) (masterKey encryptor.Key, e error)
 	Log(id lunk.EventID, e lunk.Event)
 	LogEntry(en lunk.Entry) error
 	GetEvents(filter events.Filter) ([]lunk.Entry, error)
@@ -755,7 +796,7 @@ type ClientI interface {
 	GetHostCAPub() ([]byte, error)
 	GetUserCAPub() ([]byte, error)
 	GenerateKeyPair(pass string) ([]byte, []byte, error)
-	GenerateHostCert(key []byte, id, hostname string, ttl time.Duration) ([]byte, error)
+	GenerateHostCert(key []byte, id, hostname, role string, ttl time.Duration) ([]byte, error)
 	GenerateUserCert(key []byte, id, user string, ttl time.Duration) ([]byte, error)
 	ResetHostCA() error
 	ResetUserCA() error

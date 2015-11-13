@@ -25,18 +25,27 @@ type PermissionChecker interface {
 }
 
 type standardPermissions struct {
-	userActions          map[string]int
+	userLoginActions     map[string]int
 	nodeActions          map[string]int
 	adminActions         map[string]int
 	reverseTunnelActions map[string]int
+
+	perm map[string](map[string]int)
 }
 
 func NewStandardPermissions() PermissionChecker {
 	sp := standardPermissions{}
-	sp.userActions = map[string]int{
+	sp.perm = make(map[string](map[string]int))
+
+	sp.perm[RoleUserLogin] = map[string]int{
 		ActionSignIn:           1,
 		ActionGenerateUserCert: 1,
 	}
+
+	sp.perm[RoleReverseTunnel] = map[string]int{
+		ActionGetServers: 1,
+	}
+
 	return &sp
 }
 
@@ -44,7 +53,7 @@ func (sp *standardPermissions) HasPermission(role, action string) error {
 	if role == RoleAdmin {
 		return nil
 	}
-	if (role == RoleUser) && (sp.userActions[action] == 1) {
+	/*if (role == RoleUser) && (sp.userActions[action] == 1) {
 		return nil
 	}
 	if (role == RoleNode) && (sp.nodeActions[action] == 1) {
@@ -52,7 +61,8 @@ func (sp *standardPermissions) HasPermission(role, action string) error {
 	}
 	if (role == RoleReverseTunnel) && (sp.reverseTunnelActions[action] == 1) {
 		return nil
-	}
+	}*/
+
 	return trace.Errorf("role '%v' doesn't have permission for action '%v'",
 		role, action)
 }
@@ -69,64 +79,72 @@ func (aap *allowAllPermissions) HasPermission(role, action string) error {
 	return nil
 }
 
-var StandartRoles = []string{
+var StandardRoles = []string{
+	RoleAuth,
 	RoleUser,
+	RoleUserLogin,
 	RoleWeb,
 	RoleNode,
 	RoleAdmin,
 	RoleProvisionToken,
 	RoleReverseTunnel,
+	RoleProxy,
 }
 
 const (
+	RoleAuth           = "Auth"
 	RoleUser           = "User"
+	RoleUserLogin      = "UserLogin"
 	RoleWeb            = "Web"
 	RoleNode           = "Node"
 	RoleAdmin          = "Admin"
 	RoleProvisionToken = "ProvisionToken"
 	RoleReverseTunnel  = "ReverseTunnel"
+	RoleProxy          = "Proxy"
 
-	ActionGetSessions        = "GetSession"
-	ActionGetSession         = "GetSession"
-	ActionDeleteSession      = "DeleteSession"
-	ActionUpsertSession      = "UpsertSession"
-	ActionUpsertParty        = "UpsertParty"
-	ActionUpsertRemoteCert   = "UpsertRemoteCert"
-	ActionGetRemoteCerts     = "UpsertRemoteCert"
-	ActionDeleteRemoteCert   = "GetRemoteCerts"
-	ActionGenerateToken      = "GenerateToken"
-	ActionLog                = "Log"
-	ActionLogEntry           = "LogEntry"
-	ActionGetEvents          = "GetEvents"
-	ActionGetChunkWriter     = "GetChunkWriter"
-	ActionGetChunkReader     = "GetChunkReader"
-	ActionUpsertServer       = "UpsertServer"
-	ActionGetServers         = "GetServers"
-	ActionUpsertWebTun       = "UpsertWebTun"
-	ActionGetWebTuns         = "GetWebTuns"
-	ActionGetWebTun          = "GetWebTun"
-	ActionDeleteWebTun       = "DeleteWebTun"
-	ActionUpsertPassword     = "UpsertPassword"
-	ActionCheckPassword      = "CheckPassword"
-	ActionSignIn             = "SignIn"
-	ActionGetWebSession      = "GetWebSession"
-	ActionGetWebSessionsKeys = "GetWebSessionsKeys"
-	ActionDeleteWebSession   = "DeleteWebSession"
-	ActionGetUsers           = "GetUsers"
-	ActionDeleteUser         = "DeleteUser"
-	ActionUpsertUserKey      = "UpsertUserKey"
-	ActionGetUserKeys        = "GetUserKeys"
-	ActionDeleteUserKey      = "DeleteUserKey"
-	ActionGetHostCAPub       = "GetHostCAPub"
-	ActionGetUserCAPub       = "GetUserCAPub"
-	ActionGenerateKeyPair    = "GenerateKeyPair"
-	ActionGenerateHostCert   = "GenerateHostCert"
-	ActionGenerateUserCert   = "GenerateUserCert"
-	ActionResetHostCA        = "ResetHostCA"
-	ActionResetUserCA        = "ResetUserCA"
-	ActionGenerateSealKey    = "GenerateSealKey"
-	ActionGetSealKeys        = "GetSeakKeys"
-	ActionGetSealKey         = "GetSealKey"
-	ActionDeleteSealKey      = "DeleteSealKey"
-	ActionAddSealKey         = "AddSealKey"
+	ActionGetSessions           = "GetSession"
+	ActionGetSession            = "GetSession"
+	ActionDeleteSession         = "DeleteSession"
+	ActionUpsertSession         = "UpsertSession"
+	ActionUpsertParty           = "UpsertParty"
+	ActionUpsertRemoteCert      = "UpsertRemoteCert"
+	ActionGetRemoteCerts        = "UpsertRemoteCert"
+	ActionDeleteRemoteCert      = "GetRemoteCerts"
+	ActionGenerateToken         = "GenerateToken"
+	ActionRegisterUsingToken    = "RegisterUsingToken"
+	ActionRegisterNewAuthServer = "RegisterNewAuthServer"
+	ActionLog                   = "Log"
+	ActionLogEntry              = "LogEntry"
+	ActionGetEvents             = "GetEvents"
+	ActionGetChunkWriter        = "GetChunkWriter"
+	ActionGetChunkReader        = "GetChunkReader"
+	ActionUpsertServer          = "UpsertServer"
+	ActionGetServers            = "GetServers"
+	ActionUpsertWebTun          = "UpsertWebTun"
+	ActionGetWebTuns            = "GetWebTuns"
+	ActionGetWebTun             = "GetWebTun"
+	ActionDeleteWebTun          = "DeleteWebTun"
+	ActionUpsertPassword        = "UpsertPassword"
+	ActionCheckPassword         = "CheckPassword"
+	ActionSignIn                = "SignIn"
+	ActionGetWebSession         = "GetWebSession"
+	ActionGetWebSessionsKeys    = "GetWebSessionsKeys"
+	ActionDeleteWebSession      = "DeleteWebSession"
+	ActionGetUsers              = "GetUsers"
+	ActionDeleteUser            = "DeleteUser"
+	ActionUpsertUserKey         = "UpsertUserKey"
+	ActionGetUserKeys           = "GetUserKeys"
+	ActionDeleteUserKey         = "DeleteUserKey"
+	ActionGetHostCAPub          = "GetHostCAPub"
+	ActionGetUserCAPub          = "GetUserCAPub"
+	ActionGenerateKeyPair       = "GenerateKeyPair"
+	ActionGenerateHostCert      = "GenerateHostCert"
+	ActionGenerateUserCert      = "GenerateUserCert"
+	ActionResetHostCA           = "ResetHostCA"
+	ActionResetUserCA           = "ResetUserCA"
+	ActionGenerateSealKey       = "GenerateSealKey"
+	ActionGetSealKeys           = "GetSeakKeys"
+	ActionGetSealKey            = "GetSealKey"
+	ActionDeleteSealKey         = "DeleteSealKey"
+	ActionAddSealKey            = "AddSealKey"
 )

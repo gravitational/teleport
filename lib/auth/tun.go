@@ -16,15 +16,12 @@ limitations under the License.
 package auth
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -126,31 +123,6 @@ func (s *TunServer) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 			log.Infof("could not accept channel (%s)", err)
 		}
 		go s.handleWebAgentRequest(sconn, ch)
-	case ReqProvision:
-		if !s.haveExt(sconn, ExtToken) {
-			nch.Reject(
-				ssh.UnknownChannelType,
-				fmt.Sprintf("don't have token for: %v", cht))
-			return
-		}
-		ch, _, err := nch.Accept()
-		if err != nil {
-			log.Infof("could not accept channel (%s)", err)
-		}
-		go s.handleProvisionRequest(sconn, ch)
-	case ReqNewAuth:
-		if !s.haveExt(sconn, ExtToken) {
-			nch.Reject(
-				ssh.UnknownChannelType,
-				fmt.Sprintf("don't have token for: %v", cht))
-			return
-		}
-		ch, _, err := nch.Accept()
-		if err != nil {
-			log.Infof("could not accept channel (%s)", err)
-		}
-		go s.handleNewAuthRequest(sconn, ch)
-
 	default:
 		nch.Reject(ssh.UnknownChannelType, fmt.Sprintf(
 			"unknown channel type: %v", cht))
@@ -192,6 +164,13 @@ func (s *TunServer) haveExt(sconn *ssh.ServerConn, ext ...string) bool {
 
 func (s *TunServer) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel) {
 	defer ch.Close()
+
+	if sconn.Permissions.Extensions["role"] != RoleWeb {
+		log.Errorf("role %v doesn't have permission to request agent",
+			sconn.Permissions.Extensions["role"])
+		return
+	}
+
 	a := agent.NewKeyring()
 	log.Infof("handleWebAgentRequest start for %v", sconn.RemoteAddr())
 
@@ -245,113 +224,8 @@ func (s *TunServer) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Chann
 		addr, addr,
 	)
 	role := sconn.Permissions.Extensions["role"]
-	if role == "" {
-		role = RoleUser
-	}
 	if err := s.apiServer.HandleConn(conn, role); err != nil {
 		log.Errorf(err.Error())
-	}
-}
-
-func (s *TunServer) handleProvisionRequest(sconn *ssh.ServerConn, ch ssh.Channel) {
-	defer ch.Close()
-
-	password := []byte(sconn.Permissions.Extensions[ExtToken])
-
-	var ab *authBucket
-	if err := json.Unmarshal(password, &ab); err != nil {
-		log.Errorf("token error: %v", err)
-		return
-	}
-
-	k, pub, err := s.a.GenerateKeyPair("")
-	if err != nil {
-		log.Errorf("gen key pair error: %v", err)
-		return
-	}
-	c, err := s.a.GenerateHostCert(pub, ab.User, ab.User, 0)
-	if err != nil {
-		log.Errorf("gen cert error: %v", err)
-		return
-	}
-
-	keys := &PackedKeys{
-		Key:  k,
-		Cert: c,
-	}
-	data, err := json.Marshal(keys)
-	if err != nil {
-		log.Errorf("gen marshal error: %v", err)
-		return
-	}
-
-	if _, err := io.Copy(ch.Stderr(), bytes.NewReader(data)); err != nil {
-		log.Errorf("key transfer error: %v", err)
-		return
-	}
-
-	log.Infof("keys for %v transferred successfully", ab.User)
-	if err := s.a.DeleteToken(string(ab.Pass)); err != nil {
-		log.Errorf("failed to delete token: %v", err)
-	}
-}
-
-func (s *TunServer) handleNewAuthRequest(sconn *ssh.ServerConn, ch ssh.Channel) {
-	defer ch.Close()
-
-	log.Infof("Registering new auth server")
-
-	password := []byte(sconn.Permissions.Extensions[ExtToken])
-
-	var ab *authBucket
-	if err := json.Unmarshal(password, &ab); err != nil {
-		log.Errorf("token error: %v", err)
-		return
-	}
-
-	buf := &bytes.Buffer{}
-	if _, err := io.Copy(buf, ch.Stderr()); err != nil {
-		log.Errorf("failed to read remote key from channel: %v", err)
-		return
-	}
-
-	var remoteKey encryptor.Key
-	if err := json.Unmarshal(buf.Bytes(), &remoteKey); err != nil {
-		log.Errorf("key unmarshal error: %v", err)
-		return
-	}
-
-	if err := s.a.AddSealKey(remoteKey); err != nil {
-		log.Errorf("Can't add remote key to backend: %v", err)
-		return
-	}
-
-	myKey, err := s.a.GetSignKey()
-	if err != nil {
-		log.Errorf("can't get backend sign key: %v", err)
-		return
-	}
-	myKey = myKey.Public()
-
-	data, err := json.Marshal(myKey)
-	if err != nil {
-		log.Errorf("gen marshal error: %v", err)
-		return
-	}
-
-	if _, err := io.Copy(ch.Stderr(), bytes.NewReader(data)); err != nil {
-		log.Errorf("key transfer error: %v", err)
-		return
-	}
-
-	if err := ch.CloseWrite(); err != nil {
-		log.Errorf("Can't close write: %v", err)
-		return
-	}
-
-	log.Infof("keys for %v transferred successfully", ab.User)
-	if err := s.a.DeleteToken(string(ab.Pass)); err != nil {
-		log.Errorf("failed to delete token: %v", err)
 	}
 }
 
@@ -402,7 +276,7 @@ func (s *TunServer) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebPassword: "<password>",
-				"role":         RoleUser,
+				"role":         RoleUserLogin,
 			},
 		}
 		log.Infof("password authenticated user: '%v'", conn.User())
@@ -423,7 +297,8 @@ func (s *TunServer) passwordAuth(
 		log.Infof("session authenticated user: '%v'", conn.User())
 		return perms, nil
 	case "provision-token":
-		if err := s.a.ValidateToken(string(ab.Pass), ab.User); err != nil {
+		_, err := s.a.ValidateToken(string(ab.Pass), ab.User)
+		if err != nil {
 			err := fmt.Errorf("%v token validation error: %v", ab.User, err)
 			log.Errorf("%v", err)
 			return nil, err

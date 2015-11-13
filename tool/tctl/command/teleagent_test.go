@@ -57,7 +57,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	c.Assert(a.ResetHostCA(""), IsNil)
 	hpriv, hpub, err := a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
-	hcert, err := a.GenerateHostCert(hpub, "localhost", "localhost", 0)
+	hcert, err := a.GenerateHostCert(hpub, "localhost", "localhost", "RoleAdmin", 0)
 	c.Assert(err, IsNil)
 
 	// set up user CA and set up a user that has access to the server
@@ -83,7 +83,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	c.Assert(err, IsNil)
 	apiSrv := auth.NewAPIWithRoles(a, bl, sess.New(bk), rec,
 		auth.NewAllowAllPermissions(),
-		auth.StandartRoles,
+		auth.StandardRoles,
 	)
 
 	tsrv, err := auth.NewTunServer(

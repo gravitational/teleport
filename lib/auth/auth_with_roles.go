@@ -108,11 +108,27 @@ func (a *AuthWithRoles) DeleteRemoteCert(ctype string, fqdn, id string) error {
 		return a.a.DeleteRemoteCert(ctype, fqdn, id)
 	}
 }
-func (a *AuthWithRoles) GenerateToken(fqdn string, ttl time.Duration) (string, error) {
+func (a *AuthWithRoles) GenerateToken(fqdn, role string, ttl time.Duration) (string, error) {
 	if err := a.c.HasPermission(a.role, ActionGenerateToken); err != nil {
 		return "", err
 	} else {
-		return a.a.GenerateToken(fqdn, ttl)
+		return a.a.GenerateToken(fqdn, role, ttl)
+	}
+}
+func (a *AuthWithRoles) RegisterUsingToken(token, fqdn, role string) (keys PackedKeys, e error) {
+	if err := a.c.HasPermission(a.role, ActionRegisterUsingToken); err != nil {
+		return PackedKeys{}, err
+	} else {
+		return a.a.RegisterUsingToken(token, fqdn, role)
+	}
+}
+func (a *AuthWithRoles) RegisterNewAuthServer(fqdn, token string,
+	publicSealKey encryptor.Key) (masterKey encryptor.Key, e error) {
+
+	if err := a.c.HasPermission(a.role, ActionRegisterNewAuthServer); err != nil {
+		return encryptor.Key{}, err
+	} else {
+		return a.a.RegisterNewAuthServer(fqdn, token, publicSealKey)
 	}
 }
 func (a *AuthWithRoles) Log(id lunk.EventID, e lunk.Event) {
@@ -290,11 +306,14 @@ func (a *AuthWithRoles) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 		return a.a.GenerateKeyPair(pass)
 	}
 }
-func (a *AuthWithRoles) GenerateHostCert(key []byte, id, hostname string, ttl time.Duration) ([]byte, error) {
+func (a *AuthWithRoles) GenerateHostCert(
+	key []byte, id, hostname, role string,
+	ttl time.Duration) ([]byte, error) {
+
 	if err := a.c.HasPermission(a.role, ActionGenerateHostCert); err != nil {
 		return nil, err
 	} else {
-		return a.a.GenerateHostCert(key, id, hostname, ttl)
+		return a.a.GenerateHostCert(key, id, hostname, role, ttl)
 	}
 }
 func (a *AuthWithRoles) GenerateUserCert(key []byte, id, user string, ttl time.Duration) ([]byte, error) {

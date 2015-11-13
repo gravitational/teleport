@@ -171,7 +171,7 @@ func (s *APISuite) TestGenerateHostCert(c *C) {
 	c.Assert(err, IsNil)
 
 	// make sure we can parse the private and public key
-	cert, err := s.clt.GenerateHostCert(pub, "id1", "a.example.com", time.Hour)
+	cert, err := s.clt.GenerateHostCert(pub, "id1", "a.example.com", "RoleExample", time.Hour)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
@@ -361,7 +361,7 @@ func (s *APISuite) TestRecorder(c *C) {
 }
 
 func (s *APISuite) TestTokens(c *C) {
-	out, err := s.clt.GenerateToken("a.example.com", 0)
+	out, err := s.clt.GenerateToken("a.example.com", "RoleExample", 0)
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Not(Equals), 0)
 }

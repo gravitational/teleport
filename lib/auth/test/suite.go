@@ -58,7 +58,8 @@ func (s *AuthSuite) GenerateHostCert(c *C) {
 	priv, pub, err := s.A.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
-	cert, err := s.A.GenerateHostCert(priv, pub, "auth", "auth.example.com", time.Hour)
+	cert, err := s.A.GenerateHostCert(priv, pub, "auth",
+		"auth.example.com", "RoleExample", time.Hour)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)

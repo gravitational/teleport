@@ -109,7 +109,8 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 
 	// Tokens
 	srv.POST("/v1/tokens", srv.generateToken)
-
+	srv.POST("/v1/tokens/register", srv.registerUsingToken)
+	srv.POST("/v1/tokens/register/auth", srv.registerNewAuthServer)
 	// Events
 	srv.POST("/v1/events", srv.submitEvents)
 	srv.GET("/v1/events", srv.getEvents)
@@ -515,20 +516,21 @@ func (s *APIServer) getUserCAPub(w http.ResponseWriter, r *http.Request, _ httpr
 }
 
 func (s *APIServer) generateHostCert(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	var id, hostname, key string
+	var id, hostname, key, role string
 	var ttl time.Duration
 
 	err := form.Parse(r,
 		form.String("key", &key, form.Required()),
 		form.String("id", &id, form.Required()),
 		form.String("hostname", &hostname, form.Required()),
+		form.String("role", &role, form.Required()),
 		form.Duration("ttl", &ttl))
 
 	if err != nil {
 		reply(w, http.StatusBadRequest, err.Error())
 	}
 
-	cert, err := s.a.GenerateHostCert([]byte(key), id, hostname, ttl)
+	cert, err := s.a.GenerateHostCert([]byte(key), id, hostname, role, ttl)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
@@ -558,22 +560,68 @@ func (s *APIServer) generateUserCert(w http.ResponseWriter, r *http.Request, _ h
 }
 
 func (s *APIServer) generateToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	var fqdn string
+	var fqdn, role string
 	var ttl time.Duration
 
 	err := form.Parse(r,
 		form.String("fqdn", &fqdn, form.Required()),
+		form.String("role", &role, form.Required()),
 		form.Duration("ttl", &ttl))
 
 	if err != nil {
 		reply(w, http.StatusBadRequest, err.Error())
 	}
-	token, err := s.a.GenerateToken(fqdn, ttl)
+	token, err := s.a.GenerateToken(fqdn, role, ttl)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	reply(w, http.StatusOK, tokenResponse{Token: string(token)})
+}
+
+func (s *APIServer) registerUsingToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	var token, fqdn, role string
+
+	err := form.Parse(r,
+		form.String("token", &token, form.Required()),
+		form.String("fqdn", &fqdn, form.Required()),
+		form.String("role", &role, form.Required()),
+	)
+	if err != nil {
+		reply(w, http.StatusBadRequest, err.Error())
+	}
+	keys, err := s.a.RegisterUsingToken(token, fqdn, role)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	reply(w, http.StatusOK, keys)
+}
+
+func (s *APIServer) registerNewAuthServer(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	var token, fqdn, pkeyJSON string
+
+	err := form.Parse(r,
+		form.String("token", &token, form.Required()),
+		form.String("fqdn", &fqdn, form.Required()),
+		form.String("key", &pkeyJSON, form.Required()),
+	)
+	if err != nil {
+		reply(w, http.StatusBadRequest, err.Error())
+	}
+
+	var pkey encryptor.Key
+	err = json.Unmarshal([]byte(pkeyJSON), &pkey)
+	if err != nil {
+		reply(w, http.StatusBadRequest, err.Error())
+	}
+
+	key, err := s.a.RegisterNewAuthServer(fqdn, token, pkey)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	reply(w, http.StatusOK, key)
 }
 
 func (s *APIServer) submitEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -753,7 +801,7 @@ func replyErr(w http.ResponseWriter, e error) {
 	log.Errorf("auth server unexpected error: %v", e)
 	// do not leak the unexpected error to the callee as we are not sure
 	// if it's safe to disclose that information
-	reply(w, http.StatusInternalServerError, message("internal server error"))
+	reply(w, http.StatusInternalServerError, message("internal server error: "+e.Error()))
 }
 
 func reply(w http.ResponseWriter, code int, message interface{}) {

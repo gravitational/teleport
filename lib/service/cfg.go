@@ -128,6 +128,8 @@ type AuthConfig struct {
 	SecretKey string `yaml:"secret_key" env:"TELEPORT_AUTH_SECRET_KEY"`
 
 	// AllowedTokens is a set of tokens that will be added as trusted
+	// key - FQDN
+	// value - Role:Token
 	AllowedTokens KeyVal `yaml:"allowed_tokens" env:"TELEPORT_AUTH_ALLOWED_TOKENS"`
 
 	// TrustedAuthorities is a set of trusted user certificate authorities

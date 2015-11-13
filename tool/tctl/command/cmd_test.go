@@ -124,7 +124,7 @@ func (s *CmdSuite) SetUpTest(c *C) {
 	//s.asrv = auth.NewAuthServer(s.bk, authority.New(), s.scrt)
 	s.srv = auth.NewAPIWithRoles(s.asrv, s.bl, session.New(s.bk), s.rec,
 		auth.NewAllowAllPermissions(),
-		auth.StandartRoles,
+		auth.StandardRoles,
 	)
 
 	/*c.Assert(s.asrv.ResetHostCA(""), IsNil)
@@ -247,8 +247,11 @@ func (s *CmdSuite) TestUserCRUD(c *C) {
 
 func (s *CmdSuite) TestGenerateToken(c *C) {
 	token := s.run(
-		"token", "generate", "--fqdn", "a.example.com", "--ttl", "100s")
-	c.Assert(s.asrv.ValidateToken(token, "a.example.com"), IsNil)
+		"token", "generate", "--fqdn", "a.example.com",
+		"--role", "role123", "--ttl", "100s")
+	role, err := s.asrv.ValidateToken(token, "a.example.com")
+	c.Assert(err, IsNil)
+	c.Assert(role, Equals, "role123")
 }
 
 func (s *CmdSuite) TestRemoteCertCRUD(c *C) {
