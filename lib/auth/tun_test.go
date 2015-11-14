@@ -85,7 +85,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 
 	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)
 	s.srv = NewAPIWithRoles(s.a, s.bl, session.New(s.bk), s.rec,
-		NewAllowAllPermissions(),
+		NewStandardPermissions(),
 		StandardRoles,
 	)
 
@@ -93,7 +93,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 	c.Assert(s.a.ResetHostCA(""), IsNil)
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
-	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", "RoleAdmin", 0)
+	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", RoleNode, 0)
 	c.Assert(err, IsNil)
 
 	signer, err := sshutils.NewSigner(hpriv, hcert)
@@ -171,21 +171,17 @@ func (s *TunSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 	defer clt.Close()
 
-	hotpURL, _, err = clt.UpsertPassword(user, pass)
+	/*hotpURL, _, err = s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
 
 	otp, label, err = hotp.FromURL(hotpURL)
 	c.Assert(err, IsNil)
 	c.Assert(label, Equals, "ws-test")
-	otp.Increment()
+	otp.Increment()*/
 
 	ws, err := clt.SignIn(user, pass)
 	c.Assert(err, IsNil)
 	c.Assert(ws, Not(Equals), "")
-
-	out, err := clt.GetWebSession(user, ws)
-	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, ws)
 
 	// Resume session via sesison id
 	authMethod, err = NewWebSessionAuth(user, []byte(ws))
@@ -195,6 +191,72 @@ func (s *TunSuite) TestSessions(c *C) {
 		utils.NetAddr{Network: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer cltw.Close()
+
+	out, err := cltw.GetWebSession(user, ws)
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, ws)
+
+	err = cltw.DeleteWebSession(user, ws)
+	c.Assert(err, IsNil)
+
+	_, err = clt.GetWebSession(user, ws)
+	c.Assert(err, NotNil)
+}
+
+func (s *TunSuite) TestPermissions(c *C) {
+	c.Assert(s.a.ResetUserCA(""), IsNil)
+
+	user := "ws-test2"
+	pass := []byte("ws-abc1234")
+
+	hotpURL, _, err := s.a.UpsertPassword(user, pass)
+	c.Assert(err, IsNil)
+
+	otp, label, err := hotp.FromURL(hotpURL)
+	c.Assert(err, IsNil)
+	c.Assert(label, Equals, "ws-test2")
+	otp.Increment()
+
+	authMethod, err := NewWebPasswordAuth(user, pass, otp.OTP())
+	c.Assert(err, IsNil)
+
+	clt, err := NewTunClient(
+		utils.NetAddr{Network: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
+	c.Assert(err, IsNil)
+	defer clt.Close()
+
+	ws, err := clt.SignIn(user, pass)
+	c.Assert(err, IsNil)
+	c.Assert(ws, Not(Equals), "")
+
+	// Requesting forbidded for User action
+	_, err = clt.GetServers()
+	c.Assert(err, NotNil)
+
+	// Requesting forbidded for User action
+	_, err = clt.GetWebSession(user, ws)
+	c.Assert(err, NotNil)
+
+	// Resume session via sesison id
+	authMethod, err = NewWebSessionAuth(user, []byte(ws))
+	c.Assert(err, IsNil)
+
+	cltw, err := NewTunClient(
+		utils.NetAddr{Network: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
+	c.Assert(err, IsNil)
+	defer cltw.Close()
+
+	// Requesting forbidded for Web action
+	_, err = cltw.GetServers()
+	c.Assert(err, NotNil)
+
+	// Requesting forbidded for Web action
+	_, err = cltw.SignIn(user, pass)
+	c.Assert(err, NotNil)
+
+	out, err := cltw.GetWebSession(user, ws)
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, ws)
 
 	err = cltw.DeleteWebSession(user, ws)
 	c.Assert(err, IsNil)

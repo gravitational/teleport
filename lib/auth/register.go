@@ -45,7 +45,7 @@ func Register(fqdn, dataDir, token, role string, servers []utils.NetAddr) error 
 
 	defer client.Close()
 
-	keys, err := client.RegisterUsingToken(token, fqdn, role)
+	keys, err := client.RegisterUsingToken(tok, fqdn, role)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -73,7 +73,7 @@ func RegisterNewAuth(fqdn, token string, publicSealKey encryptor.Key,
 	}
 	defer client.Close()
 
-	return client.RegisterNewAuthServer(fqdn, token, publicSealKey)
+	return client.RegisterNewAuthServer(fqdn, tok, publicSealKey)
 }
 
 func readToken(token string) (string, error) {

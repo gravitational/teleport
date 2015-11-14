@@ -53,7 +53,7 @@ func NewTeleport(cfg Config) (Supervisor, error) {
 	if err := validateConfig(cfg); err != nil {
 		return nil, err
 	}
-	setDefaults(&cfg)
+	SetDefaults(&cfg)
 
 	// if user started auth and something else and did not
 	// provide auth address for that something,
@@ -139,13 +139,7 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig) error {
 		return trace.Wrap(err)
 	}
 	apisrv := auth.NewAPIWithRoles(asrv, elog, session.New(b), rec,
-		auth.NewAllowAllPermissions(),
-		[]string{
-			auth.RoleAdmin,
-			auth.RoleNode,
-			auth.RoleReverseTunnel,
-			auth.RoleUser,
-		},
+		auth.NewStandardPermissions(), auth.StandardRoles,
 	)
 
 	// register auth SSH-based endpoint
@@ -265,7 +259,7 @@ func RegisterWithAuthServer(
 func initReverseTunnel(supervisor Supervisor, cfg Config) error {
 	return RegisterWithAuthServer(
 		supervisor, cfg.ReverseTunnel.Token, cfg.RoleConfig(),
-		auth.RoleReverseTunnel,
+		auth.RoleNode,
 		func() error {
 			return initTunAgent(supervisor, cfg)
 		},
@@ -316,7 +310,7 @@ func initTunAgent(supervisor Supervisor, cfg Config) error {
 
 func initProxy(supervisor Supervisor, cfg Config) error {
 	return RegisterWithAuthServer(
-		supervisor, cfg.Proxy.Token, cfg.RoleConfig(), auth.RoleProxy,
+		supervisor, cfg.Proxy.Token, cfg.RoleConfig(), auth.RoleNode,
 		func() error {
 			return initProxyEndpoint(supervisor, cfg)
 		},

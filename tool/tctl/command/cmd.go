@@ -113,7 +113,7 @@ func (cmd *Command) Run(args []string) error {
 
 	tokenGenerate := token.Command("generate", "Generate provisioning token for server with fqdn")
 	tokenGenerateFQDN := tokenGenerate.Flag("fqdn", "FQDN of the server").Required().String()
-	tokenGenerateRole := tokenGenerate.Flag("role", "Role of the server "+fmt.Sprintf("%v", auth.StandardRoles)).Required().String()
+	tokenGenerateRole := tokenGenerate.Flag("role", "Role of the server: Node or Auth ").Default(auth.RoleNode).String()
 	tokenGenerateTTL := tokenGenerate.Flag("ttl", "Time to live").Default("120s").Duration()
 	tokenGenerateOutput := tokenGenerate.Flag("output", "Optional output file").String()
 	tokenGenerateSecret := tokenGenerate.Flag("secret", "Optional secret key, will be used to generate secure token instead of talking to server").String()
@@ -176,6 +176,7 @@ func (cmd *Command) Run(args []string) error {
 		if err := service.ParseYAMLFile(*configPath, &cfg); err != nil {
 			return trace.Wrap(err)
 		}
+		service.SetDefaults(&cfg)
 		if cfg.Auth.Enabled && len(cfg.AuthServers) == 0 {
 			cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
 		}

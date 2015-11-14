@@ -235,7 +235,7 @@ func (c *Client) GenerateToken(fqdn, role string, ttl time.Duration) (string, er
 }
 
 func (c *Client) RegisterUsingToken(token, fqdn, role string) (PackedKeys, error) {
-	out, err := c.PostForm(c.Endpoint("tokens"), url.Values{
+	out, err := c.PostForm(c.Endpoint("tokens", "register"), url.Values{
 		"token": []string{token},
 		"fqdn":  []string{fqdn},
 		"role":  []string{role},
@@ -257,7 +257,7 @@ func (c *Client) RegisterNewAuthServer(fqdn, token string,
 	if err != nil {
 		return encryptor.Key{}, err
 	}
-	out, err := c.PostForm(c.Endpoint("tokens"), url.Values{
+	out, err := c.PostForm(c.Endpoint("tokens", "register", "auth"), url.Values{
 		"token": []string{token},
 		"fqdn":  []string{fqdn},
 		"key":   []string{string(pkeyJSON)},

@@ -25,25 +25,38 @@ type PermissionChecker interface {
 }
 
 type standardPermissions struct {
-	userLoginActions     map[string]int
-	nodeActions          map[string]int
-	adminActions         map[string]int
-	reverseTunnelActions map[string]int
-
-	perm map[string](map[string]int)
+	permissions map[string](map[string]int)
 }
 
 func NewStandardPermissions() PermissionChecker {
 	sp := standardPermissions{}
-	sp.perm = make(map[string](map[string]int))
+	sp.permissions = make(map[string](map[string]int))
 
-	sp.perm[RoleUserLogin] = map[string]int{
+	sp.permissions[RoleUser] = map[string]int{
 		ActionSignIn:           1,
 		ActionGenerateUserCert: 1,
 	}
 
-	sp.perm[RoleReverseTunnel] = map[string]int{
-		ActionGetServers: 1,
+	sp.permissions[RoleProvisionToken] = map[string]int{
+		ActionRegisterUsingToken:    1,
+		ActionRegisterNewAuthServer: 1,
+	}
+
+	sp.permissions[RoleNode] = map[string]int{
+		ActionUpsertServer:   1,
+		ActionGetUserCAPub:   1,
+		ActionGetRemoteCerts: 1,
+		ActionGetUserKeys:    1,
+		ActionGetServers:     1,
+		ActionGetHostCAPub:   1,
+		ActionUpsertParty:    1,
+		ActionLogEntry:       1,
+		ActionGetChunkWriter: 1,
+	}
+
+	sp.permissions[RoleWeb] = map[string]int{
+		ActionGetWebSession:    1,
+		ActionDeleteWebSession: 1,
 	}
 
 	return &sp
@@ -53,18 +66,16 @@ func (sp *standardPermissions) HasPermission(role, action string) error {
 	if role == RoleAdmin {
 		return nil
 	}
-	/*if (role == RoleUser) && (sp.userActions[action] == 1) {
-		return nil
+	if permissions, ok := sp.permissions[role]; ok {
+		if permissions[action] == 1 {
+			return nil
+		} else {
+			return trace.Errorf("role '%v' doesn't have permission for action '%v'",
+				role, action)
+		}
 	}
-	if (role == RoleNode) && (sp.nodeActions[action] == 1) {
-		return nil
-	}
-	if (role == RoleReverseTunnel) && (sp.reverseTunnelActions[action] == 1) {
-		return nil
-	}*/
-
-	return trace.Errorf("role '%v' doesn't have permission for action '%v'",
-		role, action)
+	return trace.Errorf("role '%v' is not allowed",
+		role)
 }
 
 type allowAllPermissions struct {
@@ -82,25 +93,19 @@ func (aap *allowAllPermissions) HasPermission(role, action string) error {
 var StandardRoles = []string{
 	RoleAuth,
 	RoleUser,
-	RoleUserLogin,
 	RoleWeb,
 	RoleNode,
 	RoleAdmin,
 	RoleProvisionToken,
-	RoleReverseTunnel,
-	RoleProxy,
 }
 
 const (
 	RoleAuth           = "Auth"
 	RoleUser           = "User"
-	RoleUserLogin      = "UserLogin"
 	RoleWeb            = "Web"
 	RoleNode           = "Node"
 	RoleAdmin          = "Admin"
 	RoleProvisionToken = "ProvisionToken"
-	RoleReverseTunnel  = "ReverseTunnel"
-	RoleProxy          = "Proxy"
 
 	ActionGetSessions           = "GetSession"
 	ActionGetSession            = "GetSession"

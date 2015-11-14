@@ -102,8 +102,6 @@ func (n *nauth) GenerateUserCert(pkey, key []byte, id, username string, ttl time
 		ValidBefore:     validBefore,
 		CertType:        ssh.UserCert,
 	}
-	cert.Permissions.Extensions = make(map[string]string)
-	cert.Permissions.Extensions["role"] = "User"
 	signer, err := ssh.ParsePrivateKey(pkey)
 	if err != nil {
 		return nil, err

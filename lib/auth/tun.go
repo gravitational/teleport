@@ -276,7 +276,7 @@ func (s *TunServer) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebPassword: "<password>",
-				"role":         RoleUserLogin,
+				"role":         RoleUser,
 			},
 		}
 		log.Infof("password authenticated user: '%v'", conn.User())

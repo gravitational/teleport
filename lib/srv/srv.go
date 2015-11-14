@@ -197,42 +197,6 @@ func (s *Server) isAuthority(auth ssh.PublicKey) bool {
 	return false
 }
 
-// userKeys returns keys registered for a given user in a configuration backend
-func (s *Server) userKeys(user string) ([]ssh.PublicKey, error) {
-	authKeys, err := s.ap.GetUserKeys(user)
-	if err != nil {
-		log.Errorf("failed to retrieve user keys for %v, err: %v", user, err)
-		return nil, err
-	}
-	out := []ssh.PublicKey{}
-	for _, ak := range authKeys {
-		key, _, _, _, err := ssh.ParseAuthorizedKey(ak.Value)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"parse err pubkey for user=%v, id=%v, key='%v', err: %v",
-				user, ak.ID, string(ak.Value), err)
-		}
-		out = append(out, key)
-	}
-
-	// TODO(klizhentas) for optional security, we may restrict access
-	// to web session keys for some hosts
-	webKeys, err := s.ap.GetWebSessionsKeys(user)
-	if err != nil {
-		return nil, err
-	}
-	for _, wk := range webKeys {
-		key, _, _, _, err := ssh.ParseAuthorizedKey(wk.Value)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"parse err pubkey for user=%v, key='%v', err: %v",
-				user, string(wk.Value), err)
-		}
-		out = append(out, key)
-	}
-	return out, nil
-}
-
 // keyAuth implements SSH client authentication using public keys and is called
 // by the server every time the client connects
 func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
@@ -261,7 +225,9 @@ func (s *Server) Close() error {
 }
 
 func (s *Server) Start() error {
-	go s.heartbeatPresence()
+	if !s.proxyMode {
+		go s.heartbeatPresence()
+	}
 	return s.srv.Start()
 }
 

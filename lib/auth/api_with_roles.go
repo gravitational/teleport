@@ -48,6 +48,7 @@ func NewAPIWithRoles(s *AuthServer, elog events.Log,
 			se:   se,
 			rec:  rec,
 			c:    c,
+			role: role,
 		}
 		server := NewAPIServer(&a)
 		api.listeners[role] = utils.NewMemoryListener()
