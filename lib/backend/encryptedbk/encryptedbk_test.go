@@ -22,7 +22,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/backend/test"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
@@ -36,11 +35,9 @@ type EncryptedBkSuite struct {
 var _ = Suite(&EncryptedBkSuite{})
 
 func (s *EncryptedBkSuite) SetUpSuite(c *C) {
-	log.Initialize("console", "ERROR")
 	var err error
 	s.key, err = encryptor.GenerateGPGKey("key01")
 	c.Assert(err, IsNil)
-
 }
 
 func (s *EncryptedBkSuite) SetUpTest(c *C) {

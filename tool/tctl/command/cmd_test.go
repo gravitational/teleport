@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	//	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
@@ -121,20 +120,10 @@ func (s *CmdSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.asrv = asrv
 
-	//s.asrv = auth.NewAuthServer(s.bk, authority.New(), s.scrt)
 	s.srv = auth.NewAPIWithRoles(s.asrv, s.bl, session.New(s.bk), s.rec,
 		auth.NewAllowAllPermissions(),
 		auth.StandardRoles,
 	)
-
-	/*c.Assert(s.asrv.ResetHostCA(""), IsNil)
-	hpriv, hpub, err := s.asrv.GenerateKeyPair("")
-	c.Assert(err, IsNil)
-	hcert, err := s.asrv.GenerateHostCert(hpub, "localhost", "localhost", 0)
-	c.Assert(err, IsNil)
-
-	signer, err := sshutils.NewSigner(hpriv, hcert)
-	c.Assert(err, IsNil)*/
 
 	tunAddr, err := utils.ParseAddr(s.tunAddress)
 	tsrv, err := auth.NewTunServer(
@@ -145,13 +134,6 @@ func (s *CmdSuite) SetUpTest(c *C) {
 	s.tsrv = tsrv
 	c.Assert(tsrv.Start(), IsNil)
 
-	/*client, err := auth.NewTunClient(
-		*tunAddr,
-		"localhost",
-		[]ssh.AuthMethod{ssh.PublicKeys(signer)})
-	c.Assert(err, IsNil)
-
-	s.clt = client*/
 	s.out = &bytes.Buffer{}
 	s.cmd = &Command{out: s.out}
 
@@ -175,7 +157,6 @@ func (s *CmdSuite) runString(in string) string {
 func (s *CmdSuite) run(params ...string) string {
 	args := []string{"tctl", "--config", s.cfg.Name()}
 	args = append(args, params...)
-	//args = append(args, fmt.Sprintf("--auth=%v", &s.addr))
 	s.out = &bytes.Buffer{}
 	s.cmd = &Command{out: s.out}
 	err := s.cmd.Run(args)

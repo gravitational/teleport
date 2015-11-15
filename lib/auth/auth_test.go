@@ -27,8 +27,6 @@ import (
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gokyle/hotp"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
@@ -48,8 +46,6 @@ func (s *AuthSuite) SetUpSuite(c *C) {
 	srv, err := secret.New(&secret.Config{KeyBytes: key})
 	c.Assert(err, IsNil)
 	s.scrt = srv
-
-	log.Initialize("console", "WARN")
 }
 
 func (s *AuthSuite) SetUpTest(c *C) {

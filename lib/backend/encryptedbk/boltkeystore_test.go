@@ -21,7 +21,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
@@ -31,10 +30,6 @@ type KeyStoreSuite struct {
 }
 
 var _ = Suite(&KeyStoreSuite{})
-
-func (s *KeyStoreSuite) SetUpSuite(c *C) {
-	log.Initialize("console", "WARN")
-}
 
 func (s *KeyStoreSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
