@@ -111,9 +111,6 @@ type AuthConfig struct {
 	// Enabled turns auth role on or off for this process
 	Enabled bool `yaml:"enabled" env:"TELEPORT_AUTH_ENABLED"`
 
-	// HTTPAddr is the listening address for HTTP service API
-	HTTPAddr utils.NetAddr `yaml:"http_addr" env:"TELEPORT_AUTH_HTTP_ADDR"`
-
 	// SSHAddr is the listening address of SSH tunnel to HTTP service
 	SSHAddr utils.NetAddr `yaml:"ssh_addr" env:"TELEPORT_AUTH_SSH_ADDR"`
 
@@ -298,7 +295,7 @@ func convertRemoteCerts(inCerts RemoteCerts) []services.RemoteCert {
 	return outCerts
 }
 
-func setDefaults(cfg *Config) {
+func SetDefaults(cfg *Config) {
 	if cfg.Log.Output == "" {
 		cfg.Log.Output = "console"
 	}
@@ -315,12 +312,6 @@ func setDefaults(cfg *Config) {
 		cfg.SSH.Shell = "/bin/bash"
 	}
 
-	if cfg.Auth.HTTPAddr.IsEmpty() {
-		cfg.Auth.HTTPAddr = utils.NetAddr{
-			Network: "unix",
-			Addr:    "/tmp/teleport.auth.sock",
-		}
-	}
 	if cfg.Auth.SSHAddr.IsEmpty() {
 		cfg.Auth.SSHAddr = utils.NetAddr{
 			Network: "tcp",

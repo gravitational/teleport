@@ -58,11 +58,11 @@ pkg:
 # run-embedded starts a auth server, ssh node and proxy that allows web access 
 # to all the nodes
 run-embedded: install
-	rm -f /tmp/teleport.auth.sock
 	teleport --config=examples/embedded.yaml
 
 # run-node starts a ssh node
 run-node: install
+	tctl token generate --output=/tmp/token --fqdn=localhost
 	teleport --config=examples/node.yaml
 
 # run-site-to-proxy starts a ssh node, auth server and reverse tunnel that connect outside of

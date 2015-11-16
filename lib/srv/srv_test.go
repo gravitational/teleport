@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/http/httptest"
-	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -86,7 +84,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(s.a.ResetHostCA(""), IsNil)
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
-	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", 0)
+	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", auth.RoleAdmin, 0)
 	c.Assert(err, IsNil)
 
 	// set up user CA and set up a user that has access to the server
@@ -250,16 +248,16 @@ func (s *SrvSuite) TestProxy(c *C) {
 	rec, err := boltrec.New(s.dir)
 	c.Assert(err, IsNil)
 
-	apiSrv := httptest.NewServer(
-		auth.NewAPIServer(s.a, bl, sess.New(s.bk), rec))
-
-	u, err := url.Parse(apiSrv.URL)
-	c.Assert(err, IsNil)
+	apiSrv := auth.NewAPIWithRoles(s.a, bl, sess.New(s.bk), rec,
+		auth.NewAllowAllPermissions(),
+		auth.StandardRoles,
+	)
+	apiSrv.Serve()
 
 	tsrv, err := auth.NewTunServer(
 		utils.NetAddr{Network: "tcp", Addr: "localhost:31497"},
 		[]ssh.Signer{s.signer},
-		utils.NetAddr{Network: "tcp", Addr: u.Host}, s.a)
+		apiSrv, s.a)
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
 

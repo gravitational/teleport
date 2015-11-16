@@ -16,15 +16,12 @@ limitations under the License.
 package auth
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -42,19 +39,19 @@ type TunServer struct {
 	l           net.Listener
 	srv         *sshutils.Server
 	hostSigner  ssh.Signer
-	authAddr    utils.NetAddr
+	apiServer   *APIWithRoles
 }
 
 type ServerOption func(s *TunServer) error
 
 // New returns an unstarted server
 func NewTunServer(addr utils.NetAddr, hostSigners []ssh.Signer,
-	authAddr utils.NetAddr, a *AuthServer,
+	apiServer *APIWithRoles, a *AuthServer,
 	opts ...ServerOption) (*TunServer, error) {
 
 	srv := &TunServer{
-		a:        a,
-		authAddr: authAddr,
+		a:         a,
+		apiServer: apiServer,
 	}
 	for _, o := range opts {
 		if err := o(srv); err != nil {
@@ -126,31 +123,6 @@ func (s *TunServer) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 			log.Infof("could not accept channel (%s)", err)
 		}
 		go s.handleWebAgentRequest(sconn, ch)
-	case ReqProvision:
-		if !s.haveExt(sconn, ExtToken) {
-			nch.Reject(
-				ssh.UnknownChannelType,
-				fmt.Sprintf("don't have token for: %v", cht))
-			return
-		}
-		ch, _, err := nch.Accept()
-		if err != nil {
-			log.Infof("could not accept channel (%s)", err)
-		}
-		go s.handleProvisionRequest(sconn, ch)
-	case ReqNewAuth:
-		if !s.haveExt(sconn, ExtToken) {
-			nch.Reject(
-				ssh.UnknownChannelType,
-				fmt.Sprintf("don't have token for: %v", cht))
-			return
-		}
-		ch, _, err := nch.Accept()
-		if err != nil {
-			log.Infof("could not accept channel (%s)", err)
-		}
-		go s.handleNewAuthRequest(sconn, ch)
-
 	default:
 		nch.Reject(ssh.UnknownChannelType, fmt.Sprintf(
 			"unknown channel type: %v", cht))
@@ -192,6 +164,13 @@ func (s *TunServer) haveExt(sconn *ssh.ServerConn, ext ...string) bool {
 
 func (s *TunServer) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel) {
 	defer ch.Close()
+
+	if sconn.Permissions.Extensions["role"] != RoleWeb {
+		log.Errorf("role %v doesn't have permission to request agent",
+			sconn.Permissions.Extensions["role"])
+		return
+	}
+
 	a := agent.NewKeyring()
 	log.Infof("handleWebAgentRequest start for %v", sconn.RemoteAddr())
 
@@ -239,137 +218,14 @@ func (s *TunServer) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel)
 // this direct tcp-ip request ignores port and host requested by client
 // and always forwards it to the local auth server listening on local socket
 func (s *TunServer) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
-	defer ch.Close()
-
-	log.Infof("handleDirectTCPIPRequest start to %v:%d", req.Host, req.Port)
-	log.Infof("opened direct-tcpip channel to server: %v", req)
-	log.Infof("connecting to %v", s.authAddr)
-
-	conn, err := net.Dial(s.authAddr.Network, s.authAddr.Addr)
-	if err != nil {
-		log.Infof("%v failed to connect to: %v, err: %v", s.authAddr.Addr, err)
-		return
-	}
-	defer conn.Close()
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		written, err := io.Copy(ch, conn)
-		log.Infof("conn to channel copy closed, bytes transferred: %v, err: %v", written, err)
-		ch.Close()
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		written, err := io.Copy(conn, ch)
-		log.Infof("channel to conn copy closed, bytes transferred: %v, err: %v", written, err)
-		conn.Close() //  it is important to close this connection, otherwise this goroutine will hang forever
-		// because the copoy from conn to ch can be never closed unless the connection is closed
-	}()
-	wg.Wait()
-	log.Infof("direct-tcp closed")
-}
-
-func (s *TunServer) handleProvisionRequest(sconn *ssh.ServerConn, ch ssh.Channel) {
-	defer ch.Close()
-
-	password := []byte(sconn.Permissions.Extensions[ExtToken])
-
-	var ab *authBucket
-	if err := json.Unmarshal(password, &ab); err != nil {
-		log.Errorf("token error: %v", err)
-		return
-	}
-
-	k, pub, err := s.a.GenerateKeyPair("")
-	if err != nil {
-		log.Errorf("gen key pair error: %v", err)
-		return
-	}
-	c, err := s.a.GenerateHostCert(pub, ab.User, ab.User, 0)
-	if err != nil {
-		log.Errorf("gen cert error: %v", err)
-		return
-	}
-
-	keys := &PackedKeys{
-		Key:  k,
-		Cert: c,
-	}
-	data, err := json.Marshal(keys)
-	if err != nil {
-		log.Errorf("gen marshal error: %v", err)
-		return
-	}
-
-	if _, err := io.Copy(ch.Stderr(), bytes.NewReader(data)); err != nil {
-		log.Errorf("key transfer error: %v", err)
-		return
-	}
-
-	log.Infof("keys for %v transferred successfully", ab.User)
-	if err := s.a.DeleteToken(string(ab.Pass)); err != nil {
-		log.Errorf("failed to delete token: %v", err)
-	}
-}
-
-func (s *TunServer) handleNewAuthRequest(sconn *ssh.ServerConn, ch ssh.Channel) {
-	defer ch.Close()
-
-	log.Infof("Registering new auth server")
-
-	password := []byte(sconn.Permissions.Extensions[ExtToken])
-
-	var ab *authBucket
-	if err := json.Unmarshal(password, &ab); err != nil {
-		log.Errorf("token error: %v", err)
-		return
-	}
-
-	buf := &bytes.Buffer{}
-	if _, err := io.Copy(buf, ch.Stderr()); err != nil {
-		log.Errorf("failed to read remote key from channel: %v", err)
-		return
-	}
-
-	var remoteKey encryptor.Key
-	if err := json.Unmarshal(buf.Bytes(), &remoteKey); err != nil {
-		log.Errorf("key unmarshal error: %v", err)
-		return
-	}
-
-	if err := s.a.AddSealKey(remoteKey); err != nil {
-		log.Errorf("Can't add remote key to backend: %v", err)
-		return
-	}
-
-	myKey, err := s.a.GetSignKey()
-	if err != nil {
-		log.Errorf("can't get backend sign key: %v", err)
-		return
-	}
-	myKey = myKey.Public()
-
-	data, err := json.Marshal(myKey)
-	if err != nil {
-		log.Errorf("gen marshal error: %v", err)
-		return
-	}
-
-	if _, err := io.Copy(ch.Stderr(), bytes.NewReader(data)); err != nil {
-		log.Errorf("key transfer error: %v", err)
-		return
-	}
-
-	if err := ch.CloseWrite(); err != nil {
-		log.Errorf("Can't close write: %v", err)
-		return
-	}
-
-	log.Infof("keys for %v transferred successfully", ab.User)
-	if err := s.a.DeleteToken(string(ab.Pass)); err != nil {
-		log.Errorf("failed to delete token: %v", err)
+	addr, _ := net.ResolveIPAddr("tcp", "localhost")
+	conn := utils.NewPipeNetConn(
+		ch, ch, ch,
+		addr, addr,
+	)
+	role := sconn.Permissions.Extensions["role"]
+	if err := s.apiServer.HandleConn(conn, role); err != nil {
+		log.Errorf(err.Error())
 	}
 }
 
@@ -388,7 +244,12 @@ func (s *TunServer) keyAuth(
 		return nil, err
 	}
 
-	if err := s.certChecker.CheckCert(conn.User(), key.(*ssh.Certificate)); err != nil {
+	cert, ok := key.(*ssh.Certificate)
+	if !ok {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.certChecker.CheckCert(conn.User(), cert); err != nil {
 		log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
 			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
 		return nil, trace.Wrap(err)
@@ -397,6 +258,7 @@ func (s *TunServer) keyAuth(
 	perms := &ssh.Permissions{
 		Extensions: map[string]string{
 			ExtHost: conn.User(),
+			"role":  cert.Permissions.Extensions["role"],
 		},
 	}
 
@@ -419,6 +281,7 @@ func (s *TunServer) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebPassword: "<password>",
+				"role":         RoleUser,
 			},
 		}
 		log.Infof("password authenticated user: '%v'", conn.User())
@@ -429,29 +292,28 @@ func (s *TunServer) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebSession: string(ab.Pass),
+				"role":        RoleWeb,
 			},
 		}
 		if _, err := s.a.GetWebSession(conn.User(), session.SecureID(ab.Pass)); err != nil {
-			log.Errorf("session resume error: %v", err)
-			return nil, err
+			return nil, trace.Errorf("session resume error: %v", trace.Wrap(err))
 		}
 		log.Infof("session authenticated user: '%v'", conn.User())
 		return perms, nil
 	case "provision-token":
-		if err := s.a.ValidateToken(string(ab.Pass), ab.User); err != nil {
-			err := fmt.Errorf("%v token validation error: %v", ab.User, err)
-			log.Errorf("%v", err)
-			return nil, err
+		_, err := s.a.ValidateToken(string(ab.Pass), ab.User)
+		if err != nil {
+			return nil, trace.Errorf("%v token validation error: %v", ab.User, trace.Wrap(err))
 		}
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtToken: string(password),
+				"role":   RoleProvisionToken,
 			}}
 		log.Infof("session authenticated prov. token: '%v'", conn.User())
 		return perms, nil
 	default:
-		log.Errorf("unsupported auth method: '%v'", ab.Type)
-		return nil, fmt.Errorf("unsupported auth method: '%v'", ab.Type)
+		return nil, trace.Errorf("unsupported auth method: '%v'", ab.Type)
 	}
 }
 

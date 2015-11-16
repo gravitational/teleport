@@ -16,11 +16,6 @@ limitations under the License.
 package auth
 
 import (
-	"io/ioutil"
-	"net"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"path/filepath"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gokyle/hotp"
@@ -37,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
@@ -47,7 +41,7 @@ type TunSuite struct {
 	bk   *encryptedbk.ReplicatedBackend
 	scrt secret.SecretService
 
-	srv    *httptest.Server
+	srv    *APIWithRoles
 	tsrv   *TunServer
 	a      *AuthServer
 	signer ssh.Signer
@@ -64,8 +58,6 @@ func (s *TunSuite) SetUpSuite(c *C) {
 	srv, err := secret.New(&secret.Config{KeyBytes: key})
 	c.Assert(err, IsNil)
 	s.scrt = srv
-	log.Initialize("console", "WARN")
-
 }
 
 func (s *TunSuite) TearDownTest(c *C) {
@@ -89,26 +81,27 @@ func (s *TunSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)
-	s.srv = httptest.NewServer(
-		NewAPIServer(s.a, s.bl, session.New(s.bk), s.rec))
+	s.srv = NewAPIWithRoles(s.a, s.bl, session.New(s.bk), s.rec,
+		NewStandardPermissions(),
+		StandardRoles,
+	)
+	s.srv.Serve()
 
 	// set up host private key and certificate
 	c.Assert(s.a.ResetHostCA(""), IsNil)
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
-	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", 0)
+	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", RoleNode, 0)
 	c.Assert(err, IsNil)
 
 	signer, err := sshutils.NewSigner(hpriv, hcert)
 	c.Assert(err, IsNil)
 	s.signer = signer
-	u, err := url.Parse(s.srv.URL)
-	c.Assert(err, IsNil)
 
 	tsrv, err := NewTunServer(
 		utils.NetAddr{Network: "tcp", Addr: "127.0.0.1:0"},
 		[]ssh.Signer{signer},
-		utils.NetAddr{Network: "tcp", Addr: u.Host}, s.a)
+		s.srv, s.a)
 
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
@@ -116,30 +109,16 @@ func (s *TunSuite) SetUpTest(c *C) {
 }
 
 func (s *TunSuite) TestUnixServerClient(c *C) {
-	d, err := ioutil.TempDir("", "teleport-test")
-	c.Assert(err, IsNil)
-	socketPath := filepath.Join(d, "unix.sock")
-
-	l, err := net.Listen("unix", socketPath)
-	c.Assert(err, IsNil)
-
-	h := NewAPIServer(s.a, s.bl, session.New(s.bk), s.rec)
-	srv := &httptest.Server{
-		Listener: l,
-		Config: &http.Server{
-			Handler: h,
-		},
-	}
-	srv.Start()
-	defer srv.Close()
-
-	u, err := url.Parse(s.srv.URL)
-	c.Assert(err, IsNil)
+	srv := NewAPIWithRoles(s.a, s.bl, session.New(s.bk), s.rec,
+		NewAllowAllPermissions(),
+		StandardRoles,
+	)
+	srv.Serve()
 
 	tsrv, err := NewTunServer(
 		utils.NetAddr{Network: "tcp", Addr: "127.0.0.1:0"},
 		[]ssh.Signer{s.signer},
-		utils.NetAddr{Network: "tcp", Addr: u.Host}, s.a)
+		srv, s.a)
 
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
@@ -191,21 +170,9 @@ func (s *TunSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 	defer clt.Close()
 
-	hotpURL, _, err = clt.UpsertPassword(user, pass)
-	c.Assert(err, IsNil)
-
-	otp, label, err = hotp.FromURL(hotpURL)
-	c.Assert(err, IsNil)
-	c.Assert(label, Equals, "ws-test")
-	otp.Increment()
-
 	ws, err := clt.SignIn(user, pass)
 	c.Assert(err, IsNil)
 	c.Assert(ws, Not(Equals), "")
-
-	out, err := clt.GetWebSession(user, ws)
-	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, ws)
 
 	// Resume session via sesison id
 	authMethod, err = NewWebSessionAuth(user, []byte(ws))
@@ -215,6 +182,72 @@ func (s *TunSuite) TestSessions(c *C) {
 		utils.NetAddr{Network: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer cltw.Close()
+
+	out, err := cltw.GetWebSession(user, ws)
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, ws)
+
+	err = cltw.DeleteWebSession(user, ws)
+	c.Assert(err, IsNil)
+
+	_, err = clt.GetWebSession(user, ws)
+	c.Assert(err, NotNil)
+}
+
+func (s *TunSuite) TestPermissions(c *C) {
+	c.Assert(s.a.ResetUserCA(""), IsNil)
+
+	user := "ws-test2"
+	pass := []byte("ws-abc1234")
+
+	hotpURL, _, err := s.a.UpsertPassword(user, pass)
+	c.Assert(err, IsNil)
+
+	otp, label, err := hotp.FromURL(hotpURL)
+	c.Assert(err, IsNil)
+	c.Assert(label, Equals, "ws-test2")
+	otp.Increment()
+
+	authMethod, err := NewWebPasswordAuth(user, pass, otp.OTP())
+	c.Assert(err, IsNil)
+
+	clt, err := NewTunClient(
+		utils.NetAddr{Network: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
+	c.Assert(err, IsNil)
+	defer clt.Close()
+
+	ws, err := clt.SignIn(user, pass)
+	c.Assert(err, IsNil)
+	c.Assert(ws, Not(Equals), "")
+
+	// Requesting forbidded for User action
+	_, err = clt.GetServers()
+	c.Assert(err, NotNil)
+
+	// Requesting forbidded for User action
+	_, err = clt.GetWebSession(user, ws)
+	c.Assert(err, NotNil)
+
+	// Resume session via sesison id
+	authMethod, err = NewWebSessionAuth(user, []byte(ws))
+	c.Assert(err, IsNil)
+
+	cltw, err := NewTunClient(
+		utils.NetAddr{Network: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
+	c.Assert(err, IsNil)
+	defer cltw.Close()
+
+	// Requesting forbidded for Web action
+	_, err = cltw.GetServers()
+	c.Assert(err, NotNil)
+
+	// Requesting forbidded for Web action
+	_, err = cltw.SignIn(user, pass)
+	c.Assert(err, NotNil)
+
+	out, err := cltw.GetWebSession(user, ws)
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, ws)
 
 	err = cltw.DeleteWebSession(user, ws)
 	c.Assert(err, IsNil)

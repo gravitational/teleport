@@ -47,18 +47,16 @@ type Config struct {
 // APISrv implements http API server for authority
 type APIServer struct {
 	httprouter.Router
+	a    *AuthWithRoles
 	s    *AuthServer
 	elog events.Log
 	se   session.SessionServer
 	rec  recorder.Recorder
 }
 
-func NewAPIServer(s *AuthServer, elog events.Log, se session.SessionServer, rec recorder.Recorder) *APIServer {
+func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv := &APIServer{
-		s:    s,
-		elog: elog,
-		se:   se,
-		rec:  rec,
+		a: a,
 	}
 	srv.Router = *httprouter.New()
 
@@ -111,7 +109,8 @@ func NewAPIServer(s *AuthServer, elog events.Log, se session.SessionServer, rec 
 
 	// Tokens
 	srv.POST("/v1/tokens", srv.generateToken)
-
+	srv.POST("/v1/tokens/register", srv.registerUsingToken)
+	srv.POST("/v1/tokens/register/auth", srv.registerNewAuthServer)
 	// Events
 	srv.POST("/v1/events", srv.submitEvents)
 	srv.GET("/v1/events", srv.getEvents)
@@ -138,7 +137,7 @@ func NewAPIServer(s *AuthServer, elog events.Log, se session.SessionServer, rec 
 }
 
 func (s *APIServer) getSealKeys(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	keys, err := s.s.GetSealKeys()
+	keys, err := s.a.GetSealKeys()
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
@@ -148,7 +147,7 @@ func (s *APIServer) getSealKeys(w http.ResponseWriter, r *http.Request, p httpro
 
 func (s *APIServer) getSealKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	id := p[0].Value
-	key, err := s.s.GetSealKey(id)
+	key, err := s.a.GetSealKey(id)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
@@ -158,7 +157,7 @@ func (s *APIServer) getSealKey(w http.ResponseWriter, r *http.Request, p httprou
 
 func (s *APIServer) deleteSealKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	id := p[0].Value
-	err := s.s.DeleteSealKey(id)
+	err := s.a.DeleteSealKey(id)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
@@ -182,7 +181,7 @@ func (s *APIServer) addSealKey(w http.ResponseWriter, r *http.Request, p httprou
 		return
 	}
 
-	err = s.s.AddSealKey(key)
+	err = s.a.AddSealKey(key)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
@@ -201,7 +200,7 @@ func (s *APIServer) generateSealKey(w http.ResponseWriter, r *http.Request, p ht
 		return
 	}
 
-	key, err := s.s.GenerateSealKey(name)
+	key, err := s.a.GenerateSealKey(name)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
@@ -228,7 +227,7 @@ func (s *APIServer) upsertServer(w http.ResponseWriter, r *http.Request, p httpr
 		Addr:     addr,
 		Hostname: hostname,
 	}
-	if err := s.s.UpsertServer(server, ttl); err != nil {
+	if err := s.a.UpsertServer(server, ttl); err != nil {
 		replyErr(w, err)
 		return
 	}
@@ -236,7 +235,7 @@ func (s *APIServer) upsertServer(w http.ResponseWriter, r *http.Request, p httpr
 }
 
 func (s *APIServer) getServers(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	servers, err := s.s.GetServers()
+	servers, err := s.a.GetServers()
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -263,7 +262,7 @@ func (s *APIServer) upsertWebTun(w http.ResponseWriter, r *http.Request, p httpr
 		replyErr(w, err)
 		return
 	}
-	if err := s.s.UpsertWebTun(*t, ttl); err != nil {
+	if err := s.a.UpsertWebTun(*t, ttl); err != nil {
 		replyErr(w, err)
 		return
 	}
@@ -272,7 +271,7 @@ func (s *APIServer) upsertWebTun(w http.ResponseWriter, r *http.Request, p httpr
 
 func (s *APIServer) deleteWebTun(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	prefix := p[0].Value
-	err := s.s.DeleteWebTun(prefix)
+	err := s.a.DeleteWebTun(prefix)
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -282,7 +281,7 @@ func (s *APIServer) deleteWebTun(w http.ResponseWriter, r *http.Request, p httpr
 
 func (s *APIServer) getWebTun(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	prefix := p[0].Value
-	wt, err := s.s.GetWebTun(prefix)
+	wt, err := s.a.GetWebTun(prefix)
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -291,7 +290,7 @@ func (s *APIServer) getWebTun(w http.ResponseWriter, r *http.Request, p httprout
 }
 
 func (s *APIServer) getWebTuns(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	ws, err := s.s.GetWebTuns()
+	ws, err := s.a.GetWebTuns()
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -301,7 +300,7 @@ func (s *APIServer) getWebTuns(w http.ResponseWriter, r *http.Request, p httprou
 
 func (s *APIServer) deleteWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	user, sid := p[0].Value, p[1].Value
-	err := s.s.DeleteWebSession(user, websession.SecureID(sid))
+	err := s.a.DeleteWebSession(user, websession.SecureID(sid))
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -311,7 +310,7 @@ func (s *APIServer) deleteWebSession(w http.ResponseWriter, r *http.Request, p h
 
 func (s *APIServer) getWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	user, sid := p[0].Value, p[1].Value
-	ws, err := s.s.GetWebSession(user, websession.SecureID(sid))
+	ws, err := s.a.GetWebSession(user, websession.SecureID(sid))
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -321,7 +320,7 @@ func (s *APIServer) getWebSession(w http.ResponseWriter, r *http.Request, p http
 
 func (s *APIServer) getWebSessions(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	user := p[0].Value
-	keys, err := s.s.GetWebSessionsKeys(user)
+	keys, err := s.a.GetWebSessionsKeys(user)
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -340,7 +339,7 @@ func (s *APIServer) signIn(w http.ResponseWriter, r *http.Request, p httprouter.
 		return
 	}
 	user := p[0].Value
-	ws, err := s.s.SignIn(user, []byte(pass))
+	ws, err := s.a.SignIn(user, []byte(pass))
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -358,7 +357,7 @@ func (s *APIServer) upsertPassword(w http.ResponseWriter, r *http.Request, p htt
 		return
 	}
 	user := p[0].Value
-	hotpURL, hotpQR, err := s.s.UpsertPassword(user, []byte(pass))
+	hotpURL, hotpQR, err := s.a.UpsertPassword(user, []byte(pass))
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -381,7 +380,7 @@ func (s *APIServer) checkPassword(w http.ResponseWriter, r *http.Request, p http
 		return
 	}
 	user := p[0].Value
-	if err := s.s.CheckPassword(user, []byte(pass), hotpToken); err != nil {
+	if err := s.a.CheckPassword(user, []byte(pass), hotpToken); err != nil {
 		replyErr(w, err)
 		return
 	}
@@ -401,7 +400,7 @@ func (s *APIServer) upsertUserKey(w http.ResponseWriter, r *http.Request, p http
 		replyErr(w, err)
 		return
 	}
-	cert, err := s.s.UpsertUserKey(p[0].Value, services.AuthorizedKey{ID: id, Value: []byte(key)}, ttl)
+	cert, err := s.a.UpsertUserKey(p[0].Value, services.AuthorizedKey{ID: id, Value: []byte(key)}, ttl)
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -411,7 +410,7 @@ func (s *APIServer) upsertUserKey(w http.ResponseWriter, r *http.Request, p http
 }
 
 func (s *APIServer) getUsers(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	users, err := s.s.GetUsers()
+	users, err := s.a.GetUsers()
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -421,7 +420,7 @@ func (s *APIServer) getUsers(w http.ResponseWriter, r *http.Request, p httproute
 
 func (s *APIServer) deleteUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	user := p[0].Value
-	if err := s.s.DeleteUser(user); err != nil {
+	if err := s.a.DeleteUser(user); err != nil {
 		replyErr(w, err)
 		return
 	}
@@ -430,7 +429,7 @@ func (s *APIServer) deleteUser(w http.ResponseWriter, r *http.Request, p httprou
 }
 
 func (s *APIServer) getUserKeys(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	keys, err := s.s.GetUserKeys(p[0].Value)
+	keys, err := s.a.GetUserKeys(p[0].Value)
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -441,7 +440,7 @@ func (s *APIServer) getUserKeys(w http.ResponseWriter, r *http.Request, p httpro
 
 func (s *APIServer) deleteUserKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	user, keyID := p[0].Value, p[1].Value
-	if err := s.s.DeleteUserKey(user, keyID); err != nil {
+	if err := s.a.DeleteUserKey(user, keyID); err != nil {
 		replyErr(w, err)
 		return
 	}
@@ -457,7 +456,7 @@ func (s *APIServer) generateKeyPair(w http.ResponseWriter, r *http.Request, _ ht
 		return
 	}
 
-	priv, pub, err := s.s.GenerateKeyPair(pass)
+	priv, pub, err := s.a.GenerateKeyPair(pass)
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -473,7 +472,7 @@ func (s *APIServer) resetHostCA(w http.ResponseWriter, r *http.Request, _ httpro
 		replyErr(w, err)
 		return
 	}
-	if err := s.s.ResetHostCA(pass); err != nil {
+	if err := s.a.ResetHostCA(pass); err != nil {
 		replyErr(w, err)
 		return
 	}
@@ -488,7 +487,7 @@ func (s *APIServer) resetUserCA(w http.ResponseWriter, r *http.Request, _ httpro
 		return
 	}
 
-	if err := s.s.ResetUserCA(pass); err != nil {
+	if err := s.a.ResetUserCA(pass); err != nil {
 		replyErr(w, err)
 		return
 	}
@@ -497,7 +496,7 @@ func (s *APIServer) resetUserCA(w http.ResponseWriter, r *http.Request, _ httpro
 }
 
 func (s *APIServer) getHostCAPub(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	bytes, err := s.s.GetHostCAPub()
+	bytes, err := s.a.GetHostCAPub()
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -507,7 +506,7 @@ func (s *APIServer) getHostCAPub(w http.ResponseWriter, r *http.Request, _ httpr
 }
 
 func (s *APIServer) getUserCAPub(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	bytes, err := s.s.GetUserCAPub()
+	bytes, err := s.a.GetUserCAPub()
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -517,20 +516,22 @@ func (s *APIServer) getUserCAPub(w http.ResponseWriter, r *http.Request, _ httpr
 }
 
 func (s *APIServer) generateHostCert(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	var id, hostname, key string
+	var id, hostname, key, role string
 	var ttl time.Duration
 
 	err := form.Parse(r,
 		form.String("key", &key, form.Required()),
 		form.String("id", &id, form.Required()),
 		form.String("hostname", &hostname, form.Required()),
+		form.String("role", &role, form.Required()),
 		form.Duration("ttl", &ttl))
 
 	if err != nil {
 		reply(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
-	cert, err := s.s.GenerateHostCert([]byte(key), id, hostname, ttl)
+	cert, err := s.a.GenerateHostCert([]byte(key), id, hostname, role, ttl)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
@@ -550,8 +551,9 @@ func (s *APIServer) generateUserCert(w http.ResponseWriter, r *http.Request, _ h
 
 	if err != nil {
 		reply(w, http.StatusBadRequest, err.Error())
+		return
 	}
-	cert, err := s.s.GenerateUserCert([]byte(key), id, user, ttl)
+	cert, err := s.a.GenerateUserCert([]byte(key), id, user, ttl)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
@@ -560,22 +562,72 @@ func (s *APIServer) generateUserCert(w http.ResponseWriter, r *http.Request, _ h
 }
 
 func (s *APIServer) generateToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	var fqdn string
+	var fqdn, role string
 	var ttl time.Duration
 
 	err := form.Parse(r,
 		form.String("fqdn", &fqdn, form.Required()),
+		form.String("role", &role, form.Required()),
 		form.Duration("ttl", &ttl))
 
 	if err != nil {
 		reply(w, http.StatusBadRequest, err.Error())
+		return
 	}
-	token, err := s.s.GenerateToken(fqdn, ttl)
+	token, err := s.a.GenerateToken(fqdn, role, ttl)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	reply(w, http.StatusOK, tokenResponse{Token: string(token)})
+}
+
+func (s *APIServer) registerUsingToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	var token, fqdn, role string
+
+	err := form.Parse(r,
+		form.String("token", &token, form.Required()),
+		form.String("fqdn", &fqdn, form.Required()),
+		form.String("role", &role, form.Required()),
+	)
+	if err != nil {
+		reply(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	keys, err := s.a.RegisterUsingToken(token, fqdn, role)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	reply(w, http.StatusOK, keys)
+}
+
+func (s *APIServer) registerNewAuthServer(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	var token, fqdn, pkeyJSON string
+
+	err := form.Parse(r,
+		form.String("token", &token, form.Required()),
+		form.String("fqdn", &fqdn, form.Required()),
+		form.String("key", &pkeyJSON, form.Required()),
+	)
+	if err != nil {
+		reply(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	var pkey encryptor.Key
+	err = json.Unmarshal([]byte(pkeyJSON), &pkey)
+	if err != nil {
+		reply(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	key, err := s.a.RegisterNewAuthServer(fqdn, token, pkey)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	reply(w, http.StatusOK, key)
 }
 
 func (s *APIServer) submitEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -585,11 +637,13 @@ func (s *APIServer) submitEvents(w http.ResponseWriter, r *http.Request, _ httpr
 		form.FileSlice("event", &events))
 	if err != nil {
 		reply(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	if len(events) == 0 {
 		reply(w, http.StatusBadRequest,
 			fmt.Errorf("at least one event is required"))
+		return
 	}
 
 	defer func() {
@@ -614,7 +668,7 @@ func (s *APIServer) submitEvents(w http.ResponseWriter, r *http.Request, _ httpr
 			return
 		}
 
-		if err := s.elog.LogEntry(*e); err != nil {
+		if err := s.a.LogEntry(*e); err != nil {
 			log.Errorf("failed to write event: %v", err)
 			reply(w, http.StatusInternalServerError,
 				fmt.Errorf("failed to write event"))
@@ -632,7 +686,7 @@ func (s *APIServer) getEvents(w http.ResponseWriter, r *http.Request, _ httprout
 		reply(w, http.StatusBadRequest, fmt.Errorf("failed to parse filter"))
 		return
 	}
-	es, err := s.elog.GetEvents(*f)
+	es, err := s.a.GetEvents(*f)
 	if err != nil {
 		log.Errorf("failed to get events: %v", err)
 		reply(w, http.StatusInternalServerError, fmt.Errorf("failed to get events"))
@@ -644,7 +698,7 @@ func (s *APIServer) getEvents(w http.ResponseWriter, r *http.Request, _ httprout
 func (s *APIServer) submitChunks(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	sid := p[0].Value
 
-	wr, err := s.rec.GetChunkWriter(sid)
+	wr, err := s.a.GetChunkWriter(sid)
 	if err != nil {
 		log.Errorf("failed to get writer: %v", err)
 		reply(w, http.StatusInternalServerError,
@@ -723,7 +777,7 @@ func (s *APIServer) getChunks(w http.ResponseWriter, r *http.Request, p httprout
 		return
 	}
 
-	re, err := s.rec.GetChunkReader(sid)
+	re, err := s.a.GetChunkReader(sid)
 	if err != nil {
 
 		log.Errorf("failed to get reader: %v", err)
@@ -755,7 +809,7 @@ func replyErr(w http.ResponseWriter, e error) {
 	log.Errorf("auth server unexpected error: %v", e)
 	// do not leak the unexpected error to the callee as we are not sure
 	// if it's safe to disclose that information
-	reply(w, http.StatusInternalServerError, message("internal server error"))
+	reply(w, http.StatusInternalServerError, message("internal server error: "+e.Error()))
 }
 
 func reply(w http.ResponseWriter, code int, message interface{}) {
@@ -783,7 +837,7 @@ func (s *APIServer) upsertRemoteCert(w http.ResponseWriter, r *http.Request, p h
 		return
 	}
 	cert := services.RemoteCert{ID: id, Value: []byte(key), FQDN: fqdn, Type: ctype}
-	if err := s.s.UpsertRemoteCert(cert, ttl); err != nil {
+	if err := s.a.UpsertRemoteCert(cert, ttl); err != nil {
 		replyErr(w, err)
 		return
 	}
@@ -794,7 +848,7 @@ func (s *APIServer) getRemoteCerts(w http.ResponseWriter, r *http.Request, p htt
 	fqdn := r.URL.Query().Get("fqdn")
 	ctype := p[0].Value
 
-	certs, err := s.s.GetRemoteCerts(ctype, fqdn)
+	certs, err := s.a.GetRemoteCerts(ctype, fqdn)
 	if err != nil {
 		fmt.Printf("error: %v", err)
 		log.Infof("error: %v", err)
@@ -806,7 +860,7 @@ func (s *APIServer) getRemoteCerts(w http.ResponseWriter, r *http.Request, p htt
 
 func (s *APIServer) deleteRemoteCert(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	ctype, fqdn, id := p[0].Value, p[1].Value, p[2].Value
-	if err := s.s.DeleteRemoteCert(ctype, fqdn, id); err != nil {
+	if err := s.a.DeleteRemoteCert(ctype, fqdn, id); err != nil {
 		replyErr(w, err)
 		return
 	}
@@ -824,7 +878,7 @@ func (s *APIServer) upsertSession(w http.ResponseWriter, r *http.Request, p http
 		replyErr(w, err)
 		return
 	}
-	if err := s.se.UpsertSession(sid, ttl); err != nil {
+	if err := s.a.UpsertSession(sid, ttl); err != nil {
 		replyErr(w, err)
 		return
 	}
@@ -849,7 +903,7 @@ func (s *APIServer) upsertSessionParty(w http.ResponseWriter, r *http.Request, p
 		replyErr(w, err)
 		return
 	}
-	if err := s.se.UpsertParty(sid, party, ttl); err != nil {
+	if err := s.a.UpsertParty(sid, party, ttl); err != nil {
 		replyErr(w, err)
 		return
 	}
@@ -857,7 +911,7 @@ func (s *APIServer) upsertSessionParty(w http.ResponseWriter, r *http.Request, p
 }
 
 func (s *APIServer) getSessions(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	sessions, err := s.se.GetSessions()
+	sessions, err := s.a.GetSessions()
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -867,7 +921,7 @@ func (s *APIServer) getSessions(w http.ResponseWriter, r *http.Request, p httpro
 
 func (s *APIServer) getSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	sid := p[0].Value
-	se, err := s.se.GetSession(sid)
+	se, err := s.a.GetSession(sid)
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -877,7 +931,7 @@ func (s *APIServer) getSession(w http.ResponseWriter, r *http.Request, p httprou
 
 func (s *APIServer) deleteSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	sid := p[0].Value
-	if err := s.se.DeleteSession(sid); err != nil {
+	if err := s.a.DeleteSession(sid); err != nil {
 		replyErr(w, err)
 		return
 	}

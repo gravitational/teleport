@@ -2,11 +2,12 @@ log:
   output: console
   severity: INFO
 
-data_dir: /var/lib/teleport # directory where teleport stores it's state (SSH keys and database data)
+data_dir: /var/lib/teleport/node # directory where teleport stores it's state (SSH keys and database data)
 
 hostname: localhost # SSH hostname of this node
 
 ssh:
+  token: /tmp/token
   # enable simple ssh endpoint
   enabled: true
   addr: tcp://localhost:33021

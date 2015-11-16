@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/session"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
@@ -71,8 +70,6 @@ func (s *APISuite) SetUpSuite(c *C) {
 	srv, err := secret.New(&secret.Config{KeyBytes: key})
 	c.Assert(err, IsNil)
 	s.scrt = srv
-
-	log.Initialize("console", "WARN")
 }
 
 func (s *APISuite) SetUpTest(c *C) {
@@ -92,7 +89,14 @@ func (s *APISuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)
-	s.srv = httptest.NewServer(NewAPIServer(s.a, s.bl, session.New(s.bk), s.rec))
+	s.srv = httptest.NewServer(NewAPIServer(
+		&AuthWithRoles{
+			authServer:  s.a,
+			elog:        s.bl,
+			sessions:    session.New(s.bk),
+			recorder:    s.rec,
+			permChecker: NewAllowAllPermissions(),
+		}))
 	clt, err := NewClient(s.srv.URL)
 	c.Assert(err, IsNil)
 	s.clt = clt
@@ -164,7 +168,7 @@ func (s *APISuite) TestGenerateHostCert(c *C) {
 	c.Assert(err, IsNil)
 
 	// make sure we can parse the private and public key
-	cert, err := s.clt.GenerateHostCert(pub, "id1", "a.example.com", time.Hour)
+	cert, err := s.clt.GenerateHostCert(pub, "id1", "a.example.com", "RoleExample", time.Hour)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
@@ -354,7 +358,7 @@ func (s *APISuite) TestRecorder(c *C) {
 }
 
 func (s *APISuite) TestTokens(c *C) {
-	out, err := s.clt.GenerateToken("a.example.com", 0)
+	out, err := s.clt.GenerateToken("a.example.com", "RoleExample", 0)
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Not(Equals), 0)
 }

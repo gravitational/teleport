@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 )
 
-func (cmd *Command) GenerateToken(fqdn string, ttl time.Duration,
+func (cmd *Command) GenerateToken(fqdn, role string, ttl time.Duration,
 	output, secretKey string) error {
 
 	var token string
@@ -50,7 +50,7 @@ func (cmd *Command) GenerateToken(fqdn string, ttl time.Duration,
 		token = string(p.SID)
 	} else {
 		var err error
-		token, err = cmd.client.GenerateToken(fqdn, ttl)
+		token, err = cmd.client.GenerateToken(fqdn, role, ttl)
 		if err != nil {
 			return trace.Wrap(err)
 		}

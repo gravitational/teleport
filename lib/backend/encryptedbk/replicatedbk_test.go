@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/backend/test"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
@@ -38,10 +37,6 @@ type ReplicatedBkSuite struct {
 }
 
 var _ = Suite(&ReplicatedBkSuite{})
-
-func (s *ReplicatedBkSuite) SetUpSuite(c *C) {
-	log.Initialize("console", "ERROR")
-}
 
 func (s *ReplicatedBkSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()

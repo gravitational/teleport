@@ -16,9 +16,9 @@ limitations under the License.
 package services
 
 import (
+	"encoding/json"
 	"time"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/lib/backend"
 )
@@ -32,23 +32,42 @@ func NewProvisioningService(backend backend.Backend) *ProvisioningService {
 }
 
 // Tokens are provisioning tokens for the auth server
-func (s *ProvisioningService) UpsertToken(token, fqdn string, ttl time.Duration) error {
-	err := s.backend.UpsertVal([]string{"tokens"}, token, []byte(fqdn), ttl)
+func (s *ProvisioningService) UpsertToken(token, fqdn, role string, ttl time.Duration) error {
+	t := ProvisionToken{
+		FQDN: fqdn,
+		Role: role,
+	}
+	out, err := json.Marshal(t)
 	if err != nil {
-		log.Errorf(err.Error())
+		return trace.Wrap(err)
+	}
+
+	err = s.backend.UpsertVal([]string{"tokens"}, token, out, ttl)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 
 }
-func (s *ProvisioningService) GetToken(token string) (string, error) {
-	fqdn, err := s.backend.GetVal([]string{"tokens"}, token)
+func (s *ProvisioningService) GetToken(token string) (ProvisionToken, error) {
+	out, err := s.backend.GetVal([]string{"tokens"}, token)
 	if err != nil {
-		return "", err
+		return ProvisionToken{}, err
 	}
-	return string(fqdn), nil
+	var t ProvisionToken
+	err = json.Unmarshal(out, &t)
+	if err != nil {
+		return ProvisionToken{}, trace.Wrap(err)
+	}
+
+	return t, nil
 }
 func (s *ProvisioningService) DeleteToken(token string) error {
 	err := s.backend.DeleteKey([]string{"tokens"}, token)
 	return err
+}
+
+type ProvisionToken struct {
+	FQDN string
+	Role string
 }

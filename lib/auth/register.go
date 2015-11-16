@@ -16,10 +16,6 @@ limitations under the License.
 package auth
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io"
 	"io/ioutil"
 	"strings"
 
@@ -27,47 +23,38 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
 
-func Register(fqdn, dataDir, token string, servers []utils.NetAddr) error {
+func Register(fqdn, dataDir, token, role string, servers []utils.NetAddr) error {
 	tok, err := readToken(token)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	method, err := NewTokenAuth(fqdn, tok)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
-	config := &ssh.ClientConfig{
-		User: fqdn,
-		Auth: method,
-	}
-	client, err := ssh.Dial(servers[0].Network, servers[0].Addr, config)
+
+	client, err := NewTunClient(
+		servers[0],
+		fqdn,
+		method)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
+
 	defer client.Close()
 
-	ch, _, err := client.OpenChannel(ReqProvision, nil)
+	keys, err := client.RegisterUsingToken(tok, fqdn, role)
 	if err != nil {
-		return err
-	}
-	defer ch.Close()
-
-	buf := &bytes.Buffer{}
-	if _, err = io.Copy(buf, ch.Stderr()); err != nil {
-		return fmt.Errorf("failed to read key pair from channel: %v", err)
-	}
-	var keys *PackedKeys
-	if err := json.NewDecoder(buf).Decode(&keys); err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	return writeKeys(fqdn, dataDir, keys.Key, keys.Cert)
 }
 
 func RegisterNewAuth(fqdn, token string, publicSealKey encryptor.Key,
 	servers []utils.NetAddr) (masterKey encryptor.Key, e error) {
+
 	tok, err := readToken(token)
 	if err != nil {
 		return encryptor.Key{}, err
@@ -76,49 +63,17 @@ func RegisterNewAuth(fqdn, token string, publicSealKey encryptor.Key,
 	if err != nil {
 		return encryptor.Key{}, err
 	}
-	config := &ssh.ClientConfig{
-		User: fqdn,
-		Auth: method,
-	}
 
-	// initializing ssh channel
-	client, err := ssh.Dial(servers[0].Network, servers[0].Addr, config)
+	client, err := NewTunClient(
+		servers[0],
+		fqdn,
+		method)
 	if err != nil {
-		return encryptor.Key{}, err
+		return encryptor.Key{}, trace.Wrap(err)
 	}
 	defer client.Close()
 
-	ch, _, err := client.OpenChannel(ReqNewAuth, nil)
-	if err != nil {
-		return encryptor.Key{}, err
-	}
-	defer ch.Close()
-
-	// writing server own public seal key to the channel
-	data, err := json.Marshal(publicSealKey.Public())
-	if err != nil {
-		return encryptor.Key{}, trace.Errorf("gen marshal error: %v", err)
-	}
-
-	if _, err := io.Copy(ch.Stderr(), bytes.NewReader(data)); err != nil {
-		return encryptor.Key{}, trace.Errorf("key transfer error: %v", err)
-	}
-
-	if err := ch.CloseWrite(); err != nil {
-		return encryptor.Key{}, trace.Errorf("Can't close write: %v", err)
-	}
-
-	// reading master public seal key from the channel
-	buf := &bytes.Buffer{}
-	if _, err = io.Copy(buf, ch.Stderr()); err != nil {
-		return encryptor.Key{}, fmt.Errorf("failed to read key from channel: %v", err)
-	}
-
-	if err := json.NewDecoder(buf).Decode(&masterKey); err != nil {
-		return encryptor.Key{}, err
-	}
-
-	return masterKey, nil
+	return client.RegisterNewAuthServer(fqdn, tok, publicSealKey)
 }
 
 func readToken(token string) (string, error) {

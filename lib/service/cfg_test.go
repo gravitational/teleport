@@ -53,7 +53,6 @@ func (s *ConfigSuite) TestParseEnv(c *C) {
 		"TELEPORT_DATA_DIR":                         "/tmp/data_dir",
 		"TELEPORT_HOSTNAME":                         "fqdn.example.com",
 		"TELEPORT_AUTH_ENABLED":                     "true",
-		"TELEPORT_AUTH_HTTP_ADDR":                   "tcp://localhost:4444",
 		"TELEPORT_AUTH_SSH_ADDR":                    "tcp://localhost:5555",
 		"TELEPORT_AUTH_HOST_AUTHORITY_DOMAIN":       "a.fqdn.example.com",
 		"TELEPORT_AUTH_TOKEN":                       "authtoken",
@@ -109,8 +108,6 @@ func (s *ConfigSuite) checkVariables(c *C, cfg *Config) {
 
 	// auth section
 	c.Assert(cfg.Auth.Enabled, Equals, true)
-	c.Assert(cfg.Auth.HTTPAddr, Equals,
-		utils.NetAddr{Network: "tcp", Addr: "localhost:4444"})
 	c.Assert(cfg.Auth.SSHAddr, Equals,
 		utils.NetAddr{Network: "tcp", Addr: "localhost:5555"})
 	c.Assert(cfg.Auth.HostAuthorityDomain, Equals, "a.fqdn.example.com")
@@ -183,7 +180,6 @@ auth_servers: ['tcp://localhost:5000', 'unix:///var/run/auth.sock']
 
 auth:
   enabled: true
-  http_addr: 'tcp://localhost:4444'
   ssh_addr: 'tcp://localhost:5555'
   host_authority_domain: a.fqdn.example.com
   token: authtoken

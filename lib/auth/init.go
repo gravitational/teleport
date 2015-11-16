@@ -138,7 +138,7 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 				if err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
-				if err := asrv.UpsertToken(string(pid), fqdn, 600*time.Second); err != nil {
+				if err := asrv.UpsertToken(string(pid), fqdn, RoleNode, 600*time.Second); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 			}
@@ -186,7 +186,7 @@ func InitKeys(a *AuthServer, fqdn, dataDir string) (ssh.Signer, error) {
 		if err != nil {
 			return nil, err
 		}
-		c, err := a.GenerateHostCert(pub, fqdn, fqdn, 0)
+		c, err := a.GenerateHostCert(pub, fqdn, fqdn, RoleAdmin, 0)
 		if err != nil {
 			return nil, err
 		}
