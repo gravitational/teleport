@@ -141,6 +141,7 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig) error {
 	apisrv := auth.NewAPIWithRoles(asrv, elog, session.New(b), rec,
 		auth.NewStandardPermissions(), auth.StandardRoles,
 	)
+	apisrv.Serve()
 
 	// register auth SSH-based endpoint
 	supervisor.RegisterFunc(func() error {

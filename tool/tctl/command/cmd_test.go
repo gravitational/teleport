@@ -124,6 +124,7 @@ func (s *CmdSuite) SetUpTest(c *C) {
 		auth.NewAllowAllPermissions(),
 		auth.StandardRoles,
 	)
+	s.srv.Serve()
 
 	tunAddr, err := utils.ParseAddr(s.tunAddress)
 	tsrv, err := auth.NewTunServer(

@@ -32,33 +32,40 @@ import (
 
 type APIWithRoles struct {
 	listeners map[string]*utils.MemoryListener
+	servers   map[string]*APIServer
 }
 
-func NewAPIWithRoles(s *AuthServer, elog events.Log,
-	se session.SessionServer, rec recorder.Recorder,
-	c PermissionChecker,
+func NewAPIWithRoles(authServer *AuthServer, elog events.Log,
+	sessions session.SessionServer, recorder recorder.Recorder,
+	permChecker PermissionChecker,
 	roles []string) *APIWithRoles {
 	api := APIWithRoles{}
 	api.listeners = make(map[string]*utils.MemoryListener)
+	api.servers = make(map[string]*APIServer)
 
 	for _, role := range roles {
 		a := AuthWithRoles{
-			a:    s,
-			elog: elog,
-			se:   se,
-			rec:  rec,
-			c:    c,
-			role: role,
+			authServer:  authServer,
+			elog:        elog,
+			sessions:    sessions,
+			recorder:    recorder,
+			permChecker: permChecker,
+			role:        role,
 		}
-		server := NewAPIServer(&a)
+		api.servers[role] = NewAPIServer(&a)
 		api.listeners[role] = utils.NewMemoryListener()
+	}
+	return &api
+}
+
+func (api *APIWithRoles) Serve() {
+	for role, _ := range api.listeners {
 		go func(l net.Listener, h http.Handler) {
 			if err := http.Serve(l, h); (err != nil) && (err != io.EOF) {
 				log.Errorf(err.Error())
 			}
-		}(api.listeners[role], server)
+		}(api.listeners[role], api.servers[role])
 	}
-	return &api
 }
 
 func (api *APIWithRoles) HandleConn(conn net.Conn, role string) error {

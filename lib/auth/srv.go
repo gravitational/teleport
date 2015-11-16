@@ -528,6 +528,7 @@ func (s *APIServer) generateHostCert(w http.ResponseWriter, r *http.Request, _ h
 
 	if err != nil {
 		reply(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	cert, err := s.a.GenerateHostCert([]byte(key), id, hostname, role, ttl)
@@ -550,6 +551,7 @@ func (s *APIServer) generateUserCert(w http.ResponseWriter, r *http.Request, _ h
 
 	if err != nil {
 		reply(w, http.StatusBadRequest, err.Error())
+		return
 	}
 	cert, err := s.a.GenerateUserCert([]byte(key), id, user, ttl)
 	if err != nil {
@@ -570,6 +572,7 @@ func (s *APIServer) generateToken(w http.ResponseWriter, r *http.Request, _ http
 
 	if err != nil {
 		reply(w, http.StatusBadRequest, err.Error())
+		return
 	}
 	token, err := s.a.GenerateToken(fqdn, role, ttl)
 	if err != nil {
@@ -589,6 +592,7 @@ func (s *APIServer) registerUsingToken(w http.ResponseWriter, r *http.Request, _
 	)
 	if err != nil {
 		reply(w, http.StatusBadRequest, err.Error())
+		return
 	}
 	keys, err := s.a.RegisterUsingToken(token, fqdn, role)
 	if err != nil {
@@ -608,12 +612,14 @@ func (s *APIServer) registerNewAuthServer(w http.ResponseWriter, r *http.Request
 	)
 	if err != nil {
 		reply(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	var pkey encryptor.Key
 	err = json.Unmarshal([]byte(pkeyJSON), &pkey)
 	if err != nil {
 		reply(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	key, err := s.a.RegisterNewAuthServer(fqdn, token, pkey)
@@ -631,11 +637,13 @@ func (s *APIServer) submitEvents(w http.ResponseWriter, r *http.Request, _ httpr
 		form.FileSlice("event", &events))
 	if err != nil {
 		reply(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	if len(events) == 0 {
 		reply(w, http.StatusBadRequest,
 			fmt.Errorf("at least one event is required"))
+		return
 	}
 
 	defer func() {

@@ -85,6 +85,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 		NewStandardPermissions(),
 		StandardRoles,
 	)
+	s.srv.Serve()
 
 	// set up host private key and certificate
 	c.Assert(s.a.ResetHostCA(""), IsNil)
@@ -112,6 +113,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 		NewAllowAllPermissions(),
 		StandardRoles,
 	)
+	srv.Serve()
 
 	tsrv, err := NewTunServer(
 		utils.NetAddr{Network: "tcp", Addr: "127.0.0.1:0"},
@@ -167,14 +169,6 @@ func (s *TunSuite) TestSessions(c *C) {
 		utils.NetAddr{Network: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer clt.Close()
-
-	/*hotpURL, _, err = s.a.UpsertPassword(user, pass)
-	c.Assert(err, IsNil)
-
-	otp, label, err = hotp.FromURL(hotpURL)
-	c.Assert(err, IsNil)
-	c.Assert(label, Equals, "ws-test")
-	otp.Increment()*/
 
 	ws, err := clt.SignIn(user, pass)
 	c.Assert(err, IsNil)

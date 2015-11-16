@@ -70,20 +70,17 @@ func (ml *MemoryListener) Handle(conn net.Conn) error {
 
 	local, remote := net.Pipe()
 
-	defer conn.Close()
-	defer local.Close()
-
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
+		defer local.Close()
 		io.Copy(local, conn)
-		local.Close()
 	}()
 	go func() {
 		defer wg.Done()
+		defer conn.Close()
 		io.Copy(conn, local)
-		conn.Close()
 	}()
 	ml.connections <- remote
 	wg.Wait()

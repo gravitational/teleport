@@ -244,7 +244,12 @@ func (s *TunServer) keyAuth(
 		return nil, err
 	}
 
-	if err := s.certChecker.CheckCert(conn.User(), key.(*ssh.Certificate)); err != nil {
+	cert, ok := key.(*ssh.Certificate)
+	if !ok {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.certChecker.CheckCert(conn.User(), cert); err != nil {
 		log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
 			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
 		return nil, trace.Wrap(err)
@@ -253,7 +258,7 @@ func (s *TunServer) keyAuth(
 	perms := &ssh.Permissions{
 		Extensions: map[string]string{
 			ExtHost: conn.User(),
-			"role":  key.(*ssh.Certificate).Permissions.Extensions["role"],
+			"role":  cert.Permissions.Extensions["role"],
 		},
 	}
 
@@ -291,17 +296,14 @@ func (s *TunServer) passwordAuth(
 			},
 		}
 		if _, err := s.a.GetWebSession(conn.User(), session.SecureID(ab.Pass)); err != nil {
-			log.Errorf("session resume error: %v", err)
-			return nil, err
+			return nil, trace.Errorf("session resume error: %v", trace.Wrap(err))
 		}
 		log.Infof("session authenticated user: '%v'", conn.User())
 		return perms, nil
 	case "provision-token":
 		_, err := s.a.ValidateToken(string(ab.Pass), ab.User)
 		if err != nil {
-			err := fmt.Errorf("%v token validation error: %v", ab.User, err)
-			log.Errorf("%v", err)
-			return nil, err
+			return nil, trace.Errorf("%v token validation error: %v", ab.User, trace.Wrap(err))
 		}
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
@@ -311,8 +313,7 @@ func (s *TunServer) passwordAuth(
 		log.Infof("session authenticated prov. token: '%v'", conn.User())
 		return perms, nil
 	default:
-		log.Errorf("unsupported auth method: '%v'", ab.Type)
-		return nil, fmt.Errorf("unsupported auth method: '%v'", ab.Type)
+		return nil, trace.Errorf("unsupported auth method: '%v'", ab.Type)
 	}
 }
 

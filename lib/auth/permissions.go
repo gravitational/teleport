@@ -25,38 +25,38 @@ type PermissionChecker interface {
 }
 
 type standardPermissions struct {
-	permissions map[string](map[string]int)
+	permissions map[string](map[string]bool)
 }
 
 func NewStandardPermissions() PermissionChecker {
 	sp := standardPermissions{}
-	sp.permissions = make(map[string](map[string]int))
+	sp.permissions = make(map[string](map[string]bool))
 
-	sp.permissions[RoleUser] = map[string]int{
-		ActionSignIn:           1,
-		ActionGenerateUserCert: 1,
+	sp.permissions[RoleUser] = map[string]bool{
+		ActionSignIn:           true,
+		ActionGenerateUserCert: true,
 	}
 
-	sp.permissions[RoleProvisionToken] = map[string]int{
-		ActionRegisterUsingToken:    1,
-		ActionRegisterNewAuthServer: 1,
+	sp.permissions[RoleProvisionToken] = map[string]bool{
+		ActionRegisterUsingToken:    true,
+		ActionRegisterNewAuthServer: true,
 	}
 
-	sp.permissions[RoleNode] = map[string]int{
-		ActionUpsertServer:   1,
-		ActionGetUserCAPub:   1,
-		ActionGetRemoteCerts: 1,
-		ActionGetUserKeys:    1,
-		ActionGetServers:     1,
-		ActionGetHostCAPub:   1,
-		ActionUpsertParty:    1,
-		ActionLogEntry:       1,
-		ActionGetChunkWriter: 1,
+	sp.permissions[RoleNode] = map[string]bool{
+		ActionUpsertServer:   true,
+		ActionGetUserCAPub:   true,
+		ActionGetRemoteCerts: true,
+		ActionGetUserKeys:    true,
+		ActionGetServers:     true,
+		ActionGetHostCAPub:   true,
+		ActionUpsertParty:    true,
+		ActionLogEntry:       true,
+		ActionGetChunkWriter: true,
 	}
 
-	sp.permissions[RoleWeb] = map[string]int{
-		ActionGetWebSession:    1,
-		ActionDeleteWebSession: 1,
+	sp.permissions[RoleWeb] = map[string]bool{
+		ActionGetWebSession:    true,
+		ActionDeleteWebSession: true,
 	}
 
 	return &sp
@@ -67,7 +67,7 @@ func (sp *standardPermissions) HasPermission(role, action string) error {
 		return nil
 	}
 	if permissions, ok := sp.permissions[role]; ok {
-		if permissions[action] == 1 {
+		if permissions[action] {
 			return nil
 		} else {
 			return trace.Errorf("role '%v' doesn't have permission for action '%v'",

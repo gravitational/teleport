@@ -23,7 +23,6 @@ limitations under the License.
 package auth
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
@@ -182,10 +181,10 @@ func (s *AuthServer) ValidateToken(token, fqdn string) (role string, e error) {
 	}
 	tok, err := s.ProvisioningService.GetToken(string(pid))
 	if err != nil {
-		return "", err
+		return "", trace.Wrap(err)
 	}
 	if tok.FQDN != fqdn {
-		return "", fmt.Errorf("fqdn does not match")
+		return "", trace.Errorf("fqdn does not match")
 	}
 	return tok.Role, nil
 }
@@ -197,14 +196,14 @@ func (s *AuthServer) RegisterUsingToken(token, fqdn, role string) (keys PackedKe
 	}
 	tok, err := s.ProvisioningService.GetToken(string(pid))
 	if err != nil {
-		return PackedKeys{}, err
+		return PackedKeys{}, trace.Wrap(err)
 	}
 	if tok.FQDN != fqdn {
-		return PackedKeys{}, fmt.Errorf("fqdn does not match")
+		return PackedKeys{}, trace.Errorf("fqdn does not match")
 	}
 
 	if tok.Role != role {
-		return PackedKeys{}, fmt.Errorf("role does not match")
+		return PackedKeys{}, trace.Errorf("role does not match")
 	}
 
 	k, pub, err := s.GenerateKeyPair("")
@@ -236,14 +235,14 @@ func (s *AuthServer) RegisterNewAuthServer(fqdn, token string,
 	}
 	tok, err := s.ProvisioningService.GetToken(string(pid))
 	if err != nil {
-		return encryptor.Key{}, err
+		return encryptor.Key{}, trace.Wrap(err)
 	}
 	if tok.FQDN != fqdn {
-		return encryptor.Key{}, fmt.Errorf("fqdn does not match")
+		return encryptor.Key{}, trace.Errorf("fqdn does not match")
 	}
 
 	if tok.Role != RoleAuth {
-		return encryptor.Key{}, fmt.Errorf("role does not match")
+		return encryptor.Key{}, trace.Errorf("role does not match")
 	}
 
 	if err := s.DeleteToken(token); err != nil {

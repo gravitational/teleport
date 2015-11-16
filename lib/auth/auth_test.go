@@ -106,8 +106,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(s.a.DeleteToken(tok), FitsTypeOf, &teleport.NotFoundError{})
 
 	_, err = s.a.ValidateToken(tok, "a.example.com")
-	c.Assert(err,
-		FitsTypeOf, &teleport.NotFoundError{})
+	c.Assert(err, NotNil)
 }
 
 func (s *AuthSuite) TestBadTokens(c *C) {
