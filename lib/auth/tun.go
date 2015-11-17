@@ -434,7 +434,8 @@ func (t *TunDialer) GetAgent() (agent.Agent, error) {
 	}
 	ch, _, err := t.tun.OpenChannel(ReqWebSessionAgent, nil)
 	if err != nil {
-		_, err := t.getClient(true) // we need an established connection first
+		// reconnecting and trying again
+		_, err := t.getClient(true)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -480,6 +481,7 @@ func (t *TunDialer) Dial(network, address string) (net.Conn, error) {
 	if err == nil {
 		return conn, err
 	} else {
+		// reconnecting and trying again
 		c, err = t.getClient(true)
 		if err != nil {
 			return nil, err

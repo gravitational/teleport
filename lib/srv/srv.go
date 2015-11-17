@@ -190,10 +190,11 @@ func (s *Server) getTrustedCAKeys() ([]ssh.PublicKey, error) {
 		if e != nil {
 			return nil, trace.Errorf("%v, %v", err, e)
 		}
-	}
-	err = s.saveTrustedCAKeys(keys)
-	if err != nil {
-		log.Errorf(err.Error())
+	} else {
+		err = s.saveTrustedCAKeys(keys)
+		if err != nil {
+			log.Errorf(err.Error())
+		}
 	}
 
 	var parsedKeys []ssh.PublicKey
