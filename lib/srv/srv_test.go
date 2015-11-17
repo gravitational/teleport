@@ -100,6 +100,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		"localhost",
 		[]ssh.Signer{s.signer},
 		ap,
+		s.dir,
 		SetShell("/bin/sh"),
 	)
 	c.Assert(err, IsNil)
@@ -226,6 +227,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 		"localhost",
 		[]ssh.Signer{s.signer},
 		ap,
+		s.dir,
 		SetProxyMode(reverseTunnelServer),
 	)
 	c.Assert(err, IsNil)

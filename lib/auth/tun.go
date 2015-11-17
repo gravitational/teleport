@@ -428,23 +428,35 @@ func (t *TunDialer) Close() error {
 }
 
 func (t *TunDialer) GetAgent() (agent.Agent, error) {
-	_, err := t.getClient() // we need an established connection first
+	_, err := t.getClient(false) // we need an established connection first
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	ch, _, err := t.tun.OpenChannel(ReqWebSessionAgent, nil)
 	if err != nil {
-		return nil, err
+		_, err := t.getClient(true) // we need an established connection first
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ch, _, err = t.tun.OpenChannel(ReqWebSessionAgent, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	log.Infof("opened agent channel")
 	return agent.NewClient(ch), nil
 }
 
-func (t *TunDialer) getClient() (*ssh.Client, error) {
+func (t *TunDialer) getClient(reset bool) (*ssh.Client, error) {
 	t.Lock()
 	defer t.Unlock()
 	if t.tun != nil {
-		return t.tun, nil
+		if !reset {
+			return t.tun, nil
+		} else {
+			go t.tun.Close()
+			t.tun = nil
+		}
 	}
 
 	config := &ssh.ClientConfig{
@@ -460,11 +472,20 @@ func (t *TunDialer) getClient() (*ssh.Client, error) {
 }
 
 func (t *TunDialer) Dial(network, address string) (net.Conn, error) {
-	c, err := t.getClient()
+	c, err := t.getClient(false)
 	if err != nil {
 		return nil, err
 	}
-	return c.Dial(network, address)
+	conn, err := c.Dial(network, address)
+	if err == nil {
+		return conn, err
+	} else {
+		c, err = t.getClient(true)
+		if err != nil {
+			return nil, err
+		}
+		return c.Dial(network, address)
+	}
 }
 
 const (

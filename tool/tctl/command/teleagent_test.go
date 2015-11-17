@@ -139,6 +139,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 		"localhost",
 		[]ssh.Signer{signer},
 		ap,
+		dir,
 		srv.SetShell("/bin/sh"),
 	)
 	c.Assert(err, IsNil)

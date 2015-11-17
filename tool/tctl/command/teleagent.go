@@ -17,10 +17,15 @@ package command
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 )
 
 func (cmd *Command) AgentLogin(agentAddr string, proxyAddr string, ttl time.Duration) {
@@ -61,6 +66,19 @@ func (cmd *Command) AgentLogin(agentAddr string, proxyAddr string, ttl time.Dura
 }
 
 func (cmd *Command) AgentStart(agentAddr string, apiAddr string) {
+	parsedAgentAddress, err := utils.ParseAddr(agentAddr)
+	if err != nil {
+		cmd.printError(trace.Wrap(err))
+		return
+	}
+	parsedAPIAddress, err := utils.ParseAddr(apiAddr)
+	if err != nil {
+		cmd.printError(trace.Wrap(err))
+		return
+	}
+
+	RemoveBeforeClose(parsedAgentAddress.Addr, parsedAPIAddress.Addr)
+
 	agent := teleagent.NewTeleAgent()
 	apiServer := teleagent.NewAgentAPIServer(agent)
 	if err := agent.Start(agentAddr); err != nil {
@@ -68,10 +86,22 @@ func (cmd *Command) AgentStart(agentAddr string, apiAddr string) {
 		return
 	}
 
-	fmt.Fprintf(cmd.out, "Agent started")
+	fmt.Fprintf(cmd.out, "Agent started\n")
 
 	if err := apiServer.Start(apiAddr); err != nil {
 		cmd.printError(trace.Wrap(err))
 		return
 	}
+}
+
+func RemoveBeforeClose(files ...string) {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		for _, file := range files {
+			os.Remove(file)
+		}
+		os.Exit(1)
+	}()
 }

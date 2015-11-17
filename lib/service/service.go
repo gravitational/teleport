@@ -18,6 +18,7 @@ package service
 import (
 	"net/http"
 	"path"
+	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/native"
@@ -195,6 +196,7 @@ func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
 		cfg.Hostname,
 		[]ssh.Signer{signer},
 		client,
+		cfg.DataDir,
 		srv.SetShell(cfg.SSH.Shell),
 		srv.SetEventLogger(elog),
 		srv.SetSessionServer(client),
@@ -246,10 +248,15 @@ func RegisterWithAuthServer(
 
 	supervisor.RegisterFunc(func() error {
 		log.Infof("teleport:register connecting to auth servers %v", provisioningToken)
-		if err := auth.Register(
-			cfg.Hostname, cfg.DataDir, provisioningToken, role, cfg.AuthServers); err != nil {
-			log.Errorf("teleport:ssh register failed: %v", err)
-			return trace.Wrap(err)
+		registered := false
+		for !registered {
+			if err := auth.Register(cfg.Hostname, cfg.DataDir,
+				provisioningToken, role, cfg.AuthServers); err != nil {
+				log.Errorf("teleport:ssh register failed: %v", err)
+				time.Sleep(time.Second)
+			} else {
+				registered = true
+			}
 		}
 		log.Infof("teleport:register registered successfully")
 		return callback()
@@ -342,6 +349,7 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 		cfg.Hostname,
 		[]ssh.Signer{signer},
 		client,
+		cfg.DataDir,
 		srv.SetProxyMode(tsrv),
 	)
 	if err != nil {
