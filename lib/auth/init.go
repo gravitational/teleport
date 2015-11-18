@@ -43,11 +43,11 @@ type InitConfig struct {
 	DataDir            string
 	SecretKey          string
 	AllowedTokens      map[string]string
-	TrustedAuthorities []services.RemoteCert
+	TrustedAuthorities []services.PublicCertificate
 	// HostCA is an optional host certificate authority keypair
-	HostCA *services.CA
+	HostCA *services.CertificateAuthority
 	// UserCA is an optional user certificate authority keypair
-	UserCA *services.CA
+	UserCA *services.CertificateAuthority
 }
 
 func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
@@ -78,7 +78,7 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 	}
 
 	// check that user CA and host CA are present and set the certs if needed
-	asrv := NewAuthServer(cfg.Backend, cfg.Authority, scrt)
+	asrv := NewAuthServer(cfg.Backend, cfg.Authority, scrt, cfg.FQDN)
 
 	// we determine if it's the first start by checking if the CA's are set
 	var firstStart bool
@@ -86,17 +86,17 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 	// this block will generate user CA authority on first start if it's
 	// not currently present, it will also use optional passed user ca keypair
 	// that can be supplied in configuration
-	if _, e := asrv.GetHostCAPub(); e != nil {
+	if _, e := asrv.GetHostPublicCertificate(); e != nil {
 		if _, ok := e.(*teleport.NotFoundError); ok {
 			firstStart = true
 			if cfg.HostCA != nil {
 				log.Infof("FIRST START: use host CA keypair provided in config")
-				if err := asrv.CAService.UpsertHostCA(*cfg.HostCA); err != nil {
+				if err := asrv.CAService.UpsertHostCertificateAuthority(*cfg.HostCA); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 			} else {
 				log.Infof("FIRST START: Generating host CA on first start")
-				if err := asrv.ResetHostCA(""); err != nil {
+				if err := asrv.ResetHostCertificateAuthority(""); err != nil {
 					return nil, nil, err
 				}
 			}
@@ -109,17 +109,17 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 	// this block will generate user CA authority on first start if it's
 	// not currently present, it will also use optional passed user ca keypair
 	// that can be supplied in configuration
-	if _, e := asrv.GetUserCAPub(); e != nil {
+	if _, e := asrv.GetUserPublicCertificate(); e != nil {
 		if _, ok := e.(*teleport.NotFoundError); ok {
 			firstStart = true
 			if cfg.HostCA != nil {
 				log.Infof("FIRST START: use user CA keypair provided in config")
-				if err := asrv.CAService.UpsertUserCA(*cfg.UserCA); err != nil {
+				if err := asrv.CAService.UpsertUserCertificateAuthority(*cfg.UserCA); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 			} else {
 				log.Infof("FIRST START: Generating user CA on first start")
-				if err := asrv.ResetUserCA(""); err != nil {
+				if err := asrv.ResetUserCertificateAuthority(""); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 			}
@@ -148,7 +148,7 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 			log.Infof("FIRST START: Setting trusted certificate authorities")
 			for _, cert := range cfg.TrustedAuthorities {
 				log.Infof("FIRST START: upsert trusted remote cert: type: %v fqdn: %v", cert.Type, cert.FQDN)
-				if err := asrv.UpsertRemoteCert(cert, 0); err != nil {
+				if err := asrv.UpsertRemoteCertificate(cert, 0); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 			}

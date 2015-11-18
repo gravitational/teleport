@@ -17,7 +17,6 @@ limitations under the License.
 package srv
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -27,7 +26,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/recorder"
@@ -62,7 +60,7 @@ type Server struct {
 	se          rsession.SessionServer
 	rec         recorder.Recorder
 
-	backend backend.Backend
+	certificatesCache *services.CAService
 
 	proxyMode bool
 	proxyTun  reversetunnel.Server
@@ -134,10 +132,11 @@ func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
 	if s.proxyMode {
 		certCacheFile = "ProxyCertCache"
 	}
-	s.backend, err = boltbk.New(path.Join(dataDir, certCacheFile))
+	backend, err := boltbk.New(path.Join(dataDir, certCacheFile))
 	if err != nil {
 		return nil, err
 	}
+	s.certificatesCache = services.NewCAService(backend)
 
 	srv, err := sshutils.NewServer(
 		addr, s, signers,
@@ -169,29 +168,23 @@ func (s *Server) heartbeatPresence() {
 			log.Warningf("failed to announce %#v presence: %v", srv, err)
 		}
 
-		if keys, err := s.downloadTrustedCAKeys(); err == nil {
-			if err != nil {
-				if err := s.saveTrustedCAKeys(keys); err != nil {
-					log.Warningf(err.Error())
-				}
-			}
-		} else {
+		if err := s.updateTrustedCAKeys(); err != nil {
 			log.Warningf(err.Error())
 		}
 		time.Sleep(3 * time.Second)
 	}
 }
 
-func (s *Server) getTrustedCAKeys() ([]ssh.PublicKey, error) {
-	keys, err := s.downloadTrustedCAKeys()
-	if err != nil {
-		var e error
-		keys, e = s.loadTrustedCAKeys()
-		if e != nil {
-			return nil, trace.Errorf("%v, %v", err, e)
+func (s *Server) getTrustedCAKeys(fromCache bool) ([]ssh.PublicKey, error) {
+	var keys []services.PublicCertificate
+	var err error
+	if fromCache {
+		keys, err = s.certificatesCache.GetRemoteCertificates(services.UserCert, "")
+		if err != nil {
+			log.Errorf(err.Error())
 		}
 	} else {
-		err = s.saveTrustedCAKeys(keys)
+		keys, err = s.ap.GetTrustedCertificates(services.UserCert)
 		if err != nil {
 			log.Errorf(err.Error())
 		}
@@ -199,63 +192,35 @@ func (s *Server) getTrustedCAKeys() ([]ssh.PublicKey, error) {
 
 	var parsedKeys []ssh.PublicKey
 	for _, key := range keys {
-		parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
+		parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(key.PubValue)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse CA public key '%v', err: %v",
-				string(key), err)
+				string(key.PubValue), err)
 		}
 		parsedKeys = append(parsedKeys, parsedKey)
 	}
 	return parsedKeys, nil
 }
 
-func (s *Server) loadTrustedCAKeys() ([][]byte, error) {
-	keysJSON, err := s.backend.GetVal([]string{"keys"}, "keys")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var keys [][]byte
-	err = json.Unmarshal(keysJSON, &keys)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return keys, nil
-}
-
-func (s *Server) saveTrustedCAKeys(keys [][]byte) error {
-	keysJSON, err := json.Marshal(keys)
+func (s *Server) updateTrustedCAKeys() error {
+	keys, err := s.ap.GetTrustedCertificates(services.UserCert)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal([]string{"keys"}, "keys", keysJSON, CertificatesCacheTTL)
-	if err != nil {
-		return trace.Wrap(err)
+	for _, key := range keys {
+		err := s.certificatesCache.UpsertRemoteCertificate(key, CertificatesCacheTTL)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
-}
-
-func (s *Server) downloadTrustedCAKeys() ([][]byte, error) {
-	authKeys := [][]byte{}
-	key, err := s.ap.GetUserCAPub()
-	if err != nil {
-		return nil, err
-	}
-	authKeys = append(authKeys, key)
-
-	certs, err := s.ap.GetRemoteCerts(services.UserCert, "")
-	if err != nil {
-		return nil, err
-	}
-	for _, c := range certs {
-		authKeys = append(authKeys, c.Value)
-	}
-	return authKeys, nil
 }
 
 // isAuthority is called during checking the client key, to see if the signing
 // key is the real CA authority key.
 func (s *Server) isAuthority(auth ssh.PublicKey) bool {
-	keys, err := s.getTrustedCAKeys()
+	// Checking certificates from cache
+	keys, err := s.getTrustedCAKeys(true)
 	if err != nil {
 		log.Errorf("failed to retrieve trused keys, err: %v", err)
 		return false
@@ -265,6 +230,19 @@ func (s *Server) isAuthority(auth ssh.PublicKey) bool {
 			return true
 		}
 	}
+
+	// Checking certificates from auth server
+	keys, err = s.getTrustedCAKeys(false)
+	if err != nil {
+		log.Errorf("failed to retrieve trused keys, err: %v", err)
+		return false
+	}
+	for _, k := range keys {
+		if sshutils.KeysEqual(k, auth) {
+			return true
+		}
+	}
+
 	return false
 }
 

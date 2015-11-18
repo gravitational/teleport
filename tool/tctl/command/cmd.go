@@ -97,7 +97,7 @@ func (cmd *Command) Run(args []string) error {
 	remoteCaLsFQDN := remoteCaLs.Flag("fqdn", "FQDN of the remote party").String()
 	remoteCaLsType := remoteCaLs.Flag("type", "Cert type (host or user)").Required().String()
 
-	remoteCaRm := remoteCa.Command("rm", "Remote remote CA from list of trusted certs")
+	remoteCaRm := remoteCa.Command("rm", "Remote remote Certificate authority from list of trusted certs")
 	remoteCaRmID := remoteCaRm.Flag("id", "Certificate id").Required().String()
 	remoteCaRmFQDN := remoteCaRm.Flag("fqdn", "FQDN of the remote party").Required().String()
 	remoteCaRmType := remoteCaRm.Flag("type", "Cert type (host or user)").Required().String()
@@ -208,24 +208,24 @@ func (cmd *Command) Run(args []string) error {
 
 	// Host CA
 	case hostCaReset.FullCommand():
-		cmd.ResetHostCA(*hostCaResetConfirm)
+		cmd.ResetHostCertificateAuthority(*hostCaResetConfirm)
 	case hostCaPubKey.FullCommand():
-		cmd.GetHostCAPub()
+		cmd.GetHostPublicCertificate()
 
 	// User CA
 	case userCaReset.FullCommand():
-		cmd.ResetUserCA(*userCaResetConfirm)
+		cmd.ResetUserCertificateAuthority(*userCaResetConfirm)
 	case userCaPubKey.FullCommand():
-		cmd.GetUserCAPub()
+		cmd.GetUserPublicCertificate()
 
 	// Remote CA
 	case remoteCaUpsert.FullCommand():
-		cmd.UpsertRemoteCert(*remoteCaUpsertID, *remoteCaUpsertFQDN,
+		cmd.UpsertRemoteCertificate(*remoteCaUpsertID, *remoteCaUpsertFQDN,
 			*remoteCaUpsertType, *remoteCaUpsertPath, *remoteCaUpsertTTL)
 	case remoteCaLs.FullCommand():
-		cmd.GetRemoteCerts(*remoteCaLsFQDN, *remoteCaLsType)
+		cmd.GetRemoteCertificates(*remoteCaLsFQDN, *remoteCaLsType)
 	case remoteCaRm.FullCommand():
-		cmd.DeleteRemoteCert(*remoteCaRmID, *remoteCaRmFQDN, *remoteCaRmType)
+		cmd.DeleteRemoteCertificate(*remoteCaRmID, *remoteCaRmFQDN, *remoteCaRmType)
 
 	// Secret
 	case secretNew.FullCommand():

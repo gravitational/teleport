@@ -275,21 +275,23 @@ func (c *CertificateAuthority) UnmarshalYAML(unmarshal func(interface{}) error) 
 	return nil
 }
 
-func (c *CertificateAuthority) ToCA() *services.CA {
-	return &services.CA{
-		Pub:  []byte(c.PublicKey),
-		Priv: []byte(c.PrivateKey),
+func (c *CertificateAuthority) ToCA() *services.CertificateAuthority {
+	return &services.CertificateAuthority{
+		PublicCertificate: services.PublicCertificate{
+			PubValue: []byte(c.PublicKey),
+		},
+		PrivValue: []byte(c.PrivateKey),
 	}
 }
 
-func convertRemoteCerts(inCerts RemoteCerts) []services.RemoteCert {
-	outCerts := make([]services.RemoteCert, len(inCerts))
+func convertRemoteCerts(inCerts RemoteCerts) []services.PublicCertificate {
+	outCerts := make([]services.PublicCertificate, len(inCerts))
 	for i, v := range inCerts {
-		outCerts[i] = services.RemoteCert{
-			ID:    v.ID,
-			FQDN:  v.FQDN,
-			Type:  v.Type,
-			Value: []byte(v.Value),
+		outCerts[i] = services.PublicCertificate{
+			ID:       v.ID,
+			FQDN:     v.FQDN,
+			Type:     v.Type,
+			PubValue: []byte(v.Value),
 		}
 	}
 	return outCerts

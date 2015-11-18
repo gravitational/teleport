@@ -132,14 +132,14 @@ func (s *TunServer) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 // isAuthority is called during checking the client key, to see if the signing
 // key is the real CA authority key.
 func (s *TunServer) isAuthority(auth ssh.PublicKey) bool {
-	key, err := s.a.GetHostCAPub()
+	key, err := s.a.GetHostPublicCertificate()
 	if err != nil {
 		log.Errorf("failed to retrieve user authority key, err: %v", err)
 		return false
 	}
-	cert, _, _, _, err := ssh.ParseAuthorizedKey(key)
+	cert, _, _, _, err := ssh.ParseAuthorizedKey(key.PubValue)
 	if err != nil {
-		log.Errorf("failed to parse CA cert '%v', err: %v", string(key), err)
+		log.Errorf("failed to parse CA cert '%v', err: %v", string(key.PubValue), err)
 		return false
 	}
 

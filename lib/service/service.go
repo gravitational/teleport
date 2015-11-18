@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
@@ -70,7 +71,7 @@ func NewTeleport(cfg Config) (Supervisor, error) {
 	supervisor := NewSupervisor()
 
 	if cfg.Auth.Enabled {
-		if err := InitAuthService(supervisor, cfg.RoleConfig()); err != nil {
+		if err := InitAuthService(supervisor, cfg.RoleConfig(), cfg.Hostname); err != nil {
 			return nil, err
 		}
 	}
@@ -97,7 +98,7 @@ func NewTeleport(cfg Config) (Supervisor, error) {
 }
 
 // InitAuthService can be called to initialize auth server service
-func InitAuthService(supervisor Supervisor, cfg RoleConfig) error {
+func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) error {
 	if cfg.Auth.HostAuthorityDomain == "" {
 		return trace.Errorf(
 			"please provide host certificate authority domain, e.g. example.com")
@@ -131,9 +132,15 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig) error {
 	}
 	if len(cfg.Auth.UserCA.PublicKey) != 0 && len(cfg.Auth.UserCA.PrivateKey) != 0 {
 		acfg.UserCA = cfg.Auth.UserCA.ToCA()
+		acfg.UserCA.FQDN = hostname
+		acfg.UserCA.ID = string(acfg.UserCA.PubValue)
+		acfg.UserCA.Type = services.UserCert
 	}
 	if len(cfg.Auth.HostCA.PublicKey) != 0 && len(cfg.Auth.HostCA.PrivateKey) != 0 {
 		acfg.HostCA = cfg.Auth.HostCA.ToCA()
+		acfg.HostCA.FQDN = hostname
+		acfg.HostCA.ID = string(acfg.HostCA.PubValue)
+		acfg.HostCA.Type = services.HostCert
 	}
 	asrv, signer, err := auth.Init(acfg)
 	if err != nil {

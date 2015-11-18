@@ -23,7 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gokyle/hotp"
 
-	"github.com/gravitational/teleport"
+	//"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
@@ -88,7 +88,7 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.rec, err = boltrec.New(s.dir)
 	c.Assert(err, IsNil)
 
-	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)
+	s.a = NewAuthServer(s.bk, authority.New(), s.scrt, "host1")
 	s.srv = httptest.NewServer(NewAPIServer(
 		&AuthWithRoles{
 			authServer:  s.a,
@@ -115,38 +115,38 @@ func (s *APISuite) TearDownTest(c *C) {
 }
 
 func (s *APISuite) TestHostCACRUD(c *C) {
-	c.Assert(s.clt.ResetHostCA(), IsNil)
+	c.Assert(s.clt.ResetHostCertificateAuthority(), IsNil)
 
-	hca, err := s.CAS.GetHostCA()
+	hca, err := s.CAS.GetHostCertificateAuthority()
 	c.Assert(err, IsNil)
 
-	c.Assert(s.clt.ResetHostCA(), IsNil)
+	c.Assert(s.clt.ResetHostCertificateAuthority(), IsNil)
 
-	hca2, err := s.CAS.GetHostCA()
+	hca2, err := s.CAS.GetHostCertificateAuthority()
 	c.Assert(err, IsNil)
 
 	c.Assert(hca, Not(DeepEquals), hca2)
 
-	key, err := s.clt.GetHostCAPub()
+	key, err := s.clt.GetHostPublicCertificate()
 	c.Assert(err, IsNil)
-	c.Assert(key, DeepEquals, hca2.Pub)
+	c.Assert(key.PubValue, DeepEquals, hca2.PubValue)
 }
 
 func (s *APISuite) TestUserCACRUD(c *C) {
-	c.Assert(s.clt.ResetUserCA(), IsNil)
+	c.Assert(s.clt.ResetUserCertificateAuthority(), IsNil)
 
-	uca, err := s.CAS.GetUserCA()
+	uca, err := s.CAS.GetUserCertificateAuthority()
 	c.Assert(err, IsNil)
 
-	c.Assert(s.clt.ResetUserCA(), IsNil)
-	uca2, err := s.CAS.GetUserCA()
+	c.Assert(s.clt.ResetUserCertificateAuthority(), IsNil)
+	uca2, err := s.CAS.GetUserCertificateAuthority()
 	c.Assert(err, IsNil)
 
 	c.Assert(uca, Not(DeepEquals), uca2)
 
-	key, err := s.clt.GetUserCAPub()
+	key, err := s.clt.GetUserPublicCertificate()
 	c.Assert(err, IsNil)
-	c.Assert(key, DeepEquals, uca2.Pub)
+	c.Assert(key.PubValue, DeepEquals, uca2.PubValue)
 }
 
 func (s *APISuite) TestGenerateKeyPair(c *C) {
@@ -162,7 +162,7 @@ func (s *APISuite) TestGenerateKeyPair(c *C) {
 }
 
 func (s *APISuite) TestGenerateHostCert(c *C) {
-	c.Assert(s.clt.ResetHostCA(), IsNil)
+	c.Assert(s.clt.ResetHostCertificateAuthority(), IsNil)
 
 	_, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -176,7 +176,7 @@ func (s *APISuite) TestGenerateHostCert(c *C) {
 }
 
 func (s *APISuite) TestGenerateUserCert(c *C) {
-	c.Assert(s.clt.ResetUserCA(), IsNil)
+	c.Assert(s.clt.ResetUserCertificateAuthority(), IsNil)
 
 	_, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -190,7 +190,7 @@ func (s *APISuite) TestGenerateUserCert(c *C) {
 }
 
 func (s *APISuite) TestKeysCRUD(c *C) {
-	c.Assert(s.clt.ResetUserCA(), IsNil)
+	c.Assert(s.clt.ResetUserCertificateAuthority(), IsNil)
 
 	_, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -204,7 +204,7 @@ func (s *APISuite) TestKeysCRUD(c *C) {
 }
 
 func (s *APISuite) TestUserKeyCRUD(c *C) {
-	c.Assert(s.clt.ResetUserCA(), IsNil)
+	c.Assert(s.clt.ResetUserCertificateAuthority(), IsNil)
 
 	_, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -270,7 +270,7 @@ func (s *APISuite) TestSessions(c *C) {
 	user := "user1"
 	pass := []byte("abc123")
 
-	c.Assert(s.a.ResetUserCA(""), IsNil)
+	c.Assert(s.a.ResetUserCertificateAuthority(""), IsNil)
 
 	ws, err := s.clt.SignIn(user, pass)
 	c.Assert(err, NotNil)
@@ -364,24 +364,24 @@ func (s *APISuite) TestTokens(c *C) {
 }
 
 func (s *APISuite) TestRemoteCACRUD(c *C) {
-	key := services.RemoteCert{
-		FQDN:  "example.com",
-		ID:    "id",
-		Value: []byte("hello1"),
-		Type:  services.UserCert,
+	key := services.PublicCertificate{
+		FQDN:     "example.com",
+		ID:       "id",
+		PubValue: []byte("hello1"),
+		Type:     services.UserCert,
 	}
-	err := s.clt.UpsertRemoteCert(key, 0)
+	err := s.clt.UpsertRemoteCertificate(key, 0)
 	c.Assert(err, IsNil)
 
-	certs, err := s.clt.GetRemoteCerts(key.Type, key.FQDN)
+	certs, err := s.clt.GetRemoteCertificates(key.Type, key.FQDN)
 	c.Assert(err, IsNil)
 	c.Assert(certs[0], DeepEquals, key)
 
-	err = s.clt.DeleteRemoteCert(key.Type, key.FQDN, key.ID)
+	err = s.clt.DeleteRemoteCertificate(key.Type, key.FQDN, key.ID)
 	c.Assert(err, IsNil)
 
-	err = s.clt.DeleteRemoteCert(key.Type, key.FQDN, key.ID)
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	err = s.clt.DeleteRemoteCertificate(key.Type, key.FQDN, key.ID)
+	c.Assert(err, NotNil)
 }
 
 func (s *APISuite) TestSharedSessions(c *C) {

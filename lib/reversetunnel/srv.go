@@ -143,18 +143,18 @@ func (s *server) isAuthority(auth ssh.PublicKey) bool {
 func (s *server) getTrustedCAKeys() ([]ssh.PublicKey, error) {
 	out := []ssh.PublicKey{}
 	authKeys := [][]byte{}
-	key, err := s.ap.GetHostCAPub()
+	key, err := s.ap.GetHostPublicCertificate()
 	if err != nil {
 		return nil, err
 	}
-	authKeys = append(authKeys, key)
+	authKeys = append(authKeys, key.PubValue)
 
-	certs, err := s.ap.GetRemoteCerts(services.HostCert, "")
+	certs, err := s.ap.GetRemoteCertificates(services.HostCert, "")
 	if err != nil {
 		return nil, err
 	}
 	for _, c := range certs {
-		authKeys = append(authKeys, c.Value)
+		authKeys = append(authKeys, c.PubValue)
 	}
 	for _, ak := range authKeys {
 		pk, _, _, _, err := ssh.ParseAuthorizedKey(ak)

@@ -58,12 +58,12 @@ func (s *AuthSuite) SetUpTest(c *C) {
 		encryptor.GetTestKey)
 	c.Assert(err, IsNil)
 
-	s.a = NewAuthServer(s.bk, authority.New(), s.scrt)
+	s.a = NewAuthServer(s.bk, authority.New(), s.scrt, "host1")
 }
 
 // TODO(klizhentas) introduce more thorough tests, test more edge cases
 func (s *AuthSuite) TestSessions(c *C) {
-	c.Assert(s.a.ResetUserCA(""), IsNil)
+	c.Assert(s.a.ResetUserCertificateAuthority(""), IsNil)
 
 	user := "user1"
 	pass := []byte("abc123")

@@ -109,35 +109,45 @@ func (s *ServicesTestSuite) UsersCRUD(c *C) {
 }
 
 func (s *ServicesTestSuite) UserCACRUD(c *C) {
-	ca := CA{
-		Pub:  []byte("capub"),
-		Priv: []byte("capriv"),
+	ca := CertificateAuthority{
+		PublicCertificate: PublicCertificate{
+			PubValue: []byte("capub"),
+			ID:       "id1",
+			Type:     UserCert,
+			FQDN:     "host1",
+		},
+		PrivValue: []byte("capriv"),
 	}
-	c.Assert(s.CAS.UpsertUserCA(ca), IsNil)
+	c.Assert(s.CAS.UpsertUserCertificateAuthority(ca), IsNil)
 
-	out, err := s.CAS.GetUserCA()
+	out, err := s.CAS.GetUserCertificateAuthority()
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, &ca)
 
-	outp, err := s.CAS.GetUserCAPub()
+	outp, err := s.CAS.GetUserPublicCertificate()
 	c.Assert(err, IsNil)
-	c.Assert(outp, DeepEquals, ca.Pub)
+	c.Assert(outp, DeepEquals, ca.PublicCertificate)
 }
 
-func (s *ServicesTestSuite) HostCACRUD(c *C) {
-	ca := CA{
-		Pub:  []byte("capub"),
-		Priv: []byte("capriv"),
+func (s ServicesTestSuite) HostCACRUD(c *C) {
+	ca := CertificateAuthority{
+		PublicCertificate: PublicCertificate{
+			PubValue: []byte("capub"),
+			ID:       "id2",
+			Type:     HostCert,
+			FQDN:     "host2",
+		},
+		PrivValue: []byte("capriv"),
 	}
-	c.Assert(s.CAS.UpsertHostCA(ca), IsNil)
+	c.Assert(s.CAS.UpsertHostCertificateAuthority(ca), IsNil)
 
-	out, err := s.CAS.GetHostCA()
+	out, err := s.CAS.GetHostCertificateAuthority()
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, &ca)
 
-	outp, err := s.CAS.GetHostCAPub()
+	outp, err := s.CAS.GetHostPublicCertificate()
 	c.Assert(err, IsNil)
-	c.Assert(outp, DeepEquals, ca.Pub)
+	c.Assert(outp, DeepEquals, ca.PublicCertificate)
 }
 
 func (s *ServicesTestSuite) ServerCRUD(c *C) {
@@ -300,39 +310,39 @@ func (s *ServicesTestSuite) TokenCRUD(c *C) {
 }
 
 func (s *ServicesTestSuite) RemoteCertCRUD(c *C) {
-	out, err := s.CAS.GetRemoteCerts(HostCert, "")
+	out, err := s.CAS.GetRemoteCertificates(HostCert, "")
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, []RemoteCert{})
+	c.Assert(out, DeepEquals, []PublicCertificate{})
 
-	ca := RemoteCert{
-		Type:  HostCert,
-		ID:    "c1",
-		FQDN:  "example.com",
-		Value: []byte("hello"),
+	ca := PublicCertificate{
+		Type:     HostCert,
+		ID:       "c1",
+		FQDN:     "example.com",
+		PubValue: []byte("hello"),
 	}
-	c.Assert(s.CAS.UpsertRemoteCert(ca, 0), IsNil)
+	c.Assert(s.CAS.UpsertRemoteCertificate(ca, 0), IsNil)
 
-	out, err = s.CAS.GetRemoteCerts(HostCert, ca.FQDN)
+	out, err = s.CAS.GetRemoteCertificates(HostCert, ca.FQDN)
 	c.Assert(err, IsNil)
 	c.Assert(out[0], DeepEquals, ca)
 
-	ca2 := RemoteCert{
-		Type:  HostCert,
-		ID:    "c2",
-		FQDN:  "example.org",
-		Value: []byte("hello2"),
+	ca2 := PublicCertificate{
+		Type:     HostCert,
+		ID:       "c2",
+		FQDN:     "example.org",
+		PubValue: []byte("hello2"),
 	}
-	c.Assert(s.CAS.UpsertRemoteCert(ca2, 0), IsNil)
+	c.Assert(s.CAS.UpsertRemoteCertificate(ca2, 0), IsNil)
 
-	out, err = s.CAS.GetRemoteCerts(HostCert, ca2.FQDN)
+	out, err = s.CAS.GetRemoteCertificates(HostCert, ca2.FQDN)
 	c.Assert(err, IsNil)
 	c.Assert(out[0], DeepEquals, ca2)
 
-	out, err = s.CAS.GetRemoteCerts(HostCert, "")
+	out, err = s.CAS.GetRemoteCertificates(HostCert, "")
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 2)
 
-	certs := make(map[string]RemoteCert)
+	certs := make(map[string]PublicCertificate)
 	for _, c := range out {
 		certs[c.FQDN+c.ID] = c
 	}
@@ -340,18 +350,80 @@ func (s *ServicesTestSuite) RemoteCertCRUD(c *C) {
 	c.Assert(certs[ca2.FQDN+ca2.ID], DeepEquals, ca2)
 
 	// Update ca
-	ca.Value = []byte("hello updated")
-	c.Assert(s.CAS.UpsertRemoteCert(ca, 0), IsNil)
+	ca.PubValue = []byte("hello updated")
+	c.Assert(s.CAS.UpsertRemoteCertificate(ca, 0), IsNil)
 
-	out, err = s.CAS.GetRemoteCerts(HostCert, ca.FQDN)
+	out, err = s.CAS.GetRemoteCertificates(HostCert, ca.FQDN)
 	c.Assert(err, IsNil)
 	c.Assert(out[0], DeepEquals, ca)
 
-	err = s.CAS.DeleteRemoteCert(HostCert, ca.FQDN, ca.ID)
+	err = s.CAS.DeleteRemoteCertificate(HostCert, ca.FQDN, ca.ID)
 	c.Assert(err, IsNil)
 
-	err = s.CAS.DeleteRemoteCert(HostCert, ca.FQDN, ca.ID)
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	err = s.CAS.DeleteRemoteCertificate(HostCert, ca.FQDN, ca.ID)
+	c.Assert(err, NotNil)
+}
+
+func (s *ServicesTestSuite) TrustedCertificates(c *C) {
+	userCA := CertificateAuthority{
+		PublicCertificate: PublicCertificate{
+			PubValue: []byte("capub"),
+			ID:       "id1",
+			Type:     UserCert,
+			FQDN:     "host1",
+		},
+		PrivValue: []byte("capriv"),
+	}
+	c.Assert(s.CAS.UpsertUserCertificateAuthority(userCA), IsNil)
+	userPubCA, err := s.CAS.GetUserPublicCertificate()
+	c.Assert(err, IsNil)
+
+	hostCA := CertificateAuthority{
+		PublicCertificate: PublicCertificate{
+			PubValue: []byte("capub"),
+			ID:       "id1",
+			Type:     UserCert,
+			FQDN:     "host1",
+		},
+		PrivValue: []byte("capriv"),
+	}
+	c.Assert(s.CAS.UpsertHostCertificateAuthority(hostCA), IsNil)
+	hostPubCA, err := s.CAS.GetUserPublicCertificate()
+	c.Assert(err, IsNil)
+
+	ca1 := PublicCertificate{
+		Type:     HostCert,
+		ID:       "c1",
+		FQDN:     "example.com",
+		PubValue: []byte("hello"),
+	}
+	c.Assert(s.CAS.UpsertRemoteCertificate(ca1, 0), IsNil)
+
+	ca2 := PublicCertificate{
+		Type:     HostCert,
+		ID:       "c2",
+		FQDN:     "example.org",
+		PubValue: []byte("hello2"),
+	}
+	c.Assert(s.CAS.UpsertRemoteCertificate(ca2, 0), IsNil)
+
+	remoteCAs, err := s.CAS.GetRemoteCertificates("", "")
+	c.Assert(err, IsNil)
+	remoteUserCAs, err := s.CAS.GetRemoteCertificates(UserCert, "")
+	c.Assert(err, IsNil)
+	remoteHostCAs, err := s.CAS.GetRemoteCertificates(HostCert, "")
+	c.Assert(err, IsNil)
+
+	trustedCertificates, err := s.CAS.GetTrustedCertificates("")
+	c.Assert(err, IsNil)
+	trustedUserCertificates, err := s.CAS.GetTrustedCertificates(UserCert)
+	c.Assert(err, IsNil)
+	trustedHostCertificates, err := s.CAS.GetTrustedCertificates(HostCert)
+	c.Assert(err, IsNil)
+
+	c.Assert(trustedCertificates, Equals, append(remoteCAs, userPubCA, hostPubCA))
+	c.Assert(trustedUserCertificates, Equals, append(remoteUserCAs, userPubCA))
+	c.Assert(trustedHostCertificates, Equals, append(remoteHostCAs, hostPubCA))
 }
 
 func (s *ServicesTestSuite) PasswordCRUD(c *C) {

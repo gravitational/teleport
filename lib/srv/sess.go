@@ -305,23 +305,23 @@ func (j *joinSubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Req
 }
 
 func newMultiWriter() *multiWriter {
-	return &multiWriter{writers: make(map[string]WriterWrapper)}
+	return &multiWriter{writers: make(map[string]writerWrapper)}
 }
 
 type multiWriter struct {
 	sync.RWMutex
-	writers map[string]WriterWrapper
+	writers map[string]writerWrapper
 }
 
-type WriterWrapper struct {
+type writerWrapper struct {
 	io.Writer
-	CloseOnError bool
+	closeOnError bool
 }
 
 func (m *multiWriter) addWriter(id string, w io.Writer, closeOnError bool) {
 	m.Lock()
 	defer m.Unlock()
-	m.writers[id] = WriterWrapper{Writer: w, CloseOnError: closeOnError}
+	m.writers[id] = writerWrapper{Writer: w, closeOnError: closeOnError}
 }
 
 func (m *multiWriter) deleteWriter(id string) {
@@ -337,7 +337,7 @@ func (t *multiWriter) Write(p []byte) (n int, err error) {
 	for _, w := range t.writers {
 		n, err = w.Write(p)
 		if err != nil {
-			if w.CloseOnError {
+			if w.closeOnError {
 				return
 			} else {
 				continue

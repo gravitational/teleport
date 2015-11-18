@@ -43,15 +43,16 @@ func NewStandardPermissions() PermissionChecker {
 	}
 
 	sp.permissions[RoleNode] = map[string]bool{
-		ActionUpsertServer:   true,
-		ActionGetUserCAPub:   true,
-		ActionGetRemoteCerts: true,
-		ActionGetUserKeys:    true,
-		ActionGetServers:     true,
-		ActionGetHostCAPub:   true,
-		ActionUpsertParty:    true,
-		ActionLogEntry:       true,
-		ActionGetChunkWriter: true,
+		ActionUpsertServer:             true,
+		ActionGetUserPublicCertificate: true,
+		ActionGetRemoteCertificates:    true,
+		ActionGetTrustedCertificates:   true,
+		ActionGetUserKeys:              true,
+		ActionGetServers:               true,
+		ActionGetHostPublicCertificate: true,
+		ActionUpsertParty:              true,
+		ActionLogEntry:                 true,
+		ActionGetChunkWriter:           true,
 	}
 
 	sp.permissions[RoleWeb] = map[string]bool{
@@ -107,49 +108,50 @@ const (
 	RoleAdmin          = "Admin"
 	RoleProvisionToken = "ProvisionToken"
 
-	ActionGetSessions           = "GetSession"
-	ActionGetSession            = "GetSession"
-	ActionDeleteSession         = "DeleteSession"
-	ActionUpsertSession         = "UpsertSession"
-	ActionUpsertParty           = "UpsertParty"
-	ActionUpsertRemoteCert      = "UpsertRemoteCert"
-	ActionGetRemoteCerts        = "UpsertRemoteCert"
-	ActionDeleteRemoteCert      = "GetRemoteCerts"
-	ActionGenerateToken         = "GenerateToken"
-	ActionRegisterUsingToken    = "RegisterUsingToken"
-	ActionRegisterNewAuthServer = "RegisterNewAuthServer"
-	ActionLog                   = "Log"
-	ActionLogEntry              = "LogEntry"
-	ActionGetEvents             = "GetEvents"
-	ActionGetChunkWriter        = "GetChunkWriter"
-	ActionGetChunkReader        = "GetChunkReader"
-	ActionUpsertServer          = "UpsertServer"
-	ActionGetServers            = "GetServers"
-	ActionUpsertWebTun          = "UpsertWebTun"
-	ActionGetWebTuns            = "GetWebTuns"
-	ActionGetWebTun             = "GetWebTun"
-	ActionDeleteWebTun          = "DeleteWebTun"
-	ActionUpsertPassword        = "UpsertPassword"
-	ActionCheckPassword         = "CheckPassword"
-	ActionSignIn                = "SignIn"
-	ActionGetWebSession         = "GetWebSession"
-	ActionGetWebSessionsKeys    = "GetWebSessionsKeys"
-	ActionDeleteWebSession      = "DeleteWebSession"
-	ActionGetUsers              = "GetUsers"
-	ActionDeleteUser            = "DeleteUser"
-	ActionUpsertUserKey         = "UpsertUserKey"
-	ActionGetUserKeys           = "GetUserKeys"
-	ActionDeleteUserKey         = "DeleteUserKey"
-	ActionGetHostCAPub          = "GetHostCAPub"
-	ActionGetUserCAPub          = "GetUserCAPub"
-	ActionGenerateKeyPair       = "GenerateKeyPair"
-	ActionGenerateHostCert      = "GenerateHostCert"
-	ActionGenerateUserCert      = "GenerateUserCert"
-	ActionResetHostCA           = "ResetHostCA"
-	ActionResetUserCA           = "ResetUserCA"
-	ActionGenerateSealKey       = "GenerateSealKey"
-	ActionGetSealKeys           = "GetSeakKeys"
-	ActionGetSealKey            = "GetSealKey"
-	ActionDeleteSealKey         = "DeleteSealKey"
-	ActionAddSealKey            = "AddSealKey"
+	ActionGetSessions                   = "GetSession"
+	ActionGetSession                    = "GetSession"
+	ActionDeleteSession                 = "DeleteSession"
+	ActionUpsertSession                 = "UpsertSession"
+	ActionUpsertParty                   = "UpsertParty"
+	ActionUpsertRemoteCertificate       = "UpsertRemoteCertificate"
+	ActionGetRemoteCertificates         = "GetRemoteCertificates"
+	ActionDeleteRemoteCertificate       = "DeleteRemoteCerts"
+	ActionGetTrustedCertificates        = "GetTrustedCertificates"
+	ActionGenerateToken                 = "GenerateToken"
+	ActionRegisterUsingToken            = "RegisterUsingToken"
+	ActionRegisterNewAuthServer         = "RegisterNewAuthServer"
+	ActionLog                           = "Log"
+	ActionLogEntry                      = "LogEntry"
+	ActionGetEvents                     = "GetEvents"
+	ActionGetChunkWriter                = "GetChunkWriter"
+	ActionGetChunkReader                = "GetChunkReader"
+	ActionUpsertServer                  = "UpsertServer"
+	ActionGetServers                    = "GetServers"
+	ActionUpsertWebTun                  = "UpsertWebTun"
+	ActionGetWebTuns                    = "GetWebTuns"
+	ActionGetWebTun                     = "GetWebTun"
+	ActionDeleteWebTun                  = "DeleteWebTun"
+	ActionUpsertPassword                = "UpsertPassword"
+	ActionCheckPassword                 = "CheckPassword"
+	ActionSignIn                        = "SignIn"
+	ActionGetWebSession                 = "GetWebSession"
+	ActionGetWebSessionsKeys            = "GetWebSessionsKeys"
+	ActionDeleteWebSession              = "DeleteWebSession"
+	ActionGetUsers                      = "GetUsers"
+	ActionDeleteUser                    = "DeleteUser"
+	ActionUpsertUserKey                 = "UpsertUserKey"
+	ActionGetUserKeys                   = "GetUserKeys"
+	ActionDeleteUserKey                 = "DeleteUserKey"
+	ActionGetHostPublicCertificate      = "GetHostPublicCertificate"
+	ActionGetUserPublicCertificate      = "GetUserPublicCertificate"
+	ActionGenerateKeyPair               = "GenerateKeyPair"
+	ActionGenerateHostCert              = "GenerateHostCert"
+	ActionGenerateUserCert              = "GenerateUserCert"
+	ActionResetHostCertificateAuthority = "ResetHostCertificateAuthority"
+	ActionResetUserCertificateAuthority = "ResetUserCertificateAuthority"
+	ActionGenerateSealKey               = "GenerateSealKey"
+	ActionGetSealKeys                   = "GetSeakKeys"
+	ActionGetSealKey                    = "GetSealKey"
+	ActionDeleteSealKey                 = "DeleteSealKey"
+	ActionAddSealKey                    = "AddSealKey"
 )

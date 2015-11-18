@@ -42,71 +42,71 @@ func (cmd *Command) GenerateKeyPair(privateKeyPath, publicKeyPath, passphrase st
 	return nil
 }
 
-func (cmd *Command) ResetHostCA(confirm bool) {
+func (cmd *Command) ResetHostCertificateAuthority(confirm bool) {
 	if !confirm && !cmd.confirm("Reseting private and public keys for Host CA. This will invalidate all signed host certs. Continue?") {
 		cmd.printError(fmt.Errorf("aborted by user"))
 		return
 	}
-	if err := cmd.client.ResetHostCA(); err != nil {
+	if err := cmd.client.ResetHostCertificateAuthority(); err != nil {
 		cmd.printError(err)
 		return
 	}
-	cmd.printOK("CA keys have been regenerated")
+	cmd.printOK("Certificate authority keys have been regenerated")
 }
 
-func (cmd *Command) GetHostCAPub() {
-	key, err := cmd.client.GetHostCAPub()
+func (cmd *Command) GetHostPublicCertificate() {
+	key, err := cmd.client.GetHostPublicCertificate()
 	if err != nil {
 		cmd.printError(err)
 		return
 	}
 	cmd.printOK("Host CA Key")
-	fmt.Fprintf(cmd.out, string(key))
+	fmt.Fprintf(cmd.out, string(key.PubValue))
 }
 
-func (cmd *Command) ResetUserCA(confirm bool) {
+func (cmd *Command) ResetUserCertificateAuthority(confirm bool) {
 	if !confirm && !cmd.confirm("Reseting private and public keys for User CA. This will invalidate all signed user certs. Continue?") {
 		cmd.printError(fmt.Errorf("aborted by user"))
 		return
 	}
-	if err := cmd.client.ResetUserCA(); err != nil {
+	if err := cmd.client.ResetUserCertificateAuthority(); err != nil {
 		cmd.printError(err)
 		return
 	}
-	cmd.printOK("CA keys have been regenerated")
+	cmd.printOK("Certificate authority keys have been regenerated")
 }
 
-func (cmd *Command) GetUserCAPub() {
-	key, err := cmd.client.GetUserCAPub()
+func (cmd *Command) GetUserPublicCertificate() {
+	key, err := cmd.client.GetUserPublicCertificate()
 	if err != nil {
 		cmd.printError(err)
 		return
 	}
 	cmd.printOK("User CA Key")
-	fmt.Fprintf(cmd.out, string(key))
+	fmt.Fprintf(cmd.out, string(key.PubValue))
 }
 
-func (cmd *Command) UpsertRemoteCert(id, fqdn, certType, path string, ttl time.Duration) {
+func (cmd *Command) UpsertRemoteCertificate(id, fqdn, certType, path string, ttl time.Duration) {
 	val, err := cmd.readInput(path)
 	if err != nil {
 		cmd.printError(err)
 		return
 	}
-	cert := services.RemoteCert{
-		FQDN:  fqdn,
-		Type:  certType,
-		ID:    id,
-		Value: val,
+	cert := services.PublicCertificate{
+		FQDN:     fqdn,
+		Type:     certType,
+		ID:       id,
+		PubValue: val,
 	}
-	if err := cmd.client.UpsertRemoteCert(cert, ttl); err != nil {
+	if err := cmd.client.UpsertRemoteCertificate(cert, ttl); err != nil {
 		cmd.printError(err)
 		return
 	}
 	cmd.printOK("Remote cert have been upserted")
 }
 
-func (cmd *Command) GetRemoteCerts(fqdn, certType string) {
-	certs, err := cmd.client.GetRemoteCerts(certType, fqdn)
+func (cmd *Command) GetRemoteCertificates(fqdn, certType string) {
+	certs, err := cmd.client.GetRemoteCertificates(certType, fqdn)
 	if err != nil {
 		cmd.printError(err)
 		return
@@ -114,8 +114,8 @@ func (cmd *Command) GetRemoteCerts(fqdn, certType string) {
 	fmt.Fprintf(cmd.out, remoteCertsView(certs))
 }
 
-func (cmd *Command) DeleteRemoteCert(id, fqdn, certType string) {
-	err := cmd.client.DeleteRemoteCert(certType, fqdn, id)
+func (cmd *Command) DeleteRemoteCertificate(id, fqdn, certType string) {
+	err := cmd.client.DeleteRemoteCertificate(certType, fqdn, id)
 	if err != nil {
 		cmd.printError(err)
 		return
@@ -123,14 +123,14 @@ func (cmd *Command) DeleteRemoteCert(id, fqdn, certType string) {
 	cmd.printOK("certificate deleted")
 }
 
-func remoteCertsView(certs []services.RemoteCert) string {
+func remoteCertsView(certs []services.PublicCertificate) string {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
 	fmt.Fprint(t, "Type\tFQDN\tID\tValue\n")
 	if len(certs) == 0 {
 		return t.String()
 	}
 	for _, c := range certs {
-		fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", c.Type, c.FQDN, c.ID, string(c.Value))
+		fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", c.Type, c.FQDN, c.ID, string(c.PubValue))
 	}
 	return t.String()
 }

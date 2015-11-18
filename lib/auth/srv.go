@@ -60,13 +60,13 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	}
 	srv.Router = *httprouter.New()
 
-	// Auth is for operations involving CA
-	srv.POST("/v1/ca/host/keys", srv.resetHostCA)
-	srv.POST("/v1/ca/user/keys", srv.resetUserCA)
+	// Auth is for operations involving Certificate Authority
+	srv.POST("/v1/ca/host/keys", srv.resetHostCertificateAuthority)
+	srv.POST("/v1/ca/user/keys", srv.resetUserCertificateAuthority)
 
 	// Retrieving authority public keys
-	srv.GET("/v1/ca/host/keys/pub", srv.getHostCAPub)
-	srv.GET("/v1/ca/user/keys/pub", srv.getUserCAPub)
+	srv.GET("/v1/ca/host/keys/pub", srv.getHostPublicCertificate)
+	srv.GET("/v1/ca/user/keys/pub", srv.getUserPublicCertificate)
 
 	// Generating certificates for user and host authorities
 	srv.POST("/v1/ca/host/certs", srv.generateHostCert)
@@ -85,9 +85,11 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.POST("/v1/keypair", srv.generateKeyPair)
 
 	// Operations on remote authorities we trust
-	srv.POST("/v1/ca/remote/:type/hosts/:fqdn", srv.upsertRemoteCert)
-	srv.DELETE("/v1/ca/remote/:type/hosts/:fqdn/:id", srv.deleteRemoteCert)
-	srv.GET("/v1/ca/remote/:type", srv.getRemoteCerts)
+	srv.POST("/v1/ca/remote/:type/hosts/:fqdn", srv.upsertRemoteCertificate)
+	srv.DELETE("/v1/ca/remote/:type/hosts/:fqdn/:id", srv.deleteRemoteCertificate)
+	srv.GET("/v1/ca/remote/:type", srv.getRemoteCertificates)
+
+	srv.GET("/v1/ca/trusted/:type", srv.getTrustedCertificates)
 
 	// Passwords and sessions
 	srv.POST("/v1/users/:user/web/password", srv.upsertPassword)
@@ -465,54 +467,57 @@ func (s *APIServer) generateKeyPair(w http.ResponseWriter, r *http.Request, _ ht
 	reply(w, http.StatusOK, &keyPairResponse{PrivKey: priv, PubKey: string(pub)})
 }
 
-func (s *APIServer) resetHostCA(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (s *APIServer) resetHostCertificateAuthority(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	var pass string
 
-	if err := form.Parse(r, form.String("pass", &pass)); err != nil {
-		replyErr(w, err)
-		return
-	}
-	if err := s.a.ResetHostCA(pass); err != nil {
-		replyErr(w, err)
-		return
-	}
-	reply(w, http.StatusOK, message("host CA regenerated"))
-}
-
-func (s *APIServer) resetUserCA(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	var pass string
-
-	if err := form.Parse(r, form.String("pass", &pass)); err != nil {
-		replyErr(w, err)
-		return
-	}
-
-	if err := s.a.ResetUserCA(pass); err != nil {
-		replyErr(w, err)
-		return
-	}
-
-	reply(w, http.StatusOK, message("user CA regenerated"))
-}
-
-func (s *APIServer) getHostCAPub(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	bytes, err := s.a.GetHostCAPub()
+	err := form.Parse(r, form.String("pass", &pass))
 	if err != nil {
 		replyErr(w, err)
 		return
 	}
 
-	reply(w, http.StatusOK, pubKeyResponse{PubKey: string(bytes)})
+	if err := s.a.ResetHostCertificateAuthority(pass); err != nil {
+		replyErr(w, err)
+		return
+	}
+	reply(w, http.StatusOK, message("host Certificate Authority regenerated"))
 }
 
-func (s *APIServer) getUserCAPub(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	bytes, err := s.a.GetUserCAPub()
+func (s *APIServer) resetUserCertificateAuthority(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	var pass string
+
+	err := form.Parse(r, form.String("pass", &pass))
 	if err != nil {
 		replyErr(w, err)
 		return
 	}
 
-	reply(w, http.StatusOK, pubKeyResponse{PubKey: string(bytes)})
+	if err := s.a.ResetUserCertificateAuthority(pass); err != nil {
+		replyErr(w, err)
+		return
+	}
+
+	reply(w, http.StatusOK, message("user Certificate Authority regenerated"))
+}
+
+func (s *APIServer) getHostPublicCertificate(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	cert, err := s.a.GetHostPublicCertificate()
+	if err != nil {
+		replyErr(w, err)
+		return
+	}
+
+	reply(w, http.StatusOK, cert)
+}
+
+func (s *APIServer) getUserPublicCertificate(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	cert, err := s.a.GetUserPublicCertificate()
+	if err != nil {
+		replyErr(w, err)
+		return
+	}
+
+	reply(w, http.StatusOK, cert)
 }
 
 func (s *APIServer) generateHostCert(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -822,7 +827,7 @@ func reply(w http.ResponseWriter, code int, message interface{}) {
 	w.Write(out)
 }
 
-func (s *APIServer) upsertRemoteCert(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (s *APIServer) upsertRemoteCertificate(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	var id, key string
 	var ttl time.Duration
 
@@ -836,31 +841,42 @@ func (s *APIServer) upsertRemoteCert(w http.ResponseWriter, r *http.Request, p h
 		replyErr(w, err)
 		return
 	}
-	cert := services.RemoteCert{ID: id, Value: []byte(key), FQDN: fqdn, Type: ctype}
-	if err := s.a.UpsertRemoteCert(cert, ttl); err != nil {
+	cert := services.PublicCertificate{ID: id, PubValue: []byte(key), FQDN: fqdn, Type: ctype}
+	if err := s.a.UpsertRemoteCertificate(cert, ttl); err != nil {
 		replyErr(w, err)
 		return
 	}
-	reply(w, http.StatusOK, remoteCertResponse{RemoteCert: cert})
+	reply(w, http.StatusOK, remoteCertResponse{RemoteCertificate: cert})
 }
 
-func (s *APIServer) getRemoteCerts(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (s *APIServer) getRemoteCertificates(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	fqdn := r.URL.Query().Get("fqdn")
 	ctype := p[0].Value
 
-	certs, err := s.a.GetRemoteCerts(ctype, fqdn)
+	certs, err := s.a.GetRemoteCertificates(ctype, fqdn)
 	if err != nil {
-		fmt.Printf("error: %v", err)
 		log.Infof("error: %v", err)
 		replyErr(w, err)
 		return
 	}
-	reply(w, http.StatusOK, &remoteCertsResponse{RemoteCerts: certs})
+	reply(w, http.StatusOK, &remoteCertsResponse{RemoteCertificates: certs})
 }
 
-func (s *APIServer) deleteRemoteCert(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (s *APIServer) getTrustedCertificates(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	certType := p[0].Value
+
+	certs, err := s.a.GetTrustedCertificates(certType)
+	if err != nil {
+		log.Infof("error: %v", err)
+		replyErr(w, err)
+		return
+	}
+	reply(w, http.StatusOK, &remoteCertsResponse{RemoteCertificates: certs})
+}
+
+func (s *APIServer) deleteRemoteCertificate(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	ctype, fqdn, id := p[0].Value, p[1].Value, p[2].Value
-	if err := s.a.DeleteRemoteCert(ctype, fqdn, id); err != nil {
+	if err := s.a.DeleteRemoteCertificate(ctype, fqdn, id); err != nil {
 		replyErr(w, err)
 		return
 	}
@@ -951,11 +967,11 @@ type certResponse struct {
 }
 
 type remoteCertResponse struct {
-	RemoteCert services.RemoteCert `hson:"remote_cert"`
+	RemoteCertificate services.PublicCertificate `hson:"remote_cert"`
 }
 
 type remoteCertsResponse struct {
-	RemoteCerts []services.RemoteCert `hson:"remote_certs"`
+	RemoteCertificates []services.PublicCertificate `hson:"remote_certs"`
 }
 
 type usersResponse struct {

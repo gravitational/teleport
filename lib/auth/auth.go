@@ -54,7 +54,8 @@ type Session struct {
 	WS  services.WebSession
 }
 
-func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority, scrt secret.SecretService) *AuthServer {
+func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority,
+	scrt secret.SecretService, hostname string) *AuthServer {
 	as := AuthServer{}
 
 	as.bk = bk
@@ -69,6 +70,7 @@ func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority, scrt secret.S
 	as.WebService = services.NewWebService(as.bk)
 	as.BkKeysService = services.NewBkKeysService(as.bk)
 
+	as.Hostname = hostname
 	return &as
 }
 
@@ -77,7 +79,8 @@ func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority, scrt secret.S
 type AuthServer struct {
 	bk *encryptedbk.ReplicatedBackend
 	Authority
-	scrt secret.SecretService
+	scrt     secret.SecretService
+	Hostname string
 
 	*services.CAService
 	*services.LockService
@@ -90,7 +93,7 @@ type AuthServer struct {
 
 // UpsertUserKey takes user's public key, generates certificate for it
 // and adds it to the authorized keys database. It returns certificate signed
-// by user CA in case of success, error otherwise. The certificate will be
+// by user Certificate Authority in case of success, error otherwise. The certificate will be
 // valid for the duration of the ttl passed in.
 func (s *AuthServer) UpsertUserKey(
 	user string, key services.AuthorizedKey, ttl time.Duration) ([]byte, error) {
@@ -106,22 +109,40 @@ func (s *AuthServer) UpsertUserKey(
 	return cert, nil
 }
 
-// ResetHostCA generates host certificate authority and updates the backend
-func (s *AuthServer) ResetHostCA(pass string) error {
+// ResetHostCertificateAuthority generates host certificate authority and updates the backend
+func (s *AuthServer) ResetHostCertificateAuthority(pass string) error {
 	priv, pub, err := s.Authority.GenerateKeyPair(pass)
 	if err != nil {
 		return err
 	}
-	return s.CAService.UpsertHostCA(services.CA{Pub: pub, Priv: priv})
+	return s.CAService.UpsertHostCertificateAuthority(
+		services.CertificateAuthority{
+			PublicCertificate: services.PublicCertificate{
+				Type:     services.HostCert,
+				FQDN:     s.Hostname,
+				PubValue: pub,
+				ID:       string(pub),
+			},
+			PrivValue: priv},
+	)
 }
 
-// ResetHostCA generates user certificate authority and updates the backend
-func (s *AuthServer) ResetUserCA(pass string) error {
+// ResetHostCertificateAuthority generates user certificate authority and updates the backend
+func (s *AuthServer) ResetUserCertificateAuthority(pass string) error {
 	priv, pub, err := s.Authority.GenerateKeyPair(pass)
 	if err != nil {
 		return err
 	}
-	return s.CAService.UpsertUserCA(services.CA{Pub: pub, Priv: priv})
+	return s.CAService.UpsertUserCertificateAuthority(
+		services.CertificateAuthority{
+			PublicCertificate: services.PublicCertificate{
+				Type:     services.UserCert,
+				FQDN:     s.Hostname,
+				PubValue: pub,
+				ID:       string(pub),
+			},
+			PrivValue: priv},
+	)
 }
 
 // GenerateHostCert generates host certificate, it takes pkey as a signing
@@ -130,11 +151,11 @@ func (s *AuthServer) GenerateHostCert(
 	key []byte, id, hostname, role string,
 	ttl time.Duration) ([]byte, error) {
 
-	hk, err := s.CAService.GetHostCA()
+	hk, err := s.CAService.GetHostCertificateAuthority()
 	if err != nil {
 		return nil, err
 	}
-	return s.Authority.GenerateHostCert(hk.Priv, key, id, hostname, role, ttl)
+	return s.Authority.GenerateHostCert(hk.PrivValue, key, id, hostname, role, ttl)
 }
 
 // GenerateHostCert generates user certificate, it takes pkey as a signing
@@ -142,11 +163,11 @@ func (s *AuthServer) GenerateHostCert(
 func (s *AuthServer) GenerateUserCert(
 	key []byte, id, username string, ttl time.Duration) ([]byte, error) {
 
-	hk, err := s.CAService.GetUserCA()
+	hk, err := s.CAService.GetUserCertificateAuthority()
 	if err != nil {
 		return nil, err
 	}
-	return s.Authority.GenerateUserCert(hk.Priv, key, id, username, ttl)
+	return s.Authority.GenerateUserCert(hk.PrivValue, key, id, username, ttl)
 }
 
 func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
@@ -278,11 +299,11 @@ func (s *AuthServer) NewWebSession(user string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	hk, err := s.CAService.GetUserCA()
+	hk, err := s.CAService.GetUserCertificateAuthority()
 	if err != nil {
 		return nil, err
 	}
-	cert, err := s.Authority.GenerateUserCert(hk.Priv, pub, user, user, WebSessionTTL)
+	cert, err := s.Authority.GenerateUserCert(hk.PrivValue, pub, user, user, WebSessionTTL)
 	if err != nil {
 		return nil, err
 	}
