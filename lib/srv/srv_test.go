@@ -78,17 +78,17 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		encryptor.GetTestKey)
 	c.Assert(err, IsNil)
 
-	s.a = auth.NewAuthServer(s.bk, authority.New(), s.scrt)
+	s.a = auth.NewAuthServer(s.bk, authority.New(), s.scrt, "host5")
 
 	// set up host private key and certificate
-	c.Assert(s.a.ResetHostCA(""), IsNil)
+	c.Assert(s.a.ResetHostCertificateAuthority(""), IsNil)
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", auth.RoleAdmin, 0)
 	c.Assert(err, IsNil)
 
 	// set up user CA and set up a user that has access to the server
-	c.Assert(s.a.ResetUserCA(""), IsNil)
+	c.Assert(s.a.ResetUserCertificateAuthority(""), IsNil)
 
 	s.signer, err = sshutils.NewSigner(hpriv, hcert)
 	c.Assert(err, IsNil)
@@ -100,6 +100,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		"localhost",
 		[]ssh.Signer{s.signer},
 		ap,
+		s.dir,
 		SetShell("/bin/sh"),
 	)
 	c.Assert(err, IsNil)
@@ -226,6 +227,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 		"localhost",
 		[]ssh.Signer{s.signer},
 		ap,
+		s.dir,
 		SetProxyMode(reverseTunnelServer),
 	)
 	c.Assert(err, IsNil)

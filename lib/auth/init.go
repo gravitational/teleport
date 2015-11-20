@@ -38,16 +38,16 @@ import (
 type InitConfig struct {
 	Backend            *encryptedbk.ReplicatedBackend
 	Authority          Authority
-	FQDN               string
+	DomainName         string
 	AuthDomain         string
 	DataDir            string
 	SecretKey          string
 	AllowedTokens      map[string]string
-	TrustedAuthorities []services.RemoteCert
+	TrustedAuthorities []services.CertificateAuthority
 	// HostCA is an optional host certificate authority keypair
-	HostCA *services.CA
+	HostCA *services.LocalCertificateAuthority
 	// UserCA is an optional user certificate authority keypair
-	UserCA *services.CA
+	UserCA *services.LocalCertificateAuthority
 }
 
 func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
@@ -78,7 +78,7 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 	}
 
 	// check that user CA and host CA are present and set the certs if needed
-	asrv := NewAuthServer(cfg.Backend, cfg.Authority, scrt)
+	asrv := NewAuthServer(cfg.Backend, cfg.Authority, scrt, cfg.DomainName)
 
 	// we determine if it's the first start by checking if the CA's are set
 	var firstStart bool
@@ -86,17 +86,17 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 	// this block will generate user CA authority on first start if it's
 	// not currently present, it will also use optional passed user ca keypair
 	// that can be supplied in configuration
-	if _, e := asrv.GetHostCAPub(); e != nil {
+	if _, e := asrv.GetHostCertificateAuthority(); e != nil {
 		if _, ok := e.(*teleport.NotFoundError); ok {
 			firstStart = true
 			if cfg.HostCA != nil {
 				log.Infof("FIRST START: use host CA keypair provided in config")
-				if err := asrv.CAService.UpsertHostCA(*cfg.HostCA); err != nil {
+				if err := asrv.CAService.UpsertHostCertificateAuthority(*cfg.HostCA); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 			} else {
 				log.Infof("FIRST START: Generating host CA on first start")
-				if err := asrv.ResetHostCA(""); err != nil {
+				if err := asrv.ResetHostCertificateAuthority(""); err != nil {
 					return nil, nil, err
 				}
 			}
@@ -109,17 +109,17 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 	// this block will generate user CA authority on first start if it's
 	// not currently present, it will also use optional passed user ca keypair
 	// that can be supplied in configuration
-	if _, e := asrv.GetUserCAPub(); e != nil {
+	if _, e := asrv.GetUserCertificateAuthority(); e != nil {
 		if _, ok := e.(*teleport.NotFoundError); ok {
 			firstStart = true
 			if cfg.HostCA != nil {
 				log.Infof("FIRST START: use user CA keypair provided in config")
-				if err := asrv.CAService.UpsertUserCA(*cfg.UserCA); err != nil {
+				if err := asrv.CAService.UpsertUserCertificateAuthority(*cfg.UserCA); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 			} else {
 				log.Infof("FIRST START: Generating user CA on first start")
-				if err := asrv.ResetUserCA(""); err != nil {
+				if err := asrv.ResetUserCertificateAuthority(""); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 			}
@@ -132,13 +132,13 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 	if firstStart {
 		if len(cfg.AllowedTokens) != 0 {
 			log.Infof("FIRST START: Setting allowed provisioning tokens")
-			for fqdn, token := range cfg.AllowedTokens {
-				log.Infof("FIRST START: upsert provisioning token: fqdn: %v", fqdn)
+			for domainName, token := range cfg.AllowedTokens {
+				log.Infof("FIRST START: upsert provisioning token: domainName: %v", domainName)
 				pid, err := session.DecodeSID(session.SecureID(token), scrt)
 				if err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
-				if err := asrv.UpsertToken(string(pid), fqdn, RoleNode, 600*time.Second); err != nil {
+				if err := asrv.UpsertToken(string(pid), domainName, RoleNode, 600*time.Second); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 			}
@@ -147,15 +147,15 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 		if len(cfg.TrustedAuthorities) != 0 {
 			log.Infof("FIRST START: Setting trusted certificate authorities")
 			for _, cert := range cfg.TrustedAuthorities {
-				log.Infof("FIRST START: upsert trusted remote cert: type: %v fqdn: %v", cert.Type, cert.FQDN)
-				if err := asrv.UpsertRemoteCert(cert, 0); err != nil {
+				log.Infof("FIRST START: upsert trusted remote cert: type: %v domainName: %v", cert.Type, cert.DomainName)
+				if err := asrv.UpsertRemoteCertificate(cert, 0); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 			}
 		}
 	}
 
-	signer, err := InitKeys(asrv, cfg.FQDN, cfg.DataDir)
+	signer, err := InitKeys(asrv, cfg.DomainName, cfg.DataDir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -164,12 +164,12 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 }
 
 // initialize this node's host certificate signed by host authority
-func InitKeys(a *AuthServer, fqdn, dataDir string) (ssh.Signer, error) {
-	if fqdn == "" {
-		return nil, fmt.Errorf("fqdn can not be empty")
+func InitKeys(a *AuthServer, domainName, dataDir string) (ssh.Signer, error) {
+	if domainName == "" {
+		return nil, fmt.Errorf("domainName can not be empty")
 	}
 
-	kp, cp := keysPath(fqdn, dataDir)
+	kp, cp := keysPath(domainName, dataDir)
 
 	keyExists, err := pathExists(kp)
 	if err != nil {
@@ -186,19 +186,19 @@ func InitKeys(a *AuthServer, fqdn, dataDir string) (ssh.Signer, error) {
 		if err != nil {
 			return nil, err
 		}
-		c, err := a.GenerateHostCert(pub, fqdn, fqdn, RoleAdmin, 0)
+		c, err := a.GenerateHostCert(pub, domainName, domainName, RoleAdmin, 0)
 		if err != nil {
 			return nil, err
 		}
-		if err := writeKeys(fqdn, dataDir, k, c); err != nil {
+		if err := writeKeys(domainName, dataDir, k, c); err != nil {
 			return nil, err
 		}
 	}
-	return ReadKeys(fqdn, dataDir)
+	return ReadKeys(domainName, dataDir)
 }
 
-func writeKeys(fqdn, dataDir string, key []byte, cert []byte) error {
-	kp, cp := keysPath(fqdn, dataDir)
+func writeKeys(domainName, dataDir string, key []byte, cert []byte) error {
+	kp, cp := keysPath(domainName, dataDir)
 
 	log.Infof("write key to %v, cert from %v", kp, cp)
 
@@ -213,8 +213,8 @@ func writeKeys(fqdn, dataDir string, key []byte, cert []byte) error {
 	return nil
 }
 
-func ReadKeys(fqdn, dataDir string) (ssh.Signer, error) {
-	kp, cp := keysPath(fqdn, dataDir)
+func ReadKeys(domainName, dataDir string) (ssh.Signer, error) {
+	kp, cp := keysPath(domainName, dataDir)
 
 	log.Infof("read key from %v, cert from %v", kp, cp)
 
@@ -231,8 +231,8 @@ func ReadKeys(fqdn, dataDir string) (ssh.Signer, error) {
 	return sshutils.NewSigner(key, cert)
 }
 
-func HaveKeys(fqdn, dataDir string) (bool, error) {
-	kp, cp := keysPath(fqdn, dataDir)
+func HaveKeys(domainName, dataDir string) (bool, error) {
+	kp, cp := keysPath(domainName, dataDir)
 
 	exists, err := pathExists(kp)
 	if !exists || err != nil {
@@ -293,9 +293,9 @@ func secretKeyPath(dataDir string) string {
 	return filepath.Join(dataDir, "teleport.secret")
 }
 
-func keysPath(fqdn, dataDir string) (key string, cert string) {
-	key = filepath.Join(dataDir, fmt.Sprintf("%v.key", fqdn))
-	cert = filepath.Join(dataDir, fmt.Sprintf("%v.cert", fqdn))
+func keysPath(domainName, dataDir string) (key string, cert string) {
+	key = filepath.Join(dataDir, fmt.Sprintf("%v.key", domainName))
+	cert = filepath.Join(dataDir, fmt.Sprintf("%v.cert", domainName))
 	return
 }
 

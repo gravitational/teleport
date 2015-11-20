@@ -20,11 +20,13 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"path"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -57,6 +59,8 @@ type Server struct {
 	reg         *sessionRegistry
 	se          rsession.SessionServer
 	rec         recorder.Recorder
+
+	certificatesCache *services.CAService
 
 	proxyMode bool
 	proxyTun  reversetunnel.Server
@@ -102,7 +106,7 @@ func SetProxyMode(tsrv reversetunnel.Server) ServerOption {
 
 // New returns an unstarted server
 func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
-	ap auth.AccessPoint, options ...ServerOption) (*Server, error) {
+	ap auth.AccessPoint, dataDir string, options ...ServerOption) (*Server, error) {
 
 	s := &Server{
 		addr:     addr,
@@ -121,6 +125,19 @@ func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
 	if s.elog == nil {
 		s.elog = utils.NullEventLogger
 	}
+
+	var err error
+
+	certCacheFile := "CertCache"
+	if s.proxyMode {
+		certCacheFile = "ProxyCertCache"
+	}
+	backend, err := boltbk.New(path.Join(dataDir, certCacheFile))
+	if err != nil {
+		return nil, err
+	}
+	s.certificatesCache = services.NewCAService(backend)
+
 	srv, err := sshutils.NewServer(
 		addr, s, signers,
 		sshutils.AuthMethods{PublicKey: s.keyAuth},
@@ -150,41 +167,60 @@ func (s *Server) heartbeatPresence() {
 		if err := s.ap.UpsertServer(srv, 6*time.Second); err != nil {
 			log.Warningf("failed to announce %#v presence: %v", srv, err)
 		}
+
+		if err := s.updateTrustedCAKeys(); err != nil {
+			log.Warningf(err.Error())
+		}
 		time.Sleep(3 * time.Second)
 	}
 }
 
-func (s *Server) getTrustedCAKeys() ([]ssh.PublicKey, error) {
-	out := []ssh.PublicKey{}
-	authKeys := [][]byte{}
-	key, err := s.ap.GetUserCAPub()
-	if err != nil {
-		return nil, err
+func (s *Server) getTrustedCAKeys(fromCache bool) ([]ssh.PublicKey, error) {
+	var keys []services.CertificateAuthority
+	var err error
+	if fromCache {
+		keys, err = s.certificatesCache.GetRemoteCertificates(services.UserCert, "")
+		if err != nil {
+			log.Errorf(err.Error())
+		}
+	} else {
+		keys, err = s.ap.GetTrustedCertificates(services.UserCert)
+		if err != nil {
+			log.Errorf(err.Error())
+		}
 	}
-	authKeys = append(authKeys, key)
 
-	certs, err := s.ap.GetRemoteCerts(services.UserCert, "")
-	if err != nil {
-		return nil, err
-	}
-	for _, c := range certs {
-		authKeys = append(authKeys, c.Value)
-	}
-	for _, ak := range authKeys {
-		pk, _, _, _, err := ssh.ParseAuthorizedKey(ak)
+	var parsedKeys []ssh.PublicKey
+	for _, key := range keys {
+		parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(key.PublicKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse CA public key '%v', err: %v",
-				string(ak), err)
+				string(key.PublicKey), err)
 		}
-		out = append(out, pk)
+		parsedKeys = append(parsedKeys, parsedKey)
 	}
-	return out, nil
+	return parsedKeys, nil
+}
+
+func (s *Server) updateTrustedCAKeys() error {
+	keys, err := s.ap.GetTrustedCertificates(services.UserCert)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, key := range keys {
+		err := s.certificatesCache.UpsertRemoteCertificate(key, CertificatesCacheTTL)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 // isAuthority is called during checking the client key, to see if the signing
 // key is the real CA authority key.
 func (s *Server) isAuthority(auth ssh.PublicKey) bool {
-	keys, err := s.getTrustedCAKeys()
+	// Checking certificates from cache
+	keys, err := s.getTrustedCAKeys(true)
 	if err != nil {
 		log.Errorf("failed to retrieve trused keys, err: %v", err)
 		return false
@@ -194,6 +230,19 @@ func (s *Server) isAuthority(auth ssh.PublicKey) bool {
 			return true
 		}
 	}
+
+	// Checking certificates from auth server
+	keys, err = s.getTrustedCAKeys(false)
+	if err != nil {
+		log.Errorf("failed to retrieve trused keys, err: %v", err)
+		return false
+	}
+	for _, k := range keys {
+		if sshutils.KeysEqual(k, auth) {
+			return true
+		}
+	}
+
 	return false
 }
 
@@ -600,3 +649,7 @@ type closerFunc func() error
 func (f closerFunc) Close() error {
 	return f()
 }
+
+const (
+	CertificatesCacheTTL = time.Minute * 30
+)

@@ -19,6 +19,7 @@ import (
 	"crypto/subtle"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
@@ -117,23 +118,39 @@ func (s *Server) acceptConnections() {
 			return
 		}
 		log.Infof("%v accepted connection from %v", s.Addr(), conn.RemoteAddr())
-		// initiate an SSH connection, note that we don't need to close the conn here
-		// in case of error as ssh server takes care of this
-		sconn, chans, reqs, err := ssh.NewServerConn(conn, &s.cfg)
-		if err != nil {
-			log.Infof("failed to initiate connection, err: %v", err)
-			continue
-		}
 
-		// Connection successfully initiated
-		log.Infof("new ssh connection %v -> %v vesion: %v",
-			sconn.RemoteAddr(), sconn.LocalAddr(), string(sconn.ClientVersion()))
-
-		// Handle incoming out-of-band Requests
-		go s.handleRequests(reqs)
-		// Handle channel requests on this connections
-		go s.handleChannels(sconn, chans)
+		go s.handleConnection(conn)
 	}
+}
+
+func (s *Server) handleConnection(conn net.Conn) {
+	// initiate an SSH connection, note that we don't need to close the conn here
+	// in case of error as ssh server takes care of this
+
+	// setting waiting deadline in case of connection freezing
+	err := conn.SetDeadline(time.Now().Add(5 * time.Minute))
+	if err != nil {
+		log.Errorf(err.Error())
+	}
+	sconn, chans, reqs, err := ssh.NewServerConn(conn, &s.cfg)
+	if err != nil {
+		log.Infof("failed to initiate connection, err: %v", err)
+		conn.SetDeadline(time.Time{})
+		return
+	}
+	err = conn.SetDeadline(time.Time{})
+	if err != nil {
+		log.Errorf(err.Error())
+	}
+
+	// Connection successfully initiated
+	log.Infof("new ssh connection %v -> %v vesion: %v",
+		sconn.RemoteAddr(), sconn.LocalAddr(), string(sconn.ClientVersion()))
+
+	// Handle incoming out-of-band Requests
+	go s.handleRequests(reqs)
+	// Handle channel requests on this connections
+	s.handleChannels(sconn, chans)
 }
 
 func (s *Server) handleRequests(reqs <-chan *ssh.Request) {

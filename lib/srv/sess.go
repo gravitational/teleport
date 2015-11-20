@@ -194,7 +194,7 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 		}
 		s.cw = w
 		s.r.srv.emit(ctx.eid, events.NewShellSession(s.id, sconn, s.r.srv.shell, w.rid))
-		s.writer.addWriter("capture", w)
+		s.writer.addWriter("capture", w, false)
 	} else {
 		s.r.srv.emit(ctx.eid, events.NewShellSession(s.id, sconn, s.r.srv.shell, ""))
 	}
@@ -244,7 +244,7 @@ func (s *session) leave(id string) error {
 
 func (s *session) addParty(p *party) {
 	s.parties[p.id] = p
-	s.writer.addWriter(p.id, p)
+	s.writer.addWriter(p.id, p, true)
 	p.ctx.addCloser(p)
 	go func() {
 		written, err := io.Copy(s.t.pty, p)
@@ -305,18 +305,23 @@ func (j *joinSubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Req
 }
 
 func newMultiWriter() *multiWriter {
-	return &multiWriter{writers: make(map[string]io.Writer)}
+	return &multiWriter{writers: make(map[string]writerWrapper)}
 }
 
 type multiWriter struct {
 	sync.RWMutex
-	writers map[string]io.Writer
+	writers map[string]writerWrapper
 }
 
-func (m *multiWriter) addWriter(id string, w io.Writer) {
+type writerWrapper struct {
+	io.Writer
+	closeOnError bool
+}
+
+func (m *multiWriter) addWriter(id string, w io.Writer, closeOnError bool) {
 	m.Lock()
 	defer m.Unlock()
-	m.writers[id] = w
+	m.writers[id] = writerWrapper{Writer: w, closeOnError: closeOnError}
 }
 
 func (m *multiWriter) deleteWriter(id string) {
@@ -332,7 +337,11 @@ func (t *multiWriter) Write(p []byte) (n int, err error) {
 	for _, w := range t.writers {
 		n, err = w.Write(p)
 		if err != nil {
-			return
+			if w.closeOnError {
+				return
+			} else {
+				continue
+			}
 		}
 		if n != len(p) {
 			err = io.ErrShortWrite

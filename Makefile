@@ -62,7 +62,7 @@ run-embedded: install
 
 # run-node starts a ssh node
 run-node: install
-	tctl token generate --output=/tmp/token --fqdn=localhost
+	tctl token generate --output=/tmp/token --domain=localhost
 	teleport --config=examples/node.yaml
 
 # run-site-to-proxy starts a ssh node, auth server and reverse tunnel that connect outside of
@@ -83,14 +83,14 @@ trust-proxy:
 	tctl --auth=unix:///tmp/teleport.proxy.auth.sock host-ca pub-key > /tmp/host.pubkey
 
 #   add proxy's certs to teleport as trusted remote certificate authorities
-	tctl remote-ca upsert --type=user --id=user.proxy.vendor.io --fqdn=proxy.vendor.io --path=/tmp/user.pubkey
-	tctl remote-ca upsert --type=host --id=host.proxy.vendor.io --fqdn=proxy.vendor.io --path=/tmp/host.pubkey
+	tctl remote-ca upsert --type=user --id=user.proxy.vendor.io --domain=proxy.vendor.io --path=/tmp/user.pubkey
+	tctl remote-ca upsert --type=host --id=host.proxy.vendor.io --domain=proxy.vendor.io --path=/tmp/host.pubkey
 	tctl remote-ca ls --type=user
 	tctl remote-ca ls --type=host
 
 #   now export teleport's host CA certificate and add it as a trusted cert for proxy
 	tctl host-ca pub-key > /tmp/teleport.pubkey
-	tctl --auth=unix:///tmp/teleport.proxy.auth.sock remote-ca upsert --type=host --id=host.auth.gravitational.io --fqdn=node1.gravitational.io --path=/tmp/teleport.pubkey
+	tctl --auth=unix:///tmp/teleport.proxy.auth.sock remote-ca upsert --type=host --id=host.auth.gravitational.io --domain=node1.gravitational.io --path=/tmp/teleport.pubkey
 	tctl --auth=unix:///tmp/teleport.proxy.auth.sock remote-ca ls --type=host
 
 profile:

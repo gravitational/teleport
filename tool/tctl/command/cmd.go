@@ -88,18 +88,18 @@ func (cmd *Command) Run(args []string) error {
 
 	remoteCaUpsert := remoteCa.Command("upsert", "Upsert remote certificate to trust")
 	remoteCaUpsertID := remoteCaUpsert.Flag("id", "Certificate id").Required().String()
-	remoteCaUpsertFQDN := remoteCaUpsert.Flag("fqdn", "FQDN of the remote party").Required().String()
+	remoteCaUpsertDomainName := remoteCaUpsert.Flag("domain", "Domain name of the remote party").Required().String()
 	remoteCaUpsertType := remoteCaUpsert.Flag("type", "Cert type (host or user)").Required().String()
 	remoteCaUpsertPath := remoteCaUpsert.Flag("path", "Cert path (reads from stdout if omitted)").Required().ExistingFile()
 	remoteCaUpsertTTL := remoteCaUpsert.Flag("ttl", "ttl for certificate to be trusted").Duration()
 
 	remoteCaLs := remoteCa.Command("ls", "List trusted remote certificates")
-	remoteCaLsFQDN := remoteCaLs.Flag("fqdn", "FQDN of the remote party").String()
+	remoteCaLsDomainName := remoteCaLs.Flag("domain", "Domain name of the remote party").String()
 	remoteCaLsType := remoteCaLs.Flag("type", "Cert type (host or user)").Required().String()
 
-	remoteCaRm := remoteCa.Command("rm", "Remote remote CA from list of trusted certs")
+	remoteCaRm := remoteCa.Command("rm", "Remote remote Certificate authority from list of trusted certs")
 	remoteCaRmID := remoteCaRm.Flag("id", "Certificate id").Required().String()
-	remoteCaRmFQDN := remoteCaRm.Flag("fqdn", "FQDN of the remote party").Required().String()
+	remoteCaRmDomainName := remoteCaRm.Flag("domain", "Domain name of the remote party").Required().String()
 	remoteCaRmType := remoteCaRm.Flag("type", "Cert type (host or user)").Required().String()
 
 	// Secret
@@ -111,8 +111,8 @@ func (cmd *Command) Run(args []string) error {
 	// Token
 	token := app.Command("token", "Generates provisioning tokens")
 
-	tokenGenerate := token.Command("generate", "Generate provisioning token for server with fqdn")
-	tokenGenerateFQDN := tokenGenerate.Flag("fqdn", "FQDN of the server").Required().String()
+	tokenGenerate := token.Command("generate", "Generate provisioning token for server with provided domain name")
+	tokenGenerateDomainName := tokenGenerate.Flag("domain", "Domain name of the server").Required().String()
 	tokenGenerateRole := tokenGenerate.Flag("role", "Role of the server: Node or Auth ").Default(auth.RoleNode).String()
 	tokenGenerateTTL := tokenGenerate.Flag("ttl", "Time to live").Default("120s").Duration()
 	tokenGenerateOutput := tokenGenerate.Flag("output", "Optional output file").String()
@@ -166,7 +166,7 @@ func (cmd *Command) Run(args []string) error {
 
 	agentLogin := agent.Command("login", "Generate remote server certificate for teleagent ssh agent using your credentials")
 	agentLoginAgentAddr := agentLogin.Flag("agent-api-addr", "ssh agent api address").Default(teleagent.DefaultAgentAPIAddress).String()
-	agentLoginProxyAddr := agentLogin.Flag("proxy-addr", "FQDN of the remote proxy").Required().String()
+	agentLoginProxyAddr := agentLogin.Flag("proxy-addr", "DomainName of the remote proxy").Required().String()
 	agentLoginTTL := agentLogin.Flag("ttl", "Certificate duration").Default("10h").Duration()
 
 	selectedCommand := kingpin.MustParse(app.Parse(args[1:]))
@@ -208,24 +208,24 @@ func (cmd *Command) Run(args []string) error {
 
 	// Host CA
 	case hostCaReset.FullCommand():
-		cmd.ResetHostCA(*hostCaResetConfirm)
+		cmd.ResetHostCertificateAuthority(*hostCaResetConfirm)
 	case hostCaPubKey.FullCommand():
-		cmd.GetHostCAPub()
+		cmd.GetHostCertificateAuthority()
 
 	// User CA
 	case userCaReset.FullCommand():
-		cmd.ResetUserCA(*userCaResetConfirm)
+		cmd.ResetUserCertificateAuthority(*userCaResetConfirm)
 	case userCaPubKey.FullCommand():
-		cmd.GetUserCAPub()
+		cmd.GetUserCertificateAuthority()
 
 	// Remote CA
 	case remoteCaUpsert.FullCommand():
-		cmd.UpsertRemoteCert(*remoteCaUpsertID, *remoteCaUpsertFQDN,
+		cmd.UpsertRemoteCertificate(*remoteCaUpsertID, *remoteCaUpsertDomainName,
 			*remoteCaUpsertType, *remoteCaUpsertPath, *remoteCaUpsertTTL)
 	case remoteCaLs.FullCommand():
-		cmd.GetRemoteCerts(*remoteCaLsFQDN, *remoteCaLsType)
+		cmd.GetRemoteCertificates(*remoteCaLsDomainName, *remoteCaLsType)
 	case remoteCaRm.FullCommand():
-		cmd.DeleteRemoteCert(*remoteCaRmID, *remoteCaRmFQDN, *remoteCaRmType)
+		cmd.DeleteRemoteCertificate(*remoteCaRmID, *remoteCaRmDomainName, *remoteCaRmType)
 
 	// Secret
 	case secretNew.FullCommand():
@@ -233,7 +233,7 @@ func (cmd *Command) Run(args []string) error {
 
 	// Token
 	case tokenGenerate.FullCommand():
-		err = cmd.GenerateToken(*tokenGenerateFQDN, *tokenGenerateRole,
+		err = cmd.GenerateToken(*tokenGenerateDomainName, *tokenGenerateRole,
 			*tokenGenerateTTL, *tokenGenerateOutput, *tokenGenerateSecret)
 
 	// User

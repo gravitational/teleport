@@ -37,8 +37,9 @@ func NewCAService(backend backend.Backend) *CAService {
 	return &CAService{backend}
 }
 
-// UpsertUserCA upserts the user certificate authority keys in OpenSSH authorized_keys format
-func (s *CAService) UpsertUserCA(ca CA) error {
+// UpsertUserCertificateAuthority upserts the user certificate authority keys in OpenSSH authorized_keys format
+func (s *CAService) UpsertUserCertificateAuthority(ca LocalCertificateAuthority) error {
+	ca.Type = UserCert
 	out, err := json.Marshal(ca)
 	if err != nil {
 		log.Errorf(err.Error())
@@ -49,17 +50,17 @@ func (s *CAService) UpsertUserCA(ca CA) error {
 		log.Errorf(err.Error())
 		return trace.Wrap(err)
 	}
-	return err
+	return nil
 }
 
-// GetCA returns private, public key and certificate for user CA
-func (s *CAService) GetUserCA() (*CA, error) {
+// GetCertificateAuthority returns private, public key and certificate for user CertificateAuthority
+func (s *CAService) GetUserPrivateCertificateAuthority() (*LocalCertificateAuthority, error) {
 	val, err := s.backend.GetVal([]string{"ca"}, "userca")
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
-	var ca CA
+	var ca LocalCertificateAuthority
 	err = json.Unmarshal(val, &ca)
 	if err != nil {
 		log.Errorf(err.Error())
@@ -69,82 +70,81 @@ func (s *CAService) GetUserCA() (*CA, error) {
 	return &ca, nil
 }
 
-// GetUserCAPub returns the user certificate authority public key
-func (s *CAService) GetUserCAPub() ([]byte, error) {
+// GetUserCertificateAuthority returns the user certificate authority public key
+func (s *CAService) GetUserCertificateAuthority() (*CertificateAuthority, error) {
 	val, err := s.backend.GetVal([]string{"ca"}, "userca")
 	if err != nil {
 		return nil, err
 	}
 
-	var ca CA
+	var ca LocalCertificateAuthority
 	err = json.Unmarshal(val, &ca)
 	if err != nil {
 		log.Errorf(err.Error())
 		return nil, trace.Wrap(err)
 	}
 
-	return ca.Pub, nil
+	return &ca.CertificateAuthority, nil
 }
 
-func (s *CAService) UpsertRemoteCert(rc RemoteCert,
-	ttl time.Duration) error {
-	if rc.Type != HostCert && rc.Type != UserCert {
-		return trace.Errorf("unknown certificate type '%v'", rc.Type)
+func (s *CAService) UpsertRemoteCertificate(cert CertificateAuthority, ttl time.Duration) error {
+	if cert.Type != HostCert && cert.Type != UserCert {
+		return trace.Errorf("unknown certificate type '%v'", cert.Type)
 	}
 
 	err := s.backend.UpsertVal(
-		[]string{"certs", rc.Type, "hosts", rc.FQDN},
-		rc.ID, rc.Value, ttl,
+		[]string{"certs", cert.Type, "hosts", cert.DomainName},
+		cert.ID, cert.PublicKey, ttl,
 	)
 
 	if err != nil {
 		log.Errorf(err.Error())
 		return trace.Wrap(err)
 	}
-	return err
+	return nil
 }
 
-//GetRemoteCerts returns remote certificates with given type and fqdn.
-//If fqdn is empty, it returns all certificates with given type
-func (s *CAService) GetRemoteCerts(ctype string,
-	fqdn string) ([]RemoteCert, error) {
+//GetRemoteCertificates returns remote certificates with given type and domain.
+//If domainName is empty, it returns all certificates with given type
+func (s *CAService) GetRemoteCertificates(certType string,
+	domainName string) ([]CertificateAuthority, error) {
 
-	if ctype != HostCert && ctype != UserCert {
-		log.Errorf("Unknown certificate type '" + ctype + "'")
-		return nil, trace.Errorf("Unknown certificate type '" + ctype + "'")
+	if certType != HostCert && certType != UserCert {
+		log.Errorf("Unknown certificate type '" + certType + "'")
+		return nil, trace.Errorf("Unknown certificate type '" + certType + "'")
 	}
 
-	if fqdn != "" {
-		IDs, err := s.backend.GetKeys([]string{"certs", ctype,
-			"hosts", fqdn})
+	if domainName != "" {
+		IDs, err := s.backend.GetKeys([]string{"certs", certType,
+			"hosts", domainName})
 		if err != nil {
 			log.Errorf(err.Error())
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
-		certs := make([]RemoteCert, len(IDs))
+		certs := make([]CertificateAuthority, len(IDs))
 		for i, id := range IDs {
-			certs[i].Type = ctype
-			certs[i].FQDN = fqdn
+			certs[i].Type = certType
+			certs[i].DomainName = domainName
 			certs[i].ID = id
 			value, err := s.backend.GetVal(
-				[]string{"certs", ctype, "hosts", fqdn}, id)
+				[]string{"certs", certType, "hosts", domainName}, id)
 			if err != nil {
 				log.Errorf(err.Error())
 				return nil, trace.Wrap(err)
 			}
-			certs[i].Value = value
+			certs[i].PublicKey = value
 		}
 		return certs, nil
 	} else {
-		FQDNs, err := s.backend.GetKeys([]string{"certs", ctype,
+		DomainNames, err := s.backend.GetKeys([]string{"certs", certType,
 			"hosts"})
 		if err != nil {
 			log.Errorf(err.Error())
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
-		allCerts := make([]RemoteCert, 0)
-		for _, f := range FQDNs {
-			certs, err := s.GetRemoteCerts(ctype, f)
+		allCerts := make([]CertificateAuthority, 0)
+		for _, f := range DomainNames {
+			certs, err := s.GetRemoteCertificates(certType, f)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -155,22 +155,27 @@ func (s *CAService) GetRemoteCerts(ctype string,
 
 }
 
-func (s *CAService) DeleteRemoteCert(ctype, fqdn, id string) error {
-	if ctype != HostCert && ctype != UserCert {
-		log.Errorf("Unknown certificate type '" + ctype + "'")
-		return trace.Errorf("Unknown certificate type '" + ctype + "'")
+func (s *CAService) DeleteRemoteCertificate(certType, domainName, id string) error {
+	if certType != HostCert && certType != UserCert {
+		log.Errorf("Unknown certificate type '" + certType + "'")
+		return trace.Errorf("Unknown certificate type '" + certType + "'")
 	}
 
 	err := s.backend.DeleteKey(
-		[]string{"certs", ctype, "hosts", fqdn},
+		[]string{"certs", certType, "hosts", domainName},
 		id,
 	)
 
-	return err
+	if err != nil {
+		return trace.Wrap(err)
+	} else {
+		return nil
+	}
 }
 
-// UpsertHostCA upserts host certificate authority keys in OpenSSH authorized_keys format
-func (s *CAService) UpsertHostCA(ca CA) error {
+// UpsertHostCertificateAuthority upserts host certificate authority keys in OpenSSH authorized_keys format
+func (s *CAService) UpsertHostCertificateAuthority(ca LocalCertificateAuthority) error {
+	ca.Type = HostCert
 	out, err := json.Marshal(ca)
 	if err != nil {
 		log.Errorf(err.Error())
@@ -181,17 +186,17 @@ func (s *CAService) UpsertHostCA(ca CA) error {
 		log.Errorf(err.Error())
 		return trace.Wrap(err)
 	}
-	return err
+	return nil
 }
 
-// GetHostCA returns private, public key and certificate for host CA
-func (s *CAService) GetHostCA() (*CA, error) {
+// GetHostPrivateCertificateAuthority returns private, public key and certificate for host CA
+func (s *CAService) GetHostPrivateCertificateAuthority() (*LocalCertificateAuthority, error) {
 	val, err := s.backend.GetVal([]string{"ca"}, "hostca")
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
-	var ca CA
+	var ca LocalCertificateAuthority
 	err = json.Unmarshal(val, &ca)
 	if err != nil {
 		log.Errorf(err.Error())
@@ -201,32 +206,58 @@ func (s *CAService) GetHostCA() (*CA, error) {
 	return &ca, nil
 }
 
-// GetHostCACert returns the host certificate authority certificate
-func (s *CAService) GetHostCAPub() ([]byte, error) {
+// GetHostCertificateAuthority returns the host certificate authority certificate
+func (s *CAService) GetHostCertificateAuthority() (*CertificateAuthority, error) {
 	val, err := s.backend.GetVal([]string{"ca"}, "hostca")
 	if err != nil {
 		return nil, err
 	}
 
-	var ca CA
+	var ca LocalCertificateAuthority
 	err = json.Unmarshal(val, &ca)
 	if err != nil {
 		log.Errorf(err.Error())
 		return nil, trace.Wrap(err)
 	}
 
-	return ca.Pub, nil
+	return &ca.CertificateAuthority, nil
 }
 
-// CA is a set of private and public keys
-type CA struct {
-	Pub  []byte `json:"pub"`
-	Priv []byte `json:"priv"`
+func (s *CAService) GetTrustedCertificates(certType string) ([]CertificateAuthority, error) {
+	certs := []CertificateAuthority{}
+	remoteCerts, err := s.GetRemoteCertificates(certType, "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certs = append(certs, remoteCerts...)
+
+	if certType == "" || certType == UserCert {
+		userCert, err := s.GetUserCertificateAuthority()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certs = append(certs, *userCert)
+	}
+
+	if certType == "" || certType == HostCert {
+		hostCert, err := s.GetHostCertificateAuthority()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certs = append(certs, *hostCert)
+	}
+
+	return certs, nil
 }
 
-type RemoteCert struct {
-	Type  string `json:"type"`
-	ID    string `json:"id"`
-	FQDN  string `json:"fqdn"`
-	Value []byte `json:"value"`
+type LocalCertificateAuthority struct {
+	CertificateAuthority `json:"public"`
+	PrivateKey           []byte `json:"private_key"`
+}
+
+type CertificateAuthority struct {
+	Type       string `json:"type"`
+	ID         string `json:"id"`
+	DomainName string `json:"domain_name"`
+	PublicKey  []byte `json:"public_key"`
 }

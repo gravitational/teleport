@@ -112,7 +112,7 @@ func (s *CmdSuite) SetUpTest(c *C) {
 	acfg := auth.InitConfig{
 		Backend:    s.bk,
 		Authority:  authority.New(),
-		FQDN:       "localhost",
+		DomainName: "localhost",
 		AuthDomain: "localhost",
 		DataDir:    s.dir,
 	}
@@ -172,13 +172,13 @@ func (s *CmdSuite) TestHostCACRUD(c *C) {
 		s.run("host-ca", "reset", "--confirm"),
 		Matches, fmt.Sprintf(".*%v.*", "regenerated"))
 
-	hostCA, err := s.CAS.GetHostCA()
+	hostCA, err := s.CAS.GetHostPrivateCertificateAuthority()
 	c.Assert(err, IsNil)
 	c.Assert(hostCA, NotNil)
 
 	c.Assert(
 		s.run("host-ca", "pub-key"),
-		Matches, fmt.Sprintf(".*%v.*", hostCA.Pub))
+		Matches, fmt.Sprintf(".*%v.*", hostCA.PublicKey))
 }
 
 func (s *CmdSuite) TestUserCACRUD(c *C) {
@@ -186,18 +186,18 @@ func (s *CmdSuite) TestUserCACRUD(c *C) {
 		s.run("user-ca", "reset", "--confirm"),
 		Matches, fmt.Sprintf(".*%v.*", "regenerated"))
 
-	userCA, err := s.CAS.GetUserCA()
+	userCA, err := s.CAS.GetUserPrivateCertificateAuthority()
 	c.Assert(err, IsNil)
 	c.Assert(userCA, NotNil)
 	c.Assert(userCA, NotNil)
 
 	c.Assert(
 		s.run("user-ca", "pub-key"),
-		Matches, fmt.Sprintf(".*%v.*", userCA.Pub))
+		Matches, fmt.Sprintf(".*%v.*", userCA.PublicKey))
 }
 
 func (s *CmdSuite) TestUserCRUD(c *C) {
-	c.Assert(s.asrv.ResetUserCA(""), IsNil)
+	c.Assert(s.asrv.ResetUserCertificateAuthority(""), IsNil)
 
 	_, pub, err := s.asrv.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -229,7 +229,7 @@ func (s *CmdSuite) TestUserCRUD(c *C) {
 
 func (s *CmdSuite) TestGenerateToken(c *C) {
 	token := s.run(
-		"token", "generate", "--fqdn", "a.example.com",
+		"token", "generate", "--domain", "a.example.com",
 		"--role", "role123", "--ttl", "100s")
 	role, err := s.asrv.ValidateToken(token, "a.example.com")
 	c.Assert(err, IsNil)
@@ -237,7 +237,7 @@ func (s *CmdSuite) TestGenerateToken(c *C) {
 }
 
 func (s *CmdSuite) TestRemoteCertCRUD(c *C) {
-	c.Assert(s.asrv.ResetUserCA(""), IsNil)
+	c.Assert(s.asrv.ResetUserCertificateAuthority(""), IsNil)
 
 	_, pub, err := s.asrv.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -247,21 +247,21 @@ func (s *CmdSuite) TestRemoteCertCRUD(c *C) {
 	defer fkey.Close()
 	fkey.Write(pub)
 
-	out := s.run("remote-ca", "upsert", "--id", "id1", "--type", "user", "--fqdn", "example.com", "--path", fkey.Name())
+	out := s.run("remote-ca", "upsert", "--id", "id1", "--type", "user", "--domain", "example.com", "--path", fkey.Name())
 	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "upserted"))
 
-	var remoteCerts []services.RemoteCert
-	remoteCerts, err = s.CAS.GetRemoteCerts("user", "example.com")
+	var remoteCerts []services.CertificateAuthority
+	remoteCerts, err = s.CAS.GetRemoteCertificates("user", "example.com")
 	c.Assert(err, IsNil)
-	c.Assert(trim(string(remoteCerts[0].Value)), Equals, trim(string(pub)))
+	c.Assert(trim(string(remoteCerts[0].PublicKey)), Equals, trim(string(pub)))
 
 	out = s.run("remote-ca", "ls", "--type", "user")
 	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "example.com"))
 
-	out = s.run("remote-ca", "rm", "--type", "user", "--fqdn", "example.com", "--id", "id1")
+	out = s.run("remote-ca", "rm", "--type", "user", "--domain", "example.com", "--id", "id1")
 	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "deleted"))
 
-	remoteCerts, err = s.CAS.GetRemoteCerts("user", "")
+	remoteCerts, err = s.CAS.GetRemoteCertificates("user", "")
 	c.Assert(len(remoteCerts), Equals, 0)
 }
 
@@ -282,22 +282,22 @@ func (s *CmdSuite) TestBackendKeys(c *C) {
 	}
 
 	s.run("backend-keys", "export", "--id", keys[0].ID, "--dir", s.dir)
-	c.Assert(s.asrv.ResetUserCA(""), IsNil)
+	c.Assert(s.asrv.ResetUserCertificateAuthority(""), IsNil)
 	_, pub, err := s.asrv.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 	fkey, err := ioutil.TempFile("", "teleport")
 	c.Assert(err, IsNil)
 	defer fkey.Close()
 	fkey.Write(pub)
-	out = s.run("remote-ca", "upsert", "--id", "id1", "--type", "user", "--fqdn", "example.com", "--path", fkey.Name())
+	out = s.run("remote-ca", "upsert", "--id", "id1", "--type", "user", "--domain", "example.com", "--path", fkey.Name())
 	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "upserted"))
 
 	s.run("backend-keys", "delete", "--id", keys[0].ID)
 
-	var remoteCerts []services.RemoteCert
-	remoteCerts, err = s.CAS.GetRemoteCerts("user", "example.com")
+	var remoteCerts []services.CertificateAuthority
+	remoteCerts, err = s.CAS.GetRemoteCertificates("user", "example.com")
 	c.Assert(err, IsNil)
-	c.Assert(trim(string(remoteCerts[0].Value)), Equals, trim(string(pub)))
+	c.Assert(trim(string(remoteCerts[0].PublicKey)), Equals, trim(string(pub)))
 
 	s.run("backend-keys", "import", "--file", path.Join(s.dir, keys[0].ID+".bkey"))
 	s.run("backend-keys", "delete", "--id", keys[1].ID)
@@ -307,9 +307,9 @@ func (s *CmdSuite) TestBackendKeys(c *C) {
 
 	out = s.run("remote-ca", "ls", "--type", "user")
 	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "example.com"))
-	out = s.run("remote-ca", "rm", "--type", "user", "--fqdn", "example.com", "--id", "id1")
+	out = s.run("remote-ca", "rm", "--type", "user", "--domain", "example.com", "--id", "id1")
 	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "deleted"))
-	remoteCerts, err = s.CAS.GetRemoteCerts("user", "")
+	remoteCerts, err = s.CAS.GetRemoteCertificates("user", "")
 	c.Assert(len(remoteCerts), Equals, 0)
 
 }

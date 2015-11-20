@@ -216,10 +216,10 @@ func (kv *KeyVal) Set(v string) error {
 }
 
 type RemoteCert struct {
-	Type  string `json:"type"`
-	ID    string `json:"id"`
-	FQDN  string `json:"fqdn"`
-	Value string `json:"value"`
+	Type       string `json:"type"`
+	ID         string `json:"id"`
+	DomainName string `json:"domain_name" yaml:"domain_name" env:"domain_name"`
+	Value      string `json:"value"`
 }
 
 type RemoteCerts []RemoteCert
@@ -275,21 +275,23 @@ func (c *CertificateAuthority) UnmarshalYAML(unmarshal func(interface{}) error) 
 	return nil
 }
 
-func (c *CertificateAuthority) ToCA() *services.CA {
-	return &services.CA{
-		Pub:  []byte(c.PublicKey),
-		Priv: []byte(c.PrivateKey),
+func (c *CertificateAuthority) ToCA() *services.LocalCertificateAuthority {
+	return &services.LocalCertificateAuthority{
+		CertificateAuthority: services.CertificateAuthority{
+			PublicKey: []byte(c.PublicKey),
+		},
+		PrivateKey: []byte(c.PrivateKey),
 	}
 }
 
-func convertRemoteCerts(inCerts RemoteCerts) []services.RemoteCert {
-	outCerts := make([]services.RemoteCert, len(inCerts))
+func convertRemoteCerts(inCerts RemoteCerts) []services.CertificateAuthority {
+	outCerts := make([]services.CertificateAuthority, len(inCerts))
 	for i, v := range inCerts {
-		outCerts[i] = services.RemoteCert{
-			ID:    v.ID,
-			FQDN:  v.FQDN,
-			Type:  v.Type,
-			Value: []byte(v.Value),
+		outCerts[i] = services.CertificateAuthority{
+			ID:         v.ID,
+			DomainName: v.DomainName,
+			Type:       v.Type,
+			PublicKey:  []byte(v.Value),
 		}
 	}
 	return outCerts

@@ -45,14 +45,14 @@ func (c *Client) GenerateKeyPair(pass string) ([]byte, []byte, error)
     protected by password. If the pass parameter is an empty string, the key
     pair is not password-protected.
 
-func (c *Client) GenerateToken(fqdn string, ttl time.Duration) (string, error)
+func (c *Client) GenerateToken(domainName string, ttl time.Duration) (string, error)
     GenerateToken creates a special provisioning token for the SSH server
-    with the specified fqdn that is valid for ttl period seconds.
+    with the specified domainName that is valid for ttl period seconds.
 
     This token is used by SSH server to authenticate with Auth server and
     get signed certificate and private key from the auth server.
 
-    The token can be used only once and only to generate the fqdn specified
+    The token can be used only once and only to generate the domainName specified
     in it.
 
 func (c *Client) GenerateUserCert(

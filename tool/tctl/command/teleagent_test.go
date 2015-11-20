@@ -66,17 +66,17 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 		encryptor.GetTestKey)
 	c.Assert(err, IsNil)
 
-	a := auth.NewAuthServer(bk, authority.New(), scrt)
+	a := auth.NewAuthServer(bk, authority.New(), scrt, "host3")
 
 	// set up host private key and certificate
-	c.Assert(a.ResetHostCA(""), IsNil)
+	c.Assert(a.ResetHostCertificateAuthority(""), IsNil)
 	hpriv, hpub, err := a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 	hcert, err := a.GenerateHostCert(hpub, "localhost", "localhost", "RoleAdmin", 0)
 	c.Assert(err, IsNil)
 
-	// set up user CA and set up a user that has access to the server
-	c.Assert(a.ResetUserCA(""), IsNil)
+	// set up user CertificateAuthority and set up a user that has access to the server
+	c.Assert(a.ResetUserCertificateAuthority(""), IsNil)
 
 	signer, err := sshutils.NewSigner(hpriv, hcert)
 	c.Assert(err, IsNil)
@@ -139,6 +139,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 		"localhost",
 		[]ssh.Signer{signer},
 		ap,
+		dir,
 		srv.SetShell("/bin/sh"),
 	)
 	c.Assert(err, IsNil)
@@ -148,10 +149,10 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 
 	webHandler, err := web.NewMultiSiteHandler(
 		web.MultiSiteConfig{
-			Tun:       reverseTunnelServer,
-			AssetsDir: "../../../assets/web",
-			AuthAddr:  utils.NetAddr{Network: "tcp", Addr: tsrv.Addr()},
-			FQDN:      "localhost",
+			Tun:        reverseTunnelServer,
+			AssetsDir:  "../../../assets/web",
+			AuthAddr:   utils.NetAddr{Network: "tcp", Addr: tsrv.Addr()},
+			DomainName: "localhost",
 		},
 	)
 	c.Assert(err, IsNil)

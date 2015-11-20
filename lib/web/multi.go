@@ -47,11 +47,11 @@ type MultiSiteConfig struct {
 	Tun       reversetunnel.Server
 	AssetsDir string
 	AuthAddr  utils.NetAddr
-	FQDN      string
+	DomainName      string
 }
 
 func NewMultiSiteHandler(cfg MultiSiteConfig) (*MultiSiteHandler, error) {
-	lauth, err := NewLocalAuth(cfg.FQDN, []utils.NetAddr{cfg.AuthAddr})
+	lauth, err := NewLocalAuth(cfg.DomainName, []utils.NetAddr{cfg.AuthAddr})
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +122,7 @@ func (h *MultiSiteHandler) login(w http.ResponseWriter, r *http.Request, _ httpr
 }
 
 func (h *MultiSiteHandler) logout(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	if err := session.ClearSession(w, h.cfg.FQDN); err != nil {
+	if err := session.ClearSession(w, h.cfg.DomainName); err != nil {
 		log.Errorf("failed to clear session: %v", err)
 		replyErr(w, http.StatusInternalServerError, fmt.Errorf("failed to logout"))
 		return
@@ -149,7 +149,7 @@ func (h *MultiSiteHandler) authForm(w http.ResponseWriter, r *http.Request, p ht
 		http.Redirect(w, r, "/web/login", http.StatusFound)
 		return
 	}
-	if err := session.SetSession(w, h.cfg.FQDN, user, sid); err != nil {
+	if err := session.SetSession(w, h.cfg.DomainName, user, sid); err != nil {
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}

@@ -38,7 +38,7 @@ type Agent struct {
 	elog        lunk.EventLogger
 	clt         *auth.TunClient
 	signers     []ssh.Signer
-	fqdn        string
+	domainName        string
 	waitC       chan bool
 	disconnectC chan bool
 	conn        ssh.Conn
@@ -53,13 +53,13 @@ func SetEventLogger(e lunk.EventLogger) AgentOption {
 	}
 }
 
-func NewAgent(addr utils.NetAddr, fqdn string, signers []ssh.Signer,
+func NewAgent(addr utils.NetAddr, domainName string, signers []ssh.Signer,
 	clt *auth.TunClient, options ...AgentOption) (*Agent, error) {
 
 	a := &Agent{
 		clt:         clt,
 		addr:        addr,
-		fqdn:        fqdn,
+		domainName:        domainName,
 		signers:     signers,
 		waitC:       make(chan bool),
 		disconnectC: make(chan bool, 10),
@@ -120,43 +120,22 @@ func (a *Agent) String() string {
 func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.PublicKey) error {
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
-		log.Infof("expected: %v", key)
-		return fmt.Errorf("expected certificate")
+		return trace.Errorf("expected certificate")
 	}
-	hostname, _, err := net.SplitHostPort(hostport)
+	certs, err := a.clt.GetTrustedCertificates(services.HostCert)
 	if err != nil {
-		log.Errorf("error spliting hostport(%v), err: %v", hostport, err)
-		return trace.Wrap(err)
-	}
-	certs, err := a.clt.GetRemoteCerts(services.HostCert, hostname)
-	if err != nil {
-		log.Errorf("failed to fetch remote certs: %v", err)
-		return trace.Wrap(err)
+		return trace.Errorf("failed to fetch remote certs: %v", err.Error())
 	}
 	for _, c := range certs {
-		log.Infof("checking key(id=%v) against host %v", c.ID, c.FQDN)
-		pk, _, _, _, err := ssh.ParseAuthorizedKey(c.Value)
+		log.Infof("checking key(id=%v) against host %v", c.ID, c.DomainName)
+		pk, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicKey)
 		if err != nil {
-			log.Errorf("error parsing key: %v", err)
-			return trace.Wrap(err)
+			return trace.Errorf("error parsing key: %v", err)
 		}
 		if sshutils.KeysEqual(pk, cert.SignatureKey) {
-			log.Infof("matched key %v for %v", c.ID, c.FQDN)
+			log.Infof("matched key %v for %v", c.ID, c.DomainName)
 			return nil
 		}
-	}
-	// try local host certificate authority (for local proxy connections)
-	localCertBytes, err := a.clt.GetHostCAPub()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	pk, _, _, _, err := ssh.ParseAuthorizedKey(localCertBytes)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if sshutils.KeysEqual(pk, cert.SignatureKey) {
-		log.Infof("matched key for local CA authority")
-		return nil
 	}
 
 	return trace.Errorf("no matching keys found when checking server's host signature")
@@ -165,7 +144,7 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 func (a *Agent) connect() error {
 	log.Infof("agent connect")
 	c, err := ssh.Dial(a.addr.Network, a.addr.Addr, &ssh.ClientConfig{
-		User:            a.fqdn,
+		User:            a.domainName,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(a.signers...)},
 		HostKeyCallback: a.checkHostSignature,
 	})

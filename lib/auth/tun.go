@@ -132,14 +132,14 @@ func (s *TunServer) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 // isAuthority is called during checking the client key, to see if the signing
 // key is the real CA authority key.
 func (s *TunServer) isAuthority(auth ssh.PublicKey) bool {
-	key, err := s.a.GetHostCAPub()
+	key, err := s.a.GetHostCertificateAuthority()
 	if err != nil {
 		log.Errorf("failed to retrieve user authority key, err: %v", err)
 		return false
 	}
-	cert, _, _, _, err := ssh.ParseAuthorizedKey(key)
+	cert, _, _, _, err := ssh.ParseAuthorizedKey(key.PublicKey)
 	if err != nil {
-		log.Errorf("failed to parse CA cert '%v', err: %v", string(key), err)
+		log.Errorf("failed to parse CA cert '%v', err: %v", string(key.PublicKey), err)
 		return false
 	}
 
@@ -326,10 +326,10 @@ type authBucket struct {
 	HotpToken string `json:"hotpToken"`
 }
 
-func NewTokenAuth(fqdn, token string) ([]ssh.AuthMethod, error) {
+func NewTokenAuth(domainName, token string) ([]ssh.AuthMethod, error) {
 	data, err := json.Marshal(authBucket{
 		Type: AuthToken,
-		User: fqdn,
+		User: domainName,
 		Pass: []byte(token),
 	})
 	if err != nil {
@@ -428,23 +428,36 @@ func (t *TunDialer) Close() error {
 }
 
 func (t *TunDialer) GetAgent() (agent.Agent, error) {
-	_, err := t.getClient() // we need an established connection first
+	_, err := t.getClient(false) // we need an established connection first
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	ch, _, err := t.tun.OpenChannel(ReqWebSessionAgent, nil)
 	if err != nil {
-		return nil, err
+		// reconnecting and trying again
+		_, err := t.getClient(true)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ch, _, err = t.tun.OpenChannel(ReqWebSessionAgent, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	log.Infof("opened agent channel")
 	return agent.NewClient(ch), nil
 }
 
-func (t *TunDialer) getClient() (*ssh.Client, error) {
+func (t *TunDialer) getClient(reset bool) (*ssh.Client, error) {
 	t.Lock()
 	defer t.Unlock()
 	if t.tun != nil {
-		return t.tun, nil
+		if !reset {
+			return t.tun, nil
+		} else {
+			go t.tun.Close()
+			t.tun = nil
+		}
 	}
 
 	config := &ssh.ClientConfig{
@@ -460,11 +473,21 @@ func (t *TunDialer) getClient() (*ssh.Client, error) {
 }
 
 func (t *TunDialer) Dial(network, address string) (net.Conn, error) {
-	c, err := t.getClient()
+	c, err := t.getClient(false)
 	if err != nil {
 		return nil, err
 	}
-	return c.Dial(network, address)
+	conn, err := c.Dial(network, address)
+	if err == nil {
+		return conn, err
+	} else {
+		// reconnecting and trying again
+		c, err = t.getClient(true)
+		if err != nil {
+			return nil, err
+		}
+		return c.Dial(network, address)
+	}
 }
 
 const (

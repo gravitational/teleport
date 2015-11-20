@@ -18,6 +18,7 @@ package service
 import (
 	"net/http"
 	"path"
+	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/native"
@@ -31,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
@@ -69,7 +71,7 @@ func NewTeleport(cfg Config) (Supervisor, error) {
 	supervisor := NewSupervisor()
 
 	if cfg.Auth.Enabled {
-		if err := InitAuthService(supervisor, cfg.RoleConfig()); err != nil {
+		if err := InitAuthService(supervisor, cfg.RoleConfig(), cfg.Hostname); err != nil {
 			return nil, err
 		}
 	}
@@ -96,7 +98,7 @@ func NewTeleport(cfg Config) (Supervisor, error) {
 }
 
 // InitAuthService can be called to initialize auth server service
-func InitAuthService(supervisor Supervisor, cfg RoleConfig) error {
+func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) error {
 	if cfg.Auth.HostAuthorityDomain == "" {
 		return trace.Errorf(
 			"please provide host certificate authority domain, e.g. example.com")
@@ -121,7 +123,7 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig) error {
 	acfg := auth.InitConfig{
 		Backend:            b,
 		Authority:          authority.New(),
-		FQDN:               cfg.Hostname,
+		DomainName:         cfg.Hostname,
 		AuthDomain:         cfg.Auth.HostAuthorityDomain,
 		DataDir:            cfg.DataDir,
 		SecretKey:          cfg.Auth.SecretKey,
@@ -130,9 +132,15 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig) error {
 	}
 	if len(cfg.Auth.UserCA.PublicKey) != 0 && len(cfg.Auth.UserCA.PrivateKey) != 0 {
 		acfg.UserCA = cfg.Auth.UserCA.ToCA()
+		acfg.UserCA.DomainName = hostname
+		acfg.UserCA.ID = string(acfg.UserCA.PublicKey)
+		acfg.UserCA.Type = services.UserCert
 	}
 	if len(cfg.Auth.HostCA.PublicKey) != 0 && len(cfg.Auth.HostCA.PrivateKey) != 0 {
 		acfg.HostCA = cfg.Auth.HostCA.ToCA()
+		acfg.HostCA.DomainName = hostname
+		acfg.HostCA.ID = string(acfg.HostCA.PublicKey)
+		acfg.HostCA.Type = services.HostCert
 	}
 	asrv, signer, err := auth.Init(acfg)
 	if err != nil {
@@ -195,6 +203,7 @@ func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
 		cfg.Hostname,
 		[]ssh.Signer{signer},
 		client,
+		cfg.DataDir,
 		srv.SetShell(cfg.SSH.Shell),
 		srv.SetEventLogger(elog),
 		srv.SetSessionServer(client),
@@ -246,10 +255,15 @@ func RegisterWithAuthServer(
 
 	supervisor.RegisterFunc(func() error {
 		log.Infof("teleport:register connecting to auth servers %v", provisioningToken)
-		if err := auth.Register(
-			cfg.Hostname, cfg.DataDir, provisioningToken, role, cfg.AuthServers); err != nil {
-			log.Errorf("teleport:ssh register failed: %v", err)
-			return trace.Wrap(err)
+		registered := false
+		for !registered {
+			if err := auth.Register(cfg.Hostname, cfg.DataDir,
+				provisioningToken, role, cfg.AuthServers); err != nil {
+				log.Errorf("teleport:ssh register failed: %v", err)
+				time.Sleep(time.Second)
+			} else {
+				registered = true
+			}
 		}
 		log.Infof("teleport:register registered successfully")
 		return callback()
@@ -342,6 +356,7 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 		cfg.Hostname,
 		[]ssh.Signer{signer},
 		client,
+		cfg.DataDir,
 		srv.SetProxyMode(tsrv),
 	)
 	if err != nil {
@@ -367,10 +382,10 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 
 		webHandler, err := web.NewMultiSiteHandler(
 			web.MultiSiteConfig{
-				Tun:       tsrv,
-				AssetsDir: cfg.Proxy.AssetsDir,
-				AuthAddr:  cfg.AuthServers[0],
-				FQDN:      cfg.Hostname})
+				Tun:        tsrv,
+				AssetsDir:  cfg.Proxy.AssetsDir,
+				AuthAddr:   cfg.AuthServers[0],
+				DomainName: cfg.Hostname})
 		if err != nil {
 			log.Errorf("failed to launch web server: %v", err)
 			return err
@@ -408,7 +423,7 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 	return nil
 }
 
-func initBackend(dataDir, fqdn string, peers NetAddrSlice, cfg AuthConfig) (*encryptedbk.ReplicatedBackend, error) {
+func initBackend(dataDir, domainName string, peers NetAddrSlice, cfg AuthConfig) (*encryptedbk.ReplicatedBackend, error) {
 	var bk backend.Backend
 	var err error
 
@@ -440,12 +455,12 @@ func initBackend(dataDir, fqdn string, peers NetAddrSlice, cfg AuthConfig) (*enc
 	if err != nil {
 		log.Errorf(err.Error())
 		log.Infof("Initializing backend as follower node")
-		myKey, err := encryptor.GenerateGPGKey(fqdn + " key")
+		myKey, err := encryptor.GenerateGPGKey(domainName + " key")
 		if err != nil {
 			return nil, err
 		}
 		masterKey, err := auth.RegisterNewAuth(
-			fqdn, cfg.Token, myKey.Public(), peers)
+			domainName, cfg.Token, myKey.Public(), peers)
 		if err != nil {
 			return nil, err
 		}
