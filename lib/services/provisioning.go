@@ -32,9 +32,9 @@ func NewProvisioningService(backend backend.Backend) *ProvisioningService {
 }
 
 // Tokens are provisioning tokens for the auth server
-func (s *ProvisioningService) UpsertToken(token, fqdn, role string, ttl time.Duration) error {
+func (s *ProvisioningService) UpsertToken(token, domainName, role string, ttl time.Duration) error {
 	t := ProvisionToken{
-		FQDN: fqdn,
+		DomainName: domainName,
 		Role: role,
 	}
 	out, err := json.Marshal(t)
@@ -68,6 +68,6 @@ func (s *ProvisioningService) DeleteToken(token string) error {
 }
 
 type ProvisionToken struct {
-	FQDN string
+	DomainName string
 	Role string
 }

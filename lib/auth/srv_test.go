@@ -117,36 +117,36 @@ func (s *APISuite) TearDownTest(c *C) {
 func (s *APISuite) TestHostCACRUD(c *C) {
 	c.Assert(s.clt.ResetHostCertificateAuthority(), IsNil)
 
-	hca, err := s.CAS.GetHostCertificateAuthority()
+	hca, err := s.CAS.GetHostPrivateCertificateAuthority()
 	c.Assert(err, IsNil)
 
 	c.Assert(s.clt.ResetHostCertificateAuthority(), IsNil)
 
-	hca2, err := s.CAS.GetHostCertificateAuthority()
+	hca2, err := s.CAS.GetHostPrivateCertificateAuthority()
 	c.Assert(err, IsNil)
 
 	c.Assert(hca, Not(DeepEquals), hca2)
 
-	key, err := s.clt.GetHostPublicCertificate()
+	key, err := s.clt.GetHostCertificateAuthority()
 	c.Assert(err, IsNil)
-	c.Assert(key.PubValue, DeepEquals, hca2.PubValue)
+	c.Assert(key.PublicKey, DeepEquals, hca2.PublicKey)
 }
 
 func (s *APISuite) TestUserCACRUD(c *C) {
 	c.Assert(s.clt.ResetUserCertificateAuthority(), IsNil)
 
-	uca, err := s.CAS.GetUserCertificateAuthority()
+	uca, err := s.CAS.GetUserPrivateCertificateAuthority()
 	c.Assert(err, IsNil)
 
 	c.Assert(s.clt.ResetUserCertificateAuthority(), IsNil)
-	uca2, err := s.CAS.GetUserCertificateAuthority()
+	uca2, err := s.CAS.GetUserPrivateCertificateAuthority()
 	c.Assert(err, IsNil)
 
 	c.Assert(uca, Not(DeepEquals), uca2)
 
-	key, err := s.clt.GetUserPublicCertificate()
+	key, err := s.clt.GetUserCertificateAuthority()
 	c.Assert(err, IsNil)
-	c.Assert(key.PubValue, DeepEquals, uca2.PubValue)
+	c.Assert(key.PublicKey, DeepEquals, uca2.PublicKey)
 }
 
 func (s *APISuite) TestGenerateKeyPair(c *C) {
@@ -364,23 +364,23 @@ func (s *APISuite) TestTokens(c *C) {
 }
 
 func (s *APISuite) TestRemoteCACRUD(c *C) {
-	key := services.PublicCertificate{
-		FQDN:     "example.com",
+	key := services.CertificateAuthority{
+		DomainName:     "example.com",
 		ID:       "id",
-		PubValue: []byte("hello1"),
+		PublicKey: []byte("hello1"),
 		Type:     services.UserCert,
 	}
 	err := s.clt.UpsertRemoteCertificate(key, 0)
 	c.Assert(err, IsNil)
 
-	certs, err := s.clt.GetRemoteCertificates(key.Type, key.FQDN)
+	certs, err := s.clt.GetRemoteCertificates(key.Type, key.DomainName)
 	c.Assert(err, IsNil)
 	c.Assert(certs[0], DeepEquals, key)
 
-	err = s.clt.DeleteRemoteCertificate(key.Type, key.FQDN, key.ID)
+	err = s.clt.DeleteRemoteCertificate(key.Type, key.DomainName, key.ID)
 	c.Assert(err, IsNil)
 
-	err = s.clt.DeleteRemoteCertificate(key.Type, key.FQDN, key.ID)
+	err = s.clt.DeleteRemoteCertificate(key.Type, key.DomainName, key.ID)
 	c.Assert(err, NotNil)
 }
 

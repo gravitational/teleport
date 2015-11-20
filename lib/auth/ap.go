@@ -33,10 +33,10 @@ type AccessPoint interface {
 	UpsertServer(s services.Server, ttl time.Duration) error
 
 	// GetUserCAPub returns the user certificate authority public key
-	GetUserPublicCertificate() (services.PublicCertificate, error)
+	GetUserCertificateAuthority() (*services.CertificateAuthority, error)
 
 	// GetUserCAPub returns the host certificate authority public key
-	GetHostPublicCertificate() (services.PublicCertificate, error)
+	GetHostCertificateAuthority() (*services.CertificateAuthority, error)
 
 	// GetUserKeys returns a list of authorized keys for a given user
 	// in a OpenSSH key authorized_keys format
@@ -47,10 +47,10 @@ type AccessPoint interface {
 	GetWebSessionsKeys(user string) ([]services.AuthorizedKey, error)
 
 	// GetRemoteCerts returns a list of trusted remote certificates
-	GetRemoteCertificates(certType, fqdn string) ([]services.PublicCertificate, error)
+	GetRemoteCertificates(certType, domainName string) ([]services.CertificateAuthority, error)
 
 	// GetTrustedCerts returns a list of trusted certificates
-	GetTrustedCertificates(certType string) ([]services.PublicCertificate, error)
+	GetTrustedCertificates(certType string) ([]services.CertificateAuthority, error)
 }
 
 type BackendAccessPoint struct {

@@ -87,55 +87,55 @@ func (a *AuthWithRoles) UpsertParty(id string, p session.Party, ttl time.Duratio
 		return a.sessions.UpsertParty(id, p, ttl)
 	}
 }
-func (a *AuthWithRoles) UpsertRemoteCertificate(cert services.PublicCertificate, ttl time.Duration) error {
+func (a *AuthWithRoles) UpsertRemoteCertificate(cert services.CertificateAuthority, ttl time.Duration) error {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertRemoteCertificate); err != nil {
 		return err
 	} else {
 		return a.authServer.UpsertRemoteCertificate(cert, ttl)
 	}
 }
-func (a *AuthWithRoles) GetRemoteCertificates(ctype string, fqdn string) ([]services.PublicCertificate, error) {
+func (a *AuthWithRoles) GetRemoteCertificates(ctype string, domainName string) ([]services.CertificateAuthority, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetRemoteCertificates); err != nil {
 		return nil, err
 	} else {
-		return a.authServer.GetRemoteCertificates(ctype, fqdn)
+		return a.authServer.GetRemoteCertificates(ctype, domainName)
 	}
 }
-func (a *AuthWithRoles) GetTrustedCertificates(ctype string) ([]services.PublicCertificate, error) {
+func (a *AuthWithRoles) GetTrustedCertificates(ctype string) ([]services.CertificateAuthority, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetRemoteCertificates); err != nil {
 		return nil, err
 	} else {
 		return a.authServer.GetTrustedCertificates(ctype)
 	}
 }
-func (a *AuthWithRoles) DeleteRemoteCertificate(ctype string, fqdn, id string) error {
+func (a *AuthWithRoles) DeleteRemoteCertificate(ctype string, domainName, id string) error {
 	if err := a.permChecker.HasPermission(a.role, ActionDeleteRemoteCertificate); err != nil {
 		return err
 	} else {
-		return a.authServer.DeleteRemoteCertificate(ctype, fqdn, id)
+		return a.authServer.DeleteRemoteCertificate(ctype, domainName, id)
 	}
 }
-func (a *AuthWithRoles) GenerateToken(fqdn, role string, ttl time.Duration) (string, error) {
+func (a *AuthWithRoles) GenerateToken(domainName, role string, ttl time.Duration) (string, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGenerateToken); err != nil {
 		return "", err
 	} else {
-		return a.authServer.GenerateToken(fqdn, role, ttl)
+		return a.authServer.GenerateToken(domainName, role, ttl)
 	}
 }
-func (a *AuthWithRoles) RegisterUsingToken(token, fqdn, role string) (keys PackedKeys, e error) {
+func (a *AuthWithRoles) RegisterUsingToken(token, domainName, role string) (keys PackedKeys, e error) {
 	if err := a.permChecker.HasPermission(a.role, ActionRegisterUsingToken); err != nil {
 		return PackedKeys{}, err
 	} else {
-		return a.authServer.RegisterUsingToken(token, fqdn, role)
+		return a.authServer.RegisterUsingToken(token, domainName, role)
 	}
 }
-func (a *AuthWithRoles) RegisterNewAuthServer(fqdn, token string,
+func (a *AuthWithRoles) RegisterNewAuthServer(domainName, token string,
 	publicSealKey encryptor.Key) (masterKey encryptor.Key, e error) {
 
 	if err := a.permChecker.HasPermission(a.role, ActionRegisterNewAuthServer); err != nil {
 		return encryptor.Key{}, err
 	} else {
-		return a.authServer.RegisterNewAuthServer(fqdn, token, publicSealKey)
+		return a.authServer.RegisterNewAuthServer(domainName, token, publicSealKey)
 	}
 }
 func (a *AuthWithRoles) Log(id lunk.EventID, e lunk.Event) {
@@ -292,18 +292,18 @@ func (a *AuthWithRoles) DeleteUserKey(username string, id string) error {
 		return a.authServer.DeleteUserKey(username, id)
 	}
 }
-func (a *AuthWithRoles) GetHostPublicCertificate() (services.PublicCertificate, error) {
-	if err := a.permChecker.HasPermission(a.role, ActionGetHostPublicCertificate); err != nil {
-		return services.PublicCertificate{}, err
+func (a *AuthWithRoles) GetHostCertificateAuthority() (*services.CertificateAuthority, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionGetHostCertificateAuthority); err != nil {
+		return nil, err
 	} else {
-		return a.authServer.GetHostPublicCertificate()
+		return a.authServer.GetHostCertificateAuthority()
 	}
 }
-func (a *AuthWithRoles) GetUserPublicCertificate() (services.PublicCertificate, error) {
-	if err := a.permChecker.HasPermission(a.role, ActionGetUserPublicCertificate); err != nil {
-		return services.PublicCertificate{}, err
+func (a *AuthWithRoles) GetUserCertificateAuthority() (*services.CertificateAuthority, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionGetUserCertificateAuthority); err != nil {
+		return nil, err
 	} else {
-		return a.authServer.GetUserPublicCertificate()
+		return a.authServer.GetUserCertificateAuthority()
 	}
 }
 func (a *AuthWithRoles) GenerateKeyPair(pass string) ([]byte, []byte, error) {

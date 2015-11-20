@@ -38,7 +38,7 @@ type Agent struct {
 	elog        lunk.EventLogger
 	clt         *auth.TunClient
 	signers     []ssh.Signer
-	fqdn        string
+	domainName        string
 	waitC       chan bool
 	disconnectC chan bool
 	conn        ssh.Conn
@@ -53,13 +53,13 @@ func SetEventLogger(e lunk.EventLogger) AgentOption {
 	}
 }
 
-func NewAgent(addr utils.NetAddr, fqdn string, signers []ssh.Signer,
+func NewAgent(addr utils.NetAddr, domainName string, signers []ssh.Signer,
 	clt *auth.TunClient, options ...AgentOption) (*Agent, error) {
 
 	a := &Agent{
 		clt:         clt,
 		addr:        addr,
-		fqdn:        fqdn,
+		domainName:        domainName,
 		signers:     signers,
 		waitC:       make(chan bool),
 		disconnectC: make(chan bool, 10),
@@ -127,13 +127,13 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 		return trace.Errorf("failed to fetch remote certs: %v", err.Error())
 	}
 	for _, c := range certs {
-		log.Infof("checking key(id=%v) against host %v", c.ID, c.FQDN)
-		pk, _, _, _, err := ssh.ParseAuthorizedKey(c.PubValue)
+		log.Infof("checking key(id=%v) against host %v", c.ID, c.DomainName)
+		pk, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicKey)
 		if err != nil {
 			return trace.Errorf("error parsing key: %v", err)
 		}
 		if sshutils.KeysEqual(pk, cert.SignatureKey) {
-			log.Infof("matched key %v for %v", c.ID, c.FQDN)
+			log.Infof("matched key %v for %v", c.ID, c.DomainName)
 			return nil
 		}
 	}
@@ -144,7 +144,7 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 func (a *Agent) connect() error {
 	log.Infof("agent connect")
 	c, err := ssh.Dial(a.addr.Network, a.addr.Addr, &ssh.ClientConfig{
-		User:            a.fqdn,
+		User:            a.domainName,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(a.signers...)},
 		HostKeyCallback: a.checkHostSignature,
 	})

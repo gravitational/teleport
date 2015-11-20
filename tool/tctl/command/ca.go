@@ -54,14 +54,14 @@ func (cmd *Command) ResetHostCertificateAuthority(confirm bool) {
 	cmd.printOK("Certificate authority keys have been regenerated")
 }
 
-func (cmd *Command) GetHostPublicCertificate() {
-	key, err := cmd.client.GetHostPublicCertificate()
+func (cmd *Command) GetHostCertificateAuthority() {
+	key, err := cmd.client.GetHostCertificateAuthority()
 	if err != nil {
 		cmd.printError(err)
 		return
 	}
 	cmd.printOK("Host CA Key")
-	fmt.Fprintf(cmd.out, string(key.PubValue))
+	fmt.Fprintf(cmd.out, string(key.PublicKey))
 }
 
 func (cmd *Command) ResetUserCertificateAuthority(confirm bool) {
@@ -76,27 +76,27 @@ func (cmd *Command) ResetUserCertificateAuthority(confirm bool) {
 	cmd.printOK("Certificate authority keys have been regenerated")
 }
 
-func (cmd *Command) GetUserPublicCertificate() {
-	key, err := cmd.client.GetUserPublicCertificate()
+func (cmd *Command) GetUserCertificateAuthority() {
+	key, err := cmd.client.GetUserCertificateAuthority()
 	if err != nil {
 		cmd.printError(err)
 		return
 	}
 	cmd.printOK("User CA Key")
-	fmt.Fprintf(cmd.out, string(key.PubValue))
+	fmt.Fprintf(cmd.out, string(key.PublicKey))
 }
 
-func (cmd *Command) UpsertRemoteCertificate(id, fqdn, certType, path string, ttl time.Duration) {
+func (cmd *Command) UpsertRemoteCertificate(id, domainName, certType, path string, ttl time.Duration) {
 	val, err := cmd.readInput(path)
 	if err != nil {
 		cmd.printError(err)
 		return
 	}
-	cert := services.PublicCertificate{
-		FQDN:     fqdn,
+	cert := services.CertificateAuthority{
+		DomainName:     domainName,
 		Type:     certType,
 		ID:       id,
-		PubValue: val,
+		PublicKey: val,
 	}
 	if err := cmd.client.UpsertRemoteCertificate(cert, ttl); err != nil {
 		cmd.printError(err)
@@ -105,8 +105,8 @@ func (cmd *Command) UpsertRemoteCertificate(id, fqdn, certType, path string, ttl
 	cmd.printOK("Remote cert have been upserted")
 }
 
-func (cmd *Command) GetRemoteCertificates(fqdn, certType string) {
-	certs, err := cmd.client.GetRemoteCertificates(certType, fqdn)
+func (cmd *Command) GetRemoteCertificates(domainName, certType string) {
+	certs, err := cmd.client.GetRemoteCertificates(certType, domainName)
 	if err != nil {
 		cmd.printError(err)
 		return
@@ -114,8 +114,8 @@ func (cmd *Command) GetRemoteCertificates(fqdn, certType string) {
 	fmt.Fprintf(cmd.out, remoteCertsView(certs))
 }
 
-func (cmd *Command) DeleteRemoteCertificate(id, fqdn, certType string) {
-	err := cmd.client.DeleteRemoteCertificate(certType, fqdn, id)
+func (cmd *Command) DeleteRemoteCertificate(id, domainName, certType string) {
+	err := cmd.client.DeleteRemoteCertificate(certType, domainName, id)
 	if err != nil {
 		cmd.printError(err)
 		return
@@ -123,14 +123,14 @@ func (cmd *Command) DeleteRemoteCertificate(id, fqdn, certType string) {
 	cmd.printOK("certificate deleted")
 }
 
-func remoteCertsView(certs []services.PublicCertificate) string {
+func remoteCertsView(certs []services.CertificateAuthority) string {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	fmt.Fprint(t, "Type\tFQDN\tID\tValue\n")
+	fmt.Fprint(t, "Type\tDomainName\tID\tValue\n")
 	if len(certs) == 0 {
 		return t.String()
 	}
 	for _, c := range certs {
-		fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", c.Type, c.FQDN, c.ID, string(c.PubValue))
+		fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", c.Type, c.DomainName, c.ID, string(c.PublicKey))
 	}
 	return t.String()
 }

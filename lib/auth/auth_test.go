@@ -126,7 +126,7 @@ func (s *AuthSuite) TestBadTokens(c *C) {
 	_, err = s.a.ValidateToken(tampered, "a.example.com")
 	c.Assert(err, NotNil)
 
-	// wrong fqdn
+	// wrong domainName
 	_, err = s.a.ValidateToken(tok, "b.example.com")
 	c.Assert(err, NotNil)
 }

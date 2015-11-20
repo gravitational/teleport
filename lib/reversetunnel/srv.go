@@ -143,18 +143,18 @@ func (s *server) isAuthority(auth ssh.PublicKey) bool {
 func (s *server) getTrustedCAKeys() ([]ssh.PublicKey, error) {
 	out := []ssh.PublicKey{}
 	authKeys := [][]byte{}
-	key, err := s.ap.GetHostPublicCertificate()
+	key, err := s.ap.GetHostCertificateAuthority()
 	if err != nil {
 		return nil, err
 	}
-	authKeys = append(authKeys, key.PubValue)
+	authKeys = append(authKeys, key.PublicKey)
 
 	certs, err := s.ap.GetRemoteCertificates(services.HostCert, "")
 	if err != nil {
 		return nil, err
 	}
 	for _, c := range certs {
-		authKeys = append(authKeys, c.PubValue)
+		authKeys = append(authKeys, c.PublicKey)
 	}
 	for _, ak := range authKeys {
 		pk, _, _, _, err := ssh.ParseAuthorizedKey(ak)
@@ -201,10 +201,10 @@ func (s *server) upsertSite(c ssh.Conn) (*remoteSite, error) {
 	s.Lock()
 	defer s.Unlock()
 
-	fqdn := c.User()
+	domainName := c.User()
 	var site *remoteSite
 	for _, st := range s.sites {
-		if st.fqdn == fqdn {
+		if st.domainName == domainName {
 			site = st
 			break
 		}
@@ -214,7 +214,7 @@ func (s *server) upsertSite(c ssh.Conn) (*remoteSite, error) {
 			return nil, err
 		}
 	} else {
-		site = &remoteSite{srv: s, fqdn: c.User()}
+		site = &remoteSite{srv: s, domainName: c.User()}
 		if err := site.init(c); err != nil {
 			return nil, err
 		}
@@ -233,35 +233,35 @@ func (s *server) GetSites() []RemoteSite {
 	return out
 }
 
-func (s *server) GetSite(fqdn string) (RemoteSite, error) {
+func (s *server) GetSite(domainName string) (RemoteSite, error) {
 	s.RLock()
 	defer s.RUnlock()
 	for i := range s.sites {
-		if s.sites[i].fqdn == fqdn {
+		if s.sites[i].domainName == domainName {
 			return s.sites[i], nil
 		}
 	}
 	return nil, fmt.Errorf("site not found")
 }
 
-// FindSimilarSite finds the site that is the most similar to fqdn.
+// FindSimilarSite finds the site that is the most similar to domain.
 // Returns nil if no sites with such domain name.
-func (s *server) FindSimilarSite(fqdn string) (RemoteSite, error) {
+func (s *server) FindSimilarSite(domainName string) (RemoteSite, error) {
 	s.RLock()
 	defer s.RUnlock()
 
 	result := -1
 	resultSimilarity := 1
 
-	fqdn1 := strings.Split(fqdn, ".")
-	log.Infof("Find: ", fqdn)
+	domainName1 := strings.Split(domainName, ".")
+	log.Infof("Find: ", domainName)
 
 	for i, site := range s.sites {
-		log.Infof(site.fqdn)
-		fqdn2 := strings.Split(site.fqdn, ".")
+		log.Infof(site.domainName)
+		domainName2 := strings.Split(site.domainName, ".")
 		similarity := 0
-		for j := 1; (j <= len(fqdn1)) && (j <= len(fqdn2)); j++ {
-			if fqdn1[len(fqdn1)-j] != fqdn2[len(fqdn2)-j] {
+		for j := 1; (j <= len(domainName1)) && (j <= len(domainName2)); j++ {
+			if domainName1[len(domainName1)-j] != domainName2[len(domainName2)-j] {
 				break
 			}
 			similarity++
@@ -280,7 +280,7 @@ func (s *server) FindSimilarSite(fqdn string) (RemoteSite, error) {
 }
 
 type remoteSite struct {
-	fqdn       string
+	domainName       string
 	conn       ssh.Conn
 	lastActive time.Time
 	srv        *server
@@ -296,7 +296,7 @@ func (s *remoteSite) GetEvents(filter events.Filter) ([]lunk.Entry, error) {
 }
 
 func (s *remoteSite) String() string {
-	return fmt.Sprintf("remoteSite(%v)", s.fqdn)
+	return fmt.Sprintf("remoteSite(%v)", s.domainName)
 }
 
 func (s *remoteSite) init(c ssh.Conn) error {
@@ -350,7 +350,7 @@ func (s *remoteSite) handleHeartbeat(ch ssh.Channel, reqC <-chan *ssh.Request) {
 }
 
 func (s *remoteSite) GetName() string {
-	return s.fqdn
+	return s.domainName
 }
 
 func (s *remoteSite) GetLastConnected() time.Time {

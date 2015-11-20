@@ -132,14 +132,14 @@ func (s *TunServer) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 // isAuthority is called during checking the client key, to see if the signing
 // key is the real CA authority key.
 func (s *TunServer) isAuthority(auth ssh.PublicKey) bool {
-	key, err := s.a.GetHostPublicCertificate()
+	key, err := s.a.GetHostCertificateAuthority()
 	if err != nil {
 		log.Errorf("failed to retrieve user authority key, err: %v", err)
 		return false
 	}
-	cert, _, _, _, err := ssh.ParseAuthorizedKey(key.PubValue)
+	cert, _, _, _, err := ssh.ParseAuthorizedKey(key.PublicKey)
 	if err != nil {
-		log.Errorf("failed to parse CA cert '%v', err: %v", string(key.PubValue), err)
+		log.Errorf("failed to parse CA cert '%v', err: %v", string(key.PublicKey), err)
 		return false
 	}
 
@@ -326,10 +326,10 @@ type authBucket struct {
 	HotpToken string `json:"hotpToken"`
 }
 
-func NewTokenAuth(fqdn, token string) ([]ssh.AuthMethod, error) {
+func NewTokenAuth(domainName, token string) ([]ssh.AuthMethod, error) {
 	data, err := json.Marshal(authBucket{
 		Type: AuthToken,
-		User: fqdn,
+		User: domainName,
 		Pass: []byte(token),
 	})
 	if err != nil {

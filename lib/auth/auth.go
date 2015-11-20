@@ -116,14 +116,14 @@ func (s *AuthServer) ResetHostCertificateAuthority(pass string) error {
 		return err
 	}
 	return s.CAService.UpsertHostCertificateAuthority(
-		services.CertificateAuthority{
-			PublicCertificate: services.PublicCertificate{
-				Type:     services.HostCert,
-				FQDN:     s.Hostname,
-				PubValue: pub,
-				ID:       string(pub),
+		services.LocalCertificateAuthority{
+			CertificateAuthority: services.CertificateAuthority{
+				Type:       services.HostCert,
+				DomainName: s.Hostname,
+				PublicKey:  pub,
+				ID:         string(pub),
 			},
-			PrivValue: priv},
+			PrivateKey: priv},
 	)
 }
 
@@ -134,14 +134,14 @@ func (s *AuthServer) ResetUserCertificateAuthority(pass string) error {
 		return err
 	}
 	return s.CAService.UpsertUserCertificateAuthority(
-		services.CertificateAuthority{
-			PublicCertificate: services.PublicCertificate{
-				Type:     services.UserCert,
-				FQDN:     s.Hostname,
-				PubValue: pub,
-				ID:       string(pub),
+		services.LocalCertificateAuthority{
+			CertificateAuthority: services.CertificateAuthority{
+				Type:       services.UserCert,
+				DomainName: s.Hostname,
+				PublicKey:  pub,
+				ID:         string(pub),
 			},
-			PrivValue: priv},
+			PrivateKey: priv},
 	)
 }
 
@@ -151,11 +151,11 @@ func (s *AuthServer) GenerateHostCert(
 	key []byte, id, hostname, role string,
 	ttl time.Duration) ([]byte, error) {
 
-	hk, err := s.CAService.GetHostCertificateAuthority()
+	hk, err := s.CAService.GetHostPrivateCertificateAuthority()
 	if err != nil {
 		return nil, err
 	}
-	return s.Authority.GenerateHostCert(hk.PrivValue, key, id, hostname, role, ttl)
+	return s.Authority.GenerateHostCert(hk.PrivateKey, key, id, hostname, role, ttl)
 }
 
 // GenerateHostCert generates user certificate, it takes pkey as a signing
@@ -163,11 +163,11 @@ func (s *AuthServer) GenerateHostCert(
 func (s *AuthServer) GenerateUserCert(
 	key []byte, id, username string, ttl time.Duration) ([]byte, error) {
 
-	hk, err := s.CAService.GetUserCertificateAuthority()
+	hk, err := s.CAService.GetUserPrivateCertificateAuthority()
 	if err != nil {
 		return nil, err
 	}
-	return s.Authority.GenerateUserCert(hk.PrivValue, key, id, username, ttl)
+	return s.Authority.GenerateUserCert(hk.PrivateKey, key, id, username, ttl)
 }
 
 func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
@@ -184,18 +184,18 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 	return sess, nil
 }
 
-func (s *AuthServer) GenerateToken(fqdn, role string, ttl time.Duration) (string, error) {
+func (s *AuthServer) GenerateToken(domainName, role string, ttl time.Duration) (string, error) {
 	p, err := session.NewID(s.scrt)
 	if err != nil {
 		return "", err
 	}
-	if err := s.ProvisioningService.UpsertToken(string(p.PID), fqdn, role, ttl); err != nil {
+	if err := s.ProvisioningService.UpsertToken(string(p.PID), domainName, role, ttl); err != nil {
 		return "", err
 	}
 	return string(p.SID), nil
 }
 
-func (s *AuthServer) ValidateToken(token, fqdn string) (role string, e error) {
+func (s *AuthServer) ValidateToken(token, domainName string) (role string, e error) {
 	pid, err := session.DecodeSID(session.SecureID(token), s.scrt)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -204,13 +204,13 @@ func (s *AuthServer) ValidateToken(token, fqdn string) (role string, e error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	if tok.FQDN != fqdn {
-		return "", trace.Errorf("fqdn does not match")
+	if tok.DomainName != domainName {
+		return "", trace.Errorf("domainName does not match")
 	}
 	return tok.Role, nil
 }
 
-func (s *AuthServer) RegisterUsingToken(token, fqdn, role string) (keys PackedKeys, e error) {
+func (s *AuthServer) RegisterUsingToken(token, domainName, role string) (keys PackedKeys, e error) {
 	pid, err := session.DecodeSID(session.SecureID(token), s.scrt)
 	if err != nil {
 		return PackedKeys{}, trace.Wrap(err)
@@ -219,8 +219,8 @@ func (s *AuthServer) RegisterUsingToken(token, fqdn, role string) (keys PackedKe
 	if err != nil {
 		return PackedKeys{}, trace.Wrap(err)
 	}
-	if tok.FQDN != fqdn {
-		return PackedKeys{}, trace.Errorf("fqdn does not match")
+	if tok.DomainName != domainName {
+		return PackedKeys{}, trace.Errorf("domainName does not match")
 	}
 
 	if tok.Role != role {
@@ -231,7 +231,7 @@ func (s *AuthServer) RegisterUsingToken(token, fqdn, role string) (keys PackedKe
 	if err != nil {
 		return PackedKeys{}, trace.Wrap(err)
 	}
-	c, err := s.GenerateHostCert(pub, fqdn+"_"+role, fqdn, role, 0)
+	c, err := s.GenerateHostCert(pub, domainName+"_"+role, domainName, role, 0)
 	if err != nil {
 		return PackedKeys{}, trace.Wrap(err)
 	}
@@ -248,7 +248,7 @@ func (s *AuthServer) RegisterUsingToken(token, fqdn, role string) (keys PackedKe
 	return keys, nil
 }
 
-func (s *AuthServer) RegisterNewAuthServer(fqdn, token string,
+func (s *AuthServer) RegisterNewAuthServer(domainName, token string,
 	publicSealKey encryptor.Key) (masterKey encryptor.Key, e error) {
 	pid, err := session.DecodeSID(session.SecureID(token), s.scrt)
 	if err != nil {
@@ -258,8 +258,8 @@ func (s *AuthServer) RegisterNewAuthServer(fqdn, token string,
 	if err != nil {
 		return encryptor.Key{}, trace.Wrap(err)
 	}
-	if tok.FQDN != fqdn {
-		return encryptor.Key{}, trace.Errorf("fqdn does not match")
+	if tok.DomainName != domainName {
+		return encryptor.Key{}, trace.Errorf("domainName does not match")
 	}
 
 	if tok.Role != RoleAuth {
@@ -299,11 +299,11 @@ func (s *AuthServer) NewWebSession(user string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	hk, err := s.CAService.GetUserCertificateAuthority()
+	hk, err := s.CAService.GetUserPrivateCertificateAuthority()
 	if err != nil {
 		return nil, err
 	}
-	cert, err := s.Authority.GenerateUserCert(hk.PrivValue, pub, user, user, WebSessionTTL)
+	cert, err := s.Authority.GenerateUserCert(hk.PrivateKey, pub, user, user, WebSessionTTL)
 	if err != nil {
 		return nil, err
 	}

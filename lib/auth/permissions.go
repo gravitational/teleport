@@ -44,12 +44,12 @@ func NewStandardPermissions() PermissionChecker {
 
 	sp.permissions[RoleNode] = map[string]bool{
 		ActionUpsertServer:             true,
-		ActionGetUserPublicCertificate: true,
+		ActionGetUserCertificateAuthority: true,
 		ActionGetRemoteCertificates:    true,
 		ActionGetTrustedCertificates:   true,
 		ActionGetUserKeys:              true,
 		ActionGetServers:               true,
-		ActionGetHostPublicCertificate: true,
+		ActionGetHostCertificateAuthority: true,
 		ActionUpsertParty:              true,
 		ActionLogEntry:                 true,
 		ActionGetChunkWriter:           true,
@@ -142,8 +142,8 @@ const (
 	ActionUpsertUserKey                 = "UpsertUserKey"
 	ActionGetUserKeys                   = "GetUserKeys"
 	ActionDeleteUserKey                 = "DeleteUserKey"
-	ActionGetHostPublicCertificate      = "GetHostPublicCertificate"
-	ActionGetUserPublicCertificate      = "GetUserPublicCertificate"
+	ActionGetHostCertificateAuthority      = "GetHostCertificateAuthority"
+	ActionGetUserCertificateAuthority      = "GetUserCertificateAuthority"
 	ActionGenerateKeyPair               = "GenerateKeyPair"
 	ActionGenerateHostCert              = "GenerateHostCert"
 	ActionGenerateUserCert              = "GenerateUserCert"

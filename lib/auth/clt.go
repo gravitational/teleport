@@ -175,9 +175,9 @@ func (c *Client) UpsertParty(id string, p session.Party, ttl time.Duration) erro
 	return nil
 }
 
-func (c *Client) UpsertRemoteCertificate(cert services.PublicCertificate, ttl time.Duration) error {
-	out, err := c.PostForm(c.Endpoint("ca", "remote", cert.Type, "hosts", cert.FQDN), url.Values{
-		"key": []string{string(cert.PubValue)},
+func (c *Client) UpsertRemoteCertificate(cert services.CertificateAuthority, ttl time.Duration) error {
+	out, err := c.PostForm(c.Endpoint("ca", "remote", cert.Type, "hosts", cert.DomainName), url.Values{
+		"key": []string{string(cert.PublicKey)},
 		"ttl": []string{ttl.String()},
 		"id":  []string{cert.ID},
 	})
@@ -191,9 +191,9 @@ func (c *Client) UpsertRemoteCertificate(cert services.PublicCertificate, ttl ti
 	return nil
 }
 
-func (c *Client) GetRemoteCertificates(ctype string, fqdn string) ([]services.PublicCertificate, error) {
+func (c *Client) GetRemoteCertificates(ctype string, domainName string) ([]services.CertificateAuthority, error) {
 	out, err := c.Get(c.Endpoint("ca", "remote", ctype), url.Values{
-		"fqdn": []string{fqdn},
+		"domain": []string{domainName},
 	})
 	if err != nil {
 		return nil, err
@@ -205,7 +205,7 @@ func (c *Client) GetRemoteCertificates(ctype string, fqdn string) ([]services.Pu
 	return re.RemoteCertificates, nil
 }
 
-func (c *Client) GetTrustedCertificates(certType string) ([]services.PublicCertificate, error) {
+func (c *Client) GetTrustedCertificates(certType string) ([]services.CertificateAuthority, error) {
 	out, err := c.Get(c.Endpoint("ca", "trusted", certType), url.Values{})
 	if err != nil {
 		return nil, err
@@ -217,22 +217,22 @@ func (c *Client) GetTrustedCertificates(certType string) ([]services.PublicCerti
 	return re.RemoteCertificates, nil
 }
 
-func (c *Client) DeleteRemoteCertificate(ctype string, fqdn, id string) error {
-	_, err := c.Delete(c.Endpoint("ca", "remote", ctype, "hosts", fqdn, id))
+func (c *Client) DeleteRemoteCertificate(ctype string, domainName, id string) error {
+	_, err := c.Delete(c.Endpoint("ca", "remote", ctype, "hosts", domainName, id))
 	return err
 }
 
 // GenerateToken creates a special provisioning token for the SSH server
-// with the specified fqdn that is valid for ttl period seconds.
+// with the specified domainName that is valid for ttl period seconds.
 //
 // This token is used by SSH server to authenticate with Auth server
 // and get signed certificate and private key from the auth server.
 //
-// The token can be used only once and only to generate the fqdn
+// The token can be used only once and only to generate the domainName
 // specified in it.
-func (c *Client) GenerateToken(fqdn, role string, ttl time.Duration) (string, error) {
+func (c *Client) GenerateToken(domainName, role string, ttl time.Duration) (string, error) {
 	out, err := c.PostForm(c.Endpoint("tokens"), url.Values{
-		"fqdn": []string{fqdn},
+		"domain": []string{domainName},
 		"role": []string{role},
 		"ttl":  []string{ttl.String()},
 	})
@@ -246,10 +246,10 @@ func (c *Client) GenerateToken(fqdn, role string, ttl time.Duration) (string, er
 	return re.Token, nil
 }
 
-func (c *Client) RegisterUsingToken(token, fqdn, role string) (PackedKeys, error) {
+func (c *Client) RegisterUsingToken(token, domainName, role string) (PackedKeys, error) {
 	out, err := c.PostForm(c.Endpoint("tokens", "register"), url.Values{
 		"token": []string{token},
-		"fqdn":  []string{fqdn},
+		"domain":  []string{domainName},
 		"role":  []string{role},
 	})
 	if err != nil {
@@ -262,7 +262,7 @@ func (c *Client) RegisterUsingToken(token, fqdn, role string) (PackedKeys, error
 	return keys, nil
 }
 
-func (c *Client) RegisterNewAuthServer(fqdn, token string,
+func (c *Client) RegisterNewAuthServer(domainName, token string,
 	publicSealKey encryptor.Key) (masterKey encryptor.Key, e error) {
 
 	pkeyJSON, err := json.Marshal(publicSealKey)
@@ -271,7 +271,7 @@ func (c *Client) RegisterNewAuthServer(fqdn, token string,
 	}
 	out, err := c.PostForm(c.Endpoint("tokens", "register", "auth"), url.Values{
 		"token": []string{token},
-		"fqdn":  []string{fqdn},
+		"domain":  []string{domainName},
 		"key":   []string{string(pkeyJSON)},
 	})
 	if err != nil {
@@ -548,31 +548,31 @@ func (c *Client) DeleteUserKey(username string, id string) error {
 
 // Returns host certificate authority public key. This public key is used to
 // validate if host certificates were signed by the proper key.
-func (c *Client) GetHostPublicCertificate() (services.PublicCertificate, error) {
+func (c *Client) GetHostCertificateAuthority() (*services.CertificateAuthority, error) {
 	out, err := c.Get(c.Endpoint("ca", "host", "keys", "pub"), url.Values{})
 	if err != nil {
-		return services.PublicCertificate{}, err
+		return nil, err
 	}
-	var pubCert services.PublicCertificate
+	var pubCert services.CertificateAuthority
 	if err := json.Unmarshal(out.Bytes(), &pubCert); err != nil {
-		return services.PublicCertificate{}, err
+		return nil, err
 	}
-	return pubCert, err
+	return &pubCert, err
 }
 
 // Returns user certificate authority public key.
 // This public key is used to check if the users certificate is valid and was
 // signed by this  authority.
-func (c *Client) GetUserPublicCertificate() (services.PublicCertificate, error) {
+func (c *Client) GetUserCertificateAuthority() (*services.CertificateAuthority, error) {
 	out, err := c.Get(c.Endpoint("ca", "user", "keys", "pub"), url.Values{})
 	if err != nil {
-		return services.PublicCertificate{}, err
+		return nil, err
 	}
-	var pubCert services.PublicCertificate
+	var pubCert services.CertificateAuthority
 	if err := json.Unmarshal(out.Bytes(), &pubCert); err != nil {
-		return services.PublicCertificate{}, err
+		return nil, err
 	}
-	return pubCert, err
+	return &pubCert, err
 }
 
 // GenerateKeyPair generates SSH private/public key pair optionally protected
@@ -777,13 +777,13 @@ type ClientI interface {
 	DeleteSession(id string) error
 	UpsertSession(id string, ttl time.Duration) error
 	UpsertParty(id string, p session.Party, ttl time.Duration) error
-	UpsertRemoteCertificate(cert services.PublicCertificate, ttl time.Duration) error
-	GetRemoteCertificates(ctype string, fqdn string) ([]services.PublicCertificate, error)
-	DeleteRemoteCertificate(ctype string, fqdn, id string) error
-	GetTrustedCertificates(certType string) ([]services.PublicCertificate, error)
-	GenerateToken(fqdn, role string, ttl time.Duration) (string, error)
-	RegisterUsingToken(token, fqdn, role string) (keys PackedKeys, e error)
-	RegisterNewAuthServer(fqdn, token string, publicSealKey encryptor.Key) (masterKey encryptor.Key, e error)
+	UpsertRemoteCertificate(cert services.CertificateAuthority, ttl time.Duration) error
+	GetRemoteCertificates(ctype string, domainName string) ([]services.CertificateAuthority, error)
+	DeleteRemoteCertificate(ctype string, domainName, id string) error
+	GetTrustedCertificates(certType string) ([]services.CertificateAuthority, error)
+	GenerateToken(domainName, role string, ttl time.Duration) (string, error)
+	RegisterUsingToken(token, domainName, role string) (keys PackedKeys, e error)
+	RegisterNewAuthServer(domainName, token string, publicSealKey encryptor.Key) (masterKey encryptor.Key, e error)
 	Log(id lunk.EventID, e lunk.Event)
 	LogEntry(en lunk.Entry) error
 	GetEvents(filter events.Filter) ([]lunk.Entry, error)
@@ -806,8 +806,8 @@ type ClientI interface {
 	UpsertUserKey(username string, key services.AuthorizedKey, ttl time.Duration) ([]byte, error)
 	GetUserKeys(user string) ([]services.AuthorizedKey, error)
 	DeleteUserKey(username string, id string) error
-	GetHostPublicCertificate() (services.PublicCertificate, error)
-	GetUserPublicCertificate() (services.PublicCertificate, error)
+	GetHostCertificateAuthority() (*services.CertificateAuthority, error)
+	GetUserCertificateAuthority() (*services.CertificateAuthority, error)
 	GenerateKeyPair(pass string) ([]byte, []byte, error)
 	GenerateHostCert(key []byte, id, hostname, role string, ttl time.Duration) ([]byte, error)
 	GenerateUserCert(key []byte, id, user string, ttl time.Duration) ([]byte, error)

@@ -138,7 +138,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 		conn.SetDeadline(time.Time{})
 		return
 	}
-	conn.SetDeadline(time.Time{})
+	err = conn.SetDeadline(time.Time{})
 	if err != nil {
 		log.Errorf(err.Error())
 	}

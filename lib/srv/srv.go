@@ -176,7 +176,7 @@ func (s *Server) heartbeatPresence() {
 }
 
 func (s *Server) getTrustedCAKeys(fromCache bool) ([]ssh.PublicKey, error) {
-	var keys []services.PublicCertificate
+	var keys []services.CertificateAuthority
 	var err error
 	if fromCache {
 		keys, err = s.certificatesCache.GetRemoteCertificates(services.UserCert, "")
@@ -192,10 +192,10 @@ func (s *Server) getTrustedCAKeys(fromCache bool) ([]ssh.PublicKey, error) {
 
 	var parsedKeys []ssh.PublicKey
 	for _, key := range keys {
-		parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(key.PubValue)
+		parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(key.PublicKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse CA public key '%v', err: %v",
-				string(key.PubValue), err)
+				string(key.PublicKey), err)
 		}
 		parsedKeys = append(parsedKeys, parsedKey)
 	}

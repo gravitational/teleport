@@ -25,19 +25,19 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 )
 
-func Register(fqdn, dataDir, token, role string, servers []utils.NetAddr) error {
+func Register(domainName, dataDir, token, role string, servers []utils.NetAddr) error {
 	tok, err := readToken(token)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	method, err := NewTokenAuth(fqdn, tok)
+	method, err := NewTokenAuth(domainName, tok)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	client, err := NewTunClient(
 		servers[0],
-		fqdn,
+		domainName,
 		method)
 	if err != nil {
 		return trace.Wrap(err)
@@ -45,35 +45,35 @@ func Register(fqdn, dataDir, token, role string, servers []utils.NetAddr) error 
 
 	defer client.Close()
 
-	keys, err := client.RegisterUsingToken(tok, fqdn, role)
+	keys, err := client.RegisterUsingToken(tok, domainName, role)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return writeKeys(fqdn, dataDir, keys.Key, keys.Cert)
+	return writeKeys(domainName, dataDir, keys.Key, keys.Cert)
 }
 
-func RegisterNewAuth(fqdn, token string, publicSealKey encryptor.Key,
+func RegisterNewAuth(domainName, token string, publicSealKey encryptor.Key,
 	servers []utils.NetAddr) (masterKey encryptor.Key, e error) {
 
 	tok, err := readToken(token)
 	if err != nil {
 		return encryptor.Key{}, err
 	}
-	method, err := NewTokenAuth(fqdn, tok)
+	method, err := NewTokenAuth(domainName, tok)
 	if err != nil {
 		return encryptor.Key{}, err
 	}
 
 	client, err := NewTunClient(
 		servers[0],
-		fqdn,
+		domainName,
 		method)
 	if err != nil {
 		return encryptor.Key{}, trace.Wrap(err)
 	}
 	defer client.Close()
 
-	return client.RegisterNewAuthServer(fqdn, tok, publicSealKey)
+	return client.RegisterNewAuthServer(domainName, tok, publicSealKey)
 }
 
 func readToken(token string) (string, error) {

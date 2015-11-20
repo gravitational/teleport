@@ -123,7 +123,7 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) err
 	acfg := auth.InitConfig{
 		Backend:            b,
 		Authority:          authority.New(),
-		FQDN:               cfg.Hostname,
+		DomainName:         cfg.Hostname,
 		AuthDomain:         cfg.Auth.HostAuthorityDomain,
 		DataDir:            cfg.DataDir,
 		SecretKey:          cfg.Auth.SecretKey,
@@ -132,14 +132,14 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) err
 	}
 	if len(cfg.Auth.UserCA.PublicKey) != 0 && len(cfg.Auth.UserCA.PrivateKey) != 0 {
 		acfg.UserCA = cfg.Auth.UserCA.ToCA()
-		acfg.UserCA.FQDN = hostname
-		acfg.UserCA.ID = string(acfg.UserCA.PubValue)
+		acfg.UserCA.DomainName = hostname
+		acfg.UserCA.ID = string(acfg.UserCA.PublicKey)
 		acfg.UserCA.Type = services.UserCert
 	}
 	if len(cfg.Auth.HostCA.PublicKey) != 0 && len(cfg.Auth.HostCA.PrivateKey) != 0 {
 		acfg.HostCA = cfg.Auth.HostCA.ToCA()
-		acfg.HostCA.FQDN = hostname
-		acfg.HostCA.ID = string(acfg.HostCA.PubValue)
+		acfg.HostCA.DomainName = hostname
+		acfg.HostCA.ID = string(acfg.HostCA.PublicKey)
 		acfg.HostCA.Type = services.HostCert
 	}
 	asrv, signer, err := auth.Init(acfg)
@@ -382,10 +382,10 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 
 		webHandler, err := web.NewMultiSiteHandler(
 			web.MultiSiteConfig{
-				Tun:       tsrv,
-				AssetsDir: cfg.Proxy.AssetsDir,
-				AuthAddr:  cfg.AuthServers[0],
-				FQDN:      cfg.Hostname})
+				Tun:        tsrv,
+				AssetsDir:  cfg.Proxy.AssetsDir,
+				AuthAddr:   cfg.AuthServers[0],
+				DomainName: cfg.Hostname})
 		if err != nil {
 			log.Errorf("failed to launch web server: %v", err)
 			return err
@@ -423,7 +423,7 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 	return nil
 }
 
-func initBackend(dataDir, fqdn string, peers NetAddrSlice, cfg AuthConfig) (*encryptedbk.ReplicatedBackend, error) {
+func initBackend(dataDir, domainName string, peers NetAddrSlice, cfg AuthConfig) (*encryptedbk.ReplicatedBackend, error) {
 	var bk backend.Backend
 	var err error
 
@@ -455,12 +455,12 @@ func initBackend(dataDir, fqdn string, peers NetAddrSlice, cfg AuthConfig) (*enc
 	if err != nil {
 		log.Errorf(err.Error())
 		log.Infof("Initializing backend as follower node")
-		myKey, err := encryptor.GenerateGPGKey(fqdn + " key")
+		myKey, err := encryptor.GenerateGPGKey(domainName + " key")
 		if err != nil {
 			return nil, err
 		}
 		masterKey, err := auth.RegisterNewAuth(
-			fqdn, cfg.Token, myKey.Public(), peers)
+			domainName, cfg.Token, myKey.Public(), peers)
 		if err != nil {
 			return nil, err
 		}

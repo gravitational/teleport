@@ -149,10 +149,10 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 
 	webHandler, err := web.NewMultiSiteHandler(
 		web.MultiSiteConfig{
-			Tun:       reverseTunnelServer,
-			AssetsDir: "../../../assets/web",
-			AuthAddr:  utils.NetAddr{Network: "tcp", Addr: tsrv.Addr()},
-			FQDN:      "localhost",
+			Tun:        reverseTunnelServer,
+			AssetsDir:  "../../../assets/web",
+			AuthAddr:   utils.NetAddr{Network: "tcp", Addr: tsrv.Addr()},
+			DomainName: "localhost",
 		},
 	)
 	c.Assert(err, IsNil)

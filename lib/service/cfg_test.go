@@ -51,14 +51,14 @@ func (s *ConfigSuite) TestParseEnv(c *C) {
 		"TELEPORT_LOG_SEVERITY":                     "INFO",
 		"TELEPORT_AUTH_SERVERS":                     "tcp://localhost:5000,unix:///var/run/auth.sock",
 		"TELEPORT_DATA_DIR":                         "/tmp/data_dir",
-		"TELEPORT_HOSTNAME":                         "fqdn.example.com",
+		"TELEPORT_HOSTNAME":                         "domain.example.com",
 		"TELEPORT_AUTH_ENABLED":                     "true",
 		"TELEPORT_AUTH_SSH_ADDR":                    "tcp://localhost:5555",
-		"TELEPORT_AUTH_HOST_AUTHORITY_DOMAIN":       "a.fqdn.example.com",
+		"TELEPORT_AUTH_HOST_AUTHORITY_DOMAIN":       "a.domain.example.com",
 		"TELEPORT_AUTH_TOKEN":                       "authtoken",
 		"TELEPORT_AUTH_SECRET_KEY":                  "authsecret",
-		"TELEPORT_AUTH_ALLOWED_TOKENS":              "node1.a.fqdn.example.com:token1,node2.a.fqdn.example.com:token2",
-		"TELEPORT_AUTH_TRUSTED_AUTHORITIES":         `[{"type": "user", "fqdn":"a.example.com", "id":"user.a.example.com", "value": "user value a"},{"type": "host", "fqdn":"b.example.com", "id":"host.b.example.com", "value": "host value b"}]`,
+		"TELEPORT_AUTH_ALLOWED_TOKENS":              "node1.a.domain.example.com:token1,node2.a.domain.example.com:token2",
+		"TELEPORT_AUTH_TRUSTED_AUTHORITIES":         `[{"type": "user", "domain_name":"a.example.com", "id":"user.a.example.com", "value": "user value a"},{"type": "host", "domain_name":"b.example.com", "id":"host.b.example.com", "value": "host value b"}]`,
 		"TELEPORT_AUTH_KEYS_BACKEND_TYPE":           "bolt",
 		"TELEPORT_AUTH_KEYS_BACKEND_PARAMS":         "path:/keys",
 		"TELEPORT_AUTH_KEYS_BACKEND_ADDITIONAL_KEY": "somekey",
@@ -100,7 +100,7 @@ func (s *ConfigSuite) checkVariables(c *C, cfg *Config) {
 
 	// check common section
 	c.Assert(cfg.DataDir, Equals, "/tmp/data_dir")
-	c.Assert(cfg.Hostname, Equals, "fqdn.example.com")
+	c.Assert(cfg.Hostname, Equals, "domain.example.com")
 	c.Assert(cfg.AuthServers, DeepEquals, NetAddrSlice{
 		{Network: "tcp", Addr: "localhost:5000"},
 		{Network: "unix", Addr: "/var/run/auth.sock"},
@@ -110,28 +110,28 @@ func (s *ConfigSuite) checkVariables(c *C, cfg *Config) {
 	c.Assert(cfg.Auth.Enabled, Equals, true)
 	c.Assert(cfg.Auth.SSHAddr, Equals,
 		utils.NetAddr{Network: "tcp", Addr: "localhost:5555"})
-	c.Assert(cfg.Auth.HostAuthorityDomain, Equals, "a.fqdn.example.com")
+	c.Assert(cfg.Auth.HostAuthorityDomain, Equals, "a.domain.example.com")
 	c.Assert(cfg.Auth.Token, Equals, "authtoken")
 	c.Assert(cfg.Auth.SecretKey, Equals, "authsecret")
 
 	c.Assert(cfg.Auth.AllowedTokens, DeepEquals,
 		KeyVal{
-			"node1.a.fqdn.example.com": "token1",
-			"node2.a.fqdn.example.com": "token2",
+			"node1.a.domain.example.com": "token1",
+			"node2.a.domain.example.com": "token2",
 		})
 
 	c.Assert(cfg.Auth.TrustedAuthorities, DeepEquals,
 		RemoteCerts{
 			{
-				Type:  "user",
-				FQDN:  "a.example.com",
-				ID:    "user.a.example.com",
-				Value: "user value a"},
+				Type:       "user",
+				DomainName: "a.example.com",
+				ID:         "user.a.example.com",
+				Value:      "user value a"},
 			{
-				Type:  "host",
-				FQDN:  "b.example.com",
-				ID:    "host.b.example.com",
-				Value: "host value b"},
+				Type:       "host",
+				DomainName: "b.example.com",
+				ID:         "host.b.example.com",
+				Value:      "host value b"},
 		})
 
 	c.Assert(cfg.Auth.KeysBackend.Type, Equals, "bolt")
@@ -175,18 +175,18 @@ log:
   severity: INFO
 
 data_dir: /tmp/data_dir
-hostname: fqdn.example.com
+hostname: domain.example.com
 auth_servers: ['tcp://localhost:5000', 'unix:///var/run/auth.sock']
 
 auth:
   enabled: true
   ssh_addr: 'tcp://localhost:5555'
-  host_authority_domain: a.fqdn.example.com
+  host_authority_domain: a.domain.example.com
   token: authtoken
   secret_key: authsecret
   allowed_tokens: 
-    node1.a.fqdn.example.com: token1
-    node2.a.fqdn.example.com: token2
+    node1.a.domain.example.com: token1
+    node2.a.domain.example.com: token2
 
   user_ca_keypair:
     public: user ca public key
@@ -199,12 +199,12 @@ auth:
   trusted_authorities: 
 
     - type: user
-      fqdn: a.example.com
+      domain_name: a.example.com
       id: user.a.example.com
       value: user value a
 
     - type: host
-      fqdn: b.example.com
+      domain_name: b.example.com
       id:  host.b.example.com
       value: host value b
 
