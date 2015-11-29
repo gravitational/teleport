@@ -128,18 +128,16 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) err
 		DataDir:            cfg.DataDir,
 		SecretKey:          cfg.Auth.SecretKey,
 		AllowedTokens:      cfg.Auth.AllowedTokens,
-		TrustedAuthorities: convertRemoteCerts(cfg.Auth.TrustedAuthorities),
+		TrustedAuthorities: cfg.Auth.TrustedAuthorities.Authorities(),
 	}
 	if len(cfg.Auth.UserCA.PublicKey) != 0 && len(cfg.Auth.UserCA.PrivateKey) != 0 {
-		acfg.UserCA = cfg.Auth.UserCA.ToCA()
+		acfg.UserCA = cfg.Auth.UserCA.CA()
 		acfg.UserCA.DomainName = hostname
-		acfg.UserCA.ID = string(acfg.UserCA.PublicKey)
 		acfg.UserCA.Type = services.UserCert
 	}
 	if len(cfg.Auth.HostCA.PublicKey) != 0 && len(cfg.Auth.HostCA.PrivateKey) != 0 {
-		acfg.HostCA = cfg.Auth.HostCA.ToCA()
+		acfg.HostCA = cfg.Auth.HostCA.CA()
 		acfg.HostCA.DomainName = hostname
-		acfg.HostCA.ID = string(acfg.HostCA.PublicKey)
 		acfg.HostCA.Type = services.HostCert
 	}
 	asrv, signer, err := auth.Init(acfg)
