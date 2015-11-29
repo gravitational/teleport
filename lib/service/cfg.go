@@ -128,17 +128,17 @@ type AuthConfig struct {
 	AllowedTokens KeyVal `yaml:"allowed_tokens" env:"TELEPORT_AUTH_ALLOWED_TOKENS"`
 
 	// TrustedAuthorities is a set of trusted user certificate authorities
-	TrustedAuthorities RemoteCerts `yaml:"trusted_authorities" env:"TELEPORT_AUTH_TRUSTED_AUTHORITIES"`
+	TrustedAuthorities CertificateAuthorities `yaml:"trusted_authorities" env:"TELEPORT_AUTH_TRUSTED_AUTHORITIES"`
 
 	// UserCA allows to pass preconfigured user certificate authority keypair
 	// to auth server so it will use it on the first start instead of generating
 	// a new keypair
-	UserCA CertificateAuthority `yaml:"user_ca_keypair" env:"TELEPORT_AUTH_USER_CA_KEYPAIR"`
+	UserCA LocalCertificateAuthority `yaml:"user_ca_keypair" env:"TELEPORT_AUTH_USER_CA_KEYPAIR"`
 
 	// HostCA allows to pass preconfigured host certificate authority keypair
 	// to auth server so it will use it on the first start instead of generating
 	// a new keypair
-	HostCA CertificateAuthority `yaml:"host_ca_keypair" env:"TELEPORT_AUTH_HOST_CA_KEYPAIR"`
+	HostCA LocalCertificateAuthority `yaml:"host_ca_keypair" env:"TELEPORT_AUTH_HOST_CA_KEYPAIR"`
 
 	// KeysBackend configures backend that stores encryption keys
 	KeysBackend struct {
@@ -215,17 +215,18 @@ func (kv *KeyVal) Set(v string) error {
 	return nil
 }
 
-type RemoteCert struct {
-	Type       string `json:"type"`
-	ID         string `json:"id"`
-	DomainName string `json:"domain_name" yaml:"domain_name" env:"domain_name"`
-	Value      string `json:"value"`
+type CertificateAuthorities []services.CertificateAuthority
+
+func (a CertificateAuthorities) Authorities() []services.CertificateAuthority {
+	outCerts := make([]services.CertificateAuthority, len(a))
+	for i, v := range a {
+		outCerts[i] = v
+	}
+	return outCerts
 }
 
-type RemoteCerts []RemoteCert
-
-func (c *RemoteCerts) SetEnv(v string) error {
-	var certs []RemoteCert
+func (c *CertificateAuthorities) SetEnv(v string) error {
+	var certs []services.CertificateAuthority
 	if err := json.Unmarshal([]byte(v), &certs); err != nil {
 		return trace.Wrap(err, "expected JSON encoded remote certificate")
 	}
@@ -233,68 +234,53 @@ func (c *RemoteCerts) SetEnv(v string) error {
 	return nil
 }
 
-type CertificateAuthority struct {
-	PublicKey  string `json:"public" yaml:"public"`
-	PrivateKey string `json:"private" yaml:"private"`
-}
+type LocalCertificateAuthority services.LocalCertificateAuthority
 
-func (c *CertificateAuthority) SetEnv(v string) error {
-	var ca CertificateAuthority
+func (c *LocalCertificateAuthority) SetEnv(v string) error {
+	var ca *services.LocalCertificateAuthority
 	if err := json.Unmarshal([]byte(v), &ca); err != nil {
 		return trace.Wrap(err, "expected JSON encoded certificate authority")
 	}
-	key, err := base64.StdEncoding.DecodeString(ca.PrivateKey)
-	if err != nil {
-		return trace.Wrap(err, "private key should be base64 encoded")
-	}
-	c.PublicKey = ca.PublicKey
-	c.PrivateKey = string(key)
-	if c.PrivateKey == "" || c.PublicKey == "" {
-		return trace.Errorf("both public key and private key should be setup")
-	}
+	*c = LocalCertificateAuthority(*ca)
 	return nil
 }
 
-func (c *CertificateAuthority) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var ca struct {
-		PublicKey  string `json:"public" yaml:"public"`
-		PrivateKey string `json:"private" yaml:"private"`
+func (c *LocalCertificateAuthority) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// these are yaml-friendly format (yaml does not support base64-auto decoding)
+	type public struct {
+		Type       string `json:"type" yaml:"type"`
+		ID         string `json:"id" yaml:"id"`
+		DomainName string `json:"domain_name" yaml:"domain_name"`
+		PublicKey  string `json:"public_key" yaml:"public_key"`
 	}
+	type authority struct {
+		Public     public `yaml:"public"`
+		PrivateKey string `yaml:"private_key"`
+	}
+	var ca authority
 	if err := unmarshal(&ca); err != nil {
 		return trace.Wrap(err)
 	}
-	key, err := base64.StdEncoding.DecodeString(ca.PrivateKey)
+	privateKey, err := base64.StdEncoding.DecodeString(ca.PrivateKey)
 	if err != nil {
 		return trace.Wrap(err, "private key should be base64 encoded")
 	}
-	c.PublicKey = ca.PublicKey
-	c.PrivateKey = string(key)
-	if c.PrivateKey == "" || c.PublicKey == "" {
+	c.CertificateAuthority = services.CertificateAuthority{
+		Type:       ca.Public.Type,
+		ID:         ca.Public.ID,
+		DomainName: ca.Public.DomainName,
+		PublicKey:  []byte(ca.Public.PublicKey),
+	}
+	c.PrivateKey = privateKey
+	if len(c.PrivateKey) == 0 || len(c.PublicKey) == 0 {
 		return trace.Errorf("both public key and private key should be setup")
 	}
 	return nil
 }
 
-func (c *CertificateAuthority) ToCA() *services.LocalCertificateAuthority {
-	return &services.LocalCertificateAuthority{
-		CertificateAuthority: services.CertificateAuthority{
-			PublicKey: []byte(c.PublicKey),
-		},
-		PrivateKey: []byte(c.PrivateKey),
-	}
-}
-
-func convertRemoteCerts(inCerts RemoteCerts) []services.CertificateAuthority {
-	outCerts := make([]services.CertificateAuthority, len(inCerts))
-	for i, v := range inCerts {
-		outCerts[i] = services.CertificateAuthority{
-			ID:         v.ID,
-			DomainName: v.DomainName,
-			Type:       v.Type,
-			PublicKey:  []byte(v.Value),
-		}
-	}
-	return outCerts
+func (c *LocalCertificateAuthority) CA() *services.LocalCertificateAuthority {
+	out := services.LocalCertificateAuthority(*c)
+	return &out
 }
 
 func SetDefaults(cfg *Config) {
