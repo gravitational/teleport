@@ -3,8 +3,11 @@ package srv
 import (
 	"fmt"
 	"io"
+	"net"
 	"strings"
 	"sync"
+
+	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
@@ -42,7 +45,32 @@ func (t *proxySubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Re
 		return trace.Wrap(err)
 	}
 
-	conn, err := remoteSrv.DialServer(t.host + ":" + t.port)
+	// find matching server in the list of servers for this site
+	servers, err := remoteSrv.GetServers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	serverAddr := fmt.Sprintf("%v:%v", t.host, t.port)
+	var server *services.Server
+	for i := range servers {
+		ip, port, err := net.SplitHostPort(servers[i].Addr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// match either by hostname of ip, based on the match
+		if (t.host == ip || t.host == servers[i].Hostname) && port == t.port {
+			server = &servers[i]
+			break
+		}
+	}
+	if server == nil {
+		return trace.Errorf("server %v not found", serverAddr)
+	}
+
+	// we must dial by server IP address because hostname
+	// may not be actually DNS resolvable
+	conn, err := remoteSrv.DialServer(server.Addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}

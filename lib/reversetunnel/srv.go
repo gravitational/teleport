@@ -44,6 +44,7 @@ type RemoteSite interface {
 	GetName() string
 	GetStatus() string
 	GetClient() *auth.Client
+	GetServers() ([]services.Server, error)
 }
 
 type Server interface {
@@ -280,7 +281,7 @@ func (s *server) FindSimilarSite(domainName string) (RemoteSite, error) {
 }
 
 type remoteSite struct {
-	domainName       string
+	domainName string
 	conn       ssh.Conn
 	lastActive time.Time
 	srv        *server
@@ -394,7 +395,7 @@ func (s *remoteSite) DialServer(server string) (net.Conn, error) {
 			log.Errorf("server %v(%v) has incorrect address format (%v)",
 				srv.Addr, srv.Hostname, err.Error())
 		} else {
-			if (len(srv.Hostname) != 0) && (len(port) != 0) && (server == srv.Hostname+":"+port) {
+			if (len(srv.Hostname) != 0) && (len(port) != 0) && (server == srv.Hostname+":"+port || server == srv.Addr) {
 				serverIsKnown = true
 			}
 		}
