@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/ratelimiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -67,7 +68,7 @@ type server struct {
 
 // New returns an unstarted server
 func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
-	ap auth.AccessPoint) (Server, error) {
+	ap auth.AccessPoint, rateLimiter *ratelimiter.RateLimiter) (Server, error) {
 	srv := &server{
 		sites: []*remoteSite{},
 		ap:    ap,
@@ -78,7 +79,9 @@ func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 		hostSigners,
 		sshutils.AuthMethods{
 			PublicKey: srv.keyAuth,
-		})
+		},
+		rateLimiter,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -280,7 +283,7 @@ func (s *server) FindSimilarSite(domainName string) (RemoteSite, error) {
 }
 
 type remoteSite struct {
-	domainName       string
+	domainName string
 	conn       ssh.Conn
 	lastActive time.Time
 	srv        *server

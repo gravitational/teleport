@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events/boltlog"
+	"github.com/gravitational/teleport/lib/ratelimiter"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -93,6 +95,25 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	s.signer, err = sshutils.NewSigner(hpriv, hcert)
 	c.Assert(err, IsNil)
 
+	rateLimiter, err := ratelimiter.NewRateLimiter(
+		ratelimiter.RateLimiterConfig{
+			MaxConnections: 2,
+			Rates: []ratelimiter.Rate{
+				ratelimiter.Rate{
+					Period:  10 * time.Second,
+					Average: 1,
+					Burst:   3,
+				},
+				ratelimiter.Rate{
+					Period:  40 * time.Millisecond,
+					Average: 10,
+					Burst:   40,
+				},
+			},
+		},
+	)
+	c.Assert(err, IsNil)
+
 	ap := auth.NewBackendAccessPoint(s.bk)
 	s.srvAddress = "localhost:30185"
 	srv, err := New(
@@ -100,6 +121,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		"localhost",
 		[]ssh.Signer{s.signer},
 		ap,
+		rateLimiter,
 		s.dir,
 		SetShell("/bin/sh"),
 	)
@@ -213,12 +235,15 @@ func (s *SrvSuite) TestTun(c *C) {
 }
 
 func (s *SrvSuite) TestProxy(c *C) {
+	rateLimiter, err := ratelimiter.NewRateLimiter(ratelimiter.RateLimiterConfig{})
+	c.Assert(err, IsNil)
+
 	ap := auth.NewBackendAccessPoint(s.bk)
 	reverseTunnelAddress := utils.NetAddr{Network: "tcp", Addr: "localhost:33056"}
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
-		ap)
+		ap, rateLimiter)
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
@@ -227,6 +252,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 		"localhost",
 		[]ssh.Signer{s.signer},
 		ap,
+		rateLimiter,
 		s.dir,
 		SetProxyMode(reverseTunnelServer),
 	)
@@ -259,7 +285,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 	tsrv, err := auth.NewTunServer(
 		utils.NetAddr{Network: "tcp", Addr: "localhost:31497"},
 		[]ssh.Signer{s.signer},
-		apiSrv, s.a)
+		apiSrv, s.a, rateLimiter)
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
 
@@ -430,6 +456,51 @@ func (s *SrvSuite) TestClientDisconnect(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(se.Shell(), IsNil)
 	c.Assert(clt.Close(), IsNil)
+}
+
+func (s *SrvSuite) TestRateLimiter(c *C) {
+	// maxConnection = 2
+	// current connections = 1(one connection is opened from SetUpTest)
+	config := &ssh.ClientConfig{
+		User: "test",
+		Auth: []ssh.AuthMethod{ssh.PublicKeys(s.up.certSigner)},
+	}
+	clt, err := ssh.Dial("tcp", s.srv.Addr(), config)
+	c.Assert(clt, NotNil)
+	c.Assert(err, IsNil)
+	se, err := clt.NewSession()
+	c.Assert(err, IsNil)
+	c.Assert(se.Shell(), IsNil)
+
+	// current connections = 2
+	_, err = ssh.Dial("tcp", s.srv.Addr(), config)
+	c.Assert(err, NotNil)
+
+	c.Assert(clt.Close(), IsNil)
+	time.Sleep(50 * time.Millisecond)
+
+	// current connections = 1
+	clt, err = ssh.Dial("tcp", s.srv.Addr(), config)
+	c.Assert(clt, NotNil)
+	c.Assert(err, IsNil)
+	se, err = clt.NewSession()
+	c.Assert(err, IsNil)
+	c.Assert(se.Shell(), IsNil)
+
+	// current connections = 2
+	_, err = ssh.Dial("tcp", s.srv.Addr(), config)
+	c.Assert(err, NotNil)
+
+	c.Assert(clt.Close(), IsNil)
+	time.Sleep(50 * time.Millisecond)
+
+	// current connections = 1
+	// requests rate should exceed now
+	clt, err = ssh.Dial("tcp", s.srv.Addr(), config)
+	c.Assert(clt, NotNil)
+	c.Assert(err, IsNil)
+	se, err = clt.NewSession()
+	c.Assert(err, NotNil)
 }
 
 // upack holds all ssh signing artefacts needed for signing and checking user keys

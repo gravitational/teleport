@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/ratelimiter"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
@@ -50,11 +51,16 @@ func (s *ServerSuite) TestStartStop(c *C) {
 		called = true
 		nch.Reject(ssh.Prohibited, "nothing to see here")
 	})
+
+	rateLimiter, err := ratelimiter.NewRateLimiter(ratelimiter.RateLimiterConfig{})
+	c.Assert(err, IsNil)
+
 	srv, err := NewServer(
 		utils.NetAddr{Network: "tcp", Addr: "localhost:0"},
 		fn,
 		s.signers,
-		AuthMethods{Password: pass("abc123")})
+		AuthMethods{Password: pass("abc123")},
+		rateLimiter)
 	c.Assert(err, IsNil)
 	c.Assert(srv.Start(), IsNil)
 

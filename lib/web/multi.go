@@ -44,10 +44,10 @@ type MultiSiteHandler struct {
 }
 
 type MultiSiteConfig struct {
-	Tun       reversetunnel.Server
-	AssetsDir string
-	AuthAddr  utils.NetAddr
-	DomainName      string
+	Tun        reversetunnel.Server
+	AssetsDir  string
+	AuthAddr   utils.NetAddr
+	DomainName string
 }
 
 func NewMultiSiteHandler(cfg MultiSiteConfig) (*MultiSiteHandler, error) {
