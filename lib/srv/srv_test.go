@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events/boltlog"
-	"github.com/gravitational/teleport/lib/ratelimiter"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -95,16 +95,16 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	s.signer, err = sshutils.NewSigner(hpriv, hcert)
 	c.Assert(err, IsNil)
 
-	rateLimiter, err := ratelimiter.NewRateLimiter(
-		ratelimiter.RateLimiterConfig{
+	limiter, err := limiter.NewLimiter(
+		limiter.LimiterConfig{
 			MaxConnections: 2,
-			Rates: []ratelimiter.Rate{
-				ratelimiter.Rate{
+			Rates: []limiter.Rate{
+				limiter.Rate{
 					Period:  10 * time.Second,
 					Average: 1,
 					Burst:   3,
 				},
-				ratelimiter.Rate{
+				limiter.Rate{
 					Period:  40 * time.Millisecond,
 					Average: 10,
 					Burst:   40,
@@ -121,7 +121,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		"localhost",
 		[]ssh.Signer{s.signer},
 		ap,
-		rateLimiter,
+		limiter,
 		s.dir,
 		SetShell("/bin/sh"),
 	)
@@ -235,7 +235,7 @@ func (s *SrvSuite) TestTun(c *C) {
 }
 
 func (s *SrvSuite) TestProxy(c *C) {
-	rateLimiter, err := ratelimiter.NewRateLimiter(ratelimiter.RateLimiterConfig{})
+	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{})
 	c.Assert(err, IsNil)
 
 	ap := auth.NewBackendAccessPoint(s.bk)
@@ -243,7 +243,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
-		ap, rateLimiter)
+		ap, limiter)
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
@@ -252,7 +252,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 		"localhost",
 		[]ssh.Signer{s.signer},
 		ap,
-		rateLimiter,
+		limiter,
 		s.dir,
 		SetProxyMode(reverseTunnelServer),
 	)
@@ -285,7 +285,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 	tsrv, err := auth.NewTunServer(
 		utils.NetAddr{Network: "tcp", Addr: "localhost:31497"},
 		[]ssh.Signer{s.signer},
-		apiSrv, s.a, rateLimiter)
+		apiSrv, s.a, limiter)
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
 
@@ -458,7 +458,7 @@ func (s *SrvSuite) TestClientDisconnect(c *C) {
 	c.Assert(clt.Close(), IsNil)
 }
 
-func (s *SrvSuite) TestRateLimiter(c *C) {
+func (s *SrvSuite) TestLimiter(c *C) {
 	// maxConnection = 2
 	// current connections = 1(one connection is opened from SetUpTest)
 	config := &ssh.ClientConfig{

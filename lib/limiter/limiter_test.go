@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package ratelimiter
+package limiter
 
 import (
 	"testing"
@@ -22,7 +22,7 @@ import (
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
-func TestRateLimiter(t *testing.T) { TestingT(t) }
+func TestLimiter(t *testing.T) { TestingT(t) }
 
 type LimiterSuite struct {
 }
@@ -39,8 +39,8 @@ func (s *LimiterSuite) TearDownTest(c *C) {
 }
 
 func (s *LimiterSuite) TestConnectionsLimiter(c *C) {
-	limiter, err := NewRateLimiter(
-		RateLimiterConfig{
+	limiter, err := NewLimiter(
+		LimiterConfig{
 			MaxConnections: 0,
 		},
 	)
@@ -60,8 +60,8 @@ func (s *LimiterSuite) TestConnectionsLimiter(c *C) {
 		limiter.ReleaseConnection("token2")
 	}
 
-	limiter, err = NewRateLimiter(
-		RateLimiterConfig{
+	limiter, err = NewLimiter(
+		LimiterConfig{
 			MaxConnections: 5,
 		},
 	)
@@ -91,9 +91,9 @@ func (s *LimiterSuite) TestConnectionsLimiter(c *C) {
 	}
 }
 
-func (s *LimiterSuite) TestRates(c *C) {
-	limiter, err := NewRateLimiter(
-		RateLimiterConfig{
+func (s *LimiterSuite) TestRateLimiter(c *C) {
+	limiter, err := NewLimiter(
+		LimiterConfig{
 			Rates: []Rate{
 				Rate{
 					Period:  10 * time.Millisecond,
@@ -110,33 +110,47 @@ func (s *LimiterSuite) TestRates(c *C) {
 	)
 	c.Assert(err, IsNil)
 
-	// When
-	c.Assert(limiter.Consume("token1", 15), IsNil)
-	c.Assert(limiter.Consume("token2", 20), IsNil)
-
-	for i := 0; i < 5; i++ {
-		c.Assert(limiter.Consume("token1", 1), IsNil)
+	for i := 0; i < 20; i++ {
+		c.Assert(limiter.RegisterRequest("token1"), IsNil)
 	}
-	c.Assert(limiter.Consume("token1", 1), NotNil)
-
-	time.Sleep(10010 * time.Microsecond)
-	for i := 0; i < 10; i++ {
-		c.Assert(limiter.Consume("token1", 1), IsNil)
+	for i := 0; i < 20; i++ {
+		c.Assert(limiter.RegisterRequest("token2"), IsNil)
 	}
-	c.Assert(limiter.Consume("token1", 1), NotNil)
+
+	c.Assert(limiter.RegisterRequest("token1"), NotNil)
 
 	time.Sleep(10010 * time.Microsecond)
 	for i := 0; i < 10; i++ {
-		c.Assert(limiter.Consume("token1", 1), IsNil)
+		c.Assert(limiter.RegisterRequest("token1"), IsNil)
 	}
-	c.Assert(limiter.Consume("token1", 1), NotNil)
+	c.Assert(limiter.RegisterRequest("token1"), NotNil)
+
+	time.Sleep(10010 * time.Microsecond)
+	for i := 0; i < 10; i++ {
+		c.Assert(limiter.RegisterRequest("token1"), IsNil)
+	}
+	c.Assert(limiter.RegisterRequest("token1"), NotNil)
 
 	time.Sleep(10010 * time.Microsecond)
 	// the second rate is full
-	c.Assert(limiter.Consume("token1", 10), NotNil)
+	err = nil
+	for i := 0; i < 10; i++ {
+		err = limiter.RegisterRequest("token1")
+		if err != nil {
+			break
+		}
+	}
+	c.Assert(err, NotNil)
 
 	time.Sleep(10010 * time.Microsecond)
 	// Now the second rate have free space
-	c.Assert(limiter.Consume("token1", 1), IsNil)
-	c.Assert(limiter.Consume("token1", 10), NotNil)
+	c.Assert(limiter.RegisterRequest("token1"), IsNil)
+	err = nil
+	for i := 0; i < 10; i++ {
+		err = limiter.RegisterRequest("token1")
+		if err != nil {
+			break
+		}
+	}
+	c.Assert(err, NotNil)
 }

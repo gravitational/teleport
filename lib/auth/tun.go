@@ -22,7 +22,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/ratelimiter"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -48,7 +48,7 @@ type ServerOption func(s *TunServer) error
 // New returns an unstarted server
 func NewTunServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 	apiServer *APIWithRoles, a *AuthServer,
-	rateLimiter *ratelimiter.RateLimiter,
+	limiter *limiter.Limiter,
 	opts ...ServerOption) (*TunServer, error) {
 
 	srv := &TunServer{
@@ -69,7 +69,7 @@ func NewTunServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 			Password:  srv.passwordAuth,
 			PublicKey: srv.keyAuth,
 		},
-		rateLimiter,
+		limiter,
 	)
 	if err != nil {
 		return nil, err

@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/ratelimiter"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -107,7 +107,7 @@ func SetProxyMode(tsrv reversetunnel.Server) ServerOption {
 
 // New returns an unstarted server
 func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
-	ap auth.AccessPoint, rateLimiter *ratelimiter.RateLimiter,
+	ap auth.AccessPoint, limiter *limiter.Limiter,
 	dataDir string, options ...ServerOption) (*Server, error) {
 
 	s := &Server{
@@ -143,7 +143,7 @@ func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
 	srv, err := sshutils.NewServer(
 		addr, s, signers,
 		sshutils.AuthMethods{PublicKey: s.keyAuth},
-		rateLimiter,
+		limiter,
 		sshutils.SetRequestHandler(s))
 	if err != nil {
 		return nil, err

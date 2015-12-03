@@ -24,7 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
-	"github.com/gravitational/teleport/lib/ratelimiter"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -35,13 +35,13 @@ type Server struct {
 	newChanHandler NewChanHandler
 	reqHandler     RequestHandler
 	cfg            ssh.ServerConfig
-	rateLimiter    *ratelimiter.RateLimiter
+	limiter        *limiter.Limiter
 }
 
 type ServerOption func(cfg *Server) error
 
 func NewServer(a utils.NetAddr, h NewChanHandler, hostSigners []ssh.Signer,
-	ah AuthMethods, rateLimiter *ratelimiter.RateLimiter, opts ...ServerOption) (*Server, error) {
+	ah AuthMethods, limiter *limiter.Limiter, opts ...ServerOption) (*Server, error) {
 	if err := checkArguments(a, h, hostSigners, ah); err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func NewServer(a utils.NetAddr, h NewChanHandler, hostSigners []ssh.Signer,
 		addr:           a,
 		newChanHandler: h,
 		closeC:         make(chan struct{}),
-		rateLimiter:    rateLimiter,
+		limiter:        limiter,
 	}
 	for _, o := range opts {
 		if err := o(s); err != nil {
@@ -135,13 +135,13 @@ func (s *Server) handleConnection(conn net.Conn) {
 	if err != nil {
 		log.Errorf(err.Error())
 	}
-	if err := s.rateLimiter.AcquireConnection(remoteAddr); err != nil {
+	if err := s.limiter.AcquireConnection(remoteAddr); err != nil {
 		log.Errorf(err.Error())
 		//time.Sleep(5 * time.Second)
 		conn.Close()
 		return
 	}
-	defer s.rateLimiter.ReleaseConnection(remoteAddr)
+	defer s.limiter.ReleaseConnection(remoteAddr)
 
 	// setting waiting deadline in case of connection freezing
 	err = conn.SetDeadline(time.Now().Add(5 * time.Minute))
@@ -160,7 +160,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 	}
 
 	user := sconn.User()
-	if err := s.rateLimiter.Consume(user, 1); err != nil {
+	if err := s.limiter.RegisterRequest(user); err != nil {
 		log.Errorf(err.Error())
 		sconn.Close()
 		conn.Close()

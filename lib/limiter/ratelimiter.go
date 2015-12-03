@@ -13,30 +13,25 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package ratelimiter
+package limiter
 
 import (
 	"net/http"
 	"sync"
 	"time"
 
-	"github.com/alexlyulkov/oxy/connlimit"
 	"github.com/alexlyulkov/oxy/ratelimit"
 	"github.com/alexlyulkov/oxy/utils"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/mailgun/timetools"
 	"github.com/mailgun/ttlmap"
 )
 
 type RateLimiter struct {
-	*connlimit.ConnLimiter
-	tokenLimiter *ratelimit.TokenLimiter
-	rateLimits   *ttlmap.TtlMap
+	*ratelimit.TokenLimiter
+	rateLimits *ttlmap.TtlMap
 	*sync.Mutex
-	rates          *ratelimit.RateSet
-	connections    map[string]int64
-	maxConnections int64
+	rates *ratelimit.RateSet
 }
 
 type Rate struct {
@@ -45,25 +40,12 @@ type Rate struct {
 	Burst   int64
 }
 
-type RateLimiterConfig struct {
-	Rates            []Rate
-	MaxConnections   int64 `yaml:"max_connections"`
-	MaxNumberOfUsers int   `yaml:"max_users"`
-}
-
-func NewRateLimiter(config RateLimiterConfig) (*RateLimiter, error) {
+func NewRateLimiter(config LimiterConfig) (*RateLimiter, error) {
 	limiter := RateLimiter{
-		Mutex:          &sync.Mutex{},
-		maxConnections: config.MaxConnections,
-		connections:    make(map[string]int64),
+		Mutex: &sync.Mutex{},
 	}
 
 	ipExtractor, err := utils.NewExtractor("client.ip")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	limiter.ConnLimiter, err = connlimit.New(nil, ipExtractor, config.MaxConnections)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -76,7 +58,7 @@ func NewRateLimiter(config RateLimiterConfig) (*RateLimiter, error) {
 		limiter.rates.Add(time.Second, DefaultRate, DefaultRate)
 	}
 
-	limiter.tokenLimiter, err = ratelimit.New(nil, ipExtractor,
+	limiter.TokenLimiter, err = ratelimit.New(nil, ipExtractor,
 		limiter.rates)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -94,7 +76,9 @@ func NewRateLimiter(config RateLimiterConfig) (*RateLimiter, error) {
 	return &limiter, nil
 }
 
-func (l *RateLimiter) Consume(token string, amount int64) error {
+// RegisterRequest increases number of requests for the provided token
+// Returns error if there are too many requests with the provided token
+func (l *RateLimiter) RegisterRequest(token string) error {
 	l.Lock()
 	defer l.Unlock()
 
@@ -110,7 +94,7 @@ func (l *RateLimiter) Consume(token string, amount int64) error {
 		// the counters for this ip will expire after 10 seconds of inactivity
 		l.rateLimits.Set(token, bucketSet, int(bucketSet.GetMaxPeriod()/time.Second)*10+1)
 	}
-	delay, err := bucketSet.Consume(amount)
+	delay, err := bucketSet.Consume(1)
 	if err != nil {
 		return err
 	}
@@ -120,51 +104,9 @@ func (l *RateLimiter) Consume(token string, amount int64) error {
 	return nil
 }
 
-// Add connection limiter to the handle
-func (l *RateLimiter) WrapHTTP(h http.Handler) {
-	l.tokenLimiter.Wrap(h)
-	l.ConnLimiter.Wrap(l.tokenLimiter)
-}
-
-func (l *RateLimiter) AcquireConnection(token string) error {
-	if l.maxConnections == 0 {
-		return nil
-	}
-
-	l.Lock()
-	defer l.Unlock()
-
-	numberOfConnections, exists := l.connections[token]
-	if !exists {
-		l.connections[token] = 1
-		return nil
-	} else {
-		if numberOfConnections >= l.maxConnections {
-			return trace.Errorf("Too many connections from %v", token)
-		}
-		l.connections[token] = numberOfConnections + 1
-		return nil
-	}
-}
-
-func (l *RateLimiter) ReleaseConnection(token string) {
-	if l.maxConnections == 0 {
-		return
-	}
-
-	l.Lock()
-	defer l.Unlock()
-
-	numberOfConnections, exists := l.connections[token]
-	if !exists {
-		log.Errorf("Trying to set negative number of connections")
-	} else {
-		if numberOfConnections <= 1 {
-			delete(l.connections, token)
-		} else {
-			l.connections[token] = numberOfConnections - 1
-		}
-	}
+// Add rate limiter to the handle
+func (l *RateLimiter) WrapHandle(h http.Handler) {
+	l.TokenLimiter.Wrap(h)
 }
 
 const (

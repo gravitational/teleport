@@ -21,7 +21,7 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/gravitational/teleport/lib/ratelimiter"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -107,7 +107,7 @@ type ProxyConfig struct {
 	// TLSCert is a base64 encoded certificate used by web portal
 	TLSCert string `yaml:"tlscert" env:"TELEPORT_PROXY_TLS_CERT"`
 
-	RateLimiter ratelimiter.RateLimiterConfig `yaml:"rate_limiter"`
+	Limiter limiter.LimiterConfig `yaml:"limiter"`
 }
 
 type AuthConfig struct {
@@ -169,24 +169,24 @@ type AuthConfig struct {
 		Params KeyVal `yaml:"params,flow" env:"TELEPORT_AUTH_RECORDS_BACKEND_PARAMS"`
 	} `yaml:"records_backend"`
 
-	RateLimiter ratelimiter.RateLimiterConfig `yaml:"rate_limiter"`
+	Limiter limiter.LimiterConfig `yaml:"limiter"`
 }
 
 // SSHConfig configures SSH server node role
 type SSHConfig struct {
-	Enabled     bool                          `yaml:"enabled" env:"TELEPORT_SSH_ENABLED"`
-	Token       string                        `yaml:"token" env:"TELEPORT_SSH_TOKEN"`
-	Addr        utils.NetAddr                 `yaml:"addr" env:"TELEPORT_SSH_ADDR"`
-	Shell       string                        `yaml:"shell" env:"TELEPORT_SSH_SHELL"`
-	RateLimiter ratelimiter.RateLimiterConfig `yaml:"rate_limiter"`
+	Enabled bool                  `yaml:"enabled" env:"TELEPORT_SSH_ENABLED"`
+	Token   string                `yaml:"token" env:"TELEPORT_SSH_TOKEN"`
+	Addr    utils.NetAddr         `yaml:"addr" env:"TELEPORT_SSH_ADDR"`
+	Shell   string                `yaml:"shell" env:"TELEPORT_SSH_SHELL"`
+	Limiter limiter.LimiterConfig `yaml:"limiter"`
 }
 
 // ReverseTunnelConfig configures reverse tunnel role
 type ReverseTunnelConfig struct {
-	Enabled     bool                          `yaml:"enabled" env:"TELEPORT_REVERSE_TUNNEL_ENABLED"`
-	Token       string                        `yaml:"token" env:"TELEPORT_REVERSE_TUNNEL_TOKEN"`
-	DialAddr    utils.NetAddr                 `yaml:"dial_addr" env:"TELEPORT_REVERSE_TUNNEL_DIAL_ADDR"`
-	RateLimiter ratelimiter.RateLimiterConfig `yaml:"rate_limiter"`
+	Enabled  bool                  `yaml:"enabled" env:"TELEPORT_REVERSE_TUNNEL_ENABLED"`
+	Token    string                `yaml:"token" env:"TELEPORT_REVERSE_TUNNEL_TOKEN"`
+	DialAddr utils.NetAddr         `yaml:"dial_addr" env:"TELEPORT_REVERSE_TUNNEL_DIAL_ADDR"`
+	Limiter  limiter.LimiterConfig `yaml:"limiter"`
 }
 
 type NetAddrSlice []utils.NetAddr
