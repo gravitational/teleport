@@ -58,7 +58,7 @@ func (s *ConfigSuite) TestParseEnv(c *C) {
 		"TELEPORT_AUTH_TOKEN":                       "authtoken",
 		"TELEPORT_AUTH_SECRET_KEY":                  "authsecret",
 		"TELEPORT_AUTH_ALLOWED_TOKENS":              "node1.a.domain.example.com:token1,node2.a.domain.example.com:token2",
-		"TELEPORT_AUTH_TRUSTED_AUTHORITIES":         `[{"type": "user", "domain_name":"a.example.com", "id":"user.a.example.com", "value": "user value a"},{"type": "host", "domain_name":"b.example.com", "id":"host.b.example.com", "value": "host value b"}]`,
+		"TELEPORT_AUTH_TRUSTED_AUTHORITIES":         `[{"type": "user", "domain_name":"a.example.com", "id":"user.a.example.com", "public_key": "user value a"},{"type": "host", "domain_name":"b.example.com", "id":"host.b.example.com", "public_key": "host value b"}]`,
 		"TELEPORT_AUTH_KEYS_BACKEND_TYPE":           "bolt",
 		"TELEPORT_AUTH_KEYS_BACKEND_PARAMS":         "path:/keys",
 		"TELEPORT_AUTH_KEYS_BACKEND_ADDITIONAL_KEY": "somekey",
@@ -66,8 +66,8 @@ func (s *ConfigSuite) TestParseEnv(c *C) {
 		"TELEPORT_AUTH_EVENTS_BACKEND_PARAMS":       "path:/events",
 		"TELEPORT_AUTH_RECORDS_BACKEND_TYPE":        "bolt",
 		"TELEPORT_AUTH_RECORDS_BACKEND_PARAMS":      "path:/records",
-		"TELEPORT_AUTH_USER_CA_KEYPAIR":             `{"public": "user ca public key", "private": "dXNlciBjYSBwcml2YXRlIGtleQ=="}`,
-		"TELEPORT_AUTH_HOST_CA_KEYPAIR":             `{"public": "host ca public key", "private": "aG9zdCBjYSBwcml2YXRlIGtleQ=="}`,
+		"TELEPORT_AUTH_USER_CA_KEYPAIR":             `{"public": {"id":"1", "domain_name":"localhost", "public_key":"user ca public key"}, "private_key": "dXNlciBjYSBwcml2YXRlIGtleQ=="}`,
+		"TELEPORT_AUTH_HOST_CA_KEYPAIR":             `{"public": {"id":"2", "domain_name":"localhost", "public_key":"host ca public key"}, "private_key": "aG9zdCBjYSBwcml2YXRlIGtleQ=="}`,
 		"TELEPORT_SSH_ENABLED":                      "true",
 		"TELEPORT_SSH_TOKEN":                        "sshtoken",
 		"TELEPORT_SSH_ADDR":                         "tcp://localhost:1234",
@@ -121,17 +121,17 @@ func (s *ConfigSuite) checkVariables(c *C, cfg *Config) {
 		})
 
 	c.Assert(cfg.Auth.TrustedAuthorities, DeepEquals,
-		RemoteCerts{
+		CertificateAuthorities{
 			{
 				Type:       "user",
 				DomainName: "a.example.com",
 				ID:         "user.a.example.com",
-				Value:      "user value a"},
+				PublicKey:  "user value a"},
 			{
 				Type:       "host",
 				DomainName: "b.example.com",
 				ID:         "host.b.example.com",
-				Value:      "host value b"},
+				PublicKey:  "host value b"},
 		})
 
 	c.Assert(cfg.Auth.KeysBackend.Type, Equals, "bolt")
@@ -148,7 +148,9 @@ func (s *ConfigSuite) checkVariables(c *C, cfg *Config) {
 		DeepEquals, KeyVal{"path": "/records"})
 
 	c.Assert(cfg.Auth.UserCA.PublicKey, Equals, "user ca public key")
-	c.Assert(string(cfg.Auth.UserCA.PrivateKey), Equals, "user ca private key")
+	userCA, err := cfg.Auth.UserCA.CA()
+	c.Assert(err, IsNil)
+	c.Assert(string(userCA.PrivateKey), Equals, "user ca private key")
 
 	// SSH section
 	c.Assert(cfg.SSH.Enabled, Equals, true)
@@ -189,24 +191,30 @@ auth:
     node2.a.domain.example.com: token2
 
   user_ca_keypair:
-    public: user ca public key
-    private: dXNlciBjYSBwcml2YXRlIGtleQ==
+    public:
+      id: 1
+      domain_name: localhost
+      public_key: user ca public key
+    private_key: dXNlciBjYSBwcml2YXRlIGtleQ==
 
   host_ca_keypair:
-    public: host ca public key
-    private: aG9zdCBjYSBwcml2YXRlIGtleQ==
+    public:
+      id: 1
+      domain_name: localhost
+      public_key: host ca public key
+    private_key: aG9zdCBjYSBwcml2YXRlIGtleQ==
 
   trusted_authorities: 
 
     - type: user
       domain_name: a.example.com
       id: user.a.example.com
-      value: user value a
+      public_key: user value a
 
     - type: host
       domain_name: b.example.com
       id:  host.b.example.com
-      value: host value b
+      public_key: host value b
 
   keys_backend:
     type: bolt

@@ -120,6 +120,10 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) err
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	trustedAuthorities, err := cfg.Auth.TrustedAuthorities.Authorities()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	acfg := auth.InitConfig{
 		Backend:            b,
 		Authority:          authority.New(),
@@ -128,15 +132,21 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) err
 		DataDir:            cfg.DataDir,
 		SecretKey:          cfg.Auth.SecretKey,
 		AllowedTokens:      cfg.Auth.AllowedTokens,
-		TrustedAuthorities: cfg.Auth.TrustedAuthorities.Authorities(),
+		TrustedAuthorities: trustedAuthorities,
 	}
 	if len(cfg.Auth.UserCA.PublicKey) != 0 && len(cfg.Auth.UserCA.PrivateKey) != 0 {
-		acfg.UserCA = cfg.Auth.UserCA.CA()
+		acfg.UserCA, err = cfg.Auth.UserCA.CA()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		acfg.UserCA.DomainName = hostname
 		acfg.UserCA.Type = services.UserCert
 	}
 	if len(cfg.Auth.HostCA.PublicKey) != 0 && len(cfg.Auth.HostCA.PrivateKey) != 0 {
-		acfg.HostCA = cfg.Auth.HostCA.CA()
+		acfg.HostCA, err = cfg.Auth.HostCA.CA()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		acfg.HostCA.DomainName = hostname
 		acfg.HostCA.Type = services.HostCert
 	}

@@ -215,18 +215,17 @@ func (kv *KeyVal) Set(v string) error {
 	return nil
 }
 
-type CertificateAuthorities []services.CertificateAuthority
-
-func (a CertificateAuthorities) Authorities() []services.CertificateAuthority {
-	outCerts := make([]services.CertificateAuthority, len(a))
-	for i, v := range a {
-		outCerts[i] = v
-	}
-	return outCerts
+type CertificateAuthority struct {
+	Type       string `json:"type" yaml:"type"`
+	ID         string `json:"id" yaml:"id"`
+	DomainName string `json:"domain_name" yaml:"domain_name"`
+	PublicKey  string `json:"public_key" yaml:"public_key"`
 }
 
+type CertificateAuthorities []CertificateAuthority
+
 func (c *CertificateAuthorities) SetEnv(v string) error {
-	var certs []services.CertificateAuthority
+	var certs []CertificateAuthority
 	if err := json.Unmarshal([]byte(v), &certs); err != nil {
 		return trace.Wrap(err, "expected JSON encoded remote certificate")
 	}
@@ -234,53 +233,48 @@ func (c *CertificateAuthorities) SetEnv(v string) error {
 	return nil
 }
 
-type LocalCertificateAuthority services.LocalCertificateAuthority
+func (a CertificateAuthorities) Authorities() ([]services.CertificateAuthority, error) {
+	outCerts := make([]services.CertificateAuthority, len(a))
+	for i, v := range a {
+		outCerts[i] = services.CertificateAuthority{
+			Type:       v.Type,
+			ID:         v.ID,
+			DomainName: v.DomainName,
+			PublicKey:  []byte(v.PublicKey),
+		}
+	}
+	return outCerts, nil
+}
+
+type LocalCertificateAuthority struct {
+	CertificateAuthority `json:"public" yaml:"public"`
+	PrivateKey           string `json:"private_key" yaml:"private_key"`
+}
 
 func (c *LocalCertificateAuthority) SetEnv(v string) error {
-	var ca *services.LocalCertificateAuthority
+	var ca *LocalCertificateAuthority
 	if err := json.Unmarshal([]byte(v), &ca); err != nil {
 		return trace.Wrap(err, "expected JSON encoded certificate authority")
 	}
-	*c = LocalCertificateAuthority(*ca)
+	*c = *ca
 	return nil
 }
 
-func (c *LocalCertificateAuthority) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	// these are yaml-friendly format (yaml does not support base64-auto decoding)
-	type public struct {
-		Type       string `json:"type" yaml:"type"`
-		ID         string `json:"id" yaml:"id"`
-		DomainName string `json:"domain_name" yaml:"domain_name"`
-		PublicKey  string `json:"public_key" yaml:"public_key"`
-	}
-	type authority struct {
-		Public     public `yaml:"public"`
-		PrivateKey string `yaml:"private_key"`
-	}
-	var ca authority
-	if err := unmarshal(&ca); err != nil {
-		return trace.Wrap(err)
-	}
-	privateKey, err := base64.StdEncoding.DecodeString(ca.PrivateKey)
+func (c *LocalCertificateAuthority) CA() (*services.LocalCertificateAuthority, error) {
+	privateKey, err := base64.StdEncoding.DecodeString(c.PrivateKey)
 	if err != nil {
-		return trace.Wrap(err, "private key should be base64 encoded")
+		return nil, trace.Wrap(err)
 	}
-	c.CertificateAuthority = services.CertificateAuthority{
-		Type:       ca.Public.Type,
-		ID:         ca.Public.ID,
-		DomainName: ca.Public.DomainName,
-		PublicKey:  []byte(ca.Public.PublicKey),
+	out := services.LocalCertificateAuthority{
+		PrivateKey: privateKey,
+		CertificateAuthority: services.CertificateAuthority{
+			Type:       c.Type,
+			ID:         c.ID,
+			DomainName: c.DomainName,
+			PublicKey:  []byte(c.PublicKey),
+		},
 	}
-	c.PrivateKey = privateKey
-	if len(c.PrivateKey) == 0 || len(c.PublicKey) == 0 {
-		return trace.Errorf("both public key and private key should be setup")
-	}
-	return nil
-}
-
-func (c *LocalCertificateAuthority) CA() *services.LocalCertificateAuthority {
-	out := services.LocalCertificateAuthority(*c)
-	return &out
+	return &out, nil
 }
 
 func SetDefaults(cfg *Config) {
