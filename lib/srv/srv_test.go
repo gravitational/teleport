@@ -47,15 +47,16 @@ import (
 func TestSrv(t *testing.T) { TestingT(t) }
 
 type SrvSuite struct {
-	srv        *Server
-	srvAddress string
-	clt        *ssh.Client
-	bk         *encryptedbk.ReplicatedBackend
-	a          *auth.AuthServer
-	up         *upack
-	scrt       secret.SecretService
-	signer     ssh.Signer
-	dir        string
+	srv         *Server
+	srvAddress  string
+	srvHostPort string
+	clt         *ssh.Client
+	bk          *encryptedbk.ReplicatedBackend
+	a           *auth.AuthServer
+	up          *upack
+	scrt        secret.SecretService
+	signer      ssh.Signer
+	dir         string
 }
 
 var _ = Suite(&SrvSuite{})
@@ -94,7 +95,8 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	ap := auth.NewBackendAccessPoint(s.bk)
-	s.srvAddress = "localhost:30185"
+	s.srvAddress = "127.0.0.1:30185"
+	s.srvHostPort = "localhost:30185"
 	srv, err := New(
 		utils.NetAddr{Network: "tcp", Addr: s.srvAddress},
 		"localhost",
@@ -309,7 +311,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 	c.Assert(err, IsNil)
 
 	// Request opening TCP connection to the remote host
-	unregisteredAddress := s.srv.Addr() // proper ssh node address but with 127.0.0.1 instead of localhost
+	unregisteredAddress := "0.0.0.0:30185"
 	c.Assert(se0.RequestSubsystem(fmt.Sprintf("proxy:%v", unregisteredAddress)), IsNil)
 
 	local, err := net.ResolveTCPAddr("tcp", proxy.Addr())
@@ -330,57 +332,94 @@ func (s *SrvSuite) TestProxy(c *C) {
 		s.srv.Addr(), sshConfig)
 	c.Assert(err, NotNil)
 
-	// Connect to node using registered address
+	testClient := func(targetNodeAddress string) {
+		// Connect to node using registered address
+		client, err = ssh.Dial("tcp", proxy.Addr(), sshConfig)
+		c.Assert(err, IsNil)
+		c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
+
+		se, err := client.NewSession()
+		c.Assert(err, IsNil)
+		defer se.Close()
+
+		writer, err = se.StdinPipe()
+		c.Assert(err, IsNil)
+
+		reader, err = se.StdoutPipe()
+		c.Assert(err, IsNil)
+
+		// Request opening TCP connection to the remote host
+		c.Assert(se.RequestSubsystem(fmt.Sprintf("proxy:%v", targetNodeAddress)), IsNil)
+
+		local, err = net.ResolveTCPAddr("tcp", proxy.Addr())
+		c.Assert(err, IsNil)
+		remote, err = net.ResolveTCPAddr("tcp", s.srv.Addr())
+		c.Assert(err, IsNil)
+
+		pipeNetConn = utils.NewPipeNetConn(
+			reader,
+			writer,
+			se,
+			local,
+			remote,
+		)
+
+		// Open SSH connection via TCP
+		conn, chans, reqs, err = ssh.NewClientConn(pipeNetConn,
+			s.srv.Addr(), sshConfig)
+		c.Assert(err, IsNil)
+
+		// using this connection as regular SSH
+		client2 := ssh.NewClient(conn, chans, reqs)
+		c.Assert(err, IsNil)
+
+		c.Assert(agent.ForwardToAgent(client2, keyring), IsNil)
+
+		se2, err := client2.NewSession()
+		c.Assert(err, IsNil)
+		defer se2.Close()
+
+		out, err := se2.Output("expr 2 + 3")
+		c.Assert(err, IsNil)
+
+		c.Assert(strings.Trim(string(out), " \n"), Equals, "5")
+	}
+
+	testClient(s.srvAddress)
+	testClient(s.srvHostPort)
+
+	// adding new node
+	srv2, err := New(
+		utils.NetAddr{Network: "tcp", Addr: "127.0.0.1:31185"},
+		"localhost",
+		[]ssh.Signer{s.signer},
+		ap,
+		c.MkDir(),
+		SetShell("/bin/sh"),
+	)
+	c.Assert(err, IsNil)
+	c.Assert(srv2.Start(), IsNil)
+
+	// test proxysites
 	client, err = ssh.Dial("tcp", proxy.Addr(), sshConfig)
 	c.Assert(err, IsNil)
 	c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
 
-	se, err := client.NewSession()
+	se3, err := client.NewSession()
 	c.Assert(err, IsNil)
-	defer se.Close()
+	defer se3.Close()
 
-	writer, err = se.StdinPipe()
-	c.Assert(err, IsNil)
+	stdout := &bytes.Buffer{}
+	reader, err = se3.StdoutPipe()
+	done := make(chan struct{})
+	go func() {
+		io.Copy(stdout, reader)
+		close(done)
+	}()
 
-	reader, err = se.StdoutPipe()
-	c.Assert(err, IsNil)
-
-	// Request opening TCP connection to the remote host
-	c.Assert(se.RequestSubsystem(fmt.Sprintf("proxy:%v", s.srvAddress)), IsNil)
-
-	local, err = net.ResolveTCPAddr("tcp", proxy.Addr())
-	c.Assert(err, IsNil)
-	remote, err = net.ResolveTCPAddr("tcp", s.srv.Addr())
-	c.Assert(err, IsNil)
-
-	pipeNetConn = utils.NewPipeNetConn(
-		reader,
-		writer,
-		se,
-		local,
-		remote,
-	)
-
-	// Open SSH connection via TCP
-	conn, chans, reqs, err = ssh.NewClientConn(pipeNetConn,
-		s.srv.Addr(), sshConfig)
-	c.Assert(err, IsNil)
-
-	// using this connection as regular SSH
-	client2 := ssh.NewClient(conn, chans, reqs)
-	c.Assert(err, IsNil)
-
-	c.Assert(agent.ForwardToAgent(client2, keyring), IsNil)
-
-	se2, err := client2.NewSession()
-	c.Assert(err, IsNil)
-	defer se2.Close()
-
-	out, err := se2.Output("expr 2 + 3")
-	c.Assert(err, IsNil)
-
-	c.Assert(strings.Trim(string(out), " \n"), Equals, "5")
-
+	c.Assert(se3.RequestSubsystem("proxysites"), IsNil)
+	<-done
+	c.Assert(stdout.String(), Equals, `{"localhost":[{"id":"127.0.0.1_30185","addr":"127.0.0.1:30185","hostname":"localhost"},{"id":"127.0.0.1_31185","addr":"127.0.0.1:31185","hostname":"localhost"}]}`)
 }
 
 // TestPTY requests PTY for an interactive session

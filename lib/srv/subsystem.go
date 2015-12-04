@@ -47,8 +47,11 @@ func parseSubsystemRequest(srv *Server, req *ssh.Request) (subsystem, error) {
 	if strings.HasPrefix(s.Name, "ls:") {
 		return parseLSSubsys(s.Name)
 	}
-	if strings.HasPrefix(s.Name, "proxy:") && (srv.proxyMode) {
+	if srv.proxyMode && strings.HasPrefix(s.Name, "proxy:") {
 		return parseProxySubsys(s.Name, srv)
+	}
+	if srv.proxyMode && strings.HasPrefix(s.Name, "proxysites") {
+		return parseProxySitesSubsys(s.Name, srv)
 	}
 	return nil, fmt.Errorf("unrecognized subsystem: %v", s.Name)
 }
