@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -68,7 +69,7 @@ type server struct {
 
 // New returns an unstarted server
 func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
-	ap auth.AccessPoint) (Server, error) {
+	ap auth.AccessPoint, limiter *limiter.Limiter) (Server, error) {
 	srv := &server{
 		sites: []*remoteSite{},
 		ap:    ap,
@@ -79,7 +80,9 @@ func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 		hostSigners,
 		sshutils.AuthMethods{
 			PublicKey: srv.keyAuth,
-		})
+		},
+		limiter,
+	)
 	if err != nil {
 		return nil, err
 	}

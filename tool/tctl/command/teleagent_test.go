@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events/boltlog"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	sess "github.com/gravitational/teleport/lib/session"
@@ -83,11 +84,14 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 
 	ap := auth.NewBackendAccessPoint(bk)
 
+	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{})
+	c.Assert(err, IsNil)
+
 	reverseTunnelAddress := utils.NetAddr{Network: "tcp", Addr: "localhost:33058"}
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{signer},
-		ap)
+		ap, limiter)
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
@@ -105,7 +109,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	tsrv, err := auth.NewTunServer(
 		utils.NetAddr{Network: "tcp", Addr: "localhost:31497"},
 		[]ssh.Signer{signer},
-		apiSrv, a)
+		apiSrv, a, limiter)
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
 
@@ -139,6 +143,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 		"localhost",
 		[]ssh.Signer{signer},
 		ap,
+		limiter,
 		dir,
 		srv.SetShell("/bin/sh"),
 	)

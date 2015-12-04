@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events/boltlog"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/services"
@@ -126,11 +127,14 @@ func (s *CmdSuite) SetUpTest(c *C) {
 	)
 	s.srv.Serve()
 
+	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{})
+	c.Assert(err, IsNil)
+
 	tunAddr, err := utils.ParseAddr(s.tunAddress)
 	tsrv, err := auth.NewTunServer(
 		*tunAddr,
 		[]ssh.Signer{signer},
-		s.srv, s.asrv)
+		s.srv, s.asrv, limiter)
 	c.Assert(err, IsNil)
 	s.tsrv = tsrv
 	c.Assert(tsrv.Start(), IsNil)

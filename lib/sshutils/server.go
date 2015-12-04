@@ -19,10 +19,12 @@ import (
 	"crypto/subtle"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -33,12 +35,13 @@ type Server struct {
 	newChanHandler NewChanHandler
 	reqHandler     RequestHandler
 	cfg            ssh.ServerConfig
+	limiter        *limiter.Limiter
 }
 
 type ServerOption func(cfg *Server) error
 
 func NewServer(a utils.NetAddr, h NewChanHandler, hostSigners []ssh.Signer,
-	ah AuthMethods, opts ...ServerOption) (*Server, error) {
+	ah AuthMethods, limiter *limiter.Limiter, opts ...ServerOption) (*Server, error) {
 	if err := checkArguments(a, h, hostSigners, ah); err != nil {
 		return nil, err
 	}
@@ -46,6 +49,7 @@ func NewServer(a utils.NetAddr, h NewChanHandler, hostSigners []ssh.Signer,
 		addr:           a,
 		newChanHandler: h,
 		closeC:         make(chan struct{}),
+		limiter:        limiter,
 	}
 	for _, o := range opts {
 		if err := o(s); err != nil {
@@ -127,8 +131,20 @@ func (s *Server) handleConnection(conn net.Conn) {
 	// initiate an SSH connection, note that we don't need to close the conn here
 	// in case of error as ssh server takes care of this
 
+	remoteAddr, _, err := net.SplitHostPort(conn.RemoteAddr().String())
+	if err != nil {
+		log.Errorf(err.Error())
+	}
+	if err := s.limiter.AcquireConnection(remoteAddr); err != nil {
+		log.Errorf(err.Error())
+		//time.Sleep(5 * time.Second)
+		conn.Close()
+		return
+	}
+	defer s.limiter.ReleaseConnection(remoteAddr)
+
 	// setting waiting deadline in case of connection freezing
-	err := conn.SetDeadline(time.Now().Add(5 * time.Minute))
+	err = conn.SetDeadline(time.Now().Add(5 * time.Minute))
 	if err != nil {
 		log.Errorf(err.Error())
 	}
@@ -143,14 +159,32 @@ func (s *Server) handleConnection(conn net.Conn) {
 		log.Errorf(err.Error())
 	}
 
+	user := sconn.User()
+	if err := s.limiter.RegisterRequest(user); err != nil {
+		log.Errorf(err.Error())
+		sconn.Close()
+		conn.Close()
+		return
+	}
 	// Connection successfully initiated
 	log.Infof("new ssh connection %v -> %v vesion: %v",
 		sconn.RemoteAddr(), sconn.LocalAddr(), string(sconn.ClientVersion()))
 
-	// Handle incoming out-of-band Requests
-	go s.handleRequests(reqs)
-	// Handle channel requests on this connections
-	s.handleChannels(sconn, chans)
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+
+	go func() {
+		// Handle incoming out-of-band Requests
+		s.handleRequests(reqs)
+		wg.Done()
+	}()
+	go func() {
+		// Handle channel requests on this connections
+		s.handleChannels(sconn, chans)
+		wg.Done()
+	}()
+
+	wg.Wait()
 }
 
 func (s *Server) handleRequests(reqs <-chan *ssh.Request) {

@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/boltlog"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -159,13 +160,20 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) err
 	)
 	apisrv.Serve()
 
+	limiter, err := limiter.NewLimiter(cfg.Auth.Limiter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// register auth SSH-based endpoint
 	supervisor.RegisterFunc(func() error {
 		log.Infof("[AUTH] server SSH endpoint is starting")
 		tsrv, err := auth.NewTunServer(
 			cfg.Auth.SSHAddr, []ssh.Signer{signer},
 			apisrv,
-			asrv)
+			asrv,
+			limiter,
+		)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -207,10 +215,16 @@ func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
 		},
 	}
 
+	limiter, err := limiter.NewLimiter(cfg.SSH.Limiter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	s, err := srv.New(cfg.SSH.Addr,
 		cfg.Hostname,
 		[]ssh.Signer{signer},
 		client,
+		limiter,
 		cfg.DataDir,
 		srv.SetShell(cfg.SSH.Shell),
 		srv.SetEventLogger(elog),
@@ -341,6 +355,16 @@ func initProxy(supervisor Supervisor, cfg Config) error {
 }
 
 func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
+	proxyLimiter, err := limiter.NewLimiter(cfg.Proxy.Limiter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	reverseTunnelLimiter, err := limiter.NewLimiter(cfg.ReverseTunnel.Limiter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	signer, err := auth.ReadKeys(cfg.Hostname, cfg.DataDir)
 	if err != nil {
 		return trace.Wrap(err)
@@ -355,7 +379,11 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 	}
 
 	tsrv, err := reversetunnel.NewServer(
-		cfg.Proxy.ReverseTunnelListenAddr, []ssh.Signer{signer}, client)
+		cfg.Proxy.ReverseTunnelListenAddr,
+		[]ssh.Signer{signer},
+		client,
+		reverseTunnelLimiter,
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -364,6 +392,7 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 		cfg.Hostname,
 		[]ssh.Signer{signer},
 		client,
+		proxyLimiter,
 		cfg.DataDir,
 		srv.SetProxyMode(tsrv),
 	)
@@ -399,18 +428,20 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 			return err
 		}
 
+		proxyLimiter.WrapHandle(webHandler)
+
 		if (cfg.Proxy.TLSCert != "") && (cfg.Proxy.TLSKey != "") {
 			log.Infof("[PROXY] found TLS credentials, init TLS listeners")
 			err := utils.ListenAndServeTLS(
 				cfg.Proxy.WebAddr.Addr,
-				webHandler,
+				proxyLimiter,
 				cfg.Proxy.TLSCert,
 				cfg.Proxy.TLSKey)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 		} else {
-			err := http.ListenAndServe(cfg.Proxy.WebAddr.Addr, webHandler)
+			err := http.ListenAndServe(cfg.Proxy.WebAddr.Addr, proxyLimiter)
 			if err != nil {
 				return trace.Wrap(err)
 			}

@@ -9,6 +9,15 @@ hostname: localhost # SSH hostname of this node
 ssh:
   # enable simple ssh endpoint
   enabled: true
+  limiter:
+    max_connections: 2
+    rates:
+      - period: 20s
+        average: 3
+        burst: 3
+      - period: 1s
+        average: 5
+        burst: 3
 
 reverse_tunnel:
   # this node will try to connect to remote web proxy and establish reverse SSH tunnel
@@ -39,3 +48,12 @@ proxy:
   enabled: true
   assets_dir: assets/web # directory with javascript, html and css for web
   reverse_tunnel_listen_addr: tcp://localhost:33006
+  limiter:
+    max_connections: 2
+    rates:
+      - period: 50s
+        average: 100
+        burst: 100
+      - period: 1s
+        average: 500
+        burst: 300
