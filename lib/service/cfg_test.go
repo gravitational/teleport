@@ -18,7 +18,9 @@ package service
 import (
 	"os"
 	"testing"
+	"time"
 
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/configure"
@@ -72,6 +74,9 @@ func (s *ConfigSuite) TestParseEnv(c *C) {
 		"TELEPORT_SSH_TOKEN":                        "sshtoken",
 		"TELEPORT_SSH_ADDR":                         "tcp://localhost:1234",
 		"TELEPORT_SSH_SHELL":                        "/bin/bash",
+		"TELEPORT_SSH_LABELS":                       `{"label1":"value1", "label2":"value2"}`,
+		"TELEPORT_SSH_LABEL_COMMANDS":               `{"cmd1": ["c1", "arg1", "arg2"], "cmd2":["c2", "arg3"]}`,
+		"TELEPORT_SSH_LIMITER":                      `{"max_connections": 2, "rates":[{"period": "20m", "average": 3, "burst": 7}, {"period": "1s", "average": 5, "burst": 3}]}`,
 		"TELEPORT_REVERSE_TUNNEL_ENABLED":           "true",
 		"TELEPORT_REVERSE_TUNNEL_TOKEN":             "tuntoken",
 		"TELEPORT_REVERSE_TUNNEL_DIAL_ADDR":         "tcp://telescope.example.com",
@@ -158,6 +163,29 @@ func (s *ConfigSuite) checkVariables(c *C, cfg *Config) {
 		utils.NetAddr{Network: "tcp", Addr: "localhost:1234"})
 	c.Assert(cfg.SSH.Token, Equals, "sshtoken")
 	c.Assert(cfg.SSH.Shell, Equals, "/bin/bash")
+	c.Assert(cfg.SSH.Labels, DeepEquals, map[string]string{
+		"label1": "value1",
+		"label2": "value2",
+	})
+	c.Assert(cfg.SSH.CmdLabels, DeepEquals, MapStringArray{
+		"cmd1": []string{"c1", "arg1", "arg2"},
+		"cmd2": []string{"c2", "arg3"},
+	})
+	c.Assert(cfg.SSH.Limiter, DeepEquals, limiter.LimiterConfig{
+		MaxConnections: 2,
+		Rates: []limiter.Rate{
+			limiter.Rate{
+				Period:  20 * time.Minute,
+				Average: 3,
+				Burst:   7,
+			},
+			limiter.Rate{
+				Period:  1 * time.Second,
+				Average: 5,
+				Burst:   3,
+			},
+		},
+	})
 
 	// ReverseTunnel section
 	c.Assert(cfg.ReverseTunnel.Enabled, Equals, true)
@@ -169,6 +197,7 @@ func (s *ConfigSuite) checkVariables(c *C, cfg *Config) {
 	c.Assert(cfg.Proxy.ReverseTunnelListenAddr, Equals,
 		utils.NetAddr{Network: "tcp", Addr: "proxy.vendor.io:33006"})
 	c.Assert(cfg.Proxy.Token, Equals, "proxytoken")
+
 }
 
 const configYAML = `
@@ -234,6 +263,21 @@ ssh:
   token: sshtoken
   addr: 'tcp://localhost:1234'
   shell: /bin/bash
+  limiter:
+    max_connections: 2
+    rates:
+      - period: 20m
+        average: 3
+        burst: 7
+      - period: 1s
+        average: 5
+        burst: 3
+  labels:
+    label1: value1
+    label2: value2
+  label-commands:
+    cmd1: ["c1", "arg1", "arg2"]
+    cmd2: ["c2", "arg3"]
 
 reverse_tunnel:
   enabled: true

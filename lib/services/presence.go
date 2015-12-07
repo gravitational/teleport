@@ -66,7 +66,14 @@ func (s *PresenceService) UpsertServer(server Server, ttl time.Duration) error {
 }
 
 type Server struct {
-	ID       string `json:"id"`
-	Addr     string `json:"addr"`
-	Hostname string `json:"hostname"`
+	ID        string                  `json:"id"`
+	Addr      string                  `json:"addr"`
+	Hostname  string                  `json:"hostname"`
+	Labels    map[string]string       `json:"labels"`
+	CmdLabels map[string]CommandLabel `json:"cmd_labels"`
+}
+
+type CommandLabel struct {
+	Command []string `json:"command"` //["cmd", "arg1", "arg2"]
+	Result  string   `json:"result"`
 }

@@ -211,25 +211,13 @@ func (s *APIServer) generateSealKey(w http.ResponseWriter, r *http.Request, p ht
 }
 
 func (s *APIServer) upsertServer(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	var id, addr, hostname string
-	var ttl time.Duration
-
-	err := form.Parse(r,
-		form.String("id", &id, form.Required()),
-		form.String("addr", &addr, form.Required()),
-		form.String("hostname", &hostname, form.Required()),
-		form.Duration("ttl", &ttl),
-	)
-	if err != nil {
+	var args upsertServerArgs
+	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
 		replyErr(w, err)
 		return
 	}
-	server := services.Server{
-		ID:       id,
-		Addr:     addr,
-		Hostname: hostname,
-	}
-	if err := s.a.UpsertServer(server, ttl); err != nil {
+
+	if err := s.a.UpsertServer(args.Server, args.TTL); err != nil {
 		replyErr(w, err)
 		return
 	}
@@ -1038,6 +1026,11 @@ type sealKeysResponse struct {
 type upsertPasswordResponse struct {
 	HotpURL string
 	HotpQR  []byte
+}
+
+type upsertServerArgs struct {
+	Server services.Server
+	TTL    time.Duration
 }
 
 func message(msg string) map[string]interface{} {

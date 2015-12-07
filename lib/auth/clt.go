@@ -233,8 +233,8 @@ func (c *Client) DeleteRemoteCertificate(ctype string, domainName, id string) er
 func (c *Client) GenerateToken(domainName, role string, ttl time.Duration) (string, error) {
 	out, err := c.PostForm(c.Endpoint("tokens"), url.Values{
 		"domain": []string{domainName},
-		"role": []string{role},
-		"ttl":  []string{ttl.String()},
+		"role":   []string{role},
+		"ttl":    []string{ttl.String()},
 	})
 	if err != nil {
 		return "", err
@@ -248,9 +248,9 @@ func (c *Client) GenerateToken(domainName, role string, ttl time.Duration) (stri
 
 func (c *Client) RegisterUsingToken(token, domainName, role string) (PackedKeys, error) {
 	out, err := c.PostForm(c.Endpoint("tokens", "register"), url.Values{
-		"token": []string{token},
-		"domain":  []string{domainName},
-		"role":  []string{role},
+		"token":  []string{token},
+		"domain": []string{domainName},
+		"role":   []string{role},
 	})
 	if err != nil {
 		return PackedKeys{}, err
@@ -270,9 +270,9 @@ func (c *Client) RegisterNewAuthServer(domainName, token string,
 		return encryptor.Key{}, err
 	}
 	out, err := c.PostForm(c.Endpoint("tokens", "register", "auth"), url.Values{
-		"token": []string{token},
-		"domain":  []string{domainName},
-		"key":   []string{string(pkeyJSON)},
+		"token":  []string{token},
+		"domain": []string{domainName},
+		"key":    []string{string(pkeyJSON)},
 	})
 	if err != nil {
 		return encryptor.Key{}, err
@@ -330,12 +330,11 @@ func (c *Client) GetChunkReader(id string) (recorder.ChunkReadCloser, error) {
 // UpsertServer is used by SSH servers to reprt their presense
 // to the auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertServer(s services.Server, ttl time.Duration) error {
-	_, err := c.PostForm(c.Endpoint("servers"), url.Values{
-		"id":       []string{string(s.ID)},
-		"addr":     []string{string(s.Addr)},
-		"hostname": []string{s.Hostname},
-		"ttl":      []string{ttl.String()},
-	})
+	args := upsertServerArgs{
+		Server: s,
+		TTL:    ttl,
+	}
+	_, err := c.PostJSON(c.Endpoint("servers"), args)
 	return err
 }
 

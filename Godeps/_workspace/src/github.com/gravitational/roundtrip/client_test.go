@@ -16,11 +16,14 @@ limitations under the License.
 package roundtrip
 
 import (
+	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -40,7 +43,10 @@ func (s *ClientSuite) TestPostForm(c *C) {
 	var u *url.URL
 	var form url.Values
 	var method string
+	var user, pass string
+	var ok bool
 	srv := serveHandler(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok = r.BasicAuth()
 		u = r.URL
 		c.Assert(r.ParseForm(), IsNil)
 		form = r.Form
@@ -49,7 +55,7 @@ func (s *ClientSuite) TestPostForm(c *C) {
 	})
 	defer srv.Close()
 
-	clt := newC(srv.URL, "v1")
+	clt := newC(srv.URL, "v1", BasicAuth("user", "pass"))
 	values := url.Values{"a": []string{"b"}}
 	out, err := clt.PostForm(clt.Endpoint("a", "b"), values)
 
@@ -58,20 +64,81 @@ func (s *ClientSuite) TestPostForm(c *C) {
 	c.Assert(u.String(), DeepEquals, "/v1/a/b")
 	c.Assert(form, DeepEquals, values)
 	c.Assert(method, Equals, "POST")
+	c.Assert(user, DeepEquals, "user")
+	c.Assert(pass, DeepEquals, "pass")
+}
+
+func (s *ClientSuite) TestAddAuth(c *C) {
+	var user, pass string
+	var ok bool
+	srv := serveHandler(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok = r.BasicAuth()
+		io.WriteString(w, "hello back")
+	})
+	defer srv.Close()
+
+	clt := newC(srv.URL, "v1", BasicAuth("user", "pass"))
+	req, err := http.NewRequest("GET", clt.Endpoint("a", "b"), nil)
+	c.Assert(err, IsNil)
+	clt.SetAuthHeader(req.Header)
+	_, err = clt.HTTPClient().Do(req)
+	c.Assert(err, IsNil)
+
+	c.Assert(user, DeepEquals, "user")
+	c.Assert(pass, DeepEquals, "pass")
+}
+
+func (s *ClientSuite) TestPostJSON(c *C) {
+	var data interface{}
+	var user, pass string
+	var ok bool
+	var method string
+	srv := serveHandler(func(w http.ResponseWriter, r *http.Request) {
+		method = r.Method
+		user, pass, ok = r.BasicAuth()
+		err := json.NewDecoder(r.Body).Decode(&data)
+		c.Assert(err, IsNil)
+	})
+	defer srv.Close()
+
+	clt := newC(srv.URL, "v1", BasicAuth("user", "pass"))
+
+	values := map[string]interface{}{"hello": "there"}
+	_, err := clt.PostJSON(clt.Endpoint("a", "b"), values)
+
+	c.Assert(err, IsNil)
+	c.Assert(method, Equals, "POST")
+	c.Assert(user, DeepEquals, "user")
+	c.Assert(pass, DeepEquals, "pass")
+	c.Assert(data, DeepEquals, values)
+
+	values = map[string]interface{}{"hello": "there, put"}
+	_, err = clt.PutJSON(clt.Endpoint("a", "b"), values)
+
+	c.Assert(err, IsNil)
+	c.Assert(method, Equals, "PUT")
+	c.Assert(user, DeepEquals, "user")
+	c.Assert(pass, DeepEquals, "pass")
+	c.Assert(data, DeepEquals, values)
 }
 
 func (s *ClientSuite) TestDelete(c *C) {
 	var method string
+	var user, pass string
+	var ok bool
 	srv := serveHandler(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok = r.BasicAuth()
 		method = r.Method
 	})
 	defer srv.Close()
 
-	clt := newC(srv.URL, "v1")
+	clt := newC(srv.URL, "v1", BasicAuth("user", "pass"))
 	re, err := clt.Delete(clt.Endpoint("a", "b"))
 	c.Assert(err, IsNil)
 	c.Assert(method, Equals, "DELETE")
 	c.Assert(re.Code(), Equals, http.StatusOK)
+	c.Assert(user, DeepEquals, "user")
+	c.Assert(pass, DeepEquals, "pass")
 }
 
 func (s *ClientSuite) TestGet(c *C) {
@@ -88,6 +155,31 @@ func (s *ClientSuite) TestGet(c *C) {
 	clt.Get(clt.Endpoint("a", "b"), values)
 	c.Assert(method, Equals, "GET")
 	c.Assert(query, DeepEquals, values)
+}
+
+func (s *ClientSuite) TestGetFile(c *C) {
+	fileName := filepath.Join(c.MkDir(), "file.txt")
+	err := ioutil.WriteFile(fileName, []byte("hello there"), 0666)
+	c.Assert(err, IsNil)
+	var user, pass string
+	var ok bool
+	srv := serveHandler(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok = r.BasicAuth()
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename=%v`, "file.txt"))
+		http.ServeFile(w, r, fileName)
+	})
+	defer srv.Close()
+
+	clt := newC(srv.URL, "v1", BasicAuth("user", "pass"))
+	f, err := clt.GetFile(clt.Endpoint("download"), url.Values{})
+	c.Assert(err, IsNil)
+	defer f.Close()
+	data, err := ioutil.ReadAll(f.Body())
+	c.Assert(err, IsNil)
+	c.Assert(string(data), Equals, "hello there")
+	c.Assert(f.FileName(), Equals, "file.txt")
+	c.Assert(user, Equals, "user")
+	c.Assert(pass, Equals, "pass")
 }
 
 func (s *ClientSuite) TestReplyNotFound(c *C) {
@@ -121,7 +213,10 @@ func (s *ClientSuite) TestPostMultipartForm(c *C) {
 	var params url.Values
 	var method string
 	var data []string
+	var user, pass string
+	var ok bool
 	srv := serveHandler(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok = r.BasicAuth()
 		u = r.URL
 		c.Assert(r.ParseMultipartForm(64<<20), IsNil)
 		params = r.Form
@@ -144,7 +239,7 @@ func (s *ClientSuite) TestPostMultipartForm(c *C) {
 	})
 	defer srv.Close()
 
-	clt := newC(srv.URL, "v1")
+	clt := newC(srv.URL, "v1", BasicAuth("user", "pass"))
 	values := url.Values{"a": []string{"b"}}
 	out, err := clt.PostForm(
 		clt.Endpoint("a", "b"),
@@ -166,10 +261,27 @@ func (s *ClientSuite) TestPostMultipartForm(c *C) {
 	c.Assert(method, Equals, "POST")
 	c.Assert(params, DeepEquals, values)
 	c.Assert(data, DeepEquals, []string{"file 1", "file 2"})
+
+	c.Assert(user, Equals, "user")
+	c.Assert(pass, Equals, "pass")
 }
 
-func newC(addr, version string) *testClient {
-	c, err := NewClient(addr, version)
+func (s *ClientSuite) TestGetBasicAuth(c *C) {
+	var user, pass string
+	var ok bool
+	srv := serveHandler(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok = r.BasicAuth()
+	})
+	defer srv.Close()
+
+	clt := newC(srv.URL, "v1", BasicAuth("user", "pass"))
+	clt.Get(clt.Endpoint("a", "b"), url.Values{})
+	c.Assert(user, DeepEquals, "user")
+	c.Assert(pass, DeepEquals, "pass")
+}
+
+func newC(addr, version string, params ...ClientParam) *testClient {
+	c, err := NewClient(addr, version, params...)
 	if err != nil {
 		panic(err)
 	}

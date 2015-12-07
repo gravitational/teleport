@@ -230,6 +230,7 @@ func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
 		srv.SetEventLogger(elog),
 		srv.SetSessionServer(client),
 		srv.SetRecorder(client),
+		srv.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
 	)
 	if err != nil {
 		return trace.Wrap(err)

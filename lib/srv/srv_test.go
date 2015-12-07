@@ -98,12 +98,12 @@ func (s *SrvSuite) SetUpTest(c *C) {
 
 	limiter, err := limiter.NewLimiter(
 		limiter.LimiterConfig{
-			MaxConnections: 2,
+			MaxConnections: 3,
 			Rates: []limiter.Rate{
 				limiter.Rate{
 					Period:  10 * time.Second,
 					Average: 1,
-					Burst:   3,
+					Burst:   4,
 				},
 				limiter.Rate{
 					Period:  40 * time.Millisecond,
@@ -358,10 +358,13 @@ func (s *SrvSuite) TestProxy(c *C) {
 		s.srv.Addr(), sshConfig)
 	c.Assert(err, NotNil)
 
+	client.Close()
+
 	testClient := func(targetNodeAddress string) {
 		// Connect to node using registered address
-		client, err = ssh.Dial("tcp", proxy.Addr(), sshConfig)
+		client, err := ssh.Dial("tcp", proxy.Addr(), sshConfig)
 		c.Assert(err, IsNil)
+		defer client.Close()
 		c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
 
 		se, err := client.NewSession()
@@ -398,6 +401,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 		// using this connection as regular SSH
 		client2 := ssh.NewClient(conn, chans, reqs)
 		c.Assert(err, IsNil)
+		defer client2.Close()
 
 		c.Assert(agent.ForwardToAgent(client2, keyring), IsNil)
 
@@ -420,11 +424,19 @@ func (s *SrvSuite) TestProxy(c *C) {
 		"localhost",
 		[]ssh.Signer{s.signer},
 		ap,
+		limiter,
 		c.MkDir(),
 		SetShell("/bin/sh"),
+		SetLabels(
+			map[string]string{"label1": "value1"},
+			map[string][]string{"cmdLabel1": []string{"expr", "1", "+", "3"}},
+		),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(srv2.Start(), IsNil)
+	defer srv2.Close()
+
+	time.Sleep(3200 * time.Millisecond)
 
 	// test proxysites
 	client, err = ssh.Dial("tcp", proxy.Addr(), sshConfig)
@@ -445,7 +457,10 @@ func (s *SrvSuite) TestProxy(c *C) {
 
 	c.Assert(se3.RequestSubsystem("proxysites"), IsNil)
 	<-done
-	c.Assert(stdout.String(), Equals, `{"localhost":[{"id":"127.0.0.1_30185","addr":"127.0.0.1:30185","hostname":"localhost"},{"id":"127.0.0.1_31185","addr":"127.0.0.1:31185","hostname":"localhost"}]}`)
+	c.Assert(stdout.String(), Equals,
+		`{"localhost":[{"id":"127.0.0.1_30185","addr":"127.0.0.1:30185","hostname":"localhost","labels":null,"cmd_labels":null},`+
+			`{"id":"127.0.0.1_31185","addr":"127.0.0.1:31185","hostname":"localhost","labels":{"label1":"value1"},"cmd_labels":{"cmdLabel1":{"command":["expr","1","+","3"],"result":"4\n"}}}]}`)
+
 }
 
 // TestPTY requests PTY for an interactive session
@@ -498,12 +513,21 @@ func (s *SrvSuite) TestClientDisconnect(c *C) {
 }
 
 func (s *SrvSuite) TestLimiter(c *C) {
-	// maxConnection = 2
+	// maxConnection = 3
 	// current connections = 1(one connection is opened from SetUpTest)
 	config := &ssh.ClientConfig{
 		User: "test",
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(s.up.certSigner)},
 	}
+
+	clt0, err := ssh.Dial("tcp", s.srv.Addr(), config)
+	c.Assert(clt0, NotNil)
+	c.Assert(err, IsNil)
+	se0, err := clt0.NewSession()
+	c.Assert(err, IsNil)
+	c.Assert(se0.Shell(), IsNil)
+
+	// current connections = 2
 	clt, err := ssh.Dial("tcp", s.srv.Addr(), config)
 	c.Assert(clt, NotNil)
 	c.Assert(err, IsNil)
@@ -511,14 +535,15 @@ func (s *SrvSuite) TestLimiter(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(se.Shell(), IsNil)
 
-	// current connections = 2
+	// current connections = 3
 	_, err = ssh.Dial("tcp", s.srv.Addr(), config)
 	c.Assert(err, NotNil)
 
+	c.Assert(se.Close(), IsNil)
 	c.Assert(clt.Close(), IsNil)
 	time.Sleep(50 * time.Millisecond)
 
-	// current connections = 1
+	// current connections = 2
 	clt, err = ssh.Dial("tcp", s.srv.Addr(), config)
 	c.Assert(clt, NotNil)
 	c.Assert(err, IsNil)
@@ -526,20 +551,23 @@ func (s *SrvSuite) TestLimiter(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(se.Shell(), IsNil)
 
-	// current connections = 2
+	// current connections = 3
 	_, err = ssh.Dial("tcp", s.srv.Addr(), config)
 	c.Assert(err, NotNil)
 
+	c.Assert(se.Close(), IsNil)
 	c.Assert(clt.Close(), IsNil)
 	time.Sleep(50 * time.Millisecond)
 
-	// current connections = 1
+	// current connections = 2
 	// requests rate should exceed now
 	clt, err = ssh.Dial("tcp", s.srv.Addr(), config)
 	c.Assert(clt, NotNil)
 	c.Assert(err, IsNil)
-	se, err = clt.NewSession()
+	_, err = clt.NewSession()
 	c.Assert(err, NotNil)
+
+	c.Assert(clt.Close(), IsNil)
 }
 
 // upack holds all ssh signing artefacts needed for signing and checking user keys
