@@ -44,29 +44,16 @@ func (s *AgentAPIServer) Start(apiAddr string) error {
 }
 
 func (s *AgentAPIServer) login(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	var proxyAddr, user, pass, hotpToken, ttlJSON string
-
-	err := form.Parse(r,
-		form.String("proxyAddr", &proxyAddr, form.Required()),
-		form.String("user", &user, form.Required()),
-		form.String("password", &pass, form.Required()),
-		form.String("hotpToken", &hotpToken, form.Required()),
-		form.String("ttl", &ttlJSON, form.Required()),
-	)
+	var args loginArgs
+	err := json.NewDecoder(r.Body).Decode(&args)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
 		return
 	}
 
-	var ttl time.Duration
-	if err != json.Unmarshal([]byte(ttlJSON), &ttl) {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
-		return
-	}
-
-	err = s.ag.Login(proxyAddr, user, pass, hotpToken, ttl)
+	err = s.ag.Login(args.ProxyAddr, args.User, args.Password,
+		args.HotpToken, args.TTL)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Login error: " + err.Error()))
@@ -74,6 +61,14 @@ func (s *AgentAPIServer) login(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	w.Write([]byte(LoginSuccess))
+}
+
+type loginArgs struct {
+	ProxyAddr string
+	User      string
+	Password  string
+	HotpToken string
+	TTL       time.Duration
 }
 
 const (

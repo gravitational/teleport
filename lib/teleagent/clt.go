@@ -1,11 +1,9 @@
 package teleagent
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -39,20 +37,15 @@ func Login(agentAPIAddr string, proxyAddr string, user string,
 		return trace.Wrap(err)
 	}
 
-	ttlJSON, err := json.Marshal(ttl)
-	if err != nil {
-		return trace.Wrap(err)
+	args := loginArgs{
+		ProxyAddr: proxyAddr,
+		User:      user,
+		Password:  string(password),
+		HotpToken: hotpToken,
+		TTL:       ttl,
 	}
 
-	out, err := c.PostForm(
-		c.Endpoint("login"),
-		url.Values{
-			"proxyAddr": []string{proxyAddr},
-			"user":      []string{user},
-			"password":  []string{string(password)},
-			"hotpToken": []string{hotpToken},
-			"ttl":       []string{string(ttlJSON)},
-		})
+	out, err := c.PostJSON(c.Endpoint("login"), args)
 	if err != nil {
 		return trace.Wrap(err)
 	}
