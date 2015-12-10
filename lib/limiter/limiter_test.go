@@ -119,19 +119,19 @@ func (s *LimiterSuite) TestRateLimiter(c *C) {
 
 	c.Assert(limiter.RegisterRequest("token1"), NotNil)
 
-	time.Sleep(10010 * time.Microsecond)
+	time.Sleep(10000 * time.Microsecond)
 	for i := 0; i < 10; i++ {
 		c.Assert(limiter.RegisterRequest("token1"), IsNil)
 	}
 	c.Assert(limiter.RegisterRequest("token1"), NotNil)
 
-	time.Sleep(10010 * time.Microsecond)
+	time.Sleep(10000 * time.Microsecond)
 	for i := 0; i < 10; i++ {
 		c.Assert(limiter.RegisterRequest("token1"), IsNil)
 	}
 	c.Assert(limiter.RegisterRequest("token1"), NotNil)
 
-	time.Sleep(10010 * time.Microsecond)
+	time.Sleep(10000 * time.Microsecond)
 	// the second rate is full
 	err = nil
 	for i := 0; i < 10; i++ {
@@ -142,7 +142,7 @@ func (s *LimiterSuite) TestRateLimiter(c *C) {
 	}
 	c.Assert(err, NotNil)
 
-	time.Sleep(10010 * time.Microsecond)
+	time.Sleep(10000 * time.Microsecond)
 	// Now the second rate have free space
 	c.Assert(limiter.RegisterRequest("token1"), IsNil)
 	err = nil

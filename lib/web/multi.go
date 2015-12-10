@@ -71,6 +71,7 @@ func NewMultiSiteHandler(cfg MultiSiteConfig) (*MultiSiteHandler, error) {
 
 	// WEB views
 	h.GET("/web/login", h.login)
+	h.GET("/web/loginerror", h.loginError)
 	h.GET("/web/logout", h.logout)
 	h.POST("/web/auth", h.authForm)
 
@@ -121,6 +122,10 @@ func (h *MultiSiteHandler) login(w http.ResponseWriter, r *http.Request, _ httpr
 	h.executeTemplate(w, "login", nil)
 }
 
+func (h *MultiSiteHandler) loginError(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	h.executeTemplate(w, "login", map[string]interface{}{"ErrorString": "Wrong username or password or hotp token"})
+}
+
 func (h *MultiSiteHandler) logout(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	if err := session.ClearSession(w, h.cfg.DomainName); err != nil {
 		log.Errorf("failed to clear session: %v", err)
@@ -146,7 +151,7 @@ func (h *MultiSiteHandler) authForm(w http.ResponseWriter, r *http.Request, p ht
 	sid, err := h.auth.Auth(user, pass, hotpToken)
 	if err != nil {
 		log.Warningf("auth error: %v", err)
-		http.Redirect(w, r, "/web/login", http.StatusFound)
+		http.Redirect(w, r, "/web/loginerror", http.StatusFound)
 		return
 	}
 	if err := session.SetSession(w, h.cfg.DomainName, user, sid); err != nil {
