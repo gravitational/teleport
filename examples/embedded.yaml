@@ -22,8 +22,12 @@ ssh:
     name: node1
     description: "first node"
   label-commands:
-    date: ["date"]
-    os: ["uname", "-r"]
+    date: 
+      peroid: 10s
+      command: ["date"]
+    os: 
+      period: 5s
+      command: ["uname", "-r"]
 
 reverse_tunnel:
   # this node will try to connect to remote web proxy and establish reverse SSH tunnel
