@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/configure"
@@ -75,7 +76,7 @@ func (s *ConfigSuite) TestParseEnv(c *C) {
 		"TELEPORT_SSH_ADDR":                         "tcp://localhost:1234",
 		"TELEPORT_SSH_SHELL":                        "/bin/bash",
 		"TELEPORT_SSH_LABELS":                       `{"label1":"value1", "label2":"value2"}`,
-		"TELEPORT_SSH_LABEL_COMMANDS":               `{"cmd1": ["c1", "arg1", "arg2"], "cmd2":["c2", "arg3"]}`,
+		"TELEPORT_SSH_LABEL_COMMANDS":               `{"cmd1": {"period": "1s", "command": ["c1", "arg1", "arg2"]}, "cmd2":{"period": "3s", "command": ["c2", "arg3"]}}`,
 		"TELEPORT_SSH_LIMITER":                      `{"max_connections": 2, "rates":[{"period": "20m", "average": 3, "burst": 7}, {"period": "1s", "average": 5, "burst": 3}]}`,
 		"TELEPORT_REVERSE_TUNNEL_ENABLED":           "true",
 		"TELEPORT_REVERSE_TUNNEL_TOKEN":             "tuntoken",
@@ -167,9 +168,15 @@ func (s *ConfigSuite) checkVariables(c *C, cfg *Config) {
 		"label1": "value1",
 		"label2": "value2",
 	})
-	c.Assert(cfg.SSH.CmdLabels, DeepEquals, MapStringArray{
-		"cmd1": []string{"c1", "arg1", "arg2"},
-		"cmd2": []string{"c2", "arg3"},
+	c.Assert(cfg.SSH.CmdLabels, DeepEquals, services.CommandLabels{
+		"cmd1": services.CommandLabel{
+			Period:  time.Second,
+			Command: []string{"c1", "arg1", "arg2"},
+		},
+		"cmd2": services.CommandLabel{
+			Period:  3 * time.Second,
+			Command: []string{"c2", "arg3"},
+		},
 	})
 	c.Assert(cfg.SSH.Limiter, DeepEquals, limiter.LimiterConfig{
 		MaxConnections: 2,
@@ -276,8 +283,12 @@ ssh:
     label1: value1
     label2: value2
   label-commands:
-    cmd1: ["c1", "arg1", "arg2"]
-    cmd2: ["c2", "arg3"]
+    cmd1: 
+      period: 1s
+      command: ["c1", "arg1", "arg2"]
+    cmd2:
+      period: 3s
+      command: ["c2", "arg3"]
 
 reverse_tunnel:
   enabled: true

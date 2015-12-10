@@ -111,16 +111,10 @@ func SetProxyMode(tsrv reversetunnel.Server) ServerOption {
 }
 
 func SetLabels(labels map[string]string,
-	cmdLabels map[string][]string) ServerOption {
+	cmdLabels services.CommandLabels) ServerOption {
 	return func(s *Server) error {
 		s.labels = labels
-		s.cmdLabels = make(map[string]services.CommandLabel)
-		for name, command := range cmdLabels {
-			s.cmdLabels[name] = services.CommandLabel{
-				Command: command,
-				Result:  "",
-			}
-		}
+		s.cmdLabels = cmdLabels
 		return nil
 	}
 }
@@ -206,20 +200,24 @@ func (s *Server) heartbeatPresence() {
 }
 
 func (s *Server) updateLabels() {
+	for name, label := range s.cmdLabels {
+		go s.updateLabel(name, label)
+	}
+}
+
+func (s *Server) updateLabel(name string, label services.CommandLabel) {
 	for {
-		for name, label := range s.cmdLabels {
-			out, err := exec.Command(label.Command[0], label.Command[1:]...).Output()
-			if err != nil {
-				log.Errorf(err.Error())
-				label.Result = err.Error() + " Output: " + string(out)
-			} else {
-				label.Result = string(out)
-			}
-			s.labelsMutex.Lock()
-			s.cmdLabels[name] = label
-			s.labelsMutex.Unlock()
+		out, err := exec.Command(label.Command[0], label.Command[1:]...).Output()
+		if err != nil {
+			log.Errorf(err.Error())
+			label.Result = err.Error() + " Output: " + string(out)
+		} else {
+			label.Result = string(out)
 		}
-		time.Sleep(3 * time.Second)
+		s.labelsMutex.Lock()
+		s.cmdLabels[name] = label
+		s.labelsMutex.Unlock()
+		time.Sleep(label.Period)
 	}
 }
 
@@ -324,7 +322,7 @@ func (s *Server) Close() error {
 func (s *Server) Start() error {
 	if !s.proxyMode {
 		if len(s.cmdLabels) > 0 {
-			go s.updateLabels()
+			s.updateLabels()
 		}
 		go s.heartbeatPresence()
 	}

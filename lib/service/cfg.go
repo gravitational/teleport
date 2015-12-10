@@ -174,13 +174,13 @@ type AuthConfig struct {
 
 // SSHConfig configures SSH server node role
 type SSHConfig struct {
-	Enabled   bool                  `yaml:"enabled" env:"TELEPORT_SSH_ENABLED"`
-	Token     string                `yaml:"token" env:"TELEPORT_SSH_TOKEN"`
-	Addr      utils.NetAddr         `yaml:"addr" env:"TELEPORT_SSH_ADDR"`
-	Shell     string                `yaml:"shell" env:"TELEPORT_SSH_SHELL"`
-	Limiter   limiter.LimiterConfig `yaml:"limiter" env:"TELEPORT_SSH_LIMITER"`
-	Labels    map[string]string     `yaml:"labels" env:"TELEPORT_SSH_LABELS"`
-	CmdLabels MapStringArray        `yaml:"label-commands" env:"TELEPORT_SSH_LABEL_COMMANDS"`
+	Enabled   bool                   `yaml:"enabled" env:"TELEPORT_SSH_ENABLED"`
+	Token     string                 `yaml:"token" env:"TELEPORT_SSH_TOKEN"`
+	Addr      utils.NetAddr          `yaml:"addr" env:"TELEPORT_SSH_ADDR"`
+	Shell     string                 `yaml:"shell" env:"TELEPORT_SSH_SHELL"`
+	Limiter   limiter.LimiterConfig  `yaml:"limiter" env:"TELEPORT_SSH_LIMITER"`
+	Labels    map[string]string      `yaml:"labels" env:"TELEPORT_SSH_LABELS"`
+	CmdLabels services.CommandLabels `yaml:"label-commands" env:"TELEPORT_SSH_LABEL_COMMANDS"`
 }
 
 // ReverseTunnelConfig configures reverse tunnel role
@@ -208,7 +208,6 @@ func (s *NetAddrSlice) Set(val string) error {
 }
 
 type KeyVal map[string]string
-type MapStringArray map[string][]string
 
 // Set accepts string with arguments in the form "key:val,key2:val2"
 func (kv *KeyVal) Set(v string) error {
@@ -233,13 +232,6 @@ type CertificateAuthority struct {
 }
 
 type CertificateAuthorities []CertificateAuthority
-
-func (m *MapStringArray) SetEnv(v string) error {
-	if err := json.Unmarshal([]byte(v), m); err != nil {
-		return trace.Wrap(err, "expected JSON encoded remote certificate")
-	}
-	return nil
-}
 
 func (c *CertificateAuthorities) SetEnv(v string) error {
 	var certs []CertificateAuthority
