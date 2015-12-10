@@ -119,7 +119,7 @@ func (h *MultiSiteHandler) String() string {
 }
 
 func (h *MultiSiteHandler) login(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	h.executeTemplate(w, "login", nil) ///map[string]interface{}{"ErrorString": ""})
+	h.executeTemplate(w, "login", nil)
 }
 
 func (h *MultiSiteHandler) loginError(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
