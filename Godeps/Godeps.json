@@ -79,7 +79,7 @@
 		},
 		{
 			"ImportPath": "github.com/gravitational/roundtrip",
-			"Rev": "2f369cdcb37a1bca46a788db2ae7c16621f78e17"
+			"Rev": "378cec8c0577627d1bf095ae8a6eaa5ee4a025f8"
 		},
 		{
 			"ImportPath": "github.com/gravitational/session",

@@ -37,10 +37,12 @@ package roundtrip
 
 import (
 	"bytes"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
-
 	"net/http"
 	"net/url"
 	"strings"
@@ -57,6 +59,14 @@ func HTTPClient(h *http.Client) ClientParam {
 	}
 }
 
+// BasicAuth sets username and password for HTTP client
+func BasicAuth(username, password string) ClientParam {
+	return func(c *Client) error {
+		c.basicAuth = &basicAuth{username: username, password: password}
+		return nil
+	}
+}
+
 // Client is a wrapper holding HTTP client. It hold target server address and a version prefix,
 // and provides common features for building HTTP client wrappers.
 type Client struct {
@@ -66,6 +76,9 @@ type Client struct {
 	v string
 	// client is a private http.Client instance
 	client *http.Client
+
+	// basicAuth tells client to use HTTP basic auth on every request
+	basicAuth *basicAuth
 }
 
 // NewClient returns a new instance of roundtrip.Client, or nil and error
@@ -89,6 +102,11 @@ func NewClient(addr, v string, params ...ClientParam) (*Client, error) {
 	return c, nil
 }
 
+// HTTPClient returns underlying http.Client
+func (c *Client) HTTPClient() *http.Client {
+	return c.client
+}
+
 // Endpoint returns a URL constructed from parts and version appended, e.g.
 //
 // c.Endpoint("user", "john") // returns "/v1/users/john"
@@ -104,9 +122,13 @@ func (c *Client) Endpoint(params ...string) string {
 func (c *Client) PostForm(endpoint string, vals url.Values, files ...File) (*Response, error) {
 	return c.RoundTrip(func() (*http.Response, error) {
 		if len(files) == 0 {
-			return c.client.Post(
-				endpoint, "application/x-www-form-urlencoded",
-				strings.NewReader(vals.Encode()))
+			req, err := http.NewRequest("POST", endpoint, strings.NewReader(vals.Encode()))
+			if err != nil {
+				return nil, err
+			}
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			c.addAuth(req)
+			return c.client.Do(req)
 		}
 		body := &bytes.Buffer{}
 		writer := multipart.NewWriter(body)
@@ -139,8 +161,43 @@ func (c *Client) PostForm(endpoint string, vals url.Values, files ...File) (*Res
 		if err != nil {
 			return nil, err
 		}
+		c.addAuth(req)
 		req.Header.Set("Content-Type",
 			fmt.Sprintf(`multipart/form-data;boundary="%v"`, boundary))
+		return c.client.Do(req)
+	})
+}
+
+// PostJSON posts JSON "application/json" encoded request body
+//
+// c.PostJSON(c.Endpoint("users"), map[string]string{"name": "alice@example.com"})
+//
+func (c *Client) PostJSON(endpoint string, data interface{}) (*Response, error) {
+	return c.RoundTrip(func() (*http.Response, error) {
+		data, err := json.Marshal(data)
+		req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(data))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		c.addAuth(req)
+		return c.client.Do(req)
+	})
+}
+
+// PutJSON posts JSON "application/json" encoded request body and "PUT" method
+//
+// c.PutJSON(c.Endpoint("users"), map[string]string{"name": "alice@example.com"})
+//
+func (c *Client) PutJSON(endpoint string, data interface{}) (*Response, error) {
+	return c.RoundTrip(func() (*http.Response, error) {
+		data, err := json.Marshal(data)
+		req, err := http.NewRequest("PUT", endpoint, bytes.NewBuffer(data))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		c.addAuth(req)
 		return c.client.Do(req)
 	})
 }
@@ -155,6 +212,7 @@ func (c *Client) Delete(endpoint string) (*Response, error) {
 		if err != nil {
 			return nil, err
 		}
+		c.addAuth(req)
 		return c.client.Do(req)
 	})
 }
@@ -170,8 +228,39 @@ func (c *Client) Get(u string, params url.Values) (*Response, error) {
 	}
 	baseUrl.RawQuery = params.Encode()
 	return c.RoundTrip(func() (*http.Response, error) {
-		return c.client.Get(baseUrl.String())
+		req, err := http.NewRequest("GET", baseUrl.String(), nil)
+		if err != nil {
+			return nil, err
+		}
+		c.addAuth(req)
+		return c.client.Do(req)
 	})
+}
+
+// GetFile executes get request and returns a file like object
+//
+// f, err := c.GetFile("files", "report.txt") // returns "/v1/files/report.txt"
+//
+func (c *Client) GetFile(u string, params url.Values) (*FileResponse, error) {
+	baseUrl, err := url.Parse(u)
+	if err != nil {
+		return nil, err
+	}
+	baseUrl.RawQuery = params.Encode()
+	req, err := http.NewRequest("GET", baseUrl.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	c.addAuth(req)
+	re, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	return &FileResponse{
+		code:    re.StatusCode,
+		headers: re.Header,
+		body:    re.Body,
+	}, nil
 }
 
 // RoundTripFn inidicates any function that can be passed to RoundTrip
@@ -190,6 +279,20 @@ func (c *Client) RoundTrip(fn RoundTripFn) (*Response, error) {
 		return nil, err
 	}
 	return &Response{code: re.StatusCode, headers: re.Header, body: buf}, nil
+}
+
+// SetAuthHeader sets client's authorization headers if client
+// was configured to work with authorization
+func (c *Client) SetAuthHeader(h http.Header) {
+	if c.basicAuth != nil {
+		h.Set("Authorization", c.basicAuth.String())
+	}
+}
+
+func (c *Client) addAuth(r *http.Request) {
+	if c.basicAuth != nil {
+		r.SetBasicAuth(c.basicAuth.username, c.basicAuth.password)
+	}
 }
 
 // Response indicates HTTP server response
@@ -224,4 +327,52 @@ type File struct {
 	Name     string
 	Filename string
 	Reader   io.Reader
+}
+
+// Response indicates HTTP server file response
+type FileResponse struct {
+	code    int
+	headers http.Header
+	body    io.ReadCloser
+}
+
+func (r *FileResponse) FileName() string {
+	value := r.headers.Get("Content-Disposition")
+	if len(value) == 0 {
+		return ""
+	}
+	_, params, err := mime.ParseMediaType(value)
+	if err != nil {
+		return ""
+	}
+	return params["filename"]
+}
+
+// Code returns HTTP response status code
+func (r *FileResponse) Code() int {
+	return r.code
+}
+
+// Headers returns http.Header dictionary with response headers
+func (r *FileResponse) Headers() http.Header {
+	return r.headers
+}
+
+// Reader returns reader with HTTP response body
+func (r *FileResponse) Body() io.ReadCloser {
+	return r.body
+}
+
+func (r *FileResponse) Close() error {
+	return r.body.Close()
+}
+
+type basicAuth struct {
+	username string
+	password string
+}
+
+func (b *basicAuth) String() string {
+	auth := b.username + ":" + b.password
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
 }

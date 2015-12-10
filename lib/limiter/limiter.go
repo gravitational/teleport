@@ -16,6 +16,7 @@ limitations under the License.
 package limiter
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
@@ -29,8 +30,16 @@ type Limiter struct {
 
 type LimiterConfig struct {
 	Rates            []Rate
-	MaxConnections   int64 `yaml:"max_connections"`
-	MaxNumberOfUsers int   `yaml:"max_users"`
+	MaxConnections   int64 `yaml:"max_connections" json:"max_connections"`
+	MaxNumberOfUsers int   `yaml:"max_users" json:"max_users"`
+}
+
+// SetEnv reads LimiterConfig from JSON string
+func (l *LimiterConfig) SetEnv(v string) error {
+	if err := json.Unmarshal([]byte(v), l); err != nil {
+		return trace.Wrap(err, "expected JSON encoded remote certificate")
+	}
+	return nil
 }
 
 func NewLimiter(config LimiterConfig) (*Limiter, error) {

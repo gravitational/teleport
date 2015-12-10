@@ -31,6 +31,7 @@ func (t *proxySitesSubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *s
 	for _, s := range t.srv.proxyTun.GetSites() {
 		servers, err := s.GetServers()
 		if err != nil {
+			panic(err.Error())
 			return trace.Wrap(err)
 		}
 		sites[s.GetName()] = servers

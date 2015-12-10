@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os/exec"
 	"path"
 	"strings"
 	"sync"
@@ -60,6 +61,10 @@ type Server struct {
 	reg         *sessionRegistry
 	se          rsession.SessionServer
 	rec         recorder.Recorder
+
+	labels      map[string]string                //static server labels
+	cmdLabels   map[string]services.CommandLabel //dymanic server labels
+	labelsMutex *sync.Mutex
 
 	certificatesCache *services.CAService
 
@@ -105,16 +110,26 @@ func SetProxyMode(tsrv reversetunnel.Server) ServerOption {
 	}
 }
 
+func SetLabels(labels map[string]string,
+	cmdLabels services.CommandLabels) ServerOption {
+	return func(s *Server) error {
+		s.labels = labels
+		s.cmdLabels = cmdLabels
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
 	ap auth.AccessPoint, limiter *limiter.Limiter,
 	dataDir string, options ...ServerOption) (*Server, error) {
 
 	s := &Server{
-		addr:     addr,
-		ap:       ap,
-		rr:       &backendResolver{ap: ap},
-		hostname: hostname,
+		addr:        addr,
+		ap:          ap,
+		rr:          &backendResolver{ap: ap},
+		hostname:    hostname,
+		labelsMutex: &sync.Mutex{},
 	}
 	s.reg = newSessionRegistry(s)
 	s.certChecker = ssh.CertChecker{IsAuthority: s.isAuthority}
@@ -162,19 +177,47 @@ func (s *Server) ID() string {
 
 func (s *Server) heartbeatPresence() {
 	for {
-		srv := services.Server{
-			ID:       s.ID(),
-			Addr:     s.addr.Addr,
-			Hostname: s.hostname,
-		}
-		if err := s.ap.UpsertServer(srv, 6*time.Second); err != nil {
-			log.Warningf("failed to announce %#v presence: %v", srv, err)
-		}
+		func() {
+			s.labelsMutex.Lock()
+			defer s.labelsMutex.Unlock()
+			srv := services.Server{
+				ID:        s.ID(),
+				Addr:      s.addr.Addr,
+				Hostname:  s.hostname,
+				Labels:    s.labels,
+				CmdLabels: s.cmdLabels,
+			}
+			if err := s.ap.UpsertServer(srv, 6*time.Second); err != nil {
+				log.Warningf("failed to announce %#v presence: %v", srv, err)
+			}
 
-		if err := s.updateTrustedCAKeys(); err != nil {
-			log.Warningf(err.Error())
-		}
+			if err := s.updateTrustedCAKeys(); err != nil {
+				log.Warningf(err.Error())
+			}
+		}()
 		time.Sleep(3 * time.Second)
+	}
+}
+
+func (s *Server) updateLabels() {
+	for name, label := range s.cmdLabels {
+		go s.updateLabel(name, label)
+	}
+}
+
+func (s *Server) updateLabel(name string, label services.CommandLabel) {
+	for {
+		out, err := exec.Command(label.Command[0], label.Command[1:]...).Output()
+		if err != nil {
+			log.Errorf(err.Error())
+			label.Result = err.Error() + " Output: " + string(out)
+		} else {
+			label.Result = string(out)
+		}
+		s.labelsMutex.Lock()
+		s.cmdLabels[name] = label
+		s.labelsMutex.Unlock()
+		time.Sleep(label.Period)
 	}
 }
 
@@ -278,6 +321,9 @@ func (s *Server) Close() error {
 
 func (s *Server) Start() error {
 	if !s.proxyMode {
+		if len(s.cmdLabels) > 0 {
+			s.updateLabels()
+		}
 		go s.heartbeatPresence()
 	}
 	return s.srv.Start()

@@ -16,6 +16,7 @@ limitations under the License.
 package limiter
 
 import (
+	"encoding/json"
 	"net/http"
 	"sync"
 	"time"
@@ -107,6 +108,32 @@ func (l *RateLimiter) RegisterRequest(token string) error {
 // Add rate limiter to the handle
 func (l *RateLimiter) WrapHandle(h http.Handler) {
 	l.TokenLimiter.Wrap(h)
+}
+
+func (r *Rate) UnmarshalJSON(value []byte) error {
+	type rate struct {
+		Period  string
+		Average int64
+		Burst   int64
+	}
+
+	var x rate
+	err := json.Unmarshal(value, &x)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	period, err := time.ParseDuration(x.Period)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	*r = Rate{
+		Period:  period,
+		Average: x.Average,
+		Burst:   x.Burst,
+	}
+	return nil
 }
 
 const (

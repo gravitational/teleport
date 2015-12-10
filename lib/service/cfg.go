@@ -107,7 +107,7 @@ type ProxyConfig struct {
 	// TLSCert is a base64 encoded certificate used by web portal
 	TLSCert string `yaml:"tlscert" env:"TELEPORT_PROXY_TLS_CERT"`
 
-	Limiter limiter.LimiterConfig `yaml:"limiter"`
+	Limiter limiter.LimiterConfig `yaml:"limiter" env:"TELEPORT_PROXY_LIMITER"`
 }
 
 type AuthConfig struct {
@@ -169,16 +169,18 @@ type AuthConfig struct {
 		Params KeyVal `yaml:"params,flow" env:"TELEPORT_AUTH_RECORDS_BACKEND_PARAMS"`
 	} `yaml:"records_backend"`
 
-	Limiter limiter.LimiterConfig `yaml:"limiter"`
+	Limiter limiter.LimiterConfig `yaml:"limiter" env:"TELEPORT_AUTH_LIMITER"`
 }
 
 // SSHConfig configures SSH server node role
 type SSHConfig struct {
-	Enabled bool                  `yaml:"enabled" env:"TELEPORT_SSH_ENABLED"`
-	Token   string                `yaml:"token" env:"TELEPORT_SSH_TOKEN"`
-	Addr    utils.NetAddr         `yaml:"addr" env:"TELEPORT_SSH_ADDR"`
-	Shell   string                `yaml:"shell" env:"TELEPORT_SSH_SHELL"`
-	Limiter limiter.LimiterConfig `yaml:"limiter"`
+	Enabled   bool                   `yaml:"enabled" env:"TELEPORT_SSH_ENABLED"`
+	Token     string                 `yaml:"token" env:"TELEPORT_SSH_TOKEN"`
+	Addr      utils.NetAddr          `yaml:"addr" env:"TELEPORT_SSH_ADDR"`
+	Shell     string                 `yaml:"shell" env:"TELEPORT_SSH_SHELL"`
+	Limiter   limiter.LimiterConfig  `yaml:"limiter" env:"TELEPORT_SSH_LIMITER"`
+	Labels    map[string]string      `yaml:"labels" env:"TELEPORT_SSH_LABELS"`
+	CmdLabels services.CommandLabels `yaml:"label-commands" env:"TELEPORT_SSH_LABEL_COMMANDS"`
 }
 
 // ReverseTunnelConfig configures reverse tunnel role
@@ -186,7 +188,7 @@ type ReverseTunnelConfig struct {
 	Enabled  bool                  `yaml:"enabled" env:"TELEPORT_REVERSE_TUNNEL_ENABLED"`
 	Token    string                `yaml:"token" env:"TELEPORT_REVERSE_TUNNEL_TOKEN"`
 	DialAddr utils.NetAddr         `yaml:"dial_addr" env:"TELEPORT_REVERSE_TUNNEL_DIAL_ADDR"`
-	Limiter  limiter.LimiterConfig `yaml:"limiter"`
+	Limiter  limiter.LimiterConfig `yaml:"limiter" env:"TELEPORT_REVERSE_TUNNEL_LIMITER"`
 }
 
 type NetAddrSlice []utils.NetAddr

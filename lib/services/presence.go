@@ -66,7 +66,66 @@ func (s *PresenceService) UpsertServer(server Server, ttl time.Duration) error {
 }
 
 type Server struct {
-	ID       string `json:"id"`
-	Addr     string `json:"addr"`
-	Hostname string `json:"hostname"`
+	ID        string                  `json:"id"`
+	Addr      string                  `json:"addr"`
+	Hostname  string                  `json:"hostname"`
+	Labels    map[string]string       `json:"labels"`
+	CmdLabels map[string]CommandLabel `json:"cmd_labels"`
+}
+
+type CommandLabel struct {
+	Period  time.Duration `json:"period"`
+	Command []string      `json:"command"` //["cmd", "arg1", "arg2"]
+	Result  string        `json:"result"`
+}
+
+// custom JSON formatting for supporting time.Duration format (1h5m3s)
+func (l *CommandLabel) UnmarshalJSON(value []byte) error {
+	type commandLabel struct {
+		Period  string   `json:"period"`
+		Command []string `json:"command"`
+		Result  string   `json:"result"`
+	}
+
+	var label commandLabel
+	err := json.Unmarshal(value, &label)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	period, err := time.ParseDuration(label.Period)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	*l = CommandLabel{
+		Period:  period,
+		Command: label.Command,
+		Result:  label.Result,
+	}
+	return nil
+}
+
+func (l CommandLabel) MarshalJSON() ([]byte, error) {
+	type commandLabel struct {
+		Period  string   `json:"period"`
+		Command []string `json:"command"`
+		Result  string   `json:"result"`
+	}
+
+	label := commandLabel{
+		Period:  l.Period.String(),
+		Command: l.Command,
+		Result:  l.Result,
+	}
+	return json.Marshal(label)
+}
+
+type CommandLabels map[string]CommandLabel
+
+func (c *CommandLabels) SetEnv(v string) error {
+	if err := json.Unmarshal([]byte(v), c); err != nil {
+		return trace.Wrap(err, "Can't parse Command Labels")
+	}
+	return nil
 }

@@ -146,7 +146,7 @@ func (s *LimiterSuite) TestRateLimiter(c *C) {
 	// Now the second rate have free space
 	c.Assert(limiter.RegisterRequest("token1"), IsNil)
 	err = nil
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 15; i++ {
 		err = limiter.RegisterRequest("token1")
 		if err != nil {
 			break
