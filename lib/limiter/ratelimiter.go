@@ -21,11 +21,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alexlyulkov/oxy/ratelimit"
-	"github.com/alexlyulkov/oxy/utils"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
-	"github.com/mailgun/timetools"
-	"github.com/mailgun/ttlmap"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/ttlmap"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/vulcand/oxy/ratelimit"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/vulcand/oxy/utils"
 )
 
 type RateLimiter struct {

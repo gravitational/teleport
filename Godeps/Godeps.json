@@ -121,10 +121,6 @@
 			"Rev": "0c3e45a1f7b20e1f818612ad4f42abfc0923f3d5"
 		},
 		{
-			"ImportPath": "github.com/mailgun/oxy/trace",
-			"Rev": "0c3e45a1f7b20e1f818612ad4f42abfc0923f3d5"
-		},
-		{
 			"ImportPath": "github.com/mailgun/oxy/utils",
 			"Rev": "0c3e45a1f7b20e1f818612ad4f42abfc0923f3d5"
 		},
@@ -143,6 +139,18 @@
 		{
 			"ImportPath": "github.com/mailgun/ttlmap",
 			"Rev": "16b258d86efc53ac5cf3e550604f566c32624fab"
+		},
+		{
+			"ImportPath": "github.com/vulcand/oxy/connlimit",
+			"Rev": "5725fecc9a4f3aa6fdc3ffd29cef771241809add"
+		},
+		{
+			"ImportPath": "github.com/vulcand/oxy/ratelimit",
+			"Rev": "5725fecc9a4f3aa6fdc3ffd29cef771241809add"
+		},
+		{
+			"ImportPath": "github.com/vulcand/oxy/utils",
+			"Rev": "5725fecc9a4f3aa6fdc3ffd29cef771241809add"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/bcrypt",
@@ -192,6 +200,11 @@
 		{
 			"ImportPath": "gopkg.in/check.v1",
 			"Rev": "64131543e7896d5bcc6bd5a76287eb75ea96c673"
+		},
+		{
+			"ImportPath": "gopkg.in/mgo.v2/bson",
+			"Comment": "r2015.06.03-4-gf4923a5",
+			"Rev": "f4923a569136442e900b8cf5c1a706c0a8b0883c"
 		},
 		{
 			"ImportPath": "gopkg.in/yaml.v2",

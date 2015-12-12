@@ -19,10 +19,10 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/alexlyulkov/oxy/connlimit"
-	"github.com/alexlyulkov/oxy/utils"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/vulcand/oxy/connlimit"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/vulcand/oxy/utils"
 )
 
 type ConnectionsLimiter struct {
