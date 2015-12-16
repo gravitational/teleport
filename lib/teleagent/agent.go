@@ -93,6 +93,10 @@ func (a *TeleAgent) Login(proxyAddr string, user string, pass string,
 	return nil
 }
 
+func (a *TeleAgent) AuthMethod() ssh.AuthMethod {
+	return ssh.PublicKeysCallback(a.agent.Signers)
+}
+
 const (
 	DefaultAgentAddress = "unix:///tmp/teleport.agent.sock"
 )

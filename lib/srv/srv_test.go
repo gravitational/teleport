@@ -265,13 +265,6 @@ func (s *SrvSuite) TestProxy(c *C) {
 	up, err := newUpack("test", s.a)
 	c.Assert(err, IsNil)
 
-	keyring := agent.NewKeyring()
-	addedKey := agent.AddedKey{
-		PrivateKey:  up.pkey,
-		Certificate: up.pcert,
-	}
-	c.Assert(keyring.Add(addedKey), IsNil)
-
 	bl, err := boltlog.New(filepath.Join(s.dir, "eventsdb"))
 	c.Assert(err, IsNil)
 
@@ -324,7 +317,6 @@ func (s *SrvSuite) TestProxy(c *C) {
 
 	client, err := ssh.Dial("tcp", proxy.Addr(), sshConfig)
 	c.Assert(err, IsNil)
-	c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
 
 	se0, err := client.NewSession()
 	c.Assert(err, IsNil)
@@ -365,7 +357,6 @@ func (s *SrvSuite) TestProxy(c *C) {
 		client, err := ssh.Dial("tcp", proxy.Addr(), sshConfig)
 		c.Assert(err, IsNil)
 		defer client.Close()
-		c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
 
 		se, err := client.NewSession()
 		c.Assert(err, IsNil)
@@ -402,8 +393,6 @@ func (s *SrvSuite) TestProxy(c *C) {
 		client2 := ssh.NewClient(conn, chans, reqs)
 		c.Assert(err, IsNil)
 		defer client2.Close()
-
-		c.Assert(agent.ForwardToAgent(client2, keyring), IsNil)
 
 		se2, err := client2.NewSession()
 		c.Assert(err, IsNil)
@@ -445,7 +434,6 @@ func (s *SrvSuite) TestProxy(c *C) {
 	// test proxysites
 	client, err = ssh.Dial("tcp", proxy.Addr(), sshConfig)
 	c.Assert(err, IsNil)
-	c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
 
 	se3, err := client.NewSession()
 	c.Assert(err, IsNil)
