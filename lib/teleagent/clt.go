@@ -29,7 +29,7 @@ func Login(agentAPIAddr string, proxyAddr string, user string,
 			&http.Client{
 				Transport: &http.Transport{
 					Dial: func(network, address string) (net.Conn, error) {
-						return net.Dial(pAgentAPIAddr.Network, pAgentAPIAddr.Addr)
+						return net.Dial(pAgentAPIAddr.AddrNetwork, pAgentAPIAddr.Addr)
 					}}},
 		),
 	)

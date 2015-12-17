@@ -87,7 +87,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{})
 	c.Assert(err, IsNil)
 
-	reverseTunnelAddress := utils.NetAddr{Network: "tcp", Addr: "localhost:33058"}
+	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:33058"}
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{signer},
@@ -107,7 +107,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	apiSrv.Serve()
 
 	tsrv, err := auth.NewTunServer(
-		utils.NetAddr{Network: "tcp", Addr: "localhost:31497"},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:31497"},
 		[]ssh.Signer{signer},
 		apiSrv, a, limiter)
 	c.Assert(err, IsNil)
@@ -127,7 +127,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	c.Assert(err, IsNil)
 
 	tunClt, err := auth.NewTunClient(
-		utils.NetAddr{Network: "tcp", Addr: tsrv.Addr()}, user, authMethod)
+		utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer tunClt.Close()
 
@@ -139,7 +139,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	c.Assert(rsAgent.Start(), IsNil)
 
 	srv, err := srv.New(
-		utils.NetAddr{Network: "tcp", Addr: "localhost:30185"},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:30185"},
 		"localhost",
 		[]ssh.Signer{signer},
 		ap,
@@ -156,7 +156,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 		web.MultiSiteConfig{
 			Tun:        reverseTunnelServer,
 			AssetsDir:  "../../../assets/web",
-			AuthAddr:   utils.NetAddr{Network: "tcp", Addr: tsrv.Addr()},
+			AuthAddr:   utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()},
 			DomainName: "localhost",
 		},
 	)
@@ -191,7 +191,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	agentAddress, err := utils.ParseAddr(agentAddr)
 	c.Assert(err, IsNil)
 
-	sshAgent, err := connectToSSHAgent(agentAddress.Network, agentAddress.Addr)
+	sshAgent, err := connectToSSHAgent(agentAddress.AddrNetwork, agentAddress.Addr)
 	c.Assert(err, IsNil)
 
 	sshConfig := &ssh.ClientConfig{
@@ -208,7 +208,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	c.Assert(err, IsNil)
 
 	// Creating ssh connection
-	sshAgent, err = connectToSSHAgent(agentAddress.Network, agentAddress.Addr)
+	sshAgent, err = connectToSSHAgent(agentAddress.AddrNetwork, agentAddress.Addr)
 	c.Assert(err, IsNil)
 
 	sshConfig = &ssh.ClientConfig{

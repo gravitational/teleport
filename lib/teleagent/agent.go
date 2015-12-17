@@ -32,7 +32,7 @@ func (a *TeleAgent) Start(agentAddr string) error {
 		return trace.Wrap(err)
 	}
 
-	l, err := net.Listen(addr.Network, addr.Addr)
+	l, err := net.Listen(addr.AddrNetwork, addr.Addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -91,6 +91,10 @@ func (a *TeleAgent) Login(proxyAddr string, user string, pass string,
 	}
 
 	return nil
+}
+
+func (a *TeleAgent) AuthMethod() ssh.AuthMethod {
+	return ssh.PublicKeysCallback(a.agent.Signers)
 }
 
 const (

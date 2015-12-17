@@ -103,7 +103,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	tsrv, err := NewTunServer(
-		utils.NetAddr{Network: "tcp", Addr: "127.0.0.1:0"},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		[]ssh.Signer{signer},
 		s.srv, s.a, limiter)
 
@@ -123,7 +123,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	c.Assert(err, IsNil)
 
 	tsrv, err := NewTunServer(
-		utils.NetAddr{Network: "tcp", Addr: "127.0.0.1:0"},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		[]ssh.Signer{s.signer},
 		srv, s.a, limiter)
 
@@ -146,7 +146,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient(
-		utils.NetAddr{Network: "tcp", Addr: tsrv.Addr()},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()},
 		"test", authMethod)
 	c.Assert(err, IsNil)
 
@@ -173,7 +173,7 @@ func (s *TunSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient(
-		utils.NetAddr{Network: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
+		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer clt.Close()
 
@@ -186,7 +186,7 @@ func (s *TunSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 
 	cltw, err := NewTunClient(
-		utils.NetAddr{Network: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
+		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer cltw.Close()
 
@@ -219,7 +219,7 @@ func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient(
-		utils.NetAddr{Network: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
+		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer clt.Close()
 
@@ -240,7 +240,7 @@ func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(err, IsNil)
 
 	cltw, err := NewTunClient(
-		utils.NetAddr{Network: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
+		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer cltw.Close()
 
@@ -281,7 +281,7 @@ func (s *TunSuite) TestSessionsBadPassword(c *C) {
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient(
-		utils.NetAddr{Network: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
+		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer clt.Close()
 

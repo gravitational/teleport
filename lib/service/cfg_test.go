@@ -108,14 +108,14 @@ func (s *ConfigSuite) checkVariables(c *C, cfg *Config) {
 	c.Assert(cfg.DataDir, Equals, "/tmp/data_dir")
 	c.Assert(cfg.Hostname, Equals, "domain.example.com")
 	c.Assert(cfg.AuthServers, DeepEquals, NetAddrSlice{
-		{Network: "tcp", Addr: "localhost:5000"},
-		{Network: "unix", Addr: "/var/run/auth.sock"},
+		{AddrNetwork: "tcp", Addr: "localhost:5000"},
+		{AddrNetwork: "unix", Addr: "/var/run/auth.sock"},
 	})
 
 	// auth section
 	c.Assert(cfg.Auth.Enabled, Equals, true)
 	c.Assert(cfg.Auth.SSHAddr, Equals,
-		utils.NetAddr{Network: "tcp", Addr: "localhost:5555"})
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:5555"})
 	c.Assert(cfg.Auth.HostAuthorityDomain, Equals, "a.domain.example.com")
 	c.Assert(cfg.Auth.Token, Equals, "authtoken")
 	c.Assert(cfg.Auth.SecretKey, Equals, "authsecret")
@@ -161,7 +161,7 @@ func (s *ConfigSuite) checkVariables(c *C, cfg *Config) {
 	// SSH section
 	c.Assert(cfg.SSH.Enabled, Equals, true)
 	c.Assert(cfg.SSH.Addr, Equals,
-		utils.NetAddr{Network: "tcp", Addr: "localhost:1234"})
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:1234"})
 	c.Assert(cfg.SSH.Token, Equals, "sshtoken")
 	c.Assert(cfg.SSH.Shell, Equals, "/bin/bash")
 	c.Assert(cfg.SSH.Labels, DeepEquals, map[string]string{
@@ -197,12 +197,12 @@ func (s *ConfigSuite) checkVariables(c *C, cfg *Config) {
 	// ReverseTunnel section
 	c.Assert(cfg.ReverseTunnel.Enabled, Equals, true)
 	c.Assert(cfg.ReverseTunnel.DialAddr, Equals,
-		utils.NetAddr{Network: "tcp", Addr: "telescope.example.com"})
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "telescope.example.com"})
 	c.Assert(cfg.ReverseTunnel.Token, Equals, "tuntoken")
 
 	c.Assert(cfg.Proxy.Enabled, Equals, true)
 	c.Assert(cfg.Proxy.ReverseTunnelListenAddr, Equals,
-		utils.NetAddr{Network: "tcp", Addr: "proxy.vendor.io:33006"})
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "proxy.vendor.io:33006"})
 	c.Assert(cfg.Proxy.Token, Equals, "proxytoken")
 
 }

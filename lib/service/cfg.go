@@ -295,8 +295,8 @@ func SetDefaults(cfg *Config) {
 	}
 	if cfg.SSH.Addr.IsEmpty() {
 		cfg.SSH.Addr = utils.NetAddr{
-			Network: "tcp",
-			Addr:    "127.0.0.1:33001",
+			AddrNetwork: "tcp",
+			Addr:        "127.0.0.1:33001",
 		}
 	}
 	if cfg.SSH.Shell == "" {
@@ -305,26 +305,26 @@ func SetDefaults(cfg *Config) {
 
 	if cfg.Auth.SSHAddr.IsEmpty() {
 		cfg.Auth.SSHAddr = utils.NetAddr{
-			Network: "tcp",
-			Addr:    "127.0.0.1:33000",
+			AddrNetwork: "tcp",
+			Addr:        "127.0.0.1:33000",
 		}
 	}
 	if cfg.Proxy.ReverseTunnelListenAddr.IsEmpty() {
 		cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{
-			Network: "tcp",
-			Addr:    "127.0.0.1:33006",
+			AddrNetwork: "tcp",
+			Addr:        "127.0.0.1:33006",
 		}
 	}
 	if cfg.Proxy.WebAddr.IsEmpty() {
 		cfg.Proxy.WebAddr = utils.NetAddr{
-			Network: "tcp",
-			Addr:    "127.0.0.1:33007",
+			AddrNetwork: "tcp",
+			Addr:        "127.0.0.1:33007",
 		}
 	}
 	if cfg.Proxy.SSHAddr.IsEmpty() {
 		cfg.Proxy.SSHAddr = utils.NetAddr{
-			Network: "tcp",
-			Addr:    "127.0.0.1:33008",
+			AddrNetwork: "tcp",
+			Addr:        "127.0.0.1:33008",
 		}
 	}
 }

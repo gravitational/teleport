@@ -22,17 +22,27 @@ import (
 )
 
 type NetAddr struct {
-	Addr    string
-	Network string
-	Path    string
+	Addr        string
+	AddrNetwork string
+	Path        string
 }
 
 func (a *NetAddr) IsEmpty() bool {
-	return a.Addr == "" && a.Network == "" && a.Path == ""
+	return a.Addr == "" && a.AddrNetwork == "" && a.Path == ""
 }
 
+// FullAddress returns full address including network and address (tcp://0.0.0.0:1243)
+func (a *NetAddr) FullAddress() string {
+	return fmt.Sprintf("%v://%v", a.AddrNetwork, a.Addr)
+}
+
+// String returns address without network (0.0.0.0:1234)
 func (a *NetAddr) String() string {
-	return fmt.Sprintf("%v://%v", a.Network, a.Addr)
+	return a.Addr
+}
+
+func (a *NetAddr) Network() string {
+	return a.AddrNetwork
 }
 
 func (a *NetAddr) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -57,7 +67,7 @@ func (a *NetAddr) Set(s string) error {
 		return err
 	}
 	a.Addr = v.Addr
-	a.Network = v.Network
+	a.AddrNetwork = v.AddrNetwork
 	return nil
 }
 
@@ -68,9 +78,9 @@ func ParseAddr(a string) (*NetAddr, error) {
 	}
 	switch u.Scheme {
 	case "tcp":
-		return &NetAddr{Addr: u.Host, Network: u.Scheme, Path: u.Path}, nil
+		return &NetAddr{Addr: u.Host, AddrNetwork: u.Scheme, Path: u.Path}, nil
 	case "unix":
-		return &NetAddr{Addr: u.Path, Network: u.Scheme}, nil
+		return &NetAddr{Addr: u.Path, AddrNetwork: u.Scheme}, nil
 	default:
 		return nil, fmt.Errorf("unsupported scheme '%v': '%v'", a, u.Scheme)
 	}
@@ -90,12 +100,12 @@ func (a *NetAddrVal) Set(s string) error {
 		return err
 	}
 	a.Addr = v.Addr
-	a.Network = v.Network
+	a.AddrNetwork = v.AddrNetwork
 	return nil
 }
 
 func (a *NetAddrVal) String() string {
-	return ((*NetAddr)(a)).String()
+	return ((*NetAddr)(a)).FullAddress()
 }
 
 func (a *NetAddrVal) Get() interface{} {
@@ -122,7 +132,7 @@ func (nl *NetAddrList) Set(s string) error {
 func (nl *NetAddrList) String() string {
 	var ns []string
 	for _, n := range *nl.addrs {
-		ns = append(ns, n.String())
+		ns = append(ns, n.FullAddress())
 	}
 	return strings.Join(ns, " ")
 }

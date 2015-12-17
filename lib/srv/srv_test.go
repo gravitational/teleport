@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"net"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -119,7 +118,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	s.srvAddress = "127.0.0.1:30185"
 	s.srvHostPort = "localhost:30185"
 	srv, err := New(
-		utils.NetAddr{Network: "tcp", Addr: s.srvAddress},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srvAddress},
 		"localhost",
 		[]ssh.Signer{s.signer},
 		ap,
@@ -241,7 +240,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 	c.Assert(err, IsNil)
 
 	ap := auth.NewBackendAccessPoint(s.bk)
-	reverseTunnelAddress := utils.NetAddr{Network: "tcp", Addr: "localhost:33056"}
+	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:33056"}
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
@@ -250,7 +249,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
 	proxy, err := New(
-		utils.NetAddr{Network: "tcp", Addr: "localhost:0"},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		"localhost",
 		[]ssh.Signer{s.signer},
 		ap,
@@ -265,13 +264,6 @@ func (s *SrvSuite) TestProxy(c *C) {
 	up, err := newUpack("test", s.a)
 	c.Assert(err, IsNil)
 
-	keyring := agent.NewKeyring()
-	addedKey := agent.AddedKey{
-		PrivateKey:  up.pkey,
-		Certificate: up.pcert,
-	}
-	c.Assert(keyring.Add(addedKey), IsNil)
-
 	bl, err := boltlog.New(filepath.Join(s.dir, "eventsdb"))
 	c.Assert(err, IsNil)
 
@@ -285,7 +277,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 	apiSrv.Serve()
 
 	tsrv, err := auth.NewTunServer(
-		utils.NetAddr{Network: "tcp", Addr: "localhost:31497"},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:31497"},
 		[]ssh.Signer{s.signer},
 		apiSrv, s.a, limiter)
 	c.Assert(err, IsNil)
@@ -304,7 +296,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 	c.Assert(err, IsNil)
 
 	tunClt, err := auth.NewTunClient(
-		utils.NetAddr{Network: "tcp", Addr: tsrv.Addr()}, user, authMethod)
+		utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer tunClt.Close()
 
@@ -324,7 +316,6 @@ func (s *SrvSuite) TestProxy(c *C) {
 
 	client, err := ssh.Dial("tcp", proxy.Addr(), sshConfig)
 	c.Assert(err, IsNil)
-	c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
 
 	se0, err := client.NewSession()
 	c.Assert(err, IsNil)
@@ -340,9 +331,9 @@ func (s *SrvSuite) TestProxy(c *C) {
 	unregisteredAddress := "0.0.0.0:30185"
 	c.Assert(se0.RequestSubsystem(fmt.Sprintf("proxy:%v", unregisteredAddress)), IsNil)
 
-	local, err := net.ResolveTCPAddr("tcp", proxy.Addr())
+	local, err := utils.ParseAddr("tcp://" + proxy.Addr())
 	c.Assert(err, IsNil)
-	remote, err := net.ResolveTCPAddr("tcp", s.srv.Addr())
+	remote, err := utils.ParseAddr("tcp://" + s.srv.Addr())
 	c.Assert(err, IsNil)
 
 	pipeNetConn := utils.NewPipeNetConn(
@@ -365,7 +356,6 @@ func (s *SrvSuite) TestProxy(c *C) {
 		client, err := ssh.Dial("tcp", proxy.Addr(), sshConfig)
 		c.Assert(err, IsNil)
 		defer client.Close()
-		c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
 
 		se, err := client.NewSession()
 		c.Assert(err, IsNil)
@@ -380,9 +370,9 @@ func (s *SrvSuite) TestProxy(c *C) {
 		// Request opening TCP connection to the remote host
 		c.Assert(se.RequestSubsystem(fmt.Sprintf("proxy:%v", targetNodeAddress)), IsNil)
 
-		local, err = net.ResolveTCPAddr("tcp", proxy.Addr())
+		local, err := utils.ParseAddr("tcp://" + proxy.Addr())
 		c.Assert(err, IsNil)
-		remote, err = net.ResolveTCPAddr("tcp", s.srv.Addr())
+		remote, err := utils.ParseAddr("tcp://" + s.srv.Addr())
 		c.Assert(err, IsNil)
 
 		pipeNetConn = utils.NewPipeNetConn(
@@ -403,8 +393,6 @@ func (s *SrvSuite) TestProxy(c *C) {
 		c.Assert(err, IsNil)
 		defer client2.Close()
 
-		c.Assert(agent.ForwardToAgent(client2, keyring), IsNil)
-
 		se2, err := client2.NewSession()
 		c.Assert(err, IsNil)
 		defer se2.Close()
@@ -420,7 +408,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 
 	// adding new node
 	srv2, err := New(
-		utils.NetAddr{Network: "tcp", Addr: "127.0.0.1:31185"},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:31185"},
 		"localhost",
 		[]ssh.Signer{s.signer},
 		ap,
@@ -445,7 +433,6 @@ func (s *SrvSuite) TestProxy(c *C) {
 	// test proxysites
 	client, err = ssh.Dial("tcp", proxy.Addr(), sshConfig)
 	c.Assert(err, IsNil)
-	c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
 
 	se3, err := client.NewSession()
 	c.Assert(err, IsNil)

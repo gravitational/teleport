@@ -224,7 +224,7 @@ func (s *TunServer) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel)
 // this direct tcp-ip request ignores port and host requested by client
 // and always forwards it to the local auth server listening on local socket
 func (s *TunServer) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
-	addr, _ := net.ResolveIPAddr("tcp", "localhost")
+	addr, _ := utils.ParseAddr("tcp://localhost")
 	conn := utils.NewPipeNetConn(
 		ch, ch, ch,
 		addr, addr,
@@ -414,7 +414,7 @@ func (c *TunClient) Close() error {
 
 func (c *TunClient) GetDialer() AccessPointDialer {
 	return func() (net.Conn, error) {
-		return c.dialer.Dial(c.dialer.addr.Network, "accesspoint:0")
+		return c.dialer.Dial(c.dialer.addr.AddrNetwork, "accesspoint:0")
 	}
 }
 
@@ -470,7 +470,7 @@ func (t *TunDialer) getClient(reset bool) (*ssh.Client, error) {
 		User: t.user,
 		Auth: t.auth,
 	}
-	client, err := ssh.Dial(t.addr.Network, t.addr.Addr, config)
+	client, err := ssh.Dial(t.addr.AddrNetwork, t.addr.Addr, config)
 	if err != nil {
 		return nil, err
 	}

@@ -38,7 +38,7 @@ type Agent struct {
 	elog        lunk.EventLogger
 	clt         *auth.TunClient
 	signers     []ssh.Signer
-	domainName        string
+	domainName  string
 	waitC       chan bool
 	disconnectC chan bool
 	conn        ssh.Conn
@@ -59,7 +59,7 @@ func NewAgent(addr utils.NetAddr, domainName string, signers []ssh.Signer,
 	a := &Agent{
 		clt:         clt,
 		addr:        addr,
-		domainName:        domainName,
+		domainName:  domainName,
 		signers:     signers,
 		waitC:       make(chan bool),
 		disconnectC: make(chan bool, 10),
@@ -143,7 +143,7 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 
 func (a *Agent) connect() error {
 	log.Infof("agent connect")
-	c, err := ssh.Dial(a.addr.Network, a.addr.Addr, &ssh.ClientConfig{
+	c, err := ssh.Dial(a.addr.AddrNetwork, a.addr.Addr, &ssh.ClientConfig{
 		User:            a.domainName,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(a.signers...)},
 		HostKeyCallback: a.checkHostSignature,

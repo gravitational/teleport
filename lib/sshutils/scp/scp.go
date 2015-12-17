@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 )
 
 const (
@@ -181,7 +182,7 @@ func (s *Server) serveSink(ch io.ReadWriter) error {
 			return err
 		}
 		if n < 1 {
-			return fmt.Errorf("unexpected error, read 0 bytes")
+			return trace.Errorf("unexpected error, read 0 bytes")
 		}
 
 		if b[0] == OKByte {
@@ -216,7 +217,7 @@ func (s *Server) processCommand(ch io.ReadWriter, st *state, b byte, line string
 		return nil
 	case ErrByte:
 		log.Errorf("got error: %v", line)
-		return fmt.Errorf(line)
+		return trace.Errorf(line)
 	case 'C':
 		f, err := ParseNewFile(line)
 		if err != nil {
@@ -250,7 +251,7 @@ func (s *Server) processCommand(ch io.ReadWriter, st *state, b byte, line string
 		}
 		log.Infof("got mtime command: %#v", m)
 	}
-	return fmt.Errorf("got unrecognized command: %v", string(b))
+	return trace.Errorf("got unrecognized command: %v", string(b))
 }
 
 func (s *Server) receiveFile(st *state, cmd NewFileCmd, ch io.ReadWriter) error {
@@ -330,7 +331,7 @@ func IsSCP(cmd string) bool {
 
 func ParseCommand(arg string) (*Command, error) {
 	if !IsSCP(arg) {
-		return nil, fmt.Errorf("not scp command")
+		return nil, trace.Errorf("not scp command")
 	}
 	args := strings.Split(arg, " ")
 	f := flag.NewFlagSet(args[0], flag.ContinueOnError)
@@ -348,11 +349,11 @@ func ParseCommand(arg string) (*Command, error) {
 
 	cmd.Target = f.Arg(0)
 	if cmd.Target == "" {
-		return nil, fmt.Errorf("missing target")
+		return nil, trace.Errorf("missing target")
 	}
 
 	if !cmd.Source && !cmd.Sink {
-		return nil, fmt.Errorf("remote mode is not supported")
+		return nil, trace.Errorf("remote mode is not supported")
 	}
 
 	return &cmd, nil
@@ -367,7 +368,7 @@ type NewFileCmd struct {
 func ParseNewFile(line string) (*NewFileCmd, error) {
 	parts := strings.SplitN(line, " ", 3)
 	if len(parts) != 3 {
-		return nil, fmt.Errorf("broken command")
+		return nil, trace.Errorf("broken command")
 	}
 	c := NewFileCmd{}
 
@@ -392,7 +393,7 @@ type MtimeCmd struct {
 func ParseMtime(line string) (*MtimeCmd, error) {
 	parts := strings.SplitN(line, " ", 4)
 	if len(parts) != 4 {
-		return nil, fmt.Errorf("broken mtime command")
+		return nil, trace.Errorf("broken mtime command")
 	}
 	var err error
 	vars := make([]int64, 4)
@@ -422,8 +423,9 @@ func sendError(ch io.ReadWriter, message string) error {
 }
 
 type state struct {
-	notRoot bool
-	path    []string
+	notRoot  bool
+	path     []string
+	finished bool
 }
 
 func (st *state) push(dir string) {
@@ -431,8 +433,12 @@ func (st *state) push(dir string) {
 }
 
 func (st *state) pop() error {
+	if st.finished {
+		return trace.Errorf("empty path")
+	}
 	if len(st.path) == 0 {
-		return fmt.Errorf("empty path")
+		st.finished = true // allow extra 'E' command in the end
+		return nil
 	}
 	st.path = st.path[:len(st.path)-1]
 	return nil
@@ -463,7 +469,7 @@ func (r *reader) read() error {
 		return err
 	}
 	if n < 1 {
-		return fmt.Errorf("unexpected error, read 0 bytes")
+		return trace.Errorf("unexpected error, read 0 bytes")
 	}
 
 	switch r.b[0] {
@@ -483,5 +489,5 @@ func (r *reader) read() error {
 		log.Warningf("warn: %v", r.s.Text())
 		return nil
 	}
-	return fmt.Errorf("unrecognized command: %#v", r.b)
+	return trace.Errorf("unrecognized command: %#v", r.b)
 }
