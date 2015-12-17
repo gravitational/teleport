@@ -16,6 +16,7 @@ limitations under the License.
 package client
 
 import (
+	"bytes"
 	"io/ioutil"
 	"net/http"
 	"path/filepath"
@@ -251,9 +252,10 @@ func (s *ClientSuite) TestRunCommand(c *C) {
 		s.teleagent.AuthMethod(), "user1")
 	c.Assert(err, IsNil)
 
-	out, err := nodeClient.Run("expr 3 + 5")
+	buf := bytes.Buffer{}
+	err = nodeClient.Run("expr 3 + 5", &buf)
 	c.Assert(err, IsNil)
-	c.Assert(out, Equals, "8\n")
+	c.Assert(buf.String(), Equals, "8\n")
 }
 
 func (s *ClientSuite) TestConnectViaProxy(c *C) {
@@ -265,9 +267,10 @@ func (s *ClientSuite) TestConnectViaProxy(c *C) {
 		s.teleagent.AuthMethod(), "user1")
 	c.Assert(err, IsNil)
 
-	out, err := nodeClient.Run("expr 3 + 5")
+	buf := bytes.Buffer{}
+	err = nodeClient.Run("expr 3 + 6", &buf)
 	c.Assert(err, IsNil)
-	c.Assert(out, Equals, "8\n")
+	c.Assert(buf.String(), Equals, "9\n")
 }
 
 func (s *ClientSuite) TestShell(c *C) {

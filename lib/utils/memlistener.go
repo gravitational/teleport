@@ -91,7 +91,7 @@ func (ml *MemoryListener) Handle(conn net.Conn) error {
 func (ml *MemoryListener) Addr() net.Addr {
 	addr := NetAddr{
 		AddrNetwork: "tcp",
-		Addr:        "memoryListenet",
+		Addr:        "memoryListener",
 	}
 	return &addr
 }

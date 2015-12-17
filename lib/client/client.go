@@ -235,6 +235,10 @@ func (client *NodeClient) Shell() (io.ReadWriteCloser, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Here we can use session.StdoutPipe() instead of Buffer,
+	// but according to the ssh godoc:
+	// "If the StdoutPipe reader is not serviced fast
+	// enough it may eventually cause the remote command to block."
 	stdout := &bytes.Buffer{}
 	session.Stdout = stdout
 
@@ -252,19 +256,20 @@ func (client *NodeClient) Shell() (io.ReadWriteCloser, error) {
 	), nil
 }
 
-// Run executes command on remote server and returns its output
-func (client *NodeClient) Run(cmd string) (string, error) {
+// Run executes command on the remote server and writes its stdout to
+// the 'output' argument
+func (client *NodeClient) Run(cmd string, output io.Writer) error {
 	session, err := client.Client.NewSession()
 	if err != nil {
-		return "", trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	out, err := session.Output(cmd)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+	session.Stdout = output
 
-	return string(out), nil
+	if err := session.Run(cmd); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // Upload uploads file or dir to the remote server
