@@ -422,8 +422,9 @@ func sendError(ch io.ReadWriter, message string) error {
 }
 
 type state struct {
-	notRoot bool
-	path    []string
+	notRoot  bool
+	path     []string
+	finished bool
 }
 
 func (st *state) push(dir string) {
@@ -431,8 +432,12 @@ func (st *state) push(dir string) {
 }
 
 func (st *state) pop() error {
-	if len(st.path) == 0 {
+	if st.finished {
 		return fmt.Errorf("empty path")
+	}
+	if len(st.path) == 0 {
+		st.finished = true // allow extra 'E' command in the end
+		return nil
 	}
 	st.path = st.path[:len(st.path)-1]
 	return nil

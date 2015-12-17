@@ -30,7 +30,7 @@ func NewAgentAPIServer(ag *TeleAgent) *AgentAPIServer {
 func (s *AgentAPIServer) Start(apiAddr string) error {
 	addr, err := utils.ParseAddr(apiAddr)
 
-	l, err := net.Listen(addr.Network, addr.Addr)
+	l, err := net.Listen(addr.AddrNetwork, addr.Addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -29,25 +29,32 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strings"
+	"os"
+	"regexp"
+	"time"
 
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
 
+// ProxyClient implements ssh client to a teleport proxy
+// It can provide list of nodes or connect to nodes
 type ProxyClient struct {
-	*ssh.Client
+	Client       *ssh.Client
 	proxyAddress string
 }
 
+// NodeClient implements ssh client to a ssh node (teleport or any regular ssh node)
+// NodeClient can run shell and commands or upload and download files.
 type NodeClient struct {
-	*ssh.Client
+	Client *ssh.Client
 }
 
+// ConnectToProxy returns connected and authenticated ProxyClient
 func ConnectToProxy(proxyAddress string, authMethod ssh.AuthMethod, user string) (*ProxyClient, error) {
 	sshConfig := &ssh.ClientConfig{
 		User: user,
@@ -65,7 +72,7 @@ func ConnectToProxy(proxyAddress string, authMethod ssh.AuthMethod, user string)
 	}, nil
 }
 
-// Returns list of the nodes connected to the proxy
+// GetServers returns list of the nodes connected to the proxy
 func (proxy *ProxyClient) GetServers() ([]services.Server, error) {
 	proxySession, err := proxy.Client.NewSession()
 	if err != nil {
@@ -83,7 +90,11 @@ func (proxy *ProxyClient) GetServers() ([]services.Server, error) {
 	if err := proxySession.RequestSubsystem("proxysites"); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	<-done
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		return nil, trace.Errorf("timeout")
+	}
 
 	servers := make(map[string][]services.Server)
 	if err := json.Unmarshal(stdout.Bytes(), &servers); err != nil {
@@ -98,10 +109,15 @@ func (proxy *ProxyClient) GetServers() ([]services.Server, error) {
 	return serversList, nil
 }
 
-// Returns list of the nodes which have labels "labelName" and
-// corresponding values containing "labelValue"
+// FindServers returns list of the nodes which have labels "labelName" and
+// corresponding values matches "labelValueRegexp"
 func (proxy *ProxyClient) FindServers(labelName string,
-	labelValue string) ([]services.Server, error) {
+	labelValueRegexp string) ([]services.Server, error) {
+
+	labelRegex, err := regexp.Compile(labelValueRegexp)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	allServers, err := proxy.GetServers()
 	if err != nil {
@@ -112,7 +128,7 @@ func (proxy *ProxyClient) FindServers(labelName string,
 	for _, srv := range allServers {
 		alreadyAdded := false
 		for name, label := range srv.CmdLabels {
-			if name == labelName && strings.Contains(label.Result, labelValue) {
+			if name == labelName && labelRegex.MatchString(label.Result) {
 				foundServers = append(foundServers, srv)
 				alreadyAdded = true
 				break
@@ -122,7 +138,7 @@ func (proxy *ProxyClient) FindServers(labelName string,
 			continue
 		}
 		for name, value := range srv.Labels {
-			if name == labelName && strings.Contains(value, labelValue) {
+			if name == labelName && labelRegex.MatchString(value) {
 				foundServers = append(foundServers, srv)
 				break
 			}
@@ -132,7 +148,8 @@ func (proxy *ProxyClient) FindServers(labelName string,
 	return foundServers, nil
 }
 
-// Connects to Node via Proxy
+// ConnectToNode connects to the ssh server via Proxy.
+// It returns connected and authenticated NodeClient
 func (proxy *ProxyClient) ConnectToNode(nodeAddress string, authMethod ssh.AuthMethod, user string) (*NodeClient, error) {
 	sshConfig := &ssh.ClientConfig{
 		User: user,
@@ -159,11 +176,12 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, authMethod ssh.AuthM
 		return nil, trace.Wrap(err)
 	}
 
-	localAddr, err := net.ResolveTCPAddr("tcp", proxy.proxyAddress)
+	localAddr, err := utils.ParseAddr("tcp://" + proxy.proxyAddress)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	remoteAddr, err := net.ResolveTCPAddr("tcp", nodeAddress)
+
+	remoteAddr, err := utils.ParseAddr("tcp://" + nodeAddress)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -190,6 +208,7 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, authMethod ssh.AuthM
 	return &NodeClient{Client: client}, nil
 }
 
+// ConnectToNode returns connected and authenticated NodeClient
 func ConnectToNode(nodeAddress string, authMethod ssh.AuthMethod, user string) (*NodeClient, error) {
 	sshConfig := &ssh.ClientConfig{
 		User: user,
@@ -204,7 +223,7 @@ func ConnectToNode(nodeAddress string, authMethod ssh.AuthMethod, user string) (
 	return &NodeClient{Client: client}, nil
 }
 
-// Returns remote shell as io.ReadWriterCloser object
+// Shell returns remote shell as io.ReadWriterCloser object
 func (client *NodeClient) Shell() (io.ReadWriteCloser, error) {
 	session, err := client.Client.NewSession()
 	if err != nil {
@@ -233,6 +252,7 @@ func (client *NodeClient) Shell() (io.ReadWriteCloser, error) {
 	), nil
 }
 
+// Run executes command on remote server and returns its output
 func (client *NodeClient) Run(cmd string) (string, error) {
 	session, err := client.Client.NewSession()
 	if err != nil {
@@ -245,4 +265,104 @@ func (client *NodeClient) Run(cmd string) (string, error) {
 	}
 
 	return string(out), nil
+}
+
+// Upload uploads file or dir to the remote server
+func (client *NodeClient) Upload(localSourcePath, remoteDestinationPath string) error {
+	file, err := os.Open(localSourcePath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	file.Close()
+
+	scpConf := scp.Command{
+		Source:      true,
+		TargetIsDir: fileInfo.IsDir(),
+		Recursive:   fileInfo.IsDir(),
+		Target:      localSourcePath,
+	}
+
+	shellCmd := "/usr/bin/scp -t"
+	if fileInfo.IsDir() {
+		shellCmd += " -r"
+	}
+	shellCmd += " " + remoteDestinationPath
+
+	return client.scp(scpConf, shellCmd)
+}
+
+// Download downloads file or dir from the remote server
+func (client *NodeClient) Download(remoteSourcePath, localDestinationPath string, isDir bool) error {
+	scpConf := scp.Command{
+		Sink:        true,
+		TargetIsDir: isDir,
+		Recursive:   isDir,
+		Target:      localDestinationPath,
+	}
+
+	shellCmd := "/usr/bin/scp -f"
+	if isDir {
+		shellCmd += " -r"
+	}
+	shellCmd += " " + remoteSourcePath
+
+	return client.scp(scpConf, shellCmd)
+}
+
+// scp runs remote scp command(shellCmd) on the remote server and
+// runs local scp handler using scpConf
+func (client *NodeClient) scp(scpConf scp.Command, shellCmd string) error {
+	session, err := client.Client.NewSession()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer session.Close()
+
+	stdin, err := session.StdinPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ch := utils.NewPipeNetConn(
+		stdout,
+		stdin,
+		utils.MultiCloser(),
+		&net.IPAddr{},
+		&net.IPAddr{},
+	)
+
+	scpServer, err := scp.New(scpConf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	done := make(chan struct{})
+
+	go func() {
+		scpServer.Serve(ch)
+		stdin.Close()
+		close(done)
+	}()
+
+	err = session.Run(shellCmd)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		return trace.Errorf("timeout")
+	}
+
+	return nil
 }

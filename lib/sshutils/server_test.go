@@ -56,7 +56,7 @@ func (s *ServerSuite) TestStartStop(c *C) {
 	c.Assert(err, IsNil)
 
 	srv, err := NewServer(
-		utils.NetAddr{Network: "tcp", Addr: "localhost:0"},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		fn,
 		s.signers,
 		AuthMethods{Password: pass("abc123")},

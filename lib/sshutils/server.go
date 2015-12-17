@@ -84,7 +84,7 @@ func (s *Server) Addr() string {
 }
 
 func (s *Server) Start() error {
-	socket, err := net.Listen(s.addr.Network, s.addr.Addr)
+	socket, err := net.Listen(s.addr.AddrNetwork, s.addr.Addr)
 	if err != nil {
 		return err
 	}
@@ -229,7 +229,7 @@ type AuthMethods struct {
 }
 
 func checkArguments(a utils.NetAddr, h NewChanHandler, hostSigners []ssh.Signer, ah AuthMethods) error {
-	if a.Addr == "" || a.Network == "" {
+	if a.Addr == "" || a.AddrNetwork == "" {
 		return fmt.Errorf("specify network and the address for listening socket")
 	}
 	if h == nil {

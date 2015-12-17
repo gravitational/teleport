@@ -16,6 +16,7 @@ limitations under the License.
 package client
 
 import (
+	"io/ioutil"
 	"net/http"
 	"path/filepath"
 	"testing"
@@ -107,7 +108,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	// Starting node1
 	s.srvAddress = "127.0.0.1:30185"
 	s.srv, err = srv.New(
-		utils.NetAddr{Network: "tcp", Addr: s.srvAddress},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srvAddress},
 		"localhost",
 		[]ssh.Signer{s.signer},
 		ap,
@@ -129,7 +130,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	// Starting node2
 	s.srv2Address = "127.0.0.1:30189"
 	s.srv2, err = srv.New(
-		utils.NetAddr{Network: "tcp", Addr: s.srv2Address},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srv2Address},
 		"localhost",
 		[]ssh.Signer{s.signer},
 		ap,
@@ -154,7 +155,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	c.Assert(s.srv2.Start(), IsNil)
 
 	// Starting proxy
-	reverseTunnelAddress := utils.NetAddr{Network: "tcp", Addr: "localhost:33056"}
+	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:33056"}
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
@@ -165,7 +166,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	s.proxyAddress = "localhost:34783"
 
 	s.proxy, err = srv.New(
-		utils.NetAddr{Network: "tcp", Addr: s.proxyAddress},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: s.proxyAddress},
 		"localhost",
 		[]ssh.Signer{s.signer},
 		ap,
@@ -189,7 +190,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	apiSrv.Serve()
 
 	tsrv, err := auth.NewTunServer(
-		utils.NetAddr{Network: "tcp", Addr: "localhost:31497"},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:31497"},
 		[]ssh.Signer{s.signer},
 		apiSrv, s.a, allowAllLimiter)
 	c.Assert(err, IsNil)
@@ -208,7 +209,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	c.Assert(err, IsNil)
 
 	tunClt, err := auth.NewTunClient(
-		utils.NetAddr{Network: "tcp", Addr: tsrv.Addr()}, user, authMethod)
+		utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()}, user, authMethod)
 	c.Assert(err, IsNil)
 
 	rsAgent, err := reversetunnel.NewAgent(
@@ -222,7 +223,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 		web.MultiSiteConfig{
 			Tun:        reverseTunnelServer,
 			AssetsDir:  "../../assets/web",
-			AuthAddr:   utils.NetAddr{Network: "tcp", Addr: tsrv.Addr()},
+			AuthAddr:   utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()},
 			DomainName: "localhost",
 		},
 	)
@@ -360,7 +361,14 @@ func (s *ClientSuite) TestGetServer(c *C) {
 		server2Info,
 	})
 
-	servers, err = proxyClient.FindServers("label2", "value2")
+	servers, err = proxyClient.FindServers("label1", "val.*")
+	c.Assert(err, IsNil)
+	c.Assert(servers, DeepEquals, []services.Server{
+		server1Info,
+		server2Info,
+	})
+
+	servers, err = proxyClient.FindServers("label2", ".*ue2")
 	c.Assert(err, IsNil)
 	c.Assert(servers, DeepEquals, []services.Server{
 		server1Info,
@@ -384,4 +392,110 @@ func (s *ClientSuite) TestGetServer(c *C) {
 		server2Info,
 	})
 
+}
+
+func (s *ClientSuite) TestUploadFile(c *C) {
+	proxyClient, err := ConnectToProxy(s.proxyAddress,
+		s.teleagent.AuthMethod(), "user1")
+	c.Assert(err, IsNil)
+
+	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
+		s.teleagent.AuthMethod(), "user1")
+	c.Assert(err, IsNil)
+
+	dir := c.MkDir()
+	sourceFileName := filepath.Join(dir, "file1")
+	contents := []byte("hello world!")
+
+	err = ioutil.WriteFile(sourceFileName, contents, 0666)
+	c.Assert(err, IsNil)
+
+	destinationFileName := filepath.Join(dir, "file2")
+	c.Assert(nodeClient.Upload(sourceFileName, destinationFileName), IsNil)
+
+	bytes, err := ioutil.ReadFile(destinationFileName)
+	c.Assert(err, IsNil)
+	c.Assert(string(bytes), Equals, string(contents))
+}
+
+func (s *ClientSuite) TestDownloadFile(c *C) {
+	proxyClient, err := ConnectToProxy(s.proxyAddress,
+		s.teleagent.AuthMethod(), "user1")
+	c.Assert(err, IsNil)
+
+	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
+		s.teleagent.AuthMethod(), "user1")
+	c.Assert(err, IsNil)
+
+	dir := c.MkDir()
+	sourceFileName := filepath.Join(dir, "file3")
+	contents := []byte("world hello")
+
+	err = ioutil.WriteFile(sourceFileName, contents, 0666)
+	c.Assert(err, IsNil)
+
+	destinationFileName := filepath.Join(dir, "file4")
+	c.Assert(nodeClient.Download(sourceFileName, destinationFileName, false), IsNil)
+
+	bytes, err := ioutil.ReadFile(destinationFileName)
+	c.Assert(err, IsNil)
+	c.Assert(string(bytes), Equals, string(contents))
+}
+
+func (s *ClientSuite) TestUploadDir(c *C) {
+	nodeClient, err := ConnectToNode(s.srvAddress,
+		s.teleagent.AuthMethod(), "user1")
+	c.Assert(err, IsNil)
+
+	dir1 := c.MkDir()
+	dir2 := c.MkDir()
+	sourceFileName1 := filepath.Join(dir1, "file1")
+	sourceFileName2 := filepath.Join(dir1, "file2")
+	contents1 := []byte("this is content 1")
+	contents2 := []byte("this is content 2")
+
+	err = ioutil.WriteFile(sourceFileName1, contents1, 0666)
+	err = ioutil.WriteFile(sourceFileName2, contents2, 0666)
+	c.Assert(err, IsNil)
+
+	destinationFileName1 := filepath.Join(dir2, "subdir", "file1")
+	destinationFileName2 := filepath.Join(dir2, "subdir", "file2")
+
+	c.Assert(nodeClient.Upload(dir1, dir2+"/subdir"), IsNil)
+
+	bytes, err := ioutil.ReadFile(destinationFileName1)
+	c.Assert(err, IsNil)
+	c.Assert(string(bytes), Equals, string(contents1))
+	bytes, err = ioutil.ReadFile(destinationFileName2)
+	c.Assert(err, IsNil)
+	c.Assert(string(bytes), Equals, string(contents2))
+}
+
+func (s *ClientSuite) TestDownloadDir(c *C) {
+	nodeClient, err := ConnectToNode(s.srvAddress,
+		s.teleagent.AuthMethod(), "user1")
+	c.Assert(err, IsNil)
+
+	dir1 := c.MkDir()
+	dir2 := c.MkDir()
+	sourceFileName1 := filepath.Join(dir1, "file1")
+	sourceFileName2 := filepath.Join(dir1, "file2")
+	contents1 := []byte("this is content 1")
+	contents2 := []byte("this is content 2")
+
+	err = ioutil.WriteFile(sourceFileName1, contents1, 0666)
+	err = ioutil.WriteFile(sourceFileName2, contents2, 0666)
+	c.Assert(err, IsNil)
+
+	destinationFileName1 := filepath.Join(dir2, "subdir", "file1")
+	destinationFileName2 := filepath.Join(dir2, "subdir", "file2")
+
+	c.Assert(nodeClient.Download(dir1, dir2+"/subdir", true), IsNil)
+
+	bytes, err := ioutil.ReadFile(destinationFileName1)
+	c.Assert(err, IsNil)
+	c.Assert(string(bytes), Equals, string(contents1))
+	bytes, err = ioutil.ReadFile(destinationFileName2)
+	c.Assert(err, IsNil)
+	c.Assert(string(bytes), Equals, string(contents2))
 }

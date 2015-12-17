@@ -55,7 +55,7 @@ func NewClientFromNetAddr(
 	client := &http.Client{
 		Transport: &http.Transport{
 			Dial: func(network, address string) (net.Conn, error) {
-				return net.Dial(a.Network, a.Addr)
+				return net.Dial(a.AddrNetwork, a.Addr)
 			}}}
 	params = append(params, roundtrip.HTTPClient(client))
 	u := url.URL{

@@ -32,7 +32,7 @@ func (a *TeleAgent) Start(agentAddr string) error {
 		return trace.Wrap(err)
 	}
 
-	l, err := net.Listen(addr.Network, addr.Addr)
+	l, err := net.Listen(addr.AddrNetwork, addr.Addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
