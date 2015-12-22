@@ -66,6 +66,9 @@ type ClientSuite struct {
 	teleagent    *teleagent.TeleAgent
 	dir          string
 	dir2         string
+	otp          *hotp.HOTP
+	user         string
+	pass         []byte
 }
 
 var _ = Suite(&ClientSuite{})
@@ -197,20 +200,20 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
 
-	user := "user1"
-	pass := []byte("utndkrn")
+	s.user = "user1"
+	s.pass = []byte("utndkrn")
 
-	hotpURL, _, err := s.a.UpsertPassword(user, pass)
+	hotpURL, _, err := s.a.UpsertPassword(s.user, s.pass)
 	c.Assert(err, IsNil)
-	otp, _, err := hotp.FromURL(hotpURL)
+	s.otp, _, err = hotp.FromURL(hotpURL)
 	c.Assert(err, IsNil)
-	otp.Increment()
+	s.otp.Increment()
 
-	authMethod, err := auth.NewWebPasswordAuth(user, pass, otp.OTP())
+	authMethod, err := auth.NewWebPasswordAuth(s.user, s.pass, s.otp.OTP())
 	c.Assert(err, IsNil)
 
 	tunClt, err := auth.NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()}, user, authMethod)
+		utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()}, s.user, authMethod)
 	c.Assert(err, IsNil)
 
 	rsAgent, err := reversetunnel.NewAgent(
@@ -240,7 +243,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	}()
 
 	s.teleagent = teleagent.NewTeleAgent()
-	err = s.teleagent.Login("http://"+s.webAddress, user, string(pass), otp.OTP(), time.Minute)
+	err = s.teleagent.Login("http://"+s.webAddress, s.user, string(s.pass), s.otp.OTP(), time.Minute)
 	c.Assert(err, IsNil)
 
 	// "Command labels will be calculated only on the second heartbeat"
@@ -249,7 +252,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 
 func (s *ClientSuite) TestRunCommand(c *C) {
 	nodeClient, err := ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), "user1")
+		s.teleagent.AuthMethod(), s.user)
 	c.Assert(err, IsNil)
 
 	buf := bytes.Buffer{}
@@ -260,11 +263,11 @@ func (s *ClientSuite) TestRunCommand(c *C) {
 
 func (s *ClientSuite) TestConnectViaProxy(c *C) {
 	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		s.teleagent.AuthMethod(), "user1")
+		s.teleagent.AuthMethod(), s.user)
 	c.Assert(err, IsNil)
 
 	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), "user1")
+		s.teleagent.AuthMethod(), s.user)
 	c.Assert(err, IsNil)
 
 	buf := bytes.Buffer{}
@@ -275,11 +278,11 @@ func (s *ClientSuite) TestConnectViaProxy(c *C) {
 
 func (s *ClientSuite) TestShell(c *C) {
 	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		s.teleagent.AuthMethod(), "user1")
+		s.teleagent.AuthMethod(), s.user)
 	c.Assert(err, IsNil)
 
 	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), "user1")
+		s.teleagent.AuthMethod(), s.user)
 	c.Assert(err, IsNil)
 
 	shell, err := nodeClient.Shell()
@@ -309,7 +312,7 @@ func (s *ClientSuite) TestShell(c *C) {
 
 func (s *ClientSuite) TestGetServer(c *C) {
 	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		s.teleagent.AuthMethod(), "user1")
+		s.teleagent.AuthMethod(), s.user)
 	c.Assert(err, IsNil)
 
 	server1Info := services.Server{
@@ -399,11 +402,11 @@ func (s *ClientSuite) TestGetServer(c *C) {
 
 func (s *ClientSuite) TestUploadFile(c *C) {
 	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		s.teleagent.AuthMethod(), "user1")
+		s.teleagent.AuthMethod(), s.user)
 	c.Assert(err, IsNil)
 
 	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), "user1")
+		s.teleagent.AuthMethod(), s.user)
 	c.Assert(err, IsNil)
 
 	dir := c.MkDir()
@@ -423,11 +426,11 @@ func (s *ClientSuite) TestUploadFile(c *C) {
 
 func (s *ClientSuite) TestDownloadFile(c *C) {
 	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		s.teleagent.AuthMethod(), "user1")
+		s.teleagent.AuthMethod(), s.user)
 	c.Assert(err, IsNil)
 
 	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), "user1")
+		s.teleagent.AuthMethod(), s.user)
 	c.Assert(err, IsNil)
 
 	dir := c.MkDir()
@@ -447,7 +450,7 @@ func (s *ClientSuite) TestDownloadFile(c *C) {
 
 func (s *ClientSuite) TestUploadDir(c *C) {
 	nodeClient, err := ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), "user1")
+		s.teleagent.AuthMethod(), s.user)
 	c.Assert(err, IsNil)
 
 	dir1 := c.MkDir()
@@ -476,7 +479,7 @@ func (s *ClientSuite) TestUploadDir(c *C) {
 
 func (s *ClientSuite) TestDownloadDir(c *C) {
 	nodeClient, err := ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), "user1")
+		s.teleagent.AuthMethod(), s.user)
 	c.Assert(err, IsNil)
 
 	dir1 := c.MkDir()
@@ -501,4 +504,40 @@ func (s *ClientSuite) TestDownloadDir(c *C) {
 	bytes, err = ioutil.ReadFile(destinationFileName2)
 	c.Assert(err, IsNil)
 	c.Assert(string(bytes), Equals, string(contents2))
+}
+
+func (s *ClientSuite) TestHOTPMock(c *C) {
+	hotpMock, err := CreateHOTPMock(s.otp.URL(""))
+	c.Assert(err, IsNil)
+
+	teleagent := teleagent.NewTeleAgent()
+	err = teleagent.Login("http://"+s.webAddress, s.user, string(s.pass), "123456", time.Minute)
+	c.Assert(err, NotNil)
+
+	err = teleagent.Login("http://"+s.webAddress, s.user, string(s.pass), hotpMock.OTP(), time.Minute)
+	c.Assert(err, IsNil)
+
+	path := filepath.Join(s.dir, "hotpmock")
+	c.Assert(hotpMock.SaveToFile(path), IsNil)
+
+	token, err := GetTokenFromHOTPMockFile(path)
+	c.Assert(err, IsNil)
+	err = teleagent.Login("http://"+s.webAddress, s.user, string(s.pass), token, time.Minute)
+	c.Assert(err, IsNil)
+
+	token, err = GetTokenFromHOTPMockFile(path)
+	c.Assert(err, IsNil)
+	err = teleagent.Login("http://"+s.webAddress, s.user, string(s.pass), token, time.Minute)
+	c.Assert(err, IsNil)
+
+	hotpMock, err = LoadHOTPMockFromFile(path)
+	c.Assert(err, IsNil)
+	err = teleagent.Login("http://"+s.webAddress, s.user, string(s.pass), hotpMock.OTP(), time.Minute)
+	c.Assert(err, IsNil)
+
+	hotpMock, err = LoadHOTPMockFromFile(path)
+	c.Assert(err, IsNil)
+	err = teleagent.Login("http://"+s.webAddress, s.user, string(s.pass), hotpMock.OTP(), time.Minute)
+	c.Assert(err, NotNil)
+
 }

@@ -55,7 +55,8 @@ type NodeClient struct {
 }
 
 // ConnectToProxy returns connected and authenticated ProxyClient
-func ConnectToProxy(proxyAddress string, authMethod ssh.AuthMethod, user string) (*ProxyClient, error) {
+func ConnectToProxy(proxyAddress string, authMethod ssh.AuthMethod,
+	user string) (*ProxyClient, error) {
 	sshConfig := &ssh.ClientConfig{
 		User: user,
 		Auth: []ssh.AuthMethod{authMethod},
@@ -208,6 +209,10 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, authMethod ssh.AuthM
 	return &NodeClient{Client: client}, nil
 }
 
+func (proxy *ProxyClient) Close() error {
+	return proxy.Client.Close()
+}
+
 // ConnectToNode returns connected and authenticated NodeClient
 func ConnectToNode(nodeAddress string, authMethod ssh.AuthMethod, user string) (*NodeClient, error) {
 	sshConfig := &ssh.ClientConfig{
@@ -269,6 +274,7 @@ func (client *NodeClient) Run(cmd string, output io.Writer) error {
 	if err := session.Run(cmd); err != nil {
 		return trace.Wrap(err)
 	}
+
 	return nil
 }
 
@@ -370,4 +376,8 @@ func (client *NodeClient) scp(scpConf scp.Command, shellCmd string) error {
 	}
 
 	return nil
+}
+
+func (client *NodeClient) Close() error {
+	return client.Client.Close()
 }
