@@ -10,6 +10,10 @@ teleport: remove-temp-files
 	go install github.com/gravitational/teleport/tool/teleport
 	go install github.com/gravitational/teleport/tool/tctl
 
+production: 
+	go build -o teleport -a github.com/gravitational/teleport/tool/teleport
+	go build -o tctl -a github.com/gravitational/teleport/tool/tctl
+
 test: install
 	go test -v -test.parallel=0 ./... -cover
 
