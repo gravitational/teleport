@@ -18,14 +18,12 @@ package tsh
 import (
 	"net"
 
-	//"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/buger/goterm"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/agent"
-	//"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/terminal"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/alecthomas/kingpin.v2"
 )
 
-func Run(args []string) error {
+func RunTSH(args []string) error {
 	app := kingpin.New("tsh", "teleport SSH client")
 
 	user := app.Flag("user", "SSH user").Required().String()
@@ -40,14 +38,14 @@ func Run(args []string) error {
 	upload := app.Command("upload", "Helper operations with SSH keypairs")
 	uploadAddress := upload.Arg("address", "Target server address").Required().String()
 	uploadProxy := upload.Flag("proxy", "Optional proxy address").String()
-	uploadLocalSource := upload.Arg("source", "Local source path").Required().String()
-	uploadRemoteDest := upload.Arg("dest", "Remote destination path").Required().String()
+	uploadLocalSource := upload.Flag("source", "Local source path").Required().String()
+	uploadRemoteDest := upload.Flag("dest", "Remote destination path").Required().String()
 
 	download := app.Command("download", "Helper operations with SSH keypairs")
 	downloadAddress := download.Arg("address", "Target server address").Required().String()
 	downloadProxy := download.Flag("proxy", "Optional proxy address").String()
-	downloadLocalDest := download.Arg("dest", "Local destination path").Required().String()
-	downloadRemoteSource := download.Arg("source", "Remote source path").Required().String()
+	downloadLocalDest := download.Flag("dest", "Local destination path").Required().String()
+	downloadRemoteSource := download.Flag("source", "Remote source path").Required().String()
 	downloadRecursively := download.Flag("r", "Source path is directory").Bool()
 
 	getServers := app.Command("get-servers", "Returns list of servers")
@@ -72,7 +70,8 @@ func Run(args []string) error {
 			*uploadRemoteDest, agent)
 	case download.FullCommand():
 		err = Download(*user, *downloadAddress, *downloadProxy,
-			*downloadLocalDest, *downloadRemoteSource, *downloadRecursively, agent)
+			*downloadRemoteSource, *downloadLocalDest,
+			*downloadRecursively, agent)
 	case getServers.FullCommand():
 		err = GetServers(*user, *getServersProxy, *getServersLabelName,
 			*getServersLabelValue, agent)

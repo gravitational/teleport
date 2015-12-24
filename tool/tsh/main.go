@@ -25,7 +25,7 @@ import (
 func main() {
 	log.Initialize("console", "INFO")
 
-	err := tsh.Run(os.Args)
+	err := tsh.RunTSH(os.Args)
 	if err != nil {
 		log.Errorf(err.Error())
 	}

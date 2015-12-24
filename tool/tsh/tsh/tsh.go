@@ -20,11 +20,15 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"os/signal"
 	"sync"
+	"syscall"
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/agent"
@@ -57,52 +61,119 @@ func Connect(user, address, proxyAddress, command string, agent agent.Agent) err
 		if err != nil {
 			return trace.Wrap(err, out.String())
 		}
-		fmt.Println(out.String())
+		fmt.Printf(out.String())
 		return nil
 	}
 
-	shell, err := c.Shell()
+	// disable input buffering
+	exec.Command("stty", "-F", "/dev/tty", "cbreak", "min", "1").Run()
+	// do not display entered characters on the screen
+	exec.Command("stty", "-F", "/dev/tty", "-echo").Run()
+
+	// Cache term signals
+	exitSignals := make(chan os.Signal, 1)
+	signal.Notify(exitSignals, syscall.SIGTERM)
+	go func() {
+		<-exitSignals
+		fmt.Printf("\nConnection to %s closed\n", address)
+		// restore the echoing state when exiting
+		exec.Command("stty", "-F", "/dev/tty", "echo").Run()
+		os.Exit(0)
+	}()
+
+	width, height, err := getTerminalSize()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	shell, err := c.Shell(width, height)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Cache Ctrl-C signal
+	ctrlCSignal := make(chan os.Signal, 1)
+	signal.Notify(ctrlCSignal, syscall.SIGINT)
+	go func() {
+		for {
+			<-ctrlCSignal
+			_, err := shell.Write([]byte{3})
+			if err != nil {
+				log.Errorf(err.Error())
+			}
+		}
+	}()
+
+	// Cache Ctrl-Z signal
+	ctrlZSignal := make(chan os.Signal, 1)
+	signal.Notify(ctrlZSignal, syscall.SIGTSTP)
+	go func() {
+		for {
+			<-ctrlZSignal
+			_, err := shell.Write([]byte{26})
+			if err != nil {
+				log.Errorf(err.Error())
+			}
+		}
+	}()
+
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
+
+	// copy from the remote shell to the local
+	go func() {
+		_, err := io.Copy(os.Stdout, shell)
+		if err != nil {
+			log.Errorf(err.Error())
+		}
+		wg.Done()
+	}()
+
+	// copy from the local shell to the remote
 	go func() {
 		defer wg.Done()
-		buf := make([]byte, 1000)
+		buf := make([]byte, 1)
 		for {
-			n, err := shell.Read(buf)
-			if err != nil && err != io.EOF {
+			n, err := os.Stdin.Read(buf)
+			if err != nil {
 				fmt.Println(trace.Wrap(err))
 				return
 			}
 			if n > 0 {
-				//fmt.Printf(string(buf[:n]))
-				_, err = os.Stdout.Write(buf[:n])
+				// cache Ctrl-D
+				if buf[0] == 4 {
+					fmt.Printf("\nConnection to %s closed\n", address)
+					// restore the echoing state when exiting
+					exec.Command("stty", "-F", "/dev/tty", "echo").Run()
+					os.Exit(0)
+				}
+				_, err = shell.Write(buf[:n])
 				if err != nil {
 					fmt.Println(trace.Wrap(err))
 					return
 				}
-				/*err = os.Stdout.Sync()
-				if err != nil {
-					fmt.Println(trace.Wrap(err))
-					return
-				}*/
 			}
 		}
-	}()
-	go func() {
-		_, err := io.Copy(shell, os.Stdin)
-		if err != nil { // && err != io.EOF {
-			fmt.Println(err.Error())
-		}
-		wg.Done()
 	}()
 
 	wg.Wait()
 
 	return nil
+}
+
+func getTerminalSize() (width int, height int, e error) {
+	cmd := exec.Command("stty", "size")
+	cmd.Stdin = os.Stdin
+	out, err := cmd.Output()
+	n, err := fmt.Sscan(string(out), &height, &width)
+	if err != nil {
+		return 0, 0, trace.Wrap(err)
+	}
+	if n != 2 {
+		return 0, 0, trace.Errorf("Can't get terminal size")
+	}
+
+	return width, height, nil
 }
 
 func Upload(user, address, proxyAddress, localSourcePath, remoteDestPath string, agent agent.Agent) error {
@@ -134,7 +205,7 @@ func Upload(user, address, proxyAddress, localSourcePath, remoteDestPath string,
 	return nil
 }
 
-func Download(user, address, proxyAddress, localDestPath, remoteSourcePath string, isDir bool, agent agent.Agent) error {
+func Download(user, address, proxyAddress, remoteSourcePath, localDestPath string, isDir bool, agent agent.Agent) error {
 	var c *client.NodeClient
 	if len(proxyAddress) > 0 {
 		proxyClient, err := client.ConnectToProxy(proxyAddress, ssh.PublicKeysCallback(agent.Signers), user)
@@ -155,7 +226,7 @@ func Download(user, address, proxyAddress, localDestPath, remoteSourcePath strin
 	}
 	defer c.Close()
 
-	err := c.Download(localDestPath, remoteSourcePath, isDir)
+	err := c.Download(remoteSourcePath, localDestPath, isDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}

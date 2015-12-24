@@ -9,6 +9,7 @@ install: teleport
 teleport: remove-temp-files
 	go install github.com/gravitational/teleport/tool/teleport
 	go install github.com/gravitational/teleport/tool/tctl
+	go install github.com/gravitational/teleport/tool/tsh
 
 test: install
 	go test -v -test.parallel=0 ./... -cover
@@ -19,10 +20,10 @@ test-with-etcd: install
 remove-temp-files:
 	find . -name flymake_* -delete
 
-test-package: remove-temp-files
+test-package: remove-temp-files install
 	go test -v -test.parallel=0 ./$(p)
 
-test-package-with-etcd: remove-temp-files
+test-package-with-etcd: remove-temp-files install
 	${ETCD_FLAGS} go test -v -test.parallel=0 ./$(p)
 
 update:
@@ -30,7 +31,7 @@ update:
 	find . -iregex .*go | xargs sed -i 's:".*Godeps/_workspace/src/:":g'
 	godep save -r ./...
 
-test-grep-package: remove-temp-files
+test-grep-package: remove-temp-files install
 	go test -v ./$(p) -check.f=$(e)
 
 cover-package: remove-temp-files

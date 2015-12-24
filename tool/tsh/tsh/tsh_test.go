@@ -13,12 +13,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package client
+package tsh
 
 import (
-	"bytes"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -48,9 +49,9 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 )
 
-func TestClient(t *testing.T) { TestingT(t) }
+func TestTsh(t *testing.T) { TestingT(t) }
 
-type ClientSuite struct {
+type TshSuite struct {
 	srv          *srv.Server
 	srv2         *srv.Server
 	proxy        *srv.Server
@@ -58,6 +59,8 @@ type ClientSuite struct {
 	srv2Address  string
 	proxyAddress string
 	webAddress   string
+	agentAddr    string
+	agentAddrEnv string
 	clt          *ssh.Client
 	bk           *encryptedbk.ReplicatedBackend
 	a            *auth.AuthServer
@@ -69,11 +72,12 @@ type ClientSuite struct {
 	otp          *hotp.HOTP
 	user         string
 	pass         []byte
+	envVars      []string
 }
 
-var _ = Suite(&ClientSuite{})
+var _ = Suite(&TshSuite{})
 
-func (s *ClientSuite) SetUpSuite(c *C) {
+func (s *TshSuite) SetUpSuite(c *C) {
 	key, err := secret.NewKey()
 	c.Assert(err, IsNil)
 	scrt, err := secret.New(&secret.Config{KeyBytes: key})
@@ -110,7 +114,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	ap := auth.NewBackendAccessPoint(s.bk)
 
 	// Starting node1
-	s.srvAddress = "127.0.0.1:30185"
+	s.srvAddress = "127.0.0.1:30136"
 	s.srv, err = srv.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srvAddress},
 		"localhost",
@@ -132,7 +136,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	c.Assert(s.srv.Start(), IsNil)
 
 	// Starting node2
-	s.srv2Address = "127.0.0.1:30189"
+	s.srv2Address = "127.0.0.1:30983"
 	s.srv2, err = srv.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srv2Address},
 		"localhost",
@@ -159,7 +163,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	c.Assert(s.srv2.Start(), IsNil)
 
 	// Starting proxy
-	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:33056"}
+	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:33736"}
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
@@ -167,7 +171,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
-	s.proxyAddress = "localhost:34783"
+	s.proxyAddress = "localhost:34284"
 
 	s.proxy, err = srv.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.proxyAddress},
@@ -194,7 +198,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	apiSrv.Serve()
 
 	tsrv, err := auth.NewTunServer(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:31497"},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:31948"},
 		[]ssh.Signer{s.signer},
 		apiSrv, s.a, allowAllLimiter)
 	c.Assert(err, IsNil)
@@ -226,14 +230,14 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	webHandler, err := web.NewMultiSiteHandler(
 		web.MultiSiteConfig{
 			Tun:        reverseTunnelServer,
-			AssetsDir:  "../../assets/web",
+			AssetsDir:  "../../../assets/web",
 			AuthAddr:   utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()},
 			DomainName: "localhost",
 		},
 	)
 	c.Assert(err, IsNil)
 
-	s.webAddress = "localhost:31386"
+	s.webAddress = "localhost:31236"
 
 	go func() {
 		err := http.ListenAndServe(s.webAddress, webHandler)
@@ -243,216 +247,94 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	}()
 
 	s.teleagent = teleagent.NewTeleAgent()
+	s.agentAddr = filepath.Join(s.dir, "agent.sock")
+	c.Assert(s.teleagent.Start("unix://"+s.agentAddr), IsNil)
 	err = s.teleagent.Login("http://"+s.webAddress, s.user, string(s.pass), s.otp.OTP(), time.Minute)
 	c.Assert(err, IsNil)
 
+	s.envVars = append([]string{"SSH_AUTH_SOCK=" + s.agentAddr}, os.Environ()...)
+	s.agentAddrEnv = "SSH_AUTH_SOCK=" + s.agentAddrEnv + "; export SSH_AUTH_SOCK;"
 	// "Command labels will be calculated only on the second heartbeat"
 	time.Sleep(time.Millisecond * 3100)
 }
 
-func (s *ClientSuite) TestRunCommand(c *C) {
-	nodeClient, err := ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), s.user)
+func (s *TshSuite) TestRunCommand(c *C) {
+	cmd := exec.Command("tsh",
+		"connect", s.srvAddress, "--user="+s.user,
+		`--command=""expr 3 + 5""`)
+	cmd.Env = s.envVars
+	out, err := cmd.Output()
 	c.Assert(err, IsNil)
 
-	buf := bytes.Buffer{}
-	err = nodeClient.Run("expr 3 + 5", &buf)
-	c.Assert(err, IsNil)
-	c.Assert(buf.String(), Equals, "8\n")
+	c.Assert(string(out), Equals, "8\n")
 }
 
-func (s *ClientSuite) TestConnectViaProxy(c *C) {
-	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		s.teleagent.AuthMethod(), s.user)
+func (s *TshSuite) TestRunCommandWithProxy(c *C) {
+	cmd := exec.Command("tsh",
+		"connect", s.srvAddress, "--user="+s.user,
+		"--proxy="+s.proxyAddress,
+		`--command=""expr 3 + 5""`)
+	cmd.Env = s.envVars
+	out, err := cmd.Output()
 	c.Assert(err, IsNil)
 
-	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), s.user)
-	c.Assert(err, IsNil)
-
-	buf := bytes.Buffer{}
-	err = nodeClient.Run("expr 3 + 6", &buf)
-	c.Assert(err, IsNil)
-	c.Assert(buf.String(), Equals, "9\n")
+	c.Assert(string(out), Equals, "8\n")
 }
 
-func (s *ClientSuite) TestShell(c *C) {
-	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		s.teleagent.AuthMethod(), s.user)
-	c.Assert(err, IsNil)
-
-	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), s.user)
-	c.Assert(err, IsNil)
-
-	shell, err := nodeClient.Shell(100, 100)
-	c.Assert(err, IsNil)
-
-	// run first command
-	_, err = shell.Write([]byte("expr 11 + 22\n"))
-	c.Assert(err, IsNil)
-	time.Sleep(time.Millisecond * 100)
-
-	out := make([]byte, 100)
-	n, err := shell.Read(out)
-	c.Assert(err, IsNil)
-	c.Assert(string(out[:n]), Equals, "$ expr 11 + 22\r\n33\r\n$ ")
-
-	// run second command
-	_, err = shell.Write([]byte("expr 2 + 3\n"))
-	c.Assert(err, IsNil)
-	time.Sleep(time.Millisecond * 100)
-
-	n, err = shell.Read(out)
-	c.Assert(err, IsNil)
-	c.Assert(string(out[:n]), Equals, "expr 2 + 3\r\n5\r\n$ ")
-
-	c.Assert(shell.Close(), IsNil)
-}
-
-func (s *ClientSuite) TestGetServer(c *C) {
-	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		s.teleagent.AuthMethod(), s.user)
-	c.Assert(err, IsNil)
-
-	server1Info := services.Server{
-		ID:       "127.0.0.1_30185",
-		Addr:     s.srvAddress,
-		Hostname: "localhost",
-		Labels: map[string]string{
-			"label1": "value1",
-			"label2": "value2",
-		},
-		CmdLabels: map[string]services.CommandLabel{
-			"cmdLabel1": services.CommandLabel{
-				Period:  time.Second,
-				Command: []string{"expr", "1", "+", "3"},
-				Result:  "4\n",
-			},
-		},
-	}
-
-	server2Info := services.Server{
-		ID:       "127.0.0.1_30189",
-		Addr:     s.srv2Address,
-		Hostname: "localhost",
-		Labels: map[string]string{
-			"label1": "value1",
-		},
-		CmdLabels: map[string]services.CommandLabel{
-			"cmdLabel1": services.CommandLabel{
-				Period:  time.Second,
-				Command: []string{"expr", "1", "+", "4"},
-				Result:  "5\n",
-			},
-			"cmdLabel2": services.CommandLabel{
-				Period:  time.Second,
-				Command: []string{"expr", "1", "+", "5"},
-				Result:  "6\n",
-			},
-		},
-	}
-
-	servers, err := proxyClient.GetServers()
-	c.Assert(err, IsNil)
-	c.Assert(servers, DeepEquals, []services.Server{
-		server1Info,
-		server2Info,
-	})
-
-	servers, err = proxyClient.FindServers("label1", "value1")
-	c.Assert(err, IsNil)
-	c.Assert(servers, DeepEquals, []services.Server{
-		server1Info,
-		server2Info,
-	})
-
-	servers, err = proxyClient.FindServers("label1", "val.*")
-	c.Assert(err, IsNil)
-	c.Assert(servers, DeepEquals, []services.Server{
-		server1Info,
-		server2Info,
-	})
-
-	servers, err = proxyClient.FindServers("label2", ".*ue2")
-	c.Assert(err, IsNil)
-	c.Assert(servers, DeepEquals, []services.Server{
-		server1Info,
-	})
-
-	servers, err = proxyClient.FindServers("cmdLabel1", "4")
-	c.Assert(err, IsNil)
-	c.Assert(servers, DeepEquals, []services.Server{
-		server1Info,
-	})
-
-	servers, err = proxyClient.FindServers("cmdLabel1", "5")
-	c.Assert(err, IsNil)
-	c.Assert(servers, DeepEquals, []services.Server{
-		server2Info,
-	})
-
-	servers, err = proxyClient.FindServers("cmdLabel2", "6")
-	c.Assert(err, IsNil)
-	c.Assert(servers, DeepEquals, []services.Server{
-		server2Info,
-	})
-
-}
-
-func (s *ClientSuite) TestUploadFile(c *C) {
-	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		s.teleagent.AuthMethod(), s.user)
-	c.Assert(err, IsNil)
-
-	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), s.user)
-	c.Assert(err, IsNil)
-
+func (s *TshSuite) TestUploadFile(c *C) {
 	dir := c.MkDir()
 	sourceFileName := filepath.Join(dir, "file1")
 	contents := []byte("hello world!")
 
-	err = ioutil.WriteFile(sourceFileName, contents, 0666)
+	err := ioutil.WriteFile(sourceFileName, contents, 0666)
 	c.Assert(err, IsNil)
 
 	destinationFileName := filepath.Join(dir, "file2")
-	c.Assert(nodeClient.Upload(sourceFileName, destinationFileName), IsNil)
+
+	cmd := exec.Command("tsh",
+		"upload", s.srvAddress, "--user="+s.user,
+		"--proxy="+s.proxyAddress,
+		"--source="+sourceFileName,
+		"--dest="+destinationFileName)
+	cmd.Env = s.envVars
+	out, err := cmd.Output()
+	if err != nil {
+		c.Assert(string(out), Equals, "")
+		c.Assert(err, IsNil)
+	}
 
 	bytes, err := ioutil.ReadFile(destinationFileName)
 	c.Assert(err, IsNil)
 	c.Assert(string(bytes), Equals, string(contents))
 }
 
-func (s *ClientSuite) TestDownloadFile(c *C) {
-	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		s.teleagent.AuthMethod(), s.user)
-	c.Assert(err, IsNil)
-
-	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), s.user)
-	c.Assert(err, IsNil)
-
+func (s *TshSuite) TestDownloadFile(c *C) {
 	dir := c.MkDir()
 	sourceFileName := filepath.Join(dir, "file3")
 	contents := []byte("world hello")
 
-	err = ioutil.WriteFile(sourceFileName, contents, 0666)
+	err := ioutil.WriteFile(sourceFileName, contents, 0666)
 	c.Assert(err, IsNil)
 
 	destinationFileName := filepath.Join(dir, "file4")
-	c.Assert(nodeClient.Download(sourceFileName, destinationFileName, false), IsNil)
+	cmd := exec.Command("tsh",
+		"upload", s.srvAddress, "--user="+s.user,
+		"--proxy="+s.proxyAddress,
+		"--source="+sourceFileName,
+		"--dest="+destinationFileName)
+	cmd.Env = s.envVars
+	out, err := cmd.Output()
+	if err != nil {
+		c.Assert(string(out), Equals, "")
+		c.Assert(err, IsNil)
+	}
 
 	bytes, err := ioutil.ReadFile(destinationFileName)
 	c.Assert(err, IsNil)
 	c.Assert(string(bytes), Equals, string(contents))
 }
 
-func (s *ClientSuite) TestUploadDir(c *C) {
-	nodeClient, err := ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), s.user)
-	c.Assert(err, IsNil)
-
+func (s *TshSuite) TestUploadDir(c *C) {
 	dir1 := c.MkDir()
 	dir2 := c.MkDir()
 	sourceFileName1 := filepath.Join(dir1, "file1")
@@ -460,7 +342,7 @@ func (s *ClientSuite) TestUploadDir(c *C) {
 	contents1 := []byte("this is content 1")
 	contents2 := []byte("this is content 2")
 
-	err = ioutil.WriteFile(sourceFileName1, contents1, 0666)
+	err := ioutil.WriteFile(sourceFileName1, contents1, 0666)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(sourceFileName2, contents2, 0666)
 	c.Assert(err, IsNil)
@@ -468,7 +350,17 @@ func (s *ClientSuite) TestUploadDir(c *C) {
 	destinationFileName1 := filepath.Join(dir2, "subdir", "file1")
 	destinationFileName2 := filepath.Join(dir2, "subdir", "file2")
 
-	c.Assert(nodeClient.Upload(dir1, dir2+"/subdir"), IsNil)
+	cmd := exec.Command("tsh",
+		"upload", s.srvAddress, "--user="+s.user,
+		"--proxy="+s.proxyAddress,
+		"--source="+dir1,
+		"--dest="+dir2+"/subdir")
+	cmd.Env = s.envVars
+	out, err := cmd.Output()
+	if err != nil {
+		c.Assert(string(out), Equals, "")
+		c.Assert(err, IsNil)
+	}
 
 	bytes, err := ioutil.ReadFile(destinationFileName1)
 	c.Assert(err, IsNil)
@@ -478,11 +370,7 @@ func (s *ClientSuite) TestUploadDir(c *C) {
 	c.Assert(string(bytes), Equals, string(contents2))
 }
 
-func (s *ClientSuite) TestDownloadDir(c *C) {
-	nodeClient, err := ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), s.user)
-	c.Assert(err, IsNil)
-
+func (s *TshSuite) TestDownloadDir(c *C) {
 	dir1 := c.MkDir()
 	dir2 := c.MkDir()
 	sourceFileName1 := filepath.Join(dir1, "file1")
@@ -490,7 +378,7 @@ func (s *ClientSuite) TestDownloadDir(c *C) {
 	contents1 := []byte("this is content 1")
 	contents2 := []byte("this is content 2")
 
-	err = ioutil.WriteFile(sourceFileName1, contents1, 0666)
+	err := ioutil.WriteFile(sourceFileName1, contents1, 0666)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(sourceFileName2, contents2, 0666)
 	c.Assert(err, IsNil)
@@ -498,7 +386,18 @@ func (s *ClientSuite) TestDownloadDir(c *C) {
 	destinationFileName1 := filepath.Join(dir2, "subdir", "file1")
 	destinationFileName2 := filepath.Join(dir2, "subdir", "file2")
 
-	c.Assert(nodeClient.Download(dir1, dir2+"/subdir", true), IsNil)
+	cmd := exec.Command("tsh",
+		"download", s.srvAddress, "--user="+s.user,
+		"--proxy="+s.proxyAddress,
+		"--source="+dir1,
+		"--dest="+dir2+"/subdir",
+		"--r")
+	cmd.Env = s.envVars
+	out, err := cmd.Output()
+	if err != nil {
+		c.Assert(string(out), Equals, "")
+		c.Assert(err, IsNil)
+	}
 
 	bytes, err := ioutil.ReadFile(destinationFileName1)
 	c.Assert(err, IsNil)
@@ -506,40 +405,4 @@ func (s *ClientSuite) TestDownloadDir(c *C) {
 	bytes, err = ioutil.ReadFile(destinationFileName2)
 	c.Assert(err, IsNil)
 	c.Assert(string(bytes), Equals, string(contents2))
-}
-
-func (s *ClientSuite) TestHOTPMock(c *C) {
-	hotpMock, err := CreateHOTPMock(s.otp.URL(""))
-	c.Assert(err, IsNil)
-
-	teleagent := teleagent.NewTeleAgent()
-	err = teleagent.Login("http://"+s.webAddress, s.user, string(s.pass), "123456", time.Minute)
-	c.Assert(err, NotNil)
-
-	err = teleagent.Login("http://"+s.webAddress, s.user, string(s.pass), hotpMock.OTP(), time.Minute)
-	c.Assert(err, IsNil)
-
-	path := filepath.Join(s.dir, "hotpmock")
-	c.Assert(hotpMock.SaveToFile(path), IsNil)
-
-	token, err := GetTokenFromHOTPMockFile(path)
-	c.Assert(err, IsNil)
-	err = teleagent.Login("http://"+s.webAddress, s.user, string(s.pass), token, time.Minute)
-	c.Assert(err, IsNil)
-
-	token, err = GetTokenFromHOTPMockFile(path)
-	c.Assert(err, IsNil)
-	err = teleagent.Login("http://"+s.webAddress, s.user, string(s.pass), token, time.Minute)
-	c.Assert(err, IsNil)
-
-	hotpMock, err = LoadHOTPMockFromFile(path)
-	c.Assert(err, IsNil)
-	err = teleagent.Login("http://"+s.webAddress, s.user, string(s.pass), hotpMock.OTP(), time.Minute)
-	c.Assert(err, IsNil)
-
-	hotpMock, err = LoadHOTPMockFromFile(path)
-	c.Assert(err, IsNil)
-	err = teleagent.Login("http://"+s.webAddress, s.user, string(s.pass), hotpMock.OTP(), time.Minute)
-	c.Assert(err, NotNil)
-
 }
