@@ -137,7 +137,6 @@ func (s *Server) handleConnection(conn net.Conn) {
 	}
 	if err := s.limiter.AcquireConnection(remoteAddr); err != nil {
 		log.Errorf(err.Error())
-		//time.Sleep(5 * time.Second)
 		conn.Close()
 		return
 	}
