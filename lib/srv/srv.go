@@ -212,6 +212,9 @@ func (s *Server) updateLabel(name string, label services.CommandLabel) {
 			log.Errorf(err.Error())
 			label.Result = err.Error() + " Output: " + string(out)
 		} else {
+			if out[len(out)-1] == 10 {
+				out = out[:len(out)-1] // remove new line
+			}
 			label.Result = string(out)
 		}
 		s.labelsMutex.Lock()

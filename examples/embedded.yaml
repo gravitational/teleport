@@ -10,7 +10,7 @@ ssh:
   # enable simple ssh endpoint
   enabled: true
   limiter:
-    max_connections: 2
+    max_connections: 10000
     rates:
       - period: 20s
         average: 3

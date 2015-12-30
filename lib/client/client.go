@@ -229,8 +229,15 @@ func ConnectToNode(nodeAddress string, authMethod ssh.AuthMethod, user string) (
 }
 
 // Shell returns remote shell as io.ReadWriterCloser object
-func (client *NodeClient) Shell() (io.ReadWriteCloser, error) {
+func (client *NodeClient) Shell(width, height int) (io.ReadWriteCloser, error) {
 	session, err := client.Client.NewSession()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	terminalModes := ssh.TerminalModes{}
+
+	err = session.RequestPty("xterm", height, width, terminalModes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -240,12 +247,10 @@ func (client *NodeClient) Shell() (io.ReadWriteCloser, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Here we can use session.StdoutPipe() instead of Buffer,
-	// but according to the ssh godoc:
-	// "If the StdoutPipe reader is not serviced fast
-	// enough it may eventually cause the remote command to block."
-	stdout := &bytes.Buffer{}
-	session.Stdout = stdout
+	reader, err := session.StdoutPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	err = session.Shell()
 	if err != nil {
@@ -253,7 +258,7 @@ func (client *NodeClient) Shell() (io.ReadWriteCloser, error) {
 	}
 
 	return utils.NewPipeNetConn(
-		stdout,
+		reader,
 		writer,
 		utils.MultiCloser(writer, session),
 		&net.IPAddr{},

@@ -450,7 +450,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 	<-done
 	c.Assert(stdout.String(), Equals,
 		`{"localhost":[{"id":"127.0.0.1_30185","addr":"127.0.0.1:30185","hostname":"localhost","labels":null,"cmd_labels":null},`+
-			`{"id":"127.0.0.1_31185","addr":"127.0.0.1:31185","hostname":"localhost","labels":{"label1":"value1"},"cmd_labels":{"cmdLabel1":{"period":"1s","command":["expr","1","+","3"],"result":"4\n"}}}]}`)
+			`{"id":"127.0.0.1_31185","addr":"127.0.0.1:31185","hostname":"localhost","labels":{"label1":"value1"},"cmd_labels":{"cmdLabel1":{"period":"1s","command":["expr","1","+","3"],"result":"4"}}}]}`)
 
 }
 
