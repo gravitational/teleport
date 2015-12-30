@@ -327,7 +327,7 @@ func (s *ClientSuite) TestGetServer(c *C) {
 			"cmdLabel1": services.CommandLabel{
 				Period:  time.Second,
 				Command: []string{"expr", "1", "+", "3"},
-				Result:  "4\n",
+				Result:  "4",
 			},
 		},
 	}
@@ -343,12 +343,12 @@ func (s *ClientSuite) TestGetServer(c *C) {
 			"cmdLabel1": services.CommandLabel{
 				Period:  time.Second,
 				Command: []string{"expr", "1", "+", "4"},
-				Result:  "5\n",
+				Result:  "5",
 			},
 			"cmdLabel2": services.CommandLabel{
 				Period:  time.Second,
 				Command: []string{"expr", "1", "+", "5"},
-				Result:  "6\n",
+				Result:  "6",
 			},
 		},
 	}

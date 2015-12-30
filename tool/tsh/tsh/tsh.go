@@ -70,7 +70,7 @@ func Connect(user, address, proxyAddress, command string, agent agent.Agent) err
 	// do not display entered characters on the screen
 	exec.Command("stty", "-F", "/dev/tty", "-echo").Run()
 
-	// Cache term signals
+	// Catch term signals
 	exitSignals := make(chan os.Signal, 1)
 	signal.Notify(exitSignals, syscall.SIGTERM)
 	go func() {
@@ -91,7 +91,7 @@ func Connect(user, address, proxyAddress, command string, agent agent.Agent) err
 		return trace.Wrap(err)
 	}
 
-	// Cache Ctrl-C signal
+	// Catch Ctrl-C signal
 	ctrlCSignal := make(chan os.Signal, 1)
 	signal.Notify(ctrlCSignal, syscall.SIGINT)
 	go func() {
@@ -104,7 +104,7 @@ func Connect(user, address, proxyAddress, command string, agent agent.Agent) err
 		}
 	}()
 
-	// Cache Ctrl-Z signal
+	// Catch Ctrl-Z signal
 	ctrlZSignal := make(chan os.Signal, 1)
 	signal.Notify(ctrlZSignal, syscall.SIGTSTP)
 	go func() {
@@ -140,7 +140,7 @@ func Connect(user, address, proxyAddress, command string, agent agent.Agent) err
 				return
 			}
 			if n > 0 {
-				// cache Ctrl-D
+				// catch Ctrl-D
 				if buf[0] == 4 {
 					fmt.Printf("\nConnection to %s closed\n", address)
 					// restore the echoing state when exiting
@@ -161,6 +161,7 @@ func Connect(user, address, proxyAddress, command string, agent agent.Agent) err
 	return nil
 }
 
+// getTerminalSize() returns current local terminal size
 func getTerminalSize() (width int, height int, e error) {
 	cmd := exec.Command("stty", "size")
 	cmd.Stdin = os.Stdin
@@ -253,6 +254,15 @@ func GetServers(user, proxyAddress, labelName, labelValueRegexp string, agent ag
 			return trace.Wrap(err)
 		}
 	}
-	fmt.Println(servers)
+	for _, server := range servers {
+		fmt.Printf("%v(%v)\n", server.Hostname, server.Addr)
+		for name, value := range server.Labels {
+			fmt.Printf("\t%v: %v\n", name, value)
+		}
+		for name, value := range server.CmdLabels {
+			fmt.Printf("\t%v: %v\n", name, value.Result)
+		}
+
+	}
 	return nil
 }
