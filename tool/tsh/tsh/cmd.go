@@ -16,11 +16,12 @@ limitations under the License.
 package tsh
 
 import (
-	"fmt"
 	"net"
-	"strings"
+
+	"github.com/gravitational/teleport/lib/client"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/agent"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/alecthomas/kingpin.v2"
 )
@@ -33,7 +34,6 @@ func RunTSH(args []string) error {
 	sshAgentNetwork := app.Flag("ssh-agent-network", "SSH agent address network type('tcp','unix' etc.)").Default("unix").String()
 	webProxyAddress := app.Flag("web-proxy", "Web proxy address(used for login)").String()
 	loginTTL := app.Flag("login-ttl", "Temporary ssh certificate will work for that time").Default("10h").Duration()
-	//useAgent := app.Flag("use-agent", "Makes tsh use standard agent(SSH_AUTH_SOCK)").Bool()
 
 	connect := app.Command("connect", "Helper operations with SSH keypairs")
 	connectAddress := connect.Arg("address", "Target server address").Required().String()
@@ -60,55 +60,43 @@ func RunTSH(args []string) error {
 
 	selectedCommand := kingpin.MustParse(app.Parse(args[1:]))
 
-	agent, err := connectToSSHAgent(*sshAgentNetwork, *sshAgentAddress)
+	standartSSHAgent, err := connectToSSHAgent(*sshAgentNetwork, *sshAgentAddress)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	teleportFileSSHAgent, err := client.GetLocalAgent()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	passwordCallback := client.GetPasswordFromConsole(*user)
+
+	authMethods := []ssh.AuthMethod{
+		client.AuthMethodFromAgent(standartSSHAgent),
+		client.AuthMethodFromAgent(teleportFileSSHAgent),
+		client.GenerateCertificateCallback(
+			teleportFileSSHAgent,
+			*user,
+			passwordCallback,
+			*webProxyAddress,
+			*loginTTL,
+		),
 	}
 
 	err = trace.Errorf("No command")
 
-	runCommand := func() error {
-		var err error
-		switch selectedCommand {
-		case connect.FullCommand():
-			err = Connect(*user, *connectAddress, *connectProxy, *connectCommand, agent)
-		case upload.FullCommand():
-			err = Upload(*user, *uploadAddress, *uploadProxy, *uploadLocalSource,
-				*uploadRemoteDest, agent)
-		case download.FullCommand():
-			err = Download(*user, *downloadAddress, *downloadProxy,
-				*downloadRemoteSource, *downloadLocalDest,
-				*downloadRecursively, agent)
-		case getServers.FullCommand():
-			err = GetServers(*user, *getServersProxy, *getServersLabelName,
-				*getServersLabelValue, agent)
-		}
-		return err
-	}
-
-	// connecting using ssh agent
-	err = runCommand()
-
-	// if agent doesn't work, trying using saved keys
-	if err != nil && strings.Contains(err.Error(), "handshake failed") {
-		agent, err = getLocalAgent()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		err = runCommand()
-	}
-
-	// if saved keys don't work, trying to login
-	if err != nil && strings.Contains(err.Error(), "handshake failed") {
-		if len(*webProxyAddress) == 0 {
-			fmt.Println("Please provide teleport web proxy address")
-			return nil
-		}
-		err = login(agent, "http://"+*webProxyAddress, *user, *loginTTL)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		err = runCommand()
+	switch selectedCommand {
+	case connect.FullCommand():
+		err = Connect(*user, *connectAddress, *connectProxy, *connectCommand, authMethods)
+	case upload.FullCommand():
+		err = Upload(*user, *uploadAddress, *uploadProxy, *uploadLocalSource,
+			*uploadRemoteDest, authMethods)
+	case download.FullCommand():
+		err = Download(*user, *downloadAddress, *downloadProxy,
+			*downloadRemoteSource, *downloadLocalDest,
+			*downloadRecursively, authMethods)
+	case getServers.FullCommand():
+		err = GetServers(*user, *getServersProxy, *getServersLabelName,
+			*getServersLabelValue, authMethods)
 	}
 
 	return err

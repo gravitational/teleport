@@ -12,30 +12,31 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+
+Keystore implements functions for saving and loading from hard disc
+temporary teleport certificates
 */
-package tsh
+
+package client
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
-
-	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/web"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/agent"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/terminal"
 )
 
-func getLocalAgent() (agent.Agent, error) {
+// GetLoadAgent loads all the saved teleport certificates and
+// creates ssh agent with them
+func GetLocalAgent() (agent.Agent, error) {
 	err := initKeysDir()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -85,74 +86,6 @@ func initKeysDir() error {
 	return nil
 }
 
-func login(ag agent.Agent, webProxyAddr string, user string,
-	ttl time.Duration) error {
-	fmt.Printf("Enter your password for user %v:\n", user)
-	password, err := readPassword()
-	if err != nil {
-		fmt.Println(err)
-		return trace.Wrap(err)
-	}
-
-	fmt.Printf("Enter your HOTP token:\n")
-	hotpToken, err := readPassword()
-	if err != nil {
-		fmt.Println(err)
-		return trace.Wrap(err)
-	}
-
-	fmt.Printf("Logging in...\n")
-
-	priv, pub, err := native.New().GenerateKeyPair("")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	cert, err := web.SSHAgentLogin(webProxyAddr, user, password, hotpToken,
-		pub, ttl)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	pcert, _, _, _, err := ssh.ParseAuthorizedKey(cert)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	pk, err := ssh.ParseRawPrivateKey(priv)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	addedKey := agent.AddedKey{
-		PrivateKey:       pk,
-		Certificate:      pcert.(*ssh.Certificate),
-		Comment:          "",
-		LifetimeSecs:     0,
-		ConfirmBeforeUse: false,
-	}
-	if err := ag.Add(addedKey); err != nil {
-		return trace.Wrap(err)
-	}
-
-	key := Key{
-		Priv:     priv,
-		Cert:     cert,
-		Deadline: time.Now().Add(ttl),
-	}
-
-	keyID := time.Now().Sub(time.Time{}).Nanoseconds()
-	keyPath := filepath.Join(KeysDir,
-		KeyFilePrefix+strconv.FormatInt(keyID, 16)+KeyFileSuffix)
-
-	err = saveKey(key, keyPath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Println("Logged in successfully")
-	return nil
-}
-
 type Key struct {
 	Priv     []byte
 	Cert     []byte
@@ -160,6 +93,7 @@ type Key struct {
 }
 
 func saveKey(key Key, filename string) error {
+	err := initKeysDir()
 	bytes, err := json.Marshal(key)
 	if err != nil {
 		return trace.Wrap(err)
@@ -216,14 +150,6 @@ func loadAllKeys() ([]Key, error) {
 		}
 	}
 	return keys, nil
-}
-
-func readPassword() (string, error) {
-	password, err := terminal.ReadPassword(0)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return string(password), nil
 }
 
 const (
