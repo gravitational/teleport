@@ -31,24 +31,23 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/agent"
 )
 
-func Connect(user, address, proxyAddress, command string, agent agent.Agent) error {
+func Connect(user, address, proxyAddress, command string, authMethods []ssh.AuthMethod) error {
 	var c *client.NodeClient
 	if len(proxyAddress) > 0 {
-		proxyClient, err := client.ConnectToProxy(proxyAddress, ssh.PublicKeysCallback(agent.Signers), user)
+		proxyClient, err := client.ConnectToProxy(proxyAddress, authMethods, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer proxyClient.Close()
-		c, err = proxyClient.ConnectToNode(address, ssh.PublicKeysCallback(agent.Signers), user)
+		c, err = proxyClient.ConnectToNode(address, authMethods, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
 		var err error
-		c, err = client.ConnectToNode(address, ssh.PublicKeysCallback(agent.Signers), user)
+		c, err = client.ConnectToNode(address, authMethods, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -177,21 +176,21 @@ func getTerminalSize() (width int, height int, e error) {
 	return width, height, nil
 }
 
-func Upload(user, address, proxyAddress, localSourcePath, remoteDestPath string, agent agent.Agent) error {
+func Upload(user, address, proxyAddress, localSourcePath, remoteDestPath string, authMethods []ssh.AuthMethod) error {
 	var c *client.NodeClient
 	if len(proxyAddress) > 0 {
-		proxyClient, err := client.ConnectToProxy(proxyAddress, ssh.PublicKeysCallback(agent.Signers), user)
+		proxyClient, err := client.ConnectToProxy(proxyAddress, authMethods, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer proxyClient.Close()
-		c, err = proxyClient.ConnectToNode(address, ssh.PublicKeysCallback(agent.Signers), user)
+		c, err = proxyClient.ConnectToNode(address, authMethods, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
 		var err error
-		c, err = client.ConnectToNode(address, ssh.PublicKeysCallback(agent.Signers), user)
+		c, err = client.ConnectToNode(address, authMethods, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -206,21 +205,21 @@ func Upload(user, address, proxyAddress, localSourcePath, remoteDestPath string,
 	return nil
 }
 
-func Download(user, address, proxyAddress, remoteSourcePath, localDestPath string, isDir bool, agent agent.Agent) error {
+func Download(user, address, proxyAddress, remoteSourcePath, localDestPath string, isDir bool, authMethods []ssh.AuthMethod) error {
 	var c *client.NodeClient
 	if len(proxyAddress) > 0 {
-		proxyClient, err := client.ConnectToProxy(proxyAddress, ssh.PublicKeysCallback(agent.Signers), user)
+		proxyClient, err := client.ConnectToProxy(proxyAddress, authMethods, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer proxyClient.Close()
-		c, err = proxyClient.ConnectToNode(address, ssh.PublicKeysCallback(agent.Signers), user)
+		c, err = proxyClient.ConnectToNode(address, authMethods, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
 		var err error
-		c, err = client.ConnectToNode(address, ssh.PublicKeysCallback(agent.Signers), user)
+		c, err = client.ConnectToNode(address, authMethods, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -234,8 +233,8 @@ func Download(user, address, proxyAddress, remoteSourcePath, localDestPath strin
 	return nil
 }
 
-func GetServers(user, proxyAddress, labelName, labelValueRegexp string, agent agent.Agent) error {
-	proxyClient, err := client.ConnectToProxy(proxyAddress, ssh.PublicKeysCallback(agent.Signers), user)
+func GetServers(user, proxyAddress, labelName, labelValueRegexp string, authMethods []ssh.AuthMethod) error {
+	proxyClient, err := client.ConnectToProxy(proxyAddress, authMethods, user)
 	if err != nil {
 		return trace.Wrap(err)
 	}

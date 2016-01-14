@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gokyle/hotp"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/agent"
 	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
@@ -252,7 +253,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 
 func (s *ClientSuite) TestRunCommand(c *C) {
 	nodeClient, err := ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
 	c.Assert(err, IsNil)
 
 	buf := bytes.Buffer{}
@@ -263,11 +264,11 @@ func (s *ClientSuite) TestRunCommand(c *C) {
 
 func (s *ClientSuite) TestConnectViaProxy(c *C) {
 	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		s.teleagent.AuthMethod(), s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
 	c.Assert(err, IsNil)
 
 	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
 	c.Assert(err, IsNil)
 
 	buf := bytes.Buffer{}
@@ -276,13 +277,74 @@ func (s *ClientSuite) TestConnectViaProxy(c *C) {
 	c.Assert(buf.String(), Equals, "9\n")
 }
 
+func (s *ClientSuite) TestConnectUsingSeveralAgents(c *C) {
+	agent1 := agent.NewKeyring()
+	agent2 := agent.NewKeyring()
+
+	passwordCallback := func() (string, string, error) {
+		return string(s.pass), s.otp.OTP(), nil
+	}
+
+	_, err := ConnectToProxy(
+		s.proxyAddress,
+		[]ssh.AuthMethod{
+			AuthMethodFromAgent(agent1),
+			AuthMethodFromAgent(agent2),
+		}, s.user)
+	c.Assert(err, NotNil)
+
+	proxyClient, err := ConnectToProxy(
+		s.proxyAddress,
+		[]ssh.AuthMethod{
+			AuthMethodFromAgent(agent1),
+			AuthMethodFromAgent(agent2),
+			GenerateCertificateCallback(
+				agent2,
+				s.user,
+				passwordCallback,
+				"http://"+s.webAddress,
+				time.Hour,
+			),
+		},
+		s.user)
+	c.Assert(err, IsNil)
+
+	nodeClient, err := proxyClient.ConnectToNode(
+		s.srvAddress,
+		[]ssh.AuthMethod{
+			AuthMethodFromAgent(agent1),
+			AuthMethodFromAgent(agent2),
+		},
+		s.user)
+	c.Assert(err, IsNil)
+
+	buf := bytes.Buffer{}
+	err = nodeClient.Run("expr 3 + 6", &buf)
+	c.Assert(err, IsNil)
+	c.Assert(buf.String(), Equals, "9\n")
+
+	nodeClient, err = ConnectToNode(
+		s.srvAddress,
+		[]ssh.AuthMethod{
+			AuthMethodFromAgent(agent1),
+			AuthMethodFromAgent(agent2),
+		},
+		s.user)
+	c.Assert(err, IsNil)
+
+	buf = bytes.Buffer{}
+	err = nodeClient.Run("expr 3 + 6", &buf)
+	c.Assert(err, IsNil)
+	c.Assert(buf.String(), Equals, "9\n")
+}
+
 func (s *ClientSuite) TestShell(c *C) {
 	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		s.teleagent.AuthMethod(), s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
 	c.Assert(err, IsNil)
 
 	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
 	c.Assert(err, IsNil)
 
 	shell, err := nodeClient.Shell(100, 100)
@@ -312,7 +374,7 @@ func (s *ClientSuite) TestShell(c *C) {
 
 func (s *ClientSuite) TestGetServer(c *C) {
 	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		s.teleagent.AuthMethod(), s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
 	c.Assert(err, IsNil)
 
 	server1Info := services.Server{
@@ -402,11 +464,11 @@ func (s *ClientSuite) TestGetServer(c *C) {
 
 func (s *ClientSuite) TestUploadFile(c *C) {
 	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		s.teleagent.AuthMethod(), s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
 	c.Assert(err, IsNil)
 
 	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
 	c.Assert(err, IsNil)
 
 	dir := c.MkDir()
@@ -426,11 +488,11 @@ func (s *ClientSuite) TestUploadFile(c *C) {
 
 func (s *ClientSuite) TestDownloadFile(c *C) {
 	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		s.teleagent.AuthMethod(), s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
 	c.Assert(err, IsNil)
 
 	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
 	c.Assert(err, IsNil)
 
 	dir := c.MkDir()
@@ -450,7 +512,7 @@ func (s *ClientSuite) TestDownloadFile(c *C) {
 
 func (s *ClientSuite) TestUploadDir(c *C) {
 	nodeClient, err := ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
 	c.Assert(err, IsNil)
 
 	dir1 := c.MkDir()
@@ -480,7 +542,7 @@ func (s *ClientSuite) TestUploadDir(c *C) {
 
 func (s *ClientSuite) TestDownloadDir(c *C) {
 	nodeClient, err := ConnectToNode(s.srvAddress,
-		s.teleagent.AuthMethod(), s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
 	c.Assert(err, IsNil)
 
 	dir1 := c.MkDir()
