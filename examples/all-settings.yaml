@@ -1,0 +1,128 @@
+# This is not a working config, it is just a sample with all the config parameters
+
+log:
+  output: console #console of syslog, default console
+  severity: INFO # INFO, WARNING or ERROR, default INFO
+
+data_dir: /var/lib/teleport # directory where teleport stores it's state (SSH keys and database data)
+hostname: localhost # SSH hostname of this node
+
+#remote auth servers, default []
+auth_servers: ['tcp://localhost:5000', 'unix:///var/run/auth.sock']
+
+ssh:
+  # enable simple ssh endpoint
+  enabled: true
+  token: /tmp/token # token for connecting to unknown auth server
+  addr: tcp://localhost:33001 #default tcp:127.0.0.1:33008
+  shell: /bin/bash #default /bin/bash
+  limiter:
+    max_connections: 10000 #default 0 - no connection limit
+    rates: #default [] - no rate limits
+      - period: 20s
+        average: 3
+        burst: 3
+      - period: 1s
+        average: 5
+        burst: 3
+  labels:
+    label1:value1
+    lab2: val2
+    description: "first node"
+  label-commands:
+    date: 
+      peroid: 10s
+      command: ["date"]
+    os: 
+      period: 5s
+      command: ["uname", "-r"]
+
+reverse_tunnel:
+  # this node will try to connect to remote web proxy and establish reverse SSH tunnel
+  # so web proxy can access all the nodes in the cluster through this tunnel
+  # even if you start embedded proxy, you should provide dial_addr
+  token: /tmp/token # token for connecting to unknown server, default ""
+  enabled: true
+  dial_addr: tcp://localhost:33006
+  limiter: #the same limiter, not sure if it does something
+
+auth:
+  # auth is authentication and authorization server for users and hosts
+  # it acts like SSH user CA authority and host CA authority
+  enabled: true
+  ssh_addr: 'tcp://127.0.0.1:33000' # auth api address, default tcp://127.0.0.1:33000
+  host_authority_domain: localhost
+  token: /tmp/token #token used for connecting one auth server to another, default ""
+  secret_key: secretKey # initial encryption key for secret service, default "" - teleport generates the key
+  allowed_tokens: [] #you can provide tokens that teleport will trust once
+
+  #backend means database type, now supported types are bolt and etcd
+
+  ####### this block has wrong names, I will fix it
+  keys_backend: # database for storing user/host certificates
+    type: bolt
+    params: {path: "/var/lib/teleport/teleport.auth.db"}
+    additional_key: /dir/keyfile # key for encrypting backend. If not provided, teleport will generate keys for encrypting/decrypting backend
+  #####
+
+  events_backend: # database for events
+    type: bolt
+    params: {path: "/var/lib/teleport/teleport.event.db"}
+
+  records_backend: # database for saving shell sessions
+    type: bolt
+    params: {path: "/var/lib/teleport/records.db"}
+
+
+  # default certificate authorities keys values are empty, teleport will generate them on first start
+  user_ca_keypair: #default user certificate authority
+    public:
+      id: 1
+      domain_name: localhost
+      public_key: user ca public key
+    private_key: dXNlciBjYSBwcml2YXRlIGtleQ==
+
+  host_ca_keypair: #default host certificate authority
+    public:
+      id: 1
+      domain_name: localhost
+      public_key: host ca public key
+    private_key: aG9zdCBjYSBwcml2YXRlIGtleQ==
+
+  # you can add 3rd party certificate authorities that teleport will trust
+  trusted_authorities: 
+    - type: user
+      domain_name: a.example.com
+      id: user.a.example.com
+      public_key: user value a
+
+    - type: host
+      domain_name: b.example.com
+      id:  host.b.example.com
+      public_key: host value b
+
+  limiter: # the same limiter for auth
+
+
+proxy:
+  # proxy starts web and ssh proxy that allow inbound connections from remote nodes
+  enabled: true
+  token: /tmp/token #token to connect to unknown auth server
+  assets_dir: assets/web # directory with javascript, html and css for web
+  reverse_tunnel_listen_addr: tcp://localhost:33006 # teleport auth server will connect to that address, default tcp://localhost:33006
+  web_addr: tcp://127.0.0.1:33007 #proxy web address for users, default tcp:127.0.0.1:33007
+  ssh_addr: tcp://127.0.0.1:33008 #proxy ssh address for users, default tcp:127.0.0.1:33008
+
+  #tls key and certificate for https
+  tls_key: base64key
+  tls_cert: base64cert
+
+  limiter:
+    max_connections: 2
+    rates:
+      - period: 50s
+        average: 100
+        burst: 100
+      - period: 1s
+        average: 500
+        burst: 300
