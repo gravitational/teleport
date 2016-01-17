@@ -13,6 +13,15 @@ administration and more. `Teleport` is a standalone executable.
 
 Teleport uses [Etcd](https://coreos.com/etcd/) in HA mode or [Boltdb](https://github.com/boltdb/bolt) in standalone mode.
 
+## Deploying
+
+Every commit to `master` branch triggers Jenkins to deploy to https://teleport.gravitational.io
+You can also deploy via Slack by sending a `/deploy` message like this:
+
+```
+/deploy teleport staging master
+```
+
 ## Status
 
 **Teleport is not ready to be used in production yet**
