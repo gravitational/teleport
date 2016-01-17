@@ -9,7 +9,7 @@ build: bbox
 		   -v $$(pwd)/../:/gopath/src/github.com/gravitational/teleport \
 		   -u $$(id -u):$$(id -g) \
 		   $(BBOX) \
-		   /bin/bash -c "make -C /gopath/src/github.com/gravitational/teleport production"
+		   /bin/bash -c "make -C /gopath/src/github.com/gravitational/teleport all"
 	@echo "\nSUCCESS ----> $(OUT)teleport"
 	@echo "SUCCESS ----> $(OUT)tctl"
 	@echo "SUCCESS ----> $(OUT)tsh"
