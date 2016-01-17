@@ -1,0 +1,67 @@
+---
+- hosts: "webhead"
+  vars:
+      docker_path: /usr/bin/docker
+      docker_ver: "1.9.1"
+      docker_url: "https://get.docker.com/builds/Linux/x86_64/docker-{{docker_ver}}"
+  become: yes
+  become_method: sudo 
+  tasks:
+      #
+      # nicer prompt
+      #
+      - replace: dest=.bashrc regexp="PS1=(.+)\\\\h(.+)$" replace="PS1=\1teleport-server\2" backup=no
+        become: no
+      - replace: dest=.bashrc regexp="#.?force_color_prompt=yes" replace="force_color_prompt=yes"
+      #
+      # update all packages
+      #
+      - name: install 'aptitude'
+        apt: name=aptitude state=latest 
+      - name: upgrade all packages
+        apt: update_cache=yes upgrade=yes force=yes
+      - apt: name=curl state=latest
+      - apt: name=vim state=latest
+      - apt: name=htop state=latest
+      - apt: name=screen state=latest
+      - apt: name=iotop state=latest
+      #
+      # add .ssh keys
+      #
+      - authorized_key: key=http://s3.gravitational.io/rsa/ekontsevoy.pub state=present user=admin
+      - authorized_key: key=http://s3.gravitational.io/rsa/akontsevoy.pub state=present user=admin
+      - authorized_key: key=http://s3.gravitational.io/rsa/klizhentas.pub state=present user=admin
+      #
+      # install & remove packages:
+      #
+      - name: install pip
+        apt: name=python-pip state=absent
+      - shell: "easy_install pip"
+      - name: install AWS CLI
+        pip: name=awscli state=latest
+      #
+      # download & configure Docker
+      #
+      - name: create Docker group
+        group: name=docker system=yes
+      - name: add 'admin' user to Docker group
+        user: name=admin append=yes groups=docker
+      - stat: path="/tmp/docker-{{docker_ver}}"
+        register: downloaded_docker
+      - name: download Docker binary
+        shell: "curl -o /tmp/docker-{{docker_ver}} {{docker_url}}"
+        when: downloaded_docker.stat.exists == False
+      - name: make Docker executable
+        file: path=/tmp/docker-{{ docker_ver }} mode="a+x"
+      - name: update Docker executable
+        command: "mv -f /tmp/docker-{{docker_ver}} {{ docker_path }}"
+      - name: copy Docker socket unit
+        copy: src=docker.socket dest=/lib/systemd/system/docker.socket
+      - name: copy Docker service unit
+        copy: src=docker.service dest=/lib/systemd/system/docker.service
+      - name: reload systemd services
+        command: "systemctl daemon-reload"
+      - name: start Docker socket
+        service: name=docker.socket enabled=true state=started
+      - name: start Docker service
+        service: name=docker.service enabled=true state=started

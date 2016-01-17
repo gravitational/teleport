@@ -1,0 +1,14 @@
+[Unit]
+Description=Gravitational Website container service
+After=network.target 
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/docker run -p {{proxy_port}}:{{proxy_port}} --rm=true {{registry}}/{{docker_tag}} npm start
+MountFlags=slave
+LimitNOFILE=1048576
+LimitNPROC=1048576
+LimitCORE=infinity
+
+[Install]
+WantedBy=multi-user.target

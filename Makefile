@@ -114,3 +114,14 @@ docs-update:
 	echo '```go' >> docs/api.md
 	godoc github.com/gravitational/teleport/auth Client >> docs/api.md
 	echo '```' >> docs/api.md
+
+# Deploy teleport server to staging environment on AWS
+.PHONY: deploy
+deploy:
+	ansible-playbook -i deploy/hosts deploy/deploy.yaml
+
+# Prepare a brand new AWS machine to host Teleport (run provision once, 
+# then run deploy many times)
+.PHONY: provision
+provision:
+	ansible-playbook -i deploy/hosts deploy/provision.yaml
