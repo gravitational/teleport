@@ -1,48 +1,13 @@
 ---
 - hosts: "webhead"
-  vars:
-      registry: 126027368216.dkr.ecr.us-east-1.amazonaws.com
-      proxy_port: 3000
   remote_user: admin
   become: yes
   become_method: sudo
   tasks:
+      - name: Add Lulkov key
+        authorized_key: key=http://s3.gravitational.io/rsa/alyulkov.pub state=present user=admin
       #
       # Pull Docker image
       #
       - name: Docker login
         shell: "$(aws --region us-east-1 ecr get-login)"
-      - name: "Docker pull image"
-        shell: "docker pull {{ registry }}/{{ docker_tag }}"
-
-      #
-      # Update & configure nginx
-      #
-      - name: update nginx config
-        template: src=nginx.conf dest=/etc/nginx/nginx.conf force=true
-      - service: name=nginx enabled=true state=restarted
-
-      #
-      # Update systemd service for website 
-      #
-      - name: update website systemd service
-        template: src=website.service dest=/etc/systemd/system/website.service
-      - name: reload systemd services
-        command: "systemctl daemon-reload"
-      - service: name=website enabled=true state=stopped
-
-      # 
-      # restart website service
-      #
-      - service: name=website enabled=true state=restarted
-
-      #
-      # clean up Docker images (removing for now)
-      #
-      #- name: remove dangling Docker images
-      #  shell: "docker images --quiet --filter=dangling=true | xargs --no-run-if-empty docker rmi"
-
-      #
-      # Report success
-      #
-      - debug: msg="SUCCESS. Hit this --> https://{{ dns_server_name }}"

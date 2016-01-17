@@ -11,9 +11,13 @@ teleport: remove-temp-files
 	go install github.com/gravitational/teleport/tool/tctl
 	go install github.com/gravitational/teleport/tool/tsh
 
+#
+# this target is used by Jenkins for production builds
+#
 production: 
 	go build -o teleport -a github.com/gravitational/teleport/tool/teleport
 	go build -o tctl -a github.com/gravitational/teleport/tool/tctl
+	go build -o tsh github.com/gravitational/teleport/tool/tsh
 
 test: install
 	go test -v -test.parallel=0 ./... -cover

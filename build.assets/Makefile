@@ -14,6 +14,7 @@ build: bbox
 	@mv $$(pwd)/../tctl $(OUT)
 	@echo "\nSUCCESS ----> $(OUT)teleport"
 	@echo "SUCCESS ----> $(OUT)tctl"
+	@echo "SUCCESS ----> $(OUT)tsh"
 
 #
 # builds buildbox:1.0.0 Docker container which is Debian8 with Golang 1.4.2
