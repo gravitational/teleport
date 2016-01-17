@@ -1,13 +1,41 @@
 ---
-- hosts: "webhead"
+- hosts: "teleport"
   remote_user: admin
   become: yes
   become_method: sudo
   tasks:
-      - name: Add Lulkov key
-        authorized_key: key=http://s3.gravitational.io/rsa/alyulkov.pub state=present user=admin
       #
-      # Pull Docker image
+      # Prepare host: Docker (not used right now) and /var/lib/teleport
       #
       - name: Docker login
         shell: "$(aws --region us-east-1 ecr get-login)"
+      - name: make /var/lib/teleport
+        command: "mkdir -p /var/lib/teleport"
+      #
+      # Copy binaries and web assets
+      #
+      - name: copy teleport
+        copy: src=../teleport dest=/usr/local/bin/ force=true
+      - name: copy tsh
+        copy: src=../tsh dest=/usr/local/bin/ force=true
+      - name: copy tctl
+        copy: src=../tctl dest=/usr/local/bin/ force=true
+      - name: copy web assets
+        copy: src=../assets/web dest=/var/lib/teleport/
+      #
+      # Update configs (teleport and nginx)
+      #
+      - name: copy configuration to /etc/teleport.yaml
+        template: src=teleport.yaml dest=/etc/
+      - name: create systemd unit file for teleport
+        copy: src=teleport.service dest=/etc/systemd/system/
+      - name: update nginx config
+        copy: src=nginx.conf dest=/etc/nginx/conf.d/teleport.conf
+      #
+      # Reload systemd services and restart nginx and teleport
+      #
+      - command: "systemctl daemon-reload"
+      - name: restart Teleport service
+        service: name=teleport enabled=true state=restarted
+      - name: restart nginx
+        service: name=nginx state=restarted

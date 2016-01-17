@@ -1,9 +1,13 @@
 ---
-- hosts: "webhead"
+- hosts: "teleport"
   vars:
       docker_path: /usr/bin/docker
       docker_ver: "1.9.1"
       docker_url: "https://get.docker.com/builds/Linux/x86_64/docker-{{docker_ver}}"
+  vars_prompt:
+      - name: "gpg_pass"
+        prompt: "Enter GPG password to decrypt SSL keys"
+        private: yes
   become: yes
   become_method: sudo 
   tasks:
@@ -25,12 +29,24 @@
       - apt: name=htop state=latest
       - apt: name=screen state=latest
       - apt: name=iotop state=latest
+      - apt: name=nginx state=latest
+      - apt: name=gpgv2 state=latest
       #
       # add .ssh keys
       #
+      - authorized_key: key=http://s3.gravitational.io/rsa/alyulkov.pub state=present user=admin
       - authorized_key: key=http://s3.gravitational.io/rsa/ekontsevoy.pub state=present user=admin
       - authorized_key: key=http://s3.gravitational.io/rsa/akontsevoy.pub state=present user=admin
       - authorized_key: key=http://s3.gravitational.io/rsa/klizhentas.pub state=present user=admin
+      #
+      # copy SSL certs
+      #
+      - command: mkdir -p /etc/nginx/ssl
+      - name: copy SSL keys
+        copy: src=../../ops/ssl/gravitational.io/cert.tar.gz.gpg dest=/etc/nginx/ssl/
+      - name: Decrypt SSL keys
+        shell: "cd /etc/nginx/ssl; gpg --batch --decrypt --passphrase={{gpg_pass}} cert.tar.gz.gpg | tar -xz"
+      - shell: "cd /etc/nginx/ssl; rm *gpg; rm -rf namecheap"
       #
       # install & remove packages:
       #

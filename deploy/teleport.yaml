@@ -1,0 +1,62 @@
+log:
+  output: console
+  severity: INFO
+
+data_dir: /var/lib/teleport
+hostname: localhost
+
+ssh:
+  enabled: true
+  limiter:
+    max_connections: 10000
+    rates:
+      - period: 20s
+        average: 3
+        burst: 3
+      - period: 1s
+        average: 5
+        burst: 3
+  labels:
+    name: node1
+    description: "first node"
+  label-commands:
+    date: 
+      peroid: 10s
+      command: ["date"]
+    os: 
+      period: 5s
+      command: ["uname", "-r"]
+
+reverse_tunnel:
+  enabled: true
+  dial_addr: tcp://localhost:33006
+
+auth:
+  enabled: true
+  host_authority_domain: localhost
+
+  keys_backend:
+    type: bolt
+    params: {path: "/var/lib/teleport/auth.db"}
+
+  events_backend:
+    type: bolt
+    params: {path: "/var/lib/teleport/events.db"}
+
+  records_backend:
+    type: bolt
+    params: {path: "/var/lib/teleport/records.db"}
+
+proxy:
+  enabled: true
+  assets_dir: /var/lib/teleport/web
+  reverse_tunnel_listen_addr: tcp://localhost:33006
+  limiter:
+    max_connections: 2
+    rates:
+      - period: 50s
+        average: 100
+        burst: 100
+      - period: 1s
+        average: 500
+        burst: 300

@@ -1,5 +1,5 @@
 BBOX=teleport-buildbox:latest
-OUT="./"
+OUT="../"
 
 #
 # builds 'teleport' binary and places it $(OUT) dir
@@ -10,8 +10,6 @@ build: bbox
 		   -u $$(id -u):$$(id -g) \
 		   $(BBOX) \
 		   /bin/bash -c "make -C /gopath/src/github.com/gravitational/teleport production"
-	@mv $$(pwd)/../teleport $(OUT)
-	@mv $$(pwd)/../tctl $(OUT)
 	@echo "\nSUCCESS ----> $(OUT)teleport"
 	@echo "SUCCESS ----> $(OUT)tctl"
 	@echo "SUCCESS ----> $(OUT)tsh"

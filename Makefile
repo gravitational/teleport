@@ -1,23 +1,28 @@
 TCD_NODE1 := http://127.0.0.1:4001
 ETCD_NODES := ${ETCD_NODE1}
 ETCD_FLAGS := TELEPORT_TEST_ETCD_NODES=${ETCD_NODES}
+TARGETS=teleport tctl tsh
 
-.PHONY: install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd install-assets docs-serve
-
-install: teleport
-
-teleport: remove-temp-files
-	go install github.com/gravitational/teleport/tool/teleport
-	go install github.com/gravitational/teleport/tool/tctl
-	go install github.com/gravitational/teleport/tool/tsh
+.PHONY: all install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd install-assets docs-serve
 
 #
 # this target is used by Jenkins for production builds
 #
-production: 
+all: $(TARGETS)
+teleport:
 	go build -o teleport -a github.com/gravitational/teleport/tool/teleport
+tctl:
 	go build -o tctl -a github.com/gravitational/teleport/tool/tctl
+tsh:
 	go build -o tsh github.com/gravitational/teleport/tool/tsh
+
+install: remove-temp-files
+	go install github.com/gravitational/teleport/tool/teleport
+	go install github.com/gravitational/teleport/tool/tctl
+	go install github.com/gravitational/teleport/tool/tsh
+
+clean:
+	rm -f $(TARGETS)
 
 test: install
 	go test -v -test.parallel=0 ./... -cover
@@ -121,7 +126,7 @@ docs-update:
 
 # Deploy teleport server to staging environment on AWS
 .PHONY: deploy
-deploy:
+deploy: all
 	ansible-playbook -i deploy/hosts deploy/deploy.yaml
 
 # Prepare a brand new AWS machine to host Teleport (run provision once, 

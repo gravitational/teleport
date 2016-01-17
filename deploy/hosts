@@ -1,6 +1,6 @@
-[webhead]
+[teleport]
 teleport.gravitational.io
 
-[webhead:vars]
+[teleport:vars]
 ansible_ssh_port=22
 ansible_ssh_user=admin
