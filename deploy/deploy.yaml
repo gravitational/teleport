@@ -39,3 +39,7 @@
         service: name=teleport enabled=true state=restarted
       - name: restart nginx
         service: name=nginx state=restarted
+      #
+      # Report GREAT success
+      #
+      - debug: msg="SUCCESS. Hit this --> https://teleport.gravitational.io"
