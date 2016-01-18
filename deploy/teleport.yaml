@@ -3,16 +3,16 @@ log:
   severity: INFO
 
 data_dir: /var/lib/teleport
-hostname: localhost
+hostname: teleport.gravitational.io
 
 ssh:
   enabled: true
   limiter:
-    max_connections: 10000
+    max_connections: 100
     rates:
       - period: 20s
-        average: 3
-        burst: 3
+        average: 100
+        burst: 100
       - period: 1s
         average: 5
         burst: 3
@@ -33,7 +33,7 @@ reverse_tunnel:
 
 auth:
   enabled: true
-  host_authority_domain: localhost
+  host_authority_domain: teleport.gravitational.io
 
   keys_backend:
     type: bolt
@@ -51,12 +51,14 @@ proxy:
   enabled: true
   assets_dir: /var/lib/teleport/web
   reverse_tunnel_listen_addr: tcp://localhost:33006
+  web_addr: tcp://0.0.0.0:33007
+  ssh_addr: tcp://0.0.0.0:33008
   limiter:
-    max_connections: 2
+    max_connections: 100000
     rates:
       - period: 50s
-        average: 100
-        burst: 100
+        average: 10000
+        burst: 10000
       - period: 1s
-        average: 500
-        burst: 300
+        average: 1000
+        burst: 1000
