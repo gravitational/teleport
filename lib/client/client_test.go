@@ -298,7 +298,7 @@ func (s *ClientSuite) TestConnectUsingSeveralAgents(c *C) {
 		[]ssh.AuthMethod{
 			AuthMethodFromAgent(agent1),
 			AuthMethodFromAgent(agent2),
-			GenerateCertificateCallback(
+			NewWebAuth(
 				agent2,
 				s.user,
 				passwordCallback,

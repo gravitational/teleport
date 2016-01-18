@@ -28,5 +28,6 @@ func main() {
 	err := tsh.RunTSH(os.Args)
 	if err != nil {
 		log.Errorf(err.Error())
+		os.Exit(-1)
 	}
 }

@@ -16,6 +16,7 @@ limitations under the License.
 package tsh
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -54,13 +55,18 @@ func TestTsh(t *testing.T) { TestingT(t) }
 type TshSuite struct {
 	srv          *srv.Server
 	srv2         *srv.Server
+	srv3         *exec.Cmd
+	srv4         *exec.Cmd
 	proxy        *srv.Server
 	srvAddress   string
 	srv2Address  string
+	srv3Address  string
+	srv3Dir      string
+	srv4Address  string
+	srv4Dir      string
 	proxyAddress string
 	webAddress   string
 	agentAddr    string
-	agentAddrEnv string
 	clt          *ssh.Client
 	bk           *encryptedbk.ReplicatedBackend
 	a            *auth.AuthServer
@@ -124,7 +130,11 @@ func (s *TshSuite) SetUpSuite(c *C) {
 		s.dir,
 		srv.SetShell("/bin/sh"),
 		srv.SetLabels(
-			map[string]string{"label1": "value1", "label2": "value2"},
+			map[string]string{
+				"label1": "value1",
+				"label2": "value2",
+				"label3": "value3",
+			},
 			services.CommandLabels{
 				"cmdLabel1": services.CommandLabel{
 					Period:  time.Second,
@@ -146,7 +156,7 @@ func (s *TshSuite) SetUpSuite(c *C) {
 		s.dir2,
 		srv.SetShell("/bin/sh"),
 		srv.SetLabels(
-			map[string]string{"label1": "value1"},
+			map[string]string{"label1": "value1", "label3": "value4"},
 			services.CommandLabels{
 				"cmdLabel1": services.CommandLabel{
 					Period:  time.Second,
@@ -246,6 +256,48 @@ func (s *TshSuite) SetUpSuite(c *C) {
 		}
 	}()
 
+	currentDir, err := os.Getwd()
+	c.Assert(err, IsNil)
+	token1, err := s.a.GenerateToken("localhost", auth.RoleNode, time.Minute)
+	c.Assert(err, IsNil)
+	s.srv3Dir = c.MkDir()
+	s.srv3Address = "127.0.0.1:30984"
+	s.srv3 = exec.Command("teleport", "--env")
+	s.srv3.Dir = s.srv3Dir
+	s.srv3.Env = append(
+		[]string{
+			"TELEPORT_HOSTNAME=localhost",
+			"TELEPORT_SSH_TOKEN=" + token1,
+			"TELEPORT_SSH_ENABLED=true",
+			"TELEPORT_SSH_ADDR=tcp://" + s.srv3Address,
+			"TELEPORT_AUTH_SERVERS=tcp://" + tsrv.Addr(),
+			"TELEPORT_DATA_DIR=" + s.srv3Dir,
+			`TELEPORT_SSH_LABELS={"label4":"value4", "label5":"value5"}`,
+			"PWD=" + s.srv3Dir}, os.Environ()...,
+	)
+	s.srv3.Start()
+
+	token2, err := s.a.GenerateToken("localhost", auth.RoleNode, time.Minute)
+	c.Assert(err, IsNil)
+	s.srv4Dir = c.MkDir()
+	os.Chdir(s.srv4Dir)
+	s.srv4Address = "127.0.0.1:30985"
+	s.srv4 = exec.Command("teleport", "--env")
+	s.srv4.Env = append(
+		[]string{
+			"TELEPORT_HOSTNAME=localhost",
+			"TELEPORT_SSH_TOKEN=" + token2,
+			"TELEPORT_SSH_ENABLED=true",
+			"TELEPORT_SSH_ADDR=tcp://" + s.srv4Address,
+			"TELEPORT_AUTH_SERVERS=tcp://" + tsrv.Addr(),
+			"TELEPORT_DATA_DIR=" + s.srv4Dir,
+			`TELEPORT_SSH_LABELS={"label4":"value4", "label5":"value6"}`,
+			"PWD=" + s.srv4Dir}, os.Environ()...,
+	)
+	s.srv4.Start()
+
+	os.Chdir(currentDir)
+
 	s.teleagent = teleagent.NewTeleAgent()
 	s.agentAddr = filepath.Join(s.dir, "agent.sock")
 	c.Assert(s.teleagent.Start("unix://"+s.agentAddr), IsNil)
@@ -253,32 +305,49 @@ func (s *TshSuite) SetUpSuite(c *C) {
 	c.Assert(err, IsNil)
 
 	s.envVars = append([]string{"SSH_AUTH_SOCK=" + s.agentAddr}, os.Environ()...)
-	s.agentAddrEnv = "SSH_AUTH_SOCK=" + s.agentAddrEnv + "; export SSH_AUTH_SOCK;"
 	// "Command labels will be calculated only on the second heartbeat"
 	time.Sleep(time.Millisecond * 3100)
 }
 
+func (s *TshSuite) TearDownSuite(c *C) {
+	s.srv3.Process.Kill()
+	s.srv4.Process.Kill()
+}
+
 func (s *TshSuite) TestRunCommand(c *C) {
 	cmd := exec.Command("tsh",
-		"connect", s.srvAddress, "--user="+s.user,
-		`--command=""expr 3 + 5""`)
+		"ssh", s.user+"@"+s.srvAddress,
+		`--command=""expr 30 + 5""`)
 	cmd.Env = s.envVars
 	out, err := cmd.Output()
 	c.Assert(err, IsNil)
 
-	c.Assert(string(out), Equals, "8\n")
+	c.Assert(string(out), Equals, fmt.Sprintf("Running command on %v...\n35\nDisconnected from %v\n\n", s.srvAddress, s.srvAddress))
+}
+
+func (s *TshSuite) TestRunCommandOn2Servers(c *C) {
+	cmd := exec.Command("tsh",
+		"ssh", s.user+"@_label4:value4",
+		"--proxy="+s.proxyAddress,
+		`--command=""pwd""`)
+	cmd.Env = s.envVars
+	out, err := cmd.Output()
+	c.Assert(err, IsNil)
+
+	c.Assert(string(out), Equals, fmt.Sprintf("Running command on %v...\n%v\nDisconnected from %v\n\nRunning command on %v...\n%v\nDisconnected from %v\n\n",
+		s.srv3Address, s.srv3Dir, s.srv3Address, s.srv4Address, s.srv4Dir, s.srv4Address))
 }
 
 func (s *TshSuite) TestRunCommandWithProxy(c *C) {
-	cmd := exec.Command("tsh",
-		"connect", s.srvAddress, "--user="+s.user,
+	cmd := exec.Command("tsh", "ssh",
+		s.user+"@"+s.srvAddress,
 		"--proxy="+s.proxyAddress,
-		`--command=""expr 3 + 5""`)
+		`--command=""expr 3 + 50""`)
 	cmd.Env = s.envVars
 	out, err := cmd.Output()
 	c.Assert(err, IsNil)
 
-	c.Assert(string(out), Equals, "8\n")
+	c.Assert(string(out), Equals, fmt.Sprintf("Running command on %v...\n53\nDisconnected from %v\n\n", s.srvAddress, s.srvAddress))
 }
 
 func (s *TshSuite) TestUploadFile(c *C) {
@@ -291,11 +360,10 @@ func (s *TshSuite) TestUploadFile(c *C) {
 
 	destinationFileName := filepath.Join(dir, "file2")
 
-	cmd := exec.Command("tsh",
-		"upload", s.srvAddress, "--user="+s.user,
-		"--proxy="+s.proxyAddress,
-		"--source="+sourceFileName,
-		"--dest="+destinationFileName)
+	cmd := exec.Command("tsh", "scp",
+		sourceFileName,
+		s.user+"@"+s.srvAddress+":"+destinationFileName,
+		"--proxy="+s.proxyAddress)
 	cmd.Env = s.envVars
 	out, err := cmd.Output()
 	if err != nil {
@@ -317,11 +385,10 @@ func (s *TshSuite) TestDownloadFile(c *C) {
 	c.Assert(err, IsNil)
 
 	destinationFileName := filepath.Join(dir, "file4")
-	cmd := exec.Command("tsh",
-		"upload", s.srvAddress, "--user="+s.user,
-		"--proxy="+s.proxyAddress,
-		"--source="+sourceFileName,
-		"--dest="+destinationFileName)
+	cmd := exec.Command("tsh", "scp",
+		s.user+"@"+s.srvAddress+":"+sourceFileName,
+		destinationFileName,
+		"--proxy="+s.proxyAddress)
 	cmd.Env = s.envVars
 	out, err := cmd.Output()
 	if err != nil {
@@ -350,11 +417,10 @@ func (s *TshSuite) TestUploadDir(c *C) {
 	destinationFileName1 := filepath.Join(dir2, "subdir", "file1")
 	destinationFileName2 := filepath.Join(dir2, "subdir", "file2")
 
-	cmd := exec.Command("tsh",
-		"upload", s.srvAddress, "--user="+s.user,
-		"--proxy="+s.proxyAddress,
-		"--source="+dir1,
-		"--dest="+dir2+"/subdir")
+	cmd := exec.Command("tsh", "scp",
+		dir1,
+		s.user+"@"+s.srvAddress+":"+dir2+"/subdir",
+		"--proxy="+s.proxyAddress)
 	cmd.Env = s.envVars
 	out, err := cmd.Output()
 	if err != nil {
@@ -386,12 +452,11 @@ func (s *TshSuite) TestDownloadDir(c *C) {
 	destinationFileName1 := filepath.Join(dir2, "subdir", "file1")
 	destinationFileName2 := filepath.Join(dir2, "subdir", "file2")
 
-	cmd := exec.Command("tsh",
-		"download", s.srvAddress, "--user="+s.user,
+	cmd := exec.Command("tsh", "scp",
+		s.user+"@"+s.srvAddress+":"+dir1,
+		dir2+"/subdir",
 		"--proxy="+s.proxyAddress,
-		"--source="+dir1,
-		"--dest="+dir2+"/subdir",
-		"--r")
+		"-r")
 	cmd.Env = s.envVars
 	out, err := cmd.Output()
 	if err != nil {
@@ -405,4 +470,138 @@ func (s *TshSuite) TestDownloadDir(c *C) {
 	bytes, err = ioutil.ReadFile(destinationFileName2)
 	c.Assert(err, IsNil)
 	c.Assert(string(bytes), Equals, string(contents2))
+}
+
+func (s *TshSuite) TestDownloadFileFrom2Servers(c *C) {
+	destDir := c.MkDir()
+	sourceFileName1 := filepath.Join(s.srv3Dir, "file3")
+	sourceFileName2 := filepath.Join(s.srv4Dir, "file3")
+	contents1 := []byte("world hello from server three")
+	contents2 := []byte("world hello from server four")
+
+	err := ioutil.WriteFile(sourceFileName1, contents1, 0666)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(sourceFileName2, contents2, 0666)
+	c.Assert(err, IsNil)
+
+	cmd := exec.Command("tsh", "scp",
+		s.user+"@_label4:value4:file3",
+		destDir,
+		"--proxy="+s.proxyAddress,
+	)
+	cmd.Env = s.envVars
+	out, err := cmd.Output()
+	if err != nil {
+		c.Assert(string(out), Equals, "")
+		c.Assert(err, IsNil)
+	}
+
+	outFile1 := filepath.Join(destDir, "file3", s.srv3Address)
+	outFile2 := filepath.Join(destDir, "file3", s.srv4Address)
+
+	bytes1, err := ioutil.ReadFile(outFile1)
+	c.Assert(err, IsNil)
+	c.Assert(string(bytes1), Equals, string(contents1))
+
+	bytes2, err := ioutil.ReadFile(outFile2)
+	c.Assert(err, IsNil)
+	c.Assert(string(bytes2), Equals, string(contents2))
+}
+
+func (s *TshSuite) TestDownloadDirFrom2Servers(c *C) {
+	destDir := c.MkDir()
+	sourceDir1 := filepath.Join(s.srv3Dir, "copydir")
+	sourceDir2 := filepath.Join(s.srv4Dir, "copydir")
+
+	err := os.MkdirAll(sourceDir1, os.ModeDir|0777)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(sourceDir2, os.ModeDir|0777)
+	c.Assert(err, IsNil)
+
+	srv1File1 := filepath.Join(sourceDir1, "file11")
+	srv1File2 := filepath.Join(sourceDir1, "file12")
+	srv2File1 := filepath.Join(sourceDir2, "file21")
+	srv2File2 := filepath.Join(sourceDir2, "file22")
+
+	contents11 := []byte("world hello from file one")
+	contents12 := []byte("world hello from file two")
+	contents21 := []byte("world hello from file three")
+	contents22 := []byte("world hello from file four")
+
+	err = ioutil.WriteFile(srv1File1, contents11, 0666)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(srv1File2, contents12, 0666)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(srv2File1, contents21, 0666)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(srv2File2, contents22, 0666)
+	c.Assert(err, IsNil)
+
+	cmd := exec.Command("tsh", "scp",
+		s.user+"@_label4:value4:copydir",
+		destDir,
+		"--proxy="+s.proxyAddress,
+		"-r",
+	)
+	cmd.Env = s.envVars
+	out, err := cmd.Output()
+	if err != nil {
+		c.Assert(string(out), Equals, "")
+		c.Assert(err, IsNil)
+	}
+
+	outFile11 := filepath.Join(destDir, "copydir", s.srv3Address, "file11")
+	outFile12 := filepath.Join(destDir, "copydir", s.srv3Address, "file12")
+	outFile21 := filepath.Join(destDir, "copydir", s.srv4Address, "file21")
+	outFile22 := filepath.Join(destDir, "copydir", s.srv4Address, "file22")
+
+	bytes11, err := ioutil.ReadFile(outFile11)
+	c.Assert(err, IsNil)
+	c.Assert(string(bytes11), Equals, string(contents11))
+
+	bytes12, err := ioutil.ReadFile(outFile12)
+	c.Assert(err, IsNil)
+	c.Assert(string(bytes12), Equals, string(contents12))
+
+	bytes21, err := ioutil.ReadFile(outFile21)
+	c.Assert(err, IsNil)
+	c.Assert(string(bytes21), Equals, string(contents21))
+
+	bytes22, err := ioutil.ReadFile(outFile22)
+	c.Assert(err, IsNil)
+	c.Assert(string(bytes22), Equals, string(contents22))
+
+}
+
+func (s *TshSuite) TestUploadFileTo2Servers(c *C) {
+	dir := c.MkDir()
+	sourceFileName := filepath.Join(dir, "file1")
+	contents := []byte("hello world!")
+
+	err := ioutil.WriteFile(sourceFileName, contents, 0666)
+	c.Assert(err, IsNil)
+
+	destinationFileName := "file2"
+
+	cmd := exec.Command("tsh", "scp",
+		sourceFileName,
+		s.user+"@_label5::"+destinationFileName,
+		"--proxy="+s.proxyAddress,
+	)
+
+	cmd.Env = s.envVars
+	out, err := cmd.Output()
+	if err != nil {
+		c.Assert(string(out), Equals, "")
+		c.Assert(err, IsNil)
+	}
+
+	bytes, err := ioutil.ReadFile(filepath.Join(s.srv3Dir, destinationFileName))
+	c.Assert(err, IsNil)
+	c.Assert(string(bytes), Equals, string(contents))
+
+	bytes2, err := ioutil.ReadFile(filepath.Join(s.srv4Dir, destinationFileName))
+	c.Assert(err, IsNil)
+	c.Assert(string(bytes2), Equals, string(contents))
+
 }

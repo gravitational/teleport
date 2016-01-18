@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
@@ -400,7 +401,10 @@ func (client *NodeClient) scp(scpConf scp.Command, shellCmd string) error {
 	done := make(chan struct{})
 
 	go func() {
-		scpServer.Serve(ch)
+		err := scpServer.Serve(ch)
+		if err != nil {
+			log.Errorf(err.Error())
+		}
 		stdin.Close()
 		close(done)
 	}()
