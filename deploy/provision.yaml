@@ -20,10 +20,12 @@
       #
       # update all packages
       #
-      - name: install 'aptitude'
-        apt: name=aptitude state=latest 
+      - name: update dpkg db
+        apt: update_cache=yes force=yes
+      - name: install aptitude
+        apt: name=aptitude state=latest
       - name: upgrade all packages
-        apt: update_cache=yes upgrade=yes force=yes
+        apt: state=latest upgrade=yes
       - apt: name=curl state=latest
       - apt: name=vim state=latest
       - apt: name=htop state=latest
