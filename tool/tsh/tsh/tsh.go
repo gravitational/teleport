@@ -16,13 +16,11 @@ limitations under the License.
 package tsh
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -35,74 +33,16 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
 
-func RunCmd(user, target, proxyAddress, command string, authMethods []ssh.AuthMethod) error {
-	addresses, err := parseAddress(target, user, proxyAddress,
-		authMethods)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var proxyClient *client.ProxyClient
-	if len(proxyAddress) > 0 {
-		proxyClient, err = client.ConnectToProxy(proxyAddress, authMethods, user)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-	}
-
-	var e error
-
-	for _, address := range addresses {
-		fmt.Printf("Running command on %v...\n", address)
-		var c *client.NodeClient
-		if len(proxyAddress) > 0 {
-			c, err = proxyClient.ConnectToNode(address, authMethods, user)
-			if err != nil {
-				e = err
-				fmt.Println("Error:", err.Error())
-				continue
-			}
-		} else {
-			var err error
-			c, err = client.ConnectToNode(address, authMethods, user)
-			if err != nil {
-				e = err
-				fmt.Println("Error:", err.Error())
-				continue
-			}
-		}
-		defer c.Close()
-
-		out := bytes.Buffer{}
-		err := c.Run(command, &out)
-		if err != nil {
-			e = err
-			fmt.Println("Error:", err.Error())
-			continue
-		}
-		fmt.Printf(out.String())
-		fmt.Printf("Disconnected from %v\n\n", address)
-
-	}
-
-	if e != nil {
-		return fmt.Errorf("SSH finished with errors")
-	} else {
-		return nil
-	}
-}
-
 func SSH(target, proxyAddress, command string, authMethods []ssh.AuthMethod) error {
-	user, target := splitUserAndAddress(target)
+	user, target := client.SplitUserAndAddress(target)
 	if len(user) == 0 {
 		return fmt.Errorf("Error: please provide user name")
 	}
 	if len(command) > 0 {
-		return RunCmd(user, target, proxyAddress, command, authMethods)
+		return client.RunCmd(user, target, proxyAddress, command, authMethods)
 	}
 
-	addresses, err := parseAddress(target, user, proxyAddress,
+	addresses, err := client.ParseTargetServers(target, user, proxyAddress,
 		authMethods)
 	if err != nil {
 		return trace.Wrap(err)
@@ -126,7 +66,7 @@ func SSH(target, proxyAddress, command string, authMethods []ssh.AuthMethod) err
 		}
 	} else {
 		var err error
-		c, err = client.ConnectToNode(address, authMethods, user)
+		c, err = client.ConnectToNode(nil, address, authMethods, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -244,131 +184,8 @@ func getTerminalSize() (width int, height int, e error) {
 	return width, height, nil
 }
 
-func Upload(user string, addresses []string, proxyAddress, localSourcePath, remoteDestPath string, authMethods []ssh.AuthMethod) error {
-	var err error
-	var proxyClient *client.ProxyClient
-	if len(proxyAddress) > 0 {
-		proxyClient, err = client.ConnectToProxy(proxyAddress, authMethods, user)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-	}
-
-	var e error
-
-	for _, address := range addresses {
-		fmt.Printf("Uploading to %v\n", address)
-		var c *client.NodeClient
-		if len(proxyAddress) > 0 {
-			c, err = proxyClient.ConnectToNode(address, authMethods, user)
-			if err != nil {
-				e = err
-				fmt.Println("Error:", err.Error())
-				continue
-			}
-		} else {
-			var err error
-			c, err = client.ConnectToNode(address, authMethods, user)
-			if err != nil {
-				e = err
-				fmt.Println("Error:", err.Error())
-				continue
-			}
-		}
-		defer c.Close()
-
-		fmt.Println("***UPLOAD", localSourcePath, remoteDestPath)
-		err := c.Upload(localSourcePath, remoteDestPath)
-		if err != nil {
-			e = err
-			fmt.Println("Error:", err.Error())
-			continue
-		}
-		fmt.Printf("Disconnected from %v\n\n", address)
-	}
-
-	if e != nil {
-		return fmt.Errorf("SCP finished with errors")
-	} else {
-		return nil
-	}
-}
-
-func Download(user string, addresses []string, proxyAddress, remoteSourcePath, localDestPath string, isDir bool, authMethods []ssh.AuthMethod) error {
-	_, filename := filepath.Split(remoteSourcePath)
-	if len(addresses) > 1 {
-		localDestPath = filepath.Join(localDestPath, filename)
-
-		_, err := os.Stat(localDestPath)
-		if os.IsNotExist(err) {
-			err = os.MkdirAll(localDestPath, os.ModeDir|0777)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		} else {
-			if err != nil {
-				return trace.Wrap(err)
-			} else {
-				return trace.Errorf("Error: Directory %v already exists", localDestPath)
-			}
-		}
-	}
-
-	var err error
-	var proxyClient *client.ProxyClient
-	if len(proxyAddress) > 0 {
-		proxyClient, err = client.ConnectToProxy(proxyAddress, authMethods, user)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-	}
-
-	var e error
-
-	for _, address := range addresses {
-		fmt.Printf("Downloading from %v\n", address)
-		var c *client.NodeClient
-		if len(proxyAddress) > 0 {
-			c, err = proxyClient.ConnectToNode(address, authMethods, user)
-			if err != nil {
-				e = err
-				fmt.Println("Error:", err.Error())
-				continue
-			}
-		} else {
-			c, err = client.ConnectToNode(address, authMethods, user)
-			if err != nil {
-				e = err
-				fmt.Println("Error:", err.Error())
-				continue
-			}
-		}
-		defer c.Close()
-		dest := localDestPath
-		if len(addresses) > 1 {
-			dest = filepath.Join(localDestPath, address)
-		}
-
-		err := c.Download(remoteSourcePath, dest, isDir)
-		if err != nil {
-			e = err
-			fmt.Println("Error:", err.Error())
-			continue
-		}
-		fmt.Printf("Disconnected from %v\n\n", address)
-	}
-
-	if e != nil {
-		return fmt.Errorf("SCP finished with errors")
-	} else {
-		return nil
-	}
-}
-
 func GetServers(proxyAddress, labelName, labelValueRegexp string, authMethods []ssh.AuthMethod) error {
-	user, proxyAddress := splitUserAndAddress(proxyAddress)
+	user, proxyAddress := client.SplitUserAndAddress(proxyAddress)
 	if len(user) == 0 {
 		return fmt.Errorf("Error: please provide user name")
 	}
@@ -406,98 +223,27 @@ func GetServers(proxyAddress, labelName, labelValueRegexp string, authMethods []
 
 func SCP(proxyAddress, source, dest string, isDir bool, authMethods []ssh.AuthMethod) error {
 	if strings.Contains(source, ":") {
-		user, source := splitUserAndAddress(source)
+		user, source := client.SplitUserAndAddress(source)
 		if len(user) == 0 {
 			return fmt.Errorf("Error: please provide user name")
 		}
 
 		parts := strings.Split(source, ":")
 		path := parts[len(parts)-1]
-		target := strings.Join(parts[0:len(parts)-1], ":")
-		addresses, err := parseAddress(target, user, proxyAddress,
-			authMethods)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(addresses) == 0 {
-			return fmt.Errorf("No target servers found")
-		}
-		return Download(user, addresses, proxyAddress, path,
+		targetServers := strings.Join(parts[0:len(parts)-1], ":")
+		return client.Download(user, targetServers, proxyAddress, path,
 			dest, isDir, authMethods)
 	} else {
-		user, dest := splitUserAndAddress(dest)
+		user, dest := client.SplitUserAndAddress(dest)
 		if len(user) == 0 {
 			return fmt.Errorf("Error: please provide user name")
 		}
 		parts := strings.Split(dest, ":")
 		path := parts[len(parts)-1]
 		target := strings.Join(parts[0:len(parts)-1], ":")
-		addresses, err := parseAddress(target, user, proxyAddress,
-			authMethods)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(addresses) == 0 {
-			return fmt.Errorf("No target servers found")
-		}
-		return Upload(user, addresses, proxyAddress, source,
+
+		return client.Upload(user, target, proxyAddress, source,
 			path, authMethods)
 	}
 	return nil
-}
-
-func parseAddress(addr string, user, proxyAddress string, authMethods []ssh.AuthMethod) ([]string, error) {
-	if addr[0] == '_' {
-		// address is a label:value pair
-		addr = addr[1:len(addr)]
-		parts := strings.Split(addr, ":")
-		if len(parts) != 2 {
-			return nil, trace.Errorf("Wrong address format, label address should have _label:value format")
-		}
-		label := parts[0]
-		value := parts[1]
-
-		if len(proxyAddress) == 0 {
-			return nil, trace.Errorf("Proxy Address should be provided for server searching")
-		}
-
-		proxyClient, err := client.ConnectToProxy(proxyAddress, authMethods, user)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		var servers []services.Server
-
-		if len(label) > 0 {
-			servers, err = proxyClient.FindServers(label, value)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		} else {
-			servers, err = proxyClient.GetServers()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-
-		resultAddresses := []string{}
-		for _, server := range servers {
-			resultAddresses = append(resultAddresses, server.Addr)
-		}
-		return resultAddresses, nil
-	} else {
-		return []string{addr}, nil
-	}
-}
-
-func splitUserAndAddress(target string) (user, address string) {
-	if !strings.Contains(target, "@") {
-		return "", address
-	}
-
-	parts := strings.Split(target, "@")
-	user = parts[0]
-	address = strings.Join(parts[1:len(parts)], "@")
-	return user, address
 }

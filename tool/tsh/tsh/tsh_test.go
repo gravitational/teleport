@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -322,7 +323,7 @@ func (s *TshSuite) TestRunCommand(c *C) {
 	out, err := cmd.Output()
 	c.Assert(err, IsNil)
 
-	c.Assert(string(out), Equals, fmt.Sprintf("Running command on %v...\n35\nDisconnected from %v\n\n", s.srvAddress, s.srvAddress))
+	c.Assert(string(out), Equals, fmt.Sprintf("Running command on %v\n-----------------------------\n35\n-----------------------------\n\n", s.srvAddress))
 }
 
 func (s *TshSuite) TestRunCommandOn2Servers(c *C) {
@@ -334,8 +335,13 @@ func (s *TshSuite) TestRunCommandOn2Servers(c *C) {
 	out, err := cmd.Output()
 	c.Assert(err, IsNil)
 
-	c.Assert(string(out), Equals, fmt.Sprintf("Running command on %v...\n%v\nDisconnected from %v\n\nRunning command on %v...\n%v\nDisconnected from %v\n\n",
-		s.srv3Address, s.srv3Dir, s.srv3Address, s.srv4Address, s.srv4Dir, s.srv4Address))
+	c.Assert(true, Equals, strings.Contains(string(out), fmt.Sprintf(
+		"Running command on %v\n-----------------------------\n%v\n-----------------------------\n\n",
+		s.srv3Address, s.srv3Dir)))
+
+	c.Assert(true, Equals, strings.Contains(string(out), fmt.Sprintf(
+		"Running command on %v\n-----------------------------\n%v\n-----------------------------\n\n",
+		s.srv4Address, s.srv4Dir)))
 }
 
 func (s *TshSuite) TestRunCommandWithProxy(c *C) {
@@ -347,7 +353,7 @@ func (s *TshSuite) TestRunCommandWithProxy(c *C) {
 	out, err := cmd.Output()
 	c.Assert(err, IsNil)
 
-	c.Assert(string(out), Equals, fmt.Sprintf("Running command on %v...\n53\nDisconnected from %v\n\n", s.srvAddress, s.srvAddress))
+	c.Assert(string(out), Equals, fmt.Sprintf("Running command on %v\n-----------------------------\n53\n-----------------------------\n\n", s.srvAddress))
 }
 
 func (s *TshSuite) TestUploadFile(c *C) {

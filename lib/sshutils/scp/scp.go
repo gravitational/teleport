@@ -93,18 +93,15 @@ func (s *Server) sendDir(r *reader, ch io.ReadWriter, fi os.FileInfo, path strin
 		return trace.Wrap(err)
 	}
 	if err := r.read(); err != nil {
-		log.Errorf("reader failed")
 		return trace.Wrap(err)
 	}
 	log.Infof("sendDir got OK")
 	f, err := os.Open(path)
 	if err != nil {
-		log.Errorf("failed to open: %v", err)
 		return trace.Wrap(err)
 	}
 	fis, err := f.Readdir(0)
 	if err != nil {
-		log.Errorf("failed to read directory: %v", err)
 		return trace.Wrap(err)
 	}
 
@@ -112,19 +109,16 @@ func (s *Server) sendDir(r *reader, ch io.ReadWriter, fi os.FileInfo, path strin
 		if sfi.IsDir() {
 			err := s.sendDir(r, ch, sfi, filepath.Join(path, sfi.Name()))
 			if err != nil {
-				log.Errorf("failed to send dir: %v", err)
 				return trace.Wrap(err)
 			}
 		} else {
 			err := s.sendFile(r, ch, sfi, filepath.Join(path, sfi.Name()))
 			if err != nil {
-				log.Errorf("failed to send file: %v", err)
 				return trace.Wrap(err)
 			}
 		}
 	}
 	if _, err = fmt.Fprintf(ch, "E\n"); err != nil {
-		log.Errorf("failed to send end dir: %v", err)
 		return trace.Wrap(err)
 	}
 	return nil
@@ -136,24 +130,20 @@ func (s *Server) sendFile(r *reader, ch io.ReadWriter, fi os.FileInfo, path stri
 		return trace.Wrap(err)
 	}
 	if err := r.read(); err != nil {
-		log.Errorf("reader failed")
 		return trace.Wrap(err)
 	}
 	log.Infof("sendFile got OK")
 	f, err := os.Open(path)
 	if err != nil {
-		log.Errorf("failed to open: %v", err)
 		return trace.Wrap(err)
 	}
 	defer f.Close()
 	n, err := io.Copy(ch, f)
 	if err != nil {
-		log.Errorf("failed copying: %v", err)
 		return trace.Wrap(err)
 	}
 	if n != fi.Size() {
 		err := fmt.Errorf("short write: %v %v", n, fi.Size())
-		log.Errorf(err.Error())
 		return trace.Wrap(err)
 	}
 	if err := sendOK(ch); err != nil {
@@ -178,7 +168,6 @@ func (s *Server) serveSink(ch io.ReadWriter) error {
 				log.Infof("got EOF")
 				return nil
 			}
-			log.Errorf("error reading: %v", err)
 			return trace.Wrap(err)
 		}
 		if n < 1 {
@@ -192,18 +181,15 @@ func (s *Server) serveSink(ch io.ReadWriter) error {
 
 		r.Scan()
 		if err := r.Err(); err != nil {
-			log.Errorf("got error: %v", err)
 			return trace.Wrap(err)
 		}
 		if err := s.processCommand(ch, st, b[0], r.Text()); err != nil {
-			log.Errorf("process command err: %v", err)
 			if e := sendError(ch, err.Error()); e != nil {
 				log.Warningf("error sending error: %v", e)
 			}
 			return trace.Wrap(err)
 		}
 		if err := sendOK(ch); err != nil {
-			log.Errorf("failed to send OK: %v", err)
 			return trace.Wrap(err)
 		}
 		log.Infof("sent OK")
@@ -216,7 +202,6 @@ func (s *Server) processCommand(ch io.ReadWriter, st *state, b byte, line string
 		log.Warningf("got warning: %v", line)
 		return nil
 	case ErrByte:
-		log.Errorf("got error: %v", line)
 		return trace.Errorf(line)
 	case 'C':
 		f, err := ParseNewFile(line)
@@ -231,7 +216,6 @@ func (s *Server) processCommand(ch io.ReadWriter, st *state, b byte, line string
 	case 'D':
 		d, err := ParseNewFile(line)
 		if err != nil {
-			log.Errorf(err.Error())
 			return trace.Wrap(err)
 		}
 		log.Infof("got new dir command: %#v", d)
@@ -246,7 +230,6 @@ func (s *Server) processCommand(ch io.ReadWriter, st *state, b byte, line string
 		log.Infof("got mtime command")
 		m, err := ParseMtime(line)
 		if err != nil {
-			log.Errorf(err.Error())
 			return trace.Wrap(err)
 		}
 		log.Infof("got mtime command: %#v", m)
@@ -271,17 +254,13 @@ func (s *Server) receiveFile(st *state, cmd NewFileCmd, ch io.ReadWriter) error 
 	defer f.Close()
 	n, err := io.CopyN(f, ch, int64(cmd.Length))
 	if err != nil {
-		log.Errorf("failed while copying: %v", err)
 		return trace.Wrap(err)
 	}
 	if n != int64(cmd.Length) {
-		err := fmt.Errorf("unexpected file copy length: %v", n)
-		log.Errorf(err.Error())
-		return trace.Wrap(err)
+		return trace.Errorf("unexpected file copy length: %v", n)
 	}
 	mode := os.FileMode(int(cmd.Mode) & int(os.ModePerm))
 	if err := os.Chmod(path, mode); err != nil {
-		log.Errorf(err.Error())
 		return trace.Wrap(err)
 	}
 	log.Infof("file %v(%v) copied to %v", cmd.Name, cmd.Length, path)
@@ -374,11 +353,9 @@ func ParseNewFile(line string) (*NewFileCmd, error) {
 
 	var err error
 	if c.Mode, err = strconv.ParseInt(parts[0], 8, 32); err != nil {
-		log.Errorf(err.Error())
 		return nil, trace.Wrap(err)
 	}
 	if c.Length, err = strconv.ParseUint(parts[1], 10, 64); err != nil {
-		log.Errorf(err.Error())
 		return nil, trace.Wrap(err)
 	}
 	c.Name = parts[2]
@@ -473,7 +450,6 @@ type reader struct {
 func (r *reader) read() error {
 	n, err := r.r.Read(r.b)
 	if err != nil {
-		log.Errorf("got error: %v", err)
 		return trace.Wrap(err)
 	}
 	if n < 1 {
@@ -487,11 +463,9 @@ func (r *reader) read() error {
 	case WarnByte, ErrByte:
 		r.s.Scan()
 		if err := r.s.Err(); err != nil {
-			log.Errorf("failed to read response: %v", err)
 			return trace.Wrap(err)
 		}
 		if r.b[0] == ErrByte {
-			log.Errorf("error: %v", fmt.Errorf(r.s.Text()))
 			return trace.Wrap(err)
 		}
 		log.Warningf("warn: %v", r.s.Text())

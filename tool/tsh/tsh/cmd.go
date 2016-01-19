@@ -57,14 +57,14 @@ func RunTSH(args []string) error {
 	var user string
 	switch selectedCommand {
 	case connect.FullCommand():
-		user, _ = splitUserAndAddress(*connectAddress)
+		user, _ = client.SplitUserAndAddress(*connectAddress)
 	case getServers.FullCommand():
-		user, _ = splitUserAndAddress(*getServersProxy)
+		user, _ = client.SplitUserAndAddress(*getServersProxy)
 	case scp.FullCommand():
 		if strings.Contains(*scpSource, ":") {
-			user, _ = splitUserAndAddress(*scpSource)
+			user, _ = client.SplitUserAndAddress(*scpSource)
 		} else {
-			user, _ = splitUserAndAddress(*scpDest)
+			user, _ = client.SplitUserAndAddress(*scpDest)
 		}
 	}
 	if len(user) == 0 {
