@@ -47,7 +47,7 @@ func AuthMethodFromAgent(ag agent.Agent) ssh.AuthMethod {
 // teleport certificate using password and hotpToken, adds the
 // certificate to the provided agent, saves the certificate to the
 // local folder and returns the agent as authenticator.
-func GenerateCertificateCallback(ag agent.Agent,
+func NewWebAuth(ag agent.Agent,
 	user string,
 	passwordCallback PasswordCallback,
 	webProxyAddress string,

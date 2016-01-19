@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
@@ -24,6 +25,10 @@ func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte,
 	credJSON, err := json.Marshal(cred)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if !strings.HasPrefix(proxyAddr, "http://") {
+		proxyAddr = "http://" + proxyAddr
 	}
 
 	out, err := http.PostForm(

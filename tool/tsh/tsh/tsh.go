@@ -16,12 +16,12 @@ limitations under the License.
 package tsh
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -33,7 +33,26 @@ import (
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
 
-func Connect(user, address, proxyAddress, command string, authMethods []ssh.AuthMethod) error {
+func SSH(target, proxyAddress, command string, authMethods []ssh.AuthMethod) error {
+	user, target := client.SplitUserAndAddress(target)
+	if len(user) == 0 {
+		return fmt.Errorf("Error: please provide user name")
+	}
+	if len(command) > 0 {
+		return client.RunCmd(user, target, proxyAddress, command, authMethods)
+	}
+
+	addresses, err := client.ParseTargetServers(target, user, proxyAddress,
+		authMethods)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(addresses) > 1 {
+		return fmt.Errorf("Shell can't be run on multiple target servers")
+	}
+	address := addresses[0]
+
 	var c *client.NodeClient
 	if len(proxyAddress) > 0 {
 		proxyClient, err := client.ConnectToProxy(proxyAddress, authMethods, user)
@@ -47,22 +66,12 @@ func Connect(user, address, proxyAddress, command string, authMethods []ssh.Auth
 		}
 	} else {
 		var err error
-		c, err = client.ConnectToNode(address, authMethods, user)
+		c, err = client.ConnectToNode(nil, address, authMethods, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	defer c.Close()
-
-	if len(command) > 0 {
-		out := bytes.Buffer{}
-		err := c.Run(command, &out)
-		if err != nil {
-			return trace.Wrap(err, out.String())
-		}
-		fmt.Printf(out.String())
-		return nil
-	}
 
 	// disable input buffering
 	exec.Command("stty", "-F", "/dev/tty", "cbreak", "min", "1").Run()
@@ -156,7 +165,6 @@ func Connect(user, address, proxyAddress, command string, authMethods []ssh.Auth
 	}()
 
 	wg.Wait()
-
 	return nil
 }
 
@@ -176,64 +184,11 @@ func getTerminalSize() (width int, height int, e error) {
 	return width, height, nil
 }
 
-func Upload(user, address, proxyAddress, localSourcePath, remoteDestPath string, authMethods []ssh.AuthMethod) error {
-	var c *client.NodeClient
-	if len(proxyAddress) > 0 {
-		proxyClient, err := client.ConnectToProxy(proxyAddress, authMethods, user)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-		c, err = proxyClient.ConnectToNode(address, authMethods, user)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
-		var err error
-		c, err = client.ConnectToNode(address, authMethods, user)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+func GetServers(proxyAddress, labelName, labelValueRegexp string, authMethods []ssh.AuthMethod) error {
+	user, proxyAddress := client.SplitUserAndAddress(proxyAddress)
+	if len(user) == 0 {
+		return fmt.Errorf("Error: please provide user name")
 	}
-	defer c.Close()
-
-	err := c.Upload(localSourcePath, remoteDestPath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func Download(user, address, proxyAddress, remoteSourcePath, localDestPath string, isDir bool, authMethods []ssh.AuthMethod) error {
-	var c *client.NodeClient
-	if len(proxyAddress) > 0 {
-		proxyClient, err := client.ConnectToProxy(proxyAddress, authMethods, user)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-		c, err = proxyClient.ConnectToNode(address, authMethods, user)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
-		var err error
-		c, err = client.ConnectToNode(address, authMethods, user)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	defer c.Close()
-
-	err := c.Download(remoteSourcePath, localDestPath, isDir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func GetServers(user, proxyAddress, labelName, labelValueRegexp string, authMethods []ssh.AuthMethod) error {
 	proxyClient, err := client.ConnectToProxy(proxyAddress, authMethods, user)
 	if err != nil {
 		return trace.Wrap(err)
@@ -262,6 +217,33 @@ func GetServers(user, proxyAddress, labelName, labelValueRegexp string, authMeth
 			fmt.Printf("\t%v: %v\n", name, value.Result)
 		}
 
+	}
+	return nil
+}
+
+func SCP(proxyAddress, source, dest string, isDir bool, authMethods []ssh.AuthMethod) error {
+	if strings.Contains(source, ":") {
+		user, source := client.SplitUserAndAddress(source)
+		if len(user) == 0 {
+			return fmt.Errorf("Error: please provide user name")
+		}
+
+		parts := strings.Split(source, ":")
+		path := parts[len(parts)-1]
+		targetServers := strings.Join(parts[0:len(parts)-1], ":")
+		return client.Download(user, targetServers, proxyAddress, path,
+			dest, isDir, authMethods)
+	} else {
+		user, dest := client.SplitUserAndAddress(dest)
+		if len(user) == 0 {
+			return fmt.Errorf("Error: please provide user name")
+		}
+		parts := strings.Split(dest, ":")
+		path := parts[len(parts)-1]
+		target := strings.Join(parts[0:len(parts)-1], ":")
+
+		return client.Upload(user, target, proxyAddress, source,
+			path, authMethods)
 	}
 	return nil
 }

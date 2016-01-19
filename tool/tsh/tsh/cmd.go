@@ -16,7 +16,9 @@ limitations under the License.
 package tsh
 
 import (
+	"fmt"
 	"net"
+	"strings"
 
 	"github.com/gravitational/teleport/lib/client"
 
@@ -29,36 +31,45 @@ import (
 func RunTSH(args []string) error {
 	app := kingpin.New("tsh", "teleport SSH client")
 
-	user := app.Flag("user", "SSH user").Required().String()
 	sshAgentAddress := app.Flag("ssh-agent", "SSH agent address").OverrideDefaultFromEnvar("SSH_AUTH_SOCK").String()
 	sshAgentNetwork := app.Flag("ssh-agent-network", "SSH agent address network type('tcp','unix' etc.)").Default("unix").String()
 	webProxyAddress := app.Flag("web-proxy", "Web proxy address(used for login)").String()
 	loginTTL := app.Flag("login-ttl", "Temporary ssh certificate will work for that time").Default("10h").Duration()
 
-	connect := app.Command("connect", "Helper operations with SSH keypairs")
-	connectAddress := connect.Arg("address", "Target server address").Required().String()
+	connect := app.Command("ssh", "Connects to remote server and runs shell or provided command")
+	connectAddress := connect.Arg("target", "Target server address. You can provide several servers using label searching target _label:value").Required().String()
 	connectProxy := connect.Flag("proxy", "Optional proxy address").String()
-	connectCommand := connect.Flag("command", "Run proveded command instead of shell").String()
-
-	upload := app.Command("upload", "Helper operations with SSH keypairs")
-	uploadAddress := upload.Arg("address", "Target server address").Required().String()
-	uploadProxy := upload.Flag("proxy", "Optional proxy address").String()
-	uploadLocalSource := upload.Flag("source", "Local source path").Required().String()
-	uploadRemoteDest := upload.Flag("dest", "Remote destination path").Required().String()
-
-	download := app.Command("download", "Helper operations with SSH keypairs")
-	downloadAddress := download.Arg("address", "Target server address").Required().String()
-	downloadProxy := download.Flag("proxy", "Optional proxy address").String()
-	downloadLocalDest := download.Flag("dest", "Local destination path").Required().String()
-	downloadRemoteSource := download.Flag("source", "Remote source path").Required().String()
-	downloadRecursively := download.Flag("r", "Source path is directory").Bool()
+	connectCommand := connect.Flag("command", "Run provided command instead of shell").String()
 
 	getServers := app.Command("get-servers", "Returns list of servers")
 	getServersProxy := getServers.Flag("proxy", "Target proxy address").String()
 	getServersLabelName := getServers.Flag("label", "Label name").String()
 	getServersLabelValue := getServers.Flag("value", "Label value regexp").String()
 
+	scp := app.Command("scp", "Copy file or files to the remote ssh server of from it")
+	scpSource := scp.Arg("source", "source file or dir").Required().String()
+	scpDest := scp.Arg("destination", "destination file or dir").Required().String()
+	scpProxy := scp.Flag("proxy", "Optional proxy address").String()
+	scpIsDir := scp.Flag("recursively", "Source path is a directory").Short('r').Bool()
+
 	selectedCommand := kingpin.MustParse(app.Parse(args[1:]))
+
+	var user string
+	switch selectedCommand {
+	case connect.FullCommand():
+		user, _ = client.SplitUserAndAddress(*connectAddress)
+	case getServers.FullCommand():
+		user, _ = client.SplitUserAndAddress(*getServersProxy)
+	case scp.FullCommand():
+		if strings.Contains(*scpSource, ":") {
+			user, _ = client.SplitUserAndAddress(*scpSource)
+		} else {
+			user, _ = client.SplitUserAndAddress(*scpDest)
+		}
+	}
+	if len(user) == 0 {
+		return fmt.Errorf("Error: please provide user name")
+	}
 
 	standartSSHAgent, err := connectToSSHAgent(*sshAgentNetwork, *sshAgentAddress)
 	if err != nil {
@@ -68,14 +79,14 @@ func RunTSH(args []string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	passwordCallback := client.GetPasswordFromConsole(*user)
+	passwordCallback := client.GetPasswordFromConsole(user)
 
 	authMethods := []ssh.AuthMethod{
 		client.AuthMethodFromAgent(standartSSHAgent),
 		client.AuthMethodFromAgent(teleportFileSSHAgent),
-		client.GenerateCertificateCallback(
+		client.NewWebAuth(
 			teleportFileSSHAgent,
-			*user,
+			user,
 			passwordCallback,
 			*webProxyAddress,
 			*loginTTL,
@@ -86,17 +97,13 @@ func RunTSH(args []string) error {
 
 	switch selectedCommand {
 	case connect.FullCommand():
-		err = Connect(*user, *connectAddress, *connectProxy, *connectCommand, authMethods)
-	case upload.FullCommand():
-		err = Upload(*user, *uploadAddress, *uploadProxy, *uploadLocalSource,
-			*uploadRemoteDest, authMethods)
-	case download.FullCommand():
-		err = Download(*user, *downloadAddress, *downloadProxy,
-			*downloadRemoteSource, *downloadLocalDest,
-			*downloadRecursively, authMethods)
+		err = SSH(*connectAddress, *connectProxy, *connectCommand, authMethods)
 	case getServers.FullCommand():
-		err = GetServers(*user, *getServersProxy, *getServersLabelName,
+		err = GetServers(*getServersProxy, *getServersLabelName,
 			*getServersLabelValue, authMethods)
+	case scp.FullCommand():
+		err = SCP(*scpProxy, *scpSource, *scpDest, *scpIsDir,
+			authMethods)
 	}
 
 	return err

@@ -32,12 +32,14 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 )
@@ -47,6 +49,7 @@ import (
 type ProxyClient struct {
 	Client       *ssh.Client
 	proxyAddress string
+	*sync.Mutex
 }
 
 // NodeClient implements ssh client to a ssh node (teleport or any regular ssh node)
@@ -78,6 +81,7 @@ func ConnectToProxy(proxyAddress string, authMethods []ssh.AuthMethod,
 		return &ProxyClient{
 			Client:       proxyClient,
 			proxyAddress: proxyAddress,
+			Mutex:        &sync.Mutex{},
 		}, nil
 	}
 
@@ -167,6 +171,9 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, authMethods []ssh.Au
 		return nil, trace.Errorf("No authMethods were provided")
 	}
 
+	proxy.Lock()
+	defer proxy.Unlock()
+
 	e := trace.Errorf("Unknown Error")
 
 	for _, authMethod := range authMethods {
@@ -240,7 +247,11 @@ func (proxy *ProxyClient) Close() error {
 }
 
 // ConnectToNode returns connected and authenticated NodeClient
-func ConnectToNode(nodeAddress string, authMethods []ssh.AuthMethod, user string) (*NodeClient, error) {
+func ConnectToNode(optionalProxy *ProxyClient, nodeAddress string, authMethods []ssh.AuthMethod, user string) (*NodeClient, error) {
+	if optionalProxy != nil {
+		return optionalProxy.ConnectToNode(nodeAddress, authMethods, user)
+	}
+
 	e := trace.Errorf("No authMethods were provided")
 
 	for _, authMethod := range authMethods {
@@ -400,7 +411,10 @@ func (client *NodeClient) scp(scpConf scp.Command, shellCmd string) error {
 	done := make(chan struct{})
 
 	go func() {
-		scpServer.Serve(ch)
+		err := scpServer.Serve(ch)
+		if err != nil {
+			log.Errorf(err.Error())
+		}
 		stdin.Close()
 		close(done)
 	}()

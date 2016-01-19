@@ -252,7 +252,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 }
 
 func (s *ClientSuite) TestRunCommand(c *C) {
-	nodeClient, err := ConnectToNode(s.srvAddress,
+	nodeClient, err := ConnectToNode(nil, s.srvAddress,
 		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
 	c.Assert(err, IsNil)
 
@@ -298,7 +298,7 @@ func (s *ClientSuite) TestConnectUsingSeveralAgents(c *C) {
 		[]ssh.AuthMethod{
 			AuthMethodFromAgent(agent1),
 			AuthMethodFromAgent(agent2),
-			GenerateCertificateCallback(
+			NewWebAuth(
 				agent2,
 				s.user,
 				passwordCallback,
@@ -324,6 +324,7 @@ func (s *ClientSuite) TestConnectUsingSeveralAgents(c *C) {
 	c.Assert(buf.String(), Equals, "9\n")
 
 	nodeClient, err = ConnectToNode(
+		nil,
 		s.srvAddress,
 		[]ssh.AuthMethod{
 			AuthMethodFromAgent(agent1),
@@ -511,7 +512,7 @@ func (s *ClientSuite) TestDownloadFile(c *C) {
 }
 
 func (s *ClientSuite) TestUploadDir(c *C) {
-	nodeClient, err := ConnectToNode(s.srvAddress,
+	nodeClient, err := ConnectToNode(nil, s.srvAddress,
 		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
 	c.Assert(err, IsNil)
 
@@ -541,7 +542,7 @@ func (s *ClientSuite) TestUploadDir(c *C) {
 }
 
 func (s *ClientSuite) TestDownloadDir(c *C) {
-	nodeClient, err := ConnectToNode(s.srvAddress,
+	nodeClient, err := ConnectToNode(nil, s.srvAddress,
 		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
 	c.Assert(err, IsNil)
 
@@ -604,4 +605,34 @@ func (s *ClientSuite) TestHOTPMock(c *C) {
 	err = teleagent.Login("http://"+s.webAddress, s.user, string(s.pass), hotpMock.OTP(), time.Minute)
 	c.Assert(err, NotNil)
 
+}
+
+func (s *ClientSuite) TestParseTargetObject(c *C) {
+	addresses, err := ParseTargetServers(s.srv2Address, s.user, s.proxyAddress, []ssh.AuthMethod{s.teleagent.AuthMethod()})
+	c.Assert(err, IsNil)
+	c.Assert(addresses, DeepEquals, []string{s.srv2Address})
+
+	addresses, err = ParseTargetServers("_label1:val.*", s.user, s.proxyAddress, []ssh.AuthMethod{s.teleagent.AuthMethod()})
+	c.Assert(err, IsNil)
+	c.Assert(len(addresses), Equals, 2)
+	if addresses[0] == s.srvAddress {
+		c.Assert(addresses, DeepEquals, []string{s.srvAddress, s.srv2Address})
+	} else {
+		c.Assert(addresses, DeepEquals, []string{s.srv2Address, s.srvAddress})
+	}
+
+	addresses, err = ParseTargetServers("_label2:value2*", s.user, s.proxyAddress, []ssh.AuthMethod{s.teleagent.AuthMethod()})
+	c.Assert(err, IsNil)
+	c.Assert(addresses, DeepEquals, []string{s.srvAddress})
+
+}
+
+func (s *ClientSuite) TestSplitUserAndAddress(c *C) {
+	user, addr := SplitUserAndAddress("user@address")
+	c.Assert(user, Equals, "user")
+	c.Assert(addr, Equals, "address")
+
+	user, addr = SplitUserAndAddress("abcd:1234")
+	c.Assert(user, Equals, "")
+	c.Assert(addr, Equals, "abcd:1234")
 }
