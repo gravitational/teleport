@@ -6,7 +6,7 @@ TARGETS=teleport tctl tsh
 .PHONY: all install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd install-assets docs-serve
 
 #
-# this target is used by Jenkins for production builds
+# This target can 
 #
 all: $(TARGETS)
 teleport:
@@ -23,6 +23,14 @@ install: remove-temp-files
 
 clean:
 	rm -f $(TARGETS)
+
+#
+# this target is used by Jenkins for production builds
+#
+.PHONY: production
+production:
+	$(MAKE) -C build.assets
+
 
 test: install
 	go test -v -test.parallel=0 ./... -cover
