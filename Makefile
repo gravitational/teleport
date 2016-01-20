@@ -28,7 +28,7 @@ clean:
 # this target is used by Jenkins for production builds
 #
 .PHONY: production
-production:
+production: clean
 	$(MAKE) -C build.assets
 
 
