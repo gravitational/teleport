@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
+	"github.com/mailgun/lemma/secret"
 )
 
 func (cmd *Command) NewKey(filename string) error {

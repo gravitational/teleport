@@ -38,11 +38,11 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gokyle/hotp"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/agent"
-	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/gokyle/hotp"
+	"github.com/mailgun/lemma/secret"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+	. "gopkg.in/check.v1"
 )
 
 func TestSrv(t *testing.T) { TestingT(t) }
@@ -558,7 +558,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 	_, err = clt.NewSession()
 	c.Assert(err, NotNil)
 
-	c.Assert(clt.Close(), IsNil)
+	clt.Close()
 }
 
 // upack holds all ssh signing artefacts needed for signing and checking user keys

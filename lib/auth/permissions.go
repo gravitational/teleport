@@ -17,7 +17,7 @@ limitations under the License.
 package auth
 
 import (
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/trace"
 )
 
 type PermissionChecker interface {
@@ -43,16 +43,16 @@ func NewStandardPermissions() PermissionChecker {
 	}
 
 	sp.permissions[RoleNode] = map[string]bool{
-		ActionUpsertServer:             true,
+		ActionUpsertServer:                true,
 		ActionGetUserCertificateAuthority: true,
-		ActionGetRemoteCertificates:    true,
-		ActionGetTrustedCertificates:   true,
-		ActionGetUserKeys:              true,
-		ActionGetServers:               true,
+		ActionGetRemoteCertificates:       true,
+		ActionGetTrustedCertificates:      true,
+		ActionGetUserKeys:                 true,
+		ActionGetServers:                  true,
 		ActionGetHostCertificateAuthority: true,
-		ActionUpsertParty:              true,
-		ActionLogEntry:                 true,
-		ActionGetChunkWriter:           true,
+		ActionUpsertParty:                 true,
+		ActionLogEntry:                    true,
+		ActionGetChunkWriter:              true,
 	}
 
 	sp.permissions[RoleWeb] = map[string]bool{
@@ -142,8 +142,8 @@ const (
 	ActionUpsertUserKey                 = "UpsertUserKey"
 	ActionGetUserKeys                   = "GetUserKeys"
 	ActionDeleteUserKey                 = "DeleteUserKey"
-	ActionGetHostCertificateAuthority      = "GetHostCertificateAuthority"
-	ActionGetUserCertificateAuthority      = "GetUserCertificateAuthority"
+	ActionGetHostCertificateAuthority   = "GetHostCertificateAuthority"
+	ActionGetUserCertificateAuthority   = "GetUserCertificateAuthority"
 	ActionGenerateKeyPair               = "GenerateKeyPair"
 	ActionGenerateHostCert              = "GenerateHostCert"
 	ActionGenerateUserCert              = "GenerateUserCert"

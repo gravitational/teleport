@@ -20,10 +20,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
 	"github.com/gravitational/teleport/lib/auth"
+	"golang.org/x/crypto/ssh"
 
-	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
+	. "gopkg.in/check.v1"
 )
 
 func TestAuth(t *testing.T) { TestingT(t) }

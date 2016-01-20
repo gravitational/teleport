@@ -19,8 +19,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/trace"
 )
 
 type ProvisioningService struct {
@@ -35,7 +35,7 @@ func NewProvisioningService(backend backend.Backend) *ProvisioningService {
 func (s *ProvisioningService) UpsertToken(token, domainName, role string, ttl time.Duration) error {
 	t := ProvisionToken{
 		DomainName: domainName,
-		Role: role,
+		Role:       role,
 	}
 	out, err := json.Marshal(t)
 	if err != nil {
@@ -69,5 +69,5 @@ func (s *ProvisioningService) DeleteToken(token string) error {
 
 type ProvisionToken struct {
 	DomainName string
-	Role string
+	Role       string
 }

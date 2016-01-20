@@ -26,11 +26,11 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/ttlmap"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"github.com/gravitational/log"
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+	"github.com/mailgun/ttlmap"
+	"golang.org/x/crypto/ssh"
 )
 
 type Cookie struct {

@@ -16,9 +16,9 @@ limitations under the License.
 package boltrec
 
 import (
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // cfg represents JSON config for bolt backlend

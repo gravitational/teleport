@@ -23,10 +23,10 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/testdata"
-	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/gravitational/log"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/testdata"
+	. "gopkg.in/check.v1"
 )
 
 func TestSSHUtils(t *testing.T) { TestingT(t) }

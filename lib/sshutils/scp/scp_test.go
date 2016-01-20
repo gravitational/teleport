@@ -24,8 +24,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/gravitational/log"
+	. "gopkg.in/check.v1"
 )
 
 func TestSCP(t *testing.T) { TestingT(t) }

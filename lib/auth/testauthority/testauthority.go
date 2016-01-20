@@ -19,7 +19,7 @@ import (
 	"crypto/rand"
 	"time"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh"
 )
 
 type nauth struct {

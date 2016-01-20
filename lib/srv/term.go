@@ -23,9 +23,9 @@ import (
 
 	"github.com/gravitational/teleport/lib/sshutils"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/kr/pty"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"github.com/gravitational/log"
+	"github.com/kr/pty"
+	"golang.org/x/crypto/ssh"
 )
 
 // term provides handy functions for managing PTY, usch as resizing windows

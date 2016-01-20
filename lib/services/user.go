@@ -18,9 +18,9 @@ package services
 import (
 	"time"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/log"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/trace"
 )
 
 type UserService struct {

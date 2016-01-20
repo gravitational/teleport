@@ -22,9 +22,9 @@ import (
 	"os/exec"
 	"syscall"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"github.com/gravitational/log"
 	"github.com/gravitational/teleport/lib/events"
+	"golang.org/x/crypto/ssh"
 )
 
 type execResult struct {

@@ -20,7 +20,7 @@ import (
 	"io/ioutil"
 	"time"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/buger/goterm"
+	"github.com/buger/goterm"
 	"github.com/gravitational/teleport/lib/services"
 )
 

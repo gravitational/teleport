@@ -18,7 +18,7 @@ package sshutils
 import (
 	"io"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
+	"github.com/gravitational/log"
 )
 
 func CloseAll(closers ...io.Closer) error {

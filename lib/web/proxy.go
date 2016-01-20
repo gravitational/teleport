@@ -26,11 +26,11 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/oxy/forward"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/route"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh/agent"
+	"github.com/gravitational/log"
+	"github.com/mailgun/oxy/forward"
+	"github.com/mailgun/route"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 type proxyHandler struct {

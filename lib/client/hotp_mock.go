@@ -26,8 +26,8 @@ package client
 import (
 	"io/ioutil"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gokyle/hotp"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gokyle/hotp"
+	"github.com/gravitational/trace"
 )
 
 // HOTPMock is a HOTP that can be saved or load from file

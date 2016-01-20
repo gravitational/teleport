@@ -20,9 +20,9 @@ import (
 
 	"github.com/gravitational/teleport/lib/sshutils"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/net/websocket"
+	"github.com/gravitational/log"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/websocket"
 )
 
 // wsHandler

@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/gravitational/teleport",
-	"GoVersion": "go1.4.2",
+	"GoVersion": "go1.5",
 	"Packages": [
 		"./..."
 	],
@@ -8,22 +8,22 @@
 		{
 			"ImportPath": "code.google.com/p/go-uuid/uuid",
 			"Comment": "null-15",
-			"Rev": "35bc42037350f0078e3c974c6ea690f1926603ab"
+			"Rev": "'35bc42037350f0078e3c974c6ea690f1926603ab'"
 		},
 		{
 			"ImportPath": "code.google.com/p/go.crypto/nacl/secretbox",
 			"Comment": "null-236",
-			"Rev": "69e2a90ed92d03812364aeb947b7068dc42e561e"
+			"Rev": "'69e2a90ed92d03812364aeb947b7068dc42e561e'"
 		},
 		{
 			"ImportPath": "code.google.com/p/rsc/gf256",
 			"Comment": "null-258",
-			"Rev": "2d8aa6027fab93979a3b4ecdbeb1ba430b489318"
+			"Rev": "'2d8aa6027fab93979a3b4ecdbeb1ba430b489318'"
 		},
 		{
 			"ImportPath": "code.google.com/p/rsc/qr",
 			"Comment": "null-258",
-			"Rev": "2d8aa6027fab93979a3b4ecdbeb1ba430b489318"
+			"Rev": "'2d8aa6027fab93979a3b4ecdbeb1ba430b489318'"
 		},
 		{
 			"ImportPath": "github.com/alecthomas/template",
@@ -91,6 +91,7 @@
 		},
 		{
 			"ImportPath": "github.com/julienschmidt/httprouter",
+			"Comment": "v1-64-gb428fda",
 			"Rev": "b428fda53bb0a764fea9c76c9413512eda291dec"
 		},
 		{
@@ -200,11 +201,6 @@
 		{
 			"ImportPath": "gopkg.in/check.v1",
 			"Rev": "64131543e7896d5bcc6bd5a76287eb75ea96c673"
-		},
-		{
-			"ImportPath": "gopkg.in/mgo.v2/bson",
-			"Comment": "r2015.06.03-4-gf4923a5",
-			"Rev": "f4923a569136442e900b8cf5c1a706c0a8b0883c"
 		},
 		{
 			"ImportPath": "gopkg.in/yaml.v2",

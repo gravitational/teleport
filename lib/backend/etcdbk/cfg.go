@@ -16,9 +16,9 @@ limitations under the License.
 package etcdbk
 
 import (
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // cfg represents JSON config for etcd backlend

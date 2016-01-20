@@ -3,9 +3,9 @@ package srv
 import (
 	"encoding/json"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"github.com/gravitational/log"
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 // proxySubsys is an SSH subsystem for easy proxyneling through proxy server

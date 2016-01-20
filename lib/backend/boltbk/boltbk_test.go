@@ -21,7 +21,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend/test"
 
-	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
+	. "gopkg.in/check.v1"
 )
 
 func TestBolt(t *testing.T) { TestingT(t) }

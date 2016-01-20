@@ -21,7 +21,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 
-	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
+	. "gopkg.in/check.v1"
 )
 
 type KeyStoreSuite struct {

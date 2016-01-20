@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
+	"github.com/codahale/lunk"
 )
 
 type Filter struct {

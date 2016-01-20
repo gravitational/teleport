@@ -24,7 +24,7 @@ limitations under the License.
 package utils
 
 import (
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/trace"
 	"io"
 	"net"
 	"sync"

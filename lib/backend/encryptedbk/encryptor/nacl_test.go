@@ -16,7 +16,7 @@ limitations under the License.
 package encryptor
 
 import (
-	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
+	. "gopkg.in/check.v1"
 	"reflect"
 )
 

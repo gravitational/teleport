@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gokyle/hotp"
+	"github.com/gokyle/hotp"
 
 	//"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/native"
@@ -37,9 +37,9 @@ import (
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/session"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
-	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/mailgun/lemma/secret"
+	"golang.org/x/crypto/ssh"
+	. "gopkg.in/check.v1"
 )
 
 func TestAPI(t *testing.T) { TestingT(t) }
@@ -365,10 +365,10 @@ func (s *APISuite) TestTokens(c *C) {
 
 func (s *APISuite) TestRemoteCACRUD(c *C) {
 	key := services.CertificateAuthority{
-		DomainName:     "example.com",
-		ID:       "id",
-		PublicKey: []byte("hello1"),
-		Type:     services.UserCert,
+		DomainName: "example.com",
+		ID:         "id",
+		PublicKey:  []byte("hello1"),
+		Type:       services.UserCert,
 	}
 	err := s.clt.UpsertRemoteCertificate(key, 0)
 	c.Assert(err, IsNil)

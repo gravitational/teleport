@@ -20,7 +20,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth/test"
 
-	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
+	. "gopkg.in/check.v1"
 )
 
 func TestNative(t *testing.T) { TestingT(t) }

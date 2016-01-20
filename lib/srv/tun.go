@@ -20,9 +20,9 @@ import (
 
 	"strings"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"github.com/gravitational/log"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"golang.org/x/crypto/ssh"
 )
 
 // tunSubsys is an SSH subsystem for easy tunneling through proxy server

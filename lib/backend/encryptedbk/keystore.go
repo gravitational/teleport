@@ -20,7 +20,7 @@ import (
 	"io/ioutil"
 	"sync"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
