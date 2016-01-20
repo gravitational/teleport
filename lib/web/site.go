@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"code.google.com/p/go-uuid/uuid"
@@ -45,8 +46,10 @@ import (
 // SiteHandler implements methods for single site
 type SiteHandler struct {
 	httprouter.Router
-	cfg       SiteHandlerConfig
-	templates map[string]*template.Template
+	cfg          SiteHandlerConfig
+	templates    map[string]*template.Template
+	hasTemplates uint32
+	sync.Mutex
 }
 
 type SiteHandlerConfig struct {
@@ -71,7 +74,6 @@ func NewSiteHandler(cfg SiteHandlerConfig) *SiteHandler {
 		cfg: cfg,
 	}
 
-	h.initTemplates(cfg.AssetsDir)
 	h.GET("/login", h.login)
 	h.GET("/logout", h.logout)
 	h.POST("/auth", h.authForm)
@@ -677,6 +679,7 @@ func (s *SiteHandler) authForm(w http.ResponseWriter, r *http.Request, p httprou
 }
 
 func (s *SiteHandler) executeTemplate(w http.ResponseWriter, name string, data map[string]interface{}) {
+	s.initTemplates(s.cfg.AssetsDir)
 	if data == nil {
 		data = map[string]interface{}{}
 	}
@@ -699,6 +702,13 @@ func (s *SiteHandler) Path(params ...string) string {
 }
 
 func (s *SiteHandler) initTemplates(baseDir string) {
+	s.Lock()
+	defer s.Unlock()
+
+	if len(s.templates) != 0 {
+		return
+	}
+
 	tpls := []tpl{
 		tpl{name: "login", include: []string{"assets/static/tpl/login.tpl", "assets/static/tpl/site-base.tpl"}},
 		tpl{name: "keys", include: []string{"assets/static/tpl/keys.tpl", "assets/static/tpl/site-base.tpl"}},

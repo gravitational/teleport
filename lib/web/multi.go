@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"sync"
 	"text/template"
 	"time"
 
@@ -41,6 +42,7 @@ type MultiSiteHandler struct {
 	auth      AuthHandler
 	sites     *ttlmap.TtlMap
 	templates map[string]*template.Template
+	sync.Mutex
 }
 
 type MultiSiteConfig struct {
@@ -66,8 +68,6 @@ func NewMultiSiteHandler(cfg MultiSiteConfig) (*MultiSiteHandler, error) {
 		auth:  lauth,
 		sites: sites,
 	}
-
-	h.initTemplates(cfg.AssetsDir)
 
 	// WEB views
 	h.GET("/web/login", h.login)
@@ -98,6 +98,11 @@ func NewMultiSiteHandler(cfg MultiSiteConfig) (*MultiSiteHandler, error) {
 }
 
 func (s *MultiSiteHandler) initTemplates(baseDir string) {
+	s.Lock()
+	defer s.Unlock()
+	if len(s.templates) != 0 {
+		return
+	}
 	tpls := []tpl{
 		tpl{name: "login", include: []string{"assets/static/tpl/login.tpl", "assets/static/tpl/base.tpl"}},
 		tpl{name: "sites", include: []string{"assets/static/tpl/sites.tpl", "assets/static/tpl/base.tpl"}},
@@ -273,6 +278,7 @@ func (h *MultiSiteHandler) needsAuth(fn authHandle) httprouter.Handle {
 }
 
 func (h *MultiSiteHandler) executeTemplate(w http.ResponseWriter, name string, data interface{}) {
+	h.initTemplates(h.cfg.AssetsDir)
 	tpl, ok := h.templates[name]
 	if !ok {
 		replyErr(w, http.StatusInternalServerError, fmt.Errorf("template '%v' not found", name))
