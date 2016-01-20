@@ -558,7 +558,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 	_, err = clt.NewSession()
 	c.Assert(err, NotNil)
 
-	c.Assert(clt.Close(), IsNil)
+	clt.Close()
 }
 
 // upack holds all ssh signing artefacts needed for signing and checking user keys
