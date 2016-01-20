@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/utils"
 )

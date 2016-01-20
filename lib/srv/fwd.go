@@ -16,8 +16,8 @@ limitations under the License.
 package srv
 
 import (
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"github.com/gravitational/log"
+	"golang.org/x/crypto/ssh"
 )
 
 type DirectTCPIPReq struct {

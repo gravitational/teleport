@@ -27,8 +27,8 @@ import (
 
 	"github.com/gravitational/teleport"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/boltdb/bolt"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/boltdb/bolt"
+	"github.com/gravitational/trace"
 )
 
 type BoltBackend struct {

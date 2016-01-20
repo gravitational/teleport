@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/trace"
 )
 
 func (cmd *Command) AgentLogin(agentAddr string, proxyAddr string, ttl time.Duration) {

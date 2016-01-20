@@ -23,8 +23,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/configure/cstrings"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/configure/cstrings"
+	"github.com/gravitational/trace"
 )
 
 func renderTemplate(data []byte) ([]byte, error) {

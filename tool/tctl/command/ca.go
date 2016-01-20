@@ -23,8 +23,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/buger/goterm"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/buger/goterm"
+	"github.com/gravitational/trace"
 )
 
 func (cmd *Command) GenerateKeyPair(privateKeyPath, publicKeyPath, passphrase string) error {
@@ -93,10 +93,10 @@ func (cmd *Command) UpsertRemoteCertificate(id, domainName, certType, path strin
 		return
 	}
 	cert := services.CertificateAuthority{
-		DomainName:     domainName,
-		Type:     certType,
-		ID:       id,
-		PublicKey: val,
+		DomainName: domainName,
+		Type:       certType,
+		ID:         id,
+		PublicKey:  val,
 	}
 	if err := cmd.client.UpsertRemoteCertificate(cert, ttl); err != nil {
 		cmd.printError(err)

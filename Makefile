@@ -33,10 +33,10 @@ production:
 
 
 test: install
-	go test -v -test.parallel=0 ./... -cover
+	go test -v -test.parallel=0 $(shell go list ./... | grep -v /vendor/) -cover
 
 test-with-etcd: install
-	${ETCD_FLAGS} go test -v -test.parallel=0 ./... -cover
+	${ETCD_FLAGS} go test -v -test.parallel=0 $(shell go list ./... | grep -v /vendor/) -cover
 
 remove-temp-files:
 	find . -name flymake_* -delete

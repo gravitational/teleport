@@ -33,8 +33,8 @@ import (
 
 	"github.com/gravitational/teleport/lib/services"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 // RunCmd runs provided command on the target servers and

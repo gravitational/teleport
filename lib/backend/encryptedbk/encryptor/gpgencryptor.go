@@ -23,12 +23,12 @@ import (
 	"io/ioutil"
 	"sync"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/openpgp"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/openpgp/packet"
+	"golang.org/x/crypto/openpgp"
+	"golang.org/x/crypto/openpgp/packet"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/trace"
 
-	_ "github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ripemd160"
+	_ "golang.org/x/crypto/ripemd160"
 )
 
 type GPGEncryptor struct {

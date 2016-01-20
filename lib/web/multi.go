@@ -24,15 +24,15 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/form"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/ttlmap"
+	"github.com/gravitational/form"
+	"github.com/gravitational/log"
+	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/session"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+	"github.com/mailgun/ttlmap"
 )
 
 type MultiSiteHandler struct {

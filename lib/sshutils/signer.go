@@ -18,7 +18,7 @@ package sshutils
 import (
 	"fmt"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh"
 )
 
 func NewSigner(keyBytes, certBytes []byte) (ssh.Signer, error) {

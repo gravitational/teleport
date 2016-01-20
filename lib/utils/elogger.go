@@ -16,7 +16,7 @@ limitations under the License.
 package utils
 
 import (
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
+	"github.com/codahale/lunk"
 )
 
 var NullEventLogger lunk.EventLogger = &NOPEventLogger{}

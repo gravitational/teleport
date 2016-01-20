@@ -20,10 +20,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/coreos/go-etcd/etcd"
+	"github.com/coreos/go-etcd/etcd"
 	"github.com/gravitational/teleport/lib/backend/test"
 
-	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
+	. "gopkg.in/check.v1"
 )
 
 func TestEtcd(t *testing.T) { TestingT(t) }

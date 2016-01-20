@@ -18,7 +18,7 @@ package encryptor
 import (
 	"encoding/hex"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/trace"
 )
 
 const (

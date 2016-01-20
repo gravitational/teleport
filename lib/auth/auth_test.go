@@ -19,15 +19,15 @@ import (
 	"path/filepath"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
+	"github.com/mailgun/lemma/secret"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gokyle/hotp"
+	"github.com/gokyle/hotp"
 
-	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
+	. "gopkg.in/check.v1"
 )
 
 type AuthSuite struct {

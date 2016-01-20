@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
+	. "gopkg.in/check.v1"
 )
 
 func TestLimiter(t *testing.T) { TestingT(t) }

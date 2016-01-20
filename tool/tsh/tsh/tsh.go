@@ -28,9 +28,9 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"github.com/gravitational/log"
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 func SSH(target, proxyAddress, command string, authMethods []ssh.AuthMethod) error {

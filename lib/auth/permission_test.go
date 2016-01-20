@@ -16,7 +16,7 @@ limitations under the License.
 package auth
 
 import (
-	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
+	. "gopkg.in/check.v1"
 )
 
 type PermCheckerSuite struct {

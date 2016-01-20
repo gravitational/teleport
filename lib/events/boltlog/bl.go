@@ -25,9 +25,9 @@ import (
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/events"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/boltdb/bolt"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
+	"github.com/boltdb/bolt"
+	"github.com/codahale/lunk"
+	"github.com/gravitational/log"
 )
 
 type BoltLog struct {

@@ -20,7 +20,7 @@ import (
 	"encoding/base64"
 	"net/http"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/trace"
 )
 
 func ListenAndServeTLS(address string, handler http.Handler,

@@ -20,7 +20,7 @@ import (
 	"io"
 
 	//	"github.com/gravitational/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh"
 )
 
 func NewUpstream(clt *ssh.Client) (*Upstream, error) {

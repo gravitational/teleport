@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/trace"
 )
 
 func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte,

@@ -28,18 +28,18 @@ import (
 	"strconv"
 	"time"
 
+	"code.google.com/p/go-uuid/uuid"
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/code.google.com/p/go-uuid/uuid"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/form"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
+	"github.com/codahale/lunk"
+	"github.com/gravitational/form"
+	"github.com/gravitational/log"
+	"github.com/gravitational/roundtrip"
+	"github.com/julienschmidt/httprouter"
 )
 
 // SiteHandler implements methods for single site

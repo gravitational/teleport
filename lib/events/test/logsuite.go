@@ -21,10 +21,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
+	"github.com/codahale/lunk"
 	"github.com/gravitational/teleport/lib/events"
 
-	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
+	. "gopkg.in/check.v1"
 )
 
 func TestEventLog(t *testing.T) { TestingT(t) }

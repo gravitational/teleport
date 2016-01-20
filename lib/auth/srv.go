@@ -31,12 +31,12 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/form"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/roundtrip"
-	websession "github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/julienschmidt/httprouter"
+	"github.com/codahale/lunk"
+	"github.com/gravitational/form"
+	"github.com/gravitational/log"
+	"github.com/gravitational/roundtrip"
+	websession "github.com/gravitational/session"
+	"github.com/julienschmidt/httprouter"
 )
 
 type Config struct {

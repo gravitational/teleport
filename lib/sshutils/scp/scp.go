@@ -26,8 +26,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/log"
+	"github.com/gravitational/trace"
 )
 
 const (

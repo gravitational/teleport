@@ -29,9 +29,9 @@ import (
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/services"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/mailgun/lemma/secret"
+	"github.com/gravitational/session"
+	"github.com/gravitational/trace"
+	"github.com/mailgun/lemma/secret"
 )
 
 // Authority implements minimal key-management facility for generating OpenSSH

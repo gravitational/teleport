@@ -25,9 +25,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/configure"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/configure/cstrings"
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/trace"
+	"github.com/gravitational/configure"
+	"github.com/gravitational/configure/cstrings"
+	"github.com/gravitational/trace"
 )
 
 func ParseYAMLFile(path string, cfg interface{}) error {

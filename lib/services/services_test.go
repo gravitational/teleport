@@ -19,9 +19,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/log"
-	. "github.com/gravitational/teleport/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/gravitational/log"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
+	. "gopkg.in/check.v1"
 )
 
 func TestServices(t *testing.T) { TestingT(t) }

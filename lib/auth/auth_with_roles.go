@@ -25,8 +25,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 
-	"github.com/gravitational/teleport/Godeps/_workspace/src/github.com/codahale/lunk"
-	websession "github.com/gravitational/teleport/Godeps/_workspace/src/github.com/gravitational/session"
+	"github.com/codahale/lunk"
+	websession "github.com/gravitational/session"
 )
 
 type AuthWithRoles struct {
