@@ -46,9 +46,8 @@ import (
 // SiteHandler implements methods for single site
 type SiteHandler struct {
 	httprouter.Router
-	cfg          SiteHandlerConfig
-	templates    map[string]*template.Template
-	hasTemplates uint32
+	cfg       SiteHandlerConfig
+	templates map[string]*template.Template
 	sync.Mutex
 }
 
