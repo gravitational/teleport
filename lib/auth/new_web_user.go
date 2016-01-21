@@ -39,6 +39,8 @@ const (
 	AUTH_TARGET_ADD_USER_FINISH     = "AuthTargetAddUserFinish"
 )
 
+// CreateAddUserToken creates one time token for creating account for the user
+// For each token it creates and username, hotp generator
 func (s *AuthServer) CreateAddUserToken(user string) (token string, e error) {
 	s.AddUserMutex.Lock()
 	defer s.AddUserMutex.Unlock()
@@ -58,7 +60,7 @@ func (s *AuthServer) CreateAddUserToken(user string) (token string, e error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	otpQR, err := otp.QR(user)
+	otpQR, err := otp.QR(user + "@Teleport")
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -90,6 +92,8 @@ func (s *AuthServer) CreateAddUserToken(user string) (token string, e error) {
 	return token, nil
 }
 
+// AuthWithAddUserToken returns nil once for each valid (token, target) string
+// Possible targets: AUTH_TARGET_ADD_USER_FORM, AUTH_TARGET_ADD_USER_FINISH
 func (s *AuthServer) AuthWithAddUserToken(token string, target string) error {
 	s.AddUserMutex.Lock()
 	defer s.AddUserMutex.Unlock()
@@ -114,6 +118,7 @@ func (s *AuthServer) AuthWithAddUserToken(token string, target string) error {
 	return nil
 }
 
+// Returns token data once for each valid token
 func (s *AuthServer) GetAddUserTokenData(token string) (user string,
 	QRImg []byte, hotpFirstValue string, e error) {
 
@@ -127,6 +132,11 @@ func (s *AuthServer) GetAddUserTokenData(token string) (user string,
 
 	if len(tokenData.HotpFirstValue) == 0 {
 		return "", nil, "", trace.Errorf("Token was already used")
+	}
+
+	_, err = s.GetPasswordHash(tokenData.User)
+	if err == nil {
+		return "", nil, "", trace.Errorf("Can't add user %v, user already exists", tokenData.User)
 	}
 
 	hotpFirstValue = tokenData.HotpFirstValue
@@ -143,6 +153,9 @@ func (s *AuthServer) GetAddUserTokenData(token string) (user string,
 	return user, QRImg, hotpFirstValue, nil
 }
 
+// CreateUserWithToken creates account with provided token and password.
+// account username and hotp generator are taken from token data.
+// Deletes token after account creation.
 func (s *AuthServer) CreateUserWithToken(token string, password string) error {
 	s.AddUserMutex.Lock()
 	defer s.AddUserMutex.Unlock()
@@ -150,6 +163,11 @@ func (s *AuthServer) CreateUserWithToken(token string, password string) error {
 	tokenData, err := s.GetAddUserToken(token)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	_, err = s.GetPasswordHash(tokenData.User)
+	if err == nil {
+		return trace.Errorf("Can't add user %v, user already exists", tokenData.User)
 	}
 
 	_, _, err = s.UpsertPassword(tokenData.User, []byte(password))

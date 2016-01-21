@@ -60,6 +60,14 @@ func NewStandardPermissions() PermissionChecker {
 		ActionDeleteWebSession: true,
 	}
 
+	sp.permissions[RoleAddUserForm] = map[string]bool{
+		ActionGetAddUserTokenData: true,
+	}
+
+	sp.permissions[RoleAddUserFinish] = map[string]bool{
+		ActionCreateUserWithToken: true,
+	}
+
 	return &sp
 }
 
@@ -98,6 +106,8 @@ var StandardRoles = []string{
 	RoleNode,
 	RoleAdmin,
 	RoleProvisionToken,
+	RoleAddUserForm,
+	RoleAddUserFinish,
 }
 
 const (

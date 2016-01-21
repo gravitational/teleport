@@ -19,7 +19,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/gokyle/hotp"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -125,39 +124,52 @@ func (h *MultiSiteHandler) String() string {
 }
 
 func (h *MultiSiteHandler) newUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	otp, _ := hotp.GenerateHOTP(6, false)
-	hotpQR, _ := otp.QR("User123")
+	token := p[0].Value
+	user, QRImg, hotpFirstValue, err := h.auth.NewUserForm(token)
+	if err != nil {
+		replyErr(w, http.StatusBadRequest, err)
+		return
+	}
 
-	QR64 := base64.StdEncoding.EncodeToString(hotpQR)
-
-	username := p[0].Value
-	h.executeTemplate(w, "newuser", map[string]interface{}{"Username": username, "QR": QR64})
+	base64QRImg := base64.StdEncoding.EncodeToString(QRImg)
+	h.executeTemplate(w, "newuser", map[string]interface{}{
+		"Token":          token,
+		"Username":       user,
+		"QR":             base64QRImg,
+		"HotpFirstValue": hotpFirstValue})
 }
 
 func (h *MultiSiteHandler) finishNewUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	var token, pass, pass2, hotpToken string
+	var token, pass, pass2, hotpToken, correctHotpToken string
 
 	err := form.Parse(r,
 		form.String("token", &token, form.Required()),
 		form.String("password", &pass, form.Required()),
-		form.String("password2", &pass2, form.Required()),
-		form.String("hotpToken", &hotpToken, form.Required()),
+		form.String("password_confirm", &pass2, form.Required()),
+		form.String("hotp_token", &hotpToken, form.Required()),
+		form.String("correct_hotp_token", &correctHotpToken, form.Required()),
 	)
 
 	if err != nil {
 		replyErr(w, http.StatusBadRequest, err)
 		return
 	}
-	/*sid, err := h.auth.Auth(user, pass, hotpToken)
-	if err != nil {
-		log.Warningf("auth error: %v", err)
-		http.Redirect(w, r, "/web/loginerror", http.StatusFound)
+
+	if pass != pass2 {
+		replyErr(w, http.StatusBadRequest, trace.Errorf("provided passwords mismatch"))
 		return
 	}
-	if err := session.SetSession(w, h.cfg.DomainName, user, sid); err != nil {
-		replyErr(w, http.StatusInternalServerError, err)
+
+	if hotpToken != correctHotpToken {
+		replyErr(w, http.StatusBadRequest, trace.Errorf("wrong hotp token"))
 		return
-	}*/
+	}
+
+	err = h.auth.NewUserFinish(token, pass)
+	if err != nil {
+		replyErr(w, http.StatusBadRequest, err)
+		return
+	}
 
 	http.Redirect(w, r, "/web/loginaftercreation", http.StatusFound)
 }
@@ -171,7 +183,7 @@ func (h *MultiSiteHandler) loginError(w http.ResponseWriter, r *http.Request, _ 
 }
 
 func (h *MultiSiteHandler) loginAfterCreation(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	h.executeTemplate(w, "login", map[string]interface{}{"ErrorString": "Account was successfully created, you can login"})
+	h.executeTemplate(w, "login", map[string]interface{}{"InfoString": "Account was successfully created, you can login"})
 }
 
 func (h *MultiSiteHandler) logout(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -364,6 +376,10 @@ func sitesResponse(rs []reversetunnel.RemoteSite) []site {
 		}
 	}
 	return out
+}
+
+func CreateAddUserLink(hostPort string, token string) string {
+	return "http://" + hostPort + "/web/newuser/" + token
 }
 
 type authHandle func(http.ResponseWriter, *http.Request, httprouter.Params, Context) error

@@ -726,10 +726,26 @@ func (c *Client) GetSealKey(keyID string) (encryptor.Key, error) {
 	return key.Key, nil
 }
 
+func (c *Client) CreateAddUserToken(user string) (token string, e error) {
+	out, err := c.PostForm(c.Endpoint("adduser", "newtoken"), url.Values{
+		"user": []string{user},
+	})
+	if err != nil {
+		return "", err
+	}
+	var result map[string]string
+	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+		return "", err
+	}
+	return result["message"], err
+}
+
 func (c *Client) GetAddUserTokenData(token string) (user string,
 	QRImg []byte, hotpFirstValue string, e error) {
 
-	out, err := c.Get(c.Endpoint("users", "adduser", "token"), url.Values{})
+	out, err := c.Get(c.Endpoint("adduser", "token"), url.Values{
+		"token": []string{token},
+	})
 	if err != nil {
 		return "", nil, "", err
 	}
@@ -737,11 +753,11 @@ func (c *Client) GetAddUserTokenData(token string) (user string,
 	if err := json.Unmarshal(out.Bytes(), &tokenData); err != nil {
 		return "", nil, "", err
 	}
-	return tokenData.User, []byte(tokenData.QRImg), tokenData.HotpFirstValue, nil
+	return tokenData.User, tokenData.QRImg, tokenData.HotpFirstValue, nil
 }
 
 func (c *Client) CreateUserWithToken(token string, password string) error {
-	_, err := c.PostForm(c.Endpoint("users", "adduser"), url.Values{
+	_, err := c.PostForm(c.Endpoint("adduser"), url.Values{
 		"token":    []string{token},
 		"password": []string{password},
 	})

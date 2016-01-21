@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/log"
 	"github.com/gravitational/roundtrip"
 	websession "github.com/gravitational/session"
+	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -98,8 +99,9 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.GET("/v1/users/:user/web/sessions/:sid", srv.getWebSession)
 	srv.GET("/v1/users/:user/web/sessions", srv.getWebSessions)
 	srv.DELETE("/v1/users/:user/web/sessions/:sid", srv.deleteWebSession)
-	srv.GET("/v1/users/adduser/token", srv.getAddUserTokenData)
-	srv.POST("/v1/users/adduser", srv.createUserWithToken)
+	srv.GET("/v1/adduser/token", srv.getAddUserTokenData)
+	srv.POST("/v1/adduser", srv.createUserWithToken)
+	srv.POST("/v1/adduser/newtoken", srv.createAddUserToken)
 
 	// Web tunnels
 	srv.POST("/v1/tunnels/web", srv.upsertWebTun)
@@ -945,26 +947,42 @@ func (s *APIServer) deleteSession(w http.ResponseWriter, r *http.Request, p http
 }
 
 func (s *APIServer) getAddUserTokenData(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	var token string
+	token := r.URL.Query().Get("token")
+	if len(token) == 0 {
+		reply(w, http.StatusInternalServerError, "token is empty")
+		return
+	}
+
+	user, QRImg, hotpFirstValue, err := s.a.GetAddUserTokenData(token)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, trace.Wrap(err).Error())
+		return
+	}
+
+	reply(w, http.StatusOK, userTokenDataResponse{
+		User:           user,
+		QRImg:          QRImg,
+		HotpFirstValue: hotpFirstValue,
+	})
+}
+
+func (s *APIServer) createAddUserToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	var user string
 	err := form.Parse(r,
-		form.String("token", &token, form.Required()),
+		form.String("user", &user, form.Required()),
 	)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	user, QRImg, hotpFirstValue, err := s.a.GetAddUserTokenData(token)
+	token, err := s.a.CreateAddUserToken(user)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	reply(w, http.StatusOK, userTokenDataResponse{
-		User:           user,
-		QRImg:          string(QRImg),
-		HotpFirstValue: hotpFirstValue,
-	})
+	reply(w, http.StatusOK, message(token))
 }
 
 func (s *APIServer) createUserWithToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -988,7 +1006,7 @@ func (s *APIServer) createUserWithToken(w http.ResponseWriter, r *http.Request, 
 
 type userTokenDataResponse struct {
 	User           string `json:"user"`
-	QRImg          string `json:"qrimg"`
+	QRImg          []byte `json:"qrimg"`
 	HotpFirstValue string `json:"hotpfirstvalue"`
 }
 

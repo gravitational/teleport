@@ -139,6 +139,10 @@ func (cmd *Command) Run(args []string) error {
 	userSetPassUser := userSetPass.Flag("user", "User name").Required().String()
 	userSetPassPass := userSetPass.Flag("pass", "Password").Required().String()
 
+	userNew := user.Command("new", "Creates a web link where the new user can create password and confirm user creation")
+	userNewUser := userNew.Arg("user", "New user name").Required().String()
+	userNewAddress := userNew.Flag("web-server", "Web portal address. Should be provided if it is not provided in the local teleport config ").String()
+
 	// Backend keys
 	backendKey := app.Command("backend-keys", "Operation with backend encryption keys")
 
@@ -188,6 +192,10 @@ func (cmd *Command) Run(args []string) error {
 
 		if len(cfg.AuthServers) == 0 {
 			return fmt.Errorf("provide auth server address")
+		}
+
+		if len(*userNewAddress) == 0 {
+			*userNewAddress = cfg.Proxy.WebAddr.Addr
 		}
 
 		cmd.client, err = auth.NewTunClient(
@@ -248,6 +256,8 @@ func (cmd *Command) Run(args []string) error {
 		cmd.GetUserKeys(*userLsKeysUser)
 	case userSetPass.FullCommand():
 		cmd.SetPass(*userSetPassUser, *userSetPassPass)
+	case userNew.FullCommand():
+		cmd.NewUserWebLink(*userNewAddress, *userNewUser)
 
 	// Backend keys
 	case backendKeyLs.FullCommand():

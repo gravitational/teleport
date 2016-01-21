@@ -279,7 +279,7 @@ func (s *TunServer) passwordAuth(
 	}
 	log.Infof("got authentication attempt for user '%v' type '%v'", conn.User(), ab.Type)
 	switch ab.Type {
-	case "password":
+	case AuthWebPassword:
 		if err := s.a.CheckPassword(conn.User(), ab.Pass, ab.HotpToken); err != nil {
 			log.Errorf("Password auth error: %v", err)
 			return nil, trace.Wrap(err)
@@ -292,7 +292,7 @@ func (s *TunServer) passwordAuth(
 		}
 		log.Infof("password authenticated user: '%v'", conn.User())
 		return perms, nil
-	case "session":
+	case AuthWebSession:
 		// we use extra permissions mechanism to keep the connection data
 		// after authorization, in this case the session
 		perms := &ssh.Permissions{
@@ -306,7 +306,7 @@ func (s *TunServer) passwordAuth(
 		}
 		log.Infof("session authenticated user: '%v'", conn.User())
 		return perms, nil
-	case "provision-token":
+	case AuthToken:
 		_, err := s.a.ValidateToken(string(ab.Pass), ab.User)
 		if err != nil {
 			return nil, trace.Errorf("%v token validation error: %v", ab.User, trace.Wrap(err))
@@ -318,8 +318,8 @@ func (s *TunServer) passwordAuth(
 			}}
 		log.Infof("session authenticated prov. token: '%v'", conn.User())
 		return perms, nil
-	case "add-user-token":
-		err := s.a.AuthWithAddUserToken(string(ab.Pass), string(ab.Target))
+	case AuthAddUserToken:
+		err := s.a.AuthWithAddUserToken(string(ab.Pass), ab.Target)
 		if err != nil {
 			return nil, trace.Errorf("token validation error: %v", trace.Wrap(err))
 		}
@@ -385,6 +385,18 @@ func NewWebPasswordAuth(user string, password []byte, hotpToken string) ([]ssh.A
 		User:      user,
 		Pass:      password,
 		HotpToken: hotpToken,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
+}
+
+func NewAddUserTokenAuth(token string, target string) ([]ssh.AuthMethod, error) {
+	data, err := json.Marshal(authBucket{
+		Type:   AuthAddUserToken,
+		Pass:   []byte(token),
+		Target: target,
 	})
 	if err != nil {
 		return nil, err
@@ -530,9 +542,10 @@ const (
 	ExtToken       = "provision@teleport"
 	ExtHost        = "host@teleport"
 
-	AuthWebPassword = "password"
-	AuthWebSession  = "session"
-	AuthToken       = "provision-token"
+	AuthWebPassword  = "password"
+	AuthWebSession   = "session"
+	AuthToken        = "provision-token"
+	AuthAddUserToken = "add-user-token"
 )
 
 // AccessPointDialer dials to auth access point  remote HTTP api

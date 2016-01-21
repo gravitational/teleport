@@ -9,6 +9,7 @@
             <h3>Welcome to Gravity</h3>
             <p>Login in.</p>
             <font color="red">{{.ErrorString}}</font>
+            <font color="green">{{.InfoString}}</font>
             <form class="m-t" role="form" action="/web/auth" method="POST">
                 <div class="form-group">
                     <input type="test" name="username" class="form-control" placeholder="Username" required="">

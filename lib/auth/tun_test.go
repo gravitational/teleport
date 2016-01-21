@@ -201,6 +201,115 @@ func (s *TunSuite) TestSessions(c *C) {
 	c.Assert(err, NotNil)
 }
 
+func (s *TunSuite) TestWebCreatingNewUser(c *C) {
+	c.Assert(s.a.ResetUserCertificateAuthority(""), IsNil)
+
+	user := "user456"
+
+	// Generate token
+	token, err := s.a.CreateAddUserToken(user)
+	c.Assert(err, IsNil)
+	// Generate token2
+	token2, err := s.a.CreateAddUserToken(user)
+	c.Assert(err, IsNil)
+
+	// Connect to auth server using wrong token
+	authMethod0, err := NewAddUserTokenAuth("some_wrong_token", AUTH_TARGET_ADD_USER_FORM)
+	c.Assert(err, IsNil)
+
+	clt0, err := NewTunClient(
+		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod0)
+	c.Assert(err, IsNil)
+	_, _, _, err = clt0.GetAddUserTokenData(token2)
+	c.Assert(err, NotNil) // valid token, but invalid client
+
+	authMethod0, err = NewAddUserTokenAuth("some_wrong_token", AUTH_TARGET_ADD_USER_FINISH)
+	c.Assert(err, IsNil)
+
+	clt0, err = NewTunClient(
+		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod0)
+	c.Assert(err, IsNil)
+	_, _, _, err = clt0.GetAddUserTokenData(token2)
+	c.Assert(err, NotNil) // valid token, but invalid client
+
+	// Connect to auth server using valid token
+	authMethod, err := NewAddUserTokenAuth(token, AUTH_TARGET_ADD_USER_FORM)
+	c.Assert(err, IsNil)
+
+	clt, err := NewTunClient(
+		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
+	c.Assert(err, IsNil)
+	defer clt.Close()
+
+	// User will scan QRcode, here we just loads the OTP generator
+	// right from the backend
+	tokenData, err := s.a.WebService.GetAddUserToken(token)
+	c.Assert(err, IsNil)
+	otp, err := hotp.Unmarshal(tokenData.Hotp)
+	c.Assert(err, IsNil)
+
+	// Loading what the web page loads (username and QR image)
+	_, _, _, err = clt.GetAddUserTokenData("wrong_token")
+	c.Assert(err, NotNil)
+
+	_, err = clt.GetUsers() //no permissions
+	c.Assert(err, NotNil)
+
+	user1, _, _, err := clt.GetAddUserTokenData(token)
+	c.Assert(err, IsNil)
+	c.Assert(user, Equals, user1)
+
+	_, QR, _, err := clt.GetAddUserTokenData(token) // shouldn't work twice
+	c.Assert(err, NotNil)
+	c.Assert(QR, IsNil)
+
+	// trying to connect to the auth server using used token
+	clt0, err = NewTunClient(
+		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
+	c.Assert(err, IsNil)
+	_, _, _, err = clt0.GetAddUserTokenData(token2)
+	c.Assert(err, NotNil) // valid token, but invalid client
+
+	// Saving new password
+	authMethod2, err := NewAddUserTokenAuth(token, AUTH_TARGET_ADD_USER_FINISH)
+	c.Assert(err, IsNil)
+
+	clt2, err := NewTunClient(
+		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod2)
+	c.Assert(err, IsNil)
+	defer clt2.Close()
+
+	password := "valid_password"
+
+	err = clt2.CreateUserWithToken(token, password)
+	c.Assert(err, IsNil)
+
+	_, err = s.a.WebService.GetAddUserToken(token)
+	c.Assert(err, NotNil) // token was deleted
+
+	// trying to connect to the auth server using used token
+	clt0, err = NewTunClient(
+		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod2)
+	c.Assert(err, IsNil) // shouldn't accept such connection twice
+	_, _, _, err = clt0.GetAddUserTokenData(token2)
+	c.Assert(err, NotNil) // valid token, but invalid client
+
+	// User was created. Now trying to login
+
+	otp.Increment() // Google Authenticator also increments once after creating new account
+	authMethod3, err := NewWebPasswordAuth(user, []byte(password), otp.OTP())
+	c.Assert(err, IsNil)
+
+	clt3, err := NewTunClient(
+		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod3)
+	c.Assert(err, IsNil)
+	defer clt3.Close()
+
+	ws, err := clt3.SignIn(user, []byte(password))
+	c.Assert(err, IsNil)
+	c.Assert(ws, Not(Equals), "")
+}
+
 func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(s.a.ResetUserCertificateAuthority(""), IsNil)
 
