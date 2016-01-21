@@ -2,18 +2,16 @@ TCD_NODE1 := http://127.0.0.1:4001
 ETCD_NODES := ${ETCD_NODE1}
 ETCD_FLAGS := TELEPORT_TEST_ETCD_NODES=${ETCD_NODES}
 TARGETS=teleport tctl tsh
+export GO15VENDOREXPERIMENT=1
 
 .PHONY: all install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd install-assets docs-serve
 
 #
 # This target can 
 #
-all: $(TARGETS)
-teleport:
+all: 
 	go build -o teleport -a github.com/gravitational/teleport/tool/teleport
-tctl:
 	go build -o tctl -a github.com/gravitational/teleport/tool/tctl
-tsh:
 	go build -o tsh github.com/gravitational/teleport/tool/tsh
 
 install: remove-temp-files
