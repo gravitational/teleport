@@ -130,9 +130,11 @@ docs-update:
 	godoc github.com/gravitational/teleport/auth Client >> docs/api.md
 	echo '```' >> docs/api.md
 
+#
 # Deploy teleport server to staging environment on AWS
+# WARNING: this step is called by CI/CD. You must execute make production first
 .PHONY: deploy
-deploy: all
+deploy:
 	ansible-playbook -i deploy/hosts deploy/deploy.yaml
 
 # Prepare a brand new AWS machine to host Teleport (run provision once, 
