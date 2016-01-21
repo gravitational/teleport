@@ -99,9 +99,9 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.GET("/v1/users/:user/web/sessions/:sid", srv.getWebSession)
 	srv.GET("/v1/users/:user/web/sessions", srv.getWebSessions)
 	srv.DELETE("/v1/users/:user/web/sessions/:sid", srv.deleteWebSession)
-	srv.GET("/v1/adduser/token", srv.getAddUserTokenData)
-	srv.POST("/v1/adduser", srv.createUserWithToken)
-	srv.POST("/v1/adduser/newtoken", srv.createAddUserToken)
+	srv.GET("/v1/signuptokens", srv.getSignupTokenData)
+	srv.POST("/v1/signuptokens/newuser", srv.createUserWithToken)
+	srv.POST("/v1/signuptokens/newtoken", srv.createSignupToken)
 
 	// Web tunnels
 	srv.POST("/v1/tunnels/web", srv.upsertWebTun)
@@ -946,14 +946,14 @@ func (s *APIServer) deleteSession(w http.ResponseWriter, r *http.Request, p http
 	reply(w, http.StatusOK, message(fmt.Sprintf("session %v was deleted", sid)))
 }
 
-func (s *APIServer) getAddUserTokenData(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (s *APIServer) getSignupTokenData(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	token := r.URL.Query().Get("token")
 	if len(token) == 0 {
 		reply(w, http.StatusInternalServerError, "token is empty")
 		return
 	}
 
-	user, QRImg, hotpFirstValue, err := s.a.GetAddUserTokenData(token)
+	user, QRImg, hotpFirstValue, err := s.a.GetSignupTokenData(token)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, trace.Wrap(err).Error())
 		return
@@ -966,7 +966,7 @@ func (s *APIServer) getAddUserTokenData(w http.ResponseWriter, r *http.Request, 
 	})
 }
 
-func (s *APIServer) createAddUserToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (s *APIServer) createSignupToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	var user string
 	err := form.Parse(r,
 		form.String("user", &user, form.Required()),
@@ -976,7 +976,7 @@ func (s *APIServer) createAddUserToken(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 
-	token, err := s.a.CreateAddUserToken(user)
+	token, err := s.a.CreateSignupToken(user)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return

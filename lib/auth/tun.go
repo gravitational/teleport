@@ -318,17 +318,17 @@ func (s *TunServer) passwordAuth(
 			}}
 		log.Infof("session authenticated prov. token: '%v'", conn.User())
 		return perms, nil
-	case AuthAddUserToken:
-		err := s.a.AuthWithAddUserToken(string(ab.Pass), ab.Target)
+	case AuthSignupToken:
+		err := s.a.AuthWithSignupToken(string(ab.Pass), ab.Target)
 		if err != nil {
 			return nil, trace.Errorf("token validation error: %v", trace.Wrap(err))
 		}
 		role := ""
-		if ab.Target == AUTH_TARGET_ADD_USER_FORM {
-			role = RoleAddUserForm
+		if ab.Target == AuthTargetSignupForm {
+			role = RoleSignupForm
 		}
-		if ab.Target == AUTH_TARGET_ADD_USER_FINISH {
-			role = RoleAddUserFinish
+		if ab.Target == AuthTargetSignupFinish {
+			role = RoleSignupFinish
 		}
 		if len(role) == 0 {
 			return nil, trace.Errorf("%v token role error: %v")
@@ -392,9 +392,9 @@ func NewWebPasswordAuth(user string, password []byte, hotpToken string) ([]ssh.A
 	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
 }
 
-func NewAddUserTokenAuth(token string, target string) ([]ssh.AuthMethod, error) {
+func NewSignupTokenAuth(token string, target string) ([]ssh.AuthMethod, error) {
 	data, err := json.Marshal(authBucket{
-		Type:   AuthAddUserToken,
+		Type:   AuthSignupToken,
 		Pass:   []byte(token),
 		Target: target,
 	})
@@ -542,10 +542,10 @@ const (
 	ExtToken       = "provision@teleport"
 	ExtHost        = "host@teleport"
 
-	AuthWebPassword  = "password"
-	AuthWebSession   = "session"
-	AuthToken        = "provision-token"
-	AuthAddUserToken = "add-user-token"
+	AuthWebPassword = "password"
+	AuthWebSession  = "session"
+	AuthToken       = "provision-token"
+	AuthSignupToken = "signup-token"
 )
 
 // AccessPointDialer dials to auth access point  remote HTTP api

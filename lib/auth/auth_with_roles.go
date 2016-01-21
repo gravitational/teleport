@@ -384,20 +384,20 @@ func (a *AuthWithRoles) GetSealKey(keyID string) (encryptor.Key, error) {
 	}
 }
 
-func (a *AuthWithRoles) CreateAddUserToken(user string) (token string, e error) {
-	if err := a.permChecker.HasPermission(a.role, ActionCreateAddUserToken); err != nil {
+func (a *AuthWithRoles) CreateSignupToken(user string) (token string, e error) {
+	if err := a.permChecker.HasPermission(a.role, ActionCreateSignupToken); err != nil {
 		return "", err
 	} else {
-		return a.authServer.CreateAddUserToken(user)
+		return a.authServer.CreateSignupToken(user)
 	}
 }
 
-func (a *AuthWithRoles) GetAddUserTokenData(token string) (user string,
+func (a *AuthWithRoles) GetSignupTokenData(token string) (user string,
 	QRImg []byte, hotpFirstValue string, e error) {
-	if err := a.permChecker.HasPermission(a.role, ActionGetAddUserTokenData); err != nil {
+	if err := a.permChecker.HasPermission(a.role, ActionGetSignupTokenData); err != nil {
 		return "", nil, "", err
 	} else {
-		return a.authServer.GetAddUserTokenData(token)
+		return a.authServer.GetSignupTokenData(token)
 	}
 }
 

@@ -726,8 +726,8 @@ func (c *Client) GetSealKey(keyID string) (encryptor.Key, error) {
 	return key.Key, nil
 }
 
-func (c *Client) CreateAddUserToken(user string) (token string, e error) {
-	out, err := c.PostForm(c.Endpoint("adduser", "newtoken"), url.Values{
+func (c *Client) CreateSignupToken(user string) (token string, e error) {
+	out, err := c.PostForm(c.Endpoint("signuptokens", "newtoken"), url.Values{
 		"user": []string{user},
 	})
 	if err != nil {
@@ -740,10 +740,10 @@ func (c *Client) CreateAddUserToken(user string) (token string, e error) {
 	return result["message"], err
 }
 
-func (c *Client) GetAddUserTokenData(token string) (user string,
+func (c *Client) GetSignupTokenData(token string) (user string,
 	QRImg []byte, hotpFirstValue string, e error) {
 
-	out, err := c.Get(c.Endpoint("adduser", "token"), url.Values{
+	out, err := c.Get(c.Endpoint("signuptokens"), url.Values{
 		"token": []string{token},
 	})
 	if err != nil {
@@ -757,7 +757,7 @@ func (c *Client) GetAddUserTokenData(token string) (user string,
 }
 
 func (c *Client) CreateUserWithToken(token string, password string) error {
-	_, err := c.PostForm(c.Endpoint("adduser"), url.Values{
+	_, err := c.PostForm(c.Endpoint("signuptokens", "newuser"), url.Values{
 		"token":    []string{token},
 		"password": []string{password},
 	})
@@ -851,6 +851,6 @@ type ClientI interface {
 	GenerateUserCert(key []byte, id, user string, ttl time.Duration) ([]byte, error)
 	ResetHostCertificateAuthority() error
 	ResetUserCertificateAuthority() error
-	GetAddUserTokenData(token string) (user string, QRImg []byte, hotpFirstValue string, e error)
+	GetSignupTokenData(token string) (user string, QRImg []byte, hotpFirstValue string, e error)
 	CreateUserWithToken(token string, password string) error
 }

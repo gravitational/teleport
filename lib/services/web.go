@@ -33,14 +33,14 @@ import (
 )
 
 type WebService struct {
-	backend      backend.Backend
-	AddUserMutex *sync.Mutex
+	backend     backend.Backend
+	SignupMutex *sync.Mutex
 }
 
 func NewWebService(backend backend.Backend) *WebService {
 	return &WebService{
-		backend:      backend,
-		AddUserMutex: &sync.Mutex{},
+		backend:     backend,
+		SignupMutex: &sync.Mutex{},
 	}
 }
 
@@ -233,7 +233,7 @@ func (s *WebService) UpsertPassword(user string,
 		return "", nil, err
 	}
 
-	otp, err := hotp.GenerateHOTP(6, false)
+	otp, err := hotp.GenerateHOTP(HOTPTokenDigits, false)
 	if err != nil {
 		return "", nil, err
 	}
@@ -358,7 +358,7 @@ func NewWebTun(prefix, proxyAddr, targetAddr string) (*WebTun, error) {
 	return &WebTun{Prefix: prefix, ProxyAddr: proxyAddr, TargetAddr: targetAddr}, nil
 }
 
-type AddUserToken struct {
+type SignupToken struct {
 	Token          string
 	User           string
 	AuthTargets    map[string]int
@@ -367,7 +367,7 @@ type AddUserToken struct {
 	HotpQR         []byte
 }
 
-func (s *WebService) UpsertAddUserToken(token string, tokenData AddUserToken, ttl time.Duration) error {
+func (s *WebService) UpsertSignupToken(token string, tokenData SignupToken, ttl time.Duration) error {
 	out, err := json.Marshal(tokenData)
 	if err != nil {
 		return trace.Wrap(err)
@@ -380,20 +380,20 @@ func (s *WebService) UpsertAddUserToken(token string, tokenData AddUserToken, tt
 	return nil
 
 }
-func (s *WebService) GetAddUserToken(token string) (AddUserToken, error) {
+func (s *WebService) GetSignupToken(token string) (SignupToken, error) {
 	out, err := s.backend.GetVal([]string{"addusertokens"}, token)
 	if err != nil {
-		return AddUserToken{}, err
+		return SignupToken{}, err
 	}
-	var t AddUserToken
+	var t SignupToken
 	err = json.Unmarshal(out, &t)
 	if err != nil {
-		return AddUserToken{}, trace.Wrap(err)
+		return SignupToken{}, trace.Wrap(err)
 	}
 
 	return t, nil
 }
-func (s *WebService) DeleteAddUserToken(token string) error {
+func (s *WebService) DeleteSignupToken(token string) error {
 	err := s.backend.DeleteKey([]string{"addusertokens"}, token)
 	return err
 }
@@ -401,4 +401,5 @@ func (s *WebService) DeleteAddUserToken(token string) error {
 const (
 	MinPasswordLength = 6
 	MaxPasswordLength = 128
+	HOTPTokenDigits   = 6 //number of digits in each token
 )

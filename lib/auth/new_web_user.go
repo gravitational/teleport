@@ -33,17 +33,17 @@ import (
 )
 
 const (
-	ADD_USER_TOKEN_TTL              = time.Hour * 24
-	ADD_USER_TOKEN_USER_ACTIONS_TTL = time.Hour
-	AUTH_TARGET_ADD_USER_FORM       = "AuthTargetAddUserForm"
-	AUTH_TARGET_ADD_USER_FINISH     = "AuthTargetAddUserFinish"
+	SignupTokenTTL            = time.Hour * 24
+	SignupTokenUserActionsTTL = time.Hour
+	AuthTargetSignupForm      = "AuthTargetSignupForm"
+	AuthTargetSignupFinish    = "AuthTargetSignupFinish"
 )
 
-// CreateAddUserToken creates one time token for creating account for the user
+// CreateSignupToken creates one time token for creating account for the user
 // For each token it creates and username, hotp generator
-func (s *AuthServer) CreateAddUserToken(user string) (token string, e error) {
-	s.AddUserMutex.Lock()
-	defer s.AddUserMutex.Unlock()
+func (s *AuthServer) CreateSignupToken(user string) (token string, e error) {
+	s.SignupMutex.Lock()
+	defer s.SignupMutex.Unlock()
 
 	_, err := s.GetPasswordHash(user)
 	if err == nil {
@@ -56,7 +56,7 @@ func (s *AuthServer) CreateAddUserToken(user string) (token string, e error) {
 	}
 	token = string(t.PID)
 
-	otp, err := hotp.GenerateHOTP(6, false)
+	otp, err := hotp.GenerateHOTP(services.HOTPTokenDigits, false)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -72,19 +72,19 @@ func (s *AuthServer) CreateAddUserToken(user string) (token string, e error) {
 		return "", trace.Wrap(err)
 	}
 
-	tokenData := services.AddUserToken{
+	tokenData := services.SignupToken{
 		Token: token,
 		User:  user,
 		AuthTargets: map[string]int{
-			AUTH_TARGET_ADD_USER_FORM:   1,
-			AUTH_TARGET_ADD_USER_FINISH: 1,
+			AuthTargetSignupForm:   1,
+			AuthTargetSignupFinish: 1,
 		},
 		Hotp:           otpMarshalled,
 		HotpFirstValue: otpFirstValue,
 		HotpQR:         otpQR,
 	}
 
-	err = s.UpsertAddUserToken(token, tokenData, ADD_USER_TOKEN_TTL)
+	err = s.UpsertSignupToken(token, tokenData, SignupTokenTTL)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -92,13 +92,13 @@ func (s *AuthServer) CreateAddUserToken(user string) (token string, e error) {
 	return token, nil
 }
 
-// AuthWithAddUserToken returns nil once for each valid (token, target) string
-// Possible targets: AUTH_TARGET_ADD_USER_FORM, AUTH_TARGET_ADD_USER_FINISH
-func (s *AuthServer) AuthWithAddUserToken(token string, target string) error {
-	s.AddUserMutex.Lock()
-	defer s.AddUserMutex.Unlock()
+// AuthWithSignupToken returns nil once for each valid (token, target) string
+// Possible targets: AuthTargetSignupForm, AuthTargetSignupFinish
+func (s *AuthServer) AuthWithSignupToken(token string, target string) error {
+	s.SignupMutex.Lock()
+	defer s.SignupMutex.Unlock()
 
-	tokenData, err := s.GetAddUserToken(token)
+	tokenData, err := s.GetSignupToken(token)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -110,7 +110,7 @@ func (s *AuthServer) AuthWithAddUserToken(token string, target string) error {
 
 	delete(tokenData.AuthTargets, target)
 
-	err = s.UpsertAddUserToken(token, tokenData, ADD_USER_TOKEN_USER_ACTIONS_TTL)
+	err = s.UpsertSignupToken(token, tokenData, SignupTokenUserActionsTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -119,13 +119,13 @@ func (s *AuthServer) AuthWithAddUserToken(token string, target string) error {
 }
 
 // Returns token data once for each valid token
-func (s *AuthServer) GetAddUserTokenData(token string) (user string,
+func (s *AuthServer) GetSignupTokenData(token string) (user string,
 	QRImg []byte, hotpFirstValue string, e error) {
 
-	s.AddUserMutex.Lock()
-	defer s.AddUserMutex.Unlock()
+	s.SignupMutex.Lock()
+	defer s.SignupMutex.Unlock()
 
-	tokenData, err := s.GetAddUserToken(token)
+	tokenData, err := s.GetSignupToken(token)
 	if err != nil {
 		return "", nil, "", trace.Wrap(err)
 	}
@@ -145,7 +145,7 @@ func (s *AuthServer) GetAddUserTokenData(token string) (user string,
 
 	tokenData.HotpFirstValue = ""
 
-	err = s.UpsertAddUserToken(token, tokenData, ADD_USER_TOKEN_USER_ACTIONS_TTL)
+	err = s.UpsertSignupToken(token, tokenData, SignupTokenUserActionsTTL)
 	if err != nil {
 		return "", nil, "", trace.Wrap(err)
 	}
@@ -157,10 +157,10 @@ func (s *AuthServer) GetAddUserTokenData(token string) (user string,
 // account username and hotp generator are taken from token data.
 // Deletes token after account creation.
 func (s *AuthServer) CreateUserWithToken(token string, password string) error {
-	s.AddUserMutex.Lock()
-	defer s.AddUserMutex.Unlock()
+	s.SignupMutex.Lock()
+	defer s.SignupMutex.Unlock()
 
-	tokenData, err := s.GetAddUserToken(token)
+	tokenData, err := s.GetSignupToken(token)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -185,7 +185,7 @@ func (s *AuthServer) CreateUserWithToken(token string, password string) error {
 		return trace.Wrap(err)
 	}
 
-	err = s.DeleteAddUserToken(token)
+	err = s.DeleteSignupToken(token)
 	if err != nil {
 		return trace.Wrap(err)
 	}

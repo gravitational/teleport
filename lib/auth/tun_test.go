@@ -207,33 +207,33 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	user := "user456"
 
 	// Generate token
-	token, err := s.a.CreateAddUserToken(user)
+	token, err := s.a.CreateSignupToken(user)
 	c.Assert(err, IsNil)
 	// Generate token2
-	token2, err := s.a.CreateAddUserToken(user)
+	token2, err := s.a.CreateSignupToken(user)
 	c.Assert(err, IsNil)
 
 	// Connect to auth server using wrong token
-	authMethod0, err := NewAddUserTokenAuth("some_wrong_token", AUTH_TARGET_ADD_USER_FORM)
+	authMethod0, err := NewSignupTokenAuth("some_wrong_token", AuthTargetSignupForm)
 	c.Assert(err, IsNil)
 
 	clt0, err := NewTunClient(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod0)
 	c.Assert(err, IsNil)
-	_, _, _, err = clt0.GetAddUserTokenData(token2)
+	_, _, _, err = clt0.GetSignupTokenData(token2)
 	c.Assert(err, NotNil) // valid token, but invalid client
 
-	authMethod0, err = NewAddUserTokenAuth("some_wrong_token", AUTH_TARGET_ADD_USER_FINISH)
+	authMethod0, err = NewSignupTokenAuth("some_wrong_token", AuthTargetSignupFinish)
 	c.Assert(err, IsNil)
 
 	clt0, err = NewTunClient(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod0)
 	c.Assert(err, IsNil)
-	_, _, _, err = clt0.GetAddUserTokenData(token2)
+	_, _, _, err = clt0.GetSignupTokenData(token2)
 	c.Assert(err, NotNil) // valid token, but invalid client
 
 	// Connect to auth server using valid token
-	authMethod, err := NewAddUserTokenAuth(token, AUTH_TARGET_ADD_USER_FORM)
+	authMethod, err := NewSignupTokenAuth(token, AuthTargetSignupForm)
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient(
@@ -243,23 +243,23 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 
 	// User will scan QRcode, here we just loads the OTP generator
 	// right from the backend
-	tokenData, err := s.a.WebService.GetAddUserToken(token)
+	tokenData, err := s.a.WebService.GetSignupToken(token)
 	c.Assert(err, IsNil)
 	otp, err := hotp.Unmarshal(tokenData.Hotp)
 	c.Assert(err, IsNil)
 
 	// Loading what the web page loads (username and QR image)
-	_, _, _, err = clt.GetAddUserTokenData("wrong_token")
+	_, _, _, err = clt.GetSignupTokenData("wrong_token")
 	c.Assert(err, NotNil)
 
 	_, err = clt.GetUsers() //no permissions
 	c.Assert(err, NotNil)
 
-	user1, _, _, err := clt.GetAddUserTokenData(token)
+	user1, _, _, err := clt.GetSignupTokenData(token)
 	c.Assert(err, IsNil)
 	c.Assert(user, Equals, user1)
 
-	_, QR, _, err := clt.GetAddUserTokenData(token) // shouldn't work twice
+	_, QR, _, err := clt.GetSignupTokenData(token) // shouldn't work twice
 	c.Assert(err, NotNil)
 	c.Assert(QR, IsNil)
 
@@ -267,11 +267,11 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	clt0, err = NewTunClient(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
 	c.Assert(err, IsNil)
-	_, _, _, err = clt0.GetAddUserTokenData(token2)
+	_, _, _, err = clt0.GetSignupTokenData(token2)
 	c.Assert(err, NotNil) // valid token, but invalid client
 
 	// Saving new password
-	authMethod2, err := NewAddUserTokenAuth(token, AUTH_TARGET_ADD_USER_FINISH)
+	authMethod2, err := NewSignupTokenAuth(token, AuthTargetSignupFinish)
 	c.Assert(err, IsNil)
 
 	clt2, err := NewTunClient(
@@ -284,14 +284,14 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	err = clt2.CreateUserWithToken(token, password)
 	c.Assert(err, IsNil)
 
-	_, err = s.a.WebService.GetAddUserToken(token)
+	_, err = s.a.WebService.GetSignupToken(token)
 	c.Assert(err, NotNil) // token was deleted
 
 	// trying to connect to the auth server using used token
 	clt0, err = NewTunClient(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod2)
 	c.Assert(err, IsNil) // shouldn't accept such connection twice
-	_, _, _, err = clt0.GetAddUserTokenData(token2)
+	_, _, _, err = clt0.GetSignupTokenData(token2)
 	c.Assert(err, NotNil) // valid token, but invalid client
 
 	// User was created. Now trying to login

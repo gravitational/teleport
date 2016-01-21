@@ -110,13 +110,13 @@ func keysView(keys []services.AuthorizedKey) string {
 }
 
 func (cmd *Command) NewUserWebLink(webHostPort string, user string) {
-	token, err := cmd.client.CreateAddUserToken(user)
+	token, err := cmd.client.CreateSignupToken(user)
 	if err != nil {
 		cmd.printError(err)
 		return
 	}
 
-	link := web.CreateAddUserLink(webHostPort, token)
+	link := web.CreateSignupLink(webHostPort, token)
 
 	cmd.printOK(link)
 }

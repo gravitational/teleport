@@ -378,7 +378,7 @@ func sitesResponse(rs []reversetunnel.RemoteSite) []site {
 	return out
 }
 
-func CreateAddUserLink(hostPort string, token string) string {
+func CreateSignupLink(hostPort string, token string) string {
 	return "http://" + hostPort + "/web/newuser/" + token
 }
 
