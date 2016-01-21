@@ -40,7 +40,7 @@ const (
 )
 
 // CreateSignupToken creates one time token for creating account for the user
-// For each token it creates and username, hotp generator
+// For each token it creates username and hotp generator
 func (s *AuthServer) CreateSignupToken(user string) (token string, e error) {
 	s.SignupMutex.Lock()
 	defer s.SignupMutex.Unlock()
@@ -118,7 +118,7 @@ func (s *AuthServer) AuthWithSignupToken(token string, target string) error {
 	return nil
 }
 
-// Returns token data once for each valid token
+// GetSignupTokenData Returns token data once for each valid token
 func (s *AuthServer) GetSignupTokenData(token string) (user string,
 	QRImg []byte, hotpFirstValue string, e error) {
 
@@ -154,7 +154,7 @@ func (s *AuthServer) GetSignupTokenData(token string) (user string,
 }
 
 // CreateUserWithToken creates account with provided token and password.
-// account username and hotp generator are taken from token data.
+// Account username and hotp generator are taken from token data.
 // Deletes token after account creation.
 func (s *AuthServer) CreateUserWithToken(token string, password string) error {
 	s.SignupMutex.Lock()
