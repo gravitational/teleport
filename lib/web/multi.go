@@ -16,6 +16,7 @@ limitations under the License.
 package web
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -70,8 +71,11 @@ func NewMultiSiteHandler(cfg MultiSiteConfig) (*MultiSiteHandler, error) {
 	}
 
 	// WEB views
+	h.GET("/web/newuser/:token", h.newUser)
+	h.POST("/web/finishnewuser", h.finishNewUser)
 	h.GET("/web/login", h.login)
 	h.GET("/web/loginerror", h.loginError)
+	h.GET("/web/loginaftercreation", h.loginAfterCreation)
 	h.GET("/web/logout", h.logout)
 	h.POST("/web/auth", h.authForm)
 
@@ -105,6 +109,7 @@ func (s *MultiSiteHandler) initTemplates(baseDir string) {
 	}
 	tpls := []tpl{
 		tpl{name: "login", include: []string{"assets/static/tpl/login.tpl", "assets/static/tpl/base.tpl"}},
+		tpl{name: "newuser", include: []string{"assets/static/tpl/newuser.tpl", "assets/static/tpl/base.tpl"}},
 		tpl{name: "sites", include: []string{"assets/static/tpl/sites.tpl", "assets/static/tpl/base.tpl"}},
 		tpl{name: "site-servers", include: []string{"assets/static/tpl/site/servers.tpl", "assets/static/tpl/base.tpl"}},
 		tpl{name: "site-events", include: []string{"assets/static/tpl/site/events.tpl", "assets/static/tpl/base.tpl"}},
@@ -123,12 +128,67 @@ func (h *MultiSiteHandler) String() string {
 	return fmt.Sprintf("multi site")
 }
 
+func (h *MultiSiteHandler) newUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	token := p[0].Value
+	user, QRImg, hotpFirstValue, err := h.auth.NewUserForm(token)
+	if err != nil {
+		replyErr(w, http.StatusBadRequest, err)
+		return
+	}
+
+	base64QRImg := base64.StdEncoding.EncodeToString(QRImg)
+	h.executeTemplate(w, "newuser", map[string]interface{}{
+		"Token":          token,
+		"Username":       user,
+		"QR":             base64QRImg,
+		"HotpFirstValue": hotpFirstValue})
+}
+
+func (h *MultiSiteHandler) finishNewUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	var token, pass, pass2, hotpToken, correctHotpToken string
+
+	err := form.Parse(r,
+		form.String("token", &token, form.Required()),
+		form.String("password", &pass, form.Required()),
+		form.String("password_confirm", &pass2, form.Required()),
+		form.String("hotp_token", &hotpToken, form.Required()),
+		form.String("correct_hotp_token", &correctHotpToken, form.Required()),
+	)
+
+	if err != nil {
+		replyErr(w, http.StatusBadRequest, err)
+		return
+	}
+
+	if pass != pass2 {
+		replyErr(w, http.StatusBadRequest, trace.Errorf("provided passwords mismatch"))
+		return
+	}
+
+	if hotpToken != correctHotpToken {
+		replyErr(w, http.StatusBadRequest, trace.Errorf("wrong hotp token"))
+		return
+	}
+
+	err = h.auth.NewUserFinish(token, pass)
+	if err != nil {
+		replyErr(w, http.StatusBadRequest, err)
+		return
+	}
+
+	http.Redirect(w, r, "/web/loginaftercreation", http.StatusFound)
+}
+
 func (h *MultiSiteHandler) login(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	h.executeTemplate(w, "login", nil)
 }
 
 func (h *MultiSiteHandler) loginError(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	h.executeTemplate(w, "login", map[string]interface{}{"ErrorString": "Wrong username or password or hotp token"})
+}
+
+func (h *MultiSiteHandler) loginAfterCreation(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	h.executeTemplate(w, "login", map[string]interface{}{"InfoString": "Account was successfully created, you can login"})
 }
 
 func (h *MultiSiteHandler) logout(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -322,6 +382,10 @@ func sitesResponse(rs []reversetunnel.RemoteSite) []site {
 		}
 	}
 	return out
+}
+
+func CreateSignupLink(hostPort string, token string) string {
+	return "http://" + hostPort + "/web/newuser/" + token
 }
 
 type authHandle func(http.ResponseWriter, *http.Request, httprouter.Params, Context) error

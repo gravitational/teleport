@@ -22,6 +22,7 @@ import (
 
 	"github.com/buger/goterm"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/web"
 )
 
 func (cmd *Command) SetPass(user, pass string) {
@@ -106,4 +107,16 @@ func keysView(keys []services.AuthorizedKey) string {
 		fmt.Fprintf(t, "%v\t%v\n", k.ID, string(k.Value))
 	}
 	return t.String()
+}
+
+func (cmd *Command) NewUserWebLink(webHostPort string, user string) {
+	token, err := cmd.client.CreateSignupToken(user)
+	if err != nil {
+		cmd.printError(err)
+		return
+	}
+
+	link := web.CreateSignupLink(webHostPort, token)
+
+	cmd.printOK(link)
 }

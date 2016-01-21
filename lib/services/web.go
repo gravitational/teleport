@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/gokyle/hotp"
@@ -32,11 +33,15 @@ import (
 )
 
 type WebService struct {
-	backend backend.Backend
+	backend     backend.Backend
+	SignupMutex *sync.Mutex
 }
 
 func NewWebService(backend backend.Backend) *WebService {
-	return &WebService{backend}
+	return &WebService{
+		backend:     backend,
+		SignupMutex: &sync.Mutex{},
+	}
 }
 
 // UpsertPasswordHash upserts user password hash
@@ -228,7 +233,7 @@ func (s *WebService) UpsertPassword(user string,
 		return "", nil, err
 	}
 
-	otp, err := hotp.GenerateHOTP(6, false)
+	otp, err := hotp.GenerateHOTP(HOTPTokenDigits, false)
 	if err != nil {
 		return "", nil, err
 	}
@@ -353,7 +358,47 @@ func NewWebTun(prefix, proxyAddr, targetAddr string) (*WebTun, error) {
 	return &WebTun{Prefix: prefix, ProxyAddr: proxyAddr, TargetAddr: targetAddr}, nil
 }
 
+type SignupToken struct {
+	Token          string
+	User           string
+	Hotp           []byte
+	HotpFirstValue string
+	HotpQR         []byte
+}
+
+func (s *WebService) UpsertSignupToken(token string, tokenData SignupToken, ttl time.Duration) error {
+	out, err := json.Marshal(tokenData)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.backend.UpsertVal([]string{"addusertokens"}, token, out, ttl)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+
+}
+func (s *WebService) GetSignupToken(token string) (SignupToken, error) {
+	out, err := s.backend.GetVal([]string{"addusertokens"}, token)
+	if err != nil {
+		return SignupToken{}, err
+	}
+	var t SignupToken
+	err = json.Unmarshal(out, &t)
+	if err != nil {
+		return SignupToken{}, trace.Wrap(err)
+	}
+
+	return t, nil
+}
+func (s *WebService) DeleteSignupToken(token string) error {
+	err := s.backend.DeleteKey([]string{"addusertokens"}, token)
+	return err
+}
+
 const (
 	MinPasswordLength = 6
 	MaxPasswordLength = 128
+	HOTPTokenDigits   = 6 //number of digits in each token
 )

@@ -726,6 +726,49 @@ func (c *Client) GetSealKey(keyID string) (encryptor.Key, error) {
 	return key.Key, nil
 }
 
+// CreateSignupToken creates one time token for creating account for the user
+// For each token it creates username and hotp generator
+func (c *Client) CreateSignupToken(user string) (token string, e error) {
+	out, err := c.PostForm(c.Endpoint("signuptokens"), url.Values{
+		"user": []string{user},
+	})
+	if err != nil {
+		return "", err
+	}
+	var result map[string]string
+	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+		return "", err
+	}
+	return result["message"], err
+}
+
+// GetSignupTokenData Returns token data once for each valid token
+func (c *Client) GetSignupTokenData(token string) (user string,
+	QRImg []byte, hotpFirstValue string, e error) {
+
+	out, err := c.Get(c.Endpoint("signuptokens", token), url.Values{})
+	if err != nil {
+		return "", nil, "", err
+	}
+	var tokenData userTokenDataResponse
+	if err := json.Unmarshal(out.Bytes(), &tokenData); err != nil {
+		return "", nil, "", err
+	}
+	return tokenData.User, tokenData.QRImg, tokenData.HotpFirstValue, nil
+}
+
+// CreateUserWithToken creates account with provided token and password.
+// Account username and hotp generator are taken from token data.
+// Deletes token after account creation.
+func (c *Client) CreateUserWithToken(token string, password string) error {
+	_, err := c.PostForm(c.Endpoint("signuptokens", "users"), url.Values{
+		"token":    []string{token},
+		"password": []string{password},
+	})
+
+	return err
+}
+
 type chunkRW struct {
 	c  *Client
 	id string
@@ -812,4 +855,6 @@ type ClientI interface {
 	GenerateUserCert(key []byte, id, user string, ttl time.Duration) ([]byte, error)
 	ResetHostCertificateAuthority() error
 	ResetUserCertificateAuthority() error
+	GetSignupTokenData(token string) (user string, QRImg []byte, hotpFirstValue string, e error)
+	CreateUserWithToken(token string, password string) error
 }
