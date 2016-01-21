@@ -726,6 +726,29 @@ func (c *Client) GetSealKey(keyID string) (encryptor.Key, error) {
 	return key.Key, nil
 }
 
+func (c *Client) GetAddUserTokenData(token string) (user string,
+	QRImg []byte, hotpFirstValue string, e error) {
+
+	out, err := c.Get(c.Endpoint("users", "adduser", "token"), url.Values{})
+	if err != nil {
+		return "", nil, "", err
+	}
+	var tokenData userTokenDataResponse
+	if err := json.Unmarshal(out.Bytes(), &tokenData); err != nil {
+		return "", nil, "", err
+	}
+	return tokenData.User, []byte(tokenData.QRImg), tokenData.HotpFirstValue, nil
+}
+
+func (c *Client) CreateUserWithToken(token string, password string) error {
+	_, err := c.PostForm(c.Endpoint("users", "adduser"), url.Values{
+		"token":    []string{token},
+		"password": []string{password},
+	})
+
+	return err
+}
+
 type chunkRW struct {
 	c  *Client
 	id string
@@ -812,4 +835,6 @@ type ClientI interface {
 	GenerateUserCert(key []byte, id, user string, ttl time.Duration) ([]byte, error)
 	ResetHostCertificateAuthority() error
 	ResetUserCertificateAuthority() error
+	GetAddUserTokenData(token string) (user string, QRImg []byte, hotpFirstValue string, e error)
+	CreateUserWithToken(token string, password string) error
 }

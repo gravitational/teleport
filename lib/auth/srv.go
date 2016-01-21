@@ -98,6 +98,8 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.GET("/v1/users/:user/web/sessions/:sid", srv.getWebSession)
 	srv.GET("/v1/users/:user/web/sessions", srv.getWebSessions)
 	srv.DELETE("/v1/users/:user/web/sessions/:sid", srv.deleteWebSession)
+	srv.GET("/v1/users/adduser/token", srv.getAddUserTokenData)
+	srv.POST("/v1/users/adduser", srv.createUserWithToken)
 
 	// Web tunnels
 	srv.POST("/v1/tunnels/web", srv.upsertWebTun)
@@ -940,6 +942,54 @@ func (s *APIServer) deleteSession(w http.ResponseWriter, r *http.Request, p http
 		return
 	}
 	reply(w, http.StatusOK, message(fmt.Sprintf("session %v was deleted", sid)))
+}
+
+func (s *APIServer) getAddUserTokenData(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	var token string
+	err := form.Parse(r,
+		form.String("token", &token, form.Required()),
+	)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	user, QRImg, hotpFirstValue, err := s.a.GetAddUserTokenData(token)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	reply(w, http.StatusOK, userTokenDataResponse{
+		User:           user,
+		QRImg:          string(QRImg),
+		HotpFirstValue: hotpFirstValue,
+	})
+}
+
+func (s *APIServer) createUserWithToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	var token, password string
+	err := form.Parse(r,
+		form.String("token", &token, form.Required()),
+		form.String("password", &password, form.Required()),
+	)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	err = s.a.CreateUserWithToken(token, password)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	reply(w, http.StatusOK, message("ok"))
+}
+
+type userTokenDataResponse struct {
+	User           string `json:"user"`
+	QRImg          string `json:"qrimg"`
+	HotpFirstValue string `json:"hotpfirstvalue"`
 }
 
 type pubKeyResponse struct {

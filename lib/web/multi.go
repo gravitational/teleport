@@ -16,8 +16,10 @@ limitations under the License.
 package web
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/gokyle/hotp"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -70,8 +72,11 @@ func NewMultiSiteHandler(cfg MultiSiteConfig) (*MultiSiteHandler, error) {
 	h.initTemplates(cfg.AssetsDir)
 
 	// WEB views
+	h.GET("/web/newuser/:token", h.newUser)
+	h.POST("/web/finishnewuser", h.finishNewUser)
 	h.GET("/web/login", h.login)
 	h.GET("/web/loginerror", h.loginError)
+	h.GET("/web/loginaftercreation", h.loginAfterCreation)
 	h.GET("/web/logout", h.logout)
 	h.POST("/web/auth", h.authForm)
 
@@ -100,6 +105,7 @@ func NewMultiSiteHandler(cfg MultiSiteConfig) (*MultiSiteHandler, error) {
 func (s *MultiSiteHandler) initTemplates(baseDir string) {
 	tpls := []tpl{
 		tpl{name: "login", include: []string{"assets/static/tpl/login.tpl", "assets/static/tpl/base.tpl"}},
+		tpl{name: "newuser", include: []string{"assets/static/tpl/newuser.tpl", "assets/static/tpl/base.tpl"}},
 		tpl{name: "sites", include: []string{"assets/static/tpl/sites.tpl", "assets/static/tpl/base.tpl"}},
 		tpl{name: "site-servers", include: []string{"assets/static/tpl/site/servers.tpl", "assets/static/tpl/base.tpl"}},
 		tpl{name: "site-events", include: []string{"assets/static/tpl/site/events.tpl", "assets/static/tpl/base.tpl"}},
@@ -118,12 +124,54 @@ func (h *MultiSiteHandler) String() string {
 	return fmt.Sprintf("multi site")
 }
 
+func (h *MultiSiteHandler) newUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	otp, _ := hotp.GenerateHOTP(6, false)
+	hotpQR, _ := otp.QR("User123")
+
+	QR64 := base64.StdEncoding.EncodeToString(hotpQR)
+
+	username := p[0].Value
+	h.executeTemplate(w, "newuser", map[string]interface{}{"Username": username, "QR": QR64})
+}
+
+func (h *MultiSiteHandler) finishNewUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	var token, pass, pass2, hotpToken string
+
+	err := form.Parse(r,
+		form.String("token", &token, form.Required()),
+		form.String("password", &pass, form.Required()),
+		form.String("password2", &pass2, form.Required()),
+		form.String("hotpToken", &hotpToken, form.Required()),
+	)
+
+	if err != nil {
+		replyErr(w, http.StatusBadRequest, err)
+		return
+	}
+	/*sid, err := h.auth.Auth(user, pass, hotpToken)
+	if err != nil {
+		log.Warningf("auth error: %v", err)
+		http.Redirect(w, r, "/web/loginerror", http.StatusFound)
+		return
+	}
+	if err := session.SetSession(w, h.cfg.DomainName, user, sid); err != nil {
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}*/
+
+	http.Redirect(w, r, "/web/loginaftercreation", http.StatusFound)
+}
+
 func (h *MultiSiteHandler) login(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	h.executeTemplate(w, "login", nil)
 }
 
 func (h *MultiSiteHandler) loginError(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	h.executeTemplate(w, "login", map[string]interface{}{"ErrorString": "Wrong username or password or hotp token"})
+}
+
+func (h *MultiSiteHandler) loginAfterCreation(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	h.executeTemplate(w, "login", map[string]interface{}{"ErrorString": "Account was successfully created, you can login"})
 }
 
 func (h *MultiSiteHandler) logout(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {

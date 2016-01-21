@@ -107,6 +107,8 @@ const (
 	RoleNode           = "Node"
 	RoleAdmin          = "Admin"
 	RoleProvisionToken = "ProvisionToken"
+	RoleAddUserForm    = "AddUserForm"
+	RoleAddUserFinish  = "AddUserFinish"
 
 	ActionGetSessions                   = "GetSession"
 	ActionGetSession                    = "GetSession"
@@ -154,4 +156,7 @@ const (
 	ActionGetSealKey                    = "GetSealKey"
 	ActionDeleteSealKey                 = "DeleteSealKey"
 	ActionAddSealKey                    = "AddSealKey"
+	ActionCreateAddUserToken            = "CreateAddUserToken"
+	ActionGetAddUserTokenData           = "GetAddUserTokenData"
+	ActionCreateUserWithToken           = "CreateUserWithToken"
 )

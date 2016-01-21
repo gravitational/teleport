@@ -318,6 +318,28 @@ func (s *TunServer) passwordAuth(
 			}}
 		log.Infof("session authenticated prov. token: '%v'", conn.User())
 		return perms, nil
+	case "add-user-token":
+		err := s.a.AuthWithAddUserToken(string(ab.Pass), string(ab.Target))
+		if err != nil {
+			return nil, trace.Errorf("token validation error: %v", trace.Wrap(err))
+		}
+		role := ""
+		if ab.Target == AUTH_TARGET_ADD_USER_FORM {
+			role = RoleAddUserForm
+		}
+		if ab.Target == AUTH_TARGET_ADD_USER_FINISH {
+			role = RoleAddUserFinish
+		}
+		if len(role) == 0 {
+			return nil, trace.Errorf("%v token role error: %v")
+		}
+		perms := &ssh.Permissions{
+			Extensions: map[string]string{
+				ExtToken: string(password),
+				"role":   role,
+			}}
+		log.Infof("session authenticated prov. token: '%v'", conn.User())
+		return perms, nil
 	default:
 		return nil, trace.Errorf("unsupported auth method: '%v'", ab.Type)
 	}
@@ -330,6 +352,7 @@ type authBucket struct {
 	Type      string `json:"type"`
 	Pass      []byte `json:"pass"`
 	HotpToken string `json:"hotpToken"`
+	Target    string `json:"target"`
 }
 
 func NewTokenAuth(domainName, token string) ([]ssh.AuthMethod, error) {
