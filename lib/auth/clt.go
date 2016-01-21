@@ -729,7 +729,7 @@ func (c *Client) GetSealKey(keyID string) (encryptor.Key, error) {
 // CreateSignupToken creates one time token for creating account for the user
 // For each token it creates username and hotp generator
 func (c *Client) CreateSignupToken(user string) (token string, e error) {
-	out, err := c.PostForm(c.Endpoint("signuptokens", "newtoken"), url.Values{
+	out, err := c.PostForm(c.Endpoint("signuptokens"), url.Values{
 		"user": []string{user},
 	})
 	if err != nil {
@@ -746,9 +746,7 @@ func (c *Client) CreateSignupToken(user string) (token string, e error) {
 func (c *Client) GetSignupTokenData(token string) (user string,
 	QRImg []byte, hotpFirstValue string, e error) {
 
-	out, err := c.Get(c.Endpoint("signuptokens"), url.Values{
-		"token": []string{token},
-	})
+	out, err := c.Get(c.Endpoint("signuptokens", token), url.Values{})
 	if err != nil {
 		return "", nil, "", err
 	}
@@ -763,7 +761,7 @@ func (c *Client) GetSignupTokenData(token string) (user string,
 // Account username and hotp generator are taken from token data.
 // Deletes token after account creation.
 func (c *Client) CreateUserWithToken(token string, password string) error {
-	_, err := c.PostForm(c.Endpoint("signuptokens", "newuser"), url.Values{
+	_, err := c.PostForm(c.Endpoint("signuptokens", "users"), url.Values{
 		"token":    []string{token},
 		"password": []string{password},
 	})

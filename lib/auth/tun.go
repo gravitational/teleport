@@ -319,24 +319,14 @@ func (s *TunServer) passwordAuth(
 		log.Infof("session authenticated prov. token: '%v'", conn.User())
 		return perms, nil
 	case AuthSignupToken:
-		err := s.a.AuthWithSignupToken(string(ab.Pass), ab.Target)
+		_, err := s.a.GetSignupToken(string(ab.Pass))
 		if err != nil {
 			return nil, trace.Errorf("token validation error: %v", trace.Wrap(err))
-		}
-		role := ""
-		if ab.Target == AuthTargetSignupForm {
-			role = RoleSignupForm
-		}
-		if ab.Target == AuthTargetSignupFinish {
-			role = RoleSignupFinish
-		}
-		if len(role) == 0 {
-			return nil, trace.Errorf("%v token role error: %v")
 		}
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtToken: string(password),
-				"role":   role,
+				"role":   RoleSignup,
 			}}
 		log.Infof("session authenticated prov. token: '%v'", conn.User())
 		return perms, nil
@@ -352,7 +342,6 @@ type authBucket struct {
 	Type      string `json:"type"`
 	Pass      []byte `json:"pass"`
 	HotpToken string `json:"hotpToken"`
-	Target    string `json:"target"`
 }
 
 func NewTokenAuth(domainName, token string) ([]ssh.AuthMethod, error) {
@@ -392,11 +381,10 @@ func NewWebPasswordAuth(user string, password []byte, hotpToken string) ([]ssh.A
 	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
 }
 
-func NewSignupTokenAuth(token string, target string) ([]ssh.AuthMethod, error) {
+func NewSignupTokenAuth(token string) ([]ssh.AuthMethod, error) {
 	data, err := json.Marshal(authBucket{
-		Type:   AuthSignupToken,
-		Pass:   []byte(token),
-		Target: target,
+		Type: AuthSignupToken,
+		Pass: []byte(token),
 	})
 	if err != nil {
 		return nil, err

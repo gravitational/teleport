@@ -99,9 +99,9 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.GET("/v1/users/:user/web/sessions/:sid", srv.getWebSession)
 	srv.GET("/v1/users/:user/web/sessions", srv.getWebSessions)
 	srv.DELETE("/v1/users/:user/web/sessions/:sid", srv.deleteWebSession)
-	srv.GET("/v1/signuptokens", srv.getSignupTokenData)
-	srv.POST("/v1/signuptokens/newuser", srv.createUserWithToken)
-	srv.POST("/v1/signuptokens/newtoken", srv.createSignupToken)
+	srv.GET("/v1/signuptokens/:token", srv.getSignupTokenData)
+	srv.POST("/v1/signuptokens/users", srv.createUserWithToken)
+	srv.POST("/v1/signuptokens", srv.createSignupToken)
 
 	// Web tunnels
 	srv.POST("/v1/tunnels/web", srv.upsertWebTun)
@@ -947,7 +947,7 @@ func (s *APIServer) deleteSession(w http.ResponseWriter, r *http.Request, p http
 }
 
 func (s *APIServer) getSignupTokenData(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	token := r.URL.Query().Get("token")
+	token := p[0].Value
 	if len(token) == 0 {
 		reply(w, http.StatusInternalServerError, "token is empty")
 		return

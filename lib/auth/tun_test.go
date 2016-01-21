@@ -214,7 +214,7 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	c.Assert(err, IsNil)
 
 	// Connect to auth server using wrong token
-	authMethod0, err := NewSignupTokenAuth("some_wrong_token", AuthTargetSignupForm)
+	authMethod0, err := NewSignupTokenAuth("some_wrong_token")
 	c.Assert(err, IsNil)
 
 	clt0, err := NewTunClient(
@@ -223,17 +223,8 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	_, _, _, err = clt0.GetSignupTokenData(token2)
 	c.Assert(err, NotNil) // valid token, but invalid client
 
-	authMethod0, err = NewSignupTokenAuth("some_wrong_token", AuthTargetSignupFinish)
-	c.Assert(err, IsNil)
-
-	clt0, err = NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod0)
-	c.Assert(err, IsNil)
-	_, _, _, err = clt0.GetSignupTokenData(token2)
-	c.Assert(err, NotNil) // valid token, but invalid client
-
 	// Connect to auth server using valid token
-	authMethod, err := NewSignupTokenAuth(token, AuthTargetSignupForm)
+	authMethod, err := NewSignupTokenAuth(token)
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient(
@@ -259,23 +250,9 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(user, Equals, user1)
 
-	_, QR, _, err := clt.GetSignupTokenData(token) // shouldn't work twice
-	c.Assert(err, NotNil)
-	c.Assert(QR, IsNil)
-
-	// trying to connect to the auth server using used token
-	clt0, err = NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
-	c.Assert(err, IsNil)
-	_, _, _, err = clt0.GetSignupTokenData(token2)
-	c.Assert(err, NotNil) // valid token, but invalid client
-
 	// Saving new password
-	authMethod2, err := NewSignupTokenAuth(token, AuthTargetSignupFinish)
-	c.Assert(err, IsNil)
-
 	clt2, err := NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod2)
+		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer clt2.Close()
 
@@ -287,9 +264,12 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	_, err = s.a.WebService.GetSignupToken(token)
 	c.Assert(err, NotNil) // token was deleted
 
+	err = clt2.CreateUserWithToken(token, password)
+	c.Assert(err, NotNil) // token was deleted
+
 	// trying to connect to the auth server using used token
 	clt0, err = NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod2)
+		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
 	c.Assert(err, IsNil) // shouldn't accept such connection twice
 	_, _, _, err = clt0.GetSignupTokenData(token2)
 	c.Assert(err, NotNil) // valid token, but invalid client

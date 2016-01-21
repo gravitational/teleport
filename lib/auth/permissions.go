@@ -60,11 +60,8 @@ func NewStandardPermissions() PermissionChecker {
 		ActionDeleteWebSession: true,
 	}
 
-	sp.permissions[RoleSignupForm] = map[string]bool{
-		ActionGetSignupTokenData: true,
-	}
-
-	sp.permissions[RoleSignupFinish] = map[string]bool{
+	sp.permissions[RoleSignup] = map[string]bool{
+		ActionGetSignupTokenData:  true,
 		ActionCreateUserWithToken: true,
 	}
 
@@ -106,8 +103,7 @@ var StandardRoles = []string{
 	RoleNode,
 	RoleAdmin,
 	RoleProvisionToken,
-	RoleSignupForm,
-	RoleSignupFinish,
+	RoleSignup,
 }
 
 const (
@@ -117,8 +113,7 @@ const (
 	RoleNode           = "Node"
 	RoleAdmin          = "Admin"
 	RoleProvisionToken = "ProvisionToken"
-	RoleSignupForm     = "SignupForm"
-	RoleSignupFinish   = "SignupFinish"
+	RoleSignup         = "Signup"
 
 	ActionGetSessions                   = "GetSession"
 	ActionGetSession                    = "GetSession"

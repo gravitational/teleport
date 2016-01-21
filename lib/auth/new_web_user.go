@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gokyle/hotp"
+	"github.com/gravitational/log"
 	"github.com/gravitational/session"
 	"github.com/gravitational/trace"
 )
@@ -35,16 +36,11 @@ import (
 const (
 	SignupTokenTTL            = time.Hour * 24
 	SignupTokenUserActionsTTL = time.Hour
-	AuthTargetSignupForm      = "AuthTargetSignupForm"
-	AuthTargetSignupFinish    = "AuthTargetSignupFinish"
 )
 
 // CreateSignupToken creates one time token for creating account for the user
 // For each token it creates username and hotp generator
 func (s *AuthServer) CreateSignupToken(user string) (token string, e error) {
-	s.SignupMutex.Lock()
-	defer s.SignupMutex.Unlock()
-
 	_, err := s.GetPasswordHash(user)
 	if err == nil {
 		return "", trace.Errorf("Can't add user %v, user already exists", user)
@@ -73,12 +69,8 @@ func (s *AuthServer) CreateSignupToken(user string) (token string, e error) {
 	}
 
 	tokenData := services.SignupToken{
-		Token: token,
-		User:  user,
-		AuthTargets: map[string]int{
-			AuthTargetSignupForm:   1,
-			AuthTargetSignupFinish: 1,
-		},
+		Token:          token,
+		User:           user,
 		Hotp:           otpMarshalled,
 		HotpFirstValue: otpFirstValue,
 		HotpQR:         otpQR,
@@ -92,46 +84,25 @@ func (s *AuthServer) CreateSignupToken(user string) (token string, e error) {
 	return token, nil
 }
 
-// AuthWithSignupToken returns nil once for each valid (token, target) string
-// Possible targets: AuthTargetSignupForm, AuthTargetSignupFinish
-func (s *AuthServer) AuthWithSignupToken(token string, target string) error {
-	s.SignupMutex.Lock()
-	defer s.SignupMutex.Unlock()
-
-	tokenData, err := s.GetSignupToken(token)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, exist := tokenData.AuthTargets[target]
-	if !exist {
-		return trace.Errorf("Token was already used")
-	}
-
-	delete(tokenData.AuthTargets, target)
-
-	err = s.UpsertSignupToken(token, tokenData, SignupTokenUserActionsTTL)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// GetSignupTokenData Returns token data once for each valid token
+// GetSignupTokenData Returns token data for a valid token
 func (s *AuthServer) GetSignupTokenData(token string) (user string,
 	QRImg []byte, hotpFirstValue string, e error) {
 
-	s.SignupMutex.Lock()
-	defer s.SignupMutex.Unlock()
-
-	tokenData, err := s.GetSignupToken(token)
+	err := s.AcquireLock("signuptoken"+token, time.Hour)
 	if err != nil {
 		return "", nil, "", trace.Wrap(err)
 	}
 
-	if len(tokenData.HotpFirstValue) == 0 {
-		return "", nil, "", trace.Errorf("Token was already used")
+	defer func() {
+		err := s.ReleaseLock("signuptoken" + token)
+		if err != nil {
+			log.Errorf(err.Error())
+		}
+	}()
+
+	tokenData, err := s.GetSignupToken(token)
+	if err != nil {
+		return "", nil, "", trace.Wrap(err)
 	}
 
 	_, err = s.GetPasswordHash(tokenData.User)
@@ -139,26 +110,29 @@ func (s *AuthServer) GetSignupTokenData(token string) (user string,
 		return "", nil, "", trace.Errorf("Can't add user %v, user already exists", tokenData.User)
 	}
 
-	hotpFirstValue = tokenData.HotpFirstValue
-	user = tokenData.User
-	QRImg = tokenData.HotpQR
-
-	tokenData.HotpFirstValue = ""
-
 	err = s.UpsertSignupToken(token, tokenData, SignupTokenUserActionsTTL)
 	if err != nil {
 		return "", nil, "", trace.Wrap(err)
 	}
 
-	return user, QRImg, hotpFirstValue, nil
+	return tokenData.User, tokenData.HotpQR, tokenData.HotpFirstValue, nil
 }
 
 // CreateUserWithToken creates account with provided token and password.
 // Account username and hotp generator are taken from token data.
 // Deletes token after account creation.
 func (s *AuthServer) CreateUserWithToken(token string, password string) error {
-	s.SignupMutex.Lock()
-	defer s.SignupMutex.Unlock()
+	err := s.AcquireLock("signuptoken"+token, time.Hour)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer func() {
+		err := s.ReleaseLock("signuptoken" + token)
+		if err != nil {
+			log.Errorf(err.Error())
+		}
+	}()
 
 	tokenData, err := s.GetSignupToken(token)
 	if err != nil {

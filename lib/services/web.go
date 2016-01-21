@@ -361,7 +361,6 @@ func NewWebTun(prefix, proxyAddr, targetAddr string) (*WebTun, error) {
 type SignupToken struct {
 	Token          string
 	User           string
-	AuthTargets    map[string]int
 	Hotp           []byte
 	HotpFirstValue string
 	HotpQR         []byte

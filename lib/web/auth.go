@@ -196,7 +196,7 @@ func (s *LocalAuth) GetCertificate(c SSHLoginCredentials) ([]byte, error) {
 func (s *LocalAuth) NewUserForm(token string) (user string,
 	QRImg []byte, hotpFirstValue string, e error) {
 
-	method, err := auth.NewSignupTokenAuth(token, auth.AuthTargetSignupForm)
+	method, err := auth.NewSignupTokenAuth(token)
 	if err != nil {
 		return "", nil, "", trace.Wrap(err)
 	}
@@ -209,7 +209,7 @@ func (s *LocalAuth) NewUserForm(token string) (user string,
 }
 
 func (s *LocalAuth) NewUserFinish(token string, password string) error {
-	method, err := auth.NewSignupTokenAuth(token, auth.AuthTargetSignupFinish)
+	method, err := auth.NewSignupTokenAuth(token)
 	if err != nil {
 		return trace.Wrap(err)
 	}
