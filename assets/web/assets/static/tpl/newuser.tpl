@@ -32,9 +32,6 @@
                 <div class="form-group">
                     <input type="test" name="hotp_token" id="hotp_token" class="form-control" placeholder="hotp token" required="" onchange="checkToken()">
                 </div>
-                <div class="form-group">
-                    <input type="hidden" name="correct_hotp_token" class="form-control" value="{{.HotpFirstValue}}">
-                </div>
 
                 <button type="submit" class="btn btn-primary block full-width m-b">Confirm</button>
 
@@ -52,10 +49,16 @@
                     }
 
                     function checkToken() {
-                        if (hotp_token.value != {{.HotpFirstValue}}) {
-                            hotp_token.setCustomValidity('Token is not correct');
-                        } else {
+                        var isValid = false;
+                        {{ range .HotpFirstValues }}
+                            if (hotp_token.value == {{.}}) {
+                                isValid = true
+                            }
+                        {{ end }}
+                        if (isValid) {
                             hotp_token.setCustomValidity('');
+                        } else {
+                            hotp_token.setCustomValidity('Token is not correct');
                         }
                     }
                 </script>

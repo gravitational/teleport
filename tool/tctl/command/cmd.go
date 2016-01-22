@@ -19,6 +19,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"strings"
 
@@ -195,7 +196,11 @@ func (cmd *Command) Run(args []string) error {
 		}
 
 		if len(*userNewAddress) == 0 {
-			*userNewAddress = cfg.Proxy.WebAddr.Addr
+			_, port, err := net.SplitHostPort(cfg.Proxy.WebAddr.Addr)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			*userNewAddress = cfg.Hostname + ":" + port
 		}
 
 		cmd.client, err = auth.NewTunClient(

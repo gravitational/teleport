@@ -75,7 +75,7 @@ func (b *EncryptedBackend) VerifySign() error {
 		return err
 	}
 	if string(val) != b.KeyID {
-		return trace.Errorf("Can't verify sign")
+		return trace.Errorf("can't verify sign")
 	}
 	return nil
 }

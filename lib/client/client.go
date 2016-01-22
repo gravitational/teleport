@@ -61,7 +61,7 @@ type NodeClient struct {
 // ConnectToProxy returns connected and authenticated ProxyClient
 func ConnectToProxy(proxyAddress string, authMethods []ssh.AuthMethod,
 	user string) (*ProxyClient, error) {
-	e := trace.Errorf("No authMethods were provided")
+	e := trace.Errorf("no authMethods were provided")
 
 	for _, authMethod := range authMethods {
 		sshConfig := &ssh.ClientConfig{
@@ -168,13 +168,13 @@ func (proxy *ProxyClient) FindServers(labelName string,
 // It returns connected and authenticated NodeClient
 func (proxy *ProxyClient) ConnectToNode(nodeAddress string, authMethods []ssh.AuthMethod, user string) (*NodeClient, error) {
 	if len(authMethods) == 0 {
-		return nil, trace.Errorf("No authMethods were provided")
+		return nil, trace.Errorf("no authMethods were provided")
 	}
 
 	proxy.Lock()
 	defer proxy.Unlock()
 
-	e := trace.Errorf("Unknown Error")
+	e := trace.Errorf("unknown Error")
 
 	for _, authMethod := range authMethods {
 
@@ -252,7 +252,7 @@ func ConnectToNode(optionalProxy *ProxyClient, nodeAddress string, authMethods [
 		return optionalProxy.ConnectToNode(nodeAddress, authMethods, user)
 	}
 
-	e := trace.Errorf("No authMethods were provided")
+	e := trace.Errorf("no authMethods were provided")
 
 	for _, authMethod := range authMethods {
 		sshConfig := &ssh.ClientConfig{

@@ -483,7 +483,7 @@ func (s *Server) dispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Reques
 			// we currently ignore setting any environment variables via SSH for security purposes
 			return s.handleEnv(ch, req, ctx)
 		default:
-			return trace.Errorf("Proxy doesn't support request type '%v'", req.Type)
+			return trace.Errorf("proxy doesn't support request type '%v'", req.Type)
 		}
 	}
 	switch req.Type {

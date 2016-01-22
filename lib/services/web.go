@@ -245,7 +245,6 @@ func (s *WebService) UpsertPassword(user string,
 	if err != nil {
 		return "", nil, err
 	}
-	otp.Increment()
 
 	err = s.UpsertPasswordHash(user, hash)
 	if err != nil {
@@ -359,11 +358,11 @@ func NewWebTun(prefix, proxyAddr, targetAddr string) (*WebTun, error) {
 }
 
 type SignupToken struct {
-	Token          string
-	User           string
-	Hotp           []byte
-	HotpFirstValue string
-	HotpQR         []byte
+	Token           string
+	User            string
+	Hotp            []byte
+	HotpFirstValues []string
+	HotpQR          []byte
 }
 
 func (s *WebService) UpsertSignupToken(token string, tokenData SignupToken, ttl time.Duration) error {
@@ -379,18 +378,20 @@ func (s *WebService) UpsertSignupToken(token string, tokenData SignupToken, ttl 
 	return nil
 
 }
-func (s *WebService) GetSignupToken(token string) (SignupToken, error) {
-	out, err := s.backend.GetVal([]string{"addusertokens"}, token)
+func (s *WebService) GetSignupToken(token string) (tokenData SignupToken,
+	ttl time.Duration, e error) {
+
+	out, ttl, err := s.backend.GetValAndTTL([]string{"addusertokens"}, token)
 	if err != nil {
-		return SignupToken{}, err
+		return SignupToken{}, 0, trace.Wrap(err)
 	}
-	var t SignupToken
-	err = json.Unmarshal(out, &t)
+	var data SignupToken
+	err = json.Unmarshal(out, &data)
 	if err != nil {
-		return SignupToken{}, trace.Wrap(err)
+		return SignupToken{}, 0, trace.Wrap(err)
 	}
 
-	return t, nil
+	return data, ttl, nil
 }
 func (s *WebService) DeleteSignupToken(token string) error {
 	err := s.backend.DeleteKey([]string{"addusertokens"}, token)

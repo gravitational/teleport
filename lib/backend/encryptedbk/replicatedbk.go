@@ -120,7 +120,7 @@ func (b *ReplicatedBackend) initFromExistingBk(additionalKeys []encryptor.Key) e
 		return trace.Wrap(err)
 	}
 	if len(localKeys) == 0 {
-		return trace.Errorf("Can't initialize backend: no backend seal keys were provided")
+		return trace.Errorf("can't initialize backend: no backend seal keys were provided")
 	}
 
 	// first initialize only backends, that can decrypt data
@@ -136,7 +136,7 @@ func (b *ReplicatedBackend) initFromExistingBk(additionalKeys []encryptor.Key) e
 	}
 
 	if len(b.ebk) == 0 {
-		return trace.Errorf("Can't initialize backend: no valid backend seal keys were provided")
+		return trace.Errorf("can't initialize backend: no valid backend seal keys were provided")
 	}
 
 	if err := b.updateLocalKeysFromCluster(); err != nil {
@@ -218,7 +218,7 @@ func (b *ReplicatedBackend) getKeys(path []string) ([]string, error) {
 			}
 		}
 	}
-	return nil, trace.Errorf("Backen can't be accessed because there are no valid decrypting keys. Last error message: %s", e.Error())
+	return nil, trace.Errorf("backend can't be accessed because there are no valid decrypting keys. Last error message: %s", e.Error())
 }
 
 func (b *ReplicatedBackend) DeleteKey(path []string, key string) error {
@@ -308,7 +308,7 @@ func (b *ReplicatedBackend) GetVal(path []string, key string) ([]byte, error) {
 }
 
 func (b *ReplicatedBackend) getVal(path []string, key string) ([]byte, error) {
-	err := trace.Errorf("Can't decrypt data or check signature: no valid keys")
+	err := trace.Errorf("can't decrypt data or check signature: no valid keys")
 	for _, bk := range b.ebk {
 		if bk.VerifySign() == nil {
 			var val []byte
@@ -328,7 +328,7 @@ func (b *ReplicatedBackend) GetValAndTTL(path []string, key string) ([]byte, tim
 }
 
 func (b *ReplicatedBackend) getValAndTTL(path []string, key string) ([]byte, time.Duration, error) {
-	err := trace.Errorf("Can't decrypt data or check signature: no valid keys")
+	err := trace.Errorf("can't decrypt data or check signature: no valid keys")
 	for _, bk := range b.ebk {
 		if bk.VerifySign() == nil {
 			var val []byte
@@ -367,7 +367,7 @@ func (b *ReplicatedBackend) generateSealKey(name string, copyData bool) (encrypt
 	}
 	for _, key := range localKeys {
 		if key.Name == name {
-			return encryptor.Key{}, trace.Errorf("Key with name '" + name + "' already exists")
+			return encryptor.Key{}, trace.Errorf("key with name '" + name + "' already exists")
 		}
 	}
 
@@ -425,13 +425,13 @@ func (b *ReplicatedBackend) addSealKey(key encryptor.Key, copyData bool) error {
 	log.Infof("Adding backend seal key '" + key.Name + "'")
 
 	if len(key.Name) == 0 {
-		return trace.Errorf("Key name is not provided")
+		return trace.Errorf("key name is not provided")
 	}
 	keySha1 := sha256.Sum256(key.PublicValue)
 	keyHash := hex.EncodeToString(keySha1[:])
 
 	if !reflect.DeepEqual(key.ID, keyHash) {
-		return trace.Errorf("Key is corrupted, key id mismatch key value")
+		return trace.Errorf("key is corrupted, key id mismatch key value")
 	}
 
 	_, err := b.getLocalSealKey(key.ID)
@@ -481,7 +481,7 @@ func (b *ReplicatedBackend) addSealKey(key encryptor.Key, copyData bool) error {
 			}
 		}
 		if !copied {
-			return trace.Errorf("Can't copy: no valid keys to decrypt data of verify signs")
+			return trace.Errorf("can't copy: no valid keys to decrypt data of verify signs")
 		}
 	}
 
@@ -532,7 +532,7 @@ func (b *ReplicatedBackend) deleteSealKey(id string, rewriteData bool) error {
 
 	if !anotherValidKey {
 		log.Warningf("Key %s is the last valid key on this server, it can't be deleted", id)
-		return trace.Errorf("Key %s is the last valid key on this server, it can't be deleted", id)
+		return trace.Errorf("key %s is the last valid key on this server, it can't be deleted", id)
 	}
 
 	if b.signKey.ID == id {
@@ -575,7 +575,7 @@ func (b *ReplicatedBackend) deleteSealKey(id string, rewriteData bool) error {
 	b.deleteSignCheckingKey(id)
 
 	if !deletedGlobally && !deletedLocally {
-		return trace.Errorf("Key " + id + " was not found in local and cluster keys")
+		return trace.Errorf("key " + id + " was not found in local and cluster keys")
 	}
 
 	return nil
@@ -629,7 +629,7 @@ func (b *ReplicatedBackend) GetSignKey() (encryptor.Key, error) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 	if len(b.signKey.PrivateValue) == 0 {
-		return encryptor.Key{}, trace.Errorf("Sign key is not set")
+		return encryptor.Key{}, trace.Errorf("sign key is not set")
 	}
 
 	return b.signKey, nil
@@ -678,7 +678,7 @@ func (b *ReplicatedBackend) rewriteData() error {
 	}
 
 	if srcBk == nil {
-		return trace.Errorf("No valid backend keys to decrypt data")
+		return trace.Errorf("no valid backend keys to decrypt data")
 	}
 
 	for _, bk := range b.ebk {

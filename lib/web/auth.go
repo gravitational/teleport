@@ -124,8 +124,8 @@ type AuthHandler interface {
 	GetHost() string
 	Auth(user, pass string, hotpToken string) (string, error)
 	GetCertificate(c SSHLoginCredentials) ([]byte, error)
-	NewUserForm(token string) (user string, QRImg []byte, hotpFirstValue string, e error)
-	NewUserFinish(token, password string) error
+	NewUserForm(token string) (user string, QRImg []byte, hotpFirstValues []string, e error)
+	NewUserFinish(token, password, hotpToken string) error
 	ValidateSession(user, sid string) (Context, error)
 	SetSession(w http.ResponseWriter, user, sid string) error
 	ClearSession(w http.ResponseWriter)
@@ -194,21 +194,21 @@ func (s *LocalAuth) GetCertificate(c SSHLoginCredentials) ([]byte, error) {
 }
 
 func (s *LocalAuth) NewUserForm(token string) (user string,
-	QRImg []byte, hotpFirstValue string, e error) {
+	QRImg []byte, hotpFirstValues []string, e error) {
 
 	method, err := auth.NewSignupTokenAuth(token)
 	if err != nil {
-		return "", nil, "", trace.Wrap(err)
+		return "", nil, nil, trace.Wrap(err)
 	}
 	clt, err := auth.NewTunClient(s.authServers[0], "tokenAuth", method)
 	if err != nil {
-		return "", nil, "", trace.Wrap(err)
+		return "", nil, nil, trace.Wrap(err)
 	}
 
 	return clt.GetSignupTokenData(token)
 }
 
-func (s *LocalAuth) NewUserFinish(token string, password string) error {
+func (s *LocalAuth) NewUserFinish(token, password, hotpToken string) error {
 	method, err := auth.NewSignupTokenAuth(token)
 	if err != nil {
 		return trace.Wrap(err)
@@ -218,7 +218,7 @@ func (s *LocalAuth) NewUserFinish(token string, password string) error {
 		return trace.Wrap(err)
 	}
 
-	return clt.CreateUserWithToken(token, password)
+	return clt.CreateUserWithToken(token, password, hotpToken)
 }
 
 func (s *LocalAuth) ValidateSession(user, sid string) (Context, error) {

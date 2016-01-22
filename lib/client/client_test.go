@@ -351,6 +351,8 @@ func (s *ClientSuite) TestShell(c *C) {
 	shell, err := nodeClient.Shell(100, 100)
 	c.Assert(err, IsNil)
 
+	time.Sleep(time.Millisecond * 100)
+
 	// run first command
 	_, err = shell.Write([]byte("expr 11 + 22\n"))
 	c.Assert(err, IsNil)
