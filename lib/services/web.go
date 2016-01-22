@@ -245,7 +245,6 @@ func (s *WebService) UpsertPassword(user string,
 	if err != nil {
 		return "", nil, err
 	}
-	otp.Increment()
 
 	err = s.UpsertPasswordHash(user, hash)
 	if err != nil {
