@@ -46,7 +46,7 @@ var TokenTTLAfterUse = time.Second * 10
 func (s *AuthServer) CreateSignupToken(user string) (token string, e error) {
 	_, err := s.GetPasswordHash(user)
 	if err == nil {
-		return "", trace.Errorf("Can't add user %v, user already exists", user)
+		return "", trace.Errorf("can't add user %v, user already exists", user)
 	}
 
 	t, err := session.NewID(s.scrt)
@@ -113,12 +113,12 @@ func (s *AuthServer) GetSignupTokenData(token string) (user string,
 
 	if ttl < SignupTokenUserActionsTTL {
 		// user should have time to fill the signup form
-		return "", nil, nil, trace.Errorf("Token was expired")
+		return "", nil, nil, trace.Errorf("token was expired")
 	}
 
 	_, err = s.GetPasswordHash(tokenData.User)
 	if err == nil {
-		return "", nil, nil, trace.Errorf("Can't add user %v, user already exists", tokenData.User)
+		return "", nil, nil, trace.Errorf("can't add user %v, user already exists", tokenData.User)
 	}
 
 	return tokenData.User, tokenData.HotpQR, tokenData.HotpFirstValues, nil
@@ -151,7 +151,7 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) erro
 		e := s.CheckPasswordWOToken(tokenData.User, []byte(password))
 		if e != nil {
 			// different users tries to create one account
-			return trace.Errorf("Can't add user %v, user already exists", tokenData.User)
+			return trace.Errorf("can't add user %v, user already exists", tokenData.User)
 		} else {
 			// one user just quickly clicked "Confirm" twice
 			return nil

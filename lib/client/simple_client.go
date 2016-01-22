@@ -117,7 +117,7 @@ func Upload(user, target, proxyAddress, localSourcePath, remoteDestPath string, 
 		return trace.Wrap(err)
 	}
 	if len(addresses) == 0 {
-		return fmt.Errorf("No target servers found")
+		return fmt.Errorf("no target servers found")
 	}
 
 	var proxyClient *ProxyClient
@@ -193,7 +193,7 @@ func Download(user, target, proxyAddress, remoteSourcePath, localDestPath string
 		return trace.Wrap(err)
 	}
 	if len(addresses) == 0 {
-		return fmt.Errorf("No target servers found")
+		return fmt.Errorf("no target servers found")
 	}
 
 	_, filename := filepath.Split(remoteSourcePath)
@@ -210,7 +210,7 @@ func Download(user, target, proxyAddress, remoteSourcePath, localDestPath string
 			if err != nil {
 				return trace.Wrap(err)
 			} else {
-				return trace.Errorf("Error: Directory %v already exists", localDestPath)
+				return trace.Errorf("error: Directory %v already exists", localDestPath)
 			}
 		}
 	}
@@ -292,13 +292,13 @@ func ParseTargetServers(target string, user, proxyAddress string, authMethods []
 		target = target[1:len(target)]
 		parts := strings.Split(target, ":")
 		if len(parts) != 2 {
-			return nil, trace.Errorf("Wrong address format, label address should have _label:value format")
+			return nil, trace.Errorf("wrong address format, label address should have _label:value format")
 		}
 		label := parts[0]
 		value := parts[1]
 
 		if len(proxyAddress) == 0 {
-			return nil, trace.Errorf("Proxy Address should be provided for server searching")
+			return nil, trace.Errorf("proxy Address should be provided for server searching")
 		}
 
 		proxyClient, err := ConnectToProxy(proxyAddress, authMethods, user)
