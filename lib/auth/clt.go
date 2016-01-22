@@ -742,28 +742,29 @@ func (c *Client) CreateSignupToken(user string) (token string, e error) {
 	return result["message"], err
 }
 
-// GetSignupTokenData Returns token data once for each valid token
+// GetSignupTokenData returns token data for a valid token
 func (c *Client) GetSignupTokenData(token string) (user string,
-	QRImg []byte, hotpFirstValue string, e error) {
+	QRImg []byte, hotpFirstValues []string, e error) {
 
 	out, err := c.Get(c.Endpoint("signuptokens", token), url.Values{})
 	if err != nil {
-		return "", nil, "", err
+		return "", nil, nil, err
 	}
 	var tokenData userTokenDataResponse
 	if err := json.Unmarshal(out.Bytes(), &tokenData); err != nil {
-		return "", nil, "", err
+		return "", nil, nil, err
 	}
-	return tokenData.User, tokenData.QRImg, tokenData.HotpFirstValue, nil
+	return tokenData.User, tokenData.QRImg, tokenData.HotpFirstValues, nil
 }
 
 // CreateUserWithToken creates account with provided token and password.
 // Account username and hotp generator are taken from token data.
 // Deletes token after account creation.
-func (c *Client) CreateUserWithToken(token string, password string) error {
+func (c *Client) CreateUserWithToken(token, password, hotpToken string) error {
 	_, err := c.PostForm(c.Endpoint("signuptokens", "users"), url.Values{
-		"token":    []string{token},
-		"password": []string{password},
+		"token":     []string{token},
+		"password":  []string{password},
+		"hotptoken": []string{hotpToken},
 	})
 
 	return err
@@ -855,6 +856,6 @@ type ClientI interface {
 	GenerateUserCert(key []byte, id, user string, ttl time.Duration) ([]byte, error)
 	ResetHostCertificateAuthority() error
 	ResetUserCertificateAuthority() error
-	GetSignupTokenData(token string) (user string, QRImg []byte, hotpFirstValue string, e error)
-	CreateUserWithToken(token string, password string) error
+	GetSignupTokenData(token string) (user string, QRImg []byte, hotpFirstValues []string, e error)
+	CreateUserWithToken(token, password, hotpToken string) error
 }

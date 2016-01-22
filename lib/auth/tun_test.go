@@ -17,6 +17,7 @@ package auth
 
 import (
 	"path/filepath"
+	"time"
 
 	"github.com/gokyle/hotp"
 
@@ -204,13 +205,19 @@ func (s *TunSuite) TestSessions(c *C) {
 func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	c.Assert(s.a.ResetUserCertificateAuthority(""), IsNil)
 
+	TokenTTLAfterUse = time.Millisecond * 300
 	user := "user456"
+	user2 := "zxzx"
+	user3 := "wrwr"
 
 	// Generate token
 	token, err := s.a.CreateSignupToken(user)
 	c.Assert(err, IsNil)
 	// Generate token2
-	token2, err := s.a.CreateSignupToken(user)
+	token2, err := s.a.CreateSignupToken(user2)
+	c.Assert(err, IsNil)
+	// Generate token3
+	token3, err := s.a.CreateSignupToken(user3)
 	c.Assert(err, IsNil)
 
 	// Connect to auth server using wrong token
@@ -234,10 +241,26 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 
 	// User will scan QRcode, here we just loads the OTP generator
 	// right from the backend
-	tokenData, err := s.a.WebService.GetSignupToken(token)
+	tokenData, ttl, err := s.a.WebService.GetSignupToken(token)
 	c.Assert(err, IsNil)
+	c.Assert(ttl > SignupTokenUserActionsTTL, Equals, true)
 	otp, err := hotp.Unmarshal(tokenData.Hotp)
 	c.Assert(err, IsNil)
+
+	hotpTokens := make([]string, 6)
+	for i := 0; i < 6; i++ {
+		hotpTokens[i] = otp.OTP()
+	}
+
+	tokenData3, _, err := s.a.WebService.GetSignupToken(token3)
+	c.Assert(err, IsNil)
+	otp3, err := hotp.Unmarshal(tokenData3.Hotp)
+	c.Assert(err, IsNil)
+
+	hotpTokens3 := make([]string, 6)
+	for i := 0; i < 6; i++ {
+		hotpTokens3[i] = otp3.OTP()
+	}
 
 	// Loading what the web page loads (username and QR image)
 	_, _, _, err = clt.GetSignupTokenData("wrong_token")
@@ -258,14 +281,25 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 
 	password := "valid_password"
 
-	err = clt2.CreateUserWithToken(token, password)
+	err = clt2.CreateUserWithToken(token, password, hotpTokens[0])
 	c.Assert(err, IsNil)
 
-	_, err = s.a.WebService.GetSignupToken(token)
+	// that line will do nothing, so next valid token is still hotpTokens[1]
+	err = clt2.CreateUserWithToken(token, password, hotpTokens[1])
+	c.Assert(err, IsNil)
+
+	err = clt2.CreateUserWithToken(token, "another_user_signup_attempt", hotpTokens[0])
+	c.Assert(err, NotNil)
+
+	time.Sleep(time.Millisecond * 500)
+	_, _, err = s.a.WebService.GetSignupToken(token)
 	c.Assert(err, NotNil) // token was deleted
 
-	err = clt2.CreateUserWithToken(token, password)
-	c.Assert(err, NotNil) // token was deleted
+	err = clt2.CreateUserWithToken(token3, "newpassword123", hotpTokens3[5])
+	c.Assert(err, NotNil)
+
+	err = clt2.CreateUserWithToken(token3, "newpassword45665", hotpTokens3[4])
+	c.Assert(err, IsNil)
 
 	// trying to connect to the auth server using used token
 	clt0, err = NewTunClient(
@@ -276,8 +310,7 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 
 	// User was created. Now trying to login
 
-	otp.Increment() // Google Authenticator also increments once after creating new account
-	authMethod3, err := NewWebPasswordAuth(user, []byte(password), otp.OTP())
+	authMethod3, err := NewWebPasswordAuth(user, []byte(password), hotpTokens[1])
 	c.Assert(err, IsNil)
 
 	clt3, err := NewTunClient(

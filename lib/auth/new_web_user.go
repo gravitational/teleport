@@ -36,7 +36,10 @@ import (
 const (
 	SignupTokenTTL            = time.Hour * 24
 	SignupTokenUserActionsTTL = time.Hour
+	HOTPFirstTokensRange      = 5
 )
+
+var TokenTTLAfterUse = time.Second * 10
 
 // CreateSignupToken creates one time token for creating account for the user
 // For each token it creates username and hotp generator
@@ -60,23 +63,26 @@ func (s *AuthServer) CreateSignupToken(user string) (token string, e error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	otp.Increment()
-	otpFirstValue := otp.OTP()
 
 	otpMarshalled, err := hotp.Marshal(otp)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	tokenData := services.SignupToken{
-		Token:          token,
-		User:           user,
-		Hotp:           otpMarshalled,
-		HotpFirstValue: otpFirstValue,
-		HotpQR:         otpQR,
+	otpFirstValues := make([]string, HOTPFirstTokensRange)
+	for i := 0; i < HOTPFirstTokensRange; i++ {
+		otpFirstValues[i] = otp.OTP()
 	}
 
-	err = s.UpsertSignupToken(token, tokenData, SignupTokenTTL)
+	tokenData := services.SignupToken{
+		Token:           token,
+		User:            user,
+		Hotp:            otpMarshalled,
+		HotpFirstValues: otpFirstValues,
+		HotpQR:          otpQR,
+	}
+
+	err = s.UpsertSignupToken(token, tokenData, SignupTokenTTL+SignupTokenUserActionsTTL)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -84,13 +90,13 @@ func (s *AuthServer) CreateSignupToken(user string) (token string, e error) {
 	return token, nil
 }
 
-// GetSignupTokenData Returns token data for a valid token
+// GetSignupTokenData returns token data for a valid token
 func (s *AuthServer) GetSignupTokenData(token string) (user string,
-	QRImg []byte, hotpFirstValue string, e error) {
+	QRImg []byte, hotpFirstValues []string, e error) {
 
 	err := s.AcquireLock("signuptoken"+token, time.Hour)
 	if err != nil {
-		return "", nil, "", trace.Wrap(err)
+		return "", nil, nil, trace.Wrap(err)
 	}
 
 	defer func() {
@@ -100,28 +106,28 @@ func (s *AuthServer) GetSignupTokenData(token string) (user string,
 		}
 	}()
 
-	tokenData, err := s.GetSignupToken(token)
+	tokenData, ttl, err := s.GetSignupToken(token)
 	if err != nil {
-		return "", nil, "", trace.Wrap(err)
+		return "", nil, nil, trace.Wrap(err)
+	}
+
+	if ttl < SignupTokenUserActionsTTL {
+		// user should have time to fill the signup form
+		return "", nil, nil, trace.Errorf("Token was expired")
 	}
 
 	_, err = s.GetPasswordHash(tokenData.User)
 	if err == nil {
-		return "", nil, "", trace.Errorf("Can't add user %v, user already exists", tokenData.User)
+		return "", nil, nil, trace.Errorf("Can't add user %v, user already exists", tokenData.User)
 	}
 
-	err = s.UpsertSignupToken(token, tokenData, SignupTokenUserActionsTTL)
-	if err != nil {
-		return "", nil, "", trace.Wrap(err)
-	}
-
-	return tokenData.User, tokenData.HotpQR, tokenData.HotpFirstValue, nil
+	return tokenData.User, tokenData.HotpQR, tokenData.HotpFirstValues, nil
 }
 
 // CreateUserWithToken creates account with provided token and password.
 // Account username and hotp generator are taken from token data.
 // Deletes token after account creation.
-func (s *AuthServer) CreateUserWithToken(token string, password string) error {
+func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) error {
 	err := s.AcquireLock("signuptoken"+token, time.Hour)
 	if err != nil {
 		return trace.Wrap(err)
@@ -134,22 +140,35 @@ func (s *AuthServer) CreateUserWithToken(token string, password string) error {
 		}
 	}()
 
-	tokenData, err := s.GetSignupToken(token)
+	tokenData, _, err := s.GetSignupToken(token)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	_, err = s.GetPasswordHash(tokenData.User)
 	if err == nil {
-		return trace.Errorf("Can't add user %v, user already exists", tokenData.User)
+		// that means that the account was already created
+		e := s.CheckPasswordWOToken(tokenData.User, []byte(password))
+		if e != nil {
+			// different users tries to create one account
+			return trace.Errorf("Can't add user %v, user already exists", tokenData.User)
+		} else {
+			// one user just quickly clicked "Confirm" twice
+			return nil
+		}
 	}
 
-	_, _, err = s.UpsertPassword(tokenData.User, []byte(password))
+	otp, err := hotp.Unmarshal(tokenData.Hotp)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	otp, err := hotp.Unmarshal(tokenData.Hotp)
+	ok := otp.Scan(hotpToken, HOTPFirstTokensRange)
+	if !ok {
+		return trace.Wrap(err)
+	}
+
+	_, _, err = s.UpsertPassword(tokenData.User, []byte(password))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -159,10 +178,13 @@ func (s *AuthServer) CreateUserWithToken(token string, password string) error {
 		return trace.Wrap(err)
 	}
 
-	err = s.DeleteSignupToken(token)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	go func(s *AuthServer, token string) {
+		time.Sleep(TokenTTLAfterUse) // If user will quickly click "Confirm" twice
+		err = s.DeleteSignupToken(token)
+		if err != nil {
+			log.Errorf(err.Error())
+		}
+	}(s, token)
 
 	return nil
 }

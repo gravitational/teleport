@@ -953,16 +953,16 @@ func (s *APIServer) getSignupTokenData(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 
-	user, QRImg, hotpFirstValue, err := s.a.GetSignupTokenData(token)
+	user, QRImg, hotpFirstValues, err := s.a.GetSignupTokenData(token)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, trace.Wrap(err).Error())
 		return
 	}
 
 	reply(w, http.StatusOK, userTokenDataResponse{
-		User:           user,
-		QRImg:          QRImg,
-		HotpFirstValue: hotpFirstValue,
+		User:            user,
+		QRImg:           QRImg,
+		HotpFirstValues: hotpFirstValues,
 	})
 }
 
@@ -986,17 +986,18 @@ func (s *APIServer) createSignupToken(w http.ResponseWriter, r *http.Request, p 
 }
 
 func (s *APIServer) createUserWithToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	var token, password string
+	var token, password, hotpToken string
 	err := form.Parse(r,
 		form.String("token", &token, form.Required()),
 		form.String("password", &password, form.Required()),
+		form.String("hotptoken", &hotpToken, form.Required()),
 	)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	err = s.a.CreateUserWithToken(token, password)
+	err = s.a.CreateUserWithToken(token, password, hotpToken)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
@@ -1005,9 +1006,9 @@ func (s *APIServer) createUserWithToken(w http.ResponseWriter, r *http.Request, 
 }
 
 type userTokenDataResponse struct {
-	User           string `json:"user"`
-	QRImg          []byte `json:"qrimg"`
-	HotpFirstValue string `json:"hotpfirstvalue"`
+	User            string   `json:"user"`
+	QRImg           []byte   `json:"qrimg"`
+	HotpFirstValues []string `json:"hotpfirstvalue"`
 }
 
 type pubKeyResponse struct {

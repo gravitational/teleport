@@ -393,18 +393,18 @@ func (a *AuthWithRoles) CreateSignupToken(user string) (token string, e error) {
 }
 
 func (a *AuthWithRoles) GetSignupTokenData(token string) (user string,
-	QRImg []byte, hotpFirstValue string, e error) {
+	QRImg []byte, hotpFirstValues []string, e error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetSignupTokenData); err != nil {
-		return "", nil, "", err
+		return "", nil, nil, err
 	} else {
 		return a.authServer.GetSignupTokenData(token)
 	}
 }
 
-func (a *AuthWithRoles) CreateUserWithToken(token string, password string) error {
+func (a *AuthWithRoles) CreateUserWithToken(token, password, hotpToken string) error {
 	if err := a.permChecker.HasPermission(a.role, ActionCreateUserWithToken); err != nil {
 		return err
 	} else {
-		return a.authServer.CreateUserWithToken(token, password)
+		return a.authServer.CreateUserWithToken(token, password, hotpToken)
 	}
 }

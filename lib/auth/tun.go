@@ -319,7 +319,7 @@ func (s *TunServer) passwordAuth(
 		log.Infof("session authenticated prov. token: '%v'", conn.User())
 		return perms, nil
 	case AuthSignupToken:
-		_, err := s.a.GetSignupToken(string(ab.Pass))
+		_, _, err := s.a.GetSignupToken(string(ab.Pass))
 		if err != nil {
 			return nil, trace.Errorf("token validation error: %v", trace.Wrap(err))
 		}

@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -78,6 +79,7 @@ func NewMultiSiteHandler(cfg MultiSiteConfig) (*MultiSiteHandler, error) {
 	h.GET("/web/loginaftercreation", h.loginAfterCreation)
 	h.GET("/web/logout", h.logout)
 	h.POST("/web/auth", h.authForm)
+	h.GET("/web/error", h.errorPage)
 
 	h.GET("/", h.needsAuth(h.sitesIndex))
 	h.GET("/web/sites", h.needsAuth(h.sitesIndex))
@@ -104,6 +106,7 @@ func NewMultiSiteHandler(cfg MultiSiteConfig) (*MultiSiteHandler, error) {
 func (s *MultiSiteHandler) initTemplates(baseDir string) {
 	tpls := []tpl{
 		tpl{name: "login", include: []string{"assets/static/tpl/login.tpl", "assets/static/tpl/base.tpl"}},
+		tpl{name: "error", include: []string{"assets/static/tpl/error.tpl", "assets/static/tpl/base.tpl"}},
 		tpl{name: "newuser", include: []string{"assets/static/tpl/newuser.tpl", "assets/static/tpl/base.tpl"}},
 		tpl{name: "sites", include: []string{"assets/static/tpl/sites.tpl", "assets/static/tpl/base.tpl"}},
 		tpl{name: "site-servers", include: []string{"assets/static/tpl/site/servers.tpl", "assets/static/tpl/base.tpl"}},
@@ -125,49 +128,47 @@ func (h *MultiSiteHandler) String() string {
 
 func (h *MultiSiteHandler) newUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	token := p[0].Value
-	user, QRImg, hotpFirstValue, err := h.auth.NewUserForm(token)
+	user, QRImg, hotpFirstValues, err := h.auth.NewUserForm(token)
 	if err != nil {
-		replyErr(w, http.StatusBadRequest, err)
+		http.Redirect(w, r, ErrorPageLink("Signup link had expired"),
+			http.StatusFound)
 		return
 	}
 
 	base64QRImg := base64.StdEncoding.EncodeToString(QRImg)
 	h.executeTemplate(w, "newuser", map[string]interface{}{
-		"Token":          token,
-		"Username":       user,
-		"QR":             base64QRImg,
-		"HotpFirstValue": hotpFirstValue})
+		"Token":           token,
+		"Username":        user,
+		"QR":              base64QRImg,
+		"HotpFirstValues": hotpFirstValues})
 }
 
 func (h *MultiSiteHandler) finishNewUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	var token, pass, pass2, hotpToken, correctHotpToken string
+	var token, pass, pass2, hotpToken string
 
 	err := form.Parse(r,
 		form.String("token", &token, form.Required()),
 		form.String("password", &pass, form.Required()),
 		form.String("password_confirm", &pass2, form.Required()),
 		form.String("hotp_token", &hotpToken, form.Required()),
-		form.String("correct_hotp_token", &correctHotpToken, form.Required()),
 	)
 
 	if err != nil {
-		replyErr(w, http.StatusBadRequest, err)
+		http.Redirect(w, r, ErrorPageLink("Error: "+err.Error()),
+			http.StatusFound)
 		return
 	}
 
 	if pass != pass2 {
-		replyErr(w, http.StatusBadRequest, trace.Errorf("provided passwords mismatch"))
+		http.Redirect(w, r, ErrorPageLink("Provided passwords mismatch"),
+			http.StatusFound)
 		return
 	}
 
-	if hotpToken != correctHotpToken {
-		replyErr(w, http.StatusBadRequest, trace.Errorf("wrong hotp token"))
-		return
-	}
-
-	err = h.auth.NewUserFinish(token, pass)
+	err = h.auth.NewUserFinish(token, pass, hotpToken)
 	if err != nil {
-		replyErr(w, http.StatusBadRequest, err)
+		http.Redirect(w, r, ErrorPageLink("Error: "+err.Error()),
+			http.StatusFound)
 		return
 	}
 
@@ -184,6 +185,15 @@ func (h *MultiSiteHandler) loginError(w http.ResponseWriter, r *http.Request, _ 
 
 func (h *MultiSiteHandler) loginAfterCreation(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	h.executeTemplate(w, "login", map[string]interface{}{"InfoString": "Account was successfully created, you can login"})
+}
+
+func (h *MultiSiteHandler) errorPage(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	errorString := r.URL.Query().Get("message")
+	h.executeTemplate(w, "error", map[string]interface{}{"ErrorString": errorString})
+}
+
+func ErrorPageLink(message string) string {
+	return "/web/error?message=" + url.QueryEscape(message)
 }
 
 func (h *MultiSiteHandler) logout(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
