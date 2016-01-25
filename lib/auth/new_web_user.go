@@ -165,7 +165,7 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) erro
 
 	ok := otp.Scan(hotpToken, HOTPFirstTokensRange)
 	if !ok {
-		return trace.Wrap(err)
+		return trace.Errorf("Wrong HOTP token")
 	}
 
 	_, _, err = s.UpsertPassword(tokenData.User, []byte(password))
