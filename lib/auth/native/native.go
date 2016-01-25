@@ -50,10 +50,11 @@ func New() *nauth {
 
 func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	n.Lock()
-	defer n.Unlock()
 	if len(n.generatedKeys) == 0 {
+		n.Unlock()
 		return n.generateKeyPair()
 	}
+	defer n.Unlock()
 	go n.precalculateKey()
 	key := n.generatedKeys[len(n.generatedKeys)-1]
 	n.generatedKeys[len(n.generatedKeys)-1] = keyPair{}
