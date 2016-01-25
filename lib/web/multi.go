@@ -133,7 +133,7 @@ func (h *MultiSiteHandler) String() string {
 
 func (h *MultiSiteHandler) newUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	token := p[0].Value
-	user, QRImg, hotpFirstValues, err := h.auth.NewUserForm(token)
+	user, QRImg, _, err := h.auth.NewUserForm(token)
 	if err != nil {
 		http.Redirect(w, r, ErrorPageLink("Signup link had expired"),
 			http.StatusFound)
@@ -142,10 +142,9 @@ func (h *MultiSiteHandler) newUser(w http.ResponseWriter, r *http.Request, p htt
 
 	base64QRImg := base64.StdEncoding.EncodeToString(QRImg)
 	h.executeTemplate(w, "newuser", map[string]interface{}{
-		"Token":           token,
-		"Username":        user,
-		"QR":              base64QRImg,
-		"HotpFirstValues": hotpFirstValues})
+		"Token":    token,
+		"Username": user,
+		"QR":       base64QRImg})
 }
 
 func (h *MultiSiteHandler) finishNewUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -172,8 +171,13 @@ func (h *MultiSiteHandler) finishNewUser(w http.ResponseWriter, r *http.Request,
 
 	err = h.auth.NewUserFinish(token, pass, hotpToken)
 	if err != nil {
-		http.Redirect(w, r, ErrorPageLink("Error: "+err.Error()),
-			http.StatusFound)
+		if strings.Contains(err.Error(), "Wrong HOTP token") {
+			http.Redirect(w, r, ErrorPageLink("Wrong HOTP token"),
+				http.StatusFound)
+		} else {
+			http.Redirect(w, r, ErrorPageLink("Error: "+err.Error()),
+				http.StatusFound)
+		}
 		return
 	}
 

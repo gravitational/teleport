@@ -30,7 +30,7 @@
                     <input type="password" name="password_confirm" id="password_confirm" class="form-control" placeholder="Confirm password" required="" onchange="checkPasswords()">
                 </div>
                 <div class="form-group">
-                    <input type="test" name="hotp_token" id="hotp_token" class="form-control" placeholder="hotp token" required="" onchange="checkToken()">
+                    <input type="test" name="hotp_token" id="hotp_token" class="form-control" placeholder="hotp token" required="">
                 </div>
 
                 <button type="submit" class="btn btn-primary block full-width m-b">Confirm</button>
@@ -38,27 +38,12 @@
                 <script language='javascript' type='text/javascript'>
                     var password = document.getElementById('password');
                     var password_confirm = document.getElementById('password_confirm');
-                    var hotp_token = document.getElementById('hotp_token');
 
                     function checkPasswords() {
                         if (password.value != password_confirm.value) {
                             password_confirm.setCustomValidity('Password Must be Matching.');
                         } else {
                             password_confirm.setCustomValidity('');
-                        }
-                    }
-
-                    function checkToken() {
-                        var isValid = false;
-                        {{ range .HotpFirstValues }}
-                            if (hotp_token.value == {{.}}) {
-                                isValid = true
-                            }
-                        {{ end }}
-                        if (isValid) {
-                            hotp_token.setCustomValidity('');
-                        } else {
-                            hotp_token.setCustomValidity('Token is not correct');
                         }
                     }
                 </script>
