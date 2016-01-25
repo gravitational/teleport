@@ -20,21 +20,70 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"sync"
 	"time"
 
+	"github.com/gravitational/log"
 	"github.com/gravitational/trace"
 
 	"golang.org/x/crypto/ssh"
 )
 
+const precalculatedKeysNum = 20
+
+type keyPair struct {
+	privPem  []byte
+	pubBytes []byte
+}
+
 type nauth struct {
+	generatedKeys []keyPair
+	*sync.Mutex
 }
 
 func New() *nauth {
-	return &nauth{}
+	return &nauth{
+		generatedKeys: make([]keyPair, 0, precalculatedKeysNum),
+		Mutex:         &sync.Mutex{},
+	}
 }
 
 func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
+	n.Lock()
+	defer n.Unlock()
+	if len(n.generatedKeys) == 0 {
+		return n.generateKeyPair()
+	}
+	go n.precalculateKey()
+	key := n.generatedKeys[len(n.generatedKeys)-1]
+	n.generatedKeys[len(n.generatedKeys)-1] = keyPair{}
+	n.generatedKeys = n.generatedKeys[:len(n.generatedKeys)-1]
+
+	return key.privPem, key.pubBytes, nil
+}
+
+func (n *nauth) precalculateKey() {
+	for {
+		privPem, pubBytes, err := n.generateKeyPair()
+		if err != nil {
+			log.Errorf(err.Error())
+			continue
+		}
+		key := keyPair{
+			privPem:  privPem,
+			pubBytes: pubBytes,
+		}
+		n.Lock()
+		defer n.Unlock()
+		if len(n.generatedKeys) >= precalculatedKeysNum {
+			return
+		}
+		n.generatedKeys = append(n.generatedKeys, key)
+		return
+	}
+}
+
+func (n *nauth) generateKeyPair() ([]byte, []byte, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, nil, err
