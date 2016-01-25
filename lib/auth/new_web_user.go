@@ -59,7 +59,7 @@ func (s *AuthServer) CreateSignupToken(user string) (token string, e error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	otpQR, err := otp.QR(user + "@Teleport")
+	otpQR, err := otp.QR("teleport: " + user + "@" + s.Hostname)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
