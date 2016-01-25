@@ -42,10 +42,12 @@ type nauth struct {
 }
 
 func New() *nauth {
-	return &nauth{
+	n := nauth{
 		generatedKeys: make([]keyPair, 0, precalculatedKeysNum),
 		Mutex:         &sync.Mutex{},
 	}
+	go n.precalculateKey()
+	return &n
 }
 
 func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
@@ -55,7 +57,6 @@ func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 		return n.generateKeyPair()
 	}
 	defer n.Unlock()
-	go n.precalculateKey()
 	key := n.generatedKeys[len(n.generatedKeys)-1]
 	n.generatedKeys[len(n.generatedKeys)-1] = keyPair{}
 	n.generatedKeys = n.generatedKeys[:len(n.generatedKeys)-1]
@@ -75,12 +76,13 @@ func (n *nauth) precalculateKey() {
 			pubBytes: pubBytes,
 		}
 		n.Lock()
-		defer n.Unlock()
-		if len(n.generatedKeys) >= precalculatedKeysNum {
-			return
+		for len(n.generatedKeys) >= precalculatedKeysNum {
+			n.Unlock()
+			time.Sleep(time.Second)
+			n.Lock()
 		}
 		n.generatedKeys = append(n.generatedKeys, key)
-		return
+		n.Unlock()
 	}
 }
 
