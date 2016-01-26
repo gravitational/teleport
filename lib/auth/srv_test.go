@@ -23,7 +23,6 @@ import (
 
 	"github.com/gokyle/hotp"
 
-	//"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
@@ -65,6 +64,7 @@ type APISuite struct {
 var _ = Suite(&APISuite{})
 
 func (s *APISuite) SetUpSuite(c *C) {
+	authority.PrecalculatedKeysNum = 1
 	key, err := secret.NewKey()
 	c.Assert(err, IsNil)
 	srv, err := secret.New(&secret.Config{KeyBytes: key})

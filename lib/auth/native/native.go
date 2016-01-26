@@ -29,7 +29,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-const precalculatedKeysNum = 20
+var PrecalculatedKeysNum = 20
 
 type keyPair struct {
 	privPem  []byte
@@ -39,14 +39,16 @@ type keyPair struct {
 type nauth struct {
 	generatedKeys []keyPair
 	*sync.Mutex
+	precalculating bool
 }
 
 func New() *nauth {
 	n := nauth{
-		generatedKeys: make([]keyPair, 0, precalculatedKeysNum),
-		Mutex:         &sync.Mutex{},
+		generatedKeys:  make([]keyPair, 0, PrecalculatedKeysNum),
+		Mutex:          &sync.Mutex{},
+		precalculating: false,
 	}
-	go n.precalculateKey()
+	go n.precalculateKeys()
 	return &n
 }
 
@@ -60,15 +62,27 @@ func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	key := n.generatedKeys[len(n.generatedKeys)-1]
 	n.generatedKeys[len(n.generatedKeys)-1] = keyPair{}
 	n.generatedKeys = n.generatedKeys[:len(n.generatedKeys)-1]
+	if !n.precalculating {
+		go n.precalculateKeys()
+	}
 
 	return key.privPem, key.pubBytes, nil
 }
 
-func (n *nauth) precalculateKey() {
+func (n *nauth) precalculateKeys() {
+	n.Lock()
+	if n.precalculating || len(n.generatedKeys) >= PrecalculatedKeysNum {
+		n.Unlock()
+		return
+	}
+	n.precalculating = true
+	n.Unlock()
+
 	for {
 		privPem, pubBytes, err := n.generateKeyPair()
 		if err != nil {
 			log.Errorf(err.Error())
+			time.Sleep(time.Second)
 			continue
 		}
 		key := keyPair{
@@ -76,12 +90,17 @@ func (n *nauth) precalculateKey() {
 			pubBytes: pubBytes,
 		}
 		n.Lock()
-		for len(n.generatedKeys) >= precalculatedKeysNum {
+		if len(n.generatedKeys) >= PrecalculatedKeysNum {
+			n.precalculating = false
 			n.Unlock()
-			time.Sleep(time.Second)
-			n.Lock()
+			return
 		}
 		n.generatedKeys = append(n.generatedKeys, key)
+		if len(n.generatedKeys) >= PrecalculatedKeysNum {
+			n.precalculating = false
+			n.Unlock()
+			return
+		}
 		n.Unlock()
 	}
 }
