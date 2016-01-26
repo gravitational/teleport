@@ -20,6 +20,8 @@ import (
 	"io/ioutil"
 	"time"
 
+	"github.com/gravitational/teleport/lib/services"
+
 	"github.com/gravitational/session"
 	"github.com/gravitational/trace"
 	"github.com/mailgun/lemma/secret"
@@ -48,6 +50,10 @@ func (cmd *Command) GenerateToken(domainName, role string, ttl time.Duration,
 			return trace.Wrap(err)
 		}
 		token = string(p.SID)
+		token, err = services.JoinTokenRole(token, role)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	} else {
 		var err error
 		token, err = cmd.client.GenerateToken(domainName, role, ttl)

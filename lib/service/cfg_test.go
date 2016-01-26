@@ -60,7 +60,7 @@ func (s *ConfigSuite) TestParseEnv(c *C) {
 		"TELEPORT_AUTH_HOST_AUTHORITY_DOMAIN":       "a.domain.example.com",
 		"TELEPORT_AUTH_TOKEN":                       "authtoken",
 		"TELEPORT_AUTH_SECRET_KEY":                  "authsecret",
-		"TELEPORT_AUTH_ALLOWED_TOKENS":              "node1.a.domain.example.com:token1,node2.a.domain.example.com:token2",
+		"TELEPORT_AUTH_ALLOWED_TOKENS":              "node1.a.domain.example.com:ntoken1,node2.a.domain.example.com:atoken2",
 		"TELEPORT_AUTH_TRUSTED_AUTHORITIES":         `[{"type": "user", "domain_name":"a.example.com", "id":"user.a.example.com", "public_key": "user value a"},{"type": "host", "domain_name":"b.example.com", "id":"host.b.example.com", "public_key": "host value b"}]`,
 		"TELEPORT_AUTH_KEYS_BACKEND_TYPE":           "bolt",
 		"TELEPORT_AUTH_KEYS_BACKEND_PARAMS":         "path:/keys",
@@ -122,8 +122,8 @@ func (s *ConfigSuite) checkVariables(c *C, cfg *Config) {
 
 	c.Assert(cfg.Auth.AllowedTokens, DeepEquals,
 		KeyVal{
-			"node1.a.domain.example.com": "token1",
-			"node2.a.domain.example.com": "token2",
+			"node1.a.domain.example.com": "ntoken1",
+			"node2.a.domain.example.com": "atoken2",
 		})
 
 	c.Assert(cfg.Auth.TrustedAuthorities, DeepEquals,
@@ -223,8 +223,8 @@ auth:
   token: authtoken
   secret_key: authsecret
   allowed_tokens: 
-    node1.a.domain.example.com: token1
-    node2.a.domain.example.com: token2
+    node1.a.domain.example.com: ntoken1
+    node2.a.domain.example.com: atoken2
 
   user_ca_keypair:
     public:

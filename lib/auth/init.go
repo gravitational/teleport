@@ -138,7 +138,14 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 				if err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
-				if err := asrv.UpsertToken(string(pid), domainName, RoleNode, 600*time.Second); err != nil {
+
+				var role string
+				token, role, err = services.SplitTokenRole(token)
+				if err != nil {
+					return nil, nil, trace.Wrap(err)
+				}
+
+				if err := asrv.UpsertToken(string(pid), domainName, role, 600*time.Second); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 			}
