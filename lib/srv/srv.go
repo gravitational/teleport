@@ -116,6 +116,7 @@ func SetLabels(labels map[string]string,
 		for name, label := range cmdLabels {
 			if label.Period < time.Second {
 				label.Period = time.Second
+				cmdLabels[name] = label
 				log.Warningf("label period can't be less that 1 second. Period for label '%v' was set to 1 second", name)
 			}
 		}
