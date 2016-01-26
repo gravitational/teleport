@@ -113,6 +113,13 @@ func SetProxyMode(tsrv reversetunnel.Server) ServerOption {
 func SetLabels(labels map[string]string,
 	cmdLabels services.CommandLabels) ServerOption {
 	return func(s *Server) error {
+		for name, label := range cmdLabels {
+			if label.Period < time.Second {
+				label.Period = time.Second
+				log.Warningf("label period can't be less that 1 second. Period for label '%v' was set to 1 second", name)
+			}
+		}
+
 		s.labels = labels
 		s.cmdLabels = cmdLabels
 		return nil
