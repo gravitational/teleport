@@ -21,7 +21,7 @@ ssh:
     description: "first node"
   label-commands:
     date: 
-      peroid: 10s
+      period: 10s
       command: ["date"]
     os: 
       period: 5s
