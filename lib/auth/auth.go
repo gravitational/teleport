@@ -189,13 +189,25 @@ func (s *AuthServer) GenerateToken(domainName, role string, ttl time.Duration) (
 	if err != nil {
 		return "", err
 	}
+
+	token := string(p.SID)
+	outputToken, err := services.JoinTokenRole(token, role)
+	if err != nil {
+		return "", err
+	}
+
 	if err := s.ProvisioningService.UpsertToken(string(p.PID), domainName, role, ttl); err != nil {
 		return "", err
 	}
-	return string(p.SID), nil
+	return outputToken, nil
 }
 
 func (s *AuthServer) ValidateToken(token, domainName string) (role string, e error) {
+	token, _, err := services.SplitTokenRole(token)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
 	pid, err := session.DecodeSID(session.SecureID(token), s.scrt)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -210,7 +222,12 @@ func (s *AuthServer) ValidateToken(token, domainName string) (role string, e err
 	return tok.Role, nil
 }
 
-func (s *AuthServer) RegisterUsingToken(token, domainName, role string) (keys PackedKeys, e error) {
+func (s *AuthServer) RegisterUsingToken(outputToken, domainName, role string) (keys PackedKeys, e error) {
+	token, _, err := services.SplitTokenRole(outputToken)
+	if err != nil {
+		return PackedKeys{}, trace.Wrap(err)
+	}
+
 	pid, err := session.DecodeSID(session.SecureID(token), s.scrt)
 	if err != nil {
 		return PackedKeys{}, trace.Wrap(err)
@@ -241,15 +258,21 @@ func (s *AuthServer) RegisterUsingToken(token, domainName, role string) (keys Pa
 		Cert: c,
 	}
 
-	if err := s.DeleteToken(token); err != nil {
+	if err := s.DeleteToken(outputToken); err != nil {
 		return PackedKeys{}, trace.Wrap(err)
 	}
 
 	return keys, nil
 }
 
-func (s *AuthServer) RegisterNewAuthServer(domainName, token string,
+func (s *AuthServer) RegisterNewAuthServer(domainName, outputToken string,
 	publicSealKey encryptor.Key) (masterKey encryptor.Key, e error) {
+
+	token, _, err := services.SplitTokenRole(outputToken)
+	if err != nil {
+		return encryptor.Key{}, trace.Wrap(err)
+	}
+
 	pid, err := session.DecodeSID(session.SecureID(token), s.scrt)
 	if err != nil {
 		return encryptor.Key{}, trace.Wrap(err)
@@ -266,7 +289,7 @@ func (s *AuthServer) RegisterNewAuthServer(domainName, token string,
 		return encryptor.Key{}, trace.Errorf("role does not match")
 	}
 
-	if err := s.DeleteToken(token); err != nil {
+	if err := s.DeleteToken(outputToken); err != nil {
 		return encryptor.Key{}, trace.Wrap(err)
 	}
 
@@ -282,7 +305,12 @@ func (s *AuthServer) RegisterNewAuthServer(domainName, token string,
 	return localKey.Public(), nil
 }
 
-func (s *AuthServer) DeleteToken(token string) error {
+func (s *AuthServer) DeleteToken(outputToken string) error {
+	token, _, err := services.SplitTokenRole(outputToken)
+	if err != nil {
+		return err
+	}
+
 	pid, err := session.DecodeSID(session.SecureID(token), s.scrt)
 	if err != nil {
 		return err

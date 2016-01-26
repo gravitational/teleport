@@ -307,6 +307,14 @@ func (s *ServicesTestSuite) TokenCRUD(c *C) {
 
 	_, err = s.ProvisioningS.GetToken("token")
 	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+
+	outputToken, err := JoinTokenRole("token1", "Auth")
+	c.Assert(err, IsNil)
+
+	tok, role, err := SplitTokenRole(outputToken)
+	c.Assert(err, IsNil)
+	c.Assert(tok, Equals, "token1")
+	c.Assert(role, Equals, "Auth")
 }
 
 func (s *ServicesTestSuite) RemoteCertCRUD(c *C) {

@@ -259,7 +259,7 @@ func (s *TshSuite) SetUpSuite(c *C) {
 
 	currentDir, err := os.Getwd()
 	c.Assert(err, IsNil)
-	token1, err := s.a.GenerateToken("localhost", auth.RoleNode, time.Minute)
+	token1, err := s.a.GenerateToken("localhost", "Node", time.Minute)
 	c.Assert(err, IsNil)
 	s.srv3Dir = c.MkDir()
 	s.srv3Address = "127.0.0.1:30984"
@@ -278,7 +278,7 @@ func (s *TshSuite) SetUpSuite(c *C) {
 	)
 	s.srv3.Start()
 
-	token2, err := s.a.GenerateToken("localhost", auth.RoleNode, time.Minute)
+	token2, err := s.a.GenerateToken("localhost", "Node", time.Minute)
 	c.Assert(err, IsNil)
 	s.srv4Dir = c.MkDir()
 	os.Chdir(s.srv4Dir)

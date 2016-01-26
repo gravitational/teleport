@@ -234,10 +234,10 @@ func (s *CmdSuite) TestUserCRUD(c *C) {
 func (s *CmdSuite) TestGenerateToken(c *C) {
 	token := s.run(
 		"token", "generate", "--domain", "a.example.com",
-		"--role", "role123", "--ttl", "100s")
+		"--role", "Auth", "--ttl", "100s")
 	role, err := s.asrv.ValidateToken(token, "a.example.com")
 	c.Assert(err, IsNil)
-	c.Assert(role, Equals, "role123")
+	c.Assert(role, Equals, "Auth")
 }
 
 func (s *CmdSuite) TestRemoteCertCRUD(c *C) {
