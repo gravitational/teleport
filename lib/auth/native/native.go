@@ -82,27 +82,34 @@ func (n *nauth) precalculateKeys() {
 		privPem, pubBytes, err := n.generateKeyPair()
 		if err != nil {
 			log.Errorf(err.Error())
-			time.Sleep(time.Second)
 			continue
 		}
 		key := keyPair{
 			privPem:  privPem,
 			pubBytes: pubBytes,
 		}
-		n.Lock()
-		if len(n.generatedKeys) >= PrecalculatedKeysNum {
+
+		full := n.addPrecalculatedKey(key)
+		if full {
+			n.Lock()
 			n.precalculating = false
 			n.Unlock()
 			return
 		}
-		n.generatedKeys = append(n.generatedKeys, key)
-		if len(n.generatedKeys) >= PrecalculatedKeysNum {
-			n.precalculating = false
-			n.Unlock()
-			return
-		}
-		n.Unlock()
 	}
+}
+
+func (n *nauth) addPrecalculatedKey(key keyPair) (full bool) {
+	n.Lock()
+	defer n.Unlock()
+	if len(n.generatedKeys) >= PrecalculatedKeysNum {
+		return true
+	}
+	n.generatedKeys = append(n.generatedKeys, key)
+	if len(n.generatedKeys) >= PrecalculatedKeysNum {
+		return true
+	}
+	return false
 }
 
 func (n *nauth) generateKeyPair() ([]byte, []byte, error) {
