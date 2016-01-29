@@ -16,6 +16,7 @@ limitations under the License.
 package encryptedbk
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"io/ioutil"
 	"sync"
@@ -158,6 +159,29 @@ func LoadKeyFromFile(filename string) (encryptor.Key, error) {
 		return encryptor.Key{}, trace.Wrap(err)
 	}
 
+	return key, nil
+}
+
+func KeyToString(key encryptor.Key) (string, error) {
+	keyJSON, err := json.Marshal(key)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return base64.StdEncoding.EncodeToString(keyJSON), nil
+}
+
+func KeyFromString(b64key string) (encryptor.Key, error) {
+	keyJSON, err := base64.StdEncoding.DecodeString(b64key)
+	if err != nil {
+		return encryptor.Key{}, trace.Wrap(err)
+	}
+
+	var key encryptor.Key
+	err = json.Unmarshal(keyJSON, &key)
+	if err != nil {
+		return encryptor.Key{}, trace.Wrap(err)
+	}
 	return key, nil
 }
 

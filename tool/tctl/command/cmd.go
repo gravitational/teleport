@@ -149,8 +149,12 @@ func (cmd *Command) Run(args []string) error {
 
 	backendKeyLs := backendKey.Command("ls", "List all the keys that this servers has")
 
-	backendKeyGenerate := backendKey.Command("generate", "Generate a new encrypting key and make a copy of all the backend data using this key")
+	backendKeyGenerate := backendKey.Command("generate", "Generate a new encrypting key and write it")
 	backendKeyGenerateName := backendKeyGenerate.Flag("name", "key name").Required().String()
+	backendKeyGenerateOutput := backendKeyGenerate.Flag("output", "Output filename. Write key to filename and filename_pub").String()
+
+	backendKeyAddNew := backendKey.Command("add-new", "Generate a new encrypting key and make a copy of all the backend data using this key")
+	backendKeyAddNewName := backendKeyAddNew.Flag("name", "key name").Required().String()
 
 	backendKeyImport := backendKey.Command("import", "Import key from file")
 	backendKeyImportFile := backendKeyImport.Flag("file", "filename").Required().ExistingFile()
@@ -268,7 +272,9 @@ func (cmd *Command) Run(args []string) error {
 	case backendKeyLs.FullCommand():
 		cmd.GetBackendKeys()
 	case backendKeyGenerate.FullCommand():
-		cmd.GenerateBackendKey(*backendKeyGenerateName)
+		cmd.GenerateBackendKey(*backendKeyGenerateName, *backendKeyGenerateOutput)
+	case backendKeyAddNew.FullCommand():
+		cmd.AddNewBackendKey(*backendKeyAddNewName)
 	case backendKeyImport.FullCommand():
 		cmd.ImportBackendKey(*backendKeyImportFile)
 	case backendKeyExport.FullCommand():

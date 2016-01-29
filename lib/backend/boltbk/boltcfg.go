@@ -16,6 +16,8 @@ limitations under the License.
 package boltbk
 
 import (
+	"encoding/json"
+
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -34,6 +36,15 @@ func FromObject(in interface{}) (backend.Backend, error) {
 	}
 	var c *cfg
 	if err := utils.ObjectToStruct(in, &c); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return New(c.Path)
+}
+
+func FromJSON(paramsJSON string) (backend.Backend, error) {
+	c := cfg{}
+	err := json.Unmarshal([]byte(paramsJSON), &c)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return New(c.Path)

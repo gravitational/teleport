@@ -206,7 +206,7 @@ func (s *TshSuite) SetUpSuite(c *C) {
 		auth.NewAllowAllPermissions(),
 		auth.StandardRoles,
 	)
-	apiSrv.Serve()
+	go apiSrv.Serve()
 
 	tsrv, err := auth.NewTunServer(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:31948"},
@@ -271,7 +271,7 @@ func (s *TshSuite) SetUpSuite(c *C) {
 			"TELEPORT_SSH_TOKEN=" + token1,
 			"TELEPORT_SSH_ENABLED=true",
 			"TELEPORT_SSH_ADDR=tcp://" + s.srv3Address,
-			"TELEPORT_AUTH_SERVERS=tcp://" + tsrv.Addr(),
+			`TELEPORT_AUTH_SERVERS=["tcp://` + tsrv.Addr() + `"]`,
 			"TELEPORT_DATA_DIR=" + s.srv3Dir,
 			`TELEPORT_SSH_LABELS={"label4":"value4", "label5":"value5"}`,
 			"PWD=" + s.srv3Dir}, os.Environ()...,
@@ -290,7 +290,7 @@ func (s *TshSuite) SetUpSuite(c *C) {
 			"TELEPORT_SSH_TOKEN=" + token2,
 			"TELEPORT_SSH_ENABLED=true",
 			"TELEPORT_SSH_ADDR=tcp://" + s.srv4Address,
-			"TELEPORT_AUTH_SERVERS=tcp://" + tsrv.Addr(),
+			`TELEPORT_AUTH_SERVERS=["tcp://` + tsrv.Addr() + `"]`,
 			"TELEPORT_DATA_DIR=" + s.srv4Dir,
 			`TELEPORT_SSH_LABELS={"label4":"value4", "label5":"value6"}`,
 			"PWD=" + s.srv4Dir}, os.Environ()...,

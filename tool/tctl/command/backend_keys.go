@@ -17,9 +17,12 @@ package command
 
 import (
 	"fmt"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk"
+	"io/ioutil"
 	"path"
 	"text/tabwriter"
+
+	"github.com/gravitational/teleport/lib/backend/encryptedbk"
+	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 )
 
 func (cmd *Command) GetBackendKeys() {
@@ -43,13 +46,49 @@ func (cmd *Command) GetBackendKeys() {
 	w.Flush()
 }
 
-func (cmd *Command) GenerateBackendKey(id string) {
+func (cmd *Command) AddNewBackendKey(id string) {
 	key, err := cmd.client.GenerateSealKey(id)
 	if err != nil {
 		cmd.printError(err)
 		return
 	}
 	cmd.printOK("Key " + key.ID + " was generated")
+}
+
+func (cmd *Command) GenerateBackendKey(name, filename string) {
+	key, err := encryptor.GenerateGPGKey(name)
+	if err != nil {
+		cmd.printError(err)
+		return
+	}
+	pubKey := key.Public()
+
+	b64key, err := encryptedbk.KeyToString(key)
+	if err != nil {
+		cmd.printError(err)
+		return
+	}
+
+	b64keyPub, err := encryptedbk.KeyToString(pubKey)
+	if err != nil {
+		cmd.printError(err)
+		return
+	}
+
+	if len(filename) == 0 {
+		fmt.Fprintf(cmd.out, "\nFull key:\n\n%v\n\nPublic key:\n\n%v\n\n", b64key, b64keyPub)
+	} else {
+		err := ioutil.WriteFile(filename, []byte(b64key), 0777)
+		if err != nil {
+			cmd.printError(err)
+			return
+		}
+		err = ioutil.WriteFile(filename+"_pub", []byte(b64keyPub), 0777)
+		if err != nil {
+			cmd.printError(err)
+			return
+		}
+	}
 }
 
 func (cmd *Command) ImportBackendKey(filename string) {

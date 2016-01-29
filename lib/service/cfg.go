@@ -19,14 +19,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io/ioutil"
-	"strings"
 
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/configure"
-	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 )
 
@@ -120,7 +118,7 @@ type AuthConfig struct {
 	// HostAuthorityDomain is Host Certificate Authority domain name
 	HostAuthorityDomain string `yaml:"host_authority_domain" env:"TELEPORT_AUTH_HOST_AUTHORITY_DOMAIN"`
 
-	// Token is a provisioning token for new auth server joining the cluster
+	// Token is a provisioning token for an additonal auth server joining the cluster
 	Token string `yaml:"token" env:"TELEPORT_AUTH_TOKEN"`
 
 	// SecretKey is an encryption key for secret service, will be used
@@ -143,14 +141,14 @@ type AuthConfig struct {
 	// a new keypair
 	HostCA LocalCertificateAuthority `yaml:"host_ca_keypair" env:"TELEPORT_AUTH_HOST_CA_KEYPAIR"`
 
-	// KeysBackend configures backend that stores encryption keys
+	// KeysBackend configures backend that stores auth keys, certificates, tokens ...
 	KeysBackend struct {
 		// Type is a backend type - etcd or boltdb
 		Type string `yaml:"type" env:"TELEPORT_AUTH_KEYS_BACKEND_TYPE"`
 		// Params is map with backend specific parameters
-		Params KeyVal `yaml:"params,flow" env:"TELEPORT_AUTH_KEYS_BACKEND_PARAMS"`
+		Params string `yaml:"params,flow" env:"TELEPORT_AUTH_KEYS_BACKEND_PARAMS"`
 		// AdditionalKey is a additional signing GPG key
-		AdditionalKey string `yaml:"additional_key" env:"TELEPORT_AUTH_KEYS_BACKEND_ADDITIONAL_KEY"`
+		EncryptionKeys StringArray `yaml:"encryption_keys" env:"TELEPORT_AUTH_KEYS_BACKEND_ENCRYPTION_KEYS"`
 	} `yaml:"keys_backend"`
 
 	// EventsBackend configures backend that stores cluster events (login attempts, etc)
@@ -158,7 +156,7 @@ type AuthConfig struct {
 		// Type is a backend type, etcd or bolt
 		Type string `yaml:"type" env:"TELEPORT_AUTH_EVENTS_BACKEND_TYPE"`
 		// Params is map with backend specific parameters
-		Params KeyVal `yaml:"params,flow" env:"TELEPORT_AUTH_EVENTS_BACKEND_PARAMS"`
+		Params string `yaml:"params,flow" env:"TELEPORT_AUTH_EVENTS_BACKEND_PARAMS"`
 	} `yaml:"events_backend"`
 
 	// RecordsBackend configures backend that stores live SSH sessions recordings
@@ -166,7 +164,7 @@ type AuthConfig struct {
 		// Type is a backend type, currently only bolt
 		Type string `yaml:"type" env:"TELEPORT_AUTH_RECORDS_BACKEND_TYPE"`
 		// Params is map with backend specific parameters
-		Params KeyVal `yaml:"params,flow" env:"TELEPORT_AUTH_RECORDS_BACKEND_PARAMS"`
+		Params string `yaml:"params,flow" env:"TELEPORT_AUTH_RECORDS_BACKEND_PARAMS"`
 	} `yaml:"records_backend"`
 
 	Limiter limiter.LimiterConfig `yaml:"limiter" env:"TELEPORT_AUTH_LIMITER"`
@@ -194,7 +192,12 @@ type ReverseTunnelConfig struct {
 type NetAddrSlice []utils.NetAddr
 
 func (s *NetAddrSlice) Set(val string) error {
-	values := cstrings.SplitComma(val)
+	values := make([]string, 0)
+	err := json.Unmarshal([]byte(val), &values)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	out := make([]utils.NetAddr, len(values))
 	for i, v := range values {
 		a, err := utils.ParseAddr(v)
@@ -207,6 +210,19 @@ func (s *NetAddrSlice) Set(val string) error {
 	return nil
 }
 
+type StringArray []string
+
+func (sa *StringArray) Set(v string) error {
+	if len(*sa) == 0 {
+		*sa = make([]string, 0)
+	}
+	err := json.Unmarshal([]byte(v), sa)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 type KeyVal map[string]string
 
 // Set accepts string with arguments in the form "key:val,key2:val2"
@@ -214,12 +230,9 @@ func (kv *KeyVal) Set(v string) error {
 	if len(*kv) == 0 {
 		*kv = make(map[string]string)
 	}
-	for _, i := range cstrings.SplitComma(v) {
-		vals := strings.SplitN(i, ":", 2)
-		if len(vals) != 2 {
-			return trace.Errorf("extra options should be defined like KEY:VAL")
-		}
-		(*kv)[vals[0]] = vals[1]
+	err := json.Unmarshal([]byte(v), kv)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }

@@ -274,7 +274,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 		auth.NewAllowAllPermissions(),
 		auth.StandardRoles,
 	)
-	apiSrv.Serve()
+	go apiSrv.Serve()
 
 	tsrv, err := auth.NewTunServer(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:31497"},

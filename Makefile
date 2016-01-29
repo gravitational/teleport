@@ -85,6 +85,15 @@ run-node: install
 	tctl token generate --output=/tmp/token --domain=localhost
 	teleport --config=examples/node.yaml
 
+# run-connected-auth1 starts a auth server ready to connect with additional auth server
+run-connected-auth1: install
+	teleport --config=examples/connected-auth1.yaml
+
+# run-connected-auth2 starts a additional auth server, that connects to auth1
+run-connected-auth2: install
+	teleport --config=examples/connected-auth2.yaml
+
+
 # run-site-to-proxy starts a ssh node, auth server and reverse tunnel that connect outside of
 # the organization server
 run-site-to-proxy: install

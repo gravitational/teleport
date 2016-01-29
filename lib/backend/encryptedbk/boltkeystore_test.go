@@ -80,3 +80,20 @@ func (s *KeyStoreSuite) TestBasicCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ids, DeepEquals, []encryptor.Key{key2})
 }
+
+func (s *KeyStoreSuite) TestKeyToString(c *C) {
+	key1 := encryptor.Key{
+		Name:  "name3",
+		ID:    "key3",
+		Value: []byte("value3"),
+	}
+
+	b64key, err := KeyToString(key1)
+	c.Assert(err, IsNil)
+
+	key2, err := KeyFromString(b64key)
+	c.Assert(err, IsNil)
+	c.Assert(key2.Name, Equals, key1.Name)
+	c.Assert(key2.ID, Equals, key1.ID)
+	c.Assert(key2.Value, DeepEquals, key2.Value)
+}

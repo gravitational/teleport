@@ -132,7 +132,7 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 	if firstStart {
 		if len(cfg.AllowedTokens) != 0 {
 			log.Infof("FIRST START: Setting allowed provisioning tokens")
-			for domainName, token := range cfg.AllowedTokens {
+			for token, domainName := range cfg.AllowedTokens {
 				log.Infof("FIRST START: upsert provisioning token: domainName: %v", domainName)
 				pid, err := session.DecodeSID(session.SecureID(token), scrt)
 				if err != nil {

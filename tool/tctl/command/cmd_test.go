@@ -125,7 +125,7 @@ func (s *CmdSuite) SetUpTest(c *C) {
 		auth.NewAllowAllPermissions(),
 		auth.StandardRoles,
 	)
-	s.srv.Serve()
+	go s.srv.Serve()
 
 	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{})
 	c.Assert(err, IsNil)
@@ -235,6 +235,7 @@ func (s *CmdSuite) TestGenerateToken(c *C) {
 	token := s.run(
 		"token", "generate", "--domain", "a.example.com",
 		"--role", "Auth", "--ttl", "100s")
+	token = token[:len(token)-1]
 	role, err := s.asrv.ValidateToken(token, "a.example.com")
 	c.Assert(err, IsNil)
 	c.Assert(role, Equals, "Auth")
@@ -272,7 +273,7 @@ func (s *CmdSuite) TestRemoteCertCRUD(c *C) {
 func (s *CmdSuite) TestBackendKeys(c *C) {
 	// running TestRemoteCertCRUD while changing some keys
 
-	out := s.run("backend-keys", "generate", "--name", "key45")
+	out := s.run("backend-keys", "add-new", "--name", "key45")
 	c.Assert(out, Matches, fmt.Sprintf(".*was generated.*"))
 
 	keys, err := s.asrv.GetSealKeys()
@@ -308,6 +309,23 @@ func (s *CmdSuite) TestBackendKeys(c *C) {
 	out = s.run("backend-keys", "ls")
 	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", keys[0].ID))
 	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", keys[0].Name))
+
+	dir := c.MkDir()
+	keyfile := filepath.Join(dir, "keyfile")
+	out = s.run("backend-keys", "generate", "--name", "key55", "--output", keyfile)
+	b64key, err := ioutil.ReadFile(keyfile)
+	c.Assert(err, IsNil)
+	b64keyPub, err := ioutil.ReadFile(keyfile + "_pub")
+	c.Assert(err, IsNil)
+
+	key55, err := encryptedbk.KeyFromString(string(b64key))
+	c.Assert(err, IsNil)
+	c.Assert(key55.Name, Equals, "key55")
+	key55Pub, err := encryptedbk.KeyFromString(string(b64keyPub))
+	c.Assert(err, IsNil)
+	c.Assert(key55Pub.Name, Equals, "key55")
+	c.Assert(key55Pub.PrivateValue, IsNil)
+	c.Assert(key55Pub.PublicValue, DeepEquals, key55.PublicValue)
 
 	out = s.run("remote-ca", "ls", "--type", "user")
 	c.Assert(out, Matches, fmt.Sprintf(".*%v.*", "example.com"))

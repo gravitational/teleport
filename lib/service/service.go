@@ -17,6 +17,7 @@ package service
 
 import (
 	"net/http"
+	"os"
 	"path"
 	"time"
 
@@ -57,6 +58,14 @@ func NewTeleport(cfg Config) (Supervisor, error) {
 		return nil, err
 	}
 	SetDefaults(&cfg)
+
+	_, err := os.Stat(cfg.DataDir)
+	if os.IsNotExist(err) {
+		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0777)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	// if user started auth and something else and did not
 	// provide auth address for that something,
@@ -158,7 +167,10 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) err
 	apisrv := auth.NewAPIWithRoles(asrv, elog, session.New(b), rec,
 		auth.NewStandardPermissions(), auth.StandardRoles,
 	)
-	apisrv.Serve()
+	supervisor.RegisterFunc(func() error {
+		apisrv.Serve()
+		return nil
+	})
 
 	limiter, err := limiter.NewLimiter(cfg.Auth.Limiter)
 	if err != nil {
@@ -469,9 +481,9 @@ func initBackend(dataDir, domainName string, peers NetAddrSlice, cfg AuthConfig)
 
 	switch cfg.KeysBackend.Type {
 	case "etcd":
-		bk, err = etcdbk.FromObject(cfg.KeysBackend.Params)
+		bk, err = etcdbk.FromJSON(cfg.KeysBackend.Params)
 	case "bolt":
-		bk, err = boltbk.FromObject(cfg.KeysBackend.Params)
+		bk, err = boltbk.FromJSON(cfg.KeysBackend.Params)
 	default:
 		return nil, trace.Errorf("unsupported backend type: %v", cfg.KeysBackend.Type)
 	}
@@ -480,17 +492,17 @@ func initBackend(dataDir, domainName string, peers NetAddrSlice, cfg AuthConfig)
 	}
 
 	keyStorage := path.Join(dataDir, "backend_keys")
-	addKeys := []encryptor.Key{}
-	if len(cfg.KeysBackend.AdditionalKey) != 0 {
-		addKey, err := encryptedbk.LoadKeyFromFile(cfg.KeysBackend.AdditionalKey)
+	encriptionKeys := []encryptor.Key{}
+	for _, strKey := range cfg.KeysBackend.EncryptionKeys {
+		encKey, err := encryptedbk.KeyFromString(strKey)
 		if err != nil {
 			return nil, err
 		}
-		addKeys = append(addKeys, addKey)
+		encriptionKeys = append(encriptionKeys, encKey)
 	}
 
 	encryptedBk, err := encryptedbk.NewReplicatedBackend(bk,
-		keyStorage, addKeys, encryptor.GenerateGPGKey)
+		keyStorage, encriptionKeys, encryptor.GenerateGPGKey)
 
 	if err != nil {
 		log.Errorf(err.Error())
@@ -515,18 +527,18 @@ func initBackend(dataDir, domainName string, peers NetAddrSlice, cfg AuthConfig)
 	return encryptedBk, nil
 }
 
-func initEventBackend(btype string, params interface{}) (events.Log, error) {
+func initEventBackend(btype string, params string) (events.Log, error) {
 	switch btype {
 	case "bolt":
-		return boltlog.FromObject(params)
+		return boltlog.FromJSON(params)
 	}
 	return nil, trace.Errorf("unsupported backend type: %v", btype)
 }
 
-func initRecordBackend(btype string, params interface{}) (recorder.Recorder, error) {
+func initRecordBackend(btype string, params string) (recorder.Recorder, error) {
 	switch btype {
 	case "bolt":
-		return boltrec.FromObject(params)
+		return boltrec.FromJSON(params)
 	}
 	return nil, trace.Errorf("unsupported backend type: %v", btype)
 }
