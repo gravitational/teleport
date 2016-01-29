@@ -88,7 +88,7 @@ func SSH(target, proxyAddress, command, port string, authMethods []ssh.AuthMetho
 	go func() {
 		<-exitSignals
 		fmt.Printf("\nConnection to %s closed\n", address)
-		// restore the echoing state when exiting
+		// restore the console echoing state when exiting
 		exec.Command("stty", "-F", "/dev/tty", "echo").Run()
 		os.Exit(0)
 	}()
@@ -138,6 +138,10 @@ func SSH(target, proxyAddress, command, port string, authMethods []ssh.AuthMetho
 		if err != nil {
 			log.Errorf(err.Error())
 		}
+		fmt.Printf("\nConnection to %s closed from the remote side\n", address)
+		// restore the console echoing state when exiting
+		exec.Command("stty", "-F", "/dev/tty", "echo").Run()
+		os.Exit(0)
 		wg.Done()
 	}()
 
@@ -155,7 +159,7 @@ func SSH(target, proxyAddress, command, port string, authMethods []ssh.AuthMetho
 				// catch Ctrl-D
 				if buf[0] == 4 {
 					fmt.Printf("\nConnection to %s closed\n", address)
-					// restore the echoing state when exiting
+					// restore the console echoing state when exiting
 					exec.Command("stty", "-F", "/dev/tty", "echo").Run()
 					os.Exit(0)
 				}
