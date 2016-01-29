@@ -60,6 +60,8 @@ type TshSuite struct {
 	srv4         *exec.Cmd
 	proxy        *srv.Server
 	srvAddress   string
+	srvHost      string
+	srvPort      string
 	srv2Address  string
 	srv3Address  string
 	srv3Dir      string
@@ -122,6 +124,9 @@ func (s *TshSuite) SetUpSuite(c *C) {
 
 	// Starting node1
 	s.srvAddress = "127.0.0.1:30136"
+	s.srvHost = "127.0.0.1"
+	s.srvPort = "30136"
+
 	s.srv, err = srv.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srvAddress},
 		"localhost",
@@ -318,19 +323,45 @@ func (s *TshSuite) TearDownSuite(c *C) {
 func (s *TshSuite) TestRunCommand(c *C) {
 	cmd := exec.Command("tsh",
 		"ssh", s.user+"@"+s.srvAddress,
-		`--command=""expr 30 + 5""`)
+		`""expr 30 + 5""`)
 	cmd.Env = s.envVars
 	out, err := cmd.Output()
 	c.Assert(err, IsNil)
-
 	c.Assert(string(out), Equals, fmt.Sprintf("Running command on %v\n-----------------------------\n35\n-----------------------------\n\n", s.srvAddress))
+
+	cmd = exec.Command("tsh",
+		"ssh",
+		"-p", s.srvPort,
+		s.user+"@"+s.srvHost,
+		`""expr 30 + 5""`)
+	cmd.Env = s.envVars
+	out, err = cmd.Output()
+	c.Assert(string(out), Equals, fmt.Sprintf("Running command on %v\n-----------------------------\n35\n-----------------------------\n\n", s.srvAddress))
+	c.Assert(err, IsNil)
+
+	cmd = exec.Command("tsh",
+		"ssh",
+		"-p", "123",
+		s.user+"@"+s.srvAddress,
+		`""expr 30 + 5""`)
+	cmd.Env = s.envVars
+	out, err = cmd.Output()
+	c.Assert(err, IsNil)
+	c.Assert(string(out), Equals, fmt.Sprintf("Running command on %v\n-----------------------------\n35\n-----------------------------\n\n", s.srvAddress))
+
+	cmd = exec.Command("tsh",
+		"ssh", s.user+"@"+s.srvHost,
+		`""expr 30 + 5""`)
+	cmd.Env = s.envVars
+	out, err = cmd.Output()
+	c.Assert(err, NotNil)
 }
 
 func (s *TshSuite) TestRunCommandOn2Servers(c *C) {
 	cmd := exec.Command("tsh",
 		"ssh", s.user+"@_label4:value4",
 		"--proxy="+s.proxyAddress,
-		`--command=""pwd""`)
+		`""pwd""`)
 	cmd.Env = s.envVars
 	out, err := cmd.Output()
 	c.Assert(err, IsNil)
@@ -348,7 +379,7 @@ func (s *TshSuite) TestRunCommandWithProxy(c *C) {
 	cmd := exec.Command("tsh", "ssh",
 		s.user+"@"+s.srvAddress,
 		"--proxy="+s.proxyAddress,
-		`--command=""expr 3 + 50""`)
+		`""expr 3 + 50""`)
 	cmd.Env = s.envVars
 	out, err := cmd.Output()
 	c.Assert(err, IsNil)
@@ -367,8 +398,9 @@ func (s *TshSuite) TestUploadFile(c *C) {
 	destinationFileName := filepath.Join(dir, "file2")
 
 	cmd := exec.Command("tsh", "scp",
+		"-P", s.srvPort,
 		sourceFileName,
-		s.user+"@"+s.srvAddress+":"+destinationFileName,
+		s.user+"@"+s.srvHost+":"+destinationFileName,
 		"--proxy="+s.proxyAddress)
 	cmd.Env = s.envVars
 	out, err := cmd.Output()
@@ -392,7 +424,8 @@ func (s *TshSuite) TestDownloadFile(c *C) {
 
 	destinationFileName := filepath.Join(dir, "file4")
 	cmd := exec.Command("tsh", "scp",
-		s.user+"@"+s.srvAddress+":"+sourceFileName,
+		"-P", s.srvPort,
+		s.user+"@"+s.srvHost+":"+sourceFileName,
 		destinationFileName,
 		"--proxy="+s.proxyAddress)
 	cmd.Env = s.envVars

@@ -39,10 +39,11 @@ func RunTSH(args []string) error {
 	connect := app.Command("ssh", "Connects to remote server and runs shell or provided command")
 	connectAddress := connect.Arg("target", "Target server address. You can provide several servers using label searching target _label:value").Required().String()
 	connectProxy := connect.Flag("proxy", "Optional proxy address").String()
-	connectCommand := connect.Flag("command", "Run provided command instead of shell").String()
+	connectCommand := connect.Arg("command", "Run provided command instead of shell").String()
+	connectPort := connect.Flag("port", "Remote server port").Short('p').String()
 
 	getServers := app.Command("get-servers", "Returns list of servers")
-	getServersProxy := getServers.Flag("proxy", "Target proxy address").String()
+	getServersProxy := getServers.Flag("proxy", "Target proxy address").Required().String()
 	getServersLabelName := getServers.Flag("label", "Label name").String()
 	getServersLabelValue := getServers.Flag("value", "Label value regexp").String()
 
@@ -51,6 +52,7 @@ func RunTSH(args []string) error {
 	scpDest := scp.Arg("destination", "destination file or dir").Required().String()
 	scpProxy := scp.Flag("proxy", "Optional proxy address").String()
 	scpIsDir := scp.Flag("recursively", "Source path is a directory").Short('r').Bool()
+	scpPort := scp.Flag("port", "Remote server port").Short('P').String()
 
 	selectedCommand := kingpin.MustParse(app.Parse(args[1:]))
 
@@ -97,12 +99,13 @@ func RunTSH(args []string) error {
 
 	switch selectedCommand {
 	case connect.FullCommand():
-		err = SSH(*connectAddress, *connectProxy, *connectCommand, authMethods)
+		err = SSH(*connectAddress, *connectProxy, *connectCommand,
+			*connectPort, authMethods)
 	case getServers.FullCommand():
 		err = GetServers(*getServersProxy, *getServersLabelName,
 			*getServersLabelValue, authMethods)
 	case scp.FullCommand():
-		err = SCP(*scpProxy, *scpSource, *scpDest, *scpIsDir,
+		err = SCP(*scpProxy, *scpSource, *scpDest, *scpIsDir, *scpPort,
 			authMethods)
 	}
 

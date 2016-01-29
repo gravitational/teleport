@@ -33,8 +33,12 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func SSH(target, proxyAddress, command string, authMethods []ssh.AuthMethod) error {
+func SSH(target, proxyAddress, command, port string, authMethods []ssh.AuthMethod) error {
 	user, target := client.SplitUserAndAddress(target)
+	if !strings.Contains(target, ":") {
+		target += ":" + port
+	}
+
 	if len(user) == 0 {
 		return fmt.Errorf("Error: please provide user name")
 	}
@@ -221,7 +225,7 @@ func GetServers(proxyAddress, labelName, labelValueRegexp string, authMethods []
 	return nil
 }
 
-func SCP(proxyAddress, source, dest string, isDir bool, authMethods []ssh.AuthMethod) error {
+func SCP(proxyAddress, source, dest string, isDir bool, port string, authMethods []ssh.AuthMethod) error {
 	if strings.Contains(source, ":") {
 		user, source := client.SplitUserAndAddress(source)
 		if len(user) == 0 {
@@ -231,6 +235,9 @@ func SCP(proxyAddress, source, dest string, isDir bool, authMethods []ssh.AuthMe
 		parts := strings.Split(source, ":")
 		path := parts[len(parts)-1]
 		targetServers := strings.Join(parts[0:len(parts)-1], ":")
+		if !strings.Contains(targetServers, ":") {
+			targetServers += ":" + port
+		}
 		return client.Download(user, targetServers, proxyAddress, path,
 			dest, isDir, authMethods)
 	} else {
@@ -240,9 +247,12 @@ func SCP(proxyAddress, source, dest string, isDir bool, authMethods []ssh.AuthMe
 		}
 		parts := strings.Split(dest, ":")
 		path := parts[len(parts)-1]
-		target := strings.Join(parts[0:len(parts)-1], ":")
+		targetServers := strings.Join(parts[0:len(parts)-1], ":")
+		if !strings.Contains(targetServers, ":") {
+			targetServers += ":" + port
+		}
 
-		return client.Upload(user, target, proxyAddress, source,
+		return client.Upload(user, targetServers, proxyAddress, source,
 			path, authMethods)
 	}
 	return nil
