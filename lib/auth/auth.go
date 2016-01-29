@@ -38,6 +38,7 @@ import (
 //compatible public/private key pairs and OpenSSH certificates
 type Authority interface {
 	GenerateKeyPair(passphrase string) (privKey []byte, pubKey []byte, err error)
+	GetNewKeyPairFromPool() (privKey []byte, pubKey []byte, err error)
 
 	// GenerateHostCert generates host certificate, it takes pkey as a signing
 	// private key (host certificate authority)
@@ -295,7 +296,7 @@ func (s *AuthServer) NewWebSession(user string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	priv, pub, err := s.GenerateKeyPair("")
+	priv, pub, err := s.GetNewKeyPairFromPool()
 	if err != nil {
 		return nil, err
 	}

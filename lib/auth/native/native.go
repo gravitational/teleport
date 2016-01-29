@@ -20,7 +20,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/log"
@@ -37,49 +37,33 @@ type keyPair struct {
 }
 
 type nauth struct {
-	generatedKeys []keyPair
-	*sync.Mutex
-	precalculating bool
+	generatedKeysC chan keyPair
+	closeC         chan bool
+	closed         int32
 }
 
 func New() *nauth {
 	n := nauth{
-		generatedKeys:  make([]keyPair, 0, PrecalculatedKeysNum),
-		Mutex:          &sync.Mutex{},
-		precalculating: false,
+		generatedKeysC: make(chan keyPair, PrecalculatedKeysNum),
+		closeC:         make(chan bool),
 	}
 	go n.precalculateKeys()
 	return &n
 }
 
-func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
-	n.Lock()
-	if len(n.generatedKeys) == 0 {
-		n.Unlock()
-		return n.generateKeyPair()
+func (n *nauth) GetNewKeyPairFromPool() ([]byte, []byte, error) {
+	select {
+	case key := <-n.generatedKeysC:
+		return key.privPem, key.pubBytes, nil
+	default:
+		return n.GenerateKeyPair("")
 	}
-	defer n.Unlock()
-	key := n.generatedKeys[len(n.generatedKeys)-1]
-	n.generatedKeys[len(n.generatedKeys)-1] = keyPair{}
-	n.generatedKeys = n.generatedKeys[:len(n.generatedKeys)-1]
-	if !n.precalculating {
-		go n.precalculateKeys()
-	}
-
-	return key.privPem, key.pubBytes, nil
 }
 
 func (n *nauth) precalculateKeys() {
-	n.Lock()
-	if n.precalculating || len(n.generatedKeys) >= PrecalculatedKeysNum {
-		n.Unlock()
-		return
-	}
-	n.precalculating = true
-	n.Unlock()
 
 	for {
-		privPem, pubBytes, err := n.generateKeyPair()
+		privPem, pubBytes, err := n.GenerateKeyPair("")
 		if err != nil {
 			log.Errorf(err.Error())
 			continue
@@ -89,30 +73,23 @@ func (n *nauth) precalculateKeys() {
 			pubBytes: pubBytes,
 		}
 
-		full := n.addPrecalculatedKey(key)
-		if full {
-			n.Lock()
-			n.precalculating = false
-			n.Unlock()
+		select {
+		case <-n.closeC:
 			return
+		case n.generatedKeysC <- key:
+			continue
 		}
 	}
 }
 
-func (n *nauth) addPrecalculatedKey(key keyPair) (full bool) {
-	n.Lock()
-	defer n.Unlock()
-	if len(n.generatedKeys) >= PrecalculatedKeysNum {
-		return true
+func (n *nauth) Close() {
+	if atomic.CompareAndSwapInt32(&n.closed, 0, 1) {
+		close(n.closeC)
 	}
-	n.generatedKeys = append(n.generatedKeys, key)
-	if len(n.generatedKeys) >= PrecalculatedKeysNum {
-		return true
-	}
-	return false
+
 }
 
-func (n *nauth) generateKeyPair() ([]byte, []byte, error) {
+func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, nil, err
