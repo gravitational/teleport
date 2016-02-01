@@ -16,6 +16,8 @@ limitations under the License.
 package boltlog
 
 import (
+	"encoding/json"
+
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -35,6 +37,15 @@ func FromObject(o interface{}) (events.Log, error) {
 	if len(c.Path) == 0 {
 		return nil, trace.Errorf(
 			`please supply a valid dictionary, e.g. {"path": "/opt/bolt.db"}`)
+	}
+	return New(c.Path)
+}
+
+func FromJSON(paramsJSON string) (events.Log, error) {
+	c := cfg{}
+	err := json.Unmarshal([]byte(paramsJSON), &c)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return New(c.Path)
 }

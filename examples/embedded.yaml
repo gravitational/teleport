@@ -43,15 +43,15 @@ auth:
 
   keys_backend:
     type: bolt
-    params: {path: "/var/lib/teleport/teleport.auth.db"}
+    params: '{"path": "/var/lib/teleport/teleport.auth.db"}'
 
   events_backend:
     type: bolt
-    params: {path: "/var/lib/teleport/teleport.event.db"}
+    params: '{"path": "/var/lib/teleport/teleport.event.db"}'
 
   records_backend:
     type: bolt
-    params: {path: "/var/lib/teleport/records.db"}
+    params: '{"path": "/var/lib/teleport/records.db"}'
 
 proxy:
   # proxy starts web and ssh proxy that allow inbound connections from remote nodes

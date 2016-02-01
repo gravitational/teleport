@@ -63,7 +63,7 @@ func (cmd *Command) GenerateToken(domainName, role string, ttl time.Duration,
 	}
 
 	if output == "" {
-		fmt.Fprintf(cmd.out, token)
+		fmt.Fprintf(cmd.out, token+"\n")
 	} else {
 		if err := ioutil.WriteFile(output, []byte(token), 0644); err != nil {
 			return trace.Wrap(err)

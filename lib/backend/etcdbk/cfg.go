@@ -16,6 +16,8 @@ limitations under the License.
 package etcdbk
 
 import (
+	"encoding/json"
+
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -35,6 +37,15 @@ func FromObject(in interface{}) (backend.Backend, error) {
 	}
 	if len(c.Nodes) == 0 {
 		return nil, trace.Errorf(`please supply a valid dictionary, e.g. {"nodes": ["http://localhost:4001]}`)
+	}
+	return New(c.Nodes, c.Key)
+}
+
+func FromJSON(paramsJSON string) (backend.Backend, error) {
+	c := cfg{}
+	err := json.Unmarshal([]byte(paramsJSON), &c)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return New(c.Nodes, c.Key)
 }

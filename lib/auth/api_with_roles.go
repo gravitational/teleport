@@ -20,6 +20,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync"
 
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/recorder"
@@ -59,13 +60,16 @@ func NewAPIWithRoles(authServer *AuthServer, elog events.Log,
 }
 
 func (api *APIWithRoles) Serve() {
+	wg := sync.WaitGroup{}
 	for role, _ := range api.listeners {
+		wg.Add(1)
 		go func(l net.Listener, h http.Handler) {
 			if err := http.Serve(l, h); (err != nil) && (err != io.EOF) {
 				log.Errorf(err.Error())
 			}
 		}(api.listeners[role], api.servers[role])
 	}
+	wg.Wait()
 }
 
 func (api *APIWithRoles) HandleConn(conn net.Conn, role string) error {

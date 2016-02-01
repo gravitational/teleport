@@ -87,7 +87,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 		NewStandardPermissions(),
 		StandardRoles,
 	)
-	s.srv.Serve()
+	go s.srv.Serve()
 
 	// set up host private key and certificate
 	c.Assert(s.a.ResetHostCertificateAuthority(""), IsNil)
@@ -118,7 +118,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 		NewAllowAllPermissions(),
 		StandardRoles,
 	)
-	srv.Serve()
+	go srv.Serve()
 
 	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{})
 	c.Assert(err, IsNil)

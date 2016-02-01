@@ -58,20 +58,20 @@ auth:
 
   #backend means database type, now supported types are bolt and etcd
 
-  ####### this block has wrong names, I will fix it
   keys_backend: # database for storing user/host certificates
     type: bolt
-    params: {path: "/var/lib/teleport/teleport.auth.db"}
-    additional_key: /dir/keyfile # key for encrypting backend. If not provided, teleport will generate keys for encrypting/decrypting backend
-  #####
+    params: '{"path": "/var/lib/teleport/teleport.auth.db"}'
+    encryption_keys: #keys for encrypting backend. If not provided, teleport will generate keys for encrypting/decrypting backend
+      - privatekey1value
+      - publickkey2value
 
   events_backend: # database for events
     type: bolt
-    params: {path: "/var/lib/teleport/teleport.event.db"}
+    params: '{"path": "/var/lib/teleport/teleport.event.db"}'
 
   records_backend: # database for saving shell sessions
     type: bolt
-    params: {path: "/var/lib/teleport/records.db"}
+    params: '{"path": "/var/lib/teleport/records.db"}'
 
 
   # default certificate authorities keys values are empty, teleport will generate them on first start
