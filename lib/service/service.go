@@ -492,17 +492,17 @@ func initBackend(dataDir, domainName string, peers NetAddrSlice, cfg AuthConfig)
 	}
 
 	keyStorage := path.Join(dataDir, "backend_keys")
-	encriptionKeys := []encryptor.Key{}
+	encryptionKeys := []encryptor.Key{}
 	for _, strKey := range cfg.KeysBackend.EncryptionKeys {
 		encKey, err := encryptedbk.KeyFromString(strKey)
 		if err != nil {
 			return nil, err
 		}
-		encriptionKeys = append(encriptionKeys, encKey)
+		encryptionKeys = append(encryptionKeys, encKey)
 	}
 
 	encryptedBk, err := encryptedbk.NewReplicatedBackend(bk,
-		keyStorage, encriptionKeys, encryptor.GenerateGPGKey)
+		keyStorage, encryptionKeys, encryptor.GenerateGPGKey)
 
 	if err != nil {
 		log.Errorf(err.Error())

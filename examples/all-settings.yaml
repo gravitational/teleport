@@ -61,7 +61,7 @@ auth:
   keys_backend: # database for storing user/host certificates
     type: bolt
     params: '{"path": "/var/lib/teleport/teleport.auth.db"}'
-    encription_keys: keys for encrypting backend. If not provided, teleport will generate keys for encrypting/decrypting backend
+    encryption_keys: #keys for encrypting backend. If not provided, teleport will generate keys for encrypting/decrypting backend
       - privatekey1value
       - publickkey2value
 
