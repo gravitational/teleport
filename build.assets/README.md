@@ -1,10 +1,11 @@
-### Build Assets
+### Dockerized Teleport Build
 
-This directory is used by Jenkinds to build Gravity inside CI/CD pipeline using
-Docker container to ensure reproducible builds.
+This directory is used to produce a containerized production Teleport build.
+No need to have Golang. Only Docker is required.
 
-To do it manually simply type:
+It is a part of Gravitational CI/CD pipeline. To build Teleport type:
 
 ```
 make
 ```
+
