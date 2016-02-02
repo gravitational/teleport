@@ -27,14 +27,10 @@
                 "cli": {"name": "data-dir"}
             },
             {
-                "type": "List",
-                "name": "authServers",
-                "spec": {
-                    "type": "String",                    
-                    "name": "authServer",
-                    "env": "TELEPORT_AUTH_SERVERS",
-                    "cli": {"name": "auth-server"}
-                }
+              "type": "String",
+              "name": "authServers",
+              "env": "TELEPORT_AUTH_SERVERS",
+              "cli": {"name": "auth-servers"}
             },
             {
                 "type": "String",
@@ -79,20 +75,10 @@
                 "cli": {"name": "auth-secret-key"}
             },
             {
-                "type": "List",
-                "name": "authAllowedTokens",
-                "spec": {
-                    "name": "authAllowedToken",
-                    "env": "TELEPORT_AUTH_ALLOWED_TOKENS",
-                    "type": "KeyVal",
-                    "cli": {"name": "auth-allowed-token"},
-                    "spec": {
-                        "keys": [
-                            {"name": "key", "type":"String"},
-                            {"name": "val", "type":"String"}
-                        ]
-                    }
-                }
+              "type": "String",
+              "name": "authAllowedTokens",
+              "cli": {"name": "auth-allowed-tokens"},
+              "env": "TELEPORT_AUTH_ALLOWED_TOKENS"
             },
             {
                 "type": "String",
@@ -122,20 +108,10 @@
                 "cli": {"name": "auth-host-ca-keypair"}
             },
             {
-                "type": "List",
-                "name": "authKeysBackendParams",
-                "spec": {
-                    "name": "authKeysBackendParam",
-                    "env": "TELEPORT_AUTH_KEYS_BACKEND_PARAMS",
-                    "type": "KeyVal",
-                    "cli": {"name": "auth-keys-backend-param"},
-                    "spec": {
-                        "keys": [
-                            {"name": "key", "type":"String"},
-                            {"name": "val", "type":"String"}
-                        ]
-                    }
-                }
+              "type": "String",
+              "name": "authKeysBackendParams",
+              "cli": {"name": "auth-keys-backend-params"},
+              "env": "TELEPORT_AUTH_KEYS_BACKEND_PARAMS"
             },
             {
                 "type": "String",
@@ -153,20 +129,10 @@
                 }
             },
             {
-                "type": "List",
-                "name": "authEventsBackendParams",
-                "spec": {
-                    "name": "authEventsBackendParam",
-                    "env": "TELEPORT_AUTH_EVENTS_BACKEND_PARAMS",
-                    "type": "KeyVal",
-                    "cli": {"name": "auth-events-backend-param"},
-                    "spec": {
-                        "keys": [
-                            {"name": "key", "type":"String"},
-                            {"name": "val", "type":"String"}
-                        ]
-                    }
-                }
+              "type": "String",
+              "name": "authEventsBackendParams",
+              "env": "TELEPORT_AUTH_EVENTS_BACKEND_PARAMS",
+              "cli": {"name": "auth-events-backend-params"}
             },
             {
                 "type": "Enum",
@@ -178,20 +144,10 @@
                 }
             },
             {
-                "type": "List",
-                "name": "authRecordsBackendParams",
-                "spec": {
-                    "name": "authRecordsBackendParam",
-                    "env": "TELEPORT_AUTH_RECORDS_BACKEND_PARAMS",
-                    "type": "KeyVal",
-                    "cli": {"name": "auth-records-backend-param"},
-                    "spec": {
-                        "keys": [
-                            {"name": "key", "type":"String"},
-                            {"name": "val", "type":"String"}
-                        ]
-                    }
-                }
+              "type": "String",
+              "name": "authRecordsBackendParams",
+              "env": "TELEPORT_AUTH_RECORDS_BACKEND_PARAMS",
+              "cli": {"name": "auth-records-backend-params"}
             },
             {
                 "type": "Bool",
@@ -216,6 +172,24 @@
                 "name": "sshShell",
                 "env": "TELEPORT_SSH_SHELL",
                 "cli": {"name": "ssh-shell"}
+            },
+            {
+                "type": "String",
+                "name": "sshLabels",
+                "env": "TELEPORT_SSH_LABELS",
+                "cli": {"name": "ssh-labels"}
+            },
+            {
+                "type": "String",
+                "name": "sshLabelCommands",
+                "env": "TELEPORT_SSH_LABEL_COMMANDS",
+                "cli": {"name": "ssh-label-commands"}
+            },
+            {
+                "type": "String",
+                "name": "sshLimiter",
+                "env": "TELEPORT_SSH_LIMITER",
+                "cli": {"name": "ssh-limiter"}
             },
             {
                 "type": "Bool",
