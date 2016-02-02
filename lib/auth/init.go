@@ -134,13 +134,13 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 			log.Infof("FIRST START: Setting allowed provisioning tokens")
 			for token, domainName := range cfg.AllowedTokens {
 				log.Infof("FIRST START: upsert provisioning token: domainName: %v", domainName)
-				pid, err := session.DecodeSID(session.SecureID(token), scrt)
+				var role string
+				token, role, err = services.SplitTokenRole(token)
 				if err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 
-				var role string
-				token, role, err = services.SplitTokenRole(token)
+				pid, err := session.DecodeSID(session.SecureID(token), scrt)
 				if err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
