@@ -20,7 +20,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/sshutils"
 
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/websocket"
 )

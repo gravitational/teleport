@@ -20,7 +20,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"github.com/mailgun/lemma/secret"
 )

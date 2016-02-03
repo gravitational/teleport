@@ -16,11 +16,15 @@ limitations under the License.
 package service
 
 import (
+	"io/ioutil"
+	"log/syslog"
 	"net/http"
 	"os"
 	"path"
+	"strings"
 	"time"
 
+	logrus_syslog "github.com/Sirupsen/logrus/hooks/syslog"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -40,8 +44,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/codahale/lunk"
-	"github.com/gravitational/log"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -222,7 +226,7 @@ func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
 
 	elog := &FanOutEventLogger{
 		Loggers: []lunk.EventLogger{
-			lunk.NewTextEventLogger(log.GetLogger().Writer(log.SeverityInfo)),
+			lunk.NewTextEventLogger(log.StandardLogger().Writer()),
 			client,
 		},
 	}
@@ -332,7 +336,7 @@ func initTunAgent(supervisor Supervisor, cfg Config) error {
 
 	elog := &FanOutEventLogger{
 		Loggers: []lunk.EventLogger{
-			lunk.NewTextEventLogger(log.GetLogger().Writer(log.SeverityInfo)),
+			lunk.NewTextEventLogger(log.StandardLogger().Writer()),
 			client,
 		}}
 
@@ -544,7 +548,25 @@ func initRecordBackend(btype string, params string) (recorder.Recorder, error) {
 }
 
 func initLogging(ltype, severity string) error {
-	return log.Initialize(ltype, severity)
+	useSyslog := true
+	infoLevel := log.ErrorLevel
+
+	switch strings.ToLower(ltype) {
+	case "console", "stderr":
+		useSyslog = false
+	}
+
+	if useSyslog {
+		hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_ERR, "")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.AddHook(hook)
+		log.SetOutput(ioutil.Discard)
+	} else {
+	}
+	log.SetLevel(infoLevel)
+	return nil
 }
 
 func validateConfig(cfg Config) error {

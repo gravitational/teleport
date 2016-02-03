@@ -48,7 +48,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	. "gopkg.in/check.v1"
 
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 )
 
 func TestTsh(t *testing.T) { TestingT(t) }

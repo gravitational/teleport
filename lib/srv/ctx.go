@@ -22,7 +22,7 @@ import (
 	"sync/atomic"
 
 	"github.com/codahale/lunk"
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent" // ctxID is a incremental context ID used for debugging and logging purposes
 )

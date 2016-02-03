@@ -16,7 +16,7 @@ limitations under the License.
 package srv
 
 import (
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
 

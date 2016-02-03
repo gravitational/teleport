@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 	"golang.org/x/crypto/ssh"

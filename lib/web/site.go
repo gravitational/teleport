@@ -38,7 +38,7 @@ import (
 
 	"github.com/codahale/lunk"
 	"github.com/gravitational/form"
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/roundtrip"
 	"github.com/julienschmidt/httprouter"
 )

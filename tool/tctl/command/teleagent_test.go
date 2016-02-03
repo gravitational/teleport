@@ -39,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 
 	"github.com/gokyle/hotp"
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"github.com/mailgun/lemma/secret"
 	"golang.org/x/crypto/ssh"

@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/gravitational/form"
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/session"
 	"github.com/gravitational/teleport/lib/reversetunnel"

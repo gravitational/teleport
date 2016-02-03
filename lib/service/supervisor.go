@@ -18,7 +18,7 @@ package service
 import (
 	"sync"
 
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 )
 

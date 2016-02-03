@@ -22,7 +22,7 @@ import (
 	"os/exec"
 	"syscall"
 
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/events"
 	"golang.org/x/crypto/ssh"
 )

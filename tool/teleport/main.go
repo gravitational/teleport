@@ -20,13 +20,17 @@ import (
 
 	"github.com/gravitational/teleport/lib/service"
 
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 func main() {
-	log.Initialize("console", "INFO")
+	// default logging is "errors to stderr" until we parse the config file
+	// and re-initialize logger
+	log.SetOutput(os.Stderr)
+	log.SetLevel(log.ErrorLevel)
+
 	if err := run(); err != nil {
 		log.Errorf("teleport error: %v", err)
 		os.Exit(1)

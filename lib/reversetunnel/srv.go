@@ -30,8 +30,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/codahale/lunk"
-	"github.com/gravitational/log"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/mailgun/oxy/forward"
@@ -438,7 +438,7 @@ func (s *remoteSite) handleAuthProxy(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	fwd, err := forward.New(forward.RoundTripper(tr), forward.Logger(log.GetLogger()))
+	fwd, err := forward.New(forward.RoundTripper(tr), forward.Logger(log.StandardLogger()))
 	if err != nil {
 		log.Errorf("write: %v", err)
 		roundtrip.ReplyJSON(w, http.StatusInternalServerError, err.Error())

@@ -19,7 +19,7 @@ package encryptedbk
 import (
 	"time"
 
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"

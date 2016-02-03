@@ -16,7 +16,7 @@ limitations under the License.
 package sshutils
 
 import (
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
 

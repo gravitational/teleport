@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 	. "gopkg.in/check.v1"
 )
 
