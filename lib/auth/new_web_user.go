@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gokyle/hotp"
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/session"
 	"github.com/gravitational/trace"
 )

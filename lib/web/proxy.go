@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 	"github.com/mailgun/oxy/forward"
 	"github.com/mailgun/route"
 	"golang.org/x/crypto/ssh"
@@ -69,7 +69,7 @@ func (p *proxyHandler) serveProxyRequest(prefix string, w http.ResponseWriter, r
 		forward.RoundTripper(&http.Transport{
 			Dial: (&tunDialer{addr: tun.ProxyAddr, user: user, agent: agent}).Dial,
 		}),
-		forward.Logger(log.GetLogger()),
+		forward.Logger(log.StandardLogger()),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create forwarder: %v", err)

@@ -16,18 +16,32 @@ limitations under the License.
 package main
 
 import (
+	"io/ioutil"
+	"log/syslog"
 	"os"
 
-	"github.com/gravitational/log"
-	"github.com/gravitational/teleport/tool/tctl/command" // TODO(klizhentas) fix the interface for logging
+	log "github.com/Sirupsen/logrus"
+	logrus_syslog "github.com/Sirupsen/logrus/hooks/syslog"
+	"github.com/gravitational/teleport/tool/tctl/command"
 )
 
 func main() {
-	log.Initialize("console", "INFO")
+	initLogger()
 
-	cmd := command.NewCommand()
-	err := cmd.Run(os.Args)
+	err := command.NewCommand().Run(os.Args)
 	if err != nil {
 		log.Errorf("%v", err)
 	}
+}
+
+func initLogger() {
+	// configure logrus to use syslog:
+	hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_ERR, "")
+	if err != nil {
+		panic(err)
+	}
+	log.AddHook(hook)
+	// ... and disable its own output:
+	log.SetOutput(ioutil.Discard)
+	log.SetLevel(log.InfoLevel)
 }

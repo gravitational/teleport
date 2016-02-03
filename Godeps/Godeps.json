@@ -6,6 +6,15 @@
 	],
 	"Deps": [
 		{
+			"ImportPath": "github.com/Sirupsen/logrus",
+			"Comment": "v0.9.0",
+			"Rev": "be52937128b38f1d99787bb476c789e2af1147f1"
+		},
+		{
+			"ImportPath": "golang.org/x/sys/unix",
+			"Rev": "eb2c74142fd19a79b3f237334c7384d5167b1b46"
+		},
+		{
 			"ImportPath": "code.google.com/p/go-uuid/uuid",
 			"Comment": "null-15",
 			"Rev": "'35bc42037350f0078e3c974c6ea690f1926603ab'"
@@ -72,10 +81,6 @@
 		{
 			"ImportPath": "github.com/gravitational/form",
 			"Rev": "a6a6d7dba4b0e3c049d10987c87a003b53d247f0"
-		},
-		{
-			"ImportPath": "github.com/gravitational/log",
-			"Rev": "8e1bbf1bba0515719dbb17adf1da20b5390ac8da"
 		},
 		{
 			"ImportPath": "github.com/gravitational/roundtrip",

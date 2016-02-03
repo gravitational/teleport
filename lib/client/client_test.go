@@ -46,7 +46,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 	. "gopkg.in/check.v1"
 
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 )
 
 func TestClient(t *testing.T) { TestingT(t) }

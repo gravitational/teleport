@@ -40,7 +40,7 @@ import (
 
 	"code.google.com/p/go-uuid/uuid"
 	"github.com/codahale/lunk"
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	// Server implements SSH server that uses configuration backend and certificate-based authentication:

@@ -23,7 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/sshutils"
 
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 	"github.com/kr/pty"
 	"golang.org/x/crypto/ssh"
 )

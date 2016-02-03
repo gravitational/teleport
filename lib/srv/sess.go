@@ -30,7 +30,7 @@ import (
 
 	"code.google.com/p/go-uuid/uuid"
 	"github.com/codahale/lunk"
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
 

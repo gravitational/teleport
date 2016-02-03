@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/configure"
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 	. "gopkg.in/check.v1"
 )
 

@@ -27,7 +27,7 @@ import (
 
 	"github.com/boltdb/bolt"
 	"github.com/codahale/lunk"
-	"github.com/gravitational/log"
+	log "github.com/Sirupsen/logrus"
 )
 
 type BoltLog struct {
