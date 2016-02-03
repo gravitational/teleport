@@ -334,13 +334,11 @@ func ParseTargetServers(target string, user, proxyAddress string, authMethods []
 // SplitUserAndAddress splits target into user and address using "@"
 // as delimiter. If target doesn't contain "@", it returns empty user
 // and target as address
-func SplitUserAndAddress(target string) (user, address string) {
-	if !strings.Contains(target, "@") {
+func SplitUserAndAddress(target string) (string, string) {
+	idx := strings.LastIndex(target, "@")
+	if idx == -1 {
 		return "", target
 	}
-
-	parts := strings.Split(target, "@")
-	user = parts[0]
-	address = strings.Join(parts[1:len(parts)], "@")
+	user, address := target[0:idx], target[idx+1:len(target)]
 	return user, address
 }
