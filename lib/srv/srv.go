@@ -38,9 +38,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"code.google.com/p/go-uuid/uuid"
-	"github.com/codahale/lunk"
 	log "github.com/Sirupsen/logrus"
+	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	// Server implements SSH server that uses configuration backend and certificate-based authentication:
@@ -568,7 +567,7 @@ func (s *Server) handleShell(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Req
 
 	sid, ok := ctx.getEnv(sshutils.SessionEnvVar)
 	if !ok {
-		sid = uuid.New()
+		sid = utils.NewUUID()
 	}
 	return s.reg.joinShell(sid, sconn, ch, req, ctx)
 }

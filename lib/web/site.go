@@ -29,16 +29,15 @@ import (
 	"sync"
 	"time"
 
-	"code.google.com/p/go-uuid/uuid"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/codahale/lunk"
 	"github.com/gravitational/form"
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/roundtrip"
 	"github.com/julienschmidt/httprouter"
 )
@@ -576,7 +575,7 @@ func (s *SiteHandler) newSession(w http.ResponseWriter, r *http.Request, _ httpr
 		roundtrip.ReplyJSON(w, http.StatusBadRequest, message(err.Error()))
 		return
 	}
-	sid := uuid.New()
+	sid := utils.NewUUID()
 	if err := c.GetClient().UpsertSession(sid, 30*time.Second); err != nil {
 		replyErr(w, http.StatusInternalServerError, err)
 		return
