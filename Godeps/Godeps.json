@@ -83,10 +83,6 @@
 			"Rev": "a6a6d7dba4b0e3c049d10987c87a003b53d247f0"
 		},
 		{
-			"ImportPath": "github.com/gravitational/log",
-			"Rev": "8e1bbf1bba0515719dbb17adf1da20b5390ac8da"
-		},
-		{
 			"ImportPath": "github.com/gravitational/roundtrip",
 			"Rev": "378cec8c0577627d1bf095ae8a6eaa5ee4a025f8"
 		},

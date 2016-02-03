@@ -22,14 +22,13 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	logrus_syslog "github.com/Sirupsen/logrus/hooks/syslog"
-	"github.com/gravitational/teleport/tool/tctl/command" // TODO(klizhentas) fix the interface for logging
+	"github.com/gravitational/teleport/tool/tctl/command"
 )
 
 func main() {
 	initLogger()
 
-	cmd := command.NewCommand()
-	err := cmd.Run(os.Args)
+	err := command.NewCommand().Run(os.Args)
 	if err != nil {
 		log.Errorf("%v", err)
 	}

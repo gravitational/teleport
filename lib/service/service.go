@@ -547,10 +547,12 @@ func initRecordBackend(btype string, params string) (recorder.Recorder, error) {
 	return nil, trace.Errorf("unsupported backend type: %v", btype)
 }
 
+// initLogging configures the logger according to config file values
 func initLogging(ltype, severity string) error {
 	useSyslog := true
 	infoLevel := log.ErrorLevel
 
+	// output
 	switch strings.ToLower(ltype) {
 	case "console", "stderr":
 		useSyslog = false
@@ -564,6 +566,19 @@ func initLogging(ltype, severity string) error {
 		log.AddHook(hook)
 		log.SetOutput(ioutil.Discard)
 	} else {
+		log.SetOutput(os.Stderr)
+	}
+
+	// severity
+	switch strings.ToLower(severity) {
+	case "err", "error":
+		infoLevel = log.ErrorLevel
+	case "warn", "warning":
+		infoLevel = log.WarnLevel
+	case "info", "notice":
+		infoLevel = log.InfoLevel
+	case "fatal":
+		infoLevel = log.FatalLevel
 	}
 	log.SetLevel(infoLevel)
 	return nil
