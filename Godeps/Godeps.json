@@ -15,11 +15,6 @@
 			"Rev": "eb2c74142fd19a79b3f237334c7384d5167b1b46"
 		},
 		{
-			"ImportPath": "code.google.com/p/go-uuid/uuid",
-			"Comment": "null-15",
-			"Rev": "'35bc42037350f0078e3c974c6ea690f1926603ab'"
-		},
-		{
 			"ImportPath": "code.google.com/p/go.crypto/nacl/secretbox",
 			"Comment": "null-236",
 			"Rev": "'69e2a90ed92d03812364aeb947b7068dc42e561e'"

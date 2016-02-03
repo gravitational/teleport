@@ -27,10 +27,10 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/recorder"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 
-	"code.google.com/p/go-uuid/uuid"
-	"github.com/codahale/lunk"
 	log "github.com/Sirupsen/logrus"
+	"github.com/codahale/lunk"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -356,7 +356,7 @@ func newParty(s *session, sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) *part
 		user:       sconn.User(),
 		serverAddr: s.r.srv.addr.Addr,
 		site:       sconn.RemoteAddr().String(),
-		id:         uuid.New(),
+		id:         utils.NewUUID(),
 		sconn:      sconn,
 		ch:         ch,
 		ctx:        ctx,
@@ -411,7 +411,7 @@ func (p *party) Close() error {
 }
 
 func newChunkWriter(rec recorder.Recorder) (*chunkWriter, error) {
-	id := uuid.New()
+	id := utils.NewUUID()
 	cw, err := rec.GetChunkWriter(id)
 	if err != nil {
 		return nil, err
