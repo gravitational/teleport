@@ -16,33 +16,17 @@ limitations under the License.
 package main
 
 import (
-	"io/ioutil"
-	"log/syslog"
-	"os"
-
-	log "github.com/Sirupsen/logrus"
-	logrus_syslog "github.com/Sirupsen/logrus/hooks/syslog"
+	"github.com/gravitational/teleport/tool"
 	"github.com/gravitational/teleport/tool/tsh/tsh"
 )
 
 func main() {
-	initLogger()
+	tool.InitLoggerCLI()
+	app := tool.InitCmdlineParser()
 
-	err := tsh.RunTSH(os.Args)
+	err := tsh.RunTSH(app)
 	if err != nil {
-		log.Errorf(err.Error())
+		tool.Errorf(err.Error())
 		os.Exit(-1)
 	}
-}
-
-func initLogger() {
-	// configure logrus to use syslog:
-	hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_ERR, "")
-	if err != nil {
-		panic(err)
-	}
-	log.AddHook(hook)
-	// ... and disable its own output:
-	log.SetOutput(ioutil.Discard)
-	log.SetLevel(log.InfoLevel)
 }

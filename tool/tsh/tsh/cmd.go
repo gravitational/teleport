@@ -18,6 +18,7 @@ package tsh
 import (
 	"fmt"
 	"net"
+	"os"
 	"strings"
 
 	"github.com/gravitational/teleport/lib/client"
@@ -28,9 +29,7 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
-func RunTSH(args []string) error {
-	app := kingpin.New("tsh", "teleport SSH client")
-
+func RunTSH(app *kingpin.Application) error {
 	sshAgentAddress := app.Flag("ssh-agent", "SSH agent address").OverrideDefaultFromEnvar("SSH_AUTH_SOCK").String()
 	sshAgentNetwork := app.Flag("ssh-agent-network", "SSH agent address network type('tcp','unix' etc.)").Default("unix").String()
 	webProxyAddress := app.Flag("web-proxy", "Web proxy address(used for login)").String()
@@ -54,7 +53,7 @@ func RunTSH(args []string) error {
 	scpIsDir := scp.Flag("recursively", "Source path is a directory").Short('r').Bool()
 	scpPort := scp.Flag("port", "Remote server port").Short('P').String()
 
-	selectedCommand := kingpin.MustParse(app.Parse(args[1:]))
+	selectedCommand := kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	var user string
 	switch selectedCommand {
