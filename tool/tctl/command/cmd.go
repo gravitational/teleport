@@ -56,8 +56,7 @@ func (cmd *Command) SetOut(out io.Writer) {
 	cmd.out = out
 }
 
-func (cmd *Command) Run(args []string) error {
-	app := kingpin.New("tctl", "CLI for key management of teleport SSH cluster")
+func (cmd *Command) Run(app *kingpin.Application) error {
 	configPath := app.Flag("config", "Path to the Teleport configuration file").Default(DefaultConfigPath).String()
 
 	// SSH Key pair
@@ -178,7 +177,7 @@ func (cmd *Command) Run(args []string) error {
 	agentLoginProxyAddr := agentLogin.Flag("proxy-addr", "DomainName of the remote proxy").Required().String()
 	agentLoginTTL := agentLogin.Flag("ttl", "Certificate duration").Default("10h").Duration()
 
-	selectedCommand := kingpin.MustParse(app.Parse(args[1:]))
+	selectedCommand := kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	if !strings.HasPrefix(selectedCommand, agent.FullCommand()) {
 		var cfg service.Config

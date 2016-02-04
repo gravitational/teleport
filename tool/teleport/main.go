@@ -19,6 +19,7 @@ import (
 	"os"
 
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/tool"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
@@ -26,20 +27,18 @@ import (
 )
 
 func main() {
-	// default logging is "errors to stderr" until we parse the config file
-	// and re-initialize logger
-	log.SetOutput(os.Stderr)
-	log.SetLevel(log.ErrorLevel)
+	// configure logger for a typical CLI scenario until configuration file is
+	// parsed
+	tool.InitLoggerCLI()
+	app := tool.InitCmdlineParser("teleport", "SSH service")
 
-	if err := run(); err != nil {
-		log.Errorf("teleport error: %v", err)
+	if err := run(app); err != nil {
+		tool.Errorf(err.Error())
 		os.Exit(1)
 	}
-	log.Infof("teleport completed successfully")
 }
 
-func run() error {
-	app := kingpin.New("teleport", "Teleport is a clustering SSH server")
+func run(app *kingpin.Application) error {
 	configPath := app.Flag("config", "Path to a configuration file in YAML format").ExistingFile()
 	useEnv := app.Flag("env", "Configure teleport from environment variables").Bool()
 
