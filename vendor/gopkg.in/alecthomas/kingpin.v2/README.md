@@ -22,6 +22,7 @@
   - [Default Values](#default-values)
   - [Place-holders in Help](#place-holders-in-help)
   - [Consuming all remaining arguments](#consuming-all-remaining-arguments)
+  - [Supporting -h for help](#supporting--h-for-help)
   - [Custom help](#custom-help)
 
 <!-- /MarkdownTOC -->
@@ -63,7 +64,9 @@ contextual help if `--help` is encountered at any point in the command line
 - Fully [customisable help](#custom-help), via Go templates.
 - Parsed, type-safe flags (`kingpin.Flag("f", "help").Int()`)
 - Parsed, type-safe positional arguments (`kingpin.Arg("a", "help").Int()`).
+- Parsed, type-safe, arbitrarily deep commands (`kingpin.Command("c", "help")`).
 - Support for required flags and required positional arguments (`kingpin.Flag("f", "").Required().Int()`).
+- Support for arbitrarily nested default commands (`command.Default()`).
 - Callbacks per command, flag and argument (`kingpin.Command("c", "").Action(myAction)`).
 - POSIX-style short flag combining (`-a -b` -> `-ab`).
 - Short-flag+parameter combining (`-a parm` -> `-aparm`).
@@ -128,6 +131,19 @@ $ go get gopkg.in/alecthomas/kingpin.v1
 ```
 
 ## Change History
+
+- *2015-09-19* -- Stable v2.1.0 release.
+    - Added `command.Default()` to specify a default command to use if no other
+      command matches. This allows for convenient user shortcuts.
+    - Exposed `HelpFlag` and `VersionFlag` for further cusomisation.
+    - `Action()` and `PreAction()` added and both now support an arbitrary
+      number of callbacks.
+    - `kingpin.SeparateOptionalFlagsUsageTemplate`.
+    - `--help-long` and `--help-man` (hidden by default) flags.
+    - Flags are "interspersed" by default, but can be disabled with `app.Interspersed(false)`.
+    - Added flags for all simple builtin types (int8, uint16, etc.) and slice variants.
+    - Use `app.Writer(os.Writer)` to specify the default writer for all output functions.
+    - Dropped `os.Writer` prefix from all printf-like functions.
 
 - *2015-05-22* -- Stable v2.0.0 release.
     - Initial stable release of v2.0.0.
@@ -476,14 +492,20 @@ And use it like so:
 ips := IPList(kingpin.Arg("ips", "IP addresses to ping."))
 ```
 
+### Supporting -h for help
+
+`kingpin.CommandLine.HelpFlag.Short('h')`
+
 ### Custom help
 
 Kingpin v2 supports templatised help using the text/template library (actually, [a fork](https://github.com/alecthomas/template)).
 
 You can specify the template to use with the [Application.UsageTemplate()](http://godoc.org/gopkg.in/alecthomas/kingpin.v2#Application.UsageTemplate) function.
 
-There are three included templates: `kingpin.DefaultUsageTemplate` is the default,
-`kingpin.CompactUsageTemplate` provides a more compact representation for more complex command-line structures, and `kingpin.ManPageTemplate` is used to generate man pages.
+There are four included templates: `kingpin.DefaultUsageTemplate` is the default,
+`kingpin.CompactUsageTemplate` provides a more compact representation for more complex command-line structures,
+`kingpin.SeparateOptionalFlagsUsageTemplate` looks like the default template, but splits required
+and optional command flags into separate lists, and `kingpin.ManPageTemplate` is used to generate man pages.
 
 See the above templates for examples of usage, and the the function [UsageForContextWithTemplate()](https://github.com/alecthomas/kingpin/blob/master/usage.go#L198) method for details on the context.
 
