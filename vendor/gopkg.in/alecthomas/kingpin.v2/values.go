@@ -1,5 +1,7 @@
 package kingpin
 
+//go:generate go run ./cmd/genvalues/main.go
+
 import (
 	"fmt"
 	"net"
@@ -7,7 +9,6 @@ import (
 	"os"
 	"reflect"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -95,128 +96,15 @@ func (a *accumulator) Set(value string) error {
 	return nil
 }
 
+func (a *accumulator) Get() interface{} {
+	return a.slice.Interface()
+}
+
 func (a *accumulator) IsCumulative() bool {
 	return true
 }
 
-// -- bool Value
-type boolValue bool
-
-func newBoolValue(p *bool) *boolValue {
-	return (*boolValue)(p)
-}
-
-func (b *boolValue) Set(s string) error {
-	if s == "" {
-		s = "true"
-	}
-	v, err := strconv.ParseBool(s)
-	*b = boolValue(v)
-	return err
-}
-
-func (b *boolValue) Get() interface{} { return bool(*b) }
-
-func (b *boolValue) String() string { return fmt.Sprintf("%v", *b) }
-
 func (b *boolValue) IsBoolFlag() bool { return true }
-
-// -- int Value
-type intValue int
-
-func newIntValue(p *int) *intValue {
-	return (*intValue)(p)
-}
-
-func (i *intValue) Set(s string) error {
-	v, err := strconv.ParseInt(s, 0, 64)
-	*i = intValue(v)
-	return err
-}
-
-func (i *intValue) Get() interface{} { return int(*i) }
-
-func (i *intValue) String() string { return fmt.Sprintf("%v", *i) }
-
-// -- int64 Value
-type int64Value int64
-
-func newInt64Value(p *int64) *int64Value {
-	return (*int64Value)(p)
-}
-
-func (i *int64Value) Set(s string) error {
-	v, err := strconv.ParseInt(s, 0, 64)
-	*i = int64Value(v)
-	return err
-}
-
-func (i *int64Value) Get() interface{} { return int64(*i) }
-
-func (i *int64Value) String() string { return fmt.Sprintf("%v", *i) }
-
-// -- uint Value
-type uintValue uint
-
-func (i *uintValue) Set(s string) error {
-	v, err := strconv.ParseUint(s, 0, 64)
-	*i = uintValue(v)
-	return err
-}
-
-func (i *uintValue) Get() interface{} { return uint(*i) }
-
-func (i *uintValue) String() string { return fmt.Sprintf("%v", *i) }
-
-// -- uint64 Value
-type uint64Value uint64
-
-func newUint64Value(p *uint64) *uint64Value {
-	return (*uint64Value)(p)
-}
-
-func (i *uint64Value) Set(s string) error {
-	v, err := strconv.ParseUint(s, 0, 64)
-	*i = uint64Value(v)
-	return err
-}
-
-func (i *uint64Value) Get() interface{} { return uint64(*i) }
-
-func (i *uint64Value) String() string { return fmt.Sprintf("%v", *i) }
-
-// -- string Value
-type stringValue string
-
-func newStringValue(p *string) *stringValue {
-	return (*stringValue)(p)
-}
-
-func (s *stringValue) Set(val string) error {
-	*s = stringValue(val)
-	return nil
-}
-
-func (s *stringValue) Get() interface{} { return string(*s) }
-
-func (s *stringValue) String() string { return fmt.Sprintf("%s", *s) }
-
-// -- float64 Value
-type float64Value float64
-
-func newFloat64Value(p *float64) *float64Value {
-	return (*float64Value)(p)
-}
-
-func (f *float64Value) Set(s string) error {
-	v, err := strconv.ParseFloat(s, 64)
-	*f = float64Value(v)
-	return err
-}
-
-func (f *float64Value) Get() interface{} { return float64(*f) }
-
-func (f *float64Value) String() string { return fmt.Sprintf("%v", *f) }
 
 // -- time.Duration Value
 type durationValue time.Duration
@@ -252,6 +140,11 @@ func (s *stringMapValue) Set(value string) error {
 	(*s)[parts[0]] = parts[1]
 	return nil
 }
+
+func (s *stringMapValue) Get() interface{} {
+	return (map[string]string)(*s)
+}
+
 func (s *stringMapValue) String() string {
 	return fmt.Sprintf("%s", map[string]string(*s))
 }
@@ -276,6 +169,10 @@ func (i *ipValue) Set(value string) error {
 	}
 }
 
+func (i *ipValue) Get() interface{} {
+	return (net.IP)(*i)
+}
+
 func (i *ipValue) String() string {
 	return (*net.IP)(i).String()
 }
@@ -296,6 +193,10 @@ func (i *tcpAddrValue) Set(value string) error {
 		*i.addr = addr
 		return nil
 	}
+}
+
+func (t *tcpAddrValue) Get() interface{} {
+	return (*net.TCPAddr)(*t.addr)
 }
 
 func (i *tcpAddrValue) String() string {
@@ -328,6 +229,10 @@ func (e *fileStatValue) Set(value string) error {
 	return nil
 }
 
+func (f *fileStatValue) Get() interface{} {
+	return (string)(*f.path)
+}
+
 func (e *fileStatValue) String() string {
 	return *e.path
 }
@@ -351,6 +256,10 @@ func (f *fileValue) Set(value string) error {
 		*f.f = fd
 		return nil
 	}
+}
+
+func (f *fileValue) Get() interface{} {
+	return (*os.File)(*f.f)
 }
 
 func (f *fileValue) String() string {
@@ -378,6 +287,10 @@ func (u *urlValue) Set(value string) error {
 	}
 }
 
+func (u *urlValue) Get() interface{} {
+	return (*url.URL)(*u.u)
+}
+
 func (u *urlValue) String() string {
 	if *u.u == nil {
 		return "<nil>"
@@ -399,6 +312,10 @@ func (u *urlListValue) Set(value string) error {
 		*u = append(*u, url)
 		return nil
 	}
+}
+
+func (u *urlListValue) Get() interface{} {
+	return ([]*url.URL)(*u)
 }
 
 func (u *urlListValue) String() string {
@@ -436,6 +353,10 @@ func (a *enumValue) Set(value string) error {
 	return fmt.Errorf("enum value must be one of %s, got '%s'", strings.Join(a.options, ","), value)
 }
 
+func (e *enumValue) Get() interface{} {
+	return (string)(*e.value)
+}
+
 // -- []string Enum Value
 type enumsValue struct {
 	value   *[]string
@@ -457,6 +378,10 @@ func (s *enumsValue) Set(value string) error {
 		}
 	}
 	return fmt.Errorf("enum value must be one of %s, got '%s'", strings.Join(s.options, ","), value)
+}
+
+func (e *enumsValue) Get() interface{} {
+	return ([]string)(*e.value)
 }
 
 func (s *enumsValue) String() string {
@@ -504,4 +429,31 @@ func newExistingDirValue(target *string) *fileStatValue {
 
 func newExistingFileOrDirValue(target *string) *fileStatValue {
 	return newFileStatValue(target, func(s os.FileInfo) error { return nil })
+}
+
+type counterValue int
+
+func newCounterValue(n *int) *counterValue {
+	return (*counterValue)(n)
+}
+
+func (c *counterValue) Set(s string) error {
+	*c++
+	return nil
+}
+
+func (c *counterValue) Get() interface{} { return (int)(*c) }
+func (c *counterValue) IsBoolFlag() bool { return true }
+func (c *counterValue) String() string   { return fmt.Sprintf("%d", *c) }
+
+func resolveHost(value string) (net.IP, error) {
+	if ip := net.ParseIP(value); ip != nil {
+		return ip, nil
+	} else {
+		if addr, err := net.ResolveIPAddr("ip", value); err != nil {
+			return nil, err
+		} else {
+			return addr.IP, nil
+		}
+	}
 }

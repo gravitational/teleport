@@ -1,7 +1,5 @@
 package kingpin
 
-//go:generate go run ./genrepeated/main.go
-
 import (
 	"net"
 	"net/url"
@@ -24,52 +22,10 @@ func (p *parserMixin) SetValue(value Value) {
 	p.value = value
 }
 
-// String sets the parser to a string parser.
-func (p *parserMixin) String() (target *string) {
-	target = new(string)
-	p.StringVar(target)
-	return
-}
-
 // StringMap provides key=value parsing into a map.
 func (p *parserMixin) StringMap() (target *map[string]string) {
 	target = &(map[string]string{})
 	p.StringMapVar(target)
-	return
-}
-
-// Bool sets the parser to a boolean parser. Supports --no-<X> to disable the flag.
-func (p *parserMixin) Bool() (target *bool) {
-	target = new(bool)
-	p.BoolVar(target)
-	return
-}
-
-// Int sets the parser to an int parser.
-func (p *parserMixin) Int() (target *int) {
-	target = new(int)
-	p.IntVar(target)
-	return
-}
-
-// Int64 parses an int64
-func (p *parserMixin) Int64() (target *int64) {
-	target = new(int64)
-	p.Int64Var(target)
-	return
-}
-
-// Uint64 parses a uint64
-func (p *parserMixin) Uint64() (target *uint64) {
-	target = new(uint64)
-	p.Uint64Var(target)
-	return
-}
-
-// Float sets the parser to a float64 parser.
-func (p *parserMixin) Float() (target *float64) {
-	target = new(float64)
-	p.FloatVar(target)
 	return
 }
 
@@ -148,39 +104,19 @@ func (p *parserMixin) URL() (target **url.URL) {
 	return
 }
 
-// String sets the parser to a string parser.
-func (p *parserMixin) StringVar(target *string) {
-	p.SetValue(newStringValue(target))
-}
-
 // StringMap provides key=value parsing into a map.
 func (p *parserMixin) StringMapVar(target *map[string]string) {
 	p.SetValue(newStringMapValue(target))
 }
 
-// Bool sets the parser to a boolean parser. Supports --no-<X> to disable the flag.
-func (p *parserMixin) BoolVar(target *bool) {
-	p.SetValue(newBoolValue(target))
-}
-
-// Int sets the parser to an int parser.
-func (p *parserMixin) IntVar(target *int) {
-	p.SetValue(newIntValue(target))
-}
-
-// Int64 parses an int64
-func (p *parserMixin) Int64Var(target *int64) {
-	p.SetValue(newInt64Value(target))
-}
-
-// Uint64 parses a uint64
-func (p *parserMixin) Uint64Var(target *uint64) {
-	p.SetValue(newUint64Value(target))
+// Float sets the parser to a float64 parser.
+func (p *parserMixin) Float() (target *float64) {
+	return p.Float64()
 }
 
 // Float sets the parser to a float64 parser.
 func (p *parserMixin) FloatVar(target *float64) {
-	p.SetValue(newFloat64Value(target))
+	p.Float64Var(target)
 }
 
 // Duration sets the parser to a time.Duration parser.
@@ -262,4 +198,15 @@ func (p *parserMixin) Enums(options ...string) (target *[]string) {
 // EnumVar allows a value from a set of options.
 func (p *parserMixin) EnumsVar(target *[]string, options ...string) {
 	p.SetValue(newEnumsFlag(target, options...))
+}
+
+// A Counter increments a number each time it is encountered.
+func (p *parserMixin) Counter() (target *int) {
+	target = new(int)
+	p.CounterVar(target)
+	return
+}
+
+func (p *parserMixin) CounterVar(target *int) {
+	p.SetValue(newCounterValue(target))
 }
