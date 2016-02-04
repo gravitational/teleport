@@ -32,6 +32,7 @@ type NativeSuite struct {
 var _ = Suite(&NativeSuite{})
 
 func (s *NativeSuite) SetUpSuite(c *C) {
+	PrecalculatedKeysNum = 1
 	s.suite = &test.AuthSuite{A: New()}
 }
 

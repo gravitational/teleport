@@ -20,18 +20,73 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/log"
 	"github.com/gravitational/trace"
 
 	"golang.org/x/crypto/ssh"
 )
 
+var PrecalculatedKeysNum = 20
+
+type keyPair struct {
+	privPem  []byte
+	pubBytes []byte
+}
+
 type nauth struct {
+	generatedKeysC chan keyPair
+	closeC         chan bool
+	closed         int32
 }
 
 func New() *nauth {
-	return &nauth{}
+	n := nauth{
+		generatedKeysC: make(chan keyPair, PrecalculatedKeysNum),
+		closeC:         make(chan bool),
+	}
+	go n.precalculateKeys()
+	return &n
+}
+
+func (n *nauth) GetNewKeyPairFromPool() ([]byte, []byte, error) {
+	select {
+	case key := <-n.generatedKeysC:
+		return key.privPem, key.pubBytes, nil
+	default:
+		return n.GenerateKeyPair("")
+	}
+}
+
+func (n *nauth) precalculateKeys() {
+
+	for {
+		privPem, pubBytes, err := n.GenerateKeyPair("")
+		if err != nil {
+			log.Errorf(err.Error())
+			continue
+		}
+		key := keyPair{
+			privPem:  privPem,
+			pubBytes: pubBytes,
+		}
+
+		select {
+		case <-n.closeC:
+			return
+		case n.generatedKeysC <- key:
+			continue
+		}
+	}
+}
+
+func (n *nauth) Close() error {
+	if atomic.CompareAndSwapInt32(&n.closed, 0, 1) {
+		close(n.closeC)
+	}
+	return nil
 }
 
 func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {

@@ -107,7 +107,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	go apiSrv.Serve()
 
 	tsrv, err := auth.NewTunServer(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:31497"},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:31499"},
 		[]ssh.Signer{signer},
 		apiSrv, a, limiter)
 	c.Assert(err, IsNil)
@@ -139,7 +139,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	c.Assert(rsAgent.Start(), IsNil)
 
 	srv, err := srv.New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:30185"},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:30188"},
 		"localhost",
 		[]ssh.Signer{signer},
 		ap,
