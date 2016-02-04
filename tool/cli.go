@@ -22,7 +22,6 @@ func InitLoggerCLI() {
 	// ... and disable its own output:
 	logrus.SetOutput(ioutil.Discard)
 	logrus.SetLevel(logrus.InfoLevel)
-
 }
 
 // Errorf is useful for CLI apps: it prints an error to stderr and also

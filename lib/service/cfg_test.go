@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/configure"
-	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/teleport/tool"
 	. "gopkg.in/check.v1"
 )
 
@@ -37,7 +37,7 @@ type ConfigSuite struct {
 var _ = Suite(&ConfigSuite{})
 
 func (s *ConfigSuite) SetUpSuite(c *C) {
-	log.Initialize("console", "INFO")
+	tool.InitLoggerCLI()
 }
 
 func (s *ConfigSuite) TestParseYAML(c *C) {
