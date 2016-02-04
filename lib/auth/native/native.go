@@ -82,11 +82,11 @@ func (n *nauth) precalculateKeys() {
 	}
 }
 
-func (n *nauth) Close() {
+func (n *nauth) Close() error {
 	if atomic.CompareAndSwapInt32(&n.closed, 0, 1) {
 		close(n.closeC)
 	}
-
+	return nil
 }
 
 func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
