@@ -21,8 +21,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"os/user"
-	"strconv"
 	"syscall"
 
 	"github.com/gravitational/log"
@@ -85,35 +83,10 @@ func (e *execFn) start(sconn *ssh.ServerConn, shell string, ch ssh.Channel) (*ex
 		"HOME=" + os.Getenv("HOME"),
 		"USER=" + sconn.User(),
 	}
-	e.cmd.SysProcAttr = &syscall.SysProcAttr{}
 
-	osUser, err := user.Lookup(sconn.User())
+	err := setCmdUser(e.cmd, sconn.User())
 	if err != nil {
-		log.Errorf("%v", err)
 		return nil, trace.Wrap(err)
-	}
-	curUser, err := user.Current()
-	if err != nil {
-		log.Errorf("%v", err)
-		return nil, trace.Wrap(err)
-	}
-
-	if (sconn.User() != curUser.Name) || (sconn.User() != curUser.Username) {
-		uid, err := strconv.Atoi(osUser.Uid)
-		if err != nil {
-			log.Errorf("%v", err)
-			return nil, trace.Wrap(err)
-		}
-		gid, err := strconv.Atoi(osUser.Gid)
-		if err != nil {
-			log.Errorf("%v", err)
-			return nil, trace.Wrap(err)
-		}
-
-		e.cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
-		e.cmd.Dir = osUser.HomeDir
-	} else {
-		e.cmd.Dir = curUser.HomeDir
 	}
 
 	if err := e.cmd.Start(); err != nil {

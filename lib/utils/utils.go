@@ -99,3 +99,8 @@ func MultiCloser(closers ...io.Closer) *multiCloser {
 		closers: closers,
 	}
 }
+
+const (
+	CertExtensionUser = "x-teleport-user"
+	CertExtensionRole = "x-teleport-role"
+)

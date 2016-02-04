@@ -142,9 +142,9 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 
 	// User mapping
 	srv.POST("/v1/usermappings", srv.upsertUserMapping)
-	srv.DELETE("/v1/usermappings/:hash", srv.deleteUserMapping)
+	srv.DELETE("/v1/usermappings/:id", srv.deleteUserMapping)
 	srv.GET("/v1/usermappings", srv.getAllUserMapping)
-	srv.GET("/v1/usermappings/:hash", srv.userMappingExists)
+	srv.GET("/v1/usermappings/:id", srv.userMappingExists)
 
 	return srv
 }
@@ -1060,8 +1060,8 @@ func (s *APIServer) upsertUserMapping(w http.ResponseWriter, r *http.Request, p 
 }
 
 func (s *APIServer) deleteUserMapping(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	hash := p[0].Value
-	certificateID, teleportUser, osUser, err := services.ParseUserMappingHash(hash)
+	id := p[0].Value
+	certificateID, teleportUser, osUser, err := services.ParseUserMappingID(id)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
@@ -1076,8 +1076,8 @@ func (s *APIServer) deleteUserMapping(w http.ResponseWriter, r *http.Request, p 
 }
 
 func (s *APIServer) userMappingExists(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	hash := p[0].Value
-	certificateID, teleportUser, osUser, err := services.ParseUserMappingHash(hash)
+	id := p[0].Value
+	certificateID, teleportUser, osUser, err := services.ParseUserMappingID(id)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
@@ -1092,12 +1092,12 @@ func (s *APIServer) userMappingExists(w http.ResponseWriter, r *http.Request, p 
 }
 
 func (s *APIServer) getAllUserMapping(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	hashes, err := s.a.GetAllUserMappings()
+	IDs, err := s.a.GetAllUserMappings()
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	reply(w, http.StatusOK, getAllUserMappingsResponse{hashes})
+	reply(w, http.StatusOK, getAllUserMappingsResponse{IDs})
 }
 
 type userMappingExistsResponse struct {
@@ -1105,7 +1105,7 @@ type userMappingExistsResponse struct {
 }
 
 type getAllUserMappingsResponse struct {
-	Hashes []string `json:"hashes"`
+	IDs []string `json:"ids"`
 }
 
 type getCertificateIDResponse struct {

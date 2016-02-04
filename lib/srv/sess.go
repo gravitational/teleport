@@ -166,6 +166,37 @@ func (s *session) upsertSessionParty(sid string, p *party, ttl time.Duration) er
 	}, ttl)
 }
 
+func setCmdUser(cmd *exec.Cmd, username string) error {
+	cmd.SysProcAttr = &syscall.SysProcAttr{}
+
+	osUser, err := user.Lookup(username)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	curUser, err := user.Current()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if (username != curUser.Name) || (username != curUser.Username) {
+		uid, err := strconv.Atoi(osUser.Uid)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		gid, err := strconv.Atoi(osUser.Gid)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
+		cmd.Dir = osUser.HomeDir
+	} else {
+		cmd.Dir = curUser.HomeDir
+	}
+
+	return nil
+}
+
 func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	s.eid = ctx.eid
 	p := newParty(s, sconn, ch, ctx)
@@ -189,35 +220,9 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 		"USER=" + sconn.User(),
 	}
 
-	cmd.SysProcAttr = &syscall.SysProcAttr{}
-
-	osUser, err := user.Lookup(sconn.User())
+	err := setCmdUser(cmd, sconn.User())
 	if err != nil {
-		log.Errorf("%v", err)
 		return trace.Wrap(err)
-	}
-	curUser, err := user.Current()
-	if err != nil {
-		log.Errorf("%v", err)
-		return trace.Wrap(err)
-	}
-
-	if (sconn.User() != curUser.Name) || (sconn.User() != curUser.Username) {
-		uid, err := strconv.Atoi(osUser.Uid)
-		if err != nil {
-			log.Errorf("%v", err)
-			return trace.Wrap(err)
-		}
-		gid, err := strconv.Atoi(osUser.Gid)
-		if err != nil {
-			log.Errorf("%v", err)
-			return trace.Wrap(err)
-		}
-
-		cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
-		cmd.Dir = osUser.HomeDir
-	} else {
-		cmd.Dir = curUser.HomeDir
 	}
 
 	if err := s.t.run(cmd); err != nil {

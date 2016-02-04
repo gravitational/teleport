@@ -288,7 +288,7 @@ type CertificateAuthority struct {
 }
 
 // Marshall user mapping into string
-func UserMappingHash(certificateID, teleportUser, osUser string) (string, error) {
+func UserMappingID(certificateID, teleportUser, osUser string) (string, error) {
 	jsonString, err := json.Marshal([]string{certificateID, teleportUser, osUser})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -298,8 +298,8 @@ func UserMappingHash(certificateID, teleportUser, osUser string) (string, error)
 }
 
 // Unmarshall user mapping from string
-func ParseUserMappingHash(hash string) (certificateID, teleportUser, osUser string, e error) {
-	jsonString, err := base64.StdEncoding.DecodeString(hash)
+func ParseUserMappingID(id string) (certificateID, teleportUser, osUser string, e error) {
+	jsonString, err := base64.StdEncoding.DecodeString(id)
 	if err != nil {
 		return "", "", "", trace.Wrap(err)
 	}
@@ -315,8 +315,8 @@ func ParseUserMappingHash(hash string) (certificateID, teleportUser, osUser stri
 }
 
 func (s *CAService) UpsertUserMapping(certificateID, teleportUser, osUser string, ttl time.Duration) error {
-	hash, err := UserMappingHash(certificateID, teleportUser, osUser)
-	err = s.backend.UpsertVal([]string{"usermap"}, hash, []byte("ok"), ttl)
+	id, err := UserMappingID(certificateID, teleportUser, osUser)
+	err = s.backend.UpsertVal([]string{"usermap"}, id, []byte("ok"), ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -324,8 +324,8 @@ func (s *CAService) UpsertUserMapping(certificateID, teleportUser, osUser string
 }
 
 func (s *CAService) UserMappingExists(certificateID, teleportUser, osUser string) (bool, error) {
-	hash, err := UserMappingHash(certificateID, teleportUser, osUser)
-	val, err := s.backend.GetVal([]string{"usermap"}, hash)
+	id, err := UserMappingID(certificateID, teleportUser, osUser)
+	val, err := s.backend.GetVal([]string{"usermap"}, id)
 	if err != nil {
 		return false, nil
 	}
@@ -336,28 +336,32 @@ func (s *CAService) UserMappingExists(certificateID, teleportUser, osUser string
 }
 
 func (s *CAService) DeleteUserMapping(certificateID, teleportUser, osUser string) error {
-	hash, err := UserMappingHash(certificateID, teleportUser, osUser)
-	err = s.backend.DeleteKey([]string{"usermap"}, hash)
+	id, err := UserMappingID(certificateID, teleportUser, osUser)
+	err = s.backend.DeleteKey([]string{"usermap"}, id)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (s *CAService) GetAllUserMappings() (hashes []string, e error) {
-	hashes, err := s.backend.GetKeys([]string{"usermap"})
+func (s *CAService) GetAllUserMappings() (IDs []string, e error) {
+	IDs, err := s.backend.GetKeys([]string{"usermap"})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return hashes, nil
+	return IDs, nil
 }
 
-func (s *CAService) UpdateUserMappings(hashes []string, ttl time.Duration) error {
-	for _, hash := range hashes {
-		err := s.backend.UpsertVal([]string{"usermap"}, hash, []byte("ok"), ttl)
+func (s *CAService) UpdateUserMappings(IDs []string, ttl time.Duration) error {
+	for _, id := range IDs {
+		err := s.backend.UpsertVal([]string{"usermap"}, id, []byte("ok"), ttl)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	return nil
 }
+
+const (
+	UserMappingWildcard = ".*"
+)

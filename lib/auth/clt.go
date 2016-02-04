@@ -799,12 +799,12 @@ func (c *Client) UpsertUserMapping(certificateID, teleportUser, osUser string, t
 }
 
 func (c *Client) DeleteUserMapping(certificateID, teleportUser, osUser string) error {
-	hash, err := services.UserMappingHash(certificateID, teleportUser, osUser)
+	id, err := services.UserMappingID(certificateID, teleportUser, osUser)
 	if err != nil {
 		return err
 	}
 
-	_, err = c.Delete(c.Endpoint("usermappings", hash))
+	_, err = c.Delete(c.Endpoint("usermappings", id))
 	if err != nil {
 		return err
 	}
@@ -812,12 +812,12 @@ func (c *Client) DeleteUserMapping(certificateID, teleportUser, osUser string) e
 }
 
 func (c *Client) UserMappingExists(certificateID, teleportUser, osUser string) (bool, error) {
-	hash, err := services.UserMappingHash(certificateID, teleportUser, osUser)
+	id, err := services.UserMappingID(certificateID, teleportUser, osUser)
 	if err != nil {
 		return false, err
 	}
 
-	out, err := c.Get(c.Endpoint("usermappings", hash), url.Values{})
+	out, err := c.Get(c.Endpoint("usermappings", id), url.Values{})
 	if err != nil {
 		return false, err
 	}
@@ -830,7 +830,7 @@ func (c *Client) UserMappingExists(certificateID, teleportUser, osUser string) (
 
 }
 
-func (c *Client) GetAllUserMappings() (hashes []string, e error) {
+func (c *Client) GetAllUserMappings() (IDs []string, e error) {
 	out, err := c.Get(c.Endpoint("usermappings"), url.Values{})
 	if err != nil {
 		return nil, err
@@ -839,7 +839,7 @@ func (c *Client) GetAllUserMappings() (hashes []string, e error) {
 	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
 		return nil, err
 	}
-	return response.Hashes, nil
+	return response.IDs, nil
 }
 
 type chunkRW struct {

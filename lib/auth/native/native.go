@@ -22,8 +22,9 @@ import (
 	"encoding/pem"
 	"time"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -72,7 +73,7 @@ func (n *nauth) GenerateHostCert(pkey, key []byte, id, hostname, role string, tt
 		CertType:        ssh.HostCert,
 	}
 	cert.Permissions.Extensions = make(map[string]string)
-	cert.Permissions.Extensions["role"] = role
+	cert.Permissions.Extensions[utils.CertExtensionRole] = role
 	signer, err := ssh.ParsePrivateKey(pkey)
 	if err != nil {
 		return nil, err
@@ -102,7 +103,7 @@ func (n *nauth) GenerateUserCert(pkey, key []byte, id, username string, ttl time
 		CertType:    ssh.UserCert,
 	}
 	cert.Permissions.Extensions = make(map[string]string)
-	cert.Permissions.Extensions["user"] = username
+	cert.Permissions.Extensions[utils.CertExtensionUser] = username
 	signer, err := ssh.ParsePrivateKey(pkey)
 	if err != nil {
 		return nil, err

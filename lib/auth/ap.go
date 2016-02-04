@@ -53,10 +53,10 @@ type AccessPoint interface {
 	// GetTrustedCerts returns a list of trusted certificates
 	GetTrustedCertificates(certType string) ([]services.CertificateAuthority, error)
 
-	// Returns an ID of the certificate with the provided PublicKey value
+	// GetCertificateID Returns an ID of the certificate with the provided PublicKey value
 	GetCertificateID(certType string, key ssh.PublicKey) (ID string, found bool, e error)
 
-	// Returns hashes of all the User Mapping entries. Used to copy all the data
+	// GetAllUserMappings Returns hashes of all the User Mapping entries. Used to copy all the data
 	GetAllUserMappings() (hashes []string, e error)
 
 	UserMappingExists(certificateID, teleportUser, osUser string) (bool, error)

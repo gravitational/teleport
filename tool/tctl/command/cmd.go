@@ -260,9 +260,10 @@ func (cmd *Command) Run(args []string) error {
 	case remoteCaRm.FullCommand():
 		cmd.DeleteRemoteCertificate(*remoteCaRmID, *remoteCaRmDomainName, *remoteCaRmType)
 
+	// User Mapping
 	case userMappingAdd.FullCommand():
 		cmd.UpsertUserMapping(*userMappingAddCertID, *userMappingAddTeleportUser, *userMappingAddOSUser, *userMappingAddTTL)
-	case userMappingAdd.FullCommand():
+	case userMappingRm.FullCommand():
 		cmd.DeleteUserMapping(*userMappingRmCertID, *userMappingRmTeleportUser, *userMappingRmOSUser)
 	case userMappingLs.FullCommand():
 		cmd.ListUserMappings()

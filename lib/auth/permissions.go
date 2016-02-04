@@ -110,6 +110,8 @@ var StandardRoles = []string{
 }
 
 const (
+	PermissionRole = "role"
+
 	RoleAuth           = "Auth"
 	RoleUser           = "User"
 	RoleWeb            = "Web"

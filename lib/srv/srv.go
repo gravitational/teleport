@@ -282,24 +282,36 @@ func (s *Server) userMappingExists(cert ssh.PublicKey, teleportUser,
 
 	exists, err := s.certificatesCache.UserMappingExists(certID,
 		teleportUser, osUser)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
 	if exists {
 		return true, nil
 	}
 
 	exists, err = s.certificatesCache.UserMappingExists(certID,
-		".*", osUser)
+		services.UserMappingWildcard, osUser)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
 	if exists {
 		return true, nil
 	}
 
 	exists, err = s.ap.UserMappingExists(certID,
 		teleportUser, osUser)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
 	if exists {
 		return true, nil
 	}
 
 	exists, err = s.ap.UserMappingExists(certID,
-		".*", osUser)
+		services.UserMappingWildcard, osUser)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
 	if exists {
 		return true, nil
 	}
@@ -346,7 +358,7 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 			conn.RemoteAddr(), conn.LocalAddr(), conn.User())
 		return nil, trace.Errorf("ERROR: Server doesn't support provided key type")
 	}
-	teleportUser := cert.Permissions.Extensions["user"]
+	teleportUser := cert.Permissions.Extensions[utils.CertExtensionUser]
 
 	p, err := s.certChecker.Authenticate(conn, key)
 	if err != nil {
@@ -372,7 +384,7 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		return nil, trace.Wrap(err)
 	}
 	if !exists {
-		log.Warningf("conn(%v->%v, user=%v) ERROR: teleport user %v doesnt' have permissions to connect as os user %v",
+		log.Warningf("conn(%v->%v, user=%v) ERROR: teleport user %v doesn't have permissions to connect as os user %v",
 			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), teleportUser, conn.User())
 		return nil, trace.Errorf("no permissions to connect as %v", conn.User())
 	}

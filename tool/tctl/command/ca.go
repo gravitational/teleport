@@ -142,7 +142,7 @@ func (cmd *Command) UpsertUserMapping(certificateID, teleportUser, osUser string
 		cmd.printError(err)
 		return
 	}
-	cmd.printOK("certificate deleted")
+	cmd.printOK("User mapping added")
 }
 
 func (cmd *Command) DeleteUserMapping(certificateID, teleportUser, osUser string) {
@@ -151,25 +151,25 @@ func (cmd *Command) DeleteUserMapping(certificateID, teleportUser, osUser string
 		cmd.printError(err)
 		return
 	}
-	cmd.printOK("certificate deleted")
+	cmd.printOK("User mapping deleted")
 }
 
 func (cmd *Command) ListUserMappings() {
-	hashes, err := cmd.client.GetAllUserMappings()
+	IDs, err := cmd.client.GetAllUserMappings()
 	if err != nil {
 		cmd.printError(err)
 		return
 	}
-	sort.Strings(hashes)
+	sort.Strings(IDs)
 
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	fmt.Fprint(t, "teleport username name\tOS usernamee\tcertificate ID\n")
-	if len(hashes) == 0 {
+	fmt.Fprint(t, "teleport_username\tOS_username\tcertificate_ID\n")
+	if len(IDs) == 0 {
 		fmt.Fprintf(cmd.out, t.String())
 		return
 	}
-	for _, hash := range hashes {
-		certificateID, teleportUser, osUser, err := services.ParseUserMappingHash(hash)
+	for _, id := range IDs {
+		certificateID, teleportUser, osUser, err := services.ParseUserMappingID(id)
 		if err != nil {
 			cmd.printError(err)
 			return

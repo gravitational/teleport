@@ -4,7 +4,7 @@ log:
 
 data_dir: /var/lib/teleport # directory where teleport stores it's state (SSH keys and database data)
 
-hostname: cp.vendor.io # SSH hostname of this node
+hostname: teleport.localhost.localdomain # SSH hostname of this node
 
 ssh:
   # enable simple ssh endpoint
