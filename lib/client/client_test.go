@@ -639,4 +639,8 @@ func (s *ClientSuite) TestSplitUserAndAddress(c *C) {
 	user, addr = SplitUserAndAddress("abcd:1234")
 	c.Assert(user, Equals, "")
 	c.Assert(addr, Equals, "abcd:1234")
+
+	user, addr = SplitUserAndAddress("user@gmail.com@address")
+	c.Assert(user, Equals, "user@gmail.com")
+	c.Assert(addr, Equals, "address")
 }
