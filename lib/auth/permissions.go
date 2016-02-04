@@ -47,6 +47,9 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetUserCertificateAuthority: true,
 		ActionGetRemoteCertificates:       true,
 		ActionGetTrustedCertificates:      true,
+		ActionGetCertificateID:            true,
+		ActionGetAllUserMappings:          true,
+		ActionUserMappingExists:           true,
 		ActionGetUserKeys:                 true,
 		ActionGetServers:                  true,
 		ActionGetHostCertificateAuthority: true,
@@ -164,4 +167,9 @@ const (
 	ActionCreateSignupToken             = "CreateSignupToken"
 	ActionGetSignupTokenData            = "GetSignupTokenData"
 	ActionCreateUserWithToken           = "CreateUserWithToken"
+	ActionGetCertificateID              = "GetCertificateID"
+	ActionUpsertUserMapping             = "UpsertUserMapping"
+	ActionDeleteUserMapping             = "DeleteUserMapping"
+	ActionUserMappingExists             = "UserMappingExists"
+	ActionGetAllUserMappings            = "GetAllUserMappings"
 )

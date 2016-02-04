@@ -55,12 +55,12 @@ type TunContext struct {
 	site reversetunnel.RemoteSite
 }
 
-func (c *TunContext) ConnectUpstream(addr string) (*sshutils.Upstream, error) {
+func (c *TunContext) ConnectUpstream(addr string, user string) (*sshutils.Upstream, error) {
 	methods, err := c.GetAuthMethods()
 	if err != nil {
 		return nil, err
 	}
-	client, err := c.site.ConnectToServer(addr, c.GetUser(), methods)
+	client, err := c.site.ConnectToServer(addr, user, methods)
 	if err != nil {
 		return nil, err
 	}

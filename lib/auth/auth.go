@@ -121,7 +121,7 @@ func (s *AuthServer) ResetHostCertificateAuthority(pass string) error {
 				Type:       services.HostCert,
 				DomainName: s.Hostname,
 				PublicKey:  pub,
-				ID:         string(pub),
+				ID:         "local",
 			},
 			PrivateKey: priv},
 	)
@@ -139,7 +139,7 @@ func (s *AuthServer) ResetUserCertificateAuthority(pass string) error {
 				Type:       services.UserCert,
 				DomainName: s.Hostname,
 				PublicKey:  pub,
-				ID:         string(pub),
+				ID:         "local",
 			},
 			PrivateKey: priv},
 	)

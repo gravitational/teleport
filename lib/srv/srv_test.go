@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -58,6 +59,7 @@ type SrvSuite struct {
 	scrt        secret.SecretService
 	signer      ssh.Signer
 	dir         string
+	user        string
 }
 
 var _ = Suite(&SrvSuite{})
@@ -72,6 +74,10 @@ func (s *SrvSuite) SetUpSuite(c *C) {
 
 func (s *SrvSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
+
+	u, err := user.Current()
+	c.Assert(err, IsNil)
+	s.user = u.Name
 
 	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
@@ -132,7 +138,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(s.srv.Start(), IsNil)
 
 	// set up SSH client using the user private key for signing
-	up, err := newUpack("test", s.a)
+	up, err := newUpack(s.user, s.a)
 	c.Assert(err, IsNil)
 
 	// set up an agent server and a client that uses agent for forwarding
@@ -144,8 +150,10 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(keyring.Add(addedKey), IsNil)
 	s.up = up
 
+	c.Assert(s.a.UpsertUserMapping("local", s.user, s.user, time.Hour), IsNil)
+
 	sshConfig := &ssh.ClientConfig{
-		User: "test",
+		User: s.user,
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
 	}
 
@@ -235,6 +243,37 @@ func (s *SrvSuite) TestTun(c *C) {
 	c.Assert(removeNL(stdout.String()), Matches, ".*77.*")
 }
 
+func (s *SrvSuite) TestUserMapping(c *C) {
+	up, err := newUpack("user2", s.a)
+	c.Assert(err, IsNil)
+
+	sshConfig := &ssh.ClientConfig{
+		User: s.user,
+		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+	}
+
+	client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
+	c.Assert(err, NotNil)
+
+	c.Assert(s.a.UpsertUserMapping("local", "user2", s.user, time.Hour), IsNil)
+	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
+	c.Assert(err, IsNil)
+	c.Assert(client.Close(), IsNil)
+
+	c.Assert(s.a.DeleteUserMapping("local", "user2", s.user), IsNil)
+	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
+	c.Assert(err, NotNil)
+
+	c.Assert(s.a.UpsertUserMapping("local", "user2", "wrongOSUser", time.Hour), IsNil)
+	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
+	c.Assert(err, NotNil)
+
+	c.Assert(s.a.UpsertUserMapping("local", ".*", s.user, time.Hour), IsNil)
+	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
+	c.Assert(err, IsNil)
+	c.Assert(client.Close(), IsNil)
+}
+
 func (s *SrvSuite) TestProxy(c *C) {
 	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{})
 	c.Assert(err, IsNil)
@@ -261,7 +300,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 	c.Assert(proxy.Start(), IsNil)
 
 	// set up SSH client using the user private key for signing
-	up, err := newUpack("test", s.a)
+	up, err := newUpack("user1", s.a)
 	c.Assert(err, IsNil)
 
 	bl, err := boltlog.New(filepath.Join(s.dir, "eventsdb"))
@@ -308,12 +347,13 @@ func (s *SrvSuite) TestProxy(c *C) {
 	c.Assert(rsAgent.Start(), IsNil)
 
 	sshConfig := &ssh.ClientConfig{
-		User: "test",
+		User: s.user,
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
 	}
 
-	// Trying to connect to unregistered ssh node
+	c.Assert(s.a.UpsertUserMapping("local", "user1", s.user, time.Hour), IsNil)
 
+	// Trying to connect to unregistered ssh node
 	client, err := ssh.Dial("tcp", proxy.Addr(), sshConfig)
 	c.Assert(err, IsNil)
 
@@ -493,7 +533,7 @@ func (s *SrvSuite) TestPasswordAuth(c *C) {
 // on client disconnects
 func (s *SrvSuite) TestClientDisconnect(c *C) {
 	config := &ssh.ClientConfig{
-		User: "test",
+		User: s.user,
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(s.up.certSigner)},
 	}
 	clt, err := ssh.Dial("tcp", s.srv.Addr(), config)
@@ -510,7 +550,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 	// maxConnection = 3
 	// current connections = 1(one connection is opened from SetUpTest)
 	config := &ssh.ClientConfig{
-		User: "test",
+		User: s.user,
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(s.up.certSigner)},
 	}
 

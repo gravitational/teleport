@@ -19,11 +19,15 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"os/user"
+	"strconv"
 	"syscall"
 
 	"github.com/gravitational/log"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -64,8 +68,9 @@ func (e *execFn) String() string {
 }
 
 // execute is a blocking execution of a command
-func (e *execFn) start(shell string, ch ssh.Channel) (*execResult, error) {
+func (e *execFn) start(sconn *ssh.ServerConn, shell string, ch ssh.Channel) (*execResult, error) {
 	e.cmd = exec.Command(shell, []string{"-c", e.cmdName}...)
+	//e.cmd = exec.Command(e.cmdName)
 	// we capture output to the buffer
 	e.cmd.Stdout = io.MultiWriter(e.out, ch)
 	e.cmd.Stderr = io.MultiWriter(e.out, ch)
@@ -74,6 +79,43 @@ func (e *execFn) start(shell string, ch ssh.Channel) (*execResult, error) {
 	// e.cmd.Wait() never returns  because stdin never gets closed or never reached
 	// see cmd.Stdin comments
 	e.cmd.Stdin = nil
+
+	e.cmd.Env = []string{
+		"TERM=xterm",
+		"HOME=" + os.Getenv("HOME"),
+		"USER=" + sconn.User(),
+	}
+	e.cmd.SysProcAttr = &syscall.SysProcAttr{}
+
+	osUser, err := user.Lookup(sconn.User())
+	if err != nil {
+		log.Errorf("%v", err)
+		return nil, trace.Wrap(err)
+	}
+	curUser, err := user.Current()
+	if err != nil {
+		log.Errorf("%v", err)
+		return nil, trace.Wrap(err)
+	}
+
+	if (sconn.User() != curUser.Name) || (sconn.User() != curUser.Username) {
+		uid, err := strconv.Atoi(osUser.Uid)
+		if err != nil {
+			log.Errorf("%v", err)
+			return nil, trace.Wrap(err)
+		}
+		gid, err := strconv.Atoi(osUser.Gid)
+		if err != nil {
+			log.Errorf("%v", err)
+			return nil, trace.Wrap(err)
+		}
+
+		e.cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
+		e.cmd.Dir = osUser.HomeDir
+	} else {
+		e.cmd.Dir = curUser.HomeDir
+	}
+
 	if err := e.cmd.Start(); err != nil {
 		log.Infof("%v %v start failure err: %v", e.ctx, e, err)
 		return e.collectStatus(e.cmd, err)

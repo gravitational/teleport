@@ -157,7 +157,7 @@ func (s *SiteHandler) ls(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 
 	addr := p[0].Value
 
-	up, err := c.ConnectUpstream(addr)
+	up, err := c.ConnectUpstream(addr, "TODO_PUT_OS_USER_HERE")
 	if err != nil {
 		log.Errorf("file err: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
@@ -243,7 +243,7 @@ func (s *SiteHandler) downloadFiles(w http.ResponseWriter, r *http.Request, p ht
 			return
 		}
 
-		up, err := c.ConnectUpstream(addr)
+		up, err := c.ConnectUpstream(addr, "TODO_PUT_OS_USER_HERE")
 		if err != nil {
 			log.Errorf("file err: %v", err)
 			replyErr(w, http.StatusInternalServerError, err)
@@ -291,7 +291,7 @@ func (s *SiteHandler) uploadFile(w http.ResponseWriter, r *http.Request, _ httpr
 
 	path, addr := r.Form.Get("path"), r.Form.Get("addr")
 
-	up, err := c.ConnectUpstream(addr)
+	up, err := c.ConnectUpstream(addr, "TODO_PUT_OS_USER_HERE")
 	if err != nil {
 		log.Errorf("file err: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)

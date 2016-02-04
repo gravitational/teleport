@@ -104,11 +104,12 @@ func (n *nauth) GenerateUserCert(pkey, key []byte, id, username string, ttl time
 		validBefore = uint64(b.UnixNano())
 	}
 	cert := &ssh.Certificate{
-		ValidPrincipals: []string{username},
-		Key:             pubKey,
-		ValidBefore:     validBefore,
-		CertType:        ssh.UserCert,
+		Key:         pubKey,
+		ValidBefore: validBefore,
+		CertType:    ssh.UserCert,
 	}
+	cert.Permissions.Extensions = make(map[string]string)
+	cert.Permissions.Extensions["user"] = username
 	signer, err := ssh.ParsePrivateKey(pkey)
 	if err != nil {
 		return nil, err

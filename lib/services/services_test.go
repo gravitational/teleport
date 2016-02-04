@@ -19,7 +19,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/log"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	. "gopkg.in/check.v1"
 )
@@ -35,7 +34,6 @@ type BoltSuite struct {
 var _ = Suite(&BoltSuite{})
 
 func (s *BoltSuite) SetUpSuite(c *C) {
-	log.Initialize("console", "WARN")
 }
 
 func (s *BoltSuite) SetUpTest(c *C) {
@@ -101,4 +99,12 @@ func (s *BoltSuite) TestToken(c *C) {
 
 func (s *BoltSuite) TestRemoteCert(c *C) {
 	s.suite.RemoteCertCRUD(c)
+}
+
+func (s *BoltSuite) TestTrustedCertificates(c *C) {
+	s.suite.TrustedCertificates(c)
+}
+
+func (s *BoltSuite) TestUserMapping(c *C) {
+	s.suite.UserMapping(c)
 }

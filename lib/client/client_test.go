@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"io/ioutil"
 	"net/http"
+	"os/user"
 	"path/filepath"
 	"testing"
 	"time"
@@ -201,8 +202,12 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
 
-	s.user = "user1"
+	u, err := user.Current()
+	c.Assert(err, IsNil)
+	s.user = u.Name
 	s.pass = []byte("utndkrn")
+
+	c.Assert(s.a.UpsertUserMapping("local", s.user, s.user, time.Hour), IsNil)
 
 	hotpURL, _, err := s.a.UpsertPassword(s.user, s.pass)
 	c.Assert(err, IsNil)

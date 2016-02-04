@@ -36,6 +36,7 @@ import (
 	"github.com/codahale/lunk"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 const CurrentVersion = "v1"
@@ -768,6 +769,77 @@ func (c *Client) CreateUserWithToken(token, password, hotpToken string) error {
 	})
 
 	return err
+}
+
+func (c *Client) GetCertificateID(certType string, key ssh.PublicKey) (ID string, found bool, e error) {
+	keyBytes := ssh.MarshalAuthorizedKey(key)
+	out, err := c.Get(c.Endpoint("ca", "id", certType), url.Values{
+		"key": []string{string(keyBytes)},
+	})
+	if err != nil {
+		return "", false, err
+	}
+
+	var result getCertificateIDResponse
+	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+		return "", false, err
+	}
+	return result.ID, result.Found, nil
+}
+
+func (c *Client) UpsertUserMapping(certificateID, teleportUser, osUser string, ttl time.Duration) error {
+	_, err := c.PostForm(c.Endpoint("usermappings"), url.Values{
+		"certificateID": []string{certificateID},
+		"teleportUser":  []string{teleportUser},
+		"osUser":        []string{osUser},
+		"ttl":           []string{ttl.String()},
+	})
+	return err
+
+}
+
+func (c *Client) DeleteUserMapping(certificateID, teleportUser, osUser string) error {
+	hash, err := services.UserMappingHash(certificateID, teleportUser, osUser)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Delete(c.Endpoint("usermappings", hash))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) UserMappingExists(certificateID, teleportUser, osUser string) (bool, error) {
+	hash, err := services.UserMappingHash(certificateID, teleportUser, osUser)
+	if err != nil {
+		return false, err
+	}
+
+	out, err := c.Get(c.Endpoint("usermappings", hash), url.Values{})
+	if err != nil {
+		return false, err
+	}
+
+	var result userMappingExistsResponse
+	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+		return false, err
+	}
+	return result.Exists, nil
+
+}
+
+func (c *Client) GetAllUserMappings() (hashes []string, e error) {
+	out, err := c.Get(c.Endpoint("usermappings"), url.Values{})
+	if err != nil {
+		return nil, err
+	}
+	var response getAllUserMappingsResponse
+	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+		return nil, err
+	}
+	return response.Hashes, nil
 }
 
 type chunkRW struct {

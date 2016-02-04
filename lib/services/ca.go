@@ -16,12 +16,15 @@ limitations under the License.
 package services
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"time"
 
 	"github.com/gravitational/log"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -31,10 +34,11 @@ const (
 
 type CAService struct {
 	backend backend.Backend
+	IsCache bool
 }
 
 func NewCAService(backend backend.Backend) *CAService {
-	return &CAService{backend}
+	return &CAService{backend: backend}
 }
 
 // UpsertUserCertificateAuthority upserts the user certificate authority keys in OpenSSH authorized_keys format
@@ -231,23 +235,44 @@ func (s *CAService) GetTrustedCertificates(certType string) ([]CertificateAuthor
 	}
 	certs = append(certs, remoteCerts...)
 
-	if certType == "" || certType == UserCert {
-		userCert, err := s.GetUserCertificateAuthority()
-		if err != nil {
-			return nil, trace.Wrap(err)
+	if !s.IsCache {
+		if certType == "" || certType == UserCert {
+			userCert, err := s.GetUserCertificateAuthority()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			certs = append(certs, *userCert)
 		}
-		certs = append(certs, *userCert)
-	}
 
-	if certType == "" || certType == HostCert {
-		hostCert, err := s.GetHostCertificateAuthority()
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if certType == "" || certType == HostCert {
+			hostCert, err := s.GetHostCertificateAuthority()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			certs = append(certs, *hostCert)
 		}
-		certs = append(certs, *hostCert)
 	}
 
 	return certs, nil
+}
+
+func (s *CAService) GetCertificateID(certType string, key ssh.PublicKey) (ID string, found bool, e error) {
+	certs, err := s.GetTrustedCertificates(certType)
+	if err != nil {
+		return "", false, trace.Wrap(err)
+	}
+	for _, cert := range certs {
+		parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(cert.PublicKey)
+		if err != nil {
+			log.Errorf("failed to parse CA public key '%v', err: %v",
+				string(cert.PublicKey), err)
+			continue
+		}
+		if sshutils.KeysEqual(key, parsedKey) {
+			return cert.ID, true, nil
+		}
+	}
+	return "", false, nil
 }
 
 type LocalCertificateAuthority struct {
@@ -260,4 +285,79 @@ type CertificateAuthority struct {
 	ID         string `json:"id" yaml:"id"`
 	DomainName string `json:"domain_name" yaml:"domain_name" env:"domain_name"`
 	PublicKey  []byte `json:"public_key" yaml:"public_key" env:"public_key"`
+}
+
+// Marshall user mapping into string
+func UserMappingHash(certificateID, teleportUser, osUser string) (string, error) {
+	jsonString, err := json.Marshal([]string{certificateID, teleportUser, osUser})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	b64str := base64.StdEncoding.EncodeToString(jsonString)
+	return string(b64str), nil
+}
+
+// Unmarshall user mapping from string
+func ParseUserMappingHash(hash string) (certificateID, teleportUser, osUser string, e error) {
+	jsonString, err := base64.StdEncoding.DecodeString(hash)
+	if err != nil {
+		return "", "", "", trace.Wrap(err)
+	}
+	var values []string
+	err = json.Unmarshal(jsonString, &values)
+	if err != nil {
+		return "", "", "", trace.Wrap(err)
+	}
+	if len(values) != 3 {
+		return "", "", "", trace.Errorf("parsing error")
+	}
+	return values[0], values[1], values[2], nil
+}
+
+func (s *CAService) UpsertUserMapping(certificateID, teleportUser, osUser string, ttl time.Duration) error {
+	hash, err := UserMappingHash(certificateID, teleportUser, osUser)
+	err = s.backend.UpsertVal([]string{"usermap"}, hash, []byte("ok"), ttl)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *CAService) UserMappingExists(certificateID, teleportUser, osUser string) (bool, error) {
+	hash, err := UserMappingHash(certificateID, teleportUser, osUser)
+	val, err := s.backend.GetVal([]string{"usermap"}, hash)
+	if err != nil {
+		return false, nil
+	}
+	if string(val) != "ok" {
+		return false, trace.Errorf("Value should be 'ok'")
+	}
+	return true, nil
+}
+
+func (s *CAService) DeleteUserMapping(certificateID, teleportUser, osUser string) error {
+	hash, err := UserMappingHash(certificateID, teleportUser, osUser)
+	err = s.backend.DeleteKey([]string{"usermap"}, hash)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *CAService) GetAllUserMappings() (hashes []string, e error) {
+	hashes, err := s.backend.GetKeys([]string{"usermap"})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return hashes, nil
+}
+
+func (s *CAService) UpdateUserMappings(hashes []string, ttl time.Duration) error {
+	for _, hash := range hashes {
+		err := s.backend.UpsertVal([]string{"usermap"}, hash, []byte("ok"), ttl)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }

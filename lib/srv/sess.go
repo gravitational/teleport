@@ -20,8 +20,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/user"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/teleport/lib/events"
@@ -31,6 +34,7 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 	"github.com/codahale/lunk"
 	"github.com/gravitational/log"
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -179,7 +183,43 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	// TODO(klizhentas) figure out linux user policy for launching shells,
 	// what user and environment should we use to execute the shell? the simplest
 	// answer is to use current user and env, however  what if we are root?
-	cmd.Env = []string{"TERM=xterm", fmt.Sprintf("HOME=%v", os.Getenv("HOME"))}
+	cmd.Env = []string{
+		"TERM=xterm",
+		"HOME=" + os.Getenv("HOME"),
+		"USER=" + sconn.User(),
+	}
+
+	cmd.SysProcAttr = &syscall.SysProcAttr{}
+
+	osUser, err := user.Lookup(sconn.User())
+	if err != nil {
+		log.Errorf("%v", err)
+		return trace.Wrap(err)
+	}
+	curUser, err := user.Current()
+	if err != nil {
+		log.Errorf("%v", err)
+		return trace.Wrap(err)
+	}
+
+	if (sconn.User() != curUser.Name) || (sconn.User() != curUser.Username) {
+		uid, err := strconv.Atoi(osUser.Uid)
+		if err != nil {
+			log.Errorf("%v", err)
+			return trace.Wrap(err)
+		}
+		gid, err := strconv.Atoi(osUser.Gid)
+		if err != nil {
+			log.Errorf("%v", err)
+			return trace.Wrap(err)
+		}
+
+		cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
+		cmd.Dir = osUser.HomeDir
+	} else {
+		cmd.Dir = curUser.HomeDir
+	}
+
 	if err := s.t.run(cmd); err != nil {
 		log.Infof("%v failed to start shell: %v", p.ctx, err)
 		return err

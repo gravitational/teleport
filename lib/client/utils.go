@@ -25,6 +25,7 @@ package client
 
 import (
 	"fmt"
+	"math/rand"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -119,7 +120,7 @@ func Login(ag agent.Agent, webProxyAddr string, user string,
 		Deadline: time.Now().Add(ttl),
 	}
 
-	keyID := time.Now().Sub(time.Time{}).Nanoseconds()
+	keyID := int64(time.Now().Sub(time.Time{}).Seconds())*100 + rand.Int63n(100)
 	keyPath := filepath.Join(KeysDir,
 		KeyFilePrefix+strconv.FormatInt(keyID, 16)+KeyFileSuffix)
 

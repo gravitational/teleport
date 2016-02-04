@@ -38,6 +38,7 @@ import (
 	websession "github.com/gravitational/session"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"golang.org/x/crypto/ssh"
 )
 
 type Config struct {
@@ -89,8 +90,8 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.POST("/v1/ca/remote/:type/hosts/:domain", srv.upsertRemoteCertificate)
 	srv.DELETE("/v1/ca/remote/:type/hosts/:domain/:id", srv.deleteRemoteCertificate)
 	srv.GET("/v1/ca/remote/:type", srv.getRemoteCertificates)
-
 	srv.GET("/v1/ca/trusted/:type", srv.getTrustedCertificates)
+	srv.GET("/v1/ca/id/:type", srv.getCertificateID)
 
 	// Passwords and sessions
 	srv.POST("/v1/users/:user/web/password", srv.upsertPassword)
@@ -138,6 +139,12 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.DELETE("/v1/backend/keys/:id", srv.deleteSealKey)
 	srv.POST("/v1/backend/keys", srv.addSealKey)
 	srv.POST("/v1/backend/generatekey", srv.generateSealKey)
+
+	// User mapping
+	srv.POST("/v1/usermappings", srv.upsertUserMapping)
+	srv.DELETE("/v1/usermappings/:hash", srv.deleteUserMapping)
+	srv.GET("/v1/usermappings", srv.getAllUserMapping)
+	srv.GET("/v1/usermappings/:hash", srv.userMappingExists)
 
 	return srv
 }
@@ -1003,6 +1010,107 @@ func (s *APIServer) createUserWithToken(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	reply(w, http.StatusOK, message("ok"))
+}
+
+func (s *APIServer) getCertificateID(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	certType := p[0].Value
+	key := r.URL.Query().Get("key")
+	if len(key) == 0 {
+		reply(w, http.StatusInternalServerError, "key is not provided")
+		return
+	}
+
+	parsedKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(key))
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	id, found, err := s.a.GetCertificateID(certType, parsedKey)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	reply(w, http.StatusOK, getCertificateIDResponse{
+		ID:    id,
+		Found: found,
+	})
+}
+
+func (s *APIServer) upsertUserMapping(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	var certificateID, teleportUser, osUser string
+	var ttl time.Duration
+	err := form.Parse(r,
+		form.String("certificateID", &certificateID, form.Required()),
+		form.String("teleportUser", &teleportUser, form.Required()),
+		form.String("osUser", &osUser, form.Required()),
+		form.Duration("ttl", &ttl, form.Required()),
+	)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	err = s.a.UpsertUserMapping(certificateID, teleportUser, osUser, ttl)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	reply(w, http.StatusOK, message("ok"))
+}
+
+func (s *APIServer) deleteUserMapping(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	hash := p[0].Value
+	certificateID, teleportUser, osUser, err := services.ParseUserMappingHash(hash)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	err = s.a.DeleteUserMapping(certificateID, teleportUser, osUser)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	reply(w, http.StatusOK, message("ok"))
+}
+
+func (s *APIServer) userMappingExists(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	hash := p[0].Value
+	certificateID, teleportUser, osUser, err := services.ParseUserMappingHash(hash)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	exists, err := s.a.UserMappingExists(certificateID, teleportUser, osUser)
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	reply(w, http.StatusOK, userMappingExistsResponse{exists})
+}
+
+func (s *APIServer) getAllUserMapping(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	hashes, err := s.a.GetAllUserMappings()
+	if err != nil {
+		reply(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	reply(w, http.StatusOK, getAllUserMappingsResponse{hashes})
+}
+
+type userMappingExistsResponse struct {
+	Exists bool `json:"exists"`
+}
+
+type getAllUserMappingsResponse struct {
+	Hashes []string `json:"hashes"`
+}
+
+type getCertificateIDResponse struct {
+	ID    string `json:"id"`
+	Found bool   `json:"found"`
 }
 
 type userTokenDataResponse struct {

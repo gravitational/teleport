@@ -162,6 +162,7 @@ func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
 		return nil, err
 	}
 	s.certificatesCache = services.NewCAService(backend)
+	s.certificatesCache.IsCache = true
 
 	srv, err := sshutils.NewServer(
 		addr, s, signers,
@@ -202,6 +203,10 @@ func (s *Server) heartbeatPresence() {
 			if err := s.updateTrustedCAKeys(); err != nil {
 				log.Warningf(err.Error())
 			}
+			if err := s.updateUserMappings(); err != nil {
+				log.Warningf(err.Error())
+			}
+
 		}()
 		time.Sleep(3 * time.Second)
 	}
@@ -232,33 +237,6 @@ func (s *Server) updateLabel(name string, label services.CommandLabel) {
 	}
 }
 
-func (s *Server) getTrustedCAKeys(fromCache bool) ([]ssh.PublicKey, error) {
-	var keys []services.CertificateAuthority
-	var err error
-	if fromCache {
-		keys, err = s.certificatesCache.GetRemoteCertificates(services.UserCert, "")
-		if err != nil {
-			log.Errorf(err.Error())
-		}
-	} else {
-		keys, err = s.ap.GetTrustedCertificates(services.UserCert)
-		if err != nil {
-			log.Errorf(err.Error())
-		}
-	}
-
-	var parsedKeys []ssh.PublicKey
-	for _, key := range keys {
-		parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(key.PublicKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse CA public key '%v', err: %v",
-				string(key.PublicKey), err)
-		}
-		parsedKeys = append(parsedKeys, parsedKey)
-	}
-	return parsedKeys, nil
-}
-
 func (s *Server) updateTrustedCAKeys() error {
 	keys, err := s.ap.GetTrustedCertificates(services.UserCert)
 	if err != nil {
@@ -273,31 +251,83 @@ func (s *Server) updateTrustedCAKeys() error {
 	return nil
 }
 
+func (s *Server) updateUserMappings() error {
+	userMappings, err := s.ap.GetAllUserMappings()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.certificatesCache.UpdateUserMappings(userMappings, CertificatesCacheTTL)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *Server) userMappingExists(cert ssh.PublicKey, teleportUser,
+	osUser string) (bool, error) {
+
+	certID, found, err := s.certificatesCache.GetCertificateID(services.UserCert, cert)
+	if err != nil {
+		log.Errorf(err.Error())
+	}
+	if !found {
+		certID, found, err = s.ap.GetCertificateID(services.UserCert, cert)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if !found {
+			return false, nil
+		}
+	}
+
+	exists, err := s.certificatesCache.UserMappingExists(certID,
+		teleportUser, osUser)
+	if exists {
+		return true, nil
+	}
+
+	exists, err = s.certificatesCache.UserMappingExists(certID,
+		".*", osUser)
+	if exists {
+		return true, nil
+	}
+
+	exists, err = s.ap.UserMappingExists(certID,
+		teleportUser, osUser)
+	if exists {
+		return true, nil
+	}
+
+	exists, err = s.ap.UserMappingExists(certID,
+		".*", osUser)
+	if exists {
+		return true, nil
+	}
+
+	return false, nil
+}
+
 // isAuthority is called during checking the client key, to see if the signing
 // key is the real CA authority key.
 func (s *Server) isAuthority(auth ssh.PublicKey) bool {
 	// Checking certificates from cache
-	keys, err := s.getTrustedCAKeys(true)
+	_, found, err := s.certificatesCache.GetCertificateID(services.UserCert, auth)
 	if err != nil {
 		log.Errorf("failed to retrieve trused keys, err: %v", err)
 		return false
 	}
-	for _, k := range keys {
-		if sshutils.KeysEqual(k, auth) {
-			return true
-		}
+	if found {
+		return true
 	}
 
 	// Checking certificates from auth server
-	keys, err = s.getTrustedCAKeys(false)
+	_, found, err = s.ap.GetCertificateID(services.UserCert, auth)
 	if err != nil {
 		log.Errorf("failed to retrieve trused keys, err: %v", err)
 		return false
 	}
-	for _, k := range keys {
-		if sshutils.KeysEqual(k, auth) {
-			return true
-		}
+	if found {
+		return true
 	}
 
 	return false
@@ -310,6 +340,14 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	eventID := lunk.NewRootEventID()
 	log.Infof("%v auth attempt with key %v", cid, key.Type())
 
+	cert, ok := key.(*ssh.Certificate)
+	if !ok {
+		log.Warningf("conn(%v->%v, user=%v) ERROR: Server doesn't support provided key type",
+			conn.RemoteAddr(), conn.LocalAddr(), conn.User())
+		return nil, trace.Errorf("ERROR: Server doesn't support provided key type")
+	}
+	teleportUser := cert.Permissions.Extensions["user"]
+
 	p, err := s.certChecker.Authenticate(conn, key)
 	if err != nil {
 		s.elog.Log(eventID, events.NewAuthAttempt(conn, key, false, err))
@@ -317,11 +355,28 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
 		return nil, err
 	}
-	if err := s.certChecker.CheckCert(conn.User(), key.(*ssh.Certificate)); err != nil {
+	if err := s.certChecker.CheckCert(teleportUser, key.(*ssh.Certificate)); err != nil {
 		log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
 			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
 		return nil, trace.Wrap(err)
 	}
+
+	if s.proxyMode {
+		return p, nil
+	}
+
+	exists, err := s.userMappingExists(cert.SignatureKey, teleportUser, conn.User())
+	if err != nil {
+		log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
+			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
+		return nil, trace.Wrap(err)
+	}
+	if !exists {
+		log.Warningf("conn(%v->%v, user=%v) ERROR: teleport user %v doesnt' have permissions to connect as os user %v",
+			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), teleportUser, conn.User())
+		return nil, trace.Errorf("no permissions to connect as %v", conn.User())
+	}
+
 	return p, nil
 }
 
@@ -497,7 +552,7 @@ func (s *Server) dispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Reques
 	switch req.Type {
 	case "exec":
 		// exec is a remote execution of a program, does not use PTY
-		return s.handleExec(ch, req, ctx)
+		return s.handleExec(sconn, ch, req, ctx)
 	case sshutils.PTYReq:
 		// SSH client asked to allocate PTY
 		return s.handlePTYReq(ch, req, ctx)
@@ -611,7 +666,7 @@ func (s *Server) handlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *ctx) error 
 	return nil
 }
 
-func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+func (s *Server) handleExec(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	log.Infof("%v handleExec()", ctx)
 	e, err := parseExecRequest(req, ctx)
 	if err != nil {
@@ -629,7 +684,7 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 		return ch.Close()
 	}
 
-	result, err := e.start(s.shell, ch)
+	result, err := e.start(sconn, s.shell, ch)
 	if err != nil {
 		log.Infof("%v error starting command, %v", ctx, err)
 		replyError(req, err)
