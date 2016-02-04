@@ -59,6 +59,7 @@ func (cmd *Command) SetOut(out io.Writer) {
 func (cmd *Command) Run(args []string) error {
 	app := kingpin.New("tctl", "CLI for key management of teleport SSH cluster")
 	configPath := app.Flag("config", "Path to the Teleport configuration file").Default(DefaultConfigPath).String()
+	useEnv := app.Flag("env", "read configuration parameters from environment").Default("false").Bool()
 
 	// SSH Key pair
 	keyPair := app.Command("keypair", "Helper operations with SSH keypairs")
@@ -182,8 +183,14 @@ func (cmd *Command) Run(args []string) error {
 
 	if !strings.HasPrefix(selectedCommand, agent.FullCommand()) {
 		var cfg service.Config
-		if err := service.ParseYAMLFile(*configPath, &cfg); err != nil {
-			return trace.Wrap(err)
+		if *useEnv {
+			if err := service.ParseEnv(&cfg); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			if err := service.ParseYAMLFile(*configPath, &cfg); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 		service.SetDefaults(&cfg)
 		if cfg.Auth.Enabled && len(cfg.AuthServers) == 0 {
