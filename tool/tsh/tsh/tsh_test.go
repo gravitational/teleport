@@ -89,6 +89,7 @@ type TshSuite struct {
 var _ = Suite(&TshSuite{})
 
 func (s *TshSuite) SetUpSuite(c *C) {
+	utils.InitLoggerCLI()
 	key, err := secret.NewKey()
 	c.Assert(err, IsNil)
 	scrt, err := secret.New(&secret.Config{KeyBytes: key})

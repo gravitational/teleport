@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/lib/events/test"
+	"github.com/gravitational/teleport/lib/utils"
 
 	. "gopkg.in/check.v1"
 )
@@ -33,6 +34,10 @@ type BoltLogSuite struct {
 }
 
 var _ = Suite(&BoltLogSuite{})
+
+func (s *BoltLogSuite) SetUpSuite(c *C) {
+	utils.InitLoggerCLI()
+}
 
 func (s *BoltLogSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()

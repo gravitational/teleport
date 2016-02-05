@@ -18,6 +18,8 @@ package encryptor
 import (
 	. "gopkg.in/check.v1"
 	"reflect"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type naclSuite struct {
@@ -25,6 +27,10 @@ type naclSuite struct {
 }
 
 var _ = Suite(&naclSuite{})
+
+func (s *naclSuite) SetUpSuite(c *C) {
+	utils.InitLoggerCLI()
+}
 
 func (s *naclSuite) SetUpTest(c *C) {
 	key, err := GenerateNaClKey("key1")

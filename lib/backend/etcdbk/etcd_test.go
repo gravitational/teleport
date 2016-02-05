@@ -22,6 +22,7 @@ import (
 
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/gravitational/teleport/lib/backend/test"
+	"github.com/gravitational/teleport/lib/utils"
 
 	. "gopkg.in/check.v1"
 )
@@ -44,6 +45,7 @@ var _ = Suite(&EtcdSuite{
 })
 
 func (s *EtcdSuite) SetUpSuite(c *C) {
+	utils.InitLoggerCLI()
 	nodes_string := os.Getenv("TELEPORT_TEST_ETCD_NODES")
 	if nodes_string == "" {
 		// Skips the entire suite

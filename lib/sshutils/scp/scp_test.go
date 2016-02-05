@@ -25,7 +25,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/teleport/tool"
+	"github.com/gravitational/teleport/lib/utils"
 	. "gopkg.in/check.v1"
 )
 
@@ -37,7 +37,7 @@ type SCPSuite struct {
 var _ = Suite(&SCPSuite{})
 
 func (s *SCPSuite) SetUpSuite(c *C) {
-	tool.InitLoggerCLI()
+	utils.InitLoggerCLI()
 }
 
 func (s *SCPSuite) TestSendFile(c *C) {

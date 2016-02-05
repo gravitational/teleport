@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool"
 
 	"github.com/mailgun/lemma/secret"
 	"golang.org/x/crypto/ssh"
@@ -82,7 +81,7 @@ func (s *CmdSuite) SetUpSuite(c *C) {
 	c.Assert(err, IsNil)
 	s.scrt = srv
 
-	tool.InitLoggerCLI()
+	utils.InitLoggerCLI()
 }
 
 func (s *CmdSuite) SetUpTest(c *C) {

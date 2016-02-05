@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/teleport/tool"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/testdata"
 	. "gopkg.in/check.v1"
@@ -38,7 +37,7 @@ type ServerSuite struct {
 var _ = Suite(&ServerSuite{})
 
 func (s *ServerSuite) SetUpSuite(c *C) {
-	tool.InitLoggerCLI()
+	utils.InitLoggerCLI()
 
 	pk, err := ssh.ParsePrivateKey(testdata.PEMBytes["ecdsa"])
 	c.Assert(err, IsNil)

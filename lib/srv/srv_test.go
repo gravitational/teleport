@@ -65,6 +65,7 @@ type SrvSuite struct {
 var _ = Suite(&SrvSuite{})
 
 func (s *SrvSuite) SetUpSuite(c *C) {
+	utils.InitLoggerCLI()
 	key, err := secret.NewKey()
 	c.Assert(err, IsNil)
 	srv, err := secret.New(&secret.Config{KeyBytes: key})

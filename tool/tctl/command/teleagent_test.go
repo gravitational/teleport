@@ -39,8 +39,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 
-	"github.com/gokyle/hotp"
 	log "github.com/Sirupsen/logrus"
+	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
 	"github.com/mailgun/lemma/secret"
 	"golang.org/x/crypto/ssh"
@@ -52,6 +52,10 @@ type TeleagentSuite struct {
 }
 
 var _ = Suite(&TeleagentSuite{})
+
+func (s *TeleagentSuite) SetUpSuite(c *C) {
+	utils.InitLoggerCLI()
+}
 
 func (s *TeleagentSuite) TestTeleagent(c *C) {
 	u, err := user.Current()

@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/tool"
+	"github.com/gravitational/teleport/lib/utils"
 	. "gopkg.in/check.v1"
 )
 
@@ -35,7 +35,7 @@ type BoltSuite struct {
 var _ = Suite(&BoltSuite{})
 
 func (s *BoltSuite) SetUpSuite(c *C) {
-	tool.InitLoggerCLI()
+	utils.InitLoggerCLI()
 }
 
 func (s *BoltSuite) SetUpTest(c *C) {
