@@ -17,6 +17,7 @@ package web
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gravitational/teleport/lib/sshutils"
 
@@ -41,18 +42,38 @@ func (w *wsHandler) Close() error {
 }
 
 func (w *wsHandler) connect(ws *websocket.Conn) {
-	up, err := w.connectUpstream()
-	if err != nil {
-		log.Errorf("wsHandler: failed: %v", err)
-		return
+	for {
+		ws.Write([]byte("Enter username:\n\r"))
+		username := ""
+		buf := make([]byte, 1)
+		for {
+			ws.Read(buf)
+			if (buf[0] != 10) && (buf[0] != 13) {
+				username += string(buf)
+				ws.Write(buf)
+			} else {
+				break
+			}
+		}
+		ws.Write([]byte("\n\r"))
+
+		up, err := w.connectUpstream(username)
+		if err != nil {
+			ws.Write([]byte(err.Error() + "\n"))
+			log.Errorf("wsHandler: failed: %v", err)
+			continue
+		}
+		w.up = up
+		err = w.up.PipeShell(ws)
+
+		log.Infof("Pipe shell finished with: %v", err)
+		time.Sleep(time.Millisecond * 300)
+		ws.Write([]byte("\n\rDisconnected\n\r"))
 	}
-	w.up = up
-	err = w.up.PipeShell(ws)
-	log.Infof("Pipe shell finished with: %v", err)
 }
 
-func (w *wsHandler) connectUpstream() (*sshutils.Upstream, error) {
-	up, err := w.ctx.ConnectUpstream(w.addr)
+func (w *wsHandler) connectUpstream(user string) (*sshutils.Upstream, error) {
+	up, err := w.ctx.ConnectUpstream(w.addr, user)
 	if err != nil {
 		return nil, err
 	}

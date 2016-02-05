@@ -101,10 +101,8 @@ func (t *term) run(c *exec.Cmd) error {
 	c.Stdout = t.tty
 	c.Stdin = t.tty
 	c.Stderr = t.tty
-	c.SysProcAttr = &syscall.SysProcAttr{
-		Setctty: true,
-		Setsid:  true,
-	}
+	c.SysProcAttr.Setctty = true
+	c.SysProcAttr.Setsid = true
 	return c.Start()
 }
 

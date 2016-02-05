@@ -18,6 +18,7 @@ package command
 import (
 	"net"
 	"net/http"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"time"
@@ -53,6 +54,10 @@ type TeleagentSuite struct {
 var _ = Suite(&TeleagentSuite{})
 
 func (s *TeleagentSuite) TestTeleagent(c *C) {
+	u, err := user.Current()
+	c.Assert(err, IsNil)
+	osUser := u.Name
+
 	key, err := secret.NewKey()
 	c.Assert(err, IsNil)
 	scrt, err := secret.New(&secret.Config{KeyBytes: key})
@@ -118,6 +123,8 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	pass := []byte("utndkrn")
 	hotpURL, _, err := a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
+
+	c.Assert(a.UpsertUserMapping("local", user, osUser, time.Hour), IsNil)
 
 	otp, _, err := hotp.FromURL(hotpURL)
 	c.Assert(err, IsNil)
@@ -195,7 +202,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	c.Assert(err, IsNil)
 
 	sshConfig := &ssh.ClientConfig{
-		User: user,
+		User: osUser,
 		Auth: []ssh.AuthMethod{ssh.PublicKeysCallback(sshAgent.Signers)},
 	}
 
@@ -212,7 +219,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	c.Assert(err, IsNil)
 
 	sshConfig = &ssh.ClientConfig{
-		User: user,
+		User: osUser,
 		Auth: []ssh.AuthMethod{ssh.PublicKeysCallback(sshAgent.Signers)},
 	}
 

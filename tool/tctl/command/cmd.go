@@ -84,6 +84,22 @@ func (cmd *Command) Run(args []string) error {
 
 	userCaPubKey := userCa.Command("pub-key", "Print user certificate authority public key")
 
+	// User Mapping
+	userMapping := app.Command("user-mapping", "Mapping teleport and OS users")
+
+	userMappingAdd := userMapping.Command("add", "Add allowed user mapping")
+	userMappingAddTeleportUser := userMappingAdd.Arg("teleport-user", "Teleport user").Required().String()
+	userMappingAddOSUser := userMappingAdd.Arg("os-user", "OS user").Required().String()
+	userMappingAddCertID := userMappingAdd.Flag("certificate-ID", "ID of the certificate authority that will be allowed. Be defalut local certificate authority is selected").Default("local").String()
+	userMappingAddTTL := userMappingAdd.Flag("ttl", "duration of the created mapping").Duration()
+
+	userMappingRm := userMapping.Command("rm", "Remove allowed user mapping")
+	userMappingRmTeleportUser := userMappingRm.Arg("teleport-user", "Teleport user").Required().String()
+	userMappingRmOSUser := userMappingRm.Arg("os-user", "OS user").Required().String()
+	userMappingRmCertID := userMappingRm.Flag("certificate-ID", "ID of the certificate authority. Be defalut local certificate authority is selected").Default("local").String()
+
+	userMappingLs := userMapping.Command("ls", "List all the allowed user mappings")
+
 	// Remote CA
 	remoteCa := app.Command("remote-ca", "Operations with remote certificate authority")
 
@@ -98,7 +114,7 @@ func (cmd *Command) Run(args []string) error {
 	remoteCaLsDomainName := remoteCaLs.Flag("domain", "Domain name of the remote party").String()
 	remoteCaLsType := remoteCaLs.Flag("type", "Cert type (host or user)").Required().String()
 
-	remoteCaRm := remoteCa.Command("rm", "Remote remote Certificate authority from list of trusted certs")
+	remoteCaRm := remoteCa.Command("rm", "Remove remote Certificate authority from list of trusted certs")
 	remoteCaRmID := remoteCaRm.Flag("id", "Certificate id").Required().String()
 	remoteCaRmDomainName := remoteCaRm.Flag("domain", "Domain name of the remote party").Required().String()
 	remoteCaRmType := remoteCaRm.Flag("type", "Cert type (host or user)").Required().String()
@@ -243,6 +259,14 @@ func (cmd *Command) Run(args []string) error {
 		cmd.GetRemoteCertificates(*remoteCaLsDomainName, *remoteCaLsType)
 	case remoteCaRm.FullCommand():
 		cmd.DeleteRemoteCertificate(*remoteCaRmID, *remoteCaRmDomainName, *remoteCaRmType)
+
+	// User Mapping
+	case userMappingAdd.FullCommand():
+		cmd.UpsertUserMapping(*userMappingAddCertID, *userMappingAddTeleportUser, *userMappingAddOSUser, *userMappingAddTTL)
+	case userMappingRm.FullCommand():
+		cmd.DeleteUserMapping(*userMappingRmCertID, *userMappingRmTeleportUser, *userMappingRmOSUser)
+	case userMappingLs.FullCommand():
+		cmd.ListUserMappings()
 
 	// Secret
 	case secretNew.FullCommand():

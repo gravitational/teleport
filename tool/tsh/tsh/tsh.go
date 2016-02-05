@@ -95,11 +95,15 @@ func SSH(target, proxyAddress, command, port string, authMethods []ssh.AuthMetho
 
 	width, height, err := getTerminalSize()
 	if err != nil {
+		// restore the console echoing state when exiting
+		exec.Command("stty", "-F", "/dev/tty", "echo").Run()
 		return trace.Wrap(err)
 	}
 
 	shell, err := c.Shell(width, height)
 	if err != nil {
+		// restore the console echoing state when exiting
+		exec.Command("stty", "-F", "/dev/tty", "echo").Run()
 		return trace.Wrap(err)
 	}
 
@@ -173,6 +177,8 @@ func SSH(target, proxyAddress, command, port string, authMethods []ssh.AuthMetho
 	}()
 
 	wg.Wait()
+	// restore the console echoing state when exiting
+	exec.Command("stty", "-F", "/dev/tty", "echo").Run()
 	return nil
 }
 

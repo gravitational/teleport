@@ -60,7 +60,7 @@ func DecodeCookie(b string) (*Cookie, error) {
 
 type Context interface {
 	io.Closer
-	ConnectUpstream(addr string) (*sshutils.Upstream, error)
+	ConnectUpstream(addr string, user string) (*sshutils.Upstream, error)
 	GetAuthMethods() ([]ssh.AuthMethod, error)
 	GetWebSID() string
 	GetUser() string
@@ -106,7 +106,7 @@ func (c *LocalContext) Close() error {
 	return nil
 }
 
-func (c *LocalContext) ConnectUpstream(addr string) (*sshutils.Upstream, error) {
+func (c *LocalContext) ConnectUpstream(addr string, user string) (*sshutils.Upstream, error) {
 	agent, err := c.clt.GetAgent()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get agent: %v", err)
@@ -115,7 +115,7 @@ func (c *LocalContext) ConnectUpstream(addr string) (*sshutils.Upstream, error) 
 	if err != nil {
 		return nil, fmt.Errorf("no signers: %v", err)
 	}
-	return sshutils.DialUpstream(c.user, addr, signers)
+	return sshutils.DialUpstream(user, addr, signers)
 }
 
 type RequestHandler func(http.ResponseWriter, *http.Request, httprouter.Params, Context)

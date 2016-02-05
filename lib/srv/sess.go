@@ -20,8 +20,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/user"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/teleport/lib/events"
@@ -29,8 +32,9 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 
 	"code.google.com/p/go-uuid/uuid"
-	"github.com/codahale/lunk"
 	log "github.com/Sirupsen/logrus"
+	"github.com/codahale/lunk"
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -162,6 +166,37 @@ func (s *session) upsertSessionParty(sid string, p *party, ttl time.Duration) er
 	}, ttl)
 }
 
+func setCmdUser(cmd *exec.Cmd, username string) error {
+	cmd.SysProcAttr = &syscall.SysProcAttr{}
+
+	osUser, err := user.Lookup(username)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	curUser, err := user.Current()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if (username != curUser.Name) || (username != curUser.Username) {
+		uid, err := strconv.Atoi(osUser.Uid)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		gid, err := strconv.Atoi(osUser.Gid)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
+		cmd.Dir = osUser.HomeDir
+	} else {
+		cmd.Dir = curUser.HomeDir
+	}
+
+	return nil
+}
+
 func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	s.eid = ctx.eid
 	p := newParty(s, sconn, ch, ctx)
@@ -179,7 +214,17 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	// TODO(klizhentas) figure out linux user policy for launching shells,
 	// what user and environment should we use to execute the shell? the simplest
 	// answer is to use current user and env, however  what if we are root?
-	cmd.Env = []string{"TERM=xterm", fmt.Sprintf("HOME=%v", os.Getenv("HOME"))}
+	cmd.Env = []string{
+		"TERM=xterm",
+		"HOME=" + os.Getenv("HOME"),
+		"USER=" + sconn.User(),
+	}
+
+	err := setCmdUser(cmd, sconn.User())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := s.t.run(cmd); err != nil {
 		log.Infof("%v failed to start shell: %v", p.ctx, err)
 		return err

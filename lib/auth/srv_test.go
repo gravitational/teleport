@@ -422,3 +422,163 @@ func (s *APISuite) TestSharedSessionsParties(c *C) {
 	}
 	c.Assert(out, DeepEquals, []session.Session{sess})
 }
+
+func (s *APISuite) TestTrustedCertificates(c *C) {
+	a := authority.New()
+	priv1, pub1, err := a.GenerateKeyPair("")
+	c.Assert(err, IsNil)
+	key1, _, _, _, err := ssh.ParseAuthorizedKey(pub1)
+	c.Assert(err, IsNil)
+
+	userCA := services.LocalCertificateAuthority{
+		CertificateAuthority: services.CertificateAuthority{
+			PublicKey:  pub1,
+			ID:         "id1",
+			Type:       services.UserCert,
+			DomainName: "host1",
+		},
+		PrivateKey: priv1,
+	}
+	c.Assert(s.CAS.UpsertUserCertificateAuthority(userCA), IsNil)
+	userPubCA, err := s.CAS.GetUserCertificateAuthority()
+	c.Assert(err, IsNil)
+
+	hostCA := services.LocalCertificateAuthority{
+		CertificateAuthority: services.CertificateAuthority{
+			PublicKey:  []byte("capub"),
+			ID:         "id2",
+			Type:       services.UserCert,
+			DomainName: "host1",
+		},
+		PrivateKey: []byte("capriv"),
+	}
+	c.Assert(s.CAS.UpsertHostCertificateAuthority(hostCA), IsNil)
+	hostPubCA, err := s.CAS.GetHostCertificateAuthority()
+	c.Assert(err, IsNil)
+
+	_, pub2, err := a.GenerateKeyPair("")
+	c.Assert(err, IsNil)
+	key2, _, _, _, err := ssh.ParseAuthorizedKey(pub2)
+	c.Assert(err, IsNil)
+
+	ca1 := services.CertificateAuthority{
+		Type:       services.UserCert,
+		ID:         "c1",
+		DomainName: "example.com",
+		PublicKey:  pub2,
+	}
+	c.Assert(s.CAS.UpsertRemoteCertificate(ca1, 0), IsNil)
+
+	ca2 := services.CertificateAuthority{
+		Type:       services.UserCert,
+		ID:         "c2",
+		DomainName: "example.org",
+		PublicKey:  []byte("hello2"),
+	}
+	c.Assert(s.CAS.UpsertRemoteCertificate(ca2, 0), IsNil)
+
+	_, pub3, err := a.GenerateKeyPair("")
+	c.Assert(err, IsNil)
+	key3, _, _, _, err := ssh.ParseAuthorizedKey(pub3)
+	c.Assert(err, IsNil)
+
+	remoteUserCAs, err := s.clt.GetRemoteCertificates(services.UserCert, "")
+	c.Assert(err, IsNil)
+	remoteHostCAs, err := s.clt.GetRemoteCertificates(services.HostCert, "")
+	c.Assert(err, IsNil)
+
+	trustedUserCertificates, err := s.clt.GetTrustedCertificates(services.UserCert)
+	c.Assert(err, IsNil)
+	trustedHostCertificates, err := s.clt.GetTrustedCertificates(services.HostCert)
+	c.Assert(err, IsNil)
+
+	c.Assert(trustedUserCertificates, DeepEquals, append(remoteUserCAs, *userPubCA))
+	c.Assert(trustedHostCertificates, DeepEquals, append(remoteHostCAs, *hostPubCA))
+
+	id1, found, err := s.clt.GetCertificateID(services.UserCert, key1)
+	c.Assert(err, IsNil)
+	c.Assert(found, Equals, true)
+	c.Assert(id1, Equals, "id1")
+
+	id2, found, err := s.clt.GetCertificateID(services.UserCert, key2)
+	c.Assert(err, IsNil)
+	c.Assert(found, Equals, true)
+	c.Assert(id2, Equals, "c1")
+
+	_, found, err = s.clt.GetCertificateID(services.UserCert, key3)
+	c.Assert(err, IsNil)
+	c.Assert(found, Equals, false)
+}
+
+func (s *APISuite) TestUserMapping(c *C) {
+	c.Assert(s.clt.UpsertUserMapping("a1", "b1", "c1", 0), IsNil)
+	c.Assert(s.clt.UpsertUserMapping("a2", "b2", "c2", 0), IsNil)
+	c.Assert(s.clt.UpsertUserMapping("a3", "b3", "c3", 0), IsNil)
+	c.Assert(s.clt.UpsertUserMapping("a4", "b4", "c4", time.Millisecond*500), IsNil)
+
+	ok, err := s.clt.UserMappingExists("a1", "b1", "c1")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	ok, err = s.clt.UserMappingExists("a2", "b2", "c2")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	ok, err = s.clt.UserMappingExists("a3", "b3", "c3")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	ok, err = s.clt.UserMappingExists("a4", "b4", "c4")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	ok, err = s.clt.UserMappingExists("a5", "b5", "c5")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, false)
+
+	c.Assert(s.clt.DeleteUserMapping("a2", "b2", "c2"), IsNil)
+
+	time.Sleep(time.Millisecond * 600)
+
+	ok, err = s.clt.UserMappingExists("a1", "b1", "c1")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	ok, err = s.clt.UserMappingExists("a2", "b2", "c2")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, false)
+	ok, err = s.clt.UserMappingExists("a3", "b3", "c3")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	ok, err = s.clt.UserMappingExists("a4", "b4", "c4")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, false)
+
+	hashes, err := s.clt.GetAllUserMappings()
+	c.Assert(err, IsNil)
+
+	c.Assert(s.clt.DeleteUserMapping("a1", "b1", "c1"), IsNil)
+
+	ok, err = s.clt.UserMappingExists("a1", "b1", "c1")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, false)
+	ok, err = s.clt.UserMappingExists("a2", "b2", "c2")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, false)
+	ok, err = s.clt.UserMappingExists("a3", "b3", "c3")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	ok, err = s.clt.UserMappingExists("a4", "b4", "c4")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, false)
+
+	c.Assert(s.CAS.UpdateUserMappings(hashes, time.Minute), IsNil)
+
+	ok, err = s.clt.UserMappingExists("a1", "b1", "c1")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	ok, err = s.clt.UserMappingExists("a2", "b2", "c2")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, false)
+	ok, err = s.clt.UserMappingExists("a3", "b3", "c3")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	ok, err = s.clt.UserMappingExists("a4", "b4", "c4")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, false)
+}

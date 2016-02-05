@@ -14,7 +14,7 @@ import (
 
 // CLI tools by default log into syslog, not stderr
 func InitLoggerCLI() {
-	hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_ERR, "")
+	hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_INFO, "")
 	if err != nil {
 		panic(err)
 	}

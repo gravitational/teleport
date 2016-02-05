@@ -102,3 +102,11 @@ func (s *BoltSuite) TestToken(c *C) {
 func (s *BoltSuite) TestRemoteCert(c *C) {
 	s.suite.RemoteCertCRUD(c)
 }
+
+func (s *BoltSuite) TestTrustedCertificates(c *C) {
+	s.suite.TrustedCertificates(c)
+}
+
+func (s *BoltSuite) TestUserMapping(c *C) {
+	s.suite.UserMapping(c)
+}

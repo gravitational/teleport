@@ -19,11 +19,13 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"syscall"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -64,8 +66,9 @@ func (e *execFn) String() string {
 }
 
 // execute is a blocking execution of a command
-func (e *execFn) start(shell string, ch ssh.Channel) (*execResult, error) {
+func (e *execFn) start(sconn *ssh.ServerConn, shell string, ch ssh.Channel) (*execResult, error) {
 	e.cmd = exec.Command(shell, []string{"-c", e.cmdName}...)
+	//e.cmd = exec.Command(e.cmdName)
 	// we capture output to the buffer
 	e.cmd.Stdout = io.MultiWriter(e.out, ch)
 	e.cmd.Stderr = io.MultiWriter(e.out, ch)
@@ -74,6 +77,18 @@ func (e *execFn) start(shell string, ch ssh.Channel) (*execResult, error) {
 	// e.cmd.Wait() never returns  because stdin never gets closed or never reached
 	// see cmd.Stdin comments
 	e.cmd.Stdin = nil
+
+	e.cmd.Env = []string{
+		"TERM=xterm",
+		"HOME=" + os.Getenv("HOME"),
+		"USER=" + sconn.User(),
+	}
+
+	err := setCmdUser(e.cmd, sconn.User())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := e.cmd.Start(); err != nil {
 		log.Infof("%v %v start failure err: %v", e.ctx, e, err)
 		return e.collectStatus(e.cmd, err)

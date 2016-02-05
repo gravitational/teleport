@@ -27,6 +27,7 @@ import (
 
 	"github.com/codahale/lunk"
 	websession "github.com/gravitational/session"
+	"golang.org/x/crypto/ssh"
 )
 
 type AuthWithRoles struct {
@@ -406,5 +407,45 @@ func (a *AuthWithRoles) CreateUserWithToken(token, password, hotpToken string) e
 		return err
 	} else {
 		return a.authServer.CreateUserWithToken(token, password, hotpToken)
+	}
+}
+
+func (a *AuthWithRoles) GetCertificateID(certType string, key ssh.PublicKey) (ID string, found bool, e error) {
+	if err := a.permChecker.HasPermission(a.role, ActionGetCertificateID); err != nil {
+		return "", false, err
+	} else {
+		return a.authServer.GetCertificateID(certType, key)
+	}
+}
+
+func (a *AuthWithRoles) UpsertUserMapping(certificateID, teleportUser, osUser string, ttl time.Duration) error {
+	if err := a.permChecker.HasPermission(a.role, ActionUpsertUserMapping); err != nil {
+		return err
+	} else {
+		return a.authServer.UpsertUserMapping(certificateID, teleportUser, osUser, ttl)
+	}
+}
+
+func (a *AuthWithRoles) DeleteUserMapping(certificateID, teleportUser, osUser string) error {
+	if err := a.permChecker.HasPermission(a.role, ActionDeleteUserMapping); err != nil {
+		return err
+	} else {
+		return a.authServer.DeleteUserMapping(certificateID, teleportUser, osUser)
+	}
+}
+
+func (a *AuthWithRoles) UserMappingExists(certificateID, teleportUser, osUser string) (bool, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionUserMappingExists); err != nil {
+		return false, err
+	} else {
+		return a.authServer.UserMappingExists(certificateID, teleportUser, osUser)
+	}
+}
+
+func (a *AuthWithRoles) GetAllUserMappings() (hashes []string, e error) {
+	if err := a.permChecker.HasPermission(a.role, ActionGetAllUserMappings); err != nil {
+		return nil, err
+	} else {
+		return a.authServer.GetAllUserMappings()
 	}
 }
