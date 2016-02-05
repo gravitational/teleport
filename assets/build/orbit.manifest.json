@@ -4,7 +4,8 @@
         {"name": "os", "value": "linux"}
     ],
     "commands": [
-        {"name": "start", "args": ["rootfs/usr/bin/teleport", "--env"]}
+      {"name": "start", "args": ["rootfs/usr/bin/teleport", "--env"]},
+      {"name": "tctl", "args": ["rootfs/usr/bin/tctl", "--env"]}
     ],
     "config": {
         "params": [
