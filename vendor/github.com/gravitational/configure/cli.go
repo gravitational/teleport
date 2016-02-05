@@ -23,7 +23,7 @@ import (
 
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/gravitational/kingpin"
 )
 
 // ParseCommandLine takes a pointer to a function and attempts

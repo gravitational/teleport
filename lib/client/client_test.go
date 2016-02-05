@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"io/ioutil"
 	"net/http"
+	"os/user"
 	"path/filepath"
 	"testing"
 	"time"
@@ -75,6 +76,7 @@ type ClientSuite struct {
 var _ = Suite(&ClientSuite{})
 
 func (s *ClientSuite) SetUpSuite(c *C) {
+	utils.InitLoggerCLI()
 	key, err := secret.NewKey()
 	c.Assert(err, IsNil)
 	scrt, err := secret.New(&secret.Config{KeyBytes: key})
@@ -111,7 +113,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	ap := auth.NewBackendAccessPoint(s.bk)
 
 	// Starting node1
-	s.srvAddress = "127.0.0.1:30185"
+	s.srvAddress = "127.0.0.1:30187"
 	s.srv, err = srv.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srvAddress},
 		"localhost",
@@ -160,7 +162,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	c.Assert(s.srv2.Start(), IsNil)
 
 	// Starting proxy
-	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:33056"}
+	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:33057"}
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
@@ -195,14 +197,18 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	go apiSrv.Serve()
 
 	tsrv, err := auth.NewTunServer(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:31497"},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:31498"},
 		[]ssh.Signer{s.signer},
 		apiSrv, s.a, allowAllLimiter)
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
 
-	s.user = "user1"
+	u, err := user.Current()
+	c.Assert(err, IsNil)
+	s.user = u.Name
 	s.pass = []byte("utndkrn")
+
+	c.Assert(s.a.UpsertUserMapping("local", s.user, s.user, time.Hour), IsNil)
 
 	hotpURL, _, err := s.a.UpsertPassword(s.user, s.pass)
 	c.Assert(err, IsNil)
@@ -351,17 +357,19 @@ func (s *ClientSuite) TestShell(c *C) {
 	shell, err := nodeClient.Shell(100, 100)
 	c.Assert(err, IsNil)
 
-	time.Sleep(time.Millisecond * 100)
-
+	out := make([]byte, 100)
+	n, err := shell.Read(out)
+	c.Assert(err, IsNil)
+	c.Assert(string(out[:n]), Equals, "$ ")
 	// run first command
 	_, err = shell.Write([]byte("expr 11 + 22\n"))
 	c.Assert(err, IsNil)
 	time.Sleep(time.Millisecond * 100)
 
-	out := make([]byte, 100)
-	n, err := shell.Read(out)
+	out = make([]byte, 100)
+	n, err = shell.Read(out)
 	c.Assert(err, IsNil)
-	c.Assert(string(out[:n]), Equals, "$ expr 11 + 22\r\n33\r\n$ ")
+	c.Assert(string(out[:n]), Equals, "expr 11 + 22\r\n33\r\n$ ")
 
 	// run second command
 	_, err = shell.Write([]byte("expr 2 + 3\n"))
@@ -381,7 +389,7 @@ func (s *ClientSuite) TestGetServer(c *C) {
 	c.Assert(err, IsNil)
 
 	server1Info := services.Server{
-		ID:       "127.0.0.1_30185",
+		ID:       "127.0.0.1_30187",
 		Addr:     s.srvAddress,
 		Hostname: "localhost",
 		Labels: map[string]string{
@@ -637,4 +645,8 @@ func (s *ClientSuite) TestSplitUserAndAddress(c *C) {
 	user, addr = SplitUserAndAddress("abcd:1234")
 	c.Assert(user, Equals, "")
 	c.Assert(addr, Equals, "abcd:1234")
+
+	user, addr = SplitUserAndAddress("user@gmail.com@address")
+	c.Assert(user, Equals, "user@gmail.com")
+	c.Assert(addr, Equals, "address")
 }

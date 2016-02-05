@@ -10,9 +10,9 @@ export GO15VENDOREXPERIMENT=1
 # Default target: builds all 3 executables and plaaces them in a current directory
 #
 all: 
-	go build -o teleport -a github.com/gravitational/teleport/tool/teleport
-	go build -o tctl -a github.com/gravitational/teleport/tool/tctl
-	go build -o tsh github.com/gravitational/teleport/tool/tsh
+	go build -o teleport -i github.com/gravitational/teleport/tool/teleport
+	go build -o tctl     -i github.com/gravitational/teleport/tool/tctl
+	go build -o tsh      -i github.com/gravitational/teleport/tool/tsh
 
 install: remove-temp-files
 	go install github.com/gravitational/teleport/tool/teleport

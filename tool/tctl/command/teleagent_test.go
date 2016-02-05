@@ -18,6 +18,7 @@ package command
 import (
 	"net"
 	"net/http"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"time"
@@ -38,8 +39,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 
-	"github.com/gokyle/hotp"
 	log "github.com/Sirupsen/logrus"
+	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
 	"github.com/mailgun/lemma/secret"
 	"golang.org/x/crypto/ssh"
@@ -52,7 +53,15 @@ type TeleagentSuite struct {
 
 var _ = Suite(&TeleagentSuite{})
 
+func (s *TeleagentSuite) SetUpSuite(c *C) {
+	utils.InitLoggerCLI()
+}
+
 func (s *TeleagentSuite) TestTeleagent(c *C) {
+	u, err := user.Current()
+	c.Assert(err, IsNil)
+	osUser := u.Name
+
 	key, err := secret.NewKey()
 	c.Assert(err, IsNil)
 	scrt, err := secret.New(&secret.Config{KeyBytes: key})
@@ -107,7 +116,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	go apiSrv.Serve()
 
 	tsrv, err := auth.NewTunServer(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:31497"},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:31499"},
 		[]ssh.Signer{signer},
 		apiSrv, a, limiter)
 	c.Assert(err, IsNil)
@@ -118,6 +127,8 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	pass := []byte("utndkrn")
 	hotpURL, _, err := a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
+
+	c.Assert(a.UpsertUserMapping("local", user, osUser, time.Hour), IsNil)
 
 	otp, _, err := hotp.FromURL(hotpURL)
 	c.Assert(err, IsNil)
@@ -139,7 +150,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	c.Assert(rsAgent.Start(), IsNil)
 
 	srv, err := srv.New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:30185"},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:30188"},
 		"localhost",
 		[]ssh.Signer{signer},
 		ap,
@@ -195,7 +206,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	c.Assert(err, IsNil)
 
 	sshConfig := &ssh.ClientConfig{
-		User: user,
+		User: osUser,
 		Auth: []ssh.AuthMethod{ssh.PublicKeysCallback(sshAgent.Signers)},
 	}
 
@@ -212,7 +223,7 @@ func (s *TeleagentSuite) TestTeleagent(c *C) {
 	c.Assert(err, IsNil)
 
 	sshConfig = &ssh.ClientConfig{
-		User: user,
+		User: osUser,
 		Auth: []ssh.AuthMethod{ssh.PublicKeysCallback(sshAgent.Signers)},
 	}
 

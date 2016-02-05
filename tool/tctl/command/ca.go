@@ -18,6 +18,7 @@ package command
 import (
 	"fmt"
 	"io/ioutil"
+	"sort"
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -133,4 +134,47 @@ func remoteCertsView(certs []services.CertificateAuthority) string {
 		fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", c.Type, c.DomainName, c.ID, string(c.PublicKey))
 	}
 	return t.String()
+}
+
+func (cmd *Command) UpsertUserMapping(certificateID, teleportUser, osUser string, ttl time.Duration) {
+	err := cmd.client.UpsertUserMapping(certificateID, teleportUser, osUser, ttl)
+	if err != nil {
+		cmd.printError(err)
+		return
+	}
+	cmd.printOK("User mapping added")
+}
+
+func (cmd *Command) DeleteUserMapping(certificateID, teleportUser, osUser string) {
+	err := cmd.client.DeleteUserMapping(certificateID, teleportUser, osUser)
+	if err != nil {
+		cmd.printError(err)
+		return
+	}
+	cmd.printOK("User mapping deleted")
+}
+
+func (cmd *Command) ListUserMappings() {
+	IDs, err := cmd.client.GetAllUserMappings()
+	if err != nil {
+		cmd.printError(err)
+		return
+	}
+	sort.Strings(IDs)
+
+	t := goterm.NewTable(0, 10, 5, ' ', 0)
+	fmt.Fprint(t, "teleport_username\tOS_username\tcertificate_ID\n")
+	if len(IDs) == 0 {
+		fmt.Fprintf(cmd.out, t.String())
+		return
+	}
+	for _, id := range IDs {
+		certificateID, teleportUser, osUser, err := services.ParseUserMappingID(id)
+		if err != nil {
+			cmd.printError(err)
+			return
+		}
+		fmt.Fprintf(t, "%v\t%v\t%v\n", teleportUser, osUser, certificateID)
+	}
+	fmt.Fprintf(cmd.out, t.String())
 }

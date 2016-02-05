@@ -363,9 +363,9 @@ loop:
 
 	// Set defaults for all remaining args.
 	for arg := context.nextArg(); arg != nil && !arg.consumesRemainder(); arg = context.nextArg() {
-		if arg.defaultValue != "" {
-			if err := arg.value.Set(arg.defaultValue); err != nil {
-				return fmt.Errorf("invalid default value '%s' for argument '%s'", arg.defaultValue, arg.name)
+		for _, defaultValue := range arg.defaultValues {
+			if err := arg.value.Set(defaultValue); err != nil {
+				return fmt.Errorf("invalid default value '%s' for argument '%s'", defaultValue, arg.name)
 			}
 		}
 	}

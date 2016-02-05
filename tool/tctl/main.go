@@ -18,17 +18,17 @@ package main
 import (
 	"os"
 
-	"github.com/gravitational/teleport/tool"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tctl/command"
 )
 
 func main() {
-	tool.InitLoggerCLI()
-	app := tool.InitCmdlineParser("tctl", "CLI for key management of teleport SSH cluster")
+	utils.InitLoggerCLI()
+	app := utils.InitCmdlineParser("tctl", "CLI for key management of teleport SSH cluster")
 
-	err := command.NewCommand().Run(app)
+	err := command.NewCommand().Run(app, os.Args)
 	if err != nil {
-		tool.Errorf(err.Error())
+		utils.Errorf(err.Error())
 		os.Exit(-1)
 	}
 }

@@ -20,5 +20,6 @@
   {"name": "ExistingDir", "Type": "string", "plural": "ExistingDirs", "no_value_parser": true},
   {"name": "ExistingFileOrDir", "Type": "string", "plural": "ExistingFilesOrDirs", "no_value_parser": true},
   {"name": "Regexp", "Type": "*regexp.Regexp", "parser": "regexp.Compile(s)"},
-  {"name": "ResolvedIP", "Type": "net.IP", "parser": "resolveHost(s)", "help": "Resolve a hostname or IP to an IP."}
+  {"name": "ResolvedIP", "Type": "net.IP", "parser": "resolveHost(s)", "help": "Resolve a hostname or IP to an IP."},
+  {"name": "HexBytes", "Type": "[]byte", "parser": "hex.DecodeString(s)", "help": "Bytes as a hex string."}
 ]

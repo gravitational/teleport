@@ -19,10 +19,12 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/mailgun/lemma/random"
 
 	"github.com/gokyle/hotp"
+	"github.com/mailgun/lemma/random"
+	"golang.org/x/crypto/ssh"
 
 	. "gopkg.in/check.v1"
 )
@@ -373,14 +375,21 @@ func (s *ServicesTestSuite) RemoteCertCRUD(c *C) {
 }
 
 func (s *ServicesTestSuite) TrustedCertificates(c *C) {
+	a := testauthority.New()
+
+	priv1, pub1, err := a.GenerateKeyPair("")
+	c.Assert(err, IsNil)
+	key1, _, _, _, err := ssh.ParseAuthorizedKey(pub1)
+	c.Assert(err, IsNil)
+
 	userCA := LocalCertificateAuthority{
 		CertificateAuthority: CertificateAuthority{
-			PublicKey:  []byte("capub"),
+			PublicKey:  pub1,
 			ID:         "id1",
 			Type:       UserCert,
 			DomainName: "host1",
 		},
-		PrivateKey: []byte("capriv"),
+		PrivateKey: priv1,
 	}
 	c.Assert(s.CAS.UpsertUserCertificateAuthority(userCA), IsNil)
 	userPubCA, err := s.CAS.GetUserCertificateAuthority()
@@ -389,49 +398,122 @@ func (s *ServicesTestSuite) TrustedCertificates(c *C) {
 	hostCA := LocalCertificateAuthority{
 		CertificateAuthority: CertificateAuthority{
 			PublicKey:  []byte("capub"),
-			ID:         "id1",
+			ID:         "id2",
 			Type:       UserCert,
 			DomainName: "host1",
 		},
 		PrivateKey: []byte("capriv"),
 	}
 	c.Assert(s.CAS.UpsertHostCertificateAuthority(hostCA), IsNil)
-	hostPubCA, err := s.CAS.GetUserCertificateAuthority()
+	hostPubCA, err := s.CAS.GetHostCertificateAuthority()
 	c.Assert(err, IsNil)
 
 	ca1 := CertificateAuthority{
-		Type:       HostCert,
+		Type:       UserCert,
 		ID:         "c1",
 		DomainName: "example.com",
-		PublicKey:  []byte("hello"),
+		PublicKey:  []byte("hello1"),
 	}
 	c.Assert(s.CAS.UpsertRemoteCertificate(ca1, 0), IsNil)
 
 	ca2 := CertificateAuthority{
-		Type:       HostCert,
+		Type:       UserCert,
 		ID:         "c2",
 		DomainName: "example.org",
 		PublicKey:  []byte("hello2"),
 	}
 	c.Assert(s.CAS.UpsertRemoteCertificate(ca2, 0), IsNil)
 
-	remoteCAs, err := s.CAS.GetRemoteCertificates("", "")
-	c.Assert(err, IsNil)
 	remoteUserCAs, err := s.CAS.GetRemoteCertificates(UserCert, "")
 	c.Assert(err, IsNil)
 	remoteHostCAs, err := s.CAS.GetRemoteCertificates(HostCert, "")
 	c.Assert(err, IsNil)
 
-	trustedCertificates, err := s.CAS.GetTrustedCertificates("")
-	c.Assert(err, IsNil)
 	trustedUserCertificates, err := s.CAS.GetTrustedCertificates(UserCert)
 	c.Assert(err, IsNil)
 	trustedHostCertificates, err := s.CAS.GetTrustedCertificates(HostCert)
 	c.Assert(err, IsNil)
 
-	c.Assert(trustedCertificates, Equals, append(remoteCAs, *userPubCA, *hostPubCA))
-	c.Assert(trustedUserCertificates, Equals, append(remoteUserCAs, *userPubCA))
-	c.Assert(trustedHostCertificates, Equals, append(remoteHostCAs, *hostPubCA))
+	c.Assert(trustedUserCertificates, DeepEquals, append(remoteUserCAs, *userPubCA))
+	c.Assert(trustedHostCertificates, DeepEquals, append(remoteHostCAs, *hostPubCA))
+
+	id1, found, err := s.CAS.GetCertificateID(UserCert, key1)
+	c.Assert(err, IsNil)
+	c.Assert(found, Equals, true)
+	c.Assert(id1, Equals, "id1")
+}
+
+func (s *ServicesTestSuite) UserMapping(c *C) {
+	c.Assert(s.CAS.UpsertUserMapping("a1", "b1", "c1", 0), IsNil)
+	c.Assert(s.CAS.UpsertUserMapping("a2", "b2", "c2", 0), IsNil)
+	c.Assert(s.CAS.UpsertUserMapping("a3", "b3", "c3", 0), IsNil)
+	c.Assert(s.CAS.UpsertUserMapping("a4", "b4", "c4", time.Millisecond*200), IsNil)
+
+	ok, err := s.CAS.UserMappingExists("a1", "b1", "c1")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	ok, err = s.CAS.UserMappingExists("a2", "b2", "c2")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	ok, err = s.CAS.UserMappingExists("a3", "b3", "c3")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	ok, err = s.CAS.UserMappingExists("a4", "b4", "c4")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	ok, err = s.CAS.UserMappingExists("a5", "b5", "c5")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, false)
+
+	c.Assert(s.CAS.DeleteUserMapping("a2", "b2", "c2"), IsNil)
+
+	time.Sleep(time.Millisecond * 300)
+
+	ok, err = s.CAS.UserMappingExists("a1", "b1", "c1")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	ok, err = s.CAS.UserMappingExists("a2", "b2", "c2")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, false)
+	ok, err = s.CAS.UserMappingExists("a3", "b3", "c3")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	ok, err = s.CAS.UserMappingExists("a4", "b4", "c4")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, false)
+
+	hashes, err := s.CAS.GetAllUserMappings()
+	c.Assert(err, IsNil)
+
+	c.Assert(s.CAS.DeleteUserMapping("a1", "b1", "c1"), IsNil)
+
+	ok, err = s.CAS.UserMappingExists("a1", "b1", "c1")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, false)
+	ok, err = s.CAS.UserMappingExists("a2", "b2", "c2")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, false)
+	ok, err = s.CAS.UserMappingExists("a3", "b3", "c3")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	ok, err = s.CAS.UserMappingExists("a4", "b4", "c4")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, false)
+
+	c.Assert(s.CAS.UpdateUserMappings(hashes, time.Minute), IsNil)
+
+	ok, err = s.CAS.UserMappingExists("a1", "b1", "c1")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	ok, err = s.CAS.UserMappingExists("a2", "b2", "c2")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, false)
+	ok, err = s.CAS.UserMappingExists("a3", "b3", "c3")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	ok, err = s.CAS.UserMappingExists("a4", "b4", "c4")
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, false)
 }
 
 func (s *ServicesTestSuite) PasswordCRUD(c *C) {

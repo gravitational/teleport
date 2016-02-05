@@ -171,9 +171,9 @@ func (s *TunServer) haveExt(sconn *ssh.ServerConn, ext ...string) bool {
 func (s *TunServer) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel) {
 	defer ch.Close()
 
-	if sconn.Permissions.Extensions["role"] != RoleWeb {
+	if sconn.Permissions.Extensions[PermissionRole] != RoleWeb {
 		log.Errorf("role %v doesn't have permission to request agent",
-			sconn.Permissions.Extensions["role"])
+			sconn.Permissions.Extensions[PermissionRole])
 		return
 	}
 
@@ -229,7 +229,7 @@ func (s *TunServer) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Chann
 		ch, ch, ch,
 		addr, addr,
 	)
-	role := sconn.Permissions.Extensions["role"]
+	role := sconn.Permissions.Extensions[PermissionRole]
 	if err := s.apiServer.HandleConn(conn, role); err != nil {
 		log.Errorf(err.Error())
 	}
@@ -264,7 +264,7 @@ func (s *TunServer) keyAuth(
 	perms := &ssh.Permissions{
 		Extensions: map[string]string{
 			ExtHost: conn.User(),
-			"role":  cert.Permissions.Extensions["role"],
+			"role":  cert.Permissions.Extensions[utils.CertExtensionRole],
 		},
 	}
 

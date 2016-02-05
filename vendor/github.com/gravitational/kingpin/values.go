@@ -53,6 +53,12 @@ type remainderArg interface {
 	IsCumulative() bool
 }
 
+// Optional interface for flags that can be repeated.
+type repeatableFlag interface {
+	Value
+	IsCumulative() bool
+}
+
 type accumulator struct {
 	element func(value interface{}) Value
 	typ     reflect.Type
@@ -442,9 +448,10 @@ func (c *counterValue) Set(s string) error {
 	return nil
 }
 
-func (c *counterValue) Get() interface{} { return (int)(*c) }
-func (c *counterValue) IsBoolFlag() bool { return true }
-func (c *counterValue) String() string   { return fmt.Sprintf("%d", *c) }
+func (c *counterValue) Get() interface{}   { return (int)(*c) }
+func (c *counterValue) IsBoolFlag() bool   { return true }
+func (c *counterValue) String() string     { return fmt.Sprintf("%d", *c) }
+func (c *counterValue) IsCumulative() bool { return true }
 
 func resolveHost(value string) (net.IP, error) {
 	if ip := net.ParseIP(value); ip != nil {

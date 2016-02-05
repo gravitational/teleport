@@ -19,6 +19,8 @@ import (
 	. "gopkg.in/check.v1"
 	"reflect"
 	"testing"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestEncryptor(t *testing.T) { TestingT(t) }
@@ -28,6 +30,10 @@ type gpgSuite struct {
 }
 
 var _ = Suite(&gpgSuite{})
+
+func (s *gpgSuite) SetUpSuite(c *C) {
+	utils.InitLoggerCLI()
+}
 
 func (s *gpgSuite) SetUpTest(c *C) {
 	key, err := GenerateGPGKey("key1")

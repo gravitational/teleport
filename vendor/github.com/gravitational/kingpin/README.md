@@ -1,4 +1,4 @@
-# Kingpin - A Go (golang) command line and flag parser [![Build Status](https://travis-ci.org/alecthomas/kingpin.png)](https://travis-ci.org/alecthomas/kingpin)
+# Kingpin - A Go (golang) command line and flag parser [![](https://godoc.org/github.com/alecthomas/kingpin?status.svg)](http://godoc.org/github.com/alecthomas/kingpin) [![Build Status](https://travis-ci.org/alecthomas/kingpin.png)](https://travis-ci.org/alecthomas/kingpin)
 
 <!-- MarkdownTOC -->
 
@@ -19,6 +19,8 @@
   - [Displaying errors and usage information](#displaying-errors-and-usage-information)
   - [Sub-commands](#sub-commands)
   - [Custom Parsers](#custom-parsers)
+  - [Repeatable flags](#repeatable-flags)
+  - [Boolean Values](#boolean-values)
   - [Default Values](#default-values)
   - [Place-holders in Help](#place-holders-in-help)
   - [Consuming all remaining arguments](#consuming-all-remaining-arguments)
@@ -421,12 +423,26 @@ You would use it like so:
 headers = HTTPHeader(kingpin.Flag("header", "Add a HTTP header to the request.").Short('H'))
 ```
 
+### Repeatable flags
+
+Depending on the `Value` they hold, some flags may be repeated. The
+`IsCumulative() bool` function on `Value` tells if it's safe to call `Set()`
+multiple times or if an error should be raised if several values are passed.
+
+The built-in `Value`s returning slices and maps, as well as `Counter` are
+examples of `Value`s that make a flag repeatable.
+
+### Boolean values
+
+Boolean values are uniquely managed by Kingpin. Each boolean flag will have a negative complement:
+`--<name>` and `--no-<name>`.
+
 ### Default Values
 
 The default value is the zero value for a type. This can be overridden with
-the `Default(value)` function on flags and arguments. This function accepts a
-string, which is parsed by the value itself, so it *must* be compliant with
-the format expected.
+the `Default(value...)` function on flags and arguments. This function accepts
+one or several strings, which are parsed by the value itself, so they *must*
+be compliant with the format expected.
 
 ### Place-holders in Help
 
@@ -451,13 +467,13 @@ IP addresses as positional arguments:
 
     ./cmd ping 10.1.1.1 192.168.1.1
 
-Kingpin supports this by having `Value` provide a `IsCumulative() bool`
-function. If this function exists and returns true, the value parser will be
-called repeatedly for every remaining argument.
+Such arguments are similar to [repeatable flags](#repeatable-flags), but for
+arguments. Therefore they use the same `IsCumulative() bool` function on the
+underlying `Value`, so the built-in `Value`s for which the `Set()` function
+can be called several times will consume multiple arguments.
 
-Examples of this are the `Strings()` and `StringMap()` values.
-
-To implement the above example we might do something like this:
+To implement the above example with a custom `Value`, we might do something
+like this:
 
 ```go
 type ipList []net.IP

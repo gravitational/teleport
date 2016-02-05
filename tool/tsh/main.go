@@ -16,18 +16,17 @@ limitations under the License.
 package main
 
 import (
+	"github.com/gravitational/teleport/lib/utils"
 	"os"
-
-	"github.com/gravitational/teleport/tool"
 )
 
 func main() {
-	tool.InitLoggerCLI()
-	app := tool.InitCmdlineParser("tsh", "teleport SSH client")
+	utils.InitLoggerCLI()
+	app := utils.InitCmdlineParser("tsh", "teleport SSH client")
 
 	err := RunTSH(app)
 	if err != nil {
-		tool.Errorf(err.Error())
+		utils.Errorf(err.Error())
 		os.Exit(-1)
 	}
 }

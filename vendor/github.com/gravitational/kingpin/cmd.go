@@ -21,6 +21,14 @@ func (c *cmdGroup) defaultSubcommand() *CmdClause {
 	return nil
 }
 
+// GetArg gets a command definition.
+//
+// This allows existing commands to be modified after definition but before parsing. Useful for
+// modular applications.
+func (c *cmdGroup) GetCommand(name string) *CmdClause {
+	return c.commands[name]
+}
+
 func newCmdGroup(app *Application) *cmdGroup {
 	return &cmdGroup{
 		app:      app,

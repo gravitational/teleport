@@ -25,6 +25,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
@@ -38,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/mailgun/lemma/secret"
 	"golang.org/x/crypto/ssh"
 
@@ -71,6 +71,7 @@ type CmdSuite struct {
 	ProvisioningS *services.ProvisioningService
 	UserS         *services.UserService
 	WebS          *services.WebService
+	app           *kingpin.Application
 }
 
 var _ = Suite(&CmdSuite{})
@@ -82,7 +83,8 @@ func (s *CmdSuite) SetUpSuite(c *C) {
 	c.Assert(err, IsNil)
 	s.scrt = srv
 
-	log.Initialize("console", "WARN")
+	utils.InitLoggerCLI()
+	s.app = utils.InitCmdlineParser("tctl", "test")
 }
 
 func (s *CmdSuite) SetUpTest(c *C) {
@@ -164,7 +166,7 @@ func (s *CmdSuite) run(params ...string) string {
 	args = append(args, params...)
 	s.out = &bytes.Buffer{}
 	s.cmd = &Command{out: s.out}
-	err := s.cmd.Run(args)
+	err := s.cmd.Run(s.app, args)
 	if err != nil {
 		return err.Error()
 	}

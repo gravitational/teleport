@@ -379,11 +379,8 @@ func (a *Application) setDefaults(context *ParseContext) error {
 	// Check required flags and set defaults.
 	for _, flag := range context.flags.long {
 		if flagElements[flag.name] == nil {
-			// Set defaults, if any.
-			if flag.defaultValue != "" {
-				if err := flag.value.Set(flag.defaultValue); err != nil {
-					return err
-				}
+			if err := flag.setDefault(); err != nil {
+				return err
 			}
 		}
 	}
@@ -391,8 +388,8 @@ func (a *Application) setDefaults(context *ParseContext) error {
 	for _, arg := range context.arguments.args {
 		if argElements[arg.name] == nil {
 			// Set defaults, if any.
-			if arg.defaultValue != "" {
-				if err := arg.value.Set(arg.defaultValue); err != nil {
+			for _, defaultValue := range arg.defaultValues {
+				if err := arg.value.Set(defaultValue); err != nil {
 					return err
 				}
 			}
@@ -439,13 +436,22 @@ func (a *Application) validateRequired(context *ParseContext) error {
 
 func (a *Application) setValues(context *ParseContext) (selected []string, err error) {
 	// Set all arg and flag values.
-	var lastCmd *CmdClause
+	var (
+		lastCmd *CmdClause
+		flagSet = map[string]struct{}{}
+	)
 	for _, element := range context.Elements {
 		switch clause := element.Clause.(type) {
 		case *FlagClause:
+			if _, ok := flagSet[clause.name]; ok {
+				if v, ok := clause.value.(repeatableFlag); !ok || !v.IsCumulative() {
+					return nil, fmt.Errorf("flag '%s' cannot be repeated", clause.name)
+				}
+			}
 			if err = clause.value.Set(*element.Value); err != nil {
 				return
 			}
+			flagSet[clause.name] = struct{}{}
 
 		case *ArgClause:
 			if err = clause.value.Set(*element.Value); err != nil {

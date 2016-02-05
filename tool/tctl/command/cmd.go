@@ -29,10 +29,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/buger/goterm"
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/terminal"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type Command struct {
@@ -56,8 +56,9 @@ func (cmd *Command) SetOut(out io.Writer) {
 	cmd.out = out
 }
 
-func (cmd *Command) Run(app *kingpin.Application) error {
+func (cmd *Command) Run(app *kingpin.Application, args []string) error {
 	configPath := app.Flag("config", "Path to the Teleport configuration file").Default(DefaultConfigPath).String()
+	useEnv := app.Flag("env", "read configuration parameters from environment").Default("false").Bool()
 
 	// SSH Key pair
 	keyPair := app.Command("keypair", "Helper operations with SSH keypairs")
@@ -83,6 +84,22 @@ func (cmd *Command) Run(app *kingpin.Application) error {
 
 	userCaPubKey := userCa.Command("pub-key", "Print user certificate authority public key")
 
+	// User Mapping
+	userMapping := app.Command("user-mapping", "Mapping teleport and OS users")
+
+	userMappingAdd := userMapping.Command("add", "Add allowed user mapping")
+	userMappingAddTeleportUser := userMappingAdd.Arg("teleport-user", "Teleport user").Required().String()
+	userMappingAddOSUser := userMappingAdd.Arg("os-user", "OS user").Required().String()
+	userMappingAddCertID := userMappingAdd.Flag("certificate-ID", "ID of the certificate authority that will be allowed. Be defalut local certificate authority is selected").Default("local").String()
+	userMappingAddTTL := userMappingAdd.Flag("ttl", "duration of the created mapping").Duration()
+
+	userMappingRm := userMapping.Command("rm", "Remove allowed user mapping")
+	userMappingRmTeleportUser := userMappingRm.Arg("teleport-user", "Teleport user").Required().String()
+	userMappingRmOSUser := userMappingRm.Arg("os-user", "OS user").Required().String()
+	userMappingRmCertID := userMappingRm.Flag("certificate-ID", "ID of the certificate authority. Be defalut local certificate authority is selected").Default("local").String()
+
+	userMappingLs := userMapping.Command("ls", "List all the allowed user mappings")
+
 	// Remote CA
 	remoteCa := app.Command("remote-ca", "Operations with remote certificate authority")
 
@@ -97,7 +114,7 @@ func (cmd *Command) Run(app *kingpin.Application) error {
 	remoteCaLsDomainName := remoteCaLs.Flag("domain", "Domain name of the remote party").String()
 	remoteCaLsType := remoteCaLs.Flag("type", "Cert type (host or user)").Required().String()
 
-	remoteCaRm := remoteCa.Command("rm", "Remote remote Certificate authority from list of trusted certs")
+	remoteCaRm := remoteCa.Command("rm", "Remove remote Certificate authority from list of trusted certs")
 	remoteCaRmID := remoteCaRm.Flag("id", "Certificate id").Required().String()
 	remoteCaRmDomainName := remoteCaRm.Flag("domain", "Domain name of the remote party").Required().String()
 	remoteCaRmType := remoteCaRm.Flag("type", "Cert type (host or user)").Required().String()
@@ -177,12 +194,18 @@ func (cmd *Command) Run(app *kingpin.Application) error {
 	agentLoginProxyAddr := agentLogin.Flag("proxy-addr", "DomainName of the remote proxy").Required().String()
 	agentLoginTTL := agentLogin.Flag("ttl", "Certificate duration").Default("10h").Duration()
 
-	selectedCommand := kingpin.MustParse(app.Parse(os.Args[1:]))
+	selectedCommand := kingpin.MustParse(app.Parse(args[1:]))
 
 	if !strings.HasPrefix(selectedCommand, agent.FullCommand()) {
 		var cfg service.Config
-		if err := service.ParseYAMLFile(*configPath, &cfg); err != nil {
-			return trace.Wrap(err)
+		if *useEnv {
+			if err := service.ParseEnv(&cfg); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			if err := service.ParseYAMLFile(*configPath, &cfg); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 		service.SetDefaults(&cfg)
 		if cfg.Auth.Enabled && len(cfg.AuthServers) == 0 {
@@ -242,6 +265,14 @@ func (cmd *Command) Run(app *kingpin.Application) error {
 		cmd.GetRemoteCertificates(*remoteCaLsDomainName, *remoteCaLsType)
 	case remoteCaRm.FullCommand():
 		cmd.DeleteRemoteCertificate(*remoteCaRmID, *remoteCaRmDomainName, *remoteCaRmType)
+
+	// User Mapping
+	case userMappingAdd.FullCommand():
+		cmd.UpsertUserMapping(*userMappingAddCertID, *userMappingAddTeleportUser, *userMappingAddOSUser, *userMappingAddTTL)
+	case userMappingRm.FullCommand():
+		cmd.DeleteUserMapping(*userMappingRmCertID, *userMappingRmTeleportUser, *userMappingRmOSUser)
+	case userMappingLs.FullCommand():
+		cmd.ListUserMappings()
 
 	// Secret
 	case secretNew.FullCommand():

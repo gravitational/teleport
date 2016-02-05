@@ -3,7 +3,14 @@ package kingpin
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
+)
+
+var (
+	envVarValuesSeparator = "\r?\n"
+	envVarValuesTrimmer   = regexp.MustCompile(envVarValuesSeparator + "$")
+	envVarValuesSplitter  = regexp.MustCompile(envVarValuesSeparator)
 )
 
 type flagGroup struct {
@@ -14,19 +21,17 @@ type flagGroup struct {
 
 func newFlagGroup() *flagGroup {
 	return &flagGroup{
-		short: make(map[string]*FlagClause),
-		long:  make(map[string]*FlagClause),
+		short: map[string]*FlagClause{},
+		long:  map[string]*FlagClause{},
 	}
 }
 
-func (f *flagGroup) merge(o *flagGroup) {
-	for _, flag := range o.flagOrder {
-		if flag.shorthand != 0 {
-			f.short[string(flag.shorthand)] = flag
-		}
-		f.long[flag.name] = flag
-		f.flagOrder = append(f.flagOrder, flag)
-	}
+// GetFlag gets a flag definition.
+//
+// This allows existing flags to be modified after definition but before parsing. Useful for
+// modular applications.
+func (f *flagGroup) GetFlag(name string) *FlagClause {
+	return f.long[name]
 }
 
 // Flag defines a new flag with the given long name and help.
@@ -38,6 +43,9 @@ func (f *flagGroup) Flag(name, help string) *FlagClause {
 }
 
 func (f *flagGroup) init(defaultEnvarPrefix string) error {
+	if err := f.checkDuplicates(); err != nil {
+		return err
+	}
 	for _, flag := range f.long {
 		if defaultEnvarPrefix != "" && !flag.noEnvar && flag.envar == "" {
 			flag.envar = envarTransform(defaultEnvarPrefix + "_" + flag.name)
@@ -48,6 +56,24 @@ func (f *flagGroup) init(defaultEnvarPrefix string) error {
 		if flag.shorthand != 0 {
 			f.short[string(flag.shorthand)] = flag
 		}
+	}
+	return nil
+}
+
+func (f *flagGroup) checkDuplicates() error {
+	seenShort := map[byte]bool{}
+	seenLong := map[string]bool{}
+	for _, flag := range f.flagOrder {
+		if flag.shorthand != 0 {
+			if _, ok := seenShort[flag.shorthand]; ok {
+				return fmt.Errorf("duplicate short flag -%c", flag.shorthand)
+			}
+			seenShort[flag.shorthand] = true
+		}
+		if _, ok := seenLong[flag.name]; ok {
+			return fmt.Errorf("duplicate long flag --%s", flag.name)
+		}
+		seenLong[flag.name] = true
 	}
 	return nil
 }
@@ -133,14 +159,14 @@ func (f *flagGroup) visibleFlags() int {
 type FlagClause struct {
 	parserMixin
 	actionMixin
-	name         string
-	shorthand    byte
-	help         string
-	envar        string
-	noEnvar      bool
-	defaultValue string
-	placeholder  string
-	hidden       bool
+	name          string
+	shorthand     byte
+	help          string
+	envar         string
+	noEnvar       bool
+	defaultValues []string
+	placeholder   string
+	hidden        bool
 }
 
 func newFlag(name, help string) *FlagClause {
@@ -151,34 +177,52 @@ func newFlag(name, help string) *FlagClause {
 	return f
 }
 
-func (f *FlagClause) needsValue() bool {
-	return f.required && f.defaultValue == ""
+func (f *FlagClause) setDefault() error {
+	if !f.noEnvar && f.envar != "" {
+		if envarValue := os.Getenv(f.envar); envarValue != "" {
+			if v, ok := f.value.(repeatableFlag); !ok || !v.IsCumulative() {
+				// Use the value as-is
+				return f.value.Set(envarValue)
+			} else {
+				// Split by new line to extract multiple values, if any.
+				trimmed := envVarValuesTrimmer.ReplaceAllString(envarValue, "")
+				for _, value := range envVarValuesSplitter.Split(trimmed, -1) {
+					if err := f.value.Set(value); err != nil {
+						return err
+					}
+				}
+				return nil
+			}
+		}
+	}
+
+	if len(f.defaultValues) > 0 {
+		for _, defaultValue := range f.defaultValues {
+			if err := f.value.Set(defaultValue); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	return nil
 }
 
-func (f *FlagClause) formatPlaceHolder() string {
-	if f.placeholder != "" {
-		return f.placeholder
-	}
-	if f.defaultValue != "" {
-		if _, ok := f.value.(*stringValue); ok {
-			return fmt.Sprintf("%q", f.defaultValue)
-		}
-		return f.defaultValue
-	}
-	return strings.ToUpper(f.name)
+func (f *FlagClause) needsValue() bool {
+	haveDefault := len(f.defaultValues) > 0
+	haveEnvar := !f.noEnvar && f.envar != "" && os.Getenv(f.envar) != ""
+	return f.required && !(haveDefault || haveEnvar)
 }
 
 func (f *FlagClause) init() error {
-	if f.required && f.defaultValue != "" {
+	if f.required && len(f.defaultValues) > 0 {
 		return fmt.Errorf("required flag '--%s' with default value that will never be used", f.name)
 	}
 	if f.value == nil {
 		return fmt.Errorf("no type defined for --%s (eg. .String())", f.name)
 	}
-	if !f.noEnvar && f.envar != "" {
-		if v := os.Getenv(f.envar); v != "" {
-			f.defaultValue = v
-		}
+	if v, ok := f.value.(repeatableFlag); (!ok || !v.IsCumulative()) && len(f.defaultValues) > 1 {
+		return fmt.Errorf("invalid default for '--%s', expecting single value", f.name)
 	}
 	return nil
 }
@@ -194,9 +238,9 @@ func (f *FlagClause) PreAction(action Action) *FlagClause {
 	return f
 }
 
-// Default value for this flag. It *must* be parseable by the value of the flag.
-func (f *FlagClause) Default(value string) *FlagClause {
-	f.defaultValue = value
+// Default values for this flag. They *must* be parseable by the value of the flag.
+func (f *FlagClause) Default(values ...string) *FlagClause {
+	f.defaultValues = values
 	return f
 }
 
@@ -205,8 +249,9 @@ func (f *FlagClause) OverrideDefaultFromEnvar(envar string) *FlagClause {
 	return f.Envar(envar)
 }
 
-// Envar overrides the default value for a flag from an environment variable,
-// if it is set.
+// Envar overrides the default value(s) for a flag from an environment variable,
+// if it is set. Several default values can be provided by using new lines to
+// separate them.
 func (f *FlagClause) Envar(name string) *FlagClause {
 	f.envar = name
 	f.noEnvar = false

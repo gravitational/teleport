@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/utils"
+
 	. "gopkg.in/check.v1"
 )
 
@@ -30,6 +32,7 @@ type LimiterSuite struct {
 var _ = Suite(&LimiterSuite{})
 
 func (s *LimiterSuite) SetUpSuite(c *C) {
+	utils.InitLoggerCLI()
 }
 
 func (s *LimiterSuite) SetUpTest(c *C) {

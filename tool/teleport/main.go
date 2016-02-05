@@ -19,21 +19,21 @@ import (
 	"os"
 
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/tool"
+	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 func main() {
 	// configure logger for a typical CLI scenario until configuration file is
 	// parsed
-	tool.InitLoggerCLI()
-	app := tool.InitCmdlineParser("teleport", "SSH service")
+	utils.InitLoggerCLI()
+	app := utils.InitCmdlineParser("teleport", "SSH service")
 
 	if err := run(app); err != nil {
-		tool.Errorf(err.Error())
+		utils.Errorf(err.Error())
 		os.Exit(1)
 	}
 }

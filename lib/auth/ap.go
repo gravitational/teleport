@@ -16,6 +16,7 @@ limitations under the License.
 package auth
 
 import (
+	"golang.org/x/crypto/ssh"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -51,6 +52,14 @@ type AccessPoint interface {
 
 	// GetTrustedCerts returns a list of trusted certificates
 	GetTrustedCertificates(certType string) ([]services.CertificateAuthority, error)
+
+	// GetCertificateID Returns an ID of the certificate with the provided PublicKey value
+	GetCertificateID(certType string, key ssh.PublicKey) (ID string, found bool, e error)
+
+	// GetAllUserMappings Returns hashes of all the User Mapping entries. Used to copy all the data
+	GetAllUserMappings() (hashes []string, e error)
+
+	UserMappingExists(certificateID, teleportUser, osUser string) (bool, error)
 }
 
 type BackendAccessPoint struct {

@@ -25,6 +25,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/teleport/lib/utils"
 	. "gopkg.in/check.v1"
 )
 
@@ -36,7 +37,7 @@ type SCPSuite struct {
 var _ = Suite(&SCPSuite{})
 
 func (s *SCPSuite) SetUpSuite(c *C) {
-	log.Initialize("console", "WARN")
+	utils.InitLoggerCLI()
 }
 
 func (s *SCPSuite) TestSendFile(c *C) {
@@ -63,7 +64,7 @@ func (s *SCPSuite) TestSendFile(c *C) {
 
 	go func() {
 		for {
-			io.Copy(log.GetLogger().Writer(log.SeverityInfo), epipe)
+			io.Copy(log.StandardLogger().Out, epipe)
 		}
 	}()
 
@@ -111,7 +112,7 @@ func (s *SCPSuite) TestReceiveFile(c *C) {
 
 	go func() {
 		for {
-			io.Copy(log.GetLogger().Writer(log.SeverityInfo), epipe)
+			io.Copy(log.StandardLogger().Out, epipe)
 		}
 	}()
 
@@ -164,7 +165,7 @@ func (s *SCPSuite) TestSendDir(c *C) {
 
 	go func() {
 		for {
-			io.Copy(log.GetLogger().Writer(log.SeverityInfo), epipe)
+			io.Copy(log.StandardLogger().Out, epipe)
 		}
 	}()
 
@@ -222,7 +223,7 @@ func (s *SCPSuite) TestReceiveDir(c *C) {
 
 	go func() {
 		for {
-			io.Copy(log.GetLogger().Writer(log.SeverityInfo), epipe)
+			io.Copy(log.StandardLogger().Out, epipe)
 		}
 	}()
 

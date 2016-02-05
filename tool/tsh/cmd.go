@@ -19,14 +19,13 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 
 	"github.com/gravitational/teleport/lib/client"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/gravitational/kingpin"
 )
 
 func RunTSH(app *kingpin.Application) error {
@@ -34,41 +33,27 @@ func RunTSH(app *kingpin.Application) error {
 	sshAgentNetwork := app.Flag("ssh-agent-network", "SSH agent address network type('tcp','unix' etc.)").Default("unix").String()
 	webProxyAddress := app.Flag("web-proxy", "Web proxy address(used for login)").String()
 	loginTTL := app.Flag("login-ttl", "Temporary ssh certificate will work for that time").Default("10h").Duration()
+	proxy := app.Flag("proxy", "Teleport proxy address").String()
+	proxyUser := app.Flag("proxy-user", "Teleport authentication username").Required().String()
 
 	connect := app.Command("ssh", "Connects to remote server and runs shell or provided command")
 	connectAddress := connect.Arg("target", "Target server address. You can provide several servers using label searching target _label:value").Required().String()
-	connectProxy := connect.Flag("proxy", "Optional proxy address").String()
 	connectCommand := connect.Arg("command", "Run provided command instead of shell").String()
 	connectPort := connect.Flag("port", "Remote server port").Short('p').String()
 
 	getServers := app.Command("get-servers", "Returns list of servers")
-	getServersProxy := getServers.Flag("proxy", "Target proxy address").Required().String()
 	getServersLabelName := getServers.Flag("label", "Label name").String()
 	getServersLabelValue := getServers.Flag("value", "Label value regexp").String()
 
 	scp := app.Command("scp", "Copy file or files to the remote ssh server of from it")
 	scpSource := scp.Arg("source", "source file or dir").Required().String()
 	scpDest := scp.Arg("destination", "destination file or dir").Required().String()
-	scpProxy := scp.Flag("proxy", "Optional proxy address").String()
 	scpIsDir := scp.Flag("recursively", "Source path is a directory").Short('r').Bool()
 	scpPort := scp.Flag("port", "Remote server port").Short('P').String()
 
 	selectedCommand := kingpin.MustParse(app.Parse(os.Args[1:]))
 
-	var user string
-	switch selectedCommand {
-	case connect.FullCommand():
-		user, _ = client.SplitUserAndAddress(*connectAddress)
-	case getServers.FullCommand():
-		user, _ = client.SplitUserAndAddress(*getServersProxy)
-	case scp.FullCommand():
-		if strings.Contains(*scpSource, ":") {
-			user, _ = client.SplitUserAndAddress(*scpSource)
-		} else {
-			user, _ = client.SplitUserAndAddress(*scpDest)
-		}
-	}
-	if len(user) == 0 {
+	if (selectedCommand == getServers.FullCommand()) && (len(*proxy) == 0) {
 		return fmt.Errorf("Error: please provide user name")
 	}
 
@@ -80,14 +65,14 @@ func RunTSH(app *kingpin.Application) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	passwordCallback := client.GetPasswordFromConsole(user)
+	passwordCallback := client.GetPasswordFromConsole(*proxyUser)
 
 	authMethods := []ssh.AuthMethod{
 		client.AuthMethodFromAgent(standartSSHAgent),
 		client.AuthMethodFromAgent(teleportFileSSHAgent),
 		client.NewWebAuth(
 			teleportFileSSHAgent,
-			user,
+			*proxyUser,
 			passwordCallback,
 			*webProxyAddress,
 			*loginTTL,
@@ -98,13 +83,13 @@ func RunTSH(app *kingpin.Application) error {
 
 	switch selectedCommand {
 	case connect.FullCommand():
-		err = SSH(*connectAddress, *connectProxy, *connectCommand,
+		err = SSH(*connectAddress, *proxy, *connectCommand,
 			*connectPort, authMethods)
 	case getServers.FullCommand():
-		err = GetServers(*getServersProxy, *getServersLabelName,
+		err = GetServers(*proxy, *getServersLabelName,
 			*getServersLabelValue, authMethods)
 	case scp.FullCommand():
-		err = SCP(*scpProxy, *scpSource, *scpDest, *scpIsDir, *scpPort,
+		err = SCP(*proxy, *scpSource, *scpDest, *scpIsDir, *scpPort,
 			authMethods)
 	}
 

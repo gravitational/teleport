@@ -19,6 +19,8 @@ import (
 	"crypto/rand"
 	"time"
 
+	"github.com/gravitational/teleport/lib/utils"
+
 	"golang.org/x/crypto/ssh"
 )
 
@@ -61,6 +63,9 @@ uy6c6X17xkP5q2Lq4i90ikyWm3Oc25aUEw48pRyK/6rABRUzpDLB
 	pubBytes = `ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC8kYdyZA1ZSNjZ4pqybDXvWplHQHkU6fPL+cAYHUkAT5CiQV4GOjwaSTcvZNK5U2fQ0jm6jknCnsZi1t9JujCjXUT3bYHCnSwWhXN55QzIu530Q/MeXz5W8TxYRrWULgPhqqtq8B9N554+s40higG21fmhhdDtpmQzw3vJLspY05mnL1+fW+RIKkM4rb150sdZXKINxfNQvERteE8WX0vL2yG4RuqJzYtGCDEGeHd+HLne7xfmqPxun7bUYaxAlplhm1z2J41hqaj8pBwDSEV9SBOZXvh6FjS9nvJCT7Z1bbZwWrAO/7E2ac0eV+5iEc0J+TyufO3F9uod+J+AICtB`
 )
 
+func (n *nauth) GetNewKeyPairFromPool() ([]byte, []byte, error) {
+	return n.GenerateKeyPair("")
+}
 func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	return []byte(privPem), []byte(pubBytes), nil
 }
@@ -82,7 +87,7 @@ func (n *nauth) GenerateHostCert(pkey, key []byte, id, hostname, role string, tt
 		CertType:        ssh.HostCert,
 	}
 	cert.Permissions.Extensions = make(map[string]string)
-	cert.Permissions.Extensions["role"] = role
+	cert.Permissions.Extensions[utils.CertExtensionRole] = role
 	signer, err := ssh.ParsePrivateKey(pkey)
 	if err != nil {
 		return nil, err
@@ -104,11 +109,12 @@ func (n *nauth) GenerateUserCert(pkey, key []byte, id, username string, ttl time
 		validBefore = uint64(b.UnixNano())
 	}
 	cert := &ssh.Certificate{
-		ValidPrincipals: []string{username},
-		Key:             pubKey,
-		ValidBefore:     validBefore,
-		CertType:        ssh.UserCert,
+		Key:         pubKey,
+		ValidBefore: validBefore,
+		CertType:    ssh.UserCert,
 	}
+	cert.Permissions.Extensions = make(map[string]string)
+	cert.Permissions.Extensions[utils.CertExtensionUser] = username
 	signer, err := ssh.ParsePrivateKey(pkey)
 	if err != nil {
 		return nil, err
