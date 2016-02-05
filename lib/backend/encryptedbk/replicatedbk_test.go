@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/backend/test"
+	"github.com/gravitational/teleport/lib/utils"
 
 	. "gopkg.in/check.v1"
 )
@@ -37,6 +38,10 @@ type ReplicatedBkSuite struct {
 }
 
 var _ = Suite(&ReplicatedBkSuite{})
+
+func (s *ReplicatedBkSuite) SetUpSuite(c *C) {
+	utils.InitLoggerCLI()
+}
 
 func (s *ReplicatedBkSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()

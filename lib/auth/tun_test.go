@@ -55,6 +55,7 @@ type TunSuite struct {
 var _ = Suite(&TunSuite{})
 
 func (s *TunSuite) SetUpSuite(c *C) {
+	utils.InitLoggerCLI()
 	key, err := secret.NewKey()
 	c.Assert(err, IsNil)
 	srv, err := secret.New(&secret.Config{KeyBytes: key})

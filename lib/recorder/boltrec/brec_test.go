@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/lib/recorder/test"
+	"github.com/gravitational/teleport/lib/utils"
 
 	. "gopkg.in/check.v1"
 )
@@ -33,6 +34,10 @@ type BoltRecSuite struct {
 
 var _ = Suite(&BoltRecSuite{})
 
+func (s *BoltRecSuite) SetUpSuite(c *C) {
+	utils.InitLoggerCLI()
+}
+
 func (s *BoltRecSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
 
@@ -44,7 +49,6 @@ func (s *BoltRecSuite) SetUpTest(c *C) {
 }
 
 func (s *BoltRecSuite) TearDownTest(c *C) {
-	//c.Assert(s.r.Close(), IsNil)
 }
 
 func (s *BoltRecSuite) TestRecorder(c *C) {

@@ -31,6 +31,7 @@ import (
 	etest "github.com/gravitational/teleport/lib/events/test"
 	rtest "github.com/gravitational/teleport/lib/recorder/test"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
@@ -64,6 +65,7 @@ type APISuite struct {
 var _ = Suite(&APISuite{})
 
 func (s *APISuite) SetUpSuite(c *C) {
+	utils.InitLoggerCLI()
 	authority.PrecalculatedKeysNum = 1
 	key, err := secret.NewKey()
 	c.Assert(err, IsNil)

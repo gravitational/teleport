@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/lib/auth/test"
+	"github.com/gravitational/teleport/lib/utils"
 
 	. "gopkg.in/check.v1"
 )
@@ -32,6 +33,7 @@ type NativeSuite struct {
 var _ = Suite(&NativeSuite{})
 
 func (s *NativeSuite) SetUpSuite(c *C) {
+	utils.InitLoggerCLI()
 	PrecalculatedKeysNum = 1
 	s.suite = &test.AuthSuite{A: New()}
 }
