@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/gravitational/kingpin"
 )
 
 func RunTSH(app *kingpin.Application) error {

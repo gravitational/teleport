@@ -22,7 +22,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/gravitational/kingpin"
 )
 
 func main() {

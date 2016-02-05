@@ -6,11 +6,13 @@ import (
 	"log/syslog"
 	"os"
 
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/gravitational/kingpin"
 
 	"github.com/Sirupsen/logrus"
 	logrus_syslog "github.com/Sirupsen/logrus/hooks/syslog"
 )
+
+// foo
 
 // CLI tools by default log into syslog, not stderr
 func InitLoggerCLI() {

@@ -1,6 +1,7 @@
 package kingpin
 
 import (
+	"encoding/hex"
 	"fmt"
 	"net"
 	"regexp"
@@ -773,5 +774,48 @@ func (p *parserMixin) ResolvedIPList() (target *[]net.IP) {
 func (p *parserMixin) ResolvedIPListVar(target *[]net.IP) {
 	p.SetValue(newAccumulator(target, func(v interface{}) Value {
 		return newResolvedIPValue(v.(*net.IP))
+	}))
+}
+
+// -- []byte Value
+type hexBytesValue struct{ v *[]byte }
+
+func newHexBytesValue(p *[]byte) *hexBytesValue {
+	return &hexBytesValue{p}
+}
+
+func (f *hexBytesValue) Set(s string) error {
+	v, err := hex.DecodeString(s)
+	if err == nil {
+		*f.v = ([]byte)(v)
+	}
+	return err
+}
+
+func (f *hexBytesValue) Get() interface{} { return ([]byte)(*f.v) }
+
+func (f *hexBytesValue) String() string { return fmt.Sprintf("%v", *f) }
+
+// Bytes as a hex string.
+func (p *parserMixin) HexBytes() (target *[]byte) {
+	target = new([]byte)
+	p.HexBytesVar(target)
+	return
+}
+
+func (p *parserMixin) HexBytesVar(target *[]byte) {
+	p.SetValue(newHexBytesValue(target))
+}
+
+// HexBytesList accumulates []byte values into a slice.
+func (p *parserMixin) HexBytesList() (target *[][]byte) {
+	target = new([][]byte)
+	p.HexBytesListVar(target)
+	return
+}
+
+func (p *parserMixin) HexBytesListVar(target *[][]byte) {
+	p.SetValue(newAccumulator(target, func(v interface{}) Value {
+		return newHexBytesValue(v.(*[]byte))
 	}))
 }

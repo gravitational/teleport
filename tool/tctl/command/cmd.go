@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/terminal"
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/gravitational/kingpin"
 )
 
 type Command struct {
