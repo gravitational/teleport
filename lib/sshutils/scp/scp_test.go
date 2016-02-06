@@ -242,6 +242,8 @@ func (s *SCPSuite) TestReceiveDir(c *C) {
 		}
 	}
 
+	time.Sleep(time.Millisecond * 300)
+
 	name := filepath.Base(dir)
 	bytes, err := ioutil.ReadFile(filepath.Join(outDir, name, "target_dir", "target1"))
 	c.Assert(err, IsNil)

@@ -225,7 +225,7 @@ func (s *TshSuite) SetUpSuite(c *C) {
 
 	u, err := user.Current()
 	c.Assert(err, IsNil)
-	s.user = u.Name
+	s.user = u.Username
 	s.userDir = u.HomeDir
 
 	c.Assert(s.a.UpsertUserMapping("local", s.user, s.user, time.Hour), IsNil)
