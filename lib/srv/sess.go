@@ -178,7 +178,7 @@ func setCmdUser(cmd *exec.Cmd, username string) error {
 		return trace.Wrap(err)
 	}
 
-	if (username != curUser.Name) || (username != curUser.Username) {
+	if username != curUser.Username {
 		uid, err := strconv.Atoi(osUser.Uid)
 		if err != nil {
 			return trace.Wrap(err)

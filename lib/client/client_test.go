@@ -205,7 +205,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 
 	u, err := user.Current()
 	c.Assert(err, IsNil)
-	s.user = u.Name
+	s.user = u.Username
 	s.pass = []byte("utndkrn")
 
 	c.Assert(s.a.UpsertUserMapping("local", s.user, s.user, time.Hour), IsNil)

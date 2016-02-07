@@ -78,7 +78,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 
 	u, err := user.Current()
 	c.Assert(err, IsNil)
-	s.user = u.Name
+	s.user = u.Username
 
 	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)

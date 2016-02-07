@@ -36,7 +36,8 @@ RUN (apt-get update && apt-get install -q -y bridge-utils \
     apt-get -y autoclean; apt-get -y clean
 
 RUN (mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/go1.5.3.linux-amd64.tar.gz | tar xz)
-RUN (mkdir -p /gopath/src/github.com/gravitational/teleport)
+RUN (mkdir -p /gopath/src/github.com/gravitational/teleport;\
+     chmod a+w /gopath)
 
 ENV LANGUAGE="en_US.UTF-8" \
     LANG="en_US.UTF-8" \

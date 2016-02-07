@@ -60,7 +60,7 @@ func (s *TeleagentSuite) SetUpSuite(c *C) {
 func (s *TeleagentSuite) TestTeleagent(c *C) {
 	u, err := user.Current()
 	c.Assert(err, IsNil)
-	osUser := u.Name
+	osUser := u.Username
 
 	key, err := secret.NewKey()
 	c.Assert(err, IsNil)
