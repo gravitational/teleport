@@ -22,6 +22,7 @@ import (
 	"os"
 
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
 
 	"github.com/Sirupsen/logrus"
 	logrus_syslog "github.com/Sirupsen/logrus/hooks/syslog"
@@ -39,11 +40,20 @@ func InitLoggerCLI() {
 	logrus.SetLevel(logrus.InfoLevel)
 }
 
-// Errorf is useful for CLI apps: it prints an error to stderr and also
-// logs it into syslog
-func Errorf(fs string, args ...interface{}) {
-	logrus.Errorf(fs, args...)
-	fmt.Fprintf(os.Stderr, fs+"\n", args...)
+// FatalError is for CLI front-ends: it detects gravitational.Trace debugging
+// information, sends it to the logger, strips it off and prints a clean message to stderr
+func FatalError(err error) {
+	var unwrap func(error) error
+	unwrap = func(err error) error {
+		te, ok := err.(trace.Error)
+		if ok {
+			return unwrap(te.OrigError())
+		}
+		return err
+	}
+	logrus.Errorf(err.Error())
+	fmt.Fprintln(os.Stderr, unwrap(err))
+	os.Exit(1)
 }
 
 // InitCmdlineParser configures kingpin command line args parser with
@@ -56,11 +66,11 @@ func InitCmdlineParser(appName, appHelp string) (app *kingpin.Application) {
 	app.HelpFlag.NoEnvar()
 
 	// set our own help template
-	return app.UsageTemplate(UsageTemplate)
+	return app.UsageTemplate(defaultUsageTemplate)
 }
 
 // Usage template with compactly formatted commands.
-var UsageTemplate = `{{define "FormatCommand"}}\
+var defaultUsageTemplate = `{{define "FormatCommand"}}\
 {{if .FlagSummary}} {{.FlagSummary}}{{end}}\
 {{range .Args}} {{if not .Required}}[{{end}}<{{.Name}}>{{if .Value|IsCumulative}}...{{end}}{{if not .Required}}]{{end}}{{end}}\
 {{end}}\
@@ -88,7 +98,7 @@ Usage: {{.App.Name}}{{template "FormatUsage" .App}}
 {{end}}\
 {{if .Context.Flags}}\
 Flags:
-{{.Context.Flags|FlagsToTwoColumns|FormatTwoColumns}}
+{{.Context.Flags|FlagsToTwoColumnsCompact|FormatTwoColumns}}
 {{end}}\
 {{if .Context.Args}}\
 Args:
@@ -103,9 +113,15 @@ Subcommands:
 {{end}}\
 {{end}}\
 
-
 {{else if .App.Commands}}\
 Commands:
 {{template "FormatCommands" .App}}
+Try '{{.App.Name}} help [command]' to get help for a given command.
 {{end}}\
+
+{{ if .Context.SelectedCommand }}\
+{{ range .Context.SelectedCommand.Aliases}}\
+{{ . }}
+{{end}}\
+{{end}}
 `

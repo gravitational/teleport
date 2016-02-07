@@ -15,6 +15,12 @@ limitations under the License.
 */
 package defaults
 
+import (
+	"fmt"
+	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/utils"
+)
+
 // Default port numbers used by all teleport tools
 const (
 	// Web UI over HTTP
@@ -35,15 +41,60 @@ const (
 	// When running as a "SSH Proxy" this port will be used to
 	// serve auth requests.
 	AuthListenPort int16 = 3024
-)
 
-const (
-	DefaultConfigFilePath = "/etc/teleport.yaml"
+	// Default DB to use for persisting state. Another options is "etcd"
+	BackendType = "bolt"
+
+	// Default path to teleport config file
+	ConfigFilePath = "/etc/teleport.yaml"
 
 	// This is where all mutable data is stored (user keys, recorded sessions,
 	// registered SSH servers, etc):
-	DefaultDataDir = "/var/lib/teleport"
+	DataDir = "/var/lib/teleport"
 
 	// By default SSH server (and SSH proxy) will bind to this IP
-	DefaultBindIP = "0.0.0.0"
+	BindIP = "0.0.0.0"
+
+	// Connection throttler defaults
+	LimiterMaxConnections     = 25
+	LimiterMaxConcurrentUsers = 25
 )
+
+const (
+	initError = "failure initializing default values"
+)
+
+// ConfigureLimiter assigns the default parameters to a connection throttler (AKA limiter)
+func ConfigureLimiter(lc *limiter.LimiterConfig) {
+	lc.MaxConnections = LimiterMaxConnections
+	lc.MaxNumberOfUsers = LimiterMaxConcurrentUsers
+}
+
+// AuthListenAddr returns the default listening address for the Auth service
+func AuthListenAddr() *utils.NetAddr {
+	return makeDefaultAddr(AuthListenPort)
+}
+
+// ProxyListenAddr returns the default listening address for the SSH Proxy service
+func ProxyListenAddr() *utils.NetAddr {
+	return makeDefaultAddr(SSHProxyListenPort)
+}
+
+// ProxyWebListenAddr returns the default listening address for the Web-based SSH Proxy service
+func ProxyWebListenAddr() *utils.NetAddr {
+	return makeDefaultAddr(HTTPListenPort)
+}
+
+// SSHServerListenAddr returns the default listening address for the Web-based SSH Proxy service
+func SSHServerListenAddr() *utils.NetAddr {
+	return makeDefaultAddr(SSHServerListenPort)
+}
+
+func makeDefaultAddr(port int16) *utils.NetAddr {
+	addrSpec := fmt.Sprintf("tcp://%v:%d", BindIP, port)
+	retval, err := utils.ParseAddr(addrSpec)
+	if err != nil {
+		panic(fmt.Sprintf("%s: error parsing '%v'", initError, addrSpec))
+	}
+	return retval
+}

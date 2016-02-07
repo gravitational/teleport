@@ -11,8 +11,8 @@ export GO15VENDOREXPERIMENT=1
 #
 all: 
 	go build -o teleport -i github.com/gravitational/teleport/tool/teleport
-	go build -o tctl     -i github.com/gravitational/teleport/tool/tctl
-	go build -o tsh      -i github.com/gravitational/teleport/tool/tsh
+#	go build -o tctl     -i github.com/gravitational/teleport/tool/tctl
+#	go build -o tsh      -i github.com/gravitational/teleport/tool/tsh
 
 install: remove-temp-files
 	go install github.com/gravitational/teleport/tool/teleport

@@ -16,53 +16,95 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
 	"os"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 )
 
 func main() {
+	var err error
+
 	// configure logger for a typical CLI scenario until configuration file is
 	// parsed
 	utils.InitLoggerCLI()
-	app := utils.InitCmdlineParser("teleport", "SSH service")
+	app := utils.InitCmdlineParser("teleport", "Clustered SSH service. Learn more at http://teleport.gravitational.com")
 
-	if err := run(app); err != nil {
-		utils.Errorf(err.Error())
-		os.Exit(1)
+	// define global flags:
+	var ccf CLIConfig
+	showVersion := app.Flag("version", "").Short('v').Bool()
+
+	// define commands:
+	const defaultCmd = "no-command"
+	start := app.Command("start", "Starts the Teleport service.")
+	status := app.Command("status", "Print the status of the current SSH session.")
+	dump := app.Command("configure", "Print the sample config file into stdout.")
+	ver := app.Command("version", "Print the version.").Hidden()
+	app.Command(defaultCmd, "").Default().Hidden()
+
+	// define start flags:
+	start.Flag("proxy-addr",
+		"Run as a behind-the-proxy SSH node, see notes below.").StringVar(&ccf.ProxyAddr)
+	start.Flag("listen-ip",
+		fmt.Sprintf("IP address to bind to [%s]", defaults.BindIP)).IPVar(&ccf.ListenIP)
+	start.Flag("advertise-ip",
+		"IP address to advertise to the proxy [auto]").IPVar(&ccf.AdvertiseIP)
+	start.Flag("nossh",
+		"Disable SSH service [false].").Default("false").BoolVar(&ccf.NoSSH)
+	start.Flag("config",
+		fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
+		StringVar(&ccf.ConfigFile)
+	// define start's usage info (we use kingpin's "alias" field for this)
+	start.Alias(usageNotes + usageExamples)
+
+	// parse CLI commands+flags:
+	command, err := app.Parse(os.Args[1:])
+	if err != nil {
+		utils.FatalError(err)
 	}
+
+	// show version:
+	if *showVersion || ver.FullCommand() == command {
+		onVersion()
+		os.Exit(0)
+	}
+
+	// by default show help and exit:
+	if command == defaultCmd {
+		app.Usage(os.Args[1:])
+		os.Exit(0)
+	}
+
+	// configuration merge: defaults -> file-based conf -> CLI conf
+	config, err := configure(&ccf)
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	// execute the selected command:
+	switch command {
+	case start.FullCommand():
+		err = onStart(&config)
+	case status.FullCommand():
+		err = onStatus(&config)
+	case dump.FullCommand():
+		err = onConfigDump()
+	}
+
+	if err != nil {
+		utils.FatalError(err)
+	}
+	log.Info("teleport: clean exit")
 }
 
-func run(app *kingpin.Application) error {
-	configPath := app.Flag("config", "Path to a configuration file in YAML format").ExistingFile()
-	useEnv := app.Flag("env", "Configure teleport from environment variables").Bool()
-
-	_, err := app.Parse(os.Args[1:])
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var cfg service.Config
-	if *useEnv {
-		if err := service.ParseEnv(&cfg); err != nil {
-			return trace.Wrap(err)
-		}
-	} else if *configPath != "" {
-		if err := service.ParseYAMLFile(*configPath, &cfg); err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
-		return trace.Errorf("Use either --config or --env flags, see --help for details")
-	}
-
-	log.Infof("starting with configuration: %#v", cfg)
-
-	srv, err := service.NewTeleport(cfg)
+// onStart is the handler for "start" CLI command
+func onStart(config *service.Config) error {
+	srv, err := service.NewTeleport(*config)
 	if err != nil {
 		return trace.Wrap(err, "initializing teleport")
 	}
@@ -71,4 +113,21 @@ func run(app *kingpin.Application) error {
 	}
 	srv.Wait()
 	return nil
+}
+
+// onStatus is the handler for "status" CLI command
+func onStatus(config *service.Config) error {
+	fmt.Println("status command is not implemented")
+	return nil
+}
+
+// onConfigDump is the handler for "configure" CLI command
+func onConfigDump() error {
+	fmt.Println(sampleConfig)
+	return nil
+}
+
+// onVersion is the handler for "version"
+func onVersion() {
+	fmt.Println("'version' command is not implemented")
 }
