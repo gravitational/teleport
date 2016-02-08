@@ -18,6 +18,7 @@ package service
 import (
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"io/ioutil"
 
 	"github.com/gravitational/teleport/lib/limiter"
@@ -62,6 +63,9 @@ type Config struct {
 	// Proxy is SSH proxy that manages incoming and outbound connections
 	// via multiple reverse tunnels
 	Proxy ProxyConfig `yaml:"proxy"`
+
+	// Console writer to speak to a user
+	Console io.Writer
 }
 
 func (cfg *Config) RoleConfig() RoleConfig {
@@ -70,6 +74,7 @@ func (cfg *Config) RoleConfig() RoleConfig {
 		Hostname:    cfg.Hostname,
 		AuthServers: cfg.AuthServers,
 		Auth:        cfg.Auth,
+		Console:     cfg.Console,
 	}
 }
 

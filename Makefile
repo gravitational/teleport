@@ -9,6 +9,10 @@ export GO15VENDOREXPERIMENT=1
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
 #
+.PHONY: teleport
+teleport: 
+	go build -o teleport -i github.com/gravitational/teleport/tool/teleport
+
 all: 
 	go build -o teleport -i github.com/gravitational/teleport/tool/teleport
 	go build -o tctl     -i github.com/gravitational/teleport/tool/tctl

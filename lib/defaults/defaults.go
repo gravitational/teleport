@@ -33,14 +33,19 @@ const (
 	// listening port will be used to connect users to:
 	SSHServerListenPort int16 = 3022
 
-	// When running as a "SSH Proxy" this port will be used to
-	// accept connections and proxy them to SSHServerListenPort of
-	// one of many SSH servers
+	// When running in "SSH Proxy" role this port will be used to
+	// accept incoming client connections and proxy them to SSHServerListenPort of
+	// one of many SSH nodes
 	SSHProxyListenPort int16 = 3023
+
+	// When running in "SSH Proxy" role this port will be used for incoming
+	// connections from SSH nodes who wish to use "reverse tunnell" (when they
+	// run behind an environment/firewall which only allows outgoing connections)
+	SSHProxyTunnelListenPort int16 = 3024
 
 	// When running as a "SSH Proxy" this port will be used to
 	// serve auth requests.
-	AuthListenPort int16 = 3024
+	AuthListenPort int16 = 3025
 
 	// Default DB to use for persisting state. Another options is "etcd"
 	BackendType = "bolt"
@@ -88,6 +93,13 @@ func ProxyWebListenAddr() *utils.NetAddr {
 // SSHServerListenAddr returns the default listening address for the Web-based SSH Proxy service
 func SSHServerListenAddr() *utils.NetAddr {
 	return makeDefaultAddr(SSHServerListenPort)
+}
+
+// ReverseTunnellAddr returns the default listening address for the SSH Proxy service used
+// by the SSH nodes to establish proxy<->ssh_node connection from behind a firewall which
+// blocks inbound connecions to ssh_nodes
+func ReverseTunnellAddr() *utils.NetAddr {
+	return makeDefaultAddr(SSHProxyTunnelListenPort)
 }
 
 func makeDefaultAddr(port int16) *utils.NetAddr {

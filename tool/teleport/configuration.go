@@ -81,6 +81,7 @@ func applyListenIP(ip net.IP, cfg *service.Config) error {
 		&cfg.Proxy.SSHAddr,
 		&cfg.Proxy.WebAddr,
 		&cfg.SSH.Addr,
+		&cfg.Proxy.ReverseTunnelListenAddr,
 	}
 	for _, addr := range listeningAddresses {
 		replaceHost(addr, ip.String())
@@ -122,6 +123,7 @@ func applyDefaults(cfg *service.Config) error {
 	cfg.Proxy.AssetsDir = defaults.DataDir
 	cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
 	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
+	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnellAddr()
 	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
 
 	// defaults for the SSH service:
@@ -129,13 +131,11 @@ func applyDefaults(cfg *service.Config) error {
 	cfg.SSH.Addr = *defaults.SSHServerListenAddr()
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 
-	// permanently disabled (advanced feature)
-	cfg.ReverseTunnel.Enabled = false
-
 	// global defaults
 	cfg.Hostname = hostname
 	cfg.DataDir = defaults.DataDir
 	cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
+	cfg.Console = os.Stdout
 	return nil
 }
 
