@@ -17,7 +17,6 @@ package main
 
 import (
 	"github.com/gravitational/teleport/lib/utils"
-	"os"
 )
 
 func main() {
@@ -26,7 +25,6 @@ func main() {
 
 	err := RunTSH(app)
 	if err != nil {
-		utils.Errorf(err.Error())
-		os.Exit(-1)
+		utils.FatalError(err)
 	}
 }

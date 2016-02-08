@@ -28,7 +28,6 @@ func main() {
 
 	err := command.NewCommand().Run(app, os.Args)
 	if err != nil {
-		utils.Errorf(err.Error())
-		os.Exit(-1)
+		utils.FatalError(err)
 	}
 }
