@@ -45,8 +45,6 @@ func ParseEnv(cfg interface{}) error {
 }
 
 type Config struct {
-	Log LogConfig `yaml:"log"`
-
 	DataDir  string `yaml:"data_dir" env:"TELEPORT_DATA_DIR"`
 	Hostname string `yaml:"hostname" env:"TELEPORT_HOSTNAME"`
 
@@ -73,11 +71,6 @@ func (cfg *Config) RoleConfig() RoleConfig {
 		AuthServers: cfg.AuthServers,
 		Auth:        cfg.Auth,
 	}
-}
-
-type LogConfig struct {
-	Output   string `yaml:"output" env:"TELEPORT_LOG_OUTPUT"`
-	Severity string `yaml:"severity" env:"TELEPORT_LOG_SEVERITY"`
 }
 
 type ProxyConfig struct {
@@ -297,47 +290,4 @@ func (c *LocalCertificateAuthority) CA() (*services.LocalCertificateAuthority, e
 		},
 	}
 	return &out, nil
-}
-
-func SetDefaults(cfg *Config) {
-	if cfg.Log.Output == "" {
-		cfg.Log.Output = "console"
-	}
-	if cfg.Log.Severity == "" {
-		cfg.Log.Severity = "INFO"
-	}
-	if cfg.SSH.Addr.IsEmpty() {
-		cfg.SSH.Addr = utils.NetAddr{
-			AddrNetwork: "tcp",
-			Addr:        "127.0.0.1:33001",
-		}
-	}
-	if cfg.SSH.Shell == "" {
-		cfg.SSH.Shell = "/bin/bash"
-	}
-
-	if cfg.Auth.SSHAddr.IsEmpty() {
-		cfg.Auth.SSHAddr = utils.NetAddr{
-			AddrNetwork: "tcp",
-			Addr:        "127.0.0.1:33000",
-		}
-	}
-	if cfg.Proxy.ReverseTunnelListenAddr.IsEmpty() {
-		cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{
-			AddrNetwork: "tcp",
-			Addr:        "127.0.0.1:33006",
-		}
-	}
-	if cfg.Proxy.WebAddr.IsEmpty() {
-		cfg.Proxy.WebAddr = utils.NetAddr{
-			AddrNetwork: "tcp",
-			Addr:        "127.0.0.1:33007",
-		}
-	}
-	if cfg.Proxy.SSHAddr.IsEmpty() {
-		cfg.Proxy.SSHAddr = utils.NetAddr{
-			AddrNetwork: "tcp",
-			Addr:        "127.0.0.1:33008",
-		}
-	}
 }

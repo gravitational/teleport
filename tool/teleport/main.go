@@ -55,7 +55,7 @@ func main() {
 	start.Flag("advertise-ip",
 		"IP address to advertise to the proxy [auto]").IPVar(&ccf.AdvertiseIP)
 	start.Flag("nossh",
-		"Disable SSH service [false].").Default("false").BoolVar(&ccf.NoSSH)
+		"Disable SSH service [false].").BoolVar(&ccf.NoSSH)
 	start.Flag("config",
 		fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
 		StringVar(&ccf.ConfigFile)

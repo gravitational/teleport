@@ -207,7 +207,7 @@ func (cmd *Command) Run(app *kingpin.Application, args []string) error {
 				return trace.Wrap(err)
 			}
 		}
-		service.SetDefaults(&cfg)
+		//service.SetDefaults(&cfg)
 		if cfg.Auth.Enabled && len(cfg.AuthServers) == 0 {
 			cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
 		}

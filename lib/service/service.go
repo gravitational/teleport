@@ -16,15 +16,11 @@ limitations under the License.
 package service
 
 import (
-	"io/ioutil"
-	"log/syslog"
 	"net/http"
 	"os"
 	"path"
-	"strings"
 	"time"
 
-	logrus_syslog "github.com/Sirupsen/logrus/hooks/syslog"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -61,7 +57,6 @@ func NewTeleport(cfg Config) (Supervisor, error) {
 	if err := validateConfig(cfg); err != nil {
 		return nil, err
 	}
-	SetDefaults(&cfg)
 
 	_, err := os.Stat(cfg.DataDir)
 	if os.IsNotExist(err) {
@@ -76,10 +71,6 @@ func NewTeleport(cfg Config) (Supervisor, error) {
 	// the address of the created auth will be used
 	if cfg.Auth.Enabled && len(cfg.AuthServers) == 0 {
 		cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
-	}
-
-	if err := initLogging(cfg.Log.Output, cfg.Log.Severity); err != nil {
-		return nil, err
 	}
 
 	supervisor := NewSupervisor()
@@ -545,43 +536,6 @@ func initRecordBackend(btype string, params string) (recorder.Recorder, error) {
 		return boltrec.FromJSON(params)
 	}
 	return nil, trace.Errorf("unsupported backend type: %v", btype)
-}
-
-// initLogging configures the logger according to config file values
-func initLogging(ltype, severity string) error {
-	useSyslog := true
-	infoLevel := log.ErrorLevel
-
-	// output
-	switch strings.ToLower(ltype) {
-	case "console", "stderr":
-		useSyslog = false
-	}
-
-	if useSyslog {
-		hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_ERR, "")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		log.AddHook(hook)
-		log.SetOutput(ioutil.Discard)
-	} else {
-		log.SetOutput(os.Stderr)
-	}
-
-	// severity
-	switch strings.ToLower(severity) {
-	case "err", "error":
-		infoLevel = log.ErrorLevel
-	case "warn", "warning":
-		infoLevel = log.WarnLevel
-	case "info", "notice":
-		infoLevel = log.InfoLevel
-	case "fatal":
-		infoLevel = log.FatalLevel
-	}
-	log.SetLevel(infoLevel)
-	return nil
 }
 
 func validateConfig(cfg Config) error {
