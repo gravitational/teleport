@@ -2,6 +2,7 @@ TCD_NODE1 := http://127.0.0.1:4001
 ETCD_NODES := ${ETCD_NODE1}
 ETCD_FLAGS := TELEPORT_TEST_ETCD_NODES=${ETCD_NODES}
 TARGETS=teleport tctl tsh
+OUT=out
 export GO15VENDOREXPERIMENT=1
 
 .PHONY: all install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd install-assets docs-serve
@@ -11,16 +12,13 @@ export GO15VENDOREXPERIMENT=1
 #
 .PHONY: tctl
 tctl: 
-	go build -o tctl -i github.com/gravitational/teleport/tool/tctl
+	go build -o $(OUT)/tctl -i github.com/gravitational/teleport/tool/tctl
 
-.PHONY: t
-t:
-	go test github.com/gravitational/teleport/lib/utils/...
 
 all: 
-	go build -o teleport -i github.com/gravitational/teleport/tool/teleport
-	go build -o tctl     -i github.com/gravitational/teleport/tool/tctl
-	go build -o tsh      -i github.com/gravitational/teleport/tool/tsh
+	go build -o $(OUT)/teleport -i github.com/gravitational/teleport/tool/teleport
+	go build -o $(OUT)/tctl     -i github.com/gravitational/teleport/tool/tctl
+	go build -o $(OUT)/tsh      -i github.com/gravitational/teleport/tool/tsh
 
 install: remove-temp-files
 	go install github.com/gravitational/teleport/tool/teleport

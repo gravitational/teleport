@@ -1,10 +1,5 @@
 # Compiled binaries, Object files, Static and Dynamic libs (Shared Objects)
-!tool/teleport
-!tool/tctl
-!tool/tsh
-teleport
-tsh
-tctl
+out
 *.o#
 *.a
 *.so
