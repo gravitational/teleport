@@ -16,18 +16,72 @@ limitations under the License.
 package main
 
 import (
-	"os"
-
+	"fmt"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tctl/command"
+	"os"
 )
+
+type CLIConfig struct {
+	Debug bool
+}
 
 func main() {
 	utils.InitLoggerCLI()
-	app := utils.InitCmdlineParser("tctl", "CLI for key management of teleport SSH cluster")
+	app := utils.InitCmdlineParser("tctl", GlobalHelpString)
 
-	err := command.NewCommand().Run(app, os.Args)
+	// define global flags:
+	var ccf CLIConfig
+	app.Flag("debug", "Enable verbose logging to stderr").
+		Short('d').
+		BoolVar(&ccf.Debug)
+
+	var (
+		login string
+	)
+
+	// commands:
+	ver := app.Command("version", "Print the version.")
+	app.HelpFlag.Short('h')
+
+	users := app.Command("users", "Manage users logins")
+	userAdd := users.Command("add", "Creates a new user")
+	userAdd.Alias("Using user add!")
+	userAdd.Arg("login", "user login").Required().StringVar(&login)
+	userList := users.Command("ls", "Lists all user logins")
+	userDelete := users.Command("del", "Delete user login")
+	userDelete.Arg("login", "user login to delete").Required().StringVar(&login)
+
+	// parse CLI commands+flags:
+	command, err := app.Parse(os.Args[1:])
 	if err != nil {
 		utils.FatalError(err)
 	}
+
+	// execute the selected command:
+	switch command {
+	case ver.FullCommand():
+		onVersion()
+	case userAdd.FullCommand():
+		onUserAdd(login)
+	case userList.FullCommand():
+		onUserList()
+	case userDelete.FullCommand():
+		onUserDelete(login)
+	}
+}
+
+func onVersion() {
+	fmt.Println("TODO: Version command has not been implemented yet")
+}
+
+func onUserAdd(login string) {
+	fmt.Println("TODO: Adding user: ", login)
+}
+
+func onUserList() {
+	fmt.Println("TODO: User list is not implemented")
+}
+
+func onUserDelete(login string) {
+	fmt.Println("TODO: Deleting user: ", login)
 }

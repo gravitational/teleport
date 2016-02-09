@@ -128,8 +128,8 @@ Args:
 {{end}}\
 {{if .Context.SelectedCommand}}\
 
-{{ if .Context.SelectedCommand.Commands}} \
-Subcommands:
+{{ if .Context.SelectedCommand.Commands}}\
+Commands:
 {{if .Context.SelectedCommand.Commands}}\
 {{template "FormatCommands" .Context.SelectedCommand}}
 {{end}}\
