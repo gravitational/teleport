@@ -27,7 +27,7 @@ type CLIConfig struct {
 
 func main() {
 	utils.InitLoggerCLI()
-	app := utils.InitCmdlineParser("tctl", GlobalHelpString)
+	app := utils.InitCLIParser("tctl", GlobalHelpString)
 
 	// define global flags:
 	var ccf CLIConfig

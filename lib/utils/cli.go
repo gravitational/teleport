@@ -68,9 +68,9 @@ func FatalError(err error) {
 	os.Exit(1)
 }
 
-// ConsoleMessage prints the same message to a 'ui console' (if defined) and also to
+// Consolef prints the same message to a 'ui console' (if defined) and also to
 // the logger with INFO priority
-func ConsoleMessage(w io.Writer, msg string, params ...interface{}) {
+func Consolef(w io.Writer, msg string, params ...interface{}) {
 	msg = fmt.Sprintf(msg, params...)
 	if w != nil {
 		fmt.Fprintln(w, msg)
@@ -78,9 +78,9 @@ func ConsoleMessage(w io.Writer, msg string, params ...interface{}) {
 	logrus.Info(msg)
 }
 
-// InitCmdlineParser configures kingpin command line args parser with
+// InitCLIParser configures kingpin command line args parser with
 // some defaults common for all Teleport CLI tools
-func InitCmdlineParser(appName, appHelp string) (app *kingpin.Application) {
+func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	app = kingpin.New(appName, appHelp)
 
 	// hide "--help" flag

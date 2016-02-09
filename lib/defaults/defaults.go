@@ -17,6 +17,7 @@ package defaults
 
 import (
 	"fmt"
+
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -24,28 +25,28 @@ import (
 // Default port numbers used by all teleport tools
 const (
 	// Web UI over HTTP
-	HTTPListenPort int16 = 3080
+	HTTPListenPort = 3080
 
 	// Web UI over HTTPS
-	HTTPSecureListenPort int16 = 3081
+	HTTPSecureListenPort = 3081
 
 	// When running in "SSH Server" mode behind a proxy, this
 	// listening port will be used to connect users to:
-	SSHServerListenPort int16 = 3022
+	SSHServerListenPort = 3022
 
 	// When running in "SSH Proxy" role this port will be used to
 	// accept incoming client connections and proxy them to SSHServerListenPort of
 	// one of many SSH nodes
-	SSHProxyListenPort int16 = 3023
+	SSHProxyListenPort = 3023
 
 	// When running in "SSH Proxy" role this port will be used for incoming
 	// connections from SSH nodes who wish to use "reverse tunnell" (when they
 	// run behind an environment/firewall which only allows outgoing connections)
-	SSHProxyTunnelListenPort int16 = 3024
+	SSHProxyTunnelListenPort = 3024
 
 	// When running as a "SSH Proxy" this port will be used to
 	// serve auth requests.
-	AuthListenPort int16 = 3025
+	AuthListenPort = 3025
 
 	// Default DB to use for persisting state. Another options is "etcd"
 	BackendType = "bolt"

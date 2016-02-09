@@ -21,8 +21,8 @@ Examples:
 
 > teleport start
 
-  Without any cofiguration teleport starts in a "showroom mode": it's the equivalent of 
-  running with --roles=node,proxy,auth 
+  By default without any configuration, teleport starts running with all roles enabled
+  It's the equivalent of running with --roles=node,proxy,auth 
 
 > teleport start --listen-ip=10.5.0.1 --roles=node --auth-server=10.5.0.2 --token=xyz
 

@@ -18,9 +18,11 @@ package service
 import (
 	"encoding/base64"
 	"encoding/json"
-	"gopkg.in/yaml.v2"
+
 	"io"
 	"io/ioutil"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"

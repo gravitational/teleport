@@ -84,7 +84,7 @@ func (s *CmdSuite) SetUpSuite(c *C) {
 	s.scrt = srv
 
 	utils.InitLoggerCLI()
-	s.app = utils.InitCmdlineParser("tctl", "test")
+	s.app = utils.InitCLIParser("tctl", "test")
 }
 
 func (s *CmdSuite) SetUpTest(c *C) {
