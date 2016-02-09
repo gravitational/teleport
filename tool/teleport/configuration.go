@@ -26,15 +26,17 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // CLIConfig represents command line flags+args
 type CLIConfig struct {
-	ProxyAddr  string
-	ListenIP   net.IP
-	ConfigFile string
-	Roles      []string
-	Debug      bool
+	AuthServerAddr string
+	AuthToken      string
+	ListenIP       net.IP
+	ConfigFile     string
+	Roles          string
+	Debug          bool
 }
 
 // confnigure merges command line arguments with what's in a configuration file
@@ -52,6 +54,9 @@ func configure(ccf *CLIConfig) (cfg service.Config, err error) {
 		}
 		// parse the config file. these values will override defaults:
 		utils.ConsoleMessage(os.Stdout, "Using config file: %s", configPath)
+
+		// TODO: replace with simplified config file
+		log.Warning("Need to implement simplified config file")
 		if err := service.ParseYAMLFile(configPath, &cfg); err != nil {
 			return cfg, err
 		}
@@ -65,9 +70,43 @@ func configure(ccf *CLIConfig) (cfg service.Config, err error) {
 		utils.InitLoggerDebug()
 	}
 
+	// apply --auth-server flag:
+	if ccf.AuthServerAddr != "" {
+		addr, err := utils.ParseHostPortAddr(ccf.AuthServerAddr, int(defaults.AuthListenPort))
+		if err != nil {
+			return cfg, err
+		}
+		log.Infof("Using auth server: %v", addr.FullAddress())
+		cfg.AuthServers = append(cfg.AuthServers, *addr)
+	}
+
+	// apply --token flag:
+	if ccf.AuthToken != "" {
+		log.Infof("Using auth token: %s", ccf.AuthToken)
+		cfg.SSH.Token = ccf.AuthToken
+		cfg.Proxy.Token = ccf.AuthToken
+	}
+
+	// apply --roles flag:
+	if ccf.Roles != "" {
+		if err := validateRoles(ccf.Roles); err != nil {
+			log.Error(err.Error())
+			return cfg, err
+		}
+		if strings.Index(ccf.Roles, defaults.RoleNode) == -1 {
+			cfg.SSH.Enabled = false
+		}
+		if strings.Index(ccf.Roles, defaults.RoleAuthService) == -1 {
+			cfg.Auth.Enabled = false
+		}
+		if strings.Index(ccf.Roles, defaults.RoleProxy) == -1 {
+			cfg.Proxy.Enabled = false
+			cfg.ReverseTunnel.Enabled = false
+		}
+	}
+
 	// apply --listen-ip flag:
 	if ccf.ListenIP != nil {
-		log.Infof("applying listen-ip flag: '%v'", ccf.ListenIP)
 		if err = applyListenIP(ccf.ListenIP, &cfg); err != nil {
 			return cfg, err
 		}
@@ -126,8 +165,10 @@ func applyDefaults(cfg *service.Config) error {
 	cfg.Proxy.AssetsDir = defaults.DataDir
 	cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
 	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
+	cfg.ReverseTunnel.Enabled = true
 	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnellAddr()
 	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
+	defaults.ConfigureLimiter(&cfg.ReverseTunnel.Limiter)
 
 	// defaults for the SSH service:
 	cfg.SSH.Enabled = true
@@ -137,7 +178,9 @@ func applyDefaults(cfg *service.Config) error {
 	// global defaults
 	cfg.Hostname = hostname
 	cfg.DataDir = defaults.DataDir
-	cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
+	if cfg.Auth.Enabled {
+		cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
+	}
 	cfg.Console = os.Stdout
 	return nil
 }
@@ -154,4 +197,19 @@ func fileExists(fp string) bool {
 		return false
 	}
 	return true
+}
+
+// validateRoles makes sure that value upassed to --roles flag is valid
+func validateRoles(roles string) error {
+	for _, role := range strings.Split(roles, ",") {
+		switch role {
+		case defaults.RoleAuthService,
+			defaults.RoleNode,
+			defaults.RoleProxy:
+			break
+		default:
+			return fmt.Errorf("unknown role: '%s'", role)
+		}
+	}
+	return nil
 }

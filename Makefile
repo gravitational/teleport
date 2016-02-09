@@ -13,6 +13,11 @@ export GO15VENDOREXPERIMENT=1
 teleport: 
 	go build -o teleport -i github.com/gravitational/teleport/tool/teleport
 
+.PHONY: t
+t:
+	go test github.com/gravitational/teleport/lib/utils/...
+
+
 all: 
 	go build -o teleport -i github.com/gravitational/teleport/tool/teleport
 	go build -o tctl     -i github.com/gravitational/teleport/tool/tctl

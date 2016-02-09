@@ -18,6 +18,7 @@ package service
 import (
 	"encoding/base64"
 	"encoding/json"
+	"gopkg.in/yaml.v2"
 	"io"
 	"io/ioutil"
 
@@ -76,6 +77,16 @@ func (cfg *Config) RoleConfig() RoleConfig {
 		Auth:        cfg.Auth,
 		Console:     cfg.Console,
 	}
+}
+
+// DebugDumpToYAML() is useful for debugging: it dumps the Config structure into
+// a string
+func (cfg *Config) DebugDumpToYAML() string {
+	out, err := yaml.Marshal(cfg)
+	if err != nil {
+		return err.Error()
+	}
+	return string(out)
 }
 
 type ProxyConfig struct {

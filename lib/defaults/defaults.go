@@ -65,9 +65,16 @@ const (
 	LimiterMaxConcurrentUsers = 25
 )
 
+// list of roles teleport service can run as:
+const (
+	RoleNode        = "node"
+	RoleProxy       = "proxy"
+	RoleAuthService = "auth"
+)
+
 var (
 	// Default roles teleport assumes when started via 'start' command
-	StartRoles = []string{"node", "proxy", "auth"}
+	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService}
 )
 
 const (
@@ -82,33 +89,38 @@ func ConfigureLimiter(lc *limiter.LimiterConfig) {
 
 // AuthListenAddr returns the default listening address for the Auth service
 func AuthListenAddr() *utils.NetAddr {
-	return makeDefaultAddr(AuthListenPort)
+	return makeAddr(BindIP, AuthListenPort)
+}
+
+// AuthConnectAddr returns the default address to search for auth. service on
+func AuthConnectAddr() *utils.NetAddr {
+	return makeAddr("127.0.0.1", AuthListenPort)
 }
 
 // ProxyListenAddr returns the default listening address for the SSH Proxy service
 func ProxyListenAddr() *utils.NetAddr {
-	return makeDefaultAddr(SSHProxyListenPort)
+	return makeAddr(BindIP, SSHProxyListenPort)
 }
 
 // ProxyWebListenAddr returns the default listening address for the Web-based SSH Proxy service
 func ProxyWebListenAddr() *utils.NetAddr {
-	return makeDefaultAddr(HTTPListenPort)
+	return makeAddr(BindIP, HTTPListenPort)
 }
 
 // SSHServerListenAddr returns the default listening address for the Web-based SSH Proxy service
 func SSHServerListenAddr() *utils.NetAddr {
-	return makeDefaultAddr(SSHServerListenPort)
+	return makeAddr(BindIP, SSHServerListenPort)
 }
 
 // ReverseTunnellAddr returns the default listening address for the SSH Proxy service used
 // by the SSH nodes to establish proxy<->ssh_node connection from behind a firewall which
 // blocks inbound connecions to ssh_nodes
 func ReverseTunnellAddr() *utils.NetAddr {
-	return makeDefaultAddr(SSHProxyTunnelListenPort)
+	return makeAddr(BindIP, SSHProxyTunnelListenPort)
 }
 
-func makeDefaultAddr(port int16) *utils.NetAddr {
-	addrSpec := fmt.Sprintf("tcp://%v:%d", BindIP, port)
+func makeAddr(host string, port int16) *utils.NetAddr {
+	addrSpec := fmt.Sprintf("tcp://%s:%d", host, port)
 	retval, err := utils.ParseAddr(addrSpec)
 	if err != nil {
 		panic(fmt.Sprintf("%s: error parsing '%v'", initError, addrSpec))

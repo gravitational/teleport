@@ -53,17 +53,17 @@ func main() {
 	start.Flag("roles",
 		fmt.Sprintf("Comma-separated list of roles to start with [%s]", strings.Join(defaults.StartRoles, ","))).
 		Short('r').
-		StringsVar(&ccf.Roles)
+		StringVar(&ccf.Roles)
 	start.Flag("listen-ip",
 		fmt.Sprintf("IP address to bind to [%s]", defaults.BindIP)).
 		Short('l').
 		IPVar(&ccf.ListenIP)
-	start.Flag("proxy",
-		"Address and port of the proxy server [none]").
-		StringVar(&ccf.ProxyAddr)
-	start.Flag("proxy-token",
-		"One-time join token to connect to a proxy [none]").
-		StringVar(&ccf.ProxyAddr)
+	start.Flag("auth-server",
+		fmt.Sprintf("Address of the auth server [%s]", defaults.AuthConnectAddr().Addr)).
+		StringVar(&ccf.AuthServerAddr)
+	start.Flag("token",
+		"One-time token to register with an auth server [none]").
+		StringVar(&ccf.AuthToken)
 	start.Flag("config",
 		fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
 		Short('c').

@@ -4,20 +4,16 @@ const (
 	usageNotes = `
 Notes:
 
-  --no-ssh=false
+  --roles=node,proxy,auth
 
-  When set, Teleport does not start the SSH service, only allowing proxied connections to 
-  other SSH nodes.
+  Use this flag to tell Teleport which services to run. By default it runs all three, but
+  in a production environment you may want to separate them all.
 
-  --proxy-addr=<host>[:port]/<token>
+  --token=xyz
 
-  Tells teleport to run as an SSH node behind the given proxy host. You need to obtain the 
-  token by executing "tctl nodes add" on the host where Teleport proxy is running.
-
-  --advertise-ip=ip_address
-
-  When connecting to a proxy from behind a NAT, this tells the proxy which IP to find 
-  this node on. 
+  This token is needed to connect any node (web proxy or SSH service) to an auth server.
+  Obtain it by running "tctl nodes add" on the auth server. It is only used once and ignored
+  on subsequent restarts.
 `
 
 	usageExamples = `
@@ -25,20 +21,22 @@ Examples:
 
 > teleport start
 
-  Without cofiguration, teleport starts by default in a "showcase mode": it becomes an 
-  SSH server and a proxy to itself with a Web UI.
+  Without any cofiguration teleport starts in a "showroom mode": it's the equivalent of 
+  running with --roles=node,proxy,auth 
 
-> teleport start --no-ssh
+> teleport start --listen-ip=10.5.0.1 --roles=node --auth-server=10.5.0.2 --token=xyz
 
-  Starts teleport in a proxy+auth mode, serving the Web UI for 2-factor auth. You must
-  execute 'tctl nodes add' now to generate one-time tokens to add nodes to the cluster.
+  Starts a SSH node listening on 10.5.0.1 and authenticating incoming clients via the 
+  auth server running on 10.5.0.2. 
 
-> teleport start --proxy-addr=bastion.host:3023/token \
-                 --listen_interface=0.0.0.0 \
-                 --advertise_interface=10.0.1.50
+> teleport start --roles=proxy,auth
 
-  Starts teleport as an SSH node connected to the SSH proxy/bastion on bastion.host:3023
-  Tells the proxy that this node is reachable via 10.0.1.50
+  Starts Teleport auth server with a web proxy (which also serves Web UI).
+
+> teleport start --roles=proxy --auth-server=10.5.0.2 --token=xyz
+
+  Starts Teleport Web proxy and configure it to authenticate/authorize against an auth 
+  server running on 10.5.0.2
 `
 
 	sampleConfig = `##
