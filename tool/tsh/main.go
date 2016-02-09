@@ -21,7 +21,7 @@ import (
 
 func main() {
 	utils.InitLoggerCLI()
-	app := utils.InitCmdlineParser("tsh", "teleport SSH client")
+	app := utils.InitCLIParser("tsh", "teleport SSH client")
 
 	err := RunTSH(app)
 	if err != nil {

@@ -17,43 +17,51 @@ package main
 
 import (
 	"fmt"
-	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
+
+	log "github.com/Sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // CLIConfig represents command line flags+args
 type CLIConfig struct {
+	// --auth-server flag
 	AuthServerAddr string
-	AuthToken      string
-	ListenIP       net.IP
-	ConfigFile     string
-	Roles          string
-	Debug          bool
+	// --token flag
+	AuthToken string
+	// --listen-ip flag
+	ListenIP net.IP
+	// --config flag
+	ConfigFile string
+	// --roles flag
+	Roles string
+	// -d flag
+	Debug bool
 }
 
-// confnigure merges command line arguments with what's in a configuration file
+// configure merges command line arguments with what's in a configuration file
 // with CLI commands taking precedence
-func configure(ccf *CLIConfig) (cfg service.Config, err error) {
+func configure(cliConf *CLIConfig) (cfg service.Config, err error) {
 	if err = applyDefaults(&cfg); err != nil {
 		return cfg, trace.Wrap(err)
 	}
 
 	// use a config file?
-	if ccf.ConfigFile != "" || fileExists(defaults.ConfigFilePath) {
+	if cliConf.ConfigFile != "" || fileExists(defaults.ConfigFilePath) {
 		configPath := defaults.ConfigFilePath
-		if ccf.ConfigFile != "" {
-			configPath = ccf.ConfigFile
+		if cliConf.ConfigFile != "" {
+			configPath = cliConf.ConfigFile
 		}
 		// parse the config file. these values will override defaults:
-		utils.ConsoleMessage(os.Stdout, "Using config file: %s", configPath)
+		utils.Consolef(os.Stdout, "Using config file: %s", configPath)
 
 		// TODO: replace with simplified config file
 		log.Warning("Need to implement simplified config file")
@@ -61,62 +69,63 @@ func configure(ccf *CLIConfig) (cfg service.Config, err error) {
 			return cfg, err
 		}
 	} else {
-		utils.ConsoleMessage(os.Stdout, "Not using a config file")
+		log.Info("not using a config file")
 	}
 
 	// apply --debug flag:
-	if ccf.Debug {
+	if cliConf.Debug {
 		cfg.Console = ioutil.Discard
 		utils.InitLoggerDebug()
 	}
 
-	// apply --auth-server flag:
-	if ccf.AuthServerAddr != "" {
-		addr, err := utils.ParseHostPortAddr(ccf.AuthServerAddr, int(defaults.AuthListenPort))
-		if err != nil {
-			return cfg, err
-		}
-		log.Infof("Using auth server: %v", addr.FullAddress())
-		cfg.AuthServers = append(cfg.AuthServers, *addr)
-	}
-
-	// apply --token flag:
-	if ccf.AuthToken != "" {
-		log.Infof("Using auth token: %s", ccf.AuthToken)
-		cfg.SSH.Token = ccf.AuthToken
-		cfg.Proxy.Token = ccf.AuthToken
-	}
-
 	// apply --roles flag:
-	if ccf.Roles != "" {
-		if err := validateRoles(ccf.Roles); err != nil {
-			log.Error(err.Error())
-			return cfg, err
+	if cliConf.Roles != "" {
+		if err := validateRoles(cliConf.Roles); err != nil {
+			return cfg, trace.Wrap(err)
 		}
-		if strings.Index(ccf.Roles, defaults.RoleNode) == -1 {
+		if strings.Index(cliConf.Roles, defaults.RoleNode) == -1 {
 			cfg.SSH.Enabled = false
 		}
-		if strings.Index(ccf.Roles, defaults.RoleAuthService) == -1 {
+		if strings.Index(cliConf.Roles, defaults.RoleAuthService) == -1 {
 			cfg.Auth.Enabled = false
 		}
-		if strings.Index(ccf.Roles, defaults.RoleProxy) == -1 {
+		if strings.Index(cliConf.Roles, defaults.RoleProxy) == -1 {
 			cfg.Proxy.Enabled = false
 			cfg.ReverseTunnel.Enabled = false
 		}
 	}
 
-	// apply --listen-ip flag:
-	if ccf.ListenIP != nil {
-		if err = applyListenIP(ccf.ListenIP, &cfg); err != nil {
-			return cfg, err
+	// apply --auth-server flag:
+	if cliConf.AuthServerAddr != "" {
+		if cfg.Auth.Enabled {
+			log.Warnf("not starting the local auth service. --auth-server flag tells to connect to another auth server")
+			cfg.Auth.Enabled = false
 		}
+		addr, err := utils.ParseHostPortAddr(cliConf.AuthServerAddr, int(defaults.AuthListenPort))
+		if err != nil {
+			return cfg, trace.Wrap(err)
+		}
+		log.Infof("Using auth server: %v", addr.FullAddress())
+		cfg.AuthServers = []utils.NetAddr{*addr}
+	}
+
+	// apply --token flag:
+	if cliConf.AuthToken != "" {
+		log.Infof("Using auth token: %s", cliConf.AuthToken)
+		cfg.SSH.Token = cliConf.AuthToken
+		cfg.Proxy.Token = cliConf.AuthToken
+	}
+
+	// apply --listen-ip flag:
+	if cliConf.ListenIP != nil {
+		applyListenIP(cliConf.ListenIP, &cfg)
 	}
 	return cfg, nil
 }
 
 // applyListenIP replaces all 'listen addr' settings for all services with
 // a given IP
-func applyListenIP(ip net.IP, cfg *service.Config) error {
+func applyListenIP(ip net.IP, cfg *service.Config) {
 	listeningAddresses := []*utils.NetAddr{
 		&cfg.Auth.SSHAddr,
 		&cfg.Auth.SSHAddr,
@@ -128,7 +137,6 @@ func applyListenIP(ip net.IP, cfg *service.Config) error {
 	for _, addr := range listeningAddresses {
 		replaceHost(addr, ip.String())
 	}
-	return nil
 }
 
 // replaceHost takes utils.NetAddr and replaces the hostname in it, preserving
@@ -165,7 +173,7 @@ func applyDefaults(cfg *service.Config) error {
 	cfg.Proxy.AssetsDir = defaults.DataDir
 	cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
 	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
-	cfg.ReverseTunnel.Enabled = true
+	cfg.ReverseTunnel.Enabled = false
 	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnellAddr()
 	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
 	defaults.ConfigureLimiter(&cfg.ReverseTunnel.Limiter)
@@ -192,8 +200,8 @@ func boltParams(storagePath, dbFile string) string {
 }
 
 func fileExists(fp string) bool {
-	fi, err := os.Stat(fp)
-	if err != nil || fi.IsDir() {
+	_, err := os.Stat(fp)
+	if err != nil && os.IsNotExist(err) {
 		return false
 	}
 	return true
@@ -208,7 +216,7 @@ func validateRoles(roles string) error {
 			defaults.RoleProxy:
 			break
 		default:
-			return fmt.Errorf("unknown role: '%s'", role)
+			return trace.Errorf("unknown role: '%s'", role)
 		}
 	}
 	return nil

@@ -27,8 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/codahale/lunk"
 	log "github.com/Sirupsen/logrus"
+	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -149,6 +149,7 @@ func (a *Agent) connect() error {
 		HostKeyCallback: a.checkHostSignature,
 	})
 	if err != nil {
+		log.Errorf("failed connecting to '%v'. %v", a.addr.Addr, err)
 		return trace.Wrap(err)
 	}
 	a.conn = c

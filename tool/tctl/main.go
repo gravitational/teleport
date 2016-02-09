@@ -24,7 +24,7 @@ import (
 
 func main() {
 	utils.InitLoggerCLI()
-	app := utils.InitCmdlineParser("tctl", "CLI for key management of teleport SSH cluster")
+	app := utils.InitCLIParser("tctl", "CLI for key management of teleport SSH cluster")
 
 	err := command.NewCommand().Run(app, os.Args)
 	if err != nil {

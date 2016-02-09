@@ -34,7 +34,7 @@ func main() {
 	// configure logger for a typical CLI scenario until configuration file is
 	// parsed
 	utils.InitLoggerCLI()
-	app := utils.InitCmdlineParser("teleport", "Clustered SSH service. Learn more at http://teleport.gravitational.com")
+	app := utils.InitCLIParser("teleport", "Clustered SSH service. Learn more at http://teleport.gravitational.com")
 
 	// define global flags:
 	var ccf CLIConfig

@@ -21,6 +21,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/gravitational/trace"
 )
 
 type NetAddr struct {
@@ -86,7 +88,7 @@ func ParseAddr(a string) (*NetAddr, error) {
 	case "unix":
 		return &NetAddr{Addr: u.Path, AddrNetwork: u.Scheme}, nil
 	default:
-		return nil, fmt.Errorf("unsupported scheme '%v': '%v'", a, u.Scheme)
+		return nil, trace.Errorf("unsupported scheme '%v': '%v'", a, u.Scheme)
 	}
 }
 
@@ -102,7 +104,7 @@ func ParseHostPortAddr(hostport string, defaultPort int) (*NetAddr, error) {
 				net.JoinHostPort(hostport, strconv.Itoa(defaultPort)))
 		}
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse '%v': %v", hostport, err)
+			return nil, trace.Errorf("failed to parse '%v': %v", hostport, err)
 		}
 	}
 	return ParseAddr(fmt.Sprintf("tcp://%s", net.JoinHostPort(host, port)))
