@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -29,11 +30,11 @@ import (
 
 // CLIConfig represents command line flags+args
 type CLIConfig struct {
-	ProxyAddr   string
-	ListenIP    net.IP
-	AdvertiseIP net.IP
-	ConfigFile  string
-	NoSSH       bool
+	ProxyAddr  string
+	ListenIP   net.IP
+	ConfigFile string
+	Roles      []string
+	Debug      bool
 }
 
 // confnigure merges command line arguments with what's in a configuration file
@@ -42,6 +43,7 @@ func configure(ccf *CLIConfig) (cfg service.Config, err error) {
 	if err = applyDefaults(&cfg); err != nil {
 		return cfg, trace.Wrap(err)
 	}
+
 	// use a config file?
 	if ccf.ConfigFile != "" || fileExists(defaults.ConfigFilePath) {
 		configPath := defaults.ConfigFilePath
@@ -49,19 +51,20 @@ func configure(ccf *CLIConfig) (cfg service.Config, err error) {
 			configPath = ccf.ConfigFile
 		}
 		// parse the config file. these values will override defaults:
-		log.Infof("Using config file: %s", configPath)
+		utils.ConsoleMessage(os.Stdout, "Using config file: %s", configPath)
 		if err := service.ParseYAMLFile(configPath, &cfg); err != nil {
 			return cfg, err
 		}
 	} else {
-		log.Infof("Not using a config file")
+		utils.ConsoleMessage(os.Stdout, "Not using a config file")
 	}
 
-	// apply --nossh flag:
-	if ccf.NoSSH {
-		cfg.SSH.Enabled = false
-		log.Infof("SSH server is disabled via command line flag")
+	// apply --debug flag:
+	if ccf.Debug {
+		cfg.Console = ioutil.Discard
+		utils.InitLoggerDebug()
 	}
+
 	// apply --listen-ip flag:
 	if ccf.ListenIP != nil {
 		log.Infof("applying listen-ip flag: '%v'", ccf.ListenIP)

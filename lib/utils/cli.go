@@ -17,6 +17,7 @@ package utils
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log/syslog"
 	"os"
@@ -30,13 +31,24 @@ import (
 
 // CLI tools by default log into syslog, not stderr
 func InitLoggerCLI() {
+	logrus.SetLevel(logrus.WarnLevel)
+	// clear existing hooks:
+	logrus.StandardLogger().Hooks = make(logrus.LevelHooks)
+
 	hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_INFO, "")
 	if err != nil {
 		panic(err)
 	}
 	logrus.AddHook(hook)
-	// ... and disable its own output:
+	// ... and disable stderr:
 	logrus.SetOutput(ioutil.Discard)
+}
+
+// Configures the logger to dump everything to stderr
+func InitLoggerDebug() {
+	// clear existing hooks:
+	logrus.StandardLogger().Hooks = make(logrus.LevelHooks)
+	logrus.SetOutput(os.Stderr)
 	logrus.SetLevel(logrus.InfoLevel)
 }
 
@@ -52,8 +64,18 @@ func FatalError(err error) {
 		return err
 	}
 	logrus.Errorf(err.Error())
-	fmt.Fprintln(os.Stderr, unwrap(err))
+	fmt.Fprintln(os.Stderr, "Error: "+unwrap(err).Error())
 	os.Exit(1)
+}
+
+// ConsoleMessage prints the same message to a 'ui console' (if defined) and also to
+// the logger with INFO priority
+func ConsoleMessage(w io.Writer, msg string, params ...interface{}) {
+	msg = fmt.Sprintf(msg, params...)
+	if w != nil {
+		fmt.Fprintln(w, msg)
+	}
+	logrus.Info(msg)
 }
 
 // InitCmdlineParser configures kingpin command line args parser with

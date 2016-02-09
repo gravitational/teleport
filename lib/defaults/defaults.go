@@ -65,6 +65,11 @@ const (
 	LimiterMaxConcurrentUsers = 25
 )
 
+var (
+	// Default roles teleport assumes when started via 'start' command
+	StartRoles = []string{"node", "proxy", "auth"}
+)
+
 const (
 	initError = "failure initializing default values"
 )

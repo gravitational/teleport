@@ -18,6 +18,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -37,28 +38,37 @@ func main() {
 
 	// define global flags:
 	var ccf CLIConfig
-	showVersion := app.Flag("version", "").Short('v').Bool()
+	app.Flag("debug", "Enable verbose logging to stderr").
+		Short('d').
+		BoolVar(&ccf.Debug)
 
 	// define commands:
-	const defaultCmd = "no-command"
 	start := app.Command("start", "Starts the Teleport service.")
 	status := app.Command("status", "Print the status of the current SSH session.")
 	dump := app.Command("configure", "Print the sample config file into stdout.")
-	ver := app.Command("version", "Print the version.").Hidden()
-	app.Command(defaultCmd, "").Default().Hidden()
+	ver := app.Command("version", "Print the version.")
+	app.HelpFlag.Short('h')
 
 	// define start flags:
-	start.Flag("proxy-addr",
-		"Run as a behind-the-proxy SSH node, see notes below.").StringVar(&ccf.ProxyAddr)
+	start.Flag("roles",
+		fmt.Sprintf("Comma-separated list of roles to start with [%s]", strings.Join(defaults.StartRoles, ","))).
+		Short('r').
+		StringsVar(&ccf.Roles)
 	start.Flag("listen-ip",
-		fmt.Sprintf("IP address to bind to [%s]", defaults.BindIP)).IPVar(&ccf.ListenIP)
-	start.Flag("advertise-ip",
-		"IP address to advertise to the proxy [auto]").IPVar(&ccf.AdvertiseIP)
-	start.Flag("nossh",
-		"Disable SSH service [false].").BoolVar(&ccf.NoSSH)
+		fmt.Sprintf("IP address to bind to [%s]", defaults.BindIP)).
+		Short('l').
+		IPVar(&ccf.ListenIP)
+	start.Flag("proxy",
+		"Address and port of the proxy server [none]").
+		StringVar(&ccf.ProxyAddr)
+	start.Flag("proxy-token",
+		"One-time join token to connect to a proxy [none]").
+		StringVar(&ccf.ProxyAddr)
 	start.Flag("config",
 		fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
+		Short('c').
 		StringVar(&ccf.ConfigFile)
+
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)
 
@@ -66,18 +76,6 @@ func main() {
 	command, err := app.Parse(os.Args[1:])
 	if err != nil {
 		utils.FatalError(err)
-	}
-
-	// show version:
-	if *showVersion || ver.FullCommand() == command {
-		onVersion()
-		os.Exit(0)
-	}
-
-	// by default show help and exit:
-	if command == defaultCmd {
-		app.Usage(os.Args[1:])
-		os.Exit(0)
 	}
 
 	// configuration merge: defaults -> file-based conf -> CLI conf
@@ -94,6 +92,8 @@ func main() {
 		err = onStatus(&config)
 	case dump.FullCommand():
 		err = onConfigDump()
+	case ver.FullCommand():
+		onVersion()
 	}
 
 	if err != nil {

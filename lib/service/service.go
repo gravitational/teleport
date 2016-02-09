@@ -16,7 +16,6 @@ limitations under the License.
 package service
 
 import (
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -63,9 +62,8 @@ func NewTeleport(cfg Config) (Supervisor, error) {
 	}
 
 	// create the data directory if it's missing
-	needDataDir := cfg.Auth.Enabled || cfg.Proxy.Enabled
 	_, err := os.Stat(cfg.DataDir)
-	if os.IsNotExist(err) && needDataDir {
+	if os.IsNotExist(err) {
 		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0777)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -180,7 +178,7 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) err
 
 	// register auth SSH-based endpoint
 	supervisor.RegisterFunc(func() error {
-		uiMessage(cfg.Console, "[AUTH]  Auth service is starting on %v", cfg.Auth.SSHAddr.Addr)
+		utils.ConsoleMessage(cfg.Console, "[AUTH]  Auth service is starting on %v", cfg.Auth.SSHAddr.Addr)
 		tsrv, err := auth.NewTunServer(
 			cfg.Auth.SSHAddr, []ssh.Signer{signer},
 			apisrv,
@@ -188,11 +186,11 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) err
 			limiter,
 		)
 		if err != nil {
-			uiMessage(cfg.Console, "[PROXY] Error: %v", err)
+			utils.ConsoleMessage(cfg.Console, "[PROXY] Error: %v", err)
 			return trace.Wrap(err)
 		}
 		if err := tsrv.Start(); err != nil {
-			uiMessage(cfg.Console, "[PROXY] Error: %v", err)
+			utils.ConsoleMessage(cfg.Console, "[PROXY] Error: %v", err)
 			return trace.Wrap(err)
 		}
 		return nil
@@ -252,9 +250,9 @@ func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
 	}
 
 	supervisor.RegisterFunc(func() error {
-		uiMessage(cfg.Console, "[SSH]   Service is starting on %v", cfg.SSH.Addr.Addr)
+		utils.ConsoleMessage(cfg.Console, "[SSH]   Service is starting on %v", cfg.SSH.Addr.Addr)
 		if err := s.Start(); err != nil {
-			uiMessage(cfg.Console, "[SSH]   Error: %v", err)
+			utils.ConsoleMessage(cfg.Console, "[SSH]   Error: %v", err)
 			return trace.Wrap(err)
 		}
 		s.Wait()
@@ -420,9 +418,9 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
 	supervisor.RegisterFunc(func() error {
-		uiMessage(cfg.Console, "[PROXY] Reverse tunnel service is starting on %v", cfg.Proxy.ReverseTunnelListenAddr.Addr)
+		utils.ConsoleMessage(cfg.Console, "[PROXY] Reverse tunnel service is starting on %v", cfg.Proxy.ReverseTunnelListenAddr.Addr)
 		if err := tsrv.Start(); err != nil {
-			uiMessage(cfg.Console, "[PROXY] Error: %v", err)
+			utils.ConsoleMessage(cfg.Console, "[PROXY] Error: %v", err)
 			return trace.Wrap(err)
 		}
 		tsrv.Wait()
@@ -431,7 +429,7 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 
 	// Register web proxy server
 	supervisor.RegisterFunc(func() error {
-		uiMessage(cfg.Console, "[PROXY] Web proxy service is starting on %v", cfg.Proxy.WebAddr.Addr)
+		utils.ConsoleMessage(cfg.Console, "[PROXY] Web proxy service is starting on %v", cfg.Proxy.WebAddr.Addr)
 		webHandler, err := web.NewMultiSiteHandler(
 			web.MultiSiteConfig{
 				Tun:        tsrv,
@@ -466,25 +464,15 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 
 	// Register ssh proxy server
 	supervisor.RegisterFunc(func() error {
-		uiMessage(cfg.Console, "[PROXY] SSH proxy service is starting on %v", cfg.Proxy.SSHAddr.Addr)
+		utils.ConsoleMessage(cfg.Console, "[PROXY] SSH proxy service is starting on %v", cfg.Proxy.SSHAddr.Addr)
 		if err := SSHProxy.Start(); err != nil {
-			uiMessage(cfg.Console, "[PROXY] Error: %v", err)
+			utils.ConsoleMessage(cfg.Console, "[PROXY] Error: %v", err)
 			return trace.Wrap(err)
 		}
 		return nil
 	})
 
 	return nil
-}
-
-// uiMessage prints the same message to a 'ui console' (if defined) and also to
-// the logger with INFO priority
-func uiMessage(w io.Writer, msg string, params ...interface{}) {
-	msg = fmt.Sprintf(msg, params)
-	if w != nil {
-		fmt.Fprintln(w, msg)
-	}
-	log.Info(msg)
 }
 
 func initBackend(dataDir, domainName string, peers NetAddrSlice, cfg AuthConfig) (*encryptedbk.ReplicatedBackend, error) {
