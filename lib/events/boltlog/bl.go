@@ -27,7 +27,6 @@ import (
 
 	"github.com/boltdb/bolt"
 	"github.com/codahale/lunk"
-	log "github.com/Sirupsen/logrus"
 )
 
 type BoltLog struct {
@@ -85,7 +84,6 @@ func (b *BoltLog) LogEntry(en lunk.Entry) error {
 }
 
 func (b *BoltLog) GetEvents(f events.Filter) ([]lunk.Entry, error) {
-	log.Infof("Get events: %v", f)
 	if f.Start.IsZero() {
 		return nil, fmt.Errorf("supply either starting point")
 	}

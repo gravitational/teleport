@@ -27,8 +27,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/gravitational/form"
 	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/form"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/session"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -312,7 +312,6 @@ func (s *MultiSiteHandler) siteHandler(w http.ResponseWriter, r *http.Request, p
 	sh := i.(http.Handler)
 	r.URL.Path = strings.TrimPrefix(r.URL.Path, prefix)
 	r.RequestURI = r.URL.String()
-	log.Infof("siteHandler: %v %v", r.Method, r.URL)
 	sh.ServeHTTP(w, r)
 	return nil
 }

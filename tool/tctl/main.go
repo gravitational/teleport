@@ -20,6 +20,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -34,9 +35,21 @@ type CLIConfig struct {
 	Debug bool
 }
 
+type UserCommand struct {
+	login    string
+	mappings string
+	config   *service.Config
+}
+
 func main() {
 	utils.InitLoggerCLI()
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
+
+	// generate default tctl configuration:
+	cfg, err := service.MakeDefaultConfig()
+	if err != nil {
+		utils.FatalError(err)
+	}
 
 	// define global flags:
 	var ccf CLIConfig
@@ -44,22 +57,27 @@ func main() {
 		Short('d').
 		BoolVar(&ccf.Debug)
 
-	var (
-		login string
-	)
-
 	// commands:
 	ver := app.Command("version", "Print the version.")
 	app.HelpFlag.Short('h')
 
 	users := app.Command("users", "Manage users logins")
+	cmdUsers := UserCommand{config: cfg}
+
+	// user add command:
 	userAdd := users.Command("add", "Creates a new user")
-	userAdd.Arg("login", "Teleport user login").Required().StringVar(&login)
-	userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").Default("").StringVar(&login)
+	userAdd.Arg("login", "Teleport user login").Required().StringVar(&cmdUsers.login)
+	userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
+		Default("").StringVar(&cmdUsers.mappings)
 	userAdd.Alias(AddUserHelp)
+
+	// list users command
 	userList := users.Command("ls", "Lists all user logins")
-	userDelete := users.Command("del", "Delete user login")
-	userDelete.Arg("login", "user login to delete").Required().StringVar(&login)
+
+	// Delete user command
+	userDelete := users.Command("rm", "Delete a user(s)")
+	userDelete.Arg("logins", "Comma-separated list of user logins to delete").
+		Required().StringVar(&cmdUsers.login)
 
 	// parse CLI commands+flags:
 	command, err := app.Parse(os.Args[1:])
@@ -72,22 +90,16 @@ func main() {
 		utils.InitLoggerDebug()
 	}
 
-	// apply configuration:
-	cfg, err := service.MakeDefaultConfig()
-	if err != nil {
-		utils.FatalError(err)
-	}
-
 	// execute the selected command:
 	switch command {
 	case ver.FullCommand():
 		onVersion()
 	case userAdd.FullCommand():
-		onUserAdd(login, cfg)
+		cmdUsers.Add()
 	case userList.FullCommand():
-		onUserList()
+		cmdUsers.List()
 	case userDelete.FullCommand():
-		onUserDelete(login)
+		cmdUsers.Delete()
 	}
 
 	if err != nil {
@@ -100,29 +112,34 @@ func onVersion() {
 	fmt.Println("TODO: Version command has not been implemented yet")
 }
 
-func onUserAdd(login string, cfg *service.Config) error {
-	client, err := connectToAuthService(cfg)
+// Add() creates a new sign-up token and prints a token URL to stdout.
+// A user is not created until he visits the sign-up URL and completes the process
+func (this *UserCommand) Add() error {
+	client, err := connectToAuthService(this.config)
 	if err != nil {
 		utils.FatalError(err)
 	}
-	fmt.Println("TODO: Adding user: ", login, client)
-	token, err := client.CreateSignupToken(login, []string{login, "root", "centos"})
+	// if no local logis were specified, default to 'login'
+	if this.mappings == "" {
+		this.mappings = this.login
+	}
+	token, err := client.CreateSignupToken(this.login, strings.Split(this.mappings, ","))
 	if err != nil {
 		utils.FatalError(err)
 	}
 
 	hostname, _ := os.Hostname()
 	url := web.CreateSignupLink(net.JoinHostPort(hostname, strconv.Itoa(defaults.HTTPListenPort)), token)
-	fmt.Println("Got token: ", url)
+	fmt.Printf("Signup token has been created. Share this URL with the user:\n%v\n\nNOTE: make sure the hostname is accessible!\n", url)
 	return nil
 }
 
-func onUserList() {
+func (this *UserCommand) List() {
 	fmt.Println("TODO: User list is not implemented")
 }
 
-func onUserDelete(login string) {
-	fmt.Println("TODO: Deleting user: ", login)
+func (this *UserCommand) Delete() {
+	fmt.Println("TODO: Deleting user: ", this.login)
 }
 
 // connectToAuthService creates a valid client connection to the auth service
