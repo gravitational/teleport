@@ -54,8 +54,9 @@ func main() {
 
 	users := app.Command("users", "Manage users logins")
 	userAdd := users.Command("add", "Creates a new user")
-	userAdd.Alias("Using user add!")
-	userAdd.Arg("login", "user login").Required().StringVar(&login)
+	userAdd.Arg("login", "Teleport user login").Required().StringVar(&login)
+	userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").Default("").StringVar(&login)
+	userAdd.Alias(AddUserHelp)
 	userList := users.Command("ls", "Lists all user logins")
 	userDelete := users.Command("del", "Delete user login")
 	userDelete.Arg("login", "user login to delete").Required().StringVar(&login)
