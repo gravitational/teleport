@@ -66,19 +66,26 @@ func main() {
 	cmdUsers := UserCommand{config: cfg}
 
 	// user add command:
-	userAdd := users.Command("add", "Creates a new user")
+	userAdd := users.Command("invite", "Generates an invitation token and prints the signup URL for setting up 2nd factor auth.")
 	userAdd.Arg("login", "Teleport user login").Required().StringVar(&cmdUsers.login)
 	userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
 		Default("").StringVar(&cmdUsers.mappings)
 	userAdd.Alias(AddUserHelp)
 
 	// list users command
-	userList := users.Command("ls", "Lists all user logins")
+	userList := users.Command("ls", "Lists all user accounts")
 
-	// Delete user command
-	userDelete := users.Command("rm", "Delete a user(s)")
+	// delete user command
+	userDelete := users.Command("del", "Deletes user accounts")
 	userDelete.Arg("logins", "Comma-separated list of user logins to delete").
 		Required().StringVar(&cmdUsers.login)
+
+	// add node command
+	nodes := app.Command("nodes", "Issue invites for other nodes to join the cluster")
+	nodeAdd := nodes.Command("invite", "Invites a new SSH node to join the cluster")
+	nodeAdd.Alias(AddNodeHelp)
+	nodeList := nodes.Command("ls", "Lists all active SSH nodes within the cluster")
+	nodeList.Alias(ListNodesHelp)
 
 	// parse CLI commands+flags:
 	command, err := app.Parse(os.Args[1:])
@@ -102,16 +109,19 @@ func main() {
 	case ver.FullCommand():
 		onVersion()
 	case userAdd.FullCommand():
-		cmdUsers.Add(client)
+		err = cmdUsers.Add(client)
 	case userList.FullCommand():
-		cmdUsers.List(client)
+		err = cmdUsers.List(client)
 	case userDelete.FullCommand():
-		cmdUsers.Delete(client)
+		err = cmdUsers.Delete(client)
+	case nodeAdd.FullCommand():
+		err = inviteNode(client, cfg)
+	case nodeList.FullCommand():
+		err = listOnlineNodes(client, cfg)
 	}
 
 	if err != nil {
-		utils.Consolef(os.Stderr, err.Error())
-		os.Exit(1)
+		utils.FatalError(err)
 	}
 }
 
@@ -128,7 +138,7 @@ func (this *UserCommand) Add(client *auth.TunClient) error {
 	}
 	token, err := client.CreateSignupToken(this.login, strings.Split(this.mappings, ","))
 	if err != nil {
-		utils.FatalError(err)
+		return err
 	}
 
 	hostname, _ := os.Hostname()
@@ -137,10 +147,11 @@ func (this *UserCommand) Add(client *auth.TunClient) error {
 	return nil
 }
 
-func (this *UserCommand) List(client *auth.TunClient) {
+// List prints all existing user accounts
+func (this *UserCommand) List(client *auth.TunClient) error {
 	users, err := client.GetUsers()
 	if err != nil {
-		utils.FatalError(err)
+		return trace.Wrap(err)
 	}
 
 	usersView := func(users []string) string {
@@ -155,15 +166,33 @@ func (this *UserCommand) List(client *auth.TunClient) {
 		return t.String()
 	}
 	fmt.Printf(usersView(users))
+	return nil
 }
 
-// Delete() deletes the teleport user
-func (this *UserCommand) Delete(client *auth.TunClient) {
-	err := client.DeleteUser(this.login)
-	if err != nil {
-		utils.FatalError(err)
+// Delete() deletes teleport user(s). User IDs are passed as a comma-separated
+// list in UserCommand.login
+func (this *UserCommand) Delete(client *auth.TunClient) error {
+	for _, l := range strings.Split(this.login, ",") {
+		if err := client.DeleteUser(l); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("User '%v' has been deleted\n", l)
 	}
-	fmt.Printf("User '%v' has been deleted\n", this.login)
+	return nil
+}
+
+// inviteNode generates a token which can be used to add another SSH node
+// to a cluster
+func inviteNode(client *auth.TunClient, cfg *service.Config) error {
+	fmt.Println("adding node is not implemented")
+	return nil
+}
+
+// listOnlineNodes retreives the list of nodes who recently sent heartbeats to
+// to a cluster and prints it to stdout
+func listOnlineNodes(client *auth.TunClient, cfg *service.Config) error {
+	fmt.Println("listing nodes is not implemented")
+	return nil
 }
 
 // connectToAuthService creates a valid client connection to the auth service

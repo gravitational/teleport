@@ -22,4 +22,16 @@ Examples:
   If the list of local users is not given, 'joe' will only be able to connect
   as 'joe' to SSH nodes.
 `
+	AddNodeHelp = `Notes:
+  This command generates and prints a one-time invitation token another node can 
+  use to join the cluster. 
+  
+  Specify this token via --proxy-server flag when starting Teleport on that 
+  node. The token is only used for the initial inter-node certificate signing 
+  and ignored afterwards.
+`
+	ListNodesHelp = `Notes:
+  SSH nodes send periodic heartbeat to the Auth service. This command prints
+  the list of current online nodes.
+`
 )
