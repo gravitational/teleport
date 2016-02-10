@@ -31,9 +31,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/codahale/lunk"
 	"github.com/gravitational/form"
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/roundtrip"
 	websession "github.com/gravitational/session"
 	"github.com/gravitational/trace"

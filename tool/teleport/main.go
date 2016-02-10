@@ -87,9 +87,9 @@ func main() {
 	// execute the selected command:
 	switch command {
 	case start.FullCommand():
-		err = onStart(&config)
+		err = onStart(config)
 	case status.FullCommand():
-		err = onStatus(&config)
+		err = onStatus(config)
 	case dump.FullCommand():
 		err = onConfigDump()
 	case ver.FullCommand():

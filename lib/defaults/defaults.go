@@ -60,9 +60,15 @@ const (
 
 	// By default SSH server (and SSH proxy) will bind to this IP
 	BindIP = "0.0.0.0"
+)
 
-	// Connection throttler defaults
-	LimiterMaxConnections     = 25
+// Default connection limits, they can be applied separately on any of the Teleport
+// services (SSH, auth, proxy)
+const (
+	// Number of max. simultaneous connections to a service
+	LimiterMaxConnections = 25
+
+	// Number of max. simultaneous connected users/logins
 	LimiterMaxConcurrentUsers = 25
 )
 

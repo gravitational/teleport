@@ -17,8 +17,14 @@ package main
 
 import (
 	"fmt"
-	"github.com/gravitational/teleport/lib/utils"
 	"os"
+
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 type CLIConfig struct {
@@ -57,16 +63,32 @@ func main() {
 		utils.FatalError(err)
 	}
 
+	// --debug flag
+	if ccf.Debug {
+		utils.InitLoggerDebug()
+	}
+
+	// apply configuration:
+	cfg, err := service.MakeDefaultConfig()
+	if err != nil {
+		utils.FatalError(err)
+	}
+
 	// execute the selected command:
 	switch command {
 	case ver.FullCommand():
 		onVersion()
 	case userAdd.FullCommand():
-		onUserAdd(login)
+		onUserAdd(login, cfg)
 	case userList.FullCommand():
 		onUserList()
 	case userDelete.FullCommand():
 		onUserDelete(login)
+	}
+
+	if err != nil {
+		utils.Consolef(os.Stderr, err.Error())
+		os.Exit(1)
 	}
 }
 
@@ -74,8 +96,13 @@ func onVersion() {
 	fmt.Println("TODO: Version command has not been implemented yet")
 }
 
-func onUserAdd(login string) {
-	fmt.Println("TODO: Adding user: ", login)
+func onUserAdd(login string, cfg *service.Config) error {
+	client, err := connectToAuthService(cfg)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	fmt.Println("TODO: Adding user: ", login, client)
+	return nil
 }
 
 func onUserList() {
@@ -84,4 +111,36 @@ func onUserList() {
 
 func onUserDelete(login string) {
 	fmt.Println("TODO: Deleting user: ", login)
+}
+
+// connectToAuthService creates a valid client connection to the auth service
+func connectToAuthService(cfg *service.Config) (client *auth.TunClient, err error) {
+	// connect to the local auth server by default:
+	cfg.Auth.Enabled = true
+	cfg.AuthServers = []utils.NetAddr{
+		*defaults.AuthConnectAddr(),
+	}
+
+	// login via keys:
+	signer, err := auth.ReadKeys(cfg.Hostname, cfg.DataDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	client, err = auth.NewTunClient(
+		cfg.AuthServers[0],
+		cfg.Hostname,
+		[]ssh.AuthMethod{ssh.PublicKeys(signer)})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// check connectivity by calling something on a clinet:
+	_, err = client.GetDialer()()
+	if err != nil {
+		utils.Consolef(os.Stderr,
+			"Cannot connect to the auth server: %v.\nIs the auth server running on %v?", err, cfg.AuthServers[0].Addr)
+		os.Exit(1)
+	}
+	return client, nil
 }

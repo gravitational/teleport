@@ -18,12 +18,16 @@ package service
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 
 	"io"
 	"io/ioutil"
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -308,4 +312,63 @@ func (c *LocalCertificateAuthority) CA() (*services.LocalCertificateAuthority, e
 		},
 	}
 	return &out, nil
+}
+
+// MakeDefaultConfig() creates a new Config structure and populates it with defaults
+func MakeDefaultConfig() (config *Config, err error) {
+	config = &Config{}
+	if err = applyDefaults(config); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return config, nil
+}
+
+// applyDefaults applies default values to the existing config structure
+func applyDefaults(cfg *Config) error {
+	hostname, err := os.Hostname()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// defaults for the auth service:
+	cfg.Auth.Enabled = true
+	cfg.Auth.HostAuthorityDomain = hostname
+	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
+	cfg.Auth.EventsBackend.Type = defaults.BackendType
+	cfg.Auth.EventsBackend.Params = boltParams(defaults.DataDir, "events.db")
+	cfg.Auth.KeysBackend.Type = defaults.BackendType
+	cfg.Auth.KeysBackend.Params = boltParams(defaults.DataDir, "keys.db")
+	cfg.Auth.RecordsBackend.Type = defaults.BackendType
+	cfg.Auth.RecordsBackend.Params = boltParams(defaults.DataDir, "records.db")
+	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
+
+	// defaults for the SSH proxy service:
+	cfg.Proxy.Enabled = true
+	cfg.Proxy.AssetsDir = defaults.DataDir
+	cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
+	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
+	cfg.ReverseTunnel.Enabled = false
+	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnellAddr()
+	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
+	defaults.ConfigureLimiter(&cfg.ReverseTunnel.Limiter)
+
+	// defaults for the SSH service:
+	cfg.SSH.Enabled = true
+	cfg.SSH.Addr = *defaults.SSHServerListenAddr()
+	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
+
+	// global defaults
+	cfg.Hostname = hostname
+	cfg.DataDir = defaults.DataDir
+	if cfg.Auth.Enabled {
+		cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
+	}
+	cfg.Console = os.Stdout
+	return nil
+}
+
+// Generates a string accepted by the BoltDB driver, like this:
+// `{"path": "/var/lib/teleport/records.db"}`
+func boltParams(storagePath, dbFile string) string {
+	return fmt.Sprintf(`{"path": "%s"}`, filepath.Join(storagePath, dbFile))
 }

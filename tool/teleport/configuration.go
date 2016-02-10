@@ -16,11 +16,9 @@ limitations under the License.
 package main
 
 import (
-	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
-	"path/filepath"
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
@@ -49,8 +47,10 @@ type CLIConfig struct {
 
 // configure merges command line arguments with what's in a configuration file
 // with CLI commands taking precedence
-func configure(cliConf *CLIConfig) (cfg service.Config, err error) {
-	if err = applyDefaults(&cfg); err != nil {
+func configure(cliConf *CLIConfig) (cfg *service.Config, err error) {
+	// create the default configuration:
+	cfg, err = service.MakeDefaultConfig()
+	if err != nil {
 		return cfg, trace.Wrap(err)
 	}
 
@@ -118,7 +118,7 @@ func configure(cliConf *CLIConfig) (cfg service.Config, err error) {
 
 	// apply --listen-ip flag:
 	if cliConf.ListenIP != nil {
-		applyListenIP(cliConf.ListenIP, &cfg)
+		applyListenIP(cliConf.ListenIP, cfg)
 	}
 	return cfg, nil
 }
@@ -147,56 +147,6 @@ func replaceHost(addr *utils.NetAddr, newHost string) {
 		log.Errorf("failed parsing address: '%v'", addr.Addr)
 	}
 	addr.Addr = net.JoinHostPort(newHost, port)
-}
-
-// applyDefaults initializes service configuration with default values
-func applyDefaults(cfg *service.Config) error {
-	hostname, err := os.Hostname()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// defaults for the auth service:
-	cfg.Auth.Enabled = true
-	cfg.Auth.HostAuthorityDomain = hostname
-	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
-	cfg.Auth.EventsBackend.Type = defaults.BackendType
-	cfg.Auth.EventsBackend.Params = boltParams(defaults.DataDir, "events.db")
-	cfg.Auth.KeysBackend.Type = defaults.BackendType
-	cfg.Auth.KeysBackend.Params = boltParams(defaults.DataDir, "keys.db")
-	cfg.Auth.RecordsBackend.Type = defaults.BackendType
-	cfg.Auth.RecordsBackend.Params = boltParams(defaults.DataDir, "records.db")
-	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
-
-	// defaults for the SSH proxy service:
-	cfg.Proxy.Enabled = true
-	cfg.Proxy.AssetsDir = defaults.DataDir
-	cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
-	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
-	cfg.ReverseTunnel.Enabled = false
-	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnellAddr()
-	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
-	defaults.ConfigureLimiter(&cfg.ReverseTunnel.Limiter)
-
-	// defaults for the SSH service:
-	cfg.SSH.Enabled = true
-	cfg.SSH.Addr = *defaults.SSHServerListenAddr()
-	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
-
-	// global defaults
-	cfg.Hostname = hostname
-	cfg.DataDir = defaults.DataDir
-	if cfg.Auth.Enabled {
-		cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
-	}
-	cfg.Console = os.Stdout
-	return nil
-}
-
-// Generates a string accepted by the BoltDB driver, like this:
-// `{"path": "/var/lib/teleport/records.db"}`
-func boltParams(storagePath, dbFile string) string {
-	return fmt.Sprintf(`{"path": "%s"}`, filepath.Join(storagePath, dbFile))
 }
 
 func fileExists(fp string) bool {
