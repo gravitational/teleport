@@ -15,6 +15,8 @@ tctl:
 
 .PHONY: teleport
 teleport: 
+	rm -rf /var/lib/teleport/assets
+	cp -r assets/web/assets /var/lib/teleport/
 	go build -o $(OUT)/teleport -i github.com/gravitational/teleport/tool/teleport
 
 .PHONY: tsh

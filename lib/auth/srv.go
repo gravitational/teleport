@@ -974,16 +974,20 @@ func (s *APIServer) getSignupTokenData(w http.ResponseWriter, r *http.Request, p
 }
 
 func (s *APIServer) createSignupToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	var user string
+	var (
+		user     string
+		mappings []string
+	)
 	err := form.Parse(r,
 		form.String("user", &user, form.Required()),
+		form.StringSlice("mappings", &mappings, form.Required()),
 	)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	token, err := s.a.CreateSignupToken(user)
+	token, err := s.a.CreateSignupToken(user, mappings)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return

@@ -120,6 +120,9 @@ func configure(cliConf *CLIConfig) (cfg *service.Config, err error) {
 	if cliConf.ListenIP != nil {
 		applyListenIP(cliConf.ListenIP, cfg)
 	}
+
+	log.Info(cfg.DebugDumpToYAML())
+
 	return cfg, nil
 }
 

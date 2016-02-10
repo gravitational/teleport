@@ -358,12 +358,17 @@ func NewWebTun(prefix, proxyAddr, targetAddr string) (*WebTun, error) {
 }
 
 type SignupToken struct {
-	Token           string
-	User            string
-	Hotp            []byte
-	HotpFirstValues []string
-	HotpQR          []byte
+	Token           string   `json:"Token"`
+	User            string   `json:"User"`
+	Hotp            []byte   `json:"Hotp"`
+	HotpFirstValues []string `json:"HotpFirstValues"`
+	HotpQR          []byte   `json:"HotpQR"`
+	Mappings        []string `json:"Mappings"`
 }
+
+var (
+	userTokensPath = []string{"addusertokens"}
+)
 
 func (s *WebService) UpsertSignupToken(token string, tokenData SignupToken, ttl time.Duration) error {
 	out, err := json.Marshal(tokenData)
@@ -371,17 +376,18 @@ func (s *WebService) UpsertSignupToken(token string, tokenData SignupToken, ttl 
 		return trace.Wrap(err)
 	}
 
-	err = s.backend.UpsertVal([]string{"addusertokens"}, token, out, ttl)
+	err = s.backend.UpsertVal(userTokensPath, token, out, ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 
 }
+
 func (s *WebService) GetSignupToken(token string) (tokenData SignupToken,
 	ttl time.Duration, e error) {
 
-	out, ttl, err := s.backend.GetValAndTTL([]string{"addusertokens"}, token)
+	out, ttl, err := s.backend.GetValAndTTL(userTokensPath, token)
 	if err != nil {
 		return SignupToken{}, 0, trace.Wrap(err)
 	}

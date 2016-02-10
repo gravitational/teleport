@@ -17,12 +17,15 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
+	"strconv"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -102,6 +105,14 @@ func onUserAdd(login string, cfg *service.Config) error {
 		utils.FatalError(err)
 	}
 	fmt.Println("TODO: Adding user: ", login, client)
+	token, err := client.CreateSignupToken(login, []string{login, "root", "centos"})
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	hostname, _ := os.Hostname()
+	url := web.CreateSignupLink(net.JoinHostPort(hostname, strconv.Itoa(defaults.HTTPListenPort)), token)
+	fmt.Println("Got token: ", url)
 	return nil
 }
 

@@ -729,9 +729,13 @@ func (c *Client) GetSealKey(keyID string) (encryptor.Key, error) {
 
 // CreateSignupToken creates one time token for creating account for the user
 // For each token it creates username and hotp generator
-func (c *Client) CreateSignupToken(user string) (token string, e error) {
+func (c *Client) CreateSignupToken(user string, mappings []string) (token string, e error) {
+	if len(mappings) == 0 {
+		return "", trace.Errorf("cannot create a new account without any user mappings")
+	}
 	out, err := c.PostForm(c.Endpoint("signuptokens"), url.Values{
-		"user": []string{user},
+		"user":     []string{user},
+		"mappings": mappings,
 	})
 	if err != nil {
 		return "", err
