@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/buger/goterm"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -90,16 +91,22 @@ func main() {
 		utils.InitLoggerDebug()
 	}
 
+	// connect to the teleport auth service:
+	client, err := connectToAuthService(cfg)
+	if err != nil {
+		utils.FatalError(err)
+	}
+
 	// execute the selected command:
 	switch command {
 	case ver.FullCommand():
 		onVersion()
 	case userAdd.FullCommand():
-		cmdUsers.Add()
+		cmdUsers.Add(client)
 	case userList.FullCommand():
-		cmdUsers.List()
+		cmdUsers.List(client)
 	case userDelete.FullCommand():
-		cmdUsers.Delete()
+		cmdUsers.Delete(client)
 	}
 
 	if err != nil {
@@ -114,11 +121,7 @@ func onVersion() {
 
 // Add() creates a new sign-up token and prints a token URL to stdout.
 // A user is not created until he visits the sign-up URL and completes the process
-func (this *UserCommand) Add() error {
-	client, err := connectToAuthService(this.config)
-	if err != nil {
-		utils.FatalError(err)
-	}
+func (this *UserCommand) Add(client *auth.TunClient) error {
 	// if no local logis were specified, default to 'login'
 	if this.mappings == "" {
 		this.mappings = this.login
@@ -134,12 +137,33 @@ func (this *UserCommand) Add() error {
 	return nil
 }
 
-func (this *UserCommand) List() {
-	fmt.Println("TODO: User list is not implemented")
+func (this *UserCommand) List(client *auth.TunClient) {
+	users, err := client.GetUsers()
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	usersView := func(users []string) string {
+		t := goterm.NewTable(0, 10, 5, ' ', 0)
+		fmt.Fprint(t, "User\n")
+		if len(users) == 0 {
+			return t.String()
+		}
+		for _, u := range users {
+			fmt.Fprintf(t, "%v\n", u)
+		}
+		return t.String()
+	}
+	fmt.Printf(usersView(users))
 }
 
-func (this *UserCommand) Delete() {
-	fmt.Println("TODO: Deleting user: ", this.login)
+// Delete() deletes the teleport user
+func (this *UserCommand) Delete(client *auth.TunClient) {
+	err := client.DeleteUser(this.login)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	fmt.Printf("User '%v' has been deleted\n", this.login)
 }
 
 // connectToAuthService creates a valid client connection to the auth service
