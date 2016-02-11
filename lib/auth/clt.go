@@ -224,16 +224,16 @@ func (c *Client) DeleteRemoteCertificate(ctype string, domainName, id string) er
 }
 
 // GenerateToken creates a special provisioning token for the SSH server
-// with the specified domainName that is valid for ttl period seconds.
+// with the specified hostname that is valid for ttl period seconds.
 //
 // This token is used by SSH server to authenticate with Auth server
 // and get signed certificate and private key from the auth server.
 //
-// The token can be used only once and only to generate the domainName
+// The token can be used only once and only to generate the hostname
 // specified in it.
-func (c *Client) GenerateToken(domainName, role string, ttl time.Duration) (string, error) {
+func (c *Client) GenerateToken(nodename, role string, ttl time.Duration) (string, error) {
 	out, err := c.PostForm(c.Endpoint("tokens"), url.Values{
-		"domain": []string{domainName},
+		"domain": []string{nodename},
 		"role":   []string{role},
 		"ttl":    []string{ttl.String()},
 	})
@@ -247,10 +247,10 @@ func (c *Client) GenerateToken(domainName, role string, ttl time.Duration) (stri
 	return re.Token, nil
 }
 
-func (c *Client) RegisterUsingToken(token, domainName, role string) (PackedKeys, error) {
+func (c *Client) RegisterUsingToken(token, nodename, role string) (PackedKeys, error) {
 	out, err := c.PostForm(c.Endpoint("tokens", "register"), url.Values{
 		"token":  []string{token},
-		"domain": []string{domainName},
+		"domain": []string{nodename},
 		"role":   []string{role},
 	})
 	if err != nil {
@@ -263,7 +263,7 @@ func (c *Client) RegisterUsingToken(token, domainName, role string) (PackedKeys,
 	return keys, nil
 }
 
-func (c *Client) RegisterNewAuthServer(domainName, token string,
+func (c *Client) RegisterNewAuthServer(nodename, token string,
 	publicSealKey encryptor.Key) (masterKey encryptor.Key, e error) {
 
 	pkeyJSON, err := json.Marshal(publicSealKey)
@@ -272,7 +272,7 @@ func (c *Client) RegisterNewAuthServer(domainName, token string,
 	}
 	out, err := c.PostForm(c.Endpoint("tokens", "register", "auth"), url.Values{
 		"token":  []string{token},
-		"domain": []string{domainName},
+		"domain": []string{nodename},
 		"key":    []string{string(pkeyJSON)},
 	})
 	if err != nil {

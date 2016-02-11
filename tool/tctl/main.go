@@ -21,11 +21,13 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/buger/goterm"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/trace"
@@ -37,9 +39,14 @@ type CLIConfig struct {
 }
 
 type UserCommand struct {
+	config   *service.Config
 	login    string
 	mappings string
+}
+
+type NodeCommand struct {
 	config   *service.Config
+	nodename string
 }
 
 func main() {
@@ -51,6 +58,8 @@ func main() {
 	if err != nil {
 		utils.FatalError(err)
 	}
+	cmdUsers := UserCommand{config: cfg}
+	cmdNodes := NodeCommand{config: cfg}
 
 	// define global flags:
 	var ccf CLIConfig
@@ -62,10 +71,8 @@ func main() {
 	ver := app.Command("version", "Print the version.")
 	app.HelpFlag.Short('h')
 
-	users := app.Command("users", "Manage users logins")
-	cmdUsers := UserCommand{config: cfg}
-
 	// user add command:
+	users := app.Command("users", "Manage users logins")
 	userAdd := users.Command("invite", "Generates an invitation token and prints the signup URL for setting up 2nd factor auth.")
 	userAdd.Arg("login", "Teleport user login").Required().StringVar(&cmdUsers.login)
 	userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
@@ -84,6 +91,7 @@ func main() {
 	nodes := app.Command("nodes", "Issue invites for other nodes to join the cluster")
 	nodeAdd := nodes.Command("invite", "Invites a new SSH node to join the cluster")
 	nodeAdd.Alias(AddNodeHelp)
+	nodeAdd.Arg("name", "The name of the node").Required().StringVar(&cmdNodes.nodename)
 	nodeList := nodes.Command("ls", "Lists all active SSH nodes within the cluster")
 	nodeList.Alias(ListNodesHelp)
 
@@ -109,15 +117,15 @@ func main() {
 	case ver.FullCommand():
 		onVersion()
 	case userAdd.FullCommand():
-		err = cmdUsers.Add(client)
+		err = cmdUsers.Invite(client)
 	case userList.FullCommand():
 		err = cmdUsers.List(client)
 	case userDelete.FullCommand():
 		err = cmdUsers.Delete(client)
 	case nodeAdd.FullCommand():
-		err = inviteNode(client, cfg)
+		err = cmdNodes.Invite(client)
 	case nodeList.FullCommand():
-		err = listOnlineNodes(client, cfg)
+		err = cmdNodes.ListActive(client)
 	}
 
 	if err != nil {
@@ -129,9 +137,9 @@ func onVersion() {
 	fmt.Println("TODO: Version command has not been implemented yet")
 }
 
-// Add() creates a new sign-up token and prints a token URL to stdout.
+// Invite() creates a new sign-up token and prints a token URL to stdout.
 // A user is not created until he visits the sign-up URL and completes the process
-func (this *UserCommand) Add(client *auth.TunClient) error {
+func (this *UserCommand) Invite(client *auth.TunClient) error {
 	// if no local logis were specified, default to 'login'
 	if this.mappings == "" {
 		this.mappings = this.login
@@ -181,16 +189,22 @@ func (this *UserCommand) Delete(client *auth.TunClient) error {
 	return nil
 }
 
-// inviteNode generates a token which can be used to add another SSH node
+// Invite generates a token which can be used to add another SSH node
 // to a cluster
-func inviteNode(client *auth.TunClient, cfg *service.Config) error {
-	fmt.Println("adding node is not implemented")
+func (this *NodeCommand) Invite(client *auth.TunClient) error {
+	invitationTTL := time.Minute * 15
+	token, err := client.GenerateToken(this.nodename, services.TokenRoleNode, invitationTTL)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Token: %v\nPass this token via --token flag to teleport on node '%v'\n",
+		token, this.nodename)
 	return nil
 }
 
-// listOnlineNodes retreives the list of nodes who recently sent heartbeats to
+// listActive retreives the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
-func listOnlineNodes(client *auth.TunClient, cfg *service.Config) error {
+func (this *NodeCommand) ListActive(client *auth.TunClient) error {
 	fmt.Println("listing nodes is not implemented")
 	return nil
 }

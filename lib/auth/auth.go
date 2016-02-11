@@ -23,6 +23,7 @@ limitations under the License.
 package auth
 
 import (
+	log "github.com/Sirupsen/logrus"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
@@ -190,8 +191,7 @@ func (s *AuthServer) GenerateToken(domainName, role string, ttl time.Duration) (
 	if err != nil {
 		return "", err
 	}
-
-	token := string(p.SID)
+	token := string(p.PID)
 	outputToken, err := services.JoinTokenRole(token, role)
 	if err != nil {
 		return "", err
@@ -223,21 +223,18 @@ func (s *AuthServer) ValidateToken(token, domainName string) (role string, e err
 	return tok.Role, nil
 }
 
-func (s *AuthServer) RegisterUsingToken(outputToken, domainName, role string) (keys PackedKeys, e error) {
+func (s *AuthServer) RegisterUsingToken(outputToken, nodename, role string) (keys PackedKeys, e error) {
+	log.Infof("[AUTH] Node `%v` is trying to join", nodename)
 	token, _, err := services.SplitTokenRole(outputToken)
 	if err != nil {
 		return PackedKeys{}, trace.Wrap(err)
 	}
-
-	pid, err := session.DecodeSID(session.SecureID(token), s.scrt)
+	tok, err := s.ProvisioningService.GetToken(token)
 	if err != nil {
+		log.Warningf("[AUTH] Node `%v` cannot join: token error. %v", nodename, err)
 		return PackedKeys{}, trace.Wrap(err)
 	}
-	tok, err := s.ProvisioningService.GetToken(string(pid))
-	if err != nil {
-		return PackedKeys{}, trace.Wrap(err)
-	}
-	if tok.DomainName != domainName {
+	if tok.DomainName != nodename {
 		return PackedKeys{}, trace.Errorf("domainName does not match")
 	}
 
@@ -249,8 +246,9 @@ func (s *AuthServer) RegisterUsingToken(outputToken, domainName, role string) (k
 	if err != nil {
 		return PackedKeys{}, trace.Wrap(err)
 	}
-	c, err := s.GenerateHostCert(pub, domainName+"_"+role, domainName, role, 0)
+	c, err := s.GenerateHostCert(pub, nodename+"_"+role, nodename, role, 0)
 	if err != nil {
+		log.Warningf("[AUTH] Node `%v` cannot join: cert generation error. %v", nodename, err)
 		return PackedKeys{}, trace.Wrap(err)
 	}
 
@@ -263,6 +261,7 @@ func (s *AuthServer) RegisterUsingToken(outputToken, domainName, role string) (k
 		return PackedKeys{}, trace.Wrap(err)
 	}
 
+	log.Warningf("[AUTH] Node `%v` joined the cluster", nodename)
 	return keys, nil
 }
 

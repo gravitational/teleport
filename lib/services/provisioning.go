@@ -23,6 +23,16 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// These constants describe possible 'role' values for GenerateToken() API call,
+// when a new node is invited into a cluster
+const (
+	// TokenRoleNode invites yet another SSH node into the cluster
+	TokenRoleNode = "Node"
+
+	// TokenRoleAuth invites another Authentication server to join the cluster
+	TokenRoleAuth = "Auth"
+)
+
 type ProvisioningService struct {
 	backend backend.Backend
 }
@@ -68,11 +78,11 @@ func (s *ProvisioningService) DeleteToken(token string) error {
 }
 
 func JoinTokenRole(token, role string) (ouputToken string, e error) {
-	if role == "Node" {
-		return "n" + token, nil
-	}
-	if role == "Auth" {
+	switch role {
+	case TokenRoleAuth:
 		return "a" + token, nil
+	case TokenRoleNode:
+		return "n" + token, nil
 	}
 	return token, trace.Errorf("Unknown role %v", role)
 }
