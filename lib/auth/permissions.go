@@ -33,8 +33,9 @@ func NewStandardPermissions() PermissionChecker {
 	sp.permissions = make(map[string](map[string]bool))
 
 	sp.permissions[RoleUser] = map[string]bool{
-		ActionSignIn:           true,
-		ActionGenerateUserCert: true,
+		ActionSignIn:                 true,
+		ActionGenerateUserCert:       true,
+		ActionGetTrustedCertificates: true,
 	}
 
 	sp.permissions[RoleProvisionToken] = map[string]bool{
@@ -52,6 +53,7 @@ func NewStandardPermissions() PermissionChecker {
 		ActionUserMappingExists:           true,
 		ActionGetUserKeys:                 true,
 		ActionGetServers:                  true,
+		ActionGetAuthServers:              true,
 		ActionGetHostCertificateAuthority: true,
 		ActionUpsertParty:                 true,
 		ActionLogEntry:                    true,
@@ -109,6 +111,11 @@ var StandardRoles = []string{
 	RoleSignup,
 }
 
+var HangoutRoles = []string{
+	RoleAdmin,
+	RoleHangoutUser,
+}
+
 const (
 	PermissionRole = "role"
 
@@ -119,6 +126,7 @@ const (
 	RoleAdmin          = "Admin"
 	RoleProvisionToken = "ProvisionToken"
 	RoleSignup         = "Signup"
+	RoleHangoutUser    = "HangoutUser"
 
 	ActionGetSessions                   = "GetSession"
 	ActionGetSession                    = "GetSession"
@@ -139,6 +147,7 @@ const (
 	ActionGetChunkReader                = "GetChunkReader"
 	ActionUpsertServer                  = "UpsertServer"
 	ActionGetServers                    = "GetServers"
+	ActionGetAuthServers                = "GetAuthServers"
 	ActionUpsertWebTun                  = "UpsertWebTun"
 	ActionGetWebTuns                    = "GetWebTuns"
 	ActionGetWebTun                     = "GetWebTun"

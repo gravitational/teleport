@@ -27,8 +27,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/gravitational/form"
 	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/form"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/session"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -266,7 +266,13 @@ func (h *MultiSiteHandler) loginSSHProxy(w http.ResponseWriter, r *http.Request,
 		w.Write([]byte(trace.Wrap(err).Error()))
 		return
 	}
-	w.Write(cert)
+	out, err := json.Marshal(cert)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(trace.Wrap(err).Error()))
+		return
+	}
+	w.Write(out)
 }
 
 func (s *MultiSiteHandler) siteEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) error {

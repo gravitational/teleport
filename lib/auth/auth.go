@@ -159,7 +159,7 @@ func (s *AuthServer) GenerateHostCert(
 	return s.Authority.GenerateHostCert(hk.PrivateKey, key, id, hostname, role, ttl)
 }
 
-// GenerateHostCert generates user certificate, it takes pkey as a signing
+// GenerateUserCert generates user certificate, it takes pkey as a signing
 // private key (user certificate authority)
 func (s *AuthServer) GenerateUserCert(
 	key []byte, id, username string, ttl time.Duration) ([]byte, error) {
@@ -183,6 +183,15 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 		return nil, err
 	}
 	return sess, nil
+}
+
+func (s *AuthServer) CreateToken() (string, error) {
+	p, err := session.NewID(s.scrt)
+	if err != nil {
+		return "", err
+	}
+
+	return string(p.SID)
 }
 
 func (s *AuthServer) GenerateToken(domainName, role string, ttl time.Duration) (string, error) {

@@ -90,6 +90,7 @@ var _ = Suite(&TshSuite{})
 
 func (s *TshSuite) SetUpSuite(c *C) {
 	utils.InitLoggerCLI()
+	client.KeysDir = c.MkDir()
 	key, err := secret.NewKey()
 	c.Assert(err, IsNil)
 	scrt, err := secret.New(&secret.Config{KeyBytes: key})

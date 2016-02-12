@@ -22,10 +22,10 @@ import (
 
 	"github.com/gravitational/teleport/lib/client"
 
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"github.com/gravitational/kingpin"
 )
 
 func RunTSH(app *kingpin.Application) error {
@@ -67,16 +67,18 @@ func RunTSH(app *kingpin.Application) error {
 	}
 	passwordCallback := client.GetPasswordFromConsole(*proxyUser)
 
+	webAuth, hostKeyCallback := client.NewWebAuth(
+		teleportFileSSHAgent,
+		*proxyUser,
+		passwordCallback,
+		*webProxyAddress,
+		*loginTTL,
+	)
+
 	authMethods := []ssh.AuthMethod{
 		client.AuthMethodFromAgent(standartSSHAgent),
 		client.AuthMethodFromAgent(teleportFileSSHAgent),
-		client.NewWebAuth(
-			teleportFileSSHAgent,
-			*proxyUser,
-			passwordCallback,
-			*webProxyAddress,
-			*loginTTL,
-		),
+		webAuth,
 	}
 
 	err = trace.Errorf("No command")
@@ -84,13 +86,13 @@ func RunTSH(app *kingpin.Application) error {
 	switch selectedCommand {
 	case connect.FullCommand():
 		err = SSH(*connectAddress, *proxy, *connectCommand,
-			*connectPort, authMethods)
+			*connectPort, authMethods, hostKeyCallback)
 	case getServers.FullCommand():
 		err = GetServers(*proxy, *getServersLabelName,
-			*getServersLabelValue, authMethods)
+			*getServersLabelValue, authMethods, hostKeyCallback)
 	case scp.FullCommand():
 		err = SCP(*proxy, *scpSource, *scpDest, *scpIsDir, *scpPort,
-			authMethods)
+			authMethods, hostKeyCallback)
 	}
 
 	return err

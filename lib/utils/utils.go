@@ -26,6 +26,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
+type HostKeyCallback func(hostname string, remote net.Addr, key ssh.PublicKey) error
+
 func ReadPath(path string) ([]byte, error) {
 	s, err := filepath.Abs(path)
 	if err != nil {

@@ -26,6 +26,7 @@ package client
 import (
 	"fmt"
 	"math/rand"
+	"net"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -43,16 +44,18 @@ func AuthMethodFromAgent(ag agent.Agent) ssh.AuthMethod {
 	return ssh.PublicKeysCallback(ag.Signers)
 }
 
-// GenerateCertificateCallback returns ssh.AuthMethod as
-// a callback function. When callback is called, it tries to generate
-// teleport certificate using password and hotpToken, adds the
-// certificate to the provided agent, saves the certificate to the
+// NewWebAuth returns ssh.AuthMethod as
+// a callback function and ssh HostKeyCallback. When any callback is
+// called, it tries to generate
+// load certificates using password and hotpToken, adds the
+// login certificate to the provided agent, saves the certificates to the
 // local folder and returns the agent as authenticator.
 func NewWebAuth(ag agent.Agent,
 	user string,
 	passwordCallback PasswordCallback,
 	webProxyAddress string,
-	certificateTTL time.Duration) ssh.AuthMethod {
+	certificateTTL time.Duration) (authMethod ssh.AuthMethod,
+	hostKeyCallback utils.HostKeyCallback) {
 
 	callbackFunc := func() (signers []ssh.Signer, err error) {
 		err = Login(ag, webProxyAddress, user, certificateTTL, passwordCallback)
@@ -63,7 +66,19 @@ func NewWebAuth(ag agent.Agent,
 		return ag.Signers()
 	}
 
-	return ssh.PublicKeysCallback(callbackFunc)
+	hostKeyCallback = func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		err := CheckHostSignerFromCache(hostname, remote, key)
+		if err != nil {
+			err = Login(ag, webProxyAddress, user, certificateTTL, passwordCallback)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			return CheckHostSignerFromCache(hostname, remote, key)
+		}
+		return nil
+	}
+
+	return ssh.PublicKeysCallback(callbackFunc), hostKeyCallback
 }
 
 type PasswordCallback func() (password, hotpToken string, e error)
@@ -88,13 +103,13 @@ func Login(ag agent.Agent, webProxyAddr string, user string,
 		return trace.Wrap(err)
 	}
 
-	cert, err := web.SSHAgentLogin(webProxyAddr, user, password, hotpToken,
+	login, err := web.SSHAgentLogin(webProxyAddr, user, password, hotpToken,
 		pub, ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	pcert, _, _, _, err := ssh.ParseAuthorizedKey(cert)
+	pcert, _, _, _, err := ssh.ParseAuthorizedKey(login.Cert)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -116,7 +131,7 @@ func Login(ag agent.Agent, webProxyAddr string, user string,
 
 	key := Key{
 		Priv:     priv,
-		Cert:     cert,
+		Cert:     login.Cert,
 		Deadline: time.Now().Add(ttl),
 	}
 
@@ -125,6 +140,11 @@ func Login(ag agent.Agent, webProxyAddr string, user string,
 		KeyFilePrefix+strconv.FormatInt(keyID, 16)+KeyFileSuffix)
 
 	err = saveKey(key, keyPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = AddHostSignersToCache(login.HostSigners)
 	if err != nil {
 		return trace.Wrap(err)
 	}

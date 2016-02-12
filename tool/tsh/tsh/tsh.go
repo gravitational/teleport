@@ -24,16 +24,20 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/hangout"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
-func SSH(target, proxyAddress, command, port string, authMethods []ssh.AuthMethod) error {
+func SSH(target, proxyAddress, command, port string, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
 	user, target := client.SplitUserAndAddress(target)
 	if !strings.Contains(target, ":") {
 		target += ":" + port
@@ -43,11 +47,11 @@ func SSH(target, proxyAddress, command, port string, authMethods []ssh.AuthMetho
 		return fmt.Errorf("Error: please provide user name")
 	}
 	if len(command) > 0 {
-		return client.RunCmd(user, target, proxyAddress, command, authMethods)
+		return client.RunCmd(user, target, proxyAddress, command, authMethods, hostKeyCallback)
 	}
 
 	addresses, err := client.ParseTargetServers(target, user, proxyAddress,
-		authMethods)
+		authMethods, hostKeyCallback)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -59,18 +63,18 @@ func SSH(target, proxyAddress, command, port string, authMethods []ssh.AuthMetho
 
 	var c *client.NodeClient
 	if len(proxyAddress) > 0 {
-		proxyClient, err := client.ConnectToProxy(proxyAddress, authMethods, user)
+		proxyClient, err := client.ConnectToProxy(proxyAddress, authMethods, hostKeyCallback, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer proxyClient.Close()
-		c, err = proxyClient.ConnectToNode(address, authMethods, user)
+		c, err = proxyClient.ConnectToNode(address, authMethods, hostKeyCallback, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
 		var err error
-		c, err = client.ConnectToNode(nil, address, authMethods, user)
+		c, err = client.ConnectToNode(nil, address, authMethods, hostKeyCallback, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -198,12 +202,12 @@ func getTerminalSize() (width int, height int, e error) {
 	return width, height, nil
 }
 
-func GetServers(proxyAddress, labelName, labelValueRegexp string, authMethods []ssh.AuthMethod) error {
+func GetServers(proxyAddress, labelName, labelValueRegexp string, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
 	user, proxyAddress := client.SplitUserAndAddress(proxyAddress)
 	if len(user) == 0 {
 		return fmt.Errorf("Error: please provide user name")
 	}
-	proxyClient, err := client.ConnectToProxy(proxyAddress, authMethods, user)
+	proxyClient, err := client.ConnectToProxy(proxyAddress, authMethods, hostKeyCallback, user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -235,7 +239,7 @@ func GetServers(proxyAddress, labelName, labelValueRegexp string, authMethods []
 	return nil
 }
 
-func SCP(proxyAddress, source, dest string, isDir bool, port string, authMethods []ssh.AuthMethod) error {
+func SCP(proxyAddress, source, dest string, isDir bool, port string, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
 	if strings.Contains(source, ":") {
 		user, source := client.SplitUserAndAddress(source)
 		if len(user) == 0 {
@@ -249,7 +253,7 @@ func SCP(proxyAddress, source, dest string, isDir bool, port string, authMethods
 			targetServers += ":" + port
 		}
 		return client.Download(user, targetServers, proxyAddress, path,
-			dest, isDir, authMethods)
+			dest, isDir, authMethods, hostKeyCallback)
 	} else {
 		user, dest := client.SplitUserAndAddress(dest)
 		if len(user) == 0 {
@@ -263,7 +267,19 @@ func SCP(proxyAddress, source, dest string, isDir bool, port string, authMethods
 		}
 
 		return client.Upload(user, targetServers, proxyAddress, source,
-			path, authMethods)
+			path, authMethods, hostKeyCallback)
 	}
 	return nil
+}
+
+func Share(proxyAddress, nodeListeningAddress, authListeningAddress,
+	authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) {
+	hangoutServer := hangout.New(proxyAddress, nodeListeningAddress,
+		authListeningAddress, authMethods, hostKeyCallback)
+
+	return SSH(nodeListeningAddress, "", "", "", []ssh.AuthMethod{h.AuthMethod}, h.HostKeyCallback)
+}
+
+func Join(proxyAddress, nodeAddress, authAddress, userPassword string) {
+
 }

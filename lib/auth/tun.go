@@ -392,6 +392,17 @@ func NewSignupTokenAuth(token string) ([]ssh.AuthMethod, error) {
 	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
 }
 
+func NewHangoutTokenAuth(token string) ([]ssh.AuthMethod, error) {
+	data, err := json.Marshal(authBucket{
+		Type: AuthHangoutToken,
+		Pass: []byte(token),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
+}
+
 func NewHostAuth(key, cert []byte) ([]ssh.AuthMethod, error) {
 	signer, err := sshutils.NewSigner(key, cert)
 	if err != nil {
@@ -530,10 +541,11 @@ const (
 	ExtToken       = "provision@teleport"
 	ExtHost        = "host@teleport"
 
-	AuthWebPassword = "password"
-	AuthWebSession  = "session"
-	AuthToken       = "provision-token"
-	AuthSignupToken = "signup-token"
+	AuthWebPassword  = "password"
+	AuthWebSession   = "session"
+	AuthToken        = "provision-token"
+	AuthSignupToken  = "signup-token"
+	AuthHangoutToken = "share-token"
 )
 
 // AccessPointDialer dials to auth access point  remote HTTP api
