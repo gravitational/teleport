@@ -93,7 +93,7 @@ func (s *TunServer) Close() error {
 }
 
 func (s *TunServer) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
-	log.Infof("[AUTH] new channell request: %v", nch.ChannelType())
+	log.Infof("[AUTH] new channel request: %v", nch.ChannelType())
 	cht := nch.ChannelType()
 	switch cht {
 	case ReqDirectTCPIP:

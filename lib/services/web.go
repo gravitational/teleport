@@ -360,9 +360,9 @@ func NewWebTun(prefix, proxyAddr, targetAddr string) (*WebTun, error) {
 type SignupToken struct {
 	Token           string   `json:"Token"`
 	User            string   `json:"User"`
-	Hotp            []byte   `json:"Hotp"`
-	HotpFirstValues []string `json:"HotpFirstValues"`
-	HotpQR          []byte   `json:"HotpQR"`
+	Hotp            []byte   `json:"HOTP"`
+	HotpFirstValues []string `json:"HOTPFirstValues"`
+	HotpQR          []byte   `json:"HOTPQR"`
 	Mappings        []string `json:"Mappings"`
 }
 

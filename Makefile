@@ -33,7 +33,6 @@ install: remove-temp-files
 	go install github.com/gravitational/teleport/tool/tctl
 	go install github.com/gravitational/teleport/tool/tsh
 
-
 clean:
 	rm -f $(OUT)
 
@@ -46,7 +45,8 @@ production: clean
 
 
 test: install
-	go test -v -test.parallel=0 $(shell go list ./... | grep -v /vendor/) -cover
+	go test -v github.com/gravitational/teleport/lib/... -cover
+	#go test -v -test.parallel=0 $(shell go list ./... | grep -v /vendor/) -cover
 
 test-with-etcd: install
 	${ETCD_FLAGS} go test -v -test.parallel=0 $(shell go list ./... | grep -v /vendor/) -cover
