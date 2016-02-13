@@ -197,8 +197,10 @@ func (this *NodeCommand) Invite(client *auth.TunClient) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Token: %v\nPass this token via --token flag to teleport on node '%v'\n",
-		token, this.nodename)
+	fmt.Printf("The invite token: %v\nRun this on the new node to join the cluster:\n> teleport --roles=node --name=%v --token=%v --proxy=<Address>\n\nNotes:\n",
+		token, this.nodename, token)
+	fmt.Printf("  1. This invitation token will expire in %v seconds.\n", invitationTTL.Seconds())
+	fmt.Printf("  2. <Address> is the IP this auth server is reachable at from the node.\n")
 	return nil
 }
 
