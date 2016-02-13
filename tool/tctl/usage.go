@@ -1,7 +1,7 @@
 package main
 
 const (
-	GlobalHelpString = "CLI Admin tool for the Teleport Auth service. Runs on the machine where Teleport Auth is running."
+	GlobalHelpString = "CLI Admin tool for the Teleport Auth service. Runs on a host where Teleport Auth is running."
 	AddUserHelp      = `Notes:
 
   1. tctl will generate a signup token and give you a URL to share with a user.
