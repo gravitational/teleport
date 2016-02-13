@@ -309,7 +309,8 @@ func (s *TunServer) passwordAuth(
 	case AuthToken:
 		_, err := s.a.ValidateToken(string(ab.Pass), ab.User)
 		if err != nil {
-			return nil, trace.Errorf("%v token validation error: %v", ab.User, trace.Wrap(err))
+			log.Errorf("token validation error: %v", err)
+			return nil, trace.Wrap(err, fmt.Sprintf("failed to validate user: %v", ab.User))
 		}
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{

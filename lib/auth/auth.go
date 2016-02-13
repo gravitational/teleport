@@ -208,12 +208,7 @@ func (s *AuthServer) ValidateToken(token, domainName string) (role string, e err
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-
-	pid, err := session.DecodeSID(session.SecureID(token), s.scrt)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	tok, err := s.ProvisioningService.GetToken(string(pid))
+	tok, err := s.ProvisioningService.GetToken(token)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -310,12 +305,7 @@ func (s *AuthServer) DeleteToken(outputToken string) error {
 	if err != nil {
 		return err
 	}
-
-	pid, err := session.DecodeSID(session.SecureID(token), s.scrt)
-	if err != nil {
-		return err
-	}
-	return s.ProvisioningService.DeleteToken(string(pid))
+	return s.ProvisioningService.DeleteToken(token)
 }
 
 func (s *AuthServer) NewWebSession(user string) (*Session, error) {

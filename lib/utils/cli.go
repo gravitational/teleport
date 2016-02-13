@@ -25,31 +25,33 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
-	"github.com/Sirupsen/logrus"
-	logrus_syslog "github.com/Sirupsen/logrus/hooks/syslog"
+	log "github.com/Sirupsen/logrus"
+	logrusSyslog "github.com/Sirupsen/logrus/hooks/syslog"
 )
 
 // CLI tools by default log into syslog, not stderr
 func InitLoggerCLI() {
-	logrus.SetLevel(logrus.WarnLevel)
+	log.SetLevel(log.InfoLevel)
 	// clear existing hooks:
-	logrus.StandardLogger().Hooks = make(logrus.LevelHooks)
+	log.StandardLogger().Hooks = make(log.LevelHooks)
+	log.SetFormatter(&trace.TextFormatter{})
 
-	hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_INFO, "")
+	hook, err := logrusSyslog.NewSyslogHook("", "", syslog.LOG_INFO, "")
 	if err != nil {
 		panic(err)
 	}
-	logrus.AddHook(hook)
+	log.AddHook(hook)
 	// ... and disable stderr:
-	logrus.SetOutput(ioutil.Discard)
+	log.SetOutput(ioutil.Discard)
 }
 
 // Configures the logger to dump everything to stderr
 func InitLoggerDebug() {
 	// clear existing hooks:
-	logrus.StandardLogger().Hooks = make(logrus.LevelHooks)
-	logrus.SetOutput(os.Stderr)
-	logrus.SetLevel(logrus.InfoLevel)
+	log.StandardLogger().Hooks = make(log.LevelHooks)
+	log.SetFormatter(&trace.TextFormatter{})
+	log.SetOutput(os.Stderr)
+	log.SetLevel(log.InfoLevel)
 }
 
 // FatalError is for CLI front-ends: it detects gravitational.Trace debugging
@@ -63,7 +65,7 @@ func FatalError(err error) {
 		}
 		return err
 	}
-	logrus.Errorf(err.Error())
+	log.Errorf(err.Error())
 	fmt.Fprintln(os.Stderr, "Error: "+unwrap(err).Error())
 	os.Exit(1)
 }
@@ -75,7 +77,7 @@ func Consolef(w io.Writer, msg string, params ...interface{}) {
 	if w != nil {
 		fmt.Fprintln(w, msg)
 	}
-	logrus.Info(msg)
+	log.Info(msg)
 }
 
 // InitCLIParser configures kingpin command line args parser with
