@@ -27,8 +27,8 @@ import (
 
 	"github.com/gravitational/teleport/lib/services"
 
-	"github.com/gokyle/hotp"
 	log "github.com/Sirupsen/logrus"
+	"github.com/gokyle/hotp"
 	"github.com/gravitational/session"
 	"github.com/gravitational/trace"
 )
@@ -43,10 +43,13 @@ var TokenTTLAfterUse = time.Second * 10
 
 // CreateSignupToken creates one time token for creating account for the user
 // For each token it creates username and hotp generator
-func (s *AuthServer) CreateSignupToken(user string) (token string, e error) {
+//
+// Mappings are host logins allowed for the new user to use
+func (s *AuthServer) CreateSignupToken(user string, mappings []string) (token string, e error) {
+	// check existing
 	_, err := s.GetPasswordHash(user)
 	if err == nil {
-		return "", trace.Errorf("can't add user %v, user already exists", user)
+		return "", trace.Errorf("login '%v' already exists", user)
 	}
 
 	t, err := session.NewID(s.scrt)
@@ -57,6 +60,7 @@ func (s *AuthServer) CreateSignupToken(user string) (token string, e error) {
 
 	otp, err := hotp.GenerateHOTP(services.HOTPTokenDigits, false)
 	if err != nil {
+		log.Errorf("[AUTH API] failed to generate HOTP: %v", err)
 		return "", trace.Wrap(err)
 	}
 	otpQR, err := otp.QR("teleport: " + user + "@" + s.Hostname)
@@ -80,6 +84,7 @@ func (s *AuthServer) CreateSignupToken(user string) (token string, e error) {
 		Hotp:            otpMarshalled,
 		HotpFirstValues: otpFirstValues,
 		HotpQR:          otpQR,
+		Mappings:        mappings,
 	}
 
 	err = s.UpsertSignupToken(token, tokenData, SignupTokenTTL+SignupTokenUserActionsTTL)
@@ -87,6 +92,7 @@ func (s *AuthServer) CreateSignupToken(user string) (token string, e error) {
 		return "", trace.Wrap(err)
 	}
 
+	log.Infof("[AUTH API] created the signup token for %v as %v", user, mappings)
 	return token, nil
 }
 
@@ -142,6 +148,7 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) erro
 
 	tokenData, _, err := s.GetSignupToken(token)
 	if err != nil {
+		log.Errorf("[AUTH] error reading token (%v): %v", token, err)
 		return trace.Wrap(err)
 	}
 
@@ -170,7 +177,20 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) erro
 
 	_, _, err = s.UpsertPassword(tokenData.User, []byte(password))
 	if err != nil {
+		log.Errorf("[AUTH] error saving new user (%v) to DB: %v", tokenData.User, err)
 		return trace.Wrap(err)
+	}
+
+	// apply user mappings
+	localCA, err := s.GetUserCertificateAuthority()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var forever time.Duration = 0
+	for _, osUser := range tokenData.Mappings {
+		if err = s.UpsertUserMapping(localCA.ID, tokenData.User, osUser, forever); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	err = s.UpsertHOTP(tokenData.User, otp)
@@ -186,5 +206,6 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) erro
 		}
 	}(s, token)
 
+	log.Infof("[AUTH] created new user account: %v as %v", tokenData.User, tokenData.Mappings)
 	return nil
 }

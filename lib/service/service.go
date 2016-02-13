@@ -296,13 +296,13 @@ func RegisterWithAuthServer(
 		for !registered {
 			if err := auth.Register(cfg.Hostname, cfg.DataDir,
 				provisioningToken, role, cfg.AuthServers); err != nil {
-				log.Errorf("teleport:ssh register failed: %v", err)
-				time.Sleep(time.Second)
+				log.Errorf("[SSH] failed to register with the auth server. %v", err)
+				time.Sleep(time.Second * 5)
 			} else {
 				registered = true
 			}
 		}
-		log.Infof("teleport:register registered successfully")
+		utils.Consolef(os.Stdout, "[SSH] Successfully registered with the auth server %v", cfg.AuthServers[0].Addr)
 		return callback()
 	})
 	return nil

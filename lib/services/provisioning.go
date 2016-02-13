@@ -68,11 +68,11 @@ func (s *ProvisioningService) DeleteToken(token string) error {
 }
 
 func JoinTokenRole(token, role string) (ouputToken string, e error) {
-	if role == "Node" {
-		return "n" + token, nil
-	}
-	if role == "Auth" {
+	switch role {
+	case "Auth":
 		return "a" + token, nil
+	case "Node":
+		return "n" + token, nil
 	}
 	return token, trace.Errorf("Unknown role %v", role)
 }

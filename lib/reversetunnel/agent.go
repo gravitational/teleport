@@ -142,7 +142,12 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 }
 
 func (a *Agent) connect() error {
-	log.Infof("agent connect")
+	if a.addr.IsEmpty() {
+		err := trace.Errorf("reverse tunnel cannot be created: target address is empty")
+		log.Error(err)
+		return err
+	}
+	log.Infof("agent connectting to %v", a.addr.FullAddress())
 	c, err := ssh.Dial(a.addr.AddrNetwork, a.addr.Addr, &ssh.ClientConfig{
 		User:            a.domainName,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(a.signers...)},

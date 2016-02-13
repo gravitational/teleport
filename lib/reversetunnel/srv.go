@@ -347,7 +347,7 @@ func (s *remoteSite) handleHeartbeat(ch ssh.Channel, reqC <-chan *ssh.Request) {
 				log.Infof("agent disconnected")
 				return
 			}
-			log.Infof("%v -> ping", s)
+			log.Debugf("%v -> ping", s)
 			s.lastActive = time.Now()
 		}
 	}()

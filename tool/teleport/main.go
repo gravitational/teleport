@@ -64,6 +64,9 @@ func main() {
 	start.Flag("token",
 		"One-time token to register with an auth server [none]").
 		StringVar(&ccf.AuthToken)
+	start.Flag("name",
+		"Node name to register with an auth server with [none]").
+		StringVar(&ccf.NodeName)
 	start.Flag("config",
 		fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
 		Short('c').
@@ -87,9 +90,9 @@ func main() {
 	// execute the selected command:
 	switch command {
 	case start.FullCommand():
-		err = onStart(&config)
+		err = onStart(config)
 	case status.FullCommand():
-		err = onStatus(&config)
+		err = onStatus(config)
 	case dump.FullCommand():
 		err = onConfigDump()
 	case ver.FullCommand():

@@ -26,9 +26,12 @@ import (
 )
 
 type NetAddr struct {
-	Addr        string
+	// Addr is the host:port address, like "localhost:22"
+	Addr string
+	// AddrNetwork is the type of a network socket, like "tcp" or "unix"
 	AddrNetwork string
-	Path        string
+	// Path is a socket file path, like '/var/path/to/socket' in "unix:///var/path/to/socket"
+	Path string
 }
 
 func (a *NetAddr) IsEmpty() bool {

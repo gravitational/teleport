@@ -1,43 +1,28 @@
 package main
 
 const (
-	usageNotes = `
-Notes:
-
+	usageNotes = `Notes:
   --roles=node,proxy,auth
 
-  Use this flag to tell Teleport which services to run. By default it runs all three, but
-  in a production environment you may want to separate them all.
+  This flag tells Teleport which services to run. By default it runs all three. 
+  In a production environment you may want to separate them.
 
   --token=xyz
 
-  This token is needed to connect any node (web proxy or SSH service) to an auth server.
-  Obtain it by running "tctl nodes add" on the auth server. It is only used once and ignored
-  on subsequent restarts.
+  This token is needed to connect a node to an auth server. Obtain it by running 
+  "tctl nodes add" on the auth server. It's used once and ignored afterwards.
 `
 
 	usageExamples = `
 Examples:
 
 > teleport start
+      By default without any configuration, teleport starts running with all roles 
+      enabled It's the equivalent of running with --roles=node,proxy,auth 
 
-  By default without any configuration, teleport starts running with all roles enabled
-  It's the equivalent of running with --roles=node,proxy,auth 
-
-> teleport start --listen-ip=10.5.0.1 --roles=node --auth-server=10.5.0.2 --token=xyz
-
-  Starts a SSH node listening on 10.5.0.1 and authenticating incoming clients via the 
-  auth server running on 10.5.0.2. 
-
-> teleport start --roles=proxy,auth
-
-  Starts Teleport auth server with a web proxy (which also serves Web UI).
-
-> teleport start --roles=proxy --auth-server=10.5.0.2 --token=xyz
-
-  Starts Teleport Web proxy and configure it to authenticate/authorize against an auth 
-  server running on 10.5.0.2
-`
+> teleport start --roles=node --auth-server=10.5.0.2 --token=xyz --name=database
+      Starts this SSH node named 'database' running in SSH server mode and 
+      authenticating connections via the auth server running on 10.5.0.2`
 
 	sampleConfig = `##
 ## This is the example of a Teleport configuration file with all settings

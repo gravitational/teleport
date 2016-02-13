@@ -15,11 +15,11 @@
       # Copy binaries and web assets
       #
       - name: copy teleport
-        copy: src=../teleport dest=/usr/local/bin/ force=true
+        copy: src=../out/teleport dest=/usr/local/bin/ force=true
       - name: copy tsh
-        copy: src=../tsh dest=/usr/local/bin/ force=true
+        copy: src=../out/tsh dest=/usr/local/bin/ force=true
       - name: copy tctl
-        copy: src=../tctl dest=/usr/local/bin/ force=true
+        copy: src=../out/tctl dest=/usr/local/bin/ force=true
       - name: copy web assets
         copy: src=../assets/web dest=/var/lib/teleport/
       #

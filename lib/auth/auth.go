@@ -23,14 +23,20 @@ limitations under the License.
 package auth
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"os"
 	"time"
 
+	"github.com/gravitational/session"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/session"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
+	log "github.com/Sirupsen/logrus"
 	"github.com/mailgun/lemma/secret"
 )
 
@@ -185,19 +191,18 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 	return sess, nil
 }
 
-func (s *AuthServer) GenerateToken(domainName, role string, ttl time.Duration) (string, error) {
-	p, err := session.NewID(s.scrt)
-	if err != nil {
+func (s *AuthServer) GenerateToken(nodeName, role string, ttl time.Duration) (string, error) {
+	randomBytes := make([]byte, TokenLenBytes)
+	if _, err := rand.Reader.Read(randomBytes); err != nil {
 		return "", err
 	}
-
-	token := string(p.SID)
+	token := hex.EncodeToString(randomBytes)
 	outputToken, err := services.JoinTokenRole(token, role)
 	if err != nil {
 		return "", err
 	}
 
-	if err := s.ProvisioningService.UpsertToken(string(p.PID), domainName, role, ttl); err != nil {
+	if err := s.ProvisioningService.UpsertToken(token, nodeName, role, ttl); err != nil {
 		return "", err
 	}
 	return outputToken, nil
@@ -208,12 +213,7 @@ func (s *AuthServer) ValidateToken(token, domainName string) (role string, e err
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-
-	pid, err := session.DecodeSID(session.SecureID(token), s.scrt)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	tok, err := s.ProvisioningService.GetToken(string(pid))
+	tok, err := s.ProvisioningService.GetToken(token)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -223,21 +223,18 @@ func (s *AuthServer) ValidateToken(token, domainName string) (role string, e err
 	return tok.Role, nil
 }
 
-func (s *AuthServer) RegisterUsingToken(outputToken, domainName, role string) (keys PackedKeys, e error) {
+func (s *AuthServer) RegisterUsingToken(outputToken, nodename, role string) (keys PackedKeys, e error) {
+	log.Infof("[AUTH] Node `%v` is trying to join", nodename)
 	token, _, err := services.SplitTokenRole(outputToken)
 	if err != nil {
 		return PackedKeys{}, trace.Wrap(err)
 	}
-
-	pid, err := session.DecodeSID(session.SecureID(token), s.scrt)
+	tok, err := s.ProvisioningService.GetToken(token)
 	if err != nil {
+		log.Warningf("[AUTH] Node `%v` cannot join: token error. %v", nodename, err)
 		return PackedKeys{}, trace.Wrap(err)
 	}
-	tok, err := s.ProvisioningService.GetToken(string(pid))
-	if err != nil {
-		return PackedKeys{}, trace.Wrap(err)
-	}
-	if tok.DomainName != domainName {
+	if tok.DomainName != nodename {
 		return PackedKeys{}, trace.Errorf("domainName does not match")
 	}
 
@@ -249,8 +246,11 @@ func (s *AuthServer) RegisterUsingToken(outputToken, domainName, role string) (k
 	if err != nil {
 		return PackedKeys{}, trace.Wrap(err)
 	}
-	c, err := s.GenerateHostCert(pub, domainName+"_"+role, domainName, role, 0)
+	fullHostName := fmt.Sprintf("%s.%s", nodename, s.Hostname)
+	hostID := fmt.Sprintf("%s_%s", nodename, role)
+	c, err := s.GenerateHostCert(pub, hostID, fullHostName, role, 0)
 	if err != nil {
+		log.Warningf("[AUTH] Node `%v` cannot join: cert generation error. %v", nodename, err)
 		return PackedKeys{}, trace.Wrap(err)
 	}
 
@@ -263,6 +263,7 @@ func (s *AuthServer) RegisterUsingToken(outputToken, domainName, role string) (k
 		return PackedKeys{}, trace.Wrap(err)
 	}
 
+	utils.Consolef(os.Stdout, "[AUTH] Node `%v` joined the cluster", nodename)
 	return keys, nil
 }
 
@@ -311,12 +312,7 @@ func (s *AuthServer) DeleteToken(outputToken string) error {
 	if err != nil {
 		return err
 	}
-
-	pid, err := session.DecodeSID(session.SecureID(token), s.scrt)
-	if err != nil {
-		return err
-	}
-	return s.ProvisioningService.DeleteToken(string(pid))
+	return s.ProvisioningService.DeleteToken(token)
 }
 
 func (s *AuthServer) NewWebSession(user string) (*Session, error) {
@@ -375,4 +371,5 @@ func (s *AuthServer) DeleteWebSession(user string, sid session.SecureID) error {
 const (
 	Week          = time.Hour * 24 * 7
 	WebSessionTTL = time.Hour * 10
+	TokenLenBytes = 16
 )
