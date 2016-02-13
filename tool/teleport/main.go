@@ -64,6 +64,9 @@ func main() {
 	start.Flag("token",
 		"One-time token to register with an auth server [none]").
 		StringVar(&ccf.AuthToken)
+	start.Flag("name",
+		"Node name to register with an auth server with [none]").
+		StringVar(&ccf.NodeName)
 	start.Flag("config",
 		fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
 		Short('c').

@@ -31,6 +31,8 @@ import (
 
 // CLIConfig represents command line flags+args
 type CLIConfig struct {
+	// --name flag
+	NodeName string
 	// --auth-server flag
 	AuthServerAddr string
 	// --token flag
@@ -97,6 +99,12 @@ func configure(cliConf *CLIConfig) (cfg *service.Config, err error) {
 
 	// apply --auth-server flag:
 	if cliConf.AuthServerAddr != "" {
+		if cliConf.NodeName == "" {
+			return cfg, trace.Errorf("Need --name flag")
+		}
+		if cliConf.AuthToken == "" {
+			return cfg, trace.Errorf("Need --token flag")
+		}
 		if cfg.Auth.Enabled {
 			log.Warnf("not starting the local auth service. --auth-server flag tells to connect to another auth server")
 			cfg.Auth.Enabled = false
@@ -107,6 +115,14 @@ func configure(cliConf *CLIConfig) (cfg *service.Config, err error) {
 		}
 		log.Infof("Using auth server: %v", addr.FullAddress())
 		cfg.AuthServers = []utils.NetAddr{*addr}
+	}
+
+	// apply --token flag:
+	if cliConf.NodeName != "" {
+		if cliConf.NodeName == "" {
+			return cfg, trace.Errorf("Need --name flag")
+		}
+		cfg.Hostname = cliConf.NodeName
 	}
 
 	// apply --token flag:

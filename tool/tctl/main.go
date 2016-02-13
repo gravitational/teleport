@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/trace"
@@ -161,7 +160,7 @@ func (this *UserCommand) List(client *auth.TunClient) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
+	// EV: this does not work (never returns anything)
 	usersView := func(users []string) string {
 		t := goterm.NewTable(0, 10, 5, ' ', 0)
 		fmt.Fprint(t, "User\n")
@@ -174,6 +173,12 @@ func (this *UserCommand) List(client *auth.TunClient) error {
 		return t.String()
 	}
 	fmt.Printf(usersView(users))
+
+	fmt.Println("TO BE DONE --->>>>> Listing users is not implemented. But the output should look like:\n")
+	fmt.Println("User login       Mappings")
+	fmt.Println("--------------   ----------------------")
+	fmt.Println("ekontsevoy       admin,centos")
+
 	return nil
 }
 
@@ -193,11 +198,11 @@ func (this *UserCommand) Delete(client *auth.TunClient) error {
 // to a cluster
 func (this *NodeCommand) Invite(client *auth.TunClient) error {
 	invitationTTL := time.Minute * 15
-	token, err := client.GenerateToken(this.nodename, services.TokenRoleNode, invitationTTL)
+	token, err := client.GenerateToken(this.nodename, auth.RoleNode, invitationTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("The invite token: %v\nRun this on the new node to join the cluster:\n> teleport --roles=node --name=%v --token=%v --proxy=<Address>\n\nNotes:\n",
+	fmt.Printf("The invite token: %v\nRun this on the new node to join the cluster:\n> teleport start --roles=node --name=%v --token=%v --auth-server=<Address>\n\nNotes:\n",
 		token, this.nodename, token)
 	fmt.Printf("  1. This invitation token will expire in %v seconds.\n", invitationTTL.Seconds())
 	fmt.Printf("  2. <Address> is the IP this auth server is reachable at from the node.\n")
@@ -207,7 +212,10 @@ func (this *NodeCommand) Invite(client *auth.TunClient) error {
 // listActive retreives the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
 func (this *NodeCommand) ListActive(client *auth.TunClient) error {
-	fmt.Println("listing nodes is not implemented")
+	fmt.Println("TO BE DONE --->>>>> Listing nodes is not implemented. But the output should look like:\n")
+	fmt.Println("Node Name        IP              Labels")
+	fmt.Println("--------------   ------------    ---------------")
+	fmt.Println("mongo-server     10.0.10.22      master,mongo")
 	return nil
 }
 
