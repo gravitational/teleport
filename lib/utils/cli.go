@@ -53,7 +53,7 @@ func InitLoggerDebug() {
 	log.StandardLogger().Hooks = make(log.LevelHooks)
 	log.SetFormatter(&trace.TextFormatter{})
 	log.SetOutput(os.Stderr)
-	log.SetLevel(log.InfoLevel)
+	log.SetLevel(log.DebugLevel)
 }
 
 // FatalError is for CLI front-ends: it detects gravitational.Trace debugging

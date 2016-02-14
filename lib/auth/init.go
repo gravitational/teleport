@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
@@ -201,13 +200,17 @@ func InitKeys(a *AuthServer, domainName, dataDir string) (ssh.Signer, error) {
 			return nil, err
 		}
 	}
-	return ReadKeys(domainName, dataDir)
+	i, err := ReadIdentity(domainName, dataDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return i.KeySigner, nil
 }
 
 func writeKeys(domainName, dataDir string, key []byte, cert []byte) error {
 	kp, cp := keysPath(domainName, dataDir)
 
-	log.Infof("write key to %v, cert from %v", kp, cp)
+	log.Debugf("write key to %v, cert from %v", kp, cp)
 
 	if err := ioutil.WriteFile(kp, key, 0600); err != nil {
 		return err
@@ -220,22 +223,54 @@ func writeKeys(domainName, dataDir string, key []byte, cert []byte) error {
 	return nil
 }
 
-func ReadKeys(domainName, dataDir string) (ssh.Signer, error) {
-	kp, cp := keysPath(domainName, dataDir)
+type Identity struct {
+	KeyBytes  []byte
+	CertBytes []byte
+	KeySigner ssh.Signer
+	PubKey    ssh.PublicKey
+	Cert      *ssh.Certificate
+}
 
-	log.Infof("read key from %v, cert from %v", kp, cp)
+// ReadIdentity reads, parses and returns the given pub/pri key + cert from the
+// key storage (dataDir).
+func ReadIdentity(hostname, dataDir string) (i *Identity, err error) {
+	kp, cp := keysPath(hostname, dataDir)
+	log.Debugf("Identity %s: [key: %v, cert: %v]", hostname, kp, cp)
 
-	key, err := utils.ReadPath(kp)
+	i = new(Identity)
+
+	i.KeyBytes, err = utils.ReadPath(kp)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
-	cert, err := utils.ReadPath(cp)
+	i.CertBytes, err = utils.ReadPath(cp)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
-	return sshutils.NewSigner(key, cert)
+	i.PubKey, _, _, _, err = ssh.ParseAuthorizedKey(i.CertBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse server CA certificate '%v', err: %v",
+			string(i.CertBytes), err)
+	}
+
+	var ok bool
+	i.Cert, ok = i.PubKey.(*ssh.Certificate)
+	if !ok {
+		return nil, fmt.Errorf("expected CA certificate, got %T ", i.PubKey)
+	}
+
+	signer, err := ssh.ParsePrivateKey(i.KeyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse host private key, err: %v", err)
+	}
+	// TODO: why NewCertSigner if we already have a signer from ParsePrivateKey?
+	i.KeySigner, err = ssh.NewCertSigner(i.Cert, signer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse host private key, err: %v", err)
+	}
+	return i, nil
 }
 
 func HaveKeys(domainName, dataDir string) (bool, error) {

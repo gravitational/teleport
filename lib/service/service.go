@@ -208,15 +208,17 @@ func initSSH(supervisor Supervisor, cfg Config) error {
 }
 
 func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
-	signer, err := auth.ReadKeys(cfg.Hostname, cfg.DataDir)
+	i, err := auth.ReadIdentity(cfg.Hostname, cfg.DataDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	endpointUser := i.Cert.ValidPrincipals[0]
+
 	client, err := auth.NewTunClient(
 		cfg.AuthServers[0],
-		cfg.Hostname,
-		[]ssh.AuthMethod{ssh.PublicKeys(signer)})
+		endpointUser,
+		[]ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -235,7 +237,7 @@ func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
 
 	s, err := srv.New(cfg.SSH.Addr,
 		cfg.Hostname,
-		[]ssh.Signer{signer},
+		[]ssh.Signer{i.KeySigner},
 		client,
 		limiter,
 		cfg.DataDir,
@@ -319,15 +321,17 @@ func initReverseTunnel(supervisor Supervisor, cfg Config) error {
 }
 
 func initTunAgent(supervisor Supervisor, cfg Config) error {
-	signer, err := auth.ReadKeys(cfg.Hostname, cfg.DataDir)
+	i, err := auth.ReadIdentity(cfg.Hostname, cfg.DataDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	endpointUser := i.Cert.ValidPrincipals[0]
+
 	client, err := auth.NewTunClient(
 		cfg.AuthServers[0],
-		cfg.Hostname,
-		[]ssh.AuthMethod{ssh.PublicKeys(signer)})
+		endpointUser,
+		[]ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -341,7 +345,7 @@ func initTunAgent(supervisor Supervisor, cfg Config) error {
 	a, err := reversetunnel.NewAgent(
 		cfg.ReverseTunnel.DialAddr,
 		cfg.Hostname,
-		[]ssh.Signer{signer},
+		[]ssh.Signer{i.KeySigner},
 		client,
 		reversetunnel.SetEventLogger(elog))
 	if err != nil {
@@ -380,22 +384,23 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 		return trace.Wrap(err)
 	}
 
-	signer, err := auth.ReadKeys(cfg.Hostname, cfg.DataDir)
+	i, err := auth.ReadIdentity(cfg.Hostname, cfg.DataDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	endpointUser := i.Cert.ValidPrincipals[0]
 	client, err := auth.NewTunClient(
 		cfg.AuthServers[0],
-		cfg.Hostname,
-		[]ssh.AuthMethod{ssh.PublicKeys(signer)})
+		endpointUser,
+		[]ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	tsrv, err := reversetunnel.NewServer(
 		cfg.Proxy.ReverseTunnelListenAddr,
-		[]ssh.Signer{signer},
+		[]ssh.Signer{i.KeySigner},
 		client,
 		reverseTunnelLimiter,
 	)
@@ -405,7 +410,7 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 
 	SSHProxy, err := srv.New(cfg.Proxy.SSHAddr,
 		cfg.Hostname,
-		[]ssh.Signer{signer},
+		[]ssh.Signer{i.KeySigner},
 		client,
 		proxyLimiter,
 		cfg.DataDir,
