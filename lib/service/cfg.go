@@ -23,7 +23,6 @@ import (
 	"path/filepath"
 
 	"io"
-	"io/ioutil"
 
 	"gopkg.in/yaml.v2"
 
@@ -32,44 +31,30 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/configure"
 	"github.com/gravitational/trace"
 )
 
-func ParseYAMLFile(path string, cfg interface{}) error {
-	bytes, err := ioutil.ReadFile(path)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	rendered, err := renderTemplate(bytes)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return configure.ParseYAML(rendered, cfg)
-}
-
-func ParseEnv(cfg interface{}) error {
-	return configure.ParseEnv(cfg)
-}
-
+// Config structure is used to initialize _all_ services Teleporot can run.
+// Some settings are globl (like DataDir) while others are grouped into
+// sections, like AuthConfig
 type Config struct {
-	DataDir  string `yaml:"data_dir" env:"TELEPORT_DATA_DIR"`
-	Hostname string `yaml:"hostname" env:"TELEPORT_HOSTNAME"`
+	DataDir  string
+	Hostname string
 
-	AuthServers NetAddrSlice `yaml:"auth_servers,flow" env:"TELEPORT_AUTH_SERVERS"`
+	AuthServers NetAddrSlice
 
 	// SSH role an SSH endpoint server
-	SSH SSHConfig `yaml:"ssh"`
+	SSH SSHConfig
 
 	// Auth server authentication and authorizatin server config
-	Auth AuthConfig `yaml:"auth"`
+	Auth AuthConfig
 
 	// ReverseTunnnel role creates and mantains outbound SSH reverse tunnel to the proxy
-	ReverseTunnel ReverseTunnelConfig `yaml:"reverse_tunnel"`
+	ReverseTunnel ReverseTunnelConfig
 
 	// Proxy is SSH proxy that manages incoming and outbound connections
 	// via multiple reverse tunnels
-	Proxy ProxyConfig `yaml:"proxy"`
+	Proxy ProxyConfig
 
 	// Console writer to speak to a user
 	Console io.Writer
@@ -97,111 +82,111 @@ func (cfg *Config) DebugDumpToYAML() string {
 
 type ProxyConfig struct {
 	// Enabled turns proxy role on or off for this process
-	Enabled bool `yaml:"enabled" env:"TELEPORT_PROXY_ENABLED"`
+	Enabled bool
 
 	// Token is a provisioning token for new proxy server registering with auth
-	Token string `yaml:"token" env:"TELEPORT_PROXY_TOKEN"`
+	Token string
 
 	// ReverseTunnelListenAddr is address where reverse tunnel dialers connect to
-	ReverseTunnelListenAddr utils.NetAddr `yaml:"reverse_tunnel_listen_addr" env:"TELEPORT_PROXY_REVERSE_TUNNEL_LISTEN_ADDR"`
+	ReverseTunnelListenAddr utils.NetAddr
 
 	// WebAddr is address for web portal of the proxy
-	WebAddr utils.NetAddr `yaml:"web_addr" env:"TELEPORT_PROXY_WEB_ADDR"`
+	WebAddr utils.NetAddr
 
 	// SSHAddr is address of ssh proxy
-	SSHAddr utils.NetAddr `yaml:"ssh_addr" env:"TELEPORT_PROXY_SSH_ADDR"`
+	SSHAddr utils.NetAddr
 
 	// AssetsDir is a directory with proxy website assets
-	AssetsDir string `yaml:"assets_dir" env:"TELEPORT_PROXY_ASSETS_DIR"`
+	AssetsDir string
 
 	// TLSKey is a base64 encoded private key used by web portal
-	TLSKey string `yaml:"tls_key" env:"TELEPORT_PROXY_TLS_KEY"`
+	TLSKey string
 
 	// TLSCert is a base64 encoded certificate used by web portal
-	TLSCert string `yaml:"tlscert" env:"TELEPORT_PROXY_TLS_CERT"`
+	TLSCert string
 
-	Limiter limiter.LimiterConfig `yaml:"limiter" env:"TELEPORT_PROXY_LIMITER"`
+	Limiter limiter.LimiterConfig
 }
 
 type AuthConfig struct {
 	// Enabled turns auth role on or off for this process
-	Enabled bool `yaml:"enabled" env:"TELEPORT_AUTH_ENABLED"`
+	Enabled bool
 
 	// SSHAddr is the listening address of SSH tunnel to HTTP service
-	SSHAddr utils.NetAddr `yaml:"ssh_addr" env:"TELEPORT_AUTH_SSH_ADDR"`
+	SSHAddr utils.NetAddr
 
 	// HostAuthorityDomain is Host Certificate Authority domain name
-	HostAuthorityDomain string `yaml:"host_authority_domain" env:"TELEPORT_AUTH_HOST_AUTHORITY_DOMAIN"`
+	HostAuthorityDomain string
 
 	// Token is a provisioning token for an additonal auth server joining the cluster
-	Token string `yaml:"token" env:"TELEPORT_AUTH_TOKEN"`
+	Token string
 
 	// SecretKey is an encryption key for secret service, will be used
 	// to initialize secret service if set
-	SecretKey string `yaml:"secret_key" env:"TELEPORT_AUTH_SECRET_KEY"`
+	SecretKey string
 
 	// AllowedTokens is a set of tokens that will be added as trusted
-	AllowedTokens KeyVal `yaml:"allowed_tokens" env:"TELEPORT_AUTH_ALLOWED_TOKENS"`
+	AllowedTokens KeyVal
 
 	// TrustedAuthorities is a set of trusted user certificate authorities
-	TrustedAuthorities CertificateAuthorities `yaml:"trusted_authorities" env:"TELEPORT_AUTH_TRUSTED_AUTHORITIES"`
+	TrustedAuthorities CertificateAuthorities
 
 	// UserCA allows to pass preconfigured user certificate authority keypair
 	// to auth server so it will use it on the first start instead of generating
 	// a new keypair
-	UserCA LocalCertificateAuthority `yaml:"user_ca_keypair" env:"TELEPORT_AUTH_USER_CA_KEYPAIR"`
+	UserCA LocalCertificateAuthority
 
 	// HostCA allows to pass preconfigured host certificate authority keypair
 	// to auth server so it will use it on the first start instead of generating
 	// a new keypair
-	HostCA LocalCertificateAuthority `yaml:"host_ca_keypair" env:"TELEPORT_AUTH_HOST_CA_KEYPAIR"`
+	HostCA LocalCertificateAuthority
 
 	// KeysBackend configures backend that stores auth keys, certificates, tokens ...
 	KeysBackend struct {
 		// Type is a backend type - etcd or boltdb
-		Type string `yaml:"type" env:"TELEPORT_AUTH_KEYS_BACKEND_TYPE"`
+		Type string
 		// Params is map with backend specific parameters
-		Params string `yaml:"params,flow" env:"TELEPORT_AUTH_KEYS_BACKEND_PARAMS"`
+		Params string
 		// AdditionalKey is a additional signing GPG key
-		EncryptionKeys StringArray `yaml:"encryption_keys" env:"TELEPORT_AUTH_KEYS_BACKEND_ENCRYPTION_KEYS"`
-	} `yaml:"keys_backend"`
+		EncryptionKeys StringArray
+	}
 
 	// EventsBackend configures backend that stores cluster events (login attempts, etc)
 	EventsBackend struct {
 		// Type is a backend type, etcd or bolt
-		Type string `yaml:"type" env:"TELEPORT_AUTH_EVENTS_BACKEND_TYPE"`
+		Type string
 		// Params is map with backend specific parameters
-		Params string `yaml:"params,flow" env:"TELEPORT_AUTH_EVENTS_BACKEND_PARAMS"`
-	} `yaml:"events_backend"`
+		Params string
+	}
 
 	// RecordsBackend configures backend that stores live SSH sessions recordings
 	RecordsBackend struct {
 		// Type is a backend type, currently only bolt
-		Type string `yaml:"type" env:"TELEPORT_AUTH_RECORDS_BACKEND_TYPE"`
+		Type string
 		// Params is map with backend specific parameters
-		Params string `yaml:"params,flow" env:"TELEPORT_AUTH_RECORDS_BACKEND_PARAMS"`
-	} `yaml:"records_backend"`
+		Params string
+	}
 
-	Limiter limiter.LimiterConfig `yaml:"limiter" env:"TELEPORT_AUTH_LIMITER"`
+	Limiter limiter.LimiterConfig
 }
 
 // SSHConfig configures SSH server node role
 type SSHConfig struct {
-	Enabled   bool                   `yaml:"enabled" env:"TELEPORT_SSH_ENABLED"`
-	Token     string                 `yaml:"token" env:"TELEPORT_SSH_TOKEN"`
-	Addr      utils.NetAddr          `yaml:"addr" env:"TELEPORT_SSH_ADDR"`
-	Shell     string                 `yaml:"shell" env:"TELEPORT_SSH_SHELL"`
-	Limiter   limiter.LimiterConfig  `yaml:"limiter" env:"TELEPORT_SSH_LIMITER"`
-	Labels    map[string]string      `yaml:"labels" env:"TELEPORT_SSH_LABELS"`
-	CmdLabels services.CommandLabels `yaml:"label-commands" env:"TELEPORT_SSH_LABEL_COMMANDS"`
+	Enabled   bool
+	Token     string
+	Addr      utils.NetAddr
+	Shell     string
+	Limiter   limiter.LimiterConfig
+	Labels    map[string]string
+	CmdLabels services.CommandLabels
 }
 
 // ReverseTunnelConfig configures reverse tunnel role
 type ReverseTunnelConfig struct {
-	Enabled  bool                  `yaml:"enabled" env:"TELEPORT_REVERSE_TUNNEL_ENABLED"`
-	Token    string                `yaml:"token" env:"TELEPORT_REVERSE_TUNNEL_TOKEN"`
-	DialAddr utils.NetAddr         `yaml:"dial_addr" env:"TELEPORT_REVERSE_TUNNEL_DIAL_ADDR"`
-	Limiter  limiter.LimiterConfig `yaml:"limiter" env:"TELEPORT_REVERSE_TUNNEL_LIMITER"`
+	Enabled  bool
+	Token    string
+	DialAddr utils.NetAddr
+	Limiter  limiter.LimiterConfig
 }
 
 type NetAddrSlice []utils.NetAddr
@@ -253,10 +238,10 @@ func (kv *KeyVal) Set(v string) error {
 }
 
 type CertificateAuthority struct {
-	Type       string `json:"type" yaml:"type"`
-	ID         string `json:"id" yaml:"id"`
-	DomainName string `json:"domain_name" yaml:"domain_name"`
-	PublicKey  string `json:"public_key" yaml:"public_key"`
+	Type       string `json:"type"`
+	ID         string `json:"id"`
+	DomainName string `json:"domain_name"`
+	PublicKey  string `json:"public_key"`
 }
 
 type CertificateAuthorities []CertificateAuthority
@@ -284,8 +269,8 @@ func (a CertificateAuthorities) Authorities() ([]services.CertificateAuthority, 
 }
 
 type LocalCertificateAuthority struct {
-	CertificateAuthority `json:"public" yaml:"public"`
-	PrivateKey           string `json:"private_key" yaml:"private_key"`
+	CertificateAuthority `json:"public"`
+	PrivateKey           string `json:"private_key"`
 }
 
 func (c *LocalCertificateAuthority) SetEnv(v string) error {

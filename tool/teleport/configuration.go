@@ -64,12 +64,6 @@ func configure(cliConf *CLIConfig) (cfg *service.Config, err error) {
 		}
 		// parse the config file. these values will override defaults:
 		utils.Consolef(os.Stdout, "Using config file: %s", configPath)
-
-		// TODO: replace with simplified config file
-		log.Warning("Need to implement simplified config file")
-		if err := service.ParseYAMLFile(configPath, &cfg); err != nil {
-			return cfg, err
-		}
 	} else {
 		log.Info("not using a config file")
 	}

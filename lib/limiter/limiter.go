@@ -30,8 +30,8 @@ type Limiter struct {
 
 type LimiterConfig struct {
 	Rates            []Rate
-	MaxConnections   int64 `yaml:"max_connections" json:"max_connections"`
-	MaxNumberOfUsers int   `yaml:"max_users" json:"max_users"`
+	MaxConnections   int64
+	MaxNumberOfUsers int
 }
 
 // SetEnv reads LimiterConfig from JSON string

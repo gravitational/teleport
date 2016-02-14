@@ -281,10 +281,10 @@ type LocalCertificateAuthority struct {
 }
 
 type CertificateAuthority struct {
-	Type       string `json:"type" yaml:"type"`
-	ID         string `json:"id" yaml:"id"`
-	DomainName string `json:"domain_name" yaml:"domain_name" env:"domain_name"`
-	PublicKey  []byte `json:"public_key" yaml:"public_key" env:"public_key"`
+	Type       string `json:"type"`
+	ID         string `json:"id"`
+	DomainName string `json:"domain_name"`
+	PublicKey  []byte `json:"public_key"`
 }
 
 // Marshall user mapping into string
