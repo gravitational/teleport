@@ -99,7 +99,7 @@ func (s *AuthSuite) TestSessions(c *C) {
 func (s *AuthSuite) TestTokensCRUD(c *C) {
 	tok, err := s.a.GenerateToken("a.example.com", "Node", 0)
 	c.Assert(err, IsNil)
-	c.Assert(len(tok), Equals, TokenLenBytes+1)
+	c.Assert(len(tok), Equals, 2*TokenLenBytes+1)
 	c.Assert(tok[0:1], Equals, "n")
 
 	role, err := s.a.ValidateToken(tok, "a.example.com")
