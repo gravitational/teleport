@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/gravitational/teleport/lib/limiter"
@@ -317,7 +318,7 @@ func (s *TunServer) passwordAuth(
 				ExtToken: string(password),
 				"role":   RoleProvisionToken,
 			}}
-		log.Infof("session authenticated prov. token: '%v'", conn.User())
+		utils.Consolef(os.Stdout, "[AUTH] Successfully accepted token %v for %v", string(password), conn.User())
 		return perms, nil
 	case AuthSignupToken:
 		_, _, err := s.a.GetSignupToken(string(ab.Pass))

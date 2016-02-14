@@ -228,7 +228,7 @@ func connectToAuthService(cfg *service.Config) (client *auth.TunClient, err erro
 	}
 
 	// login via keys:
-	signer, err := auth.ReadKeys(cfg.Hostname, cfg.DataDir)
+	i, err := auth.ReadIdentity(cfg.Hostname, cfg.DataDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -236,7 +236,7 @@ func connectToAuthService(cfg *service.Config) (client *auth.TunClient, err erro
 	client, err = auth.NewTunClient(
 		cfg.AuthServers[0],
 		cfg.Hostname,
-		[]ssh.AuthMethod{ssh.PublicKeys(signer)})
+		[]ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
