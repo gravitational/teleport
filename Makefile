@@ -59,10 +59,6 @@ test-package: remove-temp-files install
 test-package-with-etcd: remove-temp-files install
 	${ETCD_FLAGS} go test -v -test.parallel=0 ./$(p)
 
-update:
-	rm -rf Godeps/
-	find . -iregex .*go | xargs sed -i 's:".*Godeps/_workspace/src/:":g'
-	godep save -r ./...
 
 test-grep-package: remove-temp-files install
 	go test -v ./$(p) -check.f=$(e)
@@ -89,69 +85,12 @@ pack-teleport: pkg teleport
 pkg:
 	@if [ "$$PKG" = "" ] ; then echo "ERROR: enter PKG parameter:\n\nmake publish PKG=<name>:<sem-ver>, e.g. teleport:0.0.1\n\n" && exit 255; fi
 
-# run-embedded starts a auth server, ssh node and proxy that allows web access 
-# to all the nodes
-run-embedded: install
-	teleport --config=examples/embedded.yaml
-
-# run-node starts a ssh node
-run-node: install
-	tctl token generate --output=/tmp/token --domain=localhost
-	teleport --config=examples/node.yaml
-
-# run-connected-auth1 starts a auth server ready to connect with additional auth server
-run-connected-auth1: install
-	teleport --config=examples/connected-auth1.yaml
-
-# run-connected-auth2 starts a additional auth server, that connects to auth1
-run-connected-auth2: install
-	teleport --config=examples/connected-auth2.yaml
-
-
-# run-site-to-proxy starts a ssh node, auth server and reverse tunnel that connect outside of
-# the organization server
-run-site-to-proxy: install
-	rm -f /tmp/teleport.auth.sock
-	teleport --config=examples/embedded-proxy.yaml
-
-# run proxy start s
-run-proxy: install
-	rm -f /tmp/teleport.proxy.auth.sock
-	teleport --config=examples/proxy.yaml
-
-trust-proxy:
-#   get user and host SSH certificates from proxy's organization, note that we are connecting to proxy's auth server
-#   that serves proxy's organization certs and not teleport's
-	tctl --auth=unix:///tmp/teleport.proxy.auth.sock user-ca pub-key > /tmp/user.pubkey
-	tctl --auth=unix:///tmp/teleport.proxy.auth.sock host-ca pub-key > /tmp/host.pubkey
-
-#   add proxy's certs to teleport as trusted remote certificate authorities
-	tctl remote-ca upsert --type=user --id=user.proxy.vendor.io --domain=proxy.vendor.io --path=/tmp/user.pubkey
-	tctl remote-ca upsert --type=host --id=host.proxy.vendor.io --domain=proxy.vendor.io --path=/tmp/host.pubkey
-	tctl remote-ca ls --type=user
-	tctl remote-ca ls --type=host
-
-#   now export teleport's host CA certificate and add it as a trusted cert for proxy
-	tctl host-ca pub-key > /tmp/teleport.pubkey
-	tctl --auth=unix:///tmp/teleport.proxy.auth.sock remote-ca upsert --type=host --id=host.auth.gravitational.io --domain=node1.gravitational.io --path=/tmp/teleport.pubkey
-	tctl --auth=unix:///tmp/teleport.proxy.auth.sock remote-ca ls --type=host
 
 profile:
 	go tool pprof http://localhost:6060/debug/pprof/profile
 
 sloccount:
 	find . -path ./Godeps -prune -o -name "*.go" -print0 | xargs -0 wc -l
-
-docs-serve:
-	sleep 1 && sensible-browser http://127.0.0.1:32567 &
-	mkdocs serve
-
-docs-update:
-	echo "# Auth Server Client\n\n" > docs/api.md
-	echo "[Source file](https://github.com/gravitational/teleport/blob/master/auth/clt.go)" >> docs/api.md
-	echo '```go' >> docs/api.md
-	godoc github.com/gravitational/teleport/auth Client >> docs/api.md
-	echo '```' >> docs/api.md
 
 #
 # Deploy teleport server to staging environment on AWS
