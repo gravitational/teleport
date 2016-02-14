@@ -49,8 +49,6 @@ func (s *ConfigSuite) TestParseYAML(c *C) {
 func (s *ConfigSuite) TestParseEnv(c *C) {
 
 	vars := map[string]string{
-		"TELEPORT_LOG_OUTPUT":                        "console",
-		"TELEPORT_LOG_SEVERITY":                      "INFO",
 		"TELEPORT_AUTH_SERVERS":                      `["tcp://localhost:5000", "unix:///var/run/auth.sock"]`,
 		"TELEPORT_DATA_DIR":                          "/tmp/data_dir",
 		"TELEPORT_HOSTNAME":                          "domain.example.com",
@@ -98,11 +96,6 @@ func (s *ConfigSuite) TestParseEnv(c *C) {
 }
 
 func (s *ConfigSuite) checkVariables(c *C, cfg *Config) {
-
-	// check logs section
-	c.Assert(cfg.Log.Output, Equals, "console")
-	c.Assert(cfg.Log.Severity, Equals, "INFO")
-
 	// check common section
 	c.Assert(cfg.DataDir, Equals, "/tmp/data_dir")
 	c.Assert(cfg.Hostname, Equals, "domain.example.com")

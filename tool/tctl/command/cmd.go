@@ -29,10 +29,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/buger/goterm"
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/terminal"
-	"github.com/gravitational/kingpin"
 )
 
 type Command struct {
@@ -56,8 +56,7 @@ func (cmd *Command) SetOut(out io.Writer) {
 	cmd.out = out
 }
 
-func (cmd *Command) Run(args []string) error {
-	app := kingpin.New("tctl", "CLI for key management of teleport SSH cluster")
+func (cmd *Command) Run(app *kingpin.Application, args []string) error {
 	configPath := app.Flag("config", "Path to the Teleport configuration file").Default(DefaultConfigPath).String()
 	useEnv := app.Flag("env", "read configuration parameters from environment").Default("false").Bool()
 
@@ -208,7 +207,7 @@ func (cmd *Command) Run(args []string) error {
 				return trace.Wrap(err)
 			}
 		}
-		service.SetDefaults(&cfg)
+		//service.SetDefaults(&cfg)
 		if cfg.Auth.Enabled && len(cfg.AuthServers) == 0 {
 			cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
 		}

@@ -16,54 +16,98 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
 	"os"
+	"strings"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/kingpin"
 )
 
 func main() {
-	// default logging is "errors to stderr" until we parse the config file
-	// and re-initialize logger
-	log.SetOutput(os.Stderr)
-	log.SetLevel(log.ErrorLevel)
+	var err error
 
-	if err := run(); err != nil {
-		log.Errorf("teleport error: %v", err)
-		os.Exit(1)
+	// configure logger for a typical CLI scenario until configuration file is
+	// parsed
+	utils.InitLoggerCLI()
+	app := utils.InitCLIParser("teleport", "Clustered SSH service. Learn more at http://teleport.gravitational.com")
+
+	// define global flags:
+	var ccf CLIConfig
+	app.Flag("debug", "Enable verbose logging to stderr").
+		Short('d').
+		BoolVar(&ccf.Debug)
+
+	// define commands:
+	start := app.Command("start", "Starts the Teleport service.")
+	status := app.Command("status", "Print the status of the current SSH session.")
+	dump := app.Command("configure", "Print the sample config file into stdout.")
+	ver := app.Command("version", "Print the version.")
+	app.HelpFlag.Short('h')
+
+	// define start flags:
+	start.Flag("roles",
+		fmt.Sprintf("Comma-separated list of roles to start with [%s]", strings.Join(defaults.StartRoles, ","))).
+		Short('r').
+		StringVar(&ccf.Roles)
+	start.Flag("listen-ip",
+		fmt.Sprintf("IP address to bind to [%s]", defaults.BindIP)).
+		Short('l').
+		IPVar(&ccf.ListenIP)
+	start.Flag("auth-server",
+		fmt.Sprintf("Address of the auth server [%s]", defaults.AuthConnectAddr().Addr)).
+		StringVar(&ccf.AuthServerAddr)
+	start.Flag("token",
+		"One-time token to register with an auth server [none]").
+		StringVar(&ccf.AuthToken)
+	start.Flag("name",
+		"Node name to register with an auth server with [none]").
+		StringVar(&ccf.NodeName)
+	start.Flag("config",
+		fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
+		Short('c').
+		StringVar(&ccf.ConfigFile)
+
+	// define start's usage info (we use kingpin's "alias" field for this)
+	start.Alias(usageNotes + usageExamples)
+
+	// parse CLI commands+flags:
+	command, err := app.Parse(os.Args[1:])
+	if err != nil {
+		utils.FatalError(err)
 	}
-	log.Infof("teleport completed successfully")
+
+	// configuration merge: defaults -> file-based conf -> CLI conf
+	config, err := configure(&ccf)
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	// execute the selected command:
+	switch command {
+	case start.FullCommand():
+		err = onStart(config)
+	case status.FullCommand():
+		err = onStatus(config)
+	case dump.FullCommand():
+		err = onConfigDump()
+	case ver.FullCommand():
+		onVersion()
+	}
+
+	if err != nil {
+		utils.FatalError(err)
+	}
+	log.Info("teleport: clean exit")
 }
 
-func run() error {
-	app := kingpin.New("teleport", "Teleport is a clustering SSH server")
-	configPath := app.Flag("config", "Path to a configuration file in YAML format").ExistingFile()
-	useEnv := app.Flag("env", "Configure teleport from environment variables").Bool()
-
-	_, err := app.Parse(os.Args[1:])
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var cfg service.Config
-	if *useEnv {
-		if err := service.ParseEnv(&cfg); err != nil {
-			return trace.Wrap(err)
-		}
-	} else if *configPath != "" {
-		if err := service.ParseYAMLFile(*configPath, &cfg); err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
-		return trace.Errorf("Use either --config or --env flags, see --help for details")
-	}
-
-	log.Infof("starting with configuration: %#v", cfg)
-
-	srv, err := service.NewTeleport(cfg)
+// onStart is the handler for "start" CLI command
+func onStart(config *service.Config) error {
+	srv, err := service.NewTeleport(*config)
 	if err != nil {
 		return trace.Wrap(err, "initializing teleport")
 	}
@@ -72,4 +116,21 @@ func run() error {
 	}
 	srv.Wait()
 	return nil
+}
+
+// onStatus is the handler for "status" CLI command
+func onStatus(config *service.Config) error {
+	fmt.Println("status command is not implemented")
+	return nil
+}
+
+// onConfigDump is the handler for "configure" CLI command
+func onConfigDump() error {
+	fmt.Println(sampleConfig)
+	return nil
+}
+
+// onVersion is the handler for "version"
+func onVersion() {
+	fmt.Println("'version' command is not implemented")
 }

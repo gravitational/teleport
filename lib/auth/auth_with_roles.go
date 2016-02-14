@@ -385,11 +385,11 @@ func (a *AuthWithRoles) GetSealKey(keyID string) (encryptor.Key, error) {
 	}
 }
 
-func (a *AuthWithRoles) CreateSignupToken(user string) (token string, e error) {
+func (a *AuthWithRoles) CreateSignupToken(user string, mappings []string) (token string, e error) {
 	if err := a.permChecker.HasPermission(a.role, ActionCreateSignupToken); err != nil {
 		return "", err
 	} else {
-		return a.authServer.CreateSignupToken(user)
+		return a.authServer.CreateSignupToken(user, mappings)
 	}
 }
 

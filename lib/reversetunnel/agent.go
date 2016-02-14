@@ -27,8 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/codahale/lunk"
 	log "github.com/Sirupsen/logrus"
+	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -142,13 +142,19 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 }
 
 func (a *Agent) connect() error {
-	log.Infof("agent connect")
+	if a.addr.IsEmpty() {
+		err := trace.Errorf("reverse tunnel cannot be created: target address is empty")
+		log.Error(err)
+		return err
+	}
+	log.Infof("agent connectting to %v", a.addr.FullAddress())
 	c, err := ssh.Dial(a.addr.AddrNetwork, a.addr.Addr, &ssh.ClientConfig{
 		User:            a.domainName,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(a.signers...)},
 		HostKeyCallback: a.checkHostSignature,
 	})
 	if err != nil {
+		log.Errorf("failed connecting to '%v'. %v", a.addr.Addr, err)
 		return trace.Wrap(err)
 	}
 	a.conn = c

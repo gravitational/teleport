@@ -1,18 +1,32 @@
 TCD_NODE1 := http://127.0.0.1:4001
 ETCD_NODES := ${ETCD_NODE1}
 ETCD_FLAGS := TELEPORT_TEST_ETCD_NODES=${ETCD_NODES}
-TARGETS=teleport tctl tsh
+OUT=out
 export GO15VENDOREXPERIMENT=1
 
-.PHONY: all install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd install-assets docs-serve
+.PHONY: install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd install-assets docs-serve
+
 
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
 #
-all: 
-	go build -o teleport -i github.com/gravitational/teleport/tool/teleport
-	go build -o tctl     -i github.com/gravitational/teleport/tool/tctl
-	go build -o tsh      -i github.com/gravitational/teleport/tool/tsh
+.PHONY: tctl
+tctl: 
+	go build -o $(OUT)/tctl -i github.com/gravitational/teleport/tool/tctl
+
+.PHONY: teleport
+teleport: 
+	rm -rf /var/lib/teleport/assets
+	cp -r assets/web/assets /var/lib/teleport/
+	go build -o $(OUT)/teleport -i github.com/gravitational/teleport/tool/teleport
+
+.PHONY: tsh
+tsh: 
+	go build -o $(OUT)/tsh -i github.com/gravitational/teleport/tool/tsh
+
+.PHONY: all
+all: teleport tctl tsh
+
 
 install: remove-temp-files
 	go install github.com/gravitational/teleport/tool/teleport
@@ -20,7 +34,7 @@ install: remove-temp-files
 	go install github.com/gravitational/teleport/tool/tsh
 
 clean:
-	rm -f $(TARGETS)
+	rm -f $(OUT)
 
 #
 # this target is used by Jenkins for production builds
@@ -31,7 +45,8 @@ production: clean
 
 
 test: install
-	go test -v -test.parallel=0 $(shell go list ./... | grep -v /vendor/) -cover
+	go test -v github.com/gravitational/teleport/lib/... -cover
+	#go test -v -test.parallel=0 $(shell go list ./... | grep -v /vendor/) -cover
 
 test-with-etcd: install
 	${ETCD_FLAGS} go test -v -test.parallel=0 $(shell go list ./... | grep -v /vendor/) -cover

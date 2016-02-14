@@ -18,8 +18,16 @@ package service
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"io"
 	"io/ioutil"
 
+	"gopkg.in/yaml.v2"
+
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -45,8 +53,6 @@ func ParseEnv(cfg interface{}) error {
 }
 
 type Config struct {
-	Log LogConfig `yaml:"log"`
-
 	DataDir  string `yaml:"data_dir" env:"TELEPORT_DATA_DIR"`
 	Hostname string `yaml:"hostname" env:"TELEPORT_HOSTNAME"`
 
@@ -64,6 +70,9 @@ type Config struct {
 	// Proxy is SSH proxy that manages incoming and outbound connections
 	// via multiple reverse tunnels
 	Proxy ProxyConfig `yaml:"proxy"`
+
+	// Console writer to speak to a user
+	Console io.Writer
 }
 
 func (cfg *Config) RoleConfig() RoleConfig {
@@ -72,12 +81,18 @@ func (cfg *Config) RoleConfig() RoleConfig {
 		Hostname:    cfg.Hostname,
 		AuthServers: cfg.AuthServers,
 		Auth:        cfg.Auth,
+		Console:     cfg.Console,
 	}
 }
 
-type LogConfig struct {
-	Output   string `yaml:"output" env:"TELEPORT_LOG_OUTPUT"`
-	Severity string `yaml:"severity" env:"TELEPORT_LOG_SEVERITY"`
+// DebugDumpToYAML() is useful for debugging: it dumps the Config structure into
+// a string
+func (cfg *Config) DebugDumpToYAML() string {
+	out, err := yaml.Marshal(cfg)
+	if err != nil {
+		return err.Error()
+	}
+	return string(out)
 }
 
 type ProxyConfig struct {
@@ -299,45 +314,63 @@ func (c *LocalCertificateAuthority) CA() (*services.LocalCertificateAuthority, e
 	return &out, nil
 }
 
-func SetDefaults(cfg *Config) {
-	if cfg.Log.Output == "" {
-		cfg.Log.Output = "console"
+// MakeDefaultConfig() creates a new Config structure and populates it with defaults
+func MakeDefaultConfig() (config *Config, err error) {
+	config = &Config{}
+	if err = applyDefaults(config); err != nil {
+		return nil, trace.Wrap(err)
 	}
-	if cfg.Log.Severity == "" {
-		cfg.Log.Severity = "INFO"
-	}
-	if cfg.SSH.Addr.IsEmpty() {
-		cfg.SSH.Addr = utils.NetAddr{
-			AddrNetwork: "tcp",
-			Addr:        "127.0.0.1:33001",
-		}
-	}
-	if cfg.SSH.Shell == "" {
-		cfg.SSH.Shell = "/bin/bash"
+	return config, nil
+}
+
+// applyDefaults applies default values to the existing config structure
+func applyDefaults(cfg *Config) error {
+	hostname, err := os.Hostname()
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	if cfg.Auth.SSHAddr.IsEmpty() {
-		cfg.Auth.SSHAddr = utils.NetAddr{
-			AddrNetwork: "tcp",
-			Addr:        "127.0.0.1:33000",
-		}
+	// defaults for the auth service:
+	cfg.Auth.Enabled = true
+	cfg.Auth.HostAuthorityDomain = hostname
+	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
+	cfg.Auth.EventsBackend.Type = defaults.BackendType
+	cfg.Auth.EventsBackend.Params = boltParams(defaults.DataDir, "events.db")
+	cfg.Auth.KeysBackend.Type = defaults.BackendType
+	cfg.Auth.KeysBackend.Params = boltParams(defaults.DataDir, "keys.db")
+	cfg.Auth.RecordsBackend.Type = defaults.BackendType
+	cfg.Auth.RecordsBackend.Params = boltParams(defaults.DataDir, "records.db")
+	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
+
+	// defaults for the SSH proxy service:
+	cfg.Proxy.Enabled = true
+	cfg.Proxy.AssetsDir = defaults.DataDir
+	cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
+	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
+	cfg.ReverseTunnel.Enabled = true
+	cfg.ReverseTunnel.DialAddr = *defaults.ReverseTunnellConnectAddr()
+	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnellListenAddr()
+	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
+	defaults.ConfigureLimiter(&cfg.ReverseTunnel.Limiter)
+
+	// defaults for the SSH service:
+	cfg.SSH.Enabled = true
+	cfg.SSH.Addr = *defaults.SSHServerListenAddr()
+	cfg.SSH.Shell = "/bin/bash"
+	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
+
+	// global defaults
+	cfg.Hostname = hostname
+	cfg.DataDir = defaults.DataDir
+	if cfg.Auth.Enabled {
+		cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
 	}
-	if cfg.Proxy.ReverseTunnelListenAddr.IsEmpty() {
-		cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{
-			AddrNetwork: "tcp",
-			Addr:        "127.0.0.1:33006",
-		}
-	}
-	if cfg.Proxy.WebAddr.IsEmpty() {
-		cfg.Proxy.WebAddr = utils.NetAddr{
-			AddrNetwork: "tcp",
-			Addr:        "127.0.0.1:33007",
-		}
-	}
-	if cfg.Proxy.SSHAddr.IsEmpty() {
-		cfg.Proxy.SSHAddr = utils.NetAddr{
-			AddrNetwork: "tcp",
-			Addr:        "127.0.0.1:33008",
-		}
-	}
+	cfg.Console = os.Stdout
+	return nil
+}
+
+// Generates a string accepted by the BoltDB driver, like this:
+// `{"path": "/var/lib/teleport/records.db"}`
+func boltParams(storagePath, dbFile string) string {
+	return fmt.Sprintf(`{"path": "%s"}`, filepath.Join(storagePath, dbFile))
 }

@@ -16,15 +16,13 @@ limitations under the License.
 package service
 
 import (
+	"io"
 	"io/ioutil"
-	"log/syslog"
 	"net/http"
 	"os"
 	"path"
-	"strings"
 	"time"
 
-	logrus_syslog "github.com/Sirupsen/logrus/hooks/syslog"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -55,14 +53,15 @@ type RoleConfig struct {
 	Hostname    string
 	AuthServers []utils.NetAddr
 	Auth        AuthConfig
+	Console     io.Writer
 }
 
 func NewTeleport(cfg Config) (Supervisor, error) {
 	if err := validateConfig(cfg); err != nil {
 		return nil, err
 	}
-	SetDefaults(&cfg)
 
+	// create the data directory if it's missing
 	_, err := os.Stat(cfg.DataDir)
 	if os.IsNotExist(err) {
 		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0777)
@@ -76,10 +75,6 @@ func NewTeleport(cfg Config) (Supervisor, error) {
 	// the address of the created auth will be used
 	if cfg.Auth.Enabled && len(cfg.AuthServers) == 0 {
 		cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
-	}
-
-	if err := initLogging(cfg.Log.Output, cfg.Log.Severity); err != nil {
-		return nil, err
 	}
 
 	supervisor := NewSupervisor()
@@ -183,7 +178,7 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) err
 
 	// register auth SSH-based endpoint
 	supervisor.RegisterFunc(func() error {
-		log.Infof("[AUTH] server SSH endpoint is starting")
+		utils.Consolef(cfg.Console, "[AUTH]  Auth service is starting on %v", cfg.Auth.SSHAddr.Addr)
 		tsrv, err := auth.NewTunServer(
 			cfg.Auth.SSHAddr, []ssh.Signer{signer},
 			apisrv,
@@ -191,9 +186,11 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) err
 			limiter,
 		)
 		if err != nil {
+			utils.Consolef(cfg.Console, "[PROXY] Error: %v", err)
 			return trace.Wrap(err)
 		}
 		if err := tsrv.Start(); err != nil {
+			utils.Consolef(cfg.Console, "[PROXY] Error: %v", err)
 			return trace.Wrap(err)
 		}
 		return nil
@@ -253,8 +250,9 @@ func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
 	}
 
 	supervisor.RegisterFunc(func() error {
-		log.Infof("[SSH] server is starting on %v", cfg.SSH.Addr)
+		utils.Consolef(cfg.Console, "[SSH]   Service is starting on %v", cfg.SSH.Addr.Addr)
 		if err := s.Start(); err != nil {
+			utils.Consolef(cfg.Console, "[SSH]   Error: %v", err)
 			return trace.Wrap(err)
 		}
 		s.Wait()
@@ -298,13 +296,13 @@ func RegisterWithAuthServer(
 		for !registered {
 			if err := auth.Register(cfg.Hostname, cfg.DataDir,
 				provisioningToken, role, cfg.AuthServers); err != nil {
-				log.Errorf("teleport:ssh register failed: %v", err)
-				time.Sleep(time.Second)
+				log.Errorf("[SSH] failed to register with the auth server. %v", err)
+				time.Sleep(time.Second * 5)
 			} else {
 				registered = true
 			}
 		}
-		log.Infof("teleport:register registered successfully")
+		utils.Consolef(os.Stdout, "[SSH] Successfully registered with the auth server %v", cfg.AuthServers[0].Addr)
 		return callback()
 	})
 	return nil
@@ -420,9 +418,9 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
 	supervisor.RegisterFunc(func() error {
-		log.Infof("[PROXY] reverse tunnel listening server starting on %v",
-			cfg.Proxy.ReverseTunnelListenAddr)
+		utils.Consolef(cfg.Console, "[PROXY] Reverse tunnel service is starting on %v", cfg.Proxy.ReverseTunnelListenAddr.Addr)
 		if err := tsrv.Start(); err != nil {
+			utils.Consolef(cfg.Console, "[PROXY] Error: %v", err)
 			return trace.Wrap(err)
 		}
 		tsrv.Wait()
@@ -431,9 +429,7 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 
 	// Register web proxy server
 	supervisor.RegisterFunc(func() error {
-		log.Infof("[PROXY] teleport web proxy server starting on %v",
-			cfg.Proxy.WebAddr.Addr)
-
+		utils.Consolef(cfg.Console, "[PROXY] Web proxy service is starting on %v", cfg.Proxy.WebAddr.Addr)
 		webHandler, err := web.NewMultiSiteHandler(
 			web.MultiSiteConfig{
 				Tun:        tsrv,
@@ -468,9 +464,9 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 
 	// Register ssh proxy server
 	supervisor.RegisterFunc(func() error {
-		log.Infof("[PROXY] teleport ssh proxy server starting on %v",
-			cfg.Proxy.SSHAddr.Addr)
+		utils.Consolef(cfg.Console, "[PROXY] SSH proxy service is starting on %v", cfg.Proxy.SSHAddr.Addr)
 		if err := SSHProxy.Start(); err != nil {
+			utils.Consolef(cfg.Console, "[PROXY] Error: %v", err)
 			return trace.Wrap(err)
 		}
 		return nil
@@ -547,43 +543,6 @@ func initRecordBackend(btype string, params string) (recorder.Recorder, error) {
 	return nil, trace.Errorf("unsupported backend type: %v", btype)
 }
 
-// initLogging configures the logger according to config file values
-func initLogging(ltype, severity string) error {
-	useSyslog := true
-	infoLevel := log.ErrorLevel
-
-	// output
-	switch strings.ToLower(ltype) {
-	case "console", "stderr":
-		useSyslog = false
-	}
-
-	if useSyslog {
-		hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_ERR, "")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		log.AddHook(hook)
-		log.SetOutput(ioutil.Discard)
-	} else {
-		log.SetOutput(os.Stderr)
-	}
-
-	// severity
-	switch strings.ToLower(severity) {
-	case "err", "error":
-		infoLevel = log.ErrorLevel
-	case "warn", "warning":
-		infoLevel = log.WarnLevel
-	case "info", "notice":
-		infoLevel = log.InfoLevel
-	case "fatal":
-		infoLevel = log.FatalLevel
-	}
-	log.SetLevel(infoLevel)
-	return nil
-}
-
 func validateConfig(cfg Config) error {
 	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.ReverseTunnel.Enabled {
 		return trace.Errorf("supply at least one of Auth, SSH or ReverseTunnel or Proxy roles")
@@ -591,6 +550,10 @@ func validateConfig(cfg Config) error {
 
 	if cfg.DataDir == "" {
 		return trace.Errorf("please supply data directory")
+	}
+
+	if cfg.Console == nil {
+		cfg.Console = ioutil.Discard
 	}
 
 	return nil

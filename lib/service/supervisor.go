@@ -16,6 +16,7 @@ limitations under the License.
 package service
 
 import (
+	"os"
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
@@ -72,7 +73,10 @@ func (s *LocalSupervisor) serve(srv Service) {
 	go func() {
 		defer s.wg.Done()
 		err := srv.Serve()
-		log.Infof("%v completed with %v", s, err)
+		if err != nil {
+			log.Errorf("srv.Serve() error: %v", err)
+			os.Exit(1)
+		}
 	}()
 }
 

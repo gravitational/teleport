@@ -307,7 +307,6 @@ func (s *session) addParty(p *party) {
 			if err := s.upsertSessionParty(s.id, p, 10*time.Second); err != nil {
 				log.Warningf("%v failed to upsert session party: %v", p, err)
 			}
-			log.Infof("%v upserted session party", p)
 		}
 	}()
 }

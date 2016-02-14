@@ -17,14 +17,21 @@ package utils
 
 import (
 	"fmt"
+	"net"
 	"net/url"
+	"strconv"
 	"strings"
+
+	"github.com/gravitational/trace"
 )
 
 type NetAddr struct {
-	Addr        string
+	// Addr is the host:port address, like "localhost:22"
+	Addr string
+	// AddrNetwork is the type of a network socket, like "tcp" or "unix"
 	AddrNetwork string
-	Path        string
+	// Path is a socket file path, like '/var/path/to/socket' in "unix:///var/path/to/socket"
+	Path string
 }
 
 func (a *NetAddr) IsEmpty() bool {
@@ -71,6 +78,8 @@ func (a *NetAddr) Set(s string) error {
 	return nil
 }
 
+// ParseAddr takes strings like "tcp://host:port/path" and returns
+// *NetAddr or an error
 func ParseAddr(a string) (*NetAddr, error) {
 	u, err := url.Parse(a)
 	if err != nil {
@@ -82,8 +91,26 @@ func ParseAddr(a string) (*NetAddr, error) {
 	case "unix":
 		return &NetAddr{Addr: u.Path, AddrNetwork: u.Scheme}, nil
 	default:
-		return nil, fmt.Errorf("unsupported scheme '%v': '%v'", a, u.Scheme)
+		return nil, trace.Errorf("unsupported scheme '%v': '%v'", a, u.Scheme)
 	}
+}
+
+// ParseHostPortAddr takes strings like "host:port" and returns
+// *NetAddr or an error
+//
+// If defaultPort == -1 it expects 'hostport' string to have it
+func ParseHostPortAddr(hostport string, defaultPort int) (*NetAddr, error) {
+	host, port, err := net.SplitHostPort(hostport)
+	if err != nil {
+		if defaultPort > 0 {
+			host, port, err = net.SplitHostPort(
+				net.JoinHostPort(hostport, strconv.Itoa(defaultPort)))
+		}
+		if err != nil {
+			return nil, trace.Errorf("failed to parse '%v': %v", hostport, err)
+		}
+	}
+	return ParseAddr(fmt.Sprintf("tcp://%s", net.JoinHostPort(host, port)))
 }
 
 func NewNetAddrVal(defaultVal NetAddr, val *NetAddr) *NetAddrVal {

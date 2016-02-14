@@ -93,7 +93,7 @@ func (s *TunServer) Close() error {
 }
 
 func (s *TunServer) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
-	log.Infof("got new channel request: %v", nch.ChannelType())
+	log.Infof("[AUTH] new channel request: %v", nch.ChannelType())
 	cht := nch.ChannelType()
 	switch cht {
 	case ReqDirectTCPIP:
@@ -105,14 +105,14 @@ func (s *TunServer) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		}
 		req, err := sshutils.ParseDirectTCPIPReq(nch.ExtraData())
 		if err != nil {
-			log.Errorf("failed to parse request data: %v, err: %v",
+			log.Errorf("[AUTH] failed to parse request data: %v, err: %v",
 				string(nch.ExtraData()), err)
 			nch.Reject(ssh.UnknownChannelType,
 				"failed to parse direct-tcpip request")
 		}
 		sshCh, _, err := nch.Accept()
 		if err != nil {
-			log.Infof("could not accept channel (%s)", err)
+			log.Infof("[AUTH] could not accept channel (%s)", err)
 		}
 		go s.handleDirectTCPIPRequest(sconn, sshCh, req)
 	case ReqWebSessionAgent:
@@ -126,7 +126,7 @@ func (s *TunServer) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		}
 		ch, _, err := nch.Accept()
 		if err != nil {
-			log.Infof("could not accept channel (%s)", err)
+			log.Infof("[AUTH] could not accept channel (%s)", err)
 		}
 		go s.handleWebAgentRequest(sconn, ch)
 	default:
@@ -309,7 +309,8 @@ func (s *TunServer) passwordAuth(
 	case AuthToken:
 		_, err := s.a.ValidateToken(string(ab.Pass), ab.User)
 		if err != nil {
-			return nil, trace.Errorf("%v token validation error: %v", ab.User, trace.Wrap(err))
+			log.Errorf("token validation error: %v", err)
+			return nil, trace.Wrap(err, fmt.Sprintf("failed to validate user: %v", ab.User))
 		}
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{

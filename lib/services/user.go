@@ -75,6 +75,7 @@ func (s *UserService) GetUsers() ([]string, error) {
 
 // DeleteUser deletes a user with all the keys from the backend
 func (s *UserService) DeleteUser(user string) error {
+	// TODO: Ev - how about the mappings and (possibly) outstanding invite tokens?
 	err := s.backend.DeleteBucket([]string{"users"}, user)
 	return err
 }
