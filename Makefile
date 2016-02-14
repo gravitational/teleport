@@ -10,6 +10,9 @@ export GO15VENDOREXPERIMENT=1
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
 #
+.PHONY: all
+all: teleport tctl tsh
+
 .PHONY: tctl
 tctl: 
 	go build -o $(OUT)/tctl -i github.com/gravitational/teleport/tool/tctl
@@ -24,17 +27,13 @@ teleport:
 tsh: 
 	go build -o $(OUT)/tsh -i github.com/gravitational/teleport/tool/tsh
 
-.PHONY: all
-all: teleport tctl tsh
-
-
 install: remove-temp-files
 	go install github.com/gravitational/teleport/tool/teleport
 	go install github.com/gravitational/teleport/tool/tctl
 	go install github.com/gravitational/teleport/tool/tsh
 
 clean:
-	rm -f $(OUT)
+	rm -rf $(OUT)
 
 #
 # this target is used by Jenkins for production builds
