@@ -38,11 +38,13 @@ func InitLoggerCLI() {
 
 	hook, err := logrusSyslog.NewSyslogHook("", "", syslog.LOG_INFO, "")
 	if err != nil {
-		panic(err)
+		// syslog not available
+		log.Warn("syslog not available. reverting to stderr")
+	} else {
+		// ... and disable stderr:
+		log.AddHook(hook)
+		log.SetOutput(ioutil.Discard)
 	}
-	log.AddHook(hook)
-	// ... and disable stderr:
-	log.SetOutput(ioutil.Discard)
 }
 
 // Configures the logger to dump everything to stderr

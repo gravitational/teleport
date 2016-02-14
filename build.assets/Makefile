@@ -22,3 +22,14 @@ build: bbox
 #
 bbox:
 	docker build --tag $(BBOX) .
+
+
+#
+# starts teleport inside a build container
+#
+run: build
+	docker run -i --rm=true \
+		   -v $$(pwd)/../:/gopath/src/github.com/gravitational/teleport \
+		   -u $$(id -u):$$(id -g) \
+		   $(BBOX) \
+		   /gopath/src/github.com/gravitational/teleport/out/teleport start -d
