@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gokyle/hotp"
+	"github.com/gravitational/trace"
 	"github.com/mailgun/lemma/secret"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -632,32 +633,32 @@ type upack struct {
 func newUpack(user string, a *auth.AuthServer) (*upack, error) {
 	upriv, upub, err := a.GenerateKeyPair("")
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
-	ucert, err := a.UpsertUserKey(user, services.AuthorizedKey{ID: user, Value: upub}, 0)
+	ucert, err := a.GenerateUserCert(upub, user, user, 0)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	upkey, err := ssh.ParseRawPrivateKey(upriv)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	usigner, err := ssh.NewSignerFromKey(upkey)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	pcert, _, _, _, err := ssh.ParseAuthorizedKey(ucert)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	ucertSigner, err := ssh.NewCertSigner(pcert.(*ssh.Certificate), usigner)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	return &upack{
