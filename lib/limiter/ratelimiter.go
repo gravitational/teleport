@@ -33,6 +33,7 @@ type RateLimiter struct {
 	rateLimits *ttlmap.TtlMap
 	*sync.Mutex
 	rates *ratelimit.RateSet
+	clock timetools.TimeProvider
 }
 
 type Rate struct {
@@ -53,14 +54,25 @@ func NewRateLimiter(config LimiterConfig) (*RateLimiter, error) {
 
 	limiter.rates = ratelimit.NewRateSet()
 	for _, rate := range config.Rates {
-		limiter.rates.Add(rate.Period, rate.Average, rate.Burst)
+		err := limiter.rates.Add(rate.Period, rate.Average, rate.Burst)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if len(config.Rates) == 0 {
-		limiter.rates.Add(time.Second, DefaultRate, DefaultRate)
+		err := limiter.rates.Add(time.Second, DefaultRate, DefaultRate)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
+	if config.Clock == nil {
+		config.Clock = &timetools.RealTime{}
+	}
+	limiter.clock = config.Clock
+
 	limiter.TokenLimiter, err = ratelimit.New(nil, ipExtractor,
-		limiter.rates)
+		limiter.rates, ratelimit.Clock(config.Clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -69,7 +81,8 @@ func NewRateLimiter(config LimiterConfig) (*RateLimiter, error) {
 	if maxNumberOfUsers <= 0 {
 		maxNumberOfUsers = DefaultMaxNumberOfUsers
 	}
-	limiter.rateLimits, err = ttlmap.NewMap(maxNumberOfUsers)
+	limiter.rateLimits, err = ttlmap.NewMap(
+		maxNumberOfUsers, ttlmap.Clock(config.Clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -90,7 +103,7 @@ func (l *RateLimiter) RegisterRequest(token string) error {
 		bucketSet = bucketSetI.(*ratelimit.TokenBucketSet)
 		bucketSet.Update(l.rates)
 	} else {
-		bucketSet = ratelimit.NewTokenBucketSet(l.rates, &timetools.RealTime{})
+		bucketSet = ratelimit.NewTokenBucketSet(l.rates, l.clock)
 		// We set ttl as 10 times rate period. E.g. if rate is 100 requests/second per client ip
 		// the counters for this ip will expire after 10 seconds of inactivity
 		l.rateLimits.Set(token, bucketSet, int(bucketSet.GetMaxPeriod()/time.Second)*10+1)

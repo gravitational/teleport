@@ -26,6 +26,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 	. "gopkg.in/check.v1"
 )
 
@@ -56,10 +57,21 @@ func (s *SCPSuite) TestSendFile(c *C) {
 	cmd, in, out, epipe := command("scp", "-v", "-t", outDir)
 
 	errC := make(chan error, 2)
+	successC := make(chan bool)
 	rw := &combo{out, in}
 	go func() {
-		errC <- cmd.Run()
+		if err := cmd.Start(); err != nil {
+			errC <- trace.Wrap(err)
+		}
+		if err := srv.Serve(rw); err != nil {
+			errC <- trace.Wrap(err)
+		}
+		in.Close()
+		if err := cmd.Wait(); err != nil {
+			errC <- trace.Wrap(err)
+		}
 		log.Infof("run completed")
+		close(successC)
 	}()
 
 	go func() {
@@ -68,19 +80,12 @@ func (s *SCPSuite) TestSendFile(c *C) {
 		}
 	}()
 
-	go func() {
-		errC <- srv.Serve(rw)
-		log.Infof("serve completed")
-		in.Close()
-	}()
-
-	for i := 0; i < 2; i++ {
-		select {
-		case <-time.After(time.Second):
-			panic("timeout")
-		case err := <-errC:
-			c.Assert(err, IsNil)
-		}
+	select {
+	case <-time.After(time.Second):
+		c.Fatalf("timeout")
+	case err := <-errC:
+		c.Assert(err, IsNil)
+	case <-successC:
 	}
 
 	bytes, err := ioutil.ReadFile(filepath.Join(outDir, "target"))
@@ -103,11 +108,27 @@ func (s *SCPSuite) TestReceiveFile(c *C) {
 
 	cmd, in, out, epipe := command("scp", "-v", "-f", source)
 
-	errC := make(chan error, 2)
+	errC := make(chan error, 3)
+	successC := make(chan bool, 1)
 	rw := &combo{out, in}
+	// http://stackoverflow.com/questions/20134095/why-do-i-get-bad-file-descriptor-in-this-go-program-using-stderr-and-ioutil-re
 	go func() {
-		errC <- cmd.Run()
+		err := cmd.Start()
+		if err != nil {
+			errC <- trace.Wrap(err)
+		}
+		log.Infof("serving")
+		err = trace.Wrap(srv.Serve(rw))
+		if err != nil {
+			errC <- err
+		}
+		in.Close()
+		log.Infof("done")
+		if err := trace.Wrap(cmd.Wait()); err != nil {
+			errC <- err
+		}
 		log.Infof("run completed")
+		successC <- true
 	}()
 
 	go func() {
@@ -116,19 +137,12 @@ func (s *SCPSuite) TestReceiveFile(c *C) {
 		}
 	}()
 
-	go func() {
-		errC <- srv.Serve(rw)
-		log.Infof("serve completed")
-		in.Close()
-	}()
-
-	for i := 0; i < 2; i++ {
-		select {
-		case <-time.After(time.Second):
-			panic("timeout")
-		case err := <-errC:
-			c.Assert(err, IsNil)
-		}
+	select {
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for results")
+	case err := <-errC:
+		c.Assert(err, IsNil)
+	case <-successC:
 	}
 
 	bytes, err := ioutil.ReadFile(filepath.Join(outDir, "target"))
@@ -157,10 +171,21 @@ func (s *SCPSuite) TestSendDir(c *C) {
 	cmd, in, out, epipe := command("scp", "-v", "-r", "-t", outDir)
 
 	errC := make(chan error, 2)
+	successC := make(chan bool)
 	rw := &combo{out, in}
 	go func() {
-		errC <- cmd.Run()
+		if err := cmd.Start(); err != nil {
+			errC <- trace.Wrap(err)
+		}
+		if err := srv.Serve(rw); err != nil {
+			errC <- trace.Wrap(err)
+		}
+		in.Close()
+		if err := cmd.Wait(); err != nil {
+			errC <- trace.Wrap(err)
+		}
 		log.Infof("run completed")
+		close(successC)
 	}()
 
 	go func() {
@@ -169,19 +194,13 @@ func (s *SCPSuite) TestSendDir(c *C) {
 		}
 	}()
 
-	go func() {
-		errC <- srv.Serve(rw)
-		log.Infof("serve completed")
-		in.Close()
-	}()
+	select {
+	case <-time.After(time.Second):
+		panic("timeout")
+	case err := <-errC:
+		c.Assert(err, IsNil)
+	case <-successC:
 
-	for i := 0; i < 2; i++ {
-		select {
-		case <-time.After(time.Second):
-			panic("timeout")
-		case err := <-errC:
-			c.Assert(err, IsNil)
-		}
 	}
 
 	name := filepath.Base(dir)
@@ -215,10 +234,18 @@ func (s *SCPSuite) TestReceiveDir(c *C) {
 	cmd, in, out, epipe := command("scp", "-v", "-r", "-f", dir)
 
 	errC := make(chan error, 2)
+	successC := make(chan bool)
 	rw := &combo{out, in}
 	go func() {
-		errC <- cmd.Run()
+		if err := cmd.Start(); err != nil {
+			errC <- trace.Wrap(err)
+		}
+		if err := srv.Serve(rw); err != nil {
+			errC <- trace.Wrap(err)
+		}
+		in.Close()
 		log.Infof("run completed")
+		close(successC)
 	}()
 
 	go func() {
@@ -227,19 +254,12 @@ func (s *SCPSuite) TestReceiveDir(c *C) {
 		}
 	}()
 
-	go func() {
-		errC <- srv.Serve(rw)
-		log.Infof("serve completed")
-		in.Close()
-	}()
-
-	for i := 0; i < 2; i++ {
-		select {
-		case <-time.After(time.Second):
-			panic("timeout")
-		case err := <-errC:
-			c.Assert(err, IsNil)
-		}
+	select {
+	case <-time.After(time.Second):
+		c.Fatalf("timeout")
+	case err := <-errC:
+		c.Assert(err, IsNil)
+	case <-successC:
 	}
 
 	time.Sleep(time.Millisecond * 300)
