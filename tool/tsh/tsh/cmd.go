@@ -51,6 +51,9 @@ func RunTSH(app *kingpin.Application) error {
 	scpIsDir := scp.Flag("recursively", "Source path is a directory").Short('r').Bool()
 	scpPort := scp.Flag("port", "Remote server port").Short('P').String()
 
+	share := app.Command("share", "share")
+	join := app.Command("join", "join")
+
 	selectedCommand := kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	if (selectedCommand == getServers.FullCommand()) && (len(*proxy) == 0) {
@@ -93,6 +96,10 @@ func RunTSH(app *kingpin.Application) error {
 	case scp.FullCommand():
 		err = SCP(*proxy, *scpSource, *scpDest, *scpIsDir, *scpPort,
 			authMethods, hostKeyCallback)
+	case share.FullCommand():
+		err = Share("localhost:33009", "localhost:33010", "localhost:33011", authMethods, hostKeyCallback)
+	case join.FullCommand():
+		err = Join(*proxy, "", authMethods, hostKeyCallback)
 	}
 
 	return err

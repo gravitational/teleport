@@ -405,13 +405,32 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 		return trace.Wrap(err)
 	}
 
+	var hsrv reversetunnel.Server
+	if cfg.Proxy.HangoutsEnabled {
+		hsrv, err = reversetunnel.NewHangoutServer(
+			cfg.Proxy.HangoutsListenAddr,
+			[]ssh.Signer{signer},
+			client,
+			reverseTunnelLimiter,
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+	}
+
+	options := []srv.ServerOption{srv.SetProxyMode(tsrv)}
+	if cfg.Proxy.HangoutsEnabled {
+		options = append(options, srv.EnableHangouts(hsrv))
+	}
+
 	SSHProxy, err := srv.New(cfg.Proxy.SSHAddr,
 		cfg.Hostname,
 		[]ssh.Signer{signer},
 		client,
 		proxyLimiter,
 		cfg.DataDir,
-		srv.SetProxyMode(tsrv),
+		options...,
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -428,6 +447,20 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 		tsrv.Wait()
 		return nil
 	})
+
+	if cfg.Proxy.HangoutsEnabled {
+		// register SSH reverse tunnel server that accepts connections
+		// from remote teleport nodes
+		supervisor.RegisterFunc(func() error {
+			log.Infof("[PROXY] hangouts listening server starting on %v",
+				cfg.Proxy.HangoutsListenAddr)
+			if err := hsrv.Start(); err != nil {
+				return trace.Wrap(err)
+			}
+			hsrv.Wait()
+			return nil
+		})
+	}
 
 	// Register web proxy server
 	supervisor.RegisterFunc(func() error {

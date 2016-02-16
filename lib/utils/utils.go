@@ -20,10 +20,12 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 type HostKeyCallback func(hostname string, remote net.Addr, key ssh.PublicKey) error

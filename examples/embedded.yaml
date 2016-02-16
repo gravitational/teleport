@@ -67,3 +67,5 @@ proxy:
       - period: 1s
         average: 500
         burst: 300
+  hangouts_enabled: true
+  hangouts_listen_addr: tcp://localhost:33009

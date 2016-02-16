@@ -22,37 +22,44 @@ import (
 	"os/user"
 	//"path/filepath"
 	//"strings"
-	//"time"
 	"net"
 	"os"
+	"path"
+	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/native"
-	//"github.com/gravitational/teleport/lib/backend/boltbk"
-	//"github.com/gravitational/teleport/lib/backend/encryptedbk"
-	//"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/backend/encryptedbk"
+	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
+	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/events"
-	//"github.com/gravitational/teleport/lib/events/boltlog"
+	"github.com/gravitational/teleport/lib/events/boltlog"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/recorder"
-	//"github.com/gravitational/teleport/lib/recorder/boltrec"
+	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
-	//"github.com/gravitational/teleport/lib/services"
-	//sess "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	//"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/session"
+	//"github.com/gravitational/session"
+	log "github.com/Sirupsen/logrus"
+	//"github.com/gravitational/log"
 	"github.com/gravitational/trace"
 	//"github.com/gokyle/hotp"
 	//"github.com/mailgun/lemma/secret"
+	"github.com/codahale/lunk"
 	"golang.org/x/crypto/ssh"
-	//"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 type Hangout struct {
-	auth             auth.AuthServer
+	auth             *auth.AuthServer
 	tunClt           reversetunnel.Agent
 	elog             events.Log
 	rec              recorder.Recorder
@@ -62,45 +69,53 @@ type Hangout struct {
 	authPort         string
 	ClientAuthMethod ssh.AuthMethod
 	HostKeyCallback  utils.HostKeyCallback
+	client           *auth.TunClient
+	passwordToken    string
+	HangoutInfo      HangoutInfo
+	Token            string
 }
 
 func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 	readOnly bool, authMethods []ssh.AuthMethod,
 	hostKeyCallback utils.HostKeyCallback) (*Hangout, error) {
 
+	//log.SetOutput(os.Stderr)
+	//log.SetLevel(log.InfoLevel)
+	//log.Initialize("console", "INFO")
+
 	cfg := service.Config{}
 	service.SetDefaults(&cfg)
-	cfg.DataDir = "/tmp/teleporthangout"
+	cfg.DataDir = HangoutDataDir
 	cfg.Hostname = "localhost"
 
 	cfg.Auth.HostAuthorityDomain = "localhost"
 	cfg.Auth.KeysBackend.Type = "bolt"
-	cfg.Auth.KeysBackend.Params = `{"path": "` + DataDir + `/teleport.auth.db"}`
+	cfg.Auth.KeysBackend.Params = `{"path": "` + cfg.DataDir + `/teleport.auth.db"}`
 	cfg.Auth.EventsBackend.Type = "bolt"
-	cfg.Auth.EventsBackend.Params = `{"path": "` + DataDir + `/teleport.event.db"}`
+	cfg.Auth.EventsBackend.Params = `{"path": "` + cfg.DataDir + `/teleport.event.db"}`
 	cfg.Auth.RecordsBackend.Type = "bolt"
-	cfg.Auth.RecordsBackend.Params = `{"path": "` + DataDir + `/teleport.records.db"}`
-	authAddress, err := utils.ParseAddr(authListeningAddress)
+	cfg.Auth.RecordsBackend.Params = `{"path": "` + cfg.DataDir + `/teleport.records.db"}`
+	authAddress, err := utils.ParseAddr("tcp://" + authListeningAddress)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cfg.Auth.SSHAddr = authAddress
+	cfg.Auth.SSHAddr = *authAddress
 	cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
 
-	nodeAddress, err := utils.ParseAddr(nodeListeningAddress)
+	nodeAddress, err := utils.ParseAddr("tcp://" + nodeListeningAddress)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cfg.SSH.Addr = nodeAddress
+	cfg.SSH.Addr = *nodeAddress
 
-	tunnelAddress, err := utils.ParseAddr(proxyTunnelAddress)
+	tunnelAddress, err := utils.ParseAddr("tcp://" + proxyTunnelAddress)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cfg.ReverseTunnel.DialAddr = tunnelAddress
+	cfg.ReverseTunnel.DialAddr = *tunnelAddress
 
-	_, err := os.Stat(cfg.DataDir)
+	_, err = os.Stat(cfg.DataDir)
 	if os.IsNotExist(err) {
 		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0777)
 		if err != nil {
@@ -113,19 +128,31 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 		return nil, trace.Wrap(err)
 	}
 
-	var err error
-
 	h.hangoutID, err = h.auth.CreateToken()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	thisSrv := services.Server{
+		ID:       cfg.Auth.SSHAddr.Addr,
+		Addr:     cfg.Auth.SSHAddr.Addr,
+		Hostname: h.hangoutID,
+	}
+	err = h.auth.UpsertServer(thisSrv, 0)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.Infof("***************** init SSH")
+
 	if err := h.initSSHEndpoint(cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	log.Infof("***************** init Tun Agent")
 	if err := h.initTunAgent(cfg, authMethods, hostKeyCallback); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	log.Infof("***************** create User")
 	if err := h.createUser(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -139,12 +166,25 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 		return nil, trace.Wrap(err)
 	}
 
-	h.ClientAuthMethod, h.HostKeyCallback, err = Authorize(auth, h.userPassword)
+	h.ClientAuthMethod, h.HostKeyCallback, err = Authorize(h.client, h.userPassword)
+
+	h.HangoutInfo.AuthPort = h.authPort
+	h.HangoutInfo.NodePort = h.nodePort
+	h.HangoutInfo.HangoutID = h.hangoutID
+	h.HangoutInfo.HangoutPassword = h.passwordToken
+
+	h.Token, err = MarshalHangoutInfo(&h.HangoutInfo)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return h, nil
 }
 
 func (h *Hangout) createUser() error {
 	var err error
-	h.userPassword, err = h.auth.GenerateToken(HangoutUser, services.TokenRoleHangout, 0)
+	h.passwordToken, err = h.auth.GenerateToken(HangoutUser, services.TokenRoleHangout, 0)
+	h.userPassword = h.passwordToken[0:100]
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -154,18 +194,24 @@ func (h *Hangout) createUser() error {
 		return trace.Wrap(err)
 	}
 	osUser := u.Username
+	h.HangoutInfo.OSUser = osUser
 
-	_, _, err := s.a.UpsertPassword(HangoutUser, h.userPassword)
+	_, _, err = h.auth.UpsertPassword(HangoutUser, []byte(h.userPassword))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	err = h.auth.UpsertUserMapping("local", HangoutUser, osUser, 0)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
-func Authorize(auth auth.Client, userPassword string) (ssh.AuthMethod, utils.HostKeyCallback, error) {
+func Authorize(auth auth.ClientI, userPassword string) (ssh.AuthMethod, utils.HostKeyCallback, error) {
 
-	priv, pub, err := native.New().GenerateKeyPair("")
+	priv, pub, err := authority.New().GenerateKeyPair("")
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -174,7 +220,7 @@ func Authorize(auth auth.Client, userPassword string) (ssh.AuthMethod, utils.Hos
 		return nil, nil, trace.Wrap(err)
 	}
 
-	pcert, _, _, _, err := ssh.ParseAuthorizedKey(login.Cert)
+	pcert, _, _, _, err := ssh.ParseAuthorizedKey(cert)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -244,8 +290,9 @@ func (h *Hangout) initAuth(cfg service.Config, readOnlyHangout bool) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	apisrv := auth.NewAPIWithRoles(asrv, elog, session.New(b), rec,
-		auth.NewStandardPermissions(), auth.HangoutRoles,
+	h.auth = asrv
+	apisrv := auth.NewAPIWithRoles(asrv, h.elog, session.New(b), h.rec,
+		auth.NewHangoutPermissions(), auth.HangoutRoles,
 	)
 	go apisrv.Serve()
 
@@ -270,16 +317,10 @@ func (h *Hangout) initAuth(cfg service.Config, readOnlyHangout bool) error {
 		}
 	}()
 
-	thisSrv := services.Server{
-		ID:       cfg.Auth.SSHAddr.Addr(),
-		Addr:     cfg.Auth.SSHAddr.Addr(),
-		Hostname: h.HangoutID,
-	}
-	err := asrv.UpsertServer(thisSrv, 0)
 	return nil
 }
 
-func (h *Hangout) initTunAgent(cfg Config, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
+func (h *Hangout) initTunAgent(cfg service.Config, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
 	signer, err := auth.ReadKeys(cfg.Hostname, cfg.DataDir)
 	if err != nil {
 		return trace.Wrap(err)
@@ -292,6 +333,8 @@ func (h *Hangout) initTunAgent(cfg Config, authMethods []ssh.AuthMethod, hostKey
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	h.client = client
 
 	elog := &service.FanOutEventLogger{
 		Loggers: []lunk.EventLogger{
@@ -311,10 +354,11 @@ func (h *Hangout) initTunAgent(cfg Config, authMethods []ssh.AuthMethod, hostKey
 	}
 
 	log.Infof("[REVERSE TUNNEL] teleport tunnel agent starting")
+	if err := a.Start(); err != nil {
+		log.Fatalf("failed to start: %v", err)
+	}
+
 	go func() {
-		if err := a.Start(); err != nil {
-			log.Fatalf("failed to start: %v", err)
-		}
 		if err := a.Wait(); err != nil {
 			log.Fatalf("failed to start: %v", err)
 		}
@@ -322,7 +366,7 @@ func (h *Hangout) initTunAgent(cfg Config, authMethods []ssh.AuthMethod, hostKey
 	return nil
 }
 
-func (h *Hangout) initSSHEndpoint(cfg Config) error {
+func (h *Hangout) initSSHEndpoint(cfg service.Config) error {
 	signer, err := auth.ReadKeys(cfg.Hostname, cfg.DataDir)
 	if err != nil {
 		return trace.Wrap(err)
@@ -349,7 +393,7 @@ func (h *Hangout) initSSHEndpoint(cfg Config) error {
 	}
 
 	s, err := srv.New(cfg.SSH.Addr,
-		cfg.Hostname,
+		h.hangoutID,
 		[]ssh.Signer{signer},
 		client,
 		limiter,
@@ -367,18 +411,86 @@ func (h *Hangout) initSSHEndpoint(cfg Config) error {
 	log.Infof("[SSH] server is starting on %v", cfg.SSH.Addr)
 	go func() {
 		if err := s.Start(); err != nil {
-			log.Errorf(err)
+			log.Errorf(err.Error())
 		}
-		if err := s.Wait(); err != nil {
-			log.Errorf(err)
-		}
+		s.Wait()
 	}()
 	return nil
 }
 
+func initBackend(dataDir, domainName string, peers service.NetAddrSlice, cfg service.AuthConfig) (*encryptedbk.ReplicatedBackend, error) {
+	var bk backend.Backend
+	var err error
+
+	switch cfg.KeysBackend.Type {
+	case "etcd":
+		bk, err = etcdbk.FromJSON(cfg.KeysBackend.Params)
+	case "bolt":
+		bk, err = boltbk.FromJSON(cfg.KeysBackend.Params)
+	default:
+		return nil, trace.Errorf("unsupported backend type: %v", cfg.KeysBackend.Type)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keyStorage := path.Join(dataDir, "backend_keys")
+	encryptionKeys := []encryptor.Key{}
+	for _, strKey := range cfg.KeysBackend.EncryptionKeys {
+		encKey, err := encryptedbk.KeyFromString(strKey)
+		if err != nil {
+			return nil, err
+		}
+		encryptionKeys = append(encryptionKeys, encKey)
+	}
+
+	encryptedBk, err := encryptedbk.NewReplicatedBackend(bk,
+		keyStorage, encryptionKeys, encryptor.GenerateGPGKey)
+
+	if err != nil {
+		log.Errorf(err.Error())
+		log.Infof("Initializing backend as follower node")
+		myKey, err := encryptor.GenerateGPGKey(domainName + " key")
+		if err != nil {
+			return nil, err
+		}
+		masterKey, err := auth.RegisterNewAuth(
+			domainName, cfg.Token, myKey.Public(), peers)
+		if err != nil {
+			return nil, err
+		}
+		log.Infof(" ", myKey, masterKey)
+		encryptedBk, err = encryptedbk.NewReplicatedBackend(bk,
+			keyStorage, []encryptor.Key{myKey, masterKey},
+			encryptor.GenerateGPGKey)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return encryptedBk, nil
+}
+
+func initEventBackend(btype string, params string) (events.Log, error) {
+	switch btype {
+	case "bolt":
+		return boltlog.FromJSON(params)
+	}
+	return nil, trace.Errorf("unsupported backend type: %v", btype)
+}
+
+func initRecordBackend(btype string, params string) (recorder.Recorder, error) {
+	switch btype {
+	case "bolt":
+		return boltrec.FromJSON(params)
+	}
+	return nil, trace.Errorf("unsupported backend type: %v", btype)
+}
+
 func (h *Hangout) GetJoinCommand() string {
-	nodeAddress := h.hangoutID + ":" + h.nodePort
-	authAddress := h.hangoutID + ":" + h.authPort
+	//nodeAddress := h.hangoutID + ":" + h.nodePort
+	//authAddress := h.hangoutID + ":" + h.authPort
+	return ""
 }
 
 const HangoutUser = "hangoutUser"
+const HangoutDataDir = "/tmp/teleport_hangouts"

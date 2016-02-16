@@ -90,6 +90,11 @@ type ProxyConfig struct {
 	// ReverseTunnelListenAddr is address where reverse tunnel dialers connect to
 	ReverseTunnelListenAddr utils.NetAddr `yaml:"reverse_tunnel_listen_addr" env:"TELEPORT_PROXY_REVERSE_TUNNEL_LISTEN_ADDR"`
 
+	HangoutsEnabled bool `yaml:"hangouts_enabled" env:"TELEPORT_PROXY_HANGOUTS_ENABLED`
+
+	// HangoutListenAddr is address where hangout reverse tunnel dialers connect to
+	HangoutsListenAddr utils.NetAddr `yaml:"hangouts_listen_addr" env:"TELEPORT_PROXY_HANGOUTS_LISTEN_ADDR"`
+
 	// WebAddr is address for web portal of the proxy
 	WebAddr utils.NetAddr `yaml:"web_addr" env:"TELEPORT_PROXY_WEB_ADDR"`
 

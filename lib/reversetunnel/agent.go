@@ -180,9 +180,6 @@ func (a *Agent) connect() error {
 			Auth:            []ssh.AuthMethod{authMethod},
 			HostKeyCallback: a.hostKeyCallback,
 		})
-		if err != nil {
-			log.Warningf(err.Error())
-		}
 		if c != nil {
 			break
 		}

@@ -530,6 +530,30 @@ func (t *TunDialer) Dial(network, address string) (net.Conn, error) {
 	}
 }
 
+func NewClientFromSSHClient(sshClient *ssh.Client) (*Client, error) {
+	tr := &http.Transport{
+		Dial: sshClient.Dial,
+		/*Dial: func(network, addr string) (net.Conn, error) {
+			ch, _, err := conn.OpenChannel(ReqDirectTCPIP, nil)
+			if err != nil {
+				log.Errorf(err.Error())
+				return nil, err
+			}
+			return utils.NewChConn(conn, ch), nil
+		},*/
+	}
+	clt, err := NewClient(
+		"http://stub:0",
+		roundtrip.HTTPClient(&http.Client{
+			Transport: tr,
+		}))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return clt, nil
+}
+
 const (
 	ReqWebSessionAgent = "web-session-agent@teleport"
 	ReqProvision       = "provision@teleport"

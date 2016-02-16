@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 
 	"github.com/gravitational/trace"
@@ -60,6 +61,7 @@ func NewWebAuth(ag agent.Agent,
 	callbackFunc := func() (signers []ssh.Signer, err error) {
 		err = Login(ag, webProxyAddress, user, certificateTTL, passwordCallback)
 		if err != nil {
+			fmt.Printf("Can't login to the server: %v\n", err)
 			return nil, trace.Wrap(err)
 		}
 
@@ -71,6 +73,7 @@ func NewWebAuth(ag agent.Agent,
 		if err != nil {
 			err = Login(ag, webProxyAddress, user, certificateTTL, passwordCallback)
 			if err != nil {
+				fmt.Printf("Can't login to the server: %v\n", err)
 				return trace.Wrap(err)
 			}
 			return CheckHostSignerFromCache(hostname, remote, key)

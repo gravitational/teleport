@@ -191,7 +191,7 @@ func (s *AuthServer) CreateToken() (string, error) {
 		return "", err
 	}
 
-	return string(p.SID)
+	return string(p.SID), nil
 }
 
 func (s *AuthServer) GenerateToken(domainName, role string, ttl time.Duration) (string, error) {

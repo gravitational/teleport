@@ -247,6 +247,88 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, authMethods []ssh.Au
 	return nil, e
 }
 
+// ConnectToNode connects to the ssh server via Proxy.
+// It returns connected and authenticated NodeClient
+//DialHangout
+func (proxy *ProxyClient) ConnectToHangout(nodeAddress string, authMethods []ssh.AuthMethod,
+	hostKeyCallback utils.HostKeyCallback, user string) (*NodeClient, error) {
+	if len(authMethods) == 0 {
+		return nil, trace.Errorf("no authMethods were provided")
+	}
+
+	proxy.Lock()
+	defer proxy.Unlock()
+
+	e := trace.Errorf("unknown Error")
+
+	for _, authMethod := range authMethods {
+
+		proxySession, err := proxy.Client.NewSession()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		proxyWriter, err := proxySession.StdinPipe()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		proxyReader, err := proxySession.StdoutPipe()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		err = proxySession.RequestSubsystem(fmt.Sprintf("hangout:%v", nodeAddress))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		localAddr, err := utils.ParseAddr("tcp://" + proxy.proxyAddress)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		remoteAddr, err := utils.ParseAddr("tcp://" + nodeAddress)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		pipeNetConn := utils.NewPipeNetConn(
+			proxyReader,
+			proxyWriter,
+			proxySession,
+			localAddr,
+			remoteAddr,
+		)
+
+		sshConfig := &ssh.ClientConfig{
+			User:            user,
+			Auth:            []ssh.AuthMethod{authMethod},
+			HostKeyCallback: hostKeyCallback,
+		}
+
+		conn, chans, reqs, err := ssh.NewClientConn(pipeNetConn,
+			nodeAddress, sshConfig)
+		if err != nil {
+			if strings.Contains(err.Error(), "handshake failed") ||
+				strings.Contains(err.Error(), "CheckHostSigners") {
+				e = trace.Wrap(err)
+				proxySession.Close()
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		client := ssh.NewClient(conn, chans, reqs)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &NodeClient{Client: client}, nil
+	}
+	return nil, e
+}
+
 func (proxy *ProxyClient) Close() error {
 	return proxy.Client.Close()
 }
