@@ -23,6 +23,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
+	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
@@ -48,6 +49,28 @@ type CommandLineFlags struct {
 	Debug bool
 }
 
+// readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
+// and overrides values in 'cfg' structure
+func readConfigFile(configFilePath string, cfg *service.Config) error {
+	if configFilePath != "" && !fileExists(configFilePath) {
+		return trace.Errorf("file not found: %s", configFilePath)
+	}
+	// not given a config file? check the default location:
+	if configFilePath == "" {
+		configFilePath = defaults.ConfigFilePath
+		if !fileExists(configFilePath) {
+			log.Info("not using a config file")
+			return nil
+		}
+	}
+	// TODO read the config:
+	_, err := config.ReadFromFile(configFilePath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // configure merges command line arguments with what's in a configuration file
 // with CLI commands taking precedence
 func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
@@ -57,16 +80,9 @@ func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 		return cfg, trace.Wrap(err)
 	}
 
-	// use a config file?
-	if clf.ConfigFile != "" || fileExists(defaults.ConfigFilePath) {
-		configPath := defaults.ConfigFilePath
-		if clf.ConfigFile != "" {
-			configPath = clf.ConfigFile
-		}
-		// parse the config file. these values will override defaults:
-		utils.Consolef(os.Stdout, "Using config file: %s", configPath)
-	} else {
-		log.Info("not using a config file")
+	// load /etc/teleport.yaml
+	if err = readConfigFile(clf.ConfigFile, cfg); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// apply --debug flag:
