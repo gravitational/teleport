@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -122,23 +123,26 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 	if !ok {
 		return trace.Errorf("expected certificate")
 	}
-	certs, err := a.clt.GetTrustedCertificates(services.HostCert)
+	cas, err := a.clt.GetCertAuthorities(services.HostCA)
 	if err != nil {
-		return trace.Errorf("failed to fetch remote certs: %v", err.Error())
+		return trace.Wrap(err, "failed to fetch remote certs")
 	}
-	for _, c := range certs {
-		log.Infof("checking key(id=%v) against host %v", c.ID, c.DomainName)
-		pk, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicKey)
+	for _, ca := range cas {
+		log.Infof("checking %v against host %v", ca.ID())
+		checkers, err := ca.Checkers()
 		if err != nil {
 			return trace.Errorf("error parsing key: %v", err)
 		}
-		if sshutils.KeysEqual(pk, cert.SignatureKey) {
-			log.Infof("matched key %v for %v", c.ID, c.DomainName)
-			return nil
+		for _, checker := range checkers {
+			if sshutils.KeysEqual(checker, cert.SignatureKey) {
+				log.Infof("matched key %v for %v", ca.ID(), hostport)
+				return nil
+			}
 		}
 	}
-
-	return trace.Errorf("no matching keys found when checking server's host signature")
+	return trace.Wrap(&teleport.NotFoundError{
+		Message: "no matching keys found when checking server's host signature",
+	})
 }
 
 func (a *Agent) connect() error {

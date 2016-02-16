@@ -138,6 +138,15 @@ func onVersion() {
 	fmt.Println("TODO: Version command has not been implemented yet")
 }
 
+func printHeader(t *goterm.Table, cols []string) {
+	dots := make([]string, len(cols))
+	for i := range dots {
+		dots[i] = strings.Repeat("-", len(cols[i]))
+	}
+	fmt.Fprint(t, strings.Join(cols, "\t")+"\n")
+	fmt.Fprint(t, strings.Join(dots, "\t")+"\n")
+}
+
 // Invite() creates a new sign-up token and prints a token URL to stdout.
 // A user is not created until he visits the sign-up URL and completes the process
 func (u *UserCommand) Invite(client *auth.TunClient) error {
@@ -162,19 +171,14 @@ func (u *UserCommand) List(client *auth.TunClient) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// TODO(klizhentas) this does not work (never returns anything)
-	// fmt.Println("TO BE DONE --->>>>> Listing users is not implemented. But the output should look like:\n")
-	// fmt.Println("User login       Mappings")
-	// fmt.Println("--------------   ----------------------")
-	// fmt.Println("ekontsevoy       admin,centos")
 	usersView := func(users []services.User) string {
 		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		fmt.Fprint(t, "User\n")
+		printHeader(t, []string{"User", "Allowed to login as"})
 		if len(users) == 0 {
 			return t.String()
 		}
 		for _, u := range users {
-			fmt.Fprintf(t, "%v\n", u.Name)
+			fmt.Fprintf(t, "%v\t%v\n", u.Name, strings.Join(u.AllowedLogins, ","))
 		}
 		return t.String()
 	}

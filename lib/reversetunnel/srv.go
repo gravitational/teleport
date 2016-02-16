@@ -145,28 +145,17 @@ func (s *server) isAuthority(auth ssh.PublicKey) bool {
 }
 
 func (s *server) getTrustedCAKeys() ([]ssh.PublicKey, error) {
+	cas, err := s.ap.GetCertAuthorities(services.HostCA)
+	if err != nil {
+		return nil, err
+	}
 	out := []ssh.PublicKey{}
-	authKeys := [][]byte{}
-	key, err := s.ap.GetHostCertificateAuthority()
-	if err != nil {
-		return nil, err
-	}
-	authKeys = append(authKeys, key.PublicKey)
-
-	certs, err := s.ap.GetRemoteCertificates(services.HostCert, "")
-	if err != nil {
-		return nil, err
-	}
-	for _, c := range certs {
-		authKeys = append(authKeys, c.PublicKey)
-	}
-	for _, ak := range authKeys {
-		pk, _, _, _, err := ssh.ParseAuthorizedKey(ak)
+	for _, ca := range cas {
+		checkers, err := ca.Checkers()
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse CA public key '%v', err: %v",
-				string(ak), err)
+			return nil, trace.Wrap(err)
 		}
-		out = append(out, pk)
+		out = append(out, checkers...)
 	}
 	return out, nil
 }
@@ -258,7 +247,7 @@ func (s *server) FindSimilarSite(domainName string) (RemoteSite, error) {
 	resultSimilarity := 1
 
 	domainName1 := strings.Split(domainName, ".")
-	log.Infof("Find: ", domainName)
+	log.Infof("Find matching domain: %v", domainName)
 
 	for i, site := range s.sites {
 		log.Infof(site.domainName)

@@ -20,6 +20,8 @@ limitations under the License.
 // * HTTP server wrapper for authority server
 // * HTTP client wrapper
 //
+
+// Package auth implements interface for Authority server
 package auth
 
 import (
@@ -84,7 +86,7 @@ func (s *AuthServer) CreateSignupToken(user string, mappings []string) (token st
 		Hotp:            otpMarshalled,
 		HotpFirstValues: otpFirstValues,
 		HotpQR:          otpQR,
-		Mappings:        mappings,
+		AllowedLogins:   mappings,
 	}
 
 	err = s.UpsertSignupToken(token, tokenData, SignupTokenTTL+SignupTokenUserActionsTTL)
@@ -181,16 +183,9 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) erro
 		return trace.Wrap(err)
 	}
 
-	// apply user mappings
-	localCA, err := s.GetUserCertificateAuthority()
-	if err != nil {
+	// apply user allowed logins
+	if err = s.UpsertUser(services.User{Name: tokenData.User, AllowedLogins: tokenData.AllowedLogins}); err != nil {
 		return trace.Wrap(err)
-	}
-	var forever time.Duration = 0
-	for _, osUser := range tokenData.Mappings {
-		if err = s.UpsertUserMapping(localCA.ID, tokenData.User, osUser, forever); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	err = s.UpsertHOTP(tokenData.User, otp)
@@ -206,6 +201,7 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) erro
 		}
 	}(s, token)
 
-	log.Infof("[AUTH] created new user account: %v as %v", tokenData.User, tokenData.Mappings)
+	log.Infof("[AUTH] created new user: %v as %v",
+		tokenData.User, tokenData.AllowedLogins)
 	return nil
 }

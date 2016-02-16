@@ -23,9 +23,41 @@ import (
 
 // ParseYAML parses yaml-encoded byte string into the struct
 // passed to the function.
-func ParseYAML(data []byte, cfg interface{}) error {
+// EnableTemplating() argument allows to treat configuration file as a template
+// for example, it will support {{env "VAR"}} - that will substitute
+// environment variable "VAR" and pass it to YAML file parser
+func ParseYAML(data []byte, cfg interface{}, funcArgs ...ParseOption) error {
+	var opts parseOptions
+	for _, fn := range funcArgs {
+		fn(&opts)
+	}
+	var err error
+	if opts.templating {
+		if data, err = renderTemplate(data); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+type parseOptions struct {
+	// templating turns on templating mode when
+	// parsing yaml file
+	templating bool
+}
+
+// ParseOption is a functional argument type
+type ParseOption func(p *parseOptions)
+
+// EnableTemplating allows to treat configuration file as a template
+// for example, it will support {{env "VAR"}} - that will substitute
+// environment variable "VAR" and pass it to YAML file parser
+func EnableTemplating() ParseOption {
+	return func(p *parseOptions) {
+		p.templating = true
+	}
 }

@@ -20,13 +20,17 @@ import (
 
 	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/mailgun/lemma/secret"
 
 	"github.com/gokyle/hotp"
+	"github.com/mailgun/lemma/secret"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/testdata"
 
 	. "gopkg.in/check.v1"
 )
@@ -60,12 +64,23 @@ func (s *AuthSuite) SetUpTest(c *C) {
 		encryptor.GetTestKey)
 	c.Assert(err, IsNil)
 
-	s.a = NewAuthServer(s.bk, authority.New(), s.scrt, "host1")
+	s.a = NewAuthServer(s.bk, authority.New(), s.scrt, "localhost")
 }
 
 // TODO(klizhentas) introduce more thorough tests, test more edge cases
 func (s *AuthSuite) TestSessions(c *C) {
-	c.Assert(s.a.ResetUserCertificateAuthority(""), IsNil)
+	keyBytes := testdata.PEMBytes["rsa"]
+	key, err := ssh.ParsePrivateKey(keyBytes)
+	c.Assert(err, IsNil)
+	pubKey := key.PublicKey()
+
+	userCA := services.CertAuthority{
+		Type:         services.UserCA,
+		DomainName:   "localhost",
+		CheckingKeys: [][]byte{pubKey.Marshal()},
+		SigningKeys:  [][]byte{keyBytes},
+	}
+	c.Assert(s.a.UpsertCertAuthority(userCA, backend.Forever), IsNil)
 
 	user := "user1"
 	pass := []byte("abc123")

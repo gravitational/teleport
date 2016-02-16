@@ -43,7 +43,10 @@ import (
 // Authority implements minimal key-management facility for generating OpenSSH
 //compatible public/private key pairs and OpenSSH certificates
 type Authority interface {
+	// GenerateKeyPair generates new keypair
 	GenerateKeyPair(passphrase string) (privKey []byte, pubKey []byte, err error)
+
+	// GetNewKeyPairFromPool returns new keypair from pre-generated in memory pool
 	GetNewKeyPairFromPool() (privKey []byte, pubKey []byte, err error)
 
 	// GenerateHostCert generates host certificate, it takes pkey as a signing
@@ -96,40 +99,9 @@ type AuthServer struct {
 	*services.BkKeysService
 }
 
-// ResetHostCertificateAuthority generates host certificate authority and updates the backend
-func (s *AuthServer) ResetHostCertificateAuthority(pass string) error {
-	priv, pub, err := s.Authority.GenerateKeyPair(pass)
-	if err != nil {
-		return err
-	}
-	return s.CAService.UpsertHostCertificateAuthority(
-		services.LocalCertificateAuthority{
-			CertificateAuthority: services.CertificateAuthority{
-				Type:       services.HostCert,
-				DomainName: s.Hostname,
-				PublicKey:  pub,
-				ID:         "local",
-			},
-			PrivateKey: priv},
-	)
-}
-
-// ResetHostCertificateAuthority generates user certificate authority and updates the backend
-func (s *AuthServer) ResetUserCertificateAuthority(pass string) error {
-	priv, pub, err := s.Authority.GenerateKeyPair(pass)
-	if err != nil {
-		return err
-	}
-	return s.CAService.UpsertUserCertificateAuthority(
-		services.LocalCertificateAuthority{
-			CertificateAuthority: services.CertificateAuthority{
-				Type:       services.UserCert,
-				DomainName: s.Hostname,
-				PublicKey:  pub,
-				ID:         "local",
-			},
-			PrivateKey: priv},
-	)
+// GetLocalDomain returns domain name that identifies this authority server
+func (a *AuthServer) GetLocalDomain() (string, error) {
+	return a.Hostname, nil
 }
 
 // GenerateHostCert generates host certificate, it takes pkey as a signing
@@ -138,23 +110,37 @@ func (s *AuthServer) GenerateHostCert(
 	key []byte, id, hostname, role string,
 	ttl time.Duration) ([]byte, error) {
 
-	hk, err := s.CAService.GetHostPrivateCertificateAuthority()
+	ca, err := s.CAService.GetCertAuthority(services.CertAuthID{
+		Type:       services.HostCA,
+		DomainName: s.Hostname,
+	}, true)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
-	return s.Authority.GenerateHostCert(hk.PrivateKey, key, id, hostname, role, ttl)
+	privateKey, err := ca.FirstSigningKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return s.Authority.GenerateHostCert(privateKey, key, id, hostname, role, ttl)
 }
 
-// GenerateHostCert generates user certificate, it takes pkey as a signing
+// GenerateUserCert generates user certificate, it takes pkey as a signing
 // private key (user certificate authority)
 func (s *AuthServer) GenerateUserCert(
 	key []byte, id, username string, ttl time.Duration) ([]byte, error) {
 
-	hk, err := s.CAService.GetUserPrivateCertificateAuthority()
+	ca, err := s.CAService.GetCertAuthority(services.CertAuthID{
+		Type:       services.UserCA,
+		DomainName: s.Hostname,
+	}, true)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
-	return s.Authority.GenerateUserCert(hk.PrivateKey, key, id, username, ttl)
+	privateKey, err := ca.FirstSigningKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return s.Authority.GenerateUserCert(privateKey, key, id, username, ttl)
 }
 
 func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
@@ -304,11 +290,18 @@ func (s *AuthServer) NewWebSession(user string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	hk, err := s.CAService.GetUserPrivateCertificateAuthority()
+	ca, err := s.CAService.GetCertAuthority(services.CertAuthID{
+		Type:       services.UserCA,
+		DomainName: s.Hostname,
+	}, true)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
-	cert, err := s.Authority.GenerateUserCert(hk.PrivateKey, pub, user, user, WebSessionTTL)
+	privateKey, err := ca.FirstSigningKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cert, err := s.Authority.GenerateUserCert(privateKey, pub, user, user, WebSessionTTL)
 	if err != nil {
 		return nil, err
 	}

@@ -22,6 +22,7 @@ import (
 	"github.com/gokyle/hotp"
 
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
@@ -83,7 +84,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 	s.rec, err = boltrec.New(s.dir)
 	c.Assert(err, IsNil)
 
-	s.a = NewAuthServer(s.bk, authority.New(), s.scrt, "host2")
+	s.a = NewAuthServer(s.bk, authority.New(), s.scrt, "localhost")
 	s.srv = NewAPIWithRoles(s.a, s.bl, session.New(s.bk), s.rec,
 		NewStandardPermissions(),
 		StandardRoles,
@@ -91,7 +92,9 @@ func (s *TunSuite) SetUpTest(c *C) {
 	go s.srv.Serve()
 
 	// set up host private key and certificate
-	c.Assert(s.a.ResetHostCertificateAuthority(""), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(
+		*services.NewTestCA(services.HostCA, "localhost"), backend.Forever), IsNil)
+
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", RoleNode, 0)
@@ -158,7 +161,8 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 }
 
 func (s *TunSuite) TestSessions(c *C) {
-	c.Assert(s.a.ResetUserCertificateAuthority(""), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(
+		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	user := "ws-test"
 	pass := []byte("ws-abc123")
@@ -204,7 +208,8 @@ func (s *TunSuite) TestSessions(c *C) {
 }
 
 func (s *TunSuite) TestWebCreatingNewUser(c *C) {
-	c.Assert(s.a.ResetUserCertificateAuthority(""), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(
+		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	TokenTTLAfterUse = time.Millisecond * 300
 	user := "user456"
@@ -327,7 +332,8 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 }
 
 func (s *TunSuite) TestPermissions(c *C) {
-	c.Assert(s.a.ResetUserCertificateAuthority(""), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(
+		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	user := "ws-test2"
 	pass := []byte("ws-abc1234")
@@ -389,7 +395,8 @@ func (s *TunSuite) TestPermissions(c *C) {
 }
 
 func (s *TunSuite) TestSessionsBadPassword(c *C) {
-	c.Assert(s.a.ResetUserCertificateAuthority(""), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(
+		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	user := "system-test"
 	pass := []byte("system-abc123")
@@ -417,5 +424,4 @@ func (s *TunSuite) TestSessionsBadPassword(c *C) {
 	ws, err = clt.SignIn("not-exists", pass)
 	c.Assert(err, NotNil)
 	c.Assert(ws, Equals, "")
-
 }

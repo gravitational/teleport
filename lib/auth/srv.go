@@ -38,7 +38,6 @@ import (
 	websession "github.com/gravitational/session"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	"golang.org/x/crypto/ssh"
 )
 
 type Config struct {
@@ -62,13 +61,11 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	}
 	srv.Router = *httprouter.New()
 
-	// Auth is for operations involving Certificate Authority
-	srv.POST("/v1/ca/host/keys", srv.resetHostCertificateAuthority)
-	srv.POST("/v1/ca/user/keys", srv.resetUserCertificateAuthority)
-
-	// Retrieving authority public keys
-	srv.GET("/v1/ca/host/keys/pub", srv.getHostCertificateAuthority)
-	srv.GET("/v1/ca/user/keys/pub", srv.getUserCertificateAuthority)
+	// Operations on certificate authorities
+	srv.GET("/v1/domain", srv.getLocalDomain)
+	srv.POST("/v1/authorities/:type", srv.upsertCertAuthority)
+	srv.DELETE("/v1/authorities/:type/:domain", srv.deleteCertAuthority)
+	srv.GET("/v1/authorities/:type", srv.getCertAuthorities)
 
 	// Generating certificates for user and host authorities
 	srv.POST("/v1/ca/host/certs", srv.generateHostCert)
@@ -80,13 +77,6 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 
 	// Generating keypairs
 	srv.POST("/v1/keypair", srv.generateKeyPair)
-
-	// Operations on remote authorities we trust
-	srv.POST("/v1/ca/remote/:type/hosts/:domain", srv.upsertRemoteCertificate)
-	srv.DELETE("/v1/ca/remote/:type/hosts/:domain/:id", srv.deleteRemoteCertificate)
-	srv.GET("/v1/ca/remote/:type", srv.getRemoteCertificates)
-	srv.GET("/v1/ca/trusted/:type", srv.getTrustedCertificates)
-	srv.GET("/v1/ca/id/:type", srv.getCertificateID)
 
 	// Passwords and sessions
 	srv.POST("/v1/users/:user/web/password", srv.upsertPassword)
@@ -134,12 +124,6 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.DELETE("/v1/backend/keys/:id", srv.deleteSealKey)
 	srv.POST("/v1/backend/keys", srv.addSealKey)
 	srv.POST("/v1/backend/generatekey", srv.generateSealKey)
-
-	// User mapping
-	srv.POST("/v1/usermappings", srv.upsertUserMapping)
-	srv.DELETE("/v1/usermappings/:id", srv.deleteUserMapping)
-	srv.GET("/v1/usermappings", srv.getAllUserMapping)
-	srv.GET("/v1/usermappings/:id", srv.userMappingExists)
 
 	return srv
 }
@@ -390,7 +374,7 @@ func (s *APIServer) getUsers(w http.ResponseWriter, r *http.Request, p httproute
 		replyErr(w, err)
 		return
 	}
-	reply(w, http.StatusOK, &usersResponse{Users: users})
+	reply(w, http.StatusOK, users)
 }
 
 func (s *APIServer) deleteUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -418,59 +402,6 @@ func (s *APIServer) generateKeyPair(w http.ResponseWriter, r *http.Request, _ ht
 	}
 
 	reply(w, http.StatusOK, &keyPairResponse{PrivKey: priv, PubKey: string(pub)})
-}
-
-func (s *APIServer) resetHostCertificateAuthority(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	var pass string
-
-	err := form.Parse(r, form.String("pass", &pass))
-	if err != nil {
-		replyErr(w, err)
-		return
-	}
-
-	if err := s.a.ResetHostCertificateAuthority(pass); err != nil {
-		replyErr(w, err)
-		return
-	}
-	reply(w, http.StatusOK, message("host Certificate Authority regenerated"))
-}
-
-func (s *APIServer) resetUserCertificateAuthority(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	var pass string
-
-	err := form.Parse(r, form.String("pass", &pass))
-	if err != nil {
-		replyErr(w, err)
-		return
-	}
-
-	if err := s.a.ResetUserCertificateAuthority(pass); err != nil {
-		replyErr(w, err)
-		return
-	}
-
-	reply(w, http.StatusOK, message("user Certificate Authority regenerated"))
-}
-
-func (s *APIServer) getHostCertificateAuthority(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	cert, err := s.a.GetHostCertificateAuthority()
-	if err != nil {
-		replyErr(w, err)
-		return
-	}
-
-	reply(w, http.StatusOK, *cert)
-}
-
-func (s *APIServer) getUserCertificateAuthority(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	cert, err := s.a.GetUserCertificateAuthority()
-	if err != nil {
-		replyErr(w, err)
-		return
-	}
-
-	reply(w, http.StatusOK, *cert)
 }
 
 func (s *APIServer) generateHostCert(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -758,10 +689,10 @@ func (s *APIServer) getChunks(w http.ResponseWriter, r *http.Request, p httprout
 func replyErr(w http.ResponseWriter, e error) {
 	switch err := e.(type) {
 	case *teleport.NotFoundError:
-		reply(w, http.StatusNotFound, message(err.Error()))
+		reply(w, http.StatusNotFound, err)
 		return
 	case *teleport.MissingParameterError, *teleport.BadParameterError, *form.MissingParameterError, *form.BadParameterError:
-		reply(w, http.StatusBadRequest, message(err.Error()))
+		reply(w, http.StatusBadRequest, err)
 		return
 	}
 	log.Errorf("auth server unexpected error: %v", e)
@@ -780,56 +711,48 @@ func reply(w http.ResponseWriter, code int, message interface{}) {
 	w.Write(out)
 }
 
-func (s *APIServer) upsertRemoteCertificate(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	var id, key string
-	var ttl time.Duration
-
-	ctype, domainName := p[0].Value, p[1].Value
-
-	err := form.Parse(r,
-		form.String("key", &key, form.Required()),
-		form.String("id", &id, form.Required()),
-		form.Duration("ttl", &ttl))
+func (s *APIServer) upsertCertAuthority(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		replyErr(w, err)
 		return
 	}
-	cert := services.CertificateAuthority{ID: id, PublicKey: []byte(key), DomainName: domainName, Type: ctype}
-	if err := s.a.UpsertRemoteCertificate(cert, ttl); err != nil {
+	var req *upsertCertAuthorityRequest
+	if err := json.Unmarshal(data, &req); err != nil {
 		replyErr(w, err)
 		return
 	}
-	reply(w, http.StatusOK, remoteCertResponse{RemoteCertificate: cert})
+	if err := s.a.UpsertCertAuthority(req.CA, req.TTL); err != nil {
+		replyErr(w, err)
+		return
+	}
+	reply(w, http.StatusOK, message("ok"))
 }
 
-func (s *APIServer) getRemoteCertificates(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	domainName := r.URL.Query().Get("domain")
-	ctype := p[0].Value
-
-	certs, err := s.a.GetRemoteCertificates(ctype, domainName)
+func (s *APIServer) getCertAuthorities(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	certs, err := s.a.GetCertAuthorities(services.CertAuthType(p[0].Value))
 	if err != nil {
-		log.Infof("error: %v", err)
 		replyErr(w, err)
 		return
 	}
-	reply(w, http.StatusOK, &remoteCertsResponse{RemoteCertificates: certs})
+	reply(w, http.StatusOK, certs)
 }
 
-func (s *APIServer) getTrustedCertificates(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	certType := p[0].Value
-
-	certs, err := s.a.GetTrustedCertificates(certType)
+func (s *APIServer) getLocalDomain(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	domain, err := s.a.GetLocalDomain()
 	if err != nil {
-		log.Infof("error: %v", err)
 		replyErr(w, err)
 		return
 	}
-	reply(w, http.StatusOK, &remoteCertsResponse{RemoteCertificates: certs})
+	reply(w, http.StatusOK, domain)
 }
 
-func (s *APIServer) deleteRemoteCertificate(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	ctype, domainName, id := p[0].Value, p[1].Value, p[2].Value
-	if err := s.a.DeleteRemoteCertificate(ctype, domainName, id); err != nil {
+func (s *APIServer) deleteCertAuthority(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	id := services.CertAuthID{
+		DomainName: p[1].Value,
+		Type:       services.CertAuthType(p[0].Value),
+	}
+	if err := s.a.DeleteCertAuthority(id); err != nil {
 		replyErr(w, err)
 		return
 	}
@@ -970,105 +893,9 @@ func (s *APIServer) createUserWithToken(w http.ResponseWriter, r *http.Request, 
 	reply(w, http.StatusOK, message("ok"))
 }
 
-func (s *APIServer) getCertificateID(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	certType := p[0].Value
-	key := r.URL.Query().Get("key")
-	if len(key) == 0 {
-		reply(w, http.StatusInternalServerError, "key is not provided")
-		return
-	}
-
-	parsedKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(key))
-	if err != nil {
-		reply(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	id, found, err := s.a.GetCertificateID(certType, parsedKey)
-	if err != nil {
-		reply(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	reply(w, http.StatusOK, getCertificateIDResponse{
-		ID:    id,
-		Found: found,
-	})
-}
-
-func (s *APIServer) upsertUserMapping(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	var certificateID, teleportUser, osUser string
-	var ttl time.Duration
-	err := form.Parse(r,
-		form.String("certificateID", &certificateID, form.Required()),
-		form.String("teleportUser", &teleportUser, form.Required()),
-		form.String("osUser", &osUser, form.Required()),
-		form.Duration("ttl", &ttl, form.Required()),
-	)
-	if err != nil {
-		reply(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	err = s.a.UpsertUserMapping(certificateID, teleportUser, osUser, ttl)
-	if err != nil {
-		reply(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	reply(w, http.StatusOK, message("ok"))
-}
-
-func (s *APIServer) deleteUserMapping(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	id := p[0].Value
-	certificateID, teleportUser, osUser, err := services.ParseUserMappingID(id)
-	if err != nil {
-		reply(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	err = s.a.DeleteUserMapping(certificateID, teleportUser, osUser)
-	if err != nil {
-		reply(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	reply(w, http.StatusOK, message("ok"))
-}
-
-func (s *APIServer) userMappingExists(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	id := p[0].Value
-	certificateID, teleportUser, osUser, err := services.ParseUserMappingID(id)
-	if err != nil {
-		reply(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	exists, err := s.a.UserMappingExists(certificateID, teleportUser, osUser)
-	if err != nil {
-		reply(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	reply(w, http.StatusOK, userMappingExistsResponse{exists})
-}
-
-func (s *APIServer) getAllUserMapping(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	IDs, err := s.a.GetAllUserMappings()
-	if err != nil {
-		reply(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	reply(w, http.StatusOK, getAllUserMappingsResponse{IDs})
-}
-
-type userMappingExistsResponse struct {
-	Exists bool `json:"exists"`
-}
-
-type getAllUserMappingsResponse struct {
-	IDs []string `json:"ids"`
-}
-
-type getCertificateIDResponse struct {
-	ID    string `json:"id"`
-	Found bool   `json:"found"`
+type upsertCertAuthorityRequest struct {
+	CA  services.CertAuthority `json:"ca"`
+	TTL time.Duration          `json:"ttl"`
 }
 
 type userTokenDataResponse struct {
@@ -1077,28 +904,8 @@ type userTokenDataResponse struct {
 	HotpFirstValues []string `json:"hotpfirstvalue"`
 }
 
-type pubKeyResponse struct {
-	PubKey string `json:"pubkey"`
-}
-
-type pubKeysResponse struct {
-	PubKeys []services.AuthorizedKey `json:"pubkeys"`
-}
-
 type certResponse struct {
 	Cert string `json:"cert"`
-}
-
-type remoteCertResponse struct {
-	RemoteCertificate services.CertificateAuthority `hson:"remote_cert"`
-}
-
-type remoteCertsResponse struct {
-	RemoteCertificates []services.CertificateAuthority `hson:"remote_certs"`
-}
-
-type usersResponse struct {
-	Users []services.User `json:"users"`
 }
 
 type keyPairResponse struct {

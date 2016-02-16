@@ -20,14 +20,16 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// PermissionChecker interface verifies that clients have permissions
+// to execute any action of the auth server
 type PermissionChecker interface {
+	// HasPermission checks if the given role has a permission to execute
+	// the action
 	HasPermission(role, action string) error
 }
 
-type standardPermissions struct {
-	permissions map[string](map[string]bool)
-}
-
+// NewStandardPermissions returns permission checker with hardcoded roles
+// that are built in
 func NewStandardPermissions() PermissionChecker {
 	sp := standardPermissions{}
 	sp.permissions = make(map[string](map[string]bool))
@@ -43,19 +45,14 @@ func NewStandardPermissions() PermissionChecker {
 	}
 
 	sp.permissions[RoleNode] = map[string]bool{
-		ActionUpsertServer:                true,
-		ActionGetUserCertificateAuthority: true,
-		ActionGetRemoteCertificates:       true,
-		ActionGetTrustedCertificates:      true,
-		ActionGetCertificateID:            true,
-		ActionGetAllUserMappings:          true,
-		ActionUserMappingExists:           true,
-		ActionGetUserKeys:                 true,
-		ActionGetServers:                  true,
-		ActionGetHostCertificateAuthority: true,
-		ActionUpsertParty:                 true,
-		ActionLogEntry:                    true,
-		ActionGetChunkWriter:              true,
+		ActionUpsertServer:       true,
+		ActionGetCertAuthorities: true,
+		ActionGetLocalDomain:     true,
+		ActionGetUserKeys:        true,
+		ActionGetServers:         true,
+		ActionUpsertParty:        true,
+		ActionLogEntry:           true,
+		ActionGetChunkWriter:     true,
 	}
 
 	sp.permissions[RoleWeb] = map[string]bool{
@@ -69,6 +66,10 @@ func NewStandardPermissions() PermissionChecker {
 	}
 
 	return &sp
+}
+
+type standardPermissions struct {
+	permissions map[string](map[string]bool)
 }
 
 func (sp *standardPermissions) HasPermission(role, action string) error {
@@ -125,10 +126,10 @@ const (
 	ActionDeleteSession                 = "DeleteSession"
 	ActionUpsertSession                 = "UpsertSession"
 	ActionUpsertParty                   = "UpsertParty"
-	ActionUpsertRemoteCertificate       = "UpsertRemoteCertificate"
-	ActionGetRemoteCertificates         = "GetRemoteCertificates"
-	ActionDeleteRemoteCertificate       = "DeleteRemoteCerts"
-	ActionGetTrustedCertificates        = "GetTrustedCertificates"
+	ActionUpsertCertAuthority           = "UpsertCertAuthority"
+	ActionGetCertAuthorities            = "GetCertAuthorities"
+	ActionGetLocalDomain                = "GetLocalDomain"
+	ActionDeleteCertAuthority           = "DeleteCertAuthority"
 	ActionGenerateToken                 = "GenerateToken"
 	ActionRegisterUsingToken            = "RegisterUsingToken"
 	ActionRegisterNewAuthServer         = "RegisterNewAuthServer"
@@ -154,8 +155,6 @@ const (
 	ActionUpsertUserKey                 = "UpsertUserKey"
 	ActionGetUserKeys                   = "GetUserKeys"
 	ActionDeleteUserKey                 = "DeleteUserKey"
-	ActionGetHostCertificateAuthority   = "GetHostCertificateAuthority"
-	ActionGetUserCertificateAuthority   = "GetUserCertificateAuthority"
 	ActionGenerateKeyPair               = "GenerateKeyPair"
 	ActionGenerateHostCert              = "GenerateHostCert"
 	ActionGenerateUserCert              = "GenerateUserCert"
@@ -169,9 +168,5 @@ const (
 	ActionCreateSignupToken             = "CreateSignupToken"
 	ActionGetSignupTokenData            = "GetSignupTokenData"
 	ActionCreateUserWithToken           = "CreateUserWithToken"
-	ActionGetCertificateID              = "GetCertificateID"
-	ActionUpsertUserMapping             = "UpsertUserMapping"
-	ActionDeleteUserMapping             = "DeleteUserMapping"
-	ActionUserMappingExists             = "UserMappingExists"
-	ActionGetAllUserMappings            = "GetAllUserMappings"
+	ActionUpsertUser                    = "UpsertUser"
 )

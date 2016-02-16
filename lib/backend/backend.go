@@ -13,27 +13,41 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-// backend represents interface for accessing configuration backend for storing ACL lists and other settings
+
+// Package backend represents interface for accessing local or remote storage
 package backend
 
 import (
 	"time"
 )
 
-// TODO(klizhentas) this is bloated. Split it into little backend interfaces
-// Backend represents configuration backend implementation for Teleport
+// Forever means that object TTL will not expire unless deleted
+var Forever time.Duration = 0
+
+// Backend implements abstraction over local or remote storage backend
+//
+// Storage is modeled after BoltDB:
+//  * bucket is a slice []string{"a", "b"}
+//  * buckets contain key value pairs
+//
 type Backend interface {
-	GetKeys(path []string) ([]string, error)
-	UpsertVal(path []string, key string, val []byte, ttl time.Duration) error
+	// GetKeys returns a list of keys for a given path
+	GetKeys(bucket []string) ([]string, error)
+	// UpsertVal updates or inserts value with a given TTL into a bucket
+	// ForeverTTL for no TTL
+	UpsertVal(bucket []string, key string, val []byte, ttl time.Duration) error
+	// GetVal return a value for a given key in the bucket
 	GetVal(path []string, key string) ([]byte, error)
-	GetValAndTTL(path []string, key string) ([]byte, time.Duration, error)
-	DeleteKey(path []string, key string) error
+	// GetValAndTTL returns value and TTL for a key in bucket
+	GetValAndTTL(bucket []string, key string) ([]byte, time.Duration, error)
+	// DeleteKey deletes a key in a bucket
+	DeleteKey(bucket []string, key string) error
+	// DeleteBucket deletes the bucket by a given path
 	DeleteBucket(path []string, bkt string) error
-	// Grab a lock that will be released automatically in ttl time
+	// AcquireLock grabs a lock that will be released automatically in TTL
 	AcquireLock(token string, ttl time.Duration) error
-
-	// Grab a lock that will be released automatically in ttl time
+	// ReleaseLock forces lock release before TTL
 	ReleaseLock(token string) error
-
-	CompareAndSwap(path []string, key string, val []byte, ttl time.Duration, prevVal []byte) ([]byte, error)
+	// CompareAndSwap implements compare ans swap operation for a key
+	CompareAndSwap(bucket []string, key string, val []byte, ttl time.Duration, prevVal []byte) ([]byte, error)
 }

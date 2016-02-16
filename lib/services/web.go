@@ -40,6 +40,10 @@ import (
 type User struct {
 	// Name is a user name
 	Name string `json:"name"`
+
+	// AllowedLogins represents a list of OS users this teleport
+	// user is allowed to login as
+	AllowedLogins []string `json:"allowed_logins"`
 }
 
 // AuthorizedKey is a public key that is authorized to access SSH
@@ -66,7 +70,7 @@ func NewWebService(backend backend.Backend) *WebService {
 	}
 }
 
-// GetUsers  returns a list of users registered in the backend
+// GetUsers returns a list of users registered with the local auth server
 func (s *WebService) GetUsers() ([]User, error) {
 	keys, err := s.backend.GetKeys([]string{"web", "users"})
 	if err != nil {
@@ -74,23 +78,53 @@ func (s *WebService) GetUsers() ([]User, error) {
 	}
 	out := make([]User, len(keys))
 	for i, name := range keys {
-		out[i] = User{Name: name}
+		u, err := s.GetUser(name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out[i] = *u
 	}
 	return out, nil
 }
 
+// UpsertUser updates parameters about user
+func (s *WebService) UpsertUser(user User) error {
+	data, err := json.Marshal(user.AllowedLogins)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.backend.UpsertVal([]string{"web", "users", user.Name}, "logins", []byte(data), backend.Forever)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetUser returns a user by name
+func (s *WebService) GetUser(user string) (*User, error) {
+	u := User{Name: user}
+	data, err := s.backend.GetVal([]string{"web", "users", user}, "logins")
+	if err != nil {
+		if teleport.IsNotFound(err) {
+			return &u, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+	if err := json.Unmarshal(data, &u.AllowedLogins); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &u, nil
+}
+
 // DeleteUser deletes a user with all the keys from the backend
 func (s *WebService) DeleteUser(user string) error {
-	// TODO(kliznentas) remove user mappings and outstanding invite tokens
 	return trace.Wrap(s.backend.DeleteBucket([]string{"web", "users"}, user))
 }
 
 // UpsertPasswordHash upserts user password hash
 func (s *WebService) UpsertPasswordHash(user string, hash []byte) error {
-	err := s.backend.UpsertVal([]string{"web", "users", user},
-		"pwd", hash, 0)
+	err := s.backend.UpsertVal([]string{"web", "users", user}, "pwd", hash, 0)
 	if err != nil {
-		log.Errorf(err.Error())
 		return trace.Wrap(err)
 	}
 	return err
@@ -105,6 +139,7 @@ func (s *WebService) GetPasswordHash(user string) ([]byte, error) {
 	return hash, err
 }
 
+// UpsertHOTP upserts HOTP state for user
 func (s *WebService) UpsertHOTP(user string, otp *hotp.HOTP) error {
 	bytes, err := hotp.Marshal(otp)
 	if err != nil {
@@ -118,6 +153,7 @@ func (s *WebService) UpsertHOTP(user string, otp *hotp.HOTP) error {
 	return nil
 }
 
+// GetHOTP gets HOTP token state for a user
 func (s *WebService) GetHOTP(user string) (*hotp.HOTP, error) {
 	bytes, err := s.backend.GetVal([]string{"web", "users", user},
 		"hotp")
@@ -131,7 +167,7 @@ func (s *WebService) GetHOTP(user string) (*hotp.HOTP, error) {
 	return otp, nil
 }
 
-// UpsertSession
+// UpsertWebSession updates or inserts a web session for a user and session id
 func (s *WebService) UpsertWebSession(user, sid string,
 	session WebSession, ttl time.Duration) error {
 
@@ -151,7 +187,7 @@ func (s *WebService) UpsertWebSession(user, sid string,
 
 }
 
-// GetWebSession
+// GetWebSession returns a web session state for a given user and session id
 func (s *WebService) GetWebSession(user, sid string) (*WebSession, error) {
 	val, err := s.backend.GetVal(
 		[]string{"web", "users", user, "sessions"},
@@ -271,20 +307,20 @@ func (s *WebService) UpsertPassword(user string,
 	}
 	hash, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
 	if err != nil {
-		return "", nil, err
+		return "", nil, trace.Wrap(err)
 	}
 
 	otp, err := hotp.GenerateHOTP(HOTPTokenDigits, false)
 	if err != nil {
-		return "", nil, err
+		return "", nil, trace.Wrap(err)
 	}
 	hotpQR, err = otp.QR(user)
 	if err != nil {
-		return "", nil, err
+		return "", nil, trace.Wrap(err)
 	}
 	hotpURL = otp.URL(user)
 	if err != nil {
-		return "", nil, err
+		return "", nil, trace.Wrap(err)
 	}
 
 	err = s.UpsertPasswordHash(user, hash)
@@ -293,7 +329,7 @@ func (s *WebService) UpsertPassword(user string,
 	}
 	err = s.UpsertHOTP(user, otp)
 	if err != nil {
-		return "", nil, err
+		return "", nil, trace.Wrap(err)
 	}
 
 	return hotpURL, hotpQR, nil
@@ -398,13 +434,14 @@ func NewWebTun(prefix, proxyAddr, targetAddr string) (*WebTun, error) {
 	return &WebTun{Prefix: prefix, ProxyAddr: proxyAddr, TargetAddr: targetAddr}, nil
 }
 
+// SignupToken is a data
 type SignupToken struct {
-	Token           string   `json:"Token"`
-	User            string   `json:"User"`
-	Hotp            []byte   `json:"HOTP"`
-	HotpFirstValues []string `json:"HOTPFirstValues"`
-	HotpQR          []byte   `json:"HOTPQR"`
-	Mappings        []string `json:"Mappings"`
+	Token           string   `json:"token"`
+	User            string   `json:"user"`
+	Hotp            []byte   `json:"hotp"`
+	HotpFirstValues []string `json:"hotp_first_values"`
+	HotpQR          []byte   `json:"hotp_qr"`
+	AllowedLogins   []string `json:"allowed_logins"`
 }
 
 var (

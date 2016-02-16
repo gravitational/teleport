@@ -17,14 +17,16 @@ package sshutils
 
 import (
 	"crypto/subtle"
-	"fmt"
 	"net"
 	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -130,7 +132,6 @@ func (s *Server) acceptConnections() {
 func (s *Server) handleConnection(conn net.Conn) {
 	// initiate an SSH connection, note that we don't need to close the conn here
 	// in case of error as ssh server takes care of this
-
 	remoteAddr, _, err := net.SplitHostPort(conn.RemoteAddr().String())
 	if err != nil {
 		log.Errorf(err.Error())
@@ -146,6 +147,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 	err = conn.SetDeadline(time.Now().Add(5 * time.Minute))
 	if err != nil {
 		log.Errorf(err.Error())
+		return
 	}
 	sconn, chans, reqs, err := ssh.NewServerConn(conn, &s.cfg)
 	if err != nil {
@@ -156,6 +158,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 	err = conn.SetDeadline(time.Time{})
 	if err != nil {
 		log.Errorf(err.Error())
+		return
 	}
 
 	user := sconn.User()
@@ -229,16 +232,37 @@ type AuthMethods struct {
 
 func checkArguments(a utils.NetAddr, h NewChanHandler, hostSigners []ssh.Signer, ah AuthMethods) error {
 	if a.Addr == "" || a.AddrNetwork == "" {
-		return fmt.Errorf("specify network and the address for listening socket")
+		return trace.Wrap(&teleport.BadParameterError{
+			Param: "addr",
+			Err:   "specify network and the address for listening socket",
+		})
 	}
+
 	if h == nil {
-		return fmt.Errorf("specify new channel handler")
+		return trace.Wrap(&teleport.BadParameterError{
+			Param: "handler",
+			Err:   "missing NewChanHandler",
+		})
 	}
 	if len(hostSigners) == 0 {
-		return fmt.Errorf("specify at least one host signer")
+		return trace.Wrap(&teleport.BadParameterError{
+			Param: "hostSigners",
+			Err:   "need at least one signer",
+		})
+	}
+	for _, s := range hostSigners {
+		if s == nil {
+			return trace.Wrap(&teleport.BadParameterError{
+				Param: "hostSigners",
+				Err:   "host signer can not be nil",
+			})
+		}
 	}
 	if ah.PublicKey == nil && ah.Password == nil && ah.NoClient == false {
-		return fmt.Errorf("specify one method of auth or set NoClientAuth")
+		return trace.Wrap(&teleport.BadParameterError{
+			Param: "authMethod",
+			Err:   "need at least one auth method",
+		})
 	}
 	return nil
 }
