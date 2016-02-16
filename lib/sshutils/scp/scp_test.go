@@ -38,7 +38,7 @@ type SCPSuite struct {
 var _ = Suite(&SCPSuite{})
 
 func (s *SCPSuite) SetUpSuite(c *C) {
-	utils.InitLoggerDebug()
+	utils.InitLoggerCLI()
 }
 
 func (s *SCPSuite) TestSendFile(c *C) {
@@ -57,10 +57,21 @@ func (s *SCPSuite) TestSendFile(c *C) {
 	cmd, in, out, epipe := command("scp", "-v", "-t", outDir)
 
 	errC := make(chan error, 2)
+	successC := make(chan bool)
 	rw := &combo{out, in}
 	go func() {
-		errC <- cmd.Run()
+		if err := cmd.Start(); err != nil {
+			errC <- trace.Wrap(err)
+		}
+		if err := srv.Serve(rw); err != nil {
+			errC <- trace.Wrap(err)
+		}
+		in.Close()
+		if err := cmd.Wait(); err != nil {
+			errC <- trace.Wrap(err)
+		}
 		log.Infof("run completed")
+		close(successC)
 	}()
 
 	go func() {
@@ -69,19 +80,12 @@ func (s *SCPSuite) TestSendFile(c *C) {
 		}
 	}()
 
-	go func() {
-		errC <- srv.Serve(rw)
-		log.Infof("serve completed")
-		in.Close()
-	}()
-
-	for i := 0; i < 2; i++ {
-		select {
-		case <-time.After(time.Second):
-			panic("timeout")
-		case err := <-errC:
-			c.Assert(err, IsNil)
-		}
+	select {
+	case <-time.After(time.Second):
+		c.Fatalf("timeout")
+	case err := <-errC:
+		c.Assert(err, IsNil)
+	case <-successC:
 	}
 
 	bytes, err := ioutil.ReadFile(filepath.Join(outDir, "target"))
@@ -167,10 +171,21 @@ func (s *SCPSuite) TestSendDir(c *C) {
 	cmd, in, out, epipe := command("scp", "-v", "-r", "-t", outDir)
 
 	errC := make(chan error, 2)
+	successC := make(chan bool)
 	rw := &combo{out, in}
 	go func() {
-		errC <- cmd.Run()
+		if err := cmd.Start(); err != nil {
+			errC <- trace.Wrap(err)
+		}
+		if err := srv.Serve(rw); err != nil {
+			errC <- trace.Wrap(err)
+		}
+		in.Close()
+		if err := cmd.Wait(); err != nil {
+			errC <- trace.Wrap(err)
+		}
 		log.Infof("run completed")
+		close(successC)
 	}()
 
 	go func() {
@@ -179,19 +194,13 @@ func (s *SCPSuite) TestSendDir(c *C) {
 		}
 	}()
 
-	go func() {
-		errC <- srv.Serve(rw)
-		log.Infof("serve completed")
-		in.Close()
-	}()
+	select {
+	case <-time.After(time.Second):
+		panic("timeout")
+	case err := <-errC:
+		c.Assert(err, IsNil)
+	case <-successC:
 
-	for i := 0; i < 2; i++ {
-		select {
-		case <-time.After(time.Second):
-			panic("timeout")
-		case err := <-errC:
-			c.Assert(err, IsNil)
-		}
 	}
 
 	name := filepath.Base(dir)
@@ -225,10 +234,18 @@ func (s *SCPSuite) TestReceiveDir(c *C) {
 	cmd, in, out, epipe := command("scp", "-v", "-r", "-f", dir)
 
 	errC := make(chan error, 2)
+	successC := make(chan bool)
 	rw := &combo{out, in}
 	go func() {
-		errC <- cmd.Run()
+		if err := cmd.Start(); err != nil {
+			errC <- trace.Wrap(err)
+		}
+		if err := srv.Serve(rw); err != nil {
+			errC <- trace.Wrap(err)
+		}
+		in.Close()
 		log.Infof("run completed")
+		close(successC)
 	}()
 
 	go func() {
@@ -237,19 +254,12 @@ func (s *SCPSuite) TestReceiveDir(c *C) {
 		}
 	}()
 
-	go func() {
-		errC <- srv.Serve(rw)
-		log.Infof("serve completed")
-		in.Close()
-	}()
-
-	for i := 0; i < 2; i++ {
-		select {
-		case <-time.After(time.Second):
-			panic("timeout")
-		case err := <-errC:
-			c.Assert(err, IsNil)
-		}
+	select {
+	case <-time.After(time.Second):
+		c.Fatalf("timeout")
+	case err := <-errC:
+		c.Assert(err, IsNil)
+	case <-successC:
 	}
 
 	time.Sleep(time.Millisecond * 300)
