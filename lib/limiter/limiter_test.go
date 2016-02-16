@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/mailgun/timetools"
 
 	. "gopkg.in/check.v1"
 )
@@ -96,10 +97,13 @@ func (s *LimiterSuite) TestConnectionsLimiter(c *C) {
 
 func (s *LimiterSuite) TestRateLimiter(c *C) {
 	// TODO: this test fails
-	return
+	clock := &timetools.FreezedTime{
+		CurrentTime: time.Date(2016, 6, 5, 4, 3, 2, 1, time.UTC),
+	}
 
 	limiter, err := NewLimiter(
 		LimiterConfig{
+			Clock: clock,
 			Rates: []Rate{
 				Rate{
 					Period:  10 * time.Millisecond,
@@ -112,8 +116,7 @@ func (s *LimiterSuite) TestRateLimiter(c *C) {
 					Burst:   40,
 				},
 			},
-		},
-	)
+		})
 	c.Assert(err, IsNil)
 
 	for i := 0; i < 20; i++ {
@@ -125,19 +128,19 @@ func (s *LimiterSuite) TestRateLimiter(c *C) {
 
 	c.Assert(limiter.RegisterRequest("token1"), NotNil)
 
-	time.Sleep(10000 * time.Microsecond)
+	clock.Sleep(10 * time.Millisecond)
 	for i := 0; i < 10; i++ {
 		c.Assert(limiter.RegisterRequest("token1"), IsNil)
 	}
 	c.Assert(limiter.RegisterRequest("token1"), NotNil)
 
-	time.Sleep(10000 * time.Microsecond)
+	clock.Sleep(10 * time.Millisecond)
 	for i := 0; i < 10; i++ {
 		c.Assert(limiter.RegisterRequest("token1"), IsNil)
 	}
 	c.Assert(limiter.RegisterRequest("token1"), NotNil)
 
-	time.Sleep(10000 * time.Microsecond)
+	clock.Sleep(10 * time.Millisecond)
 	// the second rate is full
 	err = nil
 	for i := 0; i < 10; i++ {
@@ -148,8 +151,8 @@ func (s *LimiterSuite) TestRateLimiter(c *C) {
 	}
 	c.Assert(err, NotNil)
 
-	time.Sleep(10000 * time.Microsecond)
-	// Now the second rate have free space
+	clock.Sleep(10 * time.Millisecond)
+	// Now the second rate has free space
 	c.Assert(limiter.RegisterRequest("token1"), IsNil)
 	err = nil
 	for i := 0; i < 15; i++ {
