@@ -13,6 +13,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+// Package services implements API services exposed by Teleport:
+// * presence service that takes care of heratbeats
+// * web service that takes care of web logins
+// * ca service - certificate authorities
 package services
 
 import (
@@ -22,26 +27,62 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gokyle/hotp"
-
-	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/bcrypt"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/gokyle/hotp"
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/bcrypt"
 )
 
+// User is an optional user entry in the database
+type User struct {
+	// Name is a user name
+	Name string `json:"name"`
+}
+
+// AuthorizedKey is a public key that is authorized to access SSH
+// servers
+type AuthorizedKey struct {
+	// ID is a unique key id
+	ID string `json:"id"`
+	// Value is a value of the public key
+	Value []byte `json:"value"`
+}
+
+// WebService is responsible for managing web users and currently
+// user accounts as well
 type WebService struct {
 	backend     backend.Backend
 	SignupMutex *sync.Mutex
 }
 
+// NewWebService returns new instance of WebService
 func NewWebService(backend backend.Backend) *WebService {
 	return &WebService{
 		backend:     backend,
 		SignupMutex: &sync.Mutex{},
 	}
+}
+
+// GetUsers  returns a list of users registered in the backend
+func (s *WebService) GetUsers() ([]User, error) {
+	keys, err := s.backend.GetKeys([]string{"web", "users"})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out := make([]User, len(keys))
+	for i, name := range keys {
+		out[i] = User{Name: name}
+	}
+	return out, nil
+}
+
+// DeleteUser deletes a user with all the keys from the backend
+func (s *WebService) DeleteUser(user string) error {
+	// TODO(kliznentas) remove user mappings and outstanding invite tokens
+	return trace.Wrap(s.backend.DeleteBucket([]string{"web", "users"}, user))
 }
 
 // UpsertPasswordHash upserts user password hash

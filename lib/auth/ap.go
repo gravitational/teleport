@@ -39,11 +39,8 @@ type AccessPoint interface {
 	// GetUserCAPub returns the host certificate authority public key
 	GetHostCertificateAuthority() (*services.CertificateAuthority, error)
 
-	// GetUserKeys returns a list of authorized keys for a given user
-	// in a OpenSSH key authorized_keys format
-	GetUserKeys(user string) ([]services.AuthorizedKey, error)
-
 	// GetWebSessionsKeys returns a list of generated public keys
+
 	// associated with user web session
 	GetWebSessionsKeys(user string) ([]services.AuthorizedKey, error)
 
@@ -66,7 +63,6 @@ type BackendAccessPoint struct {
 	*services.CAService
 	*services.PresenceService
 	*services.ProvisioningService
-	*services.UserService
 	*services.WebService
 }
 
@@ -75,7 +71,6 @@ func NewBackendAccessPoint(bk backend.Backend) *BackendAccessPoint {
 	ap.CAService = services.NewCAService(bk)
 	ap.PresenceService = services.NewPresenceService(bk)
 	ap.ProvisioningService = services.NewProvisioningService(bk)
-	ap.UserService = services.NewUserService(bk)
 	ap.WebService = services.NewWebService(bk)
 
 	return &ap

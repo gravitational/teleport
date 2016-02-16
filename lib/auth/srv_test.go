@@ -58,7 +58,6 @@ type APISuite struct {
 	LockS         *services.LockService
 	PresenceS     *services.PresenceService
 	ProvisioningS *services.ProvisioningService
-	UserS         *services.UserService
 	WebS          *services.WebService
 }
 
@@ -107,7 +106,6 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.LockS = services.NewLockService(s.bk)
 	s.PresenceS = services.NewPresenceService(s.bk)
 	s.ProvisioningS = services.NewProvisioningService(s.bk)
-	s.UserS = services.NewUserService(s.bk)
 	s.WebS = services.NewWebService(s.bk)
 }
 
@@ -205,27 +203,20 @@ func (s *APISuite) TestKeysCRUD(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *APISuite) TestUserKeyCRUD(c *C) {
-	c.Assert(s.clt.ResetUserCertificateAuthority(), IsNil)
-
-	_, pub, err := s.clt.GenerateKeyPair("")
+func (s *APISuite) TestUserCRUD(c *C) {
+	_, _, err := s.clt.UpsertPassword("user1", []byte("some pass"))
 	c.Assert(err, IsNil)
 
-	key := services.AuthorizedKey{ID: "id", Value: pub}
-	cert, err := s.clt.UpsertUserKey("user1", key, time.Minute)
+	users, err := s.WebS.GetUsers()
 	c.Assert(err, IsNil)
+	c.Assert(len(users), Equals, 1)
+	c.Assert(users[0].Name, Equals, "user1")
 
-	keys, err := s.UserS.GetUserKeys("user1")
-	c.Assert(err, IsNil)
-	c.Assert(string(keys[0].Value), DeepEquals, string(cert))
+	c.Assert(s.clt.DeleteUser("user1"), IsNil)
 
-	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
+	users, err = s.WebS.GetUsers()
 	c.Assert(err, IsNil)
-
-	c.Assert(s.clt.DeleteUserKey("user1", "id"), IsNil)
-	keys, err = s.UserS.GetUserKeys("user1")
-	c.Assert(err, IsNil)
-	c.Assert(len(keys), Equals, 0)
+	c.Assert(len(users), Equals, 0)
 }
 
 func (s *APISuite) TestPasswordCRUD(c *C) {

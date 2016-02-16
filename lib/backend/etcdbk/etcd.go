@@ -145,12 +145,12 @@ func (b *bk) CompareAndSwap(path []string, key string, val []byte, ttl time.Dura
 			return []byte(resp.Node.Value), e
 		}
 		if teleport.IsNotFound(err) {
-			e := &teleport.CompareFailedError{
+			e := &teleport.NotFoundError{
 				Message: "Expected '" + prevValStr + "', obtained ''",
 			}
 			return []byte{}, e
 		}
-		if teleport.IsAlredyExists(err) {
+		if teleport.IsAlreadyExists(err) {
 			e := &teleport.CompareFailedError{
 				Message: "Expected '', obtained '" + resp.Node.Value + "'",
 			}
