@@ -60,6 +60,9 @@ const (
 
 	// By default SSH server (and SSH proxy) will bind to this IP
 	BindIP = "0.0.0.0"
+
+	// By default all users use /bin/bash
+	DefaultShell = "/bin/bash"
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

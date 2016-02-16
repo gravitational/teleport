@@ -21,8 +21,6 @@ import (
 	"os"
 	"strings"
 
-	"gopkg.in/yaml.v2"
-
 	log "github.com/Sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -31,9 +29,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// CLIConfig represents command line flags. It's a much simplified subset
-// of Teleport configuration
-type CLIConfig struct {
+// CommandLineFlags stores command line flag values, it's a much simplified subset
+// of Teleport configuration (which is fully expressed via YAML config file)
+type CommandLineFlags struct {
 	// --name flag
 	NodeName string
 	// --auth-server flag
@@ -50,53 +48,9 @@ type CLIConfig struct {
 	Debug bool
 }
 
-type AuthServer struct {
-	Address string `yaml:"address"` // "tcp://127.0.0.1:3024"
-	Token   string `yaml:"token"`   // "xxxxxxx"
-}
-
-type Storate struct {
-	Type   string `yaml:"type"`
-	Params string `yaml:"params"`
-}
-
-type ConnectionRate struct {
-	Period  string `yaml:"period"`
-	Average string `yaml:"average"`
-	Burst   string `yaml:"burst"`
-}
-
-type ConnectionLimits struct {
-	MaxConnections int              `yaml:"max_connections"`
-	MaxUsers       int              `yaml:"max_users"`
-	Rates          []ConnectionRate `yaml:"rates,omitempty"`
-}
-
-type Common struct {
-	NodeName    string           `yaml:"nodename,omitempty"`
-	AuthServers []AuthServer     `yaml:"auth_servers,omitempty"`
-	CLimits     ConnectionLimits `yaml:"connection_limits,omitempty"`
-}
-
-// YAMLConfig represents configuration stored in a config file
-// in YAML format (usually /etc/teleport.yaml)
-type FileConfig struct {
-	Common `yaml:"teleport,omitempty"`
-}
-
-func play() string {
-	conf := FileConfig{}
-
-	bytes, err := yaml.Marshal(&conf)
-	if err != nil {
-		panic(err)
-	}
-	return string(bytes)
-}
-
 // configure merges command line arguments with what's in a configuration file
 // with CLI commands taking precedence
-func configure(cliConf *CLIConfig) (cfg *service.Config, err error) {
+func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 	// create the default configuration:
 	cfg, err = service.MakeDefaultConfig()
 	if err != nil {
@@ -104,10 +58,10 @@ func configure(cliConf *CLIConfig) (cfg *service.Config, err error) {
 	}
 
 	// use a config file?
-	if cliConf.ConfigFile != "" || fileExists(defaults.ConfigFilePath) {
+	if clf.ConfigFile != "" || fileExists(defaults.ConfigFilePath) {
 		configPath := defaults.ConfigFilePath
-		if cliConf.ConfigFile != "" {
-			configPath = cliConf.ConfigFile
+		if clf.ConfigFile != "" {
+			configPath = clf.ConfigFile
 		}
 		// parse the config file. these values will override defaults:
 		utils.Consolef(os.Stdout, "Using config file: %s", configPath)
@@ -116,41 +70,41 @@ func configure(cliConf *CLIConfig) (cfg *service.Config, err error) {
 	}
 
 	// apply --debug flag:
-	if cliConf.Debug {
+	if clf.Debug {
 		cfg.Console = ioutil.Discard
 		utils.InitLoggerDebug()
 	}
 
 	// apply --roles flag:
-	if cliConf.Roles != "" {
-		if err := validateRoles(cliConf.Roles); err != nil {
+	if clf.Roles != "" {
+		if err := validateRoles(clf.Roles); err != nil {
 			return cfg, trace.Wrap(err)
 		}
-		if strings.Index(cliConf.Roles, defaults.RoleNode) == -1 {
+		if strings.Index(clf.Roles, defaults.RoleNode) == -1 {
 			cfg.SSH.Enabled = false
 		}
-		if strings.Index(cliConf.Roles, defaults.RoleAuthService) == -1 {
+		if strings.Index(clf.Roles, defaults.RoleAuthService) == -1 {
 			cfg.Auth.Enabled = false
 		}
-		if strings.Index(cliConf.Roles, defaults.RoleProxy) == -1 {
+		if strings.Index(clf.Roles, defaults.RoleProxy) == -1 {
 			cfg.Proxy.Enabled = false
 			cfg.ReverseTunnel.Enabled = false
 		}
 	}
 
 	// apply --auth-server flag:
-	if cliConf.AuthServerAddr != "" {
-		if cliConf.NodeName == "" {
+	if clf.AuthServerAddr != "" {
+		if clf.NodeName == "" {
 			return cfg, trace.Errorf("Need --name flag")
 		}
-		if cliConf.AuthToken == "" {
+		if clf.AuthToken == "" {
 			return cfg, trace.Errorf("Need --token flag")
 		}
 		if cfg.Auth.Enabled {
 			log.Warnf("not starting the local auth service. --auth-server flag tells to connect to another auth server")
 			cfg.Auth.Enabled = false
 		}
-		addr, err := utils.ParseHostPortAddr(cliConf.AuthServerAddr, int(defaults.AuthListenPort))
+		addr, err := utils.ParseHostPortAddr(clf.AuthServerAddr, int(defaults.AuthListenPort))
 		if err != nil {
 			return cfg, trace.Wrap(err)
 		}
@@ -159,23 +113,23 @@ func configure(cliConf *CLIConfig) (cfg *service.Config, err error) {
 	}
 
 	// apply --token flag:
-	if cliConf.NodeName != "" {
-		if cliConf.NodeName == "" {
+	if clf.NodeName != "" {
+		if clf.NodeName == "" {
 			return cfg, trace.Errorf("Need --name flag")
 		}
-		cfg.Hostname = cliConf.NodeName
+		cfg.Hostname = clf.NodeName
 	}
 
 	// apply --token flag:
-	if cliConf.AuthToken != "" {
-		log.Infof("Using auth token: %s", cliConf.AuthToken)
-		cfg.SSH.Token = cliConf.AuthToken
-		cfg.Proxy.Token = cliConf.AuthToken
+	if clf.AuthToken != "" {
+		log.Infof("Using auth token: %s", clf.AuthToken)
+		cfg.SSH.Token = clf.AuthToken
+		cfg.Proxy.Token = clf.AuthToken
 	}
 
 	// apply --listen-ip flag:
-	if cliConf.ListenIP != nil {
-		applyListenIP(cliConf.ListenIP, cfg)
+	if clf.ListenIP != nil {
+		applyListenIP(clf.ListenIP, cfg)
 	}
 
 	log.Info(cfg.DebugDumpToYAML())

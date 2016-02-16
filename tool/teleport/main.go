@@ -37,7 +37,7 @@ func main() {
 	app := utils.InitCLIParser("teleport", "Clustered SSH service. Learn more at http://teleport.gravitational.com")
 
 	// define global flags:
-	var ccf CLIConfig
+	var ccf CommandLineFlags
 	app.Flag("debug", "Enable verbose logging to stderr").
 		Short('d').
 		BoolVar(&ccf.Debug)

@@ -6,8 +6,10 @@ export GO15VENDOREXPERIMENT=1
 
 .PHONY: install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd install-assets docs-serve
 
-configuration: teleport
-	go test -v github.com/gravitational/teleport/tool/teleport
+conf: 
+	go test -v github.com/gravitational/teleport/tool/teleport \
+	           github.com/gravitational/teleport/lib/config \
+	           github.com/gravitational/teleport/lib/defaults
 
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
@@ -45,9 +47,11 @@ production: clean
 	$(MAKE) -C build.assets
 
 
-test: install
+#
+# tests everything: called by Jenkins
+#
+test: 
 	go test -v github.com/gravitational/teleport/lib/... -cover
-	#go test -v -test.parallel=0 $(shell go list ./... | grep -v /vendor/) -cover
 
 test-with-etcd: install
 	${ETCD_FLAGS} go test -v -test.parallel=0 $(shell go list ./... | grep -v /vendor/) -cover

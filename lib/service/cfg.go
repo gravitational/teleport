@@ -341,7 +341,7 @@ func applyDefaults(cfg *Config) error {
 	// defaults for the SSH service:
 	cfg.SSH.Enabled = true
 	cfg.SSH.Addr = *defaults.SSHServerListenAddr()
-	cfg.SSH.Shell = "/bin/bash"
+	cfg.SSH.Shell = defaults.DefaultShell
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 
 	// global defaults
