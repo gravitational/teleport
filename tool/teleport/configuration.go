@@ -21,6 +21,8 @@ import (
 	"os"
 	"strings"
 
+	"gopkg.in/yaml.v2"
+
 	log "github.com/Sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -29,7 +31,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// CLIConfig represents command line flags+args
+// CLIConfig represents command line flags. It's a much simplified subset
+// of Teleport configuration
 type CLIConfig struct {
 	// --name flag
 	NodeName string
@@ -45,6 +48,50 @@ type CLIConfig struct {
 	Roles string
 	// -d flag
 	Debug bool
+}
+
+type AuthServer struct {
+	Address string `yaml:"address"` // "tcp://127.0.0.1:3024"
+	Token   string `yaml:"token"`   // "xxxxxxx"
+}
+
+type Storate struct {
+	Type   string `yaml:"type"`
+	Params string `yaml:"params"`
+}
+
+type ConnectionRate struct {
+	Period  string `yaml:"period"`
+	Average string `yaml:"average"`
+	Burst   string `yaml:"burst"`
+}
+
+type ConnectionLimits struct {
+	MaxConnections int              `yaml:"max_connections"`
+	MaxUsers       int              `yaml:"max_users"`
+	Rates          []ConnectionRate `yaml:"rates,omitempty"`
+}
+
+type Common struct {
+	NodeName    string           `yaml:"nodename,omitempty"`
+	AuthServers []AuthServer     `yaml:"auth_servers,omitempty"`
+	CLimits     ConnectionLimits `yaml:"connection_limits,omitempty"`
+}
+
+// YAMLConfig represents configuration stored in a config file
+// in YAML format (usually /etc/teleport.yaml)
+type FileConfig struct {
+	Common `yaml:"teleport,omitempty"`
+}
+
+func play() string {
+	conf := FileConfig{}
+
+	bytes, err := yaml.Marshal(&conf)
+	if err != nil {
+		panic(err)
+	}
+	return string(bytes)
 }
 
 // configure merges command line arguments with what's in a configuration file

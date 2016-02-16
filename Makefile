@@ -6,6 +6,8 @@ export GO15VENDOREXPERIMENT=1
 
 .PHONY: install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd install-assets docs-serve
 
+configuration: teleport
+	go test -v github.com/gravitational/teleport/tool/teleport
 
 #
 # Default target: builds all 3 executables and plaaces them in a current directory

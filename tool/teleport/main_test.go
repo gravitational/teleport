@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2016 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,19 +13,27 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package configure
+package main
 
 import (
-	"gopkg.in/yaml.v2"
+	"fmt"
+	"testing"
 
-	"github.com/gravitational/trace"
+	"gopkg.in/check.v1"
 )
 
-// ParseYAML parses yaml-encoded byte string into the struct
-// passed to the function.
-func ParseYAML(data []byte, cfg interface{}) error {
-	if err := yaml.Unmarshal(data, cfg); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+// bootstrap check
+func TestSrv(t *testing.T) { check.TestingT(t) }
+
+// register test suite
+type MainTestSuite struct {
+}
+
+var _ = check.Suite(&MainTestSuite{})
+
+func (s *MainTestSuite) SetUpSuite(c *check.C) {
+}
+
+func (s *MainTestSuite) TestOne(c *check.C) {
+	fmt.Println(play())
 }
