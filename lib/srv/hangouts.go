@@ -1,6 +1,7 @@
 package srv
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -67,6 +68,21 @@ func (t *hangoutsSubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 	}
 	if server == nil {
 		return trace.Errorf("server %v not found", serverAddr)
+	}
+
+	// send target server host key so user can check the server
+	hostKey := remoteSrv.GetHangoutHostKey()
+	if hostKey == nil {
+		return trace.Errorf("No hostkey for that hangout")
+	}
+	data, err := json.Marshal(*hostKey)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = ch.Write(data)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	// we must dial by server IP address because hostname

@@ -15,4 +15,40 @@ limitations under the License.
 */
 package services
 
-import ()
+/*import (
+	"encoding/json"
+	"fmt"
+	"net/url"
+	"sync"
+	"time"
+
+	"github.com/gokyle/hotp"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/bcrypt"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/backend"
+)
+
+// UpsertPasswordHash upserts user password hash
+func (s *WebService) SetHangoutID(id string) error {
+	err := s.backend.UpsertVal([]string{"hangout", "id", user},
+		"pwd", hash, 0)
+	if err != nil {
+		log.Errorf(err.Error())
+		return trace.Wrap(err)
+	}
+	return err
+}
+
+// GetPasswordHash returns the password hash for a given user
+func (s *WebService) GetPasswordHash(user string) ([]byte, error) {
+	hash, err := s.backend.GetVal([]string{"web", "users", user}, "pwd")
+	if err != nil {
+		return nil, err
+	}
+	return hash, err
+}
+*/

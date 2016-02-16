@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -249,9 +250,9 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, authMethods []ssh.Au
 
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
-//DialHangout
-func (proxy *ProxyClient) ConnectToHangout(nodeAddress string, authMethods []ssh.AuthMethod,
-	hostKeyCallback utils.HostKeyCallback, user string) (*NodeClient, error) {
+func (proxy *ProxyClient) ConnectToHangout(nodeAddress string,
+	authMethods []ssh.AuthMethod, user string) (*NodeClient, error) {
+
 	if len(authMethods) == 0 {
 		return nil, trace.Errorf("no authMethods were provided")
 	}
@@ -300,6 +301,35 @@ func (proxy *ProxyClient) ConnectToHangout(nodeAddress string, authMethods []ssh
 			localAddr,
 			remoteAddr,
 		)
+
+		// reading target server host certificate
+		buf := make([]byte, 1000000)
+		n, err := pipeNetConn.Read(buf)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var hostKey services.CertificateAuthority
+		err = json.Unmarshal(buf[:n], &hostKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		hostKeyCallback := func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			cert, ok := key.(*ssh.Certificate)
+			if !ok {
+				return trace.Errorf("expected certificate")
+			}
+
+			pk, _, _, _, err := ssh.ParseAuthorizedKey(hostKey.PublicKey)
+			if err != nil {
+				return trace.Errorf("error parsing key: %v", err)
+			}
+			if sshutils.KeysEqual(pk, cert.SignatureKey) {
+				return nil
+			}
+
+			return trace.Errorf("remote host key is not valid")
+		}
 
 		sshConfig := &ssh.ClientConfig{
 			User:            user,
@@ -366,10 +396,17 @@ func ConnectToNode(optionalProxy *ProxyClient, nodeAddress string, authMethods [
 }
 
 // Shell returns remote shell as io.ReadWriterCloser object
-func (client *NodeClient) Shell(width, height int) (io.ReadWriteCloser, error) {
+func (client *NodeClient) Shell(width, height int, sessionID string) (io.ReadWriteCloser, error) {
 	session, err := client.Client.NewSession()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if len(sessionID) > 0 {
+		err = session.Setenv(sshutils.SessionEnvVar, sessionID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	terminalModes := ssh.TerminalModes{}

@@ -380,7 +380,7 @@ func (s *ClientSuite) TestShell(c *C) {
 		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
-	shell, err := nodeClient.Shell(100, 100)
+	shell, err := nodeClient.Shell(100, 100, "")
 	c.Assert(err, IsNil)
 
 	out := make([]byte, 100)

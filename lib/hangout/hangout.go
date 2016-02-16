@@ -73,6 +73,7 @@ type Hangout struct {
 	passwordToken    string
 	HangoutInfo      HangoutInfo
 	Token            string
+	sessions         session.SessionServer
 }
 
 func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
@@ -85,7 +86,7 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 
 	cfg := service.Config{}
 	service.SetDefaults(&cfg)
-	cfg.DataDir = HangoutDataDir
+	cfg.DataDir = HangoutDataDir + "/" + utils.RandomString()[:10]
 	cfg.Hostname = "localhost"
 
 	cfg.Auth.HostAuthorityDomain = "localhost"
@@ -128,10 +129,35 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 		return nil, trace.Wrap(err)
 	}
 
-	h.hangoutID, err = h.auth.CreateToken()
-	if err != nil {
+	log.Infof("***************** init Tun Agent")
+	if err := h.initTunAgent(cfg, authMethods, hostKeyCallback); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	log.Infof("*************** read HangoutID")
+	for {
+		time.Sleep(time.Millisecond * 100)
+		s, err := h.sessions.GetSessions()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if len(s) > 1 {
+			return nil, trace.Errorf("Should be only 1 session")
+		}
+		if len(s) == 1 {
+			h.hangoutID = s[0].ID
+			err := h.sessions.DeleteSession(s[0].ID)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			break
+		}
+	}
+	log.Infof("********************** HANGOUT ID = %v", h.hangoutID)
+	/*h.hangoutID, err = h.auth.CreateToken()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}*/
 
 	thisSrv := services.Server{
 		ID:       cfg.Auth.SSHAddr.Addr,
@@ -146,10 +172,6 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 	log.Infof("***************** init SSH")
 
 	if err := h.initSSHEndpoint(cfg); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	log.Infof("***************** init Tun Agent")
-	if err := h.initTunAgent(cfg, authMethods, hostKeyCallback); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	log.Infof("***************** create User")
@@ -291,7 +313,8 @@ func (h *Hangout) initAuth(cfg service.Config, readOnlyHangout bool) error {
 		return trace.Wrap(err)
 	}
 	h.auth = asrv
-	apisrv := auth.NewAPIWithRoles(asrv, h.elog, session.New(b), h.rec,
+	h.sessions = session.New(b)
+	apisrv := auth.NewAPIWithRoles(asrv, h.elog, h.sessions, h.rec,
 		auth.NewHangoutPermissions(), auth.HangoutRoles,
 	)
 	go apisrv.Serve()

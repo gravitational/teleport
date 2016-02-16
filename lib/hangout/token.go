@@ -23,11 +23,11 @@ import (
 )
 
 type HangoutInfo struct {
-	AuthPort        string
-	NodePort        string
-	HangoutID       string
-	HangoutPassword string
-	OSUser          string
+	AuthPort        string `json:"a"`
+	NodePort        string `json:"n"`
+	HangoutID       string `json:"id"`
+	HangoutPassword string `json:"p"`
+	OSUser          string `json:"u"`
 }
 
 func MarshalHangoutInfo(h *HangoutInfo) (string, error) {

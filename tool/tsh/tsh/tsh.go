@@ -25,7 +25,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -38,7 +37,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func SSH(target, proxyAddress, command, port string, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
+func SSH(target, proxyAddress, command, port, sessionID string, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
 	user, target := client.SplitUserAndAddress(target)
 	if !strings.Contains(target, ":") {
 		target += ":" + port
@@ -80,11 +79,10 @@ func SSH(target, proxyAddress, command, port string, authMethods []ssh.AuthMetho
 			return trace.Wrap(err)
 		}
 	}
-	return shell(c, address)
+	return shell(c, address, sessionID)
 }
 
-func shell(c *client.NodeClient, address string) error {
-
+func shell(c *client.NodeClient, address string, sessionID string) error {
 	defer c.Close()
 
 	// disable input buffering
@@ -110,7 +108,7 @@ func shell(c *client.NodeClient, address string) error {
 		return trace.Wrap(err)
 	}
 
-	shell, err := c.Shell(width, height)
+	shell, err := c.Shell(width, height, sessionID)
 	if err != nil {
 		// restore the console echoing state when exiting
 		exec.Command("stty", "-F", "/dev/tty", "echo").Run()
@@ -278,10 +276,19 @@ func SCP(proxyAddress, source, dest string, isDir bool, port string, authMethods
 	return nil
 }
 
-func Share(hangoutProxyAddress, nodeListeningAddress, authListeningAddress string,
-	authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
+const (
+	DefaultNodeListeningAddress = "localhost:33010"
+	DefaultAuthListeningAddress = "localhost:33011"
+)
+
+func Share(hangoutProxyAddress, nodeListeningAddress,
+	authListeningAddress string, readOnly bool, authMethods []ssh.AuthMethod,
+	hostKeyCallback utils.HostKeyCallback) error {
+
 	hangoutServer, err := hangout.New(hangoutProxyAddress, nodeListeningAddress,
-		authListeningAddress, false, authMethods, hostKeyCallback)
+		authListeningAddress, readOnly, authMethods, hostKeyCallback)
+
+	fmt.Printf("\nHangoutToken:\n\n%v\n\n", hangoutServer.Token)
 
 	if err != nil {
 		return trace.Wrap(err)
@@ -292,11 +299,11 @@ func Share(hangoutProxyAddress, nodeListeningAddress, authListeningAddress strin
 		return trace.Wrap(err)
 	}
 
-	return SSH(u.Username+"@"+nodeListeningAddress, "", "", "", []ssh.AuthMethod{hangoutServer.ClientAuthMethod}, hangoutServer.HostKeyCallback)
+	return SSH(u.Username+"@"+nodeListeningAddress, "", "", "", "hangoutSession", []ssh.AuthMethod{hangoutServer.ClientAuthMethod}, hangoutServer.HostKeyCallback)
 }
 
 func Join(proxyAddress, hangoutToken string, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
-	hangoutServer, err := hangout.New("localhost:33009", "localhost:33010",
+	/*hangoutServer, err := hangout.New("localhost:33009", "localhost:33010",
 		"localhost:33011", false, authMethods, hostKeyCallback)
 
 	if err != nil {
@@ -305,8 +312,13 @@ func Join(proxyAddress, hangoutToken string, authMethods []ssh.AuthMethod, hostK
 
 	time.Sleep(time.Second * 1)
 
-	hangoutToken = hangoutServer.Token
+	fmt.Println(hangoutServer.Token)
+
+	hangoutToken = hangoutServer.Token*/
 	hInfo, err := hangout.UnmarshalHangoutInfo(hangoutToken)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	proxy, err := client.ConnectToProxy(proxyAddress, authMethods, hostKeyCallback, "123")
 	if err != nil {
@@ -318,7 +330,7 @@ func Join(proxyAddress, hangoutToken string, authMethods []ssh.AuthMethod, hostK
 		return trace.Wrap(err)
 	}
 
-	authConn, err := proxy.ConnectToHangout(hInfo.HangoutID+":"+hInfo.AuthPort, hangoutAuthMethod, nil, hangout.HangoutUser)
+	authConn, err := proxy.ConnectToHangout(hInfo.HangoutID+":"+hInfo.AuthPort, hangoutAuthMethod, hangout.HangoutUser)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -328,15 +340,17 @@ func Join(proxyAddress, hangoutToken string, authMethods []ssh.AuthMethod, hostK
 		return trace.Wrap(err)
 	}
 
-	nodeAuthMethod, nodeHostKeyCallback, err := hangout.Authorize(authClient, hInfo.HangoutPassword[0:100])
+	nodeAuthMethod, _, err := hangout.Authorize(authClient, hInfo.HangoutPassword[0:100])
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	nodeConn, err := proxy.ConnectToHangout(hInfo.HangoutID+":"+hInfo.NodePort, []ssh.AuthMethod{nodeAuthMethod}, nodeHostKeyCallback, hInfo.OSUser)
+	nodeConn, err := proxy.ConnectToHangout(hInfo.HangoutID+":"+hInfo.NodePort, []ssh.AuthMethod{nodeAuthMethod}, hInfo.OSUser)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return shell(nodeConn, hInfo.HangoutID)
+	fmt.Println("Connected\n")
+
+	return shell(nodeConn, hInfo.HangoutID, "hangoutSession")
 }

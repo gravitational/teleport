@@ -46,6 +46,7 @@ type RemoteSite interface {
 	GetStatus() string
 	GetClient() *auth.Client
 	GetServers() ([]services.Server, error)
+	GetHangoutHostKey() *services.CertificateAuthority
 }
 
 type Server interface {
@@ -63,6 +64,7 @@ type server struct {
 	certChecker ssh.CertChecker
 	l           net.Listener
 	srv         *sshutils.Server
+	upsertSite  func(c ssh.Conn) (*remoteSite, error)
 
 	sites []*remoteSite
 }
@@ -87,6 +89,7 @@ func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 		return nil, err
 	}
 	srv.certChecker = ssh.CertChecker{IsAuthority: srv.isAuthority}
+	srv.upsertSite = srv.upsertRegularSite
 	srv.srv = s
 	return srv, nil
 }
@@ -111,6 +114,7 @@ func NewHangoutServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 		return nil, err
 	}
 	srv.certChecker = ssh.CertChecker{IsAuthority: srv.isHangoutAuthority}
+	srv.upsertSite = srv.upsertHangoutSite
 	srv.srv = s
 	return srv, nil
 }
@@ -254,7 +258,6 @@ func (s *server) hangoutKeyAuth(
 			conn.RemoteAddr(), conn.LocalAddr(), conn.User())
 		return nil, trace.Errorf("ERROR: Server doesn't support provided key type")
 	}
-	//teleportUser := cert.Permissions.Extensions[utils.CertExtensionUser]
 
 	_, err := s.certChecker.Authenticate(conn, key)
 	if err != nil {
@@ -278,7 +281,7 @@ func (s *server) hangoutKeyAuth(
 	return perms, nil
 }
 
-func (s *server) upsertSite(c ssh.Conn) (*remoteSite, error) {
+func (s *server) upsertRegularSite(c ssh.Conn) (*remoteSite, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -304,6 +307,37 @@ func (s *server) upsertSite(c ssh.Conn) (*remoteSite, error) {
 	return site, nil
 }
 
+func (s *server) upsertHangoutSite(c ssh.Conn) (*remoteSite, error) {
+	s.Lock()
+	defer s.Unlock()
+
+	hangoutID := ""
+	unique := false
+	for !unique {
+		hangoutID = utils.RandomString()
+		unique = true
+		for _, st := range s.sites {
+			if st.domainName == hangoutID {
+				unique = false
+				break
+			}
+		}
+	}
+
+	site := &remoteSite{srv: s, domainName: hangoutID}
+	err := site.init(c)
+	if err != nil {
+		return nil, err
+	}
+	site.hostKey, err = site.clt.GetHostCertificateAuthority()
+	if err != nil {
+		return nil, err
+	}
+	err = site.clt.UpsertSession(hangoutID, 0)
+	s.sites = append(s.sites, site)
+	return site, nil
+}
+
 func (s *server) GetSites() []RemoteSite {
 	s.RLock()
 	defer s.RUnlock()
@@ -322,7 +356,7 @@ func (s *server) GetSite(domainName string) (RemoteSite, error) {
 			return s.sites[i], nil
 		}
 	}
-	return nil, fmt.Errorf("site not found")
+	return nil, fmt.Errorf("site %v not found", domainName)
 }
 
 // FindSimilarSite finds the site that is the most similar to domain.
@@ -366,6 +400,7 @@ type remoteSite struct {
 	lastActive time.Time
 	srv        *server
 	clt        *auth.Client
+	hostKey    *services.CertificateAuthority
 }
 
 func (s *remoteSite) GetClient() *auth.Client {
@@ -524,6 +559,10 @@ func (s *remoteSite) handleAuthProxy(w http.ResponseWriter, r *http.Request) {
 	r.URL.Scheme = "http"
 	r.URL.Host = "stub"
 	fwd.ServeHTTP(w, r)
+}
+
+func (s *remoteSite) GetHangoutHostKey() *services.CertificateAuthority {
+	return s.hostKey
 }
 
 const ExtHost = "host@teleport"

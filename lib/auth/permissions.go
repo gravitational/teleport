@@ -106,6 +106,7 @@ func NewHangoutPermissions() PermissionChecker {
 		ActionUpsertParty:                 true,
 		ActionLogEntry:                    true,
 		ActionGetChunkWriter:              true,
+		ActionUpsertSession:               true,
 	}
 
 	sp.permissions[RoleWeb] = map[string]bool{
