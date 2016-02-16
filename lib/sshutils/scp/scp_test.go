@@ -26,6 +26,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 	. "gopkg.in/check.v1"
 )
 
@@ -37,7 +38,7 @@ type SCPSuite struct {
 var _ = Suite(&SCPSuite{})
 
 func (s *SCPSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
+	utils.InitLoggerDebug()
 }
 
 func (s *SCPSuite) TestSendFile(c *C) {
@@ -103,11 +104,27 @@ func (s *SCPSuite) TestReceiveFile(c *C) {
 
 	cmd, in, out, epipe := command("scp", "-v", "-f", source)
 
-	errC := make(chan error, 2)
+	errC := make(chan error, 3)
+	successC := make(chan bool, 1)
 	rw := &combo{out, in}
+	// http://stackoverflow.com/questions/20134095/why-do-i-get-bad-file-descriptor-in-this-go-program-using-stderr-and-ioutil-re
 	go func() {
-		errC <- cmd.Run()
+		err := cmd.Start()
+		if err != nil {
+			errC <- trace.Wrap(err)
+		}
+		log.Infof("serving")
+		err = trace.Wrap(srv.Serve(rw))
+		if err != nil {
+			errC <- err
+		}
+		in.Close()
+		log.Infof("done")
+		if err := trace.Wrap(cmd.Wait()); err != nil {
+			errC <- err
+		}
 		log.Infof("run completed")
+		successC <- true
 	}()
 
 	go func() {
@@ -116,19 +133,12 @@ func (s *SCPSuite) TestReceiveFile(c *C) {
 		}
 	}()
 
-	go func() {
-		errC <- srv.Serve(rw)
-		log.Infof("serve completed")
-		in.Close()
-	}()
-
-	for i := 0; i < 2; i++ {
-		select {
-		case <-time.After(time.Second):
-			panic("timeout")
-		case err := <-errC:
-			c.Assert(err, IsNil)
-		}
+	select {
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for results")
+	case err := <-errC:
+		c.Assert(err, IsNil)
+	case <-successC:
 	}
 
 	bytes, err := ioutil.ReadFile(filepath.Join(outDir, "target"))
