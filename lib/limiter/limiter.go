@@ -13,6 +13,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+// Package limiter implements connection and rate limiters for teleport
 package limiter
 
 import (
@@ -20,18 +22,27 @@ import (
 	"net/http"
 
 	"github.com/gravitational/trace"
+	"github.com/mailgun/timetools"
 )
 
+// Limiter helps limiting connections and request rates
 type Limiter struct {
-	// both limiters implement http.Handle
+	// ConnectionsLimiter limits simultaneous connection
 	*ConnectionsLimiter
+	// rateLimiter limits request rate
 	rateLimiter *RateLimiter
 }
 
+// LimiterConfig sets up rate limits and configuration limits parameters
 type LimiterConfig struct {
-	Rates            []Rate
-	MaxConnections   int64
+	// Rates set ups rate limits
+	Rates []Rate
+	// MaxConnections configures maximum number of connections
+	MaxConnections int64
+	// MaxNumberOfUsers controls maximum number of simultaneously active users
 	MaxNumberOfUsers int
+	// Clock is an optional parameter, if not set, will use system time
+	Clock timetools.TimeProvider
 }
 
 // SetEnv reads LimiterConfig from JSON string
@@ -42,6 +53,7 @@ func (l *LimiterConfig) SetEnv(v string) error {
 	return nil
 }
 
+// NewLimiter returns new rate and connection limiter
 func NewLimiter(config LimiterConfig) (*Limiter, error) {
 	var err error
 	limiter := Limiter{}

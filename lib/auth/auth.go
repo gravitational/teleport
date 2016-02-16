@@ -73,7 +73,6 @@ func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority,
 	as.LockService = services.NewLockService(as.bk)
 	as.PresenceService = services.NewPresenceService(as.bk)
 	as.ProvisioningService = services.NewProvisioningService(as.bk)
-	as.UserService = services.NewUserService(as.bk)
 	as.WebService = services.NewWebService(as.bk)
 	as.BkKeysService = services.NewBkKeysService(as.bk)
 
@@ -93,27 +92,8 @@ type AuthServer struct {
 	*services.LockService
 	*services.PresenceService
 	*services.ProvisioningService
-	*services.UserService
 	*services.WebService
 	*services.BkKeysService
-}
-
-// UpsertUserKey takes user's public key, generates certificate for it
-// and adds it to the authorized keys database. It returns certificate signed
-// by user Certificate Authority in case of success, error otherwise. The certificate will be
-// valid for the duration of the ttl passed in.
-func (s *AuthServer) UpsertUserKey(
-	user string, key services.AuthorizedKey, ttl time.Duration) ([]byte, error) {
-
-	cert, err := s.GenerateUserCert(key.Value, key.ID, user, ttl)
-	if err != nil {
-		return nil, err
-	}
-	key.Value = cert
-	if err := s.UserService.UpsertUserKey(user, key, ttl); err != nil {
-		return nil, err
-	}
-	return cert, nil
 }
 
 // ResetHostCertificateAuthority generates host certificate authority and updates the backend
