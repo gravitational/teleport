@@ -485,7 +485,7 @@ func (c *Client) DeleteWebSession(user string, sid string) error {
 }
 
 // GetUsers returns a list of usernames registered in the system
-func (c *Client) GetUsers() ([]string, error) {
+func (c *Client) GetUsers() ([]services.User, error) {
 	out, err := c.Get(c.Endpoint("users"), url.Values{})
 	if err != nil {
 		return nil, err
@@ -889,7 +889,7 @@ func (c *chunkRW) Close() error {
 	return nil
 }
 
-// TOODO(klizhentas) this should be just including appropriate backends
+// TOODO(klizhentas) this should be just including appropriate service implementations
 type ClientI interface {
 	GetSessions() ([]session.Session, error)
 	GetSession(id string) (*session.Session, error)
@@ -920,11 +920,8 @@ type ClientI interface {
 	GetWebSession(user string, sid string) (string, error)
 	GetWebSessionsKeys(user string) ([]services.AuthorizedKey, error)
 	DeleteWebSession(user string, sid string) error
-	GetUsers() ([]string, error)
+	GetUsers() ([]services.User, error)
 	DeleteUser(user string) error
-	UpsertUserKey(username string, key services.AuthorizedKey, ttl time.Duration) ([]byte, error)
-	GetUserKeys(user string) ([]services.AuthorizedKey, error)
-	DeleteUserKey(username string, id string) error
 	GetHostCertificateAuthority() (*services.CertificateAuthority, error)
 	GetUserCertificateAuthority() (*services.CertificateAuthority, error)
 	GenerateKeyPair(pass string) ([]byte, []byte, error)

@@ -51,10 +51,6 @@ func (s *BoltSuite) TearDownTest(c *C) {
 	c.Assert(s.bk.Close(), IsNil)
 }
 
-func (s *BoltSuite) TestUserKeyCRUD(c *C) {
-	s.suite.UserKeyCRUD(c)
-}
-
 func (s *BoltSuite) TestUserCACRUD(c *C) {
 	s.suite.UserCACRUD(c)
 }

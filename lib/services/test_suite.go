@@ -34,7 +34,6 @@ type ServicesTestSuite struct {
 	LockS         *LockService
 	PresenceS     *PresenceService
 	ProvisioningS *ProvisioningService
-	UserS         *UserService
 	WebS          *WebService
 	ChangesC      chan interface{}
 }
@@ -45,7 +44,6 @@ func NewServicesTestSuite(backend backend.Backend) *ServicesTestSuite {
 	s.LockS = NewLockService(backend)
 	s.PresenceS = NewPresenceService(backend)
 	s.ProvisioningS = NewProvisioningService(backend)
-	s.UserS = NewUserService(backend)
 	s.WebS = NewWebService(backend)
 	s.ChangesC = make(chan interface{})
 	return &s
@@ -53,7 +51,7 @@ func NewServicesTestSuite(backend backend.Backend) *ServicesTestSuite {
 
 func (s *ServicesTestSuite) collectChanges(c *C, expected int) []interface{} {
 	changes := make([]interface{}, expected)
-	for i, _ := range changes {
+	for i := range changes {
 		select {
 		case changes[i] = <-s.ChangesC:
 			// successfully collected changes
@@ -71,43 +69,26 @@ func (s *ServicesTestSuite) expectChanges(c *C, expected ...interface{}) {
 	}
 }
 
-func (s *ServicesTestSuite) UserKeyCRUD(c *C) {
-	k := AuthorizedKey{ID: "id1", Value: []byte("val1")}
-
-	c.Assert(s.UserS.UpsertUserKey("user1", k, 0), IsNil)
-
-	keys, err := s.UserS.GetUserKeys("user1")
-	c.Assert(err, IsNil)
-	c.Assert(keys, DeepEquals, []AuthorizedKey{k})
-
-	c.Assert(s.UserS.DeleteUserKey("user1", k.ID), IsNil)
-
-	keys, err = s.UserS.GetUserKeys("user1")
-	c.Assert(err, IsNil)
-	c.Assert(keys, DeepEquals, []AuthorizedKey{})
-}
-
 func (s *ServicesTestSuite) UsersCRUD(c *C) {
-	u, err := s.UserS.GetUsers()
+	u, err := s.WebS.GetUsers()
 	c.Assert(err, IsNil)
 	c.Assert(len(u), Equals, 0)
 
-	k := AuthorizedKey{ID: "id1", Value: []byte("val1")}
+	c.Assert(s.WebS.UpsertPasswordHash("user1", []byte("hash")), IsNil)
+	c.Assert(s.WebS.UpsertPasswordHash("user2", []byte("hash2")), IsNil)
 
-	c.Assert(s.UserS.UpsertUserKey("user1", k, 0), IsNil)
-	c.Assert(s.UserS.UpsertUserKey("user2", k, 0), IsNil)
-
-	u, err = s.UserS.GetUsers()
+	u, err = s.WebS.GetUsers()
 	c.Assert(err, IsNil)
-	c.Assert(toSet(u), DeepEquals, map[string]struct{}{"user1": struct{}{}, "user2": struct{}{}})
+	c.Assert(toSet(u), DeepEquals, map[string]User{"user1": User{Name: "user1"}, "user2": User{Name: "user2"}})
 
-	c.Assert(s.UserS.DeleteUser("user1"), IsNil)
+	c.Assert(s.WebS.DeleteUser("user1"), IsNil)
 
-	u, err = s.UserS.GetUsers()
+	u, err = s.WebS.GetUsers()
 	c.Assert(err, IsNil)
-	c.Assert(toSet(u), DeepEquals, map[string]struct{}{"user2": struct{}{}})
+	c.Assert(toSet(u), DeepEquals, map[string]User{"user2": User{Name: "user2"}})
 
-	c.Assert(s.UserS.DeleteUser("user1"), FitsTypeOf, &teleport.NotFoundError{})
+	err = s.WebS.DeleteUser("user1")
+	c.Assert(teleport.IsNotFound(err), Equals, true, Commentf("unexpected %T %#v", err, err))
 }
 
 func (s *ServicesTestSuite) UserCACRUD(c *C) {
@@ -569,10 +550,10 @@ func (s *ServicesTestSuite) PasswordGarbage(c *C) {
 	}
 }
 
-func toSet(vals []string) map[string]struct{} {
-	out := make(map[string]struct{}, len(vals))
+func toSet(vals []User) map[string]User {
+	out := make(map[string]User, len(vals))
 	for _, v := range vals {
-		out[v] = struct{}{}
+		out[v.Name] = v
 	}
 	return out
 }

@@ -23,12 +23,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/buger/goterm"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
+
+	"github.com/buger/goterm"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -138,12 +140,12 @@ func onVersion() {
 
 // Invite() creates a new sign-up token and prints a token URL to stdout.
 // A user is not created until he visits the sign-up URL and completes the process
-func (this *UserCommand) Invite(client *auth.TunClient) error {
+func (u *UserCommand) Invite(client *auth.TunClient) error {
 	// if no local logis were specified, default to 'login'
-	if this.mappings == "" {
-		this.mappings = this.login
+	if u.mappings == "" {
+		u.mappings = u.login
 	}
-	token, err := client.CreateSignupToken(this.login, strings.Split(this.mappings, ","))
+	token, err := client.CreateSignupToken(u.login, strings.Split(u.mappings, ","))
 	if err != nil {
 		return err
 	}
@@ -155,37 +157,35 @@ func (this *UserCommand) Invite(client *auth.TunClient) error {
 }
 
 // List prints all existing user accounts
-func (this *UserCommand) List(client *auth.TunClient) error {
+func (u *UserCommand) List(client *auth.TunClient) error {
 	users, err := client.GetUsers()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// EV: this does not work (never returns anything)
-	usersView := func(users []string) string {
+	// TODO(klizhentas) this does not work (never returns anything)
+	// fmt.Println("TO BE DONE --->>>>> Listing users is not implemented. But the output should look like:\n")
+	// fmt.Println("User login       Mappings")
+	// fmt.Println("--------------   ----------------------")
+	// fmt.Println("ekontsevoy       admin,centos")
+	usersView := func(users []services.User) string {
 		t := goterm.NewTable(0, 10, 5, ' ', 0)
 		fmt.Fprint(t, "User\n")
 		if len(users) == 0 {
 			return t.String()
 		}
 		for _, u := range users {
-			fmt.Fprintf(t, "%v\n", u)
+			fmt.Fprintf(t, "%v\n", u.Name)
 		}
 		return t.String()
 	}
 	fmt.Printf(usersView(users))
-
-	fmt.Println("TO BE DONE --->>>>> Listing users is not implemented. But the output should look like:\n")
-	fmt.Println("User login       Mappings")
-	fmt.Println("--------------   ----------------------")
-	fmt.Println("ekontsevoy       admin,centos")
-
 	return nil
 }
 
 // Delete() deletes teleport user(s). User IDs are passed as a comma-separated
 // list in UserCommand.login
-func (this *UserCommand) Delete(client *auth.TunClient) error {
-	for _, l := range strings.Split(this.login, ",") {
+func (u *UserCommand) Delete(client *auth.TunClient) error {
+	for _, l := range strings.Split(u.login, ",") {
 		if err := client.DeleteUser(l); err != nil {
 			return trace.Wrap(err)
 		}
@@ -196,14 +196,14 @@ func (this *UserCommand) Delete(client *auth.TunClient) error {
 
 // Invite generates a token which can be used to add another SSH node
 // to a cluster
-func (this *NodeCommand) Invite(client *auth.TunClient) error {
+func (u *NodeCommand) Invite(client *auth.TunClient) error {
 	invitationTTL := time.Minute * 15
-	token, err := client.GenerateToken(this.nodename, auth.RoleNode, invitationTTL)
+	token, err := client.GenerateToken(u.nodename, auth.RoleNode, invitationTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("The invite token: %v\nRun this on the new node to join the cluster:\n> teleport start --roles=node --name=%v --token=%v --auth-server=<Address>\n\nNotes:\n",
-		token, this.nodename, token)
+		token, u.nodename, token)
 	fmt.Printf("  1. This invitation token will expire in %v seconds.\n", invitationTTL.Seconds())
 	fmt.Printf("  2. <Address> is the IP this auth server is reachable at from the node.\n")
 	return nil
@@ -211,8 +211,8 @@ func (this *NodeCommand) Invite(client *auth.TunClient) error {
 
 // listActive retreives the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
-func (this *NodeCommand) ListActive(client *auth.TunClient) error {
-	fmt.Println("TO BE DONE --->>>>> Listing nodes is not implemented. But the output should look like:\n")
+func (u *NodeCommand) ListActive(client *auth.TunClient) error {
+	fmt.Println("TO BE DONE --->>>>> Listing nodes is not implemented. But the output should look like:")
 	fmt.Println("Node Name        IP              Labels")
 	fmt.Println("--------------   ------------    ---------------")
 	fmt.Println("mongo-server     10.0.10.22      master,mongo")

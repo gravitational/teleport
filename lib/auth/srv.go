@@ -78,11 +78,6 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.GET("/v1/users", srv.getUsers)
 	srv.DELETE("/v1/users/:user", srv.deleteUser)
 
-	// Operations on user keys
-	srv.POST("/v1/users/:user/keys", srv.upsertUserKey)
-	srv.DELETE("/v1/users/:user/keys/:key", srv.deleteUserKey)
-	srv.GET("/v1/users/:user/keys", srv.getUserKeys)
-
 	// Generating keypairs
 	srv.POST("/v1/keypair", srv.generateKeyPair)
 
@@ -389,27 +384,6 @@ func (s *APIServer) checkPassword(w http.ResponseWriter, r *http.Request, p http
 	reply(w, http.StatusOK, message(fmt.Sprintf("'%v' user password matches", user)))
 }
 
-func (s *APIServer) upsertUserKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	var id, key string
-	var ttl time.Duration
-
-	err := form.Parse(r,
-		form.String("key", &key, form.Required()),
-		form.String("id", &id, form.Required()),
-		form.Duration("ttl", &ttl))
-	if err != nil {
-		replyErr(w, err)
-		return
-	}
-	cert, err := s.a.UpsertUserKey(p[0].Value, services.AuthorizedKey{ID: id, Value: []byte(key)}, ttl)
-	if err != nil {
-		replyErr(w, err)
-		return
-	}
-
-	reply(w, http.StatusOK, certResponse{Cert: string(cert)})
-}
-
 func (s *APIServer) getUsers(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	users, err := s.a.GetUsers()
 	if err != nil {
@@ -427,26 +401,6 @@ func (s *APIServer) deleteUser(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	reply(w, http.StatusOK, message(fmt.Sprintf("user '%v' deleted", user)))
-}
-
-func (s *APIServer) getUserKeys(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	keys, err := s.a.GetUserKeys(p[0].Value)
-	if err != nil {
-		replyErr(w, err)
-		return
-	}
-
-	reply(w, http.StatusOK, &pubKeysResponse{PubKeys: keys})
-}
-
-func (s *APIServer) deleteUserKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	user, keyID := p[0].Value, p[1].Value
-	if err := s.a.DeleteUserKey(user, keyID); err != nil {
-		replyErr(w, err)
-		return
-	}
-
-	reply(w, http.StatusOK, message(fmt.Sprintf("key '%v' deleted for user '%v'", keyID, user)))
 }
 
 func (s *APIServer) generateKeyPair(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -1144,7 +1098,7 @@ type remoteCertsResponse struct {
 }
 
 type usersResponse struct {
-	Users []string `json:"users"`
+	Users []services.User `json:"users"`
 }
 
 type keyPairResponse struct {

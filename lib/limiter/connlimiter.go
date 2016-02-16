@@ -44,7 +44,8 @@ func NewConnectionsLimiter(config LimiterConfig) (*ConnectionsLimiter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	limiter.ConnLimiter, err = connlimit.New(nil, ipExtractor, config.MaxConnections)
+	limiter.ConnLimiter, err = connlimit.New(
+		nil, ipExtractor, config.MaxConnections)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

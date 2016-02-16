@@ -258,7 +258,7 @@ func (a *AuthWithRoles) DeleteWebSession(user string, sid websession.SecureID) e
 		return a.authServer.DeleteWebSession(user, sid)
 	}
 }
-func (a *AuthWithRoles) GetUsers() ([]string, error) {
+func (a *AuthWithRoles) GetUsers() ([]services.User, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetUsers); err != nil {
 		return nil, err
 	} else {
@@ -272,27 +272,7 @@ func (a *AuthWithRoles) DeleteUser(user string) error {
 		return a.authServer.DeleteUser(user)
 	}
 }
-func (a *AuthWithRoles) UpsertUserKey(username string, key services.AuthorizedKey, ttl time.Duration) ([]byte, error) {
-	if err := a.permChecker.HasPermission(a.role, ActionUpsertUserKey); err != nil {
-		return nil, err
-	} else {
-		return a.authServer.UpsertUserKey(username, key, ttl)
-	}
-}
-func (a *AuthWithRoles) GetUserKeys(user string) ([]services.AuthorizedKey, error) {
-	if err := a.permChecker.HasPermission(a.role, ActionGetUserKeys); err != nil {
-		return nil, err
-	} else {
-		return a.authServer.GetUserKeys(user)
-	}
-}
-func (a *AuthWithRoles) DeleteUserKey(username string, id string) error {
-	if err := a.permChecker.HasPermission(a.role, ActionDeleteUserKey); err != nil {
-		return err
-	} else {
-		return a.authServer.DeleteUserKey(username, id)
-	}
-}
+
 func (a *AuthWithRoles) GetHostCertificateAuthority() (*services.CertificateAuthority, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetHostCertificateAuthority); err != nil {
 		return nil, err

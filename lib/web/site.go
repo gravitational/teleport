@@ -36,9 +36,9 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/codahale/lunk"
 	"github.com/gravitational/form"
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/roundtrip"
 	"github.com/julienschmidt/httprouter"
 )
@@ -92,11 +92,6 @@ func NewSiteHandler(cfg SiteHandlerConfig) *SiteHandler {
 	h.GET("/servers/:id/download", h.needsAuth(h.downloadFiles))
 
 	// JSON API methods
-
-	// Key Management
-	h.GET("/api/keys", h.needsAuth(h.getKeys))
-	h.POST("/api/keys", h.needsAuth(h.postKey))
-	h.DELETE("/api/keys/:key", h.needsAuth(h.deleteKey))
 
 	// Event log
 	h.GET("/api/events", h.needsAuth(h.getEvents))
@@ -597,49 +592,6 @@ func (s *SiteHandler) sessionIndex(w http.ResponseWriter, r *http.Request, p htt
 		"SessionID":  p[0].Value,
 		"ServerAddr": r.URL.Query().Get("server"),
 	})
-}
-
-func (s *SiteHandler) getKeys(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) {
-	keys, err := c.GetClient().GetUserKeys(c.GetUser())
-	log.Infof("Keys: %v", keys)
-	if err != nil {
-		log.Errorf("failed to retrieve keys: %v", err)
-		replyErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	roundtrip.ReplyJSON(w, http.StatusOK, keys)
-}
-
-func (s *SiteHandler) postKey(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) {
-	var key, id string
-
-	err := form.Parse(r,
-		form.String("value", &key, form.Required()),
-		form.String("id", &id, form.Required()))
-	if err != nil {
-		log.Errorf("failed to parse form: %v", err)
-		roundtrip.ReplyJSON(w, http.StatusBadRequest, message(err.Error()))
-		return
-	}
-	cert, err := c.GetClient().UpsertUserKey(c.GetUser(), services.AuthorizedKey{ID: id, Value: []byte(key)}, 0)
-	if err != nil {
-		log.Errorf("failed to upsert keys: %v", err)
-		roundtrip.ReplyJSON(w, http.StatusBadRequest, message("invalid key format"))
-		return
-	}
-	roundtrip.ReplyJSON(w, http.StatusOK, services.AuthorizedKey{ID: key, Value: cert})
-}
-
-func (s *SiteHandler) deleteKey(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) {
-	key := p[0].Value
-
-	err := c.GetClient().DeleteUserKey(c.GetUser(), key)
-	if err != nil {
-		log.Errorf("failed to upsert keys: %v", err)
-		roundtrip.ReplyJSON(w, http.StatusBadRequest, message("invalid key format"))
-		return
-	}
-	roundtrip.ReplyJSON(w, http.StatusOK, message("key deleted"))
 }
 
 func (s *SiteHandler) login(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
