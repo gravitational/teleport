@@ -16,14 +16,9 @@ limitations under the License.
 package hangout
 
 import (
-	//"bytes"
-	//"fmt"
-	//"io"
-	"os/user"
-	//"path/filepath"
-	//"strings"
 	"net"
 	"os"
+	"os/user"
 	"path"
 	"time"
 
@@ -44,16 +39,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
-	//"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	//"github.com/gravitational/session"
 	log "github.com/Sirupsen/logrus"
-	//"github.com/gravitational/log"
-	"github.com/gravitational/trace"
-	//"github.com/gokyle/hotp"
-	//"github.com/mailgun/lemma/secret"
 	"github.com/codahale/lunk"
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
@@ -82,7 +72,6 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 
 	//log.SetOutput(os.Stderr)
 	//log.SetLevel(log.InfoLevel)
-	//log.Initialize("console", "INFO")
 
 	cfg := service.Config{}
 	service.SetDefaults(&cfg)
@@ -129,12 +118,10 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 		return nil, trace.Wrap(err)
 	}
 
-	log.Infof("***************** init Tun Agent")
 	if err := h.initTunAgent(cfg, authMethods, hostKeyCallback); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	log.Infof("*************** read HangoutID")
 	for {
 		time.Sleep(time.Millisecond * 100)
 		s, err := h.sessions.GetSessions()
@@ -153,11 +140,6 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 			break
 		}
 	}
-	log.Infof("********************** HANGOUT ID = %v", h.hangoutID)
-	/*h.hangoutID, err = h.auth.CreateToken()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}*/
 
 	thisSrv := services.Server{
 		ID:       cfg.Auth.SSHAddr.Addr,
@@ -169,12 +151,9 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 		return nil, trace.Wrap(err)
 	}
 
-	log.Infof("***************** init SSH")
-
 	if err := h.initSSHEndpoint(cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("***************** create User")
 	if err := h.createUser(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -188,7 +167,8 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 		return nil, trace.Wrap(err)
 	}
 
-	h.ClientAuthMethod, h.HostKeyCallback, err = Authorize(h.client, h.userPassword)
+	h.ClientAuthMethod, err = Authorize(h.client, h.userPassword)
+	h.HostKeyCallback = nil
 
 	h.HangoutInfo.AuthPort = h.authPort
 	h.HangoutInfo.NodePort = h.nodePort
@@ -231,25 +211,25 @@ func (h *Hangout) createUser() error {
 	return nil
 }
 
-func Authorize(auth auth.ClientI, userPassword string) (ssh.AuthMethod, utils.HostKeyCallback, error) {
+func Authorize(auth auth.ClientI, userPassword string) (ssh.AuthMethod, error) {
 
 	priv, pub, err := authority.New().GenerateKeyPair("")
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	cert, err := auth.GenerateUserCert(pub, "id_"+HangoutUser, HangoutUser, 24*time.Hour)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	pcert, _, _, _, err := ssh.ParseAuthorizedKey(cert)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	pk, err := ssh.ParseRawPrivateKey(priv)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	addedKey := agent.AddedKey{
 		PrivateKey:       pk,
@@ -260,16 +240,10 @@ func Authorize(auth auth.ClientI, userPassword string) (ssh.AuthMethod, utils.Ho
 	}
 	ag := agent.NewKeyring()
 	if err := ag.Add(addedKey); err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	/*hostSigners, err := auth.GetTrustedCertificates(services.HostCert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}*/
-
-	return ssh.PublicKeysCallback(ag.Signers), nil, nil
-
+	return ssh.PublicKeysCallback(ag.Signers), nil
 }
 
 func (h *Hangout) initAuth(cfg service.Config, readOnlyHangout bool) error {

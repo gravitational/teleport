@@ -162,7 +162,6 @@ var StandardRoles = []string{
 
 var HangoutRoles = []string{
 	RoleAdmin,
-	RoleHangoutUser,
 	RoleProvisionToken,
 }
 
@@ -176,7 +175,6 @@ const (
 	RoleAdmin          = "Admin"
 	RoleProvisionToken = "ProvisionToken"
 	RoleSignup         = "Signup"
-	RoleHangoutUser    = "HangoutUser"
 
 	ActionGetSessions                   = "GetSession"
 	ActionGetSession                    = "GetSession"

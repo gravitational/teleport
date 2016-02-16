@@ -303,18 +303,17 @@ func Share(hangoutProxyAddress, nodeListeningAddress,
 }
 
 func Join(proxyAddress, hangoutToken string, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
-	/*hangoutServer, err := hangout.New("localhost:33009", "localhost:33010",
-		"localhost:33011", false, authMethods, hostKeyCallback)
+	/*
+		// Debug Mode
+		hangoutServer, err := hangout.New("localhost:33009", "localhost:33010",
+			"localhost:33011", false, authMethods, hostKeyCallback)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		time.Sleep(time.Second * 1)
+		hangoutToken = hangoutServer.Token
+	*/
 
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	time.Sleep(time.Second * 1)
-
-	fmt.Println(hangoutServer.Token)
-
-	hangoutToken = hangoutServer.Token*/
 	hInfo, err := hangout.UnmarshalHangoutInfo(hangoutToken)
 	if err != nil {
 		return trace.Wrap(err)
@@ -340,7 +339,7 @@ func Join(proxyAddress, hangoutToken string, authMethods []ssh.AuthMethod, hostK
 		return trace.Wrap(err)
 	}
 
-	nodeAuthMethod, _, err := hangout.Authorize(authClient, hInfo.HangoutPassword[0:100])
+	nodeAuthMethod, err := hangout.Authorize(authClient, hInfo.HangoutPassword[0:100])
 	if err != nil {
 		return trace.Wrap(err)
 	}
