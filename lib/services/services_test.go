@@ -52,11 +52,7 @@ func (s *BoltSuite) TearDownTest(c *C) {
 }
 
 func (s *BoltSuite) TestUserCACRUD(c *C) {
-	s.suite.UserCACRUD(c)
-}
-
-func (s *BoltSuite) TestHostCACRUD(c *C) {
-	s.suite.HostCACRUD(c)
+	s.suite.CertAuthCRUD(c)
 }
 
 func (s *BoltSuite) TestServerCRUD(c *C) {
@@ -93,16 +89,4 @@ func (s *BoltSuite) TestLocking(c *C) {
 
 func (s *BoltSuite) TestToken(c *C) {
 	s.suite.TokenCRUD(c)
-}
-
-func (s *BoltSuite) TestRemoteCert(c *C) {
-	s.suite.RemoteCertCRUD(c)
-}
-
-func (s *BoltSuite) TestTrustedCertificates(c *C) {
-	s.suite.TrustedCertificates(c)
-}
-
-func (s *BoltSuite) TestUserMapping(c *C) {
-	s.suite.UserMapping(c)
 }

@@ -21,13 +21,12 @@ import (
 	"io"
 	"net"
 	"os/exec"
-	"path"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/recorder"
@@ -39,8 +38,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"code.google.com/p/go-uuid/uuid"
-	"github.com/codahale/lunk"
 	log "github.com/Sirupsen/logrus"
+	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	// Server implements SSH server that uses configuration backend and certificate-based authentication:
@@ -65,8 +64,6 @@ type Server struct {
 	labels      map[string]string                //static server labels
 	cmdLabels   map[string]services.CommandLabel //dymanic server labels
 	labelsMutex *sync.Mutex
-
-	certificatesCache *services.CAService
 
 	proxyMode bool
 	proxyTun  reversetunnel.Server
@@ -144,25 +141,12 @@ func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
 
 	for _, o := range options {
 		if err := o(s); err != nil {
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
 	}
 	if s.elog == nil {
 		s.elog = utils.NullEventLogger
 	}
-
-	var err error
-
-	certCacheFile := "CertCache"
-	if s.proxyMode {
-		certCacheFile = "ProxyCertCache"
-	}
-	backend, err := boltbk.New(path.Join(dataDir, certCacheFile))
-	if err != nil {
-		return nil, err
-	}
-	s.certificatesCache = services.NewCAService(backend)
-	s.certificatesCache.IsCache = true
 
 	srv, err := sshutils.NewServer(
 		addr, s, signers,
@@ -170,7 +154,7 @@ func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
 		limiter,
 		sshutils.SetRequestHandler(s))
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	s.srv = srv
 	return s, nil
@@ -199,14 +183,6 @@ func (s *Server) heartbeatPresence() {
 			if err := s.ap.UpsertServer(srv, 6*time.Second); err != nil {
 				log.Warningf("failed to announce %#v presence: %v", srv, err)
 			}
-
-			if err := s.updateTrustedCAKeys(); err != nil {
-				log.Warningf(err.Error())
-			}
-			if err := s.updateUserMappings(); err != nil {
-				log.Warningf(err.Error())
-			}
-
 		}()
 		time.Sleep(3 * time.Second)
 	}
@@ -237,111 +213,95 @@ func (s *Server) updateLabel(name string, label services.CommandLabel) {
 	}
 }
 
-func (s *Server) updateTrustedCAKeys() error {
-	keys, err := s.ap.GetTrustedCertificates(services.UserCert)
+func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser string) error {
+	// find cert authority by it's key
+	cas, err := s.ap.GetCertAuthorities(services.UserCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for _, key := range keys {
-		err := s.certificatesCache.UpsertRemoteCertificate(key, CertificatesCacheTTL)
+
+	var ca *services.CertAuthority
+	for i := range cas {
+		checkers, err := cas[i].Checkers()
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		for _, checker := range checkers {
+			if sshutils.KeysEqual(cert, checker) {
+				ca = cas[i]
+				break
+			}
+		}
 	}
-	return nil
-}
 
-func (s *Server) updateUserMappings() error {
-	userMappings, err := s.ap.GetAllUserMappings()
+	if ca == nil {
+		return trace.Wrap(&teleport.NotFoundError{
+			Message: fmt.Sprintf("not found authority for key %v", teleportUser),
+		})
+	}
+
+	localDomain, err := s.ap.GetLocalDomain()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.certificatesCache.UpdateUserMappings(userMappings, CertificatesCacheTTL)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
 
-func (s *Server) userMappingExists(cert ssh.PublicKey, teleportUser,
-	osUser string) (bool, error) {
-
-	certID, found, err := s.certificatesCache.GetCertificateID(services.UserCert, cert)
-	if err != nil {
-		log.Errorf(err.Error())
-	}
-	if !found {
-		certID, found, err = s.ap.GetCertificateID(services.UserCert, cert)
+	// for local users, go and check their individual permissions
+	if localDomain == ca.DomainName {
+		log.Infof("%v is local authority", ca.DomainName)
+		users, err := s.ap.GetUsers()
 		if err != nil {
-			return false, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
-		if !found {
-			return false, nil
+		log.Infof("users: %v", users)
+		for _, u := range users {
+			if u.Name == teleportUser {
+				for _, login := range u.AllowedLogins {
+					if login == osUser {
+						return nil
+					}
+				}
+			}
+		}
+		return trace.Wrap(&teleport.NotFoundError{
+			Message: fmt.Sprintf("not found local user entry for %v and os user %v for local authority %v", teleportUser, osUser, ca.ID()),
+		})
+	}
+	log.Infof("%v is remote authority", ca.DomainName)
+
+	// for other authorities, check for authoritiy permissions
+	for _, login := range ca.AllowedLogins {
+		if login == osUser {
+			return nil
 		}
 	}
-
-	exists, err := s.certificatesCache.UserMappingExists(certID,
-		teleportUser, osUser)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	if exists {
-		return true, nil
-	}
-
-	exists, err = s.certificatesCache.UserMappingExists(certID,
-		services.UserMappingWildcard, osUser)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	if exists {
-		return true, nil
-	}
-
-	exists, err = s.ap.UserMappingExists(certID,
-		teleportUser, osUser)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	if exists {
-		return true, nil
-	}
-
-	exists, err = s.ap.UserMappingExists(certID,
-		services.UserMappingWildcard, osUser)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	if exists {
-		return true, nil
-	}
-
-	return false, nil
+	return trace.Wrap(&teleport.NotFoundError{
+		Message: fmt.Sprintf("not found user entry for %v and os user %v for remote authority %v", teleportUser, osUser, ca.ID()),
+	})
 }
 
 // isAuthority is called during checking the client key, to see if the signing
 // key is the real CA authority key.
-func (s *Server) isAuthority(auth ssh.PublicKey) bool {
-	// Checking certificates from cache
-	_, found, err := s.certificatesCache.GetCertificateID(services.UserCert, auth)
+func (s *Server) isAuthority(cert ssh.PublicKey) bool {
+	// find cert authority by it's key
+	cas, err := s.ap.GetCertAuthorities(services.UserCA)
 	if err != nil {
-		log.Errorf("failed to retrieve trused keys, err: %v", err)
+		log.Warningf("%v", err)
 		return false
 	}
-	if found {
-		return true
-	}
 
-	// Checking certificates from auth server
-	_, found, err = s.ap.GetCertificateID(services.UserCert, auth)
-	if err != nil {
-		log.Errorf("failed to retrieve trused keys, err: %v", err)
-		return false
+	for i := range cas {
+		checkers, err := cas[i].Checkers()
+		if err != nil {
+			log.Warningf("%v", err)
+			return false
+		}
+		for _, checker := range checkers {
+			if sshutils.KeysEqual(cert, checker) {
+				return true
+			}
+		}
 	}
-	if found {
-		return true
-	}
-
+	log.Warningf("no matching authority found")
 	return false
 }
 
@@ -352,24 +312,27 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	eventID := lunk.NewRootEventID()
 	log.Infof("%v auth attempt with key %v", cid, key.Type())
 
+	logger := log.WithFields(log.Fields{
+		"local":  conn.LocalAddr(),
+		"remote": conn.RemoteAddr(),
+		"user":   conn.User(),
+	})
+
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
-		log.Warningf("conn(%v->%v, user=%v) ERROR: Server doesn't support provided key type",
-			conn.RemoteAddr(), conn.LocalAddr(), conn.User())
-		return nil, trace.Errorf("ERROR: Server doesn't support provided key type")
+		logger.Warningf("server doesn't support provided key type: %T", key)
+		return nil, trace.Errorf("server doesn't support provided key type: %v", key)
 	}
 	teleportUser := cert.Permissions.Extensions[utils.CertExtensionUser]
 
 	p, err := s.certChecker.Authenticate(conn, key)
 	if err != nil {
 		s.elog.Log(eventID, events.NewAuthAttempt(conn, key, false, err))
-		log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
-			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
-		return nil, err
+		logger.Warningf("authenticate err: %v", err)
+		return nil, trace.Wrap(err)
 	}
-	if err := s.certChecker.CheckCert(teleportUser, key.(*ssh.Certificate)); err != nil {
-		log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
-			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
+	if err := s.certChecker.CheckCert(teleportUser, cert); err != nil {
+		logger.Warningf("failed to authenticate user, err: %v", err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -377,18 +340,11 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		return p, nil
 	}
 
-	exists, err := s.userMappingExists(cert.SignatureKey, teleportUser, conn.User())
+	err = s.checkPermissionToLogin(cert.SignatureKey, teleportUser, conn.User())
 	if err != nil {
-		log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
-			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
+		logger.Warningf("authenticate user: %v", err)
 		return nil, trace.Wrap(err)
 	}
-	if !exists {
-		log.Warningf("conn(%v->%v, user=%v) ERROR: teleport user %v doesn't have permissions to connect as os user %v",
-			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), teleportUser, conn.User())
-		return nil, trace.Errorf("no permissions to connect as %v", conn.User())
-	}
-
 	return p, nil
 }
 

@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
@@ -44,6 +45,7 @@ import (
 	"github.com/mailgun/lemma/secret"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/crypto/ssh/testdata"
 	. "gopkg.in/check.v1"
 )
 
@@ -61,6 +63,7 @@ type SrvSuite struct {
 	signer      ssh.Signer
 	dir         string
 	user        string
+	domainName  string
 }
 
 var _ = Suite(&SrvSuite{})
@@ -88,18 +91,37 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		encryptor.GetTestKey)
 	c.Assert(err, IsNil)
 
-	s.a = auth.NewAuthServer(s.bk, authority.New(), s.scrt, "host5")
+	s.domainName = "localhost"
+	s.a = auth.NewAuthServer(s.bk, authority.New(), s.scrt, s.domainName)
+
+	keyBytes := testdata.PEMBytes["rsa"]
+	key, err := ssh.ParsePrivateKey(keyBytes)
+	c.Assert(err, IsNil)
+	pubKey := key.PublicKey()
+
+	userCA := services.CertAuthority{
+		Type:         services.UserCA,
+		DomainName:   s.domainName,
+		CheckingKeys: [][]byte{pubKey.Marshal()},
+		SigningKeys:  [][]byte{keyBytes},
+	}
+	c.Assert(s.a.UpsertCertAuthority(userCA, backend.Forever), IsNil)
+
+	hostCA := services.CertAuthority{
+		Type:         services.HostCA,
+		DomainName:   s.domainName,
+		CheckingKeys: [][]byte{pubKey.Marshal()},
+		SigningKeys:  [][]byte{keyBytes},
+	}
+	c.Assert(s.a.UpsertCertAuthority(hostCA, backend.Forever), IsNil)
 
 	// set up host private key and certificate
-	c.Assert(s.a.ResetHostCertificateAuthority(""), IsNil)
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
-	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", auth.RoleAdmin, 0)
+	hcert, err := s.a.GenerateHostCert(hpub, s.domainName, s.domainName, auth.RoleAdmin, 0)
 	c.Assert(err, IsNil)
 
 	// set up user CA and set up a user that has access to the server
-	c.Assert(s.a.ResetUserCertificateAuthority(""), IsNil)
-
 	s.signer, err = sshutils.NewSigner(hpriv, hcert)
 	c.Assert(err, IsNil)
 
@@ -122,14 +144,13 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	)
 	c.Assert(err, IsNil)
 
-	ap := auth.NewBackendAccessPoint(s.bk)
 	s.srvAddress = "127.0.0.1:30185"
-	s.srvHostPort = "localhost:30185"
+	s.srvHostPort = fmt.Sprintf("%v:30185", s.domainName)
 	srv, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srvAddress},
-		"localhost",
+		s.domainName,
 		[]ssh.Signer{s.signer},
-		ap,
+		s.a,
 		limiter,
 		s.dir,
 		SetShell("/bin/sh"),
@@ -152,7 +173,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(keyring.Add(addedKey), IsNil)
 	s.up = up
 
-	c.Assert(s.a.UpsertUserMapping("local", s.user, s.user, time.Hour), IsNil)
+	c.Assert(s.a.UpsertUser(services.User{Name: s.user, AllowedLogins: []string{s.user}}), IsNil)
 
 	sshConfig := &ssh.ClientConfig{
 		User: s.user,
@@ -245,7 +266,7 @@ func (s *SrvSuite) TestTun(c *C) {
 	c.Assert(removeNL(stdout.String()), Matches, ".*77.*")
 }
 
-func (s *SrvSuite) TestUserMapping(c *C) {
+func (s *SrvSuite) TestAllowedUsers(c *C) {
 	up, err := newUpack("user2", s.a)
 	c.Assert(err, IsNil)
 
@@ -257,43 +278,37 @@ func (s *SrvSuite) TestUserMapping(c *C) {
 	client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 	c.Assert(err, NotNil)
 
-	c.Assert(s.a.UpsertUserMapping("local", "user2", s.user, time.Hour), IsNil)
+	c.Assert(s.a.UpsertUser(services.User{Name: "user2", AllowedLogins: []string{s.user}}), IsNil)
 	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 	c.Assert(err, IsNil)
 	c.Assert(client.Close(), IsNil)
 
-	c.Assert(s.a.DeleteUserMapping("local", "user2", s.user), IsNil)
+	c.Assert(s.a.UpsertUser(services.User{Name: "user2", AllowedLogins: []string{}}), IsNil)
 	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 	c.Assert(err, NotNil)
 
-	c.Assert(s.a.UpsertUserMapping("local", "user2", "wrongOSUser", time.Hour), IsNil)
+	c.Assert(s.a.UpsertUser(services.User{Name: "user2", AllowedLogins: []string{"wrongOSUser"}}), IsNil)
 	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 	c.Assert(err, NotNil)
-
-	c.Assert(s.a.UpsertUserMapping("local", ".*", s.user, time.Hour), IsNil)
-	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
-	c.Assert(err, IsNil)
-	c.Assert(client.Close(), IsNil)
 }
 
 func (s *SrvSuite) TestProxy(c *C) {
 	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{})
 	c.Assert(err, IsNil)
 
-	ap := auth.NewBackendAccessPoint(s.bk)
-	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:33056"}
+	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("%v:33056", s.domainName)}
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
-		ap, limiter)
+		s.a, limiter)
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
 	proxy, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
-		"localhost",
+		s.domainName,
 		[]ssh.Signer{s.signer},
-		ap,
+		s.a,
 		limiter,
 		s.dir,
 		SetProxyMode(reverseTunnelServer),
@@ -353,7 +368,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
 	}
 
-	c.Assert(s.a.UpsertUserMapping("local", "user1", s.user, time.Hour), IsNil)
+	c.Assert(s.a.UpsertUser(services.User{Name: "user1", AllowedLogins: []string{s.user}}), IsNil)
 
 	// Trying to connect to unregistered ssh node
 	client, err := ssh.Dial("tcp", proxy.Addr(), sshConfig)
@@ -453,7 +468,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:31185"},
 		"localhost",
 		[]ssh.Signer{s.signer},
-		ap,
+		s.a,
 		limiter,
 		c.MkDir(),
 		SetShell("/bin/sh"),

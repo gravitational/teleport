@@ -26,7 +26,7 @@ import (
 
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/kingpin"
+	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 func ParseJSON(r io.Reader) (*Config, error) {

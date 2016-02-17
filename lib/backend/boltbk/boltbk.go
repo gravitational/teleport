@@ -69,9 +69,9 @@ func (b *BoltBackend) GetKeys(path []string) ([]string, error) {
 	keys, err := b.getKeys(path)
 	if err != nil {
 		if teleport.IsNotFound(err) {
-			return []string{}, nil
+			return nil, nil
 		}
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	// now do an iteration to expire keys
 	for _, key := range keys {
@@ -79,10 +79,7 @@ func (b *BoltBackend) GetKeys(path []string) ([]string, error) {
 	}
 	keys, err = b.getKeys(path)
 	if err != nil {
-		if teleport.IsNotFound(err) {
-			return []string{}, nil
-		}
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	sort.Sort(sort.StringSlice(keys))
 	return keys, nil
@@ -102,7 +99,7 @@ func (b *BoltBackend) upsertVal(path []string, key string, val []byte, ttl time.
 	}
 	bytes, err := json.Marshal(v)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	return b.upsertKey(path, key, bytes)
 }
@@ -112,44 +109,42 @@ func (b *BoltBackend) CompareAndSwap(path []string, key string, val []byte, ttl 
 	defer b.Unlock()
 
 	storedVal, err := b.GetVal(path, key)
-
 	if teleport.IsNotFound(err) {
 		storedVal = []byte{}
 		err = nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	if string(prevVal) == string(storedVal) {
 		err = b.upsertVal(path, key, val, ttl)
 		if err != nil {
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
 		return storedVal, nil
 	} else {
-		return storedVal, &teleport.CompareFailedError{
-			Message: "Expected '" + string(prevVal) + "', obtained '" + string(storedVal) + "'",
-		}
+		return storedVal, trace.Wrap(&teleport.CompareFailedError{
+			Message: "expected '" + string(prevVal) + "', obtained '" + string(storedVal) + "'",
+		})
 	}
-
 }
 
 func (b *BoltBackend) GetVal(path []string, key string) ([]byte, error) {
 	var val []byte
 	if err := b.getKey(path, key, &val); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	var k *kv
 	if err := json.Unmarshal(val, &k); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	if k.TTL != 0 && time.Now().Sub(k.Created) > k.TTL {
 		if err := b.deleteKey(path, key); err != nil {
 			return nil, err
 		}
-		return nil, &teleport.NotFoundError{
-			Message: fmt.Sprintf("%v: %v not found", path, key)}
+		return nil, trace.Wrap(&teleport.NotFoundError{
+			Message: fmt.Sprintf("%v: %v not found", path, key)})
 	}
 	return k.Value, nil
 }
@@ -157,18 +152,18 @@ func (b *BoltBackend) GetVal(path []string, key string) ([]byte, error) {
 func (b *BoltBackend) GetValAndTTL(path []string, key string) ([]byte, time.Duration, error) {
 	var val []byte
 	if err := b.getKey(path, key, &val); err != nil {
-		return nil, 0, err
+		return nil, 0, trace.Wrap(err)
 	}
 	var k *kv
 	if err := json.Unmarshal(val, &k); err != nil {
-		return nil, 0, err
+		return nil, 0, trace.Wrap(err)
 	}
 	if k.TTL != 0 && time.Now().Sub(k.Created) > k.TTL {
 		if err := b.deleteKey(path, key); err != nil {
-			return nil, 0, err
+			return nil, 0, trace.Wrap(err)
 		}
-		return nil, 0, &teleport.NotFoundError{
-			Message: fmt.Sprintf("%v: %v not found", path, key)}
+		return nil, 0, trace.Wrap(&teleport.NotFoundError{
+			Message: fmt.Sprintf("%v: %v not found", path, key)})
 	}
 	var newTTL time.Duration
 	newTTL = 0
@@ -194,11 +189,11 @@ func (b *BoltBackend) deleteBucket(buckets []string, bucket string) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
 		bkt, err := GetBucket(tx, buckets)
 		if err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 		if bkt.Bucket([]byte(bucket)) == nil {
-			return &teleport.NotFoundError{
-				Message: fmt.Sprintf("%v not found", bucket)}
+			return trace.Wrap(&teleport.NotFoundError{
+				Message: fmt.Sprintf("%v not found", bucket)})
 		}
 		return bkt.DeleteBucket([]byte(bucket))
 	})
@@ -208,10 +203,12 @@ func (b *BoltBackend) deleteKey(buckets []string, key string) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
 		bkt, err := GetBucket(tx, buckets)
 		if err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 		if bkt.Get([]byte(key)) == nil {
-			return &teleport.NotFoundError{}
+			return trace.Wrap(&teleport.NotFoundError{
+				Message: fmt.Sprintf("%v is not found", key),
+			})
 		}
 		return bkt.Delete([]byte(key))
 	})
@@ -221,7 +218,7 @@ func (b *BoltBackend) upsertKey(buckets []string, key string, bytes []byte) erro
 	return b.db.Update(func(tx *bolt.Tx) error {
 		bkt, err := UpsertBucket(tx, buckets)
 		if err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 		return bkt.Put([]byte(key), bytes)
 	})
@@ -230,12 +227,12 @@ func (b *BoltBackend) upsertKey(buckets []string, key string, bytes []byte) erro
 func (b *BoltBackend) upsertJSONKey(buckets []string, key string, val interface{}) error {
 	bytes, err := json.Marshal(val)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	return b.db.Update(func(tx *bolt.Tx) error {
 		bkt, err := UpsertBucket(tx, buckets)
 		if err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 		return bkt.Put([]byte(key), bytes)
 	})
@@ -245,13 +242,13 @@ func (b *BoltBackend) getJSONKey(buckets []string, key string, val interface{}) 
 	return b.db.View(func(tx *bolt.Tx) error {
 		bkt, err := GetBucket(tx, buckets)
 		if err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 		bytes := bkt.Get([]byte(key))
 		if bytes == nil {
-			return &teleport.NotFoundError{
+			return trace.Wrap(&teleport.NotFoundError{
 				Message: fmt.Sprintf("%v %v not found", buckets, key),
-			}
+			})
 		}
 		return json.Unmarshal(bytes, val)
 	})
@@ -261,13 +258,13 @@ func (b *BoltBackend) getKey(buckets []string, key string, val *[]byte) error {
 	return b.db.View(func(tx *bolt.Tx) error {
 		bkt, err := GetBucket(tx, buckets)
 		if err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 		bytes := bkt.Get([]byte(key))
 		if bytes == nil {
-			return &teleport.NotFoundError{
+			return trace.Wrap(&teleport.NotFoundError{
 				Message: fmt.Sprintf("%v %v not found", buckets, key),
-			}
+			})
 		}
 		*val = make([]byte, len(bytes))
 		copy(*val, bytes)
@@ -280,7 +277,7 @@ func (b *BoltBackend) getKeys(buckets []string) ([]string, error) {
 	err := b.db.View(func(tx *bolt.Tx) error {
 		bkt, err := GetBucket(tx, buckets)
 		if err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 		c := bkt.Cursor()
 		for k, _ := c.First(); k != nil; k, _ = c.Next() {
@@ -289,7 +286,7 @@ func (b *BoltBackend) getKeys(buckets []string) ([]string, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	return out, nil
 }
@@ -297,12 +294,12 @@ func (b *BoltBackend) getKeys(buckets []string) ([]string, error) {
 func UpsertBucket(b *bolt.Tx, buckets []string) (*bolt.Bucket, error) {
 	bkt, err := b.CreateBucketIfNotExists([]byte(buckets[0]))
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	for _, key := range buckets[1:] {
 		bkt, err = bkt.CreateBucketIfNotExists([]byte(key))
 		if err != nil {
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
 	}
 	return bkt, nil
@@ -311,14 +308,14 @@ func UpsertBucket(b *bolt.Tx, buckets []string) (*bolt.Bucket, error) {
 func GetBucket(b *bolt.Tx, buckets []string) (*bolt.Bucket, error) {
 	bkt := b.Bucket([]byte(buckets[0]))
 	if bkt == nil {
-		return nil, &teleport.NotFoundError{
-			Message: fmt.Sprintf("bucket %v not found", buckets[0])}
+		return nil, trace.Wrap(&teleport.NotFoundError{
+			Message: fmt.Sprintf("bucket %v not found", buckets[0])})
 	}
 	for _, key := range buckets[1:] {
 		bkt = bkt.Bucket([]byte(key))
 		if bkt == nil {
-			return nil, &teleport.NotFoundError{
-				Message: fmt.Sprintf("bucket %v not found", key)}
+			return nil, trace.Wrap(&teleport.NotFoundError{
+				Message: fmt.Sprintf("bucket %v not found", key)})
 		}
 	}
 	return bkt, nil
@@ -349,10 +346,10 @@ func (b *BoltBackend) ReleaseLock(token string) error {
 
 	expires, ok := b.locks[token]
 	if !ok || (!expires.IsZero() && expires.Before(time.Now())) {
-		return &teleport.NotFoundError{
+		return trace.Wrap(&teleport.NotFoundError{
 			Message: fmt.Sprintf(
 				"lock %v is deleted or expired", token),
-		}
+		})
 	}
 	delete(b.locks, token)
 	return nil

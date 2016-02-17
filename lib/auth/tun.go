@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -139,22 +140,22 @@ func (s *TunServer) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 // isAuthority is called during checking the client key, to see if the signing
 // key is the real CA authority key.
 func (s *TunServer) isAuthority(auth ssh.PublicKey) bool {
-	key, err := s.a.GetHostCertificateAuthority()
+	key, err := s.a.GetCertAuthority(services.CertAuthID{DomainName: s.a.Hostname, Type: services.HostCA}, false)
 	if err != nil {
 		log.Errorf("failed to retrieve user authority key, err: %v", err)
 		return false
 	}
-	cert, _, _, _, err := ssh.ParseAuthorizedKey(key.PublicKey)
+	checkers, err := key.Checkers()
 	if err != nil {
-		log.Errorf("failed to parse CA cert '%v', err: %v", string(key.PublicKey), err)
+		log.Errorf("failed to parse CA keys: %v", err)
 		return false
 	}
-
-	if !sshutils.KeysEqual(cert, auth) {
-		log.Warningf("authority signature check failed, signing keys mismatch")
-		return false
+	for _, checker := range checkers {
+		if sshutils.KeysEqual(checker, auth) {
+			return true
+		}
 	}
-	return true
+	return false
 }
 
 func (s *TunServer) haveExt(sconn *ssh.ServerConn, ext ...string) bool {
