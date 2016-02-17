@@ -50,18 +50,18 @@ import (
 
 type Hangout struct {
 	auth             *auth.AuthServer
+	signer           ssh.Signer
 	tunClt           reversetunnel.Agent
 	elog             events.Log
 	rec              recorder.Recorder
 	userPassword     string
-	hangoutID        string
+	HangoutID        string
 	nodePort         string
 	authPort         string
 	ClientAuthMethod ssh.AuthMethod
 	HostKeyCallback  utils.HostKeyCallback
 	client           *auth.TunClient
-	passwordToken    string
-	HangoutInfo      HangoutInfo
+	HangoutInfo      utils.HangoutInfo
 	Token            string
 	sessions         session.SessionServer
 }
@@ -114,37 +114,17 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 	}
 
 	h := &Hangout{}
+
+	h.HangoutID = utils.RandomString()[:20]
+
 	if err := h.initAuth(cfg, readOnly); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if err := h.initTunAgent(cfg, authMethods, hostKeyCallback); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	for {
-		time.Sleep(time.Millisecond * 100)
-		s, err := h.sessions.GetSessions()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if len(s) > 1 {
-			return nil, trace.Errorf("Should be only 1 session")
-		}
-		if len(s) == 1 {
-			h.hangoutID = s[0].ID
-			err := h.sessions.DeleteSession(s[0].ID)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			break
-		}
 	}
 
 	thisSrv := services.Server{
 		ID:       cfg.Auth.SSHAddr.Addr,
 		Addr:     cfg.Auth.SSHAddr.Addr,
-		Hostname: h.hangoutID,
+		Hostname: h.HangoutID,
 	}
 	err = h.auth.UpsertServer(thisSrv, 0)
 	if err != nil {
@@ -167,16 +147,25 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 		return nil, trace.Wrap(err)
 	}
 
-	h.ClientAuthMethod, err = Authorize(h.client, h.userPassword)
+	h.ClientAuthMethod, err = Authorize(h.client)
 	h.HostKeyCallback = nil
 
 	h.HangoutInfo.AuthPort = h.authPort
 	h.HangoutInfo.NodePort = h.nodePort
-	h.HangoutInfo.HangoutID = h.hangoutID
-	h.HangoutInfo.HangoutPassword = h.passwordToken
+	h.HangoutInfo.HangoutID = h.HangoutID
 
-	h.Token, err = MarshalHangoutInfo(&h.HangoutInfo)
+	h.Token, err = utils.MarshalHangoutInfo(&h.HangoutInfo)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// saving hangoutInfo using sessions just as storage
+	err = h.sessions.UpsertSession(h.Token, 0)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := h.initTunAgent(cfg, authMethods, hostKeyCallback); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -185,8 +174,7 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 
 func (h *Hangout) createUser() error {
 	var err error
-	h.passwordToken, err = h.auth.GenerateToken(HangoutUser, services.TokenRoleHangout, 0)
-	h.userPassword = h.passwordToken[0:100]
+	h.userPassword = utils.RandomString()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -211,7 +199,7 @@ func (h *Hangout) createUser() error {
 	return nil
 }
 
-func Authorize(auth auth.ClientI, userPassword string) (ssh.AuthMethod, error) {
+func Authorize(auth auth.ClientI) (ssh.AuthMethod, error) {
 
 	priv, pub, err := authority.New().GenerateKeyPair("")
 	if err != nil {
@@ -286,6 +274,7 @@ func (h *Hangout) initAuth(cfg service.Config, readOnlyHangout bool) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	h.signer = signer
 	h.auth = asrv
 	h.sessions = session.New(b)
 	apisrv := auth.NewAPIWithRoles(asrv, h.elog, h.sessions, h.rec,
@@ -300,10 +289,11 @@ func (h *Hangout) initAuth(cfg service.Config, readOnlyHangout bool) error {
 
 	log.Infof("[AUTH] server SSH endpoint is starting")
 	tsrv, err := auth.NewTunServer(
-		cfg.Auth.SSHAddr, []ssh.Signer{signer},
+		cfg.Auth.SSHAddr, []ssh.Signer{h.signer},
 		apisrv,
 		asrv,
 		limiter,
+		auth.EnableUserCertificates(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -314,37 +304,33 @@ func (h *Hangout) initAuth(cfg service.Config, readOnlyHangout bool) error {
 		}
 	}()
 
-	return nil
-}
-
-func (h *Hangout) initTunAgent(cfg service.Config, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
-	signer, err := auth.ReadKeys(cfg.Hostname, cfg.DataDir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	client, err := auth.NewTunClient(
 		cfg.AuthServers[0],
 		cfg.Hostname,
-		[]ssh.AuthMethod{ssh.PublicKeys(signer)})
+		[]ssh.AuthMethod{ssh.PublicKeys(h.signer)})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	h.client = client
 
+	return nil
+}
+
+func (h *Hangout) initTunAgent(cfg service.Config, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
+
 	elog := &service.FanOutEventLogger{
 		Loggers: []lunk.EventLogger{
 			lunk.NewTextEventLogger(log.StandardLogger().Writer()),
-			client,
+			h.client,
 		}}
 
 	a, err := reversetunnel.NewHangoutAgent(
 		cfg.ReverseTunnel.DialAddr,
-		h.hangoutID,
+		h.HangoutID,
 		authMethods,
 		hostKeyCallback,
-		client,
+		h.client,
 		reversetunnel.SetEventLogger(elog))
 	if err != nil {
 		return trace.Wrap(err)
@@ -364,23 +350,10 @@ func (h *Hangout) initTunAgent(cfg service.Config, authMethods []ssh.AuthMethod,
 }
 
 func (h *Hangout) initSSHEndpoint(cfg service.Config) error {
-	signer, err := auth.ReadKeys(cfg.Hostname, cfg.DataDir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	client, err := auth.NewTunClient(
-		cfg.AuthServers[0],
-		cfg.Hostname,
-		[]ssh.AuthMethod{ssh.PublicKeys(signer)})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	elog := &service.FanOutEventLogger{
 		Loggers: []lunk.EventLogger{
 			lunk.NewTextEventLogger(log.StandardLogger().Writer()),
-			client,
+			h.client,
 		},
 	}
 
@@ -390,15 +363,15 @@ func (h *Hangout) initSSHEndpoint(cfg service.Config) error {
 	}
 
 	s, err := srv.New(cfg.SSH.Addr,
-		h.hangoutID,
-		[]ssh.Signer{signer},
-		client,
+		h.HangoutID,
+		[]ssh.Signer{h.signer},
+		h.client,
 		limiter,
 		cfg.DataDir,
 		srv.SetShell(cfg.SSH.Shell),
 		srv.SetEventLogger(elog),
-		srv.SetSessionServer(client),
-		srv.SetRecorder(client),
+		srv.SetSessionServer(h.client),
+		srv.SetRecorder(h.client),
 		srv.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
 	)
 	if err != nil {
@@ -481,12 +454,6 @@ func initRecordBackend(btype string, params string) (recorder.Recorder, error) {
 		return boltrec.FromJSON(params)
 	}
 	return nil, trace.Errorf("unsupported backend type: %v", btype)
-}
-
-func (h *Hangout) GetJoinCommand() string {
-	//nodeAddress := h.hangoutID + ":" + h.nodePort
-	//authAddress := h.hangoutID + ":" + h.authPort
-	return ""
 }
 
 const HangoutUser = "hangoutUser"

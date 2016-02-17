@@ -24,6 +24,11 @@ type hangoutsSubsys struct {
 	port string
 }
 
+type HangoutEndpointInfo struct {
+	HostKey services.CertificateAuthority
+	OSUser  string
+}
+
 func parseHangoutsSubsys(name string, srv *Server) (*hangoutsSubsys, error) {
 	out := strings.Split(name, ":")
 	if len(out) != 3 {
@@ -46,13 +51,25 @@ func (t *hangoutsSubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 		return trace.Wrap(err)
 	}
 
+	hostKey, osUser, authPort, nodePort := remoteSrv.GetHangoutInfo()
+	if hostKey == nil {
+		return trace.Errorf("No hostkey for that hangout")
+	}
+
+	targetPort := ""
+	if t.port == "auth" {
+		targetPort = authPort
+	}
+	if t.port == "node" {
+		targetPort = nodePort
+	}
+
 	// find matching server in the list of servers for this site
 	servers, err := remoteSrv.GetServers()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	serverAddr := fmt.Sprintf("%v:%v", t.host, t.port)
 	var server *services.Server
 	for i := range servers {
 		log.Infof("%v %v", servers[i].Addr, servers[i].Hostname)
@@ -61,21 +78,21 @@ func (t *hangoutsSubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 			return trace.Wrap(err)
 		}
 		// match either by hostname of ip, based on the match
-		if (t.host == ip || t.host == servers[i].Hostname) && port == t.port {
+		if (t.host == ip || t.host == servers[i].Hostname) && targetPort == port {
 			server = &servers[i]
 			break
 		}
 	}
 	if server == nil {
-		return trace.Errorf("server %v not found", serverAddr)
+		return trace.Errorf("server %v:%v not found", t.host, t.port)
 	}
 
 	// send target server host key so user can check the server
-	hostKey := remoteSrv.GetHangoutHostKey()
-	if hostKey == nil {
-		return trace.Errorf("No hostkey for that hangout")
+	endpointInfo := HangoutEndpointInfo{
+		HostKey: *hostKey,
+		OSUser:  osUser,
 	}
-	data, err := json.Marshal(*hostKey)
+	data, err := json.Marshal(endpointInfo)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package hangout
+package utils
 
 import (
 	"encoding/base64"
@@ -23,11 +23,10 @@ import (
 )
 
 type HangoutInfo struct {
-	AuthPort        string `json:"a"`
-	NodePort        string `json:"n"`
-	HangoutID       string `json:"id"`
-	HangoutPassword string `json:"p"`
-	OSUser          string `json:"u"`
+	AuthPort  string `json:"a"`
+	NodePort  string `json:"n"`
+	HangoutID string `json:"id"`
+	OSUser    string `json:"u"`
 }
 
 func MarshalHangoutInfo(h *HangoutInfo) (string, error) {

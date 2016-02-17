@@ -281,14 +281,16 @@ const (
 	DefaultAuthListeningAddress = "localhost:33011"
 )
 
-func Share(hangoutProxyAddress, nodeListeningAddress,
+func Share(proxyAddress, hangoutProxyAddress, nodeListeningAddress,
 	authListeningAddress string, readOnly bool, authMethods []ssh.AuthMethod,
 	hostKeyCallback utils.HostKeyCallback) error {
 
 	hangoutServer, err := hangout.New(hangoutProxyAddress, nodeListeningAddress,
 		authListeningAddress, readOnly, authMethods, hostKeyCallback)
 
-	fmt.Printf("\nHangoutToken:\n\n%v\n\n", hangoutServer.Token)
+	url := proxyAddress + "/hangout/" + hangoutServer.HangoutID
+
+	fmt.Printf("\nURL:\n\n%v\n\n", url)
 
 	if err != nil {
 		return trace.Wrap(err)
@@ -302,7 +304,7 @@ func Share(hangoutProxyAddress, nodeListeningAddress,
 	return SSH(u.Username+"@"+nodeListeningAddress, "", "", "", "hangoutSession", []ssh.AuthMethod{hangoutServer.ClientAuthMethod}, hangoutServer.HostKeyCallback)
 }
 
-func Join(proxyAddress, hangoutToken string, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
+func Join(hangoutURL string, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
 	/*
 		// Debug Mode
 		hangoutServer, err := hangout.New("localhost:33009", "localhost:33010",
@@ -311,25 +313,23 @@ func Join(proxyAddress, hangoutToken string, authMethods []ssh.AuthMethod, hostK
 			return trace.Wrap(err)
 		}
 		time.Sleep(time.Second * 1)
-		hangoutToken = hangoutServer.Token
-	*/
 
-	hInfo, err := hangout.UnmarshalHangoutInfo(hangoutToken)
-	if err != nil {
-		return trace.Wrap(err)
+		hangoutURL = "localhost:33008" + "/hangout/" + hangoutServer.HangoutID
+	*/
+	urlParts := strings.Split(hangoutURL, "/")
+	if len(urlParts) < 3 {
+		return trace.Errorf("invalid URL")
 	}
+
+	proxyAddress := strings.Join(urlParts[:len(urlParts)-2], "/")
+	hangoutID := urlParts[len(urlParts)-1 : len(urlParts)][0]
 
 	proxy, err := client.ConnectToProxy(proxyAddress, authMethods, hostKeyCallback, "123")
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	hangoutAuthMethod, err := auth.NewTokenAuth(hangout.HangoutUser, hInfo.HangoutPassword)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	authConn, err := proxy.ConnectToHangout(hInfo.HangoutID+":"+hInfo.AuthPort, hangoutAuthMethod, hangout.HangoutUser)
+	authConn, err := proxy.ConnectToHangout(hangoutID+":auth", authMethods)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -339,17 +339,17 @@ func Join(proxyAddress, hangoutToken string, authMethods []ssh.AuthMethod, hostK
 		return trace.Wrap(err)
 	}
 
-	nodeAuthMethod, err := hangout.Authorize(authClient, hInfo.HangoutPassword[0:100])
+	nodeAuthMethod, err := hangout.Authorize(authClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	nodeConn, err := proxy.ConnectToHangout(hInfo.HangoutID+":"+hInfo.NodePort, []ssh.AuthMethod{nodeAuthMethod}, hInfo.OSUser)
+	nodeConn, err := proxy.ConnectToHangout(hangoutID+":node", []ssh.AuthMethod{nodeAuthMethod})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	fmt.Println("Connected\n")
 
-	return shell(nodeConn, hInfo.HangoutID, "hangoutSession")
+	return shell(nodeConn, hangoutID, "hangoutSession")
 }

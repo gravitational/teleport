@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
@@ -251,7 +252,7 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, authMethods []ssh.Au
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
 func (proxy *ProxyClient) ConnectToHangout(nodeAddress string,
-	authMethods []ssh.AuthMethod, user string) (*NodeClient, error) {
+	authMethods []ssh.AuthMethod) (*NodeClient, error) {
 
 	if len(authMethods) == 0 {
 		return nil, trace.Errorf("no authMethods were provided")
@@ -308,8 +309,8 @@ func (proxy *ProxyClient) ConnectToHangout(nodeAddress string,
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		var hostKey services.CertificateAuthority
-		err = json.Unmarshal(buf[:n], &hostKey)
+		var endpointInfo srv.HangoutEndpointInfo
+		err = json.Unmarshal(buf[:n], &endpointInfo)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -320,7 +321,7 @@ func (proxy *ProxyClient) ConnectToHangout(nodeAddress string,
 				return trace.Errorf("expected certificate")
 			}
 
-			pk, _, _, _, err := ssh.ParseAuthorizedKey(hostKey.PublicKey)
+			pk, _, _, _, err := ssh.ParseAuthorizedKey(endpointInfo.HostKey.PublicKey)
 			if err != nil {
 				return trace.Errorf("error parsing key: %v", err)
 			}
@@ -332,7 +333,7 @@ func (proxy *ProxyClient) ConnectToHangout(nodeAddress string,
 		}
 
 		sshConfig := &ssh.ClientConfig{
-			User:            user,
+			User:            endpointInfo.OSUser,
 			Auth:            []ssh.AuthMethod{authMethod},
 			HostKeyCallback: hostKeyCallback,
 		}

@@ -59,7 +59,7 @@ func RunTSH(app *kingpin.Application) error {
 	shareReadOnly := share.Flag("readonly", "Remote users can't write to the shell").Bool()
 
 	join := app.Command("join", "Join a remote hangout")
-	joinToken := join.Arg("token", "The token from the hangout owner").Required().String()
+	joinURL := join.Arg("url", "The url from the hangout owner").Required().String()
 
 	selectedCommand := kingpin.MustParse(app.Parse(os.Args[1:]))
 
@@ -104,9 +104,9 @@ func RunTSH(app *kingpin.Application) error {
 		err = SCP(*proxy, *scpSource, *scpDest, *scpIsDir, *scpPort,
 			authMethods, hostKeyCallback)
 	case share.FullCommand():
-		err = Share(*shareReverseProxy, *shareNodeAddress, *shareAuthAddress, *shareReadOnly, authMethods, hostKeyCallback)
+		err = Share(*proxy, *shareReverseProxy, *shareNodeAddress, *shareAuthAddress, *shareReadOnly, authMethods, hostKeyCallback)
 	case join.FullCommand():
-		err = Join(*proxy, *joinToken, authMethods, hostKeyCallback)
+		err = Join(*joinURL, authMethods, hostKeyCallback)
 	}
 
 	return err

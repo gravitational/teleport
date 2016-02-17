@@ -46,7 +46,7 @@ type RemoteSite interface {
 	GetStatus() string
 	GetClient() *auth.Client
 	GetServers() ([]services.Server, error)
-	GetHangoutHostKey() *services.CertificateAuthority
+	GetHangoutInfo() (hostKey *services.CertificateAuthority, OSUser, AuthPort, NodePort string)
 }
 
 type Server interface {
@@ -311,16 +311,10 @@ func (s *server) upsertHangoutSite(c ssh.Conn) (*remoteSite, error) {
 	s.Lock()
 	defer s.Unlock()
 
-	hangoutID := ""
-	unique := false
-	for !unique {
-		hangoutID = utils.RandomString()
-		unique = true
-		for _, st := range s.sites {
-			if st.domainName == hangoutID {
-				unique = false
-				break
-			}
+	hangoutID := c.User()
+	for _, st := range s.sites {
+		if st.domainName == hangoutID {
+			return nil, trace.Errorf("Hangout ID is already used")
 		}
 	}
 
@@ -329,11 +323,36 @@ func (s *server) upsertHangoutSite(c ssh.Conn) (*remoteSite, error) {
 	if err != nil {
 		return nil, err
 	}
-	site.hostKey, err = site.clt.GetHostCertificateAuthority()
+	site.hangoutHostKey, err = site.clt.GetHostCertificateAuthority()
 	if err != nil {
 		return nil, err
 	}
-	err = site.clt.UpsertSession(hangoutID, 0)
+	proxyUserCert, err := s.ap.GetUserCertificateAuthority()
+	if err != nil {
+		return nil, err
+	}
+	err = site.clt.UpsertRemoteCertificate(*proxyUserCert, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	// receiving hangoutInfo using sessions just as storage
+	sess, err := site.clt.GetSessions()
+	if err != nil {
+		return nil, err
+	}
+	if len(sess) != 1 {
+		return nil, trace.Errorf("Can't get hangout info")
+	}
+	hangoutInfo, err := utils.UnmarshalHangoutInfo(sess[0].ID)
+	if err != nil {
+		return nil, err
+	}
+	site.domainName = hangoutInfo.HangoutID
+	site.hangoutOSUser = hangoutInfo.OSUser
+	site.hangoutAuthPort = hangoutInfo.AuthPort
+	site.hangoutNodePort = hangoutInfo.NodePort
+
 	s.sites = append(s.sites, site)
 	return site, nil
 }
@@ -400,7 +419,11 @@ type remoteSite struct {
 	lastActive time.Time
 	srv        *server
 	clt        *auth.Client
-	hostKey    *services.CertificateAuthority
+
+	hangoutHostKey  *services.CertificateAuthority
+	hangoutOSUser   string
+	hangoutAuthPort string
+	hangoutNodePort string
 }
 
 func (s *remoteSite) GetClient() *auth.Client {
@@ -561,8 +584,8 @@ func (s *remoteSite) handleAuthProxy(w http.ResponseWriter, r *http.Request) {
 	fwd.ServeHTTP(w, r)
 }
 
-func (s *remoteSite) GetHangoutHostKey() *services.CertificateAuthority {
-	return s.hostKey
+func (s *remoteSite) GetHangoutInfo() (hostKey *services.CertificateAuthority, OSUser, AuthPort, NodePort string) {
+	return s.hangoutHostKey, s.hangoutOSUser, s.hangoutAuthPort, s.hangoutNodePort
 }
 
 const ExtHost = "host@teleport"
