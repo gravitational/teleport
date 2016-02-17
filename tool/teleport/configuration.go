@@ -51,24 +51,61 @@ type CommandLineFlags struct {
 
 // readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
 // and overrides values in 'cfg' structure
-func readConfigFile(configFilePath string, cfg *service.Config) error {
+func readConfigFile(configFilePath string) (*config.FileConfig, error) {
 	if configFilePath != "" && !fileExists(configFilePath) {
-		return trace.Errorf("file not found: %s", configFilePath)
+		return nil, trace.Errorf("file not found: %s", configFilePath)
 	}
 	// not given a config file? check the default location:
 	if configFilePath == "" {
 		configFilePath = defaults.ConfigFilePath
 		if !fileExists(configFilePath) {
 			log.Info("not using a config file")
-			return nil
+			return nil, nil
 		}
 	}
-	// TODO read the config:
-	_, err := config.ReadFromFile(configFilePath)
-	if err != nil {
-		return trace.Wrap(err)
+	return config.ReadFromFile(configFilePath)
+}
+
+// applyFileConfig applies confniguration from a YAML file to Teleport
+// runtime config
+func applyFileConfig(fc *config.FileConfig, cfg *service.Config) error {
+	// merge file-based config with defaults in 'cfg'
+	if fc.Auth.Disabled() {
+		cfg.Auth.Enabled = false
 	}
+	if fc.SSH.Disabled() {
+		cfg.SSH.Enabled = false
+	}
+	if fc.Proxy.Disabled() {
+		cfg.Proxy.Enabled = false
+	}
+	applyString(fc.NodeName, &cfg.Hostname)
+
+	// config file has auth servers in there?
+	authServers := fc.GetAuthServers()
+	if len(authServers) > 0 {
+		cfg.AuthServers = make(service.NetAddrSlice, len(authServers))
+		for _, as := range fc.GetAuthServers() {
+			addr, err := utils.ParseAddr(as)
+			if err != nil {
+				return trace.Errorf("cannot parse auth server address: '%v'", as)
+			}
+			cfg.AuthServers = append(cfg.AuthServers, *addr)
+		}
+	}
+	cfg.ApplyToken(fc.AuthToken)
+
 	return nil
+}
+
+// applyString takes 'src' and overwrites target with it, unless 'src' is empty
+// returns 'True' if 'src' was not empty
+func applyString(src string, target *string) bool {
+	if src != "" {
+		*target = src
+		return true
+	}
+	return false
 }
 
 // configure merges command line arguments with what's in a configuration file
@@ -80,8 +117,12 @@ func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 		return cfg, trace.Wrap(err)
 	}
 
-	// load /etc/teleport.yaml
-	if err = readConfigFile(clf.ConfigFile, cfg); err != nil {
+	// load /etc/teleport.yaml and apply it's values:
+	fileConf, err := readConfigFile(clf.ConfigFile)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = applyFileConfig(fileConf, cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -128,7 +169,7 @@ func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 		cfg.AuthServers = []utils.NetAddr{*addr}
 	}
 
-	// apply --token flag:
+	// apply --name flag:
 	if clf.NodeName != "" {
 		if clf.NodeName == "" {
 			return cfg, trace.Errorf("Need --name flag")
@@ -137,11 +178,7 @@ func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 	}
 
 	// apply --token flag:
-	if clf.AuthToken != "" {
-		log.Infof("Using auth token: %s", clf.AuthToken)
-		cfg.SSH.Token = clf.AuthToken
-		cfg.Proxy.Token = clf.AuthToken
-	}
+	cfg.ApplyToken(clf.AuthToken)
 
 	// apply --listen-ip flag:
 	if clf.ListenIP != nil {

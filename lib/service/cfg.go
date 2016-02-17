@@ -60,6 +60,20 @@ type Config struct {
 	Console io.Writer
 }
 
+// ApplyToken assigns a given token to all internal services but only if token
+// is not an empty string.
+//
+// Returns 'true' if token was modified
+func (cfg *Config) ApplyToken(token string) bool {
+	if token != "" {
+		cfg.SSH.Token = token
+		cfg.Proxy.Token = token
+		cfg.Auth.Token = token
+		return true
+	}
+	return false
+}
+
 func (cfg *Config) RoleConfig() RoleConfig {
 	return RoleConfig{
 		DataDir:     cfg.DataDir,

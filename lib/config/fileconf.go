@@ -27,6 +27,41 @@ import (
 	"github.com/gravitational/trace"
 )
 
+var (
+	// all possible valid YAML config keys
+	validKeys = map[string]int{
+		"teleport":          1,
+		"enabled":           1,
+		"ssh_service":       1,
+		"proxy_service":     1,
+		"auth_service":      1,
+		"auth_token":        1,
+		"auth_servers":      1,
+		"storage":           1,
+		"nodename":          1,
+		"log":               1,
+		"period":            1,
+		"connection_limits": 1,
+		"max_connections":   1,
+		"max_users":         1,
+		"rates":             1,
+		"commands":          1,
+		"labels":            1,
+		"output":            1,
+		"severity":          1,
+		"role":              1,
+		"name":              1,
+		"type":              1,
+		"data_dir":          1,
+		"peers":             1,
+		"web_listen_addr":   1,
+		"ssh_listen_addr":   1,
+		"listen_addr":       1,
+		"https_key_file":    1,
+		"https_cert_file":   1,
+	}
+)
+
 // FileConfig structre represents the teleport configuration stored in a config file
 // in YAML format (usually /etc/teleport.yaml)
 //
@@ -37,6 +72,8 @@ type FileConfig struct {
 	SSH    SSH   `yaml:"ssh_service,omitempty"`
 	Proxy  Proxy `yaml:"proxy_service,omitempty"`
 }
+
+type YAMLMap map[interface{}]interface{}
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
 // format is supported
@@ -55,6 +92,28 @@ func ReadFromFile(fp string) (fc *FileConfig, err error) {
 	if err = yaml.Unmarshal(bytes, fc); err != nil {
 		return nil, trace.Wrap(err, "failed to parse Teleport configuration: %v", fp)
 	}
+	// now check for unknown (misspelled) config keys:
+	var validateKeys func(m YAMLMap) error
+	validateKeys = func(m YAMLMap) error {
+		for k, value := range m {
+			if key, ok := k.(string); ok {
+				if _, ok := validKeys[key]; !ok {
+					return trace.Errorf("unknown configuration key: '%v'", key)
+				}
+				if m, ok := value.(YAMLMap); ok {
+					return validateKeys(m)
+				}
+			}
+		}
+		return nil
+	}
+	var m YAMLMap
+	if err = yaml.Unmarshal(bytes, &m); err != nil {
+		return nil, trace.Errorf("error parsing YAML config")
+	}
+	if err = validateKeys(m); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return fc, nil
 }
 
@@ -65,11 +124,6 @@ func (conf *FileConfig) DebugDumpToYAML() string {
 		panic(err)
 	}
 	return string(bytes)
-}
-
-type AuthServer struct {
-	Address string `yaml:"address"` // "tcp://127.0.0.1:3024"
-	Token   string `yaml:"token"`   // "xxxxxxx"
 }
 
 type ConnectionRate struct {
@@ -89,18 +143,26 @@ type Log struct {
 	Severity string `yaml:"severity,omitempty"`
 }
 
+// used for 'storage' config section. stores values for 'boltdb' and 'etcd'
 type StorageBackend struct {
-	Type  string `yaml:"type"`
-	Param string `yaml:"param"`
+	Type    string `yaml:"type,omitempty"`     // can be "bolt" or "etcd"
+	DirName string `yaml:"data_dir,omitempty"` // valid only for bolt
+	Peers   string `yaml:"peers,omitempty"`    // valid only for etcd
 }
 
 // 'teleport' (global) section of the config file
 type Global struct {
 	NodeName    string           `yaml:"nodename,omitempty"`
-	AuthServers []AuthServer     `yaml:"auth_servers,omitempty"`
+	AuthToken   string           `yaml:"auth_token,omitempty"`
+	AuthServers string           `yaml:"auth_servers,omitempty"`
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
 	Storage     StorageBackend   `yaml:"storage,omitempty"`
+}
+
+// returns a slice of the auth servers
+func (g *Global) GetAuthServers() []string {
+	return strings.Split(strings.Replace(g.AuthServers, " ", "", -1), ",")
 }
 
 type Service struct {
@@ -120,6 +182,11 @@ func (s *Service) Enabled() bool {
 		return true
 	}
 	return false
+}
+
+// Disabled returns 'true' if the service has been deliverately turned off
+func (s *Service) Disabled() bool {
+	return s.Configured() && !s.Enabled()
 }
 
 // 'auth_service' section of the config file

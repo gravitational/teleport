@@ -95,14 +95,14 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(conf, check.NotNil)
 	c.Assert(conf.NodeName, check.Equals, NodeName)
-	c.Assert(conf.AuthServers, check.DeepEquals, AuthServers)
+	c.Assert(conf.GetAuthServers(), check.DeepEquals, []string{"tcp://auth.server.example.org:3024", "tcp://auth.server.example.com:3024"})
 	c.Assert(conf.Limits.MaxConnections, check.Equals, 100)
 	c.Assert(conf.Limits.MaxUsers, check.Equals, 5)
 	c.Assert(conf.Limits.Rates, check.DeepEquals, ConnectionRates)
 	c.Assert(conf.Logger.Output, check.Equals, "stderr")
 	c.Assert(conf.Logger.Severity, check.Equals, "INFO")
 	c.Assert(conf.Storage.Type, check.Equals, "bolt")
-	c.Assert(conf.Storage.Param, check.Equals, `{ "path": /var/lib/teleport }`)
+	c.Assert(conf.Storage.DirName, check.Equals, "/var/lib/teleport")
 	c.Assert(conf.Auth.Enabled(), check.Equals, true)
 	c.Assert(conf.Auth.ListenAddress, check.Equals, "tcp://auth")
 	c.Assert(conf.SSH.Configured(), check.Equals, true)
@@ -122,23 +122,18 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	conf, err = ReadFromFile(s.configFileStatic)
 	c.Assert(err, check.IsNil)
 	c.Assert(conf, check.NotNil)
+	c.Assert(conf.AuthToken, check.Equals, "xxxyyy")
 	c.Assert(conf.SSH.Enabled(), check.Equals, false)      // YAML treats 'no' as False
 	c.Assert(conf.Proxy.Configured(), check.Equals, false) // Missing "proxy_service" section must lead to 'not configured'
 	c.Assert(conf.Proxy.Enabled(), check.Equals, true)     // Missing "proxy_service" section must lead to 'true'
+	c.Assert(conf.Proxy.Disabled(), check.Equals, false)   // Missing "proxy_service" does NOT mean it's been disabled
+	c.Assert(conf.SSH.Disabled(), check.Equals, true)      // "ssh_service" has been explicitly set to "no"
+	c.Assert(conf.Storage.Peers, check.Equals, "one,two")
 }
 
 var (
-	NodeName    = "edsger.example.com"
-	AuthServers = []AuthServer{
-		{
-			Address: "tcp://auth.server.example.org:3024",
-			Token:   "xxx",
-		},
-		{
-			Address: "tcp://auth.server.example.com:3024",
-			Token:   "yyy",
-		},
-	}
+	NodeName        = "edsger.example.com"
+	AuthServers     = "tcp://auth.server.example.org:3024, tcp://auth.server.example.com:3024"
 	ConnectionRates = []ConnectionRate{
 		{
 			Period:  time.Minute,
@@ -182,7 +177,7 @@ func makeConfigFixture() string {
 	conf.Logger.Output = "stderr"
 	conf.Logger.Severity = "INFO"
 	conf.Storage.Type = "bolt"
-	conf.Storage.Param = `{ "path": /var/lib/teleport }`
+	conf.Storage.DirName = "/var/lib/teleport"
 
 	// auth service:
 	conf.Auth.EnabledFlag = "Yeah"
@@ -212,15 +207,14 @@ const (
 #
 teleport:
   nodename: edsger.example.com
-  auth_servers:
-  - address: tcp://auth.server.example.org:3024
-    token: xxx
+  auth_servers: tcp://auth.server.example.org:3024
+  auth_token: xxxyyy
   log:
     output: stderr
     severity: INFO
   storage:
-    type: bolt
-    param: '{ "path": /var/lib/teleport }'
+    type: etcd
+    peers: one,two
 
 auth_service:
   enabled: yes
