@@ -90,6 +90,11 @@ type ProxyConfig struct {
 	// ReverseTunnelListenAddr is address where reverse tunnel dialers connect to
 	ReverseTunnelListenAddr utils.NetAddr
 
+	HangoutsEnabled bool `yaml:"hangouts_enabled" env:"TELEPORT_PROXY_HANGOUTS_ENABLED`
+
+	// HangoutListenAddr is address where hangout reverse tunnel dialers connect to
+	HangoutsListenAddr utils.NetAddr `yaml:"hangouts_listen_addr" env:"TELEPORT_PROXY_HANGOUTS_LISTEN_ADDR"`
+
 	// WebAddr is address for web portal of the proxy
 	WebAddr utils.NetAddr
 
@@ -302,14 +307,14 @@ func (c *LocalCertificateAuthority) CA() (*services.LocalCertificateAuthority, e
 // MakeDefaultConfig() creates a new Config structure and populates it with defaults
 func MakeDefaultConfig() (config *Config, err error) {
 	config = &Config{}
-	if err = applyDefaults(config); err != nil {
+	if err = ApplyDefaults(config); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return config, nil
 }
 
-// applyDefaults applies default values to the existing config structure
-func applyDefaults(cfg *Config) error {
+// ApplyDefaults applies default values to the existing config structure
+func ApplyDefaults(cfg *Config) error {
 	hostname, err := os.Hostname()
 	if err != nil {
 		return trace.Wrap(err)
@@ -332,6 +337,8 @@ func applyDefaults(cfg *Config) error {
 	cfg.Proxy.AssetsDir = defaults.DataDir
 	cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
 	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
+	cfg.Proxy.HangoutsEnabled = true
+	cfg.Proxy.HangoutsListenAddr = *defaults.HangoutsListenAddr()
 	cfg.ReverseTunnel.Enabled = true
 	cfg.ReverseTunnel.DialAddr = *defaults.ReverseTunnellConnectAddr()
 	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnellListenAddr()

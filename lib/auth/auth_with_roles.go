@@ -188,6 +188,13 @@ func (a *AuthWithRoles) GetServers() ([]services.Server, error) {
 		return a.authServer.GetServers()
 	}
 }
+func (a *AuthWithRoles) GetAuthServers() ([]services.Server, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionGetAuthServers); err != nil {
+		return nil, err
+	} else {
+		return a.authServer.GetAuthServers()
+	}
+}
 func (a *AuthWithRoles) UpsertWebTun(wt services.WebTun, ttl time.Duration) error {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertWebTun); err != nil {
 		return err

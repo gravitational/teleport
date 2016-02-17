@@ -34,14 +34,15 @@ import (
 )
 
 type Agent struct {
-	addr        utils.NetAddr
-	elog        lunk.EventLogger
-	clt         *auth.TunClient
-	signers     []ssh.Signer
-	domainName  string
-	waitC       chan bool
-	disconnectC chan bool
-	conn        ssh.Conn
+	addr            utils.NetAddr
+	elog            lunk.EventLogger
+	clt             *auth.TunClient
+	domainName      string
+	waitC           chan bool
+	disconnectC     chan bool
+	conn            ssh.Conn
+	hostKeyCallback utils.HostKeyCallback
+	authMethods     []ssh.AuthMethod
 }
 
 type AgentOption func(a *Agent) error
@@ -60,9 +61,35 @@ func NewAgent(addr utils.NetAddr, domainName string, signers []ssh.Signer,
 		clt:         clt,
 		addr:        addr,
 		domainName:  domainName,
-		signers:     signers,
 		waitC:       make(chan bool),
 		disconnectC: make(chan bool, 10),
+		authMethods: []ssh.AuthMethod{ssh.PublicKeys(signers...)},
+	}
+	a.hostKeyCallback = a.checkHostSignature
+	for _, o := range options {
+		if err := o(a); err != nil {
+			return nil, err
+		}
+	}
+	if a.elog == nil {
+		a.elog = utils.NullEventLogger
+	}
+	return a, nil
+}
+
+func NewHangoutAgent(addr utils.NetAddr, hangoutID string,
+	authMethods []ssh.AuthMethod,
+	hostKeyCallback utils.HostKeyCallback,
+	clt *auth.TunClient, options ...AgentOption) (*Agent, error) {
+
+	a := &Agent{
+		clt:             clt,
+		addr:            addr,
+		domainName:      hangoutID,
+		waitC:           make(chan bool),
+		disconnectC:     make(chan bool, 10),
+		authMethods:     authMethods,
+		hostKeyCallback: hostKeyCallback,
 	}
 	for _, o := range options {
 		if err := o(a); err != nil {
@@ -148,15 +175,25 @@ func (a *Agent) connect() error {
 		return err
 	}
 	log.Infof("agent connectting to %v", a.addr.FullAddress())
-	c, err := ssh.Dial(a.addr.AddrNetwork, a.addr.Addr, &ssh.ClientConfig{
-		User:            a.domainName,
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(a.signers...)},
-		HostKeyCallback: a.checkHostSignature,
-	})
-	if err != nil {
+
+	var c *ssh.Client
+	var err error
+	for _, authMethod := range a.authMethods {
+		c, err = ssh.Dial(a.addr.AddrNetwork, a.addr.Addr, &ssh.ClientConfig{
+			User:            a.domainName,
+			Auth:            []ssh.AuthMethod{authMethod},
+			HostKeyCallback: a.hostKeyCallback,
+		})
+		if c != nil {
+			break
+		}
+	}
+
+	if c == nil {
 		log.Errorf("failed connecting to '%v'. %v", a.addr.Addr, err)
 		return trace.Wrap(err)
 	}
+
 	a.conn = c
 
 	go a.startHeartbeat()

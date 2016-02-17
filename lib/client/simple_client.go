@@ -32,6 +32,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -40,16 +41,16 @@ import (
 // RunCmd runs provided command on the target servers and
 // prints result to stdout,
 // target can be like "127.0.0.1:1234" or "_label:value".
-func RunCmd(user, target, proxyAddress, command string, authMethods []ssh.AuthMethod) error {
+func RunCmd(user, target, proxyAddress, command string, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
 	addresses, err := ParseTargetServers(target, user, proxyAddress,
-		authMethods)
+		authMethods, hostKeyCallback)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	var proxyClient *ProxyClient
 	if len(proxyAddress) > 0 {
-		proxyClient, err = ConnectToProxy(proxyAddress, authMethods, user)
+		proxyClient, err = ConnectToProxy(proxyAddress, authMethods, hostKeyCallback, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -64,7 +65,7 @@ func RunCmd(user, target, proxyAddress, command string, authMethods []ssh.AuthMe
 		wg.Add(1)
 		go func(address string) {
 			defer wg.Done()
-			output, err := runCmd(user, address, proxyClient, command, authMethods)
+			output, err := runCmd(user, address, proxyClient, command, authMethods, hostKeyCallback)
 			stdoutMutex.Lock()
 			defer stdoutMutex.Unlock()
 			fmt.Printf("Running command on %v\n", address)
@@ -91,9 +92,9 @@ func RunCmd(user, target, proxyAddress, command string, authMethods []ssh.AuthMe
 // runCmd runs command on provided server and returns the output as string
 func runCmd(user, address string,
 	proxyClient *ProxyClient, command string,
-	authMethods []ssh.AuthMethod) (output string, e error) {
+	authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) (output string, e error) {
 
-	c, err := ConnectToNode(proxyClient, address, authMethods, user)
+	c, err := ConnectToNode(proxyClient, address, authMethods, hostKeyCallback, user)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -111,8 +112,10 @@ func runCmd(user, address string,
 // Upload uploads file or dir to the target servers,
 // target can be like "127.0.0.1:1234" or "_label:value".
 // Processes for each server work in parallel
-func Upload(user, target, proxyAddress, localSourcePath, remoteDestPath string, authMethods []ssh.AuthMethod) error {
-	addresses, err := ParseTargetServers(target, user, proxyAddress, authMethods)
+func Upload(user, target, proxyAddress, localSourcePath, remoteDestPath string,
+	authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
+
+	addresses, err := ParseTargetServers(target, user, proxyAddress, authMethods, hostKeyCallback)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -122,7 +125,7 @@ func Upload(user, target, proxyAddress, localSourcePath, remoteDestPath string, 
 
 	var proxyClient *ProxyClient
 	if len(proxyAddress) > 0 {
-		proxyClient, err = ConnectToProxy(proxyAddress, authMethods, user)
+		proxyClient, err = ConnectToProxy(proxyAddress, authMethods, hostKeyCallback, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -139,7 +142,7 @@ func Upload(user, target, proxyAddress, localSourcePath, remoteDestPath string, 
 			defer wg.Done()
 
 			err := upload(user, address, proxyClient,
-				localSourcePath, remoteDestPath, authMethods)
+				localSourcePath, remoteDestPath, authMethods, hostKeyCallback)
 
 			stdoutMutex.Lock()
 			defer stdoutMutex.Unlock()
@@ -166,9 +169,9 @@ func Upload(user, target, proxyAddress, localSourcePath, remoteDestPath string, 
 // upload uploads file or dir to the provided server
 func upload(user, srvAddress string, proxyClient *ProxyClient,
 	localSourcePath, remoteDestPath string,
-	authMethods []ssh.AuthMethod) error {
+	authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
 
-	c, err := ConnectToNode(proxyClient, srvAddress, authMethods, user)
+	c, err := ConnectToNode(proxyClient, srvAddress, authMethods, hostKeyCallback, user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -187,8 +190,10 @@ func upload(user, srvAddress string, proxyClient *ProxyClient,
 // Processes for each server work in parallel.
 // If there are more than one target server, result files will be
 // arranged in a folder.
-func Download(user, target, proxyAddress, remoteSourcePath, localDestPath string, isDir bool, authMethods []ssh.AuthMethod) error {
-	addresses, err := ParseTargetServers(target, user, proxyAddress, authMethods)
+func Download(user, target, proxyAddress, remoteSourcePath, localDestPath string,
+	isDir bool, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
+
+	addresses, err := ParseTargetServers(target, user, proxyAddress, authMethods, hostKeyCallback)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -217,7 +222,7 @@ func Download(user, target, proxyAddress, remoteSourcePath, localDestPath string
 
 	var proxyClient *ProxyClient
 	if len(proxyAddress) > 0 {
-		proxyClient, err = ConnectToProxy(proxyAddress, authMethods, user)
+		proxyClient, err = ConnectToProxy(proxyAddress, authMethods, hostKeyCallback, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -238,7 +243,7 @@ func Download(user, target, proxyAddress, remoteSourcePath, localDestPath string
 			}
 
 			err := download(user, address, proxyClient,
-				remoteSourcePath, dest, isDir, authMethods)
+				remoteSourcePath, dest, isDir, authMethods, hostKeyCallback)
 
 			stdoutMutex.Lock()
 			defer stdoutMutex.Unlock()
@@ -266,9 +271,9 @@ func Download(user, target, proxyAddress, remoteSourcePath, localDestPath string
 // download downloads file or dir from provided server
 func download(user, srvAddress string, proxyClient *ProxyClient,
 	remoteSourcePath, localDestPath string, isDir bool,
-	authMethods []ssh.AuthMethod) error {
+	authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
 
-	c, err := ConnectToNode(proxyClient, srvAddress, authMethods, user)
+	c, err := ConnectToNode(proxyClient, srvAddress, authMethods, hostKeyCallback, user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -286,7 +291,7 @@ func download(user, srvAddress string, proxyClient *ProxyClient,
 // target can be like "127.0.0.1:1234" or "_label:value".
 // If "_label:value" provided, it connects to the proxy server and
 // finds target servers
-func ParseTargetServers(target string, user, proxyAddress string, authMethods []ssh.AuthMethod) ([]string, error) {
+func ParseTargetServers(target string, user, proxyAddress string, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) ([]string, error) {
 	if target[0] == '_' {
 		// address is a label:value pair
 		target = target[1:len(target)]
@@ -301,7 +306,7 @@ func ParseTargetServers(target string, user, proxyAddress string, authMethods []
 			return nil, trace.Errorf("proxy Address should be provided for server searching")
 		}
 
-		proxyClient, err := ConnectToProxy(proxyAddress, authMethods, user)
+		proxyClient, err := ConnectToProxy(proxyAddress, authMethods, hostKeyCallback, user)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

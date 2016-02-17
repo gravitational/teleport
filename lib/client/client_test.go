@@ -77,6 +77,7 @@ var _ = Suite(&ClientSuite{})
 
 func (s *ClientSuite) SetUpSuite(c *C) {
 	utils.InitLoggerCLI()
+	KeysDir = c.MkDir()
 	key, err := secret.NewKey()
 	c.Assert(err, IsNil)
 	scrt, err := secret.New(&secret.Config{KeyBytes: key})
@@ -253,13 +254,37 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	err = s.teleagent.Login("http://"+s.webAddress, s.user, string(s.pass), s.otp.OTP(), time.Minute)
 	c.Assert(err, IsNil)
 
+	_, err = ConnectToProxy(s.proxyAddress,
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
+	c.Assert(err, NotNil)
+
+	passwordCallback := func() (string, string, error) {
+		return string(s.pass), s.otp.OTP(), nil
+	}
+
+	_, hostChecker := NewWebAuth(
+		agent.NewKeyring(),
+		s.user,
+		passwordCallback,
+		"http://"+s.webAddress,
+		time.Hour,
+	)
+
+	_, err = ConnectToProxy(s.proxyAddress,
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, hostChecker, s.user)
+	c.Assert(err, IsNil)
+
+	_, err = ConnectToProxy(s.proxyAddress,
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
+	c.Assert(err, IsNil)
+
 	// "Command labels will be calculated only on the second heartbeat"
 	time.Sleep(time.Millisecond * 3100)
 }
 
 func (s *ClientSuite) TestRunCommand(c *C) {
 	nodeClient, err := ConnectToNode(nil, s.srvAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	buf := bytes.Buffer{}
@@ -270,11 +295,11 @@ func (s *ClientSuite) TestRunCommand(c *C) {
 
 func (s *ClientSuite) TestConnectViaProxy(c *C) {
 	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	buf := bytes.Buffer{}
@@ -296,23 +321,24 @@ func (s *ClientSuite) TestConnectUsingSeveralAgents(c *C) {
 		[]ssh.AuthMethod{
 			AuthMethodFromAgent(agent1),
 			AuthMethodFromAgent(agent2),
-		}, s.user)
+		}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, NotNil)
 
+	webAuth, hostChecker := NewWebAuth(
+		agent2,
+		s.user,
+		passwordCallback,
+		"http://"+s.webAddress,
+		time.Hour,
+	)
 	proxyClient, err := ConnectToProxy(
 		s.proxyAddress,
 		[]ssh.AuthMethod{
 			AuthMethodFromAgent(agent1),
 			AuthMethodFromAgent(agent2),
-			NewWebAuth(
-				agent2,
-				s.user,
-				passwordCallback,
-				"http://"+s.webAddress,
-				time.Hour,
-			),
+			webAuth,
 		},
-		s.user)
+		hostChecker, s.user)
 	c.Assert(err, IsNil)
 
 	nodeClient, err := proxyClient.ConnectToNode(
@@ -321,7 +347,7 @@ func (s *ClientSuite) TestConnectUsingSeveralAgents(c *C) {
 			AuthMethodFromAgent(agent1),
 			AuthMethodFromAgent(agent2),
 		},
-		s.user)
+		CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	buf := bytes.Buffer{}
@@ -336,7 +362,7 @@ func (s *ClientSuite) TestConnectUsingSeveralAgents(c *C) {
 			AuthMethodFromAgent(agent1),
 			AuthMethodFromAgent(agent2),
 		},
-		s.user)
+		CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	buf = bytes.Buffer{}
@@ -347,14 +373,14 @@ func (s *ClientSuite) TestConnectUsingSeveralAgents(c *C) {
 
 func (s *ClientSuite) TestShell(c *C) {
 	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
-	shell, err := nodeClient.Shell(100, 100)
+	shell, err := nodeClient.Shell(100, 100, "")
 	c.Assert(err, IsNil)
 
 	out := make([]byte, 100)
@@ -385,7 +411,7 @@ func (s *ClientSuite) TestShell(c *C) {
 
 func (s *ClientSuite) TestGetServer(c *C) {
 	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	server1Info := services.Server{
@@ -475,11 +501,11 @@ func (s *ClientSuite) TestGetServer(c *C) {
 
 func (s *ClientSuite) TestUploadFile(c *C) {
 	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	dir := c.MkDir()
@@ -499,11 +525,11 @@ func (s *ClientSuite) TestUploadFile(c *C) {
 
 func (s *ClientSuite) TestDownloadFile(c *C) {
 	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	dir := c.MkDir()
@@ -523,7 +549,7 @@ func (s *ClientSuite) TestDownloadFile(c *C) {
 
 func (s *ClientSuite) TestUploadDir(c *C) {
 	nodeClient, err := ConnectToNode(nil, s.srvAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	dir1 := c.MkDir()
@@ -553,7 +579,7 @@ func (s *ClientSuite) TestUploadDir(c *C) {
 
 func (s *ClientSuite) TestDownloadDir(c *C) {
 	nodeClient, err := ConnectToNode(nil, s.srvAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	dir1 := c.MkDir()
@@ -618,11 +644,11 @@ func (s *ClientSuite) TestHOTPMock(c *C) {
 }
 
 func (s *ClientSuite) TestParseTargetObject(c *C) {
-	addresses, err := ParseTargetServers(s.srv2Address, s.user, s.proxyAddress, []ssh.AuthMethod{s.teleagent.AuthMethod()})
+	addresses, err := ParseTargetServers(s.srv2Address, s.user, s.proxyAddress, []ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache)
 	c.Assert(err, IsNil)
 	c.Assert(addresses, DeepEquals, []string{s.srv2Address})
 
-	addresses, err = ParseTargetServers("_label1:val.*", s.user, s.proxyAddress, []ssh.AuthMethod{s.teleagent.AuthMethod()})
+	addresses, err = ParseTargetServers("_label1:val.*", s.user, s.proxyAddress, []ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache)
 	c.Assert(err, IsNil)
 	c.Assert(len(addresses), Equals, 2)
 	if addresses[0] == s.srvAddress {
@@ -631,7 +657,7 @@ func (s *ClientSuite) TestParseTargetObject(c *C) {
 		c.Assert(addresses, DeepEquals, []string{s.srv2Address, s.srvAddress})
 	}
 
-	addresses, err = ParseTargetServers("_label2:value2*", s.user, s.proxyAddress, []ssh.AuthMethod{s.teleagent.AuthMethod()})
+	addresses, err = ParseTargetServers("_label2:value2*", s.user, s.proxyAddress, []ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache)
 	c.Assert(err, IsNil)
 	c.Assert(addresses, DeepEquals, []string{s.srvAddress})
 

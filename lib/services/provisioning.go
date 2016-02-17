@@ -69,9 +69,9 @@ func (s *ProvisioningService) DeleteToken(token string) error {
 
 func JoinTokenRole(token, role string) (ouputToken string, e error) {
 	switch role {
-	case "Auth":
+	case TokenRoleAuth:
 		return "a" + token, nil
-	case "Node":
+	case TokenRoleNode:
 		return "n" + token, nil
 	}
 	return token, trace.Errorf("Unknown role %v", role)
@@ -82,10 +82,10 @@ func SplitTokenRole(outputToken string) (token, role string, e error) {
 		return outputToken, "", trace.Errorf("Unknown role")
 	}
 	if outputToken[0] == 'n' {
-		return outputToken[1:], "Node", nil
+		return outputToken[1:], TokenRoleNode, nil
 	}
 	if outputToken[0] == 'a' {
-		return outputToken[1:], "Auth", nil
+		return outputToken[1:], TokenRoleAuth, nil
 	}
 	return outputToken, "", trace.Errorf("Unknown role")
 }
@@ -94,3 +94,8 @@ type ProvisionToken struct {
 	DomainName string
 	Role       string
 }
+
+const (
+	TokenRoleAuth = "Auth"
+	TokenRoleNode = "Node"
+)

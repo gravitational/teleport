@@ -50,6 +50,9 @@ func parseSubsystemRequest(srv *Server, req *ssh.Request) (subsystem, error) {
 	if srv.proxyMode && strings.HasPrefix(s.Name, "proxy:") {
 		return parseProxySubsys(s.Name, srv)
 	}
+	if srv.proxyMode && srv.hangoutsTun != nil && strings.HasPrefix(s.Name, "hangout:") {
+		return parseHangoutsSubsys(s.Name, srv)
+	}
 	if srv.proxyMode && strings.HasPrefix(s.Name, "proxysites") {
 		return parseProxySitesSubsys(s.Name, srv)
 	}

@@ -145,7 +145,7 @@ func (s *AuthServer) GenerateHostCert(
 	return s.Authority.GenerateHostCert(hk.PrivateKey, key, id, hostname, role, ttl)
 }
 
-// GenerateHostCert generates user certificate, it takes pkey as a signing
+// GenerateUserCert generates user certificate, it takes pkey as a signing
 // private key (user certificate authority)
 func (s *AuthServer) GenerateUserCert(
 	key []byte, id, username string, ttl time.Duration) ([]byte, error) {

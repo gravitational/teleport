@@ -44,6 +44,10 @@ const (
 	// run behind an environment/firewall which only allows outgoing connections)
 	SSHProxyTunnelListenPort = 3024
 
+	// When running in "SSH Proxy" role this port will be used for incoming
+	// connections from Hangouts nodes to register in the proxy
+	SSHProxyHangoutsListenPort = 3026
+
 	// When running as a "SSH Proxy" this port will be used to
 	// serve auth requests.
 	AuthListenPort = 3025
@@ -124,6 +128,13 @@ func SSHServerListenAddr() *utils.NetAddr {
 // blocks inbound connecions to ssh_nodes
 func ReverseTunnellListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, SSHProxyTunnelListenPort)
+}
+
+// ReverseTunnellListenAddr returns the default listening address for the SSH Proxy service used
+// by the Hangout nodes to establish hangouts_server<->proxy connection from the hangout
+// owner side
+func HangoutsListenAddr() *utils.NetAddr {
+	return makeAddr(BindIP, SSHProxyHangoutsListenPort)
 }
 
 func ReverseTunnellConnectAddr() *utils.NetAddr {

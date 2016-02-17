@@ -23,16 +23,62 @@ package client
 import (
 	"encoding/json"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/services"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
+
+func AddHostSignersToCache(hostSigners []services.CertificateAuthority) error {
+	bk, err := boltbk.New(filepath.Join(KeysDir, HostSignersFilename))
+	if err != nil {
+		return trace.Wrap(nil)
+	}
+	defer bk.Close()
+	ca := services.NewCAService(bk)
+	ca.IsCache = true
+
+	for _, hostSigner := range hostSigners {
+		err := ca.UpsertRemoteCertificate(hostSigner, 0)
+		if err != nil {
+			return trace.Wrap(nil)
+		}
+	}
+	return nil
+}
+
+func CheckHostSignerFromCache(hostname string, remote net.Addr, key ssh.PublicKey) error {
+	cert, ok := key.(*ssh.Certificate)
+	if !ok {
+		return trace.Errorf("expected certificate")
+	}
+
+	bk, err := boltbk.New(filepath.Join(KeysDir, HostSignersFilename))
+	if err != nil {
+		return trace.Wrap(nil)
+	}
+	defer bk.Close()
+	ca := services.NewCAService(bk)
+	ca.IsCache = true
+
+	_, found, err := ca.GetCertificateID(services.HostCert, cert.SignatureKey)
+	if err != nil {
+		return trace.Wrap(nil)
+	}
+	if !found {
+		return trace.Errorf("CheckHostSigners error: Not found")
+	}
+	return nil
+}
 
 // GetLoadAgent loads all the saved teleport certificates and
 // creates ssh agent with them
@@ -152,8 +198,9 @@ func loadAllKeys() ([]Key, error) {
 	return keys, nil
 }
 
-const (
-	KeysDir       = "/tmp/teleport"
-	KeyFilePrefix = "teleport_"
-	KeyFileSuffix = ".tkey"
+var (
+	KeysDir             = "/tmp/teleport"
+	KeyFilePrefix       = "teleport_"
+	KeyFileSuffix       = ".tkey"
+	HostSignersFilename = "HostSigners.db"
 )

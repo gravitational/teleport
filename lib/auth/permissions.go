@@ -33,8 +33,10 @@ func NewStandardPermissions() PermissionChecker {
 	sp.permissions = make(map[string](map[string]bool))
 
 	sp.permissions[RoleUser] = map[string]bool{
-		ActionSignIn:           true,
-		ActionGenerateUserCert: true,
+		ActionSignIn:                 true,
+		ActionGenerateUserCert:       true,
+		ActionGetTrustedCertificates: true,
+		ActionGetRemoteCertificates:  true,
 	}
 
 	sp.permissions[RoleProvisionToken] = map[string]bool{
@@ -52,10 +54,64 @@ func NewStandardPermissions() PermissionChecker {
 		ActionUserMappingExists:           true,
 		ActionGetUserKeys:                 true,
 		ActionGetServers:                  true,
+		ActionGetAuthServers:              true,
 		ActionGetHostCertificateAuthority: true,
 		ActionUpsertParty:                 true,
 		ActionLogEntry:                    true,
 		ActionGetChunkWriter:              true,
+	}
+
+	sp.permissions[RoleWeb] = map[string]bool{
+		ActionGetWebSession:    true,
+		ActionDeleteWebSession: true,
+	}
+
+	sp.permissions[RoleSignup] = map[string]bool{
+		ActionGetSignupTokenData:  true,
+		ActionCreateUserWithToken: true,
+	}
+
+	return &sp
+}
+
+func NewHangoutPermissions() PermissionChecker {
+	sp := standardPermissions{}
+	sp.permissions = make(map[string](map[string]bool))
+
+	sp.permissions[RoleUser] = map[string]bool{
+		ActionSignIn:                 true,
+		ActionGenerateUserCert:       true,
+		ActionGetTrustedCertificates: true,
+		ActionGetRemoteCertificates:  true,
+	}
+
+	sp.permissions[RoleProvisionToken] = map[string]bool{
+		ActionRegisterUsingToken:    true,
+		ActionRegisterNewAuthServer: true,
+		ActionGenerateUserCert:      true,
+	}
+
+	sp.permissions[RoleHangoutRemoteUser] = map[string]bool{
+		ActionGenerateUserCert: true,
+	}
+
+	sp.permissions[RoleNode] = map[string]bool{
+		ActionUpsertServer:                true,
+		ActionGetUserCertificateAuthority: true,
+		ActionGetRemoteCertificates:       true,
+		ActionGetTrustedCertificates:      true,
+		ActionGetCertificateID:            true,
+		ActionGetAllUserMappings:          true,
+		ActionUserMappingExists:           true,
+		ActionGetUserKeys:                 true,
+		ActionGetServers:                  true,
+		ActionGetAuthServers:              true,
+		ActionGetHostCertificateAuthority: true,
+		ActionUpsertParty:                 true,
+		ActionLogEntry:                    true,
+		ActionGetChunkWriter:              true,
+		ActionUpsertSession:               true,
+		ActionUpsertRemoteCertificate:     true,
 	}
 
 	sp.permissions[RoleWeb] = map[string]bool{
@@ -109,16 +165,23 @@ var StandardRoles = []string{
 	RoleSignup,
 }
 
+var HangoutRoles = []string{
+	RoleAdmin,
+	RoleProvisionToken,
+	RoleHangoutRemoteUser,
+}
+
 const (
 	PermissionRole = "role"
 
-	RoleAuth           = "Auth"
-	RoleUser           = "User"
-	RoleWeb            = "Web"
-	RoleNode           = "Node"
-	RoleAdmin          = "Admin"
-	RoleProvisionToken = "ProvisionToken"
-	RoleSignup         = "Signup"
+	RoleAuth              = "Auth"
+	RoleUser              = "User"
+	RoleWeb               = "Web"
+	RoleNode              = "Node"
+	RoleAdmin             = "Admin"
+	RoleProvisionToken    = "ProvisionToken"
+	RoleSignup            = "Signup"
+	RoleHangoutRemoteUser = "HangoutRemoteUser"
 
 	ActionGetSessions                   = "GetSession"
 	ActionGetSession                    = "GetSession"
@@ -139,6 +202,7 @@ const (
 	ActionGetChunkReader                = "GetChunkReader"
 	ActionUpsertServer                  = "UpsertServer"
 	ActionGetServers                    = "GetServers"
+	ActionGetAuthServers                = "GetAuthServers"
 	ActionUpsertWebTun                  = "UpsertWebTun"
 	ActionGetWebTuns                    = "GetWebTuns"
 	ActionGetWebTun                     = "GetWebTun"
