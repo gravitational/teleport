@@ -17,7 +17,6 @@ package main
 
 import (
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tsh/tsh"
 	"os"
 )
 
@@ -25,7 +24,7 @@ func main() {
 	utils.InitLoggerCLI()
 	app := utils.InitCmdlineParser("tsh", "teleport SSH client")
 
-	err := tsh.RunTSH(app)
+	err := RunTSH(app)
 	if err != nil {
 		utils.Errorf(err.Error())
 		os.Exit(-1)

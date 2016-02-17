@@ -185,15 +185,6 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 	return sess, nil
 }
 
-func (s *AuthServer) CreateToken() (string, error) {
-	p, err := session.NewID(s.scrt)
-	if err != nil {
-		return "", err
-	}
-
-	return string(p.SID), nil
-}
-
 func (s *AuthServer) GenerateToken(domainName, role string, ttl time.Duration) (string, error) {
 	p, err := session.NewID(s.scrt)
 	if err != nil {

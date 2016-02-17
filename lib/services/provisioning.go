@@ -74,9 +74,6 @@ func JoinTokenRole(token, role string) (ouputToken string, e error) {
 	if role == TokenRoleAuth {
 		return "a" + token, nil
 	}
-	if role == TokenRoleHangout {
-		return "h" + token, nil
-	}
 	return token, trace.Errorf("Unknown role %v", role)
 }
 
@@ -90,9 +87,6 @@ func SplitTokenRole(outputToken string) (token, role string, e error) {
 	if outputToken[0] == 'a' {
 		return outputToken[1:], TokenRoleAuth, nil
 	}
-	if outputToken[0] == 'h' {
-		return outputToken[1:], TokenRoleHangout, nil
-	}
 	return outputToken, "", trace.Errorf("Unknown role")
 }
 
@@ -102,7 +96,6 @@ type ProvisionToken struct {
 }
 
 const (
-	TokenRoleAuth    = "Auth"
-	TokenRoleNode    = "Node"
-	TokenRoleHangout = "Hangout"
+	TokenRoleAuth = "Auth"
+	TokenRoleNode = "Node"
 )
