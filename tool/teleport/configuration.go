@@ -69,6 +69,10 @@ func readConfigFile(configFilePath string) (*config.FileConfig, error) {
 // applyFileConfig applies confniguration from a YAML file to Teleport
 // runtime config
 func applyFileConfig(fc *config.FileConfig, cfg *service.Config) error {
+	// no config file? no problem
+	if fc == nil {
+		return nil
+	}
 	// merge file-based config with defaults in 'cfg'
 	if fc.Auth.Disabled() {
 		cfg.Auth.Enabled = false
@@ -94,6 +98,47 @@ func applyFileConfig(fc *config.FileConfig, cfg *service.Config) error {
 		}
 	}
 	cfg.ApplyToken(fc.AuthToken)
+
+	// configure bolt storage:
+	switch fc.Storage.Type {
+	case "bolt":
+		cfg.ConfigureBolt(fc.Storage.DirName)
+	case "":
+		break // not set
+	default:
+		return trace.Errorf("unsupported storage type: '%v'", fc.Storage.Type)
+	}
+
+	// apply logger settings
+	switch fc.Logger.Output {
+	case "":
+		break // not set
+	case "stderr", "error", "2":
+		log.SetOutput(os.Stderr)
+	case "stdout", "out", "1":
+		log.SetOutput(os.Stdout)
+	default:
+		// assume it's a file path:
+		logFile, err := os.Create(fc.Logger.Output)
+		if err != nil {
+			return trace.Wrap(err, "failed to create the log file")
+		}
+		log.SetOutput(logFile)
+	}
+	switch strings.ToLower(fc.Logger.Severity) {
+	case "":
+		break // not set
+	case "info":
+		log.SetLevel(log.InfoLevel)
+	case "err", "error":
+		log.SetLevel(log.ErrorLevel)
+	case "debug":
+		log.SetLevel(log.DebugLevel)
+	case "warn", "warning":
+		log.SetLevel(log.WarnLevel)
+	default:
+		return trace.Errorf("unsupported logger severity: '%v'", fc.Logger.Severity)
+	}
 
 	return nil
 }
@@ -137,16 +182,10 @@ func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 		if err := validateRoles(clf.Roles); err != nil {
 			return cfg, trace.Wrap(err)
 		}
-		if strings.Index(clf.Roles, defaults.RoleNode) == -1 {
-			cfg.SSH.Enabled = false
-		}
-		if strings.Index(clf.Roles, defaults.RoleAuthService) == -1 {
-			cfg.Auth.Enabled = false
-		}
-		if strings.Index(clf.Roles, defaults.RoleProxy) == -1 {
-			cfg.Proxy.Enabled = false
-			cfg.ReverseTunnel.Enabled = false
-		}
+		cfg.SSH.Enabled = strings.Index(clf.Roles, defaults.RoleNode) != -1
+		cfg.Auth.Enabled = strings.Index(clf.Roles, defaults.RoleAuthService) != -1
+		cfg.Proxy.Enabled = strings.Index(clf.Roles, defaults.RoleProxy) != -1
+		cfg.ReverseTunnel.Enabled = cfg.Proxy.Enabled
 	}
 
 	// apply --auth-server flag:

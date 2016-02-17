@@ -74,6 +74,22 @@ func (cfg *Config) ApplyToken(token string) bool {
 	return false
 }
 
+// Configures Bolt back-ends with a data dir.
+func (cfg *Config) ConfigureBolt(dataDir string) {
+	const boltType = "bolt"
+	a := cfg.Auth
+
+	if a.EventsBackend.Type == boltType {
+		a.EventsBackend.Params = boltParams(dataDir, defaults.EventsBoltFile)
+	}
+	if a.KeysBackend.Type == boltType {
+		a.KeysBackend.Params = boltParams(dataDir, defaults.KeysBoltFile)
+	}
+	if a.RecordsBackend.Type == boltType {
+		a.RecordsBackend.Params = boltParams(dataDir, defaults.RecordsBoltFile)
+	}
+}
+
 func (cfg *Config) RoleConfig() RoleConfig {
 	return RoleConfig{
 		DataDir:     cfg.DataDir,
@@ -334,11 +350,11 @@ func applyDefaults(cfg *Config) error {
 	cfg.Auth.HostAuthorityDomain = hostname
 	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
 	cfg.Auth.EventsBackend.Type = defaults.BackendType
-	cfg.Auth.EventsBackend.Params = boltParams(defaults.DataDir, "events.db")
+	cfg.Auth.EventsBackend.Params = boltParams(defaults.DataDir, defaults.EventsBoltFile)
 	cfg.Auth.KeysBackend.Type = defaults.BackendType
-	cfg.Auth.KeysBackend.Params = boltParams(defaults.DataDir, "keys.db")
+	cfg.Auth.KeysBackend.Params = boltParams(defaults.DataDir, defaults.KeysBoltFile)
 	cfg.Auth.RecordsBackend.Type = defaults.BackendType
-	cfg.Auth.RecordsBackend.Params = boltParams(defaults.DataDir, "records.db")
+	cfg.Auth.RecordsBackend.Params = boltParams(defaults.DataDir, defaults.RecordsBoltFile)
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
 
 	// defaults for the SSH proxy service:

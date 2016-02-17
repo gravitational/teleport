@@ -58,6 +58,15 @@ const (
 	// registered SSH servers, etc):
 	DataDir = "/var/lib/teleport"
 
+	// Name of events bolt database file stored in DataDir
+	EventsBoltFile = "events.db"
+
+	// Name of keys bolt database file stored in DataDir
+	KeysBoltFile = "keys.db"
+
+	// Name of records bolt database file stored in DataDir
+	RecordsBoltFile = "records.db"
+
 	// By default SSH server (and SSH proxy) will bind to this IP
 	BindIP = "0.0.0.0"
 
