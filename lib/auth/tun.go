@@ -36,15 +36,25 @@ import (
 )
 
 type TunServer struct {
-	certChecker ssh.CertChecker
-	a           *AuthServer
-	l           net.Listener
-	srv         *sshutils.Server
-	hostSigner  ssh.Signer
-	apiServer   *APIWithRoles
+	certChecker     ssh.CertChecker
+	userCertChecker ssh.CertChecker
+	userCertAllowed bool
+	a               *AuthServer
+	l               net.Listener
+	srv             *sshutils.Server
+	hostSigner      ssh.Signer
+	apiServer       *APIWithRoles
 }
 
 type ServerOption func(s *TunServer) error
+
+func EnableUserCertificates() ServerOption {
+	return func(s *TunServer) error {
+		s.userCertAllowed = true
+		s.userCertChecker = ssh.CertChecker{IsAuthority: s.isUserCertAuthority}
+		return nil
+	}
+}
 
 // New returns an unstarted server
 func NewTunServer(addr utils.NetAddr, hostSigners []ssh.Signer,
@@ -53,9 +63,11 @@ func NewTunServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 	opts ...ServerOption) (*TunServer, error) {
 
 	srv := &TunServer{
-		a:         a,
-		apiServer: apiServer,
+		a:               a,
+		apiServer:       apiServer,
+		userCertAllowed: false,
 	}
+
 	for _, o := range opts {
 		if err := o(srv); err != nil {
 			return nil, err
@@ -157,6 +169,38 @@ func (s *TunServer) isAuthority(auth ssh.PublicKey) bool {
 	return false
 }
 
+// isAuthority is called during checking the client key, to see if the signing
+// key is the real CA authority key.
+func (s *TunServer) isUserCertAuthority(auth ssh.PublicKey) bool {
+	keys, err := s.getTrustedCAKeys(services.UserCA)
+	if err != nil {
+		log.Errorf("failed to retrieve trusted keys, err: %v", err)
+		return false
+	}
+	for _, k := range keys {
+		if sshutils.KeysEqual(k, auth) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *TunServer) getTrustedCAKeys(CertType services.CertAuthType) ([]ssh.PublicKey, error) {
+	cas, err := s.a.GetCertAuthorities(CertType)
+	if err != nil {
+		return nil, err
+	}
+	out := []ssh.PublicKey{}
+	for _, ca := range cas {
+		checkers, err := ca.Checkers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, checkers...)
+	}
+	return out, nil
+}
+
 func (s *TunServer) haveExt(sconn *ssh.ServerConn, ext ...string) bool {
 	if sconn.Permissions == nil {
 		return false
@@ -242,16 +286,35 @@ func (s *TunServer) keyAuth(
 
 	log.Infof("%v auth attempt with key %v", cid, key.Type())
 
+	cert, ok := key.(*ssh.Certificate)
+	if !ok {
+		return nil, trace.Errorf("ERROR: Server doesn't support provided key type")
+	}
+
+	if cert.CertType == ssh.UserCert {
+		if !s.userCertAllowed {
+			return nil, trace.Errorf("User certificates are not allowed")
+		}
+		_, err := s.userCertChecker.Authenticate(conn, key)
+		if err != nil {
+			log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
+				conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
+			return nil, err
+		}
+		perms := &ssh.Permissions{
+			Extensions: map[string]string{
+				ExtHost: conn.User(),
+				"role":  RoleHangoutRemoteUser,
+			},
+		}
+		return perms, nil
+	}
+
 	err := s.certChecker.CheckHostKey(conn.User(), conn.RemoteAddr(), key)
 	if err != nil {
 		log.Warningf("conn(%v->%v, user=%v) ERROR: failed auth user %v, err: %v",
 			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
 		return nil, err
-	}
-
-	cert, ok := key.(*ssh.Certificate)
-	if !ok {
-		return nil, trace.Wrap(err)
 	}
 
 	if err := s.certChecker.CheckCert(conn.User(), cert); err != nil {
@@ -517,6 +580,22 @@ func (t *TunDialer) Dial(network, address string) (net.Conn, error) {
 		}
 		return c.Dial(network, address)
 	}
+}
+
+func NewClientFromSSHClient(sshClient *ssh.Client) (*Client, error) {
+	tr := &http.Transport{
+		Dial: sshClient.Dial,
+	}
+	clt, err := NewClient(
+		"http://stub:0",
+		roundtrip.HTTPClient(&http.Client{
+			Transport: tr,
+		}))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return clt, nil
 }
 
 const (

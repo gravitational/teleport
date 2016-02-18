@@ -65,8 +65,9 @@ type Server struct {
 	cmdLabels   map[string]services.CommandLabel //dymanic server labels
 	labelsMutex *sync.Mutex
 
-	proxyMode bool
-	proxyTun  reversetunnel.Server
+	proxyMode   bool
+	proxyTun    reversetunnel.Server
+	hangoutsTun reversetunnel.Server
 }
 
 type ServerOption func(s *Server) error
@@ -103,6 +104,13 @@ func SetProxyMode(tsrv reversetunnel.Server) ServerOption {
 	return func(s *Server) error {
 		s.proxyMode = true
 		s.proxyTun = tsrv
+		return nil
+	}
+}
+
+func EnableHangouts(hangoutsTun reversetunnel.Server) ServerOption {
+	return func(s *Server) error {
+		s.hangoutsTun = hangoutsTun
 		return nil
 	}
 }
@@ -144,6 +152,11 @@ func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	if (s.hangoutsTun != nil) && (!s.proxyMode) {
+		return nil, trace.Errorf("Hangout available only in proxy mode")
+	}
+
 	if s.elog == nil {
 		s.elog = utils.NullEventLogger
 	}
@@ -373,7 +386,6 @@ func (s *Server) HandleRequest(r *ssh.Request) {
 
 func (s *Server) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	channelType := nch.ChannelType()
-
 	if s.proxyMode {
 		if channelType == "session" { // interactive sessions
 			ch, requests, err := nch.Accept()

@@ -21,6 +21,7 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -96,7 +97,7 @@ type RequestHandler func(http.ResponseWriter, *http.Request, httprouter.Params, 
 type AuthHandler interface {
 	GetHost() string
 	Auth(user, pass string, hotpToken string) (string, error)
-	GetCertificate(c SSHLoginCredentials) ([]byte, error)
+	GetCertificate(c SSHLoginCredentials) (SSHLoginResponse, error)
 	NewUserForm(token string) (user string, QRImg []byte, hotpFirstValues []string, e error)
 	NewUserFinish(token, password, hotpToken string) error
 	ValidateSession(user, sid string) (Context, error)
@@ -147,23 +148,35 @@ func (s *LocalAuth) Auth(user, pass string, hotpToken string) (string, error) {
 	return clt.SignIn(user, []byte(pass))
 }
 
-func (s *LocalAuth) GetCertificate(c SSHLoginCredentials) ([]byte, error) {
+func (s *LocalAuth) GetCertificate(c SSHLoginCredentials) (SSHLoginResponse, error) {
 	method, err := auth.NewWebPasswordAuth(c.User, []byte(c.Password),
 		c.HOTPToken)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return SSHLoginResponse{}, trace.Wrap(err)
 	}
 
 	clt, err := auth.NewTunClient(s.authServers[0], c.User, method)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return SSHLoginResponse{}, trace.Wrap(err)
 	}
 	cert, err := clt.GenerateUserCert(c.PubKey, "id_"+c.User, c.User, c.TTL)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return SSHLoginResponse{}, trace.Wrap(err)
+	}
+	hostSigners, err := clt.GetCertAuthorities(services.HostCA)
+	if err != nil {
+		return SSHLoginResponse{}, trace.Wrap(err)
 	}
 
-	return cert, nil
+	signers := []services.CertAuthority{}
+	for _, hs := range hostSigners {
+		signers = append(signers, *hs)
+	}
+
+	return SSHLoginResponse{
+		Cert:        cert,
+		HostSigners: signers,
+	}, nil
 }
 
 func (s *LocalAuth) NewUserForm(token string) (user string,

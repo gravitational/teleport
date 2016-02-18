@@ -351,6 +351,19 @@ func (c *Client) GetServers() ([]services.Server, error) {
 	return re.Servers, nil
 }
 
+// GetServers returns the list of auth servers registered in the cluster.
+func (c *Client) GetAuthServers() ([]services.Server, error) {
+	out, err := c.Get(c.Endpoint("authservers"), url.Values{})
+	if err != nil {
+		return nil, err
+	}
+	var re *serversResponse
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return nil, err
+	}
+	return re.Servers, nil
+}
+
 // UpsertWebTun creates a persistent SSH tunnel to the specified web target
 // server that is valid for ttl period.
 // See services.WebTun documentation for details
@@ -741,6 +754,7 @@ type ClientI interface {
 	GetChunkReader(id string) (recorder.ChunkReadCloser, error)
 	UpsertServer(s services.Server, ttl time.Duration) error
 	GetServers() ([]services.Server, error)
+	GetAuthServers() ([]services.Server, error)
 	UpsertWebTun(wt services.WebTun, ttl time.Duration) error
 	GetWebTuns() ([]services.WebTun, error)
 	GetWebTun(prefix string) (*services.WebTun, error)

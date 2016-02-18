@@ -20,11 +20,17 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
+
+type HostKeyCallback func(hostname string, remote net.Addr, key ssh.PublicKey) error
 
 func ReadPath(path string) ([]byte, error) {
 	s, err := filepath.Abs(path)
@@ -98,6 +104,15 @@ func MultiCloser(closers ...io.Closer) *multiCloser {
 	return &multiCloser{
 		closers: closers,
 	}
+}
+
+func RandomString() string {
+	result := ""
+	for i := 0; i < 10; i++ {
+		x := rand.Uint32()
+		result += strconv.FormatUint(uint64(x), 16)
+	}
+	return result
 }
 
 const (

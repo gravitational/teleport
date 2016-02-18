@@ -36,6 +36,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -60,18 +62,20 @@ type NodeClient struct {
 
 // ConnectToProxy returns connected and authenticated ProxyClient
 func ConnectToProxy(proxyAddress string, authMethods []ssh.AuthMethod,
-	user string) (*ProxyClient, error) {
+	hostKeyCallback utils.HostKeyCallback, user string) (*ProxyClient, error) {
 	e := trace.Errorf("no authMethods were provided")
 
 	for _, authMethod := range authMethods {
 		sshConfig := &ssh.ClientConfig{
-			User: user,
-			Auth: []ssh.AuthMethod{authMethod},
+			User:            user,
+			Auth:            []ssh.AuthMethod{authMethod},
+			HostKeyCallback: hostKeyCallback,
 		}
 
 		proxyClient, err := ssh.Dial("tcp", proxyAddress, sshConfig)
 		if err != nil {
-			if strings.Contains(err.Error(), "handshake failed") {
+			if strings.Contains(err.Error(), "handshake failed") ||
+				strings.Contains(err.Error(), "CheckHostSigners") {
 				e = trace.Wrap(err)
 				continue
 			}
@@ -166,7 +170,8 @@ func (proxy *ProxyClient) FindServers(labelName string,
 
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
-func (proxy *ProxyClient) ConnectToNode(nodeAddress string, authMethods []ssh.AuthMethod, user string) (*NodeClient, error) {
+func (proxy *ProxyClient) ConnectToNode(nodeAddress string, authMethods []ssh.AuthMethod,
+	hostKeyCallback utils.HostKeyCallback, user string) (*NodeClient, error) {
 	if len(authMethods) == 0 {
 		return nil, trace.Errorf("no authMethods were provided")
 	}
@@ -217,14 +222,128 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, authMethods []ssh.Au
 		)
 
 		sshConfig := &ssh.ClientConfig{
-			User: user,
-			Auth: []ssh.AuthMethod{authMethod},
+			User:            user,
+			Auth:            []ssh.AuthMethod{authMethod},
+			HostKeyCallback: hostKeyCallback,
 		}
 
 		conn, chans, reqs, err := ssh.NewClientConn(pipeNetConn,
 			nodeAddress, sshConfig)
 		if err != nil {
-			if strings.Contains(err.Error(), "handshake failed") {
+			if strings.Contains(err.Error(), "handshake failed") ||
+				strings.Contains(err.Error(), "CheckHostSigners") {
+				e = trace.Wrap(err)
+				proxySession.Close()
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		client := ssh.NewClient(conn, chans, reqs)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &NodeClient{Client: client}, nil
+	}
+	return nil, e
+}
+
+// ConnectToNode connects to the ssh server via Proxy.
+// It returns connected and authenticated NodeClient
+func (proxy *ProxyClient) ConnectToHangout(nodeAddress string,
+	authMethods []ssh.AuthMethod) (*NodeClient, error) {
+
+	if len(authMethods) == 0 {
+		return nil, trace.Errorf("no authMethods were provided")
+	}
+
+	proxy.Lock()
+	defer proxy.Unlock()
+
+	e := trace.Errorf("unknown Error")
+
+	for _, authMethod := range authMethods {
+
+		proxySession, err := proxy.Client.NewSession()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		proxyWriter, err := proxySession.StdinPipe()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		proxyReader, err := proxySession.StdoutPipe()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		err = proxySession.RequestSubsystem(fmt.Sprintf("hangout:%v", nodeAddress))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		localAddr, err := utils.ParseAddr("tcp://" + proxy.proxyAddress)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		remoteAddr, err := utils.ParseAddr("tcp://" + nodeAddress)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		pipeNetConn := utils.NewPipeNetConn(
+			proxyReader,
+			proxyWriter,
+			proxySession,
+			localAddr,
+			remoteAddr,
+		)
+
+		// reading target server host certificate
+		buf := make([]byte, 1000000)
+		n, err := pipeNetConn.Read(buf)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var endpointInfo srv.HangoutEndpointInfo
+		err = json.Unmarshal(buf[:n], &endpointInfo)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		hostKeyCallback := func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			cert, ok := key.(*ssh.Certificate)
+			if !ok {
+				return trace.Errorf("expected certificate")
+			}
+			checkers, err := endpointInfo.HostKey.Checkers()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			for _, checker := range checkers {
+				if sshutils.KeysEqual(cert.SignatureKey, checker) {
+					return nil
+				}
+			}
+
+			return trace.Errorf("remote host key is not valid")
+		}
+
+		sshConfig := &ssh.ClientConfig{
+			User:            endpointInfo.OSUser,
+			Auth:            []ssh.AuthMethod{authMethod},
+			HostKeyCallback: hostKeyCallback,
+		}
+
+		conn, chans, reqs, err := ssh.NewClientConn(pipeNetConn,
+			nodeAddress, sshConfig)
+		if err != nil {
+			if strings.Contains(err.Error(), "handshake failed") ||
+				strings.Contains(err.Error(), "CheckHostSigners") {
 				e = trace.Wrap(err)
 				proxySession.Close()
 				continue
@@ -247,22 +366,25 @@ func (proxy *ProxyClient) Close() error {
 }
 
 // ConnectToNode returns connected and authenticated NodeClient
-func ConnectToNode(optionalProxy *ProxyClient, nodeAddress string, authMethods []ssh.AuthMethod, user string) (*NodeClient, error) {
+func ConnectToNode(optionalProxy *ProxyClient, nodeAddress string, authMethods []ssh.AuthMethod,
+	hostKeyCallback utils.HostKeyCallback, user string) (*NodeClient, error) {
 	if optionalProxy != nil {
-		return optionalProxy.ConnectToNode(nodeAddress, authMethods, user)
+		return optionalProxy.ConnectToNode(nodeAddress, authMethods, hostKeyCallback, user)
 	}
 
 	e := trace.Errorf("no authMethods were provided")
 
 	for _, authMethod := range authMethods {
 		sshConfig := &ssh.ClientConfig{
-			User: user,
-			Auth: []ssh.AuthMethod{authMethod},
+			User:            user,
+			Auth:            []ssh.AuthMethod{authMethod},
+			HostKeyCallback: hostKeyCallback,
 		}
 
 		client, err := ssh.Dial("tcp", nodeAddress, sshConfig)
 		if err != nil {
-			if strings.Contains(err.Error(), "handshake failed") {
+			if strings.Contains(err.Error(), "handshake failed") ||
+				strings.Contains(err.Error(), "CheckHostSigners") {
 				e = trace.Wrap(err)
 				continue
 			}
@@ -276,10 +398,17 @@ func ConnectToNode(optionalProxy *ProxyClient, nodeAddress string, authMethods [
 }
 
 // Shell returns remote shell as io.ReadWriterCloser object
-func (client *NodeClient) Shell(width, height int) (io.ReadWriteCloser, error) {
+func (client *NodeClient) Shell(width, height int, sessionID string) (io.ReadWriteCloser, error) {
 	session, err := client.Client.NewSession()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if len(sessionID) > 0 {
+		err = session.Setenv(sshutils.SessionEnvVar, sessionID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	terminalModes := ssh.TerminalModes{}

@@ -21,19 +21,23 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"os/user"
 	"strings"
 	"sync"
 	"syscall"
 
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/hangout"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
-func SSH(target, proxyAddress, command, port string, authMethods []ssh.AuthMethod) error {
+func SSH(target, proxyAddress, command, port, sessionID string, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
 	user, target := client.SplitUserAndAddress(target)
 	if !strings.Contains(target, ":") {
 		target += ":" + port
@@ -43,11 +47,11 @@ func SSH(target, proxyAddress, command, port string, authMethods []ssh.AuthMetho
 		return fmt.Errorf("Error: please provide user name")
 	}
 	if len(command) > 0 {
-		return client.RunCmd(user, target, proxyAddress, command, authMethods)
+		return client.RunCmd(user, target, proxyAddress, command, authMethods, hostKeyCallback)
 	}
 
 	addresses, err := client.ParseTargetServers(target, user, proxyAddress,
-		authMethods)
+		authMethods, hostKeyCallback)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -59,22 +63,26 @@ func SSH(target, proxyAddress, command, port string, authMethods []ssh.AuthMetho
 
 	var c *client.NodeClient
 	if len(proxyAddress) > 0 {
-		proxyClient, err := client.ConnectToProxy(proxyAddress, authMethods, user)
+		proxyClient, err := client.ConnectToProxy(proxyAddress, authMethods, hostKeyCallback, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer proxyClient.Close()
-		c, err = proxyClient.ConnectToNode(address, authMethods, user)
+		c, err = proxyClient.ConnectToNode(address, authMethods, hostKeyCallback, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
 		var err error
-		c, err = client.ConnectToNode(nil, address, authMethods, user)
+		c, err = client.ConnectToNode(nil, address, authMethods, hostKeyCallback, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
+	return shell(c, address, sessionID)
+}
+
+func shell(c *client.NodeClient, address string, sessionID string) error {
 	defer c.Close()
 
 	// disable input buffering
@@ -100,7 +108,7 @@ func SSH(target, proxyAddress, command, port string, authMethods []ssh.AuthMetho
 		return trace.Wrap(err)
 	}
 
-	shell, err := c.Shell(width, height)
+	shell, err := c.Shell(width, height, sessionID)
 	if err != nil {
 		// restore the console echoing state when exiting
 		exec.Command("stty", "-F", "/dev/tty", "echo").Run()
@@ -198,12 +206,12 @@ func getTerminalSize() (width int, height int, e error) {
 	return width, height, nil
 }
 
-func GetServers(proxyAddress, labelName, labelValueRegexp string, authMethods []ssh.AuthMethod) error {
+func GetServers(proxyAddress, labelName, labelValueRegexp string, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
 	user, proxyAddress := client.SplitUserAndAddress(proxyAddress)
 	if len(user) == 0 {
 		return fmt.Errorf("Error: please provide user name")
 	}
-	proxyClient, err := client.ConnectToProxy(proxyAddress, authMethods, user)
+	proxyClient, err := client.ConnectToProxy(proxyAddress, authMethods, hostKeyCallback, user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -235,7 +243,7 @@ func GetServers(proxyAddress, labelName, labelValueRegexp string, authMethods []
 	return nil
 }
 
-func SCP(proxyAddress, source, dest string, isDir bool, port string, authMethods []ssh.AuthMethod) error {
+func SCP(proxyAddress, source, dest string, isDir bool, port string, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
 	if strings.Contains(source, ":") {
 		user, source := client.SplitUserAndAddress(source)
 		if len(user) == 0 {
@@ -249,7 +257,7 @@ func SCP(proxyAddress, source, dest string, isDir bool, port string, authMethods
 			targetServers += ":" + port
 		}
 		return client.Download(user, targetServers, proxyAddress, path,
-			dest, isDir, authMethods)
+			dest, isDir, authMethods, hostKeyCallback)
 	} else {
 		user, dest := client.SplitUserAndAddress(dest)
 		if len(user) == 0 {
@@ -263,7 +271,80 @@ func SCP(proxyAddress, source, dest string, isDir bool, port string, authMethods
 		}
 
 		return client.Upload(user, targetServers, proxyAddress, source,
-			path, authMethods)
+			path, authMethods, hostKeyCallback)
 	}
 	return nil
+}
+
+func Share(proxyAddress, hangoutProxyAddress, nodeListeningAddress,
+	authListeningAddress string, readOnly bool, authMethods []ssh.AuthMethod,
+	hostKeyCallback utils.HostKeyCallback) error {
+
+	hangoutServer, err := hangout.New(hangoutProxyAddress, nodeListeningAddress,
+		authListeningAddress, readOnly, authMethods, hostKeyCallback)
+
+	url := proxyAddress + "/hangout/" + hangoutServer.HangoutID
+
+	fmt.Printf("\nURL:\n\n%v\n\n", url)
+
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	u, err := user.Current()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return SSH(u.Username+"@"+nodeListeningAddress, "", "", "", "hangoutSession", []ssh.AuthMethod{hangoutServer.ClientAuthMethod}, hangoutServer.HostKeyCallback)
+}
+
+func Join(hangoutURL string, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
+	/*
+		// Debug Mode
+		hangoutServer, err := hangout.New("localhost:33009", "localhost:33010",
+			"localhost:33011", false, authMethods, hostKeyCallback)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		time.Sleep(time.Second * 1)
+
+		hangoutURL = "localhost:33008" + "/hangout/" + hangoutServer.HangoutID
+	*/
+	urlParts := strings.Split(hangoutURL, "/")
+	if len(urlParts) < 3 {
+		return trace.Errorf("invalid URL")
+	}
+
+	proxyAddress := strings.Join(urlParts[:len(urlParts)-2], "/")
+	hangoutID := urlParts[len(urlParts)-1 : len(urlParts)][0]
+
+	proxy, err := client.ConnectToProxy(proxyAddress, authMethods, hostKeyCallback, "123")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authConn, err := proxy.ConnectToHangout(hangoutID+":auth", authMethods)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authClient, err := auth.NewClientFromSSHClient(authConn.Client)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	nodeAuthMethod, err := hangout.Authorize(authClient)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	nodeConn, err := proxy.ConnectToHangout(hangoutID+":node", []ssh.AuthMethod{nodeAuthMethod})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("Connected\n")
+
+	return shell(nodeConn, hangoutID, "hangoutSession")
 }

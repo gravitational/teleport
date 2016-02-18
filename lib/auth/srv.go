@@ -97,6 +97,7 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	// Servers and presence heartbeat
 	srv.POST("/v1/servers", srv.upsertServer)
 	srv.GET("/v1/servers", srv.getServers)
+	srv.GET("/v1/authservers", srv.getAuthServers)
 
 	// Tokens
 	srv.POST("/v1/tokens", srv.generateToken)
@@ -215,6 +216,15 @@ func (s *APIServer) upsertServer(w http.ResponseWriter, r *http.Request, p httpr
 
 func (s *APIServer) getServers(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	servers, err := s.a.GetServers()
+	if err != nil {
+		replyErr(w, err)
+		return
+	}
+	reply(w, http.StatusOK, serversResponse{Servers: servers})
+}
+
+func (s *APIServer) getAuthServers(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	servers, err := s.a.GetAuthServers()
 	if err != nil {
 		replyErr(w, err)
 		return
