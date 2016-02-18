@@ -89,11 +89,6 @@ type ProxyConfig struct {
 	// ReverseTunnelListenAddr is address where reverse tunnel dialers connect to
 	ReverseTunnelListenAddr utils.NetAddr
 
-	HangoutsEnabled bool `yaml:"hangouts_enabled" env:"TELEPORT_PROXY_HANGOUTS_ENABLED`
-
-	// HangoutListenAddr is address where hangout reverse tunnel dialers connect to
-	HangoutsListenAddr utils.NetAddr `yaml:"hangouts_listen_addr" env:"TELEPORT_PROXY_HANGOUTS_LISTEN_ADDR"`
-
 	// WebAddr is address for web portal of the proxy
 	WebAddr utils.NetAddr
 
@@ -314,8 +309,6 @@ func ApplyDefaults(cfg *Config) error {
 	cfg.Proxy.AssetsDir = defaults.DataDir
 	cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
 	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
-	cfg.Proxy.HangoutsEnabled = true
-	cfg.Proxy.HangoutsListenAddr = *defaults.HangoutsListenAddr()
 	cfg.ReverseTunnel.Enabled = true
 	cfg.ReverseTunnel.DialAddr = *defaults.ReverseTunnellConnectAddr()
 	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnellListenAddr()

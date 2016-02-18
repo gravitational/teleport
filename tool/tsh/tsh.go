@@ -324,7 +324,7 @@ func Join(hangoutURL string, authMethods []ssh.AuthMethod, hostKeyCallback utils
 		return trace.Wrap(err)
 	}
 
-	authConn, err := proxy.ConnectToHangout(hangoutID+":auth", authMethods)
+	authConn, err := proxy.ConnectToHangout(hangoutID+":"+utils.HangoutAuthPortAlias, authMethods)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -339,7 +339,7 @@ func Join(hangoutURL string, authMethods []ssh.AuthMethod, hostKeyCallback utils
 		return trace.Wrap(err)
 	}
 
-	nodeConn, err := proxy.ConnectToHangout(hangoutID+":node", []ssh.AuthMethod{nodeAuthMethod})
+	nodeConn, err := proxy.ConnectToHangout(hangoutID+":"+utils.HangoutNodePortAlias, []ssh.AuthMethod{nodeAuthMethod})
 	if err != nil {
 		return trace.Wrap(err)
 	}

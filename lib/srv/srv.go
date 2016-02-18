@@ -65,9 +65,8 @@ type Server struct {
 	cmdLabels   map[string]services.CommandLabel //dymanic server labels
 	labelsMutex *sync.Mutex
 
-	proxyMode   bool
-	proxyTun    reversetunnel.Server
-	hangoutsTun reversetunnel.Server
+	proxyMode bool
+	proxyTun  reversetunnel.Server
 }
 
 type ServerOption func(s *Server) error
@@ -108,13 +107,6 @@ func SetProxyMode(tsrv reversetunnel.Server) ServerOption {
 	}
 }
 
-func EnableHangouts(hangoutsTun reversetunnel.Server) ServerOption {
-	return func(s *Server) error {
-		s.hangoutsTun = hangoutsTun
-		return nil
-	}
-}
-
 func SetLabels(labels map[string]string,
 	cmdLabels services.CommandLabels) ServerOption {
 	return func(s *Server) error {
@@ -151,10 +143,6 @@ func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
 		if err := o(s); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	}
-
-	if (s.hangoutsTun != nil) && (!s.proxyMode) {
-		return nil, trace.Errorf("Hangout available only in proxy mode")
 	}
 
 	if s.elog == nil {

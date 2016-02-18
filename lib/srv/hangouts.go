@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
@@ -46,7 +47,7 @@ func (t *hangoutsSubsys) String() string {
 }
 
 func (t *hangoutsSubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	remoteSrv, err := t.srv.hangoutsTun.GetSite(t.host)
+	remoteSrv, err := t.srv.proxyTun.GetSite(t.host)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -57,10 +58,10 @@ func (t *hangoutsSubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 	}
 
 	targetPort := ""
-	if t.port == "auth" {
+	if t.port == utils.HangoutAuthPortAlias {
 		targetPort = authPort
 	}
-	if t.port == "node" {
+	if t.port == utils.HangoutNodePortAlias {
 		targetPort = nodePort
 	}
 

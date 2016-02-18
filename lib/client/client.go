@@ -31,7 +31,6 @@ import (
 	"net"
 	"os"
 	"regexp"
-	"strings"
 	"sync"
 	"time"
 
@@ -74,8 +73,7 @@ func ConnectToProxy(proxyAddress string, authMethods []ssh.AuthMethod,
 
 		proxyClient, err := ssh.Dial("tcp", proxyAddress, sshConfig)
 		if err != nil {
-			if strings.Contains(err.Error(), "handshake failed") ||
-				strings.Contains(err.Error(), "CheckHostSigners") {
+			if utils.IsHandshakeFailedError(err) {
 				e = trace.Wrap(err)
 				continue
 			}
@@ -230,8 +228,7 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, authMethods []ssh.Au
 		conn, chans, reqs, err := ssh.NewClientConn(pipeNetConn,
 			nodeAddress, sshConfig)
 		if err != nil {
-			if strings.Contains(err.Error(), "handshake failed") ||
-				strings.Contains(err.Error(), "CheckHostSigners") {
+			if utils.IsHandshakeFailedError(err) {
 				e = trace.Wrap(err)
 				proxySession.Close()
 				continue
@@ -304,7 +301,7 @@ func (proxy *ProxyClient) ConnectToHangout(nodeAddress string,
 		)
 
 		// reading target server host certificate
-		buf := make([]byte, 1000000)
+		buf := make([]byte, 20000)
 		n, err := pipeNetConn.Read(buf)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -342,8 +339,7 @@ func (proxy *ProxyClient) ConnectToHangout(nodeAddress string,
 		conn, chans, reqs, err := ssh.NewClientConn(pipeNetConn,
 			nodeAddress, sshConfig)
 		if err != nil {
-			if strings.Contains(err.Error(), "handshake failed") ||
-				strings.Contains(err.Error(), "CheckHostSigners") {
+			if utils.IsHandshakeFailedError(err) {
 				e = trace.Wrap(err)
 				proxySession.Close()
 				continue
@@ -383,8 +379,7 @@ func ConnectToNode(optionalProxy *ProxyClient, nodeAddress string, authMethods [
 
 		client, err := ssh.Dial("tcp", nodeAddress, sshConfig)
 		if err != nil {
-			if strings.Contains(err.Error(), "handshake failed") ||
-				strings.Contains(err.Error(), "CheckHostSigners") {
+			if utils.IsHandshakeFailedError(err) {
 				e = trace.Wrap(err)
 				continue
 			}

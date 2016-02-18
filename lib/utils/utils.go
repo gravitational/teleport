@@ -20,11 +20,10 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math/rand"
 	"net"
 	"os"
 	"path/filepath"
-	"strconv"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -106,13 +105,9 @@ func MultiCloser(closers ...io.Closer) *multiCloser {
 	}
 }
 
-func RandomString() string {
-	result := ""
-	for i := 0; i < 10; i++ {
-		x := rand.Uint32()
-		result += strconv.FormatUint(uint64(x), 16)
-	}
-	return result
+func IsHandshakeFailedError(err error) bool {
+	return strings.Contains(err.Error(), "handshake failed")
+
 }
 
 const (

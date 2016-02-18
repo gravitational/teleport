@@ -75,7 +75,11 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 
 	cfg := service.Config{}
 	service.ApplyDefaults(&cfg)
-	cfg.DataDir = HangoutDataDir + "/" + utils.RandomString()[:10]
+	subdir, err := auth.CryptoRandomHex(10)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cfg.DataDir = HangoutDataDir + "/" + subdir
 	cfg.Hostname = "localhost"
 
 	cfg.Auth.HostAuthorityDomain = "localhost"
@@ -115,7 +119,10 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 
 	h := &Hangout{}
 
-	h.HangoutID = utils.RandomString()[:20]
+	h.HangoutID, err = auth.CryptoRandomHex(20)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	if err := h.initAuth(cfg, readOnly); err != nil {
 		return nil, trace.Wrap(err)
@@ -174,7 +181,7 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 
 func (h *Hangout) createUser() error {
 	var err error
-	h.userPassword = utils.RandomString()
+	h.userPassword, err = auth.CryptoRandomHex(20)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -287,7 +294,6 @@ func (h *Hangout) initAuth(cfg service.Config, readOnlyHangout bool) error {
 		apisrv,
 		asrv,
 		limiter,
-		auth.EnableUserCertificates(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -333,11 +339,12 @@ func (h *Hangout) initTunAgent(cfg service.Config, authMethods []ssh.AuthMethod,
 	log.Infof("[REVERSE TUNNEL] teleport tunnel agent starting")
 	if err := a.Start(); err != nil {
 		log.Fatalf("failed to start: %v", err)
+		return trace.Wrap(err)
 	}
 
 	go func() {
 		if err := a.Wait(); err != nil {
-			log.Fatalf("failed to start: %v", err)
+			log.Fatalf("Can't connect to the remote proxy: %v\n", err)
 		}
 	}()
 	return nil

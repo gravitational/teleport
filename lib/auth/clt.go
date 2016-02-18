@@ -344,24 +344,24 @@ func (c *Client) GetServers() ([]services.Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	var re *serversResponse
+	var re []services.Server
 	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
 		return nil, err
 	}
-	return re.Servers, nil
+	return re, nil
 }
 
 // GetServers returns the list of auth servers registered in the cluster.
 func (c *Client) GetAuthServers() ([]services.Server, error) {
-	out, err := c.Get(c.Endpoint("authservers"), url.Values{})
+	out, err := c.Get(c.Endpoint("auth", "servers"), url.Values{})
 	if err != nil {
 		return nil, err
 	}
-	var re *serversResponse
+	var re []services.Server
 	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
 		return nil, err
 	}
-	return re.Servers, nil
+	return re, nil
 }
 
 // UpsertWebTun creates a persistent SSH tunnel to the specified web target

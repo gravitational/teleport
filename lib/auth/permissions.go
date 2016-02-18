@@ -38,8 +38,6 @@ func NewStandardPermissions() PermissionChecker {
 		ActionSignIn:             true,
 		ActionGenerateUserCert:   true,
 		ActionGetCertAuthorities: true,
-		/*ActionGetTrustedCertificates: true,
-		ActionGetRemoteCertificates:  true,*/
 	}
 
 	sp.permissions[RoleProvisionToken] = map[string]bool{
@@ -76,18 +74,15 @@ func NewHangoutPermissions() PermissionChecker {
 	sp.permissions = make(map[string](map[string]bool))
 
 	sp.permissions[RoleUser] = map[string]bool{
-		ActionSignIn:             true,
 		ActionGenerateUserCert:   true,
 		ActionGetCertAuthorities: true,
-		/*ActionGetTrustedCertificates: true,
-		ActionGetRemoteCertificates:  true,*/
 	}
 
-	sp.permissions[RoleProvisionToken] = map[string]bool{
+	/*sp.permissions[RoleProvisionToken] = map[string]bool{
 		ActionRegisterUsingToken:    true,
 		ActionRegisterNewAuthServer: true,
 		ActionGenerateUserCert:      true,
-	}
+	}*/
 
 	sp.permissions[RoleHangoutRemoteUser] = map[string]bool{
 		ActionGenerateUserCert: true,
@@ -184,8 +179,6 @@ var HangoutRoles = []string{
 }
 
 const (
-	PermissionRole = "role"
-
 	RoleAuth              = "Auth"
 	RoleUser              = "User"
 	RoleWeb               = "Web"

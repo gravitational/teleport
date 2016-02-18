@@ -36,9 +36,8 @@ import (
 )
 
 type TunServer struct {
-	certChecker     ssh.CertChecker
+	hostCertChecker ssh.CertChecker
 	userCertChecker ssh.CertChecker
-	userCertAllowed bool
 	a               *AuthServer
 	l               net.Listener
 	srv             *sshutils.Server
@@ -48,14 +47,6 @@ type TunServer struct {
 
 type ServerOption func(s *TunServer) error
 
-func EnableUserCertificates() ServerOption {
-	return func(s *TunServer) error {
-		s.userCertAllowed = true
-		s.userCertChecker = ssh.CertChecker{IsAuthority: s.isUserCertAuthority}
-		return nil
-	}
-}
-
 // New returns an unstarted server
 func NewTunServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 	apiServer *APIWithRoles, a *AuthServer,
@@ -63,9 +54,8 @@ func NewTunServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 	opts ...ServerOption) (*TunServer, error) {
 
 	srv := &TunServer{
-		a:               a,
-		apiServer:       apiServer,
-		userCertAllowed: false,
+		a:         a,
+		apiServer: apiServer,
 	}
 
 	for _, o := range opts {
@@ -88,7 +78,8 @@ func NewTunServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 		return nil, err
 	}
 
-	srv.certChecker = ssh.CertChecker{IsAuthority: srv.isAuthority}
+	srv.userCertChecker = ssh.CertChecker{IsAuthority: srv.isUserAuthority}
+	srv.hostCertChecker = ssh.CertChecker{IsAuthority: srv.isHostAuthority}
 	srv.srv = s
 	return srv, nil
 }
@@ -148,9 +139,9 @@ func (s *TunServer) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	}
 }
 
-// isAuthority is called during checking the client key, to see if the signing
-// key is the real CA authority key.
-func (s *TunServer) isAuthority(auth ssh.PublicKey) bool {
+// isHostAuthority is called during checking the client key, to see if the signing
+// key is the real host CA authority key.
+func (s *TunServer) isHostAuthority(auth ssh.PublicKey) bool {
 	key, err := s.a.GetCertAuthority(services.CertAuthID{DomainName: s.a.Hostname, Type: services.HostCA}, false)
 	if err != nil {
 		log.Errorf("failed to retrieve user authority key, err: %v", err)
@@ -169,9 +160,9 @@ func (s *TunServer) isAuthority(auth ssh.PublicKey) bool {
 	return false
 }
 
-// isAuthority is called during checking the client key, to see if the signing
-// key is the real CA authority key.
-func (s *TunServer) isUserCertAuthority(auth ssh.PublicKey) bool {
+// isUserAuthority is called during checking the client key, to see if the signing
+// key is the real user CA authority key.
+func (s *TunServer) isUserAuthority(auth ssh.PublicKey) bool {
 	keys, err := s.getTrustedCAKeys(services.UserCA)
 	if err != nil {
 		log.Errorf("failed to retrieve trusted keys, err: %v", err)
@@ -216,9 +207,9 @@ func (s *TunServer) haveExt(sconn *ssh.ServerConn, ext ...string) bool {
 func (s *TunServer) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel) {
 	defer ch.Close()
 
-	if sconn.Permissions.Extensions[PermissionRole] != RoleWeb {
+	if sconn.Permissions.Extensions[ExtRole] != RoleWeb {
 		log.Errorf("role %v doesn't have permission to request agent",
-			sconn.Permissions.Extensions[PermissionRole])
+			sconn.Permissions.Extensions[ExtRole])
 		return
 	}
 
@@ -272,7 +263,7 @@ func (s *TunServer) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Chann
 		ch, ch, ch,
 		addr, addr,
 	)
-	role := sconn.Permissions.Extensions[PermissionRole]
+	role := sconn.Permissions.Extensions[ExtRole]
 	if err := s.apiServer.HandleConn(conn, role); err != nil {
 		log.Errorf(err.Error())
 	}
@@ -292,9 +283,6 @@ func (s *TunServer) keyAuth(
 	}
 
 	if cert.CertType == ssh.UserCert {
-		if !s.userCertAllowed {
-			return nil, trace.Errorf("User certificates are not allowed")
-		}
 		_, err := s.userCertChecker.Authenticate(conn, key)
 		if err != nil {
 			log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
@@ -304,20 +292,20 @@ func (s *TunServer) keyAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtHost: conn.User(),
-				"role":  RoleHangoutRemoteUser,
+				ExtRole: RoleHangoutRemoteUser,
 			},
 		}
 		return perms, nil
 	}
 
-	err := s.certChecker.CheckHostKey(conn.User(), conn.RemoteAddr(), key)
+	err := s.hostCertChecker.CheckHostKey(conn.User(), conn.RemoteAddr(), key)
 	if err != nil {
 		log.Warningf("conn(%v->%v, user=%v) ERROR: failed auth user %v, err: %v",
 			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
 		return nil, err
 	}
 
-	if err := s.certChecker.CheckCert(conn.User(), cert); err != nil {
+	if err := s.hostCertChecker.CheckCert(conn.User(), cert); err != nil {
 		log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
 			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
 		return nil, trace.Wrap(err)
@@ -326,7 +314,7 @@ func (s *TunServer) keyAuth(
 	perms := &ssh.Permissions{
 		Extensions: map[string]string{
 			ExtHost: conn.User(),
-			"role":  cert.Permissions.Extensions[utils.CertExtensionRole],
+			ExtRole: cert.Permissions.Extensions[utils.CertExtensionRole],
 		},
 	}
 
@@ -349,7 +337,7 @@ func (s *TunServer) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebPassword: "<password>",
-				"role":         RoleUser,
+				ExtRole:        RoleUser,
 			},
 		}
 		log.Infof("password authenticated user: '%v'", conn.User())
@@ -360,7 +348,7 @@ func (s *TunServer) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebSession: string(ab.Pass),
-				"role":        RoleWeb,
+				ExtRole:       RoleWeb,
 			},
 		}
 		if _, err := s.a.GetWebSession(conn.User(), string(ab.Pass)); err != nil {
@@ -377,7 +365,7 @@ func (s *TunServer) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtToken: string(password),
-				"role":   RoleProvisionToken,
+				ExtRole:  RoleProvisionToken,
 			}}
 		utils.Consolef(os.Stdout, "[AUTH] Successfully accepted token %v for %v", string(password), conn.User())
 		return perms, nil
@@ -389,7 +377,7 @@ func (s *TunServer) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtToken: string(password),
-				"role":   RoleSignup,
+				ExtRole:  RoleSignup,
 			}}
 		log.Infof("session authenticated prov. token: '%v'", conn.User())
 		return perms, nil
@@ -608,6 +596,7 @@ const (
 	ExtWebPassword = "web-password@teleport"
 	ExtToken       = "provision@teleport"
 	ExtHost        = "host@teleport"
+	ExtRole        = "role@teleport"
 
 	AuthWebPassword = "password"
 	AuthWebSession  = "session"
