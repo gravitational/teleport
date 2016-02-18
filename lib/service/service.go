@@ -213,8 +213,9 @@ func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
 		return trace.Wrap(err)
 	}
 
+	log.Infof("valid principals: %v", i.Cert.ValidPrincipals[0])
 	s, err := srv.New(cfg.SSH.Addr,
-		cfg.Hostname,
+		i.Cert.ValidPrincipals[0],
 		[]ssh.Signer{i.KeySigner},
 		client,
 		limiter,

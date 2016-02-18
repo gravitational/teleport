@@ -68,7 +68,7 @@ func FatalError(err error) {
 		return err
 	}
 	log.Errorf(err.Error())
-	fmt.Fprintln(os.Stderr, "Error: "+unwrap(err).Error())
+	fmt.Fprintln(os.Stderr, "ERROR: "+unwrap(err).Error())
 	os.Exit(1)
 }
 

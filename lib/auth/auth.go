@@ -29,13 +29,15 @@ import (
 	"os"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/configure/cstrings"
+	"github.com/gravitational/trace"
 )
 
 // Authority implements minimal key-management facility for generating OpenSSH
@@ -152,6 +154,10 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 }
 
 func (s *AuthServer) GenerateToken(nodeName, role string, ttl time.Duration) (string, error) {
+	if !cstrings.IsValidDomainName(nodeName) {
+		return "", trace.Wrap(teleport.BadParameter("nodeName",
+			fmt.Sprintf("'%v' is not a valid dns name", nodeName)))
+	}
 	token, err := CryptoRandomHex(TokenLenBytes)
 	if err != nil {
 		return "", trace.Wrap(err)
