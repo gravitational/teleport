@@ -41,9 +41,9 @@ type CLIConfig struct {
 }
 
 type UserCommand struct {
-	config   *service.Config
-	login    string
-	mappings string
+	config        *service.Config
+	login         string
+	allowedLogins string
 }
 
 type NodeCommand struct {
@@ -78,7 +78,7 @@ func main() {
 	userAdd := users.Command("invite", "Generates an invitation token and prints the signup URL for setting up 2nd factor auth.")
 	userAdd.Arg("login", "Teleport user login").Required().StringVar(&cmdUsers.login)
 	userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
-		Default("").StringVar(&cmdUsers.mappings)
+		Default("").StringVar(&cmdUsers.allowedLogins)
 	userAdd.Alias(AddUserHelp)
 
 	// list users command
@@ -148,14 +148,14 @@ func printHeader(t *goterm.Table, cols []string) {
 	fmt.Fprint(t, strings.Join(dots, "\t")+"\n")
 }
 
-// Invite() creates a new sign-up token and prints a token URL to stdout.
+// Invite creates a new sign-up token and prints a token URL to stdout.
 // A user is not created until he visits the sign-up URL and completes the process
 func (u *UserCommand) Invite(client *auth.TunClient) error {
-	// if no local logis were specified, default to 'login'
-	if u.mappings == "" {
-		u.mappings = u.login
+	// if no local logins were specified, default to 'login'
+	if u.allowedLogins == "" {
+		u.allowedLogins = u.login
 	}
-	token, err := client.CreateSignupToken(u.login, strings.Split(u.mappings, ","))
+	token, err := client.CreateSignupToken(u.login, strings.Split(u.allowedLogins, ","))
 	if err != nil {
 		return err
 	}
@@ -187,7 +187,7 @@ func (u *UserCommand) List(client *auth.TunClient) error {
 	return nil
 }
 
-// Delete() deletes teleport user(s). User IDs are passed as a comma-separated
+// Delete deletes teleport user(s). User IDs are passed as a comma-separated
 // list in UserCommand.login
 func (u *UserCommand) Delete(client *auth.TunClient) error {
 	for _, l := range strings.Split(u.login, ",") {
