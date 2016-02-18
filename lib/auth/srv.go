@@ -35,7 +35,6 @@ import (
 	"github.com/codahale/lunk"
 	"github.com/gravitational/form"
 	"github.com/gravitational/roundtrip"
-	websession "github.com/gravitational/session"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 )
@@ -280,7 +279,7 @@ func (s *APIServer) getWebTuns(w http.ResponseWriter, r *http.Request, p httprou
 
 func (s *APIServer) deleteWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	user, sid := p[0].Value, p[1].Value
-	err := s.a.DeleteWebSession(user, websession.SecureID(sid))
+	err := s.a.DeleteWebSession(user, sid)
 	if err != nil {
 		replyErr(w, err)
 		return
@@ -290,12 +289,12 @@ func (s *APIServer) deleteWebSession(w http.ResponseWriter, r *http.Request, p h
 
 func (s *APIServer) getWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	user, sid := p[0].Value, p[1].Value
-	ws, err := s.a.GetWebSession(user, websession.SecureID(sid))
+	ws, err := s.a.GetWebSession(user, sid)
 	if err != nil {
 		replyErr(w, err)
 		return
 	}
-	reply(w, http.StatusOK, &webSessionResponse{SID: string(ws.SID)})
+	reply(w, http.StatusOK, &webSessionResponse{SID: ws.ID})
 }
 
 func (s *APIServer) getWebSessions(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -324,7 +323,7 @@ func (s *APIServer) signIn(w http.ResponseWriter, r *http.Request, p httprouter.
 		replyErr(w, err)
 		return
 	}
-	reply(w, http.StatusOK, &webSessionResponse{SID: string(ws.SID)})
+	reply(w, http.StatusOK, &webSessionResponse{SID: string(ws.ID)})
 }
 
 func (s *APIServer) upsertPassword(w http.ResponseWriter, r *http.Request, p httprouter.Params) {

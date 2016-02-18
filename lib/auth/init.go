@@ -29,9 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/session"
 	"github.com/gravitational/trace"
-	"github.com/mailgun/lemma/secret"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -71,13 +69,8 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 	}
 	defer lockService.ReleaseLock(cfg.AuthDomain)
 
-	scrt, err := InitSecret(cfg.DataDir, cfg.SecretKey)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	// check that user CA and host CA are present and set the certs if needed
-	asrv := NewAuthServer(cfg.Backend, cfg.Authority, scrt, cfg.DomainName)
+	asrv := NewAuthServer(cfg.Backend, cfg.Authority, cfg.DomainName)
 
 	// we determine if it's the first start by checking if the CA's are set
 	var firstStart bool
@@ -144,12 +137,7 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 					return nil, nil, trace.Wrap(err)
 				}
 
-				pid, err := session.DecodeSID(session.SecureID(token), scrt)
-				if err != nil {
-					return nil, nil, trace.Wrap(err)
-				}
-
-				if err := asrv.UpsertToken(string(pid), domainName, role, 600*time.Second); err != nil {
+				if err := asrv.UpsertToken(token, domainName, role, 600*time.Second); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 			}
@@ -283,52 +271,6 @@ func HaveKeys(domainName, dataDir string) (bool, error) {
 	}
 
 	return true, nil
-}
-
-func InitSecret(dataDir, secretKey string) (secret.SecretService, error) {
-	keyPath := secretKeyPath(dataDir)
-	exists, err := pathExists(keyPath)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		log.Infof("Secret not found. Writing to %v", keyPath)
-		if secretKey == "" {
-			log.Infof("Secret key is not supplied, generating")
-			k, err := secret.NewKey()
-			if err != nil {
-				return nil, err
-			}
-			secretKey = secret.KeyToEncodedString(k)
-		} else {
-			log.Infof("Using secret key provided with configuration")
-		}
-
-		err = ioutil.WriteFile(
-			keyPath, []byte(secretKey), 0600)
-		if err != nil {
-			return nil, err
-		}
-	}
-	log.Infof("Reading secret from %v", keyPath)
-	return ReadSecret(dataDir)
-}
-
-func ReadSecret(dataDir string) (secret.SecretService, error) {
-	keyPath := secretKeyPath(dataDir)
-	bytes, err := ioutil.ReadFile(keyPath)
-	if err != nil {
-		return nil, err
-	}
-	key, err := secret.EncodedStringToKey(string(bytes))
-	if err != nil {
-		return nil, err
-	}
-	return secret.New(&secret.Config{KeyBytes: key})
-}
-
-func secretKeyPath(dataDir string) string {
-	return filepath.Join(dataDir, "teleport.secret")
 }
 
 func keysPath(domainName, dataDir string) (key string, cert string) {

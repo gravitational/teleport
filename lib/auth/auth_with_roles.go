@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/codahale/lunk"
-	websession "github.com/gravitational/session"
 	"github.com/gravitational/trace"
 )
 
@@ -239,7 +238,7 @@ func (a *AuthWithRoles) SignIn(user string, password []byte) (*Session, error) {
 		return a.authServer.SignIn(user, password)
 	}
 }
-func (a *AuthWithRoles) GetWebSession(user string, sid websession.SecureID) (*Session, error) {
+func (a *AuthWithRoles) GetWebSession(user string, sid string) (*Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetWebSession); err != nil {
 		return nil, err
 	} else {
@@ -253,7 +252,7 @@ func (a *AuthWithRoles) GetWebSessionsKeys(user string) ([]services.AuthorizedKe
 		return a.authServer.GetWebSessionsKeys(user)
 	}
 }
-func (a *AuthWithRoles) DeleteWebSession(user string, sid websession.SecureID) error {
+func (a *AuthWithRoles) DeleteWebSession(user string, sid string) error {
 	if err := a.permChecker.HasPermission(a.role, ActionDeleteWebSession); err != nil {
 		return trace.Wrap(err)
 	} else {

@@ -31,10 +31,10 @@ import (
 	"github.com/gravitational/teleport/lib/recorder"
 	rsession "github.com/gravitational/teleport/lib/session"
 
-	"code.google.com/p/go-uuid/uuid"
 	log "github.com/Sirupsen/logrus"
 	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
+	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
 )
 

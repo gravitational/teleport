@@ -29,7 +29,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/gravitational/session"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/services"
@@ -37,7 +36,6 @@ import (
 	"github.com/gravitational/trace"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/mailgun/lemma/secret"
 )
 
 // Authority implements minimal key-management facility for generating OpenSSH
@@ -59,18 +57,15 @@ type Authority interface {
 }
 
 type Session struct {
-	SID session.SecureID
-	PID session.PlainID
-	WS  services.WebSession
+	ID string
+	WS services.WebSession
 }
 
-func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority,
-	scrt secret.SecretService, hostname string) *AuthServer {
+func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority, hostname string) *AuthServer {
 	as := AuthServer{}
 
 	as.bk = bk
 	as.Authority = a
-	as.scrt = scrt
 
 	as.CAService = services.NewCAService(as.bk)
 	as.LockService = services.NewLockService(as.bk)
@@ -88,7 +83,6 @@ func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority,
 type AuthServer struct {
 	bk *encryptedbk.ReplicatedBackend
 	Authority
-	scrt     secret.SecretService
 	Hostname string
 
 	*services.CAService
@@ -158,16 +152,14 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 }
 
 func (s *AuthServer) GenerateToken(nodeName, role string, ttl time.Duration) (string, error) {
-	randomBytes := make([]byte, TokenLenBytes)
-	if _, err := rand.Reader.Read(randomBytes); err != nil {
-		return "", err
+	token, err := CryptoRandomHex(TokenLenBytes)
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
-	token := hex.EncodeToString(randomBytes)
 	outputToken, err := services.JoinTokenRole(token, role)
 	if err != nil {
 		return "", err
 	}
-
 	if err := s.ProvisioningService.UpsertToken(token, nodeName, role, ttl); err != nil {
 		return "", err
 	}
@@ -241,11 +233,7 @@ func (s *AuthServer) RegisterNewAuthServer(domainName, outputToken string,
 		return encryptor.Key{}, trace.Wrap(err)
 	}
 
-	pid, err := session.DecodeSID(session.SecureID(token), s.scrt)
-	if err != nil {
-		return encryptor.Key{}, trace.Wrap(err)
-	}
-	tok, err := s.ProvisioningService.GetToken(string(pid))
+	tok, err := s.ProvisioningService.GetToken(token)
 	if err != nil {
 		return encryptor.Key{}, trace.Wrap(err)
 	}
@@ -282,9 +270,9 @@ func (s *AuthServer) DeleteToken(outputToken string) error {
 }
 
 func (s *AuthServer) NewWebSession(user string) (*Session, error) {
-	p, err := session.NewID(s.scrt)
+	token, err := CryptoRandomHex(WebSessionTokenLenBytes)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	priv, pub, err := s.GetNewKeyPairFromPool()
 	if err != nil {
@@ -306,43 +294,44 @@ func (s *AuthServer) NewWebSession(user string) (*Session, error) {
 		return nil, err
 	}
 	sess := &Session{
-		SID: p.SID,
-		PID: p.PID,
-		WS:  services.WebSession{Priv: priv, Pub: cert},
+		ID: token,
+		WS: services.WebSession{Priv: priv, Pub: cert},
 	}
 	return sess, nil
 }
 
 func (s *AuthServer) UpsertWebSession(user string, sess *Session, ttl time.Duration) error {
-	return s.WebService.UpsertWebSession(user, string(sess.PID), sess.WS, ttl)
+	return s.WebService.UpsertWebSession(user, sess.ID, sess.WS, ttl)
 }
 
-func (s *AuthServer) GetWebSession(user string, sid session.SecureID) (*Session, error) {
-	pid, err := session.DecodeSID(sid, s.scrt)
+func (s *AuthServer) GetWebSession(user string, id string) (*Session, error) {
+	ws, err := s.WebService.GetWebSession(user, id)
 	if err != nil {
-		return nil, err
-	}
-	ws, err := s.WebService.GetWebSession(user, string(pid))
-	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	return &Session{
-		SID: sid,
-		PID: pid,
-		WS:  *ws,
+		ID: id,
+		WS: *ws,
 	}, nil
 }
 
-func (s *AuthServer) DeleteWebSession(user string, sid session.SecureID) error {
-	pid, err := session.DecodeSID(sid, s.scrt)
-	if err != nil {
-		return err
-	}
-	return s.WebService.DeleteWebSession(user, string(pid))
+func (s *AuthServer) DeleteWebSession(user string, id string) error {
+	return trace.Wrap(s.WebService.DeleteWebSession(user, id))
 }
 
 const (
-	Week          = time.Hour * 24 * 7
-	WebSessionTTL = time.Hour * 10
-	TokenLenBytes = 16
+	Week                    = time.Hour * 24 * 7
+	WebSessionTTL           = time.Hour * 10
+	TokenLenBytes           = 16
+	WebSessionTokenLenBytes = 32
 )
+
+// CryptoRandomHex returns hex encoded random string generated with crypto-strong
+// pseudo random generator of the given bytes
+func CryptoRandomHex(len int) (string, error) {
+	randomBytes := make([]byte, len)
+	if _, err := rand.Reader.Read(randomBytes); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return hex.EncodeToString(randomBytes), nil
+}

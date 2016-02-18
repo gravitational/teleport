@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gokyle/hotp"
-	"github.com/mailgun/lemma/secret"
 	"golang.org/x/crypto/ssh"
 	. "gopkg.in/check.v1"
 )
@@ -44,14 +43,13 @@ import (
 func TestAPI(t *testing.T) { TestingT(t) }
 
 type APISuite struct {
-	srv  *httptest.Server
-	clt  *Client
-	bk   *encryptedbk.ReplicatedBackend
-	bl   *boltlog.BoltLog
-	scrt secret.SecretService
-	rec  recorder.Recorder
-	a    *AuthServer
-	dir  string
+	srv *httptest.Server
+	clt *Client
+	bk  *encryptedbk.ReplicatedBackend
+	bl  *boltlog.BoltLog
+	rec recorder.Recorder
+	a   *AuthServer
+	dir string
 
 	CAS           *services.CAService
 	LockS         *services.LockService
@@ -65,11 +63,6 @@ var _ = Suite(&APISuite{})
 func (s *APISuite) SetUpSuite(c *C) {
 	utils.InitLoggerCLI()
 	authority.PrecalculatedKeysNum = 1
-	key, err := secret.NewKey()
-	c.Assert(err, IsNil)
-	srv, err := secret.New(&secret.Config{KeyBytes: key})
-	c.Assert(err, IsNil)
-	s.scrt = srv
 }
 
 func (s *APISuite) SetUpTest(c *C) {
@@ -88,7 +81,7 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.rec, err = boltrec.New(s.dir)
 	c.Assert(err, IsNil)
 
-	s.a = NewAuthServer(s.bk, authority.New(), s.scrt, "localhost")
+	s.a = NewAuthServer(s.bk, authority.New(), "localhost")
 	s.srv = httptest.NewServer(NewAPIServer(
 		&AuthWithRoles{
 			authServer:  s.a,

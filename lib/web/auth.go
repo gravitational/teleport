@@ -16,8 +16,6 @@ limitations under the License.
 package web
 
 import (
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -32,31 +30,6 @@ import (
 	"github.com/mailgun/ttlmap"
 	"golang.org/x/crypto/ssh"
 )
-
-type Cookie struct {
-	User string
-	SID  string
-}
-
-func EncodeCookie(user, sid string) (string, error) {
-	bytes, err := json.Marshal(Cookie{User: user, SID: sid})
-	if err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(bytes), nil
-}
-
-func DecodeCookie(b string) (*Cookie, error) {
-	bytes, err := hex.DecodeString(b)
-	if err != nil {
-		return nil, err
-	}
-	var c *Cookie
-	if err := json.Unmarshal(bytes, &c); err != nil {
-		return nil, err
-	}
-	return c, nil
-}
 
 type Context interface {
 	io.Closer

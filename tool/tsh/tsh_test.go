@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 
 	"github.com/gokyle/hotp"
-	"github.com/mailgun/lemma/secret"
 	"golang.org/x/crypto/ssh"
 	. "gopkg.in/check.v1"
 
@@ -75,7 +74,6 @@ type TshSuite struct {
 	clt          *ssh.Client
 	bk           *encryptedbk.ReplicatedBackend
 	a            *auth.AuthServer
-	scrt         secret.SecretService
 	signer       ssh.Signer
 	teleagent    *teleagent.TeleAgent
 	dir          string
@@ -91,11 +89,6 @@ var _ = Suite(&TshSuite{})
 
 func (s *TshSuite) SetUpSuite(c *C) {
 	utils.InitLoggerDebug()
-	key, err := secret.NewKey()
-	c.Assert(err, IsNil)
-	scrt, err := secret.New(&secret.Config{KeyBytes: key})
-	c.Assert(err, IsNil)
-	s.scrt = scrt
 
 	s.dir = c.MkDir()
 	s.dir2 = c.MkDir()
@@ -109,7 +102,7 @@ func (s *TshSuite) SetUpSuite(c *C) {
 		encryptor.GetTestKey)
 	c.Assert(err, IsNil)
 
-	s.a = auth.NewAuthServer(s.bk, authority.New(), s.scrt, "localhost")
+	s.a = auth.NewAuthServer(s.bk, authority.New(), "localhost")
 
 	// set up host private key and certificate
 	c.Assert(s.a.UpsertCertAuthority(

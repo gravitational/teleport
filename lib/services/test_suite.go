@@ -20,11 +20,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/services/suite"
 
 	"github.com/gokyle/hotp"
 	"github.com/mailgun/lemma/random"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/testdata"
 
 	. "gopkg.in/check.v1"
 )
@@ -32,7 +32,7 @@ import (
 // NewTestCA returns new test authority with a test key as a public and
 // signing key
 func NewTestCA(caType CertAuthType, domainName string) *CertAuthority {
-	keyBytes := testdata.PEMBytes["rsa"]
+	keyBytes := suite.PEMBytes["rsa"]
 	key, err := ssh.ParsePrivateKey(keyBytes)
 	if err != nil {
 		panic(err)
@@ -42,7 +42,7 @@ func NewTestCA(caType CertAuthType, domainName string) *CertAuthority {
 	return &CertAuthority{
 		Type:         caType,
 		DomainName:   domainName,
-		CheckingKeys: [][]byte{pubKey.Marshal()},
+		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
 		SigningKeys:  [][]byte{keyBytes},
 	}
 }
@@ -129,29 +129,19 @@ func (s *ServicesTestSuite) UsersCRUD(c *C) {
 }
 
 func (s *ServicesTestSuite) CertAuthCRUD(c *C) {
-	keyBytes := testdata.PEMBytes["rsa"]
-	key, err := ssh.ParsePrivateKey(keyBytes)
-	c.Assert(err, IsNil)
-	pubKey := key.PublicKey()
-
-	ca := CertAuthority{
-		Type:          UserCA,
-		DomainName:    "example.com",
-		CheckingKeys:  [][]byte{pubKey.Marshal()},
-		SigningKeys:   [][]byte{keyBytes},
-		AllowedLogins: []string{"alice", "bob"},
-	}
-	c.Assert(s.CAS.UpsertCertAuthority(ca, backend.Forever), IsNil)
+	ca := NewTestCA(UserCA, "example.com")
+	c.Assert(s.CAS.UpsertCertAuthority(
+		*ca, backend.Forever), IsNil)
 
 	out, err := s.CAS.GetCertAuthority(*ca.ID(), true)
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, &ca)
+	c.Assert(out, DeepEquals, ca)
 
 	cas, err := s.CAS.GetCertAuthorities(UserCA)
 	c.Assert(err, IsNil)
 	ca2 := ca
 	ca2.SigningKeys = nil
-	c.Assert(cas, DeepEquals, []*CertAuthority{&ca})
+	c.Assert(cas[0], DeepEquals, ca)
 
 	err = s.CAS.DeleteCertAuthority(*ca.ID())
 	c.Assert(err, IsNil)

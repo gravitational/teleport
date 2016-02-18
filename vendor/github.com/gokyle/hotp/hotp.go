@@ -1,7 +1,6 @@
 package hotp
 
 import (
-	"code.google.com/p/rsc/qr"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha1"
@@ -16,6 +15,8 @@ import (
 	"math/big"
 	"net/url"
 	"strconv"
+
+	"github.com/mdp/rsc/qr"
 )
 
 // RFC 4226 specifies the counter as being 8 bytes.

@@ -30,7 +30,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/session"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -182,9 +181,7 @@ func (s *TunServer) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel)
 	a := agent.NewKeyring()
 	log.Infof("handleWebAgentRequest start for %v", sconn.RemoteAddr())
 
-	sessionID := session.SecureID(sconn.Permissions.Extensions[ExtWebSession])
-
-	ws, err := s.a.GetWebSession(sconn.User(), sessionID)
+	ws, err := s.a.GetWebSession(sconn.User(), sconn.Permissions.Extensions[ExtWebSession])
 	if err != nil {
 		log.Errorf("session error: %v", err)
 		return
@@ -303,7 +300,7 @@ func (s *TunServer) passwordAuth(
 				"role":        RoleWeb,
 			},
 		}
-		if _, err := s.a.GetWebSession(conn.User(), session.SecureID(ab.Pass)); err != nil {
+		if _, err := s.a.GetWebSession(conn.User(), string(ab.Pass)); err != nil {
 			return nil, trace.Errorf("session resume error: %v", trace.Wrap(err))
 		}
 		log.Infof("session authenticated user: '%v'", conn.User())

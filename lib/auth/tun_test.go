@@ -19,8 +19,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gokyle/hotp"
-
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
@@ -35,14 +33,13 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/mailgun/lemma/secret"
+	"github.com/gokyle/hotp"
 	"golang.org/x/crypto/ssh"
 	. "gopkg.in/check.v1"
 )
 
 type TunSuite struct {
-	bk   *encryptedbk.ReplicatedBackend
-	scrt secret.SecretService
+	bk *encryptedbk.ReplicatedBackend
 
 	srv    *APIWithRoles
 	tsrv   *TunServer
@@ -57,11 +54,6 @@ var _ = Suite(&TunSuite{})
 
 func (s *TunSuite) SetUpSuite(c *C) {
 	utils.InitLoggerCLI()
-	key, err := secret.NewKey()
-	c.Assert(err, IsNil)
-	srv, err := secret.New(&secret.Config{KeyBytes: key})
-	c.Assert(err, IsNil)
-	s.scrt = srv
 }
 
 func (s *TunSuite) TearDownTest(c *C) {
@@ -84,7 +76,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 	s.rec, err = boltrec.New(s.dir)
 	c.Assert(err, IsNil)
 
-	s.a = NewAuthServer(s.bk, authority.New(), s.scrt, "localhost")
+	s.a = NewAuthServer(s.bk, authority.New(), "localhost")
 	s.srv = NewAPIWithRoles(s.a, s.bl, session.New(s.bk), s.rec,
 		NewStandardPermissions(),
 		StandardRoles,
