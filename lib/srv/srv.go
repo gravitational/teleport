@@ -21,7 +21,6 @@ import (
 	"io"
 	"net"
 	"os/exec"
-	"strings"
 	"sync"
 	"time"
 
@@ -165,7 +164,7 @@ func (s *Server) Addr() string {
 }
 
 func (s *Server) ID() string {
-	return strings.Replace(s.addr.Addr, ":", "_", -1)
+	return s.hostname
 }
 
 func (s *Server) heartbeatPresence() {

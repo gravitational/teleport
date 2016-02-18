@@ -111,7 +111,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	s.srvAddress = "127.0.0.1:30187"
 	s.srv, err = srv.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srvAddress},
-		"localhost",
+		"alice",
 		[]ssh.Signer{s.signer},
 		s.a,
 		allowAllLimiter,
@@ -133,7 +133,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	s.srv2Address = "127.0.0.1:30189"
 	s.srv2, err = srv.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srv2Address},
-		"localhost",
+		"bob",
 		[]ssh.Signer{s.signer},
 		s.a,
 		allowAllLimiter,
@@ -384,9 +384,9 @@ func (s *ClientSuite) TestGetServer(c *C) {
 	c.Assert(err, IsNil)
 
 	server1Info := services.Server{
-		ID:       "127.0.0.1_30187",
+		ID:       "alice",
 		Addr:     s.srvAddress,
-		Hostname: "localhost",
+		Hostname: "alice",
 		Labels: map[string]string{
 			"label1": "value1",
 			"label2": "value2",
@@ -401,9 +401,9 @@ func (s *ClientSuite) TestGetServer(c *C) {
 	}
 
 	server2Info := services.Server{
-		ID:       "127.0.0.1_30189",
+		ID:       "bob",
 		Addr:     s.srv2Address,
-		Hostname: "localhost",
+		Hostname: "bob",
 		Labels: map[string]string{
 			"label1": "value1",
 		},
