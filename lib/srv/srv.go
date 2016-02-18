@@ -143,6 +143,7 @@ func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
 			return nil, trace.Wrap(err)
 		}
 	}
+
 	if s.elog == nil {
 		s.elog = utils.NullEventLogger
 	}
@@ -372,7 +373,6 @@ func (s *Server) HandleRequest(r *ssh.Request) {
 
 func (s *Server) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	channelType := nch.ChannelType()
-
 	if s.proxyMode {
 		if channelType == "session" { // interactive sessions
 			ch, requests, err := nch.Accept()

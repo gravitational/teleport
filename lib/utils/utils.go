@@ -20,11 +20,16 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
+
+type HostKeyCallback func(hostname string, remote net.Addr, key ssh.PublicKey) error
 
 func ReadPath(path string) ([]byte, error) {
 	s, err := filepath.Abs(path)
@@ -98,6 +103,11 @@ func MultiCloser(closers ...io.Closer) *multiCloser {
 	return &multiCloser{
 		closers: closers,
 	}
+}
+
+func IsHandshakeFailedError(err error) bool {
+	return strings.Contains(err.Error(), "handshake failed")
+
 }
 
 const (

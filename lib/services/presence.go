@@ -65,6 +65,40 @@ func (s *PresenceService) UpsertServer(server Server, ttl time.Duration) error {
 	return err
 }
 
+// GetServers returns a list of registered servers
+func (s *PresenceService) GetAuthServers() ([]Server, error) {
+	IDs, err := s.backend.GetKeys([]string{"authservers"})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers := make([]Server, len(IDs))
+	for i, id := range IDs {
+		data, err := s.backend.GetVal([]string{"authservers"}, id)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := json.Unmarshal(data, &servers[i]); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return servers, nil
+}
+
+// UpsertServer registers server presence, permanently if ttl is 0 or
+// for the specified duration with second resolution if it's >= 1 second
+func (s *PresenceService) UpsertAuthServer(server Server, ttl time.Duration) error {
+	data, err := json.Marshal(server)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.backend.UpsertVal([]string{"authservers"},
+		server.ID, data, ttl)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return err
+}
+
 type Server struct {
 	ID        string                  `json:"id"`
 	Addr      string                  `json:"addr"`
