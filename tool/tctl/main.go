@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 
 	"github.com/buger/goterm"
+	"github.com/gravitational/configure"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -213,13 +214,32 @@ func (u *NodeCommand) Invite(client *auth.TunClient) error {
 	return nil
 }
 
-// listActive retreives the list of nodes who recently sent heartbeats to
+// ListActive retreives the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
 func (u *NodeCommand) ListActive(client *auth.TunClient) error {
-	fmt.Println("TO BE DONE --->>>>> Listing nodes is not implemented. But the output should look like:")
-	fmt.Println("Node Name        IP              Labels")
-	fmt.Println("--------------   ------------    ---------------")
-	fmt.Println("mongo-server     10.0.10.22      master,mongo")
+	nodes, err := client.GetServers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	nodesView := func(nodes []services.Server) string {
+		t := goterm.NewTable(0, 10, 5, ' ', 0)
+		printHeader(t, []string{"Node Name", "Address", "Labels"})
+		if len(nodes) == 0 {
+			return t.String()
+		}
+		for _, n := range nodes {
+			labels := make(configure.KeyVal, len(n.Labels)+len(n.CmdLabels))
+			for key, val := range n.Labels {
+				labels[key] = val
+			}
+			for key, val := range n.CmdLabels {
+				labels[key] = val.Result
+			}
+			fmt.Fprintf(t, "%v\t%v\t%v\n", n.Hostname, n.Addr, labels.String())
+		}
+		return t.String()
+	}
+	fmt.Printf(nodesView(nodes))
 	return nil
 }
 

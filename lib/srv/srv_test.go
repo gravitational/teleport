@@ -17,6 +17,7 @@ package srv
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os/user"
@@ -438,9 +439,10 @@ func (s *SrvSuite) TestProxy(c *C) {
 	testClient(s.srvHostPort)
 
 	// adding new node
+	bobAddr := "127.0.0.1:31185"
 	srv2, err := New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:31185"},
-		"localhost",
+		utils.NetAddr{AddrNetwork: "tcp", Addr: bobAddr},
+		"bob",
 		[]ssh.Signer{s.signer},
 		s.a,
 		limiter,
@@ -482,10 +484,36 @@ func (s *SrvSuite) TestProxy(c *C) {
 
 	c.Assert(se3.RequestSubsystem("proxysites"), IsNil)
 	<-done
-	c.Assert(stdout.String(), Equals,
-		`{"localhost":[{"id":"127.0.0.1_30185","addr":"127.0.0.1:30185","hostname":"localhost","labels":null,"cmd_labels":null},`+
-			`{"id":"127.0.0.1_31185","addr":"127.0.0.1:31185","hostname":"localhost","labels":{"label1":"value1"},"cmd_labels":{"cmdLabel1":{"period":"1s","command":["expr","1","+","3"],"result":"4"},"cmdLabel2":{"period":"2s","command":["expr","2","+","3"],"result":"5"}}}]}`)
+	var sites map[string][]services.Server
+	c.Assert(json.Unmarshal(stdout.Bytes(), &sites), IsNil)
+	c.Assert(sites, NotNil)
+	nodes := sites["localhost"]
+	c.Assert(len(nodes), Equals, 2)
+	nmap := map[string]services.Server{}
+	for _, node := range nodes {
+		nmap[node.ID] = node
+	}
+	c.Assert(nmap["bob"], DeepEquals, services.Server{
+		ID:       "bob",
+		Addr:     bobAddr,
+		Hostname: "bob",
+		Labels:   map[string]string{"label1": "value1"},
+		CmdLabels: services.CommandLabels{
+			"cmdLabel1": services.CommandLabel{
+				Period:  time.Second,
+				Command: []string{"expr", "1", "+", "3"},
+				Result:  "4",
+			},
+			"cmdLabel2": services.CommandLabel{
+				Period:  time.Second * 2,
+				Command: []string{"expr", "2", "+", "3"},
+				Result:  "5",
+			}}})
 
+	c.Assert(nmap["localhost"], DeepEquals, services.Server{
+		ID:       "localhost",
+		Addr:     "127.0.0.1:30185",
+		Hostname: "localhost"})
 }
 
 // TestPTY requests PTY for an interactive session

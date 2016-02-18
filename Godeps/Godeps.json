@@ -51,7 +51,7 @@
 			"Rev": "c180d57d286b385101c999a60087a40d7f48fc77"
 		},
 		{
-			"ImportPath": "github.com/gravitational/configure/cstrings",
+			"ImportPath": "github.com/gravitational/configure",
 			"Rev": "d96ff6953d81404004a3f8b09e9ed0724075f2ef"
 		},
 		{
@@ -176,8 +176,23 @@
 			"Rev": "eb2c74142fd19a79b3f237334c7384d5167b1b46"
 		},
 		{
+			"ImportPath": "gopkg.in/airbrake/gobrake.v2",
+			"Comment": "v2.0.3",
+			"Rev": "c9d51adc624b5cc4c1bf8de730a09af4878ffe2d"
+		},
+		{
+			"ImportPath": "gopkg.in/alecthomas/kingpin.v2",
+			"Comment": "v2.1.11",
+			"Rev": "8cccfa8eb2e3183254457fb1749b2667fbc364c7"
+		},
+		{
 			"ImportPath": "gopkg.in/check.v1",
 			"Rev": "64131543e7896d5bcc6bd5a76287eb75ea96c673"
+		},
+		{
+			"ImportPath": "gopkg.in/gemnasium/logrus-airbrake-hook.v2",
+			"Comment": "v2.0.0",
+			"Rev": "31e6fd4bd5a98d8ee7673d24bc54ec73c31810dd"
 		},
 		{
 			"ImportPath": "gopkg.in/yaml.v2",
