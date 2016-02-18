@@ -46,6 +46,7 @@ type RemoteSite interface {
 	GetStatus() string
 	GetClient() *auth.Client
 	GetServers() ([]services.Server, error)
+	GetHangoutInfo() (hostKey *services.CertAuthority, OSUser, AuthPort, NodePort string)
 }
 
 type Server interface {
@@ -59,10 +60,11 @@ type Server interface {
 type server struct {
 	sync.RWMutex
 
-	ap          auth.AccessPoint
-	certChecker ssh.CertChecker
-	l           net.Listener
-	srv         *sshutils.Server
+	ap              auth.AccessPoint
+	hostCertChecker ssh.CertChecker
+	userCertChecker ssh.CertChecker
+	l               net.Listener
+	srv             *sshutils.Server
 
 	sites []*remoteSite
 }
@@ -86,7 +88,8 @@ func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 	if err != nil {
 		return nil, err
 	}
-	srv.certChecker = ssh.CertChecker{IsAuthority: srv.isAuthority}
+	srv.hostCertChecker = ssh.CertChecker{IsAuthority: srv.isHostAuthority}
+	srv.userCertChecker = ssh.CertChecker{IsAuthority: srv.isUserAuthority}
 	srv.srv = s
 	return srv, nil
 }
@@ -112,12 +115,23 @@ func (s *server) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	switch nch.ChannelType() {
 	case chanHeartbeat:
 		log.Infof("got heartbeat request from agent: %v", sconn)
-		site, err := s.upsertSite(sconn)
+		var site *remoteSite
+		var err error
+
+		switch sconn.Permissions.Extensions[ExtCertType] {
+		case ExtCertTypeHost:
+			site, err = s.upsertRegularSite(sconn)
+		case ExtCertTypeUser:
+			site, err = s.upsertHangoutSite(sconn)
+		default:
+			err = trace.Errorf("Can't retrieve certificate type")
+		}
 		if err != nil {
 			log.Errorf("failed to upsert site: %v", err)
 			nch.Reject(ssh.ConnectionFailed, "failed to upsert site")
 			return
 		}
+
 		ch, req, err := nch.Accept()
 		if err != nil {
 			log.Errorf("failed to accept channel: %v", err)
@@ -128,12 +142,12 @@ func (s *server) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	}
 }
 
-// isAuthority is called during checking the client key, to see if the signing
-// key is the real CA authority key.
-func (s *server) isAuthority(auth ssh.PublicKey) bool {
-	keys, err := s.getTrustedCAKeys()
+// isHostAuthority is called during checking the client key, to see if the signing
+// key is the real host CA authority key.
+func (s *server) isHostAuthority(auth ssh.PublicKey) bool {
+	keys, err := s.getTrustedCAKeys(services.HostCA)
 	if err != nil {
-		log.Errorf("failed to retrieve trused keys, err: %v", err)
+		log.Errorf("failed to retrieve trusted keys, err: %v", err)
 		return false
 	}
 	for _, k := range keys {
@@ -144,8 +158,24 @@ func (s *server) isAuthority(auth ssh.PublicKey) bool {
 	return false
 }
 
-func (s *server) getTrustedCAKeys() ([]ssh.PublicKey, error) {
-	cas, err := s.ap.GetCertAuthorities(services.HostCA)
+// isUserAuthority is called during checking the client key, to see if the signing
+// key is the real user CA authority key.
+func (s *server) isUserAuthority(auth ssh.PublicKey) bool {
+	keys, err := s.getTrustedCAKeys(services.UserCA)
+	if err != nil {
+		log.Errorf("failed to retrieve trusted keys, err: %v", err)
+		return false
+	}
+	for _, k := range keys {
+		if sshutils.KeysEqual(k, auth) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *server) getTrustedCAKeys(CertType services.CertAuthType) ([]ssh.PublicKey, error) {
+	cas, err := s.ap.GetCertAuthorities(CertType)
 	if err != nil {
 		return nil, err
 	}
@@ -168,29 +198,60 @@ func (s *server) keyAuth(
 
 	log.Infof("%v auth attempt with key %v", cid, key.Type())
 
-	err := s.certChecker.CheckHostKey(conn.User(), conn.RemoteAddr(), key)
-	if err != nil {
-		log.Warningf("reversetunnel(%v->%v, user=%v) ERROR: failed auth user %v, err: %v",
-			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
-		return nil, err
+	cert, ok := key.(*ssh.Certificate)
+	if !ok {
+		log.Warningf("conn(%v->%v, user=%v) Server doesn't support provided key type",
+			conn.RemoteAddr(), conn.LocalAddr(), conn.User())
+		return nil, trace.Errorf("ERROR: Server doesn't support provided key type")
 	}
 
-	if err := s.certChecker.CheckCert(conn.User(), key.(*ssh.Certificate)); err != nil {
-		log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
-			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
-		return nil, trace.Wrap(err)
+	if cert.CertType == ssh.HostCert {
+		err := s.hostCertChecker.CheckHostKey(conn.User(), conn.RemoteAddr(), key)
+		if err != nil {
+			log.Warningf("reversetunnel(%v->%v, user=%v) ERROR: failed auth user %v, err: %v",
+				conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
+			return nil, err
+		}
+
+		if err := s.hostCertChecker.CheckCert(conn.User(), cert); err != nil {
+			log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
+				conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
+			return nil, trace.Wrap(err)
+		}
+
+		perms := &ssh.Permissions{
+			Extensions: map[string]string{
+				ExtHost:     conn.User(),
+				ExtCertType: ExtCertTypeHost,
+			},
+		}
+		return perms, nil
+	} else {
+		_, err := s.userCertChecker.Authenticate(conn, key)
+		if err != nil {
+			log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
+				conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
+			return nil, err
+		}
+
+		if err := s.userCertChecker.CheckCert(conn.User(), cert); err != nil {
+			log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
+				conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
+			return nil, trace.Wrap(err)
+		}
+
+		perms := &ssh.Permissions{
+			Extensions: map[string]string{
+				ExtHost:     conn.User(),
+				ExtCertType: ExtCertTypeUser,
+			},
+		}
+		return perms, nil
 	}
 
-	perms := &ssh.Permissions{
-		Extensions: map[string]string{
-			ExtHost: conn.User(),
-		},
-	}
-
-	return perms, nil
 }
 
-func (s *server) upsertSite(c ssh.Conn) (*remoteSite, error) {
+func (s *server) upsertRegularSite(c ssh.Conn) (*remoteSite, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -216,6 +277,62 @@ func (s *server) upsertSite(c ssh.Conn) (*remoteSite, error) {
 	return site, nil
 }
 
+func (s *server) upsertHangoutSite(c ssh.Conn) (*remoteSite, error) {
+	s.Lock()
+	defer s.Unlock()
+
+	hangoutID := c.User()
+	for _, st := range s.sites {
+		if st.domainName == hangoutID {
+			return nil, trace.Errorf("Hangout ID is already used")
+		}
+	}
+
+	site := &remoteSite{srv: s, domainName: hangoutID}
+	err := site.init(c)
+	if err != nil {
+		return nil, err
+	}
+
+	hangoutCertAuthorities, err := site.clt.GetCertAuthorities(services.HostCA)
+	if err != nil {
+		return nil, err
+	}
+	if len(hangoutCertAuthorities) != 1 {
+		return nil, trace.Errorf("Can't retrieve hangout Certificate Authority")
+	}
+	site.hangoutHostKey = hangoutCertAuthorities[0]
+
+	proxyUserCertAuthorities, err := s.ap.GetCertAuthorities(services.UserCA)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, ca := range proxyUserCertAuthorities {
+		err = site.clt.UpsertCertAuthority(*ca, 0)
+	}
+
+	// receiving hangoutInfo using sessions just as storage
+	sess, err := site.clt.GetSessions()
+	if err != nil {
+		return nil, err
+	}
+	if len(sess) != 1 {
+		return nil, trace.Errorf("Can't get hangout info")
+	}
+	hangoutInfo, err := utils.UnmarshalHangoutInfo(sess[0].ID)
+	if err != nil {
+		return nil, err
+	}
+	site.domainName = hangoutInfo.HangoutID
+	site.hangoutOSUser = hangoutInfo.OSUser
+	site.hangoutAuthPort = hangoutInfo.AuthPort
+	site.hangoutNodePort = hangoutInfo.NodePort
+
+	s.sites = append(s.sites, site)
+	return site, nil
+}
+
 func (s *server) GetSites() []RemoteSite {
 	s.RLock()
 	defer s.RUnlock()
@@ -234,7 +351,7 @@ func (s *server) GetSite(domainName string) (RemoteSite, error) {
 			return s.sites[i], nil
 		}
 	}
-	return nil, fmt.Errorf("site not found")
+	return nil, fmt.Errorf("site %v not found", domainName)
 }
 
 // FindSimilarSite finds the site that is the most similar to domain.
@@ -278,6 +395,11 @@ type remoteSite struct {
 	lastActive time.Time
 	srv        *server
 	clt        *auth.Client
+
+	hangoutHostKey  *services.CertAuthority
+	hangoutOSUser   string
+	hangoutAuthPort string
+	hangoutNodePort string
 }
 
 func (s *remoteSite) GetClient() *auth.Client {
@@ -305,7 +427,7 @@ func (s *remoteSite) init(c ssh.Conn) error {
 				log.Errorf("remoteSite:authProxy %v", err)
 				return nil, err
 			}
-			return newChConn(s.conn, ch), nil
+			return utils.NewChConn(s.conn, ch), nil
 		},
 	}
 	clt, err := auth.NewClient(
@@ -363,7 +485,7 @@ func (s *remoteSite) ConnectToServer(server, user string, auth []ssh.AuthMethod)
 	if !dialed {
 		return nil, trace.Errorf("remote server %v is not available", server)
 	}
-	transportConn := newChConn(s.conn, ch)
+	transportConn := utils.NewChConn(s.conn, ch)
 	conn, chans, reqs, err := ssh.NewClientConn(
 		transportConn, server,
 		&ssh.ClientConfig{
@@ -408,7 +530,7 @@ func (s *remoteSite) DialServer(server string) (net.Conn, error) {
 	if !dialed {
 		return nil, trace.Errorf("remote server %v is not available", server)
 	}
-	return newChConn(s.conn, ch), nil
+	return utils.NewChConn(s.conn, ch), nil
 }
 
 func (s *remoteSite) GetServers() ([]services.Server, error) {
@@ -423,7 +545,7 @@ func (s *remoteSite) handleAuthProxy(w http.ResponseWriter, r *http.Request) {
 				log.Errorf("remoteSite:authProxy %v", err)
 				return nil, err
 			}
-			return newChConn(s.conn, ch), nil
+			return utils.NewChConn(s.conn, ch), nil
 		},
 	}
 
@@ -438,36 +560,14 @@ func (s *remoteSite) handleAuthProxy(w http.ResponseWriter, r *http.Request) {
 	fwd.ServeHTTP(w, r)
 }
 
-func newChConn(conn ssh.Conn, ch ssh.Channel) *chConn {
-	c := &chConn{}
-	c.Channel = ch
-	c.conn = conn
-	return c
+func (s *remoteSite) GetHangoutInfo() (hostKey *services.CertAuthority, OSUser, AuthPort, NodePort string) {
+	return s.hangoutHostKey, s.hangoutOSUser, s.hangoutAuthPort, s.hangoutNodePort
 }
 
-type chConn struct {
-	ssh.Channel
-	conn ssh.Conn
-}
+const (
+	ExtHost     = "host@teleport"
+	ExtCertType = "certtype@teleport"
 
-func (c *chConn) LocalAddr() net.Addr {
-	return c.conn.LocalAddr()
-}
-
-func (c *chConn) RemoteAddr() net.Addr {
-	return c.conn.RemoteAddr()
-}
-
-func (c *chConn) SetDeadline(t time.Time) error {
-	return nil
-}
-
-func (c *chConn) SetReadDeadline(t time.Time) error {
-	return nil
-}
-
-func (c *chConn) SetWriteDeadline(t time.Time) error {
-	return nil
-}
-
-const ExtHost = "host@teleport"
+	ExtCertTypeHost = "host"
+	ExtCertTypeUser = "user"
+)

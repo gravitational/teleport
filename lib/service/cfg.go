@@ -279,14 +279,14 @@ func (c *LocalCertificateAuthority) CA() (*services.CertAuthority, error) {
 // MakeDefaultConfig() creates a new Config structure and populates it with defaults
 func MakeDefaultConfig() (config *Config, err error) {
 	config = &Config{}
-	if err = applyDefaults(config); err != nil {
+	if err = ApplyDefaults(config); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return config, nil
 }
 
-// applyDefaults applies default values to the existing config structure
-func applyDefaults(cfg *Config) error {
+// ApplyDefaults applies default values to the existing config structure
+func ApplyDefaults(cfg *Config) error {
 	hostname, err := os.Hostname()
 	if err != nil {
 		return trace.Wrap(err)

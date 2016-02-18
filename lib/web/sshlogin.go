@@ -8,11 +8,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/lib/services"
+
 	"github.com/gravitational/trace"
 )
 
 func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte,
-	ttl time.Duration) (cert []byte, err error) {
+	ttl time.Duration) (SSHLoginResponse, error) {
 
 	cred := SSHLoginCredentials{
 		User:      user,
@@ -24,7 +26,7 @@ func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte,
 
 	credJSON, err := json.Marshal(cred)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return SSHLoginResponse{}, trace.Wrap(err)
 	}
 
 	if !strings.HasPrefix(proxyAddr, "http://") {
@@ -37,20 +39,26 @@ func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte,
 			"credentials": []string{string(credJSON)},
 		})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return SSHLoginResponse{}, trace.Wrap(err)
 	}
 
 	defer out.Body.Close()
 	body, err := ioutil.ReadAll(out.Body)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return SSHLoginResponse{}, trace.Wrap(err)
 	}
 
 	if out.StatusCode != 200 {
-		return nil, trace.Errorf(string(body))
+		return SSHLoginResponse{}, trace.Errorf(string(body))
 	}
 
-	return body, nil
+	var res SSHLoginResponse
+	err = json.Unmarshal(body, &res)
+	if err != nil {
+		return SSHLoginResponse{}, trace.Wrap(err)
+	}
+
+	return res, nil
 }
 
 type SSHLoginCredentials struct {
@@ -59,4 +67,9 @@ type SSHLoginCredentials struct {
 	HOTPToken string
 	PubKey    []byte
 	TTL       time.Duration
+}
+
+type SSHLoginResponse struct {
+	Cert        []byte
+	HostSigners []services.CertAuthority
 }
