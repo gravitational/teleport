@@ -32,6 +32,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gokyle/hotp"
+	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -89,9 +90,19 @@ func (s *WebService) GetUsers() ([]User, error) {
 
 // UpsertUser updates parameters about user
 func (s *WebService) UpsertUser(user User) error {
+	if !cstrings.IsValidUnixUser(user.Name) {
+		return trace.Wrap(
+			teleport.BadParameter("user.Name", fmt.Sprintf("'%v is not a valid unix username'", user.Name)))
+	}
 	data, err := json.Marshal(user.AllowedLogins)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	for _, l := range user.AllowedLogins {
+		if !cstrings.IsValidUnixUser(l) {
+			return trace.Wrap(
+				teleport.BadParameter("login", fmt.Sprintf("'%v is not a valid unix username'", l)))
+		}
 	}
 	err = s.backend.UpsertVal([]string{"web", "users", user.Name}, "logins", []byte(data), backend.Forever)
 	if err != nil {

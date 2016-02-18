@@ -262,7 +262,7 @@ func (s *SrvSuite) TestAllowedUsers(c *C) {
 	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 	c.Assert(err, NotNil)
 
-	c.Assert(s.a.UpsertUser(services.User{Name: "user2", AllowedLogins: []string{"wrongOSUser"}}), IsNil)
+	c.Assert(s.a.UpsertUser(services.User{Name: "user2", AllowedLogins: []string{"wrongosuser"}}), IsNil)
 	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 	c.Assert(err, NotNil)
 }

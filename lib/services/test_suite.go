@@ -126,6 +126,13 @@ func (s *ServicesTestSuite) UsersCRUD(c *C) {
 	err = s.WebS.DeleteUser("user1")
 	c.Assert(teleport.IsNotFound(err), Equals, true, Commentf("unexpected %T %#v", err, err))
 
+	// bad username
+	err = s.WebS.UpsertUser(User{Name: ""})
+	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("expected bad parameter error, got %T", err))
+
+	// bad allowed login
+	err = s.WebS.UpsertUser(User{Name: "bob", AllowedLogins: []string{"oops  typo!"}})
+	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("expected bad parameter error, got %T", err))
 }
 
 func (s *ServicesTestSuite) CertAuthCRUD(c *C) {

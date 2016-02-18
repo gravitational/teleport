@@ -145,6 +145,14 @@ func IsMissingParameter(e error) bool {
 	return ok
 }
 
+// BadParameter returns a new instance of BadParameterError
+func BadParameter(name, message string) *BadParameterError {
+	return &BadParameterError{
+		Param: name,
+		Err:   message,
+	}
+}
+
 // BadParameterError indicates that something is wrong with passed
 // parameter to API method
 type BadParameterError struct {
@@ -154,13 +162,18 @@ type BadParameterError struct {
 }
 
 // Error returrns debug friendly message
-func (m *BadParameterError) Error() string {
-	return fmt.Sprintf("bad parameter '%v', %v", m.Param, m.Err)
+func (b *BadParameterError) Error() string {
+	return fmt.Sprintf("bad parameter '%v', %v", b.Param, b.Err)
 }
 
 // OrigError returns original error (in this case this is the error itself)
-func (e *BadParameterError) OrigError() error {
-	return e
+func (b *BadParameterError) OrigError() error {
+	return b
+}
+
+// IsBadParameterError indicates that error is of bad parameter type
+func (b *BadParameterError) IsBadParameterError() bool {
+	return true
 }
 
 // IsBadParameter detects if this error is of BadParameter kind
