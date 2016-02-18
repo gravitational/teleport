@@ -28,17 +28,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gokyle/hotp"
-	"github.com/mailgun/lemma/secret"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/testdata"
-
 	. "gopkg.in/check.v1"
 )
 
 type AuthSuite struct {
-	bk   *encryptedbk.ReplicatedBackend
-	scrt secret.SecretService
-	a    *AuthServer
+	bk *encryptedbk.ReplicatedBackend
+	a  *AuthServer
 
 	dir string
 }
@@ -47,11 +42,6 @@ var _ = Suite(&AuthSuite{})
 
 func (s *AuthSuite) SetUpSuite(c *C) {
 	utils.InitLoggerCLI()
-	key, err := secret.NewKey()
-	c.Assert(err, IsNil)
-	srv, err := secret.New(&secret.Config{KeyBytes: key})
-	c.Assert(err, IsNil)
-	s.scrt = srv
 }
 
 func (s *AuthSuite) SetUpTest(c *C) {
@@ -64,23 +54,13 @@ func (s *AuthSuite) SetUpTest(c *C) {
 		encryptor.GetTestKey)
 	c.Assert(err, IsNil)
 
-	s.a = NewAuthServer(s.bk, authority.New(), s.scrt, "localhost")
+	s.a = NewAuthServer(s.bk, authority.New(), "localhost")
 }
 
 // TODO(klizhentas) introduce more thorough tests, test more edge cases
 func (s *AuthSuite) TestSessions(c *C) {
-	keyBytes := testdata.PEMBytes["rsa"]
-	key, err := ssh.ParsePrivateKey(keyBytes)
-	c.Assert(err, IsNil)
-	pubKey := key.PublicKey()
-
-	userCA := services.CertAuthority{
-		Type:         services.UserCA,
-		DomainName:   "localhost",
-		CheckingKeys: [][]byte{pubKey.Marshal()},
-		SigningKeys:  [][]byte{keyBytes},
-	}
-	c.Assert(s.a.UpsertCertAuthority(userCA, backend.Forever), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(
+		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	user := "user1"
 	pass := []byte("abc123")
@@ -100,14 +80,14 @@ func (s *AuthSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ws, NotNil)
 
-	out, err := s.a.GetWebSession(user, ws.SID)
+	out, err := s.a.GetWebSession(user, ws.ID)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, ws)
 
-	err = s.a.DeleteWebSession(user, ws.SID)
+	err = s.a.DeleteWebSession(user, ws.ID)
 	c.Assert(err, IsNil)
 
-	_, err = s.a.GetWebSession(user, ws.SID)
+	_, err = s.a.GetWebSession(user, ws.ID)
 	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 }
 

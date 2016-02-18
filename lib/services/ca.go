@@ -140,6 +140,9 @@ func (s *CAService) GetCertAuthority(id CertAuthID, loadSigningKeys bool) (*Cert
 	if err := ca.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !loadSigningKeys {
+		ca.SigningKeys = nil
+	}
 	return ca, nil
 }
 

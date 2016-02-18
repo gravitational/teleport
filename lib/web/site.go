@@ -29,7 +29,6 @@ import (
 	"sync"
 	"time"
 
-	"code.google.com/p/go-uuid/uuid"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -41,6 +40,7 @@ import (
 	"github.com/gravitational/form"
 	"github.com/gravitational/roundtrip"
 	"github.com/julienschmidt/httprouter"
+	"github.com/pborman/uuid"
 )
 
 // SiteHandler implements methods for single site

@@ -42,10 +42,8 @@ import (
 
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
-	"github.com/mailgun/lemma/secret"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/crypto/ssh/testdata"
 	. "gopkg.in/check.v1"
 )
 
@@ -59,7 +57,6 @@ type SrvSuite struct {
 	bk          *encryptedbk.ReplicatedBackend
 	a           *auth.AuthServer
 	up          *upack
-	scrt        secret.SecretService
 	signer      ssh.Signer
 	dir         string
 	user        string
@@ -70,11 +67,6 @@ var _ = Suite(&SrvSuite{})
 
 func (s *SrvSuite) SetUpSuite(c *C) {
 	utils.InitLoggerCLI()
-	key, err := secret.NewKey()
-	c.Assert(err, IsNil)
-	srv, err := secret.New(&secret.Config{KeyBytes: key})
-	c.Assert(err, IsNil)
-	s.scrt = srv
 }
 
 func (s *SrvSuite) SetUpTest(c *C) {
@@ -92,28 +84,10 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.domainName = "localhost"
-	s.a = auth.NewAuthServer(s.bk, authority.New(), s.scrt, s.domainName)
+	s.a = auth.NewAuthServer(s.bk, authority.New(), s.domainName)
 
-	keyBytes := testdata.PEMBytes["rsa"]
-	key, err := ssh.ParsePrivateKey(keyBytes)
-	c.Assert(err, IsNil)
-	pubKey := key.PublicKey()
-
-	userCA := services.CertAuthority{
-		Type:         services.UserCA,
-		DomainName:   s.domainName,
-		CheckingKeys: [][]byte{pubKey.Marshal()},
-		SigningKeys:  [][]byte{keyBytes},
-	}
-	c.Assert(s.a.UpsertCertAuthority(userCA, backend.Forever), IsNil)
-
-	hostCA := services.CertAuthority{
-		Type:         services.HostCA,
-		DomainName:   s.domainName,
-		CheckingKeys: [][]byte{pubKey.Marshal()},
-		SigningKeys:  [][]byte{keyBytes},
-	}
-	c.Assert(s.a.UpsertCertAuthority(hostCA, backend.Forever), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(*services.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(*services.NewTestCA(services.HostCA, s.domainName), backend.Forever), IsNil)
 
 	// set up host private key and certificate
 	hpriv, hpub, err := s.a.GenerateKeyPair("")

@@ -31,7 +31,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gokyle/hotp"
-	"github.com/gravitational/session"
 	"github.com/gravitational/trace"
 )
 
@@ -47,18 +46,17 @@ var TokenTTLAfterUse = time.Second * 10
 // For each token it creates username and hotp generator
 //
 // Mappings are host logins allowed for the new user to use
-func (s *AuthServer) CreateSignupToken(user string, mappings []string) (token string, e error) {
+func (s *AuthServer) CreateSignupToken(user string, mappings []string) (string, error) {
 	// check existing
 	_, err := s.GetPasswordHash(user)
 	if err == nil {
 		return "", trace.Errorf("login '%v' already exists", user)
 	}
 
-	t, err := session.NewID(s.scrt)
+	token, err := CryptoRandomHex(WebSessionTokenLenBytes)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	token = string(t.PID)
 
 	otp, err := hotp.GenerateHOTP(services.HOTPTokenDigits, false)
 	if err != nil {
