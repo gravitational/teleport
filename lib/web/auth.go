@@ -159,7 +159,7 @@ func (s *LocalAuth) GetCertificate(c SSHLoginCredentials) (SSHLoginResponse, err
 	if err != nil {
 		return SSHLoginResponse{}, trace.Wrap(err)
 	}
-	cert, err := clt.GenerateUserCert(c.PubKey, "id_"+c.User, c.User, c.TTL)
+	cert, err := clt.GenerateUserCert(c.PubKey, c.User, c.TTL)
 	if err != nil {
 		return SSHLoginResponse{}, trace.Wrap(err)
 	}

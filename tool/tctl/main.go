@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -203,7 +204,7 @@ func (u *UserCommand) Delete(client *auth.TunClient) error {
 // to a cluster
 func (u *NodeCommand) Invite(client *auth.TunClient) error {
 	invitationTTL := time.Minute * 15
-	token, err := client.GenerateToken(u.nodename, auth.RoleNode, invitationTTL)
+	token, err := client.GenerateToken(u.nodename, teleport.RoleNode, invitationTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}

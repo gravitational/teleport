@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/session"
@@ -32,17 +33,17 @@ import (
 )
 
 type APIWithRoles struct {
-	listeners map[string]*utils.MemoryListener
-	servers   map[string]*APIServer
+	listeners map[teleport.Role]*utils.MemoryListener
+	servers   map[teleport.Role]*APIServer
 }
 
 func NewAPIWithRoles(authServer *AuthServer, elog events.Log,
 	sessions session.SessionServer, recorder recorder.Recorder,
 	permChecker PermissionChecker,
-	roles []string) *APIWithRoles {
+	roles []teleport.Role) *APIWithRoles {
 	api := APIWithRoles{}
-	api.listeners = make(map[string]*utils.MemoryListener)
-	api.servers = make(map[string]*APIServer)
+	api.listeners = make(map[teleport.Role]*utils.MemoryListener)
+	api.servers = make(map[teleport.Role]*APIServer)
 
 	for _, role := range roles {
 		a := AuthWithRoles{
@@ -72,7 +73,7 @@ func (api *APIWithRoles) Serve() {
 	wg.Wait()
 }
 
-func (api *APIWithRoles) HandleConn(conn net.Conn, role string) error {
+func (api *APIWithRoles) HandleConn(conn net.Conn, role teleport.Role) error {
 	listener, ok := api.listeners[role]
 	if !ok {
 		conn.Close()

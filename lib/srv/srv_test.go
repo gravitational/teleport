@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -93,7 +94,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	// set up host private key and certificate
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
-	hcert, err := s.a.GenerateHostCert(hpub, s.domainName, s.domainName, auth.RoleAdmin, 0)
+	hcert, err := s.a.GenerateHostCert(hpub, s.domainName, s.domainName, teleport.RoleAdmin, 0)
 	c.Assert(err, IsNil)
 
 	// set up user CA and set up a user that has access to the server
@@ -653,7 +654,7 @@ func newUpack(user string, a *auth.AuthServer) (*upack, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	ucert, err := a.GenerateUserCert(upub, user, user, 0)
+	ucert, err := a.GenerateUserCert(upub, user, 0)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -211,7 +211,7 @@ func Authorize(auth auth.ClientI) (ssh.AuthMethod, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := auth.GenerateUserCert(pub, "id_"+HangoutUser, HangoutUser, 24*time.Hour)
+	cert, err := auth.GenerateUserCert(pub, HangoutUser, 24*time.Hour)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

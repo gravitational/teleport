@@ -23,6 +23,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -207,7 +208,7 @@ func (s *TunServer) haveExt(sconn *ssh.ServerConn, ext ...string) bool {
 func (s *TunServer) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel) {
 	defer ch.Close()
 
-	if sconn.Permissions.Extensions[ExtRole] != RoleWeb {
+	if sconn.Permissions.Extensions[ExtRole] != string(teleport.RoleWeb) {
 		log.Errorf("role %v doesn't have permission to request agent",
 			sconn.Permissions.Extensions[ExtRole])
 		return
@@ -258,14 +259,17 @@ func (s *TunServer) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel)
 // this direct tcp-ip request ignores port and host requested by client
 // and always forwards it to the local auth server listening on local socket
 func (s *TunServer) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
+	defer sconn.Close()
+	role := teleport.Role(sconn.Permissions.Extensions[ExtRole])
+	if err := role.Check(); err != nil {
+		log.Errorf(err.Error())
+		return
+	}
 	addr, _ := utils.ParseAddr("tcp://localhost")
-	conn := utils.NewPipeNetConn(
-		ch, ch, ch,
-		addr, addr,
-	)
-	role := sconn.Permissions.Extensions[ExtRole]
+	conn := utils.NewPipeNetConn(ch, ch, ch, addr, addr)
 	if err := s.apiServer.HandleConn(conn, role); err != nil {
 		log.Errorf(err.Error())
+		return
 	}
 }
 
@@ -292,7 +296,7 @@ func (s *TunServer) keyAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtHost: conn.User(),
-				ExtRole: RoleHangoutRemoteUser,
+				ExtRole: string(teleport.RoleHangoutRemoteUser),
 			},
 		}
 		return perms, nil
@@ -337,7 +341,7 @@ func (s *TunServer) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebPassword: "<password>",
-				ExtRole:        RoleUser,
+				ExtRole:        string(teleport.RoleUser),
 			},
 		}
 		log.Infof("password authenticated user: '%v'", conn.User())
@@ -348,7 +352,7 @@ func (s *TunServer) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebSession: string(ab.Pass),
-				ExtRole:       RoleWeb,
+				ExtRole:       string(teleport.RoleWeb),
 			},
 		}
 		if _, err := s.a.GetWebSession(conn.User(), string(ab.Pass)); err != nil {
@@ -365,7 +369,7 @@ func (s *TunServer) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtToken: string(password),
-				ExtRole:  RoleProvisionToken,
+				ExtRole:  string(teleport.RoleProvisionToken),
 			}}
 		utils.Consolef(os.Stdout, "[AUTH] Successfully accepted token %v for %v", string(password), conn.User())
 		return perms, nil
@@ -377,7 +381,7 @@ func (s *TunServer) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtToken: string(password),
-				ExtRole:  RoleSignup,
+				ExtRole:  string(teleport.RoleSignup),
 			}}
 		log.Infof("session authenticated prov. token: '%v'", conn.User())
 		return perms, nil

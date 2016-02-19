@@ -19,13 +19,14 @@ import (
 	"io/ioutil"
 	"strings"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
 
-func Register(domainName, dataDir, token, role string, servers []utils.NetAddr) error {
+func Register(domainName, dataDir, token string, role teleport.Role, servers []utils.NetAddr) error {
 	tok, err := readToken(token)
 	if err != nil {
 		return trace.Wrap(err)

@@ -51,11 +51,11 @@ type Authority interface {
 
 	// GenerateHostCert generates host certificate, it takes pkey as a signing
 	// private key (host certificate authority)
-	GenerateHostCert(pkey, key []byte, id, hostname, role string, ttl time.Duration) ([]byte, error)
+	GenerateHostCert(pkey, key []byte, hostname, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error)
 
 	// GenerateHostCert generates user certificate, it takes pkey as a signing
 	// private key (user certificate authority)
-	GenerateUserCert(pkey, key []byte, id, username string, ttl time.Duration) ([]byte, error)
+	GenerateUserCert(pkey, key []byte, username string, ttl time.Duration) ([]byte, error)
 }
 
 type Session struct {
@@ -103,8 +103,7 @@ func (a *AuthServer) GetLocalDomain() (string, error) {
 // GenerateHostCert generates host certificate, it takes pkey as a signing
 // private key (host certificate authority)
 func (s *AuthServer) GenerateHostCert(
-	key []byte, id, hostname, role string,
-	ttl time.Duration) ([]byte, error) {
+	key []byte, hostname, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error) {
 
 	ca, err := s.CAService.GetCertAuthority(services.CertAuthID{
 		Type:       services.HostCA,
@@ -117,13 +116,13 @@ func (s *AuthServer) GenerateHostCert(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.Authority.GenerateHostCert(privateKey, key, id, hostname, role, ttl)
+	return s.Authority.GenerateHostCert(privateKey, key, hostname, authDomain, role, ttl)
 }
 
 // GenerateUserCert generates user certificate, it takes pkey as a signing
 // private key (user certificate authority)
 func (s *AuthServer) GenerateUserCert(
-	key []byte, id, username string, ttl time.Duration) ([]byte, error) {
+	key []byte, username string, ttl time.Duration) ([]byte, error) {
 
 	ca, err := s.CAService.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
@@ -136,7 +135,7 @@ func (s *AuthServer) GenerateUserCert(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.Authority.GenerateUserCert(privateKey, key, id, username, ttl)
+	return s.Authority.GenerateUserCert(privateKey, key, username, ttl)
 }
 
 func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
@@ -153,20 +152,23 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 	return sess, nil
 }
 
-func (s *AuthServer) GenerateToken(nodeName, role string, ttl time.Duration) (string, error) {
+func (s *AuthServer) GenerateToken(nodeName string, role teleport.Role, ttl time.Duration) (string, error) {
 	if !cstrings.IsValidDomainName(nodeName) {
 		return "", trace.Wrap(teleport.BadParameter("nodeName",
 			fmt.Sprintf("'%v' is not a valid dns name", nodeName)))
+	}
+	if err := role.Check(); err != nil {
+		return "", trace.Wrap(err)
 	}
 	token, err := CryptoRandomHex(TokenLenBytes)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	outputToken, err := services.JoinTokenRole(token, role)
+	outputToken, err := services.JoinTokenRole(token, string(role))
 	if err != nil {
 		return "", err
 	}
-	if err := s.ProvisioningService.UpsertToken(token, nodeName, role, ttl); err != nil {
+	if err := s.ProvisioningService.UpsertToken(token, nodeName, string(role), ttl); err != nil {
 		return "", err
 	}
 	return outputToken, nil
@@ -187,8 +189,11 @@ func (s *AuthServer) ValidateToken(token, domainName string) (role string, e err
 	return tok.Role, nil
 }
 
-func (s *AuthServer) RegisterUsingToken(outputToken, nodename, role string) (keys PackedKeys, e error) {
+func (s *AuthServer) RegisterUsingToken(outputToken, nodename string, role teleport.Role) (keys PackedKeys, e error) {
 	log.Infof("[AUTH] Node `%v` is trying to join", nodename)
+	if err := role.Check(); err != nil {
+		return PackedKeys{}, trace.Wrap(err)
+	}
 	token, _, err := services.SplitTokenRole(outputToken)
 	if err != nil {
 		return PackedKeys{}, trace.Wrap(err)
@@ -199,20 +204,23 @@ func (s *AuthServer) RegisterUsingToken(outputToken, nodename, role string) (key
 		return PackedKeys{}, trace.Wrap(err)
 	}
 	if tok.DomainName != nodename {
-		return PackedKeys{}, trace.Errorf("domainName does not match")
+		return PackedKeys{}, trace.Wrap(
+			teleport.BadParameter("domainName", "domainName does not match"))
 	}
 
-	if tok.Role != role {
-		return PackedKeys{}, trace.Errorf("role does not match")
+	if tok.Role != string(role) {
+		return PackedKeys{}, trace.Wrap(
+			teleport.BadParameter("token.Role", "role does not match"))
 	}
-
 	k, pub, err := s.GenerateKeyPair("")
 	if err != nil {
 		return PackedKeys{}, trace.Wrap(err)
 	}
-	fullHostName := fmt.Sprintf("%s.%s", nodename, s.Hostname)
-	hostID := fmt.Sprintf("%s_%s", nodename, role)
-	c, err := s.GenerateHostCert(pub, hostID, fullHostName, role, 0)
+	// we always append authority's domain to resulting node name,
+	// that's how we make sure that nodes are uniquely identified/found
+	// in cases when we have multiple environments/organizations
+	fqdn := fmt.Sprintf("%s.%s", nodename, s.Hostname)
+	c, err := s.GenerateHostCert(pub, fqdn, s.Hostname, role, 0)
 	if err != nil {
 		log.Warningf("[AUTH] Node `%v` cannot join: cert generation error. %v", nodename, err)
 		return PackedKeys{}, trace.Wrap(err)
@@ -244,11 +252,13 @@ func (s *AuthServer) RegisterNewAuthServer(domainName, outputToken string,
 		return encryptor.Key{}, trace.Wrap(err)
 	}
 	if tok.DomainName != domainName {
-		return encryptor.Key{}, trace.Errorf("domainName does not match")
+		return encryptor.Key{}, trace.Wrap(
+			teleport.AccessDenied("domainName does not match"))
 	}
 
-	if tok.Role != RoleAuth {
-		return encryptor.Key{}, trace.Errorf("role does not match")
+	if tok.Role != string(teleport.RoleAuth) {
+		return encryptor.Key{}, trace.Wrap(
+			teleport.AccessDenied("role does not match"))
 	}
 
 	if err := s.DeleteToken(outputToken); err != nil {
@@ -295,7 +305,7 @@ func (s *AuthServer) NewWebSession(user string) (*Session, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := s.Authority.GenerateUserCert(privateKey, pub, user, user, WebSessionTTL)
+	cert, err := s.Authority.GenerateUserCert(privateKey, pub, user, WebSessionTTL)
 	if err != nil {
 		return nil, err
 	}

@@ -23,6 +23,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
@@ -111,7 +112,10 @@ func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	return privPem, pubBytes, nil
 }
 
-func (n *nauth) GenerateHostCert(pkey, key []byte, id, hostname, role string, ttl time.Duration) ([]byte, error) {
+func (n *nauth) GenerateHostCert(pkey, key []byte, hostname, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error) {
+	if err := role.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
 	if err != nil {
 		return nil, err
@@ -128,7 +132,9 @@ func (n *nauth) GenerateHostCert(pkey, key []byte, id, hostname, role string, tt
 		CertType:        ssh.HostCert,
 	}
 	cert.Permissions.Extensions = make(map[string]string)
-	cert.Permissions.Extensions[utils.CertExtensionRole] = role
+	cert.Permissions.Extensions[utils.CertExtensionRole] = string(role)
+	cert.Permissions.Extensions[utils.CertExtensionAuthority] = string(authDomain)
+
 	signer, err := ssh.ParsePrivateKey(pkey)
 	if err != nil {
 		return nil, err
@@ -139,7 +145,7 @@ func (n *nauth) GenerateHostCert(pkey, key []byte, id, hostname, role string, tt
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
-func (n *nauth) GenerateUserCert(pkey, key []byte, id, username string, ttl time.Duration) ([]byte, error) {
+func (n *nauth) GenerateUserCert(pkey, key []byte, username string, ttl time.Duration) ([]byte, error) {
 	if (ttl > MaxCertDuration) || (ttl < MinCertDuration) {
 		return nil, trace.Errorf("wrong certificate ttl")
 	}
@@ -170,6 +176,8 @@ func (n *nauth) GenerateUserCert(pkey, key []byte, id, username string, ttl time
 }
 
 const (
+	// MinCertDuration specifies minimum duration of validity of issued cert
 	MinCertDuration = time.Minute
+	// MaxCertDuration limits maximum duration of validity of issued cert
 	MaxCertDuration = 30 * time.Hour
 )

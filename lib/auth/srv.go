@@ -414,49 +414,41 @@ func (s *APIServer) generateKeyPair(w http.ResponseWriter, r *http.Request, _ ht
 }
 
 func (s *APIServer) generateHostCert(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	var id, hostname, key, role string
-	var ttl time.Duration
-
-	err := form.Parse(r,
-		form.String("key", &key, form.Required()),
-		form.String("id", &id, form.Required()),
-		form.String("hostname", &hostname, form.Required()),
-		form.String("role", &role, form.Required()),
-		form.Duration("ttl", &ttl))
-
+	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		reply(w, http.StatusBadRequest, err.Error())
+		replyErr(w, err)
 		return
 	}
-
-	cert, err := s.a.GenerateHostCert([]byte(key), id, hostname, role, ttl)
+	var req *generateHostCertRequest
+	if err := json.Unmarshal(data, &req); err != nil {
+		replyErr(w, err)
+		return
+	}
+	cert, err := s.a.GenerateHostCert(req.Key, req.Hostname, req.AuthDomain, req.Role, req.TTL)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	reply(w, http.StatusOK, certResponse{Cert: string(cert)})
+	reply(w, http.StatusOK, string(cert))
 }
 
 func (s *APIServer) generateUserCert(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	var id, user, key string
-	var ttl time.Duration
-
-	err := form.Parse(r,
-		form.String("key", &key, form.Required()),
-		form.String("id", &id, form.Required()),
-		form.String("user", &user, form.Required()),
-		form.Duration("ttl", &ttl))
-
+	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		reply(w, http.StatusBadRequest, err.Error())
+		replyErr(w, err)
 		return
 	}
-	cert, err := s.a.GenerateUserCert([]byte(key), id, user, ttl)
+	var req *generateUserCertRequest
+	if err := json.Unmarshal(data, &req); err != nil {
+		replyErr(w, err)
+		return
+	}
+	cert, err := s.a.GenerateUserCert(req.Key, req.User, req.TTL)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	reply(w, http.StatusOK, certResponse{Cert: string(cert)})
+	reply(w, http.StatusOK, string(cert))
 }
 
 func (s *APIServer) generateToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -472,7 +464,7 @@ func (s *APIServer) generateToken(w http.ResponseWriter, r *http.Request, _ http
 		reply(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	token, err := s.a.GenerateToken(domainName, role, ttl)
+	token, err := s.a.GenerateToken(domainName, teleport.Role(role), ttl)
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
@@ -492,7 +484,7 @@ func (s *APIServer) registerUsingToken(w http.ResponseWriter, r *http.Request, _
 		reply(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	keys, err := s.a.RegisterUsingToken(token, domainName, role)
+	keys, err := s.a.RegisterUsingToken(token, domainName, teleport.Role(role))
 	if err != nil {
 		reply(w, http.StatusInternalServerError, err.Error())
 		return
@@ -902,6 +894,20 @@ func (s *APIServer) createUserWithToken(w http.ResponseWriter, r *http.Request, 
 	reply(w, http.StatusOK, message("ok"))
 }
 
+type generateHostCertRequest struct {
+	Key        []byte        `json:"key"`
+	Hostname   string        `json:"hostname"`
+	AuthDomain string        `json:"auth_domain"`
+	Role       teleport.Role `json:"role"`
+	TTL        time.Duration `json:"ttl"`
+}
+
+type generateUserCertRequest struct {
+	Key  []byte        `json:"key"`
+	User string        `json:"user"`
+	TTL  time.Duration `json:"ttl"`
+}
+
 type upsertCertAuthorityRequest struct {
 	CA  services.CertAuthority `json:"ca"`
 	TTL time.Duration          `json:"ttl"`
@@ -911,10 +917,6 @@ type userTokenDataResponse struct {
 	User            string   `json:"user"`
 	QRImg           []byte   `json:"qrimg"`
 	HotpFirstValues []string `json:"hotpfirstvalue"`
-}
-
-type certResponse struct {
-	Cert string `json:"cert"`
 }
 
 type keyPairResponse struct {
