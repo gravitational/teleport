@@ -33,6 +33,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/codahale/lunk"
+	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/mailgun/oxy/forward"
@@ -135,13 +136,15 @@ func (s *server) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		var site *remoteSite
 		var err error
 
-		switch sconn.Permissions.Extensions[ExtCertType] {
-		case ExtCertTypeHost:
+		switch sconn.Permissions.Extensions[extCertType] {
+		case extCertTypeHost:
 			site, err = s.upsertRegularSite(sconn)
-		case ExtCertTypeUser:
+		case extCertTypeUser:
 			site, err = s.upsertHangoutSite(sconn)
 		default:
-			err = trace.Errorf("Can't retrieve certificate type")
+			err = trace.Wrap(
+				teleport.BadParameter(
+					"certType", "can't retrieve certificate type"))
 		}
 		if err != nil {
 			log.Errorf("failed to upsert site: %v", err)
@@ -207,6 +210,29 @@ func (s *server) getTrustedCAKeys(CertType services.CertAuthType) ([]ssh.PublicK
 	return out, nil
 }
 
+func (s *server) checkTrustedKey(CertType services.CertAuthType, domainName string, key ssh.PublicKey) error {
+	cas, err := s.ap.GetCertAuthorities(CertType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, ca := range cas {
+		if ca.DomainName != domainName {
+			continue
+		}
+		checkers, err := ca.Checkers()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, checker := range checkers {
+			if sshutils.KeysEqual(key, checker) {
+				return nil
+			}
+		}
+	}
+	return trace.Wrap(&teleport.NotFoundError{
+		Message: fmt.Sprintf("authority domain %v not found or has no mathching keys", domainName)})
+}
+
 func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 	logger := log.WithFields(log.Fields{
 		"remote": conn.RemoteAddr(),
@@ -224,21 +250,34 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 
 	switch cert.CertType {
 	case ssh.HostCert:
+		authDomain, ok := cert.Extensions[utils.CertExtensionAuthority]
+		if !ok || authDomain == "" {
+			err := trace.Wrap(teleport.BadParameter("domainName", "missing authority domain"))
+			logger.Warningf("failed authenticate host, err: %v", err)
+			return nil, err
+		}
 		err := s.hostCertChecker.CheckHostKey(conn.User(), conn.RemoteAddr(), key)
 		if err != nil {
 			logger.Warningf("failed authenticate host, err: %v", err)
 			return nil, trace.Wrap(err)
 		}
-
 		if err := s.hostCertChecker.CheckCert(conn.User(), cert); err != nil {
 			logger.Warningf("failed to authenticate host err: %v", err)
 			return nil, trace.Wrap(err)
 		}
-
+		// this fixes possible injection attack
+		// when we have 2 trusted remote sites, and one can simply
+		// pose as another. so we have to check that authority
+		// matches by some other way (in absence of x509 chains)
+		if err := s.checkTrustedKey(services.HostCA, authDomain, cert.SignatureKey); err != nil {
+			logger.Warningf("this claims to be signed as authDomain %v, but no matching signing keys found")
+			return nil, trace.Wrap(err)
+		}
 		return &ssh.Permissions{
 			Extensions: map[string]string{
-				ExtHost:     conn.User(),
-				ExtCertType: ExtCertTypeHost,
+				extHost:      conn.User(),
+				extCertType:  extCertTypeHost,
+				extAuthority: authDomain,
 			},
 		}, nil
 	case ssh.UserCert:
@@ -255,8 +294,8 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 
 		return &ssh.Permissions{
 			Extensions: map[string]string{
-				ExtHost:     conn.User(),
-				ExtCertType: ExtCertTypeUser,
+				extHost:     conn.User(),
+				extCertType: extCertTypeUser,
 			},
 		}, nil
 	default:
@@ -266,11 +305,13 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	}
 }
 
-func (s *server) upsertRegularSite(c ssh.Conn) (*remoteSite, error) {
-	s.Lock()
-	defer s.Unlock()
+func (s *server) upsertRegularSite(c *ssh.ServerConn) (*remoteSite, error) {
 
-	domainName := c.User()
+	domainName := c.Permissions.Extensions[extAuthority]
+	if !cstrings.IsValidDomainName(domainName) {
+		return nil, trace.Wrap(teleport.BadParameter(
+			"authDomain", fmt.Sprintf("'%v' is a bad domain name", domainName)))
+	}
 	var site *remoteSite
 	for _, st := range s.sites {
 		if st.domainName == domainName {
@@ -278,6 +319,11 @@ func (s *server) upsertRegularSite(c ssh.Conn) (*remoteSite, error) {
 			break
 		}
 	}
+	log.Infof("found authority domain: %v", domainName)
+
+	s.Lock()
+	defer s.Unlock()
+
 	if site != nil {
 		if err := site.init(c); err != nil {
 			return nil, trace.Wrap(err)
@@ -586,9 +632,9 @@ func (s *remoteSite) GetHangoutInfo() (hostKey *services.CertAuthority, OSUser, 
 }
 
 const (
-	ExtHost     = "host@teleport"
-	ExtCertType = "certtype@teleport"
-
-	ExtCertTypeHost = "host"
-	ExtCertTypeUser = "user"
+	extHost         = "host@teleport"
+	extCertType     = "certtype@teleport"
+	extAuthority    = "auth@teleport"
+	extCertTypeHost = "host"
+	extCertTypeUser = "user"
 )
