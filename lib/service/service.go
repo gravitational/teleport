@@ -23,6 +23,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -178,7 +179,7 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) err
 
 func initSSH(supervisor Supervisor, cfg Config) error {
 	return RegisterWithAuthServer(supervisor, cfg.SSH.Token,
-		cfg.RoleConfig(), auth.RoleNode,
+		cfg.RoleConfig(), teleport.RoleNode,
 		func() error {
 			return initSSHEndpoint(supervisor, cfg)
 		},
@@ -249,7 +250,7 @@ func RegisterWithAuthServer(
 	supervisor Supervisor,
 	provisioningToken string,
 	cfg RoleConfig,
-	role string,
+	role teleport.Role,
 	callback func() error) error {
 	if cfg.DataDir == "" {
 		return trace.Errorf("please supply data directory")
@@ -292,7 +293,7 @@ func RegisterWithAuthServer(
 func initReverseTunnel(supervisor Supervisor, cfg Config) error {
 	return RegisterWithAuthServer(
 		supervisor, cfg.ReverseTunnel.Token, cfg.RoleConfig(),
-		auth.RoleNode,
+		teleport.RoleNode,
 		func() error {
 			return initTunAgent(supervisor, cfg)
 		},
@@ -345,7 +346,7 @@ func initTunAgent(supervisor Supervisor, cfg Config) error {
 
 func initProxy(supervisor Supervisor, cfg Config) error {
 	return RegisterWithAuthServer(
-		supervisor, cfg.Proxy.Token, cfg.RoleConfig(), auth.RoleNode,
+		supervisor, cfg.Proxy.Token, cfg.RoleConfig(), teleport.RoleNode,
 		func() error {
 			return initProxyEndpoint(supervisor, cfg)
 		},

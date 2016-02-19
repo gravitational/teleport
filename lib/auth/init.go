@@ -176,7 +176,7 @@ func InitKeys(a *AuthServer, domainName, dataDir string) (ssh.Signer, error) {
 		if err != nil {
 			return nil, err
 		}
-		c, err := a.GenerateHostCert(pub, domainName, domainName, RoleAdmin, 0)
+		c, err := a.GenerateHostCert(pub, domainName, domainName, teleport.RoleAdmin, 0)
 		if err != nil {
 			return nil, err
 		}

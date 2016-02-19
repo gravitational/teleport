@@ -20,9 +20,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"golang.org/x/crypto/ssh"
 
+	"golang.org/x/crypto/ssh"
 	. "gopkg.in/check.v1"
 )
 
@@ -58,8 +59,8 @@ func (s *AuthSuite) GenerateHostCert(c *C) {
 	priv, pub, err := s.A.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
-	cert, err := s.A.GenerateHostCert(priv, pub, "auth",
-		"auth.example.com", "RoleExample", time.Hour)
+	cert, err := s.A.GenerateHostCert(priv, pub, "auth.example.com",
+		"example.com", teleport.RoleAdmin, time.Hour)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
@@ -70,21 +71,21 @@ func (s *AuthSuite) GenerateUserCert(c *C) {
 	priv, pub, err := s.A.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
-	cert, err := s.A.GenerateUserCert(priv, pub, "user", "user", time.Hour)
+	cert, err := s.A.GenerateUserCert(priv, pub, "user", time.Hour)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
 	c.Assert(err, IsNil)
 
-	_, err = s.A.GenerateUserCert(priv, pub, "user", "user", -20)
+	_, err = s.A.GenerateUserCert(priv, pub, "user", -20)
 	c.Assert(err, NotNil)
 
-	_, err = s.A.GenerateUserCert(priv, pub, "user", "user", 0)
+	_, err = s.A.GenerateUserCert(priv, pub, "user", 0)
 	c.Assert(err, NotNil)
 
-	_, err = s.A.GenerateUserCert(priv, pub, "user", "user", 40*time.Hour)
+	_, err = s.A.GenerateUserCert(priv, pub, "user", 40*time.Hour)
 	c.Assert(err, NotNil)
 
-	_, err = s.A.GenerateUserCert(priv, pub, "user", "user", time.Hour)
+	_, err = s.A.GenerateUserCert(priv, pub, "user", time.Hour)
 	c.Assert(err, IsNil)
 }

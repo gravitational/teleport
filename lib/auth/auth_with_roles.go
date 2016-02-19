@@ -19,6 +19,7 @@ package auth
 import (
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/recorder"
@@ -34,13 +35,13 @@ type AuthWithRoles struct {
 	permChecker PermissionChecker
 	elog        events.Log
 	sessions    session.SessionServer
-	role        string
+	role        teleport.Role
 	recorder    recorder.Recorder
 }
 
 func NewAuthWithRoles(authServer *AuthServer, permChecker PermissionChecker,
 	elog events.Log, sessions session.SessionServer,
-	role string, recorder recorder.Recorder) *AuthWithRoles {
+	role teleport.Role, recorder recorder.Recorder) *AuthWithRoles {
 
 	return &AuthWithRoles{
 		authServer:  authServer,
@@ -53,7 +54,7 @@ func NewAuthWithRoles(authServer *AuthServer, permChecker PermissionChecker,
 
 func (a *AuthWithRoles) GetSessions() ([]session.Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetSessions); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	} else {
 		return a.sessions.GetSessions()
 	}
@@ -61,7 +62,7 @@ func (a *AuthWithRoles) GetSessions() ([]session.Session, error) {
 
 func (a *AuthWithRoles) GetSession(id string) (*session.Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetSession); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	} else {
 		return a.sessions.GetSession(id)
 	}
@@ -117,14 +118,14 @@ func (a *AuthWithRoles) DeleteCertAuthority(id services.CertAuthID) error {
 		return a.authServer.DeleteCertAuthority(id)
 	}
 }
-func (a *AuthWithRoles) GenerateToken(domainName, role string, ttl time.Duration) (string, error) {
+func (a *AuthWithRoles) GenerateToken(domainName string, role teleport.Role, ttl time.Duration) (string, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGenerateToken); err != nil {
 		return "", err
 	} else {
 		return a.authServer.GenerateToken(domainName, role, ttl)
 	}
 }
-func (a *AuthWithRoles) RegisterUsingToken(token, domainName, role string) (keys PackedKeys, e error) {
+func (a *AuthWithRoles) RegisterUsingToken(token, domainName string, role teleport.Role) (keys PackedKeys, e error) {
 	if err := a.permChecker.HasPermission(a.role, ActionRegisterUsingToken); err != nil {
 		return PackedKeys{}, err
 	} else {
@@ -288,20 +289,20 @@ func (a *AuthWithRoles) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 	}
 }
 func (a *AuthWithRoles) GenerateHostCert(
-	key []byte, id, hostname, role string,
+	key []byte, hostname, authDomain string, role teleport.Role,
 	ttl time.Duration) ([]byte, error) {
 
 	if err := a.permChecker.HasPermission(a.role, ActionGenerateHostCert); err != nil {
 		return nil, err
 	} else {
-		return a.authServer.GenerateHostCert(key, id, hostname, role, ttl)
+		return a.authServer.GenerateHostCert(key, hostname, authDomain, role, ttl)
 	}
 }
-func (a *AuthWithRoles) GenerateUserCert(key []byte, id, user string, ttl time.Duration) ([]byte, error) {
+func (a *AuthWithRoles) GenerateUserCert(key []byte, user string, ttl time.Duration) ([]byte, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGenerateUserCert); err != nil {
 		return nil, err
 	} else {
-		return a.authServer.GenerateUserCert(key, id, user, ttl)
+		return a.authServer.GenerateUserCert(key, user, ttl)
 	}
 }
 func (a *AuthWithRoles) GetSealKeys() ([]encryptor.Key, error) {

@@ -105,12 +105,18 @@ func MultiCloser(closers ...io.Closer) *multiCloser {
 	}
 }
 
+// IsHandshakeFailedError specifies whether this error indicates
+// failed handshake
 func IsHandshakeFailedError(err error) bool {
 	return strings.Contains(err.Error(), "handshake failed")
-
 }
 
 const (
+	// CertExtensionUser specifies teleport specific user entry
 	CertExtensionUser = "x-teleport-user"
+	// CertExtensionRole specifies teleport role
 	CertExtensionRole = "x-teleport-role"
+	// CertExtensionAuthority specifies teleport authority's name
+	// that signed this domain
+	CertExtensionAuthority = "x-teleport-authority"
 )

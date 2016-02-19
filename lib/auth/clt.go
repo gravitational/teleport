@@ -230,10 +230,10 @@ func (c *Client) DeleteCertAuthority(id services.CertAuthID) error {
 //
 // The token can be used only once and only to generate the hostname
 // specified in it.
-func (c *Client) GenerateToken(nodename, role string, ttl time.Duration) (string, error) {
+func (c *Client) GenerateToken(nodename string, role teleport.Role, ttl time.Duration) (string, error) {
 	out, err := c.PostForm(c.Endpoint("tokens"), url.Values{
 		"domain": []string{nodename},
-		"role":   []string{role},
+		"role":   []string{string(role)},
 		"ttl":    []string{ttl.String()},
 	})
 	if err != nil {
@@ -246,11 +246,11 @@ func (c *Client) GenerateToken(nodename, role string, ttl time.Duration) (string
 	return re.Token, nil
 }
 
-func (c *Client) RegisterUsingToken(token, nodename, role string) (PackedKeys, error) {
+func (c *Client) RegisterUsingToken(token, nodename string, role teleport.Role) (PackedKeys, error) {
 	out, err := c.PostForm(c.Endpoint("tokens", "register"), url.Values{
 		"token":  []string{token},
 		"domain": []string{nodename},
-		"role":   []string{role},
+		"role":   []string{string(role)},
 	})
 	if err != nil {
 		return PackedKeys{}, err
@@ -534,46 +534,46 @@ func (c *Client) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 // plain text format, signs it using Host Certificate Authority private key and returns the
 // resulting certificate.
 func (c *Client) GenerateHostCert(
-	key []byte, id, hostname, role string, ttl time.Duration) ([]byte, error) {
+	key []byte, hostname, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error) {
 
-	out, err := c.PostForm(c.Endpoint("ca", "host", "certs"), url.Values{
-		"key":      []string{string(key)},
-		"id":       []string{id},
-		"hostname": []string{hostname},
-		"role":     []string{role},
-		"ttl":      []string{ttl.String()},
-	})
+	out, err := c.PostJSON(c.Endpoint("ca", "host", "certs"),
+		generateHostCertRequest{
+			Key:        key,
+			Hostname:   hostname,
+			AuthDomain: authDomain,
+			Role:       role,
+			TTL:        ttl,
+		})
 	if err != nil {
 		return nil, err
 	}
-	var cert *certResponse
+	var cert string
 	if err := json.Unmarshal(out.Bytes(), &cert); err != nil {
 		return nil, err
 	}
-	return []byte(cert.Cert), err
+	return []byte(cert), err
 }
 
 // GenerateUserCert takes the public key in the Open SSH ``authorized_keys``
 // plain text format, signs it using User Certificate Authority signing key and returns the
 // resulting certificate.
 func (c *Client) GenerateUserCert(
-	key []byte, id, user string, ttl time.Duration) ([]byte, error) {
+	key []byte, user string, ttl time.Duration) ([]byte, error) {
 
-	out, err := c.PostForm(c.Endpoint("ca", "user", "certs"), url.Values{
-		"key":  []string{string(key)},
-		"id":   []string{id},
-		"user": []string{user},
-		"ttl":  []string{ttl.String()},
-	})
+	out, err := c.PostJSON(c.Endpoint("ca", "user", "certs"),
+		generateUserCertRequest{
+			Key:  key,
+			User: user,
+			TTL:  ttl,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var cert *certResponse
+	var cert string
 	if err := json.Unmarshal(out.Bytes(), &cert); err != nil {
 		return nil, err
 	}
-
-	return []byte(cert.Cert), err
+	return []byte(cert), err
 }
 
 // GetBackendKeys returns IDs of all the backend encrypting keys that
@@ -744,8 +744,8 @@ type ClientI interface {
 	UpsertCertAuthority(cert services.CertAuthority, ttl time.Duration) error
 	GetCertAuthorities(caType services.CertAuthType) ([]*services.CertAuthority, error)
 	DeleteCertAuthority(caType services.CertAuthID) error
-	GenerateToken(domainName, role string, ttl time.Duration) (string, error)
-	RegisterUsingToken(token, domainName, role string) (keys PackedKeys, e error)
+	GenerateToken(domainName string, role teleport.Role, ttl time.Duration) (string, error)
+	RegisterUsingToken(token, domainName string, role teleport.Role) (keys PackedKeys, e error)
 	RegisterNewAuthServer(domainName, token string, publicSealKey encryptor.Key) (masterKey encryptor.Key, e error)
 	Log(id lunk.EventID, e lunk.Event)
 	LogEntry(en lunk.Entry) error
@@ -768,8 +768,8 @@ type ClientI interface {
 	GetUsers() ([]services.User, error)
 	DeleteUser(user string) error
 	GenerateKeyPair(pass string) ([]byte, []byte, error)
-	GenerateHostCert(key []byte, id, hostname, role string, ttl time.Duration) ([]byte, error)
-	GenerateUserCert(key []byte, id, user string, ttl time.Duration) ([]byte, error)
+	GenerateHostCert(key []byte, hostname, authServer string, role teleport.Role, ttl time.Duration) ([]byte, error)
+	GenerateUserCert(key []byte, user string, ttl time.Duration) ([]byte, error)
 	GetSignupTokenData(token string) (user string, QRImg []byte, hotpFirstValues []string, e error)
 	CreateUserWithToken(token, password, hotpToken string) error
 }

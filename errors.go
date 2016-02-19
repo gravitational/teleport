@@ -246,3 +246,43 @@ func IsReadonly(e error) bool {
 	_, ok := e.(ro)
 	return ok
 }
+
+// AccessDenied returns new access denied error
+func AccessDenied(message string) *AccessDeniedError {
+	return &AccessDeniedError{
+		Message: message,
+	}
+}
+
+// AccessDeniedError indicates denied access
+type AccessDeniedError struct {
+	trace.Traces
+	Message string `json:"message"`
+}
+
+// Error is debug - friendly error message
+func (e *AccessDeniedError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	return "access denied"
+}
+
+// IsAccessDeniedError indicates that this error is of AccessDenied type
+func (e *AccessDeniedError) IsAccessDeniedError() bool {
+	return true
+}
+
+// OrigError returns original error (in this case this is the error itself)
+func (e *AccessDeniedError) OrigError() error {
+	return e
+}
+
+// IsAccessDenied detects if this error is of AccessDeniedError
+func IsAccessDenied(e error) bool {
+	type ad interface {
+		IsAccessDeniedError() bool
+	}
+	_, ok := e.(ad)
+	return ok
+}

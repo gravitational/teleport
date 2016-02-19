@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
@@ -126,7 +127,7 @@ func (s *APISuite) TestGenerateHostCert(c *C) {
 	c.Assert(err, IsNil)
 
 	// make sure we can parse the private and public key
-	cert, err := s.clt.GenerateHostCert(pub, "id1", "a.localhost", "RoleExample", time.Hour)
+	cert, err := s.clt.GenerateHostCert(pub, "localhost", "localhost", teleport.RoleNode, time.Hour)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
@@ -141,7 +142,7 @@ func (s *APISuite) TestGenerateUserCert(c *C) {
 	c.Assert(err, IsNil)
 
 	// make sure we can parse the private and public key
-	cert, err := s.clt.GenerateUserCert(pub, "id1", "user1", time.Hour)
+	cert, err := s.clt.GenerateUserCert(pub, "user1", time.Hour)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
@@ -156,7 +157,7 @@ func (s *APISuite) TestKeysCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	// make sure we can parse the private and public key
-	cert, err := s.clt.GenerateUserCert(pub, "id1", "user1", time.Hour)
+	cert, err := s.clt.GenerateUserCert(pub, "user1", time.Hour)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)

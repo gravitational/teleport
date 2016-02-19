@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -97,7 +98,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
-	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", auth.RoleAdmin, 0)
+	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", teleport.RoleAdmin, 0)
 	c.Assert(err, IsNil)
 
 	// set up user CA and set up a user that has access to the server

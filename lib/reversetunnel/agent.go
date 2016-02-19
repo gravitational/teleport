@@ -13,6 +13,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+// Package reversetunnel sets up persistent reverse tunnel
+// between remote site and teleport proxy, when site agents
+// dial to teleport proxy's socket and teleport proxy can connect
+// to any server through this tunnel.
 package reversetunnel
 
 import (
@@ -34,7 +39,9 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// Agent is a reverse tunnel running on site and
 type Agent struct {
+	log             *log.Entry
 	addr            utils.NetAddr
 	elog            lunk.EventLogger
 	clt             *auth.TunClient
@@ -46,8 +53,10 @@ type Agent struct {
 	authMethods     []ssh.AuthMethod
 }
 
+// AgentOption specifies parameter that could be passed to Agents
 type AgentOption func(a *Agent) error
 
+// SetEventLogger sets structured logger for the agent
 func SetEventLogger(e lunk.EventLogger) AgentOption {
 	return func(s *Agent) error {
 		s.elog = e
@@ -55,10 +64,15 @@ func SetEventLogger(e lunk.EventLogger) AgentOption {
 	}
 }
 
+// NewAgent returns a new reverse tunnel agent
 func NewAgent(addr utils.NetAddr, domainName string, signers []ssh.Signer,
 	clt *auth.TunClient, options ...AgentOption) (*Agent, error) {
 
 	a := &Agent{
+		log: log.WithFields(log.Fields{
+			"module": "agent",
+			"remote": addr,
+		}),
 		clt:         clt,
 		addr:        addr,
 		domainName:  domainName,
@@ -78,12 +92,18 @@ func NewAgent(addr utils.NetAddr, domainName string, signers []ssh.Signer,
 	return a, nil
 }
 
+// NewHangoutAgent returns a new "Hangout"-flavored version of reverse
+// tunnel agent
 func NewHangoutAgent(addr utils.NetAddr, hangoutID string,
 	authMethods []ssh.AuthMethod,
 	hostKeyCallback utils.HostKeyCallback,
 	clt *auth.TunClient, options ...AgentOption) (*Agent, error) {
 
 	a := &Agent{
+		log: log.WithFields(log.Fields{
+			"module": "reversetunnel.agent",
+			"remote": addr,
+		}),
 		clt:             clt,
 		addr:            addr,
 		domainName:      hangoutID,
@@ -103,6 +123,7 @@ func NewHangoutAgent(addr utils.NetAddr, hangoutID string,
 	return a, nil
 }
 
+// Start starts agent that attempts to connect to remote server part
 func (a *Agent) Start() error {
 	if err := a.reconnect(); err != nil {
 		return trace.Wrap(err)
@@ -112,11 +133,11 @@ func (a *Agent) Start() error {
 }
 
 func (a *Agent) handleDisconnect() {
-	log.Infof("will handle disconnects")
+	a.log.Infof("handle disconnects")
 	for {
 		select {
 		case <-a.disconnectC:
-			log.Infof("detected disconnect, reconnecting")
+			a.log.Infof("detected disconnect, reconnecting")
 			a.reconnect()
 		}
 	}
@@ -126,9 +147,9 @@ func (a *Agent) reconnect() error {
 	var err error
 	i := 0
 	for {
-		i += 1
+		i++
 		if err = a.connect(); err != nil {
-			log.Infof("%v connect attempt %v: %v", a, i, err)
+			a.log.Infof("connect attempt %v: %v", i, err)
 			time.Sleep(time.Duration(min(i, 10)) * time.Second)
 			continue
 		}
@@ -136,11 +157,13 @@ func (a *Agent) reconnect() error {
 	}
 }
 
+// Wait waits until all outstanding operations are completed
 func (a *Agent) Wait() error {
 	<-a.waitC
 	return nil
 }
 
+// String returns debug-friendly
 func (a *Agent) String() string {
 	return fmt.Sprintf("tunagent(remote=%v)", a.addr)
 }
@@ -155,14 +178,14 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 		return trace.Wrap(err, "failed to fetch remote certs")
 	}
 	for _, ca := range cas {
-		log.Infof("checking %v against host %v", ca.ID())
+		a.log.Infof("checking %v against host %v", ca.ID())
 		checkers, err := ca.Checkers()
 		if err != nil {
 			return trace.Errorf("error parsing key: %v", err)
 		}
 		for _, checker := range checkers {
 			if sshutils.KeysEqual(checker, cert.SignatureKey) {
-				log.Infof("matched key %v for %v", ca.ID(), hostport)
+				a.log.Infof("matched key %v for %v", ca.ID(), hostport)
 				return nil
 			}
 		}
@@ -174,11 +197,13 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 
 func (a *Agent) connect() error {
 	if a.addr.IsEmpty() {
-		err := trace.Errorf("reverse tunnel cannot be created: target address is empty")
-		log.Error(err)
+		err := trace.Wrap(
+			teleport.BadParameter("addr",
+				"reverse tunnel cannot be created: target address is empty"))
+		a.log.Error(err)
 		return err
 	}
-	log.Infof("agent connectting to %v", a.addr.FullAddress())
+	a.log.Infof("agent connect")
 
 	var c *ssh.Client
 	var err error
@@ -192,9 +217,8 @@ func (a *Agent) connect() error {
 			break
 		}
 	}
-
 	if c == nil {
-		log.Errorf("failed connecting to '%v'. %v", a.addr.Addr, err)
+		a.log.Errorf("connect err: %v", err)
 		return trace.Wrap(err)
 	}
 
@@ -204,7 +228,7 @@ func (a *Agent) connect() error {
 	go a.handleAccessPoint(c.HandleChannelOpen(chanAccessPoint))
 	go a.handleTransport(c.HandleChannelOpen(chanTransport))
 
-	log.Infof("%v connection established", a)
+	a.log.Infof("connection established")
 	return nil
 }
 
@@ -212,13 +236,13 @@ func (a *Agent) handleAccessPoint(newC <-chan ssh.NewChannel) {
 	for {
 		nch := <-newC
 		if nch == nil {
-			log.Infof("connection closed, returning")
+			a.log.Infof("connection closed, return")
 			return
 		}
-		log.Infof("got access point request: %v", nch.ChannelType())
+		a.log.Infof("got access point request: %v", nch.ChannelType())
 		ch, req, err := nch.Accept()
 		if err != nil {
-			log.Errorf("failed to accept request: %v", err)
+			a.log.Errorf("failed to accept request: %v", err)
 		}
 		go a.proxyAccessPoint(ch, req)
 	}
@@ -228,13 +252,13 @@ func (a *Agent) handleTransport(newC <-chan ssh.NewChannel) {
 	for {
 		nch := <-newC
 		if nch == nil {
-			log.Infof("connection closed, returing")
+			a.log.Infof("connection closed, returing")
 			return
 		}
-		log.Infof("got transport request: %v", nch.ChannelType())
+		a.log.Infof("got transport request: %v", nch.ChannelType())
 		ch, req, err := nch.Accept()
 		if err != nil {
-			log.Errorf("failed to accept request: %v", err)
+			a.log.Errorf("failed to accept request: %v", err)
 		}
 		go a.proxyTransport(ch, req)
 	}
@@ -245,7 +269,7 @@ func (a *Agent) proxyAccessPoint(ch ssh.Channel, req <-chan *ssh.Request) {
 
 	conn, err := a.clt.GetDialer()()
 	if err != nil {
-		log.Errorf("%v error dialing: %v", a, err)
+		a.log.Errorf("%v error dialing: %v", a, err)
 		return
 	}
 
@@ -274,11 +298,11 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	select {
 	case req = <-reqC:
 		if req == nil {
-			log.Infof("connection closed, returning")
+			a.log.Infof("connection closed, returning")
 			return
 		}
 	case <-time.After(10 * time.Second):
-		log.Errorf("timeout waiting for dial")
+		a.log.Errorf("timeout waiting for dial")
 		return
 	}
 
@@ -292,7 +316,7 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	}
 	req.Reply(true, []byte("connected"))
 
-	log.Infof("successfully dialed to %v, start proxying", server)
+	a.log.Infof("successfully dialed to %v, start proxying", server)
 
 	wg := sync.WaitGroup{}
 	wg.Add(2)
@@ -313,12 +337,12 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 func (a *Agent) startHeartbeat() {
 	defer func() {
 		a.disconnectC <- true
-		log.Infof("sent disconnect message")
+		a.log.Infof("sent disconnect message")
 	}()
 
 	hb, reqC, err := a.conn.OpenChannel(chanHeartbeat, nil)
 	if err != nil {
-		log.Errorf("failed to open channel: %v", err)
+		a.log.Errorf("failed to open channel: %v", err)
 		return
 	}
 
@@ -329,13 +353,13 @@ func (a *Agent) startHeartbeat() {
 		for {
 			select {
 			case <-closeC:
-				log.Infof("asked to exit")
+				a.log.Infof("asked to exit")
 				return
 			default:
 			}
 			_, err := hb.SendRequest("ping", false, nil)
 			if err != nil {
-				log.Errorf("failed to send heartbeat: %v", err)
+				a.log.Errorf("failed to send heartbeat: %v", err)
 				errC <- err
 				return
 			}
@@ -351,15 +375,15 @@ func (a *Agent) startHeartbeat() {
 				return
 			case req := <-reqC:
 				if req == nil {
-					errC <- fmt.Errorf("heartbeat: connection closed")
+					errC <- trace.Errorf("heartbeat: connection closed")
 					return
 				}
-				log.Infof("got out of band request: %v", req)
+				a.log.Infof("got out of band request: %v", req)
 			}
 		}
 	}()
 
-	log.Infof("got error: %v", <-errC)
+	a.log.Infof("got error: %v", <-errC)
 	close(closeC)
 }
 
@@ -374,8 +398,12 @@ const (
 )
 
 const (
+	// RemoteSiteStatusOffline indicates that site is considered as
+	// offline, since it has missed a series of heartbeats
 	RemoteSiteStatusOffline = "offline"
-	RemoteSiteStatusOnline  = "online"
+	// RemoteSiteStatusOnline indicates that site is sending heartbeats
+	// at expected interval
+	RemoteSiteStatusOnline = "online"
 )
 
 func min(a, b int) int {

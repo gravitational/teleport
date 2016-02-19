@@ -16,6 +16,7 @@ limitations under the License.
 package auth
 
 import (
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 
 	. "gopkg.in/check.v1"
@@ -34,10 +35,10 @@ func (s *PermCheckerSuite) SetUpSuite(c *C) {
 func (s *PermCheckerSuite) TestSessions(c *C) {
 	p := NewStandardPermissions()
 
-	c.Assert(p.HasPermission(RoleAdmin, ActionGenerateToken), IsNil)
-	c.Assert(p.HasPermission(RoleUser, ActionSignIn), IsNil)
+	c.Assert(p.HasPermission(teleport.RoleAdmin, ActionGenerateToken), IsNil)
+	c.Assert(p.HasPermission(teleport.RoleUser, ActionSignIn), IsNil)
 
-	c.Assert(p.HasPermission(RoleUser, ActionUpsertServer), NotNil)
+	c.Assert(p.HasPermission(teleport.RoleUser, ActionUpsertServer), NotNil)
 	c.Assert(p.HasPermission("", ActionSignIn), NotNil)
-	c.Assert(p.HasPermission(RoleUser, "noAction"), NotNil)
+	c.Assert(p.HasPermission(teleport.RoleUser, "noAction"), NotNil)
 }
