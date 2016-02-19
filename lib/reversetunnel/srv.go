@@ -58,7 +58,14 @@ type RemoteSite interface {
 	// GetServers returns servers registered on this site
 	GetServers() ([]services.Server, error)
 	// GetHangoutInfo returns hangout info (used only if the site is in hangout mode
-	GetHangoutInfo() (hostKey *services.CertAuthority, OSUser, AuthPort, NodePort string)
+	GetHangoutInfo() *HangoutSiteInfo
+}
+
+type HangoutSiteInfo struct {
+	HostKey  *services.CertAuthority
+	OSUser   string
+	AuthPort string
+	NodePort string
 }
 
 // Server represents server connected to one or many remote sites
@@ -362,7 +369,9 @@ func (s *server) upsertHangoutSite(c ssh.Conn) (*remoteSite, error) {
 	if len(hangoutCertAuthorities) != 1 {
 		return nil, trace.Errorf("Can't retrieve hangout Certificate Authority")
 	}
-	site.hangoutHostKey = hangoutCertAuthorities[0]
+	site.hangoutInfo = &HangoutSiteInfo{
+		HostKey: hangoutCertAuthorities[0],
+	}
 
 	proxyUserCertAuthorities, err := s.ap.GetCertAuthorities(services.UserCA)
 	if err != nil {
@@ -391,9 +400,10 @@ func (s *server) upsertHangoutSite(c ssh.Conn) (*remoteSite, error) {
 		return nil, err
 	}
 	site.domainName = hangoutInfo.HangoutID
-	site.hangoutOSUser = hangoutInfo.OSUser
-	site.hangoutAuthPort = hangoutInfo.AuthPort
-	site.hangoutNodePort = hangoutInfo.NodePort
+
+	site.hangoutInfo.OSUser = hangoutInfo.OSUser
+	site.hangoutInfo.AuthPort = hangoutInfo.AuthPort
+	site.hangoutInfo.NodePort = hangoutInfo.NodePort
 
 	s.sites = append(s.sites, site)
 	return site, nil
@@ -463,10 +473,7 @@ type remoteSite struct {
 	srv        *server
 	clt        *auth.Client
 
-	hangoutHostKey  *services.CertAuthority
-	hangoutOSUser   string
-	hangoutAuthPort string
-	hangoutNodePort string
+	hangoutInfo *HangoutSiteInfo
 }
 
 func (s *remoteSite) GetClient() *auth.Client {
@@ -627,8 +634,8 @@ func (s *remoteSite) handleAuthProxy(w http.ResponseWriter, r *http.Request) {
 	fwd.ServeHTTP(w, r)
 }
 
-func (s *remoteSite) GetHangoutInfo() (hostKey *services.CertAuthority, OSUser, AuthPort, NodePort string) {
-	return s.hangoutHostKey, s.hangoutOSUser, s.hangoutAuthPort, s.hangoutNodePort
+func (s *remoteSite) GetHangoutInfo() *HangoutSiteInfo {
+	return s.hangoutInfo
 }
 
 const (

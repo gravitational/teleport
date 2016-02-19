@@ -52,17 +52,18 @@ func (t *hangoutsSubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 		return trace.Wrap(err)
 	}
 
-	hostKey, osUser, authPort, nodePort := remoteSrv.GetHangoutInfo()
-	if hostKey == nil {
-		return trace.Errorf("No hostkey for that hangout")
+	//hostKey, osUser, authPort, nodePort := remoteSrv.GetHangoutInfo()
+	hangoutInfo := remoteSrv.GetHangoutInfo()
+	if hangoutInfo == nil {
+		return trace.Errorf("Can't get hangout info")
 	}
 
 	targetPort := ""
 	if t.port == utils.HangoutAuthPortAlias {
-		targetPort = authPort
+		targetPort = hangoutInfo.AuthPort
 	}
 	if t.port == utils.HangoutNodePortAlias {
-		targetPort = nodePort
+		targetPort = hangoutInfo.NodePort
 	}
 
 	// find matching server in the list of servers for this site
@@ -90,8 +91,8 @@ func (t *hangoutsSubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 
 	// send target server host key so user can check the server
 	endpointInfo := HangoutEndpointInfo{
-		HostKey: *hostKey,
-		OSUser:  osUser,
+		HostKey: *(hangoutInfo.HostKey),
+		OSUser:  hangoutInfo.OSUser,
 	}
 	data, err := json.Marshal(endpointInfo)
 	if err != nil {
