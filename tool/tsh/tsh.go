@@ -283,13 +283,13 @@ func Share(proxyAddress, hangoutProxyAddress, nodeListeningAddress,
 	hangoutServer, err := hangout.New(hangoutProxyAddress, nodeListeningAddress,
 		authListeningAddress, readOnly, authMethods, hostKeyCallback)
 
-	url := proxyAddress + "/hangout/" + hangoutServer.HangoutID
-
-	fmt.Printf("\nURL:\n\n%v\n\n", url)
-
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	url := proxyAddress + "/hangout/" + hangoutServer.HangoutID
+
+	fmt.Printf("\nURL:\n\n%v\n\n", url)
 
 	u, err := user.Current()
 	if err != nil {
