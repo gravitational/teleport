@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package reversetunnel
 
 import (
@@ -21,6 +22,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -47,6 +49,8 @@ type RemoteSite interface {
 	ConnectToServer(addr, user string, auth []ssh.AuthMethod) (*ssh.Client, error)
 	// DialServer dials teleport server and returns connection
 	DialServer(addr string) (net.Conn, error)
+	// Dial dials any address withing reach of remote site's servers
+	Dial(network, addr string) (net.Conn, error)
 	// GetLastConnected returns last time the remote site was seen connected
 	GetLastConnected() time.Time
 	// GetName returns site name (identified
@@ -54,7 +58,7 @@ type RemoteSite interface {
 	// GetStatus returns status of this site (either offline or connected)
 	GetStatus() string
 	// GetClient returns client API to the remote site's auth server
-	GetClient() *auth.Client
+	GetClient() (*auth.Client, error)
 	// GetServers returns servers registered on this site
 	GetServers() ([]services.Server, error)
 	// GetHangoutInfo returns hangout info (used only if the site is in hangout mode
@@ -83,17 +87,36 @@ type server struct {
 	userCertChecker ssh.CertChecker
 	l               net.Listener
 	srv             *sshutils.Server
+	timeout         time.Duration
 
 	sites []*remoteSite
 }
 
+// ServerOption sets reverse tunnel server options
+type ServerOption func(s *server)
+
+// ServerTimeout sets server timeout for read and write operations
+func ServerTimeout(duration time.Duration) ServerOption {
+	return func(s *server) {
+		s.timeout = duration
+	}
+}
+
 // NewServer returns an unstarted server
 func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
-	ap auth.AccessPoint, limiter *limiter.Limiter) (Server, error) {
+	ap auth.AccessPoint, limiter *limiter.Limiter, opts ...ServerOption) (Server, error) {
 	srv := &server{
 		sites: []*remoteSite{},
 		ap:    ap,
 	}
+
+	for _, o := range opts {
+		o(srv)
+	}
+	if srv.timeout == 0 {
+		srv.timeout = teleport.DefaultServerTimeout
+	}
+
 	s, err := sshutils.NewServer(
 		addr,
 		srv,
@@ -128,7 +151,7 @@ func (s *server) Close() error {
 	return s.srv.Close()
 }
 
-func (s *server) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
+func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	log.Infof("got new channel request: %v", nch.ChannelType())
 	switch nch.ChannelType() {
 	case chanHeartbeat:
@@ -138,14 +161,15 @@ func (s *server) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 
 		switch sconn.Permissions.Extensions[extCertType] {
 		case extCertTypeHost:
-			site, err = s.upsertRegularSite(sconn)
+			site, err = s.upsertRegularSite(conn, sconn)
 		case extCertTypeUser:
-			site, err = s.upsertHangoutSite(sconn)
+			site, err = s.upsertHangoutSite(conn, sconn)
 		default:
 			err = trace.Wrap(
 				teleport.BadParameter(
 					"certType", "can't retrieve certificate type"))
 		}
+
 		if err != nil {
 			log.Errorf("failed to upsert site: %v", err)
 			nch.Reject(ssh.ConnectionFailed, "failed to upsert site")
@@ -305,9 +329,8 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	}
 }
 
-func (s *server) upsertRegularSite(c *ssh.ServerConn) (*remoteSite, error) {
-
-	domainName := c.Permissions.Extensions[extAuthority]
+func (s *server) upsertRegularSite(conn net.Conn, sshConn *ssh.ServerConn) (*remoteSite, error) {
+	domainName := sshConn.Permissions.Extensions[extAuthority]
 	if !cstrings.IsValidDomainName(domainName) {
 		return nil, trace.Wrap(teleport.BadParameter(
 			"authDomain", fmt.Sprintf("'%v' is a bad domain name", domainName)))
@@ -324,13 +347,17 @@ func (s *server) upsertRegularSite(c *ssh.ServerConn) (*remoteSite, error) {
 	s.Lock()
 	defer s.Unlock()
 
+	var err error
 	if site != nil {
-		if err := site.init(c); err != nil {
+		if err := site.addConn(conn, sshConn); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		site = &remoteSite{srv: s, domainName: c.User()}
-		if err := site.init(c); err != nil {
+		site, err = newRemoteSite(s, domainName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := site.addConn(conn, sshConn); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		s.sites = append(s.sites, site)
@@ -338,24 +365,32 @@ func (s *server) upsertRegularSite(c *ssh.ServerConn) (*remoteSite, error) {
 	return site, nil
 }
 
-func (s *server) upsertHangoutSite(c ssh.Conn) (*remoteSite, error) {
+func (s *server) upsertHangoutSite(conn net.Conn, sshConn ssh.Conn) (*remoteSite, error) {
 	s.Lock()
 	defer s.Unlock()
 
-	hangoutID := c.User()
+	hangoutID := sshConn.User()
 	for _, st := range s.sites {
 		if st.domainName == hangoutID {
 			return nil, trace.Errorf("Hangout ID is already used")
 		}
 	}
 
-	site := &remoteSite{srv: s, domainName: hangoutID}
-	err := site.init(c)
+	site, err := newRemoteSite(s, hangoutID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = site.addConn(conn, sshConn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	hangoutCertAuthorities, err := site.clt.GetCertAuthorities(services.HostCA)
+	clt, err := site.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	hangoutCertAuthorities, err := clt.GetCertAuthorities(services.HostCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -370,14 +405,14 @@ func (s *server) upsertHangoutSite(c ssh.Conn) (*remoteSite, error) {
 	}
 
 	for _, ca := range proxyUserCertAuthorities {
-		err := site.clt.UpsertCertAuthority(*ca, 0)
+		err := clt.UpsertCertAuthority(*ca, 0)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	// receiving hangoutInfo using sessions just as storage
-	sess, err := site.clt.GetSessions()
+	sess, err := clt.GetSessions()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -456,12 +491,82 @@ func (s *server) FindSimilarSite(domainName string) (RemoteSite, error) {
 	})
 }
 
+type remoteConn struct {
+	sshConn ssh.Conn
+	conn    net.Conn
+	invalid int32
+	log     *log.Entry
+}
+
+func (rc *remoteConn) setDeadline(d time.Duration) {
+	rc.conn.SetDeadline(time.Now().Add(d))
+}
+
+func (rc *remoteConn) resetDeadline() {
+	rc.conn.SetDeadline(time.Time{})
+}
+
+func (rc *remoteConn) Close() error {
+	return rc.sshConn.Close()
+}
+
+func (rc *remoteConn) markInvalid() {
+	rc.log.Infof("%v is marked is invalid", rc.conn.RemoteAddr())
+	atomic.StoreInt32(&rc.invalid, 1)
+}
+
+func (rc *remoteConn) isInvalid() bool {
+	return atomic.LoadInt32(&rc.invalid) == 1
+}
+
+func newRemoteConn(log *log.Entry, conn net.Conn, sshConn ssh.Conn) (*remoteConn, error) {
+	return &remoteConn{
+		sshConn: sshConn,
+		conn:    conn,
+		log:     log,
+	}, nil
+}
+
+func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
+	remoteSite := &remoteSite{
+		srv:        srv,
+		domainName: domainName,
+		log: log.WithFields(log.Fields{
+			teleport.Component: teleport.ComponentReverseTunnel,
+			teleport.ComponentFields: map[string]string{
+				"domainName": domainName,
+				"side":       "server",
+			},
+		}),
+	}
+	// transport uses connection do dial out to the remote address
+	remoteSite.transport = &http.Transport{
+		Dial: remoteSite.dialAccessPoint,
+	}
+	clt, err := auth.NewClient(
+		"http://stub:0",
+		roundtrip.HTTPClient(&http.Client{
+			Transport: remoteSite.transport,
+		}))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	remoteSite.clt = clt
+	return remoteSite, nil
+}
+
 type remoteSite struct {
-	domainName string
-	conn       ssh.Conn
-	lastActive time.Time
-	srv        *server
-	clt        *auth.Client
+	sync.Mutex
+
+	log         *log.Entry
+	domainName  string
+	connections []*remoteConn
+	lastUsed    int
+	lastActive  time.Time
+	srv         *server
+
+	transport *http.Transport
+	clt       *auth.Client
 
 	hangoutHostKey  *services.CertAuthority
 	hangoutOSUser   string
@@ -469,43 +574,53 @@ type remoteSite struct {
 	hangoutNodePort string
 }
 
-func (s *remoteSite) GetClient() *auth.Client {
-	return s.clt
+func (s *remoteSite) GetClient() (*auth.Client, error) {
+	return s.clt, nil
 }
 
 func (s *remoteSite) GetEvents(filter events.Filter) ([]lunk.Entry, error) {
-	return s.clt.GetEvents(filter)
+	clt, err := s.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return clt.GetEvents(filter)
 }
 
 func (s *remoteSite) String() string {
 	return fmt.Sprintf("remoteSite(%v)", s.domainName)
 }
 
-func (s *remoteSite) init(c ssh.Conn) error {
-	if s.conn != nil {
-		log.Infof("%v found site, closing previous connection", s)
-		s.conn.Close()
+func (s *remoteSite) nextConn() (*remoteConn, error) {
+	s.Lock()
+	defer s.Unlock()
+
+	for {
+		if len(s.connections) == 0 {
+			return nil, trace.Wrap(
+				&teleport.NotFoundError{
+					Message: "no active connections"})
+		}
+		s.lastUsed = (s.lastUsed + 1) % len(s.connections)
+		remoteConn := s.connections[s.lastUsed]
+		if !remoteConn.isInvalid() {
+			s.log.Infof("return connection %v", s.lastUsed)
+			return remoteConn, nil
+		}
+		s.connections = append(s.connections[:s.lastUsed], s.connections[s.lastUsed+1:]...)
+		s.lastUsed = 0
+		go remoteConn.Close()
 	}
-	s.conn = c
-	tr := &http.Transport{
-		Dial: func(network, addr string) (net.Conn, error) {
-			ch, _, err := s.conn.OpenChannel(chanAccessPoint, nil)
-			if err != nil {
-				log.Errorf("remoteSite:authProxy %v", err)
-				return nil, err
-			}
-			return utils.NewChConn(s.conn, ch), nil
-		},
-	}
-	clt, err := auth.NewClient(
-		"http://stub:0",
-		roundtrip.HTTPClient(&http.Client{
-			Transport: tr,
-		}))
+}
+
+func (s *remoteSite) addConn(conn net.Conn, sshConn ssh.Conn) error {
+	remoteConn, err := newRemoteConn(s.log, conn, sshConn)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
-	s.clt = clt
+	s.Lock()
+	defer s.Unlock()
+	s.connections = append(s.connections, remoteConn)
+	s.lastUsed = 0
 	return nil
 }
 
@@ -522,10 +637,10 @@ func (s *remoteSite) handleHeartbeat(ch ssh.Channel, reqC <-chan *ssh.Request) {
 		for {
 			req := <-reqC
 			if req == nil {
-				log.Infof("agent disconnected")
+				s.log.Infof("agent disconnected")
 				return
 			}
-			log.Debugf("%v -> ping", s)
+			s.log.Debugf("ping")
 			s.lastActive = time.Now()
 		}
 	}()
@@ -539,20 +654,33 @@ func (s *remoteSite) GetLastConnected() time.Time {
 	return s.lastActive
 }
 
+func (s *remoteSite) timeout() time.Duration {
+	return s.srv.timeout
+}
+
 func (s *remoteSite) ConnectToServer(server, user string, auth []ssh.AuthMethod) (*ssh.Client, error) {
-	ch, _, err := s.conn.OpenChannel(chanTransport, nil)
+	s.log.Infof("ConnectToServer(server=%v, user=%v)", server, user)
+	remoteConn, err := s.nextConn()
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	remoteConn.setDeadline(s.timeout())
+	defer remoteConn.resetDeadline()
+	ch, _, err := remoteConn.sshConn.OpenChannel(chanTransport, nil)
+	if err != nil {
+		remoteConn.markInvalid()
 		return nil, trace.Wrap(err)
 	}
 	// ask remote channel to dial
 	dialed, err := ch.SendRequest(chanTransportDialReq, true, []byte(server))
 	if err != nil {
+		remoteConn.markInvalid()
 		return nil, trace.Wrap(err)
 	}
 	if !dialed {
 		return nil, trace.Errorf("remote server %v is not available", server)
 	}
-	transportConn := utils.NewChConn(s.conn, ch)
+	transportConn := utils.NewChConn(remoteConn.sshConn, ch)
 	conn, chans, reqs, err := ssh.NewClientConn(
 		transportConn, server,
 		&ssh.ClientConfig{
@@ -560,65 +688,131 @@ func (s *remoteSite) ConnectToServer(server, user string, auth []ssh.AuthMethod)
 			Auth: auth,
 		})
 	if err != nil {
-		log.Errorf("remoteSite:connectToServer %v", err)
-		return nil, err
+		s.log.Infof("connectToServer %v", err)
+		return nil, trace.Wrap(err)
 	}
 	return ssh.NewClient(conn, chans, reqs), nil
 }
 
-func (s *remoteSite) DialServer(server string) (net.Conn, error) {
-	serverIsKnown := false
-	knownServers, err := s.GetServers()
-
-	for _, srv := range knownServers {
-		_, port, err := net.SplitHostPort(srv.Addr)
-		if err != nil {
-			log.Errorf("server %v(%v) has incorrect address format (%v)",
-				srv.Addr, srv.Hostname, err.Error())
-		} else {
-			if (len(srv.Hostname) != 0) && (len(port) != 0) && (server == srv.Hostname+":"+port || server == srv.Addr) {
-				serverIsKnown = true
-			}
-		}
-	}
-	if !serverIsKnown {
-		return nil, trace.Errorf("can't dial server %v, server is unknown", server)
-	}
-
-	ch, _, err := s.conn.OpenChannel(chanTransport, nil)
+func (s *remoteSite) tryDialAccessPoint(network, addr string) (net.Conn, error) {
+	s.log.Infof("tryDialAccessPoint(net=%v, addr=%v)", network, addr)
+	remoteConn, err := s.nextConn()
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	remoteConn.setDeadline(s.timeout())
+	defer remoteConn.resetDeadline()
+
+	ch, _, err := remoteConn.sshConn.OpenChannel(chanAccessPoint, nil)
+	if err != nil {
+		remoteConn.markInvalid()
+		s.log.Infof("%v marking connection invalid, conn err: %v", remoteConn.conn.RemoteAddr(), err)
+		return nil, trace.Wrap(err)
+	}
+	return utils.NewChConn(remoteConn.sshConn, ch), nil
+}
+
+func (s *remoteSite) dialAccessPoint(network, addr string) (net.Conn, error) {
+	s.log.Infof("dialAccessPoint(net=%v, addr=%v)", network, addr)
+
+	for {
+		conn, err := s.tryDialAccessPoint(network, addr)
+		if err != nil {
+			if teleport.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+			continue
+		}
+		return conn, nil
+	}
+}
+
+func (s *remoteSite) tryDial(net, addr string) (net.Conn, error) {
+	s.log.Infof("tryDial(net=%v, addr=%v)", net, addr)
+	remoteConn, err := s.nextConn()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	remoteConn.setDeadline(s.timeout())
+	defer remoteConn.resetDeadline()
+	var ch ssh.Channel
+	ch, _, err = remoteConn.sshConn.OpenChannel(chanTransport, nil)
+	if err != nil {
+		remoteConn.markInvalid()
 		return nil, trace.Wrap(err)
 	}
 	// ask remote channel to dial
-	dialed, err := ch.SendRequest(chanTransportDialReq, true, []byte(server))
+	var dialed bool
+	dialed, err = ch.SendRequest(chanTransportDialReq, true, []byte(addr))
 	if err != nil {
+		remoteConn.markInvalid()
 		return nil, trace.Wrap(err)
 	}
 	if !dialed {
-		return nil, trace.Errorf("remote server %v is not available", server)
+		remoteConn.markInvalid()
+		return nil, trace.Wrap(
+			teleport.ConnectionProblem(
+				fmt.Sprintf("remote server %v is not available", addr), nil))
 	}
-	return utils.NewChConn(s.conn, ch), nil
+	return utils.NewChConn(remoteConn.sshConn, ch), nil
+}
+
+func (s *remoteSite) Dial(net string, addr string) (net.Conn, error) {
+	s.log.Infof("Dial(net=%v, addr=%v)", net, addr)
+	for {
+		conn, err := s.tryDial(net, addr)
+		if err != nil {
+			s.log.Infof("got error: %v", err)
+			// we interpret it as a "out of connections and will try again"
+			if teleport.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+			continue
+		}
+		return conn, nil
+	}
+}
+
+func (s *remoteSite) DialServer(server string) (net.Conn, error) {
+	s.log.Infof("DialServer(server=%v)", server)
+	knownServers, err := s.GetServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var addr string
+	for _, srv := range knownServers {
+		_, port, err := net.SplitHostPort(srv.Addr)
+		if err != nil {
+			s.log.Warningf("server %v(%v) has incorrect address format (%v)",
+				srv.Addr, srv.Hostname, err.Error())
+		} else {
+			if (len(srv.Hostname) != 0) && (len(port) != 0) && (server == srv.Hostname+":"+port || server == srv.Addr) {
+				addr = srv.Addr
+			}
+		}
+	}
+	if addr == "" {
+		return nil, trace.Wrap(
+			teleport.NotFound(fmt.Sprintf("server %v is unknown", server)))
+	}
+
+	return s.Dial("tcp", addr)
 }
 
 func (s *remoteSite) GetServers() ([]services.Server, error) {
-	return s.clt.GetServers()
+	s.log.Infof("GetServers()")
+	clt, err := s.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return clt.GetServers()
 }
 
 func (s *remoteSite) handleAuthProxy(w http.ResponseWriter, r *http.Request) {
-	tr := &http.Transport{
-		Dial: func(network, addr string) (net.Conn, error) {
-			ch, _, err := s.conn.OpenChannel(chanAccessPoint, nil)
-			if err != nil {
-				log.Errorf("remoteSite:authProxy %v", err)
-				return nil, err
-			}
-			return utils.NewChConn(s.conn, ch), nil
-		},
-	}
+	s.log.Infof("handleAuthProxy()")
 
-	fwd, err := forward.New(forward.RoundTripper(tr), forward.Logger(log.StandardLogger()))
+	fwd, err := forward.New(forward.RoundTripper(s.transport), forward.Logger(s.log))
 	if err != nil {
-		log.Errorf("write: %v", err)
 		roundtrip.ReplyJSON(w, http.StatusInternalServerError, err.Error())
 		return
 	}

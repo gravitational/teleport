@@ -25,15 +25,18 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// NetAddr is network address that includes network, optional path and
+// host port
 type NetAddr struct {
 	// Addr is the host:port address, like "localhost:22"
-	Addr string
+	Addr string `json:"addr"`
 	// AddrNetwork is the type of a network socket, like "tcp" or "unix"
-	AddrNetwork string
+	AddrNetwork string `json:"network,omitempty"`
 	// Path is a socket file path, like '/var/path/to/socket' in "unix:///var/path/to/socket"
-	Path string
+	Path string `json:"path,omitempty"`
 }
 
+// IsEmpty returns true if address is empty
 func (a *NetAddr) IsEmpty() bool {
 	return a.Addr == "" && a.AddrNetwork == "" && a.Path == ""
 }

@@ -67,6 +67,6 @@ func (c *TunContext) ConnectUpstream(addr string, user string) (*sshutils.Upstre
 	return sshutils.NewUpstream(client)
 }
 
-func (c *TunContext) GetClient() auth.ClientI {
+func (c *TunContext) GetClient() (auth.ClientI, error) {
 	return c.site.GetClient()
 }

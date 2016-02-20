@@ -45,6 +45,13 @@ func (e *AlreadyAcquiredError) OrigError() error {
 	return e
 }
 
+// NotFound returns new instance of not found error
+func NotFound(message string) *NotFoundError {
+	return &NotFoundError{
+		Message: message,
+	}
+}
+
 // NotFoundError indicates that object has not been found
 type NotFoundError struct {
 	trace.Traces `json:"traces"`
@@ -282,6 +289,48 @@ func (e *AccessDeniedError) OrigError() error {
 func IsAccessDenied(e error) bool {
 	type ad interface {
 		IsAccessDeniedError() bool
+	}
+	_, ok := e.(ad)
+	return ok
+}
+
+// ConnectionProblem returns ConnectionProblem
+func ConnectionProblem(message string, err error) *ConnectionProblemError {
+	return &ConnectionProblemError{
+		Message: message,
+		Err:     err,
+	}
+}
+
+// ConnectionProblemError indicates any network error that has occured
+type ConnectionProblemError struct {
+	trace.Traces
+	Message string `json:"message"`
+	Err     error  `json:"-"`
+}
+
+// Error is debug - friendly error message
+func (c *ConnectionProblemError) Error() string {
+	if c.Message != "" {
+		return c.Message
+	}
+	return "connection problem"
+}
+
+// IsConnectionProblemError indicates that this error is of ConnectionProblem
+func (c *ConnectionProblemError) IsConnectionProblemError() bool {
+	return true
+}
+
+// OrigError returns original error (in this case this is the error itself)
+func (c *ConnectionProblemError) OrigError() error {
+	return c
+}
+
+// IsConnectionProblem detects if this error is of ConnectionProblemError
+func IsConnectionProblem(e error) bool {
+	type ad interface {
+		IsConnectionProblemError() bool
 	}
 	_, ok := e.(ad)
 	return ok
