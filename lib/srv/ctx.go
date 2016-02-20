@@ -21,8 +21,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/codahale/lunk"
 	log "github.com/Sirupsen/logrus"
+	"github.com/codahale/lunk"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent" // ctxID is a incremental context ID used for debugging and logging purposes
 )
@@ -38,6 +38,7 @@ type closeMsg struct {
 // PTYs, and other resources. ctx can be used to attach resources
 // that should be closed once the session closes.
 type ctx struct {
+	*log.Entry
 	// env is a list of environment variables passed to the session
 	env map[string]string
 
@@ -98,7 +99,7 @@ func (c *ctx) setAgent(a agent.Agent, ch ssh.Channel) {
 	c.Lock()
 	defer c.Unlock()
 	if c.agentCh != nil {
-		log.Infof("closing previous agent channel")
+		c.Infof("closing previous agent channel")
 		c.agentCh.Close()
 	}
 	c.agentCh = ch
@@ -138,12 +139,12 @@ func (c *ctx) takeClosers() []io.Closer {
 }
 
 func (c *ctx) Close() error {
-	log.Infof("%v ctx.Close()", c)
+	c.Infof("ctx.Close()")
 	return closeAll(c.takeClosers()...)
 }
 
 func (c *ctx) sendResult(r execResult) {
-	log.Infof("%v sendResult(%v)", c, r)
+	c.Infof("sendResult(%v)", r)
 	select {
 	case c.result <- r:
 	default:
@@ -155,7 +156,7 @@ func (c *ctx) requestClose(msg string) {
 	select {
 	case c.close <- closeMsg{reason: msg}:
 	default:
-		log.Infof("blocked on sending close request %v", msg)
+		c.Infof("blocked on sending close request %v", msg)
 	}
 }
 
@@ -168,7 +169,7 @@ func (c *ctx) String() string {
 }
 
 func (c *ctx) setEnv(key, val string) {
-	log.Infof("%v setEnv(%v=%v)", c, key, val)
+	c.Infof("setEnv(%v=%v)", key, val)
 	c.env[key] = val
 }
 
@@ -178,7 +179,7 @@ func (c *ctx) getEnv(key string) (string, bool) {
 }
 
 func newCtx(srv *Server, info ssh.ConnMetadata) *ctx {
-	return &ctx{
+	ctx := &ctx{
 		env:    make(map[string]string),
 		eid:    lunk.NewRootEventID(),
 		info:   info,
@@ -187,4 +188,11 @@ func newCtx(srv *Server, info ssh.ConnMetadata) *ctx {
 		close:  make(chan closeMsg, 10),
 		srv:    srv,
 	}
+	ctx.Entry = log.WithFields(srv.logFields(log.Fields{
+		"local":  info.LocalAddr(),
+		"remote": info.RemoteAddr(),
+		"user":   info.User(),
+		"id":     ctx.id,
+	}))
+	return ctx
 }

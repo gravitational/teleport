@@ -97,7 +97,7 @@ func (s *TunServer) Close() error {
 	return s.srv.Close()
 }
 
-func (s *TunServer) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
+func (s *TunServer) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	log.Infof("[AUTH] new channel request: %v", nch.ChannelType())
 	cht := nch.ChannelType()
 	switch cht {

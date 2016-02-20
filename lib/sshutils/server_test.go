@@ -17,6 +17,7 @@ package sshutils
 
 import (
 	"fmt"
+	"net"
 	"testing"
 	"time"
 
@@ -46,7 +47,7 @@ func (s *ServerSuite) SetUpSuite(c *C) {
 
 func (s *ServerSuite) TestStartStop(c *C) {
 	called := false
-	fn := NewChanHandlerFunc(func(conn *ssh.ServerConn, nch ssh.NewChannel) {
+	fn := NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
 		called = true
 		nch.Reject(ssh.Prohibited, "nothing to see here")
 	})

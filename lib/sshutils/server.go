@@ -182,7 +182,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 	}()
 	go func() {
 		// Handle channel requests on this connections
-		s.handleChannels(sconn, chans)
+		s.handleChannels(conn, sconn, chans)
 		wg.Done()
 	}()
 
@@ -198,9 +198,9 @@ func (s *Server) handleRequests(reqs <-chan *ssh.Request) {
 	}
 }
 
-func (s *Server) handleChannels(sconn *ssh.ServerConn, chans <-chan ssh.NewChannel) {
+func (s *Server) handleChannels(conn net.Conn, sconn *ssh.ServerConn, chans <-chan ssh.NewChannel) {
 	for nch := range chans {
-		s.newChanHandler.HandleNewChan(sconn, nch)
+		s.newChanHandler.HandleNewChan(conn, sconn, nch)
 	}
 }
 
@@ -215,13 +215,13 @@ func (f RequestHandlerFunc) HandleRequest(r *ssh.Request) {
 }
 
 type NewChanHandler interface {
-	HandleNewChan(*ssh.ServerConn, ssh.NewChannel)
+	HandleNewChan(net.Conn, *ssh.ServerConn, ssh.NewChannel)
 }
 
-type NewChanHandlerFunc func(*ssh.ServerConn, ssh.NewChannel)
+type NewChanHandlerFunc func(net.Conn, *ssh.ServerConn, ssh.NewChannel)
 
-func (f NewChanHandlerFunc) HandleNewChan(s *ssh.ServerConn, c ssh.NewChannel) {
-	f(s, c)
+func (f NewChanHandlerFunc) HandleNewChan(conn net.Conn, sshConn *ssh.ServerConn, ch ssh.NewChannel) {
+	f(conn, sshConn, ch)
 }
 
 type AuthMethods struct {

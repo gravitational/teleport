@@ -46,7 +46,8 @@ type Agent struct {
 	elog            lunk.EventLogger
 	clt             *auth.TunClient
 	domainName      string
-	waitC           chan bool
+	closeC          chan bool
+	closeOnce       sync.Once
 	disconnectC     chan bool
 	conn            ssh.Conn
 	hostKeyCallback utils.HostKeyCallback
@@ -70,13 +71,17 @@ func NewAgent(addr utils.NetAddr, domainName string, signers []ssh.Signer,
 
 	a := &Agent{
 		log: log.WithFields(log.Fields{
-			"module": "agent",
-			"remote": addr,
+			teleport.Component: teleport.ComponentReverseTunnel,
+			teleport.ComponentFields: map[string]interface{}{
+				"side":   "agent",
+				"remote": addr.String(),
+				"mode":   "agent",
+			},
 		}),
 		clt:         clt,
 		addr:        addr,
 		domainName:  domainName,
-		waitC:       make(chan bool),
+		closeC:      make(chan bool),
 		disconnectC: make(chan bool, 10),
 		authMethods: []ssh.AuthMethod{ssh.PublicKeys(signers...)},
 	}
@@ -101,13 +106,17 @@ func NewHangoutAgent(addr utils.NetAddr, hangoutID string,
 
 	a := &Agent{
 		log: log.WithFields(log.Fields{
-			"module": "reversetunnel.agent",
-			"remote": addr,
+			teleport.Component: teleport.ComponentReverseTunnel,
+			teleport.ComponentFields: map[string]interface{}{
+				"side":   "agent",
+				"remote": addr.String(),
+				"mode":   "hangout",
+			},
 		}),
 		clt:             clt,
 		addr:            addr,
 		domainName:      hangoutID,
-		waitC:           make(chan bool),
+		closeC:          make(chan bool),
 		disconnectC:     make(chan bool, 10),
 		authMethods:     authMethods,
 		hostKeyCallback: hostKeyCallback,
@@ -123,6 +132,14 @@ func NewHangoutAgent(addr utils.NetAddr, hangoutID string,
 	return a, nil
 }
 
+// Close signals to close all connections
+func (a *Agent) Close() error {
+	a.closeOnce.Do(func() {
+		close(a.closeC)
+	})
+	return nil
+}
+
 // Start starts agent that attempts to connect to remote server part
 func (a *Agent) Start() error {
 	if err := a.reconnect(); err != nil {
@@ -136,6 +153,9 @@ func (a *Agent) handleDisconnect() {
 	a.log.Infof("handle disconnects")
 	for {
 		select {
+		case <-a.closeC:
+			a.log.Infof("is closed, returning")
+			return
 		case <-a.disconnectC:
 			a.log.Infof("detected disconnect, reconnecting")
 			a.reconnect()
@@ -147,6 +167,12 @@ func (a *Agent) reconnect() error {
 	var err error
 	i := 0
 	for {
+		select {
+		case <-a.closeC:
+			a.log.Infof("is closed, return")
+			return nil
+		default:
+		}
 		i++
 		if err = a.connect(); err != nil {
 			a.log.Infof("connect attempt %v: %v", i, err)
@@ -159,7 +185,6 @@ func (a *Agent) reconnect() error {
 
 // Wait waits until all outstanding operations are completed
 func (a *Agent) Wait() error {
-	<-a.waitC
 	return nil
 }
 
@@ -234,10 +259,16 @@ func (a *Agent) connect() error {
 
 func (a *Agent) handleAccessPoint(newC <-chan ssh.NewChannel) {
 	for {
-		nch := <-newC
-		if nch == nil {
-			a.log.Infof("connection closed, return")
+		var nch ssh.NewChannel
+		select {
+		case <-a.closeC:
+			a.log.Infof("is closed, return")
 			return
+		case nch = <-newC:
+			if nch == nil {
+				a.log.Infof("connection closed, return")
+				return
+			}
 		}
 		a.log.Infof("got access point request: %v", nch.ChannelType())
 		ch, req, err := nch.Accept()
@@ -250,10 +281,16 @@ func (a *Agent) handleAccessPoint(newC <-chan ssh.NewChannel) {
 
 func (a *Agent) handleTransport(newC <-chan ssh.NewChannel) {
 	for {
-		nch := <-newC
-		if nch == nil {
-			a.log.Infof("connection closed, returing")
+		var nch ssh.NewChannel
+		select {
+		case <-a.closeC:
+			a.log.Infof("is closed, return")
 			return
+		case nch = <-newC:
+			if nch == nil {
+				a.log.Infof("connection closed, return")
+				return
+			}
 		}
 		a.log.Infof("got transport request: %v", nch.ChannelType())
 		ch, req, err := nch.Accept()
@@ -296,6 +333,9 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 
 	var req *ssh.Request
 	select {
+	case <-a.closeC:
+		a.log.Infof("is closed, returning")
+		return
 	case req = <-reqC:
 		if req == nil {
 			a.log.Infof("connection closed, returning")
@@ -352,6 +392,9 @@ func (a *Agent) startHeartbeat() {
 	go func() {
 		for {
 			select {
+			case <-a.closeC:
+				a.log.Infof("agent is closing")
+				return
 			case <-closeC:
 				a.log.Infof("asked to exit")
 				return
@@ -370,6 +413,9 @@ func (a *Agent) startHeartbeat() {
 	go func() {
 		for {
 			select {
+			case <-a.closeC:
+				a.log.Infof("agent is closing")
+				return
 			case <-closeC:
 				log.Infof("asked to exit")
 				return
@@ -384,7 +430,9 @@ func (a *Agent) startHeartbeat() {
 	}()
 
 	a.log.Infof("got error: %v", <-errC)
-	close(closeC)
+	(&sync.Once{}).Do(func() {
+		close(closeC)
+	})
 }
 
 const (

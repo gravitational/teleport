@@ -38,7 +38,7 @@ type Context interface {
 	GetAuthMethods() ([]ssh.AuthMethod, error)
 	GetWebSID() string
 	GetUser() string
-	GetClient() auth.ClientI
+	GetClient() (auth.ClientI, error)
 }
 
 type LocalContext struct {
@@ -47,8 +47,8 @@ type LocalContext struct {
 	clt  *auth.TunClient
 }
 
-func (c *LocalContext) GetClient() auth.ClientI {
-	return c.clt
+func (c *LocalContext) GetClient() (auth.ClientI, error) {
+	return c.clt, nil
 }
 
 func (c *LocalContext) GetUser() string {
