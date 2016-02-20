@@ -29,9 +29,11 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events/boltlog"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
@@ -45,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 
 	"github.com/gokyle/hotp"
-	"github.com/mailgun/lemma/secret"
 	"golang.org/x/crypto/ssh"
 	. "gopkg.in/check.v1"
 
@@ -74,7 +75,6 @@ type TshSuite struct {
 	clt          *ssh.Client
 	bk           *encryptedbk.ReplicatedBackend
 	a            *auth.AuthServer
-	scrt         secret.SecretService
 	signer       ssh.Signer
 	teleagent    *teleagent.TeleAgent
 	dir          string
@@ -89,12 +89,8 @@ type TshSuite struct {
 var _ = Suite(&TshSuite{})
 
 func (s *TshSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
-	key, err := secret.NewKey()
-	c.Assert(err, IsNil)
-	scrt, err := secret.New(&secret.Config{KeyBytes: key})
-	c.Assert(err, IsNil)
-	s.scrt = scrt
+	utils.InitLoggerDebug()
+	client.KeysDir = c.MkDir()
 
 	s.dir = c.MkDir()
 	s.dir2 = c.MkDir()
@@ -108,22 +104,23 @@ func (s *TshSuite) SetUpSuite(c *C) {
 		encryptor.GetTestKey)
 	c.Assert(err, IsNil)
 
-	s.a = auth.NewAuthServer(s.bk, authority.New(), s.scrt, "host5")
+	s.a = auth.NewAuthServer(s.bk, authority.New(), "localhost")
 
 	// set up host private key and certificate
-	c.Assert(s.a.ResetHostCertificateAuthority(""), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(
+		*services.NewTestCA(services.HostCA, "localhost"), backend.Forever), IsNil)
+
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", auth.RoleAdmin, 0)
 	c.Assert(err, IsNil)
 
 	// set up user CA and set up a user that has access to the server
-	c.Assert(s.a.ResetUserCertificateAuthority(""), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(
+		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	s.signer, err = sshutils.NewSigner(hpriv, hcert)
 	c.Assert(err, IsNil)
-
-	ap := auth.NewBackendAccessPoint(s.bk)
 
 	// Starting node1
 	s.srvAddress = "127.0.0.1:30136"
@@ -134,7 +131,7 @@ func (s *TshSuite) SetUpSuite(c *C) {
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srvAddress},
 		"localhost",
 		[]ssh.Signer{s.signer},
-		ap,
+		s.a,
 		allowAllLimiter,
 		s.dir,
 		srv.SetShell("/bin/sh"),
@@ -160,7 +157,7 @@ func (s *TshSuite) SetUpSuite(c *C) {
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srv2Address},
 		"localhost",
 		[]ssh.Signer{s.signer},
-		ap,
+		s.a,
 		allowAllLimiter,
 		s.dir2,
 		srv.SetShell("/bin/sh"),
@@ -186,7 +183,7 @@ func (s *TshSuite) SetUpSuite(c *C) {
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
-		ap, allowAllLimiter)
+		s.a, allowAllLimiter)
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
@@ -196,7 +193,7 @@ func (s *TshSuite) SetUpSuite(c *C) {
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.proxyAddress},
 		"localhost",
 		[]ssh.Signer{s.signer},
-		ap,
+		s.a,
 		allowAllLimiter,
 		s.dir,
 		srv.SetProxyMode(reverseTunnelServer),
@@ -228,7 +225,7 @@ func (s *TshSuite) SetUpSuite(c *C) {
 	s.user = u.Username
 	s.userDir = u.HomeDir
 
-	c.Assert(s.a.UpsertUserMapping("local", s.user, s.user, time.Hour), IsNil)
+	c.Assert(s.a.UpsertUser(services.User{Name: s.user, AllowedLogins: []string{s.user}}), IsNil)
 
 	s.pass = []byte("utndkrn")
 
@@ -589,7 +586,7 @@ func (s *TshSuite) TestDownloadDirFrom2Servers(c *C) {
 		"-r",
 	)
 	cmd.Env = s.envVars
-	out, err := cmd.Output()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		c.Assert(string(out), Equals, "")
 		c.Assert(err, IsNil)

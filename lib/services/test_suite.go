@@ -19,8 +19,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/services/suite"
 
 	"github.com/gokyle/hotp"
 	"github.com/mailgun/lemma/random"
@@ -28,6 +28,24 @@ import (
 
 	. "gopkg.in/check.v1"
 )
+
+// NewTestCA returns new test authority with a test key as a public and
+// signing key
+func NewTestCA(caType CertAuthType, domainName string) *CertAuthority {
+	keyBytes := suite.PEMBytes["rsa"]
+	key, err := ssh.ParsePrivateKey(keyBytes)
+	if err != nil {
+		panic(err)
+	}
+	pubKey := key.PublicKey()
+
+	return &CertAuthority{
+		Type:         caType,
+		DomainName:   domainName,
+		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
+		SigningKeys:  [][]byte{keyBytes},
+	}
+}
 
 type ServicesTestSuite struct {
 	CAS           *CAService
@@ -81,6 +99,24 @@ func (s *ServicesTestSuite) UsersCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(toSet(u), DeepEquals, map[string]User{"user1": User{Name: "user1"}, "user2": User{Name: "user2"}})
 
+	out, err := s.WebS.GetUser("user1")
+	c.Assert(err, IsNil)
+	c.Assert(*out, DeepEquals, User{Name: "user1"})
+
+	user := User{Name: "user1", AllowedLogins: []string{"admin", "root"}}
+	c.Assert(s.WebS.UpsertUser(user), IsNil)
+
+	out, err = s.WebS.GetUser("user1")
+	c.Assert(err, IsNil)
+	c.Assert(*out, DeepEquals, user)
+
+	user.AllowedLogins = nil
+	c.Assert(s.WebS.UpsertUser(user), IsNil)
+
+	out, err = s.WebS.GetUser("user1")
+	c.Assert(err, IsNil)
+	c.Assert(*out, DeepEquals, user)
+
 	c.Assert(s.WebS.DeleteUser("user1"), IsNil)
 
 	u, err = s.WebS.GetUsers()
@@ -89,48 +125,33 @@ func (s *ServicesTestSuite) UsersCRUD(c *C) {
 
 	err = s.WebS.DeleteUser("user1")
 	c.Assert(teleport.IsNotFound(err), Equals, true, Commentf("unexpected %T %#v", err, err))
+
+	// bad username
+	err = s.WebS.UpsertUser(User{Name: ""})
+	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("expected bad parameter error, got %T", err))
+
+	// bad allowed login
+	err = s.WebS.UpsertUser(User{Name: "bob", AllowedLogins: []string{"oops  typo!"}})
+	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("expected bad parameter error, got %T", err))
 }
 
-func (s *ServicesTestSuite) UserCACRUD(c *C) {
-	ca := LocalCertificateAuthority{
-		CertificateAuthority: CertificateAuthority{
-			PublicKey:  []byte("capub"),
-			ID:         "id1",
-			Type:       UserCert,
-			DomainName: "host1",
-		},
-		PrivateKey: []byte("capriv"),
-	}
-	c.Assert(s.CAS.UpsertUserCertificateAuthority(ca), IsNil)
+func (s *ServicesTestSuite) CertAuthCRUD(c *C) {
+	ca := NewTestCA(UserCA, "example.com")
+	c.Assert(s.CAS.UpsertCertAuthority(
+		*ca, backend.Forever), IsNil)
 
-	out, err := s.CAS.GetUserPrivateCertificateAuthority()
+	out, err := s.CAS.GetCertAuthority(*ca.ID(), true)
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, &ca)
+	c.Assert(out, DeepEquals, ca)
 
-	outp, err := s.CAS.GetUserCertificateAuthority()
+	cas, err := s.CAS.GetCertAuthorities(UserCA)
 	c.Assert(err, IsNil)
-	c.Assert(outp, DeepEquals, &ca.CertificateAuthority)
-}
+	ca2 := ca
+	ca2.SigningKeys = nil
+	c.Assert(cas[0], DeepEquals, ca)
 
-func (s ServicesTestSuite) HostCACRUD(c *C) {
-	ca := LocalCertificateAuthority{
-		CertificateAuthority: CertificateAuthority{
-			PublicKey:  []byte("capub"),
-			ID:         "id2",
-			Type:       HostCert,
-			DomainName: "host2",
-		},
-		PrivateKey: []byte("capriv"),
-	}
-	c.Assert(s.CAS.UpsertHostCertificateAuthority(ca), IsNil)
-
-	out, err := s.CAS.GetHostPrivateCertificateAuthority()
+	err = s.CAS.DeleteCertAuthority(*ca.ID())
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, &ca)
-
-	outp, err := s.CAS.GetHostCertificateAuthority()
-	c.Assert(err, IsNil)
-	c.Assert(outp, DeepEquals, &ca.CertificateAuthority)
 }
 
 func (s *ServicesTestSuite) ServerCRUD(c *C) {
@@ -298,203 +319,6 @@ func (s *ServicesTestSuite) TokenCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tok, Equals, "token1")
 	c.Assert(role, Equals, "Auth")
-}
-
-func (s *ServicesTestSuite) RemoteCertCRUD(c *C) {
-	out, err := s.CAS.GetRemoteCertificates(HostCert, "")
-	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, []CertificateAuthority{})
-
-	ca := CertificateAuthority{
-		Type:       HostCert,
-		ID:         "c1",
-		DomainName: "example.com",
-		PublicKey:  []byte("hello"),
-	}
-	c.Assert(s.CAS.UpsertRemoteCertificate(ca, 0), IsNil)
-
-	out, err = s.CAS.GetRemoteCertificates(HostCert, ca.DomainName)
-	c.Assert(err, IsNil)
-	c.Assert(out[0], DeepEquals, ca)
-
-	ca2 := CertificateAuthority{
-		Type:       HostCert,
-		ID:         "c2",
-		DomainName: "example.org",
-		PublicKey:  []byte("hello2"),
-	}
-	c.Assert(s.CAS.UpsertRemoteCertificate(ca2, 0), IsNil)
-
-	out, err = s.CAS.GetRemoteCertificates(HostCert, ca2.DomainName)
-	c.Assert(err, IsNil)
-	c.Assert(out[0], DeepEquals, ca2)
-
-	out, err = s.CAS.GetRemoteCertificates(HostCert, "")
-	c.Assert(err, IsNil)
-	c.Assert(len(out), Equals, 2)
-
-	certs := make(map[string]CertificateAuthority)
-	for _, c := range out {
-		certs[c.DomainName+c.ID] = c
-	}
-	c.Assert(certs[ca.DomainName+ca.ID], DeepEquals, ca)
-	c.Assert(certs[ca2.DomainName+ca2.ID], DeepEquals, ca2)
-
-	// Update ca
-	ca.PublicKey = []byte("hello updated")
-	c.Assert(s.CAS.UpsertRemoteCertificate(ca, 0), IsNil)
-
-	out, err = s.CAS.GetRemoteCertificates(HostCert, ca.DomainName)
-	c.Assert(err, IsNil)
-	c.Assert(out[0], DeepEquals, ca)
-
-	err = s.CAS.DeleteRemoteCertificate(HostCert, ca.DomainName, ca.ID)
-	c.Assert(err, IsNil)
-
-	err = s.CAS.DeleteRemoteCertificate(HostCert, ca.DomainName, ca.ID)
-	c.Assert(err, NotNil)
-}
-
-func (s *ServicesTestSuite) TrustedCertificates(c *C) {
-	a := testauthority.New()
-
-	priv1, pub1, err := a.GenerateKeyPair("")
-	c.Assert(err, IsNil)
-	key1, _, _, _, err := ssh.ParseAuthorizedKey(pub1)
-	c.Assert(err, IsNil)
-
-	userCA := LocalCertificateAuthority{
-		CertificateAuthority: CertificateAuthority{
-			PublicKey:  pub1,
-			ID:         "id1",
-			Type:       UserCert,
-			DomainName: "host1",
-		},
-		PrivateKey: priv1,
-	}
-	c.Assert(s.CAS.UpsertUserCertificateAuthority(userCA), IsNil)
-	userPubCA, err := s.CAS.GetUserCertificateAuthority()
-	c.Assert(err, IsNil)
-
-	hostCA := LocalCertificateAuthority{
-		CertificateAuthority: CertificateAuthority{
-			PublicKey:  []byte("capub"),
-			ID:         "id2",
-			Type:       UserCert,
-			DomainName: "host1",
-		},
-		PrivateKey: []byte("capriv"),
-	}
-	c.Assert(s.CAS.UpsertHostCertificateAuthority(hostCA), IsNil)
-	hostPubCA, err := s.CAS.GetHostCertificateAuthority()
-	c.Assert(err, IsNil)
-
-	ca1 := CertificateAuthority{
-		Type:       UserCert,
-		ID:         "c1",
-		DomainName: "example.com",
-		PublicKey:  []byte("hello1"),
-	}
-	c.Assert(s.CAS.UpsertRemoteCertificate(ca1, 0), IsNil)
-
-	ca2 := CertificateAuthority{
-		Type:       UserCert,
-		ID:         "c2",
-		DomainName: "example.org",
-		PublicKey:  []byte("hello2"),
-	}
-	c.Assert(s.CAS.UpsertRemoteCertificate(ca2, 0), IsNil)
-
-	remoteUserCAs, err := s.CAS.GetRemoteCertificates(UserCert, "")
-	c.Assert(err, IsNil)
-	remoteHostCAs, err := s.CAS.GetRemoteCertificates(HostCert, "")
-	c.Assert(err, IsNil)
-
-	trustedUserCertificates, err := s.CAS.GetTrustedCertificates(UserCert)
-	c.Assert(err, IsNil)
-	trustedHostCertificates, err := s.CAS.GetTrustedCertificates(HostCert)
-	c.Assert(err, IsNil)
-
-	c.Assert(trustedUserCertificates, DeepEquals, append(remoteUserCAs, *userPubCA))
-	c.Assert(trustedHostCertificates, DeepEquals, append(remoteHostCAs, *hostPubCA))
-
-	id1, found, err := s.CAS.GetCertificateID(UserCert, key1)
-	c.Assert(err, IsNil)
-	c.Assert(found, Equals, true)
-	c.Assert(id1, Equals, "id1")
-}
-
-func (s *ServicesTestSuite) UserMapping(c *C) {
-	c.Assert(s.CAS.UpsertUserMapping("a1", "b1", "c1", 0), IsNil)
-	c.Assert(s.CAS.UpsertUserMapping("a2", "b2", "c2", 0), IsNil)
-	c.Assert(s.CAS.UpsertUserMapping("a3", "b3", "c3", 0), IsNil)
-	c.Assert(s.CAS.UpsertUserMapping("a4", "b4", "c4", time.Millisecond*200), IsNil)
-
-	ok, err := s.CAS.UserMappingExists("a1", "b1", "c1")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
-	ok, err = s.CAS.UserMappingExists("a2", "b2", "c2")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
-	ok, err = s.CAS.UserMappingExists("a3", "b3", "c3")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
-	ok, err = s.CAS.UserMappingExists("a4", "b4", "c4")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
-	ok, err = s.CAS.UserMappingExists("a5", "b5", "c5")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, false)
-
-	c.Assert(s.CAS.DeleteUserMapping("a2", "b2", "c2"), IsNil)
-
-	time.Sleep(time.Millisecond * 300)
-
-	ok, err = s.CAS.UserMappingExists("a1", "b1", "c1")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
-	ok, err = s.CAS.UserMappingExists("a2", "b2", "c2")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, false)
-	ok, err = s.CAS.UserMappingExists("a3", "b3", "c3")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
-	ok, err = s.CAS.UserMappingExists("a4", "b4", "c4")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, false)
-
-	hashes, err := s.CAS.GetAllUserMappings()
-	c.Assert(err, IsNil)
-
-	c.Assert(s.CAS.DeleteUserMapping("a1", "b1", "c1"), IsNil)
-
-	ok, err = s.CAS.UserMappingExists("a1", "b1", "c1")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, false)
-	ok, err = s.CAS.UserMappingExists("a2", "b2", "c2")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, false)
-	ok, err = s.CAS.UserMappingExists("a3", "b3", "c3")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
-	ok, err = s.CAS.UserMappingExists("a4", "b4", "c4")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, false)
-
-	c.Assert(s.CAS.UpdateUserMappings(hashes, time.Minute), IsNil)
-
-	ok, err = s.CAS.UserMappingExists("a1", "b1", "c1")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
-	ok, err = s.CAS.UserMappingExists("a2", "b2", "c2")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, false)
-	ok, err = s.CAS.UserMappingExists("a3", "b3", "c3")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
-	ok, err = s.CAS.UserMappingExists("a4", "b4", "c4")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, false)
 }
 
 func (s *ServicesTestSuite) PasswordCRUD(c *C) {

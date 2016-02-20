@@ -20,6 +20,8 @@ import (
 	"io"
 	"net"
 	"time"
+
+	"golang.org/x/crypto/ssh"
 )
 
 // PipeNetConn implemetns net.Conn from io.Reader,io.Writer and io.Closer
@@ -80,4 +82,36 @@ func SplitReaders(r1 io.Reader, r2 io.Reader) io.Reader {
 	go io.Copy(writer, r1)
 	go io.Copy(writer, r2)
 	return reader
+}
+
+func NewChConn(conn ssh.Conn, ch ssh.Channel) *chConn {
+	c := &chConn{}
+	c.Channel = ch
+	c.conn = conn
+	return c
+}
+
+type chConn struct {
+	ssh.Channel
+	conn ssh.Conn
+}
+
+func (c *chConn) LocalAddr() net.Addr {
+	return c.conn.LocalAddr()
+}
+
+func (c *chConn) RemoteAddr() net.Addr {
+	return c.conn.RemoteAddr()
+}
+
+func (c *chConn) SetDeadline(t time.Time) error {
+	return nil
+}
+
+func (c *chConn) SetReadDeadline(t time.Time) error {
+	return nil
+}
+
+func (c *chConn) SetWriteDeadline(t time.Time) error {
+	return nil
 }

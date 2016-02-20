@@ -16,7 +16,6 @@ limitations under the License.
 package auth
 
 import (
-	"golang.org/x/crypto/ssh"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -26,6 +25,10 @@ import (
 // AccessPoint is a interface needed by nodes to control the access
 // to the node, and provide heartbeats
 type AccessPoint interface {
+
+	// GetLocalDomain returns domain name of the local authority server
+	GetLocalDomain() (string, error)
+
 	// GetServers returns a list of registered servers
 	GetServers() ([]services.Server, error)
 
@@ -33,30 +36,15 @@ type AccessPoint interface {
 	// for the specified duration with second resolution if it's >= 1 second
 	UpsertServer(s services.Server, ttl time.Duration) error
 
-	// GetUserCAPub returns the user certificate authority public key
-	GetUserCertificateAuthority() (*services.CertificateAuthority, error)
-
-	// GetUserCAPub returns the host certificate authority public key
-	GetHostCertificateAuthority() (*services.CertificateAuthority, error)
+	// GetCertAuthorities returns a list of cert authorities
+	GetCertAuthorities(caType services.CertAuthType) ([]*services.CertAuthority, error)
 
 	// GetWebSessionsKeys returns a list of generated public keys
-
 	// associated with user web session
 	GetWebSessionsKeys(user string) ([]services.AuthorizedKey, error)
 
-	// GetRemoteCerts returns a list of trusted remote certificates
-	GetRemoteCertificates(certType, domainName string) ([]services.CertificateAuthority, error)
-
-	// GetTrustedCerts returns a list of trusted certificates
-	GetTrustedCertificates(certType string) ([]services.CertificateAuthority, error)
-
-	// GetCertificateID Returns an ID of the certificate with the provided PublicKey value
-	GetCertificateID(certType string, key ssh.PublicKey) (ID string, found bool, e error)
-
-	// GetAllUserMappings Returns hashes of all the User Mapping entries. Used to copy all the data
-	GetAllUserMappings() (hashes []string, e error)
-
-	UserMappingExists(certificateID, teleportUser, osUser string) (bool, error)
+	// GetUsers returns a list of local users registered with this domain
+	GetUsers() ([]services.User, error)
 }
 
 type BackendAccessPoint struct {

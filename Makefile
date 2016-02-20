@@ -9,6 +9,7 @@ export GO15VENDOREXPERIMENT=1
 conf: 
 	go test -v github.com/gravitational/teleport/tool/teleport \
 	           github.com/gravitational/teleport/lib/config \
+	           github.com/gravitational/teleport/lib/utils \
 	           github.com/gravitational/teleport/lib/defaults
 
 #

@@ -13,7 +13,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-// package auth implements certificate signing authority and access control server
+
+// Package auth implements certificate signing authority and access control server
 // Authority server is composed of several parts:
 //
 // * Authority server itself that implements signing and acl logic
@@ -23,13 +24,15 @@ limitations under the License.
 package auth
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/services"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gokyle/hotp"
-	"github.com/gravitational/session"
+	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 )
 
@@ -44,19 +47,28 @@ var TokenTTLAfterUse = time.Second * 10
 // CreateSignupToken creates one time token for creating account for the user
 // For each token it creates username and hotp generator
 //
-// Mappings are host logins allowed for the new user to use
-func (s *AuthServer) CreateSignupToken(user string, mappings []string) (token string, e error) {
+// allowedLogins are linux user logins allowed for the new user to use
+func (s *AuthServer) CreateSignupToken(user string, allowedLogins []string) (string, error) {
+	if !cstrings.IsValidUnixUser(user) {
+		return "", trace.Wrap(
+			teleport.BadParameter("user", fmt.Sprintf("'%v' is not a valid user name", user)))
+	}
+	for _, login := range allowedLogins {
+		if !cstrings.IsValidUnixUser(login) {
+			return "", trace.Wrap(teleport.BadParameter(
+				"allowedLogins", fmt.Sprintf("'%v' is not a valid user name", login)))
+		}
+	}
 	// check existing
 	_, err := s.GetPasswordHash(user)
 	if err == nil {
 		return "", trace.Errorf("login '%v' already exists", user)
 	}
 
-	t, err := session.NewID(s.scrt)
+	token, err := CryptoRandomHex(WebSessionTokenLenBytes)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	token = string(t.PID)
 
 	otp, err := hotp.GenerateHOTP(services.HOTPTokenDigits, false)
 	if err != nil {
@@ -84,7 +96,7 @@ func (s *AuthServer) CreateSignupToken(user string, mappings []string) (token st
 		Hotp:            otpMarshalled,
 		HotpFirstValues: otpFirstValues,
 		HotpQR:          otpQR,
-		Mappings:        mappings,
+		AllowedLogins:   allowedLogins,
 	}
 
 	err = s.UpsertSignupToken(token, tokenData, SignupTokenTTL+SignupTokenUserActionsTTL)
@@ -92,7 +104,7 @@ func (s *AuthServer) CreateSignupToken(user string, mappings []string) (token st
 		return "", trace.Wrap(err)
 	}
 
-	log.Infof("[AUTH API] created the signup token for %v as %v", user, mappings)
+	log.Infof("[AUTH API] created the signup token for %v as %v", user, allowedLogins)
 	return token, nil
 }
 
@@ -181,16 +193,9 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) erro
 		return trace.Wrap(err)
 	}
 
-	// apply user mappings
-	localCA, err := s.GetUserCertificateAuthority()
-	if err != nil {
+	// apply user allowed logins
+	if err = s.UpsertUser(services.User{Name: tokenData.User, AllowedLogins: tokenData.AllowedLogins}); err != nil {
 		return trace.Wrap(err)
-	}
-	var forever time.Duration = 0
-	for _, osUser := range tokenData.Mappings {
-		if err = s.UpsertUserMapping(localCA.ID, tokenData.User, osUser, forever); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	err = s.UpsertHOTP(tokenData.User, otp)
@@ -206,6 +211,7 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) erro
 		}
 	}(s, token)
 
-	log.Infof("[AUTH] created new user account: %v as %v", tokenData.User, tokenData.Mappings)
+	log.Infof("[AUTH] created new user: %v as %v",
+		tokenData.User, tokenData.AllowedLogins)
 	return nil
 }

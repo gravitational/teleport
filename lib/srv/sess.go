@@ -31,10 +31,10 @@ import (
 	"github.com/gravitational/teleport/lib/recorder"
 	rsession "github.com/gravitational/teleport/lib/session"
 
-	"code.google.com/p/go-uuid/uuid"
 	log "github.com/Sirupsen/logrus"
 	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
+	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -123,41 +123,41 @@ func newSessionRegistry(srv *Server) *sessionRegistry {
 }
 
 type session struct {
-	id      string
-	eid     lunk.EventID
-	r       *sessionRegistry
-	writer  *multiWriter
-	parties map[string]*party
-	t       *term
-	cw      *chunkWriter
-	closeC  chan bool
+	id          string
+	eid         lunk.EventID
+	registry    *sessionRegistry
+	writer      *multiWriter
+	parties     map[string]*party
+	term        *term
+	chunkWriter *chunkWriter
+	closeC      chan bool
 }
 
 func newSession(id string, r *sessionRegistry) *session {
 	return &session{
-		id:      id,
-		r:       r,
-		parties: make(map[string]*party),
-		writer:  newMultiWriter(),
+		id:       id,
+		registry: r,
+		parties:  make(map[string]*party),
+		writer:   newMultiWriter(),
 	}
 }
 
 func (s *session) Close() error {
 	var err error
-	if s.t != nil {
-		err = s.t.Close()
+	if s.term != nil {
+		err = s.term.Close()
 	}
-	if s.cw != nil {
-		err = s.cw.Close()
+	if s.chunkWriter != nil {
+		err = s.chunkWriter.Close()
 	}
 	return err
 }
 
 func (s *session) upsertSessionParty(sid string, p *party, ttl time.Duration) error {
-	if s.r.srv.se == nil {
+	if s.registry.srv.se == nil {
 		return nil
 	}
-	return s.r.srv.se.UpsertParty(sid, rsession.Party{
+	return s.registry.srv.se.UpsertParty(sid, rsession.Party{
 		ID:         p.id,
 		User:       p.user,
 		ServerAddr: p.serverAddr,
@@ -201,16 +201,16 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	s.eid = ctx.eid
 	p := newParty(s, sconn, ch, ctx)
 	if p.ctx.getTerm() != nil {
-		s.t = p.ctx.getTerm()
+		s.term = p.ctx.getTerm()
 		p.ctx.setTerm(nil)
 	} else {
 		var err error
-		if s.t, err = newTerm(); err != nil {
+		if s.term, err = newTerm(); err != nil {
 			log.Infof("handleShell failed to create term: %v", err)
 			return err
 		}
 	}
-	cmd := exec.Command(s.r.srv.shell)
+	cmd := exec.Command(s.registry.srv.shell)
 	// TODO(klizhentas) figure out linux user policy for launching shells,
 	// what user and environment should we use to execute the shell? the simplest
 	// answer is to use current user and env, however  what if we are root?
@@ -225,29 +225,29 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 		return trace.Wrap(err)
 	}
 
-	if err := s.t.run(cmd); err != nil {
+	if err := s.term.run(cmd); err != nil {
 		log.Infof("%v failed to start shell: %v", p.ctx, err)
 		return err
 	}
 	log.Infof("%v starting shell input/output streaming", p.ctx)
 
-	if s.r.srv.rec != nil {
-		w, err := newChunkWriter(s.r.srv.rec)
+	if s.registry.srv.rec != nil {
+		w, err := newChunkWriter(s.registry.srv.rec)
 		if err != nil {
 			log.Errorf("failed to create recorder: %v", err)
 			return err
 		}
-		s.cw = w
-		s.r.srv.emit(ctx.eid, events.NewShellSession(s.id, sconn, s.r.srv.shell, w.rid))
+		s.chunkWriter = w
+		s.registry.srv.emit(ctx.eid, events.NewShellSession(s.id, sconn, s.registry.srv.shell, w.rid))
 		s.writer.addWriter("capture", w, false)
 	} else {
-		s.r.srv.emit(ctx.eid, events.NewShellSession(s.id, sconn, s.r.srv.shell, ""))
+		s.registry.srv.emit(ctx.eid, events.NewShellSession(s.id, sconn, s.registry.srv.shell, ""))
 	}
 	s.addParty(p)
 
 	// Pipe session to shell and visa-versa capturing input and output
 	go func() {
-		written, err := io.Copy(s.writer, s.t.pty)
+		written, err := io.Copy(s.writer, s.term.pty)
 		log.Infof("%v shell to channel copy closed, bytes written: %v, err: %v",
 			p.ctx, written, err)
 	}()
@@ -258,7 +258,7 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 			log.Errorf("%v wait failed: %v", p.ctx, err)
 		}
 		if result != nil {
-			s.r.broadcastResult(s.id, *result)
+			s.registry.broadcastResult(s.id, *result)
 			log.Infof("%v result broadcasted", p.ctx)
 		}
 	}()
@@ -292,7 +292,7 @@ func (s *session) addParty(p *party) {
 	s.writer.addWriter(p.id, p, true)
 	p.ctx.addCloser(p)
 	go func() {
-		written, err := io.Copy(s.t.pty, p)
+		written, err := io.Copy(s.term.pty, p)
 		log.Infof("%v channel to shell copy closed, bytes written: %v, err: %v",
 			p.ctx, written, err)
 	}()
@@ -398,7 +398,7 @@ func (t *multiWriter) Write(p []byte) (n int, err error) {
 func newParty(s *session, sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) *party {
 	return &party{
 		user:       sconn.User(),
-		serverAddr: s.r.srv.addr.Addr,
+		serverAddr: s.registry.srv.addr.Addr,
 		site:       sconn.RemoteAddr().String(),
 		id:         uuid.New(),
 		sconn:      sconn,
@@ -451,7 +451,7 @@ func (p *party) String() string {
 func (p *party) Close() error {
 	log.Infof("%v closing", p)
 	close(p.closeC)
-	return p.s.r.leaveShell(p.s.id, p.id)
+	return p.s.registry.leaveShell(p.s.id, p.id)
 }
 
 func newChunkWriter(rec recorder.Recorder) (*chunkWriter, error) {

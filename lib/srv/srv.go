@@ -13,7 +13,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-// srv implements SSH server that supports multiplexing, tunneling and key-based auth
+
+// Package srv implements SSH server that supports multiplexing, tunneling and key-based auth
 package srv
 
 import (
@@ -21,13 +22,11 @@ import (
 	"io"
 	"net"
 	"os/exec"
-	"path"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/recorder"
@@ -38,15 +37,17 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"code.google.com/p/go-uuid/uuid"
-	"github.com/codahale/lunk"
 	log "github.com/Sirupsen/logrus"
+	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
+	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
-	// Server implements SSH server that uses configuration backend and certificate-based authentication:
+
 	"golang.org/x/crypto/ssh/agent"
 )
 
+// Server implements SSH server that uses configuration backend and
+// certificate-based authentication
 type Server struct {
 	sync.Mutex
 	addr        utils.NetAddr
@@ -65,8 +66,6 @@ type Server struct {
 	labels      map[string]string                //static server labels
 	cmdLabels   map[string]services.CommandLabel //dymanic server labels
 	labelsMutex *sync.Mutex
-
-	certificatesCache *services.CAService
 
 	proxyMode bool
 	proxyTun  reversetunnel.Server
@@ -144,25 +143,13 @@ func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
 
 	for _, o := range options {
 		if err := o(s); err != nil {
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
 	}
+
 	if s.elog == nil {
 		s.elog = utils.NullEventLogger
 	}
-
-	var err error
-
-	certCacheFile := "CertCache"
-	if s.proxyMode {
-		certCacheFile = "ProxyCertCache"
-	}
-	backend, err := boltbk.New(path.Join(dataDir, certCacheFile))
-	if err != nil {
-		return nil, err
-	}
-	s.certificatesCache = services.NewCAService(backend)
-	s.certificatesCache.IsCache = true
 
 	srv, err := sshutils.NewServer(
 		addr, s, signers,
@@ -170,10 +157,23 @@ func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
 		limiter,
 		sshutils.SetRequestHandler(s))
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	s.srv = srv
 	return s, nil
+}
+
+func (s *Server) logFields(fields map[string]interface{}) log.Fields {
+	var component string
+	if s.proxyMode {
+		component = teleport.ComponentProxy
+	} else {
+		component = teleport.ComponentNode
+	}
+	return log.Fields{
+		teleport.Component:       component,
+		teleport.ComponentFields: fields,
+	}
 }
 
 func (s *Server) Addr() string {
@@ -181,7 +181,7 @@ func (s *Server) Addr() string {
 }
 
 func (s *Server) ID() string {
-	return strings.Replace(s.addr.Addr, ":", "_", -1)
+	return s.hostname
 }
 
 func (s *Server) heartbeatPresence() {
@@ -199,14 +199,6 @@ func (s *Server) heartbeatPresence() {
 			if err := s.ap.UpsertServer(srv, 6*time.Second); err != nil {
 				log.Warningf("failed to announce %#v presence: %v", srv, err)
 			}
-
-			if err := s.updateTrustedCAKeys(); err != nil {
-				log.Warningf(err.Error())
-			}
-			if err := s.updateUserMappings(); err != nil {
-				log.Warningf(err.Error())
-			}
-
 		}()
 		time.Sleep(3 * time.Second)
 	}
@@ -237,111 +229,95 @@ func (s *Server) updateLabel(name string, label services.CommandLabel) {
 	}
 }
 
-func (s *Server) updateTrustedCAKeys() error {
-	keys, err := s.ap.GetTrustedCertificates(services.UserCert)
+func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser string) error {
+	// find cert authority by it's key
+	cas, err := s.ap.GetCertAuthorities(services.UserCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for _, key := range keys {
-		err := s.certificatesCache.UpsertRemoteCertificate(key, CertificatesCacheTTL)
+
+	var ca *services.CertAuthority
+	for i := range cas {
+		checkers, err := cas[i].Checkers()
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		for _, checker := range checkers {
+			if sshutils.KeysEqual(cert, checker) {
+				ca = cas[i]
+				break
+			}
+		}
 	}
-	return nil
-}
 
-func (s *Server) updateUserMappings() error {
-	userMappings, err := s.ap.GetAllUserMappings()
+	if ca == nil {
+		return trace.Wrap(teleport.NotFound(
+			fmt.Sprintf("not found authority for key %v", teleportUser),
+		))
+	}
+
+	localDomain, err := s.ap.GetLocalDomain()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.certificatesCache.UpdateUserMappings(userMappings, CertificatesCacheTTL)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
 
-func (s *Server) userMappingExists(cert ssh.PublicKey, teleportUser,
-	osUser string) (bool, error) {
-
-	certID, found, err := s.certificatesCache.GetCertificateID(services.UserCert, cert)
-	if err != nil {
-		log.Errorf(err.Error())
-	}
-	if !found {
-		certID, found, err = s.ap.GetCertificateID(services.UserCert, cert)
+	// for local users, go and check their individual permissions
+	if localDomain == ca.DomainName {
+		log.Infof("%v is local authority", ca.DomainName)
+		users, err := s.ap.GetUsers()
 		if err != nil {
-			return false, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
-		if !found {
-			return false, nil
+		log.Infof("users: %v", users)
+		for _, u := range users {
+			if u.Name == teleportUser {
+				for _, login := range u.AllowedLogins {
+					if login == osUser {
+						return nil
+					}
+				}
+			}
+		}
+		return trace.Wrap(teleport.NotFound(
+			fmt.Sprintf("not found local user entry for %v and os user %v for local authority %v",
+				teleportUser, osUser, ca.ID())))
+	}
+	log.Infof("%v is remote authority", ca.DomainName)
+
+	// for other authorities, check for authoritiy permissions
+	for _, login := range ca.AllowedLogins {
+		if login == osUser {
+			return nil
 		}
 	}
-
-	exists, err := s.certificatesCache.UserMappingExists(certID,
-		teleportUser, osUser)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	if exists {
-		return true, nil
-	}
-
-	exists, err = s.certificatesCache.UserMappingExists(certID,
-		services.UserMappingWildcard, osUser)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	if exists {
-		return true, nil
-	}
-
-	exists, err = s.ap.UserMappingExists(certID,
-		teleportUser, osUser)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	if exists {
-		return true, nil
-	}
-
-	exists, err = s.ap.UserMappingExists(certID,
-		services.UserMappingWildcard, osUser)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	if exists {
-		return true, nil
-	}
-
-	return false, nil
+	return trace.Wrap(teleport.NotFound(
+		fmt.Sprintf("not found user entry for %v and os user %v for remote authority %v",
+			teleportUser, osUser, ca.ID())))
 }
 
 // isAuthority is called during checking the client key, to see if the signing
 // key is the real CA authority key.
-func (s *Server) isAuthority(auth ssh.PublicKey) bool {
-	// Checking certificates from cache
-	_, found, err := s.certificatesCache.GetCertificateID(services.UserCert, auth)
+func (s *Server) isAuthority(cert ssh.PublicKey) bool {
+	// find cert authority by it's key
+	cas, err := s.ap.GetCertAuthorities(services.UserCA)
 	if err != nil {
-		log.Errorf("failed to retrieve trused keys, err: %v", err)
+		log.Warningf("%v", err)
 		return false
 	}
-	if found {
-		return true
-	}
 
-	// Checking certificates from auth server
-	_, found, err = s.ap.GetCertificateID(services.UserCert, auth)
-	if err != nil {
-		log.Errorf("failed to retrieve trused keys, err: %v", err)
-		return false
+	for i := range cas {
+		checkers, err := cas[i].Checkers()
+		if err != nil {
+			log.Warningf("%v", err)
+			return false
+		}
+		for _, checker := range checkers {
+			if sshutils.KeysEqual(cert, checker) {
+				return true
+			}
+		}
 	}
-	if found {
-		return true
-	}
-
+	log.Warningf("no matching authority found")
 	return false
 }
 
@@ -352,24 +328,27 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	eventID := lunk.NewRootEventID()
 	log.Infof("%v auth attempt with key %v", cid, key.Type())
 
+	logger := log.WithFields(log.Fields{
+		"local":  conn.LocalAddr(),
+		"remote": conn.RemoteAddr(),
+		"user":   conn.User(),
+	})
+
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
-		log.Warningf("conn(%v->%v, user=%v) ERROR: Server doesn't support provided key type",
-			conn.RemoteAddr(), conn.LocalAddr(), conn.User())
-		return nil, trace.Errorf("ERROR: Server doesn't support provided key type")
+		logger.Warningf("server doesn't support provided key type: %T", key)
+		return nil, trace.Errorf("server doesn't support provided key type: %v", key)
 	}
 	teleportUser := cert.Permissions.Extensions[utils.CertExtensionUser]
 
 	p, err := s.certChecker.Authenticate(conn, key)
 	if err != nil {
 		s.elog.Log(eventID, events.NewAuthAttempt(conn, key, false, err))
-		log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
-			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
-		return nil, err
+		logger.Warningf("authenticate err: %v", err)
+		return nil, trace.Wrap(err)
 	}
-	if err := s.certChecker.CheckCert(teleportUser, key.(*ssh.Certificate)); err != nil {
-		log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
-			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
+	if err := s.certChecker.CheckCert(teleportUser, cert); err != nil {
+		logger.Warningf("failed to authenticate user, err: %v", err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -377,18 +356,11 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		return p, nil
 	}
 
-	exists, err := s.userMappingExists(cert.SignatureKey, teleportUser, conn.User())
+	err = s.checkPermissionToLogin(cert.SignatureKey, teleportUser, conn.User())
 	if err != nil {
-		log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
-			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
+		logger.Warningf("authenticate user: %v", err)
 		return nil, trace.Wrap(err)
 	}
-	if !exists {
-		log.Warningf("conn(%v->%v, user=%v) ERROR: teleport user %v doesn't have permissions to connect as os user %v",
-			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), teleportUser, conn.User())
-		return nil, trace.Errorf("no permissions to connect as %v", conn.User())
-	}
-
 	return p, nil
 }
 
@@ -415,9 +387,8 @@ func (s *Server) HandleRequest(r *ssh.Request) {
 	log.Infof("recieved out-of-band request: %+v", r)
 }
 
-func (s *Server) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
+func (s *Server) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	channelType := nch.ChannelType()
-
 	if s.proxyMode {
 		if channelType == "session" { // interactive sessions
 			ch, requests, err := nch.Accept()
@@ -460,12 +431,12 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel,
 	ctx.addCloser(ch)
 	defer ctx.Close()
 
-	log.Infof("%v opened direct-tcpip channel: %#v", ctx, req)
+	ctx.Infof("opened direct-tcpip channel: %#v", req)
 	addr := fmt.Sprintf("%v:%d", req.Host, req.Port)
-	log.Infof("%v connecting to %v", ctx, addr)
+	ctx.Infof("connecting to %v", addr)
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
-		log.Infof("%v failed to connect to: %v, err: %v", ctx, addr, err)
+		ctx.Infof("failed to connect to: %v, err: %v", addr, err)
 		return
 	}
 	defer conn.Close()
@@ -474,20 +445,20 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel,
 	go func() {
 		defer wg.Done()
 		written, err := io.Copy(ch, conn)
-		log.Infof("%v conn to channel copy closed, bytes transferred: %v, err: %v",
-			ctx, written, err)
+		ctx.Infof("conn to channel copy closed, bytes transferred: %v, err: %v",
+			written, err)
 		ch.Close()
 	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		written, err := io.Copy(conn, ch)
-		log.Infof("%v channel to conn copy closed, bytes transferred: %v, err: %v",
+		ctx.Infof("channel to conn copy closed, bytes transferred: %v, err: %v",
 			ctx, written, err)
 		conn.Close()
 	}()
 	wg.Wait()
-	log.Infof("%v direct-tcp closed", ctx)
+	ctx.Infof("direct-tcp closed")
 }
 
 // handleSessionRequests handles out of band session requests once the session channel has been created
@@ -495,13 +466,13 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel,
 func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in <-chan *ssh.Request) {
 	// ctx holds the session context and all associated resources
 	ctx := newCtx(s, sconn)
-	log.Infof("%v opened session channel", ctx)
+	ctx.Infof("opened session channel")
 
 	// closeCh will close the connection and the context once the session closes
 	var closeCh = func() {
-		log.Infof("%v closing session channel", ctx)
+		ctx.Infof("closing session channel")
 		if err := ctx.Close(); err != nil {
-			log.Infof("failed to close channel context: %v", err)
+			ctx.Infof("failed to close channel context: %v", err)
 		}
 		ch.Close()
 	}
@@ -511,18 +482,18 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 			// this means that the session process stopped and desires to close
 			// the session and the channel e.g. shell has stopped and won't send
 			// any data back to client any more
-			log.Infof("close session request: %v", creq.reason)
+			ctx.Infof("close session request: %v", creq.reason)
 			closeCh()
 			return
 		case req := <-in:
 			if req == nil {
 				// this will happen when the client closes/drops the connection
-				log.Infof("%v client disconnected", ctx)
+				ctx.Infof("client disconnected")
 				closeCh()
 				return
 			}
 			if err := s.dispatch(sconn, ch, req, ctx); err != nil {
-				log.Infof("error dispatching request: %v, closing channel", err)
+				ctx.Infof("error dispatching request: %v, closing channel", err)
 				replyError(req, err)
 				closeCh()
 				return
@@ -532,10 +503,10 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 			}
 		case result := <-ctx.result:
 			// this means that exec process has finished and delivered the execution result, we send it back and close the session
-			log.Infof("%v got execution result: %v", ctx, result)
+			ctx.Infof("got execution result: %v", result)
 			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(result.code)}))
 			if err != nil {
-				log.Infof("%v %v failed to send exit status: %v", ctx, result.command, err)
+				ctx.Infof("%v failed to send exit status: %v", result.command, err)
 			}
 			closeCh()
 			return
@@ -544,12 +515,12 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 }
 
 func (s *Server) fwdDispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	log.Infof("%v dispatch(req=%v, wantReply=%v)", ctx, req.Type, req.WantReply)
-	return fmt.Errorf("unsupported request type: %v", req.Type)
+	ctx.Infof("dispatch(req=%v, wantReply=%v)", req.Type, req.WantReply)
+	return trace.Errorf("unsupported request type: %v", req.Type)
 }
 
 func (s *Server) dispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	log.Infof("%v dispatch(req=%v, wantReply=%v)", ctx, req.Type, req.WantReply)
+	ctx.Infof("dispatch(req=%v, wantReply=%v)", req.Type, req.WantReply)
 	if s.proxyMode {
 		switch req.Type {
 		case "subsystem":
@@ -558,7 +529,9 @@ func (s *Server) dispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Reques
 			// we currently ignore setting any environment variables via SSH for security purposes
 			return s.handleEnv(ch, req, ctx)
 		default:
-			return trace.Errorf("proxy doesn't support request type '%v'", req.Type)
+			return trace.Wrap(
+				teleport.BadParameter("reqType",
+					fmt.Sprintf("proxy doesn't support request type '%v'", req.Type)))
 		}
 	}
 	switch req.Type {
@@ -589,7 +562,9 @@ func (s *Server) dispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Reques
 		// http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent
 		return s.handleAgentForward(sconn, ch, req, ctx)
 	default:
-		return fmt.Errorf("unsupported request type: %v", req.Type)
+		return trace.Wrap(
+			teleport.BadParameter("reqType",
+				fmt.Sprintf("proxy doesn't support request type '%v'", req.Type)))
 	}
 }
 
@@ -598,31 +573,32 @@ func (s *Server) handleAgentForward(sconn *ssh.ServerConn, ch ssh.Channel, req *
 	if err != nil {
 		return err
 	}
-	log.Infof("%v opened agent channel", ctx)
+	ctx.Infof("opened agent channel")
 	ctx.setAgent(agent.NewClient(authChan), authChan)
 	return nil
 }
 
 func (s *Server) handleWinChange(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	log.Infof("%v handleWinChange()", ctx)
-	t := ctx.getTerm()
-	if t == nil {
-		return fmt.Errorf("no PTY allocated for winChange")
+	ctx.Infof("handleWinChange()")
+	term := ctx.getTerm()
+	if term == nil {
+		return trace.Wrap(
+			teleport.BadParameter("pty", "no PTY allocated for winChange"))
 	}
-	return t.reqWinChange(req)
+	return term.reqWinChange(req)
 }
 
 func (s *Server) handleSubsystem(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	log.Infof("%v handleSubsystem()", ctx)
+	ctx.Infof("handleSubsystem()")
 	sb, err := parseSubsystemRequest(s, req)
 	if err != nil {
-		log.Infof("%v failed to parse subsystem request: %v", ctx, err)
-		return err
+		ctx.Infof("%v failed to parse subsystem request: %v", err)
+		return trace.Wrap(err)
 	}
 	go func() {
 		if err := sb.execute(sconn, ch, req, ctx); err != nil {
 			ctx.requestClose(fmt.Sprintf("%v failed to execute request, err: %v", ctx, err))
-			log.Infof("%v failed to execute request, err: %v", err, ctx)
+			ctx.Infof("failed to execute request, err: %v", err)
 			return
 		}
 		ctx.requestClose(fmt.Sprintf("%v subsystem executed successfully", ctx))
@@ -631,7 +607,7 @@ func (s *Server) handleSubsystem(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 }
 
 func (s *Server) handleShell(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	log.Infof("%v handleShell()", ctx)
+	ctx.Infof("handleShell()")
 
 	sid, ok := ctx.getEnv(sshutils.SessionEnvVar)
 	if !ok {
@@ -647,20 +623,21 @@ func (s *Server) emit(eid lunk.EventID, e lunk.Event) {
 func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	var e sshutils.EnvReqParams
 	if err := ssh.Unmarshal(req.Payload, &e); err != nil {
-		log.Errorf("%v handleEnv(err=%v)", s, err)
-		return fmt.Errorf("failed to parse env request, error: %v", err)
+		ctx.Errorf("handleEnv(err=%v)", err)
+
+		return trace.Wrap(err, "failed to parse env request")
 	}
-	log.Infof("%v handleEnv(%#v)", ctx, e)
+	ctx.Infof("handleEnv(%#v)", e)
 	ctx.setEnv(e.Name, e.Value)
 	return nil
 }
 
 func (s *Server) handlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	log.Infof("%v handlePTYReq()", ctx)
+	ctx.Infof("handlePTYReq()")
 	if term := ctx.getTerm(); term != nil {
 		r, err := parsePTYReq(req)
 		if err != nil {
-			log.Infof("%v failed to parse PTY request: %v", ctx, err)
+			ctx.Infof("failed to parse PTY request: %v", err)
 			replyError(req, err)
 			return err
 		}
@@ -669,52 +646,52 @@ func (s *Server) handlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *ctx) error 
 	}
 	term, err := reqPTY(req)
 	if err != nil {
-		log.Infof("%v failed to allocate PTY: %v", ctx, err)
+		ctx.Infof("failed to allocate PTY: %v", err)
 		replyError(req, err)
 		return err
 	}
-	log.Infof("%v PTY allocated successfully", ctx)
+	ctx.Infof("PTY allocated successfully")
 	ctx.setTerm(term)
 	return nil
 }
 
 func (s *Server) handleExec(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	log.Infof("%v handleExec()", ctx)
+	ctx.Infof("handleExec()")
 	e, err := parseExecRequest(req, ctx)
 	if err != nil {
-		log.Infof("%v failed to parse exec request: %v", ctx, err)
+		ctx.Infof("failed to parse exec request: %v", err)
 		replyError(req, err)
-		return err
+		return trace.Wrap(err)
 	}
 
 	if scp.IsSCP(e.cmdName) {
-		log.Infof("%v detected SCP command: %v", ctx, e.cmdName)
+		ctx.Infof("detected SCP command: %v", e.cmdName)
 		if err := s.handleSCP(ch, req, ctx, e.cmdName); err != nil {
-			log.Errorf("%v handleSCP() err: %v", ctx, err)
-			return err
+			ctx.Warningf("handleSCP() err: %v", err)
+			return trace.Wrap(err)
 		}
 		return ch.Close()
 	}
 
 	result, err := e.start(sconn, s.shell, ch)
 	if err != nil {
-		log.Infof("%v error starting command, %v", ctx, err)
+		ctx.Infof("error starting command, %v", err)
 		replyError(req, err)
 	}
 	if result != nil {
-		log.Infof("%v %v result collected: %v", ctx, e, result)
+		ctx.Infof("%v result collected: %v", e, result)
 		ctx.sendResult(*result)
 	}
 	// in case if result is nil and no error, this means that program is
 	// running in the background
 	go func() {
-		log.Infof("%v %v waiting for result", ctx, e)
+		ctx.Infof("%v waiting for result", e)
 		result, err := e.wait()
 		if err != nil {
-			log.Infof("%v %v wait failed: %v", ctx, e, err)
+			ctx.Infof("%v wait failed: %v", e, err)
 		}
 		if result != nil {
-			log.Infof("%v %v result collected: %v", ctx, e, result)
+			ctx.Infof("%v result collected: %v", e, result)
 			ctx.sendResult(*result)
 		}
 	}()
@@ -722,32 +699,30 @@ func (s *Server) handleExec(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 }
 
 func (s *Server) handleSCP(ch ssh.Channel, req *ssh.Request, ctx *ctx, args string) error {
-	log.Infof("%v handleSCP(cmd=%v)", ctx, args)
+	ctx.Infof("handleSCP(cmd=%v)", args)
 	cmd, err := scp.ParseCommand(args)
 	if err != nil {
-		log.Errorf("%v failed to parse command: %v", ctx, cmd)
-		return fmt.Errorf("failure: %v", err)
+		ctx.Warningf("failed to parse command: %v", cmd)
+		return trace.Wrap(err, fmt.Sprintf("failure to parse command '%v'", cmd))
 	}
-	log.Infof("%v handleSCP(cmd=%#v)", ctx, cmd)
+	ctx.Infof("handleSCP(cmd=%#v)", cmd)
 	srv, err := scp.New(*cmd)
 	if err != nil {
-		log.Errorf("%v failed to create scp server: %v", s, ctx)
-		return err
+		return trace.Wrap(err)
 	}
 	// TODO(klizhentas) current version of handling exec is incorrect.
 	// req.Reply should be sent as long as command start is done,
 	// not at the end. This is my fix for SCP only:
 	req.Reply(true, nil)
 	if err := srv.Serve(ch); err != nil {
-		log.Errorf("%v error serving: %v", ctx, err)
-		return err
+		return trace.Wrap(err)
 	}
-	log.Infof("SCP serve finished", ctx)
+	ctx.Infof("SCP serve finished")
 	_, err = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(0)}))
 	if err != nil {
-		log.Infof("%v failed to send scp exit status: %v", ctx, err)
+		ctx.Infof("failed to send scp exit status: %v", err)
 	}
-	log.Infof("SCP sent exit status", ctx)
+	ctx.Infof("SCP sent exit status")
 	return nil
 }
 
@@ -776,7 +751,3 @@ type closerFunc func() error
 func (f closerFunc) Close() error {
 	return f()
 }
-
-const (
-	CertificatesCacheTTL = time.Minute * 30
-)

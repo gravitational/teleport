@@ -24,8 +24,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
@@ -42,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 
 	"github.com/gokyle/hotp"
-	"github.com/mailgun/lemma/secret"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	. "gopkg.in/check.v1"
@@ -63,7 +64,6 @@ type ClientSuite struct {
 	clt          *ssh.Client
 	bk           *encryptedbk.ReplicatedBackend
 	a            *auth.AuthServer
-	scrt         secret.SecretService
 	signer       ssh.Signer
 	teleagent    *teleagent.TeleAgent
 	dir          string
@@ -77,12 +77,7 @@ var _ = Suite(&ClientSuite{})
 
 func (s *ClientSuite) SetUpSuite(c *C) {
 	utils.InitLoggerCLI()
-	key, err := secret.NewKey()
-	c.Assert(err, IsNil)
-	scrt, err := secret.New(&secret.Config{KeyBytes: key})
-	c.Assert(err, IsNil)
-	s.scrt = scrt
-
+	KeysDir = c.MkDir()
 	s.dir = c.MkDir()
 	s.dir2 = c.MkDir()
 
@@ -95,30 +90,31 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 		encryptor.GetTestKey)
 	c.Assert(err, IsNil)
 
-	s.a = auth.NewAuthServer(s.bk, authority.New(), s.scrt, "host5")
+	s.a = auth.NewAuthServer(s.bk, authority.New(), "localhost")
 
 	// set up host private key and certificate
-	c.Assert(s.a.ResetHostCertificateAuthority(""), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(
+		*services.NewTestCA(services.HostCA, "localhost"), backend.Forever), IsNil)
+
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
-	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", auth.RoleAdmin, 0)
+	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", teleport.RoleAdmin, 0)
 	c.Assert(err, IsNil)
 
 	// set up user CA and set up a user that has access to the server
-	c.Assert(s.a.ResetUserCertificateAuthority(""), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(
+		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	s.signer, err = sshutils.NewSigner(hpriv, hcert)
 	c.Assert(err, IsNil)
-
-	ap := auth.NewBackendAccessPoint(s.bk)
 
 	// Starting node1
 	s.srvAddress = "127.0.0.1:30187"
 	s.srv, err = srv.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srvAddress},
-		"localhost",
+		"alice",
 		[]ssh.Signer{s.signer},
-		ap,
+		s.a,
 		allowAllLimiter,
 		s.dir,
 		srv.SetShell("/bin/sh"),
@@ -138,9 +134,9 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	s.srv2Address = "127.0.0.1:30189"
 	s.srv2, err = srv.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srv2Address},
-		"localhost",
+		"bob",
 		[]ssh.Signer{s.signer},
-		ap,
+		s.a,
 		allowAllLimiter,
 		s.dir2,
 		srv.SetShell("/bin/sh"),
@@ -166,7 +162,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
-		ap, allowAllLimiter)
+		s.a, allowAllLimiter)
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
@@ -176,7 +172,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.proxyAddress},
 		"localhost",
 		[]ssh.Signer{s.signer},
-		ap,
+		s.a,
 		allowAllLimiter,
 		s.dir,
 		srv.SetProxyMode(reverseTunnelServer),
@@ -208,7 +204,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	s.user = u.Username
 	s.pass = []byte("utndkrn")
 
-	c.Assert(s.a.UpsertUserMapping("local", s.user, s.user, time.Hour), IsNil)
+	c.Assert(s.a.UpsertUser(services.User{Name: s.user, AllowedLogins: []string{s.user}}), IsNil)
 
 	hotpURL, _, err := s.a.UpsertPassword(s.user, s.pass)
 	c.Assert(err, IsNil)
@@ -253,13 +249,37 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	err = s.teleagent.Login("http://"+s.webAddress, s.user, string(s.pass), s.otp.OTP(), time.Minute)
 	c.Assert(err, IsNil)
 
+	_, err = ConnectToProxy(s.proxyAddress,
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
+	c.Assert(err, NotNil)
+
+	passwordCallback := func() (string, string, error) {
+		return string(s.pass), s.otp.OTP(), nil
+	}
+
+	_, hostChecker := NewWebAuth(
+		agent.NewKeyring(),
+		s.user,
+		passwordCallback,
+		"http://"+s.webAddress,
+		time.Hour,
+	)
+
+	_, err = ConnectToProxy(s.proxyAddress,
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, hostChecker, s.user)
+	c.Assert(err, IsNil)
+
+	_, err = ConnectToProxy(s.proxyAddress,
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
+	c.Assert(err, IsNil)
+
 	// "Command labels will be calculated only on the second heartbeat"
 	time.Sleep(time.Millisecond * 3100)
 }
 
 func (s *ClientSuite) TestRunCommand(c *C) {
 	nodeClient, err := ConnectToNode(nil, s.srvAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	buf := bytes.Buffer{}
@@ -270,11 +290,11 @@ func (s *ClientSuite) TestRunCommand(c *C) {
 
 func (s *ClientSuite) TestConnectViaProxy(c *C) {
 	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	buf := bytes.Buffer{}
@@ -296,23 +316,24 @@ func (s *ClientSuite) TestConnectUsingSeveralAgents(c *C) {
 		[]ssh.AuthMethod{
 			AuthMethodFromAgent(agent1),
 			AuthMethodFromAgent(agent2),
-		}, s.user)
+		}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, NotNil)
 
+	webAuth, hostChecker := NewWebAuth(
+		agent2,
+		s.user,
+		passwordCallback,
+		"http://"+s.webAddress,
+		time.Hour,
+	)
 	proxyClient, err := ConnectToProxy(
 		s.proxyAddress,
 		[]ssh.AuthMethod{
 			AuthMethodFromAgent(agent1),
 			AuthMethodFromAgent(agent2),
-			NewWebAuth(
-				agent2,
-				s.user,
-				passwordCallback,
-				"http://"+s.webAddress,
-				time.Hour,
-			),
+			webAuth,
 		},
-		s.user)
+		hostChecker, s.user)
 	c.Assert(err, IsNil)
 
 	nodeClient, err := proxyClient.ConnectToNode(
@@ -321,7 +342,7 @@ func (s *ClientSuite) TestConnectUsingSeveralAgents(c *C) {
 			AuthMethodFromAgent(agent1),
 			AuthMethodFromAgent(agent2),
 		},
-		s.user)
+		CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	buf := bytes.Buffer{}
@@ -336,7 +357,7 @@ func (s *ClientSuite) TestConnectUsingSeveralAgents(c *C) {
 			AuthMethodFromAgent(agent1),
 			AuthMethodFromAgent(agent2),
 		},
-		s.user)
+		CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	buf = bytes.Buffer{}
@@ -347,14 +368,14 @@ func (s *ClientSuite) TestConnectUsingSeveralAgents(c *C) {
 
 func (s *ClientSuite) TestShell(c *C) {
 	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
-	shell, err := nodeClient.Shell(100, 100)
+	shell, err := nodeClient.Shell(100, 100, "")
 	c.Assert(err, IsNil)
 
 	out := make([]byte, 100)
@@ -385,13 +406,13 @@ func (s *ClientSuite) TestShell(c *C) {
 
 func (s *ClientSuite) TestGetServer(c *C) {
 	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	server1Info := services.Server{
-		ID:       "127.0.0.1_30187",
+		ID:       "alice",
 		Addr:     s.srvAddress,
-		Hostname: "localhost",
+		Hostname: "alice",
 		Labels: map[string]string{
 			"label1": "value1",
 			"label2": "value2",
@@ -406,9 +427,9 @@ func (s *ClientSuite) TestGetServer(c *C) {
 	}
 
 	server2Info := services.Server{
-		ID:       "127.0.0.1_30189",
+		ID:       "bob",
 		Addr:     s.srv2Address,
-		Hostname: "localhost",
+		Hostname: "bob",
 		Labels: map[string]string{
 			"label1": "value1",
 		},
@@ -475,11 +496,11 @@ func (s *ClientSuite) TestGetServer(c *C) {
 
 func (s *ClientSuite) TestUploadFile(c *C) {
 	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	dir := c.MkDir()
@@ -499,11 +520,11 @@ func (s *ClientSuite) TestUploadFile(c *C) {
 
 func (s *ClientSuite) TestDownloadFile(c *C) {
 	proxyClient, err := ConnectToProxy(s.proxyAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	nodeClient, err := proxyClient.ConnectToNode(s.srvAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	dir := c.MkDir()
@@ -523,7 +544,7 @@ func (s *ClientSuite) TestDownloadFile(c *C) {
 
 func (s *ClientSuite) TestUploadDir(c *C) {
 	nodeClient, err := ConnectToNode(nil, s.srvAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	dir1 := c.MkDir()
@@ -553,7 +574,7 @@ func (s *ClientSuite) TestUploadDir(c *C) {
 
 func (s *ClientSuite) TestDownloadDir(c *C) {
 	nodeClient, err := ConnectToNode(nil, s.srvAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, s.user)
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
 	c.Assert(err, IsNil)
 
 	dir1 := c.MkDir()
@@ -618,11 +639,11 @@ func (s *ClientSuite) TestHOTPMock(c *C) {
 }
 
 func (s *ClientSuite) TestParseTargetObject(c *C) {
-	addresses, err := ParseTargetServers(s.srv2Address, s.user, s.proxyAddress, []ssh.AuthMethod{s.teleagent.AuthMethod()})
+	addresses, err := ParseTargetServers(s.srv2Address, s.user, s.proxyAddress, []ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache)
 	c.Assert(err, IsNil)
 	c.Assert(addresses, DeepEquals, []string{s.srv2Address})
 
-	addresses, err = ParseTargetServers("_label1:val.*", s.user, s.proxyAddress, []ssh.AuthMethod{s.teleagent.AuthMethod()})
+	addresses, err = ParseTargetServers("_label1:val.*", s.user, s.proxyAddress, []ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache)
 	c.Assert(err, IsNil)
 	c.Assert(len(addresses), Equals, 2)
 	if addresses[0] == s.srvAddress {
@@ -631,7 +652,7 @@ func (s *ClientSuite) TestParseTargetObject(c *C) {
 		c.Assert(addresses, DeepEquals, []string{s.srv2Address, s.srvAddress})
 	}
 
-	addresses, err = ParseTargetServers("_label2:value2*", s.user, s.proxyAddress, []ssh.AuthMethod{s.teleagent.AuthMethod()})
+	addresses, err = ParseTargetServers("_label2:value2*", s.user, s.proxyAddress, []ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache)
 	c.Assert(err, IsNil)
 	c.Assert(addresses, DeepEquals, []string{s.srvAddress})
 

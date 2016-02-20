@@ -45,6 +45,13 @@ func (e *AlreadyAcquiredError) OrigError() error {
 	return e
 }
 
+// NotFound returns new instance of not found error
+func NotFound(message string) *NotFoundError {
+	return &NotFoundError{
+		Message: message,
+	}
+}
+
 // NotFoundError indicates that object has not been found
 type NotFoundError struct {
 	trace.Traces `json:"traces"`
@@ -145,6 +152,14 @@ func IsMissingParameter(e error) bool {
 	return ok
 }
 
+// BadParameter returns a new instance of BadParameterError
+func BadParameter(name, message string) *BadParameterError {
+	return &BadParameterError{
+		Param: name,
+		Err:   message,
+	}
+}
+
 // BadParameterError indicates that something is wrong with passed
 // parameter to API method
 type BadParameterError struct {
@@ -154,13 +169,18 @@ type BadParameterError struct {
 }
 
 // Error returrns debug friendly message
-func (m *BadParameterError) Error() string {
-	return fmt.Sprintf("bad parameter '%v', %v", m.Param, m.Err)
+func (b *BadParameterError) Error() string {
+	return fmt.Sprintf("bad parameter '%v', %v", b.Param, b.Err)
 }
 
 // OrigError returns original error (in this case this is the error itself)
-func (e *BadParameterError) OrigError() error {
-	return e
+func (b *BadParameterError) OrigError() error {
+	return b
+}
+
+// IsBadParameterError indicates that error is of bad parameter type
+func (b *BadParameterError) IsBadParameterError() bool {
+	return true
 }
 
 // IsBadParameter detects if this error is of BadParameter kind
@@ -231,5 +251,87 @@ func IsReadonly(e error) bool {
 		IsReadonlyError() bool
 	}
 	_, ok := e.(ro)
+	return ok
+}
+
+// AccessDenied returns new access denied error
+func AccessDenied(message string) *AccessDeniedError {
+	return &AccessDeniedError{
+		Message: message,
+	}
+}
+
+// AccessDeniedError indicates denied access
+type AccessDeniedError struct {
+	trace.Traces
+	Message string `json:"message"`
+}
+
+// Error is debug - friendly error message
+func (e *AccessDeniedError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	return "access denied"
+}
+
+// IsAccessDeniedError indicates that this error is of AccessDenied type
+func (e *AccessDeniedError) IsAccessDeniedError() bool {
+	return true
+}
+
+// OrigError returns original error (in this case this is the error itself)
+func (e *AccessDeniedError) OrigError() error {
+	return e
+}
+
+// IsAccessDenied detects if this error is of AccessDeniedError
+func IsAccessDenied(e error) bool {
+	type ad interface {
+		IsAccessDeniedError() bool
+	}
+	_, ok := e.(ad)
+	return ok
+}
+
+// ConnectionProblem returns ConnectionProblem
+func ConnectionProblem(message string, err error) *ConnectionProblemError {
+	return &ConnectionProblemError{
+		Message: message,
+		Err:     err,
+	}
+}
+
+// ConnectionProblemError indicates any network error that has occured
+type ConnectionProblemError struct {
+	trace.Traces
+	Message string `json:"message"`
+	Err     error  `json:"-"`
+}
+
+// Error is debug - friendly error message
+func (c *ConnectionProblemError) Error() string {
+	if c.Message != "" {
+		return c.Message
+	}
+	return "connection problem"
+}
+
+// IsConnectionProblemError indicates that this error is of ConnectionProblem
+func (c *ConnectionProblemError) IsConnectionProblemError() bool {
+	return true
+}
+
+// OrigError returns original error (in this case this is the error itself)
+func (c *ConnectionProblemError) OrigError() error {
+	return c
+}
+
+// IsConnectionProblem detects if this error is of ConnectionProblemError
+func IsConnectionProblem(e error) bool {
+	type ad interface {
+		IsConnectionProblemError() bool
+	}
+	_, ok := e.(ad)
 	return ok
 }

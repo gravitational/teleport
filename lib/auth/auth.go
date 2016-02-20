@@ -29,45 +29,45 @@ import (
 	"os"
 	"time"
 
-	"github.com/gravitational/session"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/mailgun/lemma/secret"
+	"github.com/gravitational/configure/cstrings"
+	"github.com/gravitational/trace"
 )
 
 // Authority implements minimal key-management facility for generating OpenSSH
 //compatible public/private key pairs and OpenSSH certificates
 type Authority interface {
+	// GenerateKeyPair generates new keypair
 	GenerateKeyPair(passphrase string) (privKey []byte, pubKey []byte, err error)
+
+	// GetNewKeyPairFromPool returns new keypair from pre-generated in memory pool
 	GetNewKeyPairFromPool() (privKey []byte, pubKey []byte, err error)
 
 	// GenerateHostCert generates host certificate, it takes pkey as a signing
 	// private key (host certificate authority)
-	GenerateHostCert(pkey, key []byte, id, hostname, role string, ttl time.Duration) ([]byte, error)
+	GenerateHostCert(pkey, key []byte, hostname, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error)
 
 	// GenerateHostCert generates user certificate, it takes pkey as a signing
 	// private key (user certificate authority)
-	GenerateUserCert(pkey, key []byte, id, username string, ttl time.Duration) ([]byte, error)
+	GenerateUserCert(pkey, key []byte, username string, ttl time.Duration) ([]byte, error)
 }
 
 type Session struct {
-	SID session.SecureID
-	PID session.PlainID
-	WS  services.WebSession
+	ID string
+	WS services.WebSession
 }
 
-func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority,
-	scrt secret.SecretService, hostname string) *AuthServer {
+func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority, hostname string) *AuthServer {
 	as := AuthServer{}
 
 	as.bk = bk
 	as.Authority = a
-	as.scrt = scrt
 
 	as.CAService = services.NewCAService(as.bk)
 	as.LockService = services.NewLockService(as.bk)
@@ -85,7 +85,6 @@ func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority,
 type AuthServer struct {
 	bk *encryptedbk.ReplicatedBackend
 	Authority
-	scrt     secret.SecretService
 	Hostname string
 
 	*services.CAService
@@ -96,65 +95,47 @@ type AuthServer struct {
 	*services.BkKeysService
 }
 
-// ResetHostCertificateAuthority generates host certificate authority and updates the backend
-func (s *AuthServer) ResetHostCertificateAuthority(pass string) error {
-	priv, pub, err := s.Authority.GenerateKeyPair(pass)
-	if err != nil {
-		return err
-	}
-	return s.CAService.UpsertHostCertificateAuthority(
-		services.LocalCertificateAuthority{
-			CertificateAuthority: services.CertificateAuthority{
-				Type:       services.HostCert,
-				DomainName: s.Hostname,
-				PublicKey:  pub,
-				ID:         "local",
-			},
-			PrivateKey: priv},
-	)
-}
-
-// ResetHostCertificateAuthority generates user certificate authority and updates the backend
-func (s *AuthServer) ResetUserCertificateAuthority(pass string) error {
-	priv, pub, err := s.Authority.GenerateKeyPair(pass)
-	if err != nil {
-		return err
-	}
-	return s.CAService.UpsertUserCertificateAuthority(
-		services.LocalCertificateAuthority{
-			CertificateAuthority: services.CertificateAuthority{
-				Type:       services.UserCert,
-				DomainName: s.Hostname,
-				PublicKey:  pub,
-				ID:         "local",
-			},
-			PrivateKey: priv},
-	)
+// GetLocalDomain returns domain name that identifies this authority server
+func (a *AuthServer) GetLocalDomain() (string, error) {
+	return a.Hostname, nil
 }
 
 // GenerateHostCert generates host certificate, it takes pkey as a signing
 // private key (host certificate authority)
 func (s *AuthServer) GenerateHostCert(
-	key []byte, id, hostname, role string,
-	ttl time.Duration) ([]byte, error) {
+	key []byte, hostname, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error) {
 
-	hk, err := s.CAService.GetHostPrivateCertificateAuthority()
+	ca, err := s.CAService.GetCertAuthority(services.CertAuthID{
+		Type:       services.HostCA,
+		DomainName: s.Hostname,
+	}, true)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
-	return s.Authority.GenerateHostCert(hk.PrivateKey, key, id, hostname, role, ttl)
+	privateKey, err := ca.FirstSigningKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return s.Authority.GenerateHostCert(privateKey, key, hostname, authDomain, role, ttl)
 }
 
-// GenerateHostCert generates user certificate, it takes pkey as a signing
+// GenerateUserCert generates user certificate, it takes pkey as a signing
 // private key (user certificate authority)
 func (s *AuthServer) GenerateUserCert(
-	key []byte, id, username string, ttl time.Duration) ([]byte, error) {
+	key []byte, username string, ttl time.Duration) ([]byte, error) {
 
-	hk, err := s.CAService.GetUserPrivateCertificateAuthority()
+	ca, err := s.CAService.GetCertAuthority(services.CertAuthID{
+		Type:       services.UserCA,
+		DomainName: s.Hostname,
+	}, true)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
-	return s.Authority.GenerateUserCert(hk.PrivateKey, key, id, username, ttl)
+	privateKey, err := ca.FirstSigningKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return s.Authority.GenerateUserCert(privateKey, key, username, ttl)
 }
 
 func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
@@ -171,18 +152,23 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 	return sess, nil
 }
 
-func (s *AuthServer) GenerateToken(nodeName, role string, ttl time.Duration) (string, error) {
-	randomBytes := make([]byte, TokenLenBytes)
-	if _, err := rand.Reader.Read(randomBytes); err != nil {
-		return "", err
+func (s *AuthServer) GenerateToken(nodeName string, role teleport.Role, ttl time.Duration) (string, error) {
+	if !cstrings.IsValidDomainName(nodeName) {
+		return "", trace.Wrap(teleport.BadParameter("nodeName",
+			fmt.Sprintf("'%v' is not a valid dns name", nodeName)))
 	}
-	token := hex.EncodeToString(randomBytes)
-	outputToken, err := services.JoinTokenRole(token, role)
+	if err := role.Check(); err != nil {
+		return "", trace.Wrap(err)
+	}
+	token, err := CryptoRandomHex(TokenLenBytes)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	outputToken, err := services.JoinTokenRole(token, string(role))
 	if err != nil {
 		return "", err
 	}
-
-	if err := s.ProvisioningService.UpsertToken(token, nodeName, role, ttl); err != nil {
+	if err := s.ProvisioningService.UpsertToken(token, nodeName, string(role), ttl); err != nil {
 		return "", err
 	}
 	return outputToken, nil
@@ -203,8 +189,11 @@ func (s *AuthServer) ValidateToken(token, domainName string) (role string, e err
 	return tok.Role, nil
 }
 
-func (s *AuthServer) RegisterUsingToken(outputToken, nodename, role string) (keys PackedKeys, e error) {
+func (s *AuthServer) RegisterUsingToken(outputToken, nodename string, role teleport.Role) (keys PackedKeys, e error) {
 	log.Infof("[AUTH] Node `%v` is trying to join", nodename)
+	if err := role.Check(); err != nil {
+		return PackedKeys{}, trace.Wrap(err)
+	}
 	token, _, err := services.SplitTokenRole(outputToken)
 	if err != nil {
 		return PackedKeys{}, trace.Wrap(err)
@@ -215,20 +204,23 @@ func (s *AuthServer) RegisterUsingToken(outputToken, nodename, role string) (key
 		return PackedKeys{}, trace.Wrap(err)
 	}
 	if tok.DomainName != nodename {
-		return PackedKeys{}, trace.Errorf("domainName does not match")
+		return PackedKeys{}, trace.Wrap(
+			teleport.BadParameter("domainName", "domainName does not match"))
 	}
 
-	if tok.Role != role {
-		return PackedKeys{}, trace.Errorf("role does not match")
+	if tok.Role != string(role) {
+		return PackedKeys{}, trace.Wrap(
+			teleport.BadParameter("token.Role", "role does not match"))
 	}
-
 	k, pub, err := s.GenerateKeyPair("")
 	if err != nil {
 		return PackedKeys{}, trace.Wrap(err)
 	}
-	fullHostName := fmt.Sprintf("%s.%s", nodename, s.Hostname)
-	hostID := fmt.Sprintf("%s_%s", nodename, role)
-	c, err := s.GenerateHostCert(pub, hostID, fullHostName, role, 0)
+	// we always append authority's domain to resulting node name,
+	// that's how we make sure that nodes are uniquely identified/found
+	// in cases when we have multiple environments/organizations
+	fqdn := fmt.Sprintf("%s.%s", nodename, s.Hostname)
+	c, err := s.GenerateHostCert(pub, fqdn, s.Hostname, role, 0)
 	if err != nil {
 		log.Warningf("[AUTH] Node `%v` cannot join: cert generation error. %v", nodename, err)
 		return PackedKeys{}, trace.Wrap(err)
@@ -255,20 +247,18 @@ func (s *AuthServer) RegisterNewAuthServer(domainName, outputToken string,
 		return encryptor.Key{}, trace.Wrap(err)
 	}
 
-	pid, err := session.DecodeSID(session.SecureID(token), s.scrt)
-	if err != nil {
-		return encryptor.Key{}, trace.Wrap(err)
-	}
-	tok, err := s.ProvisioningService.GetToken(string(pid))
+	tok, err := s.ProvisioningService.GetToken(token)
 	if err != nil {
 		return encryptor.Key{}, trace.Wrap(err)
 	}
 	if tok.DomainName != domainName {
-		return encryptor.Key{}, trace.Errorf("domainName does not match")
+		return encryptor.Key{}, trace.Wrap(
+			teleport.AccessDenied("domainName does not match"))
 	}
 
-	if tok.Role != RoleAuth {
-		return encryptor.Key{}, trace.Errorf("role does not match")
+	if tok.Role != string(teleport.RoleAuth) {
+		return encryptor.Key{}, trace.Wrap(
+			teleport.AccessDenied("role does not match"))
 	}
 
 	if err := s.DeleteToken(outputToken); err != nil {
@@ -296,60 +286,68 @@ func (s *AuthServer) DeleteToken(outputToken string) error {
 }
 
 func (s *AuthServer) NewWebSession(user string) (*Session, error) {
-	p, err := session.NewID(s.scrt)
+	token, err := CryptoRandomHex(WebSessionTokenLenBytes)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	priv, pub, err := s.GetNewKeyPairFromPool()
 	if err != nil {
 		return nil, err
 	}
-	hk, err := s.CAService.GetUserPrivateCertificateAuthority()
+	ca, err := s.CAService.GetCertAuthority(services.CertAuthID{
+		Type:       services.UserCA,
+		DomainName: s.Hostname,
+	}, true)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
-	cert, err := s.Authority.GenerateUserCert(hk.PrivateKey, pub, user, user, WebSessionTTL)
+	privateKey, err := ca.FirstSigningKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cert, err := s.Authority.GenerateUserCert(privateKey, pub, user, WebSessionTTL)
 	if err != nil {
 		return nil, err
 	}
 	sess := &Session{
-		SID: p.SID,
-		PID: p.PID,
-		WS:  services.WebSession{Priv: priv, Pub: cert},
+		ID: token,
+		WS: services.WebSession{Priv: priv, Pub: cert},
 	}
 	return sess, nil
 }
 
 func (s *AuthServer) UpsertWebSession(user string, sess *Session, ttl time.Duration) error {
-	return s.WebService.UpsertWebSession(user, string(sess.PID), sess.WS, ttl)
+	return s.WebService.UpsertWebSession(user, sess.ID, sess.WS, ttl)
 }
 
-func (s *AuthServer) GetWebSession(user string, sid session.SecureID) (*Session, error) {
-	pid, err := session.DecodeSID(sid, s.scrt)
+func (s *AuthServer) GetWebSession(user string, id string) (*Session, error) {
+	ws, err := s.WebService.GetWebSession(user, id)
 	if err != nil {
-		return nil, err
-	}
-	ws, err := s.WebService.GetWebSession(user, string(pid))
-	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	return &Session{
-		SID: sid,
-		PID: pid,
-		WS:  *ws,
+		ID: id,
+		WS: *ws,
 	}, nil
 }
 
-func (s *AuthServer) DeleteWebSession(user string, sid session.SecureID) error {
-	pid, err := session.DecodeSID(sid, s.scrt)
-	if err != nil {
-		return err
-	}
-	return s.WebService.DeleteWebSession(user, string(pid))
+func (s *AuthServer) DeleteWebSession(user string, id string) error {
+	return trace.Wrap(s.WebService.DeleteWebSession(user, id))
 }
 
 const (
-	Week          = time.Hour * 24 * 7
-	WebSessionTTL = time.Hour * 10
-	TokenLenBytes = 16
+	Week                    = time.Hour * 24 * 7
+	WebSessionTTL           = time.Hour * 10
+	TokenLenBytes           = 16
+	WebSessionTokenLenBytes = 32
 )
+
+// CryptoRandomHex returns hex encoded random string generated with crypto-strong
+// pseudo random generator of the given bytes
+func CryptoRandomHex(len int) (string, error) {
+	randomBytes := make([]byte, len)
+	if _, err := rand.Reader.Read(randomBytes); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return hex.EncodeToString(randomBytes), nil
+}

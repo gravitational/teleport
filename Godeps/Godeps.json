@@ -11,41 +11,12 @@
 			"Rev": "be52937128b38f1d99787bb476c789e2af1147f1"
 		},
 		{
-			"ImportPath": "golang.org/x/sys/unix",
-			"Rev": "eb2c74142fd19a79b3f237334c7384d5167b1b46"
-		},
-		{
-			"ImportPath": "code.google.com/p/go-uuid/uuid",
-			"Comment": "null-15",
-			"Rev": "'35bc42037350f0078e3c974c6ea690f1926603ab'"
-		},
-		{
-			"ImportPath": "code.google.com/p/go.crypto/nacl/secretbox",
-			"Comment": "null-236",
-			"Rev": "'69e2a90ed92d03812364aeb947b7068dc42e561e'"
-		},
-		{
-			"ImportPath": "code.google.com/p/rsc/gf256",
-			"Comment": "null-258",
-			"Rev": "'2d8aa6027fab93979a3b4ecdbeb1ba430b489318'"
-		},
-		{
-			"ImportPath": "code.google.com/p/rsc/qr",
-			"Comment": "null-258",
-			"Rev": "'2d8aa6027fab93979a3b4ecdbeb1ba430b489318'"
-		},
-		{
 			"ImportPath": "github.com/alecthomas/template",
 			"Rev": "b867cc6ab45cece8143cfcc6fc9c77cf3f2c23c0"
 		},
 		{
 			"ImportPath": "github.com/alecthomas/units",
 			"Rev": "6b4e7dc5e3143b85ea77909c72caf89416fc2915"
-		},
-		{
-			"ImportPath": "github.com/gravitational/kingpin",
-			"Comment": "v2.1.10-6-g7856865",
-			"Rev": "785686550a08e8e2e77641c91714280a6dfb08ee"
 		},
 		{
 			"ImportPath": "github.com/boltdb/bolt",
@@ -77,19 +48,20 @@
 		},
 		{
 			"ImportPath": "github.com/gokyle/hotp",
-			"Rev": "cab5c36e945092b6fb703b6c785bb06fd0537a0d"
+			"Rev": "c180d57d286b385101c999a60087a40d7f48fc77"
 		},
 		{
 			"ImportPath": "github.com/gravitational/form",
 			"Rev": "a6a6d7dba4b0e3c049d10987c87a003b53d247f0"
 		},
 		{
-			"ImportPath": "github.com/gravitational/roundtrip",
-			"Rev": "378cec8c0577627d1bf095ae8a6eaa5ee4a025f8"
+			"ImportPath": "github.com/gravitational/kingpin",
+			"Comment": "v2.1.10-6-g7856865",
+			"Rev": "785686550a08e8e2e77641c91714280a6dfb08ee"
 		},
 		{
-			"ImportPath": "github.com/gravitational/session",
-			"Rev": "241be088afb76f90f6d04fb90055023658587856"
+			"ImportPath": "github.com/gravitational/roundtrip",
+			"Rev": "378cec8c0577627d1bf095ae8a6eaa5ee4a025f8"
 		},
 		{
 			"ImportPath": "github.com/gravitational/trace",
@@ -109,15 +81,6 @@
 			"ImportPath": "github.com/mailgun/lemma/random",
 			"Comment": "0.0.1-4-g9c38c9b",
 			"Rev": "9c38c9b26d0df3b21d60715da7e1f55e2fd0b739"
-		},
-		{
-			"ImportPath": "github.com/mailgun/lemma/secret",
-			"Comment": "0.0.1-4-g9c38c9b",
-			"Rev": "9c38c9b26d0df3b21d60715da7e1f55e2fd0b739"
-		},
-		{
-			"ImportPath": "github.com/mailgun/metrics",
-			"Rev": "f8741d1789ec85faeede37702eadbf5acb945e85"
 		},
 		{
 			"ImportPath": "github.com/mailgun/minheap",
@@ -146,6 +109,19 @@
 		{
 			"ImportPath": "github.com/mailgun/ttlmap",
 			"Rev": "16b258d86efc53ac5cf3e550604f566c32624fab"
+		},
+		{
+			"ImportPath": "github.com/mdp/rsc/gf256",
+			"Rev": "90f07065088deccf50b28eb37c93dad3078c0f3c"
+		},
+		{
+			"ImportPath": "github.com/mdp/rsc/qr",
+			"Rev": "90f07065088deccf50b28eb37c93dad3078c0f3c"
+		},
+		{
+			"ImportPath": "github.com/pborman/uuid",
+			"Comment": "v1.0-11-gc55201b",
+			"Rev": "c55201b036063326c5b1b89ccfe45a184973d073"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/connlimit",
@@ -180,15 +156,7 @@
 			"Rev": "0c93e1ff9f91f0c63bf17b123de503d023434fdd"
 		},
 		{
-			"ImportPath": "golang.org/x/crypto/poly1305",
-			"Rev": "0c93e1ff9f91f0c63bf17b123de503d023434fdd"
-		},
-		{
 			"ImportPath": "golang.org/x/crypto/ripemd160",
-			"Rev": "0c93e1ff9f91f0c63bf17b123de503d023434fdd"
-		},
-		{
-			"ImportPath": "golang.org/x/crypto/salsa20/salsa",
 			"Rev": "0c93e1ff9f91f0c63bf17b123de503d023434fdd"
 		},
 		{
@@ -200,8 +168,27 @@
 			"Rev": "7dbad50ab5b31073856416cdcfeb2796d682f844"
 		},
 		{
+			"ImportPath": "golang.org/x/sys/unix",
+			"Rev": "eb2c74142fd19a79b3f237334c7384d5167b1b46"
+		},
+		{
+			"ImportPath": "gopkg.in/airbrake/gobrake.v2",
+			"Comment": "v2.0.3",
+			"Rev": "c9d51adc624b5cc4c1bf8de730a09af4878ffe2d"
+		},
+		{
+			"ImportPath": "gopkg.in/alecthomas/kingpin.v2",
+			"Comment": "v2.1.11",
+			"Rev": "8cccfa8eb2e3183254457fb1749b2667fbc364c7"
+		},
+		{
 			"ImportPath": "gopkg.in/check.v1",
 			"Rev": "64131543e7896d5bcc6bd5a76287eb75ea96c673"
+		},
+		{
+			"ImportPath": "gopkg.in/gemnasium/logrus-airbrake-hook.v2",
+			"Comment": "v2.0.0",
+			"Rev": "31e6fd4bd5a98d8ee7673d24bc54ec73c31810dd"
 		},
 		{
 			"ImportPath": "gopkg.in/yaml.v2",

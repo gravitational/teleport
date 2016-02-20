@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -31,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 
 	"github.com/buger/goterm"
+	"github.com/gravitational/configure"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -40,9 +42,9 @@ type CLIConfig struct {
 }
 
 type UserCommand struct {
-	config   *service.Config
-	login    string
-	mappings string
+	config        *service.Config
+	login         string
+	allowedLogins string
 }
 
 type NodeCommand struct {
@@ -77,7 +79,7 @@ func main() {
 	userAdd := users.Command("invite", "Generates an invitation token and prints the signup URL for setting up 2nd factor auth.")
 	userAdd.Arg("login", "Teleport user login").Required().StringVar(&cmdUsers.login)
 	userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
-		Default("").StringVar(&cmdUsers.mappings)
+		Default("").StringVar(&cmdUsers.allowedLogins)
 	userAdd.Alias(AddUserHelp)
 
 	// list users command
@@ -138,14 +140,23 @@ func onVersion() {
 	fmt.Println("TODO: Version command has not been implemented yet")
 }
 
-// Invite() creates a new sign-up token and prints a token URL to stdout.
+func printHeader(t *goterm.Table, cols []string) {
+	dots := make([]string, len(cols))
+	for i := range dots {
+		dots[i] = strings.Repeat("-", len(cols[i]))
+	}
+	fmt.Fprint(t, strings.Join(cols, "\t")+"\n")
+	fmt.Fprint(t, strings.Join(dots, "\t")+"\n")
+}
+
+// Invite creates a new sign-up token and prints a token URL to stdout.
 // A user is not created until he visits the sign-up URL and completes the process
 func (u *UserCommand) Invite(client *auth.TunClient) error {
-	// if no local logis were specified, default to 'login'
-	if u.mappings == "" {
-		u.mappings = u.login
+	// if no local logins were specified, default to 'login'
+	if u.allowedLogins == "" {
+		u.allowedLogins = u.login
 	}
-	token, err := client.CreateSignupToken(u.login, strings.Split(u.mappings, ","))
+	token, err := client.CreateSignupToken(u.login, strings.Split(u.allowedLogins, ","))
 	if err != nil {
 		return err
 	}
@@ -162,19 +173,14 @@ func (u *UserCommand) List(client *auth.TunClient) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// TODO(klizhentas) this does not work (never returns anything)
-	// fmt.Println("TO BE DONE --->>>>> Listing users is not implemented. But the output should look like:\n")
-	// fmt.Println("User login       Mappings")
-	// fmt.Println("--------------   ----------------------")
-	// fmt.Println("ekontsevoy       admin,centos")
 	usersView := func(users []services.User) string {
 		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		fmt.Fprint(t, "User\n")
+		printHeader(t, []string{"User", "Allowed to login as"})
 		if len(users) == 0 {
 			return t.String()
 		}
 		for _, u := range users {
-			fmt.Fprintf(t, "%v\n", u.Name)
+			fmt.Fprintf(t, "%v\t%v\n", u.Name, strings.Join(u.AllowedLogins, ","))
 		}
 		return t.String()
 	}
@@ -182,7 +188,7 @@ func (u *UserCommand) List(client *auth.TunClient) error {
 	return nil
 }
 
-// Delete() deletes teleport user(s). User IDs are passed as a comma-separated
+// Delete deletes teleport user(s). User IDs are passed as a comma-separated
 // list in UserCommand.login
 func (u *UserCommand) Delete(client *auth.TunClient) error {
 	for _, l := range strings.Split(u.login, ",") {
@@ -198,7 +204,7 @@ func (u *UserCommand) Delete(client *auth.TunClient) error {
 // to a cluster
 func (u *NodeCommand) Invite(client *auth.TunClient) error {
 	invitationTTL := time.Minute * 15
-	token, err := client.GenerateToken(u.nodename, auth.RoleNode, invitationTTL)
+	token, err := client.GenerateToken(u.nodename, teleport.RoleNode, invitationTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -209,13 +215,32 @@ func (u *NodeCommand) Invite(client *auth.TunClient) error {
 	return nil
 }
 
-// listActive retreives the list of nodes who recently sent heartbeats to
+// ListActive retreives the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
 func (u *NodeCommand) ListActive(client *auth.TunClient) error {
-	fmt.Println("TO BE DONE --->>>>> Listing nodes is not implemented. But the output should look like:")
-	fmt.Println("Node Name        IP              Labels")
-	fmt.Println("--------------   ------------    ---------------")
-	fmt.Println("mongo-server     10.0.10.22      master,mongo")
+	nodes, err := client.GetServers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	nodesView := func(nodes []services.Server) string {
+		t := goterm.NewTable(0, 10, 5, ' ', 0)
+		printHeader(t, []string{"Node Name", "Address", "Labels"})
+		if len(nodes) == 0 {
+			return t.String()
+		}
+		for _, n := range nodes {
+			labels := make(configure.KeyVal, len(n.Labels)+len(n.CmdLabels))
+			for key, val := range n.Labels {
+				labels[key] = val
+			}
+			for key, val := range n.CmdLabels {
+				labels[key] = val.Result
+			}
+			fmt.Fprintf(t, "%v\t%v\t%v\n", n.Hostname, n.Addr, labels.String())
+		}
+		return t.String()
+	}
+	fmt.Printf(nodesView(nodes))
 	return nil
 }
 

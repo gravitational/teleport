@@ -57,20 +57,22 @@ func (a *TeleAgent) Start(agentAddr string) error {
 	return nil
 }
 
-func (a *TeleAgent) Login(proxyAddr string, user string, pass string,
-	hotpToken string, ttl time.Duration) error {
+func (a *TeleAgent) Login(proxyAddr string,
+	user string, pass string, hotpToken string,
+	ttl time.Duration) error {
+
 	priv, pub, err := native.New().GenerateKeyPair("")
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	cert, err := web.SSHAgentLogin(proxyAddr, user, pass, hotpToken,
+	login, err := web.SSHAgentLogin(proxyAddr, user, pass, hotpToken,
 		pub, ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	pcert, _, _, _, err := ssh.ParseAuthorizedKey(cert)
+	pcert, _, _, _, err := ssh.ParseAuthorizedKey(login.Cert)
 	if err != nil {
 		return trace.Wrap(err)
 	}

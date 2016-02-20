@@ -16,7 +16,6 @@ limitations under the License.
 package service
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -285,17 +284,8 @@ func (c *CertificateAuthorities) SetEnv(v string) error {
 	return nil
 }
 
-func (a CertificateAuthorities) Authorities() ([]services.CertificateAuthority, error) {
-	outCerts := make([]services.CertificateAuthority, len(a))
-	for i, v := range a {
-		outCerts[i] = services.CertificateAuthority{
-			Type:       v.Type,
-			ID:         v.ID,
-			DomainName: v.DomainName,
-			PublicKey:  []byte(v.PublicKey),
-		}
-	}
-	return outCerts, nil
+func (a CertificateAuthorities) Authorities() ([]services.CertAuthority, error) {
+	return nil, nil
 }
 
 type LocalCertificateAuthority struct {
@@ -312,34 +302,21 @@ func (c *LocalCertificateAuthority) SetEnv(v string) error {
 	return nil
 }
 
-func (c *LocalCertificateAuthority) CA() (*services.LocalCertificateAuthority, error) {
-	privateKey, err := base64.StdEncoding.DecodeString(c.PrivateKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out := services.LocalCertificateAuthority{
-		PrivateKey: privateKey,
-		CertificateAuthority: services.CertificateAuthority{
-			Type:       c.Type,
-			ID:         c.ID,
-			DomainName: c.DomainName,
-			PublicKey:  []byte(c.PublicKey),
-		},
-	}
-	return &out, nil
+func (c *LocalCertificateAuthority) CA() (*services.CertAuthority, error) {
+	return nil, nil
 }
 
 // MakeDefaultConfig() creates a new Config structure and populates it with defaults
 func MakeDefaultConfig() (config *Config, err error) {
 	config = &Config{}
-	if err = applyDefaults(config); err != nil {
+	if err = ApplyDefaults(config); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return config, nil
 }
 
-// applyDefaults applies default values to the existing config structure
-func applyDefaults(cfg *Config) error {
+// ApplyDefaults applies default values to the existing config structure
+func ApplyDefaults(cfg *Config) error {
 	hostname, err := os.Hostname()
 	if err != nil {
 		return trace.Wrap(err)

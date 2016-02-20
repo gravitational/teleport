@@ -17,14 +17,15 @@ package sshutils
 
 import (
 	"fmt"
+	"net"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/testdata"
 	. "gopkg.in/check.v1"
 )
 
@@ -39,14 +40,14 @@ var _ = Suite(&ServerSuite{})
 func (s *ServerSuite) SetUpSuite(c *C) {
 	utils.InitLoggerCLI()
 
-	pk, err := ssh.ParsePrivateKey(testdata.PEMBytes["ecdsa"])
+	pk, err := ssh.ParsePrivateKey(suite.PEMBytes["ecdsa"])
 	c.Assert(err, IsNil)
 	s.signers = []ssh.Signer{pk}
 }
 
 func (s *ServerSuite) TestStartStop(c *C) {
 	called := false
-	fn := NewChanHandlerFunc(func(conn *ssh.ServerConn, nch ssh.NewChannel) {
+	fn := NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
 		called = true
 		nch.Reject(ssh.Prohibited, "nothing to see here")
 	})

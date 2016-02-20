@@ -23,25 +23,27 @@ import (
 	"os"
 	"sync"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/session"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
 
 type TunServer struct {
-	certChecker ssh.CertChecker
-	a           *AuthServer
-	l           net.Listener
-	srv         *sshutils.Server
-	hostSigner  ssh.Signer
-	apiServer   *APIWithRoles
+	hostCertChecker ssh.CertChecker
+	userCertChecker ssh.CertChecker
+	a               *AuthServer
+	l               net.Listener
+	srv             *sshutils.Server
+	hostSigner      ssh.Signer
+	apiServer       *APIWithRoles
 }
 
 type ServerOption func(s *TunServer) error
@@ -56,6 +58,7 @@ func NewTunServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 		a:         a,
 		apiServer: apiServer,
 	}
+
 	for _, o := range opts {
 		if err := o(srv); err != nil {
 			return nil, err
@@ -76,7 +79,8 @@ func NewTunServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 		return nil, err
 	}
 
-	srv.certChecker = ssh.CertChecker{IsAuthority: srv.isAuthority}
+	srv.userCertChecker = ssh.CertChecker{IsAuthority: srv.isUserAuthority}
+	srv.hostCertChecker = ssh.CertChecker{IsAuthority: srv.isHostAuthority}
 	srv.srv = s
 	return srv, nil
 }
@@ -93,7 +97,7 @@ func (s *TunServer) Close() error {
 	return s.srv.Close()
 }
 
-func (s *TunServer) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
+func (s *TunServer) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	log.Infof("[AUTH] new channel request: %v", nch.ChannelType())
 	cht := nch.ChannelType()
 	switch cht {
@@ -136,25 +140,57 @@ func (s *TunServer) HandleNewChan(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	}
 }
 
-// isAuthority is called during checking the client key, to see if the signing
-// key is the real CA authority key.
-func (s *TunServer) isAuthority(auth ssh.PublicKey) bool {
-	key, err := s.a.GetHostCertificateAuthority()
+// isHostAuthority is called during checking the client key, to see if the signing
+// key is the real host CA authority key.
+func (s *TunServer) isHostAuthority(auth ssh.PublicKey) bool {
+	key, err := s.a.GetCertAuthority(services.CertAuthID{DomainName: s.a.Hostname, Type: services.HostCA}, false)
 	if err != nil {
 		log.Errorf("failed to retrieve user authority key, err: %v", err)
 		return false
 	}
-	cert, _, _, _, err := ssh.ParseAuthorizedKey(key.PublicKey)
+	checkers, err := key.Checkers()
 	if err != nil {
-		log.Errorf("failed to parse CA cert '%v', err: %v", string(key.PublicKey), err)
+		log.Errorf("failed to parse CA keys: %v", err)
 		return false
 	}
+	for _, checker := range checkers {
+		if sshutils.KeysEqual(checker, auth) {
+			return true
+		}
+	}
+	return false
+}
 
-	if !sshutils.KeysEqual(cert, auth) {
-		log.Warningf("authority signature check failed, signing keys mismatch")
+// isUserAuthority is called during checking the client key, to see if the signing
+// key is the real user CA authority key.
+func (s *TunServer) isUserAuthority(auth ssh.PublicKey) bool {
+	keys, err := s.getTrustedCAKeys(services.UserCA)
+	if err != nil {
+		log.Errorf("failed to retrieve trusted keys, err: %v", err)
 		return false
 	}
-	return true
+	for _, k := range keys {
+		if sshutils.KeysEqual(k, auth) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *TunServer) getTrustedCAKeys(CertType services.CertAuthType) ([]ssh.PublicKey, error) {
+	cas, err := s.a.GetCertAuthorities(CertType)
+	if err != nil {
+		return nil, err
+	}
+	out := []ssh.PublicKey{}
+	for _, ca := range cas {
+		checkers, err := ca.Checkers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, checkers...)
+	}
+	return out, nil
 }
 
 func (s *TunServer) haveExt(sconn *ssh.ServerConn, ext ...string) bool {
@@ -172,18 +208,16 @@ func (s *TunServer) haveExt(sconn *ssh.ServerConn, ext ...string) bool {
 func (s *TunServer) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel) {
 	defer ch.Close()
 
-	if sconn.Permissions.Extensions[PermissionRole] != RoleWeb {
+	if sconn.Permissions.Extensions[ExtRole] != string(teleport.RoleWeb) {
 		log.Errorf("role %v doesn't have permission to request agent",
-			sconn.Permissions.Extensions[PermissionRole])
+			sconn.Permissions.Extensions[ExtRole])
 		return
 	}
 
 	a := agent.NewKeyring()
 	log.Infof("handleWebAgentRequest start for %v", sconn.RemoteAddr())
 
-	sessionID := session.SecureID(sconn.Permissions.Extensions[ExtWebSession])
-
-	ws, err := s.a.GetWebSession(sconn.User(), sessionID)
+	ws, err := s.a.GetWebSession(sconn.User(), sconn.Permissions.Extensions[ExtWebSession])
 	if err != nil {
 		log.Errorf("session error: %v", err)
 		return
@@ -225,14 +259,17 @@ func (s *TunServer) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel)
 // this direct tcp-ip request ignores port and host requested by client
 // and always forwards it to the local auth server listening on local socket
 func (s *TunServer) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
+	defer sconn.Close()
+	role := teleport.Role(sconn.Permissions.Extensions[ExtRole])
+	if err := role.Check(); err != nil {
+		log.Errorf(err.Error())
+		return
+	}
 	addr, _ := utils.ParseAddr("tcp://localhost")
-	conn := utils.NewPipeNetConn(
-		ch, ch, ch,
-		addr, addr,
-	)
-	role := sconn.Permissions.Extensions[PermissionRole]
+	conn := utils.NewPipeNetConn(ch, ch, ch, addr, addr)
 	if err := s.apiServer.HandleConn(conn, role); err != nil {
 		log.Errorf(err.Error())
+		return
 	}
 }
 
@@ -244,19 +281,35 @@ func (s *TunServer) keyAuth(
 
 	log.Infof("%v auth attempt with key %v", cid, key.Type())
 
-	err := s.certChecker.CheckHostKey(conn.User(), conn.RemoteAddr(), key)
+	cert, ok := key.(*ssh.Certificate)
+	if !ok {
+		return nil, trace.Errorf("ERROR: Server doesn't support provided key type")
+	}
+
+	if cert.CertType == ssh.UserCert {
+		_, err := s.userCertChecker.Authenticate(conn, key)
+		if err != nil {
+			log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
+				conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
+			return nil, err
+		}
+		perms := &ssh.Permissions{
+			Extensions: map[string]string{
+				ExtHost: conn.User(),
+				ExtRole: string(teleport.RoleHangoutRemoteUser),
+			},
+		}
+		return perms, nil
+	}
+
+	err := s.hostCertChecker.CheckHostKey(conn.User(), conn.RemoteAddr(), key)
 	if err != nil {
 		log.Warningf("conn(%v->%v, user=%v) ERROR: failed auth user %v, err: %v",
 			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
 		return nil, err
 	}
 
-	cert, ok := key.(*ssh.Certificate)
-	if !ok {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := s.certChecker.CheckCert(conn.User(), cert); err != nil {
+	if err := s.hostCertChecker.CheckCert(conn.User(), cert); err != nil {
 		log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
 			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
 		return nil, trace.Wrap(err)
@@ -265,7 +318,7 @@ func (s *TunServer) keyAuth(
 	perms := &ssh.Permissions{
 		Extensions: map[string]string{
 			ExtHost: conn.User(),
-			"role":  cert.Permissions.Extensions[utils.CertExtensionRole],
+			ExtRole: cert.Permissions.Extensions[utils.CertExtensionRole],
 		},
 	}
 
@@ -288,7 +341,7 @@ func (s *TunServer) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebPassword: "<password>",
-				"role":         RoleUser,
+				ExtRole:        string(teleport.RoleUser),
 			},
 		}
 		log.Infof("password authenticated user: '%v'", conn.User())
@@ -299,10 +352,10 @@ func (s *TunServer) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebSession: string(ab.Pass),
-				"role":        RoleWeb,
+				ExtRole:       string(teleport.RoleWeb),
 			},
 		}
-		if _, err := s.a.GetWebSession(conn.User(), session.SecureID(ab.Pass)); err != nil {
+		if _, err := s.a.GetWebSession(conn.User(), string(ab.Pass)); err != nil {
 			return nil, trace.Errorf("session resume error: %v", trace.Wrap(err))
 		}
 		log.Infof("session authenticated user: '%v'", conn.User())
@@ -316,7 +369,7 @@ func (s *TunServer) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtToken: string(password),
-				"role":   RoleProvisionToken,
+				ExtRole:  string(teleport.RoleProvisionToken),
 			}}
 		utils.Consolef(os.Stdout, "[AUTH] Successfully accepted token %v for %v", string(password), conn.User())
 		return perms, nil
@@ -328,7 +381,7 @@ func (s *TunServer) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtToken: string(password),
-				"role":   RoleSignup,
+				ExtRole:  string(teleport.RoleSignup),
 			}}
 		log.Infof("session authenticated prov. token: '%v'", conn.User())
 		return perms, nil
@@ -521,6 +574,22 @@ func (t *TunDialer) Dial(network, address string) (net.Conn, error) {
 	}
 }
 
+func NewClientFromSSHClient(sshClient *ssh.Client) (*Client, error) {
+	tr := &http.Transport{
+		Dial: sshClient.Dial,
+	}
+	clt, err := NewClient(
+		"http://stub:0",
+		roundtrip.HTTPClient(&http.Client{
+			Transport: tr,
+		}))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return clt, nil
+}
+
 const (
 	ReqWebSessionAgent = "web-session-agent@teleport"
 	ReqProvision       = "provision@teleport"
@@ -531,6 +600,7 @@ const (
 	ExtWebPassword = "web-password@teleport"
 	ExtToken       = "provision@teleport"
 	ExtHost        = "host@teleport"
+	ExtRole        = "role@teleport"
 
 	AuthWebPassword = "password"
 	AuthWebSession  = "session"

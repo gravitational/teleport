@@ -23,6 +23,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -36,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
@@ -129,35 +129,14 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) err
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	trustedAuthorities, err := cfg.Auth.TrustedAuthorities.Authorities()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	acfg := auth.InitConfig{
-		Backend:            b,
-		Authority:          authority.New(),
-		DomainName:         cfg.Hostname,
-		AuthDomain:         cfg.Auth.HostAuthorityDomain,
-		DataDir:            cfg.DataDir,
-		SecretKey:          cfg.Auth.SecretKey,
-		AllowedTokens:      cfg.Auth.AllowedTokens,
-		TrustedAuthorities: trustedAuthorities,
-	}
-	if len(cfg.Auth.UserCA.PublicKey) != 0 && len(cfg.Auth.UserCA.PrivateKey) != 0 {
-		acfg.UserCA, err = cfg.Auth.UserCA.CA()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		acfg.UserCA.DomainName = hostname
-		acfg.UserCA.Type = services.UserCert
-	}
-	if len(cfg.Auth.HostCA.PublicKey) != 0 && len(cfg.Auth.HostCA.PrivateKey) != 0 {
-		acfg.HostCA, err = cfg.Auth.HostCA.CA()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		acfg.HostCA.DomainName = hostname
-		acfg.HostCA.Type = services.HostCert
+		Backend:       b,
+		Authority:     authority.New(),
+		DomainName:    cfg.Hostname,
+		AuthDomain:    cfg.Auth.HostAuthorityDomain,
+		DataDir:       cfg.DataDir,
+		SecretKey:     cfg.Auth.SecretKey,
+		AllowedTokens: cfg.Auth.AllowedTokens,
 	}
 	asrv, signer, err := auth.Init(acfg)
 	if err != nil {
@@ -200,7 +179,7 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) err
 
 func initSSH(supervisor Supervisor, cfg Config) error {
 	return RegisterWithAuthServer(supervisor, cfg.SSH.Token,
-		cfg.RoleConfig(), auth.RoleNode,
+		cfg.RoleConfig(), teleport.RoleNode,
 		func() error {
 			return initSSHEndpoint(supervisor, cfg)
 		},
@@ -235,8 +214,9 @@ func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
 		return trace.Wrap(err)
 	}
 
+	log.Infof("valid principals: %v", i.Cert.ValidPrincipals[0])
 	s, err := srv.New(cfg.SSH.Addr,
-		cfg.Hostname,
+		i.Cert.ValidPrincipals[0],
 		[]ssh.Signer{i.KeySigner},
 		client,
 		limiter,
@@ -270,7 +250,7 @@ func RegisterWithAuthServer(
 	supervisor Supervisor,
 	provisioningToken string,
 	cfg RoleConfig,
-	role string,
+	role teleport.Role,
 	callback func() error) error {
 	if cfg.DataDir == "" {
 		return trace.Errorf("please supply data directory")
@@ -313,7 +293,7 @@ func RegisterWithAuthServer(
 func initReverseTunnel(supervisor Supervisor, cfg Config) error {
 	return RegisterWithAuthServer(
 		supervisor, cfg.ReverseTunnel.Token, cfg.RoleConfig(),
-		auth.RoleNode,
+		teleport.RoleNode,
 		func() error {
 			return initTunAgent(supervisor, cfg)
 		},
@@ -366,7 +346,7 @@ func initTunAgent(supervisor Supervisor, cfg Config) error {
 
 func initProxy(supervisor Supervisor, cfg Config) error {
 	return RegisterWithAuthServer(
-		supervisor, cfg.Proxy.Token, cfg.RoleConfig(), auth.RoleNode,
+		supervisor, cfg.Proxy.Token, cfg.RoleConfig(), teleport.RoleNode,
 		func() error {
 			return initProxyEndpoint(supervisor, cfg)
 		},

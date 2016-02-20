@@ -23,34 +23,32 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/session"
 	"github.com/gravitational/trace"
-	"github.com/mailgun/lemma/secret"
 	"golang.org/x/crypto/ssh"
 )
 
 type InitConfig struct {
-	Backend            *encryptedbk.ReplicatedBackend
-	Authority          Authority
-	DomainName         string
-	AuthDomain         string
-	DataDir            string
-	SecretKey          string
-	AllowedTokens      map[string]string
-	TrustedAuthorities []services.CertificateAuthority
+	Backend       *encryptedbk.ReplicatedBackend
+	Authority     Authority
+	DomainName    string
+	AuthDomain    string
+	DataDir       string
+	SecretKey     string
+	AllowedTokens map[string]string
+
 	// HostCA is an optional host certificate authority keypair
-	HostCA *services.LocalCertificateAuthority
+	HostCA *services.CertAuthority
 	// UserCA is an optional user certificate authority keypair
-	UserCA *services.LocalCertificateAuthority
+	UserCA *services.CertAuthority
 }
 
 func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
-
 	if cfg.AuthDomain == "" {
 		return nil, nil, fmt.Errorf("node name can not be empty")
 	}
@@ -71,13 +69,8 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 	}
 	defer lockService.ReleaseLock(cfg.AuthDomain)
 
-	scrt, err := InitSecret(cfg.DataDir, cfg.SecretKey)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	// check that user CA and host CA are present and set the certs if needed
-	asrv := NewAuthServer(cfg.Backend, cfg.Authority, scrt, cfg.DomainName)
+	asrv := NewAuthServer(cfg.Backend, cfg.Authority, cfg.DomainName)
 
 	// we determine if it's the first start by checking if the CA's are set
 	var firstStart bool
@@ -85,22 +78,25 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 	// this block will generate user CA authority on first start if it's
 	// not currently present, it will also use optional passed user ca keypair
 	// that can be supplied in configuration
-	if _, e := asrv.GetHostCertificateAuthority(); e != nil {
-		if _, ok := e.(*teleport.NotFoundError); ok {
-			firstStart = true
-			if cfg.HostCA != nil {
-				log.Infof("FIRST START: use host CA keypair provided in config")
-				if err := asrv.CAService.UpsertHostCertificateAuthority(*cfg.HostCA); err != nil {
-					return nil, nil, trace.Wrap(err)
-				}
-			} else {
-				log.Infof("FIRST START: Generating host CA on first start")
-				if err := asrv.ResetHostCertificateAuthority(""); err != nil {
-					return nil, nil, err
-				}
+	if _, err := asrv.GetCertAuthority(services.CertAuthID{DomainName: cfg.DomainName, Type: services.HostCA}, false); err != nil {
+		if !teleport.IsNotFound(err) {
+			return nil, nil, trace.Wrap(err)
+		}
+		firstStart = true
+		if cfg.HostCA == nil {
+			log.Infof("FIRST START: Generating host CA on first start")
+			priv, pub, err := asrv.GenerateKeyPair("")
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
 			}
-		} else {
-			log.Errorf("Host CA error: %v", e)
+			cfg.HostCA = &services.CertAuthority{
+				DomainName:   cfg.DomainName,
+				Type:         services.HostCA,
+				SigningKeys:  [][]byte{priv},
+				CheckingKeys: [][]byte{pub},
+			}
+		}
+		if err := asrv.CAService.UpsertCertAuthority(*cfg.HostCA, backend.Forever); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	}
@@ -108,26 +104,28 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 	// this block will generate user CA authority on first start if it's
 	// not currently present, it will also use optional passed user ca keypair
 	// that can be supplied in configuration
-	if _, e := asrv.GetUserCertificateAuthority(); e != nil {
-		if _, ok := e.(*teleport.NotFoundError); ok {
-			firstStart = true
-			if cfg.HostCA != nil {
-				log.Infof("FIRST START: use user CA keypair provided in config")
-				if err := asrv.CAService.UpsertUserCertificateAuthority(*cfg.UserCA); err != nil {
-					return nil, nil, trace.Wrap(err)
-				}
-			} else {
-				log.Infof("FIRST START: Generating user CA on first start")
-				if err := asrv.ResetUserCertificateAuthority(""); err != nil {
-					return nil, nil, trace.Wrap(err)
-				}
+	if _, err := asrv.GetCertAuthority(services.CertAuthID{DomainName: cfg.DomainName, Type: services.UserCA}, false); err != nil {
+		if !teleport.IsNotFound(err) {
+			return nil, nil, trace.Wrap(err)
+		}
+		firstStart = true
+		if cfg.UserCA == nil {
+			log.Infof("FIRST START: Generating user CA on first start")
+			priv, pub, err := asrv.GenerateKeyPair("")
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
 			}
-
-		} else {
+			cfg.UserCA = &services.CertAuthority{
+				DomainName:   cfg.DomainName,
+				Type:         services.UserCA,
+				SigningKeys:  [][]byte{priv},
+				CheckingKeys: [][]byte{pub},
+			}
+		}
+		if err := asrv.CAService.UpsertCertAuthority(*cfg.UserCA, backend.Forever); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	}
-
 	if firstStart {
 		if len(cfg.AllowedTokens) != 0 {
 			log.Infof("FIRST START: Setting allowed provisioning tokens")
@@ -139,22 +137,7 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 					return nil, nil, trace.Wrap(err)
 				}
 
-				pid, err := session.DecodeSID(session.SecureID(token), scrt)
-				if err != nil {
-					return nil, nil, trace.Wrap(err)
-				}
-
-				if err := asrv.UpsertToken(string(pid), domainName, role, 600*time.Second); err != nil {
-					return nil, nil, trace.Wrap(err)
-				}
-			}
-		}
-
-		if len(cfg.TrustedAuthorities) != 0 {
-			log.Infof("FIRST START: Setting trusted certificate authorities")
-			for _, cert := range cfg.TrustedAuthorities {
-				log.Infof("FIRST START: upsert trusted remote cert: type: %v domainName: %v", cert.Type, cert.DomainName)
-				if err := asrv.UpsertRemoteCertificate(cert, 0); err != nil {
+				if err := asrv.UpsertToken(token, domainName, role, 600*time.Second); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 			}
@@ -169,22 +152,23 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 	return asrv, signer, nil
 }
 
-// initialize this node's host certificate signed by host authority
+// InitKeys initializes this node's host certificate signed by host authority
 func InitKeys(a *AuthServer, domainName, dataDir string) (ssh.Signer, error) {
 	if domainName == "" {
-		return nil, fmt.Errorf("domainName can not be empty")
+		return nil, trace.Wrap(&teleport.BadParameterError{
+			Param: domainName, Err: "domainName can not be empty"})
 	}
 
 	kp, cp := keysPath(domainName, dataDir)
 
 	keyExists, err := pathExists(kp)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	certExists, err := pathExists(cp)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	if !keyExists || !certExists {
@@ -192,7 +176,7 @@ func InitKeys(a *AuthServer, domainName, dataDir string) (ssh.Signer, error) {
 		if err != nil {
 			return nil, err
 		}
-		c, err := a.GenerateHostCert(pub, domainName, domainName, RoleAdmin, 0)
+		c, err := a.GenerateHostCert(pub, domainName, domainName, teleport.RoleAdmin, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -287,52 +271,6 @@ func HaveKeys(domainName, dataDir string) (bool, error) {
 	}
 
 	return true, nil
-}
-
-func InitSecret(dataDir, secretKey string) (secret.SecretService, error) {
-	keyPath := secretKeyPath(dataDir)
-	exists, err := pathExists(keyPath)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		log.Infof("Secret not found. Writing to %v", keyPath)
-		if secretKey == "" {
-			log.Infof("Secret key is not supplied, generating")
-			k, err := secret.NewKey()
-			if err != nil {
-				return nil, err
-			}
-			secretKey = secret.KeyToEncodedString(k)
-		} else {
-			log.Infof("Using secret key provided with configuration")
-		}
-
-		err = ioutil.WriteFile(
-			keyPath, []byte(secretKey), 0600)
-		if err != nil {
-			return nil, err
-		}
-	}
-	log.Infof("Reading secret from %v", keyPath)
-	return ReadSecret(dataDir)
-}
-
-func ReadSecret(dataDir string) (secret.SecretService, error) {
-	keyPath := secretKeyPath(dataDir)
-	bytes, err := ioutil.ReadFile(keyPath)
-	if err != nil {
-		return nil, err
-	}
-	key, err := secret.EncodedStringToKey(string(bytes))
-	if err != nil {
-		return nil, err
-	}
-	return secret.New(&secret.Config{KeyBytes: key})
-}
-
-func secretKeyPath(dataDir string) string {
-	return filepath.Join(dataDir, "teleport.secret")
 }
 
 func keysPath(domainName, dataDir string) (key string, cert string) {

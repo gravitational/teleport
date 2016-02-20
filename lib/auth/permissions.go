@@ -17,53 +17,55 @@ limitations under the License.
 package auth
 
 import (
+	"fmt"
+
+	"github.com/gravitational/teleport"
+
 	"github.com/gravitational/trace"
 )
 
+// PermissionChecker interface verifies that clients have permissions
+// to execute any action of the auth server
 type PermissionChecker interface {
-	HasPermission(role, action string) error
+	// HasPermission checks if the given role has a permission to execute
+	// the action
+	HasPermission(role teleport.Role, action string) error
 }
 
-type standardPermissions struct {
-	permissions map[string](map[string]bool)
-}
-
+// NewStandardPermissions returns permission checker with hardcoded roles
+// that are built in when auth server starts in standard mode
 func NewStandardPermissions() PermissionChecker {
 	sp := standardPermissions{}
-	sp.permissions = make(map[string](map[string]bool))
+	sp.permissions = make(map[teleport.Role](map[string]bool))
 
-	sp.permissions[RoleUser] = map[string]bool{
-		ActionSignIn:           true,
-		ActionGenerateUserCert: true,
+	sp.permissions[teleport.RoleUser] = map[string]bool{
+		ActionSignIn:             true,
+		ActionGenerateUserCert:   true,
+		ActionGetCertAuthorities: true,
 	}
 
-	sp.permissions[RoleProvisionToken] = map[string]bool{
+	sp.permissions[teleport.RoleProvisionToken] = map[string]bool{
 		ActionRegisterUsingToken:    true,
 		ActionRegisterNewAuthServer: true,
 	}
 
-	sp.permissions[RoleNode] = map[string]bool{
-		ActionUpsertServer:                true,
-		ActionGetUserCertificateAuthority: true,
-		ActionGetRemoteCertificates:       true,
-		ActionGetTrustedCertificates:      true,
-		ActionGetCertificateID:            true,
-		ActionGetAllUserMappings:          true,
-		ActionUserMappingExists:           true,
-		ActionGetUserKeys:                 true,
-		ActionGetServers:                  true,
-		ActionGetHostCertificateAuthority: true,
-		ActionUpsertParty:                 true,
-		ActionLogEntry:                    true,
-		ActionGetChunkWriter:              true,
+	sp.permissions[teleport.RoleNode] = map[string]bool{
+		ActionUpsertServer:       true,
+		ActionGetCertAuthorities: true,
+		ActionGetLocalDomain:     true,
+		ActionGetUserKeys:        true,
+		ActionGetServers:         true,
+		ActionUpsertParty:        true,
+		ActionLogEntry:           true,
+		ActionGetChunkWriter:     true,
 	}
 
-	sp.permissions[RoleWeb] = map[string]bool{
+	sp.permissions[teleport.RoleWeb] = map[string]bool{
 		ActionGetWebSession:    true,
 		ActionDeleteWebSession: true,
 	}
 
-	sp.permissions[RoleSignup] = map[string]bool{
+	sp.permissions[teleport.RoleSignup] = map[string]bool{
 		ActionGetSignupTokenData:  true,
 		ActionCreateUserWithToken: true,
 	}
@@ -71,20 +73,75 @@ func NewStandardPermissions() PermissionChecker {
 	return &sp
 }
 
-func (sp *standardPermissions) HasPermission(role, action string) error {
-	if role == RoleAdmin {
+// NewHangoutPermissions is a set of permissions allowed to various
+// roles when auth server is started in hangout mode on user's computer
+func NewHangoutPermissions() PermissionChecker {
+	sp := standardPermissions{}
+	sp.permissions = make(map[teleport.Role](map[string]bool))
+
+	sp.permissions[teleport.RoleUser] = map[string]bool{
+		ActionGenerateUserCert:   true,
+		ActionGetCertAuthorities: true,
+	}
+
+	sp.permissions[teleport.RoleProvisionToken] = map[string]bool{
+		ActionRegisterUsingToken:    true,
+		ActionRegisterNewAuthServer: true,
+		ActionGenerateUserCert:      true,
+	}
+
+	sp.permissions[teleport.RoleHangoutRemoteUser] = map[string]bool{
+		ActionGenerateUserCert: true,
+	}
+
+	sp.permissions[teleport.RoleNode] = map[string]bool{
+		ActionUpsertServer:        true,
+		ActionGetCertAuthorities:  true,
+		ActionGetLocalDomain:      true,
+		ActionGetUserKeys:         true,
+		ActionGetServers:          true,
+		ActionUpsertParty:         true,
+		ActionLogEntry:            true,
+		ActionGetChunkWriter:      true,
+		ActionUpsertCertAuthority: true,
+		ActionUpsertSession:       true,
+		ActionGetAuthServers:      true,
+	}
+
+	sp.permissions[teleport.RoleWeb] = map[string]bool{
+		ActionGetWebSession:    true,
+		ActionDeleteWebSession: true,
+	}
+
+	sp.permissions[teleport.RoleSignup] = map[string]bool{
+		ActionGetSignupTokenData:  true,
+		ActionCreateUserWithToken: true,
+	}
+
+	return &sp
+}
+
+type standardPermissions struct {
+	permissions map[teleport.Role](map[string]bool)
+}
+
+func (sp *standardPermissions) HasPermission(role teleport.Role, action string) error {
+	if role == teleport.RoleAdmin {
 		return nil
 	}
 	if permissions, ok := sp.permissions[role]; ok {
 		if permissions[action] {
 			return nil
-		} else {
-			return trace.Errorf("role '%v' doesn't have permission for action '%v'",
-				role, action)
 		}
+		return trace.Wrap(
+			teleport.AccessDenied(
+				fmt.Sprintf(
+					"role '%v' doesn't have permission for action '%v'",
+					role, action)))
 	}
-	return trace.Errorf("role '%v' is not allowed",
-		role)
+	return trace.Wrap(
+		teleport.AccessDenied(
+			fmt.Sprintf("role '%v' is not allowed", role)))
 }
 
 type allowAllPermissions struct {
@@ -95,40 +152,36 @@ func NewAllowAllPermissions() PermissionChecker {
 	return &aap
 }
 
-func (aap *allowAllPermissions) HasPermission(role, action string) error {
+func (aap *allowAllPermissions) HasPermission(role teleport.Role, action string) error {
 	return nil
 }
 
-var StandardRoles = []string{
-	RoleAuth,
-	RoleUser,
-	RoleWeb,
-	RoleNode,
-	RoleAdmin,
-	RoleProvisionToken,
-	RoleSignup,
+var StandardRoles = []teleport.Role{
+	teleport.RoleAuth,
+	teleport.RoleUser,
+	teleport.RoleWeb,
+	teleport.RoleNode,
+	teleport.RoleAdmin,
+	teleport.RoleProvisionToken,
+	teleport.RoleSignup,
+}
+
+var HangoutRoles = []teleport.Role{
+	teleport.RoleAdmin,
+	teleport.RoleProvisionToken,
+	teleport.RoleHangoutRemoteUser,
 }
 
 const (
-	PermissionRole = "role"
-
-	RoleAuth           = "Auth"
-	RoleUser           = "User"
-	RoleWeb            = "Web"
-	RoleNode           = "Node"
-	RoleAdmin          = "Admin"
-	RoleProvisionToken = "ProvisionToken"
-	RoleSignup         = "Signup"
-
 	ActionGetSessions                   = "GetSession"
 	ActionGetSession                    = "GetSession"
 	ActionDeleteSession                 = "DeleteSession"
 	ActionUpsertSession                 = "UpsertSession"
 	ActionUpsertParty                   = "UpsertParty"
-	ActionUpsertRemoteCertificate       = "UpsertRemoteCertificate"
-	ActionGetRemoteCertificates         = "GetRemoteCertificates"
-	ActionDeleteRemoteCertificate       = "DeleteRemoteCerts"
-	ActionGetTrustedCertificates        = "GetTrustedCertificates"
+	ActionUpsertCertAuthority           = "UpsertCertAuthority"
+	ActionGetCertAuthorities            = "GetCertAuthorities"
+	ActionGetLocalDomain                = "GetLocalDomain"
+	ActionDeleteCertAuthority           = "DeleteCertAuthority"
 	ActionGenerateToken                 = "GenerateToken"
 	ActionRegisterUsingToken            = "RegisterUsingToken"
 	ActionRegisterNewAuthServer         = "RegisterNewAuthServer"
@@ -139,6 +192,7 @@ const (
 	ActionGetChunkReader                = "GetChunkReader"
 	ActionUpsertServer                  = "UpsertServer"
 	ActionGetServers                    = "GetServers"
+	ActionGetAuthServers                = "GetAuthServers"
 	ActionUpsertWebTun                  = "UpsertWebTun"
 	ActionGetWebTuns                    = "GetWebTuns"
 	ActionGetWebTun                     = "GetWebTun"
@@ -154,8 +208,6 @@ const (
 	ActionUpsertUserKey                 = "UpsertUserKey"
 	ActionGetUserKeys                   = "GetUserKeys"
 	ActionDeleteUserKey                 = "DeleteUserKey"
-	ActionGetHostCertificateAuthority   = "GetHostCertificateAuthority"
-	ActionGetUserCertificateAuthority   = "GetUserCertificateAuthority"
 	ActionGenerateKeyPair               = "GenerateKeyPair"
 	ActionGenerateHostCert              = "GenerateHostCert"
 	ActionGenerateUserCert              = "GenerateUserCert"
@@ -169,9 +221,5 @@ const (
 	ActionCreateSignupToken             = "CreateSignupToken"
 	ActionGetSignupTokenData            = "GetSignupTokenData"
 	ActionCreateUserWithToken           = "CreateUserWithToken"
-	ActionGetCertificateID              = "GetCertificateID"
-	ActionUpsertUserMapping             = "UpsertUserMapping"
-	ActionDeleteUserMapping             = "DeleteUserMapping"
-	ActionUserMappingExists             = "UserMappingExists"
-	ActionGetAllUserMappings            = "GetAllUserMappings"
+	ActionUpsertUser                    = "UpsertUser"
 )

@@ -21,23 +21,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gokyle/hotp"
-
+	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events/boltlog"
 	etest "github.com/gravitational/teleport/lib/events/test"
-	rtest "github.com/gravitational/teleport/lib/recorder/test"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
+	rtest "github.com/gravitational/teleport/lib/recorder/test"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/mailgun/lemma/secret"
+	"github.com/gokyle/hotp"
 	"golang.org/x/crypto/ssh"
 	. "gopkg.in/check.v1"
 )
@@ -45,14 +44,13 @@ import (
 func TestAPI(t *testing.T) { TestingT(t) }
 
 type APISuite struct {
-	srv  *httptest.Server
-	clt  *Client
-	bk   *encryptedbk.ReplicatedBackend
-	bl   *boltlog.BoltLog
-	scrt secret.SecretService
-	rec  recorder.Recorder
-	a    *AuthServer
-	dir  string
+	srv *httptest.Server
+	clt *Client
+	bk  *encryptedbk.ReplicatedBackend
+	bl  *boltlog.BoltLog
+	rec recorder.Recorder
+	a   *AuthServer
+	dir string
 
 	CAS           *services.CAService
 	LockS         *services.LockService
@@ -66,11 +64,6 @@ var _ = Suite(&APISuite{})
 func (s *APISuite) SetUpSuite(c *C) {
 	utils.InitLoggerCLI()
 	authority.PrecalculatedKeysNum = 1
-	key, err := secret.NewKey()
-	c.Assert(err, IsNil)
-	srv, err := secret.New(&secret.Config{KeyBytes: key})
-	c.Assert(err, IsNil)
-	s.scrt = srv
 }
 
 func (s *APISuite) SetUpTest(c *C) {
@@ -89,7 +82,7 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.rec, err = boltrec.New(s.dir)
 	c.Assert(err, IsNil)
 
-	s.a = NewAuthServer(s.bk, authority.New(), s.scrt, "host1")
+	s.a = NewAuthServer(s.bk, authority.New(), "localhost")
 	s.srv = httptest.NewServer(NewAPIServer(
 		&AuthWithRoles{
 			authServer:  s.a,
@@ -114,41 +107,6 @@ func (s *APISuite) TearDownTest(c *C) {
 	s.bl.Close()
 }
 
-func (s *APISuite) TestHostCACRUD(c *C) {
-	c.Assert(s.clt.ResetHostCertificateAuthority(), IsNil)
-
-	hca, err := s.CAS.GetHostPrivateCertificateAuthority()
-	c.Assert(err, IsNil)
-
-	c.Assert(s.clt.ResetHostCertificateAuthority(), IsNil)
-
-	hca2, err := s.CAS.GetHostPrivateCertificateAuthority()
-	c.Assert(err, IsNil)
-
-	c.Assert(hca, Not(DeepEquals), hca2)
-
-	key, err := s.clt.GetHostCertificateAuthority()
-	c.Assert(err, IsNil)
-	c.Assert(key.PublicKey, DeepEquals, hca2.PublicKey)
-}
-
-func (s *APISuite) TestUserCACRUD(c *C) {
-	c.Assert(s.clt.ResetUserCertificateAuthority(), IsNil)
-
-	uca, err := s.CAS.GetUserPrivateCertificateAuthority()
-	c.Assert(err, IsNil)
-
-	c.Assert(s.clt.ResetUserCertificateAuthority(), IsNil)
-	uca2, err := s.CAS.GetUserPrivateCertificateAuthority()
-	c.Assert(err, IsNil)
-
-	c.Assert(uca, Not(DeepEquals), uca2)
-
-	key, err := s.clt.GetUserCertificateAuthority()
-	c.Assert(err, IsNil)
-	c.Assert(key.PublicKey, DeepEquals, uca2.PublicKey)
-}
-
 func (s *APISuite) TestGenerateKeyPair(c *C) {
 	priv, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -162,13 +120,14 @@ func (s *APISuite) TestGenerateKeyPair(c *C) {
 }
 
 func (s *APISuite) TestGenerateHostCert(c *C) {
-	c.Assert(s.clt.ResetHostCertificateAuthority(), IsNil)
+	c.Assert(s.clt.UpsertCertAuthority(
+		*services.NewTestCA(services.HostCA, "localhost"), backend.Forever), IsNil)
 
 	_, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
 	// make sure we can parse the private and public key
-	cert, err := s.clt.GenerateHostCert(pub, "id1", "a.example.com", "RoleExample", time.Hour)
+	cert, err := s.clt.GenerateHostCert(pub, "localhost", "localhost", teleport.RoleNode, time.Hour)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
@@ -176,13 +135,14 @@ func (s *APISuite) TestGenerateHostCert(c *C) {
 }
 
 func (s *APISuite) TestGenerateUserCert(c *C) {
-	c.Assert(s.clt.ResetUserCertificateAuthority(), IsNil)
+	c.Assert(s.clt.UpsertCertAuthority(
+		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	_, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
 	// make sure we can parse the private and public key
-	cert, err := s.clt.GenerateUserCert(pub, "id1", "user1", time.Hour)
+	cert, err := s.clt.GenerateUserCert(pub, "user1", time.Hour)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
@@ -190,13 +150,14 @@ func (s *APISuite) TestGenerateUserCert(c *C) {
 }
 
 func (s *APISuite) TestKeysCRUD(c *C) {
-	c.Assert(s.clt.ResetUserCertificateAuthority(), IsNil)
+	c.Assert(s.clt.UpsertCertAuthority(
+		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	_, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
 	// make sure we can parse the private and public key
-	cert, err := s.clt.GenerateUserCert(pub, "id1", "user1", time.Hour)
+	cert, err := s.clt.GenerateUserCert(pub, "user1", time.Hour)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
@@ -263,7 +224,8 @@ func (s *APISuite) TestSessions(c *C) {
 	user := "user1"
 	pass := []byte("abc123")
 
-	c.Assert(s.a.ResetUserCertificateAuthority(""), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(
+		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	ws, err := s.clt.SignIn(user, pass)
 	c.Assert(err, NotNil)
@@ -356,27 +318,6 @@ func (s *APISuite) TestTokens(c *C) {
 	c.Assert(len(out), Not(Equals), 0)
 }
 
-func (s *APISuite) TestRemoteCACRUD(c *C) {
-	key := services.CertificateAuthority{
-		DomainName: "example.com",
-		ID:         "id",
-		PublicKey:  []byte("hello1"),
-		Type:       services.UserCert,
-	}
-	err := s.clt.UpsertRemoteCertificate(key, 0)
-	c.Assert(err, IsNil)
-
-	certs, err := s.clt.GetRemoteCertificates(key.Type, key.DomainName)
-	c.Assert(err, IsNil)
-	c.Assert(certs[0], DeepEquals, key)
-
-	err = s.clt.DeleteRemoteCertificate(key.Type, key.DomainName, key.ID)
-	c.Assert(err, IsNil)
-
-	err = s.clt.DeleteRemoteCertificate(key.Type, key.DomainName, key.ID)
-	c.Assert(err, NotNil)
-}
-
 func (s *APISuite) TestSharedSessions(c *C) {
 	out, err := s.clt.GetSessions()
 	c.Assert(err, IsNil)
@@ -414,164 +355,4 @@ func (s *APISuite) TestSharedSessionsParties(c *C) {
 		Parties: []session.Party{p1},
 	}
 	c.Assert(out, DeepEquals, []session.Session{sess})
-}
-
-func (s *APISuite) TestTrustedCertificates(c *C) {
-	a := authority.New()
-	priv1, pub1, err := a.GenerateKeyPair("")
-	c.Assert(err, IsNil)
-	key1, _, _, _, err := ssh.ParseAuthorizedKey(pub1)
-	c.Assert(err, IsNil)
-
-	userCA := services.LocalCertificateAuthority{
-		CertificateAuthority: services.CertificateAuthority{
-			PublicKey:  pub1,
-			ID:         "id1",
-			Type:       services.UserCert,
-			DomainName: "host1",
-		},
-		PrivateKey: priv1,
-	}
-	c.Assert(s.CAS.UpsertUserCertificateAuthority(userCA), IsNil)
-	userPubCA, err := s.CAS.GetUserCertificateAuthority()
-	c.Assert(err, IsNil)
-
-	hostCA := services.LocalCertificateAuthority{
-		CertificateAuthority: services.CertificateAuthority{
-			PublicKey:  []byte("capub"),
-			ID:         "id2",
-			Type:       services.UserCert,
-			DomainName: "host1",
-		},
-		PrivateKey: []byte("capriv"),
-	}
-	c.Assert(s.CAS.UpsertHostCertificateAuthority(hostCA), IsNil)
-	hostPubCA, err := s.CAS.GetHostCertificateAuthority()
-	c.Assert(err, IsNil)
-
-	_, pub2, err := a.GenerateKeyPair("")
-	c.Assert(err, IsNil)
-	key2, _, _, _, err := ssh.ParseAuthorizedKey(pub2)
-	c.Assert(err, IsNil)
-
-	ca1 := services.CertificateAuthority{
-		Type:       services.UserCert,
-		ID:         "c1",
-		DomainName: "example.com",
-		PublicKey:  pub2,
-	}
-	c.Assert(s.CAS.UpsertRemoteCertificate(ca1, 0), IsNil)
-
-	ca2 := services.CertificateAuthority{
-		Type:       services.UserCert,
-		ID:         "c2",
-		DomainName: "example.org",
-		PublicKey:  []byte("hello2"),
-	}
-	c.Assert(s.CAS.UpsertRemoteCertificate(ca2, 0), IsNil)
-
-	_, pub3, err := a.GenerateKeyPair("")
-	c.Assert(err, IsNil)
-	key3, _, _, _, err := ssh.ParseAuthorizedKey(pub3)
-	c.Assert(err, IsNil)
-
-	remoteUserCAs, err := s.clt.GetRemoteCertificates(services.UserCert, "")
-	c.Assert(err, IsNil)
-	remoteHostCAs, err := s.clt.GetRemoteCertificates(services.HostCert, "")
-	c.Assert(err, IsNil)
-
-	trustedUserCertificates, err := s.clt.GetTrustedCertificates(services.UserCert)
-	c.Assert(err, IsNil)
-	trustedHostCertificates, err := s.clt.GetTrustedCertificates(services.HostCert)
-	c.Assert(err, IsNil)
-
-	c.Assert(trustedUserCertificates, DeepEquals, append(remoteUserCAs, *userPubCA))
-	c.Assert(trustedHostCertificates, DeepEquals, append(remoteHostCAs, *hostPubCA))
-
-	id1, found, err := s.clt.GetCertificateID(services.UserCert, key1)
-	c.Assert(err, IsNil)
-	c.Assert(found, Equals, true)
-	c.Assert(id1, Equals, "id1")
-
-	id2, found, err := s.clt.GetCertificateID(services.UserCert, key2)
-	c.Assert(err, IsNil)
-	c.Assert(found, Equals, true)
-	c.Assert(id2, Equals, "c1")
-
-	_, found, err = s.clt.GetCertificateID(services.UserCert, key3)
-	c.Assert(err, IsNil)
-	c.Assert(found, Equals, false)
-}
-
-func (s *APISuite) TestUserMapping(c *C) {
-	c.Assert(s.clt.UpsertUserMapping("a1", "b1", "c1", 0), IsNil)
-	c.Assert(s.clt.UpsertUserMapping("a2", "b2", "c2", 0), IsNil)
-	c.Assert(s.clt.UpsertUserMapping("a3", "b3", "c3", 0), IsNil)
-	c.Assert(s.clt.UpsertUserMapping("a4", "b4", "c4", time.Millisecond*500), IsNil)
-
-	ok, err := s.clt.UserMappingExists("a1", "b1", "c1")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
-	ok, err = s.clt.UserMappingExists("a2", "b2", "c2")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
-	ok, err = s.clt.UserMappingExists("a3", "b3", "c3")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
-	ok, err = s.clt.UserMappingExists("a4", "b4", "c4")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
-	ok, err = s.clt.UserMappingExists("a5", "b5", "c5")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, false)
-
-	c.Assert(s.clt.DeleteUserMapping("a2", "b2", "c2"), IsNil)
-
-	time.Sleep(time.Millisecond * 600)
-
-	ok, err = s.clt.UserMappingExists("a1", "b1", "c1")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
-	ok, err = s.clt.UserMappingExists("a2", "b2", "c2")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, false)
-	ok, err = s.clt.UserMappingExists("a3", "b3", "c3")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
-	ok, err = s.clt.UserMappingExists("a4", "b4", "c4")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, false)
-
-	hashes, err := s.clt.GetAllUserMappings()
-	c.Assert(err, IsNil)
-
-	c.Assert(s.clt.DeleteUserMapping("a1", "b1", "c1"), IsNil)
-
-	ok, err = s.clt.UserMappingExists("a1", "b1", "c1")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, false)
-	ok, err = s.clt.UserMappingExists("a2", "b2", "c2")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, false)
-	ok, err = s.clt.UserMappingExists("a3", "b3", "c3")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
-	ok, err = s.clt.UserMappingExists("a4", "b4", "c4")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, false)
-
-	c.Assert(s.CAS.UpdateUserMappings(hashes, time.Minute), IsNil)
-
-	ok, err = s.clt.UserMappingExists("a1", "b1", "c1")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
-	ok, err = s.clt.UserMappingExists("a2", "b2", "c2")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, false)
-	ok, err = s.clt.UserMappingExists("a3", "b3", "c3")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
-	ok, err = s.clt.UserMappingExists("a4", "b4", "c4")
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, false)
 }

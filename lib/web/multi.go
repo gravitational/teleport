@@ -30,7 +30,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/form"
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/session"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -206,7 +205,7 @@ func ErrorPageLink(message string) string {
 }
 
 func (h *MultiSiteHandler) logout(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	if err := session.ClearSession(w, h.cfg.DomainName); err != nil {
+	if err := ClearSession(w, h.cfg.DomainName); err != nil {
 		log.Errorf("failed to clear session: %v", err)
 		replyErr(w, http.StatusInternalServerError, fmt.Errorf("failed to logout"))
 		return
@@ -233,7 +232,7 @@ func (h *MultiSiteHandler) authForm(w http.ResponseWriter, r *http.Request, p ht
 		http.Redirect(w, r, "/web/loginerror", http.StatusFound)
 		return
 	}
-	if err := session.SetSession(w, h.cfg.DomainName, user, sid); err != nil {
+	if err := SetSession(w, h.cfg.DomainName, user, sid); err != nil {
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -266,7 +265,13 @@ func (h *MultiSiteHandler) loginSSHProxy(w http.ResponseWriter, r *http.Request,
 		w.Write([]byte(trace.Wrap(err).Error()))
 		return
 	}
-	w.Write(cert)
+	out, err := json.Marshal(cert)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(trace.Wrap(err).Error()))
+		return
+	}
+	w.Write(out)
 }
 
 func (s *MultiSiteHandler) siteEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) error {
@@ -329,7 +334,7 @@ func (h *MultiSiteHandler) needsAuth(fn authHandle) httprouter.Handle {
 			http.Redirect(w, r, "/web/login", http.StatusFound)
 			return
 		}
-		d, err := session.DecodeCookie(cookie.Value)
+		d, err := DecodeCookie(cookie.Value)
 		if err != nil {
 			log.Warningf("failed to decode cookie '%v', err: %v", cookie.Value, err)
 			http.Redirect(w, r, "/web/login", http.StatusFound)

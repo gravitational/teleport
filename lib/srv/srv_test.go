@@ -17,6 +17,7 @@ package srv
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os/user"
@@ -25,8 +26,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
@@ -39,9 +42,9 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
-	"github.com/mailgun/lemma/secret"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	. "gopkg.in/check.v1"
@@ -57,21 +60,16 @@ type SrvSuite struct {
 	bk          *encryptedbk.ReplicatedBackend
 	a           *auth.AuthServer
 	up          *upack
-	scrt        secret.SecretService
 	signer      ssh.Signer
 	dir         string
 	user        string
+	domainName  string
 }
 
 var _ = Suite(&SrvSuite{})
 
 func (s *SrvSuite) SetUpSuite(c *C) {
 	utils.InitLoggerCLI()
-	key, err := secret.NewKey()
-	c.Assert(err, IsNil)
-	srv, err := secret.New(&secret.Config{KeyBytes: key})
-	c.Assert(err, IsNil)
-	s.scrt = srv
 }
 
 func (s *SrvSuite) SetUpTest(c *C) {
@@ -88,48 +86,48 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		encryptor.GetTestKey)
 	c.Assert(err, IsNil)
 
-	s.a = auth.NewAuthServer(s.bk, authority.New(), s.scrt, "host5")
+	s.domainName = "localhost"
+	s.a = auth.NewAuthServer(s.bk, authority.New(), s.domainName)
+
+	c.Assert(s.a.UpsertCertAuthority(*services.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(*services.NewTestCA(services.HostCA, s.domainName), backend.Forever), IsNil)
 
 	// set up host private key and certificate
-	c.Assert(s.a.ResetHostCertificateAuthority(""), IsNil)
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
-	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", auth.RoleAdmin, 0)
+	hcert, err := s.a.GenerateHostCert(hpub, s.domainName, s.domainName, teleport.RoleAdmin, 0)
 	c.Assert(err, IsNil)
 
 	// set up user CA and set up a user that has access to the server
-	c.Assert(s.a.ResetUserCertificateAuthority(""), IsNil)
-
 	s.signer, err = sshutils.NewSigner(hpriv, hcert)
 	c.Assert(err, IsNil)
 
 	limiter, err := limiter.NewLimiter(
 		limiter.LimiterConfig{
-			MaxConnections: 3,
+			MaxConnections: 100,
 			Rates: []limiter.Rate{
 				limiter.Rate{
-					Period:  10 * time.Second,
-					Average: 1,
-					Burst:   4,
+					Period:  1 * time.Second,
+					Average: 100,
+					Burst:   400,
 				},
 				limiter.Rate{
 					Period:  40 * time.Millisecond,
-					Average: 10,
-					Burst:   40,
+					Average: 1000,
+					Burst:   4000,
 				},
 			},
 		},
 	)
 	c.Assert(err, IsNil)
 
-	ap := auth.NewBackendAccessPoint(s.bk)
 	s.srvAddress = "127.0.0.1:30185"
-	s.srvHostPort = "localhost:30185"
+	s.srvHostPort = fmt.Sprintf("%v:30185", s.domainName)
 	srv, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srvAddress},
-		"localhost",
+		s.domainName,
 		[]ssh.Signer{s.signer},
-		ap,
+		s.a,
 		limiter,
 		s.dir,
 		SetShell("/bin/sh"),
@@ -152,7 +150,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(keyring.Add(addedKey), IsNil)
 	s.up = up
 
-	c.Assert(s.a.UpsertUserMapping("local", s.user, s.user, time.Hour), IsNil)
+	c.Assert(s.a.UpsertUser(services.User{Name: s.user, AllowedLogins: []string{s.user}}), IsNil)
 
 	sshConfig := &ssh.ClientConfig{
 		User: s.user,
@@ -245,7 +243,7 @@ func (s *SrvSuite) TestTun(c *C) {
 	c.Assert(removeNL(stdout.String()), Matches, ".*77.*")
 }
 
-func (s *SrvSuite) TestUserMapping(c *C) {
+func (s *SrvSuite) TestAllowedUsers(c *C) {
 	up, err := newUpack("user2", s.a)
 	c.Assert(err, IsNil)
 
@@ -257,43 +255,103 @@ func (s *SrvSuite) TestUserMapping(c *C) {
 	client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 	c.Assert(err, NotNil)
 
-	c.Assert(s.a.UpsertUserMapping("local", "user2", s.user, time.Hour), IsNil)
+	c.Assert(s.a.UpsertUser(services.User{Name: "user2", AllowedLogins: []string{s.user}}), IsNil)
 	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 	c.Assert(err, IsNil)
 	c.Assert(client.Close(), IsNil)
 
-	c.Assert(s.a.DeleteUserMapping("local", "user2", s.user), IsNil)
+	c.Assert(s.a.UpsertUser(services.User{Name: "user2", AllowedLogins: []string{}}), IsNil)
 	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 	c.Assert(err, NotNil)
 
-	c.Assert(s.a.UpsertUserMapping("local", "user2", "wrongOSUser", time.Hour), IsNil)
+	c.Assert(s.a.UpsertUser(services.User{Name: "user2", AllowedLogins: []string{"wrongosuser"}}), IsNil)
 	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 	c.Assert(err, NotNil)
+}
 
-	c.Assert(s.a.UpsertUserMapping("local", ".*", s.user, time.Hour), IsNil)
-	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
+// testClient dials targetAddr via proxyAddr and executes 2+3 command
+func (s *SrvSuite) testClient(c *C, proxyAddr, targetAddr, remoteAddr string, sshConfig *ssh.ClientConfig) {
+	// Connect to node using registered address
+	client, err := ssh.Dial("tcp", proxyAddr, sshConfig)
 	c.Assert(err, IsNil)
-	c.Assert(client.Close(), IsNil)
+	defer client.Close()
+
+	se, err := client.NewSession()
+	c.Assert(err, IsNil)
+	defer se.Close()
+
+	writer, err := se.StdinPipe()
+	c.Assert(err, IsNil)
+
+	reader, err := se.StdoutPipe()
+	c.Assert(err, IsNil)
+
+	// Request opening TCP connection to the remote host
+	c.Assert(se.RequestSubsystem(fmt.Sprintf("proxy:%v", targetAddr)), IsNil)
+
+	local, err := utils.ParseAddr("tcp://" + proxyAddr)
+	c.Assert(err, IsNil)
+	remote, err := utils.ParseAddr("tcp://" + remoteAddr)
+	c.Assert(err, IsNil)
+
+	pipeNetConn := utils.NewPipeNetConn(
+		reader,
+		writer,
+		se,
+		local,
+		remote,
+	)
+
+	defer pipeNetConn.Close()
+
+	log.Infof("bzz")
+
+	// Open SSH connection via TCP
+	conn, chans, reqs, err := ssh.NewClientConn(pipeNetConn,
+		s.srv.Addr(), sshConfig)
+	c.Assert(err, IsNil)
+	defer conn.Close()
+
+	log.Infof("bzz 1")
+
+	// using this connection as regular SSH
+	client2 := ssh.NewClient(conn, chans, reqs)
+	c.Assert(err, IsNil)
+	defer client2.Close()
+
+	log.Infof("bzz 2")
+
+	se2, err := client2.NewSession()
+	c.Assert(err, IsNil)
+	defer se2.Close()
+
+	log.Infof("bzz 3")
+
+	out, err := se2.Output("expr 2 + 3")
+	c.Assert(err, IsNil)
+
+	c.Assert(strings.Trim(string(out), " \n"), Equals, "5")
+
+	log.Infof("bzz 4")
 }
 
 func (s *SrvSuite) TestProxy(c *C) {
 	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{})
 	c.Assert(err, IsNil)
 
-	ap := auth.NewBackendAccessPoint(s.bk)
-	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:33056"}
+	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("%v:33056", s.domainName)}
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
-		ap, limiter)
+		s.a, limiter)
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
 	proxy, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
-		"localhost",
+		s.domainName,
 		[]ssh.Signer{s.signer},
-		ap,
+		s.a,
 		limiter,
 		s.dir,
 		SetProxyMode(reverseTunnelServer),
@@ -353,7 +411,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
 	}
 
-	c.Assert(s.a.UpsertUserMapping("local", "user1", s.user, time.Hour), IsNil)
+	c.Assert(s.a.UpsertUser(services.User{Name: "user1", AllowedLogins: []string{s.user}}), IsNil)
 
 	// Trying to connect to unregistered ssh node
 	client, err := ssh.Dial("tcp", proxy.Addr(), sshConfig)
@@ -385,75 +443,22 @@ func (s *SrvSuite) TestProxy(c *C) {
 		local,
 		remote,
 	)
-
 	// Open SSH connection via TCP
-	conn, chans, reqs, err := ssh.NewClientConn(pipeNetConn,
-		s.srv.Addr(), sshConfig)
+	_, _, _, err = ssh.NewClientConn(pipeNetConn, s.srv.Addr(), sshConfig)
 	c.Assert(err, NotNil)
 
 	client.Close()
 
-	testClient := func(targetNodeAddress string) {
-		// Connect to node using registered address
-		client, err := ssh.Dial("tcp", proxy.Addr(), sshConfig)
-		c.Assert(err, IsNil)
-		defer client.Close()
-
-		se, err := client.NewSession()
-		c.Assert(err, IsNil)
-		defer se.Close()
-
-		writer, err = se.StdinPipe()
-		c.Assert(err, IsNil)
-
-		reader, err = se.StdoutPipe()
-		c.Assert(err, IsNil)
-
-		// Request opening TCP connection to the remote host
-		c.Assert(se.RequestSubsystem(fmt.Sprintf("proxy:%v", targetNodeAddress)), IsNil)
-
-		local, err := utils.ParseAddr("tcp://" + proxy.Addr())
-		c.Assert(err, IsNil)
-		remote, err := utils.ParseAddr("tcp://" + s.srv.Addr())
-		c.Assert(err, IsNil)
-
-		pipeNetConn = utils.NewPipeNetConn(
-			reader,
-			writer,
-			se,
-			local,
-			remote,
-		)
-
-		// Open SSH connection via TCP
-		conn, chans, reqs, err = ssh.NewClientConn(pipeNetConn,
-			s.srv.Addr(), sshConfig)
-		c.Assert(err, IsNil)
-
-		// using this connection as regular SSH
-		client2 := ssh.NewClient(conn, chans, reqs)
-		c.Assert(err, IsNil)
-		defer client2.Close()
-
-		se2, err := client2.NewSession()
-		c.Assert(err, IsNil)
-		defer se2.Close()
-
-		out, err := se2.Output("expr 2 + 3")
-		c.Assert(err, IsNil)
-
-		c.Assert(strings.Trim(string(out), " \n"), Equals, "5")
-	}
-
-	testClient(s.srvAddress)
-	testClient(s.srvHostPort)
+	s.testClient(c, proxy.Addr(), s.srvAddress, s.srv.Addr(), sshConfig)
+	s.testClient(c, proxy.Addr(), s.srvHostPort, s.srv.Addr(), sshConfig)
 
 	// adding new node
+	bobAddr := "127.0.0.1:31185"
 	srv2, err := New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:31185"},
-		"localhost",
+		utils.NetAddr{AddrNetwork: "tcp", Addr: bobAddr},
+		"bob",
 		[]ssh.Signer{s.signer},
-		ap,
+		s.a,
 		limiter,
 		c.MkDir(),
 		SetShell("/bin/sh"),
@@ -493,9 +498,149 @@ func (s *SrvSuite) TestProxy(c *C) {
 
 	c.Assert(se3.RequestSubsystem("proxysites"), IsNil)
 	<-done
-	c.Assert(stdout.String(), Equals,
-		`{"localhost":[{"id":"127.0.0.1_30185","addr":"127.0.0.1:30185","hostname":"localhost","labels":null,"cmd_labels":null},`+
-			`{"id":"127.0.0.1_31185","addr":"127.0.0.1:31185","hostname":"localhost","labels":{"label1":"value1"},"cmd_labels":{"cmdLabel1":{"period":"1s","command":["expr","1","+","3"],"result":"4"},"cmdLabel2":{"period":"2s","command":["expr","2","+","3"],"result":"5"}}}]}`)
+	var sites map[string][]services.Server
+	c.Assert(json.Unmarshal(stdout.Bytes(), &sites), IsNil)
+	c.Assert(sites, NotNil)
+	nodes := sites["localhost"]
+	c.Assert(len(nodes), Equals, 2)
+	nmap := map[string]services.Server{}
+	for _, node := range nodes {
+		nmap[node.ID] = node
+	}
+	c.Assert(nmap["bob"], DeepEquals, services.Server{
+		ID:       "bob",
+		Addr:     bobAddr,
+		Hostname: "bob",
+		Labels:   map[string]string{"label1": "value1"},
+		CmdLabels: services.CommandLabels{
+			"cmdLabel1": services.CommandLabel{
+				Period:  time.Second,
+				Command: []string{"expr", "1", "+", "3"},
+				Result:  "4",
+			},
+			"cmdLabel2": services.CommandLabel{
+				Period:  time.Second * 2,
+				Command: []string{"expr", "2", "+", "3"},
+				Result:  "5",
+			}}})
+
+	c.Assert(nmap["localhost"], DeepEquals, services.Server{
+		ID:       "localhost",
+		Addr:     "127.0.0.1:30185",
+		Hostname: "localhost"})
+}
+
+func (s *SrvSuite) TestProxyRoundRobin(c *C) {
+	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{
+		MaxConnections:   100,
+		Rates:            []limiter.Rate{{Period: time.Second, Average: 100, Burst: 100}},
+		MaxNumberOfUsers: 100,
+	})
+	c.Assert(err, IsNil)
+
+	reverseTunnelAddress := utils.NetAddr{
+		AddrNetwork: "tcp",
+		Addr:        fmt.Sprintf("%v:33066", s.domainName),
+	}
+	reverseTunnelServer, err := reversetunnel.NewServer(
+		reverseTunnelAddress,
+		[]ssh.Signer{s.signer},
+		s.a, limiter,
+		reversetunnel.ServerTimeout(200*time.Millisecond),
+	)
+	c.Assert(err, IsNil)
+	c.Assert(reverseTunnelServer.Start(), IsNil)
+
+	proxy, err := New(
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+		s.domainName,
+		[]ssh.Signer{s.signer},
+		s.a,
+		limiter,
+		s.dir,
+		SetProxyMode(reverseTunnelServer),
+	)
+	c.Assert(err, IsNil)
+	c.Assert(proxy.Start(), IsNil)
+
+	// set up SSH client using the user private key for signing
+	up, err := newUpack("user1", s.a)
+	c.Assert(err, IsNil)
+
+	bl, err := boltlog.New(filepath.Join(s.dir, "eventsdb"))
+	c.Assert(err, IsNil)
+
+	rec, err := boltrec.New(s.dir)
+	c.Assert(err, IsNil)
+
+	apiSrv := auth.NewAPIWithRoles(s.a, bl, sess.New(s.bk), rec,
+		auth.NewAllowAllPermissions(),
+		auth.StandardRoles,
+	)
+	go apiSrv.Serve()
+
+	tsrv, err := auth.NewTunServer(
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:31438"},
+		[]ssh.Signer{s.signer},
+		apiSrv, s.a, limiter)
+	c.Assert(err, IsNil)
+	c.Assert(tsrv.Start(), IsNil)
+
+	user := "user1"
+	pass := []byte("utndkrn")
+
+	hotpURL, _, err := s.a.UpsertPassword(user, pass)
+	c.Assert(err, IsNil)
+	otp, _, err := hotp.FromURL(hotpURL)
+	c.Assert(err, IsNil)
+	otp.Increment()
+
+	authMethod, err := auth.NewWebPasswordAuth(user, pass, otp.OTP())
+	c.Assert(err, IsNil)
+
+	tunClt, err := auth.NewTunClient(
+		utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()}, user, authMethod)
+	c.Assert(err, IsNil)
+	defer tunClt.Close()
+
+	// start agent and load balance requests
+	rsAgent, err := reversetunnel.NewAgent(
+		reverseTunnelAddress,
+		"localhost",
+		[]ssh.Signer{s.signer}, tunClt)
+	c.Assert(err, IsNil)
+	c.Assert(rsAgent.Start(), IsNil)
+
+	rsAgent2, err := reversetunnel.NewAgent(
+		reverseTunnelAddress,
+		"localhost",
+		[]ssh.Signer{s.signer}, tunClt)
+	c.Assert(err, IsNil)
+	c.Assert(rsAgent2.Start(), IsNil)
+	defer rsAgent2.Close()
+
+	sshConfig := &ssh.ClientConfig{
+		User: s.user,
+		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+	}
+
+	c.Assert(s.a.UpsertUser(services.User{
+		Name:          "user1",
+		AllowedLogins: []string{s.user}}), IsNil)
+
+	for i := 0; i < 3; i++ {
+		s.testClient(c, proxy.Addr(), s.srvAddress, s.srv.Addr(), sshConfig)
+	}
+
+	// close first connection, and test it again
+	rsAgent.Close()
+
+	log.Infof("AFTER CLOSEafter close")
+
+	for i := 0; i < 3; i++ {
+		log.Infof("test client: %v", i)
+		s.testClient(c, proxy.Addr(), s.srvAddress, s.srv.Addr(), sshConfig)
+	}
 
 }
 
@@ -549,14 +694,47 @@ func (s *SrvSuite) TestClientDisconnect(c *C) {
 }
 
 func (s *SrvSuite) TestLimiter(c *C) {
+	limiter, err := limiter.NewLimiter(
+		limiter.LimiterConfig{
+			MaxConnections: 2,
+			Rates: []limiter.Rate{
+				limiter.Rate{
+					Period:  10 * time.Second,
+					Average: 1,
+					Burst:   3,
+				},
+				limiter.Rate{
+					Period:  40 * time.Millisecond,
+					Average: 10,
+					Burst:   30,
+				},
+			},
+		},
+	)
+	c.Assert(err, IsNil)
+
+	srvAddress := "127.0.0.1:30285"
+	srv, err := New(
+		utils.NetAddr{AddrNetwork: "tcp", Addr: srvAddress},
+		s.domainName,
+		[]ssh.Signer{s.signer},
+		s.a,
+		limiter,
+		s.dir,
+		SetShell("/bin/sh"),
+	)
+	c.Assert(err, IsNil)
+	c.Assert(srv.Start(), IsNil)
+	defer srv.Close()
+
 	// maxConnection = 3
-	// current connections = 1(one connection is opened from SetUpTest)
+	// current connections = 1 (one connection is opened from SetUpTest)
 	config := &ssh.ClientConfig{
 		User: s.user,
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(s.up.certSigner)},
 	}
 
-	clt0, err := ssh.Dial("tcp", s.srv.Addr(), config)
+	clt0, err := ssh.Dial("tcp", srv.Addr(), config)
 	c.Assert(clt0, NotNil)
 	c.Assert(err, IsNil)
 	se0, err := clt0.NewSession()
@@ -564,7 +742,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 	c.Assert(se0.Shell(), IsNil)
 
 	// current connections = 2
-	clt, err := ssh.Dial("tcp", s.srv.Addr(), config)
+	clt, err := ssh.Dial("tcp", srv.Addr(), config)
 	c.Assert(clt, NotNil)
 	c.Assert(err, IsNil)
 	se, err := clt.NewSession()
@@ -572,7 +750,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 	c.Assert(se.Shell(), IsNil)
 
 	// current connections = 3
-	_, err = ssh.Dial("tcp", s.srv.Addr(), config)
+	_, err = ssh.Dial("tcp", srv.Addr(), config)
 	c.Assert(err, NotNil)
 
 	c.Assert(se.Close(), IsNil)
@@ -580,7 +758,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 	time.Sleep(50 * time.Millisecond)
 
 	// current connections = 2
-	clt, err = ssh.Dial("tcp", s.srv.Addr(), config)
+	clt, err = ssh.Dial("tcp", srv.Addr(), config)
 	c.Assert(clt, NotNil)
 	c.Assert(err, IsNil)
 	se, err = clt.NewSession()
@@ -588,7 +766,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 	c.Assert(se.Shell(), IsNil)
 
 	// current connections = 3
-	_, err = ssh.Dial("tcp", s.srv.Addr(), config)
+	_, err = ssh.Dial("tcp", srv.Addr(), config)
 	c.Assert(err, NotNil)
 
 	c.Assert(se.Close(), IsNil)
@@ -597,7 +775,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 
 	// current connections = 2
 	// requests rate should exceed now
-	clt, err = ssh.Dial("tcp", s.srv.Addr(), config)
+	clt, err = ssh.Dial("tcp", srv.Addr(), config)
 	c.Assert(clt, NotNil)
 	c.Assert(err, IsNil)
 	_, err = clt.NewSession()
@@ -636,7 +814,7 @@ func newUpack(user string, a *auth.AuthServer) (*upack, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	ucert, err := a.GenerateUserCert(upub, user, user, 0)
+	ucert, err := a.GenerateUserCert(upub, user, 0)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

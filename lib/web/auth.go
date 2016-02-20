@@ -16,13 +16,12 @@ limitations under the License.
 package web
 
 import (
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -33,38 +32,13 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type Cookie struct {
-	User string
-	SID  string
-}
-
-func EncodeCookie(user, sid string) (string, error) {
-	bytes, err := json.Marshal(Cookie{User: user, SID: sid})
-	if err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(bytes), nil
-}
-
-func DecodeCookie(b string) (*Cookie, error) {
-	bytes, err := hex.DecodeString(b)
-	if err != nil {
-		return nil, err
-	}
-	var c *Cookie
-	if err := json.Unmarshal(bytes, &c); err != nil {
-		return nil, err
-	}
-	return c, nil
-}
-
 type Context interface {
 	io.Closer
 	ConnectUpstream(addr string, user string) (*sshutils.Upstream, error)
 	GetAuthMethods() ([]ssh.AuthMethod, error)
 	GetWebSID() string
 	GetUser() string
-	GetClient() auth.ClientI
+	GetClient() (auth.ClientI, error)
 }
 
 type LocalContext struct {
@@ -73,8 +47,8 @@ type LocalContext struct {
 	clt  *auth.TunClient
 }
 
-func (c *LocalContext) GetClient() auth.ClientI {
-	return c.clt
+func (c *LocalContext) GetClient() (auth.ClientI, error) {
+	return c.clt, nil
 }
 
 func (c *LocalContext) GetUser() string {
@@ -123,7 +97,7 @@ type RequestHandler func(http.ResponseWriter, *http.Request, httprouter.Params, 
 type AuthHandler interface {
 	GetHost() string
 	Auth(user, pass string, hotpToken string) (string, error)
-	GetCertificate(c SSHLoginCredentials) ([]byte, error)
+	GetCertificate(c SSHLoginCredentials) (SSHLoginResponse, error)
 	NewUserForm(token string) (user string, QRImg []byte, hotpFirstValues []string, e error)
 	NewUserFinish(token, password, hotpToken string) error
 	ValidateSession(user, sid string) (Context, error)
@@ -174,23 +148,35 @@ func (s *LocalAuth) Auth(user, pass string, hotpToken string) (string, error) {
 	return clt.SignIn(user, []byte(pass))
 }
 
-func (s *LocalAuth) GetCertificate(c SSHLoginCredentials) ([]byte, error) {
+func (s *LocalAuth) GetCertificate(c SSHLoginCredentials) (SSHLoginResponse, error) {
 	method, err := auth.NewWebPasswordAuth(c.User, []byte(c.Password),
 		c.HOTPToken)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return SSHLoginResponse{}, trace.Wrap(err)
 	}
 
 	clt, err := auth.NewTunClient(s.authServers[0], c.User, method)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return SSHLoginResponse{}, trace.Wrap(err)
 	}
-	cert, err := clt.GenerateUserCert(c.PubKey, "id_"+c.User, c.User, c.TTL)
+	cert, err := clt.GenerateUserCert(c.PubKey, c.User, c.TTL)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return SSHLoginResponse{}, trace.Wrap(err)
+	}
+	hostSigners, err := clt.GetCertAuthorities(services.HostCA)
+	if err != nil {
+		return SSHLoginResponse{}, trace.Wrap(err)
 	}
 
-	return cert, nil
+	signers := []services.CertAuthority{}
+	for _, hs := range hostSigners {
+		signers = append(signers, *hs)
+	}
+
+	return SSHLoginResponse{
+		Cert:        cert,
+		HostSigners: signers,
+	}, nil
 }
 
 func (s *LocalAuth) NewUserForm(token string) (user string,

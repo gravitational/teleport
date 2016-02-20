@@ -13,7 +13,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-// package test contains a backend acceptance test suite that is backend implementation independant
+
+// Package test contains a backend acceptance test suite that is backend implementation independant
 // each backend will use the suite to test itself
 package test
 
@@ -58,7 +59,7 @@ func (s *BackendSuite) expectChanges(c *C, expected ...interface{}) {
 func (s *BackendSuite) BasicCRUD(c *C) {
 	keys, err := s.B.GetKeys([]string{"keys"})
 	c.Assert(err, IsNil)
-	c.Assert(keys, DeepEquals, []string{})
+	c.Assert(keys, IsNil)
 
 	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "bkey", []byte("val1"), 0), IsNil)
 	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "akey", []byte("val2"), 0), IsNil)

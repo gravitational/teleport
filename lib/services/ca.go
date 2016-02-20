@@ -13,355 +13,237 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+// Package services implements statefule services provided by teleport,
+// like certificate authority management, user and web sessions,
+// events and logs
 package services
 
 import (
-	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/sshutils"
+
+	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
 const (
-	HostCert = "host"
-	UserCert = "user"
+	// HostCA identifies the key as a host certificate authority
+	HostCA CertAuthType = "host"
+	// UserCA identifies the key as a user certificate authority
+	UserCA CertAuthType = "user"
 )
 
-type CAService struct {
-	backend backend.Backend
-	IsCache bool
+// CertAuthType specifies certificate authority type, user or host
+type CertAuthType string
+
+// Check checks if certificate authority type value is correct
+func (c CertAuthType) Check() error {
+	if c != HostCA && c != UserCA {
+		return trace.Wrap(&teleport.BadParameterError{
+			Param: "Type",
+			Err:   fmt.Sprintf("'%v' authority type is not supported", c),
+		})
+	}
+	return nil
 }
 
+// CertAuthID - id of certificate authority (it's type and domain name)
+type CertAuthID struct {
+	Type       CertAuthType `json:"type"`
+	DomainName string       `json:"domain_name"`
+}
+
+func (c *CertAuthID) String() string {
+	return fmt.Sprintf("CA(type=%v, domain=%v)", c.Type, c.DomainName)
+}
+
+// Check returns error if any of the id parameters are bad, nil otherwise
+func (c *CertAuthID) Check() error {
+	if err := c.Type.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	if !cstrings.IsValidDomainName(c.DomainName) {
+		return trace.Wrap(&teleport.BadParameterError{
+			Param: "DomainName",
+			Err:   fmt.Sprintf("'%v' is a bad domain name", c.DomainName),
+		})
+	}
+	return nil
+}
+
+// CAService is responsible for managing certificate authorities
+// Each authority is managing some domain, e.g. example.com
+//
+// There are two type of authorities, local and remote.
+// Local authorities have both private and public keys, so they can
+// sign public keys of users and hosts
+//
+// Remote authorities have only public keys available, so they can
+// be only used to validate
+type CAService struct {
+	backend backend.Backend
+}
+
+// NewCAService returns new instance of CAService
 func NewCAService(backend backend.Backend) *CAService {
 	return &CAService{backend: backend}
 }
 
-// UpsertUserCertificateAuthority upserts the user certificate authority keys in OpenSSH authorized_keys format
-func (s *CAService) UpsertUserCertificateAuthority(ca LocalCertificateAuthority) error {
-	ca.Type = UserCert
+// UpsertCertAuthority updates or inserts a new certificate authority
+func (s *CAService) UpsertCertAuthority(ca CertAuthority, ttl time.Duration) error {
+	if err := ca.Check(); err != nil {
+		return trace.Wrap(err)
+	}
 	out, err := json.Marshal(ca)
 	if err != nil {
-		log.Errorf(err.Error())
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal([]string{"ca"}, "userca", out, 0)
+	err = s.backend.UpsertVal([]string{"authorities", string(ca.Type)}, ca.DomainName, out, ttl)
 	if err != nil {
-		log.Errorf(err.Error())
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// GetCertificateAuthority returns private, public key and certificate for user CertificateAuthority
-func (s *CAService) GetUserPrivateCertificateAuthority() (*LocalCertificateAuthority, error) {
-	val, err := s.backend.GetVal([]string{"ca"}, "userca")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var ca LocalCertificateAuthority
-	err = json.Unmarshal(val, &ca)
-	if err != nil {
-		log.Errorf(err.Error())
-		return nil, trace.Wrap(err)
-	}
-
-	return &ca, nil
-}
-
-// GetUserCertificateAuthority returns the user certificate authority public key
-func (s *CAService) GetUserCertificateAuthority() (*CertificateAuthority, error) {
-	val, err := s.backend.GetVal([]string{"ca"}, "userca")
-	if err != nil {
-		return nil, err
-	}
-
-	var ca LocalCertificateAuthority
-	err = json.Unmarshal(val, &ca)
-	if err != nil {
-		log.Errorf(err.Error())
-		return nil, trace.Wrap(err)
-	}
-
-	return &ca.CertificateAuthority, nil
-}
-
-func (s *CAService) UpsertRemoteCertificate(cert CertificateAuthority, ttl time.Duration) error {
-	if cert.Type != HostCert && cert.Type != UserCert {
-		return trace.Errorf("unknown certificate type '%v'", cert.Type)
-	}
-
-	err := s.backend.UpsertVal(
-		[]string{"certs", cert.Type, "hosts", cert.DomainName},
-		cert.ID, cert.PublicKey, ttl,
-	)
-
-	if err != nil {
-		log.Errorf(err.Error())
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-//GetRemoteCertificates returns remote certificates with given type and domain.
-//If domainName is empty, it returns all certificates with given type
-func (s *CAService) GetRemoteCertificates(certType string,
-	domainName string) ([]CertificateAuthority, error) {
-
-	if certType != HostCert && certType != UserCert {
-		log.Errorf("Unknown certificate type '" + certType + "'")
-		return nil, trace.Errorf("Unknown certificate type '" + certType + "'")
+// DeleteCertAuthority deletes particular certificate authority
+func (s *CAService) DeleteCertAuthority(id CertAuthID) error {
+	if err := id.Check(); err != nil {
+		return trace.Wrap(err)
 	}
+	err := s.backend.DeleteKey([]string{"authorities", string(id.Type)}, id.DomainName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
 
-	if domainName != "" {
-		IDs, err := s.backend.GetKeys([]string{"certs", certType,
-			"hosts", domainName})
+// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
+// controls if signing keys are loaded
+func (s *CAService) GetCertAuthority(id CertAuthID, loadSigningKeys bool) (*CertAuthority, error) {
+	if err := id.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	val, err := s.backend.GetVal([]string{"authorities", string(id.Type)}, id.DomainName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var ca *CertAuthority
+	if err := json.Unmarshal(val, &ca); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := ca.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !loadSigningKeys {
+		ca.SigningKeys = nil
+	}
+	return ca, nil
+}
+
+// GetCertAuthorities returns a list of authorities of a given type without
+// signing keys loaded
+func (s *CAService) GetCertAuthorities(caType CertAuthType) ([]*CertAuthority, error) {
+	cas := []*CertAuthority{}
+	if caType != HostCA && caType != UserCA {
+		return nil, trace.Wrap(&teleport.BadParameterError{
+			Param: "caType",
+			Err:   fmt.Sprintf("'%v' is not supported type", caType),
+		})
+	}
+	domains, err := s.backend.GetKeys([]string{"authorities", string(caType)})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, domain := range domains {
+		ca, err := s.GetCertAuthority(CertAuthID{DomainName: domain, Type: caType}, false)
 		if err != nil {
-			log.Errorf(err.Error())
 			return nil, trace.Wrap(err)
 		}
-		certs := make([]CertificateAuthority, len(IDs))
-		for i, id := range IDs {
-			certs[i].Type = certType
-			certs[i].DomainName = domainName
-			certs[i].ID = id
-			value, err := s.backend.GetVal(
-				[]string{"certs", certType, "hosts", domainName}, id)
-			if err != nil {
-				log.Errorf(err.Error())
-				return nil, trace.Wrap(err)
-			}
-			certs[i].PublicKey = value
-		}
-		return certs, nil
-	} else {
-		DomainNames, err := s.backend.GetKeys([]string{"certs", certType,
-			"hosts"})
-		if err != nil {
-			log.Errorf(err.Error())
-			return nil, trace.Wrap(err)
-		}
-		allCerts := make([]CertificateAuthority, 0)
-		for _, f := range DomainNames {
-			certs, err := s.GetRemoteCertificates(certType, f)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			allCerts = append(allCerts, certs...)
-		}
-		return allCerts, nil
+		cas = append(cas, ca)
 	}
-
+	return cas, nil
 }
 
-func (s *CAService) DeleteRemoteCertificate(certType, domainName, id string) error {
-	if certType != HostCert && certType != UserCert {
-		log.Errorf("Unknown certificate type '" + certType + "'")
-		return trace.Errorf("Unknown certificate type '" + certType + "'")
-	}
-
-	err := s.backend.DeleteKey(
-		[]string{"certs", certType, "hosts", domainName},
-		id,
-	)
-
-	if err != nil {
-		return trace.Wrap(err)
-	} else {
-		return nil
-	}
-}
-
-// UpsertHostCertificateAuthority upserts host certificate authority keys in OpenSSH authorized_keys format
-func (s *CAService) UpsertHostCertificateAuthority(ca LocalCertificateAuthority) error {
-	ca.Type = HostCert
-	out, err := json.Marshal(ca)
-	if err != nil {
-		log.Errorf(err.Error())
-		return trace.Wrap(err)
-	}
-	err = s.backend.UpsertVal([]string{"ca"}, "hostca", out, 0)
-	if err != nil {
-		log.Errorf(err.Error())
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// GetHostPrivateCertificateAuthority returns private, public key and certificate for host CA
-func (s *CAService) GetHostPrivateCertificateAuthority() (*LocalCertificateAuthority, error) {
-	val, err := s.backend.GetVal([]string{"ca"}, "hostca")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var ca LocalCertificateAuthority
-	err = json.Unmarshal(val, &ca)
-	if err != nil {
-		log.Errorf(err.Error())
-		return nil, trace.Wrap(err)
-	}
-
-	return &ca, nil
-}
-
-// GetHostCertificateAuthority returns the host certificate authority certificate
-func (s *CAService) GetHostCertificateAuthority() (*CertificateAuthority, error) {
-	val, err := s.backend.GetVal([]string{"ca"}, "hostca")
-	if err != nil {
-		return nil, err
-	}
-
-	var ca LocalCertificateAuthority
-	err = json.Unmarshal(val, &ca)
-	if err != nil {
-		log.Errorf(err.Error())
-		return nil, trace.Wrap(err)
-	}
-
-	return &ca.CertificateAuthority, nil
-}
-
-func (s *CAService) GetTrustedCertificates(certType string) ([]CertificateAuthority, error) {
-	certs := []CertificateAuthority{}
-	remoteCerts, err := s.GetRemoteCertificates(certType, "")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certs = append(certs, remoteCerts...)
-
-	if !s.IsCache {
-		if certType == "" || certType == UserCert {
-			userCert, err := s.GetUserCertificateAuthority()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			certs = append(certs, *userCert)
-		}
-
-		if certType == "" || certType == HostCert {
-			hostCert, err := s.GetHostCertificateAuthority()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			certs = append(certs, *hostCert)
-		}
-	}
-
-	return certs, nil
-}
-
-func (s *CAService) GetCertificateID(certType string, key ssh.PublicKey) (ID string, found bool, e error) {
-	certs, err := s.GetTrustedCertificates(certType)
-	if err != nil {
-		return "", false, trace.Wrap(err)
-	}
-	for _, cert := range certs {
-		parsedKey, _, _, _, err := ssh.ParseAuthorizedKey(cert.PublicKey)
-		if err != nil {
-			log.Errorf("failed to parse CA public key '%v', err: %v",
-				string(cert.PublicKey), err)
-			continue
-		}
-		if sshutils.KeysEqual(key, parsedKey) {
-			return cert.ID, true, nil
-		}
-	}
-	return "", false, nil
-}
-
-type LocalCertificateAuthority struct {
-	CertificateAuthority `json:"public"`
-	PrivateKey           []byte `json:"private_key"`
-}
-
-type CertificateAuthority struct {
-	Type       string `json:"type"`
-	ID         string `json:"id"`
+// CertAuthority is a host or user certificate authority that
+// can check and if it has private key stored as well, sign it too
+type CertAuthority struct {
+	// Type is either user or host certificate authority
+	Type CertAuthType `json:"type"`
+	// DomainName identifies domain name this authority serves,
+	// for host authorities that means base hostname of all servers,
+	// for user authorities that means organization name
 	DomainName string `json:"domain_name"`
-	PublicKey  []byte `json:"public_key"`
+	// Checkers is a list of SSH public keys that can be used to check
+	// certificate signatures
+	CheckingKeys [][]byte `json:"checking_keys"`
+	// SigningKeys is a list of private keys used for signing
+	SigningKeys [][]byte `json:"signing_keys"`
+	// AllowedLogins is a list of allowed logins for users within
+	// this certificate authority
+	AllowedLogins []string `json:"allowed_logins"`
 }
 
-// Marshall user mapping into string
-func UserMappingID(certificateID, teleportUser, osUser string) (string, error) {
-	jsonString, err := json.Marshal([]string{certificateID, teleportUser, osUser})
-	if err != nil {
-		return "", trace.Wrap(err)
+// FirstSigningKey returns first signing key or returns error if it's not here
+func (ca *CertAuthority) FirstSigningKey() ([]byte, error) {
+	if len(ca.SigningKeys) == 0 {
+		return nil, trace.Wrap(&teleport.NotFoundError{
+			Message: fmt.Sprintf("%v has no signing keys", ca.ID()),
+		})
 	}
-	b64str := base64.StdEncoding.EncodeToString(jsonString)
-	return string(b64str), nil
+	return ca.SigningKeys[0], nil
 }
 
-// Unmarshall user mapping from string
-func ParseUserMappingID(id string) (certificateID, teleportUser, osUser string, e error) {
-	jsonString, err := base64.StdEncoding.DecodeString(id)
-	if err != nil {
-		return "", "", "", trace.Wrap(err)
-	}
-	var values []string
-	err = json.Unmarshal(jsonString, &values)
-	if err != nil {
-		return "", "", "", trace.Wrap(err)
-	}
-	if len(values) != 3 {
-		return "", "", "", trace.Errorf("parsing error")
-	}
-	return values[0], values[1], values[2], nil
+// ID returns id (consisting of domain name and type) that
+// identifies the authority this key belongs to
+func (ca *CertAuthority) ID() *CertAuthID {
+	return &CertAuthID{DomainName: ca.DomainName, Type: ca.Type}
 }
 
-func (s *CAService) UpsertUserMapping(certificateID, teleportUser, osUser string, ttl time.Duration) error {
-	id, err := UserMappingID(certificateID, teleportUser, osUser)
-	err = s.backend.UpsertVal([]string{"usermap"}, id, []byte("ok"), ttl)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func (s *CAService) UserMappingExists(certificateID, teleportUser, osUser string) (bool, error) {
-	id, err := UserMappingID(certificateID, teleportUser, osUser)
-	val, err := s.backend.GetVal([]string{"usermap"}, id)
-	if err != nil {
-		return false, nil
-	}
-	if string(val) != "ok" {
-		return false, trace.Errorf("Value should be 'ok'")
-	}
-	return true, nil
-}
-
-func (s *CAService) DeleteUserMapping(certificateID, teleportUser, osUser string) error {
-	id, err := UserMappingID(certificateID, teleportUser, osUser)
-	err = s.backend.DeleteKey([]string{"usermap"}, id)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func (s *CAService) GetAllUserMappings() (IDs []string, e error) {
-	IDs, err := s.backend.GetKeys([]string{"usermap"})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return IDs, nil
-}
-
-func (s *CAService) UpdateUserMappings(IDs []string, ttl time.Duration) error {
-	for _, id := range IDs {
-		err := s.backend.UpsertVal([]string{"usermap"}, id, []byte("ok"), ttl)
+// Checkers returns public keys that can be used to check cert authorities
+func (ca *CertAuthority) Checkers() ([]ssh.PublicKey, error) {
+	out := make([]ssh.PublicKey, 0, len(ca.CheckingKeys))
+	for _, keyBytes := range ca.CheckingKeys {
+		key, _, _, _, err := ssh.ParseAuthorizedKey(keyBytes)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
+		out = append(out, key)
+	}
+	return out, nil
+}
+
+// Signers returns a list of signers that could be used to sign keys
+func (ca *CertAuthority) Signers() ([]ssh.Signer, error) {
+	out := make([]ssh.Signer, 0, len(ca.SigningKeys))
+	for _, keyBytes := range ca.SigningKeys {
+		signer, err := ssh.ParsePrivateKey(keyBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, signer)
+	}
+	return out, nil
+}
+
+// Check checks if all passed parameters are valid
+func (ca *CertAuthority) Check() error {
+	err := ca.ID().Check()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = ca.Checkers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = ca.Signers()
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
-
-const (
-	UserMappingWildcard = ".*"
-)

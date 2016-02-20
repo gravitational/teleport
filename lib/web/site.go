@@ -29,7 +29,6 @@ import (
 	"sync"
 	"time"
 
-	"code.google.com/p/go-uuid/uuid"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -41,6 +40,7 @@ import (
 	"github.com/gravitational/form"
 	"github.com/gravitational/roundtrip"
 	"github.com/julienschmidt/httprouter"
+	"github.com/pborman/uuid"
 )
 
 // SiteHandler implements methods for single site
@@ -343,7 +343,13 @@ func (s *SiteHandler) uploadFile(w http.ResponseWriter, r *http.Request, _ httpr
 }
 
 func (s *SiteHandler) getSessions(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) {
-	ses, err := c.GetClient().GetSessions()
+	clt, err := c.GetClient()
+	if err != nil {
+		log.Errorf("failed to get client: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	ses, err := clt.GetSessions()
 	if err != nil {
 		log.Errorf("failed to retrieve sessions: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
@@ -370,7 +376,13 @@ func (s *SiteHandler) getChunks(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	recordID := p[0].Value
-	rdr, err := c.GetClient().GetChunkReader(recordID)
+	clt, err := c.GetClient()
+	if err != nil {
+		log.Errorf("failed to get client: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	rdr, err := clt.GetChunkReader(recordID)
 	if err != nil {
 		log.Errorf("failed to retrieve reader: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
@@ -402,8 +414,13 @@ func (s *SiteHandler) sendMessage(w http.ResponseWriter, r *http.Request, p http
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
-
-	c.GetClient().Log(lunk.NewRootEventID(), &events.Message{
+	clt, err := c.GetClient()
+	if err != nil {
+		log.Errorf("failed to get client: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	clt.Log(lunk.NewRootEventID(), &events.Message{
 		SessionID: sid,
 		User:      c.GetUser(),
 		Message:   message,
@@ -413,19 +430,25 @@ func (s *SiteHandler) sendMessage(w http.ResponseWriter, r *http.Request, p http
 }
 
 func (s *SiteHandler) getSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) {
-	ses, err := c.GetClient().GetSession(p[0].Value)
+	clt, err := c.GetClient()
+	if err != nil {
+		log.Errorf("failed to get client: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	ses, err := clt.GetSession(p[0].Value)
 	if err != nil {
 		if !teleport.IsNotFound(err) {
 			log.Errorf("failed to retrieve session: %v", err)
 			replyErr(w, http.StatusInternalServerError, err)
 			return
 		}
-		if err = c.GetClient().UpsertSession(p[0].Value, 60*time.Second); err != nil {
+		if err = clt.UpsertSession(p[0].Value, 60*time.Second); err != nil {
 			log.Errorf("failed to upsert session: %v", err)
 			replyErr(w, http.StatusInternalServerError, err)
 			return
 		}
-		if ses, err = c.GetClient().GetSession(p[0].Value); err != nil {
+		if ses, err = clt.GetSession(p[0].Value); err != nil {
 			log.Errorf("failed to upsert session: %v", err)
 			replyErr(w, http.StatusInternalServerError, err)
 			return
@@ -437,13 +460,13 @@ func (s *SiteHandler) getSession(w http.ResponseWriter, r *http.Request, p httpr
 		Limit:     20,
 		Start:     time.Now(),
 	}
-	events, err := c.GetClient().GetEvents(f)
+	events, err := clt.GetEvents(f)
 	if err != nil {
 		log.Errorf("failed to retrieve servers: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
-	srvs, err := c.GetClient().GetServers()
+	srvs, err := clt.GetServers()
 	if err != nil {
 		log.Errorf("failed to retrieve servers: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
@@ -458,7 +481,13 @@ func (s *SiteHandler) getSession(w http.ResponseWriter, r *http.Request, p httpr
 }
 
 func (s *SiteHandler) getServers(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) {
-	servers, err := c.GetClient().GetServers()
+	clt, err := c.GetClient()
+	if err != nil {
+		log.Errorf("failed to get client: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	servers, err := clt.GetServers()
 	if err != nil {
 		log.Errorf("failed to retrieve servers: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
@@ -479,7 +508,13 @@ func (s *SiteHandler) connect(w http.ResponseWriter, r *http.Request, p httprout
 }
 
 func (s *SiteHandler) getWebTun(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) {
-	tun, err := c.GetClient().GetWebTun(p[0].Value)
+	clt, err := c.GetClient()
+	if err != nil {
+		log.Errorf("failed to get client: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	tun, err := clt.GetWebTun(p[0].Value)
 	if err != nil {
 		replyErr(w, http.StatusInternalServerError, err)
 		return
@@ -488,7 +523,13 @@ func (s *SiteHandler) getWebTun(w http.ResponseWriter, r *http.Request, p httpro
 }
 
 func (s *SiteHandler) deleteWebTun(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) {
-	if err := c.GetClient().DeleteWebTun(p[0].Value); err != nil {
+	clt, err := c.GetClient()
+	if err != nil {
+		log.Errorf("failed to get client: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if err := clt.DeleteWebTun(p[0].Value); err != nil {
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -496,7 +537,13 @@ func (s *SiteHandler) deleteWebTun(w http.ResponseWriter, r *http.Request, p htt
 }
 
 func (s *SiteHandler) getWebTuns(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) {
-	tuns, err := c.GetClient().GetWebTuns()
+	clt, err := c.GetClient()
+	if err != nil {
+		log.Errorf("failed to get client: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	tuns, err := clt.GetWebTuns()
 	if err != nil {
 		log.Errorf("failed to retrieve tunnels: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
@@ -523,7 +570,13 @@ func (s *SiteHandler) upsertWebTun(w http.ResponseWriter, r *http.Request, _ htt
 		roundtrip.ReplyJSON(w, http.StatusBadRequest, message(err.Error()))
 		return
 	}
-	if err := c.GetClient().UpsertWebTun(*wt, 0); err != nil {
+	clt, err := c.GetClient()
+	if err != nil {
+		log.Errorf("failed to get client: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if err := clt.UpsertWebTun(*wt, 0); err != nil {
 		log.Errorf("failed to upsert keys: %v", err)
 		roundtrip.ReplyJSON(w, http.StatusBadRequest, err.Error())
 		return
@@ -538,7 +591,13 @@ func (s *SiteHandler) getEvents(w http.ResponseWriter, r *http.Request, _ httpro
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
-	events, err := c.GetClient().GetEvents(*f)
+	clt, err := c.GetClient()
+	if err != nil {
+		log.Errorf("failed to get client: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	events, err := clt.GetEvents(*f)
 	if err != nil {
 		log.Errorf("failed to retrieve events: %v", err)
 		replyErr(w, http.StatusInternalServerError, err)
@@ -572,7 +631,13 @@ func (s *SiteHandler) newSession(w http.ResponseWriter, r *http.Request, _ httpr
 		return
 	}
 	sid := uuid.New()
-	if err := c.GetClient().UpsertSession(sid, 30*time.Second); err != nil {
+	clt, err := c.GetClient()
+	if err != nil {
+		log.Errorf("failed to get client: %v", err)
+		replyErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if err := clt.UpsertSession(sid, 30*time.Second); err != nil {
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}

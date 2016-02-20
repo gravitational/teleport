@@ -19,9 +19,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gokyle/hotp"
-
+	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
@@ -34,14 +34,13 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/mailgun/lemma/secret"
+	"github.com/gokyle/hotp"
 	"golang.org/x/crypto/ssh"
 	. "gopkg.in/check.v1"
 )
 
 type TunSuite struct {
-	bk   *encryptedbk.ReplicatedBackend
-	scrt secret.SecretService
+	bk *encryptedbk.ReplicatedBackend
 
 	srv    *APIWithRoles
 	tsrv   *TunServer
@@ -56,11 +55,6 @@ var _ = Suite(&TunSuite{})
 
 func (s *TunSuite) SetUpSuite(c *C) {
 	utils.InitLoggerCLI()
-	key, err := secret.NewKey()
-	c.Assert(err, IsNil)
-	srv, err := secret.New(&secret.Config{KeyBytes: key})
-	c.Assert(err, IsNil)
-	s.scrt = srv
 }
 
 func (s *TunSuite) TearDownTest(c *C) {
@@ -83,7 +77,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 	s.rec, err = boltrec.New(s.dir)
 	c.Assert(err, IsNil)
 
-	s.a = NewAuthServer(s.bk, authority.New(), s.scrt, "host2")
+	s.a = NewAuthServer(s.bk, authority.New(), "localhost")
 	s.srv = NewAPIWithRoles(s.a, s.bl, session.New(s.bk), s.rec,
 		NewStandardPermissions(),
 		StandardRoles,
@@ -91,10 +85,12 @@ func (s *TunSuite) SetUpTest(c *C) {
 	go s.srv.Serve()
 
 	// set up host private key and certificate
-	c.Assert(s.a.ResetHostCertificateAuthority(""), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(
+		*services.NewTestCA(services.HostCA, "localhost"), backend.Forever), IsNil)
+
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
-	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", RoleNode, 0)
+	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", teleport.RoleNode, 0)
 	c.Assert(err, IsNil)
 
 	signer, err := sshutils.NewSigner(hpriv, hcert)
@@ -158,7 +154,8 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 }
 
 func (s *TunSuite) TestSessions(c *C) {
-	c.Assert(s.a.ResetUserCertificateAuthority(""), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(
+		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	user := "ws-test"
 	pass := []byte("ws-abc123")
@@ -204,7 +201,8 @@ func (s *TunSuite) TestSessions(c *C) {
 }
 
 func (s *TunSuite) TestWebCreatingNewUser(c *C) {
-	c.Assert(s.a.ResetUserCertificateAuthority(""), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(
+		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	TokenTTLAfterUse = time.Millisecond * 300
 	user := "user456"
@@ -327,7 +325,8 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 }
 
 func (s *TunSuite) TestPermissions(c *C) {
-	c.Assert(s.a.ResetUserCertificateAuthority(""), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(
+		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	user := "ws-test2"
 	pass := []byte("ws-abc1234")
@@ -389,7 +388,8 @@ func (s *TunSuite) TestPermissions(c *C) {
 }
 
 func (s *TunSuite) TestSessionsBadPassword(c *C) {
-	c.Assert(s.a.ResetUserCertificateAuthority(""), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(
+		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	user := "system-test"
 	pass := []byte("system-abc123")
@@ -417,5 +417,4 @@ func (s *TunSuite) TestSessionsBadPassword(c *C) {
 	ws, err = clt.SignIn("not-exists", pass)
 	c.Assert(err, NotNil)
 	c.Assert(ws, Equals, "")
-
 }

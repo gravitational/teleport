@@ -23,7 +23,6 @@ import (
 	"os/exec"
 	"syscall"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -90,10 +89,10 @@ func (e *execFn) start(sconn *ssh.ServerConn, shell string, ch ssh.Channel) (*ex
 	}
 
 	if err := e.cmd.Start(); err != nil {
-		log.Infof("%v %v start failure err: %v", e.ctx, e, err)
+		e.ctx.Warningf("%v start failure err: %v", e, err)
 		return e.collectStatus(e.cmd, err)
 	}
-	log.Infof("%v %v started", e.ctx, e)
+	e.ctx.Infof("%v started", e)
 	return nil, nil
 }
 
@@ -109,7 +108,7 @@ func (e *execFn) collectStatus(cmd *exec.Cmd, err error) (*execResult, error) {
 
 func (e *execFn) wait() (*execResult, error) {
 	if e.cmd.Process == nil {
-		log.Errorf("%v no process", e)
+		e.ctx.Errorf("no process")
 	}
 	return e.collectStatus(e.cmd, e.cmd.Wait())
 }
