@@ -222,7 +222,7 @@ func (s *LocalAuth) ValidateSession(user, sid string) (Context, error) {
 		log.Infof("failed to connect: %v", clt, err)
 		return nil, err
 	}
-	if _, err := clt.GetWebSession(user, sid); err != nil {
+	if _, err := clt.GetWebSessionID(user, sid); err != nil {
 		log.Infof("session not found: %v", err)
 		return nil, err
 	}

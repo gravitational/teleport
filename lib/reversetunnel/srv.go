@@ -27,14 +27,12 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/codahale/lunk"
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -53,14 +51,12 @@ type RemoteSite interface {
 	Dial(network, addr string) (net.Conn, error)
 	// GetLastConnected returns last time the remote site was seen connected
 	GetLastConnected() time.Time
-	// GetName returns site name (identified
+	// GetName returns site name (identified by authority domain's name)
 	GetName() string
 	// GetStatus returns status of this site (either offline or connected)
 	GetStatus() string
-	// GetClient returns client API to the remote site's auth server
-	GetClient() (*auth.Client, error)
-	// GetServers returns servers registered on this site
-	GetServers() ([]services.Server, error)
+	// GetClient returns client connected to remote auth server
+	GetClient() (auth.ClientI, error)
 	// GetHangoutInfo returns hangout info (used only if the site is in hangout mode
 	GetHangoutInfo() (hostKey *services.CertAuthority, OSUser, AuthPort, NodePort string)
 }
@@ -82,14 +78,15 @@ type Server interface {
 type server struct {
 	sync.RWMutex
 
-	ap              auth.AccessPoint
+	localAuth       auth.ClientI
 	hostCertChecker ssh.CertChecker
 	userCertChecker ssh.CertChecker
 	l               net.Listener
 	srv             *sshutils.Server
 	timeout         time.Duration
 
-	sites []*remoteSite
+	tunnelSites []*tunnelSite
+	directSites []*directSite
 }
 
 // ServerOption sets reverse tunnel server options
@@ -102,12 +99,21 @@ func ServerTimeout(duration time.Duration) ServerOption {
 	}
 }
 
+// DirectSite instructs server to proxy access to this site not using
+// reverse tunnel
+func DirectSite(domainName string, clt auth.ClientI) ServerOption {
+	return func(s *server) {
+		s.directSites = append(s.directSites, newDirectSite(domainName, clt))
+	}
+}
+
 // NewServer returns an unstarted server
 func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
-	ap auth.AccessPoint, limiter *limiter.Limiter, opts ...ServerOption) (Server, error) {
+	clt auth.ClientI, limiter *limiter.Limiter, opts ...ServerOption) (Server, error) {
 	srv := &server{
-		sites: []*remoteSite{},
-		ap:    ap,
+		directSites: []*directSite{},
+		tunnelSites: []*tunnelSite{},
+		localAuth:   clt,
 	}
 
 	for _, o := range opts {
@@ -156,7 +162,7 @@ func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.New
 	switch nch.ChannelType() {
 	case chanHeartbeat:
 		log.Infof("got heartbeat request from agent: %v", sconn)
-		var site *remoteSite
+		var site *tunnelSite
 		var err error
 
 		switch sconn.Permissions.Extensions[extCertType] {
@@ -219,7 +225,7 @@ func (s *server) isUserAuthority(auth ssh.PublicKey) bool {
 }
 
 func (s *server) getTrustedCAKeys(CertType services.CertAuthType) ([]ssh.PublicKey, error) {
-	cas, err := s.ap.GetCertAuthorities(CertType)
+	cas, err := s.localAuth.GetCertAuthorities(CertType)
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +241,7 @@ func (s *server) getTrustedCAKeys(CertType services.CertAuthType) ([]ssh.PublicK
 }
 
 func (s *server) checkTrustedKey(CertType services.CertAuthType, domainName string, key ssh.PublicKey) error {
-	cas, err := s.ap.GetCertAuthorities(CertType)
+	cas, err := s.localAuth.GetCertAuthorities(CertType)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -329,14 +335,14 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	}
 }
 
-func (s *server) upsertRegularSite(conn net.Conn, sshConn *ssh.ServerConn) (*remoteSite, error) {
+func (s *server) upsertRegularSite(conn net.Conn, sshConn *ssh.ServerConn) (*tunnelSite, error) {
 	domainName := sshConn.Permissions.Extensions[extAuthority]
 	if !cstrings.IsValidDomainName(domainName) {
 		return nil, trace.Wrap(teleport.BadParameter(
 			"authDomain", fmt.Sprintf("'%v' is a bad domain name", domainName)))
 	}
-	var site *remoteSite
-	for _, st := range s.sites {
+	var site *tunnelSite
+	for _, st := range s.tunnelSites {
 		if st.domainName == domainName {
 			site = st
 			break
@@ -360,17 +366,17 @@ func (s *server) upsertRegularSite(conn net.Conn, sshConn *ssh.ServerConn) (*rem
 		if err := site.addConn(conn, sshConn); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		s.sites = append(s.sites, site)
+		s.tunnelSites = append(s.tunnelSites, site)
 	}
 	return site, nil
 }
 
-func (s *server) upsertHangoutSite(conn net.Conn, sshConn ssh.Conn) (*remoteSite, error) {
+func (s *server) upsertHangoutSite(conn net.Conn, sshConn ssh.Conn) (*tunnelSite, error) {
 	s.Lock()
 	defer s.Unlock()
 
 	hangoutID := sshConn.User()
-	for _, st := range s.sites {
+	for _, st := range s.tunnelSites {
 		if st.domainName == hangoutID {
 			return nil, trace.Errorf("Hangout ID is already used")
 		}
@@ -395,11 +401,11 @@ func (s *server) upsertHangoutSite(conn net.Conn, sshConn ssh.Conn) (*remoteSite
 		return nil, trace.Wrap(err)
 	}
 	if len(hangoutCertAuthorities) != 1 {
-		return nil, trace.Errorf("Can't retrieve hangout Certificate Authority")
+		return nil, trace.Errorf("can't retrieve hangout Certificate Authority")
 	}
 	site.hangoutHostKey = hangoutCertAuthorities[0]
 
-	proxyUserCertAuthorities, err := s.ap.GetCertAuthorities(services.UserCA)
+	proxyUserCertAuthorities, err := s.localAuth.GetCertAuthorities(services.UserCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -430,16 +436,19 @@ func (s *server) upsertHangoutSite(conn net.Conn, sshConn ssh.Conn) (*remoteSite
 	site.hangoutAuthPort = hangoutInfo.AuthPort
 	site.hangoutNodePort = hangoutInfo.NodePort
 
-	s.sites = append(s.sites, site)
+	s.tunnelSites = append(s.tunnelSites, site)
 	return site, nil
 }
 
 func (s *server) GetSites() []RemoteSite {
 	s.RLock()
 	defer s.RUnlock()
-	out := make([]RemoteSite, len(s.sites))
-	for i := range s.sites {
-		out[i] = s.sites[i]
+	out := make([]RemoteSite, 0, len(s.tunnelSites)+len(s.directSites))
+	for i := range s.tunnelSites {
+		out = append(out, s.tunnelSites[i])
+	}
+	for i := range s.directSites {
+		out = append(out, s.directSites[i])
 	}
 	return out
 }
@@ -447,17 +456,26 @@ func (s *server) GetSites() []RemoteSite {
 func (s *server) GetSite(domainName string) (RemoteSite, error) {
 	s.RLock()
 	defer s.RUnlock()
-	for i := range s.sites {
-		if s.sites[i].domainName == domainName {
-			return s.sites[i], nil
+	for i := range s.tunnelSites {
+		if s.tunnelSites[i].domainName == domainName {
+			return s.tunnelSites[i], nil
 		}
 	}
-	return nil, fmt.Errorf("site %v not found", domainName)
+
+	for i := range s.directSites {
+		if s.directSites[i].domainName == domainName {
+			return s.directSites[i], nil
+		}
+	}
+	return nil, trace.Wrap(teleport.NotFound(
+		fmt.Sprintf("site '%v' not found", domainName)))
 }
 
 // FindSimilarSite finds the site that is the most similar to domain.
 // Returns nil if no sites with such domain name.
 func (s *server) FindSimilarSite(domainName string) (RemoteSite, error) {
+	sites := s.GetSites()
+
 	s.RLock()
 	defer s.RUnlock()
 
@@ -467,9 +485,9 @@ func (s *server) FindSimilarSite(domainName string) (RemoteSite, error) {
 	domainName1 := strings.Split(domainName, ".")
 	log.Infof("Find matching domain: %v", domainName)
 
-	for i, site := range s.sites {
-		log.Infof(site.domainName)
-		domainName2 := strings.Split(site.domainName, ".")
+	for i, site := range sites {
+		log.Infof(site.GetName())
+		domainName2 := strings.Split(site.GetName(), ".")
 		similarity := 0
 		for j := 1; (j <= len(domainName1)) && (j <= len(domainName2)); j++ {
 			if domainName1[len(domainName1)-j] != domainName2[len(domainName2)-j] {
@@ -484,11 +502,10 @@ func (s *server) FindSimilarSite(domainName string) (RemoteSite, error) {
 	}
 
 	if result != -1 {
-		return s.sites[result], nil
+		return sites[result], nil
 	}
-	return nil, trace.Wrap(&teleport.NotFoundError{
-		Message: fmt.Sprintf("no site matching '%v' found", domainName),
-	})
+	return nil, trace.Wrap(teleport.NotFound(
+		fmt.Sprintf("no site matching '%v' found", domainName)))
 }
 
 type remoteConn struct {
@@ -496,14 +513,26 @@ type remoteConn struct {
 	conn    net.Conn
 	invalid int32
 	log     *log.Entry
+	counter int32
 }
 
 func (rc *remoteConn) setDeadline(d time.Duration) {
+	atomic.AddInt32(&rc.counter, 1)
 	rc.conn.SetDeadline(time.Now().Add(d))
 }
 
 func (rc *remoteConn) resetDeadline() {
-	rc.conn.SetDeadline(time.Time{})
+	// this is to ensure that only last request wil reset the deadline
+	// after setting it, otherwise we may reset deadline for
+	// a concurrent waiting request. With this logic, we will just
+	// make it wait slightly longer
+	val := atomic.AddInt32(&rc.counter, -1)
+	if val == 0 {
+		rc.log.Infof("COUNTER(%v): reseting deadline...", val)
+		rc.conn.SetDeadline(time.Time{})
+	} else {
+		rc.log.Infof("COUNTER(%v): still have waiters", val)
+	}
 }
 
 func (rc *remoteConn) Close() error {
@@ -527,8 +556,8 @@ func newRemoteConn(log *log.Entry, conn net.Conn, sshConn ssh.Conn) (*remoteConn
 	}, nil
 }
 
-func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
-	remoteSite := &remoteSite{
+func newRemoteSite(srv *server, domainName string) (*tunnelSite, error) {
+	remoteSite := &tunnelSite{
 		srv:        srv,
 		domainName: domainName,
 		log: log.WithFields(log.Fields{
@@ -555,7 +584,9 @@ func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
 	return remoteSite, nil
 }
 
-type remoteSite struct {
+// tunnelSite is a site accessed via SSH reverse tunnel that established
+// between proxy and remote site
+type tunnelSite struct {
 	sync.Mutex
 
 	log         *log.Entry
@@ -574,23 +605,15 @@ type remoteSite struct {
 	hangoutNodePort string
 }
 
-func (s *remoteSite) GetClient() (*auth.Client, error) {
+func (s *tunnelSite) GetClient() (auth.ClientI, error) {
 	return s.clt, nil
 }
 
-func (s *remoteSite) GetEvents(filter events.Filter) ([]lunk.Entry, error) {
-	clt, err := s.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return clt.GetEvents(filter)
-}
-
-func (s *remoteSite) String() string {
+func (s *tunnelSite) String() string {
 	return fmt.Sprintf("remoteSite(%v)", s.domainName)
 }
 
-func (s *remoteSite) nextConn() (*remoteConn, error) {
+func (s *tunnelSite) nextConn() (*remoteConn, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -612,7 +635,7 @@ func (s *remoteSite) nextConn() (*remoteConn, error) {
 	}
 }
 
-func (s *remoteSite) addConn(conn net.Conn, sshConn ssh.Conn) error {
+func (s *tunnelSite) addConn(conn net.Conn, sshConn ssh.Conn) error {
 	remoteConn, err := newRemoteConn(s.log, conn, sshConn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -624,7 +647,7 @@ func (s *remoteSite) addConn(conn net.Conn, sshConn ssh.Conn) error {
 	return nil
 }
 
-func (s *remoteSite) GetStatus() string {
+func (s *tunnelSite) GetStatus() string {
 	diff := time.Now().Sub(s.lastActive)
 	if diff > 2*heartbeatPeriod {
 		return RemoteSiteStatusOffline
@@ -632,7 +655,7 @@ func (s *remoteSite) GetStatus() string {
 	return RemoteSiteStatusOnline
 }
 
-func (s *remoteSite) handleHeartbeat(ch ssh.Channel, reqC <-chan *ssh.Request) {
+func (s *tunnelSite) handleHeartbeat(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	go func() {
 		for {
 			req := <-reqC
@@ -646,19 +669,19 @@ func (s *remoteSite) handleHeartbeat(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	}()
 }
 
-func (s *remoteSite) GetName() string {
+func (s *tunnelSite) GetName() string {
 	return s.domainName
 }
 
-func (s *remoteSite) GetLastConnected() time.Time {
+func (s *tunnelSite) GetLastConnected() time.Time {
 	return s.lastActive
 }
 
-func (s *remoteSite) timeout() time.Duration {
+func (s *tunnelSite) timeout() time.Duration {
 	return s.srv.timeout
 }
 
-func (s *remoteSite) ConnectToServer(server, user string, auth []ssh.AuthMethod) (*ssh.Client, error) {
+func (s *tunnelSite) ConnectToServer(server, user string, auth []ssh.AuthMethod) (*ssh.Client, error) {
 	s.log.Infof("ConnectToServer(server=%v, user=%v)", server, user)
 	remoteConn, err := s.nextConn()
 	if err != nil {
@@ -694,7 +717,7 @@ func (s *remoteSite) ConnectToServer(server, user string, auth []ssh.AuthMethod)
 	return ssh.NewClient(conn, chans, reqs), nil
 }
 
-func (s *remoteSite) tryDialAccessPoint(network, addr string) (net.Conn, error) {
+func (s *tunnelSite) tryDialAccessPoint(network, addr string) (net.Conn, error) {
 	s.log.Infof("tryDialAccessPoint(net=%v, addr=%v)", network, addr)
 	remoteConn, err := s.nextConn()
 	if err != nil {
@@ -712,7 +735,7 @@ func (s *remoteSite) tryDialAccessPoint(network, addr string) (net.Conn, error) 
 	return utils.NewChConn(remoteConn.sshConn, ch), nil
 }
 
-func (s *remoteSite) dialAccessPoint(network, addr string) (net.Conn, error) {
+func (s *tunnelSite) dialAccessPoint(network, addr string) (net.Conn, error) {
 	s.log.Infof("dialAccessPoint(net=%v, addr=%v)", network, addr)
 
 	for {
@@ -727,7 +750,7 @@ func (s *remoteSite) dialAccessPoint(network, addr string) (net.Conn, error) {
 	}
 }
 
-func (s *remoteSite) tryDial(net, addr string) (net.Conn, error) {
+func (s *tunnelSite) tryDial(net, addr string) (net.Conn, error) {
 	s.log.Infof("tryDial(net=%v, addr=%v)", net, addr)
 	remoteConn, err := s.nextConn()
 	if err != nil {
@@ -757,7 +780,7 @@ func (s *remoteSite) tryDial(net, addr string) (net.Conn, error) {
 	return utils.NewChConn(remoteConn.sshConn, ch), nil
 }
 
-func (s *remoteSite) Dial(net string, addr string) (net.Conn, error) {
+func (s *tunnelSite) Dial(net string, addr string) (net.Conn, error) {
 	s.log.Infof("Dial(net=%v, addr=%v)", net, addr)
 	for {
 		conn, err := s.tryDial(net, addr)
@@ -773,42 +796,24 @@ func (s *remoteSite) Dial(net string, addr string) (net.Conn, error) {
 	}
 }
 
-func (s *remoteSite) DialServer(server string) (net.Conn, error) {
-	s.log.Infof("DialServer(server=%v)", server)
-	knownServers, err := s.GetServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var addr string
-	for _, srv := range knownServers {
-		_, port, err := net.SplitHostPort(srv.Addr)
-		if err != nil {
-			s.log.Warningf("server %v(%v) has incorrect address format (%v)",
-				srv.Addr, srv.Hostname, err.Error())
-		} else {
-			if (len(srv.Hostname) != 0) && (len(port) != 0) && (server == srv.Hostname+":"+port || server == srv.Addr) {
-				addr = srv.Addr
-			}
-		}
-	}
-	if addr == "" {
-		return nil, trace.Wrap(
-			teleport.NotFound(fmt.Sprintf("server %v is unknown", server)))
-	}
-
-	return s.Dial("tcp", addr)
-}
-
-func (s *remoteSite) GetServers() ([]services.Server, error) {
-	s.log.Infof("GetServers()")
+func (s *tunnelSite) DialServer(addr string) (net.Conn, error) {
+	s.log.Infof("DialServer(addr=%v)", addr)
 	clt, err := s.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return clt.GetServers()
+	knownServers, err := clt.GetServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	server, err := findServer(addr, knownServers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return s.Dial("tcp", server.Addr)
 }
 
-func (s *remoteSite) handleAuthProxy(w http.ResponseWriter, r *http.Request) {
+func (s *tunnelSite) handleAuthProxy(w http.ResponseWriter, r *http.Request) {
 	s.log.Infof("handleAuthProxy()")
 
 	fwd, err := forward.New(forward.RoundTripper(s.transport), forward.Logger(s.log))
@@ -821,7 +826,7 @@ func (s *remoteSite) handleAuthProxy(w http.ResponseWriter, r *http.Request) {
 	fwd.ServeHTTP(w, r)
 }
 
-func (s *remoteSite) GetHangoutInfo() (hostKey *services.CertAuthority, OSUser, AuthPort, NodePort string) {
+func (s *tunnelSite) GetHangoutInfo() (hostKey *services.CertAuthority, OSUser, AuthPort, NodePort string) {
 	return s.hangoutHostKey, s.hangoutOSUser, s.hangoutAuthPort, s.hangoutNodePort
 }
 

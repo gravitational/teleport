@@ -18,8 +18,10 @@ package auth
 import (
 	"time"
 
-	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+
+	"github.com/codahale/lunk"
 )
 
 // AccessPoint is a interface needed by nodes to control the access
@@ -45,21 +47,7 @@ type AccessPoint interface {
 
 	// GetUsers returns a list of local users registered with this domain
 	GetUsers() ([]services.User, error)
-}
 
-type BackendAccessPoint struct {
-	*services.CAService
-	*services.PresenceService
-	*services.ProvisioningService
-	*services.WebService
-}
-
-func NewBackendAccessPoint(bk backend.Backend) *BackendAccessPoint {
-	ap := BackendAccessPoint{}
-	ap.CAService = services.NewCAService(bk)
-	ap.PresenceService = services.NewPresenceService(bk)
-	ap.ProvisioningService = services.NewProvisioningService(bk)
-	ap.WebService = services.NewWebService(bk)
-
-	return &ap
+	// GetEvents returns a list of events that
+	GetEvents(filter events.Filter) ([]lunk.Entry, error)
 }

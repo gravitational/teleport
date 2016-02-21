@@ -309,7 +309,7 @@ func ApplyDefaults(cfg *Config) error {
 	cfg.Proxy.AssetsDir = defaults.DataDir
 	cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
 	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
-	cfg.ReverseTunnel.Enabled = true
+	cfg.ReverseTunnel.Enabled = false
 	cfg.ReverseTunnel.DialAddr = *defaults.ReverseTunnellConnectAddr()
 	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnellListenAddr()
 	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)

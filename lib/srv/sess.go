@@ -27,6 +27,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/recorder"
 	rsession "github.com/gravitational/teleport/lib/session"
@@ -45,28 +46,28 @@ type sessionRegistry struct {
 }
 
 func (s *sessionRegistry) newShell(sid string, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	log.Infof("%v newShell(%v)", ctx, string(req.Payload))
+	ctx.Infof("newShell(%v)", string(req.Payload))
 
 	sess := newSession(sid, s)
 	if err := sess.start(sconn, ch, ctx); err != nil {
 		return err
 	}
 	s.sessions[sess.id] = sess
-	log.Infof("%v created session: %v", ctx, sess.id)
+	ctx.Infof("created session: %v", sess.id)
 	return nil
 }
 
 func (s *sessionRegistry) joinShell(sid string, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	log.Infof("%v joinShell(%v)", ctx, string(req.Payload))
+	ctx.Infof("joinShell(%v)", string(req.Payload))
 	s.Lock()
 	defer s.Unlock()
 
 	sess, found := s.findSession(sid)
 	if !found {
-		log.Infof("%v creating new session: %v", ctx, sid)
+		ctx.Infof("creating new session: %v", sid)
 		return s.newShell(sid, sconn, ch, req, ctx)
 	}
-	log.Infof("%v joining session: %v", ctx, sess.id)
+	ctx.Infof("joining session: %v", sess.id)
 	sess.join(sconn, ch, req, ctx)
 	return nil
 }
@@ -77,11 +78,11 @@ func (s *sessionRegistry) leaveShell(sid, pid string) error {
 
 	sess, found := s.findSession(sid)
 	if !found {
-		return fmt.Errorf("session %v not found", sid)
+		return trace.Wrap(
+			teleport.NotFound(fmt.Sprintf("session %v not found", sid)))
 	}
 	if err := sess.leave(pid); err != nil {
-		log.Errorf("failed to leave session: %v", err)
-		return err
+		return trace.Wrap(err)
 	}
 	if len(sess.parties) != 0 {
 		return nil
@@ -101,7 +102,8 @@ func (s *sessionRegistry) broadcastResult(sid string, r execResult) error {
 
 	sess, found := s.findSession(sid)
 	if !found {
-		return fmt.Errorf("session %v not found", sid)
+		return trace.Wrap(
+			teleport.NotFound(fmt.Sprintf("session %v not found", sid)))
 	}
 	sess.broadcastResult(r)
 	return nil
@@ -206,7 +208,7 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	} else {
 		var err error
 		if s.term, err = newTerm(); err != nil {
-			log.Infof("handleShell failed to create term: %v", err)
+			ctx.Infof("handleShell failed to create term: %v", err)
 			return err
 		}
 	}
@@ -226,15 +228,15 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	}
 
 	if err := s.term.run(cmd); err != nil {
-		log.Infof("%v failed to start shell: %v", p.ctx, err)
+		p.ctx.Infof("failed to start shell: %v", err)
 		return err
 	}
-	log.Infof("%v starting shell input/output streaming", p.ctx)
+	p.ctx.Infof("starting shell input/output streaming")
 
 	if s.registry.srv.rec != nil {
 		w, err := newChunkWriter(s.registry.srv.rec)
 		if err != nil {
-			log.Errorf("failed to create recorder: %v", err)
+			p.ctx.Errorf("failed to create recorder: %v", err)
 			return err
 		}
 		s.chunkWriter = w
@@ -248,18 +250,19 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	// Pipe session to shell and visa-versa capturing input and output
 	go func() {
 		written, err := io.Copy(s.writer, s.term.pty)
-		log.Infof("%v shell to channel copy closed, bytes written: %v, err: %v",
-			p.ctx, written, err)
+		p.ctx.Infof("shell to channel copy closed, bytes written: %v, err: %v",
+			written, err)
 	}()
 
 	go func() {
 		result, err := collectStatus(cmd, cmd.Wait())
 		if err != nil {
-			log.Errorf("%v wait failed: %v", p.ctx, err)
+			p.ctx.Errorf("wait failed: %v", err)
+			return
 		}
 		if result != nil {
 			s.registry.broadcastResult(s.id, *result)
-			log.Infof("%v result broadcasted", p.ctx)
+			p.ctx.Infof("result broadcasted")
 		}
 	}()
 
@@ -279,7 +282,8 @@ func (s *session) String() string {
 func (s *session) leave(id string) error {
 	p, ok := s.parties[id]
 	if !ok {
-		return fmt.Errorf("failed to find party: %v", id)
+		return trace.Wrap(
+			teleport.NotFound(fmt.Sprintf("party %v not found", id)))
 	}
 	log.Infof("%v is leaving %v", p, s)
 	delete(s.parties, p.id)
@@ -293,19 +297,19 @@ func (s *session) addParty(p *party) {
 	p.ctx.addCloser(p)
 	go func() {
 		written, err := io.Copy(s.term.pty, p)
-		log.Infof("%v channel to shell copy closed, bytes written: %v, err: %v",
-			p.ctx, written, err)
+		p.ctx.Infof("channel to shell copy closed, bytes written: %v, err: %v",
+			written, err)
 	}()
 	go func() {
 		for {
 			select {
 			case <-p.closeC:
-				log.Infof("%v closed, stopped heartbeat", p)
+				p.ctx.Infof("closed, stopped heartbeat")
 				return
 			case <-time.After(1 * time.Second):
 			}
 			if err := s.upsertSessionParty(s.id, p, 10*time.Second); err != nil {
-				log.Warningf("%v failed to upsert session party: %v", p, err)
+				p.ctx.Warningf("failed to upsert session party: %v", err)
 			}
 		}
 	}()
@@ -335,13 +339,12 @@ func (j *joinSubsys) String() string {
 
 func (j *joinSubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	if err := j.srv.reg.joinShell(j.sid, sconn, ch, req, ctx); err != nil {
-		log.Errorf("error: %v", err)
-		return err
+		return trace.Wrap(err)
 	}
 	finished := make(chan bool)
 	ctx.addCloser(closerFunc(func() error {
 		close(finished)
-		log.Infof("%v shutting down subsystem", ctx)
+		ctx.Infof("shutting down subsystem")
 		return nil
 	}))
 	<-finished
@@ -449,7 +452,7 @@ func (p *party) String() string {
 }
 
 func (p *party) Close() error {
-	log.Infof("%v closing", p)
+	p.ctx.Infof("closing")
 	close(p.closeC)
 	return p.s.registry.leaveShell(p.s.id, p.id)
 }
