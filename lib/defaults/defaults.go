@@ -24,11 +24,8 @@ import (
 
 // Default port numbers used by all teleport tools
 const (
-	// Web UI over HTTP
+	// Web UI over HTTP(s)
 	HTTPListenPort = 3080
-
-	// Web UI over HTTPS
-	HTTPSecureListenPort = 3081
 
 	// When running in "SSH Server" mode behind a proxy, this
 	// listening port will be used to connect users to:

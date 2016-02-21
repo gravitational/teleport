@@ -25,7 +25,9 @@ import (
 
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
@@ -51,17 +53,19 @@ type CommandLineFlags struct {
 
 // readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
 // and overrides values in 'cfg' structure
-func readConfigFile(configFilePath string) (*config.FileConfig, error) {
-	if configFilePath != "" && !fileExists(configFilePath) {
-		return nil, trace.Errorf("file not found: %s", configFilePath)
-	}
-	// not given a config file? check the default location:
-	if configFilePath == "" {
-		configFilePath = defaults.ConfigFilePath
+func readConfigFile(cliConfigPath string) (*config.FileConfig, error) {
+	configFilePath := defaults.ConfigFilePath
+	// --config tells us to use a specific conf. file:
+	if cliConfigPath != "" {
+		configFilePath := cliConfigPath
 		if !fileExists(configFilePath) {
-			log.Info("not using a config file")
-			return nil, nil
+			return nil, trace.Errorf("file not found: %s", configFilePath)
 		}
+	}
+	// default config doesn't exist? quietly return:
+	if !fileExists(configFilePath) {
+		log.Info("not using a config file")
+		return nil, nil
 	}
 	return config.ReadFromFile(configFilePath)
 }
@@ -139,7 +143,82 @@ func applyFileConfig(fc *config.FileConfig, cfg *service.Config) error {
 	default:
 		return trace.Errorf("unsupported logger severity: '%v'", fc.Logger.Severity)
 	}
+	// apply connection throttling:
+	limiters := []limiter.LimiterConfig{
+		cfg.SSH.Limiter,
+		cfg.Auth.Limiter,
+		cfg.Proxy.Limiter,
+	}
+	for _, l := range limiters {
+		if fc.Limits.MaxConnections > 0 {
+			l.MaxConnections = fc.Limits.MaxConnections
+		}
+		if fc.Limits.MaxUsers > 0 {
+			l.MaxNumberOfUsers = fc.Limits.MaxUsers
+		}
+		for _, rate := range fc.Limits.Rates {
+			l.Rates = append(l.Rates, limiter.Rate{
+				Period:  rate.Period,
+				Average: rate.Average,
+				Burst:   rate.Burst,
+			})
+		}
+	}
+	// apply "proxy_service" section
+	if fc.Proxy.ListenAddress != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, int(defaults.SSHProxyListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.SSHAddr = *addr
+	}
+	if fc.Proxy.WebAddr != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.WebAddr, int(defaults.HTTPListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.WebAddr = *addr
+	}
+	if fc.Proxy.KeyFile != "" {
+		if !fileExists(fc.Proxy.KeyFile) {
+			return trace.Errorf("https key does not exist: %s", fc.Proxy.KeyFile)
+		}
+		cfg.Proxy.TLSKey = fc.Proxy.KeyFile
+	}
+	if fc.Proxy.CertFile != "" {
+		if !fileExists(fc.Proxy.CertFile) {
+			return trace.Errorf("https cert does not exist: %s", fc.Proxy.CertFile)
+		}
+		cfg.Proxy.TLSCert = fc.Proxy.CertFile
+	}
 
+	// apply "auth_service" section
+	if fc.Auth.ListenAddress != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Auth.ListenAddress, int(defaults.AuthListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Auth.SSHAddr = *addr
+	}
+
+	// apply "ssh_service" section
+	if fc.SSH.ListenAddress != "" {
+		addr, err := utils.ParseHostPortAddr(fc.SSH.ListenAddress, int(defaults.SSHServerListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.SSH.Addr = *addr
+	}
+	for k, v := range fc.SSH.Labels {
+		cfg.SSH.Labels[k] = v
+	}
+	for _, cmdLabel := range fc.SSH.Commands {
+		cfg.SSH.CmdLabels[cmdLabel.Name] = services.CommandLabel{
+			Period:  cmdLabel.Period,
+			Command: cmdLabel.Command,
+			Result:  "",
+		}
+	}
 	return nil
 }
 

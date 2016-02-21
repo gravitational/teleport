@@ -128,12 +128,12 @@ func (conf *FileConfig) DebugDumpToYAML() string {
 
 type ConnectionRate struct {
 	Period  time.Duration `yaml:"period"`
-	Average int           `yaml:"average"`
-	Burst   int           `yaml:"burst"`
+	Average int64         `yaml:"average"`
+	Burst   int64         `yaml:"burst"`
 }
 
 type ConnectionLimits struct {
-	MaxConnections int              `yaml:"max_connections"`
+	MaxConnections int64            `yaml:"max_connections"`
 	MaxUsers       int              `yaml:"max_users"`
 	Rates          []ConnectionRate `yaml:"rates,omitempty"`
 }
@@ -204,7 +204,7 @@ type SSH struct {
 // `command` section of `ssh_service` in the config file
 type CommandLabel struct {
 	Name    string        `yaml:"name"`
-	Command string        `yaml:"command"`
+	Command []string      `yaml:"command"`
 	Period  time.Duration `yaml:"period"`
 }
 
@@ -212,7 +212,6 @@ type CommandLabel struct {
 type Proxy struct {
 	Service  `yaml:",inline"`
 	WebAddr  string `yaml:"web_listen_addr,omitempty"`
-	SSHAddr  string `yaml:"ssh_listen_addr,omitempty"`
 	KeyFile  string `yaml:"https_key_file,omitempty"`
 	CertFile string `yaml:"https_cert_file,omitempty"`
 }
