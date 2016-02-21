@@ -457,9 +457,9 @@ func (c *Client) SignIn(user string, password []byte) (string, error) {
 	return re.SID, nil
 }
 
-// GetWebSession check if a web sesion is valid, returns session id in case if
+// GetWebSessionID check if a web sesion is valid, returns session id in case if
 // it is valid, or error otherwise.
-func (c *Client) GetWebSession(user string, sid string) (string, error) {
+func (c *Client) GetWebSessionID(user string, sid string) (string, error) {
 	out, err := c.Get(
 		c.Endpoint("users", user, "web", "sessions", sid), url.Values{})
 	if err != nil {
@@ -762,7 +762,7 @@ type ClientI interface {
 	UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error)
 	CheckPassword(user string, password []byte, hotpToken string) error
 	SignIn(user string, password []byte) (string, error)
-	GetWebSession(user string, sid string) (string, error)
+	GetWebSessionID(user string, sid string) (string, error)
 	GetWebSessionsKeys(user string) ([]services.AuthorizedKey, error)
 	DeleteWebSession(user string, sid string) error
 	GetUsers() ([]services.User, error)

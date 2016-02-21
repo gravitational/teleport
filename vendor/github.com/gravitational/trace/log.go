@@ -21,14 +21,20 @@ import (
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
+
 	"runtime"
 )
 
 const (
-	// LineField is a field with code line added to structured traces
-	LineField = "line"
 	// FileField is a field with code file added to structured traces
 	FileField = "file"
+	// FunctionField is a field with function name
+	FunctionField = "func"
+	// LevelField returns logging level as set by logrus
+	LevelField = "level"
+	// Component is a field that represents component - e.g. service or
+	// function
+	Component = "component"
 )
 
 // TextFormatter is logrus-compatible formatter and adds
@@ -41,8 +47,8 @@ type TextFormatter struct {
 func (tf *TextFormatter) Format(e *log.Entry) ([]byte, error) {
 	if frameNo := findFrame(); frameNo != -1 {
 		t := newTrace(runtime.Caller(frameNo - 1))
-		e.Data[FileField] = t.File
-		e.Data[LineField] = t.Line
+		e.Data[FileField] = t.String()
+		e.Data[FunctionField] = t.Func
 	}
 	return (&tf.TextFormatter).Format(e)
 }
@@ -57,8 +63,8 @@ type JSONFormatter struct {
 func (j *JSONFormatter) Format(e *log.Entry) ([]byte, error) {
 	if frameNo := findFrame(); frameNo != -1 {
 		t := newTrace(runtime.Caller(frameNo - 1))
-		e.Data[FileField] = t.File
-		e.Data[LineField] = t.Line
+		e.Data[FileField] = t.String()
+		e.Data[FunctionField] = t.Func
 	}
 	return (&j.JSONFormatter).Format(e)
 }
