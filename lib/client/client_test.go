@@ -64,6 +64,7 @@ type ClientSuite struct {
 	clt          *ssh.Client
 	bk           *encryptedbk.ReplicatedBackend
 	a            *auth.AuthServer
+	roleAuth     *auth.AuthWithRoles
 	signer       ssh.Signer
 	teleagent    *teleagent.TeleAgent
 	dir          string
@@ -108,13 +109,25 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	s.signer, err = sshutils.NewSigner(hpriv, hcert)
 	c.Assert(err, IsNil)
 
+	bl, err := boltlog.New(filepath.Join(s.dir, "eventsdb"))
+	c.Assert(err, IsNil)
+
+	rec, err := boltrec.New(s.dir)
+	c.Assert(err, IsNil)
+	s.roleAuth = auth.NewAuthWithRoles(s.a,
+		auth.NewStandardPermissions(),
+		bl,
+		sess.New(baseBk),
+		teleport.RoleAdmin,
+		nil)
+
 	// Starting node1
 	s.srvAddress = "127.0.0.1:30187"
 	s.srv, err = srv.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srvAddress},
 		"alice",
 		[]ssh.Signer{s.signer},
-		s.a,
+		s.roleAuth,
 		allowAllLimiter,
 		s.dir,
 		srv.SetShell("/bin/sh"),
@@ -136,7 +149,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srv2Address},
 		"bob",
 		[]ssh.Signer{s.signer},
-		s.a,
+		s.roleAuth,
 		allowAllLimiter,
 		s.dir2,
 		srv.SetShell("/bin/sh"),
@@ -162,7 +175,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
-		s.a, allowAllLimiter)
+		s.roleAuth, allowAllLimiter)
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
@@ -172,19 +185,13 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.proxyAddress},
 		"localhost",
 		[]ssh.Signer{s.signer},
-		s.a,
+		s.roleAuth,
 		allowAllLimiter,
 		s.dir,
 		srv.SetProxyMode(reverseTunnelServer),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(s.proxy.Start(), IsNil)
-
-	bl, err := boltlog.New(filepath.Join(s.dir, "eventsdb"))
-	c.Assert(err, IsNil)
-
-	rec, err := boltrec.New(s.dir)
-	c.Assert(err, IsNil)
 
 	apiSrv := auth.NewAPIWithRoles(s.a, bl, sess.New(s.bk), rec,
 		auth.NewAllowAllPermissions(),
