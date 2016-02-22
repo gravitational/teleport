@@ -383,6 +383,7 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 		[]ssh.Signer{i.KeySigner},
 		client,
 		reverseTunnelLimiter,
+		reversetunnel.DirectSite(i.Cert.Extensions[utils.CertExtensionAuthority], client),
 	)
 	if err != nil {
 		return trace.Wrap(err)

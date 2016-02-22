@@ -137,18 +137,18 @@ func (s *AuthServer) GenerateUserCert(
 	return s.Authority.GenerateUserCert(privateKey, key, username, ttl)
 }
 
-func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
+func (s *AuthServer) SignIn(user string, password []byte) (string, error) {
 	if err := s.CheckPasswordWOToken(user, password); err != nil {
-		return nil, err
+		return "", trace.Wrap(err)
 	}
 	sess, err := s.NewWebSession(user)
 	if err != nil {
-		return nil, err
+		return "", trace.Wrap(err)
 	}
 	if err := s.UpsertWebSession(user, sess, WebSessionTTL); err != nil {
-		return nil, err
+		return "", trace.Wrap(err)
 	}
-	return sess, nil
+	return sess.ID, nil
 }
 
 func (s *AuthServer) GenerateToken(nodeName string, role teleport.Role, ttl time.Duration) (string, error) {
@@ -328,6 +328,14 @@ func (s *AuthServer) GetWebSession(user string, id string) (*Session, error) {
 		ID: id,
 		WS: *ws,
 	}, nil
+}
+
+func (s *AuthServer) GetWebSessionID(user string, id string) (string, error) {
+	_, err := s.WebService.GetWebSession(user, id)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return id, nil
 }
 
 func (s *AuthServer) DeleteWebSession(user string, id string) error {

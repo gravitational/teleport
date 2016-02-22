@@ -66,7 +66,12 @@ func (t *hangoutsSubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 	}
 
 	// find matching server in the list of servers for this site
-	servers, err := remoteSrv.GetServers()
+	clt, err := remoteSrv.GetClient()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	servers, err := clt.GetServers()
 	if err != nil {
 		return trace.Wrap(err)
 	}

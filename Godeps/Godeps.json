@@ -65,7 +65,11 @@
 		},
 		{
 			"ImportPath": "github.com/gravitational/trace",
-			"Rev": "276db3ff67faf9ecd32fdcdbaa034a6a4ed22afc"
+			"Rev": "bdd69590106bbc949e797d0ed545489ec6f36eca"
+		},
+		{
+			"ImportPath": "github.com/jonboulle/clockwork",
+			"Rev": "ed104f61ea4877bea08af6f759805674861e968d"
 		},
 		{
 			"ImportPath": "github.com/julienschmidt/httprouter",
@@ -134,6 +138,18 @@
 		{
 			"ImportPath": "github.com/vulcand/oxy/utils",
 			"Rev": "5725fecc9a4f3aa6fdc3ffd29cef771241809add"
+		},
+		{
+			"ImportPath": "github.com/xeipuuv/gojsonpointer",
+			"Rev": "e0fe6f68307607d540ed8eac07a342c33fa1b54a"
+		},
+		{
+			"ImportPath": "github.com/xeipuuv/gojsonreference",
+			"Rev": "e02fc20de94c78484cd5ffb007f8af96be030a45"
+		},
+		{
+			"ImportPath": "github.com/xeipuuv/gojsonschema",
+			"Rev": "3988ac14d6f66842abf574a0615d2935ef5dab9d"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/bcrypt",

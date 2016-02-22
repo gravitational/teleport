@@ -299,12 +299,12 @@ func (s *APIServer) deleteWebSession(w http.ResponseWriter, r *http.Request, p h
 
 func (s *APIServer) getWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	user, sid := p[0].Value, p[1].Value
-	ws, err := s.a.GetWebSession(user, sid)
+	id, err := s.a.GetWebSessionID(user, sid)
 	if err != nil {
 		replyErr(w, err)
 		return
 	}
-	reply(w, http.StatusOK, &webSessionResponse{SID: ws.ID})
+	reply(w, http.StatusOK, &webSessionResponse{SID: id})
 }
 
 func (s *APIServer) getWebSessions(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -328,12 +328,12 @@ func (s *APIServer) signIn(w http.ResponseWriter, r *http.Request, p httprouter.
 		return
 	}
 	user := p[0].Value
-	ws, err := s.a.SignIn(user, []byte(pass))
+	id, err := s.a.SignIn(user, []byte(pass))
 	if err != nil {
 		replyErr(w, err)
 		return
 	}
-	reply(w, http.StatusOK, &webSessionResponse{SID: string(ws.ID)})
+	reply(w, http.StatusOK, &webSessionResponse{SID: string(id)})
 }
 
 func (s *APIServer) upsertPassword(w http.ResponseWriter, r *http.Request, p httprouter.Params) {

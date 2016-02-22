@@ -239,23 +239,23 @@ func (a *AuthWithRoles) CheckPassword(user string, password []byte, hotpToken st
 		return a.authServer.CheckPassword(user, password, hotpToken)
 	}
 }
-func (a *AuthWithRoles) SignIn(user string, password []byte) (*Session, error) {
+func (a *AuthWithRoles) SignIn(user string, password []byte) (string, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionSignIn); err != nil {
-		return nil, err
+		return "", err
 	} else {
 		return a.authServer.SignIn(user, password)
 	}
 }
-func (a *AuthWithRoles) GetWebSession(user string, sid string) (*Session, error) {
+func (a *AuthWithRoles) GetWebSessionID(user string, sid string) (string, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetWebSession); err != nil {
-		return nil, err
+		return "", trace.Wrap(err)
 	} else {
-		return a.authServer.GetWebSession(user, sid)
+		return a.authServer.GetWebSessionID(user, sid)
 	}
 }
 func (a *AuthWithRoles) GetWebSessionsKeys(user string) ([]services.AuthorizedKey, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetWebSessionsKeys); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	} else {
 		return a.authServer.GetWebSessionsKeys(user)
 	}
