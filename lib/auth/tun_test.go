@@ -189,14 +189,14 @@ func (s *TunSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 	defer cltw.Close()
 
-	out, err := cltw.GetWebSession(user, ws)
+	out, err := cltw.GetWebSessionID(user, ws)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, ws)
 
 	err = cltw.DeleteWebSession(user, ws)
 	c.Assert(err, IsNil)
 
-	_, err = clt.GetWebSession(user, ws)
+	_, err = clt.GetWebSessionID(user, ws)
 	c.Assert(err, NotNil)
 }
 
@@ -356,7 +356,7 @@ func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(err, NotNil)
 
 	// Requesting forbidded for User action
-	_, err = clt.GetWebSession(user, ws)
+	_, err = clt.GetWebSessionID(user, ws)
 	c.Assert(err, NotNil)
 
 	// Resume session via sesison id
@@ -376,14 +376,14 @@ func (s *TunSuite) TestPermissions(c *C) {
 	_, err = cltw.SignIn(user, pass)
 	c.Assert(err, NotNil)
 
-	out, err := cltw.GetWebSession(user, ws)
+	out, err := cltw.GetWebSessionID(user, ws)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, ws)
 
 	err = cltw.DeleteWebSession(user, ws)
 	c.Assert(err, IsNil)
 
-	_, err = clt.GetWebSession(user, ws)
+	_, err = clt.GetWebSessionID(user, ws)
 	c.Assert(err, NotNil)
 }
 

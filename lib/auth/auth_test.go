@@ -67,7 +67,6 @@ func (s *AuthSuite) TestSessions(c *C) {
 
 	ws, err := s.a.SignIn(user, pass)
 	c.Assert(err, NotNil)
-	c.Assert(ws, IsNil)
 
 	hotpURL, _, err := s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
@@ -80,14 +79,14 @@ func (s *AuthSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ws, NotNil)
 
-	out, err := s.a.GetWebSession(user, ws.ID)
+	out, err := s.a.GetWebSession(user, ws)
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, ws)
+	c.Assert(out.ID, DeepEquals, ws)
 
-	err = s.a.DeleteWebSession(user, ws.ID)
+	err = s.a.DeleteWebSession(user, ws)
 	c.Assert(err, IsNil)
 
-	_, err = s.a.GetWebSession(user, ws.ID)
+	_, err = s.a.GetWebSession(user, ws)
 	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 }
 
