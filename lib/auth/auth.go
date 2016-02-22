@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 )
 
@@ -153,7 +152,7 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 }
 
 func (s *AuthServer) GenerateToken(nodeName string, role teleport.Role, ttl time.Duration) (string, error) {
-	if !cstrings.IsValidDomainName(nodeName) {
+	if !utils.IsValidDomainName(nodeName) {
 		return "", trace.Wrap(teleport.BadParameter("nodeName",
 			fmt.Sprintf("'%v' is not a valid dns name", nodeName)))
 	}

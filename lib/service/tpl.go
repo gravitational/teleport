@@ -23,7 +23,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 )
 
@@ -68,30 +67,4 @@ func (c *ctx) File(path string) (string, error) {
 		return "", trace.Wrap(err, fmt.Sprintf("reading file: %v", path))
 	}
 	return string(o), nil
-}
-
-func (c *ctx) Env(key string) (string, error) {
-	v, ok := c.env[key]
-	if !ok {
-		return "", trace.Errorf("environment variable '%v' is not set", key)
-	}
-	values := cstrings.SplitComma(v)
-	out := make([]string, len(values))
-	for i, p := range values {
-		out[i] = quoteYAML(p)
-	}
-	return strings.Join(out, ","), nil
-}
-
-func quoteYAML(val string) string {
-	if len(val) == 0 {
-		return val
-	}
-	if strings.HasPrefix(val, "'") && strings.HasSuffix(val, "'") {
-		return val
-	}
-	if strings.ContainsAny(val, ":") {
-		return "'" + val + "'"
-	}
-	return val
 }
