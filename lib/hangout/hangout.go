@@ -16,8 +16,8 @@ limitations under the License.
 package hangout
 
 import (
+	"io/ioutil"
 	"net"
-	"os"
 	"os/user"
 	"path"
 	"time"
@@ -70,16 +70,13 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 	readOnly bool, authMethods []ssh.AuthMethod,
 	hostKeyCallback utils.HostKeyCallback) (*Hangout, error) {
 
-	//log.SetOutput(os.Stderr)
-	//log.SetLevel(log.InfoLevel)
-
 	cfg := service.Config{}
 	service.ApplyDefaults(&cfg)
-	subdir, err := auth.CryptoRandomHex(10)
+	var err error
+	cfg.DataDir, err = ioutil.TempDir("", "teleport_hangout")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cfg.DataDir = HangoutDataDir + "/" + subdir
 	cfg.Hostname = "localhost2"
 
 	cfg.Auth.HostAuthorityDomain = "localhost"
@@ -108,16 +105,6 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 	}
 
 	cfg.ReverseTunnel.DialAddr = *tunnelAddress
-
-	_, err = os.Stat(cfg.DataDir)
-	if os.IsNotExist(err) {
-		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0777)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return nil, trace.Errorf("working dir already exists")
-	}
 
 	h := &Hangout{}
 
@@ -463,7 +450,6 @@ func initRecordBackend(btype string, params string) (recorder.Recorder, error) {
 }
 
 const HangoutUser = "hangoutuser"
-const HangoutDataDir = "/tmp/teleport_hangouts"
 const DefaultNodeAddress = "localhost:3031"
 const DefaultAuthAddress = "localhost:3032"
 

@@ -310,17 +310,6 @@ func Share(proxyAddress, hangoutProxyAddress string, readOnly bool, authMethods 
 }
 
 func Join(hangoutURL string, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
-	/*
-		// Debug Mode
-		hangoutServer, err := hangout.New("localhost:33009", "localhost:33010",
-			"localhost:33011", false, authMethods, hostKeyCallback)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		time.Sleep(time.Second * 1)
-
-		hangoutURL = "localhost:33008" + "/hangout/" + hangoutServer.HangoutID
-	*/
 	urlParts := strings.Split(hangoutURL, "/")
 	if len(urlParts) < 3 {
 		return trace.Errorf("invalid URL")
