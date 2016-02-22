@@ -58,7 +58,14 @@ type RemoteSite interface {
 	// GetClient returns client connected to remote auth server
 	GetClient() (auth.ClientI, error)
 	// GetHangoutInfo returns hangout info (used only if the site is in hangout mode
-	GetHangoutInfo() (hostKey *services.CertAuthority, OSUser, AuthPort, NodePort string)
+	GetHangoutInfo() (*HangoutSiteInfo, error)
+}
+
+type HangoutSiteInfo struct {
+	HostKey  *services.CertAuthority
+	OSUser   string
+	AuthPort string
+	NodePort string
 }
 
 // Server represents server connected to one or many remote sites
@@ -403,7 +410,9 @@ func (s *server) upsertHangoutSite(conn net.Conn, sshConn ssh.Conn) (*tunnelSite
 	if len(hangoutCertAuthorities) != 1 {
 		return nil, trace.Errorf("can't retrieve hangout Certificate Authority")
 	}
-	site.hangoutHostKey = hangoutCertAuthorities[0]
+	site.hangoutInfo = &HangoutSiteInfo{
+		HostKey: hangoutCertAuthorities[0],
+	}
 
 	proxyUserCertAuthorities, err := s.localAuth.GetCertAuthorities(services.UserCA)
 	if err != nil {
@@ -432,9 +441,10 @@ func (s *server) upsertHangoutSite(conn net.Conn, sshConn ssh.Conn) (*tunnelSite
 		return nil, err
 	}
 	site.domainName = hangoutInfo.HangoutID
-	site.hangoutOSUser = hangoutInfo.OSUser
-	site.hangoutAuthPort = hangoutInfo.AuthPort
-	site.hangoutNodePort = hangoutInfo.NodePort
+
+	site.hangoutInfo.OSUser = hangoutInfo.OSUser
+	site.hangoutInfo.AuthPort = hangoutInfo.AuthPort
+	site.hangoutInfo.NodePort = hangoutInfo.NodePort
 
 	s.tunnelSites = append(s.tunnelSites, site)
 	return site, nil
@@ -599,10 +609,7 @@ type tunnelSite struct {
 	transport *http.Transport
 	clt       *auth.Client
 
-	hangoutHostKey  *services.CertAuthority
-	hangoutOSUser   string
-	hangoutAuthPort string
-	hangoutNodePort string
+	hangoutInfo *HangoutSiteInfo
 }
 
 func (s *tunnelSite) GetClient() (auth.ClientI, error) {
@@ -826,8 +833,11 @@ func (s *tunnelSite) handleAuthProxy(w http.ResponseWriter, r *http.Request) {
 	fwd.ServeHTTP(w, r)
 }
 
-func (s *tunnelSite) GetHangoutInfo() (hostKey *services.CertAuthority, OSUser, AuthPort, NodePort string) {
-	return s.hangoutHostKey, s.hangoutOSUser, s.hangoutAuthPort, s.hangoutNodePort
+func (s *tunnelSite) GetHangoutInfo() (*HangoutSiteInfo, error) {
+	if s.hangoutInfo == nil {
+		return nil, trace.Errorf("No hangout info")
+	}
+	return s.hangoutInfo, nil
 }
 
 const (

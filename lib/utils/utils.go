@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -109,6 +110,25 @@ func MultiCloser(closers ...io.Closer) *multiCloser {
 // failed handshake
 func IsHandshakeFailedError(err error) bool {
 	return strings.Contains(err.Error(), "handshake failed")
+}
+
+func GetFreeTCPPort() (port string, e error) {
+	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	listener, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer listener.Close()
+
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		return "", trace.Errorf("Can't get tcp address")
+	}
+	return strconv.Itoa(tcpAddr.Port), nil
 }
 
 const (

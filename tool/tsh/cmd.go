@@ -21,7 +21,6 @@ import (
 	"os"
 
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/hangout"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -55,8 +54,6 @@ func RunTSH(app *kingpin.Application) error {
 
 	share := app.Command("share", "Creates new hangout")
 	shareReverseProxy := share.Flag("rproxy", "Remote reverse proxy address").Required().String()
-	shareNodeAddress := share.Flag("node-addr", "SSH server listening address").Default(hangout.DefaultNodeAddress).String()
-	shareAuthAddress := share.Flag("auth-addr", "auth server listening address").Default(hangout.DefaultAuthAddress).String()
 	shareReadOnly := share.Flag("readonly", "Remote users can't write to the shell").Bool()
 
 	join := app.Command("join", "Join a remote hangout")
@@ -105,7 +102,7 @@ func RunTSH(app *kingpin.Application) error {
 		err = SCP(*proxy, *scpSource, *scpDest, *scpIsDir, *scpPort,
 			authMethods, hostKeyCallback)
 	case share.FullCommand():
-		err = Share(*proxy, *shareReverseProxy, *shareNodeAddress, *shareAuthAddress, *shareReadOnly, authMethods, hostKeyCallback)
+		err = Share(*proxy, *shareReverseProxy, *shareReadOnly, authMethods, hostKeyCallback)
 	case join.FullCommand():
 		err = Join(*joinURL, authMethods, hostKeyCallback)
 	}

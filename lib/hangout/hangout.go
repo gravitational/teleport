@@ -80,7 +80,7 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 		return nil, trace.Wrap(err)
 	}
 	cfg.DataDir = HangoutDataDir + "/" + subdir
-	cfg.Hostname = "localhost"
+	cfg.Hostname = "localhost2"
 
 	cfg.Auth.HostAuthorityDomain = "localhost"
 	cfg.Auth.KeysBackend.Type = "bolt"
@@ -115,6 +115,8 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	} else {
+		return nil, trace.Errorf("working dir already exists")
 	}
 
 	h := &Hangout{}
@@ -155,6 +157,9 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 	}
 
 	h.ClientAuthMethod, err = Authorize(h.client)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	h.HostKeyCallback = nil
 
 	h.HangoutInfo.AuthPort = h.authPort
@@ -369,7 +374,7 @@ func (h *Hangout) initSSHEndpoint(cfg service.Config) error {
 		h.client,
 		limiter,
 		cfg.DataDir,
-		srv.SetShell(cfg.SSH.Shell),
+		srv.SetShell(DefaultSSHShell),
 		srv.SetEventLogger(elog),
 		srv.SetSessionServer(h.client),
 		srv.SetRecorder(h.client),
@@ -457,7 +462,9 @@ func initRecordBackend(btype string, params string) (recorder.Recorder, error) {
 	return nil, trace.Errorf("unsupported backend type: %v", btype)
 }
 
-const HangoutUser = "hangoutUser"
+const HangoutUser = "hangoutuser"
 const HangoutDataDir = "/tmp/teleport_hangouts"
 const DefaultNodeAddress = "localhost:3031"
 const DefaultAuthAddress = "localhost:3032"
+
+var DefaultSSHShell = service.DefaultSSHShell
