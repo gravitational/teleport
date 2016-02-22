@@ -96,7 +96,7 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(conf, check.NotNil)
 	c.Assert(conf.NodeName, check.Equals, NodeName)
 	c.Assert(conf.GetAuthServers(), check.DeepEquals, []string{"tcp://auth.server.example.org:3024", "tcp://auth.server.example.com:3024"})
-	c.Assert(conf.Limits.MaxConnections, check.Equals, 100)
+	c.Assert(conf.Limits.MaxConnections, check.Equals, int64(100))
 	c.Assert(conf.Limits.MaxUsers, check.Equals, 5)
 	c.Assert(conf.Limits.Rates, check.DeepEquals, ConnectionRates)
 	c.Assert(conf.Logger.Output, check.Equals, "stderr")
@@ -112,10 +112,9 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(conf.SSH.Commands, check.DeepEquals, CommandLabels)
 	c.Assert(conf.Proxy.Configured(), check.Equals, true)
 	c.Assert(conf.Proxy.Enabled(), check.Equals, true)
-	c.Assert(conf.Proxy.ListenAddress, check.Equals, "tcp://proxy")
 	c.Assert(conf.Proxy.KeyFile, check.Equals, "/etc/teleport/proxy.key")
 	c.Assert(conf.Proxy.CertFile, check.Equals, "/etc/teleport/proxy.crt")
-	c.Assert(conf.Proxy.SSHAddr, check.Equals, "tcp://proxy_ssh_addr")
+	c.Assert(conf.Proxy.ListenAddress, check.Equals, "tcp://proxy_ssh_addr")
 	c.Assert(conf.Proxy.WebAddr, check.Equals, "tcp://web_addr")
 
 	// static config:
@@ -127,8 +126,26 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(conf.Proxy.Configured(), check.Equals, false) // Missing "proxy_service" section must lead to 'not configured'
 	c.Assert(conf.Proxy.Enabled(), check.Equals, true)     // Missing "proxy_service" section must lead to 'true'
 	c.Assert(conf.Proxy.Disabled(), check.Equals, false)   // Missing "proxy_service" does NOT mean it's been disabled
-	c.Assert(conf.SSH.Disabled(), check.Equals, true)      // "ssh_service" has been explicitly set to "no"
+
+	c.Assert(conf.Limits.MaxConnections, check.Equals, int64(90))
+	c.Assert(conf.Limits.MaxUsers, check.Equals, 91)
+	c.Assert(conf.Limits.Rates, check.HasLen, 2)
+	c.Assert(conf.Limits.Rates[0].Average, check.Equals, int64(70))
+	c.Assert(conf.Limits.Rates[0].Burst, check.Equals, int64(71))
+	c.Assert(conf.Limits.Rates[0].Period.String(), check.Equals, "1m1s")
+	c.Assert(conf.Limits.Rates[1].Average, check.Equals, int64(170))
+	c.Assert(conf.Limits.Rates[1].Burst, check.Equals, int64(171))
+	c.Assert(conf.Limits.Rates[1].Period.String(), check.Equals, "10m10s")
+
+	c.Assert(conf.SSH.Disabled(), check.Equals, true) // "ssh_service" has been explicitly set to "no"
 	c.Assert(conf.Storage.Peers, check.Equals, "one,two")
+	c.Assert(conf.SSH.Commands, check.HasLen, 2)
+	c.Assert(conf.SSH.Commands[0].Name, check.Equals, "hostname")
+	c.Assert(conf.SSH.Commands[0].Command, check.DeepEquals, []string{"/bin/hostname"})
+	c.Assert(conf.SSH.Commands[0].Period.Nanoseconds(), check.Equals, int64(10000000))
+	c.Assert(conf.SSH.Commands[1].Name, check.Equals, "date")
+	c.Assert(conf.SSH.Commands[1].Command, check.DeepEquals, []string{"/bin/date"})
+	c.Assert(conf.SSH.Commands[1].Period.Nanoseconds(), check.Equals, int64(20000000))
 }
 
 var (
@@ -153,12 +170,12 @@ var (
 	CommandLabels = []CommandLabel{
 		{
 			Name:    "os",
-			Command: "uname -o",
+			Command: []string{"uname", "-o"},
 			Period:  time.Minute * 15,
 		},
 		{
 			Name:    "hostname",
-			Command: "/bin/hostname",
+			Command: []string{"/bin/hostname"},
 			Period:  time.Millisecond * 10,
 		},
 	}
@@ -194,7 +211,7 @@ func makeConfigFixture() string {
 	conf.Proxy.ListenAddress = "tcp://proxy"
 	conf.Proxy.KeyFile = "/etc/teleport/proxy.key"
 	conf.Proxy.CertFile = "/etc/teleport/proxy.crt"
-	conf.Proxy.SSHAddr = "tcp://proxy_ssh_addr"
+	conf.Proxy.ListenAddress = "tcp://proxy_ssh_addr"
 	conf.Proxy.WebAddr = "tcp://web_addr"
 
 	return conf.DebugDumpToYAML()
@@ -215,6 +232,16 @@ teleport:
   storage:
     type: etcd
     peers: one,two
+  connection_limits:
+    max_connections: 90
+    max_users: 91
+    rates:
+    - period: 1m1s
+      average: 70
+      burst: 71
+    - period: 10m10s
+      average: 170
+      burst: 171
 
 auth_service:
   enabled: yes
@@ -228,7 +255,10 @@ ssh_service:
     role: slave
   commands:
   - name: hostname
-    command: /bin/hostname
+    command: [/bin/hostname]
     period: 10ms
+  - name: date
+    command: [/bin/date]
+    period: 20ms
 `
 )
