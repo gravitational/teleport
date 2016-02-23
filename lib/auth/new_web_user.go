@@ -29,10 +29,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gokyle/hotp"
-	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 )
 
@@ -49,12 +49,12 @@ var TokenTTLAfterUse = time.Second * 10
 //
 // allowedLogins are linux user logins allowed for the new user to use
 func (s *AuthServer) CreateSignupToken(user string, allowedLogins []string) (string, error) {
-	if !cstrings.IsValidUnixUser(user) {
+	if !utils.IsValidUnixUser(user) {
 		return "", trace.Wrap(
 			teleport.BadParameter("user", fmt.Sprintf("'%v' is not a valid user name", user)))
 	}
 	for _, login := range allowedLogins {
-		if !cstrings.IsValidUnixUser(login) {
+		if !utils.IsValidUnixUser(login) {
 			return "", trace.Wrap(teleport.BadParameter(
 				"allowedLogins", fmt.Sprintf("'%v' is not a valid user name", login)))
 		}

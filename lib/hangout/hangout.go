@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/boltlog"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -361,7 +362,7 @@ func (h *Hangout) initSSHEndpoint(cfg service.Config) error {
 		h.client,
 		limiter,
 		cfg.DataDir,
-		srv.SetShell(DefaultSSHShell),
+		srv.SetShell(defaults.DefaultShell),
 		srv.SetEventLogger(elog),
 		srv.SetSessionServer(h.client),
 		srv.SetRecorder(h.client),
@@ -452,5 +453,3 @@ func initRecordBackend(btype string, params string) (recorder.Recorder, error) {
 const HangoutUser = "hangoutuser"
 const DefaultNodeAddress = "localhost:3031"
 const DefaultAuthAddress = "localhost:3032"
-
-var DefaultSSHShell = service.DefaultSSHShell

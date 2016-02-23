@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/mailgun/oxy/forward"
@@ -344,7 +343,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 
 func (s *server) upsertRegularSite(conn net.Conn, sshConn *ssh.ServerConn) (*tunnelSite, error) {
 	domainName := sshConn.Permissions.Extensions[extAuthority]
-	if !cstrings.IsValidDomainName(domainName) {
+	if !utils.IsValidDomainName(domainName) {
 		return nil, trace.Wrap(teleport.BadParameter(
 			"authDomain", fmt.Sprintf("'%v' is a bad domain name", domainName)))
 	}

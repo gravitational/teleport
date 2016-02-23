@@ -29,6 +29,12 @@ import (
 )
 
 func main() {
+	const testRun = false
+	run(os.Args[1:], testRun)
+}
+
+// same as main() but has a testing switch
+func run(cmdlineArgs []string, testRun bool) (executedCommand string, appliedConfig *service.Config) {
 	var err error
 
 	// configure logger for a typical CLI scenario until configuration file is
@@ -37,7 +43,7 @@ func main() {
 	app := utils.InitCLIParser("teleport", "Clustered SSH service. Learn more at http://teleport.gravitational.com")
 
 	// define global flags:
-	var ccf CLIConfig
+	var ccf CommandLineFlags
 	app.Flag("debug", "Enable verbose logging to stderr").
 		Short('d').
 		BoolVar(&ccf.Debug)
@@ -69,14 +75,13 @@ func main() {
 		StringVar(&ccf.NodeName)
 	start.Flag("config",
 		fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
-		Short('c').
-		StringVar(&ccf.ConfigFile)
+		Short('c').ExistingFileVar(&ccf.ConfigFile)
 
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)
 
 	// parse CLI commands+flags:
-	command, err := app.Parse(os.Args[1:])
+	command, err := app.Parse(cmdlineArgs)
 	if err != nil {
 		utils.FatalError(err)
 	}
@@ -87,22 +92,26 @@ func main() {
 		utils.FatalError(err)
 	}
 
-	// execute the selected command:
-	switch command {
-	case start.FullCommand():
-		err = onStart(config)
-	case status.FullCommand():
-		err = onStatus(config)
-	case dump.FullCommand():
-		err = onConfigDump()
-	case ver.FullCommand():
-		onVersion()
-	}
+	// execute the selected command unless we're running tests
+	if !testRun {
+		log.Debug(config.DebugDumpToYAML())
 
-	if err != nil {
-		utils.FatalError(err)
+		switch command {
+		case start.FullCommand():
+			err = onStart(config)
+		case status.FullCommand():
+			err = onStatus(config)
+		case dump.FullCommand():
+			err = onConfigDump()
+		case ver.FullCommand():
+			onVersion()
+		}
+		if err != nil {
+			utils.FatalError(err)
+		}
+		log.Info("teleport: clean exit")
 	}
-	log.Info("teleport: clean exit")
+	return command, config
 }
 
 // onStart is the handler for "start" CLI command

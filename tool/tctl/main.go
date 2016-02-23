@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 
 	"github.com/buger/goterm"
-	"github.com/gravitational/configure"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -228,16 +227,18 @@ func (u *NodeCommand) ListActive(client *auth.TunClient) error {
 		if len(nodes) == 0 {
 			return t.String()
 		}
-		for _, n := range nodes {
-			labels := make(configure.KeyVal, len(n.Labels)+len(n.CmdLabels))
-			for key, val := range n.Labels {
-				labels[key] = val
+		/*
+			for _, n := range nodes {
+				labels := make(configure.KeyVal, len(n.Labels)+len(n.CmdLabels))
+				for key, val := range n.Labels {
+					labels[key] = val
+				}
+				for key, val := range n.CmdLabels {
+					labels[key] = val.Result
+				}
+				fmt.Fprintf(t, "%v\t%v\t%v\n", n.Hostname, n.Addr, labels.String())
 			}
-			for key, val := range n.CmdLabels {
-				labels[key] = val.Result
-			}
-			fmt.Fprintf(t, "%v\t%v\t%v\n", n.Hostname, n.Addr, labels.String())
-		}
+		*/
 		return t.String()
 	}
 	fmt.Printf(nodesView(nodes))
