@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/boltlog"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -453,4 +454,4 @@ const HangoutUser = "hangoutuser"
 const DefaultNodeAddress = "localhost:3031"
 const DefaultAuthAddress = "localhost:3032"
 
-var DefaultSSHShell = service.DefaultSSHShell
+var DefaultSSHShell = defaults.DefaultShell

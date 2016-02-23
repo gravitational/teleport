@@ -24,10 +24,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 
-	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )

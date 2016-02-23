@@ -29,6 +29,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
@@ -36,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 )
 

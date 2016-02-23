@@ -6,6 +6,10 @@
 	],
 	"Deps": [
 		{
+			"ImportPath": "github.com/gravitational/configure/cstrings",
+			"Rev": "be52937128b38f1d99787bb476c789e2af1147f1"
+		},
+		{
 			"ImportPath": "github.com/Sirupsen/logrus",
 			"Comment": "v0.9.0",
 			"Rev": "be52937128b38f1d99787bb476c789e2af1147f1"
@@ -49,10 +53,6 @@
 		{
 			"ImportPath": "github.com/gokyle/hotp",
 			"Rev": "c180d57d286b385101c999a60087a40d7f48fc77"
-		},
-		{
-			"ImportPath": "github.com/gravitational/configure",
-			"Rev": "fc0dd4dd61a725b9c39dbbb365b97bdf51e3a307"
 		},
 		{
 			"ImportPath": "github.com/gravitational/form",

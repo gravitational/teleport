@@ -25,6 +25,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/configure/cstrings"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -33,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/mailgun/oxy/forward"

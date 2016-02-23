@@ -24,11 +24,8 @@ import (
 
 // Default port numbers used by all teleport tools
 const (
-	// Web UI over HTTP
+	// Web UI over HTTP(s)
 	HTTPListenPort = 3080
-
-	// Web UI over HTTPS
-	HTTPSecureListenPort = 3081
 
 	// When running in "SSH Server" mode behind a proxy, this
 	// listening port will be used to connect users to:
@@ -51,15 +48,20 @@ const (
 	// Default DB to use for persisting state. Another options is "etcd"
 	BackendType = "bolt"
 
-	// Default path to teleport config file
-	ConfigFilePath = "/etc/teleport.yaml"
+	// Name of events bolt database file stored in DataDir
+	EventsBoltFile = "events.db"
 
-	// This is where all mutable data is stored (user keys, recorded sessions,
-	// registered SSH servers, etc):
-	DataDir = "/var/lib/teleport"
+	// Name of keys bolt database file stored in DataDir
+	KeysBoltFile = "keys.db"
+
+	// Name of records bolt database file stored in DataDir
+	RecordsBoltFile = "records.db"
 
 	// By default SSH server (and SSH proxy) will bind to this IP
 	BindIP = "0.0.0.0"
+
+	// By default all users use /bin/bash
+	DefaultShell = "/bin/bash"
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport
@@ -80,6 +82,13 @@ const (
 )
 
 var (
+	// Default path to teleport config file
+	ConfigFilePath = "/etc/teleport.yaml"
+
+	// This is where all mutable data is stored (user keys, recorded sessions,
+	// registered SSH servers, etc):
+	DataDir = "/var/lib/teleport"
+
 	// Default roles teleport assumes when started via 'start' command
 	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService}
 )
