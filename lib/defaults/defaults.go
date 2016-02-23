@@ -48,13 +48,6 @@ const (
 	// Default DB to use for persisting state. Another options is "etcd"
 	BackendType = "bolt"
 
-	// Default path to teleport config file
-	ConfigFilePath = "/etc/teleport.yaml"
-
-	// This is where all mutable data is stored (user keys, recorded sessions,
-	// registered SSH servers, etc):
-	DataDir = "/var/lib/teleport"
-
 	// Name of events bolt database file stored in DataDir
 	EventsBoltFile = "events.db"
 
@@ -89,6 +82,13 @@ const (
 )
 
 var (
+	// Default path to teleport config file
+	ConfigFilePath = "/etc/teleport.yaml"
+
+	// This is where all mutable data is stored (user keys, recorded sessions,
+	// registered SSH servers, etc):
+	DataDir = "/var/lib/teleport"
+
 	// Default roles teleport assumes when started via 'start' command
 	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService}
 )

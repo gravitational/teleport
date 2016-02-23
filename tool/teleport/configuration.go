@@ -57,7 +57,7 @@ func readConfigFile(cliConfigPath string) (*config.FileConfig, error) {
 	configFilePath := defaults.ConfigFilePath
 	// --config tells us to use a specific conf. file:
 	if cliConfigPath != "" {
-		configFilePath := cliConfigPath
+		configFilePath = cliConfigPath
 		if !fileExists(configFilePath) {
 			return nil, trace.Errorf("file not found: %s", configFilePath)
 		}
@@ -67,6 +67,7 @@ func readConfigFile(cliConfigPath string) (*config.FileConfig, error) {
 		log.Info("not using a config file")
 		return nil, nil
 	}
+	log.Debug("reading config file: ", configFilePath)
 	return config.ReadFromFile(configFilePath)
 }
 
@@ -209,14 +210,20 @@ func applyFileConfig(fc *config.FileConfig, cfg *service.Config) error {
 		}
 		cfg.SSH.Addr = *addr
 	}
-	for k, v := range fc.SSH.Labels {
-		cfg.SSH.Labels[k] = v
+	if fc.SSH.Labels != nil {
+		cfg.SSH.Labels = make(map[string]string)
+		for k, v := range fc.SSH.Labels {
+			cfg.SSH.Labels[k] = v
+		}
 	}
-	for _, cmdLabel := range fc.SSH.Commands {
-		cfg.SSH.CmdLabels[cmdLabel.Name] = services.CommandLabel{
-			Period:  cmdLabel.Period,
-			Command: cmdLabel.Command,
-			Result:  "",
+	if fc.SSH.Commands != nil {
+		cfg.SSH.CmdLabels = make(services.CommandLabels)
+		for _, cmdLabel := range fc.SSH.Commands {
+			cfg.SSH.CmdLabels[cmdLabel.Name] = services.CommandLabel{
+				Period:  cmdLabel.Period,
+				Command: cmdLabel.Command,
+				Result:  "",
+			}
 		}
 	}
 	return nil
@@ -302,8 +309,6 @@ func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 	if clf.ListenIP != nil {
 		applyListenIP(clf.ListenIP, cfg)
 	}
-
-	log.Info(cfg.DebugDumpToYAML())
 
 	return cfg, nil
 }
