@@ -21,6 +21,7 @@ var server = new WebpackDevServer(compiler, {
   },
   publicPath: ROOT +'/app',
   hot: true,
+  inline: true,
   headers: { "X-Custom-Header": "yes" },
   stats: 'errors-only'
 });
