@@ -13,8 +13,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-/*
-package roundtrip provides convenient functions for building HTTP client wrappers
+
+/*Package roundtrip provides convenient functions for building HTTP client wrappers
 and providing functions for server responses.
 
  import (
@@ -62,7 +62,15 @@ func HTTPClient(h *http.Client) ClientParam {
 // BasicAuth sets username and password for HTTP client
 func BasicAuth(username, password string) ClientParam {
 	return func(c *Client) error {
-		c.basicAuth = &basicAuth{username: username, password: password}
+		c.auth = &basicAuth{username: username, password: password}
+		return nil
+	}
+}
+
+// BearerAuth sets username and token for HTTP client
+func BearerAuth(token string) ClientParam {
+	return func(c *Client) error {
+		c.auth = &bearerAuth{token: token}
 		return nil
 	}
 }
@@ -77,8 +85,8 @@ type Client struct {
 	// client is a private http.Client instance
 	client *http.Client
 
-	// basicAuth tells client to use HTTP basic auth on every request
-	basicAuth *basicAuth
+	// auth tells client to use HTTP auth on every request
+	auth fmt.Stringer
 }
 
 // NewClient returns a new instance of roundtrip.Client, or nil and error
@@ -267,6 +275,8 @@ func (c *Client) GetFile(u string, params url.Values) (*FileResponse, error) {
 // it should return http response or error in case of error
 type RoundTripFn func() (*http.Response, error)
 
+// RoundTrip collects response and error assuming fn has done
+// HTTP roundtrip
 func (c *Client) RoundTrip(fn RoundTripFn) (*Response, error) {
 	re, err := fn()
 	if err != nil {
@@ -284,14 +294,14 @@ func (c *Client) RoundTrip(fn RoundTripFn) (*Response, error) {
 // SetAuthHeader sets client's authorization headers if client
 // was configured to work with authorization
 func (c *Client) SetAuthHeader(h http.Header) {
-	if c.basicAuth != nil {
-		h.Set("Authorization", c.basicAuth.String())
+	if c.auth != nil {
+		h.Set("Authorization", c.auth.String())
 	}
 }
 
 func (c *Client) addAuth(r *http.Request) {
-	if c.basicAuth != nil {
-		r.SetBasicAuth(c.basicAuth.username, c.basicAuth.password)
+	if c.auth != nil {
+		r.Header.Set("Authorization", c.auth.String())
 	}
 }
 
@@ -329,13 +339,14 @@ type File struct {
 	Reader   io.Reader
 }
 
-// Response indicates HTTP server file response
+// FileResponse indicates HTTP server file response
 type FileResponse struct {
 	code    int
 	headers http.Header
 	body    io.ReadCloser
 }
 
+// FileName returns HTTP file name
 func (r *FileResponse) FileName() string {
 	value := r.headers.Get("Content-Disposition")
 	if len(value) == 0 {
@@ -358,11 +369,12 @@ func (r *FileResponse) Headers() http.Header {
 	return r.headers
 }
 
-// Reader returns reader with HTTP response body
+// Body returns reader with HTTP response body
 func (r *FileResponse) Body() io.ReadCloser {
 	return r.body
 }
 
+// Close closes internal response body
 func (r *FileResponse) Close() error {
 	return r.body.Close()
 }
@@ -375,4 +387,12 @@ type basicAuth struct {
 func (b *basicAuth) String() string {
 	auth := b.username + ":" + b.password
 	return "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
+}
+
+type bearerAuth struct {
+	token string
+}
+
+func (b *bearerAuth) String() string {
+	return "Bearer " + b.token
 }
