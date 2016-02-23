@@ -295,7 +295,7 @@ func (proxy *ProxyClient) ConnectToHangout(nodeAddress string,
 		buf := make([]byte, 20000)
 		n, err := pipeNetConn.Read(buf)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Errorf("Readed %v, err: %v", n, err)
 		}
 		var endpointInfo srv.HangoutEndpointInfo
 		err = json.Unmarshal(buf[:n], &endpointInfo)

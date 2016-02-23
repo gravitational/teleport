@@ -362,7 +362,7 @@ func (h *Hangout) initSSHEndpoint(cfg service.Config) error {
 		h.client,
 		limiter,
 		cfg.DataDir,
-		srv.SetShell(defaults.DefaultShell),
+		srv.SetShell(DefaultSSHShell),
 		srv.SetEventLogger(elog),
 		srv.SetSessionServer(h.client),
 		srv.SetRecorder(h.client),
@@ -453,3 +453,5 @@ func initRecordBackend(btype string, params string) (recorder.Recorder, error) {
 const HangoutUser = "hangoutuser"
 const DefaultNodeAddress = "localhost:3031"
 const DefaultAuthAddress = "localhost:3032"
+
+var DefaultSSHShell = defaults.DefaultShell
