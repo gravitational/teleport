@@ -27,12 +27,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gokyle/hotp"
-	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/bcrypt"
 )

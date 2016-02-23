@@ -59,6 +59,36 @@ type Config struct {
 	Console io.Writer
 }
 
+// ApplyToken assigns a given token to all internal services but only if token
+// is not an empty string.
+//
+// Returns 'true' if token was modified
+func (cfg *Config) ApplyToken(token string) bool {
+	if token != "" {
+		cfg.SSH.Token = token
+		cfg.Proxy.Token = token
+		cfg.Auth.Token = token
+		return true
+	}
+	return false
+}
+
+// Configures Bolt back-ends with a data dir.
+func (cfg *Config) ConfigureBolt(dataDir string) {
+	const boltType = "bolt"
+	a := cfg.Auth
+
+	if a.EventsBackend.Type == boltType {
+		a.EventsBackend.Params = boltParams(dataDir, defaults.EventsBoltFile)
+	}
+	if a.KeysBackend.Type == boltType {
+		a.KeysBackend.Params = boltParams(dataDir, defaults.KeysBoltFile)
+	}
+	if a.RecordsBackend.Type == boltType {
+		a.RecordsBackend.Params = boltParams(dataDir, defaults.RecordsBoltFile)
+	}
+}
+
 func (cfg *Config) RoleConfig() RoleConfig {
 	return RoleConfig{
 		DataDir:     cfg.DataDir,
@@ -297,11 +327,11 @@ func ApplyDefaults(cfg *Config) error {
 	cfg.Auth.HostAuthorityDomain = hostname
 	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
 	cfg.Auth.EventsBackend.Type = defaults.BackendType
-	cfg.Auth.EventsBackend.Params = boltParams(defaults.DataDir, "events.db")
+	cfg.Auth.EventsBackend.Params = boltParams(defaults.DataDir, defaults.EventsBoltFile)
 	cfg.Auth.KeysBackend.Type = defaults.BackendType
-	cfg.Auth.KeysBackend.Params = boltParams(defaults.DataDir, "keys.db")
+	cfg.Auth.KeysBackend.Params = boltParams(defaults.DataDir, defaults.KeysBoltFile)
 	cfg.Auth.RecordsBackend.Type = defaults.BackendType
-	cfg.Auth.RecordsBackend.Params = boltParams(defaults.DataDir, "records.db")
+	cfg.Auth.RecordsBackend.Params = boltParams(defaults.DataDir, defaults.RecordsBoltFile)
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
 
 	// defaults for the SSH proxy service:
@@ -318,7 +348,7 @@ func ApplyDefaults(cfg *Config) error {
 	// defaults for the SSH service:
 	cfg.SSH.Enabled = true
 	cfg.SSH.Addr = *defaults.SSHServerListenAddr()
-	cfg.SSH.Shell = DefaultSSHShell
+	cfg.SSH.Shell = defaults.DefaultShell
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 
 	// global defaults
@@ -336,5 +366,3 @@ func ApplyDefaults(cfg *Config) error {
 func boltParams(storagePath, dbFile string) string {
 	return fmt.Sprintf(`{"path": "%s"}`, filepath.Join(storagePath, dbFile))
 }
-
-const DefaultSSHShell = "/bin/bash"
