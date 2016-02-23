@@ -21,11 +21,10 @@ type Encryptor interface {
 }
 
 type Key struct {
-	Name         string
-	ID           string
-	Value        []byte //used in NaCl
-	PublicValue  []byte // used in PGP
-	PrivateValue []byte // usef in PGP
+	Name         string `json:"name"`
+	ID           string `json:"id"`
+	PublicValue  []byte `json:"pubic_value"`
+	PrivateValue []byte `json:"private_value"`
 }
 
 func (key Key) Public() Key {

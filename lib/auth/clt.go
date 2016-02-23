@@ -13,12 +13,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package auth
 
 import (
-	"bytes"
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -28,6 +27,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -38,17 +38,15 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// CurrentVersion is a current API version
 const CurrentVersion = "v1"
 
-// Certificate authority endpoints control user and host Certificate Authorities.
-// They are central mechanism for authenticating users and hosts within
-// the cluster.
-//
 // Client is HTTP API client that connects to the remote server
 type Client struct {
 	roundtrip.Client
 }
 
+// NewClientFromNetAddr returns a new instance of the client
 func NewClientFromNetAddr(
 	a utils.NetAddr, params ...roundtrip.ClientParam) (*Client, error) {
 
@@ -66,6 +64,7 @@ func NewClientFromNetAddr(
 	return NewClient(u.String(), params...)
 }
 
+// NewClient returns a new instance of the client
 func NewClient(addr string, params ...roundtrip.ClientParam) (*Client, error) {
 	c, err := roundtrip.NewClient(addr, CurrentVersion, params...)
 	if err != nil {
@@ -74,19 +73,10 @@ func NewClient(addr string, params ...roundtrip.ClientParam) (*Client, error) {
 	return &Client{*c}, nil
 }
 
-func (c *Client) convertResponse(
-	re *roundtrip.Response, err error) (*roundtrip.Response, error) {
-
-	if err != nil {
-		return nil, err
-	}
-	if re.Code() == http.StatusNotFound {
-		return nil, &teleport.NotFoundError{Message: string(re.Bytes())}
-	}
-	if re.Code() < 200 || re.Code() > 299 {
-		return nil, fmt.Errorf("error: %v", string(re.Bytes()))
-	}
-	return re, nil
+// PostJSON is a generic method that issues http POST request to the server
+func (c *Client) PostJSON(
+	endpoint string, val interface{}) (*roundtrip.Response, error) {
+	return httplib.ConvertResponse(c.Client.PostJSON(endpoint, val))
 }
 
 // PostForm is a generic method that issues http POST request to the server
@@ -95,84 +85,66 @@ func (c *Client) PostForm(
 	vals url.Values,
 	files ...roundtrip.File) (*roundtrip.Response, error) {
 
-	return c.convertResponse(c.Client.PostForm(endpoint, vals, files...))
+	return httplib.ConvertResponse(c.Client.PostForm(endpoint, vals, files...))
 }
 
 // Get issues http GET request to the server
 func (c *Client) Get(u string, params url.Values) (*roundtrip.Response, error) {
-	return c.convertResponse(c.Client.Get(u, params))
+	return httplib.ConvertResponse(c.Client.Get(u, params))
 }
 
 // Delete issues http Delete Request to the server
 func (c *Client) Delete(u string) (*roundtrip.Response, error) {
-	return c.convertResponse(c.Client.Delete(u))
+	return httplib.ConvertResponse(c.Client.Delete(u))
 }
 
+// GetSessions returns a list of active sessions in the cluster
+// as reported by auth server
 func (c *Client) GetSessions() ([]session.Session, error) {
 	out, err := c.Get(c.Endpoint("sessions"), url.Values{})
 	if err != nil {
 		return nil, err
 	}
-	var re *sessionsResponse
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+	var sessions []session.Session
+	if err := json.Unmarshal(out.Bytes(), &sessions); err != nil {
 		return nil, err
 	}
-	return re.Sessions, nil
+	return sessions, nil
 }
 
+// GetSession returns a session by ID
 func (c *Client) GetSession(id string) (*session.Session, error) {
 	out, err := c.Get(c.Endpoint("sessions", id), url.Values{})
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
-	var re *sessionResponse
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-		return nil, err
+	var sess *session.Session
+	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return &re.Session, nil
+	return sess, nil
 }
 
+// DeleteSession deletes a session by ID
 func (c *Client) DeleteSession(id string) error {
 	_, err := c.Delete(c.Endpoint("sessions", id))
-	return err
+	return trace.Wrap(err)
 }
 
 func (c *Client) UpsertSession(id string, ttl time.Duration) error {
-	out, err := c.PostForm(c.Endpoint("sessions"), url.Values{
-		"id":  []string{id},
-		"ttl": []string{ttl.String()},
+	_, err := c.PostJSON(c.Endpoint("sessions"), upsertSessionReq{
+		ID:  id,
+		TTL: ttl,
 	})
-	if err != nil {
-		return err
-	}
-	var re *sessionResponse
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-		return err
-	}
-	return nil
+	return trace.Wrap(err)
 }
 
 func (c *Client) UpsertParty(id string, p session.Party, ttl time.Duration) error {
-	a, err := p.LastActive.MarshalText()
-	if err != nil {
-		return err
-	}
-	out, err := c.PostForm(c.Endpoint("sessions", id, "parties"), url.Values{
-		"id":          []string{p.ID},
-		"site":        []string{p.Site},
-		"user":        []string{p.User},
-		"server_addr": []string{p.ServerAddr},
-		"ttl":         []string{ttl.String()},
-		"last_active": []string{string(a)},
+	_, err := c.PostJSON(c.Endpoint("sessions", id, "parties"), upsertPartyReq{
+		Party: p,
+		TTL:   ttl,
 	})
-	if err != nil {
-		return err
-	}
-	var re *partyResponse
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-		return err
-	}
-	return nil
+	return trace.Wrap(err)
 }
 
 func (c *Client) GetLocalDomain() (string, error) {
@@ -192,11 +164,8 @@ func (c *Client) UpsertCertAuthority(ca services.CertAuthority, ttl time.Duratio
 		return trace.Wrap(err)
 	}
 	_, err := c.PostJSON(c.Endpoint("authorities", string(ca.Type)),
-		upsertCertAuthorityRequest{CA: ca, TTL: ttl})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+		upsertCertAuthorityReq{CA: ca, TTL: ttl})
+	return trace.Wrap(err)
 }
 
 func (c *Client) GetCertAuthorities(caType services.CertAuthType) ([]*services.CertAuthority, error) {
@@ -231,33 +200,33 @@ func (c *Client) DeleteCertAuthority(id services.CertAuthID) error {
 // The token can be used only once and only to generate the hostname
 // specified in it.
 func (c *Client) GenerateToken(nodename string, role teleport.Role, ttl time.Duration) (string, error) {
-	out, err := c.PostForm(c.Endpoint("tokens"), url.Values{
-		"domain": []string{nodename},
-		"role":   []string{string(role)},
-		"ttl":    []string{ttl.String()},
+	out, err := c.PostJSON(c.Endpoint("tokens"), generateTokenReq{
+		Domain: nodename,
+		Role:   role,
 	})
 	if err != nil {
-		return "", err
+		return "", trace.Wrap(err)
 	}
-	var re *tokenResponse
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-		return "", err
+	var token string
+	if err := json.Unmarshal(out.Bytes(), &token); err != nil {
+		return "", trace.Wrap(err)
 	}
-	return re.Token, nil
+	return token, nil
 }
 
 func (c *Client) RegisterUsingToken(token, nodename string, role teleport.Role) (PackedKeys, error) {
-	out, err := c.PostForm(c.Endpoint("tokens", "register"), url.Values{
-		"token":  []string{token},
-		"domain": []string{nodename},
-		"role":   []string{string(role)},
-	})
+	out, err := c.PostJSON(c.Endpoint("tokens", "register"),
+		registerUsingTokenReq{
+			Token:  token,
+			Domain: nodename,
+			Role:   role,
+		})
 	if err != nil {
-		return PackedKeys{}, err
+		return PackedKeys{}, trace.Wrap(err)
 	}
 	var keys PackedKeys
 	if err := json.Unmarshal(out.Bytes(), &keys); err != nil {
-		return PackedKeys{}, err
+		return PackedKeys{}, trace.Wrap(err)
 	}
 	return keys, nil
 }
@@ -265,20 +234,16 @@ func (c *Client) RegisterUsingToken(token, nodename string, role teleport.Role) 
 func (c *Client) RegisterNewAuthServer(nodename, token string,
 	publicSealKey encryptor.Key) (masterKey encryptor.Key, e error) {
 
-	pkeyJSON, err := json.Marshal(publicSealKey)
-	if err != nil {
-		return encryptor.Key{}, err
-	}
-	out, err := c.PostForm(c.Endpoint("tokens", "register", "auth"), url.Values{
-		"token":  []string{token},
-		"domain": []string{nodename},
-		"key":    []string{string(pkeyJSON)},
+	out, err := c.PostJSON(c.Endpoint("tokens", "register", "auth"), registerNewAuthServerReq{
+		Domain: nodename,
+		Token:  token,
+		Key:    publicSealKey,
 	})
 	if err != nil {
-		return encryptor.Key{}, err
+		return encryptor.Key{}, trace.Wrap(err)
 	}
 	if err := json.Unmarshal(out.Bytes(), &masterKey); err != nil {
-		return encryptor.Key{}, err
+		return encryptor.Key{}, trace.Wrap(err)
 	}
 	return masterKey, nil
 }
@@ -290,33 +255,24 @@ func (c *Client) Log(id lunk.EventID, e lunk.Event) {
 }
 
 func (c *Client) LogEntry(en lunk.Entry) error {
-	bt, err := json.Marshal(en)
-	if err != nil {
-		return err
-	}
-	file := roundtrip.File{
-		Name:     "event",
-		Filename: "event.json",
-		Reader:   bytes.NewReader(bt),
-	}
-	_, err = c.PostForm(c.Endpoint("events"), url.Values{}, file)
-	return err
+	_, err := c.PostJSON(c.Endpoint("events"), submitEventsReq{Events: []lunk.Entry{en}})
+	return trace.Wrap(err)
 }
 
 func (c *Client) GetEvents(filter events.Filter) ([]lunk.Entry, error) {
 	vals, err := events.FilterToURL(filter)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	out, err := c.Get(c.Endpoint("events"), vals)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
-	var re *eventsResponse
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-		return nil, err
+	var events []lunk.Entry
+	if err := json.Unmarshal(out.Bytes(), &events); err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return re.Events, nil
+	return events, nil
 }
 
 func (c *Client) GetChunkWriter(id string) (recorder.ChunkWriteCloser, error) {
@@ -330,92 +286,48 @@ func (c *Client) GetChunkReader(id string) (recorder.ChunkReadCloser, error) {
 // UpsertServer is used by SSH servers to reprt their presense
 // to the auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertServer(s services.Server, ttl time.Duration) error {
-	args := upsertServerArgs{
+	args := upsertServerReq{
 		Server: s,
 		TTL:    ttl,
 	}
 	_, err := c.PostJSON(c.Endpoint("servers"), args)
-	return err
+	return trace.Wrap(err)
 }
 
 // GetServers returns the list of servers registered in the cluster.
 func (c *Client) GetServers() ([]services.Server, error) {
 	out, err := c.Get(c.Endpoint("servers"), url.Values{})
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	var re []services.Server
 	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	return re, nil
 }
 
-// GetServers returns the list of auth servers registered in the cluster.
+// GetAuthServers returns the list of auth servers registered in the cluster.
 func (c *Client) GetAuthServers() ([]services.Server, error) {
 	out, err := c.Get(c.Endpoint("auth", "servers"), url.Values{})
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	var re []services.Server
 	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	return re, nil
-}
-
-// UpsertWebTun creates a persistent SSH tunnel to the specified web target
-// server that is valid for ttl period.
-// See services.WebTun documentation for details
-func (c *Client) UpsertWebTun(wt services.WebTun, ttl time.Duration) error {
-	_, err := c.PostForm(c.Endpoint("tunnels", "web"), url.Values{
-		"target": []string{string(wt.TargetAddr)},
-		"proxy":  []string{string(wt.ProxyAddr)},
-		"prefix": []string{string(wt.Prefix)},
-		"ttl":    []string{ttl.String()},
-	})
-	return err
-}
-
-// GetWebTuns returns a list of web tunnels supported by the system
-func (c *Client) GetWebTuns() ([]services.WebTun, error) {
-	out, err := c.Get(c.Endpoint("tunnels", "web"), url.Values{})
-	if err != nil {
-		return nil, err
-	}
-	var re *webTunsResponse
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-		return nil, err
-	}
-	return re.Tunnels, nil
-}
-
-// GetWebTun retruns the web tunel details by it unique prefix
-func (c *Client) GetWebTun(prefix string) (*services.WebTun, error) {
-	out, err := c.Get(c.Endpoint("tunnels", "web", prefix), url.Values{})
-	if err != nil {
-		return nil, err
-	}
-	var re *webTunResponse
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-		return nil, err
-	}
-	return &re.Tunnel, nil
-}
-
-// DeleteWebTun deletes the tunnel by prefix
-func (c *Client) DeleteWebTun(prefix string) error {
-	_, err := c.Delete(c.Endpoint("tunnels", "web", prefix))
-	return err
 }
 
 // UpsertPassword updates web access password for the user
 func (c *Client) UpsertPassword(user string,
 	password []byte) (hotpURL string, hotpQR []byte, err error) {
-	out, err := c.PostForm(
+	out, err := c.PostJSON(
 		c.Endpoint("users", user, "web", "password"),
-		url.Values{"password": []string{string(password)}},
-	)
+		upsertPasswordReq{
+			Password: string(password),
+		})
 	if err != nil {
 		return "", nil, trace.Wrap(err)
 	}
@@ -429,32 +341,32 @@ func (c *Client) UpsertPassword(user string,
 // CheckPassword checks if the suplied web access password is valid.
 func (c *Client) CheckPassword(user string,
 	password []byte, hotpToken string) error {
-	_, err := c.PostForm(
+	_, err := c.PostJSON(
 		c.Endpoint("users", user, "web", "password", "check"),
-		url.Values{
-			"password":  []string{string(password)},
-			"hotpToken": []string{hotpToken},
+		checkPasswordReq{
+			Password:  string(password),
+			HOTPToken: hotpToken,
 		})
-	return err
+	return trace.Wrap(err)
 }
 
 // SignIn checks if the web access password is valid, and if it is valid
 // returns a secure web session id.
 func (c *Client) SignIn(user string, password []byte) (string, error) {
-	out, err := c.PostForm(
+	out, err := c.PostJSON(
 		c.Endpoint("users", user, "web", "signin"),
-		url.Values{
-			"password": []string{string(password)},
+		signInReq{
+			Password: string(password),
 		},
 	)
 	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	var sid string
+	if err := json.Unmarshal(out.Bytes(), &sid); err != nil {
 		return "", err
 	}
-	var re *webSessionResponse
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-		return "", err
-	}
-	return re.SID, nil
+	return sid, nil
 }
 
 // GetWebSessionID check if a web sesion is valid, returns session id in case if
@@ -465,11 +377,10 @@ func (c *Client) GetWebSessionID(user string, sid string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var re *webSessionResponse
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+	if err := json.Unmarshal(out.Bytes(), &sid); err != nil {
 		return "", err
 	}
-	return re.SID, nil
+	return sid, nil
 }
 
 // GetWebSessionKeys returns the list of temporary keys generated for this
@@ -483,28 +394,28 @@ func (c *Client) GetWebSessionsKeys(
 	if err != nil {
 		return nil, err
 	}
-	var re *webSessionsResponse
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+	var keys []services.AuthorizedKey
+	if err := json.Unmarshal(out.Bytes(), &keys); err != nil {
 		return nil, err
 	}
-	return re.Keys, nil
+	return keys, nil
 }
 
 // DeleteWebSession deletes a web session for this user by id
 func (c *Client) DeleteWebSession(user string, sid string) error {
 	_, err := c.Delete(c.Endpoint("users", user, "web", "sessions", sid))
-	return err
+	return trace.Wrap(err)
 }
 
 // GetUsers returns a list of usernames registered in the system
 func (c *Client) GetUsers() ([]services.User, error) {
 	out, err := c.Get(c.Endpoint("users"), url.Values{})
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	var users []services.User
 	if err := json.Unmarshal(out.Bytes(), &users); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	return users, nil
 }
@@ -512,18 +423,18 @@ func (c *Client) GetUsers() ([]services.User, error) {
 // DeleteUser deletes a user by username
 func (c *Client) DeleteUser(user string) error {
 	_, err := c.Delete(c.Endpoint("users", user))
-	return err
+	return trace.Wrap(err)
 }
 
 // GenerateKeyPair generates SSH private/public key pair optionally protected
 // by password. If the pass parameter is an empty string, the key pair
 // is not password-protected.
 func (c *Client) GenerateKeyPair(pass string) ([]byte, []byte, error) {
-	out, err := c.PostForm(c.Endpoint("keypair"), url.Values{})
+	out, err := c.PostJSON(c.Endpoint("keypair"), generateKeyPairReq{Password: pass})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, trace.Wrap(err)
 	}
-	var kp *keyPairResponse
+	var kp *generateKeyPairResponse
 	if err := json.Unmarshal(out.Bytes(), &kp); err != nil {
 		return nil, nil, err
 	}
@@ -537,7 +448,7 @@ func (c *Client) GenerateHostCert(
 	key []byte, hostname, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error) {
 
 	out, err := c.PostJSON(c.Endpoint("ca", "host", "certs"),
-		generateHostCertRequest{
+		generateHostCertReq{
 			Key:        key,
 			Hostname:   hostname,
 			AuthDomain: authDomain,
@@ -545,13 +456,13 @@ func (c *Client) GenerateHostCert(
 			TTL:        ttl,
 		})
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	var cert string
 	if err := json.Unmarshal(out.Bytes(), &cert); err != nil {
 		return nil, err
 	}
-	return []byte(cert), err
+	return []byte(cert), nil
 }
 
 // GenerateUserCert takes the public key in the Open SSH ``authorized_keys``
@@ -561,7 +472,7 @@ func (c *Client) GenerateUserCert(
 	key []byte, user string, ttl time.Duration) ([]byte, error) {
 
 	out, err := c.PostJSON(c.Endpoint("ca", "user", "certs"),
-		generateUserCertRequest{
+		generateUserCertReq{
 			Key:  key,
 			User: user,
 			TTL:  ttl,
@@ -571,96 +482,96 @@ func (c *Client) GenerateUserCert(
 	}
 	var cert string
 	if err := json.Unmarshal(out.Bytes(), &cert); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
-	return []byte(cert), err
+	return []byte(cert), nil
 }
 
-// GetBackendKeys returns IDs of all the backend encrypting keys that
+// GetSealKeys returns IDs of all the backend encrypting keys that
 // this server has
 func (c *Client) GetSealKeys() ([]encryptor.Key, error) {
 	out, err := c.Get(c.Endpoint("backend", "keys"), url.Values{})
 	if err != nil {
 		return nil, err
 	}
-	var res sealKeysResponse
-	if err := json.Unmarshal(out.Bytes(), &res); err != nil {
+	var keys []encryptor.Key
+	if err := json.Unmarshal(out.Bytes(), &keys); err != nil {
 		return nil, err
 	}
-	return res.Keys, err
+	return keys, err
 }
 
-// GenerateBackendKey generates a new backend encrypting key with the
+// GenerateSealKey generates a new backend encrypting key with the
 // given id and then backend makes a copy of all the data using the
 // generated key for encryption
 func (c *Client) GenerateSealKey(keyName string) (encryptor.Key, error) {
-	out, err := c.PostForm(c.Endpoint("backend", "generatekey"), url.Values{
-		"name": []string{keyName}})
+	out, err := c.PostJSON(c.Endpoint("backend", "generatekey"), generateSealKeyReq{
+		Name: keyName})
 	if err != nil {
-		return encryptor.Key{}, err
+		return encryptor.Key{}, trace.Wrap(err)
 	}
 
-	var res sealKeyResponse
-	if err := json.Unmarshal(out.Bytes(), &res); err != nil {
-		return encryptor.Key{}, err
+	var key encryptor.Key
+	if err := json.Unmarshal(out.Bytes(), &key); err != nil {
+		return encryptor.Key{}, trace.Wrap(err)
 	}
-	return res.Key, err
+	return key, nil
 }
 
-// DeleteBackendKey deletes the backend encrypting key and all the data
+// DeleteSealKey deletes the backend encrypting key and all the data
 // encrypted with the key
 func (c *Client) DeleteSealKey(keyID string) error {
 	_, err := c.Delete(c.Endpoint("backend", "keys", keyID))
-	if err != nil {
-		return err
-	}
-	return err
+	return trace.Wrap(err)
 }
 
-// AddBackendKey adds the given encrypting key. If backend works not in
+// AddSealKey adds the given encrypting key. If backend works not in
 // readonly mode, backend makes a copy of the data using the key for
 // encryption
 func (c *Client) AddSealKey(key encryptor.Key) error {
 	keyJSON, err := json.Marshal(key)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	_, err = c.PostForm(c.Endpoint("backend", "keys"), url.Values{
 		"key": []string{string(keyJSON)}})
-	return err
+	return trace.Wrap(err)
 }
 
-// GetBackendKeys returns the backend encrypting key.
+// GetSealKey returns the backend encrypting key.
 func (c *Client) GetSealKey(keyID string) (encryptor.Key, error) {
 	out, err := c.Get(c.Endpoint("backend", "keys", keyID), url.Values{})
 	if err != nil {
 		return encryptor.Key{}, err
 	}
-	var key sealKeyResponse
+	var key encryptor.Key
 	if err := json.Unmarshal(out.Bytes(), &key); err != nil {
-		return encryptor.Key{}, err
+		return encryptor.Key{}, trace.Wrap(err)
 	}
-	return key.Key, nil
+	return key, nil
 }
 
 // CreateSignupToken creates one time token for creating account for the user
 // For each token it creates username and hotp generator
-func (c *Client) CreateSignupToken(user string, mappings []string) (token string, e error) {
-	if len(mappings) == 0 {
-		return "", trace.Errorf("cannot create a new account without any user mappings")
+func (c *Client) CreateSignupToken(user string, allowedLogins []string) (string, error) {
+	if len(allowedLogins) == 0 {
+		// TODO(klizhentas) do validation on the serverside
+		return "", trace.Wrap(
+			teleport.BadParameter("allowedUsers",
+				"cannot create a new account without any allowed logins"))
 	}
-	out, err := c.PostForm(c.Endpoint("signuptokens"), url.Values{
-		"user":     []string{user},
-		"mappings": mappings,
+	out, err := c.PostJSON(c.Endpoint("signuptokens"), createSignupTokenReq{
+		User:          user,
+		AllowedLogins: allowedLogins,
 	})
 	if err != nil {
-		return "", err
+		return "", trace.Wrap(err)
 	}
-	var result map[string]string
-	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
-		return "", err
+	var token string
+	if err := json.Unmarshal(out.Bytes(), &token); err != nil {
+		return "", trace.Wrap(err)
 	}
-	return result["message"], err
+	return token, nil
 }
 
 // GetSignupTokenData returns token data for a valid token
@@ -671,7 +582,7 @@ func (c *Client) GetSignupTokenData(token string) (user string,
 	if err != nil {
 		return "", nil, nil, err
 	}
-	var tokenData userTokenDataResponse
+	var tokenData getSignupTokenDataResponse
 	if err := json.Unmarshal(out.Bytes(), &tokenData); err != nil {
 		return "", nil, nil, err
 	}
@@ -682,13 +593,12 @@ func (c *Client) GetSignupTokenData(token string) (user string,
 // Account username and hotp generator are taken from token data.
 // Deletes token after account creation.
 func (c *Client) CreateUserWithToken(token, password, hotpToken string) error {
-	_, err := c.PostForm(c.Endpoint("signuptokens", "users"), url.Values{
-		"token":     []string{token},
-		"password":  []string{password},
-		"hotptoken": []string{hotpToken},
+	_, err := c.PostJSON(c.Endpoint("signuptokens", "users"), createUserWithTokenReq{
+		Token:     token,
+		Password:  password,
+		HOTPToken: hotpToken,
 	})
-
-	return err
+	return trace.Wrap(err)
 }
 
 type chunkRW struct {
@@ -704,30 +614,17 @@ func (c *chunkRW) ReadChunks(start int, end int) ([]recorder.Chunk, error) {
 	if err != nil {
 		return nil, err
 	}
-	var re *chunksResponse
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+	var chunks []recorder.Chunk
+	if err := json.Unmarshal(out.Bytes(), &chunks); err != nil {
 		return nil, err
 	}
-	return re.Chunks, nil
+	return chunks, nil
 }
 
-func (c *chunkRW) WriteChunks(chs []recorder.Chunk) error {
-	files := make([]roundtrip.File, len(chs))
-
-	for i, ch := range chs {
-		bt, err := json.Marshal(ch)
-		if err != nil {
-			return err
-		}
-		files[i] = roundtrip.File{
-			Name:     "chunk",
-			Filename: "chunk.json",
-			Reader:   bytes.NewReader(bt),
-		}
-	}
-	_, err := c.c.PostForm(
-		c.c.Endpoint("records", c.id, "chunks"), url.Values{}, files...)
-	return err
+func (c *chunkRW) WriteChunks(chunks []recorder.Chunk) error {
+	_, err := c.c.PostJSON(
+		c.c.Endpoint("records", c.id, "chunks"), writeChunksReq{Chunks: chunks})
+	return trace.Wrap(err)
 }
 
 func (c *chunkRW) Close() error {
@@ -755,10 +652,6 @@ type ClientI interface {
 	UpsertServer(s services.Server, ttl time.Duration) error
 	GetServers() ([]services.Server, error)
 	GetAuthServers() ([]services.Server, error)
-	UpsertWebTun(wt services.WebTun, ttl time.Duration) error
-	GetWebTuns() ([]services.WebTun, error)
-	GetWebTun(prefix string) (*services.WebTun, error)
-	DeleteWebTun(prefix string) error
 	UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error)
 	CheckPassword(user string, password []byte, hotpToken string) error
 	SignIn(user string, password []byte) (string, error)

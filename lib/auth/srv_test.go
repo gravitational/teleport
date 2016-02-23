@@ -254,31 +254,6 @@ func (s *APISuite) TestSessions(c *C) {
 	c.Assert(err, NotNil)
 }
 
-func (s *APISuite) TestWebTuns(c *C) {
-	_, err := s.clt.GetWebTun("p1")
-	c.Assert(err, NotNil)
-
-	t := services.WebTun{
-		Prefix:     "p1",
-		TargetAddr: "http://localhost:5000",
-		ProxyAddr:  "node1.gravitational.io",
-	}
-	c.Assert(s.clt.UpsertWebTun(t, 0), IsNil)
-
-	out, err := s.clt.GetWebTun("p1")
-	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, &t)
-
-	tuns, err := s.clt.GetWebTuns()
-	c.Assert(err, IsNil)
-	c.Assert(tuns, DeepEquals, []services.WebTun{t})
-
-	c.Assert(s.clt.DeleteWebTun("p1"), IsNil)
-
-	_, err = s.clt.GetWebTun("p1")
-	c.Assert(err, NotNil)
-}
-
 func (s *APISuite) TestServers(c *C) {
 	out, err := s.clt.GetServers()
 	c.Assert(err, IsNil)

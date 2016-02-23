@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -96,12 +95,6 @@ func NewSiteHandler(cfg SiteHandlerConfig) *SiteHandler {
 	// Event log
 	h.GET("/api/events", h.needsAuth(h.getEvents))
 	h.POST("/api/sessions/:id/messages", h.needsAuth(h.sendMessage))
-
-	// Web tunnels
-	h.GET("/api/tunnels/web", h.needsAuth(h.getWebTuns))
-	h.POST("/api/tunnels/web", h.needsAuth(h.upsertWebTun))
-	h.GET("/api/tunnels/web/:prefix", h.needsAuth(h.getWebTun))
-	h.DELETE("/api/tunnels/web/:prefix", h.needsAuth(h.deleteWebTun))
 
 	// Remote access to SSH server
 	h.GET("/api/ssh/connect/:server/sessions/:sid", h.needsAuth(h.connect))
@@ -505,83 +498,6 @@ func (s *SiteHandler) connect(w http.ResponseWriter, r *http.Request, p httprout
 	}
 	defer ws.Close()
 	ws.Handler().ServeHTTP(w, r)
-}
-
-func (s *SiteHandler) getWebTun(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) {
-	clt, err := c.GetClient()
-	if err != nil {
-		log.Errorf("failed to get client: %v", err)
-		replyErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	tun, err := clt.GetWebTun(p[0].Value)
-	if err != nil {
-		replyErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	roundtrip.ReplyJSON(w, http.StatusOK, tun)
-}
-
-func (s *SiteHandler) deleteWebTun(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) {
-	clt, err := c.GetClient()
-	if err != nil {
-		log.Errorf("failed to get client: %v", err)
-		replyErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	if err := clt.DeleteWebTun(p[0].Value); err != nil {
-		replyErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	roundtrip.ReplyJSON(w, http.StatusOK, "deleted")
-}
-
-func (s *SiteHandler) getWebTuns(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) {
-	clt, err := c.GetClient()
-	if err != nil {
-		log.Errorf("failed to get client: %v", err)
-		replyErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	tuns, err := clt.GetWebTuns()
-	if err != nil {
-		log.Errorf("failed to retrieve tunnels: %v", err)
-		replyErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	roundtrip.ReplyJSON(w, http.StatusOK, tuns)
-}
-
-func (s *SiteHandler) upsertWebTun(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) {
-	var prefix, target, proxy string
-
-	err := form.Parse(r,
-		form.String("prefix", &prefix, form.Required()),
-		form.String("target", &target, form.Required()),
-		form.String("proxy", &proxy, form.Required()))
-	if err != nil {
-		log.Errorf("failed to parse form: %v", err)
-		roundtrip.ReplyJSON(w, http.StatusBadRequest, message(err.Error()))
-		return
-	}
-	wt, err := services.NewWebTun(prefix, proxy, target)
-	if err != nil {
-		log.Errorf("failed to parse form: %v", err)
-		roundtrip.ReplyJSON(w, http.StatusBadRequest, message(err.Error()))
-		return
-	}
-	clt, err := c.GetClient()
-	if err != nil {
-		log.Errorf("failed to get client: %v", err)
-		replyErr(w, http.StatusInternalServerError, err)
-		return
-	}
-	if err := clt.UpsertWebTun(*wt, 0); err != nil {
-		log.Errorf("failed to upsert keys: %v", err)
-		roundtrip.ReplyJSON(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	roundtrip.ReplyJSON(w, http.StatusOK, wt)
 }
 
 func (s *SiteHandler) getEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) {
