@@ -48,14 +48,16 @@ func (s *KeyStoreSuite) TearDownTest(c *C) {
 
 func (s *KeyStoreSuite) TestBasicCRUD(c *C) {
 	key1 := encryptor.Key{
-		Name:  "name1",
-		ID:    "key1",
-		Value: []byte("value1"),
+		Name:         "name1",
+		ID:           "key1",
+		PublicValue:  []byte("value1"),
+		PrivateValue: []byte("privatevalue1"),
 	}
 	key2 := encryptor.Key{
-		Name:  "name2",
-		ID:    "key2",
-		Value: []byte("value2"),
+		Name:         "name2",
+		ID:           "key2",
+		PublicValue:  []byte("value2"),
+		PrivateValue: []byte("privatevalue2"),
 	}
 
 	c.Assert(s.ks.AddKey(key1), IsNil)
@@ -88,9 +90,10 @@ func (s *KeyStoreSuite) TestBasicCRUD(c *C) {
 
 func (s *KeyStoreSuite) TestKeyToString(c *C) {
 	key1 := encryptor.Key{
-		Name:  "name3",
-		ID:    "key3",
-		Value: []byte("value3"),
+		Name:         "name3",
+		ID:           "key3",
+		PublicValue:  []byte("value3"),
+		PrivateValue: []byte("privatevalue3"),
 	}
 
 	b64key, err := KeyToString(key1)
@@ -100,5 +103,6 @@ func (s *KeyStoreSuite) TestKeyToString(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(key2.Name, Equals, key1.Name)
 	c.Assert(key2.ID, Equals, key1.ID)
-	c.Assert(key2.Value, DeepEquals, key2.Value)
+	c.Assert(key2.PrivateValue, DeepEquals, key2.PrivateValue)
+	c.Assert(key2.PublicValue, DeepEquals, key2.PublicValue)
 }
