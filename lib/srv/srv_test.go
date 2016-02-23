@@ -16,6 +16,7 @@ limitations under the License.
 package srv
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -69,7 +70,7 @@ type SrvSuite struct {
 var _ = Suite(&SrvSuite{})
 
 func (s *SrvSuite) SetUpSuite(c *C) {
-	utils.InitLoggerDebug()
+	utils.InitLoggerCLI()
 }
 
 func (s *SrvSuite) SetUpTest(c *C) {
@@ -194,16 +195,27 @@ func (s *SrvSuite) TestShell(c *C) {
 	se, err := s.clt.NewSession()
 	c.Assert(err, IsNil)
 
-	w, err := se.StdinPipe()
+	writer, err := se.StdinPipe()
 	c.Assert(err, IsNil)
 
-	stdout := &bytes.Buffer{}
-	se.Stdout = stdout
-	c.Assert(se.Shell(), IsNil)
-	_, err = io.WriteString(w, "expr 7 + 70\n sleep 1\n exit\n")
+	stdoutPipe, err := se.StdoutPipe()
 	c.Assert(err, IsNil)
-	c.Assert(se.Wait(), IsNil)
-	c.Assert(removeNL(stdout.String()), Matches, ".*77.*")
+	reader := bufio.NewReader(stdoutPipe)
+
+	c.Assert(se.Shell(), IsNil)
+
+	out, err := reader.ReadString('$')
+	c.Assert(err, IsNil)
+	c.Assert(out, Equals, "$")
+
+	_, err = io.WriteString(writer, "expr 7 + 70\n")
+	c.Assert(err, IsNil)
+
+	out, err = reader.ReadString('$')
+	c.Assert(err, IsNil)
+	c.Assert(removeNL(out), Equals, " expr 7 + 7077$")
+
+	c.Assert(se.Close(), IsNil)
 }
 
 // TestMux tests multiplexing command with agent forwarding

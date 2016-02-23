@@ -1,0 +1,132 @@
+.top-navigation #page-wrapper {
+  margin-left: 0;
+}
+
+.top-navigation .navbar-nav .dropdown-menu > .active > a {
+  background: white;
+  color: $navy;
+  font-weight: bold;
+}
+
+.white-bg .navbar-fixed-top, .white-bg .navbar-static-top {
+  background: #fff;
+}
+
+.top-navigation .navbar {
+  margin-bottom: 0;
+}
+
+.top-navigation .nav > li > a {
+  padding: 15px 20px;
+  color: #676a6c;
+}
+
+.top-navigation .nav > li a:hover, .top-navigation .nav > li a:focus {
+  background: #fff;
+  color: $navy;
+}
+
+.top-navigation .nav > li.active {
+  background: #fff;
+  border: none;
+}
+
+.top-navigation .nav > li.active > a {
+  color: $navy;
+}
+
+.top-navigation .navbar-right {
+  margin-right: 10px;
+}
+
+.top-navigation .navbar-nav .dropdown-menu {
+  box-shadow: none;
+  border: 1px solid #e7eaec;
+}
+
+.top-navigation .dropdown-menu > li > a {
+  margin: 0;
+  padding: 7px 20px;
+}
+
+.navbar .dropdown-menu {
+  margin-top: 0;
+}
+
+.top-navigation .navbar-brand {
+  background: $navy;
+  color: #fff;
+  padding: 15px 25px;
+}
+
+.top-navigation .navbar-top-links li:last-child {
+  margin-right: 0;
+}
+
+.top-navigation.mini-navbar #page-wrapper,
+.top-navigation.body-small.fixed-sidebar.mini-navbar #page-wrapper,
+.mini-navbar .top-navigation #page-wrapper,
+.body-small.fixed-sidebar.mini-navbar .top-navigation #page-wrapper,
+.canvas-menu #page-wrapper {
+  margin: 0;
+}
+
+.top-navigation.fixed-nav #wrapper, .fixed-nav #wrapper.top-navigation {
+  margin-top: 50px;
+}
+
+.top-navigation .footer.fixed {
+  margin-left: 0 !important;
+}
+
+.top-navigation .wrapper.wrapper-content {
+  padding: 40px;
+}
+
+.top-navigation.body-small .wrapper.wrapper-content, .body-small .top-navigation .wrapper.wrapper-content {
+  padding: 40px 0 40px 0;
+}
+
+.navbar-toggle {
+  background-color: $navy;
+  color: #fff;
+  padding: 6px 12px;
+  font-size: 14px;
+}
+
+.top-navigation .navbar-nav .open .dropdown-menu > li > a, .top-navigation .navbar-nav .open .dropdown-menu .dropdown-header {
+  padding: 10px 15px 10px 20px;
+}
+
+@media (max-width: 768px) {
+  .top-navigation .navbar-header {
+    display: block;
+    float: none;
+  }
+}
+
+.menu-visible-lg, .menu-visible-md {
+  display: none !important;
+}
+
+@media (min-width: 1200px) {
+  .menu-visible-lg {
+    display: block !important;
+  }
+}
+
+@media (min-width: 992px) {
+  .menu-visible-md {
+    display: block !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .menu-visible-md {
+    display: block !important;
+  }
+
+  .menu-visible-lg {
+    display: block !important;
+  }
+}

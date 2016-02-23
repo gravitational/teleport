@@ -16,6 +16,7 @@ limitations under the License.
 package client
 
 import (
+	"bufio"
 	"bytes"
 	"io/ioutil"
 	"net/http"
@@ -385,30 +386,91 @@ func (s *ClientSuite) TestShell(c *C) {
 	shell, err := nodeClient.Shell(100, 100, "")
 	c.Assert(err, IsNil)
 
-	out := make([]byte, 100)
-	n, err := shell.Read(out)
+	shellReader := bufio.NewReader(shell)
+
+	out, err := shellReader.ReadString('$')
 	c.Assert(err, IsNil)
-	c.Assert(string(out[:n]), Equals, "$ ")
+	c.Assert(out, Equals, "$")
 	// run first command
 	_, err = shell.Write([]byte("expr 11 + 22\n"))
 	c.Assert(err, IsNil)
-	time.Sleep(time.Millisecond * 100)
 
-	out = make([]byte, 100)
-	n, err = shell.Read(out)
+	out, err = shellReader.ReadString('$')
 	c.Assert(err, IsNil)
-	c.Assert(string(out[:n]), Equals, "expr 11 + 22\r\n33\r\n$ ")
+	c.Assert(out, Equals, " expr 11 + 22\r\n33\r\n$")
 
 	// run second command
 	_, err = shell.Write([]byte("expr 2 + 3\n"))
 	c.Assert(err, IsNil)
-	time.Sleep(time.Millisecond * 100)
 
-	n, err = shell.Read(out)
+	out, err = shellReader.ReadString('$')
 	c.Assert(err, IsNil)
-	c.Assert(string(out[:n]), Equals, "expr 2 + 3\r\n5\r\n$ ")
+	c.Assert(out, Equals, " expr 2 + 3\r\n5\r\n$")
 
 	c.Assert(shell.Close(), IsNil)
+}
+
+func (s *ClientSuite) TestSharedShellSession(c *C) {
+	proxyClient1, err := ConnectToProxy(s.proxyAddress,
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
+	c.Assert(err, IsNil)
+
+	nodeClient1, err := proxyClient1.ConnectToNode(s.srvAddress,
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
+	c.Assert(err, IsNil)
+
+	shell1, err := nodeClient1.Shell(100, 100, "shell123")
+	c.Assert(err, IsNil)
+	shell1Reader := bufio.NewReader(shell1)
+
+	out, err := shell1Reader.ReadString('$')
+	c.Assert(err, IsNil)
+	c.Assert(out, Equals, "$")
+	// run first command
+	_, err = shell1.Write([]byte("expr 11 + 22\n"))
+	c.Assert(err, IsNil)
+
+	out, err = shell1Reader.ReadString('$')
+	c.Assert(err, IsNil)
+	c.Assert(out, Equals, " expr 11 + 22\r\n33\r\n$")
+
+	proxyClient2, err := ConnectToProxy(s.proxyAddress,
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
+	c.Assert(err, IsNil)
+
+	nodeClient2, err := proxyClient2.ConnectToNode(s.srvAddress,
+		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, CheckHostSignerFromCache, s.user)
+	c.Assert(err, IsNil)
+
+	shell2, err := nodeClient2.Shell(100, 100, "shell123")
+	c.Assert(err, IsNil)
+	shell2Reader := bufio.NewReader(shell2)
+	// run second command
+	_, err = shell1.Write([]byte("expr 2 + 3\n"))
+	c.Assert(err, IsNil)
+
+	out, err = shell1Reader.ReadString('$')
+	c.Assert(err, IsNil)
+	c.Assert(out, Equals, " expr 2 + 3\r\n5\r\n$")
+
+	out, err = shell2Reader.ReadString('$')
+	c.Assert(err, IsNil)
+	c.Assert(out, Equals, "expr 2 + 3\r\n5\r\n$")
+
+	// run third command
+	_, err = shell2.Write([]byte("expr 6 + 2\n"))
+	c.Assert(err, IsNil)
+
+	out, err = shell1Reader.ReadString('$')
+	c.Assert(err, IsNil)
+	c.Assert(out, Equals, " expr 6 + 2\r\n8\r\n$")
+
+	out, err = shell2Reader.ReadString('$')
+	c.Assert(err, IsNil)
+	c.Assert(out, Equals, " expr 6 + 2\r\n8\r\n$")
+
+	c.Assert(shell1.Close(), IsNil)
+	c.Assert(shell2.Close(), IsNil)
 }
 
 func (s *ClientSuite) TestGetServer(c *C) {

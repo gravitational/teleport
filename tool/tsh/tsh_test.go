@@ -89,7 +89,7 @@ type TshSuite struct {
 var _ = Suite(&TshSuite{})
 
 func (s *TshSuite) SetUpSuite(c *C) {
-	utils.InitLoggerDebug()
+	utils.InitLoggerCLI()
 	client.KeysDir = c.MkDir()
 
 	s.dir = c.MkDir()

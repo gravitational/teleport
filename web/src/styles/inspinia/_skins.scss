@@ -1,0 +1,468 @@
+/*
+ *
+ *   SKIN 1 - INSPINIA - Responsive Admin Theme
+ *   NAME - Blue light
+ *
+*/
+
+// Main colors
+$skin-1-color: #0e9aef;
+$skin-1-nav-bg: #3e495f;
+$skin-1-a-color: #9ea6b9;
+$skin-1-page-bg: #f4f6fa;
+
+// Custom style
+.skin-1 .minimalize-styl-2 {
+  margin: 14px 5px 5px 30px;
+}
+
+.skin-1 .navbar-top-links li:last-child {
+  margin-right: 30px;
+}
+
+.skin-1.fixed-nav .minimalize-styl-2 {
+  margin: 14px 5px 5px 15px;
+}
+
+.skin-1 .spin-icon {
+  background: $skin-1-color !important;
+}
+
+.skin-1 .nav-header {
+  background: $skin-1-color;
+  background: url('patterns/header-profile-skin-1.png');
+}
+
+.skin-1.mini-navbar .nav-second-level {
+  background: $skin-1-nav-bg;
+}
+
+.skin-1 .breadcrumb {
+  background: transparent;
+}
+
+.skin-1 .page-heading {
+  border: none;
+}
+
+.skin-1 .nav > li.active {
+  background: darken($skin-1-nav-bg, 2%);
+}
+
+.skin-1 .nav > li > a {
+  color: $skin-1-a-color;
+}
+
+.skin-1 .nav > li.active > a {
+  color: #fff;
+}
+
+.skin-1 .navbar-minimalize {
+  background: $skin-1-color;
+  border-color: $skin-1-color;
+}
+
+body.skin-1 {
+  background: $skin-1-nav-bg;
+}
+
+.skin-1 .navbar-static-top {
+  background: #ffffff;
+}
+
+.skin-1 .dashboard-header {
+  background: transparent;
+  border-bottom: none !important;
+  border-top: none;
+  padding: 20px 30px 10px 30px;
+}
+
+.fixed-nav.skin-1 .navbar-fixed-top {
+  background: #fff;
+}
+
+.skin-1 .wrapper-content {
+  padding: 30px 15px;
+}
+
+.skin-1 #page-wrapper {
+  background: $skin-1-page-bg;
+}
+
+.skin-1 .ibox-title, .skin-1 .ibox-content {
+  border-width: 1px;
+}
+
+.skin-1 .ibox-content:last-child {
+  border-style: solid solid solid solid;
+}
+
+.skin-1 .nav > li.active {
+  border: none;
+}
+
+.skin-1 .nav-header {
+  padding: 35px 25px 25px 25px;
+}
+
+.skin-1 .nav-header a.dropdown-toggle {
+  color: #fff;
+  margin-top: 10px;
+}
+
+.skin-1 .nav-header a.dropdown-toggle .text-muted {
+  color: #fff;
+  opacity: 0.8;
+}
+
+.skin-1 .profile-element {
+  text-align: center;
+}
+
+.skin-1 .img-circle {
+  border-radius: 5px;
+}
+
+.skin-1 .navbar-default .nav > li > a:hover, .skin-1 .navbar-default .nav > li > a:focus {
+  background: darken($skin-1-nav-bg, 2%);
+  color: #fff;
+}
+
+.skin-1 .nav.nav-tabs > li.active > a {
+  color: #555;
+}
+
+.skin-1 .nav.nav-tabs > li.active {
+  background: transparent;
+}
+
+/*
+ *
+ *   SKIN 2 - INSPINIA - Responsive Admin Theme
+ *   NAME - Inspinia Ultra
+ *
+*/
+
+// Main colors
+$skin-2-color: #23c6c8;
+$skin-2-nav-bg: #ededed;
+$skin-2-nav-top-bg: #213a53;
+
+// Custom style
+
+body.skin-2 {
+  color: #565758 !important;
+}
+
+.skin-2 .minimalize-styl-2 {
+  margin: 14px 5px 5px 25px;
+}
+
+.skin-2 .navbar-top-links li:last-child {
+  margin-right: 25px;
+}
+
+.skin-2 .spin-icon {
+  background: $skin-2-color !important;
+}
+
+.skin-2 .nav-header {
+  background: $skin-2-color;
+  background: url('patterns/header-profile-skin-2.png');
+}
+
+.skin-2.mini-navbar .nav-second-level {
+  background: $skin-2-nav-bg;
+}
+
+.skin-2 .breadcrumb {
+  background: transparent;
+}
+
+.skin-2.fixed-nav .minimalize-styl-2 {
+  margin: 14px 5px 5px 15px;
+}
+
+.skin-2 .page-heading {
+  border: none;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.skin-2 .nav > li.active {
+  background: #e0e0e0;
+}
+
+.skin-2 .logo-element {
+  padding: 17px 0;
+}
+
+.skin-2 .nav > li > a, .skin-2 .welcome-message {
+  color: #edf6ff;
+}
+
+.skin-2 #top-search::-moz-placeholder {
+  color: #edf6ff;
+  opacity: 0.5;
+}
+
+.skin-2 #side-menu > li > a, .skin-2 .nav.nav-second-level > li > a {
+  color: #586b7d;
+}
+
+.skin-2 .nav > li.active > a {
+  color: $skin-2-nav-top-bg;
+}
+
+.skin-2.mini-navbar .nav-header {
+  background: $skin-2-nav-top-bg;
+}
+
+.skin-2 .navbar-minimalize {
+  background: $skin-2-color;
+  border-color: $skin-2-color;
+}
+
+.skin-2 .border-bottom {
+  border-bottom: none !important;
+}
+
+.skin-2 #top-search {
+  color: #fff;
+}
+
+body.skin-2 #wrapper {
+  background-color: $skin-2-nav-bg;
+}
+
+.skin-2 .navbar-static-top {
+  background: $skin-2-nav-top-bg;
+}
+
+.fixed-nav.skin-2 .navbar-fixed-top {
+  background: $skin-2-nav-top-bg;
+  border-bottom: none !important;
+}
+
+.skin-2 .nav-header {
+  padding: 30px 25px 30px 25px;
+}
+
+.skin-2 .dashboard-header {
+  background: rgba(255, 255, 255, 0.4);
+  border-bottom: none !important;
+  border-top: none;
+  padding: 20px 30px 20px 30px;
+}
+
+.skin-2 .wrapper-content {
+  padding: 30px 15px;
+}
+
+.skin-2 .dashoard-1 .wrapper-content {
+  padding: 0 30px 25px 30px;
+}
+
+.skin-2 .ibox-title {
+  background: rgba(255, 255, 255, 0.7);
+  border: none;
+  margin-bottom: 1px;
+}
+
+.skin-2 .ibox-content {
+  background: rgba(255, 255, 255, 0.4);
+  border: none !important;
+}
+
+.skin-2 #page-wrapper {
+  background: rgba(246, 246, 246, 1);
+  background: -webkit-radial-gradient(center, ellipse cover, rgba(246, 246, 246, 1) 20%, rgba(213, 213, 213, 1) 100%);
+  background: -o-radial-gradient(center, ellipse cover, rgba(246, 246, 246, 1) 20%, rgba(213, 213, 213, 1) 100%);
+  background: -ms-radial-gradient(center, ellipse cover, rgba(246, 246, 246, 1) 20%, rgba(213, 213, 213, 1) 100%);
+  background: radial-gradient(ellipse at center, rgba(246, 246, 246, 1) 20%, rgba(213, 213, 213, 1) 100%);
+  -ms-filter: "progid:DXImageTransform.Microsoft.gradient(startColorstr=#f6f6f6, endColorstr=#d5d5d5)";
+}
+
+.skin-2 .ibox-title, .skin-2 .ibox-content {
+  border-width: 1px;
+}
+
+.skin-2 .ibox-content:last-child {
+  border-style: solid solid solid solid;
+}
+
+.skin-2 .nav > li.active {
+  border: none;
+}
+
+.skin-2 .nav-header a.dropdown-toggle {
+  color: #edf6ff;
+  margin-top: 10px;
+}
+
+.skin-2 .nav-header a.dropdown-toggle .text-muted {
+  color: #edf6ff;
+  opacity: 0.8;
+}
+
+.skin-2 .img-circle {
+  border-radius: 10px;
+}
+
+.skin-2 .nav.navbar-top-links > li > a:hover, .skin-2 .nav.navbar-top-links > li > a:focus {
+  background: darken($skin-2-nav-top-bg, 5%);
+}
+
+.skin-2 .navbar-default .nav > li > a:hover, .skin-2 .navbar-default .nav > li > a:focus {
+  background: #e0e0e0;
+  color: #213a53;
+}
+
+.skin-2 .nav.nav-tabs > li.active > a {
+  color: #555;
+}
+
+.skin-2 .nav.nav-tabs > li.active {
+  background: transparent;
+}
+
+/*
+ *
+ *   SKIN 3 - INSPINIA - Responsive Admin Theme
+ *   NAME - Yellow/purple
+ *
+*/
+
+// Main colors
+$skin-3-color: #ecba52;
+$skin-3-nav-bg: #3e2c42;
+$skin-3-a-color: #948b96;
+$skin-3-page-bg: #f4f6fa;
+
+// Custom style
+.skin-3 .minimalize-styl-2 {
+  margin: 14px 5px 5px 30px;
+}
+
+.skin-3 .navbar-top-links li:last-child {
+  margin-right: 30px;
+}
+
+.skin-3.fixed-nav .minimalize-styl-2 {
+  margin: 14px 5px 5px 15px;
+}
+
+.skin-3 .spin-icon {
+  background: $skin-3-color !important;
+}
+
+body.boxed-layout.skin-3 #wrapper {
+  background: $skin-3-nav-bg;
+}
+
+.skin-3 .nav-header {
+  background: $skin-3-color;
+  background: url('patterns/header-profile-skin-3.png');
+}
+
+.skin-3.mini-navbar .nav-second-level {
+  background: $skin-3-nav-bg;
+}
+
+.skin-3 .breadcrumb {
+  background: transparent;
+}
+
+.skin-3 .page-heading {
+  border: none;
+}
+
+.skin-3 .nav > li.active {
+  background: darken($skin-3-nav-bg, 2%);
+}
+
+.fixed-nav.skin-3 .navbar-fixed-top {
+  background: #fff;
+}
+
+.skin-3 .nav > li > a {
+  color: $skin-3-a-color;
+}
+
+.skin-3 .nav > li.active > a {
+  color: #fff;
+}
+
+.skin-3 .navbar-minimalize {
+  background: $skin-3-color;
+  border-color: $skin-3-color;
+}
+
+body.skin-3 {
+  background: $skin-3-nav-bg;
+}
+
+.skin-3 .navbar-static-top {
+  background: #ffffff;
+}
+
+.skin-3 .dashboard-header {
+  background: transparent;
+  border-bottom: none !important;
+  border-top: none;
+  padding: 20px 30px 10px 30px;
+}
+
+.skin-3 .wrapper-content {
+  padding: 30px 15px;
+}
+
+.skin-3 #page-wrapper {
+  background: $skin-3-page-bg;
+}
+
+.skin-3 .ibox-title, .skin-3 .ibox-content {
+  border-width: 1px;
+}
+
+.skin-3 .ibox-content:last-child {
+  border-style: solid solid solid solid;
+}
+
+.skin-3 .nav > li.active {
+  border: none;
+}
+
+.skin-3 .nav-header {
+  padding: 35px 25px 25px 25px;
+}
+
+.skin-3 .nav-header a.dropdown-toggle {
+  color: #fff;
+  margin-top: 10px;
+}
+
+.skin-3 .nav-header a.dropdown-toggle .text-muted {
+  color: #fff;
+  opacity: 0.8;
+}
+
+.skin-3 .profile-element {
+  text-align: center;
+}
+
+.skin-3 .img-circle {
+  border-radius: 5px;
+}
+
+.skin-3 .navbar-default .nav > li > a:hover, .skin-3 .navbar-default .nav > li > a:focus {
+  background: darken($skin-3-nav-bg, 2%);
+  color: #fff;
+}
+
+.skin-3 .nav.nav-tabs > li.active > a {
+  color: #555;
+}
+
+.skin-3 .nav.nav-tabs > li.active {
+  background: transparent;
+}

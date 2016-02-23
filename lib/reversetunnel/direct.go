@@ -43,11 +43,6 @@ type directSite struct {
 	lastUsed    int
 	lastActive  time.Time
 	srv         *server
-
-	hangoutHostKey  *services.CertAuthority
-	hangoutOSUser   string
-	hangoutAuthPort string
-	hangoutNodePort string
 }
 
 func (s *directSite) GetClient() (auth.ClientI, error) {
@@ -108,8 +103,8 @@ func (s *directSite) DialServer(addr string) (net.Conn, error) {
 	return s.Dial("tcp", server.Addr)
 }
 
-func (s *directSite) GetHangoutInfo() (hostKey *services.CertAuthority, OSUser, AuthPort, NodePort string) {
-	return s.hangoutHostKey, s.hangoutOSUser, s.hangoutAuthPort, s.hangoutNodePort
+func (s *directSite) GetHangoutInfo() (*HangoutSiteInfo, error) {
+	return nil, trace.Errorf("Site is not a hangout")
 }
 
 func findServer(addr string, servers []services.Server) (*services.Server, error) {

@@ -27,8 +27,12 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"os"
+	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -38,7 +42,6 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/crypto/ssh/terminal"
 )
 
 func AuthMethodFromAgent(ag agent.Agent) ssh.AuthMethod {
@@ -177,9 +180,31 @@ func GetPasswordFromConsole(user string) PasswordCallback {
 }
 
 func readPassword() (string, error) {
-	password, err := terminal.ReadPassword(0)
+	// do not display entered characters on the screen
+	exec.Command("stty", "-F", "/dev/tty", "-echo").Run()
+
+	exitSignals := make(chan os.Signal, 1)
+	functionFinished := make(chan int)
+	signal.Notify(exitSignals, syscall.SIGTERM, syscall.SIGINT)
+
+	go func() {
+		select {
+		case <-functionFinished:
+		case <-exitSignals:
+			// restore the console echoing state
+			exec.Command("stty", "-F", "/dev/tty", "echo").Run()
+			os.Exit(0)
+		}
+	}()
+
+	password := ""
+	_, err := fmt.Scanln(&password)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return string(password), nil
+
+	// restore the console echoing state
+	exec.Command("stty", "-F", "/dev/tty", "echo").Run()
+	functionFinished <- 1
+	return password, nil
 }

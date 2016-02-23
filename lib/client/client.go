@@ -31,7 +31,6 @@ import (
 	"net"
 	"os"
 	"regexp"
-	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/lib/services"
@@ -50,7 +49,6 @@ import (
 type ProxyClient struct {
 	Client       *ssh.Client
 	proxyAddress string
-	*sync.Mutex
 }
 
 // NodeClient implements ssh client to a ssh node (teleport or any regular ssh node)
@@ -83,7 +81,6 @@ func ConnectToProxy(proxyAddress string, authMethods []ssh.AuthMethod,
 		return &ProxyClient{
 			Client:       proxyClient,
 			proxyAddress: proxyAddress,
-			Mutex:        &sync.Mutex{},
 		}, nil
 	}
 
@@ -174,9 +171,6 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, authMethods []ssh.Au
 		return nil, trace.Errorf("no authMethods were provided")
 	}
 
-	proxy.Lock()
-	defer proxy.Unlock()
-
 	e := trace.Errorf("unknown Error")
 
 	for _, authMethod := range authMethods {
@@ -254,9 +248,6 @@ func (proxy *ProxyClient) ConnectToHangout(nodeAddress string,
 	if len(authMethods) == 0 {
 		return nil, trace.Errorf("no authMethods were provided")
 	}
-
-	proxy.Lock()
-	defer proxy.Unlock()
 
 	e := trace.Errorf("unknown Error")
 
