@@ -25,6 +25,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/configure/cstrings"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -343,7 +345,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 
 func (s *server) upsertRegularSite(conn net.Conn, sshConn *ssh.ServerConn) (*tunnelSite, error) {
 	domainName := sshConn.Permissions.Extensions[extAuthority]
-	if !utils.IsValidDomainName(domainName) {
+	if !cstrings.IsValidDomainName(domainName) {
 		return nil, trace.Wrap(teleport.BadParameter(
 			"authDomain", fmt.Sprintf("'%v' is a bad domain name", domainName)))
 	}

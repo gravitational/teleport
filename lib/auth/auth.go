@@ -29,6 +29,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
@@ -152,7 +153,7 @@ func (s *AuthServer) SignIn(user string, password []byte) (string, error) {
 }
 
 func (s *AuthServer) GenerateToken(nodeName string, role teleport.Role, ttl time.Duration) (string, error) {
-	if !utils.IsValidDomainName(nodeName) {
+	if !cstrings.IsValidDomainName(nodeName) {
 		return "", trace.Wrap(teleport.BadParameter("nodeName",
 			fmt.Sprintf("'%v' is not a valid dns name", nodeName)))
 	}

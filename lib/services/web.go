@@ -27,9 +27,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gokyle/hotp"
@@ -90,7 +90,7 @@ func (s *WebService) GetUsers() ([]User, error) {
 
 // UpsertUser updates parameters about user
 func (s *WebService) UpsertUser(user User) error {
-	if !utils.IsValidUnixUser(user.Name) {
+	if !cstrings.IsValidUnixUser(user.Name) {
 		return trace.Wrap(
 			teleport.BadParameter("user.Name", fmt.Sprintf("'%v is not a valid unix username'", user.Name)))
 	}
@@ -99,7 +99,7 @@ func (s *WebService) UpsertUser(user User) error {
 		return trace.Wrap(err)
 	}
 	for _, l := range user.AllowedLogins {
-		if !utils.IsValidUnixUser(l) {
+		if !cstrings.IsValidUnixUser(l) {
 			return trace.Wrap(
 				teleport.BadParameter("login", fmt.Sprintf("'%v is not a valid unix username'", l)))
 		}

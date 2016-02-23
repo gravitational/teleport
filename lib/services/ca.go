@@ -24,9 +24,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -68,7 +68,7 @@ func (c *CertAuthID) Check() error {
 	if err := c.Type.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	if !utils.IsValidDomainName(c.DomainName) {
+	if !cstrings.IsValidDomainName(c.DomainName) {
 		return trace.Wrap(&teleport.BadParameterError{
 			Param: "DomainName",
 			Err:   fmt.Sprintf("'%v' is a bad domain name", c.DomainName),

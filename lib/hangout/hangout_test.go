@@ -234,7 +234,6 @@ func (s *HangoutsSuite) TestHangout(c *C) {
 	osUser := u.Username
 	nodeListeningAddress := "localhost:41003"
 	authListeningAddress := "localhost:41004"
-	DefaultSSHShell = "/bin/sh"
 
 	// Initializing tsh share
 	hangoutServer, err := New(s.reverseTunnelAddress, nodeListeningAddress,

@@ -6,6 +6,10 @@
 	],
 	"Deps": [
 		{
+			"ImportPath": "github.com/gravitational/configure/cstrings",
+			"Rev": "be52937128b38f1d99787bb476c789e2af1147f1"
+		},
+		{
 			"ImportPath": "github.com/Sirupsen/logrus",
 			"Comment": "v0.9.0",
 			"Rev": "be52937128b38f1d99787bb476c789e2af1147f1"
