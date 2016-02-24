@@ -57,7 +57,7 @@ type MultiSiteConfig struct {
 	DomainName       string
 }
 
-func NewMultiSiteHandler(cfg MultiSiteConfig) (*MultiSiteHandler, error) {
+func NewMultiSiteHandler(cfg MultiSiteConfig) (http.Handler, error) {
 	lauth, err := NewLocalAuth(!cfg.InsecureHTTPMode, []utils.NetAddr{cfg.AuthAddr})
 	if err != nil {
 		return nil, err
@@ -75,27 +75,34 @@ func NewMultiSiteHandler(cfg MultiSiteConfig) (*MultiSiteHandler, error) {
 	}
 
 	// Web sessions
-	h.POST("/web/sessions", httplib.MakeHandler(h.createSession))
-	h.DELETE("/web/sessions/:sid", h.needsAuth(h.deleteSession))
+	h.POST("/webapi/sessions", httplib.MakeHandler(h.createSession))
+	h.DELETE("/webapi/sessions/:sid", h.needsAuth(h.deleteSession))
 
 	// Users
-	h.GET("/web/users/invites/:token", httplib.MakeHandler(h.renderUserInvite))
-	h.POST("/web/users", httplib.MakeHandler(h.createNewUser))
+	h.GET("/webapi/users/invites/:token", httplib.MakeHandler(h.renderUserInvite))
+	h.POST("/webapi/users", httplib.MakeHandler(h.createNewUser))
 
 	// SSH proxy web login
 	h.POST("/sshlogin", h.loginSSHProxy)
 
 	// Forward all requests to site handler
 	sh := h.needsAuth(h.siteHandler)
-	h.GET("/tun/:site/*path", sh)
-	h.PUT("/tun/:site/*path", sh)
-	h.POST("/tun/:site/*path", sh)
-	h.DELETE("/tun/:site/*path", sh)
+	h.GET("/webapi/sites/:site/*path", sh)
+	h.PUT("/webapi/sites/:site/*path", sh)
+	h.POST("/webapi/sites/:site/*path", sh)
+	h.DELETE("/webapi/sites/:site/*path", sh)
 
-	// Static assets
-	h.Handler("GET", "/static/*filepath",
-		http.FileServer(http.Dir(filepath.Join(cfg.AssetsDir, "assets"))))
-	return h, nil
+	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/web/app") {
+			http.StripPrefix("/web", http.FileServer(http.Dir(cfg.AssetsDir))).ServeHTTP(w, r)
+		} else if strings.HasPrefix(r.URL.Path, "/web") {
+			http.ServeFile(w, r, filepath.Join(cfg.AssetsDir, "/index.html"))
+		} else {
+			h.ServeHTTP(w, r)
+		}
+	})
+
+	return routingHandler, nil
 }
 
 // createSessionReq is a request to create session from username, password and second
@@ -121,7 +128,7 @@ type createSessionResponse struct {
 
 // createSession creates a new web session based on user, pass and 2nd factor token
 //
-// POST /web/sessions
+// POST /webapi/sessions
 //
 // {"user": "alex", "pass": "abc123", "second_factor_token": "token"}
 //
