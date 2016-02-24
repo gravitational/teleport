@@ -148,7 +148,8 @@ func (m *MultiSiteHandler) createSession(w http.ResponseWriter, r *http.Request,
 
 	sess, err := m.auth.Auth(req.User, req.Pass, req.SecondFactorToken)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		log.Infof("bad access credentials: %v", err)
+		return nil, trace.Wrap(teleport.AccessDenied("bad auth credentials"))
 	}
 	if err := SetSession(w, req.User, sess.ID); err != nil {
 		return nil, trace.Wrap(err)
