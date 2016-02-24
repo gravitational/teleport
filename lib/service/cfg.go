@@ -23,6 +23,7 @@ import (
 
 	"io"
 
+	log "github.com/Sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -307,19 +308,18 @@ func (c *LocalCertificateAuthority) CA() (*services.CertAuthority, error) {
 }
 
 // MakeDefaultConfig() creates a new Config structure and populates it with defaults
-func MakeDefaultConfig() (config *Config, err error) {
+func MakeDefaultConfig() (config *Config) {
 	config = &Config{}
-	if err = ApplyDefaults(config); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return config, nil
+	ApplyDefaults(config)
+	return config
 }
 
 // ApplyDefaults applies default values to the existing config structure
-func ApplyDefaults(cfg *Config) error {
+func ApplyDefaults(cfg *Config) {
 	hostname, err := os.Hostname()
 	if err != nil {
-		return trace.Wrap(err)
+		hostname = "localhost"
+		log.Errorf("Failed to determine hostname: %v", err)
 	}
 
 	// defaults for the auth service:
@@ -358,7 +358,6 @@ func ApplyDefaults(cfg *Config) error {
 		cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
 	}
 	cfg.Console = os.Stdout
-	return nil
 }
 
 // Generates a string accepted by the BoltDB driver, like this:

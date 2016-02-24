@@ -36,8 +36,7 @@ func (s *ConfigSuite) SetUpSuite(c *C) {
 }
 
 func (s *ConfigSuite) TestDefaultConfig(c *C) {
-	config, err := MakeDefaultConfig()
-	c.Assert(err, IsNil)
+	config := MakeDefaultConfig()
 	c.Assert(config, NotNil)
 
 	// all 3 services should be enabled by default
