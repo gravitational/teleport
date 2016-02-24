@@ -161,7 +161,7 @@ func (m *MultiSiteHandler) createSession(w http.ResponseWriter, r *http.Request,
 
 // deleteSession is called to sign out user
 //
-// DELETE /v1/web/sessions/:sid
+// DELETE /v1/webapi/sessions/:sid
 //
 // Response:
 //
@@ -190,7 +190,7 @@ type renderUserInviteResponse struct {
 
 // renderUserInvite is called to show user the new user invitation page
 //
-// GET /v1/web/users/invites/:token
+// GET /v1/webapi/users/invites/:token
 //
 // Response:
 //
@@ -220,7 +220,7 @@ type createNewUserReq struct {
 
 // createNewUser creates new user entry based on the invite token
 //
-// POST /v1/web/users
+// POST /v1/webapi/users
 //
 // {"invite_token": "unique invite token", "pass": "user password", "second_factor_token": "valid second factor token"}
 //
