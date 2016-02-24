@@ -34,7 +34,7 @@ func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte,
 	}
 
 	out, err := http.PostForm(
-		proxyAddr+"/sshlogin",
+		proxyAddr+"/v1/sshlogin",
 		url.Values{
 			"credentials": []string{string(credJSON)},
 		})

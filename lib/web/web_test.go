@@ -17,8 +17,10 @@ limitations under the License.
 package web
 
 import (
+	"encoding/json"
 	"fmt"
-
+	"net/http/httptest"
+	"net/url"
 	"os/user"
 	"path/filepath"
 	"testing"
@@ -33,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events/boltlog"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	sess "github.com/gravitational/teleport/lib/session"
@@ -40,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/roundtrip"
 	"golang.org/x/crypto/ssh"
 	. "gopkg.in/check.v1"
 )
@@ -56,6 +60,8 @@ type WebSuite struct {
 	user        string
 	domainName  string
 	signer      ssh.Signer
+	tunServer   *auth.TunServer
+	webServer   *httptest.Server
 }
 
 var _ = Suite(&WebSuite{})
@@ -84,22 +90,25 @@ func (s *WebSuite) SetUpTest(c *C) {
 	eventsLog, err := boltlog.New(filepath.Join(s.dir, "boltlog"))
 	c.Assert(err, IsNil)
 
+	c.Assert(authServer.UpsertCertAuthority(
+		*services.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
+	c.Assert(authServer.UpsertCertAuthority(
+		*services.NewTestCA(services.HostCA, s.domainName), backend.Forever), IsNil)
+
+	recorder, err := boltrec.New(s.dir)
+	c.Assert(err, IsNil)
+
 	s.roleAuth = auth.NewAuthWithRoles(authServer,
 		auth.NewStandardPermissions(),
 		eventsLog,
 		sess.New(baseBk),
 		teleport.RoleAdmin,
-		nil)
-
-	c.Assert(s.roleAuth.UpsertCertAuthority(
-		*services.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
-	c.Assert(s.roleAuth.UpsertCertAuthority(
-		*services.NewTestCA(services.HostCA, s.domainName), backend.Forever), IsNil)
+		recorder)
 
 	// set up host private key and certificate
-	hpriv, hpub, err := s.roleAuth.GenerateKeyPair("")
+	hpriv, hpub, err := authServer.GenerateKeyPair("")
 	c.Assert(err, IsNil)
-	hcert, err := s.roleAuth.GenerateHostCert(
+	hcert, err := authServer.GenerateHostCert(
 		hpub, s.domainName, s.domainName, teleport.RoleAdmin, 0)
 	c.Assert(err, IsNil)
 
@@ -145,46 +154,74 @@ func (s *WebSuite) SetUpTest(c *C) {
 
 	c.Assert(s.node.Start(), IsNil)
 
-	/*
-		revTunServer, err := reversetunnel.NewServer(
-			utils.NetAddr{
-				AddrNetwork: "tcp",
-				Addr:        fmt.Sprintf("%v:0", s.domainName),
-			},
-			[]ssh.Signer{s.signer},
-			s.roleAuth, limiter,
-			reversetunnel.ServerTimeout(200*time.Millisecond),
-			reversetunnel.DirectSite(s.domainName, s.roleAuth),
-		)
-		c.Assert(err, IsNil)
-	*/
+	revTunServer, err := reversetunnel.NewServer(
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        fmt.Sprintf("%v:0", s.domainName),
+		},
+		[]ssh.Signer{s.signer},
+		s.roleAuth, limiter,
+		reversetunnel.ServerTimeout(200*time.Millisecond),
+		reversetunnel.DirectSite(s.domainName, s.roleAuth),
+	)
+	c.Assert(err, IsNil)
 
-	/*
-		apiSrv := auth.NewAPIWithRoles(s.a, bl, sess.New(s.bk), rec,
-			auth.NewAllowAllPermissions(),
-			auth.StandardRoles,
-		)
-		go apiSrv.Serve()
+	apiPort, err := utils.GetFreeTCPPort()
+	c.Assert(err, IsNil)
 
-		apiPort, err := utils.GetFreeTCPPort()
-		c.Assert(err, IsNil)
+	apiServer := auth.NewAPIWithRoles(authServer, eventsLog, sess.New(s.bk), recorder,
+		auth.NewAllowAllPermissions(),
+		auth.StandardRoles,
+	)
+	go apiServer.Serve()
 
-		tsrv, err := auth.NewTunServer(
-			utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("127.0.0.1:%v", apiPort)},
-			[]ssh.Signer{s.signer},
-			apiSrv, s.a, limiter)
-		c.Assert(err, IsNil)
-		c.Assert(tsrv.Start(), IsNil)
+	tunAddr := utils.NetAddr{
+		AddrNetwork: "tcp", Addr: fmt.Sprintf("127.0.0.1:%v", apiPort),
+	}
 
-		// start handler
-		handler, err := NewMultiSiteHandler(MultiSiteConfig{
-			InsecureHTTPMode: true,
-			Tun:              revTunServer,
-			AssetsDir:        "assets",
-		})
-	*/
+	s.tunServer, err = auth.NewTunServer(
+		tunAddr,
+		[]ssh.Signer{s.signer},
+		apiServer, authServer, limiter)
+	c.Assert(err, IsNil)
+	c.Assert(s.tunServer.Start(), IsNil)
+
+	// start handler
+	handler, err := NewMultiSiteHandler(MultiSiteConfig{
+		InsecureHTTPMode: true,
+		Tun:              revTunServer,
+		AssetsDir:        "assets/web",
+		AuthAddr:         tunAddr,
+		DomainName:       s.domainName,
+	})
+
+	s.webServer = httptest.NewServer(handler)
+}
+
+func (s *WebSuite) client() *roundtrip.Client {
+	clt, err := roundtrip.NewClient("http://"+s.webServer.Listener.Addr().String(), "v1")
+	if err != nil {
+		panic(err)
+	}
+	return clt
 }
 
 func (s *WebSuite) TearDownTest(c *C) {
 	c.Assert(s.node.Close(), IsNil)
+	c.Assert(s.tunServer.Close(), IsNil)
+	s.webServer.Close()
+}
+
+func (s *WebSuite) TestNewUser(c *C) {
+	token, err := s.roleAuth.CreateSignupToken("bob", []string{s.user})
+	c.Assert(err, IsNil)
+
+	clt := s.client()
+	re, err := clt.Get(clt.Endpoint("webapi", "users", "invites", token), url.Values{})
+	c.Assert(err, IsNil)
+
+	var out *renderUserInviteResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
+	c.Assert(out.User, Equals, "bob")
+	c.Assert(out.InviteToken, Equals, token)
 }

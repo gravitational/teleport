@@ -57,6 +57,8 @@ type MultiSiteConfig struct {
 	DomainName       string
 }
 
+const Version = "v1"
+
 func NewMultiSiteHandler(cfg MultiSiteConfig) (http.Handler, error) {
 	lauth, err := NewLocalAuth(!cfg.InsecureHTTPMode, []utils.NetAddr{cfg.AuthAddr})
 	if err != nil {
@@ -97,8 +99,8 @@ func NewMultiSiteHandler(cfg MultiSiteConfig) (http.Handler, error) {
 			http.StripPrefix("/web", http.FileServer(http.Dir(cfg.AssetsDir))).ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web") {
 			http.ServeFile(w, r, filepath.Join(cfg.AssetsDir, "/index.html"))
-		} else {
-			h.ServeHTTP(w, r)
+		} else if strings.HasPrefix(r.URL.Path, "/"+Version) {
+			http.StripPrefix("/"+Version, h).ServeHTTP(w, r)
 		}
 	})
 
@@ -128,7 +130,7 @@ type createSessionResponse struct {
 
 // createSession creates a new web session based on user, pass and 2nd factor token
 //
-// POST /webapi/sessions
+// POST /v1/webapi/sessions
 //
 // {"user": "alex", "pass": "abc123", "second_factor_token": "token"}
 //
@@ -159,7 +161,7 @@ func (m *MultiSiteHandler) createSession(w http.ResponseWriter, r *http.Request,
 
 // deleteSession is called to sign out user
 //
-// DELETE /web/sessions/:sid
+// DELETE /v1/web/sessions/:sid
 //
 // Response:
 //
@@ -188,7 +190,7 @@ type renderUserInviteResponse struct {
 
 // renderUserInvite is called to show user the new user invitation page
 //
-// GET /web/users/invites/:token
+// GET /v1/web/users/invites/:token
 //
 // Response:
 //
@@ -218,7 +220,7 @@ type createNewUserReq struct {
 
 // createNewUser creates new user entry based on the invite token
 //
-// POST /web/users
+// POST /v1/web/users
 //
 // {"invite_token": "unique invite token", "pass": "user password", "second_factor_token": "valid second factor token"}
 //
