@@ -20,6 +20,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
@@ -102,7 +103,7 @@ func run(cmdlineArgs []string, testRun bool) (executedCommand string, appliedCon
 		case status.FullCommand():
 			err = onStatus(config)
 		case dump.FullCommand():
-			err = onConfigDump()
+			onConfigDump()
 		case ver.FullCommand():
 			onVersion()
 		}
@@ -134,9 +135,9 @@ func onStatus(config *service.Config) error {
 }
 
 // onConfigDump is the handler for "configure" CLI command
-func onConfigDump() error {
-	fmt.Println(sampleConfig)
-	return nil
+func onConfigDump() {
+	sfc := config.MakeSampleFileConfig()
+	fmt.Printf("%s\n%s\n", sampleConfComment, sfc.DebugDumpToYAML())
 }
 
 // onVersion is the handler for "version"

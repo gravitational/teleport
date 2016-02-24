@@ -24,6 +24,8 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/trace"
 )
 
@@ -117,6 +119,66 @@ func ReadFromFile(fp string) (fc *FileConfig, err error) {
 	return fc, nil
 }
 
+// makeSampleFileConfig returns a sample config structure populated by defaults,
+// useful to generate sample configuration files
+func MakeSampleFileConfig() (fc *FileConfig) {
+	conf := service.MakeDefaultConfig()
+
+	// sample global config:
+	var g Global
+	g.NodeName = conf.Hostname
+	g.AuthToken = "xxxx-token-xxxx"
+	g.Logger.Output = "stderr"
+	g.Logger.Severity = "INFO"
+	g.AuthServers = defaults.AuthListenAddr().Addr
+	g.Limits.MaxConnections = defaults.LimiterMaxConnections
+	g.Limits.MaxUsers = defaults.LimiterMaxConcurrentUsers
+	g.Storage.DirName = defaults.DataDir
+	g.Storage.Type = conf.Auth.RecordsBackend.Type
+
+	// sample SSH config:
+	var s SSH
+	s.EnabledFlag = "yes"
+	s.ListenAddress = conf.SSH.Addr.Addr
+	s.Commands = []CommandLabel{
+		{
+			Name:    "hostname",
+			Command: []string{"/usr/bin/hostname"},
+			Period:  time.Minute,
+		},
+		{
+			Name:    "arch",
+			Command: []string{"/usr/bin/uname", "-p"},
+			Period:  time.Hour,
+		},
+	}
+	s.Labels = map[string]string{
+		"db_type": "postgres",
+		"db_role": "master",
+	}
+
+	// sample Auth config:
+	var a Auth
+	a.ListenAddress = conf.Auth.SSHAddr.Addr
+	a.EnabledFlag = "yes"
+
+	// sample proxy config:
+	var p Proxy
+	p.EnabledFlag = "yes"
+	p.ListenAddress = conf.Proxy.SSHAddr.Addr
+	p.WebAddr = conf.Proxy.WebAddr.Addr
+	p.CertFile = "/etc/teleport/teleport.crt"
+	p.KeyFile = "/etc/teleport/teleport.key"
+
+	fc = &FileConfig{
+		Global: g,
+		Proxy:  p,
+		SSH:    s,
+		Auth:   a,
+	}
+	return fc
+}
+
 // DebugDump allows for quick YAML dumping of the config
 func (conf *FileConfig) DebugDumpToYAML() string {
 	bytes, err := yaml.Marshal(&conf)
@@ -204,7 +266,7 @@ type SSH struct {
 // `command` section of `ssh_service` in the config file
 type CommandLabel struct {
 	Name    string        `yaml:"name"`
-	Command []string      `yaml:"command"`
+	Command []string      `yaml:"command,flow"`
 	Period  time.Duration `yaml:"period"`
 }
 
