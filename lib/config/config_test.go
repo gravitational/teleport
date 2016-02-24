@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"gopkg.in/check.v1"
 )
 
@@ -69,6 +70,25 @@ func (s *ConfigTestSuite) SetUpSuite(c *check.C) {
 
 func (s *ConfigTestSuite) TearDownSuite(c *check.C) {
 	os.RemoveAll(s.tempDir)
+}
+
+func (s *ConfigTestSuite) TestSampleConfig(c *check.C) {
+	// generate sample config and write it into a temp file:
+	sfc := MakeSampleFileConfig()
+	c.Assert(sfc, check.NotNil)
+	fn := filepath.Join(c.MkDir(), "default-config.yaml")
+	err := ioutil.WriteFile(fn, []byte(sfc.DebugDumpToYAML()), 0660)
+	c.Assert(err, check.IsNil)
+
+	// make sure it could be parsed:
+	fc, err := ReadFromFile(fn)
+	c.Assert(err, check.IsNil)
+
+	// validate a couple of values:
+	c.Assert(fc.Limits.MaxUsers, check.Equals, defaults.LimiterMaxConcurrentUsers)
+	c.Assert(fc.Global.Storage.DirName, check.Equals, defaults.DataDir)
+	c.Assert(fc.Logger.Severity, check.Equals, "INFO")
+
 }
 
 func (s *ConfigTestSuite) TestConfigReading(c *check.C) {

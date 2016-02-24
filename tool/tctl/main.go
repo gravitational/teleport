@@ -56,10 +56,7 @@ func main() {
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
 
 	// generate default tctl configuration:
-	cfg, err := service.MakeDefaultConfig()
-	if err != nil {
-		utils.FatalError(err)
-	}
+	cfg := service.MakeDefaultConfig()
 	cmdUsers := UserCommand{config: cfg}
 	cmdNodes := NodeCommand{config: cfg}
 

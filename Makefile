@@ -47,6 +47,8 @@ production: clean
 #
 test: 
 	go test -v github.com/gravitational/teleport/lib/... -cover
+	go test -v github.com/gravitational/teleport/tool/teleport... -cover
+
 
 test-with-etcd: install
 	${ETCD_FLAGS} go test -v -test.parallel=0 $(shell go list ./... | grep -v /vendor/) -cover
