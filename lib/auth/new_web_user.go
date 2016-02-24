@@ -198,6 +198,12 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Se
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	err = s.UpsertWebSession(tokenData.User, sess, WebSessionTTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	sess.WS.Priv = nil
 	return sess, nil
 }

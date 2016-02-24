@@ -48,6 +48,7 @@ import (
 	"strings"
 )
 
+// ClientParam specifies functional argument for client
 type ClientParam func(c *Client) error
 
 // HTTPClient is a functional parameter that sets the internal
@@ -67,10 +68,18 @@ func BasicAuth(username, password string) ClientParam {
 	}
 }
 
-// BearerAuth sets username and token for HTTP client
+// BearerAuth sets token for HTTP client
 func BearerAuth(token string) ClientParam {
 	return func(c *Client) error {
 		c.auth = &bearerAuth{token: token}
+		return nil
+	}
+}
+
+// CookieJar sets http cookie jar for this client
+func CookieJar(jar http.CookieJar) ClientParam {
+	return func(c *Client) error {
+		c.jar = jar
 		return nil
 	}
 }
@@ -84,9 +93,10 @@ type Client struct {
 	v string
 	// client is a private http.Client instance
 	client *http.Client
-
 	// auth tells client to use HTTP auth on every request
 	auth fmt.Stringer
+	// jar is a set of cookies passed with requests
+	jar http.CookieJar
 }
 
 // NewClient returns a new instance of roundtrip.Client, or nil and error
@@ -100,12 +110,15 @@ func NewClient(addr, v string, params ...ClientParam) (*Client, error) {
 	c := &Client{
 		addr:   addr,
 		v:      v,
-		client: http.DefaultClient,
+		client: &http.Client{},
 	}
 	for _, p := range params {
 		if err := p(c); err != nil {
 			return nil, err
 		}
+	}
+	if c.jar != nil {
+		c.client.Jar = c.jar
 	}
 	return c, nil
 }
@@ -288,7 +301,12 @@ func (c *Client) RoundTrip(fn RoundTripFn) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Response{code: re.StatusCode, headers: re.Header, body: buf}, nil
+	return &Response{
+		code:    re.StatusCode,
+		headers: re.Header,
+		body:    buf,
+		cookies: re.Cookies(),
+	}, nil
 }
 
 // SetAuthHeader sets client's authorization headers if client
@@ -310,6 +328,12 @@ type Response struct {
 	code    int
 	headers http.Header
 	body    *bytes.Buffer
+	cookies []*http.Cookie
+}
+
+// Cookies returns a list of cookies set by server
+func (r *Response) Cookies() []*http.Cookie {
+	return r.cookies
 }
 
 // Code returns HTTP response status code

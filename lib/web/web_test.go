@@ -19,6 +19,7 @@ package web
 import (
 	"encoding/json"
 	"fmt"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"os/user"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events/boltlog"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -43,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gokyle/hotp"
 	"github.com/gravitational/roundtrip"
 	"golang.org/x/crypto/ssh"
 	. "gopkg.in/check.v1"
@@ -198,12 +201,20 @@ func (s *WebSuite) SetUpTest(c *C) {
 	s.webServer = httptest.NewServer(handler)
 }
 
-func (s *WebSuite) client() *roundtrip.Client {
-	clt, err := roundtrip.NewClient("http://"+s.webServer.Listener.Addr().String(), "v1")
+func (s *WebSuite) url() *url.URL {
+	u, err := url.Parse("http://" + s.webServer.Listener.Addr().String())
 	if err != nil {
 		panic(err)
 	}
-	return clt
+	return u
+}
+
+func (s *WebSuite) client(opts ...roundtrip.ClientParam) *testClient {
+	clt, err := roundtrip.NewClient(s.url().String(), "v1", opts...)
+	if err != nil {
+		panic(err)
+	}
+	return &testClient{clt}
 }
 
 func (s *WebSuite) TearDownTest(c *C) {
@@ -224,4 +235,122 @@ func (s *WebSuite) TestNewUser(c *C) {
 	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
 	c.Assert(out.User, Equals, "bob")
 	c.Assert(out.InviteToken, Equals, token)
+
+	_, _, hotpValues, err := s.roleAuth.GetSignupTokenData(token)
+	c.Assert(err, IsNil)
+
+	tempPass := "abc123"
+
+	re, err = clt.PostJSON(clt.Endpoint("webapi", "users"), createNewUserReq{
+		InviteToken:       token,
+		Pass:              tempPass,
+		SecondFactorToken: hotpValues[0],
+	})
+	c.Assert(err, IsNil)
+
+	var sess *createSessionResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &sess), IsNil)
+	cookies := re.Cookies()
+	c.Assert(len(cookies), Equals, 1)
+
+	// now make sure we are logged in by calling authenticated method
+	// we need to supply both session cookie and bearer token for
+	// request to succeed
+	jar, err := cookiejar.New(nil)
+	c.Assert(err, IsNil)
+
+	clt = s.client(roundtrip.BearerAuth(sess.Token), roundtrip.CookieJar(jar))
+	jar.SetCookies(s.url(), re.Cookies())
+
+	re, err = clt.Get(clt.Endpoint("webapi", "sites"), url.Values{})
+	c.Assert(err, IsNil)
+
+	var sites *getSitesResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &sites), IsNil)
+
+	// in absense of session cookie or bearer auth the same request fill fail
+
+	// no session cookie:
+	clt = s.client(roundtrip.BearerAuth(sess.Token))
+	re, err = clt.Get(clt.Endpoint("webapi", "sites"), url.Values{})
+	c.Assert(err, NotNil)
+	c.Assert(teleport.IsAccessDenied(err), Equals, true)
+
+	// no bearer token:
+	clt = s.client(roundtrip.CookieJar(jar))
+	re, err = clt.Get(clt.Endpoint("webapi", "sites"), url.Values{})
+	c.Assert(err, NotNil)
+	c.Assert(teleport.IsAccessDenied(err), Equals, true)
+}
+
+type authPack struct {
+	user    string
+	pass    string
+	otp     *hotp.HOTP
+	session *createSessionResponse
+	clt     *testClient
+}
+
+// authPack returns new authenticated package consisting
+// of created valid user, hotp token, created web session and
+// authenticated client
+func (s *WebSuite) authPack(c *C) *authPack {
+	user := "bob"
+	pass := "abc123"
+
+	hotpURL, _, err := s.roleAuth.UpsertPassword(user, []byte(pass))
+	c.Assert(err, IsNil)
+	otp, _, err := hotp.FromURL(hotpURL)
+	c.Assert(err, IsNil)
+	otp.Increment()
+
+	clt := s.client()
+
+	re, err := clt.PostJSON(clt.Endpoint("webapi", "sessions"), createSessionReq{
+		User:              user,
+		Pass:              pass,
+		SecondFactorToken: otp.OTP(),
+	})
+	c.Assert(err, IsNil)
+
+	var sess *createSessionResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &sess), IsNil)
+
+	jar, err := cookiejar.New(nil)
+	c.Assert(err, IsNil)
+
+	clt = s.client(roundtrip.BearerAuth(sess.Token), roundtrip.CookieJar(jar))
+	jar.SetCookies(s.url(), re.Cookies())
+
+	return &authPack{
+		user:    user,
+		pass:    pass,
+		session: sess,
+		clt:     clt,
+	}
+}
+
+func (s *WebSuite) TestWebSessionsCRUD(c *C) {
+	pack := s.authPack(c)
+
+	// make sure we can use client to make authenticated requests
+	re, err := pack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	c.Assert(err, IsNil)
+
+	var sites *getSitesResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &sites), IsNil)
+}
+
+type testClient struct {
+	*roundtrip.Client
+}
+
+func (t *testClient) PostJSON(
+	endpoint string, val interface{}) (*roundtrip.Response, error) {
+	return httplib.ConvertResponse(t.Client.PostJSON(endpoint, val))
+}
+
+func (t *testClient) Get(
+	endpoint string, val url.Values) (*roundtrip.Response, error) {
+	return httplib.ConvertResponse(t.Client.Get(endpoint, val))
 }

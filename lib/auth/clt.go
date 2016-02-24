@@ -606,7 +606,7 @@ func (c *Client) CreateUserWithToken(token, password, hotpToken string) (*Sessio
 	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return nil, trace.Wrap(err)
+	return sess, nil
 }
 
 type chunkRW struct {

@@ -87,6 +87,8 @@ func NewMultiSiteHandler(cfg MultiSiteConfig) (http.Handler, error) {
 	// SSH proxy web login
 	h.POST("/sshlogin", h.loginSSHProxy)
 
+	h.GET("/webapi/sites", h.needsAuth(h.getSites))
+
 	// Forward all requests to site handler
 	sh := h.needsAuth(h.siteHandler)
 	h.GET("/webapi/sites/:site/*path", sh)
@@ -245,6 +247,42 @@ func (m *MultiSiteHandler) createNewUser(w http.ResponseWriter, r *http.Request,
 		Token:     sess.ID,
 		User:      sess.User,
 		ExpiresIn: int(time.Now().Sub(sess.WS.Expires) / time.Second),
+	}, nil
+}
+
+type getSitesResponse struct {
+	Sites []site `json:"sites"`
+}
+
+type site struct {
+	Name          string    `json:"name"`
+	LastConnected time.Time `json:"last_connected"`
+	Status        string    `json:"status"`
+}
+
+func convertSites(rs []reversetunnel.RemoteSite) []site {
+	out := make([]site, len(rs))
+	for i := range rs {
+		out[i] = site{
+			Name:          rs[i].GetName(),
+			LastConnected: rs[i].GetLastConnected(),
+			Status:        rs[i].GetStatus(),
+		}
+	}
+	return out
+}
+
+// getSites returns a list of sites
+//
+// GET /v1/webapi/sites
+//
+// Sucessful response:
+//
+// {"sites": {"name": "localhost", "last_connected": "RFC3339 time", "status": "active"}}
+//
+func (h *MultiSiteHandler) getSites(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) (interface{}, error) {
+	return getSitesResponse{
+		Sites: convertSites(h.cfg.Tun.GetSites()),
 	}, nil
 }
 
@@ -480,23 +518,32 @@ type contextHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 
 func (h *MultiSiteHandler) needsAuth(fn contextHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		logger := log.WithFields(log.Fields{
+			"request": fmt.Sprintf("%v %v", r.Method, r.URL.String()),
+		})
+		logger.Infof("incoming request")
 		cookie, err := r.Cookie("session")
 		if err != nil {
+			logger.Warningf("missing cookie: %v", err)
 			return nil, trace.Wrap(teleport.AccessDenied("missing cookie"))
 		}
 		d, err := DecodeCookie(cookie.Value)
 		if err != nil {
+			logger.Warningf("failed to decode cookie: %v", err)
 			return nil, trace.Wrap(teleport.AccessDenied("failed to decode cookie"))
-		}
-		ctx, err := h.auth.ValidateSession(d.User, d.SID)
-		if err != nil {
-			return nil, trace.Wrap(err)
 		}
 		creds, err := roundtrip.ParseAuthHeaders(r)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			logger.Warningf("no auth headers %v", err)
+			return nil, trace.Wrap(teleport.AccessDenied("need auth"))
+		}
+		ctx, err := h.auth.ValidateSession(d.User, d.SID)
+		if err != nil {
+			logger.Warningf("invalid session: %v", err)
+			return nil, trace.Wrap(teleport.AccessDenied("need auth"))
 		}
 		if creds.Password != d.SID {
+			logger.Warningf("bad auth token")
 			return nil, trace.Wrap(teleport.AccessDenied("missing auth token"))
 		}
 		return fn(w, r, p, ctx)
@@ -530,24 +577,6 @@ func New(addr utils.NetAddr, cfg MultiSiteConfig) (*Server, error) {
 	srv.Server.Addr = addr.Addr
 	srv.Server.Handler = h
 	return srv, nil
-}
-
-type site struct {
-	Name          string    `json:"name"`
-	LastConnected time.Time `json:"last_connected"`
-	Status        string    `json:"status"`
-}
-
-func sitesResponse(rs []reversetunnel.RemoteSite) []site {
-	out := make([]site, len(rs))
-	for i := range rs {
-		out[i] = site{
-			Name:          rs[i].GetName(),
-			LastConnected: rs[i].GetLastConnected(),
-			Status:        rs[i].GetStatus(),
-		}
-	}
-	return out
 }
 
 func CreateSignupLink(hostPort string, token string) string {

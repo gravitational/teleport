@@ -48,7 +48,6 @@ func (tf *TextFormatter) Format(e *log.Entry) ([]byte, error) {
 	if frameNo := findFrame(); frameNo != -1 {
 		t := newTrace(runtime.Caller(frameNo - 1))
 		e.Data[FileField] = t.String()
-		e.Data[FunctionField] = t.Func
 	}
 	return (&tf.TextFormatter).Format(e)
 }

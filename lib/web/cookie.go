@@ -20,6 +20,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 // SessionCookie stores information about active user and session
@@ -29,6 +31,7 @@ type SessionCookie struct {
 }
 
 func EncodeCookie(user, sid string) (string, error) {
+	log.Infof("Encod: %v %v", user, sid)
 	bytes, err := json.Marshal(SessionCookie{User: user, SID: sid})
 	if err != nil {
 		return "", err
@@ -45,6 +48,7 @@ func DecodeCookie(b string) (*SessionCookie, error) {
 	if err := json.Unmarshal(bytes, &c); err != nil {
 		return nil, err
 	}
+	log.Infof("DEncod: %v %v", c.User, c.SID)
 	return c, nil
 }
 

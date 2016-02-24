@@ -23,13 +23,19 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 )
 
-var debug bool
+var debug int32
 
 // EnableDebug turns on debugging mode, that causes Fatalf to panic
 func EnableDebug() {
-	debug = true
+	atomic.StoreInt32(&debug, 1)
+}
+
+// IsDebug returns true if debug mode is on, false otherwize
+func IsDebug() bool {
+	return atomic.LoadInt32(&debug) == 1
 }
 
 // Wrap takes the original error and wraps it into the Trace struct
@@ -63,7 +69,7 @@ func Errorf(format string, args ...interface{}) error {
 // Fatalf - If debug is false Fatalf calls Errorf. If debug is
 // true Fatalf calls panic
 func Fatalf(format string, args ...interface{}) error {
-	if debug {
+	if IsDebug() {
 		panic(fmt.Sprintf(format, args))
 	} else {
 		return Errorf(format, args)
