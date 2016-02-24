@@ -258,10 +258,9 @@ func (s *SiteHandler) downloadFiles(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	ck := &http.Cookie{
-		Domain: fmt.Sprintf(".%v", s.cfg.Auth.GetHost()),
-		Name:   "fileDownload",
-		Value:  "true",
-		Path:   "/",
+		Name:  "fileDownload",
+		Value: "true",
+		Path:  "/",
 	}
 	http.SetCookie(w, ck)
 	w.Header().Set("Content-Disposition", "attachment; filename=download.tar")
@@ -597,13 +596,13 @@ func (s *SiteHandler) authForm(w http.ResponseWriter, r *http.Request, p httprou
 		replyErr(w, http.StatusBadRequest, err)
 		return
 	}
-	sid, err := s.cfg.Auth.Auth(user, pass, hotpToken)
+	sess, err := s.cfg.Auth.Auth(user, pass, hotpToken)
 	if err != nil {
 		log.Warningf("auth error: %v", err)
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
-	if err := s.cfg.Auth.SetSession(w, user, sid); err != nil {
+	if err := s.cfg.Auth.SetSession(w, user, sess.ID); err != nil {
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -673,10 +672,6 @@ type tpl struct {
 
 func replyErr(w http.ResponseWriter, code int, err error) {
 	roundtrip.ReplyJSON(w, code, message(err.Error()))
-}
-
-func message(msg string) map[string]interface{} {
-	return map[string]interface{}{"message": msg}
 }
 
 type jsNode struct {

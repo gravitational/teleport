@@ -224,11 +224,11 @@ func (s *APIServer) deleteWebSession(w http.ResponseWriter, r *http.Request, p h
 
 func (s *APIServer) getWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	user, sid := p[0].Value, p[1].Value
-	id, err := s.a.GetWebSessionID(user, sid)
+	sess, err := s.a.GetWebSessionInfo(user, sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return id, nil
+	return sess, nil
 }
 
 func (s *APIServer) getWebSessions(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -250,11 +250,11 @@ func (s *APIServer) signIn(w http.ResponseWriter, r *http.Request, p httprouter.
 		return nil, trace.Wrap(err)
 	}
 	user := p[0].Value
-	id, err := s.a.SignIn(user, []byte(req.Password))
+	sess, err := s.a.SignIn(user, []byte(req.Password))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return id, nil
+	return sess, nil
 }
 
 type upsertPasswordReq struct {
@@ -657,11 +657,11 @@ func (s *APIServer) createUserWithToken(w http.ResponseWriter, r *http.Request, 
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err := s.a.CreateUserWithToken(req.Token, req.Password, req.HOTPToken)
+	sess, err := s.a.CreateUserWithToken(req.Token, req.Password, req.HOTPToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return message("ok"), nil
+	return sess, nil
 }
 
 func message(msg string) map[string]interface{} {

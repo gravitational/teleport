@@ -190,7 +190,12 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *C) {
 	_, err := s.WebS.GetWebSession("user1", "sid1")
 	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 
-	ws := WebSession{Pub: []byte("pub123"), Priv: []byte("priv123")}
+	dt := time.Date(2015, 6, 5, 4, 3, 2, 1, time.UTC).UTC()
+	ws := WebSession{
+		Pub:     []byte("pub123"),
+		Priv:    []byte("priv123"),
+		Expires: dt,
+	}
 	err = s.WebS.UpsertWebSession("user1", "sid1", ws, 0)
 	c.Assert(err, IsNil)
 
@@ -198,7 +203,7 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, &ws)
 
-	ws1 := WebSession{Pub: []byte("pub321"), Priv: []byte("priv321")}
+	ws1 := WebSession{Pub: []byte("pub321"), Priv: []byte("priv321"), Expires: dt}
 	err = s.WebS.UpsertWebSession("user1", "sid1", ws1, 0)
 	c.Assert(err, IsNil)
 

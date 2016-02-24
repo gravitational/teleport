@@ -27,11 +27,14 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/utils"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/form"
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/mailgun/ttlmap"
@@ -47,14 +50,15 @@ type MultiSiteHandler struct {
 }
 
 type MultiSiteConfig struct {
-	Tun        reversetunnel.Server
-	AssetsDir  string
-	AuthAddr   utils.NetAddr
-	DomainName string
+	InsecureHTTPMode bool
+	Tun              reversetunnel.Server
+	AssetsDir        string
+	AuthAddr         utils.NetAddr
+	DomainName       string
 }
 
 func NewMultiSiteHandler(cfg MultiSiteConfig) (*MultiSiteHandler, error) {
-	lauth, err := NewLocalAuth(cfg.DomainName, []utils.NetAddr{cfg.AuthAddr})
+	lauth, err := NewLocalAuth(!cfg.InsecureHTTPMode, []utils.NetAddr{cfg.AuthAddr})
 	if err != nil {
 		return nil, err
 	}
@@ -70,20 +74,15 @@ func NewMultiSiteHandler(cfg MultiSiteConfig) (*MultiSiteHandler, error) {
 		sites: sites,
 	}
 
-	// WEB views
-	h.GET("/web/newuser/:token", h.newUser)
-	h.POST("/web/finishnewuser", h.finishNewUser)
-	h.GET("/web/login", h.login)
-	h.GET("/web/loginerror", h.loginError)
-	h.GET("/web/loginaftercreation", h.loginAfterCreation)
-	h.GET("/web/logout", h.logout)
-	h.POST("/web/auth", h.authForm)
-	h.GET("/web/error", h.errorPage)
+	// Web sessions
+	h.POST("/web/sessions", httplib.MakeHandler(h.createSession))
+	h.DELETE("/web/sessions/:sid", h.needsAuth(h.deleteSession))
 
-	h.GET("/", h.needsAuth(h.sitesIndex))
-	h.GET("/web/sites", h.needsAuth(h.sitesIndex))
+	// Users
+	h.GET("/web/users/invites/:token", httplib.MakeHandler(h.renderUserInvite))
+	h.POST("/web/users", httplib.MakeHandler(h.createNewUser))
 
-	// For ssh proxy
+	// SSH proxy web login
 	h.POST("/sshlogin", h.loginSSHProxy)
 
 	// Forward all requests to site handler
@@ -93,13 +92,159 @@ func NewMultiSiteHandler(cfg MultiSiteConfig) (*MultiSiteHandler, error) {
 	h.POST("/tun/:site/*path", sh)
 	h.DELETE("/tun/:site/*path", sh)
 
-	// API views
-	h.GET("/api/sites", h.needsAuth(h.handleGetSites))
-
 	// Static assets
 	h.Handler("GET", "/static/*filepath",
 		http.FileServer(http.Dir(filepath.Join(cfg.AssetsDir, "assets"))))
 	return h, nil
+}
+
+// createSessionReq is a request to create session from username, password and second
+// factor token
+type createSessionReq struct {
+	User              string `json:"user"`
+	Pass              string `json:"pass"`
+	SecondFactorToken string `json:"second_factor_token"`
+}
+
+// createSessionResponse returns OAuth compabible data about
+// access token: https://tools.ietf.org/html/rfc6749
+type createSessionResponse struct {
+	// Type is token type (bearer)
+	Type string `json:"type"`
+	// Token value
+	Token string `json:"token"`
+	// User represents the user
+	User string `json:"user"`
+	// ExpiresIn sets seconds before this token is not valid
+	ExpiresIn int `json:"expires_in"`
+}
+
+// createSession creates a new web session based on user, pass and 2nd factor token
+//
+// POST /web/sessions
+//
+// {"user": "alex", "pass": "abc123", "second_factor_token": "token"}
+//
+// Response
+//
+// {"type": "bearer", "token": "bearer token", "user": "alex", "expires_in": 20}
+//
+func (m *MultiSiteHandler) createSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *createSessionReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sess, err := m.auth.Auth(req.User, req.Pass, req.SecondFactorToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := SetSession(w, req.User, sess.ID); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &createSessionResponse{
+		Type:      roundtrip.AuthBearer,
+		Token:     sess.ID,
+		User:      req.User,
+		ExpiresIn: int(time.Now().Sub(sess.WS.Expires) / time.Second),
+	}, nil
+}
+
+// deleteSession is called to sign out user
+//
+// DELETE /web/sessions/:sid
+//
+// Response:
+//
+// {"message": "ok"}
+//
+func (m *MultiSiteHandler) deleteSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx Context) (interface{}, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess := ctx.GetWebSession()
+	if err := clt.DeleteWebSession(ctx.GetUser(), sess.ID); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := ClearSession(w); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ok(), nil
+}
+
+type renderUserInviteResponse struct {
+	InviteToken string `json:"invite_token"`
+	User        string `json:"user"`
+	QR          []byte `json:"qr"`
+}
+
+// renderUserInvite is called to show user the new user invitation page
+//
+// GET /web/users/invites/:token
+//
+// Response:
+//
+// {"invite_token": "token", "user": "alex", qr: "base64-encoded-qr-code image"}
+//
+//
+func (m *MultiSiteHandler) renderUserInvite(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	token := p[0].Value
+	user, QRCodeBytes, _, err := m.auth.GetUserInviteInfo(token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &renderUserInviteResponse{
+		InviteToken: token,
+		User:        user,
+		QR:          QRCodeBytes,
+	}, nil
+}
+
+// createNewUser req is a request to create a new Teleport user
+type createNewUserReq struct {
+	InviteToken       string `json:"invite_token"`
+	Pass              string `json:"pass"`
+	SecondFactorToken string `json:"second_factor_token"`
+}
+
+// createNewUser creates new user entry based on the invite token
+//
+// POST /web/users
+//
+// {"invite_token": "unique invite token", "pass": "user password", "second_factor_token": "valid second factor token"}
+//
+// Sucessful response: (session cookie is set)
+//
+// {"type": "bearer", "token": "bearer token", "user": "alex", "expires_in": 20}
+func (m *MultiSiteHandler) createNewUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *createNewUserReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sess, err := m.auth.CreateNewUser(req.InviteToken, req.Pass, req.SecondFactorToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := SetSession(w, sess.User, sess.ID); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &createSessionResponse{
+		Type:      roundtrip.AuthBearer,
+		Token:     sess.ID,
+		User:      sess.User,
+		ExpiresIn: int(time.Now().Sub(sess.WS.Expires) / time.Second),
+	}, nil
+}
+
+func message(msg string) interface{} {
+	return map[string]interface{}{"message": msg}
+}
+
+func ok() interface{} {
+	return message("ok")
 }
 
 func (s *MultiSiteHandler) initTemplates(baseDir string) {
@@ -132,7 +277,7 @@ func (h *MultiSiteHandler) String() string {
 
 func (h *MultiSiteHandler) newUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	token := p[0].Value
-	user, QRImg, _, err := h.auth.NewUserForm(token)
+	user, QRImg, _, err := h.auth.GetUserInviteInfo(token)
 	if err != nil {
 		http.Redirect(w, r, ErrorPageLink("Signup link had expired"),
 			http.StatusFound)
@@ -168,7 +313,7 @@ func (h *MultiSiteHandler) finishNewUser(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	err = h.auth.NewUserFinish(token, pass, hotpToken)
+	_, err = h.auth.CreateNewUser(token, pass, hotpToken)
 	if err != nil {
 		if strings.Contains(err.Error(), "Wrong HOTP token") {
 			http.Redirect(w, r, ErrorPageLink("Wrong HOTP token"),
@@ -205,7 +350,7 @@ func ErrorPageLink(message string) string {
 }
 
 func (h *MultiSiteHandler) logout(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	if err := ClearSession(w, h.cfg.DomainName); err != nil {
+	if err := ClearSession(w); err != nil {
 		log.Errorf("failed to clear session: %v", err)
 		replyErr(w, http.StatusInternalServerError, fmt.Errorf("failed to logout"))
 		return
@@ -226,13 +371,13 @@ func (h *MultiSiteHandler) authForm(w http.ResponseWriter, r *http.Request, p ht
 		replyErr(w, http.StatusBadRequest, err)
 		return
 	}
-	sid, err := h.auth.Auth(user, pass, hotpToken)
+	sess, err := h.auth.Auth(user, pass, hotpToken)
 	if err != nil {
 		log.Warningf("auth error: %v", err)
 		http.Redirect(w, r, "/web/loginerror", http.StatusFound)
 		return
 	}
-	if err := SetSession(w, h.cfg.DomainName, user, sid); err != nil {
+	if err := SetSession(w, user, sess.ID); err != nil {
 		replyErr(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -284,19 +429,19 @@ func (s *MultiSiteHandler) siteServers(w http.ResponseWriter, r *http.Request, p
 	return nil
 }
 
-func (s *MultiSiteHandler) sitesIndex(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) error {
+func (s *MultiSiteHandler) sitesIndex(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) (interface{}, error) {
 	s.executeTemplate(w, "sites", nil)
-	return nil
+	return nil, nil
 }
 
-func (s *MultiSiteHandler) siteHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) error {
+func (s *MultiSiteHandler) siteHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params, c Context) (interface{}, error) {
 	siteName := p[0].Value
 	prefix := fmt.Sprintf("/tun/%v", siteName)
 	i, ok := s.sites.Get(siteName)
 	if !ok {
 		tauth, err := NewTunAuth(s.auth, s.cfg.Tun, siteName)
 		if err != nil {
-			return err
+			return nil, trace.Wrap(err)
 		}
 		i = NewSiteHandler(SiteHandlerConfig{
 			Auth:      tauth,
@@ -311,48 +456,42 @@ func (s *MultiSiteHandler) siteHandler(w http.ResponseWriter, r *http.Request, p
 			},
 		})
 		if err := s.sites.Set(siteName, i, 90); err != nil {
-			return err
+			return nil, trace.Wrap(err)
 		}
 	}
 	sh := i.(http.Handler)
 	r.URL.Path = strings.TrimPrefix(r.URL.Path, prefix)
 	r.RequestURI = r.URL.String()
 	sh.ServeHTTP(w, r)
-	return nil
+	return nil, nil
 }
 
-func (h *MultiSiteHandler) handleGetSites(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c Context) error {
-	roundtrip.ReplyJSON(w, http.StatusOK, sitesResponse(h.cfg.Tun.GetSites()))
-	return nil
-}
+// contextHandler is a handler called with the auth context, what means it is authenticated and ready to work
+type contextHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx Context) (interface{}, error)
 
-func (h *MultiSiteHandler) needsAuth(fn authHandle) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (h *MultiSiteHandler) needsAuth(fn contextHandler) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		cookie, err := r.Cookie("session")
 		if err != nil {
-			log.Infof("getting cookie: %v", err)
-			http.Redirect(w, r, "/web/login", http.StatusFound)
-			return
+			return nil, trace.Wrap(teleport.AccessDenied("missing cookie"))
 		}
 		d, err := DecodeCookie(cookie.Value)
 		if err != nil {
-			log.Warningf("failed to decode cookie '%v', err: %v", cookie.Value, err)
-			http.Redirect(w, r, "/web/login", http.StatusFound)
-			return
+			return nil, trace.Wrap(teleport.AccessDenied("failed to decode cookie"))
 		}
 		ctx, err := h.auth.ValidateSession(d.User, d.SID)
 		if err != nil {
-			log.Warningf("failed to validate session: %v", err)
-			http.Redirect(w, r, "/web/login", http.StatusFound)
-			return
+			return nil, trace.Wrap(err)
 		}
-		if err := fn(w, r, p, ctx); err != nil {
-			log.Errorf("error in handler: %v", err)
-			roundtrip.ReplyJSON(
-				w, http.StatusInternalServerError, err.Error())
-			return
+		creds, err := roundtrip.ParseAuthHeaders(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-	}
+		if creds.Password != d.SID {
+			return nil, trace.Wrap(teleport.AccessDenied("missing auth token"))
+		}
+		return fn(w, r, p, ctx)
+	})
 }
 
 func (h *MultiSiteHandler) executeTemplate(w http.ResponseWriter, name string, data interface{}) {
@@ -405,5 +544,3 @@ func sitesResponse(rs []reversetunnel.RemoteSite) []site {
 func CreateSignupLink(hostPort string, token string) string {
 	return "http://" + hostPort + "/web/newuser/" + token
 }
-
-type authHandle func(http.ResponseWriter, *http.Request, httprouter.Params, Context) error

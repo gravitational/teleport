@@ -26,6 +26,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+
 	"os"
 	"time"
 
@@ -38,6 +39,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // Authority implements minimal key-management facility for generating OpenSSH
@@ -58,13 +60,37 @@ type Authority interface {
 	GenerateUserCert(pkey, key []byte, username string, ttl time.Duration) ([]byte, error)
 }
 
+// Session is a web session context, stores temporary key-value pair and session id
 type Session struct {
-	ID string
-	WS services.WebSession
+	// ID is a session ID
+	ID string `json:"id"`
+	// User is a user this session belongs to
+	User string `json:"user"`
+	// WS is a private keypair used for signing requests
+	WS services.WebSession `json:"web"`
 }
 
-func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority, hostname string) *AuthServer {
+// AuthServerOption allows setting options as functional arguments to AuthServer
+type AuthServerOption func(*AuthServer)
+
+// AuthClock allows setting clock for auth server (used in tests)
+func AuthClock(clock clockwork.Clock) AuthServerOption {
+	return func(a *AuthServer) {
+		a.clock = clock
+	}
+}
+
+// NewAuthServer returns a new AuthServer instance
+func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority, hostname string, opts ...AuthServerOption) *AuthServer {
 	as := AuthServer{}
+
+	for _, o := range opts {
+		o(&as)
+	}
+
+	if as.clock == nil {
+		as.clock = clockwork.NewRealClock()
+	}
 
 	as.bk = bk
 	as.Authority = a
@@ -83,7 +109,8 @@ func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority, hostname stri
 // AuthServer implements key signing, generation and ACL functionality
 // used by teleport
 type AuthServer struct {
-	bk *encryptedbk.ReplicatedBackend
+	clock clockwork.Clock
+	bk    *encryptedbk.ReplicatedBackend
 	Authority
 	Hostname string
 
@@ -138,18 +165,19 @@ func (s *AuthServer) GenerateUserCert(
 	return s.Authority.GenerateUserCert(privateKey, key, username, ttl)
 }
 
-func (s *AuthServer) SignIn(user string, password []byte) (string, error) {
+func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 	if err := s.CheckPasswordWOToken(user, password); err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	sess, err := s.NewWebSession(user)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if err := s.UpsertWebSession(user, sess, WebSessionTTL); err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return sess.ID, nil
+	sess.WS.Priv = nil
+	return sess, nil
 }
 
 func (s *AuthServer) GenerateToken(nodeName string, role teleport.Role, ttl time.Duration) (string, error) {
@@ -310,8 +338,9 @@ func (s *AuthServer) NewWebSession(user string) (*Session, error) {
 		return nil, err
 	}
 	sess := &Session{
-		ID: token,
-		WS: services.WebSession{Priv: priv, Pub: cert},
+		ID:   token,
+		User: user,
+		WS:   services.WebSession{Priv: priv, Pub: cert, Expires: s.clock.Now().UTC().Add(WebSessionTTL)},
 	}
 	return sess, nil
 }
@@ -326,17 +355,23 @@ func (s *AuthServer) GetWebSession(user string, id string) (*Session, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &Session{
-		ID: id,
-		WS: *ws,
+		ID:   id,
+		User: user,
+		WS:   *ws,
 	}, nil
 }
 
-func (s *AuthServer) GetWebSessionID(user string, id string) (string, error) {
-	_, err := s.WebService.GetWebSession(user, id)
+func (s *AuthServer) GetWebSessionInfo(user string, id string) (*Session, error) {
+	sess, err := s.WebService.GetWebSession(user, id)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return id, nil
+	sess.Priv = nil
+	return &Session{
+		ID:   id,
+		User: user,
+		WS:   *sess,
+	}, nil
 }
 
 func (s *AuthServer) DeleteWebSession(user string, id string) error {

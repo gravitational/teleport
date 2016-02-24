@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -75,6 +76,7 @@ type TshSuite struct {
 	clt          *ssh.Client
 	bk           *encryptedbk.ReplicatedBackend
 	a            *auth.AuthServer
+	roleAuth     *auth.AuthWithRoles
 	signer       ssh.Signer
 	teleagent    *teleagent.TeleAgent
 	dir          string
@@ -106,13 +108,23 @@ func (s *TshSuite) SetUpSuite(c *C) {
 
 	s.a = auth.NewAuthServer(s.bk, authority.New(), "localhost")
 
+	eventsLog, err := boltlog.New(filepath.Join(s.dir, "boltlog"))
+	c.Assert(err, IsNil)
+
+	s.roleAuth = auth.NewAuthWithRoles(s.a,
+		auth.NewStandardPermissions(),
+		eventsLog,
+		sess.New(baseBk),
+		teleport.RoleAdmin,
+		nil)
+
 	// set up host private key and certificate
 	c.Assert(s.a.UpsertCertAuthority(
 		*services.NewTestCA(services.HostCA, "localhost"), backend.Forever), IsNil)
 
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
-	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", auth.RoleAdmin, 0)
+	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", teleport.RoleAdmin, 0)
 	c.Assert(err, IsNil)
 
 	// set up user CA and set up a user that has access to the server
@@ -131,7 +143,7 @@ func (s *TshSuite) SetUpSuite(c *C) {
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srvAddress},
 		"localhost",
 		[]ssh.Signer{s.signer},
-		s.a,
+		s.roleAuth,
 		allowAllLimiter,
 		s.dir,
 		srv.SetShell("/bin/sh"),
@@ -157,7 +169,7 @@ func (s *TshSuite) SetUpSuite(c *C) {
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srv2Address},
 		"localhost",
 		[]ssh.Signer{s.signer},
-		s.a,
+		s.roleAuth,
 		allowAllLimiter,
 		s.dir2,
 		srv.SetShell("/bin/sh"),
@@ -183,7 +195,7 @@ func (s *TshSuite) SetUpSuite(c *C) {
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
-		s.a, allowAllLimiter)
+		s.roleAuth, allowAllLimiter)
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
@@ -193,7 +205,7 @@ func (s *TshSuite) SetUpSuite(c *C) {
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.proxyAddress},
 		"localhost",
 		[]ssh.Signer{s.signer},
-		s.a,
+		s.roleAuth,
 		allowAllLimiter,
 		s.dir,
 		srv.SetProxyMode(reverseTunnelServer),

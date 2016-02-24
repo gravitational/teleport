@@ -229,7 +229,7 @@ func (s *APISuite) TestSessions(c *C) {
 
 	ws, err := s.clt.SignIn(user, pass)
 	c.Assert(err, NotNil)
-	c.Assert(ws, Equals, "")
+	c.Assert(ws, IsNil)
 
 	hotpURL, _, err := s.clt.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
@@ -243,14 +243,14 @@ func (s *APISuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ws, Not(Equals), "")
 
-	out, err := s.clt.GetWebSessionID(user, ws)
+	out, err := s.clt.GetWebSessionInfo(user, ws.ID)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, ws)
 
-	err = s.clt.DeleteWebSession(user, ws)
+	err = s.clt.DeleteWebSession(user, ws.ID)
 	c.Assert(err, IsNil)
 
-	_, err = s.clt.GetWebSessionID(user, ws)
+	_, err = s.clt.GetWebSessionInfo(user, ws.ID)
 	c.Assert(err, NotNil)
 }
 
