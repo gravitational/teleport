@@ -1,6 +1,6 @@
 module.exports.getters = require('./getters');
 module.exports.actions = require('./actions');
-module.exports.nodeStore = require('./nodeStore');
+module.exports.nodeStore = require('./userStore');
 
 // nodes: [{"id":"x220","addr":"0.0.0.0:3022","hostname":"x220","labels":null,"cmd_labels":null}]
 

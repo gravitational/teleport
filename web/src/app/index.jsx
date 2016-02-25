@@ -6,10 +6,12 @@ var auth = require('./auth');
 var session = require('./session');
 var cfg = require('./config');
 
+require('./modules');
+
 // init session
 session.init();
 
-function requireAuth(nextState, replace, cb) {
+function requiresAuth(nextState, replace, cb) {
   auth.ensureUser()
     .done(()=> cb())
     .fail(()=>{
@@ -29,7 +31,8 @@ render((
     <Route path={cfg.routes.login} component={Login}/>
     <Route path={cfg.routes.logout} onEnter={handleLogout}/>
     <Route path={cfg.routes.newUser} component={NewUser}/>
-    <Route path={cfg.routes.app} component={App}>
+
+    <Route path={cfg.routes.app} component={App} onEnter={requiresAuth}>
       <Route path={cfg.routes.nodes} component={Nodes}/>
       <Route path={cfg.routes.sessions} component={Sessions}/>
     </Route>
