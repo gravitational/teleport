@@ -43,22 +43,22 @@ type connectReq struct {
 	SessionID string `json:"session_id"`
 }
 
-// wsHandler is a websocket to SSH proxy handler
-type wsHandler struct {
+// connectHandler is a websocket to SSH proxy handler
+type connectHandler struct {
 	ctx  *sessionContext
 	site reversetunnel.RemoteSite
 	up   *sshutils.Upstream
 	req  connectReq
 }
 
-func (w *wsHandler) Close() error {
+func (w *connectHandler) Close() error {
 	if w.up != nil {
 		return w.up.Close()
 	}
 	return nil
 }
 
-func (w *wsHandler) connect(ws *websocket.Conn) {
+func (w *connectHandler) connect(ws *websocket.Conn) {
 	for {
 		up, err := w.connectUpstream()
 		if err != nil {
@@ -75,7 +75,7 @@ func (w *wsHandler) connect(ws *websocket.Conn) {
 	}
 }
 
-func (w *wsHandler) connectUpstream() (*sshutils.Upstream, error) {
+func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
 	methods, err := w.ctx.GetAuthMethods()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -103,7 +103,7 @@ func (w *wsHandler) connectUpstream() (*sshutils.Upstream, error) {
 	return up, nil
 }
 
-func (w *wsHandler) Handler() http.Handler {
+func (w *connectHandler) Handler() http.Handler {
 	// TODO(klizhentas)
 	// we instantiate a server explicitly here instead of using
 	// websocket.HandlerFunc to set empty origin checker
@@ -113,6 +113,6 @@ func (w *wsHandler) Handler() http.Handler {
 	}
 }
 
-func newWSHandler(host string, auth []string) *wsHandler {
-	return &wsHandler{}
+func newWSHandler(host string, auth []string) *connectHandler {
+	return &connectHandler{}
 }
