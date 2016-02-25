@@ -401,3 +401,15 @@ func (s *WebSuite) TestWebSessionsBadInput(c *C) {
 		c.Assert(teleport.IsAccessDenied(err), Equals, true, Commentf("tc %v %T is not access denied", i, err))
 	}
 }
+
+func (s *WebSuite) TestGetSiteNodes(c *C) {
+	pack := s.authPack(c)
+
+	// get site nodes
+	re, err := pack.clt.Get(pack.clt.Endpoint("webapi", "sites", s.domainName, "nodes"), url.Values{})
+	c.Assert(err, IsNil)
+
+	var nodes *getSiteNodesResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &nodes), IsNil)
+	c.Assert(len(nodes.Nodes), Equals, 1)
+}

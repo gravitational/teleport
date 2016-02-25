@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package web implements web proxy handler that provides
+// web interface to view and connect to teleport nodes
 package web
 
 import (
@@ -92,6 +94,9 @@ func NewHandler(cfg Config) (http.Handler, error) {
 	h.GET("/webapi/sites", h.withAuth(h.getSites))
 
 	// Site specific API
+
+	// get nodes
+	h.GET("/webapi/sites/:site/nodes", h.withSiteAuth(h.getSiteNodes))
 
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
@@ -281,6 +286,32 @@ func convertSites(rs []reversetunnel.RemoteSite) []site {
 func (m *Handler) getSites(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *sessionContext) (interface{}, error) {
 	return getSitesResponse{
 		Sites: convertSites(m.cfg.Proxy.GetSites()),
+	}, nil
+}
+
+type getSiteNodesResponse struct {
+	Nodes []services.Server `json:"nodes"`
+}
+
+// getSiteNodes returns a list of nodes active in the site
+//
+// GET /v1/webapi/sites/:site/nodes
+//
+// Sucessful response:
+//
+// {"nodes": [{"addr": "ip:port", "hostname": "a.example.com", "labels": {"a": "b"}, "cmd_labels": {"label": {"command": "ls -l", "result": "root tmp var"}}}]}
+//
+func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := site.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers, err := clt.GetServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return getSiteNodesResponse{
+		Nodes: servers,
 	}, nil
 }
 
