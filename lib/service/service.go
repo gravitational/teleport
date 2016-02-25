@@ -416,12 +416,12 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 	// Register web proxy server
 	supervisor.RegisterFunc(func() error {
 		utils.Consolef(cfg.Console, "[PROXY] Web proxy service is starting on %v", cfg.Proxy.WebAddr.Addr)
-		webHandler, err := web.NewMultiSiteHandler(
-			web.MultiSiteConfig{
-				Tun:        tsrv,
-				AssetsDir:  cfg.Proxy.AssetsDir,
-				AuthAddr:   cfg.AuthServers[0],
-				DomainName: cfg.Hostname})
+		webHandler, err := web.NewHandler(
+			web.Config{
+				Proxy:       tsrv,
+				AssetsDir:   cfg.Proxy.AssetsDir,
+				AuthServers: cfg.AuthServers[0],
+				DomainName:  cfg.Hostname})
 		if err != nil {
 			log.Errorf("failed to launch web server: %v", err)
 			return err

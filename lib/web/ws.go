@@ -13,51 +13,55 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package web
 
 import (
 	"net/http"
 	"time"
 
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/sshutils"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/websocket"
 )
 
-// wsHandler
-type wsHandler struct {
-	ctx  Context
-	addr string
-	up   *sshutils.Upstream
-	sid  string
+// connectReq is a request to open interactive SSH
+// connection to remote server
+type connectReq struct {
+	// Addr is a host:port pair of the server to connect to
+	Addr string `json:"addr"`
+	// User is linux username to connect as
+	User string `json:"user"`
+	// TerminalHeight is a PTY terminal height
+	TerminalHeight int `json:"terminal_height"`
+	// TerminalWidth is a PTY terminal width
+	TerminalWidth int `json:"terminal_width"`
+	// SessionID is a teleport session ID to join as
+	SessionID string `json:"session_id"`
 }
 
-func (w *wsHandler) Close() error {
+// connectHandler is a websocket to SSH proxy handler
+type connectHandler struct {
+	ctx  *sessionContext
+	site reversetunnel.RemoteSite
+	up   *sshutils.Upstream
+	req  connectReq
+}
+
+func (w *connectHandler) Close() error {
 	if w.up != nil {
 		return w.up.Close()
 	}
 	return nil
 }
 
-func (w *wsHandler) connect(ws *websocket.Conn) {
+func (w *connectHandler) connect(ws *websocket.Conn) {
 	for {
-		ws.Write([]byte("Enter username:\n\r"))
-		username := ""
-		buf := make([]byte, 1)
-		for {
-			ws.Read(buf)
-			if (buf[0] != 10) && (buf[0] != 13) {
-				username += string(buf)
-				ws.Write(buf)
-			} else {
-				break
-			}
-		}
-		ws.Write([]byte("\n\r"))
-
-		up, err := w.connectUpstream(username)
+		up, err := w.connectUpstream()
 		if err != nil {
 			ws.Write([]byte(err.Error() + "\n"))
 			log.Errorf("wsHandler: failed: %v", err)
@@ -66,33 +70,41 @@ func (w *wsHandler) connect(ws *websocket.Conn) {
 		w.up = up
 		err = w.up.PipeShell(ws)
 
-		log.Infof("Pipe shell finished with: %v", err)
+		log.Infof("pipe shell finished with: %v", err)
 		time.Sleep(time.Millisecond * 300)
-		ws.Write([]byte("\n\rDisconnected\n\r"))
+		ws.Write([]byte("\n\rdisconnected\n\r"))
 	}
 }
 
-func (w *wsHandler) connectUpstream(user string) (*sshutils.Upstream, error) {
-	up, err := w.ctx.ConnectUpstream(w.addr, user)
+func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
+	methods, err := w.ctx.GetAuthMethods()
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
+	}
+	client, err := w.site.ConnectToServer(w.req.Addr, w.req.User, methods)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	up, err := sshutils.NewUpstream(client)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	up.GetSession().SendRequest(
 		sshutils.SetEnvReq, false,
 		ssh.Marshal(sshutils.EnvReqParams{
 			Name:  sshutils.SessionEnvVar,
-			Value: w.sid,
+			Value: w.req.SessionID,
 		}))
 	up.GetSession().SendRequest(
 		sshutils.PTYReq, false,
 		ssh.Marshal(sshutils.PTYReqParams{
-			W: 120,
-			H: 32,
+			W: uint32(w.req.TerminalWidth),
+			H: uint32(w.req.TerminalHeight),
 		}))
 	return up, nil
 }
 
-func (w *wsHandler) Handler() http.Handler {
+func (w *connectHandler) Handler() http.Handler {
 	// TODO(klizhentas)
 	// we instantiate a server explicitly here instead of using
 	// websocket.HandlerFunc to set empty origin checker
@@ -102,6 +114,6 @@ func (w *wsHandler) Handler() http.Handler {
 	}
 }
 
-func newWSHandler(host string, auth []string) *wsHandler {
-	return &wsHandler{}
+func newWSHandler(host string, auth []string) *connectHandler {
+	return &connectHandler{}
 }

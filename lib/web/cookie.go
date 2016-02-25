@@ -19,10 +19,10 @@ package web
 import (
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"net/http"
 )
 
+// SessionCookie stores information about active user and session
 type SessionCookie struct {
 	User string `json:"user"`
 	SID  string `json:"sid"`
@@ -48,27 +48,25 @@ func DecodeCookie(b string) (*SessionCookie, error) {
 	return c, nil
 }
 
-func SetSession(w http.ResponseWriter, fqdn, user, sid string) error {
+func SetSession(w http.ResponseWriter, user, sid string) error {
 	d, err := EncodeCookie(user, sid)
 	if err != nil {
 		return err
 	}
 	c := &http.Cookie{
-		Domain: fmt.Sprintf(".%v", fqdn),
-		Name:   "session",
-		Value:  d,
-		Path:   "/",
+		Name:  "session",
+		Value: d,
+		Path:  "/",
 	}
 	http.SetCookie(w, c)
 	return nil
 }
 
-func ClearSession(w http.ResponseWriter, fqdn string) error {
+func ClearSession(w http.ResponseWriter) error {
 	http.SetCookie(w, &http.Cookie{
-		Domain: fmt.Sprintf(".%v", fqdn),
-		Name:   "session",
-		Value:  "",
-		Path:   "/",
+		Name:  "session",
+		Value: "",
+		Path:  "/",
 	})
 	return nil
 }

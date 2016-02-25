@@ -1,5 +1,6 @@
 var api = require('./services/api');
 var session = require('./session');
+var cfg = require('app/config');
 var $ = require('jQuery');
 
 const refreshRate = 60000 * 1; // 1 min
@@ -8,13 +9,23 @@ var refreshTokenTimerId = null;
 
 var auth = {
 
-  login(email, password){
+  signUp(name, password, token, inviteToken){
+    var data = {user: name, pass: password, second_factor_token: token, invite_token: inviteToken};
+    return api.post(cfg.api.createUserPath, data)
+      .then((user)=>{
+        session.setUserData(user);
+        auth._startTokenRefresher();
+        return user;
+      });
+  },
+
+  login(name, password, token){
     auth._stopTokenRefresher();
-    return auth._login(email, password).done(auth._startTokenRefresher);
+    return auth._login(name, password, token).done(auth._startTokenRefresher);
   },
 
   ensureUser(){
-    if(session.getUserData().user){
+    if(session.getUserData()){
       // refresh timer will not be set in case of browser refresh event
       if(auth._getRefreshTokenTimerId() === null){
         return auth._login().done(auth._startTokenRefresher);
@@ -51,11 +62,18 @@ var auth = {
     })
   },
 
-  _login(email, password){
-    return api.login(email, password).then(data=>{
+  _login(name, password, token){
+    var data = {
+      user: name,
+      pass: password,
+      second_factor_token: token
+    };
+
+    return api.post(cfg.api.sessionPath, data).then(data=>{
       session.setUserData(data);
       return data;
     });
+
   }
 }
 

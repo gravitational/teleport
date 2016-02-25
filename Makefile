@@ -93,7 +93,7 @@ profile:
 	go tool pprof http://localhost:6060/debug/pprof/profile
 
 sloccount:
-	find . -path ./Godeps -prune -o -name "*.go" -print0 | xargs -0 wc -l
+	find . -path ./vendor -prune -o -name "*.go" -print0 | xargs -0 wc -l
 
 #
 # Deploy teleport server to staging environment on AWS

@@ -234,12 +234,12 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rsAgent.Start(), IsNil)
 
-	webHandler, err := web.NewMultiSiteHandler(
-		web.MultiSiteConfig{
-			Tun:        reverseTunnelServer,
-			AssetsDir:  "../../assets/web",
-			AuthAddr:   utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()},
-			DomainName: "localhost",
+	webHandler, err := web.NewHandler(
+		web.Config{
+			Proxy:       reverseTunnelServer,
+			AssetsDir:   "../../assets/web",
+			AuthServers: utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()},
+			DomainName:  "localhost",
 		},
 	)
 	c.Assert(err, IsNil)

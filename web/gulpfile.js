@@ -22,7 +22,7 @@ gulp.task('copy:assets', function(){
 
   // copy assets
   gulp.src(['src/assets/**', 'src/mocks/**'])
-    .pipe(gulp.dest('dist/assets'));
+    .pipe(gulp.dest('dist/app/assets'));
 });
 
 gulp.task('dev', ['default'], function(){

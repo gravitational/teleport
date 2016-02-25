@@ -14,36 +14,35 @@
 // INSPINIA Theme Elements
 @import "typography";
 @import "navigation";
-@import "top_navigation";
+//@import "top_navigation";
 @import "buttons";
-@import "badgets_labels";
+//@import "badgets_labels";
 @import "elements";
-@import "sidebar";
+//@import "sidebar";
 @import "base";
-@import "pages";
+/*@import "pages";
 @import "chat";
 @import "metismenu";
-@import "spinners";
+@import "spinners";*/
 
 // Landing page styles
-@import "landing";
+//@import "landing";
 
 // RTL Support
-@import "rtl";
+//@import "rtl";
 
 // For demo only - config box style
-@import "theme-config";
+//@import "theme-config";
 
 // INSPINIA Skins
-@import "skins";
-
+//@import "skins";
 
 // Media query style
-@import "media";
+//@import "media";
 
 // Custom style
 // Your custom style to override base style
-@import "custom";
+//@import "custom";
 
 // Clear layout on print mode
 @media print {

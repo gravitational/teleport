@@ -26,32 +26,34 @@ $icon-font-path: "~bootstrap-sass/assets/fonts/bootstrap/";
 @import "~bootstrap-sass/assets/stylesheets/bootstrap/buttons";
 
 // Components
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/component-animations";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/dropdowns";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/button-groups";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/input-groups";
+
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/component-animations";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/dropdowns";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/button-groups";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/input-groups";
 @import "~bootstrap-sass/assets/stylesheets/bootstrap/navs";
 @import "~bootstrap-sass/assets/stylesheets/bootstrap/navbar";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/breadcrumbs";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/pagination";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/pager";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/labels";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/badges";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/jumbotron";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/thumbnails";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/alerts";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/progress-bars";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/media";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/list-group";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/panels";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/responsive-embed";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/wells";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/close";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/breadcrumbs";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/pagination";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/pager";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/labels";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/badges";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/jumbotron";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/thumbnails";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/alerts";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/progress-bars";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/media";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/list-group";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/panels";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/responsive-embed";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/wells";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/close";
+//
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/tooltip";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/popovers";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/carousel";
 
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/tooltip";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/popovers";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/carousel";
 
 // Utility clasmiddle-box text-center loginscreenses
 @import "~bootstrap-sass/assets/stylesheets/bootstrap/utilities";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/responsive-utilities";
+//@import "~bootstrap-sass/assets/stylesheets/bootstrap/responsive-utilities";

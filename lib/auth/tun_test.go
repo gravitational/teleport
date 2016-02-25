@@ -181,7 +181,7 @@ func (s *TunSuite) TestSessions(c *C) {
 	c.Assert(ws, Not(Equals), "")
 
 	// Resume session via sesison id
-	authMethod, err = NewWebSessionAuth(user, []byte(ws))
+	authMethod, err = NewWebSessionAuth(user, []byte(ws.ID))
 	c.Assert(err, IsNil)
 
 	cltw, err := NewTunClient(
@@ -189,14 +189,14 @@ func (s *TunSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 	defer cltw.Close()
 
-	out, err := cltw.GetWebSessionID(user, ws)
+	out, err := cltw.GetWebSessionInfo(user, ws.ID)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, ws)
 
-	err = cltw.DeleteWebSession(user, ws)
+	err = cltw.DeleteWebSession(user, ws.ID)
 	c.Assert(err, IsNil)
 
-	_, err = clt.GetWebSessionID(user, ws)
+	_, err = clt.GetWebSessionInfo(user, ws.ID)
 	c.Assert(err, NotNil)
 }
 
@@ -282,24 +282,19 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 
 	password := "valid_password"
 
-	err = clt2.CreateUserWithToken(token, password, hotpTokens[0])
+	_, err = clt2.CreateUserWithToken(token, password, hotpTokens[0])
 	c.Assert(err, IsNil)
 
-	// that line will do nothing, so next valid token is still hotpTokens[1]
-	err = clt2.CreateUserWithToken(token, password, hotpTokens[1])
-	c.Assert(err, IsNil)
-
-	err = clt2.CreateUserWithToken(token, "another_user_signup_attempt", hotpTokens[0])
+	_, err = clt2.CreateUserWithToken(token, "another_user_signup_attempt", hotpTokens[0])
 	c.Assert(err, NotNil)
 
-	time.Sleep(time.Millisecond * 500)
 	_, _, err = s.a.WebService.GetSignupToken(token)
 	c.Assert(err, NotNil) // token was deleted
 
-	err = clt2.CreateUserWithToken(token3, "newpassword123", hotpTokens3[5])
+	_, err = clt2.CreateUserWithToken(token3, "newpassword123", hotpTokens3[5])
 	c.Assert(err, NotNil)
 
-	err = clt2.CreateUserWithToken(token3, "newpassword45665", hotpTokens3[4])
+	_, err = clt2.CreateUserWithToken(token3, "newpassword45665", hotpTokens3[4])
 	c.Assert(err, IsNil)
 
 	// trying to connect to the auth server using used token
@@ -356,11 +351,11 @@ func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(err, NotNil)
 
 	// Requesting forbidded for User action
-	_, err = clt.GetWebSessionID(user, ws)
+	_, err = clt.GetWebSessionInfo(user, ws.ID)
 	c.Assert(err, NotNil)
 
 	// Resume session via sesison id
-	authMethod, err = NewWebSessionAuth(user, []byte(ws))
+	authMethod, err = NewWebSessionAuth(user, []byte(ws.ID))
 	c.Assert(err, IsNil)
 
 	cltw, err := NewTunClient(
@@ -376,14 +371,14 @@ func (s *TunSuite) TestPermissions(c *C) {
 	_, err = cltw.SignIn(user, pass)
 	c.Assert(err, NotNil)
 
-	out, err := cltw.GetWebSessionID(user, ws)
+	out, err := cltw.GetWebSessionInfo(user, ws.ID)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, ws)
 
-	err = cltw.DeleteWebSession(user, ws)
+	err = cltw.DeleteWebSession(user, ws.ID)
 	c.Assert(err, IsNil)
 
-	_, err = clt.GetWebSessionID(user, ws)
+	_, err = clt.GetWebSessionInfo(user, ws.ID)
 	c.Assert(err, NotNil)
 }
 
@@ -412,9 +407,9 @@ func (s *TunSuite) TestSessionsBadPassword(c *C) {
 
 	ws, err := clt.SignIn(user, []byte("different-pass"))
 	c.Assert(err, NotNil)
-	c.Assert(ws, Equals, "")
+	c.Assert(ws, IsNil)
 
 	ws, err = clt.SignIn("not-exists", pass)
 	c.Assert(err, NotNil)
-	c.Assert(ws, Equals, "")
+	c.Assert(ws, IsNil)
 }

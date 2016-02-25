@@ -4,7 +4,7 @@ var Nodes = React.createClass({
   render: function() {
     return (
       <div>
-        <h1> Sessions </h1>
+        <h1> Sessions!</h1>
         <div className="">
           <div className="">
             <div className="">

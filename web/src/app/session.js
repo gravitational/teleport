@@ -1,4 +1,4 @@
-var createHistory = require('history/lib/createBrowserHistory');
+var { browserHistory } = require('react-router');
 
 const AUTH_KEY_DATA = 'authData';
 
@@ -6,8 +6,8 @@ var _history = null;
 
 var session = {
 
-  init(){
-    _history = createHistory();
+  init(history=browserHistory){
+    _history = history;
   },
 
   getHistory(){

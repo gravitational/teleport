@@ -1,21 +1,17 @@
 var React = require('react');
-var Router = require('react-router');
-var IndexLink = Router.IndexLink;
-var History = require('react-router').History;
+var { Router, IndexLink, History } = require('react-router');
+var cfg = require('app/config');
 
-var menuItems = [  
-  {icon: "fa fa fa-sitemap", to: `/web/nodes`, title: "Nodes"},
-  {icon: "fa fa-hdd-o", to: `/web/sessions`, title: "Sessions"}
+var menuItems = [
+  {icon: 'fa fa fa-sitemap', to: cfg.routes.nodes, title: 'Nodes'},
+  {icon: 'fa fa-hdd-o', to: cfg.routes.sessions, title: 'Sessions'}
 ];
 
 var NavLeftBar = React.createClass({
 
-  mixins: [ History ],
-
   render: function(){
-    var self = this;
-    var items = menuItems.map(function(i, index){
-      var className = self.history.isActive(i.to) ? "active" : "";
+    var items = menuItems.map((i, index)=>{
+      var className = this.context.router.isActive(i.to) ? 'active' : '';
       return (
         <li key={index} className={className}>
           <IndexLink to={i.to}>
@@ -26,9 +22,9 @@ var NavLeftBar = React.createClass({
     });
 
     return (
-      <nav className="" role="navigation" style={{width: '60px', float: 'left'}}>
-        <div className="">
-          <ul className="nav 1metismenu" id="side-menu">
+      <nav className='' role='navigation' style={{width: '60px', float: 'left', position: 'absolute'}}>
+        <div className=''>
+          <ul className='nav 1metismenu' id='side-menu'>
             {items}
           </ul>
         </div>
@@ -36,5 +32,9 @@ var NavLeftBar = React.createClass({
     );
   }
 });
+
+NavLeftBar.contextTypes = {
+  router: React.PropTypes.object.isRequired
+}
 
 module.exports = NavLeftBar;

@@ -179,23 +179,16 @@ func (s *WebService) GetHOTP(user string) (*hotp.HOTP, error) {
 }
 
 // UpsertWebSession updates or inserts a web session for a user and session id
-func (s *WebService) UpsertWebSession(user, sid string,
-	session WebSession, ttl time.Duration) error {
+func (s *WebService) UpsertWebSession(user, sid string, session WebSession, ttl time.Duration) error {
 
 	bytes, err := json.Marshal(session)
 	if err != nil {
-		log.Errorf(err.Error())
 		return trace.Wrap(err)
 	}
 
 	err = s.backend.UpsertVal([]string{"web", "users", user, "sessions"},
 		sid, bytes, ttl)
-	if err != nil {
-		log.Errorf(err.Error())
-		return trace.Wrap(err)
-	}
-	return err
-
+	return trace.Wrap(err)
 }
 
 // GetWebSession returns a web session state for a given user and session id
@@ -205,13 +198,12 @@ func (s *WebService) GetWebSession(user, sid string) (*WebSession, error) {
 		sid,
 	)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	var session WebSession
 	err = json.Unmarshal(val, &session)
 	if err != nil {
-		log.Errorf(err.Error())
 		return nil, trace.Wrap(err)
 	}
 
@@ -411,9 +403,15 @@ func verifyPassword(password []byte) error {
 	return nil
 }
 
+// WebSession stores key and value used to authenticate with SSH
+// notes on behalf of user
 type WebSession struct {
-	Pub  []byte `json:"pub"`
+	// Pub is a public certificate signed by auth server
+	Pub []byte `json:"pub"`
+	// Priv is a private OpenSSH key used to auth with SSH nodes
 	Priv []byte `json:"priv"`
+	// Expires - absolute time when token expires
+	Expires time.Time `json:"expires"`
 }
 
 // WebTun is a web tunnel, the SSH tunnel

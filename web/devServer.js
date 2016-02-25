@@ -15,12 +15,15 @@ webpackConfig.entry.styles.unshift(WEBPACK_CLIENT_ENTRY, WEBPACK_SRV_ENTRY);
 var compiler = webpack(webpackConfig);
 var server = new WebpackDevServer(compiler, {
   proxy: {
+    //"v1/webapi/users/invites": "http://x220:3080"
+    "/v1/webapi/*": "http://0.0.0.0:3080/",
     "/portal/*": "http://localhost:33009",
     "/sites/v1/*": "http://localhost:33009"
     ///"/sites/v1/*": "http://172.28.128.4:34444"
   },
   publicPath: ROOT +'/app',
   hot: true,
+  inline: true,
   headers: { "X-Custom-Header": "yes" },
   stats: 'errors-only'
 });

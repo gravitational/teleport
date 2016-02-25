@@ -1,24 +1,21 @@
 var React = require('react');
-var { Router, Route, Redirect, IndexRoute } = require('react-router');
 var render = require('react-dom').render;
-
-// route component modules
-var App = require('./components/app.jsx');
-var Login = require('./components/login.jsx');
-var Nodes = require('./components/nodes/main.jsx');
-var Sessions = require('./components/sessions/main.jsx');
-var NewUser = require('./components/newUser.jsx');
+var { Router, Route, Redirect, IndexRoute, browserHistory } = require('react-router');
+var { App, Login, Nodes, Sessions, NewUser } = require('./components');
 var auth = require('./auth');
 var session = require('./session');
+var cfg = require('./config');
+
+require('./modules');
 
 // init session
 session.init();
 
-function requireAuth(nextState, replace, cb) {
+function requiresAuth(nextState, replace, cb) {
   auth.ensureUser()
     .done(()=> cb())
     .fail(()=>{
-      replace({redirectTo: nextState.location.pathname }, '/web/login' );
+      replace({redirectTo: nextState.location.pathname }, cfg.routes.login);
       cb();
     });
 }
@@ -31,12 +28,13 @@ function handleLogout(nextState, replace, cb){
 
 render((
   <Router history={session.getHistory()}>
-    <Route path="/web/login" component={Login}/>
-    <Route path="/web/logout" onEnter={handleLogout}/>
-    <Route path="/web/newuser" component={NewUser}/>
-    <Route path="/web" component={App}>
-      <Route path="nodes" component={Nodes}/>
-      <Route path="sessions" component={Sessions}/>
+    <Route path={cfg.routes.login} component={Login}/>
+    <Route path={cfg.routes.logout} onEnter={handleLogout}/>
+    <Route path={cfg.routes.newUser} component={NewUser}/>
+
+    <Route path={cfg.routes.app} component={App} onEnter={requiresAuth}>
+      <Route path={cfg.routes.nodes} component={Nodes}/>
+      <Route path={cfg.routes.sessions} component={Sessions}/>
     </Route>
   </Router>
 ), document.getElementById("app"));

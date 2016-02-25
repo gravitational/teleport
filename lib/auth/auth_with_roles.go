@@ -197,34 +197,6 @@ func (a *AuthWithRoles) GetAuthServers() ([]services.Server, error) {
 		return a.authServer.GetAuthServers()
 	}
 }
-func (a *AuthWithRoles) UpsertWebTun(wt services.WebTun, ttl time.Duration) error {
-	if err := a.permChecker.HasPermission(a.role, ActionUpsertWebTun); err != nil {
-		return trace.Wrap(err)
-	} else {
-		return a.authServer.UpsertWebTun(wt, ttl)
-	}
-}
-func (a *AuthWithRoles) GetWebTuns() ([]services.WebTun, error) {
-	if err := a.permChecker.HasPermission(a.role, ActionGetWebTuns); err != nil {
-		return nil, err
-	} else {
-		return a.authServer.GetWebTuns()
-	}
-}
-func (a *AuthWithRoles) GetWebTun(prefix string) (*services.WebTun, error) {
-	if err := a.permChecker.HasPermission(a.role, ActionGetWebTun); err != nil {
-		return nil, err
-	} else {
-		return a.authServer.GetWebTun(prefix)
-	}
-}
-func (a *AuthWithRoles) DeleteWebTun(prefix string) error {
-	if err := a.permChecker.HasPermission(a.role, ActionDeleteWebTun); err != nil {
-		return trace.Wrap(err)
-	} else {
-		return a.authServer.DeleteWebTun(prefix)
-	}
-}
 func (a *AuthWithRoles) UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error) {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertPassword); err != nil {
 		return "", nil, err
@@ -239,18 +211,18 @@ func (a *AuthWithRoles) CheckPassword(user string, password []byte, hotpToken st
 		return a.authServer.CheckPassword(user, password, hotpToken)
 	}
 }
-func (a *AuthWithRoles) SignIn(user string, password []byte) (string, error) {
+func (a *AuthWithRoles) SignIn(user string, password []byte) (*Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionSignIn); err != nil {
-		return "", err
+		return nil, err
 	} else {
 		return a.authServer.SignIn(user, password)
 	}
 }
-func (a *AuthWithRoles) GetWebSessionID(user string, sid string) (string, error) {
+func (a *AuthWithRoles) GetWebSessionInfo(user string, sid string) (*Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetWebSession); err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	} else {
-		return a.authServer.GetWebSessionID(user, sid)
+		return a.authServer.GetWebSessionInfo(user, sid)
 	}
 }
 func (a *AuthWithRoles) GetWebSessionsKeys(user string) ([]services.AuthorizedKey, error) {
@@ -362,9 +334,9 @@ func (a *AuthWithRoles) GetSignupTokenData(token string) (user string,
 	}
 }
 
-func (a *AuthWithRoles) CreateUserWithToken(token, password, hotpToken string) error {
+func (a *AuthWithRoles) CreateUserWithToken(token, password, hotpToken string) (*Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionCreateUserWithToken); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	} else {
 		return a.authServer.CreateUserWithToken(token, password, hotpToken)
 	}

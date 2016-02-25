@@ -145,10 +145,10 @@ func (s *AuthServer) GetSignupTokenData(token string) (user string,
 // CreateUserWithToken creates account with provided token and password.
 // Account username and hotp generator are taken from token data.
 // Deletes token after account creation.
-func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) error {
+func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Session, error) {
 	err := s.AcquireLock("signuptoken"+token, time.Hour)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	defer func() {
@@ -160,58 +160,50 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) erro
 
 	tokenData, _, err := s.GetSignupToken(token)
 	if err != nil {
-		log.Errorf("[AUTH] error reading token (%v): %v", token, err)
-		return trace.Wrap(err)
-	}
-
-	_, err = s.GetPasswordHash(tokenData.User)
-	if err == nil {
-		// that means that the account was already created
-		e := s.CheckPasswordWOToken(tokenData.User, []byte(password))
-		if e != nil {
-			// different users tries to create one account
-			return trace.Errorf("can't add user %v, user already exists", tokenData.User)
-		} else {
-			// one user just quickly clicked "Confirm" twice
-			return nil
-		}
+		return nil, trace.Wrap(err)
 	}
 
 	otp, err := hotp.Unmarshal(tokenData.Hotp)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	ok := otp.Scan(hotpToken, HOTPFirstTokensRange)
 	if !ok {
-		return trace.Errorf("Wrong HOTP token")
+		return nil, trace.Wrap(teleport.BadParameter("hotp", "wrong HOTP token"))
 	}
 
 	_, _, err = s.UpsertPassword(tokenData.User, []byte(password))
 	if err != nil {
-		log.Errorf("[AUTH] error saving new user (%v) to DB: %v", tokenData.User, err)
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// apply user allowed logins
 	if err = s.UpsertUser(services.User{Name: tokenData.User, AllowedLogins: tokenData.AllowedLogins}); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	err = s.UpsertHOTP(tokenData.User, otp)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	go func(s *AuthServer, token string) {
-		time.Sleep(TokenTTLAfterUse) // If user will quickly click "Confirm" twice
-		err = s.DeleteSignupToken(token)
-		if err != nil {
-			log.Errorf(err.Error())
-		}
-	}(s, token)
+	log.Infof("[AUTH] created new user: %v as %v", tokenData.User, tokenData.AllowedLogins)
 
-	log.Infof("[AUTH] created new user: %v as %v",
-		tokenData.User, tokenData.AllowedLogins)
-	return nil
+	if err = s.DeleteSignupToken(token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sess, err := s.NewWebSession(tokenData.User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.UpsertWebSession(tokenData.User, sess, WebSessionTTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sess.WS.Priv = nil
+	return sess, nil
 }

@@ -65,11 +65,11 @@
 		},
 		{
 			"ImportPath": "github.com/gravitational/roundtrip",
-			"Rev": "348c0b57968dcd9fef02239abf9b7688881d65e6"
+			"Rev": "6f5b466bba024cee2c0a549bf8844d98f07fd5a3"
 		},
 		{
 			"ImportPath": "github.com/gravitational/trace",
-			"Rev": "bdd69590106bbc949e797d0ed545489ec6f36eca"
+			"Rev": "af77d5facfcfa8cdccdae73865728c8c0ac3dbf6"
 		},
 		{
 			"ImportPath": "github.com/jonboulle/clockwork",

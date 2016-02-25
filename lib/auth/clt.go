@@ -352,7 +352,7 @@ func (c *Client) CheckPassword(user string,
 
 // SignIn checks if the web access password is valid, and if it is valid
 // returns a secure web session id.
-func (c *Client) SignIn(user string, password []byte) (string, error) {
+func (c *Client) SignIn(user string, password []byte) (*Session, error) {
 	out, err := c.PostJSON(
 		c.Endpoint("users", user, "web", "signin"),
 		signInReq{
@@ -360,27 +360,28 @@ func (c *Client) SignIn(user string, password []byte) (string, error) {
 		},
 	)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	var sid string
-	if err := json.Unmarshal(out.Bytes(), &sid); err != nil {
-		return "", err
+	var sess *Session
+	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
+		return nil, err
 	}
-	return sid, nil
+	return sess, nil
 }
 
-// GetWebSessionID check if a web sesion is valid, returns session id in case if
+// GetWebSessionInfo check if a web sesion is valid, returns session id in case if
 // it is valid, or error otherwise.
-func (c *Client) GetWebSessionID(user string, sid string) (string, error) {
+func (c *Client) GetWebSessionInfo(user string, sid string) (*Session, error) {
 	out, err := c.Get(
 		c.Endpoint("users", user, "web", "sessions", sid), url.Values{})
 	if err != nil {
-		return "", err
+		return nil, trace.Wrap(err)
 	}
-	if err := json.Unmarshal(out.Bytes(), &sid); err != nil {
-		return "", err
+	var sess *Session
+	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return sid, nil
+	return sess, nil
 }
 
 // GetWebSessionKeys returns the list of temporary keys generated for this
@@ -592,13 +593,20 @@ func (c *Client) GetSignupTokenData(token string) (user string,
 // CreateUserWithToken creates account with provided token and password.
 // Account username and hotp generator are taken from token data.
 // Deletes token after account creation.
-func (c *Client) CreateUserWithToken(token, password, hotpToken string) error {
-	_, err := c.PostJSON(c.Endpoint("signuptokens", "users"), createUserWithTokenReq{
+func (c *Client) CreateUserWithToken(token, password, hotpToken string) (*Session, error) {
+	out, err := c.PostJSON(c.Endpoint("signuptokens", "users"), createUserWithTokenReq{
 		Token:     token,
 		Password:  password,
 		HOTPToken: hotpToken,
 	})
-	return trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var sess *Session
+	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sess, nil
 }
 
 type chunkRW struct {
@@ -654,8 +662,8 @@ type ClientI interface {
 	GetAuthServers() ([]services.Server, error)
 	UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error)
 	CheckPassword(user string, password []byte, hotpToken string) error
-	SignIn(user string, password []byte) (string, error)
-	GetWebSessionID(user string, sid string) (string, error)
+	SignIn(user string, password []byte) (*Session, error)
+	GetWebSessionInfo(user string, sid string) (*Session, error)
 	GetWebSessionsKeys(user string) ([]services.AuthorizedKey, error)
 	DeleteWebSession(user string, sid string) error
 	GetUsers() ([]services.User, error)
@@ -664,5 +672,5 @@ type ClientI interface {
 	GenerateHostCert(key []byte, hostname, authServer string, role teleport.Role, ttl time.Duration) ([]byte, error)
 	GenerateUserCert(key []byte, user string, ttl time.Duration) ([]byte, error)
 	GetSignupTokenData(token string) (user string, QRImg []byte, hotpFirstValues []string, e error)
-	CreateUserWithToken(token, password, hotpToken string) error
+	CreateUserWithToken(token, password, hotpToken string) (*Session, error)
 }

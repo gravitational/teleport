@@ -2,74 +2,42 @@ package web
 
 import (
 	"encoding/json"
-	"io/ioutil"
-	"net/http"
-	"net/url"
 	"strings"
 	"time"
-
-	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
 )
 
-func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte,
-	ttl time.Duration) (SSHLoginResponse, error) {
+// SSHAgentLogin issues call to web proxy and receives temp certificate
+// in case if credentials are valid
+func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte, ttl time.Duration) (*SSHLoginResponse, error) {
 
-	cred := SSHLoginCredentials{
+	// TODO(klizhentas) HTTPS of course
+	if !strings.HasPrefix(proxyAddr, "http://") {
+		proxyAddr = "http://" + proxyAddr
+	}
+
+	clt, err := newWebClient(proxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	re, err := clt.PostJSON(clt.Endpoint("webapi", "ssh", "certs"), createSSHCertReq{
 		User:      user,
 		Password:  password,
 		HOTPToken: hotpToken,
 		PubKey:    pubKey,
 		TTL:       ttl,
-	}
-
-	credJSON, err := json.Marshal(cred)
+	})
 	if err != nil {
-		return SSHLoginResponse{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	if !strings.HasPrefix(proxyAddr, "http://") {
-		proxyAddr = "http://" + proxyAddr
-	}
-
-	out, err := http.PostForm(
-		proxyAddr+"/sshlogin",
-		url.Values{
-			"credentials": []string{string(credJSON)},
-		})
+	var out *SSHLoginResponse
+	err = json.Unmarshal(re.Bytes(), &out)
 	if err != nil {
-		return SSHLoginResponse{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	defer out.Body.Close()
-	body, err := ioutil.ReadAll(out.Body)
-	if err != nil {
-		return SSHLoginResponse{}, trace.Wrap(err)
-	}
-
-	if out.StatusCode != 200 {
-		return SSHLoginResponse{}, trace.Errorf(string(body))
-	}
-
-	var res SSHLoginResponse
-	err = json.Unmarshal(body, &res)
-	if err != nil {
-		return SSHLoginResponse{}, trace.Wrap(err)
-	}
-
-	return res, nil
-}
-
-type SSHLoginCredentials struct {
-	User      string
-	Password  string
-	HOTPToken string
-	PubKey    []byte
-	TTL       time.Duration
-}
-
-type SSHLoginResponse struct {
-	Cert        []byte
-	HostSigners []services.CertAuthority
+	return out, nil
 }
