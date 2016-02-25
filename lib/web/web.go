@@ -127,7 +127,7 @@ type createSessionResponse struct {
 	// Token value
 	Token string `json:"token"`
 	// User represents the user
-	User string `json:"user"`
+	User services.User `json:"user"`
 	// ExpiresIn sets seconds before this token is not valid
 	ExpiresIn int `json:"expires_in"`
 }
@@ -140,14 +140,13 @@ type createSessionResponse struct {
 //
 // Response
 //
-// {"type": "bearer", "token": "bearer token", "user": "alex", "expires_in": 20}
+// {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
 //
 func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *createSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	sess, err := m.auth.Auth(req.User, req.Pass, req.SecondFactorToken)
 	if err != nil {
 		log.Infof("bad access credentials: %v", err)
@@ -159,7 +158,7 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 	return &createSessionResponse{
 		Type:      roundtrip.AuthBearer,
 		Token:     sess.ID,
-		User:      req.User,
+		User:      sess.User,
 		ExpiresIn: int(time.Now().Sub(sess.WS.Expires) / time.Second),
 	}, nil
 }
@@ -242,7 +241,7 @@ func (m *Handler) createNewUser(w http.ResponseWriter, r *http.Request, p httpro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := SetSession(w, sess.User, sess.ID); err != nil {
+	if err := SetSession(w, sess.User.Name, sess.ID); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &createSessionResponse{

@@ -65,7 +65,7 @@ type Session struct {
 	// ID is a session ID
 	ID string `json:"id"`
 	// User is a user this session belongs to
-	User string `json:"user"`
+	User services.User `json:"user"`
 	// WS is a private keypair used for signing requests
 	WS services.WebSession `json:"web"`
 }
@@ -313,7 +313,7 @@ func (s *AuthServer) DeleteToken(outputToken string) error {
 	return s.ProvisioningService.DeleteToken(token)
 }
 
-func (s *AuthServer) NewWebSession(user string) (*Session, error) {
+func (s *AuthServer) NewWebSession(userName string) (*Session, error) {
 	token, err := CryptoRandomHex(WebSessionTokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -333,13 +333,17 @@ func (s *AuthServer) NewWebSession(user string) (*Session, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := s.Authority.GenerateUserCert(privateKey, pub, user, WebSessionTTL)
+	cert, err := s.Authority.GenerateUserCert(privateKey, pub, userName, WebSessionTTL)
 	if err != nil {
 		return nil, err
 	}
+	user, err := s.GetUser(userName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	sess := &Session{
 		ID:   token,
-		User: user,
+		User: *user,
 		WS:   services.WebSession{Priv: priv, Pub: cert, Expires: s.clock.Now().UTC().Add(WebSessionTTL)},
 	}
 	return sess, nil
@@ -349,27 +353,35 @@ func (s *AuthServer) UpsertWebSession(user string, sess *Session, ttl time.Durat
 	return s.WebService.UpsertWebSession(user, sess.ID, sess.WS, ttl)
 }
 
-func (s *AuthServer) GetWebSession(user string, id string) (*Session, error) {
-	ws, err := s.WebService.GetWebSession(user, id)
+func (s *AuthServer) GetWebSession(userName string, id string) (*Session, error) {
+	ws, err := s.WebService.GetWebSession(userName, id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user, err := s.GetUser(userName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &Session{
 		ID:   id,
-		User: user,
+		User: *user,
 		WS:   *ws,
 	}, nil
 }
 
-func (s *AuthServer) GetWebSessionInfo(user string, id string) (*Session, error) {
-	sess, err := s.WebService.GetWebSession(user, id)
+func (s *AuthServer) GetWebSessionInfo(userName string, id string) (*Session, error) {
+	sess, err := s.WebService.GetWebSession(userName, id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user, err := s.GetUser(userName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sess.Priv = nil
 	return &Session{
 		ID:   id,
-		User: user,
+		User: *user,
 		WS:   *sess,
 	}, nil
 }
