@@ -1,7 +1,31 @@
+@import "grv-invite";
+@import "grv-login";
+
+.grv-logo-tprt{
+  color: white;
+  margin-top: 5%;
+  margin: 0 auto;
+  width: 70px;
+  height: 70px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-image: url("/web/app/assets/img/grv-tlpt-logo.png");
+}
+
 .grv {
+  min-width: 1024px;
   .grv-spinner.sk-spinner-three-bounce{
     position: absolute;
     top: 50%;
     left: 50%;
   }
+}
+
+.grv-flex{
+  display: flex;
+}
+
+.grv-flex-column{
+  flex-direction: column;
+  flex: 1;
 }

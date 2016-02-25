@@ -1,0 +1,10 @@
+module.exports.React = require('react');
+module.exports.ReactDOM = require('react-dom');
+module.exports.ReactTestUtils = require('react-addons-test-utils');
+module.exports.expect = require('expect');
+module.exports.$ = require('jQuery');
+module.exports.Dfd = module.exports.$.Deferred;
+module.exports.spyOn = module.exports.expect.spyOn;
+module.exports.reactor = require('app/reactor');
+module.exports.api = require('app/services/api');
+require('app/modules');

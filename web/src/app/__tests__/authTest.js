@@ -1,3 +1,4 @@
+return;
 var expect = require('expect');
 var $ = require('jQuery');
 var api = require('app/services/api');
@@ -59,7 +60,7 @@ describe('auth', function () {
         var wasCalled = false;
         api.login.andReturn($.Deferred().resolve(sample));
         auth._getRefreshTokenTimerId.andReturn(null);
-        session.getUserData.andReturn(sample);        
+        session.getUserData.andReturn(sample);
         auth.ensureUser('user', 'password').done(()=> { wasCalled = true });
 
         expect(api.login.calls.length).toEqual(1);
