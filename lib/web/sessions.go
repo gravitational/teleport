@@ -17,53 +17,46 @@ limitations under the License.
 package web
 
 import (
-	"io"
 	"net/http"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 	"github.com/mailgun/ttlmap"
 	"golang.org/x/crypto/ssh"
 )
 
-// Context is authentication and connection context
-// it holds web session that user is associated with and
-// connections to remote sites
-type Context interface {
-	io.Closer
-	ConnectUpstream(addr string, user string) (*sshutils.Upstream, error)
-	GetAuthMethods() ([]ssh.AuthMethod, error)
-	GetWebSession() *auth.Session
-	GetUser() string
-	GetClient() (auth.ClientI, error)
-}
-
-// LocalContext is a site local context
-type LocalContext struct {
+// sessionContext is a context associated with users'
+// web session, it stores connected client that persists
+// between requests for example to avoid connecting
+// to the auth server on every page hit
+type sessionContext struct {
 	sess *auth.Session
 	user string
 	clt  *auth.TunClient
 }
 
-func (c *LocalContext) GetClient() (auth.ClientI, error) {
+// GetClient returns the client connected to the auth server
+func (c *sessionContext) GetClient() (auth.ClientI, error) {
 	return c.clt, nil
 }
 
-func (c *LocalContext) GetUser() string {
+// GetUser returns the authenticated teleport user
+func (c *sessionContext) GetUser() string {
 	return c.user
 }
 
-func (c *LocalContext) GetWebSession() *auth.Session {
+// GetWebSession returns a web session
+func (c *sessionContext) GetWebSession() *auth.Session {
 	return c.sess
 }
 
-func (c *LocalContext) GetAuthMethods() ([]ssh.AuthMethod, error) {
+// GetAuthMethods returns authentication methods (credentials) that proxy
+// can use to connect to servers
+func (c *sessionContext) GetAuthMethods() ([]ssh.AuthMethod, error) {
 	a, err := c.clt.GetAgent()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -75,64 +68,45 @@ func (c *LocalContext) GetAuthMethods() ([]ssh.AuthMethod, error) {
 	return []ssh.AuthMethod{ssh.PublicKeys(signers...)}, nil
 }
 
-func (c *LocalContext) Close() error {
+// Close cleans up connections associated with requests
+func (c *sessionContext) Close() error {
 	if c.clt != nil {
 		return trace.Wrap(c.clt.Close())
 	}
 	return nil
 }
 
-func (c *LocalContext) ConnectUpstream(addr string, user string) (*sshutils.Upstream, error) {
-	agent, err := c.clt.GetAgent()
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to get agent: %v", err)
-	}
-	signers, err := agent.Signers()
-	if err != nil {
-		return nil, trace.Wrap(err, "no signers: %v", err)
-	}
-	return sshutils.DialUpstream(user, addr, signers)
-}
-
-type RequestHandler func(http.ResponseWriter, *http.Request, httprouter.Params, Context)
-
-type AuthHandler interface {
-	Auth(user, pass string, hotpToken string) (*auth.Session, error)
-	GetCertificate(c SSHLoginCredentials) (SSHLoginResponse, error)
-	GetUserInviteInfo(token string) (user string, QRImg []byte, hotpFirstValues []string, e error)
-	CreateNewUser(token, password, hotpToken string) (*auth.Session, error)
-	ValidateSession(user, sid string) (Context, error)
-	SetSession(w http.ResponseWriter, user, sid string) error
-	ClearSession(w http.ResponseWriter)
-}
-
-func NewLocalAuth(secure bool, servers []utils.NetAddr) (*LocalAuth, error) {
-	m, err := ttlmap.NewMap(1024, ttlmap.CallOnExpire(CloseContext))
+// newSessionHandler returns new instance of the session handler
+func newSessionHandler(secure bool, servers []utils.NetAddr) (*sessionHandler, error) {
+	m, err := ttlmap.NewMap(1024, ttlmap.CallOnExpire(closeContext))
 	if err != nil {
 		return nil, err
 	}
-	return &LocalAuth{
-		sessions:    m,
+	return &sessionHandler{
+		contexts:    m,
 		authServers: servers,
 	}, nil
 }
 
-type LocalAuth struct {
+// sessionHandler handles web session authentication,
+// and holds in memory contexts associated with each session
+type sessionHandler struct {
 	secure      bool
-	sessions    *ttlmap.TtlMap
+	contexts    *ttlmap.TtlMap
 	authServers []utils.NetAddr
 }
 
-func CloseContext(key string, val interface{}) {
+// closeContext is called when session context expires from
+// cache and will clean up connections
+func closeContext(key string, val interface{}) {
 	log.Infof("closing context %v", key)
-	ctx := val.(Context)
-	err := ctx.Close()
-	if err != nil {
-		log.Errorf("failed closing context: %v", err)
+	ctx := val.(*sessionContext)
+	if err := ctx.Close(); err != nil {
+		log.Infof("failed to close context: %v", err)
 	}
 }
 
-func (s *LocalAuth) Auth(user, pass string, hotpToken string) (*auth.Session, error) {
+func (s *sessionHandler) Auth(user, pass string, hotpToken string) (*auth.Session, error) {
 	method, err := auth.NewWebPasswordAuth(user, []byte(pass), hotpToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -144,24 +118,24 @@ func (s *LocalAuth) Auth(user, pass string, hotpToken string) (*auth.Session, er
 	return clt.SignIn(user, []byte(pass))
 }
 
-func (s *LocalAuth) GetCertificate(c SSHLoginCredentials) (SSHLoginResponse, error) {
+func (s *sessionHandler) GetCertificate(c createSSHCertReq) (*SSHLoginResponse, error) {
 	method, err := auth.NewWebPasswordAuth(c.User, []byte(c.Password),
 		c.HOTPToken)
 	if err != nil {
-		return SSHLoginResponse{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	clt, err := auth.NewTunClient(s.authServers[0], c.User, method)
 	if err != nil {
-		return SSHLoginResponse{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	cert, err := clt.GenerateUserCert(c.PubKey, c.User, c.TTL)
 	if err != nil {
-		return SSHLoginResponse{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	hostSigners, err := clt.GetCertAuthorities(services.HostCA)
 	if err != nil {
-		return SSHLoginResponse{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	signers := []services.CertAuthority{}
@@ -169,13 +143,13 @@ func (s *LocalAuth) GetCertificate(c SSHLoginCredentials) (SSHLoginResponse, err
 		signers = append(signers, *hs)
 	}
 
-	return SSHLoginResponse{
+	return &SSHLoginResponse{
 		Cert:        cert,
 		HostSigners: signers,
 	}, nil
 }
 
-func (s *LocalAuth) GetUserInviteInfo(token string) (user string,
+func (s *sessionHandler) GetUserInviteInfo(token string) (user string,
 	QRImg []byte, hotpFirstValues []string, e error) {
 
 	method, err := auth.NewSignupTokenAuth(token)
@@ -190,7 +164,7 @@ func (s *LocalAuth) GetUserInviteInfo(token string) (user string,
 	return clt.GetSignupTokenData(token)
 }
 
-func (s *LocalAuth) CreateNewUser(token, password, hotpToken string) (*auth.Session, error) {
+func (s *sessionHandler) CreateNewUser(token, password, hotpToken string) (*auth.Session, error) {
 	method, err := auth.NewSignupTokenAuth(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -203,10 +177,10 @@ func (s *LocalAuth) CreateNewUser(token, password, hotpToken string) (*auth.Sess
 	return sess, trace.Wrap(err)
 }
 
-func (s *LocalAuth) ValidateSession(user, sid string) (Context, error) {
-	val, ok := s.sessions.Get(user + sid)
+func (s *sessionHandler) ValidateSession(user, sid string) (*sessionContext, error) {
+	val, ok := s.contexts.Get(user + sid)
 	if ok {
-		return val.(Context), nil
+		return val.(*sessionContext), nil
 	}
 	method, err := auth.NewWebSessionAuth(user, []byte(sid))
 	if err != nil {
@@ -220,19 +194,19 @@ func (s *LocalAuth) ValidateSession(user, sid string) (Context, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	c := &LocalContext{
+	c := &sessionContext{
 		clt:  clt,
 		user: user,
 		sess: sess,
 	}
 	const localCacheTTL = 600
-	if err := s.sessions.Set(user+sid, c, localCacheTTL); err != nil {
+	if err := s.contexts.Set(user+sid, c, localCacheTTL); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return c, nil
 }
 
-func (s *LocalAuth) SetSession(w http.ResponseWriter, user, sid string) error {
+func (s *sessionHandler) SetSession(w http.ResponseWriter, user, sid string) error {
 	d, err := EncodeCookie(user, sid)
 	if err != nil {
 		return err
@@ -248,7 +222,7 @@ func (s *LocalAuth) SetSession(w http.ResponseWriter, user, sid string) error {
 	return nil
 }
 
-func (s *LocalAuth) ClearSession(w http.ResponseWriter) {
+func (s *sessionHandler) ClearSession(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session",
 		Value:    "",

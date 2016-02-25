@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events/boltlog"
-	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -190,11 +189,11 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(s.tunServer.Start(), IsNil)
 
 	// start handler
-	handler, err := NewMultiSiteHandler(MultiSiteConfig{
+	handler, err := NewHandler(Config{
 		InsecureHTTPMode: true,
-		Tun:              revTunServer,
+		Proxy:            revTunServer,
 		AssetsDir:        "assets/web",
-		AuthAddr:         tunAddr,
+		AuthServers:      tunAddr,
 		DomainName:       s.domainName,
 	})
 
@@ -209,12 +208,12 @@ func (s *WebSuite) url() *url.URL {
 	return u
 }
 
-func (s *WebSuite) client(opts ...roundtrip.ClientParam) *testClient {
-	clt, err := roundtrip.NewClient(s.url().String(), "v1", opts...)
+func (s *WebSuite) client(opts ...roundtrip.ClientParam) *webClient {
+	clt, err := newWebClient(s.url().String(), opts...)
 	if err != nil {
 		panic(err)
 	}
-	return &testClient{clt}
+	return clt
 }
 
 func (s *WebSuite) TearDownTest(c *C) {
@@ -288,7 +287,7 @@ type authPack struct {
 	pass    string
 	otp     *hotp.HOTP
 	session *createSessionResponse
-	clt     *testClient
+	clt     *webClient
 }
 
 // authPack returns new authenticated package consisting
@@ -401,22 +400,4 @@ func (s *WebSuite) TestWebSessionsBadInput(c *C) {
 		c.Assert(err, NotNil, Commentf("tc %v", i))
 		c.Assert(teleport.IsAccessDenied(err), Equals, true, Commentf("tc %v %T is not access denied", i, err))
 	}
-}
-
-type testClient struct {
-	*roundtrip.Client
-}
-
-func (t *testClient) PostJSON(
-	endpoint string, val interface{}) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(t.Client.PostJSON(endpoint, val))
-}
-
-func (t *testClient) Get(
-	endpoint string, val url.Values) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(t.Client.Get(endpoint, val))
-}
-
-func (t *testClient) Delete(endpoint string) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(t.Client.Delete(endpoint))
 }
