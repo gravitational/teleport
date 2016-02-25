@@ -379,6 +379,11 @@ func (h *Handler) String() string {
 	return fmt.Sprintf("multi site")
 }
 
+// currentSiteShortcut is a special shortcut that will return the first
+// available site, is helpful when UI works in single site mode to reduce
+// the amount of requests
+const currentSiteShortcut = "-current-"
+
 // contextHandler is a handler called with the auth context, what means it is authenticated and ready to work
 type contextHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext) (interface{}, error)
 
@@ -393,6 +398,13 @@ func (h *Handler) withSiteAuth(fn siteHandler) httprouter.Handle {
 			return nil, trace.Wrap(err)
 		}
 		siteName := p.ByName("site")
+		if siteName == currentSiteShortcut {
+			sites := h.cfg.Proxy.GetSites()
+			if len(sites) < 1 {
+				return nil, trace.Wrap(teleport.NotFound("no active sites"))
+			}
+			siteName = sites[0].GetName()
+		}
 		site, err := h.cfg.Proxy.GetSite(siteName)
 		if err != nil {
 			return nil, trace.Wrap(err)

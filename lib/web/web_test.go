@@ -412,4 +412,14 @@ func (s *WebSuite) TestGetSiteNodes(c *C) {
 	var nodes *getSiteNodesResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &nodes), IsNil)
 	c.Assert(len(nodes.Nodes), Equals, 1)
+
+	// get site nodes using shortcut
+	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), url.Values{})
+	c.Assert(err, IsNil)
+
+	var nodes2 *getSiteNodesResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &nodes2), IsNil)
+	c.Assert(len(nodes.Nodes), Equals, 1)
+
+	c.Assert(nodes2, DeepEquals, nodes)
 }
