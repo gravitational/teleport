@@ -17,13 +17,18 @@ limitations under the License.
 package web
 
 import (
+	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"os/user"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -47,6 +52,7 @@ import (
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/roundtrip"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/websocket"
 	. "gopkg.in/check.v1"
 )
 
@@ -288,6 +294,7 @@ type authPack struct {
 	otp     *hotp.HOTP
 	session *createSessionResponse
 	clt     *webClient
+	cookies []*http.Cookie
 }
 
 // authPack returns new authenticated package consisting
@@ -302,6 +309,10 @@ func (s *WebSuite) authPack(c *C) *authPack {
 	otp, _, err := hotp.FromURL(hotpURL)
 	c.Assert(err, IsNil)
 	otp.Increment()
+
+	err = s.roleAuth.UpsertUser(
+		services.User{Name: user, AllowedLogins: []string{s.user}})
+	c.Assert(err, IsNil)
 
 	clt := s.client()
 
@@ -326,6 +337,7 @@ func (s *WebSuite) authPack(c *C) *authPack {
 		pass:    pass,
 		session: sess,
 		clt:     clt,
+		cookies: re.Cookies(),
 	}
 }
 
@@ -422,4 +434,62 @@ func (s *WebSuite) TestGetSiteNodes(c *C) {
 	c.Assert(len(nodes.Nodes), Equals, 1)
 
 	c.Assert(nodes2, DeepEquals, nodes)
+}
+
+func (s *WebSuite) TestConnect(c *C) {
+	pack := s.authPack(c)
+
+	u := url.URL{Host: s.url().Host, Scheme: "ws", Path: fmt.Sprintf("/v1/webapi/sites/%v/connect", currentSiteShortcut)}
+	data, err := json.Marshal(connectReq{
+		Addr:  s.srvAddress,
+		Login: s.user,
+		Term:  connectTerm{W: 100, H: 100},
+	})
+	c.Assert(err, IsNil)
+
+	q := u.Query()
+	q.Set("params", hex.EncodeToString(data))
+	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
+	u.RawQuery = q.Encode()
+
+	wscfg, err := websocket.NewConfig(u.String(), "http://localhost")
+	c.Assert(err, IsNil)
+	for _, cookie := range pack.cookies {
+		wscfg.Header.Add("Cookie", cookie.String())
+	}
+	fmt.Printf("%v", wscfg.Header)
+	clt, err := websocket.DialConfig(wscfg)
+	c.Assert(err, IsNil)
+	defer clt.Close()
+
+	doneC := make(chan error, 2)
+	go func() {
+		_, err := io.WriteString(clt, "expr 137 + 39\r\nexit\r\n")
+		doneC <- err
+	}()
+
+	output := &bytes.Buffer{}
+	go func() {
+		_, err := io.Copy(output, clt)
+		doneC <- err
+	}()
+
+	timeoutC := time.After(time.Second)
+	for i := 0; i < 2; i++ {
+		select {
+		case <-doneC:
+			break
+		case <-timeoutC:
+			c.Fatalf("timeout!")
+		}
+	}
+
+	c.Assert(removeSpace(output.String()), Matches, ".*176.*")
+}
+
+func removeSpace(in string) string {
+	for _, c := range []string{"\n", "\r", "\t"} {
+		in = strings.Replace(in, c, " ", -1)
+	}
+	return strings.TrimSpace(in)
 }
