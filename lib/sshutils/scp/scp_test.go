@@ -81,7 +81,7 @@ func (s *SCPSuite) TestSendFile(c *C) {
 	}()
 
 	select {
-	case <-time.After(time.Second):
+	case <-time.After(2 * time.Second):
 		c.Fatalf("timeout")
 	case err := <-errC:
 		c.Assert(err, IsNil)

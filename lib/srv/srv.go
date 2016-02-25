@@ -181,7 +181,7 @@ func (s *Server) Addr() string {
 }
 
 func (s *Server) ID() string {
-	return s.hostname
+	return s.addr.Addr
 }
 
 func (s *Server) heartbeatPresence() {

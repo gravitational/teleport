@@ -265,52 +265,59 @@ func (s *HangoutsSuite) TestHangout(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(out, Equals, " expr 11 + 22\r\n33\r\n$")
 
-	// Initializing tsh join
-	proxy, err := client.ConnectToProxy(s.proxyAddress,
-		[]ssh.AuthMethod{s.teleagent.AuthMethod()}, client.CheckHostSignerFromCache, "anyuser")
-	c.Assert(err, IsNil)
+	for i := 0; i < 3; i++ {
 
-	authConn, err := proxy.ConnectToHangout(hangoutServer.HangoutID+":"+utils.HangoutAuthPortAlias, []ssh.AuthMethod{s.teleagent.AuthMethod()})
-	c.Assert(err, IsNil)
+		// Initializing tsh join
+		proxy, err := client.ConnectToProxy(s.proxyAddress,
+			[]ssh.AuthMethod{s.teleagent.AuthMethod()}, client.CheckHostSignerFromCache, "anyuser")
+		c.Assert(err, IsNil)
 
-	authClient, err := auth.NewClientFromSSHClient(authConn.Client)
-	c.Assert(err, IsNil)
+		authConn, err := proxy.ConnectToHangout(hangoutServer.HangoutID+":"+utils.HangoutAuthPortAlias, []ssh.AuthMethod{s.teleagent.AuthMethod()})
+		c.Assert(err, IsNil)
 
-	nodeAuthMethod, err := Authorize(authClient)
-	c.Assert(err, IsNil)
+		authClient, err := auth.NewClientFromSSHClient(authConn.Client)
+		c.Assert(err, IsNil)
 
-	nodeConn, err := proxy.ConnectToHangout(hangoutServer.HangoutID+":"+utils.HangoutNodePortAlias, []ssh.AuthMethod{nodeAuthMethod})
-	c.Assert(err, IsNil)
+		nodeAuthMethod, err := Authorize(authClient)
+		c.Assert(err, IsNil)
 
-	shell2, err := nodeConn.Shell(100, 100, "hangoutSession")
-	c.Assert(err, IsNil)
-	shell2Reader := bufio.NewReader(shell2)
-	// tsh join initialized
+		c.Assert(authConn.Close(), IsNil)
 
-	// run second command
-	_, err = shell1.Write([]byte("expr 2 + 3\n"))
-	c.Assert(err, IsNil)
+		nodeConn, err := proxy.ConnectToHangout(hangoutServer.HangoutID+":"+utils.HangoutNodePortAlias, []ssh.AuthMethod{nodeAuthMethod})
+		c.Assert(err, IsNil)
 
-	out, err = shell1Reader.ReadString('$')
-	c.Assert(err, IsNil)
-	c.Assert(out, Equals, " expr 2 + 3\r\n5\r\n$")
+		shell2, err := nodeConn.Shell(100, 100, "hangoutSession")
+		c.Assert(err, IsNil)
+		shell2Reader := bufio.NewReader(shell2)
+		// tsh join initialized
 
-	out, err = shell2Reader.ReadString('$')
-	c.Assert(err, IsNil)
-	c.Assert(out, Equals, "expr 2 + 3\r\n5\r\n$")
+		// run second command
+		_, err = shell1.Write([]byte("expr 2 + 3\n"))
+		c.Assert(err, IsNil)
 
-	// run third command
-	_, err = shell2.Write([]byte("expr 6 + 2\n"))
-	c.Assert(err, IsNil)
+		out, err = shell1Reader.ReadString('$')
+		c.Assert(err, IsNil)
+		c.Assert(out, Equals, " expr 2 + 3\r\n5\r\n$")
 
-	out, err = shell1Reader.ReadString('$')
-	c.Assert(err, IsNil)
-	c.Assert(out, Equals, " expr 6 + 2\r\n8\r\n$")
+		out, err = shell2Reader.ReadString('$')
+		c.Assert(err, IsNil)
+		c.Assert(out, Equals, "expr 2 + 3\r\n5\r\n$")
 
-	out, err = shell2Reader.ReadString('$')
-	c.Assert(err, IsNil)
-	c.Assert(out, Equals, " expr 6 + 2\r\n8\r\n$")
+		// run third command
+		_, err = shell2.Write([]byte("expr 6 + 2\n"))
+		c.Assert(err, IsNil)
 
+		out, err = shell1Reader.ReadString('$')
+		c.Assert(err, IsNil)
+		c.Assert(out, Equals, " expr 6 + 2\r\n8\r\n$")
+
+		out, err = shell2Reader.ReadString('$')
+		c.Assert(err, IsNil)
+		c.Assert(out, Equals, " expr 6 + 2\r\n8\r\n$")
+
+		c.Assert(shell2.Close(), IsNil)
+		c.Assert(nodeConn.Close(), IsNil)
+		c.Assert(proxy.Close(), IsNil)
+	}
 	c.Assert(shell1.Close(), IsNil)
-	c.Assert(shell2.Close(), IsNil)
 }

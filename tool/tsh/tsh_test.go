@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -48,6 +49,7 @@ import (
 
 	"github.com/gokyle/hotp"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 	. "gopkg.in/check.v1"
 
 	log "github.com/Sirupsen/logrus"
@@ -58,23 +60,18 @@ func TestTsh(t *testing.T) { TestingT(t) }
 type TshSuite struct {
 	srv          *srv.Server
 	srv2         *srv.Server
-	srv3         *exec.Cmd
-	srv4         *exec.Cmd
 	proxy        *srv.Server
 	srvAddress   string
 	srvHost      string
 	srvPort      string
 	srv2Address  string
-	srv3Address  string
-	srv3Dir      string
-	srv4Address  string
-	srv4Dir      string
 	proxyAddress string
 	webAddress   string
 	agentAddr    string
 	clt          *ssh.Client
 	bk           *encryptedbk.ReplicatedBackend
 	a            *auth.AuthServer
+	roleAuth     *auth.AuthWithRoles
 	signer       ssh.Signer
 	teleagent    *teleagent.TeleAgent
 	dir          string
@@ -84,18 +81,22 @@ type TshSuite struct {
 	pass         []byte
 	envVars      []string
 	userDir      string
+	freePorts    []string
 }
 
 var _ = Suite(&TshSuite{})
 
 func (s *TshSuite) SetUpSuite(c *C) {
 	utils.InitLoggerCLI()
-	client.KeysDir = c.MkDir()
+	//client.KeysDir = c.MkDir()
 
 	s.dir = c.MkDir()
 	s.dir2 = c.MkDir()
 
 	allowAllLimiter, err := limiter.NewLimiter(limiter.LimiterConfig{})
+	c.Assert(err, IsNil)
+	s.freePorts, err = utils.GetFreeTCPPorts(10)
+	c.Assert(err, IsNil)
 
 	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
@@ -106,13 +107,23 @@ func (s *TshSuite) SetUpSuite(c *C) {
 
 	s.a = auth.NewAuthServer(s.bk, authority.New(), "localhost")
 
+	eventsLog, err := boltlog.New(filepath.Join(s.dir, "boltlog"))
+	c.Assert(err, IsNil)
+
+	s.roleAuth = auth.NewAuthWithRoles(s.a,
+		auth.NewStandardPermissions(),
+		eventsLog,
+		sess.New(baseBk),
+		teleport.RoleAdmin,
+		nil)
+
 	// set up host private key and certificate
 	c.Assert(s.a.UpsertCertAuthority(
 		*services.NewTestCA(services.HostCA, "localhost"), backend.Forever), IsNil)
 
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
-	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", auth.RoleAdmin, 0)
+	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", teleport.RoleAdmin, 0)
 	c.Assert(err, IsNil)
 
 	// set up user CA and set up a user that has access to the server
@@ -123,15 +134,16 @@ func (s *TshSuite) SetUpSuite(c *C) {
 	c.Assert(err, IsNil)
 
 	// Starting node1
-	s.srvAddress = "127.0.0.1:30136"
+	s.srvPort = s.freePorts[len(s.freePorts)-1]
+	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 	s.srvHost = "127.0.0.1"
-	s.srvPort = "30136"
+	s.srvAddress = s.srvHost + ":" + s.srvPort
 
 	s.srv, err = srv.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srvAddress},
 		"localhost",
 		[]ssh.Signer{s.signer},
-		s.a,
+		s.roleAuth,
 		allowAllLimiter,
 		s.dir,
 		srv.SetShell("/bin/sh"),
@@ -140,6 +152,8 @@ func (s *TshSuite) SetUpSuite(c *C) {
 				"label1": "value1",
 				"label2": "value2",
 				"label3": "value3",
+				"label4": "value4",
+				"label5": "value5",
 			},
 			services.CommandLabels{
 				"cmdLabel1": services.CommandLabel{
@@ -152,17 +166,18 @@ func (s *TshSuite) SetUpSuite(c *C) {
 	c.Assert(s.srv.Start(), IsNil)
 
 	// Starting node2
-	s.srv2Address = "127.0.0.1:30983"
+	s.srv2Address = "127.0.0.1:" + s.freePorts[len(s.freePorts)-1]
+	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 	s.srv2, err = srv.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srv2Address},
 		"localhost",
 		[]ssh.Signer{s.signer},
-		s.a,
+		s.roleAuth,
 		allowAllLimiter,
 		s.dir2,
 		srv.SetShell("/bin/sh"),
 		srv.SetLabels(
-			map[string]string{"label1": "value1", "label3": "value4"},
+			map[string]string{"label1": "value1", "label3": "value4", "label4": "value4", "label5": "value6"},
 			services.CommandLabels{
 				"cmdLabel1": services.CommandLabel{
 					Period:  time.Second,
@@ -179,21 +194,24 @@ func (s *TshSuite) SetUpSuite(c *C) {
 	c.Assert(s.srv2.Start(), IsNil)
 
 	// Starting proxy
-	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:33736"}
+	reverseTunnelPort := s.freePorts[len(s.freePorts)-1]
+	s.freePorts = s.freePorts[:len(s.freePorts)-1]
+	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:" + reverseTunnelPort}
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
-		s.a, allowAllLimiter)
+		s.roleAuth, allowAllLimiter)
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
-	s.proxyAddress = "localhost:34284"
+	s.proxyAddress = "localhost:" + s.freePorts[len(s.freePorts)-1]
+	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 
 	s.proxy, err = srv.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.proxyAddress},
 		"localhost",
 		[]ssh.Signer{s.signer},
-		s.a,
+		s.roleAuth,
 		allowAllLimiter,
 		s.dir,
 		srv.SetProxyMode(reverseTunnelServer),
@@ -213,8 +231,10 @@ func (s *TshSuite) SetUpSuite(c *C) {
 	)
 	go apiSrv.Serve()
 
+	tunServerAddress := "localhost:" + s.freePorts[len(s.freePorts)-1]
+	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 	tsrv, err := auth.NewTunServer(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:31948"},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: tunServerAddress},
 		[]ssh.Signer{s.signer},
 		apiSrv, s.a, allowAllLimiter)
 	c.Assert(err, IsNil)
@@ -259,7 +279,8 @@ func (s *TshSuite) SetUpSuite(c *C) {
 	)
 	c.Assert(err, IsNil)
 
-	s.webAddress = "localhost:31236"
+	s.webAddress = "localhost:" + s.freePorts[len(s.freePorts)-1]
+	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 
 	go func() {
 		err := http.ListenAndServe(s.webAddress, webHandler)
@@ -270,43 +291,6 @@ func (s *TshSuite) SetUpSuite(c *C) {
 
 	currentDir, err := os.Getwd()
 	c.Assert(err, IsNil)
-	token1, err := s.a.GenerateToken("localhost", "Node", time.Minute)
-	c.Assert(err, IsNil)
-	s.srv3Dir = c.MkDir()
-	s.srv3Address = "127.0.0.1:30984"
-	s.srv3 = exec.Command("teleport", "--env")
-	s.srv3.Dir = s.srv3Dir
-	s.srv3.Env = append(
-		[]string{
-			"TELEPORT_HOSTNAME=localhost",
-			"TELEPORT_SSH_TOKEN=" + token1,
-			"TELEPORT_SSH_ENABLED=true",
-			"TELEPORT_SSH_ADDR=tcp://" + s.srv3Address,
-			`TELEPORT_AUTH_SERVERS=["tcp://` + tsrv.Addr() + `"]`,
-			"TELEPORT_DATA_DIR=" + s.srv3Dir,
-			`TELEPORT_SSH_LABELS={"label4":"value4", "label5":"value5"}`,
-			"PWD=" + s.srv3Dir}, os.Environ()...,
-	)
-	s.srv3.Start()
-
-	token2, err := s.a.GenerateToken("localhost", "Node", time.Minute)
-	c.Assert(err, IsNil)
-	s.srv4Dir = c.MkDir()
-	os.Chdir(s.srv4Dir)
-	s.srv4Address = "127.0.0.1:30985"
-	s.srv4 = exec.Command("teleport", "--env")
-	s.srv4.Env = append(
-		[]string{
-			"TELEPORT_HOSTNAME=localhost",
-			"TELEPORT_SSH_TOKEN=" + token2,
-			"TELEPORT_SSH_ENABLED=true",
-			"TELEPORT_SSH_ADDR=tcp://" + s.srv4Address,
-			`TELEPORT_AUTH_SERVERS=["tcp://` + tsrv.Addr() + `"]`,
-			"TELEPORT_DATA_DIR=" + s.srv4Dir,
-			`TELEPORT_SSH_LABELS={"label4":"value4", "label5":"value6"}`,
-			"PWD=" + s.srv4Dir}, os.Environ()...,
-	)
-	s.srv4.Start()
 
 	os.Chdir(currentDir)
 
@@ -316,14 +300,17 @@ func (s *TshSuite) SetUpSuite(c *C) {
 	err = s.teleagent.Login("http://"+s.webAddress, s.user, string(s.pass), s.otp.OTP(), time.Minute)
 	c.Assert(err, IsNil)
 
+	passwordCallback := func() (password, hotpToken string, e error) {
+		return string(s.pass), s.otp.OTP(), nil
+	}
+	err = client.Login(agent.NewKeyring(), s.webAddress, s.user, 5*time.Minute, passwordCallback)
+	c.Assert(err, IsNil)
 	s.envVars = append([]string{"SSH_AUTH_SOCK=" + s.agentAddr}, os.Environ()...)
 	// "Command labels will be calculated only on the second heartbeat"
 	time.Sleep(time.Millisecond * 3100)
 }
 
 func (s *TshSuite) TearDownSuite(c *C) {
-	s.srv3.Process.Kill()
-	s.srv4.Process.Kill()
 }
 
 func (s *TshSuite) TestRunCommand(c *C) {
@@ -378,11 +365,11 @@ func (s *TshSuite) TestRunCommandOn2Servers(c *C) {
 
 	c.Assert(true, Equals, strings.Contains(string(out), fmt.Sprintf(
 		"Running command on %v\n-----------------------------\n%v\n-----------------------------\n\n",
-		s.srv3Address, s.userDir)))
+		s.srvAddress, s.userDir)))
 
 	c.Assert(true, Equals, strings.Contains(string(out), fmt.Sprintf(
 		"Running command on %v\n-----------------------------\n%v\n-----------------------------\n\n",
-		s.srv4Address, s.userDir)))
+		s.srv2Address, s.userDir)))
 }
 
 func (s *TshSuite) TestRunCommandWithProxy(c *C) {
@@ -393,6 +380,9 @@ func (s *TshSuite) TestRunCommandWithProxy(c *C) {
 		`""expr 3 + 50""`)
 	cmd.Env = s.envVars
 	out, err := cmd.Output()
+	if err != nil {
+		c.Assert(string(out), Equals, "")
+	}
 	c.Assert(err, IsNil)
 
 	c.Assert(string(out), Equals, fmt.Sprintf("Running command on %v\n-----------------------------\n53\n-----------------------------\n\n", s.srvAddress))
@@ -548,8 +538,8 @@ func (s *TshSuite) TestDownloadFileFrom2Servers(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	outFile1 := filepath.Join(destDir, "file3", s.srv3Address)
-	outFile2 := filepath.Join(destDir, "file3", s.srv4Address)
+	outFile1 := filepath.Join(destDir, "file3", s.srvAddress)
+	outFile2 := filepath.Join(destDir, "file3", s.srv2Address)
 
 	bytes1, err := ioutil.ReadFile(outFile1)
 	c.Assert(err, IsNil)
@@ -592,10 +582,10 @@ func (s *TshSuite) TestDownloadDirFrom2Servers(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	outFile11 := filepath.Join(destDir, "copydir", s.srv3Address, "file11")
-	outFile12 := filepath.Join(destDir, "copydir", s.srv3Address, "file12")
-	outFile21 := filepath.Join(destDir, "copydir", s.srv4Address, "file11")
-	outFile22 := filepath.Join(destDir, "copydir", s.srv4Address, "file12")
+	outFile11 := filepath.Join(destDir, "copydir", s.srvAddress, "file11")
+	outFile12 := filepath.Join(destDir, "copydir", s.srvAddress, "file12")
+	outFile21 := filepath.Join(destDir, "copydir", s.srv2Address, "file11")
+	outFile22 := filepath.Join(destDir, "copydir", s.srv2Address, "file12")
 
 	bytes11, err := ioutil.ReadFile(outFile11)
 	c.Assert(err, IsNil)
