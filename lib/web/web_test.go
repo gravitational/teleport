@@ -339,6 +339,68 @@ func (s *WebSuite) TestWebSessionsCRUD(c *C) {
 
 	var sites *getSitesResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &sites), IsNil)
+
+	// now delete session
+	_, err = pack.clt.Delete(
+		pack.clt.Endpoint("webapi", "sessions", pack.session.Token))
+	c.Assert(err, IsNil)
+
+	// subsequent requests trying to use this session will fail
+	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	c.Assert(err, NotNil)
+	c.Assert(teleport.IsAccessDenied(err), Equals, true)
+}
+
+func (s *WebSuite) TestWebSessionsBadInput(c *C) {
+	user := "bob"
+	pass := "abc123"
+
+	hotpURL, _, err := s.roleAuth.UpsertPassword(user, []byte(pass))
+	c.Assert(err, IsNil)
+	otp, _, err := hotp.FromURL(hotpURL)
+	c.Assert(err, IsNil)
+	otp.Increment()
+
+	clt := s.client()
+
+	token := otp.OTP()
+
+	reqs := []createSessionReq{
+		// emtpy request
+		{},
+		// missing user
+		{
+			Pass:              pass,
+			SecondFactorToken: token,
+		},
+		// missing pass
+		{
+			User:              user,
+			SecondFactorToken: token,
+		},
+		// bad pass
+		{
+			User:              user,
+			Pass:              "bla bla",
+			SecondFactorToken: token,
+		},
+		// bad hotp token
+		{
+			User:              user,
+			Pass:              pass,
+			SecondFactorToken: "bad token",
+		},
+		// missing hotp token
+		{
+			User: user,
+			Pass: pass,
+		},
+	}
+	for i, req := range reqs {
+		_, err = clt.PostJSON(clt.Endpoint("webapi", "sessions"), req)
+		c.Assert(err, NotNil, Commentf("tc %v", i))
+		c.Assert(teleport.IsAccessDenied(err), Equals, true, Commentf("tc %v %T is not access denied", i, err))
+	}
 }
 
 type testClient struct {
@@ -353,4 +415,8 @@ func (t *testClient) PostJSON(
 func (t *testClient) Get(
 	endpoint string, val url.Values) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(t.Client.Get(endpoint, val))
+}
+
+func (t *testClient) Delete(endpoint string) (*roundtrip.Response, error) {
+	return httplib.ConvertResponse(t.Client.Delete(endpoint))
 }
