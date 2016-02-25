@@ -299,7 +299,16 @@ type getSiteNodesResponse struct {
 //
 // Sucessful response:
 //
-// {"nodes": [{"addr": "ip:port", "hostname": "a.example.com", "labels": {"role": "master"}, "cmd_labels": {"role": {"command": "ls -l", "result": "root tmp var"}}}]}
+// {"nodes": [
+//   {
+//     "addr": "ip:port",
+//     "hostname": "a.example.com",
+//     "labels": {"role": "mysql"},
+//     "cmd_labels": {
+//         "db_status": {
+//           "command": "mysql -c status",
+//           "result": "master"
+//      }}}]}
 //
 func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := site.GetClient()
