@@ -19,6 +19,8 @@ limitations under the License.
 package web
 
 import (
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -97,6 +99,8 @@ func NewHandler(cfg Config) (http.Handler, error) {
 
 	// get nodes
 	h.GET("/webapi/sites/:site/nodes", h.withSiteAuth(h.getSiteNodes))
+	// connect to node via websocket (that's why it's a GET method)
+	h.GET("/webapi/sites/:site/connect", h.withSiteAuth(h.siteNodeConnect))
 
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
@@ -322,6 +326,38 @@ func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprou
 	return getSiteNodesResponse{
 		Nodes: servers,
 	}, nil
+}
+
+// siteNodeConnect connect to the site node
+//
+// GET /v1/webapi/sites/:site/connect?access_token=bearer_token&params=<hex-encoded json-structure>
+//
+// Due to the nature of websocket we can't POST parameters as is, so we have
+// to add query parameters. The params query parameter is a hex encoded JSON strucrture:
+//
+// {"addr": "127.0.0.1:5000", "login": "admin", "term": {"h": 120, "w": 100}, "sid": "123"}
+//
+// Session id can be empty
+//
+// Sucessful response is a websocket stream that allows read write to the server
+//
+func (m *Handler) siteNodeConnect(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	q := r.URL.Query()
+	params, err := hex.DecodeString(q.Get("params"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var req *connectReq
+	if err := json.Unmarshal(params, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connect, err := newConnectHandler(*req, ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer connect.Close()
+	connect.Handler().ServeHTTP(w, r)
+	return nil, nil
 }
 
 // createSSHCertReq are passed by web client
