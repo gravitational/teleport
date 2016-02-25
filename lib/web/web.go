@@ -303,11 +303,12 @@ type getSiteNodesResponse struct {
 //   {
 //     "addr": "ip:port",
 //     "hostname": "a.example.com",
-//     "labels": {"role": "mysql"},
+//     "labels": {"role": "mysql"}, // static key value pairs set by user for every node
 //     "cmd_labels": {
 //         "db_status": {
-//           "command": "mysql -c status",
-//           "result": "master"
+//           "command": "mysql -c status", // command periodically executed on server
+//           "result": "master",  // output of the command
+//           "period": 1000000000 // microseconds between calls
 //      }}}]}
 //
 func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
