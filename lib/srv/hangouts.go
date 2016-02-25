@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -72,7 +73,7 @@ func (t *hangoutsSubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 		return trace.Wrap(err)
 	}
 
-	servers, err := clt.GetServers()
+	servers, err := auth.RetryingClient(clt, 20).GetServers()
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -55,6 +55,7 @@ func TestSrv(t *testing.T) { TestingT(t) }
 type SrvSuite struct {
 	srv         *Server
 	srvAddress  string
+	srvPort     string
 	srvHostPort string
 	clt         *ssh.Client
 	bk          *encryptedbk.ReplicatedBackend
@@ -65,6 +66,7 @@ type SrvSuite struct {
 	dir         string
 	user        string
 	domainName  string
+	freePorts   []string
 }
 
 var _ = Suite(&SrvSuite{})
@@ -79,6 +81,9 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	u, err := user.Current()
 	c.Assert(err, IsNil)
 	s.user = u.Username
+
+	s.freePorts, err = utils.GetFreeTCPPorts(10)
+	c.Assert(err, IsNil)
 
 	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
@@ -132,8 +137,11 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	)
 	c.Assert(err, IsNil)
 
-	s.srvAddress = "127.0.0.1:30185"
-	s.srvHostPort = fmt.Sprintf("%v:30185", s.domainName)
+	s.srvPort = s.freePorts[len(s.freePorts)-1]
+	s.freePorts = s.freePorts[:len(s.freePorts)-1]
+	s.srvAddress = "127.0.0.1:" + s.srvPort
+
+	s.srvHostPort = fmt.Sprintf("%v:%v", s.domainName, s.srvPort)
 	srv, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srvAddress},
 		s.domainName,
@@ -351,7 +359,9 @@ func (s *SrvSuite) TestProxy(c *C) {
 	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{})
 	c.Assert(err, IsNil)
 
-	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("%v:33056", s.domainName)}
+	reverseTunnelPort := s.freePorts[len(s.freePorts)-1]
+	s.freePorts = s.freePorts[:len(s.freePorts)-1]
+	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("%v:%v", s.domainName, reverseTunnelPort)}
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
@@ -388,7 +398,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 	go apiSrv.Serve()
 
 	tsrv, err := auth.NewTunServer(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:31497"},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		[]ssh.Signer{s.signer},
 		apiSrv, s.a, limiter)
 	c.Assert(err, IsNil)
@@ -440,7 +450,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 	c.Assert(err, IsNil)
 
 	// Request opening TCP connection to the remote host
-	unregisteredAddress := "0.0.0.0:30185"
+	unregisteredAddress := "0.0.0.0:" + s.srvPort
 	c.Assert(se0.RequestSubsystem(fmt.Sprintf("proxy:%v", unregisteredAddress)), IsNil)
 
 	local, err := utils.ParseAddr("tcp://" + proxy.Addr())
@@ -465,7 +475,8 @@ func (s *SrvSuite) TestProxy(c *C) {
 	s.testClient(c, proxy.Addr(), s.srvHostPort, s.srv.Addr(), sshConfig)
 
 	// adding new node
-	bobAddr := "127.0.0.1:31185"
+	bobAddr := "127.0.0.1:" + s.freePorts[len(s.freePorts)-1]
+	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 	srv2, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: bobAddr},
 		"bob",
@@ -519,8 +530,8 @@ func (s *SrvSuite) TestProxy(c *C) {
 	for _, node := range nodes {
 		nmap[node.ID] = node
 	}
-	c.Assert(nmap["bob"], DeepEquals, services.Server{
-		ID:       "bob",
+	c.Assert(nmap[bobAddr], DeepEquals, services.Server{
+		ID:       bobAddr,
 		Addr:     bobAddr,
 		Hostname: "bob",
 		Labels:   map[string]string{"label1": "value1"},
@@ -536,9 +547,9 @@ func (s *SrvSuite) TestProxy(c *C) {
 				Result:  "5",
 			}}})
 
-	c.Assert(nmap["localhost"], DeepEquals, services.Server{
-		ID:       "localhost",
-		Addr:     "127.0.0.1:30185",
+	c.Assert(nmap[s.srvAddress], DeepEquals, services.Server{
+		ID:       s.srvAddress,
+		Addr:     s.srvAddress,
 		Hostname: "localhost"})
 }
 
@@ -550,9 +561,11 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	reverseTunnelPort := s.freePorts[len(s.freePorts)-1]
+	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 	reverseTunnelAddress := utils.NetAddr{
 		AddrNetwork: "tcp",
-		Addr:        fmt.Sprintf("%v:33066", s.domainName),
+		Addr:        fmt.Sprintf("%v:%v", s.domainName, reverseTunnelPort),
 	}
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
@@ -592,7 +605,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	go apiSrv.Serve()
 
 	tsrv, err := auth.NewTunServer(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:31438"},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		[]ssh.Signer{s.signer},
 		apiSrv, s.a, limiter)
 	c.Assert(err, IsNil)
@@ -665,7 +678,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 
 	reverseTunnelAddress := utils.NetAddr{
 		AddrNetwork: "tcp",
-		Addr:        fmt.Sprintf("%v:33066", s.domainName),
+		Addr:        fmt.Sprintf("%v:0", s.domainName),
 	}
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
@@ -705,7 +718,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	go apiSrv.Serve()
 
 	tsrv, err := auth.NewTunServer(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:31538"},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		[]ssh.Signer{s.signer},
 		apiSrv, s.a, limiter)
 	c.Assert(err, IsNil)
@@ -809,7 +822,8 @@ func (s *SrvSuite) TestLimiter(c *C) {
 	)
 	c.Assert(err, IsNil)
 
-	srvAddress := "127.0.0.1:30285"
+	srvAddress := "127.0.0.1:" + s.freePorts[len(s.freePorts)-1]
+	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 	srv, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: srvAddress},
 		s.domainName,
