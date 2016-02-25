@@ -5,8 +5,8 @@ var cfg = require('app/config');
 
 export default {
   fetchNodes(){
-    api.get(cfg.api.nodes).done(nodes=>{
-      reactor.dispatch(TLPT_RECEIVE_NODES, nodes);
+    api.get(cfg.api.nodesPath).done(data=>{
+      reactor.dispatch(TLPT_RECEIVE_NODES, data.nodes);
     });
   }
 }

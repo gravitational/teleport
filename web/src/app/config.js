@@ -5,7 +5,7 @@ let cfg = {
   baseUrl: window.location.origin,
 
   api: {
-    nodesPath: '/nodes',
+    nodesPath: '/v1/webapi/sites/-current-/nodes',
     sessionPath: '/v1/webapi/sessions',
     invitePath: '/v1/webapi/users/invites/:inviteToken',
     createUserPath: '/v1/webapi/users',
