@@ -4,10 +4,33 @@ var reactor = require('app/reactor');
 var {actions, getters} = require('app/modules/invite');
 var userModule = require('app/modules/user');
 var LinkedStateMixin = require('react-addons-linked-state-mixin');
+var GoogleAuthInfo = require('./googleAuth');
 
 var InviteInputForm = React.createClass({
 
   mixins: [LinkedStateMixin],
+
+  componentDidMount(){
+    $(this.refs.form).validate({
+      rules:{
+        password:{
+          minlength: 5,
+          required: true
+        },
+        passwordConfirmed:{
+          required: true,
+          equalTo: this.refs.password
+        }
+      },
+
+      messages: {
+  			passwordConfirmed: {
+  				minlength: $.validator.format('Enter at least {0} characters'),
+  				equalTo: 'Enter the same password as above'
+  			}
+      }
+    })
+  },
 
   getInitialState() {
     return {
@@ -18,42 +41,61 @@ var InviteInputForm = React.createClass({
     }
   },
 
-  onClick: function(e) {
+  onClick(e) {
     e.preventDefault();
-    //if (this.isValid()) {
+    if (this.isValid()) {
       userModule.actions.signUp({
         name: this.state.name,
         psw: this.state.psw,
         token: this.state.token,
         inviteToken: this.props.invite.invite_token});
-    //}
+    }
   },
 
-  isValid: function() {
-    var $form = $(".loginscreen form");
+  isValid() {
+    var $form = $(this.refs.form);
     return $form.length === 0 || $form.valid();
   },
 
   render() {
     return (
-      <div>
-        <h3> Get started with teleport </h3>
+      <form ref="form" className="grv-invite-input-form">
+        <h3> Get started with Teleport </h3>
         <div className="">
           <div className="form-group">
-            <input className="form-control" placeholder="Username" valueLink={this.linkState('name')}/>
+            <input
+              valueLink={this.linkState('name')}
+              name="userName"
+              className="form-control required"
+              placeholder="User name"/>
           </div>
           <div className="form-group">
-            <input type="password" className="form-control" placeholder="Password" valueLink={this.linkState('psw')}/>
+            <input
+              valueLink={this.linkState('psw')}
+              ref="password"
+              type="password"
+              name="password"
+              className="form-control"
+              placeholder="Password" />
+          </div>
+          <div className="form-group grv-">
+            <input
+              valueLink={this.linkState('pswConfirmed')}
+              type="password"
+              name="passwordConfirmed"
+              className="form-control"
+              placeholder="Password confirm"/>
           </div>
           <div className="form-group">
-            <input type="password" className="form-control" placeholder="Password confirm"  valueLink={this.linkState('pswConfirmed')}/>
+            <input
+              name="token"
+              valueLink={this.linkState('token')}
+              className="form-control required"
+              placeholder="Two factor token (Google Authenticator)" />
           </div>
-          <div className="form-group">
-            <input className="form-control" placeholder="Two factor token (Google Authenticator)"  valueLink={this.linkState('token')}/>
-          </div>
-          <button type="submit" className="btn btn-primary block full-width m-b" onClick={this.onClick} >Sign up</button>
+          <button type="submit" disabled={this.props.attemp.isProcessing} className="btn btn-primary block full-width m-b" onClick={this.onClick} >Sign up</button>
         </div>
-      </div>
+      </form>
     );
   }
 })
@@ -74,9 +116,6 @@ var Invite = React.createClass({
   },
 
   render: function() {
-    var isProcessing = false; //this.state.userRequest.get('isLoading');
-    var isError = false; //this.state.userRequest.get('isError');
-
     if(!this.state.invite) {
       return null;
     }
@@ -86,7 +125,8 @@ var Invite = React.createClass({
         <div className="grv-logo-tprt"></div>
         <div className="grv-content grv-flex">
           <div className="grv-flex-column">
-            <InviteInputForm invite={this.state.invite.toJS()}/>
+            <InviteInputForm attemp={this.state.attemp} invite={this.state.invite.toJS()}/>
+            <GoogleAuthInfo/>
           </div>
           <div className="grv-flex-column">
             <h4>Scan bar code for auth token <br/> <small>Scan below to generate your two factor token</small></h4>

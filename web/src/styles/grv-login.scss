@@ -14,5 +14,74 @@
      .grv-flex-column{
        padding: 15px;
      }
+
+     .grv-login-input-form{
+       margin-bottom: 30px;
+       h3{
+         margin-bottom: 20px;
+       }
+     }
+
+     .grv-login-info{
+       text-align: initial;
+       position: relative;
+       margin: 15px 0 0 0;
+       padding: 0 0 0 70px;
+       .fa-question{
+         position: absolute;
+         left: 20px;
+         font-size: 40px;
+       }
+     }
+
+   }
+ }
+
+ .rotating {
+   animation: rotating-function 4.00s linear infinite;
+ }
+
+ @-webkit-keyframes rotating-function {
+   from {
+     -webkit-transform: rotate(0deg);
+   }
+   to {
+     -webkit-transform: rotate(360deg);
+   }
+ }
+
+ @-moz-keyframes rotating-function {
+   from {
+     -moz-transform: rotate(0deg);
+   }
+   to {
+     -moz-transform: rotate(360deg);
+   }
+ }
+
+ @-ms-keyframes rotating-function {
+   from {
+     -ms-transform: rotate(0deg);
+   }
+   to {
+     -ms-transform: rotate(360deg);
+   }
+ }
+
+ @-o-keyframes rotating-function {
+   from {
+     -o-transform: rotate(0deg);
+   }
+   to {
+     -o-transform: rotate(360deg);
+   }
+ }
+
+ @keyframes rotating-function {
+   from {
+     transform: rotate(0deg);
+   }
+   to {
+     transform: rotate(360deg);
    }
  }

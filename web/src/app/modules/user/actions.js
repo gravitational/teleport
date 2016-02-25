@@ -18,7 +18,7 @@ export default {
       })
       .fail(()=>{
         restApiActions.fail(TRYING_TO_SIGN_UP, 'failed to sing up');
-      })
+      });
   },
 
   login({user, password, token}, redirect){

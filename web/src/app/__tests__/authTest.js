@@ -1,4 +1,3 @@
-return;
 var expect = require('expect');
 var $ = require('jQuery');
 var api = require('app/services/api');
@@ -7,13 +6,13 @@ var spyOn = expect.spyOn;
 var auth = require('app/auth');
 
 describe('auth', function () {
-  var sample = { user: {}, token: 'token' };
+  var sample = { token: 'token' };
 
   beforeEach(function () {
     spyOn(session, 'setUserData');
     spyOn(session, 'getUserData');
     spyOn(session, 'clear');
-    spyOn(api, 'login');
+    spyOn(api, 'post');
     spyOn(auth, '_startTokenRefresher');
     spyOn(auth, '_stopTokenRefresher');
     spyOn(auth, '_getRefreshTokenTimerId');
@@ -23,10 +22,10 @@ describe('auth', function () {
     expect.restoreSpies();
   })
 
-  describe('methods: login(username, password)', function () {
+  describe('login(username, password, token)', function () {
     it('should successfully login and put user data in the session', function () {
       var token = null;
-      api.login.andReturn($.Deferred().resolve(sample));
+      api.post.andReturn($.Deferred().resolve(sample));
       auth.login('user', 'password').done(user=>{ token = sample.token; });
 
       expect(token).toEqual(sample.token);
@@ -37,13 +36,13 @@ describe('auth', function () {
     it('should return rejected promise if failed to log in', function () {
       var token = null;
       var wasCalled = false;
-      api.login.andReturn($.Deferred().reject());
+      api.post.andReturn($.Deferred().reject());
       auth.login('user', 'password').fail(()=> { wasCalled = true });
       expect(wasCalled).toEqual(true);
     });
   });
 
-  describe('methods: ensureUser', function () {
+  describe('ensureUser()', function () {
     describe('when session has a token and refreshTimer is active', function () {
       it('should be resolved', function () {
         var wasCalled = false;
@@ -58,29 +57,29 @@ describe('auth', function () {
     describe('when session has a token but refreshTimer is not active (browser refresh case)', function () {
       it('should be resolved succesfully if token is valid', function () {
         var wasCalled = false;
-        api.login.andReturn($.Deferred().resolve(sample));
+        api.post.andReturn($.Deferred().resolve(sample));
         auth._getRefreshTokenTimerId.andReturn(null);
         session.getUserData.andReturn(sample);
         auth.ensureUser('user', 'password').done(()=> { wasCalled = true });
 
-        expect(api.login.calls.length).toEqual(1);
+        expect(api.post.calls.length).toEqual(1);
         expect(wasCalled).toEqual(true);
       });
 
       it('should be rejected if token is invalid', function () {
         var wasCalled = false;
-        api.login.andReturn($.Deferred().reject());
+        api.post.andReturn($.Deferred().reject());
         auth._getRefreshTokenTimerId.andReturn(null);
         session.getUserData.andReturn(sample);
         auth.ensureUser('user', 'password').fail(()=> { wasCalled = true });
 
-        expect(api.login.calls.length).toEqual(1);
+        expect(api.post.calls.length).toEqual(1);
         expect(wasCalled).toEqual(true);
       });
     });
   });
 
-  describe('methods: logout', function () {
+  describe('logout()', function () {
     it('should clear the session and stop refreshTimer', function () {
       auth.logout();
       expect(session.clear.calls.length).toEqual(1);
