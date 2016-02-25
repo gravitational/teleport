@@ -112,23 +112,26 @@ func IsHandshakeFailedError(err error) bool {
 	return strings.Contains(err.Error(), "handshake failed")
 }
 
-func GetFreeTCPPort() (port string, e error) {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+func GetFreeTCPPorts(n int) (ports []string, e error) {
+	for i := 0; i < n; i++ {
+		addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	listener, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	defer listener.Close()
+		listener, err := net.ListenTCP("tcp", addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer listener.Close()
 
-	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
-	if !ok {
-		return "", trace.Errorf("Can't get tcp address")
+		tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+		if !ok {
+			return nil, trace.Errorf("Can't get tcp address")
+		}
+		ports = append(ports, strconv.Itoa(tcpAddr.Port))
 	}
-	return strconv.Itoa(tcpAddr.Port), nil
+	return ports, nil
 }
 
 const (

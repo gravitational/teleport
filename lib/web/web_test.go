@@ -64,6 +64,7 @@ type WebSuite struct {
 	signer      ssh.Signer
 	tunServer   *auth.TunServer
 	webServer   *httptest.Server
+	freePorts   []string
 }
 
 var _ = Suite(&WebSuite{})
@@ -78,6 +79,9 @@ func (s *WebSuite) SetUpTest(c *C) {
 	u, err := user.Current()
 	c.Assert(err, IsNil)
 	s.user = u.Username
+
+	s.freePorts, err = utils.GetFreeTCPPorts(3)
+	c.Assert(err, IsNil)
 
 	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
@@ -138,8 +142,8 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// start node
-	nodePort, err := utils.GetFreeTCPPort()
-	c.Assert(err, IsNil)
+	nodePort := s.freePorts[len(s.freePorts)-1]
+	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 
 	s.srvAddress = fmt.Sprintf("127.0.0.1:%v", nodePort)
 	node, err := srv.New(
@@ -168,8 +172,8 @@ func (s *WebSuite) SetUpTest(c *C) {
 	)
 	c.Assert(err, IsNil)
 
-	apiPort, err := utils.GetFreeTCPPort()
-	c.Assert(err, IsNil)
+	apiPort := s.freePorts[len(s.freePorts)-1]
+	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 
 	apiServer := auth.NewAPIWithRoles(authServer, eventsLog, sess.New(s.bk), recorder,
 		auth.NewAllowAllPermissions(),
