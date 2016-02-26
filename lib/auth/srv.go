@@ -80,6 +80,7 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.POST("/v1/users/:user/web/password", httplib.MakeHandler(srv.upsertPassword))
 	srv.POST("/v1/users/:user/web/password/check", httplib.MakeHandler(srv.checkPassword))
 	srv.POST("/v1/users/:user/web/signin", httplib.MakeHandler(srv.signIn))
+	srv.POST("/v1/users/:user/web/sessions", httplib.MakeHandler(srv.createWebSession))
 	srv.GET("/v1/users/:user/web/sessions/:sid", httplib.MakeHandler(srv.getWebSession))
 	srv.GET("/v1/users/:user/web/sessions", httplib.MakeHandler(srv.getWebSessions))
 	srv.DELETE("/v1/users/:user/web/sessions/:sid", httplib.MakeHandler(srv.deleteWebSession))
@@ -251,6 +252,23 @@ func (s *APIServer) signIn(w http.ResponseWriter, r *http.Request, p httprouter.
 	}
 	user := p[0].Value
 	sess, err := s.a.SignIn(user, []byte(req.Password))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sess, nil
+}
+
+type createWebSessionReq struct {
+	PrevSessionID string `json:"prev_session_id"`
+}
+
+func (s *APIServer) createWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *createWebSessionReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user := p[0].Value
+	sess, err := s.a.CreateWebSession(user, req.PrevSessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

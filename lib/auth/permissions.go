@@ -40,6 +40,7 @@ func NewStandardPermissions() PermissionChecker {
 
 	sp.permissions[teleport.RoleUser] = map[string]bool{
 		ActionSignIn:             true,
+		ActionCreateWebSession:   true,
 		ActionGenerateUserCert:   true,
 		ActionGetCertAuthorities: true,
 	}
@@ -196,6 +197,7 @@ const (
 	ActionUpsertPassword                = "UpsertPassword"
 	ActionCheckPassword                 = "CheckPassword"
 	ActionSignIn                        = "SignIn"
+	ActionCreateWebSession              = "CreateWebSession"
 	ActionGetWebSession                 = "GetWebSession"
 	ActionGetWebSessionsKeys            = "GetWebSessionsKeys"
 	ActionDeleteWebSession              = "DeleteWebSession"

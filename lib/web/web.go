@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -46,7 +47,7 @@ import (
 type Handler struct {
 	httprouter.Router
 	cfg   Config
-	auth  *sessionHandler
+	auth  *sessionCache
 	sites *ttlmap.TtlMap
 	sync.Mutex
 	sessionStreamPollPeriod time.Duration
@@ -111,6 +112,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	// Web sessions
 	h.POST("/webapi/sessions", httplib.MakeHandler(h.createSession))
 	h.DELETE("/webapi/sessions/:sid", h.withAuth(h.deleteSession))
+	h.POST("/webapi/sessions/renew", h.withAuth(h.renewSession))
 
 	// Users
 	h.GET("/webapi/users/invites/:token", httplib.MakeHandler(h.renderUserInvite))
@@ -165,6 +167,15 @@ type createSessionResponse struct {
 	ExpiresIn int `json:"expires_in"`
 }
 
+func newSessionResponse(sess *auth.Session) *createSessionResponse {
+	return &createSessionResponse{
+		Type:      roundtrip.AuthBearer,
+		Token:     sess.WS.BearerToken,
+		User:      sess.User,
+		ExpiresIn: int(time.Now().Sub(sess.WS.Expires) / time.Second),
+	}
+}
+
 // createSession creates a new web session based on user, pass and 2nd factor token
 //
 // POST /v1/webapi/sessions
@@ -188,12 +199,7 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 	if err := SetSession(w, req.User, sess.ID); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &createSessionResponse{
-		Type:      roundtrip.AuthBearer,
-		Token:     sess.ID,
-		User:      sess.User,
-		ExpiresIn: int(time.Now().Sub(sess.WS.Expires) / time.Second),
-	}, nil
+	return newSessionResponse(sess), nil
 }
 
 // deleteSession is called to sign out user
@@ -205,18 +211,36 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 // {"message": "ok"}
 //
 func (m *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *sessionContext) (interface{}, error) {
-	clt, err := ctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sess := ctx.GetWebSession()
-	if err := clt.DeleteWebSession(ctx.GetUser(), sess.ID); err != nil {
+	if err := ctx.Invalidate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := ClearSession(w); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return ok(), nil
+}
+
+// renewSession is called to renew the session that is about to expire
+// it issues the new session and generates new session cookie.
+// It's important to understand that the old session becomes effectively invalid.
+//
+// POST /v1/webapi/sessions/renew
+//
+// Response
+//
+// {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
+//
+//
+func (m *Handler) renewSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *sessionContext) (interface{}, error) {
+	newSess, err := ctx.CreateWebSession()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer ctx.Invalidate()
+	if err := SetSession(w, newSess.User.Name, newSess.ID); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newSessionResponse(newSess), nil
 }
 
 type renderUserInviteResponse struct {
@@ -277,12 +301,7 @@ func (m *Handler) createNewUser(w http.ResponseWriter, r *http.Request, p httpro
 	if err := SetSession(w, sess.User.Name, sess.ID); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &createSessionResponse{
-		Type:      roundtrip.AuthBearer,
-		Token:     sess.ID,
-		User:      sess.User,
-		ExpiresIn: int(time.Now().Sub(sess.WS.Expires) / time.Second),
-	}, nil
+	return newSessionResponse(sess), nil
 }
 
 type getSitesResponse struct {
@@ -584,9 +603,9 @@ func (h *Handler) authenticateRequest(r *http.Request) (*sessionContext, error) 
 		logger.Warningf("invalid session: %v", err)
 		return nil, trace.Wrap(teleport.AccessDenied("need auth"))
 	}
-	if creds.Password != d.SID {
-		logger.Warningf("bad auth token")
-		return nil, trace.Wrap(teleport.AccessDenied("missing auth token"))
+	if creds.Password != ctx.GetWebSession().WS.BearerToken {
+		logger.Warningf("bad bearer token")
+		return nil, trace.Wrap(teleport.AccessDenied("bad bearer token"))
 	}
 	return ctx, nil
 }

@@ -76,7 +76,7 @@ type WebSuite struct {
 var _ = Suite(&WebSuite{})
 
 func (s *WebSuite) SetUpSuite(c *C) {
-	utils.InitLoggerDebug()
+	utils.InitLoggerCLI()
 }
 
 func (s *WebSuite) SetUpTest(c *C) {
@@ -278,11 +278,28 @@ func (s *WebSuite) TestNewUser(c *C) {
 
 type authPack struct {
 	user    string
-	pass    string
 	otp     *hotp.HOTP
 	session *createSessionResponse
 	clt     *webClient
 	cookies []*http.Cookie
+}
+
+func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack {
+	var sess *createSessionResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &sess), IsNil)
+
+	jar, err := cookiejar.New(nil)
+	c.Assert(err, IsNil)
+
+	clt := s.client(roundtrip.BearerAuth(sess.Token), roundtrip.CookieJar(jar))
+	jar.SetCookies(s.url(), re.Cookies())
+
+	return &authPack{
+		user:    sess.User.Name,
+		session: sess,
+		clt:     clt,
+		cookies: re.Cookies(),
+	}
 }
 
 // authPack returns new authenticated package consisting
@@ -322,7 +339,6 @@ func (s *WebSuite) authPack(c *C) *authPack {
 
 	return &authPack{
 		user:    user,
-		pass:    pass,
 		session: sess,
 		clt:     clt,
 		cookies: re.Cookies(),
@@ -346,6 +362,34 @@ func (s *WebSuite) TestWebSessionsCRUD(c *C) {
 
 	// subsequent requests trying to use this session will fail
 	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	c.Assert(err, NotNil)
+	c.Assert(teleport.IsAccessDenied(err), Equals, true)
+}
+
+func (s *WebSuite) TestWebSessionsRenew(c *C) {
+	pack := s.authPack(c)
+
+	// make sure we can use client to make authenticated requests
+	re, err := pack.clt.PostJSON(pack.clt.Endpoint("webapi", "sessions", "renew"), nil)
+	c.Assert(err, IsNil)
+
+	newPack := s.authPackFromResponse(c, re)
+
+	// new session is functioning
+	re, err = newPack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	c.Assert(err, IsNil)
+
+	// old session is not valid any more
+	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	c.Assert(err, NotNil)
+
+	// now delete session
+	_, err = newPack.clt.Delete(
+		pack.clt.Endpoint("webapi", "sessions", newPack.session.Token))
+	c.Assert(err, IsNil)
+
+	// subsequent requests trying to use this session will fail
+	re, err = newPack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
 	c.Assert(teleport.IsAccessDenied(err), Equals, true)
 }

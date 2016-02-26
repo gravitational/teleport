@@ -218,6 +218,13 @@ func (a *AuthWithRoles) SignIn(user string, password []byte) (*Session, error) {
 		return a.authServer.SignIn(user, password)
 	}
 }
+func (a *AuthWithRoles) CreateWebSession(user string, prevSessionID string) (*Session, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionSignIn); err != nil {
+		return nil, err
+	} else {
+		return a.authServer.CreateWebSession(user, prevSessionID)
+	}
+}
 func (a *AuthWithRoles) GetWebSessionInfo(user string, sid string) (*Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetWebSession); err != nil {
 		return nil, trace.Wrap(err)

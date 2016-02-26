@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gokyle/hotp"
@@ -41,8 +42,6 @@ const (
 	SignupTokenUserActionsTTL = time.Hour
 	HOTPFirstTokensRange      = 5
 )
-
-var TokenTTLAfterUse = time.Second * 10
 
 // CreateSignupToken creates one time token for creating account for the user
 // For each token it creates username and hotp generator
@@ -65,7 +64,7 @@ func (s *AuthServer) CreateSignupToken(user string, allowedLogins []string) (str
 		return "", trace.Errorf("login '%v' already exists", user)
 	}
 
-	token, err := CryptoRandomHex(WebSessionTokenLenBytes)
+	token, err := utils.CryptoRandomHex(WebSessionTokenLenBytes)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

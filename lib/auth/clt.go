@@ -369,6 +369,25 @@ func (c *Client) SignIn(user string, password []byte) (*Session, error) {
 	return sess, nil
 }
 
+// CreateWebSession creates a new web session for a user based on another
+// valid web session
+func (c *Client) CreateWebSession(user string, prevSessionID string) (*Session, error) {
+	out, err := c.PostJSON(
+		c.Endpoint("users", user, "web", "sessions"),
+		createWebSessionReq{
+			PrevSessionID: prevSessionID,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var sess *Session
+	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
+		return nil, err
+	}
+	return sess, nil
+}
+
 // GetWebSessionInfo check if a web sesion is valid, returns session id in case if
 // it is valid, or error otherwise.
 func (c *Client) GetWebSessionInfo(user string, sid string) (*Session, error) {
@@ -663,6 +682,7 @@ type ClientI interface {
 	UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error)
 	CheckPassword(user string, password []byte, hotpToken string) error
 	SignIn(user string, password []byte) (*Session, error)
+	CreateWebSession(user string, prevSessionID string) (*Session, error)
 	GetWebSessionInfo(user string, sid string) (*Session, error)
 	GetWebSessionsKeys(user string) ([]services.AuthorizedKey, error)
 	DeleteWebSession(user string, sid string) error

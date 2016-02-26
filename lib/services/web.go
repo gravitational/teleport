@@ -410,6 +410,9 @@ type WebSession struct {
 	Pub []byte `json:"pub"`
 	// Priv is a private OpenSSH key used to auth with SSH nodes
 	Priv []byte `json:"priv"`
+	// BearerToken is a special bearer token used for additional
+	// bearer authentication
+	BearerToken string `json:"bearer_token"`
 	// Expires - absolute time when token expires
 	Expires time.Time `json:"expires"`
 }
