@@ -56,7 +56,7 @@ var GrvTable = React.createClass({
       children.push(child);
     });
 
-    var tableClass = 'table table-bordered ' + this.props.className;
+    var tableClass = 'table ' + this.props.className;
 
     return (
       <table className={tableClass}>

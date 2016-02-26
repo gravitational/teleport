@@ -3,7 +3,7 @@ var session = require('./session');
 var cfg = require('app/config');
 var $ = require('jQuery');
 
-const refreshRate = 60000 * 1; // 1 min
+const refreshRate = 60000 * 100; // 1 min
 
 var refreshTokenTimerId = null;
 

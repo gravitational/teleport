@@ -1,10 +1,13 @@
 //var sort = require('app/common/sort');
+var { toImmutable } = require('nuclear-js');
 
 const nodeListView = [ ['tlpt_nodes'], (nodes) =>{
     return nodes.map((item)=>{
+      var sessions = item.get('sessions') || toImmutable([]);
       return {
-        tags: getTags(item),
-        ip: item.get('addr')
+        tags: getTags(item.get('node')),
+        addr: item.getIn(['node', 'addr']),
+        sessionCount: sessions.size
       }
     }).toJS();
  }

@@ -9,11 +9,11 @@ var cfg = require('app/config');
 export default {
 
   ensureUser(nextState, replace, cb){
-    /*var userData = session.getUserData();
+    var userData = session.getUserData();
     reactor.dispatch(TLPT_RECEIVE_USER, userData.user);
-    cb();*/
+    cb();
 
-    auth.ensureUser()
+    /*auth.ensureUser()
       .done((userData)=> {
         reactor.dispatch(TLPT_RECEIVE_USER, userData.user);
         cb();
@@ -21,7 +21,7 @@ export default {
       .fail(()=>{
         replace({redirectTo: nextState.location.pathname }, cfg.routes.login);
         cb();
-      });
+      });*/
   },
 
   signUp({name, psw, token, inviteToken}){

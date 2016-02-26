@@ -3,6 +3,7 @@ var reactor = require('app/reactor');
 var {getters, actions} = require('app/modules/nodes');
 var userGetters = require('app/modules/user/getters');
 var {Table, Column, Cell} = require('app/components/table.jsx');
+var {connect} = require('app/modules/activeTerminal/actions');
 
 const TextCell = ({rowIndex, data, columnKey, ...props}) => (
   <Cell {...props}>
@@ -21,7 +22,7 @@ const TagCell = ({rowIndex, data, columnKey, ...props}) => (
   </Cell>
 );
 
-const LoginCell = ({user, ...props}) => {
+const LoginCell = ({user, rowIndex, data, ...props}) => {
   if(!user || user.logins.length === 0){
     return <Cell {...props} />;
   }
@@ -29,13 +30,13 @@ const LoginCell = ({user, ...props}) => {
   var $lis = [];
 
   for(var i = 0; i < user.logins.length; i++){
-    $lis.push(<li key={i}><a href="#" target="_blank">{user.logins[i]}</a></li>);
+    $lis.push(<li key={i}><a href="#" target="_blank" onClick={connect.bind(null, data[rowIndex].addr, user.logins[i])}>{user.logins[i]}</a></li>);
   }
 
   return (
     <Cell {...props}>
       <div className="btn-group">
-        <button type="button" className="btn btn-sm btn-primary">{user.logins[0]}</button>
+        <button type="button" onClick={connect.bind(null, data[rowIndex].addr, user.logins[0])} className="btn btn-sm btn-primary">{user.logins[0]}</button>
         {
           $lis.length > 1 ? (
             <div className="btn-group">
@@ -80,14 +81,14 @@ var Nodes = React.createClass({
         <div className="">
           <div className="">
             <div className="">
-              <Table rowCount={data.length} className="grv-nodes-table">
+              <Table rowCount={data.length} className="table-stripped grv-nodes-table">
                 <Column
-                  columnKey="count"
+                  columnKey="sessionCount"
                   header={<Cell> Sessions </Cell> }
                   cell={<TextCell data={data}/> }
                 />
                 <Column
-                  columnKey="ip"
+                  columnKey="addr"
                   header={<Cell> Node </Cell> }
                   cell={<TextCell data={data}/> }
                 />
@@ -99,7 +100,7 @@ var Nodes = React.createClass({
                 <Column
                   columnKey="roles"
                   header={<Cell>Login as</Cell> }
-                  cell={<LoginCell user={this.state.user}/> }
+                  cell={<LoginCell data={data} user={this.state.user}/> }
                 />
               </Table>
             </div>

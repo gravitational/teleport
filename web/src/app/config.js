@@ -11,6 +11,13 @@ let cfg = {
     createUserPath: '/v1/webapi/users',
     getInviteUrl: (inviteToken) => {
       return formatPattern(cfg.api.invitePath, {inviteToken});
+    },
+
+    getTermConnString: (token, params) => {
+      var json = JSON.stringify(params);
+      var jsonEncoded = window.encodeURI(json);
+      var prefix = location.protocol == "https:"?"wss://":"ws://";
+      return `${prefix}${params.addr}/v1/webapi/sites/-current-/connect?access_token=${token}&params=${jsonEncoded}`;
     }
   },
 
