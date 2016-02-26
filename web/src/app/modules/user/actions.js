@@ -8,11 +8,27 @@ var cfg = require('app/config');
 
 export default {
 
+  ensureUser(nextState, replace, cb){
+    /*var userData = session.getUserData();
+    reactor.dispatch(TLPT_RECEIVE_USER, userData.user);
+    cb();*/
+
+    auth.ensureUser()
+      .done((userData)=> {
+        reactor.dispatch(TLPT_RECEIVE_USER, userData.user);
+        cb();
+      })
+      .fail(()=>{
+        replace({redirectTo: nextState.location.pathname }, cfg.routes.login);
+        cb();
+      });
+  },
+
   signUp({name, psw, token, inviteToken}){
     restApiActions.start(TRYING_TO_SIGN_UP);
     auth.signUp(name, psw, token, inviteToken)
-      .done((user)=>{
-        reactor.dispatch(TLPT_RECEIVE_USER, user);
+      .done((sessionData)=>{
+        reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
         restApiActions.success(TRYING_TO_SIGN_UP);
         session.getHistory().push({pathname: cfg.routes.app});
       })
@@ -23,8 +39,8 @@ export default {
 
   login({user, password, token}, redirect){
       auth.login(user, password, token)
-        .done((user)=>{
-          reactor.dispatch(TLPT_RECEIVE_USER, user);
+        .done((sessionData)=>{
+          reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
           session.getHistory().push({pathname: redirect});
         })
         .fail(()=>{

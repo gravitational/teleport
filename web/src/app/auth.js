@@ -25,13 +25,14 @@ var auth = {
   },
 
   ensureUser(){
-    if(session.getUserData()){
+    var userData = session.getUserData();
+    if(userData){
       // refresh timer will not be set in case of browser refresh event
       if(auth._getRefreshTokenTimerId() === null){
         return auth._login().done(auth._startTokenRefresher);
       }
 
-      return $.Deferred().resolve();
+      return $.Deferred().resolve(userData);
     }
 
     return $.Deferred().reject();

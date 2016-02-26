@@ -121,7 +121,7 @@ var Invite = React.createClass({
     }
 
     return (
-      <div className="grv grv-invite text-center">
+      <div className="grv-invite text-center">
         <div className="grv-logo-tprt"></div>
         <div className="grv-content grv-flex">
           <div className="grv-flex-column">

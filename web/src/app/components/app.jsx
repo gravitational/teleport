@@ -5,9 +5,9 @@ var cfg = require('app/config');
 var App = React.createClass({
   render: function() {
     return (
-      <div className="grv">
+      <div className="grv-tlpt">
         <NavLeftBar/>
-        <div className="row" style={{marginLeft: "70px"}}>
+        <div className="row">
           <nav className="" role="navigation" style={{ marginBottom: 0 }}>
             <ul className="nav navbar-top-links navbar-right">
               <li>
@@ -24,7 +24,7 @@ var App = React.createClass({
             </ul>
           </nav>
         </div>
-        <div style={{ 'marginLeft': '100px' }}>
+        <div className="grv-page">
           {this.props.children}
         </div>
       </div>

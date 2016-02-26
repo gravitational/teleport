@@ -1,41 +1,34 @@
 @import "grv-invite";
 @import "grv-login";
+@import "grv-logo";
+@import "grv-nodes";
 
-.grv-logo-tprt{
-  color: white;
-  margin-top: 5%;
-  margin: 0 auto;
-  width: 67px;
-  height: 70px;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-image: url("/web/app/assets/img/grv-tlpt-logo.png");
-}
-
-.grv-google-auth{
-  text-align: initial;
-  position: relative;
-  margin: 15px 0 0 0;
-  padding: 0 0 0 70px;
-
-  .grv-google-auth-icon{
-    position: absolute;
-    left: 15px;
-    height: 40px;
-    width: 40px;
-    background-size: contain;
-    background-repeat: no-repeat;
-    background-image: url("/web/app/assets/img/authenticator-icon.png");
-  }
-}
 
 .grv {
-  min-width: 1024px;
+
+  background-color: white;
+
+  #app{
+    height: 100%;
+  }
+
   .grv-spinner.sk-spinner-three-bounce{
     position: absolute;
     top: 50%;
     left: 50%;
   }
+
+  nav{
+    height: 100%;
+    background-color: #293846;
+    font-size: 20px;
+  }
+
+  .grv-page{
+    margin-left: 60px;
+    padding: 0 15px;
+  }
+
 }
 
 .grv-flex{
