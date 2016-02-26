@@ -236,7 +236,6 @@ func (m *Handler) renewSession(w http.ResponseWriter, r *http.Request, _ httprou
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer ctx.Invalidate()
 	if err := SetSession(w, newSess.User.Name, newSess.ID); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -593,6 +592,7 @@ func (h *Handler) authenticateRequest(r *http.Request) (*sessionContext, error) 
 		logger.Warningf("failed to decode cookie: %v", err)
 		return nil, trace.Wrap(teleport.AccessDenied("failed to decode cookie"))
 	}
+
 	creds, err := roundtrip.ParseAuthHeaders(r)
 	if err != nil {
 		logger.Warningf("no auth headers %v", err)
@@ -603,6 +603,7 @@ func (h *Handler) authenticateRequest(r *http.Request) (*sessionContext, error) 
 		logger.Warningf("invalid session: %v", err)
 		return nil, trace.Wrap(teleport.AccessDenied("need auth"))
 	}
+	logger.Infof("incoming request %v %v", d.SID[:4], creds.Password[:4])
 	if creds.Password != ctx.GetWebSession().WS.BearerToken {
 		logger.Warningf("bad bearer token")
 		return nil, trace.Wrap(teleport.AccessDenied("bad bearer token"))
