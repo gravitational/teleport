@@ -31,36 +31,36 @@ import (
 
 var (
 	// all possible valid YAML config keys
-	validKeys = map[string]int{
-		"teleport":          1,
-		"enabled":           1,
-		"ssh_service":       1,
-		"proxy_service":     1,
-		"auth_service":      1,
-		"auth_token":        1,
-		"auth_servers":      1,
-		"storage":           1,
-		"nodename":          1,
-		"log":               1,
-		"period":            1,
-		"connection_limits": 1,
-		"max_connections":   1,
-		"max_users":         1,
-		"rates":             1,
-		"commands":          1,
-		"labels":            1,
-		"output":            1,
-		"severity":          1,
-		"role":              1,
-		"name":              1,
-		"type":              1,
-		"data_dir":          1,
-		"peers":             1,
-		"web_listen_addr":   1,
-		"ssh_listen_addr":   1,
-		"listen_addr":       1,
-		"https_key_file":    1,
-		"https_cert_file":   1,
+	validKeys = map[string]bool{
+		"teleport":          true,
+		"enabled":           true,
+		"ssh_service":       true,
+		"proxy_service":     true,
+		"auth_service":      true,
+		"auth_token":        true,
+		"auth_servers":      true,
+		"storage":           true,
+		"nodename":          true,
+		"log":               true,
+		"period":            true,
+		"connection_limits": true,
+		"max_connections":   true,
+		"max_users":         true,
+		"rates":             true,
+		"commands":          true,
+		"labels":            false,
+		"output":            true,
+		"severity":          true,
+		"role":              true,
+		"name":              true,
+		"type":              true,
+		"data_dir":          true,
+		"peers":             true,
+		"web_listen_addr":   true,
+		"ssh_listen_addr":   true,
+		"listen_addr":       true,
+		"https_key_file":    true,
+		"https_cert_file":   true,
 	}
 )
 
@@ -97,23 +97,30 @@ func ReadFromFile(fp string) (fc *FileConfig, err error) {
 	// now check for unknown (misspelled) config keys:
 	var validateKeys func(m YAMLMap) error
 	validateKeys = func(m YAMLMap) error {
-		for k, value := range m {
-			if key, ok := k.(string); ok {
-				if _, ok := validKeys[key]; !ok {
+		var recursive, ok bool
+		var key string
+		for k, v := range m {
+			if key, ok = k.(string); ok {
+				if recursive, ok = validKeys[key]; !ok {
 					return trace.Errorf("unknown configuration key: '%v'", key)
 				}
-				if m, ok := value.(YAMLMap); ok {
-					return validateKeys(m)
+				if recursive {
+					if m2, ok := v.(YAMLMap); ok {
+						if err := validateKeys(m2); err != nil {
+							return err
+						}
+					}
 				}
 			}
 		}
 		return nil
 	}
-	var m YAMLMap
-	if err = yaml.Unmarshal(bytes, &m); err != nil {
+	// validate configuration keys:
+	var tmp YAMLMap
+	if err = yaml.Unmarshal(bytes, &tmp); err != nil {
 		return nil, trace.Errorf("error parsing YAML config")
 	}
-	if err = validateKeys(m); err != nil {
+	if err = validateKeys(tmp); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return fc, nil
