@@ -1,5 +1,6 @@
 var reactor = require('app/reactor');
-var { TLPT_TERM_CONNECT, TLPT_TERM_CLOSE }  = require('./actionTypes');
+var {uuid} = require('app/utils');
+var { TLPT_TERM_CONNECT, TLPT_TERM_CLOSE, TLPT_TERM_CONNECTED }  = require('./actionTypes');
 
 export default {
 
@@ -7,7 +8,11 @@ export default {
     reactor.dispatch(TLPT_TERM_CLOSE);
   },
 
-  connect(addr, login){
+  connected(){
+    reactor.dispatch(TLPT_TERM_CONNECTED);
+  },
+
+  connect(addr, login, sid=uuid()){
     /*
     *   {
     *   "addr": "127.0.0.1:5000",
@@ -16,6 +21,6 @@ export default {
     *   "sid": "123"
     *  }
     */
-    reactor.dispatch(TLPT_TERM_CONNECT, {addr, login});
+    reactor.dispatch(TLPT_TERM_CONNECT, {addr, login, sid} );
   }
 }

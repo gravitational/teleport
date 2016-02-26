@@ -40,7 +40,7 @@ type connectReq struct {
 	// Term sets PTY params like width and height
 	Term connectTerm `json:"term"`
 	// SessionID is a teleport session ID to join as
-	SessionID string `json:"session_id"`
+	SessionID string `json:"sid"`
 }
 
 type connectTerm struct {

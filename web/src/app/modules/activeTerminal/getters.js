@@ -1,13 +1,12 @@
-const terminal = [ ['tlpt_active_terminal'], (settings) => {
-    if(!settings){
+const activeSession = [ ['tlpt_active_terminal'], (activeSession) => {
+    if(!activeSession){
       return null;
     }
 
-    var {addr, login } = settings.toJS();
-    return {addr, login }
+    return activeSession.toJS();
   }
 ];
 
 export default {
-  terminal
+  activeSession
 }

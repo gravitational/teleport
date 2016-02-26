@@ -13,11 +13,16 @@ let cfg = {
       return formatPattern(cfg.api.invitePath, {inviteToken});
     },
 
-    getTermConnString: (token, params) => {
+    getEventStreamerConnStr: (token, sid) => {
+      var hostname = getWsHostName();
+      return `${hostname}/v1/webapi/sites/-current-/sessions/${sid}/events/stream?access_token=${token}`;
+    },
+
+    getSessionConnStr: (token, params) => {
       var json = JSON.stringify(params);
       var jsonEncoded = window.encodeURI(json);
-      var prefix = location.protocol == "https:"?"wss://":"ws://";
-      return `${prefix}${params.addr}/v1/webapi/sites/-current-/connect?access_token=${token}&params=${jsonEncoded}`;
+      var hostname = getWsHostName();
+      return `${hostname}/v1/webapi/sites/-current-/connect?access_token=${token}&params=${jsonEncoded}`;
     }
   },
 
@@ -33,3 +38,9 @@ let cfg = {
 }
 
 export default cfg;
+
+function getWsHostName(){
+  var prefix = location.protocol == "https:"?"wss://":"ws://";
+  var hostport = location.hostname+(location.port ? ':'+location.port: '');
+  return `${prefix}${hostport}`;
+}

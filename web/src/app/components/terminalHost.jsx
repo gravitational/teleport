@@ -2,23 +2,31 @@ var session = require('app/session');
 var cfg = require('app/config');
 var React = require('react');
 var {getters, actions} = require('app/modules/activeTerminal/');
+var EventStreamer = require('./eventStreamer.jsx');
 
 var TerminalHost = React.createClass({
 
   mixins: [reactor.ReactMixin],
 
+  onOpen(){
+    actions.connected();
+  },
+
   getDataBindings() {
     return {
-      terminal: getters.terminal
+      activeSession: getters.activeSession
     }
   },
 
   render: function() {
-    if(!this.state.terminal){
+    if(!this.state.activeSession){
       return null;
     }
 
-   return (
+    var {term, isConnected} = this.state.activeSession;
+    var {token} = session.getUserData();
+
+    return (
      <div className="grv-terminal-host">
        <div className="grv-terminal-participans">
          <ul className="nav">
@@ -32,7 +40,22 @@ var TerminalHost = React.createClass({
            </li>
          </ul>
        </div>
-       <TerminalBox settings={this.state.terminal} />
+       <div>
+         <div className="btn-group">
+           <span className="btn btn-xs btn-primary">128.0.0.1:8888</span>
+           <div className="btn-group">
+             <button data-toggle="dropdown" className="btn btn-default btn-xs dropdown-toggle" aria-expanded="true">
+               <span className="caret"></span>
+             </button>
+             <ul className="dropdown-menu">
+               <li><a href="#" target="_blank">Logs</a></li>
+               <li><a href="#" target="_blank">Logs</a></li>
+             </ul>
+           </div>
+         </div>
+       </div>
+       { isConnected ? <EventStreamer token={token} sid={term.sid}/> : null }
+       <TerminalBox settings={term} token={token} onOpen={actions.connected}/>
      </div>
      );
   }
@@ -40,17 +63,18 @@ var TerminalHost = React.createClass({
 
 var TerminalBox = React.createClass({
   renderTerminal: function() {
-    var {token} = session.getUserData();
+    var isNew
     var parent = document.getElementById("terminal-box");
 
-    var settings = this.props.settings;
+    var {settings, token, sid } = this.props;
+
     //settings.sid = 5555;
     settings.term = {
       h: 120,
       w: 100
     };
 
-    var connectionStr = cfg.api.getTermConnString(token, settings);
+    var connectionStr = cfg.api.getSessionConnStr(token, settings);
 
     this.term = new Terminal({
       cols: 180,
@@ -65,6 +89,7 @@ var TerminalBox = React.createClass({
     this.term.write('\x1b[94mconnecting to "pod"\x1b[m\r\n');
 
     this.socket.onopen = () => {
+      this.props.onOpen();      
       this.term.on('data', (data) => {
         this.socket.send(data);
       });
