@@ -18,7 +18,6 @@ package web
 
 import (
 	"bytes"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -460,7 +459,7 @@ func (s *WebSuite) connect(c *C, opts ...string) (*websocket.Conn, *authPack) {
 	c.Assert(err, IsNil)
 
 	q := u.Query()
-	q.Set("params", hex.EncodeToString(data))
+	q.Set("params", string(data))
 	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
 	u.RawQuery = q.Encode()
 

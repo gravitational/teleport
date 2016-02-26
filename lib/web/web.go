@@ -19,7 +19,6 @@ limitations under the License.
 package web
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -36,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/codahale/lunk"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -49,6 +49,21 @@ type Handler struct {
 	auth  *sessionHandler
 	sites *ttlmap.TtlMap
 	sync.Mutex
+	sessionStreamPollPeriod time.Duration
+}
+
+// HandlerOption is a functional argument - an option that can be passed
+// to NewHandler function
+type HandlerOption func(h *Handler) error
+
+func SetSessionStreamPollPeriod(period time.Duration) HandlerOption {
+	return func(h *Handler) error {
+		if period < 0 {
+			return trace.Wrap(teleport.BadParameter("period", "period should be non zero"))
+		}
+		h.sessionStreamPollPeriod = period
+		return nil
+	}
 }
 
 // Config represents web handler configuration parameters
@@ -71,7 +86,7 @@ type Config struct {
 const Version = "v1"
 
 // HewHandler returns a new instance of web proxy handler
-func NewHandler(cfg Config) (http.Handler, error) {
+func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	lauth, err := newSessionHandler(!cfg.InsecureHTTPMode, []utils.NetAddr{cfg.AuthServers})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -80,6 +95,16 @@ func NewHandler(cfg Config) (http.Handler, error) {
 	h := &Handler{
 		cfg:  cfg,
 		auth: lauth,
+	}
+
+	for _, o := range opts {
+		if err := o(h); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if h.sessionStreamPollPeriod == 0 {
+		h.sessionStreamPollPeriod = defaultPollPeriod
 	}
 
 	// Web sessions
@@ -102,6 +127,8 @@ func NewHandler(cfg Config) (http.Handler, error) {
 	h.GET("/webapi/sites/:site/nodes", h.withSiteAuth(h.getSiteNodes))
 	// connect to node via websocket (that's why it's a GET method)
 	h.GET("/webapi/sites/:site/connect", h.withSiteAuth(h.siteNodeConnect))
+	// get session event stream
+	h.GET("/webapi/sites/:site/sessions/:sid/events/stream", h.withSiteAuth(h.siteSessionStream))
 
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
@@ -371,10 +398,10 @@ func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprou
 
 // siteNodeConnect connect to the site node
 //
-// GET /v1/webapi/sites/:site/connect?access_token=bearer_token&params=<hex-encoded json-structure>
+// GET /v1/webapi/sites/:site/connect?access_token=bearer_token&params=<urlencoded json-structure>
 //
 // Due to the nature of websocket we can't POST parameters as is, so we have
-// to add query parameters. The params query parameter is a hex encoded JSON strucrture:
+// to add query parameters. The params query parameter is a url encodeed JSON strucrture:
 //
 // {"addr": "127.0.0.1:5000", "login": "admin", "term": {"h": 120, "w": 100}, "sid": "123"}
 //
@@ -384,15 +411,41 @@ func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprou
 //
 func (m *Handler) siteNodeConnect(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	q := r.URL.Query()
-	params, err := hex.DecodeString(q.Get("params"))
-	if err != nil {
-		return nil, trace.Wrap(err)
+	params := q.Get("params")
+	if params == "" {
+		return nil, trace.Wrap(teleport.BadParameter("params", "missing params"))
 	}
 	var req *connectReq
-	if err := json.Unmarshal(params, &req); err != nil {
+	if err := json.Unmarshal([]byte(params), &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	connect, err := newConnectHandler(*req, ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer connect.Close()
+	connect.Handler().ServeHTTP(w, r)
+	return nil, nil
+}
+
+type sessionStreamEvent struct {
+	Events  []lunk.Entry      `json:"events"`
+	Nodes   []services.Server `json:"nodes"`
+	Session session.Session   `json:"session"`
+}
+
+// siteSessionStream returns a stream of events related to the session
+//
+// GET /v1/webapi/sites/:site/sessions/:sid/events/stream?access_token=bearer_token
+//
+// Sucessful response is a websocket stream that allows read write to the server and returns
+// json events
+//
+func (m *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	sessionID := p.ByName("sid")
+
+	connect, err := newSessionStreamHandler(
+		sessionID, ctx, site, m.sessionStreamPollPeriod)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
