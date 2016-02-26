@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events/boltlog"
-	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -75,7 +74,6 @@ func (s *HangoutsSuite) SetUpSuite(c *C) {
 	utils.InitLoggerCLI()
 	client.KeysDir = c.MkDir()
 	s.dir = c.MkDir()
-	allowAllLimiter, err := limiter.NewLimiter(limiter.LimiterConfig{})
 
 	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
@@ -118,7 +116,7 @@ func (s *HangoutsSuite) SetUpSuite(c *C) {
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
-		s.roleAuth, allowAllLimiter)
+		s.roleAuth)
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
@@ -129,7 +127,6 @@ func (s *HangoutsSuite) SetUpSuite(c *C) {
 		"localhost",
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
-		allowAllLimiter,
 		s.dir,
 		srv.SetProxyMode(reverseTunnelServer),
 	)
@@ -148,7 +145,7 @@ func (s *HangoutsSuite) SetUpSuite(c *C) {
 	tsrv, err := auth.NewTunServer(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:32498"},
 		[]ssh.Signer{s.signer},
-		apiSrv, s.a, allowAllLimiter)
+		apiSrv, s.a)
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
 

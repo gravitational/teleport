@@ -62,6 +62,7 @@ type Server struct {
 	reg         *sessionRegistry
 	se          rsession.SessionServer
 	rec         recorder.Recorder
+	limiter     *limiter.Limiter
 
 	labels      map[string]string                //static server labels
 	cmdLabels   map[string]services.CommandLabel //dymanic server labels
@@ -126,9 +127,16 @@ func SetLabels(labels map[string]string,
 	}
 }
 
+func SetLimiter(limiter *limiter.Limiter) ServerOption {
+	return func(s *Server) error {
+		s.limiter = limiter
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
-	ap auth.AccessPoint, limiter *limiter.Limiter,
+	ap auth.AccessPoint,
 	dataDir string, options ...ServerOption) (*Server, error) {
 
 	s := &Server{
@@ -137,6 +145,11 @@ func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
 		rr:          &backendResolver{ap: ap},
 		hostname:    hostname,
 		labelsMutex: &sync.Mutex{},
+	}
+	var err error
+	s.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	s.reg = newSessionRegistry(s)
 	s.certChecker = ssh.CertChecker{IsAuthority: s.isAuthority}
@@ -154,7 +167,7 @@ func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
 	srv, err := sshutils.NewServer(
 		addr, s, signers,
 		sshutils.AuthMethods{PublicKey: s.keyAuth},
-		limiter,
+		sshutils.SetLimiter(s.limiter),
 		sshutils.SetRequestHandler(s))
 	if err != nil {
 		return nil, trace.Wrap(err)

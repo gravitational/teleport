@@ -162,7 +162,7 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) err
 			cfg.Auth.SSHAddr, []ssh.Signer{signer},
 			apisrv,
 			asrv,
-			limiter,
+			auth.SetLimiter(limiter),
 		)
 		if err != nil {
 			utils.Consolef(cfg.Console, "[PROXY] Error: %v", err)
@@ -219,8 +219,8 @@ func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
 		i.Cert.ValidPrincipals[0],
 		[]ssh.Signer{i.KeySigner},
 		client,
-		limiter,
 		cfg.DataDir,
+		srv.SetLimiter(limiter),
 		srv.SetShell(cfg.SSH.Shell),
 		srv.SetEventLogger(elog),
 		srv.SetSessionServer(client),
@@ -382,7 +382,7 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 		cfg.Proxy.ReverseTunnelListenAddr,
 		[]ssh.Signer{i.KeySigner},
 		client,
-		reverseTunnelLimiter,
+		reversetunnel.SetLimiter(reverseTunnelLimiter),
 		reversetunnel.DirectSite(i.Cert.Extensions[utils.CertExtensionAuthority], client),
 	)
 	if err != nil {
@@ -393,8 +393,8 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 		cfg.Hostname,
 		[]ssh.Signer{i.KeySigner},
 		client,
-		proxyLimiter,
 		cfg.DataDir,
+		srv.SetLimiter(proxyLimiter),
 		srv.SetProxyMode(tsrv),
 	)
 	if err != nil {
