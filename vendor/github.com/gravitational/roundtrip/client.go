@@ -76,7 +76,7 @@ func BearerAuth(token string) ClientParam {
 	}
 }
 
-// CookieJar sets http cookie jar for this client
+// CookieJar sets HTTP cookie jar for this client
 func CookieJar(jar http.CookieJar) ClientParam {
 	return func(c *Client) error {
 		c.jar = jar
@@ -285,7 +285,7 @@ func (c *Client) GetFile(u string, params url.Values) (*FileResponse, error) {
 }
 
 // RoundTripFn inidicates any function that can be passed to RoundTrip
-// it should return http response or error in case of error
+// it should return HTTP response or error in case of error
 type RoundTripFn func() (*http.Response, error)
 
 // RoundTrip collects response and error assuming fn has done

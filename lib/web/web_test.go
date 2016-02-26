@@ -76,7 +76,7 @@ type WebSuite struct {
 var _ = Suite(&WebSuite{})
 
 func (s *WebSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
+	utils.InitLoggerDebug()
 }
 
 func (s *WebSuite) SetUpTest(c *C) {
@@ -370,6 +370,10 @@ func (s *WebSuite) TestWebSessionsRenew(c *C) {
 	pack := s.authPack(c)
 
 	// make sure we can use client to make authenticated requests
+	// before we issue this request, we will recover session id and bearer token
+	//
+	prevSessionCookie := *pack.cookies[0]
+	prevBearerToken := pack.session.Token
 	re, err := pack.clt.PostJSON(pack.clt.Endpoint("webapi", "sessions", "renew"), nil)
 	c.Assert(err, IsNil)
 
@@ -379,9 +383,13 @@ func (s *WebSuite) TestWebSessionsRenew(c *C) {
 	re, err = newPack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, IsNil)
 
-	// old session is not valid any more
-	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
-	c.Assert(err, NotNil)
+	// old session is stil valid too (until it expires)
+	jar, err := cookiejar.New(nil)
+	c.Assert(err, IsNil)
+	oldClt := s.client(roundtrip.BearerAuth(prevBearerToken), roundtrip.CookieJar(jar))
+	jar.SetCookies(s.url(), []*http.Cookie{&prevSessionCookie})
+	re, err = oldClt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	c.Assert(err, IsNil)
 
 	// now delete session
 	_, err = newPack.clt.Delete(

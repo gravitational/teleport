@@ -267,7 +267,7 @@ func (s *sessionCache) ValidateSession(user, sid string) (*sessionContext, error
 	}
 	c.Entry = log.WithFields(log.Fields{
 		"user": user,
-		"sess": sess.ID,
+		"sess": sess.ID[:4],
 	})
 	out, err := s.insertContext(user, sid, c, auth.WebSessionTTL)
 	if err != nil {
