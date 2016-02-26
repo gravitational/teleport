@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events/boltlog"
-	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -75,7 +74,7 @@ type WebSuite struct {
 var _ = Suite(&WebSuite{})
 
 func (s *WebSuite) SetUpSuite(c *C) {
-	utils.InitLoggerDebug()
+	utils.InitLoggerCLI()
 }
 
 func (s *WebSuite) SetUpTest(c *C) {
@@ -128,25 +127,6 @@ func (s *WebSuite) SetUpTest(c *C) {
 	s.signer, err = sshutils.NewSigner(hpriv, hcert)
 	c.Assert(err, IsNil)
 
-	limiter, err := limiter.NewLimiter(
-		limiter.LimiterConfig{
-			MaxConnections: 100,
-			Rates: []limiter.Rate{
-				limiter.Rate{
-					Period:  1 * time.Second,
-					Average: 100,
-					Burst:   400,
-				},
-				limiter.Rate{
-					Period:  40 * time.Millisecond,
-					Average: 1000,
-					Burst:   4000,
-				},
-			},
-		},
-	)
-	c.Assert(err, IsNil)
-
 	// start node
 	nodePort := s.freePorts[len(s.freePorts)-1]
 	s.freePorts = s.freePorts[:len(s.freePorts)-1]
@@ -157,7 +137,6 @@ func (s *WebSuite) SetUpTest(c *C) {
 		s.domainName,
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
-		limiter,
 		s.dir,
 		srv.SetShell("/bin/sh"),
 		srv.SetSessionServer(sessionServer),
@@ -174,7 +153,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 			Addr:        fmt.Sprintf("%v:0", s.domainName),
 		},
 		[]ssh.Signer{s.signer},
-		s.roleAuth, limiter,
+		s.roleAuth,
 		reversetunnel.ServerTimeout(200*time.Millisecond),
 		reversetunnel.DirectSite(s.domainName, s.roleAuth),
 	)
@@ -196,7 +175,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	s.tunServer, err = auth.NewTunServer(
 		tunAddr,
 		[]ssh.Signer{s.signer},
-		apiServer, authServer, limiter)
+		apiServer, authServer)
 	c.Assert(err, IsNil)
 	c.Assert(s.tunServer.Start(), IsNil)
 

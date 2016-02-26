@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events/boltlog"
-	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/services"
@@ -97,13 +96,10 @@ func (s *TunSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.signer = signer
 
-	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{})
-	c.Assert(err, IsNil)
-
 	tsrv, err := NewTunServer(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		[]ssh.Signer{signer},
-		s.srv, s.a, limiter)
+		s.srv, s.a)
 
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
@@ -117,13 +113,10 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	)
 	go srv.Serve()
 
-	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{})
-	c.Assert(err, IsNil)
-
 	tsrv, err := NewTunServer(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		[]ssh.Signer{s.signer},
-		srv, s.a, limiter)
+		srv, s.a)
 
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)

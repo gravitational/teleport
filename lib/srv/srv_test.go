@@ -118,25 +118,6 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	s.signer, err = sshutils.NewSigner(hpriv, hcert)
 	c.Assert(err, IsNil)
 
-	limiter, err := limiter.NewLimiter(
-		limiter.LimiterConfig{
-			MaxConnections: 100,
-			Rates: []limiter.Rate{
-				limiter.Rate{
-					Period:  1 * time.Second,
-					Average: 100,
-					Burst:   400,
-				},
-				limiter.Rate{
-					Period:  40 * time.Millisecond,
-					Average: 1000,
-					Burst:   4000,
-				},
-			},
-		},
-	)
-	c.Assert(err, IsNil)
-
 	s.srvPort = s.freePorts[len(s.freePorts)-1]
 	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 	s.srvAddress = "127.0.0.1:" + s.srvPort
@@ -147,7 +128,6 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		s.domainName,
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
-		limiter,
 		s.dir,
 		SetShell("/bin/sh"),
 	)
@@ -356,16 +336,14 @@ func (s *SrvSuite) testClient(c *C, proxyAddr, targetAddr, remoteAddr string, ss
 }
 
 func (s *SrvSuite) TestProxy(c *C) {
-	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{})
-	c.Assert(err, IsNil)
-
 	reverseTunnelPort := s.freePorts[len(s.freePorts)-1]
 	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("%v:%v", s.domainName, reverseTunnelPort)}
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
-		s.roleAuth, limiter)
+		s.roleAuth,
+	)
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
@@ -374,7 +352,6 @@ func (s *SrvSuite) TestProxy(c *C) {
 		s.domainName,
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
-		limiter,
 		s.dir,
 		SetProxyMode(reverseTunnelServer),
 	)
@@ -400,7 +377,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 	tsrv, err := auth.NewTunServer(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		[]ssh.Signer{s.signer},
-		apiSrv, s.a, limiter)
+		apiSrv, s.a)
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
 
@@ -482,7 +459,6 @@ func (s *SrvSuite) TestProxy(c *C) {
 		"bob",
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
-		limiter,
 		c.MkDir(),
 		SetShell("/bin/sh"),
 		SetLabels(
@@ -554,13 +530,6 @@ func (s *SrvSuite) TestProxy(c *C) {
 }
 
 func (s *SrvSuite) TestProxyRoundRobin(c *C) {
-	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{
-		MaxConnections:   100,
-		Rates:            []limiter.Rate{{Period: time.Second, Average: 100, Burst: 100}},
-		MaxNumberOfUsers: 100,
-	})
-	c.Assert(err, IsNil)
-
 	reverseTunnelPort := s.freePorts[len(s.freePorts)-1]
 	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 	reverseTunnelAddress := utils.NetAddr{
@@ -570,7 +539,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
-		s.roleAuth, limiter,
+		s.roleAuth,
 		reversetunnel.ServerTimeout(200*time.Millisecond),
 	)
 	c.Assert(err, IsNil)
@@ -581,7 +550,6 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		s.domainName,
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
-		limiter,
 		s.dir,
 		SetProxyMode(reverseTunnelServer),
 	)
@@ -607,7 +575,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	tsrv, err := auth.NewTunServer(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		[]ssh.Signer{s.signer},
-		apiSrv, s.a, limiter)
+		apiSrv, s.a)
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
 
@@ -669,13 +637,6 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 // TestProxyDirectAccess tests direct access via proxy bypassing
 // reverse tunnel
 func (s *SrvSuite) TestProxyDirectAccess(c *C) {
-	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{
-		MaxConnections:   100,
-		Rates:            []limiter.Rate{{Period: time.Second, Average: 100, Burst: 100}},
-		MaxNumberOfUsers: 100,
-	})
-	c.Assert(err, IsNil)
-
 	reverseTunnelAddress := utils.NetAddr{
 		AddrNetwork: "tcp",
 		Addr:        fmt.Sprintf("%v:0", s.domainName),
@@ -683,7 +644,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
-		s.roleAuth, limiter,
+		s.roleAuth,
 		reversetunnel.ServerTimeout(200*time.Millisecond),
 		reversetunnel.DirectSite(s.domainName, s.roleAuth),
 	)
@@ -694,7 +655,6 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		s.domainName,
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
-		limiter,
 		s.dir,
 		SetProxyMode(reverseTunnelServer),
 	)
@@ -720,7 +680,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	tsrv, err := auth.NewTunServer(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		[]ssh.Signer{s.signer},
-		apiSrv, s.a, limiter)
+		apiSrv, s.a)
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
 
@@ -829,8 +789,8 @@ func (s *SrvSuite) TestLimiter(c *C) {
 		s.domainName,
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
-		limiter,
 		s.dir,
+		SetLimiter(limiter),
 		SetShell("/bin/sh"),
 	)
 	c.Assert(err, IsNil)
