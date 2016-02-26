@@ -17,7 +17,10 @@ limitations under the License.
 package web
 
 import (
+	"io"
+	"io/ioutil"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/lib/events"
@@ -42,19 +45,25 @@ func newSessionStreamHandler(sessionID string, ctx *sessionContext, site reverse
 		sessionID:  sessionID,
 		ctx:        ctx,
 		site:       site,
+		closeC:     make(chan bool),
 	}, nil
 }
 
 // sessionStreamHandler streams events related to some particular session
 // as a stream of JSON encoded event packets
 type sessionStreamHandler struct {
+	closeOnce  sync.Once
 	pollPeriod time.Duration
 	ctx        *sessionContext
 	site       reversetunnel.RemoteSite
 	sessionID  string
+	closeC     chan bool
 }
 
 func (w *sessionStreamHandler) Close() error {
+	w.closeOnce.Do(func() {
+		close(w.closeC)
+	})
 	return nil
 }
 
@@ -63,7 +72,18 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// spin up a goroutine to detect closed socket by reading
+	// from it
+	go func() {
+		defer w.Close()
+		io.Copy(ioutil.Discard, ws)
+	}()
+
 	var lastCheckpoint time.Time
+	var lastEvent *sessionStreamEvent
+	ticker := time.NewTicker(w.pollPeriod)
+	defer ticker.Stop()
+	defer w.Close()
 	for {
 		now := time.Now()
 		f := events.Filter{
@@ -88,17 +108,28 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 			return trace.Wrap(err)
 		}
 
-		event := sessionStreamEvent{
+		event := &sessionStreamEvent{
 			Session: *sess,
 			Nodes:   servers,
 			Events:  events,
 		}
 
-		if err := websocket.JSON.Send(ws, event); err != nil {
-			return trace.Wrap(err)
+		newData := w.diffEvents(lastEvent, event)
+		lastCheckpoint = now
+		lastEvent = event
+		if newData {
+			if err := websocket.JSON.Send(ws, event); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 
-		time.Sleep(w.pollPeriod)
+		log.Infof("about to sleep %v", w.pollPeriod)
+		select {
+		case <-ticker.C:
+		case <-w.closeC:
+			log.Infof("stream is closed")
+			return nil
+		}
 	}
 }
 
@@ -118,7 +149,52 @@ func (w *sessionStreamHandler) logResult(fn func(*websocket.Conn) error) websock
 	return func(ws *websocket.Conn) {
 		err := fn(ws)
 		if err != nil {
-			log.WithFields(log.Fields{"sid": w.sessionID}).Infof("handler returned: %v", err)
+			log.WithFields(log.Fields{"sid": w.sessionID}).Infof("handler returned: %#v", err)
 		}
 	}
+}
+
+func (w *sessionStreamHandler) diffEvents(last *sessionStreamEvent, new *sessionStreamEvent) bool {
+	// this is first call, ship whatever we have on this session
+	if last == nil {
+		return true
+	}
+	// we've got new events
+	if len(new.Events) != 0 {
+		log.Infof("got new events")
+		return true
+	}
+	// new servers have arrived or disappeared
+	if len(last.Nodes) != len(new.Nodes) {
+		log.Infof("nodes have changes")
+		return true
+	}
+	// parties have joined or left the scene
+	if setsDifferent(partySet(last), partySet(new)) {
+		log.Infof("parties have changes")
+		return true
+	}
+	return false
+}
+
+func partySet(e *sessionStreamEvent) map[string]bool {
+	parties := make(map[string]bool, len(e.Session.Parties))
+	for _, party := range e.Session.Parties {
+		parties[party.ID] = true
+	}
+	return parties
+}
+
+func setsDifferent(a, b map[string]bool) bool {
+	for key := range a {
+		if !b[key] {
+			return true
+		}
+	}
+	for key := range b {
+		if !a[key] {
+			return true
+		}
+	}
+	return false
 }

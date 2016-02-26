@@ -24,6 +24,20 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+const (
+	// SessionEvent indicates that session has been initiated
+	// or updated by a joining party on the server
+	SessionEvent = "teleport.session"
+	// ExecEvent is an exec command executed by script or user on
+	// the server side
+	ExecEvent = "teleport.exec"
+	// AuthAttemptEvent is authentication attempt that either
+	// succeeded or failed based on event status
+	AuthAttemptEvent = "teleport.auth.attempt"
+	// SCPEvent means data transfer that occured on the server
+	SCPEvent = "teleport.scp"
+)
+
 // AuthSuccess indicates a successfull connection and authentication attempt
 type AuthAttempt struct {
 	// Session is SSH session ID
@@ -55,7 +69,7 @@ func NewAuthAttempt(conn ssh.ConnMetadata, key ssh.PublicKey, success bool, err 
 }
 
 func (*AuthAttempt) Schema() string {
-	return "teleport.auth.attempt"
+	return AuthAttemptEvent
 }
 
 func NewExec(command string, out io.Reader, code int, err error) *Exec {
@@ -88,7 +102,7 @@ type Exec struct {
 }
 
 func (*Exec) Schema() string {
-	return "teleport.exec"
+	return ExecEvent
 }
 
 // Message is a user message sent in a session
@@ -114,7 +128,7 @@ type SCP struct {
 }
 
 func (*SCP) Schema() string {
-	return "teleport.scp"
+	return SCPEvent
 }
 
 func NewShellSession(sid string, conn ssh.ConnMetadata, shell string, recordID string) *ShellSession {
@@ -149,7 +163,7 @@ type ShellSession struct {
 }
 
 func (*ShellSession) Schema() string {
-	return "teleport.session"
+	return SessionEvent
 }
 
 func errMsg(err error) string {

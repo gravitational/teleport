@@ -56,6 +56,7 @@ type Handler struct {
 // to NewHandler function
 type HandlerOption func(h *Handler) error
 
+// SetSessionStreamPollPeriod sets polling period for session streams
 func SetSessionStreamPollPeriod(period time.Duration) HandlerOption {
 	return func(h *Handler) error {
 		if period < 0 {
@@ -428,6 +429,9 @@ func (m *Handler) siteNodeConnect(w http.ResponseWriter, r *http.Request, p http
 	return nil, nil
 }
 
+// sessionStreamEvent is sent over the session stream socket, it contains
+// last events that occured (only new events are sent), currently active
+// nodes and current active session
 type sessionStreamEvent struct {
 	Events  []lunk.Entry      `json:"events"`
 	Nodes   []services.Server `json:"nodes"`

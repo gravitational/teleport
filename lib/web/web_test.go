@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/boltlog"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -47,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/codahale/lunk"
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/roundtrip"
 	"golang.org/x/crypto/ssh"
@@ -74,7 +76,7 @@ type WebSuite struct {
 var _ = Suite(&WebSuite{})
 
 func (s *WebSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
+	utils.InitLoggerDebug()
 }
 
 func (s *WebSuite) SetUpTest(c *C) {
@@ -141,6 +143,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		srv.SetShell("/bin/sh"),
 		srv.SetSessionServer(sessionServer),
 		srv.SetRecorder(recorder),
+		srv.SetEventLogger(eventsLog),
 	)
 	c.Assert(err, IsNil)
 	s.node = node
@@ -186,7 +189,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		AssetsDir:        "assets/web",
 		AuthServers:      tunAddr,
 		DomainName:       s.domainName,
-	})
+	}, SetSessionStreamPollPeriod(200*time.Millisecond))
 
 	s.webServer = httptest.NewServer(handler)
 }
@@ -421,9 +424,7 @@ func (s *WebSuite) TestGetSiteNodes(c *C) {
 	c.Assert(nodes2, DeepEquals, nodes)
 }
 
-func (s *WebSuite) connect(c *C, opts ...string) (*websocket.Conn, *authPack) {
-	pack := s.authPack(c)
-
+func (s *WebSuite) connect(c *C, pack *authPack, opts ...string) *websocket.Conn {
 	var sessionID string
 	if len(opts) != 0 {
 		sessionID = opts[0]
@@ -450,11 +451,34 @@ func (s *WebSuite) connect(c *C, opts ...string) (*websocket.Conn, *authPack) {
 	clt, err := websocket.DialConfig(wscfg)
 	c.Assert(err, IsNil)
 
-	return clt, pack
+	return clt
+}
+
+func (s *WebSuite) sessionStream(c *C, pack *authPack, sessionID string, opts ...string) *websocket.Conn {
+	u := url.URL{
+		Host:   s.url().Host,
+		Scheme: "ws",
+		Path: fmt.Sprintf(
+			"/v1/webapi/sites/%v/sessions/%v/events/stream",
+			currentSiteShortcut,
+			sessionID),
+	}
+	q := u.Query()
+	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
+	u.RawQuery = q.Encode()
+	wscfg, err := websocket.NewConfig(u.String(), "http://localhost")
+	c.Assert(err, IsNil)
+	for _, cookie := range pack.cookies {
+		wscfg.Header.Add("Cookie", cookie.String())
+	}
+	clt, err := websocket.DialConfig(wscfg)
+	c.Assert(err, IsNil)
+
+	return clt
 }
 
 func (s *WebSuite) TestConnect(c *C) {
-	clt, _ := s.connect(c)
+	clt := s.connect(c, s.authPack(c))
 	defer clt.Close()
 
 	doneC := make(chan error, 2)
@@ -484,7 +508,8 @@ func (s *WebSuite) TestConnect(c *C) {
 
 func (s *WebSuite) TestNodesWithSessions(c *C) {
 	sid := "testsession"
-	clt, pack := s.connect(c, sid)
+	pack := s.authPack(c)
+	clt := s.connect(c, pack, sid)
 	defer clt.Close()
 
 	// to make sure we have a session
@@ -515,6 +540,35 @@ func (s *WebSuite) TestNodesWithSessions(c *C) {
 
 	c.Assert(len(nodes.Nodes[0].Sessions), Equals, 1)
 	c.Assert(nodes.Nodes[0].Sessions[0].ID, Equals, sid)
+
+	// connect to session stream and receive events
+	stream := s.sessionStream(c, pack, sid)
+	defer stream.Close()
+	var event *sessionStreamEvent
+	c.Assert(websocket.JSON.Receive(stream, &event), IsNil)
+	c.Assert(event, NotNil)
+	c.Assert(getEvent(events.SessionEvent, event.Events), NotNil)
+
+	// one more party joins the session
+	clt2 := s.connect(c, pack, sid)
+	defer clt2.Close()
+
+	// to make sure we have a session
+	_, err = io.WriteString(clt, "expr 147 + 29\r\n")
+	c.Assert(err, IsNil)
+
+	c.Assert(websocket.JSON.Receive(stream, &event), IsNil)
+	c.Assert(len(event.Session.Parties), Equals, 2)
+}
+
+func getEvent(schema string, events []lunk.Entry) *lunk.Entry {
+	for i := range events {
+		e := events[i]
+		if e.Schema == schema {
+			return &e
+		}
+	}
+	return nil
 }
 
 func removeSpace(in string) string {
