@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/boltlog"
-	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -276,17 +275,11 @@ func (h *Hangout) initAuth(cfg service.Config, readOnlyHangout bool) error {
 	)
 	go apisrv.Serve()
 
-	limiter, err := limiter.NewLimiter(cfg.Auth.Limiter)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	log.Infof("[AUTH] server SSH endpoint is starting")
 	tsrv, err := auth.NewTunServer(
 		cfg.Auth.SSHAddr, []ssh.Signer{h.signer},
 		apisrv,
 		asrv,
-		limiter,
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -351,16 +344,10 @@ func (h *Hangout) initSSHEndpoint(cfg service.Config) error {
 		},
 	}
 
-	limiter, err := limiter.NewLimiter(cfg.SSH.Limiter)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	s, err := srv.New(cfg.SSH.Addr,
 		h.HangoutID,
 		[]ssh.Signer{h.signer},
 		h.client,
-		limiter,
 		cfg.DataDir,
 		srv.SetShell(DefaultSSHShell),
 		srv.SetEventLogger(elog),

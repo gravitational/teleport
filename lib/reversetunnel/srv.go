@@ -92,6 +92,7 @@ type server struct {
 	l               net.Listener
 	srv             *sshutils.Server
 	timeout         time.Duration
+	limiter         *limiter.Limiter
 
 	tunnelSites []*tunnelSite
 	directSites []*directSite
@@ -115,13 +116,25 @@ func DirectSite(domainName string, clt auth.ClientI) ServerOption {
 	}
 }
 
+func SetLimiter(limiter *limiter.Limiter) ServerOption {
+	return func(s *server) {
+		s.limiter = limiter
+	}
+}
+
 // NewServer returns an unstarted server
 func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
-	clt auth.ClientI, limiter *limiter.Limiter, opts ...ServerOption) (Server, error) {
+	clt auth.ClientI, opts ...ServerOption) (Server, error) {
+
 	srv := &server{
 		directSites: []*directSite{},
 		tunnelSites: []*tunnelSite{},
 		localAuth:   clt,
+	}
+	var err error
+	srv.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	for _, o := range opts {
@@ -138,7 +151,7 @@ func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 		sshutils.AuthMethods{
 			PublicKey: srv.keyAuth,
 		},
-		limiter,
+		sshutils.SetLimiter(srv.limiter),
 	)
 	if err != nil {
 		return nil, err

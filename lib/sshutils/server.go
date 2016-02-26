@@ -42,17 +42,29 @@ type Server struct {
 
 type ServerOption func(cfg *Server) error
 
+func SetLimiter(limiter *limiter.Limiter) ServerOption {
+	return func(s *Server) error {
+		s.limiter = limiter
+		return nil
+	}
+}
+
 func NewServer(a utils.NetAddr, h NewChanHandler, hostSigners []ssh.Signer,
-	ah AuthMethods, limiter *limiter.Limiter, opts ...ServerOption) (*Server, error) {
-	if err := checkArguments(a, h, hostSigners, ah); err != nil {
+	ah AuthMethods, opts ...ServerOption) (*Server, error) {
+	err := checkArguments(a, h, hostSigners, ah)
+	if err != nil {
 		return nil, err
 	}
 	s := &Server{
 		addr:           a,
 		newChanHandler: h,
 		closeC:         make(chan struct{}),
-		limiter:        limiter,
 	}
+	s.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	for _, o := range opts {
 		if err := o(s); err != nil {
 			return nil, err

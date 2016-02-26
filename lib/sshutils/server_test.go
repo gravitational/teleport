@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -52,15 +51,12 @@ func (s *ServerSuite) TestStartStop(c *C) {
 		nch.Reject(ssh.Prohibited, "nothing to see here")
 	})
 
-	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{})
-	c.Assert(err, IsNil)
-
 	srv, err := NewServer(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		fn,
 		s.signers,
 		AuthMethods{Password: pass("abc123")},
-		limiter)
+	)
 	c.Assert(err, IsNil)
 	c.Assert(srv.Start(), IsNil)
 

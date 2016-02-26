@@ -44,19 +44,31 @@ type TunServer struct {
 	srv             *sshutils.Server
 	hostSigner      ssh.Signer
 	apiServer       *APIWithRoles
+	limiter         *limiter.Limiter
 }
 
 type ServerOption func(s *TunServer) error
 
+func SetLimiter(limiter *limiter.Limiter) ServerOption {
+	return func(s *TunServer) error {
+		s.limiter = limiter
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func NewTunServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 	apiServer *APIWithRoles, a *AuthServer,
-	limiter *limiter.Limiter,
 	opts ...ServerOption) (*TunServer, error) {
 
 	srv := &TunServer{
 		a:         a,
 		apiServer: apiServer,
+	}
+	var err error
+	srv.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	for _, o := range opts {
@@ -73,7 +85,7 @@ func NewTunServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 			Password:  srv.passwordAuth,
 			PublicKey: srv.keyAuth,
 		},
-		limiter,
+		sshutils.SetLimiter(srv.limiter),
 	)
 	if err != nil {
 		return nil, err
