@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/session"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
@@ -177,15 +178,15 @@ func (w *sessionStreamHandler) diffEvents(last *sessionStreamEvent, new *session
 	return false
 }
 
-func partySet(e *sessionStreamEvent) map[string]bool {
-	parties := make(map[string]bool, len(e.Session.Parties))
+func partySet(e *sessionStreamEvent) map[session.Party]bool {
+	parties := make(map[session.Party]bool, len(e.Session.Parties))
 	for _, party := range e.Session.Parties {
-		parties[party.ID] = true
+		parties[party] = true
 	}
 	return parties
 }
 
-func setsDifferent(a, b map[string]bool) bool {
+func setsDifferent(a, b map[session.Party]bool) bool {
 	for key := range a {
 		if !b[key] {
 			return true
