@@ -73,6 +73,7 @@ type ClientSuite struct {
 	otp          *hotp.HOTP
 	user         string
 	pass         []byte
+	freePorts    []string
 }
 
 var _ = Suite(&ClientSuite{})
@@ -84,6 +85,10 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	s.dir2 = c.MkDir()
 
 	allowAllLimiter, err := limiter.NewLimiter(limiter.LimiterConfig{})
+	c.Assert(err, IsNil)
+
+	s.freePorts, err = utils.GetFreeTCPPorts(10)
+	c.Assert(err, IsNil)
 
 	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
@@ -123,7 +128,8 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 		nil)
 
 	// Starting node1
-	s.srvAddress = "127.0.0.1:30187"
+	s.srvAddress = "127.0.0.1:" + s.freePorts[len(s.freePorts)-1]
+	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 	s.srv, err = srv.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srvAddress},
 		"alice",
@@ -145,7 +151,8 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	c.Assert(s.srv.Start(), IsNil)
 
 	// Starting node2
-	s.srv2Address = "127.0.0.1:30189"
+	s.srv2Address = "127.0.0.1:" + s.freePorts[len(s.freePorts)-1]
+	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 	s.srv2, err = srv.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srv2Address},
 		"bob",
@@ -172,7 +179,10 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	c.Assert(s.srv2.Start(), IsNil)
 
 	// Starting proxy
-	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:33057"}
+	reverseTunnelPort := s.freePorts[len(s.freePorts)-1]
+	s.freePorts = s.freePorts[:len(s.freePorts)-1]
+	c.Assert(err, IsNil)
+	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:" + reverseTunnelPort}
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
@@ -180,8 +190,8 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
-	s.proxyAddress = "localhost:34783"
-
+	s.proxyAddress = "localhost:" + s.freePorts[len(s.freePorts)-1]
+	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 	s.proxy, err = srv.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.proxyAddress},
 		"localhost",
@@ -201,7 +211,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 	go apiSrv.Serve()
 
 	tsrv, err := auth.NewTunServer(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:31498"},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		[]ssh.Signer{s.signer},
 		apiSrv, s.a, allowAllLimiter)
 	c.Assert(err, IsNil)
@@ -479,7 +489,7 @@ func (s *ClientSuite) TestGetServer(c *C) {
 	c.Assert(err, IsNil)
 
 	server1Info := services.Server{
-		ID:       "alice",
+		ID:       s.srvAddress,
 		Addr:     s.srvAddress,
 		Hostname: "alice",
 		Labels: map[string]string{
@@ -496,7 +506,7 @@ func (s *ClientSuite) TestGetServer(c *C) {
 	}
 
 	server2Info := services.Server{
-		ID:       "bob",
+		ID:       s.srv2Address,
 		Addr:     s.srv2Address,
 		Hostname: "bob",
 		Labels: map[string]string{
@@ -518,24 +528,45 @@ func (s *ClientSuite) TestGetServer(c *C) {
 
 	servers, err := proxyClient.GetServers()
 	c.Assert(err, IsNil)
-	c.Assert(servers, DeepEquals, []services.Server{
-		server1Info,
-		server2Info,
-	})
+	if servers[0].Addr == server1Info.Addr {
+		c.Assert(servers, DeepEquals, []services.Server{
+			server1Info,
+			server2Info,
+		})
+	} else {
+		c.Assert(servers, DeepEquals, []services.Server{
+			server2Info,
+			server1Info,
+		})
+	}
 
 	servers, err = proxyClient.FindServers("label1", "value1")
 	c.Assert(err, IsNil)
-	c.Assert(servers, DeepEquals, []services.Server{
-		server1Info,
-		server2Info,
-	})
+	if servers[0].Addr == server1Info.Addr {
+		c.Assert(servers, DeepEquals, []services.Server{
+			server1Info,
+			server2Info,
+		})
+	} else {
+		c.Assert(servers, DeepEquals, []services.Server{
+			server2Info,
+			server1Info,
+		})
+	}
 
 	servers, err = proxyClient.FindServers("label1", "val.*")
 	c.Assert(err, IsNil)
-	c.Assert(servers, DeepEquals, []services.Server{
-		server1Info,
-		server2Info,
-	})
+	if servers[0].Addr == server1Info.Addr {
+		c.Assert(servers, DeepEquals, []services.Server{
+			server1Info,
+			server2Info,
+		})
+	} else {
+		c.Assert(servers, DeepEquals, []services.Server{
+			server2Info,
+			server1Info,
+		})
+	}
 
 	servers, err = proxyClient.FindServers("label2", ".*ue2")
 	c.Assert(err, IsNil)

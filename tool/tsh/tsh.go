@@ -279,17 +279,10 @@ func SCP(proxyAddress, source, dest string, isDir bool, port string, authMethods
 func Share(proxyAddress, hangoutProxyAddress string, readOnly bool, authMethods []ssh.AuthMethod,
 	hostKeyCallback utils.HostKeyCallback) error {
 
-	nodePort, err := utils.GetFreeTCPPort()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	authPort, err := utils.GetFreeTCPPort()
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	ports, err := utils.GetFreeTCPPorts(2)
 
-	nodeListeningAddress := "localhost:" + nodePort
-	authListeningAddress := "localhost:" + authPort
+	nodeListeningAddress := "localhost:" + ports[0]
+	authListeningAddress := "localhost:" + ports[1]
 
 	hangoutServer, err := hangout.New(hangoutProxyAddress, nodeListeningAddress,
 		authListeningAddress, readOnly, authMethods, hostKeyCallback)

@@ -58,10 +58,12 @@ func (t *proxySubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Re
 	serverAddr := fmt.Sprintf("%v:%v", t.host, t.port)
 	var server *services.Server
 	for i := range servers {
+
 		ip, port, err := net.SplitHostPort(servers[i].Addr)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
 		// match either by hostname of ip, based on the match
 		if (t.host == ip || t.host == servers[i].Hostname) && port == t.port {
 			server = &servers[i]

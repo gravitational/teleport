@@ -587,6 +587,7 @@ func newRemoteSite(srv *server, domainName string) (*tunnelSite, error) {
 		"http://stub:0",
 		roundtrip.HTTPClient(&http.Client{
 			Transport: remoteSite.transport,
+			Timeout:   5 * time.Second,
 		}))
 	if err != nil {
 		return nil, trace.Wrap(err)
