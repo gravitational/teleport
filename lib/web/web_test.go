@@ -106,10 +106,11 @@ func (s *WebSuite) SetUpTest(c *C) {
 	recorder, err := boltrec.New(s.dir)
 	c.Assert(err, IsNil)
 
+	sessionServer := sess.New(baseBk)
 	s.roleAuth = auth.NewAuthWithRoles(authServer,
 		auth.NewStandardPermissions(),
 		eventsLog,
-		sess.New(baseBk),
+		sessionServer,
 		teleport.RoleAdmin,
 		recorder)
 
@@ -156,6 +157,8 @@ func (s *WebSuite) SetUpTest(c *C) {
 		limiter,
 		s.dir,
 		srv.SetShell("/bin/sh"),
+		srv.SetSessionServer(sessionServer),
+		srv.SetRecorder(recorder),
 	)
 	c.Assert(err, IsNil)
 	s.node = node
@@ -177,7 +180,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	apiPort, err := utils.GetFreeTCPPort()
 	c.Assert(err, IsNil)
 
-	apiServer := auth.NewAPIWithRoles(authServer, eventsLog, sess.New(s.bk), recorder,
+	apiServer := auth.NewAPIWithRoles(authServer, eventsLog, sessionServer, recorder,
 		auth.NewAllowAllPermissions(),
 		auth.StandardRoles,
 	)
@@ -436,14 +439,19 @@ func (s *WebSuite) TestGetSiteNodes(c *C) {
 	c.Assert(nodes2, DeepEquals, nodes)
 }
 
-func (s *WebSuite) TestConnect(c *C) {
+func (s *WebSuite) connect(c *C, opts ...string) (*websocket.Conn, *authPack) {
 	pack := s.authPack(c)
 
+	var sessionID string
+	if len(opts) != 0 {
+		sessionID = opts[0]
+	}
 	u := url.URL{Host: s.url().Host, Scheme: "ws", Path: fmt.Sprintf("/v1/webapi/sites/%v/connect", currentSiteShortcut)}
 	data, err := json.Marshal(connectReq{
-		Addr:  s.srvAddress,
-		Login: s.user,
-		Term:  connectTerm{W: 100, H: 100},
+		Addr:      s.srvAddress,
+		Login:     s.user,
+		Term:      connectTerm{W: 100, H: 100},
+		SessionID: sessionID,
 	})
 	c.Assert(err, IsNil)
 
@@ -457,9 +465,14 @@ func (s *WebSuite) TestConnect(c *C) {
 	for _, cookie := range pack.cookies {
 		wscfg.Header.Add("Cookie", cookie.String())
 	}
-	fmt.Printf("%v", wscfg.Header)
 	clt, err := websocket.DialConfig(wscfg)
 	c.Assert(err, IsNil)
+
+	return clt, pack
+}
+
+func (s *WebSuite) TestConnect(c *C) {
+	clt, _ := s.connect(c)
 	defer clt.Close()
 
 	doneC := make(chan error, 2)
@@ -485,6 +498,41 @@ func (s *WebSuite) TestConnect(c *C) {
 	}
 
 	c.Assert(removeSpace(output.String()), Matches, ".*176.*")
+}
+
+func (s *WebSuite) TestNodesWithSessions(c *C) {
+	sid := "testsession"
+	clt, pack := s.connect(c, sid)
+	defer clt.Close()
+
+	// to make sure we have a session
+	_, err := io.WriteString(clt, "expr 137 + 39\r\n")
+	c.Assert(err, IsNil)
+
+	// make sure server has replied
+	out := make([]byte, 100)
+	clt.Read(out)
+	fmt.Printf("%v", string(out))
+
+	var nodes *getSiteNodesResponse
+	for i := 0; i < 3; i++ {
+		// get site nodes and make sure the node has our active party
+		re, err := pack.clt.Get(pack.clt.Endpoint("webapi", "sites", s.domainName, "nodes"), url.Values{})
+		c.Assert(err, IsNil)
+
+		c.Assert(json.Unmarshal(re.Bytes(), &nodes), IsNil)
+		c.Assert(len(nodes.Nodes), Equals, 1)
+
+		if len(nodes.Nodes[0].Sessions) == 1 {
+			break
+		}
+		// sessions do not appear momentarily as there's async heartbeat
+		// procedure
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	c.Assert(len(nodes.Nodes[0].Sessions), Equals, 1)
+	c.Assert(nodes.Nodes[0].Sessions[0].ID, Equals, sid)
 }
 
 func removeSpace(in string) string {

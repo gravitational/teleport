@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
@@ -292,28 +293,48 @@ func (m *Handler) getSites(w http.ResponseWriter, r *http.Request, _ httprouter.
 	}, nil
 }
 
-type getSiteNodesResponse struct {
-	Nodes []services.Server `json:"nodes"`
+type nodeWithSessions struct {
+	Node     services.Server   `json:"node"`
+	Sessions []session.Session `json:"sessions"`
 }
 
-// getSiteNodes returns a list of nodes active in the site
-//
-// GET /v1/webapi/sites/:site/nodes
-//
-// Sucessful response:
-//
-// {"nodes": [
-//   {
-//     "addr": "ip:port",
-//     "hostname": "a.example.com",
-//     "labels": {"role": "mysql"}, // static key value pairs set by user for every node
-//     "cmd_labels": {
-//         "db_status": {
-//           "command": "mysql -c status", // command periodically executed on server
-//           "result": "master",  // output of the command
-//           "period": 1000000000 // microseconds between calls
-//      }}}]}
-//
+type getSiteNodesResponse struct {
+	Nodes []nodeWithSessions `json:"nodes"`
+}
+
+/* getSiteNodes returns a list of nodes active in the site
+
+GET /v1/webapi/sites/:site/nodes
+
+Sucessful response:
+
+{"nodes": [
+  {
+    "node": {
+        "addr": "ip:port",
+        "hostname": "a.example.com",
+        "labels": {"role": "mysql"}, // static key value pairs set by user for every node
+        "cmd_labels": {
+            "db_status": {
+               "command": "mysql -c status", // command periodically executed on server
+               "result": "master",  // output of the command
+               "period": 1000000000 // microseconds between calls
+             }
+        }
+     },
+     "sessions": [{
+         "id": "unique session id",
+         "parties": [{ // parties is a list of currently active participants
+            "id": "party id",
+            "user": "alice", // teleport user
+            "server_addr": "127.0.0.1:3000",
+            "last_active": "time" // RFC3339 timestamp when user was last acive
+         }]
+     }]
+   }
+  ]
+}
+*/
 func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := site.GetClient()
 	if err != nil {
@@ -323,8 +344,28 @@ func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprou
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	sessions, err := clt.GetSessions()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	nodeMap := make(map[string]*nodeWithSessions, len(servers))
+	for i := range servers {
+		nodeMap[servers[i].Addr] = &nodeWithSessions{Node: servers[i]}
+	}
+	for i := range sessions {
+		sess := sessions[i]
+		for _, p := range sess.Parties {
+			if _, ok := nodeMap[p.ServerAddr]; ok {
+				nodeMap[p.ServerAddr].Sessions = append(nodeMap[p.ServerAddr].Sessions, sess)
+			}
+		}
+	}
+	nodes := make([]nodeWithSessions, 0, len(nodeMap))
+	for key := range nodeMap {
+		nodes = append(nodes, *nodeMap[key])
+	}
 	return getSiteNodesResponse{
-		Nodes: servers,
+		Nodes: nodes,
 	}, nil
 }
 

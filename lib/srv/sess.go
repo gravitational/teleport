@@ -156,10 +156,10 @@ func (s *session) Close() error {
 }
 
 func (s *session) upsertSessionParty(sid string, p *party, ttl time.Duration) error {
-	if s.registry.srv.se == nil {
+	if s.registry.srv.sessionServer == nil {
 		return nil
 	}
-	return s.registry.srv.se.UpsertParty(sid, rsession.Party{
+	return s.registry.srv.sessionServer.UpsertParty(sid, rsession.Party{
 		ID:         p.id,
 		User:       p.user,
 		ServerAddr: p.serverAddr,
@@ -285,7 +285,7 @@ func (s *session) leave(id string) error {
 		return trace.Wrap(
 			teleport.NotFound(fmt.Sprintf("party %v not found", id)))
 	}
-	log.Infof("%v is leaving %v", p, s)
+	p.ctx.Infof("%v is leaving", p)
 	delete(s.parties, p.id)
 	s.writer.deleteWriter(p.id)
 	return nil
@@ -302,14 +302,14 @@ func (s *session) addParty(p *party) {
 	}()
 	go func() {
 		for {
+			if err := s.upsertSessionParty(s.id, p, 10*time.Second); err != nil {
+				p.ctx.Warningf("failed to upsert session party: %v", err)
+			}
 			select {
 			case <-p.closeC:
 				p.ctx.Infof("closed, stopped heartbeat")
 				return
 			case <-time.After(1 * time.Second):
-			}
-			if err := s.upsertSessionParty(s.id, p, 10*time.Second); err != nil {
-				p.ctx.Warningf("failed to upsert session party: %v", err)
 			}
 		}
 	}()

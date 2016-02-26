@@ -92,6 +92,16 @@ func (w *connectHandler) connect(ws *websocket.Conn) {
 	ws.Write([]byte("\n\rdisconnected\n\r"))
 }
 
+func (w *connectHandler) resizePTYWindow(term connectTerm) error {
+	_, err := w.up.GetSession().SendRequest(
+		sshutils.PTYReq, false,
+		ssh.Marshal(sshutils.WinChangeReqParams{
+			W: uint32(term.W),
+			H: uint32(term.H),
+		}))
+	return trace.Wrap(err)
+}
+
 func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
 	methods, err := w.ctx.GetAuthMethods()
 	if err != nil {
