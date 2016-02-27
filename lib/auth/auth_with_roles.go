@@ -220,7 +220,7 @@ func (a *AuthWithRoles) SignIn(user string, password []byte) (*Session, error) {
 	}
 }
 func (a *AuthWithRoles) CreateWebSession(user string, prevSessionID string) (*Session, error) {
-	if err := a.permChecker.HasPermission(a.role, ActionSignIn); err != nil {
+	if err := a.permChecker.HasPermission(a.role, ActionCreateWebSession); err != nil {
 		return nil, err
 	} else {
 		return a.authServer.CreateWebSession(user, prevSessionID)
