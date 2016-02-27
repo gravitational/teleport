@@ -685,7 +685,7 @@ func (s *tunnelSite) handleHeartbeat(ch ssh.Channel, reqC <-chan *ssh.Request) {
 				s.log.Infof("agent disconnected")
 				return
 			}
-			s.log.Debugf("ping")
+			//s.log.Debugf("ping")
 			s.lastActive = time.Now()
 		}
 	}()
