@@ -17,7 +17,6 @@ package auth
 
 import (
 	"path/filepath"
-	"time"
 
 	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -197,7 +196,6 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
 		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
-	TokenTTLAfterUse = time.Millisecond * 300
 	user := "user456"
 	user2 := "zxzx"
 	user3 := "wrwr"

@@ -3,8 +3,8 @@ var session = require('app/session');
 
 const api = {
 
-  post(path, data){
-    return api.ajax({url: path, data: JSON.stringify(data), type: 'POST'}, false);
+  post(path, data, withToken){
+    return api.ajax({url: path, data: JSON.stringify(data), type: 'POST'}, withToken);
   },
 
   get(path){

@@ -17,9 +17,11 @@ limitations under the License.
 package web
 
 import (
+	"fmt"
+	"net"
 	"net/http"
-	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/sshutils"
 
@@ -35,13 +37,33 @@ type connectReq struct {
 	// Addr is a host:port pair of the server to connect to
 	Addr string `json:"addr"`
 	// User is linux username to connect as
-	User string `json:"user"`
-	// TerminalHeight is a PTY terminal height
-	TerminalHeight int `json:"terminal_height"`
-	// TerminalWidth is a PTY terminal width
-	TerminalWidth int `json:"terminal_width"`
+	Login string `json:"login"`
+	// Term sets PTY params like width and height
+	Term connectTerm `json:"term"`
 	// SessionID is a teleport session ID to join as
-	SessionID string `json:"session_id"`
+	SessionID string `json:"sid"`
+}
+
+type connectTerm struct {
+	H int `json:"h"`
+	W int `json:"w"`
+}
+
+func newConnectHandler(req connectReq, ctx *sessionContext, site reversetunnel.RemoteSite) (*connectHandler, error) {
+	if _, _, err := net.SplitHostPort(req.Addr); err != nil {
+		return nil, trace.Wrap(teleport.BadParameter("addr", "bad address format"))
+	}
+	if req.Login == "" {
+		return nil, trace.Wrap(teleport.BadParameter("login", "missing login"))
+	}
+	if req.Term.W <= 0 || req.Term.H <= 0 {
+		return nil, trace.Wrap(teleport.BadParameter("term", "bad term dimensions"))
+	}
+	return &connectHandler{
+		req:  req,
+		ctx:  ctx,
+		site: site,
+	}, nil
 }
 
 // connectHandler is a websocket to SSH proxy handler
@@ -50,9 +72,15 @@ type connectHandler struct {
 	site reversetunnel.RemoteSite
 	up   *sshutils.Upstream
 	req  connectReq
+	ws   *websocket.Conn
+}
+
+func (w *connectHandler) String() string {
+	return fmt.Sprintf("connectHandler(%#v)", w.req)
 }
 
 func (w *connectHandler) Close() error {
+	w.ws.Close()
 	if w.up != nil {
 		return w.up.Close()
 	}
@@ -60,20 +88,26 @@ func (w *connectHandler) Close() error {
 }
 
 func (w *connectHandler) connect(ws *websocket.Conn) {
-	for {
-		up, err := w.connectUpstream()
-		if err != nil {
-			ws.Write([]byte(err.Error() + "\n"))
-			log.Errorf("wsHandler: failed: %v", err)
-			continue
-		}
-		w.up = up
-		err = w.up.PipeShell(ws)
-
-		log.Infof("pipe shell finished with: %v", err)
-		time.Sleep(time.Millisecond * 300)
-		ws.Write([]byte("\n\rdisconnected\n\r"))
+	up, err := w.connectUpstream()
+	if err != nil {
+		log.Errorf("wsHandler: failed: %v", err)
+		return
 	}
+	w.up = up
+	w.ws = ws
+	err = w.up.PipeShell(ws)
+	log.Infof("pipe shell finished with: %v", err)
+	ws.Write([]byte("\n\rdisconnected\n\r"))
+}
+
+func (w *connectHandler) resizePTYWindow(term connectTerm) error {
+	_, err := w.up.GetSession().SendRequest(
+		sshutils.PTYReq, false,
+		ssh.Marshal(sshutils.WinChangeReqParams{
+			W: uint32(term.W),
+			H: uint32(term.H),
+		}))
+	return trace.Wrap(err)
 }
 
 func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
@@ -81,7 +115,7 @@ func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	client, err := w.site.ConnectToServer(w.req.Addr, w.req.User, methods)
+	client, err := w.site.ConnectToServer(w.req.Addr, w.req.Login, methods)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -98,8 +132,8 @@ func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
 	up.GetSession().SendRequest(
 		sshutils.PTYReq, false,
 		ssh.Marshal(sshutils.PTYReqParams{
-			W: uint32(w.req.TerminalWidth),
-			H: uint32(w.req.TerminalHeight),
+			W: uint32(w.req.Term.W),
+			H: uint32(w.req.Term.H),
 		}))
 	return up, nil
 }

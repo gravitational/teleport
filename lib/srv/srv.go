@@ -50,19 +50,21 @@ import (
 // certificate-based authentication
 type Server struct {
 	sync.Mutex
-	addr        utils.NetAddr
-	hostname    string
-	certChecker ssh.CertChecker
-	rr          resolver
-	elog        lunk.EventLogger
-	srv         *sshutils.Server
-	hostSigner  ssh.Signer
-	shell       string
-	ap          auth.AccessPoint
-	reg         *sessionRegistry
-	se          rsession.SessionServer
-	rec         recorder.Recorder
-	limiter     *limiter.Limiter
+
+	addr          utils.NetAddr
+	hostname      string
+	certChecker   ssh.CertChecker
+	rr            resolver
+	elog          lunk.EventLogger
+	srv           *sshutils.Server
+	hostSigner    ssh.Signer
+	shell         string
+	ap            auth.AccessPoint
+	reg           *sessionRegistry
+	se            rsession.SessionServer
+	sessionServer rsession.SessionServer
+	rec           recorder.Recorder
+	limiter       *limiter.Limiter
 
 	labels      map[string]string                //static server labels
 	cmdLabels   map[string]services.CommandLabel //dymanic server labels
@@ -90,7 +92,7 @@ func SetShell(shell string) ServerOption {
 
 func SetSessionServer(srv rsession.SessionServer) ServerOption {
 	return func(s *Server) error {
-		s.se = srv
+		s.sessionServer = srv
 		return nil
 	}
 }

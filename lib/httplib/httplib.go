@@ -43,7 +43,9 @@ func MakeHandler(fn HandlerFunc) httprouter.Handle {
 			ReplyError(w, err)
 			return
 		}
-		roundtrip.ReplyJSON(w, http.StatusOK, out)
+		if out != nil {
+			roundtrip.ReplyJSON(w, http.StatusOK, out)
+		}
 	}
 }
 

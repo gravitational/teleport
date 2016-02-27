@@ -64,7 +64,7 @@ var Login = React.createClass({
     var isError = false;//this.state.userRequest.get('isError');
 
     return (
-      <div className="grv grv-login text-center">
+      <div className="grv-login text-center">
         <div className="grv-logo-tprt"></div>
         <div className="grv-content grv-flex">
           <div className="grv-flex-column">

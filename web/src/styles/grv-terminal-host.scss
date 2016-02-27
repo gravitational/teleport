@@ -1,0 +1,25 @@
+ .grv-terminal-host{
+   padding: 50px 60px;
+   padding-left: 130px;
+   position: fixed;
+   height: 100%;
+   width: 100%;
+   display: block;
+   background-color: black;
+   z-index: 1;
+ }
+
+
+.grv-terminal-participans{
+  margin-left: -100px;
+  width: 50px;
+  position: absolute;
+
+  .nav {
+    text-align: center;
+
+    > li{
+      margin: 15px 0;
+    }
+  }
+}

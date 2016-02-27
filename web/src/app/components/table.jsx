@@ -22,7 +22,7 @@ var GrvTable = React.createClass({
     var rows = [];
     for(var i = 0; i < count; i ++){
       var cells = children.map((item, index)=>{
-        return this.renderCell(item.props.cell, {rowIndex: i, key: i, isHeader: false, ...item.props});
+        return this.renderCell(item.props.cell, {rowIndex: i, key: index, isHeader: false, ...item.props});
       })
 
       rows.push(<tr key={i}>{cells}</tr>);
@@ -56,8 +56,10 @@ var GrvTable = React.createClass({
       children.push(child);
     });
 
+    var tableClass = 'table ' + this.props.className;
+
     return (
-      <table className="table table-bordered">
+      <table className={tableClass}>
         {this.renderHeader(children)}
         {this.renderBody(children)}
       </table>

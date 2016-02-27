@@ -6,5 +6,6 @@ module.exports.$ = require('jQuery');
 module.exports.Dfd = module.exports.$.Deferred;
 module.exports.spyOn = module.exports.expect.spyOn;
 module.exports.reactor = require('app/reactor');
+module.exports.session = require('app/session');
 module.exports.api = require('app/services/api');
 require('app/modules');

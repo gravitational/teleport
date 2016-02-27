@@ -1,7 +1,9 @@
 var React = require('react');
 var reactor = require('app/reactor');
 var {getters, actions} = require('app/modules/nodes');
+var userGetters = require('app/modules/user/getters');
 var {Table, Column, Cell} = require('app/components/table.jsx');
+var {openSession} = require('app/modules/activeTerminal/actions');
 
 const TextCell = ({rowIndex, data, columnKey, ...props}) => (
   <Cell {...props}>
@@ -9,13 +11,58 @@ const TextCell = ({rowIndex, data, columnKey, ...props}) => (
   </Cell>
 );
 
+const TagCell = ({rowIndex, data, columnKey, ...props}) => (
+  <Cell {...props}>
+    { data[rowIndex].tags.map((item, index) =>
+      (<span key={index} className="label label-default">
+        {item.role} <li className="fa fa-long-arrow-right"></li>
+        {item.value}
+      </span>)
+    ) }
+  </Cell>
+);
+
+const LoginCell = ({user, rowIndex, data, ...props}) => {
+  if(!user || user.logins.length === 0){
+    return <Cell {...props} />;
+  }
+
+  var $lis = [];
+
+  for(var i = 0; i < user.logins.length; i++){
+    $lis.push(<li key={i}><a href="#" target="_blank" onClick={openSession.bind(null, data[rowIndex].addr, user.logins[i], undefined)}>{user.logins[i]}</a></li>);
+  }
+
+  return (
+    <Cell {...props}>
+      <div className="btn-group">
+        <button type="button" onClick={openSession.bind(null, data[rowIndex].addr, user.logins[0], undefined)} className="btn btn-sm btn-primary">{user.logins[0]}</button>
+        {
+          $lis.length > 1 ? (
+            <div className="btn-group">
+              <button data-toggle="dropdown" className="btn btn-default btn-sm dropdown-toggle" aria-expanded="true">
+                <span className="caret"></span>
+              </button>
+              <ul className="dropdown-menu">
+                <li><a href="#" target="_blank">Logs</a></li>
+                <li><a href="#" target="_blank">Logs</a></li>
+              </ul>
+            </div>
+          ): null
+        }
+      </div>
+    </Cell>
+  )
+};
+
 var Nodes = React.createClass({
 
   mixins: [reactor.ReactMixin],
 
   getDataBindings() {
     return {
-      nodeRecords: getters.nodeListView
+      nodeRecords: getters.nodeListView,
+      user: userGetters.user
     }
   },
 
@@ -29,31 +76,31 @@ var Nodes = React.createClass({
   render: function() {
     var data = this.state.nodeRecords;
     return (
-      <div>
+      <div className="grv-nodes">
         <h1> Nodes </h1>
         <div className="">
           <div className="">
             <div className="">
-              <Table rowCount={data.length}>
+              <Table rowCount={data.length} className="table-stripped grv-nodes-table">
                 <Column
-                  columnKey="count"
+                  columnKey="sessionCount"
                   header={<Cell> Sessions </Cell> }
                   cell={<TextCell data={data}/> }
                 />
                 <Column
-                  columnKey="ip"
+                  columnKey="addr"
                   header={<Cell> Node </Cell> }
                   cell={<TextCell data={data}/> }
                 />
                 <Column
                   columnKey="tags"
                   header={<Cell></Cell> }
-                  cell={<TextCell data={data}/> }
+                  cell={<TagCell data={data}/> }
                 />
                 <Column
                   columnKey="roles"
                   header={<Cell>Login as</Cell> }
-                  cell={<TextCell data={data}/> }
+                  cell={<LoginCell data={data} user={this.state.user}/> }
                 />
               </Table>
             </div>

@@ -48,6 +48,11 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 )
 
+// HangoutTokenLenBytes specifies the length of a hangout token
+const HangoutTokenLenBytes = 32
+
+// Hangout is a special type of session that user shares from her computer
+// inviting other Teleport users to participate
 type Hangout struct {
 	auth             *auth.AuthServer
 	signer           ssh.Signer
@@ -66,6 +71,7 @@ type Hangout struct {
 	sessions         session.SessionServer
 }
 
+// New returns a new hangout instance
 func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 	readOnly bool, authMethods []ssh.AuthMethod,
 	hostKeyCallback utils.HostKeyCallback) (*Hangout, error) {
@@ -108,7 +114,7 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 
 	h := &Hangout{}
 
-	h.HangoutID, err = auth.CryptoRandomHex(20)
+	h.HangoutID, err = utils.CryptoRandomHex(HangoutTokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -173,7 +179,7 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 
 func (h *Hangout) createUser() error {
 	var err error
-	h.userPassword, err = auth.CryptoRandomHex(20)
+	h.userPassword, err = utils.CryptoRandomHex(HangoutTokenLenBytes)
 	if err != nil {
 		return trace.Wrap(err)
 	}

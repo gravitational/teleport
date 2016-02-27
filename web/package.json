@@ -59,6 +59,6 @@
     "url-loader": "^0.5.7",
     "webpack": "^1.4.13",
     "webpack-dev-middleware": "^1.5.1",
-    "webpack-dev-server": "^1.10.1"
+    "webpack-dev-server": "^1.14.1"
   }
 }

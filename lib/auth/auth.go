@@ -23,8 +23,6 @@ limitations under the License.
 package auth
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 
 	"os"
@@ -65,7 +63,7 @@ type Session struct {
 	// ID is a session ID
 	ID string `json:"id"`
 	// User is a user this session belongs to
-	User string `json:"user"`
+	User services.User `json:"user"`
 	// WS is a private keypair used for signing requests
 	WS services.WebSession `json:"web"`
 }
@@ -180,6 +178,24 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 	return sess, nil
 }
 
+// CreateWebSession creates a new web session for a user based on a valid previous sessionID,
+// method is used to renew the web session for a user
+func (s *AuthServer) CreateWebSession(user string, prevSessionID string) (*Session, error) {
+	_, err := s.GetWebSession(user, prevSessionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess, err := s.NewWebSession(user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.UpsertWebSession(user, sess, WebSessionTTL); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess.WS.Priv = nil
+	return sess, nil
+}
+
 func (s *AuthServer) GenerateToken(nodeName string, role teleport.Role, ttl time.Duration) (string, error) {
 	if !cstrings.IsValidDomainName(nodeName) {
 		return "", trace.Wrap(teleport.BadParameter("nodeName",
@@ -188,7 +204,7 @@ func (s *AuthServer) GenerateToken(nodeName string, role teleport.Role, ttl time
 	if err := role.Check(); err != nil {
 		return "", trace.Wrap(err)
 	}
-	token, err := CryptoRandomHex(TokenLenBytes)
+	token, err := utils.CryptoRandomHex(TokenLenBytes)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -313,8 +329,12 @@ func (s *AuthServer) DeleteToken(outputToken string) error {
 	return s.ProvisioningService.DeleteToken(token)
 }
 
-func (s *AuthServer) NewWebSession(user string) (*Session, error) {
-	token, err := CryptoRandomHex(WebSessionTokenLenBytes)
+func (s *AuthServer) NewWebSession(userName string) (*Session, error) {
+	token, err := utils.CryptoRandomHex(WebSessionTokenLenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	bearerToken, err := utils.CryptoRandomHex(WebSessionTokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -333,14 +353,23 @@ func (s *AuthServer) NewWebSession(user string) (*Session, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := s.Authority.GenerateUserCert(privateKey, pub, user, WebSessionTTL)
+	cert, err := s.Authority.GenerateUserCert(privateKey, pub, userName, WebSessionTTL)
 	if err != nil {
 		return nil, err
 	}
+	user, err := s.GetUser(userName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	sess := &Session{
 		ID:   token,
-		User: user,
-		WS:   services.WebSession{Priv: priv, Pub: cert, Expires: s.clock.Now().UTC().Add(WebSessionTTL)},
+		User: *user,
+		WS: services.WebSession{
+			Priv:        priv,
+			Pub:         cert,
+			Expires:     s.clock.Now().UTC().Add(WebSessionTTL),
+			BearerToken: bearerToken,
+		},
 	}
 	return sess, nil
 }
@@ -349,27 +378,35 @@ func (s *AuthServer) UpsertWebSession(user string, sess *Session, ttl time.Durat
 	return s.WebService.UpsertWebSession(user, sess.ID, sess.WS, ttl)
 }
 
-func (s *AuthServer) GetWebSession(user string, id string) (*Session, error) {
-	ws, err := s.WebService.GetWebSession(user, id)
+func (s *AuthServer) GetWebSession(userName string, id string) (*Session, error) {
+	ws, err := s.WebService.GetWebSession(userName, id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user, err := s.GetUser(userName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &Session{
 		ID:   id,
-		User: user,
+		User: *user,
 		WS:   *ws,
 	}, nil
 }
 
-func (s *AuthServer) GetWebSessionInfo(user string, id string) (*Session, error) {
-	sess, err := s.WebService.GetWebSession(user, id)
+func (s *AuthServer) GetWebSessionInfo(userName string, id string) (*Session, error) {
+	sess, err := s.WebService.GetWebSession(userName, id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user, err := s.GetUser(userName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sess.Priv = nil
 	return &Session{
 		ID:   id,
-		User: user,
+		User: *user,
 		WS:   *sess,
 	}, nil
 }
@@ -379,18 +416,11 @@ func (s *AuthServer) DeleteWebSession(user string, id string) error {
 }
 
 const (
-	Week                    = time.Hour * 24 * 7
-	WebSessionTTL           = time.Hour * 10
-	TokenLenBytes           = 16
+	// WebSessionTTL specifies standard web session time to live
+	WebSessionTTL = 10 * time.Minute
+	// TokenLenBytes is len in bytes of the invite token
+	TokenLenBytes = 16
+	// WebSessionTokenLenBytes specifies len in bytes of the
+	// web session random token
 	WebSessionTokenLenBytes = 32
 )
-
-// CryptoRandomHex returns hex encoded random string generated with crypto-strong
-// pseudo random generator of the given bytes
-func CryptoRandomHex(len int) (string, error) {
-	randomBytes := make([]byte, len)
-	if _, err := rand.Reader.Read(randomBytes); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return hex.EncodeToString(randomBytes), nil
-}

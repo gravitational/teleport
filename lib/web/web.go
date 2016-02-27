@@ -19,6 +19,7 @@ limitations under the License.
 package web
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -27,12 +28,15 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/codahale/lunk"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -43,9 +47,25 @@ import (
 type Handler struct {
 	httprouter.Router
 	cfg   Config
-	auth  *sessionHandler
+	auth  *sessionCache
 	sites *ttlmap.TtlMap
 	sync.Mutex
+	sessionStreamPollPeriod time.Duration
+}
+
+// HandlerOption is a functional argument - an option that can be passed
+// to NewHandler function
+type HandlerOption func(h *Handler) error
+
+// SetSessionStreamPollPeriod sets polling period for session streams
+func SetSessionStreamPollPeriod(period time.Duration) HandlerOption {
+	return func(h *Handler) error {
+		if period < 0 {
+			return trace.Wrap(teleport.BadParameter("period", "period should be non zero"))
+		}
+		h.sessionStreamPollPeriod = period
+		return nil
+	}
 }
 
 // Config represents web handler configuration parameters
@@ -68,7 +88,7 @@ type Config struct {
 const Version = "v1"
 
 // HewHandler returns a new instance of web proxy handler
-func NewHandler(cfg Config) (http.Handler, error) {
+func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	lauth, err := newSessionHandler(!cfg.InsecureHTTPMode, []utils.NetAddr{cfg.AuthServers})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -79,9 +99,20 @@ func NewHandler(cfg Config) (http.Handler, error) {
 		auth: lauth,
 	}
 
+	for _, o := range opts {
+		if err := o(h); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if h.sessionStreamPollPeriod == 0 {
+		h.sessionStreamPollPeriod = defaultPollPeriod
+	}
+
 	// Web sessions
 	h.POST("/webapi/sessions", httplib.MakeHandler(h.createSession))
 	h.DELETE("/webapi/sessions/:sid", h.withAuth(h.deleteSession))
+	h.POST("/webapi/sessions/renew", h.withAuth(h.renewSession))
 
 	// Users
 	h.GET("/webapi/users/invites/:token", httplib.MakeHandler(h.renderUserInvite))
@@ -97,6 +128,10 @@ func NewHandler(cfg Config) (http.Handler, error) {
 
 	// get nodes
 	h.GET("/webapi/sites/:site/nodes", h.withSiteAuth(h.getSiteNodes))
+	// connect to node via websocket (that's why it's a GET method)
+	h.GET("/webapi/sites/:site/connect", h.withSiteAuth(h.siteNodeConnect))
+	// get session event stream
+	h.GET("/webapi/sites/:site/sessions/:sid/events/stream", h.withSiteAuth(h.siteSessionStream))
 
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
@@ -127,9 +162,18 @@ type createSessionResponse struct {
 	// Token value
 	Token string `json:"token"`
 	// User represents the user
-	User string `json:"user"`
+	User services.User `json:"user"`
 	// ExpiresIn sets seconds before this token is not valid
 	ExpiresIn int `json:"expires_in"`
+}
+
+func newSessionResponse(sess *auth.Session) *createSessionResponse {
+	return &createSessionResponse{
+		Type:      roundtrip.AuthBearer,
+		Token:     sess.WS.BearerToken,
+		User:      sess.User,
+		ExpiresIn: int(time.Now().Sub(sess.WS.Expires) / time.Second),
+	}
 }
 
 // createSession creates a new web session based on user, pass and 2nd factor token
@@ -140,14 +184,13 @@ type createSessionResponse struct {
 //
 // Response
 //
-// {"type": "bearer", "token": "bearer token", "user": "alex", "expires_in": 20}
+// {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
 //
 func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *createSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	sess, err := m.auth.Auth(req.User, req.Pass, req.SecondFactorToken)
 	if err != nil {
 		log.Infof("bad access credentials: %v", err)
@@ -156,12 +199,7 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 	if err := SetSession(w, req.User, sess.ID); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &createSessionResponse{
-		Type:      roundtrip.AuthBearer,
-		Token:     sess.ID,
-		User:      req.User,
-		ExpiresIn: int(time.Now().Sub(sess.WS.Expires) / time.Second),
-	}, nil
+	return newSessionResponse(sess), nil
 }
 
 // deleteSession is called to sign out user
@@ -173,18 +211,42 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 // {"message": "ok"}
 //
 func (m *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *sessionContext) (interface{}, error) {
-	clt, err := ctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sess := ctx.GetWebSession()
-	if err := clt.DeleteWebSession(ctx.GetUser(), sess.ID); err != nil {
+	if err := ctx.Invalidate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := ClearSession(w); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return ok(), nil
+}
+
+// renewSession is called to renew the session that is about to expire
+// it issues the new session and generates new session cookie.
+// It's important to understand that the old session becomes effectively invalid.
+//
+// POST /v1/webapi/sessions/renew
+//
+// Response
+//
+// {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
+//
+//
+func (m *Handler) renewSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *sessionContext) (interface{}, error) {
+	newSess, err := ctx.CreateWebSession()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// transfer ownership over connections that were opened in the
+	// sessionContext
+	newContext, err := ctx.parent.ValidateSession(newSess.User.Name, newSess.ID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	newContext.AddClosers(ctx.TransferClosers()...)
+	if err := SetSession(w, newSess.User.Name, newSess.ID); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newSessionResponse(newSess), nil
 }
 
 type renderUserInviteResponse struct {
@@ -242,15 +304,10 @@ func (m *Handler) createNewUser(w http.ResponseWriter, r *http.Request, p httpro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := SetSession(w, sess.User, sess.ID); err != nil {
+	if err := SetSession(w, sess.User.Name, sess.ID); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &createSessionResponse{
-		Type:      roundtrip.AuthBearer,
-		Token:     sess.ID,
-		User:      sess.User,
-		ExpiresIn: int(time.Now().Sub(sess.WS.Expires) / time.Second),
-	}, nil
+	return newSessionResponse(sess), nil
 }
 
 type getSitesResponse struct {
@@ -289,28 +346,48 @@ func (m *Handler) getSites(w http.ResponseWriter, r *http.Request, _ httprouter.
 	}, nil
 }
 
-type getSiteNodesResponse struct {
-	Nodes []services.Server `json:"nodes"`
+type nodeWithSessions struct {
+	Node     services.Server   `json:"node"`
+	Sessions []session.Session `json:"sessions"`
 }
 
-// getSiteNodes returns a list of nodes active in the site
-//
-// GET /v1/webapi/sites/:site/nodes
-//
-// Sucessful response:
-//
-// {"nodes": [
-//   {
-//     "addr": "ip:port",
-//     "hostname": "a.example.com",
-//     "labels": {"role": "mysql"}, // static key value pairs set by user for every node
-//     "cmd_labels": {
-//         "db_status": {
-//           "command": "mysql -c status", // command periodically executed on server
-//           "result": "master",  // output of the command
-//           "period": 1000000000 // microseconds between calls
-//      }}}]}
-//
+type getSiteNodesResponse struct {
+	Nodes []nodeWithSessions `json:"nodes"`
+}
+
+/* getSiteNodes returns a list of nodes active in the site
+
+GET /v1/webapi/sites/:site/nodes
+
+Sucessful response:
+
+{"nodes": [
+  {
+    "node": {
+        "addr": "ip:port",
+        "hostname": "a.example.com",
+        "labels": {"role": "mysql"}, // static key value pairs set by user for every node
+        "cmd_labels": {
+            "db_status": {
+               "command": "mysql -c status", // command periodically executed on server
+               "result": "master",  // output of the command
+               "period": 1000000000 // microseconds between calls
+             }
+        }
+     },
+     "sessions": [{
+         "id": "unique session id",
+         "parties": [{ // parties is a list of currently active participants
+            "id": "party id",
+            "user": "alice", // teleport user
+            "server_addr": "127.0.0.1:3000",
+            "last_active": "time" // RFC3339 timestamp when user was last acive
+         }]
+     }]
+   }
+  ]
+}
+*/
 func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := site.GetClient()
 	if err != nil {
@@ -320,9 +397,96 @@ func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprou
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	sessions, err := clt.GetSessions()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	nodeMap := make(map[string]*nodeWithSessions, len(servers))
+	for i := range servers {
+		nodeMap[servers[i].Addr] = &nodeWithSessions{Node: servers[i]}
+	}
+	for i := range sessions {
+		sess := sessions[i]
+		for _, p := range sess.Parties {
+			if _, ok := nodeMap[p.ServerAddr]; ok {
+				nodeMap[p.ServerAddr].Sessions = append(nodeMap[p.ServerAddr].Sessions, sess)
+			}
+		}
+	}
+	nodes := make([]nodeWithSessions, 0, len(nodeMap))
+	for key := range nodeMap {
+		nodes = append(nodes, *nodeMap[key])
+	}
 	return getSiteNodesResponse{
-		Nodes: servers,
+		Nodes: nodes,
 	}, nil
+}
+
+// siteNodeConnect connect to the site node
+//
+// GET /v1/webapi/sites/:site/connect?access_token=bearer_token&params=<urlencoded json-structure>
+//
+// Due to the nature of websocket we can't POST parameters as is, so we have
+// to add query parameters. The params query parameter is a url encodeed JSON strucrture:
+//
+// {"addr": "127.0.0.1:5000", "login": "admin", "term": {"h": 120, "w": 100}, "sid": "123"}
+//
+// Session id can be empty
+//
+// Sucessful response is a websocket stream that allows read write to the server
+//
+func (m *Handler) siteNodeConnect(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	q := r.URL.Query()
+	params := q.Get("params")
+	if params == "" {
+		return nil, trace.Wrap(teleport.BadParameter("params", "missing params"))
+	}
+	var req *connectReq
+	if err := json.Unmarshal([]byte(params), &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connect, err := newConnectHandler(*req, ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// this is to make sure we close web socket connections once
+	// sessionContext that owns them expires
+	ctx.AddClosers(connect)
+	defer connect.Close()
+	connect.Handler().ServeHTTP(w, r)
+	return nil, nil
+}
+
+// sessionStreamEvent is sent over the session stream socket, it contains
+// last events that occured (only new events are sent), currently active
+// nodes and current active session
+type sessionStreamEvent struct {
+	Events  []lunk.Entry      `json:"events"`
+	Nodes   []services.Server `json:"nodes"`
+	Session session.Session   `json:"session"`
+}
+
+// siteSessionStream returns a stream of events related to the session
+//
+// GET /v1/webapi/sites/:site/sessions/:sid/events/stream?access_token=bearer_token
+//
+// Sucessful response is a websocket stream that allows read write to the server and returns
+// json events
+//
+func (m *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	sessionID := p.ByName("sid")
+
+	connect, err := newSessionStreamHandler(
+		sessionID, ctx, site, m.sessionStreamPollPeriod)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// this is to make sure we close web socket connections once
+	// sessionContext that owns them expires
+	ctx.AddClosers(connect)
+	defer connect.Close()
+	connect.Handler().ServeHTTP(w, r)
+	return nil, nil
 }
 
 // createSSHCertReq are passed by web client
@@ -379,6 +543,11 @@ func (h *Handler) String() string {
 	return fmt.Sprintf("multi site")
 }
 
+// currentSiteShortcut is a special shortcut that will return the first
+// available site, is helpful when UI works in single site mode to reduce
+// the amount of requests
+const currentSiteShortcut = "-current-"
+
 // contextHandler is a handler called with the auth context, what means it is authenticated and ready to work
 type contextHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext) (interface{}, error)
 
@@ -390,9 +559,18 @@ func (h *Handler) withSiteAuth(fn siteHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		ctx, err := h.authenticateRequest(r)
 		if err != nil {
+			// clear session just in case if the authentication request is not valid
+			ClearSession(w)
 			return nil, trace.Wrap(err)
 		}
 		siteName := p.ByName("site")
+		if siteName == currentSiteShortcut {
+			sites := h.cfg.Proxy.GetSites()
+			if len(sites) < 1 {
+				return nil, trace.Wrap(teleport.NotFound("no active sites"))
+			}
+			siteName = sites[0].GetName()
+		}
 		site, err := h.cfg.Proxy.GetSite(siteName)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -439,9 +617,10 @@ func (h *Handler) authenticateRequest(r *http.Request) (*sessionContext, error) 
 		logger.Warningf("invalid session: %v", err)
 		return nil, trace.Wrap(teleport.AccessDenied("need auth"))
 	}
-	if creds.Password != d.SID {
-		logger.Warningf("bad auth token")
-		return nil, trace.Wrap(teleport.AccessDenied("missing auth token"))
+	logger.Infof("incoming request %v %v", d.SID[:4], creds.Password[:4])
+	if creds.Password != ctx.GetWebSession().WS.BearerToken {
+		logger.Warningf("bad bearer token")
+		return nil, trace.Wrap(teleport.AccessDenied("bad bearer token"))
 	}
 	return ctx, nil
 }

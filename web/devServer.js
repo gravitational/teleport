@@ -16,9 +16,17 @@ var compiler = webpack(webpackConfig);
 var server = new WebpackDevServer(compiler, {
   proxy: {
     //"v1/webapi/users/invites": "http://x220:3080"
-    "/v1/webapi/*": "http://0.0.0.0:3080/",
-    "/portal/*": "http://localhost:33009",
-    "/sites/v1/*": "http://localhost:33009"
+    /*"/v1/socket/*" : {
+      target: 'ws://localhost:3080/v1/webapi/',
+      ws: true
+    },*/
+    "/v1/webapi/*": {
+      target: "http://0.0.0.0:3080/"
+    },
+    "/socket/*": {
+      target: "ws://0.0.0.0:3080/v1/",
+      ws: true
+    }
     ///"/sites/v1/*": "http://172.28.128.4:34444"
   },
   publicPath: ROOT +'/app',

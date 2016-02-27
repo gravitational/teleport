@@ -3,7 +3,7 @@ var  { TLPT_RECEIVE_NODES } = require('./actionTypes');
 
 export default Store({
   getInitialState() {
-    return toImmutable({});
+    return toImmutable([]);
   },
 
   initialize() {
@@ -11,10 +11,6 @@ export default Store({
   }
 })
 
-function receiveNodes(state, nodeArrayData){
-  return state.withMutations(state => {
-    nodeArrayData.forEach((item) => {
-        state.set(item.id, toImmutable(item))
-      })
-   });
+function receiveNodes(state, nodeArray){
+  return toImmutable(nodeArray);
 }

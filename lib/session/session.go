@@ -20,6 +20,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/trace"
 )
 
 type SessionServer interface {
@@ -82,12 +85,13 @@ func (s *server) GetSession(id string) (*Session, error) {
 }
 
 func (s *server) UpsertSession(id string, ttl time.Duration) error {
-	return s.bk.UpsertVal([]string{"sessions", id}, "val", []byte("val"), ttl)
+	log.Infof("UpsertSeesion(%v, %v)", id, ttl)
+	return trace.Wrap(s.bk.UpsertVal([]string{"sessions", id}, "val", []byte("val"), ttl))
 }
 
 func (s *server) UpsertParty(id string, p Party, ttl time.Duration) error {
 	if err := s.UpsertSession(id, ttl); err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	return s.bk.UpsertJSONVal([]string{"sessions", id, "parties"}, p.ID, p, ttl)
 }

@@ -3,8 +3,9 @@ var { Router, IndexLink, History } = require('react-router');
 var cfg = require('app/config');
 
 var menuItems = [
-  {icon: 'fa fa fa-sitemap', to: cfg.routes.nodes, title: 'Nodes'},
-  {icon: 'fa fa-hdd-o', to: cfg.routes.sessions, title: 'Sessions'}
+  {icon: 'fa fa-cogs', to: cfg.routes.nodes, title: 'Nodes'},
+  {icon: 'fa fa-sitemap', to: cfg.routes.sessions, title: 'Sessions'},
+  {icon: 'fa fa-question', to: cfg.routes.sessions, title: 'Sessions'},
 ];
 
 var NavLeftBar = React.createClass({

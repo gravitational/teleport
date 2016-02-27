@@ -1,20 +1,17 @@
 var React = require('react');
 var NavLeftBar = require('./navLeftBar');
 var cfg = require('app/config');
+var {TerminalHost} = require('./terminalHost.jsx');
 
 var App = React.createClass({
   render: function() {
     return (
-      <div className="grv">
+      <div className="grv-tlpt">
+        <TerminalHost/>
         <NavLeftBar/>
-        <div className="row" style={{marginLeft: "70px"}}>
+        <div className="row">
           <nav className="" role="navigation" style={{ marginBottom: 0 }}>
-            <ul className="nav navbar-top-links navbar-right">
-              <li>
-                <span className="m-r-sm text-muted welcome-message">
-                  Welcome to Gravitational Portal
-                </span>
-              </li>
+            <ul className="nav navbar-top-links navbar-right">              
               <li>
                 <a href={cfg.routes.logout}>
                   <i className="fa fa-sign-out"></i>
@@ -24,7 +21,7 @@ var App = React.createClass({
             </ul>
           </nav>
         </div>
-        <div style={{ 'marginLeft': '100px' }}>
+        <div className="grv-page">
           {this.props.children}
         </div>
       </div>

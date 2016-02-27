@@ -40,8 +40,12 @@ func NewStandardPermissions() PermissionChecker {
 
 	sp.permissions[teleport.RoleUser] = map[string]bool{
 		ActionSignIn:             true,
+		ActionCreateWebSession:   true,
 		ActionGenerateUserCert:   true,
 		ActionGetCertAuthorities: true,
+		ActionGetSession:         true,
+		ActionGetSessions:        true,
+		ActionGetEvents:          true,
 	}
 
 	sp.permissions[teleport.RoleProvisionToken] = map[string]bool{
@@ -61,8 +65,13 @@ func NewStandardPermissions() PermissionChecker {
 	}
 
 	sp.permissions[teleport.RoleWeb] = map[string]bool{
+		ActionSignIn:           true,
+		ActionCreateWebSession: true,
 		ActionGetWebSession:    true,
 		ActionDeleteWebSession: true,
+		ActionGetSession:       true,
+		ActionGetSessions:      true,
+		ActionGetEvents:        true,
 	}
 
 	sp.permissions[teleport.RoleSignup] = map[string]bool{
@@ -173,7 +182,7 @@ var HangoutRoles = []teleport.Role{
 }
 
 const (
-	ActionGetSessions                   = "GetSession"
+	ActionGetSessions                   = "GetSessions"
 	ActionGetSession                    = "GetSession"
 	ActionDeleteSession                 = "DeleteSession"
 	ActionUpsertSession                 = "UpsertSession"
@@ -196,6 +205,7 @@ const (
 	ActionUpsertPassword                = "UpsertPassword"
 	ActionCheckPassword                 = "CheckPassword"
 	ActionSignIn                        = "SignIn"
+	ActionCreateWebSession              = "CreateWebSession"
 	ActionGetWebSession                 = "GetWebSession"
 	ActionGetWebSessionsKeys            = "GetWebSessionsKeys"
 	ActionDeleteWebSession              = "DeleteWebSession"

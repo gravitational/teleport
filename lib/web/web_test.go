@@ -17,13 +17,17 @@ limitations under the License.
 package web
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"os/user"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/boltlog"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -43,9 +48,11 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/codahale/lunk"
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/roundtrip"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/websocket"
 	. "gopkg.in/check.v1"
 )
 
@@ -103,10 +110,11 @@ func (s *WebSuite) SetUpTest(c *C) {
 	recorder, err := boltrec.New(s.dir)
 	c.Assert(err, IsNil)
 
+	sessionServer := sess.New(baseBk)
 	s.roleAuth = auth.NewAuthWithRoles(authServer,
 		auth.NewStandardPermissions(),
 		eventsLog,
-		sess.New(baseBk),
+		sessionServer,
 		teleport.RoleAdmin,
 		recorder)
 
@@ -133,6 +141,9 @@ func (s *WebSuite) SetUpTest(c *C) {
 		s.roleAuth,
 		s.dir,
 		srv.SetShell("/bin/sh"),
+		srv.SetSessionServer(sessionServer),
+		srv.SetRecorder(recorder),
+		srv.SetEventLogger(eventsLog),
 	)
 	c.Assert(err, IsNil)
 	s.node = node
@@ -154,7 +165,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	apiPort := s.freePorts[len(s.freePorts)-1]
 	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 
-	apiServer := auth.NewAPIWithRoles(authServer, eventsLog, sess.New(s.bk), recorder,
+	apiServer := auth.NewAPIWithRoles(authServer, eventsLog, sessionServer, recorder,
 		auth.NewAllowAllPermissions(),
 		auth.StandardRoles,
 	)
@@ -178,7 +189,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		AssetsDir:        "assets/web",
 		AuthServers:      tunAddr,
 		DomainName:       s.domainName,
-	})
+	}, SetSessionStreamPollPeriod(200*time.Millisecond))
 
 	s.webServer = httptest.NewServer(handler)
 }
@@ -267,10 +278,28 @@ func (s *WebSuite) TestNewUser(c *C) {
 
 type authPack struct {
 	user    string
-	pass    string
 	otp     *hotp.HOTP
 	session *createSessionResponse
 	clt     *webClient
+	cookies []*http.Cookie
+}
+
+func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack {
+	var sess *createSessionResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &sess), IsNil)
+
+	jar, err := cookiejar.New(nil)
+	c.Assert(err, IsNil)
+
+	clt := s.client(roundtrip.BearerAuth(sess.Token), roundtrip.CookieJar(jar))
+	jar.SetCookies(s.url(), re.Cookies())
+
+	return &authPack{
+		user:    sess.User.Name,
+		session: sess,
+		clt:     clt,
+		cookies: re.Cookies(),
+	}
 }
 
 // authPack returns new authenticated package consisting
@@ -285,6 +314,10 @@ func (s *WebSuite) authPack(c *C) *authPack {
 	otp, _, err := hotp.FromURL(hotpURL)
 	c.Assert(err, IsNil)
 	otp.Increment()
+
+	err = s.roleAuth.UpsertUser(
+		services.User{Name: user, AllowedLogins: []string{s.user}})
+	c.Assert(err, IsNil)
 
 	clt := s.client()
 
@@ -306,9 +339,9 @@ func (s *WebSuite) authPack(c *C) *authPack {
 
 	return &authPack{
 		user:    user,
-		pass:    pass,
 		session: sess,
 		clt:     clt,
+		cookies: re.Cookies(),
 	}
 }
 
@@ -329,6 +362,42 @@ func (s *WebSuite) TestWebSessionsCRUD(c *C) {
 
 	// subsequent requests trying to use this session will fail
 	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	c.Assert(err, NotNil)
+	c.Assert(teleport.IsAccessDenied(err), Equals, true)
+}
+
+func (s *WebSuite) TestWebSessionsRenew(c *C) {
+	pack := s.authPack(c)
+
+	// make sure we can use client to make authenticated requests
+	// before we issue this request, we will recover session id and bearer token
+	//
+	prevSessionCookie := *pack.cookies[0]
+	prevBearerToken := pack.session.Token
+	re, err := pack.clt.PostJSON(pack.clt.Endpoint("webapi", "sessions", "renew"), nil)
+	c.Assert(err, IsNil)
+
+	newPack := s.authPackFromResponse(c, re)
+
+	// new session is functioning
+	re, err = newPack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	c.Assert(err, IsNil)
+
+	// old session is stil valid too (until it expires)
+	jar, err := cookiejar.New(nil)
+	c.Assert(err, IsNil)
+	oldClt := s.client(roundtrip.BearerAuth(prevBearerToken), roundtrip.CookieJar(jar))
+	jar.SetCookies(s.url(), []*http.Cookie{&prevSessionCookie})
+	re, err = oldClt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	c.Assert(err, IsNil)
+
+	// now delete session
+	_, err = newPack.clt.Delete(
+		pack.clt.Endpoint("webapi", "sessions", newPack.session.Token))
+	c.Assert(err, IsNil)
+
+	// subsequent requests trying to use this session will fail
+	re, err = newPack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
 	c.Assert(teleport.IsAccessDenied(err), Equals, true)
 }
@@ -395,4 +464,207 @@ func (s *WebSuite) TestGetSiteNodes(c *C) {
 	var nodes *getSiteNodesResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &nodes), IsNil)
 	c.Assert(len(nodes.Nodes), Equals, 1)
+
+	// get site nodes using shortcut
+	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), url.Values{})
+	c.Assert(err, IsNil)
+
+	var nodes2 *getSiteNodesResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &nodes2), IsNil)
+	c.Assert(len(nodes.Nodes), Equals, 1)
+
+	c.Assert(nodes2, DeepEquals, nodes)
+}
+
+func (s *WebSuite) connect(c *C, pack *authPack, opts ...string) *websocket.Conn {
+	var sessionID string
+	if len(opts) != 0 {
+		sessionID = opts[0]
+	}
+	u := url.URL{Host: s.url().Host, Scheme: "ws", Path: fmt.Sprintf("/v1/webapi/sites/%v/connect", currentSiteShortcut)}
+	data, err := json.Marshal(connectReq{
+		Addr:      s.srvAddress,
+		Login:     s.user,
+		Term:      connectTerm{W: 100, H: 100},
+		SessionID: sessionID,
+	})
+	c.Assert(err, IsNil)
+
+	q := u.Query()
+	q.Set("params", string(data))
+	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
+	u.RawQuery = q.Encode()
+
+	wscfg, err := websocket.NewConfig(u.String(), "http://localhost")
+	c.Assert(err, IsNil)
+	for _, cookie := range pack.cookies {
+		wscfg.Header.Add("Cookie", cookie.String())
+	}
+	clt, err := websocket.DialConfig(wscfg)
+	c.Assert(err, IsNil)
+
+	return clt
+}
+
+func (s *WebSuite) sessionStream(c *C, pack *authPack, sessionID string, opts ...string) *websocket.Conn {
+	u := url.URL{
+		Host:   s.url().Host,
+		Scheme: "ws",
+		Path: fmt.Sprintf(
+			"/v1/webapi/sites/%v/sessions/%v/events/stream",
+			currentSiteShortcut,
+			sessionID),
+	}
+	q := u.Query()
+	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
+	u.RawQuery = q.Encode()
+	wscfg, err := websocket.NewConfig(u.String(), "http://localhost")
+	c.Assert(err, IsNil)
+	for _, cookie := range pack.cookies {
+		wscfg.Header.Add("Cookie", cookie.String())
+	}
+	clt, err := websocket.DialConfig(wscfg)
+	c.Assert(err, IsNil)
+
+	return clt
+}
+
+func (s *WebSuite) TestConnect(c *C) {
+	clt := s.connect(c, s.authPack(c))
+	defer clt.Close()
+
+	doneC := make(chan error, 2)
+	go func() {
+		_, err := io.WriteString(clt, "expr 137 + 39\r\nexit\r\n")
+		doneC <- err
+	}()
+
+	output := &bytes.Buffer{}
+	go func() {
+		_, err := io.Copy(output, clt)
+		doneC <- err
+	}()
+
+	timeoutC := time.After(time.Second)
+	for i := 0; i < 2; i++ {
+		select {
+		case <-doneC:
+			break
+		case <-timeoutC:
+			c.Fatalf("timeout!")
+		}
+	}
+
+	c.Assert(removeSpace(output.String()), Matches, ".*176.*")
+}
+
+func (s *WebSuite) TestNodesWithSessions(c *C) {
+	sid := "testsession"
+	pack := s.authPack(c)
+	clt := s.connect(c, pack, sid)
+	defer clt.Close()
+
+	// to make sure we have a session
+	_, err := io.WriteString(clt, "expr 137 + 39\r\n")
+	c.Assert(err, IsNil)
+
+	// make sure server has replied
+	out := make([]byte, 100)
+	clt.Read(out)
+	fmt.Printf("%v", string(out))
+
+	var nodes *getSiteNodesResponse
+	for i := 0; i < 3; i++ {
+		// get site nodes and make sure the node has our active party
+		re, err := pack.clt.Get(pack.clt.Endpoint("webapi", "sites", s.domainName, "nodes"), url.Values{})
+		c.Assert(err, IsNil)
+
+		c.Assert(json.Unmarshal(re.Bytes(), &nodes), IsNil)
+		c.Assert(len(nodes.Nodes), Equals, 1)
+
+		if len(nodes.Nodes[0].Sessions) == 1 {
+			break
+		}
+		// sessions do not appear momentarily as there's async heartbeat
+		// procedure
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	c.Assert(len(nodes.Nodes[0].Sessions), Equals, 1)
+	c.Assert(nodes.Nodes[0].Sessions[0].ID, Equals, sid)
+
+	// connect to session stream and receive events
+	stream := s.sessionStream(c, pack, sid)
+	defer stream.Close()
+	var event *sessionStreamEvent
+	c.Assert(websocket.JSON.Receive(stream, &event), IsNil)
+	c.Assert(event, NotNil)
+	c.Assert(getEvent(events.SessionEvent, event.Events), NotNil)
+
+	// one more party joins the session
+	clt2 := s.connect(c, pack, sid)
+	defer clt2.Close()
+
+	// to make sure we have a session
+	_, err = io.WriteString(clt, "expr 147 + 29\r\n")
+	c.Assert(err, IsNil)
+
+	c.Assert(websocket.JSON.Receive(stream, &event), IsNil)
+	c.Assert(len(event.Session.Parties), Equals, 2)
+}
+
+func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
+	sid := "testsession"
+	pack := s.authPack(c)
+	clt := s.connect(c, pack, sid)
+	defer clt.Close()
+
+	// to make sure we have a session
+	_, err := io.WriteString(clt, "expr 137 + 39\r\n")
+	c.Assert(err, IsNil)
+
+	// make sure server has replied
+	out := make([]byte, 100)
+	clt.Read(out)
+
+	_, err = pack.clt.Delete(
+		pack.clt.Endpoint("webapi", "sessions", pack.session.Token))
+	c.Assert(err, IsNil)
+
+	// wait until we timeout or detect that connection has been closed
+	after := time.After(time.Second)
+	errC := make(chan error)
+	go func() {
+		for {
+			_, err := clt.Read(out)
+			if err != nil {
+				errC <- err
+			}
+		}
+	}()
+
+	select {
+	case <-after:
+		c.Fatalf("timeout")
+	case err := <-errC:
+		c.Assert(err, Equals, io.EOF)
+	}
+
+}
+
+func getEvent(schema string, events []lunk.Entry) *lunk.Entry {
+	for i := range events {
+		e := events[i]
+		if e.Schema == schema {
+			return &e
+		}
+	}
+	return nil
+}
+
+func removeSpace(in string) string {
+	for _, c := range []string{"\n", "\r", "\t"} {
+		in = strings.Replace(in, c, " ", -1)
+	}
+	return strings.TrimSpace(in)
 }

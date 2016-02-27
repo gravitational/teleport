@@ -17,8 +17,12 @@ limitations under the License.
 package web
 
 import (
+	"io"
 	"net/http"
+	"sync"
+	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -34,9 +38,31 @@ import (
 // between requests for example to avoid connecting
 // to the auth server on every page hit
 type sessionContext struct {
-	sess *auth.Session
-	user string
-	clt  *auth.TunClient
+	sync.Mutex
+	*log.Entry
+	sess    *auth.Session
+	user    string
+	clt     *auth.TunClient
+	parent  *sessionCache
+	closers []io.Closer
+}
+
+func (c *sessionContext) AddClosers(closers ...io.Closer) {
+	c.Lock()
+	defer c.Unlock()
+	c.closers = append(c.closers, closers...)
+}
+
+func (c *sessionContext) TransferClosers() []io.Closer {
+	c.Lock()
+	defer c.Unlock()
+	closers := c.closers
+	c.closers = nil
+	return closers
+}
+
+func (c *sessionContext) Invalidate() error {
+	return c.parent.InvalidateSession(c)
 }
 
 // GetClient returns the client connected to the auth server
@@ -52,6 +78,16 @@ func (c *sessionContext) GetUser() string {
 // GetWebSession returns a web session
 func (c *sessionContext) GetWebSession() *auth.Session {
 	return c.sess
+}
+
+// CreateNewWebSession creates a new web session for this user
+// based on the previous session
+func (c *sessionContext) CreateWebSession() (*auth.Session, error) {
+	sess, err := c.clt.CreateWebSession(c.user, c.sess.ID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sess, nil
 }
 
 // GetAuthMethods returns authentication methods (credentials) that proxy
@@ -70,6 +106,11 @@ func (c *sessionContext) GetAuthMethods() ([]ssh.AuthMethod, error) {
 
 // Close cleans up connections associated with requests
 func (c *sessionContext) Close() error {
+	closers := c.TransferClosers()
+	for _, closer := range closers {
+		c.Infof("closing %v", closer)
+		closer.Close()
+	}
 	if c.clt != nil {
 		return trace.Wrap(c.clt.Close())
 	}
@@ -77,20 +118,21 @@ func (c *sessionContext) Close() error {
 }
 
 // newSessionHandler returns new instance of the session handler
-func newSessionHandler(secure bool, servers []utils.NetAddr) (*sessionHandler, error) {
+func newSessionHandler(secure bool, servers []utils.NetAddr) (*sessionCache, error) {
 	m, err := ttlmap.NewMap(1024, ttlmap.CallOnExpire(closeContext))
 	if err != nil {
 		return nil, err
 	}
-	return &sessionHandler{
+	return &sessionCache{
 		contexts:    m,
 		authServers: servers,
 	}, nil
 }
 
-// sessionHandler handles web session authentication,
+// sessionCache handles web session authentication,
 // and holds in memory contexts associated with each session
-type sessionHandler struct {
+type sessionCache struct {
+	sync.Mutex
 	secure      bool
 	contexts    *ttlmap.TtlMap
 	authServers []utils.NetAddr
@@ -106,7 +148,7 @@ func closeContext(key string, val interface{}) {
 	}
 }
 
-func (s *sessionHandler) Auth(user, pass string, hotpToken string) (*auth.Session, error) {
+func (s *sessionCache) Auth(user, pass string, hotpToken string) (*auth.Session, error) {
 	method, err := auth.NewWebPasswordAuth(user, []byte(pass), hotpToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -118,7 +160,7 @@ func (s *sessionHandler) Auth(user, pass string, hotpToken string) (*auth.Sessio
 	return clt.SignIn(user, []byte(pass))
 }
 
-func (s *sessionHandler) GetCertificate(c createSSHCertReq) (*SSHLoginResponse, error) {
+func (s *sessionCache) GetCertificate(c createSSHCertReq) (*SSHLoginResponse, error) {
 	method, err := auth.NewWebPasswordAuth(c.User, []byte(c.Password),
 		c.HOTPToken)
 	if err != nil {
@@ -149,7 +191,7 @@ func (s *sessionHandler) GetCertificate(c createSSHCertReq) (*SSHLoginResponse, 
 	}, nil
 }
 
-func (s *sessionHandler) GetUserInviteInfo(token string) (user string,
+func (s *sessionCache) GetUserInviteInfo(token string) (user string,
 	QRImg []byte, hotpFirstValues []string, e error) {
 
 	method, err := auth.NewSignupTokenAuth(token)
@@ -164,7 +206,7 @@ func (s *sessionHandler) GetUserInviteInfo(token string) (user string,
 	return clt.GetSignupTokenData(token)
 }
 
-func (s *sessionHandler) CreateNewUser(token, password, hotpToken string) (*auth.Session, error) {
+func (s *sessionCache) CreateNewUser(token, password, hotpToken string) (*auth.Session, error) {
 	method, err := auth.NewSignupTokenAuth(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -177,10 +219,55 @@ func (s *sessionHandler) CreateNewUser(token, password, hotpToken string) (*auth
 	return sess, trace.Wrap(err)
 }
 
-func (s *sessionHandler) ValidateSession(user, sid string) (*sessionContext, error) {
+func (s *sessionCache) InvalidateSession(ctx *sessionContext) error {
+	defer ctx.Close()
+	if err := s.resetContext(ctx.GetUser(), ctx.GetWebSession().ID); err != nil {
+		return trace.Wrap(err)
+	}
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = clt.DeleteWebSession(ctx.GetUser(), ctx.GetWebSession().ID)
+	return trace.Wrap(err)
+}
+
+func (s *sessionCache) getContext(user, sid string) (*sessionContext, error) {
+	s.Lock()
+	defer s.Unlock()
+
 	val, ok := s.contexts.Get(user + sid)
 	if ok {
 		return val.(*sessionContext), nil
+	}
+	return nil, trace.Wrap(teleport.NotFound("sessionContext not found"))
+}
+
+func (s *sessionCache) insertContext(user, sid string, ctx *sessionContext, ttl time.Duration) (*sessionContext, error) {
+	s.Lock()
+	defer s.Unlock()
+
+	val, ok := s.contexts.Get(user + sid)
+	if ok && val != nil { // nil means that we've just invalidated the context now and set it to nil in the cache
+		return val.(*sessionContext), trace.Wrap(&teleport.AlreadyExistsError{})
+	}
+	if err := s.contexts.Set(user+sid, ctx, int(ttl/time.Second)); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ctx, nil
+}
+
+func (s *sessionCache) resetContext(user, sid string) error {
+	s.Lock()
+	defer s.Unlock()
+	return trace.Wrap(s.contexts.Set(user+sid, nil, 1))
+}
+
+func (s *sessionCache) ValidateSession(user, sid string) (*sessionContext, error) {
+	ctx, err := s.getContext(user, sid)
+	if err == nil {
+		ctx.Infof("got from cache")
+		return ctx, nil
 	}
 	method, err := auth.NewWebSessionAuth(user, []byte(sid))
 	if err != nil {
@@ -195,18 +282,30 @@ func (s *sessionHandler) ValidateSession(user, sid string) (*sessionContext, err
 		return nil, trace.Wrap(err)
 	}
 	c := &sessionContext{
-		clt:  clt,
-		user: user,
-		sess: sess,
+		clt:    clt,
+		user:   user,
+		sess:   sess,
+		parent: s,
 	}
-	const localCacheTTL = 600
-	if err := s.contexts.Set(user+sid, c, localCacheTTL); err != nil {
+	c.Entry = log.WithFields(log.Fields{
+		"user": user,
+		"sess": sess.ID[:4],
+	})
+	out, err := s.insertContext(user, sid, c, auth.WebSessionTTL)
+	if err != nil {
+		// this means that someone has just inserted the context, so
+		// close our extra context and return
+		if teleport.IsAlreadyExists(err) {
+			ctx.Infof("just created, returning the existing one")
+			defer c.Close()
+			return out, nil
+		}
 		return nil, trace.Wrap(err)
 	}
-	return c, nil
+	return out, nil
 }
 
-func (s *sessionHandler) SetSession(w http.ResponseWriter, user, sid string) error {
+func (s *sessionCache) SetSession(w http.ResponseWriter, user, sid string) error {
 	d, err := EncodeCookie(user, sid)
 	if err != nil {
 		return err
@@ -222,7 +321,7 @@ func (s *sessionHandler) SetSession(w http.ResponseWriter, user, sid string) err
 	return nil
 }
 
-func (s *sessionHandler) ClearSession(w http.ResponseWriter) {
+func (s *sessionCache) ClearSession(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session",
 		Value:    "",
