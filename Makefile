@@ -1,4 +1,4 @@
-TCD_NODE1 := http://127.0.0.1:4001
+ETCD_NODE1 := http://127.0.0.1:4001
 ETCD_NODES := ${ETCD_NODE1}
 ETCD_FLAGS := TELEPORT_TEST_ETCD_NODES=${ETCD_NODES}
 OUT=out
@@ -18,8 +18,8 @@ tctl:
 
 .PHONY: teleport
 teleport: 
-	rm -rf /var/lib/teleport/assets
-	ln -s $$(pwd)/assets/web/assets /var/lib/teleport 
+	ln -f -s $$(pwd)/web/dist/app /var/lib/teleport/app
+	ln -f -s $$(pwd)/web/dist/index.html /var/lib/teleport/index.html
 	go build -o $(OUT)/teleport -i github.com/gravitational/teleport/tool/teleport
 
 .PHONY: tsh
