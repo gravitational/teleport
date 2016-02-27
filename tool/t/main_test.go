@@ -33,6 +33,6 @@ var _ = check.Suite(&MainTestSuite{})
 func (s *MainTestSuite) SetUpSuite(c *check.C) {
 }
 
-func (s *MainTestSuite) TestMain(c *check.C) {
-	run([]string{}, true)
+func (s *MainTestSuite) TestSSH(c *check.C) {
+	run([]string{"ssh", "localhost"}, true)
 }

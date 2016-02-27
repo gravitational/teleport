@@ -50,8 +50,7 @@ func SSH(target, proxyAddress, command, port, sessionID string, authMethods []ss
 		return client.RunCmd(user, target, proxyAddress, command, authMethods, hostKeyCallback)
 	}
 
-	addresses, err := client.ParseTargetServers(target, user, proxyAddress,
-		authMethods, hostKeyCallback)
+	addresses, err := client.ParseTargetServers(target, user, proxyAddress, authMethods, hostKeyCallback)
 	if err != nil {
 		return trace.Wrap(err)
 	}

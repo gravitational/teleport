@@ -19,20 +19,57 @@ import (
 	"fmt"
 	"os"
 
+	log "github.com/Sirupsen/logrus"
+
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func main() {
+	log.Info("starting %v", os.Args)
 	run(os.Args[1:], false)
+}
+
+// command line arguments and flags:
+type CLIConf struct {
+	// UserHost contains "[login]@hostname" argument to SSH command
+	UserHost string
+	// Commands to execute on a remote host
+	RemoteCommand string
+	// Login is the Teleport user login
+	Login string
+	// Proxy keeps the hostname:port of the SSH proxy to use
+	Proxy string
+	// TTL defines how long a session must be active (in minutes)
+	TTL int32
+	// SSH Port on a remote SSH host
+	NodePort int16
+	// Login on a remote SSH host
+	NodeLogin string
+
+	// IsUnderTest is set to true for unit testing
+	IsUnderTest bool
 }
 
 // run executes TSH client. same as main() but easier to test
 func run(args []string, underTest bool) {
+	var (
+		cf CLIConf
+	)
+	cf.IsUnderTest = underTest
 	utils.InitLoggerCLI()
-	app := utils.InitCLIParser("t", "TSH: Teleport SSH client")
 
+	// configure CLI argument parser:
+	app := utils.InitCLIParser("t", "TSH: Teleport SSH client")
+	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", Username())).StringVar(&cf.Login)
+	app.Flag("proxy", "SSH proxy host or IP address").StringVar(&cf.Proxy)
+	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.TTL)
+	app.HelpFlag.Short('h')
 	ver := app.Command("version", "Print the version")
-	ssh := app.Command("ssh", "SSH into a remote machine").Default()
+	ssh := app.Command("ssh", "SSH into a remote machine")
+	ssh.Arg("[user@]host", "Remote hostname and the machine login [$USER]").Required().StringVar(&cf.UserHost)
+	ssh.Arg("command", "Command to execute on a remote host").StringVar(&cf.RemoteCommand)
+	ssh.Flag("port", "SSH port on a remote host").Short('p').Int16Var(&cf.NodePort)
+	ssh.Flag("login", "Remote host login").Short('l').StringVar(&cf.NodeLogin)
 
 	// parse CLI commands+flags:
 	command, err := app.Parse(args)
@@ -44,18 +81,12 @@ func run(args []string, underTest bool) {
 	case ver.FullCommand():
 		onVersion()
 	case ssh.FullCommand():
-		// SSH is a default command. if there are no args, show the default usage:
-		if len(args) == 0 {
-			app.Usage([]string{})
-			os.Exit(1)
-		} else {
-			onSSH()
-		}
+		onSSH(&cf)
 	}
 }
 
-func onSSH() {
-	fmt.Println("SSH!")
+// onSSH executes 'tsh ssh' command
+func onSSH(cf *CLIConf) {
 }
 
 func onVersion() {
