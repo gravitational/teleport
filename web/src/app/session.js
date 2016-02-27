@@ -15,11 +15,11 @@ var session = {
   },
 
   setUserData(userData){
-    sessionStorage.setItem(AUTH_KEY_DATA, JSON.stringify(userData));
+    localStorage.setItem(AUTH_KEY_DATA, JSON.stringify(userData));
   },
 
   getUserData(){
-    var item = sessionStorage.getItem(AUTH_KEY_DATA);
+    var item = localStorage.getItem(AUTH_KEY_DATA);
     if(item){
       return JSON.parse(item);
     }
@@ -28,7 +28,7 @@ var session = {
   },
 
   clear(){
-    sessionStorage.clear()
+    localStorage.clear()
   }
 
 }

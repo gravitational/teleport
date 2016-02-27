@@ -3,7 +3,7 @@ var session = require('./session');
 var cfg = require('app/config');
 var $ = require('jQuery');
 
-const refreshRate = 60000 * 100; // 1 min
+const refreshRate = 60000 * 5; // 1 min
 
 var refreshTokenTimerId = null;
 
@@ -29,7 +29,7 @@ var auth = {
     if(userData){
       // refresh timer will not be set in case of browser refresh event
       if(auth._getRefreshTokenTimerId() === null){
-        return auth._login().done(auth._startTokenRefresher);
+        return auth._refreshToken().done(auth._startTokenRefresher);
       }
 
       return $.Deferred().resolve(userData);
@@ -57,10 +57,13 @@ var auth = {
   },
 
   _refreshToken(){
-    auth._login().fail(()=>{
+    return api.post(cfg.api.renewTokenPath).then(data=>{
+      session.setUserData(data);
+      return data;
+    }).fail(()=>{
       auth.logout();
       window.location.reload();
-    })
+    });
   },
 
   _login(name, password, token){
@@ -70,11 +73,10 @@ var auth = {
       second_factor_token: token
     };
 
-    return api.post(cfg.api.sessionPath, data).then(data=>{
+    return api.post(cfg.api.sessionPath, data, false).then(data=>{
       session.setUserData(data);
       return data;
     });
-
   }
 }
 

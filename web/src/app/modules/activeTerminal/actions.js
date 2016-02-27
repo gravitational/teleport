@@ -12,7 +12,7 @@ export default {
     reactor.dispatch(TLPT_TERM_CONNECTED);
   },
 
-  connect(addr, login, sid=uuid()){
+  openSession(addr, login, sid=uuid()){
     /*
     *   {
     *   "addr": "127.0.0.1:5000",

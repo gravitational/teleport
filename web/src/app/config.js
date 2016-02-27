@@ -5,6 +5,7 @@ let cfg = {
   baseUrl: window.location.origin,
 
   api: {
+    renewTokenPath:'/v1/webapi/sessions/renew',
     nodesPath: '/v1/webapi/sites/-current-/nodes',
     sessionPath: '/v1/webapi/sessions',
     invitePath: '/v1/webapi/users/invites/:inviteToken',
