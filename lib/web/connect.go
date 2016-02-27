@@ -17,6 +17,7 @@ limitations under the License.
 package web
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 
@@ -71,9 +72,15 @@ type connectHandler struct {
 	site reversetunnel.RemoteSite
 	up   *sshutils.Upstream
 	req  connectReq
+	ws   *websocket.Conn
+}
+
+func (w *connectHandler) String() string {
+	return fmt.Sprintf("connectHandler(%#v)", w.req)
 }
 
 func (w *connectHandler) Close() error {
+	w.ws.Close()
 	if w.up != nil {
 		return w.up.Close()
 	}
@@ -87,6 +94,7 @@ func (w *connectHandler) connect(ws *websocket.Conn) {
 		return
 	}
 	w.up = up
+	w.ws = ws
 	err = w.up.PipeShell(ws)
 	log.Infof("pipe shell finished with: %v", err)
 	ws.Write([]byte("\n\rdisconnected\n\r"))

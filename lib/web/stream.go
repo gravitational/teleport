@@ -51,9 +51,11 @@ type sessionStreamHandler struct {
 	site       reversetunnel.RemoteSite
 	sessionID  string
 	closeC     chan bool
+	ws         *websocket.Conn
 }
 
 func (w *sessionStreamHandler) Close() error {
+	w.ws.Close()
 	w.closeOnce.Do(func() {
 		close(w.closeC)
 	})
@@ -61,6 +63,7 @@ func (w *sessionStreamHandler) Close() error {
 }
 
 func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
+	w.ws = ws
 	clt, err := w.site.GetClient()
 	if err != nil {
 		return trace.Wrap(err)

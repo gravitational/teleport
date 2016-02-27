@@ -17,6 +17,7 @@ limitations under the License.
 package web
 
 import (
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -37,11 +38,27 @@ import (
 // between requests for example to avoid connecting
 // to the auth server on every page hit
 type sessionContext struct {
+	sync.Mutex
 	*log.Entry
-	sess   *auth.Session
-	user   string
-	clt    *auth.TunClient
-	parent *sessionCache
+	sess    *auth.Session
+	user    string
+	clt     *auth.TunClient
+	parent  *sessionCache
+	closers []io.Closer
+}
+
+func (c *sessionContext) AddClosers(closers ...io.Closer) {
+	c.Lock()
+	defer c.Unlock()
+	c.closers = append(c.closers, closers...)
+}
+
+func (c *sessionContext) TransferClosers() []io.Closer {
+	c.Lock()
+	defer c.Unlock()
+	closers := c.closers
+	c.closers = nil
+	return closers
 }
 
 func (c *sessionContext) Invalidate() error {
@@ -89,6 +106,11 @@ func (c *sessionContext) GetAuthMethods() ([]ssh.AuthMethod, error) {
 
 // Close cleans up connections associated with requests
 func (c *sessionContext) Close() error {
+	closers := c.TransferClosers()
+	for _, closer := range closers {
+		c.Infof("closing %v", closer)
+		closer.Close()
+	}
 	if c.clt != nil {
 		return trace.Wrap(c.clt.Close())
 	}
