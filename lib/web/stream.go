@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/session"
@@ -91,31 +92,40 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 		}
 		events, err := clt.GetEvents(f)
 		if err != nil {
-			return trace.Wrap(err)
+			if !teleport.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
 		}
 
 		servers, err := clt.GetServers()
 		if err != nil {
-			return trace.Wrap(err)
+			if !teleport.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
 		}
 
 		sess, err := clt.GetSession(w.sessionID)
 		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		event := &sessionStreamEvent{
-			Session: *sess,
-			Nodes:   servers,
-			Events:  events,
-		}
-
-		newData := w.diffEvents(lastEvent, event)
-		lastCheckpoint = now
-		lastEvent = event
-		if newData {
-			if err := websocket.JSON.Send(ws, event); err != nil {
+			if !teleport.IsNotFound(err) {
 				return trace.Wrap(err)
+			}
+		}
+
+		if sess != nil {
+			event := &sessionStreamEvent{
+				Session: *sess,
+				Nodes:   servers,
+				Events:  events,
+			}
+
+			newData := w.diffEvents(lastEvent, event)
+			lastCheckpoint = now
+			lastEvent = event
+			if newData {
+				log.Infof("about to send %#v", event)
+				if err := websocket.JSON.Send(ws, event); err != nil {
+					return trace.Wrap(err)
+				}
 			}
 		}
 
