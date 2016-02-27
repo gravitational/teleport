@@ -469,7 +469,6 @@ func (m *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p ht
 	connect, err := newSessionStreamHandler(
 		sessionID, ctx, site, m.sessionStreamPollPeriod)
 	if err != nil {
-		log.Errorf("here: %v", err)
 		return nil, trace.Wrap(err)
 	}
 	defer connect.Close()

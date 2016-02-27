@@ -33,14 +33,6 @@ import (
 )
 
 func newSessionStreamHandler(sessionID string, ctx *sessionContext, site reversetunnel.RemoteSite, pollPeriod time.Duration) (*sessionStreamHandler, error) {
-	clt, err := ctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	_, err = clt.GetSession(sessionID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return &sessionStreamHandler{
 		pollPeriod: pollPeriod,
 		sessionID:  sessionID,
