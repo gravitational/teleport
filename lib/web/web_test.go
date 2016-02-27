@@ -76,7 +76,7 @@ type WebSuite struct {
 var _ = Suite(&WebSuite{})
 
 func (s *WebSuite) SetUpSuite(c *C) {
-	utils.InitLoggerDebug()
+	utils.InitLoggerCLI()
 }
 
 func (s *WebSuite) SetUpTest(c *C) {
@@ -611,6 +611,45 @@ func (s *WebSuite) TestNodesWithSessions(c *C) {
 
 	c.Assert(websocket.JSON.Receive(stream, &event), IsNil)
 	c.Assert(len(event.Session.Parties), Equals, 2)
+}
+
+func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
+	sid := "testsession"
+	pack := s.authPack(c)
+	clt := s.connect(c, pack, sid)
+	defer clt.Close()
+
+	// to make sure we have a session
+	_, err := io.WriteString(clt, "expr 137 + 39\r\n")
+	c.Assert(err, IsNil)
+
+	// make sure server has replied
+	out := make([]byte, 100)
+	clt.Read(out)
+
+	_, err = pack.clt.Delete(
+		pack.clt.Endpoint("webapi", "sessions", pack.session.Token))
+	c.Assert(err, IsNil)
+
+	// wait until we timeout or detect that connection has been closed
+	after := time.After(time.Second)
+	errC := make(chan error)
+	go func() {
+		for {
+			_, err := clt.Read(out)
+			if err != nil {
+				errC <- err
+			}
+		}
+	}()
+
+	select {
+	case <-after:
+		c.Fatalf("timeout")
+	case err := <-errC:
+		c.Assert(err, Equals, io.EOF)
+	}
+
 }
 
 func getEvent(schema string, events []lunk.Entry) *lunk.Entry {

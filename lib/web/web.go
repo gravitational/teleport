@@ -236,6 +236,13 @@ func (m *Handler) renewSession(w http.ResponseWriter, r *http.Request, _ httprou
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// transfer ownership over connections that were opened in the
+	// sessionContext
+	newContext, err := ctx.parent.ValidateSession(newSess.User.Name, newSess.ID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	newContext.AddClosers(ctx.TransferClosers()...)
 	if err := SetSession(w, newSess.User.Name, newSess.ID); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -442,6 +449,9 @@ func (m *Handler) siteNodeConnect(w http.ResponseWriter, r *http.Request, p http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// this is to make sure we close web socket connections once
+	// sessionContext that owns them expires
+	ctx.AddClosers(connect)
 	defer connect.Close()
 	connect.Handler().ServeHTTP(w, r)
 	return nil, nil
@@ -471,6 +481,9 @@ func (m *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p ht
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// this is to make sure we close web socket connections once
+	// sessionContext that owns them expires
+	ctx.AddClosers(connect)
 	defer connect.Close()
 	connect.Handler().ServeHTTP(w, r)
 	return nil, nil
@@ -546,6 +559,8 @@ func (h *Handler) withSiteAuth(fn siteHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		ctx, err := h.authenticateRequest(r)
 		if err != nil {
+			// clear session just in case if the authentication request is not valid
+			ClearSession(w)
 			return nil, trace.Wrap(err)
 		}
 		siteName := p.ByName("site")
@@ -592,7 +607,6 @@ func (h *Handler) authenticateRequest(r *http.Request) (*sessionContext, error) 
 		logger.Warningf("failed to decode cookie: %v", err)
 		return nil, trace.Wrap(teleport.AccessDenied("failed to decode cookie"))
 	}
-
 	creds, err := roundtrip.ParseAuthHeaders(r)
 	if err != nil {
 		logger.Warningf("no auth headers %v", err)
