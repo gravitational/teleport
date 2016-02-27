@@ -546,6 +546,8 @@ func (h *Handler) withSiteAuth(fn siteHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		ctx, err := h.authenticateRequest(r)
 		if err != nil {
+			// clear session just in case if the authentication request is not valid
+			ClearSession(w)
 			return nil, trace.Wrap(err)
 		}
 		siteName := p.ByName("site")
@@ -592,7 +594,6 @@ func (h *Handler) authenticateRequest(r *http.Request) (*sessionContext, error) 
 		logger.Warningf("failed to decode cookie: %v", err)
 		return nil, trace.Wrap(teleport.AccessDenied("failed to decode cookie"))
 	}
-
 	creds, err := roundtrip.ParseAuthHeaders(r)
 	if err != nil {
 		logger.Warningf("no auth headers %v", err)
