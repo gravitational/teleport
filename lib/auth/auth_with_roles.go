@@ -49,6 +49,7 @@ func NewAuthWithRoles(authServer *AuthServer, permChecker PermissionChecker,
 		sessions:    sessions,
 		role:        role,
 		recorder:    recorder,
+		elog:        elog,
 	}
 }
 
@@ -157,7 +158,7 @@ func (a *AuthWithRoles) LogEntry(en lunk.Entry) error {
 }
 func (a *AuthWithRoles) GetEvents(filter events.Filter) ([]lunk.Entry, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetEvents); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	} else {
 		return a.elog.GetEvents(filter)
 	}

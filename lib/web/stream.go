@@ -69,7 +69,7 @@ func (w *sessionStreamHandler) Close() error {
 }
 
 func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
-	clt, err := w.ctx.GetClient()
+	clt, err := w.site.GetClient()
 	if err != nil {
 		return trace.Wrap(err)
 	}
