@@ -52,6 +52,9 @@ type Config struct {
 	// Remote host to connect
 	Host string
 
+	// User login on a remote host
+	HostLogin string
+
 	// Remote host port
 	HostPort int
 
@@ -88,17 +91,22 @@ type TeleportClient struct {
 	authMethods []ssh.AuthMethod
 }
 
+// NewClient creates a TeleportClient object and fully configures it
 func NewClient(c *Config) (tc *TeleportClient, err error) {
 	// validate configuration
 	if c.Login == "" {
 		c.Login = Username()
-		log.Debugf("no teleport login given. defaulting to %s", c.Login)
+		log.Infof("no teleport login given. defaulting to %s", c.Login)
 	}
 	if c.ProxyHost == "" {
 		return nil, trace.Errorf("no proxy address specified")
 	}
 	if c.Host == "" {
 		return nil, trace.Errorf("no remote host specified")
+	}
+	if c.HostLogin == "" {
+		c.HostLogin = c.Login
+		log.Infof("no host login given. defaulting to %s", c.HostLogin)
 	}
 	if c.KeyTTL == 0 {
 		c.KeyTTL = defaults.CertDuration
@@ -483,14 +491,14 @@ func Username() string {
 // AskPasswordAndHOTP prompts the user to enter the password + HTOP 2nd factor
 func (tc *TeleportClient) AskPasswordAndHOTP() (pwd string, token string, err error) {
 	fmt.Printf("Enter password for %v:\n", tc.Config.Login)
-	pwd, err = readPassword()
+	pwd, err = passwordFromConsole()
 	if err != nil {
 		fmt.Println(err)
 		return "", "", trace.Wrap(err)
 	}
 
 	fmt.Printf("Enter your HOTP token:\n")
-	token, err = readLine()
+	token, err = lineFromConsole()
 	if err != nil {
 		fmt.Println(err)
 		return "", "", trace.Wrap(err)
@@ -498,7 +506,8 @@ func (tc *TeleportClient) AskPasswordAndHOTP() (pwd string, token string, err er
 	return pwd, token, nil
 }
 
-func readPassword() (string, error) {
+// passwordFromConsole reads from stdin without echoing typed characters to stdout
+func passwordFromConsole() (string, error) {
 	fd := syscall.Stdin
 	state, err := terminal.GetState(fd)
 
@@ -526,7 +535,8 @@ func readPassword() (string, error) {
 	return string(bytes), err
 }
 
-func readLine() (string, error) {
+// lineFromConsole reads a line from stdin
+func lineFromConsole() (string, error) {
 	bytes, _, err := bufio.NewReader(os.Stdin).ReadLine()
 	return string(bytes), err
 }

@@ -157,14 +157,14 @@ func Login(ag agent.Agent, webProxyAddr string, user string,
 func GetPasswordFromConsole(user string) PasswordCallback {
 	return func() (password, hotpToken string, e error) {
 		fmt.Printf("Enter password for %v:\n", user)
-		password, err := readPassword()
+		password, err := passwordFromConsole()
 		if err != nil {
 			fmt.Println(err)
 			return "", "", trace.Wrap(err)
 		}
 
 		fmt.Printf("Enter your HOTP token:\n")
-		hotpToken, err = readPassword()
+		hotpToken, err = passwordFromConsole()
 		if err != nil {
 			fmt.Println(err)
 			return "", "", trace.Wrap(err)

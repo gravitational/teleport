@@ -18,6 +18,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/lib/client"
@@ -34,13 +35,13 @@ type CLIConf struct {
 	// UserHost contains "[login]@hostname" argument to SSH command
 	UserHost string
 	// Commands to execute on a remote host
-	RemoteCommand string
+	RemoteCommand []string
 	// Login is the Teleport user login
 	Login string
 	// Proxy keeps the hostname:port of the SSH proxy to use
 	Proxy string
 	// TTL defines how long a session must be active (in minutes)
-	TTL int32
+	MinsToLive int32
 	// SSH Port on a remote SSH host
 	NodePort int16
 	// Login on a remote SSH host
@@ -56,19 +57,19 @@ func run(args []string, underTest bool) {
 		cf CLIConf
 	)
 	cf.IsUnderTest = underTest
-	//utils.InitLoggerCLI()
-	utils.InitLoggerDebug()
+	utils.InitLoggerCLI()
 
 	// configure CLI argument parser:
 	app := utils.InitCLIParser("t", "TSH: Teleport SSH client")
 	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", client.Username())).StringVar(&cf.Login)
 	app.Flag("proxy", "SSH proxy host or IP address").StringVar(&cf.Proxy)
-	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.TTL)
+	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
+	debugMode := app.Flag("debug", "Verbose logging to stdout").Short('d').Bool()
 	app.HelpFlag.Short('h')
 	ver := app.Command("version", "Print the version")
 	ssh := app.Command("ssh", "SSH into a remote machine")
 	ssh.Arg("[user@]host", "Remote hostname and the machine login [$USER]").Required().StringVar(&cf.UserHost)
-	ssh.Arg("command", "Command to execute on a remote host").StringVar(&cf.RemoteCommand)
+	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int16Var(&cf.NodePort)
 	ssh.Flag("login", "Remote host login").Short('l').StringVar(&cf.NodeLogin)
 
@@ -76,6 +77,11 @@ func run(args []string, underTest bool) {
 	command, err := app.Parse(args)
 	if err != nil {
 		utils.FatalError(err)
+	}
+
+	// apply -d flag:
+	if *debugMode {
+		utils.InitLoggerDebug()
 	}
 
 	switch command {
@@ -88,26 +94,44 @@ func run(args []string, underTest bool) {
 
 // onSSH executes 'tsh ssh' command
 func onSSH(cf *CLIConf) {
+	tc, err := makeClient(cf)
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	if err = tc.SSH(strings.Join(cf.RemoteCommand, " ")); err != nil {
+		utils.FatalError(err)
+	}
+}
+
+// makeClient takes the command-line configuration and constructs & returns
+// a fully configured TeleportClient object
+func makeClient(cf *CLIConf) (*client.TeleportClient, error) {
+	// apply defults
 	if cf.NodePort == 0 {
 		cf.NodePort = defaults.SSHServerListenPort
 	}
-	fmt.Println(cf)
+	if cf.MinsToLive == 0 {
+		cf.MinsToLive = defaults.CertDurationHours * 60
+	}
+	// split login & host
+	parts := strings.Split(cf.UserHost, "@")
+	hostLogin := cf.Login
+	if len(parts) > 1 {
+		hostLogin = parts[0]
+		cf.UserHost = parts[1]
+	}
 
+	// prep client config:
 	c := &client.Config{
 		Login:     cf.Login,
 		ProxyHost: cf.Proxy,
 		Host:      cf.UserHost,
 		HostPort:  int(cf.NodePort),
-		KeyTTL:    time.Minute * time.Duration(cf.TTL),
+		HostLogin: hostLogin,
+		KeyTTL:    time.Minute * time.Duration(cf.MinsToLive),
 	}
-	teleportClient, err := client.NewClient(c)
-	if err != nil {
-		utils.FatalError(err)
-	}
-	err = teleportClient.SSH("")
-	if err != nil {
-		utils.FatalError(err)
-	}
+	return client.NewClient(c)
 }
 
 func onVersion() {

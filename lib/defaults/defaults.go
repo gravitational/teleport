@@ -80,8 +80,9 @@ const (
 	MinCertDuration = time.Minute
 	// MaxCertDuration limits maximum duration of validity of issued cert
 	MaxCertDuration = 30 * time.Hour
-	// DefaultCertDuo sets the default TTL of user certs
-	CertDuration = 12 * time.Hour
+	// Default certificate duration in hours
+	CertDurationHours = 12
+	CertDuration      = CertDurationHours * time.Hour
 )
 
 // list of roles teleport service can run as:

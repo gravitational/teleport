@@ -59,10 +59,10 @@ production: clean
 #
 test: 
 	go test -v github.com/gravitational/teleport/lib/client
-#	go test -v github.com/gravitational/teleport/tool/t/...
-	#go test -v github.com/gravitational/teleport/lib/... -cover
-	#go test -v github.com/gravitational/teleport/tool/teleport... -cover
-	#go test -v github.com/gravitational/teleport/tool/tsh -cover
+	go test -v github.com/gravitational/teleport/tool/t/...
+	go test -v github.com/gravitational/teleport/lib/... -cover
+	go test -v github.com/gravitational/teleport/tool/teleport... -cover
+#	go test -v github.com/gravitational/teleport/tool/tsh -cover
 
 
 test-with-etcd: install
