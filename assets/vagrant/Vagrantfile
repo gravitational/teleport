@@ -1,7 +1,8 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 #
-# This Vagrantfile:
+# This Vagrantfile is for quick making a multi-host environment
+# to experiment & play with Teleport.
 #
 #   1. Creates two VMs, 1GB RAM / 2CPU each
 #   2. Based on Debian Jessie 8

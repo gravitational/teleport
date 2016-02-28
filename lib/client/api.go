@@ -160,7 +160,7 @@ func (tc *TeleportClient) SSH(command string) (err error) {
 			return tc.runCommand(proxyClient, command)
 		}
 		nodeClient, err = proxyClient.ConnectToNode(tc.NodeHostPort(),
-			tc.authMethods, tc.makeHostKeyCallback(), tc.Config.Login)
+			tc.authMethods, tc.makeHostKeyCallback(), tc.Config.HostLogin)
 		if err != nil {
 			return trace.Wrap(err)
 		}
