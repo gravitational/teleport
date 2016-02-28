@@ -63,14 +63,12 @@ type Config struct {
 }
 
 // Returns a full host:port address of the proxy or an empty string if no
-// proxy is given
-func (c *Config) ProxyHostPort() string {
+// proxy is given. If 'forWeb' flag is set, returns HTTPS port, otherwise
+// returns SSH port (proxy servers listen on both)
+func (c *Config) ProxyHostPort(defaultPort int) string {
 	if c.ProxySpecified() {
-		host, port, _ := net.SplitHostPort(c.ProxyHost)
-		if port == "" {
-			port = fmt.Sprintf("%d", defaults.HTTPListenPort)
-		}
-		return net.JoinHostPort(host, port)
+		port := fmt.Sprintf("%d", defaultPort)
+		return net.JoinHostPort(c.ProxyHost, port)
 	} else {
 		return ""
 	}
@@ -91,9 +89,26 @@ type TeleportClient struct {
 }
 
 func NewClient(c *Config) (tc *TeleportClient, err error) {
+	// validate configuration
+	if c.Login == "" {
+		c.Login = Username()
+		log.Debugf("no teleport login given. defaulting to %s", c.Login)
+	}
+	if c.ProxyHost == "" {
+		return nil, trace.Errorf("no proxy address specified")
+	}
+	if c.Host == "" {
+		return nil, trace.Errorf("no remote host specified")
+	}
+	if c.KeyTTL == 0 {
+		c.KeyTTL = defaults.CertDuration
+	} else if c.KeyTTL > defaults.MaxCertDuration || c.KeyTTL < defaults.MinCertDuration {
+		return nil, trace.Errorf("invalid requested cert TTL")
+	}
+
 	tc = &TeleportClient{
 		Config:      *c,
-		authMethods: make([]ssh.AuthMethod, 2),
+		authMethods: make([]ssh.AuthMethod, 0),
 	}
 
 	// first, see if we can authenticate with credentials stored in
@@ -321,10 +336,15 @@ func getTerminalSize() (width int, height int, e error) {
 
 // ConnectToProxy dials the proxy server and returns ProxyClient if successful
 func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
-	proxyAddr := tc.Config.ProxyHostPort()
+	proxyAddr := tc.Config.ProxyHostPort(defaults.SSHProxyListenPort)
 	sshConfig := &ssh.ClientConfig{
 		User:            tc.Config.Login,
 		HostKeyCallback: tc.makeHostKeyCallback(),
+	}
+	log.Debugf("connecting to proxy: %v", proxyAddr)
+
+	if len(tc.authMethods) == 0 {
+		return nil, trace.Errorf("no authentication methods provided")
 	}
 
 	// try to authenticate using every auth method we have:
@@ -343,7 +363,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 			proxyAddress: proxyAddr,
 		}, nil
 	}
-	return nil, trace.Errorf("no authentication methods provided")
+	return nil, trace.Errorf("could not connect to proxy %v. all authentication methods failed", proxyAddr)
 }
 
 // makeHostKeyCallback creates and returns a function suitable to be passed into
@@ -392,7 +412,7 @@ func (tc *TeleportClient) Login() error {
 	}
 
 	// ask the CA (via proxy) to sign our public key:
-	response, err := web.SSHAgentLogin(tc.Config.ProxyHostPort(), tc.Config.Login,
+	response, err := web.SSHAgentLogin(tc.Config.ProxyHostPort(defaults.HTTPListenPort), tc.Config.Login,
 		password, hotpToken, pub, tc.KeyTTL)
 	if err != nil {
 		return trace.Wrap(err)
@@ -462,7 +482,7 @@ func Username() string {
 
 // AskPasswordAndHOTP prompts the user to enter the password + HTOP 2nd factor
 func (tc *TeleportClient) AskPasswordAndHOTP() (pwd string, token string, err error) {
-	fmt.Printf("Enter password for %v:\n", tc.Login)
+	fmt.Printf("Enter password for %v:\n", tc.Config.Login)
 	pwd, err = readPassword()
 	if err != nil {
 		fmt.Println(err)
@@ -479,7 +499,30 @@ func (tc *TeleportClient) AskPasswordAndHOTP() (pwd string, token string, err er
 }
 
 func readPassword() (string, error) {
-	bytes, err := terminal.ReadPassword(syscall.Stdin)
+	fd := syscall.Stdin
+	state, err := terminal.GetState(fd)
+
+	// intercept Ctr+C and restore terminal
+	sigCh := make(chan os.Signal, 1)
+	closeCh := make(chan int)
+	if err != nil {
+		log.Warnf("failed reading terminal state: %v", err)
+	} else {
+		signal.Notify(sigCh, syscall.SIGINT)
+		go func() {
+			select {
+			case <-sigCh:
+				terminal.Restore(fd, state)
+				os.Exit(1)
+			case <-closeCh:
+			}
+		}()
+	}
+	defer func() {
+		close(closeCh)
+	}()
+
+	bytes, err := terminal.ReadPassword(fd)
 	return string(bytes), err
 }
 

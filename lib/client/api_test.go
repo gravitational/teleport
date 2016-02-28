@@ -17,16 +17,25 @@ package client
 
 import (
 	"gopkg.in/check.v1"
+	"testing"
 )
 
 // register test suite
 type APITestSuite struct {
 }
 
+// bootstrap check
+func TestClientAPI(t *testing.T) { check.TestingT(t) }
+
 var _ = check.Suite(&APITestSuite{})
 
 func (s *APITestSuite) SetUpSuite(c *check.C) {
 }
 
-func (s *APITestSuite) TestStuff(c *check.C) {
+func (s *APITestSuite) TestConfig(c *check.C) {
+	var conf Config
+	c.Assert(conf.ProxySpecified(), check.Equals, false)
+	conf.ProxyHost = "example.org"
+	c.Assert(conf.ProxySpecified(), check.Equals, true)
+	c.Assert(conf.ProxyHostPort(12), check.Equals, "example.org:12")
 }

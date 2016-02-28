@@ -31,6 +31,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 
+	log "github.com/Sirupsen/logrus"
+
 	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -381,10 +383,12 @@ type generateUserCertReq struct {
 func (s *APIServer) generateUserCert(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
 	var req *generateUserCertReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
+		log.Errorf("failed parsing JSON request. %v", err)
 		return nil, trace.Wrap(err)
 	}
 	cert, err := s.a.GenerateUserCert(req.Key, req.User, req.TTL)
 	if err != nil {
+		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
 	return string(cert), nil

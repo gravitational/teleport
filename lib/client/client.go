@@ -170,7 +170,7 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, authMethods []ssh.Au
 	if len(authMethods) == 0 {
 		return nil, trace.Errorf("no authMethods were provided")
 	}
-	log.Debug("connecting to node: %v", nodeAddress)
+	log.Debugf("connecting to node: %v", nodeAddress)
 
 	e := trace.Errorf("unknown Error")
 
