@@ -17,6 +17,7 @@ package defaults
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
@@ -72,6 +73,16 @@ const (
 
 	// Number of max. simultaneous connected users/logins
 	LimiterMaxConcurrentUsers = 25
+)
+
+const (
+	// MinCertDuration specifies minimum duration of validity of issued cert
+	MinCertDuration = time.Minute
+	// MaxCertDuration limits maximum duration of validity of issued cert
+	MaxCertDuration = 30 * time.Hour
+	// Default certificate duration in hours
+	CertDurationHours = 12
+	CertDuration      = CertDurationHours * time.Hour
 )
 
 // list of roles teleport service can run as:

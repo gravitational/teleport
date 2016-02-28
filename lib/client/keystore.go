@@ -148,6 +148,9 @@ type Key struct {
 
 func saveKey(key Key, filename string) error {
 	err := initKeysDir()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	bytes, err := json.Marshal(key)
 	if err != nil {
 		return trace.Wrap(err)

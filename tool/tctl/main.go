@@ -224,18 +224,16 @@ func (u *NodeCommand) ListActive(client *auth.TunClient) error {
 		if len(nodes) == 0 {
 			return t.String()
 		}
-		/*
-			for _, n := range nodes {
-				labels := make(configure.KeyVal, len(n.Labels)+len(n.CmdLabels))
-				for key, val := range n.Labels {
-					labels[key] = val
-				}
-				for key, val := range n.CmdLabels {
-					labels[key] = val.Result
-				}
-				fmt.Fprintf(t, "%v\t%v\t%v\n", n.Hostname, n.Addr, labels.String())
+		for _, n := range nodes {
+			labels := []string{}
+			for key, val := range n.Labels {
+				labels = append(labels, fmt.Sprintf("%s:%s", key, val))
 			}
-		*/
+			for key, val := range n.CmdLabels {
+				labels = append(labels, fmt.Sprintf("%s:%s", key, val.Result))
+			}
+			fmt.Fprintf(t, "%v\t%v\t%v\n", n.Hostname, n.Addr, strings.Join(labels, ","))
+		}
 		return t.String()
 	}
 	fmt.Printf(nodesView(nodes))

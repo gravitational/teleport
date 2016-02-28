@@ -104,7 +104,7 @@ var defaultUsageTemplate = `{{define "FormatCommand"}}\
 {{define "FormatCommands"}}\
 {{range .FlattenedCommands}}\
 {{if not .Hidden}}\
-  {{.FullCommand | printf "%-12s" }}{{if .Default}}*{{end}} {{ .Help }}
+  {{.FullCommand | printf "%-12s" }}{{if .Default}} (Default){{end}} {{ .Help }}
 {{end}}\
 {{end}}\
 {{end}}\
