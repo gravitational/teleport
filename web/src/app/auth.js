@@ -26,7 +26,7 @@ var auth = {
 
   ensureUser(){
     var userData = session.getUserData();
-    if(userData){
+    if(userData.token){
       // refresh timer will not be set in case of browser refresh event
       if(auth._getRefreshTokenTimerId() === null){
         return auth._refreshToken().done(auth._startTokenRefresher);
@@ -40,7 +40,8 @@ var auth = {
 
   logout(){
     auth._stopTokenRefresher();
-    return session.clear();
+    session.clear();
+    session.getHistory().replace({pathname: cfg.routes.login});    
   },
 
   _startTokenRefresher(){
@@ -62,7 +63,6 @@ var auth = {
       return data;
     }).fail(()=>{
       auth.logout();
-      window.location.reload();
     });
   },
 

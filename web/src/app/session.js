@@ -1,8 +1,8 @@
-var { browserHistory } = require('react-router');
+var { browserHistory, createMemoryHistory } = require('react-router');
 
 const AUTH_KEY_DATA = 'authData';
 
-var _history = null;
+var _history = createMemoryHistory();
 
 var session = {
 

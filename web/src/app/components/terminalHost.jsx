@@ -23,7 +23,7 @@ var TerminalHost = React.createClass({
       return null;
     }
 
-    var {term, isConnected} = this.state.activeSession;
+    var {isConnected, ...settings} = this.state.activeSession;
     var {token} = session.getUserData();
 
     return (
@@ -54,8 +54,8 @@ var TerminalHost = React.createClass({
            </div>
          </div>
        </div>
-       { isConnected ? <EventStreamer token={token} sid={term.sid}/> : null }
-       <TerminalBox settings={term} token={token} onOpen={actions.connected}/>
+       { isConnected ? <EventStreamer token={token} sid={settings.sid}/> : null }
+       <TerminalBox settings={settings} token={token} onOpen={actions.connected}/>
      </div>
      );
   }
@@ -89,7 +89,7 @@ var TerminalBox = React.createClass({
     this.term.write('\x1b[94mconnecting to "pod"\x1b[m\r\n');
 
     this.socket.onopen = () => {
-      this.props.onOpen();      
+      this.props.onOpen();
       this.term.on('data', (data) => {
         this.socket.send(data);
       });

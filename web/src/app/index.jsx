@@ -13,9 +13,7 @@ require('./modules');
 session.init();
 
 function handleLogout(nextState, replace, cb){
-  auth.logout();
-  // going back will hit requireAuth handler which will redirect it to the login page
-  session.getHistory().goBack();
+  auth.logout();  
 }
 
 render((

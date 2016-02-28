@@ -66,7 +66,7 @@ describe('auth', function () {
         expect(wasCalled).toEqual(true);
       });
 
-      it('should be rejected if token is invalid', function () {
+      it('should be rejected if token is invalid', function () {        
         var wasCalled = false;
         api.post.andReturn($.Deferred().reject());
         auth._getRefreshTokenTimerId.andReturn(null);
@@ -75,6 +75,7 @@ describe('auth', function () {
 
         expect(api.post.calls.length).toEqual(1);
         expect(wasCalled).toEqual(true);
+
       });
     });
   });
