@@ -230,27 +230,29 @@ func (s *SrvSuite) TestMux(c *C) {
 func (s *SrvSuite) TestTun(c *C) {
 	se, err := s.clt.NewSession()
 	c.Assert(err, IsNil)
-	defer se.Close()
 	c.Assert(agent.RequestAgentForwarding(se), IsNil)
 
 	writer, err := se.StdinPipe()
 	c.Assert(err, IsNil)
 
-	stdout := &bytes.Buffer{}
-	reader, err := se.StdoutPipe()
-	done := make(chan struct{})
-	go func() {
-		io.Copy(stdout, reader)
-		close(done)
-	}()
+	stdoutPipe, err := se.StdoutPipe()
+	c.Assert(err, IsNil)
+	reader := bufio.NewReader(stdoutPipe)
 
 	c.Assert(se.RequestSubsystem(fmt.Sprintf("tun:%v", s.srv.Addr())), IsNil)
 
-	_, err = io.WriteString(writer, "expr 7 + 70;exit\r\n")
+	out, err := reader.ReadString('$')
+	c.Assert(err, IsNil)
+	c.Assert(out, Equals, "$")
+
+	_, err = io.WriteString(writer, "expr 7 + 70\n")
 	c.Assert(err, IsNil)
 
-	<-done
-	c.Assert(removeNL(stdout.String()), Matches, ".*77.*")
+	out, err = reader.ReadString('$')
+	c.Assert(err, IsNil)
+	c.Assert(removeNL(out), Equals, " expr 7 + 7077$")
+
+	c.Assert(se.Close(), IsNil)
 }
 
 func (s *SrvSuite) TestAllowedUsers(c *C) {
