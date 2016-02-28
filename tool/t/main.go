@@ -18,14 +18,14 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
-	log "github.com/Sirupsen/logrus"
-
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func main() {
-	log.Info("starting %v", os.Args)
 	run(os.Args[1:], false)
 }
 
@@ -56,11 +56,12 @@ func run(args []string, underTest bool) {
 		cf CLIConf
 	)
 	cf.IsUnderTest = underTest
-	utils.InitLoggerCLI()
+	//utils.InitLoggerCLI()
+	utils.InitLoggerDebug()
 
 	// configure CLI argument parser:
 	app := utils.InitCLIParser("t", "TSH: Teleport SSH client")
-	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", Username())).StringVar(&cf.Login)
+	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", client.Username())).StringVar(&cf.Login)
 	app.Flag("proxy", "SSH proxy host or IP address").StringVar(&cf.Proxy)
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.TTL)
 	app.HelpFlag.Short('h')
@@ -87,6 +88,26 @@ func run(args []string, underTest bool) {
 
 // onSSH executes 'tsh ssh' command
 func onSSH(cf *CLIConf) {
+	if cf.NodePort == 0 {
+		cf.NodePort = defaults.SSHServerListenPort
+	}
+	fmt.Println(cf)
+
+	c := &client.Config{
+		Login:     cf.Login,
+		ProxyHost: cf.Proxy,
+		Host:      cf.UserHost,
+		HostPort:  int(cf.NodePort),
+		KeyTTL:    time.Minute * time.Duration(cf.TTL),
+	}
+	teleportClient, err := client.NewClient(c)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	err = teleportClient.SSH("")
+	if err != nil {
+		utils.FatalError(err)
+	}
 }
 
 func onVersion() {

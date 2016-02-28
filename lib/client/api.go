@@ -17,19 +17,25 @@ package client
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"io"
 	"math/rand"
 	"net"
 	"os"
+	"os/exec"
+	"os/signal"
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/trace"
@@ -43,14 +49,39 @@ type Config struct {
 	// teleport user login
 	Login string
 
-	// hostname of the proxy
-	ProxyHost string
+	// Remote host to connect
+	Host string
 
-	// port (https) of the proxy
-	ProxyPort int
+	// Remote host port
+	HostPort int
+
+	// hostname of the proxy (with optional ":port")
+	ProxyHost string
 
 	// TTL for the temporary SSH keypair to remain valid:
 	KeyTTL time.Duration
+}
+
+// Returns a full host:port address of the proxy or an empty string if no
+// proxy is given
+func (c *Config) ProxyHostPort() string {
+	if c.ProxySpecified() {
+		host, port, _ := net.SplitHostPort(c.ProxyHost)
+		if port == "" {
+			port = fmt.Sprintf("%d", defaults.HTTPListenPort)
+		}
+		return net.JoinHostPort(host, port)
+	} else {
+		return ""
+	}
+}
+
+func (c *Config) NodeHostPort() string {
+	return net.JoinHostPort(c.Host, strconv.FormatInt(int64(c.HostPort), 10))
+}
+
+func (c *Config) ProxySpecified() bool {
+	return len(c.ProxyHost) > 0
 }
 
 type TeleportClient struct {
@@ -89,11 +120,254 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	return tc, nil
 }
 
+// SSH connects to a node and, if 'command' is specified, executes the command on it,
+// otherwise runs interactive shell
+func (tc *TeleportClient) SSH(command string) (err error) {
+	var (
+		nodeClient *NodeClient
+	)
+	// connecting via proxy?
+	if tc.Config.ProxySpecified() {
+		proxyClient, err := tc.ConnectToProxy()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+		if len(command) > 0 {
+			return tc.runCommand(proxyClient, command)
+		}
+		nodeClient, err = proxyClient.ConnectToNode(tc.NodeHostPort(),
+			tc.authMethods, tc.makeHostKeyCallback(), tc.Config.Login)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer nodeClient.Close()
+		// connecting directly to a node without a proxy
+	} else {
+		nodeClient, err = ConnectToNode(nil, tc.NodeHostPort(), tc.authMethods, tc.makeHostKeyCallback(), tc.Config.Login)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer nodeClient.Close()
+	}
+	return tc.runShell(nodeClient, "")
+}
+
+// runCommand executes a given bash command on a bunch of remote nodes
+func (tc *TeleportClient) runCommand(proxyClient *ProxyClient, command string) error {
+	stdoutMutex := &sync.Mutex{}
+	wg := &sync.WaitGroup{}
+
+	// TODO: for now we don't support multiple nodes, just one
+	nodes := []string{tc.NodeHostPort()}
+
+	for _, address := range nodes {
+		wg.Add(1)
+		go func(address string) {
+			defer wg.Done()
+			nodeClient, err := ConnectToNode(proxyClient, address, tc.authMethods,
+				tc.makeHostKeyCallback(), tc.Config.Login)
+			if err != nil {
+				fmt.Println(err)
+			}
+			defer nodeClient.Close()
+
+			// run the command on one node:
+			out := bytes.Buffer{}
+			err = nodeClient.Run(command, &out)
+			if err != nil {
+				fmt.Println(err)
+			}
+
+			stdoutMutex.Lock()
+			defer stdoutMutex.Unlock()
+			fmt.Printf("Running command on %v:\n", address)
+			if err != nil {
+				fmt.Println(err)
+			} else {
+				fmt.Printf(out.String())
+			}
+		}(address)
+	}
+	wg.Wait()
+	return nil
+}
+
+// runShell starts an interactive SSH session/shell
+func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID string) error {
+	defer nodeClient.Close()
+	address := tc.NodeHostPort()
+
+	// disable input buffering
+	exec.Command("stty", "-F", "/dev/tty", "cbreak", "min", "1").Run()
+	// do not display entered characters on the screen
+	exec.Command("stty", "-F", "/dev/tty", "-echo").Run()
+
+	// Catch term signals
+	exitSignals := make(chan os.Signal, 1)
+	signal.Notify(exitSignals, syscall.SIGTERM)
+	go func() {
+		<-exitSignals
+		fmt.Printf("\nConnection to %s closed\n", address)
+		// restore the console echoing state when exiting
+		exec.Command("stty", "-F", "/dev/tty", "echo").Run()
+		os.Exit(0)
+	}()
+
+	width, height, err := getTerminalSize()
+	if err != nil {
+		// restore the console echoing state when exiting
+		exec.Command("stty", "-F", "/dev/tty", "echo").Run()
+		return trace.Wrap(err)
+	}
+
+	shell, err := nodeClient.Shell(width, height, sessionID)
+	if err != nil {
+		// restore the console echoing state when exiting
+		exec.Command("stty", "-F", "/dev/tty", "echo").Run()
+		return trace.Wrap(err)
+	}
+
+	// Catch Ctrl-C signal
+	ctrlCSignal := make(chan os.Signal, 1)
+	signal.Notify(ctrlCSignal, syscall.SIGINT)
+	go func() {
+		for {
+			<-ctrlCSignal
+			_, err := shell.Write([]byte{3})
+			if err != nil {
+				log.Errorf(err.Error())
+			}
+		}
+	}()
+
+	// Catch Ctrl-Z signal
+	ctrlZSignal := make(chan os.Signal, 1)
+	signal.Notify(ctrlZSignal, syscall.SIGTSTP)
+	go func() {
+		for {
+			<-ctrlZSignal
+			_, err := shell.Write([]byte{26})
+			if err != nil {
+				log.Errorf(err.Error())
+			}
+		}
+	}()
+
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
+
+	// copy from the remote shell to the local
+	go func() {
+		_, err := io.Copy(os.Stdout, shell)
+		if err != nil {
+			log.Errorf(err.Error())
+		}
+		fmt.Printf("\nConnection to %s closed from the remote side\n", address)
+		// restore the console echoing state when exiting
+		exec.Command("stty", "-F", "/dev/tty", "echo").Run()
+		os.Exit(0)
+		wg.Done()
+	}()
+
+	// copy from the local shell to the remote
+	go func() {
+		defer wg.Done()
+		buf := make([]byte, 1)
+		for {
+			n, err := os.Stdin.Read(buf)
+			if err != nil {
+				fmt.Println(trace.Wrap(err))
+				return
+			}
+			if n > 0 {
+				// catch Ctrl-D
+				if buf[0] == 4 {
+					fmt.Printf("\nConnection to %s closed\n", address)
+					// restore the console echoing state when exiting
+					exec.Command("stty", "-F", "/dev/tty", "echo").Run()
+					os.Exit(0)
+				}
+				_, err = shell.Write(buf[:n])
+				if err != nil {
+					fmt.Println(trace.Wrap(err))
+					return
+				}
+			}
+		}
+	}()
+
+	wg.Wait()
+	// restore the console echoing state when exiting
+	exec.Command("stty", "-F", "/dev/tty", "echo").Run()
+	return nil
+}
+
+// getTerminalSize() returns current local terminal size
+func getTerminalSize() (width int, height int, e error) {
+	cmd := exec.Command("stty", "size")
+	cmd.Stdin = os.Stdin
+	out, err := cmd.Output()
+	n, err := fmt.Sscan(string(out), &height, &width)
+	if err != nil {
+		return 0, 0, trace.Wrap(err)
+	}
+	if n != 2 {
+		return 0, 0, trace.Errorf("Can't get terminal size")
+	}
+
+	return width, height, nil
+}
+
+// ConnectToProxy dials the proxy server and returns ProxyClient if successful
+func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
+	proxyAddr := tc.Config.ProxyHostPort()
+	sshConfig := &ssh.ClientConfig{
+		User:            tc.Config.Login,
+		HostKeyCallback: tc.makeHostKeyCallback(),
+	}
+
+	// try to authenticate using every auth method we have:
+	for _, m := range tc.authMethods {
+		sshConfig.Auth = []ssh.AuthMethod{m}
+		proxyClient, err := ssh.Dial("tcp", proxyAddr, sshConfig)
+		if err != nil {
+			if utils.IsHandshakeFailedError(err) {
+				log.Warn(err)
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+		return &ProxyClient{
+			Client:       proxyClient,
+			proxyAddress: proxyAddr,
+		}, nil
+	}
+	return nil, trace.Errorf("no authentication methods provided")
+}
+
+// makeHostKeyCallback creates and returns a function suitable to be passed into
+// ssh.ClientConfig
+func (tc *TeleportClient) makeHostKeyCallback() utils.HostKeyCallback {
+	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		err := CheckHostSignerFromCache(hostname, remote, key)
+		if err != nil {
+			err = tc.Login()
+			if err != nil {
+				log.Error(err)
+				return trace.Wrap(err)
+			}
+			return CheckHostSignerFromCache(hostname, remote, key)
+		}
+		return nil
+	}
+}
+
 // makeInteractiveAuthMethod creates an 'ssh.AuthMethod' which authenticates
 // interactively by asknig a Teleport password + HTOP token
 func (tc *TeleportClient) makeInteractiveAuthMethod() ssh.AuthMethod {
 	callbackFunc := func() (signers []ssh.Signer, err error) {
-		if err = tc.login(); err != nil {
+		if err = tc.Login(); err != nil {
 			log.Error(err)
 			return nil, trace.Wrap(err)
 		}
@@ -102,8 +376,9 @@ func (tc *TeleportClient) makeInteractiveAuthMethod() ssh.AuthMethod {
 	return ssh.PublicKeysCallback(callbackFunc)
 }
 
-// login
-func (tc *TeleportClient) login() error {
+// login asks for a password + HOTP token, makes a request to CA via proxy and
+// saves the generated credentials into local keystore for future use
+func (tc *TeleportClient) Login() error {
 	password, hotpToken, err := tc.AskPasswordAndHOTP()
 	if err != nil {
 		return trace.Wrap(err)
@@ -117,8 +392,8 @@ func (tc *TeleportClient) login() error {
 	}
 
 	// ask the CA (via proxy) to sign our public key:
-	proxyHostPort := net.JoinHostPort(tc.ProxyHost, string(tc.ProxyPort))
-	response, err := web.SSHAgentLogin(proxyHostPort, tc.Login, password, hotpToken, pub, tc.KeyTTL)
+	response, err := web.SSHAgentLogin(tc.Config.ProxyHostPort(), tc.Config.Login,
+		password, hotpToken, pub, tc.KeyTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -144,55 +419,24 @@ func (tc *TeleportClient) login() error {
 	if err := tc.localAgent.Add(addedKey); err != nil {
 		return trace.Wrap(err)
 	}
-
 	key := Key{
 		Priv:     priv,
 		Cert:     response.Cert,
 		Deadline: time.Now().Add(tc.KeyTTL),
 	}
-
-	keyID := int64(time.Now().Sub(time.Time{}).Seconds())*100 + rand.Int63n(100)
-	keyPath := filepath.Join(KeysDir,
-		KeyFilePrefix+strconv.FormatInt(keyID, 16)+KeyFileSuffix)
-
+	keyPath := filepath.Join(KeysDir, KeyFilePrefix+strconv.FormatInt(rand.Int63n(100), 16)+KeyFileSuffix)
 	err = saveKey(key, keyPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	err = AddHostSignersToCache(response.HostSigners)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	fmt.Println("Logged in successfully")
 	return nil
 }
 
-/*
-func (this *TeleportClient) Connect() {
-	var node *client.NodeClient
-	if len(proxyAddress) > 0 {
-		proxyClient, err := client.ConnectToProxy(proxyAddress, authMethods, hostKeyCallback, user)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-		node, err = proxyClient.ConnectToNode(address, authMethods, hostKeyCallback, user)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
-		var err error
-		node, err = client.ConnectToNode(nil, address, authMethods, hostKeyCallback, user)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-}
-*/
-
-// connects to a local SSH agent of exits, printing an error message
+// connects to a local SSH agent
 func connectToSSHAgent() agent.Agent {
 	socketPath := os.Getenv("SSH_AUTH_SOCK")
 	if socketPath == "" {
