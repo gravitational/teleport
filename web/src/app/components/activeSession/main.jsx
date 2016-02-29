@@ -4,9 +4,14 @@ var React = require('react');
 var {getters, actions} = require('app/modules/activeTerminal/');
 var EventStreamer = require('./eventStreamer.jsx');
 
-var TerminalHost = React.createClass({
+var ActiveSession = React.createClass({
 
   mixins: [reactor.ReactMixin],
+
+  componentDidMount: function() {
+    //actions.open
+    //actions.open(data[rowIndex].addr, user.logins[i], undefined)}>{user.logins[i]}</a></li>);
+  },
 
   onOpen(){
     actions.connected();
@@ -63,9 +68,7 @@ var TerminalHost = React.createClass({
 
 var TerminalBox = React.createClass({
   renderTerminal: function() {
-    var isNew
     var parent = document.getElementById("terminal-box");
-
     var {settings, token, sid } = this.props;
 
     //settings.sid = 5555;
@@ -128,5 +131,5 @@ var TerminalBox = React.createClass({
   }
 });
 
-export default TerminalHost;
-export {TerminalBox, TerminalHost};
+export default ActiveSession;
+export {TerminalBox, ActiveSession};

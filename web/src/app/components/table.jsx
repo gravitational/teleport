@@ -1,5 +1,11 @@
 var React = require('react');
 
+const GrvTableTextCell = ({rowIndex, data, columnKey, ...props}) => (
+  <GrvTableCell {...props}>
+    {data[rowIndex][columnKey]}
+  </GrvTableCell>
+);
+
 var GrvTableCell = React.createClass({
   render(){
     var props = this.props;
@@ -74,4 +80,4 @@ var GrvTableColumn = React.createClass({
 })
 
 export default GrvTable;
-export {GrvTableColumn as Column, GrvTable as Table, GrvTableCell as Cell};
+export {GrvTableColumn as Column, GrvTable as Table, GrvTableCell as Cell, GrvTableTextCell as TextCell};

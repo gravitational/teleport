@@ -32,6 +32,7 @@ let cfg = {
     logout: '/web/logout',
     login: '/web/login',
     nodes: '/web/nodes',
+    activeSession: '/web/active-session/:sid',
     newUser: '/web/newuser/:inviteToken',
     sessions: '/web/sessions'
   }

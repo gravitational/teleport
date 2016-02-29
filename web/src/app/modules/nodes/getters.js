@@ -44,5 +44,5 @@ function getTags(node){
 
 
 export default {
-  nodeListView
+  nodeListView  
 }
