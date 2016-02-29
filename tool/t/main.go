@@ -152,6 +152,40 @@ func onVersion() {
 	fmt.Println("Version!")
 }
 
+// parseLabelSpec parses a string like 'name=value,"long name"="quoted value"` into a map like
+// { "name" -> "value", "long name" -> "quoted value" }
 func parseLabelSpec(spec string) (map[string]string, error) {
-	return nil, nil
+	tokens := []string{}
+	var openQuotes = false
+	var tokenStart, assignCount int
+	// tokenize the label spec:
+	for i, ch := range spec {
+		endOfToken := (i+1 == len(spec))
+		switch ch {
+		case '"':
+			openQuotes = !openQuotes
+		case '=', ',', ';':
+			if !openQuotes {
+				endOfToken = true
+				if ch == '=' {
+					assignCount += 1
+				}
+			}
+		}
+		if endOfToken && i > tokenStart {
+			tokens = append(tokens, strings.TrimSpace(strings.Trim(spec[tokenStart:i], `"`)))
+			tokenStart = i + 1
+		}
+	}
+	// simple validation of tokenization: must have even number of tokens (because they're pairs)
+	// and the number of such pairs must be equal the number of assignments
+	if len(tokens)%2 != 0 || assignCount != len(tokens)/2 {
+		return nil, fmt.Errorf("invalid label spec: '%s'", spec)
+	}
+	// break tokens in pairs and put into a map:
+	labels := make(map[string]string)
+	for i := 0; i < len(tokens); i += 2 {
+		labels[tokens[i]] = tokens[i+1]
+	}
+	return labels, nil
 }
