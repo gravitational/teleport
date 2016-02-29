@@ -63,7 +63,7 @@ func FatalError(err error) {
 	unwrap = func(err error) error {
 		te, ok := err.(trace.Error)
 		if ok {
-			return te
+			return te.OrigError()
 		}
 		return err
 	}
