@@ -36,6 +36,16 @@ var _ = check.Suite(&MainTestSuite{})
 func (s *MainTestSuite) SetUpSuite(c *check.C) {
 }
 
+func (s *MainTestSuite) TestParseLabels(c *check.C) {
+	m, err := parseLabelSpec(`type="databse",role=master,ver="mongoDB v1.2"`)
+	c.Assert(err, check.IsNil)
+	c.Assert(m, check.NotNil)
+	c.Assert(m, check.HasLen, 3)
+	c.Assert(m["role"], check.Equals, "master")
+	c.Assert(m["type"], check.Equals, "database")
+	c.Assert(m["ver"], check.Equals, "mongoDB v1.2")
+}
+
 func (s *MainTestSuite) TestMakeClient(c *check.C) {
 	var conf CLIConf
 

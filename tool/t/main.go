@@ -67,11 +67,15 @@ func run(args []string, underTest bool) {
 	debugMode := app.Flag("debug", "Verbose logging to stdout").Short('d').Bool()
 	app.HelpFlag.Short('h')
 	ver := app.Command("version", "Print the version")
-	ssh := app.Command("ssh", "SSH into a remote machine")
-	ssh.Arg("[user@]host", "Remote hostname and the machine login [$USER]").Required().StringVar(&cf.UserHost)
+	// ssh
+	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node")
+	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int16Var(&cf.NodePort)
 	ssh.Flag("login", "Remote host login").Short('l').StringVar(&cf.NodeLogin)
+	// ls
+	ls := app.Command("ls", "List remote SSH nodes")
+	ls.Arg("labels", "List of labels to filter node list").Default("*").StringVar(&cf.UserHost)
 
 	// parse CLI commands+flags:
 	command, err := app.Parse(args)
@@ -89,6 +93,16 @@ func run(args []string, underTest bool) {
 		onVersion()
 	case ssh.FullCommand():
 		onSSH(&cf)
+	case ls.FullCommand():
+		onListNodes(&cf)
+	}
+}
+
+// onListNodes executes 'tsh ls' command
+func onListNodes(cf *CLIConf) {
+	_, err := makeClient(cf)
+	if err != nil {
+		utils.FatalError(err)
 	}
 }
 
@@ -136,4 +150,8 @@ func makeClient(cf *CLIConf) (*client.TeleportClient, error) {
 
 func onVersion() {
 	fmt.Println("Version!")
+}
+
+func parseLabelSpec(spec string) (map[string]string, error) {
+	return nil, nil
 }
