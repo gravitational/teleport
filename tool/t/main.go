@@ -100,9 +100,17 @@ func run(args []string, underTest bool) {
 
 // onListNodes executes 'tsh ls' command
 func onListNodes(cf *CLIConf) {
-	_, err := makeClient(cf)
+	tc, err := makeClient(cf)
 	if err != nil {
 		utils.FatalError(err)
+	}
+	servers, err := tc.ListNodes()
+	if err != nil {
+		utils.FatalError(err)
+	}
+	// TODO: make this prettier
+	for _, s := range servers {
+		fmt.Printf("%s (%v)\n", s.Hostname, s.Addr)
 	}
 }
 
@@ -120,7 +128,7 @@ func onSSH(cf *CLIConf) {
 
 // makeClient takes the command-line configuration and constructs & returns
 // a fully configured TeleportClient object
-func makeClient(cf *CLIConf) (*client.TeleportClient, error) {
+func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 	// apply defults
 	if cf.NodePort == 0 {
 		cf.NodePort = defaults.SSHServerListenPort
@@ -135,6 +143,14 @@ func makeClient(cf *CLIConf) (*client.TeleportClient, error) {
 		hostLogin = parts[0]
 		cf.UserHost = parts[1]
 	}
+	// see if remote host is specified as a set of labels
+	var labels map[string]string
+	if strings.Contains(cf.UserHost, "=") {
+		labels, err = client.ParseLabelSpec(cf.UserHost)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	// prep client config:
 	c := &client.Config{
@@ -143,6 +159,7 @@ func makeClient(cf *CLIConf) (*client.TeleportClient, error) {
 		Host:      cf.UserHost,
 		HostPort:  int(cf.NodePort),
 		HostLogin: hostLogin,
+		Labels:    labels,
 		KeyTTL:    time.Minute * time.Duration(cf.MinsToLive),
 	}
 	return client.NewClient(c)
@@ -150,42 +167,4 @@ func makeClient(cf *CLIConf) (*client.TeleportClient, error) {
 
 func onVersion() {
 	fmt.Println("Version!")
-}
-
-// parseLabelSpec parses a string like 'name=value,"long name"="quoted value"` into a map like
-// { "name" -> "value", "long name" -> "quoted value" }
-func parseLabelSpec(spec string) (map[string]string, error) {
-	tokens := []string{}
-	var openQuotes = false
-	var tokenStart, assignCount int
-	// tokenize the label spec:
-	for i, ch := range spec {
-		endOfToken := (i+1 == len(spec))
-		switch ch {
-		case '"':
-			openQuotes = !openQuotes
-		case '=', ',', ';':
-			if !openQuotes {
-				endOfToken = true
-				if ch == '=' {
-					assignCount += 1
-				}
-			}
-		}
-		if endOfToken && i > tokenStart {
-			tokens = append(tokens, strings.TrimSpace(strings.Trim(spec[tokenStart:i], `"`)))
-			tokenStart = i + 1
-		}
-	}
-	// simple validation of tokenization: must have even number of tokens (because they're pairs)
-	// and the number of such pairs must be equal the number of assignments
-	if len(tokens)%2 != 0 || assignCount != len(tokens)/2 {
-		return nil, fmt.Errorf("invalid label spec: '%s'", spec)
-	}
-	// break tokens in pairs and put into a map:
-	labels := make(map[string]string)
-	for i := 0; i < len(tokens); i += 2 {
-		labels[tokens[i]] = tokens[i+1]
-	}
-	return labels, nil
 }
