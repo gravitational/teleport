@@ -3,6 +3,7 @@ var cfg = require('app/config');
 var React = require('react');
 var {getters, actions} = require('app/modules/activeTerminal/');
 var EventStreamer = require('./eventStreamer.jsx');
+var {debounce} = require('_');
 
 var ActiveSession = React.createClass({
 
@@ -29,7 +30,6 @@ var ActiveSession = React.createClass({
     }
 
     var {isConnected, ...settings} = this.state.activeSession;
-    var {token} = session.getUserData();
 
     return (
      <div className="grv-terminal-host">
@@ -59,38 +59,33 @@ var ActiveSession = React.createClass({
            </div>
          </div>
        </div>
-       { isConnected ? <EventStreamer token={token} sid={settings.sid}/> : null }
-       <TerminalBox settings={settings} token={token} onOpen={actions.connected}/>
+       { isConnected ? <EventStreamer sid={settings.sid}/> : null }
+       <TerminalBox settings={settings} onOpen={actions.connected}/>
      </div>
      );
   }
 });
 
-var TerminalBox = React.createClass({
-  renderTerminal: function() {
-    var parent = document.getElementById("terminal-box");
-    var {settings, token, sid } = this.props;
+Terminal.colors[256] = 'inherit';
 
-    //settings.sid = 5555;
+var TerminalBox = React.createClass({
+  resize: function(e) {
+    this.destroy();
+    this.renderTerminal();
+  },
+
+  connect(cols, rows){
+    let {token} = session.getUserData();
+    let {settings, sid } = this.props;
+
     settings.term = {
-      h: 120,
-      w: 100
+      h: rows,
+      w: cols
     };
 
-    var connectionStr = cfg.api.getSessionConnStr(token, settings);
+    let connectionStr = cfg.api.getSessionConnStr(token, settings);
 
-    this.term = new Terminal({
-      cols: 180,
-      rows: 50,
-      useStyle: true,
-      screenKeys: true,
-      cursorBlink: false
-    });
-
-    this.term.open(parent);
-    this.socket = new WebSocket(connectionStr, "proto");
-    this.term.write('\x1b[94mconnecting to "pod"\x1b[m\r\n');
-
+    this.socket = new WebSocket(connectionStr, 'proto');
     this.socket.onopen = () => {
       this.props.onOpen();
       this.term.on('data', (data) => {
@@ -107,25 +102,71 @@ var TerminalBox = React.createClass({
     }
   },
 
+  getDimensions(){
+    var $container = $(this.refs.container);
+    var $term = $container.find('.terminal');
+    var cols, rows;
+
+    if($term.length === 1){
+      var fakeRow = $('<div><span>&nbsp;</span></div>');
+      $term.append(fakeRow);
+      var fakeCol = fakeRow.children().first()[0].getBoundingClientRect();
+      cols = Math.floor($term.width() / (fakeCol.width || 9));
+      rows = Math.floor($term.height() / (fakeCol.height || 20));
+      fakeRow.remove();
+    }else{
+      var $container = $(this.refs.container);
+      cols = Math.floor($container.width() / 9);
+      rows = Math.floor($container.height() / 20);
+    }
+
+    return {cols, rows};
+
+  },
+
+  destroy(){
+    if(this.socket){
+      this.socket.close();
+    }
+
+    this.term.destroy();
+  },
+
+  renderTerminal() {
+    var {cols, rows} = this.getDimensions();
+    var {settings, token, sid } = this.props;
+
+    this.term = new Terminal({
+      cols,
+      rows,
+      useStyle: true,
+      screenKeys: true,
+      cursorBlink: true
+    });
+
+    this.term.open(this.refs.container);
+    this.term.write('\x1b[94mconnecting...\x1b[m\r\n');
+    this.connect(cols, rows);
+  },
+
   componentDidMount: function() {
     this.renderTerminal();
+    this.resize = debounce(this.resize, 100);
+    window.addEventListener('resize', this.resize);
   },
 
   componentWillUnmount: function() {
-    this.socket.close();
-    this.term.destroy();
+    this.destroy();
+    window.removeEventListener('resize', this.resize);
   },
 
   shouldComponentUpdate: function() {
     return false;
   },
 
-  componentWillReceiveProps: function(props) {
-  },
-
   render: function() {
     return (
-        <div className="grv-wiz-terminal" id="terminal-box">
+        <div className="grv-terminal" id="terminal-box" ref="container">
         </div>
     );
   }

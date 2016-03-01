@@ -23,3 +23,17 @@
     }
   }
 }
+
+.grv-terminal {
+  height: 100%;
+  overflow: auto;
+  background-color: #333;
+
+  .terminal{
+    border: none;
+    width: 100%;
+    font-size: 14px;
+    padding: 10px;
+    border-radius: 10px;
+  }
+}

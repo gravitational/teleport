@@ -10,8 +10,8 @@ export default {
 
   ensureUser(nextState, replace, cb){
     auth.ensureUser()
-      .done((userData)=> {
-        reactor.dispatch(TLPT_RECEIVE_USER, userData.user);
+      .done((userData)=> {        
+        reactor.dispatch(TLPT_RECEIVE_USER, userData.user );
         cb();
       })
       .fail(()=>{
