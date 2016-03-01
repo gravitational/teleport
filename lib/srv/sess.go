@@ -296,7 +296,7 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	p.ctx.Infof("starting shell input/output streaming")
 
 	if s.registry.srv.rec != nil {
-		w, err := newChunkWriter(s.registry.srv.rec)
+		w, err := newChunkWriter(s.registry.srv.rec, s.registry.srv.addr.Addr)
 		if err != nil {
 			p.ctx.Errorf("failed to create recorder: %v", err)
 			return trace.Wrap(err)
@@ -562,22 +562,24 @@ func (p *party) Close() error {
 	return p.s.registry.leaveShell(p.s.id, p.id)
 }
 
-func newChunkWriter(rec recorder.Recorder) (*chunkWriter, error) {
+func newChunkWriter(rec recorder.Recorder, serverAddr string) (*chunkWriter, error) {
 	id := uuid.New()
 	cw, err := rec.GetChunkWriter(id)
 	if err != nil {
 		return nil, err
 	}
 	return &chunkWriter{
-		w:   cw,
-		rid: id,
+		w:          cw,
+		rid:        id,
+		serverAddr: serverAddr,
 	}, nil
 }
 
 type chunkWriter struct {
-	before time.Time
-	rid    string
-	w      recorder.ChunkWriteCloser
+	before     time.Time
+	rid        string
+	w          recorder.ChunkWriteCloser
+	serverAddr string
 }
 
 func (l *chunkWriter) Write(b []byte) (int, error) {
@@ -589,7 +591,9 @@ func (l *chunkWriter) Write(b []byte) (int, error) {
 		diff = now.Sub(l.before)
 		l.before = now
 	}
-	cs := []recorder.Chunk{recorder.Chunk{Delay: diff, Data: b}}
+	cs := []recorder.Chunk{
+		recorder.Chunk{Delay: diff, Data: b, ServerAddr: l.serverAddr},
+	}
 	if err := l.w.WriteChunks(cs); err != nil {
 		return 0, err
 	}

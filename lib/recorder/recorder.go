@@ -23,34 +23,51 @@ import (
 	"time"
 )
 
+// Recorder is a session recoreder and playback
+// interface
 type Recorder interface {
+	// GetChunkWriter returns a new writer that can record
+	// chunks with active session data to the recording server
 	GetChunkWriter(id string) (ChunkWriteCloser, error)
+	// GetChunkReader returns a reader of recorded chunks
 	GetChunkReader(id string) (ChunkReadCloser, error)
 }
 
+// Chunk is a piece of recorded session on some node
 type Chunk struct {
-	Data  []byte        `json:"data"`  // captured terminal data
-	Delay time.Duration `json:"delay"` // delay before the previous chunk
+	// Data is a captured terminal data
+	Data []byte `json:"data"`
+	// Delay is delay before the previous chunk appeared
+	Delay time.Duration `json:"delay"`
+	// ServerAddr is a server address of the recorded session
+	ServerAddr string `json:"server_addr"`
 }
 
+// ChunkReader is a playback of a recorded session
 type ChunkReader interface {
+	// ReadChunks returns a list of chunks from start to end indexes
 	ReadChunks(start int, end int) ([]Chunk, error)
 }
 
+// ChunkReadCloser implements chunk reader + adds closer
 type ChunkReadCloser interface {
 	ChunkReader
 	io.Closer
 }
 
+// ChunkWriter is a session recorder
 type ChunkWriter interface {
+	// WriteChunks stores recorded chunks in the registry
 	WriteChunks([]Chunk) error
 }
 
+// ChunkWriteCloser is a chunk writer with Closer interface
 type ChunkWriteCloser interface {
 	ChunkWriter
 	io.Closer
 }
 
+// ChunkReadWriteCloser is a chunk reader, writer and closer interfaces
 type ChunkReadWriteCloser interface {
 	ChunkReader
 	ChunkWriter
