@@ -37,7 +37,6 @@
       # add .ssh keys
       #
       - authorized_key: key=http://s3.gravitational.io/rsa/jenkins.pub state=present user=admin
-      - authorized_key: key=http://s3.gravitational.io/rsa/alyulkov.pub state=present user=admin
       - authorized_key: key=http://s3.gravitational.io/rsa/ekontsevoy.pub state=present user=admin
       - authorized_key: key=http://s3.gravitational.io/rsa/akontsevoy.pub state=present user=admin
       - authorized_key: key=http://s3.gravitational.io/rsa/klizhentas.pub state=present user=admin
