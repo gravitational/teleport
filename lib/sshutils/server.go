@@ -32,7 +32,7 @@ import (
 
 type Server struct {
 	addr           utils.NetAddr
-	l              net.Listener
+	listener       net.Listener
 	closeC         chan struct{}
 	newChanHandler NewChanHandler
 	reqHandler     RequestHandler
@@ -94,7 +94,7 @@ func SetRequestHandler(req RequestHandler) ServerOption {
 }
 
 func (s *Server) Addr() string {
-	return s.l.Addr().String()
+	return s.listener.Addr().String()
 }
 
 func (s *Server) Start() error {
@@ -102,7 +102,7 @@ func (s *Server) Start() error {
 	if err != nil {
 		return err
 	}
-	s.l = socket
+	s.listener = socket
 	log.Infof("created listening socket: %v", socket.Addr())
 	go s.acceptConnections()
 	return nil
@@ -118,14 +118,14 @@ func (s *Server) Wait() {
 
 // Close closes listening socket and stops accepting connections
 func (s *Server) Close() error {
-	return s.l.Close()
+	return s.listener.Close()
 }
 
 func (s *Server) acceptConnections() {
 	defer s.notifyClosed()
 	log.Infof("%v ready to accept connections", s.Addr())
 	for {
-		conn, err := s.l.Accept()
+		conn, err := s.listener.Accept()
 		if err != nil {
 			// our best shot to avoid excessive logging
 			if op, ok := err.(*net.OpError); ok && !op.Timeout() {

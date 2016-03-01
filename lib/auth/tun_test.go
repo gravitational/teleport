@@ -354,11 +354,11 @@ func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(err, IsNil)
 	defer cltw.Close()
 
-	// Requesting forbidded for Web action
+	// Requesting forbidden for Web action
 	_, err = cltw.GetServers()
 	c.Assert(err, NotNil)
 
-	// Requesting forbidded for Web action
+	// Requesting forbidden for Web action
 	_, err = cltw.SignIn(user, pass)
 	c.Assert(err, NotNil)
 
