@@ -16,7 +16,7 @@ var App = React.createClass({
         <NavLeftBar/>
         <ActiveSession/>
         <div className="row">
-          <nav className="" role="navigation" style={{ marginBottom: 0 }}>
+          <nav className="" role="navigation" style={{ marginBottom: 0, float: "right" }}>
             <ul className="nav navbar-top-links navbar-right">
               <li>
                 <a href={cfg.routes.logout}>

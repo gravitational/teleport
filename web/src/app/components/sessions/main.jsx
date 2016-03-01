@@ -48,8 +48,8 @@ var SessionList = React.createClass({
   render: function() {
     var data = this.state.sessionsView;
     return (
-      <div>
-        <h1> Sessions!</h1>
+      <div className="grv-sessions">
+        <h1> Sessions</h1>
         <div className="">
           <div className="">
             <div className="">

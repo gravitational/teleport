@@ -1,41 +1,56 @@
+@import "grv-vars";
 @import "grv-invite";
 @import "grv-login";
 @import "grv-logo";
 @import "grv-nodes";
+@import "grv-sessions";
+@import "grv-nav";
 @import "grv-terminal-host";
 
 .grv {
-
   background-color: white;
-
-  #app{
+  #app {
     height: 100%;
   }
-
-  .grv-spinner.sk-spinner-three-bounce{
+  .grv-spinner.sk-spinner-three-bounce {
     position: absolute;
     top: 50%;
     left: 50%;
   }
-
-  nav{
-    height: 100%;
-    background-color: #293846;
-    font-size: 20px;
-  }
-
-  .grv-page{
+  .grv-page {
     margin-left: 60px;
-    padding: 0 15px;
+    padding: 0 5%;
   }
-
 }
 
-.grv-flex{
+.grv-circle {
+  margin: 0 auto;
+  height: 30px;
+  width: 30px;
+  display: block;
+  background: #1ab394;
+  padding: 9px 8px;
+  text-align: center;
+  color: #fff;
+  border-radius: 50%;
+
+  span {
+    display: block;
+    left: 0;
+    height: 1em;
+    position: absolute;
+    right: 0;
+    top: 50%;
+    font-size: 14px;
+    margin-top: -.5em;
+  }
+}
+
+.grv-flex {
   display: flex;
 }
 
-.grv-flex-column{
+.grv-flex-column {
   flex-direction: column;
   flex: 1;
 }

@@ -5,10 +5,9 @@
    height: 100%;
    width: 100%;
    display: block;
-   background-color: black;
+   background-color: $grv-color-bg-term;
    z-index: 1;
  }
-
 
 .grv-terminal-participans{
   margin-left: -100px;
@@ -28,8 +27,6 @@
   height: 100%;
   width: 100%;
   font-size: 14px;
-  background-color: #333;
-
   .terminal{
     border: none;
     font-size: inherit;
