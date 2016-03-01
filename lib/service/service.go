@@ -401,6 +401,7 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 		cfg.DataDir,
 		srv.SetLimiter(proxyLimiter),
 		srv.SetProxyMode(tsrv),
+		srv.SetSessionServer(client),
 	)
 	if err != nil {
 		return trace.Wrap(err)
