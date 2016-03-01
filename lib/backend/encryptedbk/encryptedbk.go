@@ -109,6 +109,27 @@ func (b *EncryptedBackend) UpsertVal(path []string, key string, val []byte, ttl 
 	return nil
 }
 
+func (b *EncryptedBackend) CreateVal(path []string, key string, val []byte, ttl time.Duration) error {
+	encVal, err := b.encryptor.Encrypt(val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = b.bk.CreateVal(append(b.prefix, path...), key, encVal, ttl)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (b *EncryptedBackend) TouchVal(path []string, key string, ttl time.Duration) error {
+	err := b.bk.TouchVal(append(b.prefix, path...), key, ttl)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 func (b *EncryptedBackend) CompareAndSwap(path []string, key string, val []byte, ttl time.Duration, prevVal []byte) ([]byte, error) {
 	encStored, err := b.bk.GetVal(append(b.prefix, path...), key)
 	if err != nil && !teleport.IsNotFound(err) {

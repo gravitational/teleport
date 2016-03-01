@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package srv
 
 import (
@@ -20,6 +21,8 @@ import (
 	"io"
 	"sync"
 	"sync/atomic"
+
+	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/codahale/lunk"
@@ -55,7 +58,7 @@ type ctx struct {
 
 	sync.RWMutex
 	// term holds PTY if it was requested by the session
-	term *term
+	term *terminal
 
 	// agent is a client to remote SSH agent
 	agent agent.Agent
@@ -74,6 +77,12 @@ type ctx struct {
 	// this is handy as sometimes client closes session, in this case resources
 	// will be properly closed and deallocated, otherwise they could be kept hanging
 	closers []io.Closer
+
+	// teleportUser is a teleport user that was used to log in
+	teleportUser string
+
+	// login is operating system user login chosen by the user
+	login string
 }
 
 // emit emits event
@@ -106,15 +115,16 @@ func (c *ctx) setAgent(a agent.Agent, ch ssh.Channel) {
 	c.agent = a
 }
 
-func (c *ctx) getTerm() *term {
+func (c *ctx) getTerm() *terminal {
 	c.RLock()
 	defer c.RUnlock()
 	return c.term
 }
 
-func (c *ctx) setTerm(t *term) {
+func (c *ctx) setTerm(t *terminal) {
 	c.Lock()
 	defer c.Unlock()
+	log.Infof("setTerm: %v", t)
 	c.term = t
 }
 
@@ -178,21 +188,24 @@ func (c *ctx) getEnv(key string) (string, bool) {
 	return val, ok
 }
 
-func newCtx(srv *Server, info ssh.ConnMetadata) *ctx {
+func newCtx(srv *Server, conn *ssh.ServerConn) *ctx {
 	ctx := &ctx{
-		env:    make(map[string]string),
-		eid:    lunk.NewRootEventID(),
-		info:   info,
-		id:     int(atomic.AddInt32(&ctxID, int32(1))),
-		result: make(chan execResult, 10),
-		close:  make(chan closeMsg, 10),
-		srv:    srv,
+		env:          make(map[string]string),
+		eid:          lunk.NewRootEventID(),
+		info:         conn,
+		id:           int(atomic.AddInt32(&ctxID, int32(1))),
+		result:       make(chan execResult, 10),
+		close:        make(chan closeMsg, 10),
+		srv:          srv,
+		teleportUser: conn.Permissions.Extensions[utils.CertExtensionUser],
+		login:        conn.User(),
 	}
 	ctx.Entry = log.WithFields(srv.logFields(log.Fields{
-		"local":  info.LocalAddr(),
-		"remote": info.RemoteAddr(),
-		"user":   info.User(),
-		"id":     ctx.id,
+		"local":        conn.LocalAddr(),
+		"remote":       conn.RemoteAddr(),
+		"login":        ctx.login,
+		"teleportUser": ctx.teleportUser,
+		"id":           ctx.id,
 	}))
 	return ctx
 }

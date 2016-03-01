@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 
 	log "github.com/Sirupsen/logrus"
@@ -39,14 +40,9 @@ type connectReq struct {
 	// User is linux username to connect as
 	Login string `json:"login"`
 	// Term sets PTY params like width and height
-	Term connectTerm `json:"term"`
+	Term session.TerminalParams `json:"term"`
 	// SessionID is a teleport session ID to join as
 	SessionID string `json:"sid"`
-}
-
-type connectTerm struct {
-	H int `json:"h"`
-	W int `json:"w"`
 }
 
 func newConnectHandler(req connectReq, ctx *sessionContext, site reversetunnel.RemoteSite) (*connectHandler, error) {
@@ -100,12 +96,12 @@ func (w *connectHandler) connect(ws *websocket.Conn) {
 	ws.Write([]byte("\n\rdisconnected\n\r"))
 }
 
-func (w *connectHandler) resizePTYWindow(term connectTerm) error {
+func (w *connectHandler) resizePTYWindow(params session.TerminalParams) error {
 	_, err := w.up.GetSession().SendRequest(
-		sshutils.PTYReq, false,
+		sshutils.WindowChangeReq, false,
 		ssh.Marshal(sshutils.WinChangeReqParams{
-			W: uint32(term.W),
-			H: uint32(term.H),
+			W: uint32(params.W),
+			H: uint32(params.H),
 		}))
 	return trace.Wrap(err)
 }

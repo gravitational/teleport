@@ -262,17 +262,38 @@ func (b *ReplicatedBackend) UpsertVal(path []string, key string, val []byte, ttl
 	return b.upsertVal(path, key, val, ttl)
 }
 
-func (b *ReplicatedBackend) upsertVal(path []string, key string, val []byte, ttl time.Duration) error {
-	var resultErr error
-	resultErr = nil
+func (b *ReplicatedBackend) CreateVal(path []string, key string, val []byte, ttl time.Duration) error {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+	return b.createVal(path, key, val, ttl)
+}
 
+func (b *ReplicatedBackend) TouchVal(path []string, key string, ttl time.Duration) error {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+
+	var err error
 	for _, bk := range b.ebk {
-		err := bk.UpsertVal(path, key, val, ttl)
-		if err != nil {
-			resultErr = err
-		}
+		err = bk.TouchVal(path, key, ttl)
 	}
-	return resultErr
+
+	return trace.Wrap(err)
+}
+
+func (b *ReplicatedBackend) upsertVal(path []string, key string, val []byte, ttl time.Duration) error {
+	var err error
+	for _, bk := range b.ebk {
+		err = bk.UpsertVal(path, key, val, ttl)
+	}
+	return trace.Wrap(err)
+}
+
+func (b *ReplicatedBackend) createVal(path []string, key string, val []byte, ttl time.Duration) error {
+	var err error
+	for _, bk := range b.ebk {
+		err = bk.CreateVal(path, key, val, ttl)
+	}
+	return trace.Wrap(err)
 }
 
 func (b *ReplicatedBackend) CompareAndSwap(path []string, key string, val []byte, ttl time.Duration, prevVal []byte) ([]byte, error) {

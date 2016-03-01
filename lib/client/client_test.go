@@ -117,10 +117,12 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 
 	rec, err := boltrec.New(s.dir)
 	c.Assert(err, IsNil)
+	sessionServer, err := sess.New(baseBk)
+	c.Assert(err, IsNil)
 	s.roleAuth = auth.NewAuthWithRoles(s.a,
 		auth.NewStandardPermissions(),
 		bl,
-		sess.New(baseBk),
+		sessionServer,
 		teleport.RoleAdmin,
 		nil)
 
@@ -142,6 +144,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 					Command: []string{"expr", "1", "+", "3"}},
 			},
 		),
+		srv.SetSessionServer(sessionServer),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(s.srv.Start(), IsNil)
@@ -169,6 +172,7 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 				},
 			},
 		),
+		srv.SetSessionServer(sessionServer),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(s.srv2.Start(), IsNil)
@@ -194,11 +198,12 @@ func (s *ClientSuite) SetUpSuite(c *C) {
 		s.roleAuth,
 		s.dir,
 		srv.SetProxyMode(reverseTunnelServer),
+		srv.SetSessionServer(sessionServer),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(s.proxy.Start(), IsNil)
 
-	apiSrv := auth.NewAPIWithRoles(s.a, bl, sess.New(s.bk), rec,
+	apiSrv := auth.NewAPIWithRoles(s.a, bl, sessionServer, rec,
 		auth.NewAllowAllPermissions(),
 		auth.StandardRoles,
 	)

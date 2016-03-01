@@ -48,7 +48,7 @@ type APIServer struct {
 	a    *AuthWithRoles
 	s    *AuthServer
 	elog events.Log
-	se   session.SessionServer
+	se   session.Service
 	rec  recorder.Recorder
 }
 
@@ -108,10 +108,10 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 
 	// Sesssions
 	srv.POST("/v1/sessions/:id/parties", httplib.MakeHandler(srv.upsertSessionParty))
-	srv.POST("/v1/sessions", httplib.MakeHandler(srv.upsertSession))
+	srv.POST("/v1/sessions", httplib.MakeHandler(srv.createSession))
+	srv.PUT("/v1/sessions/:id", httplib.MakeHandler(srv.updateSession))
 	srv.GET("/v1/sessions", httplib.MakeHandler(srv.getSessions))
 	srv.GET("/v1/sessions/:id", httplib.MakeHandler(srv.getSession))
-	srv.DELETE("/v1/sessions/:id", httplib.MakeHandler(srv.deleteSession))
 
 	// Backend Keys
 	srv.GET("/v1/backend/keys", httplib.MakeHandler(srv.getSealKeys))
@@ -567,20 +567,34 @@ func (s *APIServer) deleteCertAuthority(w http.ResponseWriter, r *http.Request, 
 	return message(fmt.Sprintf("cert '%v' deleted", id)), nil
 }
 
-type upsertSessionReq struct {
-	ID  string        `json:"id"`
-	TTL time.Duration `json:"ttl"`
+type createSessionReq struct {
+	Session session.Session `json:"session"`
 }
 
-func (s *APIServer) upsertSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *upsertSessionReq
+func (s *APIServer) createSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *createSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := s.a.UpsertSession(req.ID, req.TTL); err != nil {
+	if err := s.a.CreateSession(req.Session); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return req.ID, nil
+	return message("ok"), nil
+}
+
+type updateSessionReq struct {
+	Update session.UpdateRequest `json:"update"`
+}
+
+func (s *APIServer) updateSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *updateSessionReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.a.UpdateSession(req.Update); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
 }
 
 type upsertPartyReq struct {
@@ -616,14 +630,6 @@ func (s *APIServer) getSession(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 	return se, nil
-}
-
-func (s *APIServer) deleteSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	sid := p[0].Value
-	if err := s.a.DeleteSession(sid); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("session %v was deleted", sid)), nil
 }
 
 type getSignupTokenDataResponse struct {

@@ -95,6 +95,16 @@ func (b *bk) GetKeys(path []string) ([]string, error) {
 	return keys, nil
 }
 
+func (b *bk) CreateVal(path []string, key string, val []byte, ttl time.Duration) error {
+	panic("implement me")
+	return nil
+}
+
+func (b *bk) TouchVal(path []string, key string, ttl time.Duration) error {
+	panic("implement me")
+	return nil
+}
+
 func (b *bk) UpsertVal(path []string, key string, val []byte, ttl time.Duration) error {
 	_, err := b.client.Set(
 		b.key(append(path, key)...), string(val), uint64(ttl/time.Second))

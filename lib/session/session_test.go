@@ -20,19 +20,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
+	//	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/mailgun/timetools"
 	. "gopkg.in/check.v1"
 )
 
 func TestSessions(t *testing.T) { TestingT(t) }
 
 type BoltSuite struct {
-	bk  *boltbk.BoltBackend
-	dir string
-	srv SessionServer
+	dir   string
+	srv   *server
+	bk    *boltbk.BoltBackend
+	clock *timetools.FreezedTime
 }
 
 var _ = Suite(&BoltSuite{})
@@ -42,13 +44,18 @@ func (s *BoltSuite) SetUpSuite(c *C) {
 }
 
 func (s *BoltSuite) SetUpTest(c *C) {
+	s.clock = &timetools.FreezedTime{
+		CurrentTime: time.Date(2016, 9, 8, 7, 6, 5, 0, time.UTC),
+	}
 	s.dir = c.MkDir()
 
 	var err error
-	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
+	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"), boltbk.Clock(s.clock))
 	c.Assert(err, IsNil)
 
-	s.srv = New(s.bk)
+	srv, err := New(s.bk, Clock(s.clock))
+	s.srv = srv.(*server)
+	c.Assert(err, IsNil)
 }
 
 func (s *BoltSuite) TearDownTest(c *C) {
@@ -58,74 +65,120 @@ func (s *BoltSuite) TearDownTest(c *C) {
 func (s *BoltSuite) TestSessionsCRUD(c *C) {
 	out, err := s.srv.GetSessions()
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, []Session{})
+	c.Assert(len(out), Equals, 0)
 
-	c.Assert(s.srv.UpsertSession("sid1", 10*time.Second), IsNil)
+	sess := Session{
+		ID:         "sid1",
+		Active:     true,
+		Terminal:   TerminalParams{W: 100, H: 100},
+		Login:      "bob",
+		LastActive: s.clock.UtcNow(),
+		Created:    s.clock.UtcNow(),
+	}
+	c.Assert(s.srv.CreateSession(sess), IsNil)
 
 	out, err = s.srv.GetSessions()
 	c.Assert(err, IsNil)
-	sess := Session{
-		ID:      "sid1",
-		Parties: []Party{},
-	}
 	c.Assert(out, DeepEquals, []Session{sess})
+
+	s2, err := s.srv.GetSession(sess.ID)
+	c.Assert(err, IsNil)
+	c.Assert(s2, DeepEquals, &sess)
+
+	// Mark session inactive
+
+	err = s.srv.UpdateSession(UpdateRequest{
+		ID:     sess.ID,
+		Active: Bool(false),
+	})
+	c.Assert(err, IsNil)
+
+	sess.Active = false
+	s2, err = s.srv.GetSession(sess.ID)
+	c.Assert(err, IsNil)
+	c.Assert(s2, DeepEquals, &sess)
+
+	// Update session terminal parameter
+	err = s.srv.UpdateSession(UpdateRequest{
+		ID:             sess.ID,
+		TerminalParams: &TerminalParams{W: 101, H: 101},
+	})
+	c.Assert(err, IsNil)
+
+	sess.Terminal = TerminalParams{W: 101, H: 101}
+	s2, err = s.srv.GetSession(sess.ID)
+	c.Assert(err, IsNil)
+	c.Assert(s2, DeepEquals, &sess)
+}
+
+// TestSessionsInactivity makes sure that session will be marked
+// as inactive after period of inactivity
+func (s *BoltSuite) TestSessionsInactivity(c *C) {
+	sess := Session{
+		ID:         "sid1",
+		Active:     true,
+		Terminal:   TerminalParams{W: 100, H: 100},
+		Login:      "bob",
+		LastActive: s.clock.UtcNow(),
+		Created:    s.clock.UtcNow(),
+	}
+	c.Assert(s.srv.CreateSession(sess), IsNil)
+
+	s.clock.Sleep(DefaultActiveSessionTTL + time.Second)
+
+	sess.Active = false
+	s2, err := s.srv.GetSession(sess.ID)
+	c.Assert(err, IsNil)
+	c.Assert(s2, DeepEquals, &sess)
 }
 
 func (s *BoltSuite) TestPartiesCRUD(c *C) {
-	out, err := s.srv.GetSessions()
-	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, []Session{})
+	sess := Session{
+		ID:         "sid1",
+		Active:     true,
+		Terminal:   TerminalParams{W: 100, H: 100},
+		Login:      "bob",
+		LastActive: s.clock.UtcNow(),
+		Created:    s.clock.UtcNow(),
+	}
+	c.Assert(s.srv.CreateSession(sess), IsNil)
 
 	p1 := Party{
 		ID:         "p1",
 		User:       "bob",
-		Site:       "example.com",
+		RemoteAddr: "example.com",
 		ServerAddr: "localhost:1",
-		LastActive: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+		LastActive: s.clock.UtcNow(),
 	}
-	c.Assert(s.srv.UpsertParty("s1", p1, 0), IsNil)
+	c.Assert(s.srv.UpsertParty(sess.ID, p1, DefaultActivePartyTTL), IsNil)
 
-	out, err = s.srv.GetSessions()
+	out, err := s.srv.GetSession(sess.ID)
 	c.Assert(err, IsNil)
-	sess := Session{
-		ID:      "s1",
-		Parties: []Party{p1},
-	}
-	c.Assert(out, DeepEquals, []Session{sess})
+	sess.Parties = []Party{p1}
+	c.Assert(out, DeepEquals, &sess)
 
 	// add one more party
 	p2 := Party{
 		ID:         "p2",
 		User:       "alice",
-		Site:       "example.com",
+		RemoteAddr: "example.com",
 		ServerAddr: "localhost:2",
-		LastActive: time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC),
+		LastActive: s.clock.UtcNow(),
 	}
-	c.Assert(s.srv.UpsertParty("s1", p2, 0), IsNil)
+	c.Assert(s.srv.UpsertParty(sess.ID, p2, DefaultActivePartyTTL), IsNil)
 
-	out, err = s.srv.GetSessions()
+	out, err = s.srv.GetSession(sess.ID)
 	c.Assert(err, IsNil)
-	sess = Session{
-		ID:      "s1",
-		Parties: []Party{p1, p2},
-	}
-	c.Assert(out, DeepEquals, []Session{sess})
+	sess.Parties = []Party{p1, p2}
+	c.Assert(out, DeepEquals, &sess)
 
 	// Update session party
-	p1.LastActive = time.Date(2009, time.November, 10, 23, 4, 0, 0, time.UTC)
-	c.Assert(s.srv.UpsertParty("s1", p1, 0), IsNil)
-	out, err = s.srv.GetSessions()
+	s.clock.Sleep(time.Second)
+	p1.LastActive = s.clock.UtcNow()
+	c.Assert(s.srv.UpsertParty(sess.ID, p1, DefaultActivePartyTTL), IsNil)
+
+	out, err = s.srv.GetSession(sess.ID)
 	c.Assert(err, IsNil)
-	sess = Session{
-		ID:      "s1",
-		Parties: []Party{p1, p2},
-	}
-	c.Assert(out, DeepEquals, []Session{sess})
-
-	// Delete session
-	c.Assert(s.srv.DeleteSession("s1"), IsNil)
-	c.Assert(s.srv.DeleteSession("s1"), FitsTypeOf, &teleport.NotFoundError{})
-
-	_, err = s.srv.GetSession("s1")
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	sess.Parties = []Party{p1, p2}
+	c.Assert(out, DeepEquals, &sess)
 }

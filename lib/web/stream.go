@@ -122,14 +122,11 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 			lastCheckpoint = now
 			lastEvent = event
 			if newData {
-				log.Infof("about to send %#v", event)
 				if err := websocket.JSON.Send(ws, event); err != nil {
 					return trace.Wrap(err)
 				}
 			}
 		}
-
-		log.Infof("about to sleep %v", w.pollPeriod)
 		select {
 		case <-ticker.C:
 		case <-w.closeC:

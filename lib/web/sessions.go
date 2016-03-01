@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
@@ -45,6 +46,31 @@ type sessionContext struct {
 	clt     *auth.TunClient
 	parent  *sessionCache
 	closers []io.Closer
+}
+
+func (c *sessionContext) getConnectHandler(sessionID string) (*connectHandler, error) {
+	c.Lock()
+	defer c.Unlock()
+
+	for _, closer := range c.closers {
+		handler, ok := closer.(*connectHandler)
+		if ok && handler.req.SessionID == sessionID {
+			return handler, nil
+		}
+	}
+	return nil, trace.Wrap(teleport.NotFound("no connected streams"))
+}
+
+func (c *sessionContext) UpdateSessionTerminal(sessionID string, params session.TerminalParams) error {
+	err := c.clt.UpdateSession(session.UpdateRequest{ID: sessionID, TerminalParams: &params})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	handler, err := c.getConnectHandler(sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(handler.resizePTYWindow(params))
 }
 
 func (c *sessionContext) AddClosers(closers ...io.Closer) {

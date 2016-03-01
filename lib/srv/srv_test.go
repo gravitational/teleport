@@ -53,20 +53,21 @@ import (
 func TestSrv(t *testing.T) { TestingT(t) }
 
 type SrvSuite struct {
-	srv         *Server
-	srvAddress  string
-	srvPort     string
-	srvHostPort string
-	clt         *ssh.Client
-	bk          *encryptedbk.ReplicatedBackend
-	a           *auth.AuthServer
-	roleAuth    *auth.AuthWithRoles
-	up          *upack
-	signer      ssh.Signer
-	dir         string
-	user        string
-	domainName  string
-	freePorts   []string
+	srv           *Server
+	srvAddress    string
+	srvPort       string
+	srvHostPort   string
+	sessionServer sess.Service
+	clt           *ssh.Client
+	bk            *encryptedbk.ReplicatedBackend
+	a             *auth.AuthServer
+	roleAuth      *auth.AuthWithRoles
+	up            *upack
+	signer        ssh.Signer
+	dir           string
+	user          string
+	domainName    string
+	freePorts     []string
 }
 
 var _ = Suite(&SrvSuite{})
@@ -98,10 +99,13 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	eventsLog, err := boltlog.New(filepath.Join(s.dir, "boltlog"))
 	c.Assert(err, IsNil)
 
+	sessionServer, err := sess.New(baseBk)
+	s.sessionServer = sessionServer
+	c.Assert(err, IsNil)
 	s.roleAuth = auth.NewAuthWithRoles(s.a,
 		auth.NewStandardPermissions(),
 		eventsLog,
-		sess.New(baseBk),
+		sessionServer,
 		teleport.RoleAdmin,
 		nil)
 
@@ -130,6 +134,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		s.roleAuth,
 		s.dir,
 		SetShell("/bin/sh"),
+		SetSessionServer(sessionServer),
 	)
 	c.Assert(err, IsNil)
 	s.srv = srv
@@ -354,6 +359,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 		s.roleAuth,
 		s.dir,
 		SetProxyMode(reverseTunnelServer),
+		SetSessionServer(s.sessionServer),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -368,7 +374,9 @@ func (s *SrvSuite) TestProxy(c *C) {
 	rec, err := boltrec.New(s.dir)
 	c.Assert(err, IsNil)
 
-	apiSrv := auth.NewAPIWithRoles(s.a, bl, sess.New(s.bk), rec,
+	sessionServer, err := sess.New(s.bk)
+	c.Assert(err, IsNil)
+	apiSrv := auth.NewAPIWithRoles(s.a, bl, sessionServer, rec,
 		auth.NewAllowAllPermissions(),
 		auth.StandardRoles,
 	)
@@ -472,6 +480,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 					Command: []string{"expr", "2", "+", "3"}},
 			},
 		),
+		SetSessionServer(s.sessionServer),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(srv2.Start(), IsNil)
@@ -552,6 +561,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		s.roleAuth,
 		s.dir,
 		SetProxyMode(reverseTunnelServer),
+		SetSessionServer(s.sessionServer),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -566,7 +576,9 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	rec, err := boltrec.New(s.dir)
 	c.Assert(err, IsNil)
 
-	apiSrv := auth.NewAPIWithRoles(s.a, bl, sess.New(s.bk), rec,
+	sessionServer, err := sess.New(s.bk)
+	c.Assert(err, IsNil)
+	apiSrv := auth.NewAPIWithRoles(s.a, bl, sessionServer, rec,
 		auth.NewAllowAllPermissions(),
 		auth.StandardRoles,
 	)
@@ -657,6 +669,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		s.roleAuth,
 		s.dir,
 		SetProxyMode(reverseTunnelServer),
+		SetSessionServer(s.sessionServer),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -671,7 +684,10 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	rec, err := boltrec.New(s.dir)
 	c.Assert(err, IsNil)
 
-	apiSrv := auth.NewAPIWithRoles(s.a, bl, sess.New(s.bk), rec,
+	sessionServer, err := sess.New(s.bk)
+	c.Assert(err, IsNil)
+
+	apiSrv := auth.NewAPIWithRoles(s.a, bl, sessionServer, rec,
 		auth.NewAllowAllPermissions(),
 		auth.StandardRoles,
 	)
@@ -792,6 +808,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 		s.dir,
 		SetLimiter(limiter),
 		SetShell("/bin/sh"),
+		SetSessionServer(s.sessionServer),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(srv.Start(), IsNil)

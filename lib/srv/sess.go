@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package srv
 
 import (
@@ -46,11 +47,14 @@ type sessionRegistry struct {
 }
 
 func (s *sessionRegistry) newShell(sid string, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	ctx.Infof("newShell(%v)", string(req.Payload))
+	ctx.Infof("newShell(sid=%v)", sid)
 
-	sess := newSession(sid, s)
+	sess, err := newSession(sid, s, ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	if err := sess.start(sconn, ch, ctx); err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	s.sessions[sess.id] = sess
 	ctx.Infof("created session: %v", sess.id)
@@ -58,18 +62,18 @@ func (s *sessionRegistry) newShell(sid string, sconn *ssh.ServerConn, ch ssh.Cha
 }
 
 func (s *sessionRegistry) joinShell(sid string, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	ctx.Infof("joinShell(%v)", string(req.Payload))
-	s.Lock()
-	defer s.Unlock()
+	ctx.Infof("joinShell(sid=%v)", sid)
 
-	sess, found := s.findSession(sid)
-	if !found {
-		ctx.Infof("creating new session: %v", sid)
-		return s.newShell(sid, sconn, ch, req, ctx)
+	sess, found := s.lockedFindSession(sid)
+	if found {
+		ctx.Infof("joining session: %v", sess.id)
+		_, err := sess.join(sconn, ch, req, ctx)
+		return trace.Wrap(err)
 	}
-	ctx.Infof("joining session: %v", sess.id)
-	sess.join(sconn, ch, req, ctx)
-	return nil
+
+	// This logic allows concurrent request to create a new session
+	// to fail, what is ok because we should never have this condition
+	return trace.Wrap(s.newShell(sid, sconn, ch, req, ctx))
 }
 
 func (s *sessionRegistry) leaveShell(sid, pid string) error {
@@ -96,6 +100,31 @@ func (s *sessionRegistry) leaveShell(sid, pid string) error {
 	return nil
 }
 
+func (s *sessionRegistry) notifyWinChange(sid string, params rsession.TerminalParams) error {
+	log.Infof("notifyWinChange(%v)", sid)
+
+	sess, found := s.findSession(sid)
+	if !found {
+		return trace.Wrap(
+			teleport.NotFound(fmt.Sprintf("session %v not found", sid)))
+	}
+	err := sess.term.setWinsize(params)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if s.srv.sessionServer == nil {
+		return nil
+	}
+	go func() {
+		err := s.srv.sessionServer.UpdateSession(
+			rsession.UpdateRequest{ID: sid, TerminalParams: &params})
+		if err != nil {
+			log.Infof("notifyWinChange(%v): %v", sid, err)
+		}
+	}()
+	return nil
+}
+
 func (s *sessionRegistry) broadcastResult(sid string, r execResult) error {
 	s.Lock()
 	defer s.Unlock()
@@ -117,7 +146,16 @@ func (s *sessionRegistry) findSession(id string) (*session, bool) {
 	return sess, true
 }
 
+func (s *sessionRegistry) lockedFindSession(id string) (*session, bool) {
+	s.Lock()
+	defer s.Unlock()
+	return s.findSession(id)
+}
+
 func newSessionRegistry(srv *Server) *sessionRegistry {
+	if srv.sessionServer == nil {
+		panic("need a session server")
+	}
 	return &sessionRegistry{
 		srv:      srv,
 		sessions: make(map[string]*session),
@@ -130,18 +168,42 @@ type session struct {
 	registry    *sessionRegistry
 	writer      *multiWriter
 	parties     map[string]*party
-	term        *term
+	term        *terminal
 	chunkWriter *chunkWriter
 	closeC      chan bool
+	login       string
 }
 
-func newSession(id string, r *sessionRegistry) *session {
-	return &session{
+func newSession(id string, r *sessionRegistry, context *ctx) (*session, error) {
+	rsess := rsession.Session{
+		ID:         id,
+		Terminal:   rsession.TerminalParams{W: 100, H: 100},
+		Login:      context.login,
+		Created:    time.Now().UTC(),
+		LastActive: time.Now().UTC(),
+	}
+	term := context.getTerm()
+	if term != nil {
+		winsize, err := term.getWinsize()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		rsess.Terminal.W = int(winsize.Width)
+		rsess.Terminal.H = int(winsize.Height)
+	}
+	err := r.srv.sessionServer.CreateSession(rsess)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess := &session{
 		id:       id,
 		registry: r,
 		parties:  make(map[string]*party),
 		writer:   newMultiWriter(),
+		login:    context.login,
 	}
+	go sess.pollAndSyncTerm()
+	return sess, nil
 }
 
 func (s *session) Close() error {
@@ -155,7 +217,7 @@ func (s *session) Close() error {
 	return err
 }
 
-func (s *session) upsertSessionParty(sid string, p *party, ttl time.Duration) error {
+func (s *session) upsertSessionParty(sid string, p *party) error {
 	if s.registry.srv.sessionServer == nil {
 		return nil
 	}
@@ -163,9 +225,9 @@ func (s *session) upsertSessionParty(sid string, p *party, ttl time.Duration) er
 		ID:         p.id,
 		User:       p.user,
 		ServerAddr: p.serverAddr,
-		Site:       p.site,
+		RemoteAddr: p.site,
 		LastActive: p.getLastActive(),
-	}, ttl)
+	}, rsession.DefaultActivePartyTTL)
 }
 
 func setCmdUser(cmd *exec.Cmd, username string) error {
@@ -207,9 +269,9 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 		p.ctx.setTerm(nil)
 	} else {
 		var err error
-		if s.term, err = newTerm(); err != nil {
+		if s.term, err = newTerminal(); err != nil {
 			ctx.Infof("handleShell failed to create term: %v", err)
-			return err
+			return trace.Wrap(err)
 		}
 	}
 	cmd := exec.Command(s.registry.srv.shell)
@@ -229,7 +291,7 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 
 	if err := s.term.run(cmd); err != nil {
 		p.ctx.Infof("failed to start shell: %v", err)
-		return err
+		return trace.Wrap(err)
 	}
 	p.ctx.Infof("starting shell input/output streaming")
 
@@ -237,7 +299,7 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 		w, err := newChunkWriter(s.registry.srv.rec)
 		if err != nil {
 			p.ctx.Errorf("failed to create recorder: %v", err)
-			return err
+			return trace.Wrap(err)
 		}
 		s.chunkWriter = w
 		s.registry.srv.emit(ctx.eid, events.NewShellSession(s.id, sconn, s.registry.srv.shell, w.rid))
@@ -291,6 +353,48 @@ func (s *session) leave(id string) error {
 	return nil
 }
 
+const pollingPeriod = time.Second
+
+func (s *session) syncTerm(sessionServer rsession.Service) error {
+	sess, err := sessionServer.GetSession(s.id)
+	if err != nil {
+		log.Infof("syncTerm: no session")
+		return trace.Wrap(err)
+	}
+	winSize, err := s.term.getWinsize()
+	if err != nil {
+		log.Infof("syncTerm: no terminal")
+		return trace.Wrap(err)
+	}
+	if int(winSize.Width) == sess.Terminal.W && int(winSize.Height) == sess.Terminal.H {
+		log.Infof("terminal not changed: %v", sess.Terminal)
+		return nil
+	}
+	log.Infof("terminal has changed from: %v to %v", sess.Terminal, winSize)
+	err = s.term.setWinsize(sess.Terminal)
+	return trace.Wrap(err)
+}
+
+func (s *session) pollAndSyncTerm() {
+	if s.registry.srv.sessionServer == nil {
+		return
+	}
+	sessionServer := s.registry.srv.sessionServer
+	tick := time.NewTicker(pollingPeriod)
+	defer tick.Stop()
+	for {
+		if err := s.syncTerm(sessionServer); err != nil {
+			log.Infof("sync term error: %v", err)
+		}
+		select {
+		case <-s.closeC:
+			log.Infof("closed, stopped heartbeat")
+			return
+		case <-tick.C:
+		}
+	}
+}
+
 func (s *session) addParty(p *party) {
 	s.parties[p.id] = p
 	s.writer.addWriter(p.id, p, true)
@@ -302,7 +406,7 @@ func (s *session) addParty(p *party) {
 	}()
 	go func() {
 		for {
-			if err := s.upsertSessionParty(s.id, p, 10*time.Second); err != nil {
+			if err := s.upsertSessionParty(s.id, p); err != nil {
 				p.ctx.Warningf("failed to upsert session party: %v", err)
 			}
 			select {
@@ -314,6 +418,8 @@ func (s *session) addParty(p *party) {
 		}
 	}()
 }
+
+const partyTTL = 10 * time.Second
 
 func (s *session) join(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) (*party, error) {
 	p := newParty(s, sconn, ch, ctx)
@@ -377,18 +483,17 @@ func (m *multiWriter) deleteWriter(id string) {
 	delete(m.writers, id)
 }
 
-func (t *multiWriter) Write(p []byte) (n int, err error) {
-	t.RLock()
-	defer t.RUnlock()
+func (m *multiWriter) Write(p []byte) (n int, err error) {
+	m.RLock()
+	defer m.RUnlock()
 
-	for _, w := range t.writers {
+	for _, w := range m.writers {
 		n, err = w.Write(p)
 		if err != nil {
 			if w.closeOnError {
 				return
-			} else {
-				continue
 			}
+			continue
 		}
 		if n != len(p) {
 			err = io.ErrShortWrite

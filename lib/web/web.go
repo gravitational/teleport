@@ -132,6 +132,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	h.GET("/webapi/sites/:site/connect", h.withSiteAuth(h.siteNodeConnect))
 	// get session event stream
 	h.GET("/webapi/sites/:site/sessions/:sid/events/stream", h.withSiteAuth(h.siteSessionStream))
+	// update session parameters
+	h.PUT("/webapi/sites/:site/sessions/:sid", h.withSiteAuth(h.siteSessionUpdate))
+	// get session
+	h.GET("/webapi/sites/:site/sessions/:sid", h.withSiteAuth(h.siteSessionGet))
 
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
@@ -489,6 +493,67 @@ func (m *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p ht
 	return nil, nil
 }
 
+type siteSessionUpdateReq struct {
+	TerminalParams session.TerminalParams `json:"terminal_params"`
+}
+
+// siteSessionUpdate udpdates the site session
+//
+// PUT /v1/webapi/sites/:site/sessions/:sid
+//
+// Request body:
+//
+// {"terminal_params": {"w": 100, "h": 100}}
+//
+// Response body:
+//
+// {"message": "ok"}
+//
+func (m *Handler) siteSessionUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	sessionID := p.ByName("sid")
+
+	var req *siteSessionUpdateReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err := ctx.UpdateSessionTerminal(sessionID, req.TerminalParams)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ok(), nil
+}
+
+type siteSessionGetResponse struct {
+	Session session.Session `json:"session"`
+}
+
+// siteSessionUpdate udpdates the site session
+//
+// PUT /v1/webapi/sites/:site/sessions/:sid
+//
+// Request body:
+//
+// {"terminal_params": {"w": 100, "h": 100}}
+//
+// Response body:
+//
+// {"message": "ok"}
+//
+func (m *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	sessionID := p.ByName("sid")
+
+	clt, err := site.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sess, err := clt.GetSession(sessionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return siteSessionGetResponse{Session: *sess}, nil
+}
+
 // createSSHCertReq are passed by web client
 // to authenticate against teleport server and receive
 // a temporary cert signed by auth server authority
@@ -594,7 +659,7 @@ func (h *Handler) withAuth(fn contextHandler) httprouter.Handle {
 // and bearer token
 func (h *Handler) authenticateRequest(r *http.Request) (*sessionContext, error) {
 	logger := log.WithFields(log.Fields{
-		"request": fmt.Sprintf("%v %v", r.Method, r.URL.String()),
+		"request": fmt.Sprintf("%v %v", r.Method, r.URL.Path),
 	})
 	logger.Infof("incoming request")
 	cookie, err := r.Cookie("session")
