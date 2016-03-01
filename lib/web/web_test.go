@@ -68,7 +68,7 @@ type WebSuite struct {
 	user        string
 	domainName  string
 	signer      ssh.Signer
-	tunServer   *auth.TunServer
+	tunServer   *auth.AuthTunnel
 	webServer   *httptest.Server
 	freePorts   []string
 }
@@ -175,7 +175,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		AddrNetwork: "tcp", Addr: fmt.Sprintf("127.0.0.1:%v", apiPort),
 	}
 
-	s.tunServer, err = auth.NewTunServer(
+	s.tunServer, err = auth.NewTunnel(
 		tunAddr,
 		[]ssh.Signer{s.signer},
 		apiServer, authServer)

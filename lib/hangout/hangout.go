@@ -282,7 +282,7 @@ func (h *Hangout) initAuth(cfg service.Config, readOnlyHangout bool) error {
 	go apisrv.Serve()
 
 	log.Infof("[AUTH] server SSH endpoint is starting")
-	tsrv, err := auth.NewTunServer(
+	tsrv, err := auth.NewTunnel(
 		cfg.Auth.SSHAddr, []ssh.Signer{h.signer},
 		apisrv,
 		asrv,

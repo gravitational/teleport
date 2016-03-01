@@ -142,7 +142,7 @@ func (s *HangoutsSuite) SetUpSuite(c *C) {
 	)
 	go apiSrv.Serve()
 
-	tsrv, err := auth.NewTunServer(
+	tsrv, err := auth.NewTunnel(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:32498"},
 		[]ssh.Signer{s.signer},
 		apiSrv, s.a)

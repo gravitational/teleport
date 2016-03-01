@@ -21,6 +21,8 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/trace"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 type PresenceService struct {
@@ -55,11 +57,12 @@ func (s *PresenceService) GetServers() ([]Server, error) {
 func (s *PresenceService) UpsertServer(server Server, ttl time.Duration) error {
 	data, err := json.Marshal(server)
 	if err != nil {
+		log.Error(err)
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal([]string{"servers"},
-		server.ID, data, ttl)
+	err = s.backend.UpsertVal([]string{"servers"}, server.ID, data, ttl)
 	if err != nil {
+		log.Error(err)
 		return trace.Wrap(err)
 	}
 	return err

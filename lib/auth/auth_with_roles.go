@@ -26,6 +26,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 
+	log "github.com/Sirupsen/logrus"
+
 	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
 )
@@ -179,6 +181,7 @@ func (a *AuthWithRoles) GetChunkReader(id string) (recorder.ChunkReadCloser, err
 }
 func (a *AuthWithRoles) UpsertServer(s services.Server, ttl time.Duration) error {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertServer); err != nil {
+		log.Error(err)
 		return trace.Wrap(err)
 	} else {
 		return a.authServer.UpsertServer(s, ttl)

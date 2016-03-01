@@ -376,7 +376,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 	)
 	go apiSrv.Serve()
 
-	tsrv, err := auth.NewTunServer(
+	tsrv, err := auth.NewTunnel(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		[]ssh.Signer{s.signer},
 		apiSrv, s.a)
@@ -574,7 +574,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	)
 	go apiSrv.Serve()
 
-	tsrv, err := auth.NewTunServer(
+	tsrv, err := auth.NewTunnel(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		[]ssh.Signer{s.signer},
 		apiSrv, s.a)
@@ -679,7 +679,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	)
 	go apiSrv.Serve()
 
-	tsrv, err := auth.NewTunServer(
+	tsrv, err := auth.NewTunnel(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		[]ssh.Signer{s.signer},
 		apiSrv, s.a)

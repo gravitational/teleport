@@ -190,15 +190,16 @@ type upsertServerReq struct {
 }
 
 func (s *APIServer) upsertServer(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-
 	var req upsertServerReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
+		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
 
-	log.Debugf("[AUTH API] upsertServer. RemoteAddr=%v, Host=%v, (%v:%v)", r.RemoteAddr, r.Host, req.Server.Hostname, req.Server.Addr)
+	log.Debugf("[AUTH API] upsertServer. RemoteAddr=%v", r.RemoteAddr)
 
 	if err := s.a.UpsertServer(req.Server, req.TTL); err != nil {
+		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
