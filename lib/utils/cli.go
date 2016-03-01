@@ -62,8 +62,8 @@ func FatalError(err error) {
 	var unwrap func(error) error
 	unwrap = func(err error) error {
 		te, ok := err.(trace.Error)
-		if ok && te != err {
-			return unwrap(te.OrigError())
+		if ok {
+			return te.OrigError()
 		}
 		return err
 	}
@@ -104,7 +104,7 @@ var defaultUsageTemplate = `{{define "FormatCommand"}}\
 {{define "FormatCommands"}}\
 {{range .FlattenedCommands}}\
 {{if not .Hidden}}\
-  {{.FullCommand | printf "%-12s" }}{{if .Default}}*{{end}} {{ .Help }}
+  {{.FullCommand | printf "%-12s" }}{{if .Default}} (Default){{end}} {{ .Help }}
 {{end}}\
 {{end}}\
 {{end}}\

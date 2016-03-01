@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
@@ -146,8 +147,8 @@ func (n *nauth) GenerateHostCert(pkey, key []byte, hostname, authDomain string, 
 }
 
 func (n *nauth) GenerateUserCert(pkey, key []byte, username string, ttl time.Duration) ([]byte, error) {
-	if (ttl > MaxCertDuration) || (ttl < MinCertDuration) {
-		return nil, trace.Errorf("wrong certificate ttl")
+	if (ttl > defaults.MaxCertDuration) || (ttl < defaults.MinCertDuration) {
+		return nil, trace.Errorf("wrong certificate TTL")
 	}
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
 	if err != nil {
@@ -174,10 +175,3 @@ func (n *nauth) GenerateUserCert(pkey, key []byte, username string, ttl time.Dur
 	}
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
-
-const (
-	// MinCertDuration specifies minimum duration of validity of issued cert
-	MinCertDuration = time.Minute
-	// MaxCertDuration limits maximum duration of validity of issued cert
-	MaxCertDuration = 30 * time.Hour
-)

@@ -39,8 +39,7 @@ import (
 type TunServer struct {
 	hostCertChecker ssh.CertChecker
 	userCertChecker ssh.CertChecker
-	a               *AuthServer
-	l               net.Listener
+	authServer      *AuthServer
 	srv             *sshutils.Server
 	hostSigner      ssh.Signer
 	apiServer       *APIWithRoles
@@ -58,12 +57,12 @@ func SetLimiter(limiter *limiter.Limiter) ServerOption {
 
 // New returns an unstarted server
 func NewTunServer(addr utils.NetAddr, hostSigners []ssh.Signer,
-	apiServer *APIWithRoles, a *AuthServer,
+	apiServer *APIWithRoles, authServer *AuthServer,
 	opts ...ServerOption) (*TunServer, error) {
 
 	srv := &TunServer{
-		a:         a,
-		apiServer: apiServer,
+		authServer: authServer,
+		apiServer:  apiServer,
 	}
 	var err error
 	srv.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
@@ -155,7 +154,7 @@ func (s *TunServer) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.New
 // isHostAuthority is called during checking the client key, to see if the signing
 // key is the real host CA authority key.
 func (s *TunServer) isHostAuthority(auth ssh.PublicKey) bool {
-	key, err := s.a.GetCertAuthority(services.CertAuthID{DomainName: s.a.Hostname, Type: services.HostCA}, false)
+	key, err := s.authServer.GetCertAuthority(services.CertAuthID{DomainName: s.authServer.Hostname, Type: services.HostCA}, false)
 	if err != nil {
 		log.Errorf("failed to retrieve user authority key, err: %v", err)
 		return false
@@ -190,7 +189,7 @@ func (s *TunServer) isUserAuthority(auth ssh.PublicKey) bool {
 }
 
 func (s *TunServer) getTrustedCAKeys(CertType services.CertAuthType) ([]ssh.PublicKey, error) {
-	cas, err := s.a.GetCertAuthorities(CertType)
+	cas, err := s.authServer.GetCertAuthorities(CertType)
 	if err != nil {
 		return nil, err
 	}
@@ -226,10 +225,9 @@ func (s *TunServer) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel)
 		return
 	}
 
-	a := agent.NewKeyring()
 	log.Infof("handleWebAgentRequest start for %v", sconn.RemoteAddr())
 
-	ws, err := s.a.GetWebSession(sconn.User(), sconn.Permissions.Extensions[ExtWebSession])
+	ws, err := s.authServer.GetWebSession(sconn.User(), sconn.Permissions.Extensions[ExtWebSession])
 	if err != nil {
 		log.Errorf("session error: %v", err)
 		return
@@ -259,25 +257,29 @@ func (s *TunServer) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel)
 		LifetimeSecs:     0,
 		ConfirmBeforeUse: false,
 	}
-	if err := a.Add(addedKey); err != nil {
+	newKeyAgent := agent.NewKeyring()
+	if err := newKeyAgent.Add(addedKey); err != nil {
 		log.Errorf("failed to add: %v", err)
 		return
 	}
-	if err := agent.ServeAgent(a, ch); err != nil {
+	if err := agent.ServeAgent(newKeyAgent, ch); err != nil {
 		log.Errorf("Serve agent err: %v", err)
 	}
 }
 
-// this direct tcp-ip request ignores port and host requested by client
-// and always forwards it to the local auth server listening on local socket
+// handleDirectTCPIPRequest accepts an incoming SSH connection via TCP/IP and forwards
+// it to the local auth server which listens on local UNIX pipe
 func (s *TunServer) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	defer sconn.Close()
+
+	log.Debugf("[TUNNEL] Remote address: %v", sconn.RemoteAddr())
+
 	role := teleport.Role(sconn.Permissions.Extensions[ExtRole])
 	if err := role.Check(); err != nil {
 		log.Errorf(err.Error())
 		return
 	}
-	addr, _ := utils.ParseAddr("tcp://localhost")
+	addr := &utils.NetAddr{Addr: "localhost", AddrNetwork: "tcp://"}
 	conn := utils.NewPipeNetConn(ch, ch, ch, addr, addr)
 	if err := s.apiServer.HandleConn(conn, role); err != nil {
 		log.Errorf(err.Error())
@@ -346,7 +348,7 @@ func (s *TunServer) passwordAuth(
 	log.Infof("got authentication attempt for user '%v' type '%v'", conn.User(), ab.Type)
 	switch ab.Type {
 	case AuthWebPassword:
-		if err := s.a.CheckPassword(conn.User(), ab.Pass, ab.HotpToken); err != nil {
+		if err := s.authServer.CheckPassword(conn.User(), ab.Pass, ab.HotpToken); err != nil {
 			log.Errorf("Password auth error: %v", err)
 			return nil, trace.Wrap(err)
 		}
@@ -367,13 +369,13 @@ func (s *TunServer) passwordAuth(
 				ExtRole:       string(teleport.RoleWeb),
 			},
 		}
-		if _, err := s.a.GetWebSession(conn.User(), string(ab.Pass)); err != nil {
+		if _, err := s.authServer.GetWebSession(conn.User(), string(ab.Pass)); err != nil {
 			return nil, trace.Errorf("session resume error: %v", trace.Wrap(err))
 		}
 		log.Infof("session authenticated user: '%v'", conn.User())
 		return perms, nil
 	case AuthToken:
-		_, err := s.a.ValidateToken(string(ab.Pass), ab.User)
+		_, err := s.authServer.ValidateToken(string(ab.Pass), ab.User)
 		if err != nil {
 			log.Errorf("token validation error: %v", err)
 			return nil, trace.Wrap(err, fmt.Sprintf("failed to validate user: %v", ab.User))
@@ -386,7 +388,7 @@ func (s *TunServer) passwordAuth(
 		utils.Consolef(os.Stdout, "[AUTH] Successfully accepted token %v for %v", string(password), conn.User())
 		return perms, nil
 	case AuthSignupToken:
-		_, _, err := s.a.GetSignupToken(string(ab.Pass))
+		_, _, err := s.authServer.GetSignupToken(string(ab.Pass))
 		if err != nil {
 			return nil, trace.Errorf("token validation error: %v", trace.Wrap(err))
 		}

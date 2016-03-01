@@ -64,8 +64,8 @@ func (api *APIWithRoles) Serve() {
 	wg := sync.WaitGroup{}
 	for role, _ := range api.listeners {
 		wg.Add(1)
-		go func(l net.Listener, h http.Handler) {
-			if err := http.Serve(l, h); (err != nil) && (err != io.EOF) {
+		go func(listener net.Listener, handler http.Handler) {
+			if err := http.Serve(listener, handler); (err != nil) && (err != io.EOF) {
 				log.Errorf(err.Error())
 			}
 		}(api.listeners[role], api.servers[role])

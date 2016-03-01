@@ -27,12 +27,8 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
-	"os"
-	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -48,18 +44,15 @@ func AuthMethodFromAgent(ag agent.Agent) ssh.AuthMethod {
 	return ssh.PublicKeysCallback(ag.Signers)
 }
 
-// NewWebAuth returns ssh.AuthMethod as
-// a callback function and ssh HostKeyCallback. When any callback is
-// called, it tries to generate
-// load certificates using password and hotpToken, adds the
-// login certificate to the provided agent, saves the certificates to the
-// local folder and returns the agent as authenticator.
+// NewWebAuth returns ssh.AuthMethod as a callback function and SSH HostKeyCallback.
+// When any of them is called it tries to generate certificates using password and
+// hotpToken and adds the login certificate to the provided agent, saves the
+// certificates to the local folder and returns the agent as authenticator.
 func NewWebAuth(ag agent.Agent,
 	user string,
 	passwordCallback PasswordCallback,
 	webProxyAddress string,
-	certificateTTL time.Duration) (authMethod ssh.AuthMethod,
-	hostKeyCallback utils.HostKeyCallback) {
+	certificateTTL time.Duration) (authMethod ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) {
 
 	callbackFunc := func() (signers []ssh.Signer, err error) {
 		err = Login(ag, webProxyAddress, user, certificateTTL, passwordCallback)
@@ -76,7 +69,7 @@ func NewWebAuth(ag agent.Agent,
 		if err != nil {
 			err = Login(ag, webProxyAddress, user, certificateTTL, passwordCallback)
 			if err != nil {
-				fmt.Printf("Can't login to the server: %v\n", err)
+				fmt.Printf("Can't login to %v\n", err)
 				return trace.Wrap(err)
 			}
 			return CheckHostSignerFromCache(hostname, remote, key)
@@ -159,17 +152,19 @@ func Login(ag agent.Agent, webProxyAddr string, user string,
 	return nil
 }
 
+// GetPasswordFromConsole returns a function which requests password+HOTP token
+// from the console
 func GetPasswordFromConsole(user string) PasswordCallback {
 	return func() (password, hotpToken string, e error) {
-		fmt.Printf("Enter password for user %v:\n", user)
-		password, err := readPassword()
+		fmt.Printf("Enter password for %v:\n", user)
+		password, err := passwordFromConsole()
 		if err != nil {
 			fmt.Println(err)
 			return "", "", trace.Wrap(err)
 		}
 
 		fmt.Printf("Enter your HOTP token:\n")
-		hotpToken, err = readPassword()
+		hotpToken, err = passwordFromConsole()
 		if err != nil {
 			fmt.Println(err)
 			return "", "", trace.Wrap(err)
@@ -177,34 +172,4 @@ func GetPasswordFromConsole(user string) PasswordCallback {
 
 		return password, hotpToken, nil
 	}
-}
-
-func readPassword() (string, error) {
-	// do not display entered characters on the screen
-	exec.Command("stty", "-F", "/dev/tty", "-echo").Run()
-
-	exitSignals := make(chan os.Signal, 1)
-	functionFinished := make(chan int)
-	signal.Notify(exitSignals, syscall.SIGTERM, syscall.SIGINT)
-
-	go func() {
-		select {
-		case <-functionFinished:
-		case <-exitSignals:
-			// restore the console echoing state
-			exec.Command("stty", "-F", "/dev/tty", "echo").Run()
-			os.Exit(0)
-		}
-	}()
-
-	password := ""
-	_, err := fmt.Scanln(&password)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// restore the console echoing state
-	exec.Command("stty", "-F", "/dev/tty", "echo").Run()
-	functionFinished <- 1
-	return password, nil
 }

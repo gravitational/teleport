@@ -9,7 +9,7 @@ import (
 )
 
 // SSHAgentLogin issues call to web proxy and receives temp certificate
-// in case if credentials are valid
+// if credentials are valid
 func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte, ttl time.Duration) (*SSHLoginResponse, error) {
 
 	// TODO(klizhentas) HTTPS of course

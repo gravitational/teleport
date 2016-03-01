@@ -170,6 +170,7 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, authMethods []ssh.Au
 	if len(authMethods) == 0 {
 		return nil, trace.Errorf("no authMethods were provided")
 	}
+	log.Debugf("connecting to node: %v", nodeAddress)
 
 	e := trace.Errorf("unknown Error")
 
@@ -367,7 +368,7 @@ func ConnectToNode(optionalProxy *ProxyClient, nodeAddress string, authMethods [
 			Auth:            []ssh.AuthMethod{authMethod},
 			HostKeyCallback: hostKeyCallback,
 		}
-
+		log.Debugf("connecting to SSH node: %v", nodeAddress)
 		client, err := ssh.Dial("tcp", nodeAddress, sshConfig)
 		if err != nil {
 			if utils.IsHandshakeFailedError(err) {
