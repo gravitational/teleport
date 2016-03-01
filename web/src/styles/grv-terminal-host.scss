@@ -26,14 +26,18 @@
 
 .grv-terminal {
   height: 100%;
-  overflow: auto;
+  width: 100%;
+  font-size: 14px;
   background-color: #333;
 
   .terminal{
     border: none;
-    width: 100%;
-    font-size: 14px;
+    font-size: inherit;
     padding: 10px;
     border-radius: 10px;
+
+    > div{
+      padding-top: 2px;
+    }
   }
 }

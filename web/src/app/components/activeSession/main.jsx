@@ -70,8 +70,8 @@ Terminal.colors[256] = 'inherit';
 
 var TerminalBox = React.createClass({
   resize: function(e) {
-    this.destroy();
-    this.renderTerminal();
+    var {cols, rows } = getDimensions(this.refs.container);
+    this.term.resize(cols, rows);
   },
 
   connect(cols, rows){
@@ -86,42 +86,21 @@ var TerminalBox = React.createClass({
     let connectionStr = cfg.api.getSessionConnStr(token, settings);
 
     this.socket = new WebSocket(connectionStr, 'proto');
+
+    this.socket.onmessage = (e) => {
+      this.term.write(e.data);
+    };
+
+    this.socket.onclose = () => {
+      this.term.write('\x1b[31mdisconnected\x1b[m\r\n');
+    };
+
     this.socket.onopen = () => {
       this.props.onOpen();
       this.term.on('data', (data) => {
         this.socket.send(data);
       });
-
-      this.socket.onmessage = (e) => {
-        this.term.write(e.data);
-      }
-
-      this.socket.onclose = () => {
-        this.term.write('\x1b[31mdisconnected\x1b[m\r\n');
-      }
     }
-  },
-
-  getDimensions(){
-    var $container = $(this.refs.container);
-    var $term = $container.find('.terminal');
-    var cols, rows;
-
-    if($term.length === 1){
-      var fakeRow = $('<div><span>&nbsp;</span></div>');
-      $term.append(fakeRow);
-      var fakeCol = fakeRow.children().first()[0].getBoundingClientRect();
-      cols = Math.floor($term.width() / (fakeCol.width || 9));
-      rows = Math.floor($term.height() / (fakeCol.height || 20));
-      fakeRow.remove();
-    }else{
-      var $container = $(this.refs.container);
-      cols = Math.floor($container.width() / 9);
-      rows = Math.floor($container.height() / 20);
-    }
-
-    return {cols, rows};
-
   },
 
   destroy(){
@@ -133,7 +112,7 @@ var TerminalBox = React.createClass({
   },
 
   renderTerminal() {
-    var {cols, rows} = this.getDimensions();
+    var {cols, rows} = getDimensions(this.refs.container);
     var {settings, token, sid } = this.props;
 
     this.term = new Terminal({
@@ -145,8 +124,8 @@ var TerminalBox = React.createClass({
     });
 
     this.term.open(this.refs.container);
-    this.term.write('\x1b[94mconnecting...\x1b[m\r\n');
     this.connect(cols, rows);
+    this.resize();
   },
 
   componentDidMount: function() {
@@ -172,5 +151,92 @@ var TerminalBox = React.createClass({
   }
 });
 
+function getDimensions(container){
+  var $container = $(container);
+  var $term = $container.find('.terminal');
+  var cols, rows;
+
+  if($term.length === 1){
+    let fakeRow = $('<div><span>&nbsp;</span></div>');
+    $term.append(fakeRow);
+    // get div height
+    let fakeColHeight = fakeRow[0].getBoundingClientRect().height;
+    // get span width
+    let fakeColWidth = fakeRow.children().first()[0].getBoundingClientRect().width;
+    cols = Math.floor($container.width() / (fakeColWidth || 9));
+    rows = Math.floor($container.height() / (fakeColHeight|| 20));
+    fakeRow.remove();
+  }else{
+    // some default values (just to init)
+    cols = Math.floor($container.width() / 9) - 1;
+    rows = Math.floor($container.height() / 20);
+  }
+
+  return {cols, rows};
+}
+
 export default ActiveSession;
 export {TerminalBox, ActiveSession};
+
+
+/*
+
+/*var TtyConnection = React.createClass({
+
+  getInitialState: function() {
+    return {
+      isConnected: false,
+      isConnecting: true,
+      msg: 'Connecting...'
+    }
+  },
+
+  componentDidMount: function() {
+    let {token} = session.getUserData();
+    let {settings, sid } = this.props;
+
+    settings.term = {
+      h: rows,
+      w: cols
+    };
+
+    let connectionStr = cfg.api.getSessionConnStr(token, settings);
+    this.socket = new WebSocket(connectionStr, 'proto');
+
+    this.socket.onmessage = (e)=>{
+      this.setState({
+        ...this.state,
+        data: e.data
+      })
+    }
+
+    this.socket.onclose = ()=>{
+      this.setState({
+        ...this.state,
+        isConnected: false,
+        data: 'disconneted'
+      })
+    };
+
+    this.socket.onopen = () => {
+      this.setState({
+        isConnected: true
+      });
+    }
+  },
+
+  componentWillUnmount() {
+    if(this.socket){
+      this.socket.close();
+    }
+  },
+
+  shouldComponentUpdate() {
+    return false;
+  },
+
+  render() {
+    return {...this.props.children};
+  }
+});
+*/
