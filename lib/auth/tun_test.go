@@ -41,7 +41,7 @@ type TunSuite struct {
 	bk *encryptedbk.ReplicatedBackend
 
 	srv    *APIWithRoles
-	tsrv   *TunServer
+	tsrv   *AuthTunnel
 	a      *AuthServer
 	signer ssh.Signer
 	bl     *boltlog.BoltLog
@@ -95,7 +95,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.signer = signer
 
-	tsrv, err := NewTunServer(
+	tsrv, err := NewTunnel(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		[]ssh.Signer{signer},
 		s.srv, s.a)
@@ -112,7 +112,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	)
 	go srv.Serve()
 
-	tsrv, err := NewTunServer(
+	tsrv, err := NewTunnel(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		[]ssh.Signer{s.signer},
 		srv, s.a)

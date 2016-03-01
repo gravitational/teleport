@@ -37,10 +37,13 @@ type APIWithRoles struct {
 	servers   map[teleport.Role]*APIServer
 }
 
-func NewAPIWithRoles(authServer *AuthServer, elog events.Log,
-	sessions session.SessionServer, recorder recorder.Recorder,
+func NewAPIWithRoles(authServer *AuthServer,
+	elog events.Log,
+	sessions session.SessionServer,
+	recorder recorder.Recorder,
 	permChecker PermissionChecker,
 	roles []teleport.Role) *APIWithRoles {
+
 	api := APIWithRoles{}
 	api.listeners = make(map[teleport.Role]*utils.MemoryListener)
 	api.servers = make(map[teleport.Role]*APIServer)

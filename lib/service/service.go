@@ -156,10 +156,11 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) err
 		return trace.Wrap(err)
 	}
 
-	// register auth SSH-based endpoint
+	// Register an SSH endpoint which is used to create an SSH tunnel to send HTTP
+	// requests to the Auth API
 	supervisor.RegisterFunc(func() error {
 		utils.Consolef(cfg.Console, "[AUTH]  Auth service is starting on %v", cfg.Auth.SSHAddr.Addr)
-		tsrv, err := auth.NewTunServer(
+		tsrv, err := auth.NewTunnel(
 			cfg.Auth.SSHAddr, []ssh.Signer{signer},
 			apisrv,
 			asrv,

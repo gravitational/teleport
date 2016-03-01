@@ -36,79 +36,89 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 )
 
-type TunServer struct {
+// AuthTunnel listens on TCP/IP socket and accepts SSH connections. It then stablishes
+// an SSH tunnell which HTTP requests travel over. In other words, the Auth Service API
+// runs on HTTP-via-SSH-tunnel.
+type AuthTunnel struct {
+	// authServer implements the "beef" of the Auth service
+	authServer *AuthServer
+	// apiServer maintains a map of API servers, each assigned
+	// to a certain role. this allows to break Auth API into
+	// a set of restricted API services with well-defined permissions
+	apiServer *APIWithRoles
+	// sshServer implements the nuts & bolts of serving an SSH connection
+	// to create a tunnel
+	sshServer       *sshutils.Server
+	hostSigner      ssh.Signer
 	hostCertChecker ssh.CertChecker
 	userCertChecker ssh.CertChecker
-	authServer      *AuthServer
-	srv             *sshutils.Server
-	hostSigner      ssh.Signer
-	apiServer       *APIWithRoles
 	limiter         *limiter.Limiter
 }
 
-type ServerOption func(s *TunServer) error
+type ServerOption func(s *AuthTunnel) error
 
 func SetLimiter(limiter *limiter.Limiter) ServerOption {
-	return func(s *TunServer) error {
+	return func(s *AuthTunnel) error {
 		s.limiter = limiter
 		return nil
 	}
 }
 
-// New returns an unstarted server
-func NewTunServer(addr utils.NetAddr, hostSigners []ssh.Signer,
-	apiServer *APIWithRoles, authServer *AuthServer,
-	opts ...ServerOption) (*TunServer, error) {
+// NewTunnel creates a new SSH tunnel server which is not started yet
+func NewTunnel(addr utils.NetAddr,
+	hostSigners []ssh.Signer,
+	apiServer *APIWithRoles,
+	authServer *AuthServer,
+	opts ...ServerOption) (tunnel *AuthTunnel, err error) {
 
-	srv := &TunServer{
+	tunnel = &AuthTunnel{
 		authServer: authServer,
 		apiServer:  apiServer,
 	}
-	var err error
-	srv.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
+	tunnel.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	// apply functional options:
 	for _, o := range opts {
-		if err := o(srv); err != nil {
+		if err := o(tunnel); err != nil {
 			return nil, err
 		}
 	}
-
-	s, err := sshutils.NewServer(
+	// create an SSH server and assign the tunnel to be it's "new SSH channel handler"
+	tunnel.sshServer, err = sshutils.NewServer(
 		addr,
-		srv,
+		tunnel,
 		hostSigners,
 		sshutils.AuthMethods{
-			Password:  srv.passwordAuth,
-			PublicKey: srv.keyAuth,
+			Password:  tunnel.passwordAuth,
+			PublicKey: tunnel.keyAuth,
 		},
-		sshutils.SetLimiter(srv.limiter),
+		sshutils.SetLimiter(tunnel.limiter),
 	)
 	if err != nil {
 		return nil, err
 	}
-
-	srv.userCertChecker = ssh.CertChecker{IsAuthority: srv.isUserAuthority}
-	srv.hostCertChecker = ssh.CertChecker{IsAuthority: srv.isHostAuthority}
-	srv.srv = s
-	return srv, nil
+	tunnel.userCertChecker = ssh.CertChecker{IsAuthority: tunnel.isUserAuthority}
+	tunnel.hostCertChecker = ssh.CertChecker{IsAuthority: tunnel.isHostAuthority}
+	return tunnel, nil
 }
 
-func (s *TunServer) Addr() string {
-	return s.srv.Addr()
+func (s *AuthTunnel) Addr() string {
+	return s.sshServer.Addr()
 }
 
-func (s *TunServer) Start() error {
-	return s.srv.Start()
+func (s *AuthTunnel) Start() error {
+	return s.sshServer.Start()
 }
 
-func (s *TunServer) Close() error {
-	return s.srv.Close()
+func (s *AuthTunnel) Close() error {
+	return s.sshServer.Close()
 }
 
-func (s *TunServer) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
+// HandleNewChan implements NewChanHandler interface: it gets called every time a new SSH
+// connection is established
+func (s *AuthTunnel) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	log.Infof("[AUTH] new channel request: %v", nch.ChannelType())
 	cht := nch.ChannelType()
 	switch cht {
@@ -153,7 +163,7 @@ func (s *TunServer) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.New
 
 // isHostAuthority is called during checking the client key, to see if the signing
 // key is the real host CA authority key.
-func (s *TunServer) isHostAuthority(auth ssh.PublicKey) bool {
+func (s *AuthTunnel) isHostAuthority(auth ssh.PublicKey) bool {
 	key, err := s.authServer.GetCertAuthority(services.CertAuthID{DomainName: s.authServer.Hostname, Type: services.HostCA}, false)
 	if err != nil {
 		log.Errorf("failed to retrieve user authority key, err: %v", err)
@@ -174,7 +184,7 @@ func (s *TunServer) isHostAuthority(auth ssh.PublicKey) bool {
 
 // isUserAuthority is called during checking the client key, to see if the signing
 // key is the real user CA authority key.
-func (s *TunServer) isUserAuthority(auth ssh.PublicKey) bool {
+func (s *AuthTunnel) isUserAuthority(auth ssh.PublicKey) bool {
 	keys, err := s.getTrustedCAKeys(services.UserCA)
 	if err != nil {
 		log.Errorf("failed to retrieve trusted keys, err: %v", err)
@@ -188,7 +198,7 @@ func (s *TunServer) isUserAuthority(auth ssh.PublicKey) bool {
 	return false
 }
 
-func (s *TunServer) getTrustedCAKeys(CertType services.CertAuthType) ([]ssh.PublicKey, error) {
+func (s *AuthTunnel) getTrustedCAKeys(CertType services.CertAuthType) ([]ssh.PublicKey, error) {
 	cas, err := s.authServer.GetCertAuthorities(CertType)
 	if err != nil {
 		return nil, err
@@ -204,7 +214,7 @@ func (s *TunServer) getTrustedCAKeys(CertType services.CertAuthType) ([]ssh.Publ
 	return out, nil
 }
 
-func (s *TunServer) haveExt(sconn *ssh.ServerConn, ext ...string) bool {
+func (s *AuthTunnel) haveExt(sconn *ssh.ServerConn, ext ...string) bool {
 	if sconn.Permissions == nil {
 		return false
 	}
@@ -216,7 +226,7 @@ func (s *TunServer) haveExt(sconn *ssh.ServerConn, ext ...string) bool {
 	return true
 }
 
-func (s *TunServer) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel) {
+func (s *AuthTunnel) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel) {
 	defer ch.Close()
 
 	if sconn.Permissions.Extensions[ExtRole] != string(teleport.RoleWeb) {
@@ -269,7 +279,7 @@ func (s *TunServer) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel)
 
 // handleDirectTCPIPRequest accepts an incoming SSH connection via TCP/IP and forwards
 // it to the local auth server which listens on local UNIX pipe
-func (s *TunServer) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
+func (s *AuthTunnel) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	defer sconn.Close()
 
 	log.Debugf("[TUNNEL] Remote address: %v", sconn.RemoteAddr())
@@ -287,7 +297,7 @@ func (s *TunServer) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Chann
 	}
 }
 
-func (s *TunServer) keyAuth(
+func (s *AuthTunnel) keyAuth(
 	conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 	cid := fmt.Sprintf(
 		"conn(%v->%v, user=%v)", conn.RemoteAddr(),
@@ -339,7 +349,7 @@ func (s *TunServer) keyAuth(
 	return perms, nil
 }
 
-func (s *TunServer) passwordAuth(
+func (s *AuthTunnel) passwordAuth(
 	conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
 	var ab *authBucket
 	if err := json.Unmarshal(password, &ab); err != nil {
