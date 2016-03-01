@@ -527,17 +527,13 @@ type siteSessionGetResponse struct {
 	Session session.Session `json:"session"`
 }
 
-// siteSessionUpdate udpdates the site session
+// siteSessionGet gets the site session by id
 //
-// PUT /v1/webapi/sites/:site/sessions/:sid
-//
-// Request body:
-//
-// {"terminal_params": {"w": 100, "h": 100}}
+// GET /v1/webapi/sites/:site/sessions/:sid
 //
 // Response body:
 //
-// {"message": "ok"}
+// {"session": {"id": "sid", "terminal_params": {"w": 100, "h": 100}, "parties": [], "login": "bob"}}
 //
 func (m *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	sessionID := p.ByName("sid")
