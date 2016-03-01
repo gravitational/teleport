@@ -176,11 +176,11 @@ type session struct {
 
 func newSession(id string, r *sessionRegistry, context *ctx) (*session, error) {
 	rsess := rsession.Session{
-		ID:         id,
-		Terminal:   rsession.TerminalParams{W: 100, H: 100},
-		Login:      context.login,
-		Created:    time.Now().UTC(),
-		LastActive: time.Now().UTC(),
+		ID:             id,
+		TerminalParams: rsession.TerminalParams{W: 100, H: 100},
+		Login:          context.login,
+		Created:        time.Now().UTC(),
+		LastActive:     time.Now().UTC(),
 	}
 	term := context.getTerm()
 	if term != nil {
@@ -188,8 +188,8 @@ func newSession(id string, r *sessionRegistry, context *ctx) (*session, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		rsess.Terminal.W = int(winsize.Width)
-		rsess.Terminal.H = int(winsize.Height)
+		rsess.TerminalParams.W = int(winsize.Width)
+		rsess.TerminalParams.H = int(winsize.Height)
 	}
 	err := r.srv.sessionServer.CreateSession(rsess)
 	if err != nil {
@@ -366,12 +366,12 @@ func (s *session) syncTerm(sessionServer rsession.Service) error {
 		log.Infof("syncTerm: no terminal")
 		return trace.Wrap(err)
 	}
-	if int(winSize.Width) == sess.Terminal.W && int(winSize.Height) == sess.Terminal.H {
-		log.Infof("terminal not changed: %v", sess.Terminal)
+	if int(winSize.Width) == sess.TerminalParams.W && int(winSize.Height) == sess.TerminalParams.H {
+		log.Infof("terminal not changed: %v", sess.TerminalParams)
 		return nil
 	}
-	log.Infof("terminal has changed from: %v to %v", sess.Terminal, winSize)
-	err = s.term.setWinsize(sess.Terminal)
+	log.Infof("terminal has changed from: %v to %v", sess.TerminalParams, winSize)
+	err = s.term.setWinsize(sess.TerminalParams)
 	return trace.Wrap(err)
 }
 

@@ -68,12 +68,12 @@ func (s *BoltSuite) TestSessionsCRUD(c *C) {
 	c.Assert(len(out), Equals, 0)
 
 	sess := Session{
-		ID:         "sid1",
-		Active:     true,
-		Terminal:   TerminalParams{W: 100, H: 100},
-		Login:      "bob",
-		LastActive: s.clock.UtcNow(),
-		Created:    s.clock.UtcNow(),
+		ID:             "sid1",
+		Active:         true,
+		TerminalParams: TerminalParams{W: 100, H: 100},
+		Login:          "bob",
+		LastActive:     s.clock.UtcNow(),
+		Created:        s.clock.UtcNow(),
 	}
 	c.Assert(s.srv.CreateSession(sess), IsNil)
 
@@ -105,7 +105,7 @@ func (s *BoltSuite) TestSessionsCRUD(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	sess.Terminal = TerminalParams{W: 101, H: 101}
+	sess.TerminalParams = TerminalParams{W: 101, H: 101}
 	s2, err = s.srv.GetSession(sess.ID)
 	c.Assert(err, IsNil)
 	c.Assert(s2, DeepEquals, &sess)
@@ -115,12 +115,12 @@ func (s *BoltSuite) TestSessionsCRUD(c *C) {
 // as inactive after period of inactivity
 func (s *BoltSuite) TestSessionsInactivity(c *C) {
 	sess := Session{
-		ID:         "sid1",
-		Active:     true,
-		Terminal:   TerminalParams{W: 100, H: 100},
-		Login:      "bob",
-		LastActive: s.clock.UtcNow(),
-		Created:    s.clock.UtcNow(),
+		ID:             "sid1",
+		Active:         true,
+		TerminalParams: TerminalParams{W: 100, H: 100},
+		Login:          "bob",
+		LastActive:     s.clock.UtcNow(),
+		Created:        s.clock.UtcNow(),
 	}
 	c.Assert(s.srv.CreateSession(sess), IsNil)
 
@@ -134,12 +134,12 @@ func (s *BoltSuite) TestSessionsInactivity(c *C) {
 
 func (s *BoltSuite) TestPartiesCRUD(c *C) {
 	sess := Session{
-		ID:         "sid1",
-		Active:     true,
-		Terminal:   TerminalParams{W: 100, H: 100},
-		Login:      "bob",
-		LastActive: s.clock.UtcNow(),
-		Created:    s.clock.UtcNow(),
+		ID:             "sid1",
+		Active:         true,
+		TerminalParams: TerminalParams{W: 100, H: 100},
+		Login:          "bob",
+		LastActive:     s.clock.UtcNow(),
+		Created:        s.clock.UtcNow(),
 	}
 	c.Assert(s.srv.CreateSession(sess), IsNil)
 

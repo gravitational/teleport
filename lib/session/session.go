@@ -37,8 +37,8 @@ type Session struct {
 	ID string `json:"id"`
 	// Parties is a list of session parties
 	Parties []Party `json:"parties"`
-	// Terminal sets terminal properties
-	Terminal TerminalParams `json:"terminal"`
+	// TerminalParams sets terminal properties
+	TerminalParams TerminalParams `json:"terminal_params"`
 	// Login is a login used by all parties joining the session
 	Login string `json:"login"`
 	// Active indicates if the session is active
@@ -278,7 +278,7 @@ func (s *server) CreateSession(sess Session) error {
 	if sess.LastActive.IsZero() {
 		return trace.Wrap(teleport.BadParameter("last_active", "can not be empty"))
 	}
-	_, err := NewTerminalParamsFromInt(sess.Terminal.W, sess.Terminal.H)
+	_, err := NewTerminalParamsFromInt(sess.TerminalParams.W, sess.TerminalParams.H)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -309,7 +309,7 @@ func (s *server) UpdateSession(req UpdateRequest) error {
 		return trace.Wrap(err)
 	}
 	if req.TerminalParams != nil {
-		sess.Terminal = *req.TerminalParams
+		sess.TerminalParams = *req.TerminalParams
 	}
 	sess.Parties = nil
 	err = s.bk.UpsertJSONVal(allBucket(), req.ID, sess, backend.Forever)

@@ -685,7 +685,7 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 
 	var sess *siteSessionGetResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &sess), IsNil)
-	c.Assert(sess.Session.Terminal, DeepEquals, params)
+	c.Assert(sess.Session.TerminalParams, DeepEquals, params)
 }
 
 func getEvent(schema string, events []lunk.Entry) *lunk.Entry {

@@ -181,12 +181,12 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 
 	// saving hangoutInfo using sessions just as storage
 	err = h.sessions.CreateSession(session.Session{
-		ID:         h.Token,
-		Terminal:   session.TerminalParams{W: int(winsize.Width), H: int(winsize.Height)},
-		Login:      login.Username,
-		Active:     true,
-		Created:    time.Now().UTC(),
-		LastActive: time.Now().UTC(),
+		ID:             h.Token,
+		TerminalParams: session.TerminalParams{W: int(winsize.Width), H: int(winsize.Height)},
+		Login:          login.Username,
+		Active:         true,
+		Created:        time.Now().UTC(),
+		LastActive:     time.Now().UTC(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
