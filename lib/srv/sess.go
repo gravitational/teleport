@@ -505,7 +505,7 @@ func (m *multiWriter) Write(p []byte) (n int, err error) {
 
 func newParty(s *session, sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) *party {
 	return &party{
-		user:       sconn.User(),
+		user:       ctx.login,
 		serverAddr: s.registry.srv.addr.Addr,
 		site:       sconn.RemoteAddr().String(),
 		id:         uuid.New(),
