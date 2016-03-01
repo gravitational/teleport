@@ -39,3 +39,21 @@ func (s *APITestSuite) TestConfig(c *check.C) {
 	c.Assert(conf.ProxySpecified(), check.Equals, true)
 	c.Assert(conf.ProxyHostPort(12), check.Equals, "example.org:12")
 }
+
+func (s *APITestSuite) TestParseLabels(c *check.C) {
+	// valid spec
+	m, err := ParseLabelSpec(`type="database";" role"=master,ver="mongoDB v1,2"`)
+	c.Assert(m, check.NotNil)
+	c.Assert(err, check.IsNil)
+	c.Assert(m, check.HasLen, 3)
+	c.Assert(m["role"], check.Equals, "master")
+	c.Assert(m["type"], check.Equals, "database")
+	c.Assert(m["ver"], check.Equals, "mongoDB v1,2")
+	// invalid specs
+	m, err = ParseLabelSpec(`type="database,"role"=master,ver="mongoDB v1,2"`)
+	c.Assert(m, check.IsNil)
+	c.Assert(err, check.NotNil)
+	m, err = ParseLabelSpec(`type="database",role,master`)
+	c.Assert(m, check.IsNil)
+	c.Assert(err, check.NotNil)
+}

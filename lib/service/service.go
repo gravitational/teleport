@@ -56,6 +56,8 @@ type RoleConfig struct {
 	Console     io.Writer
 }
 
+// NewTeleport takes the daemon configuration, instantiates all required services
+// and starts them under a supervisor, returning the supervisor object
 func NewTeleport(cfg Config) (Supervisor, error) {
 	if err := validateConfig(cfg); err != nil {
 		return nil, err
@@ -70,9 +72,8 @@ func NewTeleport(cfg Config) (Supervisor, error) {
 		}
 	}
 
-	// if user started auth and something else and did not
-	// provide auth address for that something,
-	// the address of the created auth will be used
+	// if user started auth and another service (without providing the auth address for
+	// that service, the address of the in-process auth will be used
 	if cfg.Auth.Enabled && len(cfg.AuthServers) == 0 {
 		cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
 	}

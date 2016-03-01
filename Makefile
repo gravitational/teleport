@@ -6,17 +6,6 @@ export GO15VENDOREXPERIMENT=1
 
 .PHONY: install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd install-assets docs-serve
 
-##
-## Ev:
-##
-.PHONY: newtsh
-newtsh:
-	go build -o $(OUT)/t -i github.com/gravitational/teleport/tool/t
-
-.PHONY: login
-login:
-	out/tsh ssh --proxy-user=ekontsevoy ekontsevoy@edsger:3022 --web-proxy=edsger:3080
-
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
 #
@@ -45,6 +34,19 @@ install: remove-temp-files
 clean:
 	rm -rf $(OUT)
 
+
+##
+## Ev targets (temporary)
+##
+.PHONY: newtsh
+newtsh:
+	go build -o $(OUT)/t -i github.com/gravitational/teleport/tool/t
+.PHONY: login
+login:
+	out/tsh ssh --proxy-user=ekontsevoy ekontsevoy@edsger:3022 --web-proxy=edsger:3080
+
+
+
 #
 # this target is used by Jenkins for production builds
 #
@@ -52,16 +54,13 @@ clean:
 production: clean
 	$(MAKE) -C build.assets
 
-
-
 #
 # tests everything: called by Jenkins
 #
 test: 
-	go test -v github.com/gravitational/teleport/lib/client
 	go test -v github.com/gravitational/teleport/tool/t/...
 	go test -v github.com/gravitational/teleport/lib/... -cover
-	go test -v github.com/gravitational/teleport/tool/teleport... -cover
+	#go test -v github.com/gravitational/teleport/tool/teleport... -cover
 #	go test -v github.com/gravitational/teleport/tool/tsh -cover
 
 

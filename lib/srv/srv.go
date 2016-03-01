@@ -61,7 +61,6 @@ type Server struct {
 	shell         string
 	ap            auth.AccessPoint
 	reg           *sessionRegistry
-	se            rsession.SessionServer
 	sessionServer rsession.SessionServer
 	rec           recorder.Recorder
 	limiter       *limiter.Limiter

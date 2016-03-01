@@ -67,11 +67,15 @@ func run(args []string, underTest bool) {
 	debugMode := app.Flag("debug", "Verbose logging to stdout").Short('d').Bool()
 	app.HelpFlag.Short('h')
 	ver := app.Command("version", "Print the version")
-	ssh := app.Command("ssh", "SSH into a remote machine")
-	ssh.Arg("[user@]host", "Remote hostname and the machine login [$USER]").Required().StringVar(&cf.UserHost)
+	// ssh
+	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node")
+	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int16Var(&cf.NodePort)
 	ssh.Flag("login", "Remote host login").Short('l').StringVar(&cf.NodeLogin)
+	// ls
+	ls := app.Command("ls", "List remote SSH nodes")
+	ls.Arg("labels", "List of labels to filter node list").Default("*").StringVar(&cf.UserHost)
 
 	// parse CLI commands+flags:
 	command, err := app.Parse(args)
@@ -89,6 +93,24 @@ func run(args []string, underTest bool) {
 		onVersion()
 	case ssh.FullCommand():
 		onSSH(&cf)
+	case ls.FullCommand():
+		onListNodes(&cf)
+	}
+}
+
+// onListNodes executes 'tsh ls' command
+func onListNodes(cf *CLIConf) {
+	tc, err := makeClient(cf)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	servers, err := tc.ListNodes()
+	if err != nil {
+		utils.FatalError(err)
+	}
+	// TODO: make this prettier
+	for _, s := range servers {
+		fmt.Printf("%s (%v)\n", s.Hostname, s.Addr)
 	}
 }
 
@@ -106,7 +128,7 @@ func onSSH(cf *CLIConf) {
 
 // makeClient takes the command-line configuration and constructs & returns
 // a fully configured TeleportClient object
-func makeClient(cf *CLIConf) (*client.TeleportClient, error) {
+func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 	// apply defults
 	if cf.NodePort == 0 {
 		cf.NodePort = defaults.SSHServerListenPort
@@ -121,6 +143,14 @@ func makeClient(cf *CLIConf) (*client.TeleportClient, error) {
 		hostLogin = parts[0]
 		cf.UserHost = parts[1]
 	}
+	// see if remote host is specified as a set of labels
+	var labels map[string]string
+	if strings.Contains(cf.UserHost, "=") {
+		labels, err = client.ParseLabelSpec(cf.UserHost)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	// prep client config:
 	c := &client.Config{
@@ -129,6 +159,7 @@ func makeClient(cf *CLIConf) (*client.TeleportClient, error) {
 		Host:      cf.UserHost,
 		HostPort:  int(cf.NodePort),
 		HostLogin: hostLogin,
+		Labels:    labels,
 		KeyTTL:    time.Minute * time.Duration(cf.MinsToLive),
 	}
 	return client.NewClient(c)

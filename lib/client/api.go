@@ -28,6 +28,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -36,6 +37,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/trace"
@@ -51,6 +53,9 @@ type Config struct {
 
 	// Remote host to connect
 	Host string
+
+	// Host Labels
+	Labels map[string]string
 
 	// User login on a remote host
 	HostLogin string
@@ -160,7 +165,7 @@ func (tc *TeleportClient) SSH(command string) (err error) {
 			return tc.runCommand(proxyClient, command)
 		}
 		nodeClient, err = proxyClient.ConnectToNode(tc.NodeHostPort(),
-			tc.authMethods, tc.makeHostKeyCallback(), tc.Config.Login)
+			tc.authMethods, tc.makeHostKeyCallback(), tc.Config.HostLogin)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -176,15 +181,78 @@ func (tc *TeleportClient) SSH(command string) (err error) {
 	return tc.runShell(nodeClient, "")
 }
 
+// ListNodes returns a list of nodes connected to a proxy
+func (tc *TeleportClient) ListNodes() ([]services.Server, error) {
+	// connect to the proxy and ask it to return a full list of servers
+	proxyClient, err := tc.ConnectToProxy()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+	var servers []services.Server
+	servers, err = proxyClient.GetServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return filterByLabels(servers, tc.Config.Labels), nil
+}
+
+// filterByLabels takes a list of nodes and returns only nodes that have matching labels.
+// If no labels are given, returns the original list
+func filterByLabels(nodes []services.Server, labels map[string]string) (output []services.Server) {
+	if labels == nil || len(nodes) == 0 {
+		return nodes
+	}
+	output = make([]services.Server, 0)
+	// go over all nodes
+	for _, node := range nodes {
+		match := false
+		// look at each node's labels
+		if node.Labels != nil {
+			for ln, lv := range labels {
+				if node.Labels[ln] == lv {
+					match = true
+					break
+				}
+			}
+		}
+		// look at each node's command labels
+		if !match && node.CmdLabels != nil {
+			for cln, clv := range node.CmdLabels {
+				if node.Labels[cln] == clv.Result {
+					match = true
+					break
+				}
+			}
+		}
+		if match {
+			output = append(output, node)
+		}
+	}
+	return output
+}
+
 // runCommand executes a given bash command on a bunch of remote nodes
 func (tc *TeleportClient) runCommand(proxyClient *ProxyClient, command string) error {
 	stdoutMutex := &sync.Mutex{}
 	wg := &sync.WaitGroup{}
 
-	// TODO: for now we don't support multiple nodes, just one
-	nodes := []string{tc.NodeHostPort()}
+	// build a list of nodes we should be executing this command on:
+	var nodeAddresses []string
+	if proxyClient != nil && tc.Config.Labels != nil {
+		nodeAddresses = make([]string, 0)
+		servers, err := proxyClient.GetServers()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, server := range filterByLabels(servers, tc.Config.Labels) {
+			nodeAddresses = append(nodeAddresses, server.Addr)
+		}
+	} else {
+		nodeAddresses = []string{tc.NodeHostPort()}
+	}
 
-	for _, address := range nodes {
+	for _, address := range nodeAddresses {
 		wg.Add(1)
 		go func(address string) {
 			defer wg.Done()
@@ -539,4 +607,42 @@ func passwordFromConsole() (string, error) {
 func lineFromConsole() (string, error) {
 	bytes, _, err := bufio.NewReader(os.Stdin).ReadLine()
 	return string(bytes), err
+}
+
+// parseLabelSpec parses a string like 'name=value,"long name"="quoted value"` into a map like
+// { "name" -> "value", "long name" -> "quoted value" }
+func ParseLabelSpec(spec string) (map[string]string, error) {
+	tokens := []string{}
+	var openQuotes = false
+	var tokenStart, assignCount int
+	// tokenize the label spec:
+	for i, ch := range spec {
+		endOfToken := (i+1 == len(spec))
+		switch ch {
+		case '"':
+			openQuotes = !openQuotes
+		case '=', ',', ';':
+			if !openQuotes {
+				endOfToken = true
+				if ch == '=' {
+					assignCount += 1
+				}
+			}
+		}
+		if endOfToken && i > tokenStart {
+			tokens = append(tokens, strings.TrimSpace(strings.Trim(spec[tokenStart:i], `"`)))
+			tokenStart = i + 1
+		}
+	}
+	// simple validation of tokenization: must have even number of tokens (because they're pairs)
+	// and the number of such pairs must be equal the number of assignments
+	if len(tokens)%2 != 0 || assignCount != len(tokens)/2 {
+		return nil, fmt.Errorf("invalid label spec: '%s'", spec)
+	}
+	// break tokens in pairs and put into a map:
+	labels := make(map[string]string)
+	for i := 0; i < len(tokens); i += 2 {
+		labels[tokens[i]] = tokens[i+1]
+	}
+	return labels, nil
 }
