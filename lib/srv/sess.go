@@ -296,7 +296,7 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	p.ctx.Infof("starting shell input/output streaming")
 
 	if s.registry.srv.rec != nil {
-		w, err := newChunkWriter(s.registry.srv.rec, s.registry.srv.addr.Addr)
+		w, err := newChunkWriter(s.id, s.registry.srv.rec, s.registry.srv.addr.Addr)
 		if err != nil {
 			p.ctx.Errorf("failed to create recorder: %v", err)
 			return trace.Wrap(err)
@@ -562,15 +562,14 @@ func (p *party) Close() error {
 	return p.s.registry.leaveShell(p.s.id, p.id)
 }
 
-func newChunkWriter(rec recorder.Recorder, serverAddr string) (*chunkWriter, error) {
-	id := uuid.New()
-	cw, err := rec.GetChunkWriter(id)
+func newChunkWriter(sessionID string, rec recorder.Recorder, serverAddr string) (*chunkWriter, error) {
+	cw, err := rec.GetChunkWriter(sessionID)
 	if err != nil {
 		return nil, err
 	}
 	return &chunkWriter{
 		w:          cw,
-		rid:        id,
+		rid:        sessionID,
 		serverAddr: serverAddr,
 	}, nil
 }

@@ -172,9 +172,27 @@ func (w *sessionStreamHandler) diffEvents(last *sessionStreamEvent, new *session
 		log.Infof("nodes have changes")
 		return true
 	}
+	// session parameters were updated
+	if sessionsDifferent(last.Session, new.Session) {
+		log.Infof("session has changes")
+		return true
+	}
 	// parties have joined or left the scene
 	if setsDifferent(partySet(last), partySet(new)) {
 		log.Infof("parties have changes")
+		return true
+	}
+	return false
+}
+
+func sessionsDifferent(a, b session.Session) bool {
+	if a.TerminalParams.W != b.TerminalParams.W {
+		return true
+	}
+	if a.TerminalParams.H != b.TerminalParams.H {
+		return true
+	}
+	if a.Active != b.Active {
 		return true
 	}
 	return false

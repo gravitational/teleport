@@ -23,13 +23,16 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -128,6 +131,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 
 	// get nodes
 	h.GET("/webapi/sites/:site/nodes", h.withSiteAuth(h.getSiteNodes))
+	// get site events
+	h.GET("/webapi/sites/:site/events", h.withSiteAuth(h.siteGetEvents))
 	// connect to node via websocket (that's why it's a GET method)
 	h.GET("/webapi/sites/:site/connect", h.withSiteAuth(h.siteNodeConnect))
 	// get session event stream
@@ -136,6 +141,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	h.PUT("/webapi/sites/:site/sessions/:sid", h.withSiteAuth(h.siteSessionUpdate))
 	// get session
 	h.GET("/webapi/sites/:site/sessions/:sid", h.withSiteAuth(h.siteSessionGet))
+	// get session chunks
+	h.GET("/webapi/sites/:site/sessions/:sid/chunks", h.withSiteAuth(h.siteSessionGetChunks))
 
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
@@ -548,6 +555,89 @@ func (m *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 	return siteSessionGetResponse{Session: *sess}, nil
+}
+
+type siteSessionGetChunksResponse struct {
+	Chunks []recorder.Chunk `json:"chunks"`
+}
+
+// siteSessionGetChunks gets the site session recorded chunks
+//
+// GET /v1/webapi/sites/:site/sessions/:sid
+//
+// Response body:
+//
+// {"session": {"id": "sid", "terminal_params": {"w": 100, "h": 100}, "parties": [], "login": "bob"}}
+//
+func (m *Handler) siteSessionGetChunks(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	sessionID := p.ByName("sid")
+
+	st, en := r.URL.Query().Get("start"), r.URL.Query().Get("end")
+	start, err := strconv.Atoi(st)
+	if err != nil {
+		return nil, trace.Wrap(teleport.BadParameter("start", "need integer"))
+	}
+	end, err := strconv.Atoi(en)
+	if err != nil {
+		return nil, trace.Wrap(teleport.BadParameter("end", "need integer"))
+	}
+	clt, err := site.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	reader, err := clt.GetChunkReader(sessionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer reader.Close()
+	chunks, err := reader.ReadChunks(start, end)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &siteSessionGetChunksResponse{Chunks: chunks}, nil
+}
+
+type siteGetEvetns struct {
+	Events []lunk.Entry `json:"events"`
+}
+
+/* siteGetEvents gets the site session events
+
+ GET /v1/webapi/sites/:site/events?filter=urlencoded filter struct
+
+  filter struct format:
+
+    {
+      "start": "RFC339 start",  // start must always be specified
+      "end": "RFC3339 end",     // optional end
+      "order": 1,               // 1 for asc, -1 for descending
+      "session_id": "",         // optional session id to filter by
+      "limit": 2                // limit
+    }
+
+Response body:
+
+  {"events": [{}]}
+
+*/
+func (m *Handler) siteGetEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	var filter events.Filter
+	filterQ := r.URL.Query().Get("filter")
+	if filterQ == "" {
+		return nil, trace.Wrap(teleport.BadParameter("filter", "missing filter"))
+	}
+	if err := json.Unmarshal([]byte(filterQ), &filter); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clt, err := site.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	events, err := clt.GetEvents(filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return events, nil
 }
 
 // createSSHCertReq are passed by web client
