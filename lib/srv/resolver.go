@@ -30,7 +30,7 @@ type resolver interface {
 // backend resolver is a simple implementation of the resolver
 // that uses servers presence information to find the servers
 type backendResolver struct {
-	ap auth.AccessPoint
+	authService auth.AccessPoint
 }
 
 // resolve provides a simple demo resolve functionality,such as globbing, expanding to all hosts
@@ -39,7 +39,7 @@ func (b *backendResolver) resolve(query string) ([]string, error) {
 	// simply expand the query to all known hosts
 	if query == "*" {
 		out := []string{}
-		srvs, err := b.ap.GetServers()
+		srvs, err := b.authService.GetServers()
 		if err != nil {
 			return nil, err
 		}

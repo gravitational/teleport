@@ -61,6 +61,9 @@ func run(cmdlineArgs []string, testRun bool) (executedCommand string, appliedCon
 		fmt.Sprintf("Comma-separated list of roles to start with [%s]", strings.Join(defaults.StartRoles, ","))).
 		Short('r').
 		StringVar(&ccf.Roles)
+	start.Flag("advertise-ip",
+		"IP to advertise to clients if running behind NAT").
+		IPVar(&ccf.AdvertiseIP)
 	start.Flag("listen-ip",
 		fmt.Sprintf("IP address to bind to [%s]", defaults.BindIP)).
 		Short('l').

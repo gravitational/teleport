@@ -171,7 +171,7 @@ func (c *ctx) requestClose(msg string) {
 }
 
 func (c *ctx) resolver() resolver {
-	return c.srv.rr
+	return c.srv.resolver
 }
 
 func (c *ctx) String() string {

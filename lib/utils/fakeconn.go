@@ -26,35 +26,41 @@ import (
 
 // PipeNetConn implemetns net.Conn from io.Reader,io.Writer and io.Closer
 type PipeNetConn struct {
-	r          io.Reader
-	w          io.Writer
-	c          io.Closer
+	reader     io.Reader
+	writer     io.Writer
+	closer     io.Closer
 	localAddr  net.Addr
 	remoteAddr net.Addr
 }
 
-func NewPipeNetConn(r io.Reader, w io.Writer, c io.Closer,
-	fakelocalAddr net.Addr, fakeRemoteAddr net.Addr) *PipeNetConn {
-	nc := PipeNetConn{
-		r:          r,
-		w:          w,
-		c:          c,
+func NewPipeNetConn(reader io.Reader,
+	writer io.Writer,
+	closer io.Closer,
+	fakelocalAddr net.Addr,
+	fakeRemoteAddr net.Addr) *PipeNetConn {
+
+	return &PipeNetConn{
+		reader:     reader,
+		writer:     writer,
+		closer:     closer,
 		localAddr:  fakelocalAddr,
 		remoteAddr: fakeRemoteAddr,
 	}
-	return &nc
 }
 
 func (nc *PipeNetConn) Read(buf []byte) (n int, e error) {
-	return nc.r.Read(buf)
+	return nc.reader.Read(buf)
 }
 
 func (nc *PipeNetConn) Write(buf []byte) (n int, e error) {
-	return nc.w.Write(buf)
+	return nc.writer.Write(buf)
 }
 
 func (nc *PipeNetConn) Close() error {
-	return nc.c.Close()
+	if nc.closer != nil {
+		return nc.closer.Close()
+	}
+	return nil
 }
 
 func (nc *PipeNetConn) LocalAddr() net.Addr {

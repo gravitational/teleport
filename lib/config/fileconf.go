@@ -16,6 +16,7 @@ limitations under the License.
 package config
 
 import (
+	"net"
 	"path/filepath"
 	"strings"
 	"time"
@@ -61,6 +62,7 @@ var (
 		"listen_addr":       true,
 		"https_key_file":    true,
 		"https_cert_file":   true,
+		"advertise_ip":      true,
 	}
 )
 
@@ -265,9 +267,10 @@ type Auth struct {
 
 // 'ssh_service' section of the config file
 type SSH struct {
-	Service  `yaml:",inline"`
-	Labels   map[string]string `yaml:"labels,omitempty"`
-	Commands []CommandLabel    `yaml:"commands,omitempty"`
+	Service     `yaml:",inline"`
+	Labels      map[string]string `yaml:"labels,omitempty"`
+	Commands    []CommandLabel    `yaml:"commands,omitempty"`
+	AdvertiseIP net.IP            `yaml:"advertise_ip,omitempty"`
 }
 
 // `command` section of `ssh_service` in the config file

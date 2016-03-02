@@ -46,7 +46,6 @@ login:
 	out/tsh ssh --proxy-user=ekontsevoy ekontsevoy@edsger:3022 --web-proxy=edsger:3080
 
 
-
 #
 # this target is used by Jenkins for production builds
 #
@@ -60,8 +59,8 @@ production: clean
 test: 
 	go test -v github.com/gravitational/teleport/tool/t/...
 	go test -v github.com/gravitational/teleport/lib/... -cover
-	#go test -v github.com/gravitational/teleport/tool/teleport... -cover
-#	go test -v github.com/gravitational/teleport/tool/tsh -cover
+	go test -v github.com/gravitational/teleport/tool/teleport... -cover
+	#go test -v github.com/gravitational/teleport/tool/tsh -cover
 
 
 test-with-etcd: install

@@ -54,12 +54,12 @@ type Server struct {
 	addr          utils.NetAddr
 	hostname      string
 	certChecker   ssh.CertChecker
-	rr            resolver
+	resolver      resolver
 	elog          lunk.EventLogger
 	srv           *sshutils.Server
 	hostSigner    ssh.Signer
 	shell         string
-	ap            auth.AccessPoint
+	authService   auth.AccessPoint
 	reg           *sessionRegistry
 	sessionServer rsession.Service
 	rec           recorder.Recorder
@@ -71,6 +71,12 @@ type Server struct {
 
 	proxyMode bool
 	proxyTun  reversetunnel.Server
+
+	advertiseIP net.IP
+
+	// server UUID gets generated once on the first start and never changes
+	// usually stored in a file inside the data dir
+	uuid string
 }
 
 // ServerOption is a functional option passed to the server
@@ -146,18 +152,29 @@ func SetLimiter(limiter *limiter.Limiter) ServerOption {
 }
 
 // New returns an unstarted server
-func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
-	ap auth.AccessPoint,
-	dataDir string, options ...ServerOption) (*Server, error) {
+func New(addr utils.NetAddr,
+	hostname string,
+	signers []ssh.Signer,
+	authService auth.AccessPoint,
+	dataDir string,
+	advertiseIP net.IP,
+	options ...ServerOption) (*Server, error) {
+
+	uuid, err := utils.ReadOrMakeHostUUID(dataDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Infof("node UUID: %v", uuid)
 
 	s := &Server{
 		addr:        addr,
-		ap:          ap,
-		rr:          &backendResolver{ap: ap},
+		authService: authService,
+		resolver:    &backendResolver{authService: authService},
 		hostname:    hostname,
 		labelsMutex: &sync.Mutex{},
+		advertiseIP: advertiseIP,
+		uuid:        uuid,
 	}
-	var err error
 	s.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -206,22 +223,36 @@ func (s *Server) Addr() string {
 
 // ID returns server ID
 func (s *Server) ID() string {
-	return s.addr.Addr
+	return s.uuid
 }
 
+// AdvertiseAddr() returns an address this server should be publicly accessible
+// as, in "ip:host" form
+func (s *Server) AdvertiseAddr() string {
+	// se if we have explicit --advertise-ip option
+	if s.advertiseIP == nil {
+		return s.addr.Addr
+	}
+	_, port, _ := net.SplitHostPort(s.addr.Addr)
+	return net.JoinHostPort(s.advertiseIP.String(), port)
+}
+
+// heartbeatPresence periodically calls into the auth server to let everyone
+// know we're up & alive
 func (s *Server) heartbeatPresence() {
+	advertiseAddr := s.AdvertiseAddr()
 	for {
 		func() {
 			s.labelsMutex.Lock()
 			defer s.labelsMutex.Unlock()
 			srv := services.Server{
 				ID:        s.ID(),
-				Addr:      s.addr.Addr,
+				Addr:      advertiseAddr,
 				Hostname:  s.hostname,
 				Labels:    s.labels,
 				CmdLabels: s.cmdLabels,
 			}
-			if err := s.ap.UpsertServer(srv, 6*time.Second); err != nil {
+			if err := s.authService.UpsertServer(srv, 6*time.Second); err != nil {
 				log.Warningf("failed to announce %#v presence: %v", srv, err)
 			}
 		}()
@@ -256,7 +287,7 @@ func (s *Server) updateLabel(name string, label services.CommandLabel) {
 
 func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser string) error {
 	// find cert authority by it's key
-	cas, err := s.ap.GetCertAuthorities(services.UserCA)
+	cas, err := s.authService.GetCertAuthorities(services.UserCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -281,7 +312,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 		))
 	}
 
-	localDomain, err := s.ap.GetLocalDomain()
+	localDomain, err := s.authService.GetLocalDomain()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -289,7 +320,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 	// for local users, go and check their individual permissions
 	if localDomain == ca.DomainName {
 		log.Infof("%v is local authority", ca.DomainName)
-		users, err := s.ap.GetUsers()
+		users, err := s.authService.GetUsers()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -324,7 +355,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 // key is the real CA authority key.
 func (s *Server) isAuthority(cert ssh.PublicKey) bool {
 	// find cert authority by it's key
-	cas, err := auth.RetryingClient(s.ap, 20).GetCertAuthorities(services.UserCA)
+	cas, err := auth.RetryingClient(s.authService, 20).GetCertAuthorities(services.UserCA)
 	if err != nil {
 		log.Warningf("%v", err)
 		return false

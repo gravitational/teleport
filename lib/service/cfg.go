@@ -18,6 +18,7 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 
@@ -202,13 +203,16 @@ type AuthConfig struct {
 
 // SSHConfig configures SSH server node role
 type SSHConfig struct {
-	Enabled   bool
-	Token     string
-	Addr      utils.NetAddr
-	Shell     string
-	Limiter   limiter.LimiterConfig
-	Labels    map[string]string
-	CmdLabels services.CommandLabels
+	Enabled bool
+	Token   string
+	Addr    utils.NetAddr
+	// AdvertiseIP is used to "publish" an alternative IP address this node
+	// can be reached on, if running behind NAT
+	AdvertiseIP net.IP
+	Shell       string
+	Limiter     limiter.LimiterConfig
+	Labels      map[string]string
+	CmdLabels   services.CommandLabels
 }
 
 // ReverseTunnelConfig configures reverse tunnel role

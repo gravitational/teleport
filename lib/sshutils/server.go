@@ -49,8 +49,12 @@ func SetLimiter(limiter *limiter.Limiter) ServerOption {
 	}
 }
 
-func NewServer(a utils.NetAddr, h NewChanHandler, hostSigners []ssh.Signer,
-	ah AuthMethods, opts ...ServerOption) (*Server, error) {
+func NewServer(a utils.NetAddr,
+	h NewChanHandler,
+	hostSigners []ssh.Signer,
+	ah AuthMethods,
+	opts ...ServerOption) (*Server, error) {
+
 	err := checkArguments(a, h, hostSigners, ah)
 	if err != nil {
 		return nil, err

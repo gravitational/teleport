@@ -43,6 +43,8 @@ type CommandLineFlags struct {
 	AuthToken string
 	// --listen-ip flag
 	ListenIP net.IP
+	// --advertise-ip flag
+	AdvertiseIP net.IP
 	// --config flag
 	ConfigFile string
 	// --roles flag
@@ -225,6 +227,14 @@ func applyFileConfig(fc *config.FileConfig, cfg *service.Config) error {
 				Result:  "",
 			}
 		}
+	}
+	// apply "advertise_ip" setting:
+	advertiseIP := fc.SSH.AdvertiseIP
+	if advertiseIP != nil {
+		if advertiseIP.IsLoopback() || advertiseIP.IsUnspecified() || advertiseIP.IsMulticast() {
+			return trace.Errorf("unreachable advertise IP: %v", advertiseIP)
+		}
+		cfg.SSH.AdvertiseIP = advertiseIP
 	}
 	return nil
 }

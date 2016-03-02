@@ -161,10 +161,11 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) err
 		return trace.Wrap(err)
 	}
 
-	// register auth SSH-based endpoint
+	// Register an SSH endpoint which is used to create an SSH tunnel to send HTTP
+	// requests to the Auth API
 	supervisor.RegisterFunc(func() error {
 		utils.Consolef(cfg.Console, "[AUTH]  Auth service is starting on %v", cfg.Auth.SSHAddr.Addr)
-		tsrv, err := auth.NewTunServer(
+		tsrv, err := auth.NewTunnel(
 			cfg.Auth.SSHAddr, []ssh.Signer{signer},
 			apisrv,
 			asrv,
@@ -226,6 +227,7 @@ func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
 		[]ssh.Signer{i.KeySigner},
 		client,
 		cfg.DataDir,
+		cfg.SSH.AdvertiseIP,
 		srv.SetLimiter(limiter),
 		srv.SetShell(cfg.SSH.Shell),
 		srv.SetEventLogger(elog),
@@ -400,6 +402,7 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 		[]ssh.Signer{i.KeySigner},
 		client,
 		cfg.DataDir,
+		nil,
 		srv.SetLimiter(proxyLimiter),
 		srv.SetProxyMode(tsrv),
 		srv.SetSessionServer(client),

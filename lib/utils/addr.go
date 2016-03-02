@@ -166,3 +166,24 @@ func (nl *NetAddrList) String() string {
 	}
 	return strings.Join(ns, " ")
 }
+
+// ReplaceLocalhost checks if a given address is link-local (like 0.0.0.0 or 127.0.0.1)
+// and replaces it with the IP taken from replaceWith, preserving the original port
+//
+// Both addresses are in "host:port" format
+// The function returns the original value if it encounters any problems with parsing
+func ReplaceLocalhost(addr, replaceWith string) string {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	ip := net.ParseIP(host)
+	if ip.IsLoopback() || ip.IsUnspecified() {
+		host, _, err = net.SplitHostPort(replaceWith)
+		if err != nil {
+			return addr
+		}
+		addr = net.JoinHostPort(host, port)
+	}
+	return addr
+}

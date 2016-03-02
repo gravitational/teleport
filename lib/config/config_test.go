@@ -166,6 +166,7 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(conf.SSH.Commands[1].Name, check.Equals, "date")
 	c.Assert(conf.SSH.Commands[1].Command, check.DeepEquals, []string{"/bin/date"})
 	c.Assert(conf.SSH.Commands[1].Period.Nanoseconds(), check.Equals, int64(20000000))
+	c.Assert(conf.SSH.AdvertiseIP.String(), check.Equals, "10.10.10.1")
 }
 
 var (
@@ -270,6 +271,7 @@ auth_service:
 ssh_service:
   enabled: no
   listen_addr: tcp://ssh
+  advertise_ip: 10.10.10.1
   labels:
     name: mondoserver
     role: slave

@@ -18,6 +18,7 @@ package utils
 import (
 	"archive/tar"
 	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"io"
 	"io/ioutil"
 	"net"
@@ -25,8 +26,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -134,6 +137,33 @@ func GetFreeTCPPorts(n int) (ports []string, e error) {
 	return ports, nil
 }
 
+// ReadOrMakeHostUUID looks for a hostid file in the data dir. If present,
+// returns the UUID from it, otherwise generates one
+func ReadOrMakeHostUUID(dataDir string) (string, error) {
+	const ModeReadonly = 0400
+
+	fp := filepath.Join(dataDir, HostUUIDFile)
+	bytes, err := ioutil.ReadFile(fp)
+
+	for try := 0; try < 5 && err != nil; try++ {
+		log.Debugf("Trying to read uuid file %s", fp)
+		if os.IsNotExist(err) {
+			bytes = []byte(uuid.New())
+			err = ioutil.WriteFile(fp, bytes, os.ModeExclusive|ModeReadonly)
+		} else {
+			time.Sleep(time.Millisecond * 10)
+		}
+	}
+	if err != nil {
+		if os.IsPermission(err) {
+			return "", trace.Errorf("permission error trying to access %v", fp)
+		}
+		log.Errorf("failed generating host UUID. %v", err)
+		return "", trace.Wrap(err)
+	}
+	return string(bytes), nil
+}
+
 const (
 	// CertExtensionUser specifies teleport specific user entry
 	CertExtensionUser = "x-teleport-user"
@@ -142,4 +172,6 @@ const (
 	// CertExtensionAuthority specifies teleport authority's name
 	// that signed this domain
 	CertExtensionAuthority = "x-teleport-authority"
+	// HostUUIDFileName is the file name where the host UUID file is stored
+	HostUUIDFile = "host_uuid"
 )
