@@ -200,8 +200,6 @@ func (s *APIServer) upsertServer(w http.ResponseWriter, r *http.Request, p httpr
 	// if server sent "local" IP address to us, replace it with the address taken from
 	// the connection
 	req.Server.Addr = utils.ReplaceLocalhost(req.Server.Addr, r.RemoteAddr)
-	// also, Server.ID right now is always set to nonsense, overwrite it with it's Addr:
-	req.Server.ID = req.Server.Addr
 
 	if err := s.a.UpsertServer(req.Server, req.TTL); err != nil {
 		log.Error(err)

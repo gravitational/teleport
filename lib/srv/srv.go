@@ -73,6 +73,10 @@ type Server struct {
 	proxyTun  reversetunnel.Server
 
 	advertiseIP net.IP
+
+	// server UUID gets generated once on the first start and never changes
+	// usually stored in a file inside the data dir
+	uuid string
 }
 
 // ServerOption is a functional option passed to the server
@@ -156,6 +160,12 @@ func New(addr utils.NetAddr,
 	advertiseIP net.IP,
 	options ...ServerOption) (*Server, error) {
 
+	uuid, err := utils.ReadOrMakeHostUUID(dataDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Infof("node UUID: %v", uuid)
+
 	s := &Server{
 		addr:        addr,
 		authService: authService,
@@ -163,8 +173,8 @@ func New(addr utils.NetAddr,
 		hostname:    hostname,
 		labelsMutex: &sync.Mutex{},
 		advertiseIP: advertiseIP,
+		uuid:        uuid,
 	}
-	var err error
 	s.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -213,7 +223,7 @@ func (s *Server) Addr() string {
 
 // ID returns server ID
 func (s *Server) ID() string {
-	return s.addr.Addr
+	return s.uuid
 }
 
 // AdvertiseAddr() returns an address this server should be publicly accessible
