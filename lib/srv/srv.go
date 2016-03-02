@@ -54,12 +54,12 @@ type Server struct {
 	addr          utils.NetAddr
 	hostname      string
 	certChecker   ssh.CertChecker
-	rr            resolver
+	resolver      resolver
 	elog          lunk.EventLogger
 	srv           *sshutils.Server
 	hostSigner    ssh.Signer
 	shell         string
-	ap            auth.AccessPoint
+	authService   auth.AccessPoint
 	reg           *sessionRegistry
 	sessionServer rsession.Service
 	rec           recorder.Recorder
@@ -151,15 +151,15 @@ func SetLimiter(limiter *limiter.Limiter) ServerOption {
 func New(addr utils.NetAddr,
 	hostname string,
 	signers []ssh.Signer,
-	ap auth.AccessPoint,
+	authService auth.AccessPoint,
 	dataDir string,
 	advertiseIP net.IP,
 	options ...ServerOption) (*Server, error) {
 
 	s := &Server{
 		addr:        addr,
-		ap:          ap,
-		rr:          &backendResolver{ap: ap},
+		authService: authService,
+		resolver:    &backendResolver{authService: authService},
 		hostname:    hostname,
 		labelsMutex: &sync.Mutex{},
 		advertiseIP: advertiseIP,
@@ -242,7 +242,7 @@ func (s *Server) heartbeatPresence() {
 				Labels:    s.labels,
 				CmdLabels: s.cmdLabels,
 			}
-			if err := s.ap.UpsertServer(srv, 6*time.Second); err != nil {
+			if err := s.authService.UpsertServer(srv, 6*time.Second); err != nil {
 				log.Warningf("failed to announce %#v presence: %v", srv, err)
 			}
 		}()
@@ -277,7 +277,7 @@ func (s *Server) updateLabel(name string, label services.CommandLabel) {
 
 func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser string) error {
 	// find cert authority by it's key
-	cas, err := s.ap.GetCertAuthorities(services.UserCA)
+	cas, err := s.authService.GetCertAuthorities(services.UserCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -302,7 +302,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 		))
 	}
 
-	localDomain, err := s.ap.GetLocalDomain()
+	localDomain, err := s.authService.GetLocalDomain()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -310,7 +310,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 	// for local users, go and check their individual permissions
 	if localDomain == ca.DomainName {
 		log.Infof("%v is local authority", ca.DomainName)
-		users, err := s.ap.GetUsers()
+		users, err := s.authService.GetUsers()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -345,7 +345,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 // key is the real CA authority key.
 func (s *Server) isAuthority(cert ssh.PublicKey) bool {
 	// find cert authority by it's key
-	cas, err := auth.RetryingClient(s.ap, 20).GetCertAuthorities(services.UserCA)
+	cas, err := auth.RetryingClient(s.authService, 20).GetCertAuthorities(services.UserCA)
 	if err != nil {
 		log.Warningf("%v", err)
 		return false
