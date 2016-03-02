@@ -18,6 +18,7 @@ package web
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -194,11 +195,12 @@ func (s *WebSuite) SetUpTest(c *C) {
 		DomainName:       s.domainName,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond))
 
-	s.webServer = httptest.NewServer(handler)
+	s.webServer = httptest.NewUnstartedServer(handler)
+	s.webServer.StartTLS()
 }
 
 func (s *WebSuite) url() *url.URL {
-	u, err := url.Parse("http://" + s.webServer.Listener.Addr().String())
+	u, err := url.Parse("https://" + s.webServer.Listener.Addr().String())
 	if err != nil {
 		panic(err)
 	}
@@ -206,6 +208,7 @@ func (s *WebSuite) url() *url.URL {
 }
 
 func (s *WebSuite) client(opts ...roundtrip.ClientParam) *webClient {
+	opts = append(opts, roundtrip.HTTPClient(newInsecureClient()))
 	clt, err := newWebClient(s.url().String(), opts...)
 	if err != nil {
 		panic(err)
@@ -484,7 +487,7 @@ func (s *WebSuite) connect(c *C, pack *authPack, opts ...string) *websocket.Conn
 	if len(opts) != 0 {
 		sessionID = opts[0]
 	}
-	u := url.URL{Host: s.url().Host, Scheme: "ws", Path: fmt.Sprintf("/v1/webapi/sites/%v/connect", currentSiteShortcut)}
+	u := url.URL{Host: s.url().Host, Scheme: WSS, Path: fmt.Sprintf("/v1/webapi/sites/%v/connect", currentSiteShortcut)}
 	data, err := json.Marshal(connectReq{
 		Addr:      s.srvAddress,
 		Login:     s.user,
@@ -499,6 +502,9 @@ func (s *WebSuite) connect(c *C, pack *authPack, opts ...string) *websocket.Conn
 	u.RawQuery = q.Encode()
 
 	wscfg, err := websocket.NewConfig(u.String(), "http://localhost")
+	wscfg.TlsConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
 	c.Assert(err, IsNil)
 	for _, cookie := range pack.cookies {
 		wscfg.Header.Add("Cookie", cookie.String())
@@ -512,7 +518,7 @@ func (s *WebSuite) connect(c *C, pack *authPack, opts ...string) *websocket.Conn
 func (s *WebSuite) sessionStream(c *C, pack *authPack, sessionID string, opts ...string) *websocket.Conn {
 	u := url.URL{
 		Host:   s.url().Host,
-		Scheme: "ws",
+		Scheme: WSS,
 		Path: fmt.Sprintf(
 			"/v1/webapi/sites/%v/sessions/%v/events/stream",
 			currentSiteShortcut,
@@ -522,6 +528,9 @@ func (s *WebSuite) sessionStream(c *C, pack *authPack, sessionID string, opts ..
 	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
 	u.RawQuery = q.Encode()
 	wscfg, err := websocket.NewConfig(u.String(), "http://localhost")
+	wscfg.TlsConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
 	c.Assert(err, IsNil)
 	for _, cookie := range pack.cookies {
 		wscfg.Header.Add("Cookie", cookie.String())

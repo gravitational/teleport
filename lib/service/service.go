@@ -13,14 +13,18 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+// Package service implements teleport running service, takes care
+// of initialization, cleanup and shutdown procedures
 package service
 
 import (
+	"crypto/tls"
 	"io"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -59,7 +63,7 @@ type RoleConfig struct {
 // NewTeleport takes the daemon configuration, instantiates all required services
 // and starts them under a supervisor, returning the supervisor object
 func NewTeleport(cfg Config) (Supervisor, error) {
-	if err := validateConfig(cfg); err != nil {
+	if err := validateConfig(&cfg); err != nil {
 		return nil, err
 	}
 
@@ -78,6 +82,7 @@ func NewTeleport(cfg Config) (Supervisor, error) {
 		cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
 	}
 
+	// if there are no certificates, use self signed
 	supervisor := NewSupervisor()
 
 	if cfg.Auth.Enabled {
@@ -360,6 +365,7 @@ func initProxy(supervisor Supervisor, cfg Config) error {
 }
 
 func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
+
 	proxyLimiter, err := limiter.NewLimiter(cfg.Proxy.Limiter)
 	if err != nil {
 		return trace.Wrap(err)
@@ -436,22 +442,16 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 
 		proxyLimiter.WrapHandle(webHandler)
 
-		if (cfg.Proxy.TLSCert != "") && (cfg.Proxy.TLSKey != "") {
-			log.Infof("[PROXY] found TLS credentials, init TLS listeners")
-			err := utils.ListenAndServeTLS(
-				cfg.Proxy.WebAddr.Addr,
-				proxyLimiter,
-				cfg.Proxy.TLSCert,
-				cfg.Proxy.TLSKey)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		} else {
-			err := http.ListenAndServe(cfg.Proxy.WebAddr.Addr, proxyLimiter)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+		log.Infof("[PROXY] init TLS listeners")
+		err = utils.ListenAndServeTLS(
+			cfg.Proxy.WebAddr.Addr,
+			proxyLimiter,
+			cfg.Proxy.TLSCert,
+			cfg.Proxy.TLSKey)
+		if err != nil {
+			return trace.Wrap(err)
 		}
+
 		return nil
 	})
 
@@ -536,21 +536,67 @@ func initRecordBackend(btype string, params string) (recorder.Recorder, error) {
 	return nil, trace.Errorf("unsupported backend type: %v", btype)
 }
 
-func validateConfig(cfg Config) error {
+func validateConfig(cfg *Config) error {
 	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.ReverseTunnel.Enabled {
-		return trace.Errorf("supply at least one of Auth, SSH or ReverseTunnel or Proxy roles")
+		return trace.Wrap(
+			teleport.BadParameter(
+				"config", "supply at least one of Auth, SSH or ReverseTunnel or Proxy roles"))
 	}
 
 	if cfg.DataDir == "" {
-		return trace.Errorf("please supply data directory")
+		return trace.Wrap(teleport.BadParameter("config", "please supply data directory"))
 	}
 
 	if cfg.Console == nil {
 		cfg.Console = ioutil.Discard
 	}
 
+	if (cfg.Proxy.TLSKey == "" && cfg.Proxy.TLSCert != "") || (cfg.Proxy.TLSKey != "" && cfg.Proxy.TLSCert == "") {
+		return trace.Wrap(teleport.BadParameter("config", "please supply both TLS key and certificate"))
+	}
+
+	// if no TLS key was provided, generate self signed certificates
+	if cfg.Proxy.TLSKey == "" {
+		var err error
+		cfg.Proxy.TLSKey, cfg.Proxy.TLSCert, err = initSelfSignedCert(cfg)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
+
+func initSelfSignedCert(cfg *Config) (string, string, error) {
+	log.Warningf("[CONFIG] NO TLS Keys provided, using self signed certificate")
+	keyPath := filepath.Join(cfg.DataDir, selfSignedKeyName)
+	certPath := filepath.Join(cfg.DataDir, selfSignedCertName)
+
+	_, err := tls.LoadX509KeyPair(certPath, keyPath)
+	if err == nil {
+		return keyPath, certPath, nil
+	}
+	if !os.IsNotExist(err) {
+		return "", "", trace.Wrap(err, "unrecognized error reading certs")
+	}
+	log.Warningf("[CONFIG] Generating self signed key and cert to %v %v", keyPath, certPath)
+	keyPEM, certPEM, err := utils.GenerateSelfSignedCert([]string{cfg.Hostname}, []string{"127.0.0.1"})
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	if err := ioutil.WriteFile(keyPath, keyPEM, 0600); err != nil {
+		return "", "", trace.Wrap(err, "error writing key PEM")
+	}
+	if err := ioutil.WriteFile(certPath, certPEM, 0600); err != nil {
+		return "", "", trace.Wrap(err, "error writing key PEM")
+	}
+	return keyPath, certPath, nil
+}
+
+const (
+	selfSignedKeyName  = "selfsignedkey.npem"
+	selfSignedCertName = "selfsignedcert.pem"
+)
 
 type FanOutEventLogger struct {
 	Loggers []lunk.EventLogger

@@ -68,6 +68,9 @@ type Config struct {
 
 	// TTL for the temporary SSH keypair to remain valid:
 	KeyTTL time.Duration
+
+	// InsecureSkipVerify is an option to skip HTTPS cert check
+	InsecureSkipVerify bool
 }
 
 // Returns a full host:port address of the proxy or an empty string if no
@@ -489,7 +492,7 @@ func (tc *TeleportClient) Login() error {
 
 	// ask the CA (via proxy) to sign our public key:
 	response, err := web.SSHAgentLogin(tc.Config.ProxyHostPort(defaults.HTTPListenPort), tc.Config.Login,
-		password, hotpToken, pub, tc.KeyTTL)
+		password, hotpToken, pub, tc.KeyTTL, tc.InsecureSkipVerify)
 	if err != nil {
 		return trace.Wrap(err)
 	}
