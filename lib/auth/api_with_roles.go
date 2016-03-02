@@ -172,17 +172,11 @@ func (socket *fakeSocket) CreateBridge(remoteAddr net.Addr, sshChan ssh.Channel)
 	select {
 	// Accept() will unblock this select
 	case socket.connections <- connection:
-		// catch when the socket was closed
-	case <-socket.closed:
-		return io.EOF
 	}
 
 	// wait for the connection to close:
 	select {
 	case <-connection.closed:
-		// avoid blocking in case if listener has been closed
-	case <-socket.closed:
-		return io.EOF
 	}
 	log.Debugf("SocketOverSSH.Handle(from=%v) is done", remoteAddr)
 	return nil
