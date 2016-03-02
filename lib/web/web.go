@@ -563,7 +563,10 @@ type siteSessionGetChunksResponse struct {
 
 // siteSessionGetChunks gets the site session recorded chunks
 //
-// GET /v1/webapi/sites/:site/sessions/:sid
+// GET /v1/webapi/sites/:site/sessions/:id/chunks?start=1&end=100
+//
+// *IMPORTANT* start is a chunk id and chunks start from 1 so you have to supply
+// chunk starting from 1
 //
 // Response body:
 //
@@ -597,7 +600,7 @@ func (m *Handler) siteSessionGetChunks(w http.ResponseWriter, r *http.Request, p
 	return &siteSessionGetChunksResponse{Chunks: chunks}, nil
 }
 
-type siteGetEvetns struct {
+type siteGetEventsResponse struct {
 	Events []lunk.Entry `json:"events"`
 }
 
@@ -637,7 +640,7 @@ func (m *Handler) siteGetEvents(w http.ResponseWriter, r *http.Request, p httpro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return events, nil
+	return siteGetEventsResponse{Events: events}, nil
 }
 
 // createSSHCertReq are passed by web client

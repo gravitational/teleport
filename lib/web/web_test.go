@@ -574,7 +574,6 @@ func (s *WebSuite) TestNodesWithSessions(c *C) {
 	// make sure server has replied
 	out := make([]byte, 100)
 	clt.Read(out)
-	fmt.Printf("%v", string(out))
 
 	var nodes *getSiteNodesResponse
 	for i := 0; i < 3; i++ {
@@ -686,6 +685,58 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 	var sess *siteSessionGetResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &sess), IsNil)
 	c.Assert(sess.Session.TerminalParams, DeepEquals, params)
+}
+
+func (s *WebSuite) TestPlayback(c *C) {
+	sid := "playback"
+	pack := s.authPack(c)
+	clt := s.connect(c, pack, sid)
+	defer clt.Close()
+
+	// to make sure we have a session
+	_, err := io.WriteString(clt, "expr 137 + 39\r\nexit\r\n")
+	c.Assert(err, IsNil)
+
+	// make sure server has replied
+	out := make([]byte, 100)
+	clt.Read(out)
+
+	// retrieve the chunks
+	var chunks *siteSessionGetChunksResponse
+	re, err := pack.clt.Get(
+		pack.clt.Endpoint("webapi", "sites", s.domainName, "sessions", sid, "chunks"), url.Values{"start": []string{"1"}, "end": []string{"100"}})
+	c.Assert(err, IsNil)
+	c.Assert(json.Unmarshal(re.Bytes(), &chunks), IsNil)
+	c.Assert(len(chunks.Chunks), Not(Equals), 0)
+}
+
+func (s *WebSuite) TestEvents(c *C) {
+	sid := "events"
+	pack := s.authPack(c)
+	clt := s.connect(c, pack, sid)
+	defer clt.Close()
+
+	// to make sure we have a session
+	_, err := io.WriteString(clt, "expr 137 + 39\r\nexit\r\n")
+	c.Assert(err, IsNil)
+
+	// make sure server has replied
+	out := make([]byte, 100)
+	clt.Read(out)
+
+	data, err := json.Marshal(events.Filter{
+		Start: time.Now().UTC(),
+		Order: events.Desc,
+		Limit: 10,
+	})
+	c.Assert(err, IsNil)
+
+	var events *siteGetEventsResponse
+	re, err := pack.clt.Get(
+		pack.clt.Endpoint("webapi", "sites", s.domainName, "events"), url.Values{"filter": []string{string(data)}})
+	c.Assert(err, IsNil)
+	c.Assert(json.Unmarshal(re.Bytes(), &events), IsNil)
+	c.Assert(len(events.Events), Not(Equals), 0)
 }
 
 func getEvent(schema string, events []lunk.Entry) *lunk.Entry {
