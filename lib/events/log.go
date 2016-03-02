@@ -21,15 +21,19 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gravitational/teleport"
+
 	"github.com/codahale/lunk"
+	"github.com/gravitational/trace"
 )
 
+// Filter is event search filter
 type Filter struct {
-	Start     time.Time
-	End       time.Time
-	Limit     int
-	Order     int
-	SessionID string
+	Start     time.Time `json:"start"`
+	End       time.Time `json:"end"`
+	Limit     int       `json:"limit"`
+	Order     int       `json:"order"`
+	SessionID string    `json:"session_id"`
 }
 
 func (f Filter) String() string {
@@ -87,24 +91,24 @@ func FilterFromURL(vals url.Values) (*Filter, error) {
 	var err error
 	if vals.Get("start") != "" {
 		if err = f.Start.UnmarshalText([]byte(vals.Get("start"))); err != nil {
-			return nil, err
+			return nil, trace.Wrap(teleport.BadParameter("start", "need start in RFC3339 format"))
 		}
 	}
 	if vals.Get("end") != "" {
 		if err = f.End.UnmarshalText([]byte(vals.Get("end"))); err != nil {
-			return nil, err
+			return nil, trace.Wrap(teleport.BadParameter("end", "need end in RFC3339 format"))
 		}
 	}
 
 	if vals.Get("limit") != "" {
 		if f.Limit, err = strconv.Atoi(vals.Get("limit")); err != nil {
-			return nil, err
+			return nil, trace.Wrap(teleport.BadParameter("limit", "limits need to be int"))
 		}
 	}
 
 	if vals.Get("order") != "" {
 		if f.Order, err = strconv.Atoi(vals.Get("order")); err != nil {
-			return nil, err
+			return nil, trace.Wrap(teleport.BadParameter("limit", "order is 1 for Ascending, -1 for descending"))
 		}
 	}
 	f.SessionID = vals.Get("sid")

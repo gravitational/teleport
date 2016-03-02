@@ -38,7 +38,7 @@ type APIWithRoles struct {
 }
 
 func NewAPIWithRoles(authServer *AuthServer, elog events.Log,
-	sessions session.SessionServer, recorder recorder.Recorder,
+	sessions session.Service, recorder recorder.Recorder,
 	permChecker PermissionChecker,
 	roles []teleport.Role) *APIWithRoles {
 	api := APIWithRoles{}

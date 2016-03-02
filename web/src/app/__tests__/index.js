@@ -8,4 +8,5 @@ module.exports.spyOn = module.exports.expect.spyOn;
 module.exports.reactor = require('app/reactor');
 module.exports.session = require('app/session');
 module.exports.api = require('app/services/api');
+module.exports.sampleData = require('./sampleData');
 require('app/modules');

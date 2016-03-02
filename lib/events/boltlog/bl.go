@@ -18,7 +18,6 @@ package boltlog
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -27,6 +26,7 @@ import (
 
 	"github.com/boltdb/bolt"
 	"github.com/codahale/lunk"
+	"github.com/gravitational/trace"
 )
 
 type BoltLog struct {
@@ -85,7 +85,7 @@ func (b *BoltLog) LogEntry(en lunk.Entry) error {
 
 func (b *BoltLog) GetEvents(f events.Filter) ([]lunk.Entry, error) {
 	if f.Start.IsZero() {
-		return nil, fmt.Errorf("supply either starting point")
+		return nil, trace.Wrap(teleport.BadParameter("start", "supply starting point"))
 	}
 	if f.Limit == 0 {
 		f.Limit = events.DefaultLimit

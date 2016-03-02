@@ -24,6 +24,7 @@ var utils = {
         return !(args[number] === null || args[number] === undefined) ? args[number] : '';
     });
   }
+            
 }
 
 module.exports = utils;

@@ -65,6 +65,7 @@ func NewStandardPermissions() PermissionChecker {
 	}
 
 	sp.permissions[teleport.RoleWeb] = map[string]bool{
+		ActionUpsertSession:    true,
 		ActionCreateWebSession: true,
 		ActionGetWebSession:    true,
 		ActionDeleteWebSession: true,

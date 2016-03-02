@@ -1,11 +1,12 @@
 var React = require('react');
 var { Router, IndexLink, History } = require('react-router');
+var getters = require('app/modules/user/getters');
 var cfg = require('app/config');
 
 var menuItems = [
   {icon: 'fa fa-cogs', to: cfg.routes.nodes, title: 'Nodes'},
   {icon: 'fa fa-sitemap', to: cfg.routes.sessions, title: 'Sessions'},
-  {icon: 'fa fa-question', to: cfg.routes.sessions, title: 'Sessions'},
+  {icon: 'fa fa-question', to: '#', title: 'Sessions'},
 ];
 
 var NavLeftBar = React.createClass({
@@ -23,9 +24,10 @@ var NavLeftBar = React.createClass({
     });
 
     return (
-      <nav className='' role='navigation' style={{width: '60px', float: 'left', position: 'absolute'}}>
+      <nav className='grv-nav navbar-default navbar-static-side' role='navigation'>
         <div className=''>
-          <ul className='nav 1metismenu' id='side-menu'>
+          <ul className='nav' id='side-menu'>
+            <li><div className="grv-circle text-uppercase"><span>{getUserNameLetter()}</span></div></li>
             {items}
           </ul>
         </div>
@@ -36,6 +38,11 @@ var NavLeftBar = React.createClass({
 
 NavLeftBar.contextTypes = {
   router: React.PropTypes.object.isRequired
+}
+
+function getUserNameLetter(){
+  var {shortDisplayName} = reactor.evaluate(getters.user);
+  return shortDisplayName;
 }
 
 module.exports = NavLeftBar;

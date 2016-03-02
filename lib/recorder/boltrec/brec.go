@@ -13,6 +13,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+// Package boltrec implements boltdb-backed session recorder
 package boltrec
 
 import (
@@ -27,8 +29,8 @@ import (
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/recorder"
 
-	"github.com/boltdb/bolt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/boltdb/bolt"
 	"github.com/gravitational/trace"
 )
 
@@ -103,10 +105,12 @@ func (r *boltRecorder) getRef(id string) (*boltRef, error) {
 }
 
 func (r *boltRecorder) GetChunkWriter(id string) (recorder.ChunkWriteCloser, error) {
+	log.Infof("GetChunkWriter(%v)", id)
 	return r.getRef(id)
 }
 
 func (r *boltRecorder) GetChunkReader(id string) (recorder.ChunkReadCloser, error) {
+	log.Infof("GetChunkReader(%v)", id)
 	return r.getRef(id)
 }
 
@@ -188,7 +192,7 @@ func (b *boltRW) WriteChunks(ch []recorder.Chunk) error {
 			if err != nil {
 				return err
 			}
-			lastChunk += 1
+			lastChunk++
 			binary.BigEndian.PutUint64(bin, lastChunk)
 			if err := cbkt.Put(bin, chunkb); err != nil {
 				return err

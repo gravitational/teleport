@@ -79,6 +79,12 @@ func (c *Client) PostJSON(
 	return httplib.ConvertResponse(c.Client.PostJSON(endpoint, val))
 }
 
+// PutJSON is a generic method that issues http PUT request to the server
+func (c *Client) PutJSON(
+	endpoint string, val interface{}) (*roundtrip.Response, error) {
+	return httplib.ConvertResponse(c.Client.PutJSON(endpoint, val))
+}
+
 // PostForm is a generic method that issues http POST request to the server
 func (c *Client) PostForm(
 	endpoint string,
@@ -103,7 +109,7 @@ func (c *Client) Delete(u string) (*roundtrip.Response, error) {
 func (c *Client) GetSessions() ([]session.Session, error) {
 	out, err := c.Get(c.Endpoint("sessions"), url.Values{})
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	var sessions []session.Session
 	if err := json.Unmarshal(out.Bytes(), &sessions); err != nil {
@@ -131,22 +137,28 @@ func (c *Client) DeleteSession(id string) error {
 	return trace.Wrap(err)
 }
 
-func (c *Client) UpsertSession(id string, ttl time.Duration) error {
-	_, err := c.PostJSON(c.Endpoint("sessions"), upsertSessionReq{
-		ID:  id,
-		TTL: ttl,
-	})
+// CreateSession creates new session
+func (c *Client) CreateSession(sess session.Session) error {
+	_, err := c.PostJSON(c.Endpoint("sessions"), createSessionReq{Session: sess})
 	return trace.Wrap(err)
 }
 
+// UpdateSession updates existing session
+func (c *Client) UpdateSession(req session.UpdateRequest) error {
+	if err := req.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	_, err := c.PutJSON(c.Endpoint("sessions", req.ID), updateSessionReq{Update: req})
+	return trace.Wrap(err)
+}
+
+// UpsertParty updates existing session party or inserts new party
 func (c *Client) UpsertParty(id string, p session.Party, ttl time.Duration) error {
-	_, err := c.PostJSON(c.Endpoint("sessions", id, "parties"), upsertPartyReq{
-		Party: p,
-		TTL:   ttl,
-	})
+	_, err := c.PostJSON(c.Endpoint("sessions", id, "parties"), upsertPartyReq{Party: p, TTL: ttl})
 	return trace.Wrap(err)
 }
 
+// GetLocalDomain returns local auth domain of the current auth server
 func (c *Client) GetLocalDomain() (string, error) {
 	out, err := c.Get(c.Endpoint("domain"), url.Values{})
 	if err != nil {
@@ -159,6 +171,7 @@ func (c *Client) GetLocalDomain() (string, error) {
 	return domain, nil
 }
 
+// UpsertCertAuthority updates or inserts new cert authority
 func (c *Client) UpsertCertAuthority(ca services.CertAuthority, ttl time.Duration) error {
 	if err := ca.Check(); err != nil {
 		return trace.Wrap(err)
@@ -662,8 +675,8 @@ func (c *chunkRW) Close() error {
 type ClientI interface {
 	GetSessions() ([]session.Session, error)
 	GetSession(id string) (*session.Session, error)
-	DeleteSession(id string) error
-	UpsertSession(id string, ttl time.Duration) error
+	CreateSession(s session.Session) error
+	UpdateSession(req session.UpdateRequest) error
 	UpsertParty(id string, p session.Party, ttl time.Duration) error
 	UpsertCertAuthority(cert services.CertAuthority, ttl time.Duration) error
 	GetCertAuthorities(caType services.CertAuthType) ([]*services.CertAuthority, error)

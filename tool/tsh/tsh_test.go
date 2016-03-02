@@ -108,10 +108,12 @@ func (s *TshSuite) SetUpSuite(c *C) {
 	eventsLog, err := boltlog.New(filepath.Join(s.dir, "boltlog"))
 	c.Assert(err, IsNil)
 
+	sessionServer, err := sess.New(baseBk)
+	c.Assert(err, IsNil)
 	s.roleAuth = auth.NewAuthWithRoles(s.a,
 		auth.NewStandardPermissions(),
 		eventsLog,
-		sess.New(baseBk),
+		sessionServer,
 		teleport.RoleAdmin,
 		nil)
 
@@ -220,7 +222,7 @@ func (s *TshSuite) SetUpSuite(c *C) {
 	rec, err := boltrec.New(s.dir)
 	c.Assert(err, IsNil)
 
-	apiSrv := auth.NewAPIWithRoles(s.a, bl, sess.New(s.bk), rec,
+	apiSrv := auth.NewAPIWithRoles(s.a, bl, sessionServer, rec,
 		auth.NewAllowAllPermissions(),
 		auth.StandardRoles,
 	)

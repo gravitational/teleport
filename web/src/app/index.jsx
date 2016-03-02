@@ -1,7 +1,7 @@
 var React = require('react');
 var render = require('react-dom').render;
 var { Router, Route, Redirect, IndexRoute, browserHistory } = require('react-router');
-var { App, Login, Nodes, Sessions, NewUser } = require('./components');
+var { App, Login, Nodes, Sessions, NewUser, ActiveSession } = require('./components');
 var {ensureUser} = require('./modules/user/actions');
 var auth = require('./auth');
 var session = require('./session');
@@ -14,8 +14,6 @@ session.init();
 
 function handleLogout(nextState, replace, cb){
   auth.logout();
-  // going back will hit requireAuth handler which will redirect it to the login page
-  session.getHistory().goBack();
 }
 
 render((

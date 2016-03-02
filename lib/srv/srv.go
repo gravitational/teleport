@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package srv implements SSH server that supports multiplexing, tunneling and key-based auth
+// Package srv implements SSH server that supports multiplexing
+// tunneling, SSH connections proxying and only supports Key based auth
 package srv
 
 import (
@@ -42,7 +43,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
-
 	"golang.org/x/crypto/ssh/agent"
 )
 
@@ -61,7 +61,7 @@ type Server struct {
 	shell         string
 	ap            auth.AccessPoint
 	reg           *sessionRegistry
-	sessionServer rsession.SessionServer
+	sessionServer rsession.Service
 	rec           recorder.Recorder
 	limiter       *limiter.Limiter
 
@@ -73,8 +73,10 @@ type Server struct {
 	proxyTun  reversetunnel.Server
 }
 
+// ServerOption is a functional option passed to the server
 type ServerOption func(s *Server) error
 
+// SetEventLogger sets structured event logger for this server
 func SetEventLogger(e lunk.EventLogger) ServerOption {
 	return func(s *Server) error {
 		s.elog = e
@@ -82,6 +84,8 @@ func SetEventLogger(e lunk.EventLogger) ServerOption {
 	}
 }
 
+// SetShell sets default shell that will be executed for interactive
+// sessions
 func SetShell(shell string) ServerOption {
 	return func(s *Server) error {
 		s.shell = shell
@@ -89,13 +93,15 @@ func SetShell(shell string) ServerOption {
 	}
 }
 
-func SetSessionServer(srv rsession.SessionServer) ServerOption {
+// SetSessionServer represents realtime session registry server
+func SetSessionServer(srv rsession.Service) ServerOption {
 	return func(s *Server) error {
 		s.sessionServer = srv
 		return nil
 	}
 }
 
+// SetRecorder records all
 func SetRecorder(rec recorder.Recorder) ServerOption {
 	return func(s *Server) error {
 		s.rec = rec
@@ -103,6 +109,7 @@ func SetRecorder(rec recorder.Recorder) ServerOption {
 	}
 }
 
+// SetProxyMode starts this server in SSH proxying mode
 func SetProxyMode(tsrv reversetunnel.Server) ServerOption {
 	return func(s *Server) error {
 		s.proxyMode = true
@@ -111,6 +118,8 @@ func SetProxyMode(tsrv reversetunnel.Server) ServerOption {
 	}
 }
 
+// SetLabels sets dynamic and static labels that server will report to the
+// auth servers
 func SetLabels(labels map[string]string,
 	cmdLabels services.CommandLabels) ServerOption {
 	return func(s *Server) error {
@@ -128,6 +137,7 @@ func SetLabels(labels map[string]string,
 	}
 }
 
+// SetLimiter sets rate and connection limiter for this server
 func SetLimiter(limiter *limiter.Limiter) ServerOption {
 	return func(s *Server) error {
 		s.limiter = limiter
@@ -152,7 +162,6 @@ func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.reg = newSessionRegistry(s)
 	s.certChecker = ssh.CertChecker{IsAuthority: s.isAuthority}
 
 	for _, o := range options {
@@ -160,7 +169,7 @@ func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
 			return nil, trace.Wrap(err)
 		}
 	}
-
+	s.reg = newSessionRegistry(s)
 	if s.elog == nil {
 		s.elog = utils.NullEventLogger
 	}
@@ -190,10 +199,12 @@ func (s *Server) logFields(fields map[string]interface{}) log.Fields {
 	}
 }
 
+// Addr returns server address
 func (s *Server) Addr() string {
 	return s.srv.Addr()
 }
 
+// ID returns server ID
 func (s *Server) ID() string {
 	return s.addr.Addr
 }
@@ -355,7 +366,7 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	}
 	teleportUser := cert.Permissions.Extensions[utils.CertExtensionUser]
 
-	p, err := s.certChecker.Authenticate(conn, key)
+	permissions, err := s.certChecker.Authenticate(conn, key)
 	if err != nil {
 		s.elog.Log(eventID, events.NewAuthAttempt(conn, key, false, err))
 		logger.Warningf("authenticate err: %v", err)
@@ -367,7 +378,7 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	}
 
 	if s.proxyMode {
-		return p, nil
+		return permissions, nil
 	}
 
 	err = s.checkPermissionToLogin(cert.SignatureKey, teleportUser, conn.User())
@@ -375,7 +386,7 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		logger.Warningf("authenticate user: %v", err)
 		return nil, trace.Wrap(err)
 	}
-	return p, nil
+	return permissions, nil
 }
 
 // Close closes listening socket and stops accepting connections
@@ -383,6 +394,7 @@ func (s *Server) Close() error {
 	return s.srv.Close()
 }
 
+// Start starts server
 func (s *Server) Start() error {
 	if !s.proxyMode {
 		if len(s.cmdLabels) > 0 {
@@ -393,14 +405,17 @@ func (s *Server) Start() error {
 	return s.srv.Start()
 }
 
+// Wait waits until server stops
 func (s *Server) Wait() {
 	s.srv.Wait()
 }
 
+// HandleRequest is a callback for out of band requests
 func (s *Server) HandleRequest(r *ssh.Request) {
 	log.Infof("recieved out-of-band request: %+v", r)
 }
 
+// HandleNewChan is called when new channel is opened
 func (s *Server) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	channelType := nch.ChannelType()
 	if s.proxyMode {
@@ -594,12 +609,21 @@ func (s *Server) handleAgentForward(sconn *ssh.ServerConn, ch ssh.Channel, req *
 
 func (s *Server) handleWinChange(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	ctx.Infof("handleWinChange()")
+	params, err := parseWinChange(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	term := ctx.getTerm()
-	if term == nil {
+	if term != nil {
+		return trace.Wrap(term.setWinsize(*params))
+	}
+	sid, ok := ctx.getEnv(sshutils.SessionEnvVar)
+	if !ok {
 		return trace.Wrap(
 			teleport.BadParameter("pty", "no PTY allocated for winChange"))
 	}
-	return term.reqWinChange(req)
+	err = s.reg.notifyWinChange(sid, *params)
+	return trace.Wrap(err)
 }
 
 func (s *Server) handleSubsystem(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
@@ -624,7 +648,7 @@ func (s *Server) handleShell(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Req
 	ctx.Infof("handleShell()")
 
 	sid, ok := ctx.getEnv(sshutils.SessionEnvVar)
-	if !ok {
+	if !ok || sid == "" {
 		sid = uuid.New()
 	}
 	return s.reg.joinShell(sid, sconn, ch, req, ctx)
@@ -648,24 +672,38 @@ func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 
 func (s *Server) handlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	ctx.Infof("handlePTYReq()")
+
 	if term := ctx.getTerm(); term != nil {
 		r, err := parsePTYReq(req)
 		if err != nil {
-			ctx.Infof("failed to parse PTY request: %v", err)
-			replyError(req, err)
-			return err
+			return trace.Wrap(err)
 		}
-		term.setWinsize(r.W, r.H)
+		params, err := rsession.NewTerminalParamsFromUint32(r.W, r.H)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		term.setWinsize(*params)
+		sid, ok := ctx.getEnv(sshutils.SessionEnvVar)
+		if ok {
+			if err := s.reg.notifyWinChange(sid, *params); err != nil {
+				log.Infof("notifyWinChange: %v", err)
+			}
+		}
 		return nil
 	}
-	term, err := reqPTY(req)
+	log.Infof("handlePTYReq(new terminal)")
+	term, params, err := requestPTY(req)
 	if err != nil {
-		ctx.Infof("failed to allocate PTY: %v", err)
-		replyError(req, err)
-		return err
+		return trace.Wrap(err)
 	}
-	ctx.Infof("PTY allocated successfully")
+	sid, ok := ctx.getEnv(sshutils.SessionEnvVar)
+	if ok {
+		if err := s.reg.notifyWinChange(sid, *params); err != nil {
+			log.Infof("notifyWinChange: %v", err)
+		}
+	}
 	ctx.setTerm(term)
+	ctx.Infof("PTY allocated successfully")
 	return nil
 }
 

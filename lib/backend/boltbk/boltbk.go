@@ -29,16 +29,31 @@ import (
 
 	"github.com/boltdb/bolt"
 	"github.com/gravitational/trace"
+	"github.com/mailgun/timetools"
 )
 
+// BoltBackend is a boltdb-based backend used in tests and standalone mode
 type BoltBackend struct {
 	sync.Mutex
 
 	db    *bolt.DB
+	clock timetools.TimeProvider
 	locks map[string]time.Time
 }
 
-func New(path string) (*BoltBackend, error) {
+// Option sets functional options for the backend
+type Option func(b *BoltBackend) error
+
+// Clock sets clock for the backend, used in tests
+func Clock(clock timetools.TimeProvider) Option {
+	return func(b *BoltBackend) error {
+		b.clock = clock
+		return nil
+	}
+}
+
+// New returns a new isntance of bolt backend
+func New(path string, opts ...Option) (*BoltBackend, error) {
 	path, err := filepath.Abs(path)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to convert path")
@@ -49,18 +64,30 @@ func New(path string) (*BoltBackend, error) {
 		return nil, trace.Wrap(err)
 	}
 	if !s.IsDir() {
-		return nil, trace.Errorf("path '%v' should be a valid directory", dir)
+		return nil, trace.Wrap(
+			teleport.BadParameter(
+				"path", fmt.Sprintf("path '%v' should be a valid directory", dir)))
+	}
+	b := &BoltBackend{
+		locks: make(map[string]time.Time),
+	}
+	for _, option := range opts {
+		if err := option(b); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if b.clock == nil {
+		b.clock = &timetools.RealTime{}
 	}
 	db, err := bolt.Open(path, 0600, nil)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
-	return &BoltBackend{
-		db:    db,
-		locks: make(map[string]time.Time),
-	}, nil
+	b.db = db
+	return b, nil
 }
 
+// Close closes the backend resources
 func (b *BoltBackend) Close() error {
 	return b.db.Close()
 }
@@ -86,14 +113,52 @@ func (b *BoltBackend) GetKeys(path []string) ([]string, error) {
 }
 
 func (b *BoltBackend) UpsertVal(path []string, key string, val []byte, ttl time.Duration) error {
-	b.Lock()
-	defer b.Unlock()
 	return b.upsertVal(path, key, val, ttl)
+}
+
+func (b *BoltBackend) CreateVal(bucket []string, key string, val []byte, ttl time.Duration) error {
+	v := &kv{
+		Created: b.clock.UtcNow(),
+		Value:   val,
+		TTL:     ttl,
+	}
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = b.createKey(bucket, key, bytes)
+	return trace.Wrap(err)
+}
+
+func (b *BoltBackend) TouchVal(bucket []string, key string, ttl time.Duration) error {
+	err := b.db.Update(func(tx *bolt.Tx) error {
+		bkt, err := UpsertBucket(tx, bucket)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		val := bkt.Get([]byte(key))
+		if val == nil {
+			return trace.Wrap(
+				teleport.NotFound(fmt.Sprintf("'%v' already exists", key)))
+		}
+		var k *kv
+		if err := json.Unmarshal(val, &k); err != nil {
+			return trace.Wrap(err)
+		}
+		k.TTL = ttl
+		k.Created = b.clock.UtcNow()
+		bytes, err := json.Marshal(k)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return bkt.Put([]byte(key), bytes)
+	})
+	return trace.Wrap(err)
 }
 
 func (b *BoltBackend) upsertVal(path []string, key string, val []byte, ttl time.Duration) error {
 	v := &kv{
-		Created: time.Now(),
+		Created: b.clock.UtcNow(),
 		Value:   val,
 		TTL:     ttl,
 	}
@@ -123,11 +188,10 @@ func (b *BoltBackend) CompareAndSwap(path []string, key string, val []byte, ttl 
 			return nil, trace.Wrap(err)
 		}
 		return storedVal, nil
-	} else {
-		return storedVal, trace.Wrap(&teleport.CompareFailedError{
-			Message: "expected '" + string(prevVal) + "', obtained '" + string(storedVal) + "'",
-		})
 	}
+	return storedVal, trace.Wrap(&teleport.CompareFailedError{
+		Message: "expected '" + string(prevVal) + "', obtained '" + string(storedVal) + "'",
+	})
 }
 
 func (b *BoltBackend) GetVal(path []string, key string) ([]byte, error) {
@@ -139,7 +203,7 @@ func (b *BoltBackend) GetVal(path []string, key string) ([]byte, error) {
 	if err := json.Unmarshal(val, &k); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if k.TTL != 0 && time.Now().Sub(k.Created) > k.TTL {
+	if k.TTL != 0 && b.clock.UtcNow().Sub(k.Created) > k.TTL {
 		if err := b.deleteKey(path, key); err != nil {
 			return nil, err
 		}
@@ -158,7 +222,7 @@ func (b *BoltBackend) GetValAndTTL(path []string, key string) ([]byte, time.Dura
 	if err := json.Unmarshal(val, &k); err != nil {
 		return nil, 0, trace.Wrap(err)
 	}
-	if k.TTL != 0 && time.Now().Sub(k.Created) > k.TTL {
+	if k.TTL != 0 && b.clock.UtcNow().Sub(k.Created) > k.TTL {
 		if err := b.deleteKey(path, key); err != nil {
 			return nil, 0, trace.Wrap(err)
 		}
@@ -168,7 +232,7 @@ func (b *BoltBackend) GetValAndTTL(path []string, key string) ([]byte, time.Dura
 	var newTTL time.Duration
 	newTTL = 0
 	if k.TTL != 0 {
-		newTTL = k.Created.Add(k.TTL).Sub(time.Now())
+		newTTL = k.Created.Add(k.TTL).Sub(b.clock.UtcNow())
 	}
 	return k.Value, newTTL, nil
 }
@@ -219,6 +283,21 @@ func (b *BoltBackend) upsertKey(buckets []string, key string, bytes []byte) erro
 		bkt, err := UpsertBucket(tx, buckets)
 		if err != nil {
 			return trace.Wrap(err)
+		}
+		return bkt.Put([]byte(key), bytes)
+	})
+}
+
+func (b *BoltBackend) createKey(buckets []string, key string, bytes []byte) error {
+	return b.db.Update(func(tx *bolt.Tx) error {
+		bkt, err := UpsertBucket(tx, buckets)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		val := bkt.Get([]byte(key))
+		if val != nil {
+			return trace.Wrap(
+				teleport.AlreadyExists(fmt.Sprintf("'%v' already exists", key)))
 		}
 		return bkt.Put([]byte(key), bytes)
 	})
@@ -325,14 +404,14 @@ func (b *BoltBackend) AcquireLock(token string, ttl time.Duration) error {
 	for {
 		b.Lock()
 		expires, ok := b.locks[token]
-		if ok && (expires.IsZero() || expires.After(time.Now())) {
+		if ok && (expires.IsZero() || expires.After(b.clock.UtcNow())) {
 			b.Unlock()
-			time.Sleep(100 * time.Millisecond)
+			b.clock.Sleep(100 * time.Millisecond)
 		} else {
 			if ttl == 0 {
 				b.locks[token] = time.Time{}
 			} else {
-				b.locks[token] = time.Now().Add(ttl)
+				b.locks[token] = b.clock.UtcNow().Add(ttl)
 			}
 			b.Unlock()
 			return nil
@@ -345,7 +424,7 @@ func (b *BoltBackend) ReleaseLock(token string) error {
 	defer b.Unlock()
 
 	expires, ok := b.locks[token]
-	if !ok || (!expires.IsZero() && expires.Before(time.Now())) {
+	if !ok || (!expires.IsZero() && expires.Before(b.clock.UtcNow())) {
 		return trace.Wrap(&teleport.NotFoundError{
 			Message: fmt.Sprintf(
 				"lock %v is deleted or expired", token),

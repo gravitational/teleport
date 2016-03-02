@@ -13,11 +13,15 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+// Package hangout implements hangouts - interactive terminal
+// sessions when users can share their laptop's session and invite others
 package hangout
 
 import (
 	"io/ioutil"
 	"net"
+	"os"
 	"os/user"
 	"path"
 	"time"
@@ -43,6 +47,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/codahale/lunk"
+	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -68,7 +73,7 @@ type Hangout struct {
 	client           *auth.TunClient
 	HangoutInfo      utils.HangoutInfo
 	Token            string
-	sessions         session.SessionServer
+	sessions         session.Service
 }
 
 // New returns a new hangout instance
@@ -164,8 +169,25 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 		return nil, trace.Wrap(err)
 	}
 
+	winsize, err := term.GetWinsize(os.Stdout.Fd())
+	if err != nil {
+		winsize = &term.Winsize{Width: 100, Height: 100}
+	}
+
+	login, err := user.Current()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// saving hangoutInfo using sessions just as storage
-	err = h.sessions.UpsertSession(h.Token, 0)
+	err = h.sessions.CreateSession(session.Session{
+		ID:             h.Token,
+		TerminalParams: session.TerminalParams{W: int(winsize.Width), H: int(winsize.Height)},
+		Login:          login.Username,
+		Active:         true,
+		Created:        time.Now().UTC(),
+		LastActive:     time.Now().UTC(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -275,7 +297,11 @@ func (h *Hangout) initAuth(cfg service.Config, readOnlyHangout bool) error {
 	}
 	h.signer = signer
 	h.auth = asrv
-	h.sessions = session.New(b)
+
+	h.sessions, err = session.New(b)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	apisrv := auth.NewAPIWithRoles(asrv, h.elog, h.sessions, h.rec,
 		auth.NewHangoutPermissions(), auth.HangoutRoles,
 	)
