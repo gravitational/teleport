@@ -101,6 +101,7 @@ func (api *APIWithRoles) Close() {
 type fakeSocket struct {
 	closed      chan int
 	connections chan net.Conn
+	closeOnce   sync.Once
 }
 
 func makefakeSocket() *fakeSocket {
@@ -113,6 +114,7 @@ func makefakeSocket() *fakeSocket {
 type FakeSSHConnection struct {
 	remoteAddr net.Addr
 	sshChan    ssh.Channel
+	closeOnce  sync.Once
 	closed     chan int
 }
 
@@ -125,8 +127,11 @@ func (conn *FakeSSHConnection) Write(b []byte) (n int, err error) {
 }
 
 func (conn *FakeSSHConnection) Close() error {
-	conn.closed <- 1
-	return conn.sshChan.Close()
+	// broadcast the closing signal to all waiting parties
+	conn.closeOnce.Do(func() {
+		close(conn.closed)
+	})
+	return trace.Wrap(conn.sshChan.Close())
 }
 
 func (conn *FakeSSHConnection) RemoteAddr() net.Addr {
@@ -164,12 +169,20 @@ func (socket *fakeSocket) CreateBridge(remoteAddr net.Addr, sshChan ssh.Channel)
 		sshChan:    sshChan,
 		closed:     make(chan int),
 	}
-	socket.connections <- connection // Accept() unblocks here
+	select {
+	// Accept() will unblock this select
+	case socket.connections <- connection:
+		// catch when the socket was closed
+	case <-socket.closed:
+		return io.EOF
+	}
 
 	// wait for the connection to close:
 	select {
 	case <-connection.closed:
-		break
+		// avoid blocking in case if listener has been closed
+	case <-socket.closed:
+		return io.EOF
 	}
 	log.Debugf("SocketOverSSH.Handle(from=%v) is done", remoteAddr)
 	return nil
@@ -189,6 +202,10 @@ func (socket *fakeSocket) Accept() (c net.Conn, err error) {
 // Close closes the listener.
 // Any blocked Accept operations will be unblocked and return errors.
 func (socket *fakeSocket) Close() error {
+	socket.closeOnce.Do(func() {
+		// broadcast that listener has closed to all listening parties
+		close(socket.closed)
+	})
 	return nil
 }
 
