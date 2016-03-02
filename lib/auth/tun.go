@@ -277,10 +277,8 @@ func (s *AuthTunnel) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel
 
 // handleDirectTCPIPRequest accepts an incoming SSH connection via TCP/IP and forwards
 // it to the local auth server which listens on local UNIX pipe
-func (s *AuthTunnel) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
+func (s *AuthTunnel) handleDirectTCPIPRequest(sconn *ssh.ServerConn, sshChannel ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	defer sconn.Close()
-
-	log.Debugf("[TUNNEL] ------> Remote address: %v", sconn.RemoteAddr())
 
 	// retreive the role from thsi connection's permissions (make sure it's a valid role)
 	role := teleport.Role(sconn.Permissions.Extensions[ExtRole])
@@ -288,12 +286,11 @@ func (s *AuthTunnel) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Chan
 		log.Errorf(err.Error())
 		return
 	}
-	// forward this to API-with-roles server, it will try to proxy this connection
-	// to an API service mapped to this role:
-	addr := &utils.NetAddr{Addr: "localhost", AddrNetwork: "tcp://"}
-	conn := utils.NewPipeNetConn(ch, ch, ch, addr, sconn.RemoteAddr())
-	if err := s.apiServer.HandleConn(conn, role); err != nil {
-		log.Errorf(err.Error())
+
+	// Forward this new SSH channel to API-with-roles server. It will try to proxy this
+	// connection to the API service mapped to this role:
+	if err := s.apiServer.HandleNewChannel(sconn.RemoteAddr(), sshChannel, role); err != nil {
+		log.Error(err)
 		return
 	}
 }
