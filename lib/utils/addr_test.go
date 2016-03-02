@@ -60,3 +60,15 @@ func (s *AddrTestSuite) TestParse(c *C) {
 	c.Assert(addr.FullAddress(), Equals, "tcp://one:25")
 	c.Assert(addr.IsEmpty(), Equals, false)
 }
+
+func (s *AddrTestSuite) TestReplaceLocalhost(c *C) {
+	var result string
+	result = ReplaceLocalhost("10.10.1.1", "192.168.1.100:399")
+	c.Assert(result, Equals, "10.10.1.1")
+	result = ReplaceLocalhost("10.10.1.1:22", "192.168.1.100:399")
+	c.Assert(result, Equals, "10.10.1.1:22")
+	result = ReplaceLocalhost("127.0.0.1:22", "192.168.1.100:399")
+	c.Assert(result, Equals, "192.168.1.100:22")
+	result = ReplaceLocalhost("0.0.0.0:22", "192.168.1.100:399")
+	c.Assert(result, Equals, "192.168.1.100:22")
+}
