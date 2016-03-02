@@ -75,8 +75,10 @@ func (s *TunSuite) SetUpTest(c *C) {
 	s.rec, err = boltrec.New(s.dir)
 	c.Assert(err, IsNil)
 
+	sessionServer, err := session.New(s.bk)
+	c.Assert(err, IsNil)
 	s.a = NewAuthServer(s.bk, authority.New(), "localhost")
-	s.srv = NewAPIWithRoles(s.a, s.bl, session.New(s.bk), s.rec,
+	s.srv = NewAPIWithRoles(s.a, s.bl, sessionServer, s.rec,
 		NewStandardPermissions(),
 		StandardRoles,
 	)
@@ -106,7 +108,9 @@ func (s *TunSuite) SetUpTest(c *C) {
 }
 
 func (s *TunSuite) TestUnixServerClient(c *C) {
-	srv := NewAPIWithRoles(s.a, s.bl, session.New(s.bk), s.rec,
+	sessionServer, err := session.New(s.bk)
+	c.Assert(err, IsNil)
+	srv := NewAPIWithRoles(s.a, s.bl, sessionServer, s.rec,
 		NewAllowAllPermissions(),
 		StandardRoles,
 	)

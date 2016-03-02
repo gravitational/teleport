@@ -1,6 +1,6 @@
 var reactor = require('app/reactor');
 var {uuid} = require('app/utils');
-var { TLPT_TERM_CONNECT, TLPT_TERM_CLOSE, TLPT_TERM_CONNECTED }  = require('./actionTypes');
+var { TLPT_TERM_OPEN, TLPT_TERM_CLOSE, TLPT_TERM_CONNECTED, TLPT_TERM_RECEIVE_PARTIES }  = require('./actionTypes');
 
 export default {
 
@@ -12,7 +12,18 @@ export default {
     reactor.dispatch(TLPT_TERM_CONNECTED);
   },
 
-  openSession(addr, login, sid=uuid()){
+  receiveParties(json){
+    var parties = json.map(item=>{
+      return {
+        user: item.user,
+        lastActive: new Date(item.last_active)
+      }
+    })
+
+    reactor.dispatch(TLPT_TERM_RECEIVE_PARTIES, parties);
+  },
+
+  open(addr, login, sid=uuid()){
     /*
     *   {
     *   "addr": "127.0.0.1:5000",
@@ -21,6 +32,6 @@ export default {
     *   "sid": "123"
     *  }
     */
-    reactor.dispatch(TLPT_TERM_CONNECT, {addr, login, sid} );
+    reactor.dispatch(TLPT_TERM_OPEN, {addr, login, sid} );
   }
 }

@@ -1,10 +1,12 @@
 var cfg = require('app/config');
 var React = require('react');
+var session = require('app/session');
 
 var EventStreamer = React.createClass({
   componentDidMount() {
-    var {token, sid} = this.props;
-    var connStr = cfg.api.getEventStreamerConnStr(token, sid);
+    let {sid} = this.props;
+    let {token} = session.getUserData();
+    let connStr = cfg.api.getEventStreamerConnStr(token, sid);
 
     this.socket = new WebSocket(connStr, "proto");
     this.socket.onmessage = () => {};

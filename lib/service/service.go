@@ -143,7 +143,12 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) err
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	apisrv := auth.NewAPIWithRoles(asrv, elog, session.New(b), rec,
+
+	sess, err := session.New(b)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	apisrv := auth.NewAPIWithRoles(asrv, elog, sess, rec,
 		auth.NewStandardPermissions(), auth.StandardRoles,
 	)
 	supervisor.RegisterFunc(func() error {
@@ -400,6 +405,7 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 		nil,
 		srv.SetLimiter(proxyLimiter),
 		srv.SetProxyMode(tsrv),
+		srv.SetSessionServer(client),
 	)
 	if err != nil {
 		return trace.Wrap(err)

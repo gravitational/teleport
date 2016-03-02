@@ -83,11 +83,13 @@ func (s *APISuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.a = NewAuthServer(s.bk, authority.New(), "localhost")
+	sessionServer, err := session.New(s.bk)
+	c.Assert(err, IsNil)
 	s.srv = httptest.NewServer(NewAPIServer(
 		&AuthWithRoles{
 			authServer:  s.a,
 			elog:        s.bl,
-			sessions:    session.New(s.bk),
+			sessions:    sessionServer,
 			recorder:    s.rec,
 			permChecker: NewAllowAllPermissions(),
 		}))
@@ -306,14 +308,20 @@ func (s *APISuite) TestSharedSessions(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []session.Session{})
 
-	c.Assert(s.clt.UpsertSession("s1", 0), IsNil)
+	date := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
+	sess := session.Session{
+		Active:         true,
+		ID:             "s1",
+		TerminalParams: session.TerminalParams{W: 100, H: 100},
+		Created:        date,
+		LastActive:     date,
+		Login:          "bob",
+	}
+	c.Assert(s.clt.CreateSession(sess), IsNil)
 
 	out, err = s.clt.GetSessions()
 	c.Assert(err, IsNil)
-	sess := session.Session{
-		ID:      "s1",
-		Parties: []session.Party{},
-	}
+
 	c.Assert(out, DeepEquals, []session.Session{sess})
 }
 
@@ -322,20 +330,28 @@ func (s *APISuite) TestSharedSessionsParties(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []session.Session{})
 
+	date := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
+	sess := session.Session{
+		Active:         true,
+		ID:             "s1",
+		TerminalParams: session.TerminalParams{W: 100, H: 100},
+		Created:        date,
+		LastActive:     date,
+		Login:          "bob",
+	}
+	c.Assert(s.clt.CreateSession(sess), IsNil)
+
 	p1 := session.Party{
 		ID:         "p1",
 		User:       "bob",
-		Site:       "example.com",
+		RemoteAddr: "example.com",
 		ServerAddr: "localhost:1",
 		LastActive: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
 	}
 	c.Assert(s.clt.UpsertParty("s1", p1, 0), IsNil)
 
+	sess.Parties = []session.Party{p1}
 	out, err = s.clt.GetSessions()
 	c.Assert(err, IsNil)
-	sess := session.Session{
-		ID:      "s1",
-		Parties: []session.Party{p1},
-	}
 	c.Assert(out, DeepEquals, []session.Session{sess})
 }

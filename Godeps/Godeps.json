@@ -6,8 +6,8 @@
 	],
 	"Deps": [
 		{
-			"ImportPath": "github.com/gravitational/configure/cstrings",
-			"Rev": "be52937128b38f1d99787bb476c789e2af1147f1"
+			"ImportPath": "github.com/Azure/go-ansiterm",
+			"Rev": "70b2c90b260171e829f1ebd7c17f600c11858dbe"
 		},
 		{
 			"ImportPath": "github.com/Sirupsen/logrus",
@@ -51,8 +51,27 @@
 			"Rev": "4734e7aca379f0d7fcdf04fbb2101696a4b45ce8"
 		},
 		{
+			"ImportPath": "github.com/docker/docker/pkg/system",
+			"Comment": "v1.4.1-10442-gc7d6f0c",
+			"Rev": "c7d6f0c30c824e27f3bf4dd846a68b04544d5a15"
+		},
+		{
+			"ImportPath": "github.com/docker/docker/pkg/term",
+			"Comment": "v1.4.1-10442-gc7d6f0c",
+			"Rev": "c7d6f0c30c824e27f3bf4dd846a68b04544d5a15"
+		},
+		{
+			"ImportPath": "github.com/docker/go-units",
+			"Comment": "v0.1.0-23-g5d2041e",
+			"Rev": "5d2041e26a699eaca682e2ea41c8f891e1060444"
+		},
+		{
 			"ImportPath": "github.com/gokyle/hotp",
 			"Rev": "c180d57d286b385101c999a60087a40d7f48fc77"
+		},
+		{
+			"ImportPath": "github.com/gravitational/configure/cstrings",
+			"Rev": "be52937128b38f1d99787bb476c789e2af1147f1"
 		},
 		{
 			"ImportPath": "github.com/gravitational/form",
@@ -142,18 +161,6 @@
 		{
 			"ImportPath": "github.com/vulcand/oxy/utils",
 			"Rev": "5725fecc9a4f3aa6fdc3ffd29cef771241809add"
-		},
-		{
-			"ImportPath": "github.com/xeipuuv/gojsonpointer",
-			"Rev": "e0fe6f68307607d540ed8eac07a342c33fa1b54a"
-		},
-		{
-			"ImportPath": "github.com/xeipuuv/gojsonreference",
-			"Rev": "e02fc20de94c78484cd5ffb007f8af96be030a45"
-		},
-		{
-			"ImportPath": "github.com/xeipuuv/gojsonschema",
-			"Rev": "3988ac14d6f66842abf574a0615d2935ef5dab9d"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/bcrypt",

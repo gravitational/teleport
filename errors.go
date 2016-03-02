@@ -13,10 +13,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package teleport
 
 import (
 	"fmt"
+	"syscall"
 
 	"github.com/gravitational/trace"
 )
@@ -83,6 +85,13 @@ func IsNotFound(e error) bool {
 	}
 	_, ok := e.(nf)
 	return ok
+}
+
+// AlreadyExists returns new AlreadyExists error
+func AlreadyExists(message string) *AlreadyExistsError {
+	return &AlreadyExistsError{
+		Message: message,
+	}
 }
 
 // AlreadyExistsError indicates that there's a duplicate object that already
@@ -333,5 +342,49 @@ func IsConnectionProblem(e error) bool {
 		IsConnectionProblemError() bool
 	}
 	_, ok := e.(ad)
+	return ok
+}
+
+// NewSystemError returns a new system error
+func NewSystemError(code syscall.Errno, message string) *SystemError {
+	return &SystemError{
+		Message: message,
+		Code:    code,
+	}
+}
+
+// SystemError is the error raised by Operating system
+// usually contains error code returned by linux API
+type SystemError struct {
+	trace.Traces `json:"traces"`
+	// Message is user-friendly error message
+	Message string        `json:"message"`
+	Code    syscall.Errno `json:"code"`
+}
+
+// Error returns log-friendly error description
+func (s *SystemError) Error() string {
+	if s.Message != "" {
+		return s.Message
+	}
+	return fmt.Sprintf("system error, code: %v", s.Code.Error())
+}
+
+// IsSystemError indicates that this error is of system error kind
+func (SystemError) IsSystemError() bool {
+	return true
+}
+
+// OrigError returns original error (in this case this is the error itself)
+func (s *SystemError) OrigError() error {
+	return s
+}
+
+// IsSystemError returns if this is a system error
+func IsSystemError(e error) bool {
+	type se interface {
+		IsSystemError() bool
+	}
+	_, ok := e.(se)
 	return ok
 }

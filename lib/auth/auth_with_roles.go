@@ -36,13 +36,13 @@ type AuthWithRoles struct {
 	authServer  *AuthServer
 	permChecker PermissionChecker
 	elog        events.Log
-	sessions    session.SessionServer
+	sessions    session.Service
 	role        teleport.Role
 	recorder    recorder.Recorder
 }
 
 func NewAuthWithRoles(authServer *AuthServer, permChecker PermissionChecker,
-	elog events.Log, sessions session.SessionServer,
+	elog events.Log, sessions session.Service,
 	role teleport.Role, recorder recorder.Recorder) *AuthWithRoles {
 
 	return &AuthWithRoles{
@@ -70,18 +70,18 @@ func (a *AuthWithRoles) GetSession(id string) (*session.Session, error) {
 		return a.sessions.GetSession(id)
 	}
 }
-func (a *AuthWithRoles) DeleteSession(id string) error {
-	if err := a.permChecker.HasPermission(a.role, ActionDeleteSession); err != nil {
-		return trace.Wrap(err)
-	} else {
-		return a.sessions.DeleteSession(id)
-	}
-}
-func (a *AuthWithRoles) UpsertSession(id string, ttl time.Duration) error {
+func (a *AuthWithRoles) CreateSession(s session.Session) error {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertSession); err != nil {
 		return trace.Wrap(err)
 	} else {
-		return a.sessions.UpsertSession(id, ttl)
+		return a.sessions.CreateSession(s)
+	}
+}
+func (a *AuthWithRoles) UpdateSession(req session.UpdateRequest) error {
+	if err := a.permChecker.HasPermission(a.role, ActionUpsertSession); err != nil {
+		return trace.Wrap(err)
+	} else {
+		return a.sessions.UpdateSession(req)
 	}
 }
 func (a *AuthWithRoles) UpsertParty(id string, p session.Party, ttl time.Duration) error {

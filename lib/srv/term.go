@@ -13,24 +13,26 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package srv
 
 import (
 	"os"
 	"os/exec"
-	"syscall"
-	"unsafe"
 
+	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/docker/docker/pkg/term"
+	"github.com/gravitational/trace"
 	"github.com/kr/pty"
 	"golang.org/x/crypto/ssh"
 )
 
-// term provides handy functions for managing PTY, usch as resizing windows
+// terminal provides handy functions for managing PTY, usch as resizing windows
 // execing processes with PTY and cleaning up
-type term struct {
+type terminal struct {
 	pty  *os.File
 	tty  *os.File
 	err  error
@@ -46,57 +48,57 @@ func parsePTYReq(req *ssh.Request) (*sshutils.PTYReqParams, error) {
 	return &r, nil
 }
 
-func newTerm() (*term, error) {
+func newTerminal() (*terminal, error) {
 	// Create new PTY
 	pty, tty, err := pty.Open()
 	if err != nil {
 		log.Infof("could not start pty (%s)", err)
 		return nil, err
 	}
-	return &term{pty: pty, tty: tty, err: err}, nil
+	return &terminal{pty: pty, tty: tty, err: err}, nil
 }
 
-func reqPTY(req *ssh.Request) (*term, error) {
+func requestPTY(req *ssh.Request) (*terminal, *rsession.TerminalParams, error) {
 	var r sshutils.PTYReqParams
 	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
 		log.Infof("failed to parse PTY request: %v", err)
-		return nil, err
+		return nil, nil, trace.Wrap(err)
 	}
 	log.Infof("Parsed pty request pty(enn=%v, w=%v, h=%v)", r.Env, r.W, r.H)
-	t, err := newTerm()
+	t, err := newTerminal()
 	if err != nil {
 		log.Infof("failed to create term: %v", err)
-		return nil, err
+		return nil, nil, trace.Wrap(err)
 	}
-	t.setWinsize(r.W, r.H)
-	return t, nil
-}
-
-func (t *term) reqWinChange(req *ssh.Request) error {
-	var r sshutils.WinChangeReqParams
-	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
-		log.Infof("failed to parse window change request: %v", err)
-		return err
+	params, err := rsession.NewTerminalParamsFromUint32(r.W, r.H)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
-	log.Infof("Parsed window change request: %#v", r)
-	t.setWinsize(r.W, r.H)
-	return nil
+	t.setWinsize(*params)
+	return t, params, nil
 }
 
-func (t *term) setWinsize(w, h uint32) {
-	log.Infof("window resize %dx%d", w, h)
-	ws := &winsize{Width: uint16(w), Height: uint16(h)}
-	syscall.Syscall(syscall.SYS_IOCTL, t.pty.Fd(), uintptr(syscall.TIOCSWINSZ), uintptr(unsafe.Pointer(ws)))
+func (t *terminal) getWinsize() (*term.Winsize, error) {
+	ws, err := term.GetWinsize(t.pty.Fd())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ws, nil
 }
 
-func (t *term) closeTTY() {
+func (t *terminal) setWinsize(params rsession.TerminalParams) error {
+	log.Infof("window resize %v", &params)
+	return trace.Wrap(term.SetWinsize(t.pty.Fd(), params.Winsize()))
+}
+
+func (t *terminal) closeTTY() {
 	if err := t.tty.Close(); err != nil {
 		log.Infof("failed to close TTY: %v", err)
 	}
 	t.tty = nil
 }
 
-func (t *term) run(c *exec.Cmd) error {
+func (t *terminal) run(c *exec.Cmd) error {
 	defer t.closeTTY()
 	c.Stdout = t.tty
 	c.Stdin = t.tty
@@ -106,7 +108,7 @@ func (t *term) run(c *exec.Cmd) error {
 	return c.Start()
 }
 
-func (t *term) Close() error {
+func (t *terminal) Close() error {
 	var err error
 	if e := t.pty.Close(); e != nil {
 		err = e
@@ -119,10 +121,14 @@ func (t *term) Close() error {
 	return err
 }
 
-// winsize stores the Height and Width of a terminal.
-type winsize struct {
-	Height uint16
-	Width  uint16
-	x      uint16
-	y      uint16
+func parseWinChange(req *ssh.Request) (*rsession.TerminalParams, error) {
+	var r sshutils.WinChangeReqParams
+	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	params, err := rsession.NewTerminalParamsFromUint32(r.W, r.H)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return params, nil
 }

@@ -1,0 +1,28 @@
+.grv-nav{
+  height: 100%;
+  background-color: #2f4050;
+  width: 70px;
+  float: left;
+  position: absolute;
+
+  .nav {
+
+    > li.active{
+      border: none;
+      background: #2f4050;
+    }
+
+    li:hover{
+      background-color: #2f4050;
+    }
+
+    li:first-child{
+      margin: 20px 0 15px 0;
+    }
+
+    .fa{
+      font-size: 20px;
+    }
+  }
+
+}

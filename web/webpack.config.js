@@ -19,7 +19,7 @@ module.exports = {
     sourceMapFilename: '[name].map'
   },
 
-  externals: ['jQuery', 'Terminal', 'toastr' ],
+  externals: ['jQuery', 'Terminal', 'toastr', '_' ],
 
   resolve: {
     root: [ path.join(__dirname, 'src') ],

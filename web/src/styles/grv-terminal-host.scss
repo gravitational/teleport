@@ -5,10 +5,9 @@
    height: 100%;
    width: 100%;
    display: block;
-   background-color: black;
+   background-color: $grv-color-bg-term;
    z-index: 1;
  }
-
 
 .grv-terminal-participans{
   margin-left: -100px;
@@ -20,6 +19,22 @@
 
     > li{
       margin: 15px 0;
+    }
+  }
+}
+
+.grv-terminal {
+  height: 100%;
+  width: 100%;
+  font-size: 14px;
+  .terminal{
+    border: none;
+    font-size: inherit;
+    padding: 10px;
+    border-radius: 10px;
+
+    > div{
+      padding-top: 2px;
     }
   }
 }

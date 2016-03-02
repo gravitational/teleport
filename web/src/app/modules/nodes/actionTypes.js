@@ -1,5 +1,5 @@
 import keyMirror from 'keymirror'
 
 export default keyMirror({
-  TLPT_RECEIVE_NODES: null
+  TLPT_NODES_RECEIVE: null
 })

@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	sess "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -110,7 +111,9 @@ func (s *WebSuite) SetUpTest(c *C) {
 	recorder, err := boltrec.New(s.dir)
 	c.Assert(err, IsNil)
 
-	sessionServer := sess.New(baseBk)
+	sessionServer, err := sess.New(baseBk)
+	c.Assert(err, IsNil)
+
 	s.roleAuth = auth.NewAuthWithRoles(authServer,
 		auth.NewStandardPermissions(),
 		eventsLog,
@@ -486,7 +489,7 @@ func (s *WebSuite) connect(c *C, pack *authPack, opts ...string) *websocket.Conn
 	data, err := json.Marshal(connectReq{
 		Addr:      s.srvAddress,
 		Login:     s.user,
-		Term:      connectTerm{W: 100, H: 100},
+		Term:      session.TerminalParams{W: 100, H: 100},
 		SessionID: sessionID,
 	})
 	c.Assert(err, IsNil)
@@ -560,7 +563,7 @@ func (s *WebSuite) TestConnect(c *C) {
 }
 
 func (s *WebSuite) TestNodesWithSessions(c *C) {
-	sid := "testsession"
+	sid := "nodes-with-sessions"
 	pack := s.authPack(c)
 	clt := s.connect(c, pack, sid)
 	defer clt.Close()
@@ -572,7 +575,6 @@ func (s *WebSuite) TestNodesWithSessions(c *C) {
 	// make sure server has replied
 	out := make([]byte, 100)
 	clt.Read(out)
-	fmt.Printf("%v", string(out))
 
 	var nodes *getSiteNodesResponse
 	for i := 0; i < 3; i++ {
@@ -611,11 +613,14 @@ func (s *WebSuite) TestNodesWithSessions(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(websocket.JSON.Receive(stream, &event), IsNil)
+	for _, p := range event.Session.Parties {
+		fmt.Printf("parties: %v\n", p.String())
+	}
 	c.Assert(len(event.Session.Parties), Equals, 2)
 }
 
 func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
-	sid := "testsession"
+	sid := "close-connectoins-on-logout"
 	pack := s.authPack(c)
 	clt := s.connect(c, pack, sid)
 	defer clt.Close()
@@ -651,6 +656,88 @@ func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 		c.Assert(err, Equals, io.EOF)
 	}
 
+}
+
+func (s *WebSuite) TestResizeTerminal(c *C) {
+	sid := "test-resize-terminal"
+	pack := s.authPack(c)
+	clt := s.connect(c, pack, sid)
+	defer clt.Close()
+
+	// to make sure we have a session
+	_, err := io.WriteString(clt, "expr 137 + 39\r\n")
+	c.Assert(err, IsNil)
+
+	// make sure server has replied
+	out := make([]byte, 100)
+	clt.Read(out)
+
+	params := session.TerminalParams{W: 300, H: 120}
+	_, err = pack.clt.PutJSON(
+		pack.clt.Endpoint("webapi", "sites", s.domainName, "sessions", sid),
+		siteSessionUpdateReq{TerminalParams: session.TerminalParams{W: 300, H: 120}},
+	)
+	c.Assert(err, IsNil)
+
+	re, err := pack.clt.Get(
+		pack.clt.Endpoint("webapi", "sites", s.domainName, "sessions", sid), url.Values{})
+	c.Assert(err, IsNil)
+
+	var sess *siteSessionGetResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &sess), IsNil)
+	c.Assert(sess.Session.TerminalParams, DeepEquals, params)
+}
+
+func (s *WebSuite) TestPlayback(c *C) {
+	sid := "playback"
+	pack := s.authPack(c)
+	clt := s.connect(c, pack, sid)
+	defer clt.Close()
+
+	// to make sure we have a session
+	_, err := io.WriteString(clt, "expr 137 + 39\r\nexit\r\n")
+	c.Assert(err, IsNil)
+
+	// make sure server has replied
+	out := make([]byte, 100)
+	clt.Read(out)
+
+	// retrieve the chunks
+	var chunks *siteSessionGetChunksResponse
+	re, err := pack.clt.Get(
+		pack.clt.Endpoint("webapi", "sites", s.domainName, "sessions", sid, "chunks"), url.Values{"start": []string{"1"}, "end": []string{"100"}})
+	c.Assert(err, IsNil)
+	c.Assert(json.Unmarshal(re.Bytes(), &chunks), IsNil)
+	c.Assert(len(chunks.Chunks), Not(Equals), 0)
+}
+
+func (s *WebSuite) TestEvents(c *C) {
+	sid := "events"
+	pack := s.authPack(c)
+	clt := s.connect(c, pack, sid)
+	defer clt.Close()
+
+	// to make sure we have a session
+	_, err := io.WriteString(clt, "expr 137 + 39\r\nexit\r\n")
+	c.Assert(err, IsNil)
+
+	// make sure server has replied
+	out := make([]byte, 100)
+	clt.Read(out)
+
+	data, err := json.Marshal(events.Filter{
+		Start: time.Now().UTC(),
+		Order: events.Desc,
+		Limit: 10,
+	})
+	c.Assert(err, IsNil)
+
+	var events *siteGetEventsResponse
+	re, err := pack.clt.Get(
+		pack.clt.Endpoint("webapi", "sites", s.domainName, "events"), url.Values{"filter": []string{string(data)}})
+	c.Assert(err, IsNil)
+	c.Assert(json.Unmarshal(re.Bytes(), &events), IsNil)
+	c.Assert(len(events.Events), Not(Equals), 0)
 }
 
 func getEvent(schema string, events []lunk.Entry) *lunk.Entry {

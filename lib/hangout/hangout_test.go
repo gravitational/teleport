@@ -103,10 +103,12 @@ func (s *HangoutsSuite) SetUpSuite(c *C) {
 	bl, err := boltlog.New(filepath.Join(s.dir, "eventsdb"))
 	c.Assert(err, IsNil)
 
+	sessionServer, err := sess.New(baseBk)
+	c.Assert(err, IsNil)
 	s.roleAuth = auth.NewAuthWithRoles(s.a,
 		auth.NewStandardPermissions(),
 		bl,
-		sess.New(baseBk),
+		sessionServer,
 		teleport.RoleAdmin,
 		nil)
 
@@ -130,6 +132,7 @@ func (s *HangoutsSuite) SetUpSuite(c *C) {
 		s.dir,
 		nil,
 		srv.SetProxyMode(reverseTunnelServer),
+		srv.SetSessionServer(sessionServer),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(s.proxy.Start(), IsNil)
@@ -137,7 +140,7 @@ func (s *HangoutsSuite) SetUpSuite(c *C) {
 	rec, err := boltrec.New(s.dir)
 	c.Assert(err, IsNil)
 
-	apiSrv := auth.NewAPIWithRoles(s.a, bl, sess.New(s.bk), rec,
+	apiSrv := auth.NewAPIWithRoles(s.a, bl, sessionServer, rec,
 		auth.NewAllowAllPermissions(),
 		auth.StandardRoles,
 	)

@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/session"
@@ -91,35 +92,41 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 		}
 		events, err := clt.GetEvents(f)
 		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		servers, err := clt.GetServers()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		sess, err := clt.GetSession(w.sessionID)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		event := &sessionStreamEvent{
-			Session: *sess,
-			Nodes:   servers,
-			Events:  events,
-		}
-
-		newData := w.diffEvents(lastEvent, event)
-		lastCheckpoint = now
-		lastEvent = event
-		if newData {
-			if err := websocket.JSON.Send(ws, event); err != nil {
+			if !teleport.IsNotFound(err) {
 				return trace.Wrap(err)
 			}
 		}
 
-		log.Infof("about to sleep %v", w.pollPeriod)
+		servers, err := clt.GetServers()
+		if err != nil {
+			if !teleport.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+		}
+
+		sess, err := clt.GetSession(w.sessionID)
+		if err != nil {
+			if !teleport.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+		}
+
+		if sess != nil {
+			event := &sessionStreamEvent{
+				Session: *sess,
+				Nodes:   servers,
+				Events:  events,
+			}
+
+			newData := w.diffEvents(lastEvent, event)
+			lastCheckpoint = now
+			lastEvent = event
+			if newData {
+				if err := websocket.JSON.Send(ws, event); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+		}
 		select {
 		case <-ticker.C:
 		case <-w.closeC:
@@ -165,9 +172,27 @@ func (w *sessionStreamHandler) diffEvents(last *sessionStreamEvent, new *session
 		log.Infof("nodes have changes")
 		return true
 	}
+	// session parameters were updated
+	if sessionsDifferent(last.Session, new.Session) {
+		log.Infof("session has changes")
+		return true
+	}
 	// parties have joined or left the scene
 	if setsDifferent(partySet(last), partySet(new)) {
 		log.Infof("parties have changes")
+		return true
+	}
+	return false
+}
+
+func sessionsDifferent(a, b session.Session) bool {
+	if a.TerminalParams.W != b.TerminalParams.W {
+		return true
+	}
+	if a.TerminalParams.H != b.TerminalParams.H {
+		return true
+	}
+	if a.Active != b.Active {
 		return true
 	}
 	return false

@@ -4,10 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "inspector": "node-inspector --save-live-edit=true --preload=false",
-    "start-debug": "node --debug-brk XXX",
+    "inspector": "node-inspector --web-port=8081 --save-live-edit=true --preload=false",
+    "dev-debug": "node --debug-brk /usr/bin/gulp dev",
     "build": "node node_modules/webpack/bin/webpack.js",
-    "dev-server": "gulp; node node_modules/webpack-dev-server/bin/webpack-dev-server.js --inline --hot  --content-base dist",
+    "dev": "gulp; node node_modules/webpack-dev-server/bin/webpack-dev-server.js --inline --hot --content-base dist",
     "lint": "node node_modules/eslint/bin/eslint src/**/*.js",
     "test": "node node_modules/karma/bin/karma start"
   },

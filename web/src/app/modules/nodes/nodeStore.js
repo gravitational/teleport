@@ -1,5 +1,5 @@
 var { Store, toImmutable } = require('nuclear-js');
-var  { TLPT_RECEIVE_NODES } = require('./actionTypes');
+var  { TLPT_NODES_RECEIVE } = require('./actionTypes');
 
 export default Store({
   getInitialState() {
@@ -7,7 +7,7 @@ export default Store({
   },
 
   initialize() {
-    this.on(TLPT_RECEIVE_NODES, receiveNodes)
+    this.on(TLPT_NODES_RECEIVE, receiveNodes)
   }
 })
 

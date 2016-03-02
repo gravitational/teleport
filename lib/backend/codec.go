@@ -24,6 +24,14 @@ type JSONCodec struct {
 	Backend
 }
 
+func (c *JSONCodec) CreateJSONVal(path []string, key string, val interface{}, ttl time.Duration) error {
+	bytes, err := json.Marshal(val)
+	if err != nil {
+		return err
+	}
+	return c.CreateVal(path, key, bytes, ttl)
+}
+
 func (c *JSONCodec) UpsertJSONVal(path []string, key string, val interface{}, ttl time.Duration) error {
 	bytes, err := json.Marshal(val)
 	if err != nil {
