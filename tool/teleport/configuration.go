@@ -228,7 +228,14 @@ func applyFileConfig(fc *config.FileConfig, cfg *service.Config) error {
 			}
 		}
 	}
-	cfg.SSH.AdvertiseIP = fc.SSH.AdvertiseIP
+	// apply "advertise_ip" setting:
+	advertiseIP := fc.SSH.AdvertiseIP
+	if advertiseIP != nil {
+		if advertiseIP.IsLoopback() || advertiseIP.IsUnspecified() || advertiseIP.IsMulticast() {
+			return trace.Errorf("unreachable advertise IP: %v", advertiseIP)
+		}
+		cfg.SSH.AdvertiseIP = advertiseIP
+	}
 	return nil
 }
 
