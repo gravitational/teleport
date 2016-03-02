@@ -16,12 +16,14 @@ import (
 )
 
 type TeleAgent struct {
-	agent agent.Agent
+	agent    agent.Agent
+	insecure bool
 }
 
-func NewTeleAgent() *TeleAgent {
+func NewTeleAgent(insecure bool) *TeleAgent {
 	ta := TeleAgent{
-		agent: agent.NewKeyring(),
+		agent:    agent.NewKeyring(),
+		insecure: insecure,
 	}
 	return &ta
 }
@@ -67,7 +69,7 @@ func (a *TeleAgent) Login(proxyAddr string,
 	}
 
 	login, err := web.SSHAgentLogin(proxyAddr, user, pass, hotpToken,
-		pub, ttl)
+		pub, ttl, a.insecure)
 	if err != nil {
 		return trace.Wrap(err)
 	}

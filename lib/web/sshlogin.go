@@ -2,22 +2,44 @@ package web
 
 import (
 	"encoding/json"
-	"strings"
+	"fmt"
+	"net/url"
 	"time"
 
+	"github.com/gravitational/teleport"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+)
+
+const (
+	// HTTPS is https prefix
+	HTTPS = "https"
+	// WSS is secure web sockets prefix
+	WSS = "wss"
 )
 
 // SSHAgentLogin issues call to web proxy and receives temp certificate
 // if credentials are valid
-func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte, ttl time.Duration) (*SSHLoginResponse, error) {
+func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte, ttl time.Duration, insecure bool) (*SSHLoginResponse, error) {
 
-	// TODO(klizhentas) HTTPS of course
-	if !strings.HasPrefix(proxyAddr, "http://") {
-		proxyAddr = "http://" + proxyAddr
+	u, err := url.Parse(proxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(
+			teleport.BadParameter("proxyAddress",
+				fmt.Sprintf("'%v' is not a valid URL", proxyAddr)))
+	}
+	u.Scheme = HTTPS
+	proxyAddr = u.String()
+
+	var opts []roundtrip.ClientParam
+	if insecure {
+		log.Warningf("you are using insecure HTTPS connection")
+		opts = append(opts, roundtrip.HTTPClient(newInsecureClient()))
 	}
 
-	clt, err := newWebClient(proxyAddr)
+	clt, err := newWebClient(proxyAddr, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

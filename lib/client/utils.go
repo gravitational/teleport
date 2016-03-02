@@ -52,10 +52,11 @@ func NewWebAuth(ag agent.Agent,
 	user string,
 	passwordCallback PasswordCallback,
 	webProxyAddress string,
-	certificateTTL time.Duration) (authMethod ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) {
+	certificateTTL time.Duration,
+	insecure bool) (authMethod ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) {
 
 	callbackFunc := func() (signers []ssh.Signer, err error) {
-		err = Login(ag, webProxyAddress, user, certificateTTL, passwordCallback)
+		err = Login(ag, webProxyAddress, user, certificateTTL, passwordCallback, insecure)
 		if err != nil {
 			fmt.Printf("Can't login to the server: %v\n", err)
 			return nil, trace.Wrap(err)
@@ -67,7 +68,7 @@ func NewWebAuth(ag agent.Agent,
 	hostKeyCallback = func(hostname string, remote net.Addr, key ssh.PublicKey) error {
 		err := CheckHostSignerFromCache(hostname, remote, key)
 		if err != nil {
-			err = Login(ag, webProxyAddress, user, certificateTTL, passwordCallback)
+			err = Login(ag, webProxyAddress, user, certificateTTL, passwordCallback, insecure)
 			if err != nil {
 				fmt.Printf("Can't login to %v\n", err)
 				return trace.Wrap(err)
@@ -87,7 +88,7 @@ type PasswordCallback func() (password, hotpToken string, e error)
 // certificate to the provided agent and saves the certificate to the
 // local folder.
 func Login(ag agent.Agent, webProxyAddr string, user string,
-	ttl time.Duration, passwordCallback PasswordCallback) error {
+	ttl time.Duration, passwordCallback PasswordCallback, insecure bool) error {
 
 	password, hotpToken, err := passwordCallback()
 	if err != nil {
@@ -103,7 +104,7 @@ func Login(ag agent.Agent, webProxyAddr string, user string,
 	}
 
 	login, err := web.SSHAgentLogin(webProxyAddr, user, password, hotpToken,
-		pub, ttl)
+		pub, ttl, insecure)
 	if err != nil {
 		return trace.Wrap(err)
 	}

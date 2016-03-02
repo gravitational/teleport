@@ -13,20 +13,35 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package utils
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
-	"encoding/base64"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"fmt"
+	"math/big"
+	"net"
 	"net/http"
+	"os"
+	"time"
 
+	"github.com/gravitational/teleport"
+
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 )
 
+// ListenAndServeTLS sets up TLS listener for the http handler
+// and blocks in listening and serving requests
 func ListenAndServeTLS(address string, handler http.Handler,
-	cert, key string) error {
+	certFile, keyFile string) error {
 
-	tlsConfig, err := CreateTLSConfiguration(cert, key)
+	tlsConfig, err := CreateTLSConfiguration(certFile, keyFile)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -39,20 +54,19 @@ func ListenAndServeTLS(address string, handler http.Handler,
 	return http.Serve(listener, handler)
 }
 
-func CreateTLSConfiguration(certString, keyString string) (*tls.Config, error) {
+// CreateTLSConfiguration sets up default TLS configuration
+func CreateTLSConfiguration(certFile, keyFile string) (*tls.Config, error) {
 	config := &tls.Config{}
 
-	certPEM, err := base64.StdEncoding.DecodeString(certString)
-	if err != nil {
-		return nil, trace.Wrap(err, "expected base64 encoded cert")
+	if _, err := os.Stat(certFile); err != nil {
+		return nil, trace.Wrap(teleport.BadParameter("certificate", fmt.Sprintf("certificate is not accessible by '%v'", certFile)))
+	}
+	if _, err := os.Stat(keyFile); err != nil {
+		return nil, trace.Wrap(teleport.BadParameter("certificate", fmt.Sprintf("certificate is not accessible by '%v'", certFile)))
 	}
 
-	keyPEM, err := base64.StdEncoding.DecodeString(keyString)
-	if err != nil {
-		return nil, trace.Wrap(err, "expected base64 encoded key")
-	}
-
-	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	log.Infof("loading configuration: cert=%v key=%v", certFile, keyFile)
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -81,4 +95,81 @@ func CreateTLSConfiguration(certString, keyString string) (*tls.Config, error) {
 	return config, nil
 }
 
-const DefaultLRUCapacity = 1024
+// GenerateSelfSignedCert generates a self signed certificate that
+// is valid for given domain names and ips, returns PEM-encoded bytes with key and cert
+func GenerateSelfSignedCert(domainNames []string, IPAddresses []string) ([]byte, []byte, error) {
+	ips := make([]net.IP, len(IPAddresses))
+	for i, addr := range IPAddresses {
+		ip := net.ParseIP(addr)
+		if ip == nil {
+			return nil, nil, trace.Wrap(
+				teleport.BadParameter("ip", fmt.Sprintf("%v is not a valid IP", addr)))
+		}
+		ips[i] = ip
+	}
+
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	notBefore := time.Now()
+	notAfter := notBefore.Add(DefaultCertificateValidity)
+
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	template := x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject: pkix.Name{
+			Organization: []string{"Teleport"},
+		},
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment | x509.KeyUsageDataEncipherment,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+	}
+
+	template.IsCA = true
+	template.KeyUsage |= x509.KeyUsageCertSign
+
+	template.DNSNames = append(template.DNSNames, domainNames...)
+	template.IPAddresses = append(template.IPAddresses, ips...)
+
+	derBytes, err := x509.CreateCertificate(
+		rand.Reader,
+		&template,       // template of the certificate
+		&template,       // template of the CA certificate
+		&priv.PublicKey, // public key of the signee
+		priv)            // private key of the signer
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
+	keyPEM := pem.EncodeToMemory(pemBlockForRSAKey(priv))
+
+	return keyPEM, certPEM, nil
+}
+
+func pemBlockForRSAKey(priv interface{}) *pem.Block {
+	switch k := priv.(type) {
+	case *rsa.PrivateKey:
+		return &pem.Block{
+			Type:  "RSA PRIVATE KEY",
+			Bytes: x509.MarshalPKCS1PrivateKey(k),
+		}
+	default:
+		return nil
+	}
+}
+
+// DefaultLRUCapacity is a capacity for LRU session cache
+const (
+	DefaultLRUCapacity         = 1024
+	DefaultCertificateValidity = 30 * 86400 * time.Second
+)
