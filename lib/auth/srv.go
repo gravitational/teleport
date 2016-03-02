@@ -197,8 +197,8 @@ func (s *APIServer) upsertServer(w http.ResponseWriter, r *http.Request, p httpr
 	}
 	log.Debugf("[AUTH API] upsertServer. RemoteAddr=%v", r.RemoteAddr)
 
-	// if server sent "local" IP address to us, replace it with the address taken from
-	// the connection
+	// if server sent "local" IP address to us, replace the ip/host part with the remote address we see
+	// on the socket, but keep the original port:
 	req.Server.Addr = utils.ReplaceLocalhost(req.Server.Addr, r.RemoteAddr)
 
 	if err := s.a.UpsertServer(req.Server, req.TTL); err != nil {

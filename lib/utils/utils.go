@@ -26,7 +26,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
@@ -144,14 +143,11 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 
 	fp := filepath.Join(dataDir, HostUUIDFile)
 	bytes, err := ioutil.ReadFile(fp)
-
-	for try := 0; try < 5 && err != nil; try++ {
-		log.Debugf("Trying to read uuid file %s", fp)
+	if err != nil {
+		// uuid file not found? re-create it
 		if os.IsNotExist(err) {
 			bytes = []byte(uuid.New())
 			err = ioutil.WriteFile(fp, bytes, os.ModeExclusive|ModeReadonly)
-		} else {
-			time.Sleep(time.Millisecond * 10)
 		}
 	}
 	if err != nil {

@@ -495,6 +495,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 		),
 		SetSessionServer(s.sessionServer),
 	)
+	srv2.uuid = bobAddr
 	c.Assert(err, IsNil)
 	c.Assert(srv2.Start(), IsNil)
 	defer srv2.Close()
@@ -526,7 +527,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 	c.Assert(len(nodes), Equals, 2)
 	nmap := map[string]services.Server{}
 	for _, node := range nodes {
-		nmap[node.ID] = node
+		nmap[node.Addr] = node
 	}
 	c.Assert(nmap[bobAddr], DeepEquals, services.Server{
 		ID:       bobAddr,
@@ -545,10 +546,10 @@ func (s *SrvSuite) TestProxy(c *C) {
 				Result:  "5",
 			}}})
 
-	c.Assert(nmap[s.srvAddress], DeepEquals, services.Server{
-		ID:       s.srvAddress,
-		Addr:     s.srvAddress,
-		Hostname: "localhost"})
+	s2, ok := nmap[s.srvAddress]
+	c.Assert(ok, Equals, true)
+	c.Assert(s2.Addr, Equals, s.srvAddress)
+	c.Assert(s2.Hostname, Equals, "localhost")
 }
 
 func (s *SrvSuite) TestProxyRoundRobin(c *C) {
