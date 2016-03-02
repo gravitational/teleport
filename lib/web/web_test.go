@@ -140,6 +140,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
 		s.dir,
+		nil,
 		srv.SetShell("/bin/sh"),
 		srv.SetSessionServer(sessionServer),
 		srv.SetRecorder(recorder),

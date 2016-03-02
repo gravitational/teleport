@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os/user"
 	"path/filepath"
 	"strings"
@@ -129,6 +130,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
 		s.dir,
+		nil,
 		SetShell("/bin/sh"),
 	)
 	c.Assert(err, IsNil)
@@ -176,6 +178,13 @@ func (s *SrvSuite) TestExec(c *C) {
 	out, err := se.Output("expr 2 + 3")
 	c.Assert(err, IsNil)
 	c.Assert(strings.Trim(string(out), " \n"), Equals, "5")
+}
+
+func (s *SrvSuite) TestAdvertiseAddr(c *C) {
+	c.Assert(strings.Index(s.srv.AdvertiseAddr(), "127.0.0.1:"), Equals, 0)
+	s.srv.advertiseIP = net.ParseIP("10.10.10.1")
+	c.Assert(strings.Index(s.srv.AdvertiseAddr(), "10.10.10.1:"), Equals, 0)
+	s.srv.advertiseIP = nil
 }
 
 // TestShell launches interactive shell session and executes a command
@@ -355,6 +364,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
 		s.dir,
+		nil,
 		SetProxyMode(reverseTunnelServer),
 	)
 	c.Assert(err, IsNil)
@@ -462,6 +472,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
 		c.MkDir(),
+		nil,
 		SetShell("/bin/sh"),
 		SetLabels(
 			map[string]string{"label1": "value1"},
@@ -553,6 +564,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
 		s.dir,
+		nil,
 		SetProxyMode(reverseTunnelServer),
 	)
 	c.Assert(err, IsNil)
@@ -658,6 +670,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
 		s.dir,
+		nil,
 		SetProxyMode(reverseTunnelServer),
 	)
 	c.Assert(err, IsNil)
@@ -792,6 +805,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
 		s.dir,
+		nil,
 		SetLimiter(limiter),
 		SetShell("/bin/sh"),
 	)

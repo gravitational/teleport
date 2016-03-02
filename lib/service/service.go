@@ -222,6 +222,7 @@ func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
 		[]ssh.Signer{i.KeySigner},
 		client,
 		cfg.DataDir,
+		cfg.SSH.AdvertiseIP,
 		srv.SetLimiter(limiter),
 		srv.SetShell(cfg.SSH.Shell),
 		srv.SetEventLogger(elog),
@@ -396,6 +397,7 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 		[]ssh.Signer{i.KeySigner},
 		client,
 		cfg.DataDir,
+		nil,
 		srv.SetLimiter(proxyLimiter),
 		srv.SetProxyMode(tsrv),
 	)

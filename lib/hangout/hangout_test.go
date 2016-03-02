@@ -128,6 +128,7 @@ func (s *HangoutsSuite) SetUpSuite(c *C) {
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
 		s.dir,
+		nil,
 		srv.SetProxyMode(reverseTunnelServer),
 	)
 	c.Assert(err, IsNil)

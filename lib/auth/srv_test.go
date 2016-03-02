@@ -275,12 +275,13 @@ func (s *APISuite) TestServers(c *C) {
 	out, err = s.clt.GetServers()
 	c.Assert(err, IsNil)
 
-	if out[0].ID == "id1" {
-		c.Assert(out[0], DeepEquals, services.Server{ID: "id1", Addr: "host:1233", Hostname: "host1"})
-		c.Assert(out[1], DeepEquals, services.Server{ID: "id2", Addr: "host:1234", Hostname: "host2"})
+	// note: ID is getting overwritten by addr:
+	if out[0].ID == "host:1233" {
+		c.Assert(out[0], DeepEquals, services.Server{ID: "host:1233", Addr: "host:1233", Hostname: "host1"})
+		c.Assert(out[1], DeepEquals, services.Server{ID: "host:1234", Addr: "host:1234", Hostname: "host2"})
 	} else {
-		c.Assert(out[1], DeepEquals, services.Server{ID: "id1", Addr: "host:1233", Hostname: "host1"})
-		c.Assert(out[0], DeepEquals, services.Server{ID: "id2", Addr: "host:1234", Hostname: "host2"})
+		c.Assert(out[1], DeepEquals, services.Server{ID: "host:1233", Addr: "host:1233", Hostname: "host1"})
+		c.Assert(out[0], DeepEquals, services.Server{ID: "host:1234", Addr: "host:1234", Hostname: "host2"})
 	}
 }
 

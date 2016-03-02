@@ -43,6 +43,8 @@ type CommandLineFlags struct {
 	AuthToken string
 	// --listen-ip flag
 	ListenIP net.IP
+	// --advertise-ip flag
+	AdvertiseIP net.IP
 	// --config flag
 	ConfigFile string
 	// --roles flag
@@ -226,6 +228,7 @@ func applyFileConfig(fc *config.FileConfig, cfg *service.Config) error {
 			}
 		}
 	}
+	cfg.SSH.AdvertiseIP = fc.SSH.AdvertiseIP
 	return nil
 }
 

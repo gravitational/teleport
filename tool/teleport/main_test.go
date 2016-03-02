@@ -17,6 +17,7 @@ package main
 
 import (
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -100,6 +101,7 @@ func (s *MainTestSuite) TestConfigFile(c *check.C) {
 	c.Assert(log.GetLevel(), check.Equals, log.DebugLevel)
 	c.Assert(conf.Hostname, check.Equals, "hvostongo.example.org")
 	c.Assert(conf.SSH.Token, check.Equals, "xxxyyy")
+	c.Assert(conf.SSH.AdvertiseIP, check.DeepEquals, net.ParseIP("10.5.5.5"))
 }
 
 const YAMLConfig = `
@@ -128,6 +130,7 @@ auth_service:
 ssh_service:
   enabled: no
   listen_addr: tcp://ssh
+  advertise_ip: 10.5.5.5
   labels:
     name: mondoserver
     role: slave

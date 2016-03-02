@@ -355,6 +355,7 @@ func (h *Hangout) initSSHEndpoint(cfg service.Config) error {
 		[]ssh.Signer{h.signer},
 		h.client,
 		cfg.DataDir,
+		nil,
 		srv.SetShell(DefaultSSHShell),
 		srv.SetEventLogger(elog),
 		srv.SetSessionServer(h.client),

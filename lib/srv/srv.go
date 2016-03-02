@@ -71,6 +71,8 @@ type Server struct {
 
 	proxyMode bool
 	proxyTun  reversetunnel.Server
+
+	advertiseIP net.IP
 }
 
 type ServerOption func(s *Server) error
@@ -136,9 +138,13 @@ func SetLimiter(limiter *limiter.Limiter) ServerOption {
 }
 
 // New returns an unstarted server
-func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
+func New(addr utils.NetAddr,
+	hostname string,
+	signers []ssh.Signer,
 	ap auth.AccessPoint,
-	dataDir string, options ...ServerOption) (*Server, error) {
+	dataDir string,
+	advertiseIP net.IP,
+	options ...ServerOption) (*Server, error) {
 
 	s := &Server{
 		addr:        addr,
@@ -146,6 +152,7 @@ func New(addr utils.NetAddr, hostname string, signers []ssh.Signer,
 		rr:          &backendResolver{ap: ap},
 		hostname:    hostname,
 		labelsMutex: &sync.Mutex{},
+		advertiseIP: advertiseIP,
 	}
 	var err error
 	s.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
@@ -198,14 +205,28 @@ func (s *Server) ID() string {
 	return s.addr.Addr
 }
 
+// AdvertiseAddr() returns an address this server should be publicly accessible
+// as, in "ip:host" form
+func (s *Server) AdvertiseAddr() string {
+	// se if we have explicit --advertise-ip option
+	if s.advertiseIP == nil {
+		return s.addr.Addr
+	}
+	_, port, _ := net.SplitHostPort(s.addr.Addr)
+	return net.JoinHostPort(s.advertiseIP.String(), port)
+}
+
+// heartbeatPresence periodically calls into the auth server to let everyone
+// know we're up & alive
 func (s *Server) heartbeatPresence() {
+	advertiseAddr := s.AdvertiseAddr()
 	for {
 		func() {
 			s.labelsMutex.Lock()
 			defer s.labelsMutex.Unlock()
 			srv := services.Server{
 				ID:        s.ID(),
-				Addr:      s.addr.Addr,
+				Addr:      advertiseAddr,
 				Hostname:  s.hostname,
 				Labels:    s.labels,
 				CmdLabels: s.cmdLabels,
