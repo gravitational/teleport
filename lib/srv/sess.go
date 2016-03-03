@@ -172,6 +172,7 @@ type session struct {
 	chunkWriter *chunkWriter
 	closeC      chan bool
 	login       string
+	closeOnce   sync.Once
 }
 
 func newSession(id string, r *sessionRegistry, context *ctx) (*session, error) {
@@ -201,12 +202,16 @@ func newSession(id string, r *sessionRegistry, context *ctx) (*session, error) {
 		parties:  make(map[string]*party),
 		writer:   newMultiWriter(),
 		login:    context.login,
+		closeC:   make(chan bool),
 	}
 	go sess.pollAndSyncTerm()
 	return sess, nil
 }
 
 func (s *session) Close() error {
+	s.closeOnce.Do(func() {
+		close(s.closeC)
+	})
 	var err error
 	if s.term != nil {
 		err = s.term.Close()
@@ -214,7 +219,7 @@ func (s *session) Close() error {
 	if s.chunkWriter != nil {
 		err = s.chunkWriter.Close()
 	}
-	return err
+	return trace.Wrap(err)
 }
 
 func (s *session) upsertSessionParty(sid string, p *party) error {
