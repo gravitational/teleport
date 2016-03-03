@@ -21,9 +21,9 @@ const UsersCell = ({ rowIndex, data, ...props }) => {
 const ButtonCell = ({ rowIndex, data, ...props }) => {
   let onClick = () => {
     var rowData = data[rowIndex];
-    var {sid, addr} = rowData
+    var {sid, serverId} = rowData
     var login = rowData.login;
-    open(addr, login, sid);
+    open(serverId, login, sid);
   }
 
   return (
@@ -71,13 +71,13 @@ var SessionList = React.createClass({
                   }
                 />
                 <Column
-                  columnKey="addr"
+                  columnKey="serverIp"
                   header={<Cell> Node </Cell> }
                   cell={<TextCell data={data} /> }
                 />
 
                 <Column
-                  columnKey="addr"
+                  columnKey="serverId"
                   header={<Cell> Users </Cell> }
                   cell={<UsersCell data={data} /> }
                 />

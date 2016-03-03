@@ -25,9 +25,9 @@ let cfg = {
       return `${hostname}/v1/webapi/sites/-current-/sessions/${sid}/events/stream?access_token=${token}`;
     },
 
-    getTtyConnStr: ({token, addr, login, sid, rows, cols}) => {
+    getTtyConnStr: ({token, serverId, login, sid, rows, cols}) => {
       var params = {
-        addr,
+        server_id: serverId,
         login,
         sid,
         term: {

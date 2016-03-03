@@ -30,13 +30,13 @@ const LoginCell = ({user, rowIndex, data, ...props}) => {
   var $lis = [];
 
   for(var i = 0; i < user.logins.length; i++){
-    $lis.push(<li key={i}><a href="#" target="_blank" onClick={open.bind(null, data[rowIndex].addr, user.logins[i], undefined)}>{user.logins[i]}</a></li>);
+    $lis.push(<li key={i}><a href="#" target="_blank" onClick={open.bind(null, data[rowIndex].id, user.logins[i], undefined)}>{user.logins[i]}</a></li>);
   }
 
   return (
     <Cell {...props}>
       <div className="btn-group">
-        <button type="button" onClick={open.bind(null, data[rowIndex].addr, user.logins[0], undefined)} className="btn btn-sm btn-primary">{user.logins[0]}</button>
+        <button type="button" onClick={open.bind(null, data[rowIndex].id, user.logins[0], undefined)} className="btn btn-sm btn-primary">{user.logins[0]}</button>
         {
           $lis.length > 1 ? (
             <div className="btn-group">
@@ -65,7 +65,7 @@ var Nodes = React.createClass({
       user: userGetters.user
     }
   },
-    
+
   render: function() {
     var data = this.state.nodeRecords;
     return (

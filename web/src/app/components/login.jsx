@@ -3,7 +3,7 @@ var $ = require('jQuery');
 var reactor = require('app/reactor');
 var LinkedStateMixin = require('react-addons-linked-state-mixin');
 var {actions} = require('app/modules/user');
-var GoogleAuthInfo = require('./googleAuth');
+var GoogleAuthInfo = require('./googleAuthLogo');
 var LoginInputForm = React.createClass({
 
   mixins: [LinkedStateMixin],

@@ -5,7 +5,11 @@ var cfg = require('app/config');
 var invariant = require('invariant');
 var getters = require('./getters');
 
-var { TLPT_TERM_OPEN, TLPT_TERM_CLOSE, TLPT_TERM_CONNECTED, TLPT_TERM_RECEIVE_PARTIES }  = require('./actionTypes');
+var {
+  TLPT_TERM_OPEN,
+  TLPT_TERM_CLOSE,
+  TLPT_TERM_CONNECTED,
+  TLPT_TERM_RECEIVE_PARTIES }  = require('./actionTypes');
 
 export default {
 
@@ -19,9 +23,9 @@ export default {
     let {sid} = reactor.evaluate(getters.activeSession);
 
     api.put(cfg.api.getTerminalSessionUrl(sid), reqData).done(()=>{
-      console.log(`resize with ${w} and ${h} - OK`);
+      console.log(`resize with w:${w} and h:${h} - OK`);
     }).fail(()=>{
-      console.log(`failed to resize with ${w} and ${h}`);
+      console.log(`failed to resize with w:${w} and h:${h}`);
     })
   },
 
@@ -40,12 +44,12 @@ export default {
     reactor.dispatch(TLPT_TERM_RECEIVE_PARTIES, parties);
   },
 
-  open(addr, login, sid){
+  open(serverId, login, sid){
     let isNew = !sid;
     if(isNew){
       sid = uuid();
     }
 
-    reactor.dispatch(TLPT_TERM_OPEN, {addr, login, sid, isNew} );
+    reactor.dispatch(TLPT_TERM_OPEN, {serverId, login, sid, isNew} );
   }
 }

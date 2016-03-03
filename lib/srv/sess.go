@@ -245,7 +245,6 @@ func setCmdUser(cmd *exec.Cmd, username string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cmd.Env = []string{"HOME=" + osUser.HomeDir}
 
 	// are we already username?
 	curUser, err := user.Current()

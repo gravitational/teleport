@@ -34,7 +34,7 @@ var TtyTerminal = React.createClass({
     this.term.open(this.refs.container);
     this.term.on('data', (data) => this.tty.send(data));
 
-    this.resize(this.rows, this.cols);
+    this.resize(this.cols, this.rows);
 
     this.tty.on('open', ()=> this.term.write(CONNECTED_TXT));
     this.tty.on('close', ()=> this.term.write(DISCONNECT_TXT));
@@ -57,7 +57,7 @@ var TtyTerminal = React.createClass({
     }
 
     if(rows !== this.rows || cols !== this.cols){
-      this.resize(rows, cols)
+      this.resize(cols, rows)
     }
 
     return false;
