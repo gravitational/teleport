@@ -154,33 +154,26 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
 // otherwise runs interactive shell
 func (tc *TeleportClient) SSH(command string) (err error) {
-	var (
-		nodeClient *NodeClient
-	)
 	// connecting via proxy?
-	if tc.Config.ProxySpecified() {
-		proxyClient, err := tc.ConnectToProxy()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-		if len(command) > 0 {
-			return tc.runCommand(proxyClient, command)
-		}
-		nodeClient, err = proxyClient.ConnectToNode(tc.NodeHostPort(),
-			tc.authMethods, tc.makeHostKeyCallback(), tc.Config.HostLogin)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer nodeClient.Close()
-		// connecting directly to a node without a proxy
-	} else {
-		nodeClient, err = ConnectToNode(nil, tc.NodeHostPort(), tc.authMethods, tc.makeHostKeyCallback(), tc.Config.Login)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer nodeClient.Close()
+	if !tc.Config.ProxySpecified() {
+		return trace.Wrap(fmt.Errorf("proxy server is not specified"))
 	}
+	proxyClient, err := tc.ConnectToProxy()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+	if len(command) > 0 {
+		return tc.runCommand(proxyClient, command)
+	}
+	nodeAddr := tc.NodeHostPort()
+	log.Debugf("connecting to node %v via proxy %v", nodeAddr, proxyClient.proxyAddress)
+	nodeClient, err := proxyClient.ConnectToNode(nodeAddr,
+		tc.authMethods, tc.makeHostKeyCallback(), tc.Config.HostLogin)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer nodeClient.Close()
 	return tc.runShell(nodeClient, "")
 }
 
@@ -432,7 +425,6 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		proxyClient, err := ssh.Dial("tcp", proxyAddr, sshConfig)
 		if err != nil {
 			if utils.IsHandshakeFailedError(err) {
-				log.Warn(err)
 				continue
 			}
 			return nil, trace.Wrap(err)

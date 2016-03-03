@@ -235,34 +235,37 @@ func (s *session) upsertSessionParty(sid string, p *party) error {
 	}, rsession.DefaultActivePartyTTL)
 }
 
+// setCmdUser configures exec.Cmd to impersonate (AKA "become") a given
+// user
 func setCmdUser(cmd *exec.Cmd, username string) error {
 	cmd.SysProcAttr = &syscall.SysProcAttr{}
 
+	// make sure username is valid
 	osUser, err := user.Lookup(username)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	cmd.Env = []string{"HOME=" + osUser.HomeDir}
+
+	// are we already username?
 	curUser, err := user.Current()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	if username != curUser.Username {
-		uid, err := strconv.Atoi(osUser.Uid)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		gid, err := strconv.Atoi(osUser.Gid)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
-		cmd.Dir = osUser.HomeDir
-	} else {
-		cmd.Dir = curUser.HomeDir
+	if username == curUser.Username {
+		return nil
 	}
 
+	// "become" username
+	uid, err := strconv.Atoi(osUser.Uid)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	gid, err := strconv.Atoi(osUser.Gid)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
 	return nil
 }
 
