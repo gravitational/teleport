@@ -35,6 +35,7 @@ func RunTSH(app *kingpin.Application) error {
 	loginTTL := app.Flag("login-ttl", "Temporary ssh certificate will work for that time").Default("10h").Duration()
 	proxy := app.Flag("proxy", "Teleport proxy address").String()
 	proxyUser := app.Flag("proxy-user", "Teleport authentication username").Required().String()
+	insecureFlag := app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").Default("false").Bool()
 
 	connect := app.Command("ssh", "Connects to remote server and runs shell or provided command")
 	connectAddress := connect.Arg("target", "Target server address. You can provide several servers using label searching target _label:value").Required().String()
@@ -81,6 +82,7 @@ func RunTSH(app *kingpin.Application) error {
 		passwordCallback,
 		*webProxyAddress,
 		*loginTTL,
+		*insecureFlag,
 	)
 
 	authMethods := []ssh.AuthMethod{

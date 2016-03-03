@@ -79,8 +79,8 @@ const DefaultLimit = 100
 
 // TerminalParams holds parameters of the terminal used in session
 type TerminalParams struct {
-	W int `json:"W"`
-	H int `json:"H"`
+	W int `json:"w"`
+	H int `json:"h"`
 }
 
 func (p *TerminalParams) String() string {

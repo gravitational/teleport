@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package main
 
 import (
@@ -47,6 +48,9 @@ type CLIConf struct {
 	// Login on a remote SSH host
 	NodeLogin string
 
+	// InsecureSkipVerify bypasses verification of server certificate
+	InsecureSkipVerify bool
+
 	// IsUnderTest is set to true for unit testing
 	IsUnderTest bool
 }
@@ -64,6 +68,7 @@ func run(args []string, underTest bool) {
 	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", client.Username())).StringVar(&cf.Login)
 	app.Flag("proxy", "SSH proxy host or IP address").StringVar(&cf.Proxy)
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
+	app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").Default("false").BoolVar(&cf.InsecureSkipVerify)
 	debugMode := app.Flag("debug", "Verbose logging to stdout").Short('d').Bool()
 	app.HelpFlag.Short('h')
 	ver := app.Command("version", "Print the version")
@@ -154,13 +159,14 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 
 	// prep client config:
 	c := &client.Config{
-		Login:     cf.Login,
-		ProxyHost: cf.Proxy,
-		Host:      cf.UserHost,
-		HostPort:  int(cf.NodePort),
-		HostLogin: hostLogin,
-		Labels:    labels,
-		KeyTTL:    time.Minute * time.Duration(cf.MinsToLive),
+		Login:              cf.Login,
+		ProxyHost:          cf.Proxy,
+		Host:               cf.UserHost,
+		HostPort:           int(cf.NodePort),
+		HostLogin:          hostLogin,
+		Labels:             labels,
+		KeyTTL:             time.Minute * time.Duration(cf.MinsToLive),
+		InsecureSkipVerify: cf.InsecureSkipVerify,
 	}
 	return client.NewClient(c)
 }

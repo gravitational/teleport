@@ -18,6 +18,7 @@ package hangout
 import (
 	"bufio"
 	"net/http"
+	"net/http/httptest"
 	"os/user"
 	"path/filepath"
 	"testing"
@@ -190,7 +191,10 @@ func (s *HangoutsSuite) SetUpSuite(c *C) {
 	)
 	c.Assert(err, IsNil)
 
-	s.webAddress = "localhost:35386"
+	webServer := httptest.NewUnstartedServer(webHandler)
+	webServer.StartTLS()
+
+	s.webAddress = webServer.URL
 
 	go func() {
 		err := http.ListenAndServe(s.webAddress, webHandler)
@@ -199,8 +203,8 @@ func (s *HangoutsSuite) SetUpSuite(c *C) {
 		}
 	}()
 
-	s.teleagent = teleagent.NewTeleAgent()
-	err = s.teleagent.Login("http://"+s.webAddress, s.user, string(s.pass), s.otp.OTP(), time.Minute)
+	s.teleagent = teleagent.NewTeleAgent(true)
+	err = s.teleagent.Login(s.webAddress, s.user, string(s.pass), s.otp.OTP(), time.Minute)
 	c.Assert(err, IsNil)
 
 	_, err = client.ConnectToProxy(s.proxyAddress,
@@ -215,8 +219,9 @@ func (s *HangoutsSuite) SetUpSuite(c *C) {
 		agent.NewKeyring(),
 		s.user,
 		passwordCallback,
-		"http://"+s.webAddress,
+		s.webAddress,
 		time.Hour,
+		true,
 	)
 
 	_, err = client.ConnectToProxy(s.proxyAddress,

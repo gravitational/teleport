@@ -1,6 +1,8 @@
 package web
 
 import (
+	"crypto/tls"
+	"net/http"
 	"net/url"
 
 	"github.com/gravitational/teleport/lib/httplib"
@@ -8,6 +10,14 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 )
+
+func newInsecureClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+}
 
 func newWebClient(url string, opts ...roundtrip.ClientParam) (*webClient, error) {
 	clt, err := roundtrip.NewClient(url, Version, opts...)

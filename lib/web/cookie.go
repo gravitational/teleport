@@ -54,9 +54,11 @@ func SetSession(w http.ResponseWriter, user, sid string) error {
 		return err
 	}
 	c := &http.Cookie{
-		Name:  "session",
-		Value: d,
-		Path:  "/",
+		Name:     "session",
+		Value:    d,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
 	}
 	http.SetCookie(w, c)
 	return nil
@@ -64,9 +66,11 @@ func SetSession(w http.ResponseWriter, user, sid string) error {
 
 func ClearSession(w http.ResponseWriter) error {
 	http.SetCookie(w, &http.Cookie{
-		Name:  "session",
-		Value: "",
-		Path:  "/",
+		Name:     "session",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
 	})
 	return nil
 }

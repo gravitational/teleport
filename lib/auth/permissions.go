@@ -56,12 +56,16 @@ func NewStandardPermissions() PermissionChecker {
 	sp.permissions[teleport.RoleNode] = map[string]bool{
 		ActionUpsertServer:       true,
 		ActionGetCertAuthorities: true,
+		ActionGetUsers:           true,
 		ActionGetLocalDomain:     true,
 		ActionGetUserKeys:        true,
 		ActionGetServers:         true,
 		ActionUpsertParty:        true,
+		ActionUpsertSession:      true,
 		ActionLogEntry:           true,
 		ActionGetChunkWriter:     true,
+		ActionGetSession:         true,
+		ActionGetSessions:        true,
 	}
 
 	sp.permissions[teleport.RoleWeb] = map[string]bool{

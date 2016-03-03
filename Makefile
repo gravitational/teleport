@@ -24,7 +24,8 @@ teleport:
 
 .PHONY: tsh
 tsh: 
-	go build -o $(OUT)/tsh -i github.com/gravitational/teleport/tool/tsh
+	go build -o $(OUT)/t -i github.com/gravitational/teleport/tool/t
+	#go build -o $(OUT)/tsh -i github.com/gravitational/teleport/tool/tsh
 
 install: remove-temp-files
 	go install github.com/gravitational/teleport/tool/teleport
