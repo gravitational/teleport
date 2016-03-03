@@ -1,4 +1,5 @@
-web/dist/app/app
+# these are temporary
+assets/docker
 
 # Compiled binaries, Object files, Static and Dynamic libs (Shared Objects)
 out

@@ -366,19 +366,19 @@ const pollingPeriod = time.Second
 func (s *session) syncTerm(sessionServer rsession.Service) error {
 	sess, err := sessionServer.GetSession(s.id)
 	if err != nil {
-		log.Infof("syncTerm: no session")
+		log.Debugf("syncTerm: no session")
 		return trace.Wrap(err)
 	}
 	winSize, err := s.term.getWinsize()
 	if err != nil {
-		log.Infof("syncTerm: no terminal")
+		log.Debugf("syncTerm: no terminal")
 		return trace.Wrap(err)
 	}
 	if int(winSize.Width) == sess.TerminalParams.W && int(winSize.Height) == sess.TerminalParams.H {
-		log.Infof("terminal not changed: %v", sess.TerminalParams)
+		log.Debugf("terminal not changed: %v", sess.TerminalParams)
 		return nil
 	}
-	log.Infof("terminal has changed from: %v to %v", sess.TerminalParams, winSize)
+	log.Debugf("terminal has changed from: %v to %v", sess.TerminalParams, winSize)
 	err = s.term.setWinsize(sess.TerminalParams)
 	return trace.Wrap(err)
 }
