@@ -17,6 +17,8 @@ const (
 	ComponentNode = "node"
 	// ComponentProxy is SSH proxy (SSH server forwarding connections)
 	ComponentProxy = "proxy"
+	// ComponentTunClient is a tunnel client
+	ComponentTunClient = "tunclient"
 )
 
 const (

@@ -685,7 +685,6 @@ func (s *tunnelSite) handleHeartbeat(ch ssh.Channel, reqC <-chan *ssh.Request) {
 				s.log.Infof("agent disconnected")
 				return
 			}
-			//s.log.Debugf("ping")
 			s.lastActive = time.Now()
 		}
 	}()
@@ -824,7 +823,14 @@ func (s *tunnelSite) DialServer(addr string) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	knownServers, err := clt.GetServers()
+	var knownServers []services.Server
+	for i := 0; i < 10; i++ {
+		knownServers, err = clt.GetServers()
+		if err != nil {
+			log.Infof("failed to get servers: %v", err)
+			time.Sleep(time.Second)
+		}
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

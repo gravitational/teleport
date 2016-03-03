@@ -105,7 +105,7 @@ func (t *terminal) run(c *exec.Cmd) error {
 	c.Stderr = t.tty
 	c.SysProcAttr.Setctty = true
 	c.SysProcAttr.Setsid = true
-	return c.Start()
+	return trace.Wrap(c.Start())
 }
 
 func (t *terminal) Close() error {
@@ -118,7 +118,7 @@ func (t *terminal) Close() error {
 			err = e
 		}
 	}
-	return err
+	return trace.Wrap(err)
 }
 
 func parseWinChange(req *ssh.Request) (*rsession.TerminalParams, error) {
