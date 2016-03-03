@@ -36,7 +36,9 @@ var ActiveSession = React.createClass({
        <div>
          <div className="btn-group">
            <span className="btn btn-xs btn-primary">128.0.0.1:8888</span>
-           <div className="btn-groupserver_idt"></span>
+           <div className="btn-group">
+             <button data-toggle="dropdown" className="btn btn-default btn-xs dropdown-toggle" aria-expanded="true">
+               <span className="caret"></span>
              </button>
              <ul className="dropdown-menu">
                <li><a href="#" target="_blank">Logs</a></li>
@@ -64,8 +66,9 @@ var TtyConnection = React.createClass({
   },
 
   render() {
+
     return (
-      <div>
+      <div style={{height: '100%'}}>
         <TtyTerminal tty={this.tty} cols={this.props.cols} rows={this.props.rows} />
         { this.state.isConnected ? <EventStreamer sid={this.props.sid}/> : null }
       </div>

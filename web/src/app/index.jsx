@@ -1,7 +1,7 @@
 var React = require('react');
 var render = require('react-dom').render;
 var { Router, Route, Redirect, IndexRoute, browserHistory } = require('react-router');
-var { App, Login, Nodes, Sessions, NewUser, ActiveSession } = require('./components');
+var { App, Login, Nodes, Sessions, NewUser, ActiveSession, NotFoundPage } = require('./components');
 var {ensureUser} = require('./modules/user/actions');
 var auth = require('./auth');
 var session = require('./session');
@@ -21,10 +21,11 @@ render((
     <Route path={cfg.routes.login} component={Login}/>
     <Route path={cfg.routes.logout} onEnter={handleLogout}/>
     <Route path={cfg.routes.newUser} component={NewUser}/>
+    <Redirect from={cfg.routes.app} to={cfg.routes.nodes}/>
     <Route path={cfg.routes.app} component={App} onEnter={ensureUser} >
-      <IndexRoute component={Nodes}/>
       <Route path={cfg.routes.nodes} component={Nodes}/>
       <Route path={cfg.routes.sessions} component={Sessions}/>
     </Route>
+    <Route path="*" component={NotFoundPage} />
   </Router>
 ), document.getElementById("app"));
