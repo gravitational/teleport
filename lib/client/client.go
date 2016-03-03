@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -247,7 +248,8 @@ func (proxy *ProxyClient) ConnectToHangout(nodeAddress string,
 	authMethods []ssh.AuthMethod) (*NodeClient, error) {
 
 	if len(authMethods) == 0 {
-		return nil, trace.Errorf("no authMethods were provided")
+		return nil, trace.Wrap(
+			teleport.BadParameter("authMethods", "no authMethods were provided"))
 	}
 
 	e := trace.Errorf("unknown Error")
@@ -296,7 +298,8 @@ func (proxy *ProxyClient) ConnectToHangout(nodeAddress string,
 		buf := make([]byte, 20000)
 		n, err := pipeNetConn.Read(buf)
 		if err != nil {
-			return nil, trace.Errorf("Readed %v, err: %v", n, err)
+			return nil, trace.Wrap(
+				teleport.ConnectionProblem("failed to read target host certificate", err))
 		}
 		var endpointInfo srv.HangoutEndpointInfo
 		err = json.Unmarshal(buf[:n], &endpointInfo)
@@ -307,7 +310,8 @@ func (proxy *ProxyClient) ConnectToHangout(nodeAddress string,
 		hostKeyCallback := func(hostname string, remote net.Addr, key ssh.PublicKey) error {
 			cert, ok := key.(*ssh.Certificate)
 			if !ok {
-				return trace.Errorf("expected certificate")
+				return trace.Wrap(
+					teleport.BadParameter("certificate", "expected certificate"))
 			}
 			checkers, err := endpointInfo.HostKey.Checkers()
 			if err != nil {
@@ -318,8 +322,8 @@ func (proxy *ProxyClient) ConnectToHangout(nodeAddress string,
 					return nil
 				}
 			}
-
-			return trace.Errorf("remote host key is not valid")
+			return trace.Wrap(
+				teleport.AccessDenied("remote host key is not valid"))
 		}
 
 		sshConfig := &ssh.ClientConfig{

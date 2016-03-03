@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package auth
 
 import (
@@ -22,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -55,8 +57,10 @@ type AuthTunnel struct {
 	limiter         *limiter.Limiter
 }
 
+// ServerOption is the functional argument passed to the server
 type ServerOption func(s *AuthTunnel) error
 
+// SetLimiter sets rate and connection limiter for auth tunnel server
 func SetLimiter(limiter *limiter.Limiter) ServerOption {
 	return func(s *AuthTunnel) error {
 		s.limiter = limiter
@@ -135,10 +139,12 @@ func (s *AuthTunnel) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.Ne
 				string(nch.ExtraData()), err)
 			nch.Reject(ssh.UnknownChannelType,
 				"failed to parse direct-tcpip request")
+			return
 		}
 		sshCh, _, err := nch.Accept()
 		if err != nil {
 			log.Infof("[AUTH] could not accept channel (%s)", err)
+			return
 		}
 		go s.handleDirectTCPIPRequest(sconn, sshCh, req)
 	case ReqWebSessionAgent:
@@ -153,6 +159,7 @@ func (s *AuthTunnel) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.Ne
 		ch, _, err := nch.Accept()
 		if err != nil {
 			log.Infof("[AUTH] could not accept channel (%s)", err)
+			return
 		}
 		go s.handleWebAgentRequest(sconn, ch)
 	default:
@@ -560,40 +567,57 @@ func (t *TunDialer) getClient(reset bool) (*ssh.Client, error) {
 	if t.tun != nil {
 		if !reset {
 			return t.tun, nil
-		} else {
-			go t.tun.Close()
-			t.tun = nil
 		}
+		go t.tun.Close()
+		t.tun = nil
 	}
-
 	config := &ssh.ClientConfig{
 		User: t.user,
 		Auth: t.auth,
 	}
 	client, err := ssh.Dial(t.addr.AddrNetwork, t.addr.Addr, config)
 	if err != nil {
-		return nil, err
+		log.Infof("TunDialer could not ssh.Dial: %v", err)
+		return nil, trace.Wrap(err)
 	}
 	t.tun = client
 	return t.tun, nil
 }
 
+const (
+	// DialerRetryAttempts is the amount of attempts for dialer to try and
+	// connect to the remote destination
+	DialerRetryAttempts = 3
+	// DialerPeriodBetweenAttempts is the period between retry attempts
+	DialerPeriodBetweenAttempts = time.Second
+)
+
 func (t *TunDialer) Dial(network, address string) (net.Conn, error) {
-	c, err := t.getClient(false)
-	if err != nil {
-		return nil, err
-	}
-	conn, err := c.Dial(network, address)
-	if err == nil {
-		return conn, err
-	} else {
-		// reconnecting and trying again
-		c, err = t.getClient(true)
-		if err != nil {
-			return nil, err
+	var client *ssh.Client
+	var err error
+	for i := 0; i < DialerRetryAttempts; i++ {
+		if i == 0 {
+			client, err = t.getClient(false)
+			if err != nil {
+				log.Infof("TunDialer failed to get client: %v", err)
+				continue
+			}
+		} else {
+			time.Sleep(DialerPeriodBetweenAttempts)
+			client, err = t.getClient(true)
+			if err != nil {
+				log.Infof("TunDialer failed to get client: %v", err)
+				continue
+			}
 		}
-		return c.Dial(network, address)
+		conn, err := client.Dial(network, address)
+		if err == nil {
+			return conn, nil
+		}
+		log.Infof("TunDialer connection issue (%v), reconnect", err)
 	}
+	return nil, trace.Wrap(
+		teleport.ConnectionProblem("failed to connect to remote API", err))
 }
 
 func NewClientFromSSHClient(sshClient *ssh.Client) (*Client, error) {

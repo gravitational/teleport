@@ -13,11 +13,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package hangout
 
 import (
 	"bufio"
-	"net/http"
+	"fmt"
 	"net/http/httptest"
 	"os/user"
 	"path/filepath"
@@ -47,8 +48,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	. "gopkg.in/check.v1"
-
-	log "github.com/Sirupsen/logrus"
 )
 
 func TestHangouts(t *testing.T) { TestingT(t) }
@@ -72,7 +71,7 @@ type HangoutsSuite struct {
 var _ = Suite(&HangoutsSuite{})
 
 func (s *HangoutsSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
+	utils.InitLoggerDebug()
 	client.KeysDir = c.MkDir()
 	s.dir = c.MkDir()
 
@@ -113,8 +112,11 @@ func (s *HangoutsSuite) SetUpSuite(c *C) {
 		teleport.RoleAdmin,
 		nil)
 
+	freePorts, err := utils.GetFreeTCPPorts(10)
+	c.Assert(err, IsNil)
+
 	// Starting proxy
-	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:34057"}
+	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("localhost:%v", freePorts.Pop())}
 	s.reverseTunnelAddress = reverseTunnelAddress.Addr
 	reverseTunnelServer, err := reversetunnel.NewServer(
 		reverseTunnelAddress,
@@ -123,7 +125,7 @@ func (s *HangoutsSuite) SetUpSuite(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
 
-	s.proxyAddress = "localhost:35783"
+	s.proxyAddress = fmt.Sprintf("localhost:%v", freePorts.Pop())
 
 	s.proxy, err = srv.New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: s.proxyAddress},
@@ -148,7 +150,10 @@ func (s *HangoutsSuite) SetUpSuite(c *C) {
 	go apiSrv.Serve()
 
 	tsrv, err := auth.NewTunnel(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:32498"},
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        fmt.Sprintf("localhost:%v", freePorts.Pop()),
+		},
 		[]ssh.Signer{s.signer},
 		apiSrv, s.a)
 	c.Assert(err, IsNil)
@@ -196,13 +201,6 @@ func (s *HangoutsSuite) SetUpSuite(c *C) {
 
 	s.webAddress = webServer.URL
 
-	go func() {
-		err := http.ListenAndServe(s.webAddress, webHandler)
-		if err != nil {
-			log.Errorf(err.Error())
-		}
-	}()
-
 	s.teleagent = teleagent.NewTeleAgent(true)
 	err = s.teleagent.Login(s.webAddress, s.user, string(s.pass), s.otp.OTP(), time.Minute)
 	c.Assert(err, IsNil)
@@ -235,11 +233,13 @@ func (s *HangoutsSuite) SetUpSuite(c *C) {
 }
 
 func (s *HangoutsSuite) TestHangout(c *C) {
+	ports, err := utils.GetFreeTCPPorts(2)
+	c.Assert(err, IsNil)
 	u, err := user.Current()
 	c.Assert(err, IsNil)
 	osUser := u.Username
-	nodeListeningAddress := "localhost:41003"
-	authListeningAddress := "localhost:41004"
+	nodeListeningAddress := fmt.Sprintf("localhost:%v", ports.Pop())
+	authListeningAddress := fmt.Sprintf("localhost:%v", ports.Pop())
 	DefaultSSHShell = "/bin/sh"
 
 	// Initializing tsh share
@@ -272,7 +272,6 @@ func (s *HangoutsSuite) TestHangout(c *C) {
 	c.Assert(out, Equals, " expr 11 + 22\r\n33\r\n$")
 
 	for i := 0; i < 3; i++ {
-
 		// Initializing tsh join
 		proxy, err := client.ConnectToProxy(s.proxyAddress,
 			[]ssh.AuthMethod{s.teleagent.AuthMethod()}, client.CheckHostSignerFromCache, "anyuser")

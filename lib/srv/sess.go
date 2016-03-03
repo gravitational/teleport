@@ -336,6 +336,14 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 		}
 	}()
 
+	go func() {
+		<-s.closeC
+		if cmd.Process != nil {
+			err := cmd.Process.Kill()
+			p.ctx.Infof("killed process: %v", err)
+		}
+	}()
+
 	return nil
 }
 
