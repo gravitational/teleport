@@ -441,7 +441,7 @@ func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprou
 // Due to the nature of websocket we can't POST parameters as is, so we have
 // to add query parameters. The params query parameter is a url encodeed JSON strucrture:
 //
-// {"addr": "127.0.0.1:5000", "login": "admin", "term": {"h": 120, "w": 100}, "sid": "123"}
+// {"server_id": "uuid", "login": "admin", "term": {"h": 120, "w": 100}, "sid": "123"}
 //
 // Session id can be empty
 //
