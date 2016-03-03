@@ -22,8 +22,8 @@ const ButtonCell = ({ rowIndex, data, ...props }) => {
   let onClick = () => {
     var rowData = data[rowIndex];
     var {sid, addr} = rowData
-    var user = rowData.parties[0].user;
-    open(addr, user, sid);
+    var login = rowData.login;
+    open(addr, login, sid);
   }
 
   return (
@@ -31,6 +31,11 @@ const ButtonCell = ({ rowIndex, data, ...props }) => {
       <button onClick={onClick} className="btn btn-info btn-circle" type="button">
         <i className="fa fa-terminal"></i>
       </button>
+
+      <button className="btn btn-info btn-circle" type="button">
+        <i className="fa fa-play-circle"></i>
+      </button>
+
     </Cell>
   )
 }

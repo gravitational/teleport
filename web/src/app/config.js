@@ -8,18 +8,34 @@ let cfg = {
     renewTokenPath:'/v1/webapi/sessions/renew',
     nodesPath: '/v1/webapi/sites/-current-/nodes',
     sessionPath: '/v1/webapi/sessions',
+    terminalSessionPath: '/v1/webapi/sites/-current-/sessions/:sid',
     invitePath: '/v1/webapi/users/invites/:inviteToken',
     createUserPath: '/v1/webapi/users',
+
+    getTerminalSessionUrl: (sid)=> {
+      return formatPattern(cfg.api.terminalSessionPath, {sid});
+    },
+
     getInviteUrl: (inviteToken) => {
       return formatPattern(cfg.api.invitePath, {inviteToken});
     },
 
-    getEventStreamerConnStr: (token, sid) => {
+    getEventStreamConnStr: (token, sid) => {
       var hostname = getWsHostName();
       return `${hostname}/v1/webapi/sites/-current-/sessions/${sid}/events/stream?access_token=${token}`;
     },
 
-    getSessionConnStr: (token, params) => {
+    getTtyConnStr: ({token, addr, login, sid, rows, cols}) => {
+      var params = {
+        addr,
+        login,
+        sid,
+        term: {
+          h: rows,
+          w: cols
+        }
+      }
+
       var json = JSON.stringify(params);
       var jsonEncoded = window.encodeURI(json);
       var hostname = getWsHostName();

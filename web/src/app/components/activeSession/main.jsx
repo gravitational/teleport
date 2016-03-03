@@ -1,22 +1,12 @@
-var session = require('app/session');
-var cfg = require('app/config');
 var React = require('react');
 var {getters, actions} = require('app/modules/activeTerminal/');
 var EventStreamer = require('./eventStreamer.jsx');
-var {debounce} = require('_');
+var Tty = require('app/common/tty');
+var TtyTerminal = require('./../terminal.jsx');
 
 var ActiveSession = React.createClass({
 
   mixins: [reactor.ReactMixin],
-
-  componentDidMount: function() {
-    //actions.open
-    //actions.open(data[rowIndex].addr, user.logins[i], undefined)}>{user.logins[i]}</a></li>);
-  },
-
-  onOpen(){
-    actions.connected();
-  },
 
   getDataBindings() {
     return {
@@ -28,8 +18,6 @@ var ActiveSession = React.createClass({
     if(!this.state.activeSession){
       return null;
     }
-
-    var {isConnected, ...settings} = this.state.activeSession;
 
     return (
      <div className="grv-terminal-host">
@@ -59,184 +47,33 @@ var ActiveSession = React.createClass({
            </div>
          </div>
        </div>
-       { isConnected ? <EventStreamer sid={settings.sid}/> : null }
-       <TerminalBox settings={settings} onOpen={actions.connected}/>
+       <TtyConnection {...this.state.activeSession} />
      </div>
      );
   }
 });
 
-Terminal.colors[256] = 'inherit';
+var TtyConnection = React.createClass({
 
-var TerminalBox = React.createClass({
-  resize: function(e) {
-    var {cols, rows } = getDimensions(this.refs.container);
-    this.term.resize(cols, rows);
-  },
-
-  connect(cols, rows){
-    let {token} = session.getUserData();
-    let {settings, sid } = this.props;
-
-    settings.term = {
-      h: rows,
-      w: cols
-    };
-
-    let connectionStr = cfg.api.getSessionConnStr(token, settings);
-
-    this.socket = new WebSocket(connectionStr, 'proto');
-
-    this.socket.onmessage = (e) => {
-      this.term.write(e.data);
-    };
-
-    this.socket.onclose = () => {
-      this.term.write('\x1b[31mdisconnected\x1b[m\r\n');
-    };
-
-    this.socket.onopen = () => {
-      this.props.onOpen();
-      this.term.on('data', (data) => {
-        this.socket.send(data);
-      });
-    }
-  },
-
-  destroy(){
-    if(this.socket){
-      this.socket.close();
-    }
-
-    this.term.destroy();
-  },
-
-  renderTerminal() {
-    var {cols, rows} = getDimensions(this.refs.container);
-    var {settings, token, sid } = this.props;
-
-    this.term = new Terminal({
-      cols,
-      rows,
-      useStyle: true,
-      screenKeys: true,
-      cursorBlink: true
-    });
-
-    this.term.open(this.refs.container);
-    this.connect(cols, rows);
-    this.resize();
-  },
-
-  componentDidMount: function() {
-    this.renderTerminal();
-    this.resize = debounce(this.resize, 100);
-    window.addEventListener('resize', this.resize);
-  },
-
-  componentWillUnmount: function() {
-    this.destroy();
-    window.removeEventListener('resize', this.resize);
-  },
-
-  shouldComponentUpdate: function() {
-    return false;
-  },
-
-  render: function() {
-    return (
-        <div className="grv-terminal" id="terminal-box" ref="container">
-        </div>
-    );
-  }
-});
-
-function getDimensions(container){
-  var $container = $(container);
-  var $term = $container.find('.terminal');
-  var cols, rows;
-
-  if($term.length === 1){
-    let fakeRow = $('<div><span>&nbsp;</span></div>');
-    $term.append(fakeRow);
-    // get div height
-    let fakeColHeight = fakeRow[0].getBoundingClientRect().height;
-    // get span width
-    let fakeColWidth = fakeRow.children().first()[0].getBoundingClientRect().width;
-    cols = Math.floor($container.width() / (fakeColWidth || 9));
-    rows = Math.floor($container.height() / (fakeColHeight|| 20));
-    fakeRow.remove();
-  }else{
-    // some default values (just to init)
-    cols = Math.floor($container.width() / 9) - 1;
-    rows = Math.floor($container.height() / 20);
-  }
-
-  return {cols, rows};
-}
-
-export default ActiveSession;
-export {TerminalBox, ActiveSession};
-
-
-/*
-
-/*var TtyConnection = React.createClass({
-
-  getInitialState: function() {
-    return {
-      isConnected: false,
-      isConnecting: true,
-      msg: 'Connecting...'
-    }
-  },
-
-  componentDidMount: function() {
-    let {token} = session.getUserData();
-    let {settings, sid } = this.props;
-
-    settings.term = {
-      h: rows,
-      w: cols
-    };
-
-    let connectionStr = cfg.api.getSessionConnStr(token, settings);
-    this.socket = new WebSocket(connectionStr, 'proto');
-
-    this.socket.onmessage = (e)=>{
-      this.setState({
-        ...this.state,
-        data: e.data
-      })
-    }
-
-    this.socket.onclose = ()=>{
-      this.setState({
-        ...this.state,
-        isConnected: false,
-        data: 'disconneted'
-      })
-    };
-
-    this.socket.onopen = () => {
-      this.setState({
-        isConnected: true
-      });
-    }
+  getInitialState() {
+    this.tty = new Tty(this.props)
+    this.tty.on('open', ()=> this.setState({ isConnected: true }));
+    return {isConnected: false};
   },
 
   componentWillUnmount() {
-    if(this.socket){
-      this.socket.close();
-    }
-  },
-
-  shouldComponentUpdate() {
-    return false;
+    this.tty.disconnect();
   },
 
   render() {
-    return {...this.props.children};
+    let component = new React.Component();
+    return (
+      <component>
+        <TtyTerminal tty={this.tty} cols={this.props.cols} rows={this.props.rows} />
+        { this.state.isConnected ? <EventStreamer sid={this.props.sid}/> : null }
+      </component>
+    )
   }
 });
-*/
+
+export {ActiveSession, TtyConnection};

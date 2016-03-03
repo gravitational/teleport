@@ -17,5 +17,5 @@ function updateSession(state, json){
 }
 
 function receiveSessions(state, json){
-  return toImmutable(json);
+  return state.merge(json);
 }

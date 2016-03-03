@@ -24,8 +24,7 @@ function receiveParties(state, parties){
 }
 
 function setActiveTerminal(state, settings){
-  return toImmutable({
-      parties: [],
+  return toImmutable({      
       isConnecting: true,
       ...settings
   });

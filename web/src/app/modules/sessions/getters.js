@@ -16,6 +16,7 @@ const sessionsView = [['tlpt_sessions'], (sessions) =>{
     return {
       sid: sid,
       addr: parties[0].addr,
+      login: item.get('login'),
       parties: parties
     }
   }).toJS();
