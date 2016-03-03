@@ -147,7 +147,7 @@ func (s *BoltSuite) TestPartiesCRUD(c *C) {
 		ID:         "p1",
 		User:       "bob",
 		RemoteAddr: "example.com",
-		ServerAddr: "localhost:1",
+		ServerID:   "id-1",
 		LastActive: s.clock.UtcNow(),
 	}
 	c.Assert(s.srv.UpsertParty(sess.ID, p1, DefaultActivePartyTTL), IsNil)
@@ -162,7 +162,7 @@ func (s *BoltSuite) TestPartiesCRUD(c *C) {
 		ID:         "p2",
 		User:       "alice",
 		RemoteAddr: "example.com",
-		ServerAddr: "localhost:2",
+		ServerID:   "id-2",
 		LastActive: s.clock.UtcNow(),
 	}
 	c.Assert(s.srv.UpsertParty(sess.ID, p2, DefaultActivePartyTTL), IsNil)

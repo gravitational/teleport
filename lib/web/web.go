@@ -409,18 +409,19 @@ func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprou
 		return nil, trace.Wrap(err)
 	}
 	sessions, err := clt.GetSessions()
+	log.Infof("sessoins: %v", sessions)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	nodeMap := make(map[string]*nodeWithSessions, len(servers))
 	for i := range servers {
-		nodeMap[servers[i].Addr] = &nodeWithSessions{Node: servers[i]}
+		nodeMap[servers[i].ID] = &nodeWithSessions{Node: servers[i]}
 	}
 	for i := range sessions {
 		sess := sessions[i]
 		for _, p := range sess.Parties {
-			if _, ok := nodeMap[p.ServerAddr]; ok {
-				nodeMap[p.ServerAddr].Sessions = append(nodeMap[p.ServerAddr].Sessions, sess)
+			if _, ok := nodeMap[p.ServerID]; ok {
+				nodeMap[p.ServerID].Sessions = append(nodeMap[p.ServerID].Sessions, sess)
 			}
 		}
 	}
