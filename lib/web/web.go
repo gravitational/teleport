@@ -113,7 +113,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	}
 
 	// Helper logout method
-	h.GET("/webapi/logout", httplib.MakeHandler(h.logout))
+	h.GET("/webapi/logout", h.withAuth(h.logout))
 
 	// Web sessions
 	h.POST("/webapi/sessions", httplib.MakeHandler(h.createSession))
