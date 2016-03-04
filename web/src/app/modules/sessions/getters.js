@@ -1,25 +1,25 @@
 var { toImmutable } = require('nuclear-js');
 var reactor = require('app/reactor');
+var cfg = require('app/config');
 
-const sessionsByServer = (addr) => [['tlpt_sessions'], (sessions) =>{
+const sessionsByServer = (serverId) => [['tlpt_sessions'], (sessions) =>{
   return sessions.valueSeq().filter(item=>{
     var parties = item.get('parties') || toImmutable([]);
-    var hasServer = parties.find(item2=> item2.get('server_addr') === addr);
+    var hasServer = parties.find(item2=> item2.get('server_id') === serverId);
     return hasServer;
   }).toList();
 }]
 
 const sessionsView = [['tlpt_sessions'], (sessions) =>{
-  return sessions.valueSeq().map(item=>{
-    var sid = item.get('id');
-    var parties = reactor.evaluate(partiesBySessionId(sid));
-    return {
-      sid: sid,
-      addr: parties[0].addr,
-      login: item.get('login'),
-      parties: parties
-    }
-  }).toJS();
+  return sessions.valueSeq().map(createView).toJS();
+}];
+
+const sessionViewById = (sid)=> [['tlpt_sessions', sid], (session)=>{
+  if(!session){
+    return null;
+  }
+
+  return createView(session);
 }];
 
 const partiesBySessionId = (sid) =>
@@ -35,7 +35,8 @@ const partiesBySessionId = (sid) =>
     var user = item.get('user');
     return {
       user: item.get('user'),
-      addr: item.get('server_addr'),
+      serverIp: item.get('remote_addr'),
+      serverId: item.get('server_id'),
       isActive: lastActiveUsrName === user
     }
   }).toJS();
@@ -45,8 +46,29 @@ function getLastActiveUser(parties){
   return parties.sortBy(item=> new Date(item.get('lastActive'))).first();
 }
 
+function createView(session){
+  var sid = session.get('id');
+  var serverIp, serverId;
+  var parties = reactor.evaluate(partiesBySessionId(sid));
+
+  if(parties.length > 0){
+    serverIp = parties[0].serverIp;
+    serverId = parties[0].serverId;
+  }
+
+  return {
+    sid: sid,
+    sessionUrl: cfg.getActiveSessionRouteUrl(sid),
+    serverIp,
+    serverId,
+    login: session.get('login'),
+    parties: parties
+  }
+}
+
 export default {
   partiesBySessionId,
   sessionsByServer,
-  sessionsView
+  sessionsView,
+  sessionViewById
 }

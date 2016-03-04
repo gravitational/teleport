@@ -60,8 +60,8 @@ type Party struct {
 	RemoteAddr string `json:"remote_addr"`
 	// User is a teleport user using this session
 	User string `json:"user"`
-	// ServerAddr is an address of the server
-	ServerAddr string `json:"server_addr"`
+	// ServerID is an address of the server
+	ServerID string `json:"server_id"`
 	// LastActive is a last time this party was active
 	LastActive time.Time `json:"last_active"`
 }
@@ -70,7 +70,7 @@ type Party struct {
 func (p *Party) String() string {
 	return fmt.Sprintf(
 		"party(id=%v, remote=%v, user=%v, server=%v, last_active=%v)",
-		p.ID, p.RemoteAddr, p.User, p.ServerAddr, p.LastActive,
+		p.ID, p.RemoteAddr, p.User, p.ServerID, p.LastActive,
 	)
 }
 

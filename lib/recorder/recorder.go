@@ -39,8 +39,8 @@ type Chunk struct {
 	Data []byte `json:"data"`
 	// Delay is delay before the previous chunk appeared
 	Delay time.Duration `json:"delay"`
-	// ServerAddr is a server address of the recorded session
-	ServerAddr string `json:"server_addr"`
+	// ServerID is a server ID of the recorded session
+	ServerID string `json:"server_id"`
 }
 
 // ChunkReader is a playback of a recorded session
