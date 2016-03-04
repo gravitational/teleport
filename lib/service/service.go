@@ -76,6 +76,12 @@ func NewTeleport(cfg Config) (Supervisor, error) {
 		}
 	}
 
+	// read or generate a host UUID for this node
+	cfg.HostUUID, err = utils.ReadOrMakeHostUUID(cfg.DataDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// if user started auth and another service (without providing the auth address for
 	// that service, the address of the in-process auth will be used
 	if cfg.Auth.Enabled && len(cfg.AuthServers) == 0 {
