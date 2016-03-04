@@ -4,7 +4,7 @@ var reactor = require('app/reactor');
 var {actions, getters} = require('app/modules/invite');
 var userModule = require('app/modules/user');
 var LinkedStateMixin = require('react-addons-linked-state-mixin');
-var GoogleAuthInfo = require('./googleAuth');
+var GoogleAuthInfo = require('./googleAuthLogo');
 
 var InviteInputForm = React.createClass({
 
