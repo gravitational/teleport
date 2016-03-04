@@ -71,7 +71,7 @@ type HangoutsSuite struct {
 var _ = Suite(&HangoutsSuite{})
 
 func (s *HangoutsSuite) SetUpSuite(c *C) {
-	utils.InitLoggerDebug()
+	utils.InitLoggerCLI()
 	client.KeysDir = c.MkDir()
 	s.dir = c.MkDir()
 

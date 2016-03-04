@@ -204,7 +204,6 @@ func newSession(id string, r *sessionRegistry, context *ctx) (*session, error) {
 		login:    context.login,
 		closeC:   make(chan bool),
 	}
-	go sess.pollAndSyncTerm()
 	return sess, nil
 }
 
@@ -282,6 +281,7 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 			return trace.Wrap(err)
 		}
 	}
+	go s.pollAndSyncTerm()
 	cmd := exec.Command(s.registry.srv.shell)
 	// TODO(klizhentas) figure out linux user policy for launching shells,
 	// what user and environment should we use to execute the shell? the simplest
@@ -377,6 +377,7 @@ func (s *session) syncTerm(sessionServer rsession.Service) error {
 		log.Infof("syncTerm: no session")
 		return trace.Wrap(err)
 	}
+	log.Infof("syncTerm: term: %v", s.term)
 	winSize, err := s.term.getWinsize()
 	if err != nil {
 		log.Infof("syncTerm: no terminal")

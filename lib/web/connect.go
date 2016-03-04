@@ -107,11 +107,17 @@ func (w *connectHandler) resizePTYWindow(params session.TerminalParams) error {
 }
 
 func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
-	methods, err := w.ctx.GetAuthMethods()
+	agent, err := w.ctx.GetAgent()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	client, err := w.site.ConnectToServer(w.req.Addr, w.req.Login, methods)
+	defer agent.Close()
+	signers, err := agent.Signers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	client, err := w.site.ConnectToServer(
+		w.req.Addr, w.req.Login, []ssh.AuthMethod{ssh.PublicKeys(signers...)})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

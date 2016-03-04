@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -401,20 +400,8 @@ func (s *SrvSuite) TestProxy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
 
-	user := "user1"
-	pass := []byte("utndkrn")
-
-	hotpURL, _, err := s.a.UpsertPassword(user, pass)
-	c.Assert(err, IsNil)
-	otp, _, err := hotp.FromURL(hotpURL)
-	c.Assert(err, IsNil)
-	otp.Increment()
-
-	authMethod, err := auth.NewWebPasswordAuth(user, pass, otp.OTP())
-	c.Assert(err, IsNil)
-
 	tunClt, err := auth.NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()}, user, authMethod)
+		utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()}, s.domainName, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
 	c.Assert(err, IsNil)
 	defer tunClt.Close()
 
@@ -606,20 +593,8 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
 
-	user := "user1"
-	pass := []byte("utndkrn")
-
-	hotpURL, _, err := s.a.UpsertPassword(user, pass)
-	c.Assert(err, IsNil)
-	otp, _, err := hotp.FromURL(hotpURL)
-	c.Assert(err, IsNil)
-	otp.Increment()
-
-	authMethod, err := auth.NewWebPasswordAuth(user, pass, otp.OTP())
-	c.Assert(err, IsNil)
-
 	tunClt, err := auth.NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()}, user, authMethod)
+		utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()}, s.domainName, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
 	c.Assert(err, IsNil)
 	defer tunClt.Close()
 
@@ -716,20 +691,8 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
 
-	user := "user1"
-	pass := []byte("utndkrn")
-
-	hotpURL, _, err := s.a.UpsertPassword(user, pass)
-	c.Assert(err, IsNil)
-	otp, _, err := hotp.FromURL(hotpURL)
-	c.Assert(err, IsNil)
-	otp.Increment()
-
-	authMethod, err := auth.NewWebPasswordAuth(user, pass, otp.OTP())
-	c.Assert(err, IsNil)
-
 	tunClt, err := auth.NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()}, user, authMethod)
+		utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()}, s.domainName, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
 	c.Assert(err, IsNil)
 	defer tunClt.Close()
 
