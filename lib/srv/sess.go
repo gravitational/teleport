@@ -56,9 +56,15 @@ func (s *sessionRegistry) newShell(sid string, sconn *ssh.ServerConn, ch ssh.Cha
 	if err := sess.start(sconn, ch, ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	s.sessions[sess.id] = sess
+	s.addSession(sess)
 	ctx.Infof("created session: %v", sess.id)
 	return nil
+}
+
+func (s *sessionRegistry) addSession(sess *session) {
+	s.Lock()
+	defer s.Unlock()
+	s.sessions[sess.id] = sess
 }
 
 func (s *sessionRegistry) joinShell(sid string, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
@@ -317,7 +323,10 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	s.addParty(p)
 
 	// Pipe session to shell and visa-versa capturing input and output
+	s.term.Add(1)
 	go func() {
+		// notify terminal about a copy process going on
+		defer s.term.Add(-1)
 		written, err := io.Copy(s.writer, s.term.pty)
 		p.ctx.Infof("shell to channel copy closed, bytes written: %v, err: %v",
 			written, err)
@@ -376,7 +385,6 @@ func (s *session) syncTerm(sessionServer rsession.Service) error {
 		log.Infof("syncTerm: no session")
 		return trace.Wrap(err)
 	}
-	log.Infof("syncTerm: term: %v", s.term)
 	winSize, err := s.term.getWinsize()
 	if err != nil {
 		log.Infof("syncTerm: no terminal")
@@ -415,7 +423,9 @@ func (s *session) addParty(p *party) {
 	s.parties[p.id] = p
 	s.writer.addWriter(p.id, p, true)
 	p.ctx.addCloser(p)
+	s.term.Add(1)
 	go func() {
+		defer s.term.Add(-1)
 		written, err := io.Copy(s.term.pty, p)
 		p.ctx.Infof("channel to shell copy closed, bytes written: %v, err: %v",
 			written, err)

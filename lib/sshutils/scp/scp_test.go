@@ -54,7 +54,7 @@ func (s *SCPSuite) TestSendFile(c *C) {
 	c.Assert(err, IsNil)
 
 	outDir := c.MkDir()
-	cmd, in, out, epipe := command("scp", "-v", "-t", outDir)
+	cmd, in, out, _ := command("scp", "-v", "-t", outDir)
 
 	errC := make(chan error, 2)
 	successC := make(chan bool)
@@ -72,12 +72,6 @@ func (s *SCPSuite) TestSendFile(c *C) {
 		}
 		log.Infof("run completed")
 		close(successC)
-	}()
-
-	go func() {
-		for {
-			io.Copy(log.StandardLogger().Out, epipe)
-		}
 	}()
 
 	select {
@@ -106,7 +100,7 @@ func (s *SCPSuite) TestReceiveFile(c *C) {
 	srv, err := New(Command{Sink: true, Target: outDir})
 	c.Assert(err, IsNil)
 
-	cmd, in, out, epipe := command("scp", "-v", "-f", source)
+	cmd, in, out, _ := command("scp", "-v", "-f", source)
 
 	errC := make(chan error, 3)
 	successC := make(chan bool, 1)
@@ -129,12 +123,6 @@ func (s *SCPSuite) TestReceiveFile(c *C) {
 		}
 		log.Infof("run completed")
 		successC <- true
-	}()
-
-	go func() {
-		for {
-			io.Copy(log.StandardLogger().Out, epipe)
-		}
 	}()
 
 	select {
@@ -168,7 +156,7 @@ func (s *SCPSuite) TestSendDir(c *C) {
 
 	outDir := c.MkDir()
 
-	cmd, in, out, epipe := command("scp", "-v", "-r", "-t", outDir)
+	cmd, in, out, _ := command("scp", "-v", "-r", "-t", outDir)
 
 	errC := make(chan error, 2)
 	successC := make(chan bool)
@@ -186,12 +174,6 @@ func (s *SCPSuite) TestSendDir(c *C) {
 		}
 		log.Infof("run completed")
 		close(successC)
-	}()
-
-	go func() {
-		for {
-			io.Copy(log.StandardLogger().Out, epipe)
-		}
 	}()
 
 	select {
@@ -231,7 +213,7 @@ func (s *SCPSuite) TestReceiveDir(c *C) {
 	srv, err := New(Command{Sink: true, Target: outDir, Recursive: true})
 	c.Assert(err, IsNil)
 
-	cmd, in, out, epipe := command("scp", "-v", "-r", "-f", dir)
+	cmd, in, out, _ := command("scp", "-v", "-r", "-f", dir)
 
 	errC := make(chan error, 2)
 	successC := make(chan bool)
@@ -246,12 +228,6 @@ func (s *SCPSuite) TestReceiveDir(c *C) {
 		in.Close()
 		log.Infof("run completed")
 		close(successC)
-	}()
-
-	go func() {
-		for {
-			io.Copy(log.StandardLogger().Out, epipe)
-		}
 	}()
 
 	select {

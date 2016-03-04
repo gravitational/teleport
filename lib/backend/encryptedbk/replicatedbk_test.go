@@ -90,7 +90,7 @@ func (s *ReplicatedBkSuite) TestDataIsEncrypted(c *C) {
 	c.Assert(string(out), Equals, "val1")
 
 	// checking value as it saved
-	out, err = s.bk.baseBk.GetVal(append(s.bk.ebk[0].prefix, "a", "b"), "bkey")
+	out, err = s.bk.baseBk.GetVal(append(s.bk.encryptedBackends[0].prefix, "a", "b"), "bkey")
 	c.Assert(err, IsNil)
 	c.Assert(string(out) == "val1", Equals, false)
 
@@ -115,12 +115,12 @@ func (s *ReplicatedBkSuite) TestSeveralKeys(c *C) {
 	key2, err := s.bk.GenerateSealKey("key2")
 
 	///c.Assert(s.bk.ebk[1].encryptor.AddSignCheckingKey(keys[0]), IsNil) ///
-	val, err = s.bk.ebk[1].GetVal([]string{"a1"}, "b1")
+	val, err = s.bk.encryptedBackends[1].GetVal([]string{"a1"}, "b1")
 	c.Assert(err, IsNil)
 	c.Assert(string(val), Equals, "val1")
 
-	c.Assert(s.bk.ebk[0].VerifySign(), IsNil)
-	c.Assert(s.bk.ebk[1].VerifySign(), IsNil)
+	c.Assert(s.bk.encryptedBackends[0].VerifySign(), IsNil)
+	c.Assert(s.bk.encryptedBackends[1].VerifySign(), IsNil)
 
 	c.Assert(s.bk.RewriteData(), IsNil)
 
@@ -278,7 +278,7 @@ func (s *ReplicatedBkSuite) TestSeveralAuthServers(c *C) {
 		encryptor.GenerateGPGKey)
 	c.Assert(err, IsNil)
 
-	c.Assert(len(bk4.ebk), Equals, 3)
+	c.Assert(len(bk4.encryptedBackends), Equals, 3)
 	bk4Keys, err := bk4.keyStore.GetKeys()
 	c.Assert(err, IsNil)
 	c.Assert(len(bk4Keys), Equals, 3)

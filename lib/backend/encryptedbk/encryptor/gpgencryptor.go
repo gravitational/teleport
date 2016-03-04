@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package encryptor
 
 import (
@@ -23,11 +24,11 @@ import (
 	"io/ioutil"
 	"sync"
 
-	"golang.org/x/crypto/openpgp"
-	"golang.org/x/crypto/openpgp/packet"
+	"github.com/gravitational/teleport"
 
 	"github.com/gravitational/trace"
-
+	"golang.org/x/crypto/openpgp"
+	"golang.org/x/crypto/openpgp/packet"
 	_ "golang.org/x/crypto/ripemd160"
 )
 
@@ -44,7 +45,8 @@ func NewGPGEncryptor(key Key) (*GPGEncryptor, error) {
 	e.Mutex = &sync.Mutex{}
 
 	if key.PublicValue == nil && key.PrivateValue == nil {
-		return nil, trace.Errorf("no values were found in the provided key")
+		return nil, trace.Wrap(
+			teleport.BadParameter("key", "no values were found in the provided key"))
 	}
 
 	if key.PublicValue != nil {
@@ -73,7 +75,7 @@ func (e *GPGEncryptor) SetSignKey(key Key) error {
 	defer e.Unlock()
 
 	if key.PrivateValue == nil {
-		return trace.Errorf("no private key was provided in the sign key")
+		return trace.Wrap(teleport.BadParameter("key", "no private key was provided in the sign key"))
 	}
 	var err error
 	e.signEntity, err = openpgp.ReadEntity(
@@ -89,7 +91,7 @@ func (e *GPGEncryptor) AddSignCheckingKey(key Key) error {
 	defer e.Unlock()
 
 	if key.PublicValue == nil {
-		return trace.Errorf("no public key was provided in the sign checking key")
+		return trace.Wrap(teleport.BadParameter("key", "no public key was provided in the sign key"))
 	}
 	signCheckingEntity, err := openpgp.ReadEntity(
 		packet.NewReader(bytes.NewBuffer(key.PublicValue)))
@@ -139,7 +141,7 @@ func (e *GPGEncryptor) Encrypt(data []byte) ([]byte, error) {
 	}
 	entityList := openpgp.EntityList{e.publicEntity}
 	// encrypt string
-	buf := new(bytes.Buffer)
+	buf := &bytes.Buffer{}
 	w, err := openpgp.Encrypt(buf, entityList, e.signEntity, nil, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -152,12 +154,10 @@ func (e *GPGEncryptor) Encrypt(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	bytes, err := ioutil.ReadAll(buf)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	hexString := hex.EncodeToString(bytes)
 
 	return []byte(hexString), nil
