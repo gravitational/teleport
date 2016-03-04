@@ -1,55 +1,69 @@
 var reactor = require('app/reactor');
+var session = require('app/session');
 var {uuid} = require('app/utils');
 var api = require('app/services/api');
 var cfg = require('app/config');
-var invariant = require('invariant');
 var getters = require('./getters');
+var sessionModule = require('./../sessions');
 
-var {
-  TLPT_TERM_OPEN,
-  TLPT_TERM_CLOSE,
-  TLPT_TERM_CONNECTED,
-  TLPT_TERM_RECEIVE_PARTIES }  = require('./actionTypes');
+var { TLPT_TERM_OPEN, TLPT_TERM_CLOSE } = require('./actionTypes');
 
-export default {
+var actions = {
 
   close(){
     reactor.dispatch(TLPT_TERM_CLOSE);
+    session.getHistory().push(cfg.routes.sessions);
   },
 
   resize(w, h){
-    invariant(w > 5 || h > 5, 'invalid resize parameters');
+    // some min values
+    w = w < 5 ? 5 : w;
+    h = h < 5 ? 5 : h;
+
     let reqData = { terminal_params: { w, h } };
     let {sid} = reactor.evaluate(getters.activeSession);
 
-    api.put(cfg.api.getTerminalSessionUrl(sid), reqData).done(()=>{
-      console.log(`resize with w:${w} and h:${h} - OK`);
-    }).fail(()=>{
-      console.log(`failed to resize with w:${w} and h:${h}`);
+    api.put(cfg.api.getTerminalSessionUrl(sid), reqData)
+      .done(()=>{
+        console.log(`resize with w:${w} and h:${h} - OK`);
+      })
+      .fail(()=>{
+        console.log(`failed to resize with w:${w} and h:${h}`);
     })
   },
 
-  connected(){
-    reactor.dispatch(TLPT_TERM_CONNECTED);
+  openSession(sid){
+    sessionModule.actions.fetchSession(sid)
+      .done(()=>{
+        let sView = reactor.evaluate(sessionModule.getters.sessionViewById(sid));
+        let { serverId, login } = sView;
+        reactor.dispatch(TLPT_TERM_OPEN, {
+            serverId,
+            login,
+            sid,
+            isNewSession: false
+          });
+      })
+      .fail(()=>{
+        session.getHistory().push(cfg.routes.pageNotFound);
+      })
   },
 
-  receiveParties(json){
-    var parties = json.map(item=>{
-      return {
-        user: item.user,
-        lastActive: new Date(item.last_active)
-      }
-    })
+  createNewSession(serverId, login){
+    var sid = uuid();
+    var routeUrl = cfg.getActiveSessionRouteUrl(sid);
+    var history = session.getHistory();
 
-    reactor.dispatch(TLPT_TERM_RECEIVE_PARTIES, parties);
-  },
+    reactor.dispatch(TLPT_TERM_OPEN, {
+      serverId,
+      login,
+      sid,
+      isNewSession: true
+    });
 
-  open(serverId, login, sid){
-    let isNew = !sid;
-    if(isNew){
-      sid = uuid();
-    }
-
-    reactor.dispatch(TLPT_TERM_OPEN, {serverId, login, sid, isNew} );
+    history.push(routeUrl);
   }
+
 }
+
+export default actions;

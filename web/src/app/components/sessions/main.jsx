@@ -1,5 +1,6 @@
 var React = require('react');
 var reactor = require('app/reactor');
+var { Link } = require('react-router');
 var {Table, Column, Cell, TextCell} = require('app/components/table.jsx');
 var {getters} = require('app/modules/sessions');
 var {open} = require('app/modules/activeTerminal/actions');
@@ -19,23 +20,15 @@ const UsersCell = ({ rowIndex, data, ...props }) => {
 };
 
 const ButtonCell = ({ rowIndex, data, ...props }) => {
-  let onClick = () => {
-    var rowData = data[rowIndex];
-    var {sid, serverId} = rowData
-    var login = rowData.login;
-    open(serverId, login, sid);
-  }
-
+  var sessionUrl = data[rowIndex].sessionUrl;
   return (
     <Cell {...props}>
-      <button onClick={onClick} className="btn btn-info btn-circle" type="button">
+      <Link to={sessionUrl} className="btn btn-info btn-circle" type="button">
         <i className="fa fa-terminal"></i>
-      </button>
-
+      </Link>
       <button className="btn btn-info btn-circle" type="button">
         <i className="fa fa-play-circle"></i>
       </button>
-
     </Cell>
   )
 }

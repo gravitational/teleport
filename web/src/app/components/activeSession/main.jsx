@@ -3,8 +3,10 @@ var {getters, actions} = require('app/modules/activeTerminal/');
 var EventStreamer = require('./eventStreamer.jsx');
 var Tty = require('app/common/tty');
 var TtyTerminal = require('./../terminal.jsx');
+var NotFoundPage = require('app/components/notFoundPage.jsx');
 
-var ActiveSession = React.createClass({
+
+var ActiveSessionHost = React.createClass({
 
   mixins: [reactor.ReactMixin],
 
@@ -14,11 +16,25 @@ var ActiveSession = React.createClass({
     }
   },
 
+  componentDidMount(){
+    var { sid } = this.props.params;
+    if(!this.state.activeSession){
+      actions.openSession(sid);
+    }
+  },
+
   render: function() {
     if(!this.state.activeSession){
       return null;
     }
 
+    return <ActiveSession activeSession={this.state.activeSession}/>;
+  }
+});
+
+
+var ActiveSession = React.createClass({
+  render: function() {
     return (
      <div className="grv-terminal-host">
        <div className="grv-terminal-participans">
@@ -47,7 +63,7 @@ var ActiveSession = React.createClass({
            </div>
          </div>
        </div>
-       <TtyConnection {...this.state.activeSession} />
+       <TtyConnection {...this.props.activeSession} />
      </div>
      );
   }
@@ -76,4 +92,4 @@ var TtyConnection = React.createClass({
   }
 });
 
-export {ActiveSession, TtyConnection};
+module.exports = {ActiveSession, ActiveSessionHost};

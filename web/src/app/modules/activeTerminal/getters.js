@@ -6,7 +6,7 @@ const activeSession = [
     }
 
     let view = {
-      isNew: activeTerm.get('isNew'),
+      notFound: activeTerm.get('notFound'),
       addr: activeTerm.get('addr'),
       serverId: activeTerm.get('serverId'),
       login: activeTerm.get('login'),

@@ -1,5 +1,6 @@
 var { toImmutable } = require('nuclear-js');
 var reactor = require('app/reactor');
+var cfg = require('app/config');
 
 const sessionsByServer = (serverId) => [['tlpt_sessions'], (sessions) =>{
   return sessions.valueSeq().filter(item=>{
@@ -10,17 +11,15 @@ const sessionsByServer = (serverId) => [['tlpt_sessions'], (sessions) =>{
 }]
 
 const sessionsView = [['tlpt_sessions'], (sessions) =>{
-  return sessions.valueSeq().map(item=>{
-    var sid = item.get('id');
-    var parties = reactor.evaluate(partiesBySessionId(sid));
-    return {
-      sid: sid,
-      serverIp: parties[0].serverIp,
-      serverId: parties[0].serverId,
-      login: item.get('login'),
-      parties: parties
-    }
-  }).toJS();
+  return sessions.valueSeq().map(createView).toJS();
+}];
+
+const sessionViewById = (sid)=> [['tlpt_sessions', sid], (session)=>{
+  if(!session){
+    return null;
+  }
+
+  return createView(session);
 }];
 
 const partiesBySessionId = (sid) =>
@@ -47,8 +46,22 @@ function getLastActiveUser(parties){
   return parties.sortBy(item=> new Date(item.get('lastActive'))).first();
 }
 
+function createView(session){
+  var sid = session.get('id');
+  var parties = reactor.evaluate(partiesBySessionId(sid));
+  return {
+    sid: sid,
+    sessionUrl: cfg.getActiveSessionRouteUrl(sid),
+    serverIp: parties[0].serverIp,
+    serverId: parties[0].serverId,
+    login: session.get('login'),
+    parties: parties
+  }
+}
+
 export default {
   partiesBySessionId,
   sessionsByServer,
-  sessionsView
+  sessionsView,
+  sessionViewById
 }
