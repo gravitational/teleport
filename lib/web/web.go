@@ -112,6 +112,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 		h.sessionStreamPollPeriod = defaultPollPeriod
 	}
 
+	// Helper logout method
+	h.GET("/webapi/logout", httplib.MakeHandler(h.logout))
+
 	// Web sessions
 	h.POST("/webapi/sessions", httplib.MakeHandler(h.createSession))
 	h.DELETE("/webapi/sessions/:sid", h.withAuth(h.deleteSession))
@@ -211,6 +214,24 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 	return newSessionResponse(sess), nil
+}
+
+// logout is a helper that deletes
+//
+// GET /v1/webapi/logout
+//
+// Response - redirects to /web/login and deletes current session
+//
+//
+func (m *Handler) logout(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *sessionContext) (interface{}, error) {
+	if err := ctx.Invalidate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := ClearSession(w); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	http.Redirect(w, r, "/web/login", http.StatusFound)
+	return nil, nil
 }
 
 // deleteSession is called to sign out user
