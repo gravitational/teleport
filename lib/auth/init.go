@@ -191,19 +191,18 @@ func InitKeys(a *AuthServer, domainName, dataDir string) (ssh.Signer, error) {
 	return i.KeySigner, nil
 }
 
+// writeKeys saves the key/cert pair for a given domain onto disk. This usually means the
+// domain trusts us (signed our public key)
 func writeKeys(domainName, dataDir string, key []byte, cert []byte) error {
 	kp, cp := keysPath(domainName, dataDir)
-
 	log.Debugf("write key to %v, cert from %v", kp, cp)
 
 	if err := ioutil.WriteFile(kp, key, 0600); err != nil {
 		return err
 	}
-
 	if err := ioutil.WriteFile(cp, cert, 0600); err != nil {
 		return err
 	}
-
 	return nil
 }
 
