@@ -79,6 +79,7 @@ func requestPTY(req *ssh.Request) (*terminal, *rsession.TerminalParams, error) {
 }
 
 func (t *terminal) getWinsize() (*term.Winsize, error) {
+	log.Infof("pty: %v", t.pty)
 	ws, err := term.GetWinsize(t.pty.Fd())
 	if err != nil {
 		return nil, trace.Wrap(err)

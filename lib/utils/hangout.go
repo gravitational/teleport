@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package utils
 
 import (
@@ -23,10 +24,10 @@ import (
 )
 
 type HangoutInfo struct {
-	AuthPort  string
-	NodePort  string
-	HangoutID string
-	OSUser    string
+	AuthPort  string `json:"auth_port"`
+	NodePort  string `json:"node_port"`
+	HangoutID string `json:"hangout_id"`
+	OSUser    string `json:"os_user"`
 }
 
 func MarshalHangoutInfo(h *HangoutInfo) (string, error) {
