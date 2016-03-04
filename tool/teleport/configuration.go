@@ -284,12 +284,6 @@ func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 
 	// apply --auth-server flag:
 	if clf.AuthServerAddr != "" {
-		if clf.NodeName == "" {
-			return cfg, trace.Errorf("Need --name flag")
-		}
-		if clf.AuthToken == "" {
-			return cfg, trace.Errorf("Need --token flag")
-		}
 		if cfg.Auth.Enabled {
 			log.Warnf("not starting the local auth service. --auth-server flag tells to connect to another auth server")
 			cfg.Auth.Enabled = false
@@ -304,9 +298,6 @@ func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 
 	// apply --name flag:
 	if clf.NodeName != "" {
-		if clf.NodeName == "" {
-			return cfg, trace.Errorf("Need --name flag")
-		}
 		cfg.Hostname = clf.NodeName
 	}
 

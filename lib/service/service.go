@@ -281,23 +281,32 @@ func RegisterWithAuthServer(
 		return callback()
 	}
 
+	authServer := cfg.AuthServers[0].Addr
+
+	// see if we've registered with this auth server before
+	_, err = auth.ReadIdentity(cfg.Hostname, cfg.DataDir)
+	previouslyRegistered := (err == nil)
+
 	// this means the server has not been initialized yet, we are starting
 	// the registering client that attempts to connect to the auth server
 	// and provision the keys
-
 	supervisor.RegisterFunc(func() error {
-		log.Infof("teleport:register connecting to auth servers %v", provisioningToken)
-		registered := false
-		for !registered {
-			if err := auth.Register(cfg.Hostname, cfg.DataDir,
-				provisioningToken, role, cfg.AuthServers); err != nil {
-				log.Errorf("[SSH] failed to register with the auth server. %v", err)
-				time.Sleep(time.Second * 5)
-			} else {
-				registered = true
+		registered := previouslyRegistered && provisioningToken == ""
+		if registered {
+			log.Infof("already a member of the cluster with the auth server: %v", authServer)
+		} else {
+			for {
+				log.Infof("joining the cluster with a token %v", provisioningToken)
+				err := auth.Register(cfg.Hostname, cfg.DataDir, provisioningToken, role, cfg.AuthServers)
+				if err != nil {
+					log.Errorf("[SSH] failed to join the cluster: %v", err)
+					time.Sleep(time.Second * 5)
+				} else {
+					break
+				}
 			}
+			utils.Consolef(os.Stdout, "[SSH] Successfully registered with the auth server %v", authServer)
 		}
-		utils.Consolef(os.Stdout, "[SSH] Successfully registered with the auth server %v", cfg.AuthServers[0].Addr)
 		return callback()
 	})
 	return nil

@@ -69,7 +69,6 @@ func (api *APIWithRoles) Serve() {
 	for role, _ := range api.listeners {
 		wg.Add(1)
 		go func(listener net.Listener, handler http.Handler) {
-			log.Debugf("[api_with_roles] about to call http.Serve() on a listener")
 			if err := http.Serve(listener, handler); (err != nil) && (err != io.EOF) {
 				log.Errorf(err.Error())
 			}
