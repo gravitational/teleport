@@ -160,11 +160,11 @@ func New(addr utils.NetAddr,
 	advertiseIP net.IP,
 	options ...ServerOption) (*Server, error) {
 
+	// read the host UUID:
 	uuid, err := utils.ReadOrMakeHostUUID(dataDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("node UUID: %v", uuid)
 
 	s := &Server{
 		addr:        addr,

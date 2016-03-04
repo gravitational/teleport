@@ -306,7 +306,7 @@ func (a *Agent) proxyAccessPoint(ch ssh.Channel, req <-chan *ssh.Request) {
 
 	conn, err := a.clt.GetDialer()()
 	if err != nil {
-		a.log.Errorf("%v error dialing: %v", a, err)
+		a.log.Errorf("error dialing: %v", err)
 		return
 	}
 

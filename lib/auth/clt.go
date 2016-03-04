@@ -227,6 +227,8 @@ func (c *Client) GenerateToken(nodename string, role teleport.Role, ttl time.Dur
 	return token, nil
 }
 
+// RegisterUserToken calls the auth service API to register a new node via registration token
+// which has been previously issued via GenerateToken
 func (c *Client) RegisterUsingToken(token, nodename string, role teleport.Role) (PackedKeys, error) {
 	out, err := c.PostJSON(c.Endpoint("tokens", "register"),
 		registerUsingTokenReq{

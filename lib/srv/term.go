@@ -79,6 +79,7 @@ func requestPTY(req *ssh.Request) (*terminal, *rsession.TerminalParams, error) {
 }
 
 func (t *terminal) getWinsize() (*term.Winsize, error) {
+	log.Infof("pty: %v", t.pty)
 	ws, err := term.GetWinsize(t.pty.Fd())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -105,7 +106,7 @@ func (t *terminal) run(c *exec.Cmd) error {
 	c.Stderr = t.tty
 	c.SysProcAttr.Setctty = true
 	c.SysProcAttr.Setsid = true
-	return c.Start()
+	return trace.Wrap(c.Start())
 }
 
 func (t *terminal) Close() error {
@@ -118,7 +119,7 @@ func (t *terminal) Close() error {
 			err = e
 		}
 	}
-	return err
+	return trace.Wrap(err)
 }
 
 func parseWinChange(req *ssh.Request) (*rsession.TerminalParams, error) {
