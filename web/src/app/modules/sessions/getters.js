@@ -48,12 +48,19 @@ function getLastActiveUser(parties){
 
 function createView(session){
   var sid = session.get('id');
+  var serverIp, serverId;
   var parties = reactor.evaluate(partiesBySessionId(sid));
+
+  if(parties.length > 0){
+    serverIp = parties[0].serverIp;
+    serverId = parties[0].serverId;
+  }
+
   return {
     sid: sid,
     sessionUrl: cfg.getActiveSessionRouteUrl(sid),
-    serverIp: parties[0].serverIp,
-    serverId: parties[0].serverId,
+    serverIp,
+    serverId,
     login: session.get('login'),
     parties: parties
   }

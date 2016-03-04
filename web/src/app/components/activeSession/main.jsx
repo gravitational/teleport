@@ -39,9 +39,11 @@ var ActiveSession = React.createClass({
      <div className="grv-terminal-host">
        <div className="grv-terminal-participans">
          <ul className="nav">
+           {/*
            <li><button className="btn btn-primary btn-circle" type="button"> <strong>A</strong></button></li>
            <li><button className="btn btn-primary btn-circle" type="button"> B </button></li>
            <li><button className="btn btn-primary btn-circle" type="button"> C </button></li>
+           */}
            <li>
              <button onClick={actions.close} className="btn btn-danger btn-circle" type="button">
                <i className="fa fa-times"></i>
@@ -50,7 +52,7 @@ var ActiveSession = React.createClass({
          </ul>
        </div>
        <div>
-         <div className="btn-group">
+         {/*<div className="btn-group">
            <span className="btn btn-xs btn-primary">128.0.0.1:8888</span>
            <div className="btn-group">
              <button data-toggle="dropdown" className="btn btn-default btn-xs dropdown-toggle" aria-expanded="true">
@@ -61,7 +63,7 @@ var ActiveSession = React.createClass({
                <li><a href="#" target="_blank">Logs</a></li>
              </ul>
            </div>
-         </div>
+         </div>*/}
        </div>
        <TtyConnection {...this.props.activeSession} />
      </div>

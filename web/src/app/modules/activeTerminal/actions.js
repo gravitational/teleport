@@ -11,8 +11,15 @@ var { TLPT_TERM_OPEN, TLPT_TERM_CLOSE } = require('./actionTypes');
 var actions = {
 
   close(){
+    let {isNewSession} = reactor.evaluate(getters.activeSession);
+
     reactor.dispatch(TLPT_TERM_CLOSE);
-    session.getHistory().push(cfg.routes.sessions);
+
+    if(isNewSession){
+      session.getHistory().push(cfg.routes.nodes);
+    }else{
+      session.getHistory().push(cfg.routes.sessions);
+    }
   },
 
   resize(w, h){
