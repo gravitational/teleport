@@ -57,6 +57,10 @@ type Config struct {
 	// via multiple reverse tunnels
 	Proxy ProxyConfig
 
+	// Unique UUID of this host (it will be known via this UUID within
+	// a teleport cluster). It's automatically generated on 1st start
+	HostUUID string
+
 	// Console writer to speak to a user
 	Console io.Writer
 }
