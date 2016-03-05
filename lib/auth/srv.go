@@ -193,12 +193,13 @@ type upsertServerReq struct {
 	TTL    time.Duration   `json:"ttl"`
 }
 
+// upsertServer is called by remote SSH nodes when they ping back into the auth service
 func (s *APIServer) upsertServer(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req upsertServerReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("[AUTH API] upsertServer. RemoteAddr=%v", r.RemoteAddr)
+	log.Debugf("[AUTH API] ping from %v", r.RemoteAddr)
 
 	// if server sent "local" IP address to us, replace the ip/host part with the remote address we see
 	// on the socket, but keep the original port:

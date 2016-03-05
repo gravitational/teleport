@@ -3,7 +3,7 @@ package web
 import (
 	"encoding/json"
 	"fmt"
-	"net/url"
+	"net"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -23,15 +23,17 @@ const (
 // SSHAgentLogin issues call to web proxy and receives temp certificate
 // if credentials are valid
 func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte, ttl time.Duration, insecure bool) (*SSHLoginResponse, error) {
-
-	u, err := url.Parse(proxyAddr)
-	if err != nil {
+	// validate proxyAddr:
+	host, port, err := net.SplitHostPort(proxyAddr)
+	if err != nil || host == "" || port == "" {
+		if err != nil {
+			log.Error(err)
+		}
 		return nil, trace.Wrap(
 			teleport.BadParameter("proxyAddress",
-				fmt.Sprintf("'%v' is not a valid URL", proxyAddr)))
+				fmt.Sprintf("'%v' is not a valid proxy address", proxyAddr)))
 	}
-	u.Scheme = HTTPS
-	proxyAddr = u.String()
+	proxyAddr = "https://" + net.JoinHostPort(host, port)
 
 	var opts []roundtrip.ClientParam
 	if insecure {
