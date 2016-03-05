@@ -492,6 +492,9 @@ type TunClient struct {
 }
 
 func NewTunClient(addr utils.NetAddr, user string, auth []ssh.AuthMethod) (*TunClient, error) {
+	if user == "" {
+		return nil, trace.Errorf("SSH connection requires a valid username")
+	}
 	tc := &TunClient{
 		dialer: &TunDialer{auth: auth, addr: addr, user: user},
 	}
@@ -574,7 +577,7 @@ func (t *TunDialer) getClient() (*ssh.Client, error) {
 		Auth: t.auth,
 	}
 	client, err := ssh.Dial(t.addr.AddrNetwork, t.addr.Addr, config)
-	log.Infof("TunDialer.getClient(%v)", t.addr.String())
+	log.Debugf("TunDialer.getClient(%v)", t.addr.String())
 	if err != nil {
 		log.Infof("TunDialer could not ssh.Dial: %v", err)
 		return nil, trace.Wrap(err)
@@ -596,14 +599,14 @@ type tunConn struct {
 }
 
 func (c *tunConn) Close() error {
-	log.Infof("tunConn: close!")
+	log.Debugf("tunConn: close!")
 	err := c.Conn.Close()
 	err = c.client.Close()
 	return trace.Wrap(err)
 }
 
 func (t *TunDialer) Dial(network, address string) (net.Conn, error) {
-	log.Infof("TunDialer.Dial(%v, %v)", network, address)
+	log.Debugf("TunDialer.Dial(%v, %v)", network, address)
 	client, err := t.getClient()
 	if err != nil {
 		return nil, trace.Wrap(

@@ -133,7 +133,7 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 					return nil, nil, trace.Wrap(err)
 				}
 
-				if err := asrv.UpsertToken(token, domainName, role, 600*time.Second); err != nil {
+				if err := asrv.UpsertToken(token, role, 600*time.Second); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 			}

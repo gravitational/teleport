@@ -406,9 +406,8 @@ func (s *APIServer) generateUserCert(w http.ResponseWriter, r *http.Request, _ h
 }
 
 type generateTokenReq struct {
-	Domain string        `json:"domain"`
-	Role   teleport.Role `json:"role"`
-	TTL    time.Duration `json:"ttl"`
+	Role teleport.Role `json:"role"`
+	TTL  time.Duration `json:"ttl"`
 }
 
 func (s *APIServer) generateToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
@@ -416,7 +415,7 @@ func (s *APIServer) generateToken(w http.ResponseWriter, r *http.Request, _ http
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	token, err := s.a.GenerateToken(req.Domain, req.Role, req.TTL)
+	token, err := s.a.GenerateToken(req.Role, req.TTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -424,7 +423,7 @@ func (s *APIServer) generateToken(w http.ResponseWriter, r *http.Request, _ http
 }
 
 type registerUsingTokenReq struct {
-	Domain string        `json:"domain"`
+	HostID string        `json:"hostID"`
 	Role   teleport.Role `json:"role"`
 	Token  string        `json:"token"`
 }
@@ -434,7 +433,7 @@ func (s *APIServer) registerUsingToken(w http.ResponseWriter, r *http.Request, _
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys, err := s.a.RegisterUsingToken(req.Token, req.Domain, req.Role)
+	keys, err := s.a.RegisterUsingToken(req.Token, req.HostID, req.Role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -442,9 +441,8 @@ func (s *APIServer) registerUsingToken(w http.ResponseWriter, r *http.Request, _
 }
 
 type registerNewAuthServerReq struct {
-	Domain string        `json:"domain"`
-	Token  string        `json:"token"`
-	Key    encryptor.Key `json:"key"`
+	Token string        `json:"token"`
+	Key   encryptor.Key `json:"key"`
 }
 
 func (s *APIServer) registerNewAuthServer(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
@@ -452,7 +450,7 @@ func (s *APIServer) registerNewAuthServer(w http.ResponseWriter, r *http.Request
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	key, err := s.a.RegisterNewAuthServer(req.Domain, req.Token, req.Key)
+	key, err := s.a.RegisterNewAuthServer(req.Token, req.Key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

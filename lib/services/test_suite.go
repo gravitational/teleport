@@ -305,10 +305,9 @@ func (s *ServicesTestSuite) TokenCRUD(c *C) {
 	_, err := s.ProvisioningS.GetToken("token")
 	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 
-	c.Assert(s.ProvisioningS.UpsertToken("token", "a.example.com", "RoleExample", 0), IsNil)
+	c.Assert(s.ProvisioningS.UpsertToken("token", "RoleExample", 0), IsNil)
 
 	token, err := s.ProvisioningS.GetToken("token")
-	c.Assert(token.DomainName, Equals, "a.example.com")
 	c.Assert(token.Role, Equals, "RoleExample")
 	c.Assert(err, IsNil)
 
