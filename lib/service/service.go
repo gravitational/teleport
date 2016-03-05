@@ -264,20 +264,10 @@ func RegisterWithAuthServer(
 	if len(cfg.AuthServers) == 0 {
 		return trace.Errorf("supply at least one auth server")
 	}
-
-	// check host SSH keys
-	haveKeys, err := auth.HaveHostKeys(cfg.DataDir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if haveKeys {
-		return callback()
-	}
-
 	authServer := cfg.AuthServers[0].Addr
 
 	// see if we've registered with this auth server before
-	_, err = auth.ReadIdentity(cfg.DataDir)
+	_, err := auth.ReadIdentity(cfg.DataDir)
 	previouslyRegistered := (err == nil)
 
 	// this means the server has not been initialized yet, we are starting
