@@ -105,6 +105,9 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.POST("/v1/events", httplib.MakeHandler(srv.submitEvents))
 	srv.GET("/v1/events", httplib.MakeHandler(srv.getEvents))
 
+	srv.POST("/v1/events/sessions", httplib.MakeHandler(srv.logSessionEvents))
+	srv.GET("/v1/events/sessions", httplib.MakeHandler(srv.getSessionEvents))
+
 	// Recorded sessions
 	srv.POST("/v1/records/:sid/chunks", httplib.MakeHandler(srv.submitChunks))
 	srv.GET("/v1/records/:sid/chunks", httplib.MakeHandler(srv.getChunks))
@@ -475,6 +478,25 @@ func (s *APIServer) submitEvents(w http.ResponseWriter, r *http.Request, _ httpr
 	return message("events submitted"), nil
 }
 
+type logSessionsReq struct {
+	Sessions []session.Session `json:"sessions"`
+}
+
+func (s *APIServer) logSessionEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
+	var req *logSessionsReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for i := range req.Sessions {
+		if err := s.a.LogSession(req.Sessions[i]); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return message("session events submitted"), nil
+}
+
 func (s *APIServer) getEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
 	f, err := events.FilterFromURL(r.URL.Query())
 	if err != nil {
@@ -485,6 +507,18 @@ func (s *APIServer) getEvents(w http.ResponseWriter, r *http.Request, _ httprout
 		return nil, trace.Wrap(err)
 	}
 	return events, nil
+}
+
+func (s *APIServer) getSessionEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
+	f, err := events.FilterFromURL(r.URL.Query())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sessionEvents, err := s.a.GetSessionEvents(*f)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sessionEvents, nil
 }
 
 type writeChunksReq struct {

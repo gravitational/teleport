@@ -292,6 +292,11 @@ func (s *APISuite) TestEvents(c *C) {
 	suite.EventsCRUD(c)
 }
 
+func (s *APISuite) TestSessionEvents(c *C) {
+	suite := etest.EventSuite{L: s.clt}
+	suite.SessionsCRUD(c)
+}
+
 func (s *APISuite) TestRecorder(c *C) {
 	suite := rtest.RecorderSuite{R: s.clt}
 	suite.Recorder(c)

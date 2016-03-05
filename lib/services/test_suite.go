@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/suite"
 
 	"github.com/gokyle/hotp"
-	"github.com/mailgun/lemma/random"
 	"golang.org/x/crypto/ssh"
 
 	. "gopkg.in/check.v1"
@@ -386,12 +385,4 @@ func toSet(vals []User) map[string]User {
 		out[v.Name] = v
 	}
 	return out
-}
-
-func randomToken() string {
-	token, err := (&random.CSPRNG{}).HexDigest(32)
-	if err != nil {
-		panic(err)
-	}
-	return token
 }

@@ -274,6 +274,11 @@ func (c *Client) LogEntry(en lunk.Entry) error {
 	return trace.Wrap(err)
 }
 
+func (c *Client) LogSession(sess session.Session) error {
+	_, err := c.PostJSON(c.Endpoint("events", "sessions"), logSessionsReq{Sessions: []session.Session{sess}})
+	return trace.Wrap(err)
+}
+
 func (c *Client) GetEvents(filter events.Filter) ([]lunk.Entry, error) {
 	vals, err := events.FilterToURL(filter)
 	if err != nil {
@@ -284,6 +289,22 @@ func (c *Client) GetEvents(filter events.Filter) ([]lunk.Entry, error) {
 		return nil, trace.Wrap(err)
 	}
 	var events []lunk.Entry
+	if err := json.Unmarshal(out.Bytes(), &events); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return events, nil
+}
+
+func (c *Client) GetSessionEvents(filter events.Filter) ([]session.Session, error) {
+	vals, err := events.FilterToURL(filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := c.Get(c.Endpoint("events", "sessions"), vals)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var events []session.Session
 	if err := json.Unmarshal(out.Bytes(), &events); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -688,7 +709,9 @@ type ClientI interface {
 	RegisterNewAuthServer(domainName, token string, publicSealKey encryptor.Key) (masterKey encryptor.Key, e error)
 	Log(id lunk.EventID, e lunk.Event)
 	LogEntry(en lunk.Entry) error
+	LogSession(sess session.Session) error
 	GetEvents(filter events.Filter) ([]lunk.Entry, error)
+	GetSessionEvents(filter events.Filter) ([]session.Session, error)
 	GetChunkWriter(id string) (recorder.ChunkWriteCloser, error)
 	GetChunkReader(id string) (recorder.ChunkReadCloser, error)
 	UpsertServer(s services.Server, ttl time.Duration) error
