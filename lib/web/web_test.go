@@ -746,6 +746,13 @@ func (s *WebSuite) TestPlayback(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(json.Unmarshal(re.Bytes(), &chunks), IsNil)
 	c.Assert(len(chunks.Chunks), Not(Equals), 0)
+
+	var chunksCount *siteSessionGetChunksCountResponse
+	re, err = pack.clt.Get(
+		pack.clt.Endpoint("webapi", "sites", s.domainName, "sessions", sid, "chunkscount"), url.Values{})
+	c.Assert(err, IsNil)
+	c.Assert(json.Unmarshal(re.Bytes(), &chunksCount), IsNil)
+	c.Assert(int(chunksCount.Count), Not(Equals), 0)
 }
 
 func (s *WebSuite) TestSessionEvents(c *C) {

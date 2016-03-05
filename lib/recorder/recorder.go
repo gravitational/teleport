@@ -47,6 +47,7 @@ type Chunk struct {
 type ChunkReader interface {
 	// ReadChunks returns a list of chunks from start to end indexes
 	ReadChunks(start int, end int) ([]Chunk, error)
+	GetChunksCount() (uint64, error)
 }
 
 // ChunkReadCloser implements chunk reader + adds closer
