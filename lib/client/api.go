@@ -163,6 +163,7 @@ func (tc *TeleportClient) SSH(command string) (err error) {
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
+	log.Infof("connected to proxy %v", proxyClient.proxyAddress)
 	if len(command) > 0 {
 		return tc.runCommand(proxyClient, command)
 	}

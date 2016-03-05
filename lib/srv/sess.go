@@ -195,7 +195,7 @@ func newSession(id string, r *sessionRegistry, context *ctx) (*session, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		rsess.TerminalParams.W = int(winsize.Width)
+		rsess.TerminalParams.W = int(winsize.Width - 1)
 		rsess.TerminalParams.H = int(winsize.Height)
 	}
 	err := r.srv.sessionServer.CreateSession(rsess)
@@ -291,6 +291,7 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	}
 	go s.pollAndSyncTerm()
 	cmd := exec.Command(s.registry.srv.shell)
+
 	// TODO(klizhentas) figure out linux user policy for launching shells,
 	// what user and environment should we use to execute the shell? the simplest
 	// answer is to use current user and env, however  what if we are root?

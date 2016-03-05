@@ -391,7 +391,7 @@ func (s *AuthTunnel) passwordAuth(
 		log.Infof("session authenticated user: '%v'", conn.User())
 		return perms, nil
 	case AuthToken:
-		_, err := s.authServer.ValidateToken(string(ab.Pass), ab.User)
+		_, err := s.authServer.ValidateToken(string(ab.Pass))
 		if err != nil {
 			log.Errorf("token validation error: %v", err)
 			return nil, trace.Wrap(err, fmt.Sprintf("failed to validate user: %v", ab.User))

@@ -88,19 +88,7 @@ func (s *directSite) Dial(network string, addr string) (net.Conn, error) {
 
 func (s *directSite) DialServer(addr string) (net.Conn, error) {
 	s.log.Infof("DialServer(addr=%v)", addr)
-	clt, err := s.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	knownServers, err := clt.GetServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	server, err := findServer(addr, knownServers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return s.Dial("tcp", server.Addr)
+	return s.Dial("tcp", addr)
 }
 
 func (s *directSite) GetHangoutInfo() (*HangoutSiteInfo, error) {

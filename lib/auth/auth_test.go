@@ -91,40 +91,36 @@ func (s *AuthSuite) TestSessions(c *C) {
 }
 
 func (s *AuthSuite) TestTokensCRUD(c *C) {
-	tok, err := s.a.GenerateToken("a.example.com", "Node", 0)
+	tok, err := s.a.GenerateToken("Node", 0)
 	c.Assert(err, IsNil)
 	c.Assert(len(tok), Equals, 2*TokenLenBytes+1)
 	c.Assert(tok[0:1], Equals, "n")
 
-	role, err := s.a.ValidateToken(tok, "a.example.com")
+	role, err := s.a.ValidateToken(tok)
 	c.Assert(err, IsNil)
 	c.Assert(role, Equals, "Node")
 
 	c.Assert(s.a.DeleteToken(tok), IsNil)
 	c.Assert(s.a.DeleteToken(tok), FitsTypeOf, &teleport.NotFoundError{})
 
-	_, err = s.a.ValidateToken(tok, "a.example.com")
+	_, err = s.a.ValidateToken(tok)
 	c.Assert(err, NotNil)
 }
 
 func (s *AuthSuite) TestBadTokens(c *C) {
 	// empty
-	_, err := s.a.ValidateToken("", "")
+	_, err := s.a.ValidateToken("")
 	c.Assert(err, NotNil)
 
 	// garbage
-	_, err = s.a.ValidateToken("bla bla", " hello !!<")
+	_, err = s.a.ValidateToken("bla bla")
 	c.Assert(err, NotNil)
 
 	// tampered
-	tok, err := s.a.GenerateToken("a.example.com", "Auth", 0)
+	tok, err := s.a.GenerateToken("Auth", 0)
 	c.Assert(err, IsNil)
 
 	tampered := string(tok[0]+1) + tok[1:]
-	_, err = s.a.ValidateToken(tampered, "a.example.com")
-	c.Assert(err, NotNil)
-
-	// wrong domainName
-	_, err = s.a.ValidateToken(tok, "b.example.com")
+	_, err = s.a.ValidateToken(tampered)
 	c.Assert(err, NotNil)
 }

@@ -95,14 +95,19 @@ func CreateTLSConfiguration(certFile, keyFile string) (*tls.Config, error) {
 	return config, nil
 }
 
+type TLSCredentials struct {
+	PrivateKey []byte
+	Cert       []byte
+}
+
 // GenerateSelfSignedCert generates a self signed certificate that
 // is valid for given domain names and ips, returns PEM-encoded bytes with key and cert
-func GenerateSelfSignedCert(domainNames []string, IPAddresses []string) ([]byte, []byte, error) {
+func GenerateSelfSignedCert(domainNames []string, IPAddresses []string) (*TLSCredentials, error) {
 	ips := make([]net.IP, len(IPAddresses))
 	for i, addr := range IPAddresses {
 		ip := net.ParseIP(addr)
 		if ip == nil {
-			return nil, nil, trace.Wrap(
+			return nil, trace.Wrap(
 				teleport.BadParameter("ip", fmt.Sprintf("%v is not a valid IP", addr)))
 		}
 		ips[i] = ip
@@ -110,7 +115,7 @@ func GenerateSelfSignedCert(domainNames []string, IPAddresses []string) ([]byte,
 
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	notBefore := time.Now()
@@ -119,7 +124,7 @@ func GenerateSelfSignedCert(domainNames []string, IPAddresses []string) ([]byte,
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	template := x509.Certificate{
@@ -147,13 +152,13 @@ func GenerateSelfSignedCert(domainNames []string, IPAddresses []string) ([]byte,
 		&priv.PublicKey, // public key of the signee
 		priv)            // private key of the signer
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
-	keyPEM := pem.EncodeToMemory(pemBlockForRSAKey(priv))
-
-	return keyPEM, certPEM, nil
+	return &TLSCredentials{
+		PrivateKey: pem.EncodeToMemory(pemBlockForRSAKey(priv)),
+		Cert:       pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes}),
+	}, nil
 }
 
 func pemBlockForRSAKey(priv interface{}) *pem.Block {

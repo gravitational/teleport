@@ -340,6 +340,8 @@ func (s *WebService) UpsertPassword(user string,
 }
 
 func (s *WebService) CheckPassword(user string, password []byte, hotpToken string) error {
+	log.Infof("user: %v, pass: %v, token: %v", user, string(password), hotpToken)
+
 	if err := verifyPassword(password); err != nil {
 		return trace.Wrap(err)
 	}
