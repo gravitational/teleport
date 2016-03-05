@@ -211,7 +211,7 @@ func (s *AuthServer) GenerateToken(role teleport.Role, ttl time.Duration) (strin
 	return outputToken, nil
 }
 
-func (s *AuthServer) ValidateToken(token, domainName string) (role string, e error) {
+func (s *AuthServer) ValidateToken(token string) (role string, e error) {
 	token, _, err := services.SplitTokenRole(token)
 	if err != nil {
 		return "", trace.Wrap(err)

@@ -303,7 +303,7 @@ func (s *APISuite) TestRecorder(c *C) {
 }
 
 func (s *APISuite) TestTokens(c *C) {
-	out, err := s.clt.GenerateToken("a.example.com", "Node", 0)
+	out, err := s.clt.GenerateToken("Node", 0)
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Not(Equals), 0)
 }

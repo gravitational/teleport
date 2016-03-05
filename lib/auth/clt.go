@@ -244,9 +244,7 @@ func (c *Client) RegisterUsingToken(token, hostID string, role teleport.Role) (P
 	return keys, nil
 }
 
-func (c *Client) RegisterNewAuthServer(nodename, token string,
-	publicSealKey encryptor.Key) (masterKey encryptor.Key, e error) {
-
+func (c *Client) RegisterNewAuthServer(token string, publicSealKey encryptor.Key) (masterKey encryptor.Key, e error) {
 	out, err := c.PostJSON(c.Endpoint("tokens", "register", "auth"), registerNewAuthServerReq{
 		Token: token,
 		Key:   publicSealKey,
@@ -703,7 +701,7 @@ type ClientI interface {
 	DeleteCertAuthority(caType services.CertAuthID) error
 	GenerateToken(role teleport.Role, ttl time.Duration) (string, error)
 	RegisterUsingToken(token, hostID string, role teleport.Role) (keys PackedKeys, e error)
-	RegisterNewAuthServer(domainName, token string, publicSealKey encryptor.Key) (masterKey encryptor.Key, e error)
+	RegisterNewAuthServer(token string, publicSealKey encryptor.Key) (masterKey encryptor.Key, e error)
 	Log(id lunk.EventID, e lunk.Event)
 	LogEntry(en lunk.Entry) error
 	LogSession(sess session.Session) error

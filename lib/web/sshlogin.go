@@ -22,6 +22,8 @@ const (
 
 // SSHAgentLogin issues call to web proxy and receives temp certificate
 // if credentials are valid
+//
+// proxyAddr must be specified as host:port
 func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte, ttl time.Duration, insecure bool) (*SSHLoginResponse, error) {
 	// validate proxyAddr:
 	host, port, err := net.SplitHostPort(proxyAddr)

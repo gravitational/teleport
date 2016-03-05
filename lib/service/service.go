@@ -575,6 +575,7 @@ func initSelfSignedHTTPSCert(cfg *Config) (keyPath string, certPath string, err 
 	log.Warningf("[CONFIG] NO TLS Keys provided, using self signed certificate")
 	keyPath = filepath.Join(cfg.DataDir, selfSignedKeyPath)
 	certPath = filepath.Join(cfg.DataDir, selfSignedCertPath)
+	pubPath := filepath.Join(cfg.DataDir, selfSignedPubPath)
 
 	// return the existing pair if they ahve already been generated:
 	_, err = tls.LoadX509KeyPair(certPath, keyPath)
@@ -585,22 +586,29 @@ func initSelfSignedHTTPSCert(cfg *Config) (keyPath string, certPath string, err 
 		return "", "", trace.Wrap(err, "unrecognized error reading certs")
 	}
 	log.Warningf("[CONFIG] Generating self signed key and cert to %v %v", keyPath, certPath)
-	keyPEM, certPEM, err := utils.GenerateSelfSignedCert([]string{cfg.Hostname}, []string{"127.0.0.1"})
+
+	creds, err := utils.GenerateSelfSignedCert([]string{cfg.Hostname}, []string{"127.0.0.1"})
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
-	if err := ioutil.WriteFile(keyPath, keyPEM, 0600); err != nil {
+
+	if err := ioutil.WriteFile(keyPath, creds.PrivateKey, 0600); err != nil {
 		return "", "", trace.Wrap(err, "error writing key PEM")
 	}
-	if err := ioutil.WriteFile(certPath, certPEM, 0600); err != nil {
+	if err := ioutil.WriteFile(certPath, creds.Cert, 0600); err != nil {
+		return "", "", trace.Wrap(err, "error writing key PEM")
+	}
+	if err := ioutil.WriteFile(pubPath, creds.PublicKey, 0600); err != nil {
 		return "", "", trace.Wrap(err, "error writing key PEM")
 	}
 	return keyPath, certPath, nil
 }
 
 const (
-	// path to a self-signed TLS key file for HTTPS connection for the web proxy
+	// path to a self-signed TLS PRIVATE key file for HTTPS connection for the web proxy
 	selfSignedKeyPath = "webproxy_https.key"
+	// path to a self-signed TLS PUBLIC key file for HTTPS connection for the web proxy
+	selfSignedPubPath = "webproxy_https.pub"
 	// path to a self-signed TLS cert file for HTTPS connection for the web proxy
 	selfSignedCertPath = "webproxy_https.cert"
 )

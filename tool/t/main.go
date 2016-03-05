@@ -47,10 +47,8 @@ type CLIConf struct {
 	NodePort int16
 	// Login on a remote SSH host
 	NodeLogin string
-
-	// InsecureSkipVerify bypasses verification of server certificate
+	// InsecureSkipVerify bypasses verification of HTTPS certificate when talking to web proxy
 	InsecureSkipVerify bool
-
 	// IsUnderTest is set to true for unit testing
 	IsUnderTest bool
 }

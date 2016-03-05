@@ -77,7 +77,7 @@ func RegisterNewAuth(domainName, token string, publicSealKey encryptor.Key,
 	}
 	defer client.Close()
 
-	return client.RegisterNewAuthServer(domainName, tok, publicSealKey)
+	return client.RegisterNewAuthServer(tok, publicSealKey)
 }
 
 func readToken(token string) (string, error) {

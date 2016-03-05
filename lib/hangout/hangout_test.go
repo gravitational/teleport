@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"fmt"
 	"net/http/httptest"
+	"net/url"
 	"os/user"
 	"path/filepath"
 	"testing"
@@ -199,7 +200,8 @@ func (s *HangoutsSuite) SetUpSuite(c *C) {
 	webServer := httptest.NewUnstartedServer(webHandler)
 	webServer.StartTLS()
 
-	s.webAddress = webServer.URL
+	proxyUrl, _ := url.Parse(webServer.URL)
+	s.webAddress = proxyUrl.Host
 
 	s.teleagent = teleagent.NewTeleAgent(true)
 	err = s.teleagent.Login(s.webAddress, s.user, string(s.pass), s.otp.OTP(), time.Minute)
