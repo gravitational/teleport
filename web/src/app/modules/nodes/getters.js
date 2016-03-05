@@ -3,11 +3,13 @@ var {sessionsByServer} = require('./../sessions/getters');
 
 const nodeListView = [ ['tlpt_nodes'], (nodes) =>{
     return nodes.map((item)=>{
-      var addr = item.get('addr');
-      var sessions = reactor.evaluate(sessionsByServer(addr));
+      var serverId = item.get('id');
+      var sessions = reactor.evaluate(sessionsByServer(serverId));
       return {
+        id: serverId,
+        hostname: item.get('hostname'),
         tags: getTags(item),
-        addr: addr,
+        addr: item.get('addr'),
         sessionCount: sessions.size
       }
     }).toJS();
@@ -44,5 +46,5 @@ function getTags(node){
 
 
 export default {
-  nodeListView  
+  nodeListView
 }

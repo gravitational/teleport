@@ -13,9 +13,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package services
 
 import (
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -262,41 +264,40 @@ func (s *ServicesTestSuite) Locking(c *C) {
 	c.Assert(s.LockS.ReleaseLock(tok1), FitsTypeOf, &teleport.NotFoundError{})
 
 	c.Assert(s.LockS.AcquireLock(tok1, 30*time.Second), IsNil)
-	x := 7
+	x := int32(7)
 	go func() {
-		time.Sleep(1 * time.Second)
-		x = 9
+		atomic.StoreInt32(&x, 9)
 		c.Assert(s.LockS.ReleaseLock(tok1), IsNil)
 	}()
 	c.Assert(s.LockS.AcquireLock(tok1, 0), IsNil)
-	x = x * 2
-	c.Assert(x, Equals, 18)
+	atomic.AddInt32(&x, 9)
+
+	c.Assert(atomic.LoadInt32(&x), Equals, int32(18))
 	c.Assert(s.LockS.ReleaseLock(tok1), IsNil)
 
 	c.Assert(s.LockS.AcquireLock(tok1, 0), IsNil)
-	x = 7
+	atomic.StoreInt32(&x, 7)
 	go func() {
-		time.Sleep(1 * time.Second)
-		x = 9
+		atomic.StoreInt32(&x, 9)
 		c.Assert(s.LockS.ReleaseLock(tok1), IsNil)
 	}()
 	c.Assert(s.LockS.AcquireLock(tok1, 0), IsNil)
-	x = x * 2
-	c.Assert(x, Equals, 18)
+	atomic.AddInt32(&x, 9)
+	c.Assert(atomic.LoadInt32(&x), Equals, int32(18))
 	c.Assert(s.LockS.ReleaseLock(tok1), IsNil)
 
-	y := 0
+	y := int32(0)
 	go func() {
 		c.Assert(s.LockS.AcquireLock(tok1, 0), IsNil)
 		c.Assert(s.LockS.AcquireLock(tok2, 0), IsNil)
 
 		c.Assert(s.LockS.ReleaseLock(tok1), IsNil)
 		c.Assert(s.LockS.ReleaseLock(tok2), IsNil)
-		y = 15
+		atomic.StoreInt32(&y, 15)
 	}()
 
 	time.Sleep(1 * time.Second)
-	c.Assert(y, Equals, 15)
+	c.Assert(atomic.LoadInt32(&y), Equals, int32(15))
 
 	c.Assert(s.LockS.ReleaseLock(tok1), FitsTypeOf, &teleport.NotFoundError{})
 }

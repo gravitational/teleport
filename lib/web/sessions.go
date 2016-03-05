@@ -31,7 +31,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"github.com/mailgun/ttlmap"
-	"golang.org/x/crypto/ssh"
 )
 
 // sessionContext is a context associated with users'
@@ -116,18 +115,14 @@ func (c *sessionContext) CreateWebSession() (*auth.Session, error) {
 	return sess, nil
 }
 
-// GetAuthMethods returns authentication methods (credentials) that proxy
-// can use to connect to servers
-func (c *sessionContext) GetAuthMethods() ([]ssh.AuthMethod, error) {
+// GetAgent returns agent that can we used to answer challenges
+// for the web to ssh connection
+func (c *sessionContext) GetAgent() (auth.AgentCloser, error) {
 	a, err := c.clt.GetAgent()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signers, err := a.Signers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return []ssh.AuthMethod{ssh.PublicKeys(signers...)}, nil
+	return a, nil
 }
 
 // Close cleans up connections associated with requests

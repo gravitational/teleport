@@ -362,6 +362,10 @@ func (s *server) upsertRegularSite(conn net.Conn, sshConn *ssh.ServerConn) (*tun
 		return nil, trace.Wrap(teleport.BadParameter(
 			"authDomain", fmt.Sprintf("'%v' is a bad domain name", domainName)))
 	}
+
+	s.Lock()
+	defer s.Unlock()
+
 	var site *tunnelSite
 	for _, st := range s.tunnelSites {
 		if st.domainName == domainName {
@@ -370,9 +374,6 @@ func (s *server) upsertRegularSite(conn net.Conn, sshConn *ssh.ServerConn) (*tun
 		}
 	}
 	log.Infof("found authority domain: %v", domainName)
-
-	s.Lock()
-	defer s.Unlock()
 
 	var err error
 	if site != nil {
@@ -392,16 +393,24 @@ func (s *server) upsertRegularSite(conn net.Conn, sshConn *ssh.ServerConn) (*tun
 	return site, nil
 }
 
-func (s *server) upsertHangoutSite(conn net.Conn, sshConn ssh.Conn) (*tunnelSite, error) {
+func (s *server) tryInsertHangoutSite(hangoutID string, remoteSite *tunnelSite) error {
 	s.Lock()
 	defer s.Unlock()
 
-	hangoutID := sshConn.User()
 	for _, st := range s.tunnelSites {
 		if st.domainName == hangoutID {
-			return nil, trace.Errorf("Hangout ID is already used")
+			return trace.Wrap(
+				teleport.BadParameter("hangoutID",
+					fmt.Sprintf("%v hangout id is already used", hangoutID)))
 		}
 	}
+	s.tunnelSites = append(s.tunnelSites, remoteSite)
+	return nil
+
+}
+
+func (s *server) upsertHangoutSite(conn net.Conn, sshConn ssh.Conn) (*tunnelSite, error) {
+	hangoutID := sshConn.User()
 
 	site, err := newRemoteSite(s, hangoutID)
 	if err != nil {
@@ -441,26 +450,36 @@ func (s *server) upsertHangoutSite(conn net.Conn, sshConn ssh.Conn) (*tunnelSite
 	}
 
 	// receiving hangoutInfo using sessions just as storage
-	sess, err := clt.GetSessions()
+	sessions, err := clt.GetSessions()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(sess) != 1 {
-		return nil, trace.Wrap(&teleport.NotFoundError{
-			Message: fmt.Sprintf("hangout %v not found", hangoutID),
-		})
+	var hangoutInfo *utils.HangoutInfo
+	for _, sess := range sessions {
+		info, err := utils.UnmarshalHangoutInfo(sess.ID)
+		if err != nil {
+			log.Infof("failed to unmarshal hangout info: %v", err)
+		}
+		if info.HangoutID == hangoutID {
+			hangoutInfo = info
+			break
+		}
 	}
-	hangoutInfo, err := utils.UnmarshalHangoutInfo(sess[0].ID)
-	if err != nil {
-		return nil, err
+	if hangoutInfo == nil {
+		return nil, trace.Wrap(teleport.NotFound(
+			fmt.Sprintf("hangout %v not found", hangoutID)))
 	}
-	site.domainName = hangoutInfo.HangoutID
 
+	// TODO(klizhentas) refactor this
+	site.domainName = hangoutInfo.HangoutID
 	site.hangoutInfo.OSUser = hangoutInfo.OSUser
 	site.hangoutInfo.AuthPort = hangoutInfo.AuthPort
 	site.hangoutInfo.NodePort = hangoutInfo.NodePort
 
-	s.tunnelSites = append(s.tunnelSites, site)
+	if err := s.tryInsertHangoutSite(hangoutID, site); err != nil {
+		defer conn.Close()
+		return nil, trace.Wrap(err)
+	}
 	return site, nil
 }
 
@@ -677,6 +696,12 @@ func (s *tunnelSite) GetStatus() string {
 	return RemoteSiteStatusOnline
 }
 
+func (s *tunnelSite) setLastActive(t time.Time) {
+	s.Lock()
+	defer s.Unlock()
+	s.lastActive = t
+}
+
 func (s *tunnelSite) handleHeartbeat(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	go func() {
 		for {
@@ -685,8 +710,7 @@ func (s *tunnelSite) handleHeartbeat(ch ssh.Channel, reqC <-chan *ssh.Request) {
 				s.log.Infof("agent disconnected")
 				return
 			}
-			//s.log.Debugf("ping")
-			s.lastActive = time.Now()
+			s.setLastActive(time.Now())
 		}
 	}()
 }
@@ -696,6 +720,8 @@ func (s *tunnelSite) GetName() string {
 }
 
 func (s *tunnelSite) GetLastConnected() time.Time {
+	s.Lock()
+	defer s.Unlock()
 	return s.lastActive
 }
 
@@ -824,7 +850,14 @@ func (s *tunnelSite) DialServer(addr string) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	knownServers, err := clt.GetServers()
+	var knownServers []services.Server
+	for i := 0; i < 10; i++ {
+		knownServers, err = clt.GetServers()
+		if err != nil {
+			log.Infof("failed to get servers: %v", err)
+			time.Sleep(time.Second)
+		}
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

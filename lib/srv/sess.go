@@ -56,9 +56,15 @@ func (s *sessionRegistry) newShell(sid string, sconn *ssh.ServerConn, ch ssh.Cha
 	if err := sess.start(sconn, ch, ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	s.sessions[sess.id] = sess
+	s.addSession(sess)
 	ctx.Infof("created session: %v", sess.id)
 	return nil
+}
+
+func (s *sessionRegistry) addSession(sess *session) {
+	s.Lock()
+	defer s.Unlock()
+	s.sessions[sess.id] = sess
 }
 
 func (s *sessionRegistry) joinShell(sid string, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
@@ -204,7 +210,6 @@ func newSession(id string, r *sessionRegistry, context *ctx) (*session, error) {
 		login:    context.login,
 		closeC:   make(chan bool),
 	}
-	go sess.pollAndSyncTerm()
 	return sess, nil
 }
 
@@ -229,7 +234,7 @@ func (s *session) upsertSessionParty(sid string, p *party) error {
 	return s.registry.srv.sessionServer.UpsertParty(sid, rsession.Party{
 		ID:         p.id,
 		User:       p.user,
-		ServerAddr: p.serverAddr,
+		ServerID:   p.serverID,
 		RemoteAddr: p.site,
 		LastActive: p.getLastActive(),
 	}, rsession.DefaultActivePartyTTL)
@@ -245,7 +250,6 @@ func setCmdUser(cmd *exec.Cmd, username string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cmd.Env = []string{"HOME=" + osUser.HomeDir}
 
 	// are we already username?
 	curUser, err := user.Current()
@@ -282,6 +286,7 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 			return trace.Wrap(err)
 		}
 	}
+	go s.pollAndSyncTerm()
 	cmd := exec.Command(s.registry.srv.shell)
 	// TODO(klizhentas) figure out linux user policy for launching shells,
 	// what user and environment should we use to execute the shell? the simplest
@@ -304,7 +309,7 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	p.ctx.Infof("starting shell input/output streaming")
 
 	if s.registry.srv.rec != nil {
-		w, err := newChunkWriter(s.id, s.registry.srv.rec, s.registry.srv.addr.Addr)
+		w, err := newChunkWriter(s.id, s.registry.srv.rec, s.registry.srv.ID())
 		if err != nil {
 			p.ctx.Errorf("failed to create recorder: %v", err)
 			return trace.Wrap(err)
@@ -318,7 +323,10 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	s.addParty(p)
 
 	// Pipe session to shell and visa-versa capturing input and output
+	s.term.Add(1)
 	go func() {
+		// notify terminal about a copy process going on
+		defer s.term.Add(-1)
 		written, err := io.Copy(s.writer, s.term.pty)
 		p.ctx.Infof("shell to channel copy closed, bytes written: %v, err: %v",
 			written, err)
@@ -333,6 +341,14 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 		if result != nil {
 			s.registry.broadcastResult(s.id, *result)
 			p.ctx.Infof("result broadcasted")
+		}
+	}()
+
+	go func() {
+		<-s.closeC
+		if cmd.Process != nil {
+			err := cmd.Process.Kill()
+			p.ctx.Infof("killed process: %v", err)
 		}
 	}()
 
@@ -407,7 +423,9 @@ func (s *session) addParty(p *party) {
 	s.parties[p.id] = p
 	s.writer.addWriter(p.id, p, true)
 	p.ctx.addCloser(p)
+	s.term.Add(1)
 	go func() {
+		defer s.term.Add(-1)
 		written, err := io.Copy(s.term.pty, p)
 		p.ctx.Infof("channel to shell copy closed, bytes written: %v, err: %v",
 			written, err)
@@ -513,22 +531,22 @@ func (m *multiWriter) Write(p []byte) (n int, err error) {
 
 func newParty(s *session, sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) *party {
 	return &party{
-		user:       ctx.teleportUser,
-		serverAddr: s.registry.srv.addr.Addr,
-		site:       sconn.RemoteAddr().String(),
-		id:         uuid.New(),
-		sconn:      sconn,
-		ch:         ch,
-		ctx:        ctx,
-		s:          s,
-		closeC:     make(chan bool),
+		user:     ctx.teleportUser,
+		serverID: s.registry.srv.ID(),
+		site:     sconn.RemoteAddr().String(),
+		id:       uuid.New(),
+		sconn:    sconn,
+		ch:       ch,
+		ctx:      ctx,
+		s:        s,
+		closeC:   make(chan bool),
 	}
 }
 
 type party struct {
 	sync.Mutex
 	user       string
-	serverAddr string
+	serverID   string
 	site       string
 	id         string
 	s          *session
@@ -570,23 +588,23 @@ func (p *party) Close() error {
 	return p.s.registry.leaveShell(p.s.id, p.id)
 }
 
-func newChunkWriter(sessionID string, rec recorder.Recorder, serverAddr string) (*chunkWriter, error) {
+func newChunkWriter(sessionID string, rec recorder.Recorder, serverID string) (*chunkWriter, error) {
 	cw, err := rec.GetChunkWriter(sessionID)
 	if err != nil {
 		return nil, err
 	}
 	return &chunkWriter{
-		w:          cw,
-		rid:        sessionID,
-		serverAddr: serverAddr,
+		w:        cw,
+		rid:      sessionID,
+		serverID: serverID,
 	}, nil
 }
 
 type chunkWriter struct {
-	before     time.Time
-	rid        string
-	w          recorder.ChunkWriteCloser
-	serverAddr string
+	before   time.Time
+	rid      string
+	w        recorder.ChunkWriteCloser
+	serverID string
 }
 
 func (l *chunkWriter) Write(b []byte) (int, error) {
@@ -599,7 +617,7 @@ func (l *chunkWriter) Write(b []byte) (int, error) {
 		l.before = now
 	}
 	cs := []recorder.Chunk{
-		recorder.Chunk{Delay: diff, Data: b, ServerAddr: l.serverAddr},
+		recorder.Chunk{Delay: diff, Data: b, ServerID: l.serverID},
 	}
 	if err := l.w.WriteChunks(cs); err != nil {
 		return 0, err

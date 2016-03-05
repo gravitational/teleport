@@ -3,7 +3,7 @@ var reactor = require('app/reactor');
 var {getters, actions} = require('app/modules/nodes');
 var userGetters = require('app/modules/user/getters');
 var {Table, Column, Cell} = require('app/components/table.jsx');
-var {open} = require('app/modules/activeTerminal/actions');
+var {createNewSession} = require('app/modules/activeTerminal/actions');
 
 const TextCell = ({rowIndex, data, columnKey, ...props}) => (
   <Cell {...props}>
@@ -27,28 +27,33 @@ const LoginCell = ({user, rowIndex, data, ...props}) => {
     return <Cell {...props} />;
   }
 
+  var serverId = data[rowIndex].id;
   var $lis = [];
 
+  function onNewSessionClick(i){
+    var login = user.logins[i];
+    return () => createNewSession(serverId, login);
+  }
+
   for(var i = 0; i < user.logins.length; i++){
-    $lis.push(<li key={i}><a href="#" target="_blank" onClick={open.bind(null, data[rowIndex].addr, user.logins[i], undefined)}>{user.logins[i]}</a></li>);
+    $lis.push(<li key={i}><a onClick={onNewSessionClick(i)}>{user.logins[i]}</a></li>);
   }
 
   return (
     <Cell {...props}>
       <div className="btn-group">
-        <button type="button" onClick={open.bind(null, data[rowIndex].addr, user.logins[0], undefined)} className="btn btn-sm btn-primary">{user.logins[0]}</button>
+        <button type="button" onClick={onNewSessionClick(0)} className="btn btn-sm btn-primary">{user.logins[0]}</button>
         {
           $lis.length > 1 ? (
-            <div className="btn-group">
-              <button data-toggle="dropdown" className="btn btn-default btn-sm dropdown-toggle" aria-expanded="true">
-                <span className="caret"></span>
-              </button>
-              <ul className="dropdown-menu">
-                <li><a href="#" target="_blank">Logs</a></li>
-                <li><a href="#" target="_blank">Logs</a></li>
-              </ul>
-            </div>
-          ): null
+              [
+                <button key={0} data-toggle="dropdown" className="btn btn-default btn-sm dropdown-toggle" aria-expanded="true">
+                  <span className="caret"></span>
+                </button>,
+                <ul key={1} className="dropdown-menu">
+                  {$lis}
+                </ul>
+              ] )
+            : null
         }
       </div>
     </Cell>
@@ -65,7 +70,7 @@ var Nodes = React.createClass({
       user: userGetters.user
     }
   },
-    
+
   render: function() {
     var data = this.state.nodeRecords;
     return (

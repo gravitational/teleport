@@ -5,9 +5,9 @@ var {actions} = require('app/modules/activeTerminal/');
 
 class Tty extends EventEmitter {
 
-  constructor({addr, login, sid, rows, cols }){
+  constructor({serverId, login, sid, rows, cols }){
     super();
-    this.options = { addr, login, sid, rows, cols };
+    this.options = { serverId, login, sid, rows, cols };
     this.socket = null;
   }
 

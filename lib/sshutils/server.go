@@ -216,6 +216,10 @@ func (s *Server) handleRequests(reqs <-chan *ssh.Request) {
 
 func (s *Server) handleChannels(conn net.Conn, sconn *ssh.ServerConn, chans <-chan ssh.NewChannel) {
 	for nch := range chans {
+		if nch == nil {
+			log.Warningf("nil channel: %v", nch)
+			continue
+		}
 		s.newChanHandler.HandleNewChan(conn, sconn, nch)
 	}
 }

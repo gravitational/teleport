@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package utils
 
 import (
@@ -114,26 +115,40 @@ func IsHandshakeFailedError(err error) bool {
 	return strings.Contains(err.Error(), "handshake failed")
 }
 
-func GetFreeTCPPorts(n int) (ports []string, e error) {
+// PortList is a list of TCP port
+type PortList []string
+
+// Pop returns a value from the list, it panics if the value is not there
+func (p *PortList) Pop() string {
+	if len(*p) == 0 {
+		panic("list is empty")
+	}
+	val := (*p)[len(*p)-1]
+	*p = (*p)[:len(*p)-1]
+	return val
+}
+
+// GetFreeTCPPorts returns a lit of available ports on localhost
+// used for testing
+func GetFreeTCPPorts(n int) (PortList, error) {
+	list := make(PortList, 0, n)
 	for i := 0; i < n; i++ {
 		addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		listener, err := net.ListenTCP("tcp", addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		defer listener.Close()
-
 		tcpAddr, ok := listener.Addr().(*net.TCPAddr)
 		if !ok {
 			return nil, trace.Errorf("Can't get tcp address")
 		}
-		ports = append(ports, strconv.Itoa(tcpAddr.Port))
+		list = append(list, strconv.Itoa(tcpAddr.Port))
 	}
-	return ports, nil
+	return list, nil
 }
 
 // ReadOrMakeHostUUID looks for a hostid file in the data dir. If present,

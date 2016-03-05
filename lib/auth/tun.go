@@ -13,15 +13,18 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package auth
 
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -55,8 +58,10 @@ type AuthTunnel struct {
 	limiter         *limiter.Limiter
 }
 
+// ServerOption is the functional argument passed to the server
 type ServerOption func(s *AuthTunnel) error
 
+// SetLimiter sets rate and connection limiter for auth tunnel server
 func SetLimiter(limiter *limiter.Limiter) ServerOption {
 	return func(s *AuthTunnel) error {
 		s.limiter = limiter
@@ -135,10 +140,12 @@ func (s *AuthTunnel) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.Ne
 				string(nch.ExtraData()), err)
 			nch.Reject(ssh.UnknownChannelType,
 				"failed to parse direct-tcpip request")
+			return
 		}
 		sshCh, _, err := nch.Accept()
 		if err != nil {
 			log.Infof("[AUTH] could not accept channel (%s)", err)
+			return
 		}
 		go s.handleDirectTCPIPRequest(sconn, sshCh, req)
 	case ReqWebSessionAgent:
@@ -153,6 +160,7 @@ func (s *AuthTunnel) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.Ne
 		ch, _, err := nch.Accept()
 		if err != nil {
 			log.Infof("[AUTH] could not accept channel (%s)", err)
+			return
 		}
 		go s.handleWebAgentRequest(sconn, ch)
 	default:
@@ -357,7 +365,7 @@ func (s *AuthTunnel) passwordAuth(
 	switch ab.Type {
 	case AuthWebPassword:
 		if err := s.authServer.CheckPassword(conn.User(), ab.Pass, ab.HotpToken); err != nil {
-			log.Errorf("Password auth error: %v", err)
+			log.Warningf("password auth error: %v", err)
 			return nil, trace.Wrap(err)
 		}
 		perms := &ssh.Permissions{
@@ -503,7 +511,7 @@ func NewTunClient(addr utils.NetAddr, user string, auth []ssh.AuthMethod) (*TunC
 	return tc, nil
 }
 
-func (c *TunClient) GetAgent() (agent.Agent, error) {
+func (c *TunClient) GetAgent() (AgentCloser, error) {
 	return c.dialer.GetAgent()
 }
 
@@ -518,82 +526,97 @@ func (c *TunClient) GetDialer() AccessPointDialer {
 	}
 }
 
+type AgentCloser interface {
+	io.Closer
+	agent.Agent
+}
+
+type tunAgent struct {
+	agent.Agent
+	client *ssh.Client
+}
+
+func (ta *tunAgent) Close() error {
+	log.Infof("tunAgent.Close")
+	return ta.client.Close()
+}
+
 type TunDialer struct {
 	sync.Mutex
 	auth []ssh.AuthMethod
 	user string
-	tun  *ssh.Client
 	addr utils.NetAddr
 }
 
 func (t *TunDialer) Close() error {
-	if t.tun != nil {
-		return t.tun.Close()
-	}
 	return nil
 }
 
-func (t *TunDialer) GetAgent() (agent.Agent, error) {
-	_, err := t.getClient(false) // we need an established connection first
+func (t *TunDialer) GetAgent() (AgentCloser, error) {
+	client, err := t.getClient() // we need an established connection first
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(
+			teleport.ConnectionProblem("failed to connect to remote API", err))
 	}
-	ch, _, err := t.tun.OpenChannel(ReqWebSessionAgent, nil)
+	ch, _, err := client.OpenChannel(ReqWebSessionAgent, nil)
 	if err != nil {
-		// reconnecting and trying again
-		_, err := t.getClient(true)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		ch, _, err = t.tun.OpenChannel(ReqWebSessionAgent, nil)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		return nil, trace.Wrap(
+			teleport.ConnectionProblem("failed to connect to remote API", err))
 	}
-	log.Infof("opened agent channel")
-	return agent.NewClient(ch), nil
+	agentCloser := &tunAgent{client: client}
+	agentCloser.Agent = agent.NewClient(ch)
+	return agentCloser, nil
 }
 
-func (t *TunDialer) getClient(reset bool) (*ssh.Client, error) {
-	t.Lock()
-	defer t.Unlock()
-	if t.tun != nil {
-		if !reset {
-			return t.tun, nil
-		} else {
-			go t.tun.Close()
-			t.tun = nil
-		}
-	}
-
+func (t *TunDialer) getClient() (*ssh.Client, error) {
 	config := &ssh.ClientConfig{
 		User: t.user,
 		Auth: t.auth,
 	}
 	client, err := ssh.Dial(t.addr.AddrNetwork, t.addr.Addr, config)
+	log.Infof("TunDialer.getClient(%v)", t.addr.String())
 	if err != nil {
-		return nil, err
+		log.Infof("TunDialer could not ssh.Dial: %v", err)
+		return nil, trace.Wrap(err)
 	}
-	t.tun = client
-	return t.tun, nil
+	return client, nil
+}
+
+const (
+	// DialerRetryAttempts is the amount of attempts for dialer to try and
+	// connect to the remote destination
+	DialerRetryAttempts = 3
+	// DialerPeriodBetweenAttempts is the period between retry attempts
+	DialerPeriodBetweenAttempts = time.Second
+)
+
+type tunConn struct {
+	net.Conn
+	client *ssh.Client
+}
+
+func (c *tunConn) Close() error {
+	log.Infof("tunConn: close!")
+	err := c.Conn.Close()
+	err = c.client.Close()
+	return trace.Wrap(err)
 }
 
 func (t *TunDialer) Dial(network, address string) (net.Conn, error) {
-	c, err := t.getClient(false)
+	log.Infof("TunDialer.Dial(%v, %v)", network, address)
+	client, err := t.getClient()
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(
+			teleport.ConnectionProblem("failed to connect to remote API", err))
 	}
-	conn, err := c.Dial(network, address)
-	if err == nil {
-		return conn, err
-	} else {
-		// reconnecting and trying again
-		c, err = t.getClient(true)
-		if err != nil {
-			return nil, err
-		}
-		return c.Dial(network, address)
+	conn, err := client.Dial(network, address)
+	if err != nil {
+		return nil, trace.Wrap(
+			teleport.ConnectionProblem("failed to connect to remote API", err))
 	}
+	tc := &tunConn{client: client}
+	tc.Conn = conn
+	return tc, nil
 }
 
 func NewClientFromSSHClient(sshClient *ssh.Client) (*Client, error) {

@@ -69,7 +69,6 @@ func (api *APIWithRoles) Serve() {
 	for role, _ := range api.listeners {
 		wg.Add(1)
 		go func(listener net.Listener, handler http.Handler) {
-			log.Debugf("[api_with_roles] about to call http.Serve() on a listener")
 			if err := http.Serve(listener, handler); (err != nil) && (err != io.EOF) {
 				log.Errorf(err.Error())
 			}
@@ -161,6 +160,9 @@ func (conn *FakeSSHConnection) SetWriteDeadline(t time.Time) error {
 // and waits for that connection to be closed either by the client or by the server
 func (socket *fakeSocket) CreateBridge(remoteAddr net.Addr, sshChan ssh.Channel) error {
 	log.Debugf("SocketOverSSH.Handle(from=%v) is called", remoteAddr)
+	if sshChan == nil {
+		return trace.Wrap(teleport.BadParameter("sshChan", "supply ssh channel"))
+	}
 	// wrap sshChan into a 'fake connection' which allows us to
 	//   a) preserve the original address of the connected client
 	//   b) sit and wait until client closes the ssh channel, so we'll close this fake socket
@@ -173,12 +175,12 @@ func (socket *fakeSocket) CreateBridge(remoteAddr net.Addr, sshChan ssh.Channel)
 	// Accept() will unblock this select
 	case socket.connections <- connection:
 	}
-
+	log.Debugf("SocketOverSSH.Handle(from=%v) is accepted", remoteAddr)
 	// wait for the connection to close:
 	select {
 	case <-connection.closed:
 	}
-	log.Debugf("SocketOverSSH.Handle(from=%v) is done", remoteAddr)
+	log.Debugf("SocketOverSSH.Handle(from=%v) is closed", remoteAddr)
 	return nil
 }
 

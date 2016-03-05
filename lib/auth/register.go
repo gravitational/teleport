@@ -26,6 +26,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// Register is used by auth service clients (other services, like proxy or SSH) when a new node
+// joins the cluster
 func Register(domainName, dataDir, token string, role teleport.Role, servers []utils.NetAddr) error {
 	tok, err := readToken(token)
 	if err != nil {
@@ -46,6 +48,7 @@ func Register(domainName, dataDir, token string, role teleport.Role, servers []u
 
 	defer client.Close()
 
+	// TODO: replace domain name with host UUID
 	keys, err := client.RegisterUsingToken(tok, domainName, role)
 	if err != nil {
 		return trace.Wrap(err)
