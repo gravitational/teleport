@@ -56,7 +56,7 @@ func AddHostSignersToCache(hostSigners []services.CertAuthority) error {
 	return nil
 }
 
-func CheckHostSignerFromCache(hostname string, remote net.Addr, key ssh.PublicKey) error {
+func CheckHostSignerFromCache(hostId string, remote net.Addr, key ssh.PublicKey) error {
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
 		return trace.Errorf("expected certificate")

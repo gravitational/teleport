@@ -37,7 +37,6 @@ type InitConfig struct {
 	Backend       *encryptedbk.ReplicatedBackend
 	Authority     Authority
 	DomainName    string
-	AuthDomain    string
 	DataDir       string
 	SecretKey     string
 	AllowedTokens map[string]string
@@ -49,9 +48,6 @@ type InitConfig struct {
 }
 
 func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
-	if cfg.AuthDomain == "" {
-		return nil, nil, fmt.Errorf("node name can not be empty")
-	}
 	if cfg.DataDir == "" {
 		return nil, nil, fmt.Errorf("path can not be empty")
 	}
@@ -63,11 +59,11 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 	}
 
 	lockService := services.NewLockService(cfg.Backend)
-	err = lockService.AcquireLock(cfg.AuthDomain, 60*time.Second)
+	err = lockService.AcquireLock(cfg.DomainName, 60*time.Second)
 	if err != nil {
 		return nil, nil, err
 	}
-	defer lockService.ReleaseLock(cfg.AuthDomain)
+	defer lockService.ReleaseLock(cfg.DomainName)
 
 	// check that user CA and host CA are present and set the certs if needed
 	asrv := NewAuthServer(cfg.Backend, cfg.Authority, cfg.DomainName)
@@ -144,7 +140,7 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 		}
 	}
 
-	signer, err := InitKeys(asrv, cfg.DomainName, cfg.DataDir)
+	signer, err := InitKeys(asrv, cfg.DataDir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -153,13 +149,8 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 }
 
 // InitKeys initializes this node's host certificate signed by host authority
-func InitKeys(a *AuthServer, domainName, dataDir string) (ssh.Signer, error) {
-	if domainName == "" {
-		return nil, trace.Wrap(&teleport.BadParameterError{
-			Param: domainName, Err: "domainName can not be empty"})
-	}
-
-	kp, cp := keysPath(domainName, dataDir)
+func InitKeys(a *AuthServer, dataDir string) (ssh.Signer, error) {
+	kp, cp := keysPath(dataDir)
 
 	keyExists, err := pathExists(kp)
 	if err != nil {
@@ -176,15 +167,15 @@ func InitKeys(a *AuthServer, domainName, dataDir string) (ssh.Signer, error) {
 		if err != nil {
 			return nil, err
 		}
-		c, err := a.GenerateHostCert(pub, domainName, domainName, teleport.RoleAdmin, 0)
+		c, err := a.GenerateHostCert(pub, a.DomainName, a.DomainName, teleport.RoleAdmin, 0)
 		if err != nil {
 			return nil, err
 		}
-		if err := writeKeys(domainName, dataDir, k, c); err != nil {
+		if err := writeKeys(dataDir, k, c); err != nil {
 			return nil, err
 		}
 	}
-	i, err := ReadIdentity(domainName, dataDir)
+	i, err := ReadIdentity(dataDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -193,8 +184,8 @@ func InitKeys(a *AuthServer, domainName, dataDir string) (ssh.Signer, error) {
 
 // writeKeys saves the key/cert pair for a given domain onto disk. This usually means the
 // domain trusts us (signed our public key)
-func writeKeys(domainName, dataDir string, key []byte, cert []byte) error {
-	kp, cp := keysPath(domainName, dataDir)
+func writeKeys(dataDir string, key []byte, cert []byte) error {
+	kp, cp := keysPath(dataDir)
 	log.Debugf("write key to %v, cert from %v", kp, cp)
 
 	if err := ioutil.WriteFile(kp, key, 0600); err != nil {
@@ -216,9 +207,9 @@ type Identity struct {
 
 // ReadIdentity reads, parses and returns the given pub/pri key + cert from the
 // key storage (dataDir).
-func ReadIdentity(hostname, dataDir string) (i *Identity, err error) {
-	kp, cp := keysPath(hostname, dataDir)
-	log.Debugf("Identity %s: [key: %v, cert: %v]", hostname, kp, cp)
+func ReadIdentity(dataDir string) (i *Identity, err error) {
+	kp, cp := keysPath(dataDir)
+	log.Debugf("host identity: [key: %v, cert: %v]", kp, cp)
 
 	i = new(Identity)
 
@@ -256,8 +247,9 @@ func ReadIdentity(hostname, dataDir string) (i *Identity, err error) {
 	return i, nil
 }
 
-func HaveKeys(domainName, dataDir string) (bool, error) {
-	kp, cp := keysPath(domainName, dataDir)
+// HaveHostKeys checks either the host keys are in place
+func HaveHostKeys(dataDir string) (bool, error) {
+	kp, cp := keysPath(dataDir)
 
 	exists, err := pathExists(kp)
 	if !exists || err != nil {
@@ -272,10 +264,10 @@ func HaveKeys(domainName, dataDir string) (bool, error) {
 	return true, nil
 }
 
-func keysPath(domainName, dataDir string) (key string, cert string) {
-	key = filepath.Join(dataDir, fmt.Sprintf("%v.key", domainName))
-	cert = filepath.Join(dataDir, fmt.Sprintf("%v.cert", domainName))
-	return
+// keysPath returns two full file paths: to the host.key and host.cert
+func keysPath(dataDir string) (key string, cert string) {
+	return filepath.Join(dataDir, "host.key"),
+		filepath.Join(dataDir, "host.cert")
 }
 
 func pathExists(path string) (bool, error) {

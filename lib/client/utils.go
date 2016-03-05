@@ -65,15 +65,15 @@ func NewWebAuth(ag agent.Agent,
 		return ag.Signers()
 	}
 
-	hostKeyCallback = func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-		err := CheckHostSignerFromCache(hostname, remote, key)
+	hostKeyCallback = func(hostID string, remote net.Addr, key ssh.PublicKey) error {
+		err := CheckHostSignerFromCache(hostID, remote, key)
 		if err != nil {
 			err = Login(ag, webProxyAddress, user, certificateTTL, passwordCallback, insecure)
 			if err != nil {
 				fmt.Printf("Can't login to %v\n", err)
 				return trace.Wrap(err)
 			}
-			return CheckHostSignerFromCache(hostname, remote, key)
+			return CheckHostSignerFromCache(hostID, remote, key)
 		}
 		return nil
 	}

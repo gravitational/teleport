@@ -51,7 +51,7 @@ type Authority interface {
 
 	// GenerateHostCert generates host certificate, it takes pkey as a signing
 	// private key (host certificate authority)
-	GenerateHostCert(pkey, key []byte, hostname, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error)
+	GenerateHostCert(pkey, key []byte, hostID, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error)
 
 	// GenerateHostCert generates user certificate, it takes pkey as a signing
 	// private key (user certificate authority)
@@ -79,7 +79,7 @@ func AuthClock(clock clockwork.Clock) AuthServerOption {
 }
 
 // NewAuthServer returns a new AuthServer instance
-func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority, hostname string, opts ...AuthServerOption) *AuthServer {
+func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority, domainName string, opts ...AuthServerOption) *AuthServer {
 	as := AuthServer{}
 
 	for _, o := range opts {
@@ -100,7 +100,7 @@ func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority, hostname stri
 	as.WebService = services.NewWebService(as.bk)
 	as.BkKeysService = services.NewBkKeysService(as.bk)
 
-	as.Hostname = hostname
+	as.DomainName = domainName
 	return &as
 }
 
@@ -110,7 +110,7 @@ type AuthServer struct {
 	clock clockwork.Clock
 	bk    *encryptedbk.ReplicatedBackend
 	Authority
-	Hostname string
+	DomainName string
 
 	*services.CAService
 	*services.LockService
@@ -122,17 +122,15 @@ type AuthServer struct {
 
 // GetLocalDomain returns domain name that identifies this authority server
 func (a *AuthServer) GetLocalDomain() (string, error) {
-	return a.Hostname, nil
+	return a.DomainName, nil
 }
 
 // GenerateHostCert generates host certificate, it takes pkey as a signing
 // private key (host certificate authority)
-func (s *AuthServer) GenerateHostCert(
-	key []byte, hostname, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error) {
-
+func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error) {
 	ca, err := s.CAService.GetCertAuthority(services.CertAuthID{
 		Type:       services.HostCA,
-		DomainName: s.Hostname,
+		DomainName: s.DomainName,
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -141,7 +139,7 @@ func (s *AuthServer) GenerateHostCert(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.Authority.GenerateHostCert(privateKey, key, hostname, authDomain, role, ttl)
+	return s.Authority.GenerateHostCert(privateKey, key, hostID, authDomain, role, ttl)
 }
 
 // GenerateUserCert generates user certificate, it takes pkey as a signing
@@ -151,7 +149,7 @@ func (s *AuthServer) GenerateUserCert(
 
 	ca, err := s.CAService.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
-		DomainName: s.Hostname,
+		DomainName: s.DomainName,
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -263,8 +261,8 @@ func (s *AuthServer) RegisterUsingToken(outputToken, nodename string, role telep
 	// we always append authority's domain to resulting node name,
 	// that's how we make sure that nodes are uniquely identified/found
 	// in cases when we have multiple environments/organizations
-	fqdn := fmt.Sprintf("%s.%s", nodename, s.Hostname)
-	c, err := s.GenerateHostCert(pub, fqdn, s.Hostname, role, 0)
+	fqdn := fmt.Sprintf("%s.%s", nodename, s.DomainName)
+	c, err := s.GenerateHostCert(pub, fqdn, s.DomainName, role, 0)
 	if err != nil {
 		log.Warningf("[AUTH] Node `%v` cannot join: cert generation error. %v", nodename, err)
 		return PackedKeys{}, trace.Wrap(err)
@@ -344,7 +342,7 @@ func (s *AuthServer) NewWebSession(userName string) (*Session, error) {
 	}
 	ca, err := s.CAService.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
-		DomainName: s.Hostname,
+		DomainName: s.DomainName,
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
