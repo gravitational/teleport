@@ -126,3 +126,27 @@ func FilterFromURL(vals url.Values) (*Filter, error) {
 	f.SessionID = vals.Get("sid")
 	return &f, nil
 }
+
+var NullEventLogger = &NOPEventLogger{}
+
+type NOPEventLogger struct {
+}
+
+func (*NOPEventLogger) Log(lunk.EventID, lunk.Event) {
+}
+
+func (*NOPEventLogger) LogEntry(lunk.Entry) error {
+	return nil
+}
+
+func (*NOPEventLogger) LogSession(sess session.Session) error {
+	return nil
+}
+
+func (*NOPEventLogger) GetEvents(filter Filter) ([]lunk.Entry, error) {
+	return nil, nil
+}
+
+func (*NOPEventLogger) GetSessionEvents(filter Filter) ([]session.Session, error) {
+	return nil, nil
+}
