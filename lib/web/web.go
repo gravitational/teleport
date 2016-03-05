@@ -136,6 +136,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	h.GET("/webapi/sites/:site/nodes", h.withSiteAuth(h.getSiteNodes))
 	// get site events
 	h.GET("/webapi/sites/:site/events", h.withSiteAuth(h.siteGetEvents))
+	// get site session events
+	h.GET("/webapi/sites/:site/events/sessions", h.withSiteAuth(h.siteGetSessionEvents))
 	// connect to node via websocket (that's why it's a GET method)
 	h.GET("/webapi/sites/:site/connect", h.withSiteAuth(h.siteNodeConnect))
 	// get session event stream
@@ -663,6 +665,69 @@ func (m *Handler) siteGetEvents(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 	return siteGetEventsResponse{Events: events}, nil
+}
+
+type siteGetSessionEventsResponse struct {
+	Sessions []session.Session `json:"sessions"`
+}
+
+/* siteGetSessionsEvents gets the site session events
+
+ GET /v1/webapi/sites/:site/events/sessions?filter=urlencoded filter struct
+
+  filter struct format:
+
+    {
+      "start": "RFC339 start",  // start must always be specified
+      "end": "RFC3339 end",     // optional end
+      "order": 1,               // 1 for asc, -1 for descending
+      "limit": 2                // limit
+    }
+
+Response body:
+
+  {"sessions": [{}]}
+
+*/
+func (m *Handler) siteGetSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	var filter events.Filter
+	filterQ := r.URL.Query().Get("filter")
+	if filterQ == "" {
+		return nil, trace.Wrap(teleport.BadParameter("filter", "missing filter"))
+	}
+	if err := json.Unmarshal([]byte(filterQ), &filter); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clt, err := site.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sessionEvents, err := clt.GetSessionEvents(filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// get active sessions too
+	sessions, err := clt.GetSessions()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// merge retrieved events and sessions if there's a match
+	s2id := make(map[string]*session.Session)
+	for i := range sessions {
+		s2id[sessions[i].ID] = &sessions[i]
+	}
+	for i := range sessionEvents {
+		id := sessionEvents[i].ID
+		sess, ok := s2id[id]
+		if ok {
+			// replace it with real time data about event
+			sessionEvents[i] = *sess
+		} else {
+			// assume it is not active
+			sessionEvents[i].Active = false
+		}
+	}
+	return siteGetSessionEventsResponse{Sessions: sessionEvents}, nil
 }
 
 // createSSHCertReq are passed by web client

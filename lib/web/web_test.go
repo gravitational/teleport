@@ -748,7 +748,7 @@ func (s *WebSuite) TestPlayback(c *C) {
 	c.Assert(len(chunks.Chunks), Not(Equals), 0)
 }
 
-func (s *WebSuite) TestEvents(c *C) {
+func (s *WebSuite) TestSessionEvents(c *C) {
 	sid := "events"
 	pack := s.authPack(c)
 	clt := s.connect(c, pack, sid)
@@ -769,12 +769,12 @@ func (s *WebSuite) TestEvents(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	var events *siteGetEventsResponse
+	var events *siteGetSessionEventsResponse
 	re, err := pack.clt.Get(
-		pack.clt.Endpoint("webapi", "sites", s.domainName, "events"), url.Values{"filter": []string{string(data)}})
+		pack.clt.Endpoint("webapi", "sites", s.domainName, "events", "sessions"), url.Values{"filter": []string{string(data)}})
 	c.Assert(err, IsNil)
 	c.Assert(json.Unmarshal(re.Bytes(), &events), IsNil)
-	c.Assert(len(events.Events), Not(Equals), 0)
+	c.Assert(len(events.Sessions), Not(Equals), 0)
 }
 
 func getEvent(schema string, events []lunk.Entry) *lunk.Entry {

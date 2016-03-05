@@ -95,7 +95,9 @@ func (w *connectHandler) String() string {
 }
 
 func (w *connectHandler) Close() error {
-	w.ws.Close()
+	if w.ws != nil {
+		w.ws.Close()
+	}
 	if w.up != nil {
 		return w.up.Close()
 	}

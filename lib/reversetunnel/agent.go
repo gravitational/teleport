@@ -29,12 +29,12 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -43,7 +43,7 @@ import (
 type Agent struct {
 	log             *log.Entry
 	addr            utils.NetAddr
-	elog            lunk.EventLogger
+	elog            events.Log
 	clt             *auth.TunClient
 	domainName      string
 	closeC          chan bool
@@ -58,7 +58,7 @@ type Agent struct {
 type AgentOption func(a *Agent) error
 
 // SetEventLogger sets structured logger for the agent
-func SetEventLogger(e lunk.EventLogger) AgentOption {
+func SetEventLogger(e events.Log) AgentOption {
 	return func(s *Agent) error {
 		s.elog = e
 		return nil

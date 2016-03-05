@@ -19,12 +19,12 @@ limitations under the License.
 package test
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/mailgun/lemma/random"
 
 	. "gopkg.in/check.v1"
 )
@@ -196,43 +196,43 @@ func (s *BackendSuite) Locking(c *C) {
 
 	c.Assert(s.B.ReleaseLock(tok1), FitsTypeOf, &teleport.NotFoundError{})
 
-	c.Assert(s.B.AcquireLock(tok1, 30*time.Second), IsNil)
-	x := 7
+	c.Assert(s.B.AcquireLock(tok1, time.Second), IsNil)
+	x := int32(7)
+
 	go func() {
-		time.Sleep(1 * time.Second)
-		x = 9
+		atomic.StoreInt32(&x, 9)
 		c.Assert(s.B.ReleaseLock(tok1), IsNil)
 	}()
 	c.Assert(s.B.AcquireLock(tok1, 0), IsNil)
-	x = x * 2
-	c.Assert(x, Equals, 18)
+	atomic.AddInt32(&x, 9)
+
+	c.Assert(atomic.LoadInt32(&x), Equals, int32(18))
 	c.Assert(s.B.ReleaseLock(tok1), IsNil)
 
 	c.Assert(s.B.AcquireLock(tok1, 0), IsNil)
-	x = 7
+	atomic.StoreInt32(&x, 7)
 	go func() {
-		time.Sleep(1 * time.Second)
-		x = 9
+		atomic.StoreInt32(&x, 9)
 		c.Assert(s.B.ReleaseLock(tok1), IsNil)
 	}()
 	c.Assert(s.B.AcquireLock(tok1, 0), IsNil)
-	x = x * 2
-	c.Assert(x, Equals, 18)
+	atomic.AddInt32(&x, 9)
+	c.Assert(atomic.LoadInt32(&x), Equals, int32(18))
 	c.Assert(s.B.ReleaseLock(tok1), IsNil)
 
-	y := 0
+	y := int32(0)
+	c.Assert(s.B.AcquireLock(tok1, 0), IsNil)
+	c.Assert(s.B.AcquireLock(tok2, 0), IsNil)
 	go func() {
-		c.Assert(s.B.AcquireLock(tok1, 0), IsNil)
-		c.Assert(s.B.AcquireLock(tok2, 0), IsNil)
-
+		atomic.StoreInt32(&y, 15)
 		c.Assert(s.B.ReleaseLock(tok1), IsNil)
 		c.Assert(s.B.ReleaseLock(tok2), IsNil)
-		y = 15
 	}()
 
-	time.Sleep(1 * time.Second)
-	c.Assert(y, Equals, 15)
+	c.Assert(s.B.AcquireLock(tok1, 0), IsNil)
+	c.Assert(atomic.LoadInt32(&y), Equals, int32(15))
 
+	c.Assert(s.B.ReleaseLock(tok1), IsNil)
 	c.Assert(s.B.ReleaseLock(tok1), FitsTypeOf, &teleport.NotFoundError{})
 }
 
@@ -242,12 +242,4 @@ func toSet(vals []string) map[string]struct{} {
 		out[v] = struct{}{}
 	}
 	return out
-}
-
-func randomToken() string {
-	token, err := (&random.CSPRNG{}).HexDigest(32)
-	if err != nil {
-		panic(err)
-	}
-	return token
 }

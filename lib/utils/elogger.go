@@ -16,13 +16,32 @@ limitations under the License.
 package utils
 
 import (
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/session"
+
 	"github.com/codahale/lunk"
 )
 
-var NullEventLogger lunk.EventLogger = &NOPEventLogger{}
+var NullEventLogger = &NOPEventLogger{}
 
 type NOPEventLogger struct {
 }
 
 func (*NOPEventLogger) Log(lunk.EventID, lunk.Event) {
+}
+
+func (*NOPEventLogger) LogEntry(lunk.Entry) error {
+	return nil
+}
+
+func (*NOPEventLogger) LogSession(sess session.Session) error {
+	return nil
+}
+
+func (*NOPEventLogger) GetEvents(filter events.Filter) ([]lunk.Entry, error) {
+	return nil, nil
+}
+
+func (*NOPEventLogger) GetSessionEvents(filter events.Filter) ([]session.Session, error) {
+	return nil, nil
 }

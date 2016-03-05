@@ -56,3 +56,7 @@ func (s *BoltLogSuite) TearDownTest(c *C) {
 func (s *BoltLogSuite) TestEventsCRUD(c *C) {
 	s.suite.EventsCRUD(c)
 }
+
+func (s *BoltLogSuite) TestSessionsCRUD(c *C) {
+	s.suite.SessionsCRUD(c)
+}

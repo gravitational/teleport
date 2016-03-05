@@ -696,6 +696,12 @@ func (s *tunnelSite) GetStatus() string {
 	return RemoteSiteStatusOnline
 }
 
+func (s *tunnelSite) setLastActive(t time.Time) {
+	s.Lock()
+	defer s.Unlock()
+	s.lastActive = t
+}
+
 func (s *tunnelSite) handleHeartbeat(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	go func() {
 		for {
@@ -704,7 +710,7 @@ func (s *tunnelSite) handleHeartbeat(ch ssh.Channel, reqC <-chan *ssh.Request) {
 				s.log.Infof("agent disconnected")
 				return
 			}
-			s.lastActive = time.Now()
+			s.setLastActive(time.Now())
 		}
 	}()
 }
@@ -714,6 +720,8 @@ func (s *tunnelSite) GetName() string {
 }
 
 func (s *tunnelSite) GetLastConnected() time.Time {
+	s.Lock()
+	defer s.Unlock()
 	return s.lastActive
 }
 

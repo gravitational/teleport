@@ -55,7 +55,7 @@ type Server struct {
 	hostname      string
 	certChecker   ssh.CertChecker
 	resolver      resolver
-	elog          lunk.EventLogger
+	elog          events.Log
 	srv           *sshutils.Server
 	hostSigner    ssh.Signer
 	shell         string
@@ -83,7 +83,7 @@ type Server struct {
 type ServerOption func(s *Server) error
 
 // SetEventLogger sets structured event logger for this server
-func SetEventLogger(e lunk.EventLogger) ServerOption {
+func SetEventLogger(e events.Log) ServerOption {
 	return func(s *Server) error {
 		s.elog = e
 		return nil

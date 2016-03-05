@@ -36,18 +36,18 @@ type EncryptedBackend struct {
 
 func newEncryptedBackend(backend backend.Backend, key encryptor.Key,
 	signKey encryptor.Key, signCheckingKeys []encryptor.Key) (*EncryptedBackend, error) {
-	var err error
 
-	ebk := EncryptedBackend{}
-	ebk.bk = backend
-	ebk.encryptor, err = encryptor.NewGPGEncryptor(key)
+	encryptor, err := encryptor.NewGPGEncryptor(key)
 	if err != nil {
-		log.Errorf(err.Error())
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
-	ebk.prefix = []string{rootDir, key.ID}
-	ebk.KeyID = key.ID
+	ebk := &EncryptedBackend{
+		bk:        backend,
+		encryptor: encryptor,
+		prefix:    []string{rootDir, key.ID},
+		KeyID:     key.ID,
+	}
 
 	if err := ebk.encryptor.SetSignKey(signKey); err != nil {
 		return nil, trace.Wrap(err)
@@ -59,7 +59,7 @@ func newEncryptedBackend(backend backend.Backend, key encryptor.Key,
 		}
 	}
 
-	return &ebk, nil
+	return ebk, nil
 }
 
 // Add special value.
@@ -72,10 +72,10 @@ func (b *EncryptedBackend) Sign() error {
 func (b *EncryptedBackend) VerifySign() error {
 	val, err := b.GetVal([]string{}, "sign")
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	if string(val) != b.KeyID {
-		return trace.Errorf("can't verify sign")
+		return trace.Wrap(teleport.BadParameter("val", "can't verify signature"))
 	}
 	return nil
 }

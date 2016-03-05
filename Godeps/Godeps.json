@@ -2,7 +2,8 @@
 	"ImportPath": "github.com/gravitational/teleport",
 	"GoVersion": "go1.5",
 	"Packages": [
-		"./..."
+		"./lib/...",
+		"./tool/..."
 	],
 	"Deps": [
 		{
@@ -74,10 +75,6 @@
 			"Rev": "be52937128b38f1d99787bb476c789e2af1147f1"
 		},
 		{
-			"ImportPath": "github.com/gravitational/form",
-			"Rev": "a6a6d7dba4b0e3c049d10987c87a003b53d247f0"
-		},
-		{
 			"ImportPath": "github.com/gravitational/kingpin",
 			"Comment": "v2.1.10-6-g7856865",
 			"Rev": "785686550a08e8e2e77641c91714280a6dfb08ee"
@@ -88,7 +85,7 @@
 		},
 		{
 			"ImportPath": "github.com/gravitational/trace",
-			"Rev": "af77d5facfcfa8cdccdae73865728c8c0ac3dbf6"
+			"Rev": "7d4c31f3b31deca858e7550117ff11f4b8abc928"
 		},
 		{
 			"ImportPath": "github.com/jonboulle/clockwork",
@@ -105,11 +102,6 @@
 			"Rev": "05017fcccf23c823bfdea560dcc958a136e54fb7"
 		},
 		{
-			"ImportPath": "github.com/mailgun/lemma/random",
-			"Comment": "0.0.1-4-g9c38c9b",
-			"Rev": "9c38c9b26d0df3b21d60715da7e1f55e2fd0b739"
-		},
-		{
 			"ImportPath": "github.com/mailgun/minheap",
 			"Rev": "7c28d80e2ada649fc8ab1a37b86d30a2633bd47c"
 		},
@@ -120,14 +112,6 @@
 		{
 			"ImportPath": "github.com/mailgun/oxy/utils",
 			"Rev": "0c3e45a1f7b20e1f818612ad4f42abfc0923f3d5"
-		},
-		{
-			"ImportPath": "github.com/mailgun/predicate",
-			"Rev": "cb0bff91a7ab7cf7571e661ff883fc997bc554a3"
-		},
-		{
-			"ImportPath": "github.com/mailgun/route",
-			"Rev": "85cf368efd247dabbcc2e53272ef4276f94a87c4"
 		},
 		{
 			"ImportPath": "github.com/mailgun/timetools",
@@ -199,23 +183,8 @@
 			"Rev": "eb2c74142fd19a79b3f237334c7384d5167b1b46"
 		},
 		{
-			"ImportPath": "gopkg.in/airbrake/gobrake.v2",
-			"Comment": "v2.0.3",
-			"Rev": "c9d51adc624b5cc4c1bf8de730a09af4878ffe2d"
-		},
-		{
-			"ImportPath": "gopkg.in/alecthomas/kingpin.v2",
-			"Comment": "v2.1.11",
-			"Rev": "8cccfa8eb2e3183254457fb1749b2667fbc364c7"
-		},
-		{
 			"ImportPath": "gopkg.in/check.v1",
 			"Rev": "64131543e7896d5bcc6bd5a76287eb75ea96c673"
-		},
-		{
-			"ImportPath": "gopkg.in/gemnasium/logrus-airbrake-hook.v2",
-			"Comment": "v2.0.0",
-			"Rev": "31e6fd4bd5a98d8ee7673d24bc54ec73c31810dd"
 		},
 		{
 			"ImportPath": "gopkg.in/yaml.v2",
