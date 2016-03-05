@@ -249,7 +249,7 @@ func connectToAuthService(cfg *service.Config) (client *auth.TunClient, err erro
 	}
 
 	// login via keys:
-	i, err := auth.ReadIdentity(cfg.Hostname, cfg.DataDir)
+	i, err := auth.ReadIdentity(cfg.DataDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
