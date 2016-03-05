@@ -92,7 +92,7 @@ func NewAgent(addr utils.NetAddr, domainName string, signers []ssh.Signer,
 		}
 	}
 	if a.elog == nil {
-		a.elog = utils.NullEventLogger
+		a.elog = events.NullEventLogger
 	}
 	return a, nil
 }
@@ -127,7 +127,7 @@ func NewHangoutAgent(addr utils.NetAddr, hangoutID string,
 		}
 	}
 	if a.elog == nil {
-		a.elog = utils.NullEventLogger
+		a.elog = events.NullEventLogger
 	}
 	return a, nil
 }
