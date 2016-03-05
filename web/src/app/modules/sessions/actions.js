@@ -14,11 +14,13 @@ export default {
     });
   },
 
-  updateSession(json){
-    reactor.dispatch(TLPT_SESSINS_UPDATE, json);
+  fetchSessions(){
+    return api.get(cfg.api.getFetchSessionsUrl()).done((json) => {
+      reactor.dispatch(TLPT_SESSINS_RECEIVE, json.sessions);
+    });
   },
 
-  receive(json){
-    reactor.dispatch(TLPT_SESSINS_RECEIVE, json);
-  }
+  updateSession(json){
+    reactor.dispatch(TLPT_SESSINS_UPDATE, json);
+  }  
 }

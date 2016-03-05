@@ -53,6 +53,7 @@ import (
 	"github.com/codahale/lunk"
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/websocket"
 	. "gopkg.in/check.v1"
@@ -79,7 +80,7 @@ type WebSuite struct {
 var _ = Suite(&WebSuite{})
 
 func (s *WebSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
+	utils.InitLoggerDebug()
 }
 
 func (s *WebSuite) SetUpTest(c *C) {
@@ -368,6 +369,31 @@ func (s *WebSuite) TestWebSessionsCRUD(c *C) {
 	_, err = pack.clt.Delete(
 		pack.clt.Endpoint("webapi", "sessions", pack.session.Token))
 	c.Assert(err, IsNil)
+
+	// subsequent requests trying to use this session will fail
+	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	c.Assert(err, NotNil)
+	c.Assert(teleport.IsAccessDenied(err), Equals, true)
+}
+
+func (s *WebSuite) TestWebSessionsLogout(c *C) {
+	pack := s.authPack(c)
+
+	// make sure we can use client to make authenticated requests
+	re, err := pack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	c.Assert(err, IsNil)
+
+	var sites *getSitesResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &sites), IsNil)
+
+	// now delete session
+	pack.clt.HTTPClient().CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return trace.Errorf("attempted redirect")
+	}
+	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "logout"), url.Values{})
+	orig, ok := err.(*trace.TraceErr)
+	c.Assert(ok, Equals, true)
+	c.Assert(orig.OrigError(), FitsTypeOf, &url.Error{})
 
 	// subsequent requests trying to use this session will fail
 	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
@@ -720,6 +746,13 @@ func (s *WebSuite) TestPlayback(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(json.Unmarshal(re.Bytes(), &chunks), IsNil)
 	c.Assert(len(chunks.Chunks), Not(Equals), 0)
+
+	var chunksCount *siteSessionGetChunksCountResponse
+	re, err = pack.clt.Get(
+		pack.clt.Endpoint("webapi", "sites", s.domainName, "sessions", sid, "chunkscount"), url.Values{})
+	c.Assert(err, IsNil)
+	c.Assert(json.Unmarshal(re.Bytes(), &chunksCount), IsNil)
+	c.Assert(int(chunksCount.Count), Not(Equals), 0)
 }
 
 func (s *WebSuite) TestSessionEvents(c *C) {

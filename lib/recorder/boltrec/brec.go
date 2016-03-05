@@ -136,6 +136,25 @@ type boltRW struct {
 	refs int
 }
 
+func (b *boltRW) GetChunksCount() (uint64, error) {
+	var lastChunk uint64
+	err := b.db.View(func(tx *bolt.Tx) error {
+		bkt, err := boltbk.GetBucket(tx, []string{"iter"})
+		if err != nil {
+			return err
+		}
+		bytes := bkt.Get([]byte("val"))
+		if bytes == nil {
+			return &teleport.NotFoundError{
+				Message: fmt.Sprintf("not found"),
+			}
+		}
+		lastChunk = binary.BigEndian.Uint64(bytes)
+		return nil
+	})
+	return lastChunk, trace.Wrap(err)
+}
+
 func (b *boltRW) initWriteIter() error {
 	var val []byte
 	err := b.db.View(func(tx *bolt.Tx) error {
@@ -237,6 +256,10 @@ type boltRef struct {
 
 func (r *boltRef) Close() error {
 	return r.r.decRef(r.rw)
+}
+
+func (r *boltRef) GetChunksCount() (uint64, error) {
+	return r.rw.GetChunksCount()
 }
 
 func (r *boltRef) ReadChunks(start int, end int) ([]recorder.Chunk, error) {

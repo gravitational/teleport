@@ -51,6 +51,10 @@ func (s *RecorderSuite) Recorder(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(o, DeepEquals, []recorder.Chunk{c1})
 
+	count, err := r1.GetChunksCount()
+	c.Assert(err, IsNil)
+	c.Assert(count, Equals, uint64(2))
+
 	o, err = r2.ReadChunks(1, 3)
 	c.Assert(err, IsNil)
 	c.Assert(o, DeepEquals, []recorder.Chunk{c1, c2})

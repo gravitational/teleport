@@ -112,6 +112,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 		h.sessionStreamPollPeriod = defaultPollPeriod
 	}
 
+	// Helper logout method
+	h.GET("/webapi/logout", h.withAuth(h.logout))
+
 	// Web sessions
 	h.POST("/webapi/sessions", httplib.MakeHandler(h.createSession))
 	h.DELETE("/webapi/sessions/:sid", h.withAuth(h.deleteSession))
@@ -145,6 +148,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	h.GET("/webapi/sites/:site/sessions/:sid", h.withSiteAuth(h.siteSessionGet))
 	// get session chunks
 	h.GET("/webapi/sites/:site/sessions/:sid/chunks", h.withSiteAuth(h.siteSessionGetChunks))
+	// get session chunks count
+	h.GET("/webapi/sites/:site/sessions/:sid/chunkscount", h.withSiteAuth(h.siteSessionGetChunksCount))
 
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
@@ -213,6 +218,24 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 	return newSessionResponse(sess), nil
+}
+
+// logout is a helper that deletes
+//
+// GET /v1/webapi/logout
+//
+// Response - redirects to /web/login and deletes current session
+//
+//
+func (m *Handler) logout(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *sessionContext) (interface{}, error) {
+	if err := ctx.Invalidate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := ClearSession(w); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	http.Redirect(w, r, "/web/login", http.StatusFound)
+	return nil, nil
 }
 
 // deleteSession is called to sign out user
@@ -601,6 +624,37 @@ func (m *Handler) siteSessionGetChunks(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 	return &siteSessionGetChunksResponse{Chunks: chunks}, nil
+}
+
+type siteSessionGetChunksCountResponse struct {
+	Count uint64 `json:"count"`
+}
+
+// siteSessionGetChunksCount returns count of chunks for this session
+//
+// GET /v1/webapi/sites/:site/sessions/:id/chunkscount
+//
+// Response body:
+//
+// {"count": 100}
+//
+func (m *Handler) siteSessionGetChunksCount(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	sessionID := p.ByName("sid")
+
+	clt, err := site.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	reader, err := clt.GetChunkReader(sessionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer reader.Close()
+	count, err := reader.GetChunksCount()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &siteSessionGetChunksCountResponse{Count: count}, nil
 }
 
 type siteGetEventsResponse struct {

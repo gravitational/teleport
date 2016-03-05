@@ -16,6 +16,10 @@ function updateSession(state, json){
   return state.set(json.id, toImmutable(json));
 }
 
-function receiveSessions(state, json){
-  return toImmutable(json);
+function receiveSessions(state, jsonArray=[]){
+  return state.withMutations(state => {
+    jsonArray.forEach((item) => {
+      state.set(item.id, toImmutable(item))
+    })
+  });
 }

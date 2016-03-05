@@ -51,7 +51,7 @@ var SessionList = React.createClass({
         <div className="">
           <div className="">
             <div className="">
-              <Table rowCount={data.length} className="table-stripped">
+              <Table rowCount={data.length} className="table-striped">
                 <Column
                   columnKey="sid"
                   header={<Cell> Session ID </Cell> }

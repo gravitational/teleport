@@ -111,6 +111,7 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	// Recorded sessions
 	srv.POST("/v1/records/:sid/chunks", httplib.MakeHandler(srv.submitChunks))
 	srv.GET("/v1/records/:sid/chunks", httplib.MakeHandler(srv.getChunks))
+	srv.GET("/v1/records/:sid/chunkscount", httplib.MakeHandler(srv.getChunksCount))
 
 	// Sesssions
 	srv.POST("/v1/sessions/:id/parties", httplib.MakeHandler(srv.upsertSessionParty))
@@ -567,6 +568,22 @@ func (s *APIServer) getChunks(w http.ResponseWriter, r *http.Request, p httprout
 		return nil, trace.Wrap(err)
 	}
 	return chunks, nil
+}
+
+func (s *APIServer) getChunksCount(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	sid := p[0].Value
+
+	re, err := s.a.GetChunkReader(sid)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer re.Close()
+
+	count, err := re.GetChunksCount()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return count, nil
 }
 
 type upsertCertAuthorityReq struct {

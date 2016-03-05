@@ -670,13 +670,25 @@ func (c *chunkRW) ReadChunks(start int, end int) ([]recorder.Chunk, error) {
 		"end":   []string{strconv.Itoa(end)},
 	})
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	var chunks []recorder.Chunk
 	if err := json.Unmarshal(out.Bytes(), &chunks); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	return chunks, nil
+}
+
+func (c *chunkRW) GetChunksCount() (uint64, error) {
+	out, err := c.c.Get(c.c.Endpoint("records", c.id, "chunkscount"), url.Values{})
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	var count uint64
+	if err := json.Unmarshal(out.Bytes(), &count); err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return count, nil
 }
 
 func (c *chunkRW) WriteChunks(chunks []recorder.Chunk) error {
