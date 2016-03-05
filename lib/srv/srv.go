@@ -188,7 +188,7 @@ func New(addr utils.NetAddr,
 	}
 	s.reg = newSessionRegistry(s)
 	if s.elog == nil {
-		s.elog = utils.NullEventLogger
+		s.elog = events.NullEventLogger
 	}
 
 	srv, err := sshutils.NewServer(
