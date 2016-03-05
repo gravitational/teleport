@@ -165,6 +165,20 @@ func (a *AuthWithRoles) GetEvents(filter events.Filter) ([]lunk.Entry, error) {
 		return a.elog.GetEvents(filter)
 	}
 }
+func (a *AuthWithRoles) LogSession(sess session.Session) error {
+	if err := a.permChecker.HasPermission(a.role, ActionUpsertSession); err != nil {
+		return trace.Wrap(err)
+	} else {
+		return a.elog.LogSession(sess)
+	}
+}
+func (a *AuthWithRoles) GetSessionEvents(filter events.Filter) ([]session.Session, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionGetSessions); err != nil {
+		return nil, trace.Wrap(err)
+	} else {
+		return a.elog.GetSessionEvents(filter)
+	}
+}
 func (a *AuthWithRoles) GetChunkWriter(id string) (recorder.ChunkWriteCloser, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetChunkWriter); err != nil {
 		return nil, err

@@ -220,13 +220,6 @@ func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
 		return trace.Wrap(err)
 	}
 
-	elog := &FanOutEventLogger{
-		Loggers: []lunk.EventLogger{
-			lunk.NewTextEventLogger(log.StandardLogger().Writer()),
-			client,
-		},
-	}
-
 	limiter, err := limiter.NewLimiter(cfg.SSH.Limiter)
 	if err != nil {
 		return trace.Wrap(err)
@@ -241,7 +234,7 @@ func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
 		cfg.SSH.AdvertiseIP,
 		srv.SetLimiter(limiter),
 		srv.SetShell(cfg.SSH.Shell),
-		srv.SetEventLogger(elog),
+		srv.SetEventLogger(client),
 		srv.SetSessionServer(client),
 		srv.SetRecorder(client),
 		srv.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
@@ -344,18 +337,12 @@ func initTunAgent(supervisor Supervisor, cfg Config) error {
 		return trace.Wrap(err)
 	}
 
-	elog := &FanOutEventLogger{
-		Loggers: []lunk.EventLogger{
-			lunk.NewTextEventLogger(log.StandardLogger().Writer()),
-			client,
-		}}
-
 	a, err := reversetunnel.NewAgent(
 		cfg.ReverseTunnel.DialAddr,
 		cfg.Hostname,
 		[]ssh.Signer{i.KeySigner},
 		client,
-		reversetunnel.SetEventLogger(elog))
+		reversetunnel.SetEventLogger(client))
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -202,6 +202,9 @@ func newSession(id string, r *sessionRegistry, context *ctx) (*session, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := r.srv.elog.LogSession(rsess); err != nil {
+		log.Warn("failed to log session event: %v", err)
+	}
 	sess := &session{
 		id:       id,
 		registry: r,

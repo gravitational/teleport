@@ -13,6 +13,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+// Package events implements stored event log used for audit and other
+// purposes
 package events
 
 import (
@@ -22,9 +25,21 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
+)
+
+const (
+	// DefaultLimit is a default limit set for event queries
+	DefaultLimit = 20
+	// MaxLimit is a maximum limit set for event queries
+	MaxLimit = 100
+	// Asc is ascending sort order
+	Asc = 1
+	// Desc is descending sort order
+	Desc = -1
 )
 
 // Filter is event search filter
@@ -56,16 +71,13 @@ func (f Filter) String() string {
 		string(st), string(et), f.Limit, f.Order, f.SessionID)
 }
 
-const (
-	DefaultLimit = 20
-	Asc          = 1
-	Desc         = -1
-)
-
+// Log is an event logger interface
 type Log interface {
 	Log(id lunk.EventID, e lunk.Event)
 	LogEntry(lunk.Entry) error
+	LogSession(session.Session) error
 	GetEvents(filter Filter) ([]lunk.Entry, error)
+	GetSessionEvents(filter Filter) ([]session.Session, error)
 }
 
 func FilterToURL(f Filter) (url.Values, error) {

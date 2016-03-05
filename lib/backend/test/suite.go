@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/mailgun/lemma/random"
 
 	. "gopkg.in/check.v1"
 )
@@ -243,12 +242,4 @@ func toSet(vals []string) map[string]struct{} {
 		out[v] = struct{}{}
 	}
 	return out
-}
-
-func randomToken() string {
-	token, err := (&random.CSPRNG{}).HexDigest(32)
-	if err != nil {
-		panic(err)
-	}
-	return token
 }
