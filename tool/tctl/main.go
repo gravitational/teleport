@@ -72,7 +72,7 @@ func main() {
 
 	// user add command:
 	users := app.Command("users", "Manage users logins")
-	userAdd := users.Command("invite", "Generates an invitation token and prints the signup URL for setting up 2nd factor auth.")
+	userAdd := users.Command("add", "Generates an invitation token and prints the signup URL for setting up 2nd factor auth.")
 	userAdd.Arg("login", "Teleport user login").Required().StringVar(&cmdUsers.login)
 	userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
 		Default("").StringVar(&cmdUsers.allowedLogins)
@@ -88,7 +88,7 @@ func main() {
 
 	// add node command
 	nodes := app.Command("nodes", "Issue invites for other nodes to join the cluster")
-	nodeAdd := nodes.Command("invite", "Invites a new SSH node to join the cluster")
+	nodeAdd := nodes.Command("add", "Adds a new SSH node to join the cluster")
 	nodeAdd.Alias(AddNodeHelp)
 	nodeAdd.Arg("name", "The name of the node").Required().StringVar(&cmdNodes.nodename)
 	nodeList := nodes.Command("ls", "Lists all active SSH nodes within the cluster")
@@ -116,7 +116,7 @@ func main() {
 	case ver.FullCommand():
 		onVersion()
 	case userAdd.FullCommand():
-		err = cmdUsers.Invite(client)
+		err = cmdUsers.Add(cfg.Hostname, client)
 	case userList.FullCommand():
 		err = cmdUsers.List(client)
 	case userDelete.FullCommand():
@@ -145,9 +145,9 @@ func printHeader(t *goterm.Table, cols []string) {
 	fmt.Fprint(t, strings.Join(dots, "\t")+"\n")
 }
 
-// Invite creates a new sign-up token and prints a token URL to stdout.
+// Add creates a new sign-up token and prints a token URL to stdout.
 // A user is not created until he visits the sign-up URL and completes the process
-func (u *UserCommand) Invite(client *auth.TunClient) error {
+func (u *UserCommand) Add(hostname string, client *auth.TunClient) error {
 	// if no local logins were specified, default to 'login'
 	if u.allowedLogins == "" {
 		u.allowedLogins = u.login
@@ -156,8 +156,9 @@ func (u *UserCommand) Invite(client *auth.TunClient) error {
 	if err != nil {
 		return err
 	}
-
-	hostname, _ := os.Hostname()
+	if hostname == "" {
+		hostname, _ = os.Hostname()
+	}
 	url := web.CreateSignupLink(net.JoinHostPort(hostname, strconv.Itoa(defaults.HTTPListenPort)), token)
 	fmt.Printf("Signup token has been created. Share this URL with the user:\n%v\n\nNOTE: make sure the hostname is accessible!\n", url)
 	return nil

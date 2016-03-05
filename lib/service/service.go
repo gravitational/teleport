@@ -353,7 +353,18 @@ func initTunAgent(supervisor Supervisor, cfg Config) error {
 	return nil
 }
 
-func initProxy(supervisor Supervisor, cfg Config) error {
+// initProxy gets called if teleport runs with 'proxy' role enabled.
+// this means it will do two things:
+//    1. serve a web UI
+//    2. proxy SSH connections to nodes running with 'node' role
+func initProxy(supervisor Supervisor, cfg Config) (err error) {
+	// if no TLS key was provided for the web UI, generate a self signed cert
+	if cfg.Proxy.TLSKey == "" {
+		cfg.Proxy.TLSKey, cfg.Proxy.TLSCert, err = initSelfSignedHTTPSCert(&cfg)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return RegisterWithAuthServer(
 		supervisor, cfg.Proxy.Token, cfg.RoleConfig(), teleport.RoleNode,
 		func() error {
@@ -555,24 +566,18 @@ func validateConfig(cfg *Config) error {
 		return trace.Wrap(teleport.BadParameter("config", "please supply both TLS key and certificate"))
 	}
 
-	// if no TLS key was provided, generate self signed certificates
-	if cfg.Proxy.TLSKey == "" {
-		var err error
-		cfg.Proxy.TLSKey, cfg.Proxy.TLSCert, err = initSelfSignedCert(cfg)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	return nil
 }
 
-func initSelfSignedCert(cfg *Config) (string, string, error) {
+// initSelfSignedHTTPSCert generates and self-signs a TLS key+cert pair for https connection
+// to the proxy server.
+func initSelfSignedHTTPSCert(cfg *Config) (keyPath string, certPath string, err error) {
 	log.Warningf("[CONFIG] NO TLS Keys provided, using self signed certificate")
-	keyPath := filepath.Join(cfg.DataDir, selfSignedKeyName)
-	certPath := filepath.Join(cfg.DataDir, selfSignedCertName)
+	keyPath = filepath.Join(cfg.DataDir, selfSignedKeyPath)
+	certPath = filepath.Join(cfg.DataDir, selfSignedCertPath)
 
-	_, err := tls.LoadX509KeyPair(certPath, keyPath)
+	// return the existing pair if they ahve already been generated:
+	_, err = tls.LoadX509KeyPair(certPath, keyPath)
 	if err == nil {
 		return keyPath, certPath, nil
 	}
@@ -594,8 +599,10 @@ func initSelfSignedCert(cfg *Config) (string, string, error) {
 }
 
 const (
-	selfSignedKeyName  = "selfsignedkey.npem"
-	selfSignedCertName = "selfsignedcert.pem"
+	// path to a self-signed TLS key file for HTTPS connection for the web proxy
+	selfSignedKeyPath = "webproxy_https.key"
+	// path to a self-signed TLS cert file for HTTPS connection for the web proxy
+	selfSignedCertPath = "webproxy_https.cert"
 )
 
 type FanOutEventLogger struct {
