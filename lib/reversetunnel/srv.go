@@ -529,7 +529,6 @@ func (s *server) FindSimilarSite(domainName string) (RemoteSite, error) {
 	log.Infof("Find matching domain: %v", domainName)
 
 	for i, site := range sites {
-		log.Infof(site.GetName())
 		domainName2 := strings.Split(site.GetName(), ".")
 		similarity := 0
 		for j := 1; (j <= len(domainName1)) && (j <= len(domainName2)); j++ {

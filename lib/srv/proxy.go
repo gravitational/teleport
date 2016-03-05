@@ -60,12 +60,11 @@ func (t *proxySubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Re
 	log.Debugf("proxySubsys.execute(remote: %v, local: %v) for subsystem with (%s:%s)",
 		sconn.RemoteAddr(), sconn.LocalAddr(), t.host, t.port)
 
+	// request a list of nodesin that cluster:
 	remoteSrv, err := t.srv.proxyTun.FindSimilarSite(t.host)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// find matching server in the list of servers for this site
 	clt, err := remoteSrv.GetClient()
 	if err != nil {
 		return trace.Wrap(err)
@@ -74,11 +73,10 @@ func (t *proxySubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Re
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	serverAddr := fmt.Sprintf("%v:%v", t.host, t.port)
+	// enumerate and try to find a server with a matching name
+	serverAddr := net.JoinHostPort(t.host, t.port)
 	var server *services.Server
 	for i := range servers {
-
 		ip, port, err := net.SplitHostPort(servers[i].Addr)
 		if err != nil {
 			return trace.Wrap(err)
@@ -90,13 +88,13 @@ func (t *proxySubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Re
 			break
 		}
 	}
-	if server == nil {
-		return trace.Errorf("server %v not found", serverAddr)
+	if server != nil {
+		serverAddr = server.Addr
 	}
 
 	// we must dial by server IP address because hostname
 	// may not be actually DNS resolvable
-	conn, err := remoteSrv.DialServer(server.Addr)
+	conn, err := remoteSrv.DialServer(serverAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}

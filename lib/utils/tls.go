@@ -97,7 +97,6 @@ func CreateTLSConfiguration(certFile, keyFile string) (*tls.Config, error) {
 
 type TLSCredentials struct {
 	PrivateKey []byte
-	PublicKey  []byte
 	Cert       []byte
 }
 
@@ -157,7 +156,6 @@ func GenerateSelfSignedCert(domainNames []string, IPAddresses []string) (*TLSCre
 	}
 
 	return &TLSCredentials{
-		PublicKey:  pem.EncodeToMemory(pemBlockForRSAKey(priv.PublicKey)),
 		PrivateKey: pem.EncodeToMemory(pemBlockForRSAKey(priv)),
 		Cert:       pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes}),
 	}, nil

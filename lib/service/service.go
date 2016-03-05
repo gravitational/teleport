@@ -575,7 +575,6 @@ func initSelfSignedHTTPSCert(cfg *Config) (keyPath string, certPath string, err 
 	log.Warningf("[CONFIG] NO TLS Keys provided, using self signed certificate")
 	keyPath = filepath.Join(cfg.DataDir, selfSignedKeyPath)
 	certPath = filepath.Join(cfg.DataDir, selfSignedCertPath)
-	pubPath := filepath.Join(cfg.DataDir, selfSignedPubPath)
 
 	// return the existing pair if they ahve already been generated:
 	_, err = tls.LoadX509KeyPair(certPath, keyPath)
@@ -598,17 +597,12 @@ func initSelfSignedHTTPSCert(cfg *Config) (keyPath string, certPath string, err 
 	if err := ioutil.WriteFile(certPath, creds.Cert, 0600); err != nil {
 		return "", "", trace.Wrap(err, "error writing key PEM")
 	}
-	if err := ioutil.WriteFile(pubPath, creds.PublicKey, 0600); err != nil {
-		return "", "", trace.Wrap(err, "error writing key PEM")
-	}
 	return keyPath, certPath, nil
 }
 
 const (
 	// path to a self-signed TLS PRIVATE key file for HTTPS connection for the web proxy
 	selfSignedKeyPath = "webproxy_https.key"
-	// path to a self-signed TLS PUBLIC key file for HTTPS connection for the web proxy
-	selfSignedPubPath = "webproxy_https.pub"
 	// path to a self-signed TLS cert file for HTTPS connection for the web proxy
 	selfSignedCertPath = "webproxy_https.cert"
 )
