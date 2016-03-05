@@ -28,19 +28,19 @@ import (
 
 // Register is used by auth service clients (other services, like proxy or SSH) when a new node
 // joins the cluster
-func Register(domainName, dataDir, token string, role teleport.Role, servers []utils.NetAddr) error {
+func Register(hostUUID, dataDir, token string, role teleport.Role, servers []utils.NetAddr) error {
 	tok, err := readToken(token)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	method, err := NewTokenAuth(domainName, tok)
+	method, err := NewTokenAuth(hostUUID, tok)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	client, err := NewTunClient(
 		servers[0],
-		domainName,
+		hostUUID,
 		method)
 	if err != nil {
 		return trace.Wrap(err)
@@ -49,11 +49,11 @@ func Register(domainName, dataDir, token string, role teleport.Role, servers []u
 	defer client.Close()
 
 	// TODO: replace domain name with host UUID
-	keys, err := client.RegisterUsingToken(tok, domainName, role)
+	keys, err := client.RegisterUsingToken(tok, hostUUID, role)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return writeKeys(domainName, dataDir, keys.Key, keys.Cert)
+	return writeKeys(dataDir, keys.Key, keys.Cert)
 }
 
 func RegisterNewAuth(domainName, token string, publicSealKey encryptor.Key,

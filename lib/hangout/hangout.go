@@ -89,7 +89,6 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 	}
 	cfg.Hostname = "localhost2"
 
-	cfg.Auth.HostAuthorityDomain = "localhost"
 	cfg.Auth.KeysBackend.Type = "bolt"
 	cfg.Auth.KeysBackend.Params = `{"path": "` + cfg.DataDir + `/teleport.auth.db"}`
 	cfg.Auth.EventsBackend.Type = "bolt"
@@ -260,11 +259,6 @@ func Authorize(auth auth.ClientI) (ssh.AuthMethod, error) {
 }
 
 func (h *Hangout) initAuth(cfg service.Config, readOnlyHangout bool) error {
-	if cfg.Auth.HostAuthorityDomain == "" {
-		return trace.Errorf(
-			"please provide host certificate authority domain, e.g. example.com")
-	}
-
 	b, err := initBackend(cfg.DataDir, cfg.Hostname, cfg.AuthServers, cfg.Auth)
 	if err != nil {
 		return trace.Wrap(err)
@@ -285,7 +279,6 @@ func (h *Hangout) initAuth(cfg service.Config, readOnlyHangout bool) error {
 		Backend:       b,
 		Authority:     authority.New(),
 		DomainName:    cfg.Hostname,
-		AuthDomain:    cfg.Auth.HostAuthorityDomain,
 		DataDir:       cfg.DataDir,
 		SecretKey:     cfg.Auth.SecretKey,
 		AllowedTokens: cfg.Auth.AllowedTokens,

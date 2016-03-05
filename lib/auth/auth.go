@@ -28,7 +28,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
@@ -51,7 +50,7 @@ type Authority interface {
 
 	// GenerateHostCert generates host certificate, it takes pkey as a signing
 	// private key (host certificate authority)
-	GenerateHostCert(pkey, key []byte, hostname, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error)
+	GenerateHostCert(pkey, key []byte, hostID, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error)
 
 	// GenerateHostCert generates user certificate, it takes pkey as a signing
 	// private key (user certificate authority)
@@ -79,7 +78,7 @@ func AuthClock(clock clockwork.Clock) AuthServerOption {
 }
 
 // NewAuthServer returns a new AuthServer instance
-func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority, hostname string, opts ...AuthServerOption) *AuthServer {
+func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority, domainName string, opts ...AuthServerOption) *AuthServer {
 	as := AuthServer{}
 
 	for _, o := range opts {
@@ -100,7 +99,7 @@ func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority, hostname stri
 	as.WebService = services.NewWebService(as.bk)
 	as.BkKeysService = services.NewBkKeysService(as.bk)
 
-	as.Hostname = hostname
+	as.DomainName = domainName
 	return &as
 }
 
@@ -110,7 +109,7 @@ type AuthServer struct {
 	clock clockwork.Clock
 	bk    *encryptedbk.ReplicatedBackend
 	Authority
-	Hostname string
+	DomainName string
 
 	*services.CAService
 	*services.LockService
@@ -122,17 +121,15 @@ type AuthServer struct {
 
 // GetLocalDomain returns domain name that identifies this authority server
 func (a *AuthServer) GetLocalDomain() (string, error) {
-	return a.Hostname, nil
+	return a.DomainName, nil
 }
 
 // GenerateHostCert generates host certificate, it takes pkey as a signing
 // private key (host certificate authority)
-func (s *AuthServer) GenerateHostCert(
-	key []byte, hostname, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error) {
-
+func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error) {
 	ca, err := s.CAService.GetCertAuthority(services.CertAuthID{
 		Type:       services.HostCA,
-		DomainName: s.Hostname,
+		DomainName: s.DomainName,
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -141,7 +138,7 @@ func (s *AuthServer) GenerateHostCert(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.Authority.GenerateHostCert(privateKey, key, hostname, authDomain, role, ttl)
+	return s.Authority.GenerateHostCert(privateKey, key, hostID, authDomain, role, ttl)
 }
 
 // GenerateUserCert generates user certificate, it takes pkey as a signing
@@ -151,7 +148,7 @@ func (s *AuthServer) GenerateUserCert(
 
 	ca, err := s.CAService.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
-		DomainName: s.Hostname,
+		DomainName: s.DomainName,
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -196,11 +193,7 @@ func (s *AuthServer) CreateWebSession(user string, prevSessionID string) (*Sessi
 	return sess, nil
 }
 
-func (s *AuthServer) GenerateToken(nodeName string, role teleport.Role, ttl time.Duration) (string, error) {
-	if !cstrings.IsValidDomainName(nodeName) {
-		return "", trace.Wrap(teleport.BadParameter("nodeName",
-			fmt.Sprintf("'%v' is not a valid dns name", nodeName)))
-	}
+func (s *AuthServer) GenerateToken(role teleport.Role, ttl time.Duration) (string, error) {
 	if err := role.Check(); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -212,7 +205,7 @@ func (s *AuthServer) GenerateToken(nodeName string, role teleport.Role, ttl time
 	if err != nil {
 		return "", err
 	}
-	if err := s.ProvisioningService.UpsertToken(token, nodeName, string(role), ttl); err != nil {
+	if err := s.ProvisioningService.UpsertToken(token, string(role), ttl); err != nil {
 		return "", err
 	}
 	return outputToken, nil
@@ -227,14 +220,14 @@ func (s *AuthServer) ValidateToken(token, domainName string) (role string, e err
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	if tok.DomainName != domainName {
-		return "", trace.Errorf("domainName does not match")
-	}
 	return tok.Role, nil
 }
 
-func (s *AuthServer) RegisterUsingToken(outputToken, nodename string, role teleport.Role) (keys PackedKeys, e error) {
-	log.Infof("[AUTH] Node `%v` is trying to join", nodename)
+func (s *AuthServer) RegisterUsingToken(outputToken, hostID string, role teleport.Role) (keys PackedKeys, e error) {
+	log.Infof("[AUTH] Node `%v` is trying to join", hostID)
+	if hostID == "" {
+		return PackedKeys{}, trace.Wrap(fmt.Errorf("HostID cannot be empty"))
+	}
 	if err := role.Check(); err != nil {
 		return PackedKeys{}, trace.Wrap(err)
 	}
@@ -244,14 +237,9 @@ func (s *AuthServer) RegisterUsingToken(outputToken, nodename string, role telep
 	}
 	tok, err := s.ProvisioningService.GetToken(token)
 	if err != nil {
-		log.Warningf("[AUTH] Node `%v` cannot join: token error. %v", nodename, err)
+		log.Warningf("[AUTH] Node `%v` cannot join: token error. %v", hostID, err)
 		return PackedKeys{}, trace.Wrap(err)
 	}
-	if tok.DomainName != nodename {
-		return PackedKeys{}, trace.Wrap(
-			teleport.BadParameter("domainName", "domainName does not match"))
-	}
-
 	if tok.Role != string(role) {
 		return PackedKeys{}, trace.Wrap(
 			teleport.BadParameter("token.Role", "role does not match"))
@@ -263,10 +251,10 @@ func (s *AuthServer) RegisterUsingToken(outputToken, nodename string, role telep
 	// we always append authority's domain to resulting node name,
 	// that's how we make sure that nodes are uniquely identified/found
 	// in cases when we have multiple environments/organizations
-	fqdn := fmt.Sprintf("%s.%s", nodename, s.Hostname)
-	c, err := s.GenerateHostCert(pub, fqdn, s.Hostname, role, 0)
+	fqdn := fmt.Sprintf("%s.%s", hostID, s.DomainName)
+	c, err := s.GenerateHostCert(pub, fqdn, s.DomainName, role, 0)
 	if err != nil {
-		log.Warningf("[AUTH] Node `%v` cannot join: cert generation error. %v", nodename, err)
+		log.Warningf("[AUTH] Node `%v` cannot join: cert generation error. %v", hostID, err)
 		return PackedKeys{}, trace.Wrap(err)
 	}
 
@@ -279,11 +267,11 @@ func (s *AuthServer) RegisterUsingToken(outputToken, nodename string, role telep
 		return PackedKeys{}, trace.Wrap(err)
 	}
 
-	utils.Consolef(os.Stdout, "[AUTH] Node `%v` joined the cluster", nodename)
+	utils.Consolef(os.Stdout, "[AUTH] Node `%v` joined the cluster", hostID)
 	return keys, nil
 }
 
-func (s *AuthServer) RegisterNewAuthServer(domainName, outputToken string,
+func (s *AuthServer) RegisterNewAuthServer(outputToken string,
 	publicSealKey encryptor.Key) (masterKey encryptor.Key, e error) {
 
 	token, _, err := services.SplitTokenRole(outputToken)
@@ -294,10 +282,6 @@ func (s *AuthServer) RegisterNewAuthServer(domainName, outputToken string,
 	tok, err := s.ProvisioningService.GetToken(token)
 	if err != nil {
 		return encryptor.Key{}, trace.Wrap(err)
-	}
-	if tok.DomainName != domainName {
-		return encryptor.Key{}, trace.Wrap(
-			teleport.AccessDenied("domainName does not match"))
 	}
 
 	if tok.Role != string(teleport.RoleAuth) {
@@ -344,7 +328,7 @@ func (s *AuthServer) NewWebSession(userName string) (*Session, error) {
 	}
 	ca, err := s.CAService.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
-		DomainName: s.Hostname,
+		DomainName: s.DomainName,
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)

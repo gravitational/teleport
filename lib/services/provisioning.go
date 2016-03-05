@@ -32,10 +32,9 @@ func NewProvisioningService(backend backend.Backend) *ProvisioningService {
 }
 
 // Tokens are provisioning tokens for the auth server
-func (s *ProvisioningService) UpsertToken(token, domainName, role string, ttl time.Duration) error {
+func (s *ProvisioningService) UpsertToken(token, role string, ttl time.Duration) error {
 	t := ProvisionToken{
-		DomainName: domainName,
-		Role:       role,
+		Role: role,
 	}
 	out, err := json.Marshal(t)
 	if err != nil {
@@ -91,8 +90,7 @@ func SplitTokenRole(outputToken string) (token, role string, e error) {
 }
 
 type ProvisionToken struct {
-	DomainName string
-	Role       string
+	Role string
 }
 
 const (

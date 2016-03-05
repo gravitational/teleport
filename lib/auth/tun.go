@@ -172,7 +172,7 @@ func (s *AuthTunnel) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.Ne
 // isHostAuthority is called during checking the client key, to see if the signing
 // key is the real host CA authority key.
 func (s *AuthTunnel) isHostAuthority(auth ssh.PublicKey) bool {
-	key, err := s.authServer.GetCertAuthority(services.CertAuthID{DomainName: s.authServer.Hostname, Type: services.HostCA}, false)
+	key, err := s.authServer.GetCertAuthority(services.CertAuthID{DomainName: s.authServer.DomainName, Type: services.HostCA}, false)
 	if err != nil {
 		log.Errorf("failed to retrieve user authority key, err: %v", err)
 		return false
@@ -492,6 +492,9 @@ type TunClient struct {
 }
 
 func NewTunClient(addr utils.NetAddr, user string, auth []ssh.AuthMethod) (*TunClient, error) {
+	if user == "" {
+		return nil, trace.Errorf("SSH connection requires a valid username")
+	}
 	tc := &TunClient{
 		dialer: &TunDialer{auth: auth, addr: addr, user: user},
 	}
@@ -574,7 +577,7 @@ func (t *TunDialer) getClient() (*ssh.Client, error) {
 		Auth: t.auth,
 	}
 	client, err := ssh.Dial(t.addr.AddrNetwork, t.addr.Addr, config)
-	log.Infof("TunDialer.getClient(%v)", t.addr.String())
+	log.Debugf("TunDialer.getClient(%v)", t.addr.String())
 	if err != nil {
 		log.Infof("TunDialer could not ssh.Dial: %v", err)
 		return nil, trace.Wrap(err)
@@ -596,14 +599,14 @@ type tunConn struct {
 }
 
 func (c *tunConn) Close() error {
-	log.Infof("tunConn: close!")
+	log.Debugf("tunConn: close!")
 	err := c.Conn.Close()
 	err = c.client.Close()
 	return trace.Wrap(err)
 }
 
 func (t *TunDialer) Dial(network, address string) (net.Conn, error) {
-	log.Infof("TunDialer.Dial(%v, %v)", network, address)
+	log.Debugf("TunDialer.Dial(%v, %v)", network, address)
 	client, err := t.getClient()
 	if err != nil {
 		return nil, trace.Wrap(

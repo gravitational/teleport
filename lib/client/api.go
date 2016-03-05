@@ -63,7 +63,7 @@ type Config struct {
 	// Remote host port
 	HostPort int
 
-	// hostname of the proxy (with optional ":port")
+	// host or IP of the proxy (with optional ":port")
 	ProxyHost string
 
 	// TTL for the temporary SSH keypair to remain valid:
@@ -440,15 +440,15 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 // makeHostKeyCallback creates and returns a function suitable to be passed into
 // ssh.ClientConfig
 func (tc *TeleportClient) makeHostKeyCallback() utils.HostKeyCallback {
-	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-		err := CheckHostSignerFromCache(hostname, remote, key)
+	return func(hostID string, remote net.Addr, key ssh.PublicKey) error {
+		err := CheckHostSignerFromCache(hostID, remote, key)
 		if err != nil {
 			err = tc.Login()
 			if err != nil {
 				log.Error(err)
 				return trace.Wrap(err)
 			}
-			return CheckHostSignerFromCache(hostname, remote, key)
+			return CheckHostSignerFromCache(hostID, remote, key)
 		}
 		return nil
 	}

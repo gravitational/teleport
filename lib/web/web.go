@@ -922,7 +922,8 @@ func New(addr utils.NetAddr, cfg Config) (*Server, error) {
 	return srv, nil
 }
 
+// CreateSignupLink generates and returns a URL which is given to a new
+// user to complete registration with Teleport via Web UI
 func CreateSignupLink(hostPort string, token string) string {
-	// TODO(klizhentas) HTTPS
-	return "http://" + hostPort + "/web/newuser/" + token
+	return "https://" + hostPort + "/web/newuser/" + token
 }
