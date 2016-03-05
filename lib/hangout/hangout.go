@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/codahale/lunk"
 	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -337,19 +336,13 @@ func (h *Hangout) initAuth(cfg service.Config, readOnlyHangout bool) error {
 
 func (h *Hangout) initTunAgent(cfg service.Config, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
 
-	elog := &service.FanOutEventLogger{
-		Loggers: []lunk.EventLogger{
-			lunk.NewTextEventLogger(log.StandardLogger().Writer()),
-			h.client,
-		}}
-
 	a, err := reversetunnel.NewHangoutAgent(
 		cfg.ReverseTunnel.DialAddr,
 		h.HangoutID,
 		authMethods,
 		hostKeyCallback,
 		h.client,
-		reversetunnel.SetEventLogger(elog))
+		reversetunnel.SetEventLogger(h.client))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -369,13 +362,6 @@ func (h *Hangout) initTunAgent(cfg service.Config, authMethods []ssh.AuthMethod,
 }
 
 func (h *Hangout) initSSHEndpoint(cfg service.Config) error {
-	elog := &service.FanOutEventLogger{
-		Loggers: []lunk.EventLogger{
-			lunk.NewTextEventLogger(log.StandardLogger().Writer()),
-			h.client,
-		},
-	}
-
 	s, err := srv.New(cfg.SSH.Addr,
 		h.HangoutID,
 		[]ssh.Signer{h.signer},
@@ -383,7 +369,7 @@ func (h *Hangout) initSSHEndpoint(cfg service.Config) error {
 		cfg.DataDir,
 		nil,
 		srv.SetShell(DefaultSSHShell),
-		srv.SetEventLogger(elog),
+		srv.SetEventLogger(h.client),
 		srv.SetSessionServer(h.client),
 		srv.SetRecorder(h.client),
 		srv.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
