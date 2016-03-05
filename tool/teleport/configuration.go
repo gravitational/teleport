@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
@@ -24,6 +25,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -233,7 +235,7 @@ func applyFileConfig(fc *config.FileConfig, cfg *service.Config) error {
 	advertiseIP := fc.SSH.AdvertiseIP
 	if advertiseIP != nil {
 		if advertiseIP.IsLoopback() || advertiseIP.IsUnspecified() || advertiseIP.IsMulticast() {
-			return trace.Errorf("unreachable advertise IP: %v", advertiseIP)
+			return teleport.BadParameter("advertise-ip", fmt.Sprintf("unreachable advertise IP: %v", advertiseIP))
 		}
 		cfg.SSH.AdvertiseIP = advertiseIP
 	}

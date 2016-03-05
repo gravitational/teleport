@@ -204,18 +204,16 @@ func (c *Client) DeleteCertAuthority(id services.CertAuthID) error {
 	return trace.Wrap(err)
 }
 
-// GenerateToken creates a special provisioning token for the SSH server
-// with the specified hostname that is valid for ttl period seconds.
+// GenerateToken creates a special provisioning token for a new SSH server
+// that is valid for ttl period seconds.
 //
 // This token is used by SSH server to authenticate with Auth server
 // and get signed certificate and private key from the auth server.
 //
-// The token can be used only once and only to generate the hostname
-// specified in it.
-func (c *Client) GenerateToken(nodename string, role teleport.Role, ttl time.Duration) (string, error) {
+// The token can be used only once.
+func (c *Client) GenerateToken(role teleport.Role, ttl time.Duration) (string, error) {
 	out, err := c.PostJSON(c.Endpoint("tokens"), generateTokenReq{
-		Domain: nodename,
-		Role:   role,
+		Role: role,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -229,11 +227,11 @@ func (c *Client) GenerateToken(nodename string, role teleport.Role, ttl time.Dur
 
 // RegisterUserToken calls the auth service API to register a new node via registration token
 // which has been previously issued via GenerateToken
-func (c *Client) RegisterUsingToken(token, nodename string, role teleport.Role) (PackedKeys, error) {
+func (c *Client) RegisterUsingToken(token, hostID string, role teleport.Role) (PackedKeys, error) {
 	out, err := c.PostJSON(c.Endpoint("tokens", "register"),
 		registerUsingTokenReq{
+			HostID: hostID,
 			Token:  token,
-			Domain: nodename,
 			Role:   role,
 		})
 	if err != nil {
@@ -250,9 +248,8 @@ func (c *Client) RegisterNewAuthServer(nodename, token string,
 	publicSealKey encryptor.Key) (masterKey encryptor.Key, e error) {
 
 	out, err := c.PostJSON(c.Endpoint("tokens", "register", "auth"), registerNewAuthServerReq{
-		Domain: nodename,
-		Token:  token,
-		Key:    publicSealKey,
+		Token: token,
+		Key:   publicSealKey,
 	})
 	if err != nil {
 		return encryptor.Key{}, trace.Wrap(err)
@@ -704,8 +701,8 @@ type ClientI interface {
 	UpsertCertAuthority(cert services.CertAuthority, ttl time.Duration) error
 	GetCertAuthorities(caType services.CertAuthType) ([]*services.CertAuthority, error)
 	DeleteCertAuthority(caType services.CertAuthID) error
-	GenerateToken(domainName string, role teleport.Role, ttl time.Duration) (string, error)
-	RegisterUsingToken(token, domainName string, role teleport.Role) (keys PackedKeys, e error)
+	GenerateToken(role teleport.Role, ttl time.Duration) (string, error)
+	RegisterUsingToken(token, hostID string, role teleport.Role) (keys PackedKeys, e error)
 	RegisterNewAuthServer(domainName, token string, publicSealKey encryptor.Key) (masterKey encryptor.Key, e error)
 	Log(id lunk.EventID, e lunk.Event)
 	LogEntry(en lunk.Entry) error

@@ -54,7 +54,7 @@ import (
 
 type RoleConfig struct {
 	DataDir     string
-	Hostname    string
+	HostUUID    string
 	AuthServers []utils.NetAddr
 	Auth        AuthConfig
 	Console     io.Writer
@@ -92,7 +92,7 @@ func NewTeleport(cfg Config) (Supervisor, error) {
 	supervisor := NewSupervisor()
 
 	if cfg.Auth.Enabled {
-		if err := InitAuthService(supervisor, cfg.RoleConfig(), cfg.Hostname); err != nil {
+		if err := InitAuthService(supervisor, cfg.RoleConfig(), cfg.HostUUID); err != nil {
 			return nil, err
 		}
 	}
@@ -119,33 +119,27 @@ func NewTeleport(cfg Config) (Supervisor, error) {
 }
 
 // InitAuthService can be called to initialize auth server service
-func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostname string) error {
-	if cfg.Auth.HostAuthorityDomain == "" {
-		return trace.Errorf(
-			"please provide host certificate authority domain, e.g. example.com")
-	}
-
-	b, err := initBackend(cfg.DataDir, cfg.Hostname, cfg.AuthServers, cfg.Auth)
+func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostUUID string) error {
+	// Initialize the storage back-ends for keys, events and records
+	b, err := initAuthStorage(cfg.DataDir, hostUUID, cfg.AuthServers, cfg.Auth)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	elog, err := initEventBackend(
+	elog, err := initEventStorage(
 		cfg.Auth.EventsBackend.Type, cfg.Auth.EventsBackend.Params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	rec, err := initRecordBackend(
+	rec, err := initRecordStorage(
 		cfg.Auth.RecordsBackend.Type, cfg.Auth.RecordsBackend.Params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// configure the auth service:
 	acfg := auth.InitConfig{
 		Backend:       b,
 		Authority:     authority.New(),
-		DomainName:    cfg.Hostname,
-		AuthDomain:    cfg.Auth.HostAuthorityDomain,
+		DomainName:    cfg.HostUUID,
 		DataDir:       cfg.DataDir,
 		SecretKey:     cfg.Auth.SecretKey,
 		AllowedTokens: cfg.Auth.AllowedTokens,
@@ -205,7 +199,7 @@ func initSSH(supervisor Supervisor, cfg Config) error {
 }
 
 func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
-	i, err := auth.ReadIdentity(cfg.Hostname, cfg.DataDir)
+	i, err := auth.ReadIdentity(cfg.DataDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -272,7 +266,7 @@ func RegisterWithAuthServer(
 	}
 
 	// check host SSH keys
-	haveKeys, err := auth.HaveKeys(cfg.Hostname, cfg.DataDir)
+	haveKeys, err := auth.HaveHostKeys(cfg.DataDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -283,7 +277,7 @@ func RegisterWithAuthServer(
 	authServer := cfg.AuthServers[0].Addr
 
 	// see if we've registered with this auth server before
-	_, err = auth.ReadIdentity(cfg.Hostname, cfg.DataDir)
+	_, err = auth.ReadIdentity(cfg.DataDir)
 	previouslyRegistered := (err == nil)
 
 	// this means the server has not been initialized yet, we are starting
@@ -296,7 +290,7 @@ func RegisterWithAuthServer(
 		} else {
 			for {
 				log.Infof("joining the cluster with a token %v", provisioningToken)
-				err := auth.Register(cfg.Hostname, cfg.DataDir, provisioningToken, role, cfg.AuthServers)
+				err := auth.Register(cfg.HostUUID, cfg.DataDir, provisioningToken, role, cfg.AuthServers)
 				if err != nil {
 					log.Errorf("[SSH] failed to join the cluster: %v", err)
 					time.Sleep(time.Second * 5)
@@ -322,7 +316,7 @@ func initReverseTunnel(supervisor Supervisor, cfg Config) error {
 }
 
 func initTunAgent(supervisor Supervisor, cfg Config) error {
-	i, err := auth.ReadIdentity(cfg.Hostname, cfg.DataDir)
+	i, err := auth.ReadIdentity(cfg.DataDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -359,7 +353,18 @@ func initTunAgent(supervisor Supervisor, cfg Config) error {
 	return nil
 }
 
-func initProxy(supervisor Supervisor, cfg Config) error {
+// initProxy gets called if teleport runs with 'proxy' role enabled.
+// this means it will do two things:
+//    1. serve a web UI
+//    2. proxy SSH connections to nodes running with 'node' role
+func initProxy(supervisor Supervisor, cfg Config) (err error) {
+	// if no TLS key was provided for the web UI, generate a self signed cert
+	if cfg.Proxy.TLSKey == "" {
+		cfg.Proxy.TLSKey, cfg.Proxy.TLSCert, err = initSelfSignedHTTPSCert(&cfg)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return RegisterWithAuthServer(
 		supervisor, cfg.Proxy.Token, cfg.RoleConfig(), teleport.RoleNode,
 		func() error {
@@ -380,7 +385,7 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 		return trace.Wrap(err)
 	}
 
-	i, err := auth.ReadIdentity(cfg.Hostname, cfg.DataDir)
+	i, err := auth.ReadIdentity(cfg.DataDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -473,7 +478,8 @@ func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
 	return nil
 }
 
-func initBackend(dataDir, domainName string, peers NetAddrSlice, cfg AuthConfig) (*encryptedbk.ReplicatedBackend, error) {
+// initAuthStorage initializes the storage backend for the auth. service
+func initAuthStorage(dataDir, hostUUID string, peers NetAddrSlice, cfg AuthConfig) (*encryptedbk.ReplicatedBackend, error) {
 	var bk backend.Backend
 	var err error
 
@@ -505,12 +511,12 @@ func initBackend(dataDir, domainName string, peers NetAddrSlice, cfg AuthConfig)
 	if err != nil {
 		log.Errorf(err.Error())
 		log.Infof("Initializing backend as follower node")
-		myKey, err := encryptor.GenerateGPGKey(domainName + " key")
+		myKey, err := encryptor.GenerateGPGKey(hostUUID + " key")
 		if err != nil {
 			return nil, err
 		}
-		masterKey, err := auth.RegisterNewAuth(
-			domainName, cfg.Token, myKey.Public(), peers)
+		masterKey, err := auth.RegisterNewAuth(hostUUID,
+			cfg.Token, myKey.Public(), peers)
 		if err != nil {
 			return nil, err
 		}
@@ -525,7 +531,7 @@ func initBackend(dataDir, domainName string, peers NetAddrSlice, cfg AuthConfig)
 	return encryptedBk, nil
 }
 
-func initEventBackend(btype string, params string) (events.Log, error) {
+func initEventStorage(btype string, params string) (events.Log, error) {
 	switch btype {
 	case "bolt":
 		return boltlog.FromJSON(params)
@@ -533,7 +539,7 @@ func initEventBackend(btype string, params string) (events.Log, error) {
 	return nil, trace.Errorf("unsupported backend type: %v", btype)
 }
 
-func initRecordBackend(btype string, params string) (recorder.Recorder, error) {
+func initRecordStorage(btype string, params string) (recorder.Recorder, error) {
 	switch btype {
 	case "bolt":
 		return boltrec.FromJSON(params)
@@ -560,24 +566,18 @@ func validateConfig(cfg *Config) error {
 		return trace.Wrap(teleport.BadParameter("config", "please supply both TLS key and certificate"))
 	}
 
-	// if no TLS key was provided, generate self signed certificates
-	if cfg.Proxy.TLSKey == "" {
-		var err error
-		cfg.Proxy.TLSKey, cfg.Proxy.TLSCert, err = initSelfSignedCert(cfg)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	return nil
 }
 
-func initSelfSignedCert(cfg *Config) (string, string, error) {
+// initSelfSignedHTTPSCert generates and self-signs a TLS key+cert pair for https connection
+// to the proxy server.
+func initSelfSignedHTTPSCert(cfg *Config) (keyPath string, certPath string, err error) {
 	log.Warningf("[CONFIG] NO TLS Keys provided, using self signed certificate")
-	keyPath := filepath.Join(cfg.DataDir, selfSignedKeyName)
-	certPath := filepath.Join(cfg.DataDir, selfSignedCertName)
+	keyPath = filepath.Join(cfg.DataDir, selfSignedKeyPath)
+	certPath = filepath.Join(cfg.DataDir, selfSignedCertPath)
 
-	_, err := tls.LoadX509KeyPair(certPath, keyPath)
+	// return the existing pair if they ahve already been generated:
+	_, err = tls.LoadX509KeyPair(certPath, keyPath)
 	if err == nil {
 		return keyPath, certPath, nil
 	}
@@ -599,8 +599,10 @@ func initSelfSignedCert(cfg *Config) (string, string, error) {
 }
 
 const (
-	selfSignedKeyName  = "selfsignedkey.npem"
-	selfSignedCertName = "selfsignedcert.pem"
+	// path to a self-signed TLS key file for HTTPS connection for the web proxy
+	selfSignedKeyPath = "webproxy_https.key"
+	// path to a self-signed TLS cert file for HTTPS connection for the web proxy
+	selfSignedCertPath = "webproxy_https.cert"
 )
 
 type FanOutEventLogger struct {

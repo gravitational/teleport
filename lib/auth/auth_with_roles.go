@@ -121,27 +121,25 @@ func (a *AuthWithRoles) DeleteCertAuthority(id services.CertAuthID) error {
 		return a.authServer.DeleteCertAuthority(id)
 	}
 }
-func (a *AuthWithRoles) GenerateToken(domainName string, role teleport.Role, ttl time.Duration) (string, error) {
+func (a *AuthWithRoles) GenerateToken(role teleport.Role, ttl time.Duration) (string, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGenerateToken); err != nil {
 		return "", err
 	} else {
-		return a.authServer.GenerateToken(domainName, role, ttl)
+		return a.authServer.GenerateToken(role, ttl)
 	}
 }
-func (a *AuthWithRoles) RegisterUsingToken(token, domainName string, role teleport.Role) (keys PackedKeys, e error) {
+func (a *AuthWithRoles) RegisterUsingToken(token, hostID string, role teleport.Role) (keys PackedKeys, e error) {
 	if err := a.permChecker.HasPermission(a.role, ActionRegisterUsingToken); err != nil {
 		return PackedKeys{}, err
 	} else {
-		return a.authServer.RegisterUsingToken(token, domainName, role)
+		return a.authServer.RegisterUsingToken(token, hostID, role)
 	}
 }
-func (a *AuthWithRoles) RegisterNewAuthServer(domainName, token string,
-	publicSealKey encryptor.Key) (masterKey encryptor.Key, e error) {
-
+func (a *AuthWithRoles) RegisterNewAuthServer(token string, publicSealKey encryptor.Key) (masterKey encryptor.Key, e error) {
 	if err := a.permChecker.HasPermission(a.role, ActionRegisterNewAuthServer); err != nil {
 		return encryptor.Key{}, err
 	} else {
-		return a.authServer.RegisterNewAuthServer(domainName, token, publicSealKey)
+		return a.authServer.RegisterNewAuthServer(token, publicSealKey)
 	}
 }
 func (a *AuthWithRoles) Log(id lunk.EventID, e lunk.Event) {

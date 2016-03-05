@@ -47,8 +47,7 @@ type UserCommand struct {
 }
 
 type NodeCommand struct {
-	config   *service.Config
-	nodename string
+	config *service.Config
 }
 
 func main() {
@@ -72,7 +71,7 @@ func main() {
 
 	// user add command:
 	users := app.Command("users", "Manage users logins")
-	userAdd := users.Command("invite", "Generates an invitation token and prints the signup URL for setting up 2nd factor auth.")
+	userAdd := users.Command("add", "Generates an invitation token and prints the signup URL for setting up 2nd factor auth.")
 	userAdd.Arg("login", "Teleport user login").Required().StringVar(&cmdUsers.login)
 	userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
 		Default("").StringVar(&cmdUsers.allowedLogins)
@@ -88,9 +87,8 @@ func main() {
 
 	// add node command
 	nodes := app.Command("nodes", "Issue invites for other nodes to join the cluster")
-	nodeAdd := nodes.Command("invite", "Invites a new SSH node to join the cluster")
+	nodeAdd := nodes.Command("add", "Adds a new SSH node to join the cluster")
 	nodeAdd.Alias(AddNodeHelp)
-	nodeAdd.Arg("name", "The name of the node").Required().StringVar(&cmdNodes.nodename)
 	nodeList := nodes.Command("ls", "Lists all active SSH nodes within the cluster")
 	nodeList.Alias(ListNodesHelp)
 
@@ -105,6 +103,8 @@ func main() {
 		utils.InitLoggerDebug()
 	}
 
+	validateConfig(cfg)
+
 	// connect to the teleport auth service:
 	client, err := connectToAuthService(cfg)
 	if err != nil {
@@ -116,7 +116,7 @@ func main() {
 	case ver.FullCommand():
 		onVersion()
 	case userAdd.FullCommand():
-		err = cmdUsers.Invite(client)
+		err = cmdUsers.Add(cfg.Hostname, client)
 	case userList.FullCommand():
 		err = cmdUsers.List(client)
 	case userDelete.FullCommand():
@@ -145,9 +145,9 @@ func printHeader(t *goterm.Table, cols []string) {
 	fmt.Fprint(t, strings.Join(dots, "\t")+"\n")
 }
 
-// Invite creates a new sign-up token and prints a token URL to stdout.
+// Add creates a new sign-up token and prints a token URL to stdout.
 // A user is not created until he visits the sign-up URL and completes the process
-func (u *UserCommand) Invite(client *auth.TunClient) error {
+func (u *UserCommand) Add(hostname string, client *auth.TunClient) error {
 	// if no local logins were specified, default to 'login'
 	if u.allowedLogins == "" {
 		u.allowedLogins = u.login
@@ -156,8 +156,9 @@ func (u *UserCommand) Invite(client *auth.TunClient) error {
 	if err != nil {
 		return err
 	}
-
-	hostname, _ := os.Hostname()
+	if hostname == "" {
+		hostname, _ = os.Hostname()
+	}
 	url := web.CreateSignupLink(net.JoinHostPort(hostname, strconv.Itoa(defaults.HTTPListenPort)), token)
 	fmt.Printf("Signup token has been created. Share this URL with the user:\n%v\n\nNOTE: make sure the hostname is accessible!\n", url)
 	return nil
@@ -200,12 +201,13 @@ func (u *UserCommand) Delete(client *auth.TunClient) error {
 // to a cluster
 func (u *NodeCommand) Invite(client *auth.TunClient) error {
 	invitationTTL := time.Minute * 15
-	token, err := client.GenerateToken(u.nodename, teleport.RoleNode, invitationTTL)
+	token, err := client.GenerateToken(teleport.RoleNode, invitationTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("The invite token: %v\nRun this on the new node to join the cluster:\n> teleport start --roles=node --name=%v --token=%v --auth-server=<Address>\n\nNotes:\n",
-		token, u.nodename, token)
+	fmt.Printf(
+		"The invite token: %v\nRun this on the new node to join the cluster:\n> teleport start --roles=node --token=%v --auth-server=<Address>\n\nNotes:\n",
+		token, token)
 	fmt.Printf("  1. This invitation token will expire in %v seconds.\n", invitationTTL.Seconds())
 	fmt.Printf("  2. <Address> is the IP this auth server is reachable at from the node.\n")
 	return nil
@@ -248,15 +250,14 @@ func connectToAuthService(cfg *service.Config) (client *auth.TunClient, err erro
 		*defaults.AuthConnectAddr(),
 	}
 
-	// login via keys:
-	i, err := auth.ReadIdentity(cfg.Hostname, cfg.DataDir)
+	// read the host SSH keys and use them to open an SSH connection to the auth service
+	i, err := auth.ReadIdentity(cfg.DataDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	client, err = auth.NewTunClient(
 		cfg.AuthServers[0],
-		cfg.Hostname,
+		cfg.HostUUID,
 		[]ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -270,4 +271,14 @@ func connectToAuthService(cfg *service.Config) (client *auth.TunClient, err erro
 		os.Exit(1)
 	}
 	return client, nil
+}
+
+// validateConfig updtes&validates tctl configuration
+func validateConfig(cfg *service.Config) {
+	var err error
+	// read or generate a host UUID for this node
+	cfg.HostUUID, err = utils.ReadOrMakeHostUUID(cfg.DataDir)
+	if err != nil {
+		utils.FatalError(err)
+	}
 }

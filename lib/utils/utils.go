@@ -33,7 +33,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type HostKeyCallback func(hostname string, remote net.Addr, key ssh.PublicKey) error
+type HostKeyCallback func(hostID string, remote net.Addr, key ssh.PublicKey) error
 
 func ReadPath(path string) ([]byte, error) {
 	s, err := filepath.Abs(path)

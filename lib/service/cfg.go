@@ -98,7 +98,7 @@ func (cfg *Config) ConfigureBolt(dataDir string) {
 func (cfg *Config) RoleConfig() RoleConfig {
 	return RoleConfig{
 		DataDir:     cfg.DataDir,
-		Hostname:    cfg.Hostname,
+		HostUUID:    cfg.HostUUID,
 		AuthServers: cfg.AuthServers,
 		Auth:        cfg.Auth,
 		Console:     cfg.Console,
@@ -149,9 +149,6 @@ type AuthConfig struct {
 
 	// SSHAddr is the listening address of SSH tunnel to HTTP service
 	SSHAddr utils.NetAddr
-
-	// HostAuthorityDomain is Host Certificate Authority domain name
-	HostAuthorityDomain string
 
 	// Token is a provisioning token for an additonal auth server joining the cluster
 	Token string
@@ -332,7 +329,6 @@ func ApplyDefaults(cfg *Config) {
 
 	// defaults for the auth service:
 	cfg.Auth.Enabled = true
-	cfg.Auth.HostAuthorityDomain = hostname
 	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
 	cfg.Auth.EventsBackend.Type = defaults.BackendType
 	cfg.Auth.EventsBackend.Params = boltParams(defaults.DataDir, defaults.EventsBoltFile)
