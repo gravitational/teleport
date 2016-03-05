@@ -39,6 +39,7 @@ var TtyTerminal = React.createClass({
     this.tty.on('open', ()=> this.term.write(CONNECTED_TXT));
     this.tty.on('close', ()=> this.term.write(DISCONNECT_TXT));
     this.tty.on('data', (data) => this.term.write(data));
+    this.tty.on('reset', ()=> this.term.reset());
 
     this.tty.connect({cols: this.cols, rows: this.rows});
     window.addEventListener('resize', this.debouncedResize);

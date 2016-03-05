@@ -1,43 +1,25 @@
 var reactor = require('app/reactor');
-var api = require('app/services/api');
-var cfg = require('app/config');
+var {fetchSessions} = require('./../sessions/actions');
+var {fetchNodes } = require('./../nodes/actions');
+var $ = require('jQuery');
 
-var { TLPT_SESSINS_RECEIVE } = require('./../sessions/actionTypes');
-var { TLPT_NODES_RECEIVE } = require('./../nodes/actionTypes');
 var { TLPT_APP_INIT, TLPT_APP_FAILED, TLPT_APP_READY } = require('./actionTypes');
 
-export default {
+var actions = {
 
   initApp() {
     reactor.dispatch(TLPT_APP_INIT);
-    module.exports.fetchNodesAndSessions()
-      .done(()=>{
-        reactor.dispatch(TLPT_APP_READY);
-      })
-      .fail(()=>{
-        reactor.dispatch(TLPT_APP_FAILED);
-      });
+    actions.fetchNodesAndSessions()
+      .done(()=>{ reactor.dispatch(TLPT_APP_READY); })
+      .fail(()=>{ reactor.dispatch(TLPT_APP_FAILED); });
+
+    //api.get(`/v1/webapi/sites/-current-/sessions/03d3e11d-45c1-4049-bceb-b233605666e4/chunks?start=0&end=100`).done(() => {
+    //});
   },
 
   fetchNodesAndSessions() {
-    return api.get(cfg.api.nodesPath).done(json => {
-      var nodeArray = [];
-      var sessions = {};
-
-      json.nodes.forEach(item => {
-        nodeArray.push(item.node);
-        if (item.sessions) {
-          item.sessions.forEach(item2 => {
-            sessions[item2.id] = item2;
-          })
-        }
-      });
-
-      reactor.batch(() => {
-        reactor.dispatch(TLPT_NODES_RECEIVE, nodeArray);
-        reactor.dispatch(TLPT_SESSINS_RECEIVE, sessions);
-      });
-
-    });
+    return $.when(fetchNodes(), fetchSessions());
   }
 }
+
+export default actions;
