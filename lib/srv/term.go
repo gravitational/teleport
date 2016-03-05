@@ -88,7 +88,6 @@ func (t *terminal) getWinsize() (*term.Winsize, error) {
 	if t.pty == nil {
 		return nil, trace.Wrap(teleport.NotFound("no pty"))
 	}
-	log.Infof("pty: %v", t.pty)
 	ws, err := term.GetWinsize(t.pty.Fd())
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -61,7 +61,6 @@ func (s *ConfigSuite) TestDefaultConfig(c *C) {
 	c.Assert(auth.SSHAddr, DeepEquals, localAuthAddr)
 	c.Assert(auth.Limiter.MaxConnections, Equals, int64(defaults.LimiterMaxConnections))
 	c.Assert(auth.Limiter.MaxNumberOfUsers, Equals, defaults.LimiterMaxConcurrentUsers)
-	c.Assert(auth.HostAuthorityDomain, Equals, config.Hostname)
 	c.Assert(auth.KeysBackend.Type, Equals, "bolt")
 	c.Assert(auth.KeysBackend.Params, Equals, `{"path": "/var/lib/teleport/keys.db"}`)
 	c.Assert(auth.EventsBackend.Type, Equals, "bolt")

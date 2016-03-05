@@ -74,7 +74,7 @@ func (s *AuthServer) CreateSignupToken(user string, allowedLogins []string) (str
 		log.Errorf("[AUTH API] failed to generate HOTP: %v", err)
 		return "", trace.Wrap(err)
 	}
-	otpQR, err := otp.QR("teleport: " + user + "@" + s.Hostname)
+	otpQR, err := otp.QR("teleport: " + user + "@" + s.DomainName)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
