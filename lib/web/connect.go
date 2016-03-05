@@ -18,11 +18,11 @@ package web
 
 import (
 	"fmt"
-	"net"
 	"net/http"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 
@@ -35,8 +35,8 @@ import (
 // connectReq is a request to open interactive SSH
 // connection to remote server
 type connectReq struct {
-	// Addr is a host:port pair of the server to connect to
-	Addr string `json:"addr"`
+	// ServerID is a server id to connect to
+	ServerID string `json:"server_id"`
 	// User is linux username to connect as
 	Login string `json:"login"`
 	// Term sets PTY params like width and height
@@ -46,8 +46,25 @@ type connectReq struct {
 }
 
 func newConnectHandler(req connectReq, ctx *sessionContext, site reversetunnel.RemoteSite) (*connectHandler, error) {
-	if _, _, err := net.SplitHostPort(req.Addr); err != nil {
-		return nil, trace.Wrap(teleport.BadParameter("addr", "bad address format"))
+	clt, err := site.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers, err := clt.GetServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var server *services.Server
+	for i := range servers {
+		node := servers[i]
+		if node.ID == req.ServerID {
+			server = &node
+		}
+	}
+	if server == nil {
+		return nil, trace.Wrap(
+			teleport.NotFound(
+				fmt.Sprintf("node '%v' not found", req.ServerID)))
 	}
 	if req.Login == "" {
 		return nil, trace.Wrap(teleport.BadParameter("login", "missing login"))
@@ -56,19 +73,21 @@ func newConnectHandler(req connectReq, ctx *sessionContext, site reversetunnel.R
 		return nil, trace.Wrap(teleport.BadParameter("term", "bad term dimensions"))
 	}
 	return &connectHandler{
-		req:  req,
-		ctx:  ctx,
-		site: site,
+		req:    req,
+		ctx:    ctx,
+		site:   site,
+		server: *server,
 	}, nil
 }
 
 // connectHandler is a websocket to SSH proxy handler
 type connectHandler struct {
-	ctx  *sessionContext
-	site reversetunnel.RemoteSite
-	up   *sshutils.Upstream
-	req  connectReq
-	ws   *websocket.Conn
+	ctx    *sessionContext
+	site   reversetunnel.RemoteSite
+	up     *sshutils.Upstream
+	req    connectReq
+	ws     *websocket.Conn
+	server services.Server
 }
 
 func (w *connectHandler) String() string {
@@ -76,7 +95,9 @@ func (w *connectHandler) String() string {
 }
 
 func (w *connectHandler) Close() error {
-	w.ws.Close()
+	if w.ws != nil {
+		w.ws.Close()
+	}
 	if w.up != nil {
 		return w.up.Close()
 	}
@@ -107,11 +128,17 @@ func (w *connectHandler) resizePTYWindow(params session.TerminalParams) error {
 }
 
 func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
-	methods, err := w.ctx.GetAuthMethods()
+	agent, err := w.ctx.GetAgent()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	client, err := w.site.ConnectToServer(w.req.Addr, w.req.Login, methods)
+	defer agent.Close()
+	signers, err := agent.Signers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	client, err := w.site.ConnectToServer(
+		w.server.Addr, w.req.Login, []ssh.AuthMethod{ssh.PublicKeys(signers...)})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

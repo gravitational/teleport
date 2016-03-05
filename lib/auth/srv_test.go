@@ -345,7 +345,7 @@ func (s *APISuite) TestSharedSessionsParties(c *C) {
 		ID:         "p1",
 		User:       "bob",
 		RemoteAddr: "example.com",
-		ServerAddr: "localhost:1",
+		ServerID:   "id-1",
 		LastActive: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
 	}
 	c.Assert(s.clt.UpsertParty("s1", p1, 0), IsNil)

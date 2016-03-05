@@ -47,7 +47,7 @@ type TextFormatter struct {
 func (tf *TextFormatter) Format(e *log.Entry) ([]byte, error) {
 	if frameNo := findFrame(); frameNo != -1 {
 		t := newTrace(runtime.Caller(frameNo - 1))
-		e.Data[FileField] = t.String()
+		e = e.WithFields(log.Fields{FileField: t.String()})
 	}
 	return (&tf.TextFormatter).Format(e)
 }
@@ -62,8 +62,10 @@ type JSONFormatter struct {
 func (j *JSONFormatter) Format(e *log.Entry) ([]byte, error) {
 	if frameNo := findFrame(); frameNo != -1 {
 		t := newTrace(runtime.Caller(frameNo - 1))
-		e.Data[FileField] = t.String()
-		e.Data[FunctionField] = t.Func
+		e = e.WithFields(log.Fields{
+			FileField:     t.String(),
+			FunctionField: t.Func,
+		})
 	}
 	return (&j.JSONFormatter).Format(e)
 }

@@ -19,7 +19,9 @@ package srv
 import (
 	"os"
 	"os/exec"
+	"sync"
 
+	"github.com/gravitational/teleport"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 
@@ -33,6 +35,8 @@ import (
 // terminal provides handy functions for managing PTY, usch as resizing windows
 // execing processes with PTY and cleaning up
 type terminal struct {
+	sync.WaitGroup
+	sync.Mutex
 	pty  *os.File
 	tty  *os.File
 	err  error
@@ -79,6 +83,12 @@ func requestPTY(req *ssh.Request) (*terminal, *rsession.TerminalParams, error) {
 }
 
 func (t *terminal) getWinsize() (*term.Winsize, error) {
+	t.Lock()
+	defer t.Unlock()
+	if t.pty == nil {
+		return nil, trace.Wrap(teleport.NotFound("no pty"))
+	}
+	log.Infof("pty: %v", t.pty)
 	ws, err := term.GetWinsize(t.pty.Fd())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -87,6 +97,11 @@ func (t *terminal) getWinsize() (*term.Winsize, error) {
 }
 
 func (t *terminal) setWinsize(params rsession.TerminalParams) error {
+	t.Lock()
+	defer t.Unlock()
+	if t.pty == nil {
+		return trace.Wrap(teleport.NotFound("no pty"))
+	}
 	log.Infof("window resize %v", &params)
 	return trace.Wrap(term.SetWinsize(t.pty.Fd(), params.Winsize()))
 }
@@ -110,15 +125,28 @@ func (t *terminal) run(c *exec.Cmd) error {
 
 func (t *terminal) Close() error {
 	var err error
-	if e := t.pty.Close(); e != nil {
-		err = e
-	}
+	// note, pty is closed in the copying goroutine,
+	// not here to avoid data races
 	if t.tty != nil {
 		if e := t.tty.Close(); e != nil {
 			err = e
 		}
 	}
+	go t.closePTY()
 	return trace.Wrap(err)
+}
+
+func (t *terminal) closePTY() {
+	t.Lock()
+	defer t.Unlock()
+
+	// wait until all copying is over
+	log.Infof("Terminal wait for copy to be over")
+	t.Wait()
+	log.Infof("Terminal copy is over")
+
+	t.pty.Close()
+	t.pty = nil
 }
 
 func parseWinChange(req *ssh.Request) (*rsession.TerminalParams, error) {

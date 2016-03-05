@@ -3,7 +3,9 @@ var $ = require('jQuery');
 var reactor = require('app/reactor');
 var LinkedStateMixin = require('react-addons-linked-state-mixin');
 var {actions} = require('app/modules/user');
-var GoogleAuthInfo = require('./googleAuth');
+var GoogleAuthInfo = require('./googleAuthLogo');
+var cfg = require('app/config');
+
 var LoginInputForm = React.createClass({
 
   mixins: [LinkedStateMixin],
@@ -19,7 +21,7 @@ var LoginInputForm = React.createClass({
   onClick: function(e) {
     e.preventDefault();
     if (this.isValid()) {
-      actions.login({ ...this.state}, '/web');
+      this.props.onClick(this.state);
     }
   },
 
@@ -55,20 +57,29 @@ var Login = React.createClass({
 
   getDataBindings() {
     return {
-  //    userRequest: getters.userRequest
     }
   },
 
-  render: function() {
+  onClick(inputData){
+    var loc = this.props.location;
+    var redirect = cfg.routes.app;
+
+    if(loc.state && loc.state.redirectTo){
+      redirect = loc.state.redirectTo;
+    }
+
+    actions.login(inputData, redirect);
+  },
+
+  render() {
     var isProcessing = false;//this.state.userRequest.get('isLoading');
     var isError = false;//this.state.userRequest.get('isError');
-
     return (
       <div className="grv-login text-center">
         <div className="grv-logo-tprt"></div>
         <div className="grv-content grv-flex">
           <div className="grv-flex-column">
-            <LoginInputForm/>
+            <LoginInputForm onClick={this.onClick}/>
             <GoogleAuthInfo/>
             <div className="grv-login-info">
               <i className="fa fa-question"></i>

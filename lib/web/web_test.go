@@ -63,6 +63,7 @@ func TestWeb(t *testing.T) { TestingT(t) }
 type WebSuite struct {
 	node        *srv.Server
 	srvAddress  string
+	srvID       string
 	srvHostPort string
 	bk          *encryptedbk.ReplicatedBackend
 	roleAuth    *auth.AuthWithRoles
@@ -152,6 +153,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	)
 	c.Assert(err, IsNil)
 	s.node = node
+	s.srvID = node.ID()
 
 	c.Assert(s.node.Start(), IsNil)
 
@@ -490,7 +492,7 @@ func (s *WebSuite) connect(c *C, pack *authPack, opts ...string) *websocket.Conn
 	}
 	u := url.URL{Host: s.url().Host, Scheme: WSS, Path: fmt.Sprintf("/v1/webapi/sites/%v/connect", currentSiteShortcut)}
 	data, err := json.Marshal(connectReq{
-		Addr:      s.srvAddress,
+		ServerID:  s.srvID,
 		Login:     s.user,
 		Term:      session.TerminalParams{W: 100, H: 100},
 		SessionID: sessionID,

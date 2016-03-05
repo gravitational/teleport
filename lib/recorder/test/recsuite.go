@@ -35,9 +35,9 @@ func (s *RecorderSuite) Recorder(c *C) {
 	w, err := s.R.GetChunkWriter("recs1")
 	c.Assert(err, IsNil)
 
-	c1 := recorder.Chunk{Data: []byte("chunk1"), ServerAddr: "127.0.0.1:2000"}
-	c2 := recorder.Chunk{Delay: 3 * time.Millisecond, Data: []byte("chunk2"), ServerAddr: "127.0.0.1:2001"}
-	c3 := recorder.Chunk{Delay: 5 * time.Millisecond, Data: []byte("chunk3"), ServerAddr: "127.0.0.1:2002"}
+	c1 := recorder.Chunk{Data: []byte("chunk1"), ServerID: "id1"}
+	c2 := recorder.Chunk{Delay: 3 * time.Millisecond, Data: []byte("chunk2"), ServerID: "id2"}
+	c3 := recorder.Chunk{Delay: 5 * time.Millisecond, Data: []byte("chunk3"), ServerID: "id3"}
 
 	c.Assert(w.WriteChunks([]recorder.Chunk{c1, c2}), IsNil)
 

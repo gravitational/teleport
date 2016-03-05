@@ -1,5 +1,6 @@
 # Ev: this is temporary
 assets/docker
+web/dist/app/app
 
 # Compiled binaries, Object files, Static and Dynamic libs (Shared Objects)
 out

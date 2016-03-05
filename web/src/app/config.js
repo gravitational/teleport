@@ -8,9 +8,14 @@ let cfg = {
     renewTokenPath:'/v1/webapi/sessions/renew',
     nodesPath: '/v1/webapi/sites/-current-/nodes',
     sessionPath: '/v1/webapi/sessions',
+    fetchSessionPath: '/v1/webapi/sites/-current-/sessions/:sid',
     terminalSessionPath: '/v1/webapi/sites/-current-/sessions/:sid',
     invitePath: '/v1/webapi/users/invites/:inviteToken',
     createUserPath: '/v1/webapi/users',
+
+    getFetchSessionUrl: (sid)=>{
+      return formatPattern(cfg.api.fetchSessionPath, {sid});
+    },
 
     getTerminalSessionUrl: (sid)=> {
       return formatPattern(cfg.api.terminalSessionPath, {sid});
@@ -25,9 +30,9 @@ let cfg = {
       return `${hostname}/v1/webapi/sites/-current-/sessions/${sid}/events/stream?access_token=${token}`;
     },
 
-    getTtyConnStr: ({token, addr, login, sid, rows, cols}) => {
+    getTtyConnStr: ({token, serverId, login, sid, rows, cols}) => {
       var params = {
-        addr,
+        server_id: serverId,
         login,
         sid,
         term: {
@@ -48,11 +53,15 @@ let cfg = {
     logout: '/web/logout',
     login: '/web/login',
     nodes: '/web/nodes',
-    activeSession: '/web/active-session/:sid',
+    activeSession: '/web/sessions/:sid',
     newUser: '/web/newuser/:inviteToken',
-    sessions: '/web/sessions'
-  }
+    sessions: '/web/sessions',
+    pageNotFound: '/web/notfound'
+  },
 
+  getActiveSessionRouteUrl(sid){
+    return formatPattern(cfg.routes.activeSession, {sid});
+  }
 }
 
 export default cfg;
