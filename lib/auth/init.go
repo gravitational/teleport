@@ -34,10 +34,21 @@ import (
 )
 
 type InitConfig struct {
-	Backend       *encryptedbk.ReplicatedBackend
-	Authority     Authority
-	DomainName    string
-	DataDir       string
+	Backend   *encryptedbk.ReplicatedBackend
+	Authority Authority
+
+	// DomainName stores the FQDN of the signing CA (its certificate will have this
+	// name embedded). It is usually set to the GUID of the host the Auth service runs on
+	DomainName string
+
+	// AuthServiceName is a human-readable name of this CA. If several Auth services are running
+	// (managing multiple teleport clusters) this field is used to tell them apart in UIs
+	// It usually defaults to the hostname of the machine the Auth service runs on.
+	AuthServiceName string
+
+	// DataDir is the full path to the directory where keys, events and logs are kept
+	DataDir string
+
 	SecretKey     string
 	AllowedTokens map[string]string
 
@@ -47,6 +58,7 @@ type InitConfig struct {
 	UserCA *services.CertAuthority
 }
 
+// Init instantiates and configures an instance of AuthServer
 func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 	if cfg.DataDir == "" {
 		return nil, nil, fmt.Errorf("path can not be empty")
@@ -66,7 +78,7 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 	defer lockService.ReleaseLock(cfg.DomainName)
 
 	// check that user CA and host CA are present and set the certs if needed
-	asrv := NewAuthServer(cfg.Backend, cfg.Authority, cfg.DomainName)
+	asrv := NewAuthServer(&cfg)
 
 	// we determine if it's the first start by checking if the CA's are set
 	var firstStart bool

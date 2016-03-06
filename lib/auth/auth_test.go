@@ -54,7 +54,12 @@ func (s *AuthSuite) SetUpTest(c *C) {
 		encryptor.GetTestKey)
 	c.Assert(err, IsNil)
 
-	s.a = NewAuthServer(s.bk, authority.New(), "localhost")
+	authConfig := &InitConfig{
+		Backend:    s.bk,
+		Authority:  authority.New(),
+		DomainName: "localhost",
+	}
+	s.a = NewAuthServer(authConfig)
 }
 
 // TODO(klizhentas) introduce more thorough tests, test more edge cases

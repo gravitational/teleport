@@ -103,7 +103,8 @@ func (s *TshSuite) SetUpSuite(c *C) {
 		encryptor.GetTestKey)
 	c.Assert(err, IsNil)
 
-	s.a = auth.NewAuthServer(s.bk, authority.New(), "localhost")
+	s.a = auth.NewAuthServer(&auth.InitConfig{
+		Backend: s.bk, Authority: authority.New(), DomainName: "localhost"})
 
 	eventsLog, err := boltlog.New(filepath.Join(s.dir, "boltlog"))
 	c.Assert(err, IsNil)

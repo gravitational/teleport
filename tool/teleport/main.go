@@ -74,8 +74,8 @@ func run(cmdlineArgs []string, testRun bool) (executedCommand string, appliedCon
 	start.Flag("token",
 		"One-time token to register with an auth server [none]").
 		StringVar(&ccf.AuthToken)
-	start.Flag("name",
-		"Node name to register with an auth server with [none]").
+	start.Flag("nodename",
+		"Name of this node, defaults to hostname").
 		StringVar(&ccf.NodeName)
 	start.Flag("config",
 		fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).

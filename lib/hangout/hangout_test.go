@@ -83,7 +83,10 @@ func (s *HangoutsSuite) SetUpSuite(c *C) {
 		encryptor.GetTestKey)
 	c.Assert(err, IsNil)
 
-	s.a = auth.NewAuthServer(s.bk, authority.New(), "localhost")
+	s.a = auth.NewAuthServer(&auth.InitConfig{
+		Backend:    s.bk,
+		Authority:  authority.New(),
+		DomainName: "localhost"})
 
 	// set up host private key and certificate
 	c.Assert(s.a.UpsertCertAuthority(

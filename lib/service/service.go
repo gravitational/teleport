@@ -55,6 +55,7 @@ import (
 type RoleConfig struct {
 	DataDir     string
 	HostUUID    string
+	HostName    string
 	AuthServers []utils.NetAddr
 	Auth        AuthConfig
 	Console     io.Writer
@@ -92,7 +93,7 @@ func NewTeleport(cfg Config) (Supervisor, error) {
 	supervisor := NewSupervisor()
 
 	if cfg.Auth.Enabled {
-		if err := InitAuthService(supervisor, cfg.RoleConfig(), cfg.HostUUID); err != nil {
+		if err := InitAuthService(supervisor, cfg.RoleConfig()); err != nil {
 			return nil, err
 		}
 	}
@@ -119,9 +120,9 @@ func NewTeleport(cfg Config) (Supervisor, error) {
 }
 
 // InitAuthService can be called to initialize auth server service
-func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostUUID string) error {
+func InitAuthService(supervisor Supervisor, cfg RoleConfig) error {
 	// Initialize the storage back-ends for keys, events and records
-	b, err := initAuthStorage(cfg.DataDir, hostUUID, cfg.AuthServers, cfg.Auth)
+	b, err := initAuthStorage(cfg.DataDir, cfg.HostUUID, cfg.AuthServers, cfg.Auth)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -137,12 +138,13 @@ func InitAuthService(supervisor Supervisor, cfg RoleConfig, hostUUID string) err
 	}
 	// configure the auth service:
 	acfg := auth.InitConfig{
-		Backend:       b,
-		Authority:     authority.New(),
-		DomainName:    cfg.HostUUID,
-		DataDir:       cfg.DataDir,
-		SecretKey:     cfg.Auth.SecretKey,
-		AllowedTokens: cfg.Auth.AllowedTokens,
+		Backend:         b,
+		Authority:       authority.New(),
+		DomainName:      cfg.HostUUID,
+		AuthServiceName: cfg.HostName,
+		DataDir:         cfg.DataDir,
+		SecretKey:       cfg.Auth.SecretKey,
+		AllowedTokens:   cfg.Auth.AllowedTokens,
 	}
 	asrv, signer, err := auth.Init(acfg)
 	if err != nil {
@@ -221,7 +223,8 @@ func initSSHEndpoint(supervisor Supervisor, cfg Config) error {
 
 	log.Infof("valid principals: %v", i.Cert.ValidPrincipals[0])
 	s, err := srv.New(cfg.SSH.Addr,
-		i.Cert.ValidPrincipals[0],
+		//i.Cert.ValidPrincipals[0],
+		cfg.Hostname,
 		[]ssh.Signer{i.KeySigner},
 		client,
 		cfg.DataDir,
