@@ -1,9 +1,14 @@
 package web
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
+	"io/ioutil"
 	"net"
+	"net/http"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -41,6 +46,26 @@ func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte, t
 	if insecure {
 		log.Warningf("you are using insecure HTTPS connection")
 		opts = append(opts, roundtrip.HTTPClient(newInsecureClient()))
+	} else {
+		tlsconf := &tls.Config{}
+		tlsconf.RootCAs = x509.NewCertPool()
+		bytes, err := ioutil.ReadFile("/var/lib/teleport/webproxy_https.cert")
+		if err != nil {
+			panic(err)
+		}
+		block, _ := pem.Decode(bytes)
+		if block == nil {
+			panic("block is null")
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			panic(err)
+		}
+		tlsconf.RootCAs.AddCert(cert)
+		client := &http.Client{
+			Transport: &http.Transport{TLSClientConfig: tlsconf},
+		}
+		opts = append(opts, roundtrip.HTTPClient(client))
 	}
 
 	clt, err := newWebClient(proxyAddr, opts...)

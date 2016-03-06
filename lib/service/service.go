@@ -566,6 +566,9 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 	certPath := filepath.Join(cfg.DataDir, selfSignedCertPath)
 	pubPath := filepath.Join(cfg.DataDir, selfSignedPubPath)
 
+	cfg.Proxy.TLSKey = keyPath
+	cfg.Proxy.TLSCert = certPath
+
 	// return the existing pair if they ahve already been generated:
 	_, err = tls.LoadX509KeyPair(certPath, keyPath)
 	if err == nil {
@@ -576,7 +579,7 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 	}
 	log.Warningf("[CONFIG] Generating self signed key and cert to %v %v", keyPath, certPath)
 
-	creds, err := utils.GenerateSelfSignedCert([]string{cfg.Hostname}, []string{"127.0.0.1"})
+	creds, err := utils.GenerateSelfSignedCert([]string{"*."})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -590,8 +593,6 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 	if err := ioutil.WriteFile(pubPath, creds.PublicKey, 0600); err != nil {
 		return trace.Wrap(err, "error writing pub key PEM")
 	}
-	cfg.Proxy.TLSKey = keyPath
-	cfg.Proxy.TLSCert = certPath
 	return nil
 }
 

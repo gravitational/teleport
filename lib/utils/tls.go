@@ -25,7 +25,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
-	"net"
 	"net/http"
 	"os"
 	"time"
@@ -106,17 +105,7 @@ type TLSCredentials struct {
 
 // GenerateSelfSignedCert generates a self signed certificate that
 // is valid for given domain names and ips, returns PEM-encoded bytes with key and cert
-func GenerateSelfSignedCert(domainNames []string, IPAddresses []string) (*TLSCredentials, error) {
-	ips := make([]net.IP, len(IPAddresses))
-	for i, addr := range IPAddresses {
-		ip := net.ParseIP(addr)
-		if ip == nil {
-			return nil, trace.Wrap(
-				teleport.BadParameter("ip", fmt.Sprintf("%v is not a valid IP", addr)))
-		}
-		ips[i] = ip
-	}
-
+func GenerateSelfSignedCert(domainNames []string) (*TLSCredentials, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -145,9 +134,7 @@ func GenerateSelfSignedCert(domainNames []string, IPAddresses []string) (*TLSCre
 
 	template.IsCA = true
 	template.KeyUsage |= x509.KeyUsageCertSign
-
 	template.DNSNames = append(template.DNSNames, domainNames...)
-	template.IPAddresses = append(template.IPAddresses, ips...)
 
 	derBytes, err := x509.CreateCertificate(
 		rand.Reader,
