@@ -350,7 +350,7 @@ func initTunAgent(supervisor Supervisor, cfg Config) error {
 func initProxy(supervisor Supervisor, cfg Config) (err error) {
 	// if no TLS key was provided for the web UI, generate a self signed cert
 	if cfg.Proxy.TLSKey == "" {
-		cfg.Proxy.TLSKey, cfg.Proxy.TLSCert, err = initSelfSignedHTTPSCert(&cfg)
+		err = initSelfSignedHTTPSCert(&cfg)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -364,7 +364,6 @@ func initProxy(supervisor Supervisor, cfg Config) (err error) {
 }
 
 func initProxyEndpoint(supervisor Supervisor, cfg Config) error {
-
 	proxyLimiter, err := limiter.NewLimiter(cfg.Proxy.Limiter)
 	if err != nil {
 		return trace.Wrap(err)
@@ -561,38 +560,46 @@ func validateConfig(cfg *Config) error {
 
 // initSelfSignedHTTPSCert generates and self-signs a TLS key+cert pair for https connection
 // to the proxy server.
-func initSelfSignedHTTPSCert(cfg *Config) (keyPath string, certPath string, err error) {
+func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 	log.Warningf("[CONFIG] NO TLS Keys provided, using self signed certificate")
-	keyPath = filepath.Join(cfg.DataDir, selfSignedKeyPath)
-	certPath = filepath.Join(cfg.DataDir, selfSignedCertPath)
+	keyPath := filepath.Join(cfg.DataDir, selfSignedKeyPath)
+	certPath := filepath.Join(cfg.DataDir, selfSignedCertPath)
+	pubPath := filepath.Join(cfg.DataDir, selfSignedPubPath)
 
 	// return the existing pair if they ahve already been generated:
 	_, err = tls.LoadX509KeyPair(certPath, keyPath)
 	if err == nil {
-		return keyPath, certPath, nil
+		return nil
 	}
 	if !os.IsNotExist(err) {
-		return "", "", trace.Wrap(err, "unrecognized error reading certs")
+		return trace.Wrap(err, "unrecognized error reading certs")
 	}
 	log.Warningf("[CONFIG] Generating self signed key and cert to %v %v", keyPath, certPath)
 
 	creds, err := utils.GenerateSelfSignedCert([]string{cfg.Hostname}, []string{"127.0.0.1"})
 	if err != nil {
-		return "", "", trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	if err := ioutil.WriteFile(keyPath, creds.PrivateKey, 0600); err != nil {
-		return "", "", trace.Wrap(err, "error writing key PEM")
+		return trace.Wrap(err, "error writing key PEM")
 	}
 	if err := ioutil.WriteFile(certPath, creds.Cert, 0600); err != nil {
-		return "", "", trace.Wrap(err, "error writing key PEM")
+		return trace.Wrap(err, "error writing key PEM")
 	}
-	return keyPath, certPath, nil
+	if err := ioutil.WriteFile(pubPath, creds.PublicKey, 0600); err != nil {
+		return trace.Wrap(err, "error writing pub key PEM")
+	}
+	cfg.Proxy.TLSKey = keyPath
+	cfg.Proxy.TLSCert = certPath
+	return nil
 }
 
 const (
 	// path to a self-signed TLS PRIVATE key file for HTTPS connection for the web proxy
 	selfSignedKeyPath = "webproxy_https.key"
+	// path to a self-signed TLS PUBLIC key file for HTTPS connection for the web proxy
+	selfSignedPubPath = "webproxy_https.pub"
 	// path to a self-signed TLS cert file for HTTPS connection for the web proxy
 	selfSignedCertPath = "webproxy_https.cert"
 )

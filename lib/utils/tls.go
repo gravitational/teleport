@@ -95,7 +95,11 @@ func CreateTLSConfiguration(certFile, keyFile string) (*tls.Config, error) {
 	return config, nil
 }
 
+// TLSCredentials keeps the typical 3 components of a proper HTTPS configuration
 type TLSCredentials struct {
+	// PublicKey in PEM format
+	PublicKey []byte
+	// PrivateKey in PEM format
 	PrivateKey []byte
 	Cert       []byte
 }
@@ -119,7 +123,7 @@ func GenerateSelfSignedCert(domainNames []string, IPAddresses []string) (*TLSCre
 	}
 
 	notBefore := time.Now()
-	notAfter := notBefore.Add(DefaultCertificateValidity)
+	notAfter := notBefore.Add(DefaultCertTTL)
 
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
@@ -155,26 +159,22 @@ func GenerateSelfSignedCert(domainNames []string, IPAddresses []string) (*TLSCre
 		return nil, trace.Wrap(err)
 	}
 
+	publicKeyBytes, err := x509.MarshalPKIXPublicKey(priv.Public())
+	if err != nil {
+		log.Error(err)
+		return nil, trace.Wrap(err)
+	}
+
 	return &TLSCredentials{
-		PrivateKey: pem.EncodeToMemory(pemBlockForRSAKey(priv)),
+		PublicKey:  pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY", Bytes: publicKeyBytes}),
+		PrivateKey: pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)}),
 		Cert:       pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes}),
 	}, nil
 }
 
-func pemBlockForRSAKey(priv interface{}) *pem.Block {
-	switch k := priv.(type) {
-	case *rsa.PrivateKey:
-		return &pem.Block{
-			Type:  "RSA PRIVATE KEY",
-			Bytes: x509.MarshalPKCS1PrivateKey(k),
-		}
-	default:
-		return nil
-	}
-}
-
-// DefaultLRUCapacity is a capacity for LRU session cache
 const (
-	DefaultLRUCapacity         = 1024
-	DefaultCertificateValidity = 30 * 86400 * time.Second
+	// DefaultLRUCapacity is a capacity for LRU session cache
+	DefaultLRUCapacity = 1024
+	// DefaultCertTTL sets the TTL of the self-signed certificate (1 year)
+	DefaultCertTTL = (24 * time.Hour) * 365
 )
