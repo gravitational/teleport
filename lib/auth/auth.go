@@ -77,39 +77,50 @@ func AuthClock(clock clockwork.Clock) AuthServerOption {
 	}
 }
 
-// NewAuthServer returns a new AuthServer instance
-func NewAuthServer(bk *encryptedbk.ReplicatedBackend, a Authority, domainName string, opts ...AuthServerOption) *AuthServer {
-	as := AuthServer{}
-
+// NewAuthServer creates and configures a new AuthServer instance
+func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
+	as := AuthServer{
+		bk:                  cfg.Backend,
+		Authority:           cfg.Authority,
+		CAService:           services.NewCAService(cfg.Backend),
+		LockService:         services.NewLockService(cfg.Backend),
+		PresenceService:     services.NewPresenceService(cfg.Backend),
+		ProvisioningService: services.NewProvisioningService(cfg.Backend),
+		WebService:          services.NewWebService(cfg.Backend),
+		BkKeysService:       services.NewBkKeysService(cfg.Backend),
+		DomainName:          cfg.DomainName,
+		AuthServiceName:     cfg.AuthServiceName,
+	}
 	for _, o := range opts {
 		o(&as)
 	}
-
 	if as.clock == nil {
 		as.clock = clockwork.NewRealClock()
 	}
-
-	as.bk = bk
-	as.Authority = a
-
-	as.CAService = services.NewCAService(as.bk)
-	as.LockService = services.NewLockService(as.bk)
-	as.PresenceService = services.NewPresenceService(as.bk)
-	as.ProvisioningService = services.NewProvisioningService(as.bk)
-	as.WebService = services.NewWebService(as.bk)
-	as.BkKeysService = services.NewBkKeysService(as.bk)
-
-	as.DomainName = domainName
+	log.Infof("[AUTH] AuthServer '%v' is created signing as '%v'", as.AuthServiceName, as.DomainName)
 	return &as
 }
 
-// AuthServer implements key signing, generation and ACL functionality
-// used by teleport
+// AuthServer keeps the cluster together. It acts as a certificate authority (CA) for
+// a cluster and:
+//   - generates the keypair for the node it's running on
+//	 - invites other SSH nodes to a cluster, by issuing invite tokens
+//	 - adds other SSH nodes to a cluster, by checking their token and signing their keys
+//   - same for users and their sessions
+//   - checks public keys to see if they're signed by it (can be trusted or not)
 type AuthServer struct {
 	clock clockwork.Clock
 	bk    *encryptedbk.ReplicatedBackend
 	Authority
+
+	// DomainName stores the FQDN of the signing CA (its certificate will have this
+	// name embedded). It is usually set to the GUID of the host the Auth service runs on
 	DomainName string
+
+	// AuthServiceName is a human-readable name of this CA. If several Auth services are running
+	// (managing multiple teleport clusters) this field is used to tell them apart in UIs
+	// It usually defaults to the hostname of the machine the Auth service runs on.
+	AuthServiceName string
 
 	*services.CAService
 	*services.LockService

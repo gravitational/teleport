@@ -222,7 +222,7 @@ func (u *NodeCommand) ListActive(client *auth.TunClient) error {
 	}
 	nodesView := func(nodes []services.Server) string {
 		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"Node Name", "Address", "Labels"})
+		printHeader(t, []string{"Node Hostname", "Node ID", "Address", "Labels"})
 		if len(nodes) == 0 {
 			return t.String()
 		}
@@ -234,7 +234,7 @@ func (u *NodeCommand) ListActive(client *auth.TunClient) error {
 			for key, val := range n.CmdLabels {
 				labels = append(labels, fmt.Sprintf("%s:%s", key, val.Result))
 			}
-			fmt.Fprintf(t, "%v\t%v\t%v\n", n.Hostname, n.Addr, strings.Join(labels, ","))
+			fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", n.Hostname, n.ID, n.Addr, strings.Join(labels, ","))
 		}
 		return t.String()
 	}
