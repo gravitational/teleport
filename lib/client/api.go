@@ -85,8 +85,14 @@ func (c *Config) ProxyHostPort(defaultPort int) string {
 	}
 }
 
+// NodeHostPort returns host:port string based on user supplied data
+// either if user has set host:port in the connection string,
+// or supplied the -p flag. If user has set both, -p flag data is ignored
 func (c *Config) NodeHostPort() string {
-	return net.JoinHostPort(c.Host, strconv.FormatInt(int64(c.HostPort), 10))
+	if strings.Contains(c.Host, ":") {
+		return c.Host
+	}
+	return net.JoinHostPort(c.Host, strconv.Itoa(c.HostPort))
 }
 
 func (c *Config) ProxySpecified() bool {

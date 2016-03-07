@@ -434,7 +434,6 @@ func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprou
 		return nil, trace.Wrap(err)
 	}
 	sessions, err := clt.GetSessions()
-	log.Infof("sessoins: %v", sessions)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
