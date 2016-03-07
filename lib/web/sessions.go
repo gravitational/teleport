@@ -287,7 +287,6 @@ func (s *sessionCache) resetContext(user, sid string) error {
 func (s *sessionCache) ValidateSession(user, sid string) (*sessionContext, error) {
 	ctx, err := s.getContext(user, sid)
 	if err == nil {
-		ctx.Infof("got from cache")
 		return ctx, nil
 	}
 	method, err := auth.NewWebSessionAuth(user, []byte(sid))
