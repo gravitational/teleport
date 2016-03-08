@@ -20,19 +20,20 @@ const (
 	WSS = "wss"
 )
 
-// isLocalhost returns 'true' if a given hostname belogs to local host
-func isLocalhost(host string) (retval bool) {
-	retval = false
+// isLocalhost returns 'true' if a given hostname resolves to local
+// host's loopback interface
+func isLocalhost(host string) bool {
 	ips, err := net.LookupIP(host)
 	if err != nil {
 		log.Error(err)
+		return false
 	}
 	for _, ip := range ips {
 		if ip.IsLoopback() {
 			return true
 		}
 	}
-	return retval
+	return false
 }
 
 // SSHAgentLogin issues call to web proxy and receives temp certificate
