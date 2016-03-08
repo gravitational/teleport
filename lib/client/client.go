@@ -175,6 +175,10 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, authMethods []ssh.Au
 
 	e := trace.Errorf("unknown Error")
 
+	// we have to try every auth method separatedly,
+	// because go SSH will try only one (fist) auth method
+	// of a given type, so if you have 2 different public keys
+	// you have to try each one differently
 	for _, authMethod := range authMethods {
 
 		proxySession, err := proxy.Client.NewSession()
@@ -191,6 +195,18 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, authMethods []ssh.Au
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		proxyErr, err := proxySession.StderrPipe()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		go func() {
+			buf := &bytes.Buffer{}
+			io.Copy(buf, proxyErr)
+			if buf.String() != "" {
+				fmt.Println("ERROR: " + buf.String())
+			}
+		}()
 
 		err = proxySession.RequestSubsystem(fmt.Sprintf("proxy:%v", nodeAddress))
 		if err != nil {

@@ -27,14 +27,14 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/codahale/lunk"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent" // ctxID is a incremental context ID used for debugging and logging purposes
+	"golang.org/x/crypto/ssh/agent"
 )
 
 var ctxID int32
 
-// closeMsg is a close request
-type closeMsg struct {
-	reason string
+// subsystemResult is a result of execution of the subsystem
+type subsystemResult struct {
+	err error
 }
 
 // ctx holds session specific context, such as SSH auth agents
@@ -71,7 +71,7 @@ type ctx struct {
 	result chan execResult
 
 	// close used by channel operations asking to close the session
-	close chan closeMsg
+	subsystemResultC chan subsystemResult
 
 	// closers is a list of io.Closer that will be called when session closes
 	// this is handy as sometimes client closes session, in this case resources
@@ -162,11 +162,11 @@ func (c *ctx) sendResult(r execResult) {
 	}
 }
 
-func (c *ctx) requestClose(msg string) {
+func (c *ctx) sendSubsystemResult(err error) {
 	select {
-	case c.close <- closeMsg{reason: msg}:
+	case c.subsystemResultC <- subsystemResult{err: err}:
 	default:
-		c.Infof("blocked on sending close request %v", msg)
+		c.Infof("blocked on sending close request")
 	}
 }
 
@@ -190,15 +190,15 @@ func (c *ctx) getEnv(key string) (string, bool) {
 
 func newCtx(srv *Server, conn *ssh.ServerConn) *ctx {
 	ctx := &ctx{
-		env:          make(map[string]string),
-		eid:          lunk.NewRootEventID(),
-		info:         conn,
-		id:           int(atomic.AddInt32(&ctxID, int32(1))),
-		result:       make(chan execResult, 10),
-		close:        make(chan closeMsg, 10),
-		srv:          srv,
-		teleportUser: conn.Permissions.Extensions[utils.CertExtensionUser],
-		login:        conn.User(),
+		env:              make(map[string]string),
+		eid:              lunk.NewRootEventID(),
+		info:             conn,
+		id:               int(atomic.AddInt32(&ctxID, int32(1))),
+		result:           make(chan execResult, 10),
+		subsystemResultC: make(chan subsystemResult, 10),
+		srv:              srv,
+		teleportUser:     conn.Permissions.Extensions[utils.CertExtensionUser],
+		login:            conn.User(),
 	}
 	ctx.Entry = log.WithFields(srv.logFields(log.Fields{
 		"local":        conn.LocalAddr(),

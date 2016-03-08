@@ -25,7 +25,11 @@ func (t *proxySitesSubsys) String() string {
 	return "proxySites()"
 }
 
-func (t *proxySitesSubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+func (t *proxySitesSubsys) wait() error {
+	return nil
+}
+
+func (t *proxySitesSubsys) start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	log.Infof("%v execute()", ctx)
 	sites := map[string]interface{}{}
 	for _, s := range t.srv.proxyTun.GetSites() {
@@ -45,7 +49,6 @@ func (t *proxySitesSubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *s
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	if _, err := ch.Write(data); err != nil {
 		return trace.Wrap(err)
 	}

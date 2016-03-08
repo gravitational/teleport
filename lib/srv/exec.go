@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package srv
 
 import (
@@ -64,7 +65,6 @@ func (e *execFn) String() string {
 	return fmt.Sprintf("Exec(cmd=%v)", e.cmdName)
 }
 
-// execute is a blocking execution of a command
 func (e *execFn) start(sconn *ssh.ServerConn, shell string, ch ssh.Channel) (*execResult, error) {
 	e.cmd = exec.Command(shell, []string{"-c", e.cmdName}...)
 	//e.cmd = exec.Command(e.cmdName)

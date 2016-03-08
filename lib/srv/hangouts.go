@@ -47,7 +47,7 @@ func (t *hangoutsSubsys) String() string {
 	return fmt.Sprintf("hangoutsSubsys(host=%v, port=%v)", t.host, t.port)
 }
 
-func (t *hangoutsSubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+func (t *hangoutsSubsys) start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	remoteSrv, err := t.srv.proxyTun.GetSite(t.host)
 	if err != nil {
 		return trace.Wrap(err)
@@ -139,5 +139,10 @@ func (t *hangoutsSubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 
 	wg.Wait()
 
+	return nil
+}
+
+func (t *hangoutsSubsys) wait() error {
+	panic("implement me")
 	return nil
 }
