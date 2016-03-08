@@ -25,6 +25,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -65,6 +66,8 @@ type RoleConfig struct {
 // TeleportProcess structure holds the state of the Teleport daemon, controlling
 // execution and configuration of the teleport services: ssh, auth and proxy.
 type TeleportProcess struct {
+	sync.Mutex
+
 	Supervisor
 	Config     *Config
 	Identity   *auth.Identity
@@ -74,6 +77,9 @@ type TeleportProcess struct {
 // loginIntoAuthService attempts to login into the auth servers specified in the
 // configuration. Returns 'true' if successful
 func (process *TeleportProcess) loginIntoAuthService() bool {
+	process.Lock()
+	defer process.Unlock()
+
 	// already logged in?
 	if process.AuthClient != nil {
 		return true
