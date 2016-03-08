@@ -10,28 +10,28 @@ var CurrentSessionHost = React.createClass({
 
   getDataBindings() {
     return {
-      activeSession: getters.activeSession
+      currentSession: getters.activeSession
     }
   },
 
   componentDidMount(){
     var { sid } = this.props.params;
-    if(!this.state.activeSession){
+    if(!this.state.currentSession){
       actions.openSession(sid);
     }
   },
 
   render: function() {
-    var activeSession = this.state.activeSession;
-    if(!activeSession){
+    var currentSession = this.state.currentSession;
+    if(!currentSession){
       return null;
     }
 
-    if(activeSession.isNewSession || activeSession.active){
-      return <ActiveSession activeSession={activeSession}/>;
+    if(currentSession.isNewSession || currentSession.active){
+      return <ActiveSession activeSession={currentSession}/>;
     }
-    
-    return <SessionPlayer activeSession={activeSession}/>;
+
+    return <SessionPlayer activeSession={currentSession}/>;
   }
 });
 

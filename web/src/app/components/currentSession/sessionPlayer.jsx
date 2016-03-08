@@ -65,6 +65,7 @@ var SessionPlayer = React.createClass({
           min={this.state.min}
           max={this.state.length}
           value={this.state.current}
+          onChange={this.move}
           onAfterChange={this.onAfterChange}
           onBeforeChange={this.onBeforeChange}
           defaultValue={1}
