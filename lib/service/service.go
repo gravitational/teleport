@@ -86,12 +86,17 @@ func (process *TeleportProcess) loginIntoAuthService() bool {
 				authServerAddr,
 				authUser,
 				[]ssh.AuthMethod{ssh.PublicKeys(identity.KeySigner)})
+			// success?
 			if err == nil {
-				// success!
-				log.Info("successfully logged into %v", authServerAddr)
-				process.AuthClient = authClient
-				process.Identity = identity
-				return true
+				// try calling a test method via auth api:
+				_, err = authClient.GetLocalDomain()
+				if err == nil {
+					// success again? we're logged in!
+					log.Infof("successfully logged into %v", authServerAddr)
+					process.AuthClient = authClient
+					process.Identity = identity
+					return true
+				}
 			}
 		}
 	} else {
@@ -302,18 +307,19 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 	// the registering client that attempts to connect to the auth server
 	// and provision the keys
 	process.RegisterFunc(func() error {
-		loggedIn := process.loginIntoAuthService()
-		if !loggedIn && token == "" {
-			return trace.Errorf("Unable to start node. Need --token flag")
-		}
+		loggedIn := false
 		for !loggedIn {
-			log.Infof("joining the cluster with a token %v", token)
-			err := auth.Register(cfg.HostUUID, cfg.DataDir, token, role, cfg.AuthServers)
-			if err != nil {
-				log.Errorf("[SSH] failed to join the cluster: %v", err)
-				time.Sleep(time.Second * 5)
+			if token != "" {
+				log.Infof("joining the cluster with a token %v", token)
+				err := auth.Register(cfg.HostUUID, cfg.DataDir, token, role, cfg.AuthServers)
+				if err != nil {
+					log.Errorf("[SSH] failed to join the cluster: %v", err)
+				}
 			}
 			loggedIn = process.loginIntoAuthService()
+			if !loggedIn {
+				time.Sleep(time.Second * 5)
+			}
 		}
 		utils.Consolef(os.Stdout, "[SSH] Successfully registered with the auth server %v", authServer)
 		return callback()
