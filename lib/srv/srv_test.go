@@ -73,6 +73,7 @@ type SrvSuite struct {
 var _ = Suite(&SrvSuite{})
 
 func (s *SrvSuite) SetUpSuite(c *C) {
+	TestSleepDuration = time.Millisecond * 50
 	utils.InitLoggerCLI()
 }
 
@@ -490,7 +491,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 	c.Assert(srv2.Start(), IsNil)
 	defer srv2.Close()
 
-	time.Sleep(3200 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
 	// test proxysites
 	client, err = ssh.Dial("tcp", proxy.Addr(), sshConfig)
