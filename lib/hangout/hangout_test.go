@@ -73,7 +73,6 @@ var _ = Suite(&HangoutsSuite{})
 
 func (s *HangoutsSuite) SetUpSuite(c *C) {
 	utils.InitLoggerCLI()
-	client.KeysDir = c.MkDir()
 	s.dir = c.MkDir()
 
 	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
