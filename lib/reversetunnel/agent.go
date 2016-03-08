@@ -97,41 +97,6 @@ func NewAgent(addr utils.NetAddr, domainName string, signers []ssh.Signer,
 	return a, nil
 }
 
-// NewHangoutAgent returns a new "Hangout"-flavored version of reverse
-// tunnel agent
-func NewHangoutAgent(addr utils.NetAddr, hangoutID string,
-	authMethods []ssh.AuthMethod,
-	hostKeyCallback utils.HostKeyCallback,
-	clt *auth.TunClient, options ...AgentOption) (*Agent, error) {
-
-	a := &Agent{
-		log: log.WithFields(log.Fields{
-			teleport.Component: teleport.ComponentReverseTunnel,
-			teleport.ComponentFields: map[string]interface{}{
-				"side":   "agent",
-				"remote": addr.String(),
-				"mode":   "hangout",
-			},
-		}),
-		clt:             clt,
-		addr:            addr,
-		domainName:      hangoutID,
-		closeC:          make(chan bool),
-		disconnectC:     make(chan bool, 10),
-		authMethods:     authMethods,
-		hostKeyCallback: hostKeyCallback,
-	}
-	for _, o := range options {
-		if err := o(a); err != nil {
-			return nil, err
-		}
-	}
-	if a.elog == nil {
-		a.elog = events.NullEventLogger
-	}
-	return a, nil
-}
-
 // Close signals to close all connections
 func (a *Agent) Close() error {
 	a.closeOnce.Do(func() {

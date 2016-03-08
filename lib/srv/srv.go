@@ -19,6 +19,7 @@ limitations under the License.
 package srv
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -538,11 +539,10 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 	}
 	for {
 		select {
-		case creq := <-ctx.close:
-			// this means that the session process stopped and desires to close
-			// the session and the channel e.g. shell has stopped and won't send
-			// any data back to client any more
-			ctx.Infof("close session request: %v", creq.reason)
+		case creq := <-ctx.subsystemResultC:
+			// this means that subsystem has finished executing and
+			// want us to close session and the channel
+			ctx.Infof("close session request: %v", creq.err)
 			closeCh()
 			return
 		case req := <-in:
@@ -554,7 +554,7 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 			}
 			if err := s.dispatch(sconn, ch, req, ctx); err != nil {
 				ctx.Infof("error dispatching request: %v, closing channel", err)
-				replyError(req, err)
+				replyError(ch, req, err)
 				closeCh()
 				return
 			}
@@ -664,13 +664,17 @@ func (s *Server) handleSubsystem(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 		ctx.Infof("%v failed to parse subsystem request: %v", err)
 		return trace.Wrap(err)
 	}
+	// starting subsystem is blocking to the client,
+	// while collecting its result and waiting is not blocking
+	if err := sb.start(sconn, ch, req, ctx); err != nil {
+		ctx.Infof("failed to execute request, err: %v", err)
+		ctx.sendSubsystemResult(trace.Wrap(err))
+		return trace.Wrap(err)
+	}
 	go func() {
-		if err := sb.execute(sconn, ch, req, ctx); err != nil {
-			ctx.requestClose(fmt.Sprintf("%v failed to execute request, err: %v", ctx, err))
-			ctx.Infof("failed to execute request, err: %v", err)
-			return
-		}
-		ctx.requestClose(fmt.Sprintf("%v subsystem executed successfully", ctx))
+		err := sb.wait()
+		log.Infof("%v finished with result: %v", sb, err)
+		ctx.sendSubsystemResult(trace.Wrap(err))
 	}()
 	return nil
 }
@@ -743,7 +747,7 @@ func (s *Server) handleExec(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 	e, err := parseExecRequest(req, ctx)
 	if err != nil {
 		ctx.Infof("failed to parse exec request: %v", err)
-		replyError(req, err)
+		replyError(ch, req, err)
 		return trace.Wrap(err)
 	}
 
@@ -759,7 +763,7 @@ func (s *Server) handleExec(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 	result, err := e.start(sconn, s.shell, ch)
 	if err != nil {
 		ctx.Infof("error starting command, %v", err)
-		replyError(req, err)
+		replyError(ch, req, err)
 	}
 	if result != nil {
 		ctx.Infof("%v result collected: %v", e, result)
@@ -809,9 +813,11 @@ func (s *Server) handleSCP(ch ssh.Channel, req *ssh.Request, ctx *ctx, args stri
 	return nil
 }
 
-func replyError(req *ssh.Request, err error) {
+func replyError(ch ssh.Channel, req *ssh.Request, err error) {
+	message := []byte(utils.UserMessageFromError(err))
+	io.Copy(ch.Stderr(), bytes.NewBuffer(message))
 	if req.WantReply {
-		req.Reply(false, []byte(err.Error()))
+		req.Reply(false, message)
 	}
 }
 

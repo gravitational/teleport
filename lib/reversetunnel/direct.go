@@ -91,10 +91,6 @@ func (s *directSite) DialServer(addr string) (net.Conn, error) {
 	return s.Dial("tcp", addr)
 }
 
-func (s *directSite) GetHangoutInfo() (*HangoutSiteInfo, error) {
-	return nil, trace.Errorf("Site is not a hangout")
-}
-
 func findServer(addr string, servers []services.Server) (*services.Server, error) {
 	for i := range servers {
 		srv := &servers[i]
