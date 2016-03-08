@@ -4,6 +4,8 @@ let cfg = {
 
   baseUrl: window.location.origin,
 
+  helpUrl: 'https://github.com/gravitational/teleport/blob/master/README.md',
+
   api: {
     renewTokenPath:'/v1/webapi/sessions/renew',
     nodesPath: '/v1/webapi/sites/-current-/nodes',
@@ -11,6 +13,16 @@ let cfg = {
     siteSessionPath: '/v1/webapi/sites/-current-/sessions/:sid',
     invitePath: '/v1/webapi/users/invites/:inviteToken',
     createUserPath: '/v1/webapi/users',
+    sessionChunk: '/v1/webapi/sites/-current-/sessions/:sid/chunks?start=:start&end=:end',
+    sessionChunkCountPath: '/v1/webapi/sites/-current-/sessions/:sid/chunkscount',
+
+    getFetchSessionChunkUrl: ({sid, start, end})=>{
+      return formatPattern(cfg.api.sessionChunk, {sid, start, end});
+    },
+
+    getFetchSessionLengthUrl: (sid)=>{
+      return formatPattern(cfg.api.sessionChunkCountPath, {sid});
+    },
 
     getFetchSessionsUrl: (/*start, end*/)=>{
       var params = {

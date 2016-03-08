@@ -5,10 +5,11 @@
 @import "grv-nodes";
 @import "grv-sessions";
 @import "grv-nav";
-@import "grv-terminal-host";
+@import "grv-current-session";
 @import "grv-page-notfound";
 @import "grv-slider";
-@import "grv-player";
+@import "grv-session-player";
+@import "grv-terminal";
 
 .grv {
   background-color: white;
@@ -47,6 +48,10 @@
     font-size: 14px;
     margin-top: -.5em;
   }
+}
+
+.grv-rounded{
+  border-radius: 10px
 }
 
 .grv-flex {

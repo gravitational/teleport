@@ -1,0 +1,11 @@
+.grv-terminal {
+ height: 100%;
+ width: 100%;
+ font-size: 14px;
+ overflow: hidden;
+ .terminal{
+   border: none;
+   font-size: inherit;
+   line-height: normal;
+ }
+}

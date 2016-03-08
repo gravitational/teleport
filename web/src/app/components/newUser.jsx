@@ -71,6 +71,7 @@ var InviteInputForm = React.createClass({
           </div>
           <div className="form-group">
             <input
+              autoFocus
               valueLink={this.linkState('psw')}
               ref="password"
               type="password"

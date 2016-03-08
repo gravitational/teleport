@@ -36,7 +36,7 @@ var LoginInputForm = React.createClass({
         <h3> Welcome to Teleport </h3>
         <div className="">
           <div className="form-group">
-            <input valueLink={this.linkState('user')} className="form-control required" placeholder="User name" name="userName" />
+            <input autoFocus valueLink={this.linkState('user')} className="form-control required" placeholder="User name" name="userName" />
           </div>
           <div className="form-group">
             <input valueLink={this.linkState('password')} type="password" name="password" className="form-control required" placeholder="Password"/>

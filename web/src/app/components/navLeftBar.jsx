@@ -5,8 +5,7 @@ var cfg = require('app/config');
 
 var menuItems = [
   {icon: 'fa fa-cogs', to: cfg.routes.nodes, title: 'Nodes'},
-  {icon: 'fa fa-sitemap', to: cfg.routes.sessions, title: 'Sessions'},
-  {icon: 'fa fa-question', to: '#', title: 'Sessions'},
+  {icon: 'fa fa-sitemap', to: cfg.routes.sessions, title: 'Sessions'}
 ];
 
 var NavLeftBar = React.createClass({
@@ -22,6 +21,13 @@ var NavLeftBar = React.createClass({
         </li>
       );
     });
+
+    items.push((
+      <li key={menuItems.length}>
+        <a href={cfg.helpUrl}>
+          <i className="fa fa-question" title="help"/>
+        </a>
+      </li>));
 
     return (
       <nav className='grv-nav navbar-default navbar-static-side' role='navigation'>

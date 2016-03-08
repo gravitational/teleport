@@ -31,7 +31,7 @@ var App = React.createClass({
     return (
       <div className="grv-tlpt">
         <NavLeftBar/>
-        {this.props.activeSessionHost}
+        {this.props.CurrentSessionHost}
         <div className="row">
           <nav className="" role="navigation" style={{ marginBottom: 0, float: "right" }}>
             <ul className="nav navbar-top-links navbar-right">

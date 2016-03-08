@@ -16,9 +16,12 @@ const activeSession = [
       rows: undefined
     };
 
-    if(sessions.has(view.sid)){
-      view.cols = sessions.getIn([view.sid, 'terminal_params', 'w']);
-      view.rows = sessions.getIn([view.sid, 'terminal_params', 'h']);
+    let session = sessions.get(view.sid);
+
+    if(session){
+      view.active = session.get('active'),
+      view.cols = session.getIn(['terminal_params', 'w']);
+      view.rows = session.getIn(['terminal_params', 'h']);
     }
 
     return view;

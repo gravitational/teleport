@@ -1,4 +1,4 @@
- .grv-terminal-host{
+ .grv-current-session{
    padding: 50px 60px;
    padding-left: 130px;
    position: fixed;
@@ -20,17 +20,5 @@
     > li{
       margin: 15px 0;
     }
-  }
-}
-
-.grv-terminal {
-  height: 100%;
-  width: 100%;
-  font-size: 14px;
-  overflow: hidden;
-  //background-color: #234424;
-  .terminal{
-    border: none;
-    font-size: inherit;
   }
 }

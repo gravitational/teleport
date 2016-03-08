@@ -1,56 +1,15 @@
 var React = require('react');
 var {getters, actions} = require('app/modules/activeTerminal/');
-var EventStreamer = require('./eventStreamer.jsx');
 var Tty = require('app/common/tty');
 var TtyTerminal = require('./../terminal.jsx');
-var NotFoundPage = require('app/components/notFoundPage.jsx');
-
-
-var ActiveSessionHost = React.createClass({
-
-  mixins: [reactor.ReactMixin],
-
-  getDataBindings() {
-    return {
-      activeSession: getters.activeSession
-    }
-  },
-
-  componentDidMount(){
-    var { sid } = this.props.params;
-    if(!this.state.activeSession){
-      actions.openSession(sid);
-    }
-  },
-
-  render: function() {
-    if(!this.state.activeSession){
-      return null;
-    }
-
-    return <ActiveSession activeSession={this.state.activeSession}/>;
-  }
-});
-
+var EventStreamer = require('./eventStreamer.jsx');
+var SessionLeftPanel = require('./sessionLeftPanel');
 
 var ActiveSession = React.createClass({
   render: function() {
     return (
-     <div className="grv-terminal-host">
-       <div className="grv-terminal-participans">
-         <ul className="nav">
-           {/*
-           <li><button className="btn btn-primary btn-circle" type="button"> <strong>A</strong></button></li>
-           <li><button className="btn btn-primary btn-circle" type="button"> B </button></li>
-           <li><button className="btn btn-primary btn-circle" type="button"> C </button></li>
-           */}
-           <li>
-             <button onClick={actions.close} className="btn btn-danger btn-circle" type="button">
-               <i className="fa fa-times"></i>
-             </button>
-           </li>
-         </ul>
-       </div>
+     <div className="grv-current-session">
+       <SessionLeftPanel/>
        <div>
          {/*<div className="btn-group">
            <span className="btn btn-xs btn-primary">128.0.0.1:8888</span>
@@ -94,4 +53,4 @@ var TtyConnection = React.createClass({
   }
 });
 
-module.exports = {ActiveSession, ActiveSessionHost};
+module.exports = ActiveSession;
