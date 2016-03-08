@@ -58,15 +58,6 @@ type RemoteSite interface {
 	GetStatus() string
 	// GetClient returns client connected to remote auth server
 	GetClient() (auth.ClientI, error)
-	// GetHangoutInfo returns hangout info (used only if the site is in hangout mode
-	GetHangoutInfo() (*HangoutSiteInfo, error)
-}
-
-type HangoutSiteInfo struct {
-	HostKey  *services.CertAuthority
-	OSUser   string
-	AuthPort string
-	NodePort string
 }
 
 // Server represents server connected to one or many remote sites
@@ -189,8 +180,6 @@ func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.New
 		switch sconn.Permissions.Extensions[extCertType] {
 		case extCertTypeHost:
 			site, err = s.upsertRegularSite(conn, sconn)
-		case extCertTypeUser:
-			site, err = s.upsertHangoutSite(conn, sconn)
 		default:
 			err = trace.Wrap(
 				teleport.BadParameter(
@@ -393,96 +382,6 @@ func (s *server) upsertRegularSite(conn net.Conn, sshConn *ssh.ServerConn) (*tun
 	return site, nil
 }
 
-func (s *server) tryInsertHangoutSite(hangoutID string, remoteSite *tunnelSite) error {
-	s.Lock()
-	defer s.Unlock()
-
-	for _, st := range s.tunnelSites {
-		if st.domainName == hangoutID {
-			return trace.Wrap(
-				teleport.BadParameter("hangoutID",
-					fmt.Sprintf("%v hangout id is already used", hangoutID)))
-		}
-	}
-	s.tunnelSites = append(s.tunnelSites, remoteSite)
-	return nil
-
-}
-
-func (s *server) upsertHangoutSite(conn net.Conn, sshConn ssh.Conn) (*tunnelSite, error) {
-	hangoutID := sshConn.User()
-
-	site, err := newRemoteSite(s, hangoutID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = site.addConn(conn, sshConn)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clt, err := site.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	hangoutCertAuthorities, err := clt.GetCertAuthorities(services.HostCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(hangoutCertAuthorities) != 1 {
-		return nil, trace.Errorf("can't retrieve hangout Certificate Authority")
-	}
-	site.hangoutInfo = &HangoutSiteInfo{
-		HostKey: hangoutCertAuthorities[0],
-	}
-
-	proxyUserCertAuthorities, err := s.localAuth.GetCertAuthorities(services.UserCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	for _, ca := range proxyUserCertAuthorities {
-		err := clt.UpsertCertAuthority(*ca, 0)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	// receiving hangoutInfo using sessions just as storage
-	sessions, err := clt.GetSessions()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var hangoutInfo *utils.HangoutInfo
-	for _, sess := range sessions {
-		info, err := utils.UnmarshalHangoutInfo(sess.ID)
-		if err != nil {
-			log.Infof("failed to unmarshal hangout info: %v", err)
-		}
-		if info.HangoutID == hangoutID {
-			hangoutInfo = info
-			break
-		}
-	}
-	if hangoutInfo == nil {
-		return nil, trace.Wrap(teleport.NotFound(
-			fmt.Sprintf("hangout %v not found", hangoutID)))
-	}
-
-	// TODO(klizhentas) refactor this
-	site.domainName = hangoutInfo.HangoutID
-	site.hangoutInfo.OSUser = hangoutInfo.OSUser
-	site.hangoutInfo.AuthPort = hangoutInfo.AuthPort
-	site.hangoutInfo.NodePort = hangoutInfo.NodePort
-
-	if err := s.tryInsertHangoutSite(hangoutID, site); err != nil {
-		defer conn.Close()
-		return nil, trace.Wrap(err)
-	}
-	return site, nil
-}
-
 func (s *server) GetSites() []RemoteSite {
 	s.RLock()
 	defer s.RUnlock()
@@ -641,8 +540,6 @@ type tunnelSite struct {
 
 	transport *http.Transport
 	clt       *auth.Client
-
-	hangoutInfo *HangoutSiteInfo
 }
 
 func (s *tunnelSite) GetClient() (auth.ClientI, error) {
@@ -878,13 +775,6 @@ func (s *tunnelSite) handleAuthProxy(w http.ResponseWriter, r *http.Request) {
 	r.URL.Scheme = "http"
 	r.URL.Host = "stub"
 	fwd.ServeHTTP(w, r)
-}
-
-func (s *tunnelSite) GetHangoutInfo() (*HangoutSiteInfo, error) {
-	if s.hangoutInfo == nil {
-		return nil, trace.Errorf("No hangout info")
-	}
-	return s.hangoutInfo, nil
 }
 
 const (

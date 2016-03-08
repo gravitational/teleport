@@ -23,7 +23,6 @@ import (
 	"os/exec"
 	"os/user"
 	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -455,36 +454,6 @@ func (s *session) join(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, 
 	p := newParty(s, sconn, ch, ctx)
 	s.addParty(p)
 	return p, nil
-}
-
-type joinSubsys struct {
-	srv *Server
-	sid string
-}
-
-func parseJoinSubsys(name string, srv *Server) (*joinSubsys, error) {
-	return &joinSubsys{
-		srv: srv,
-		sid: strings.TrimPrefix(name, "join:"),
-	}, nil
-}
-
-func (j *joinSubsys) String() string {
-	return fmt.Sprintf("joinSubsys(sid=%v)", j.sid)
-}
-
-func (j *joinSubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	if err := j.srv.reg.joinShell(j.sid, sconn, ch, req, ctx); err != nil {
-		return trace.Wrap(err)
-	}
-	finished := make(chan bool)
-	ctx.addCloser(closerFunc(func() error {
-		close(finished)
-		ctx.Infof("shutting down subsystem")
-		return nil
-	}))
-	<-finished
-	return nil
 }
 
 func newMultiWriter() *multiWriter {
