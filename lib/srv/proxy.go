@@ -60,7 +60,8 @@ func (t *proxySubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Re
 	log.Debugf("proxySubsys.execute(remote: %v, local: %v) for subsystem with (%s:%s)",
 		sconn.RemoteAddr(), sconn.LocalAddr(), t.host, t.port)
 
-	// request a list of nodesin that cluster:
+	// TODO: currently "teleport sites" are not exposed to end users (tctl, tsh, etc)
+	// and there's always only one "site" and that's the one the auth service runs on
 	remoteSrv, err := t.srv.proxyTun.FindSimilarSite(t.host)
 	if err != nil {
 		return trace.Wrap(err)
