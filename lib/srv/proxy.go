@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package srv
 
 import (
@@ -22,6 +23,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/services"
 
 	log "github.com/Sirupsen/logrus"
@@ -32,21 +34,26 @@ import (
 // proxySubsys implements an SSH subsystem for proxying listening sockets from
 // remote hosts to a proxy client (AKA port mapping)
 type proxySubsys struct {
-	srv  *Server
-	host string
-	port string
+	srv       *Server
+	host      string
+	port      string
+	closeC    chan struct{}
+	error     error
+	closeOnce sync.Once
 }
 
 func parseProxySubsys(name string, srv *Server) (*proxySubsys, error) {
-	log.Debugf("prasing proxy request to %s", name)
+	log.Debugf("parsing proxy request to %v", name)
 	out := strings.Split(name, ":")
 	if len(out) != 3 {
-		return nil, trace.Errorf("invalid format for proxy request: '%v', expected 'proxy:host:port'", name)
+		return nil, trace.Wrap(teleport.BadParameter(
+			"proxy", fmt.Sprintf("invalid format for proxy request: '%v', expected 'proxy:host:port'", name)))
 	}
 	return &proxySubsys{
-		srv:  srv,
-		host: out[1],
-		port: out[2],
+		srv:    srv,
+		host:   out[1],
+		port:   out[2],
+		closeC: make(chan struct{}),
 	}, nil
 }
 
@@ -54,9 +61,9 @@ func (t *proxySubsys) String() string {
 	return fmt.Sprintf("proxySubsys(host=%v, port=%v)", t.host, t.port)
 }
 
-// execute is called by Golang's ssh when it needs to engage this sybsystem (typically to establish
+// start is called by Golang's ssh when it needs to engage this sybsystem (typically to establish
 // a mapping connection between a client & remote node we're proxying to)
-func (t *proxySubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+func (t *proxySubsys) start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	log.Debugf("proxySubsys.execute(remote: %v, local: %v) for subsystem with (%s:%s)",
 		sconn.RemoteAddr(), sconn.LocalAddr(), t.host, t.port)
 
@@ -97,30 +104,39 @@ func (t *proxySubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Re
 	// may not be actually DNS resolvable
 	conn, err := remoteSrv.Dial("tcp", serverAddr)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(teleport.ConvertConnectionProblem(err))
 	}
-
-	wg := &sync.WaitGroup{}
-	wg.Add(2)
-
 	go func() {
-		defer wg.Done()
-		_, err := io.Copy(ch, conn)
-		if err != nil {
-			log.Errorf(err.Error())
-		}
-		ch.Close()
+		var err error
+		defer func() {
+			t.close(err)
+			ctx.Infof("ch <- conn closed: %v", err)
+		}()
+		defer ch.Close()
+		_, err = io.Copy(ch, conn)
 	}()
 	go func() {
-		defer wg.Done()
-		_, err := io.Copy(conn, ch)
-		if err != nil {
-			log.Errorf(err.Error())
-		}
-		conn.Close()
-	}()
+		var err error
+		defer func() {
+			t.close(err)
+			ctx.Infof("conn <- ch closed: %v", err)
+		}()
+		defer conn.Close()
+		_, err = io.Copy(conn, ch)
 
-	wg.Wait()
+	}()
 
 	return nil
+}
+
+func (t *proxySubsys) close(err error) {
+	t.closeOnce.Do(func() {
+		t.error = err
+		close(t.closeC)
+	})
+}
+
+func (t *proxySubsys) wait() error {
+	<-t.closeC
+	return t.error
 }

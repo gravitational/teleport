@@ -18,6 +18,7 @@ package teleport
 
 import (
 	"fmt"
+	"net"
 	"syscall"
 
 	"github.com/gravitational/trace"
@@ -301,6 +302,21 @@ func IsAccessDenied(e error) bool {
 	}
 	_, ok := e.(ad)
 	return ok
+}
+
+// ConvertConnectionProblem converts system error to connection problem
+// if applicable
+func ConvertConnectionProblem(err error) error {
+	innerError := err
+	if terr, ok := err.(trace.Error); ok {
+		innerError = terr.OrigError()
+	}
+	neterr, ok := err.(*net.OpError)
+	if !ok {
+		return err
+	}
+	return ConnectionProblem(
+		fmt.Sprintf("failed to connect to server %v", neterr.Addr), innerError)
 }
 
 // ConnectionProblem returns ConnectionProblem
