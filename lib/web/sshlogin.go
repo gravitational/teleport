@@ -57,7 +57,7 @@ func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte, t
 	// skip https key verification?
 	if insecure || isLocalhost(host) {
 		if insecure {
-			log.Warningf("You are using insecure HTTPS connection")
+			fmt.Printf("WARNING: You are using insecure connection to SSH proxy %v", proxyAddr)
 		}
 		opts = append(opts, roundtrip.HTTPClient(newInsecureClient()))
 	}
