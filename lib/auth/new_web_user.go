@@ -61,7 +61,9 @@ func (s *AuthServer) CreateSignupToken(user string, allowedLogins []string) (str
 	// check existing
 	_, err := s.GetPasswordHash(user)
 	if err == nil {
-		return "", trace.Errorf("login '%v' already exists", user)
+		return "", trace.Wrap(
+			teleport.BadParameter(
+				"user", fmt.Sprintf("user '%v' already exists", user)))
 	}
 
 	token, err := utils.CryptoRandomHex(WebSessionTokenLenBytes)

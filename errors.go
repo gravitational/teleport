@@ -320,10 +320,7 @@ type ConnectionProblemError struct {
 
 // Error is debug - friendly error message
 func (c *ConnectionProblemError) Error() string {
-	if c.Message != "" {
-		return c.Message
-	}
-	return "connection problem"
+	return fmt.Sprintf("connection problem: %v, %v", c.Message, c.Err.Error())
 }
 
 // IsConnectionProblemError indicates that this error is of ConnectionProblem
