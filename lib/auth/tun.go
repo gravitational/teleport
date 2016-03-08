@@ -394,7 +394,7 @@ func (s *AuthTunnel) passwordAuth(
 		_, err := s.authServer.ValidateToken(string(ab.Pass))
 		if err != nil {
 			log.Errorf("token validation error: %v", err)
-			return nil, trace.Wrap(err, fmt.Sprintf("failed to validate user: %v", ab.User))
+			return nil, trace.Wrap(err, fmt.Sprintf("invalid token for: %v", ab.User))
 		}
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{

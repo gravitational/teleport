@@ -66,7 +66,7 @@ const (
 
 	// Median sleep time between node pings. Note that a random deviation is
 	// added to this time
-	SecondsBetweenNodePings = 5
+	SleepBetweenNodePings = time.Second * 5
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

@@ -415,11 +415,19 @@ func (s *server) GetSite(domainName string) (RemoteSite, error) {
 
 // FindSimilarSite finds the site that is the most similar to domain.
 // Returns nil if no sites with such domain name.
+//
+// NOTE: currently the notion of "sites" is not exposed to teleport users via tsh or tctl,
+//       only Gravitational products use this capability
 func (s *server) FindSimilarSite(domainName string) (RemoteSite, error) {
-	sites := s.GetSites()
-
 	s.RLock()
 	defer s.RUnlock()
+
+	sites := s.GetSites()
+
+	// this is always true:
+	if len(sites) == 1 {
+		return sites[0], nil
+	}
 
 	result := -1
 	resultSimilarity := 1

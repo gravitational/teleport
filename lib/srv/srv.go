@@ -248,7 +248,7 @@ func (s *Server) heartbeatPresence() {
 	var sleepDuration time.Duration
 	advertiseAddr := s.AdvertiseAddr()
 	for {
-		sleepDuration = utils.RandomizedDuration(defaults.SecondsBetweenNodePings*time.Second, 0.3)
+		sleepDuration = utils.RandomizedDuration(defaults.SleepBetweenNodePings, 0.3)
 		// shorten sleep time during tests
 		if sleepDuration > TestSleepDuration {
 			sleepDuration = TestSleepDuration
