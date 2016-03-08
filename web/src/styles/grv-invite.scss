@@ -1,7 +1,7 @@
 .grv-invite{
 
   background-color: #2f4050;
-  padding-top: 5%;  
+  padding-top: 5%;
   height: 100%;
   width: 100%;
   position: fixed;
@@ -21,6 +21,10 @@
       h3{
         margin-bottom: 20px;
       }
+    }
+
+    .grv-invite-barcode{
+      min-width: 1px;
     }
 
     .grv-flex-column{

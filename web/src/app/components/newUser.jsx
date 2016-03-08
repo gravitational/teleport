@@ -14,7 +14,7 @@ var InviteInputForm = React.createClass({
     $(this.refs.form).validate({
       rules:{
         password:{
-          minlength: 5,
+          minlength: 6,
           required: true
         },
         passwordConfirmed:{
@@ -79,7 +79,7 @@ var InviteInputForm = React.createClass({
               className="form-control"
               placeholder="Password" />
           </div>
-          <div className="form-group grv-">
+          <div className="form-group">
             <input
               valueLink={this.linkState('pswConfirmed')}
               type="password"
@@ -89,7 +89,7 @@ var InviteInputForm = React.createClass({
           </div>
           <div className="form-group">
             <input
-              name="token"
+              name="token"              
               valueLink={this.linkState('token')}
               className="form-control required"
               placeholder="Two factor token (Google Authenticator)" />
@@ -129,7 +129,7 @@ var Invite = React.createClass({
             <InviteInputForm attemp={this.state.attemp} invite={this.state.invite.toJS()}/>
             <GoogleAuthInfo/>
           </div>
-          <div className="grv-flex-column">
+          <div className="grv-flex-column grv-invite-barcode">
             <h4>Scan bar code for auth token <br/> <small>Scan below to generate your two factor token</small></h4>
             <img className="img-thumbnail" src={ `data:image/png;base64,${this.state.invite.get('qr')}` } />
           </div>
