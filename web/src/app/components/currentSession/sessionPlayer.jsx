@@ -64,8 +64,7 @@ var SessionPlayer = React.createClass({
        <ReactSlider
           min={this.state.min}
           max={this.state.length}
-          value={this.state.current}
-          onChange={this.move}
+          value={this.state.current}    
           onAfterChange={this.onAfterChange}
           onBeforeChange={this.onBeforeChange}
           defaultValue={1}
