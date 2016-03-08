@@ -222,55 +222,6 @@ func (s *SrvSuite) TestShell(c *C) {
 	c.Assert(se.Close(), IsNil)
 }
 
-// TestMux tests multiplexing command with agent forwarding
-func (s *SrvSuite) TestMux(c *C) {
-	se, err := s.clt.NewSession()
-	c.Assert(err, IsNil)
-	defer se.Close()
-	c.Assert(agent.RequestAgentForwarding(se), IsNil)
-
-	stdout := &bytes.Buffer{}
-	reader, err := se.StdoutPipe()
-	done := make(chan struct{})
-	go func() {
-		io.Copy(stdout, reader)
-		close(done)
-	}()
-
-	c.Assert(se.RequestSubsystem(fmt.Sprintf("mux:%v/expr 22 + 55", s.srv.Addr())), IsNil)
-	<-done
-	c.Assert(removeNL(stdout.String()), Matches, ".*77.*")
-}
-
-// TestTun tests tunneling command with agent forwarding
-func (s *SrvSuite) TestTun(c *C) {
-	se, err := s.clt.NewSession()
-	c.Assert(err, IsNil)
-	c.Assert(agent.RequestAgentForwarding(se), IsNil)
-
-	writer, err := se.StdinPipe()
-	c.Assert(err, IsNil)
-
-	stdoutPipe, err := se.StdoutPipe()
-	c.Assert(err, IsNil)
-	reader := bufio.NewReader(stdoutPipe)
-
-	c.Assert(se.RequestSubsystem(fmt.Sprintf("tun:%v", s.srv.Addr())), IsNil)
-
-	out, err := reader.ReadString('$')
-	c.Assert(err, IsNil)
-	c.Assert(out, Equals, "$")
-
-	_, err = io.WriteString(writer, "expr 7 + 70\n")
-	c.Assert(err, IsNil)
-
-	out, err = reader.ReadString('$')
-	c.Assert(err, IsNil)
-	c.Assert(removeNL(out), Equals, " expr 7 + 7077$")
-
-	c.Assert(se.Close(), IsNil)
-}
-
 func (s *SrvSuite) TestAllowedUsers(c *C) {
 	up, err := newUpack("user2", s.a)
 	c.Assert(err, IsNil)
@@ -353,7 +304,7 @@ func (s *SrvSuite) testClient(c *C, proxyAddr, targetAddr, remoteAddr string, ss
 	c.Assert(strings.Trim(string(out), " \n"), Equals, "5")
 }
 
-func (s *SrvSuite) TestProxy(c *C) {
+func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	reverseTunnelPort := s.freePorts[len(s.freePorts)-1]
 	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("%v:%v", s.domainName, reverseTunnelPort)}
@@ -422,42 +373,6 @@ func (s *SrvSuite) TestProxy(c *C) {
 
 	c.Assert(s.a.UpsertUser(services.User{Name: "user1", AllowedLogins: []string{s.user}}), IsNil)
 
-	// Trying to connect to unregistered ssh node
-	client, err := ssh.Dial("tcp", proxy.Addr(), sshConfig)
-	c.Assert(err, IsNil)
-
-	se0, err := client.NewSession()
-	c.Assert(err, IsNil)
-	defer se0.Close()
-
-	writer, err := se0.StdinPipe()
-	c.Assert(err, IsNil)
-
-	reader, err := se0.StdoutPipe()
-	c.Assert(err, IsNil)
-
-	// Request opening TCP connection to the remote host
-	unregisteredAddress := "0.0.0.0:" + s.srvPort
-	c.Assert(se0.RequestSubsystem(fmt.Sprintf("proxy:%v", unregisteredAddress)), IsNil)
-
-	local, err := utils.ParseAddr("tcp://" + proxy.Addr())
-	c.Assert(err, IsNil)
-	remote, err := utils.ParseAddr("tcp://" + s.srv.Addr())
-	c.Assert(err, IsNil)
-
-	pipeNetConn := utils.NewPipeNetConn(
-		reader,
-		writer,
-		se0,
-		local,
-		remote,
-	)
-	// Open SSH connection via TCP
-	_, _, _, err = ssh.NewClientConn(pipeNetConn, s.srv.Addr(), sshConfig)
-	c.Assert(err, NotNil)
-
-	client.Close()
-
 	s.testClient(c, proxy.Addr(), s.srvAddress, s.srv.Addr(), sshConfig)
 	s.testClient(c, proxy.Addr(), s.srvHostPort, s.srv.Addr(), sshConfig)
 
@@ -493,7 +408,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 	time.Sleep(3200 * time.Millisecond)
 
 	// test proxysites
-	client, err = ssh.Dial("tcp", proxy.Addr(), sshConfig)
+	client, err := ssh.Dial("tcp", proxy.Addr(), sshConfig)
 	c.Assert(err, IsNil)
 
 	se3, err := client.NewSession()
@@ -501,7 +416,7 @@ func (s *SrvSuite) TestProxy(c *C) {
 	defer se3.Close()
 
 	stdout := &bytes.Buffer{}
-	reader, err = se3.StdoutPipe()
+	reader, err := se3.StdoutPipe()
 	done := make(chan struct{})
 	go func() {
 		io.Copy(stdout, reader)

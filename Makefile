@@ -25,12 +25,10 @@ teleport:
 .PHONY: tsh
 tsh: 
 	go build -o $(OUT)/t -i github.com/gravitational/teleport/tool/t
-	#go build -o $(OUT)/tsh -i github.com/gravitational/teleport/tool/tsh
 
 install: remove-temp-files
 	go install github.com/gravitational/teleport/tool/teleport
 	go install github.com/gravitational/teleport/tool/tctl
-	go install github.com/gravitational/teleport/tool/tsh
 	go install github.com/gravitational/teleport/tool/t
 
 clean:
@@ -62,7 +60,6 @@ test:
 	go test -v github.com/gravitational/teleport/tool/t/...
 	go test -v github.com/gravitational/teleport/lib/... -cover
 	go test -v github.com/gravitational/teleport/tool/teleport... -cover
-	#go test -v github.com/gravitational/teleport/tool/tsh -cover
 
 
 test-with-etcd: install

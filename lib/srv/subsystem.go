@@ -20,6 +20,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/teleport"
+
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -44,11 +47,10 @@ func parseSubsystemRequest(srv *Server, req *ssh.Request) (subsystem, error) {
 	if srv.proxyMode && strings.HasPrefix(s.Name, "proxy:") {
 		return parseProxySubsys(s.Name, srv)
 	}
-	if srv.proxyMode && strings.HasPrefix(s.Name, "hangout:") {
-		return parseHangoutsSubsys(s.Name, srv)
-	}
 	if srv.proxyMode && strings.HasPrefix(s.Name, "proxysites") {
 		return parseProxySitesSubsys(s.Name, srv)
 	}
-	return nil, fmt.Errorf("unrecognized subsystem: %v", s.Name)
+	return nil, trace.Wrap(
+		teleport.BadParameter(
+			"subsystem", fmt.Sprintf("unrecognized subsystem: %v", s.Name)))
 }
