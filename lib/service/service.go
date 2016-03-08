@@ -579,7 +579,7 @@ func initSelfSignedHTTPSCert(cfg *Config) (keyPath string, certPath string, err 
 	}
 	log.Warningf("[CONFIG] Generating self signed key and cert to %v %v", keyPath, certPath)
 
-	creds, err := utils.GenerateSelfSignedCert([]string{cfg.Hostname}, []string{"127.0.0.1"})
+	creds, err := utils.GenerateSelfSignedCert([]string{cfg.Hostname, "localhost"})
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}

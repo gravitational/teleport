@@ -102,22 +102,11 @@ type TLSCredentials struct {
 
 // GenerateSelfSignedCert generates a self signed certificate that
 // is valid for given domain names and ips, returns PEM-encoded bytes with key and cert
-func GenerateSelfSignedCert(domainNames []string, IPAddresses []string) (*TLSCredentials, error) {
-	ips := make([]net.IP, len(IPAddresses))
-	for i, addr := range IPAddresses {
-		ip := net.ParseIP(addr)
-		if ip == nil {
-			return nil, trace.Wrap(
-				teleport.BadParameter("ip", fmt.Sprintf("%v is not a valid IP", addr)))
-		}
-		ips[i] = ip
-	}
-
+func GenerateSelfSignedCert(hostNames []string) (*TLSCredentials, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	notBefore := time.Now()
 	notAfter := notBefore.Add(DefaultCertificateValidity)
 
@@ -130,27 +119,23 @@ func GenerateSelfSignedCert(domainNames []string, IPAddresses []string) (*TLSCre
 	template := x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			Organization: []string{"Teleport"},
+			Organization: []string{"Acme Co"},
 		},
-		NotBefore:             notBefore,
-		NotAfter:              notAfter,
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment | x509.KeyUsageDataEncipherment,
+		NotBefore: notBefore,
+		NotAfter:  notAfter,
+
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
 	}
 
-	template.IsCA = true
-	template.KeyUsage |= x509.KeyUsageCertSign
+	template.DNSNames = hostNames
+	ips, _ := net.LookupIP("localhost")
+	if ips != nil {
+		template.IPAddresses = ips
+	}
 
-	template.DNSNames = append(template.DNSNames, domainNames...)
-	template.IPAddresses = append(template.IPAddresses, ips...)
-
-	derBytes, err := x509.CreateCertificate(
-		rand.Reader,
-		&template,       // template of the certificate
-		&template,       // template of the CA certificate
-		&priv.PublicKey, // public key of the signee
-		priv)            // private key of the signer
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -176,5 +161,5 @@ func pemBlockForRSAKey(priv interface{}) *pem.Block {
 // DefaultLRUCapacity is a capacity for LRU session cache
 const (
 	DefaultLRUCapacity         = 1024
-	DefaultCertificateValidity = 30 * 86400 * time.Second
+	DefaultCertificateValidity = 365 * 24 * time.Hour
 )
