@@ -108,6 +108,16 @@ const (
 	initError = "failure initializing default values"
 )
 
+// TLS constants for Web Proxy HTTPS connection
+const (
+	// path to a self-signed TLS PRIVATE key file for HTTPS connection for the web proxy
+	SelfSignedKeyPath = "webproxy_key.pem"
+	// path to a self-signed TLS PUBLIC key file for HTTPS connection for the web proxy
+	SelfSignedPubPath = "webproxy_pub.pem"
+	// path to a self-signed TLS cert file for HTTPS connection for the web proxy
+	SelfSignedCertPath = "webproxy_cert.pem"
+)
+
 // ConfigureLimiter assigns the default parameters to a connection throttler (AKA limiter)
 func ConfigureLimiter(lc *limiter.LimiterConfig) {
 	lc.MaxConnections = LimiterMaxConnections

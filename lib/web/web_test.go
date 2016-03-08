@@ -80,7 +80,7 @@ type WebSuite struct {
 var _ = Suite(&WebSuite{})
 
 func (s *WebSuite) SetUpSuite(c *C) {
-	utils.InitLoggerDebug()
+	utils.InitLoggerCLI()
 }
 
 func (s *WebSuite) SetUpTest(c *C) {
@@ -390,13 +390,14 @@ func (s *WebSuite) TestWebSessionsLogout(c *C) {
 	c.Assert(json.Unmarshal(re.Bytes(), &sites), IsNil)
 
 	// now delete session
+	var redirectErr = trace.Errorf("attempted redirect")
 	pack.clt.HTTPClient().CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		return trace.Errorf("attempted redirect")
+		return redirectErr
 	}
 	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "logout"), url.Values{})
 	orig, ok := err.(*trace.TraceErr)
 	c.Assert(ok, Equals, true)
-	c.Assert(orig.OrigError(), FitsTypeOf, &url.Error{})
+	c.Assert(orig.OrigError(), Equals, redirectErr)
 
 	// subsequent requests trying to use this session will fail
 	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})

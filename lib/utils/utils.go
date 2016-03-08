@@ -112,7 +112,7 @@ func MultiCloser(closers ...io.Closer) *multiCloser {
 // IsHandshakeFailedError specifies whether this error indicates
 // failed handshake
 func IsHandshakeFailedError(err error) bool {
-	return strings.Contains(err.Error(), "handshake failed")
+	return strings.Contains(err.Error(), "ssh: handshake failed")
 }
 
 // PortList is a list of TCP port

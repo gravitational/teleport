@@ -25,6 +25,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -105,12 +106,11 @@ type TLSCredentials struct {
 
 // GenerateSelfSignedCert generates a self signed certificate that
 // is valid for given domain names and ips, returns PEM-encoded bytes with key and cert
-func GenerateSelfSignedCert(domainNames []string) (*TLSCredentials, error) {
+func GenerateSelfSignedCert(hostNames []string) (*TLSCredentials, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	notBefore := time.Now()
 	notAfter := notBefore.Add(DefaultCertTTL)
 
@@ -123,25 +123,24 @@ func GenerateSelfSignedCert(domainNames []string) (*TLSCredentials, error) {
 	template := x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			Organization: []string{"Teleport"},
+			Organization: []string{"Acme Co"},
 		},
-		NotBefore:             notBefore,
-		NotAfter:              notAfter,
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment | x509.KeyUsageDataEncipherment,
+		NotBefore: notBefore,
+		NotAfter:  notAfter,
+
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
 	}
 
-	template.IsCA = true
-	template.KeyUsage |= x509.KeyUsageCertSign
-	template.DNSNames = append(template.DNSNames, domainNames...)
+	// collect IP addresses localhost resolves to and add them to the cert. template:
+	template.DNSNames = hostNames
+	ips, _ := net.LookupIP("localhost")
+	if ips != nil {
+		template.IPAddresses = ips
+	}
 
-	derBytes, err := x509.CreateCertificate(
-		rand.Reader,
-		&template,       // template of the certificate
-		&template,       // template of the CA certificate
-		&priv.PublicKey, // public key of the signee
-		priv)            // private key of the signer
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

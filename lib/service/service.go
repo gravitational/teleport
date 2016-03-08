@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/boltlog"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -565,9 +566,9 @@ func validateConfig(cfg *Config) error {
 // to the proxy server.
 func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 	log.Warningf("[CONFIG] NO TLS Keys provided, using self signed certificate")
-	keyPath := filepath.Join(cfg.DataDir, selfSignedKeyPath)
-	certPath := filepath.Join(cfg.DataDir, selfSignedCertPath)
-	pubPath := filepath.Join(cfg.DataDir, selfSignedPubPath)
+	keyPath := filepath.Join(cfg.DataDir, defaults.SelfSignedKeyPath)
+	certPath := filepath.Join(cfg.DataDir, defaults.SelfSignedCertPath)
+	pubPath := filepath.Join(cfg.DataDir, defaults.SelfSignedPubPath)
 
 	cfg.Proxy.TLSKey = keyPath
 	cfg.Proxy.TLSCert = certPath
@@ -582,7 +583,7 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 	}
 	log.Warningf("[CONFIG] Generating self signed key and cert to %v %v", keyPath, certPath)
 
-	creds, err := utils.GenerateSelfSignedCert([]string{"*."})
+	creds, err := utils.GenerateSelfSignedCert([]string{cfg.Hostname, "localhost"})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -598,15 +599,6 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 	}
 	return nil
 }
-
-const (
-	// path to a self-signed TLS PRIVATE key file for HTTPS connection for the web proxy
-	selfSignedKeyPath = "webproxy_https.key"
-	// path to a self-signed TLS PUBLIC key file for HTTPS connection for the web proxy
-	selfSignedPubPath = "webproxy_https.pub"
-	// path to a self-signed TLS cert file for HTTPS connection for the web proxy
-	selfSignedCertPath = "webproxy_https.cert"
-)
 
 type FanOutEventLogger struct {
 	Loggers []lunk.EventLogger

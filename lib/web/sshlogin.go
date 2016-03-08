@@ -1,14 +1,9 @@
 package web
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"net"
-	"net/http"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -24,6 +19,21 @@ const (
 	// WSS is secure web sockets prefix
 	WSS = "wss"
 )
+
+// isLocalhost returns 'true' if a given hostname belogs to local host
+func isLocalhost(host string) (retval bool) {
+	retval = false
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		log.Error(err)
+	}
+	for _, ip := range ips {
+		if ip.IsLoopback() {
+			return true
+		}
+	}
+	return retval
+}
 
 // SSHAgentLogin issues call to web proxy and receives temp certificate
 // if credentials are valid
@@ -43,29 +53,13 @@ func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte, t
 	proxyAddr = "https://" + net.JoinHostPort(host, port)
 
 	var opts []roundtrip.ClientParam
-	if insecure {
-		log.Warningf("you are using insecure HTTPS connection")
+
+	// skip https key verification?
+	if insecure || isLocalhost(host) {
+		if insecure {
+			log.Warningf("You are using insecure HTTPS connection")
+		}
 		opts = append(opts, roundtrip.HTTPClient(newInsecureClient()))
-	} else {
-		tlsconf := &tls.Config{}
-		tlsconf.RootCAs = x509.NewCertPool()
-		bytes, err := ioutil.ReadFile("/var/lib/teleport/webproxy_https.cert")
-		if err != nil {
-			panic(err)
-		}
-		block, _ := pem.Decode(bytes)
-		if block == nil {
-			panic("block is null")
-		}
-		cert, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			panic(err)
-		}
-		tlsconf.RootCAs.AddCert(cert)
-		client := &http.Client{
-			Transport: &http.Transport{TLSClientConfig: tlsconf},
-		}
-		opts = append(opts, roundtrip.HTTPClient(client))
 	}
 
 	clt, err := newWebClient(proxyAddr, opts...)

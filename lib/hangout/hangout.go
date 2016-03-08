@@ -87,7 +87,12 @@ func New(proxyTunnelAddress, nodeListeningAddress, authListeningAddress string,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cfg.Hostname = "localhost2"
+
+	cfg.HostUUID, err = utils.ReadOrMakeHostUUID(cfg.DataDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cfg.Hostname = cfg.HostUUID
 
 	cfg.Auth.KeysBackend.Type = "bolt"
 	cfg.Auth.KeysBackend.Params = `{"path": "` + cfg.DataDir + `/teleport.auth.db"}`
@@ -272,6 +277,10 @@ func (h *Hangout) initAuth(cfg service.Config, readOnlyHangout bool) error {
 
 	h.rec, err = initRecordBackend(
 		cfg.Auth.RecordsBackend.Type, cfg.Auth.RecordsBackend.Params)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.HostUUID, err = utils.ReadOrMakeHostUUID(cfg.DataDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
