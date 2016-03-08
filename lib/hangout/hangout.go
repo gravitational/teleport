@@ -276,12 +276,13 @@ func (h *Hangout) initAuth(cfg service.Config, readOnlyHangout bool) error {
 		return trace.Wrap(err)
 	}
 	acfg := auth.InitConfig{
-		Backend:       b,
-		Authority:     authority.New(),
-		DomainName:    cfg.Hostname,
-		DataDir:       cfg.DataDir,
-		SecretKey:     cfg.Auth.SecretKey,
-		AllowedTokens: cfg.Auth.AllowedTokens,
+		Backend:         b,
+		Authority:       authority.New(),
+		DomainName:      cfg.HostUUID,
+		AuthServiceName: cfg.Hostname,
+		DataDir:         cfg.DataDir,
+		SecretKey:       cfg.Auth.SecretKey,
+		AllowedTokens:   cfg.Auth.AllowedTokens,
 	}
 	asrv, signer, err := auth.Init(acfg)
 	if err != nil {

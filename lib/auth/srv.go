@@ -200,7 +200,7 @@ func (s *APIServer) upsertServer(w http.ResponseWriter, r *http.Request, p httpr
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("[AUTH API] ping from %v", r.RemoteAddr)
+	log.Debugf("[AUTH API] ping from %v (%v) at %v", req.Server.ID, req.Server.Hostname, r.RemoteAddr)
 
 	// if server sent "local" IP address to us, replace the ip/host part with the remote address we see
 	// on the socket, but keep the original port:
@@ -700,6 +700,7 @@ type getSignupTokenDataResponse struct {
 	HotpFirstValues []string `json:"hotp_first_values"`
 }
 
+// getSignupTokenData auth API method creates a new sign-up token for adding a new user
 func (s *APIServer) getSignupTokenData(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	token := p[0].Value
 

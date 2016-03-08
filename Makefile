@@ -31,6 +31,7 @@ install: remove-temp-files
 	go install github.com/gravitational/teleport/tool/teleport
 	go install github.com/gravitational/teleport/tool/tctl
 	go install github.com/gravitational/teleport/tool/tsh
+	go install github.com/gravitational/teleport/tool/t
 
 clean:
 	rm -rf $(OUT)

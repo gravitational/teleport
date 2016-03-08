@@ -82,7 +82,11 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.rec, err = boltrec.New(s.dir)
 	c.Assert(err, IsNil)
 
-	s.a = NewAuthServer(s.bk, authority.New(), "localhost")
+	s.a = NewAuthServer(&InitConfig{
+		Backend:    s.bk,
+		Authority:  authority.New(),
+		DomainName: "localhost",
+	})
 	sessionServer, err := session.New(s.bk)
 	c.Assert(err, IsNil)
 	s.srv = httptest.NewServer(NewAPIServer(

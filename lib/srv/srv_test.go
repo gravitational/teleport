@@ -94,7 +94,10 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.domainName = "localhost"
-	s.a = auth.NewAuthServer(s.bk, authority.New(), s.domainName)
+	s.a = auth.NewAuthServer(&auth.InitConfig{
+		Backend:    s.bk,
+		Authority:  authority.New(),
+		DomainName: s.domainName})
 
 	eventsLog, err := boltlog.New(filepath.Join(s.dir, "boltlog"))
 	c.Assert(err, IsNil)

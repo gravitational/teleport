@@ -99,6 +99,7 @@ func (cfg *Config) RoleConfig() RoleConfig {
 	return RoleConfig{
 		DataDir:     cfg.DataDir,
 		HostUUID:    cfg.HostUUID,
+		HostName:    cfg.Hostname,
 		AuthServers: cfg.AuthServers,
 		Auth:        cfg.Auth,
 		Console:     cfg.Console,
