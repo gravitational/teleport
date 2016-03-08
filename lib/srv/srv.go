@@ -243,6 +243,7 @@ func (s *Server) AdvertiseAddr() string {
 func (s *Server) heartbeatPresence() {
 	advertiseAddr := s.AdvertiseAddr()
 	for {
+		var sleepSeconds time.Duration = 5
 		func() {
 			s.labelsMutex.Lock()
 			defer s.labelsMutex.Unlock()
@@ -254,10 +255,13 @@ func (s *Server) heartbeatPresence() {
 				CmdLabels: s.cmdLabels,
 			}
 			if err := s.authService.UpsertServer(srv, 6*time.Second); err != nil {
-				log.Warningf("failed to announce %#v presence: %v", srv, err)
+				log.Errorf("failed to join cluster: %v. perhaps you forgot to supply --token?", err)
+				log.Debugf("failed to announce %#v presence: %v", srv, err)
+				// sleep longer after failure
+				sleepSeconds = 30
 			}
 		}()
-		time.Sleep(3 * time.Second)
+		time.Sleep(sleepSeconds * time.Second)
 	}
 }
 

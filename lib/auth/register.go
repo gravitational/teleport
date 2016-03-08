@@ -48,7 +48,6 @@ func Register(hostUUID, dataDir, token string, role teleport.Role, servers []uti
 
 	defer client.Close()
 
-	// TODO: replace domain name with host UUID
 	keys, err := client.RegisterUsingToken(tok, hostUUID, role)
 	if err != nil {
 		return trace.Wrap(err)
