@@ -62,6 +62,8 @@ type RoleConfig struct {
 	Console     io.Writer
 }
 
+// TeleportProcess structure holds the state of the Teleport daemon, controlling
+// execution and configuration of the teleport services: ssh, auth and proxy.
 type TeleportProcess struct {
 	Supervisor
 	Config     *Config
@@ -87,17 +89,21 @@ func (process *TeleportProcess) loginIntoAuthService() bool {
 				authUser,
 				[]ssh.AuthMethod{ssh.PublicKeys(identity.KeySigner)})
 			// success?
-			if err == nil {
-				// try calling a test method via auth api:
-				_, err = authClient.GetLocalDomain()
-				if err == nil {
-					// success again? we're logged in!
-					log.Infof("successfully logged into %v", authServerAddr)
-					process.AuthClient = authClient
-					process.Identity = identity
-					return true
-				}
+			if err != nil {
+				log.Warning(err)
+				continue
 			}
+			// try calling a test method via auth api:
+			_, err = authClient.GetLocalDomain()
+			if err != nil {
+				log.Warning(err)
+				continue
+			}
+			// success ? we're logged in!
+			log.Infof("successfully logged into %v", authServerAddr)
+			process.AuthClient = authClient
+			process.Identity = identity
+			return true
 		}
 	} else {
 		log.Warn("no host identity has been found")

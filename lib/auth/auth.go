@@ -225,12 +225,10 @@ func (s *AuthServer) GenerateToken(role teleport.Role, ttl time.Duration) (strin
 func (s *AuthServer) ValidateToken(token string) (role string, e error) {
 	token, _, err := services.SplitTokenRole(token)
 	if err != nil {
-		log.Error(err)
 		return "", trace.Wrap(err)
 	}
 	tok, err := s.ProvisioningService.GetToken(token)
 	if err != nil {
-		log.Error(err)
 		return "", trace.Wrap(err)
 	}
 	return tok.Role, nil
