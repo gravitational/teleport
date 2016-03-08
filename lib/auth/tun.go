@@ -493,7 +493,7 @@ type TunClient struct {
 
 func NewTunClient(addr utils.NetAddr, user string, auth []ssh.AuthMethod) (*TunClient, error) {
 	if user == "" {
-		return nil, trace.Errorf("SSH connection requires a valid username")
+		return nil, trace.Wrap(teleport.BadParameter("user", "SSH connection requires a valid username"))
 	}
 	tc := &TunClient{
 		dialer: &TunDialer{auth: auth, addr: addr, user: user},
@@ -507,7 +507,7 @@ func NewTunClient(addr utils.NetAddr, user string, auth []ssh.AuthMethod) (*TunC
 			Transport: tr,
 		}))
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	tc.Client = *clt
 	tc.tr = tr
@@ -558,13 +558,13 @@ func (t *TunDialer) Close() error {
 func (t *TunDialer) GetAgent() (AgentCloser, error) {
 	client, err := t.getClient() // we need an established connection first
 	if err != nil {
-		return nil, trace.Wrap(
-			teleport.ConnectionProblem("failed to connect to remote API", err))
+		return nil, trace.Wrap(err)
 	}
 	ch, _, err := client.OpenChannel(ReqWebSessionAgent, nil)
 	if err != nil {
 		return nil, trace.Wrap(
-			teleport.ConnectionProblem("failed to connect to remote API", err))
+			teleport.ConnectionProblem(
+				"failed to connect to remote API", err))
 	}
 	agentCloser := &tunAgent{client: client}
 	agentCloser.Agent = agent.NewClient(ch)
@@ -580,6 +580,10 @@ func (t *TunDialer) getClient() (*ssh.Client, error) {
 	log.Debugf("TunDialer.getClient(%v)", t.addr.String())
 	if err != nil {
 		log.Infof("TunDialer could not ssh.Dial: %v", err)
+		if utils.IsHandshakeFailedError(err) {
+			return nil, teleport.AccessDenied(
+				fmt.Sprintf("access denied to '%v': bad username or credentials", t.user))
+		}
 		return nil, trace.Wrap(err)
 	}
 	return client, nil
@@ -609,8 +613,7 @@ func (t *TunDialer) Dial(network, address string) (net.Conn, error) {
 	log.Debugf("TunDialer.Dial(%v, %v)", network, address)
 	client, err := t.getClient()
 	if err != nil {
-		return nil, trace.Wrap(
-			teleport.ConnectionProblem("failed to connect to remote API", err))
+		return nil, trace.Wrap(err)
 	}
 	conn, err := client.Dial(network, address)
 	if err != nil {

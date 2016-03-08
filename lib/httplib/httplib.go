@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 
 	"github.com/gravitational/teleport"
 
@@ -86,6 +87,9 @@ func ReplyError(w http.ResponseWriter, err error) {
 // based on HTTP response code and HTTP body contents
 func ConvertResponse(re *roundtrip.Response, err error) (*roundtrip.Response, error) {
 	if err != nil {
+		if uerr, ok := err.(*url.Error); ok && uerr != nil && uerr.Err != nil {
+			return nil, trace.Wrap(uerr.Err)
+		}
 		return nil, trace.Wrap(err)
 	}
 	switch re.Code() {

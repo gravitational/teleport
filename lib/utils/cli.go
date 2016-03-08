@@ -59,17 +59,18 @@ func InitLoggerDebug() {
 // FatalError is for CLI front-ends: it detects gravitational.Trace debugging
 // information, sends it to the logger, strips it off and prints a clean message to stderr
 func FatalError(err error) {
-	var unwrap func(error) error
-	unwrap = func(err error) error {
-		te, ok := err.(trace.Error)
-		if ok {
-			return te.OrigError()
-		}
-		return err
-	}
 	log.Errorf(err.Error())
-	fmt.Fprintln(os.Stderr, "ERROR: "+unwrap(err).Error())
+	fmt.Fprintln(os.Stderr, "ERROR: "+UserMessageFromError(err))
 	os.Exit(1)
+}
+
+// UserMessageFromError returns user friendly error message from error
+func UserMessageFromError(err error) string {
+	te, ok := err.(trace.Error)
+	if ok {
+		return te.OrigError().Error()
+	}
+	return err.Error()
 }
 
 // Consolef prints the same message to a 'ui console' (if defined) and also to
