@@ -120,7 +120,7 @@ func run(cmdlineArgs []string, testRun bool) (executedCommand string, appliedCon
 
 // onStart is the handler for "start" CLI command
 func onStart(config *service.Config) error {
-	srv, err := service.NewTeleport(*config)
+	srv, err := service.NewTeleport(config)
 	if err != nil {
 		return trace.Wrap(err, "initializing teleport")
 	}

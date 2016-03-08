@@ -42,9 +42,7 @@ func (s *UtilsSuite) TestHostUUID(c *check.C) {
 }
 
 func (s *UtilsSuite) TestSelfSignedCert(c *check.C) {
-	creds, err := GenerateSelfSignedCert(
-		[]string{"example.com"},
-		[]string{"127.0.0.1"})
+	creds, err := GenerateSelfSignedCert([]string{"example.com"})
 	c.Assert(err, check.IsNil)
 	c.Assert(creds, check.NotNil)
 	c.Assert(len(creds.PublicKey)/100, check.Equals, 4)

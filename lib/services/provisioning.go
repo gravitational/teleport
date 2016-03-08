@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/trace"
 )
@@ -51,14 +52,15 @@ func (s *ProvisioningService) UpsertToken(token, role string, ttl time.Duration)
 func (s *ProvisioningService) GetToken(token string) (ProvisionToken, error) {
 	out, err := s.backend.GetVal([]string{"tokens"}, token)
 	if err != nil {
-		return ProvisionToken{}, err
+		log.Error(err)
+		return ProvisionToken{}, trace.Wrap(err)
 	}
 	var t ProvisionToken
 	err = json.Unmarshal(out, &t)
 	if err != nil {
+		log.Error(err)
 		return ProvisionToken{}, trace.Wrap(err)
 	}
-
 	return t, nil
 }
 func (s *ProvisioningService) DeleteToken(token string) error {

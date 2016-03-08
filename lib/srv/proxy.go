@@ -95,7 +95,7 @@ func (t *proxySubsys) execute(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Re
 
 	// we must dial by server IP address because hostname
 	// may not be actually DNS resolvable
-	conn, err := remoteSrv.DialServer(serverAddr)
+	conn, err := remoteSrv.Dial("tcp", serverAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
