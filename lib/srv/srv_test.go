@@ -73,7 +73,6 @@ type SrvSuite struct {
 var _ = Suite(&SrvSuite{})
 
 func (s *SrvSuite) SetUpSuite(c *C) {
-	TestSleepDuration = time.Millisecond * 50
 	utils.InitLoggerCLI()
 }
 
@@ -145,6 +144,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	s.srv = srv
 
 	c.Assert(s.srv.Start(), IsNil)
+	c.Assert(s.srv.registerServer(), IsNil)
 
 	// set up SSH client using the user private key for signing
 	up, err := newUpack(s.user, s.a)
@@ -190,9 +190,9 @@ func (s *SrvSuite) TestExec(c *C) {
 
 func (s *SrvSuite) TestAdvertiseAddr(c *C) {
 	c.Assert(strings.Index(s.srv.AdvertiseAddr(), "127.0.0.1:"), Equals, 0)
-	s.srv.advertiseIP = net.ParseIP("10.10.10.1")
+	s.srv.setAdvertiseIP(net.ParseIP("10.10.10.1"))
 	c.Assert(strings.Index(s.srv.AdvertiseAddr(), "10.10.10.1:"), Equals, 0)
-	s.srv.advertiseIP = nil
+	s.srv.setAdvertiseIP(nil)
 }
 
 // TestShell launches interactive shell session and executes a command
@@ -404,9 +404,10 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	srv2.uuid = bobAddr
 	c.Assert(err, IsNil)
 	c.Assert(srv2.Start(), IsNil)
+	c.Assert(srv2.registerServer(), IsNil)
 	defer srv2.Close()
 
-	time.Sleep(200 * time.Millisecond)
+	srv2.registerServer()
 
 	// test proxysites
 	client, err := ssh.Dial("tcp", proxy.Addr(), sshConfig)
@@ -423,6 +424,12 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		io.Copy(stdout, reader)
 		close(done)
 	}()
+
+	// to make sure  labels have the right output
+	s.srv.syncUpdateLabels()
+	srv2.syncUpdateLabels()
+	s.srv.registerServer()
+	srv2.registerServer()
 
 	c.Assert(se3.RequestSubsystem("proxysites"), IsNil)
 	<-done

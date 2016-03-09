@@ -19,19 +19,11 @@ func CryptoRandomHex(len int) (string, error) {
 	return hex.EncodeToString(randomBytes), nil
 }
 
-// RandomizedDuration returns duration which is within given deviation from a given
-// median.
-//
-// For example RandomizedDuration(time.Second * 10, 0.5) will return
-// a random duration between 6 and 15 seconds.
-func RandomizedDuration(median time.Duration, deviation float64) time.Duration {
-	min := int64(float64(median) * (1 - deviation))
-	max := int64(float64(median) * (1 + deviation))
-
-	ceiling := big.NewInt(max - min)
-	randomDeviation, err := rand.Int(rand.Reader, ceiling)
+// RandomDuration returns a duration in a range [0, max)
+func RandomDuration(max time.Duration) time.Duration {
+	randomVal, err := rand.Int(rand.Reader, big.NewInt(int64(max)))
 	if err != nil {
-		return median
+		return max / 2
 	}
-	return time.Duration(min + randomDeviation.Int64())
+	return time.Duration(randomVal.Int64())
 }

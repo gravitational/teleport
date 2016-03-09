@@ -13,6 +13,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+// Package defaults contains default constants set in various parts of
+// teleport codebase
 package defaults
 
 import (
@@ -64,9 +67,11 @@ const (
 	// By default all users use /bin/bash
 	DefaultShell = "/bin/bash"
 
-	// Median sleep time between node pings. Note that a random deviation is
-	// added to this time
-	SleepBetweenNodePings = time.Second * 5
+	// ServerHeartbeatTTL is a period between heartbeats
+	// Median sleep time between node pings is this value / 2 + random
+	// deviation added to this time to avoid lots of simultaneous
+	// heartbeats coming to auth server
+	ServerHeartbeatTTL = 6 * time.Second
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport
@@ -84,27 +89,31 @@ const (
 	MinCertDuration = time.Minute
 	// MaxCertDuration limits maximum duration of validity of issued cert
 	MaxCertDuration = 30 * time.Hour
-	// Default certificate duration in hours
-	CertDurationHours = 12
-	CertDuration      = CertDurationHours * time.Hour
+	// CertDuration is a default certificate duration
+	// 12 is default as it' longer than average working day (I hope so)
+	CertDuration = 12 * time.Hour
 )
 
 // list of roles teleport service can run as:
 const (
-	RoleNode        = "node"
-	RoleProxy       = "proxy"
+	// RoleNode is SSH stateless node
+	RoleNode = "node"
+	// RoleProxy is a stateless SSH access proxy (bastion)
+	RoleProxy = "proxy"
+	// RoleAuthService is authentication and authorization service,
+	// the only stateful role in the system
 	RoleAuthService = "auth"
 )
 
 var (
-	// Default path to teleport config file
+	// ConfigFilePath is default path to teleport config file
 	ConfigFilePath = "/etc/teleport.yaml"
 
-	// This is where all mutable data is stored (user keys, recorded sessions,
+	// DataDir  is where all mutable data is stored (user keys, recorded sessions,
 	// registered SSH servers, etc):
 	DataDir = "/var/lib/teleport"
 
-	// Default roles teleport assumes when started via 'start' command
+	// StartRoles is default roles teleport assumes when started via 'start' command
 	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService}
 )
 

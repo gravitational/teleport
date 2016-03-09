@@ -24,6 +24,7 @@ import (
 	"io"
 	"net"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -47,9 +48,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
-
-// TestSleepDuration is used to shortcut the 'ping' looop during tests
-var TestSleepDuration = time.Duration(time.Hour)
 
 // Server implements SSH server that uses configuration backend and
 // certificate-based authentication
@@ -231,72 +229,97 @@ func (s *Server) ID() string {
 	return s.uuid
 }
 
-// AdvertiseAddr() returns an address this server should be publicly accessible
+func (s *Server) setAdvertiseIP(ip net.IP) {
+	s.Lock()
+	defer s.Unlock()
+	s.advertiseIP = ip
+}
+
+func (s *Server) getAdvertiseIP() net.IP {
+	s.Lock()
+	defer s.Unlock()
+	return s.advertiseIP
+}
+
+// AdvertiseAddr returns an address this server should be publicly accessible
 // as, in "ip:host" form
 func (s *Server) AdvertiseAddr() string {
 	// se if we have explicit --advertise-ip option
-	if s.advertiseIP == nil {
+	if s.getAdvertiseIP() == nil {
 		return s.addr.Addr
 	}
 	_, port, _ := net.SplitHostPort(s.addr.Addr)
-	return net.JoinHostPort(s.advertiseIP.String(), port)
+	return net.JoinHostPort(s.getAdvertiseIP().String(), port)
+}
+
+// registerServer attempts to register server in the cluster
+func (s *Server) registerServer() error {
+	srv := services.Server{
+		ID:        s.ID(),
+		Addr:      s.AdvertiseAddr(),
+		Hostname:  s.hostname,
+		Labels:    s.labels,
+		CmdLabels: s.getCommandLabels(),
+	}
+	return trace.Wrap(s.authService.UpsertServer(srv, defaults.ServerHeartbeatTTL))
 }
 
 // heartbeatPresence periodically calls into the auth server to let everyone
 // know we're up & alive
 func (s *Server) heartbeatPresence() {
-	var sleepDuration time.Duration
-	advertiseAddr := s.AdvertiseAddr()
 	for {
-		sleepDuration = utils.RandomizedDuration(defaults.SleepBetweenNodePings, 0.3)
-		// shorten sleep time during tests
-		if sleepDuration > TestSleepDuration {
-			sleepDuration = TestSleepDuration
+		if err := s.registerServer(); err != nil {
+			log.Warningf("failed to announce %#v presence: %v", s, err)
 		}
-		func() {
-			s.labelsMutex.Lock()
-			defer s.labelsMutex.Unlock()
-			srv := services.Server{
-				ID:        s.ID(),
-				Addr:      advertiseAddr,
-				Hostname:  s.hostname,
-				Labels:    s.labels,
-				CmdLabels: s.cmdLabels,
-			}
-			if err := s.authService.UpsertServer(srv, sleepDuration*2); err != nil {
-				log.Warningf("failed to announce %#v presence: %v", srv, err)
-				// sleep longer on failures
-				sleepDuration = sleepDuration * 2
-			}
-		}()
-		log.Infof("[SSH] will ping auth service in %v", sleepDuration)
-		time.Sleep(sleepDuration)
+		log.Infof("[SSH] will ping auth service in %v", defaults.ServerHeartbeatTTL)
+		time.Sleep(defaults.ServerHeartbeatTTL + utils.RandomDuration(defaults.ServerHeartbeatTTL/10))
 	}
 }
 
 func (s *Server) updateLabels() {
 	for name, label := range s.cmdLabels {
-		go s.updateLabel(name, label)
+		go s.periodicUpdateLabel(name, label)
+	}
+}
+
+func (s *Server) syncUpdateLabels() {
+	for name, label := range s.cmdLabels {
+		s.updateLabel(name, label)
 	}
 }
 
 func (s *Server) updateLabel(name string, label services.CommandLabel) {
+	out, err := exec.Command(label.Command[0], label.Command[1:]...).Output()
+	if err != nil {
+		log.Errorf(err.Error())
+		label.Result = err.Error() + " output: " + string(out)
+	} else {
+		label.Result = strings.TrimSpace(string(out))
+	}
+	s.setCommandLabel(name, label)
+}
+
+func (s *Server) periodicUpdateLabel(name string, label services.CommandLabel) {
 	for {
-		out, err := exec.Command(label.Command[0], label.Command[1:]...).Output()
-		if err != nil {
-			log.Errorf(err.Error())
-			label.Result = err.Error() + " Output: " + string(out)
-		} else {
-			if out[len(out)-1] == 10 {
-				out = out[:len(out)-1] // remove new line
-			}
-			label.Result = string(out)
-		}
-		s.labelsMutex.Lock()
-		s.cmdLabels[name] = label
-		s.labelsMutex.Unlock()
+		s.updateLabel(name, label)
 		time.Sleep(label.Period)
 	}
+}
+
+func (s *Server) setCommandLabel(name string, value services.CommandLabel) {
+	s.labelsMutex.Lock()
+	defer s.labelsMutex.Unlock()
+	s.cmdLabels[name] = value
+}
+
+func (s *Server) getCommandLabels() map[string]services.CommandLabel {
+	s.labelsMutex.Lock()
+	defer s.labelsMutex.Unlock()
+	out := make(map[string]services.CommandLabel, len(s.cmdLabels))
+	for key, val := range s.cmdLabels {
+		out[key] = val
+	}
+	return out
 }
 
 func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser string) error {
@@ -566,7 +589,7 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 				return
 			}
 			if err := s.dispatch(sconn, ch, req, ctx); err != nil {
-				ctx.Infof("error dispatching request: %v, closing channel", err)
+				ctx.Infof("error dispatching request: %#v", err)
 				replyError(ch, req, err)
 				closeCh()
 				return
