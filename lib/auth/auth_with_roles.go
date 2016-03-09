@@ -123,21 +123,21 @@ func (a *AuthWithRoles) DeleteCertAuthority(id services.CertAuthID) error {
 }
 func (a *AuthWithRoles) GenerateToken(role teleport.Role, ttl time.Duration) (string, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGenerateToken); err != nil {
-		return "", err
+		return "", trace.Wrap(err)
 	} else {
 		return a.authServer.GenerateToken(role, ttl)
 	}
 }
 func (a *AuthWithRoles) RegisterUsingToken(token, hostID string, role teleport.Role) (keys PackedKeys, e error) {
 	if err := a.permChecker.HasPermission(a.role, ActionRegisterUsingToken); err != nil {
-		return PackedKeys{}, err
+		return PackedKeys{}, trace.Wrap(err)
 	} else {
 		return a.authServer.RegisterUsingToken(token, hostID, role)
 	}
 }
 func (a *AuthWithRoles) RegisterNewAuthServer(token string, publicSealKey encryptor.Key) (masterKey encryptor.Key, e error) {
 	if err := a.permChecker.HasPermission(a.role, ActionRegisterNewAuthServer); err != nil {
-		return encryptor.Key{}, err
+		return encryptor.Key{}, trace.Wrap(err)
 	} else {
 		return a.authServer.RegisterNewAuthServer(token, publicSealKey)
 	}
@@ -179,14 +179,14 @@ func (a *AuthWithRoles) GetSessionEvents(filter events.Filter) ([]session.Sessio
 }
 func (a *AuthWithRoles) GetChunkWriter(id string) (recorder.ChunkWriteCloser, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetChunkWriter); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	} else {
 		return a.recorder.GetChunkWriter(id)
 	}
 }
 func (a *AuthWithRoles) GetChunkReader(id string) (recorder.ChunkReadCloser, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetChunkReader); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	} else {
 		return a.recorder.GetChunkReader(id)
 	}
@@ -201,7 +201,7 @@ func (a *AuthWithRoles) UpsertServer(s services.Server, ttl time.Duration) error
 }
 func (a *AuthWithRoles) GetServers() ([]services.Server, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetServers); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	} else {
 		return a.authServer.GetServers()
 	}
@@ -229,14 +229,14 @@ func (a *AuthWithRoles) CheckPassword(user string, password []byte, hotpToken st
 }
 func (a *AuthWithRoles) SignIn(user string, password []byte) (*Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionSignIn); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	} else {
 		return a.authServer.SignIn(user, password)
 	}
 }
 func (a *AuthWithRoles) CreateWebSession(user string, prevSessionID string) (*Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionCreateWebSession); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	} else {
 		return a.authServer.CreateWebSession(user, prevSessionID)
 	}
@@ -264,7 +264,7 @@ func (a *AuthWithRoles) DeleteWebSession(user string, sid string) error {
 }
 func (a *AuthWithRoles) GetUsers() ([]services.User, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetUsers); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	} else {
 		return a.authServer.GetUsers()
 	}
@@ -278,7 +278,7 @@ func (a *AuthWithRoles) DeleteUser(user string) error {
 }
 func (a *AuthWithRoles) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGenerateKeyPair); err != nil {
-		return nil, nil, err
+		return nil, nil, trace.Wrap(err)
 	} else {
 		return a.authServer.GenerateKeyPair(pass)
 	}
@@ -288,21 +288,21 @@ func (a *AuthWithRoles) GenerateHostCert(
 	ttl time.Duration) ([]byte, error) {
 
 	if err := a.permChecker.HasPermission(a.role, ActionGenerateHostCert); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	} else {
 		return a.authServer.GenerateHostCert(key, hostname, authDomain, role, ttl)
 	}
 }
 func (a *AuthWithRoles) GenerateUserCert(key []byte, user string, ttl time.Duration) ([]byte, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGenerateUserCert); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	} else {
 		return a.authServer.GenerateUserCert(key, user, ttl)
 	}
 }
 func (a *AuthWithRoles) GetSealKeys() ([]encryptor.Key, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetSealKeys); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	} else {
 		return a.authServer.GetSealKeys()
 	}
@@ -310,7 +310,7 @@ func (a *AuthWithRoles) GetSealKeys() ([]encryptor.Key, error) {
 
 func (a *AuthWithRoles) GenerateSealKey(keyName string) (encryptor.Key, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGenerateSealKey); err != nil {
-		return encryptor.Key{}, err
+		return encryptor.Key{}, trace.Wrap(err)
 	} else {
 		return a.authServer.GenerateSealKey(keyName)
 	}
@@ -334,7 +334,7 @@ func (a *AuthWithRoles) AddSealKey(key encryptor.Key) error {
 
 func (a *AuthWithRoles) GetSealKey(keyID string) (encryptor.Key, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetSealKey); err != nil {
-		return encryptor.Key{}, err
+		return encryptor.Key{}, trace.Wrap(err)
 	} else {
 		return a.authServer.GetSealKey(keyID)
 	}
@@ -342,7 +342,7 @@ func (a *AuthWithRoles) GetSealKey(keyID string) (encryptor.Key, error) {
 
 func (a *AuthWithRoles) CreateSignupToken(user string, mappings []string) (token string, e error) {
 	if err := a.permChecker.HasPermission(a.role, ActionCreateSignupToken); err != nil {
-		return "", err
+		return "", trace.Wrap(err)
 	} else {
 		return a.authServer.CreateSignupToken(user, mappings)
 	}
@@ -351,7 +351,7 @@ func (a *AuthWithRoles) CreateSignupToken(user string, mappings []string) (token
 func (a *AuthWithRoles) GetSignupTokenData(token string) (user string,
 	QRImg []byte, hotpFirstValues []string, e error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetSignupTokenData); err != nil {
-		return "", nil, nil, err
+		return "", nil, nil, trace.Wrap(err)
 	} else {
 		return a.authServer.GetSignupTokenData(token)
 	}

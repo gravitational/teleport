@@ -129,7 +129,13 @@ func (s *WebService) GetUser(user string) (*User, error) {
 
 // DeleteUser deletes a user with all the keys from the backend
 func (s *WebService) DeleteUser(user string) error {
-	return trace.Wrap(s.backend.DeleteBucket([]string{"web", "users"}, user))
+	err := s.backend.DeleteBucket([]string{"web", "users"}, user)
+	if err != nil {
+		if teleport.IsNotFound(err) {
+			return trace.Wrap(teleport.NotFound(fmt.Sprintf("user '%v' is not found", user)))
+		}
+	}
+	return trace.Wrap(err)
 }
 
 // UpsertPasswordHash upserts user password hash
@@ -138,16 +144,19 @@ func (s *WebService) UpsertPasswordHash(user string, hash []byte) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return err
+	return nil
 }
 
 // GetPasswordHash returns the password hash for a given user
 func (s *WebService) GetPasswordHash(user string) ([]byte, error) {
 	hash, err := s.backend.GetVal([]string{"web", "users", user}, "pwd")
 	if err != nil {
-		return nil, err
+		if teleport.IsNotFound(err) {
+			return nil, trace.Wrap(teleport.NotFound(fmt.Sprintf("user '%v' is not found", user)))
+		}
+		return nil, trace.Wrap(err)
 	}
-	return hash, err
+	return hash, nil
 }
 
 // UpsertHOTP upserts HOTP state for user
@@ -169,6 +178,9 @@ func (s *WebService) GetHOTP(user string) (*hotp.HOTP, error) {
 	bytes, err := s.backend.GetVal([]string{"web", "users", user},
 		"hotp")
 	if err != nil {
+		if teleport.IsNotFound(err) {
+			return nil, trace.Wrap(teleport.NotFound(fmt.Sprintf("user '%v' is not found", user)))
+		}
 		return nil, trace.Wrap(err)
 	}
 	otp, err := hotp.Unmarshal(bytes)
@@ -185,9 +197,11 @@ func (s *WebService) UpsertWebSession(user, sid string, session WebSession, ttl 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	err = s.backend.UpsertVal([]string{"web", "users", user, "sessions"},
 		sid, bytes, ttl)
+	if teleport.IsNotFound(err) {
+		return trace.Wrap(teleport.NotFound(fmt.Sprintf("user '%v' is not found", user)))
+	}
 	return trace.Wrap(err)
 }
 
@@ -340,8 +354,6 @@ func (s *WebService) UpsertPassword(user string,
 }
 
 func (s *WebService) CheckPassword(user string, password []byte, hotpToken string) error {
-	log.Infof("user: %v, pass: %v, token: %v", user, string(password), hotpToken)
-
 	if err := verifyPassword(password); err != nil {
 		return trace.Wrap(err)
 	}
@@ -350,25 +362,21 @@ func (s *WebService) CheckPassword(user string, password []byte, hotpToken strin
 		return trace.Wrap(err)
 	}
 	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
-		return &teleport.BadParameterError{Err: "passwords do not match", Param: "password"}
+		return trace.Wrap(teleport.BadParameter("password", "passwords do not match"))
 	}
-
 	otp, err := s.GetHOTP(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if !otp.Scan(hotpToken, 4) {
-		return &teleport.BadParameterError{Err: "tokens do not match", Param: "token"}
+		return trace.Wrap(teleport.BadParameter("token", "bad one time token"))
 	}
-
 	if err := s.UpsertHOTP(user, otp); err != nil {
 		return trace.Wrap(err)
 	}
-
 	return nil
 }
 
-// TO DO: not very good
 func (s *WebService) CheckPasswordWOToken(user string, password []byte) error {
 	if err := verifyPassword(password); err != nil {
 		return trace.Wrap(err)

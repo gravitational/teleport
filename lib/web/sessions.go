@@ -187,7 +187,6 @@ func (s *sessionCache) GetCertificate(c createSSHCertReq) (*SSHLoginResponse, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	clt, err := auth.NewTunClient(s.authServers[0], c.User, method)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -287,7 +286,6 @@ func (s *sessionCache) resetContext(user, sid string) error {
 func (s *sessionCache) ValidateSession(user, sid string) (*sessionContext, error) {
 	ctx, err := s.getContext(user, sid)
 	if err == nil {
-		ctx.Infof("got from cache")
 		return ctx, nil
 	}
 	method, err := auth.NewWebSessionAuth(user, []byte(sid))
@@ -317,7 +315,7 @@ func (s *sessionCache) ValidateSession(user, sid string) (*sessionContext, error
 		// this means that someone has just inserted the context, so
 		// close our extra context and return
 		if teleport.IsAlreadyExists(err) {
-			ctx.Infof("just created, returning the existing one")
+			log.Infof("just created, returning the existing one")
 			defer c.Close()
 			return out, nil
 		}

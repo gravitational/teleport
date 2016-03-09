@@ -20,6 +20,22 @@ const (
 	WSS = "wss"
 )
 
+// isLocalhost returns 'true' if a given hostname resolves to local
+// host's loopback interface
+func isLocalhost(host string) bool {
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		log.Error(err)
+		return false
+	}
+	for _, ip := range ips {
+		if ip.IsLoopback() {
+			return true
+		}
+	}
+	return false
+}
+
 // SSHAgentLogin issues call to web proxy and receives temp certificate
 // if credentials are valid
 //
@@ -38,8 +54,12 @@ func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte, t
 	proxyAddr = "https://" + net.JoinHostPort(host, port)
 
 	var opts []roundtrip.ClientParam
-	if insecure {
-		log.Warningf("you are using insecure HTTPS connection")
+
+	// skip https key verification?
+	if insecure || isLocalhost(host) {
+		if insecure {
+			fmt.Printf("WARNING: You are using insecure connection to SSH proxy %v", proxyAddr)
+		}
 		opts = append(opts, roundtrip.HTTPClient(newInsecureClient()))
 	}
 

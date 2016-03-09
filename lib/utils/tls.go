@@ -95,31 +95,24 @@ func CreateTLSConfiguration(certFile, keyFile string) (*tls.Config, error) {
 	return config, nil
 }
 
+// TLSCredentials keeps the typical 3 components of a proper HTTPS configuration
 type TLSCredentials struct {
+	// PublicKey in PEM format
+	PublicKey []byte
+	// PrivateKey in PEM format
 	PrivateKey []byte
 	Cert       []byte
 }
 
 // GenerateSelfSignedCert generates a self signed certificate that
 // is valid for given domain names and ips, returns PEM-encoded bytes with key and cert
-func GenerateSelfSignedCert(domainNames []string, IPAddresses []string) (*TLSCredentials, error) {
-	ips := make([]net.IP, len(IPAddresses))
-	for i, addr := range IPAddresses {
-		ip := net.ParseIP(addr)
-		if ip == nil {
-			return nil, trace.Wrap(
-				teleport.BadParameter("ip", fmt.Sprintf("%v is not a valid IP", addr)))
-		}
-		ips[i] = ip
-	}
-
+func GenerateSelfSignedCert(hostNames []string) (*TLSCredentials, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	notBefore := time.Now()
-	notAfter := notBefore.Add(DefaultCertificateValidity)
+	notAfter := notBefore.Add(DefaultCertTTL)
 
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
@@ -130,51 +123,44 @@ func GenerateSelfSignedCert(domainNames []string, IPAddresses []string) (*TLSCre
 	template := x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			Organization: []string{"Teleport"},
+			Organization: []string{"Acme Co"},
 		},
-		NotBefore:             notBefore,
-		NotAfter:              notAfter,
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment | x509.KeyUsageDataEncipherment,
+		NotBefore: notBefore,
+		NotAfter:  notAfter,
+
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
 	}
 
-	template.IsCA = true
-	template.KeyUsage |= x509.KeyUsageCertSign
+	// collect IP addresses localhost resolves to and add them to the cert. template:
+	template.DNSNames = hostNames
+	ips, _ := net.LookupIP("localhost")
+	if ips != nil {
+		template.IPAddresses = ips
+	}
 
-	template.DNSNames = append(template.DNSNames, domainNames...)
-	template.IPAddresses = append(template.IPAddresses, ips...)
-
-	derBytes, err := x509.CreateCertificate(
-		rand.Reader,
-		&template,       // template of the certificate
-		&template,       // template of the CA certificate
-		&priv.PublicKey, // public key of the signee
-		priv)            // private key of the signer
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	publicKeyBytes, err := x509.MarshalPKIXPublicKey(priv.Public())
+	if err != nil {
+		log.Error(err)
+		return nil, trace.Wrap(err)
+	}
+
 	return &TLSCredentials{
-		PrivateKey: pem.EncodeToMemory(pemBlockForRSAKey(priv)),
+		PublicKey:  pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY", Bytes: publicKeyBytes}),
+		PrivateKey: pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)}),
 		Cert:       pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes}),
 	}, nil
 }
 
-func pemBlockForRSAKey(priv interface{}) *pem.Block {
-	switch k := priv.(type) {
-	case *rsa.PrivateKey:
-		return &pem.Block{
-			Type:  "RSA PRIVATE KEY",
-			Bytes: x509.MarshalPKCS1PrivateKey(k),
-		}
-	default:
-		return nil
-	}
-}
-
-// DefaultLRUCapacity is a capacity for LRU session cache
 const (
-	DefaultLRUCapacity         = 1024
-	DefaultCertificateValidity = 30 * 86400 * time.Second
+	// DefaultLRUCapacity is a capacity for LRU session cache
+	DefaultLRUCapacity = 1024
+	// DefaultCertTTL sets the TTL of the self-signed certificate (1 year)
+	DefaultCertTTL = (24 * time.Hour) * 365
 )

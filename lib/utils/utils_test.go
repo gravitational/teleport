@@ -40,3 +40,14 @@ func (s *UtilsSuite) TestHostUUID(c *check.C) {
 	c.Assert(uuid, check.Equals, "")
 	c.Assert(err.Error(), check.Matches, "^.*permission error.*$")
 }
+
+func (s *UtilsSuite) TestSelfSignedCert(c *check.C) {
+	creds, err := GenerateSelfSignedCert(
+		[]string{"example.com"},
+		[]string{"127.0.0.1"})
+	c.Assert(err, check.IsNil)
+	c.Assert(creds, check.NotNil)
+	c.Assert(len(creds.PublicKey)/100, check.Equals, 4)
+	c.Assert(len(creds.PrivateKey)/100, check.Equals, 16)
+	c.Assert(len(creds.Cert)/100, check.Equals, 11)
+}

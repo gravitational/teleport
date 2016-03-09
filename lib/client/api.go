@@ -33,15 +33,15 @@ import (
 	"syscall"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
-
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
-	"github.com/gravitational/trace"
 
+	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/crypto/ssh/terminal"
@@ -85,8 +85,14 @@ func (c *Config) ProxyHostPort(defaultPort int) string {
 	}
 }
 
+// NodeHostPort returns host:port string based on user supplied data
+// either if user has set host:port in the connection string,
+// or supplied the -p flag. If user has set both, -p flag data is ignored
 func (c *Config) NodeHostPort() string {
-	return net.JoinHostPort(c.Host, strconv.FormatInt(int64(c.HostPort), 10))
+	if strings.Contains(c.Host, ":") {
+		return c.Host
+	}
+	return net.JoinHostPort(c.Host, strconv.Itoa(c.HostPort))
 }
 
 func (c *Config) ProxySpecified() bool {
@@ -156,7 +162,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 func (tc *TeleportClient) SSH(command string) (err error) {
 	// connecting via proxy?
 	if !tc.Config.ProxySpecified() {
-		return trace.Wrap(fmt.Errorf("proxy server is not specified"))
+		return trace.Wrap(teleport.BadParameter("server", "proxy server is not specified"))
 	}
 	proxyClient, err := tc.ConnectToProxy()
 	if err != nil {
@@ -447,6 +453,9 @@ func (tc *TeleportClient) makeHostKeyCallback() utils.HostKeyCallback {
 			err = tc.Login()
 			if err != nil {
 				log.Error(err)
+				// (TODO) klizhentas I don't know of any other way to
+				// pass this info to user
+				fmt.Println(err)
 				return trace.Wrap(err)
 			}
 			return CheckHostSignerFromCache(hostID, remote, key)
