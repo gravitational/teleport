@@ -95,12 +95,7 @@ var SessionList = React.createClass({
                   columnKey="created"
                   header={<Cell> Created </Cell> }
                   cell={<DateCreatedCell data={data}/> }
-                />
-                <Column
-                  columnKey="created"
-                  header={<Cell> Duration </Cell> }
-                  cell={<DurationCell data={data}/> }
-                />
+                />                
                 <Column
                   columnKey="serverId"
                   header={<Cell> Active </Cell> }

@@ -46,11 +46,11 @@ const LoginCell = ({user, onLoginClick, rowIndex, data, ...props}) => {
   return (
     <Cell {...props}>
       <div className="btn-group">
-        <button type="button" onClick={onClick(0)} className="btn btn-sm btn-primary">{user.logins[0]}</button>
+        <button type="button" onClick={onClick(0)} className="btn btn-xs btn-primary">{user.logins[0]}</button>
         {
           $lis.length > 1 ? (
               [
-                <button key={0} data-toggle="dropdown" className="btn btn-default btn-sm dropdown-toggle" aria-expanded="true">
+                <button key={0} data-toggle="dropdown" className="btn btn-default btn-xs dropdown-toggle" aria-expanded="true">
                   <span className="caret"></span>
                 </button>,
                 <ul key={1} className="dropdown-menu">
@@ -84,7 +84,7 @@ var Nodes = React.createClass({
         <div className="">
           <div className="">
             <div className="">
-              <Table rowCount={data.length} className="table-stripped grv-nodes-table">
+              <Table rowCount={data.length} className="table-striped grv-nodes-table">
                 <Column
                   columnKey="sessionCount"
                   header={<Cell> Sessions </Cell> }

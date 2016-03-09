@@ -13,14 +13,22 @@ var ActiveSession = React.createClass({
   },
 
   render: function() {
-    var {serverIp} = this.props.activeSession;
+    let {serverIp, login} = this.props.activeSession;
+    let serverLabelText = `${login}@${serverIp}`;
+
+    if(!serverIp){
+      serverLabelText = '';
+    }
+
     return (
      <div className="grv-current-session">
        <SessionLeftPanel/>
        <div>
          <div className="grv-current-session-server-info">
-           <h3>{serverIp}<span className="btn label label-primary" onClick={showSelectNodeDialog} >Change node</span>
-           </h3>
+           <span className="btn btn-primary btn-sm" onClick={showSelectNodeDialog}>
+             Change node
+           </span>
+           <h3>{serverLabelText}</h3>
          </div>
        </div>
        <TtyConnection {...this.props.activeSession} />
@@ -44,14 +52,15 @@ var TtyConnection = React.createClass({
   componentWillReceiveProps(nextProps){
     if(nextProps.serverId !== this.props.serverId ||
       nextProps.login !== this.props.login){
-        this.tty.reconnect(nextProps);        
+        this.tty.reconnect(nextProps);
+        this.refs.ttyCmntInstance.term.focus();
       }
   },
 
   render() {
     return (
       <div style={{height: '100%'}}>
-        <TtyTerminal tty={this.tty} cols={this.props.cols} rows={this.props.rows} />
+        <TtyTerminal ref="ttyCmntInstance" tty={this.tty} cols={this.props.cols} rows={this.props.rows} />
         { this.state.isConnected ? <EventStreamer sid={this.props.sid}/> : null }
       </div>
     )
