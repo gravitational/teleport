@@ -17,6 +17,8 @@ package services
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -123,4 +125,16 @@ func (c *CommandLabels) SetEnv(v string) error {
 		return trace.Wrap(err, "Can't parse Command Labels")
 	}
 	return nil
+}
+
+// LabelsString returns a comma separated string with all node's labels
+func (s *Server) LabelsString() string {
+	labels := []string{}
+	for key, val := range s.Labels {
+		labels = append(labels, fmt.Sprintf("%s:%s", key, val))
+	}
+	for key, val := range s.CmdLabels {
+		labels = append(labels, fmt.Sprintf("%s:%s", key, val.Result))
+	}
+	return strings.Join(labels, ",")
 }

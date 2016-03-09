@@ -227,14 +227,7 @@ func (u *NodeCommand) ListActive(client *auth.TunClient) error {
 			return t.String()
 		}
 		for _, n := range nodes {
-			labels := []string{}
-			for key, val := range n.Labels {
-				labels = append(labels, fmt.Sprintf("%s:%s", key, val))
-			}
-			for key, val := range n.CmdLabels {
-				labels = append(labels, fmt.Sprintf("%s:%s", key, val.Result))
-			}
-			fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", n.Hostname, n.ID, n.Addr, strings.Join(labels, ","))
+			fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", n.Hostname, n.ID, n.Addr, n.LabelsString())
 		}
 		return t.String()
 	}
