@@ -13,7 +13,7 @@ var ActiveSession = React.createClass({
   },
 
   render: function() {
-    let {serverIp, login} = this.props.activeSession;
+    let {serverIp, login, parties} = this.props.activeSession;
     let serverLabelText = `${login}@${serverIp}`;
 
     if(!serverIp){
@@ -22,7 +22,7 @@ var ActiveSession = React.createClass({
 
     return (
      <div className="grv-current-session">
-       <SessionLeftPanel/>
+       <SessionLeftPanel parties={parties}/>
        <div>
          <div className="grv-current-session-server-info">
            <span className="btn btn-primary btn-sm" onClick={showSelectNodeDialog}>

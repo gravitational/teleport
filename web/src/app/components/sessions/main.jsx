@@ -34,7 +34,7 @@ const DurationCell = ({ rowIndex, data, ...props }) => {
 
 const UsersCell = ({ rowIndex, data, ...props }) => {
   var $users = data[rowIndex].parties.map((item, itemIndex)=>
-    (<span key={itemIndex} className="text-uppercase grv-rounded label label-primary">{item.user[0]}</span>)
+    (<span key={itemIndex} style={{backgroundColor: '#1ab394'}} className="text-uppercase grv-rounded label label-primary">{item.user[0]}</span>)
   )
 
   return (
@@ -95,7 +95,7 @@ var SessionList = React.createClass({
                   columnKey="created"
                   header={<Cell> Created </Cell> }
                   cell={<DateCreatedCell data={data}/> }
-                />                
+                />
                 <Column
                   columnKey="serverId"
                   header={<Cell> Active </Cell> }
