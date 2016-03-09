@@ -198,7 +198,7 @@ func (proxy *ProxyClient) ConnectToNode(
 			buf := &bytes.Buffer{}
 			io.Copy(buf, proxyErr)
 			if buf.String() != "" {
-				fmt.Println("ERROR: " + buf.String() + "\n")
+				fmt.Println("ERROR: " + buf.String())
 			}
 		}
 		err = proxySession.RequestSubsystem(fmt.Sprintf("proxy:%v", nodeAddress))
@@ -312,6 +312,19 @@ func (client *NodeClient) Shell(width, height int, sessionID string) (io.ReadWri
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	stderr, err := session.StderrPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	go func() {
+		buf := &bytes.Buffer{}
+		io.Copy(buf, stderr)
+		if buf.String() != "" {
+			fmt.Println("ERROR: " + buf.String())
+		}
+	}()
 
 	err = session.Shell()
 	if err != nil {

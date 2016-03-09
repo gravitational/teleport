@@ -85,7 +85,7 @@
 		},
 		{
 			"ImportPath": "github.com/gravitational/trace",
-			"Rev": "cd3a2b1d2fe8fe085c02d11c0f6ce46bca45b980"
+			"Rev": "0fd0db9ea941edb81e90278f4eb8f29f5615637e"
 		},
 		{
 			"ImportPath": "github.com/jonboulle/clockwork",

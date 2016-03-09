@@ -19,6 +19,7 @@ package teleport
 import (
 	"fmt"
 	"net"
+	"os"
 	"syscall"
 
 	"github.com/gravitational/trace"
@@ -304,19 +305,23 @@ func IsAccessDenied(e error) bool {
 	return ok
 }
 
-// ConvertConnectionProblem converts system error to connection problem
-// if applicable
-func ConvertConnectionProblem(err error) error {
+// ConvertSystemError converts system error to appropriate teleport error
+// if it is possible, otherwise, returns original error
+func ConvertSystemError(err error) error {
 	innerError := err
 	if terr, ok := err.(trace.Error); ok {
 		innerError = terr.OrigError()
 	}
-	neterr, ok := err.(*net.OpError)
-	if !ok {
+	switch realErr := innerError.(type) {
+	case *net.OpError:
+		return ConnectionProblem(
+			fmt.Sprintf("failed to connect to server %v", realErr.Addr), realErr)
+	case *os.PathError:
+		return AccessDenied(
+			fmt.Sprintf("failed to execute command %v error:  %v", realErr.Path, realErr.Err))
+	default:
 		return err
 	}
-	return ConnectionProblem(
-		fmt.Sprintf("failed to connect to server %v", neterr.Addr), innerError)
 }
 
 // ConnectionProblem returns ConnectionProblem
@@ -336,7 +341,7 @@ type ConnectionProblemError struct {
 
 // Error is debug - friendly error message
 func (c *ConnectionProblemError) Error() string {
-	return fmt.Sprintf("connection problem: %v, %v", c.Message, c.Err.Error())
+	return fmt.Sprintf("%v: %v", c.Message, c.Err.Error())
 }
 
 // IsConnectionProblemError indicates that this error is of ConnectionProblem

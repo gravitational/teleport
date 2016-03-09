@@ -115,6 +115,12 @@ func IsHandshakeFailedError(err error) bool {
 	return strings.Contains(err.Error(), "ssh: handshake failed")
 }
 
+// IsShellFailedError specifies whether this error indicates
+// failed attempt to start shell
+func IsShellFailedError(err error) bool {
+	return strings.Contains(err.Error(), "ssh: cound not start shell")
+}
+
 // PortList is a list of TCP port
 type PortList []string
 
