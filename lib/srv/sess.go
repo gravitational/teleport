@@ -53,6 +53,7 @@ func (s *sessionRegistry) newShell(sid string, sconn *ssh.ServerConn, ch ssh.Cha
 		return trace.Wrap(err)
 	}
 	if err := sess.start(sconn, ch, ctx); err != nil {
+		defer sess.Close()
 		return trace.Wrap(err)
 	}
 	s.addSession(sess)
@@ -306,8 +307,8 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	}
 
 	if err := s.term.run(cmd); err != nil {
-		p.ctx.Infof("failed to start shell: %v", err)
-		return trace.Wrap(err)
+		ctx.Infof("shell command failed: %v", err)
+		return teleport.ConvertSystemError(trace.Wrap(err))
 	}
 	p.ctx.Infof("starting shell input/output streaming")
 

@@ -103,7 +103,7 @@ func (t *proxySubsys) start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 	// may not be actually DNS resolvable
 	conn, err := remoteSrv.DialServer(serverAddr)
 	if err != nil {
-		return trace.Wrap(teleport.ConvertConnectionProblem(err))
+		return trace.Wrap(teleport.ConvertSystemError(err))
 	}
 	go func() {
 		var err error

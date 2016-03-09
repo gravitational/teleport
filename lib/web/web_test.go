@@ -395,9 +395,8 @@ func (s *WebSuite) TestWebSessionsLogout(c *C) {
 		return redirectErr
 	}
 	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "logout"), url.Values{})
-	orig, ok := err.(*trace.TraceErr)
-	c.Assert(ok, Equals, true)
-	c.Assert(orig.OrigError(), Equals, redirectErr)
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Matches, ".*attempted redirect.*")
 
 	// subsequent requests trying to use this session will fail
 	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
