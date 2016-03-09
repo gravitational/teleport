@@ -29,7 +29,7 @@ import (
 	logrusSyslog "github.com/Sirupsen/logrus/hooks/syslog"
 )
 
-// CLI tools by default log into syslog, not stderr
+// InitLoggerCLI tools by default log into syslog, not stderr
 func InitLoggerCLI() {
 	log.SetLevel(log.InfoLevel)
 	// clear existing hooks:
@@ -47,7 +47,7 @@ func InitLoggerCLI() {
 	}
 }
 
-// Configures the logger to dump everything to stderr
+// InitLoggerDebug configures the logger to dump everything to stderr
 func InitLoggerDebug() {
 	// clear existing hooks:
 	log.StandardLogger().Hooks = make(log.LevelHooks)

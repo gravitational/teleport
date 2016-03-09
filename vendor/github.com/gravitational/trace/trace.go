@@ -153,8 +153,24 @@ func (e *TraceErr) Error() string {
 
 // OrigError returns original wrapped error
 func (e *TraceErr) OrigError() error {
-	return e.error
+	err := e.error
+	// this is not an endless loop because I'm being
+	// paranoid, this is a safe protection against endless
+	// loops
+	for i := 0; i < maxHops; i++ {
+		newerr, ok := err.(Error)
+		if !ok {
+			break
+		}
+		if newerr.OrigError() != err {
+			err = newerr.OrigError()
+		}
+	}
+	return err
 }
+
+// maxHops is a max supported nested depth for errors
+const maxHops = 50
 
 // Error is an interface that helps to adapt usage of trace in the code
 // When applications define new error types, they can implement the interface
