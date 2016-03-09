@@ -24,7 +24,10 @@ import (
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/buger/goterm"
 )
 
 func main() {
@@ -111,10 +114,18 @@ func onListNodes(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	// TODO: make this prettier
-	for _, s := range servers {
-		fmt.Printf("%s (%v)\n", s.Hostname, s.Addr)
+	nodesView := func(nodes []services.Server) string {
+		t := goterm.NewTable(0, 10, 5, ' ', 0)
+		printHeader(t, []string{"Node Hostname", "Node ID", "Address", "Labels"})
+		if len(nodes) == 0 {
+			return t.String()
+		}
+		for _, n := range nodes {
+			fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", n.Hostname, n.ID, n.Addr, n.LabelsString())
+		}
+		return t.String()
 	}
+	fmt.Printf(nodesView(servers))
 }
 
 // onSSH executes 'tsh ssh' command
@@ -171,4 +182,13 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 
 func onVersion() {
 	fmt.Println("Version!")
+}
+
+func printHeader(t *goterm.Table, cols []string) {
+	dots := make([]string, len(cols))
+	for i := range dots {
+		dots[i] = strings.Repeat("-", len(cols[i]))
+	}
+	fmt.Fprint(t, strings.Join(cols, "\t")+"\n")
+	fmt.Fprint(t, strings.Join(dots, "\t")+"\n")
 }

@@ -24,7 +24,7 @@ teleport:
 
 .PHONY: tsh
 tsh: 
-	go build -o $(OUT)/t -i github.com/gravitational/teleport/tool/t
+	go build -o $(OUT)/tsh -i github.com/gravitational/teleport/tool/tsh
 
 install: remove-temp-files
 	go install github.com/gravitational/teleport/tool/teleport
@@ -33,18 +33,6 @@ install: remove-temp-files
 
 clean:
 	rm -rf $(OUT)
-
-
-##
-## Ev targets (temporary)
-##
-.PHONY: newtsh
-newtsh:
-	go build -o $(OUT)/t -i github.com/gravitational/teleport/tool/t
-.PHONY: login
-login:
-	out/tsh ssh --proxy-user=ekontsevoy ekontsevoy@edsger:3022 --web-proxy=edsger:3080
-
 
 #
 # this target is used by Jenkins for production builds
