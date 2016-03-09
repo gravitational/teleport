@@ -52,11 +52,11 @@ func (s *UtilsSuite) TestSelfSignedCert(c *check.C) {
 }
 
 func (s *UtilsSuite) TestRandomDuration(c *check.C) {
-	expectedMin := time.Second * 9
-	expectedMax := time.Second * 11
+	expectedMin := time.Duration(0)
+	expectedMax := time.Second * 10
 	for i := 0; i < 50; i++ {
-		dur := RandomizedDuration(time.Second*10, 0.1)
+		dur := RandomDuration(expectedMax)
 		c.Assert(dur >= expectedMin, check.Equals, true)
-		c.Assert(dur <= expectedMax, check.Equals, true)
+		c.Assert(dur < expectedMax, check.Equals, true)
 	}
 }

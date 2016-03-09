@@ -148,7 +148,7 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 		cf.NodePort = defaults.SSHServerListenPort
 	}
 	if cf.MinsToLive == 0 {
-		cf.MinsToLive = defaults.CertDurationHours * 60
+		cf.MinsToLive = int32(defaults.CertDuration / time.Minute)
 	}
 	// split login & host
 	parts := strings.Split(cf.UserHost, "@")
