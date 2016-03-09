@@ -22,7 +22,7 @@ const TagCell = ({rowIndex, data, columnKey, ...props}) => (
   </Cell>
 );
 
-const LoginCell = ({user, rowIndex, data, ...props}) => {
+const LoginCell = ({user, onLoginClick, rowIndex, data, ...props}) => {
   if(!user || user.logins.length === 0){
     return <Cell {...props} />;
   }
@@ -30,23 +30,27 @@ const LoginCell = ({user, rowIndex, data, ...props}) => {
   var serverId = data[rowIndex].id;
   var $lis = [];
 
-  function onNewSessionClick(i){
+  function onClick(i){
     var login = user.logins[i];
-    return () => createNewSession(serverId, login);
+    if(onLoginClick){
+      return ()=> onLoginClick(serverId, login);
+    }else{
+      return () => createNewSession(serverId, login);
+    }
   }
 
   for(var i = 0; i < user.logins.length; i++){
-    $lis.push(<li key={i}><a onClick={onNewSessionClick(i)}>{user.logins[i]}</a></li>);
+    $lis.push(<li key={i}><a onClick={onClick(i)}>{user.logins[i]}</a></li>);
   }
 
   return (
     <Cell {...props}>
       <div className="btn-group">
-        <button type="button" onClick={onNewSessionClick(0)} className="btn btn-sm btn-primary">{user.logins[0]}</button>
+        <button type="button" onClick={onClick(0)} className="btn btn-xs btn-primary">{user.logins[0]}</button>
         {
           $lis.length > 1 ? (
               [
-                <button key={0} data-toggle="dropdown" className="btn btn-default btn-sm dropdown-toggle" aria-expanded="true">
+                <button key={0} data-toggle="dropdown" className="btn btn-default btn-xs dropdown-toggle" aria-expanded="true">
                   <span className="caret"></span>
                 </button>,
                 <ul key={1} className="dropdown-menu">
@@ -73,13 +77,14 @@ var Nodes = React.createClass({
 
   render: function() {
     var data = this.state.nodeRecords;
+    var onLoginClick = this.props.onLoginClick;
     return (
       <div className="grv-nodes">
         <h1> Nodes </h1>
         <div className="">
           <div className="">
             <div className="">
-              <Table rowCount={data.length} className="table-stripped grv-nodes-table">
+              <Table rowCount={data.length} className="table-striped grv-nodes-table">
                 <Column
                   columnKey="sessionCount"
                   header={<Cell> Sessions </Cell> }
@@ -97,6 +102,7 @@ var Nodes = React.createClass({
                 />
                 <Column
                   columnKey="roles"
+                  onLoginClick={onLoginClick}
                   header={<Cell>Login as</Cell> }
                   cell={<LoginCell data={data} user={this.state.user}/> }
                 />

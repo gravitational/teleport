@@ -61,8 +61,13 @@ function createView(session){
     sessionUrl: cfg.getActiveSessionRouteUrl(sid),
     serverIp,
     serverId,
+    active: session.get('active'),
+    created: new Date(session.get('created')),
+    lastActive: new Date(session.get('last_active')),
     login: session.get('login'),
-    parties: parties
+    parties: parties,
+    cols: session.getIn(['terminal_params', 'w']),
+    rows: session.getIn(['terminal_params', 'h'])
   }
 }
 
@@ -70,5 +75,6 @@ export default {
   partiesBySessionId,
   sessionsByServer,
   sessionsView,
-  sessionViewById
+  sessionViewById,
+  createView
 }
