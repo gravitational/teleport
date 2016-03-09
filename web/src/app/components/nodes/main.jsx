@@ -26,12 +26,12 @@ const LoginCell = ({user, onLoginClick, rowIndex, data, ...props}) => {
   if(!user || user.logins.length === 0){
     return <Cell {...props} />;
   }
-
-  var serverId = data[rowIndex].id;
+  
   var $lis = [];
 
   function onClick(i){
     var login = user.logins[i];
+    var serverId = data[rowIndex].id;
     if(onLoginClick){
       return ()=> onLoginClick(serverId, login);
     }else{

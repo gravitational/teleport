@@ -6,6 +6,36 @@ const GrvTableTextCell = ({rowIndex, data, columnKey, ...props}) => (
   </GrvTableCell>
 );
 
+var GrvSortHeaderCell = React.createClass({
+  getInitialState() {
+    this._onSortChange = this._onSortChange.bind(this);
+  },
+
+  render() {
+    var {sortDir, children, ...props} = this.props;
+    return (
+      <Cell {...props}>
+        <a onClick={this._onSortChange}>
+          {children} {sortDir ? (sortDir === SortTypes.DESC ? '↓' : '↑') : ''}
+        </a>
+      </Cell>
+    );
+  },
+
+  _onSortChange(e) {
+    e.preventDefault();
+
+    if (this.props.onSortChange) {
+      this.props.onSortChange(
+        this.props.columnKey,
+        this.props.sortDir ?
+          reverseSortDirection(this.props.sortDir) :
+          SortTypes.DESC
+      );
+    }
+  }
+});
+
 var GrvTableCell = React.createClass({
   render(){
     var props = this.props;
@@ -80,4 +110,4 @@ var GrvTableColumn = React.createClass({
 })
 
 export default GrvTable;
-export {GrvTableColumn as Column, GrvTable as Table, GrvTableCell as Cell, GrvTableTextCell as TextCell};
+export {GrvTableColumn as Column, GrvTable as Table, GrvTableCell as Cell, GrvTableTextCell as TextCell, GrvSortHeaderCell as SortHeaderCell};

@@ -5,6 +5,7 @@ var {Table, Column, Cell, TextCell} = require('app/components/table.jsx');
 var {getters} = require('app/modules/sessions');
 var {open} = require('app/modules/activeTerminal/actions');
 var moment =  require('moment');
+var PureRenderMixin = require('react-addons-pure-render-mixin');
 
 const DateCreatedCell = ({ rowIndex, data, ...props }) => {
   var created = data[rowIndex].created;
@@ -58,7 +59,31 @@ const ButtonCell = ({ rowIndex, data, ...props }) => {
 
 var SessionList = React.createClass({
 
-  mixins: [reactor.ReactMixin],
+  mixins: [reactor.ReactMixin, PureRenderMixin],
+
+  componentWillReceiveProps(nextProps) {
+    //this.setState({ });
+  },
+
+  getInitialState(){
+    debugger;
+  /*  this._dataList = new FakeObjectDataListStore(2000);
+    this._defaultSortIndexes = [];
+
+    var size = this._dataList.getSize();
+    for (var index = 0; index < size; index++) {
+      this._defaultSortIndexes.push(index);
+    }
+
+    this.state = {
+      sortedDataList: this._dataList,
+      colSortDirs: {}
+    };
+
+    this._onSortChange = this._onSortChange.bind(this);
+*/
+
+  },
 
   getDataBindings() {
     return {
