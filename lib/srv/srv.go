@@ -271,8 +271,9 @@ func (s *Server) heartbeatPresence() {
 		if err := s.registerServer(); err != nil {
 			log.Warningf("failed to announce %#v presence: %v", s, err)
 		}
-		log.Infof("[SSH] will ping auth service in %v", defaults.ServerHeartbeatTTL)
-		time.Sleep(defaults.ServerHeartbeatTTL + utils.RandomDuration(defaults.ServerHeartbeatTTL/10))
+		sleepTime := defaults.ServerHeartbeatTTL/2 + utils.RandomDuration(defaults.ServerHeartbeatTTL/10)
+		log.Infof("[SSH] will ping auth service in %v", sleepTime)
+		time.Sleep(sleepTime)
 	}
 }
 
