@@ -3,6 +3,7 @@ var NavLeftBar = require('./navLeftBar');
 var cfg = require('app/config');
 var reactor = require('app/reactor');
 var {actions, getters} = require('app/modules/app');
+var SelectNodeDialog = require('./selectNodeDialog.jsx');
 
 var App = React.createClass({
 
@@ -16,7 +17,7 @@ var App = React.createClass({
 
   componentWillMount(){
     actions.initApp();
-    this.refreshInterval = setInterval(actions.fetchNodesAndSessions, 3000);
+    this.refreshInterval = setInterval(actions.fetchNodesAndSessions, 35000);
   },
 
   componentWillUnmount: function() {
@@ -31,6 +32,7 @@ var App = React.createClass({
     return (
       <div className="grv-tlpt">
         <NavLeftBar/>
+        <SelectNodeDialog/>
         {this.props.CurrentSessionHost}
         <div className="row">
           <nav className="" role="navigation" style={{ marginBottom: 0, float: "right" }}>

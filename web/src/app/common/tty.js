@@ -15,6 +15,11 @@ class Tty extends EventEmitter {
     this.socket.close();
   }
 
+  reconnect(options){
+    this.socket.close();
+    this.connect(options);
+  }
+
   connect(options){
     Object.assign(this.options, options);
 

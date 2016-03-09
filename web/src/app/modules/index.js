@@ -1,6 +1,7 @@
 var reactor = require('app/reactor');
 reactor.registerStores({
   'tlpt': require('./app/appStore'),
+  'tlpt_dialogs': require('./dialogs/dialogStore'),
   'tlpt_active_terminal': require('./activeTerminal/activeTermStore'),
   'tlpt_user': require('./user/userStore'),
   'tlpt_nodes': require('./nodes/nodeStore'),

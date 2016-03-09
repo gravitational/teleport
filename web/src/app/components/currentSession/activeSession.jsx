@@ -4,25 +4,24 @@ var Tty = require('app/common/tty');
 var TtyTerminal = require('./../terminal.jsx');
 var EventStreamer = require('./eventStreamer.jsx');
 var SessionLeftPanel = require('./sessionLeftPanel');
+var {showSelectNodeDialog, closeSelectNodeDialog} = require('app/modules/dialogs/actions');
 
 var ActiveSession = React.createClass({
+
+  componentWillUnmount(){
+    closeSelectNodeDialog();
+  },
+
   render: function() {
+    var {serverIp} = this.props.activeSession;
     return (
      <div className="grv-current-session">
        <SessionLeftPanel/>
        <div>
-         {/*<div className="btn-group">
-           <span className="btn btn-xs btn-primary">128.0.0.1:8888</span>
-           <div className="btn-group">
-             <button data-toggle="dropdown" className="btn btn-default btn-xs dropdown-toggle" aria-expanded="true">
-               <span className="caret"></span>
-             </button>
-             <ul className="dropdown-menu">
-               <li><a href="#" target="_blank">Logs</a></li>
-               <li><a href="#" target="_blank">Logs</a></li>
-             </ul>
-           </div>
-         </div>*/}
+         <div className="grv-current-session-server-info">
+           <h3>{serverIp}<span className="btn label label-primary" onClick={showSelectNodeDialog} >Change node</span>
+           </h3>
+         </div>
        </div>
        <TtyConnection {...this.props.activeSession} />
      </div>
@@ -42,8 +41,14 @@ var TtyConnection = React.createClass({
     this.tty.disconnect();
   },
 
-  render() {
+  componentWillReceiveProps(nextProps){
+    if(nextProps.serverId !== this.props.serverId ||
+      nextProps.login !== this.props.login){
+        this.tty.reconnect(nextProps);        
+      }
+  },
 
+  render() {
     return (
       <div style={{height: '100%'}}>
         <TtyTerminal tty={this.tty} cols={this.props.cols} rows={this.props.rows} />

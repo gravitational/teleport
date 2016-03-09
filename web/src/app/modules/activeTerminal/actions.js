@@ -6,9 +6,16 @@ var cfg = require('app/config');
 var getters = require('./getters');
 var sessionModule = require('./../sessions');
 
-var { TLPT_TERM_OPEN, TLPT_TERM_CLOSE } = require('./actionTypes');
+var { TLPT_TERM_OPEN, TLPT_TERM_CLOSE, TLPT_TERM_CHANGE_SERVER } = require('./actionTypes');
 
 var actions = {
+
+  changeServer(serverId, login){
+    reactor.dispatch(TLPT_TERM_CHANGE_SERVER, {
+      serverId,
+      login
+    });
+  },
 
   close(){
     let {isNewSession} = reactor.evaluate(getters.activeSession);
