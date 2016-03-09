@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"time"
@@ -40,7 +41,7 @@ import (
 )
 
 func AddHostSignersToCache(hostSigners []services.CertAuthority) error {
-	bk, err := boltbk.New(filepath.Join(KeysDir, HostSignersFilename))
+	bk, err := boltbk.New(filepath.Join(getKeysDir(), HostSignersFilename))
 	if err != nil {
 		return trace.Wrap(nil)
 	}
@@ -62,7 +63,7 @@ func CheckHostSignerFromCache(hostId string, remote net.Addr, key ssh.PublicKey)
 		return trace.Errorf("expected certificate")
 	}
 
-	bk, err := boltbk.New(filepath.Join(KeysDir, HostSignersFilename))
+	bk, err := boltbk.New(filepath.Join(getKeysDir(), HostSignersFilename))
 	if err != nil {
 		return trace.Wrap(nil)
 	}
@@ -126,9 +127,9 @@ func GetLocalAgent() (agent.Agent, error) {
 }
 
 func initKeysDir() error {
-	_, err := os.Stat(KeysDir)
+	_, err := os.Stat(getKeysDir())
 	if os.IsNotExist(err) {
-		err = os.MkdirAll(KeysDir, os.ModeDir|0777)
+		err = os.MkdirAll(getKeysDir(), os.ModeDir|0777)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -182,14 +183,14 @@ func loadKey(filename string) (Key, error) {
 
 func loadAllKeys() ([]Key, error) {
 	keys := make([]Key, 0)
-	files, err := ioutil.ReadDir(KeysDir)
+	files, err := ioutil.ReadDir(getKeysDir())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	for _, file := range files {
 		if !file.IsDir() && strings.HasPrefix(file.Name(), KeyFilePrefix) &&
 			strings.HasSuffix(file.Name(), KeyFileSuffix) {
-			key, err := loadKey(filepath.Join(KeysDir, file.Name()))
+			key, err := loadKey(filepath.Join(getKeysDir(), file.Name()))
 			if err != nil {
 				log.Errorf(err.Error())
 				continue
@@ -199,7 +200,7 @@ func loadAllKeys() ([]Key, error) {
 				keys = append(keys, key)
 			} else {
 				// remove old keys
-				err = os.Remove(filepath.Join(KeysDir, file.Name()))
+				err = os.Remove(filepath.Join(getKeysDir(), file.Name()))
 				if err != nil {
 					log.Errorf(err.Error())
 				}
@@ -209,8 +210,19 @@ func loadAllKeys() ([]Key, error) {
 	return keys, nil
 }
 
+// getKeysDir() returns the directory where a client can store the temporary keys
+func getKeysDir() string {
+	var baseDir string
+	u, err := user.Current()
+	if err != nil {
+		baseDir = os.TempDir()
+	} else {
+		baseDir = u.HomeDir
+	}
+	return filepath.Join(baseDir, ".tsh")
+}
+
 var (
-	KeysDir             = "/tmp/teleport"
 	KeyFilePrefix       = "teleport_"
 	KeyFileSuffix       = ".tkey"
 	HostSignersFilename = "HostSigners.db"

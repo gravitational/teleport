@@ -136,7 +136,7 @@ func Login(ag agent.Agent, webProxyAddr string, user string,
 	}
 
 	keyID := int64(time.Now().Sub(time.Time{}).Seconds())*100 + rand.Int63n(100)
-	keyPath := filepath.Join(KeysDir,
+	keyPath := filepath.Join(getKeysDir(),
 		KeyFilePrefix+strconv.FormatInt(keyID, 16)+KeyFileSuffix)
 
 	err = saveKey(key, keyPath)

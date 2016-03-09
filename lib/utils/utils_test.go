@@ -17,6 +17,7 @@ package utils
 
 import (
 	"gopkg.in/check.v1"
+	"time"
 )
 
 type UtilsSuite struct {
@@ -48,4 +49,14 @@ func (s *UtilsSuite) TestSelfSignedCert(c *check.C) {
 	c.Assert(len(creds.PublicKey)/100, check.Equals, 4)
 	c.Assert(len(creds.PrivateKey)/100, check.Equals, 16)
 	c.Assert(len(creds.Cert)/100, check.Equals, 11)
+}
+
+func (s *UtilsSuite) TestRandomDuration(c *check.C) {
+	expectedMin := time.Second * 9
+	expectedMax := time.Second * 11
+	for i := 0; i < 50; i++ {
+		dur := RandomizedDuration(time.Second*10, 0.1)
+		c.Assert(dur >= expectedMin, check.Equals, true)
+		c.Assert(dur <= expectedMax, check.Equals, true)
+	}
 }

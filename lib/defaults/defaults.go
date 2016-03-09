@@ -63,6 +63,10 @@ const (
 
 	// By default all users use /bin/bash
 	DefaultShell = "/bin/bash"
+
+	// Median sleep time between node pings. Note that a random deviation is
+	// added to this time
+	SleepBetweenNodePings = time.Second * 5
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

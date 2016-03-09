@@ -869,7 +869,6 @@ func (h *Handler) authenticateRequest(r *http.Request) (*sessionContext, error) 
 	logger := log.WithFields(log.Fields{
 		"request": fmt.Sprintf("%v %v", r.Method, r.URL.Path),
 	})
-	logger.Infof("incoming request")
 	cookie, err := r.Cookie("session")
 	if err != nil {
 		logger.Warningf("missing cookie: %v", err)
@@ -890,7 +889,6 @@ func (h *Handler) authenticateRequest(r *http.Request) (*sessionContext, error) 
 		logger.Warningf("invalid session: %v", err)
 		return nil, trace.Wrap(teleport.AccessDenied("need auth"))
 	}
-	logger.Infof("incoming request %v %v", d.SID[:4], creds.Password[:4])
 	if creds.Password != ctx.GetWebSession().WS.BearerToken {
 		logger.Warningf("bad bearer token")
 		return nil, trace.Wrap(teleport.AccessDenied("bad bearer token"))

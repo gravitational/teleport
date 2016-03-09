@@ -526,7 +526,7 @@ func (tc *TeleportClient) Login() error {
 		Cert:     response.Cert,
 		Deadline: time.Now().Add(tc.KeyTTL),
 	}
-	keyPath := filepath.Join(KeysDir, KeyFilePrefix+strconv.FormatInt(rand.Int63n(100), 16)+KeyFileSuffix)
+	keyPath := filepath.Join(getKeysDir(), KeyFilePrefix+strconv.FormatInt(rand.Int63n(100), 16)+KeyFileSuffix)
 	err = saveKey(key, keyPath)
 	if err != nil {
 		return trace.Wrap(err)

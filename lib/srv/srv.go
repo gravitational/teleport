@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/recorder"
@@ -46,6 +47,9 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
+
+// TestSleepDuration is used to shortcut the 'ping' looop during tests
+var TestSleepDuration = time.Duration(time.Hour)
 
 // Server implements SSH server that uses configuration backend and
 // certificate-based authentication
@@ -241,9 +245,14 @@ func (s *Server) AdvertiseAddr() string {
 // heartbeatPresence periodically calls into the auth server to let everyone
 // know we're up & alive
 func (s *Server) heartbeatPresence() {
+	var sleepDuration time.Duration
 	advertiseAddr := s.AdvertiseAddr()
 	for {
-		var sleepSeconds time.Duration = 5
+		sleepDuration = utils.RandomizedDuration(defaults.SleepBetweenNodePings, 0.3)
+		// shorten sleep time during tests
+		if sleepDuration > TestSleepDuration {
+			sleepDuration = TestSleepDuration
+		}
 		func() {
 			s.labelsMutex.Lock()
 			defer s.labelsMutex.Unlock()
@@ -254,14 +263,14 @@ func (s *Server) heartbeatPresence() {
 				Labels:    s.labels,
 				CmdLabels: s.cmdLabels,
 			}
-			if err := s.authService.UpsertServer(srv, 6*time.Second); err != nil {
-				log.Errorf("failed to join cluster: %v. perhaps you forgot to supply --token?", err)
-				log.Debugf("failed to announce %#v presence: %v", srv, err)
-				// sleep longer after failure
-				sleepSeconds = 30
+			if err := s.authService.UpsertServer(srv, sleepDuration*2); err != nil {
+				log.Warningf("failed to announce %#v presence: %v", srv, err)
+				// sleep longer on failures
+				sleepDuration = sleepDuration * 2
 			}
 		}()
-		time.Sleep(sleepSeconds * time.Second)
+		log.Infof("[SSH] will ping auth service in %v", sleepDuration)
+		time.Sleep(sleepDuration)
 	}
 }
 
