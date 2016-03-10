@@ -2,8 +2,11 @@ var React = require('react');
 var reactor = require('app/reactor');
 var {getters, actions} = require('app/modules/nodes');
 var userGetters = require('app/modules/user/getters');
-var {Table, Column, Cell} = require('app/components/table.jsx');
+var {Table, Column, Cell, SortHeaderCell, SortTypes} = require('app/components/table.jsx');
 var {createNewSession} = require('app/modules/activeTerminal/actions');
+var LinkedStateMixin = require('react-addons-linked-state-mixin');
+var _ = require('_');
+var {isMatch} = require('app/common/objectUtils');
 
 const TextCell = ({rowIndex, data, columnKey, ...props}) => (
   <Cell {...props}>
@@ -65,41 +68,85 @@ const LoginCell = ({logins, onLoginClick, rowIndex, data, ...props}) => {
 };
 
 var NodeList = React.createClass({
+
+  mixins: [LinkedStateMixin],
+
+  getInitialState(props){
+    this.searchableProps = ['sessionCount', 'addr'];
+    return { filter: '', colSortDirs: {} };
+  },
+
+  onSortChange(columnKey, sortDir) {
+    this.setState({
+      ...this.state,
+      colSortDirs: {
+        [columnKey]: sortDir
+      }
+    });
+  },
+
+  sortAndFilter(data){
+    var filtered = data.filter(obj=>
+      isMatch(obj, this.state.filter, { searchableProps: this.searchableProps}));
+
+    var columnKey = Object.getOwnPropertyNames(this.state.colSortDirs)[0];
+    var sortDir = this.state.colSortDirs[columnKey];
+    var sorted = _.sortBy(filtered, columnKey);
+    if(sortDir === SortTypes.ASC){
+      sorted = sorted.reverse();
+    }
+
+    return sorted;
+  },
+
   render: function() {
-    var data = this.props.nodeRecords;
+    var data = this.sortAndFilter(this.props.nodeRecords);
     var logins = this.props.logins;
     var onLoginClick = this.props.onLoginClick;
+
     return (
       <div className="grv-nodes">
         <h1> Nodes </h1>
+        <div className="grv-nodes-search">
+          <input valueLink={this.linkState('filter')} placeholder="Search..." className="form-control"/>
+        </div>
         <div className="">
-          <div className="">
-            <div className="">
-              <Table rowCount={data.length} className="table-striped grv-nodes-table">
-                <Column
-                  columnKey="sessionCount"
-                  header={<Cell> Sessions </Cell> }
-                  cell={<TextCell data={data}/> }
+          <Table rowCount={data.length} className="table-striped grv-nodes-table">
+            <Column
+              columnKey="sessionCount"
+              header={
+                <SortHeaderCell
+                  sortDir={this.state.colSortDirs.sessionCount}
+                  onSortChange={this.onSortChange}
+                  title="Sessions"
                 />
-                <Column
-                  columnKey="addr"
-                  header={<Cell> Node </Cell> }
-                  cell={<TextCell data={data}/> }
+              }
+              cell={<TextCell data={data}/> }
+            />
+            <Column
+              columnKey="addr"
+              header={
+                <SortHeaderCell
+                  sortDir={this.state.colSortDirs.addr}
+                  onSortChange={this.onSortChange}
+                  title="Node"
                 />
-                <Column
-                  columnKey="tags"
-                  header={<Cell></Cell> }
-                  cell={<TagCell data={data}/> }
-                />
-                <Column
-                  columnKey="roles"
-                  onLoginClick={onLoginClick}
-                  header={<Cell>Login as</Cell> }
-                  cell={<LoginCell data={data} logins={logins}/> }
-                />
-              </Table>
-            </div>
-          </div>
+              }
+
+              cell={<TextCell data={data}/> }
+            />
+            <Column
+              columnKey="tags"
+              header={<Cell></Cell> }
+              cell={<TagCell data={data}/> }
+            />
+            <Column
+              columnKey="roles"
+              onLoginClick={onLoginClick}
+              header={<Cell>Login as</Cell> }
+              cell={<LoginCell data={data} logins={logins}/> }
+            />
+          </Table>
         </div>
       </div>
     )
