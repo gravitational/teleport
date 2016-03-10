@@ -142,6 +142,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	)
 	c.Assert(err, IsNil)
 	s.srv = srv
+	s.srv.isTestStub = true
 
 	c.Assert(s.srv.Start(), IsNil)
 	c.Assert(s.srv.registerServer(), IsNil)

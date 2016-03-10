@@ -80,6 +80,9 @@ type Server struct {
 	// server UUID gets generated once on the first start and never changes
 	// usually stored in a file inside the data dir
 	uuid string
+
+	// this gets set to true for unit testing
+	isTestStub bool
 }
 
 // ServerOption is a functional option passed to the server
@@ -526,6 +529,7 @@ func (s *Server) HandleNewChan(nc net.Conn, sconn *ssh.ServerConn, nch ssh.NewCh
 func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	// ctx holds the session context and all associated resources
 	ctx := newCtx(s, sconn)
+	ctx.isTestStub = s.isTestStub
 	ctx.addCloser(ch)
 	defer ctx.Close()
 
@@ -564,6 +568,7 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel,
 func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in <-chan *ssh.Request) {
 	// ctx holds the session context and all associated resources
 	ctx := newCtx(s, sconn)
+	ctx.isTestStub = s.isTestStub
 	ctx.Infof("opened session channel")
 
 	// this will close the connection + the context
@@ -639,7 +644,6 @@ func (s *Server) dispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Reques
 		// SSH client asked to launch shell, we allocate PTY and start shell session
 		return s.handleShell(sconn, ch, req, ctx)
 	case "env":
-		// we currently ignore setting any environment variables via SSH for security purposes
 		return s.handleEnv(ch, req, ctx)
 	case "subsystem":
 		// subsystems are SSH subsystems defined in http://tools.ietf.org/html/rfc4254 6.6
@@ -731,7 +735,6 @@ func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	var e sshutils.EnvReqParams
 	if err := ssh.Unmarshal(req.Payload, &e); err != nil {
 		ctx.Errorf("handleEnv(err=%v)", err)
-
 		return trace.Wrap(err, "failed to parse env request")
 	}
 	ctx.Infof("handleEnv(%#v)", e)
@@ -776,43 +779,45 @@ func (s *Server) handlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *ctx) error 
 	return nil
 }
 
+// handleExec is responsible for executing 'exec' SSH requests (i.e. executing
+// a command after making an SSH connection)
 func (s *Server) handleExec(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	ctx.Infof("handleExec()")
-	e, err := parseExecRequest(req, ctx)
+	execResponse, err := parseExecRequest(req, ctx)
 	if err != nil {
 		ctx.Infof("failed to parse exec request: %v", err)
 		replyError(ch, req, err)
 		return trace.Wrap(err)
 	}
 
-	if scp.IsSCP(e.cmdName) {
-		ctx.Infof("detected SCP command: %v", e.cmdName)
-		if err := s.handleSCP(ch, req, ctx, e.cmdName); err != nil {
+	if scp.IsSCP(execResponse.cmdName) {
+		ctx.Infof("detected SCP command: %v", execResponse.cmdName)
+		if err := s.handleSCP(ch, req, ctx, execResponse.cmdName); err != nil {
 			ctx.Warningf("handleSCP() err: %v", err)
 			return trace.Wrap(err)
 		}
 		return ch.Close()
 	}
 
-	result, err := e.start(sconn, s.shell, ch)
+	result, err := execResponse.start(sconn, s.shell, ch)
 	if err != nil {
 		ctx.Infof("error starting command, %v", err)
 		replyError(ch, req, err)
 	}
 	if result != nil {
-		ctx.Infof("%v result collected: %v", e, result)
+		ctx.Infof("%v result collected: %v", execResponse, result)
 		ctx.sendResult(*result)
 	}
 	// in case if result is nil and no error, this means that program is
 	// running in the background
 	go func() {
-		ctx.Infof("%v waiting for result", e)
-		result, err := e.wait()
+		ctx.Infof("%v waiting for result", execResponse)
+		result, err := execResponse.wait()
 		if err != nil {
-			ctx.Infof("%v wait failed: %v", e, err)
+			ctx.Infof("%v wait failed: %v", execResponse, err)
 		}
 		if result != nil {
-			ctx.Infof("%v result collected: %v", e, result)
+			ctx.Infof("%v result collected: %v", execResponse, result)
 			ctx.sendResult(*result)
 		}
 	}()

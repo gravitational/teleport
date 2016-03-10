@@ -78,7 +78,6 @@ func (r *boltRecorder) decRef(b *boltRW) error {
 
 	b.refs -= 1
 	if b.refs == 0 {
-		log.Infof("boltRecorder: deleting and closing %v", b.id)
 		delete(r.dbs, b.id)
 		return b.Close()
 	}
@@ -105,12 +104,10 @@ func (r *boltRecorder) getRef(id string) (*boltRef, error) {
 }
 
 func (r *boltRecorder) GetChunkWriter(id string) (recorder.ChunkWriteCloser, error) {
-	log.Infof("GetChunkWriter(%v)", id)
 	return r.getRef(id)
 }
 
 func (r *boltRecorder) GetChunkReader(id string) (recorder.ChunkReadCloser, error) {
-	log.Infof("GetChunkReader(%v)", id)
 	return r.getRef(id)
 }
 

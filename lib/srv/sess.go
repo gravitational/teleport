@@ -19,11 +19,8 @@ package srv
 import (
 	"fmt"
 	"io"
-	"os/exec"
-	"os/user"
-	"strconv"
+	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -241,7 +238,6 @@ func (s *session) upsertSessionParty(sid string, p *party) error {
 // startShell starts a new shell process in the current session
 func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	s.eid = ctx.eid
-
 	// allocate or borrow a terminal:
 	p := newParty(s, sconn, ch, ctx)
 	if p.ctx.getTerm() != nil {
@@ -254,45 +250,17 @@ func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) er
 			return trace.Wrap(err)
 		}
 	}
-
-	shellCmd := s.registry.srv.shell
-	cmd := exec.Command(shellCmd, "--login")
-
-	// configure UID & GID of the requested OS user:
-	osUser, err := user.Lookup(sconn.User())
+	// prepare environment & Launch shell:
+	cmd, err := prepareOSCommand(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	uid, err := strconv.Atoi(osUser.Uid)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	gid, err := strconv.Atoi(osUser.Gid)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Credential: &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)},
-	}
-
-	// TODO(klizhentas) figure out linux user policy for launching shells,
-	// what user and environment should we use to execute the shell? the simplest
-	// answer is to use current user and env, however  what if we are root?
-	cmd.Env = []string{
-		"TERM=xterm",
-		"LANG=en_US.UTF-8",
-		"HOME=" + osUser.HomeDir,
-		"USER=" + sconn.User(),
-	}
-	cmd.Dir = osUser.HomeDir
-
-	// launch shell:
+	shellCmd := fmt.Sprintf("%s %s", cmd.Path, strings.Join(cmd.Args, " "))
 	if err := s.term.run(cmd); err != nil {
-		ctx.Infof("shell command failed: %v", err)
+		ctx.Errorf("shell command failed: %v", err)
 		return teleport.ConvertSystemError(trace.Wrap(err))
 	}
-	p.ctx.Infof("starting shell input/output streaming")
-
+	// start recording the session (if enabled)
 	sessionRecorder := s.registry.srv.rec
 	if sessionRecorder != nil {
 		w, err := newChunkWriter(s.id, sessionRecorder, s.registry.srv.ID())
@@ -342,7 +310,6 @@ func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) er
 			p.ctx.Infof("killed process: %v", err)
 		}
 	}()
-
 	return nil
 }
 
