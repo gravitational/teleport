@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package auth
 
 import (
@@ -24,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -34,7 +34,7 @@ import (
 )
 
 type InitConfig struct {
-	Backend   *encryptedbk.ReplicatedBackend
+	Backend   backend.Backend
 	Authority Authority
 
 	// DomainName stores the FQDN of the signing CA (its certificate will have this

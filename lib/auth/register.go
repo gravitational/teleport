@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package auth
 
 import (
@@ -20,7 +21,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -45,7 +45,6 @@ func Register(hostUUID, dataDir, token string, role teleport.Role, servers []uti
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	defer client.Close()
 
 	keys, err := client.RegisterUsingToken(tok, hostUUID, role)
@@ -55,16 +54,15 @@ func Register(hostUUID, dataDir, token string, role teleport.Role, servers []uti
 	return writeKeys(dataDir, keys.Key, keys.Cert)
 }
 
-func RegisterNewAuth(domainName, token string, publicSealKey encryptor.Key,
-	servers []utils.NetAddr) (masterKey encryptor.Key, e error) {
+func RegisterNewAuth(domainName, token string, servers []utils.NetAddr) error {
 
 	tok, err := readToken(token)
 	if err != nil {
-		return encryptor.Key{}, err
+		return trace.Wrap(err)
 	}
 	method, err := NewTokenAuth(domainName, tok)
 	if err != nil {
-		return encryptor.Key{}, err
+		return trace.Wrap(err)
 	}
 
 	client, err := NewTunClient(
@@ -72,11 +70,11 @@ func RegisterNewAuth(domainName, token string, publicSealKey encryptor.Key,
 		domainName,
 		method)
 	if err != nil {
-		return encryptor.Key{}, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	defer client.Close()
 
-	return client.RegisterNewAuthServer(tok, publicSealKey)
+	return client.RegisterNewAuthServer(tok)
 }
 
 func readToken(token string) (string, error) {
