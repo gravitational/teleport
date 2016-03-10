@@ -23,7 +23,6 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"sync"
 	"time"
@@ -33,8 +32,6 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -505,9 +502,8 @@ func (process *TeleportProcess) initProxyEndpoint() error {
 }
 
 // initAuthStorage initializes the storage backend for the auth. service
-func (process *TeleportProcess) initAuthStorage() (*encryptedbk.ReplicatedBackend, error) {
+func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 	cfg := &process.Config.Auth
-	peers := process.Config.AuthServers
 	var bk backend.Backend
 	var err error
 
@@ -523,40 +519,7 @@ func (process *TeleportProcess) initAuthStorage() (*encryptedbk.ReplicatedBacken
 		return nil, trace.Wrap(err)
 	}
 
-	keyStorage := path.Join(process.Config.DataDir, "backend_keys")
-	encryptionKeys := []encryptor.Key{}
-	for _, strKey := range cfg.KeysBackend.EncryptionKeys {
-		encKey, err := encryptedbk.KeyFromString(strKey)
-		if err != nil {
-			return nil, err
-		}
-		encryptionKeys = append(encryptionKeys, encKey)
-	}
-
-	encryptedBk, err := encryptedbk.NewReplicatedBackend(bk,
-		keyStorage, encryptionKeys, encryptor.GenerateGPGKey)
-
-	if err != nil {
-		log.Errorf(err.Error())
-		log.Infof("Initializing backend as follower node")
-		myKey, err := encryptor.GenerateGPGKey(process.Config.HostUUID + " key")
-		if err != nil {
-			return nil, err
-		}
-		masterKey, err := auth.RegisterNewAuth(process.Config.HostUUID,
-			cfg.Token, myKey.Public(), peers)
-		if err != nil {
-			return nil, err
-		}
-		log.Infof(" ", myKey, masterKey)
-		encryptedBk, err = encryptedbk.NewReplicatedBackend(bk,
-			keyStorage, []encryptor.Key{myKey, masterKey},
-			encryptor.GenerateGPGKey)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return encryptedBk, nil
+	return bk, nil
 }
 
 func initEventStorage(btype string, params string) (events.Log, error) {

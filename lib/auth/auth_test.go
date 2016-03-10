@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package auth
 
 import (
@@ -22,8 +23,6 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -32,7 +31,7 @@ import (
 )
 
 type AuthSuite struct {
-	bk *encryptedbk.ReplicatedBackend
+	bk backend.Backend
 	a  *AuthServer
 
 	dir string
@@ -47,11 +46,7 @@ func (s *AuthSuite) SetUpSuite(c *C) {
 func (s *AuthSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
 	var err error
-	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
-	c.Assert(err, IsNil)
-	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk,
-		filepath.Join(s.dir, "keys"), nil,
-		encryptor.GetTestKey)
+	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
 
 	authConfig := &InitConfig{

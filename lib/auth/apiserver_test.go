@@ -25,8 +25,6 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events/boltlog"
 	etest "github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/recorder"
@@ -46,7 +44,7 @@ func TestAPI(t *testing.T) { TestingT(t) }
 type APISuite struct {
 	srv *httptest.Server
 	clt *Client
-	bk  *encryptedbk.ReplicatedBackend
+	bk  backend.Backend
 	bl  *boltlog.BoltLog
 	rec recorder.Recorder
 	a   *AuthServer
@@ -69,11 +67,8 @@ func (s *APISuite) SetUpSuite(c *C) {
 func (s *APISuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
 
-	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
-	c.Assert(err, IsNil)
-	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk,
-		filepath.Join(s.dir, "keys"), nil,
-		encryptor.GetTestKey)
+	var err error
+	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
 
 	s.bl, err = boltlog.New(filepath.Join(s.dir, "eventsdb"))

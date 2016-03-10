@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// package auth implements certificate signing authority and access control server
+// Package auth implements certificate signing authority and access control server
 // Authority server is composed of several parts:
 //
 // * Authority server itself that implements signing and acl logic
@@ -30,8 +30,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -111,7 +110,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 //   - checks public keys to see if they're signed by it (can be trusted or not)
 type AuthServer struct {
 	clock clockwork.Clock
-	bk    *encryptedbk.ReplicatedBackend
+	bk    backend.Backend
 	Authority
 
 	// DomainName stores the FQDN of the signing CA (its certificate will have this
@@ -287,38 +286,27 @@ func (s *AuthServer) RegisterUsingToken(outputToken, hostID string, role telepor
 	return keys, nil
 }
 
-func (s *AuthServer) RegisterNewAuthServer(outputToken string,
-	publicSealKey encryptor.Key) (masterKey encryptor.Key, e error) {
+func (s *AuthServer) RegisterNewAuthServer(outputToken string) error {
 
 	token, _, err := services.SplitTokenRole(outputToken)
 	if err != nil {
-		return encryptor.Key{}, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	tok, err := s.ProvisioningService.GetToken(token)
 	if err != nil {
-		return encryptor.Key{}, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	if tok.Role != string(teleport.RoleAuth) {
-		return encryptor.Key{}, trace.Wrap(
-			teleport.AccessDenied("role does not match"))
+		return trace.Wrap(teleport.AccessDenied("role does not match"))
 	}
 
 	if err := s.DeleteToken(outputToken); err != nil {
-		return encryptor.Key{}, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	if err := s.BkKeysService.AddSealKey(publicSealKey); err != nil {
-		return encryptor.Key{}, trace.Wrap(err)
-	}
-
-	localKey, err := s.BkKeysService.GetSignKey()
-	if err != nil {
-		return encryptor.Key{}, trace.Wrap(err)
-	}
-
-	return localKey.Public(), nil
+	return nil
 }
 
 func (s *AuthServer) DeleteToken(outputToken string) error {
