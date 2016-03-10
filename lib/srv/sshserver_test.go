@@ -33,8 +33,6 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events/boltlog"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
@@ -59,7 +57,7 @@ type SrvSuite struct {
 	srvHostPort   string
 	sessionServer sess.Service
 	clt           *ssh.Client
-	bk            *encryptedbk.ReplicatedBackend
+	bk            backend.Backend
 	a             *auth.AuthServer
 	roleAuth      *auth.AuthWithRoles
 	up            *upack
@@ -86,11 +84,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	s.freePorts, err = utils.GetFreeTCPPorts(10)
 	c.Assert(err, IsNil)
 
-	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
-	c.Assert(err, IsNil)
-	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk,
-		filepath.Join(s.dir, "keys"), nil,
-		encryptor.GetTestKey)
+	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
 
 	s.domainName = "localhost"
@@ -102,7 +96,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	eventsLog, err := boltlog.New(filepath.Join(s.dir, "boltlog"))
 	c.Assert(err, IsNil)
 
-	sessionServer, err := sess.New(baseBk)
+	sessionServer, err := sess.New(s.bk)
 	s.sessionServer = sessionServer
 	c.Assert(err, IsNil)
 	s.roleAuth = auth.NewAuthWithRoles(s.a,

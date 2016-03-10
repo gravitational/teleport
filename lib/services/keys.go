@@ -13,16 +13,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package services
 
 import (
-	"github.com/gravitational/teleport/lib/backend/encryptedbk"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 type BkKeysService struct {
-	*encryptedbk.ReplicatedBackend
+	backend backend.Backend
 }
 
-func NewBkKeysService(backend *encryptedbk.ReplicatedBackend) *BkKeysService {
-	return &BkKeysService{backend}
+func NewBkKeysService(backend backend.Backend) *BkKeysService {
+	return &BkKeysService{backend: backend}
 }

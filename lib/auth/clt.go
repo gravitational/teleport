@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/recorder"
@@ -244,18 +243,11 @@ func (c *Client) RegisterUsingToken(token, hostID string, role teleport.Role) (P
 	return keys, nil
 }
 
-func (c *Client) RegisterNewAuthServer(token string, publicSealKey encryptor.Key) (masterKey encryptor.Key, e error) {
-	out, err := c.PostJSON(c.Endpoint("tokens", "register", "auth"), registerNewAuthServerReq{
+func (c *Client) RegisterNewAuthServer(token string) error {
+	_, err := c.PostJSON(c.Endpoint("tokens", "register", "auth"), registerNewAuthServerReq{
 		Token: token,
-		Key:   publicSealKey,
 	})
-	if err != nil {
-		return encryptor.Key{}, trace.Wrap(err)
-	}
-	if err := json.Unmarshal(out.Bytes(), &masterKey); err != nil {
-		return encryptor.Key{}, trace.Wrap(err)
-	}
-	return masterKey, nil
+	return trace.Wrap(err)
 }
 
 func (c *Client) Log(id lunk.EventID, e lunk.Event) {
@@ -538,70 +530,6 @@ func (c *Client) GenerateUserCert(
 	return []byte(cert), nil
 }
 
-// GetSealKeys returns IDs of all the backend encrypting keys that
-// this server has
-func (c *Client) GetSealKeys() ([]encryptor.Key, error) {
-	out, err := c.Get(c.Endpoint("backend", "keys"), url.Values{})
-	if err != nil {
-		return nil, err
-	}
-	var keys []encryptor.Key
-	if err := json.Unmarshal(out.Bytes(), &keys); err != nil {
-		return nil, err
-	}
-	return keys, err
-}
-
-// GenerateSealKey generates a new backend encrypting key with the
-// given id and then backend makes a copy of all the data using the
-// generated key for encryption
-func (c *Client) GenerateSealKey(keyName string) (encryptor.Key, error) {
-	out, err := c.PostJSON(c.Endpoint("backend", "generatekey"), generateSealKeyReq{
-		Name: keyName})
-	if err != nil {
-		return encryptor.Key{}, trace.Wrap(err)
-	}
-
-	var key encryptor.Key
-	if err := json.Unmarshal(out.Bytes(), &key); err != nil {
-		return encryptor.Key{}, trace.Wrap(err)
-	}
-	return key, nil
-}
-
-// DeleteSealKey deletes the backend encrypting key and all the data
-// encrypted with the key
-func (c *Client) DeleteSealKey(keyID string) error {
-	_, err := c.Delete(c.Endpoint("backend", "keys", keyID))
-	return trace.Wrap(err)
-}
-
-// AddSealKey adds the given encrypting key. If backend works not in
-// readonly mode, backend makes a copy of the data using the key for
-// encryption
-func (c *Client) AddSealKey(key encryptor.Key) error {
-	keyJSON, err := json.Marshal(key)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = c.PostForm(c.Endpoint("backend", "keys"), url.Values{
-		"key": []string{string(keyJSON)}})
-	return trace.Wrap(err)
-}
-
-// GetSealKey returns the backend encrypting key.
-func (c *Client) GetSealKey(keyID string) (encryptor.Key, error) {
-	out, err := c.Get(c.Endpoint("backend", "keys", keyID), url.Values{})
-	if err != nil {
-		return encryptor.Key{}, err
-	}
-	var key encryptor.Key
-	if err := json.Unmarshal(out.Bytes(), &key); err != nil {
-		return encryptor.Key{}, trace.Wrap(err)
-	}
-	return key, nil
-}
-
 // CreateSignupToken creates one time token for creating account for the user
 // For each token it creates username and hotp generator
 func (c *Client) CreateSignupToken(user string, allowedLogins []string) (string, error) {
@@ -713,7 +641,7 @@ type ClientI interface {
 	DeleteCertAuthority(caType services.CertAuthID) error
 	GenerateToken(role teleport.Role, ttl time.Duration) (string, error)
 	RegisterUsingToken(token, hostID string, role teleport.Role) (keys PackedKeys, e error)
-	RegisterNewAuthServer(token string, publicSealKey encryptor.Key) (masterKey encryptor.Key, e error)
+	RegisterNewAuthServer(token string) error
 	Log(id lunk.EventID, e lunk.Event)
 	LogEntry(en lunk.Entry) error
 	LogSession(sess session.Session) error

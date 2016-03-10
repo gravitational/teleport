@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package auth
 
 import (
@@ -22,8 +23,6 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events/boltlog"
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
@@ -38,7 +37,7 @@ import (
 )
 
 type TunSuite struct {
-	bk *encryptedbk.ReplicatedBackend
+	bk backend.Backend
 
 	srv    *APIWithRoles
 	tsrv   *AuthTunnel
@@ -62,11 +61,8 @@ func (s *TunSuite) TearDownTest(c *C) {
 func (s *TunSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
 
-	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
-	c.Assert(err, IsNil)
-	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk,
-		filepath.Join(s.dir, "keys"), nil,
-		encryptor.GetTestKey)
+	var err error
+	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
 
 	s.bl, err = boltlog.New(filepath.Join(s.dir, "eventsdb"))
