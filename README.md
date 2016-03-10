@@ -97,7 +97,7 @@ mkdir -p /var/lib/teleport
 chown <<USER>>:<<GROUP>> /var/lib/teleport
 
 # start teleport in embedded mode
-make run-embedded
+teleport start
 ```
 
 **Note:** `run-embedded` executes teleport with configuration file in `examples/embedded.yaml` check it out for more details
