@@ -5,7 +5,7 @@ module.exports.isMatch = function(obj, searchValue, {searchableProps, cb}) {
     let targetValue = obj[propNames[i]];
     if (targetValue) {
       if(typeof cb === 'function'){
-        let result = cb(targetValue, propNames[i]);
+        let result = cb(targetValue, searchValue, propNames[i]);
         if(result !== undefined){
           return result;
         }

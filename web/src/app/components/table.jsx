@@ -39,7 +39,6 @@ var GrvSortHeaderCell = React.createClass({
 /**
 * Sort indicator used by SortHeaderCell
 */
-
 const SortTypes = {
   ASC: 'ASC',
   DESC: 'DESC'
@@ -64,6 +63,7 @@ const SortIndicator = ({sortDir})=>{
 var SortHeaderCell = React.createClass({
   render() {
     var {sortDir, columnKey, title, ...props} = this.props;
+
     return (
       <GrvTableCell {...props}>
         <a onClick={this.onSortChange}>
@@ -93,7 +93,7 @@ var SortHeaderCell = React.createClass({
 var GrvTableCell = React.createClass({
   render(){
     var props = this.props;
-    return props.isHeader ? <th key={props.key}>{props.children}</th> : <td key={props.key}>{props.children}</td>;
+    return props.isHeader ? <th key={props.key} className="grv-table-cell">{props.children}</th> : <td key={props.key}>{props.children}</td>;
   }
 });
 
@@ -107,7 +107,7 @@ var GrvTable = React.createClass({
       return this.renderCell(item.props.header, {index, key: index, isHeader: true, ...item.props});
     })
 
-    return <thead><tr>{cells}</tr></thead>
+    return <thead className="grv-table-header"><tr>{cells}</tr></thead>
   },
 
   renderBody(children){

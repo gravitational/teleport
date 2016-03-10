@@ -84,6 +84,7 @@ class TtyPlayer extends Tty {
     // start from the beginning if at the end
     if(this.current === this.length){
       this.current = 1;
+      this.emit('reset');
     }
 
     this.timer = setInterval(this.move.bind(this), 150);

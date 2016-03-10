@@ -64,6 +64,22 @@
   flex: 1;
 }
 
+.grv-search{
+  margin-bottom: 15px;
+  max-width: 200px;
+  float: right;
+}
+
 .grv-table-indicator-sort{
   margin-left: 5px;
+
+  &.fa-sort{
+    color: $grv-color-inactive;
+  }
+}
+
+.grv-table-header{
+  .grv-table-cell a{
+    color: inherit;
+  }
 }

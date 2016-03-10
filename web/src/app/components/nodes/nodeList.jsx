@@ -107,7 +107,7 @@ var NodeList = React.createClass({
     return (
       <div className="grv-nodes">
         <h1> Nodes </h1>
-        <div className="grv-nodes-search">
+        <div className="grv-search">
           <input valueLink={this.linkState('filter')} placeholder="Search..." className="form-control"/>
         </div>
         <div className="">
