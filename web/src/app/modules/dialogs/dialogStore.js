@@ -1,6 +1,6 @@
 var { Store, toImmutable } = require('nuclear-js');
 
-var { TLPT_DIALOG_SHOW_SELECT_NODE, TLPT_DIALOG_CLOSE_SELECT_NODE } = require('./actionTypes');
+var { TLPT_DIALOG_SELECT_NODE_SHOW, TLPT_DIALOG_SELECT_NODE_CLOSE } = require('./actionTypes');
 
 export default Store({
 
@@ -11,8 +11,8 @@ export default Store({
   },
 
   initialize() {
-    this.on(TLPT_DIALOG_SHOW_SELECT_NODE, showSelectNodeDialog);
-    this.on(TLPT_DIALOG_CLOSE_SELECT_NODE, closeSelectNodeDialog);
+    this.on(TLPT_DIALOG_SELECT_NODE_SHOW, showSelectNodeDialog);
+    this.on(TLPT_DIALOG_SELECT_NODE_CLOSE, closeSelectNodeDialog);
   }
 })
 

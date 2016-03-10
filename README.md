@@ -107,60 +107,85 @@ make run-embedded
 Teleport allows to access the cluster via web portal. The web portal is guarded by 2-factor authentication. Here's how to log in:
 
 
-* Create a user entry for yourself:
+* Create a user entry:
 
 ```shell
-tctl user set-pass --user=<user> --pass=<pass>
+tctl users add alex root,centos
 ```
 
-**Important:** Username and password are not enough to log in into teleport, for second factor it uses HOTP tokens.
-Tool generated QR code for you too, and placed it in the current working directory. Follow next steps to set up your phone to use QR key:
-
-* Set up Google Authenticator app on your phone (available for free for Android and iPhone)
-
-Check out QR.png file that was written to the local directory and scan QR code. Follow next step to login:
-
-* Open a browser: http://localhost:33007/web/login and enter username, password and QR code
-
-**Note:** If you failed to log in for the first time, try to refresh the token. Teleport will try to sync up your phone and token on the next attempt.
+And follow instructions.
 
 
-### SSH access via proxy
-
-#### OpenSSH
+### OpenSSH client -> Teleport Proxy
 
 To use OpenSSH client with Teleport you need to run Teleport ssh agent on your local machine.
 
-1. First, start the agent
+1. Login into proxy
+
+```shell
+tsh --proxy=<addr> login
+```
+
+This command will retrieve and store user certificates signed by the proper certificate
+authority
+
+2. Start the agent
   
-  ```shell
-  tctl agent start --agent-addr="unix:///tmp/teleport.agent.sock"
-  ```
-2. Then your need to login your agent using your credentials
+```shell
+tsh --proxy=<addr> agent
+```
+
+It will output something like:
+
+```shell
+SSH_AUTH_SOCK=/tmp/316b647c-a81c-4d7c-a916-1c80f38ce0f6.socket; export SSH_AUTH_SOCK;
+```
+
+You can simply copy and paste this into terminal to tell your SSH client to use agent
+
+3. Tell OpenSSH to use proxy as a jump host using config
   
-  ```shell
-  tctl agent login --proxy-addr=PROXY-ADDR --ttl=10h
-  ```
-  where PROXY-ADDR - address of the remote Teleport proxy, ttl - time you want to be logged in (max 30 Hours).
-  tctl will ask you your username, password and 2nd token.
-3. Modify default agent address
-  
-  ```shell
-  SSH_AUTH_SOCK=/tmp/teleport.agent.sock; export SSH_AUTH_SOCK;
-  ```
-4. To enable connecting via proxy on the OpenSSH client add ProxyCommand to ~/.ssh/config file. For example:
-  
-  ```
-  Host node1.gravitational.io
-    ProxyCommand  ssh -p {proxyport} %r@proxy.gravitational.io -s proxy:%h:%p
-  ```
+```shell
+Host *
+     ForwardAgent no
+
+# tells open ssh to use proxy.example.com as a jumphost when logging
+# to any server matching patter *.node.example.com
+# beware of recurison here (when proxy name matches your pattern)
+Host *.node.example.com
+  ProxyCommand ssh -p 3023 %r@proxy.example.com -s proxy:%h:%p
+```
+
+4. Tell OpenSSH client to trust hosts managed by teleport
+
+```shell
+tctl authorities --type=host export >> ~/.ssh/authorized_keys
+```
+
 5. Then you can connect to your ssh nodes as usual:
   
-  ```shell
-  ssh -p {nodeport} user@node1.gravitational.io
-  ```
+```shell
+  ssh -p 22 user@a.node.example.com
+```
 
-#### Ansible
+### Teleport Proxy -> OpenSSH server
+
+1. Export user certificate authorities used by Teleport to a file
+
+```shell
+tctl authorities --type=user export > /etc/ssh/user-ca.pub
+```
+
+2. Tell OpenSSH to trust exporeted authorities
+
+In your /etc/ssh/sshd_config
+
+```shell
+# this instructs OpenSSH to trust certificates signed by teleport's user authorities
+TrustedUserCAKeys /etc/ssh/user-ca.pub
+```
+
+### Ansible
 
 By default Ansible uses OpenSSH client. To make Ansible work with Teleport you need:
 

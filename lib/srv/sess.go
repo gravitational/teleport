@@ -45,28 +45,13 @@ type sessionRegistry struct {
 	srv      *Server
 }
 
-func (s *sessionRegistry) newShell(sid string, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	ctx.Infof("newShell(sid=%v)", sid)
-
-	sess, err := newSession(sid, s, ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := sess.start(sconn, ch, ctx); err != nil {
-		defer sess.Close()
-		return trace.Wrap(err)
-	}
-	s.addSession(sess)
-	ctx.Infof("created session: %v", sess.id)
-	return nil
-}
-
 func (s *sessionRegistry) addSession(sess *session) {
 	s.Lock()
 	defer s.Unlock()
 	s.sessions[sess.id] = sess
 }
 
+// joinShell either joins an existing session or starts a new shell
 func (s *sessionRegistry) joinShell(sid string, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	ctx.Infof("joinShell(sid=%v)", sid)
 
@@ -79,7 +64,18 @@ func (s *sessionRegistry) joinShell(sid string, sconn *ssh.ServerConn, ch ssh.Ch
 
 	// This logic allows concurrent request to create a new session
 	// to fail, what is ok because we should never have this condition
-	return trace.Wrap(s.newShell(sid, sconn, ch, req, ctx))
+	sess, err := newSession(sid, s, ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := sess.start(sconn, ch, ctx); err != nil {
+		defer sess.Close()
+		return trace.Wrap(err)
+	}
+	s.addSession(sess)
+	ctx.Infof("created session: %v", sess.id)
+
+	return nil
 }
 
 func (s *sessionRegistry) leaveShell(sid, pid string) error {
@@ -200,7 +196,21 @@ func newSession(id string, r *sessionRegistry, context *ctx) (*session, error) {
 	}
 	err := r.srv.sessionServer.CreateSession(rsess)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if !teleport.IsAlreadyExists(err) {
+			return nil, trace.Wrap(err)
+		}
+		// if session already exists, make sure they are compatible
+		// Login matches existing login
+		existing, err := r.srv.sessionServer.GetSession(id)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if existing.Login != rsess.Login {
+			return nil, trace.Wrap(
+				teleport.AccessDenied(
+					fmt.Sprintf("can't switch users from %v to %v for session %v",
+						rsess.Login, existing.Login, id)))
+		}
 	}
 	if err := r.srv.elog.LogSession(rsess); err != nil {
 		log.Warn("failed to log session event: %v", err)
@@ -289,7 +299,6 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 			return trace.Wrap(err)
 		}
 	}
-	go s.pollAndSyncTerm()
 	cmd := exec.Command(s.registry.srv.shell)
 
 	// TODO(klizhentas) figure out linux user policy for launching shells,
@@ -312,8 +321,9 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	}
 	p.ctx.Infof("starting shell input/output streaming")
 
-	if s.registry.srv.rec != nil {
-		w, err := newChunkWriter(s.id, s.registry.srv.rec, s.registry.srv.ID())
+	sessionRecorder := s.registry.srv.rec
+	if sessionRecorder != nil {
+		w, err := newChunkWriter(s.id, sessionRecorder, s.registry.srv.ID())
 		if err != nil {
 			p.ctx.Errorf("failed to create recorder: %v", err)
 			return trace.Wrap(err)
@@ -326,6 +336,9 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	}
 	s.addParty(p)
 
+	// start terminal size syncing loop:
+	go s.pollAndSyncTerm()
+
 	// Pipe session to shell and visa-versa capturing input and output
 	s.term.Add(1)
 	go func() {
@@ -336,6 +349,7 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 			written, err)
 	}()
 
+	// wait for the shell to complete:
 	go func() {
 		result, err := collectStatus(cmd, cmd.Wait())
 		if err != nil {
@@ -348,6 +362,7 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 		}
 	}()
 
+	// wait for the session to end before the shell, kill the shell
 	go func() {
 		<-s.closeC
 		if cmd.Process != nil {
@@ -381,37 +396,38 @@ func (s *session) leave(id string) error {
 	return nil
 }
 
-const pollingPeriod = time.Second
-
-func (s *session) syncTerm(sessionServer rsession.Service) error {
-	sess, err := sessionServer.GetSession(s.id)
-	if err != nil {
-		log.Debugf("syncTerm: no session")
-		return trace.Wrap(err)
-	}
-	winSize, err := s.term.getWinsize()
-	if err != nil {
-		log.Debugf("syncTerm: no terminal")
-		return trace.Wrap(err)
-	}
-	if int(winSize.Width) == sess.TerminalParams.W && int(winSize.Height) == sess.TerminalParams.H {
-		log.Debugf("terminal not changed: %v", sess.TerminalParams)
-		return nil
-	}
-	log.Debugf("terminal has changed from: %v to %v", sess.TerminalParams, winSize)
-	err = s.term.setWinsize(sess.TerminalParams)
-	return trace.Wrap(err)
-}
-
+// pollAndSyncTerm is a loop inside a goroutite which keeps synchronizing the terminal
+// size to what's in the session (so all connected parties have the same terminal size)
 func (s *session) pollAndSyncTerm() {
-	if s.registry.srv.sessionServer == nil {
+	sessionServer := s.registry.srv.sessionServer
+	if sessionServer == nil {
 		return
 	}
-	sessionServer := s.registry.srv.sessionServer
-	tick := time.NewTicker(pollingPeriod)
+
+	syncTerm := func() error {
+		sess, err := sessionServer.GetSession(s.id)
+		if err != nil {
+			log.Debugf("syncTerm: no session")
+			return err
+		}
+		winSize, err := s.term.getWinsize()
+		if err != nil {
+			log.Debugf("syncTerm: no terminal")
+			return err
+		}
+		if int(winSize.Width) == sess.TerminalParams.W && int(winSize.Height) == sess.TerminalParams.H {
+			log.Debugf("terminal not changed: %v", sess.TerminalParams)
+			return nil
+		}
+		log.Debugf("terminal has changed from: %v to %v", sess.TerminalParams, winSize)
+		return s.term.setWinsize(sess.TerminalParams)
+	}
+
+	const termSizePollingInterval = time.Second * 3
+	tick := time.NewTicker(termSizePollingInterval)
 	defer tick.Stop()
 	for {
-		if err := s.syncTerm(sessionServer); err != nil {
+		if err := syncTerm(); err != nil {
 			log.Infof("sync term error: %v", err)
 		}
 		select {

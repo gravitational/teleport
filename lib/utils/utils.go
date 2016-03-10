@@ -182,13 +182,13 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 }
 
 const (
-	// CertExtensionUser specifies teleport specific user entry
-	CertExtensionUser = "x-teleport-user"
+	// CertTeleportUser specifies teleport user
+	CertTeleportUser = "x-teleport-user"
 	// CertExtensionRole specifies teleport role
 	CertExtensionRole = "x-teleport-role"
 	// CertExtensionAuthority specifies teleport authority's name
 	// that signed this domain
 	CertExtensionAuthority = "x-teleport-authority"
-	// HostUUIDFileName is the file name where the host UUID file is stored
+	// HostUUIDFile is the file name where the host UUID file is stored
 	HostUUIDFile = "host_uuid"
 )

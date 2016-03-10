@@ -17,7 +17,7 @@ limitations under the License.
 package web
 
 import (
-	"bytes"
+	"bufio"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -319,7 +319,7 @@ func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack 
 // of created valid user, hotp token, created web session and
 // authenticated client
 func (s *WebSuite) authPack(c *C) *authPack {
-	user := "bob"
+	user := s.user
 	pass := "abc123"
 
 	hotpURL, _, err := s.roleAuth.UpsertPassword(user, []byte(pass))
@@ -577,29 +577,14 @@ func (s *WebSuite) TestConnect(c *C) {
 	clt := s.connect(c, s.authPack(c))
 	defer clt.Close()
 
-	doneC := make(chan error, 2)
-	go func() {
-		_, err := io.WriteString(clt, "expr 137 + 39\r\nexit\r\n")
-		doneC <- err
-	}()
+	_, err := io.WriteString(clt, "expr 137 + 39\r\n")
+	c.Assert(err, IsNil)
 
-	output := &bytes.Buffer{}
-	go func() {
-		_, err := io.Copy(output, clt)
-		doneC <- err
-	}()
+	reader := bufio.NewReader(clt)
+	line, err := reader.ReadString('6')
+	c.Assert(err, IsNil)
 
-	timeoutC := time.After(time.Second)
-	for i := 0; i < 2; i++ {
-		select {
-		case <-doneC:
-			break
-		case <-timeoutC:
-			c.Fatalf("timeout!")
-		}
-	}
-
-	c.Assert(removeSpace(output.String()), Matches, ".*176.*")
+	c.Assert(removeSpace(line), Matches, ".*176.*")
 }
 
 func (s *WebSuite) TestNodesWithSessions(c *C) {

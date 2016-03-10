@@ -27,9 +27,9 @@ tsh:
 	go build -o $(OUT)/tsh -i github.com/gravitational/teleport/tool/tsh
 
 install: remove-temp-files
-	go install github.com/gravitational/teleport/tool/teleport
-	go install github.com/gravitational/teleport/tool/tctl
-	go install github.com/gravitational/teleport/tool/tsh
+	go install github.com/gravitational/teleport/tool/teleport \
+	           github.com/gravitational/teleport/tool/tctl \
+	           github.com/gravitational/teleport/tool/tsh \
 
 clean:
 	rm -rf $(OUT)
@@ -45,9 +45,9 @@ production: clean
 # tests everything: called by Jenkins
 #
 test: 
-	go test -v github.com/gravitational/teleport/tool/tsh/...
-	go test -v github.com/gravitational/teleport/lib/... -cover
-	go test -v github.com/gravitational/teleport/tool/teleport... -cover
+	go test -v github.com/gravitational/teleport/tool/tsh/... \
+			   github.com/gravitational/teleport/lib/... \
+			   github.com/gravitational/teleport/tool/teleport... -cover
 
 
 test-with-etcd: install
