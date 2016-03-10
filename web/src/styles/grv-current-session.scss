@@ -1,6 +1,5 @@
  .grv-current-session{
-   padding: 30px 60px;
-   padding-left: 130px;
+   padding: 70px 50px 30px 90px;
    position: fixed;
    height: 100%;
    width: 100%;
@@ -10,7 +9,7 @@
  }
 
 .grv-terminal-participans{
-  margin-left: -100px;
+  margin-left: -70px;
   width: 50px;
   position: absolute;
 
@@ -25,6 +24,7 @@
 
 .grv-current-session-server-info{
   height: 60px;
+  margin-top: -40px;
   text-align: center;
   span{
     margin-left: 5px

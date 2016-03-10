@@ -23,7 +23,10 @@ var SelectNodeDialog = React.createClass({
 var Dialog = React.createClass({
 
   onLoginClick(serverId, login){
-    changeServer(serverId, login);
+    if(SelectNodeDialog.onServerChangeCallBack){
+      SelectNodeDialog.onServerChangeCallBack({serverId});
+    }
+
     closeSelectNodeDialog();
   },
 
@@ -56,5 +59,7 @@ var Dialog = React.createClass({
     );
   }
 });
+
+SelectNodeDialog.onServerChangeCallBack = ()=>{};
 
 module.exports = SelectNodeDialog;
