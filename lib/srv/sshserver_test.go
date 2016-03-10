@@ -147,7 +147,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(s.srv.registerServer(), IsNil)
 
 	// set up SSH client using the user private key for signing
-	up, err := newUpack(s.user, s.a)
+	up, err := newUpack(s.user, []string{s.user}, s.a)
 	c.Assert(err, IsNil)
 
 	// set up an agent server and a client that uses agent for forwarding
@@ -224,7 +224,7 @@ func (s *SrvSuite) TestShell(c *C) {
 }
 
 func (s *SrvSuite) TestAllowedUsers(c *C) {
-	up, err := newUpack("user2", s.a)
+	up, err := newUpack(s.user, []string{s.user}, s.a)
 	c.Assert(err, IsNil)
 
 	sshConfig := &ssh.ClientConfig{
@@ -233,18 +233,21 @@ func (s *SrvSuite) TestAllowedUsers(c *C) {
 	}
 
 	client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
-	c.Assert(err, NotNil)
+	c.Assert(err, IsNil)
 
-	c.Assert(s.a.UpsertUser(services.User{Name: "user2", AllowedLogins: []string{s.user}}), IsNil)
 	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 	c.Assert(err, IsNil)
 	c.Assert(client.Close(), IsNil)
 
-	c.Assert(s.a.UpsertUser(services.User{Name: "user2", AllowedLogins: []string{}}), IsNil)
-	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
-	c.Assert(err, NotNil)
+	// now remove OS user from valid principals
+	up, err = newUpack(s.user, []string{"otheruser"}, s.a)
+	c.Assert(err, IsNil)
 
-	c.Assert(s.a.UpsertUser(services.User{Name: "user2", AllowedLogins: []string{"wrongosuser"}}), IsNil)
+	sshConfig = &ssh.ClientConfig{
+		User: s.user,
+		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+	}
+
 	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 	c.Assert(err, NotNil)
 }
@@ -331,7 +334,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	c.Assert(proxy.Start(), IsNil)
 
 	// set up SSH client using the user private key for signing
-	up, err := newUpack("user1", s.a)
+	up, err := newUpack(s.user, []string{s.user}, s.a)
 	c.Assert(err, IsNil)
 
 	bl, err := boltlog.New(filepath.Join(s.dir, "eventsdb"))
@@ -495,7 +498,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	c.Assert(proxy.Start(), IsNil)
 
 	// set up SSH client using the user private key for signing
-	up, err := newUpack("user1", s.a)
+	up, err := newUpack(s.user, []string{s.user}, s.a)
 	c.Assert(err, IsNil)
 
 	bl, err := boltlog.New(filepath.Join(s.dir, "eventsdb"))
@@ -592,7 +595,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	c.Assert(proxy.Start(), IsNil)
 
 	// set up SSH client using the user private key for signing
-	up, err := newUpack("user1", s.a)
+	up, err := newUpack(s.user, []string{s.user}, s.a)
 	c.Assert(err, IsNil)
 
 	bl, err := boltlog.New(filepath.Join(s.dir, "eventsdb"))
@@ -801,8 +804,13 @@ type upack struct {
 	certSigner ssh.Signer
 }
 
-func newUpack(user string, a *auth.AuthServer) (*upack, error) {
+func newUpack(user string, allowedLogins []string, a *auth.AuthServer) (*upack, error) {
 	upriv, upub, err := a.GenerateKeyPair("")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = a.UpsertUser(services.User{Name: user, AllowedLogins: allowedLogins})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -319,7 +319,7 @@ func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack 
 // of created valid user, hotp token, created web session and
 // authenticated client
 func (s *WebSuite) authPack(c *C) *authPack {
-	user := "bob"
+	user := s.user
 	pass := "abc123"
 
 	hotpURL, _, err := s.roleAuth.UpsertPassword(user, []byte(pass))

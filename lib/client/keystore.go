@@ -89,25 +89,24 @@ func CheckHostSignerFromCache(hostId string, remote net.Addr, key ssh.PublicKey)
 	return trace.Errorf("no matching authority found")
 }
 
-// GetLoadAgent loads all the saved teleport certificates and
-// creates ssh agent with them
-func GetLocalAgent() (agent.Agent, error) {
+// GetLocalAgentKeys returns a list of local keys agents can use
+// to authenticate
+func GetLocalAgentKeys() ([]agent.AddedKey, error) {
 	err := initKeysDir()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ag := agent.NewKeyring()
 	existingKeys, err := loadAllKeys()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	for _, key := range existingKeys {
+	addedKeys := make([]agent.AddedKey, len(existingKeys))
+	for i, key := range existingKeys {
 		pcert, _, _, _, err := ssh.ParseAuthorizedKey(key.Cert)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		pk, err := ssh.ParseRawPrivateKey(key.Priv)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -119,11 +118,25 @@ func GetLocalAgent() (agent.Agent, error) {
 			LifetimeSecs:     0,
 			ConfirmBeforeUse: false,
 		}
-		if err := ag.Add(addedKey); err != nil {
+		addedKeys[i] = addedKey
+	}
+	return addedKeys, nil
+}
+
+// GetLocalAgent loads all the saved teleport certificates and
+// creates ssh agent with them
+func GetLocalAgent() (agent.Agent, error) {
+	keys, err := GetLocalAgentKeys()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keyring := agent.NewKeyring()
+	for _, key := range keys {
+		if err := keyring.Add(key); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return ag, nil
+	return keyring, nil
 }
 
 func initKeysDir() error {

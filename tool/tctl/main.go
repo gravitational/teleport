@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 
@@ -50,6 +51,11 @@ type NodeCommand struct {
 	config *service.Config
 }
 
+type AuthCommand struct {
+	config   *service.Config
+	authType string
+}
+
 func main() {
 	utils.InitLoggerCLI()
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
@@ -58,6 +64,7 @@ func main() {
 	cfg := service.MakeDefaultConfig()
 	cmdUsers := UserCommand{config: cfg}
 	cmdNodes := NodeCommand{config: cfg}
+	cmdAuth := AuthCommand{config: cfg}
 
 	// define global flags:
 	var ccf CLIConfig
@@ -92,6 +99,12 @@ func main() {
 	nodeList := nodes.Command("ls", "Lists all active SSH nodes within the cluster")
 	nodeList.Alias(ListNodesHelp)
 
+	// operations with authorities
+	auth := app.Command("authorities", "Operations with user and host certificate authorities").Hidden()
+	auth.Flag("type", "authority type, 'user' or 'host'").Default(string(services.UserCA)).StringVar(&cmdAuth.authType)
+	authList := auth.Command("ls", "List trusted user certificate authorities").Hidden()
+	authExport := auth.Command("export", "Export concatenated keys to standard output").Hidden()
+
 	// parse CLI commands+flags:
 	command, err := app.Parse(os.Args[1:])
 	if err != nil {
@@ -125,6 +138,10 @@ func main() {
 		err = cmdNodes.Invite(client)
 	case nodeList.FullCommand():
 		err = cmdNodes.ListActive(client)
+	case authList.FullCommand():
+		err = cmdAuth.ListAuthorities(client)
+	case authExport.FullCommand():
+		err = cmdAuth.ExportAuthorities(client)
 	}
 
 	if err != nil {
@@ -232,6 +249,64 @@ func (u *NodeCommand) ListActive(client *auth.TunClient) error {
 		return t.String()
 	}
 	fmt.Printf(nodesView(nodes))
+	return nil
+}
+
+// ListAuthorities shows list of user authorities we trust
+func (a *AuthCommand) ListAuthorities(client *auth.TunClient) error {
+	authType := services.CertAuthType(a.authType)
+	if err := authType.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	authorities, err := client.GetCertAuthorities(authType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	view := func() string {
+		t := goterm.NewTable(0, 10, 5, ' ', 0)
+		printHeader(t, []string{"Type", "Cluster name", "Fingerprint", "Restricted to logins"})
+		if len(authorities) == 0 {
+			return t.String()
+		}
+		for _, a := range authorities {
+			for _, keyBytes := range a.CheckingKeys {
+				fingerprint := ""
+				key, _, _, _, err := ssh.ParseAuthorizedKey(keyBytes)
+				if err != nil {
+					fingerprint = fmt.Sprintf("<bad key: %v", err)
+				} else {
+					fingerprint = sshutils.Fingerprint(key)
+				}
+				fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", a.Type, a.DomainName, fingerprint, strings.Join(a.AllowedLogins, ","))
+			}
+		}
+		return t.String()
+	}
+	fmt.Printf(view())
+	return nil
+}
+
+// ExportAuthorities outputs the list of authorities
+func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
+	authType := services.CertAuthType(a.authType)
+	if err := authType.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	authorities, err := client.GetCertAuthorities(authType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, a := range authorities {
+		for _, key := range a.CheckingKeys {
+			if authType == services.UserCA {
+				// for user authorities, export in the sshd's TrustedUserCAKeys format
+				os.Stdout.Write(key)
+			} else {
+				// for host authorities export them in the authorized_keys - compatible format
+				fmt.Fprintf(os.Stdout, "@cert-authority *.%v %v", a.DomainName, string(key))
+			}
+		}
+	}
 	return nil
 }
 

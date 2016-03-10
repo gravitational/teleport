@@ -19,22 +19,25 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/buger/goterm"
+	"github.com/pborman/uuid"
 )
 
 func main() {
 	run(os.Args[1:], false)
 }
 
-// command line arguments and flags:
+// CLIConf stores command line arguments and flags:
 type CLIConf struct {
 	// UserHost contains "[login]@hostname" argument to SSH command
 	UserHost string
@@ -54,6 +57,8 @@ type CLIConf struct {
 	InsecureSkipVerify bool
 	// IsUnderTest is set to true for unit testing
 	IsUnderTest bool
+	// AgentSocketAddr is address for agent listeing socket
+	AgentSocketAddr utils.NetAddrVal
 }
 
 // run executes TSH client. same as main() but easier to test
@@ -83,6 +88,13 @@ func run(args []string, underTest bool) {
 	ls := app.Command("ls", "List remote SSH nodes")
 	ls.Arg("labels", "List of labels to filter node list").Default("*").StringVar(&cf.UserHost)
 
+	// agent (SSH agent listening on unix socket)
+	agent := app.Command("agent", "Start SSH agent on unix socket")
+	agent.Flag("socket", "SSH agent listening socket address, e.g. unix:///tmp/teleport.agent.sock").SetValue(&cf.AgentSocketAddr)
+
+	// login logs in with remote proxy and obtains certificate
+	login := app.Command("login", "Log in with remote proxy and get signed certificate")
+
 	// parse CLI commands+flags:
 	command, err := app.Parse(args)
 	if err != nil {
@@ -101,7 +113,59 @@ func run(args []string, underTest bool) {
 		onSSH(&cf)
 	case ls.FullCommand():
 		onListNodes(&cf)
+	case agent.FullCommand():
+		onAgentStart(&cf)
+	case login.FullCommand():
+		onLogin(&cf)
 	}
+}
+
+// onAgentStart start ssh agent on a socket
+func onAgentStart(cf *CLIConf) {
+	_, err := makeClient(cf)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	socketAddr := utils.NetAddr(cf.AgentSocketAddr)
+	if socketAddr.IsEmpty() {
+		socketAddr = utils.NetAddr{AddrNetwork: "unix", Addr: filepath.Join(os.TempDir(), fmt.Sprintf("%v.socket", uuid.New()))}
+	}
+	// This makes teleport agent behave exactly like ssh-agent command,
+	// the output and behavior matches the openssh behavior,
+	// so users can do 'eval $(tsh agent --proxy=<addr>&)
+	pid := os.Getpid()
+	fmt.Printf(`
+SSH_AUTH_SOCK=%v; export SSH_AUTH_SOCK;
+SSH_AGENT_PID=%v; export SSH_AGENT_PID;
+echo Agent pid %v;
+`, socketAddr.Addr, pid, pid)
+	agentServer := teleagent.NewServer()
+	agentKeys, err := client.GetLocalAgentKeys()
+	if err != nil {
+		utils.FatalError(err)
+	}
+	// add existing keys to the running agent for ux purposes
+	for _, key := range agentKeys {
+		err := agentServer.Add(key)
+		if err != nil {
+			utils.FatalError(err)
+		}
+	}
+	if err := agentServer.ListenAndServe(socketAddr); err != nil {
+		utils.FatalError(err)
+	}
+}
+
+// onLogin logs in with remote proxy and gets signed certificates
+func onLogin(cf *CLIConf) {
+	tc, err := makeClient(cf)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	if err := tc.Login(); err != nil {
+		utils.FatalError(err)
+	}
+	fmt.Println("\nlogged in successfully")
 }
 
 // onListNodes executes 'tsh ls' command

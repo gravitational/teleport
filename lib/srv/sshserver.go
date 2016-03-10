@@ -420,20 +420,30 @@ func (s *Server) isAuthority(cert ssh.PublicKey) bool {
 func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 	cid := fmt.Sprintf("conn(%v->%v, user=%v)", conn.RemoteAddr(), conn.LocalAddr(), conn.User())
 	eventID := lunk.NewRootEventID()
-	log.Infof("%v auth attempt with key %v", cid, key.Type())
+	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
+	log.Infof("%v auth attempt with key %v", cid, fingerprint)
 
 	logger := log.WithFields(log.Fields{
-		"local":  conn.LocalAddr(),
-		"remote": conn.RemoteAddr(),
-		"user":   conn.User(),
+		"local":       conn.LocalAddr(),
+		"remote":      conn.RemoteAddr(),
+		"user":        conn.User(),
+		"fingerprint": fingerprint,
 	})
 
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
-		logger.Warningf("server doesn't support provided key type: %T", key)
-		return nil, trace.Errorf("server doesn't support provided key type: %v", key)
+		logger.Warningf("server doesn't support provided key type")
+		return nil, trace.Wrap(teleport.BadParameter("key", fmt.Sprintf("server doesn't support provided key type: %v", fingerprint)))
 	}
-	teleportUser := cert.Permissions.Extensions[utils.CertExtensionUser]
+	if len(cert.ValidPrincipals) == 0 {
+		logger.Warningf("cert does not have valid principals")
+		return nil, trace.Wrap(teleport.BadParameter("key", fmt.Sprintf("need a valid principal for key %v", fingerprint)))
+	}
+	if len(cert.KeyId) == 0 {
+		logger.Warningf("cert does not have valid key id")
+		return nil, trace.Wrap(teleport.BadParameter("key", fmt.Sprintf("need a valid key for key %v", fingerprint)))
+	}
+	teleportUser := cert.KeyId
 
 	permissions, err := s.certChecker.Authenticate(conn, key)
 	if err != nil {
@@ -445,6 +455,10 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		logger.Warningf("failed to authenticate user, err: %v", err)
 		return nil, trace.Wrap(err)
 	}
+
+	// this is the only way I know of to pass valid principal with the
+	// connection
+	permissions.Extensions[utils.CertTeleportUser] = teleportUser
 
 	if s.proxyMode {
 		return permissions, nil

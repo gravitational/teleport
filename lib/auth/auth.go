@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 // package auth implements certificate signing authority and access control server
 // Authority server is composed of several parts:
 //
@@ -54,7 +55,7 @@ type Authority interface {
 
 	// GenerateHostCert generates user certificate, it takes pkey as a signing
 	// private key (user certificate authority)
-	GenerateUserCert(pkey, key []byte, username string, ttl time.Duration) ([]byte, error)
+	GenerateUserCert(pkey, key []byte, teleportUsername string, allowedLogins []string, ttl time.Duration) ([]byte, error)
 }
 
 // Session is a web session context, stores temporary key-value pair and session id
@@ -168,7 +169,11 @@ func (s *AuthServer) GenerateUserCert(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.Authority.GenerateUserCert(privateKey, key, username, ttl)
+	user, err := s.GetUser(username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return s.Authority.GenerateUserCert(privateKey, key, username, user.AllowedLogins, ttl)
 }
 
 func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
@@ -348,11 +353,11 @@ func (s *AuthServer) NewWebSession(userName string) (*Session, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := s.Authority.GenerateUserCert(privateKey, pub, userName, WebSessionTTL)
-	if err != nil {
-		return nil, err
-	}
 	user, err := s.GetUser(userName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cert, err := s.Authority.GenerateUserCert(privateKey, pub, user.Name, user.AllowedLogins, WebSessionTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

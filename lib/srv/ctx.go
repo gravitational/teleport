@@ -197,7 +197,7 @@ func newCtx(srv *Server, conn *ssh.ServerConn) *ctx {
 		result:           make(chan execResult, 10),
 		subsystemResultC: make(chan subsystemResult, 10),
 		srv:              srv,
-		teleportUser:     conn.Permissions.Extensions[utils.CertExtensionUser],
+		teleportUser:     conn.Permissions.Extensions[utils.CertTeleportUser],
 		login:            conn.User(),
 	}
 	ctx.Entry = log.WithFields(srv.logFields(log.Fields{
