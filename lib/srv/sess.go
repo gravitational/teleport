@@ -196,7 +196,21 @@ func newSession(id string, r *sessionRegistry, context *ctx) (*session, error) {
 	}
 	err := r.srv.sessionServer.CreateSession(rsess)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if !teleport.IsAlreadyExists(err) {
+			return nil, trace.Wrap(err)
+		}
+		// if session already exists, make sure they are compatible
+		// Login matches existing login
+		existing, err := r.srv.sessionServer.GetSession(id)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if existing.Login != rsess.Login {
+			return nil, trace.Wrap(
+				teleport.AccessDenied(
+					fmt.Sprintf("can't switch users from %v to %v for session %v",
+						rsess.Login, existing.Login, id)))
+		}
 	}
 	if err := r.srv.elog.LogSession(rsess); err != nil {
 		log.Warn("failed to log session event: %v", err)
