@@ -106,7 +106,7 @@ func (process *TeleportProcess) loginIntoAuthService() bool {
 				continue
 			}
 			// success ? we're logged in!
-			log.Infof("successfully logged into %v", authServerAddr)
+			log.Infof("%s logged into %v", authUser, authServerAddr)
 			process.AuthClient = authClient
 			process.Identity = identity
 			return true

@@ -19,7 +19,6 @@ package srv
 import (
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"os/user"
 	"strconv"
@@ -68,7 +67,7 @@ func (s *sessionRegistry) joinShell(sid string, sconn *ssh.ServerConn, ch ssh.Ch
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := sess.start(sconn, ch, ctx); err != nil {
+	if err := sess.startShell(sconn, ch, ctx); err != nil {
 		defer sess.Close()
 		return trace.Wrap(err)
 	}
@@ -239,41 +238,11 @@ func (s *session) upsertSessionParty(sid string, p *party) error {
 	}, rsession.DefaultActivePartyTTL)
 }
 
-// setCmdUser configures exec.Cmd to impersonate (AKA "become") a given
-// user
-func setCmdUser(cmd *exec.Cmd, username string) error {
-	cmd.SysProcAttr = &syscall.SysProcAttr{}
-
-	// make sure username is valid
-	osUser, err := user.Lookup(username)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// are we already username?
-	curUser, err := user.Current()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if username == curUser.Username {
-		return nil
-	}
-
-	// "become" username
-	uid, err := strconv.Atoi(osUser.Uid)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	gid, err := strconv.Atoi(osUser.Gid)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
-	return nil
-}
-
-func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
+// startShell starts a new shell process in the current session
+func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	s.eid = ctx.eid
+
+	// allocate or borrow a terminal:
 	p := newParty(s, sconn, ch, ctx)
 	if p.ctx.getTerm() != nil {
 		s.term = p.ctx.getTerm()
@@ -285,22 +254,39 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 			return trace.Wrap(err)
 		}
 	}
-	cmd := exec.Command(s.registry.srv.shell)
+
+	shellCmd := s.registry.srv.shell
+	cmd := exec.Command(shellCmd, "--login")
+
+	// configure UID & GID of the requested OS user:
+	osUser, err := user.Lookup(sconn.User())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	uid, err := strconv.Atoi(osUser.Uid)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	gid, err := strconv.Atoi(osUser.Gid)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Credential: &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)},
+	}
 
 	// TODO(klizhentas) figure out linux user policy for launching shells,
 	// what user and environment should we use to execute the shell? the simplest
 	// answer is to use current user and env, however  what if we are root?
 	cmd.Env = []string{
 		"TERM=xterm",
-		"HOME=" + os.Getenv("HOME"),
+		"LANG=en_US.UTF-8",
+		"HOME=" + osUser.HomeDir,
 		"USER=" + sconn.User(),
 	}
+	cmd.Dir = osUser.HomeDir
 
-	err := setCmdUser(cmd, sconn.User())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+	// launch shell:
 	if err := s.term.run(cmd); err != nil {
 		ctx.Infof("shell command failed: %v", err)
 		return teleport.ConvertSystemError(trace.Wrap(err))
@@ -315,10 +301,10 @@ func (s *session) start(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 			return trace.Wrap(err)
 		}
 		s.chunkWriter = w
-		s.registry.srv.emit(ctx.eid, events.NewShellSession(s.id, sconn, s.registry.srv.shell, w.rid))
+		s.registry.srv.emit(ctx.eid, events.NewShellSession(s.id, sconn, shellCmd, w.rid))
 		s.writer.addWriter("capture", w, false)
 	} else {
-		s.registry.srv.emit(ctx.eid, events.NewShellSession(s.id, sconn, s.registry.srv.shell, ""))
+		s.registry.srv.emit(ctx.eid, events.NewShellSession(s.id, sconn, shellCmd, ""))
 	}
 	s.addParty(p)
 
