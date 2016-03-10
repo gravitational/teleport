@@ -100,7 +100,7 @@ func (n *nauth) GenerateHostCert(pkey, key []byte, hostname, authDomain string, 
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
-func (n *nauth) GenerateUserCert(pkey, key []byte, username string, ttl time.Duration) ([]byte, error) {
+func (n *nauth) GenerateUserCert(pkey, key []byte, teleportUsername string, allowedLogins []string, ttl time.Duration) ([]byte, error) {
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
 	if err != nil {
 		return nil, err
@@ -111,12 +111,12 @@ func (n *nauth) GenerateUserCert(pkey, key []byte, username string, ttl time.Dur
 		validBefore = uint64(b.UnixNano())
 	}
 	cert := &ssh.Certificate{
-		Key:         pubKey,
-		ValidBefore: validBefore,
-		CertType:    ssh.UserCert,
+		KeyId:           teleportUsername,
+		ValidPrincipals: allowedLogins,
+		Key:             pubKey,
+		ValidBefore:     validBefore,
+		CertType:        ssh.UserCert,
 	}
-	cert.Permissions.Extensions = make(map[string]string)
-	cert.Permissions.Extensions[utils.CertExtensionUser] = username
 	signer, err := ssh.ParsePrivateKey(pkey)
 	if err != nil {
 		return nil, err

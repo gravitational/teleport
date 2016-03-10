@@ -147,6 +147,9 @@ func (s *APISuite) TestGenerateUserCert(c *C) {
 	_, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
+	s.a.UpsertUser(
+		services.User{Name: "user1", AllowedLogins: []string{"user1"}})
+
 	// make sure we can parse the private and public key
 	cert, err := s.clt.GenerateUserCert(pub, "user1", time.Hour)
 	c.Assert(err, IsNil)
@@ -161,6 +164,9 @@ func (s *APISuite) TestKeysCRUD(c *C) {
 
 	_, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
+
+	s.a.UpsertUser(
+		services.User{Name: "user1", AllowedLogins: []string{"user1"}})
 
 	// make sure we can parse the private and public key
 	cert, err := s.clt.GenerateUserCert(pub, "user1", time.Hour)
@@ -232,6 +238,9 @@ func (s *APISuite) TestSessions(c *C) {
 
 	c.Assert(s.a.UpsertCertAuthority(
 		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+
+	s.a.UpsertUser(
+		services.User{Name: "user1", AllowedLogins: []string{"user1"}})
 
 	ws, err := s.clt.SignIn(user, pass)
 	c.Assert(err, NotNil)
