@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/services"
@@ -135,11 +134,11 @@ func (a *AuthWithRoles) RegisterUsingToken(token, hostID string, role teleport.R
 		return a.authServer.RegisterUsingToken(token, hostID, role)
 	}
 }
-func (a *AuthWithRoles) RegisterNewAuthServer(token string, publicSealKey encryptor.Key) (masterKey encryptor.Key, e error) {
+func (a *AuthWithRoles) RegisterNewAuthServer(token string) error {
 	if err := a.permChecker.HasPermission(a.role, ActionRegisterNewAuthServer); err != nil {
-		return encryptor.Key{}, trace.Wrap(err)
+		return trace.Wrap(err)
 	} else {
-		return a.authServer.RegisterNewAuthServer(token, publicSealKey)
+		return a.authServer.RegisterNewAuthServer(token)
 	}
 }
 func (a *AuthWithRoles) Log(id lunk.EventID, e lunk.Event) {
@@ -300,46 +299,6 @@ func (a *AuthWithRoles) GenerateUserCert(key []byte, user string, ttl time.Durat
 		return a.authServer.GenerateUserCert(key, user, ttl)
 	}
 }
-func (a *AuthWithRoles) GetSealKeys() ([]encryptor.Key, error) {
-	if err := a.permChecker.HasPermission(a.role, ActionGetSealKeys); err != nil {
-		return nil, trace.Wrap(err)
-	} else {
-		return a.authServer.GetSealKeys()
-	}
-}
-
-func (a *AuthWithRoles) GenerateSealKey(keyName string) (encryptor.Key, error) {
-	if err := a.permChecker.HasPermission(a.role, ActionGenerateSealKey); err != nil {
-		return encryptor.Key{}, trace.Wrap(err)
-	} else {
-		return a.authServer.GenerateSealKey(keyName)
-	}
-}
-
-func (a *AuthWithRoles) DeleteSealKey(keyID string) error {
-	if err := a.permChecker.HasPermission(a.role, ActionDeleteSealKey); err != nil {
-		return trace.Wrap(err)
-	} else {
-		return a.authServer.DeleteSealKey(keyID)
-	}
-}
-
-func (a *AuthWithRoles) AddSealKey(key encryptor.Key) error {
-	if err := a.permChecker.HasPermission(a.role, ActionAddSealKey); err != nil {
-		return trace.Wrap(err)
-	} else {
-		return a.authServer.AddSealKey(key)
-	}
-}
-
-func (a *AuthWithRoles) GetSealKey(keyID string) (encryptor.Key, error) {
-	if err := a.permChecker.HasPermission(a.role, ActionGetSealKey); err != nil {
-		return encryptor.Key{}, trace.Wrap(err)
-	} else {
-		return a.authServer.GetSealKey(keyID)
-	}
-}
-
 func (a *AuthWithRoles) CreateSignupToken(user string, mappings []string) (token string, e error) {
 	if err := a.permChecker.HasPermission(a.role, ActionCreateSignupToken); err != nil {
 		return "", trace.Wrap(err)

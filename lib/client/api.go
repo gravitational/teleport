@@ -81,9 +81,8 @@ func (c *Config) ProxyHostPort(defaultPort int) string {
 	if c.ProxySpecified() {
 		port := fmt.Sprintf("%d", defaultPort)
 		return net.JoinHostPort(c.ProxyHost, port)
-	} else {
-		return ""
 	}
+	return ""
 }
 
 // NodeHostPort returns host:port string based on user supplied data
@@ -114,10 +113,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		log.Infof("no teleport login given. defaulting to %s", c.Login)
 	}
 	if c.ProxyHost == "" {
-		return nil, trace.Errorf("no proxy address specified")
-	}
-	if c.Host == "" {
-		return nil, trace.Errorf("no remote host specified")
+		return nil, trace.Wrap(teleport.BadParameter("proxy", "no proxy address specified"))
 	}
 	if c.HostLogin == "" {
 		c.HostLogin = c.Login
@@ -161,6 +157,9 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
 // otherwise runs interactive shell
 func (tc *TeleportClient) SSH(command string) (err error) {
+	if tc.Host == "" {
+		return trace.Wrap(teleport.BadParameter("host", "no host address specified"))
+	}
 	// connecting via proxy?
 	if !tc.Config.ProxySpecified() {
 		return trace.Wrap(teleport.BadParameter("server", "proxy server is not specified"))

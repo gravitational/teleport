@@ -37,19 +37,29 @@
 			"Rev": "3bb9f3be3053e35972e4a0725dd6e44ae203bc99"
 		},
 		{
-			"ImportPath": "github.com/coreos/etcd/etcdserver/etcdhttp/httptypes",
-			"Comment": "v2.0.4-169-g0a04eec",
-			"Rev": "0a04eec481f24ec616eed8ad52e59eb6d203263e"
+			"ImportPath": "github.com/coreos/etcd/Godeps/_workspace/src/github.com/ugorji/go/codec",
+			"Comment": "v2.3.0-alpha.1-249-g0c41371",
+			"Rev": "0c41371064666ad159761e0fb12c7f240b3977cb"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/context",
+			"Comment": "v2.3.0-alpha.1-249-g0c41371",
+			"Rev": "0c41371064666ad159761e0fb12c7f240b3977cb"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/client",
+			"Comment": "v2.3.0-alpha.1-249-g0c41371",
+			"Rev": "0c41371064666ad159761e0fb12c7f240b3977cb"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/pkg/pathutil",
+			"Comment": "v2.3.0-alpha.1-249-g0c41371",
+			"Rev": "0c41371064666ad159761e0fb12c7f240b3977cb"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/pkg/types",
-			"Comment": "v2.0.4-169-g0a04eec",
-			"Rev": "0a04eec481f24ec616eed8ad52e59eb6d203263e"
-		},
-		{
-			"ImportPath": "github.com/coreos/go-etcd/etcd",
-			"Comment": "v0.4.6-6-g4734e7a",
-			"Rev": "4734e7aca379f0d7fcdf04fbb2101696a4b45ce8"
+			"Comment": "v2.3.0-alpha.1-249-g0c41371",
+			"Rev": "0c41371064666ad159761e0fb12c7f240b3977cb"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/system",
@@ -155,24 +165,16 @@
 			"Rev": "0c93e1ff9f91f0c63bf17b123de503d023434fdd"
 		},
 		{
-			"ImportPath": "golang.org/x/crypto/cast5",
-			"Rev": "0c93e1ff9f91f0c63bf17b123de503d023434fdd"
-		},
-		{
 			"ImportPath": "golang.org/x/crypto/curve25519",
-			"Rev": "0c93e1ff9f91f0c63bf17b123de503d023434fdd"
-		},
-		{
-			"ImportPath": "golang.org/x/crypto/openpgp",
-			"Rev": "0c93e1ff9f91f0c63bf17b123de503d023434fdd"
-		},
-		{
-			"ImportPath": "golang.org/x/crypto/ripemd160",
 			"Rev": "0c93e1ff9f91f0c63bf17b123de503d023434fdd"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/ssh",
 			"Rev": "0c93e1ff9f91f0c63bf17b123de503d023434fdd"
+		},
+		{
+			"ImportPath": "golang.org/x/net/context",
+			"Rev": "7dbad50ab5b31073856416cdcfeb2796d682f844"
 		},
 		{
 			"ImportPath": "golang.org/x/net/websocket",

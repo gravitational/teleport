@@ -21,7 +21,7 @@ class TtyPlayer extends Tty {
 
   resize(){
   }
-  
+
   connect(){
     api.get(cfg.api.getFetchSessionLengthUrl(this.sid))
       .done((data)=>{
@@ -80,6 +80,13 @@ class TtyPlayer extends Tty {
     }
 
     this.isPlaying = true;
+
+    // start from the beginning if at the end
+    if(this.current === this.length){
+      this.current = 1;
+      this.emit('reset');
+    }
+
     this.timer = setInterval(this.move.bind(this), 150);
     this._change();
   }

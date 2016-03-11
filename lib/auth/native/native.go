@@ -146,9 +146,12 @@ func (n *nauth) GenerateHostCert(pkey, key []byte, hostname, authDomain string, 
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
-func (n *nauth) GenerateUserCert(pkey, key []byte, username string, ttl time.Duration) ([]byte, error) {
+func (n *nauth) GenerateUserCert(pkey, key []byte, teleportUsername string, allowedLogins []string, ttl time.Duration) ([]byte, error) {
 	if (ttl > defaults.MaxCertDuration) || (ttl < defaults.MinCertDuration) {
-		return nil, trace.Errorf("wrong certificate TTL")
+		return nil, trace.Wrap(teleport.BadParameter("teleport", "wrong certificate TTL"))
+	}
+	if len(allowedLogins) == 0 {
+		return nil, trace.Wrap(teleport.BadParameter("allowedLogins", "need allowed OS logins"))
 	}
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
 	if err != nil {
@@ -159,13 +162,15 @@ func (n *nauth) GenerateUserCert(pkey, key []byte, username string, ttl time.Dur
 		b := time.Now().Add(ttl)
 		validBefore = uint64(b.Unix())
 	}
+	// we do not use any extensions in users certs because of this:
+	// https://bugzilla.mindrot.org/show_bug.cgi?id=2387
 	cert := &ssh.Certificate{
-		Key:         pubKey,
-		ValidBefore: validBefore,
-		CertType:    ssh.UserCert,
+		KeyId:           teleportUsername, // we have to use key id to identify teleport user
+		ValidPrincipals: allowedLogins,
+		Key:             pubKey,
+		ValidBefore:     validBefore,
+		CertType:        ssh.UserCert,
 	}
-	cert.Permissions.Extensions = make(map[string]string)
-	cert.Permissions.Extensions[utils.CertExtensionUser] = username
 	signer, err := ssh.ParsePrivateKey(pkey)
 	if err != nil {
 		return nil, err

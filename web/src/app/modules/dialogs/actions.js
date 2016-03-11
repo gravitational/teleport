@@ -1,13 +1,13 @@
 var reactor = require('app/reactor');
-var { TLPT_DIALOG_SHOW_SELECT_NODE, TLPT_DIALOG_CLOSE_SELECT_NODE } = require('./actionTypes');
+var { TLPT_DIALOG_SELECT_NODE_SHOW, TLPT_DIALOG_SELECT_NODE_CLOSE } = require('./actionTypes');
 
 var actions = {
   showSelectNodeDialog(){
-    reactor.dispatch(TLPT_DIALOG_SHOW_SELECT_NODE);
+    reactor.dispatch(TLPT_DIALOG_SELECT_NODE_SHOW);
   },
 
   closeSelectNodeDialog(){
-    reactor.dispatch(TLPT_DIALOG_CLOSE_SELECT_NODE);
+    reactor.dispatch(TLPT_DIALOG_SELECT_NODE_CLOSE);
   }
 }
 

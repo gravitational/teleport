@@ -24,7 +24,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/recorder"
@@ -120,73 +119,7 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.GET("/v1/sessions", httplib.MakeHandler(srv.getSessions))
 	srv.GET("/v1/sessions/:id", httplib.MakeHandler(srv.getSession))
 
-	// Backend Keys
-	srv.GET("/v1/backend/keys", httplib.MakeHandler(srv.getSealKeys))
-	srv.GET("/v1/backend/keys/:id", httplib.MakeHandler(srv.getSealKey))
-	srv.DELETE("/v1/backend/keys/:id", httplib.MakeHandler(srv.deleteSealKey))
-	srv.POST("/v1/backend/keys", httplib.MakeHandler(srv.addSealKey))
-	srv.POST("/v1/backend/generatekey", httplib.MakeHandler(srv.generateSealKey))
-
 	return srv
-}
-
-func (s *APIServer) getSealKeys(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	keys, err := s.a.GetSealKeys()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return keys, nil
-}
-
-func (s *APIServer) getSealKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	id := p[0].Value
-	key, err := s.a.GetSealKey(id)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return key, nil
-}
-
-func (s *APIServer) deleteSealKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	id := p[0].Value
-	err := s.a.DeleteSealKey(id)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return id, nil
-}
-
-// addSealKeyReq is a request to add seal key
-type addSealKeyReq struct {
-	Key encryptor.Key `json:"key"`
-}
-
-func (s *APIServer) addSealKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req addSealKeyReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := s.a.AddSealKey(req.Key); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-// genSealKeyReq is a request to generate new seal key
-type generateSealKeyReq struct {
-	Name string `json:"name"`
-}
-
-func (s *APIServer) generateSealKey(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req generateSealKeyReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	key, err := s.a.GenerateSealKey(req.Name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return key, nil
 }
 
 type upsertServerReq struct {
@@ -443,8 +376,7 @@ func (s *APIServer) registerUsingToken(w http.ResponseWriter, r *http.Request, _
 }
 
 type registerNewAuthServerReq struct {
-	Token string        `json:"token"`
-	Key   encryptor.Key `json:"key"`
+	Token string `json:"token"`
 }
 
 func (s *APIServer) registerNewAuthServer(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
@@ -452,11 +384,11 @@ func (s *APIServer) registerNewAuthServer(w http.ResponseWriter, r *http.Request
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	key, err := s.a.RegisterNewAuthServer(req.Token, req.Key)
+	err := s.a.RegisterNewAuthServer(req.Token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return key, nil
+	return message("ok"), nil
 }
 
 type submitEventsReq struct {

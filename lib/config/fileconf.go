@@ -13,21 +13,22 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package config
 
 import (
+	"io/ioutil"
 	"net"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"io/ioutil"
-
-	"gopkg.in/yaml.v2"
-
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
+
 	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -57,6 +58,7 @@ var (
 		"type":              true,
 		"data_dir":          true,
 		"peers":             true,
+		"prefix":            true,
 		"web_listen_addr":   true,
 		"ssh_listen_addr":   true,
 		"listen_addr":       true,
@@ -104,7 +106,7 @@ func ReadFromFile(fp string) (fc *FileConfig, err error) {
 		for k, v := range m {
 			if key, ok = k.(string); ok {
 				if recursive, ok = validKeys[key]; !ok {
-					return trace.Errorf("unknown configuration key: '%v'", key)
+					return trace.Wrap(teleport.BadParameter(key, "this configuration key is unknown"))
 				}
 				if recursive {
 					if m2, ok := v.(YAMLMap); ok {
@@ -128,7 +130,7 @@ func ReadFromFile(fp string) (fc *FileConfig, err error) {
 	return fc, nil
 }
 
-// makeSampleFileConfig returns a sample config structure populated by defaults,
+// MakeSampleFileConfig returns a sample config structure populated by defaults,
 // useful to generate sample configuration files
 func MakeSampleFileConfig() (fc *FileConfig) {
 	conf := service.MakeDefaultConfig()
@@ -139,7 +141,7 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	g.AuthToken = "xxxx-token-xxxx"
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
-	g.AuthServers = defaults.AuthListenAddr().Addr
+	g.AuthServers = []string{defaults.AuthListenAddr().Addr}
 	g.Limits.MaxConnections = defaults.LimiterMaxConnections
 	g.Limits.MaxUsers = defaults.LimiterMaxConcurrentUsers
 	g.Storage.DirName = defaults.DataDir
@@ -188,7 +190,7 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	return fc
 }
 
-// DebugDump allows for quick YAML dumping of the config
+// DebugDumpToYAML allows for quick YAML dumping of the config
 func (conf *FileConfig) DebugDumpToYAML() string {
 	bytes, err := yaml.Marshal(&conf)
 	if err != nil {
@@ -197,45 +199,49 @@ func (conf *FileConfig) DebugDumpToYAML() string {
 	return string(bytes)
 }
 
+// ConnectionRate configures rate limiter
 type ConnectionRate struct {
 	Period  time.Duration `yaml:"period"`
 	Average int64         `yaml:"average"`
 	Burst   int64         `yaml:"burst"`
 }
 
+// ConnectionLimits sets up connection limiter
 type ConnectionLimits struct {
 	MaxConnections int64            `yaml:"max_connections"`
 	MaxUsers       int              `yaml:"max_users"`
 	Rates          []ConnectionRate `yaml:"rates,omitempty"`
 }
 
+// Log configures teleport logging
 type Log struct {
 	Output   string `yaml:"output,omitempty"`
 	Severity string `yaml:"severity,omitempty"`
 }
 
-// used for 'storage' config section. stores values for 'boltdb' and 'etcd'
+// StorageBackend is used for 'storage' config section. stores values for 'boltdb' and 'etcd'
 type StorageBackend struct {
-	Type    string `yaml:"type,omitempty"`     // can be "bolt" or "etcd"
-	DirName string `yaml:"data_dir,omitempty"` // valid only for bolt
-	Peers   string `yaml:"peers,omitempty"`    // valid only for etcd
+	// Type can be "bolt" or "etcd"
+	Type string `yaml:"type,omitempty"`
+	// DirName is valid only for bolt
+	DirName string `yaml:"data_dir,omitempty"`
+	// Peers is a lsit of etcd peers,  valid only for etcd
+	Peers []string `yaml:"peers,omitempty"`
+	// Prefix is etcd key prefix, valid only for etcd
+	Prefix string `yaml:"prefix,omitempty"`
 }
 
-// 'teleport' (global) section of the config file
+// Global is 'teleport' (global) section of the config file
 type Global struct {
 	NodeName    string           `yaml:"nodename,omitempty"`
 	AuthToken   string           `yaml:"auth_token,omitempty"`
-	AuthServers string           `yaml:"auth_servers,omitempty"`
+	AuthServers []string         `yaml:"auth_servers,omitempty"`
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
 	Storage     StorageBackend   `yaml:"storage,omitempty"`
 }
 
-// returns a slice of the auth servers
-func (g *Global) GetAuthServers() []string {
-	return strings.Split(strings.Replace(g.AuthServers, " ", "", -1), ",")
-}
-
+// Service is a common configuration of a teleport service
 type Service struct {
 	EnabledFlag   string `yaml:"enabled,omitempty"`
 	ListenAddress string `yaml:"listen_addr,omitempty"`

@@ -223,6 +223,11 @@ func (e *CompareFailedError) OrigError() error {
 	return e
 }
 
+// IsCompareFailedError indicates that this is compare failed error
+func (e *CompareFailedError) IsCompareFailedError() bool {
+	return true
+}
+
 // IsCompareFailed detects if this error is of CompareFailed kind
 func IsCompareFailed(e error) bool {
 	type cf interface {

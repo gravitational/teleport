@@ -33,8 +33,6 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events/boltlog"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
@@ -59,7 +57,7 @@ type SrvSuite struct {
 	srvHostPort   string
 	sessionServer sess.Service
 	clt           *ssh.Client
-	bk            *encryptedbk.ReplicatedBackend
+	bk            backend.Backend
 	a             *auth.AuthServer
 	roleAuth      *auth.AuthWithRoles
 	up            *upack
@@ -86,11 +84,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	s.freePorts, err = utils.GetFreeTCPPorts(10)
 	c.Assert(err, IsNil)
 
-	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
-	c.Assert(err, IsNil)
-	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk,
-		filepath.Join(s.dir, "keys"), nil,
-		encryptor.GetTestKey)
+	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
 
 	s.domainName = "localhost"
@@ -102,7 +96,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	eventsLog, err := boltlog.New(filepath.Join(s.dir, "boltlog"))
 	c.Assert(err, IsNil)
 
-	sessionServer, err := sess.New(baseBk)
+	sessionServer, err := sess.New(s.bk)
 	s.sessionServer = sessionServer
 	c.Assert(err, IsNil)
 	s.roleAuth = auth.NewAuthWithRoles(s.a,
@@ -148,7 +142,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(s.srv.registerServer(), IsNil)
 
 	// set up SSH client using the user private key for signing
-	up, err := newUpack(s.user, s.a)
+	up, err := newUpack(s.user, []string{s.user}, s.a)
 	c.Assert(err, IsNil)
 
 	// set up an agent server and a client that uses agent for forwarding
@@ -225,7 +219,7 @@ func (s *SrvSuite) TestShell(c *C) {
 }
 
 func (s *SrvSuite) TestAllowedUsers(c *C) {
-	up, err := newUpack("user2", s.a)
+	up, err := newUpack(s.user, []string{s.user}, s.a)
 	c.Assert(err, IsNil)
 
 	sshConfig := &ssh.ClientConfig{
@@ -234,18 +228,21 @@ func (s *SrvSuite) TestAllowedUsers(c *C) {
 	}
 
 	client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
-	c.Assert(err, NotNil)
+	c.Assert(err, IsNil)
 
-	c.Assert(s.a.UpsertUser(services.User{Name: "user2", AllowedLogins: []string{s.user}}), IsNil)
 	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 	c.Assert(err, IsNil)
 	c.Assert(client.Close(), IsNil)
 
-	c.Assert(s.a.UpsertUser(services.User{Name: "user2", AllowedLogins: []string{}}), IsNil)
-	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
-	c.Assert(err, NotNil)
+	// now remove OS user from valid principals
+	up, err = newUpack(s.user, []string{"otheruser"}, s.a)
+	c.Assert(err, IsNil)
 
-	c.Assert(s.a.UpsertUser(services.User{Name: "user2", AllowedLogins: []string{"wrongosuser"}}), IsNil)
+	sshConfig = &ssh.ClientConfig{
+		User: s.user,
+		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+	}
+
 	client, err = ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 	c.Assert(err, NotNil)
 }
@@ -332,7 +329,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	c.Assert(proxy.Start(), IsNil)
 
 	// set up SSH client using the user private key for signing
-	up, err := newUpack("user1", s.a)
+	up, err := newUpack(s.user, []string{s.user}, s.a)
 	c.Assert(err, IsNil)
 
 	bl, err := boltlog.New(filepath.Join(s.dir, "eventsdb"))
@@ -496,7 +493,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	c.Assert(proxy.Start(), IsNil)
 
 	// set up SSH client using the user private key for signing
-	up, err := newUpack("user1", s.a)
+	up, err := newUpack(s.user, []string{s.user}, s.a)
 	c.Assert(err, IsNil)
 
 	bl, err := boltlog.New(filepath.Join(s.dir, "eventsdb"))
@@ -593,7 +590,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	c.Assert(proxy.Start(), IsNil)
 
 	// set up SSH client using the user private key for signing
-	up, err := newUpack("user1", s.a)
+	up, err := newUpack(s.user, []string{s.user}, s.a)
 	c.Assert(err, IsNil)
 
 	bl, err := boltlog.New(filepath.Join(s.dir, "eventsdb"))
@@ -802,8 +799,13 @@ type upack struct {
 	certSigner ssh.Signer
 }
 
-func newUpack(user string, a *auth.AuthServer) (*upack, error) {
+func newUpack(user string, allowedLogins []string, a *auth.AuthServer) (*upack, error) {
 	upriv, upub, err := a.GenerateKeyPair("")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = a.UpsertUser(services.User{Name: user, AllowedLogins: allowedLogins})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

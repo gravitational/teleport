@@ -107,7 +107,8 @@ func (s *MainTestSuite) TestConfigFile(c *check.C) {
 const YAMLConfig = `
 teleport:
   nodename: hvostongo.example.org
-  auth_servers: tcp://auth.server.example.org:3024
+  auth_servers:
+    - tcp://auth.server.example.org:3024
   auth_token: xxxyyy
   log:
     output: stderr

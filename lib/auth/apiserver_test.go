@@ -25,8 +25,6 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk"
-	"github.com/gravitational/teleport/lib/backend/encryptedbk/encryptor"
 	"github.com/gravitational/teleport/lib/events/boltlog"
 	etest "github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/recorder"
@@ -46,7 +44,7 @@ func TestAPI(t *testing.T) { TestingT(t) }
 type APISuite struct {
 	srv *httptest.Server
 	clt *Client
-	bk  *encryptedbk.ReplicatedBackend
+	bk  backend.Backend
 	bl  *boltlog.BoltLog
 	rec recorder.Recorder
 	a   *AuthServer
@@ -69,11 +67,8 @@ func (s *APISuite) SetUpSuite(c *C) {
 func (s *APISuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
 
-	baseBk, err := boltbk.New(filepath.Join(s.dir, "db"))
-	c.Assert(err, IsNil)
-	s.bk, err = encryptedbk.NewReplicatedBackend(baseBk,
-		filepath.Join(s.dir, "keys"), nil,
-		encryptor.GetTestKey)
+	var err error
+	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
 
 	s.bl, err = boltlog.New(filepath.Join(s.dir, "eventsdb"))
@@ -147,6 +142,9 @@ func (s *APISuite) TestGenerateUserCert(c *C) {
 	_, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
+	s.a.UpsertUser(
+		services.User{Name: "user1", AllowedLogins: []string{"user1"}})
+
 	// make sure we can parse the private and public key
 	cert, err := s.clt.GenerateUserCert(pub, "user1", time.Hour)
 	c.Assert(err, IsNil)
@@ -161,6 +159,9 @@ func (s *APISuite) TestKeysCRUD(c *C) {
 
 	_, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
+
+	s.a.UpsertUser(
+		services.User{Name: "user1", AllowedLogins: []string{"user1"}})
 
 	// make sure we can parse the private and public key
 	cert, err := s.clt.GenerateUserCert(pub, "user1", time.Hour)
@@ -232,6 +233,9 @@ func (s *APISuite) TestSessions(c *C) {
 
 	c.Assert(s.a.UpsertCertAuthority(
 		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+
+	s.a.UpsertUser(
+		services.User{Name: "user1", AllowedLogins: []string{"user1"}})
 
 	ws, err := s.clt.SignIn(user, pass)
 	c.Assert(err, NotNil)
