@@ -1,6 +1,6 @@
 # Teleport
 
-Teleport is a SSH infrastructure for clusters of Linux servers. Teleport extends 
+Teleport is a SSH server designed for clusters of Linux servers. Teleport extends 
 traditional SSH with the following capabilities:
 
 * Provides coordinated and secure access to multiple Linux clusters by multiple teams 
