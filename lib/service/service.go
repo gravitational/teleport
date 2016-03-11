@@ -508,9 +508,9 @@ func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 	var err error
 
 	switch cfg.KeysBackend.Type {
-	case "etcd":
+	case teleport.ETCDBackendType:
 		bk, err = etcdbk.FromJSON(cfg.KeysBackend.Params)
-	case "bolt":
+	case teleport.BoltBackendType:
 		bk, err = boltbk.FromJSON(cfg.KeysBackend.Params)
 	default:
 		return nil, trace.Errorf("unsupported backend type: %v", cfg.KeysBackend.Type)

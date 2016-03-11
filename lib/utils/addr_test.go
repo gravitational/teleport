@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package utils
 
 import (
@@ -58,6 +59,15 @@ func (s *AddrTestSuite) TestParse(c *C) {
 	c.Assert(addr.Addr, Equals, "one:25")
 	c.Assert(addr.Path, Equals, "/path")
 	c.Assert(addr.FullAddress(), Equals, "tcp://one:25")
+	c.Assert(addr.IsEmpty(), Equals, false)
+}
+
+func (s *AddrTestSuite) TestParseDefaults(c *C) {
+	addr, err := ParseAddr("host:25")
+	c.Assert(err, IsNil)
+	c.Assert(addr, NotNil)
+	c.Assert(addr.Addr, Equals, "host:25")
+	c.Assert(addr.FullAddress(), Equals, "tcp://host:25")
 	c.Assert(addr.IsEmpty(), Equals, false)
 }
 

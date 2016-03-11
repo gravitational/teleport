@@ -62,6 +62,9 @@ test-package: remove-temp-files install
 test-package-with-etcd: remove-temp-files install
 	${ETCD_FLAGS} go test -v -test.parallel=0 ./$(p)
 
+test-grep-package-with-etcd: remove-temp-files install
+	${ETCD_FLAGS} go test -v -test.parallel=0 ./$(p) -check.f=$(e)
+
 
 test-grep-package: remove-temp-files install
 	go test -v ./$(p) -check.f=$(e)

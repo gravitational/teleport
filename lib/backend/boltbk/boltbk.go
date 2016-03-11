@@ -13,7 +13,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-// package boltbk implements BoltDB backed backend for standalone instances
+
+// Package boltbk implements BoltDB backed backend for standalone instances
+// and test mode, you should use Etcd in production
 package boltbk
 
 import (
@@ -174,14 +176,14 @@ func (b *BoltBackend) CompareAndSwap(path []string, key string, val []byte, ttl 
 	defer b.Unlock()
 
 	storedVal, err := b.GetVal(path, key)
-	if teleport.IsNotFound(err) {
-		storedVal = []byte{}
-		err = nil
-	}
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if teleport.IsNotFound(err) && len(prevVal) != 0 {
+			return nil, err
+		}
 	}
-
+	if len(prevVal) == 0 && err == nil {
+		return nil, trace.Wrap(teleport.AlreadyExists(fmt.Sprintf("key '%v' already exists", key)))
+	}
 	if string(prevVal) == string(storedVal) {
 		err = b.upsertVal(path, key, val, ttl)
 		if err != nil {
@@ -341,6 +343,10 @@ func (b *BoltBackend) getKey(buckets []string, key string, val *[]byte) error {
 		}
 		bytes := bkt.Get([]byte(key))
 		if bytes == nil {
+			_, err := GetBucket(tx, append(buckets, key))
+			if err == nil {
+				return trace.Wrap(teleport.BadParameter(key, "key is a bucket"))
+			}
 			return trace.Wrap(&teleport.NotFoundError{
 				Message: fmt.Sprintf("%v %v not found", buckets, key),
 			})
