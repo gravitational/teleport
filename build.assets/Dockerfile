@@ -40,7 +40,7 @@ RUN (mkdir -p /gopath/src/github.com/gravitational/teleport;\
      chmod a+w /gopath;\
      chmod a+w /var/lib)
 
-RUN groupadd jenkins --gid=995 && useradd jenkins --uid=997 --gid=995 && mkdir /home/jenkins && chown jenkins:jenkins /home/jenkins
+RUN groupadd jenkins --gid=995 && useradd jenkins --uid=997 --gid=995 --create-home --shell=/bin/sh
 RUN (mkdir -p /var/lib/teleport && chown -R jenkins /var/lib/teleport)
 
 ENV LANGUAGE="en_US.UTF-8" \
