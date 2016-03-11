@@ -23,8 +23,6 @@ import (
 	"os"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -32,6 +30,8 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 )
 
@@ -96,10 +96,9 @@ func applyFileConfig(fc *config.FileConfig, cfg *service.Config) error {
 	applyString(fc.NodeName, &cfg.Hostname)
 
 	// config file has auth servers in there?
-	authServers := fc.GetAuthServers()
-	if len(authServers) > 0 {
-		cfg.AuthServers = make(service.NetAddrSlice, len(authServers))
-		for _, as := range fc.GetAuthServers() {
+	if len(fc.AuthServers) > 0 {
+		cfg.AuthServers = make(service.NetAddrSlice, 0, len(fc.AuthServers))
+		for _, as := range fc.AuthServers {
 			addr, err := utils.ParseAddr(as)
 			if err != nil {
 				return trace.Errorf("cannot parse auth server address: '%v'", as)
@@ -109,14 +108,19 @@ func applyFileConfig(fc *config.FileConfig, cfg *service.Config) error {
 	}
 	cfg.ApplyToken(fc.AuthToken)
 
-	// configure bolt storage:
+	// configure storage:
 	switch fc.Storage.Type {
-	case "bolt":
+	case teleport.BoltBackendType:
 		cfg.ConfigureBolt(fc.Storage.DirName)
+	case teleport.ETCDBackendType:
+		if err := cfg.ConfigureETCD(fc.Storage.DirName, fc.Storage.Peers, fc.Storage.Prefix); err != nil {
+			return trace.Wrap(err)
+		}
 	case "":
 		break // not set
 	default:
-		return trace.Errorf("unsupported storage type: '%v'", fc.Storage.Type)
+		return trace.Wrap(teleport.BadParameter(
+			"storage", fmt.Sprintf("unsupported storage type: '%v'", fc.Storage.Type)))
 	}
 
 	// apply logger settings

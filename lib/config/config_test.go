@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package config
 
 import (
@@ -115,7 +116,7 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(conf, check.NotNil)
 	c.Assert(conf.NodeName, check.Equals, NodeName)
-	c.Assert(conf.GetAuthServers(), check.DeepEquals, []string{"tcp://auth.server.example.org:3024", "tcp://auth.server.example.com:3024"})
+	c.Assert(conf.AuthServers, check.DeepEquals, []string{"tcp://auth0.server.example.org:3024", "tcp://auth1.server.example.org:3024"})
 	c.Assert(conf.Limits.MaxConnections, check.Equals, int64(100))
 	c.Assert(conf.Limits.MaxUsers, check.Equals, 5)
 	c.Assert(conf.Limits.Rates, check.DeepEquals, ConnectionRates)
@@ -158,7 +159,7 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(conf.Limits.Rates[1].Period.String(), check.Equals, "10m10s")
 
 	c.Assert(conf.SSH.Disabled(), check.Equals, true) // "ssh_service" has been explicitly set to "no"
-	c.Assert(conf.Storage.Peers, check.Equals, "one,two")
+	c.Assert(conf.Storage.Peers, check.DeepEquals, []string{"one", "two"})
 	c.Assert(conf.SSH.Commands, check.HasLen, 2)
 	c.Assert(conf.SSH.Commands[0].Name, check.Equals, "hostname")
 	c.Assert(conf.SSH.Commands[0].Command, check.DeepEquals, []string{"/bin/hostname"})
@@ -171,7 +172,7 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 
 var (
 	NodeName        = "edsger.example.com"
-	AuthServers     = "tcp://auth.server.example.org:3024, tcp://auth.server.example.com:3024"
+	AuthServers     = []string{"tcp://auth0.server.example.org:3024", "tcp://auth1.server.example.org:3024"}
 	ConnectionRates = []ConnectionRate{
 		{
 			Period:  time.Minute,
@@ -245,14 +246,16 @@ const (
 #
 teleport:
   nodename: edsger.example.com
-  auth_servers: tcp://auth.server.example.org:3024
+  auth_servers:
+    - tcp://auth0.server.example.org:3024
+    - tcp://auth1.server.example.org:3024
   auth_token: xxxyyy
   log:
     output: stderr
     severity: INFO
   storage:
     type: etcd
-    peers: one,two
+    peers: ['one', 'two']
   connection_limits:
     max_connections: 90
     max_users: 91

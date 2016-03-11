@@ -18,21 +18,21 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
 
-	"io"
-
-	log "github.com/Sirupsen/logrus"
-	"gopkg.in/yaml.v2"
-
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v2"
 )
 
 // Config structure is used to initialize _all_ services Teleporot can run.
@@ -79,22 +79,42 @@ func (cfg *Config) ApplyToken(token string) bool {
 	return false
 }
 
-// Configures Bolt back-ends with a data dir.
+// ConfigureBolt configures Bolt back-ends with a data dir.
 func (cfg *Config) ConfigureBolt(dataDir string) {
-	const boltType = "bolt"
-	a := cfg.Auth
+	a := &cfg.Auth
 
-	if a.EventsBackend.Type == boltType {
+	if a.EventsBackend.Type == teleport.BoltBackendType {
 		a.EventsBackend.Params = boltParams(dataDir, defaults.EventsBoltFile)
 	}
-	if a.KeysBackend.Type == boltType {
+	if a.KeysBackend.Type == teleport.BoltBackendType {
 		a.KeysBackend.Params = boltParams(dataDir, defaults.KeysBoltFile)
 	}
-	if a.RecordsBackend.Type == boltType {
+	if a.RecordsBackend.Type == teleport.BoltBackendType {
 		a.RecordsBackend.Params = boltParams(dataDir, defaults.RecordsBoltFile)
 	}
 }
 
+// ConfigureETCD configures ETCD backend (still uses BoltDB for some cases)
+func (cfg *Config) ConfigureETCD(dataDir string, peers []string, key string) error {
+	a := &cfg.Auth
+
+	params, err := etcdParams(peers, key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	a.KeysBackend.Type = teleport.ETCDBackendType
+	a.KeysBackend.Params = params
+
+	// We can't store records and events in ETCD
+	a.EventsBackend.Type = teleport.BoltBackendType
+	a.EventsBackend.Params = boltParams(dataDir, defaults.EventsBoltFile)
+
+	a.RecordsBackend.Type = teleport.BoltBackendType
+	a.RecordsBackend.Params = boltParams(dataDir, defaults.RecordsBoltFile)
+	return nil
+}
+
+// RoleConfig is a config for particular Teleport role
 func (cfg *Config) RoleConfig() RoleConfig {
 	return RoleConfig{
 		DataDir:     cfg.DataDir,
@@ -106,7 +126,7 @@ func (cfg *Config) RoleConfig() RoleConfig {
 	}
 }
 
-// DebugDumpToYAML() is useful for debugging: it dumps the Config structure into
+// DebugDumpToYAML is useful for debugging: it dumps the Config structure into
 // a string
 func (cfg *Config) DebugDumpToYAML() string {
 	out, err := yaml.Marshal(cfg)
@@ -369,4 +389,13 @@ func ApplyDefaults(cfg *Config) {
 // `{"path": "/var/lib/teleport/records.db"}`
 func boltParams(storagePath, dbFile string) string {
 	return fmt.Sprintf(`{"path": "%s"}`, filepath.Join(storagePath, dbFile))
+}
+
+// etcdParams generates a string accepted by the ETCD driver, like this:
+func etcdParams(peers []string, key string) (string, error) {
+	out, err := json.Marshal(etcdbk.Config{Nodes: peers, Key: key})
+	if err != nil { // don't know what to do seriously
+		return "", trace.Wrap(err)
+	}
+	return string(out), nil
 }

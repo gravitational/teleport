@@ -65,13 +65,13 @@ func (s *BackendSuite) BasicCRUD(c *C) {
 	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "akey", []byte("val2"), 0), IsNil)
 
 	_, err = s.B.GetVal([]string{"a"}, "b")
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 	_, _, err = s.B.GetValAndTTL([]string{"a"}, "b")
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 	_, err = s.B.GetVal([]string{"a", "b"}, "x")
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	c.Assert(teleport.IsNotFound(err), Equals, true, Commentf("%#v", err))
 	_, _, err = s.B.GetValAndTTL([]string{"a", "b"}, "x")
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	c.Assert(teleport.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
 	keys, _ = s.B.GetKeys([]string{"a", "b", "bkey"})
 	c.Assert(len(keys), Equals, 0)
@@ -94,36 +94,33 @@ func (s *BackendSuite) BasicCRUD(c *C) {
 	c.Assert(string(out), Equals, "val-updated")
 
 	c.Assert(s.B.DeleteKey([]string{"a", "b"}, "bkey"), IsNil)
-	c.Assert(s.B.DeleteKey([]string{"a", "b"}, "bkey"), FitsTypeOf, &teleport.NotFoundError{})
+	c.Assert(teleport.IsNotFound(s.B.DeleteKey([]string{"a", "b"}, "bkey")), Equals, true)
 	_, err = s.B.GetVal([]string{"a", "b"}, "bkey")
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	c.Assert(teleport.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
 	c.Assert(s.B.UpsertVal([]string{"a", "c"}, "xkey", []byte("val3"), 0), IsNil)
 	c.Assert(s.B.UpsertVal([]string{"a", "c"}, "ykey", []byte("val4"), 0), IsNil)
 	c.Assert(s.B.DeleteBucket([]string{"a"}, "c"), IsNil)
 	_, err = s.B.GetVal([]string{"a", "c"}, "xkey")
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	c.Assert(teleport.IsNotFound(err), Equals, true, Commentf("%#v", err))
 	_, err = s.B.GetVal([]string{"a", "c"}, "ykey")
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
-
+	c.Assert(teleport.IsNotFound(err), Equals, true, Commentf("%#v", err))
 }
 
 func (s *BackendSuite) CompareAndSwap(c *C) {
 	prev, err := s.B.CompareAndSwap([]string{"a", "b"}, "bkey", []byte("val10"), 0, []byte("1231"))
-	c.Assert(err, FitsTypeOf, &teleport.CompareFailedError{})
+	c.Assert(teleport.IsNotFound(err), Equals, true, Commentf("%#v", err))
 	c.Assert(len(prev), Equals, 0)
 
 	prev, err = s.B.CompareAndSwap([]string{"a", "b"}, "bkey", []byte("val1"), 0, []byte{})
 	c.Assert(err, IsNil)
 	c.Assert(len(prev), Equals, 0)
 
-	prev, err = s.B.CompareAndSwap([]string{"a", "b"}, "bkey", []byte("val2"), 0, []byte{})
-	c.Assert(err, FitsTypeOf, &teleport.CompareFailedError{})
-	c.Assert(string(prev), DeepEquals, "val1")
+	_, err = s.B.CompareAndSwap([]string{"a", "b"}, "bkey", []byte("val2"), 0, []byte{})
+	c.Assert(teleport.IsAlreadyExists(err), Equals, true, Commentf("%#v", err))
 
-	prev, err = s.B.CompareAndSwap([]string{"a", "b"}, "bkey", []byte("val2"), 0, []byte("abcd"))
-	c.Assert(err, FitsTypeOf, &teleport.CompareFailedError{})
-	c.Assert(string(prev), DeepEquals, "val1")
+	_, err = s.B.CompareAndSwap([]string{"a", "b"}, "bkey", []byte("val2"), 0, []byte("abcd"))
+	c.Assert(teleport.IsCompareFailed(err), Equals, true, Commentf("%#v", err))
 
 	out, err := s.B.GetVal([]string{"a", "b"}, "bkey")
 	c.Assert(err, IsNil)
@@ -194,7 +191,8 @@ func (s *BackendSuite) Locking(c *C) {
 	tok1 := "token1"
 	tok2 := "token2"
 
-	c.Assert(s.B.ReleaseLock(tok1), FitsTypeOf, &teleport.NotFoundError{})
+	err := teleport.IsNotFound(s.B.ReleaseLock(tok1))
+	c.Assert(err, Equals, true, Commentf("%#v", err))
 
 	c.Assert(s.B.AcquireLock(tok1, time.Second), IsNil)
 	x := int32(7)

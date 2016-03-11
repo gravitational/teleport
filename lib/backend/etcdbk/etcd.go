@@ -13,55 +13,54 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-// etcdbk implements Etcd powered backend
+
+// Package etcdbk implements Etcd powered backend
 package etcdbk
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/coreos/go-etcd/etcd"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
+
+	"github.com/coreos/etcd/client"
+	"github.com/gravitational/trace"
+	"golang.org/x/net/context"
 )
 
-type BackendOption func(b *bk) error
-
-func Consistency(v string) BackendOption {
-	return func(b *bk) error {
-		b.etcdConsistency = v
-		return nil
-	}
-}
+// Option is a functional option parameter that can be passed to the backend
+type Option func(b *bk) error
 
 type bk struct {
 	nodes []string
 
-	etcdConsistency string
-	etcdKey         string
-	client          *etcd.Client
-	cancelC         chan bool
-	stopC           chan bool
+	etcdKey string
+	client  client.Client
+	api     client.KeysAPI
+	cancelC chan bool
+	stopC   chan bool
 }
 
-func New(nodes []string, etcdKey string, options ...BackendOption) (backend.Backend, error) {
+// New returns new instance of Etcd-powered backend
+func New(nodes []string, key string, options ...Option) (backend.Backend, error) {
 	if len(nodes) == 0 {
-		return nil, fmt.Errorf("empty list of etcd nodes, supply at least one node")
+		return nil, trace.Wrap(
+			teleport.BadParameter("nodes",
+				"empty list of etcd nodes, supply at least one node"))
 	}
-
-	if len(etcdKey) == 0 {
-		return nil, fmt.Errorf("supply a valid etcd key")
+	if len(key) == 0 {
+		return nil, trace.Wrap(
+			teleport.BadParameter("key",
+				"provide key for this backend"))
 	}
-
 	b := &bk{
 		nodes:   nodes,
-		etcdKey: etcdKey,
+		etcdKey: key,
 		cancelC: make(chan bool, 1),
 		stopC:   make(chan bool, 1),
 	}
-	b.etcdConsistency = etcd.WEAK_CONSISTENCY
 	for _, o := range options {
 		if err := o(b); err != nil {
 			return nil, err
@@ -82,170 +81,161 @@ func (b *bk) key(keys ...string) string {
 }
 
 func (b *bk) reconnect() error {
-	b.client = etcd.NewClient(b.nodes)
+	clt, err := client.New(client.Config{
+		Endpoints:               b.nodes,
+		Transport:               client.DefaultTransport,
+		HeaderTimeoutPerRequest: time.Second,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	b.client = clt
+	b.api = client.NewKeysAPI(b.client)
+
 	return nil
 }
 
 func (b *bk) GetKeys(path []string) ([]string, error) {
 	keys, err := b.getKeys(b.key(path...))
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	sort.Sort(sort.StringSlice(keys))
 	return keys, nil
 }
 
 func (b *bk) CreateVal(path []string, key string, val []byte, ttl time.Duration) error {
-	panic("implement me")
-	return nil
+	_, err := b.api.Set(
+		context.Background(),
+		b.key(append(path, key)...), string(val),
+		&client.SetOptions{PrevExist: client.PrevNoExist, TTL: ttl})
+	return trace.Wrap(convertErr(err))
 }
 
+// maxOptimisticAttempts is the number of attempts optimistic locking
+const maxOptimisticAttempts = 5
+
 func (b *bk) TouchVal(path []string, key string, ttl time.Duration) error {
-	panic("implement me")
-	return nil
+	var err error
+	var re *client.Response
+	for i := 0; i < maxOptimisticAttempts; i++ {
+		re, err = b.api.Get(context.Background(), key, nil)
+		if err != nil {
+			return trace.Wrap(convertErr(err))
+		}
+		_, err = b.api.Set(
+			context.Background(),
+			b.key(append(path, key)...), string(re.Node.Value),
+			&client.SetOptions{TTL: ttl, PrevValue: re.Node.Value, PrevExist: client.PrevExist})
+		err = convertErr(err)
+		if err == nil {
+			return nil
+		}
+	}
+	return trace.Wrap(err)
 }
 
 func (b *bk) UpsertVal(path []string, key string, val []byte, ttl time.Duration) error {
-	_, err := b.client.Set(
-		b.key(append(path, key)...), string(val), uint64(ttl/time.Second))
+	_, err := b.api.Set(
+		context.Background(),
+		b.key(append(path, key)...), string(val), &client.SetOptions{TTL: ttl})
 	return convertErr(err)
 }
 
 func (b *bk) CompareAndSwap(path []string, key string, val []byte, ttl time.Duration, prevVal []byte) ([]byte, error) {
 	var err error
-	var resp *etcd.Response
+	var re *client.Response
 	if len(prevVal) != 0 {
-		resp, err = b.client.CompareAndSwap(
-			b.key(append(path, key)...),
-			string(val),
-			uint64(ttl/time.Second),
-			string(prevVal),
-			0,
-		)
+		re, err = b.api.Set(
+			context.Background(),
+			b.key(append(path, key)...), string(val),
+			&client.SetOptions{TTL: ttl, PrevValue: string(prevVal), PrevExist: client.PrevExist})
 	} else {
-		resp, err = b.client.Create(
-			b.key(append(path, key)...),
-			string(val),
-			uint64(ttl/time.Second),
-		)
+		re, err = b.api.Set(
+			context.Background(),
+			b.key(append(path, key)...), string(val),
+			&client.SetOptions{TTL: ttl, PrevExist: client.PrevNoExist})
 	}
-
 	err = convertErr(err)
-
-	if err != nil && !teleport.IsNotFound(err) {
-		var e error
-		resp, e = b.client.Get(
-			b.key(append(path, key)...),
-			false, false,
-		)
-		if e != nil {
-			return nil, e
-		}
-	}
-
-	prevValStr := ""
-	if len(prevVal) > 0 {
-		prevValStr = string(prevVal)
-	}
 	if err != nil {
-		if teleport.IsCompareFailed(err) {
-			e := &teleport.CompareFailedError{
-				Message: "Expected '" + prevValStr + "', obtained '" + resp.Node.Value + "'",
-			}
-			return []byte(resp.Node.Value), e
-		}
-		if teleport.IsNotFound(err) {
-			e := &teleport.NotFoundError{
-				Message: "Expected '" + prevValStr + "', obtained ''",
-			}
-			return []byte{}, e
-		}
-		if teleport.IsAlreadyExists(err) {
-			e := &teleport.CompareFailedError{
-				Message: "Expected '', obtained '" + resp.Node.Value + "'",
-			}
-			return []byte(resp.Node.Value), e
-		}
-		return nil, convertErr(err)
+		return nil, trace.Wrap(err)
 	}
-	if resp.PrevNode != nil {
-		return []byte(resp.PrevNode.Value), nil
-	} else {
-		return nil, nil
+	if re.PrevNode != nil {
+		return []byte(re.PrevNode.Value), nil
 	}
+	return nil, nil
 }
 
 func (b *bk) GetVal(path []string, key string) ([]byte, error) {
-	re, err := b.client.Get(b.key(append(path, key)...), false, false)
+	re, err := b.api.Get(context.Background(), b.key(append(path, key)...), nil)
 	if err != nil {
 		return nil, convertErr(err)
 	}
 	if re.Node.Dir {
-		return nil, &teleport.NotFoundError{Message: "Trying to get value of bucket"}
+		return nil, trace.Wrap(teleport.BadParameter(key, "trying to get value of bucket"))
 	}
 	return []byte(re.Node.Value), nil
 }
 
 func (b *bk) GetValAndTTL(path []string, key string) ([]byte, time.Duration, error) {
-	re, err := b.client.Get(b.key(append(path, key)...), false, false)
+	re, err := b.api.Get(context.Background(), b.key(append(path, key)...), nil)
 	if err != nil {
 		return nil, 0, convertErr(err)
 	}
 	if re.Node.Dir {
-		return nil, 0, &teleport.NotFoundError{Message: "Trying to get value of bucket"}
+		return nil, 0, trace.Wrap(
+			teleport.BadParameter(key, "trying to get value of bucket"))
 	}
 	return []byte(re.Node.Value), time.Duration(re.Node.TTL) * time.Second, nil
 }
 
 func (b *bk) DeleteKey(path []string, key string) error {
-	_, err := b.client.Delete(b.key(append(path, key)...), false)
+	_, err := b.api.Delete(context.Background(), b.key(append(path, key)...), nil)
 	return convertErr(err)
 }
 
 func (b *bk) DeleteBucket(path []string, key string) error {
-	_, err := b.client.Delete(b.key(append(path, key)...), true)
+	_, err := b.api.Delete(context.Background(), b.key(append(path, key)...), &client.DeleteOptions{Dir: true, Recursive: true})
 	return convertErr(err)
 }
 
+const delayBetweenLockAttempts = 100 * time.Millisecond
+
 func (b *bk) AcquireLock(token string, ttl time.Duration) error {
 	for {
-		_, e := b.client.Create(
-			b.key("locks", token), "lock", uint64(ttl/time.Second))
-		if e == nil {
+		_, err := b.api.Set(
+			context.Background(),
+			b.key("locks", token), "lock", &client.SetOptions{TTL: ttl, PrevExist: client.PrevNoExist})
+		err = convertErr(err)
+		if err == nil {
 			return nil
 		}
-		switch err := e.(type) {
-		case *etcd.EtcdError:
-			switch err.ErrorCode {
-			case 100:
-				return &teleport.NotFoundError{Message: err.Error()}
-			case 105:
-				time.Sleep(100 * time.Millisecond)
-			default:
-				return e
+		if err != nil {
+			if !teleport.IsCompareFailed(err) && !teleport.IsAlreadyExists(err) {
+				return trace.Wrap(err)
 			}
-		default:
-			return e
+			time.Sleep(delayBetweenLockAttempts)
 		}
 	}
 }
 
 func (b *bk) ReleaseLock(token string) error {
-	_, err := b.client.Delete(b.key("locks", token), false)
+	_, err := b.api.Delete(context.Background(), b.key("locks", token), nil)
 	return convertErr(err)
 }
 
 func (b *bk) getKeys(key string) ([]string, error) {
-	vals := []string{}
-	re, err := b.client.Get(key, true, false)
+	var vals []string
+	re, err := b.api.Get(context.Background(), key, nil)
+	err = convertErr(err)
 	if err != nil {
-		if notFound(err) {
+		if teleport.IsNotFound(err) {
 			return vals, nil
 		}
-		return nil, convertErr(err)
+		return nil, trace.Wrap(err)
 	}
 	if !isDir(re.Node) {
-		return nil, fmt.Errorf("expected directory")
+		return nil, trace.Wrap(teleport.BadParameter(key, "expected directory"))
 	}
 	for _, n := range re.Node.Nodes {
 		vals = append(vals, suffix(n.Key))
@@ -253,30 +243,27 @@ func (b *bk) getKeys(key string) ([]string, error) {
 	return vals, nil
 }
 
-func notFound(e error) bool {
-	err, ok := e.(*etcd.EtcdError)
-	return ok && err.ErrorCode == 100
-}
-
 func convertErr(e error) error {
 	if e == nil {
 		return nil
 	}
 	switch err := e.(type) {
-	case *etcd.EtcdError:
-		switch err.ErrorCode {
-		case 100:
+	case client.Error:
+		switch err.Code {
+		case client.ErrorCodeKeyNotFound:
 			return &teleport.NotFoundError{Message: err.Error()}
-		case 105:
+		case client.ErrorCodeNotFile:
+			return &teleport.BadParameterError{Err: err.Error()}
+		case client.ErrorCodeNodeExist:
 			return &teleport.AlreadyExistsError{Message: err.Error()}
-		case 101:
+		case client.ErrorCodeTestFailed:
 			return &teleport.CompareFailedError{Message: err.Error()}
 		}
 	}
 	return e
 }
 
-func isDir(n *etcd.Node) bool {
+func isDir(n *client.Node) bool {
 	return n != nil && n.Dir == true
 }
 
