@@ -37,17 +37,19 @@ clean:
 #
 # this target is used by Jenkins for production builds
 #
-.PHONY: production
+.PHONY: produtcion
 production: clean
 	$(MAKE) -C build.assets
 
 #
 # tests everything: called by Jenkins
 #
+test: FLAGS ?= -cover
 test: 
 	go test -v github.com/gravitational/teleport/tool/tsh/... \
 			   github.com/gravitational/teleport/lib/... \
-			   github.com/gravitational/teleport/tool/teleport... -cover
+			   github.com/gravitational/teleport/tool/teleport... $(FLAGS)
+	go vet ./tool/... ./lib/...
 
 
 test-with-etcd: install

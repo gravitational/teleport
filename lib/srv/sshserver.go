@@ -284,7 +284,7 @@ func (s *Server) updateLabels() {
 }
 
 func (s *Server) syncUpdateLabels() {
-	for name, label := range s.cmdLabels {
+	for name, label := range s.getCommandLabels() {
 		s.updateLabel(name, label)
 	}
 }
