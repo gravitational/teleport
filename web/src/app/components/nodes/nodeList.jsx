@@ -108,7 +108,7 @@ var NodeList = React.createClass({
       <div className="grv-nodes">
         <h1> Nodes </h1>
         <div className="grv-search">
-          <input valueLink={this.linkState('filter')} placeholder="Search..." className="form-control"/>
+          <input valueLink={this.linkState('filter')} placeholder="Search..." className="form-control input-sm"/>
         </div>
         <div className="">
           <Table rowCount={data.length} className="table-striped grv-nodes-table">

@@ -4,8 +4,8 @@ var LinkedStateMixin = require('react-addons-linked-state-mixin');
 var {Table, Column, Cell, TextCell, SortHeaderCell, SortTypes} = require('app/components/table.jsx');
 var {open} = require('app/modules/activeTerminal/actions');
 var moment =  require('moment');
-var _ = require('_');
 var {isMatch} = require('app/common/objectUtils');
+var _ = require('_');
 
 const DateCreatedCell = ({ rowIndex, data, ...props }) => {
   var created = data[rowIndex].created;
@@ -57,6 +57,7 @@ const ButtonCell = ({ rowIndex, data, ...props }) => {
   )
 }
 
+
 var SessionList = React.createClass({
 
   mixins: [LinkedStateMixin],
@@ -100,10 +101,9 @@ var SessionList = React.createClass({
   render: function() {
     var data = this.sortAndFilter(this.props.sessionRecords);
     return (
-      <div className="grv-sessions">
-        <h1> Sessions</h1>
+      <div>        
         <div className="grv-search">
-          <input valueLink={this.linkState('filter')} placeholder="Search..." className="form-control"/>
+          <input valueLink={this.linkState('filter')} placeholder="Search..." className="form-control input-sm"/>
         </div>
         <div className="">
           <Table rowCount={data.length} className="table-striped">
