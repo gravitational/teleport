@@ -39,7 +39,9 @@ RUN (mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/go1.
 RUN (mkdir -p /gopath/src/github.com/gravitational/teleport;\
      chmod a+w /gopath;\
      chmod a+w /var/lib)
-RUN mkdir -p /var/lib/teleport
+
+RUN useradd jenkins --uid=997 --gid=995
+RUN (mkdir -p /var/lib/teleport && chown -R jenkins /var/lib/teleport)
 
 ENV LANGUAGE="en_US.UTF-8" \
     LANG="en_US.UTF-8" \
