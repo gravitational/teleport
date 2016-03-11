@@ -110,7 +110,3 @@ deploy:
 .PHONY: provision
 provision:
 	ansible-playbook -i deploy/hosts deploy/provision.yaml
-
-.PHONY: jenkins
-jenkins:
-	curl -X POST -d TARGETENV=staging -d BRANCH=$$(git rev-parse --abbrev-ref HEAD) https://jenkins.gravitational.io/buildByToken/buildWithParameters?job=Teleport&token=ZeeYaeYuTh9quiu8eh3rieChohHoor8aib0oopoov0aewah8 
