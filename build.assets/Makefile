@@ -7,7 +7,6 @@ TELEPORT_PACKAGE=$(OUT)/teleport-app.tar.gz
 
 # Build artifacts
 BUILD_BUCKET_URL=s3://builds.gravitational.io/teleport
-BUILD_BUCKET_REGION=us-east-1
 BUILD_TAG=$(shell git describe)
 
 all: build build-package
@@ -60,5 +59,4 @@ $(TELEPORT_PACKAGE):
 #
 deploy: build-package
 	@echo "Deploying $(BUILD_TAG) to Amazon S3"
-	aws s3 cp $(TELEPORT_PACKAGE) \
-		$(BUILD_BUCKET_URL)/$(BUILD_TAG)/ --region=$(BUILD_BUCKET_REGION)
+	aws s3 cp $(TELEPORT_PACKAGE) $(BUILD_BUCKET_URL)/$(BUILD_TAG)/
