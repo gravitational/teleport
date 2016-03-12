@@ -173,6 +173,8 @@ func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 		"HOME=" + osUser.HomeDir,
 		"USER=" + osUserName,
 		"SHELL=" + c.Path,
+		"SSH_TELEPORT_USER=" + ctx.teleportUser,
+		"SSH_SESSION_WEBPROXY_ADDR=<proxyhost>:3080",
 	}
 	// this configures shell to run in 'login' mode
 	c.Args[0] = "-" + filepath.Base(shellCommand)
