@@ -147,6 +147,7 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(conf.Proxy.Configured(), check.Equals, false) // Missing "proxy_service" section must lead to 'not configured'
 	c.Assert(conf.Proxy.Enabled(), check.Equals, true)     // Missing "proxy_service" section must lead to 'true'
 	c.Assert(conf.Proxy.Disabled(), check.Equals, false)   // Missing "proxy_service" does NOT mean it's been disabled
+	c.Assert(conf.AdvertiseIP.String(), check.Equals, "10.10.10.1")
 
 	c.Assert(conf.Limits.MaxConnections, check.Equals, int64(90))
 	c.Assert(conf.Limits.MaxUsers, check.Equals, 91)
@@ -167,7 +168,7 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(conf.SSH.Commands[1].Name, check.Equals, "date")
 	c.Assert(conf.SSH.Commands[1].Command, check.DeepEquals, []string{"/bin/date"})
 	c.Assert(conf.SSH.Commands[1].Period.Nanoseconds(), check.Equals, int64(20000000))
-	c.Assert(conf.SSH.AdvertiseIP.String(), check.Equals, "10.10.10.1")
+
 }
 
 var (
@@ -246,6 +247,7 @@ const (
 #
 teleport:
   nodename: edsger.example.com
+  advertise_ip: 10.10.10.1
   auth_servers:
     - tcp://auth0.server.example.org:3024
     - tcp://auth1.server.example.org:3024
@@ -274,7 +276,6 @@ auth_service:
 ssh_service:
   enabled: no
   listen_addr: tcp://ssh
-  advertise_ip: 10.10.10.1
   labels:
     name: mondoserver
     role: slave

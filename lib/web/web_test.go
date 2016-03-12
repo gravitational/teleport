@@ -170,10 +170,13 @@ func (s *WebSuite) SetUpTest(c *C) {
 	apiPort := s.freePorts[len(s.freePorts)-1]
 	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 
-	apiServer := auth.NewAPIWithRoles(authServer, eventsLog, sessionServer, recorder,
-		auth.NewAllowAllPermissions(),
-		auth.StandardRoles,
-	)
+	apiServer := auth.NewAPIWithRoles(auth.APIConfig{
+		AuthServer:        authServer,
+		EventLog:          eventsLog,
+		SessionService:    sessionServer,
+		Recorder:          recorder,
+		PermissionChecker: auth.NewAllowAllPermissions(),
+		Roles:             auth.StandardRoles})
 	go apiServer.Serve()
 
 	tunAddr := utils.NetAddr{

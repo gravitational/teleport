@@ -36,26 +36,34 @@ import (
 )
 
 type APIWithRoles struct {
+	config    APIConfig
 	listeners map[teleport.Role]*fakeSocket
 	servers   map[teleport.Role]*APIServer
 }
 
-func NewAPIWithRoles(authServer *AuthServer, elog events.Log,
-	sessions session.Service, recorder recorder.Recorder,
-	permChecker PermissionChecker,
-	roles []teleport.Role) *APIWithRoles {
+// APIConfig is a configuration file
+type APIConfig struct {
+	AuthServer        *AuthServer
+	EventLog          events.Log
+	SessionService    session.Service
+	Recorder          recorder.Recorder
+	Roles             []teleport.Role
+	PermissionChecker PermissionChecker
+}
+
+func NewAPIWithRoles(config APIConfig) *APIWithRoles {
 
 	api := APIWithRoles{}
 	api.listeners = make(map[teleport.Role]*fakeSocket)
 	api.servers = make(map[teleport.Role]*APIServer)
 
-	for _, role := range roles {
+	for _, role := range config.Roles {
 		a := AuthWithRoles{
-			authServer:  authServer,
-			elog:        elog,
-			sessions:    sessions,
-			recorder:    recorder,
-			permChecker: permChecker,
+			authServer:  config.AuthServer,
+			elog:        config.EventLog,
+			sessions:    config.SessionService,
+			recorder:    config.Recorder,
+			permChecker: config.PermissionChecker,
 			role:        role,
 		}
 		api.servers[role] = NewAPIServer(&a)
@@ -66,7 +74,7 @@ func NewAPIWithRoles(authServer *AuthServer, elog events.Log,
 
 func (api *APIWithRoles) Serve() {
 	wg := sync.WaitGroup{}
-	for role, _ := range api.listeners {
+	for role := range api.listeners {
 		wg.Add(1)
 		go func(listener net.Listener, handler http.Handler) {
 			if err := http.Serve(listener, handler); (err != nil) && (err != io.EOF) {

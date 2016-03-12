@@ -97,7 +97,7 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 			}
 		}
 
-		servers, err := clt.GetServers()
+		servers, err := clt.GetNodes()
 		if err != nil {
 			if !teleport.IsNotFound(err) {
 				return trace.Wrap(err)
