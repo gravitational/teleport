@@ -2,7 +2,7 @@
 # This Makefile is used for CI/CD builds. Please be careful!
 #
 BBOX=teleport-buildbox:latest
-OUT="../"
+OUT=$(realpath ../)
 TELEPORT_PACKAGE=$(OUT)/teleport-app.tar.gz
 
 # Build artifacts
