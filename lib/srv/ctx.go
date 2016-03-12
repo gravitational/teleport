@@ -86,6 +86,9 @@ type ctx struct {
 
 	// isTestStub is set to True by tests
 	isTestStub bool
+
+	// session, if there's an active one
+	session *session
 }
 
 // emit emits event

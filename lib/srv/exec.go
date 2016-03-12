@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"os/user"
@@ -177,12 +178,22 @@ func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 	c.Args[0] = "-" + filepath.Base(shellCommand)
 	c.Dir = osUser.HomeDir
 	c.SysProcAttr = &syscall.SysProcAttr{}
+	// execute the command under requested user's UID:GID
 	if curUser.Uid != osUser.Uid {
 		c.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
 	}
 	// apply environment variables passed from the client
 	for n, v := range ctx.env {
 		c.Env = append(c.Env, fmt.Sprintf("%s=%s", n, v))
+	}
+	// apply SSH_xx environment variables
+	remoteHost, remotePort, _ := net.SplitHostPort(ctx.info.RemoteAddr().String())
+	localHost, localPort, _ := net.SplitHostPort(ctx.info.LocalAddr().String())
+	c.Env = append(c.Env,
+		fmt.Sprintf("SSH_CLIENT=%s %s %s", remoteHost, remotePort, localPort),
+		fmt.Sprintf("SSH_CONNECTION=%s %s %s %s", remoteHost, remotePort, localHost, localPort))
+	if ctx.session != nil && ctx.session.term != nil {
+		c.Env = append(c.Env, fmt.Sprintf("SSH_TTY=%s", ctx.session.term.tty.Name()))
 	}
 	return c, nil
 }

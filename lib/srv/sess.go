@@ -252,6 +252,7 @@ func (s *session) upsertSessionParty(sid string, p *party) error {
 // startShell starts a new shell process in the current session
 func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	s.eid = ctx.eid
+	ctx.session = s
 	// allocate or borrow a terminal:
 	p := newParty(s, sconn, ch, ctx)
 	if p.ctx.getTerm() != nil {
