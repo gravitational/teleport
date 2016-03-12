@@ -187,13 +187,26 @@ func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 		c.Env = append(c.Env, fmt.Sprintf("%s=%s", n, v))
 	}
 	// apply SSH_xx environment variables
-	remoteHost, remotePort, _ := net.SplitHostPort(ctx.info.RemoteAddr().String())
-	localHost, localPort, _ := net.SplitHostPort(ctx.info.LocalAddr().String())
-	c.Env = append(c.Env,
-		fmt.Sprintf("SSH_CLIENT=%s %s %s", remoteHost, remotePort, localPort),
-		fmt.Sprintf("SSH_CONNECTION=%s %s %s %s", remoteHost, remotePort, localHost, localPort))
-	if ctx.session != nil && ctx.session.term != nil {
-		c.Env = append(c.Env, fmt.Sprintf("SSH_TTY=%s", ctx.session.term.tty.Name()))
+	remoteHost, remotePort, err := net.SplitHostPort(ctx.info.RemoteAddr().String())
+	if err != nil {
+		log.Warn(err)
+	} else {
+		localHost, localPort, err := net.SplitHostPort(ctx.info.LocalAddr().String())
+		if err != nil {
+			log.Warn(err)
+		} else {
+			c.Env = append(c.Env,
+				fmt.Sprintf("SSH_CLIENT=%s %s %s", remoteHost, remotePort, localPort),
+				fmt.Sprintf("SSH_CONNECTION=%s %s %s %s", remoteHost, remotePort, localHost, localPort))
+		}
+	}
+	if ctx.session != nil {
+		if ctx.session.term != nil {
+			c.Env = append(c.Env, fmt.Sprintf("SSH_TTY=%s", ctx.session.term.tty.Name()))
+		}
+		if ctx.session.id != "" {
+			c.Env = append(c.Env, fmt.Sprintf("SSH_SESSION_ID=%s", ctx.session.id))
+		}
 	}
 	return c, nil
 }
