@@ -90,8 +90,12 @@ var TtyTerminal = React.createClass({
     let fakeColHeight = fakeRow[0].getBoundingClientRect().height;
     // get span width
     let fakeColWidth = fakeRow.children().first()[0].getBoundingClientRect().width;
-    let cols = Math.floor($container.width() / (fakeColWidth));
-    let rows = Math.floor($container.height() / (fakeColHeight));
+
+    let width = $container[0].clientWidth;
+    let height = $container[0].clientHeight;
+
+    let cols = Math.floor(width / (fakeColWidth));
+    let rows = Math.floor(height / (fakeColHeight));
     fakeRow.remove();
 
     return {cols, rows};
