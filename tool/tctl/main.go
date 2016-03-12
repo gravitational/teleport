@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
-	"github.com/gravitational/version"
 
 	"github.com/buger/goterm"
 	"github.com/gravitational/trace"
@@ -154,7 +153,7 @@ func main() {
 }
 
 func onVersion() {
-	fmt.Printf("%s, git:%s\n", version.Get().Version, version.Get().GitCommit)
+	teleport.PrintVersion()
 }
 
 func printHeader(t *goterm.Table, cols []string) {
