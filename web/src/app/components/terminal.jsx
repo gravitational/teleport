@@ -2,7 +2,7 @@ var Term = require('Terminal');
 var React = require('react');
 var {debounce, isNumber} = require('_');
 
-Term.colors[256] = 'inherit';
+Term.colors[256] = '#252323';
 
 const DISCONNECT_TXT = '\x1b[31mdisconnected\x1b[m\r\n';
 const CONNECTED_TXT = 'Connected!\r\n';
@@ -36,7 +36,7 @@ var TtyTerminal = React.createClass({
 
     this.resize(this.cols, this.rows);
 
-    this.tty.on('open', ()=> this.term.write(CONNECTED_TXT));  
+    this.tty.on('open', ()=> this.term.write(CONNECTED_TXT));
     this.tty.on('data', (data) => this.term.write(data));
     this.tty.on('reset', ()=> this.term.reset());
 
