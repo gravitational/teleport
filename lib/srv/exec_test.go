@@ -43,6 +43,7 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	s.ctx.login = s.usr.Username
 	s.ctx.info = s
 	s.ctx.session = &session{id: "xxx"}
+	s.ctx.teleportUser = "galt"
 
 	s.localAddr, _ = utils.ParseAddr("127.0.0.1:3022")
 	s.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
@@ -65,6 +66,8 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 		fmt.Sprintf("HOME=%s", s.usr.HomeDir),
 		fmt.Sprintf("USER=%s", s.usr.Username),
 		"SHELL=/bin/sh",
+		"SSH_TELEPORT_USER=galt",
+		"SSH_SESSION_WEBPROXY_ADDR=<proxyhost>:3080",
 		"SSH_CLIENT=10.0.0.5 4817 3022",
 		"SSH_CONNECTION=10.0.0.5 4817 127.0.0.1 3022",
 		"SSH_SESSION_ID=xxx",
