@@ -110,7 +110,6 @@ func (t *proxySubsys) start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 		var err error
 		defer func() {
 			t.close(err)
-			ctx.Infof("ch <- conn closed: %v", err)
 		}()
 		defer ch.Close()
 		_, err = io.Copy(ch, conn)
@@ -119,7 +118,6 @@ func (t *proxySubsys) start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 		var err error
 		defer func() {
 			t.close(err)
-			ctx.Infof("conn <- ch closed: %v", err)
 		}()
 		defer conn.Close()
 		_, err = io.Copy(conn, ch)

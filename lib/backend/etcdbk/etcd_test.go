@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package etcdbk
 
 import (
@@ -20,10 +21,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coreos/go-etcd/etcd"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/coreos/etcd/client"
+	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
 )
 
@@ -34,7 +37,7 @@ type EtcdSuite struct {
 	suite      test.BackendSuite
 	nodes      []string
 	etcdPrefix string
-	client     *etcd.Client
+	api        client.KeysAPI
 	changesC   chan interface{}
 	key        string
 	stopC      chan bool
@@ -46,13 +49,13 @@ var _ = Suite(&EtcdSuite{
 
 func (s *EtcdSuite) SetUpSuite(c *C) {
 	utils.InitLoggerCLI()
-	nodes_string := os.Getenv("TELEPORT_TEST_ETCD_NODES")
-	if nodes_string == "" {
+	nodesVal := os.Getenv("TELEPORT_TEST_ETCD_NODES")
+	if nodesVal == "" {
 		// Skips the entire suite
-		c.Skip("This test requires etcd, provide comma separated nodes in VULCAND_TEST_ETCD_NODES environment variable")
+		c.Skip("This test requires etcd, provide comma separated nodes in TELEPORT_TEST_ETCD_NODES environment variable")
 		return
 	}
-	s.nodes = strings.Split(nodes_string, ",")
+	s.nodes = strings.Split(nodesVal, ",")
 }
 
 func (s *EtcdSuite) SetUpTest(c *C) {
@@ -60,22 +63,16 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 	b, err := New(s.nodes, s.etcdPrefix)
 	c.Assert(err, IsNil)
 	s.bk = b.(*bk)
-	s.client = s.bk.client
+	s.api = client.NewKeysAPI(s.bk.client)
 
 	s.changesC = make(chan interface{})
 	s.stopC = make(chan bool)
 
 	// Delete all values under the given prefix
-	_, err = s.client.Get(s.etcdPrefix, false, false)
-	if err != nil {
-		if !notFound(err) {
-			c.Assert(err, IsNil)
-		}
-	} else {
-		_, err = s.bk.client.Delete(s.etcdPrefix, true)
-		if !notFound(err) {
-			c.Assert(err, IsNil)
-		}
+	_, err = s.api.Delete(context.Background(), s.etcdPrefix, &client.DeleteOptions{Recursive: true, Dir: true})
+	err = convertErr(err)
+	if err != nil && !teleport.IsNotFound(err) {
+		c.Assert(err, IsNil)
 	}
 
 	// Set up suite
@@ -89,7 +86,7 @@ func (s *EtcdSuite) TearDownTest(c *C) {
 }
 
 func (s *EtcdSuite) TestFromObject(c *C) {
-	b, err := FromObject(map[string]string{"nodes": s.nodes[0], "key": s.etcdPrefix})
+	b, err := FromObject(map[string]interface{}{"nodes": s.nodes, "key": s.etcdPrefix})
 	c.Assert(err, IsNil)
 	c.Assert(b, NotNil)
 }

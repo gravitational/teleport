@@ -70,7 +70,7 @@ func run(args []string, underTest bool) {
 	utils.InitLoggerCLI()
 
 	// configure CLI argument parser:
-	app := utils.InitCLIParser("t", "TSH: Teleport SSH client")
+	app := utils.InitCLIParser("t", "TSH: Teleport SSH client").Interspersed(false)
 	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", client.Username())).StringVar(&cf.Login)
 	app.Flag("proxy", "SSH proxy host or IP address").StringVar(&cf.Proxy)
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)

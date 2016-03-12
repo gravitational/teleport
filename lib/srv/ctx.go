@@ -83,6 +83,12 @@ type ctx struct {
 
 	// login is operating system user login chosen by the user
 	login string
+
+	// isTestStub is set to True by tests
+	isTestStub bool
+
+	// session, if there's an active one
+	session *session
 }
 
 // emit emits event
@@ -149,12 +155,10 @@ func (c *ctx) takeClosers() []io.Closer {
 }
 
 func (c *ctx) Close() error {
-	c.Infof("ctx.Close()")
 	return closeAll(c.takeClosers()...)
 }
 
 func (c *ctx) sendResult(r execResult) {
-	c.Infof("sendResult(%v)", r)
 	select {
 	case c.result <- r:
 	default:

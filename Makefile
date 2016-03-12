@@ -37,17 +37,19 @@ clean:
 #
 # this target is used by Jenkins for production builds
 #
-.PHONY: production
+.PHONY: produtcion
 production: clean
 	$(MAKE) -C build.assets
 
 #
 # tests everything: called by Jenkins
 #
+test: FLAGS ?= -cover
 test: 
 	go test -v github.com/gravitational/teleport/tool/tsh/... \
 			   github.com/gravitational/teleport/lib/... \
-			   github.com/gravitational/teleport/tool/teleport... -cover
+			   github.com/gravitational/teleport/tool/teleport... $(FLAGS)
+	go vet ./tool/... ./lib/...
 
 
 test-with-etcd: install
@@ -61,6 +63,9 @@ test-package: remove-temp-files install
 
 test-package-with-etcd: remove-temp-files install
 	${ETCD_FLAGS} go test -v -test.parallel=0 ./$(p)
+
+test-grep-package-with-etcd: remove-temp-files install
+	${ETCD_FLAGS} go test -v -test.parallel=0 ./$(p) -check.f=$(e)
 
 
 test-grep-package: remove-temp-files install
@@ -108,6 +113,3 @@ deploy:
 provision:
 	ansible-playbook -i deploy/hosts deploy/provision.yaml
 
-.PHONY: jenkins
-jenkins:
-	curl -X POST -d TARGETENV=staging -d BRANCH=$$(git rev-parse --abbrev-ref HEAD) https://jenkins.gravitational.io/buildByToken/buildWithParameters?job=Teleport&token=ZeeYaeYuTh9quiu8eh3rieChohHoor8aib0oopoov0aewah8 

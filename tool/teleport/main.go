@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package main
 
 import (
@@ -133,7 +134,15 @@ func onStart(config *service.Config) error {
 
 // onStatus is the handler for "status" CLI command
 func onStatus(config *service.Config) error {
-	fmt.Println("status command is not implemented")
+	sid := os.Getenv("SSH_SESSION_ID")
+	proxyHost := os.Getenv("SSH_SESSION_WEBPROXY_ADDR")
+	tuser := os.Getenv("SSH_TELEPORT_USER")
+	if sid == "" || proxyHost == "" {
+		fmt.Println("You are not inside of a Teleport SSH session")
+		return nil
+	}
+	fmt.Printf("User ID    : %s, logged in as %s from %s\n", tuser, os.Getenv("USER"), os.Getenv("SSH_CLIENT"))
+	fmt.Printf("Session ID : %s\nSession URL: https://%s/web/sessions/%s\n", sid, proxyHost, sid)
 	return nil
 }
 

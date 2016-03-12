@@ -103,7 +103,7 @@ func (process *TeleportProcess) loginIntoAuthService() bool {
 				continue
 			}
 			// success ? we're logged in!
-			log.Infof("successfully logged into %v", authServerAddr)
+			log.Infof("%s logged into %v", authUser, authServerAddr)
 			process.AuthClient = authClient
 			process.Identity = identity
 			return true
@@ -508,9 +508,9 @@ func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 	var err error
 
 	switch cfg.KeysBackend.Type {
-	case "etcd":
+	case teleport.ETCDBackendType:
 		bk, err = etcdbk.FromJSON(cfg.KeysBackend.Params)
-	case "bolt":
+	case teleport.BoltBackendType:
 		bk, err = boltbk.FromJSON(cfg.KeysBackend.Params)
 	default:
 		return nil, trace.Errorf("unsupported backend type: %v", cfg.KeysBackend.Type)
