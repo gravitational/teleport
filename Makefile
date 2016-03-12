@@ -1,6 +1,8 @@
+VERSION    := v0.9.0
 ETCD_NODE1 := http://127.0.0.1:4001
 ETCD_NODES := ${ETCD_NODE1}
 ETCD_FLAGS := TELEPORT_TEST_ETCD_NODES=${ETCD_NODES}
+LDFLAGS    := "-X github.com/gravitational/version.version=$(VERSION) -X github.com/gravitational/version.gitCommit=$(shell git show-ref HEAD --hash=16)"
 OUT=out
 export GO15VENDOREXPERIMENT=1
 
@@ -14,17 +16,17 @@ all: teleport tctl tsh
 
 .PHONY: tctl
 tctl: 
-	go build -o $(OUT)/tctl -i github.com/gravitational/teleport/tool/tctl
+	go build -ldflags=$(LDFLAGS) -o $(OUT)/tctl -i github.com/gravitational/teleport/tool/tctl
 
 .PHONY: teleport
 teleport: 
 	ln -f -s $$(pwd)/web/dist/app /var/lib/teleport/app
 	ln -f -s $$(pwd)/web/dist/index.html /var/lib/teleport/index.html
-	go build -o $(OUT)/teleport -i github.com/gravitational/teleport/tool/teleport
+	go build -ldflags=$(LDFLAGS) -o $(OUT)/teleport -i github.com/gravitational/teleport/tool/teleport
 
 .PHONY: tsh
 tsh: 
-	go build -o $(OUT)/tsh -i github.com/gravitational/teleport/tool/tsh
+	go build -ldflags=$(LDFLAGS) -o $(OUT)/tsh -i github.com/gravitational/teleport/tool/tsh
 
 install: remove-temp-files
 	go install github.com/gravitational/teleport/tool/teleport \

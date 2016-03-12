@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/version"
 
 	"github.com/buger/goterm"
 	"github.com/pborman/uuid"
@@ -245,7 +246,7 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 }
 
 func onVersion() {
-	fmt.Println("Version!")
+	fmt.Printf("%s, git:%s\n", version.Get().Version, version.Get().GitCommit)
 }
 
 func printHeader(t *goterm.Table, cols []string) {

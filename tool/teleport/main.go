@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/version"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
@@ -154,5 +155,5 @@ func onConfigDump() {
 
 // onVersion is the handler for "version"
 func onVersion() {
-	fmt.Println("'version' command is not implemented")
+	fmt.Printf("%s, git:%s\n", version.Get().Version, version.Get().GitCommit)
 }

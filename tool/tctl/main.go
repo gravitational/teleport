@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
+	"github.com/gravitational/version"
 
 	"github.com/buger/goterm"
 	"github.com/gravitational/trace"
@@ -116,6 +117,11 @@ func main() {
 		utils.InitLoggerDebug()
 	}
 
+	if command == ver.FullCommand() {
+		onVersion()
+		return
+	}
+
 	validateConfig(cfg)
 
 	// connect to the teleport auth service:
@@ -126,8 +132,6 @@ func main() {
 
 	// execute the selected command:
 	switch command {
-	case ver.FullCommand():
-		onVersion()
 	case userAdd.FullCommand():
 		err = cmdUsers.Add(cfg.Hostname, client)
 	case userList.FullCommand():
@@ -150,7 +154,7 @@ func main() {
 }
 
 func onVersion() {
-	fmt.Println("TODO: Version command has not been implemented yet")
+	fmt.Printf("%s, git:%s\n", version.Get().Version, version.Get().GitCommit)
 }
 
 func printHeader(t *goterm.Table, cols []string) {
