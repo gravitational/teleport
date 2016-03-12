@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
+	"github.com/gravitational/version"
 
 	"github.com/buger/goterm"
 	"github.com/gravitational/trace"
@@ -150,7 +151,7 @@ func main() {
 }
 
 func onVersion() {
-	fmt.Println("TODO: Version command has not been implemented yet")
+	fmt.Println(version.Get().Version)
 }
 
 func printHeader(t *goterm.Table, cols []string) {
