@@ -18,16 +18,20 @@ package srv
 
 import (
 	"fmt"
+	"net"
 	"os/user"
 
 	"github.com/gravitational/teleport/lib/utils"
-
 	"gopkg.in/check.v1"
+	//	"golang.org/x/crypto/ssh"
 )
 
+// ExecSuite also implements ssh.ConnMetadata
 type ExecSuite struct {
-	usr *user.User
-	ctx *ctx
+	usr        *user.User
+	ctx        *ctx
+	localAddr  net.Addr
+	remoteAddr net.Addr
 }
 
 var _ = check.Suite(&ExecSuite{})
@@ -37,6 +41,11 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	s.usr, _ = user.Current()
 	s.ctx = &ctx{isTestStub: true}
 	s.ctx.login = s.usr.Username
+	s.ctx.info = s
+	s.ctx.session = &session{id: "xxx"}
+
+	s.localAddr, _ = utils.ParseAddr("127.0.0.1:3022")
+	s.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
 }
 
 func (s *ExecSuite) TestGetShell(c *check.C) {
@@ -56,6 +65,9 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 		fmt.Sprintf("HOME=%s", s.usr.HomeDir),
 		fmt.Sprintf("USER=%s", s.usr.Username),
 		"SHELL=/bin/sh",
+		"SSH_CLIENT=10.0.0.5 4817 3022",
+		"SSH_CONNECTION=10.0.0.5 4817 127.0.0.1 3022",
+		"SSH_SESSION_ID=xxx",
 	}
 
 	// empty command (simple shell)
@@ -76,3 +88,11 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	c.Assert(cmd.Dir, check.Equals, s.usr.HomeDir)
 	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
 }
+
+// implementation of ssh.ConnMetadata interface
+func (s *ExecSuite) User() string          { return s.usr.Username }
+func (s *ExecSuite) SessionID() []byte     { return []byte{1, 2, 3} }
+func (s *ExecSuite) ClientVersion() []byte { return []byte{1} }
+func (s *ExecSuite) ServerVersion() []byte { return []byte{1} }
+func (s *ExecSuite) RemoteAddr() net.Addr  { return s.remoteAddr }
+func (s *ExecSuite) LocalAddr() net.Addr   { return s.localAddr }
