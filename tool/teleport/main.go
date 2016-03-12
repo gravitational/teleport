@@ -155,5 +155,5 @@ func onConfigDump() {
 
 // onVersion is the handler for "version"
 func onVersion() {
-	fmt.Println(version.Get().Version)
+	fmt.Printf("%s, git:%s\n", version.Get().Version, version.Get().GitCommit)
 }

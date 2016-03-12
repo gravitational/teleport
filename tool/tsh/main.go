@@ -246,7 +246,7 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 }
 
 func onVersion() {
-	fmt.Println(version.Get().Version)
+	fmt.Printf("%s, git:%s\n", version.Get().Version, version.Get().GitCommit)
 }
 
 func printHeader(t *goterm.Table, cols []string) {

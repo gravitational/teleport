@@ -1,7 +1,8 @@
+VERSION    := v0.9.0
 ETCD_NODE1 := http://127.0.0.1:4001
 ETCD_NODES := ${ETCD_NODE1}
 ETCD_FLAGS := TELEPORT_TEST_ETCD_NODES=${ETCD_NODES}
-LDFLAGS    := "$(shell linkflags -pkg=.)"
+LDFLAGS    := "-X github.com/gravitational/version.version=$(VERSION) -X github.com/gravitational/version.gitCommit=$(shell git show-ref HEAD --hash=16)"
 OUT=out
 export GO15VENDOREXPERIMENT=1
 
