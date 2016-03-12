@@ -17,7 +17,6 @@ package auth
 
 import (
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
 
 	. "gopkg.in/check.v1"
 )
@@ -27,10 +26,6 @@ type PermCheckerSuite struct {
 }
 
 var _ = Suite(&PermCheckerSuite{})
-
-func (s *PermCheckerSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
-}
 
 func (s *PermCheckerSuite) TestSessions(c *C) {
 	p := NewStandardPermissions()

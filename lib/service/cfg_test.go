@@ -24,16 +24,15 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func TestConfig(t *testing.T) { TestingT(t) }
+func TestConfig(t *testing.T) {
+	utils.InitLoggerForTests()
+	TestingT(t)
+}
 
 type ConfigSuite struct {
 }
 
 var _ = Suite(&ConfigSuite{})
-
-func (s *ConfigSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
-}
 
 func (s *ConfigSuite) TestDefaultConfig(c *C) {
 	config := MakeDefaultConfig()

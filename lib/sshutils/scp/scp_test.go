@@ -30,16 +30,15 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func TestSCP(t *testing.T) { TestingT(t) }
+func TestSCP(t *testing.T) {
+	utils.InitLoggerForTests()
+	TestingT(t)
+}
 
 type SCPSuite struct {
 }
 
 var _ = Suite(&SCPSuite{})
-
-func (s *SCPSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
-}
 
 func (s *SCPSuite) TestSendFile(c *C) {
 	dir := c.MkDir()

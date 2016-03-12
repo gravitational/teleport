@@ -28,7 +28,10 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func TestSSHUtils(t *testing.T) { TestingT(t) }
+func TestSSHUtils(t *testing.T) {
+	utils.InitLoggerForTests()
+	TestingT(t)
+}
 
 type ServerSuite struct {
 	signers []ssh.Signer
@@ -37,8 +40,6 @@ type ServerSuite struct {
 var _ = Suite(&ServerSuite{})
 
 func (s *ServerSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
-
 	pk, err := ssh.ParsePrivateKey(suite.PEMBytes["ecdsa"])
 	c.Assert(err, IsNil)
 	s.signers = []ssh.Signer{pk}

@@ -25,7 +25,10 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func TestBolt(t *testing.T) { TestingT(t) }
+func TestBolt(t *testing.T) {
+	utils.InitLoggerForTests()
+	TestingT(t)
+}
 
 type BoltLogSuite struct {
 	l     *BoltLog
@@ -34,10 +37,6 @@ type BoltLogSuite struct {
 }
 
 var _ = Suite(&BoltLogSuite{})
-
-func (s *BoltLogSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
-}
 
 func (s *BoltLogSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
