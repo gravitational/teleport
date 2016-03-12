@@ -44,10 +44,10 @@ run: build
 build-package: TMPDIR := $(shell mktemp -d)
 build-package: $(TELEPORT_PACKAGE)
 $(TELEPORT_PACKAGE):
-	cp $(OUT)/assets/build/orbit.manifest.json $(TMPDIR)
+	cp orbit.manifest.json $(TMPDIR)
 	mkdir -p $(TMPDIR)/rootfs/usr/bin
 	mkdir -p $(TMPDIR)/rootfs/usr/bin $(TMPDIR)/rootfs/etc/web-assets/
-	cp -r $(OUT)/assets/web/* $(TMPDIR)/rootfs/etc/web-assets/
+	cp -r ../assets/web/* $(TMPDIR)/rootfs/etc/web-assets/
 	cp -f $(OUT)/teleport $(TMPDIR)/rootfs/usr/bin
 	cp -f $(OUT)/tctl $(TMPDIR)/rootfs/usr/bin
 	cp -f $(OUT)/tsh $(TMPDIR)/rootfs/usr/bin
