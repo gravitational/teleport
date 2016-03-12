@@ -39,7 +39,10 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func TestAPI(t *testing.T) { TestingT(t) }
+func TestAPI(t *testing.T) {
+	utils.InitLoggerForTests()
+	TestingT(t)
+}
 
 type APISuite struct {
 	srv *httptest.Server
@@ -60,7 +63,6 @@ type APISuite struct {
 var _ = Suite(&APISuite{})
 
 func (s *APISuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
 	authority.PrecalculatedKeysNum = 1
 }
 

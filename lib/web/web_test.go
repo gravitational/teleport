@@ -78,7 +78,7 @@ type WebSuite struct {
 var _ = Suite(&WebSuite{})
 
 func (s *WebSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
+	utils.InitLoggerForTests()
 }
 
 func (s *WebSuite) SetUpTest(c *C) {

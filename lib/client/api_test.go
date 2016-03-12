@@ -16,6 +16,7 @@ limitations under the License.
 package client
 
 import (
+	"github.com/gravitational/teleport/lib/utils"
 	"gopkg.in/check.v1"
 	"testing"
 )
@@ -25,7 +26,10 @@ type APITestSuite struct {
 }
 
 // bootstrap check
-func TestClientAPI(t *testing.T) { check.TestingT(t) }
+func TestClientAPI(t *testing.T) {
+	utils.InitLoggerForTests()
+	check.TestingT(t)
+}
 
 var _ = check.Suite(&APITestSuite{})
 

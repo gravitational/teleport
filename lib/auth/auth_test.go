@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gokyle/hotp"
 	. "gopkg.in/check.v1"
@@ -38,10 +37,6 @@ type AuthSuite struct {
 }
 
 var _ = Suite(&AuthSuite{})
-
-func (s *AuthSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
-}
 
 func (s *AuthSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()

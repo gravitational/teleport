@@ -24,7 +24,10 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func TestNative(t *testing.T) { TestingT(t) }
+func TestNative(t *testing.T) {
+	utils.InitLoggerForTests()
+	TestingT(t)
+}
 
 type NativeSuite struct {
 	suite *test.AuthSuite
@@ -33,7 +36,6 @@ type NativeSuite struct {
 var _ = Suite(&NativeSuite{})
 
 func (s *NativeSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
 	PrecalculatedKeysNum = 1
 	s.suite = &test.AuthSuite{A: New()}
 }

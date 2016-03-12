@@ -28,7 +28,10 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func TestSessions(t *testing.T) { TestingT(t) }
+func TestSessions(t *testing.T) {
+	utils.InitLoggerForTests()
+	TestingT(t)
+}
 
 type BoltSuite struct {
 	dir   string
@@ -38,10 +41,6 @@ type BoltSuite struct {
 }
 
 var _ = Suite(&BoltSuite{})
-
-func (s *BoltSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
-}
 
 func (s *BoltSuite) SetUpTest(c *C) {
 	s.clock = &timetools.FreezedTime{

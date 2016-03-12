@@ -116,6 +116,11 @@ func main() {
 		utils.InitLoggerDebug()
 	}
 
+	if command == ver.FullCommand() {
+		onVersion()
+		return
+	}
+
 	validateConfig(cfg)
 
 	// connect to the teleport auth service:
@@ -126,8 +131,6 @@ func main() {
 
 	// execute the selected command:
 	switch command {
-	case ver.FullCommand():
-		onVersion()
 	case userAdd.FullCommand():
 		err = cmdUsers.Add(cfg.Hostname, client)
 	case userList.FullCommand():
@@ -150,7 +153,7 @@ func main() {
 }
 
 func onVersion() {
-	fmt.Println("TODO: Version command has not been implemented yet")
+	teleport.PrintVersion()
 }
 
 func printHeader(t *goterm.Table, cols []string) {

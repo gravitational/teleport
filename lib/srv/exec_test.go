@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/utils"
 	"gopkg.in/check.v1"
-	//	"golang.org/x/crypto/ssh"
 )
 
 // ExecSuite also implements ssh.ConnMetadata
@@ -37,7 +36,6 @@ type ExecSuite struct {
 var _ = check.Suite(&ExecSuite{})
 
 func (s *ExecSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerCLI()
 	s.usr, _ = user.Current()
 	s.ctx = &ctx{isTestStub: true}
 	s.ctx.login = s.usr.Username

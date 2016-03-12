@@ -25,22 +25,15 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func TestLimiter(t *testing.T) { TestingT(t) }
+func TestLimiter(t *testing.T) {
+	utils.InitLoggerForTests()
+	TestingT(t)
+}
 
 type LimiterSuite struct {
 }
 
 var _ = Suite(&LimiterSuite{})
-
-func (s *LimiterSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
-}
-
-func (s *LimiterSuite) SetUpTest(c *C) {
-}
-
-func (s *LimiterSuite) TearDownTest(c *C) {
-}
 
 func (s *LimiterSuite) TestConnectionsLimiter(c *C) {
 	limiter, err := NewLimiter(

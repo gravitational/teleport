@@ -29,14 +29,20 @@ import (
 	logrusSyslog "github.com/Sirupsen/logrus/hooks/syslog"
 )
 
+func InitLoggerForTests() {
+	log.SetLevel(log.ErrorLevel)
+	log.StandardLogger().Hooks = make(log.LevelHooks)
+	log.SetOutput(ioutil.Discard)
+}
+
 // InitLoggerCLI tools by default log into syslog, not stderr
 func InitLoggerCLI() {
-	log.SetLevel(log.InfoLevel)
+	log.SetLevel(log.ErrorLevel)
 	// clear existing hooks:
 	log.StandardLogger().Hooks = make(log.LevelHooks)
 	log.SetFormatter(&trace.TextFormatter{})
 
-	hook, err := logrusSyslog.NewSyslogHook("", "", syslog.LOG_INFO, "")
+	hook, err := logrusSyslog.NewSyslogHook("", "", syslog.LOG_ERR, "")
 	if err != nil {
 		// syslog not available
 		log.Warn("syslog not available. reverting to stderr")

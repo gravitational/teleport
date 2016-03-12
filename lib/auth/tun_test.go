@@ -50,10 +50,6 @@ type TunSuite struct {
 
 var _ = Suite(&TunSuite{})
 
-func (s *TunSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
-}
-
 func (s *TunSuite) TearDownTest(c *C) {
 	s.srv.Close()
 }

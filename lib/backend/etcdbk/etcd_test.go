@@ -30,7 +30,10 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func TestEtcd(t *testing.T) { TestingT(t) }
+func TestEtcd(t *testing.T) {
+	utils.InitLoggerForTests()
+	TestingT(t)
+}
 
 type EtcdSuite struct {
 	bk         *bk
@@ -48,7 +51,6 @@ var _ = Suite(&EtcdSuite{
 })
 
 func (s *EtcdSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
 	nodesVal := os.Getenv("TELEPORT_TEST_ETCD_NODES")
 	if nodesVal == "" {
 		// Skips the entire suite

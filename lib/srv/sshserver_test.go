@@ -48,7 +48,10 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func TestSrv(t *testing.T) { TestingT(t) }
+func TestSrv(t *testing.T) {
+	utils.InitLoggerForTests()
+	TestingT(t)
+}
 
 type SrvSuite struct {
 	srv           *Server
@@ -71,7 +74,7 @@ type SrvSuite struct {
 var _ = Suite(&SrvSuite{})
 
 func (s *SrvSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
+	utils.InitLoggerForTests()
 }
 
 func (s *SrvSuite) SetUpTest(c *C) {

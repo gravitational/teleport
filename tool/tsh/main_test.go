@@ -21,11 +21,15 @@ import (
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 	"gopkg.in/check.v1"
 )
 
 // bootstrap check
-func TestSrv(t *testing.T) { check.TestingT(t) }
+func TestSrv(t *testing.T) {
+	utils.InitLoggerForTests()
+	check.TestingT(t)
+}
 
 // register test suite
 type MainTestSuite struct {

@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -245,7 +246,7 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 }
 
 func onVersion() {
-	fmt.Println("Version!")
+	teleport.PrintVersion()
 }
 
 func printHeader(t *goterm.Table, cols []string) {
