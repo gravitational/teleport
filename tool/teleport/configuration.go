@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/gravitational/teleport"
@@ -315,6 +316,14 @@ func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 		applyListenIP(clf.ListenIP, cfg)
 	}
 
+	// locate web assets if web proxy is enabled
+	if cfg.Proxy.Enabled {
+		cfg.Proxy.AssetsDir, err = locateWebAssets()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return cfg, nil
 }
 
@@ -365,4 +374,47 @@ func validateRoles(roles string) error {
 		}
 	}
 	return nil
+}
+
+// DirsToLookForWebAssets defines the locations where teleport proxy looks for
+// its web assets
+var DirsToLookForWebAssets = []string{
+	"/usr/local/share/teleport",
+	"/usr/share/teleport",
+	"/opt/teleport",
+}
+
+// locates the web assets required for the Proxy to start. Retursn the full path
+// to web assets directory
+func locateWebAssets() (string, error) {
+	const errorMessage = "Cannot determine location of web assets."
+	assetsToCheck := []string{
+		"index.html",
+		"/app/app.js",
+	}
+	// checker function to determine if dirPath contains the web assets
+	locateAssets := func(dirPath string) bool {
+		for _, af := range assetsToCheck {
+			if !fileExists(filepath.Join(dirPath, af)) {
+				return false
+			}
+		}
+		return true
+	}
+	// check the directory where teleport binary is located first:
+	exeDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if locateAssets(exeDir) {
+		return exeDir, nil
+	}
+	// look in other possible locations:
+	for _, dir := range DirsToLookForWebAssets {
+		if locateAssets(dir) {
+			return dir, nil
+		}
+	}
+	return "",
+		trace.Errorf("Cannot find web assets. Unable to locate %v", filepath.Join(exeDir, assetsToCheck[0]))
 }
