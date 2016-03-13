@@ -24,7 +24,6 @@ limitations under the License.
 package client
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -37,77 +36,6 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
-
-// RunCmd runs provided command on the target servers and
-// prints result to stdout,
-// target can be like "127.0.0.1:1234" or "_label:value".
-func RunCmd(user, target, proxyAddress, command string, authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) error {
-	addresses, err := ParseTargetServers(target, user, proxyAddress,
-		authMethods, hostKeyCallback)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var proxyClient *ProxyClient
-	if len(proxyAddress) > 0 {
-		proxyClient, err = ConnectToProxy(proxyAddress, authMethods, hostKeyCallback, user)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-	}
-
-	var e error
-	stdoutMutex := &sync.Mutex{}
-	wg := &sync.WaitGroup{}
-
-	for _, address := range addresses {
-		wg.Add(1)
-		go func(address string) {
-			defer wg.Done()
-			output, err := runCmd(user, address, proxyClient, command, authMethods, hostKeyCallback)
-			stdoutMutex.Lock()
-			defer stdoutMutex.Unlock()
-			fmt.Printf("Running command on %v\n", address)
-			fmt.Printf("-----------------------------\n")
-			if err != nil {
-				e = err
-				fmt.Println(err.Error())
-			} else {
-				fmt.Printf(output)
-			}
-			fmt.Printf("-----------------------------\n\n")
-		}(address)
-	}
-
-	wg.Wait()
-
-	if e != nil {
-		return fmt.Errorf("SSH finished with errors")
-	} else {
-		return nil
-	}
-}
-
-// runCmd runs command on provided server and returns the output as string
-func runCmd(user, address string,
-	proxyClient *ProxyClient, command string,
-	authMethods []ssh.AuthMethod, hostKeyCallback utils.HostKeyCallback) (output string, e error) {
-
-	c, err := ConnectToNode(proxyClient, address, authMethods, hostKeyCallback, user)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	defer c.Close()
-
-	out := bytes.Buffer{}
-	err = c.Run(command, &out)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return out.String(), nil
-}
 
 // Upload uploads file or dir to the target servers,
 // target can be like "127.0.0.1:1234" or "_label:value".
