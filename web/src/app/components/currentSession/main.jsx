@@ -1,6 +1,5 @@
 var React = require('react');
 var {getters, actions} = require('app/modules/activeTerminal/');
-var NotFoundPage = require('app/components/notFoundPage.jsx');
 var SessionPlayer = require('./sessionPlayer.jsx');
 var ActiveSession = require('./activeSession.jsx');
 
