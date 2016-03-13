@@ -184,7 +184,8 @@ func (s *Server) serveSink(ch io.ReadWriter) error {
 			return trace.Wrap(err)
 		}
 		if err := s.processCommand(ch, st, b[0], r.Text()); err != nil {
-			if e := sendError(ch, err.Error()); e != nil {
+			//if e := sendError(ch, err.Error()); e != nil {
+			if e := sendError(ch, "ho ho ho!"); e != nil {
 				log.Warningf("error sending error: %v", e)
 			}
 			return trace.Wrap(err)
@@ -238,14 +239,18 @@ func (s *Server) processCommand(ch io.ReadWriter, st *state, b byte, line string
 }
 
 func (s *Server) receiveFile(st *state, cmd NewFileCmd, ch io.ReadWriter) error {
-	// if the dest path ends with "/", destination is a folder, we should
-	// save the file to that folder
-	// if the dest path doesn't end with "/", destination is a target filename
-	// we should save the file to that filename
-	// if the scp command has "-r" flag, desctination is always a folder
+	isDir := func(target string) bool {
+		fi, err := os.Stat(target)
+		if err != nil {
+			return false
+		}
+		return fi.IsDir()
+	}
+	// if the dest path is a folder, we should save the file to that folder, but
+	// only if is 'recursive' is set
 	path := s.cmd.Target
-	if s.cmd.Recursive || strings.HasSuffix(s.cmd.Target, "/") {
-		path = st.makePath(s.cmd.Target, cmd.Name)
+	if s.cmd.Recursive || isDir(path) {
+		path = st.makePath(path, cmd.Name)
 	}
 	f, err := os.Create(path)
 	if err != nil {
@@ -308,7 +313,7 @@ func IsSCP(cmd string) bool {
 	return f == "scp"
 }
 
-func ParseCommand(arg string) (*Command, error) {
+func ParseCommand(arg, defaultTarget string) (*Command, error) {
 	if !IsSCP(arg) {
 		return nil, trace.Errorf("not scp command")
 	}
@@ -328,7 +333,7 @@ func ParseCommand(arg string) (*Command, error) {
 
 	cmd.Target = f.Arg(0)
 	if cmd.Target == "" {
-		return nil, trace.Errorf("missing target")
+		cmd.Target = defaultTarget
 	}
 
 	if !cmd.Source && !cmd.Sink {

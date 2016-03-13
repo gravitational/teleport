@@ -5,6 +5,7 @@ var {actions, getters} = require('app/modules/invite');
 var userModule = require('app/modules/user');
 var LinkedStateMixin = require('react-addons-linked-state-mixin');
 var GoogleAuthInfo = require('./googleAuthLogo');
+var {ExpiredInvite} = require('./errorPage');
 
 var InviteInputForm = React.createClass({
 
@@ -58,6 +59,7 @@ var InviteInputForm = React.createClass({
   },
 
   render() {
+    let {isProcessing, isFailed, message } = this.props.attemp;
     return (
       <form ref="form" className="grv-invite-input-form">
         <h3> Get started with Teleport </h3>
@@ -89,12 +91,13 @@ var InviteInputForm = React.createClass({
           </div>
           <div className="form-group">
             <input
-              name="token"              
+              name="token"
               valueLink={this.linkState('token')}
               className="form-control required"
               placeholder="Two factor token (Google Authenticator)" />
           </div>
-          <button type="submit" disabled={this.props.attemp.isProcessing} className="btn btn-primary block full-width m-b" onClick={this.onClick} >Sign up</button>
+          <button type="submit" disabled={isProcessing} className="btn btn-primary block full-width m-b" onClick={this.onClick} >Sign up</button>
+          { isFailed ? (<label className="error">{message}</label>) : null }
         </div>
       </form>
     );
@@ -108,7 +111,8 @@ var Invite = React.createClass({
   getDataBindings() {
     return {
       invite: getters.invite,
-      attemp: getters.attemp
+      attemp: getters.attemp,
+      fetchingInvite: getters.fetchingInvite
     }
   },
 
@@ -117,7 +121,13 @@ var Invite = React.createClass({
   },
 
   render: function() {
-    if(!this.state.invite) {
+    let {fetchingInvite, invite, attemp} = this.state;
+
+    if(fetchingInvite.isFailed){
+      return <ExpiredInvite/>
+    }
+
+    if(!invite) {
       return null;
     }
 
@@ -126,12 +136,12 @@ var Invite = React.createClass({
         <div className="grv-logo-tprt"></div>
         <div className="grv-content grv-flex">
           <div className="grv-flex-column">
-            <InviteInputForm attemp={this.state.attemp} invite={this.state.invite.toJS()}/>
+            <InviteInputForm attemp={attemp} invite={invite.toJS()}/>
             <GoogleAuthInfo/>
           </div>
           <div className="grv-flex-column grv-invite-barcode">
             <h4>Scan bar code for auth token <br/> <small>Scan below to generate your two factor token</small></h4>
-            <img className="img-thumbnail" src={ `data:image/png;base64,${this.state.invite.get('qr')}` } />
+            <img className="img-thumbnail" src={ `data:image/png;base64,${invite.get('qr')}` } />
           </div>
         </div>
       </div>

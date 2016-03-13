@@ -57,7 +57,6 @@ const ButtonCell = ({ rowIndex, data, ...props }) => {
   )
 }
 
-
 var SessionList = React.createClass({
 
   mixins: [LinkedStateMixin],
@@ -101,7 +100,7 @@ var SessionList = React.createClass({
   render: function() {
     var data = this.sortAndFilter(this.props.sessionRecords);
     return (
-      <div>        
+      <div>
         <div className="grv-search">
           <input valueLink={this.linkState('filter')} placeholder="Search..." className="form-control input-sm"/>
         </div>

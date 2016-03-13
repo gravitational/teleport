@@ -41,8 +41,10 @@ import (
 // ProxyClient implements ssh client to a teleport proxy
 // It can provide list of nodes or connect to nodes
 type ProxyClient struct {
-	Client       *ssh.Client
-	proxyAddress string
+	Client          *ssh.Client
+	proxyAddress    string
+	hostKeyCallback utils.HostKeyCallback
+	authMethods     []ssh.AuthMethod
 }
 
 // NodeClient implements ssh client to a ssh node (teleport or any regular ssh node)
@@ -51,38 +53,11 @@ type NodeClient struct {
 	Client *ssh.Client
 }
 
-// ConnectToProxy returns connected and authenticated ProxyClient
-func ConnectToProxy(proxyAddress string, authMethods []ssh.AuthMethod,
-	hostKeyCallback utils.HostKeyCallback, user string) (*ProxyClient, error) {
-	e := trace.Errorf("no authMethods were provided")
-
-	for _, authMethod := range authMethods {
-		sshConfig := &ssh.ClientConfig{
-			User:            user,
-			Auth:            []ssh.AuthMethod{authMethod},
-			HostKeyCallback: hostKeyCallback,
-		}
-
-		proxyClient, err := ssh.Dial("tcp", proxyAddress, sshConfig)
-		if err != nil {
-			if utils.IsHandshakeFailedError(err) {
-				e = trace.Wrap(err)
-				continue
-			}
-			return nil, trace.Wrap(err)
-		}
-
-		return &ProxyClient{
-			Client:       proxyClient,
-			proxyAddress: proxyAddress,
-		}, nil
-	}
-
-	return nil, e
-}
-
-// GetServers returns list of the nodes connected to the proxy
-func (proxy *ProxyClient) GetServers() ([]services.Server, error) {
+// GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
+// Each site is returned as an instance of its auth server
+//
+// NOTE: this version of teleport supports only one site per proxy
+func (proxy *ProxyClient) GetSites() ([]services.Server, error) {
 	proxySession, err := proxy.Client.NewSession()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -109,7 +84,7 @@ func (proxy *ProxyClient) GetServers() ([]services.Server, error) {
 	if err := json.Unmarshal(stdout.Bytes(), &servers); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	serversList := make([]services.Server, 0)
+	serversList := make([]services.Server, 0, len(servers))
 
 	for _, srvs := range servers {
 		serversList = append(serversList, srvs...)
@@ -120,24 +95,25 @@ func (proxy *ProxyClient) GetServers() ([]services.Server, error) {
 
 // FindServers returns list of the nodes which have labels "labelName" and
 // corresponding values matches "labelValueRegexp"
-func (proxy *ProxyClient) FindServers(labelName string,
-	labelValueRegexp string) ([]services.Server, error) {
-
-	labelRegex, err := regexp.Compile(labelValueRegexp)
+func (proxy *ProxyClient) FindServers(labelName string, labelRegex string) ([]services.Server, error) {
+	regex, err := regexp.Compile(labelRegex)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// see which sites (AKA auth servers) this proxy is connected to
+	allServers, err := proxy.GetSites()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	allServers, err := proxy.GetServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// TODO: ev. we need to take the 1st site and, using its auth API,
+	// request a list of servers from it. and THAT would be stored in "allServers"
 
 	foundServers := make([]services.Server, 0)
 	for _, srv := range allServers {
 		alreadyAdded := false
 		for name, label := range srv.CmdLabels {
-			if name == labelName && labelRegex.MatchString(label.Result) {
+			if name == labelName && regex.MatchString(label.Result) {
 				foundServers = append(foundServers, srv)
 				alreadyAdded = true
 				break
@@ -147,7 +123,7 @@ func (proxy *ProxyClient) FindServers(labelName string,
 			continue
 		}
 		for name, value := range srv.Labels {
-			if name == labelName && labelRegex.MatchString(value) {
+			if name == labelName && regex.MatchString(value) {
 				foundServers = append(foundServers, srv)
 				break
 			}
@@ -159,12 +135,7 @@ func (proxy *ProxyClient) FindServers(labelName string,
 
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
-func (proxy *ProxyClient) ConnectToNode(
-	nodeAddress string, authMethods []ssh.AuthMethod,
-	hostKeyCallback utils.HostKeyCallback, user string) (*NodeClient, error) {
-	if len(authMethods) == 0 {
-		return nil, trace.Errorf("no authMethods were provided")
-	}
+func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeClient, error) {
 	log.Debugf("connecting to node: %v", nodeAddress)
 
 	e := trace.Errorf("unknown Error")
@@ -173,8 +144,7 @@ func (proxy *ProxyClient) ConnectToNode(
 	// because go SSH will try only one (fist) auth method
 	// of a given type, so if you have 2 different public keys
 	// you have to try each one differently
-	for _, authMethod := range authMethods {
-
+	for _, authMethod := range proxy.authMethods {
 		proxySession, err := proxy.Client.NewSession()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -225,7 +195,7 @@ func (proxy *ProxyClient) ConnectToNode(
 		sshConfig := &ssh.ClientConfig{
 			User:            user,
 			Auth:            []ssh.AuthMethod{authMethod},
-			HostKeyCallback: hostKeyCallback,
+			HostKeyCallback: proxy.hostKeyCallback,
 		}
 
 		conn, chans, reqs, err := ssh.NewClientConn(pipeNetConn,
@@ -255,7 +225,7 @@ func (proxy *ProxyClient) Close() error {
 func ConnectToNode(optionalProxy *ProxyClient, nodeAddress string, authMethods []ssh.AuthMethod,
 	hostKeyCallback utils.HostKeyCallback, user string) (*NodeClient, error) {
 	if optionalProxy != nil {
-		return optionalProxy.ConnectToNode(nodeAddress, authMethods, hostKeyCallback, user)
+		return optionalProxy.ConnectToNode(nodeAddress, user)
 	}
 
 	e := trace.Errorf("no authMethods were provided")
@@ -435,6 +405,22 @@ func (client *NodeClient) scp(scpConf scp.Command, shellCmd string) error {
 		return trace.Wrap(err)
 	}
 
+	stderr, err := session.StderrPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	serverErrors := make(chan error, 2)
+	go func() {
+		var errMsg bytes.Buffer
+		io.Copy(&errMsg, stderr)
+		if len(errMsg.Bytes()) > 0 {
+			serverErrors <- trace.Errorf(errMsg.String())
+		} else {
+			close(serverErrors)
+		}
+	}()
+
 	ch := utils.NewPipeNetConn(
 		stdout,
 		stdin,
@@ -447,7 +433,6 @@ func (client *NodeClient) scp(scpConf scp.Command, shellCmd string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	done := make(chan struct{})
 
 	go func() {
 		err := scpServer.Serve(ch)
@@ -455,20 +440,18 @@ func (client *NodeClient) scp(scpConf scp.Command, shellCmd string) error {
 			log.Errorf(err.Error())
 		}
 		stdin.Close()
-		close(done)
 	}()
 
 	err = session.Run(shellCmd)
+
+	select {
+	case serverError := <-serverErrors:
+		return trace.Wrap(serverError)
+	}
+
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	select {
-	case <-done:
-	case <-time.After(10 * time.Second):
-		return trace.Errorf("timeout")
-	}
-
 	return nil
 }
 

@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package main
 
 import (
@@ -150,7 +151,7 @@ func main() {
 }
 
 func onVersion() {
-	fmt.Println("TODO: Version command has not been implemented yet")
+	fmt.Println(teleport.Version)
 }
 
 func printHeader(t *goterm.Table, cols []string) {

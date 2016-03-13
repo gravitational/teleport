@@ -1,3 +1,6 @@
+var {TRYING_TO_LOGIN} = require('app/modules/restApi/constants');
+var {requestStatus} = require('app/modules/restApi/getters');
+
 const user = [ ['tlpt_user'], (currentUser) => {
     if(!currentUser){
       return null;
@@ -15,5 +18,6 @@ const user = [ ['tlpt_user'], (currentUser) => {
 ];
 
 export default {
-  user
+  user,
+  loginAttemp: requestStatus(TRYING_TO_LOGIN)
 }
