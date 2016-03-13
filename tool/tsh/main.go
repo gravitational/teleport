@@ -59,6 +59,12 @@ type CLIConf struct {
 	IsUnderTest bool
 	// AgentSocketAddr is address for agent listeing socket
 	AgentSocketAddr utils.NetAddrVal
+	// Remote SSH session to join
+	SessionID string
+	// Src file to SCP
+	CopyFrom string
+	// Dest file to SCP
+	CopyTo string
 }
 
 // run executes TSH client. same as main() but easier to test
@@ -84,10 +90,16 @@ func run(args []string, underTest bool) {
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int16Var(&cf.NodePort)
 	ssh.Flag("login", "Remote host login").Short('l').StringVar(&cf.NodeLogin)
+	// join
+	join := app.Command("join", "Join the active SSH session")
+	join.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
+	// scp
+	scp := app.Command("scp", "Secure file copy")
+	scp.Arg("from", "Source file to copy").Required().StringVar(&cf.CopyFrom)
+	scp.Arg("to", "Destination to copy to").Required().StringVar(&cf.CopyTo)
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes")
 	ls.Arg("labels", "List of labels to filter node list").Default("*").StringVar(&cf.UserHost)
-
 	// agent (SSH agent listening on unix socket)
 	agent := app.Command("agent", "Start SSH agent on unix socket")
 	agent.Flag("socket", "SSH agent listening socket address, e.g. unix:///tmp/teleport.agent.sock").SetValue(&cf.AgentSocketAddr)
@@ -111,6 +123,10 @@ func run(args []string, underTest bool) {
 		onVersion()
 	case ssh.FullCommand():
 		onSSH(&cf)
+	case join.FullCommand():
+		onJoin(&cf)
+	case scp.FullCommand():
+		onSCP(&cf)
 	case ls.FullCommand():
 		onListNodes(&cf)
 	case agent.FullCommand():
@@ -204,6 +220,28 @@ func onSSH(cf *CLIConf) {
 	}
 }
 
+// onJoin executes 'ssh join' command
+func onJoin(cf *CLIConf) {
+	tc, err := makeClient(cf)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	if err = tc.Join(cf.SessionID); err != nil {
+		utils.FatalError(err)
+	}
+}
+
+// onSCP executes 'tsh scp' command
+func onSCP(cf *CLIConf) {
+	tc, err := makeClient(cf)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	if err := tc.SCP(cf.CopyFrom, cf.CopyTo); err != nil {
+		utils.FatalError(err)
+	}
+}
+
 // makeClient takes the command-line configuration and constructs & returns
 // a fully configured TeleportClient object
 func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
@@ -214,22 +252,23 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 	if cf.MinsToLive == 0 {
 		cf.MinsToLive = int32(defaults.CertDuration / time.Minute)
 	}
-	// split login & host
-	parts := strings.Split(cf.UserHost, "@")
 	hostLogin := cf.Login
-	if len(parts) > 1 {
-		hostLogin = parts[0]
-		cf.UserHost = parts[1]
-	}
-	// see if remote host is specified as a set of labels
 	var labels map[string]string
-	if strings.Contains(cf.UserHost, "=") {
-		labels, err = client.ParseLabelSpec(cf.UserHost)
-		if err != nil {
-			return nil, err
+	// split login & host
+	if cf.UserHost != "" {
+		parts := strings.Split(cf.UserHost, "@")
+		if len(parts) > 1 {
+			hostLogin = parts[0]
+			cf.UserHost = parts[1]
+		}
+		// see if remote host is specified as a set of labels
+		if strings.Contains(cf.UserHost, "=") {
+			labels, err = client.ParseLabelSpec(cf.UserHost)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
-
 	// prep client config:
 	c := &client.Config{
 		Login:              cf.Login,

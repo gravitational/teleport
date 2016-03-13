@@ -18,8 +18,8 @@ tctl:
 
 .PHONY: teleport
 teleport: 
-	ln -f -s $$(pwd)/web/dist/app /var/lib/teleport/app
-	ln -f -s $$(pwd)/web/dist/index.html /var/lib/teleport/index.html
+	ln -f -s $$(pwd)/web/dist/app $(OUT)/
+	ln -f -s $$(pwd)/web/dist/index.html $(OUT)/
 	go build -o $(OUT)/teleport -i github.com/gravitational/teleport/tool/teleport
 
 .PHONY: tsh
