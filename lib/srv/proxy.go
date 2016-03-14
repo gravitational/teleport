@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 
 	log "github.com/Sirupsen/logrus"
@@ -37,6 +38,7 @@ type proxySubsys struct {
 	srv       *Server
 	host      string
 	port      string
+	siteName  string
 	closeC    chan struct{}
 	error     error
 	closeOnce sync.Once
@@ -46,47 +48,144 @@ type proxySubsys struct {
 // proxy subsystem
 //
 // proxy subsystem name can take the following forms:
-//
 //  "proxy:host:22"          - standard SSH request to connect to  host:22 on the 1st site
-//  "proxy:sitename@"        - Teleport request to connect to an auth server for site with name 'sitename'
-//  "proxy:sitename@host:22" - Teleport request to connect to host:22 on site 'sitename'
-//
+//  "proxy:@sitename"        - Teleport request to connect to an auth server for site with name 'sitename'
+//  "proxy:host:22@sitename" - Teleport request to connect to host:22 on site 'sitename'
 func parseProxySubsys(name string, srv *Server) (*proxySubsys, error) {
-	log.Debugf("parsing proxy request to %v", name)
-	out := strings.Split(name, ":")
-	if len(out) != 3 {
-		return nil, trace.Wrap(teleport.BadParameter(
-			"proxy", fmt.Sprintf("invalid format for proxy request: '%v', expected 'proxy:host:port'", name)))
+	log.Infof("parse_proxy_subsys(%s)", name)
+	var (
+		siteName   string
+		host       string
+		port       string
+		paramError error = teleport.BadParameter("proxy",
+			fmt.Sprintf("invalid format for proxy request: '%v', expected 'proxy:host:port@site'", name))
+	)
+	const prefix = "proxy:"
+	// get rid of 'proxy:' prefix:
+	if strings.Index(name, prefix) != 0 {
+		return nil, trace.Wrap(paramError)
+	}
+	name = name[len(prefix):]
+	// find the site name in the argument:
+	parts := strings.Split(name, "@")
+	if len(parts) > 1 {
+		siteName = strings.Join(parts[1:], "@")
+		name = parts[0]
+		fmt.Println("parts:", parts, "site: ", siteName)
+	}
+	// find host & port in the arguments:
+	host, port, err := net.SplitHostPort(name)
+	if siteName == "" && err != nil {
+		return nil, trace.Wrap(paramError)
+	}
+	// validate siteName
+	if siteName != "" && srv.proxyTun != nil {
+		_, err := srv.proxyTun.GetSite(siteName)
+		if err != nil {
+			return nil, trace.Wrap(teleport.BadParameter("proxy", fmt.Sprintf("unknown site '%s'", siteName)))
+		}
 	}
 	return &proxySubsys{
-		srv:    srv,
-		host:   out[1],
-		port:   out[2],
-		closeC: make(chan struct{}),
+		srv:      srv,
+		host:     host,
+		port:     port,
+		siteName: siteName,
+		closeC:   make(chan struct{}),
 	}, nil
 }
 
 func (t *proxySubsys) String() string {
-	return fmt.Sprintf("proxySubsys(host=%v, port=%v)", t.host, t.port)
+	return fmt.Sprintf("proxySubsys(site=%s, host=%s, port=%s)", t.siteName, t.host, t.port)
 }
 
 // start is called by Golang's ssh when it needs to engage this sybsystem (typically to establish
 // a mapping connection between a client & remote node we're proxying to)
 func (t *proxySubsys) start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	log.Debugf("proxySubsys.execute(remote: %v, local: %v) for subsystem with (%s:%s)",
+	log.Debugf("proxy_subsystem: execute(remote: %v, local: %v) for subsystem with (%s:%s)",
 		sconn.RemoteAddr(), sconn.LocalAddr(), t.host, t.port)
+	var (
+		site   reversetunnel.RemoteSite
+		err    error
+		tunnel = t.srv.proxyTun
+	)
+	// get the site by name:
+	if t.siteName != "" {
+		site, err = tunnel.GetSite(t.siteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	// connecting to a specific host:
+	if t.host != "" {
+		// no site given? use the 1st one:
+		if site == nil {
+			sites := tunnel.GetSites()
+			if len(sites) == 0 {
+				log.Errorf("this proxy is not connected to any sites")
+				return trace.Errorf("no connected sites")
+			}
+			site = sites[0]
+			log.Infof("proxy_subsystem: no site specified. connecting to default: '%s'", site.GetName())
+		}
+		return t.proxyToHost(site, ch)
+	}
+	// connect to a site's auth server:
+	return t.proxyToSite(site, ch)
+}
 
-	// TODO: currently "teleport sites" are not exposed to end users (tctl, tsh, etc)
-	// and there's always only one "site" and that's the one the auth service runs on
-	remoteSrv, err := t.srv.proxyTun.FindSimilarSite(t.host)
+// proxyToSite establishes a proxy connection from the connected SSH client to the
+// auth server of the requested site
+func (t *proxySubsys) proxyToSite(site reversetunnel.RemoteSite, ch ssh.Channel) error {
+	var (
+		err  error
+		conn net.Conn
+	)
+	siteClient, err := site.GetClient()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	clt, err := remoteSrv.GetClient()
+	authServers, err := siteClient.GetAuthServers()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	servers, err := clt.GetNodes()
+	for _, authServer := range authServers {
+		// TODO: this is not right
+		conn, err = site.Dial("tcp", authServer.Addr)
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+		log.Infof("proxy_subsystem: connected to auth server: %v", authServer.Addr)
+		go func() {
+			var err error
+			defer func() {
+				t.close(err)
+			}()
+			defer ch.Close()
+			_, err = io.Copy(ch, conn)
+		}()
+		go func() {
+			var err error
+			defer func() {
+				t.close(err)
+			}()
+			defer conn.Close()
+			_, err = io.Copy(conn, ch)
+
+		}()
+		return nil
+	}
+	return err
+}
+
+// proxyToHost establishes a proxy connection from the connected SSH client to the
+// requested remote node (t.host:t.port) via the given site
+func (t *proxySubsys) proxyToHost(site reversetunnel.RemoteSite, ch ssh.Channel) error {
+	siteClient, err := site.GetClient()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	servers, err := siteClient.GetNodes()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -111,7 +210,7 @@ func (t *proxySubsys) start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 
 	// we must dial by server IP address because hostname
 	// may not be actually DNS resolvable
-	conn, err := remoteSrv.Dial("tcp", serverAddr)
+	conn, err := site.Dial("tcp", serverAddr)
 	if err != nil {
 		return trace.Wrap(teleport.ConvertSystemError(err))
 	}
@@ -132,7 +231,6 @@ func (t *proxySubsys) start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 		_, err = io.Copy(conn, ch)
 
 	}()
-
 	return nil
 }
 

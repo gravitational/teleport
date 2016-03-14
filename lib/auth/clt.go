@@ -18,8 +18,6 @@ package auth
 
 import (
 	"encoding/json"
-	"net"
-	"net/http"
 	"net/url"
 	"strconv"
 	"time"
@@ -30,7 +28,8 @@ import (
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/codahale/lunk"
 	"github.com/gravitational/roundtrip"
@@ -45,26 +44,9 @@ type Client struct {
 	roundtrip.Client
 }
 
-// NewClientFromNetAddr returns a new instance of the client
-func NewClientFromNetAddr(
-	a utils.NetAddr, params ...roundtrip.ClientParam) (*Client, error) {
-
-	client := &http.Client{
-		Transport: &http.Transport{
-			Dial: func(network, address string) (net.Conn, error) {
-				return net.Dial(a.AddrNetwork, a.Addr)
-			}}}
-	params = append(params, roundtrip.HTTPClient(client))
-	u := url.URL{
-		Scheme: "http",
-		Host:   "placeholder",
-		Path:   a.Path,
-	}
-	return NewClient(u.String(), params...)
-}
-
 // NewClient returns a new instance of the client
 func NewClient(addr string, params ...roundtrip.ClientParam) (*Client, error) {
+	log.Infof("auth.NewClient(%v)", addr)
 	c, err := roundtrip.NewClient(addr, CurrentVersion, params...)
 	if err != nil {
 		return nil, err

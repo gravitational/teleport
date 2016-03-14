@@ -289,9 +289,14 @@ func (tc *TeleportClient) ListNodes() ([]services.Server, error) {
 	if len(sites) == 0 {
 		return servers, nil
 	}
-	proxyClient.ConnectToSite(sites[0].Name)
-
-	// TODO: call sites[0].GetServers() when it's implemented
+	authServer, err := proxyClient.ConnectToSite(sites[0].Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers, err = authServer.GetNodes()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return filterByLabels(servers, tc.Config.Labels), nil
 }
 

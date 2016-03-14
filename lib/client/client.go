@@ -24,10 +24,13 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"regexp"
 	"time"
 
+	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
@@ -129,24 +132,25 @@ func (proxy *ProxyClient) FindServers(labelName string, labelRegex string) ([]se
 	return foundServers, nil
 }
 
-func (proxy *ProxyClient) ConnectToSite(siteName string) error {
+// ConnectToSite connects to the auth server of the given site via proxy.
+// It returns connected and authenticated auth server client
+func (proxy *ProxyClient) ConnectToSite(siteName string) (*auth.Client, error) {
 	log.Debugf("connecting to site: %s", siteName)
-
 	proxySession, err := proxy.Client.NewSession()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	proxyWriter, err := proxySession.StdinPipe()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	proxyReader, err := proxySession.StdoutPipe()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	proxyErr, err := proxySession.StderrPipe()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	printErrors := func() {
 		buf := &bytes.Buffer{}
@@ -155,29 +159,42 @@ func (proxy *ProxyClient) ConnectToSite(siteName string) error {
 			fmt.Println("ERROR: " + buf.String())
 		}
 	}
-	err = proxySession.RequestSubsystem("proxy:" + siteName + "@")
+	err = proxySession.RequestSubsystem("proxy:@" + siteName)
 	if err != nil {
 		defer printErrors()
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	localAddr, err := utils.ParseAddr("tcp://" + proxy.proxyAddress)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	remoteAddr, err := utils.ParseAddr("tcp://0.0.0.0") // fake remote address
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	_ = utils.NewPipeNetConn(
+	conn := utils.NewPipeNetConn(
 		proxyReader,
 		proxyWriter,
 		proxySession,
 		localAddr,
 		remoteAddr,
 	)
-	// TODO: create HTTP client using pipeNetConn as dialer (look at lib/auth/tun.go:NewTunClient())
-
-	return nil
+	// create HTTP client on top of created tunnel:
+	tr := &http.Transport{
+		Dial: func(network, addr string) (net.Conn, error) {
+			// TODO: this is not right
+			return conn, nil
+		},
+	}
+	authClient, err := auth.NewClient(
+		"http://stub:0",
+		roundtrip.HTTPClient(&http.Client{
+			Transport: tr,
+		}))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return authClient, nil
 }
 
 // ConnectToNode connects to the ssh server via Proxy.
