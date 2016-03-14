@@ -30,4 +30,3 @@ _testmain.go
 flymake*
 
 QR.png
-/vendor/github.com/gravitational/version/LICENSE
