@@ -58,6 +58,8 @@ type RemoteSite interface {
 	GetStatus() string
 	// GetClient returns client connected to remote auth server
 	GetClient() (auth.ClientI, error)
+	// GetAuthServers returns a list of auth servers who act as a CA for this site
+	GetAuthServers() ([]services.Server, error)
 }
 
 // Server represents server connected to one or many remote sites
@@ -548,6 +550,10 @@ type tunnelSite struct {
 
 	transport *http.Transport
 	clt       *auth.Client
+}
+
+func (s *tunnelSite) GetAuthServers() ([]services.Server, error) {
+	return s.clt.GetAuthServers()
 }
 
 func (s *tunnelSite) GetClient() (auth.ClientI, error) {

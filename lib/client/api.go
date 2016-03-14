@@ -289,7 +289,7 @@ func (tc *TeleportClient) ListNodes() ([]services.Server, error) {
 	if len(sites) == 0 {
 		return servers, nil
 	}
-	authServer, err := proxyClient.ConnectToSite(sites[0].Name)
+	authServer, err := proxyClient.ConnectToSite(&sites[0], tc.Config.HostLogin)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

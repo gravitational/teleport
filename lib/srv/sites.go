@@ -56,10 +56,15 @@ func (t *proxySitesSubsys) start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 	// build an arary of services.Site structures:
 	retval := make([]services.Site, 0, len(remoteSites))
 	for _, s := range remoteSites {
+		authServers, err := s.GetAuthServers()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		retval = append(retval, services.Site{
 			Name:          s.GetName(),
 			Status:        s.GetStatus(),
 			LastConnected: s.GetLastConnected(),
+			AuthServers:   authServers,
 		})
 	}
 	// serialize them into JSON and write back:

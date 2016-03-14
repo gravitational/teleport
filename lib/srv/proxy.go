@@ -149,7 +149,6 @@ func (t *proxySubsys) proxyToSite(site reversetunnel.RemoteSite, ch ssh.Channel)
 		return trace.Wrap(err)
 	}
 	for _, authServer := range authServers {
-		// TODO: this is not right
 		conn, err = site.Dial("tcp", authServer.Addr)
 		if err != nil {
 			log.Error(err)

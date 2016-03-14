@@ -61,6 +61,10 @@ func (s *directSite) GetName() string {
 	return s.domainName
 }
 
+func (s *directSite) GetAuthServers() ([]services.Server, error) {
+	return s.client.GetAuthServers()
+}
+
 func (s *directSite) GetLastConnected() time.Time {
 	return time.Now()
 }
