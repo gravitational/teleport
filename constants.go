@@ -14,3 +14,8 @@ const (
 	// ETCDBackendType is etcd backend
 	ETCDBackendType = "etcd"
 )
+
+const (
+	// DebugOutputEnvVar tells tests to use verbose debug output
+	DebugOutputEnvVar = "TELEPORT_DEBUG_TESTS"
+)

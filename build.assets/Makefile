@@ -13,7 +13,7 @@ build: bbox
 		   -v "$$(pwd)/../":/gopath/src/github.com/gravitational/teleport \
 		   -u $$(id -u):$$(id -g) \
 		   $(BBOX) \
-		   /bin/bash -c "make -C /gopath/src/github.com/gravitational/teleport FLAGS='-cover -race' clean test all"
+		   /bin/bash -c "make -C /gopath/src/github.com/gravitational/teleport TELEPORT_DEBUG_TESTS=true FLAGS='-cover -race' clean test all"
 
 #
 # builds buildbox:1.0.0 Docker container which is Debian8 with Golang 1.4.2

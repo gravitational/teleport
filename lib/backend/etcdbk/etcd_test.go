@@ -48,7 +48,7 @@ var _ = Suite(&EtcdSuite{
 })
 
 func (s *EtcdSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
+	utils.InitLoggerForTests()
 	nodesVal := os.Getenv("TELEPORT_TEST_ETCD_NODES")
 	if nodesVal == "" {
 		// Skips the entire suite

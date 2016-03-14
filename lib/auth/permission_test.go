@@ -29,7 +29,7 @@ type PermCheckerSuite struct {
 var _ = Suite(&PermCheckerSuite{})
 
 func (s *PermCheckerSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
+	utils.InitLoggerForTests()
 }
 
 func (s *PermCheckerSuite) TestSessions(c *C) {

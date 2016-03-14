@@ -37,7 +37,7 @@ type ServerSuite struct {
 var _ = Suite(&ServerSuite{})
 
 func (s *ServerSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
+	utils.InitLoggerForTests()
 
 	pk, err := ssh.ParsePrivateKey(suite.PEMBytes["ecdsa"])
 	c.Assert(err, IsNil)
