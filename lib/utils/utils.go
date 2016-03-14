@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
@@ -29,6 +30,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/version"
 	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
 )
@@ -141,6 +143,16 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return string(bytes), nil
+}
+
+// PrintVersion prints human readable version
+func PrintVersion() {
+	ver := version.Get()
+	if ver.GitCommit != "" {
+		fmt.Printf("%v git:%v\n", ver.Version, ver.GitCommit)
+	} else {
+		fmt.Printf("%v\n", ver.Version)
+	}
 }
 
 const (

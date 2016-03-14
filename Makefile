@@ -24,8 +24,8 @@ teleport:
 tsh: 
 	go build -o $(OUT)/tsh -i github.com/gravitational/teleport/tool/tsh
 
-install: remove-temp-files
-	go install github.com/gravitational/teleport/tool/teleport \
+install: remove-temp-files flags
+	go install -ldflags $(TELEPORT_LINKFLAGS) github.com/gravitational/teleport/tool/teleport \
 	           github.com/gravitational/teleport/tool/tctl \
 	           github.com/gravitational/teleport/tool/tsh \
 
@@ -49,6 +49,10 @@ test:
 			   github.com/gravitational/teleport/lib/... \
 			   github.com/gravitational/teleport/tool/teleport... $(FLAGS)
 	go vet ./tool/... ./lib/...
+
+flags:
+	go install github.com/gravitational/teleport/vendor/github.com/gravitational/version/cmd/linkflags
+	$(eval TELEPORT_LINKFLAGS := "$(shell linkflags -pkg=$(PWD) -verpkg=github.com/gravitational/teleport/vendor/github.com/gravitational/version)")
 
 
 test-with-etcd: install

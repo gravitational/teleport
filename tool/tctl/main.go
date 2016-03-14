@@ -162,7 +162,7 @@ func main() {
 }
 
 func onVersion() {
-	fmt.Println("TODO: Version command has not been implemented yet")
+	utils.PrintVersion()
 }
 
 func printHeader(t *goterm.Table, cols []string) {
