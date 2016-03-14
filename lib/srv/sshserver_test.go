@@ -340,10 +340,13 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 
 	sessionServer, err := sess.New(s.bk)
 	c.Assert(err, IsNil)
-	apiSrv := auth.NewAPIWithRoles(s.a, bl, sessionServer, rec,
-		auth.NewAllowAllPermissions(),
-		auth.StandardRoles,
-	)
+	apiSrv := auth.NewAPIWithRoles(auth.APIConfig{
+		AuthServer:        s.a,
+		EventLog:          bl,
+		SessionService:    sessionServer,
+		Recorder:          rec,
+		PermissionChecker: auth.NewAllowAllPermissions(),
+		Roles:             auth.StandardRoles})
 	go apiSrv.Serve()
 
 	tsrv, err := auth.NewTunnel(
@@ -504,10 +507,13 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 
 	sessionServer, err := sess.New(s.bk)
 	c.Assert(err, IsNil)
-	apiSrv := auth.NewAPIWithRoles(s.a, bl, sessionServer, rec,
-		auth.NewAllowAllPermissions(),
-		auth.StandardRoles,
-	)
+	apiSrv := auth.NewAPIWithRoles(auth.APIConfig{
+		AuthServer:        s.a,
+		EventLog:          bl,
+		SessionService:    sessionServer,
+		Recorder:          rec,
+		PermissionChecker: auth.NewAllowAllPermissions(),
+		Roles:             auth.StandardRoles})
 	go apiSrv.Serve()
 
 	tsrv, err := auth.NewTunnel(
@@ -602,10 +608,13 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	sessionServer, err := sess.New(s.bk)
 	c.Assert(err, IsNil)
 
-	apiSrv := auth.NewAPIWithRoles(s.a, bl, sessionServer, rec,
-		auth.NewAllowAllPermissions(),
-		auth.StandardRoles,
-	)
+	apiSrv := auth.NewAPIWithRoles(auth.APIConfig{
+		AuthServer:        s.a,
+		EventLog:          bl,
+		SessionService:    sessionServer,
+		Recorder:          rec,
+		PermissionChecker: auth.NewAllowAllPermissions(),
+		Roles:             auth.StandardRoles})
 	go apiSrv.Serve()
 
 	tsrv, err := auth.NewTunnel(

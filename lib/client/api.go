@@ -211,7 +211,6 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err erro
 		return trace.Errorf("Making local copies is not supported")
 	}
 
-	// require --proxy
 	if !tc.Config.ProxySpecified() {
 		return trace.Wrap(teleport.BadParameter("server", "proxy server is not specified"))
 	}
@@ -290,7 +289,7 @@ func (tc *TeleportClient) ListNodes() ([]services.Server, error) {
 	if len(sites) == 0 {
 		return servers, nil
 	}
-	proxyClient.ConnectToSite(tc.Host, sites[0].Name)
+	proxyClient.ConnectToSite(sites[0].Name)
 
 	// TODO: call sites[0].GetServers() when it's implemented
 	return filterByLabels(servers, tc.Config.Labels), nil

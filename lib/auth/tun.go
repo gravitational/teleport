@@ -316,22 +316,6 @@ func (s *AuthTunnel) keyAuth(
 		return nil, trace.Errorf("ERROR: Server doesn't support provided key type")
 	}
 
-	if cert.CertType == ssh.UserCert {
-		_, err := s.userCertChecker.Authenticate(conn, key)
-		if err != nil {
-			log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
-				conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
-			return nil, err
-		}
-		perms := &ssh.Permissions{
-			Extensions: map[string]string{
-				ExtHost: conn.User(),
-				ExtRole: string(teleport.RoleHangoutRemoteUser),
-			},
-		}
-		return perms, nil
-	}
-
 	err := s.hostCertChecker.CheckHostKey(conn.User(), conn.RemoteAddr(), key)
 	if err != nil {
 		log.Warningf("conn(%v->%v, user=%v) ERROR: failed auth user %v, err: %v",
@@ -584,7 +568,7 @@ func (t *TunDialer) getClient() (*ssh.Client, error) {
 			return nil, teleport.AccessDenied(
 				fmt.Sprintf("access denied to '%v': bad username or credentials", t.user))
 		}
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(teleport.ConvertSystemError(err))
 	}
 	return client, nil
 }

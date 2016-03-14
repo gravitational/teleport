@@ -317,6 +317,12 @@ func ConvertSystemError(err error) error {
 	if terr, ok := err.(trace.Error); ok {
 		innerError = terr.OrigError()
 	}
+	if os.IsNotExist(err) {
+		return NotFound(innerError.Error())
+	}
+	if os.IsPermission(err) {
+		return AccessDenied(innerError.Error())
+	}
 	switch realErr := innerError.(type) {
 	case *net.OpError:
 		return ConnectionProblem(

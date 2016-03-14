@@ -96,6 +96,15 @@ func applyFileConfig(fc *config.FileConfig, cfg *service.Config) error {
 	}
 	applyString(fc.NodeName, &cfg.Hostname)
 
+	// apply "advertise_ip" setting:
+	advertiseIP := fc.AdvertiseIP
+	if advertiseIP != nil {
+		if err := validateAdvertiseIP(advertiseIP); err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.AdvertiseIP = advertiseIP
+	}
+
 	// config file has auth servers in there?
 	if len(fc.AuthServers) > 0 {
 		cfg.AuthServers = make(service.NetAddrSlice, 0, len(fc.AuthServers))
@@ -108,6 +117,7 @@ func applyFileConfig(fc *config.FileConfig, cfg *service.Config) error {
 		}
 	}
 	cfg.ApplyToken(fc.AuthToken)
+	cfg.Auth.DomainName = fc.Auth.DomainName
 
 	// configure storage:
 	switch fc.Storage.Type {
@@ -236,14 +246,6 @@ func applyFileConfig(fc *config.FileConfig, cfg *service.Config) error {
 			}
 		}
 	}
-	// apply "advertise_ip" setting:
-	advertiseIP := fc.SSH.AdvertiseIP
-	if advertiseIP != nil {
-		if advertiseIP.IsLoopback() || advertiseIP.IsUnspecified() || advertiseIP.IsMulticast() {
-			return teleport.BadParameter("advertise-ip", fmt.Sprintf("unreachable advertise IP: %v", advertiseIP))
-		}
-		cfg.SSH.AdvertiseIP = advertiseIP
-	}
 	return nil
 }
 
@@ -271,7 +273,6 @@ func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 	if err = applyFileConfig(fileConf, cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	// apply --debug flag:
 	if clf.Debug {
 		cfg.Console = ioutil.Discard
@@ -314,6 +315,13 @@ func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 	// apply --listen-ip flag:
 	if clf.ListenIP != nil {
 		applyListenIP(clf.ListenIP, cfg)
+	}
+
+	if clf.AdvertiseIP != nil {
+		if err := validateAdvertiseIP(clf.AdvertiseIP); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cfg.AdvertiseIP = clf.AdvertiseIP
 	}
 
 	// locate web assets if web proxy is enabled
@@ -372,6 +380,13 @@ func validateRoles(roles string) error {
 		default:
 			return trace.Errorf("unknown role: '%s'", role)
 		}
+	}
+	return nil
+}
+
+func validateAdvertiseIP(advertiseIP net.IP) error {
+	if advertiseIP.IsLoopback() || advertiseIP.IsUnspecified() || advertiseIP.IsMulticast() {
+		return teleport.BadParameter("advertise-ip", fmt.Sprintf("unreachable advertise IP: %v", advertiseIP))
 	}
 	return nil
 }

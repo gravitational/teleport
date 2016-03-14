@@ -168,7 +168,7 @@ func (proxy *ProxyClient) ConnectToSite(siteName string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	pipeNetConn := utils.NewPipeNetConn(
+	_ = utils.NewPipeNetConn(
 		proxyReader,
 		proxyWriter,
 		proxySession,

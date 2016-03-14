@@ -265,7 +265,10 @@ func (s *Server) registerServer() error {
 		Labels:    s.labels,
 		CmdLabels: s.getCommandLabels(),
 	}
-	return trace.Wrap(s.authService.UpsertServer(srv, defaults.ServerHeartbeatTTL))
+	if !s.proxyMode {
+		return trace.Wrap(s.authService.UpsertNode(srv, defaults.ServerHeartbeatTTL))
+	}
+	return trace.Wrap(s.authService.UpsertProxy(srv, defaults.ServerHeartbeatTTL))
 }
 
 // heartbeatPresence periodically calls into the auth server to let everyone
@@ -483,12 +486,10 @@ func (s *Server) Close() error {
 
 // Start starts server
 func (s *Server) Start() error {
-	if !s.proxyMode {
-		if len(s.cmdLabels) > 0 {
-			s.updateLabels()
-		}
-		go s.heartbeatPresence()
+	if len(s.cmdLabels) > 0 {
+		s.updateLabels()
 	}
+	go s.heartbeatPresence()
 	return s.srv.Start()
 }
 

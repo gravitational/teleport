@@ -1,7 +1,7 @@
 ETCD_NODE1 := http://127.0.0.1:4001
 ETCD_NODES := ${ETCD_NODE1}
 ETCD_FLAGS := TELEPORT_TEST_ETCD_NODES=${ETCD_NODES}
-OUT=out
+OUT := out
 export GO15VENDOREXPERIMENT=1
 
 .PHONY: install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd install-assets docs-serve
@@ -18,8 +18,6 @@ tctl:
 
 .PHONY: teleport
 teleport: 
-	ln -f -s $$(pwd)/web/dist/app $(OUT)/
-	ln -f -s $$(pwd)/web/dist/index.html $(OUT)/
 	go build -o $(OUT)/teleport -i github.com/gravitational/teleport/tool/teleport
 
 .PHONY: tsh
@@ -39,6 +37,7 @@ clean:
 #
 .PHONY: produtcion
 production: clean
+	mkdir -p $(OUT)
 	$(MAKE) -C build.assets
 
 #

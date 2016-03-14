@@ -238,30 +238,12 @@ func (s *AuthServer) ValidateToken(token string) (role string, e error) {
 	return tok.Role, nil
 }
 
-func (s *AuthServer) RegisterUsingToken(outputToken, hostID string, role teleport.Role) (keys PackedKeys, e error) {
-	log.Infof("[AUTH] Node `%v` is trying to join", hostID)
-	if hostID == "" {
-		return PackedKeys{}, trace.Wrap(fmt.Errorf("HostID cannot be empty"))
-	}
-	if err := role.Check(); err != nil {
-		return PackedKeys{}, trace.Wrap(err)
-	}
-	token, _, err := services.SplitTokenRole(outputToken)
-	if err != nil {
-		return PackedKeys{}, trace.Wrap(err)
-	}
-	tok, err := s.ProvisioningService.GetToken(token)
-	if err != nil {
-		log.Warningf("[AUTH] Node `%v` cannot join: token error. %v", hostID, err)
-		return PackedKeys{}, trace.Wrap(err)
-	}
-	if tok.Role != string(role) {
-		return PackedKeys{}, trace.Wrap(
-			teleport.BadParameter("token.Role", "role does not match"))
-	}
+// GenerateServerKeys generates private key and certificate signed
+// by the host certificate authority, listing the role of this server
+func (s *AuthServer) GenerateServerKeys(hostID string, role teleport.Role) (*PackedKeys, error) {
 	k, pub, err := s.GenerateKeyPair("")
 	if err != nil {
-		return PackedKeys{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	// we always append authority's domain to resulting node name,
 	// that's how we make sure that nodes are uniquely identified/found
@@ -270,18 +252,43 @@ func (s *AuthServer) RegisterUsingToken(outputToken, hostID string, role telepor
 	c, err := s.GenerateHostCert(pub, fqdn, s.DomainName, role, 0)
 	if err != nil {
 		log.Warningf("[AUTH] Node `%v` cannot join: cert generation error. %v", hostID, err)
-		return PackedKeys{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	keys = PackedKeys{
+	return &PackedKeys{
 		Key:  k,
 		Cert: c,
-	}
+	}, nil
+}
 
+func (s *AuthServer) RegisterUsingToken(outputToken, hostID string, role teleport.Role) (*PackedKeys, error) {
+	log.Infof("[AUTH] Node `%v` is trying to join", hostID)
+	if hostID == "" {
+		return nil, trace.Wrap(fmt.Errorf("HostID cannot be empty"))
+	}
+	if err := role.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	token, _, err := services.SplitTokenRole(outputToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tok, err := s.ProvisioningService.GetToken(token)
+	if err != nil {
+		log.Warningf("[AUTH] Node `%v` cannot join: token error. %v", hostID, err)
+		return nil, trace.Wrap(err)
+	}
+	if tok.Role != string(role) {
+		return nil, trace.Wrap(
+			teleport.BadParameter("token.Role", "role does not match"))
+	}
+	keys, err := s.GenerateServerKeys(hostID, role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := s.DeleteToken(outputToken); err != nil {
-		return PackedKeys{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
 	utils.Consolef(os.Stdout, "[AUTH] Node `%v` joined the cluster", hostID)
 	return keys, nil
 }

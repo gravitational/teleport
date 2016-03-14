@@ -41,6 +41,7 @@ var (
 		"auth_service":      true,
 		"auth_token":        true,
 		"auth_servers":      true,
+		"domain_name":       true,
 		"storage":           true,
 		"nodename":          true,
 		"log":               true,
@@ -190,6 +191,46 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	return fc
 }
 
+// MakeAuthPeerFileConfig returns a sample configuration for auth
+// server peer that shares etcd backend
+func MakeAuthPeerFileConfig(domainName string, token string) (fc *FileConfig) {
+	conf := service.MakeDefaultConfig()
+
+	// sample global config:
+	var g Global
+	g.NodeName = conf.Hostname
+	g.AuthToken = token
+	g.Logger.Output = "stderr"
+	g.Logger.Severity = "INFO"
+	g.AuthServers = []string{"<insert auth server peer address here>"}
+	g.Limits.MaxConnections = defaults.LimiterMaxConnections
+	g.Limits.MaxUsers = defaults.LimiterMaxConcurrentUsers
+	g.Storage.DirName = defaults.DataDir
+	g.Storage.Type = teleport.ETCDBackendType
+	g.Storage.Prefix = defaults.ETCDPrefix
+	g.Storage.Peers = []string{"insert ETCD peers addresses here"}
+
+	// sample Auth config:
+	var a Auth
+	a.ListenAddress = conf.Auth.SSHAddr.Addr
+	a.EnabledFlag = "yes"
+	a.DomainName = domainName
+
+	var p Proxy
+	p.EnabledFlag = "no"
+
+	var s SSH
+	s.EnabledFlag = "no"
+
+	fc = &FileConfig{
+		Global: g,
+		Auth:   a,
+		Proxy:  p,
+		SSH:    s,
+	}
+	return fc
+}
+
 // DebugDumpToYAML allows for quick YAML dumping of the config
 func (conf *FileConfig) DebugDumpToYAML() string {
 	bytes, err := yaml.Marshal(&conf)
@@ -239,6 +280,7 @@ type Global struct {
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
 	Storage     StorageBackend   `yaml:"storage,omitempty"`
+	AdvertiseIP net.IP           `yaml:"advertise_ip,omitempty"`
 }
 
 // Service is a common configuration of a teleport service
@@ -266,27 +308,29 @@ func (s *Service) Disabled() bool {
 	return s.Configured() && !s.Enabled()
 }
 
-// 'auth_service' section of the config file
+// Auth is 'auth_service' section of the config file
 type Auth struct {
 	Service `yaml:",inline"`
+	// DomainName is the name of the certificate authority
+	// managed by this domain
+	DomainName string `yaml:"domain_name,omitempty"`
 }
 
-// 'ssh_service' section of the config file
+// SSH is 'ssh_service' section of the config file
 type SSH struct {
-	Service     `yaml:",inline"`
-	Labels      map[string]string `yaml:"labels,omitempty"`
-	Commands    []CommandLabel    `yaml:"commands,omitempty"`
-	AdvertiseIP net.IP            `yaml:"advertise_ip,omitempty"`
+	Service  `yaml:",inline"`
+	Labels   map[string]string `yaml:"labels,omitempty"`
+	Commands []CommandLabel    `yaml:"commands,omitempty"`
 }
 
-// `command` section of `ssh_service` in the config file
+// CommandLabel is `command` section of `ssh_service` in the config file
 type CommandLabel struct {
 	Name    string        `yaml:"name"`
 	Command []string      `yaml:"command,flow"`
 	Period  time.Duration `yaml:"period"`
 }
 
-// `proxy_service` section of the config file:
+// Proxy is `proxy_service` section of the config file:
 type Proxy struct {
 	Service  `yaml:",inline"`
 	WebAddr  string `yaml:"web_listen_addr,omitempty"`

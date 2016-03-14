@@ -19,32 +19,33 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/trace"
-
-	log "github.com/Sirupsen/logrus"
 )
 
+// PresenceService records and reports the presence of all components
+// of the cluster - Nodes, Proxies and SSH nodes
 type PresenceService struct {
 	backend backend.Backend
 }
 
+// NewPresenceService returns new presence service instance
 func NewPresenceService(backend backend.Backend) *PresenceService {
 	return &PresenceService{backend}
 }
 
-// GetServers returns a list of registered servers
-func (s *PresenceService) GetServers() ([]Server, error) {
-	IDs, err := s.backend.GetKeys([]string{"servers"})
+func (s *PresenceService) getServers(prefix string) ([]Server, error) {
+	IDs, err := s.backend.GetKeys([]string{prefix})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	servers := make([]Server, len(IDs))
 	for i, id := range IDs {
-		data, err := s.backend.GetVal([]string{"servers"}, id)
+		data, err := s.backend.GetVal([]string{prefix}, id)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -52,57 +53,71 @@ func (s *PresenceService) GetServers() ([]Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	// sorting helps with tests and makes it all deterministic
+	sort.Sort(sortedServers(servers))
 	return servers, nil
 }
 
-// UpsertServer registers server presence, permanently if ttl is 0 or
-// for the specified duration with second resolution if it's >= 1 second
-func (s *PresenceService) UpsertServer(server Server, ttl time.Duration) error {
+type sortedServers []Server
+
+func (s sortedServers) Len() int {
+	return len(s)
+}
+
+func (s sortedServers) Less(i, j int) bool {
+	return s[i].ID < s[j].ID
+}
+
+func (s sortedServers) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s *PresenceService) upsertServer(prefix string, server Server, ttl time.Duration) error {
 	data, err := json.Marshal(server)
 	if err != nil {
-		log.Error(err)
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal([]string{"servers"}, server.ID, data, ttl)
-	if err != nil {
-		log.Error(err)
-		return trace.Wrap(err)
-	}
-	return err
+	err = s.backend.UpsertVal([]string{prefix}, server.ID, data, ttl)
+	return trace.Wrap(err)
 }
 
-// GetServers returns a list of registered servers
+const (
+	nodesPrefix       = "nodes"
+	authServersPrefix = "authservers"
+	proxiesPrefix     = "proxies"
+)
+
+// GetNodes returns a list of registered servers
+func (s *PresenceService) GetNodes() ([]Server, error) {
+	return s.getServers(nodesPrefix)
+}
+
+// UpsertNode registers node presence, permanently if ttl is 0 or
+// for the specified duration with second resolution if it's >= 1 second
+func (s *PresenceService) UpsertNode(server Server, ttl time.Duration) error {
+	return s.upsertServer(nodesPrefix, server, ttl)
+}
+
+// GetAuthServers returns a list of registered servers
 func (s *PresenceService) GetAuthServers() ([]Server, error) {
-	IDs, err := s.backend.GetKeys([]string{"authservers"})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers := make([]Server, len(IDs))
-	for i, id := range IDs {
-		data, err := s.backend.GetVal([]string{"authservers"}, id)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := json.Unmarshal(data, &servers[i]); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	return servers, nil
+	return s.getServers(authServersPrefix)
 }
 
-// UpsertServer registers server presence, permanently if ttl is 0 or
+// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
 func (s *PresenceService) UpsertAuthServer(server Server, ttl time.Duration) error {
-	data, err := json.Marshal(server)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = s.backend.UpsertVal([]string{"authservers"},
-		server.ID, data, ttl)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return err
+	return s.upsertServer(authServersPrefix, server, ttl)
+}
+
+// UpsertProxy registers proxy server presence, permanently if ttl is 0 or
+// for the specified duration with second resolution if it's >= 1 second
+func (s *PresenceService) UpsertProxy(server Server, ttl time.Duration) error {
+	return s.upsertServer(proxiesPrefix, server, ttl)
+}
+
+// GetProxies returns a list of registered proxies
+func (s *PresenceService) GetProxies() ([]Server, error) {
+	return s.getServers(proxiesPrefix)
 }
 
 // Site represents a cluster of teleport nodes who collectively trust the same
