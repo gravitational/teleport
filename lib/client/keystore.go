@@ -57,7 +57,7 @@ func AddHostSignersToCache(hostSigners []services.CertAuthority) error {
 	return nil
 }
 
-func CheckHostSignerFromCache(hostId string, remote net.Addr, key ssh.PublicKey) error {
+func CheckHostSignature(hostId string, remote net.Addr, key ssh.PublicKey) error {
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
 		return trace.Errorf("expected certificate")
@@ -238,5 +238,5 @@ func getKeysDir() string {
 var (
 	KeyFilePrefix       = "teleport_"
 	KeyFileSuffix       = ".tkey"
-	HostSignersFilename = "HostSigners.db"
+	HostSignersFilename = "hostsigners.db"
 )
