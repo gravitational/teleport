@@ -10,6 +10,7 @@ all: build
 # builds 'teleport' binary and places it $(OUT) dir
 #
 build: bbox
+	mkdir -p $(OUT)
 	docker run -i --rm=true \
 		   -v "$$(pwd)/../":/gopath/src/github.com/gravitational/teleport \
 		   -u $$(id -u):$$(id -g) \
