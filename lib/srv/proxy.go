@@ -42,6 +42,15 @@ type proxySubsys struct {
 	closeOnce sync.Once
 }
 
+// parseProxySubsys looks at the requested subsystem name and returns a fully configured
+// proxy subsystem
+//
+// proxy subsystem name can take the following forms:
+//
+//  "proxy:host:22"          - standard SSH request to connect to  host:22 on the 1st site
+//  "proxy:sitename@"        - Teleport request to connect to an auth server for site with name 'sitename'
+//  "proxy:sitename@host:22" - Teleport request to connect to host:22 on site 'sitename'
+//
 func parseProxySubsys(name string, srv *Server) (*proxySubsys, error) {
 	log.Debugf("parsing proxy request to %v", name)
 	out := strings.Split(name, ":")

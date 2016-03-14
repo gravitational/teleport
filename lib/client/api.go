@@ -276,11 +276,23 @@ func (tc *TeleportClient) ListNodes() ([]services.Server, error) {
 		return nil, trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	var servers []services.Server
-	servers, err = proxyClient.GetSites()
+
+	// get the list of sites (AKA teleport clusters this proxy is connected to).
+	// this version of Teleport only supports 1 site per proxy
+	var (
+		sites   []services.Site
+		servers []services.Server
+	)
+	sites, err = proxyClient.GetSites()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if len(sites) == 0 {
+		return servers, nil
+	}
+	proxyClient.ConnectToSite(tc.Host, sites[0].Name)
+
+	// TODO: call sites[0].GetServers() when it's implemented
 	return filterByLabels(servers, tc.Config.Labels), nil
 }
 
@@ -328,10 +340,12 @@ func (tc *TeleportClient) runCommand(proxyClient *ProxyClient, command string) e
 	var nodeAddresses []string
 	if proxyClient != nil && tc.Config.Labels != nil {
 		nodeAddresses = make([]string, 0)
-		servers, err := proxyClient.GetSites()
+		_, err := proxyClient.GetSites()
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		// TODO: call sites[0].getServers() or something
+		var servers []services.Server
 		for _, server := range filterByLabels(servers, tc.Config.Labels) {
 			nodeAddresses = append(nodeAddresses, server.Addr)
 		}

@@ -57,7 +57,7 @@ type NodeClient struct {
 // Each site is returned as an instance of its auth server
 //
 // NOTE: this version of teleport supports only one site per proxy
-func (proxy *ProxyClient) GetSites() ([]services.Server, error) {
+func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	proxySession, err := proxy.Client.NewSession()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -80,17 +80,13 @@ func (proxy *ProxyClient) GetSites() ([]services.Server, error) {
 		return nil, trace.Errorf("timeout")
 	}
 
-	servers := make(map[string][]services.Server)
-	if err := json.Unmarshal(stdout.Bytes(), &servers); err != nil {
+	log.Infof("got sites: %v", stdout.String())
+
+	var sites []services.Site
+	if err := json.Unmarshal(stdout.Bytes(), &sites); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	serversList := make([]services.Server, 0, len(servers))
-
-	for _, srvs := range servers {
-		serversList = append(serversList, srvs...)
-	}
-
-	return serversList, nil
+	return sites, nil
 }
 
 // FindServers returns list of the nodes which have labels "labelName" and
@@ -101,14 +97,14 @@ func (proxy *ProxyClient) FindServers(labelName string, labelRegex string) ([]se
 		return nil, trace.Wrap(err)
 	}
 	// see which sites (AKA auth servers) this proxy is connected to
-	allServers, err := proxy.GetSites()
+	_, err = proxy.GetSites()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// TODO: ev. we need to take the 1st site and, using its auth API,
 	// request a list of servers from it. and THAT would be stored in "allServers"
-
+	var allServers []services.Server
 	foundServers := make([]services.Server, 0)
 	for _, srv := range allServers {
 		alreadyAdded := false
@@ -133,11 +129,61 @@ func (proxy *ProxyClient) FindServers(labelName string, labelRegex string) ([]se
 	return foundServers, nil
 }
 
+func (proxy *ProxyClient) ConnectToSite(siteName string) error {
+	log.Debugf("connecting to site: %s", siteName)
+
+	proxySession, err := proxy.Client.NewSession()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	proxyWriter, err := proxySession.StdinPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	proxyReader, err := proxySession.StdoutPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	proxyErr, err := proxySession.StderrPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	printErrors := func() {
+		buf := &bytes.Buffer{}
+		io.Copy(buf, proxyErr)
+		if buf.String() != "" {
+			fmt.Println("ERROR: " + buf.String())
+		}
+	}
+	err = proxySession.RequestSubsystem("proxy:" + siteName + "@")
+	if err != nil {
+		defer printErrors()
+		return trace.Wrap(err)
+	}
+	localAddr, err := utils.ParseAddr("tcp://" + proxy.proxyAddress)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	remoteAddr, err := utils.ParseAddr("tcp://0.0.0.0") // fake remote address
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	pipeNetConn := utils.NewPipeNetConn(
+		proxyReader,
+		proxyWriter,
+		proxySession,
+		localAddr,
+		remoteAddr,
+	)
+	// TODO: create HTTP client using pipeNetConn as dialer (look at lib/auth/tun.go:NewTunClient())
+
+	return nil
+}
+
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
 func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeClient, error) {
-	log.Debugf("connecting to node: %v", nodeAddress)
-
+	log.Debugf("connecting to node: %s", nodeAddress)
 	e := trace.Errorf("unknown Error")
 
 	// we have to try every auth method separatedly,
@@ -149,17 +195,14 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeC
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		proxyWriter, err := proxySession.StdinPipe()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		proxyReader, err := proxySession.StdoutPipe()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		proxyErr, err := proxySession.StderrPipe()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -171,7 +214,7 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeC
 				fmt.Println("ERROR: " + buf.String())
 			}
 		}
-		err = proxySession.RequestSubsystem(fmt.Sprintf("proxy:%v", nodeAddress))
+		err = proxySession.RequestSubsystem("proxy:" + nodeAddress)
 		if err != nil {
 			defer printErrors()
 			return nil, trace.Wrap(err)
@@ -191,13 +234,11 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeC
 			localAddr,
 			remoteAddr,
 		)
-
 		sshConfig := &ssh.ClientConfig{
 			User:            user,
 			Auth:            []ssh.AuthMethod{authMethod},
 			HostKeyCallback: proxy.hostKeyCallback,
 		}
-
 		conn, chans, reqs, err := ssh.NewClientConn(pipeNetConn,
 			nodeAddress, sshConfig)
 		if err != nil {
