@@ -65,13 +65,12 @@ func parseProxySubsys(name string, srv *Server) (*proxySubsys, error) {
 	if strings.Index(name, prefix) != 0 {
 		return nil, trace.Wrap(paramError)
 	}
-	name = name[len(prefix):]
+	name = strings.TrimPrefix(name, prefix)
 	// find the site name in the argument:
 	parts := strings.Split(name, "@")
 	if len(parts) > 1 {
 		siteName = strings.Join(parts[1:], "@")
 		name = parts[0]
-		fmt.Println("parts:", parts, "site: ", siteName)
 	}
 	// find host & port in the arguments:
 	host, port, err := net.SplitHostPort(name)
