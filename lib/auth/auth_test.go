@@ -40,7 +40,7 @@ type AuthSuite struct {
 var _ = Suite(&AuthSuite{})
 
 func (s *AuthSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
+	utils.InitLoggerForTests()
 }
 
 func (s *AuthSuite) SetUpTest(c *C) {

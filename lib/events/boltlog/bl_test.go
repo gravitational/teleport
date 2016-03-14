@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package boltlog
 
 import (
@@ -36,7 +37,7 @@ type BoltLogSuite struct {
 var _ = Suite(&BoltLogSuite{})
 
 func (s *BoltLogSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
+	utils.InitLoggerForTests()
 }
 
 func (s *BoltLogSuite) SetUpTest(c *C) {

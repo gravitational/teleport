@@ -1,8 +1,10 @@
 ETCD_NODE1 := http://127.0.0.1:4001
 ETCD_NODES := ${ETCD_NODE1}
 ETCD_FLAGS := TELEPORT_TEST_ETCD_NODES=${ETCD_NODES}
+TELEPORT_DEBUG_TESTS ?= no
 OUT := out
-export GO15VENDOREXPERIMENT=1
+GO15VENDOREXPERIMENT := 1
+export
 
 .PHONY: install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd install-assets docs-serve
 
@@ -24,8 +26,8 @@ teleport:
 tsh: 
 	go build -o $(OUT)/tsh -i github.com/gravitational/teleport/tool/tsh
 
-install: remove-temp-files
-	go install github.com/gravitational/teleport/tool/teleport \
+install: remove-temp-files flags
+	go install -ldflags $(TELEPORT_LINKFLAGS) github.com/gravitational/teleport/tool/teleport \
 	           github.com/gravitational/teleport/tool/tctl \
 	           github.com/gravitational/teleport/tool/tsh \
 
@@ -49,6 +51,10 @@ test:
 			   github.com/gravitational/teleport/lib/... \
 			   github.com/gravitational/teleport/tool/teleport... $(FLAGS)
 	go vet ./tool/... ./lib/...
+
+flags:
+	go install github.com/gravitational/teleport/vendor/github.com/gravitational/version/cmd/linkflags
+	$(eval TELEPORT_LINKFLAGS := "$(shell linkflags -pkg=$(PWD) -verpkg=github.com/gravitational/teleport/vendor/github.com/gravitational/version)")
 
 
 test-with-etcd: install

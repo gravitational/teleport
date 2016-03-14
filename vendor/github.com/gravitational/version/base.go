@@ -13,9 +13,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+package version
 
-package teleport
-
-const (
-	Version = "0.9.0"
+// Version value defaults
+var (
+	// Version string, a slightly modified version of `git describe` to be semver-complaint
+	version      string = "v0.0.0-master+$Format:%h$"
+	gitCommit    string = "$Format:%H$"    // sha1 from git, output of $(git rev-parse HEAD)
+	gitTreeState string = "not a git tree" // state of git tree, either "clean" or "dirty"
 )
+
+// Init sets an alternative default for the version string.
+func Init(baseVersion string) {
+	version = baseVersion
+}

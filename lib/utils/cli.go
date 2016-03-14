@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package utils
 
 import (
@@ -21,12 +22,14 @@ import (
 	"io/ioutil"
 	"log/syslog"
 	"os"
+	"strconv"
 
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport"
 
 	log "github.com/Sirupsen/logrus"
 	logrusSyslog "github.com/Sirupsen/logrus/hooks/syslog"
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
 )
 
 // InitLoggerCLI tools by default log into syslog, not stderr
@@ -54,6 +57,19 @@ func InitLoggerDebug() {
 	log.SetFormatter(&trace.TextFormatter{})
 	log.SetOutput(os.Stderr)
 	log.SetLevel(log.DebugLevel)
+}
+
+// InitLoggerForTests inits logger to discard ouput in tests unless
+// TELEPORT_DEBUG is set to "true"
+func InitLoggerForTests() {
+	val, _ := strconv.ParseBool(os.Getenv(teleport.DebugOutputEnvVar))
+	if val {
+		InitLoggerDebug()
+		return
+	}
+	log.SetLevel(log.ErrorLevel)
+	log.StandardLogger().Hooks = make(log.LevelHooks)
+	log.SetOutput(ioutil.Discard)
 }
 
 // FatalError is for CLI front-ends: it detects gravitational.Trace debugging

@@ -52,7 +52,7 @@ type TunSuite struct {
 var _ = Suite(&TunSuite{})
 
 func (s *TunSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
+	utils.InitLoggerForTests()
 }
 
 func (s *TunSuite) TearDownTest(c *C) {

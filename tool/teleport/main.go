@@ -21,7 +21,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -155,5 +154,5 @@ func onConfigDump() {
 
 // onVersion is the handler for "version"
 func onVersion() {
-	fmt.Println(teleport.Version)
+	utils.PrintVersion()
 }

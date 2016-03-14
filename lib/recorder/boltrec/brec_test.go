@@ -35,7 +35,7 @@ type BoltRecSuite struct {
 var _ = Suite(&BoltRecSuite{})
 
 func (s *BoltRecSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
+	utils.InitLoggerForTests()
 }
 
 func (s *BoltRecSuite) SetUpTest(c *C) {

@@ -71,7 +71,7 @@ type SrvSuite struct {
 var _ = Suite(&SrvSuite{})
 
 func (s *SrvSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
+	utils.InitLoggerForTests()
 }
 
 func (s *SrvSuite) SetUpTest(c *C) {

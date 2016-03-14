@@ -37,7 +37,7 @@ type ExecSuite struct {
 var _ = check.Suite(&ExecSuite{})
 
 func (s *ExecSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerCLI()
+	utils.InitLoggerForTests()
 	s.usr, _ = user.Current()
 	s.ctx = &ctx{isTestStub: true}
 	s.ctx.login = s.usr.Username

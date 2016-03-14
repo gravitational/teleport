@@ -163,7 +163,7 @@ func main() {
 }
 
 func onVersion() {
-	fmt.Println(teleport.Version)
+	utils.PrintVersion()
 }
 
 func printHeader(t *goterm.Table, cols []string) {
