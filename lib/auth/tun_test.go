@@ -18,6 +18,7 @@ package auth
 
 import (
 	"path/filepath"
+	"time"
 
 	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -349,7 +350,7 @@ func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(ws, Not(Equals), "")
 
 	// Requesting forbidded for User action
-	_, err = clt.GetNodes()
+	err = clt.UpsertNode(services.Server{}, time.Second)
 	c.Assert(err, NotNil)
 
 	// Requesting forbidded for User action
