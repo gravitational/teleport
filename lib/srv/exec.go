@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"os/user"
@@ -172,17 +173,42 @@ func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 		"HOME=" + osUser.HomeDir,
 		"USER=" + osUserName,
 		"SHELL=" + c.Path,
+		"SSH_TELEPORT_USER=" + ctx.teleportUser,
+		"SSH_SESSION_WEBPROXY_ADDR=<proxyhost>:3080",
 	}
 	// this configures shell to run in 'login' mode
 	c.Args[0] = "-" + filepath.Base(shellCommand)
 	c.Dir = osUser.HomeDir
 	c.SysProcAttr = &syscall.SysProcAttr{}
+	// execute the command under requested user's UID:GID
 	if curUser.Uid != osUser.Uid {
 		c.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
 	}
 	// apply environment variables passed from the client
 	for n, v := range ctx.env {
 		c.Env = append(c.Env, fmt.Sprintf("%s=%s", n, v))
+	}
+	// apply SSH_xx environment variables
+	remoteHost, remotePort, err := net.SplitHostPort(ctx.info.RemoteAddr().String())
+	if err != nil {
+		log.Warn(err)
+	} else {
+		localHost, localPort, err := net.SplitHostPort(ctx.info.LocalAddr().String())
+		if err != nil {
+			log.Warn(err)
+		} else {
+			c.Env = append(c.Env,
+				fmt.Sprintf("SSH_CLIENT=%s %s %s", remoteHost, remotePort, localPort),
+				fmt.Sprintf("SSH_CONNECTION=%s %s %s %s", remoteHost, remotePort, localHost, localPort))
+		}
+	}
+	if ctx.session != nil {
+		if ctx.session.term != nil {
+			c.Env = append(c.Env, fmt.Sprintf("SSH_TTY=%s", ctx.session.term.tty.Name()))
+		}
+		if ctx.session.id != "" {
+			c.Env = append(c.Env, fmt.Sprintf("SSH_SESSION_ID=%s", ctx.session.id))
+		}
 	}
 	return c, nil
 }

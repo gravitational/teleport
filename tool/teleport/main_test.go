@@ -29,7 +29,7 @@ import (
 )
 
 // bootstrap check
-func TestSrv(t *testing.T) { check.TestingT(t) }
+func TestTeleportMain(t *testing.T) { check.TestingT(t) }
 
 // register test suite
 type MainTestSuite struct {
@@ -57,6 +57,10 @@ func (s *MainTestSuite) SetUpSuite(c *check.C) {
 	// set imprtant defaults to test-mode (non-existing files&locations)
 	defaults.ConfigFilePath = "/tmp/teleport/etc/teleport.yaml"
 	defaults.DataDir = "/tmp/teleport/var/lib/teleport"
+
+	// configure to look for web/dist in the current directory
+	curdir, _ := os.Getwd()
+	DirsToLookForWebAssets = []string{filepath.Join(curdir, "../../web/dist")}
 }
 
 func (s *MainTestSuite) TestDefault(c *check.C) {
@@ -102,6 +106,21 @@ func (s *MainTestSuite) TestConfigFile(c *check.C) {
 	c.Assert(conf.Hostname, check.Equals, "hvostongo.example.org")
 	c.Assert(conf.SSH.Token, check.Equals, "xxxyyy")
 	c.Assert(conf.AdvertiseIP, check.DeepEquals, net.ParseIP("10.5.5.5"))
+}
+
+func (s *MainTestSuite) TestLocateWebAssets(c *check.C) {
+	path, err := locateWebAssets()
+	c.Assert(path, check.Equals, DirsToLookForWebAssets[0])
+	c.Assert(err, check.IsNil)
+
+	origDirs := DirsToLookForWebAssets
+	defer func() {
+		DirsToLookForWebAssets = origDirs
+	}()
+	DirsToLookForWebAssets = []string{"/bad/dir"}
+	path, err = locateWebAssets()
+	c.Assert(path, check.Equals, "")
+	c.Assert(err, check.NotNil)
 }
 
 const YAMLConfig = `

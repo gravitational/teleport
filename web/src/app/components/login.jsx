@@ -2,7 +2,7 @@ var React = require('react');
 var $ = require('jQuery');
 var reactor = require('app/reactor');
 var LinkedStateMixin = require('react-addons-linked-state-mixin');
-var {actions} = require('app/modules/user');
+var {actions, getters} = require('app/modules/user');
 var GoogleAuthInfo = require('./googleAuthLogo');
 var cfg = require('app/config');
 
@@ -31,6 +31,8 @@ var LoginInputForm = React.createClass({
   },
 
   render() {
+    let {isProcessing, isFailed, message } = this.props.attemp;
+
     return (
       <form ref="form" className="grv-login-input-form">
         <h3> Welcome to Teleport </h3>
@@ -44,7 +46,8 @@ var LoginInputForm = React.createClass({
           <div className="form-group">
             <input valueLink={this.linkState('token')} className="form-control required" name="token" placeholder="Two factor token (Google Authenticator)"/>
           </div>
-          <button type="submit" className="btn btn-primary block full-width m-b" onClick={this.onClick}>Login</button>
+          <button onClick={this.onClick} disabled={isProcessing} type="submit" className="btn btn-primary block full-width m-b">Login</button>
+          { isFailed ? (<label className="error">{message}</label>) : null }
         </div>
       </form>
     );
@@ -57,6 +60,7 @@ var Login = React.createClass({
 
   getDataBindings() {
     return {
+      attemp: getters.loginAttemp
     }
   },
 
@@ -71,15 +75,13 @@ var Login = React.createClass({
     actions.login(inputData, redirect);
   },
 
-  render() {
-    var isProcessing = false;//this.state.userRequest.get('isLoading');
-    var isError = false;//this.state.userRequest.get('isError');
+  render() {    
     return (
       <div className="grv-login text-center">
         <div className="grv-logo-tprt"></div>
         <div className="grv-content grv-flex">
           <div className="grv-flex-column">
-            <LoginInputForm onClick={this.onClick}/>
+            <LoginInputForm attemp={this.state.attemp} onClick={this.onClick}/>
             <GoogleAuthInfo/>
             <div className="grv-login-info">
               <i className="fa fa-question"></i>

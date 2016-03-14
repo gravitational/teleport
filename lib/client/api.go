@@ -184,6 +184,36 @@ func (tc *TeleportClient) SSH(command string) (err error) {
 	return tc.runShell(nodeClient, "")
 }
 
+// Join connects to the existing/active SSH session
+func (tc *TeleportClient) Join(sessionID string) (err error) {
+	// connecting via proxy?
+	if !tc.Config.ProxySpecified() {
+		return trace.Wrap(teleport.BadParameter("server", "proxy server is not specified"))
+	}
+	proxyClient, err := tc.ConnectToProxy()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+	fmt.Println("NOT IMPLEMENTED")
+	return nil
+}
+
+// SCP securely copies file(s) from one SSH server to another
+func (tc *TeleportClient) SCP(from, to string) (err error) {
+	// connecting via proxy?
+	if !tc.Config.ProxySpecified() {
+		return trace.Wrap(teleport.BadParameter("server", "proxy server is not specified"))
+	}
+	proxyClient, err := tc.ConnectToProxy()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+	fmt.Println("NOT IMPLEMENTED")
+	return nil
+}
+
 // ListNodes returns a list of nodes connected to a proxy
 func (tc *TeleportClient) ListNodes() ([]services.Server, error) {
 	// connect to the proxy and ask it to return a full list of servers

@@ -24,10 +24,10 @@ let cfg = {
       return formatPattern(cfg.api.sessionChunkCountPath, {sid});
     },
 
-    getFetchSessionsUrl: (/*start, end*/)=>{
+    getFetchSessionsUrl: (start, end)=>{
       var params = {
-        start: new Date().toISOString(),
-        order: -1
+        start: start.toISOString(),
+        end: end.toISOString()        
       };
 
       var json = JSON.stringify(params);
