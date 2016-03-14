@@ -37,6 +37,7 @@ clean:
 #
 .PHONY: produtcion
 production: clean
+	mkdir -p $(OUT)
 	$(MAKE) -C build.assets
 
 #
