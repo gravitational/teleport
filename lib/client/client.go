@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"regexp"
 	"time"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -132,17 +134,30 @@ func (proxy *ProxyClient) FindServers(labelName string, labelRegex string) ([]se
 
 // ConnectToSite connects to the auth server of the given site via proxy.
 // It returns connected and authenticated auth server client
-func (proxy *ProxyClient) ConnectToSite(site *services.Site, user string) (authC *auth.Client, err error) {
-	var nc *NodeClient
+func (proxy *ProxyClient) ConnectToSite(site *services.Site, user string) (auth.ClientI, error) {
+	var nodeClient *NodeClient
+	var err error
 	for _, authServer := range site.AuthServers {
-		nc, err = proxy.ConnectToNode(authServer.Addr, user)
+		nodeClient, err = proxy.ConnectToNode(authServer.Addr, user)
 		if err != nil {
 			log.Error(err)
 			continue
 		}
-		fmt.Println("I got the node client!", nc)
+		clt, err := auth.NewClient(
+			"http://stub:0",
+			roundtrip.HTTPClient(&http.Client{
+				Transport: &http.Transport{
+					Dial: func(network, addr string) (net.Conn, error) {
+						return nodeClient.Client.Dial(network, addr)
+					},
+				},
+			}))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return clt, nil
 	}
-	return authC, err
+	return nil, trace.Wrap(err)
 }
 
 // ConnectToNode connects to the ssh server via Proxy.

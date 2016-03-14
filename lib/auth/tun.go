@@ -316,26 +316,40 @@ func (s *AuthTunnel) keyAuth(
 		return nil, trace.Errorf("ERROR: Server doesn't support provided key type")
 	}
 
-	err := s.hostCertChecker.CheckHostKey(conn.User(), conn.RemoteAddr(), key)
-	if err != nil {
-		log.Warningf("conn(%v->%v, user=%v) ERROR: failed auth user %v, err: %v",
-			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
-		return nil, err
+	if cert.CertType == ssh.HostCert {
+		err := s.hostCertChecker.CheckHostKey(conn.User(), conn.RemoteAddr(), key)
+		if err != nil {
+			log.Warningf("conn(%v->%v, user=%v) ERROR: failed auth user %v, err: %v",
+				conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
+			return nil, err
+		}
+		if err := s.hostCertChecker.CheckCert(conn.User(), cert); err != nil {
+			log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
+				conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
+			return nil, trace.Wrap(err)
+		}
+		perms := &ssh.Permissions{
+			Extensions: map[string]string{
+				ExtHost: conn.User(),
+				ExtRole: cert.Permissions.Extensions[utils.CertExtensionRole],
+			},
+		}
+		return perms, nil
 	}
-
-	if err := s.hostCertChecker.CheckCert(conn.User(), cert); err != nil {
+	// we are assuming that this is a user cert
+	if err := s.userCertChecker.CheckCert(conn.User(), cert); err != nil {
 		log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
 			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
 		return nil, trace.Wrap(err)
 	}
-
+	// we are not using cert extensions for User certificates because of OpenSSH bug
+	// https://bugzilla.mindrot.org/show_bug.cgi?id=2387
 	perms := &ssh.Permissions{
 		Extensions: map[string]string{
 			ExtHost: conn.User(),
-			ExtRole: cert.Permissions.Extensions[utils.CertExtensionRole],
+			ExtRole: string(teleport.RoleUser),
 		},
 	}
-
 	return perms, nil
 }
 
