@@ -120,6 +120,18 @@ func (s *PresenceService) GetProxies() ([]Server, error) {
 	return s.getServers(proxiesPrefix)
 }
 
+// Site represents a cluster of teleport nodes who collectively trust the same
+// certificate authority (CA) and have a common name.
+//
+// The CA is represented by an auth server (or multiple auth servers, if running
+// in HA mode)
+type Site struct {
+	Name          string    `json:"name"`
+	LastConnected time.Time `json:"lastconnected"`
+	Status        string    `json:"status"`
+}
+
+// Server represents a node in a Teleport cluster
 type Server struct {
 	ID        string                  `json:"id"`
 	Addr      string                  `json:"addr"`

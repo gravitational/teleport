@@ -432,38 +432,16 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	s.srv.registerServer()
 	srv2.registerServer()
 
+	// request "list of sites":
 	c.Assert(se3.RequestSubsystem("proxysites"), IsNil)
 	<-done
-	var sites map[string][]services.Server
+	var sites []services.Site
 	c.Assert(json.Unmarshal(stdout.Bytes(), &sites), IsNil)
 	c.Assert(sites, NotNil)
-	nodes := sites["localhost"]
-	c.Assert(len(nodes), Equals, 2)
-	nmap := map[string]services.Server{}
-	for _, node := range nodes {
-		nmap[node.Addr] = node
-	}
-	c.Assert(nmap[bobAddr], DeepEquals, services.Server{
-		ID:       bobAddr,
-		Addr:     bobAddr,
-		Hostname: "bob",
-		Labels:   map[string]string{"label1": "value1"},
-		CmdLabels: services.CommandLabels{
-			"cmdLabel1": services.CommandLabel{
-				Period:  time.Second,
-				Command: []string{"expr", "1", "+", "3"},
-				Result:  "4",
-			},
-			"cmdLabel2": services.CommandLabel{
-				Period:  time.Second * 2,
-				Command: []string{"expr", "2", "+", "3"},
-				Result:  "5",
-			}}})
-
-	s2, ok := nmap[s.srvAddress]
-	c.Assert(ok, Equals, true)
-	c.Assert(s2.Addr, Equals, s.srvAddress)
-	c.Assert(s2.Hostname, Equals, "localhost")
+	c.Assert(sites, HasLen, 1)
+	c.Assert(sites[0].Name, Equals, "localhost")
+	c.Assert(sites[0].Status, Equals, "online")
+	c.Assert(time.Since(sites[0].LastConnected).Seconds() < 5, Equals, true)
 }
 
 func (s *SrvSuite) TestProxyRoundRobin(c *C) {

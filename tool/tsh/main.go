@@ -61,10 +61,10 @@ type CLIConf struct {
 	AgentSocketAddr utils.NetAddrVal
 	// Remote SSH session to join
 	SessionID string
-	// Src file to SCP
-	CopyFrom string
-	// Dest file to SCP
-	CopyTo string
+	// Src:dest parameter for SCP
+	CopySpec []string
+	// -r flag for scp
+	RecursiveCopy bool
 }
 
 // run executes TSH client. same as main() but easier to test
@@ -95,8 +95,8 @@ func run(args []string, underTest bool) {
 	join.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
 	// scp
 	scp := app.Command("scp", "Secure file copy")
-	scp.Arg("from", "Source file to copy").Required().StringVar(&cf.CopyFrom)
-	scp.Arg("to", "Destination to copy to").Required().StringVar(&cf.CopyTo)
+	scp.Arg("from, to", "File(s) and the destionation to copy to").Required().StringsVar(&cf.CopySpec)
+	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes")
 	ls.Arg("labels", "List of labels to filter node list").Default("*").StringVar(&cf.UserHost)
@@ -196,7 +196,7 @@ func onListNodes(cf *CLIConf) {
 	}
 	nodesView := func(nodes []services.Server) string {
 		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"Node Hostname", "Node ID", "Address", "Labels"})
+		printHeader(t, []string{"Node Name", "Node ID", "Address", "Labels"})
 		if len(nodes) == 0 {
 			return t.String()
 		}
@@ -237,7 +237,7 @@ func onSCP(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	if err := tc.SCP(cf.CopyFrom, cf.CopyTo); err != nil {
+	if err := tc.SCP(cf.CopySpec, int(cf.NodePort), cf.RecursiveCopy); err != nil {
 		utils.FatalError(err)
 	}
 }

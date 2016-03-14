@@ -48,6 +48,7 @@ func NewStandardPermissions() PermissionChecker {
 		ActionCreateWebSession:   true,
 		ActionGenerateUserCert:   true,
 		ActionGetCertAuthorities: true,
+		ActionGetServers:         true,
 		ActionGetSession:         true,
 		ActionGetSessions:        true,
 		ActionGetEvents:          true,

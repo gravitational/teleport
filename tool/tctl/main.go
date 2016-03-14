@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package main
 
 import (
@@ -251,7 +252,7 @@ func (u *NodeCommand) ListActive(client *auth.TunClient) error {
 	}
 	nodesView := func(nodes []services.Server) string {
 		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"Node Hostname", "Node ID", "Address", "Labels"})
+		printHeader(t, []string{"Node Name", "Node ID", "Address", "Labels"})
 		if len(nodes) == 0 {
 			return t.String()
 		}
