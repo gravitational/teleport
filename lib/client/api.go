@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 
@@ -185,7 +186,8 @@ func (tc *TeleportClient) SSH(command string) (err error) {
 
 // Join connects to the existing/active SSH session
 func (tc *TeleportClient) Join(sessionID string) (err error) {
-	// connecting via proxy?
+	var notFoundError = &teleport.NotFoundError{Message: "Session not found or it has ended"}
+	// connect to proxy:
 	if !tc.Config.ProxySpecified() {
 		return trace.Wrap(teleport.BadParameter("server", "proxy server is not specified"))
 	}
@@ -194,8 +196,60 @@ func (tc *TeleportClient) Join(sessionID string) (err error) {
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	fmt.Println("NOT IMPLEMENTED")
-	return nil
+	// connect to the first site via proxy:
+	sites, err := proxyClient.GetSites()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(sites) == 0 {
+		return trace.Wrap(notFoundError)
+	}
+	site, err := proxyClient.ConnectToSite(sites[0].Name, tc.Config.HostLogin)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// find the session ID on the site:
+	sessions, err := site.GetSessions()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var session *session.Session
+	for _, s := range sessions {
+		if s.ID == sessionID {
+			session = &s
+			break
+		}
+	}
+	if session == nil {
+		return trace.Wrap(notFoundError)
+	}
+	// pick the 1st party of the session and use his server ID to connect to
+	if len(session.Parties) == 0 {
+		return trace.Wrap(notFoundError)
+	}
+	serverID := session.Parties[0].ServerID
+
+	// find a server address by its ID
+	nodes, err := site.GetNodes()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var node *services.Server
+	for _, n := range nodes {
+		if n.ID == serverID {
+			node = &n
+			break
+		}
+	}
+	if node == nil {
+		return trace.Wrap(notFoundError)
+	}
+	// connect to server:
+	nc, err := proxyClient.ConnectToNode(node.Addr, tc.Config.HostLogin)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return tc.runShell(nc, session.ID)
 }
 
 // SCP securely copies file(s) from one SSH server to another

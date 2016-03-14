@@ -468,11 +468,6 @@ func (client *NodeClient) scp(scpConf scp.Command, shellCmd string) error {
 	case serverError := <-serverErrors:
 		return trace.Wrap(serverError)
 	}
-
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 func (client *NodeClient) Close() error {
