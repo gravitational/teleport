@@ -156,16 +156,38 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *C) {
 }
 
 func (s *ServicesTestSuite) ServerCRUD(c *C) {
-	out, err := s.PresenceS.GetServers()
+	out, err := s.PresenceS.GetNodes()
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
 	srv := Server{ID: "srv1", Addr: "localhost:2022"}
-	c.Assert(s.PresenceS.UpsertServer(srv, 0), IsNil)
+	c.Assert(s.PresenceS.UpsertNode(srv, 0), IsNil)
 
-	out, err = s.PresenceS.GetServers()
+	out, err = s.PresenceS.GetNodes()
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []Server{srv})
+
+	out, err = s.PresenceS.GetProxies()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
+
+	proxy := Server{ID: "proxy1", Addr: "localhost:2023"}
+	c.Assert(s.PresenceS.UpsertProxy(proxy, 0), IsNil)
+
+	out, err = s.PresenceS.GetProxies()
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, []Server{proxy})
+
+	out, err = s.PresenceS.GetAuthServers()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
+
+	auth := Server{ID: "auth1", Addr: "localhost:2025"}
+	c.Assert(s.PresenceS.UpsertAuthServer(auth, 0), IsNil)
+
+	out, err = s.PresenceS.GetAuthServers()
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, []Server{auth})
 }
 
 func (s *ServicesTestSuite) PasswordHashCRUD(c *C) {

@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-
 	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -91,9 +90,12 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.POST("/v1/signuptokens", httplib.MakeHandler(srv.createSignupToken))
 
 	// Servers and presence heartbeat
-	srv.POST("/v1/servers", httplib.MakeHandler(srv.upsertServer))
-	srv.GET("/v1/servers", httplib.MakeHandler(srv.getServers))
-	srv.GET("/v1/auth/servers", httplib.MakeHandler(srv.getAuthServers))
+	srv.POST("/v1/nodes", httplib.MakeHandler(srv.upsertNode))
+	srv.GET("/v1/nodes", httplib.MakeHandler(srv.getNodes))
+	srv.POST("/v1/authservers", httplib.MakeHandler(srv.upsertAuthServer))
+	srv.GET("/v1/authservers", httplib.MakeHandler(srv.getAuthServers))
+	srv.POST("/v1/proxies", httplib.MakeHandler(srv.upsertProxy))
+	srv.GET("/v1/proxies", httplib.MakeHandler(srv.getProxies))
 
 	// Tokens
 	srv.POST("/v1/tokens", httplib.MakeHandler(srv.generateToken))
@@ -127,33 +129,69 @@ type upsertServerReq struct {
 	TTL    time.Duration   `json:"ttl"`
 }
 
-// upsertServer is called by remote SSH nodes when they ping back into the auth service
-func (s *APIServer) upsertServer(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+// upsertNode is called by remote SSH nodes when they ping back into the auth service
+func (s *APIServer) upsertServer(role teleport.Role, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req upsertServerReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("[AUTH API] ping from %v (%v) at %v", req.Server.ID, req.Server.Hostname, r.RemoteAddr)
+	log.Debugf("[AUTH API] ping from %v %v (%v) at %v", role, req.Server.ID, req.Server.Hostname, r.RemoteAddr)
 
 	// if server sent "local" IP address to us, replace the ip/host part with the remote address we see
 	// on the socket, but keep the original port:
 	req.Server.Addr = utils.ReplaceLocalhost(req.Server.Addr, r.RemoteAddr)
 
-	if err := s.a.UpsertServer(req.Server, req.TTL); err != nil {
-		log.Error(err)
-		return nil, trace.Wrap(err)
+	switch role {
+	case teleport.RoleNode:
+		if err := s.a.UpsertNode(req.Server, req.TTL); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case teleport.RoleAuth:
+		if err := s.a.UpsertAuthServer(req.Server, req.TTL); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case teleport.RoleProxy:
+		if err := s.a.UpsertProxy(req.Server, req.TTL); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return message("ok"), nil
 }
 
-func (s *APIServer) getServers(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	servers, err := s.a.GetServers()
+// upsertNode is called by remote SSH nodes when they ping back into the auth service
+func (s *APIServer) upsertNode(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	return s.upsertServer(teleport.RoleNode, w, r, p)
+}
+
+// getNodes returns registered SSH nodes
+func (s *APIServer) getNodes(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	servers, err := s.a.GetNodes()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return servers, nil
 }
 
+// upsertProxy is called by remote SSH nodes when they ping back into the auth service
+func (s *APIServer) upsertProxy(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	return s.upsertServer(teleport.RoleProxy, w, r, p)
+}
+
+// getProxies returns registered proxies
+func (s *APIServer) getProxies(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	servers, err := s.a.GetProxies()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return servers, nil
+}
+
+// upsertAuthServer is called by remote Auth servers when they ping back into the auth service
+func (s *APIServer) upsertAuthServer(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	return s.upsertServer(teleport.RoleAuth, w, r, p)
+}
+
+// getAuthServers returns registered auth servers
 func (s *APIServer) getAuthServers(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	servers, err := s.a.GetAuthServers()
 	if err != nil {

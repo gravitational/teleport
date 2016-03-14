@@ -50,7 +50,7 @@ func newConnectHandler(req connectReq, ctx *sessionContext, site reversetunnel.R
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := clt.GetServers()
+	servers, err := clt.GetNodes()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

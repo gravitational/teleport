@@ -115,6 +115,9 @@ var (
 
 	// StartRoles is default roles teleport assumes when started via 'start' command
 	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService}
+
+	// ETCDPrefix is default key in ETCD clustered configurations
+	ETCDPrefix = "/teleport"
 )
 
 const (

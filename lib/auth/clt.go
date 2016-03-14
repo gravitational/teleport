@@ -226,7 +226,7 @@ func (c *Client) GenerateToken(role teleport.Role, ttl time.Duration) (string, e
 
 // RegisterUserToken calls the auth service API to register a new node via registration token
 // which has been previously issued via GenerateToken
-func (c *Client) RegisterUsingToken(token, hostID string, role teleport.Role) (PackedKeys, error) {
+func (c *Client) RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error) {
 	out, err := c.PostJSON(c.Endpoint("tokens", "register"),
 		registerUsingTokenReq{
 			HostID: hostID,
@@ -234,13 +234,13 @@ func (c *Client) RegisterUsingToken(token, hostID string, role teleport.Role) (P
 			Role:   role,
 		})
 	if err != nil {
-		return PackedKeys{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	var keys PackedKeys
 	if err := json.Unmarshal(out.Bytes(), &keys); err != nil {
-		return PackedKeys{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return keys, nil
+	return &keys, nil
 }
 
 func (c *Client) RegisterNewAuthServer(token string) error {
@@ -306,20 +306,20 @@ func (c *Client) GetChunkReader(id string) (recorder.ChunkReadCloser, error) {
 	return &chunkRW{c: c, id: id}, nil
 }
 
-// UpsertServer is used by SSH servers to reprt their presense
+// UpsertNode is used by SSH servers to reprt their presense
 // to the auth servers in form of hearbeat expiring after ttl period.
-func (c *Client) UpsertServer(s services.Server, ttl time.Duration) error {
+func (c *Client) UpsertNode(s services.Server, ttl time.Duration) error {
 	args := upsertServerReq{
 		Server: s,
 		TTL:    ttl,
 	}
-	_, err := c.PostJSON(c.Endpoint("servers"), args)
+	_, err := c.PostJSON(c.Endpoint("nodes"), args)
 	return trace.Wrap(err)
 }
 
-// GetServers returns the list of servers registered in the cluster.
-func (c *Client) GetServers() ([]services.Server, error) {
-	out, err := c.Get(c.Endpoint("servers"), url.Values{})
+// GetNodes returns the list of servers registered in the cluster.
+func (c *Client) GetNodes() ([]services.Server, error) {
+	out, err := c.Get(c.Endpoint("nodes"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -330,9 +330,44 @@ func (c *Client) GetServers() ([]services.Server, error) {
 	return re, nil
 }
 
+// UpsertAuthServer is used by auth servers to report their presense
+// to other auth servers in form of hearbeat expiring after ttl period.
+func (c *Client) UpsertAuthServer(s services.Server, ttl time.Duration) error {
+	args := upsertServerReq{
+		Server: s,
+		TTL:    ttl,
+	}
+	_, err := c.PostJSON(c.Endpoint("authservers"), args)
+	return trace.Wrap(err)
+}
+
 // GetAuthServers returns the list of auth servers registered in the cluster.
 func (c *Client) GetAuthServers() ([]services.Server, error) {
-	out, err := c.Get(c.Endpoint("auth", "servers"), url.Values{})
+	out, err := c.Get(c.Endpoint("authservers"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var re []services.Server
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return re, nil
+}
+
+// UpsertProxy is used by proxies to report their presense
+// to other auth servers in form of hearbeat expiring after ttl period.
+func (c *Client) UpsertProxy(s services.Server, ttl time.Duration) error {
+	args := upsertServerReq{
+		Server: s,
+		TTL:    ttl,
+	}
+	_, err := c.PostJSON(c.Endpoint("proxies"), args)
+	return trace.Wrap(err)
+}
+
+// GetProxies returns the list of auth servers registered in the cluster.
+func (c *Client) GetProxies() ([]services.Server, error) {
+	out, err := c.Get(c.Endpoint("proxies"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -640,7 +675,7 @@ type ClientI interface {
 	GetCertAuthorities(caType services.CertAuthType) ([]*services.CertAuthority, error)
 	DeleteCertAuthority(caType services.CertAuthID) error
 	GenerateToken(role teleport.Role, ttl time.Duration) (string, error)
-	RegisterUsingToken(token, hostID string, role teleport.Role) (keys PackedKeys, e error)
+	RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error)
 	RegisterNewAuthServer(token string) error
 	Log(id lunk.EventID, e lunk.Event)
 	LogEntry(en lunk.Entry) error
@@ -649,8 +684,8 @@ type ClientI interface {
 	GetSessionEvents(filter events.Filter) ([]session.Session, error)
 	GetChunkWriter(id string) (recorder.ChunkWriteCloser, error)
 	GetChunkReader(id string) (recorder.ChunkReadCloser, error)
-	UpsertServer(s services.Server, ttl time.Duration) error
-	GetServers() ([]services.Server, error)
+	UpsertNode(s services.Server, ttl time.Duration) error
+	GetNodes() ([]services.Server, error)
 	GetAuthServers() ([]services.Server, error)
 	UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error)
 	CheckPassword(user string, password []byte, hotpToken string) error

@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -56,6 +57,10 @@ type AuthCommand struct {
 	authType string
 }
 
+type AuthServerCommand struct {
+	config *service.Config
+}
+
 func main() {
 	utils.InitLoggerCLI()
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
@@ -65,6 +70,7 @@ func main() {
 	cmdUsers := UserCommand{config: cfg}
 	cmdNodes := NodeCommand{config: cfg}
 	cmdAuth := AuthCommand{config: cfg}
+	cmdAuthServers := AuthServerCommand{config: cfg}
 
 	// define global flags:
 	var ccf CLIConfig
@@ -105,6 +111,10 @@ func main() {
 	authList := auth.Command("ls", "List trusted user certificate authorities").Hidden()
 	authExport := auth.Command("export", "Export concatenated keys to standard output").Hidden()
 
+	// operations with auth servers
+	authServers := app.Command("authservers", "Operations with user and host certificate authorities").Hidden()
+	authServerAdd := authServers.Command("add", "Add a new auth server node to the cluster").Hidden()
+
 	// parse CLI commands+flags:
 	command, err := app.Parse(os.Args[1:])
 	if err != nil {
@@ -142,6 +152,8 @@ func main() {
 		err = cmdAuth.ListAuthorities(client)
 	case authExport.FullCommand():
 		err = cmdAuth.ExportAuthorities(client)
+	case authServerAdd.FullCommand():
+		err = cmdAuthServers.Invite(client)
 	}
 
 	if err != nil {
@@ -233,7 +245,7 @@ func (u *NodeCommand) Invite(client *auth.TunClient) error {
 // ListActive retreives the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
 func (u *NodeCommand) ListActive(client *auth.TunClient) error {
-	nodes, err := client.GetServers()
+	nodes, err := client.GetNodes()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -310,6 +322,27 @@ func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
 	return nil
 }
 
+// Invite generates a token which can be used to add another SSH auth server
+// to the cluster
+func (u *AuthServerCommand) Invite(client *auth.TunClient) error {
+	authDomainName, err := client.GetLocalDomain()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	invitationTTL := time.Minute * 15
+	token, err := client.GenerateToken(teleport.RoleAuth, invitationTTL)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg := config.MakeAuthPeerFileConfig(authDomainName, token)
+	out := cfg.DebugDumpToYAML()
+
+	fmt.Printf(
+		"# Run this config the new auth server to join the cluster:\n# > teleport start --config config.yaml\n# Fill in auth peers in this config:\n")
+	fmt.Println(out)
+	return nil
+}
+
 // connectToAuthService creates a valid client connection to the auth service
 func connectToAuthService(cfg *service.Config) (client *auth.TunClient, err error) {
 	// connect to the local auth server by default:
@@ -319,7 +352,7 @@ func connectToAuthService(cfg *service.Config) (client *auth.TunClient, err erro
 	}
 
 	// read the host SSH keys and use them to open an SSH connection to the auth service
-	i, err := auth.ReadIdentity(cfg.DataDir)
+	i, err := auth.ReadIdentity(cfg.DataDir, auth.IdentityID{Role: teleport.RoleAdmin, HostUUID: cfg.HostUUID})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

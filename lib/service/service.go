@@ -20,8 +20,10 @@ package service
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
 	"sync"
@@ -40,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
@@ -60,58 +63,50 @@ type RoleConfig struct {
 	Console     io.Writer
 }
 
+// connector has all resources process needs to connect
+// to other parts of the cluster: client and identity
+type connector struct {
+	identity *auth.Identity
+	client   *auth.TunClient
+}
+
 // TeleportProcess structure holds the state of the Teleport daemon, controlling
 // execution and configuration of the teleport services: ssh, auth and proxy.
 type TeleportProcess struct {
 	sync.Mutex
-
 	Supervisor
-	Config     *Config
-	Identity   *auth.Identity
-	AuthClient *auth.TunClient
+	Config *Config
+	// localAuth has local auth server listed in case if this process
+	// has started with auth server role enabled
+	localAuth *auth.AuthServer
 }
 
 // loginIntoAuthService attempts to login into the auth servers specified in the
 // configuration. Returns 'true' if successful
-func (process *TeleportProcess) loginIntoAuthService() bool {
-	process.Lock()
-	defer process.Unlock()
-
-	// already logged in?
-	if process.AuthClient != nil {
-		return true
+func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*connector, error) {
+	identity, err := auth.ReadIdentity(
+		process.Config.DataDir, auth.IdentityID{HostUUID: process.Config.HostUUID, Role: role})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	identity, err := auth.ReadIdentity(process.Config.DataDir)
-	if identity != nil && err == nil {
-		authUser := identity.Cert.ValidPrincipals[0]
-		// try all auth servers in the list:
-		for _, authServerAddr := range process.Config.AuthServers {
-			authClient, err := auth.NewTunClient(
-				authServerAddr,
-				authUser,
-				[]ssh.AuthMethod{ssh.PublicKeys(identity.KeySigner)})
-			// success?
-			if err != nil {
-				log.Warning(err)
-				continue
-			}
-			// try calling a test method via auth api:
-			_, err = authClient.GetLocalDomain()
-			if err != nil {
-				log.Warning(err)
-				continue
-			}
-			// success ? we're logged in!
-			log.Infof("%s logged into %v", authUser, authServerAddr)
-			process.AuthClient = authClient
-			process.Identity = identity
-			return true
-		}
-	} else {
-		log.Warn("no host identity has been found")
+	authUser := identity.Cert.ValidPrincipals[0]
+	authClient, err := auth.NewTunClient(
+		process.Config.AuthServers[0],
+		authUser,
+		[]ssh.AuthMethod{ssh.PublicKeys(identity.KeySigner)})
+	// success?
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return false
+	// try calling a test method via auth api:
+	_, err = authClient.GetLocalDomain()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// success ? we're logged in!
+	log.Infof("%s connected to the cluster", authUser)
+	return &connector{client: authClient, identity: identity}, nil
 }
 
 // NewTeleport takes the daemon configuration, instantiates all required services
@@ -142,22 +137,24 @@ func NewTeleport(cfg *Config) (Supervisor, error) {
 		cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
 	}
 
+	// if user did not provide auth domain name, use this host UUID
+	if cfg.Auth.Enabled && cfg.Auth.DomainName == "" {
+		cfg.Auth.DomainName = cfg.HostUUID
+	}
+
 	// try to login into the auth service:
 
 	// if there are no certificates, use self signed
-	process := TeleportProcess{
+	process := &TeleportProcess{
 		Supervisor: NewSupervisor(),
 		Config:     cfg,
-		Identity:   nil,
-		AuthClient: nil,
 	}
-	process.loginIntoAuthService()
 
 	serviceStarted := false
 
 	if cfg.Auth.Enabled {
-		if err := process.InitAuthService(); err != nil {
-			return nil, err
+		if err := process.initAuthService(); err != nil {
+			return nil, trace.Wrap(err)
 		}
 		serviceStarted = true
 	}
@@ -190,8 +187,20 @@ func NewTeleport(cfg *Config) (Supervisor, error) {
 	return process, nil
 }
 
-// InitAuthService can be called to initialize auth server service
-func (process *TeleportProcess) InitAuthService() error {
+func (process *TeleportProcess) setLocalAuth(a *auth.AuthServer) {
+	process.Lock()
+	defer process.Unlock()
+	process.localAuth = a
+}
+
+func (process *TeleportProcess) getLocalAuth() *auth.AuthServer {
+	process.Lock()
+	defer process.Unlock()
+	return process.localAuth
+}
+
+// initAuthService can be called to initialize auth server service
+func (process *TeleportProcess) initAuthService() error {
 	cfg := process.Config
 	// Initialize the storage back-ends for keys, events and records
 	b, err := process.initAuthStorage()
@@ -208,30 +217,39 @@ func (process *TeleportProcess) InitAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// configure the auth service:
+
 	acfg := auth.InitConfig{
 		Backend:         b,
 		Authority:       authority.New(),
-		DomainName:      cfg.HostUUID,
+		DomainName:      cfg.Auth.DomainName,
 		AuthServiceName: cfg.Hostname,
 		DataDir:         cfg.DataDir,
 		SecretKey:       cfg.Auth.SecretKey,
 		AllowedTokens:   cfg.Auth.AllowedTokens,
+		HostUUID:        cfg.HostUUID,
 	}
-	asrv, signer, err := auth.Init(acfg)
+	authServer, identity, err := auth.Init(acfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	sessionService, err := session.New(b)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// set local auth to use from the same process (to simplify setup
+	// if there are some other roles started in the same process)
+	process.setLocalAuth(authServer)
 
-	sess, err := session.New(b)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	apisrv := auth.NewAPIWithRoles(asrv, elog, sess, rec,
-		auth.NewStandardPermissions(), auth.StandardRoles,
-	)
+	apiServer := auth.NewAPIWithRoles(auth.APIConfig{
+		AuthServer:        authServer,
+		EventLog:          elog,
+		SessionService:    sessionService,
+		Recorder:          rec,
+		PermissionChecker: auth.NewStandardPermissions(),
+		Roles:             auth.StandardRoles,
+	})
 	process.RegisterFunc(func() error {
-		apisrv.Serve()
+		apiServer.Serve()
 		return nil
 	})
 
@@ -245,9 +263,9 @@ func (process *TeleportProcess) InitAuthService() error {
 	process.RegisterFunc(func() error {
 		utils.Consolef(cfg.Console, "[AUTH]  Auth service is starting on %v", cfg.Auth.SSHAddr.Addr)
 		tsrv, err := auth.NewTunnel(
-			cfg.Auth.SSHAddr, []ssh.Signer{signer},
-			apisrv,
-			asrv,
+			cfg.Auth.SSHAddr, []ssh.Signer{identity.KeySigner},
+			apiServer,
+			authServer,
 			auth.SetLimiter(limiter),
 		)
 		if err != nil {
@@ -260,15 +278,50 @@ func (process *TeleportProcess) InitAuthService() error {
 		}
 		return nil
 	})
+
+	// Heart beat auth server presence, this is not the best place for this
+	// logic, consolidate it into auth package later
+	process.RegisterFunc(func() error {
+		authClient, err := auth.NewTunClient(
+			cfg.Auth.SSHAddr,
+			identity.Cert.ValidPrincipals[0],
+			[]ssh.AuthMethod{ssh.PublicKeys(identity.KeySigner)})
+		// success?
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		srv := services.Server{
+			ID:       process.Config.HostUUID,
+			Addr:     cfg.Auth.SSHAddr.Addr,
+			Hostname: process.Config.Hostname,
+		}
+		if process.Config.AdvertiseIP != nil {
+			_, port, err := net.SplitHostPort(srv.Addr)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			srv.Addr = fmt.Sprintf("%v:%v", process.Config.AdvertiseIP.String(), port)
+		}
+		for {
+			err := authClient.UpsertAuthServer(srv, defaults.ServerHeartbeatTTL)
+			if err != nil {
+				log.Warningf("failed to announce presence: %v", err)
+			}
+			sleepTime := defaults.ServerHeartbeatTTL/2 + utils.RandomDuration(defaults.ServerHeartbeatTTL/10)
+			log.Infof("[AUTH] will ping auth service in %v", sleepTime)
+			time.Sleep(sleepTime)
+		}
+	})
 	return nil
 }
 
 func (process *TeleportProcess) initSSH() error {
-	return process.RegisterWithAuthServer(process.Config.SSH.Token, teleport.RoleNode,
-		func() error { return process.initSSHEndpoint() })
+	return process.RegisterWithAuthServer(
+		process.Config.SSH.Token, teleport.RoleNode,
+		process.initSSHEndpoint)
 }
 
-func (process *TeleportProcess) initSSHEndpoint() error {
+func (process *TeleportProcess) initSSHEndpoint(conn *connector) error {
 	cfg := process.Config
 
 	limiter, err := limiter.NewLimiter(cfg.SSH.Limiter)
@@ -278,15 +331,15 @@ func (process *TeleportProcess) initSSHEndpoint() error {
 
 	s, err := srv.New(cfg.SSH.Addr,
 		cfg.Hostname,
-		[]ssh.Signer{process.Identity.KeySigner},
-		process.AuthClient,
+		[]ssh.Signer{conn.identity.KeySigner},
+		conn.client,
 		cfg.DataDir,
-		cfg.SSH.AdvertiseIP,
+		cfg.AdvertiseIP,
 		srv.SetLimiter(limiter),
 		srv.SetShell(cfg.SSH.Shell),
-		srv.SetEventLogger(process.AuthClient),
-		srv.SetSessionServer(process.AuthClient),
-		srv.SetRecorder(process.AuthClient),
+		srv.SetEventLogger(conn.client),
+		srv.SetSessionServer(conn.client),
+		srv.SetRecorder(conn.client),
 		srv.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
 	)
 	if err != nil {
@@ -308,62 +361,69 @@ func (process *TeleportProcess) initSSHEndpoint() error {
 // RegisterWithAuthServer uses one time provisioning token obtained earlier
 // from the server to get a pair of SSH keys signed by Auth server host
 // certificate authority
-func (process *TeleportProcess) RegisterWithAuthServer(token string, role teleport.Role, callback func() error) error {
+func (process *TeleportProcess) RegisterWithAuthServer(token string, role teleport.Role, callback func(conn *connector) error) error {
 	cfg := process.Config
-	authServer := cfg.AuthServers[0].Addr
+	identityID := auth.IdentityID{Role: role, HostUUID: cfg.HostUUID}
 
 	// this means the server has not been initialized yet, we are starting
 	// the registering client that attempts to connect to the auth server
 	// and provision the keys
 	process.RegisterFunc(func() error {
-		loggedIn := false
-		for !loggedIn {
-			if token != "" {
-				log.Infof("joining the cluster with a token %v", token)
-				err := auth.Register(cfg.HostUUID, cfg.DataDir, token, role, cfg.AuthServers)
-				if err != nil {
-					log.Errorf("[SSH] failed to join the cluster: %v", err)
-				}
+		for {
+			conn, err := process.connectToAuthService(role)
+			if err == nil {
+				return callback(conn)
 			}
-			loggedIn = process.loginIntoAuthService()
-			if !loggedIn {
-				time.Sleep(time.Second * 5)
+			if teleport.IsConnectionProblem(err) {
+				log.Errorf("[%v] failed connect to auth serverr: %v", role, err)
+				time.Sleep(time.Second)
+				continue
+			}
+			if !teleport.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+			//  we haven't connected yet, so we expect the token to exist
+			if process.getLocalAuth() != nil {
+				// Auth service is on the same host, no need to go though the invitation
+				// procedure
+				log.Infof("this server has local Auth server started, using it to add role to the cluster")
+				err = auth.LocalRegister(cfg.DataDir, identityID, process.getLocalAuth())
+			} else {
+				// Auth server is remote, so we need a provisioning token
+				if token == "" {
+					return trace.Wrap(teleport.BadParameter(role.String(), "role has no identity and no provisioning token"))
+				}
+				log.Infof("%v joining the cluster with a token %v", role, token)
+				err = auth.Register(cfg.DataDir, token, identityID, cfg.AuthServers)
+			}
+			if err != nil {
+				log.Errorf("[%v] failed to join the cluster: %v", role, err)
+				time.Sleep(time.Second)
+			} else {
+				utils.Consolef(os.Stdout, "[%v] Successfully registered with the cluster", role)
+				continue
 			}
 		}
-		utils.Consolef(os.Stdout, "[SSH] Successfully registered with the auth server %v", authServer)
-		return callback()
 	})
 	return nil
 }
 
 func (process *TeleportProcess) initReverseTunnel() error {
-	return process.RegisterWithAuthServer(process.Config.Proxy.Token, teleport.RoleNode,
-		func() error { return process.initTunAgent() })
+	return process.RegisterWithAuthServer(
+		process.Config.Proxy.Token,
+		teleport.RoleNode,
+		process.initTunAgent)
 }
 
-func (process *TeleportProcess) initTunAgent() error {
+func (process *TeleportProcess) initTunAgent(conn *connector) error {
 	cfg := process.Config
-	i, err := auth.ReadIdentity(cfg.DataDir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	endpointUser := i.Cert.ValidPrincipals[0]
-
-	client, err := auth.NewTunClient(
-		cfg.AuthServers[0],
-		endpointUser,
-		[]ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)})
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	a, err := reversetunnel.NewAgent(
 		cfg.ReverseTunnel.DialAddr,
 		cfg.Hostname,
-		[]ssh.Signer{i.KeySigner},
-		client,
-		reversetunnel.SetEventLogger(client))
+		[]ssh.Signer{conn.identity.KeySigner},
+		conn.client,
+		reversetunnel.SetEventLogger(conn.client))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -392,11 +452,12 @@ func (process *TeleportProcess) initProxy() (err error) {
 			return trace.Wrap(err)
 		}
 	}
-	return process.RegisterWithAuthServer(process.Config.Proxy.Token, teleport.RoleNode,
-		func() error { return process.initProxyEndpoint() })
+	return process.RegisterWithAuthServer(
+		process.Config.Proxy.Token, teleport.RoleProxy,
+		process.initProxyEndpoint)
 }
 
-func (process *TeleportProcess) initProxyEndpoint() error {
+func (process *TeleportProcess) initProxyEndpoint(conn *connector) error {
 	cfg := process.Config
 	proxyLimiter, err := limiter.NewLimiter(cfg.Proxy.Limiter)
 	if err != nil {
@@ -408,26 +469,12 @@ func (process *TeleportProcess) initProxyEndpoint() error {
 		return trace.Wrap(err)
 	}
 
-	i, err := auth.ReadIdentity(cfg.DataDir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	endpointUser := i.Cert.ValidPrincipals[0]
-	client, err := auth.NewTunClient(
-		cfg.AuthServers[0],
-		endpointUser,
-		[]ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	tsrv, err := reversetunnel.NewServer(
 		cfg.Proxy.ReverseTunnelListenAddr,
-		[]ssh.Signer{i.KeySigner},
-		client,
+		[]ssh.Signer{conn.identity.KeySigner},
+		conn.client,
 		reversetunnel.SetLimiter(reverseTunnelLimiter),
-		reversetunnel.DirectSite(i.Cert.Extensions[utils.CertExtensionAuthority], client),
+		reversetunnel.DirectSite(conn.identity.Cert.Extensions[utils.CertExtensionAuthority], conn.client),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -435,13 +482,13 @@ func (process *TeleportProcess) initProxyEndpoint() error {
 
 	SSHProxy, err := srv.New(cfg.Proxy.SSHAddr,
 		cfg.Hostname,
-		[]ssh.Signer{i.KeySigner},
-		client,
+		[]ssh.Signer{conn.identity.KeySigner},
+		conn.client,
 		cfg.DataDir,
 		nil,
 		srv.SetLimiter(proxyLimiter),
 		srv.SetProxyMode(tsrv),
-		srv.SetSessionServer(client),
+		srv.SetSessionServer(conn.client),
 	)
 	if err != nil {
 		return trace.Wrap(err)

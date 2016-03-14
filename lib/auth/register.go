@@ -20,42 +20,50 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
 
+// LocalRegister is used in standalone mode to register roles without
+// connecting to remote clients and provisioning tokens
+func LocalRegister(dataDir string, id IdentityID, authServer *AuthServer) error {
+	keys, err := authServer.GenerateServerKeys(id.HostUUID, id.Role)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return writeKeys(dataDir, id, keys.Key, keys.Cert)
+}
+
 // Register is used by auth service clients (other services, like proxy or SSH) when a new node
 // joins the cluster
-func Register(hostUUID, dataDir, token string, role teleport.Role, servers []utils.NetAddr) error {
+func Register(dataDir, token string, id IdentityID, servers []utils.NetAddr) error {
 	tok, err := readToken(token)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	method, err := NewTokenAuth(hostUUID, tok)
+	method, err := NewTokenAuth(id.HostUUID, tok)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	client, err := NewTunClient(
 		servers[0],
-		hostUUID,
+		id.HostUUID,
 		method)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer client.Close()
 
-	keys, err := client.RegisterUsingToken(tok, hostUUID, role)
+	keys, err := client.RegisterUsingToken(tok, id.HostUUID, id.Role)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return writeKeys(dataDir, keys.Key, keys.Cert)
+	return writeKeys(dataDir, id, keys.Key, keys.Cert)
 }
 
 func RegisterNewAuth(domainName, token string, servers []utils.NetAddr) error {
-
 	tok, err := readToken(token)
 	if err != nil {
 		return trace.Wrap(err)

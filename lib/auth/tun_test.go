@@ -79,10 +79,13 @@ func (s *TunSuite) SetUpTest(c *C) {
 		Authority:  authority.New(),
 		DomainName: "localhost",
 	})
-	s.srv = NewAPIWithRoles(s.a, s.bl, sessionServer, s.rec,
-		NewStandardPermissions(),
-		StandardRoles,
-	)
+	s.srv = NewAPIWithRoles(APIConfig{
+		AuthServer:        s.a,
+		EventLog:          s.bl,
+		SessionService:    sessionServer,
+		Recorder:          s.rec,
+		PermissionChecker: NewStandardPermissions(),
+		Roles:             StandardRoles})
 	go s.srv.Serve()
 
 	// set up host private key and certificate
@@ -111,10 +114,13 @@ func (s *TunSuite) SetUpTest(c *C) {
 func (s *TunSuite) TestUnixServerClient(c *C) {
 	sessionServer, err := session.New(s.bk)
 	c.Assert(err, IsNil)
-	srv := NewAPIWithRoles(s.a, s.bl, sessionServer, s.rec,
-		NewAllowAllPermissions(),
-		StandardRoles,
-	)
+	srv := NewAPIWithRoles(APIConfig{
+		AuthServer:        s.a,
+		EventLog:          s.bl,
+		SessionService:    sessionServer,
+		Recorder:          s.rec,
+		PermissionChecker: NewAllowAllPermissions(),
+		Roles:             StandardRoles})
 	go srv.Serve()
 
 	tsrv, err := NewTunnel(
@@ -145,7 +151,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 		"test", authMethod)
 	c.Assert(err, IsNil)
 
-	err = clt.UpsertServer(
+	err = clt.UpsertNode(
 		services.Server{ID: "a.example.com", Addr: "hello", Hostname: "hello"}, 0)
 	c.Assert(err, IsNil)
 }
@@ -343,7 +349,7 @@ func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(ws, Not(Equals), "")
 
 	// Requesting forbidded for User action
-	_, err = clt.GetServers()
+	_, err = clt.GetNodes()
 	c.Assert(err, NotNil)
 
 	// Requesting forbidded for User action
@@ -360,7 +366,7 @@ func (s *TunSuite) TestPermissions(c *C) {
 	defer cltw.Close()
 
 	// Requesting forbidden for Web action
-	_, err = cltw.GetServers()
+	_, err = cltw.GetNodes()
 	c.Assert(err, NotNil)
 
 	// Requesting forbidden for Web action

@@ -756,7 +756,7 @@ func (s *tunnelSite) DialServer(addr string) (net.Conn, error) {
 	}
 	var knownServers []services.Server
 	for i := 0; i < 10; i++ {
-		knownServers, err = clt.GetServers()
+		knownServers, err = clt.GetNodes()
 		if err != nil {
 			log.Infof("failed to get servers: %v", err)
 			time.Sleep(time.Second)

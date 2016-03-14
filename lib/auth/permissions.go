@@ -38,6 +38,11 @@ func NewStandardPermissions() PermissionChecker {
 	sp := standardPermissions{}
 	sp.permissions = make(map[teleport.Role](map[string]bool))
 
+	sp.permissions[teleport.RoleAuth] = map[string]bool{
+		ActionUpsertAuthServer: true,
+		ActionGetAuthServers:   true,
+	}
+
 	sp.permissions[teleport.RoleUser] = map[string]bool{
 		ActionSignIn:             true,
 		ActionCreateWebSession:   true,
@@ -55,15 +60,31 @@ func NewStandardPermissions() PermissionChecker {
 
 	sp.permissions[teleport.RoleNode] = map[string]bool{
 		ActionUpsertServer:       true,
+		ActionGetServers:         true,
+		ActionGetProxies:         true,
+		ActionGetAuthServers:     true,
 		ActionGetCertAuthorities: true,
 		ActionGetUsers:           true,
 		ActionGetLocalDomain:     true,
 		ActionGetUserKeys:        true,
-		ActionGetServers:         true,
 		ActionUpsertParty:        true,
 		ActionUpsertSession:      true,
 		ActionLogEntry:           true,
 		ActionGetChunkWriter:     true,
+		ActionGetSession:         true,
+		ActionGetSessions:        true,
+	}
+
+	sp.permissions[teleport.RoleProxy] = map[string]bool{
+		ActionGetServers:         true,
+		ActionUpsertProxy:        true,
+		ActionGetProxies:         true,
+		ActionGetAuthServers:     true,
+		ActionGetCertAuthorities: true,
+		ActionGetUsers:           true,
+		ActionGetLocalDomain:     true,
+		ActionGetUserKeys:        true,
+		ActionLogEntry:           true,
 		ActionGetSession:         true,
 		ActionGetSessions:        true,
 	}
@@ -76,54 +97,6 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetSession:       true,
 		ActionGetSessions:      true,
 		ActionGetEvents:        true,
-	}
-
-	sp.permissions[teleport.RoleSignup] = map[string]bool{
-		ActionGetSignupTokenData:  true,
-		ActionCreateUserWithToken: true,
-	}
-
-	return &sp
-}
-
-// NewHangoutPermissions is a set of permissions allowed to various
-// roles when auth server is started in hangout mode on user's computer
-func NewHangoutPermissions() PermissionChecker {
-	sp := standardPermissions{}
-	sp.permissions = make(map[teleport.Role](map[string]bool))
-
-	sp.permissions[teleport.RoleUser] = map[string]bool{
-		ActionGenerateUserCert:   true,
-		ActionGetCertAuthorities: true,
-	}
-
-	sp.permissions[teleport.RoleProvisionToken] = map[string]bool{
-		ActionRegisterUsingToken:    true,
-		ActionRegisterNewAuthServer: true,
-		ActionGenerateUserCert:      true,
-	}
-
-	sp.permissions[teleport.RoleHangoutRemoteUser] = map[string]bool{
-		ActionGenerateUserCert: true,
-	}
-
-	sp.permissions[teleport.RoleNode] = map[string]bool{
-		ActionUpsertServer:        true,
-		ActionGetCertAuthorities:  true,
-		ActionGetLocalDomain:      true,
-		ActionGetUserKeys:         true,
-		ActionGetServers:          true,
-		ActionUpsertParty:         true,
-		ActionLogEntry:            true,
-		ActionGetChunkWriter:      true,
-		ActionUpsertCertAuthority: true,
-		ActionUpsertSession:       true,
-		ActionGetAuthServers:      true,
-	}
-
-	sp.permissions[teleport.RoleWeb] = map[string]bool{
-		ActionGetWebSession:    true,
-		ActionDeleteWebSession: true,
 	}
 
 	sp.permissions[teleport.RoleSignup] = map[string]bool{
@@ -174,15 +147,10 @@ var StandardRoles = []teleport.Role{
 	teleport.RoleUser,
 	teleport.RoleWeb,
 	teleport.RoleNode,
+	teleport.RoleProxy,
 	teleport.RoleAdmin,
 	teleport.RoleProvisionToken,
 	teleport.RoleSignup,
-}
-
-var HangoutRoles = []teleport.Role{
-	teleport.RoleAdmin,
-	teleport.RoleProvisionToken,
-	teleport.RoleHangoutRemoteUser,
 }
 
 const (
@@ -205,7 +173,10 @@ const (
 	ActionGetChunkReader                = "GetChunkReader"
 	ActionUpsertServer                  = "UpsertServer"
 	ActionGetServers                    = "GetServers"
+	ActionUpsertAuthServer              = "UpsertAuthServer"
 	ActionGetAuthServers                = "GetAuthServers"
+	ActionUpsertProxy                   = "UpsertProxy"
+	ActionGetProxies                    = "GetProxies"
 	ActionUpsertPassword                = "UpsertPassword"
 	ActionCheckPassword                 = "CheckPassword"
 	ActionSignIn                        = "SignIn"

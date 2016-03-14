@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package service
 
 import (
@@ -43,6 +44,10 @@ type Config struct {
 	Hostname string
 
 	AuthServers NetAddrSlice
+
+	// AdvertiseIP is used to "publish" an alternative IP address this node
+	// can be reached on, if running behind NAT
+	AdvertiseIP net.IP
 
 	// SSH role an SSH endpoint server
 	SSH SSHConfig
@@ -184,6 +189,12 @@ type AuthConfig struct {
 	// TrustedAuthorities is a set of trusted user certificate authorities
 	TrustedAuthorities CertificateAuthorities
 
+	// DomainName is a name that identifies this authority and all
+	// host nodes in the cluster that will share this authority domain name
+	// as a base name, e.g. if authority domain name is example.com,
+	// all nodes in the cluster will have UUIDs in the form: <uuid>.example.com
+	DomainName string
+
 	// UserCA allows to pass preconfigured user certificate authority keypair
 	// to auth server so it will use it on the first start instead of generating
 	// a new keypair
@@ -225,16 +236,13 @@ type AuthConfig struct {
 
 // SSHConfig configures SSH server node role
 type SSHConfig struct {
-	Enabled bool
-	Token   string
-	Addr    utils.NetAddr
-	// AdvertiseIP is used to "publish" an alternative IP address this node
-	// can be reached on, if running behind NAT
-	AdvertiseIP net.IP
-	Shell       string
-	Limiter     limiter.LimiterConfig
-	Labels      map[string]string
-	CmdLabels   services.CommandLabels
+	Enabled   bool
+	Token     string
+	Addr      utils.NetAddr
+	Shell     string
+	Limiter   limiter.LimiterConfig
+	Labels    map[string]string
+	CmdLabels services.CommandLabels
 }
 
 // ReverseTunnelConfig configures reverse tunnel role

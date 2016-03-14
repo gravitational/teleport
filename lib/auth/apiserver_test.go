@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package auth
 
 import (
@@ -272,27 +273,47 @@ func (s *APISuite) TestSessions(c *C) {
 }
 
 func (s *APISuite) TestServers(c *C) {
-	out, err := s.clt.GetServers()
+	out, err := s.clt.GetNodes()
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
 	srv := services.Server{ID: "id1", Addr: "host:1233", Hostname: "host1"}
-	c.Assert(s.clt.UpsertServer(srv, 0), IsNil)
+	c.Assert(s.clt.UpsertNode(srv, 0), IsNil)
 
 	srv1 := services.Server{ID: "id2", Addr: "host:1234", Hostname: "host2"}
-	c.Assert(s.clt.UpsertServer(srv1, 0), IsNil)
+	c.Assert(s.clt.UpsertNode(srv1, 0), IsNil)
 
-	out, err = s.clt.GetServers()
+	out, err = s.clt.GetNodes()
 	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, []services.Server{srv, srv1})
 
-	// note: ID is getting overwritten by addr:
-	if out[0].ID == "id1" {
-		c.Assert(out[0], DeepEquals, services.Server{ID: "id1", Addr: "host:1233", Hostname: "host1"})
-		c.Assert(out[1], DeepEquals, services.Server{ID: "id2", Addr: "host:1234", Hostname: "host2"})
-	} else {
-		c.Assert(out[1], DeepEquals, services.Server{ID: "id1", Addr: "host:1233", Hostname: "host1"})
-		c.Assert(out[0], DeepEquals, services.Server{ID: "id2", Addr: "host:1234", Hostname: "host2"})
-	}
+	out, err = s.clt.GetProxies()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
+
+	srv = services.Server{ID: "proxy1", Addr: "host:1233", Hostname: "host1"}
+	c.Assert(s.clt.UpsertProxy(srv, 0), IsNil)
+
+	srv1 = services.Server{ID: "proxy2", Addr: "host:1234", Hostname: "host2"}
+	c.Assert(s.clt.UpsertProxy(srv1, 0), IsNil)
+
+	out, err = s.clt.GetProxies()
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, []services.Server{srv, srv1})
+
+	out, err = s.clt.GetAuthServers()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
+
+	srv = services.Server{ID: "auth1", Addr: "host:1233", Hostname: "host1"}
+	c.Assert(s.clt.UpsertAuthServer(srv, 0), IsNil)
+
+	srv1 = services.Server{ID: "auth2", Addr: "host:1234", Hostname: "host2"}
+	c.Assert(s.clt.UpsertAuthServer(srv1, 0), IsNil)
+
+	out, err = s.clt.GetAuthServers()
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, []services.Server{srv, srv1})
 }
 
 func (s *APISuite) TestEvents(c *C) {

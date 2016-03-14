@@ -33,9 +33,13 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// InitConfig is auth server init config
 type InitConfig struct {
 	Backend   backend.Backend
 	Authority Authority
+
+	// HostUUID is a UUID of this host
+	HostUUID string
 
 	// DomainName stores the FQDN of the signing CA (its certificate will have this
 	// name embedded). It is usually set to the GUID of the host the Auth service runs on
@@ -59,9 +63,13 @@ type InitConfig struct {
 }
 
 // Init instantiates and configures an instance of AuthServer
-func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
+func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 	if cfg.DataDir == "" {
-		return nil, nil, fmt.Errorf("path can not be empty")
+		return nil, nil, trace.Wrap(teleport.BadParameter("data_dir", "data dir can not be empty"))
+	}
+
+	if cfg.HostUUID == "" {
+		return nil, nil, trace.Wrap(teleport.BadParameter("HostUUID", "host UUID can not be empty"))
 	}
 
 	err := os.MkdirAll(cfg.DataDir, os.ModeDir|0777)
@@ -152,17 +160,17 @@ func Init(cfg InitConfig) (*AuthServer, ssh.Signer, error) {
 		}
 	}
 
-	signer, err := InitKeys(asrv, cfg.DataDir)
+	identity, err := initKeys(asrv, cfg.DataDir, IdentityID{HostUUID: cfg.HostUUID, Role: teleport.RoleAdmin})
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return asrv, signer, nil
+	return asrv, identity, nil
 }
 
-// InitKeys initializes this node's host certificate signed by host authority
-func InitKeys(a *AuthServer, dataDir string) (ssh.Signer, error) {
-	kp, cp := keysPath(dataDir)
+// initKeys initializes this node's host certificate signed by host authority
+func initKeys(a *AuthServer, dataDir string, id IdentityID) (*Identity, error) {
+	kp, cp := keysPath(dataDir, id)
 
 	keyExists, err := pathExists(kp)
 	if err != nil {
@@ -175,29 +183,29 @@ func InitKeys(a *AuthServer, dataDir string) (ssh.Signer, error) {
 	}
 
 	if !keyExists || !certExists {
-		k, pub, err := a.GenerateKeyPair("")
+		privateKey, publicKey, err := a.GenerateKeyPair("")
 		if err != nil {
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
-		c, err := a.GenerateHostCert(pub, a.DomainName, a.DomainName, teleport.RoleAdmin, 0)
+		cert, err := a.GenerateHostCert(publicKey, id.HostUUID, a.DomainName, id.Role, 0)
 		if err != nil {
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
-		if err := writeKeys(dataDir, k, c); err != nil {
-			return nil, err
+		if err := writeKeys(dataDir, id, privateKey, cert); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
-	i, err := ReadIdentity(dataDir)
+	i, err := ReadIdentity(dataDir, id)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return i.KeySigner, nil
+	return i, nil
 }
 
 // writeKeys saves the key/cert pair for a given domain onto disk. This usually means the
 // domain trusts us (signed our public key)
-func writeKeys(dataDir string, key []byte, cert []byte) error {
-	kp, cp := keysPath(dataDir)
+func writeKeys(dataDir string, id IdentityID, key []byte, cert []byte) error {
+	kp, cp := keysPath(dataDir, id)
 	log.Debugf("write key to %v, cert from %v", kp, cp)
 
 	if err := ioutil.WriteFile(kp, key, 0600); err != nil {
@@ -209,6 +217,7 @@ func writeKeys(dataDir string, key []byte, cert []byte) error {
 	return nil
 }
 
+// Identity is a collection of certificates and signers that represent identity
 type Identity struct {
 	KeyBytes  []byte
 	CertBytes []byte
@@ -217,13 +226,19 @@ type Identity struct {
 	Cert      *ssh.Certificate
 }
 
+// IdentityID is a combination of role and host UUID
+type IdentityID struct {
+	Role     teleport.Role
+	HostUUID string
+}
+
 // ReadIdentity reads, parses and returns the given pub/pri key + cert from the
 // key storage (dataDir).
-func ReadIdentity(dataDir string) (i *Identity, err error) {
-	kp, cp := keysPath(dataDir)
+func ReadIdentity(dataDir string, id IdentityID) (i *Identity, err error) {
+	kp, cp := keysPath(dataDir, id)
 	log.Debugf("host identity: [key: %v, cert: %v]", kp, cp)
 
-	i = new(Identity)
+	i = &Identity{}
 
 	i.KeyBytes, err = utils.ReadPath(kp)
 	if err != nil {
@@ -260,8 +275,8 @@ func ReadIdentity(dataDir string) (i *Identity, err error) {
 }
 
 // HaveHostKeys checks either the host keys are in place
-func HaveHostKeys(dataDir string) (bool, error) {
-	kp, cp := keysPath(dataDir)
+func HaveHostKeys(dataDir string, id IdentityID) (bool, error) {
+	kp, cp := keysPath(dataDir, id)
 
 	exists, err := pathExists(kp)
 	if !exists || err != nil {
@@ -277,9 +292,9 @@ func HaveHostKeys(dataDir string) (bool, error) {
 }
 
 // keysPath returns two full file paths: to the host.key and host.cert
-func keysPath(dataDir string) (key string, cert string) {
-	return filepath.Join(dataDir, "host.key"),
-		filepath.Join(dataDir, "host.cert")
+func keysPath(dataDir string, id IdentityID) (key string, cert string) {
+	return filepath.Join(dataDir, fmt.Sprintf("host.%v.%v.key", id.HostUUID, string(id.Role))),
+		filepath.Join(dataDir, fmt.Sprintf("host.%v.%v.cert", id.HostUUID, string(id.Role)))
 }
 
 func pathExists(path string) (bool, error) {

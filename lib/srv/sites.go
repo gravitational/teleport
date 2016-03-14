@@ -37,7 +37,7 @@ func (t *proxySitesSubsys) start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		servers, err := clt.GetServers()
+		servers, err := clt.GetNodes()
 		if err != nil {
 			return trace.Wrap(err)
 		}
