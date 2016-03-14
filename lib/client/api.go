@@ -134,7 +134,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	// first, see if we can authenticate with credentials stored in
 	// a local SSH agent:
 	if sshAgent := connectToSSHAgent(); sshAgent != nil {
-		tc.authMethods = append(tc.authMethods, AuthMethodFromAgent(sshAgent))
+		tc.authMethods = append(tc.authMethods, authMethodFromAgent(sshAgent))
 	}
 
 	// then, we can authenticate via a locally stored cert previously
@@ -145,7 +145,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	}
 	if localAgent != nil {
 		tc.localAgent = localAgent
-		tc.authMethods = append(tc.authMethods, AuthMethodFromAgent(localAgent))
+		tc.authMethods = append(tc.authMethods, authMethodFromAgent(localAgent))
 	} else {
 		log.Errorf("unable to obtain locally stored credentials")
 	}
@@ -671,6 +671,7 @@ func (tc *TeleportClient) Login() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// save the list of CAs we trust to the cache file
 	err = AddHostSignersToCache(response.HostSigners)
 	if err != nil {
 		return trace.Wrap(err)
@@ -791,4 +792,8 @@ func ParseLabelSpec(spec string) (map[string]string, error) {
 		labels[tokens[i]] = tokens[i+1]
 	}
 	return labels, nil
+}
+
+func authMethodFromAgent(ag agent.Agent) ssh.AuthMethod {
+	return ssh.PublicKeysCallback(ag.Signers)
 }
