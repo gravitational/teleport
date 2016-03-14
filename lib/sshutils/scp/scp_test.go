@@ -38,7 +38,7 @@ type SCPSuite struct {
 var _ = Suite(&SCPSuite{})
 
 func (s *SCPSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
+	utils.InitLoggerForTests()
 }
 
 func (s *SCPSuite) TestSendFile(c *C) {
