@@ -129,7 +129,6 @@ type Site struct {
 	Name          string    `json:"name"`
 	LastConnected time.Time `json:"lastconnected"`
 	Status        string    `json:"status"`
-	AuthServers   []Server  `json:"authservers"`
 }
 
 // Server represents a node in a Teleport cluster

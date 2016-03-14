@@ -134,30 +134,29 @@ func (proxy *ProxyClient) FindServers(labelName string, labelRegex string) ([]se
 
 // ConnectToSite connects to the auth server of the given site via proxy.
 // It returns connected and authenticated auth server client
-func (proxy *ProxyClient) ConnectToSite(site *services.Site, user string) (auth.ClientI, error) {
-	var nodeClient *NodeClient
-	var err error
-	for _, authServer := range site.AuthServers {
-		nodeClient, err = proxy.ConnectToNode(authServer.Addr, user)
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-		clt, err := auth.NewClient(
-			"http://stub:0",
-			roundtrip.HTTPClient(&http.Client{
-				Transport: &http.Transport{
-					Dial: func(network, addr string) (net.Conn, error) {
-						return nodeClient.Client.Dial(network, addr)
-					},
-				},
-			}))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return clt, nil
+func (proxy *ProxyClient) ConnectToSite(siteName string, user string) (auth.ClientI, error) {
+	// this connects us to a node which is an auth server for this site
+	// note the addres we're using: "@sitename", which in practice looks like "@{site-global-id}"
+	// the Teleport proxy interprets such address as a request to connec to the active auth server
+	// of the named site
+	nodeClient, err := proxy.ConnectToNode("@"+siteName, user)
+	if err != nil {
+		log.Error(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil, trace.Wrap(err)
+	clt, err := auth.NewClient(
+		"http://stub:0",
+		roundtrip.HTTPClient(&http.Client{
+			Transport: &http.Transport{
+				Dial: func(network, addr string) (net.Conn, error) {
+					return nodeClient.Client.Dial(network, addr)
+				},
+			},
+		}))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return clt, nil
 }
 
 // ConnectToNode connects to the ssh server via Proxy.
@@ -203,7 +202,7 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeC
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		remoteAddr, err := utils.ParseAddr("tcp://" + nodeAddress)
+		fakeAddr, err := utils.ParseAddr("tcp://" + nodeAddress)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -212,7 +211,7 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeC
 			proxyWriter,
 			proxySession,
 			localAddr,
-			remoteAddr,
+			fakeAddr,
 		)
 		sshConfig := &ssh.ClientConfig{
 			User:            user,
