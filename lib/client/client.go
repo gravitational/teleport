@@ -14,8 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package client contains SSH and HTTPS clients to connect
-// to the Teleport proxy
 package client
 
 import (
@@ -379,6 +377,7 @@ func (client *NodeClient) Upload(localSourcePath, remoteDestinationPath string) 
 		Target:      localSourcePath,
 	}
 
+	// "impersonate" scp to a server
 	shellCmd := "/usr/bin/scp -t"
 	if fileInfo.IsDir() {
 		shellCmd += " -r"
@@ -397,6 +396,7 @@ func (client *NodeClient) Download(remoteSourcePath, localDestinationPath string
 		Target:      localDestinationPath,
 	}
 
+	// "impersonate" scp to a server
 	shellCmd := "/usr/bin/scp -f"
 	if isDir {
 		shellCmd += " -r"

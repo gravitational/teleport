@@ -416,7 +416,7 @@ func (tc *TeleportClient) runCommand(proxyClient *ProxyClient, command string) e
 		go func(address string) {
 			defer wg.Done()
 			nodeClient, err := ConnectToNode(proxyClient, address, tc.authMethods,
-				tc.makeHostKeyCallback(), tc.Config.Login)
+				CheckHostSignature, tc.Config.Login)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -574,51 +574,34 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	proxyAddr := tc.Config.ProxyHostPort(defaults.SSHProxyListenPort)
 	sshConfig := &ssh.ClientConfig{
 		User:            tc.Config.Login,
-		HostKeyCallback: tc.makeHostKeyCallback(),
+		HostKeyCallback: CheckHostSignature,
 	}
-	log.Debugf("connecting to proxy: %v", proxyAddr)
-
 	if len(tc.authMethods) == 0 {
 		return nil, trace.Errorf("no authentication methods provided")
 	}
+	log.Debugf("connecting to proxy: %v", proxyAddr)
 
-	// try to authenticate using every auth method we have:
-	for _, m := range tc.authMethods {
-		sshConfig.Auth = []ssh.AuthMethod{m}
-		proxyClient, err := ssh.Dial("tcp", proxyAddr, sshConfig)
-		if err != nil {
-			if utils.IsHandshakeFailedError(err) {
-				continue
-			}
-			return nil, trace.Wrap(err)
-		}
-		return &ProxyClient{
-			Client:          proxyClient,
-			proxyAddress:    proxyAddr,
-			hostKeyCallback: sshConfig.HostKeyCallback,
-			authMethods:     tc.authMethods,
-		}, nil
-	}
-	return nil, trace.Errorf("could not connect to proxy %v. all authentication methods failed", proxyAddr)
-}
-
-// makeHostKeyCallback creates and returns a function suitable to be passed into
-// ssh.ClientConfig
-func (tc *TeleportClient) makeHostKeyCallback() utils.HostKeyCallback {
-	return func(hostID string, remote net.Addr, key ssh.PublicKey) error {
-		err := CheckHostSignerFromCache(hostID, remote, key)
-		if err != nil {
-			err = tc.Login()
+	for {
+		// try to authenticate using every auth method we have:
+		for _, m := range tc.authMethods {
+			sshConfig.Auth = []ssh.AuthMethod{m}
+			proxyClient, err := ssh.Dial("tcp", proxyAddr, sshConfig)
 			if err != nil {
-				log.Error(err)
-				// (TODO) klizhentas I don't know of any other way to
-				// pass this info to user
-				fmt.Println(err)
-				return trace.Wrap(err)
+				if utils.IsHandshakeFailedError(err) {
+					continue
+				}
+				return nil, trace.Wrap(err)
 			}
-			return CheckHostSignerFromCache(hostID, remote, key)
+			return &ProxyClient{
+				Client:          proxyClient,
+				proxyAddress:    proxyAddr,
+				hostKeyCallback: sshConfig.HostKeyCallback,
+				authMethods:     tc.authMethods,
+			}, nil
 		}
-		return nil
+		// if we get here, it means we failed to authenticate using stored keys
+		// and we need to ask for the login information
+		tc.Login()
 	}
 }
 

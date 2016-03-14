@@ -13,13 +13,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-// package auth implements certificate signing authority and access control server
-// Authority server is composed of several parts:
-//
-// * Authority server itself that implements signing and acl logic
-// * HTTP server wrapper for authority server
-// * HTTP client wrapper
-//
 
 package client
 
