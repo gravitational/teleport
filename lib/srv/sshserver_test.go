@@ -441,7 +441,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	c.Assert(sites, HasLen, 1)
 	c.Assert(sites[0].Name, Equals, "localhost")
 	c.Assert(sites[0].Status, Equals, "online")
-	c.Assert(time.Since(sites[0].LastConnected).Seconds() < 1, Equals, true)
+	c.Assert(time.Since(sites[0].LastConnected).Seconds() < 5, Equals, true)
 }
 
 func (s *SrvSuite) TestProxyRoundRobin(c *C) {
