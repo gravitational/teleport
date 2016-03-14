@@ -15,7 +15,7 @@ build: bbox
 		   -v "$$(pwd)/../":/gopath/src/github.com/gravitational/teleport \
 		   -u $$(id -u):$$(id -g) \
 		   $(BBOX) \
-		   /bin/bash -c "make -C /gopath/src/github.com/gravitational/teleport FLAGS='-cover -race' clean test all"
+		   /bin/bash -c "make -C /gopath/src/github.com/gravitational/teleport OUT='$(OUT)' FLAGS='-cover -race' clean test all"
 	@echo "\nSUCCESS ----> $(OUT)/teleport"
 	@echo "SUCCESS ----> $(OUT)/tctl"
 	@echo "SUCCESS ----> $(OUT)/tsh"
