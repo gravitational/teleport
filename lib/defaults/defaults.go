@@ -78,10 +78,10 @@ const (
 // services (SSH, auth, proxy)
 const (
 	// Number of max. simultaneous connections to a service
-	LimiterMaxConnections = 25
+	LimiterMaxConnections = 1000
 
 	// Number of max. simultaneous connected users/logins
-	LimiterMaxConcurrentUsers = 25
+	LimiterMaxConcurrentUsers = 250
 )
 
 const (
