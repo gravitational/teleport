@@ -284,7 +284,7 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 }
 
 func onVersion() {
-	fmt.Println("Version!")
+	utils.PrintVersion()
 }
 
 func printHeader(t *goterm.Table, cols []string) {
