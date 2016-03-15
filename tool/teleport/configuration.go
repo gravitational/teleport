@@ -23,6 +23,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+	"unicode"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
@@ -320,6 +322,7 @@ func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 		applyListenIP(clf.ListenIP, cfg)
 	}
 
+	// --advertise-ip flag
 	if clf.AdvertiseIP != nil {
 		if err := validateAdvertiseIP(clf.AdvertiseIP); err != nil {
 			return nil, trace.Wrap(err)
@@ -328,11 +331,8 @@ func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 	}
 
 	// apply --labels flag
-	if clf.Labels != "" {
-		cfg.SSH.Labels, err = client.ParseLabelSpec(clf.Labels)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err = parseLabels(clf.Labels, &cfg.SSH); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// locate web assets if web proxy is enabled
@@ -344,6 +344,75 @@ func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 	}
 
 	return cfg, nil
+}
+
+// parseLabels takes the value of --labels flag and tries to correctly populate
+// sshConf.Labels and sshConf.CmdLabels
+func parseLabels(spec string, sshConf *service.SSHConfig) error {
+	if spec == "" {
+		return nil
+	}
+	// base syntax parsing, the spec must be in the form of 'key=value,more="better"`
+	lmap, err := client.ParseLabelSpec(spec)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(lmap) > 0 {
+		sshConf.CmdLabels = make(services.CommandLabels, 0)
+		sshConf.Labels = make(map[string]string, 0)
+	}
+	// see which labels are actually command labels:
+	for key, value := range lmap {
+		cmdLabel, err := isCmdLabelSpec(value)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if cmdLabel != nil {
+			sshConf.CmdLabels[key] = *cmdLabel
+		} else {
+			sshConf.Labels[key] = value
+		}
+	}
+	return nil
+}
+
+// isCmdLabelSpec tries to interpret a given string as a "command label" spec.
+// A command label spec looks like [time_duration:command param1 param2 ...] where
+// time_duration is in "1h2m1s" form.
+//
+// Example of a valid spec: "[1h:/bin/uname -m]"
+func isCmdLabelSpec(spec string) (*services.CommandLabel, error) {
+	// command spec? (surrounded by brackets?)
+	if len(spec) > 5 && spec[0] == '[' && spec[len(spec)-1] == ']' {
+		invalidSpecError := teleport.BadParameter("label",
+			fmt.Sprintf("invalid command label spec: '%s'", spec))
+		spec = strings.Trim(spec, "[]")
+		idx := strings.IndexRune(spec, ':')
+		if idx < 0 {
+			return nil, trace.Wrap(invalidSpecError)
+		}
+		periodSpec := spec[:idx]
+		period, err := time.ParseDuration(periodSpec)
+		if err != nil {
+			return nil, trace.Wrap(invalidSpecError)
+		}
+		cmdSpec := spec[idx+1:]
+		if len(cmdSpec) < 1 {
+			return nil, trace.Wrap(invalidSpecError)
+		}
+		var openQuote bool = false
+		return &services.CommandLabel{
+			Period: period,
+			Command: strings.FieldsFunc(cmdSpec, func(c rune) bool {
+				if c == '"' {
+					openQuote = !openQuote
+				}
+				return unicode.IsSpace(c) && !openQuote
+			}),
+		}, nil
+	}
+	// not a valid spec
+	return nil, nil
 }
 
 // applyListenIP replaces all 'listen addr' settings for all services with

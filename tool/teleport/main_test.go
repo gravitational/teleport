@@ -21,9 +21,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
 
 	"gopkg.in/check.v1"
 )
@@ -107,6 +110,40 @@ func (s *MainTestSuite) TestConfigFile(c *check.C) {
 	c.Assert(conf.SSH.Token, check.Equals, "xxxyyy")
 	c.Assert(conf.AdvertiseIP, check.DeepEquals, net.ParseIP("10.5.5.5"))
 	c.Assert(conf.SSH.Labels, check.DeepEquals, map[string]string{"a": "a1", "b": "b1"})
+}
+
+func (s *MainTestSuite) TestLabelParsing(c *check.C) {
+	var conf service.SSHConfig
+	var err error
+	// empty spec. no errors, no labels
+	err = parseLabels("", &conf)
+	c.Assert(err, check.IsNil)
+	c.Assert(conf.CmdLabels, check.IsNil)
+	c.Assert(conf.Labels, check.IsNil)
+
+	// simple static labels
+	err = parseLabels(`key=value,more="much better"`, &conf)
+	c.Assert(err, check.IsNil)
+	c.Assert(conf.CmdLabels, check.NotNil)
+	c.Assert(conf.CmdLabels, check.HasLen, 0)
+	c.Assert(conf.Labels, check.DeepEquals, map[string]string{
+		"key":  "value",
+		"more": "much better",
+	})
+
+	// static labels + command labels
+	err = parseLabels(`key=value,more="much better",arch=[5m2s:/bin/uname -m "p1 p2"]`, &conf)
+	c.Assert(err, check.IsNil)
+	c.Assert(conf.Labels, check.DeepEquals, map[string]string{
+		"key":  "value",
+		"more": "much better",
+	})
+	c.Assert(conf.CmdLabels, check.DeepEquals, services.CommandLabels{
+		"arch": services.CommandLabel{
+			Period:  time.Minute*5 + time.Second*2,
+			Command: []string{"/bin/uname", "-m", `"p1 p2"`},
+		},
+	})
 }
 
 func (s *MainTestSuite) TestLocateWebAssets(c *check.C) {
