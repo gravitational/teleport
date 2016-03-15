@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -55,6 +56,8 @@ type CommandLineFlags struct {
 	Roles string
 	// -d flag
 	Debug bool
+	// --labels flag
+	Labels string
 }
 
 // readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -322,6 +325,14 @@ func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 			return nil, trace.Wrap(err)
 		}
 		cfg.AdvertiseIP = clf.AdvertiseIP
+	}
+
+	// apply --labels flag
+	if clf.Labels != "" {
+		cfg.SSH.Labels, err = client.ParseLabelSpec(clf.Labels)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// locate web assets if web proxy is enabled

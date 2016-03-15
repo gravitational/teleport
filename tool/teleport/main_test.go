@@ -97,7 +97,7 @@ func (s *MainTestSuite) TestRolesFlag(c *check.C) {
 }
 
 func (s *MainTestSuite) TestConfigFile(c *check.C) {
-	cmd, conf := run([]string{"start", "--roles=node", "-d", "--config=" + s.configFile}, true)
+	cmd, conf := run([]string{"start", "--roles=node", "-d", "--labels=a=a1,b=b1", "--config=" + s.configFile}, true)
 	c.Assert(cmd, check.Equals, "start")
 	c.Assert(conf.SSH.Enabled, check.Equals, true)
 	c.Assert(conf.Auth.Enabled, check.Equals, false)
@@ -106,6 +106,7 @@ func (s *MainTestSuite) TestConfigFile(c *check.C) {
 	c.Assert(conf.Hostname, check.Equals, "hvostongo.example.org")
 	c.Assert(conf.SSH.Token, check.Equals, "xxxyyy")
 	c.Assert(conf.AdvertiseIP, check.DeepEquals, net.ParseIP("10.5.5.5"))
+	c.Assert(conf.SSH.Labels, check.DeepEquals, map[string]string{"a": "a1", "b": "b1"})
 }
 
 func (s *MainTestSuite) TestLocateWebAssets(c *check.C) {

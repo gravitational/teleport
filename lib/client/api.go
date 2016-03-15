@@ -762,9 +762,15 @@ func ParseLabelSpec(spec string) (map[string]string, error) {
 	tokens := []string{}
 	var openQuotes = false
 	var tokenStart, assignCount int
+	var specLen = len(spec)
 	// tokenize the label spec:
 	for i, ch := range spec {
-		endOfToken := (i+1 == len(spec))
+		endOfToken := false
+		// end of line?
+		if i+1 == specLen {
+			i++
+			endOfToken = true
+		}
 		switch ch {
 		case '"':
 			openQuotes = !openQuotes
@@ -784,7 +790,7 @@ func ParseLabelSpec(spec string) (map[string]string, error) {
 	// simple validation of tokenization: must have an even number of tokens (because they're pairs)
 	// and the number of such pairs must be equal the number of assignments
 	if len(tokens)%2 != 0 || assignCount != len(tokens)/2 {
-		return nil, fmt.Errorf("invalid label spec: '%s'", spec)
+		return nil, fmt.Errorf("invalid label spec: '%s', should be 'key=value'", spec)
 	}
 	// break tokens in pairs and put into a map:
 	labels := make(map[string]string)

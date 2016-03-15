@@ -81,6 +81,7 @@ func run(cmdlineArgs []string, testRun bool) (executedCommand string, appliedCon
 	start.Flag("config",
 		fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
 		Short('c').ExistingFileVar(&ccf.ConfigFile)
+	start.Flag("labels", "List of labels for this node").StringVar(&ccf.Labels)
 
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)
