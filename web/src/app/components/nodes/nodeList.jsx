@@ -1,7 +1,4 @@
 var React = require('react');
-var reactor = require('app/reactor');
-var {getters, actions} = require('app/modules/nodes');
-var userGetters = require('app/modules/user/getters');
 var {Table, Column, Cell, SortHeaderCell, SortTypes} = require('app/components/table.jsx');
 var {createNewSession} = require('app/modules/activeTerminal/actions');
 var LinkedStateMixin = require('react-addons-linked-state-mixin');
@@ -14,7 +11,7 @@ const TextCell = ({rowIndex, data, columnKey, ...props}) => (
   </Cell>
 );
 
-const TagCell = ({rowIndex, data, columnKey, ...props}) => (
+const TagCell = ({rowIndex, data, ...props}) => (
   <Cell {...props}>
     { data[rowIndex].tags.map((item, index) =>
       (<span key={index} className="label label-default">
@@ -71,9 +68,9 @@ var NodeList = React.createClass({
 
   mixins: [LinkedStateMixin],
 
-  getInitialState(props){
-    this.searchableProps = ['sessionCount', 'addr'];
-    return { filter: '', colSortDirs: {} };
+  getInitialState(/*props*/){
+    this.searchableProps = ['addr', 'hostname', 'tags'];
+    return { filter: '', colSortDirs: {hostname: SortTypes.DESC} };
   },
 
   onSortChange(columnKey, sortDir) {
@@ -85,9 +82,21 @@ var NodeList = React.createClass({
     });
   },
 
+  searchAndFilterCb(targetValue, searchValue, propName){
+    if(propName === 'tags'){
+      return targetValue.some((item) => {
+        let {role, value} = item;
+        return role.toLocaleUpperCase().indexOf(searchValue) !==-1 ||
+          value.toLocaleUpperCase().indexOf(searchValue) !==-1;
+      });
+    }
+  },
+
   sortAndFilter(data){
-    var filtered = data.filter(obj=>
-      isMatch(obj, this.state.filter, { searchableProps: this.searchableProps}));
+    var filtered = data.filter(obj=> isMatch(obj, this.state.filter, {
+        searchableProps: this.searchableProps,
+        cb: this.searchAndFilterCb
+      }));
 
     var columnKey = Object.getOwnPropertyNames(this.state.colSortDirs)[0];
     var sortDir = this.state.colSortDirs[columnKey];
@@ -105,20 +114,27 @@ var NodeList = React.createClass({
     var onLoginClick = this.props.onLoginClick;
 
     return (
-      <div className="grv-nodes">
-        <h1> Nodes </h1>
-        <div className="grv-search">
-          <input valueLink={this.linkState('filter')} placeholder="Search..." className="form-control input-sm"/>
+      <div className="grv-nodes grv-page">
+        <div className="grv-flex grv-header">
+          <div className="grv-flex-column"></div>
+          <div className="grv-flex-column">
+            <h1> Nodes </h1>
+          </div>
+          <div className="grv-flex-column">
+            <div className="grv-search">
+              <input valueLink={this.linkState('filter')} placeholder="Search..." className="form-control input-sm"/>
+            </div>
+          </div>
         </div>
         <div className="">
           <Table rowCount={data.length} className="table-striped grv-nodes-table">
             <Column
-              columnKey="sessionCount"
+              columnKey="hostname"
               header={
                 <SortHeaderCell
-                  sortDir={this.state.colSortDirs.sessionCount}
+                  sortDir={this.state.colSortDirs.hostname}
                   onSortChange={this.onSortChange}
-                  title="Sessions"
+                  title="Node"
                 />
               }
               cell={<TextCell data={data}/> }
@@ -129,7 +145,7 @@ var NodeList = React.createClass({
                 <SortHeaderCell
                   sortDir={this.state.colSortDirs.addr}
                   onSortChange={this.onSortChange}
-                  title="Node"
+                  title="IP"
                 />
               }
 

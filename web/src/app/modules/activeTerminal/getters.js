@@ -1,7 +1,7 @@
 var {createView} = require('app/modules/sessions/getters');
 
 const activeSession = [
-['tlpt_active_terminal'], ['tlpt_sessions'],
+['tlpt_current_session'], ['tlpt_sessions'],
 (activeTerm, sessions) => {
     if(!activeTerm){
       return null;

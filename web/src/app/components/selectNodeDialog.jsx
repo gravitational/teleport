@@ -2,10 +2,10 @@ var React = require('react');
 var reactor = require('app/reactor');
 var {getters} = require('app/modules/dialogs');
 var {closeSelectNodeDialog} = require('app/modules/dialogs/actions');
-var {changeServer} = require('app/modules/activeTerminal/actions');
 var NodeList = require('./nodes/nodeList.jsx');
 var activeSessionGetters = require('app/modules/activeTerminal/getters');
 var nodeGetters = require('app/modules/nodes/getters');
+var $ = require('jQuery');
 
 var SelectNodeDialog = React.createClass({
 
@@ -24,7 +24,7 @@ var SelectNodeDialog = React.createClass({
 
 var Dialog = React.createClass({
 
-  onLoginClick(serverId, login){
+  onLoginClick(serverId){
     if(SelectNodeDialog.onServerChangeCallBack){
       SelectNodeDialog.onServerChangeCallBack({serverId});
     }
@@ -32,7 +32,7 @@ var Dialog = React.createClass({
     closeSelectNodeDialog();
   },
 
-  componentWillUnmount(callback){
+  componentWillUnmount(){
     $('.modal').modal('hide');
   },
 

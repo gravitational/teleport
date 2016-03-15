@@ -1,7 +1,6 @@
 .grv-sessions{
 
   h1{
-    margin-top: -30px;
     text-align: center;
   }
 
@@ -9,6 +8,37 @@
     font-size: 20px;
     text-align: center;
     min-width: 200px;
+  }
+
+  h1{
+    margin-bottom: 25px;
+  }
+
+  .grv-divider{
+    margin-top: 25px;
+    margin-bottom: 25px;
+  }
+
+  .grv-sessions-stored{
+    .grv-header{
+      margin-bottom: 20px;
+      h1{
+        margin-bottom: 30px;
+      }
+    }
+  }
+
+  .grv-sessions-empty{
+    font-size: 17px;
+    padding: 30px;
+    span{
+      border: solid 1px #e5e6e7;
+      padding: 15px 50px;
+    }
+  }
+
+  .grv-sessions-user{
+    margin-left: 5px;
   }
 
 }

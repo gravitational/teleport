@@ -1,8 +1,10 @@
 var reactor = require('app/reactor');
 var api = require('app/services/api');
 var cfg = require('app/config');
+var {showError} = require('app/modules/notifications/actions');
 
-var { TLPT_SESSINS_RECEIVE, TLPT_SESSINS_UPDATE }  = require('./actionTypes');
+const logger = require('app/common/logger').create('Modules/Sessions');
+const { TLPT_SESSINS_RECEIVE, TLPT_SESSINS_UPDATE }  = require('./actionTypes');
 
 export default {
 
@@ -15,9 +17,15 @@ export default {
   },
 
   fetchSessions(startDate, endDate){
-    return api.get(cfg.api.getFetchSessionsUrl(startDate, endDate)).done((json) => {
-      reactor.dispatch(TLPT_SESSINS_RECEIVE, json.sessions);
-    });
+    logger.info('attemp to fetch sessions', {startDate, endDate});
+    return api.get(cfg.api.getFetchSessionsUrl(startDate, endDate))
+      .done((json) => {
+        reactor.dispatch(TLPT_SESSINS_RECEIVE, json.sessions);
+      })
+      .fail((err)=>{
+        showError('Unable to retrieve list of sessions');
+        logger.error('fetchSessions', err);
+      });
   },
 
   updateSession(json){

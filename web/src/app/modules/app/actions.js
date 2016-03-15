@@ -2,18 +2,17 @@ var reactor = require('app/reactor');
 var {fetchSessions} = require('./../sessions/actions');
 var {fetchNodes} = require('./../nodes/actions');
 var {monthRange} = require('app/common/dateUtils');
-
 var $ = require('jQuery');
 
-var { TLPT_APP_INIT, TLPT_APP_FAILED, TLPT_APP_READY } = require('./actionTypes');
+const { TLPT_APP_INIT, TLPT_APP_FAILED, TLPT_APP_READY } = require('./actionTypes');
 
-var actions = {
+const actions = {
 
   initApp() {
     reactor.dispatch(TLPT_APP_INIT);
     actions.fetchNodesAndSessions()
-      .done(()=>{ reactor.dispatch(TLPT_APP_READY); })
-      .fail(()=>{ reactor.dispatch(TLPT_APP_FAILED); });
+      .done(()=> reactor.dispatch(TLPT_APP_READY) )
+      .fail(()=> reactor.dispatch(TLPT_APP_FAILED) );
   },
 
   fetchNodesAndSessions() {

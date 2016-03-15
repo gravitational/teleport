@@ -40,6 +40,14 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 )
 
+// AddHostSignersToCache takes a list of CAs whom we trust. This list is added to a database
+// of "seen" CAs.
+//
+// Every time we connect to a new host, we'll request its certificaate to be signed by one
+// of these trusted CAs.
+//
+// Why do we trust these CAs? Because we received them from a trusted Teleport Proxy.
+// Why do we trust the proxy? Because we've connected to it via HTTPS + username + Password + HOTP.
 func AddHostSignersToCache(hostSigners []services.CertAuthority) error {
 	bk, err := boltbk.New(filepath.Join(getKeysDir(), HostSignersFilename))
 	if err != nil {
@@ -57,7 +65,9 @@ func AddHostSignersToCache(hostSigners []services.CertAuthority) error {
 	return nil
 }
 
-func CheckHostSignerFromCache(hostId string, remote net.Addr, key ssh.PublicKey) error {
+// CheckHostSignature checks if the given host key was signed by one of the trusted
+// certificaate authorities (CAs)
+func CheckHostSignature(hostId string, remote net.Addr, key ssh.PublicKey) error {
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
 		return trace.Errorf("expected certificate")
@@ -238,5 +248,5 @@ func getKeysDir() string {
 var (
 	KeyFilePrefix       = "teleport_"
 	KeyFileSuffix       = ".tkey"
-	HostSignersFilename = "HostSigners.db"
+	HostSignersFilename = "hostsigners.db"
 )

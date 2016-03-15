@@ -1,14 +1,15 @@
 var reactor = require('app/reactor');
 var session = require('app/session');
-var {uuid} = require('app/utils');
+var uuid = require('app/common/uuid');
 var api = require('app/services/api');
 var cfg = require('app/config');
 var getters = require('./getters');
 var sessionModule = require('./../sessions');
 
-var { TLPT_TERM_OPEN, TLPT_TERM_CLOSE, TLPT_TERM_CHANGE_SERVER } = require('./actionTypes');
+const logger = require('app/common/logger').create('Current Session');
+const { TLPT_TERM_OPEN, TLPT_TERM_CLOSE, TLPT_TERM_CHANGE_SERVER } = require('./actionTypes');
 
-var actions = {
+const actions = {
 
   changeServer(serverId, login){
     reactor.dispatch(TLPT_TERM_CHANGE_SERVER, {
@@ -37,20 +38,19 @@ var actions = {
     let reqData = { terminal_params: { w, h } };
     let {sid} = reactor.evaluate(getters.activeSession);
 
+    logger.info('resize', `w:${w} and h:${h}`);
     api.put(cfg.api.getTerminalSessionUrl(sid), reqData)
-      .done(()=>{
-        console.log(`resize with w:${w} and h:${h} - OK`);
-      })
-      .fail(()=>{
-        console.log(`failed to resize with w:${w} and h:${h}`);
-    })
+      .done(()=> logger.info('resized'))
+      .fail((err)=> logger.error('failed to resize', err));
   },
 
   openSession(sid){
+    logger.info('attempt to open session', {sid});
     sessionModule.actions.fetchSession(sid)
       .done(()=>{
         let sView = reactor.evaluate(sessionModule.getters.sessionViewById(sid));
         let { serverId, login } = sView;
+        logger.info('open session', 'OK');
         reactor.dispatch(TLPT_TERM_OPEN, {
             serverId,
             login,
@@ -58,7 +58,8 @@ var actions = {
             isNewSession: false
           });
       })
-      .fail(()=>{
+      .fail((err)=>{
+        logger.error('open session', err);
         session.getHistory().push(cfg.routes.pageNotFound);
       })
   },
@@ -68,6 +69,7 @@ var actions = {
     var routeUrl = cfg.getActiveSessionRouteUrl(sid);
     var history = session.getHistory();
 
+    logger.info('createNewSession', {serverId, login});
     reactor.dispatch(TLPT_TERM_OPEN, {
       serverId,
       login,

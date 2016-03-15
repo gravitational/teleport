@@ -1,5 +1,6 @@
 var React = require('react');
-var { Router, IndexLink, History } = require('react-router');
+var reactor = require('app/reactor');
+var { IndexLink } = require('react-router');
 var getters = require('app/modules/user/getters');
 var cfg = require('app/config');
 
@@ -14,29 +15,35 @@ var NavLeftBar = React.createClass({
     var items = menuItems.map((i, index)=>{
       var className = this.context.router.isActive(i.to) ? 'active' : '';
       return (
-        <li key={index} className={className}>
+        <li key={index} className={className} title={i.title}>
           <IndexLink to={i.to}>
-            <i className={i.icon} title={i.title}/>
+            <i className={i.icon} />
           </IndexLink>
         </li>
       );
     });
 
     items.push((
-      <li key={menuItems.length}>
-        <a href={cfg.helpUrl}>
-          <i className="fa fa-question" title="help"/>
+      <li key={items.length} title="help">
+        <a href={cfg.helpUrl} target="_blank">
+          <i className="fa fa-question" />
         </a>
       </li>));
 
+    items.push((
+      <li key={items.length} title="logout">
+        <a href={cfg.routes.logout}>
+          <i className="fa fa-sign-out" style={{marginRight: 0}}></i>
+        </a>
+      </li>
+    ));
+
     return (
-      <nav className='grv-nav navbar-default navbar-static-side' role='navigation'>
-        <div className=''>
-          <ul className='nav' id='side-menu'>
-            <li><div className="grv-circle text-uppercase"><span>{getUserNameLetter()}</span></div></li>
-            {items}
-          </ul>
-        </div>
+      <nav className='grv-nav navbar-default' role='navigation'>
+        <ul className='nav text-center' id='side-menu'>
+          <li title="current user"><div className="grv-circle text-uppercase"><span>{getUserNameLetter()}</span></div></li>
+          {items}
+        </ul>
       </nav>
     );
   }

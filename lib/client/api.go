@@ -134,7 +134,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	// first, see if we can authenticate with credentials stored in
 	// a local SSH agent:
 	if sshAgent := connectToSSHAgent(); sshAgent != nil {
-		tc.authMethods = append(tc.authMethods, AuthMethodFromAgent(sshAgent))
+		tc.authMethods = append(tc.authMethods, authMethodFromAgent(sshAgent))
 	}
 
 	// then, we can authenticate via a locally stored cert previously
@@ -145,7 +145,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	}
 	if localAgent != nil {
 		tc.localAgent = localAgent
-		tc.authMethods = append(tc.authMethods, AuthMethodFromAgent(localAgent))
+		tc.authMethods = append(tc.authMethods, authMethodFromAgent(localAgent))
 	} else {
 		log.Errorf("unable to obtain locally stored credentials")
 	}
@@ -155,13 +155,33 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	return tc, nil
 }
 
+// getTargetNodes returns a list of node addresses this SSH command needs to
+// operate on.
+func (tc *TeleportClient) getTargetNodes(proxy *ProxyClient) ([]string, error) {
+	var (
+		err    error
+		nodes  []services.Server
+		retval = make([]string, 0)
+	)
+	if tc.Labels != nil && len(tc.Labels) > 0 {
+		nodes, err = proxy.FindServersByLabels(tc.Labels)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for i := 0; i < len(nodes); i++ {
+			retval = append(retval, nodes[i].Addr)
+		}
+	}
+	if len(nodes) == 0 {
+		retval = append(retval, net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort)))
+	}
+	return retval, nil
+}
+
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
 // otherwise runs interactive shell
 func (tc *TeleportClient) SSH(command string) (err error) {
-	if tc.Host == "" {
-		return trace.Wrap(teleport.BadParameter("host", "no host address specified"))
-	}
-	// connecting via proxy?
+	// connect to proxy first:
 	if !tc.Config.ProxySpecified() {
 		return trace.Wrap(teleport.BadParameter("server", "proxy server is not specified"))
 	}
@@ -170,13 +190,29 @@ func (tc *TeleportClient) SSH(command string) (err error) {
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	log.Infof("connected to proxy %v", proxyClient.proxyAddress)
-	if len(command) > 0 {
-		return tc.runCommand(proxyClient, command)
+
+	// which nodes are we executing this commands on?
+	nodeAddrs, err := tc.getTargetNodes(proxyClient)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	nodeAddr := tc.NodeHostPort()
-	log.Debugf("connecting to node %v via proxy %v", nodeAddr, proxyClient.proxyAddress)
-	nodeClient, err := proxyClient.ConnectToNode(nodeAddr, tc.Config.HostLogin)
+	if len(nodeAddrs) == 0 {
+		return trace.Wrap(teleport.BadParameter("host", "no target host specified"))
+	}
+
+	// execute non-interactive SSH command:
+	if len(command) > 0 {
+		return tc.runCommand(nodeAddrs, proxyClient, command)
+	}
+
+	// more than one node for an interactive shell?
+	// that can't be!
+	if len(nodeAddrs) != 1 {
+		return trace.Errorf("Cannot launch shell on multiple nodes: %v", nodeAddrs)
+	}
+
+	// execute SSH shell on a single node:
+	nodeClient, err := proxyClient.ConnectToNode(nodeAddrs[0], tc.Config.HostLogin)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -323,100 +359,34 @@ func isRemoteDest(name string) bool {
 
 // ListNodes returns a list of nodes connected to a proxy
 func (tc *TeleportClient) ListNodes() ([]services.Server, error) {
+	var err error
+	// userhost is specified? that must be labels
+	if tc.Host != "" {
+		tc.Labels, err = ParseLabelSpec(tc.Host)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	// connect to the proxy and ask it to return a full list of servers
 	proxyClient, err := tc.ConnectToProxy()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-
-	// get the list of sites (AKA teleport clusters this proxy is connected to).
-	// this version of Teleport only supports 1 site per proxy
-	var (
-		sites   []services.Site
-		servers []services.Server
-	)
-	sites, err = proxyClient.GetSites()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(sites) == 0 {
-		return servers, nil
-	}
-	authServer, err := proxyClient.ConnectToSite(sites[0].Name, tc.Config.HostLogin)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers, err = authServer.GetNodes()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return filterByLabels(servers, tc.Config.Labels), nil
-}
-
-// filterByLabels takes a list of nodes and returns only nodes that have matching labels.
-// If no labels are given, returns the original list
-func filterByLabels(nodes []services.Server, labels map[string]string) (output []services.Server) {
-	if labels == nil || len(nodes) == 0 {
-		return nodes
-	}
-	output = make([]services.Server, 0)
-	// go over all nodes
-	for _, node := range nodes {
-		match := false
-		// look at each node's labels
-		if node.Labels != nil {
-			for ln, lv := range labels {
-				if node.Labels[ln] == lv {
-					match = true
-					break
-				}
-			}
-		}
-		// look at each node's command labels
-		if !match && node.CmdLabels != nil {
-			for cln, clv := range node.CmdLabels {
-				if node.Labels[cln] == clv.Result {
-					match = true
-					break
-				}
-			}
-		}
-		if match {
-			output = append(output, node)
-		}
-	}
-	return output
+	return proxyClient.FindServersByLabels(tc.Labels)
 }
 
 // runCommand executes a given bash command on a bunch of remote nodes
-func (tc *TeleportClient) runCommand(proxyClient *ProxyClient, command string) error {
+func (tc *TeleportClient) runCommand(nodeAddresses []string, proxyClient *ProxyClient, command string) error {
 	stdoutMutex := &sync.Mutex{}
 	wg := &sync.WaitGroup{}
-
-	// build a list of nodes we should be executing this command on:
-	var nodeAddresses []string
-	if proxyClient != nil && tc.Config.Labels != nil {
-		nodeAddresses = make([]string, 0)
-		_, err := proxyClient.GetSites()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		// TODO: call sites[0].getServers() or something
-		var servers []services.Server
-		for _, server := range filterByLabels(servers, tc.Config.Labels) {
-			nodeAddresses = append(nodeAddresses, server.Addr)
-		}
-	} else {
-		nodeAddresses = []string{tc.NodeHostPort()}
-	}
 
 	for _, address := range nodeAddresses {
 		wg.Add(1)
 		go func(address string) {
 			defer wg.Done()
 			nodeClient, err := ConnectToNode(proxyClient, address, tc.authMethods,
-				tc.makeHostKeyCallback(), tc.Config.Login)
+				CheckHostSignature, tc.Config.Login)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -574,51 +544,35 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	proxyAddr := tc.Config.ProxyHostPort(defaults.SSHProxyListenPort)
 	sshConfig := &ssh.ClientConfig{
 		User:            tc.Config.Login,
-		HostKeyCallback: tc.makeHostKeyCallback(),
+		HostKeyCallback: CheckHostSignature,
 	}
-	log.Debugf("connecting to proxy: %v", proxyAddr)
-
 	if len(tc.authMethods) == 0 {
 		return nil, trace.Errorf("no authentication methods provided")
 	}
+	log.Debugf("connecting to proxy: %v", proxyAddr)
 
-	// try to authenticate using every auth method we have:
-	for _, m := range tc.authMethods {
-		sshConfig.Auth = []ssh.AuthMethod{m}
-		proxyClient, err := ssh.Dial("tcp", proxyAddr, sshConfig)
-		if err != nil {
-			if utils.IsHandshakeFailedError(err) {
-				continue
-			}
-			return nil, trace.Wrap(err)
-		}
-		return &ProxyClient{
-			Client:          proxyClient,
-			proxyAddress:    proxyAddr,
-			hostKeyCallback: sshConfig.HostKeyCallback,
-			authMethods:     tc.authMethods,
-		}, nil
-	}
-	return nil, trace.Errorf("could not connect to proxy %v. all authentication methods failed", proxyAddr)
-}
-
-// makeHostKeyCallback creates and returns a function suitable to be passed into
-// ssh.ClientConfig
-func (tc *TeleportClient) makeHostKeyCallback() utils.HostKeyCallback {
-	return func(hostID string, remote net.Addr, key ssh.PublicKey) error {
-		err := CheckHostSignerFromCache(hostID, remote, key)
-		if err != nil {
-			err = tc.Login()
+	for {
+		// try to authenticate using every auth method we have:
+		for _, m := range tc.authMethods {
+			sshConfig.Auth = []ssh.AuthMethod{m}
+			proxyClient, err := ssh.Dial("tcp", proxyAddr, sshConfig)
 			if err != nil {
-				log.Error(err)
-				// (TODO) klizhentas I don't know of any other way to
-				// pass this info to user
-				fmt.Println(err)
-				return trace.Wrap(err)
+				if utils.IsHandshakeFailedError(err) {
+					continue
+				}
+				return nil, trace.Wrap(err)
 			}
-			return CheckHostSignerFromCache(hostID, remote, key)
+			return &ProxyClient{
+				Client:          proxyClient,
+				proxyAddress:    proxyAddr,
+				hostKeyCallback: sshConfig.HostKeyCallback,
+				authMethods:     tc.authMethods,
+				hostLogin:       tc.Config.HostLogin,
+			}, nil
 		}
-		return nil
+		// if we get here, it means we failed to authenticate using stored keys
+		// and we need to ask for the login information
+		tc.Login()
 	}
 }
 
@@ -688,6 +642,7 @@ func (tc *TeleportClient) Login() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// save the list of CAs we trust to the cache file
 	err = AddHostSignersToCache(response.HostSigners)
 	if err != nil {
 		return trace.Wrap(err)
@@ -778,9 +733,15 @@ func ParseLabelSpec(spec string) (map[string]string, error) {
 	tokens := []string{}
 	var openQuotes = false
 	var tokenStart, assignCount int
+	var specLen = len(spec)
 	// tokenize the label spec:
 	for i, ch := range spec {
-		endOfToken := (i+1 == len(spec))
+		endOfToken := false
+		// end of line?
+		if i+1 == specLen {
+			i++
+			endOfToken = true
+		}
 		switch ch {
 		case '"':
 			openQuotes = !openQuotes
@@ -800,7 +761,7 @@ func ParseLabelSpec(spec string) (map[string]string, error) {
 	// simple validation of tokenization: must have an even number of tokens (because they're pairs)
 	// and the number of such pairs must be equal the number of assignments
 	if len(tokens)%2 != 0 || assignCount != len(tokens)/2 {
-		return nil, fmt.Errorf("invalid label spec: '%s'", spec)
+		return nil, fmt.Errorf("invalid label spec: '%s', should be 'key=value'", spec)
 	}
 	// break tokens in pairs and put into a map:
 	labels := make(map[string]string)
@@ -808,4 +769,8 @@ func ParseLabelSpec(spec string) (map[string]string, error) {
 		labels[tokens[i]] = tokens[i+1]
 	}
 	return labels, nil
+}
+
+func authMethodFromAgent(ag agent.Agent) ssh.AuthMethod {
+	return ssh.PublicKeysCallback(ag.Signers)
 }

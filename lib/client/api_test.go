@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package client
 
 import (
@@ -41,8 +42,15 @@ func (s *APITestSuite) TestConfig(c *check.C) {
 }
 
 func (s *APITestSuite) TestParseLabels(c *check.C) {
-	// valid spec
-	m, err := ParseLabelSpec(`type="database";" role"=master,ver="mongoDB v1,2"`)
+	// simplest case:
+	m, err := ParseLabelSpec("key=value")
+	c.Assert(m, check.NotNil)
+	c.Assert(err, check.IsNil)
+	c.Assert(m, check.DeepEquals, map[string]string{
+		"key": "value",
+	})
+	// multiple values:
+	m, err = ParseLabelSpec(`type="database";" role"=master,ver="mongoDB v1,2"`)
 	c.Assert(m, check.NotNil)
 	c.Assert(err, check.IsNil)
 	c.Assert(m, check.HasLen, 3)

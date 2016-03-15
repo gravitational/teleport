@@ -2,7 +2,7 @@ var React = require('react');
 var {actions} = require('app/modules/activeTerminal/');
 var colors = ['#1ab394', '#1c84c6', '#23c6c8', '#f8ac59', '#ED5565', '#c2c2c2'];
 
-const UserIcon = ({name, title, colorIndex=0})=>{
+const UserIcon = ({name, colorIndex=0})=>{
   let color = colors[colorIndex % colors.length];
   let style = {
     'backgroundColor': color,
@@ -10,7 +10,7 @@ const UserIcon = ({name, title, colorIndex=0})=>{
   };
 
   return (
-    <li>
+    <li title={name}>
       <span style={style} className="btn btn-primary btn-circle text-uppercase">
         <strong>{name[0]}</strong>
       </span>

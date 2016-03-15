@@ -184,8 +184,7 @@ func (s *Server) serveSink(ch io.ReadWriter) error {
 			return trace.Wrap(err)
 		}
 		if err := s.processCommand(ch, st, b[0], r.Text()); err != nil {
-			//if e := sendError(ch, err.Error()); e != nil {
-			if e := sendError(ch, "ho ho ho!"); e != nil {
+			if e := sendError(ch, err.Error()); e != nil {
 				log.Warningf("error sending error: %v", e)
 			}
 			return trace.Wrap(err)

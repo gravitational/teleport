@@ -99,7 +99,7 @@ func run(args []string, underTest bool) {
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes")
-	ls.Arg("labels", "List of labels to filter node list").Default("*").StringVar(&cf.UserHost)
+	ls.Arg("labels", "List of labels to filter node list").StringVar(&cf.UserHost)
 	// agent (SSH agent listening on unix socket)
 	agent := app.Command("agent", "Start SSH agent on unix socket")
 	agent.Flag("socket", "SSH agent listening socket address, e.g. unix:///tmp/teleport.agent.sock").SetValue(&cf.AgentSocketAddr)

@@ -1,9 +1,9 @@
 var React = require('react');
 var NavLeftBar = require('./navLeftBar');
-var cfg = require('app/config');
 var reactor = require('app/reactor');
 var {actions, getters} = require('app/modules/app');
 var SelectNodeDialog = require('./selectNodeDialog.jsx');
+var NotificationHost = require('./notificationHost.jsx');
 
 var App = React.createClass({
 
@@ -30,25 +30,12 @@ var App = React.createClass({
     }
 
     return (
-      <div className="grv-tlpt">
-        <NavLeftBar/>
+      <div className="grv-tlpt grv-flex grv-flex-row">
         <SelectNodeDialog/>
+        <NotificationHost/>
         {this.props.CurrentSessionHost}
-        <div className="row">
-          <nav className="" role="navigation" style={{ marginBottom: 0, float: "right" }}>
-            <ul className="nav navbar-top-links navbar-right">
-              <li>
-                <a href={cfg.routes.logout}>
-                  <i className="fa fa-sign-out"></i>
-                  Log out
-                </a>
-              </li>
-            </ul>
-          </nav>
-        </div>
-        <div className="grv-page">
-          {this.props.children}
-        </div>
+        <NavLeftBar/>
+        {this.props.children}
       </div>
     );
   }
