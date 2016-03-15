@@ -69,8 +69,8 @@ var NodeList = React.createClass({
   mixins: [LinkedStateMixin],
 
   getInitialState(/*props*/){
-    this.searchableProps = ['addr', 'hostname'];
-    return { filter: '', colSortDirs: {hostname: 'DESC'} };
+    this.searchableProps = ['addr', 'hostname', 'tags'];
+    return { filter: '', colSortDirs: {hostname: SortTypes.DESC} };
   },
 
   onSortChange(columnKey, sortDir) {
@@ -82,9 +82,21 @@ var NodeList = React.createClass({
     });
   },
 
+  searchAndFilterCb(targetValue, searchValue, propName){
+    if(propName === 'tags'){
+      return targetValue.some((item) => {
+        let {role, value} = item;
+        return role.toLocaleUpperCase().indexOf(searchValue) !==-1 ||
+          value.toLocaleUpperCase().indexOf(searchValue) !==-1;
+      });
+    }
+  },
+
   sortAndFilter(data){
-    var filtered = data.filter(obj=>
-      isMatch(obj, this.state.filter, { searchableProps: this.searchableProps}));
+    var filtered = data.filter(obj=> isMatch(obj, this.state.filter, {
+        searchableProps: this.searchableProps,
+        cb: this.searchAndFilterCb
+      }));
 
     var columnKey = Object.getOwnPropertyNames(this.state.colSortDirs)[0];
     var sortDir = this.state.colSortDirs[columnKey];
