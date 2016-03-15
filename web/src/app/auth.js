@@ -38,10 +38,10 @@ var auth = {
     return $.Deferred().reject();
   },
 
-  logout(){
+  logout(){    
     auth._stopTokenRefresher();
     session.clear();
-    session.getHistory().replace({pathname: cfg.routes.login});
+    window.location = cfg.routes.login;
   },
 
   _startTokenRefresher(){

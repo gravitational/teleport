@@ -1,8 +1,8 @@
-var { reactor, expect, Dfd, spyOn } = require('./../');
+var { reactor, sampleData, expect, Dfd, spyOn } = require('./../');
 var {actions, getters} = require('app/modules/user');
 var {TLPT_RECEIVE_USER} =  require('app/modules/user/actionTypes');
 
-describe('modules/nodes', function () {
+describe('modules/user', function () {
 
   afterEach(function () {
     reactor.reset()
@@ -10,12 +10,11 @@ describe('modules/nodes', function () {
 
   describe('getters', function () {
     beforeEach(function () {
-      var sample = {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20};
-      reactor.dispatch(TLPT_RECEIVE_USER, sample.user);
+      reactor.dispatch(TLPT_RECEIVE_USER, sampleData.user);
     });
 
     it('should return "user"', function () {
-      var expected = {"name":"alex","logins":["admin","bob"]};
+      var expected = {"name":"alex","logins":["admin","bob"], "shortDisplayName": "a"};
       expect(reactor.evaluateToJS(getters.user)).toEqual(expected);
     });
 

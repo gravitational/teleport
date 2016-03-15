@@ -1,5 +1,5 @@
 const nodeHostNameByServerId = (serverId) => [ ['tlpt_nodes'], (nodes) =>{
-  let server = nodes.find(item=> item.get('id') === serverId);  
+  let server = nodes.find(item=> item.get('id') === serverId);
   return !server ? '' : server.get('hostname');
 }];
 
@@ -43,7 +43,6 @@ function getTags(node){
 
   return allLabels;
 }
-
 
 export default {
   nodeListView,

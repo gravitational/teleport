@@ -12,14 +12,10 @@ require('./modules');
 // init session
 session.init();
 
-function handleLogout(/*nextState, replace*/){
-  auth.logout();
-}
-
 render((
   <Router history={session.getHistory()}>
     <Route path={cfg.routes.login} component={Login}/>
-    <Route path={cfg.routes.logout} onEnter={handleLogout}/>
+    <Route path={cfg.routes.logout} onEnter={auth.logout}/>
     <Route path={cfg.routes.newUser} component={NewUser}/>
     <Redirect from={cfg.routes.app} to={cfg.routes.nodes}/>
     <Route path={cfg.routes.app} component={App} onEnter={ensureUser} >
