@@ -72,6 +72,10 @@ const (
 	// deviation added to this time to avoid lots of simultaneous
 	// heartbeats coming to auth server
 	ServerHeartbeatTTL = 6 * time.Second
+
+	// AuthServersRefreshPeriod is a period for clients to refresh their
+	// their stored list of auth servers
+	AuthServersRefreshPeriod = 3 * time.Second
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

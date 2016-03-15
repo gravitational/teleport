@@ -174,7 +174,7 @@ func (s *sessionCache) Auth(user, pass string, hotpToken string) (*auth.Session,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clt, err := auth.NewTunClient(s.authServers[0], user, method)
+	clt, err := auth.NewTunClient(s.authServers, user, method)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -187,7 +187,7 @@ func (s *sessionCache) GetCertificate(c createSSHCertReq) (*SSHLoginResponse, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clt, err := auth.NewTunClient(s.authServers[0], c.User, method)
+	clt, err := auth.NewTunClient(s.authServers, c.User, method)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -218,7 +218,7 @@ func (s *sessionCache) GetUserInviteInfo(token string) (user string,
 	if err != nil {
 		return "", nil, nil, trace.Wrap(err)
 	}
-	clt, err := auth.NewTunClient(s.authServers[0], "tokenAuth", method)
+	clt, err := auth.NewTunClient(s.authServers, "tokenAuth", method)
 	if err != nil {
 		return "", nil, nil, trace.Wrap(err)
 	}
@@ -231,7 +231,7 @@ func (s *sessionCache) CreateNewUser(token, password, hotpToken string) (*auth.S
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clt, err := auth.NewTunClient(s.authServers[0], "tokenAuth", method)
+	clt, err := auth.NewTunClient(s.authServers, "tokenAuth", method)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -292,7 +292,7 @@ func (s *sessionCache) ValidateSession(user, sid string) (*sessionContext, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clt, err := auth.NewTunClient(s.authServers[0], user, method)
+	clt, err := auth.NewTunClient(s.authServers, user, method)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

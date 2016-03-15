@@ -458,7 +458,7 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		logger.Warningf("authenticate err: %v", err)
 		return nil, trace.Wrap(err)
 	}
-	if err := s.certChecker.CheckCert(teleportUser, cert); err != nil {
+	if err := s.certChecker.CheckCert(conn.User(), cert); err != nil {
 		logger.Warningf("failed to authenticate user, err: %v", err)
 		return nil, trace.Wrap(err)
 	}

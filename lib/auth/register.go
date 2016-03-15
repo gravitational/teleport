@@ -48,7 +48,7 @@ func Register(dataDir, token string, id IdentityID, servers []utils.NetAddr) err
 	}
 
 	client, err := NewTunClient(
-		servers[0],
+		servers,
 		id.HostUUID,
 		method)
 	if err != nil {
@@ -74,7 +74,7 @@ func RegisterNewAuth(domainName, token string, servers []utils.NetAddr) error {
 	}
 
 	client, err := NewTunClient(
-		servers[0],
+		servers,
 		domainName,
 		method)
 	if err != nil {

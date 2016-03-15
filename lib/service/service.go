@@ -89,12 +89,24 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*conne
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	storage := utils.NewFileAddrStorage(
+		filepath.Join(process.Config.DataDir, "authservers.json"))
 
+	var authServers []utils.NetAddr
+	authServers, err = storage.GetAddresses()
+	if err != nil && len(authServers) == 0 {
+		log.Infof("no auth servers are available from the local storage")
+		authServers = process.Config.AuthServers
+	}
+
+	log.Infof("connecting to auth servers: %v", authServers)
 	authUser := identity.Cert.ValidPrincipals[0]
 	authClient, err := auth.NewTunClient(
-		process.Config.AuthServers[0],
+		authServers,
 		authUser,
-		[]ssh.AuthMethod{ssh.PublicKeys(identity.KeySigner)})
+		[]ssh.AuthMethod{ssh.PublicKeys(identity.KeySigner)},
+		auth.TunClientStorage(storage),
+	)
 	// success?
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -283,7 +295,7 @@ func (process *TeleportProcess) initAuthService() error {
 	// logic, consolidate it into auth package later
 	process.RegisterFunc(func() error {
 		authClient, err := auth.NewTunClient(
-			cfg.Auth.SSHAddr,
+			[]utils.NetAddr{cfg.Auth.SSHAddr},
 			identity.Cert.ValidPrincipals[0],
 			[]ssh.AuthMethod{ssh.PublicKeys(identity.KeySigner)})
 		// success?
