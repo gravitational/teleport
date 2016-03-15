@@ -78,10 +78,10 @@ const (
 // services (SSH, auth, proxy)
 const (
 	// Number of max. simultaneous connections to a service
-	LimiterMaxConnections = 25
+	LimiterMaxConnections = 1000
 
 	// Number of max. simultaneous connected users/logins
-	LimiterMaxConcurrentUsers = 25
+	LimiterMaxConcurrentUsers = 250
 )
 
 const (
@@ -115,6 +115,9 @@ var (
 
 	// StartRoles is default roles teleport assumes when started via 'start' command
 	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService}
+
+	// ETCDPrefix is default key in ETCD clustered configurations
+	ETCDPrefix = "/teleport"
 )
 
 const (

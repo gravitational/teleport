@@ -23,7 +23,7 @@ import (
 )
 
 type limitedClient interface {
-	GetServers() ([]services.Server, error)
+	GetNodes() ([]services.Server, error)
 	GetCertAuthorities(caType services.CertAuthType) ([]*services.CertAuthority, error)
 }
 
@@ -45,7 +45,7 @@ func RetryingClient(client limitedClient, retries int) *retryingClient {
 func (c *retryingClient) GetServers() ([]services.Server, error) {
 	var e error
 	for i := 0; i < c.retries; i++ {
-		servers, err := c.limitedClient.GetServers()
+		servers, err := c.limitedClient.GetNodes()
 		if err == nil {
 			return servers, nil
 		}

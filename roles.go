@@ -2,6 +2,7 @@ package teleport
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/gravitational/trace"
 )
@@ -9,11 +10,16 @@ import (
 // Role identifies the role of SSH server connection
 type Role string
 
+// String returns debug-friendly representation of this role
+func (r Role) String() string {
+	return fmt.Sprintf("%v", strings.ToUpper(string(r)))
+}
+
 // Check checks if this a a valid role value, returns nil
 // if it's ok, false otherwise
 func (r Role) Check() error {
 	switch r {
-	case RoleAuth, RoleUser, RoleWeb, RoleNode, RoleAdmin, RoleProvisionToken, RoleSignup, RoleHangoutRemoteUser:
+	case RoleAuth, RoleUser, RoleWeb, RoleNode, RoleAdmin, RoleProvisionToken, RoleSignup, RoleProxy:
 		return nil
 	}
 	return trace.Wrap(BadParameter("role", fmt.Sprintf("%v is not supported", r)))
@@ -28,12 +34,12 @@ const (
 	RoleWeb Role = "Web"
 	// RoleNode is a role for SSH node in the cluster
 	RoleNode Role = "Node"
+	// RoleProxy is a role for SSH proxy in the cluster
+	RoleProxy Role = "Proxy"
 	// RoleAdmin is admin role
 	RoleAdmin Role = "Admin"
-	// RoleProvisionToken is a role for
+	// RoleProvisionToken is a role for nodes authenticated using provisioning tokens
 	RoleProvisionToken Role = "ProvisionToken"
 	// RoleSignup is for first time signing up users
 	RoleSignup Role = "Signup"
-	// RoleHangoutRemoteUser is for users joining remote hangouts
-	RoleHangoutRemoteUser Role = "HangoutRemoteUser"
 )

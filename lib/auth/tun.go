@@ -316,42 +316,40 @@ func (s *AuthTunnel) keyAuth(
 		return nil, trace.Errorf("ERROR: Server doesn't support provided key type")
 	}
 
-	if cert.CertType == ssh.UserCert {
-		_, err := s.userCertChecker.Authenticate(conn, key)
+	if cert.CertType == ssh.HostCert {
+		err := s.hostCertChecker.CheckHostKey(conn.User(), conn.RemoteAddr(), key)
 		if err != nil {
-			log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
+			log.Warningf("conn(%v->%v, user=%v) ERROR: failed auth user %v, err: %v",
 				conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
 			return nil, err
+		}
+		if err := s.hostCertChecker.CheckCert(conn.User(), cert); err != nil {
+			log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
+				conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
+			return nil, trace.Wrap(err)
 		}
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtHost: conn.User(),
-				ExtRole: string(teleport.RoleHangoutRemoteUser),
+				ExtRole: cert.Permissions.Extensions[utils.CertExtensionRole],
 			},
 		}
 		return perms, nil
 	}
-
-	err := s.hostCertChecker.CheckHostKey(conn.User(), conn.RemoteAddr(), key)
-	if err != nil {
-		log.Warningf("conn(%v->%v, user=%v) ERROR: failed auth user %v, err: %v",
-			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
-		return nil, err
-	}
-
-	if err := s.hostCertChecker.CheckCert(conn.User(), cert); err != nil {
+	// we are assuming that this is a user cert
+	if err := s.userCertChecker.CheckCert(conn.User(), cert); err != nil {
 		log.Warningf("conn(%v->%v, user=%v) ERROR: Failed to authorize user %v, err: %v",
 			conn.RemoteAddr(), conn.LocalAddr(), conn.User(), conn.User(), err)
 		return nil, trace.Wrap(err)
 	}
-
+	// we are not using cert extensions for User certificates because of OpenSSH bug
+	// https://bugzilla.mindrot.org/show_bug.cgi?id=2387
 	perms := &ssh.Permissions{
 		Extensions: map[string]string{
 			ExtHost: conn.User(),
-			ExtRole: cert.Permissions.Extensions[utils.CertExtensionRole],
+			ExtRole: string(teleport.RoleUser),
 		},
 	}
-
 	return perms, nil
 }
 
@@ -584,7 +582,7 @@ func (t *TunDialer) getClient() (*ssh.Client, error) {
 			return nil, teleport.AccessDenied(
 				fmt.Sprintf("access denied to '%v': bad username or credentials", t.user))
 		}
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(teleport.ConvertSystemError(err))
 	}
 	return client, nil
 }
@@ -623,22 +621,6 @@ func (t *TunDialer) Dial(network, address string) (net.Conn, error) {
 	tc := &tunConn{client: client}
 	tc.Conn = conn
 	return tc, nil
-}
-
-func NewClientFromSSHClient(sshClient *ssh.Client) (*Client, error) {
-	tr := &http.Transport{
-		Dial: sshClient.Dial,
-	}
-	clt, err := NewClient(
-		"http://stub:0",
-		roundtrip.HTTPClient(&http.Client{
-			Transport: tr,
-		}))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return clt, nil
 }
 
 const (

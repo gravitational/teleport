@@ -24,6 +24,7 @@ import (
 	"io"
 	"net"
 	"os/exec"
+	"os/user"
 	"strings"
 	"sync"
 	"time"
@@ -264,7 +265,10 @@ func (s *Server) registerServer() error {
 		Labels:    s.labels,
 		CmdLabels: s.getCommandLabels(),
 	}
-	return trace.Wrap(s.authService.UpsertServer(srv, defaults.ServerHeartbeatTTL))
+	if !s.proxyMode {
+		return trace.Wrap(s.authService.UpsertNode(srv, defaults.ServerHeartbeatTTL))
+	}
+	return trace.Wrap(s.authService.UpsertProxy(srv, defaults.ServerHeartbeatTTL))
 }
 
 // heartbeatPresence periodically calls into the auth server to let everyone
@@ -482,12 +486,10 @@ func (s *Server) Close() error {
 
 // Start starts server
 func (s *Server) Start() error {
-	if !s.proxyMode {
-		if len(s.cmdLabels) > 0 {
-			s.updateLabels()
-		}
-		go s.heartbeatPresence()
+	if len(s.cmdLabels) > 0 {
+		s.updateLabels()
 	}
+	go s.heartbeatPresence()
 	return s.srv.Start()
 }
 
@@ -840,7 +842,13 @@ func (s *Server) handleExec(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 
 func (s *Server) handleSCP(ch ssh.Channel, req *ssh.Request, ctx *ctx, args string) error {
 	ctx.Infof("handleSCP(cmd=%v)", args)
-	cmd, err := scp.ParseCommand(args)
+
+	// get user's home dir (it serves as a default destination)
+	osUser, err := user.Lookup(ctx.info.User())
+	if err != nil {
+		return trace.Errorf("user not found: %s", ctx.info.User())
+	}
+	cmd, err := scp.ParseCommand(args, osUser.HomeDir)
 	if err != nil {
 		ctx.Warningf("failed to parse command: %v", cmd)
 		return trace.Wrap(err, fmt.Sprintf("failure to parse command '%v'", cmd))

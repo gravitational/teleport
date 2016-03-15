@@ -154,5 +154,5 @@ func onConfigDump() {
 
 // onVersion is the handler for "version"
 func onVersion() {
-	fmt.Println("'version' command is not implemented")
+	utils.PrintVersion()
 }

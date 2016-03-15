@@ -32,7 +32,7 @@ type ConfigSuite struct {
 var _ = Suite(&ConfigSuite{})
 
 func (s *ConfigSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
+	utils.InitLoggerForTests()
 }
 
 func (s *ConfigSuite) TestDefaultConfig(c *C) {

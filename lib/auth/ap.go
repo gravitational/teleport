@@ -32,11 +32,15 @@ type AccessPoint interface {
 	GetLocalDomain() (string, error)
 
 	// GetServers returns a list of registered servers
-	GetServers() ([]services.Server, error)
+	GetNodes() ([]services.Server, error)
 
 	// UpsertServer registers server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertServer(s services.Server, ttl time.Duration) error
+	UpsertNode(s services.Server, ttl time.Duration) error
+
+	// UpsertProxy registers server presence, permanently if ttl is 0 or
+	// for the specified duration with second resolution if it's >= 1 second
+	UpsertProxy(s services.Server, ttl time.Duration) error
 
 	// GetCertAuthorities returns a list of cert authorities
 	GetCertAuthorities(caType services.CertAuthType) ([]*services.CertAuthority, error)

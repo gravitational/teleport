@@ -429,7 +429,7 @@ func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprou
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := clt.GetServers()
+	servers, err := clt.GetNodes()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

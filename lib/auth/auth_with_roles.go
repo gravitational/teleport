@@ -25,8 +25,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 
-	log "github.com/Sirupsen/logrus"
-
 	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
 )
@@ -127,9 +125,9 @@ func (a *AuthWithRoles) GenerateToken(role teleport.Role, ttl time.Duration) (st
 		return a.authServer.GenerateToken(role, ttl)
 	}
 }
-func (a *AuthWithRoles) RegisterUsingToken(token, hostID string, role teleport.Role) (keys PackedKeys, e error) {
+func (a *AuthWithRoles) RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionRegisterUsingToken); err != nil {
-		return PackedKeys{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	} else {
 		return a.authServer.RegisterUsingToken(token, hostID, role)
 	}
@@ -190,19 +188,25 @@ func (a *AuthWithRoles) GetChunkReader(id string) (recorder.ChunkReadCloser, err
 		return a.recorder.GetChunkReader(id)
 	}
 }
-func (a *AuthWithRoles) UpsertServer(s services.Server, ttl time.Duration) error {
+func (a *AuthWithRoles) UpsertNode(s services.Server, ttl time.Duration) error {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertServer); err != nil {
-		log.Error(err)
 		return trace.Wrap(err)
 	} else {
-		return a.authServer.UpsertServer(s, ttl)
+		return a.authServer.UpsertNode(s, ttl)
 	}
 }
-func (a *AuthWithRoles) GetServers() ([]services.Server, error) {
+func (a *AuthWithRoles) GetNodes() ([]services.Server, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetServers); err != nil {
 		return nil, trace.Wrap(err)
 	} else {
-		return a.authServer.GetServers()
+		return a.authServer.GetNodes()
+	}
+}
+func (a *AuthWithRoles) UpsertAuthServer(s services.Server, ttl time.Duration) error {
+	if err := a.permChecker.HasPermission(a.role, ActionUpsertAuthServer); err != nil {
+		return trace.Wrap(err)
+	} else {
+		return a.authServer.UpsertAuthServer(s, ttl)
 	}
 }
 func (a *AuthWithRoles) GetAuthServers() ([]services.Server, error) {
@@ -210,6 +214,20 @@ func (a *AuthWithRoles) GetAuthServers() ([]services.Server, error) {
 		return nil, err
 	} else {
 		return a.authServer.GetAuthServers()
+	}
+}
+func (a *AuthWithRoles) UpsertProxy(s services.Server, ttl time.Duration) error {
+	if err := a.permChecker.HasPermission(a.role, ActionUpsertProxy); err != nil {
+		return trace.Wrap(err)
+	} else {
+		return a.authServer.UpsertProxy(s, ttl)
+	}
+}
+func (a *AuthWithRoles) GetProxies() ([]services.Server, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionGetProxies); err != nil {
+		return nil, err
+	} else {
+		return a.authServer.GetProxies()
 	}
 }
 func (a *AuthWithRoles) UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error) {

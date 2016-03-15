@@ -26,7 +26,6 @@ package client
 import (
 	"fmt"
 	"math/rand"
-	"net"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -64,21 +63,7 @@ func NewWebAuth(ag agent.Agent,
 
 		return ag.Signers()
 	}
-
-	hostKeyCallback = func(hostID string, remote net.Addr, key ssh.PublicKey) error {
-		err := CheckHostSignerFromCache(hostID, remote, key)
-		if err != nil {
-			err = Login(ag, webProxyAddress, user, certificateTTL, passwordCallback, insecure)
-			if err != nil {
-				fmt.Printf("Can't login to %v\n", err)
-				return trace.Wrap(err)
-			}
-			return CheckHostSignerFromCache(hostID, remote, key)
-		}
-		return nil
-	}
-
-	return ssh.PublicKeysCallback(callbackFunc), hostKeyCallback
+	return ssh.PublicKeysCallback(callbackFunc), CheckHostSignature
 }
 
 type PasswordCallback func() (password, hotpToken string, e error)

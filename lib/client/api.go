@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 
@@ -175,8 +176,7 @@ func (tc *TeleportClient) SSH(command string) (err error) {
 	}
 	nodeAddr := tc.NodeHostPort()
 	log.Debugf("connecting to node %v via proxy %v", nodeAddr, proxyClient.proxyAddress)
-	nodeClient, err := proxyClient.ConnectToNode(nodeAddr,
-		tc.authMethods, tc.makeHostKeyCallback(), tc.Config.HostLogin)
+	nodeClient, err := proxyClient.ConnectToNode(nodeAddr, tc.Config.HostLogin)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -186,7 +186,8 @@ func (tc *TeleportClient) SSH(command string) (err error) {
 
 // Join connects to the existing/active SSH session
 func (tc *TeleportClient) Join(sessionID string) (err error) {
-	// connecting via proxy?
+	var notFoundError = &teleport.NotFoundError{Message: "Session not found or it has ended"}
+	// connect to proxy:
 	if !tc.Config.ProxySpecified() {
 		return trace.Wrap(teleport.BadParameter("server", "proxy server is not specified"))
 	}
@@ -195,13 +196,75 @@ func (tc *TeleportClient) Join(sessionID string) (err error) {
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	fmt.Println("NOT IMPLEMENTED")
-	return nil
+	// connect to the first site via proxy:
+	sites, err := proxyClient.GetSites()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(sites) == 0 {
+		return trace.Wrap(notFoundError)
+	}
+	site, err := proxyClient.ConnectToSite(sites[0].Name, tc.Config.HostLogin)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// find the session ID on the site:
+	sessions, err := site.GetSessions()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var session *session.Session
+	for _, s := range sessions {
+		if s.ID == sessionID {
+			session = &s
+			break
+		}
+	}
+	if session == nil {
+		return trace.Wrap(notFoundError)
+	}
+	// pick the 1st party of the session and use his server ID to connect to
+	if len(session.Parties) == 0 {
+		return trace.Wrap(notFoundError)
+	}
+	serverID := session.Parties[0].ServerID
+
+	// find a server address by its ID
+	nodes, err := site.GetNodes()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var node *services.Server
+	for _, n := range nodes {
+		if n.ID == serverID {
+			node = &n
+			break
+		}
+	}
+	if node == nil {
+		return trace.Wrap(notFoundError)
+	}
+	// connect to server:
+	nc, err := proxyClient.ConnectToNode(node.Addr, tc.Config.HostLogin)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return tc.runShell(nc, session.ID)
 }
 
 // SCP securely copies file(s) from one SSH server to another
-func (tc *TeleportClient) SCP(from, to string) (err error) {
-	// connecting via proxy?
+func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err error) {
+	if len(args) < 2 {
+		return trace.Errorf("Need at least two arguments for scp")
+	}
+	first := args[0]
+	last := args[len(args)-1]
+
+	// local copy?
+	if !isRemoteDest(first) && !isRemoteDest(last) {
+		return trace.Errorf("Making local copies is not supported")
+	}
+
 	if !tc.Config.ProxySpecified() {
 		return trace.Wrap(teleport.BadParameter("server", "proxy server is not specified"))
 	}
@@ -210,8 +273,52 @@ func (tc *TeleportClient) SCP(from, to string) (err error) {
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	fmt.Println("NOT IMPLEMENTED")
+
+	// upload:
+	if isRemoteDest(last) {
+		host, dest := parseSCPDestination(last)
+		addr := net.JoinHostPort(host, strconv.Itoa(port))
+
+		client, err := proxyClient.ConnectToNode(addr, tc.HostLogin)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// copy everything except the last arg (that's destination)
+		for _, src := range args[:len(args)-1] {
+			err = client.Upload(src, dest)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("uploaded %s\n", src)
+		}
+		// download:
+	} else {
+		host, src := parseSCPDestination(first)
+		addr := net.JoinHostPort(host, strconv.Itoa(port))
+
+		client, err := proxyClient.ConnectToNode(addr, tc.HostLogin)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// copy everything except the last arg (that's destination)
+		for _, dest := range args[1:] {
+			err = client.Download(src, dest, recursive)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("downloaded %s\n", src)
+		}
+	}
 	return nil
+}
+
+func parseSCPDestination(s string) (host, dest string) {
+	parts := strings.Split(s, ":")
+	return parts[0], strings.Join(parts[1:], ":")
+}
+
+func isRemoteDest(name string) bool {
+	return strings.IndexRune(name, ':') >= 0
 }
 
 // ListNodes returns a list of nodes connected to a proxy
@@ -222,8 +329,25 @@ func (tc *TeleportClient) ListNodes() ([]services.Server, error) {
 		return nil, trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	var servers []services.Server
-	servers, err = proxyClient.GetServers()
+
+	// get the list of sites (AKA teleport clusters this proxy is connected to).
+	// this version of Teleport only supports 1 site per proxy
+	var (
+		sites   []services.Site
+		servers []services.Server
+	)
+	sites, err = proxyClient.GetSites()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(sites) == 0 {
+		return servers, nil
+	}
+	authServer, err := proxyClient.ConnectToSite(sites[0].Name, tc.Config.HostLogin)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers, err = authServer.GetNodes()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -274,10 +398,12 @@ func (tc *TeleportClient) runCommand(proxyClient *ProxyClient, command string) e
 	var nodeAddresses []string
 	if proxyClient != nil && tc.Config.Labels != nil {
 		nodeAddresses = make([]string, 0)
-		servers, err := proxyClient.GetServers()
+		_, err := proxyClient.GetSites()
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		// TODO: call sites[0].getServers() or something
+		var servers []services.Server
 		for _, server := range filterByLabels(servers, tc.Config.Labels) {
 			nodeAddresses = append(nodeAddresses, server.Addr)
 		}
@@ -290,7 +416,7 @@ func (tc *TeleportClient) runCommand(proxyClient *ProxyClient, command string) e
 		go func(address string) {
 			defer wg.Done()
 			nodeClient, err := ConnectToNode(proxyClient, address, tc.authMethods,
-				tc.makeHostKeyCallback(), tc.Config.Login)
+				CheckHostSignature, tc.Config.Login)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -448,49 +574,34 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	proxyAddr := tc.Config.ProxyHostPort(defaults.SSHProxyListenPort)
 	sshConfig := &ssh.ClientConfig{
 		User:            tc.Config.Login,
-		HostKeyCallback: tc.makeHostKeyCallback(),
+		HostKeyCallback: CheckHostSignature,
 	}
-	log.Debugf("connecting to proxy: %v", proxyAddr)
-
 	if len(tc.authMethods) == 0 {
 		return nil, trace.Errorf("no authentication methods provided")
 	}
+	log.Debugf("connecting to proxy: %v", proxyAddr)
 
-	// try to authenticate using every auth method we have:
-	for _, m := range tc.authMethods {
-		sshConfig.Auth = []ssh.AuthMethod{m}
-		proxyClient, err := ssh.Dial("tcp", proxyAddr, sshConfig)
-		if err != nil {
-			if utils.IsHandshakeFailedError(err) {
-				continue
-			}
-			return nil, trace.Wrap(err)
-		}
-		return &ProxyClient{
-			Client:       proxyClient,
-			proxyAddress: proxyAddr,
-		}, nil
-	}
-	return nil, trace.Errorf("could not connect to proxy %v. all authentication methods failed", proxyAddr)
-}
-
-// makeHostKeyCallback creates and returns a function suitable to be passed into
-// ssh.ClientConfig
-func (tc *TeleportClient) makeHostKeyCallback() utils.HostKeyCallback {
-	return func(hostID string, remote net.Addr, key ssh.PublicKey) error {
-		err := CheckHostSignerFromCache(hostID, remote, key)
-		if err != nil {
-			err = tc.Login()
+	for {
+		// try to authenticate using every auth method we have:
+		for _, m := range tc.authMethods {
+			sshConfig.Auth = []ssh.AuthMethod{m}
+			proxyClient, err := ssh.Dial("tcp", proxyAddr, sshConfig)
 			if err != nil {
-				log.Error(err)
-				// (TODO) klizhentas I don't know of any other way to
-				// pass this info to user
-				fmt.Println(err)
-				return trace.Wrap(err)
+				if utils.IsHandshakeFailedError(err) {
+					continue
+				}
+				return nil, trace.Wrap(err)
 			}
-			return CheckHostSignerFromCache(hostID, remote, key)
+			return &ProxyClient{
+				Client:          proxyClient,
+				proxyAddress:    proxyAddr,
+				hostKeyCallback: sshConfig.HostKeyCallback,
+				authMethods:     tc.authMethods,
+			}, nil
 		}
-		return nil
+		// if we get here, it means we failed to authenticate using stored keys
+		// and we need to ask for the login information
+		tc.Login()
 	}
 }
 
@@ -669,7 +780,7 @@ func ParseLabelSpec(spec string) (map[string]string, error) {
 			tokenStart = i + 1
 		}
 	}
-	// simple validation of tokenization: must have even number of tokens (because they're pairs)
+	// simple validation of tokenization: must have an even number of tokens (because they're pairs)
 	// and the number of such pairs must be equal the number of assignments
 	if len(tokens)%2 != 0 || assignCount != len(tokens)/2 {
 		return nil, fmt.Errorf("invalid label spec: '%s'", spec)

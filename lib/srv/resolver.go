@@ -39,7 +39,7 @@ func (b *backendResolver) resolve(query string) ([]string, error) {
 	// simply expand the query to all known hosts
 	if query == "*" {
 		out := []string{}
-		srvs, err := b.authService.GetServers()
+		srvs, err := b.authService.GetNodes()
 		if err != nil {
 			return nil, err
 		}

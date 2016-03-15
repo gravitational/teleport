@@ -33,7 +33,7 @@ type NativeSuite struct {
 var _ = Suite(&NativeSuite{})
 
 func (s *NativeSuite) SetUpSuite(c *C) {
-	utils.InitLoggerCLI()
+	utils.InitLoggerForTests()
 	PrecalculatedKeysNum = 1
 	s.suite = &test.AuthSuite{A: New()}
 }
