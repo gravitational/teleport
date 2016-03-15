@@ -159,15 +159,11 @@ func (c *CommandLabels) SetEnv(v string) error {
 // "command labels"
 func (s *Server) LabelsMap() map[string]string {
 	lmap := make(map[string]string)
-	if s.Labels != nil {
-		for key, value := range s.Labels {
-			lmap[key] = value
-		}
+	for key, value := range s.Labels {
+		lmap[key] = value
 	}
-	if s.CmdLabels != nil {
-		for key, cmd := range s.CmdLabels {
-			lmap[key] = cmd.Result
-		}
+	for key, cmd := range s.CmdLabels {
+		lmap[key] = cmd.Result
 	}
 	return lmap
 }
