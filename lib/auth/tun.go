@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -363,7 +364,7 @@ func (s *AuthTunnel) passwordAuth(
 	switch ab.Type {
 	case AuthWebPassword:
 		if err := s.authServer.CheckPassword(conn.User(), ab.Pass, ab.HotpToken); err != nil {
-			log.Warningf("password auth error: %v", err)
+			log.Warningf("password auth error: %#v", err)
 			return nil, trace.Wrap(err)
 		}
 		perms := &ssh.Permissions{
@@ -483,21 +484,51 @@ func NewHostAuth(key, cert []byte) ([]ssh.AuthMethod, error) {
 	return []ssh.AuthMethod{ssh.PublicKeys(signer)}, nil
 }
 
-type TunClient struct {
-	Client
-	dialer *TunDialer
-	tr     *http.Transport
+// TunClientOption is functional option for tunnel client
+type TunClientOption func(t *TunClient)
+
+// TunClientStorage allows tun client to set local presence service
+// that it will use to sync up the latest information about auth servers
+func TunClientStorage(storage utils.AddrStorage) TunClientOption {
+	return func(t *TunClient) {
+		t.addrStorage = storage
+	}
 }
 
-func NewTunClient(addr utils.NetAddr, user string, auth []ssh.AuthMethod) (*TunClient, error) {
+// TunClient is HTTP client that works over SSH tunnel
+// This is done in order to authenticate various teleport roles
+// using existing SSH certificate infrastructure
+type TunClient struct {
+	sync.Mutex
+	Client
+	user          string
+	authServers   []utils.NetAddr
+	authMethods   []ssh.AuthMethod
+	refreshTicker *time.Ticker
+	closeC        chan struct{}
+	closeOnce     sync.Once
+	tr            *http.Transport
+	addrStorage   utils.AddrStorage
+}
+
+// NewTunClient returns an instance of new HTTP client to Auth server API
+// exposed over SSH tunnel, so client  uses SSH credentials to dial and authenticate
+func NewTunClient(authServers []utils.NetAddr, user string, authMethods []ssh.AuthMethod, opts ...TunClientOption) (*TunClient, error) {
 	if user == "" {
 		return nil, trace.Wrap(teleport.BadParameter("user", "SSH connection requires a valid username"))
 	}
 	tc := &TunClient{
-		dialer: &TunDialer{auth: auth, addr: addr, user: user},
+		user:          user,
+		authServers:   authServers,
+		authMethods:   authMethods,
+		refreshTicker: time.NewTicker(defaults.AuthServersRefreshPeriod),
+		closeC:        make(chan struct{}),
+	}
+	for _, o := range opts {
+		o(tc)
 	}
 	tr := &http.Transport{
-		Dial: tc.dialer.Dial,
+		Dial: tc.Dial,
 	}
 	clt, err := NewClient(
 		"http://stub:0",
@@ -509,22 +540,175 @@ func NewTunClient(addr utils.NetAddr, user string, auth []ssh.AuthMethod) (*TunC
 	}
 	tc.Client = *clt
 	tc.tr = tr
+
+	// use local information about auth servers if it's available
+	if tc.addrStorage != nil {
+
+		authServers, err := tc.addrStorage.GetAddresses()
+		if err != nil {
+			if !teleport.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+			log.Infof("local storage is provided, not initialized")
+		} else {
+			log.Infof("using auth servers from local storage: %v", authServers)
+			tc.authServers = authServers
+		}
+	}
+	go tc.syncAuthServers()
 	return tc, nil
 }
 
-func (c *TunClient) GetAgent() (AgentCloser, error) {
-	return c.dialer.GetAgent()
-}
-
+// Close releases all the resources allocated for this client
 func (c *TunClient) Close() error {
 	c.tr.CloseIdleConnections()
-	return c.dialer.Close()
+	c.refreshTicker.Stop()
+	c.closeOnce.Do(func() {
+		close(c.closeC)
+	})
+	return nil
 }
 
+// GetDialer returns dialer that will connect to auth server API
 func (c *TunClient) GetDialer() AccessPointDialer {
 	return func() (net.Conn, error) {
-		return c.dialer.Dial(c.dialer.addr.AddrNetwork, "accesspoint:0")
+		return c.Dial(c.authServers[0].AddrNetwork, "accesspoint:0")
 	}
+}
+
+// GetAgent returns SSH agent that uses ReqWebSessionAgent Auth server extension
+func (c *TunClient) GetAgent() (AgentCloser, error) {
+	client, err := c.getClient() // we need an established connection first
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ch, _, err := client.OpenChannel(ReqWebSessionAgent, nil)
+	if err != nil {
+		return nil, trace.Wrap(
+			teleport.ConnectionProblem(
+				"failed to connect to remote API", err))
+	}
+	agentCloser := &tunAgent{client: client}
+	agentCloser.Agent = agent.NewClient(ch)
+	return agentCloser, nil
+}
+
+// Dial dials to Auth server's HTTP API over SSH tunnel
+func (c *TunClient) Dial(network, address string) (net.Conn, error) {
+	log.Debugf("TunDialer.Dial(%v, %v)", network, address)
+	client, err := c.getClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conn, err := client.Dial(network, address)
+	if err != nil {
+		return nil, trace.Wrap(
+			teleport.ConnectionProblem("failed to connect to remote API", err))
+	}
+	tc := &tunConn{client: client}
+	tc.Conn = conn
+	return tc, nil
+}
+
+func (c *TunClient) fetchAndSync() error {
+	authServers, err := c.fetchAuthServers()
+	if err != nil {
+		log.Infof("failed to fetch auth servers")
+		return trace.Wrap(err)
+	}
+	if len(authServers) == 0 {
+		log.Warningf("no auth servers received")
+		return trace.Wrap(teleport.NotFound("no auth servers"))
+	}
+	// set runtime information about auth servers
+	c.setAuthServers(authServers)
+	// populate local storage if it is supplied
+	if c.addrStorage != nil {
+		if err := c.addrStorage.SetAddresses(authServers); err != nil {
+			return trace.Wrap(err, "failed to set local storage addresses")
+		}
+	}
+	return nil
+}
+
+func (c *TunClient) syncAuthServers() {
+	for {
+		select {
+		case <-c.refreshTicker.C:
+			err := c.fetchAndSync()
+			if err != nil {
+				log.Infof("failed to fetch and sync servers: %v", err)
+				continue
+			}
+		case <-c.closeC:
+			return
+		}
+	}
+}
+
+func (c *TunClient) fetchAuthServers() ([]utils.NetAddr, error) {
+	servers, err := c.GetAuthServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authServers := make([]utils.NetAddr, 0, len(servers))
+	for _, server := range servers {
+		serverAddr, err := utils.ParseAddr(server.Addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		authServers = append(authServers, *serverAddr)
+	}
+	return authServers, nil
+}
+
+func (c *TunClient) getAuthServers() []utils.NetAddr {
+	c.Lock()
+	defer c.Unlock()
+
+	out := make([]utils.NetAddr, len(c.authServers))
+	for i := range c.authServers {
+		out[i] = c.authServers[i]
+	}
+	return out
+}
+
+func (c *TunClient) setAuthServers(servers []utils.NetAddr) {
+	c.Lock()
+	defer c.Unlock()
+
+	log.Infof("setAuthServers(%#v)", servers)
+	c.authServers = servers
+}
+
+func (c *TunClient) getClient() (*ssh.Client, error) {
+	var client *ssh.Client
+	var err error
+	for _, authServer := range c.getAuthServers() {
+		client, err = c.dialAuthServer(authServer)
+		if err == nil {
+			return client, nil
+		}
+	}
+	return nil, trace.Wrap(err)
+}
+
+func (c *TunClient) dialAuthServer(authServer utils.NetAddr) (*ssh.Client, error) {
+	config := &ssh.ClientConfig{
+		User: c.user,
+		Auth: c.authMethods,
+	}
+	client, err := ssh.Dial(authServer.AddrNetwork, authServer.Addr, config)
+	log.Debugf("TunDialer.getClient(%v)", authServer.String())
+	if err != nil {
+		log.Infof("TunDialer could not ssh.Dial: %v", err)
+		if utils.IsHandshakeFailedError(err) {
+			return nil, teleport.AccessDenied(
+				fmt.Sprintf("access denied to '%v': bad username or credentials", c.user))
+		}
+		return nil, trace.Wrap(teleport.ConvertSystemError(err))
+	}
+	return client, nil
 }
 
 type AgentCloser interface {
@@ -540,51 +724,6 @@ type tunAgent struct {
 func (ta *tunAgent) Close() error {
 	log.Infof("tunAgent.Close")
 	return ta.client.Close()
-}
-
-type TunDialer struct {
-	sync.Mutex
-	auth []ssh.AuthMethod
-	user string
-	addr utils.NetAddr
-}
-
-func (t *TunDialer) Close() error {
-	return nil
-}
-
-func (t *TunDialer) GetAgent() (AgentCloser, error) {
-	client, err := t.getClient() // we need an established connection first
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ch, _, err := client.OpenChannel(ReqWebSessionAgent, nil)
-	if err != nil {
-		return nil, trace.Wrap(
-			teleport.ConnectionProblem(
-				"failed to connect to remote API", err))
-	}
-	agentCloser := &tunAgent{client: client}
-	agentCloser.Agent = agent.NewClient(ch)
-	return agentCloser, nil
-}
-
-func (t *TunDialer) getClient() (*ssh.Client, error) {
-	config := &ssh.ClientConfig{
-		User: t.user,
-		Auth: t.auth,
-	}
-	client, err := ssh.Dial(t.addr.AddrNetwork, t.addr.Addr, config)
-	log.Debugf("TunDialer.getClient(%v)", t.addr.String())
-	if err != nil {
-		log.Infof("TunDialer could not ssh.Dial: %v", err)
-		if utils.IsHandshakeFailedError(err) {
-			return nil, teleport.AccessDenied(
-				fmt.Sprintf("access denied to '%v': bad username or credentials", t.user))
-		}
-		return nil, trace.Wrap(teleport.ConvertSystemError(err))
-	}
-	return client, nil
 }
 
 const (
@@ -605,22 +744,6 @@ func (c *tunConn) Close() error {
 	err := c.Conn.Close()
 	err = c.client.Close()
 	return trace.Wrap(err)
-}
-
-func (t *TunDialer) Dial(network, address string) (net.Conn, error) {
-	log.Debugf("TunDialer.Dial(%v, %v)", network, address)
-	client, err := t.getClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	conn, err := client.Dial(network, address)
-	if err != nil {
-		return nil, trace.Wrap(
-			teleport.ConnectionProblem("failed to connect to remote API", err))
-	}
-	tc := &tunConn{client: client}
-	tc.Conn = conn
-	return tc, nil
 }
 
 const (

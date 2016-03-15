@@ -18,6 +18,7 @@ limitations under the License.
 package etcdbk
 
 import (
+	"encoding/base64"
 	"sort"
 	"strings"
 	"time"
@@ -107,7 +108,7 @@ func (b *bk) GetKeys(path []string) ([]string, error) {
 func (b *bk) CreateVal(path []string, key string, val []byte, ttl time.Duration) error {
 	_, err := b.api.Set(
 		context.Background(),
-		b.key(append(path, key)...), string(val),
+		b.key(append(path, key)...), base64.StdEncoding.EncodeToString(val),
 		&client.SetOptions{PrevExist: client.PrevNoExist, TTL: ttl})
 	return trace.Wrap(convertErr(err))
 }
@@ -125,7 +126,7 @@ func (b *bk) TouchVal(path []string, key string, ttl time.Duration) error {
 		}
 		_, err = b.api.Set(
 			context.Background(),
-			b.key(append(path, key)...), string(re.Node.Value),
+			b.key(append(path, key)...), re.Node.Value,
 			&client.SetOptions{TTL: ttl, PrevValue: re.Node.Value, PrevExist: client.PrevExist})
 		err = convertErr(err)
 		if err == nil {
@@ -138,7 +139,7 @@ func (b *bk) TouchVal(path []string, key string, ttl time.Duration) error {
 func (b *bk) UpsertVal(path []string, key string, val []byte, ttl time.Duration) error {
 	_, err := b.api.Set(
 		context.Background(),
-		b.key(append(path, key)...), string(val), &client.SetOptions{TTL: ttl})
+		b.key(append(path, key)...), base64.StdEncoding.EncodeToString(val), &client.SetOptions{TTL: ttl})
 	return convertErr(err)
 }
 
@@ -148,20 +149,25 @@ func (b *bk) CompareAndSwap(path []string, key string, val []byte, ttl time.Dura
 	if len(prevVal) != 0 {
 		re, err = b.api.Set(
 			context.Background(),
-			b.key(append(path, key)...), string(val),
-			&client.SetOptions{TTL: ttl, PrevValue: string(prevVal), PrevExist: client.PrevExist})
+			b.key(append(path, key)...), base64.StdEncoding.EncodeToString(val),
+			&client.SetOptions{TTL: ttl, PrevValue: base64.StdEncoding.EncodeToString(prevVal), PrevExist: client.PrevExist})
 	} else {
 		re, err = b.api.Set(
 			context.Background(),
-			b.key(append(path, key)...), string(val),
+			b.key(append(path, key)...), base64.StdEncoding.EncodeToString(val),
 			&client.SetOptions{TTL: ttl, PrevExist: client.PrevNoExist})
 	}
 	err = convertErr(err)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if re.PrevNode != nil {
-		return []byte(re.PrevNode.Value), nil
+		value, err := base64.StdEncoding.DecodeString(re.PrevNode.Value)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return value, nil
 	}
 	return nil, nil
 }
@@ -174,7 +180,11 @@ func (b *bk) GetVal(path []string, key string) ([]byte, error) {
 	if re.Node.Dir {
 		return nil, trace.Wrap(teleport.BadParameter(key, "trying to get value of bucket"))
 	}
-	return []byte(re.Node.Value), nil
+	value, err := base64.StdEncoding.DecodeString(re.Node.Value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return value, nil
 }
 
 func (b *bk) GetValAndTTL(path []string, key string) ([]byte, time.Duration, error) {
@@ -186,7 +196,11 @@ func (b *bk) GetValAndTTL(path []string, key string) ([]byte, time.Duration, err
 		return nil, 0, trace.Wrap(
 			teleport.BadParameter(key, "trying to get value of bucket"))
 	}
-	return []byte(re.Node.Value), time.Duration(re.Node.TTL) * time.Second, nil
+	value, err := base64.StdEncoding.DecodeString(re.Node.Value)
+	if err != nil {
+		return nil, 0, trace.Wrap(err)
+	}
+	return value, time.Duration(re.Node.TTL) * time.Second, nil
 }
 
 func (b *bk) DeleteKey(path []string, key string) error {

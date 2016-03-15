@@ -357,7 +357,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	c.Assert(tsrv.Start(), IsNil)
 
 	tunClt, err := auth.NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()}, s.domainName, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: tsrv.Addr()}}, s.domainName, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
 	c.Assert(err, IsNil)
 	defer tunClt.Close()
 
@@ -502,7 +502,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	c.Assert(tsrv.Start(), IsNil)
 
 	tunClt, err := auth.NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()}, s.domainName, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: tsrv.Addr()}}, s.domainName, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
 	c.Assert(err, IsNil)
 	defer tunClt.Close()
 
@@ -603,7 +603,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	c.Assert(tsrv.Start(), IsNil)
 
 	tunClt, err := auth.NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()}, s.domainName, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: tsrv.Addr()}}, s.domainName, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
 	c.Assert(err, IsNil)
 	defer tunClt.Close()
 

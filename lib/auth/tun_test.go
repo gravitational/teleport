@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"fmt"
 	"path/filepath"
 	"time"
 
@@ -148,7 +149,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: tsrv.Addr()},
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: tsrv.Addr()}},
 		"test", authMethod)
 	c.Assert(err, IsNil)
 
@@ -176,7 +177,7 @@ func (s *TunSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer clt.Close()
 
@@ -189,7 +190,7 @@ func (s *TunSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 
 	cltw, err := NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer cltw.Close()
 
@@ -229,7 +230,7 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	c.Assert(err, IsNil)
 
 	clt0, err := NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod0)
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod0)
 	c.Assert(err, IsNil)
 	_, _, _, err = clt0.GetSignupTokenData(token2)
 	c.Assert(err, NotNil) // valid token, but invalid client
@@ -239,7 +240,7 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer clt.Close()
 
@@ -279,7 +280,7 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 
 	// Saving new password
 	clt2, err := NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer clt2.Close()
 
@@ -302,7 +303,7 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 
 	// trying to connect to the auth server using used token
 	clt0, err = NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
 	c.Assert(err, IsNil) // shouldn't accept such connection twice
 	_, _, _, err = clt0.GetSignupTokenData(token2)
 	c.Assert(err, NotNil) // valid token, but invalid client
@@ -313,7 +314,7 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	c.Assert(err, IsNil)
 
 	clt3, err := NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod3)
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod3)
 	c.Assert(err, IsNil)
 	defer clt3.Close()
 
@@ -341,7 +342,7 @@ func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer clt.Close()
 
@@ -362,7 +363,7 @@ func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(err, IsNil)
 
 	cltw, err := NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer cltw.Close()
 
@@ -404,7 +405,7 @@ func (s *TunSuite) TestSessionsBadPassword(c *C) {
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}, user, authMethod)
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer clt.Close()
 
@@ -415,4 +416,58 @@ func (s *TunSuite) TestSessionsBadPassword(c *C) {
 	ws, err = clt.SignIn("not-exists", pass)
 	c.Assert(err, NotNil)
 	c.Assert(ws, IsNil)
+}
+
+func (s *TunSuite) TestFailover(c *C) {
+	node := services.Server{
+		ID:       "node1",
+		Addr:     "node.example.com:12345",
+		Hostname: "node.example.com",
+	}
+	c.Assert(s.a.UpsertNode(node, backend.Forever), IsNil)
+
+	ports, err := utils.GetFreeTCPPorts(1)
+	c.Assert(err, IsNil)
+
+	clt, err := NewTunClient(
+		[]utils.NetAddr{
+			{AddrNetwork: "tcp", Addr: fmt.Sprintf("127.0.0.1:%v", ports.Pop())},
+			{AddrNetwork: "tcp", Addr: s.tsrv.Addr()},
+		}, "localhost", []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
+	c.Assert(err, IsNil)
+	defer clt.Close()
+
+	nodes, err := clt.GetNodes()
+	c.Assert(err, IsNil)
+	c.Assert(nodes, DeepEquals, []services.Server{node})
+}
+
+func (s *TunSuite) TestSync(c *C) {
+	authServer := services.Server{
+		ID:       "node1",
+		Addr:     "node.example.com:12345",
+		Hostname: "node.example.com",
+	}
+	c.Assert(s.a.UpsertAuthServer(authServer, backend.Forever), IsNil)
+
+	storage := utils.NewFileAddrStorage(filepath.Join(c.MkDir(), "addr.json"))
+
+	clt, err := NewTunClient(
+		[]utils.NetAddr{
+			{AddrNetwork: "tcp", Addr: s.tsrv.Addr()},
+		}, "localhost", []ssh.AuthMethod{ssh.PublicKeys(s.signer)},
+		TunClientStorage(storage),
+	)
+	c.Assert(err, IsNil)
+	defer clt.Close()
+
+	err = clt.fetchAndSync()
+	c.Assert(err, IsNil)
+
+	expected := []utils.NetAddr{{Addr: "node.example.com:12345", AddrNetwork: "tcp"}}
+	c.Assert(clt.getAuthServers(), DeepEquals, expected)
+
+	syncedServers, err := storage.GetAddresses()
+	c.Assert(err, IsNil)
+	c.Assert(syncedServers, DeepEquals, expected)
 }
