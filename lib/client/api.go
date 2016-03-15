@@ -155,13 +155,33 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	return tc, nil
 }
 
+// getTargetNodes returns a list of node addresses this SSH command needs to
+// operate on.
+func (tc *TeleportClient) getTargetNodes(proxy *ProxyClient) ([]string, error) {
+	var (
+		err    error
+		nodes  []services.Server
+		retval = make([]string, 0)
+	)
+	if tc.Labels != nil && len(tc.Labels) > 0 {
+		nodes, err = proxy.FindServersByLabels(tc.Labels)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for i := 0; i < len(nodes); i++ {
+			retval = append(retval, nodes[i].Addr)
+		}
+	}
+	if len(nodes) == 0 {
+		retval = append(retval, net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort)))
+	}
+	return retval, nil
+}
+
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
 // otherwise runs interactive shell
 func (tc *TeleportClient) SSH(command string) (err error) {
-	if tc.Host == "" {
-		return trace.Wrap(teleport.BadParameter("host", "no host address specified"))
-	}
-	// connecting via proxy?
+	// connect to proxy first:
 	if !tc.Config.ProxySpecified() {
 		return trace.Wrap(teleport.BadParameter("server", "proxy server is not specified"))
 	}
@@ -170,13 +190,29 @@ func (tc *TeleportClient) SSH(command string) (err error) {
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	log.Infof("connected to proxy %v", proxyClient.proxyAddress)
-	if len(command) > 0 {
-		return tc.runCommand(proxyClient, command)
+
+	// which nodes are we executing this commands on?
+	nodeAddrs, err := tc.getTargetNodes(proxyClient)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	nodeAddr := tc.NodeHostPort()
-	log.Debugf("connecting to node %v via proxy %v", nodeAddr, proxyClient.proxyAddress)
-	nodeClient, err := proxyClient.ConnectToNode(nodeAddr, tc.Config.HostLogin)
+	if len(nodeAddrs) == 0 {
+		return trace.Wrap(teleport.BadParameter("host", "no target host specified"))
+	}
+
+	// execute non-interactive SSH command:
+	if len(command) > 0 {
+		return tc.runCommand(nodeAddrs, proxyClient, command)
+	}
+
+	// more than one node for an interactive shell?
+	// that can't be!
+	if len(nodeAddrs) != 1 {
+		return trace.Errorf("Cannot launch shell on multiple nodes: %v", nodeAddrs)
+	}
+
+	// execute SSH shell on a single node:
+	nodeClient, err := proxyClient.ConnectToNode(nodeAddrs[0], tc.Config.HostLogin)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -323,93 +359,27 @@ func isRemoteDest(name string) bool {
 
 // ListNodes returns a list of nodes connected to a proxy
 func (tc *TeleportClient) ListNodes() ([]services.Server, error) {
+	var err error
+	// userhost is specified? that must be labels
+	if tc.Host != "" {
+		tc.Labels, err = ParseLabelSpec(tc.Host)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	// connect to the proxy and ask it to return a full list of servers
 	proxyClient, err := tc.ConnectToProxy()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-
-	// get the list of sites (AKA teleport clusters this proxy is connected to).
-	// this version of Teleport only supports 1 site per proxy
-	var (
-		sites   []services.Site
-		servers []services.Server
-	)
-	sites, err = proxyClient.GetSites()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(sites) == 0 {
-		return servers, nil
-	}
-	authServer, err := proxyClient.ConnectToSite(sites[0].Name, tc.Config.HostLogin)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers, err = authServer.GetNodes()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return filterByLabels(servers, tc.Config.Labels), nil
-}
-
-// filterByLabels takes a list of nodes and returns only nodes that have matching labels.
-// If no labels are given, returns the original list
-func filterByLabels(nodes []services.Server, labels map[string]string) (output []services.Server) {
-	if labels == nil || len(nodes) == 0 {
-		return nodes
-	}
-	output = make([]services.Server, 0)
-	// go over all nodes
-	for _, node := range nodes {
-		match := false
-		// look at each node's labels
-		if node.Labels != nil {
-			for ln, lv := range labels {
-				if node.Labels[ln] == lv {
-					match = true
-					break
-				}
-			}
-		}
-		// look at each node's command labels
-		if !match && node.CmdLabels != nil {
-			for cln, clv := range node.CmdLabels {
-				if node.Labels[cln] == clv.Result {
-					match = true
-					break
-				}
-			}
-		}
-		if match {
-			output = append(output, node)
-		}
-	}
-	return output
+	return proxyClient.FindServersByLabels(tc.Labels)
 }
 
 // runCommand executes a given bash command on a bunch of remote nodes
-func (tc *TeleportClient) runCommand(proxyClient *ProxyClient, command string) error {
+func (tc *TeleportClient) runCommand(nodeAddresses []string, proxyClient *ProxyClient, command string) error {
 	stdoutMutex := &sync.Mutex{}
 	wg := &sync.WaitGroup{}
-
-	// build a list of nodes we should be executing this command on:
-	var nodeAddresses []string
-	if proxyClient != nil && tc.Config.Labels != nil {
-		nodeAddresses = make([]string, 0)
-		_, err := proxyClient.GetSites()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		// TODO: call sites[0].getServers() or something
-		var servers []services.Server
-		for _, server := range filterByLabels(servers, tc.Config.Labels) {
-			nodeAddresses = append(nodeAddresses, server.Addr)
-		}
-	} else {
-		nodeAddresses = []string{tc.NodeHostPort()}
-	}
 
 	for _, address := range nodeAddresses {
 		wg.Add(1)
@@ -597,6 +567,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 				proxyAddress:    proxyAddr,
 				hostKeyCallback: sshConfig.HostKeyCallback,
 				authMethods:     tc.authMethods,
+				hostLogin:       tc.Config.HostLogin,
 			}, nil
 		}
 		// if we get here, it means we failed to authenticate using stored keys

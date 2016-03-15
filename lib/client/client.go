@@ -24,7 +24,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"regexp"
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
@@ -43,6 +42,7 @@ import (
 // It can provide list of nodes or connect to nodes
 type ProxyClient struct {
 	Client          *ssh.Client
+	hostLogin       string
 	proxyAddress    string
 	hostKeyCallback utils.HostKeyCallback
 	authMethods     []ssh.AuthMethod
@@ -90,44 +90,38 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	return sites, nil
 }
 
-// FindServers returns list of the nodes which have labels "labelName" and
-// corresponding values matches "labelValueRegexp"
-func (proxy *ProxyClient) FindServers(labelName string, labelRegex string) ([]services.Server, error) {
-	regex, err := regexp.Compile(labelRegex)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+// FindServersByLabels returns list of the nodes which have labels exactly matching
+// the given label set.
+//
+// A server is matched when ALL labels match.
+// If no labels are passed, ALL nodes are returned.
+func (proxy *ProxyClient) FindServersByLabels(labels map[string]string) ([]services.Server, error) {
+	nodes := make([]services.Server, 0)
+
 	// see which sites (AKA auth servers) this proxy is connected to
-	_, err = proxy.GetSites()
+	sites, err := proxy.GetSites()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// TODO: ev. we need to take the 1st site and, using its auth API,
-	// request a list of servers from it. and THAT would be stored in "allServers"
-	var allServers []services.Server
-	foundServers := make([]services.Server, 0)
-	for _, srv := range allServers {
-		alreadyAdded := false
-		for name, label := range srv.CmdLabels {
-			if name == labelName && regex.MatchString(label.Result) {
-				foundServers = append(foundServers, srv)
-				alreadyAdded = true
-				break
-			}
-		}
-		if alreadyAdded {
-			continue
-		}
-		for name, value := range srv.Labels {
-			if name == labelName && regex.MatchString(value) {
-				foundServers = append(foundServers, srv)
-				break
-			}
+	if len(sites) == 0 {
+		return nodes, nil
+	}
+	// this version of teleport only supports 1-site clusters:
+	site, err := proxy.ConnectToSite(sites[0].Name, proxy.hostLogin)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	siteNodes, err := site.GetNodes()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// look at every node on this site and see which ones match:
+	for _, node := range siteNodes {
+		if node.MatchAgainst(labels) {
+			nodes = append(nodes, node)
 		}
 	}
-
-	return foundServers, nil
+	return nodes, nil
 }
 
 // ConnectToSite connects to the auth server of the given site via proxy.
