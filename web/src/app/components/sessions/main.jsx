@@ -1,6 +1,6 @@
 var React = require('react');
 var reactor = require('app/reactor');
-var {getters, actions} = require('app/modules/sessions');
+var {getters} = require('app/modules/sessions');
 var StoredSessionList = require('./storedSessionList.jsx');
 var ActiveSessionList = require('./activeSessionList.jsx');
 

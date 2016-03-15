@@ -1,8 +1,6 @@
 var React = require('react');
-var reactor = require('app/reactor');
-var {DateRangePicker, CalendarNav} = require('./../datePicker.jsx');
-var {Table, Column, Cell, TextCell, SortHeaderCell, SortTypes} = require('app/components/table.jsx');
-var {ButtonCell, UsersCell, EmptyList, NodeCell, DurationCell, DateCreatedCell} = require('./listItems');
+var {Table, Column, Cell, TextCell} = require('app/components/table.jsx');
+var {ButtonCell, UsersCell, EmptyList, NodeCell, DateCreatedCell} = require('./listItems');
 
 var ActiveSessionList = React.createClass({
   render: function() {
@@ -30,7 +28,7 @@ var ActiveSessionList = React.createClass({
                 <Column
                   header={<Cell> Node </Cell> }
                   cell={<NodeCell data={data} /> }
-                />                
+                />
                 <Column
                   columnKey="created"
                   header={<Cell> Created </Cell> }

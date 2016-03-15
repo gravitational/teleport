@@ -1,6 +1,6 @@
 var React = require('react');
 var render = require('react-dom').render;
-var { Router, Route, Redirect, IndexRoute, browserHistory } = require('react-router');
+var { Router, Route, Redirect } = require('react-router');
 var { App, Login, Nodes, Sessions, NewUser, CurrentSessionHost, NotFound } = require('./components');
 var {ensureUser} = require('./modules/user/actions');
 var auth = require('./auth');
@@ -12,7 +12,7 @@ require('./modules');
 // init session
 session.init();
 
-function handleLogout(nextState, replace, cb){
+function handleLogout(/*nextState, replace*/){
   auth.logout();
 }
 

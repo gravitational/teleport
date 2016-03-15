@@ -1,5 +1,6 @@
 var React = require('react');
-var { Router, IndexLink, History } = require('react-router');
+var reactor = require('app/reactor');
+var { IndexLink } = require('react-router');
 var getters = require('app/modules/user/getters');
 var cfg = require('app/config');
 
@@ -32,7 +33,7 @@ var NavLeftBar = React.createClass({
     items.push((
       <li key={items.length} title="logout">
         <a href={cfg.routes.logout}>
-          <i className="fa fa-sign-out"></i>
+          <i className="fa fa-sign-out" style={{marginRight: 0}}></i>
         </a>
       </li>
     ));

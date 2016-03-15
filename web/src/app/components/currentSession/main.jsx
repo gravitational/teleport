@@ -1,4 +1,5 @@
 var React = require('react');
+var reactor = require('app/reactor');
 var {getters, actions} = require('app/modules/activeTerminal/');
 var SessionPlayer = require('./sessionPlayer.jsx');
 var ActiveSession = require('./activeSession.jsx');

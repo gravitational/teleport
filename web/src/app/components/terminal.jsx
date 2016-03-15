@@ -1,5 +1,6 @@
 var Term = require('Terminal');
 var React = require('react');
+var $ = require('jQuery');
 var {debounce, isNumber} = require('_');
 
 Term.colors[256] = '#252323';
@@ -23,7 +24,7 @@ var TtyTerminal = React.createClass({
   },
 
   componentDidMount: function() {
-    this.term = new Terminal({
+    this.term = new Term({
       cols: 5,
       rows: 5,
       useStyle: true,
@@ -37,6 +38,7 @@ var TtyTerminal = React.createClass({
     this.resize(this.cols, this.rows);
 
     this.tty.on('open', ()=> this.term.write(CONNECTED_TXT));
+    this.tty.on('close', ()=> this.term.write(DISCONNECT_TXT));
     this.tty.on('data', (data) => this.term.write(data));
     this.tty.on('reset', ()=> this.term.reset());
 

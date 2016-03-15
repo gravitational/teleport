@@ -6,36 +6,6 @@ const GrvTableTextCell = ({rowIndex, data, columnKey, ...props}) => (
   </GrvTableCell>
 );
 
-var GrvSortHeaderCell = React.createClass({
-  getInitialState() {
-    this._onSortChange = this._onSortChange.bind(this);
-  },
-
-  render() {
-    var {sortDir, children, ...props} = this.props;
-    return (
-      <Cell {...props}>
-        <a onClick={this._onSortChange}>
-          {children} {sortDir ? (sortDir === SortTypes.DESC ? '↓' : '↑') : ''}
-        </a>
-      </Cell>
-    );
-  },
-
-  _onSortChange(e) {
-    e.preventDefault();
-
-    if (this.props.onSortChange) {
-      this.props.onSortChange(
-        this.props.columnKey,
-        this.props.sortDir ?
-          reverseSortDirection(this.props.sortDir) :
-          SortTypes.DESC
-      );
-    }
-  }
-});
-
 /**
 * Sort indicator used by SortHeaderCell
 */
@@ -62,7 +32,7 @@ const SortIndicator = ({sortDir})=>{
 */
 var SortHeaderCell = React.createClass({
   render() {
-    var {sortDir, columnKey, title, ...props} = this.props;
+    var {sortDir, title, ...props} = this.props;
 
     return (
       <GrvTableCell {...props}>
@@ -128,7 +98,7 @@ var GrvTable = React.createClass({
     var content = null;
     if (React.isValidElement(cell)) {
        content = React.cloneElement(cell, cellProps);
-     } else if (typeof props.cell === 'function') {
+     } else if (typeof cell === 'function') {
        content = cell(cellProps);
      }
 
@@ -137,7 +107,7 @@ var GrvTable = React.createClass({
 
   render() {
     var children = [];
-    React.Children.forEach(this.props.children, (child, index) => {
+    React.Children.forEach(this.props.children, (child) => {
       if (child == null) {
         return;
       }

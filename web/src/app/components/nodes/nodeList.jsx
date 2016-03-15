@@ -1,7 +1,4 @@
 var React = require('react');
-var reactor = require('app/reactor');
-var {getters, actions} = require('app/modules/nodes');
-var userGetters = require('app/modules/user/getters');
 var {Table, Column, Cell, SortHeaderCell, SortTypes} = require('app/components/table.jsx');
 var {createNewSession} = require('app/modules/activeTerminal/actions');
 var LinkedStateMixin = require('react-addons-linked-state-mixin');
@@ -14,7 +11,7 @@ const TextCell = ({rowIndex, data, columnKey, ...props}) => (
   </Cell>
 );
 
-const TagCell = ({rowIndex, data, columnKey, ...props}) => (
+const TagCell = ({rowIndex, data, ...props}) => (
   <Cell {...props}>
     { data[rowIndex].tags.map((item, index) =>
       (<span key={index} className="label label-default">
@@ -71,7 +68,7 @@ var NodeList = React.createClass({
 
   mixins: [LinkedStateMixin],
 
-  getInitialState(props){
+  getInitialState(/*props*/){
     this.searchableProps = ['addr', 'hostname'];
     return { filter: '', colSortDirs: {hostname: 'DESC'} };
   },

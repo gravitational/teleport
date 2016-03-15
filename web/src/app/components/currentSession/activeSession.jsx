@@ -1,12 +1,11 @@
 var React = require('react');
 var reactor = require('app/reactor');
-var {getters, actions} = require('app/modules/activeTerminal/');
 var {nodeHostNameByServerId} = require('app/modules/nodes/getters');
 var Tty = require('app/common/tty');
 var TtyTerminal = require('./../terminal.jsx');
 var EventStreamer = require('./eventStreamer.jsx');
 var SessionLeftPanel = require('./sessionLeftPanel');
-var {showSelectNodeDialog, closeSelectNodeDialog} = require('app/modules/dialogs/actions');
+var {closeSelectNodeDialog} = require('app/modules/dialogs/actions');
 var SelectNodeDialog = require('./../selectNodeDialog.jsx');
 
 var ActiveSession = React.createClass({

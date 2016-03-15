@@ -1,8 +1,8 @@
 var React = require('react');
+var reactor = require('app/reactor');
 var { Link } = require('react-router');
-var {actions} = require('app/modules/sessions');
 var {nodeHostNameByServerId} = require('app/modules/nodes/getters');
-var {Cell, TextCell} = require('app/components/table.jsx');
+var {Cell} = require('app/components/table.jsx');
 var moment =  require('moment');
 
 const DateCreatedCell = ({ rowIndex, data, ...props }) => {

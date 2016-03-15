@@ -1,9 +1,8 @@
 var React = require('react');
-var reactor = require('app/reactor');
 var { actions} = require('app/modules/sessions');
 var LinkedStateMixin = require('react-addons-linked-state-mixin');
 var {Table, Column, Cell, TextCell, SortHeaderCell, SortTypes} = require('app/components/table.jsx');
-var {ButtonCell, SingleUserCell, UsersCell, EmptyList, DurationCell, DateCreatedCell} = require('./listItems');
+var {ButtonCell, SingleUserCell, DateCreatedCell} = require('./listItems');
 var {DateRangePicker, CalendarNav} = require('./../datePicker.jsx');
 var moment =  require('moment');
 var {monthRange} = require('app/common/dateUtils');
@@ -14,7 +13,7 @@ var ArchivedSessions = React.createClass({
 
   mixins: [LinkedStateMixin],
 
-  getInitialState(props){
+  getInitialState(){
     let [startDate, endDate] = monthRange(new Date());
     this.searchableProps = ['serverIp', 'created', 'sid', 'login'];
     return { filter: '', colSortDirs: {created: 'ASC'}, startDate, endDate };
