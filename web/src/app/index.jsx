@@ -26,7 +26,7 @@ render((
       <Route path={cfg.routes.nodes} component={Nodes}/>
       <Route path={cfg.routes.activeSession} components={{CurrentSessionHost: CurrentSessionHost}}/>
       <Route path={cfg.routes.sessions} component={Sessions}/>
-    </Route>    
+    </Route>
     <Route path="*" component={NotFound} />
   </Router>
 ), document.getElementById("app"));

@@ -14,18 +14,30 @@
 
 .grv {
   background-color: white;
-  #app {
+
+  .grv-tlpt{
     height: 100%;
   }
-  .grv-spinner.sk-spinner-three-bounce {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-  }
+
   .grv-page {
-    margin-left: 60px;
     padding: 0 5%;
+    display: flex;
+    overflow: auto;
+    width: 100%;
+    flex-direction: column;
   }
+}
+
+#app {
+  height: 100%;
+  height: 100%;
+  position: absolute;
+  top:0;
+  bottom: 0;
+  width: 100%;
+  min-width: 600px;
+  display: block;
+  overflow: auto;
 }
 
 .grv-circle {
@@ -64,8 +76,12 @@
   flex: 1;
 }
 
+.grv-flex-row {
+  flex-direction: row;
+  flex: 1;
+}
+
 .grv-search{
-  margin-bottom: 15px;
   max-width: 200px;
   float: right;
 }
@@ -103,4 +119,13 @@
   border-width: 1px 0;
   margin-left: -5px;
   margin-right: -5px;
+}
+
+.grv-divider{
+  height: 1px;
+  width:40%;
+  display:block; /* for use on default inline elements like span */
+  margin: 9px auto;
+  overflow: hidden;
+  background-color: #e5e6e7;
 }

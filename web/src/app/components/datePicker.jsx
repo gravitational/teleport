@@ -63,10 +63,7 @@ var DateRangePicker = React.createClass({
 
   render() {
     return (
-      <div className="grv-datepicker input-group input-daterange" ref="rangePicker">
-        <span className="input-group-addon">
-          <i className="fa fa-calendar"></i>
-        </span>
+      <div className="grv-datepicker input-group input-daterange" ref="rangePicker">        
         <input ref="dpPicker1" type="text" className="input-sm form-control" name="start" />
         <span className="input-group-addon">to</span>
         <input ref="dpPicker2" type="text" className="input-sm form-control" name="end" />

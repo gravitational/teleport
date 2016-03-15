@@ -24,10 +24,7 @@ var ActiveSession = React.createClass({
     return (
      <div className="grv-current-session">
        <SessionLeftPanel parties={parties}/>
-       <div className="grv-current-session-server-info">
-         <span className="btn btn-primary btn-sm" onClick={showSelectNodeDialog}>
-           Change node
-         </span>
+       <div className="grv-current-session-server-info">      
          <h3>{serverLabelText}</h3>
        </div>
        <TtyConnection {...this.props.activeSession} />

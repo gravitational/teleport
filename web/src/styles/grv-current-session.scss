@@ -1,5 +1,5 @@
  .grv-current-session{
-   padding: 70px 50px 30px 90px;
+   padding: 40px 50px 20px 90px;
    position: fixed;
    height: 100%;
    width: 100%;
@@ -23,9 +23,10 @@
 }
 
 .grv-current-session-server-info{
-  height: 60px;
-  margin-top: -40px;
+  height: 30px;
+  margin-top: -35px;
   text-align: center;
+  overflow: hidden;
   span{
     margin-left: 5px
   }
