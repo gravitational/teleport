@@ -155,14 +155,43 @@ func (c *CommandLabels) SetEnv(v string) error {
 	return nil
 }
 
+// LabelsMap returns the full key:value map of both static labels and
+// "command labels"
+func (s *Server) LabelsMap() map[string]string {
+	lmap := make(map[string]string)
+	for key, value := range s.Labels {
+		lmap[key] = value
+	}
+	for key, cmd := range s.CmdLabels {
+		lmap[key] = cmd.Result
+	}
+	return lmap
+}
+
+// MatchAgainst takes a map of labels and returns True if this server
+// has ALL of them
+//
+// Any server matches against an empty label set
+func (s *Server) MatchAgainst(labels map[string]string) bool {
+	if labels != nil {
+		myLabels := s.LabelsMap()
+		for key, value := range labels {
+			if myLabels[key] != value {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // LabelsString returns a comma separated string with all node's labels
 func (s *Server) LabelsString() string {
 	labels := []string{}
 	for key, val := range s.Labels {
-		labels = append(labels, fmt.Sprintf("%s:%s", key, val))
+		labels = append(labels, fmt.Sprintf("%s=%s", key, val))
 	}
 	for key, val := range s.CmdLabels {
-		labels = append(labels, fmt.Sprintf("%s:%s", key, val.Result))
+		labels = append(labels, fmt.Sprintf("%s=%s", key, val.Result))
 	}
 	return strings.Join(labels, ",")
 }
