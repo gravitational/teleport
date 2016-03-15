@@ -1,5 +1,7 @@
 var React = require('react');
+var reactor = require('app/reactor');
 var {getters, actions} = require('app/modules/activeTerminal/');
+var {nodeHostNameByServerId} = require('app/modules/nodes/getters');
 var Tty = require('app/common/tty');
 var TtyTerminal = require('./../terminal.jsx');
 var EventStreamer = require('./eventStreamer.jsx');
@@ -14,20 +16,17 @@ var ActiveSession = React.createClass({
   },
 
   render: function() {
-    let {serverIp, login, parties} = this.props.activeSession;
-    let serverLabelText = `${login}@${serverIp}`;
-
-    if(!serverIp){
-      serverLabelText = '';
+    let {login, parties, serverId} = this.props.activeSession;
+    let serverLabelText = '';
+    if(serverId){
+      let hostname = reactor.evaluate(nodeHostNameByServerId(serverId));
+      serverLabelText = `${login}@${hostname}`;
     }
 
     return (
      <div className="grv-current-session">
        <SessionLeftPanel parties={parties}/>
        <div className="grv-current-session-server-info">
-         <span className="btn btn-primary btn-sm" onClick={showSelectNodeDialog}>
-           Change node
-         </span>
          <h3>{serverLabelText}</h3>
        </div>
        <TtyConnection {...this.props.activeSession} />

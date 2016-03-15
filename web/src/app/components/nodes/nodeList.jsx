@@ -72,8 +72,8 @@ var NodeList = React.createClass({
   mixins: [LinkedStateMixin],
 
   getInitialState(props){
-    this.searchableProps = ['sessionCount', 'addr'];
-    return { filter: '', colSortDirs: {} };
+    this.searchableProps = ['addr', 'hostname'];
+    return { filter: '', colSortDirs: {hostname: 'DESC'} };
   },
 
   onSortChange(columnKey, sortDir) {
@@ -105,20 +105,27 @@ var NodeList = React.createClass({
     var onLoginClick = this.props.onLoginClick;
 
     return (
-      <div className="grv-nodes">
-        <h1> Nodes </h1>
-        <div className="grv-search">
-          <input valueLink={this.linkState('filter')} placeholder="Search..." className="form-control input-sm"/>
+      <div className="grv-nodes grv-page">
+        <div className="grv-flex grv-header">
+          <div className="grv-flex-column"></div>
+          <div className="grv-flex-column">
+            <h1> Nodes </h1>
+          </div>
+          <div className="grv-flex-column">
+            <div className="grv-search">
+              <input valueLink={this.linkState('filter')} placeholder="Search..." className="form-control input-sm"/>
+            </div>
+          </div>
         </div>
         <div className="">
           <Table rowCount={data.length} className="table-striped grv-nodes-table">
             <Column
-              columnKey="sessionCount"
+              columnKey="hostname"
               header={
                 <SortHeaderCell
-                  sortDir={this.state.colSortDirs.sessionCount}
+                  sortDir={this.state.colSortDirs.hostname}
                   onSortChange={this.onSortChange}
-                  title="Sessions"
+                  title="Node"
                 />
               }
               cell={<TextCell data={data}/> }
@@ -129,7 +136,7 @@ var NodeList = React.createClass({
                 <SortHeaderCell
                   sortDir={this.state.colSortDirs.addr}
                   onSortChange={this.onSortChange}
-                  title="Node"
+                  title="IP"
                 />
               }
 

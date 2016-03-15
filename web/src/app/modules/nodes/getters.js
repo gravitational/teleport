@@ -1,16 +1,16 @@
-var reactor = require('app/reactor');
-var {sessionsByServer} = require('./../sessions/getters');
+const nodeHostNameByServerId = (serverId) => [ ['tlpt_nodes'], (nodes) =>{
+  let server = nodes.find(item=> item.get('id') === serverId);  
+  return !server ? '' : server.get('hostname');
+}];
 
 const nodeListView = [ ['tlpt_nodes'], (nodes) =>{
     return nodes.map((item)=>{
       var serverId = item.get('id');
-      var sessions = reactor.evaluate(sessionsByServer(serverId));
       return {
         id: serverId,
         hostname: item.get('hostname'),
         tags: getTags(item),
-        addr: item.get('addr'),
-        sessionCount: sessions.size
+        addr: item.get('addr')
       }
     }).toJS();
  }
@@ -46,5 +46,6 @@ function getTags(node){
 
 
 export default {
-  nodeListView
+  nodeListView,
+  nodeHostNameByServerId
 }

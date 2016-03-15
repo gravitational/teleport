@@ -1,9 +1,7 @@
 .grv-nav{
-  height: 100%;
+  //height: 100%;
   background-color: #2f4050;
-  width: 70px;
-  float: left;
-  position: absolute;
+  max-width: 70px;
 
   .nav {
 
@@ -12,7 +10,7 @@
       background-color: #293846;
     }
 
-    li:hover{    
+    li:hover{
     }
 
     li:first-child{
