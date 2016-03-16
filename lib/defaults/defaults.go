@@ -76,6 +76,11 @@ const (
 	// AuthServersRefreshPeriod is a period for clients to refresh their
 	// their stored list of auth servers
 	AuthServersRefreshPeriod = 3 * time.Second
+
+	// SessionRefreshPeriod is how often tsh polls information about session
+	// TODO(klizhentas) all polling periods should go away once backend
+	// releases
+	SessionRefreshPeriod = 1 * time.Second
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

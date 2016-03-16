@@ -24,17 +24,23 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -52,6 +58,7 @@ type ProxyClient struct {
 // NodeClient can run shell and commands or upload and download files.
 type NodeClient struct {
 	Client *ssh.Client
+	Proxy  *ProxyClient
 }
 
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
@@ -224,7 +231,7 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeC
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &NodeClient{Client: client}, nil
+		return &NodeClient{Client: client, Proxy: proxy}, nil
 	}
 	return nil, e
 }
@@ -233,46 +240,31 @@ func (proxy *ProxyClient) Close() error {
 	return proxy.Client.Close()
 }
 
-// ConnectToNode returns connected and authenticated NodeClient
-func ConnectToNode(optionalProxy *ProxyClient, nodeAddress string, authMethods []ssh.AuthMethod,
-	hostKeyCallback utils.HostKeyCallback, user string) (*NodeClient, error) {
-	if optionalProxy != nil {
-		return optionalProxy.ConnectToNode(nodeAddress, user)
-	}
-
-	e := trace.Errorf("no authMethods were provided")
-
-	for _, authMethod := range authMethods {
-		sshConfig := &ssh.ClientConfig{
-			User:            user,
-			Auth:            []ssh.AuthMethod{authMethod},
-			HostKeyCallback: hostKeyCallback,
-		}
-		log.Debugf("connecting to SSH node: %v", nodeAddress)
-		client, err := ssh.Dial("tcp", nodeAddress, sshConfig)
-		if err != nil {
-			if utils.IsHandshakeFailedError(err) {
-				e = trace.Wrap(err)
-				continue
-			}
-			return nil, trace.Wrap(err)
-		}
-
-		return &NodeClient{Client: client}, nil
-	}
-
-	return nil, e
-}
-
 // Shell returns remote shell as io.ReadWriterCloser object
 func (client *NodeClient) Shell(width, height int, sessionID string) (io.ReadWriteCloser, error) {
-	session, err := client.Client.NewSession()
+	if sessionID == "" {
+		// initiate a new session if not passed
+		sessionID = uuid.New()
+	}
+
+	// see which sites (AKA auth servers) this proxy is connected to
+	sites, err := client.Proxy.GetSites()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// this version of teleport only supports 1-site clusters:
+	siteClient, err := client.Proxy.ConnectToSite(sites[0].Name, client.Proxy.hostLogin)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clientSession, err := client.Client.NewSession()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if len(sessionID) > 0 {
-		err = session.Setenv(sshutils.SessionEnvVar, sessionID)
+		err = clientSession.Setenv(sshutils.SessionEnvVar, sessionID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -283,7 +275,7 @@ func (client *NodeClient) Shell(width, height int, sessionID string) (io.ReadWri
 	evarsToPass := []string{"LANG", "LANGUAGE"}
 	for _, evar := range evarsToPass {
 		if value := os.Getenv(evar); value != "" {
-			err = session.Setenv(evar, value)
+			err = clientSession.Setenv(evar, value)
 			if err != nil {
 				log.Warn(err)
 			}
@@ -292,25 +284,91 @@ func (client *NodeClient) Shell(width, height int, sessionID string) (io.ReadWri
 
 	terminalModes := ssh.TerminalModes{}
 
-	err = session.RequestPty("xterm", height, width, terminalModes)
+	err = clientSession.RequestPty("xterm", height, width, terminalModes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	writer, err := session.StdinPipe()
+	writer, err := clientSession.StdinPipe()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	reader, err := session.StdoutPipe()
+	reader, err := clientSession.StdoutPipe()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	stderr, err := session.StderrPipe()
+	stderr, err := clientSession.StderrPipe()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	broadcastClose := utils.NewCloseBroadcaster()
+
+	sigC := make(chan os.Signal, 1)
+	signal.Notify(sigC, syscall.SIGWINCH)
+	go func() {
+		for {
+			select {
+			case sig := <-sigC:
+				if sig == nil {
+					return
+				}
+				winSize, err := term.GetWinsize(0)
+				if err != nil {
+					log.Infof("error getting size: %s", err)
+					continue
+				}
+				_, err = clientSession.SendRequest(
+					sshutils.WindowChangeReq, false,
+					ssh.Marshal(sshutils.WinChangeReqParams{
+						W: uint32(winSize.Width),
+						H: uint32(winSize.Height),
+					}))
+				if err != nil {
+					log.Infof("failed to send window change reqest: %v", err)
+				}
+			case <-broadcastClose.C:
+				log.Infof("detected close")
+				return
+			}
+		}
+	}()
+
+	tick := time.NewTicker(defaults.SessionRefreshPeriod)
+	// detect changes of the session's terminal
+	go func() error {
+		defer tick.Stop()
+		var prevSess *session.Session
+		for {
+			select {
+			case <-tick.C:
+				sess, err := siteClient.GetSession(sessionID)
+				if err != nil {
+					log.Infof("failed to get session: %v", err)
+					continue
+				}
+				// no previous session
+				if prevSess == nil {
+					prevSess = sess
+					continue
+				}
+				// nothing changed
+				if prevSess.TerminalParams.W == sess.TerminalParams.W && prevSess.TerminalParams.H == sess.TerminalParams.H {
+					continue
+				}
+				// ok, something have changed, let's resize to the new parameters
+				err = term.SetWinsize(0, sess.TerminalParams.Winsize())
+				if err != nil {
+					log.Infof("error setting size: %s", err)
+				}
+				prevSess = sess
+			case <-broadcastClose.C:
+				return nil
+			}
+		}
+	}()
 
 	go func() {
 		buf := &bytes.Buffer{}
@@ -320,7 +378,7 @@ func (client *NodeClient) Shell(width, height int, sessionID string) (io.ReadWri
 		}
 	}()
 
-	err = session.Shell()
+	err = clientSession.Shell()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -328,7 +386,7 @@ func (client *NodeClient) Shell(width, height int, sessionID string) (io.ReadWri
 	return utils.NewPipeNetConn(
 		reader,
 		writer,
-		utils.MultiCloser(writer, session),
+		utils.MultiCloser(writer, clientSession, broadcastClose),
 		&net.IPAddr{},
 		&net.IPAddr{},
 	), nil

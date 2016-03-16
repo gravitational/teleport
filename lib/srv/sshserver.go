@@ -705,7 +705,7 @@ func (s *Server) handleWinChange(ch ssh.Channel, req *ssh.Request, ctx *ctx) err
 	sid, ok := ctx.getEnv(sshutils.SessionEnvVar)
 	if !ok {
 		return trace.Wrap(
-			teleport.BadParameter("pty", "no PTY allocated for winChange"))
+			teleport.BadParameter("pty", "session ID not found"))
 	}
 	err = s.reg.notifyWinChange(sid, *params)
 	return trace.Wrap(err)
@@ -739,6 +739,7 @@ func (s *Server) handleShell(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Req
 	sid, ok := ctx.getEnv(sshutils.SessionEnvVar)
 	if !ok || sid == "" {
 		sid = uuid.New()
+		ctx.setEnv(sshutils.SessionEnvVar, sid)
 	}
 	return s.reg.joinShell(sid, sconn, ch, req, ctx)
 }

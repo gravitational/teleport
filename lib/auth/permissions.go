@@ -78,6 +78,7 @@ func NewStandardPermissions() PermissionChecker {
 
 	sp.permissions[teleport.RoleProxy] = map[string]bool{
 		ActionGetServers:         true,
+		ActionGetEvents:          true,
 		ActionUpsertProxy:        true,
 		ActionGetProxies:         true,
 		ActionGetAuthServers:     true,
@@ -91,6 +92,7 @@ func NewStandardPermissions() PermissionChecker {
 	}
 
 	sp.permissions[teleport.RoleWeb] = map[string]bool{
+		ActionGetAuthServers:   true,
 		ActionUpsertSession:    true,
 		ActionCreateWebSession: true,
 		ActionGetWebSession:    true,
@@ -103,6 +105,7 @@ func NewStandardPermissions() PermissionChecker {
 	sp.permissions[teleport.RoleSignup] = map[string]bool{
 		ActionGetSignupTokenData:  true,
 		ActionCreateUserWithToken: true,
+		ActionGetAuthServers:      true,
 	}
 
 	return &sp

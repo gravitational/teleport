@@ -90,7 +90,7 @@ type Config struct {
 // Version is a current webapi version
 const Version = "v1"
 
-// HewHandler returns a new instance of web proxy handler
+// NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	lauth, err := newSessionHandler(!cfg.InsecureHTTPMode, []utils.NetAddr{cfg.AuthServers})
 	if err != nil {

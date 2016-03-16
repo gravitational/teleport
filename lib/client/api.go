@@ -24,7 +24,6 @@ import (
 	"math/rand"
 	"net"
 	"os"
-	"os/exec"
 	"os/signal"
 	"os/user"
 	"path/filepath"
@@ -43,39 +42,41 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+// Config is a client config
 type Config struct {
-	// teleport user login
+	// Login is a teleport user login
 	Login string
 
 	// Remote host to connect
 	Host string
 
-	// Host Labels
+	// Labels represent host Labels
 	Labels map[string]string
 
-	// User login on a remote host
+	// HostLogin is a user login on a remote host
 	HostLogin string
 
-	// Remote host port
+	// HostPort is a remote host port to connect to
 	HostPort int
 
-	// host or IP of the proxy (with optional ":port")
+	// ProxyHost is a host or IP of the proxy (with optional ":port")
 	ProxyHost string
 
-	// TTL for the temporary SSH keypair to remain valid:
+	// KeyTTL is a time to live for the temporary SSH keypair to remain valid:
 	KeyTTL time.Duration
 
 	// InsecureSkipVerify is an option to skip HTTPS cert check
 	InsecureSkipVerify bool
 }
 
-// Returns a full host:port address of the proxy or an empty string if no
+// ProxyHostPort returns a full host:port address of the proxy or an empty string if no
 // proxy is given. If 'forWeb' flag is set, returns HTTPS port, otherwise
 // returns SSH port (proxy servers listen on both)
 func (c *Config) ProxyHostPort(defaultPort int) string {
@@ -96,10 +97,13 @@ func (c *Config) NodeHostPort() string {
 	return net.JoinHostPort(c.Host, strconv.Itoa(c.HostPort))
 }
 
+// ProxySpecified returns true if proxy has been specified
 func (c *Config) ProxySpecified() bool {
 	return len(c.ProxyHost) > 0
 }
 
+// TeleportClient is a wrapper around SSH client with teleport specific
+// workflow built in
 type TeleportClient struct {
 	Config
 	localAgent  agent.Agent
@@ -385,8 +389,7 @@ func (tc *TeleportClient) runCommand(nodeAddresses []string, proxyClient *ProxyC
 		wg.Add(1)
 		go func(address string) {
 			defer wg.Done()
-			nodeClient, err := ConnectToNode(proxyClient, address, tc.authMethods,
-				CheckHostSignature, tc.Config.Login)
+			nodeClient, err := proxyClient.ConnectToNode(address, tc.Config.Login)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -418,33 +421,34 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID string) err
 	defer nodeClient.Close()
 	address := tc.NodeHostPort()
 
-	// disable input buffering
-	exec.Command("stty", "-F", "/dev/tty", "cbreak", "min", "1").Run()
-	// do not display entered characters on the screen
-	exec.Command("stty", "-F", "/dev/tty", "-echo").Run()
+	// If typing on the terminal, we do not want the terminal to echo the
+	// password that is typed (so it doesn't display)
+	if term.IsTerminal(0) {
+		state, err := term.SetRawTerminal(0)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer term.RestoreTerminal(0, state)
+	}
+
+	broadcastClose := utils.NewCloseBroadcaster()
 
 	// Catch term signals
 	exitSignals := make(chan os.Signal, 1)
 	signal.Notify(exitSignals, syscall.SIGTERM)
 	go func() {
+		defer broadcastClose.Close()
 		<-exitSignals
 		fmt.Printf("\nConnection to %s closed\n", address)
-		// restore the console echoing state when exiting
-		exec.Command("stty", "-F", "/dev/tty", "echo").Run()
-		os.Exit(0)
 	}()
 
-	width, height, err := getTerminalSize()
+	winSize, err := term.GetWinsize(0)
 	if err != nil {
-		// restore the console echoing state when exiting
-		exec.Command("stty", "-F", "/dev/tty", "echo").Run()
 		return trace.Wrap(err)
 	}
 
-	shell, err := nodeClient.Shell(width, height, sessionID)
+	shell, err := nodeClient.Shell(int(winSize.Width), int(winSize.Height), sessionID)
 	if err != nil {
-		// restore the console echoing state when exiting
-		exec.Command("stty", "-F", "/dev/tty", "echo").Run()
 		return trace.Wrap(err)
 	}
 
@@ -474,25 +478,19 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID string) err
 		}
 	}()
 
-	wg := &sync.WaitGroup{}
-	wg.Add(2)
-
 	// copy from the remote shell to the local
 	go func() {
+		defer broadcastClose.Close()
 		_, err := io.Copy(os.Stdout, shell)
 		if err != nil {
 			log.Errorf(err.Error())
 		}
 		fmt.Printf("\nConnection to %s closed from the remote side\n", address)
-		// restore the console echoing state when exiting
-		exec.Command("stty", "-F", "/dev/tty", "echo").Run()
-		os.Exit(0)
-		wg.Done()
 	}()
 
 	// copy from the local shell to the remote
 	go func() {
-		defer wg.Done()
+		defer broadcastClose.Close()
 		buf := make([]byte, 1)
 		for {
 			n, err := os.Stdin.Read(buf)
@@ -504,9 +502,7 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID string) err
 				// catch Ctrl-D
 				if buf[0] == 4 {
 					fmt.Printf("\nConnection to %s closed\n", address)
-					// restore the console echoing state when exiting
-					exec.Command("stty", "-F", "/dev/tty", "echo").Run()
-					os.Exit(0)
+					return
 				}
 				_, err = shell.Write(buf[:n])
 				if err != nil {
@@ -517,26 +513,8 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID string) err
 		}
 	}()
 
-	wg.Wait()
-	// restore the console echoing state when exiting
-	exec.Command("stty", "-F", "/dev/tty", "echo").Run()
+	<-broadcastClose.C
 	return nil
-}
-
-// getTerminalSize() returns current local terminal size
-func getTerminalSize() (width int, height int, e error) {
-	cmd := exec.Command("stty", "size")
-	cmd.Stdin = os.Stdin
-	out, err := cmd.Output()
-	n, err := fmt.Sscan(string(out), &height, &width)
-	if err != nil {
-		return 0, 0, trace.Wrap(err)
-	}
-	if n != 2 {
-		return 0, 0, trace.Errorf("Can't get terminal size")
-	}
-
-	return width, height, nil
 }
 
 // ConnectToProxy dials the proxy server and returns ProxyClient if successful
