@@ -18,8 +18,8 @@ module.exports = function (config) {
     files: [
       'node_modules/phantomjs-polyfill/bind-polyfill.js',
       'src/assets/js/jquery-2.1.1.js',
-      'src/assets/js/bootstrap.min.js',
-      'src/assets/js/term.js',
+      'src/assets/js/bootstrap-3.3.6.min.js',
+      'src/assets/js/term-0.0.7.js',
       'src/assets/js/jquery-validate-1.14.0.js',
       'tests.webpack.js'
     ],
