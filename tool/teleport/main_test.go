@@ -75,7 +75,7 @@ func (s *MainTestSuite) TestDefault(c *check.C) {
 	c.Assert(conf.SSH.Enabled, check.Equals, true)
 	c.Assert(conf.Proxy.Enabled, check.Equals, true)
 	c.Assert(conf.Console, check.Equals, os.Stdout)
-	c.Assert(log.GetLevel(), check.Equals, log.InfoLevel)
+	c.Assert(log.GetLevel(), check.Equals, log.ErrorLevel)
 
 	cmd, conf = run([]string{"start", "-d"}, true)
 	c.Assert(log.GetLevel(), check.Equals, log.DebugLevel)

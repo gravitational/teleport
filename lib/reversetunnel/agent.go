@@ -306,7 +306,7 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 			a.log.Infof("connection closed, returning")
 			return
 		}
-	case <-time.After(10 * time.Second):
+	case <-time.After(teleport.DefaultTimeout):
 		a.log.Errorf("timeout waiting for dial")
 		return
 	}

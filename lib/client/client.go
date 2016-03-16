@@ -26,6 +26,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -77,7 +78,7 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	}
 	select {
 	case <-done:
-	case <-time.After(10 * time.Second):
+	case <-time.After(teleport.DefaultTimeout):
 		return nil, trace.Errorf("timeout")
 	}
 

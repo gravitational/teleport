@@ -132,7 +132,7 @@ func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 		o(srv)
 	}
 	if srv.timeout == 0 {
-		srv.timeout = teleport.DefaultServerTimeout
+		srv.timeout = teleport.DefaultTimeout
 	}
 
 	s, err := sshutils.NewServer(
