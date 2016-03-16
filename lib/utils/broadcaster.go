@@ -14,33 +14,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sshutils
+package utils
 
-type EnvReqParams struct {
-	Name  string
-	Value string
-}
-
-type WinChangeReqParams struct {
-	W     uint32
-	H     uint32
-	Wpx   uint32
-	Hpx   uint32
-	Modes string
-}
-
-type PTYReqParams struct {
-	Env   string
-	W     uint32
-	H     uint32
-	Wpx   uint32
-	Hpx   uint32
-	Modes string
-}
-
-const (
-	SessionEnvVar   = "TELEPORT_SESSION"
-	SetEnvReq       = "env"
-	WindowChangeReq = "window-change"
-	PTYReq          = "pty-req"
+import (
+	"sync"
 )
+
+// NewCloseBroadcaster returns new instance of close broadcaster
+func NewCloseBroadcaster() *CloseBroadcaster {
+	return &CloseBroadcaster{
+		C: make(chan struct{}),
+	}
+}
+
+// CloseBroadcaster is a helper struct
+// that implements io.Closer and uses channel
+// to broadcast it's closed state once called
+type CloseBroadcaster struct {
+	sync.Once
+	C chan struct{}
+}
+
+// Close closes channel (once) to start broadcasting it's closed state
+func (b *CloseBroadcaster) Close() error {
+	b.Do(func() {
+		close(b.C)
+	})
+	return nil
+}
