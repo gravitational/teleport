@@ -1,2 +1,0 @@
-all:
-	pdflatex model.tex
