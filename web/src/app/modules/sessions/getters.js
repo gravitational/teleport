@@ -43,7 +43,7 @@ const partiesBySessionId = (sid) =>
 }];
 
 function getLastActiveUser(parties){
-  return parties.sortBy(item=> new Date(item.get('lastActive'))).first();
+  return parties.sortBy(item=> new Date(item.get('lastActive'))).last();
 }
 
 function createView(session){

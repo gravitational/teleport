@@ -41,7 +41,11 @@ var auth = {
   logout(){
     auth._stopTokenRefresher();
     session.clear();
-    session.getHistory().replace({pathname: cfg.routes.login});
+    auth._redirect();
+  },
+
+  _redirect(){
+    window.location = cfg.routes.login;
   },
 
   _startTokenRefresher(){
