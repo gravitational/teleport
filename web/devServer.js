@@ -1,5 +1,5 @@
 var WebpackDevServer = require("webpack-dev-server");
-var webpackConfig = require('./webpack.config.js');
+var webpackConfig = require('./webpack.config.dev.js');
 var express = require('express');
 var webpack = require('webpack');
 var proxy = require('http-proxy').createProxyServer();
@@ -52,6 +52,6 @@ server.app.get(ROOT +'/*', function (req, res) {
 
 module.exports = function(){
   server.listen(PORT, "localhost", function() {
-    console.log('Dev Server is up and running: http://location:' + PORT);
+    console.log('Dev Server is up and running: https://location:' + PORT +'/web');
   });
 }

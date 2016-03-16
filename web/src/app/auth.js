@@ -38,9 +38,13 @@ var auth = {
     return $.Deferred().reject();
   },
 
-  logout(){    
+  logout(){
     auth._stopTokenRefresher();
     session.clear();
+    auth._redirect();
+  },
+
+  _redirect(){
     window.location = cfg.routes.login;
   },
 

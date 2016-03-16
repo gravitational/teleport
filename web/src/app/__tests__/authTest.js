@@ -16,6 +16,7 @@ describe('auth', function () {
     spyOn(auth, '_startTokenRefresher');
     spyOn(auth, '_stopTokenRefresher');
     spyOn(auth, '_getRefreshTokenTimerId');
+    spyOn(auth, '_redirect');    
   });
 
   afterEach(function () {
@@ -66,7 +67,7 @@ describe('auth', function () {
         expect(wasCalled).toEqual(true);
       });
 
-      it('should be rejected if token is invalid', function () {        
+      it('should be rejected if token is invalid', function () {
         var wasCalled = false;
         api.post.andReturn($.Deferred().reject());
         auth._getRefreshTokenTimerId.andReturn(null);

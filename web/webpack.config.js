@@ -3,8 +3,6 @@ var webpack = require('webpack');
 var pkgs = require('./package.json');
 
 module.exports = {
-  cache: true,
-  devtool: 'inline-source-map',
   entry: {
     app: ['./src/app/index.jsx'],
     vendor: Object.keys(pkgs.dependencies),
@@ -19,7 +17,7 @@ module.exports = {
     sourceMapFilename: '[name].map'
   },
 
-  externals: ['jQuery', 'Terminal', 'toastr', '_' ],
+  externals: ['jQuery', 'Terminal', '_' ],
 
   resolve: {
     root: [ path.join(__dirname, 'src') ],
@@ -29,16 +27,10 @@ module.exports = {
   module: {
 
     loaders: [
-      { test: /\.(woff|woff2|ttf|eot|svg)$/,  loader: "url-loader?limit=10000&name=fonts/[name].[ext]" },
+      { test: /\.(woff|woff2|ttf|eot|svg)$/, loader: "url-loader?limit=10000&name=fonts/[name].[ext]" },
       {
         include: path.join(__dirname, 'src'),
-        test: /\.js$/,
-        exclude: /node_modules/,
-        loader: 'eslint!babel?loose=all&cacheDirectory'
-      },
-      {
-        include: path.join(__dirname, 'src'),
-        test: /\.jsx$/,
+        test: /\.(js|jsx)$/,
         exclude: /node_modules/,
         loader: 'eslint!react-hot!babel?loose=all&cacheDirectory'
       },
@@ -49,14 +41,15 @@ module.exports = {
     ]
   },
 
-  node: {
-    Buffer: true
-  },
-
   plugins: [
+    new webpack.DefinePlugin({'process.env.NODE_ENV': '"production"'}),
     new webpack.optimize.OccurenceOrderPlugin(),
     new webpack.optimize.CommonsChunkPlugin({
        names: ['vendor']
-     })
+     }),
+
+    new webpack.optimize.UglifyJsPlugin({
+     compress: {  warnings: false  }
+   })
   ]
 };
