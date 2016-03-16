@@ -36,14 +36,6 @@ clean:
 	rm -rf $(OUT)
 
 #
-# this target is used by Jenkins for production builds
-#
-.PHONY: produtcion
-production: clean
-	mkdir -p $(OUT)
-	$(MAKE) -C build.assets
-
-#
 # tests everything: called by Jenkins
 #
 test: FLAGS ?= -cover
