@@ -57,7 +57,10 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func TestWeb(t *testing.T) { TestingT(t) }
+func TestWeb(t *testing.T) {
+	utils.InitLoggerForTests()
+	TestingT(t)
+}
 
 type WebSuite struct {
 	node        *srv.Server
@@ -76,10 +79,6 @@ type WebSuite struct {
 }
 
 var _ = Suite(&WebSuite{})
-
-func (s *WebSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests()
-}
 
 func (s *WebSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
@@ -635,9 +634,6 @@ func (s *WebSuite) TestNodesWithSessions(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(websocket.JSON.Receive(stream, &event), IsNil)
-	for _, p := range event.Session.Parties {
-		fmt.Printf("parties: %v\n", p.String())
-	}
 	c.Assert(len(event.Session.Parties), Equals, 2)
 }
 
