@@ -4,6 +4,7 @@ ETCD_FLAGS := TELEPORT_TEST_ETCD_NODES=${ETCD_NODES}
 TELEPORT_DEBUG_TESTS ?= no
 OUT := out
 GO15VENDOREXPERIMENT := 1
+PKGPATH=github.com/gravitational/teleport
 export
 
 .PHONY: install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd install-assets docs-serve
@@ -16,20 +17,20 @@ all: teleport tctl tsh
 
 .PHONY: tctl
 tctl: 
-	go build -o $(OUT)/tctl -i github.com/gravitational/teleport/tool/tctl
+	go build -o $(OUT)/tctl $(BUILDFLAGS) -i $(PKGPATH)/tool/tctl
 
 .PHONY: teleport
 teleport: 
-	go build -o $(OUT)/teleport -i github.com/gravitational/teleport/tool/teleport
+	go build -o $(OUT)/teleport $(BUILDFLAGS) -i $(PKGPATH)/tool/teleport
 
 .PHONY: tsh
 tsh: 
-	go build -o $(OUT)/tsh -i github.com/gravitational/teleport/tool/tsh
+	go build -o $(OUT)/tsh $(BUILDFLAGS) -i $(PKGPATH)/tool/tsh
 
 install: remove-temp-files flags
-	go install -ldflags $(TELEPORT_LINKFLAGS) github.com/gravitational/teleport/tool/teleport \
-	           github.com/gravitational/teleport/tool/tctl \
-	           github.com/gravitational/teleport/tool/tsh \
+	go install -ldflags $(TELEPORT_LINKFLAGS) $(PKGPATH)/tool/teleport \
+	           $(PKGPATH)/tool/tctl \
+	           $(PKGPATH)/tool/tsh \
 
 clean:
 	rm -rf $(OUT)
@@ -47,14 +48,14 @@ production: clean
 #
 test: FLAGS ?= -cover
 test: 
-	go test -v github.com/gravitational/teleport/tool/tsh/... \
-			   github.com/gravitational/teleport/lib/... \
-			   github.com/gravitational/teleport/tool/teleport... $(FLAGS)
+	go test -v $(PKGPATH)/tool/tsh/... \
+			   $(PKGPATH)/lib/... \
+			   $(PKGPATH)/tool/teleport... $(FLAGS)
 	go vet ./tool/... ./lib/...
 
 flags:
-	go install github.com/gravitational/teleport/vendor/github.com/gravitational/version/cmd/linkflags
-	$(eval TELEPORT_LINKFLAGS := "$(shell linkflags -pkg=$(PWD) -verpkg=github.com/gravitational/teleport/vendor/github.com/gravitational/version)")
+	go install $(PKGPATH)/vendor/github.com/gravitational/version/cmd/linkflags
+	$(eval TELEPORT_LINKFLAGS := "$(shell linkflags -pkg=$(PWD) -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)")
 
 
 test-with-etcd: install
@@ -97,7 +98,6 @@ pack-teleport: pkg teleport
 
 pkg:
 	@if [ "$$PKG" = "" ] ; then echo "ERROR: enter PKG parameter:\n\nmake publish PKG=<name>:<sem-ver>, e.g. teleport:0.0.1\n\n" && exit 255; fi
-
 
 profile:
 	go tool pprof http://localhost:6060/debug/pprof/profile

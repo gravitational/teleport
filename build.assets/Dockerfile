@@ -50,6 +50,7 @@ ENV LANGUAGE="en_US.UTF-8" \
     GOPATH="/gopath" \
     GOROOT="/opt/go" \
     PATH="$PATH:/opt/go/bin:/gopath/bin" \
-    GO15VENDOREXPERIMENT="1"
+    GO15VENDOREXPERIMENT="1" \
+    HOME="/gopath/src/github.com/gravitational/teleport"
 
 VOLUME ["/gopath/src/github.com/gravitational/teleport"]
