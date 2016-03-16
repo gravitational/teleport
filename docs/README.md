@@ -47,7 +47,120 @@ or you can [build it from source](BROKEN).
 
 ### Quick Start
 
-TBD
+To get a quick feel of Teleport lets start it on `localhost` and connect to via the command
+line client and also via a browser. This quick start assumes you have root permissions.
+
+Create a directory for Teleport to keep its data and start `teleport` daemon:
+
+```bash
+mkdir -p /var/lib/teleport
+teleport start
+```
+
+At this point you should see Teleport print its services listening addresses into the console.
+You are running a single-node Teleport cluster. Lets add a user to it:
+
+```bash
+tctl users add $USER
+```
+
+Teleport users are not the same as OS users on servers, but for convenience we've added
+a Teleport user with the same name as your local login.
+
+`tctl` will print a sign-up URL for you to visit and complete the user creation:
+
+```
+Signup token has been created. Share this URL with the user:
+https://turing:3080/web/newuser/96c85ed60b47ad345525f03e1524ac95d78d94ffd2d0fb3c683ff9d6221747c2
+```
+
+You will have to open this link in your browser, install Google Authenticator on your phone,
+set up 2nd factor authentication and pick a password.
+
+Once you have done that, you will be presented with a Web UI where you will see your 
+machine and will be able to log into it using web-based terminal.
+
+Lets login using the command line too:
+
+```bash
+tsh --proxy=localhost localhost
+```
+
+You're in! Notice that `tsh` client always needs the `--proxy` flag because all client connections
+in Teleport have to go via proxy, sometimes called an "SSH bastion".
+
+Lets add another node to your cluster. Lets assume the other node can be reached by
+hostname `luna`. 
+
+`tctl` command below will create a single-use token for a node to join and will print instructions
+for you to follow:
+
+```bash
+> tctl nodes add
+
+The invite token: n92bb958ce97f761da978d08c35c54a5c
+Run this on the new node to join the cluster:
+teleport start --roles=node --token=n92bb958ce97f761da978d08c35c54a5c --auth-server=10.0.10.1
+```
+
+Start `teleport` daemon on "luna" as shown above, but make sure to use the proper `--auth-server` 
+IP to point back to your localhost.
+
+Once you do that, "luna" will join the cluster. To verify, type this on your localhost:
+
+```bash
+> tsh --proxy=localhost ls
+
+Node Name     Node ID                     Address            Labels
+---------     -------                     -------            ------
+localhost     xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.1:3022     
+luna          xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022     
+```
+
+Notice the "Labels" column which is currently empty. Labels in teleport allow you to apply static
+or dynamic labels to your nodes so you can quickly find the right node when you have many.
+
+Lets stop `teleport` on "luna" and start it with the following command:
+
+```bash
+teleport start --roles=node --auth-server=10.0.10.1 --nodename=db --labels "location=virginia,arch=[1h:/bin/uname -m]"
+```
+
+Notice a few things here:
+
+* We did not use `--token` flag because "luna" is already a member of the cluster.
+* We renamed "luna" to "db" because this machine is running a database. This name only exists within Teleport, the actual hostname has not changed.
+* We assigned a static label "location" to this host and set it to "viriginia".
+* We also assigned a dynamic label "arch" which will evaluate `/bin/uname -m` command once an hour and assign the output to this label value.
+
+Lets take a look at our cluster now:
+
+```bash
+> tsh --proxy=localhost ls
+
+Node Name     Node ID                     Address            Labels
+---------     -------                     -------            ------
+localhost     xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.1:3022     
+db            xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022     location=virginia,arch=x86_64
+```
+
+Lets use the newly created labels to filter the output of `tsh ls` and ask to show only
+nodes located in Virginia:
+
+```
+> tsh --proxy=localhost ls location=virginia
+
+Node Name     Node ID                     Address            Labels
+---------     -------                     -------            ------
+db            xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022     location=virginia,arch=x86_64
+```
+
+Labels can be used with the regular `ssh` command too. This will execute `ls -l /` command
+on all servers located in Virginia:
+
+```
+> tsh --proxy=localhost ssh location=virginia ls -l /
+```
 
 # Architecture
 
