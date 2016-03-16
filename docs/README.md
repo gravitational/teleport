@@ -6,19 +6,15 @@ Gravitational Teleport is a tool for remotely accessing isolated clusters of
 Linux servers via SSH or HTTPS. Unlike traditional key-based access, Teleport 
 enables teams to easily adopt the following practiecs:
 
-- Avoid key distribution problem by using auto-expiring keys signed by cluster certificate authority (CA).
-- Integrate SSH into the existing identity management in your organization.
+- Avoid key distribution and [trust on first use](https://en.wikipedia.org/wiki/Trust_on_first_use) issues by using auto-expiring keys signed by a cluster certificate authority (CA).
 - Enforce 2nd factor authentication.
-- Connect to clusters located behind firewalls that block all inbound connections.
+- Connect to clusters located behind firewalls or without direct Internet access via SSH bastions.
 - Record and replay SSH sessions for audit purposes.
 - Collaboratively troubleshoot issues via built-in session sharing.
-- Discover cluster nodes and Docker containers via logical names or dynamic labels.
-- Connect to servers without direct Interenet connection via SSH bastions.
-- Avoid [trust on first use](https://en.wikipedia.org/wiki/Trust_on_first_use) problem.
+- Discover online servers and running Docker containers within a cluster with dynamic node labels.
 
 Take a look at [Quick Start]() page to get a taste of using Teleport, or read the 
 [Design Document]() to get a full understanding of how Teleport works.
-
 
 ### Why?
 
@@ -83,8 +79,7 @@ via `--roles` command line flag or via the configuration file.
 
 Lets explore how these services interact with Teleport clients and with each other. Consider the diagram:
 
-[!img/teleport.png]
-
+![Teleport Diagram](img/teleport.png)
 
 # Admin Guide
 
