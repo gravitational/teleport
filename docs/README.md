@@ -30,8 +30,7 @@ implementation and it is fully compatible with OpenSSH.
 ## Who Built Teleport?
 
 Teleport was created by [Gravitational Inc](https://gravitational.com). We have built Teleport 
-by borrowing from our previous experiences at Rackspace. It has been extracted from the 
-[Gravity](http://gravitational.com/vendors.html), our system for helping our clients to deploy 
+by borrowing from our previous experiences at Rackspace. It has been extracted from [Gravity](http://gravitational.com/vendors.html), our system for helping our clients to deploy 
 and remotely manage their SaaS applications into many cloud regions or even on-premise.
 
 Being a wonderful standalone tool, Teleport can be used as a software library enabling 
