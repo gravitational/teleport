@@ -34,6 +34,16 @@ There are three types of services (roles) in a Teleport cluster.
 Although `teleport` daemon is a single binary, it can provide any combination of these services 
 via `--roles` command line flag or via the configuration file.
 
+In addition to `teleport` daemon, there are three client tools you will use:
+
+| Tool           | Description
+|----------------|------------------------------------------------------------------------
+| tctl    | Cluster administration tool used to invite nodes to a cluster and manage user accounts. `tctl` must be used on the same machine where `auth` is running.
+| tsh     | Teleport client tool, similar in principle to OpenSSH's `ssh`. Use it to login into remote SSH nodes, list and search for nodes in a cluster, securely upload/download files, etc. `tsh` can work in conjunction with `ssh` by acting as an SSH agent.
+| browser | You can use your web browser to login into any Teleport node, just open `https://<proxy-host>:3080` (`proxy-host` is one of the machines that have proxy service enabled).
+
+### High Level Overview
+
 Lets explore how these services come together and interact with Teleport clients and with each other. 
 Lets look at this high level diagram illustrating the process:
 
@@ -96,4 +106,41 @@ node.
    * User's node-level permissions are validated before authorizing him to interact with SSH 
      subsystems.
 
+**Detailed diagram of a Teleport cluster**
+![Teleport Everything](img/everything.png)
 
+Lets explore each of the Teleport services in detail.
+
+### The Auth Service
+
+The `auth server` is the core of the Teleport cluster. It acts as a sertificate authority (CA)
+of the cluster.
+
+On first run the auth server generates a public / private keypair and stores it in the 
+configurable key storage. The auth server also keeps the records of what has been happening
+inside the cluster: it stores recordings of all SSH sessions in the configurable events 
+storage.
+
+![Teleport Auth](img/auth-server.png)
+
+#### Auth API
+
+When a new node (server) joins the cluster, a new public / private keypair is generated for that node, 
+signed by the CA. To invite a node, the auth server generates a disposable one-time token which
+the new node must submit when requesting its certificate for the first time.
+
+Teleport cluster members (servers) can interact with the auth server using the Auth API. The API is 
+implemented as an HTTP REST service running over the SSH transport, authenticated using host 
+certificates previously signed by the CA.
+
+All node-members of the cluster send periodic ping messages to the auth server, reporting their
+IP addresses, values of their assigned labels. The list of connected cluster nodes is accessible
+to all members of the cluster via the API.
+
+Clients cannot connect to the auth API directly (because client computers do not have valid 
+cluster certificates). Clients can interact with the auth API only via Teleport proxy.
+
+Cluster administration is performed using `tctl` command line tool.
+
+**Production note:** For high availability a Teleport cluster can be serviced by multiple auth servers 
+running in sync. Check [HA configuration]() in the Admin Guide.
