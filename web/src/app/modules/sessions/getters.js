@@ -62,8 +62,8 @@ function createView(session){
     serverIp,
     serverId,
     active: session.get('active'),
-    created: new Date(session.get('created')),
-    lastActive: new Date(session.get('last_active')),
+    created: session.get('created'),
+    lastActive: session.get('last_active'),
     login: session.get('login'),
     parties: parties,
     cols: session.getIn(['terminal_params', 'w']),
@@ -76,5 +76,5 @@ export default {
   sessionsByServer,
   sessionsView,
   sessionViewById,
-  createView
+  createView  
 }

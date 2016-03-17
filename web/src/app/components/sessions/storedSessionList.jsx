@@ -1,11 +1,11 @@
 var React = require('react');
-var { actions} = require('app/modules/sessions');
+var {actions} = require('app/modules/storedSessionsFilter');
 var LinkedStateMixin = require('react-addons-linked-state-mixin');
 var {Table, Column, Cell, TextCell, SortHeaderCell, SortTypes} = require('app/components/table.jsx');
-var {ButtonCell, SingleUserCell, DateCreatedCell} = require('./listItems');
+var {ButtonCell, SingleUserCell, EmptyList, DateCreatedCell} = require('./listItems');
 var {DateRangePicker, CalendarNav} = require('./../datePicker.jsx');
 var moment =  require('moment');
-var {monthRange} = require('app/common/dateUtils');
+var {weekRange} = require('app/common/dateUtils');
 var {isMatch} = require('app/common/objectUtils');
 var _ = require('_');
 
@@ -14,20 +14,12 @@ var ArchivedSessions = React.createClass({
   mixins: [LinkedStateMixin],
 
   getInitialState(){
-    let [startDate, endDate] = monthRange(new Date());
     this.searchableProps = ['serverIp', 'created', 'sid', 'login'];
-    return { filter: '', colSortDirs: {created: 'ASC'}, startDate, endDate };
+    return { filter: '', colSortDirs: {created: 'ASC'}};
   },
 
   componentWillMount(){
-    actions.fetchSessions(this.state.startDate, this.state.endDate);
-  },
-
-  setDatesAndRefetch(startDate, endDate){
-    actions.fetchSessions(startDate, endDate);
-    this.state.startDate = startDate;
-    this.state.endDate = endDate;
-    this.setState(this.state);
+    setTimeout(()=>actions.fetch(), 0);
   },
 
   onSortChange(columnKey, sortDir) {
@@ -38,12 +30,12 @@ var ArchivedSessions = React.createClass({
   },
 
   onRangePickerChange({startDate, endDate}){
-    this.setDatesAndRefetch(startDate, endDate);
+    actions.setTimeRange(startDate, endDate);
   },
 
   onCalendarNavChange(newValue){
-    let [startDate, endDate] = monthRange(newValue);
-    this.setDatesAndRefetch(startDate, endDate);
+    let [startDate, endDate] = weekRange(newValue);
+    actions.setTimeRange(startDate, endDate);
   },
 
   searchAndFilterCb(targetValue, searchValue, propName){
@@ -71,8 +63,10 @@ var ArchivedSessions = React.createClass({
   },
 
   render: function() {
-    let {startDate, endDate} = this.state;
-    let data = this.props.data.filter(item => !item.active && moment(item.created).isBetween(startDate, endDate));
+    let {start, end, status} = this.props.filter;
+    let data = this.props.data.filter(
+      item => !item.active && moment(item.created).isBetween(start, end));
+
     data = this.sortAndFilter(data);
 
     return (
@@ -81,10 +75,10 @@ var ArchivedSessions = React.createClass({
           <h1> Archived Sessions </h1>
           <div className="grv-flex">
             <div className="grv-flex-row">
-              <DateRangePicker startDate={startDate} endDate={endDate} onChange={this.onRangePickerChange}/>
+              <DateRangePicker startDate={start} endDate={end} onChange={this.onRangePickerChange}/>
             </div>
             <div className="grv-flex-row">
-              <CalendarNav value={startDate} onValueChange={this.onCalendarNavChange}/>
+              <CalendarNav value={end} onValueChange={this.onCalendarNavChange}/>
             </div>
             <div className="grv-flex-row">
               <div className="grv-search">
@@ -93,38 +87,49 @@ var ArchivedSessions = React.createClass({
             </div>
           </div>
         </div>
+
         <div className="grv-content">
-          <div className="">
-            <Table rowCount={data.length} className="table-striped">
-              <Column
-                columnKey="sid"
-                header={<Cell> Session ID </Cell> }
-                cell={<TextCell data={data}/> }
-              />
-              <Column
-                header={<Cell> </Cell> }
-                cell={
-                  <ButtonCell data={data} />
-                }
-              />
-              <Column
-                columnKey="created"
-                header={
-                  <SortHeaderCell
-                    sortDir={this.state.colSortDirs.created}
-                    onSortChange={this.onSortChange}
-                    title="Created"
-                  />
-                }
-                cell={<DateCreatedCell data={data}/> }
-              />
-              <Column
-                header={<Cell> User </Cell> }
-                cell={<SingleUserCell data={data}/> }
-              />
-            </Table>
-          </div>
+          {data.length === 0 && !status.isLoading ? <EmptyList text="No matching archived sessions found."/> :
+            <div className="">
+              <Table rowCount={data.length} className="table-striped">
+                <Column
+                  columnKey="sid"
+                  header={<Cell> Session ID </Cell> }
+                  cell={<TextCell data={data}/> }
+                />
+                <Column
+                  header={<Cell> </Cell> }
+                  cell={
+                    <ButtonCell data={data} />
+                  }
+                />
+                <Column
+                  columnKey="created"
+                  header={
+                    <SortHeaderCell
+                      sortDir={this.state.colSortDirs.created}
+                      onSortChange={this.onSortChange}
+                      title="Created"
+                    />
+                  }
+                  cell={<DateCreatedCell data={data}/> }
+                />
+                <Column
+                  header={<Cell> User </Cell> }
+                  cell={<SingleUserCell data={data}/> }
+                />
+              </Table>
+            </div>
+          }
         </div>
+        {
+          status.hasMore ?
+            (<div className="grv-footer">
+              <button disabled={status.isLoading} className="btn btn-primary btn-outline" onClick={actions.fetchMore}>
+                <span>Load more...</span>
+              </button>
+            </div>) : null
+        }
       </div>
     )
   }

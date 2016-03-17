@@ -1,9 +1,9 @@
-var { Store, toImmutable } = require('nuclear-js');
+var { Store, toImmutable, Immutable } = require('nuclear-js');
 var { TLPT_SESSINS_RECEIVE, TLPT_SESSINS_UPDATE }  = require('./actionTypes');
 
 export default Store({
   getInitialState() {
-    return toImmutable({});
+    return new Immutable.OrderedMap();
   },
 
   initialize() {
@@ -19,6 +19,8 @@ function updateSession(state, json){
 function receiveSessions(state, jsonArray=[]){
   return state.withMutations(state => {
     jsonArray.forEach((item) => {
+      item.created = new Date(item.created);
+      item.last_active = new Date(item.last_active);
       state.set(item.id, toImmutable(item))
     })
   });
