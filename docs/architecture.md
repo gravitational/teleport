@@ -48,7 +48,7 @@ Lets explore how these services come together and interact with Teleport clients
 
 **High Level Diagram of a Teleport cluster**
 
-![Teleport Overview](img/overview.png)
+<img src="img/overview.svg"></img>
 
 Notice that the Teleport Admin tool must be physically present on the same machine where
 Teleport Auth is running. Adding new nodes or inviting new users to the cluster is only
@@ -109,7 +109,7 @@ node.
 
 **Detailed Diagram of a Teleport cluster**
 
-![Teleport Everything](img/everything.png)
+![Teleport Everything](img/everything.svg)
 
 Lets explore each of the Teleport services in detail.
 
@@ -123,7 +123,7 @@ configurable key storage. The auth server also keeps the records of what has bee
 inside the cluster: it stores recordings of all SSH sessions in the configurable events 
 storage.
 
-![Teleport Auth](img/auth-server.png)
+![Teleport Auth](img/auth-server.svg)
 
 #### Auth API
 
