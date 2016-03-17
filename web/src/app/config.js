@@ -8,6 +8,17 @@ let cfg = {
 
   maxSessionLoadSize: 50,
 
+  routes: {
+    app: '/web',
+    logout: '/web/logout',
+    login: '/web/login',
+    nodes: '/web/nodes',
+    activeSession: '/web/sessions/:sid',
+    newUser: '/web/newuser/:inviteToken',
+    sessions: '/web/sessions',
+    pageNotFound: '/web/notfound'
+  },
+
   api: {
     renewTokenPath:'/v1/webapi/sessions/renew',
     nodesPath: '/v1/webapi/sites/-current-/nodes',
@@ -17,6 +28,7 @@ let cfg = {
     createUserPath: '/v1/webapi/users',
     sessionChunk: '/v1/webapi/sites/-current-/sessions/:sid/chunks?start=:start&end=:end',
     sessionChunkCountPath: '/v1/webapi/sites/-current-/sessions/:sid/chunkscount',
+    siteEventSessionFilterPath: `/v1/webapi/sites/-current-/events/sessions?filter=:filter`,
 
     getFetchSessionChunkUrl: ({sid, start, end})=>{
       return formatPattern(cfg.api.sessionChunk, {sid, start, end});
@@ -27,10 +39,8 @@ let cfg = {
     },
 
     getFetchSessionsUrl: (args)=>{
-      var json = JSON.stringify(args);
-      var jsonEncoded = window.encodeURI(json);
-
-      return `/v1/webapi/sites/-current-/events/sessions?filter=${jsonEncoded}`;
+      var filter = JSON.stringify(args);
+      return formatPattern(cfg.api.siteEventSessionFilterPath, {filter});      
     },
 
     getFetchSessionUrl: (sid)=>{
@@ -66,17 +76,6 @@ let cfg = {
       var hostname = getWsHostName();
       return `${hostname}/v1/webapi/sites/-current-/connect?access_token=${token}&params=${jsonEncoded}`;
     }
-  },
-
-  routes: {
-    app: '/web',
-    logout: '/web/logout',
-    login: '/web/login',
-    nodes: '/web/nodes',
-    activeSession: '/web/sessions/:sid',
-    newUser: '/web/newuser/:inviteToken',
-    sessions: '/web/sessions',
-    pageNotFound: '/web/notfound'
   },
 
   getActiveSessionRouteUrl(sid){

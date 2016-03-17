@@ -1,3 +1,19 @@
+/*
+Copyright 2015 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 var ids = {
   serverIds: ['ad2109a6-42ac-44e4-a570-5ce1b470f9b6'],
   sids: ['f60c4f1e-aedd-4fa6-8fe5-8068b49b17b4', '11d76502-0ed7-470c-9ae2-472f3873fa6e']
