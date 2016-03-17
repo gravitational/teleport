@@ -81,6 +81,14 @@ const (
 	// TODO(klizhentas) all polling periods should go away once backend
 	// releases
 	SessionRefreshPeriod = 1 * time.Second
+
+	// DefaultDialTimeout is a default TCP dial timeout we set for our
+	// connection attempts
+	DefaultDialTimeout = 30 * time.Second
+
+	// DefaultReadHeadersTimeout is a default TCP timeout when we wait
+	// for the response headers to arrive
+	DefaultReadHeadersTimeout = time.Second
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

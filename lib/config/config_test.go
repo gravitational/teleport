@@ -161,6 +161,9 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 
 	c.Assert(conf.SSH.Disabled(), check.Equals, true) // "ssh_service" has been explicitly set to "no"
 	c.Assert(conf.Storage.Peers, check.DeepEquals, []string{"one", "two"})
+	c.Assert(conf.Storage.TLSKeyFile, check.Equals, "/tls.key")
+	c.Assert(conf.Storage.TLSCertFile, check.Equals, "/tls.cert")
+	c.Assert(conf.Storage.TLSCAFile, check.Equals, "/tls.ca")
 	c.Assert(conf.SSH.Commands, check.HasLen, 2)
 	c.Assert(conf.SSH.Commands[0].Name, check.Equals, "hostname")
 	c.Assert(conf.SSH.Commands[0].Command, check.DeepEquals, []string{"/bin/hostname"})
@@ -258,6 +261,9 @@ teleport:
   storage:
     type: etcd
     peers: ['one', 'two']
+    tls_key_file: /tls.key
+    tls_cert_file: /tls.cert
+    tls_ca_file: /tls.ca
   connection_limits:
     max_connections: 90
     max_users: 91
