@@ -82,6 +82,7 @@ var InviteInputForm = React.createClass({
         <div className="">
           <div className="form-group">
             <input
+              disabled
               valueLink={this.linkState('name')}
               name="userName"
               className="form-control required"
@@ -107,6 +108,7 @@ var InviteInputForm = React.createClass({
           </div>
           <div className="form-group">
             <input
+              autoComplete="off"
               name="token"
               valueLink={this.linkState('token')}
               className="form-control required"

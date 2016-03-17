@@ -60,7 +60,7 @@ var LoginInputForm = React.createClass({
             <input valueLink={this.linkState('password')} type="password" name="password" className="form-control required" placeholder="Password"/>
           </div>
           <div className="form-group">
-            <input valueLink={this.linkState('token')} className="form-control required" name="token" placeholder="Two factor token (Google Authenticator)"/>
+            <input autoComplete="off" valueLink={this.linkState('token')} className="form-control required" name="token" placeholder="Two factor token (Google Authenticator)"/>
           </div>
           <button onClick={this.onClick} disabled={isProcessing} type="submit" className="btn btn-primary block full-width m-b">Login</button>
           { isFailed ? (<label className="error">{message}</label>) : null }
