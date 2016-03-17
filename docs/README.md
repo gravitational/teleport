@@ -86,14 +86,18 @@ pick a password.
 Having done that, you will be presented with a Web UI where you will see your machine and 
 will be able to log into it using web-based terminal.
 
+#### Login
+
 Lets login using the command line too:
 
 ```bash
 tsh --proxy=localhost localhost
 ```
 
-You're in! Notice that `tsh` client always needs the `--proxy` flag because all client connections
-in Teleport have to go via proxy, sometimes called an "SSH bastion".
+You're in! Notice that `tsh` client always needs `--proxy` flag because all client connections
+in Teleport have to go via a proxy sometimes called an "SSH bastion".
+
+#### Adding Nodes to Cluster
 
 Lets add another node to your cluster. Lets assume the other node can be reached by
 hostname `luna`. 
@@ -123,10 +127,13 @@ localhost     xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.1:3022
 luna          xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022     
 ```
 
-Notice the "Labels" column which is currently empty. Labels in teleport allow you to apply static
-or dynamic labels to your nodes so you can quickly find the right node when you have many.
+#### Using Node Labels
 
-Lets stop `teleport` on "luna" and start it with the following command:
+Notice the "Labels" column in the outuput above. It is currently not populated. Teleport lets 
+you apply static or dynamic labels to your nodes. As the cluster grows and nodes assume different 
+roles, labels will help to find the right node quickly.
+
+Lets see labels in action. Stop `teleport` on "luna" and restart it with the following command:
 
 ```bash
 teleport start --roles=node --auth-server=10.0.10.1 --nodename=db --labels "location=virginia,arch=[1h:/bin/uname -m]"
@@ -134,7 +141,7 @@ teleport start --roles=node --auth-server=10.0.10.1 --nodename=db --labels "loca
 
 Notice a few things here:
 
-* We did not use `--token` flag because "luna" is already a member of the cluster.
+* We did not use `--token` flag this time, because "luna" is already a member of the cluster.
 * We renamed "luna" to "db" because this machine is running a database. This name only exists within Teleport, the actual hostname has not changed.
 * We assigned a static label "location" to this host and set it to "viriginia".
 * We also assigned a dynamic label "arch" which will evaluate `/bin/uname -m` command once an hour and assign the output to this label value.
@@ -167,6 +174,60 @@ on all servers located in Virginia:
 ```
 > tsh --proxy=localhost ssh location=virginia ls -l /
 ```
+
+#### Sharing SSH Sessions with Colleagues
+
+Suppose you are trying to troubleshoot a problem on a node. Sometimes it makes sense to ask 
+another team member for help. Traditionally this could be done by letting them know which 
+node you're on, having them SSH in, start a terminal multiplexer like `screen` and join a 
+session there.
+
+Teleport makes this a bit more convenient. Lets login into "luna" and ask Teleport for your 
+current session status:
+
+```bash
+> tsh --proxy=teleport.example.com ssh luna
+luna > teleport status
+
+User ID    : joe, logged in as joe from 10.0.10.1 43026 3022
+Session ID : 7645d523-60cb-436d-b732-99c5df14b7c4
+Session URL: https://teleport.example.com:3080/web/sessions/7645d523-60cb-436d-b732-99c5df14b7c4
+```
+
+You can share the Session URL with a colleague in your organization. Assuming that `teleport.example.com`
+is your company's Teleport proxy, he will be able to join and help you troubleshoot the
+problem on "luna" in his browser.
+
+Also, people can join your session via CLI. They will have to run:
+
+```bash
+> tsh --proxy=teleport.example.com join 7645d523-60cb-436d-b732-99c5df14b7c4
+```
+
+NOTE: for this to work, both of you must have proper user mappings allowing you 
+access `luna` under the same OS user.
+
+#### Inviting Colleagues to your Laptop
+
+Sometimes you may want to temporarily open up your own laptop for someone else (if you
+trust them, of course). First, you will have to start teleport with `--roles=node` in
+a separate Terminal:
+
+```bash
+> teleport start --proxy=teleport.example.com
+```
+
+... then you will need to start a local SSH session by logging into localhost and
+asking for a session ID:
+
+```bash
+> tsh --proxy=teleport.example.com ssh localhost
+localhost> teleport status
+```
+
+Now you can invite someone into your localhost session. They will need to have a proper
+user mapping, of course, to be allowed to join your session. To disconnect, shut down 
+`teleport` daemon or simply exit the `tsh` session.
 
 # Architecture
 
