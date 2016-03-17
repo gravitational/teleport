@@ -17,7 +17,7 @@ limitations under the License.
 var EventEmitter = require('events').EventEmitter;
 var session = require('app/services/session');
 var cfg = require('app/config');
-var {actions} = require('app/modules/activeTerminal/');
+var {actions} = require('app/modules/currentSession/');
 
 class Tty extends EventEmitter {
 

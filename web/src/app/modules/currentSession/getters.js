@@ -16,10 +16,9 @@ limitations under the License.
 
 var {createView} = require('app/modules/sessions/getters');
 
-const activeSession = [
-['tlpt_current_session'], ['tlpt_sessions'],
-(activeTerm, sessions) => {
-    if(!activeTerm){
+const currentSession = [ ['tlpt_current_session'], ['tlpt_sessions'],
+(current, sessions) => {
+    if(!current){
       return null;
     }
 
@@ -28,36 +27,36 @@ const activeSession = [
     * exist at this point. For example, upon creating a new session we need to know
     * login and serverId. It will be simplified once server API gets extended.
     */
-    let asView = {
-      isNewSession: activeTerm.get('isNewSession'),
-      notFound: activeTerm.get('notFound'),
-      addr: activeTerm.get('addr'),
-      serverId: activeTerm.get('serverId'),
+    let curSessionView = {
+      isNewSession: current.get('isNewSession'),
+      notFound: current.get('notFound'),
+      addr: current.get('addr'),
+      serverId: current.get('serverId'),
       serverIp: undefined,
-      login: activeTerm.get('login'),
-      sid: activeTerm.get('sid'),
+      login: current.get('login'),
+      sid: current.get('sid'),
       cols: undefined,
       rows: undefined
     };
 
-    // in case if session already exists, get the data from there
-    // (for example, when joining an existing session)
-    if(sessions.has(asView.sid)){
-      let sView = createView(sessions.get(asView.sid));
+    /*
+    * in case if session already exists, get its view data (for example, when joining an existing session)
+    */
+    if(sessions.has(curSessionView.sid)){
+      let existing = createView(sessions.get(curSessionView.sid));
 
-      asView.parties = sView.parties;
-      asView.serverIp = sView.serverIp;
-      asView.serverId = sView.serverId;
-      asView.active = sView.active;
-      asView.cols = sView.cols;
-      asView.rows = sView.rows;
+      curSessionView.parties = existing.parties;
+      curSessionView.serverIp = existing.serverIp;
+      curSessionView.serverId = existing.serverId;
+      curSessionView.active = existing.active;
+      curSessionView.cols = existing.cols;
+      curSessionView.rows = existing.rows;
     }
 
-    return asView;
-
+    return curSessionView;
   }
 ];
 
 export default {
-  activeSession
+  currentSession
 }

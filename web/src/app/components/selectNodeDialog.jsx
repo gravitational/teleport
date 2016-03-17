@@ -19,7 +19,7 @@ var reactor = require('app/reactor');
 var {getters} = require('app/modules/dialogs');
 var {closeSelectNodeDialog} = require('app/modules/dialogs/actions');
 var NodeList = require('./nodes/nodeList.jsx');
-var activeSessionGetters = require('app/modules/activeTerminal/getters');
+var currentSessionGetters = require('app/modules/currentSession/getters');
 var nodeGetters = require('app/modules/nodes/getters');
 var $ = require('jQuery');
 
@@ -57,7 +57,7 @@ var Dialog = React.createClass({
   },
 
   render() {
-    var activeSession = reactor.evaluate(activeSessionGetters.activeSession) || {};
+    var activeSession = reactor.evaluate(currentSessionGetters.currentSession) || {};
     var nodeRecords = reactor.evaluate(nodeGetters.nodeListView);
     var logins = [activeSession.login];
 

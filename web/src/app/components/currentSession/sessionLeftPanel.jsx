@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 var React = require('react');
-var {actions} = require('app/modules/activeTerminal/');
+var {actions} = require('app/modules/currentSession/');
 var colors = ['#104137', '#1c84c6', '#23c6c8', '#f8ac59', '#ED5565', '#c2c2c2'];
 var ReactCSSTransitionGroup = require('react-addons-css-transition-group');
 

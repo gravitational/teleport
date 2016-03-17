@@ -31,7 +31,7 @@ var ActiveSession = React.createClass({
   },
 
   render: function() {
-    let {login, parties, serverId} = this.props.activeSession;
+    let {login, parties, serverId} = this.props.session;
     let serverLabelText = '';
     if(serverId){
       let hostname = reactor.evaluate(nodeHostNameByServerId(serverId));
@@ -44,7 +44,7 @@ var ActiveSession = React.createClass({
        <div className="grv-current-session-server-info">
          <h3>{serverLabelText}</h3>
        </div>
-       <TtyConnection {...this.props.activeSession} />
+       <TtyConnection {...this.props.session} />
      </div>
      );
   }

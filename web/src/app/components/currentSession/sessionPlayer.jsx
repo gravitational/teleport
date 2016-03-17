@@ -32,7 +32,7 @@ var SessionPlayer = React.createClass({
   },
 
   getInitialState() {
-    var sid = this.props.activeSession.sid;
+    var sid = this.props.session.sid;
     this.tty = new TtyPlayer({sid});
     return this.calculateState();
   },

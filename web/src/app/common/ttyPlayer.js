@@ -17,6 +17,13 @@ limitations under the License.
 var Tty = require('app/common/tty');
 var api = require('app/services/api');
 var cfg = require('app/config');
+var {showError} = require('app/modules/notifications/actions');
+const logger = require('app/common/logger').create('TtyPlayer');
+
+function handleAjaxError(err){
+  showError('Unable to retrieve session info');
+  logger.error('fetching session length', err);
+}
 
 class TtyPlayer extends Tty {
   constructor({sid}){
@@ -44,7 +51,8 @@ class TtyPlayer extends Tty {
         this.length = data.count;
         this.isReady = true;
       })
-      .fail(()=>{
+      .fail((err)=>{
+        handleAjaxError(err);
         this.isError = true;
       })
       .always(()=>{
@@ -127,7 +135,11 @@ class TtyPlayer extends Tty {
           var delay = response.chunks[i].delay;
           this.ttySteam[start+i] = { data, delay};
         }
-      });
+      })
+      .fail((err)=>{
+        handleAjaxError(err);
+        this.isError = true;
+      })
   }
 
   _showChunk(start, end){

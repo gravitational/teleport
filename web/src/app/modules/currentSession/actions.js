@@ -22,21 +22,14 @@ var getters = require('./getters');
 var sessionModule = require('./../sessions');
 
 const logger = require('app/common/logger').create('Current Session');
-const { TLPT_TERM_OPEN, TLPT_TERM_CLOSE, TLPT_TERM_CHANGE_SERVER } = require('./actionTypes');
+const { TLPT_CURRENT_SESSION_OPEN, TLPT_CURRENT_SESSION_CLOSE } = require('./actionTypes');
 
 const actions = {
 
-  changeServer(serverId, login){
-    reactor.dispatch(TLPT_TERM_CHANGE_SERVER, {
-      serverId,
-      login
-    });
-  },
-
   close(){
-    let {isNewSession} = reactor.evaluate(getters.activeSession);
+    let {isNewSession} = reactor.evaluate(getters.currentSession);
 
-    reactor.dispatch(TLPT_TERM_CLOSE);
+    reactor.dispatch(TLPT_CURRENT_SESSION_CLOSE);
 
     if(isNewSession){
       session.getHistory().push(cfg.routes.nodes);
@@ -51,7 +44,7 @@ const actions = {
     h = h < 5 ? 5 : h;
 
     let reqData = { terminal_params: { w, h } };
-    let {sid} = reactor.evaluate(getters.activeSession);
+    let {sid} = reactor.evaluate(getters.currentSession);
 
     logger.info('resize', `w:${w} and h:${h}`);
     api.put(cfg.api.getTerminalSessionUrl(sid), reqData)
@@ -66,7 +59,7 @@ const actions = {
         let sView = reactor.evaluate(sessionModule.getters.sessionViewById(sid));
         let { serverId, login } = sView;
         logger.info('open session', 'OK');
-        reactor.dispatch(TLPT_TERM_OPEN, {
+        reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {
             serverId,
             login,
             sid,
@@ -85,7 +78,7 @@ const actions = {
     var history = session.getHistory();
 
     logger.info('createNewSession', {serverId, login});
-    reactor.dispatch(TLPT_TERM_OPEN, {
+    reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {
       serverId,
       login,
       sid,

@@ -16,7 +16,7 @@ limitations under the License.
 
 var React = require('react');
 var reactor = require('app/reactor');
-var {getters, actions} = require('app/modules/activeTerminal/');
+var {getters, actions} = require('app/modules/currentSession/');
 var SessionPlayer = require('./sessionPlayer.jsx');
 var ActiveSession = require('./activeSession.jsx');
 
@@ -26,7 +26,7 @@ var CurrentSessionHost = React.createClass({
 
   getDataBindings() {
     return {
-      currentSession: getters.activeSession
+      currentSession: getters.currentSession
     }
   },
 
@@ -44,10 +44,10 @@ var CurrentSessionHost = React.createClass({
     }
 
     if(currentSession.isNewSession || currentSession.active){
-      return <ActiveSession activeSession={currentSession}/>;
+      return <ActiveSession session={currentSession}/>;
     }
 
-    return <SessionPlayer activeSession={currentSession}/>;
+    return <SessionPlayer session={currentSession}/>;
   }
 });
 

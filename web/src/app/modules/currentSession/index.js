@@ -15,4 +15,4 @@ limitations under the License.
 */
 module.exports.getters = require('./getters');
 module.exports.actions = require('./actions');
-module.exports.activeTermStore = require('./activeTermStore');
+module.exports.activeTermStore = require('./currentSessionStore');

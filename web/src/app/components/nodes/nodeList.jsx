@@ -17,7 +17,7 @@ limitations under the License.
 var React = require('react');
 var InputSearch = require('./../inputSearch.jsx');
 var {Table, Column, Cell, SortHeaderCell, SortTypes} = require('app/components/table.jsx');
-var {createNewSession} = require('app/modules/activeTerminal/actions');
+var {createNewSession} = require('app/modules/currentSession/actions');
 
 var _ = require('_');
 var {isMatch} = require('app/common/objectUtils');

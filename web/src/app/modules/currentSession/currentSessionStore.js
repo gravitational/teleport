@@ -13,10 +13,30 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-import keyMirror from 'keymirror'
 
-export default keyMirror({
-  TLPT_TERM_OPEN: null,
-  TLPT_TERM_CLOSE: null,
-  TLPT_TERM_CHANGE_SERVER: null
+var { Store, toImmutable } = require('nuclear-js');
+var { TLPT_CURRENT_SESSION_OPEN, TLPT_CURRENT_SESSION_CLOSE }  = require('./actionTypes');
+
+export default Store({
+  getInitialState() {
+    return toImmutable(null);
+  },
+
+  initialize() {
+    this.on(TLPT_CURRENT_SESSION_OPEN, setCurrentSession);
+    this.on(TLPT_CURRENT_SESSION_CLOSE, close);
+  }
 })
+
+function close(){
+  return toImmutable(null);
+}
+
+function setCurrentSession(state, {serverId, login, sid, isNewSession} ){
+  return toImmutable({
+    serverId,
+    login,
+    sid,
+    isNewSession
+  });
+}

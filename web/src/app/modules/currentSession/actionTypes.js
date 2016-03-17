@@ -13,6 +13,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+import keyMirror from 'keymirror'
 
-module.exports.getters = require('./getters');
-module.exports.actions = require('./actions');
+export default keyMirror({
+  TLPT_CURRENT_SESSION_OPEN: null,
+  TLPT_CURRENT_SESSION_CLOSE: null  
+})

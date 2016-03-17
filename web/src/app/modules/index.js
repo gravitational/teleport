@@ -18,7 +18,7 @@ var reactor = require('app/reactor');
 reactor.registerStores({
   'tlpt': require('./app/appStore'),
   'tlpt_dialogs': require('./dialogs/dialogStore'),
-  'tlpt_current_session': require('./activeTerminal/activeTermStore'),
+  'tlpt_current_session': require('./currentSession/currentSessionStore'),
   'tlpt_user': require('./user/userStore'),
   'tlpt_nodes': require('./nodes/nodeStore'),
   'tlpt_invite': require('./invite/inviteStore'),
