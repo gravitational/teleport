@@ -1,12 +1,12 @@
 var reactor = require('app/reactor');
-var {fetchSessions} = require('./../sessions/actions');
+var sessionModule = require('./../sessions');
 var {filter} = require('./getters');
 var {maxSessionLoadSize} = require('app/config');
+var moment = require('moment');
 
 const {
   TLPT_STORED_SESSINS_FILTER_SET_RANGE,
-  TLPT_STORED_SESSINS_FILTER_SET_STATUS,
-  TLPT_STORED_SESSINS_FILTER_RECEIVE_MORE }  = require('./actionTypes');
+  TLPT_STORED_SESSINS_FILTER_SET_STATUS }  = require('./actionTypes');
 
 const actions = {
 
@@ -33,10 +33,24 @@ const actions = {
 
 function _fetch(before, sid){
   reactor.dispatch(TLPT_STORED_SESSINS_FILTER_SET_STATUS, {isLoading: true, hasMore: false});
-  fetchSessions({sid, before, limit: maxSessionLoadSize})
+  sessionModule.actions.fetchSessions({sid, before, limit: maxSessionLoadSize})
     .done((json) => {
+      let {start} = reactor.evaluate(filter);
       let {sessions } = json;
-      reactor.dispatch(TLPT_STORED_SESSINS_FILTER_RECEIVE_MORE, sessions);
+
+      let status = {
+        hasMore: false,
+        isLoading: false
+      }
+
+      if (sessions.length === maxSessionLoadSize) {
+        let {id, created} = sessions[sessions.length-1];
+        status.sid = id;
+        status.nextBefore = new Date(created);
+        status.hasMore = moment(start).isBefore(status.nextBefore)
+      }
+
+      reactor.dispatch(TLPT_STORED_SESSINS_FILTER_SET_STATUS, status);
     });
 }
 

@@ -6,7 +6,7 @@ module.exports = {
   entry: {
     app: ['./src/app/index.jsx'],
     vendor: Object.keys(pkgs.dependencies),
-    styles: ['./src/styles/bootstrap.scss', './src/styles/inspinia/style.scss', './src/styles/grv-app.scss']
+    styles: ['./src/styles/bootstrap/bootstrap.scss', './src/styles/inspinia/style.scss', './src/styles/grv-app.scss']
   },
 
  output: {

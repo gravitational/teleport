@@ -1,9 +1,9 @@
-var { Store, toImmutable, Immutable } = require('nuclear-js');
+var { Store, toImmutable } = require('nuclear-js');
 var { TLPT_SESSINS_RECEIVE, TLPT_SESSINS_UPDATE }  = require('./actionTypes');
 
 export default Store({
   getInitialState() {
-    return new Immutable.OrderedMap();
+    return toImmutable({});
   },
 
   initialize() {

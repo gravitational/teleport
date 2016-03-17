@@ -41,7 +41,11 @@ var NavLeftBar = React.createClass({
     return (
       <nav className='grv-nav navbar-default' role='navigation'>
         <ul className='nav text-center' id='side-menu'>
-          <li title="current user"><div className="grv-circle text-uppercase"><span>{getUserNameLetter()}</span></div></li>
+          <li title="current user">
+            <div className="btn btn-primary btn-circle text-uppercase text-uppercase">
+              <strong>{getUserNameLetter()}</strong>            
+            </div>
+          </li>
           {items}
         </ul>
       </nav>

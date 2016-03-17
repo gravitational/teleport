@@ -1,6 +1,6 @@
 var React = require('react');
 var {actions} = require('app/modules/storedSessionsFilter');
-var LinkedStateMixin = require('react-addons-linked-state-mixin');
+var InputSearch = require('./../inputSearch.jsx');
 var {Table, Column, Cell, TextCell, SortHeaderCell, SortTypes} = require('app/components/table.jsx');
 var {ButtonCell, SingleUserCell, EmptyList, DateCreatedCell} = require('./listItems');
 var {DateRangePicker, CalendarNav} = require('./../datePicker.jsx');
@@ -11,8 +11,6 @@ var _ = require('_');
 
 var ArchivedSessions = React.createClass({
 
-  mixins: [LinkedStateMixin],
-
   getInitialState(){
     this.searchableProps = ['serverIp', 'created', 'sid', 'login'];
     return { filter: '', colSortDirs: {created: 'ASC'}};
@@ -22,11 +20,14 @@ var ArchivedSessions = React.createClass({
     setTimeout(()=>actions.fetch(), 0);
   },
 
+  onFilterChange(value){
+    this.state.filter = value;
+    this.setState(this.state);
+  },
+
   onSortChange(columnKey, sortDir) {
-    this.setState({
-      ...this.state,
-      colSortDirs: { [columnKey]: sortDir }
-    });
+    this.state.colSortDirs = { [columnKey]: sortDir };
+    this.setState(this.state);
   },
 
   onRangePickerChange({startDate, endDate}){
@@ -82,7 +83,7 @@ var ArchivedSessions = React.createClass({
             </div>
             <div className="grv-flex-row">
               <div className="grv-search">
-                <input valueLink={this.linkState('filter')} placeholder="Search..." className="form-control input-sm"/>
+                <InputSearch value={this.filter} onChange={this.onFilterChange}/>
               </div>
             </div>
           </div>

@@ -1,19 +1,20 @@
 var React = require('react');
 var {actions} = require('app/modules/activeTerminal/');
-var colors = ['#1ab394', '#1c84c6', '#23c6c8', '#f8ac59', '#ED5565', '#c2c2c2'];
+var colors = ['#104137', '#1c84c6', '#23c6c8', '#f8ac59', '#ED5565', '#c2c2c2'];
+var ReactCSSTransitionGroup = require('react-addons-css-transition-group');
 
-const UserIcon = ({name, colorIndex=0})=>{
-  let color = colors[colorIndex % colors.length];
+const UserIcon = ({name})=>{
+  let color = colors[0];
   let style = {
     'backgroundColor': color,
     'borderColor': color
   };
 
   return (
-    <li title={name}>
-      <span style={style} className="btn btn-primary btn-circle text-uppercase">
+    <li title={name} className="animated">
+      <button style={style} className="btn btn-primary btn-circle text-uppercase">
         <strong>{name[0]}</strong>
-      </span>
+      </button>
     </li>
   )
 };
@@ -27,13 +28,22 @@ const SessionLeftPanel = ({parties}) => {
   return (
     <div className="grv-terminal-participans">
       <ul className="nav">
-        {userIcons}
-        <li>
+        <li title="Close">
           <button onClick={actions.close} className="btn btn-danger btn-circle" type="button">
             <i className="fa fa-times"></i>
           </button>
         </li>
       </ul>
+      <hr className="grv-divider"/>
+      <ReactCSSTransitionGroup className="nav" component='ul'
+        transitionEnterTimeout={500}
+        transitionLeaveTimeout={500}
+        transitionName={{
+          enter: "fadeIn",
+          leave: "fadeOut"
+        }}>
+        {userIcons}
+      </ReactCSSTransitionGroup>
     </div>
   )
 };

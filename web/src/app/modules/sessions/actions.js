@@ -16,7 +16,7 @@ const actions = {
     });
   },
 
-  fetchSessions({before, sid, limit=2}){
+  fetchSessions({before, sid, limit=cfg.maxSessionLoadSize}){
     let start = before || new Date();
     let params = {
       order: -1,
@@ -32,7 +32,7 @@ const actions = {
     }
 
     return api.get(cfg.api.getFetchSessionsUrl(params))
-      .done((json) => {        
+      .done((json) => {
         reactor.dispatch(TLPT_SESSINS_RECEIVE, json.sessions);
       })
       .fail((err)=>{

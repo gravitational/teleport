@@ -1,7 +1,8 @@
 var React = require('react');
+var InputSearch = require('./../inputSearch.jsx');
 var {Table, Column, Cell, SortHeaderCell, SortTypes} = require('app/components/table.jsx');
 var {createNewSession} = require('app/modules/activeTerminal/actions');
-var LinkedStateMixin = require('react-addons-linked-state-mixin');
+
 var _ = require('_');
 var {isMatch} = require('app/common/objectUtils');
 
@@ -66,20 +67,19 @@ const LoginCell = ({logins, onLoginClick, rowIndex, data, ...props}) => {
 
 var NodeList = React.createClass({
 
-  mixins: [LinkedStateMixin],
-
   getInitialState(/*props*/){
     this.searchableProps = ['addr', 'hostname', 'tags'];
     return { filter: '', colSortDirs: {hostname: SortTypes.DESC} };
   },
 
   onSortChange(columnKey, sortDir) {
-    this.setState({
-      ...this.state,
-      colSortDirs: {
-        [columnKey]: sortDir
-      }
-    });
+    this.state.colSortDirs = { [columnKey]: sortDir };
+    this.setState(this.state);
+  },
+
+  onFilterChange(value){
+    this.state.filter = value;
+    this.setState(this.state);
   },
 
   searchAndFilterCb(targetValue, searchValue, propName){
@@ -121,9 +121,7 @@ var NodeList = React.createClass({
             <h1> Nodes </h1>
           </div>
           <div className="grv-flex-column">
-            <div className="grv-search">
-              <input valueLink={this.linkState('filter')} placeholder="Search..." className="form-control input-sm"/>
-            </div>
+            <InputSearch value={this.filter} onChange={this.onFilterChange}/>
           </div>
         </div>
         <div className="">
