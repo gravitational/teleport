@@ -40,10 +40,26 @@ within multiple organizations.
 
 # Quick Start
 
-## Quick Start
+#### Quick Start
 
-To get a quick feel of Teleport lets start it on `localhost` and connect to via the command
-line client and also via a browser. This quick start assumes you have root permissions.
+Welcome to Teleport Quick Start Guide. The goal of this document is to show off the basic
+capabilities of Teleport on a single node.
+
+#### Core Concepts
+
+There are three types of services Teleport nodes can run: `nodes`, `proxies` and `auth servers`.
+
+- An auth server is the core of a cluster. Auth servers store user accounts and offer  
+  authentication and authorization service for every node and every user in a cluster.
+- Nodes are regular SSH nodes, similar to `sshd` daemon you are probably used to. When a node receives
+  a connection request, it authenticates it via the cluster's auth server.
+- Proxies route client connection requests to an appropriate node and serve a Web UI 
+  which can also be used to login into SSH nodes. Every client-to-node connection in 
+  Teleport must be routed via a proxy.
+
+The `teleport` daemon runs all 3 of these services by default. This Quick Start Guide will
+be using this default behavior to create a single node cluster and interact with it
+using the client CLI tool: `tsh`.
 
 #### Installing
 
@@ -53,7 +69,10 @@ or you can [build it from source](https://github.com/gravitational/teleport).
 
 #### Starting Teleport
 
-Lets create a single-node cluster and connect to it. First, create a directory for Teleport 
+Lets create a single-node cluster and connect to it using the CLI as well as your
+web browser.
+
+First, create a directory for Teleport 
 to keep its data. By default it's `/var/lib/teleport`. Then start `teleport` daemon:
 
 ```bash
@@ -61,14 +80,14 @@ mkdir -p /var/lib/teleport
 teleport start
 ```
 
-At this point you should see Teleport print its services listening addresses into the console.
-You are running a single-node Teleport cluster. 
+At this point you should see Teleport print listening IPs of all 3 services into the console.
+Congradulations! You are running a single-node Teleport cluster. 
 
 #### Creating Users
 
-Teleport users are not the same as OS users on servers. When you create a Teleport user
-you can also specify a list of OS users he can authenticate as. That list is called "user 
-mappings".
+Teleport users are defined on a cluster level, and every Teleport user must be associated with
+a list of machine-level OS usernames it can authenticate as during a login. This list is 
+called "user mappings".
 
 If you do not specify the mappings, the new Teleport user will be assigned a mapping with
 the same name. Lets create a Teleport user with the same name as the OS user:
@@ -89,13 +108,13 @@ will be able to log into it using web-based terminal.
 
 #### Login
 
-Lets login using the command line too:
+Lets login using the `tsh` command line tool:
 
 ```bash
 tsh --proxy=localhost localhost
 ```
 
-You're in! Notice that `tsh` client always needs `--proxy` flag because all client connections
+Notice that `tsh` client always needs `--proxy` flag because all client connections
 in Teleport have to go via a proxy sometimes called an "SSH bastion".
 
 #### Adding Nodes to Cluster
