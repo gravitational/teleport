@@ -6,6 +6,8 @@ let cfg = {
 
   helpUrl: 'https://github.com/gravitational/teleport/blob/master/README.md',
 
+  maxSessionLoadSize: 50,
+
   api: {
     renewTokenPath:'/v1/webapi/sessions/renew',
     nodesPath: '/v1/webapi/sites/-current-/nodes',
@@ -24,13 +26,8 @@ let cfg = {
       return formatPattern(cfg.api.sessionChunkCountPath, {sid});
     },
 
-    getFetchSessionsUrl: (start, end)=>{
-      var params = {
-        start: start.toISOString(),
-        end: end.toISOString()        
-      };
-
-      var json = JSON.stringify(params);
+    getFetchSessionsUrl: (args)=>{
+      var json = JSON.stringify(args);
       var jsonEncoded = window.encodeURI(json);
 
       return `/v1/webapi/sites/-current-/events/sessions?filter=${jsonEncoded}`;
