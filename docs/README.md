@@ -8,7 +8,7 @@ enables teams to easily adopt the following practiecs:
 
 - Avoid key distribution and [trust on first use](https://en.wikipedia.org/wiki/Trust_on_first_use) issues by using auto-expiring keys signed by a cluster certificate authority (CA).
 - Enforce 2nd factor authentication.
-- Connect to clusters located behind firewalls or without direct Internet access via SSH bastions.
+- Connect to clusters located behind firewalls without direct Internet access via SSH bastions.
 - Record and replay SSH sessions for audit purposes.
 - Collaboratively troubleshoot issues via built-in session sharing.
 - Discover online servers and running Docker containers within a cluster with dynamic node labels.
@@ -39,18 +39,21 @@ within multiple organizations.
 
 # Quick Start
 
-### Installing
+## Quick Start
+
+To get a quick feel of Teleport lets start it on `localhost` and connect to via the command
+line client and also via a browser. This quick start assumes you have root permissions.
+
+#### Installing
 
 Gravitational Teleport natively runs on any modern Linux distribution and OSX. You can
 download prebuilt binaries from [here](https://github.com/gravitational/teleport/releases)
 or you can [build it from source](BROKEN).
 
-### Quick Start
+#### Starting Teleport
 
-To get a quick feel of Teleport lets start it on `localhost` and connect to via the command
-line client and also via a browser. This quick start assumes you have root permissions.
-
-Create a directory for Teleport to keep its data and start `teleport` daemon:
+Lets create a single-node cluster and connect to it. First, create a directory for Teleport 
+to keep its data. By default it's `/var/lib/teleport`. Then start `teleport` daemon:
 
 ```bash
 mkdir -p /var/lib/teleport
@@ -58,27 +61,30 @@ teleport start
 ```
 
 At this point you should see Teleport print its services listening addresses into the console.
-You are running a single-node Teleport cluster. Lets add a user to it:
+You are running a single-node Teleport cluster. 
+
+#### Creating Users
+
+Teleport users are not the same as OS users on servers. When you create a Teleport user
+you can also specify a list of OS users he can authenticate as. That list is called "user 
+mappings".
+
+If you do not specify the mappings, the new Teleport user will be assigned a mapping with
+the same name. Lets create a Teleport user with the same name as the OS user:
 
 ```bash
-tctl users add $USER
-```
+> tctl users add $USER
 
-Teleport users are not the same as OS users on servers, but for convenience we've added
-a Teleport user with the same name as your local login.
-
-`tctl` will print a sign-up URL for you to visit and complete the user creation:
-
-```
 Signup token has been created. Share this URL with the user:
 https://turing:3080/web/newuser/96c85ed60b47ad345525f03e1524ac95d78d94ffd2d0fb3c683ff9d6221747c2
 ```
 
-You will have to open this link in your browser, install Google Authenticator on your phone,
-set up 2nd factor authentication and pick a password.
+`tctl` prints a sign-up URL for you to visit and complete registration. Open this link in a 
+browser, install Google Authenticator on your phone, set up 2nd factor authentication and 
+pick a password.
 
-Once you have done that, you will be presented with a Web UI where you will see your 
-machine and will be able to log into it using web-based terminal.
+Having done that, you will be presented with a Web UI where you will see your machine and 
+will be able to log into it using web-based terminal.
 
 Lets login using the command line too:
 
