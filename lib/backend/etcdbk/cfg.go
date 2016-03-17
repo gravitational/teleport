@@ -28,28 +28,45 @@ import (
 
 // Config represents JSON config for etcd backend
 type Config struct {
-	Nodes []string `json:"nodes"`
-	Key   string   `json:"key"`
+	Nodes       []string `json:"nodes"`
+	Key         string   `json:"key"`
+	TLSKeyFile  string   `json:"tls_key_file"`
+	TLSCertFile string   `json:"tls_cert_file"`
+	TLSCAFile   string   `json:"tls_ca_file"`
+}
+
+// Check checks if all the parameters are valid
+func (cfg *Config) Check() error {
+	if len(cfg.Key) == 0 {
+		return trace.Wrap(teleport.BadParameter("Key", `supply a valid root key for Teleport data`))
+	}
+	if len(cfg.Nodes) == 0 {
+		return trace.Wrap(teleport.BadParameter("Nodes", `please supply a valid dictionary, e.g. {"nodes": ["http://localhost:4001]}`))
+	}
+	if cfg.TLSKeyFile == "" {
+		return trace.Wrap(teleport.BadParameter("TLSKeyFile", `please supply a path to TLS private key file`))
+	}
+	if cfg.TLSCertFile == "" {
+		return trace.Wrap(teleport.BadParameter("TLSCertFile", `please supply a path to TLS certificate file`))
+	}
+	return nil
 }
 
 // FromObject initialized the backend from backend-specific string
 func FromObject(in interface{}) (backend.Backend, error) {
-	var c *Config
-	if err := utils.ObjectToStruct(in, &c); err != nil {
+	var cfg *Config
+	if err := utils.ObjectToStruct(in, &cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(c.Nodes) == 0 {
-		return nil, trace.Wrap(teleport.BadParameter("object", `please supply a valid dictionary, e.g. {"nodes": ["http://localhost:4001]}`))
-	}
-	return New(c.Nodes, c.Key)
+	return New(*cfg)
 }
 
 // FromJSON returns backend initialized from JSON-encoded string
 func FromJSON(paramsJSON string) (backend.Backend, error) {
-	c := Config{}
-	err := json.Unmarshal([]byte(paramsJSON), &c)
+	cfg := Config{}
+	err := json.Unmarshal([]byte(paramsJSON), &cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return New(c.Nodes, c.Key)
+	return New(cfg)
 }

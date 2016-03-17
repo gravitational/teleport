@@ -18,7 +18,6 @@ package etcdbk
 
 import (
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/gravitational/teleport"
@@ -33,34 +32,31 @@ import (
 func TestEtcd(t *testing.T) { TestingT(t) }
 
 type EtcdSuite struct {
-	bk         *bk
-	suite      test.BackendSuite
-	nodes      []string
-	etcdPrefix string
-	api        client.KeysAPI
-	changesC   chan interface{}
-	key        string
-	stopC      chan bool
+	bk           *bk
+	suite        test.BackendSuite
+	configString string
+	api          client.KeysAPI
+	changesC     chan interface{}
+	key          string
+	stopC        chan bool
 }
 
-var _ = Suite(&EtcdSuite{
-	etcdPrefix: "/teleport_test",
-})
+var _ = Suite(&EtcdSuite{})
 
 func (s *EtcdSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
-	nodesVal := os.Getenv("TELEPORT_TEST_ETCD_NODES")
-	if nodesVal == "" {
+	configString := os.Getenv("TELEPORT_TEST_ETCD_CONFIG")
+	if configString == "" {
 		// Skips the entire suite
-		c.Skip("This test requires etcd, provide comma separated nodes in TELEPORT_TEST_ETCD_NODES environment variable")
+		c.Skip("This test requires etcd, provide comma separated nodes in TELEPORT_TEST_ETCD_CONFIG environment variable")
 		return
 	}
-	s.nodes = strings.Split(nodesVal, ",")
+	s.configString = configString
 }
 
 func (s *EtcdSuite) SetUpTest(c *C) {
 	// Initiate a backend with a registry
-	b, err := New(s.nodes, s.etcdPrefix)
+	b, err := FromJSON(s.configString)
 	c.Assert(err, IsNil)
 	s.bk = b.(*bk)
 	s.api = client.NewKeysAPI(s.bk.client)
@@ -69,7 +65,7 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 	s.stopC = make(chan bool)
 
 	// Delete all values under the given prefix
-	_, err = s.api.Delete(context.Background(), s.etcdPrefix, &client.DeleteOptions{Recursive: true, Dir: true})
+	_, err = s.api.Delete(context.Background(), s.bk.cfg.Key, &client.DeleteOptions{Recursive: true, Dir: true})
 	err = convertErr(err)
 	if err != nil && !teleport.IsNotFound(err) {
 		c.Assert(err, IsNil)
@@ -83,12 +79,6 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 func (s *EtcdSuite) TearDownTest(c *C) {
 	close(s.stopC)
 	c.Assert(s.bk.Close(), IsNil)
-}
-
-func (s *EtcdSuite) TestFromObject(c *C) {
-	b, err := FromObject(map[string]interface{}{"nodes": s.nodes, "key": s.etcdPrefix})
-	c.Assert(err, IsNil)
-	c.Assert(b, NotNil)
 }
 
 func (s *EtcdSuite) TestBasicCRUD(c *C) {
