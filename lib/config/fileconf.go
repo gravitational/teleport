@@ -66,6 +66,9 @@ var (
 		"https_key_file":    true,
 		"https_cert_file":   true,
 		"advertise_ip":      true,
+		"tls_key_file":      true,
+		"tls_cert_file":     true,
+		"tls_ca_file":       true,
 	}
 )
 
@@ -270,6 +273,12 @@ type StorageBackend struct {
 	Peers []string `yaml:"peers,omitempty"`
 	// Prefix is etcd key prefix, valid only for etcd
 	Prefix string `yaml:"prefix,omitempty"`
+	// TLSCertFile is a tls client cert file, used for etcd
+	TLSCertFile string `yaml:"tls_cert_file,omitempty"`
+	// TLSKeyFile is a file with TLS private key for client auth
+	TLSKeyFile string `yaml:"tls_key_file,omitempty"`
+	// TLSCAFile is a tls client trusted CA file, used for etcd
+	TLSCAFile string `yaml:"tls_ca_file,omitempty"`
 }
 
 // Global is 'teleport' (global) section of the config file
