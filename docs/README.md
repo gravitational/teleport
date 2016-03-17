@@ -4,7 +4,7 @@
 
 Gravitational Teleport is a tool for remotely accessing isolated clusters of 
 Linux servers via SSH or HTTPS. Unlike traditional key-based access, Teleport 
-enables teams to easily adopt the following practiecs:
+enables teams to easily adopt the following practices:
 
 - Avoid key distribution and [trust on first use](https://en.wikipedia.org/wiki/Trust_on_first_use) issues by using auto-expiring keys signed by a cluster certificate authority (CA).
 - Enforce 2nd factor authentication.
@@ -20,8 +20,8 @@ Take a look at [Quick Start]() page to get a taste of using Teleport, or read th
 
 Mature tech companies with significant infrastructure footprints tend to implement most
 of these patterns internally. Gravitational Teleport allows smaller companies without 
-significant in-house SSH epxertise to easily do the same. It comes with a beautiful
-Web UI and a very permissive [Apache 2.0](https://github.com/gravitational/teleport/blob/master/LICENSE)
+significant in-house SSH expertise to easily adopt them as well. Teleport comes with a 
+beautiful Web UI and a very permissive [Apache 2.0](https://github.com/gravitational/teleport/blob/master/LICENSE)
 license.
 
 Teleport is built on top of the high-quality [Golang SSH](https://godoc.org/golang.org/x/crypto/ssh) 
@@ -29,9 +29,10 @@ implementation and it is fully compatible with OpenSSH.
 
 ### Who Built Teleport?
 
-Teleport is built by [Gravitational Inc](https://gravitational.com). We created Teleport by borrowing 
-from our previous experiences at Rackspace. It has been extracted from the [Gravity](http://gravitational.com/vendors.html), 
-our system for deploying and remotely managing SaaS applications running in many cloud regions or even on-premise.
+Teleport was created by [Gravitational Inc](https://gravitational.com). We have built Teleport 
+by borrowing from our previous experiences at Rackspace. It has been extracted from the 
+[Gravity](http://gravitational.com/vendors.html), our system for helping our clients to deploy 
+and remotely manage their SaaS applications into many cloud regions or even on-premise.
 
 Being a wonderful standalone tool, Teleport can be used as a software library enabling 
 trust management in a complex multi-cluster, multi-region scenarios across many teams 
@@ -47,8 +48,8 @@ line client and also via a browser. This quick start assumes you have root permi
 #### Installing
 
 Gravitational Teleport natively runs on any modern Linux distribution and OSX. You can
-download prebuilt binaries from [here](https://github.com/gravitational/teleport/releases)
-or you can [build it from source](BROKEN).
+download pre-built binaries from [here](https://github.com/gravitational/teleport/releases)
+or you can [build it from source](https://github.com/gravitational/teleport).
 
 #### Starting Teleport
 
@@ -100,10 +101,8 @@ in Teleport have to go via a proxy sometimes called an "SSH bastion".
 #### Adding Nodes to Cluster
 
 Lets add another node to your cluster. Lets assume the other node can be reached by
-hostname `luna`. 
-
-`tctl` command below will create a single-use token for a node to join and will print instructions
-for you to follow:
+hostname "luna". `tctl` command below will create a single-use token for a node to 
+join and will print instructions for you to follow:
 
 ```bash
 > tctl nodes add
@@ -129,7 +128,7 @@ luna          xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022
 
 #### Using Node Labels
 
-Notice the "Labels" column in the outuput above. It is currently not populated. Teleport lets 
+Notice the "Labels" column in the output above. It is currently not populated. Teleport lets 
 you apply static or dynamic labels to your nodes. As the cluster grows and nodes assume different 
 roles, labels will help to find the right node quickly.
 
@@ -143,7 +142,7 @@ Notice a few things here:
 
 * We did not use `--token` flag this time, because "luna" is already a member of the cluster.
 * We renamed "luna" to "db" because this machine is running a database. This name only exists within Teleport, the actual hostname has not changed.
-* We assigned a static label "location" to this host and set it to "viriginia".
+* We assigned a static label "location" to this host and set it to "virginia".
 * We also assigned a dynamic label "arch" which will evaluate `/bin/uname -m` command once an hour and assign the output to this label value.
 
 Lets take a look at our cluster now:
@@ -238,7 +237,7 @@ description of Teleport architecture.
 
 Teleport was designed in accordance with the following design principles:
 
-* **Off the shelf security**. Teleport does not re-implement any security primitieves
+* **Off the shelf security**. Teleport does not re-implement any security primitives
   and uses well-established, popular implementations of the encryption and network protocols.
 * **Open standards**. There is no security through obscurity. Teleport is fully compatible
   with existing and open standards.
