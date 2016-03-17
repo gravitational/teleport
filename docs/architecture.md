@@ -45,7 +45,8 @@ In addition to `teleport` daemon, there are three client tools you will use:
 ### High Level Overview
 
 Lets explore how these services come together and interact with Teleport clients and with each other. 
-Lets look at this high level diagram illustrating the process:
+
+**High Level Diagram of a Teleport cluster**
 
 ![Teleport Overview](img/overview.png)
 
@@ -106,7 +107,8 @@ node.
    * User's node-level permissions are validated before authorizing him to interact with SSH 
      subsystems.
 
-**Detailed diagram of a Teleport cluster**
+**Detailed Diagram of a Teleport cluster**
+
 ![Teleport Everything](img/everything.png)
 
 Lets explore each of the Teleport services in detail.
