@@ -3,7 +3,7 @@
 #
 BBOX=teleport-buildbox:latest
 SRCDIR=/gopath/src/github.com/gravitational/teleport
-DOCKERFLAGS=-i --rm=true -v "$$(pwd)/../":$(SRCDIR)
+DOCKERFLAGS= --rm=true -v "$$(pwd)/../":$(SRCDIR)
 BUILDFLAGS=-ldflags -w
 NOROOT=-u $$(id -u):$$(id -g)
 
@@ -20,7 +20,7 @@ build: bbox
 #
 .PHONY:bbox
 bbox:
-	docker build --tag $(BBOX) .
+	docker build --build-arg UID=$$(id -u) --build-arg GID=$$(id -g) --tag $(BBOX) .
 
 
 #
@@ -28,7 +28,7 @@ bbox:
 #
 .PHONY:test
 test:
-	docker run $(DOCKERFLAGS) $(BBOX) \
+	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
 		/bin/bash -c "$(MAKE) -C $(SRCDIR) TELEPORT_DEBUG_TESTS=true FLAGS='-cover -race' clean test"
 
 #
