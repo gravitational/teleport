@@ -27,7 +27,7 @@ or you can [build it from source](https://github.com/gravitational/teleport).
 
 ### Starting a Cluster
 
-Lets create a single-node cluster and connect to it using the CLI as well as your
+Let's create a single-node cluster and connect to it using the CLI as well as your
 web browser.
 
 First, create a directory for Teleport 
@@ -39,7 +39,7 @@ teleport start
 ```
 
 At this point you should see Teleport print listening IPs of all 3 services into the console.
-Congradulations! You are running a single-node Teleport cluster. 
+Congratulations! You are running a single-node Teleport cluster. 
 
 ### Creating Users
 
@@ -48,7 +48,7 @@ a list of machine-level OS usernames it can authenticate as during a login. This
 called "user mappings".
 
 If you do not specify the mappings, the new Teleport user will be assigned a mapping with
-the same name. Lets create a Teleport user with the same name as the OS user:
+the same name. Let's create a Teleport user with the same name as the OS user:
 
 ```bash
 > tctl users add $USER
@@ -66,7 +66,7 @@ will be able to log into it using web-based terminal.
 
 ### Login
 
-Lets login using the `tsh` command line tool:
+Let's login using the `tsh` command line tool:
 
 ```bash
 tsh --proxy=localhost localhost
@@ -77,7 +77,7 @@ in Teleport have to go via a proxy sometimes called an "SSH bastion".
 
 ### Adding Nodes to Cluster
 
-Lets add another node to your cluster. Lets assume the other node can be reached by
+Let's add another node to your cluster. Let's assume the other node can be reached by
 hostname "luna". `tctl` command below will create a single-use token for a node to 
 join and will print instructions for you to follow:
 
@@ -109,7 +109,7 @@ Notice the "Labels" column in the output above. It is currently not populated. T
 you apply static or dynamic labels to your nodes. As the cluster grows and nodes assume different 
 roles, labels will help to find the right node quickly.
 
-Lets see labels in action. Stop `teleport` on "luna" and restart it with the following command:
+Let's see labels in action. Stop `teleport` on "luna" and restart it with the following command:
 
 ```bash
 teleport start --roles=node --auth-server=10.0.10.1 --nodename=db --labels "location=virginia,arch=[1h:/bin/uname -m]"
@@ -122,7 +122,7 @@ Notice a few things here:
 * We assigned a static label "location" to this host and set it to "virginia".
 * We also assigned a dynamic label "arch" which will evaluate `/bin/uname -m` command once an hour and assign the output to this label value.
 
-Lets take a look at our cluster now:
+Let's take a look at our cluster now:
 
 ```bash
 > tsh --proxy=localhost ls
@@ -133,7 +133,7 @@ localhost     xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.1:3022
 db            xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022     location=virginia,arch=x86_64
 ```
 
-Lets use the newly created labels to filter the output of `tsh ls` and ask to show only
+Let's use the newly created labels to filter the output of `tsh ls` and ask to show only
 nodes located in Virginia:
 
 ```
@@ -158,7 +158,7 @@ another team member for help. Traditionally this could be done by letting them k
 node you're on, having them SSH in, start a terminal multiplexer like `screen` and join a 
 session there.
 
-Teleport makes this a bit more convenient. Lets login into "luna" and ask Teleport for your 
+Teleport makes this a bit more convenient. Let's login into "luna" and ask Teleport for your 
 current session status:
 
 ```bash
