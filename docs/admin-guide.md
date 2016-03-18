@@ -1,6 +1,8 @@
-# Admin Guide
+# Admin Manual
 
-This guide 
+This manual covers installation and configuration of Teleport and the ongoing 
+management of a Teleport cluster. It assumes that the reader has good understanding 
+of Linux administration.
 
 ## Installation
 
