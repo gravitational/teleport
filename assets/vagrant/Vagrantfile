@@ -4,7 +4,7 @@
 # This Vagrantfile is for quick making a multi-host environment
 # to experiment & play with Teleport.
 #
-#   1. Creates two VMs, 1GB RAM / 2CPU each
+#   1. Creates two VMs
 #   2. Based on Debian Jessie 8
 #   3. With private networking
 #   4. With Docker installed

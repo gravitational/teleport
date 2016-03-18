@@ -1,5 +1,5 @@
 ## Vagrant
 
-Vagrant machines here are used for manually experimenting with Teleport. They are based
-on Libvirt/Linux and aren't portable to, say, OSX
+Vagrant machines for experimenting with Teleport on multiple nodes. They are based
+on Libvirt/Linux driver.
 

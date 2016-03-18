@@ -43,12 +43,22 @@ These examples assume your localhost username is 'joe':
 ```bash
 # Authenticate against cluster 'work' as 'joe' and then login into 'node'
 # as root:
-> tsh --proxy=work.example.com --user=joe root@node
+> tsh ssh --proxy=work.example.com --user=joe root@node
 
 # Authenticate against cluster 'work' as 'joe' and then login into 'node'
 # as joe (by default tsh uses $USER for both):
-> tsh --proxy=work.example.com node
+> tsh ssh --proxy=work.example.com node
 ```
+
+`tsh` allows to login into the cluster without connecting to any master nodes:
+
+```
+> tsh login --proxy=work.example.com
+```
+
+This allows you to supply your passwrd and the 2nd factor authentication
+at the beginning of the day. Subsequent `tsh ssh` commands will run without
+asking for your credentials.
 
 ## Exploring the Cluster
 
@@ -80,11 +90,112 @@ graviton      33333333-aaaa-1284     10.1.0.7:3022     os:osx
 
 ## Interactive Shell
 
-TBD
+To launch an interactive shell on a remote node or to execute a command, use `tsh ssh` 
+command:
+
+```bash
+> tsh ssh --help
+
+usage: t ssh [<flags>] <[user@]host> [<command>...]
+Run shell or execute a command on a remote SSH node.
+
+Flags:
+      --user      SSH proxy user [ekontsevoy]
+      --proxy     SSH proxy host or IP address
+      --ttl       Minutes to live for a SSH session 
+      --insecure  Do not verify server's certificate and host name. Use only in test environments
+  -d, --debug     Verbose logging to stdout
+  -p, --port      SSH port on a remote host
+  -l, --login     Remote host login
+
+Args:
+  <[user@]host>  Remote hostname and the login to use
+  [<command>]    Command to execute on a remote host
+```
+
+`tsh` tries to mimic `ssh` experience as much as possible, so it supports the most popular `ssh`
+flags like `-p` or `-l`. For example if you have the following alias defined in your 
+`~/.bashrc`: `alias ssh="tsh --proxy=work.example.com --user=myname"` then you can continue
+using familiar SSH syntax:
+
+```bash
+> ssh root@host
+> ssh -p 6122 root@host ls
+```
+
+### Resolving Node Names
+
+`tsh` supports multiple methods to resolve remote node names. 
+
+1. Traditional: by IP address or via DNS.
+2. Nodename setting: teleport daemon supports `nodename` flag, which allows Teleport administrators to assign alternative node names.
+3. Labels: you can address a node by `name=value` pair.
+
+In the example above, we have two nodes with `os:linux` label and one node with `os:osx`.
+Lets login into the OSX node:
+
+```bash
+> tsh --proxy=work ssh os=osx
+```
+
+This only works if there is only one remote node with `os:osx` label, but you can still execute
+commands via SSH on multiple nodes using labels as a selector. This command will update all
+system packages on machines that run Linux:
+
+```bash
+> tsh --proxy=work ssh os=linux apt-get update -y
+```
+
+### Temporary Logins
+
+Suppose you are borrowing someone else's computer to login into a cluster. Probably you don't 
+want to stay authenticated on this computer for 20 hours (Teleport default). This is where `--ttl`
+flag can help.
+
+This command logs you into the cluster with a very short-lived (1 minute) temporary certificate:
+
+```bash
+tsh --proxy=work --ttl=1 ssh
+```
+
+You will be logged out after one minute.
 
 ## Copying Files
 
-TBD
+To securely copy files to and from cluster nodes use `tsh scp` command. It is designed to mimic
+traditional `scp` as much as possible:
+
+```bash
+> tsh scp --help
+
+usage: tsh scp [<flags>] <from, to>...
+Secure file copy
+
+Flags:
+      --user       SSH proxy user [ekontsevoy]
+      --proxy      SSH proxy host or IP address
+      --ttl        Minutes to live for a SSH session
+      --insecure   Do not verify server's certificate and host name. Use only in test environments
+  -P, --debug      Verbose logging to stdout
+  -d, --debug      Verbose logging to stdout
+  -r, --recursive  Recursive copy of subdirectories
+
+Args:
+  <from, to>       Source and the destination
+```
+
+Examples:
+
+```bash
+> tsh --proxy=work scp example.txt root@node:/path/to/dest
+```
+
+Again, you may want to create a bash alias like `alias scp="tsh --proxy=work scp"` and use
+the familiar sytanx:
+
+```bash
+> scp -P 61122 -r files root@node:/path/to/dest
+```
 
 ## Sharing Sessions
 
