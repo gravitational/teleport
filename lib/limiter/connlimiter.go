@@ -13,11 +13,15 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package limiter
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
+
+	"github.com/gravitational/teleport"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
@@ -25,6 +29,7 @@ import (
 	"github.com/vulcand/oxy/utils"
 )
 
+// ConnectionsLimiter is a network connection limiter and tracker
 type ConnectionsLimiter struct {
 	*connlimit.ConnLimiter
 	*sync.Mutex
@@ -32,6 +37,8 @@ type ConnectionsLimiter struct {
 	maxConnections int64
 }
 
+// NewConnectionsLimiter returns new connection limiter, in case if connection
+// limits are not set, they won't be tracked
 func NewConnectionsLimiter(config LimiterConfig) (*ConnectionsLimiter, error) {
 	limiter := ConnectionsLimiter{
 		Mutex:          &sync.Mutex{},
@@ -53,39 +60,43 @@ func NewConnectionsLimiter(config LimiterConfig) (*ConnectionsLimiter, error) {
 	return &limiter, nil
 }
 
-// Add connection limiter to the handle
+// WrapHandle adds connection limiter to the handle
 func (l *ConnectionsLimiter) WrapHandle(h http.Handler) {
 	l.ConnLimiter.Wrap(h)
 }
 
+// AcquireConnection acquires connection and bumps counter
 func (l *ConnectionsLimiter) AcquireConnection(token string) error {
+	l.Lock()
+	defer l.Unlock()
+
 	if l.maxConnections == 0 {
 		return nil
 	}
-
-	l.Lock()
-	defer l.Unlock()
 
 	numberOfConnections, exists := l.connections[token]
 	if !exists {
 		l.connections[token] = 1
 		return nil
-	} else {
-		if numberOfConnections >= l.maxConnections {
-			return trace.Errorf("Too many connections from %v", token)
-		}
-		l.connections[token] = numberOfConnections + 1
-		return nil
 	}
+	if numberOfConnections >= l.maxConnections {
+		return trace.Wrap(
+			teleport.LimitExceeded(
+				fmt.Sprintf("too many connections from %v: %v, max is %v", token, numberOfConnections, l.maxConnections)), nil)
+	}
+	l.connections[token] = numberOfConnections + 1
+	return nil
 }
 
+// ReleaseConnection decrements the counter
 func (l *ConnectionsLimiter) ReleaseConnection(token string) {
-	if l.maxConnections == 0 {
-		return
-	}
 
 	l.Lock()
 	defer l.Unlock()
+
+	if l.maxConnections == 0 {
+		return
+	}
 
 	numberOfConnections, exists := l.connections[token]
 	if !exists {

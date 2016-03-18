@@ -18,6 +18,8 @@ package main
 
 import (
 	"fmt"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"strings"
 
@@ -82,6 +84,8 @@ func run(cmdlineArgs []string, testRun bool) (executedCommand string, appliedCon
 		fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
 		Short('c').ExistingFileVar(&ccf.ConfigFile)
 	start.Flag("labels", "List of labels for this node").StringVar(&ccf.Labels)
+	start.Flag("httpprofile",
+		"Start profiling endpoint on localhost:6060").Hidden().BoolVar(&ccf.HTTPProfileEndpoint)
 
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)
@@ -104,6 +108,12 @@ func run(cmdlineArgs []string, testRun bool) (executedCommand string, appliedCon
 
 		switch command {
 		case start.FullCommand():
+			if ccf.HTTPProfileEndpoint {
+				log.Infof("starting http profile endpoint")
+				go func() {
+					log.Println(http.ListenAndServe("localhost:6060", nil))
+				}()
+			}
 			err = onStart(config)
 		case status.FullCommand():
 			err = onStatus(config)

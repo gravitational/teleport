@@ -77,6 +77,7 @@ func NewStandardPermissions() PermissionChecker {
 	}
 
 	sp.permissions[teleport.RoleProxy] = map[string]bool{
+		ActionGetReverseTunnels:  true,
 		ActionGetServers:         true,
 		ActionGetEvents:          true,
 		ActionUpsertProxy:        true,
@@ -181,6 +182,9 @@ const (
 	ActionGetAuthServers                = "GetAuthServers"
 	ActionUpsertProxy                   = "UpsertProxy"
 	ActionGetProxies                    = "GetProxies"
+	ActionUpsertReverseTunnel           = "UpsertReverseTunnel"
+	ActionGetReverseTunnels             = "GetReverseTunnels"
+	ActionDeleteReverseTunnel           = "DeleteReverseTunnel"
 	ActionUpsertPassword                = "UpsertPassword"
 	ActionCheckPassword                 = "CheckPassword"
 	ActionSignIn                        = "SignIn"

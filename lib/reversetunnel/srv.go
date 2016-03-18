@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -175,11 +176,12 @@ func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.New
 	case chanHeartbeat:
 		log.Infof("got heartbeat request from agent: %v", sconn)
 		var site *tunnelSite
+		var remoteConn *remoteConn
 		var err error
 
 		switch sconn.Permissions.Extensions[extCertType] {
 		case extCertTypeHost:
-			site, err = s.upsertRegularSite(conn, sconn)
+			site, remoteConn, err = s.upsertSite(conn, sconn)
 		default:
 			err = trace.Wrap(
 				teleport.BadParameter(
@@ -198,7 +200,7 @@ func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.New
 			sconn.Close()
 			return
 		}
-		go site.handleHeartbeat(ch, req)
+		go site.handleHeartbeat(remoteConn, ch, req)
 	}
 }
 
@@ -345,10 +347,10 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	}
 }
 
-func (s *server) upsertRegularSite(conn net.Conn, sshConn *ssh.ServerConn) (*tunnelSite, error) {
+func (s *server) upsertSite(conn net.Conn, sshConn *ssh.ServerConn) (*tunnelSite, *remoteConn, error) {
 	domainName := sshConn.Permissions.Extensions[extAuthority]
 	if !cstrings.IsValidDomainName(domainName) {
-		return nil, trace.Wrap(teleport.BadParameter(
+		return nil, nil, trace.Wrap(teleport.BadParameter(
 			"authDomain", fmt.Sprintf("'%v' is a bad domain name", domainName)))
 	}
 
@@ -365,21 +367,22 @@ func (s *server) upsertRegularSite(conn net.Conn, sshConn *ssh.ServerConn) (*tun
 	log.Infof("found authority domain: %v", domainName)
 
 	var err error
+	var remoteConn *remoteConn
 	if site != nil {
-		if err := site.addConn(conn, sshConn); err != nil {
-			return nil, trace.Wrap(err)
+		if remoteConn, err = site.addConn(conn, sshConn); err != nil {
+			return nil, nil, trace.Wrap(err)
 		}
 	} else {
 		site, err = newRemoteSite(s, domainName)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
-		if err := site.addConn(conn, sshConn); err != nil {
-			return nil, trace.Wrap(err)
+		if remoteConn, err = site.addConn(conn, sshConn); err != nil {
+			return nil, nil, trace.Wrap(err)
 		}
 		s.tunnelSites = append(s.tunnelSites, site)
 	}
-	return site, nil
+	return site, remoteConn, nil
 }
 
 func (s *server) GetSites() []RemoteSite {
@@ -465,31 +468,16 @@ type remoteConn struct {
 	counter int32
 }
 
-func (rc *remoteConn) setDeadline(d time.Duration) {
-	atomic.AddInt32(&rc.counter, 1)
-	rc.conn.SetDeadline(time.Now().Add(d))
-}
-
-func (rc *remoteConn) resetDeadline() {
-	// this is to ensure that only last request wil reset the deadline
-	// after setting it, otherwise we may reset deadline for
-	// a concurrent waiting request. With this logic, we will just
-	// make it wait slightly longer
-	val := atomic.AddInt32(&rc.counter, -1)
-	if val == 0 {
-		rc.log.Infof("COUNTER(%v): reseting deadline...", val)
-		rc.conn.SetDeadline(time.Time{})
-	} else {
-		rc.log.Infof("COUNTER(%v): still have waiters", val)
-	}
+func (rc *remoteConn) String() string {
+	return fmt.Sprintf("remoteConn(remoteAddr=%v)", rc.conn.RemoteAddr())
 }
 
 func (rc *remoteConn) Close() error {
 	return rc.sshConn.Close()
 }
 
-func (rc *remoteConn) markInvalid() {
-	rc.log.Infof("%v is marked is invalid", rc.conn.RemoteAddr())
+func (rc *remoteConn) markInvalid(err error) {
+	rc.log.Infof("%v is marked as invalid because of error: %v", rc, err)
 	atomic.StoreInt32(&rc.invalid, 1)
 }
 
@@ -565,8 +553,7 @@ func (s *tunnelSite) nextConn() (*remoteConn, error) {
 	for {
 		if len(s.connections) == 0 {
 			return nil, trace.Wrap(
-				&teleport.NotFoundError{
-					Message: "no active connections"})
+				teleport.NotFound("no active connections"))
 		}
 		s.lastUsed = (s.lastUsed + 1) % len(s.connections)
 		remoteConn := s.connections[s.lastUsed]
@@ -580,21 +567,23 @@ func (s *tunnelSite) nextConn() (*remoteConn, error) {
 	}
 }
 
-func (s *tunnelSite) addConn(conn net.Conn, sshConn ssh.Conn) error {
+func (s *tunnelSite) addConn(conn net.Conn, sshConn ssh.Conn) (*remoteConn, error) {
 	remoteConn, err := newRemoteConn(s.log, conn, sshConn)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	s.Lock()
 	defer s.Unlock()
 	s.connections = append(s.connections, remoteConn)
 	s.lastUsed = 0
-	return nil
+	return remoteConn, nil
 }
 
 func (s *tunnelSite) GetStatus() string {
+	s.Lock()
+	defer s.Unlock()
 	diff := time.Now().Sub(s.lastActive)
-	if diff > 2*heartbeatPeriod {
+	if diff > 2*defaults.ReverseTunnelAgentHeartbeatPeriod {
 		return RemoteSiteStatusOffline
 	}
 	return RemoteSiteStatusOnline
@@ -606,15 +595,21 @@ func (s *tunnelSite) setLastActive(t time.Time) {
 	s.lastActive = t
 }
 
-func (s *tunnelSite) handleHeartbeat(ch ssh.Channel, reqC <-chan *ssh.Request) {
+func (s *tunnelSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
 	go func() {
 		for {
-			req := <-reqC
-			if req == nil {
-				s.log.Infof("agent disconnected")
-				return
+			select {
+			case req := <-reqC:
+				if req == nil {
+					s.log.Infof("agent disconnected")
+					conn.markInvalid(teleport.ConnectionProblem("agent disconnected", nil))
+					return
+				}
+				s.setLastActive(time.Now())
+			case <-time.After(2 * defaults.ReverseTunnelAgentHeartbeatPeriod):
+				conn.markInvalid(teleport.ConnectionProblem("agent missed 2 heartbeats", nil))
+				conn.sshConn.Close()
 			}
-			s.setLastActive(time.Now())
 		}
 	}()
 }
@@ -639,17 +634,15 @@ func (s *tunnelSite) ConnectToServer(server, user string, auth []ssh.AuthMethod)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	remoteConn.setDeadline(s.timeout())
-	defer remoteConn.resetDeadline()
 	ch, _, err := remoteConn.sshConn.OpenChannel(chanTransport, nil)
 	if err != nil {
-		remoteConn.markInvalid()
+		remoteConn.markInvalid(err)
 		return nil, trace.Wrap(err)
 	}
 	// ask remote channel to dial
 	dialed, err := ch.SendRequest(chanTransportDialReq, true, []byte(server))
 	if err != nil {
-		remoteConn.markInvalid()
+		remoteConn.markInvalid(err)
 		return nil, trace.Wrap(err)
 	}
 	if !dialed {
@@ -675,12 +668,9 @@ func (s *tunnelSite) tryDialAccessPoint(network, addr string) (net.Conn, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	remoteConn.setDeadline(s.timeout())
-	defer remoteConn.resetDeadline()
-
 	ch, _, err := remoteConn.sshConn.OpenChannel(chanAccessPoint, nil)
 	if err != nil {
-		remoteConn.markInvalid()
+		remoteConn.markInvalid(err)
 		s.log.Infof("%v marking connection invalid, conn err: %v", remoteConn.conn.RemoteAddr(), err)
 		return nil, trace.Wrap(err)
 	}
@@ -708,23 +698,21 @@ func (s *tunnelSite) tryDial(net, addr string) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	remoteConn.setDeadline(s.timeout())
-	defer remoteConn.resetDeadline()
 	var ch ssh.Channel
 	ch, _, err = remoteConn.sshConn.OpenChannel(chanTransport, nil)
 	if err != nil {
-		remoteConn.markInvalid()
+		remoteConn.markInvalid(err)
 		return nil, trace.Wrap(err)
 	}
 	// ask remote channel to dial
 	var dialed bool
 	dialed, err = ch.SendRequest(chanTransportDialReq, true, []byte(addr))
 	if err != nil {
-		remoteConn.markInvalid()
+		remoteConn.markInvalid(err)
 		return nil, trace.Wrap(err)
 	}
 	if !dialed {
-		remoteConn.markInvalid()
+		remoteConn.markInvalid(err)
 		return nil, trace.Wrap(
 			teleport.ConnectionProblem(
 				fmt.Sprintf("remote server %v is not available", addr), nil))
@@ -737,7 +725,7 @@ func (s *tunnelSite) Dial(net string, addr string) (net.Conn, error) {
 	for {
 		conn, err := s.tryDial(net, addr)
 		if err != nil {
-			s.log.Infof("got error: %v", err)
+			s.log.Infof("got connection problem: %v", err)
 			// we interpret it as a "out of connections and will try again"
 			if teleport.IsNotFound(err) {
 				return nil, trace.Wrap(err)
