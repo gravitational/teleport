@@ -14,8 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var {TRYING_TO_LOGIN} = require('app/modules/restApi/constants');
+var {TRYING_TO_LOGIN, TRYING_TO_SIGN_UP, FETCHING_INVITE} = require('app/modules/restApi/constants');
 var {requestStatus} = require('app/modules/restApi/getters');
+
+const invite = [ ['tlpt_user_invite'], (invite) => invite ];
 
 const user = [ ['tlpt_user'], (currentUser) => {
     if(!currentUser){
@@ -35,5 +37,8 @@ const user = [ ['tlpt_user'], (currentUser) => {
 
 export default {
   user,
-  loginAttemp: requestStatus(TRYING_TO_LOGIN)
+  invite,
+  loginAttemp: requestStatus(TRYING_TO_LOGIN),
+  attemp: requestStatus(TRYING_TO_SIGN_UP),
+  fetchingInvite: requestStatus(FETCHING_INVITE)
 }

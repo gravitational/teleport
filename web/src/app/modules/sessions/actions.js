@@ -32,7 +32,7 @@ const actions = {
     });
   },
 
-  fetchSessions({before, sid, limit=cfg.maxSessionLoadSize}){
+  fetchSessions({before, sid, limit=cfg.maxSessionLoadSize}={}){
     let start = before || new Date();
     let params = {
       order: -1,

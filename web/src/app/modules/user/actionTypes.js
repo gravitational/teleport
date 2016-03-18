@@ -17,5 +17,6 @@ limitations under the License.
 import keyMirror from 'keymirror'
 
 export default keyMirror({
-  TLPT_RECEIVE_USER: null
+  TLPT_RECEIVE_USER: null,
+  TLPT_RECEIVE_USER_INVITE: null
 })

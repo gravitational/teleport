@@ -21,6 +21,11 @@ var {lastMessage} = require('app/modules/notifications/getters');
 var {ToastContainer, ToastMessage} = require("react-toastr");
 var ToastMessageFactory = React.createFactory(ToastMessage.animation);
 
+const animationOptions = {
+  showAnimation: 'animated fadeIn',
+  hideAnimation: 'animated fadeOut'
+}
+
 var NotificationHost = React.createClass({
 
   mixins: [
@@ -34,13 +39,13 @@ var NotificationHost = React.createClass({
   update(msg) {
     if (msg) {
       if (msg.isError) {
-        this.refs.container.error(msg.text, msg.title);
+        this.refs.container.error(msg.text, msg.title, animationOptions);
       } else if (msg.isWarning) {
-        this.refs.container.warning(msg.text, msg.title);
+        this.refs.container.warning(msg.text, msg.title, animationOptions);
       } else if (msg.isSuccess) {
-        this.refs.container.success(msg.text, msg.title);
+        this.refs.container.success(msg.text, msg.title, animationOptions);
       } else {
-        this.refs.container.info(msg.text, msg.title);
+        this.refs.container.info(msg.text, msg.title, animationOptions);
       }
     }
   },
@@ -55,7 +60,8 @@ var NotificationHost = React.createClass({
 
   render: function() {
     return (
-        <ToastContainer ref="container" toastMessageFactory={ToastMessageFactory} className="toast-top-right"/>
+        <ToastContainer
+          ref="container" toastMessageFactory={ToastMessageFactory} className="toast-top-right"/>
     );
   }
 });

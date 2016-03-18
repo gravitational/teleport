@@ -17,8 +17,7 @@ limitations under the License.
 var React = require('react');
 var $ = require('jQuery');
 var reactor = require('app/reactor');
-var {actions, getters} = require('app/modules/invite');
-var userModule = require('app/modules/user');
+var {actions, getters} = require('app/modules/user');
 var LinkedStateMixin = require('react-addons-linked-state-mixin');
 var GoogleAuthInfo = require('./googleAuthLogo');
 var {ExpiredInvite} = require('./errorPage');
@@ -61,7 +60,7 @@ var InviteInputForm = React.createClass({
   onClick(e) {
     e.preventDefault();
     if (this.isValid()) {
-      userModule.actions.signUp({
+      actions.signUp({
         name: this.state.name,
         psw: this.state.psw,
         token: this.state.token,
