@@ -22,7 +22,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -230,15 +229,14 @@ func (u *UserCommand) Delete(client *auth.TunClient) error {
 // Invite generates a token which can be used to add another SSH node
 // to a cluster
 func (u *NodeCommand) Invite(client *auth.TunClient) error {
-	invitationTTL := time.Minute * 15
-	token, err := client.GenerateToken(teleport.RoleNode, invitationTTL)
+	token, err := client.GenerateToken(teleport.RoleNode, defaults.InviteTokenTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf(
 		"The invite token: %v\nRun this on the new node to join the cluster:\n> teleport start --roles=node --token=%v --auth-server=<Address>\n\nNotes:\n",
 		token, token)
-	fmt.Printf("  1. This invitation token will expire in %v seconds.\n", invitationTTL.Seconds())
+	fmt.Printf("  1. This invitation token will expire in %v seconds.\n", defaults.InviteTokenTTL.Seconds())
 	fmt.Printf("  2. <Address> is the IP this auth server is reachable at from the node.\n")
 	return nil
 }
@@ -330,8 +328,7 @@ func (u *AuthServerCommand) Invite(client *auth.TunClient) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	invitationTTL := time.Minute * 15
-	token, err := client.GenerateToken(teleport.RoleAuth, invitationTTL)
+	token, err := client.GenerateToken(teleport.RoleAuth, defaults.InviteTokenTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
