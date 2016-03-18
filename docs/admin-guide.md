@@ -43,7 +43,11 @@ Teleport supports only a handful of commands
 |help        | Shows help.
 
 When experimenting you can quickly start `teleport` with verbose logging by typing 
-`teleport start -d`. In production, we recommend starting teleport daemon via an 
+`teleport start -d`. 
+
+#### Systemd Unit File
+
+In production, we recommend starting teleport daemon via an 
 init system like `systemd`.  Here's the example of a systemd unit file:
 
 ```
@@ -59,6 +63,18 @@ ExecStart=/usr/bin/teleport --config=/etc/teleport.yaml start
 [Install]
 WantedBy=multi-user.target
 ```
+
+#### Ports
+
+Teleport services listen on several ports. This table shows the default port numbers.
+
+|Port      | Service    | Description
+|----------|------------|-------------------------------------------
+|3022      | Node       | SSH port. This is Teleport's equivalent of port `#22` for SSH.
+|3023      | Proxy      | SSH port clients connect to. A proxy will forward this connection to port `#3022` on the destination node.
+|3024      | Auth       | SSH port used by the Auth Service to serve its API to other nodes in a cluster.
+|3080      | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI.
+
 
 ## Configuration
 
