@@ -199,11 +199,77 @@ the familiar sytanx:
 
 ## Sharing Sessions
 
-TBD
+Suppose you are trying to troubleshoot a problem on a remote server. Sometimes it makes sense 
+to ask another team member for help. Traditionally this could be done by letting them know which 
+node you're on, having them SSH in, start a terminal multiplexer like `screen` and join a 
+session there.
+
+Teleport makes this a bit more convenient. Let's login into "luna" and ask Teleport for your 
+current session status:
+
+```bash
+> tsh --proxy=work ssh luna
+luna > teleport status
+
+User ID    : joe, logged in as joe from 10.0.10.1 43026 3022
+Session ID : 7645d523-60cb-436d-b732-99c5df14b7c4
+Session URL: https://work:3080/web/sessions/7645d523-60cb-436d-b732-99c5df14b7c4
+```
+
+You can share the session ID with another user account in "work" cluster. If they
+know the session ID, they can join you by typing:
+
+```bash
+> tsh --proxy=work join 7645d523-60cb-436d-b732-99c5df14b7c4
+```
 
 ## Integration with OpenSSH
 
-TBD
+It is possible to use OpenSSH client `ssh` to connect to Teleport clusters. A Teleport
+proxy works by using the standard SSH proxy subsystem. This section will explain how
+to configure OpenSSH client to use it.
+
+First, you need to explort the public keys of cluster members. This has to be done 
+on a node which runs Telport auth server and probably must be done by a Teleport 
+administrator:
+
+```bash
+> tctl authorities --type=host export > cluster_node_keys
+```
+
+On your client machine, you need to import these keys: 
+
+```bash
+> cat cluster_node_keys >> ~/.ssh/authorized_keys
+```
+
+Configure OpenSSH client to use the Teleport proxy when connecting to nodes with matching
+names. Edit `/etc/ssh/ssh_config`:
+
+```
+# Tell OpenSSH client to use work.example.com as a jumphost (proxy) when logging
+# to any remote node whose name matches the pattern *.work.example.com
+# Beware of recurison here (when proxy name matches your pattern)
+Host *.work.example.com
+  ProxyCommand ssh -p 3023 %r@work.example.com -s proxy:%h:%p
+```
+
+Launch `tsh` in the SSH agent mode:
+
+```bash
+> tsh --proxy=work.example.com agent
+```
+
+`tsh agent` will print environment variables into the console. Configure your system
+to evaluate these variables: they tell `ssh` to use `tsh` to authenticate you against
+`work.example.com` cluster.
+
+When everything is configured properly, you can use ssh to connect to any node 
+behind `work.example.com`:
+
+```bash
+> ssh root@database.work.example.com
+```
 
 ## Troubleshooting
 
