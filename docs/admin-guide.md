@@ -45,6 +45,14 @@ Teleport supports only a handful of commands
 When experimenting you can quickly start `teleport` with verbose logging by typing 
 `teleport start -d`. 
 
+**WARNING:** When running `teleport` with a proxy role you have to make sure the assets
+for the Web UI can be found. The web assets are composedof `index.html` file and `app` 
+directory. `teleport` checks the following locations for its web assets:
+1. The same directory it's in
+2. `/usr/local/share/teleport`
+3. `/usr/share/teleport`
+4. `/opt/teleport`
+
 #### Systemd Unit File
 
 In production, we recommend starting teleport daemon via an 
