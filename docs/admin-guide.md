@@ -343,6 +343,80 @@ Node Name     Node ID          Address         Labels
 turing        d52527f9-b260    10.1.0.5:3022   kernel=3.19.0-56,uptime=up 1 hour, 15 minutes
 ```
 
+## Using Teleport with OpenSSH
+
+Teleport is a fully standards-compliant SSH proxy and it can work in environments with with 
+existing SSH implementations, such as OpenSSH. This section will cover:
+
+* Configuring OpenSSH client `ssh` to login into nodes inside a Teleport cluster.
+* Configuring OpenSSH server `sshd` to join a Teleport cluster.
+
+### Using OpenSSH Client
+
+It is possible to use OpenSSH client `ssh` to connect to Teleport clusters. A Teleport
+proxy works by using the standard SSH proxy subsystem. This section will explain how
+to configure OpenSSH client to use it.
+
+First, you need to explort the public keys of cluster members. This has to be done 
+on a node which runs Telport auth server and probably must be done by a Teleport 
+administrator:
+
+```bash
+> tctl authorities --type=host export > cluster_node_keys
+```
+
+On your client machine, you need to import these keys: 
+
+```bash
+> cat cluster_node_keys >> ~/.ssh/authorized_keys
+```
+
+Configure OpenSSH client to use the Teleport proxy when connecting to nodes with matching
+names. Edit `/etc/ssh/ssh_config`:
+
+```
+# Tell OpenSSH client to use work.example.com as a jumphost (proxy) when logging
+# to any remote node whose name matches the pattern *.work.example.com
+# Beware of recurison here (when proxy name matches your pattern)
+Host *.work.example.com
+  ProxyCommand ssh -p 3023 %r@work.example.com -s proxy:%h:%p
+```
+
+Launch `tsh` in the SSH agent mode:
+
+```bash
+> tsh --proxy=work.example.com agent
+```
+
+`tsh agent` will print environment variables into the console. Configure your system
+to evaluate these variables: they tell `ssh` to use `tsh` to authenticate you against
+`work.example.com` cluster.
+
+When everything is configured properly, you can use ssh to connect to any node 
+behind `work.example.com`:
+
+```bash
+> ssh root@database.work.example.com
+```
+
+### Integrating with OpenSSH Servers
+
+Existing `sshd` servers can be added to a Teleport cluster. 
+
+1. First, you have to export the CA certificate into a file:
+
+```bash
+> tctl authorities --type=user export > cluster-ca.pub
+```
+
+2. Then you should copy this file to every node running `sshd`, for example 
+   `into /etc/ssh/teleport-ca.pub`
+
+3. Update `sshd` configuration, usually `/etc/ssh/sshd_config`:
+```
+TrustedUserCAKeys /etc/ssh/user-ca.pub
+```
+
 ## Troubleshooting
 
 To diagnose problems you can configure `teleport` to run with verbose logging enabled.

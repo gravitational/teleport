@@ -8,7 +8,8 @@ openly recommending it for production use once the review will have completed.
 
 1. **Can I use OpenSSH client to connect to servers in a Teleport cluster?**
 
-Yes. Take a look at [Integration with OpenSSH](user-manual.md#integration-with-openssh) section in the User Manual.
+Yes. Take a look at [Using OpenSSH client](user-manual.md#integration-with-openssh) section in the User Manual
+and [Using OpenSSH servers](admin-guide.md) in the Admin Manual.
 
 2. **Which TCP ports does Teleport uses?**
 

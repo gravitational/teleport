@@ -223,54 +223,6 @@ know the session ID, they can join you by typing:
 > tsh --proxy=work join 7645d523-60cb-436d-b732-99c5df14b7c4
 ```
 
-## Integration with OpenSSH
-
-It is possible to use OpenSSH client `ssh` to connect to Teleport clusters. A Teleport
-proxy works by using the standard SSH proxy subsystem. This section will explain how
-to configure OpenSSH client to use it.
-
-First, you need to explort the public keys of cluster members. This has to be done 
-on a node which runs Telport auth server and probably must be done by a Teleport 
-administrator:
-
-```bash
-> tctl authorities --type=host export > cluster_node_keys
-```
-
-On your client machine, you need to import these keys: 
-
-```bash
-> cat cluster_node_keys >> ~/.ssh/authorized_keys
-```
-
-Configure OpenSSH client to use the Teleport proxy when connecting to nodes with matching
-names. Edit `/etc/ssh/ssh_config`:
-
-```
-# Tell OpenSSH client to use work.example.com as a jumphost (proxy) when logging
-# to any remote node whose name matches the pattern *.work.example.com
-# Beware of recurison here (when proxy name matches your pattern)
-Host *.work.example.com
-  ProxyCommand ssh -p 3023 %r@work.example.com -s proxy:%h:%p
-```
-
-Launch `tsh` in the SSH agent mode:
-
-```bash
-> tsh --proxy=work.example.com agent
-```
-
-`tsh agent` will print environment variables into the console. Configure your system
-to evaluate these variables: they tell `ssh` to use `tsh` to authenticate you against
-`work.example.com` cluster.
-
-When everything is configured properly, you can use ssh to connect to any node 
-behind `work.example.com`:
-
-```bash
-> ssh root@database.work.example.com
-```
-
 ## Troubleshooting
 
 If you encounter strange behaviour, you may want to try to solve it by enabling
