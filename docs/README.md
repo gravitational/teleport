@@ -13,8 +13,8 @@ enables teams to easily adopt the following practices:
 - Collaboratively troubleshoot issues via built-in session sharing.
 - Discover online servers and running Docker containers within a cluster with dynamic node labels.
 
-Take a look at [Quick Start]() page to get a taste of using Teleport, or read the 
-[Design Document]() to get a full understanding of how Teleport works.
+Take a look at [Quick Start](docs/quickstart.md) page to get a taste of using Teleport, or read the 
+[Architecture Document](docs/architecture.md) to get a full understanding of how Teleport works.
 
 ## Why?
 

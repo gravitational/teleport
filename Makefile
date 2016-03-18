@@ -5,6 +5,8 @@ TELEPORT_DEBUG_TESTS ?= no
 OUT := out
 GO15VENDOREXPERIMENT := 1
 PKGPATH=github.com/gravitational/teleport
+INSTALL_BIN_DIR=/usr/bin
+INSTALL_ASSETS_DIR=/usr/share/teleport
 export
 
 .PHONY: install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd install-assets docs-serve
@@ -17,20 +19,28 @@ all: teleport tctl tsh
 
 .PHONY: tctl
 tctl: 
-	go build -o $(OUT)/tctl $(BUILDFLAGS) -i $(PKGPATH)/tool/tctl
+	go build -o $(OUT)/tctl -i $(PKGPATH)/tool/tctl
 
-.PHONY: teleport
-teleport: 
-	go build -o $(OUT)/teleport $(BUILDFLAGS) -i $(PKGPATH)/tool/teleport
+.PHONY: teleport 
+teleport: flags
+	go build -o $(OUT)/teleport -i $(PKGPATH)/tool/teleport
+	cp -rf web/dist/* $(OUT)/
 
 .PHONY: tsh
 tsh: 
-	go build -o $(OUT)/tsh $(BUILDFLAGS) -i $(PKGPATH)/tool/tsh
+	go build -o $(OUT)/tsh -i $(PKGPATH)/tool/tsh
 
-install: remove-temp-files flags
-	go install -ldflags $(TELEPORT_LINKFLAGS) $(PKGPATH)/tool/teleport \
-	           $(PKGPATH)/tool/tctl \
-	           $(PKGPATH)/tool/tsh \
+.PHONY: install
+install: 
+	$(eval BUILDFLAGS=-ldflags -w)
+	go build -o $(OUT)/tctl     $(BUILDFLAGS) $(PKGPATH)/tool/tctl
+	go build -o $(OUT)/teleport $(BUILDFLAGS) $(PKGPATH)/tool/teleport
+	go build -o $(OUT)/tsh      $(BUILDFLAGS) $(PKGPATH)/tool/tsh
+	sudo cp -f $(OUT)/tctl      $(INSTALL_BIN_DIR)/
+	sudo cp -f $(OUT)/tsh       $(INSTALL_BIN_DIR)/
+	sudo cp -f $(OUT)/teleport  $(INSTALL_BIN_DIR)/
+	sudo mkdir -p $(INSTALL_ASSETS_DIR)
+	sudo cp -fr web/dist/* $(INSTALL_ASSETS_DIR)
 
 clean:
 	rm -rf $(OUT)
@@ -52,9 +62,6 @@ flags:
 
 test-with-etcd: install
 	${ETCD_FLAGS} go test -v -test.parallel=0 $(shell go list ./... | grep -v /vendor/) -cover
-
-remove-temp-files:
-	find . -name flymake_* -delete
 
 test-package: remove-temp-files install
 	go test -v -test.parallel=0 ./$(p)
