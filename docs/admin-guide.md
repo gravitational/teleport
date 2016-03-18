@@ -189,7 +189,7 @@ proxy_service:
 ## Adding and Deleting Users
 
 A user identity in Teleport exists in the scope of a cluster. The member nodes
-of a cluster have multiple OS users on them. A Teleport administrator can assign
+of a cluster have multiple OS users on them. A Teleport administrator assigns
 "user mappings" to every Teleport account, allowing it to login as one of the 
 specified OS users.
 
