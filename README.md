@@ -13,8 +13,6 @@ enables teams to easily adopt the following practices:
 - Collaboratively troubleshoot issues via built-in session sharing.
 - Discover online servers and running Docker containers within a cluster with dynamic node labels.
 
-Teleport is fully compatible with OpenSSH clients and servers.
-
 Take a look at [Quick Start](docs/quickstart.md) page to get a taste of using Teleport, or read the 
 [Architecture Document](docs/architecture.md) to get a full understanding of how Teleport works.
 
@@ -27,7 +25,8 @@ beautiful Web UI and a very permissive [Apache 2.0](https://github.com/gravitati
 license.
 
 Teleport is built on top of the high-quality [Golang SSH](https://godoc.org/golang.org/x/crypto/ssh) 
-implementation and it is fully compatible with OpenSSH.
+implementation and it is fully [compatible with OpenSSH](docs/admin-guide.md#using-teleport-with-openssh): you can 
+use `ssh` clients and `sshd` servers with Teleport clusters.
 
 ## More Information
 
