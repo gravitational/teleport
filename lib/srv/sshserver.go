@@ -279,7 +279,7 @@ func (s *Server) heartbeatPresence() {
 			log.Warningf("failed to announce %#v presence: %v", s, err)
 		}
 		sleepTime := defaults.ServerHeartbeatTTL/2 + utils.RandomDuration(defaults.ServerHeartbeatTTL/10)
-		log.Infof("[SSH] will ping auth service in %v", sleepTime)
+		//log.Infof("[SSH] will ping auth service in %v", sleepTime)
 		time.Sleep(sleepTime)
 	}
 }

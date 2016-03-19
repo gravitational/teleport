@@ -321,7 +321,7 @@ func (process *TeleportProcess) initAuthService() error {
 				log.Warningf("failed to announce presence: %v", err)
 			}
 			sleepTime := defaults.ServerHeartbeatTTL/2 + utils.RandomDuration(defaults.ServerHeartbeatTTL/10)
-			log.Infof("[AUTH] will ping auth service in %v", sleepTime)
+			//log.Infof("[AUTH] will ping auth service in %v", sleepTime)
 			time.Sleep(sleepTime)
 		}
 	})

@@ -44,6 +44,7 @@ func New(cmd Command) (*Server, error) {
 	return &Server{cmd: cmd}, nil
 }
 
+// Serve implements SSH file copy (SCP)
 func (s *Server) Serve(ch io.ReadWriter) error {
 	if s.cmd.Source {
 		return s.serveSource(ch)
@@ -52,7 +53,7 @@ func (s *Server) Serve(ch io.ReadWriter) error {
 }
 
 func (s *Server) serveSource(ch io.ReadWriter) error {
-	log.Infof("serving source")
+	log.Infof("SCP: serving source")
 
 	r := newReader(ch)
 
@@ -153,7 +154,7 @@ func (s *Server) sendFile(r *reader, ch io.ReadWriter, fi os.FileInfo, path stri
 }
 
 func (s *Server) serveSink(ch io.ReadWriter) error {
-	log.Infof("serving sink")
+	log.Infof("SCP: serving sink")
 
 	if err := sendOK(ch); err != nil {
 		return trace.Wrap(err)
@@ -272,22 +273,22 @@ func (s *Server) receiveFile(st *state, cmd NewFileCmd, ch io.ReadWriter) error 
 }
 
 func (s *Server) receiveDir(st *state, cmd NewFileCmd, ch io.ReadWriter) error {
+	path := s.cmd.Target
+
 	// if the dest path ends with "/", we should copy source folder
 	// inside the dest folder
 	// if the dest path doesn't end with "/", we should copy only the
 	// content of the source folder to the dest folder
 	// for all the copied subfolders we should copy source folder
 	// inside dest folder
-	path := s.cmd.Target
 	if strings.HasSuffix(s.cmd.Target, "/") || st.notRoot {
 		path = st.makePath(s.cmd.Target, cmd.Name)
 		st.push(cmd.Name)
-
 	}
 	st.notRoot = true //next calls of receiveDir will be for subfolders
 	mode := os.FileMode(int(cmd.Mode) & int(os.ModePerm))
-	err := os.Mkdir(path, mode)
-	if err != nil {
+	err := os.MkdirAll(path, mode)
+	if err != nil && !os.IsExist(err) {
 		return trace.Wrap(err)
 	}
 	log.Infof("dir %v(%v) created", cmd.Name, path)
