@@ -27,20 +27,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gokyle/hotp"
+	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
-)
-
-const (
-	SignupTokenTTL            = time.Hour * 24
-	SignupTokenUserActionsTTL = time.Hour
-	HOTPFirstTokensRange      = 5
 )
 
 // CreateSignupToken creates one time token for creating account for the user
@@ -71,7 +66,7 @@ func (s *AuthServer) CreateSignupToken(user string, allowedLogins []string) (str
 		return "", trace.Wrap(err)
 	}
 
-	otp, err := hotp.GenerateHOTP(services.HOTPTokenDigits, false)
+	otp, err := hotp.GenerateHOTP(defaults.HOTPTokenDigits, false)
 	if err != nil {
 		log.Errorf("[AUTH API] failed to generate HOTP: %v", err)
 		return "", trace.Wrap(err)
@@ -86,8 +81,8 @@ func (s *AuthServer) CreateSignupToken(user string, allowedLogins []string) (str
 		return "", trace.Wrap(err)
 	}
 
-	otpFirstValues := make([]string, HOTPFirstTokensRange)
-	for i := 0; i < HOTPFirstTokensRange; i++ {
+	otpFirstValues := make([]string, defaults.HOTPFirstTokensRange)
+	for i := 0; i < defaults.HOTPFirstTokensRange; i++ {
 		otpFirstValues[i] = otp.OTP()
 	}
 
@@ -100,7 +95,7 @@ func (s *AuthServer) CreateSignupToken(user string, allowedLogins []string) (str
 		AllowedLogins:   allowedLogins,
 	}
 
-	err = s.UpsertSignupToken(token, tokenData, SignupTokenTTL+SignupTokenUserActionsTTL)
+	err = s.UpsertSignupToken(token, tokenData, defaults.MaxSignupTokenTTL)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -125,14 +120,9 @@ func (s *AuthServer) GetSignupTokenData(token string) (user string,
 		}
 	}()
 
-	tokenData, ttl, err := s.GetSignupToken(token)
+	tokenData, err := s.GetSignupToken(token)
 	if err != nil {
 		return "", nil, nil, trace.Wrap(err)
-	}
-
-	if ttl < SignupTokenUserActionsTTL {
-		// user should have time to fill the signup form
-		return "", nil, nil, trace.Errorf("token was expired")
 	}
 
 	_, err = s.GetPasswordHash(tokenData.User)
@@ -159,7 +149,7 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Se
 		}
 	}()
 
-	tokenData, _, err := s.GetSignupToken(token)
+	tokenData, err := s.GetSignupToken(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -169,7 +159,7 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Se
 		return nil, trace.Wrap(err)
 	}
 
-	ok := otp.Scan(hotpToken, HOTPFirstTokensRange)
+	ok := otp.Scan(hotpToken, defaults.HOTPFirstTokensRange)
 	if !ok {
 		return nil, trace.Wrap(teleport.BadParameter("hotp", "wrong HOTP token"))
 	}

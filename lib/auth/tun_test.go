@@ -25,6 +25,7 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/boltlog"
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
@@ -246,24 +247,23 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 
 	// User will scan QRcode, here we just loads the OTP generator
 	// right from the backend
-	tokenData, ttl, err := s.a.WebService.GetSignupToken(token)
+	tokenData, err := s.a.WebService.GetSignupToken(token)
 	c.Assert(err, IsNil)
-	c.Assert(ttl > SignupTokenUserActionsTTL, Equals, true)
 	otp, err := hotp.Unmarshal(tokenData.Hotp)
 	c.Assert(err, IsNil)
 
-	hotpTokens := make([]string, 6)
-	for i := 0; i < 6; i++ {
+	hotpTokens := make([]string, defaults.HOTPFirstTokensRange)
+	for i := 0; i < defaults.HOTPFirstTokensRange; i++ {
 		hotpTokens[i] = otp.OTP()
 	}
 
-	tokenData3, _, err := s.a.WebService.GetSignupToken(token3)
+	tokenData3, err := s.a.WebService.GetSignupToken(token3)
 	c.Assert(err, IsNil)
 	otp3, err := hotp.Unmarshal(tokenData3.Hotp)
 	c.Assert(err, IsNil)
 
-	hotpTokens3 := make([]string, 6)
-	for i := 0; i < 6; i++ {
+	hotpTokens3 := make([]string, defaults.HOTPFirstTokensRange+1)
+	for i := 0; i < defaults.HOTPFirstTokensRange+1; i++ {
 		hotpTokens3[i] = otp3.OTP()
 	}
 
@@ -292,13 +292,14 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	_, err = clt2.CreateUserWithToken(token, "another_user_signup_attempt", hotpTokens[0])
 	c.Assert(err, NotNil)
 
-	_, _, err = s.a.WebService.GetSignupToken(token)
+	_, err = s.a.WebService.GetSignupToken(token)
 	c.Assert(err, NotNil) // token was deleted
 
-	_, err = clt2.CreateUserWithToken(token3, "newpassword123", hotpTokens3[5])
+	// token out of scan range
+	_, err = clt2.CreateUserWithToken(token3, "newpassword123", hotpTokens3[defaults.HOTPFirstTokensRange])
 	c.Assert(err, NotNil)
 
-	_, err = clt2.CreateUserWithToken(token3, "newpassword45665", hotpTokens3[4])
+	_, err = clt2.CreateUserWithToken(token3, "newpassword45665", hotpTokens3[2])
 	c.Assert(err, IsNil)
 
 	// trying to connect to the auth server using used token
@@ -309,7 +310,6 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	c.Assert(err, NotNil) // valid token, but invalid client
 
 	// User was created. Now trying to login
-
 	authMethod3, err := NewWebPasswordAuth(user, []byte(password), hotpTokens[1])
 	c.Assert(err, IsNil)
 

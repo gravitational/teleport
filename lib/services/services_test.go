@@ -84,10 +84,6 @@ func (s *BoltSuite) TestWebSessionCRUD(c *C) {
 	s.suite.WebSessionCRUD(c)
 }
 
-func (s *BoltSuite) TestWebTunCRUD(c *C) {
-	s.suite.WebTunCRUD(c)
-}
-
 func (s *BoltSuite) TestLocking(c *C) {
 	s.suite.Locking(c)
 }

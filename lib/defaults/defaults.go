@@ -100,6 +100,27 @@ const (
 
 	// ReverseTunnelAgentHeartbeatPeriod is the period between agent heartbeat messages
 	ReverseTunnelAgentHeartbeatPeriod = 3 * time.Second
+
+	// MaxSignupTokenTTL is a maximum TTL for a web signup one time token
+	// clients can reduce this time, not increase it
+	MaxSignupTokenTTL = time.Hour
+
+	// MaxProvisioningTokenTTL is a maximum TTL for a server provisioning token
+	// clients can reduce this time, not increase it
+	MaxProvisioningTokenTTL = 15 * time.Minute
+
+	// HOTPFirstTokensRange is amount of lookahead tokens we remember
+	// for sync purposes
+	HOTPFirstTokensRange = 4
+
+	// HOTPTokenDigits is the number of digits in each token
+	HOTPTokenDigits = 6
+
+	// MinPasswordLength is minimum password length
+	MinPasswordLength = 6
+
+	// MaxPasswordLength is maximum password length (for sanity)
+	MaxPasswordLength = 128
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport
