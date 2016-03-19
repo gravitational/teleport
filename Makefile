@@ -8,7 +8,7 @@ INSTALL_BIN_DIR=/usr/bin
 INSTALL_ASSETS_DIR=/usr/share/teleport
 export
 
-.PHONY: install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd install-assets docs-serve
+.PHONY: install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd 
 
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
@@ -43,6 +43,13 @@ install:
 
 clean:
 	rm -rf $(OUT)
+
+#
+# Builds docs from mkdocs
+#
+.PHONY:docs
+docs:
+	$(MAKE) -C build.assets docs
 
 #
 # tests everything: called by Jenkins

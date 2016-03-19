@@ -6,6 +6,7 @@ site_author: Gravitational Inc
 copyright: Gravitational Inc, 2016
 theme: readthedocs
 site_dir: out/docs
+theme_dir: docs/theme
 extra_css: 
     - extra/ext.css
 extra_javascript:
