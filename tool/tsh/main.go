@@ -97,6 +97,7 @@ func run(args []string, underTest bool) {
 	scp := app.Command("scp", "Secure file copy")
 	scp.Arg("from, to", "File(s) and the destionation to copy to").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
+	scp.Flag("port", "Port to connect to on the remote host").Short('P').Int16Var(&cf.NodePort)
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes")
 	ls.Arg("labels", "List of labels to filter node list").StringVar(&cf.UserHost)
