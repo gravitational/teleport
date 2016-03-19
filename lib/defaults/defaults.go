@@ -89,6 +89,17 @@ const (
 	// DefaultReadHeadersTimeout is a default TCP timeout when we wait
 	// for the response headers to arrive
 	DefaultReadHeadersTimeout = time.Second
+
+	// ReverseTunnelsRefreshPeriod is a period for agents to refresh their
+	// state of the reverse tunnels (this will be removed once we roll
+	// events streams)
+	ReverseTunnelsRefreshPeriod = 3 * time.Second
+
+	// ReverseTunnelAgentReconnectPeriod is the period between agent reconnect attempts
+	ReverseTunnelAgentReconnectPeriod = 3 * time.Second
+
+	// ReverseTunnelAgentHeartbeatPeriod is the period between agent heartbeat messages
+	ReverseTunnelAgentHeartbeatPeriod = 3 * time.Second
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

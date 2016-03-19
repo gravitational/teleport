@@ -740,7 +740,6 @@ type tunConn struct {
 }
 
 func (c *tunConn) Close() error {
-	log.Debugf("tunConn: close!")
 	err := c.Conn.Close()
 	err = c.client.Close()
 	return trace.Wrap(err)

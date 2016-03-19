@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package limiter
 
 import (
@@ -28,6 +29,8 @@ import (
 	"github.com/vulcand/oxy/utils"
 )
 
+// RateLimiter controls connection rate, it uses token bucket algo
+// https://en.wikipedia.org/wiki/Token_bucket
 type RateLimiter struct {
 	*ratelimit.TokenLimiter
 	rateLimits *ttlmap.TtlMap
@@ -36,12 +39,14 @@ type RateLimiter struct {
 	clock timetools.TimeProvider
 }
 
+// Rate defines connection rate
 type Rate struct {
 	Period  time.Duration
 	Average int64
 	Burst   int64
 }
 
+// NewRateLimiter returns new request rate controller
 func NewRateLimiter(config LimiterConfig) (*RateLimiter, error) {
 	limiter := RateLimiter{
 		Mutex: &sync.Mutex{},

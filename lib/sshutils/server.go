@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// Server is a generic implementation of a frame for SSH server
 type Server struct {
 	addr           utils.NetAddr
 	listener       net.Listener
@@ -41,6 +42,7 @@ type Server struct {
 	limiter        *limiter.Limiter
 }
 
+// ServerOption is a functional argument for server
 type ServerOption func(cfg *Server) error
 
 func SetLimiter(limiter *limiter.Limiter) ServerOption {

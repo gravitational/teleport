@@ -61,6 +61,8 @@ type CommandLineFlags struct {
 	Debug bool
 	// --labels flag
 	Labels string
+	// --httpprofile hidden flag
+	HTTPProfileEndpoint bool
 }
 
 // readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -300,7 +302,6 @@ func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 		cfg.SSH.Enabled = strings.Index(clf.Roles, defaults.RoleNode) != -1
 		cfg.Auth.Enabled = strings.Index(clf.Roles, defaults.RoleAuthService) != -1
 		cfg.Proxy.Enabled = strings.Index(clf.Roles, defaults.RoleProxy) != -1
-		cfg.ReverseTunnel.Enabled = cfg.Proxy.Enabled
 	}
 
 	// apply --auth-server flag:

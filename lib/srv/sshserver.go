@@ -364,12 +364,10 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 
 	// for local users, go and check their individual permissions
 	if localDomain == ca.DomainName {
-		log.Infof("%v is local authority", ca.DomainName)
 		users, err := s.authService.GetUsers()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		log.Infof("users: %v", users)
 		for _, u := range users {
 			if u.Name == teleportUser {
 				for _, login := range u.AllowedLogins {
@@ -383,7 +381,6 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 			fmt.Sprintf("not found local user entry for %v and os user %v for local authority %v",
 				teleportUser, osUser, ca.ID())))
 	}
-	log.Infof("%v is remote authority", ca.DomainName)
 
 	// for other authorities, check for authoritiy permissions
 	for _, login := range ca.AllowedLogins {

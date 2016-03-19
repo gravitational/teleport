@@ -62,6 +62,13 @@ type AuthServerCommand struct {
 	config *service.Config
 }
 
+type ReverseTunnelCommand struct {
+	config      *service.Config
+	domainNames string
+	dialAddrs   utils.NetAddrList
+	ttl         time.Duration
+}
+
 func main() {
 	utils.InitLoggerCLI()
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
@@ -72,6 +79,7 @@ func main() {
 	cmdNodes := NodeCommand{config: cfg}
 	cmdAuth := AuthCommand{config: cfg}
 	cmdAuthServers := AuthServerCommand{config: cfg}
+	cmdReverseTunnel := ReverseTunnelCommand{config: cfg}
 
 	// define global flags:
 	var ccf CLIConfig
@@ -116,6 +124,19 @@ func main() {
 	authServers := app.Command("authservers", "Operations with user and host certificate authorities").Hidden()
 	authServerAdd := authServers.Command("add", "Add a new auth server node to the cluster").Hidden()
 
+	// operations with reverse tunnels
+	reverseTunnels := app.Command("rts", "Operations with reverse tunnels").Hidden()
+	reverseTunnelsList := reverseTunnels.Command("ls", "List reverse tunnels").Hidden()
+	reverseTunnelsDelete := reverseTunnels.Command("del", "Deletes reverse tunnels").Hidden()
+	reverseTunnelsDelete.Arg("domain", "Comma-separated list of reverse tunnels to delete").
+		Required().StringVar(&cmdReverseTunnel.domainNames)
+	reverseTunnelsUpsert := reverseTunnels.Command("upsert", "Update or add a new reverse tunnel").Hidden()
+	reverseTunnelsUpsert.Arg("domain", "Domain name of the reverse tunnel").
+		Required().StringVar(&cmdReverseTunnel.domainNames)
+	reverseTunnelsUpsert.Arg("addrs", "Comma-separated list of dial addresses for reverse tunnels to dial").
+		Required().SetValue(&cmdReverseTunnel.dialAddrs)
+	reverseTunnelsUpsert.Flag("ttl", "Optional TTL (time to live) for reverse tunnel").DurationVar(&cmdReverseTunnel.ttl)
+
 	// parse CLI commands+flags:
 	command, err := app.Parse(os.Args[1:])
 	if err != nil {
@@ -155,6 +176,12 @@ func main() {
 		err = cmdAuth.ExportAuthorities(client)
 	case authServerAdd.FullCommand():
 		err = cmdAuthServers.Invite(client)
+	case reverseTunnelsList.FullCommand():
+		err = cmdReverseTunnel.ListActive(client)
+	case reverseTunnelsDelete.FullCommand():
+		err = cmdReverseTunnel.Delete(client)
+	case reverseTunnelsUpsert.FullCommand():
+		err = cmdReverseTunnel.Upsert(client)
 	}
 
 	if err != nil {
@@ -341,6 +368,53 @@ func (u *AuthServerCommand) Invite(client *auth.TunClient) error {
 	fmt.Printf(
 		"# Run this config the new auth server to join the cluster:\n# > teleport start --config config.yaml\n# Fill in auth peers in this config:\n")
 	fmt.Println(out)
+	return nil
+}
+
+// ListActive retreives the list of nodes who recently sent heartbeats to
+// to a cluster and prints it to stdout
+func (r *ReverseTunnelCommand) ListActive(client *auth.TunClient) error {
+	tunnels, err := client.GetReverseTunnels()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tunnelsView := func() string {
+		t := goterm.NewTable(0, 10, 5, ' ', 0)
+		printHeader(t, []string{"Domain", "Dial Addresses"})
+		if len(tunnels) == 0 {
+			return t.String()
+		}
+		for _, tunnel := range tunnels {
+			fmt.Fprintf(t, "%v\t%v\n", tunnel.DomainName, strings.Join(tunnel.DialAddrs, ","))
+		}
+		return t.String()
+	}
+	fmt.Printf(tunnelsView())
+	return nil
+}
+
+// Upsert updates or inserts new reverse tunnel
+func (r *ReverseTunnelCommand) Upsert(client *auth.TunClient) error {
+	err := client.UpsertReverseTunnel(services.ReverseTunnel{
+		DomainName: r.domainNames,
+		DialAddrs:  r.dialAddrs.Addresses()},
+		r.ttl)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Reverse tunnel updated\n")
+	return nil
+}
+
+// Delete deletes teleport user(s). User IDs are passed as a comma-separated
+// list in UserCommand.login
+func (r *ReverseTunnelCommand) Delete(client *auth.TunClient) error {
+	for _, domainName := range strings.Split(r.domainNames, ",") {
+		if err := client.DeleteReverseTunnel(domainName); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Reverse tunnel '%v' has been deleted\n", domainName)
+	}
 	return nil
 }
 

@@ -43,6 +43,8 @@ type Config struct {
 	DataDir  string
 	Hostname string
 
+	// AuthServers is a list of auth servers nodes, proxies and peer auth servers
+	// connect to
 	AuthServers NetAddrSlice
 
 	// AdvertiseIP is used to "publish" an alternative IP address this node
@@ -54,9 +56,6 @@ type Config struct {
 
 	// Auth server authentication and authorizatin server config
 	Auth AuthConfig
-
-	// ReverseTunnnel role creates and mantains outbound SSH reverse tunnel to the proxy
-	ReverseTunnel ReverseTunnelConfig
 
 	// Proxy is SSH proxy that manages incoming and outbound connections
 	// via multiple reverse tunnels
@@ -243,14 +242,6 @@ type SSHConfig struct {
 	CmdLabels services.CommandLabels
 }
 
-// ReverseTunnelConfig configures reverse tunnel role
-type ReverseTunnelConfig struct {
-	Enabled  bool
-	Token    string
-	DialAddr utils.NetAddr
-	Limiter  limiter.LimiterConfig
-}
-
 type NetAddrSlice []utils.NetAddr
 
 func (s *NetAddrSlice) Set(val string) error {
@@ -357,11 +348,8 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Proxy.AssetsDir = defaults.DataDir
 	cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
 	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
-	cfg.ReverseTunnel.Enabled = false
-	cfg.ReverseTunnel.DialAddr = *defaults.ReverseTunnellConnectAddr()
 	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnellListenAddr()
 	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
-	defaults.ConfigureLimiter(&cfg.ReverseTunnel.Limiter)
 
 	// defaults for the SSH service:
 	cfg.SSH.Enabled = true

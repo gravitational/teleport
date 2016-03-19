@@ -97,6 +97,11 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.POST("/v1/proxies", httplib.MakeHandler(srv.upsertProxy))
 	srv.GET("/v1/proxies", httplib.MakeHandler(srv.getProxies))
 
+	// Reverse tunnels
+	srv.POST("/v1/reversetunnels", httplib.MakeHandler(srv.upsertReverseTunnel))
+	srv.GET("/v1/reversetunnels", httplib.MakeHandler(srv.getReverseTunnels))
+	srv.DELETE("/v1/reversetunnels/:domain", httplib.MakeHandler(srv.deleteReverseTunnel))
+
 	// Tokens
 	srv.POST("/v1/tokens", httplib.MakeHandler(srv.generateToken))
 	srv.POST("/v1/tokens/register", httplib.MakeHandler(srv.registerUsingToken))
@@ -198,6 +203,42 @@ func (s *APIServer) getAuthServers(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 	return servers, nil
+}
+
+type upsertReverseTunnelReq struct {
+	ReverseTunnel services.ReverseTunnel `json:"reverse_tunnel"`
+	TTL           time.Duration          `json:"ttl"`
+}
+
+// upsertReverseTunnel is called by admin to create a reverse tunnel to remote proxy
+func (s *APIServer) upsertReverseTunnel(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req upsertReverseTunnelReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.a.UpsertReverseTunnel(req.ReverseTunnel, req.TTL); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+// getReverseTunnels returns a list of reverse tunnels
+func (s *APIServer) getReverseTunnels(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	reverseTunnels, err := s.a.GetReverseTunnels()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return reverseTunnels, nil
+}
+
+// deleteReverseTunnel deletes reverse tunnel
+func (s *APIServer) deleteReverseTunnel(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	domainName := p[0].Value
+	err := s.a.DeleteReverseTunnel(domainName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message(fmt.Sprintf("reverse tunnel %v deleted", domainName)), nil
 }
 
 func (s *APIServer) deleteWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {

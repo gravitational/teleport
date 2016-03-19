@@ -60,6 +60,10 @@ func (s *BoltSuite) TestServerCRUD(c *C) {
 	s.suite.ServerCRUD(c)
 }
 
+func (s *BoltSuite) TestReverseTunnelsCRUD(c *C) {
+	s.suite.ReverseTunnelsCRUD(c)
+}
+
 func (s *BoltSuite) TestUsersCRUD(c *C) {
 	s.suite.UsersCRUD(c)
 }

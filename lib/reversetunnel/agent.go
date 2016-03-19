@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -39,17 +40,16 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// Agent is a reverse tunnel running on site and
+// Agent is a reverse tunnel agent running as a part of teleport Proxies
+// to establish outbound reverse tunnels to remote proxies
 type Agent struct {
 	log             *log.Entry
 	addr            utils.NetAddr
 	elog            events.Log
 	clt             *auth.TunClient
 	domainName      string
-	closeC          chan bool
-	closeOnce       sync.Once
+	broadcastClose  *utils.CloseBroadcaster
 	disconnectC     chan bool
-	conn            ssh.Conn
 	hostKeyCallback utils.HostKeyCallback
 	authMethods     []ssh.AuthMethod
 }
@@ -78,12 +78,12 @@ func NewAgent(addr utils.NetAddr, domainName string, signers []ssh.Signer,
 				"mode":   "agent",
 			},
 		}),
-		clt:         clt,
-		addr:        addr,
-		domainName:  domainName,
-		closeC:      make(chan bool),
-		disconnectC: make(chan bool, 10),
-		authMethods: []ssh.AuthMethod{ssh.PublicKeys(signers...)},
+		clt:            clt,
+		addr:           addr,
+		domainName:     domainName,
+		broadcastClose: utils.NewCloseBroadcaster(),
+		disconnectC:    make(chan bool, 10),
+		authMethods:    []ssh.AuthMethod{ssh.PublicKeys(signers...)},
 	}
 	a.hostKeyCallback = a.checkHostSignature
 	for _, o := range options {
@@ -99,10 +99,7 @@ func NewAgent(addr utils.NetAddr, domainName string, signers []ssh.Signer,
 
 // Close signals to close all connections
 func (a *Agent) Close() error {
-	a.closeOnce.Do(func() {
-		close(a.closeC)
-	})
-	return nil
+	return a.broadcastClose.Close()
 }
 
 // Start starts agent that attempts to connect to remote server part
@@ -118,7 +115,7 @@ func (a *Agent) handleDisconnect() {
 	a.log.Infof("handle disconnects")
 	for {
 		select {
-		case <-a.closeC:
+		case <-a.broadcastClose.C:
 			a.log.Infof("is closed, returning")
 			return
 		case <-a.disconnectC:
@@ -129,22 +126,23 @@ func (a *Agent) handleDisconnect() {
 }
 
 func (a *Agent) reconnect() error {
+	ticker := time.NewTicker(defaults.ReverseTunnelAgentReconnectPeriod)
+	defer ticker.Stop()
 	var err error
 	i := 0
 	for {
 		select {
-		case <-a.closeC:
+		case <-a.broadcastClose.C:
 			a.log.Infof("is closed, return")
 			return nil
-		default:
+		case <-ticker.C:
+			if err = a.connect(); err != nil {
+				a.log.Infof("connect attempt %v: %v", i, err)
+				i++
+				continue
+			}
+			return nil
 		}
-		i++
-		if err = a.connect(); err != nil {
-			a.log.Infof("connect attempt %v: %v", i, err)
-			time.Sleep(time.Duration(min(i, 10)) * time.Second)
-			continue
-		}
-		return nil
 	}
 }
 
@@ -168,10 +166,10 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 		return trace.Wrap(err, "failed to fetch remote certs")
 	}
 	for _, ca := range cas {
-		a.log.Infof("checking %v against host %v", ca.ID())
+		a.log.Infof("checking against %v", ca.ID())
 		checkers, err := ca.Checkers()
 		if err != nil {
-			return trace.Errorf("error parsing key: %v", err)
+			return trace.Wrap(teleport.BadParameter("key", fmt.Sprintf("error parsing key: %v", err)))
 		}
 		for _, checker := range checkers {
 			if sshutils.KeysEqual(checker, cert.SignatureKey) {
@@ -180,9 +178,8 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 			}
 		}
 	}
-	return trace.Wrap(&teleport.NotFoundError{
-		Message: "no matching keys found when checking server's host signature",
-	})
+	return trace.Wrap(teleport.NotFound(
+		"no matching keys found when checking server's host signature"))
 }
 
 func (a *Agent) connect() error {
@@ -212,9 +209,7 @@ func (a *Agent) connect() error {
 		return trace.Wrap(err)
 	}
 
-	a.conn = c
-
-	go a.startHeartbeat()
+	go a.startHeartbeat(c)
 	go a.handleAccessPoint(c.HandleChannelOpen(chanAccessPoint))
 	go a.handleTransport(c.HandleChannelOpen(chanTransport))
 
@@ -226,7 +221,7 @@ func (a *Agent) handleAccessPoint(newC <-chan ssh.NewChannel) {
 	for {
 		var nch ssh.NewChannel
 		select {
-		case <-a.closeC:
+		case <-a.broadcastClose.C:
 			a.log.Infof("is closed, return")
 			return
 		case nch = <-newC:
@@ -248,7 +243,7 @@ func (a *Agent) handleTransport(newC <-chan ssh.NewChannel) {
 	for {
 		var nch ssh.NewChannel
 		select {
-		case <-a.closeC:
+		case <-a.broadcastClose.C:
 			a.log.Infof("is closed, return")
 			return
 		case nch = <-newC:
@@ -298,7 +293,7 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 
 	var req *ssh.Request
 	select {
-	case <-a.closeC:
+	case <-a.broadcastClose.C:
 		a.log.Infof("is closed, returning")
 		return
 	case req = <-reqC:
@@ -339,13 +334,15 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	wg.Wait()
 }
 
-func (a *Agent) startHeartbeat() {
+func (a *Agent) startHeartbeat(conn ssh.Conn) {
 	defer func() {
 		a.disconnectC <- true
 		a.log.Infof("sent disconnect message")
 	}()
 
-	hb, reqC, err := a.conn.OpenChannel(chanHeartbeat, nil)
+	defer conn.Close()
+
+	hb, reqC, err := conn.OpenChannel(chanHeartbeat, nil)
 	if err != nil {
 		a.log.Errorf("failed to open channel: %v", err)
 		return
@@ -354,31 +351,39 @@ func (a *Agent) startHeartbeat() {
 	closeC := make(chan bool)
 	errC := make(chan error, 2)
 
+	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
+	defer ticker.Stop()
+
 	go func() {
+		_, err := hb.SendRequest("ping", false, nil)
+		if err != nil {
+			a.log.Errorf("failed to send heartbeat: %v", err)
+			errC <- err
+			return
+		}
 		for {
 			select {
-			case <-a.closeC:
+			case <-a.broadcastClose.C:
 				a.log.Infof("agent is closing")
 				return
 			case <-closeC:
 				a.log.Infof("asked to exit")
 				return
-			default:
+			case <-ticker.C:
+				_, err := hb.SendRequest("ping", false, nil)
+				if err != nil {
+					a.log.Errorf("failed to send heartbeat: %v", err)
+					errC <- err
+					return
+				}
 			}
-			_, err := hb.SendRequest("ping", false, nil)
-			if err != nil {
-				a.log.Errorf("failed to send heartbeat: %v", err)
-				errC <- err
-				return
-			}
-			time.Sleep(heartbeatPeriod)
 		}
 	}()
 
 	go func() {
 		for {
 			select {
-			case <-a.closeC:
+			case <-a.broadcastClose.C:
 				a.log.Infof("agent is closing")
 				return
 			case <-closeC:
@@ -401,13 +406,10 @@ func (a *Agent) startHeartbeat() {
 }
 
 const (
-	chanHeartbeat   = "teleport-heartbeat"
-	chanAccessPoint = "teleport-access-point"
-	chanTransport   = "teleport-transport"
-
+	chanHeartbeat        = "teleport-heartbeat"
+	chanAccessPoint      = "teleport-access-point"
+	chanTransport        = "teleport-transport"
 	chanTransportDialReq = "teleport-transport-dial"
-
-	heartbeatPeriod = 5 * time.Second
 )
 
 const (
@@ -418,10 +420,3 @@ const (
 	// at expected interval
 	RemoteSiteStatusOnline = "online"
 )
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
