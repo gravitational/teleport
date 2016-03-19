@@ -352,7 +352,7 @@ type ConnectionProblemError struct {
 
 // Error is debug - friendly error message
 func (c *ConnectionProblemError) Error() string {
-	return fmt.Sprintf("%v: %v", c.Message, c.Err.Error())
+	return fmt.Sprintf("%v: %v", c.Message, c.Err)
 }
 
 // IsConnectionProblemError indicates that this error is of ConnectionProblem

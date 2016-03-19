@@ -403,7 +403,7 @@ func (s *AuthTunnel) passwordAuth(
 		utils.Consolef(os.Stdout, "[AUTH] Successfully accepted token %v for %v", string(password), conn.User())
 		return perms, nil
 	case AuthSignupToken:
-		_, _, err := s.authServer.GetSignupToken(string(ab.Pass))
+		_, err := s.authServer.GetSignupToken(string(ab.Pass))
 		if err != nil {
 			return nil, trace.Errorf("token validation error: %v", trace.Wrap(err))
 		}

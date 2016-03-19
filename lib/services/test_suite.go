@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services/suite"
 
 	"github.com/gokyle/hotp"
@@ -273,40 +274,6 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *C) {
 	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 }
 
-func (s *ServicesTestSuite) WebTunCRUD(c *C) {
-	_, err := s.WebS.GetWebTun("p1")
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
-
-	t := WebTun{
-		Prefix:     "p1",
-		TargetAddr: "http://localhost:5000",
-		ProxyAddr:  "node1.gravitational.io",
-	}
-	c.Assert(s.WebS.UpsertWebTun(t, 0), IsNil)
-
-	out, err := s.WebS.GetWebTun("p1")
-	c.Assert(out, DeepEquals, &t)
-
-	tuns, err := s.WebS.GetWebTuns()
-	c.Assert(err, IsNil)
-	c.Assert(tuns, DeepEquals, []WebTun{t})
-
-	t1 := WebTun{
-		Prefix:     "p1",
-		TargetAddr: "http://localhost:5001",
-		ProxyAddr:  "node1.gravitational2.io",
-	}
-	c.Assert(s.WebS.UpsertWebTun(t1, 0), IsNil)
-
-	out, err = s.WebS.GetWebTun("p1")
-	c.Assert(out, DeepEquals, &t1)
-
-	c.Assert(s.WebS.DeleteWebTun("p1"), IsNil)
-
-	_, err = s.WebS.GetWebTun("p1")
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
-}
-
 func (s *ServicesTestSuite) Locking(c *C) {
 	tok1 := "token1"
 	tok2 := "token2"
@@ -360,6 +327,7 @@ func (s *ServicesTestSuite) TokenCRUD(c *C) {
 
 	token, err := s.ProvisioningS.GetToken("token")
 	c.Assert(token.Role, Equals, "RoleExample")
+	c.Assert(token.TTL > 0 && token.TTL <= defaults.MaxProvisioningTokenTTL, Equals, true, Commentf("%v", token.TTL))
 	c.Assert(err, IsNil)
 
 	c.Assert(s.ProvisioningS.DeleteToken("token"), IsNil)
@@ -374,6 +342,13 @@ func (s *ServicesTestSuite) TokenCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tok, Equals, "token1")
 	c.Assert(role, Equals, "Auth")
+
+	c.Assert(s.ProvisioningS.UpsertToken("token2", "RoleExample", 2*defaults.MaxProvisioningTokenTTL), IsNil)
+
+	token, err = s.ProvisioningS.GetToken("token2")
+	c.Assert(token.Role, Equals, "RoleExample")
+	c.Assert(token.TTL > 0 && token.TTL <= defaults.MaxProvisioningTokenTTL, Equals, true, Commentf("%v", token.TTL))
+	c.Assert(err, IsNil)
 }
 
 func (s *ServicesTestSuite) PasswordCRUD(c *C) {
@@ -420,8 +395,8 @@ func (s *ServicesTestSuite) PasswordCRUD(c *C) {
 func (s *ServicesTestSuite) PasswordGarbage(c *C) {
 	garbage := [][]byte{
 		nil,
-		make([]byte, MaxPasswordLength+1),
-		make([]byte, MinPasswordLength-1),
+		make([]byte, defaults.MaxPasswordLength+1),
+		make([]byte, defaults.MinPasswordLength-1),
 	}
 	for _, g := range garbage {
 		err := s.WebS.CheckPassword("user1", g, "123456")

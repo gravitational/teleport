@@ -307,7 +307,6 @@ func (s *SrvSuite) testClient(c *C, proxyAddr, targetAddr, remoteAddr string, ss
 
 func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	log.Infof("[TEST START] TestProxyReverseTunnel")
-	fmt.Printf("[TEST START] TestProxyRoundRobin\n\n")
 
 	reverseTunnelPort := s.freePorts[len(s.freePorts)-1]
 	s.freePorts = s.freePorts[:len(s.freePorts)-1]
@@ -470,7 +469,6 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 
 func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	log.Infof("[TEST START] TestProxyRoundRobin")
-	fmt.Printf("[TEST START] TestProxyRoundRobin\n\n")
 
 	reverseTunnelPort := s.freePorts[len(s.freePorts)-1]
 	s.freePorts = s.freePorts[:len(s.freePorts)-1]
@@ -562,8 +560,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		s.testClient(c, proxy.Addr(), s.srvAddress, s.srv.Addr(), sshConfig)
 	}
 	// close first connection, and test it again
-	//rsAgent.Close()
-	fmt.Printf("!!!!!!!closed agent!!!!!\n\n\n\n")
+	rsAgent.Close()
 
 	for i := 0; i < 3; i++ {
 		s.testClient(c, proxy.Addr(), s.srvAddress, s.srv.Addr(), sshConfig)

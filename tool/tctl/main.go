@@ -217,7 +217,7 @@ func (u *UserCommand) Add(hostname string, client *auth.TunClient) error {
 		hostname, _ = os.Hostname()
 	}
 	url := web.CreateSignupLink(net.JoinHostPort(hostname, strconv.Itoa(defaults.HTTPListenPort)), token)
-	fmt.Printf("Signup token has been created. Share this URL with the user:\n%v\n\nNOTE: make sure the hostname is accessible!\n", url)
+	fmt.Printf("Signup token has been created and is valid for %v seconds. Share this URL with the user:\n%v\n\nNOTE: make sure the hostname is accessible!\n", defaults.MaxSignupTokenTTL.Seconds(), url)
 	return nil
 }
 
@@ -257,15 +257,14 @@ func (u *UserCommand) Delete(client *auth.TunClient) error {
 // Invite generates a token which can be used to add another SSH node
 // to a cluster
 func (u *NodeCommand) Invite(client *auth.TunClient) error {
-	invitationTTL := time.Minute * 15
-	token, err := client.GenerateToken(teleport.RoleNode, invitationTTL)
+	token, err := client.GenerateToken(teleport.RoleNode, defaults.MaxProvisioningTokenTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf(
 		"The invite token: %v\nRun this on the new node to join the cluster:\n> teleport start --roles=node --token=%v --auth-server=<Address>\n\nNotes:\n",
 		token, token)
-	fmt.Printf("  1. This invitation token will expire in %v seconds.\n", invitationTTL.Seconds())
+	fmt.Printf("  1. This invitation token will expire in %v seconds.\n", defaults.MaxProvisioningTokenTTL.Seconds())
 	fmt.Printf("  2. <Address> is the IP this auth server is reachable at from the node.\n")
 	return nil
 }

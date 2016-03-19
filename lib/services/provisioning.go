@@ -13,27 +13,37 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package services
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
+
 	"github.com/gravitational/trace"
 )
 
+// ProvisioningService governs adding new nodes to the cluster
 type ProvisioningService struct {
 	backend backend.Backend
 }
 
+// NewProvisioningService returns a new instance of provisioning service
 func NewProvisioningService(backend backend.Backend) *ProvisioningService {
 	return &ProvisioningService{backend}
 }
 
-// Tokens are provisioning tokens for the auth server
+// UpsertToken adds provisioning tokens for the auth server
 func (s *ProvisioningService) UpsertToken(token, role string, ttl time.Duration) error {
+	if ttl < time.Second || ttl > defaults.MaxProvisioningTokenTTL {
+		ttl = defaults.MaxProvisioningTokenTTL
+	}
+
 	t := ProvisionToken{
 		Role: role,
 	}
@@ -47,22 +57,23 @@ func (s *ProvisioningService) UpsertToken(token, role string, ttl time.Duration)
 		return trace.Wrap(err)
 	}
 	return nil
-
 }
-func (s *ProvisioningService) GetToken(token string) (ProvisionToken, error) {
-	out, err := s.backend.GetVal([]string{"tokens"}, token)
+
+// GetToken finds and returns token by id
+func (s *ProvisioningService) GetToken(token string) (*ProvisionToken, error) {
+	out, ttl, err := s.backend.GetValAndTTL([]string{"tokens"}, token)
 	if err != nil {
-		log.Error(err)
-		return ProvisionToken{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	var t ProvisionToken
+	var t *ProvisionToken
 	err = json.Unmarshal(out, &t)
 	if err != nil {
-		log.Error(err)
-		return ProvisionToken{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
+	t.TTL = ttl
 	return t, nil
 }
+
 func (s *ProvisioningService) DeleteToken(token string) error {
 	err := s.backend.DeleteKey([]string{"tokens"}, token)
 	return err
@@ -75,12 +86,12 @@ func JoinTokenRole(token, role string) (ouputToken string, e error) {
 	case TokenRoleNode:
 		return "n" + token, nil
 	}
-	return token, trace.Errorf("Unknown role %v", role)
+	return "", trace.Wrap(teleport.BadParameter("role", fmt.Sprintf("unknown role: %v", role)))
 }
 
 func SplitTokenRole(outputToken string) (token, role string, e error) {
 	if len(outputToken) <= 1 {
-		return outputToken, "", trace.Errorf("Unknown role")
+		return outputToken, "", trace.Wrap(teleport.BadParameter("role", "unknown role"))
 	}
 	if outputToken[0] == 'n' {
 		return outputToken[1:], TokenRoleNode, nil
@@ -88,14 +99,17 @@ func SplitTokenRole(outputToken string) (token, role string, e error) {
 	if outputToken[0] == 'a' {
 		return outputToken[1:], TokenRoleAuth, nil
 	}
-	return outputToken, "", trace.Errorf("Unknown role")
+	return outputToken, "", trace.Wrap(teleport.BadParameter("role", "unknown role"))
 }
 
+// ProvisionToken stores metadata about some provisioning token
 type ProvisionToken struct {
-	Role string
+	Role string        `json:"role"`
+	TTL  time.Duration `json:"-"`
 }
 
 const (
+	// TokenRoleAuth specifies
 	TokenRoleAuth = "Auth"
 	TokenRoleNode = "Node"
 )
