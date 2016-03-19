@@ -1,7 +1,24 @@
+/*
+Copyright 2015 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 var React = require('react');
+var InputSearch = require('./../inputSearch.jsx');
 var {Table, Column, Cell, SortHeaderCell, SortTypes} = require('app/components/table.jsx');
-var {createNewSession} = require('app/modules/activeTerminal/actions');
-var LinkedStateMixin = require('react-addons-linked-state-mixin');
+var {createNewSession} = require('app/modules/currentSession/actions');
+
 var _ = require('_');
 var {isMatch} = require('app/common/objectUtils');
 
@@ -66,20 +83,19 @@ const LoginCell = ({logins, onLoginClick, rowIndex, data, ...props}) => {
 
 var NodeList = React.createClass({
 
-  mixins: [LinkedStateMixin],
-
   getInitialState(/*props*/){
     this.searchableProps = ['addr', 'hostname', 'tags'];
     return { filter: '', colSortDirs: {hostname: SortTypes.DESC} };
   },
 
   onSortChange(columnKey, sortDir) {
-    this.setState({
-      ...this.state,
-      colSortDirs: {
-        [columnKey]: sortDir
-      }
-    });
+    this.state.colSortDirs = { [columnKey]: sortDir };
+    this.setState(this.state);
+  },
+
+  onFilterChange(value){
+    this.state.filter = value;
+    this.setState(this.state);
   },
 
   searchAndFilterCb(targetValue, searchValue, propName){
@@ -121,9 +137,7 @@ var NodeList = React.createClass({
             <h1> Nodes </h1>
           </div>
           <div className="grv-flex-column">
-            <div className="grv-search">
-              <input valueLink={this.linkState('filter')} placeholder="Search..." className="form-control input-sm"/>
-            </div>
+            <InputSearch value={this.filter} onChange={this.onFilterChange}/>
           </div>
         </div>
         <div className="">

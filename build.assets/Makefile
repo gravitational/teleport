@@ -21,7 +21,7 @@ build: bbox
 #
 .PHONY:bbox
 bbox:
-	docker build --tag $(BBOX) .
+	docker build --build-arg UID=$$(id -u) --build-arg GID=$$(id -g) --tag $(BBOX) .
 
 
 #
@@ -29,7 +29,7 @@ bbox:
 #
 .PHONY:test
 test:
-	docker run $(DOCKERFLAGS) $(BBOX) \
+	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
 		/bin/bash -c "$(MAKE) -C $(SRCDIR) TELEPORT_DEBUG_TESTS=true FLAGS='-cover -race' clean test"
 
 

@@ -100,10 +100,10 @@ func (cfg *Config) ConfigureBolt(dataDir string) {
 }
 
 // ConfigureETCD configures ETCD backend (still uses BoltDB for some cases)
-func (cfg *Config) ConfigureETCD(dataDir string, peers []string, key string) error {
+func (cfg *Config) ConfigureETCD(dataDir string, etcdCfg etcdbk.Config) error {
 	a := &cfg.Auth
 
-	params, err := etcdParams(peers, key)
+	params, err := etcdParams(etcdCfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -211,8 +211,6 @@ type AuthConfig struct {
 		Type string
 		// Params is map with backend specific parameters
 		Params string
-		// AdditionalKey is a additional signing GPG key
-		EncryptionKeys StringArray
 	}
 
 	// EventsBackend configures backend that stores cluster events (login attempts, etc)
@@ -271,19 +269,6 @@ func (s *NetAddrSlice) Set(val string) error {
 		out[i] = *a
 	}
 	*s = out
-	return nil
-}
-
-type StringArray []string
-
-func (sa *StringArray) Set(v string) error {
-	if len(*sa) == 0 {
-		*sa = make([]string, 0)
-	}
-	err := json.Unmarshal([]byte(v), sa)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	return nil
 }
 
@@ -400,8 +385,8 @@ func boltParams(storagePath, dbFile string) string {
 }
 
 // etcdParams generates a string accepted by the ETCD driver, like this:
-func etcdParams(peers []string, key string) (string, error) {
-	out, err := json.Marshal(etcdbk.Config{Nodes: peers, Key: key})
+func etcdParams(cfg etcdbk.Config) (string, error) {
+	out, err := json.Marshal(cfg)
 	if err != nil { // don't know what to do seriously
 		return "", trace.Wrap(err)
 	}

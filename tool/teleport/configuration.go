@@ -27,6 +27,7 @@ import (
 	"unicode"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -129,7 +130,14 @@ func applyFileConfig(fc *config.FileConfig, cfg *service.Config) error {
 	case teleport.BoltBackendType:
 		cfg.ConfigureBolt(fc.Storage.DirName)
 	case teleport.ETCDBackendType:
-		if err := cfg.ConfigureETCD(fc.Storage.DirName, fc.Storage.Peers, fc.Storage.Prefix); err != nil {
+		if err := cfg.ConfigureETCD(
+			fc.Storage.DirName, etcdbk.Config{
+				Nodes:       fc.Storage.Peers,
+				Key:         fc.Storage.Prefix,
+				TLSKeyFile:  fc.Storage.TLSKeyFile,
+				TLSCertFile: fc.Storage.TLSCertFile,
+				TLSCAFile:   fc.Storage.TLSCAFile,
+			}); err != nil {
 			return trace.Wrap(err)
 		}
 	case "":

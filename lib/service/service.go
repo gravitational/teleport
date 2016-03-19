@@ -54,6 +54,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// RoleConfig is a configuration for a server role (either proxy or node)
 type RoleConfig struct {
 	DataDir     string
 	HostUUID    string

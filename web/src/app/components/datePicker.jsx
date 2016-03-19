@@ -1,3 +1,19 @@
+/*
+Copyright 2015 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 var React = require('react');
 var $ = require('jQuery');
 var moment = require('moment');
@@ -63,7 +79,7 @@ var DateRangePicker = React.createClass({
 
   render() {
     return (
-      <div className="grv-datepicker input-group input-daterange" ref="rangePicker">        
+      <div className="grv-datepicker input-group input-daterange" ref="rangePicker">
         <input ref="dpPicker1" type="text" className="input-sm form-control" name="start" />
         <span className="input-group-addon">to</span>
         <input ref="dpPicker2" type="text" className="input-sm form-control" name="end" />
@@ -83,7 +99,7 @@ var CalendarNav = React.createClass({
 
   render() {
     let {value} = this.props;
-    let displayValue = moment(value).format('MMMM, YYYY');
+    let displayValue = moment(value).format('MMM Do, YYYY');
 
     return (
       <div className={"grv-calendar-nav " + this.props.className} >
@@ -96,12 +112,12 @@ var CalendarNav = React.createClass({
 
   move(at){
     let {value} = this.props;
-    let newValue = moment(value).add(at, 'month').toDate();
+    let newValue = moment(value).add(at, 'week').toDate();
     this.props.onValueChange(newValue);
   }
 });
 
-CalendarNav.getMonthRange = function(value){
+CalendarNav.getweekRange = function(value){
   let startDate = moment(value).startOf('month').toDate();
   let endDate = moment(value).endOf('month').toDate();
   return [startDate, endDate];
