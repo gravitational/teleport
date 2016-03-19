@@ -125,7 +125,7 @@ func main() {
 	authServerAdd := authServers.Command("add", "Add a new auth server node to the cluster").Hidden()
 
 	// operations with reverse tunnels
-	reverseTunnels := app.Command("reversetunnels", "Operations with reverse tunnels").Hidden()
+	reverseTunnels := app.Command("rts", "Operations with reverse tunnels").Hidden()
 	reverseTunnelsList := reverseTunnels.Command("ls", "List reverse tunnels").Hidden()
 	reverseTunnelsDelete := reverseTunnels.Command("del", "Deletes reverse tunnels").Hidden()
 	reverseTunnelsDelete.Arg("domain", "Comma-separated list of reverse tunnels to delete").
