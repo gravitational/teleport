@@ -19,16 +19,16 @@ all: teleport tctl tsh
 
 .PHONY: tctl
 tctl: 
-	go build -o $(OUT)/tctl -i $(PKGPATH)/tool/tctl
+	go build -o $(OUT)/tctl -i $(BUILDFLAGS) $(PKGPATH)/tool/tctl
 
 .PHONY: teleport 
 teleport: flags
-	go build -o $(OUT)/teleport -i $(PKGPATH)/tool/teleport
+	go build -o $(OUT)/teleport -i $(BUILDFLAGS) $(PKGPATH)/tool/teleport
 	cp -rf web/dist/* $(OUT)/
 
 .PHONY: tsh
 tsh: 
-	go build -o $(OUT)/tsh -i $(PKGPATH)/tool/tsh
+	go build -o $(OUT)/tsh -i $(BUILDFLAGS) $(PKGPATH)/tool/tsh
 
 .PHONY: install
 install: 

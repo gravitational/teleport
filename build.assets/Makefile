@@ -1,14 +1,14 @@
 #
-# This Makefile is used for CI/CD builds. Please be careful!
+# This Makefile is used for producing official Teleport releases
 #
 BBOX=teleport-buildbox:latest
 SRCDIR=/gopath/src/github.com/gravitational/teleport
-DOCKERFLAGS=-i --rm=true -v "$$(pwd)/../":$(SRCDIR)
+DOCKERFLAGS=-i --rm=true -v "$$(pwd)/../":$(SRCDIR) -w $(SRCDIR)
 BUILDFLAGS=-ldflags -w
 NOROOT=-u $$(id -u):$$(id -g)
 
 #
-# builds 'teleport' binary
+# Build 'teleport' binaries
 #
 .PHONY:build
 build: bbox
@@ -16,7 +16,8 @@ build: bbox
 		/bin/bash -c "$(MAKE) -C $(SRCDIR) BUILDFLAGS='$(BUILDFLAGS)' all"
 
 #
-# builds buildbox:1.0.0 Docker container which is Debian8 with Golang 1.4.2
+# Builds a Docker container which is used for building official Teleport 
+# binaries and docs
 #
 .PHONY:bbox
 bbox:
@@ -24,23 +25,24 @@ bbox:
 
 
 #
-# runs tests inside a build container 
+# Runs tests inside a build container 
 #
 .PHONY:test
 test:
 	docker run $(DOCKERFLAGS) $(BBOX) \
 		/bin/bash -c "$(MAKE) -C $(SRCDIR) TELEPORT_DEBUG_TESTS=true FLAGS='-cover -race' clean test"
 
-#
-# starts teleport inside a build container
-#
-.PHONY:run
-run: build
-	docker run $(DOCKERFLAGS) $(BBOX) $(SRCDIR)/out/teleport start -d
 
 #
-# starts shell inside the build container
+# Builds docs
+#
+.PHONY:docs
+docs: bbox
+	docker run $(DOCKERFLAGS) -ti $(NOROOT) -e HOME=$(SRCDIR)/build.assets $(BBOX) mkdocs build
+
+#
+# Starts shell inside the build container
 #
 .PHONY:enter
 enter: bbox
-	docker run $(DOCKERFLAGS) -ti $(BBOX) /bin/bash
+	docker run $(DOCKERFLAGS) -ti $(NOROOT) $(BBOX) /bin/bash
