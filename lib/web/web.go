@@ -152,7 +152,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	h.GET("/webapi/sites/:site/sessions/:sid/chunkscount", h.withSiteAuth(h.siteSessionGetChunksCount))
 
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/web/app") {
+		if r.URL.Path == "/" {
+			http.Redirect(w, r, "/web", http.StatusFound)
+		} else if strings.HasPrefix(r.URL.Path, "/web/app") {
 			http.StripPrefix("/web", http.FileServer(http.Dir(cfg.AssetsDir))).ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web") {
 			http.ServeFile(w, r, filepath.Join(cfg.AssetsDir, "/index.html"))
