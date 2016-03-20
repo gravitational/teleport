@@ -42,7 +42,7 @@ type connectReq struct {
 	// Term sets PTY params like width and height
 	Term session.TerminalParams `json:"term"`
 	// SessionID is a teleport session ID to join as
-	SessionID string `json:"sid"`
+	SessionID session.ID `json:"sid"`
 }
 
 func newConnectHandler(req connectReq, ctx *sessionContext, site reversetunnel.RemoteSite) (*connectHandler, error) {
@@ -150,7 +150,7 @@ func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
 		sshutils.SetEnvReq, false,
 		ssh.Marshal(sshutils.EnvReqParams{
 			Name:  sshutils.SessionEnvVar,
-			Value: w.req.SessionID,
+			Value: string(w.req.SessionID),
 		}))
 	up.GetSession().SendRequest(
 		sshutils.PTYReq, false,

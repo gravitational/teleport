@@ -681,8 +681,11 @@ func (s *APIServer) upsertSessionParty(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	sid := p[0].Value
-	if err := s.a.UpsertParty(sid, req.Party, req.TTL); err != nil {
+	sid, err := session.ParseID(p[0].Value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.a.UpsertParty(*sid, req.Party, req.TTL); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return req.Party, nil
@@ -697,8 +700,11 @@ func (s *APIServer) getSessions(w http.ResponseWriter, r *http.Request, p httpro
 }
 
 func (s *APIServer) getSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	sid := p[0].Value
-	se, err := s.a.GetSession(sid)
+	sid, err := session.ParseID(p[0].Value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	se, err := s.a.GetSession(*sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

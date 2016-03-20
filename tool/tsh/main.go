@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -60,7 +61,7 @@ type CLIConf struct {
 	// AgentSocketAddr is address for agent listeing socket
 	AgentSocketAddr utils.NetAddrVal
 	// Remote SSH session to join
-	SessionID string
+	SessionID session.ID
 	// Src:dest parameter for SCP
 	CopySpec []string
 	// -r flag for scp
@@ -92,7 +93,8 @@ func run(args []string, underTest bool) {
 	ssh.Flag("login", "Remote host login").Short('l').StringVar(&cf.NodeLogin)
 	// join
 	join := app.Command("join", "Join the active SSH session")
-	join.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
+	join.Arg("session-id", "ID of the session to join").Required().SetValue(&cf.SessionID)
+
 	// scp
 	scp := app.Command("scp", "Secure file copy")
 	scp.Arg("from, to", "File(s) and the destionation to copy to").Required().StringsVar(&cf.CopySpec)

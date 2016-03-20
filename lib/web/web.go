@@ -142,6 +142,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	h.GET("/webapi/sites/:site/connect", h.withSiteAuth(h.siteNodeConnect))
 	// get session event stream
 	h.GET("/webapi/sites/:site/sessions/:sid/events/stream", h.withSiteAuth(h.siteSessionStream))
+	// create a new session
+	h.POST("/webapi/sites/:site/sessions", h.withSiteAuth(h.siteSessionCreate))
 	// update session parameters
 	h.PUT("/webapi/sites/:site/sessions/:sid", h.withSiteAuth(h.siteSessionUpdate))
 	// get session
@@ -512,10 +514,13 @@ type sessionStreamEvent struct {
 // json events
 //
 func (m *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	sessionID := p.ByName("sid")
+	sessionID, err := session.ParseID(p.ByName("sid"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	connect, err := newSessionStreamHandler(
-		sessionID, ctx, site, m.sessionStreamPollPeriod)
+		*sessionID, ctx, site, m.sessionStreamPollPeriod)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -525,6 +530,45 @@ func (m *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p ht
 	defer connect.Close()
 	connect.Handler().ServeHTTP(w, r)
 	return nil, nil
+}
+
+type siteSessionCreateReq struct {
+	Session session.Session `json:"session"`
+}
+
+type siteSessionCreateResponse struct {
+	Session session.Session `json:"session"`
+}
+
+// siteSessionCreate creates a new site session
+//
+// POST /v1/webapi/sites/:site/sessions
+//
+// Request body:
+//
+// {"session": {"terminal_params": {"w": 100, "h": 100}, "login": "centos"}}
+//
+// Response body:
+//
+// {"session": {"id": "session-id", "terminal_params": {"w": 100, "h": 100}, "login": "centos"}}
+//
+func (m *Handler) siteSessionCreate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	var req *siteSessionCreateReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	client, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.Session.ID = session.NewID()
+	req.Session.Created = time.Now().UTC()
+	req.Session.LastActive = time.Now().UTC()
+	err = client.CreateSession(req.Session)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return siteSessionCreateResponse{Session: req.Session}, nil
 }
 
 type siteSessionUpdateReq struct {
@@ -544,13 +588,16 @@ type siteSessionUpdateReq struct {
 // {"message": "ok"}
 //
 func (m *Handler) siteSessionUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	sessionID := p.ByName("sid")
+	sessionID, err := session.ParseID(p.ByName("sid"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	var req *siteSessionUpdateReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err := ctx.UpdateSessionTerminal(sessionID, req.TerminalParams)
+	err = ctx.UpdateSessionTerminal(*sessionID, req.TerminalParams)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -570,14 +617,17 @@ type siteSessionGetResponse struct {
 // {"session": {"id": "sid", "terminal_params": {"w": 100, "h": 100}, "parties": [], "login": "bob"}}
 //
 func (m *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	sessionID := p.ByName("sid")
+	sessionID, err := session.ParseID(p.ByName("sid"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	clt, err := site.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := clt.GetSession(sessionID)
+	sess, err := clt.GetSession(*sessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -748,10 +798,10 @@ func (m *Handler) siteGetSessionEvents(w http.ResponseWriter, r *http.Request, p
 	// merge retrieved events and sessions if there's a match
 	s2id := make(map[string]*session.Session)
 	for i := range sessions {
-		s2id[sessions[i].ID] = &sessions[i]
+		s2id[string(sessions[i].ID)] = &sessions[i]
 	}
 	for i := range sessionEvents {
-		id := sessionEvents[i].ID
+		id := string(sessionEvents[i].ID)
 		sess, ok := s2id[id]
 		if ok {
 			// replace it with real time data about event

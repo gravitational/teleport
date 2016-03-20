@@ -101,8 +101,12 @@ func (c *Client) GetSessions() ([]session.Session, error) {
 }
 
 // GetSession returns a session by ID
-func (c *Client) GetSession(id string) (*session.Session, error) {
-	out, err := c.Get(c.Endpoint("sessions", id), url.Values{})
+func (c *Client) GetSession(id session.ID) (*session.Session, error) {
+	// saving extra round-trip
+	if err := id.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := c.Get(c.Endpoint("sessions", string(id)), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -130,13 +134,17 @@ func (c *Client) UpdateSession(req session.UpdateRequest) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	_, err := c.PutJSON(c.Endpoint("sessions", req.ID), updateSessionReq{Update: req})
+	_, err := c.PutJSON(c.Endpoint("sessions", string(req.ID)), updateSessionReq{Update: req})
 	return trace.Wrap(err)
 }
 
 // UpsertParty updates existing session party or inserts new party
-func (c *Client) UpsertParty(id string, p session.Party, ttl time.Duration) error {
-	_, err := c.PostJSON(c.Endpoint("sessions", id, "parties"), upsertPartyReq{Party: p, TTL: ttl})
+func (c *Client) UpsertParty(id session.ID, p session.Party, ttl time.Duration) error {
+	// saving extra round-trip
+	if err := id.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	_, err := c.PostJSON(c.Endpoint("sessions", string(id), "parties"), upsertPartyReq{Party: p, TTL: ttl})
 	return trace.Wrap(err)
 }
 
@@ -692,10 +700,10 @@ func (c *chunkRW) Close() error {
 // TOODO(klizhentas) this should be just including appropriate service implementations
 type ClientI interface {
 	GetSessions() ([]session.Session, error)
-	GetSession(id string) (*session.Session, error)
+	GetSession(id session.ID) (*session.Session, error)
 	CreateSession(s session.Session) error
 	UpdateSession(req session.UpdateRequest) error
-	UpsertParty(id string, p session.Party, ttl time.Duration) error
+	UpsertParty(id session.ID, p session.Party, ttl time.Duration) error
 	UpsertCertAuthority(cert services.CertAuthority, ttl time.Duration) error
 	GetCertAuthorities(caType services.CertAuthType) ([]*services.CertAuthority, error)
 	DeleteCertAuthority(caType services.CertAuthID) error

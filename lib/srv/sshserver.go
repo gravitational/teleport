@@ -45,7 +45,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
@@ -699,12 +698,11 @@ func (s *Server) handleWinChange(ch ssh.Channel, req *ssh.Request, ctx *ctx) err
 	if term != nil {
 		return trace.Wrap(term.setWinsize(*params))
 	}
-	sid, ok := ctx.getEnv(sshutils.SessionEnvVar)
-	if !ok {
-		return trace.Wrap(
-			teleport.BadParameter("pty", "session ID not found"))
+	sessionID, err := ctx.getSessionID()
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	err = s.reg.notifyWinChange(sid, *params)
+	err = s.reg.notifyWinChange(*sessionID, *params)
 	return trace.Wrap(err)
 }
 
@@ -732,13 +730,11 @@ func (s *Server) handleSubsystem(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 
 func (s *Server) handleShell(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	ctx.Infof("handleShell()")
-
-	sid, ok := ctx.getEnv(sshutils.SessionEnvVar)
-	if !ok || sid == "" {
-		sid = uuid.New()
-		ctx.setEnv(sshutils.SessionEnvVar, sid)
+	sessionID, err := ctx.initSessionID()
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	return s.reg.joinShell(sid, sconn, ch, req, ctx)
+	return s.reg.joinShell(*sessionID, sconn, ch, req, ctx)
 }
 
 func (s *Server) emit(eid lunk.EventID, e lunk.Event) {
@@ -769,9 +765,9 @@ func (s *Server) handlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *ctx) error 
 			return trace.Wrap(err)
 		}
 		term.setWinsize(*params)
-		sid, ok := ctx.getEnv(sshutils.SessionEnvVar)
-		if ok {
-			if err := s.reg.notifyWinChange(sid, *params); err != nil {
+		sessionID, err := ctx.getSessionID()
+		if err == nil {
+			if err := s.reg.notifyWinChange(*sessionID, *params); err != nil {
 				log.Infof("notifyWinChange: %v", err)
 			}
 		}
@@ -782,9 +778,9 @@ func (s *Server) handlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *ctx) error 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	sid, ok := ctx.getEnv(sshutils.SessionEnvVar)
-	if ok {
-		if err := s.reg.notifyWinChange(sid, *params); err != nil {
+	sessionID, err := ctx.getSessionID()
+	if err == nil {
+		if err := s.reg.notifyWinChange(*sessionID, *params); err != nil {
 			log.Infof("notifyWinChange: %v", err)
 		}
 	}
