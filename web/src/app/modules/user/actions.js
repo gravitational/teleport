@@ -15,14 +15,27 @@ limitations under the License.
 */
 
 var reactor = require('app/reactor');
-var { TLPT_RECEIVE_USER } = require('./actionTypes');
-var { TRYING_TO_SIGN_UP, TRYING_TO_LOGIN} = require('app/modules/restApi/constants');
+var { TLPT_RECEIVE_USER, TLPT_RECEIVE_USER_INVITE } = require('./actionTypes');
+var { TRYING_TO_SIGN_UP, TRYING_TO_LOGIN, FETCHING_INVITE} = require('app/modules/restApi/constants');
 var restApiActions = require('app/modules/restApi/actions');
 var auth = require('app/services/auth');
 var session = require('app/services/session');
 var cfg = require('app/config');
+var api = require('app/services/api');
 
 export default {
+
+  fetchInvite(inviteToken){
+    var path = cfg.api.getInviteUrl(inviteToken);
+    restApiActions.start(FETCHING_INVITE);
+    api.get(path).done(invite=>{
+      restApiActions.success(FETCHING_INVITE);
+      reactor.dispatch(TLPT_RECEIVE_USER_INVITE, invite);
+    }).
+    fail((err)=>{
+      restApiActions.fail(FETCHING_INVITE, err.responseJSON.message);
+    });
+  },
 
   ensureUser(nextState, replace, cb){
     auth.ensureUser()
