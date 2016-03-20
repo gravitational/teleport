@@ -18,6 +18,7 @@ var EventEmitter = require('events').EventEmitter;
 var session = require('app/services/session');
 var cfg = require('app/config');
 var {actions} = require('app/modules/currentSession/');
+const logger = require('app/common/logger').create('Tty');
 
 class Tty extends EventEmitter {
 
@@ -43,12 +44,14 @@ class Tty extends EventEmitter {
   connect(options){
     Object.assign(this.options, options);
 
+    logger.info('connect', options);
+
     let {token} = session.getUserData();
     let connStr = cfg.api.getTtyConnStr({token, ...this.options});
 
     this.socket = new WebSocket(connStr, 'proto');
 
-    this.socket.onopen = () => {
+    this.socket.onopen = () => {      
       this.emit('open');
     }
 

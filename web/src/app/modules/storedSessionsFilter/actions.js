@@ -32,10 +32,9 @@ const actions = {
   },
 
   fetchMore(){
-    let {status } = reactor.evaluate(filter);
+    let {status, end } = reactor.evaluate(filter);
     if(status.hasMore === true && !status.isLoading){
-      let {sid, nextBefore} = status;
-      _fetch(nextBefore, sid);
+      _fetch(end, status.sid);
     }
   },
 
@@ -53,7 +52,6 @@ function _fetch(before, sid){
     .done((json) => {
       let {start} = reactor.evaluate(filter);
       let {sessions } = json;
-
       let status = {
         hasMore: false,
         isLoading: false
@@ -62,8 +60,7 @@ function _fetch(before, sid){
       if (sessions.length === maxSessionLoadSize) {
         let {id, created} = sessions[sessions.length-1];
         status.sid = id;
-        status.nextBefore = new Date(created);
-        status.hasMore = moment(start).isBefore(status.nextBefore)
+        status.hasMore = moment(start).isBefore(created)
       }
 
       reactor.dispatch(TLPT_STORED_SESSINS_FILTER_SET_STATUS, status);

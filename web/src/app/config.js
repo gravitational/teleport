@@ -6,7 +6,7 @@ let cfg = {
 
   helpUrl: 'https://github.com/gravitational/teleport/blob/master/README.md',
 
-  maxSessionLoadSize: 50,
+  maxSessionLoadSize: 20,
 
   routes: {
     app: '/web',

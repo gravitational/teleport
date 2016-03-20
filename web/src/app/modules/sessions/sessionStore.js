@@ -28,7 +28,7 @@ export default Store({
   }
 })
 
-function updateSession(state, json){
+function updateSession(state, json){  
   return state.set(json.id, toImmutable(json));
 }
 

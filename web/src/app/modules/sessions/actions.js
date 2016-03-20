@@ -42,9 +42,7 @@ const actions = {
     params.start = start.toISOString();
 
     if(sid){
-      params.sessionID = sid;
-      params.sessionId = sid;
-      params.sid = sid;
+      params.session_id = sid;      
     }
 
     return api.get(cfg.api.getFetchSessionsUrl(params))
