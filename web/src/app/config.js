@@ -23,7 +23,7 @@ let cfg = {
     renewTokenPath:'/v1/webapi/sessions/renew',
     nodesPath: '/v1/webapi/sites/-current-/nodes',
     sessionPath: '/v1/webapi/sessions',
-    siteSessionPath: '/v1/webapi/sites/-current-/sessions/:sid',
+    siteSessionPath: '/v1/webapi/sites/-current-/sessions',
     invitePath: '/v1/webapi/users/invites/:inviteToken',
     createUserPath: '/v1/webapi/users',
     sessionChunk: '/v1/webapi/sites/-current-/sessions/:sid/chunks?start=:start&end=:end',
@@ -40,15 +40,15 @@ let cfg = {
 
     getFetchSessionsUrl: (args)=>{
       var filter = JSON.stringify(args);
-      return formatPattern(cfg.api.siteEventSessionFilterPath, {filter});      
+      return formatPattern(cfg.api.siteEventSessionFilterPath, {filter});
     },
 
     getFetchSessionUrl: (sid)=>{
-      return formatPattern(cfg.api.siteSessionPath, {sid});
+      return formatPattern(cfg.api.siteSessionPath+'/:sid', {sid});
     },
 
     getTerminalSessionUrl: (sid)=> {
-      return formatPattern(cfg.api.siteSessionPath, {sid});
+      return formatPattern(cfg.api.siteSessionPath+'/:sid', {sid});
     },
 
     getInviteUrl: (inviteToken) => {
