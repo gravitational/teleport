@@ -72,7 +72,7 @@ const actions = {
   },
 
   createNewSession(serverId, login){
-    let data = { 'session': {'terminal_params': {'w': 5, 'h': 5}, login}}
+    let data = { 'session': {'terminal_params': {'w': 45, 'h': 5}, login}}
     api.post(cfg.api.siteSessionPath, data).then(json=>{
       let sid = json.session.id;
       let routeUrl = cfg.getActiveSessionRouteUrl(sid);
