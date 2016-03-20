@@ -24,4 +24,5 @@ module.exports.reactor = require('app/reactor');
 module.exports.session = require('app/services/session');
 module.exports.api = require('app/services/api');
 module.exports.sampleData = require('./sampleData');
+module.exports.cfg = require('app/config');
 require('app/modules');

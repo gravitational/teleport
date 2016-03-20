@@ -31,7 +31,7 @@ class TtyPlayer extends Tty {
     this.sid = sid;
     this.current = 1;
     this.length = -1;
-    this.ttySteam = new Array();
+    this.ttyStream = new Array();
     this.isLoaind = false;
     this.isPlaying = false;
     this.isError = false;
@@ -117,7 +117,7 @@ class TtyPlayer extends Tty {
 
   _shouldFetch(start, end){
     for(var i = start; i < end; i++){
-      if(this.ttySteam[i] === undefined){
+      if(this.ttyStream[i] === undefined){
         return true;
       }
     }
@@ -133,7 +133,7 @@ class TtyPlayer extends Tty {
         for(var i = 0; i < end-start; i++){
           var data = atob(response.chunks[i].data) || '';
           var delay = response.chunks[i].delay;
-          this.ttySteam[start+i] = { data, delay};
+          this.ttyStream[start+i] = { data, delay};
         }
       })
       .fail((err)=>{
@@ -145,7 +145,7 @@ class TtyPlayer extends Tty {
   _showChunk(start, end){
     var display = ()=>{
       for(var i = start; i < end; i++){
-        this.emit('data', this.ttySteam[i].data);
+        this.emit('data', this.ttyStream[i].data);
       }
       this.current = end;
     };
