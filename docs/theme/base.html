@@ -11,8 +11,10 @@
   <title>{% if page_title %}{{ page_title }} - {% endif %}{{ site_name }}</title>
   {% endblock %}
 
+
+
   {% if favicon %}<link rel="shortcut icon" href="{{ favicon }}">
-  {% else %}<link rel="shortcut icon" href="{{ base_url }}/img/favicon.ico">{% endif %}
+  {% else %}<link rel="shortcut icon" href="http://gravitational.com/favicon.ico" type="image/x-icon" />{% endif %}
 
   {# CSS #}
   <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
@@ -20,6 +22,9 @@
   <link rel="stylesheet" href="{{ base_url }}/css/theme.css" type="text/css" />
   <link rel="stylesheet" href="{{ base_url }}/css/theme_extra.css" type="text/css" />
   <link rel="stylesheet" href="{{ base_url }}/css/highlight.css">
+  <link rel="stylesheet" href="{{ base_url }}/css/master.css">
+  <link rel="stylesheet" href="{{ base_url }}/css/teleport.css">
+
   {%- for path in extra_css %}
   <link href="{{ path }}" rel="stylesheet">
   {%- endfor %}
@@ -63,12 +68,14 @@
     {# SIDE NAV, TOGGLES ON MOBILE #}
     <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
       <div class="wy-side-nav-search">
-        <a href="{{ homepage_url }}" class="icon icon-home"> {{ site_name }}</a>
+        <a title="Visit Teleport Site" href="/" class="teleport-logo"><img src="/docs/theme/img/teleport-logo.svg"></a>
+        <h4>By Gravitational</h4>
+
         {% include "searchbox.html" %}
       </div>
 
       <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
-        <ul class="current">
+        <ul class="current sidebar">
           {% for nav_item in nav %}
             {% if nav_item.title != "hidden" %}
             <li>{% include "toc.html" %}<li>
@@ -108,7 +115,7 @@
 
   </div>
 
-{% include "versions.html" %}
+
 
 </body>
 </html>
