@@ -485,6 +485,7 @@ func (m *Handler) siteNodeConnect(w http.ResponseWriter, r *http.Request, p http
 	if err := json.Unmarshal([]byte(params), &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	log.Infof("Connect to node: %#v", req)
 	connect, err := newConnectHandler(*req, ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -568,6 +569,7 @@ func (m *Handler) siteSessionCreate(w http.ResponseWriter, r *http.Request, p ht
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	log.Infof("Created session: %#v", req.Session)
 	return siteSessionCreateResponse{Session: req.Session}, nil
 }
 

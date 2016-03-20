@@ -150,10 +150,10 @@ func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
 		return nil, trace.Wrap(err)
 	}
 	up.GetSession().SendRequest(
-		sshutils.PTYReq, false,
-		ssh.Marshal(sshutils.PTYReqParams{
-			W: uint32(w.req.Term.W),
-			H: uint32(w.req.Term.H),
+		sshutils.SetEnvReq, false,
+		ssh.Marshal(sshutils.EnvReqParams{
+			Name:  sshutils.SessionEnvVar,
+			Value: string(w.req.SessionID),
 		}))
 	return up, nil
 }
