@@ -230,6 +230,27 @@ func (a *AuthWithRoles) GetProxies() ([]services.Server, error) {
 		return a.authServer.GetProxies()
 	}
 }
+func (a *AuthWithRoles) UpsertReverseTunnel(r services.ReverseTunnel, ttl time.Duration) error {
+	if err := a.permChecker.HasPermission(a.role, ActionUpsertReverseTunnel); err != nil {
+		return trace.Wrap(err)
+	} else {
+		return a.authServer.UpsertReverseTunnel(r, ttl)
+	}
+}
+func (a *AuthWithRoles) GetReverseTunnels() ([]services.ReverseTunnel, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionGetReverseTunnels); err != nil {
+		return nil, trace.Wrap(err)
+	} else {
+		return a.authServer.GetReverseTunnels()
+	}
+}
+func (a *AuthWithRoles) DeleteReverseTunnel(domainName string) error {
+	if err := a.permChecker.HasPermission(a.role, ActionDeleteReverseTunnel); err != nil {
+		return trace.Wrap(err)
+	} else {
+		return a.authServer.DeleteReverseTunnel(domainName)
+	}
+}
 func (a *AuthWithRoles) UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error) {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertPassword); err != nil {
 		return "", nil, err

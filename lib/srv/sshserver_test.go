@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package srv
 
 import (
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -65,7 +67,7 @@ type SrvSuite struct {
 	dir           string
 	user          string
 	domainName    string
-	freePorts     []string
+	freePorts     utils.PortList
 }
 
 var _ = Suite(&SrvSuite{})
@@ -304,6 +306,9 @@ func (s *SrvSuite) testClient(c *C, proxyAddr, targetAddr, remoteAddr string, ss
 }
 
 func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
+	log.Infof("[TEST START] TestProxyReverseTunnel")
+	fmt.Printf("[TEST START] TestProxyRoundRobin\n\n")
+
 	reverseTunnelPort := s.freePorts[len(s.freePorts)-1]
 	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("%v:%v", s.domainName, reverseTunnelPort)}
@@ -360,6 +365,19 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: tsrv.Addr()}}, s.domainName, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
 	c.Assert(err, IsNil)
 	defer tunClt.Close()
+
+	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
+		Client:      tunClt,
+		HostSigners: []ssh.Signer{s.signer},
+	})
+	c.Assert(err, IsNil)
+
+	tunClt.UpsertReverseTunnel(services.ReverseTunnel{DomainName: s.domainName, DialAddrs: []string{
+		reverseTunnelAddress.String(),
+	}}, 0)
+
+	err = agentPool.FetchAndSyncAgents()
+	c.Assert(err, IsNil)
 
 	rsAgent, err := reversetunnel.NewAgent(
 		reverseTunnelAddress,
@@ -442,9 +460,18 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	c.Assert(sites[0].Name, Equals, "localhost")
 	c.Assert(sites[0].Status, Equals, "online")
 	c.Assert(time.Since(sites[0].LastConnected).Seconds() < 5, Equals, true)
+
+	err = tunClt.DeleteReverseTunnel(s.domainName)
+	c.Assert(err, IsNil)
+
+	err = agentPool.FetchAndSyncAgents()
+	c.Assert(err, IsNil)
 }
 
 func (s *SrvSuite) TestProxyRoundRobin(c *C) {
+	log.Infof("[TEST START] TestProxyRoundRobin")
+	fmt.Printf("[TEST START] TestProxyRoundRobin\n\n")
+
 	reverseTunnelPort := s.freePorts[len(s.freePorts)-1]
 	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 	reverseTunnelAddress := utils.NetAddr{
@@ -534,14 +561,13 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	for i := 0; i < 3; i++ {
 		s.testClient(c, proxy.Addr(), s.srvAddress, s.srv.Addr(), sshConfig)
 	}
-
 	// close first connection, and test it again
-	rsAgent.Close()
+	//rsAgent.Close()
+	fmt.Printf("!!!!!!!closed agent!!!!!\n\n\n\n")
 
 	for i := 0; i < 3; i++ {
 		s.testClient(c, proxy.Addr(), s.srvAddress, s.srv.Addr(), sshConfig)
 	}
-
 }
 
 // TestProxyDirectAccess tests direct access via proxy bypassing

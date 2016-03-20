@@ -179,13 +179,6 @@ func NewTeleport(cfg *Config) (Supervisor, error) {
 		serviceStarted = true
 	}
 
-	if cfg.ReverseTunnel.Enabled {
-		if err := process.initReverseTunnel(); err != nil {
-			return nil, err
-		}
-		serviceStarted = true
-	}
-
 	if cfg.Proxy.Enabled {
 		if err := process.initProxy(); err != nil {
 			return nil, err
@@ -421,42 +414,11 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 	return nil
 }
 
-func (process *TeleportProcess) initReverseTunnel() error {
-	return process.RegisterWithAuthServer(
-		process.Config.Proxy.Token,
-		teleport.RoleNode,
-		process.initTunAgent)
-}
-
-func (process *TeleportProcess) initTunAgent(conn *connector) error {
-	cfg := process.Config
-
-	a, err := reversetunnel.NewAgent(
-		cfg.ReverseTunnel.DialAddr,
-		cfg.Hostname,
-		[]ssh.Signer{conn.identity.KeySigner},
-		conn.client,
-		reversetunnel.SetEventLogger(conn.client))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	process.RegisterFunc(func() error {
-		log.Infof("[REVERSE TUNNEL] teleport tunnel agent starting")
-		if err := a.Start(); err != nil {
-			log.Fatalf("failed to start: %v", err)
-			return trace.Wrap(err)
-		}
-		a.Wait()
-		return nil
-	})
-	return nil
-}
-
 // initProxy gets called if teleport runs with 'proxy' role enabled.
 // this means it will do two things:
 //    1. serve a web UI
 //    2. proxy SSH connections to nodes running with 'node' role
+//    3. take care of revse tunnels
 func (process *TeleportProcess) initProxy() (err error) {
 	// if no TLS key was provided for the web UI, generate a self signed cert
 	if process.Config.Proxy.TLSKey == "" {
@@ -477,7 +439,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *connector) error {
 		return trace.Wrap(err)
 	}
 
-	reverseTunnelLimiter, err := limiter.NewLimiter(cfg.ReverseTunnel.Limiter)
+	reverseTunnelLimiter, err := limiter.NewLimiter(cfg.Proxy.Limiter)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -506,6 +468,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Register reverse tunnel agents pool
+	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
+		Client:      conn.client,
+		EventLog:    conn.client,
+		HostSigners: []ssh.Signer{conn.identity.KeySigner},
+	})
 
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
@@ -558,6 +527,15 @@ func (process *TeleportProcess) initProxyEndpoint(conn *connector) error {
 		return nil
 	})
 
+	process.RegisterFunc(func() error {
+		log.Infof("[PROXY] starting reverse tunnel agent pool")
+		if err := agentPool.Start(); err != nil {
+			log.Fatalf("failed to start: %v", err)
+			return trace.Wrap(err)
+		}
+		agentPool.Wait()
+		return nil
+	})
 	return nil
 }
 
@@ -599,10 +577,10 @@ func initRecordStorage(btype string, params string) (recorder.Recorder, error) {
 }
 
 func validateConfig(cfg *Config) error {
-	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.ReverseTunnel.Enabled {
+	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.Proxy.Enabled {
 		return trace.Wrap(
 			teleport.BadParameter(
-				"config", "supply at least one of Auth, SSH or ReverseTunnel or Proxy roles"))
+				"config", "supply at least one of Auth, SSH or Proxy roles"))
 	}
 
 	if cfg.DataDir == "" {

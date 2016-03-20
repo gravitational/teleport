@@ -316,6 +316,27 @@ func (s *APISuite) TestServers(c *C) {
 	c.Assert(out, DeepEquals, []services.Server{srv, srv1})
 }
 
+// TODO(klizhentas) this code will be removed and will use test suite
+func (s *APISuite) TestReverseTunnels(c *C) {
+	out, err := s.clt.GetReverseTunnels()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
+
+	tunnel := services.ReverseTunnel{DomainName: "example.com", DialAddrs: []string{"example.com:2023"}}
+	c.Assert(s.PresenceS.UpsertReverseTunnel(tunnel, 0), IsNil)
+
+	out, err = s.clt.GetReverseTunnels()
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, []services.ReverseTunnel{tunnel})
+
+	err = s.clt.DeleteReverseTunnel(tunnel.DomainName)
+	c.Assert(err, IsNil)
+
+	out, err = s.clt.GetReverseTunnels()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
+}
+
 func (s *APISuite) TestEvents(c *C) {
 	suite := etest.EventSuite{L: s.clt}
 	suite.EventsCRUD(c)

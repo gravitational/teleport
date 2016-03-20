@@ -63,6 +63,8 @@ func ReadJSON(r *http.Request, val interface{}) error {
 	return nil
 }
 
+const StatusTooManyRequests = 429
+
 // ReplyError sets up http error response and writes it to writer w
 func ReplyError(w http.ResponseWriter, err error) {
 	if teleport.IsNotFound(err) {
@@ -77,6 +79,9 @@ func ReplyError(w http.ResponseWriter, err error) {
 	} else if teleport.IsAlreadyExists(err) {
 		roundtrip.ReplyJSON(
 			w, http.StatusConflict, err)
+	} else if teleport.IsLimitExceeded(err) {
+		roundtrip.ReplyJSON(
+			w, StatusTooManyRequests, err)
 	} else {
 		roundtrip.ReplyJSON(
 			w, http.StatusInternalServerError, err)
@@ -107,6 +112,10 @@ func ConvertResponse(re *roundtrip.Response, err error) (*roundtrip.Response, er
 		return nil, trace.Wrap(&e)
 	case http.StatusConflict:
 		e := teleport.AlreadyExistsError{}
+		unmarshalError(&e, re)
+		return nil, trace.Wrap(&e)
+	case StatusTooManyRequests:
+		e := teleport.LimitExceededError{}
 		unmarshalError(&e, re)
 		return nil, trace.Wrap(&e)
 	}

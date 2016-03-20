@@ -190,6 +190,35 @@ func (s *ServicesTestSuite) ServerCRUD(c *C) {
 	c.Assert(out, DeepEquals, []Server{auth})
 }
 
+func (s *ServicesTestSuite) ReverseTunnelsCRUD(c *C) {
+	out, err := s.PresenceS.GetReverseTunnels()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
+
+	tunnel := ReverseTunnel{DomainName: "example.com", DialAddrs: []string{"example.com:2023"}}
+	c.Assert(s.PresenceS.UpsertReverseTunnel(tunnel, 0), IsNil)
+
+	out, err = s.PresenceS.GetReverseTunnels()
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, []ReverseTunnel{tunnel})
+
+	err = s.PresenceS.DeleteReverseTunnel(tunnel.DomainName)
+	c.Assert(err, IsNil)
+
+	out, err = s.PresenceS.GetReverseTunnels()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
+
+	err = s.PresenceS.UpsertReverseTunnel(ReverseTunnel{DomainName: " bad domain", DialAddrs: []string{"example.com:2023"}}, 0)
+	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("%#v", err))
+
+	err = s.PresenceS.UpsertReverseTunnel(ReverseTunnel{DomainName: "example.com", DialAddrs: []string{"bad address"}}, 0)
+	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("%#v", err))
+
+	err = s.PresenceS.UpsertReverseTunnel(ReverseTunnel{DomainName: "example.com"}, 0)
+	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("%#v", err))
+}
+
 func (s *ServicesTestSuite) PasswordHashCRUD(c *C) {
 	_, err := s.WebS.GetPasswordHash("user1")
 	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
