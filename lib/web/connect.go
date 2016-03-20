@@ -112,7 +112,10 @@ func (w *connectHandler) connect(ws *websocket.Conn) {
 	}
 	w.up = up
 	w.ws = ws
-	err = w.up.PipeShell(ws)
+	err = w.up.PipeShell(ws, &sshutils.PTYReqParams{
+		W: uint32(w.req.Term.W),
+		H: uint32(w.req.Term.H),
+	})
 	log.Infof("pipe shell finished with: %v", err)
 	ws.Write([]byte("\n\rdisconnected\n\r"))
 }
@@ -146,12 +149,6 @@ func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	up.GetSession().SendRequest(
-		sshutils.SetEnvReq, false,
-		ssh.Marshal(sshutils.EnvReqParams{
-			Name:  sshutils.SessionEnvVar,
-			Value: string(w.req.SessionID),
-		}))
 	up.GetSession().SendRequest(
 		sshutils.PTYReq, false,
 		ssh.Marshal(sshutils.PTYReqParams{
