@@ -83,8 +83,8 @@ node.
 
    If the credentials are correct, the auth server generates and signs a new certificate and returns
    it to a client via the proxy. The client stores this key and will use it for subsequent 
-   logins. The key will automatically expire after 22 hours. In the future, Teleport will support
-   a configurable TTL of these temporary keys.
+   logins. The key will automatically expire after 12 hours by default. This TTL can be configured
+   to a maximum of 30 hours and a minimum of 1 minute.
 
 3. At this step, the proxy tries to locate the requested node in a cluster. There are three
    lookup mechanisms a proxy uses to find the node's IP address:
