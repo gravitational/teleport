@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The TSH User Manual covers usage of the Teleport client tool `tsh`. In this 
+This User Manual covers usage of the Teleport client tool `tsh`. In this 
 document you will learn how to:
 
 * Securely login into interactive shell on remote cluster nodes.
