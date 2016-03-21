@@ -174,7 +174,7 @@ system packages on machines that run Linux:
 ### Temporary Logins
 
 Suppose you are borrowing someone else's computer to login into a cluster. You probably don't 
-want to stay authenticated on this computer for 22 hours (Teleport default). This is where `--ttl`
+want to stay authenticated on this computer for 12 hours (Teleport default). This is where `--ttl`
 flag can help.
 
 This command logs you into the cluster with a very short-lived (1 minute) temporary certificate:
