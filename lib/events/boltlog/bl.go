@@ -98,7 +98,7 @@ func (b *BoltLog) LogSession(sess session.Session) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := bkt.Put(sess.ID.UUID(), sessionBytes); err != nil {
+		if err := bkt.Put(key(sess.ID.UUID()), sessionBytes); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
@@ -123,11 +123,11 @@ func (b *BoltLog) GetSessionEvents(f events.Filter) ([]session.Session, error) {
 	if f.Limit == 0 {
 		f.Limit = events.DefaultLimit
 	}
-	startKey := maxTimeUUID(f.Start)
+	startKey := key(maxTimeUUID(f.Start))
 	if f.SessionID != "" {
-		startKey = f.SessionID.UUID()
+		startKey = key(f.SessionID.UUID())
 	}
-	endKey := minTimeUUID(f.End)
+	endKey := key(minTimeUUID(f.End))
 
 	out := []session.Session{}
 	err := b.db.View(func(tx *bolt.Tx) error {
@@ -304,3 +304,14 @@ const (
 	minClockSeqAndNode uint64 = 0x8080808080808080
 	maxClockSeqAndNode uint64 = 0x7f7f7f7f7f7f7f7f
 )
+
+// key returns proper byte sequence for lexicographical sorting
+// that BoltDB uses
+func key(id []byte) []byte {
+	out := make([]byte, len(id))
+	copy(out[:2], id[6:8])  // time hi
+	copy(out[2:4], id[4:6]) // time mid
+	copy(out[4:8], id[0:4]) // time low
+	copy(out[8:], id[8:])   // node id and sequence
+	return out
+}
