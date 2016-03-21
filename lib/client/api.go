@@ -225,7 +225,7 @@ func (tc *TeleportClient) SSH(command string) (err error) {
 }
 
 // Join connects to the existing/active SSH session
-func (tc *TeleportClient) Join(sessionID string) (err error) {
+func (tc *TeleportClient) Join(sessionID session.ID) (err error) {
 	var notFoundError = &teleport.NotFoundError{Message: "Session not found or it has ended"}
 	// connect to proxy:
 	if !tc.Config.ProxySpecified() {
@@ -417,7 +417,7 @@ func (tc *TeleportClient) runCommand(nodeAddresses []string, proxyClient *ProxyC
 }
 
 // runShell starts an interactive SSH session/shell
-func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID string) error {
+func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID) error {
 	defer nodeClient.Close()
 	address := tc.NodeHostPort()
 

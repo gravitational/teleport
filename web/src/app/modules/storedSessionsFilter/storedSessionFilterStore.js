@@ -45,8 +45,6 @@ function setStatus(state, status){
   return state.mergeIn(['status'], status);
 }
 
-function setRange(state, {start, end}){
-  return state.set('start', start)
-       .set('end', end)
-       .set('hasMore', false);
+function setRange(state, newState){
+  return state.merge(newState);
 }

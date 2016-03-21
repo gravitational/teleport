@@ -24,7 +24,7 @@ var DateRangePicker = React.createClass({
   getDates(){
     var startDate = $(this.refs.dpPicker1).datepicker('getDate');
     var endDate = $(this.refs.dpPicker2).datepicker('getDate');
-    return [startDate, endDate];
+    return [startDate, moment(endDate).endOf('day').toDate()];
   },
 
   setDates({startDate, endDate}){

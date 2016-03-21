@@ -510,9 +510,11 @@ func (s *WebSuite) TestGetSiteNodes(c *C) {
 	c.Assert(nodes2, DeepEquals, nodes)
 }
 
-func (s *WebSuite) connect(c *C, pack *authPack, opts ...string) *websocket.Conn {
-	var sessionID string
-	if len(opts) != 0 {
+func (s *WebSuite) connect(c *C, pack *authPack, opts ...session.ID) *websocket.Conn {
+	var sessionID session.ID
+	if len(opts) == 0 {
+		sessionID = session.NewID()
+	} else {
 		sessionID = opts[0]
 	}
 	u := url.URL{Host: s.url().Host, Scheme: WSS, Path: fmt.Sprintf("/v1/webapi/sites/%v/connect", currentSiteShortcut)}
@@ -543,7 +545,7 @@ func (s *WebSuite) connect(c *C, pack *authPack, opts ...string) *websocket.Conn
 	return clt
 }
 
-func (s *WebSuite) sessionStream(c *C, pack *authPack, sessionID string, opts ...string) *websocket.Conn {
+func (s *WebSuite) sessionStream(c *C, pack *authPack, sessionID session.ID, opts ...string) *websocket.Conn {
 	u := url.URL{
 		Host:   s.url().Host,
 		Scheme: WSS,
@@ -584,7 +586,7 @@ func (s *WebSuite) TestConnect(c *C) {
 }
 
 func (s *WebSuite) TestNodesWithSessions(c *C) {
-	sid := "nodes-with-sessions"
+	sid := session.NewID()
 	pack := s.authPack(c)
 	clt := s.connect(c, pack, sid)
 	defer clt.Close()
@@ -638,7 +640,7 @@ func (s *WebSuite) TestNodesWithSessions(c *C) {
 }
 
 func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
-	sid := "close-connectoins-on-logout"
+	sid := session.NewID()
 	pack := s.authPack(c)
 	clt := s.connect(c, pack, sid)
 	defer clt.Close()
@@ -673,11 +675,29 @@ func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 	case err := <-errC:
 		c.Assert(err, Equals, io.EOF)
 	}
+}
 
+func (s *WebSuite) TestCreateSession(c *C) {
+	pack := s.authPack(c)
+
+	sess := session.Session{
+		TerminalParams: session.TerminalParams{W: 300, H: 120},
+		Login:          s.user,
+	}
+
+	re, err := pack.clt.PostJSON(
+		pack.clt.Endpoint("webapi", "sites", s.domainName, "sessions"),
+		siteSessionCreateReq{Session: sess},
+	)
+	c.Assert(err, IsNil)
+
+	var created *siteSessionCreateResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &created), IsNil)
+	c.Assert(created.Session.ID, Not(Equals), "")
 }
 
 func (s *WebSuite) TestResizeTerminal(c *C) {
-	sid := "test-resize-terminal"
+	sid := session.NewID()
 	pack := s.authPack(c)
 	clt := s.connect(c, pack, sid)
 	defer clt.Close()
@@ -692,13 +712,13 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 
 	params := session.TerminalParams{W: 300, H: 120}
 	_, err = pack.clt.PutJSON(
-		pack.clt.Endpoint("webapi", "sites", s.domainName, "sessions", sid),
+		pack.clt.Endpoint("webapi", "sites", s.domainName, "sessions", string(sid)),
 		siteSessionUpdateReq{TerminalParams: session.TerminalParams{W: 300, H: 120}},
 	)
 	c.Assert(err, IsNil)
 
 	re, err := pack.clt.Get(
-		pack.clt.Endpoint("webapi", "sites", s.domainName, "sessions", sid), url.Values{})
+		pack.clt.Endpoint("webapi", "sites", s.domainName, "sessions", string(sid)), url.Values{})
 	c.Assert(err, IsNil)
 
 	var sess *siteSessionGetResponse
@@ -707,7 +727,7 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 }
 
 func (s *WebSuite) TestPlayback(c *C) {
-	sid := "playback"
+	sid := session.NewID()
 	pack := s.authPack(c)
 	clt := s.connect(c, pack, sid)
 	defer clt.Close()
@@ -723,21 +743,21 @@ func (s *WebSuite) TestPlayback(c *C) {
 	// retrieve the chunks
 	var chunks *siteSessionGetChunksResponse
 	re, err := pack.clt.Get(
-		pack.clt.Endpoint("webapi", "sites", s.domainName, "sessions", sid, "chunks"), url.Values{"start": []string{"1"}, "end": []string{"100"}})
+		pack.clt.Endpoint("webapi", "sites", s.domainName, "sessions", string(sid), "chunks"), url.Values{"start": []string{"1"}, "end": []string{"100"}})
 	c.Assert(err, IsNil)
 	c.Assert(json.Unmarshal(re.Bytes(), &chunks), IsNil)
 	c.Assert(len(chunks.Chunks), Not(Equals), 0)
 
 	var chunksCount *siteSessionGetChunksCountResponse
 	re, err = pack.clt.Get(
-		pack.clt.Endpoint("webapi", "sites", s.domainName, "sessions", sid, "chunkscount"), url.Values{})
+		pack.clt.Endpoint("webapi", "sites", s.domainName, "sessions", string(sid), "chunkscount"), url.Values{})
 	c.Assert(err, IsNil)
 	c.Assert(json.Unmarshal(re.Bytes(), &chunksCount), IsNil)
 	c.Assert(int(chunksCount.Count), Not(Equals), 0)
 }
 
 func (s *WebSuite) TestSessionEvents(c *C) {
-	sid := "events"
+	sid := session.NewID()
 	pack := s.authPack(c)
 	clt := s.connect(c, pack, sid)
 	defer clt.Close()

@@ -19,7 +19,7 @@ var {actions} = require('app/modules/storedSessionsFilter');
 var InputSearch = require('./../inputSearch.jsx');
 var {Table, Column, Cell, TextCell, SortHeaderCell, SortTypes} = require('app/components/table.jsx');
 var {ButtonCell, SingleUserCell, EmptyList, DateCreatedCell} = require('./listItems');
-var {DateRangePicker, CalendarNav} = require('./../datePicker.jsx');
+var {DateRangePicker} = require('./../datePicker.jsx');
 var moment =  require('moment');
 var {weekRange} = require('app/common/dateUtils');
 var {isMatch} = require('app/common/objectUtils');
@@ -34,6 +34,10 @@ var ArchivedSessions = React.createClass({
 
   componentWillMount(){
     setTimeout(()=>actions.fetch(), 0);
+  },
+
+  componentWillUnmount(){
+    actions.removeStoredSessions();
   },
 
   onFilterChange(value){
@@ -89,20 +93,24 @@ var ArchivedSessions = React.createClass({
     return (
       <div className="grv-sessions-stored">
         <div className="grv-header">
-          <h1> Archived Sessions </h1>
           <div className="grv-flex">
+            <div className="grv-flex-column"></div>
+            <div className="grv-flex-column">
+              <h1> Archived Sessions </h1>
+            </div>
+            <div className="grv-flex-column">
+              <InputSearch value={this.filter} onChange={this.onFilterChange}/>
+            </div>
+          </div>
+          <div className="grv-flex">
+            <div className="grv-flex-row">
+            </div>
             <div className="grv-flex-row">
               <DateRangePicker startDate={start} endDate={end} onChange={this.onRangePickerChange}/>
             </div>
             <div className="grv-flex-row">
-              <CalendarNav value={end} onValueChange={this.onCalendarNavChange}/>
-            </div>
-            <div className="grv-flex-row">
-              <div className="grv-search">
-                <InputSearch value={this.filter} onChange={this.onFilterChange}/>
-              </div>
-            </div>
           </div>
+        </div>
         </div>
 
         <div className="grv-content">

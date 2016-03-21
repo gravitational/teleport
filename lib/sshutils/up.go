@@ -13,21 +13,23 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package sshutils
 
 import (
 	"fmt"
 	"io"
 
-	//	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
+// NewUpstream returns new upstream connection to the server
 func NewUpstream(clt *ssh.Client) (*Upstream, error) {
 	session, err := clt.NewSession()
 	if err != nil {
 		clt.Close()
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	return &Upstream{
 		addr:    clt.Conn.RemoteAddr().String(),
@@ -36,6 +38,7 @@ func NewUpstream(clt *ssh.Client) (*Upstream, error) {
 	}, nil
 }
 
+// DialUpstream dials remote server and returns upstream
 func DialUpstream(username, addr string, signers []ssh.Signer) (*Upstream, error) {
 	sshConfig := &ssh.ClientConfig{
 		User: username,
@@ -58,64 +61,75 @@ func DialUpstream(username, addr string, signers []ssh.Signer) (*Upstream, error
 	}, nil
 }
 
+// Upstream is a wrapper around SSH client connection
+// that provides some handy functions to work with interactive shells
+// and launching commands
 type Upstream struct {
 	addr    string
 	client  *ssh.Client
 	session *ssh.Session
 }
 
+// GetSession returns current active sesson
 func (u *Upstream) GetSession() *ssh.Session {
 	return u.session
 }
 
+// Close closes session and client connection
 func (u *Upstream) Close() error {
 	return CloseAll(u.session, u.client)
 }
 
-func (m *Upstream) String() string {
-	return fmt.Sprintf("upstream(addr=%v)", m.addr)
+// String returns debug-friendly information about this upstream
+func (u *Upstream) String() string {
+	return fmt.Sprintf("upstream(addr=%v)", u.addr)
 }
 
+// Wait waits for the session to complete
 func (u *Upstream) Wait() error {
 	return u.session.Wait()
 }
 
+// CommandRW executes a command and returns read writer to communicate
+// with the process using it's stdin and stdout
 func (u *Upstream) CommandRW(command string) (io.ReadWriter, error) {
 	stdout, err := u.session.StdoutPipe()
 	if err != nil {
-		return nil, fmt.Errorf("fail to pipe stdout: %v", err)
+		return nil, trace.Wrap(err, "failed to pipe stdout")
 	}
 	stdin, err := u.session.StdinPipe()
 	if err != nil {
-		return nil, fmt.Errorf("fail to pipe stdin: %v", err)
+		return nil, trace.Wrap(err, "fail to pipe stdin")
 	}
 	err = u.session.Start(command)
 	if err != nil {
-		return nil, fmt.Errorf(
-			"pipe failed to start command %v, err: %v", command, err)
+		return nil, trace.Wrap(err,
+			fmt.Sprintf("pipe failed to start command '%v'", command))
 	}
 	return &combo{r: stdout, w: stdin}, nil
 }
 
+// PipeCommand pipes input and output to the read writer, returns
+// result code of the command execution
 func (u *Upstream) PipeCommand(ch io.ReadWriter, command string) (int, error) {
 	stderr, err := u.session.StderrPipe()
 	if err != nil {
-		return -1, fmt.Errorf("fail to pipe stderr: %v", err)
+		return -1, trace.Wrap(err, "fail to pipe stderr")
 	}
 	stdout, err := u.session.StdoutPipe()
 	if err != nil {
-		return -1, fmt.Errorf("fail to pipe stdout: %v", err)
+		return -1, trace.Wrap(err, "fail to pipe stdout")
 	}
 	stdin, err := u.session.StdinPipe()
 	if err != nil {
-		return -1, fmt.Errorf("fail to pipe stdin: %v", err)
+		return -1, trace.Wrap(err, "fail to pipe stdin")
 	}
 	closeC := make(chan error, 4)
 
 	err = u.session.Start(command)
 	if err != nil {
-		return -1, fmt.Errorf(
-			"pipe failed to start command %v, err: %v", command, err)
+		return -1, trace.Wrap(err,
+			fmt.Sprintf("pipe failed to start command '%v'", command))
 	}
 
 	go func() {
@@ -141,53 +155,36 @@ func (u *Upstream) PipeCommand(ch io.ReadWriter, command string) (int, error) {
 	if err != nil {
 		if err, ok := err.(*ssh.ExitError); ok {
 			return err.ExitStatus(), nil
-		} else {
-			return -1, fmt.Errorf(
-				"%v failed to wait for ssh command: %v", u, err)
 		}
+		return -1, trace.Wrap(err,
+			fmt.Sprintf("failed to collect status of a command '%v'", command))
 	}
 	return 0, nil
 }
 
-func (u *Upstream) PipeShellToCh(ch ssh.Channel) error {
+// PipeShell starts interactive shell and pipes stdin, stdout and stderr
+// to the given read writer
+func (u *Upstream) PipeShell(rw io.ReadWriter, req *PTYReqParams) error {
 	targetStderr, err := u.session.StderrPipe()
 	if err != nil {
-		return fmt.Errorf("fail to pipe stderr: %v", err)
+		return trace.Wrap(err, "fail to pipe stderr")
 	}
 	targetStdout, err := u.session.StdoutPipe()
 	if err != nil {
-		return fmt.Errorf("fail to pipe stdout: %v", err)
+		return trace.Wrap(err, "fail to pipe stdout")
 	}
 	targetStdin, err := u.session.StdinPipe()
 	if err != nil {
-		return fmt.Errorf("fail to pipe stdin: %v", err)
-	}
-	go io.Copy(targetStdin, ch)
-	go io.Copy(ch.Stderr(), targetStderr)
-	go io.Copy(ch, targetStdout)
-	if err := u.session.Shell(); err != nil {
-		return err
-	}
-	return u.session.Wait()
-}
-
-func (u *Upstream) PipeShell(rw io.ReadWriter) error {
-	targetStderr, err := u.session.StderrPipe()
-	if err != nil {
-		return fmt.Errorf("fail to pipe stderr: %v", err)
-	}
-	targetStdout, err := u.session.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("fail to pipe stdout: %v", err)
-	}
-	targetStdin, err := u.session.StdinPipe()
-	if err != nil {
-		return fmt.Errorf("fail to pipe stdin: %v", err)
+		return trace.Wrap(err, "fail to pipe stdin")
 	}
 	closeC := make(chan error, 4)
 
 	if err := u.session.Shell(); err != nil {
-		return err
+		return trace.Wrap(err, "failed to start shell")
+	}
+
+	if req != nil {
+		u.session.SendRequest(PTYReq, false, ssh.Marshal(*req))
 	}
 
 	go func() {

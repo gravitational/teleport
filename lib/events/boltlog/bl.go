@@ -19,6 +19,7 @@ package boltlog
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"time"
 
@@ -87,11 +88,6 @@ func (b *BoltLog) LogEntry(en lunk.Entry) error {
 }
 
 func (b *BoltLog) LogSession(sess session.Session) error {
-	lastActive, err := sess.LastActive.MarshalText()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	sessionBytes, err := json.Marshal(sess)
 	if err != nil {
 		return trace.Wrap(err)
@@ -102,7 +98,7 @@ func (b *BoltLog) LogSession(sess session.Session) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := bkt.Put([]byte(lastActive), sessionBytes); err != nil {
+		if err := bkt.Put(key(sess.ID.UUID()), sessionBytes); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
@@ -110,6 +106,14 @@ func (b *BoltLog) LogSession(sess session.Session) error {
 }
 
 func (b *BoltLog) GetSessionEvents(f events.Filter) ([]session.Session, error) {
+	if f.SessionID != "" {
+		if err := f.SessionID.Check(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if f.Order != events.Desc {
+		return nil, trace.Wrap(teleport.BadParameter("order", "only descending order is supported with this backend"))
+	}
 	if f.Start.IsZero() {
 		return nil, trace.Wrap(teleport.BadParameter("start", "supply starting point"))
 	}
@@ -119,16 +123,14 @@ func (b *BoltLog) GetSessionEvents(f events.Filter) ([]session.Session, error) {
 	if f.Limit == 0 {
 		f.Limit = events.DefaultLimit
 	}
-	startKey, err := f.Start.MarshalText()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	startKey := key(maxTimeUUID(f.Start))
+	if f.SessionID != "" {
+		startKey = key(f.SessionID.UUID())
 	}
-	endKey, err := f.End.MarshalText()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	endKey := key(minTimeUUID(f.End))
+
 	out := []session.Session{}
-	err = b.db.View(func(tx *bolt.Tx) error {
+	err := b.db.View(func(tx *bolt.Tx) error {
 		bkt, err := boltbk.GetBucket(tx, []string{"sessionlog"})
 		if err != nil {
 			if teleport.IsNotFound(err) {
@@ -202,7 +204,7 @@ func (b *BoltLog) GetEvents(f events.Filter) ([]lunk.Entry, error) {
 		var bkt *bolt.Bucket
 		var err error
 		if f.SessionID != "" {
-			bkt, err = boltbk.GetBucket(tx, []string{"sessions", f.SessionID})
+			bkt, err = boltbk.GetBucket(tx, []string{"sessions", string(f.SessionID)})
 		} else {
 			bkt, err = boltbk.GetBucket(tx, []string{"events"})
 		}
@@ -261,3 +263,55 @@ const SessionID = "sessionid"
 
 type nextfn func() ([]byte, []byte)
 type limitfn func() bool
+
+// fromTimeAndBits composes fake UUID based on given time
+// and most significant bits
+func fromTimeAndBits(tm time.Time, highBits uint64) []byte {
+	bytes := make([]byte, 16)
+
+	utcTime := tm.In(time.UTC)
+
+	// according to https://tools.ietf.org/html/rfc4122#page-8 time portion is
+	// count of 100 nanosecond intervals since 00:00:00.00, 15 October 1582 (the date of
+	// Gregorian reform to the Christian calendar).
+	count := uint64(utcTime.Unix()-timeBase)*10000000 + uint64(utcTime.Nanosecond()/100)
+
+	low := uint32(count & 0xffffffff)
+	mid := uint16((count >> 32) & 0xffff)
+	hi := uint16((count >> 48) & 0x0fff)
+	hi |= 0x1000 // Version 1
+
+	binary.BigEndian.PutUint32(bytes[0:], low)
+	binary.BigEndian.PutUint16(bytes[4:], mid)
+	binary.BigEndian.PutUint16(bytes[6:], hi)
+	binary.BigEndian.PutUint64(bytes[8:], highBits)
+
+	return bytes
+}
+
+// the date of Gregorian reform to the Christian calendar
+var timeBase = time.Date(1582, time.October, 15, 0, 0, 0, 0, time.UTC).Unix()
+
+func maxTimeUUID(tm time.Time) []byte {
+	return fromTimeAndBits(tm, maxClockSeqAndNode)
+}
+
+func minTimeUUID(tm time.Time) []byte {
+	return fromTimeAndBits(tm, minClockSeqAndNode)
+}
+
+const (
+	minClockSeqAndNode uint64 = 0x8080808080808080
+	maxClockSeqAndNode uint64 = 0x7f7f7f7f7f7f7f7f
+)
+
+// key returns proper byte sequence for lexicographical sorting
+// that BoltDB uses
+func key(id []byte) []byte {
+	out := make([]byte, len(id))
+	copy(out[:2], id[6:8])  // time hi
+	copy(out[2:4], id[4:6]) // time mid
+	copy(out[4:8], id[0:4]) // time low
+	copy(out[8:], id[8:])   // node id and sequence
+	return out
+}

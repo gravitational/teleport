@@ -15,7 +15,6 @@ limitations under the License.
 */
 var reactor = require('app/reactor');
 var session = require('app/services/session');
-var uuid = require('app/common/uuid');
 var api = require('app/services/api');
 var cfg = require('app/config');
 var getters = require('./getters');
@@ -73,21 +72,23 @@ const actions = {
   },
 
   createNewSession(serverId, login){
-    var sid = uuid();
-    var routeUrl = cfg.getActiveSessionRouteUrl(sid);
-    var history = session.getHistory();
+    let data = { 'session': {'terminal_params': {'w': 45, 'h': 5}, login}}
+    api.post(cfg.api.siteSessionPath, data).then(json=>{
+      let sid = json.session.id;
+      let routeUrl = cfg.getActiveSessionRouteUrl(sid);
+      let history = session.getHistory();
 
-    logger.info('createNewSession', {serverId, login});
-    reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {
-      serverId,
-      login,
-      sid,
-      isNewSession: true
-    });
+      reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {
+       serverId,
+       login,
+       sid,
+       isNewSession: true
+      });
 
-    history.push(routeUrl);
+      history.push(routeUrl);
+   });
+
   }
-
 }
 
 export default actions;
