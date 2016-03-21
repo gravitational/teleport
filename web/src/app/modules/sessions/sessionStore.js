@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 var { Store, toImmutable } = require('nuclear-js');
-var { TLPT_SESSINS_RECEIVE, TLPT_SESSINS_UPDATE }  = require('./actionTypes');
+var { TLPT_SESSINS_RECEIVE, TLPT_SESSINS_UPDATE, TLPT_SESSINS_REMOVE_STORED }  = require('./actionTypes');
 
 export default Store({
   getInitialState() {
@@ -25,10 +25,21 @@ export default Store({
   initialize() {
     this.on(TLPT_SESSINS_RECEIVE, receiveSessions);
     this.on(TLPT_SESSINS_UPDATE, updateSession);
+    this.on(TLPT_SESSINS_REMOVE_STORED, removeStoredSessions);
   }
 })
 
-function updateSession(state, json){  
+function removeStoredSessions(state){
+  return state.withMutations(state => {
+    state.valueSeq().forEach(item=> {
+      if(item.get('active') !== true){
+        state.remove(item.get('id'));
+      }
+    });
+  });
+}
+
+function updateSession(state, json){
   return state.set(json.id, toImmutable(json));
 }
 

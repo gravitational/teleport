@@ -17,7 +17,7 @@ limitations under the License.
 var { sampleData, reactor, expect, Dfd, cfg, spyOn, api } = require('./../');
 var {actions, getters} = require('app/modules/sessions');
 
-describe('modules/nodes', function () {
+describe('modules/sessions', function () {
 
   beforeEach( ()=> spyOn(api, 'get').andReturn(Dfd()) );
 
@@ -49,18 +49,18 @@ describe('modules/nodes', function () {
 
       it('should fetch based on the input params', function () {
         let sid = 'xx';
-        let before = new Date();
+        let end = new Date();
         let limit = 33;
 
         spyOn(cfg.api, 'getFetchSessionsUrl');
-        actions.fetchSessions({sid, before, limit});
+        actions.fetchSessions({sid, end, limit});
 
         let [actual] = cfg.api.getFetchSessionsUrl.calls[0].arguments;
 
         expect(api.get.calls.length).toBe(1);
         expect(actual.limit).toBe(limit);
-        expect(actual.sid).toBe(sid);
-        expect(new Date(actual.start).getTime()).toBe(before.getTime());
+        expect(actual.session_id).toBe(sid);
+        expect(new Date(actual.start).getTime()).toBe(end.getTime());
       })
 
     });
