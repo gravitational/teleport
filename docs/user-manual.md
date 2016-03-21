@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The Teleport User Manual covers usage of the Teleport client tool `tsh`. In this 
+The TSH User Manual covers usage of the Teleport client tool `tsh`. In this 
 document you will learn how to:
 
 * Securely login into interactive shell on remote cluster nodes.
@@ -23,7 +23,7 @@ most obvious two are:
 
 * `tsh` needs _two_ usernames: one for the cluster and another for the node you
   are trying to login into. See "Teleport Identity" section below. For convenience, 
-  `tsh assumes `$USER` for both logins by default.
+  `tsh` assumes `$USER` for both logins by default.
 
 While it may appear less convenient than `ssh`, we hope that the default behavior
 and techniques like bash aliases will help to minimize the amount of typing.
@@ -56,9 +56,9 @@ These examples assume your localhost username is 'joe':
 > tsh login --proxy=work.example.com
 ```
 
-This allows you to supply your passwrd and the 2nd factor authentication
+This allows you to supply your password and the 2nd factor authentication
 at the beginning of the day. Subsequent `tsh ssh` commands will run without
-asking for your credentials.
+asking for your credentials until the temporary certificate expires (by default 22 hours).
 
 ## Exploring the Cluster
 
@@ -148,8 +148,8 @@ system packages on machines that run Linux:
 
 ### Temporary Logins
 
-Suppose you are borrowing someone else's computer to login into a cluster. Probably you don't 
-want to stay authenticated on this computer for 20 hours (Teleport default). This is where `--ttl`
+Suppose you are borrowing someone else's computer to login into a cluster. You probably don't 
+want to stay authenticated on this computer for 22 hours (Teleport default). This is where `--ttl`
 flag can help.
 
 This command logs you into the cluster with a very short-lived (1 minute) temporary certificate:
@@ -216,8 +216,8 @@ Session ID : 7645d523-60cb-436d-b732-99c5df14b7c4
 Session URL: https://work:3080/web/sessions/7645d523-60cb-436d-b732-99c5df14b7c4
 ```
 
-You can share the session ID with another user account in "work" cluster. If they
-know the session ID, they can join you by typing:
+Now you can invite another user account in the "work" cluster. You can share the URL for access through a web browser. 
+Or you can share the session ID and she can join you through her terminal by typing:
 
 ```bash
 > tsh --proxy=work join 7645d523-60cb-436d-b732-99c5df14b7c4
@@ -233,8 +233,8 @@ other data from `~/.tsh`
 
 ## Getting Help
 
-Please stop by and say hello in our mailing list: [teleport-dev@xxxxxx.com]() or open
-an [issue on Github](https://github.com/gravitational/teleport/issues).
+Please open an [issue on Github](https://github.com/gravitational/teleport/issues).
+Alternatively, you can reach through the contact form on our (website)[http://gravitational.com/].
 
 For commercial support, custom features or to try our multi-cluster edition of Teleport,
-please reach out to us: `sales@gravitational.com`. 
+please reach out to us: `sales@gravitational.com`.  

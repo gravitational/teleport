@@ -1,6 +1,6 @@
 # Architecture
 
-This document covers the underlying design principles of Teleport and offers the detailed 
+This document covers the underlying design principles of Teleport and offers a detailed 
 description of Teleport architecture.
 
 ## High Level Overview
@@ -19,7 +19,7 @@ Teleport was designed in accordance with the following design principles:
   servers. In practice this means that hosts and users have cluster memberships. Identity 
   management and authorization happen on a cluster level.
 
-* **Built for Teams**. Teleport was created under an assumption of multiple teams operating
+* **Built for Teams**. Teleport was created under the assumption of multiple teams operating
   on several disconnected clusters, for example production-vs-staging, or perhaps
   on a cluster-per-customer or cluster-per-application basis.
 
@@ -44,7 +44,7 @@ In addition to `teleport` daemon, there are three client tools you will use:
 | tsh     | Teleport client tool, similar in principle to OpenSSH's `ssh`. Use it to login into remote SSH nodes, list and search for nodes in a cluster, securely upload/download files, etc. `tsh` can work in conjunction with `ssh` by acting as an SSH agent.
 | browser | You can use your web browser to login into any Teleport node, just open `https://<proxy-host>:3080` (`proxy-host` is one of the machines that have proxy service enabled).
 
-### Cluster Diagram
+### Cluster Overview
 
 Lets explore how these services come together and interact with Teleport clients and with each other. 
 
@@ -65,29 +65,29 @@ node.
 
    * Individual nodes may not always be reacheable from "the outside".
    * Proxies always record SSH sessions and keep track of active user sessions. This makes it possible
-     for an SSH user to see if someone else is connected to a node he is about to work on.
+     for an SSH user to see if someone else is connected to a node she is about to work on.
 
    When establishing a connection, the client offers its public key.
 
 2. The proxy checks if the submitted public key has been previously signed by the auth server. 
-   If there was no key offered (first time login) or if the key certificate has expired, the 
+   If there was no key previously offered (first time login) or if the key certificate has expired, the 
    proxy denies the connection and asks the client to login interactively using a password and a 
    2nd factor.
 
    Teleport uses [Google Authenticator](https://support.google.com/accounts/answer/1066447?hl=en) 
-   for the two-step authentication.
+   for the second authentication.
 
-   The password + 2nd factor are submitted to a proxy via HTTPS, therefore it is critical for 
-   a secure configuration of Teleport to install a proper HTTPS certificate on a proxy. 
+   The password plus second factor are submitted to a proxy via HTTPS, therefore it is critical to install a 
+   proper HTTPS certificate on the proxy for a secure configuration of Teleport. 
    **DO NOT** use the self-signed certificate installed by default.
 
    If the credentials are correct, the auth server generates and signs a new certificate and returns
    it to a client via the proxy. The client stores this key and will use it for subsequent 
    logins. The key will automatically expire after 22 hours. In the future, Teleport will support
-   configurable TTL of these temporary keys.
+   a configurable TTL of these temporary keys.
 
 3. At this step, the proxy tries to locate the requested node in a cluster. There are three
-   lookup mechanism a proxy uses to find the node's IP address:
+   lookup mechanisms a proxy uses to find the node's IP address:
 
    * Tries to resolve the name requested by the client.
    * Asks the auth server if there is a node registered with this `nodename`.
@@ -122,7 +122,7 @@ Lets explore each of the Teleport services in detail.
 The `auth server` is the core of the Teleport cluster. It acts as a sertificate authority (CA)
 of the cluster.
 
-On first run the auth server generates a public / private keypair and stores it in the 
+On an initial connection the auth server generates a public / private keypair and stores it in the 
 configurable key storage. The auth server also keeps the records of what has been happening
 inside the cluster: it stores recordings of all SSH sessions in the configurable events 
 storage.
@@ -154,10 +154,10 @@ running in sync. Check [HA configuration]() in the Admin Guide.
 ### Storage Backends
 
 The persistent state of a Teleport cluster is stored by the auth server. There are three kinds
-of data an auth server stores:
+of data the auth server stores:
 
 * **Key storage**. As described above, a Teleport cluster is a set of machines whose public keys are 
-  signed by the same certificate authority (CA), with the  auth server acting as the CA of a cluster.
+  signed by the same certificate authority (CA), with the auth server acting as the CA of a cluster.
   The auth server stores its own keys in a key storage. Currently there are two storage backends
   for keys: [BoldDB](https://github.com/boltdb/bolt) for single-node auth server, and 
   [etcd](https://github.com/coreos/etcd) for HA configurations. Implementing another key storage 
@@ -169,7 +169,7 @@ of data an auth server stores:
   
 * **Recorded Sessions**. When Teleport users launch remote shells via `tsh ssh` command, their 
   interactive sessions are recorded and stored by the auth server in a session storage. Each recorded 
-  session is a file which by default is saved in `/var/lib/teleport`.
+  session is a file which, by default, is saved in `/var/lib/teleport`.
 
 
 ### The Proxy Service
@@ -217,8 +217,11 @@ When `tsh` logs in, the auto-expiring key is stored in `~/.tsh` and is valid for
 default, unless you specify another interval via `--ttl` flag (still capped by a server-side
 configuration).
 
+You can learn more about `tsh` in the [User Manual](docs/user-manual.md).
+
 ### TCTL
 
 `tctl` is used to administer a Teleport cluster. It connects to the `auth server` listening
 on `127.0.0.1` and allows cluster administrator to manage nodes and users in the cluster.
 
+You can learn more about `tctl` in the [Admin Manual](docs/admin-guide.md).

@@ -117,7 +117,7 @@ Lets cover some of these flags in more detail:
 * `--roles` flag tells Teleport which services to start. It is a comma-separated
   list of roles. The possible values are `auth`, `node` and `proxy`. The default 
   value is `auth,node,proxy`. These roles are explained in the 
-  [Teleport Architecture](architecture.md) document.
+  [Teleport Architecture](docs/architecture.md) document.
 
 * `--advertise-ip` flag can be used when Teleport nodes are running behind NAT and
   their externally routable IP cannot be automatically determined.
@@ -143,7 +143,7 @@ below. By default it is stored in `/etc/teleport.yaml`
 ```yaml
 # By default, this file should be stored in /etc/teleport.yaml
 
-# This section of the confniguration file applies to all teleport
+# This section of the configuration file applies to all teleport
 # services.
 teleport:
     # nodename allows to assign an alternative name this node can be reached by.
@@ -243,8 +243,11 @@ NOTE: make sure the <proxy> host is accessible.
 ```
 
 The user will complete registration by visiting this URL, picking a password and 
-configuring the 2nd factor authentication. After that the account will become 
-visible via `tctl`:
+configuring the 2nd factor authentication. If the credentials are correct, the auth 
+server generates and signs a new certificate and the client stores this key and will use 
+it for subsequent logins. The key will automatically expire after 22 hours after which 
+the user will need to log back in with her credentials. In the future, Teleport will 
+support a configurable TTL of these temporary keys. Once authenticated, the account will become visible via `tctl`:
 
 ```bash
 > tctl users ls
@@ -272,7 +275,7 @@ To delete this user:
 ## Controlling access
 
 At the moment `teleport` does not have a command for modifying an existing user record.
-The only recipe to update user mappings or reset user password is to remove the account
+The only way to update user mappings or reset the user password is to remove the account
 and re-create it. 
 
 The user will have to re-initialize Google Authenticator on their phone.
@@ -297,7 +300,7 @@ Run this on the new node to join the cluster:
 > teleport start --roles=node --token=n7305ee47a3829e118a7466ac7a0d78ad --auth-server=<Address>
 ```
 
-`tctl` is kind enough to even show you the exact command you would need to use on the
+`tctl` shows you the exact command you would need to use on the
 new member node to start a `teleport` node service on it.
 
 When a new node comes online, it will start sending ping requests every few seconds
@@ -357,8 +360,8 @@ It is possible to use OpenSSH client `ssh` to connect to Teleport clusters. A Te
 proxy works by using the standard SSH proxy subsystem. This section will explain how
 to configure OpenSSH client to use it.
 
-First, you need to explort the public keys of cluster members. This has to be done 
-on a node which runs Telport auth server and probably must be done by a Teleport 
+First, you need to export the public keys of cluster members. This has to be done 
+on a node which runs Teleport auth server and probably must be done by a Teleport 
 administrator:
 
 ```bash
@@ -430,8 +433,8 @@ by erasing everything under `"data_dir"` directory. Assuming the default locatio
 
 ## Getting Help
 
-Please stop by and say hello in our mailing list: [teleport-dev@xxxxxx.com]() or open
-an [issue on Github](https://github.com/gravitational/teleport/issues).
+Please open an [issue on Github](https://github.com/gravitational/teleport/issues).
+Alternatively, you can reach through the contact form on our (website)[http://gravitational.com/].
 
 For commercial support, custom features or to try our multi-cluster edition of Teleport,
 please reach out to us: `sales@gravitational.com`. 

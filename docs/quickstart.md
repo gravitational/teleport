@@ -2,22 +2,28 @@
 
 ### Introduction
 
-Welcome to Teleport Quick Start Guide. The goal of this document is to show off the basic
-capabilities of Teleport on a single node.
+Welcome to the Teleport Quick Start Guide. The goal of this document is to show off the basic
+capabilities of Teleport.
 
 There are three types of services Teleport nodes can run: `nodes`, `proxies` and `auth servers`.
 
 - An auth server is the core of a cluster. Auth servers store user accounts and offer  
   authentication and authorization service for every node and every user in a cluster.
-- Nodes are regular SSH nodes, similar to `sshd` daemon you are probably used to. When a node receives
+- Nodes are regular SSH nodes, similar to the `sshd` daemon you are probably used to. When a node receives
   a connection request, it authenticates it via the cluster's auth server.
-- Proxies route client connection requests to an appropriate node and serve a Web UI 
+- Proxies route client connection requests to the appropriate node and serve a Web UI 
   which can also be used to login into SSH nodes. Every client-to-node connection in 
   Teleport must be routed via a proxy.
 
 The `teleport` daemon runs all 3 of these services by default. This Quick Start Guide will
-be using this default behavior to create a single node cluster and interact with it
-using the client CLI tool: `tsh`.
+be using this default behavior to create a cluster and interact with it
+using Teleport's client-side tools:
+
+| Tool           | Description
+|----------------|------------------------------------------------------------------------
+| tctl    | Cluster administration tool used to invite nodes to a cluster and manage user accounts.
+| tsh     | Similar in principle to OpenSSH's `ssh`. Used to login into remote SSH nodes, list and search for nodes in a cluster, securely upload/download files, etc.
+| browser | You can use your web browser to login into any Teleport node by opening `https://<proxy-host>:3080`.
 
 ### Installing
 
@@ -25,12 +31,9 @@ Gravitational Teleport natively runs on any modern Linux distribution and OSX. Y
 download pre-built binaries from [here](https://github.com/gravitational/teleport/releases)
 or you can [build it from source](https://github.com/gravitational/teleport).
 
-### Starting a Cluster
+### Starting Teleport
 
-Let's create a single-node cluster and connect to it using the CLI as well as your
-web browser.
-
-First, create a directory for Teleport 
+Let's start Teleport on a single-node. First, create a directory for Teleport 
 to keep its data. By default it's `/var/lib/teleport`. Then start `teleport` daemon:
 
 ```bash
@@ -39,7 +42,7 @@ teleport start
 ```
 
 At this point you should see Teleport print listening IPs of all 3 services into the console.
-Congratulations! You are running a single-node Teleport cluster. 
+Congratulations - You are running Teleport! 
 
 ### Creating Users
 
@@ -54,7 +57,7 @@ the same name. Let's create a Teleport user with the same name as the OS user:
 > tctl users add $USER
 
 Signup token has been created. Share this URL with the user:
-https://turing:3080/web/newuser/96c85ed60b47ad345525f03e1524ac95d78d94ffd2d0fb3c683ff9d6221747c2
+https://localhost:3080/web/newuser/96c85ed60b47ad345525f03e1524ac95d78d94ffd2d0fb3c683ff9d6221747c2
 ```
 
 `tctl` prints a sign-up URL for you to visit and complete registration. Open this link in a 
@@ -158,11 +161,11 @@ another team member for help. Traditionally this could be done by letting them k
 node you're on, having them SSH in, start a terminal multiplexer like `screen` and join a 
 session there.
 
-Teleport makes this a bit more convenient. Let's login into "luna" and ask Teleport for your 
+Teleport makes this a bit more convenient. Let's login into "db" and ask Teleport for your 
 current session status:
 
 ```bash
-> tsh --proxy=teleport.example.com ssh luna
+> tsh --proxy=teleport.example.com ssh db
 luna > teleport status
 
 User ID    : joe, logged in as joe from 10.0.10.1 43026 3022
@@ -171,22 +174,22 @@ Session URL: https://teleport.example.com:3080/web/sessions/7645d523-60cb-436d-b
 ```
 
 You can share the Session URL with a colleague in your organization. Assuming that `teleport.example.com`
-is your company's Teleport proxy, he will be able to join and help you troubleshoot the
-problem on "luna" in his browser.
+is your company's Teleport proxy, she will be able to join and help you troubleshoot the
+problem on "db" in her browser.
 
-Also, people can join your session via CLI. They will have to run:
+Also, people can join your session via CLI assuming they have Teleport installed. They just have to run:
 
 ```bash
 > tsh --proxy=teleport.example.com join 7645d523-60cb-436d-b732-99c5df14b7c4
 ```
 
 NOTE: for this to work, both of you must have proper user mappings allowing you 
-access `luna` under the same OS user.
+access `db` under the same OS user.
 
 ### Inviting Colleagues to your Laptop
 
-Sometimes you may want to temporarily open up your own laptop for someone else (if you
-trust them, of course). First, you will have to start teleport with `--roles=node` in
+Sometimes you may want to temporarily share the terminal on your own laptop (if you
+trust your guests, of course). First, you will have to start teleport with `--roles=node` in
 a separate Terminal:
 
 ```bash
@@ -207,7 +210,7 @@ user mapping, of course, to be allowed to join your session. To disconnect, shut
 
 ### Running in Production
 
-We hope this Guide helped you to quickly set up a toy single-server SSH cluster on
+We hope this Guide helped you to quickly set up Teleport to play with on
 localhost. For production environments we strongly recommend the following:
 
 - Install HTTPS certificates for every Teleport proxy.
