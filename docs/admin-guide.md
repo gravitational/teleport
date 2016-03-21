@@ -245,9 +245,9 @@ NOTE: make sure the <proxy> host is accessible.
 The user will complete registration by visiting this URL, picking a password and 
 configuring the 2nd factor authentication. If the credentials are correct, the auth 
 server generates and signs a new certificate and the client stores this key and will use 
-it for subsequent logins. The key will automatically expire after 22 hours after which 
-the user will need to log back in with her credentials. In the future, Teleport will 
-support a configurable TTL of these temporary keys. Once authenticated, the account will become visible via `tctl`:
+it for subsequent logins. The key will automatically expire after 12 hours by default after which 
+the user will need to log back in with her credentials. This TTL can be configured to a maximum
+of 30 hours and a minimum of 1 minute. Once authenticated, the account will become visible via `tctl`:
 
 ```bash
 > tctl users ls
