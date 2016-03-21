@@ -92,5 +92,6 @@ export default {
   sessionsByServer,
   sessionsView,
   sessionViewById,
-  createView
+  createView,
+  count: [['tlpt_sessions'], sessions => sessions.size ]
 }
