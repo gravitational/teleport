@@ -119,7 +119,7 @@ Lets explore each of the Teleport services in detail.
 
 ### The Auth Service
 
-The `auth server` is the core of the Teleport cluster. It acts as a sertificate authority (CA)
+The `auth server` is the core of the Teleport cluster. It acts as a certificate authority (CA)
 of the cluster.
 
 On an initial connection the auth server generates a public / private keypair and stores it in the 
