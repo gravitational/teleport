@@ -166,7 +166,7 @@ current session status:
 
 ```bash
 > tsh --proxy=teleport.example.com ssh db
-luna > teleport status
+db > teleport status
 
 User ID    : joe, logged in as joe from 10.0.10.1 43026 3022
 Session ID : 7645d523-60cb-436d-b732-99c5df14b7c4
