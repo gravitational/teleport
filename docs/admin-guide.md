@@ -117,7 +117,7 @@ Lets cover some of these flags in more detail:
 * `--roles` flag tells Teleport which services to start. It is a comma-separated
   list of roles. The possible values are `auth`, `node` and `proxy`. The default 
   value is `auth,node,proxy`. These roles are explained in the 
-  [Teleport Architecture](docs/architecture.md) document.
+  [Teleport Architecture](architecture.md) document.
 
 * `--advertise-ip` flag can be used when Teleport nodes are running behind NAT and
   their externally routable IP cannot be automatically determined.
