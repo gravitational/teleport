@@ -14,6 +14,29 @@ document you will learn how to:
 * Use Teleport with OpenSSH client: `ssh` or with other tools that use SSH under the hood like Chef and Ansible.
 
 In addition to this document, you can always type `tsh` into your terminal for the CLI reference.
+```bash
+> tsh
+usage: tsh [<flags>] <command> [<command-args> ...]
+
+Gravitational Teleport SSH tool
+
+Commands:
+  help       shows help for a given command
+  ssh        connect and log into a remote host(s) for executing commands
+  scp        secure copy file(s) to a remote SSH host(s)
+  share      invite a colleague to share your current terminal
+  join       join a colleague who invited you into his SSH session
+  ls         list remote SSH hosts available via SSH proxy (bastion)
+  login      logs in the SSH proxy and enables usage of OpenSSH client
+  logout     logs off the SSH proxy
+  agent      starts SSH session agent for compatibility with OpenSSH client
+  configure  dump a sample profile file into stdout
+
+Notes:
+
+  - Most of the flags can be set in a profile file ~/.tshconfig
+  - Run `tsh help <command>` to get help for <command> like `tsh help ssh`
+```
 
 ## Difference vs OpenSSH
 
@@ -60,7 +83,7 @@ These examples assume your localhost username is 'joe':
 
 This allows you to supply your password and the 2nd factor authentication
 at the beginning of the day. Subsequent `tsh ssh` commands will run without
-asking for your credentials until the temporary certificate expires (by default 22 hours).
+asking for your credentials until the temporary certificate expires (by default 12 hours).
 
 ## Exploring the Cluster
 
