@@ -13,6 +13,8 @@ document you will learn how to:
 * Replay recorded interactive sessions.
 * Use Teleport with OpenSSH client: `ssh` or with other tools that use SSH under the hood like Chef and Ansible.
 
+In addition to this document, you can always type `tsh` into your terminal for the CLI reference.
+
 ## Difference vs OpenSSH
 
 There are many differences between Teleport's `tsh` and OpenSSH's `ssh` but the 
