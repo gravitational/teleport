@@ -217,11 +217,11 @@ When `tsh` logs in, the auto-expiring key is stored in `~/.tsh` and is valid for
 default, unless you specify another interval via `--ttl` flag (still capped by a server-side
 configuration).
 
-You can learn more about `tsh` in the [User Manual](docs/user-manual.md).
+You can learn more about `tsh` in the [User Manual](user-manual.md).
 
 ### TCTL
 
 `tctl` is used to administer a Teleport cluster. It connects to the `auth server` listening
 on `127.0.0.1` and allows cluster administrator to manage nodes and users in the cluster.
 
-You can learn more about `tctl` in the [Admin Manual](docs/admin-guide.md).
+You can learn more about `tctl` in the [Admin Manual](admin-guide.md).
