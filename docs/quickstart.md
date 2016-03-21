@@ -62,7 +62,8 @@ https://localhost:3080/web/newuser/96c85ed60b47ad345525f03e1524ac95d78d94ffd2d0f
 
 `tctl` prints a sign-up URL for you to visit and complete registration. Open this link in a 
 browser, install Google Authenticator on your phone, set up 2nd factor authentication and 
-pick a password.
+pick a password. The default TTL for a login is 12 hours but this can be configured to a
+maximum of 30 hours and a minimum of 1 minute.
 
 Having done that, you will be presented with a Web UI where you will see your machine and 
 will be able to log into it using web-based terminal.
