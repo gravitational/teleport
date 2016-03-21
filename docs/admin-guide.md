@@ -28,7 +28,7 @@ this way:
 
 ### Installing from Binaries
 
-You can download binaries from [Github](https://github.com/gravitational/teleport/releases). 
+You can download binaries from [Github releases](https://github.com/gravitational/teleport/releases). 
 
 ## Running
 
