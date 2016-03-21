@@ -78,7 +78,7 @@ turing        22222222-cccc-8274     10.1.0.6:3022     os:linux
 graviton      33333333-aaaa-1284     10.1.0.7:3022     os:osx
 ```
 
-You can filter out nodes based on their labels. Lets only list OSX machines:
+You can filter out nodes based on their labels. Let's only list OSX machines:
 
 ```
 > tsh --proxy=work ls os=osx
