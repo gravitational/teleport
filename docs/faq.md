@@ -1,21 +1,21 @@
 # FAQ
 
-1. **Can I use Gravitational Teleport instead of OpenSSH in production today?**
+**Can I use Gravitational Teleport instead of OpenSSH in production today?**
 
 Teleport has been in use internally by Gravitaitonal. The code is open and available for you to inspect.
 Currently Teleport is undergoing an independent security review. We will be more comfortable by 
 openly recommending it for production use once the review will have completed.
 
-2. **Can I use OpenSSH client to connect to servers in a Teleport cluster?**
+**Can I use OpenSSH client to connect to servers in a Teleport cluster?**
 
 Yes. Take a look at [Using OpenSSH client](user-manual.md#integration-with-openssh) section in the User Manual
 and [Using OpenSSH servers](admin-guide.md) in the Admin Manual.
 
-3. **Which TCP ports does Teleport uses?**
+**Which TCP ports does Teleport uses?**
 
 [Ports](admin-guide.md#ports) section of the Admin Manual covers it.
 
-4. **Do you offer commercial support for Teleport?**
+**Do you offer commercial support for Teleport?**
 
 Yes, [Gravitational Inc](https://gravitational.com) offers:
 
