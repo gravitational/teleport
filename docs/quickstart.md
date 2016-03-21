@@ -27,7 +27,7 @@ using Teleport's client-side tools:
 
 ### Installing
 
-Gravitational Teleport natively runs on any modern Linux distribution and OSX. You can
+Gravitational Teleport natively runs on most Linux distributions. You can
 download pre-built binaries from [here](https://github.com/gravitational/teleport/releases)
 or you can [build it from source](https://github.com/gravitational/teleport).
 
