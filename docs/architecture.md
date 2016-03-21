@@ -1,6 +1,6 @@
 # Architecture
 
-This document covers the underlying design principles of Teleport and offers a detailed 
+This document covers the underlying design principles of Teleport and a detailed 
 description of Teleport architecture.
 
 ## High Level Overview
