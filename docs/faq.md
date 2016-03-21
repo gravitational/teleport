@@ -16,7 +16,7 @@ and [Using OpenSSH servers](admin-guide.md) in the Admin Manual.
 
 **Do you offer commercial support for Teleport?**
 
-Yes, [Gravitational Inc](https://gravitational.com) offers:
+Yes, we plan on offering commercial support soon which will include:
 
 * Commercial version of Teleport which includes multi-cluster capabilities, 
   integration with enterprise identity management (LDAP and others) and custom features.
