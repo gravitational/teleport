@@ -247,6 +247,32 @@ the certificate using standard OpenSSH client (and get it using ssh-agent socket
 **Implementation note:** Teleport's proxy command makes it compatible with [SSH jump host](https://wiki.gentoo.org/wiki/SSH_jump_host) pattern implemented using OpenSSH's `ProxyCommand`
 
 
+## Certificates
+
+Teleport uses standard Open SSH certificates for client and host authentication.
+
+**Host certificates and roles**
+
+Nodes, proxy and auth servers use certificates to authenticate with auth server and user's client connections.
+Users should check if host's certificate is signed by the trusted authority.
+
+Each role `proxy`, `auth` or `node` is encoded in the generated certificate using certificate extensions (opaque signed string).
+All nodes in the cluster can cofnnect to Auth server's HTTP API via SSH tunnel that checks each connecting client' certificate and role
+to enforce access control - e.g. client connection using node's certificate won't be able to add and delete users, and
+can only get auth servers registered in the cluster.
+
+**User certificates and allowed logins**
+
+When Auth server generates a user certificate, it uses information provided by administrator about allowed linux logins
+to populate the list of "valid principals". This list is used by OpenSSH and Teleport to check if the user has option
+to log in as a certain OS user.
+
+Teleport's user name is stored as a OpenSSH key id field.
+
+**Note** User's certificates do not use any cert extensions as a workaround to the [bug](https://bugzilla.mindrot.org/show_bug.cgi?id=2387)
+ that treats any extenison as a critical one, breaking access to the cluster.
+    
+
 ## Teleport Tools
 
 Teleport users two command line tools. `tsh` is a client tool used by the end users, while

@@ -45,13 +45,18 @@ Teleport supports only a handful of commands
 When experimenting you can quickly start `teleport` with verbose logging by typing 
 `teleport start -d`. 
 
-**WARNING:** When running `teleport` with a proxy role you have to make sure the assets
+**Note:** When running `teleport` with a proxy role you have to make sure the assets
 for the Web UI can be found. The web assets are composedof `index.html` file and `app` 
-directory. `teleport` checks the following locations for its web assets:
-1. The same directory it's in
-2. `/usr/local/share/teleport`
-3. `/usr/share/teleport`
-4. `/opt/teleport`
+directory. Teleport process checks the following locations for its web assets:
+
+   1. The same directory it's in
+   2. `/usr/local/share/teleport`
+   3. `/usr/share/teleport`
+   4. `/opt/teleport`
+
+**Security note:** Teleport stores data in `/var/lib/teleport`. Make sure that regular users do not have access to this folder
+of the Auth server, otherwise anyone can gain admin access to the Teleport's API.
+
 
 #### Systemd Unit File
 
@@ -214,16 +219,16 @@ proxy_service:
 
 A user identity in Teleport exists in the scope of a cluster. The member nodes
 of a cluster have multiple OS users on them. A Teleport administrator assigns
-"user mappings" to every Teleport account, allowing it to login as one of the 
+allowed logins to every Teleport account, allowing it to login as one of the 
 specified OS users.
 
 Lets look at this table:
 
-|Teleport Username | User Mappings | Description
+|Teleport Username | Allowed Logins | Description
 |------------------|---------------|-----------------------------
 |joe    | joe,root | Teleport user 'joe' can login into member nodes as OS user 'joe' or 'root'
 |bob    | bob      | Teleport user 'bob' can login into member nodes only as OS user 'bob'
-|ross   |          | If a mapping is not specified, it defaults to the same name as the Teleport user.
+|ross   |          | If no login is specified, it defaults to the same name as the Teleport user.
 
 To add a new user to Teleport you have to use `tctl` tool on the same node where
 the auth server is running, i.e. `teleport` was started with `--roles=auth`. 
@@ -275,7 +280,7 @@ To delete this user:
 ## Controlling access
 
 At the moment `teleport` does not have a command for modifying an existing user record.
-The only way to update user mappings or reset the user password is to remove the account
+The only way to update allowed logins or reset the user password is to remove the account
 and re-create it. 
 
 The user will have to re-initialize Google Authenticator on their phone.

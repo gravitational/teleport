@@ -57,7 +57,7 @@ and techniques like bash aliases will help to minimize the amount of typing.
 
 A user identity in Teleport exists in the scope of a cluster. The member nodes
 of a cluster may have multiple OS users on them. A Teleport administrator assigns
-"user mappings" to every Teleport user account.
+allowed logins to every Teleport user account.
 
 When logging into a remote node, you will have to specify both logins. Teleport
 identity will have to be passed as `--user` flag, while the node login will be
