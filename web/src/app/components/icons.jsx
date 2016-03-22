@@ -16,9 +16,24 @@ limitations under the License.
 
 var React = require('react');
 var logoSvg = require('assets/img/svg/grv-tlpt-logo.svg');
+var classnames = require('classnames');
 
 const TeleportLogo = () => (
   <svg className="grv-icon-logo-tlpt"><use xlinkHref={logoSvg}/></svg>
 )
 
-export {TeleportLogo}
+const UserIcon = ({name='', isDark})=>{
+  let iconClass = classnames('grv-icon-user', {
+    '--dark' : isDark
+  });
+
+  return (
+    <div title={name} className={iconClass}>
+      <span>
+        <strong>{name[0]}</strong>
+      </span>
+    </div>
+  )
+};
+
+export {TeleportLogo, UserIcon}

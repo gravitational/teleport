@@ -58,29 +58,6 @@ limitations under the License.
   overflow: auto;
 }
 
-.grv-circle {
-  margin: 0 auto;
-  height: 30px;
-  width: 30px;
-  display: block;
-  background: #1ab394;
-  padding: 9px 8px;
-  text-align: center;
-  color: #fff;
-  border-radius: 50%;
-
-  span {
-    display: block;
-    left: 0;
-    height: 1em;
-    position: absolute;
-    right: 0;
-    top: 50%;
-    font-size: 14px;
-    margin-top: -.5em;
-  }
-}
-
 .grv-rounded{
   border-radius: 10px
 }

@@ -18,6 +18,7 @@ var reactor = require('app/reactor');
 var { IndexLink } = require('react-router');
 var getters = require('app/modules/user/getters');
 var cfg = require('app/config');
+var {UserIcon} = require('./icons.jsx');
 
 var menuItems = [
   {icon: 'fa fa-share-alt', to: cfg.routes.nodes, title: 'Nodes'},
@@ -25,8 +26,8 @@ var menuItems = [
 ];
 
 var NavLeftBar = React.createClass({
-
   render: function(){
+    var {name} = reactor.evaluate(getters.user);
     var items = menuItems.map((i, index)=>{
       var className = this.context.router.isActive(i.to) ? 'active' : '';
       return (
@@ -56,10 +57,8 @@ var NavLeftBar = React.createClass({
     return (
       <nav className='grv-nav navbar-default' role='navigation'>
         <ul className='nav text-center' id='side-menu'>
-          <li title="current user">
-            <div className="btn btn-primary btn-circle text-uppercase text-uppercase">
-              <strong>{getUserNameLetter()}</strong>
-            </div>
+          <li>
+            <UserIcon name={name} />
           </li>
           {items}
         </ul>
@@ -70,11 +69,6 @@ var NavLeftBar = React.createClass({
 
 NavLeftBar.contextTypes = {
   router: React.PropTypes.object.isRequired
-}
-
-function getUserNameLetter(){
-  var {shortDisplayName} = reactor.evaluate(getters.user);
-  return shortDisplayName;
 }
 
 module.exports = NavLeftBar;

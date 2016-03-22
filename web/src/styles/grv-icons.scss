@@ -36,3 +36,25 @@ limitations under the License.
     background-image: url("/web/app/assets/img/authenticator-icon.png");
   }
 }
+
+.grv-icon-user {
+  margin: 0 auto;
+  height: $grv-icon-user-size;
+  width: $grv-icon-user-size;
+  display: block;
+  background: $grv-icon-user-def-color;
+  color: #fff;
+  border-radius: 50%;
+  vertical-align: middle;
+  text-align: center;
+  text-transform: uppercase;
+  span {
+    line-height: $grv-icon-user-size;
+    display: block;
+    font-size: 14px;
+  }
+
+  &.--dark {
+    background: $grv-icon-user-term-color
+  }
+}
