@@ -226,7 +226,7 @@ Teleport Proxy implements a special method to let clients get short lived certif
 ![Teleport Proxy SSH](img/proxy-ssh-1.svg)
 
 1. TSH client or TSH agent generate OpenSSH keypair and forward generated public key and username, password and second factor token that are entered by user to the proxy.
-2. Proxy forwards reuqest to the auth server.
+2. Proxy forwards request to the auth server.
 3. If auth server accepts credentials, it generates a new certificate signed by its user CA and sends it back to the proxy.
 4. Proxy 
 
