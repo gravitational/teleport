@@ -38,7 +38,7 @@ within multiple organizations.
 
 ## Contributing
 
-The best way to contribute is to create issues right here on Github. You can also reach the Gravitational team through their [website](http://gravitational.com/)
+The best way to contribute is to create issues or pull requests right here on Github. You can also reach the Gravitational team through their [website](http://gravitational.com/)
 
 ### Building
 
