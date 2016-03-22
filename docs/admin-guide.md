@@ -439,15 +439,15 @@ scp_if_ssh = True
 
 ## High Availability and Clustering
  
-Teleport uses Etcd backend to achieve highly available deployments. 
+Teleport uses etcd backend to achieve highly available deployments. 
 
-* Install Etcd and configure peer and client TLS authentication using
+* Install etcd and configure peer and client TLS authentication using
    [etcd security guide](https://github.com/coreos/etcd/blob/master/Documentation/security.md).
 
-      **Security note:** Only auth servers should have client certificates allowing etcd access,
+      **Security note:** Only Auth servers should have client certificates allowing etcd access,
       otherwise anyone can write and overwrite keys in the backend!
 
-* Set up auth server to use etcd in `storage` section of Auth server's config file:
+* Set up Auth server to use etcd in `storage` section of Auth server's config file:
 
 ```
 teleport:
@@ -467,14 +467,14 @@ teleport:
         tls_ca_file: /var/lib/teleport/etcd-ca.pem
 ```
 
-* Deploy several auth servers connected to etcd backend
-* Deploy several proxy nodes that have `auth_servers` pointed to list of auth servers to connect
+* Deploy several Auth servers connected to etcd backend
+* Deploy several Proxy nodes that have `auth_servers` pointed to list of Auth servers to connect
 
-**NOTE** As new auth servers will be added to the cluster and old servers will be decommisioned,
+**NOTE** As new Auth servers will be added to the cluster and old servers will be decommisioned,
 node's and proxies will refresh the list of available auth servers refresh the cluster info and
 store the updated list locally in `/var/lib/teleport/authservers.json`. The values from this
-file, if present will take precendence over configuration file's values.
-You can simply remove the file so that configuration file's values can take effect again.
+file, if present, will take precendence over configuration file's values.
+You can simply remove the file so that the configuration file's values can take effect again.
 
 ## Troubleshooting
 
