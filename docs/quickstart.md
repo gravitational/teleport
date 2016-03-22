@@ -191,7 +191,7 @@ trust your guests, of course). First, you will have to start teleport with `--ro
 a separate Terminal:
 
 ```bash
-> teleport start --proxy=teleport.example.com
+> teleport start --roles=node --proxy=teleport.example.com
 ```
 
 ... then you will need to start a local SSH session by logging into localhost and
