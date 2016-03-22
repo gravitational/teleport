@@ -80,7 +80,7 @@ node.
       The password + 2nd factor are submitted to a proxy via HTTPS, therefore it is critical for 
       a secure configuration of Teleport to install a proper HTTPS certificate on a proxy.
      
-      **Security note:** Do not use the self-signed certificate installed by default.
+      **Security note:** Do not use the self-signed certificate installed by default in production.
    
       If the credentials are correct, the auth server generates and signs a new certificate and returns
       it to a client via the proxy. The client stores this key and will use it for subsequent 
