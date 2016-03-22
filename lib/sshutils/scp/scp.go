@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// scp package handles file uploads and downloads via scp command
+// Package scp handles file uploads and downloads via scp command
 package scp
 
 import (
@@ -34,11 +34,16 @@ import (
 )
 
 const (
-	OKByte   = 0x0
+	// OKByte is scp OK message bytes
+	OKByte = 0x0
+	// WarnByte tells that next goes a warning string
 	WarnByte = 0x1
-	ErrByte  = 0x2
+	// ErrByte tells that next goes an error string
+	ErrByte = 0x2
 )
 
+// Command mimics behavior of SCP command line tool
+// to teleport can pretend it launches real scp behind the scenes
 type Command struct {
 	Source      bool // data producer
 	Sink        bool // data consumer
@@ -49,7 +54,7 @@ type Command struct {
 	User        *user.User
 }
 
-// Serve implements SSH file copy (SCP)
+// Execute implements SSH file copy (SCP)
 func (cmd *Command) Execute(ch io.ReadWriter) error {
 	if cmd.Source {
 		// download
@@ -96,7 +101,9 @@ func (cmd *Command) serveSource(ch io.ReadWriter) error {
 }
 
 func (cmd *Command) sendDir(r *reader, ch io.ReadWriter, fi os.FileInfo, path string) error {
-	_, err := fmt.Fprintf(ch, "D%04o 0 %s\n", fi.Mode()&os.ModePerm, fi.Name())
+	out := fmt.Sprintf("D%04o 0 %s\n", fi.Mode()&os.ModePerm, fi.Name())
+	log.Infof("sendDir: %v", out)
+	_, err := io.WriteString(ch, out)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -112,7 +119,6 @@ func (cmd *Command) sendDir(r *reader, ch io.ReadWriter, fi os.FileInfo, path st
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	for _, sfi := range fis {
 		if sfi.IsDir() {
 			err := cmd.sendDir(r, ch, sfi, filepath.Join(path, sfi.Name()))
@@ -129,11 +135,13 @@ func (cmd *Command) sendDir(r *reader, ch io.ReadWriter, fi os.FileInfo, path st
 	if _, err = fmt.Fprintf(ch, "E\n"); err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
+	return r.read()
 }
 
 func (cmd *Command) sendFile(r *reader, ch io.ReadWriter, fi os.FileInfo, path string) error {
-	_, err := fmt.Fprintf(ch, "C%04o %d %s\n", fi.Mode()&os.ModePerm, fi.Size(), fi.Name())
+	out := fmt.Sprintf("C%04o %d %s\n", fi.Mode()&os.ModePerm, fi.Size(), fi.Name())
+	log.Infof("sendFile: %v", out)
+	_, err := io.WriteString(ch, out)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -175,7 +183,7 @@ func (cmd *Command) serveSink(ch io.ReadWriter) error {
 		n, err := ch.Read(b)
 		if err != nil {
 			if err == io.EOF {
-				log.Infof("got EOF")
+				log.Infof("<- EOF")
 				return nil
 			}
 			return trace.Wrap(err)
@@ -185,7 +193,7 @@ func (cmd *Command) serveSink(ch io.ReadWriter) error {
 		}
 
 		if b[0] == OKByte {
-			log.Infof("got OK")
+			log.Infof("<- OK")
 			continue
 		}
 
@@ -202,12 +210,12 @@ func (cmd *Command) serveSink(ch io.ReadWriter) error {
 		if err := sendOK(ch); err != nil {
 			return trace.Wrap(err)
 		}
-		log.Infof("sent OK")
+		log.Infof("-> OK")
 	}
 }
 
 func (cmd *Command) processCommand(ch io.ReadWriter, st *state, b byte, line string) error {
-	log.Infof("processCommand(b=%v, line=%v)", string(b), line)
+	log.Infof("<- %v %v", string(b), line)
 	switch b {
 	case WarnByte:
 		log.Warningf("got warning: %v", line)
@@ -219,7 +227,6 @@ func (cmd *Command) processCommand(ch io.ReadWriter, st *state, b byte, line str
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		log.Infof("got new file command: %#v", f)
 		if err := sendOK(ch); err != nil {
 			return trace.Wrap(err)
 		}
@@ -229,21 +236,17 @@ func (cmd *Command) processCommand(ch io.ReadWriter, st *state, b byte, line str
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		log.Infof("got new dir command: %#v", d)
 		if err := cmd.receiveDir(st, *d, ch); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
 	case 'E':
-		log.Infof("got end dir command")
 		return st.pop()
 	case 'T':
-		log.Infof("got mtime command")
-		m, err := ParseMtime(line)
+		_, err := ParseMtime(line)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		log.Infof("got mtime command: %#v", m)
 	}
 	return trace.Errorf("got unrecognized command: %v", string(b))
 }
@@ -493,7 +496,7 @@ func (r *reader) read() error {
 
 	switch r.b[0] {
 	case OKByte:
-		log.Infof("got OK")
+		log.Infof("<- OK")
 		return nil
 	case WarnByte, ErrByte:
 		r.s.Scan()

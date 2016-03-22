@@ -50,8 +50,7 @@ func (s *SCPSuite) TestSendFile(c *C) {
 	err := ioutil.WriteFile(target, contents, 0666)
 	c.Assert(err, IsNil)
 
-	srv, err := New(Command{Source: true, Target: target})
-	c.Assert(err, IsNil)
+	srv := &Command{Source: true, Target: target}
 
 	outDir := c.MkDir()
 	cmd, in, out, _ := command("scp", "-v", "-t", outDir)
@@ -63,7 +62,7 @@ func (s *SCPSuite) TestSendFile(c *C) {
 		if err := cmd.Start(); err != nil {
 			errC <- trace.Wrap(err)
 		}
-		if err := srv.Serve(rw); err != nil {
+		if err := srv.Execute(rw); err != nil {
 			errC <- trace.Wrap(err)
 		}
 		in.Close()
@@ -97,8 +96,7 @@ func (s *SCPSuite) TestReceiveFile(c *C) {
 
 	outDir := c.MkDir() + "/"
 
-	srv, err := New(Command{Sink: true, Target: outDir})
-	c.Assert(err, IsNil)
+	srv := &Command{Sink: true, Target: outDir}
 
 	cmd, in, out, _ := command("scp", "-v", "-f", source)
 
@@ -112,7 +110,7 @@ func (s *SCPSuite) TestReceiveFile(c *C) {
 			errC <- trace.Wrap(err)
 		}
 		log.Infof("serving")
-		err = trace.Wrap(srv.Serve(rw))
+		err = trace.Wrap(srv.Execute(rw))
 		if err != nil {
 			errC <- err
 		}
@@ -151,8 +149,7 @@ func (s *SCPSuite) TestSendDir(c *C) {
 		filepath.Join(dir, "target2"), []byte("file 2"), 0666)
 	c.Assert(err, IsNil)
 
-	srv, err := New(Command{Source: true, Target: dir, Recursive: true})
-	c.Assert(err, IsNil)
+	srv := &Command{Source: true, Target: dir, Recursive: true}
 
 	outDir := c.MkDir()
 
@@ -165,7 +162,7 @@ func (s *SCPSuite) TestSendDir(c *C) {
 		if err := cmd.Start(); err != nil {
 			errC <- trace.Wrap(err)
 		}
-		if err := srv.Serve(rw); err != nil {
+		if err := srv.Execute(rw); err != nil {
 			errC <- trace.Wrap(err)
 		}
 		in.Close()
@@ -210,8 +207,7 @@ func (s *SCPSuite) TestReceiveDir(c *C) {
 
 	outDir := c.MkDir() + "/"
 
-	srv, err := New(Command{Sink: true, Target: outDir, Recursive: true})
-	c.Assert(err, IsNil)
+	srv := &Command{Sink: true, Target: outDir, Recursive: true}
 
 	cmd, in, out, _ := command("scp", "-v", "-r", "-f", dir)
 
@@ -222,7 +218,7 @@ func (s *SCPSuite) TestReceiveDir(c *C) {
 		if err := cmd.Start(); err != nil {
 			errC <- trace.Wrap(err)
 		}
-		if err := srv.Serve(rw); err != nil {
+		if err := srv.Execute(rw); err != nil {
 			errC <- trace.Wrap(err)
 		}
 		in.Close()
