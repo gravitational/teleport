@@ -195,7 +195,7 @@ recommended to have several of them running.
 When you launch the Teleport Proxy for the first time, it will generate self-signed HTTPS 
 certificate to make it easier to explore Teleport.
 
-**Production note:** It is absolutely crucial to properly configure TLS for HTTPS when you 
+**Security note:** It is absolutely crucial to properly configure TLS for HTTPS when you 
 prepare to use Teleport Proxy in production.
 
 
