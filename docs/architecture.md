@@ -227,7 +227,7 @@ Teleport Proxy implements a special method to let clients get short lived certif
 
 1. TSH client or TSH agent generate OpenSSH keypair and forward generated public key and username, password and second factor token that are entered by user to the proxy.
 2. Proxy forwards reuqest to the auth server.
-3. If auth server accepts credentials, it generates a new certificate signed by it's user CA and sends it back to the proxy.
+3. If auth server accepts credentials, it generates a new certificate signed by its user CA and sends it back to the proxy.
 4. Proxy 
 
 **Security note:** Unlike in SSH proxying, in web mode Teleport Proxy terminates the traffic
@@ -242,7 +242,7 @@ the certificate using standard OpenSSH client (and get it using ssh-agent socket
 
 1. SSH client connects to proxy and executes `proxy` subsystem of the proxy's SSH server providing target node's host and port location.
 2. Proxy dials to the target TCP address and starts forwarding the traffic to the client.
-3. SSH client uses established SSH tunnel to open new SSH connection and authenticate with the target node using it's client certificate.
+3. SSH client uses established SSH tunnel to open new SSH connection and authenticate with the target node using its client certificate.
 
 **Implementation note:** Teleport's proxy command makes it compatible with [SSH jump host](https://wiki.gentoo.org/wiki/SSH_jump_host) pattern implemented using OpenSSH's `ProxyCommand`
 
