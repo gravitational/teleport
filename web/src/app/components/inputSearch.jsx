@@ -20,8 +20,7 @@ var {debounce} = require('_');
 var InputSearch = React.createClass({
 
   getInitialState(){
-    this.debouncedNotify = debounce(()=>{
-        console.log('dada');
+    this.debouncedNotify = debounce(()=>{        
         this.props.onChange(this.state.value);
     }, 200);
 

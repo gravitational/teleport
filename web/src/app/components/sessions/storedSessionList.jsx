@@ -17,13 +17,13 @@ limitations under the License.
 var React = require('react');
 var {actions} = require('app/modules/storedSessionsFilter');
 var InputSearch = require('./../inputSearch.jsx');
-var {Table, Column, Cell, TextCell, SortHeaderCell, SortTypes} = require('app/components/table.jsx');
-var {ButtonCell, SingleUserCell, EmptyList, DateCreatedCell} = require('./listItems');
+var {Table, Column, Cell, TextCell, SortHeaderCell, SortTypes, EmptyIndicator} = require('app/components/table.jsx');
+var {ButtonCell, SingleUserCell, DateCreatedCell} = require('./listItems');
 var {DateRangePicker} = require('./../datePicker.jsx');
 var moment =  require('moment');
-var {weekRange} = require('app/common/dateUtils');
 var {isMatch} = require('app/common/objectUtils');
 var _ = require('_');
+var {displayDateFormat} = require('app/config');
 
 var ArchivedSessions = React.createClass({
 
@@ -54,14 +54,9 @@ var ArchivedSessions = React.createClass({
     actions.setTimeRange(startDate, endDate);
   },
 
-  onCalendarNavChange(newValue){
-    let [startDate, endDate] = weekRange(newValue);
-    actions.setTimeRange(startDate, endDate);
-  },
-
   searchAndFilterCb(targetValue, searchValue, propName){
     if(propName === 'created'){
-      var displayDate = moment(targetValue).format('l LTS').toLocaleUpperCase();
+      var displayDate = moment(targetValue).format(displayDateFormat).toLocaleUpperCase();
       return displayDate.indexOf(searchValue) !== -1;
     }
   },
@@ -114,7 +109,7 @@ var ArchivedSessions = React.createClass({
         </div>
 
         <div className="grv-content">
-          {data.length === 0 && !status.isLoading ? <EmptyList text="No matching archived sessions found."/> :
+          {data.length === 0 && !status.isLoading ? <EmptyIndicator text="No matching archived sessions found."/> :
             <div className="">
               <Table rowCount={data.length} className="table-striped">
                 <Column

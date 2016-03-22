@@ -15,12 +15,13 @@ limitations under the License.
 */
 
 var React = require('react');
+//var {TeleportLogo} = require('./icons.jsx');
 
 var NotFound = React.createClass({
   render() {
     return (
       <div className="grv-error-page">
-        <div className="grv-logo-tprt">Teleport</div>
+
         <div className="grv-warning"><i className="fa fa-warning"></i> </div>
         <h1>Whoops, we cannot find that</h1>
         <div>Looks like the page you are looking for isn't here any longer</div>
@@ -36,7 +37,6 @@ var ExpiredInvite = React.createClass({
   render() {
     return (
       <div className="grv-error-page">
-        <div className="grv-logo-tprt">Teleport</div>
         <div className="grv-warning"><i className="fa fa-warning"></i> </div>
         <h1>Invite code has expired</h1>
         <div>Looks like your invite code isn't valid anymore</div>

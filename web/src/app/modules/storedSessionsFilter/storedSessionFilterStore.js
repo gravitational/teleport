@@ -15,14 +15,17 @@ limitations under the License.
 */
 
 var { Store, toImmutable } = require('nuclear-js');
-var {weekRange} = require('app/common/dateUtils');
+var moment = require('moment');
+
 var {
   TLPT_STORED_SESSINS_FILTER_SET_RANGE,
   TLPT_STORED_SESSINS_FILTER_SET_STATUS } = require('./actionTypes');
 
 export default Store({
   getInitialState() {
-    let [start, end] = weekRange(new Date());
+
+    let end = moment(new Date()).endOf('day').toDate();
+    let start = moment(end).subtract(3, 'day').startOf('day').toDate();
     let state = {
       start,
       end,

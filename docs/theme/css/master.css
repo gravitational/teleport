@@ -1,0 +1,607 @@
+html {margin:0;padding:0;}
+body {background:#fff;font:normal 16px/28px "Colfax Regular", Helvetica;color:#818284;padding:0;
+	animation-name: load;
+	animation-timing-function: linear;
+	animation-duration: 1;
+	animation-iteration-count: 1;
+	-webkit-animation-name: load;
+	-webkit-animation-duration: 0.6s;
+	-webkit-animation-timing-function: linear;
+	-webkit-animation-iteration-count: 1;
+	-moz-animation-name: load;
+	-moz-animation-duration: 0.6s;
+	-moz-animation-timing-function: linear;
+	-moz-animation-iteration-count: 1;
+}
+h1 {font:normal 40px/58px "Colfax Regular", Helvetica;color:#3d73ba;letter-spacing:-1px;}
+h3 {font:normal 22px/36px "Colfax Regular", Helvetica;width:90%;max-width:920px;margin:0 auto 20px auto;}
+h2 {font:normal 26px/36px "Colfax Regular", Helvetica;color:#3d73ba;}
+h4 {text-transform:uppercase;font:normal 13px/22px "Colfax Medium", Helvetica;color:#ffa258;letter-spacing:1px;margin-bottom:10px;}
+a {color:#3d73ba;text-decoration:none;}
+a:hover {color:#3362a0;}
+
+
+/* Structure + Grid
+------------------*/
+.container {padding:2% 0;max-width:1280px;overflow:hidden;border-right:45px solid transparent;border-left:45px solid transparent;margin:0 auto;}
+
+/* Header
+------------------*/
+header {overflow:hidden;background:#fff;width:100%;}
+header .container {padding:2.5% 0 0 0;}
+header ul {float:right;position:relative;top:-5px;}
+header li {display:inline;padding:0 0 0 8px;}
+header li a {padding:7px 12px;}
+header a.logo {display:block;width:43px;float:left;position:relative;top:-15px;}
+header a.logo img {width:100%;}
+header li.active a {border:2px solid #d5eaff;
+	-moz-border-radius:50px;
+	-webkit-border-radius:50px;
+	border-radius:50px;
+}
+ul.mobile-nav {display:none;}
+ul.mobile-nav a img {width:30px;}
+ul.mobile-nav a.close-nav {display:none;position:relative;top:-2px;left:0px;}
+
+/* Homepage Upper Body
+------------------*/
+#upper-body {text-align:center;padding:15px 0 0 0;}
+#upper-body img {max-width:780px;width:100%;margin:10px auto 10px auto;}
+#upper-body .sign-up {padding-bottom:0px;}
+#upper-body h2.first {margin:0 auto 0 auto;}
+
+
+/* Homepage Midbody
+------------------*/
+#mid-body {
+	background-color: #fff;
+	background-image:
+	-webkit-gradient(linear, bottom, from(#fcecf7), to(#fff));
+	background-image:
+	-webkit-linear-gradient(bottom, #fcecf7, #fff);
+	background-image:
+	-moz-linear-gradient(bottom, #fcecf7, #fff);
+	background-image:
+	-o-linear-gradient(bottom, #fcecf7, #fff);
+	background-image:
+	linear-gradient(to bottom, #fcecf7, #fff);
+	margin-bottom:20px;
+	padding-bottom:60px;
+	padding-top:20px;
+}
+#mid-body div.compare {
+	display:flex;
+	padding-top:3.5%;
+}
+#mid-body div.compare div {
+	border:3px solid #3d73ba;width:40%;margin:auto;padding:60px 45px;text-align:center;display:block;min-height:435px;
+}
+#mid-body ol {margin-top:175px;display:block;width:100%;}
+#mid-body ol h4 {color:#3d73ba;line-height:20px;font-size:12px;margin-top:-15px;}
+#mid-body li {display:inline-block;width:29%;min-width:29%;padding:0 2%;float:left;}
+#mid-body li.up {position:relative;top:-100px;}
+#mid-body img {width:85%;}
+#mid-body img.support {max-width:240px;margin-left:-25px;}
+#mid-body p {color:#919ba9;font-size:17px;line-height:26px;margin:10px auto 15px auto;max-width:85%;}
+
+
+div.arrow-wrap {position:relative;top:-400px;width:150px;margin:0 auto -115px auto;}
+div.arrow-right {margin-top:0;background:#fdf4fa;}
+div.arrow-right div {display:block;width:40px;height:40px;border-right:3px solid #3d73ba;border-bottom:3px solid #3d73ba;border-left:transparent;border-top:transparent;-webkit-transform: rotate(-45deg);-moz-transform: rotate(-45deg);transform: rotate(-45deg);position:relative;left:100px;}
+div.arrow-right em {display:block;width:150px;height:3px;background:#3d73ba;position:relative;left:0;top:-23px;}
+div.arrow-left {margin-top:50px;background:#fef5fb;}
+div.arrow-left div {display:block;width:40px;height:40px;border-right:3px solid #3d73ba;border-bottom:3px solid #3d73ba;border-left:transparent;border-top:transparent;-webkit-transform: rotate(-225deg);-moz-transform: rotate(-225deg);transform: rotate(-225deg);position:relative;left:0px;}
+div.arrow-left em {display:block;width:150px;height:3px;background:#3d73ba;position:relative;left:-5px;top:-23px;}
+
+
+/* Homepage Lowerbody
+------------------*/
+#lower-body {text-align:center;margin:30px auto 40px auto;}
+#lower-body h4.blue {color:#94acc3;margin-top:15px;font-size:12px;}
+#lower-body img {width:150px;}
+#lower-body h1 {margin-top:5px;}
+#lower-body ul {display:flex;margin:30px auto 70px auto;text-align:center;}
+#lower-body ul li {display:inline;width:49%;text-align:right;padding:0 2.5% 0 10%;}
+#lower-body ul li:nth-child(2) {text-align:left;padding:0 10% 0 2.5%;}
+#lower-body p {margin-bottom:0;}
+#lower-body img.quote {max-width:30px;float:left;position:relative;}
+#lower-body ul li:nth-child(2) img.quote {float:right;position:relative;right:-15px;}
+#lower-body ul h4 {margin-top:20px;}
+#lower-body h4 img {
+	height:50px;width:50px;position:relative;top:-5px;margin-left:15px;
+	-moz-border-radius:200px;
+	-webkit-border-radius:200px;
+	border-radius:200px;
+}
+#lower-body ul li:nth-child(2) h4 img {margin-right:15px;margin-left:0;}
+#lower-body img.logo-strip {width:100%;max-width:350px;opacity:0.55;padding:10px 0 0 0;}
+#lower-body img.logo-strip:nth-child(2) {margin-bottom:15px;}
+#lower-body div.support-type {padding:90px 0;}
+#lower-body ol {display:block;width:100%;margin-top:10px;}
+#lower-body ol li {display:inline-block;width:35%;padding:0;text-align:center;}
+#lower-body h4 span {display:block;}
+#lower-body ul li:nth-child(2) h4 span {float:none;}
+
+
+/* Rackspace Callout
+------------------*/
+#rackspace {background:#fafbfc;padding:40px 0 20px 0;margin-top:60px;display:block;margin-bottom:-90px;overflow:hidden;text-align:center;border-top:1px solid #f0f4f5;}
+#rackspace li {display:inline-block;width:49%;}
+#rackspace li.quote {text-align:right;position:relative;top:-25px;left:100px;}
+#rackspace p {color:#41454a;font-size:22px;line-height:34px;max-width:650px;margin-bottom:10px;}
+#rackspace img {max-width:300px;position:relative;top:10px;}
+#rackspace img.blue-quote {max-width:65px;position:relative;float:left;top:-15px;}
+#rackspace img.rackspace-logo {opacity:.2;width:155px;margin-top:-10px;}
+
+
+/* CIO/Vendor Pages
+------------------*/
+h1.interior-pages {max-width:70%;margin:0 auto;}
+h2.interior-pages {max-width:60%;margin:15px auto;}
+ul.hero-illustrations {display:flex;text-align:center;padding:40px 0;}
+ul.hero-illustrations li {display:inline-block;max-width:300px;margin:0 auto;vertical-align:top;}
+ul.vendor-illustrations li img {max-width:240px;}
+#upper-body ul.hero-illustrations li.cio-fix img {width:60%;}
+#upper-body ul.hero-illustrations li.vendor-fix img {width:70%;max-height:190px;}
+
+#interior-top-sign-up-wrap {display:block;border:2px dotted #d5eaff;width:400px;height:135px;padding:30px 40px 40px 40px;margin:40px auto;
+	-moz-border-radius:8px;
+	-webkit-border-radius:8px;
+	border-radius:8px;
+}
+#interior-top-sign-up-wrap h1 {font-size:32px;}
+#interior-top-sign-up-wrap p {font-size:20px;line-height:32px;color:#8a898d;}
+#interior-top-sign-up-wrap .sign-up {position:relative;top:30px;height:auto;background:#fff;width:300px;padding:16px 0 20px 0;}
+
+#how-it-works {border-top:1px solid #f0f4f5;border-bottom:1px solid #f0f4f5;text-align:center;padding:40px 0 60px 0;margin:10px auto 15px auto;}
+#how-it-works p {max-width:400px;margin:0 auto;font-size:90%;line-height:170%;}
+#how-it-works h4 {color:#3d73ba;text-transform:none;letter-spacing:0;font-size:100%;}
+div.diagram-wrap {display:block;}
+div.diagram-wrap img {max-width:880px;width:100%;margin:30px auto; padding-right: 30px;}
+span.dia-breaker {width:150px;height:3px;background:#f0f4f5;margin:100px auto;display:block;}
+span.hdiw-breaker {width:150px;height:3px;background:#f0f4f5;margin:50px auto;display:block;}
+#how-it-works img.dia-logo {max-width:80px;margin-bottom:10px;}
+#how-it-works img.docker {max-width:140px;margin-bottom:10px;}
+
+ul.three-column-diagram {text-align:center;margin:40px auto 10px auto;}
+ul.three-column-diagram li {display:inline-block;vertical-align:top;width:29%;}
+ul.three-column-diagram li:first-child {text-align:right;padding-top:30px;}
+ul.three-column-diagram li:nth-child(3) {text-align:left;padding-top:30px;}
+ul.three-column-diagram li img {width:100%;max-width:250px;}
+
+#lower-value-prop {text-align:center;padding-bottom:25px;}
+
+#lower-value-prop li {display:inline-block;width:49%;vertical-align:top;}
+#lower-value-prop li:first-child img {max-height:}
+#lower-value-prop li img {max-height:100px;}
+#lower-value-prop img.lock {max-height:60px;padding:20px 0 20px 0;}
+#lower-value-prop li p {max-width:400px;margin:0 auto;}
+
+#lower-body ol.cio-steps {text-align:center;margin:50px auto 70px auto;}
+#lower-body ol.cio-steps li {display:inline-block;width:30%;vertical-align:top;}
+#lower-body ol.cio-steps li p {max-width:90%;margin:0 auto;}
+
+#lower-body .bx-viewport { overflow:hidden;}
+
+div.vendor-steps {text-align:center;}
+div.vendor-steps img {margin:0 auto;}
+div.vendor-steps p {max-width:80%;margin:0 auto;}
+
+
+
+.float-right-diagram, .float-left-diagram {max-width:380px;position:relative;margin-bottom:-500px;top:200px;}
+.float-right-diagram {float:right;text-align:left;}
+.float-left-diagram {float:left;text-align:right;}
+
+ul.back-to-back li {display:inline-block;margin:0 5%;}
+div.floating-diagram-fix {margin-top:0px;margin-bottom:-20px;}
+#interior-particles {width:500px;height:300px;margin-top:-250px;margin-bottom:-50px;display:none;}
+#interior-particles .left {left:0;position:absolute;}
+#interior-particles .right {right:0;position:absolute;}
+#interior-particles img {max-width:30px;}
+#right-swoop {
+	-moz-border-radius:0 0 60px 0;
+	-webkit-border-radius:0 0 60px 0;
+	border-radius:0 0 60px 0;
+	border-right:2px dotted #d5eaff;border-bottom:2px dotted #d5eaff;display:block;height:160px;width:150px;position:relative;float:right;top:-150px;left:225px;
+}
+#left-swoop {
+	-moz-border-radius:0 0 0 60px;
+	-webkit-border-radius:0 0 0 60px;
+	border-radius:0 0 0 60px;
+	border-left:2px dotted #d5eaff;border-bottom:2px dotted #d5eaff;display:block;height:160px;width:150px;position:relative;float:left;top:-150px;left:-225px;
+}
+#top-dotted {height:40px;width:2px;border-left:2px dotted #d5eaff;position:relative;margin:0 auto;top:-90px;margin-bottom:-45px;}
+#background-fade {
+	background-color: #fff;
+	background-image:
+	-webkit-gradient(linear, bottom, from(#fcecf7), to(#fff));
+	background-image:
+	-webkit-linear-gradient(bottom, #fcecf7, #fff);
+	background-image:
+	-moz-linear-gradient(bottom, #fcecf7, #fff);
+	background-image:
+	-o-linear-gradient(bottom, #fcecf7, #fff);
+	background-image:
+	linear-gradient(to bottom, #fcecf7, #fff);
+	margin-bottom:20px;
+	padding-bottom:10px;
+	padding-top:15px;}
+
+
+/* About Page + Privacy
+------------------*/
+#main-about {background:#fafbfc;padding:70px 0 50px 0;margin:40px 0;text-align:center;color:#706f75;}
+#main-about h4 {
+	float:left;
+	position:relative;
+	left:80px;
+    -ms-transform: rotate(90deg);
+	-webkit-transform: rotate(90deg);
+	transform: rotate(90deg);
+	margin-top:40px;
+}
+#main-about p {font-size:20px;line-height:34px;max-width:700px;margin:0 auto 20px auto;}
+#second-about {padding:30px 0 0 0;}
+#second-about p a, #careers p a {border-bottom:1px solid #b1c7e3;}
+#second-about p a:hover, #careers p a:hover {border-bottom-color:#3362a0;}
+#second-about h4 {margin-bottom:15px;}
+#second-about p {font-size:18px;line-height:30px;margin:0 0 20px 0;max-width:90%;}
+#second-about div.second-about-content {width:55%;padding-left:10%;padding-bottom:60px;color:#706f75;}
+#second-about div.second-about-locations {width:30%;padding-right:5%;text-align:center;}
+#second-about div.second-about-locations div {margin-bottom:20px;}
+#second-about div.second-about-locations p {margin:0 auto 0 auto;font-size:12px;line-height:22px;font-family:"Colfax Medium";text-transform:uppercase;letter-spacing:1px;}
+#careers {text-align:center;padding:50px 0 80px 0;margin-bottom:40px;}
+#careers img {max-width:60px;}
+#careers p {margin:0 auto;max-width:500px;}
+#upper-body div.about-particles {position:relative;top:-305px;left:100px;margin-bottom:-200px;min-height:220px;}
+#upper-body div.about-particles img {width:200px;position:relative;}
+#privacy {padding:60px 0;}
+#privacy p, #privacy h4, #privacy ul {max-width:680px;margin:0 auto 10px auto;}
+#privacy li {padding-left:25px;}
+#privacy address {text-transform:uppercase;font-size:11px;max-width:680px;margin:0 auto;padding:0;font-family:"Colfax Medium";}
+
+/* Sign Up
+------------------*/
+.sign-up {margin:0 auto -120px auto;padding:30px 0 60px 0;text-align:center;height:200px;overflow:hidden;}
+.sign-up h3 {margin-bottom:35px;}
+.sign-up a, #mid-body div.compare div a.button {border:2px solid #3d73ba;-moz-border-radius:200px;-webkit-border-radius:200px;border-radius:200px;padding:13px 85px;font-size:24px;position:relative;z-index:9;}
+.sign-up a:hover, #mid-body div.compare div a.button:hover {background:#3d73ba;color:#fff;}
+#mid-body div.compare div a.button {font-size:18px;position:relative;top:35px;}
+
+
+/* Floating Particles
+------------------*/
+.particles {opacity:.08;display:block;position:relative;max-width:300px;z-index:8;margin:0 180px;}
+.particles img {
+	max-width:35px;
+	animation-name: Spin;
+	animation-timing-function: ease-in-out;
+	animation-duration: 0s;
+	animation-iteration-count: infinite;
+	-moz-animation-name: Spin;
+	-moz-animation-timing-function: ease-in-out;
+	-moz-animation-duration: 0s;
+	-moz-animation-iteration-count: infinite;
+	-webkit-animation-name: Spin;
+	-webkit-animation-timing-function: ease-in-out;
+	-webkit-animation-duration: 0s;
+	-webkit-animation-iteration-count: infinite;
+}
+
+
+/* Overlays
+------------------*/
+#overlay {display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:99;}
+#overlay label {text-transform:uppercase;font:bold 11px/22px "Colfax Medium", Helvetica;color:#898989;letter-spacing:1px;padding:15px 25px 0 27px;display:block;}
+#overlay input[type=text], #overlay input[type=email], #overlay textarea {background:none;border:none;display:block;width:95%;border-bottom:1px solid #f0f4f5;padding:10px 25px 25px 32px;font-size:18px;font-family:"Colfax Regular", Helvetica;margin-left:-6px;}
+#overlay input[type=text]:focus, #overlay input[type=email]:focus, #overlay textarea:focus {outline:none;}
+#overlay button {border:0;color:#3d73ba;background:transparent;font-size:18px;font-family:"Colfax Regular", Helvetica;border:2px solid #3d73ba;-moz-border-radius:200px;-webkit-border-radius:200px;border-radius:200px;padding:13px 85px;margin:25px auto;display:block;width:80%;}
+#overlay button:hover {cursor:pointer;background:#3d73ba;color:#fff;}
+#overlay .form {}
+#overlay .success, #overlay .failed {display:none;padding:60px 0 70px 0;text-align:center;}
+#overlay .success h2, #overlay .failed h2 {margin-bottom:0;}
+#overlay .success p, #overlay .failed p {opacity:.6;max-width:85%;margin:0 auto;}
+#overlay .body {display:block;width:480px;max-height:535px;background:#fff;margin:4% auto;overflow:hidden;border:2px solid #d1d9e0;
+	-webkit-box-shadow:rgba(17,40,62,.25) 0 0 100px;
+	-moz-box-shadow:rgba(17,40,62,.25) 0 0 100px;
+	box-shadow:rgba(17,40,62,.25) 0 0 100px;
+	-moz-border-radius:12px;
+	-webkit-border-radius:12px;
+	border-radius:12px;
+}
+#overlay .body h1 {padding:18px 25px 15px 25px;background:#fafbfc;font-size:28px;line-height:30px;}
+#overlay .body h1 em {font-size:13px;color:#c4b8c3;padding:0 0 10px 15px;letter-spacing:0;}
+.blur-behind {display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:8;z-index:88;
+	background-color: rgba(255,255,255,.3);
+}
+.blur-wrap {-webkit-filter: blur(25px); -moz-filter: blur(25px); -o-filter: blur(25px); -ms-filter: blur(25px); filter: blur(25px);}
+a.close-signup, a.close-nav {position:fixed;top:35px;right:45px;}
+a.close-signup img, a.close-nav img {max-width:50px;}
+.body-overflow {overflow:hidden;height:100%;}
+em.valid, em.error {display:block;width:18px;position:absolute;margin:5px 0 0 440px;display:none;}
+em.valid img, em.error img {width:100%;}
+
+
+
+#overlay-nav {text-align:center;padding:0 0 40px 0;display:none;position:fixed;top:75px;left:0;right:0;bottom:0;z-index:99;background:#fff;}
+#overlay-nav a {display:block;max-width:80%;margin:50px auto 5px auto;
+	animation-name: load;
+	animation-timing-function: linear;
+	animation-duration: 0.6s;
+	animation-iteration-count: 1;
+	-webkit-animation-name: load;
+	-webkit-animation-duration: 0.6s;
+	-webkit-animation-timing-function: linear;
+	-webkit-animation-iteration-count: 1;
+	-moz-animation-name: load;
+	-moz-animation-duration: 0.6s;
+	-moz-animation-timing-function: linear;
+	-moz-animation-iteration-count: 1;
+}
+#overlay-nav a p {color:#c4b8c3;max-width:80%;margin:0 auto 0 auto;}
+.add-fixed {position:fixed;z-index:9999;}
+
+
+
+/* Globals
+------------------*/
+.blue-border-bottom {border-bottom:1px solid #f0f4f5;}
+.left {float:left;}
+.right {float:right;}
+
+
+/* Smaller browser windows
+------------------*/
+@media screen and (max-width: 1124px) {
+	h1 {font:normal 34px/54px "Colfax Regular", Helvetica;}
+	header ul {top:-3px;}
+	header a.logo {top:-10px;}
+	div.arrow-wrap {top:-400px;}
+	div.arrow-left {background:#fdf5fa;}
+	#mid-body p {font-size:15px;line-height:23px;max-width:90%;}
+	#mid-body div.compare div {margin:0 20px;}
+	#mid-body img {width:120%;position:relative;left:-10px;}
+	#mid-body li.it-small img {left:10px;}
+	#mid-body ol {margin-top:210px;}
+	#mid-body li {display:inline-block;width:29%;min-width:29%;padding:0 2%;float:left;}
+	#mid-body li.up {position:relative;top:-130px;}
+	#lower-body ol li {margin:0 20px;}
+	.sign-up {position:relative;top:0;height:240px;}
+	.particles {oposition:relative;max-width:300px;z-index:8;margin:0 0 0 0;}
+	#rackspace li.quote {width:50%;left:0px;}
+	#rackspace img.taylor-rhodes {position:relative;left:10px;}
+
+	.float-right-diagram, .float-left-diagram {max-width:380px;position:relative;margin-bottom:0;top:0px;margin:0 auto 25px auto;}
+	.float-right-diagram {float:none;text-align:center;}
+	.float-left-diagram {float:none;text-align:center; margin-top: 20px;}
+}
+
+/* Slighty smaller
+------------------*/
+@media screen and (max-width: 980px) {
+	div.arrow-wrap {top:-550px;}
+	div.arrow-left {background:#fdf5fa;}
+	#mid-body p {max-width:100%;}
+	#mid-body ol {margin-top:70px;}
+	#mid-body li {display:block;height:180px;width:100%;margin:0 auto;padding:2%;float:none;}
+	#mid-body img {width:100%;position:relative;left:0px;}
+	#mid-body li img {max-width:150px;margin-bottom:5px;}
+	#mid-body li.up {position:relative;top:0;}
+	#mid-body li.it-small img {left:5px;max-width:150px;}
+	#right-swoop, #left-swoop {display:none;}
+}
+
+/* Around iPad size
+------------------*/
+@media screen and (max-width: 890px) {
+	div.floating-diagram-fix {margin-top:25px;margin-bottom:-20px;}
+	h1 {font:normal 36px/50px "Colfax Regular", Helvetica;max-width:80%;margin:0 auto;}
+	header ul {top:3px;}
+	#overlay .body h1 {padding:14px 90px 10px 25px}
+	#overlay .body h1 em {font-size:13px;}
+	#rackspace li.quote {top:-65px;}
+	#rackspace p {font-size:19px;line-height:30px;}
+	ul.normal-nav {display:none;}
+	ul.mobile-nav {display:block;}
+	ul.hero-illustrations {display:block;}
+	ul.hero-illustrations li {display:block;margin:0 auto 25px auto;}
+	ul.three-column-diagram {text-align:center;margin:40px auto 10px auto;}
+	ul.three-column-diagram li {display:block;vertical-align:top;width:50%;margin:0 auto 30px auto;}
+	ul.three-column-diagram li:first-child {text-align:center;padding-top:30px;}
+	ul.three-column-diagram li:nth-child(3) {text-align:center;padding-top:5px;}
+	h1.interior-pages {max-width:90%;margin:0 auto;}
+	h2.interior-pages {max-width:80%;margin:15px auto;}
+	ul.back-to-back li {display:block;margin:35px auto 0 auto;}
+	#lower-value-prop li {display:block;margin:0 auto 25px auto;}
+	#upper-body ul.hero-illustrations li.cio-fix img {width:60%;position:relative;left:20px;}
+	#lower-body ol.cio-steps li {display:block;margin:0 auto 35px auto;width:50%;}
+}
+
+/* 870px and lower
+------------------*/
+@media screen and (max-width: 870px) {
+	div.floating-diagram-fix {margin-top:25px;margin-bottom:-20px;}
+	h2 {font:normal 20px/33px "Colfax Regular", Helvetica;}
+	a.close-signup {position:fixed;top:15px;right:15px;}
+	a.close-signup img {max-width:30px;}
+	#mid-body {padding-top:40px;}
+	#mid-body div.compare {
+		display:block;
+		padding-top:3.5%;
+		max-width:98%;
+	}
+	#mid-body li img {margin-left:3px;}
+	#mid-body div.compare div {
+		width:78%;margin:0 auto 40px auto;padding:60px 45px
+	}
+	#mid-body ol {overflow:hidden;height:235px;}
+	#mid-body li {display:inline-block;height:180px;width:25%;margin:0 auto;padding:2%;float:left;}
+	#mid-body div.compare div {padding:60px 45px 0 45px;min-height:385px;}
+	div.arrow-wrap {display:none;}
+	#lower-body h1 {max-width:100%;}
+	#lower-body ul {display:block;margin:30px auto 50px auto;text-align:center;}
+	#lower-body ul li {display:block;margin:0 auto 90px auto;width:80%;text-align:right;padding:0 2.5% 0 2.5%;}
+	#lower-body ul li:nth-child(2) {text-align:left;margin:0 auto 90px auto;}
+	#lower-body img.quote {max-width:40px;float:left;position:relative;top:-4px;}
+	#lower-body ul li:nth-child(2) img.quote {float:right;position:relative;right:-15px;}
+	#rackspace li.quote {top:-45px;}
+	#upper-body div.about-particles {top:-285px;}
+	#careers p {margin:10px auto 0 auto;}
+
+}
+
+/* 640px and lower
+------------------*/
+@media screen and (max-width: 640px) {
+	div.floating-diagram-fix {margin-top:25px;margin-bottom:-20px;}
+	h1 {font:normal 34px/45px "Colfax Regular", Helvetica;max-width:90%;}
+	#overlay-nav {top:70px;}
+	#overlay-nav h1 {font-size:22px;}
+	#overlay-nav p {font-size:85%;line-height:145%;}
+	#overlay-nav a {display:block;max-width:80%;margin:20px auto 0 auto;}
+	header .container {padding:5% 0 0 0;}
+	header a.logo {top:-5px;}
+	#overlay {position:relative;}
+	#overlay .body h1 {padding:20px 15px 20px 25px;}
+	#overlay h1 em {display:none;}
+	em.valid, em.error {margin:5px 0 0 335px;}
+	#mid-body div.compare {max-width:85%;}
+	#mid-body li {width:100%;margin:0 auto;display:block;}
+	#mid-body ol {padding-bottom:40px;height:auto;}
+	iframe {min-height:800px;}
+	a.close-signup, a.close-nav {position:fixed;top:15px;right:15px;z-index:9999;}
+	#overlay .body {margin:0 auto;width:100%;-moz-border-radius:0;-webkit-border-radius:0;border-radius:0;position:relative;border:none;height:900px;max-height:none;}
+	#upper-body div.about-particles {top:-215px;left:70px;margin-bottom:-150px;}
+	#upper-body div.about-particles img {max-width:140px;}
+	#second-about div.second-about-content {width:90%;padding-left:0;text-align:center;margin:0 auto;}
+	#second-about div.second-about-locations {width:90%;padding-right:0;margin:0 auto 100px auto;float:none;display:block;}
+	#second-about p {margin:0 auto;}
+	#lower-body ol li {margin:0 auto;width:100%;}
+	#rackspace {margin-bottom:-162px;}
+	#rackspace li {width:100%;display:block;}
+	#rackspace img.taylor-rhodes {width:150px;position:relative;top:-100px;left:-190px;}
+	#rackspace li.quote {width:100%;top:-5px;}
+	footer ul {display:block;}
+	footer li {width:100%;display:block;padding:40px 0;border-right:0;border-bottom:1px solid #4f4c58;}
+	footer li:last-child {border-bottom:0;}
+	iframe {min-height:490px;}
+	#lower-body ol.cio-steps li {display:block;margin:0 auto 35px auto;width:100%;}
+	#interior-top-sign-up-wrap {display:block;border:2px dotted #d5eaff;width:200px;height:135px;}
+	#interior-top-sign-up-wrap h1 {font-size:22px;}
+	#interior-top-sign-up-wrap p {font-size:14px;line-height:22px;}
+	#interior-top-sign-up-wrap .sign-up {position:relative;top:35px;left:-45px;height:auto;background:transparent;width:300px;padding:16px 0 20px 0;}
+	#interior-top-sign-up-wrap .sign-up a {padding:13px 45px;background:#fff;}
+	h1.interior-pages {max-width:100%;margin:0 auto;}
+	h2.interior-pages {max-width:95%;margin:15px auto;}
+	#lower-value-prop li {display:block;margin:0 auto 25px auto;width:100%;}
+	ul.three-column-diagram li {width:100%;}
+	.sign-up a, #mid-body div.compare div a.button {padding:13px 30px;font-size:20px;}
+}
+
+/* Fonts + Animations
+------------------*/
+
+@font-face {
+    font-family: "Colfax Regular";
+    src: url(../fonts/Colfax-Regular.ttf);
+}
+
+@font-face {
+    font-family: "Colfax Medium";
+    src: url(../fonts/Colfax-Medium.ttf);
+}
+
+@font-face {
+    font-family: "Colfax Bold";
+    src: url(../fonts/Colfax-Bold.ttf);
+}
+@keyframes riseUp {
+    from {
+        margin:25% auto 15% auto;
+    }
+    to {
+        margin:15% auto;
+    }
+}
+
+@-webkit-keyframes riseUp {
+    from {
+        margin:25% auto 15% auto;
+    }
+    to {
+        margin:15% auto;
+    }
+}
+
+@-moz-keyframes riseUp {
+    from {
+        margin:25% auto 15% auto;
+    }
+    to {
+        margin:15% auto;
+    }
+}
+@keyframes Spin {
+    from {
+        -ms-transform: rotate(180deg);
+		-webkit-transform: rotate(180deg);
+		transform: rotate(180deg);
+    }
+    to {
+        -ms-transform: rotate(0deg);
+		-webkit-transform: rotate(0deg);
+		transform: rotate(0deg);
+    }
+}
+
+@-webkit-keyframes Spin {
+    from {
+        -ms-transform: rotate(180deg);
+		-webkit-transform: rotate(180deg);
+		transform: rotate(180deg);
+    }
+    to {
+        -ms-transform: rotate(0deg);
+		-webkit-transform: rotate(0deg);
+		transform: rotate(0deg);
+    }
+}
+
+@-moz-keyframes Spin {
+    from {
+        -ms-transform: rotate(180deg);
+		-webkit-transform: rotate(180deg);
+		transform: rotate(180deg);
+    }
+    to {
+        -ms-transform: rotate(0deg);
+		-webkit-transform: rotate(0deg);
+		transform: rotate(0deg);
+    }
+}
+@-webkit-keyframes load
+{
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+@-moz-keyframes load {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+@keyframes load {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}

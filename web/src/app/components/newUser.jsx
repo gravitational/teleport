@@ -21,6 +21,7 @@ var {actions, getters} = require('app/modules/user');
 var LinkedStateMixin = require('react-addons-linked-state-mixin');
 var GoogleAuthInfo = require('./googleAuthLogo');
 var {ExpiredInvite} = require('./errorPage');
+var {TeleportLogo} = require('./icons.jsx');
 
 var InviteInputForm = React.createClass({
 
@@ -150,7 +151,7 @@ var Invite = React.createClass({
 
     return (
       <div className="grv-invite text-center">
-        <div className="grv-logo-tprt"></div>
+        <TeleportLogo/>
         <div className="grv-content grv-flex">
           <div className="grv-flex-column">
             <InviteInputForm attemp={attemp} invite={invite.toJS()}/>

@@ -18,12 +18,13 @@ var React = require('react');
 var reactor = require('app/reactor');
 var { Link } = require('react-router');
 var {nodeHostNameByServerId} = require('app/modules/nodes/getters');
+var {displayDateFormat} = require('app/config');
 var {Cell} = require('app/components/table.jsx');
 var moment =  require('moment');
 
 const DateCreatedCell = ({ rowIndex, data, ...props }) => {
   let created = data[rowIndex].created;
-  let displayDate = moment(created).format('l LTS');
+  let displayDate = moment(created).format(displayDateFormat);
   return (
     <Cell {...props}>
       { displayDate }
@@ -79,10 +80,6 @@ const ButtonCell = ({ rowIndex, data, ...props }) => {
   )
 }
 
-const EmptyList = ({text}) => (
-  <div className="grv-sessions-empty text-center text-muted"><span>{text}</span></div>
-)
-
 const NodeCell = ({ rowIndex, data, ...props }) => {
   let {serverId} = data[rowIndex];
   let hostname = reactor.evaluate(nodeHostNameByServerId(serverId)) || 'unknown';
@@ -100,8 +97,7 @@ export {
   ButtonCell,
   UsersCell,
   DurationCell,
-  DateCreatedCell,
-  EmptyList,
+  DateCreatedCell,  
   SingleUserCell,
   NodeCell
 };

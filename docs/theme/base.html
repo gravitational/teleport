@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  {% if page_description %}<meta name="description" content="{{ page_description }}">{% endif %}
+  {% if site_author %}<meta name="author" content="{{ site_author }}">{% endif %}
+  {% block htmltitle %}
+  <title>{% if page_title %}{{ page_title }} - {% endif %}{{ site_name }}</title>
+  {% endblock %}
+
+
+
+  {% if favicon %}<link rel="shortcut icon" href="{{ favicon }}">
+  {% else %}<link rel="shortcut icon" href="http://gravitational.com/favicon.ico" type="image/x-icon" />{% endif %}
+
+  {# CSS #}
+  <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
+
+  <link rel="stylesheet" href="{{ base_url }}/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="{{ base_url }}/css/theme_extra.css" type="text/css" />
+  <link rel="stylesheet" href="{{ base_url }}/css/highlight.css">
+  <link rel="stylesheet" href="{{ base_url }}/css/master.css">
+  <link rel="stylesheet" href="{{ base_url }}/css/teleport.css">
+
+  {%- for path in extra_css %}
+  <link href="{{ path }}" rel="stylesheet">
+  {%- endfor %}
+
+  {% if current_page %}
+  <script>
+    // Current page data
+    var mkdocs_page_name = "{{ page_title }}";
+    var mkdocs_page_input_path = "{{ current_page.input_path }}";
+    var mkdocs_page_url = "{{ current_page.abs_url }}";
+  </script>
+  {% endif %}
+  <script src="{{ base_url }}/js/jquery-2.1.1.min.js"></script>
+  <script src="{{ base_url }}/js/modernizr-2.8.3.min.js"></script>
+  <script type="text/javascript" src="{{ base_url }}/js/highlight.pack.js"></script>
+  <script src="{{ base_url }}/js/theme.js"></script>
+
+  {%- block extrahead %} {% endblock %}
+
+  {%- for path in extra_javascript %}
+  <script src="{{ path }}"></script>
+  {%- endfor %}
+
+  {% if google_analytics %}
+  <script>
+      (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+      (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+      m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+      })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+      ga('create', '{{ google_analytics[0] }}', '{{ google_analytics[1] }}');
+      ga('send', 'pageview');
+  </script>
+  {% endif %}
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    {# SIDE NAV, TOGGLES ON MOBILE #}
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+      <div class="wy-side-nav-search">
+        <a title="Visit Teleport Site" href="/" class="teleport-logo"><img src="/docs/theme/img/teleport-logo.svg"></a>
+        <h4>By Gravitational</h4>
+
+        {% include "searchbox.html" %}
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+        <ul class="current sidebar">
+          {% for nav_item in nav %}
+            {% if nav_item.title != "hidden" %}
+            <li>{% include "toc.html" %}<li>
+            {% endif %}
+          {% endfor %}
+        </ul>
+      </div>
+      &nbsp;
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      {# MOBILE NAV, TRIGGLES SIDE NAV ON TOGGLE #}
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="{{ homepage_url }}">{{ site_name }}</a>
+      </nav>
+
+      {# PAGE CONTENT #}
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          {% include "breadcrumbs.html" %}
+          <div role="main">
+            <div class="section">
+              {% block content %}
+                {{ content }}
+              {% endblock %}
+            </div>
+          </div>
+	  {%- block footer %}
+          {% include "footer.html" %}
+	  {% endblock %}
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+
+
+</body>
+</html>
+{% if current_page and current_page.is_homepage %}
+<!--
+MkDocs version : {{ mkdocs_version }}
+Build Date UTC : {{ build_date_utc }}
+-->
+{% endif %}

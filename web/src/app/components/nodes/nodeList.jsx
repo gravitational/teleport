@@ -16,7 +16,7 @@ limitations under the License.
 
 var React = require('react');
 var InputSearch = require('./../inputSearch.jsx');
-var {Table, Column, Cell, SortHeaderCell, SortTypes} = require('app/components/table.jsx');
+var {Table, Column, Cell, SortHeaderCell, SortTypes, EmptyIndicator} = require('app/components/table.jsx');
 var {createNewSession} = require('app/modules/currentSession/actions');
 
 var _ = require('_');
@@ -141,42 +141,46 @@ var NodeList = React.createClass({
           </div>
         </div>
         <div className="">
-          <Table rowCount={data.length} className="table-striped grv-nodes-table">
-            <Column
-              columnKey="hostname"
-              header={
-                <SortHeaderCell
-                  sortDir={this.state.colSortDirs.hostname}
-                  onSortChange={this.onSortChange}
-                  title="Node"
-                />
-              }
-              cell={<TextCell data={data}/> }
-            />
-            <Column
-              columnKey="addr"
-              header={
-                <SortHeaderCell
-                  sortDir={this.state.colSortDirs.addr}
-                  onSortChange={this.onSortChange}
-                  title="IP"
-                />
-              }
+          {
+            data.length === 0 && this.state.filter.length > 0 ? <EmptyIndicator text="No matching nodes found."/> :
 
-              cell={<TextCell data={data}/> }
-            />
-            <Column
-              columnKey="tags"
-              header={<Cell></Cell> }
-              cell={<TagCell data={data}/> }
-            />
-            <Column
-              columnKey="roles"
-              onLoginClick={onLoginClick}
-              header={<Cell>Login as</Cell> }
-              cell={<LoginCell data={data} logins={logins}/> }
-            />
-          </Table>
+            <Table rowCount={data.length} className="table-striped grv-nodes-table">
+              <Column
+                columnKey="hostname"
+                header={
+                  <SortHeaderCell
+                    sortDir={this.state.colSortDirs.hostname}
+                    onSortChange={this.onSortChange}
+                    title="Node"
+                  />
+                }
+                cell={<TextCell data={data}/> }
+              />
+              <Column
+                columnKey="addr"
+                header={
+                  <SortHeaderCell
+                    sortDir={this.state.colSortDirs.addr}
+                    onSortChange={this.onSortChange}
+                    title="IP"
+                  />
+                }
+
+                cell={<TextCell data={data}/> }
+              />
+              <Column
+                columnKey="tags"
+                header={<Cell></Cell> }
+                cell={<TagCell data={data}/> }
+              />
+              <Column
+                columnKey="roles"
+                onLoginClick={onLoginClick}
+                header={<Cell>Login as</Cell> }
+                cell={<LoginCell data={data} logins={logins}/> }
+              />
+            </Table>
+          }
         </div>
       </div>
     )

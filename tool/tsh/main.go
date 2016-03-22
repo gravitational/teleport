@@ -77,7 +77,7 @@ func run(args []string, underTest bool) {
 	utils.InitLoggerCLI()
 
 	// configure CLI argument parser:
-	app := utils.InitCLIParser("t", "TSH: Teleport SSH client").Interspersed(false)
+	app := utils.InitCLIParser("tsh", "TSH: Teleport SSH client").Interspersed(false)
 	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", client.Username())).StringVar(&cf.Login)
 	app.Flag("proxy", "SSH proxy host or IP address").StringVar(&cf.Proxy)
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
@@ -97,7 +97,7 @@ func run(args []string, underTest bool) {
 
 	// scp
 	scp := app.Command("scp", "Secure file copy")
-	scp.Arg("from, to", "File(s) and the destionation to copy to").Required().StringsVar(&cf.CopySpec)
+	scp.Arg("from, to", "Source and destination to copy").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
 	scp.Flag("port", "Port to connect to on the remote host").Short('P').Int16Var(&cf.NodePort)
 	// ls

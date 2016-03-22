@@ -21,6 +21,7 @@ var LinkedStateMixin = require('react-addons-linked-state-mixin');
 var {actions, getters} = require('app/modules/user');
 var GoogleAuthInfo = require('./googleAuthLogo');
 var cfg = require('app/config');
+var {TeleportLogo} = require('./icons.jsx');
 
 var LoginInputForm = React.createClass({
 
@@ -93,8 +94,8 @@ var Login = React.createClass({
 
   render() {
     return (
-      <div className="grv-login text-center">
-        <div className="grv-logo-tprt"></div>
+      <div className="grv-login text-center">        
+        <TeleportLogo/>
         <div className="grv-content grv-flex">
           <div className="grv-flex-column">
             <LoginInputForm attemp={this.state.attemp} onClick={this.onClick}/>
