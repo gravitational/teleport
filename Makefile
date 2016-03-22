@@ -5,9 +5,13 @@ PWD ?= $(shell pwd)
 ETCD_CERTS := $(realpath fixtures/certs)
 ETCD_FLAGS := TELEPORT_TEST_ETCD_CONFIG='{"nodes": ["https://localhost:4001"], "key":"/teleport/test", "tls_key_file": "$(ETCD_CERTS)/proxy1-key.pem", "tls_cert_file": "$(ETCD_CERTS)/proxy1.pem", "tls_ca_file": "$(ETCD_CERTS)/ca.pem"}'
 TELEPORT_DEBUG_TESTS ?= no
+OUT := out
+GO15VENDOREXPERIMENT := 1
+INSTALL_BIN_DIR=/usr/bin
+INSTALL_ASSETS_DIR=/usr/share/teleport
 export
 
-.PHONY: install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd install-assets docs-serve
+.PHONY: install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd 
 
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
@@ -17,21 +21,28 @@ all: flags teleport tctl tsh assets
 
 .PHONY: tctl
 tctl: 
-	go build -ldflags $(TELEPORT_LINKFLAGS) -o $(BUILDDIR)/tctl $(BUILDFLAGS) -i $(PKGPATH)/tool/tctl
+	go build -o $(OUT)/tctl -i $(BUILDFLAGS) $(PKGPATH)/tool/tctl
 
-.PHONY: teleport
-teleport: 
-	go build -ldflags $(TELEPORT_LINKFLAGS) -o $(BUILDDIR)/teleport $(BUILDFLAGS) -i $(PKGPATH)/tool/teleport
+.PHONY: teleport 
+teleport: flags
+	go build -o $(OUT)/teleport -i $(BUILDFLAGS) $(PKGPATH)/tool/teleport
 
 .PHONY: tsh
 tsh: 
-	go build -ldflags $(TELEPORT_LINKFLAGS) -o $(BUILDDIR)/tsh $(BUILDFLAGS) -i $(PKGPATH)/tool/tsh
+	go build -o $(OUT)/tsh -i $(BUILDFLAGS) $(PKGPATH)/tool/tsh
 
-.PHONY: install
-install: remove-temp-files flags
-	go install -ldflags $(TELEPORT_LINKFLAGS) $(PKGPATH)/tool/teleport \
-	           $(PKGPATH)/tool/tctl \
-	           $(PKGPATH)/tool/tsh \
+install: 
+	$(eval BUILDFLAGS=-ldflags -w)
+	go build -o $(OUT)/tctl     $(BUILDFLAGS) $(PKGPATH)/tool/tctl
+	go build -o $(OUT)/teleport $(BUILDFLAGS) $(PKGPATH)/tool/teleport
+	go build -o $(OUT)/tsh      $(BUILDFLAGS) $(PKGPATH)/tool/tsh
+	sudo cp -f $(OUT)/tctl      $(INSTALL_BIN_DIR)/
+	sudo cp -f $(OUT)/tsh       $(INSTALL_BIN_DIR)/
+	sudo cp -f $(OUT)/teleport  $(INSTALL_BIN_DIR)/
+	sudo mkdir -p $(INSTALL_ASSETS_DIR)
+	sudo cp -fr web/dist/* $(INSTALL_ASSETS_DIR)
+	go build -ldflags $(TELEPORT_LINKFLAGS) -o $(BUILDDIR)/tctl $(BUILDFLAGS) -i $(PKGPATH)/tool/tctl
+
 
 .PHONY: clean
 clean:
@@ -42,6 +53,13 @@ assets:
 	cp -r web/dist/app $(BUILDDIR)
 	cp web/dist/index.html $(BUILDDIR)
 	cp README.md $(BUILDDIR)
+
+#
+# Builds docs using containerized mkdocs
+#
+.PHONY:docs
+docs:
+	$(MAKE) -C build.assets docs
 
 #
 # tests everything: called by Jenkins
@@ -60,9 +78,6 @@ flags:
 
 test-with-etcd: install
 	${ETCD_FLAGS} go test -v -test.parallel=0 $(shell go list ./... | grep -v /vendor/) -cover
-
-remove-temp-files:
-	find . -name flymake_* -delete
 
 test-package: remove-temp-files install
 	go test -v -test.parallel=0 ./$(p)
@@ -85,38 +100,11 @@ cover-package-with-etcd: remove-temp-files
 	${ETCD_FLAGS} go test -v ./$(p)  -coverprofile=/tmp/coverage.out
 	go tool cover -html=/tmp/coverage.out
 
-pack-teleport: DIR := $(shell mktemp -d)
-pack-teleport: pkg teleport
-	cp assets/build/orbit.manifest.json $(DIR)
-	mkdir -p $(DIR)/rootfs/usr/bin
-	mkdir -p $(DIR)/rootfs/usr/bin $(DIR)/rootfs/etc/web-assets/
-	cp -r ./assets/web/* $(DIR)/rootfs/etc/web-assets/
-	cp $(GOPATH)/bin/teleport $(DIR)/rootfs/usr/bin
-	cp $(GOPATH)/bin/tctl $(DIR)/rootfs/usr/bin
-	gravity package import $(DIR) $(PKG) --check-manifest
-	rm -rf $(DIR)
-
-pkg:
-	@if [ "$$PKG" = "" ] ; then echo "ERROR: enter PKG parameter:\n\nmake publish PKG=<name>:<sem-ver>, e.g. teleport:0.0.1\n\n" && exit 255; fi
-
 profile:
 	go tool pprof http://localhost:6060/debug/pprof/profile
 
 sloccount:
 	find . -path ./vendor -prune -o -name "*.go" -print0 | xargs -0 wc -l
-
-#
-# Deploy teleport server to staging environment on AWS
-# WARNING: this step is called by CI/CD. You must execute make production first
-.PHONY: deploy
-deploy:
-	ansible-playbook -i deploy/hosts deploy/deploy.yaml
-
-# Prepare a brand new AWS machine to host Teleport (run provision once, 
-# then run deploy many times)
-.PHONY: provision
-provision:
-	ansible-playbook -i deploy/hosts deploy/provision.yaml
 
 # start-test-etcd starts test etcd node using tls certificates
 start-test-etcd:

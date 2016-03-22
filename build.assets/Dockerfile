@@ -1,3 +1,5 @@
+# This Dockerfile makes the "build box": the container used to build
+# official releases of Teleport and its documentation
 FROM debian:jessie
 
 ARG UID
@@ -21,25 +23,25 @@ RUN (locale-gen \
 	&& locale-gen en_US.UTF-8 \
 	&& dpkg-reconfigure locales)
 
-RUN (apt-get update && apt-get install -q -y bridge-utils \
-     kmod \
-     iptables \
-     libdevmapper1.02.1 \
-     libsqlite3-0 \
-     e2fsprogs \
-     libncurses5 \
-     curl \
-     make \
-     git \
-     libc6-dev \
-     gcc \
-     tar \
-     gzip \
-     dbus); \
+RUN (apt-get update && apt-get install -q -y \
+         libsqlite3-0 \
+         curl \
+         make \
+         git \
+         libc6-dev \
+         gcc \
+         tar \
+         gzip \
+         python \
+         python-pip \
+         libyaml-dev \
+         python-dev) ;\
+    pip install click==4.1 recommonmark mkdocs  markdown-include ;\
     apt-get -y autoclean; apt-get -y clean
 
-RUN (mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/go1.5.3.linux-amd64.tar.gz | tar xz)
-RUN (mkdir -p /gopath/src/github.com/gravitational/teleport;\
+# Install Golang:
+RUN (mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/go1.5.3.linux-amd64.tar.gz | tar xz;\
+     mkdir -p /gopath/src/github.com/gravitational/teleport;\
      chmod a+w /gopath;\
      chmod a+w /var/lib)
 

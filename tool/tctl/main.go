@@ -356,8 +356,7 @@ func (u *AuthServerCommand) Invite(client *auth.TunClient) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	invitationTTL := time.Minute * 15
-	token, err := client.GenerateToken(teleport.RoleAuth, invitationTTL)
+	token, err := client.GenerateToken(teleport.RoleAuth, defaults.InviteTokenTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}

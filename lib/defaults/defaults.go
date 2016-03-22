@@ -67,6 +67,10 @@ const (
 	// By default all users use /bin/bash
 	DefaultShell = "/bin/bash"
 
+	// InviteTokenTTL sets the lifespan of tokens used for adding nodes and users
+	// to a cluster
+	InviteTokenTTL = 15 * time.Minute
+
 	// ServerHeartbeatTTL is a period between heartbeats
 	// Median sleep time between node pings is this value / 2 + random
 	// deviation added to this time to avoid lots of simultaneous
