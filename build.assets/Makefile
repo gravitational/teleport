@@ -3,7 +3,7 @@
 #
 BBOX=teleport-buildbox:latest
 SRCDIR=/gopath/src/github.com/gravitational/teleport
-DOCKERFLAGS=-i --rm=true -v "$$(pwd)/../":$(SRCDIR) -w $(SRCDIR)
+DOCKERFLAGS=--rm=true -v "$$(pwd)/../":$(SRCDIR) -w $(SRCDIR)
 ADDFLAGS=-ldflags -w
 NOROOT=-u $$(id -u):$$(id -g)
 
