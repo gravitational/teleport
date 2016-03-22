@@ -45,7 +45,7 @@ Teleport supports only a handful of commands
 When experimenting you can quickly start `teleport` with verbose logging by typing 
 `teleport start -d`. 
 
-**Note:** When running `teleport` with a proxy role you have to make sure the assets
+When running `teleport` with a proxy role you have to make sure the assets
 for the Web UI can be found. The web assets are composedof `index.html` file and `app` 
 directory. Teleport process checks the following locations for its web assets:
 
