@@ -20,8 +20,8 @@ var getters = require('app/modules/user/getters');
 var cfg = require('app/config');
 
 var menuItems = [
-  {icon: 'fa fa-cogs', to: cfg.routes.nodes, title: 'Nodes'},
-  {icon: 'fa fa-sitemap', to: cfg.routes.sessions, title: 'Sessions'}
+  {icon: 'fa fa-share-alt', to: cfg.routes.nodes, title: 'Nodes'},
+  {icon: 'fa  fa-group', to: cfg.routes.sessions, title: 'Sessions'}
 ];
 
 var NavLeftBar = React.createClass({
