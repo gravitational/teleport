@@ -22,6 +22,7 @@ Vagrant.configure(2) do |config|
   configure_ssh(config.vm)
   apt_update(config.vm)
   install_docker(config.vm, DOCKER_VER)
+  install_go(config.vm)
 
   config.vm.synced_folder "../../", "/home/vagrant/teleport"
 
@@ -68,6 +69,35 @@ def install_docker(vm, docker_version)
     systemctl restart docker
   SHELL
 end
+
+def install_go(vm)
+  vm.provision "shell", privileged: false, inline: <<-SHELL
+    BASHRC="/home/vagrant/.bashrc"
+    export GOROOT=/opt/go
+    export GOPATH=~/go
+    export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
+  
+    # download go and place it into /opt
+    if [ ! -f /opt/go/bin/go ]; then
+        echo "Downloading Go..."
+        cd /tmp && curl --silent https://storage.googleapis.com/golang/go1.5.3.linux-amd64.tar.gz | tar -xz
+        sudo mv /tmp/go $GOROOT
+        sudo chown vagrant:vagrant $GOROOT
+    fi
+
+    # configure GOROOT and PATH to include the install directory for GO:
+    if ! grep -q GOPATH $BASHRC ; then 
+        mkdir -p $GOPATH/bin $GOPATH/src 
+        echo -e "\n# Go vars" >> $BASHRC
+        echo "export GOROOT=$GOROOT" >> $BASHRC
+        echo "export GOPATH=$GOPATH" >> $BASHRC
+        echo "export PATH=\$PATH:\$GOROOT/bin:\$GOPATH/bin" >> $BASHRC
+    fi
+    ln -fs $HOME/teleport $HOME/go/src/github.com/gravitational/teleport
+    cd $HOME/go/src/github.com/gravitational/teleport; make -C $HOME/go/src/github.com/gravitational/teleport install
+    SHELL
+end
+
 
 
 # this updates all apt packages (especially important for VirtualBox guest addition packages)
