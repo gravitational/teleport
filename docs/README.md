@@ -24,15 +24,15 @@ significant in-house SSH expertise to easily adopt them, as well. Teleport comes
 accesible Web UI and a very permissive [Apache 2.0](https://github.com/gravitational/teleport/blob/master/LICENSE)
 license to facilitate adoption and use.
 
+Being a complete standalone tool, Teleport can be used as a software library enabling 
+trust management in complex multi-cluster, multi-region scenarios across many teams 
+within multiple organizations.
+
 ## Who Built Teleport?
 
 Teleport was created by [Gravitational Inc](https://gravitational.com). We have built Teleport 
 by borrowing from our previous experiences at Rackspace. It has been extracted from [Gravity](http://gravitational.com/vendors.html), our system for helping our clients to deploy 
 and remotely manage their SaaS applications on many cloud regions or even on-premise.
-
-Being a complete standalone tool, Teleport can be used as a software library enabling 
-trust management in complex multi-cluster, multi-region scenarios across many teams 
-within multiple organizations.
 
 ## Resources
 To get started with Teleport we recommend starting with the [Architecture Document](architecture.md). Then if you want to jump right in and play with Teleport, you can read the [Quick Start](quickstart.md). For a deeper understanding of how everything works and recommended production setup, please review the [Admin Manual](admin-guide.md) to setup Teleport and the [User Manual](user-manual.md) for daily usage. There is also an [FAQ](faq.md) where we'll be collecting common questions. Finally, you can always type `tsh`, `tctl` or `teleport` in terminal after Teleport has been installed to review those reference guides.
