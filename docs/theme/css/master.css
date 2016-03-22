@@ -14,8 +14,8 @@ body {background:#fff;font:normal 16px/28px "Colfax Regular", Helvetica;color:#8
 	-moz-animation-iteration-count: 1;
 }
 h1 {font:normal 40px/58px "Colfax Regular", Helvetica;color:#3d73ba;letter-spacing:-1px;}
-h2 {font:normal 22px/36px "Colfax Regular", Helvetica;width:90%;max-width:920px;margin:0 auto 20px auto;}
-h3 {font:normal 26px/36px "Colfax Regular", Helvetica;color:#3d73ba;}
+h3 {font:normal 22px/36px "Colfax Regular", Helvetica;width:90%;max-width:920px;margin:0 auto 20px auto;}
+h2 {font:normal 26px/36px "Colfax Regular", Helvetica;color:#3d73ba;}
 h4 {text-transform:uppercase;font:normal 13px/22px "Colfax Medium", Helvetica;color:#ffa258;letter-spacing:1px;margin-bottom:10px;}
 a {color:#3d73ba;text-decoration:none;}
 a:hover {color:#3362a0;}
