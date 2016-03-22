@@ -53,7 +53,7 @@ Lets explore how these services come together and interact with Teleport clients
 ![Teleport Overview](img/overview.svg)
 
 Notice that the Teleport Admin tool must be physically present on the same machine where
-Teleport Auth is running. Adding new nodes or inviting new users to the cluster is only
+Teleport auth is running. Adding new nodes or inviting new users to the cluster is only
 possible using this tool.
 
 Once nodes and users (clients) have been invited to the cluster, lets go over the sequence
@@ -133,15 +133,15 @@ storage.
 #### Auth API
 
 When a new node (server) joins the cluster, a new public / private keypair is generated for that node, 
-and the certificate is signed by the Auth server's host CA.
+and the certificate is signed by the auth server's host CA.
 To invite a node, the auth server generates a disposable one-time token which
 the new node must submit when requesting its certificate for the first time.
 
 **Note:** Token default TTL is 15 minutes, but can be reduced (not increased) if requested by tctl.
 
-Teleport cluster members (servers) can interact with the auth server using the Auth API. The API is 
+Teleport cluster members (servers) can interact with the auth server using the auth API. The API is 
 implemented as an HTTP REST service running over the SSH tunnel, authenticated using host or user
-certificates previously signed by the Auth server's CA.
+certificates previously signed by the auth server's CA.
 
 All node-members of the cluster send periodic ping messages to the auth server, reporting their
 IP addresses, values of their assigned labels. The list of connected cluster nodes is accessible
@@ -206,10 +206,10 @@ In this mode Teleport Proxy implements WSS (secure web sockets) to SSH proxy:
 ![Teleport Proxy Web](img/proxy-web.svg)
 
 1. User logs in using username, password and 2nd factor token to the proxy.
-2. Proxy passes credentials to the Auth server's API
+2. Proxy passes credentials to the auth server's API
 3. If auth server accepts credentials, it generates a new web session and generates a special
    ssh keypair associated with this web session.
-   Auth server starts serving [OpenSSH ssh-agent protocol](https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.agent)
+   auth server starts serving [OpenSSH ssh-agent protocol](https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.agent)
    to the proxy.
 4. From the SSH node's perspective it's a regular SSH client connection that is authenticated using
    OpenSSH certificate, so no special logic is needed.
@@ -221,7 +221,7 @@ and re-encodes for SSH client connection.
 
 **1. Getting signed short lived certificate**
 
-Teleport Proxy implements a special method to let clients get short lived certificates signed by Auth's host certificate authority:
+Teleport Proxy implements a special method to let clients get short lived certificates signed by auth's host certificate authority:
 
 ![Teleport Proxy SSH](img/proxy-ssh-1.svg)
 
@@ -257,13 +257,13 @@ Nodes, proxy and auth servers use certificates to authenticate with auth server 
 Users should check if host's certificate is signed by the trusted authority.
 
 Each role `proxy`, `auth` or `node` is encoded in the generated certificate using certificate extensions (opaque signed string).
-All nodes in the cluster can connect to Auth server's HTTP API via SSH tunnel that checks each connecting client's certificate and role
+All nodes in the cluster can connect to auth server's HTTP API via SSH tunnel that checks each connecting client's certificate and role
 to enforce access control (e.g. client connection using node's certificate won't be able to add and delete users, and
-can only get Auth servers registered in the cluster).
+can only get auth servers registered in the cluster).
 
 **User certificates and allowed logins**
 
-When Auth server generates a user certificate, it uses information provided by administrator about allowed linux logins
+When auth server generates a user certificate, it uses information provided by administrator about allowed linux logins
 to populate the list of "valid principals". This list is used by OpenSSH and Teleport to check if the user has option
 to log in as a certain OS user.
 
