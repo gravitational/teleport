@@ -24,6 +24,10 @@ significant in-house SSH expertise to easily adopt them, as well. Teleport comes
 accesible Web UI and a very permissive [Apache 2.0](https://github.com/gravitational/teleport/blob/master/LICENSE)
 license to facilitate adoption and use.
 
+Being a complete standalone tool, Teleport can be used as a software library enabling 
+trust management in complex multi-cluster, multi-region scenarios across many teams 
+within multiple organizations.
+
 ## More Information
 
 * [Quick Start Guide](docs/quickstart.md)
@@ -51,7 +55,3 @@ independent security audit.
 Teleport was created by [Gravitational Inc](https://gravitational.com). We have built Teleport 
 by borrowing from our previous experiences at Rackspace. It has been extracted from [Gravity](http://gravitational.com/vendors.html), our system for helping our clients to deploy 
 and remotely manage their SaaS applications on many cloud regions or even on-premise.
-
-Being a complete standalone tool, Teleport can be used as a software library enabling 
-trust management in complex multi-cluster, multi-region scenarios across many teams 
-within multiple organizations.
