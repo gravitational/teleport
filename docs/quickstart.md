@@ -174,9 +174,7 @@ Session ID : 7645d523-60cb-436d-b732-99c5df14b7c4
 Session URL: https://teleport.example.com:3080/web/sessions/7645d523-60cb-436d-b732-99c5df14b7c4
 ```
 
-You can share the Session URL with a colleague in your organization. Assuming that `teleport.example.com`
-is your company's Teleport proxy, she will be able to join and help you troubleshoot the
-problem on "db" in her browser.
+You can share the Session URL with a colleague in your organization. Assuming that your colleague has access to `teleport.example.com` proxy, she will be able to join and help you troubleshoot the problem on "db" in her browser.
 
 Also, people can join your session via CLI assuming they have Teleport installed. They just have to run:
 
