@@ -420,6 +420,57 @@ Existing `sshd` servers can be added to a Teleport cluster.
 TrustedUserCAKeys /etc/ssh/user-ca.pub
 ```
 
+### Integrating with Ansible
+
+Ansible is using OpenSSH client by default, this makes it compatible with Teleport without any extra work except
+configuring OpenSSH client to work with Teleport Proxy:
+
+* config your OpenSSH to connect to Teleport proxy and user `tsh agent` socket
+* enable scp mode in the Ansible config file (default is `/etc/ansible/ansible.cfg`):
+ 
+```bash
+scp_if_ssh = True
+```
+
+## High Availability and Clustering
+ 
+Teleport uses Etcd backend to achieve highly available deployments. 
+
+* Install Etcd and configure peer and client TLS authentication using
+   [etcd security guide](https://github.com/coreos/etcd/blob/master/Documentation/security.md).
+
+      **Security note:** Only auth servers should have client certificates allowing etcd access,
+      otherwise anyone can write and overwrite keys in the backend!
+
+* Set up auth server to use etcd in `storage` section of Auth server's config file:
+
+```
+teleport:
+    storage:
+        type: etcd
+        # still need data dir for local storage purposes
+        data_dir: /var/lib/teleport
+        # list of etcd peers to connect to
+        peers:
+        - https://172.17.0.1:4001
+        # required path to TLS client certificate file to connect to etcd
+        tls_cert_file: /var/lib/teleport/etcd-cert.pem
+        # required path to TLS private key file to connect to etc
+        tls_key_file: /var/lib/teleport/etcd-key.pem
+        # optioinal file with trusted CA authority
+        # file to authenticate etcd nodes
+        tls_ca_file: /var/lib/teleport/etcd-ca.pem
+```
+
+* Deploy several auth servers connected to etcd backend
+* Deploy several proxy nodes that have `auth_servers` pointed to list of auth servers to connect
+
+**NOTE** As new auth servers will be added to the cluster and old servers will be decommisioned,
+node's and proxies will refresh the list of available auth servers refresh the cluster info and
+store the updated list locally in `/var/lib/teleport/authservers.json`. The values from this
+file, if present will take precendence over configuration file's values.
+You can simply remove the file so that configuration file's values can take effect again.
+
 ## Troubleshooting
 
 To diagnose problems you can configure `teleport` to run with verbose logging enabled.
