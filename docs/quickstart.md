@@ -175,7 +175,7 @@ Session URL: https://teleport.example.com:3080/web/sessions/7645d523-60cb-436d-b
 
 You can share the Session URL with a colleague in your organization. Assuming that your colleague has access to `teleport.example.com` proxy, she will be able to join and help you troubleshoot the problem on "db" in her browser.
 
-Also, people can join your session via CLI assuming they have Teleport installed. They just have to run:
+Also, people can join your session via terminal assuming they have Teleport installed and running. They just have to run:
 
 ```bash
 > tsh --proxy=teleport.example.com join 7645d523-60cb-436d-b732-99c5df14b7c4
