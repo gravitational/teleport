@@ -14,20 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-.grv-error-page{
-  margin: 0 auto;
-  max-width: 600px;
-  text-align: center;
+.grv-icon-logo-tlpt{
+  fill: white;
+  width: 70px;
+  height: 70px;
+}
 
-  .grv-icon-logo-tlpt{
-    fill: #293846;
-  }
+.grv-google-auth{
+  text-align: initial;
+  position: relative;
+  margin: 15px 0 0 0;
+  padding: 0 0 0 70px;
 
-  .grv-warning{
-    font-size: 60px;
-  }
-
-  .contact-section{
-    margin-top: 20px;
+  .grv-icon-google-auth{
+    position: absolute;
+    left: 15px;
+    height: 40px;
+    width: 40px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-image: url("/web/app/assets/img/authenticator-icon.png");
   }
 }

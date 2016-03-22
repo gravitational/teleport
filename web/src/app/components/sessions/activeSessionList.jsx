@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 var React = require('react');
-var {Table, Column, Cell, TextCell} = require('app/components/table.jsx');
-var {ButtonCell, UsersCell, EmptyList, NodeCell, DateCreatedCell} = require('./listItems');
+var {Table, Column, Cell, TextCell, EmptyIndicator} = require('app/components/table.jsx');
+var {ButtonCell, UsersCell, NodeCell, DateCreatedCell} = require('./listItems');
 
 var ActiveSessionList = React.createClass({
   render: function() {
@@ -27,7 +27,7 @@ var ActiveSessionList = React.createClass({
           <h1> Active Sessions </h1>
         </div>
         <div className="grv-content">
-          {data.length === 0 ? <EmptyList text="You have no active sessions."/> :
+          {data.length === 0 ? <EmptyIndicator text="You have no active sessions."/> :
             <div className="">
               <Table rowCount={data.length} className="table-striped">
                 <Column

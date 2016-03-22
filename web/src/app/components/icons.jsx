@@ -14,20 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-.grv-error-page{
-  margin: 0 auto;
-  max-width: 600px;
-  text-align: center;
+var React = require('react');
+var logoSvg = require('assets/img/svg/grv-tlpt-logo.svg');
 
-  .grv-icon-logo-tlpt{
-    fill: #293846;
-  }
+const TeleportLogo = () => (
+  <svg className="grv-icon-logo-tlpt"><use xlinkHref={logoSvg}/></svg>
+)
 
-  .grv-warning{
-    font-size: 60px;
-  }
-
-  .contact-section{
-    margin-top: 20px;
-  }
-}
+export {TeleportLogo}

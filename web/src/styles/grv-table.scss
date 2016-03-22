@@ -14,30 +14,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-.grv-logo-tprt{
-  color: white;
-  margin-top: 5%;
-  margin: 0 auto;
-  width: 67px;
-  height: 70px;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-image: url("/web/app/assets/img/grv-tlpt-logo.png");
+.grv-table-indicator-sort{
+  margin-left: 5px;
+
+  &.fa-sort{
+    color: $grv-color-inactive;
+  }
 }
 
-.grv-google-auth{
-  text-align: initial;
-  position: relative;
-  margin: 15px 0 0 0;
-  padding: 0 0 0 70px;
+.grv-table-indicator-empty{
+  font-size: 17px;
+  padding: 30px;
 
-  .grv-google-auth-icon{
-    position: absolute;
-    left: 15px;
-    height: 40px;
-    width: 40px;
-    background-size: contain;
-    background-repeat: no-repeat;
-    background-image: url("/web/app/assets/img/authenticator-icon.png");
+  span{
+    border: solid 1px #e5e6e7;
+    padding: 15px 50px;
+  }
+}
+
+.grv-table-header{
+  .grv-table-cell a{
+    color: inherit;
   }
 }

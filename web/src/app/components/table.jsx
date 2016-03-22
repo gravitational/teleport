@@ -152,6 +152,10 @@ var GrvTableColumn = React.createClass({
   }
 })
 
+const EmptyIndicator = ({text}) => (
+  <div className="grv-table-indicator-empty text-center text-muted"><span>{text}</span></div>
+)
+
 export default GrvTable;
 export {
   GrvTableColumn as Column,
@@ -160,4 +164,5 @@ export {
   GrvTableTextCell as TextCell,
   SortHeaderCell,
   SortIndicator,
-  SortTypes};
+  SortTypes,
+  EmptyIndicator};

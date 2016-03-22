@@ -43,7 +43,13 @@ module.exports = {
   module: {
 
     loaders: [
-      { test: /\.(woff|woff2|ttf|eot|svg)$/, loader: "url-loader?limit=10000&name=fonts/[name].[ext]" },
+
+      {
+        test: /\.svg$/,
+        loader: 'svg-sprite'
+      },
+
+      { test: /\.(woff|woff2|ttf|eot)$/, loader: "url-loader?limit=10000&name=fonts/[name].[ext]" },
       {
         include: path.join(__dirname, 'src'),
         test: /\.(js|jsx)$/,
@@ -64,8 +70,8 @@ module.exports = {
        names: ['vendor']
      }),
 
-    new webpack.optimize.UglifyJsPlugin({
+    /*new webpack.optimize.UglifyJsPlugin({
      compress: {  warnings: false  }
-   })
+   })*/
   ]
 };
