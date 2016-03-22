@@ -216,3 +216,4 @@ localhost. For production environments we strongly recommend the following:
   highly available (HA) configuration.
 - Use a configuration file instead of command line flags because it gives you 
   more flexibility, for example for configuring HA clusters.
+- Review the [Architecture Overview](architecture.md), [Admin Manual](admin-guide.md) and [User Manual](user-manual.md) for a better understanding of Teleport.
