@@ -1,7 +1,5 @@
 # User Manual
 
-## Introduction
-
 This User Manual covers usage of the Teleport client tool `tsh`. In this 
 document you will learn how to:
 
@@ -53,7 +51,7 @@ most obvious two are:
 While it may appear less convenient than `ssh`, we hope that the default behavior
 and techniques like bash aliases will help to minimize the amount of typing.
 
-## Your Teleport Identity
+## User Identities
 
 A user identity in Teleport exists in the scope of a cluster. The member nodes
 of a cluster may have multiple OS users on them. A Teleport administrator assigns
@@ -128,7 +126,7 @@ Flags:
       --user      SSH proxy user [ekontsevoy]
       --proxy     SSH proxy host or IP address
       --ttl       Minutes to live for a SSH session 
-      --insecure  Do not verify server's certificate and host name. Use only in test environments
+      --insecure  Do not verify server certificate and host name. Use only in test environments
   -d, --debug     Verbose logging to stdout
   -p, --port      SSH port on a remote host
   -l, --login     Remote host login
@@ -200,7 +198,7 @@ Flags:
       --user       SSH proxy user [ekontsevoy]
       --proxy      SSH proxy host or IP address
       --ttl        Minutes to live for a SSH session
-      --insecure   Do not verify server's certificate and host name. Use only in test environments
+      --insecure   Do not verify server certificate and host name. Use only in test environments
   -P, --debug      Verbose logging to stdout
   -d, --debug      Verbose logging to stdout
   -r, --recursive  Recursive copy of subdirectories
