@@ -1,9 +1,12 @@
+BUILDDIR ?= out
+GO15VENDOREXPERIMENT := 1
+PKGPATH=github.com/gravitational/teleport
+PWD ?= $(shell pwd)
 ETCD_CERTS := $(realpath fixtures/certs)
 ETCD_FLAGS := TELEPORT_TEST_ETCD_CONFIG='{"nodes": ["https://localhost:4001"], "key":"/teleport/test", "tls_key_file": "$(ETCD_CERTS)/proxy1-key.pem", "tls_cert_file": "$(ETCD_CERTS)/proxy1.pem", "tls_ca_file": "$(ETCD_CERTS)/ca.pem"}'
 TELEPORT_DEBUG_TESTS ?= no
 OUT := out
 GO15VENDOREXPERIMENT := 1
-PKGPATH=github.com/gravitational/teleport
 INSTALL_BIN_DIR=/usr/bin
 INSTALL_ASSETS_DIR=/usr/share/teleport
 export
@@ -14,7 +17,7 @@ export
 # Default target: builds all 3 executables and plaaces them in a current directory
 #
 .PHONY: all
-all: teleport tctl tsh
+all: flags teleport tctl tsh assets
 
 .PHONY: tctl
 tctl: 
@@ -23,13 +26,11 @@ tctl:
 .PHONY: teleport 
 teleport: flags
 	go build -o $(OUT)/teleport -i $(BUILDFLAGS) $(PKGPATH)/tool/teleport
-	cp -rf web/dist/* $(OUT)/
 
 .PHONY: tsh
 tsh: 
 	go build -o $(OUT)/tsh -i $(BUILDFLAGS) $(PKGPATH)/tool/tsh
 
-.PHONY: install
 install: 
 	$(eval BUILDFLAGS=-ldflags -w)
 	go build -o $(OUT)/tctl     $(BUILDFLAGS) $(PKGPATH)/tool/tctl
@@ -40,12 +41,21 @@ install:
 	sudo cp -f $(OUT)/teleport  $(INSTALL_BIN_DIR)/
 	sudo mkdir -p $(INSTALL_ASSETS_DIR)
 	sudo cp -fr web/dist/* $(INSTALL_ASSETS_DIR)
+	go build -ldflags $(TELEPORT_LINKFLAGS) -o $(BUILDDIR)/tctl $(BUILDFLAGS) -i $(PKGPATH)/tool/tctl
 
+
+.PHONY: clean
 clean:
-	rm -rf $(OUT)
+	rm -rf $(BUILDDIR)
+
+.PHONY: assets
+assets:
+	cp -r web/dist/app $(BUILDDIR)
+	cp web/dist/index.html $(BUILDDIR)
+	cp README.md $(BUILDDIR)
 
 #
-# Builds docs from mkdocs
+# Builds docs using containerized mkdocs
 #
 .PHONY:docs
 docs:
@@ -62,8 +72,8 @@ test:
 	go vet ./tool/... ./lib/...
 
 flags:
-	go install $(PKGPATH)/vendor/github.com/gravitational/version/cmd/linkflags
-	$(eval TELEPORT_LINKFLAGS := "$(shell linkflags -pkg=$(PWD) -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)")
+	$(shell go install $(PKGPATH)/vendor/github.com/gravitational/version/cmd/linkflags)
+	$(eval TELEPORT_LINKFLAGS := "$(shell linkflags -pkg=$(GOPATH)/src/$(PKGPATH) -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)")
 
 
 test-with-etcd: install

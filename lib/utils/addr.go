@@ -152,12 +152,14 @@ func (a *NetAddrVal) Get() interface{} {
 	return NetAddr(*a)
 }
 
-func NewNetAddrList(addrs *[]NetAddr) *NetAddrList {
-	return &NetAddrList{addrs: addrs}
-}
+type NetAddrList []NetAddr
 
-type NetAddrList struct {
-	addrs *[]NetAddr
+func (nl *NetAddrList) Addresses() []string {
+	var ns []string
+	for _, n := range *nl {
+		ns = append(ns, n.FullAddress())
+	}
+	return ns
 }
 
 func (nl *NetAddrList) Set(s string) error {
@@ -165,13 +167,14 @@ func (nl *NetAddrList) Set(s string) error {
 	if err != nil {
 		return err
 	}
-	*nl.addrs = append(*nl.addrs, *v)
+
+	*nl = append(*nl, *v)
 	return nil
 }
 
 func (nl *NetAddrList) String() string {
 	var ns []string
-	for _, n := range *nl.addrs {
+	for _, n := range *nl {
 		ns = append(ns, n.FullAddress())
 	}
 	return strings.Join(ns, " ")

@@ -60,7 +60,7 @@ func (a *AuthWithRoles) GetSessions() ([]session.Session, error) {
 	}
 }
 
-func (a *AuthWithRoles) GetSession(id string) (*session.Session, error) {
+func (a *AuthWithRoles) GetSession(id session.ID) (*session.Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetSession); err != nil {
 		return nil, trace.Wrap(err)
 	} else {
@@ -81,7 +81,7 @@ func (a *AuthWithRoles) UpdateSession(req session.UpdateRequest) error {
 		return a.sessions.UpdateSession(req)
 	}
 }
-func (a *AuthWithRoles) UpsertParty(id string, p session.Party, ttl time.Duration) error {
+func (a *AuthWithRoles) UpsertParty(id session.ID, p session.Party, ttl time.Duration) error {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertParty); err != nil {
 		return trace.Wrap(err)
 	} else {
@@ -228,6 +228,27 @@ func (a *AuthWithRoles) GetProxies() ([]services.Server, error) {
 		return nil, err
 	} else {
 		return a.authServer.GetProxies()
+	}
+}
+func (a *AuthWithRoles) UpsertReverseTunnel(r services.ReverseTunnel, ttl time.Duration) error {
+	if err := a.permChecker.HasPermission(a.role, ActionUpsertReverseTunnel); err != nil {
+		return trace.Wrap(err)
+	} else {
+		return a.authServer.UpsertReverseTunnel(r, ttl)
+	}
+}
+func (a *AuthWithRoles) GetReverseTunnels() ([]services.ReverseTunnel, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionGetReverseTunnels); err != nil {
+		return nil, trace.Wrap(err)
+	} else {
+		return a.authServer.GetReverseTunnels()
+	}
+}
+func (a *AuthWithRoles) DeleteReverseTunnel(domainName string) error {
+	if err := a.permChecker.HasPermission(a.role, ActionDeleteReverseTunnel); err != nil {
+		return trace.Wrap(err)
+	} else {
+		return a.authServer.DeleteReverseTunnel(domainName)
 	}
 }
 func (a *AuthWithRoles) UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error) {

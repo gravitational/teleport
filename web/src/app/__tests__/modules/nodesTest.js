@@ -18,12 +18,12 @@ var { sampleData, reactor, expect, Dfd, spyOn, api } = require('./../');
 var { getters, actions } = require('app/modules/nodes');
 
 describe('modules/nodes', function() {
-  beforeEach(function() {
-    spyOn(api, 'get');
-  });
+
+  beforeEach( ()=> spyOn(api, 'get') );
 
   afterEach(function() {
     reactor.reset()
+    expect.restoreSpies();
   })
 
   describe('getters and actions', function() {

@@ -50,7 +50,7 @@ const SessionLeftPanel = ({parties}) => {
           </button>
         </li>
       </ul>
-      <hr className="grv-divider"/>
+      { userIcons.length > 0 ? <hr className="grv-divider"/> : null }
       <ReactCSSTransitionGroup className="nav" component='ul'
         transitionEnterTimeout={500}
         transitionLeaveTimeout={500}

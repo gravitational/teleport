@@ -62,13 +62,25 @@ func (s *BoltSuite) TearDownTest(c *C) {
 	c.Assert(s.bk.Close(), IsNil)
 }
 
+func (s *BoltSuite) TestID(c *C) {
+	id := NewID()
+	id2, err := ParseID(id.String())
+	c.Assert(err, IsNil)
+	c.Assert(id, Equals, *id2)
+
+	for _, val := range []string{"garbage", "", "   ", string(id) + "extra"} {
+		id := ID(val)
+		c.Assert(id.Check(), NotNil)
+	}
+}
+
 func (s *BoltSuite) TestSessionsCRUD(c *C) {
 	out, err := s.srv.GetSessions()
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
 	sess := Session{
-		ID:             "sid1",
+		ID:             NewID(),
 		Active:         true,
 		TerminalParams: TerminalParams{W: 100, H: 100},
 		Login:          "bob",
@@ -115,7 +127,7 @@ func (s *BoltSuite) TestSessionsCRUD(c *C) {
 // as inactive after period of inactivity
 func (s *BoltSuite) TestSessionsInactivity(c *C) {
 	sess := Session{
-		ID:             "sid1",
+		ID:             NewID(),
 		Active:         true,
 		TerminalParams: TerminalParams{W: 100, H: 100},
 		Login:          "bob",
@@ -134,7 +146,7 @@ func (s *BoltSuite) TestSessionsInactivity(c *C) {
 
 func (s *BoltSuite) TestPartiesCRUD(c *C) {
 	sess := Session{
-		ID:             "sid1",
+		ID:             NewID(),
 		Active:         true,
 		TerminalParams: TerminalParams{W: 100, H: 100},
 		Login:          "bob",
@@ -144,7 +156,7 @@ func (s *BoltSuite) TestPartiesCRUD(c *C) {
 	c.Assert(s.srv.CreateSession(sess), IsNil)
 
 	p1 := Party{
-		ID:         "p1",
+		ID:         NewID(),
 		User:       "bob",
 		RemoteAddr: "example.com",
 		ServerID:   "id-1",
@@ -159,7 +171,7 @@ func (s *BoltSuite) TestPartiesCRUD(c *C) {
 
 	// add one more party
 	p2 := Party{
-		ID:         "p2",
+		ID:         NewID(),
 		User:       "alice",
 		RemoteAddr: "example.com",
 		ServerID:   "id-2",

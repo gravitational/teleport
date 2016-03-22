@@ -23,16 +23,15 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"sync"
 	"time"
 
-	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gokyle/hotp"
+	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -192,7 +191,6 @@ func (s *WebService) GetHOTP(user string) (*hotp.HOTP, error) {
 
 // UpsertWebSession updates or inserts a web session for a user and session id
 func (s *WebService) UpsertWebSession(user, sid string, session WebSession, ttl time.Duration) error {
-
 	bytes, err := json.Marshal(session)
 	if err != nil {
 		return trace.Wrap(err)
@@ -224,7 +222,7 @@ func (s *WebService) GetWebSession(user, sid string) (*WebSession, error) {
 	return &session, nil
 }
 
-// GetWebSessionsKeys
+// GetWebSessionsKeys returns public keys associated with the session
 func (s *WebService) GetWebSessionsKeys(user string) ([]AuthorizedKey, error) {
 	keys, err := s.backend.GetKeys([]string{"web", "users", user, "sessions"})
 	if err != nil {
@@ -235,7 +233,6 @@ func (s *WebService) GetWebSessionsKeys(user string) ([]AuthorizedKey, error) {
 	for i, key := range keys {
 		session, err := s.GetWebSession(user, key)
 		if err != nil {
-			log.Errorf(err.Error())
 			return nil, trace.Wrap(err)
 		}
 		values[i].Value = session.Pub
@@ -243,7 +240,7 @@ func (s *WebService) GetWebSessionsKeys(user string) ([]AuthorizedKey, error) {
 	return values, nil
 }
 
-// DeleteWebSession
+// DeleteWebSession deletes web session from the storage
 func (s *WebService) DeleteWebSession(user, sid string) error {
 	err := s.backend.DeleteKey(
 		[]string{"web", "users", user, "sessions"},
@@ -252,70 +249,7 @@ func (s *WebService) DeleteWebSession(user, sid string) error {
 	return err
 }
 
-func (s *WebService) UpsertWebTun(tun WebTun, ttl time.Duration) error {
-	if tun.Prefix == "" {
-		log.Errorf("Missing parameter 'Prefix'")
-		return fmt.Errorf("Missing parameter 'Prefix'")
-	}
-
-	bytes, err := json.Marshal(tun)
-	if err != nil {
-		log.Errorf(err.Error())
-		return trace.Wrap(err)
-	}
-
-	err = s.backend.UpsertVal([]string{"web", "tunnels"},
-		tun.Prefix, bytes, ttl)
-	if err != nil {
-		log.Errorf(err.Error())
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func (s *WebService) DeleteWebTun(prefix string) error {
-	err := s.backend.DeleteKey(
-		[]string{"web", "tunnels"},
-		prefix,
-	)
-	return err
-}
-func (s *WebService) GetWebTun(prefix string) (*WebTun, error) {
-	val, err := s.backend.GetVal(
-		[]string{"web", "tunnels"},
-		prefix,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	var tun WebTun
-	err = json.Unmarshal(val, &tun)
-	if err != nil {
-		log.Errorf(err.Error())
-		return nil, trace.Wrap(err)
-	}
-
-	return &tun, nil
-}
-func (s *WebService) GetWebTuns() ([]WebTun, error) {
-	keys, err := s.backend.GetKeys([]string{"web", "tunnels"})
-	if err != nil {
-		return nil, err
-	}
-
-	tuns := make([]WebTun, len(keys))
-	for i, key := range keys {
-		tun, err := s.GetWebTun(key)
-		if err != nil {
-			log.Errorf(err.Error())
-			return nil, trace.Wrap(err)
-		}
-		tuns[i] = *tun
-	}
-	return tuns, nil
-}
-
+// UpsertPassword upserts new password and HOTP token
 func (s *WebService) UpsertPassword(user string,
 	password []byte) (hotpURL string, hotpQR []byte, err error) {
 
@@ -327,7 +261,7 @@ func (s *WebService) UpsertPassword(user string,
 		return "", nil, trace.Wrap(err)
 	}
 
-	otp, err := hotp.GenerateHOTP(HOTPTokenDigits, false)
+	otp, err := hotp.GenerateHOTP(defaults.HOTPTokenDigits, false)
 	if err != nil {
 		return "", nil, trace.Wrap(err)
 	}
@@ -353,6 +287,7 @@ func (s *WebService) UpsertPassword(user string,
 
 }
 
+// CheckPassword is called on web user or tsh user login
 func (s *WebService) CheckPassword(user string, password []byte, hotpToken string) error {
 	if err := verifyPassword(password); err != nil {
 		return trace.Wrap(err)
@@ -368,7 +303,7 @@ func (s *WebService) CheckPassword(user string, password []byte, hotpToken strin
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if !otp.Scan(hotpToken, 4) {
+	if !otp.Scan(hotpToken, defaults.HOTPFirstTokensRange) {
 		return trace.Wrap(teleport.BadParameter("token", "bad one time token"))
 	}
 	if err := s.UpsertHOTP(user, otp); err != nil {
@@ -377,6 +312,8 @@ func (s *WebService) CheckPassword(user string, password []byte, hotpToken strin
 	return nil
 }
 
+// CheckPasswordWOToken checks just password without checking HOTP tokens
+// used in case of SSH authentication, when token has been validated
 func (s *WebService) CheckPasswordWOToken(user string, password []byte) error {
 	if err := verifyPassword(password); err != nil {
 		return trace.Wrap(err)
@@ -392,22 +329,20 @@ func (s *WebService) CheckPasswordWOToken(user string, password []byte) error {
 	return nil
 }
 
-// make sure password satisfies our requirements (relaxed),
+// verifyPassword makes sure password satisfies our requirements (relaxed),
 // mostly to avoid putting garbage in
 func verifyPassword(password []byte) error {
-	if len(password) < MinPasswordLength {
-		return &teleport.BadParameterError{
-			Param: "password",
-			Err: fmt.Sprintf(
-				"password is too short, min length is %v", MinPasswordLength),
-		}
+	if len(password) < defaults.MinPasswordLength {
+		return teleport.BadParameter(
+			"password",
+			fmt.Sprintf(
+				"password is too short, min length is %v", defaults.MinPasswordLength))
 	}
-	if len(password) > MaxPasswordLength {
-		return &teleport.BadParameterError{
-			Param: "password",
-			Err: fmt.Sprintf(
-				"password is too long, max length is %v", MaxPasswordLength),
-		}
+	if len(password) > defaults.MaxPasswordLength {
+		return teleport.BadParameter(
+			"password",
+			fmt.Sprintf(
+				"password is too long, max length is %v", defaults.MaxPasswordLength))
 	}
 	return nil
 }
@@ -426,36 +361,8 @@ type WebSession struct {
 	Expires time.Time `json:"expires"`
 }
 
-// WebTun is a web tunnel, the SSH tunnel
-// created by the SSH server to a remote web server
-type WebTun struct {
-	// Prefix is a domain prefix that will be used
-	// to serve this tunnel
-	Prefix string `json:"prefix"`
-	// ProxyAddr is the address of the SSH server
-	// that will be acting as a SSH proxy
-	ProxyAddr string `json:"proxy"`
-	// TargetAddr is the target http address of the server
-	TargetAddr string `json:"target"`
-}
-
-func NewWebTun(prefix, proxyAddr, targetAddr string) (*WebTun, error) {
-	if prefix == "" {
-		return nil, &teleport.MissingParameterError{Param: "prefix"}
-	}
-	if targetAddr == "" {
-		return nil, &teleport.MissingParameterError{Param: "target"}
-	}
-	if proxyAddr == "" {
-		return nil, &teleport.MissingParameterError{Param: "proxy"}
-	}
-	if _, err := url.ParseRequestURI(targetAddr); err != nil {
-		return nil, &teleport.BadParameterError{Param: "target", Err: err.Error()}
-	}
-	return &WebTun{Prefix: prefix, ProxyAddr: proxyAddr, TargetAddr: targetAddr}, nil
-}
-
-// SignupToken is a data
+// SignupToken stores metadata about user signup token
+// is stored and generated when tctl add user is executed
 type SignupToken struct {
 	Token           string   `json:"token"`
 	User            string   `json:"user"`
@@ -469,7 +376,11 @@ var (
 	userTokensPath = []string{"addusertokens"}
 )
 
+// UpsertSignupToken upserts signup token - one time token that lets user to create a user account
 func (s *WebService) UpsertSignupToken(token string, tokenData SignupToken, ttl time.Duration) error {
+	if ttl < time.Second || ttl > defaults.MaxSignupTokenTTL {
+		ttl = defaults.MaxSignupTokenTTL
+	}
 	out, err := json.Marshal(tokenData)
 	if err != nil {
 		return trace.Wrap(err)
@@ -483,28 +394,22 @@ func (s *WebService) UpsertSignupToken(token string, tokenData SignupToken, ttl 
 
 }
 
-func (s *WebService) GetSignupToken(token string) (tokenData SignupToken,
-	ttl time.Duration, e error) {
-
-	out, ttl, err := s.backend.GetValAndTTL(userTokensPath, token)
+// GetSignupToken returns signup token data
+func (s *WebService) GetSignupToken(token string) (*SignupToken, error) {
+	out, err := s.backend.GetVal(userTokensPath, token)
 	if err != nil {
-		return SignupToken{}, 0, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	var data SignupToken
+	var data *SignupToken
 	err = json.Unmarshal(out, &data)
 	if err != nil {
-		return SignupToken{}, 0, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	return data, ttl, nil
+	return data, nil
 }
+
+// DeleteSignupToken deletes signup token from the storage
 func (s *WebService) DeleteSignupToken(token string) error {
-	err := s.backend.DeleteKey([]string{"addusertokens"}, token)
-	return err
+	err := s.backend.DeleteKey(userTokensPath, token)
+	return trace.Wrap(err)
 }
-
-const (
-	MinPasswordLength = 6
-	MaxPasswordLength = 128
-	HOTPTokenDigits   = 6 //number of digits in each token
-)

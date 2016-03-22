@@ -44,13 +44,14 @@ const (
 
 // Filter is event search filter
 type Filter struct {
-	Start     time.Time `json:"start"`
-	End       time.Time `json:"end"`
-	Limit     int       `json:"limit"`
-	Order     int       `json:"order"`
-	SessionID string    `json:"session_id"`
+	Start     time.Time  `json:"start"`
+	End       time.Time  `json:"end"`
+	Limit     int        `json:"limit"`
+	Order     int        `json:"order"`
+	SessionID session.ID `json:"session_id"`
 }
 
+// String returns debug-friendly representation of this filter
 func (f Filter) String() string {
 	st, err := f.Start.MarshalText()
 	if err != nil {
@@ -80,6 +81,7 @@ type Log interface {
 	GetSessionEvents(filter Filter) ([]session.Session, error)
 }
 
+// FilterToURL encodes filter to URL query parameters
 func FilterToURL(f Filter) (url.Values, error) {
 	st, err := f.Start.MarshalText()
 	if err != nil {
@@ -94,10 +96,11 @@ func FilterToURL(f Filter) (url.Values, error) {
 	vals.Set("end", string(et))
 	vals.Set("limit", strconv.Itoa(f.Limit))
 	vals.Set("order", strconv.Itoa(f.Order))
-	vals.Set("sid", f.SessionID)
+	vals.Set("sid", string(f.SessionID))
 	return vals, nil
 }
 
+// FilterFromURL returns filter falue from URL encoded parameters
 func FilterFromURL(vals url.Values) (*Filter, error) {
 	var f Filter
 	var err error
@@ -123,7 +126,13 @@ func FilterFromURL(vals url.Values) (*Filter, error) {
 			return nil, trace.Wrap(teleport.BadParameter("limit", "order is 1 for Ascending, -1 for descending"))
 		}
 	}
-	f.SessionID = vals.Get("sid")
+	if vals.Get("sid") != "" {
+		sid, err := session.ParseID(vals.Get("sid"))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		f.SessionID = *sid
+	}
 	return &f, nil
 }
 
