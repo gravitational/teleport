@@ -23,7 +23,7 @@ a:hover {color:#3362a0;}
 
 /* Structure + Grid
 ------------------*/
-.container {padding:2% 0;max-width:1280px;overflow:hidden;border-right:45px solid transparent;border-left:45px solid transparent;margin:0 auto;}
+.container {padding:0% 0;max-width:1280px;overflow:hidden;border-right:45px solid transparent;border-left:45px solid transparent;margin:0 auto;}
 
 /* Header
 ------------------*/
