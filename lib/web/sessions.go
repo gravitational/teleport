@@ -47,7 +47,7 @@ type sessionContext struct {
 	closers []io.Closer
 }
 
-func (c *sessionContext) getConnectHandler(sessionID string) (*connectHandler, error) {
+func (c *sessionContext) getConnectHandler(sessionID session.ID) (*connectHandler, error) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -60,7 +60,7 @@ func (c *sessionContext) getConnectHandler(sessionID string) (*connectHandler, e
 	return nil, trace.Wrap(teleport.NotFound("no connected streams"))
 }
 
-func (c *sessionContext) UpdateSessionTerminal(sessionID string, params session.TerminalParams) error {
+func (c *sessionContext) UpdateSessionTerminal(sessionID session.ID, params session.TerminalParams) error {
 	err := c.clt.UpdateSession(session.UpdateRequest{ID: sessionID, TerminalParams: &params})
 	if err != nil {
 		return trace.Wrap(err)

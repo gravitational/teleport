@@ -14,8 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import keyMirror from 'keymirror'
+var api = require('./api');
+var cfg = require('../config');
 
-export default keyMirror({
-  TLPT_RECEIVE_USER_INVITE: null
-})
+const apiUtils = {
+    filterSessions({start, end, sid, limit, order=-1}){
+      let params = {
+        start: start.toISOString(),
+        end,
+        order,
+        limit
+      }
+
+      if(sid){
+        params.session_id = sid;
+      }
+
+      return api.get(cfg.api.getFetchSessionsUrl(params))
+    }
+}
+
+module.exports = apiUtils;

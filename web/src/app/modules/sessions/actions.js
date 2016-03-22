@@ -16,6 +16,7 @@ limitations under the License.
 
 var reactor = require('app/reactor');
 var api = require('app/services/api');
+var apiUtils = require('app/services/apiUtils');
 var cfg = require('app/config');
 var {showError} = require('app/modules/notifications/actions');
 
@@ -32,22 +33,16 @@ const actions = {
     });
   },
 
-  fetchSessions({before, sid, limit=cfg.maxSessionLoadSize}){
-    let start = before || new Date();
+  fetchSessions({end, sid, limit=cfg.maxSessionLoadSize}={}){
+    let start = end || new Date();
     let params = {
       order: -1,
-      limit
+      limit,
+      start,
+      sid
     };
 
-    params.start = start.toISOString();
-
-    if(sid){
-      params.sessionID = sid;
-      params.sessionId = sid;
-      params.sid = sid;
-    }
-
-    return api.get(cfg.api.getFetchSessionsUrl(params))
+    return apiUtils.filterSessions(params)
       .done((json) => {
         reactor.dispatch(TLPT_SESSINS_RECEIVE, json.sessions);
       })

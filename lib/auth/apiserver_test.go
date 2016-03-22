@@ -316,6 +316,27 @@ func (s *APISuite) TestServers(c *C) {
 	c.Assert(out, DeepEquals, []services.Server{srv, srv1})
 }
 
+// TODO(klizhentas) this code will be removed and will use test suite
+func (s *APISuite) TestReverseTunnels(c *C) {
+	out, err := s.clt.GetReverseTunnels()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
+
+	tunnel := services.ReverseTunnel{DomainName: "example.com", DialAddrs: []string{"example.com:2023"}}
+	c.Assert(s.PresenceS.UpsertReverseTunnel(tunnel, 0), IsNil)
+
+	out, err = s.clt.GetReverseTunnels()
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, []services.ReverseTunnel{tunnel})
+
+	err = s.clt.DeleteReverseTunnel(tunnel.DomainName)
+	c.Assert(err, IsNil)
+
+	out, err = s.clt.GetReverseTunnels()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
+}
+
 func (s *APISuite) TestEvents(c *C) {
 	suite := etest.EventSuite{L: s.clt}
 	suite.EventsCRUD(c)
@@ -345,7 +366,7 @@ func (s *APISuite) TestSharedSessions(c *C) {
 	date := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
 	sess := session.Session{
 		Active:         true,
-		ID:             "s1",
+		ID:             session.NewID(),
 		TerminalParams: session.TerminalParams{W: 100, H: 100},
 		Created:        date,
 		LastActive:     date,
@@ -367,7 +388,7 @@ func (s *APISuite) TestSharedSessionsParties(c *C) {
 	date := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
 	sess := session.Session{
 		Active:         true,
-		ID:             "s1",
+		ID:             session.NewID(),
 		TerminalParams: session.TerminalParams{W: 100, H: 100},
 		Created:        date,
 		LastActive:     date,
@@ -376,13 +397,13 @@ func (s *APISuite) TestSharedSessionsParties(c *C) {
 	c.Assert(s.clt.CreateSession(sess), IsNil)
 
 	p1 := session.Party{
-		ID:         "p1",
+		ID:         session.NewID(),
 		User:       "bob",
 		RemoteAddr: "example.com",
 		ServerID:   "id-1",
 		LastActive: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
 	}
-	c.Assert(s.clt.UpsertParty("s1", p1, 0), IsNil)
+	c.Assert(s.clt.UpsertParty(sess.ID, p1, 0), IsNil)
 
 	sess.Parties = []session.Party{p1}
 	out, err = s.clt.GetSessions()

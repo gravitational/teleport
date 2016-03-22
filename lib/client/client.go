@@ -41,7 +41,6 @@ import (
 	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -242,10 +241,10 @@ func (proxy *ProxyClient) Close() error {
 }
 
 // Shell returns remote shell as io.ReadWriterCloser object
-func (client *NodeClient) Shell(width, height int, sessionID string) (io.ReadWriteCloser, error) {
+func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.ReadWriteCloser, error) {
 	if sessionID == "" {
 		// initiate a new session if not passed
-		sessionID = uuid.New()
+		sessionID = session.NewID()
 	}
 
 	// see which sites (AKA auth servers) this proxy is connected to
@@ -265,7 +264,7 @@ func (client *NodeClient) Shell(width, height int, sessionID string) (io.ReadWri
 	}
 
 	if len(sessionID) > 0 {
-		err = clientSession.Setenv(sshutils.SessionEnvVar, sessionID)
+		err = clientSession.Setenv(sshutils.SessionEnvVar, string(sessionID))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

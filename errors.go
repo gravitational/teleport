@@ -352,7 +352,7 @@ type ConnectionProblemError struct {
 
 // Error is debug - friendly error message
 func (c *ConnectionProblemError) Error() string {
-	return fmt.Sprintf("%v: %v", c.Message, c.Err.Error())
+	return fmt.Sprintf("%v: %v", c.Message, c.Err)
 }
 
 // IsConnectionProblemError indicates that this error is of ConnectionProblem
@@ -415,5 +415,42 @@ func IsSystemError(e error) bool {
 		IsSystemError() bool
 	}
 	_, ok := e.(se)
+	return ok
+}
+
+// LimitExceeded returns new limit exceeded error
+func LimitExceeded(message string) *LimitExceededError {
+	return &LimitExceededError{
+		Message: message,
+	}
+}
+
+// LimitExceededError indicates rate limit or connection limit problem
+type LimitExceededError struct {
+	trace.Traces
+	Message string `json:"message"`
+}
+
+// Error is debug - friendly error message
+func (c *LimitExceededError) Error() string {
+	return c.Message
+}
+
+// IsLimitExceededError indicates that this error is of ConnectionProblem
+func (c *LimitExceededError) IsLimitExceededError() bool {
+	return true
+}
+
+// OrigError returns original error (in this case this is the error itself)
+func (c *LimitExceededError) OrigError() error {
+	return c
+}
+
+// IsLimitExceeded detects if this error is of LimitExceededError
+func IsLimitExceeded(e error) bool {
+	type ad interface {
+		IsLimitExceededError() bool
+	}
+	_, ok := e.(ad)
 	return ok
 }

@@ -31,13 +31,12 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
 )
 
 type sessionRegistry struct {
 	sync.Mutex
-	sessions map[string]*session
+	sessions map[rsession.ID]*session
 	srv      *Server
 }
 
@@ -48,7 +47,7 @@ func (s *sessionRegistry) addSession(sess *session) {
 }
 
 // joinShell either joins an existing session or starts a new shell
-func (s *sessionRegistry) joinShell(sid string, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+func (s *sessionRegistry) joinShell(sid rsession.ID, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	ctx.Infof("joinShell(sid=%v)", sid)
 
 	sess, found := s.lockedFindSession(sid)
@@ -74,7 +73,7 @@ func (s *sessionRegistry) joinShell(sid string, sconn *ssh.ServerConn, ch ssh.Ch
 	return nil
 }
 
-func (s *sessionRegistry) leaveShell(sid, pid string) error {
+func (s *sessionRegistry) leaveShell(sid, pid rsession.ID) error {
 	s.Lock()
 	defer s.Unlock()
 
@@ -98,7 +97,7 @@ func (s *sessionRegistry) leaveShell(sid, pid string) error {
 	return nil
 }
 
-func (s *sessionRegistry) notifyWinChange(sid string, params rsession.TerminalParams) error {
+func (s *sessionRegistry) notifyWinChange(sid rsession.ID, params rsession.TerminalParams) error {
 	log.Infof("notifyWinChange(%v)", sid)
 
 	sess, found := s.findSession(sid)
@@ -123,7 +122,7 @@ func (s *sessionRegistry) notifyWinChange(sid string, params rsession.TerminalPa
 	return nil
 }
 
-func (s *sessionRegistry) broadcastResult(sid string, r execResult) error {
+func (s *sessionRegistry) broadcastResult(sid rsession.ID, r execResult) error {
 	s.Lock()
 	defer s.Unlock()
 
@@ -136,7 +135,7 @@ func (s *sessionRegistry) broadcastResult(sid string, r execResult) error {
 	return nil
 }
 
-func (s *sessionRegistry) findSession(id string) (*session, bool) {
+func (s *sessionRegistry) findSession(id rsession.ID) (*session, bool) {
 	sess, ok := s.sessions[id]
 	if !ok {
 		return nil, false
@@ -144,7 +143,7 @@ func (s *sessionRegistry) findSession(id string) (*session, bool) {
 	return sess, true
 }
 
-func (s *sessionRegistry) lockedFindSession(id string) (*session, bool) {
+func (s *sessionRegistry) lockedFindSession(id rsession.ID) (*session, bool) {
 	s.Lock()
 	defer s.Unlock()
 	return s.findSession(id)
@@ -156,16 +155,16 @@ func newSessionRegistry(srv *Server) *sessionRegistry {
 	}
 	return &sessionRegistry{
 		srv:      srv,
-		sessions: make(map[string]*session),
+		sessions: make(map[rsession.ID]*session),
 	}
 }
 
 type session struct {
-	id          string
+	id          rsession.ID
 	eid         lunk.EventID
 	registry    *sessionRegistry
 	writer      *multiWriter
-	parties     map[string]*party
+	parties     map[rsession.ID]*party
 	term        *terminal
 	chunkWriter *chunkWriter
 	closeC      chan bool
@@ -173,7 +172,7 @@ type session struct {
 	closeOnce   sync.Once
 }
 
-func newSession(id string, r *sessionRegistry, context *ctx) (*session, error) {
+func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, error) {
 	rsess := rsession.Session{
 		ID:             id,
 		TerminalParams: rsession.TerminalParams{W: 100, H: 100},
@@ -214,7 +213,7 @@ func newSession(id string, r *sessionRegistry, context *ctx) (*session, error) {
 	sess := &session{
 		id:       id,
 		registry: r,
-		parties:  make(map[string]*party),
+		parties:  make(map[rsession.ID]*party),
 		writer:   newMultiWriter(),
 		login:    context.login,
 		closeC:   make(chan bool),
@@ -236,7 +235,7 @@ func (s *session) Close() error {
 	return trace.Wrap(err)
 }
 
-func (s *session) upsertSessionParty(sid string, p *party) error {
+func (s *session) upsertSessionParty(sid rsession.ID, p *party) error {
 	if s.registry.srv.sessionServer == nil {
 		return nil
 	}
@@ -284,10 +283,10 @@ func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) er
 			return trace.Wrap(err)
 		}
 		s.chunkWriter = w
-		s.registry.srv.emit(ctx.eid, events.NewShellSession(s.id, sconn, shellCmd, w.rid))
+		s.registry.srv.emit(ctx.eid, events.NewShellSession(string(s.id), sconn, shellCmd, w.rid))
 		s.writer.addWriter("capture", w, false)
 	} else {
-		s.registry.srv.emit(ctx.eid, events.NewShellSession(s.id, sconn, shellCmd, ""))
+		s.registry.srv.emit(ctx.eid, events.NewShellSession(string(s.id), sconn, shellCmd, ""))
 	}
 	s.addParty(p)
 
@@ -338,7 +337,7 @@ func (s *session) String() string {
 	return fmt.Sprintf("session(id=%v, parties=%v)", s.id, len(s.parties))
 }
 
-func (s *session) leave(id string) error {
+func (s *session) leave(id rsession.ID) error {
 	p, ok := s.parties[id]
 	if !ok {
 		return trace.Wrap(
@@ -346,7 +345,7 @@ func (s *session) leave(id string) error {
 	}
 	p.ctx.Infof("%v is leaving", p)
 	delete(s.parties, p.id)
-	s.writer.deleteWriter(p.id)
+	s.writer.deleteWriter(string(p.id))
 	return nil
 }
 
@@ -395,7 +394,7 @@ func (s *session) pollAndSyncTerm() {
 
 func (s *session) addParty(p *party) {
 	s.parties[p.id] = p
-	s.writer.addWriter(p.id, p, true)
+	s.writer.addWriter(string(p.id), p, true)
 	p.ctx.addCloser(p)
 	s.term.Add(1)
 	go func() {
@@ -478,7 +477,7 @@ func newParty(s *session, sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) *part
 		user:     ctx.teleportUser,
 		serverID: s.registry.srv.ID(),
 		site:     sconn.RemoteAddr().String(),
-		id:       uuid.New(),
+		id:       rsession.NewID(),
 		sconn:    sconn,
 		ch:       ch,
 		ctx:      ctx,
@@ -492,7 +491,7 @@ type party struct {
 	user       string
 	serverID   string
 	site       string
-	id         string
+	id         rsession.ID
 	s          *session
 	sconn      *ssh.ServerConn
 	ch         ssh.Channel
@@ -532,14 +531,14 @@ func (p *party) Close() error {
 	return p.s.registry.leaveShell(p.s.id, p.id)
 }
 
-func newChunkWriter(sessionID string, rec recorder.Recorder, serverID string) (*chunkWriter, error) {
-	cw, err := rec.GetChunkWriter(sessionID)
+func newChunkWriter(sessionID rsession.ID, rec recorder.Recorder, serverID string) (*chunkWriter, error) {
+	cw, err := rec.GetChunkWriter(string(sessionID))
 	if err != nil {
 		return nil, err
 	}
 	return &chunkWriter{
 		w:        cw,
-		rid:      sessionID,
+		rid:      string(sessionID),
 		serverID: serverID,
 	}, nil
 }

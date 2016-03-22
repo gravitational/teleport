@@ -22,10 +22,14 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/gravitational/teleport"
+	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/codahale/lunk"
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
@@ -190,6 +194,33 @@ func (c *ctx) setEnv(key, val string) {
 func (c *ctx) getEnv(key string) (string, bool) {
 	val, ok := c.env[key]
 	return val, ok
+}
+
+func (c *ctx) getSessionID() (*rsession.ID, error) {
+	sid, ok := c.getEnv(sshutils.SessionEnvVar)
+	if !ok || sid == "" {
+		return nil, trace.Wrap(
+			teleport.NotFound("session ID not found"))
+	}
+	sessionID, err := rsession.ParseID(sid)
+	if err != nil {
+		return nil, trace.Wrap(
+			teleport.BadParameter(sshutils.SessionEnvVar, "session ID: bad format"))
+	}
+	return sessionID, nil
+}
+
+func (c *ctx) initSessionID() (*rsession.ID, error) {
+	sessionID, err := c.getSessionID()
+	if err == nil {
+		return sessionID, nil
+	}
+	if teleport.IsNotFound(err) {
+		sid := rsession.NewID()
+		c.setEnv(sshutils.SessionEnvVar, string(sid))
+		return &sid, nil
+	}
+	return nil, trace.Wrap(err)
 }
 
 func newCtx(srv *Server, conn *ssh.ServerConn) *ctx {

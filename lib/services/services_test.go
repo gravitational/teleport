@@ -60,6 +60,10 @@ func (s *BoltSuite) TestServerCRUD(c *C) {
 	s.suite.ServerCRUD(c)
 }
 
+func (s *BoltSuite) TestReverseTunnelsCRUD(c *C) {
+	s.suite.ReverseTunnelsCRUD(c)
+}
+
 func (s *BoltSuite) TestUsersCRUD(c *C) {
 	s.suite.UsersCRUD(c)
 }
@@ -78,10 +82,6 @@ func (s *BoltSuite) TestPasswordGarbage(c *C) {
 
 func (s *BoltSuite) TestWebSessionCRUD(c *C) {
 	s.suite.WebSessionCRUD(c)
-}
-
-func (s *BoltSuite) TestWebTunCRUD(c *C) {
-	s.suite.WebTunCRUD(c)
 }
 
 func (s *BoltSuite) TestLocking(c *C) {

@@ -18,6 +18,7 @@ package auth
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"strconv"
 	"time"
@@ -30,8 +31,8 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 
 	log "github.com/Sirupsen/logrus"
-
 	"github.com/codahale/lunk"
+	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 )
@@ -100,8 +101,12 @@ func (c *Client) GetSessions() ([]session.Session, error) {
 }
 
 // GetSession returns a session by ID
-func (c *Client) GetSession(id string) (*session.Session, error) {
-	out, err := c.Get(c.Endpoint("sessions", id), url.Values{})
+func (c *Client) GetSession(id session.ID) (*session.Session, error) {
+	// saving extra round-trip
+	if err := id.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := c.Get(c.Endpoint("sessions", string(id)), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -129,13 +134,17 @@ func (c *Client) UpdateSession(req session.UpdateRequest) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	_, err := c.PutJSON(c.Endpoint("sessions", req.ID), updateSessionReq{Update: req})
+	_, err := c.PutJSON(c.Endpoint("sessions", string(req.ID)), updateSessionReq{Update: req})
 	return trace.Wrap(err)
 }
 
 // UpsertParty updates existing session party or inserts new party
-func (c *Client) UpsertParty(id string, p session.Party, ttl time.Duration) error {
-	_, err := c.PostJSON(c.Endpoint("sessions", id, "parties"), upsertPartyReq{Party: p, TTL: ttl})
+func (c *Client) UpsertParty(id session.ID, p session.Party, ttl time.Duration) error {
+	// saving extra round-trip
+	if err := id.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	_, err := c.PostJSON(c.Endpoint("sessions", string(id), "parties"), upsertPartyReq{Party: p, TTL: ttl})
 	return trace.Wrap(err)
 }
 
@@ -248,6 +257,7 @@ func (c *Client) LogSession(sess session.Session) error {
 	return trace.Wrap(err)
 }
 
+// GetEvents returns a list of filtered events
 func (c *Client) GetEvents(filter events.Filter) ([]lunk.Entry, error) {
 	vals, err := events.FilterToURL(filter)
 	if err != nil {
@@ -264,6 +274,7 @@ func (c *Client) GetEvents(filter events.Filter) ([]lunk.Entry, error) {
 	return events, nil
 }
 
+// GetSessionEvents returns a list of filtered session events
 func (c *Client) GetSessionEvents(filter events.Filter) ([]session.Session, error) {
 	vals, err := events.FilterToURL(filter)
 	if err != nil {
@@ -280,10 +291,12 @@ func (c *Client) GetSessionEvents(filter events.Filter) ([]session.Session, erro
 	return events, nil
 }
 
+// GetChunkWriter returns a writer for chunks (parts of the recorded session)
 func (c *Client) GetChunkWriter(id string) (recorder.ChunkWriteCloser, error) {
 	return &chunkRW{c: c, id: id}, nil
 }
 
+// GetChunkReader returns a reader of recorded session
 func (c *Client) GetChunkReader(id string) (recorder.ChunkReadCloser, error) {
 	return &chunkRW{c: c, id: id}, nil
 }
@@ -310,6 +323,44 @@ func (c *Client) GetNodes() ([]services.Server, error) {
 		return nil, trace.Wrap(err)
 	}
 	return re, nil
+}
+
+// UpsertReverseTunnel is used by admins to create a new reverse tunnel
+// to the remote proxy to bypass firewall restrictions
+func (c *Client) UpsertReverseTunnel(tunnel services.ReverseTunnel, ttl time.Duration) error {
+	args := upsertReverseTunnelReq{
+		ReverseTunnel: tunnel,
+		TTL:           ttl,
+	}
+	_, err := c.PostJSON(c.Endpoint("reversetunnels"), args)
+	return trace.Wrap(err)
+}
+
+// GetReverseTunnels returns the list of created reverse tunnels
+func (c *Client) GetReverseTunnels() ([]services.ReverseTunnel, error) {
+	out, err := c.Get(c.Endpoint("reversetunnels"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var tunnels []services.ReverseTunnel
+	if err := json.Unmarshal(out.Bytes(), &tunnels); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return tunnels, nil
+}
+
+// DeleteReverseTunnel deletes reverse tunnel by domain name
+func (c *Client) DeleteReverseTunnel(domainName string) error {
+	// this is to avoid confusing error in case if domain emtpy for example
+	// HTTP route will fail producing generic not found error
+	// instead we catch the error here
+	if !cstrings.IsValidDomainName(domainName) {
+		return trace.Wrap(teleport.BadParameter("domainName",
+			fmt.Sprintf("'%v' is a bad domain name", domainName),
+		))
+	}
+	_, err := c.Delete(c.Endpoint("reversetunnels", domainName))
+	return trace.Wrap(err)
 }
 
 // UpsertAuthServer is used by auth servers to report their presense
@@ -649,10 +700,10 @@ func (c *chunkRW) Close() error {
 // TOODO(klizhentas) this should be just including appropriate service implementations
 type ClientI interface {
 	GetSessions() ([]session.Session, error)
-	GetSession(id string) (*session.Session, error)
+	GetSession(id session.ID) (*session.Session, error)
 	CreateSession(s session.Session) error
 	UpdateSession(req session.UpdateRequest) error
-	UpsertParty(id string, p session.Party, ttl time.Duration) error
+	UpsertParty(id session.ID, p session.Party, ttl time.Duration) error
 	UpsertCertAuthority(cert services.CertAuthority, ttl time.Duration) error
 	GetCertAuthorities(caType services.CertAuthType) ([]*services.CertAuthority, error)
 	DeleteCertAuthority(caType services.CertAuthID) error

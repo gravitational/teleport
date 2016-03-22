@@ -26,32 +26,6 @@ var SelectNodeDialog = require('./../selectNodeDialog.jsx');
 
 var ActiveSession = React.createClass({
 
-  componentWillUnmount(){
-    closeSelectNodeDialog();
-  },
-
-  render: function() {
-    let {login, parties, serverId} = this.props.session;
-    let serverLabelText = '';
-    if(serverId){
-      let hostname = reactor.evaluate(nodeHostNameByServerId(serverId));
-      serverLabelText = `${login}@${hostname}`;
-    }
-
-    return (
-     <div className="grv-current-session">
-       <SessionLeftPanel parties={parties}/>
-       <div className="grv-current-session-server-info">
-         <h3>{serverLabelText}</h3>
-       </div>
-       <TtyConnection {...this.props.session} />
-     </div>
-     );
-  }
-});
-
-var TtyConnection = React.createClass({
-
   getInitialState() {
     this.tty = new Tty(this.props)
     this.tty.on('open', ()=> this.setState({ ...this.state, isConnected: true }));
@@ -61,11 +35,11 @@ var TtyConnection = React.createClass({
   },
 
   componentDidMount(){
-    // temporary hack
     SelectNodeDialog.onServerChangeCallBack = this.componentWillReceiveProps.bind(this);
   },
 
   componentWillUnmount() {
+    closeSelectNodeDialog();
     SelectNodeDialog.onServerChangeCallBack = null;
     this.tty.disconnect();
   },
@@ -79,13 +53,26 @@ var TtyConnection = React.createClass({
     }
   },
 
-  render() {
+  render: function() {
+    let {login, parties, serverId} = this.props;
+    let serverLabelText = '';
+    if(serverId){
+      let hostname = reactor.evaluate(nodeHostNameByServerId(serverId));
+      serverLabelText = `${login}@${hostname}`;
+    }
+
     return (
-      <div style={{height: '100%'}}>
-        <TtyTerminal ref="ttyCmntInstance" tty={this.tty} cols={this.props.cols} rows={this.props.rows} />
-        { this.state.isConnected ? <EventStreamer sid={this.props.sid}/> : null }
-      </div>
-    )
+     <div className="grv-current-session">
+       <SessionLeftPanel parties={parties}/>
+       <div className="grv-current-session-server-info">
+         <h3>{serverLabelText}</h3>
+       </div>
+       <div style={{height: '100%'}}>
+         <TtyTerminal ref="ttyCmntInstance" tty={this.tty} cols={this.props.cols} rows={this.props.rows} />
+         { this.state.isConnected ? <EventStreamer sid={this.props.sid}/> : null }
+       </div>
+     </div>
+     );
   }
 });
 

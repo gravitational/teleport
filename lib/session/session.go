@@ -28,13 +28,76 @@ import (
 	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/trace"
 	"github.com/mailgun/timetools"
+	"github.com/pborman/uuid"
 )
+
+// ID is a uinique session id that is based on time UUID v1
+type ID string
+
+// IsZero returns true if this ID is emtpy
+func (s *ID) IsZero() bool {
+	return len(*s) == 0
+}
+
+// UUID returns byte representation of this ID
+func (s *ID) UUID() uuid.UUID {
+	return uuid.Parse(string(*s))
+}
+
+// String returns string representation of this id
+func (s *ID) String() string {
+	return string(*s)
+}
+
+// Set makes ID cli compatible, lets to set value from string
+func (s *ID) Set(v string) error {
+	id, err := ParseID(v)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	*s = *id
+	return nil
+}
+
+// Time returns time portion of this ID
+func (s *ID) Time() time.Time {
+	tm, ok := s.UUID().Time()
+	if !ok {
+		return time.Time{}
+	}
+	sec, nsec := tm.UnixTime()
+	return time.Unix(sec, nsec).UTC()
+}
+
+// Check checks if it's a valid UUID
+func (s *ID) Check() error {
+	_, err := ParseID(string(*s))
+	return trace.Wrap(err)
+}
+
+// ParseID parses ID and checks if it's correct
+func ParseID(id string) (*ID, error) {
+	val := uuid.Parse(id)
+	if val == nil {
+		return nil, trace.Wrap(teleport.BadParameter("id", fmt.Sprintf("'%v' is not a valid Time UUID v1", id)))
+	}
+	if ver, ok := val.Version(); !ok || ver != 1 {
+		return nil, trace.Wrap(teleport.BadParameter("session id", fmt.Sprintf("'%v' is not a be a valid Time UUID v1", id)))
+	}
+	uid := ID(id)
+	return &uid, nil
+}
+
+// NewID returns new session ID
+func NewID() ID {
+	return ID(uuid.NewUUID().String())
+}
 
 // Session is an interactive collaboration session that represents one
 // or many SSH session started by teleport user
 type Session struct {
 	// ID is a unique session identifier
-	ID string `json:"id"`
+	ID ID `json:"id"`
 	// Parties is a list of session parties
 	Parties []Party `json:"parties"`
 	// TerminalParams sets terminal properties
@@ -55,7 +118,7 @@ type Session struct {
 // in the context of the session
 type Party struct {
 	// ID is a unique party id
-	ID string `json:"id"`
+	ID ID `json:"id"`
 	// Site is a remote address?
 	RemoteAddr string `json:"remote_addr"`
 	// User is a teleport user using this session
@@ -103,15 +166,15 @@ func Bool(val bool) *bool {
 
 // UpdateRequest is a session update request
 type UpdateRequest struct {
-	ID             string          `json:"id"`
+	ID             ID              `json:"id"`
 	Active         *bool           `json:"active"`
 	TerminalParams *TerminalParams `json:"terminal_params"`
 }
 
 // Check returns nil if request is valid, error otherwize
 func (u *UpdateRequest) Check() error {
-	if u.ID == "" {
-		return trace.Wrap(teleport.BadParameter("id", "session id can not be empty"))
+	if err := u.ID.Check(); err != nil {
+		return trace.Wrap(err)
 	}
 	if u.TerminalParams != nil {
 		_, err := NewTerminalParamsFromInt(u.TerminalParams.W, u.TerminalParams.H)
@@ -130,7 +193,7 @@ type Service interface {
 	// with all parties involved
 	GetSessions() ([]Session, error)
 	// GetSession returns a session with it's parties by ID
-	GetSession(id string) (*Session, error)
+	GetSession(id ID) (*Session, error)
 	// CreateSession creates a new active session and it's parameters
 	// if term is skipped, terminal size won't be recorded
 	CreateSession(sess Session) error
@@ -138,7 +201,7 @@ type Service interface {
 	// other parameters will not be updated
 	UpdateSession(req UpdateRequest) error
 	// UpsertParty upserts active session party
-	UpsertParty(id string, p Party, ttl time.Duration) error
+	UpsertParty(id ID, p Party, ttl time.Duration) error
 }
 
 type server struct {
@@ -194,8 +257,8 @@ func activeBucket() []string {
 	return []string{"sessions", "active"}
 }
 
-func partiesBucket(id string) []string {
-	return []string{"sessions", "parties", id}
+func partiesBucket(id ID) []string {
+	return []string{"sessions", "parties", string(id)}
 }
 
 func allBucket() []string {
@@ -210,7 +273,7 @@ func (s *server) GetSessions() ([]Session, error) {
 	}
 	out := []Session{}
 	for _, sid := range keys {
-		se, err := s.GetSession(sid)
+		se, err := s.GetSession(ID(sid))
 		if teleport.IsNotFound(err) {
 			continue
 		}
@@ -220,14 +283,14 @@ func (s *server) GetSessions() ([]Session, error) {
 }
 
 // GetSession returns the session by it's id
-func (s *server) GetSession(id string) (*Session, error) {
+func (s *server) GetSession(id ID) (*Session, error) {
 	var sess *Session
-	err := s.bk.GetJSONVal(allBucket(), id, &sess)
+	err := s.bk.GetJSONVal(allBucket(), string(id), &sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.bk.GetVal(activeBucket(), id)
+	_, err = s.bk.GetVal(activeBucket(), string(id))
 	if err != nil {
 		if !teleport.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -266,8 +329,8 @@ const (
 // exists the function will return AlreadyExists error
 // The session will be marked as active for TTL period of time
 func (s *server) CreateSession(sess Session) error {
-	if sess.ID == "" {
-		return trace.Wrap(teleport.BadParameter("id", "session id can not be empty"))
+	if err := sess.ID.Check(); err != nil {
+		return trace.Wrap(err)
 	}
 	if sess.Login == "" {
 		return trace.Wrap(teleport.BadParameter("login", "session login can not be empty"))
@@ -283,11 +346,11 @@ func (s *server) CreateSession(sess Session) error {
 		return trace.Wrap(err)
 	}
 	sess.Parties = nil
-	err = s.bk.CreateJSONVal(allBucket(), sess.ID, sess, backend.Forever)
+	err = s.bk.CreateJSONVal(allBucket(), string(sess.ID), sess, backend.Forever)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.bk.UpsertJSONVal(activeBucket(), sess.ID, "active", s.activeSessionTTL)
+	err = s.bk.UpsertJSONVal(activeBucket(), string(sess.ID), "active", s.activeSessionTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -296,7 +359,7 @@ func (s *server) CreateSession(sess Session) error {
 
 // UpdateSession updates session parameters - can mark it as inactive and update it's terminal parameters
 func (s *server) UpdateSession(req UpdateRequest) error {
-	lock := "sessions" + req.ID
+	lock := "sessions" + string(req.ID)
 	s.bk.AcquireLock(lock, time.Second)
 	defer s.bk.ReleaseLock(lock)
 
@@ -304,7 +367,7 @@ func (s *server) UpdateSession(req UpdateRequest) error {
 		return trace.Wrap(err)
 	}
 	var sess *Session
-	err := s.bk.GetJSONVal(allBucket(), req.ID, &sess)
+	err := s.bk.GetJSONVal(allBucket(), string(req.ID), &sess)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -312,20 +375,20 @@ func (s *server) UpdateSession(req UpdateRequest) error {
 		sess.TerminalParams = *req.TerminalParams
 	}
 	sess.Parties = nil
-	err = s.bk.UpsertJSONVal(allBucket(), req.ID, sess, backend.Forever)
+	err = s.bk.UpsertJSONVal(allBucket(), string(req.ID), sess, backend.Forever)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if req.Active != nil {
 		if !*req.Active {
-			err := s.bk.DeleteKey(activeBucket(), req.ID)
+			err := s.bk.DeleteKey(activeBucket(), string(req.ID))
 			if err != nil {
 				if !teleport.IsNotFound(err) {
 					return trace.Wrap(err)
 				}
 			}
 		} else {
-			err := s.bk.UpsertJSONVal(activeBucket(), req.ID, "active", s.activeSessionTTL)
+			err := s.bk.UpsertJSONVal(activeBucket(), string(req.ID), "active", s.activeSessionTTL)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -336,13 +399,13 @@ func (s *server) UpdateSession(req UpdateRequest) error {
 
 // UpsertParty updates or inserts active session party and sets TTL for it
 // it also updates
-func (s *server) UpsertParty(sessionID string, p Party, ttl time.Duration) error {
-	err := s.bk.UpsertJSONVal(partiesBucket(sessionID), p.ID, p, ttl)
+func (s *server) UpsertParty(sessionID ID, p Party, ttl time.Duration) error {
+	err := s.bk.UpsertJSONVal(partiesBucket(sessionID), string(p.ID), p, ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	err = s.bk.UpsertJSONVal(activeBucket(),
-		sessionID, "active", s.activeSessionTTL)
+		string(sessionID), "active", s.activeSessionTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
