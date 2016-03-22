@@ -613,7 +613,7 @@ func (c *TunClient) Dial(network, address string) (net.Conn, error) {
 func (c *TunClient) fetchAndSync() error {
 	authServers, err := c.fetchAuthServers()
 	if err != nil {
-		log.Infof("failed to fetch auth servers")
+		//log.Infof("failed to fetch auth servers")
 		return trace.Wrap(err)
 	}
 	if len(authServers) == 0 {

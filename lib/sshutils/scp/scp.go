@@ -52,8 +52,10 @@ type Command struct {
 // Serve implements SSH file copy (SCP)
 func (cmd *Command) Execute(ch io.ReadWriter) error {
 	if cmd.Source {
+		// download
 		return cmd.serveSource(ch)
 	}
+	// upload
 	return cmd.serveSink(ch)
 }
 
@@ -158,15 +160,17 @@ func (cmd *Command) sendFile(r *reader, ch io.ReadWriter, fi os.FileInfo, path s
 	return r.read()
 }
 
+// serveSink executes file uploading, when a remote server sends file(s)
+// via scp
 func (cmd *Command) serveSink(ch io.ReadWriter) error {
 	log.Infof("SCP: serving sink")
 
 	if err := sendOK(ch); err != nil {
 		return trace.Wrap(err)
 	}
-	st := &state{}
+	var st state
 	var b = make([]byte, 1)
-	r := bufio.NewScanner(ch)
+	scanner := bufio.NewScanner(ch)
 	for {
 		n, err := ch.Read(b)
 		if err != nil {
@@ -185,11 +189,11 @@ func (cmd *Command) serveSink(ch io.ReadWriter) error {
 			continue
 		}
 
-		r.Scan()
-		if err := r.Err(); err != nil {
+		scanner.Scan()
+		if err := scanner.Err(); err != nil {
 			return trace.Wrap(err)
 		}
-		if err := cmd.processCommand(ch, st, b[0], r.Text()); err != nil {
+		if err := cmd.processCommand(ch, &st, b[0], scanner.Text()); err != nil {
 			if e := sendError(ch, err.Error()); e != nil {
 				log.Warningf("error sending error: %v", e)
 			}
@@ -203,6 +207,7 @@ func (cmd *Command) serveSink(ch io.ReadWriter) error {
 }
 
 func (cmd *Command) processCommand(ch io.ReadWriter, st *state, b byte, line string) error {
+	log.Infof("processCommand(b=%v, line=%v)", string(b), line)
 	switch b {
 	case WarnByte:
 		log.Warningf("got warning: %v", line)
@@ -289,6 +294,7 @@ func (cmd *Command) receiveDir(st *state, fc NewFileCmd, ch io.ReadWriter) error
 	if strings.HasSuffix(cmd.Target, "/") || st.notRoot {
 		path = st.makePath(cmd.Target, fc.Name)
 		st.push(fc.Name)
+		log.Infof("state.path: %v", filepath.Join(st.path...))
 	}
 	st.notRoot = true //next calls of receiveDir will be for subfolders
 	mode := os.FileMode(int(fc.Mode) & int(os.ModePerm))
@@ -332,12 +338,38 @@ func ParseCommand(arg, userName string) (*Command, error) {
 	if err := f.Parse(args[1:]); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// see if the target is absolute. if not, use user's homedir to make
+	// it absolute (and if the user doesn't have a homedir, use "/")
 	cmd.Target = f.Arg(0)
+	slash := string(filepath.Separator)
+	withSlash := strings.HasSuffix(cmd.Target, slash)
+	if !filepath.IsAbs(cmd.Target) {
+		rootDir := cmd.User.HomeDir
+		if !isDir(rootDir) {
+			cmd.Target = slash + cmd.Target
+		} else {
+			cmd.Target = filepath.Join(rootDir, cmd.Target)
+			if withSlash {
+				cmd.Target = cmd.Target + slash
+			}
+		}
+	}
 
 	if !cmd.Source && !cmd.Sink {
 		return nil, trace.Errorf("remote mode is not supported")
 	}
 	return &cmd, nil
+}
+
+// isDir returns 'true' if a given path points to a valid, existing directory
+func isDir(dirPath string) bool {
+	fs, err := os.Stat(dirPath)
+	if err != nil {
+		log.Warn(err)
+		return false
+	}
+	return fs.IsDir()
 }
 
 type NewFileCmd struct {
@@ -347,6 +379,7 @@ type NewFileCmd struct {
 }
 
 func ParseNewFile(line string) (*NewFileCmd, error) {
+	log.Infof("ParseNewFile(%v)", line)
 	parts := strings.SplitN(line, " ", 3)
 	if len(parts) != 3 {
 		return nil, trace.Errorf("broken command")
