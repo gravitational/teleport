@@ -38,7 +38,7 @@ use `ssh` clients and `sshd` servers with Teleport clusters.
 
 ## Contributing
 
-Join us at `teleport-dev@googlegroups.com` or create issues right here on Github.
+The best way to contribute is to create issues right here on Github. You can also reach the Gravitational team through their [website](http://gravitational.com/)
 
 ### Building
 
