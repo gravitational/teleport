@@ -81,9 +81,8 @@ in Teleport have to go via a proxy sometimes called an "SSH bastion".
 
 ### Adding Nodes to Cluster
 
-Let's add another node to your cluster. Let's assume the other node can be reached by
-hostname "luna". `tctl` command below will create a single-use token for a node to 
-join and will print instructions for you to follow:
+Let's add another node to your cluster. `tctl` command below will create a single-use 
+token for a node to join and will print instructions for you to follow:
 
 ```bash
 > tctl nodes add
@@ -93,10 +92,10 @@ Run this on the new node to join the cluster:
 teleport start --roles=node --token=n92bb958ce97f761da978d08c35c54a5c --auth-server=10.0.10.1
 ```
 
-Start `teleport` daemon on "luna" as shown above, but make sure to use the proper `--auth-server` 
-IP to point back to your localhost.
+Start `teleport` daemon on a new node as shown above, but make sure to use the proper 
+`--auth-server` IP to point back to your localhost.
 
-Once you do that, "luna" will join the cluster. To verify, type this on your localhost:
+Once you do that, verify that the new node has joined the cluster:
 
 ```bash
 > tsh --proxy=localhost ls
@@ -104,7 +103,7 @@ Once you do that, "luna" will join the cluster. To verify, type this on your loc
 Node Name     Node ID                     Address            Labels
 ---------     -------                     -------            ------
 localhost     xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.1:3022     
-luna          xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022     
+new-node      xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022     
 ```
 
 ### Using Node Labels
@@ -113,7 +112,7 @@ Notice the "Labels" column in the output above. It is currently not populated. T
 you apply static or dynamic labels to your nodes. As the cluster grows and nodes assume different 
 roles, labels will help to find the right node quickly.
 
-Let's see labels in action. Stop `teleport` on "luna" and restart it with the following command:
+Let's see labels in action. Stop `teleport` on the new node and restart it with the following command:
 
 ```bash
 teleport start --roles=node --auth-server=10.0.10.1 --nodename=db --labels "location=virginia,arch=[1h:/bin/uname -m]"
@@ -121,8 +120,8 @@ teleport start --roles=node --auth-server=10.0.10.1 --nodename=db --labels "loca
 
 Notice a few things here:
 
-* We did not use `--token` flag this time, because "luna" is already a member of the cluster.
-* We renamed "luna" to "db" because this machine is running a database. This name only exists within Teleport, the actual hostname has not changed.
+* We did not use `--token` flag this time, because this node is already a member of the cluster.
+* We explicitly named this node as "db" because this machine is running a database. This name only exists within Teleport, the actual hostname has not changed.
 * We assigned a static label "location" to this host and set it to "virginia".
 * We also assigned a dynamic label "arch" which will evaluate `/bin/uname -m` command once an hour and assign the output to this label value.
 
