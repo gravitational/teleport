@@ -199,7 +199,7 @@ certificate to make it easier to explore Teleport.
 prepare to use Teleport Proxy in production.
 
 
-#### Web tO SSH Proxy
+#### Web to SSH Proxy
 
 In this mode Teleport Proxy implements WSS (secure web sockets) to SSH proxy:
 
