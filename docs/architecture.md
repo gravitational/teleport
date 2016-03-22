@@ -257,9 +257,9 @@ Nodes, proxy and auth servers use certificates to authenticate with auth server 
 Users should check if host's certificate is signed by the trusted authority.
 
 Each role `proxy`, `auth` or `node` is encoded in the generated certificate using certificate extensions (opaque signed string).
-All nodes in the cluster can cofnnect to Auth server's HTTP API via SSH tunnel that checks each connecting client' certificate and role
-to enforce access control - e.g. client connection using node's certificate won't be able to add and delete users, and
-can only get auth servers registered in the cluster.
+All nodes in the cluster can connect to Auth server's HTTP API via SSH tunnel that checks each connecting client's certificate and role
+to enforce access control (e.g. client connection using node's certificate won't be able to add and delete users, and
+can only get Auth servers registered in the cluster).
 
 **User certificates and allowed logins**
 
@@ -269,7 +269,7 @@ to log in as a certain OS user.
 
 Teleport's user name is stored as a OpenSSH key id field.
 
-**Note** User's certificates do not use any cert extensions as a workaround to the [bug](https://bugzilla.mindrot.org/show_bug.cgi?id=2387)
+User's certificates do not use any cert extensions as a workaround to the [bug](https://bugzilla.mindrot.org/show_bug.cgi?id=2387)
  that treats any extenison as a critical one, breaking access to the cluster.
     
 
@@ -291,9 +291,8 @@ them so you can call:
 Unlike `ssh`, `tsh` is very opinionated about authentication: it always uses auto-expiring
 keys and it always connects to Teleport nodes via a proxy, it is a mandatory parameter.
 
-When `tsh` logs in, the auto-expiring key is stored in `~/.tsh` and is valid for 20 hours by
-default, unless you specify another interval via `--ttl` flag (still capped by a server-side
-configuration).
+When `tsh` logs in, the auto-expiring key is stored in `~/.tsh` and is valid for 12 hours by
+default, unless you specify another interval via `--ttl` flag (max of 30 hours and minimum of 1 minute and capped by the server-side configuration).
 
 You can learn more about `tsh` in the [User Manual](user-manual.md).
 
