@@ -12,7 +12,7 @@
 # NOTE: uses libvirt/KVM instead of Virtualbox
 NODEA ||= "10.0.10.30"
 NODEB ||= "10.0.10.31"
-DOCKER_VER ||= "1.9.1"
+DOCKER_VER ||= "1.10.3"
 VM_BUILDIR ||= "tmp"
 
 Vagrant.configure(2) do |config|
@@ -48,8 +48,8 @@ Vagrant.configure(2) do |config|
 end
 
 def install_docker(vm, docker_version)
-  vm.provision "file", source: 'docker.service', destination: '/tmp/docker.service'
-  vm.provision "file", source: 'docker.socket', destination: '/tmp/docker.socket'
+  vm.provision "file", source: '../docker.service', destination: '/tmp/docker.service'
+  vm.provision "file", source: '../docker.socket', destination: '/tmp/docker.socket'
 
   vm.provision "shell", inline: <<-SHELL
     echo "Installing Docker..."
