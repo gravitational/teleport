@@ -117,7 +117,7 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 		return trace.Wrap(err)
 	}
 	agentsToAdd, agentsToRemove := diffTunnels(m.agents, keys)
-	m.Infof("agents to add: %v agents to remove: %v", agentsToAdd, agentsToRemove)
+	//m.Infof("agents to add: %v agents to remove: %v", agentsToAdd, agentsToRemove)
 	for _, key := range agentsToRemove {
 		m.Infof("removing %v", &key)
 		agent := m.agents[key]

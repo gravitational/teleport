@@ -460,7 +460,7 @@ func (client *NodeClient) Download(remoteSourcePath, localDestinationPath string
 
 // scp runs remote scp command(shellCmd) on the remote server and
 // runs local scp handler using scpConf
-func (client *NodeClient) scp(scpConf scp.Command, shellCmd string) error {
+func (client *NodeClient) scp(scpCommand scp.Command, shellCmd string) error {
 	session, err := client.Client.NewSession()
 	if err != nil {
 		return trace.Wrap(err)
@@ -501,13 +501,8 @@ func (client *NodeClient) scp(scpConf scp.Command, shellCmd string) error {
 		&net.IPAddr{},
 	)
 
-	scpServer, err := scp.New(scpConf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	go func() {
-		err := scpServer.Serve(ch)
+		err := scpCommand.Execute(ch)
 		if err != nil {
 			log.Errorf(err.Error())
 		}

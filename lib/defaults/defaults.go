@@ -75,16 +75,16 @@ const (
 	// Median sleep time between node pings is this value / 2 + random
 	// deviation added to this time to avoid lots of simultaneous
 	// heartbeats coming to auth server
-	ServerHeartbeatTTL = 6 * time.Second
+	ServerHeartbeatTTL = 10 * time.Second
 
 	// AuthServersRefreshPeriod is a period for clients to refresh their
 	// their stored list of auth servers
-	AuthServersRefreshPeriod = 3 * time.Second
+	AuthServersRefreshPeriod = 5 * time.Second
 
 	// SessionRefreshPeriod is how often tsh polls information about session
 	// TODO(klizhentas) all polling periods should go away once backend
 	// releases
-	SessionRefreshPeriod = 1 * time.Second
+	SessionRefreshPeriod = 2 * time.Second
 
 	// DefaultDialTimeout is a default TCP dial timeout we set for our
 	// connection attempts

@@ -24,7 +24,6 @@ import (
 	"io"
 	"net"
 	"os/exec"
-	"os/user"
 	"strings"
 	"sync"
 	"time"
@@ -278,7 +277,7 @@ func (s *Server) heartbeatPresence() {
 			log.Warningf("failed to announce %#v presence: %v", s, err)
 		}
 		sleepTime := defaults.ServerHeartbeatTTL/2 + utils.RandomDuration(defaults.ServerHeartbeatTTL/10)
-		log.Infof("[SSH] will ping auth service in %v", sleepTime)
+		//log.Infof("[SSH] will ping auth service in %v", sleepTime)
 		time.Sleep(sleepTime)
 	}
 }
@@ -837,26 +836,17 @@ func (s *Server) handleExec(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 func (s *Server) handleSCP(ch ssh.Channel, req *ssh.Request, ctx *ctx, args string) error {
 	ctx.Infof("handleSCP(cmd=%v)", args)
 
-	// get user's home dir (it serves as a default destination)
-	osUser, err := user.Lookup(ctx.info.User())
-	if err != nil {
-		return trace.Errorf("user not found: %s", ctx.info.User())
-	}
-	cmd, err := scp.ParseCommand(args, osUser.HomeDir)
+	cmd, err := scp.ParseCommand(args, ctx.info.User())
 	if err != nil {
 		ctx.Warningf("failed to parse command: %v", cmd)
 		return trace.Wrap(err, fmt.Sprintf("failure to parse command '%v'", cmd))
 	}
 	ctx.Infof("handleSCP(cmd=%#v)", cmd)
-	srv, err := scp.New(*cmd)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	// TODO(klizhentas) current version of handling exec is incorrect.
 	// req.Reply should be sent as long as command start is done,
 	// not at the end. This is my fix for SCP only:
 	req.Reply(true, nil)
-	if err := srv.Serve(ch); err != nil {
+	if err := cmd.Execute(ch); err != nil {
 		return trace.Wrap(err)
 	}
 	ctx.Infof("SCP serve finished")
