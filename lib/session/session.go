@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/trace"
@@ -137,15 +138,13 @@ func (p *Party) String() string {
 	)
 }
 
-// DefaultLimit is a default limit if it's not set
-const DefaultLimit = 100
-
 // TerminalParams holds parameters of the terminal used in session
 type TerminalParams struct {
 	W int `json:"w"`
 	H int `json:"h"`
 }
 
+// String returns debug friendly representation of terminal
 func (p *TerminalParams) String() string {
 	return fmt.Sprintf("TerminalParams(w=%v, h=%v)", p.W, p.H)
 }
@@ -245,13 +244,10 @@ func New(bk backend.Backend, opts ...Option) (Service, error) {
 		s.clock = &timetools.RealTime{}
 	}
 	if s.activeSessionTTL == 0 {
-		s.activeSessionTTL = DefaultActiveSessionTTL
+		s.activeSessionTTL = defaults.ActiveSessionTTL
 	}
 	return s, nil
 }
-
-// MaxLimit is max iteration limit
-const MaxLimit = 1000
 
 func activeBucket() []string {
 	return []string{"sessions", "active"}
@@ -317,13 +313,6 @@ func (s *server) GetSession(id ID) (*Session, error) {
 	}
 	return sess, nil
 }
-
-const (
-	// DefaultActiveSessionTTL is a TTL when session is marked as inactive
-	DefaultActiveSessionTTL = 10 * time.Minute
-	// DefaultActivePartyTTL is a TTL when party is marked as inactive
-	DefaultActivePartyTTL = 10 * time.Second
-)
 
 // CreateSession creates a new session if it does not exist, if the session
 // exists the function will return AlreadyExists error

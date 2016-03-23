@@ -82,3 +82,23 @@ func (s *AddrTestSuite) TestReplaceLocalhost(c *C) {
 	result = ReplaceLocalhost("0.0.0.0:22", "192.168.1.100:399")
 	c.Assert(result, Equals, "192.168.1.100:22")
 }
+
+func (s *AddrTestSuite) TestLocalAddrs(c *C) {
+	testCases := []struct {
+		in       string
+		expected bool
+	}{
+		{in: "127.0.0.1:5000", expected: true},
+		{in: "localhost:5000", expected: true},
+		{in: "127.0.0.2:5000", expected: true},
+		{in: "tcp://127.0.0.2:5000", expected: true},
+		{in: "tcp://10.0.0.3:5000", expected: false},
+		{in: "tcp://hostname:5000", expected: false},
+	}
+	for i, testCase := range testCases {
+		addr, err := ParseAddr(testCase.in)
+		c.Assert(err, IsNil)
+		c.Assert(addr.IsLocal(), Equals, testCase.expected,
+			Commentf("test case %v, %v should be local(%v)", i, testCase.in, testCase.expected))
+	}
+}

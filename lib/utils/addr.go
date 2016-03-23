@@ -39,6 +39,15 @@ type NetAddr struct {
 	Path string `json:"path,omitempty"`
 }
 
+// IsLocal returns true if this is a local address
+func (a *NetAddr) IsLocal() bool {
+	host, _, err := net.SplitHostPort(a.Addr)
+	if err != nil {
+		return false
+	}
+	return IsLocalHost(host)
+}
+
 // IsEmpty returns true if address is empty
 func (a *NetAddr) IsEmpty() bool {
 	return a.Addr == "" && a.AddrNetwork == "" && a.Path == ""
@@ -190,8 +199,7 @@ func ReplaceLocalhost(addr, replaceWith string) string {
 	if err != nil {
 		return addr
 	}
-	ip := net.ParseIP(host)
-	if ip.IsLoopback() || ip.IsUnspecified() {
+	if IsLocalHost(host) {
 		host, _, err = net.SplitHostPort(replaceWith)
 		if err != nil {
 			return addr
@@ -199,4 +207,13 @@ func ReplaceLocalhost(addr, replaceWith string) string {
 		addr = net.JoinHostPort(host, port)
 	}
 	return addr
+}
+
+// IsLocalHost returns true if this is a local hostname or ip
+func IsLocalHost(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip.IsLoopback() || ip.IsUnspecified()
 }

@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package session
 
 import (
@@ -20,8 +21,8 @@ import (
 	"testing"
 	"time"
 
-	//	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/mailgun/timetools"
@@ -136,7 +137,7 @@ func (s *BoltSuite) TestSessionsInactivity(c *C) {
 	}
 	c.Assert(s.srv.CreateSession(sess), IsNil)
 
-	s.clock.Sleep(DefaultActiveSessionTTL + time.Second)
+	s.clock.Sleep(defaults.ActiveSessionTTL + time.Second)
 
 	sess.Active = false
 	s2, err := s.srv.GetSession(sess.ID)
@@ -162,7 +163,7 @@ func (s *BoltSuite) TestPartiesCRUD(c *C) {
 		ServerID:   "id-1",
 		LastActive: s.clock.UtcNow(),
 	}
-	c.Assert(s.srv.UpsertParty(sess.ID, p1, DefaultActivePartyTTL), IsNil)
+	c.Assert(s.srv.UpsertParty(sess.ID, p1, defaults.ActivePartyTTL), IsNil)
 
 	out, err := s.srv.GetSession(sess.ID)
 	c.Assert(err, IsNil)
@@ -177,7 +178,7 @@ func (s *BoltSuite) TestPartiesCRUD(c *C) {
 		ServerID:   "id-2",
 		LastActive: s.clock.UtcNow(),
 	}
-	c.Assert(s.srv.UpsertParty(sess.ID, p2, DefaultActivePartyTTL), IsNil)
+	c.Assert(s.srv.UpsertParty(sess.ID, p2, defaults.ActivePartyTTL), IsNil)
 
 	out, err = s.srv.GetSession(sess.ID)
 	c.Assert(err, IsNil)
@@ -187,7 +188,7 @@ func (s *BoltSuite) TestPartiesCRUD(c *C) {
 	// Update session party
 	s.clock.Sleep(time.Second)
 	p1.LastActive = s.clock.UtcNow()
-	c.Assert(s.srv.UpsertParty(sess.ID, p1, DefaultActivePartyTTL), IsNil)
+	c.Assert(s.srv.UpsertParty(sess.ID, p1, defaults.ActivePartyTTL), IsNil)
 
 	out, err = s.srv.GetSession(sess.ID)
 	c.Assert(err, IsNil)
