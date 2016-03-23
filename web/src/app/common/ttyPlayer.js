@@ -18,6 +18,8 @@ var Tty = require('app/common/tty');
 var api = require('app/services/api');
 var cfg = require('app/config');
 var {showError} = require('app/modules/notifications/actions');
+var Buffer = require('buffer/').Buffer;
+
 const logger = require('app/common/logger').create('TtyPlayer');
 
 function handleAjaxError(err){
@@ -131,7 +133,7 @@ class TtyPlayer extends Tty {
     return api.get(cfg.api.getFetchSessionChunkUrl({sid: this.sid, start, end})).
       done((response)=>{
         for(var i = 0; i < end-start; i++){
-          var data = atob(response.chunks[i].data) || '';
+          var data = new Buffer(response.chunks[i].data, 'base64').toString('utf8');
           var delay = response.chunks[i].delay;
           this.ttyStream[start+i] = { data, delay};
         }

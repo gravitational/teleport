@@ -63,7 +63,7 @@ var TtyTerminal = React.createClass({
       try{
         this.term.write(data);
       }catch(err){
-        logger.error('write', {data});
+        logger.error('failed to dislpay', {data});
       }
     });
 
