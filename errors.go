@@ -17,6 +17,7 @@ limitations under the License.
 package teleport
 
 import (
+	"crypto/x509"
 	"fmt"
 	"net"
 	"os"
@@ -330,6 +331,8 @@ func ConvertSystemError(err error) error {
 	case *os.PathError:
 		return AccessDenied(
 			fmt.Sprintf("failed to execute command %v error:  %v", realErr.Path, realErr.Err))
+	case x509.SystemRootsError, x509.UnknownAuthorityError:
+		return &TrustError{Err: innerError}
 	default:
 		return err
 	}
@@ -452,5 +455,36 @@ func IsLimitExceeded(e error) bool {
 		IsLimitExceededError() bool
 	}
 	_, ok := e.(ad)
+	return ok
+}
+
+// TrustError means that we can not trust remote party
+type TrustError struct {
+	trace.Traces `json:"traces"`
+	// Err is original error
+	Err error `json:"error"`
+}
+
+// Error returns log-friendly error description
+func (t *TrustError) Error() string {
+	return t.Err.Error()
+}
+
+// IsTrustError indicates that this error is of trust error kind
+func (*TrustError) IsTrustError() bool {
+	return true
+}
+
+// OrigError returns original error (in this case this is the error itself)
+func (t *TrustError) OrigError() error {
+	return t
+}
+
+// IsTrustError returns if this is a trust error
+func IsTrustError(e error) bool {
+	type te interface {
+		IsTrustError() bool
+	}
+	_, ok := e.(te)
 	return ok
 }
