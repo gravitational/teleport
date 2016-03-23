@@ -67,7 +67,7 @@ server.app.get(ROOT +'/*', function (req, res) {
 });
 
 module.exports = function(){
-  server.listen(PORT, "localhost", function() {
+  server.listen(PORT, "0.0.0.0", function() {
     console.log('Dev Server is up and running: https://location:' + PORT +'/web');
   });
 }

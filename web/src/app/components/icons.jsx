@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 var React = require('react');
-var logoSvg = require('assets/img/svg/grv-tlpt-logo.svg');
+var logoSvg = require('assets/img/svg/grv-tlpt-logo-full.svg');
 var classnames = require('classnames');
 
 const TeleportLogo = () => (

@@ -42,7 +42,7 @@ class Tty extends EventEmitter {
   }
 
   connect(options){
-    Object.assign(this.options, options);
+    this.options = { ...this.options, ...options};
 
     logger.info('connect', options);
 
@@ -51,7 +51,7 @@ class Tty extends EventEmitter {
 
     this.socket = new WebSocket(connStr, 'proto');
 
-    this.socket.onopen = () => {      
+    this.socket.onopen = () => {
       this.emit('open');
     }
 

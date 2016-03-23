@@ -18,6 +18,7 @@ var Term = require('Terminal');
 var React = require('react');
 var $ = require('jQuery');
 var {debounce, isNumber} = require('_');
+var logger = require('app/common/logger').create('components/terminal');
 
 Term.colors[256] = '#252323';
 
@@ -41,24 +42,33 @@ var TtyTerminal = React.createClass({
 
   componentDidMount: function() {
     this.term = new Term({
-      cols: 5,
-      rows: 5,
+      cols: 25,
+      rows: 25,
       useStyle: true,
       screenKeys: true,
       cursorBlink: true
     });
 
     this.term.open(this.refs.container);
-    this.term.on('data', (data) => this.tty.send(data));
-
     this.resize(this.cols, this.rows);
 
+    // term events
+    this.term.on('data', (data) => this.tty.send(data));
+
+    // tty events
+    this.tty.on('reset', ()=> this.term.reset());
     this.tty.on('open', ()=> this.term.write(CONNECTED_TXT));
     this.tty.on('close', ()=> this.term.write(DISCONNECT_TXT));
-    this.tty.on('data', (data) => this.term.write(data));
-    this.tty.on('reset', ()=> this.term.reset());
+    this.tty.on('data', (data) => {
+      try{
+        this.term.write(data);
+      }catch(err){
+        logger.error('write', {data});
+      }
+    });
 
     this.tty.connect({cols: this.cols, rows: this.rows});
+
     window.addEventListener('resize', this.debouncedResize);
   },
 
