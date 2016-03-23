@@ -84,7 +84,7 @@ test:
 #
 .PHONY: source-release
 source-release: LINKFLAGS := $(shell linkflags -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)
-source-release: RELEASE := teleport-$(shell linkflags --os-release)-src
+source-release: RELEASE := teleport-$(shell linkflags --tag)-src
 source-release: RELEASEDIR := $(BUILDDIR)/$(RELEASE)
 source-release: flags
 	mkdir -p $(RELEASEDIR)/src/github.com/gravitational/teleport
