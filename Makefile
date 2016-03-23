@@ -104,11 +104,11 @@ binary-release: RELEASE := teleport-$(shell linkflags --os-release)-bin
 binary-release: RELEASEDIR := $(BUILDDIR)/$(RELEASE)
 binary-release: build
 	sed 's_%BUILDFLAGS%_-ldflags "$(LINKFLAGS)"_' build.assets/release/Makefile > $(BUILDDIR)/Makefile
-	tar --transform "s__teleport/_" -cvf $(BUILDDIR)/$(RELEASE).tar LICENSE README.md docs
-	tar --transform "s__teleport/src/$(PKGPATH)/_" -uvf $(BUILDDIR)/$(RELEASE).tar web/dist
-	tar --transform "s_$(BUILDDIR)/_teleport/build/_" -uvf $(BUILDDIR)/$(RELEASE).tar $(BUILDDIR)/tctl $(BUILDDIR)/teleport $(BUILDDIR)/tsh
-	tar --transform "s_$(BUILDDIR)/_teleport/_" -uvf $(BUILDDIR)/$(RELEASE).tar $(BUILDDIR)/Makefile
-	gzip $(BUILDDIR)/$(RELEASE).tar
+	mkdir -p $(BUILDDIR)/$(RELEASE)/teleport/src/$(PKGPATH)/web $(BUILDDIR)/$(RELEASE)/teleport/build
+	cp -r $(BUILDDIR)/Makefile LICENSE README.md docs $(BUILDDIR)/$(RELEASE)/teleport
+	cp -r web/dist $(BUILDDIR)/$(RELEASE)/teleport/src/$(PKGPATH)/web
+	cp -af $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/teleport $(BUILDDIR)/$(RELEASE)/teleport/build
+	tar -czf $(BUILDDIR)/$(RELEASE).tar.gz -C $(BUILDDIR)/$(RELEASE) teleport
 
 flags:
 	$(shell go install $(PKGPATH)/vendor/github.com/gravitational/version/cmd/linkflags)
