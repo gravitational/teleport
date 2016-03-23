@@ -83,7 +83,7 @@ const (
 
 	// SessionRefreshPeriod is how often tsh polls information about session
 	// TODO(klizhentas) all polling periods should go away once backend
-	// releases
+	// releases events
 	SessionRefreshPeriod = 2 * time.Second
 
 	// DefaultDialTimeout is a default TCP dial timeout we set for our
@@ -125,6 +125,18 @@ const (
 
 	// MaxPasswordLength is maximum password length (for sanity)
 	MaxPasswordLength = 128
+
+	// IterationLimit is a default limit if it's not set
+	IterationLimit = 100
+
+	// MaxIterationLimit is max iteration limit
+	MaxIterationLimit = 1000
+
+	// ActiveSessionTTL is a TTL when session is marked as inactive
+	ActiveSessionTTL = 30 * time.Second
+
+	// ActivePartyTTL is a TTL when party is marked as inactive
+	ActivePartyTTL = 30 * time.Second
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport
