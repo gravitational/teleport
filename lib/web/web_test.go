@@ -17,8 +17,8 @@ limitations under the License.
 package web
 
 import (
-	"bufio"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -578,11 +578,29 @@ func (s *WebSuite) TestConnect(c *C) {
 	_, err := io.WriteString(clt, "expr 137 + 39\r\n")
 	c.Assert(err, IsNil)
 
-	reader := bufio.NewReader(clt)
-	line, err := reader.ReadString('6')
-	c.Assert(err, IsNil)
+	resultC := make(chan struct{})
 
-	c.Assert(removeSpace(line), Matches, ".*176.*")
+	go func() {
+		out := make([]byte, 100)
+		for {
+			n, err := clt.Read(out)
+			c.Assert(err, IsNil)
+			decoded, err := base64.StdEncoding.DecodeString(string(out[:n]))
+			c.Assert(err, IsNil)
+			if strings.Contains(removeSpace(string(decoded)), "176") {
+				close(resultC)
+				return
+			}
+		}
+	}()
+
+	select {
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for proper response")
+	case <-resultC:
+		// everything is as expected
+	}
+
 }
 
 func (s *WebSuite) TestNodesWithSessions(c *C) {
