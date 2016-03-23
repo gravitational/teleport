@@ -13,20 +13,17 @@ export
 .PHONY: all
 all: build
 
-.PHONY: build
 build: GOPATH := $(abspath .)
-build:
-	go build -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) $(PKGPATH)/tool/tctl
-	go build -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) $(PKGPATH)/tool/teleport
-	go build -o $(BUILDDIR)/tsh -i $(BUILDFLAGS) $(PKGPATH)/tool/tsh
+build: $(BUILDDIR)/tctl $(BUILDDIR)/teleport $(BUILDDIR)/tsh
+
+$(BUILDDIR)/tctl $(BUILDDIR)/teleport $(BUILDDIR)/tsh:
+	go build -o $@ -i $(BUILDFLAGS) $(PKGPATH)/tool/$(notdir $@)
 
 .PHONY: install
 install: build
-	sudo cp -f $(BUILDDIR)/tctl      $(BINDIR)/
-	sudo cp -f $(BUILDDIR)/tsh       $(BINDIR)/
-	sudo cp -f $(BUILDDIR)/teleport  $(BINDIR)/
+	sudo cp -af $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/teleport      $(BINDIR)/
 	sudo mkdir -p $(DATADIR)
-	sudo cp -fr web/dist/* $(DATADIR)
+	sudo cp -fr src/$(PKGPATH)/web/dist/* $(DATADIR)
 
 .PHONY: clean
 clean:
