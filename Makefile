@@ -78,6 +78,35 @@ test:
 			   $(PKGPATH)/tool/teleport... $(FLAGS)
 	go vet ./tool/... ./lib/...
 
+
+#
+# source-release releases source distribution tarball for this particular version
+#
+.PHONY: source-release
+source-release: LINKFLAGS := $(shell linkflags -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)
+source-release: RELEASE := teleport-$(shell linkflags --os-release)-src
+source-release: RELEASEDIR := $(BUILDDIR)/$(RELEASE)
+source-release: flags
+	mkdir -p $(RELEASEDIR)/src/github.com/gravitational/teleport
+	find -type f | grep -v node_modules | grep -v ./out | grep -v ./.git | grep -v .test$$ > $(BUILDDIR)/files.txt
+	tar --transform "s_./_src/github.com/gravitational/teleport/_" -cvf $(BUILDDIR)/$(RELEASE).tar -T $(BUILDDIR)/files.txt
+	sed 's_%BUILDFLAGS%_-ldflags "$(LINKFLAGS)"_' build.assets/release/Makefile > $(BUILDDIR)/Makefile
+	tar -uvf $(BUILDDIR)/$(RELEASE).tar README.md
+	tar --transform "s_$(BUILDDIR)/__" -uvf $(BUILDDIR)/$(RELEASE).tar $(BUILDDIR)/Makefile
+	gzip $(BUILDDIR)/$(RELEASE).tar
+
+#
+# bianry-release releases binary distribution tarball for this particular version
+#
+.PHONY: binary-release
+binary-release: LINKFLAGS := $(shell linkflags -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)
+binary-release: RELEASE := teleport-$(shell linkflags --os-release)-bin
+binary-release: RELEASEDIR := $(BUILDDIR)/$(RELEASE)
+binary-release: build
+	tar -cvf $(BUILDDIR)/$(RELEASE).tar README.md docs
+	tar --transform "s_$(BUILDDIR)/__" -uvf $(BUILDDIR)/$(RELEASE).tar $(BUILDDIR)/tctl $(BUILDDIR)/teleport $(BUILDDIR)/tsh
+	gzip $(BUILDDIR)/$(RELEASE).tar
+
 flags:
 	$(shell go install $(PKGPATH)/vendor/github.com/gravitational/version/cmd/linkflags)
 	$(eval BUILDFLAGS := $(ADDFLAGS) -ldflags "$(shell linkflags -pkg=$(GOPATH)/src/$(PKGPATH) -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)")
