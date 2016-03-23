@@ -91,7 +91,7 @@ source-release: flags
 	find -type f | grep -v node_modules | grep -v ./out | grep -v ./.git | grep -v .test$$ > $(BUILDDIR)/files.txt
 	tar --transform "s_./_src/github.com/gravitational/teleport/_" -cvf $(BUILDDIR)/$(RELEASE).tar -T $(BUILDDIR)/files.txt
 	sed 's_%BUILDFLAGS%_-ldflags "$(LINKFLAGS)"_' build.assets/release/Makefile > $(BUILDDIR)/Makefile
-	tar -uvf $(BUILDDIR)/$(RELEASE).tar README.md
+	tar -uvf $(BUILDDIR)/$(RELEASE).tar README.md LICENSE
 	tar --transform "s_$(BUILDDIR)/__" -uvf $(BUILDDIR)/$(RELEASE).tar $(BUILDDIR)/Makefile
 	gzip $(BUILDDIR)/$(RELEASE).tar
 
@@ -103,7 +103,7 @@ binary-release: LINKFLAGS := $(shell linkflags -verpkg=$(PKGPATH)/vendor/github.
 binary-release: RELEASE := teleport-$(shell linkflags --os-release)-bin
 binary-release: RELEASEDIR := $(BUILDDIR)/$(RELEASE)
 binary-release: build
-	tar -cvf $(BUILDDIR)/$(RELEASE).tar README.md docs
+	tar -cvf $(BUILDDIR)/$(RELEASE).tar LICENSE README.md docs
 	tar --transform "s_$(BUILDDIR)/__" -uvf $(BUILDDIR)/$(RELEASE).tar $(BUILDDIR)/tctl $(BUILDDIR)/teleport $(BUILDDIR)/tsh
 	gzip $(BUILDDIR)/$(RELEASE).tar
 
