@@ -2,8 +2,11 @@
 
 **Can I use Gravitational Teleport instead of OpenSSH in production today?**
 
-Teleport has been in use internally by Gravitaitonal. The code is open and available for you to inspect.
-Currently Teleport is undergoing an independent security review. We will be more comfortable recommending it for production use once the review will have completed.
+!!! danger "IMPORTANT": 
+    At this time Teleport is NOT recommended for production use, but the code is open and 
+    available for your security team to inspect. Currently Teleport is undergoing an independent 
+    security review. We will be more comfortable recommending it for production use once the 
+    review will have completed.
 
 **Can I use OpenSSH client to connect to servers in a Teleport cluster?**
 

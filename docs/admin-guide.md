@@ -4,6 +4,12 @@ This manual covers installation and configuration of Teleport and the ongoing
 management of a Teleport cluster. It assumes that the reader has good understanding 
 of Linux administration.
 
+!!! danger "IMPORTANT": 
+    At this time Teleport is NOT recommended for production use, but the code is open and 
+    available for your security team to inspect. Currently Teleport is undergoing an independent 
+    security review. We will be more comfortable recommending it for production use once the 
+    review will have completed.
+    
 ## Installation
 
 ### Installing from Source
@@ -54,9 +60,9 @@ directory. Teleport process checks the following locations for its web assets:
    3. `/usr/share/teleport`
    4. `/opt/teleport`
 
-**Security note:** Teleport stores data in `/var/lib/teleport`. Make sure that regular users do not have access to this folder
-of the Auth server, otherwise anyone can gain admin access to Teleport's API.
-
+!!! tip "IMPORTANT": 
+    Teleport stores data in `/var/lib/teleport`. Make sure that regular users do not 
+    have access to this folder of the Auth server, otherwise anyone can gain admin access to Teleport's API.
 
 #### Systemd Unit File
 
@@ -142,8 +148,9 @@ Lets cover some of these flags in more detail:
 Teleport uses YAML file format for configuration. A sample configuration file is shown
 below. By default it is stored in `/etc/teleport.yaml`
 
-**WARNING:** When editing YAML configuration, please pay attention to how your editor 
-             handles white space. YAML requires consistent handling of tab characters.
+!!! note "IMPORTANT": 
+    When editing YAML configuration, please pay attention to how your editor 
+    handles white space. YAML requires consistent handling of tab characters.
 
 ```yaml
 # By default, this file should be stored in /etc/teleport.yaml
@@ -161,7 +168,9 @@ teleport:
 
     # list of auth servers in a cluster. you will have more than one auth server
     # if you configure teleport auth to run in HA configuration
-    auth_servers: 10.1.0.5:3025, 10.1.0.6:3025
+    auth_servers: 
+        - 10.1.0.5:3025
+        - 10.1.0.6:3025
 
     # Teleport throttles all connections to avoid abuse. These settings allow
     # you to adjust the default limits
@@ -480,8 +489,9 @@ You can simply remove the file so that the configuration file's values can take 
 
 To diagnose problems you can configure `teleport` to run with verbose logging enabled.
 
-**WARNING:** it is not recommended to run Teleport in production with verbose logging
-             as it generates substantial amount of data.
+!!! warning "IMPORTANT": 
+    It is not recommended to run Teleport in production with verbose logging
+    as it generates substantial amount of data.
 
 Sometimes you may want to reset `teleport` to a clean state. This can be accomplished
 by erasing everything under `"data_dir"` directory. Assuming the default location, 
