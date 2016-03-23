@@ -18,6 +18,8 @@ var EventEmitter = require('events').EventEmitter;
 var session = require('app/services/session');
 var cfg = require('app/config');
 var {actions} = require('app/modules/currentSession/');
+var Buffer = require('buffer/').Buffer;
+
 const logger = require('app/common/logger').create('Tty');
 
 class Tty extends EventEmitter {
@@ -56,7 +58,8 @@ class Tty extends EventEmitter {
     }
 
     this.socket.onmessage = (e)=>{
-      this.emit('data', e.data);
+      let data = new Buffer(e.data, 'base64').toString('utf8');
+      this.emit('data', data);
     }
 
     this.socket.onclose = ()=>{
