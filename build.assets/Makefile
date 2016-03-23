@@ -3,8 +3,8 @@
 #
 BBOX=teleport-buildbox:latest
 SRCDIR=/gopath/src/github.com/gravitational/teleport
-DOCKERFLAGS=-i --rm=true -v "$$(pwd)/../":$(SRCDIR) -w $(SRCDIR)
-BUILDFLAGS=-ldflags -w
+DOCKERFLAGS=--rm=true -v "$$(pwd)/../":$(SRCDIR) -w $(SRCDIR)
+ADDFLAGS=-ldflags -w
 NOROOT=-u $$(id -u):$$(id -g)
 
 #
@@ -13,7 +13,7 @@ NOROOT=-u $$(id -u):$$(id -g)
 .PHONY:build
 build: bbox
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BBOX) \
-		/bin/bash -c "$(MAKE) -C $(SRCDIR) BUILDFLAGS='$(BUILDFLAGS)' all"
+		/bin/bash -c "$(MAKE) -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' all"
 
 #
 # Builds a Docker container which is used for building official Teleport 

@@ -7,6 +7,11 @@ copyright: Gravitational Inc, 2016
 theme: readthedocs
 site_dir: out/docs
 theme_dir: docs/theme
+markdown_extensions:
+  - markdown_include.include
+  - admonition
+  - def_list
+  - footnotes
 extra_css: 
     - extra/ext.css
 extra_javascript:

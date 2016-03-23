@@ -1,14 +1,16 @@
-BUILDDIR ?= out
+# these are standard autotools variables, don't change them please
+BUILDDIR ?= build
+BINDIR ?= /usr/bin
+DATADIR ?= /usr/share/teleport
+ADDFLAGS ?=
+
 GO15VENDOREXPERIMENT := 1
 PKGPATH=github.com/gravitational/teleport
 PWD ?= $(shell pwd)
 ETCD_CERTS := $(realpath fixtures/certs)
 ETCD_FLAGS := TELEPORT_TEST_ETCD_CONFIG='{"nodes": ["https://localhost:4001"], "key":"/teleport/test", "tls_key_file": "$(ETCD_CERTS)/proxy1-key.pem", "tls_cert_file": "$(ETCD_CERTS)/proxy1.pem", "tls_ca_file": "$(ETCD_CERTS)/ca.pem"}'
 TELEPORT_DEBUG_TESTS ?= no
-OUT := out
 GO15VENDOREXPERIMENT := 1
-INSTALL_BIN_DIR=/usr/bin
-INSTALL_ASSETS_DIR=/usr/share/teleport
 export
 
 .PHONY: install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd 
@@ -17,31 +19,36 @@ export
 # Default target: builds all 3 executables and plaaces them in a current directory
 #
 .PHONY: all
-all: flags teleport tctl tsh assets
+all: build
+
+.PHONY: build
+build: flags teleport tctl tsh assets
 
 .PHONY: tctl
 tctl: 
-	go build -o $(OUT)/tctl -i $(BUILDFLAGS) $(PKGPATH)/tool/tctl
+	go build -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) $(PKGPATH)/tool/tctl
 
 .PHONY: teleport 
 teleport: flags
-	go build -o $(OUT)/teleport -i $(BUILDFLAGS) $(PKGPATH)/tool/teleport
+	go build -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) $(PKGPATH)/tool/teleport
 
 .PHONY: tsh
 tsh: 
-	go build -o $(OUT)/tsh -i $(BUILDFLAGS) $(PKGPATH)/tool/tsh
+	go build -o $(BUILDDIR)/tsh -i $(BUILDFLAGS) $(PKGPATH)/tool/tsh
 
-install: 
-	$(eval BUILDFLAGS=-ldflags -w)
-	go build -o $(OUT)/tctl     $(BUILDFLAGS) $(PKGPATH)/tool/tctl
-	go build -o $(OUT)/teleport $(BUILDFLAGS) $(PKGPATH)/tool/teleport
-	go build -o $(OUT)/tsh      $(BUILDFLAGS) $(PKGPATH)/tool/tsh
-	sudo cp -f $(OUT)/tctl      $(INSTALL_BIN_DIR)/
-	sudo cp -f $(OUT)/tsh       $(INSTALL_BIN_DIR)/
-	sudo cp -f $(OUT)/teleport  $(INSTALL_BIN_DIR)/
-	sudo mkdir -p $(INSTALL_ASSETS_DIR)
-	sudo cp -fr web/dist/* $(INSTALL_ASSETS_DIR)
-	go build -ldflags $(TELEPORT_LINKFLAGS) -o $(BUILDDIR)/tctl $(BUILDFLAGS) -i $(PKGPATH)/tool/tctl
+.PHONY: install
+install: build
+	sudo cp -f $(BUILDDIR)/tctl      $(BINDIR)/
+	sudo cp -f $(BUILDDIR)/tsh       $(BINDIR)/
+	sudo cp -f $(BUILDDIR)/teleport  $(BINDIR)/
+	sudo mkdir -p $(DATADIR)
+	sudo cp -fr web/dist/* $(DATADIR)
+
+.PHONY: goinstall
+goinstall: flags
+	go install $(BUILDFLAGS) $(PKGPATH)/tool/tctl
+	go install $(BUILDFLAGS) $(PKGPATH)/tool/teleport
+	go install $(PKGPATH)/tool/tsh
 
 
 .PHONY: clean
@@ -71,9 +78,41 @@ test:
 			   $(PKGPATH)/tool/teleport... $(FLAGS)
 	go vet ./tool/... ./lib/...
 
+
+#
+# source-release releases source distribution tarball for this particular version
+#
+.PHONY: source-release
+source-release: LINKFLAGS := $(shell linkflags -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)
+source-release: RELEASE := teleport-$(shell linkflags --tag)-src
+source-release: RELEASEDIR := $(BUILDDIR)/$(RELEASE)
+source-release: flags
+	mkdir -p $(RELEASEDIR)/src/github.com/gravitational/teleport
+	find -type f | grep -v node_modules | grep -v ./build | grep -v ./.git | grep -v .test$$ > $(BUILDDIR)/files.txt
+	tar --transform "s_./_teleport/src/github.com/gravitational/teleport/_" -cvf $(BUILDDIR)/$(RELEASE).tar -T $(BUILDDIR)/files.txt
+	sed 's_%BUILDFLAGS%_-ldflags "$(LINKFLAGS)"_' build.assets/release/Makefile > $(BUILDDIR)/Makefile
+	tar --transform "s__teleport/_" -uvf $(BUILDDIR)/$(RELEASE).tar README.md LICENSE docs
+	tar --transform "s_$(BUILDDIR)/_teleport/_" -uvf $(BUILDDIR)/$(RELEASE).tar $(BUILDDIR)/Makefile
+	gzip $(BUILDDIR)/$(RELEASE).tar
+
+#
+# bianry-release releases binary distribution tarball for this particular version
+#
+.PHONY: binary-release
+binary-release: LINKFLAGS := $(shell linkflags -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)
+binary-release: RELEASE := teleport-$(shell linkflags --os-release)-bin
+binary-release: RELEASEDIR := $(BUILDDIR)/$(RELEASE)
+binary-release: build
+	sed 's_%BUILDFLAGS%_-ldflags "$(LINKFLAGS)"_' build.assets/release/Makefile > $(BUILDDIR)/Makefile
+	mkdir -p $(BUILDDIR)/$(RELEASE)/teleport/src/$(PKGPATH)/web $(BUILDDIR)/$(RELEASE)/teleport/build
+	cp -r $(BUILDDIR)/Makefile LICENSE README.md docs $(BUILDDIR)/$(RELEASE)/teleport
+	cp -r web/dist $(BUILDDIR)/$(RELEASE)/teleport/src/$(PKGPATH)/web
+	cp -af $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/teleport $(BUILDDIR)/$(RELEASE)/teleport/build
+	tar -czf $(BUILDDIR)/$(RELEASE).tar.gz -C $(BUILDDIR)/$(RELEASE) teleport
+
 flags:
 	$(shell go install $(PKGPATH)/vendor/github.com/gravitational/version/cmd/linkflags)
-	$(eval TELEPORT_LINKFLAGS := "$(shell linkflags -pkg=$(GOPATH)/src/$(PKGPATH) -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)")
+	$(eval BUILDFLAGS := $(ADDFLAGS) -ldflags "$(shell linkflags -pkg=$(GOPATH)/src/$(PKGPATH) -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)")
 
 
 test-with-etcd: install

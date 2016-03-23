@@ -677,7 +677,6 @@ func (c *TunClient) setAuthServers(servers []utils.NetAddr) {
 	c.Lock()
 	defer c.Unlock()
 
-	log.Infof("setAuthServers(%#v)", servers)
 	c.authServers = servers
 }
 
