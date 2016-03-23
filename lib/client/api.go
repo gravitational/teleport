@@ -550,7 +550,16 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		}
 		// if we get here, it means we failed to authenticate using stored keys
 		// and we need to ask for the login information
-		tc.Login()
+		err := tc.Login()
+		if err != nil {
+			// we need to communicate directly to user here,
+			// otherwise user will see endless loop with no explanation
+			if teleport.IsTrustError(err) {
+				fmt.Printf("ERROR: refusing to connect to untrusted proxy %v without --insecure flag\n", tc.Config.ProxyHostPort(defaults.HTTPListenPort))
+			} else {
+				fmt.Printf("ERROR: %v\n", err)
+			}
+		}
 	}
 }
 
@@ -560,6 +569,14 @@ func (tc *TeleportClient) makeInteractiveAuthMethod() ssh.AuthMethod {
 	callbackFunc := func() (signers []ssh.Signer, err error) {
 		if err = tc.Login(); err != nil {
 			log.Error(err)
+			// we need to communicate directly to user here,
+			// otherwise user will see endless loop with no explanation
+			if teleport.IsTrustError(err) {
+				fmt.Printf("ERROR: refusing to connect to untrusted proxy %v without --insecure flag\n", tc.Config.ProxyHostPort(defaults.HTTPListenPort))
+			} else {
+				fmt.Printf("ERROR: %v\n", err)
+			}
+
 			return nil, trace.Wrap(err)
 		}
 		return tc.localAgent.Signers()
@@ -567,7 +584,7 @@ func (tc *TeleportClient) makeInteractiveAuthMethod() ssh.AuthMethod {
 	return ssh.PublicKeysCallback(callbackFunc)
 }
 
-// login asks for a password + HOTP token, makes a request to CA via proxy and
+// Login asks for a password + HOTP token, makes a request to CA via proxy and
 // saves the generated credentials into local keystore for future use
 func (tc *TeleportClient) Login() error {
 	password, hotpToken, err := tc.AskPasswordAndHOTP()
@@ -586,6 +603,7 @@ func (tc *TeleportClient) Login() error {
 	response, err := web.SSHAgentLogin(tc.Config.ProxyHostPort(defaults.HTTPListenPort), tc.Config.Login,
 		password, hotpToken, pub, tc.KeyTTL, tc.InsecureSkipVerify)
 	if err != nil {
+
 		return trace.Wrap(err)
 	}
 
@@ -643,7 +661,7 @@ func connectToSSHAgent() agent.Agent {
 	return agent.NewClient(conn)
 }
 
-// username returns the current user's username
+// Username returns the current user's username
 func Username() string {
 	u, err := user.Current()
 	if err != nil {
