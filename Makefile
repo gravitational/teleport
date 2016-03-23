@@ -10,10 +10,7 @@ PWD ?= $(shell pwd)
 ETCD_CERTS := $(realpath fixtures/certs)
 ETCD_FLAGS := TELEPORT_TEST_ETCD_CONFIG='{"nodes": ["https://localhost:4001"], "key":"/teleport/test", "tls_key_file": "$(ETCD_CERTS)/proxy1-key.pem", "tls_cert_file": "$(ETCD_CERTS)/proxy1.pem", "tls_ca_file": "$(ETCD_CERTS)/ca.pem"}'
 TELEPORT_DEBUG_TESTS ?= no
-GO15VENDOREXPERIMENT := 1
 export
-
-.PHONY: install test test-with-etcd remove-temp files test-package update test-grep-package cover-package cover-package-with-etcd run profile sloccount set-etcd 
 
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
@@ -71,6 +68,7 @@ docs:
 #
 # tests everything: called by Jenkins
 #
+.PHONY: test
 test: FLAGS ?= -cover
 test: 
 	go test -v $(PKGPATH)/tool/tsh/... \
@@ -110,42 +108,55 @@ binary-release: build
 	cp -af $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/teleport $(BUILDDIR)/$(RELEASE)/teleport/build
 	tar -czf $(BUILDDIR)/$(RELEASE).tar.gz -C $(BUILDDIR)/$(RELEASE) teleport
 
+.PHONY: flags
 flags:
 	$(shell go install $(PKGPATH)/vendor/github.com/gravitational/version/cmd/linkflags)
 	$(eval BUILDFLAGS := $(ADDFLAGS) -ldflags "$(shell linkflags -pkg=$(GOPATH)/src/$(PKGPATH) -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)")
 
 
-test-with-etcd: install
+.PHONY: test-with-etcd
+test-with-etcd: remove-temp-files
 	${ETCD_FLAGS} go test -v -test.parallel=0 $(shell go list ./... | grep -v /vendor/) -cover
 
-test-package: remove-temp-files install
+.PHONY: test-package
+test-package: remove-temp-files
 	go test -v -test.parallel=0 ./$(p)
 
-test-package-with-etcd: remove-temp-files install
+.PHONY: tets-package-with-etcd
+test-package-with-etcd: remove-temp-files
 	${ETCD_FLAGS} go test -v -test.parallel=0 ./$(p)
 
-test-grep-package-with-etcd: remove-temp-files install
+.PHONY: test-grep-package-with-etcd
+test-grep-package-with-etcd: remove-temp-files
 	${ETCD_FLAGS} go test -v -test.parallel=0 ./$(p) -check.f=$(e)
 
-
-test-grep-package: remove-temp-files install
+.PHONY: test-grep-package
+test-grep-package: remove-temp-files
 	go test -v ./$(p) -check.f=$(e)
 
+.PHONY: cover-package
 cover-package: remove-temp-files
 	go test -v ./$(p)  -coverprofile=/tmp/coverage.out
 	go tool cover -html=/tmp/coverage.out
 
+.PHONY: cover-package-with-etcd
 cover-package-with-etcd: remove-temp-files
 	${ETCD_FLAGS} go test -v ./$(p)  -coverprofile=/tmp/coverage.out
 	go tool cover -html=/tmp/coverage.out
 
+.PHONY: profile
 profile:
 	go tool pprof http://localhost:6060/debug/pprof/profile
 
+.PHONY: sloccount
 sloccount:
 	find . -path ./vendor -prune -o -name "*.go" -print0 | xargs -0 wc -l
 
 # start-test-etcd starts test etcd node using tls certificates
+.PHONY: start-test-etcd
 start-test-etcd:
 	docker run -d -p 4001:4001 -p 2380:2380 -p 2379:2379 -v $(ETCD_CERTS):/certs quay.io/coreos/etcd:v2.2.5  -name etcd0 -advertise-client-urls https://localhost:2379,https://localhost:4001  -listen-client-urls https://0.0.0.0:2379,https://0.0.0.0:4001  -initial-advertise-peer-urls https://localhost:2380  -listen-peer-urls https://0.0.0.0:2380  -initial-cluster-token etcd-cluster-1  -initial-cluster etcd0=https://localhost:2380  -initial-cluster-state new --cert-file=/certs/etcd1.pem --key-file=/certs/etcd1-key.pem --peer-cert-file=/certs/etcd1.pem --peer-key-file=/certs/etcd1-key.pem --peer-client-cert-auth --peer-trusted-ca-file=/certs/ca.pem -client-cert-auth
 
+.PHONY: remove-temp-files
+remove-temp-files:
+	find . -name flymake_* -delete

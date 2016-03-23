@@ -142,8 +142,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	h.GET("/webapi/sites/:site/connect", h.withSiteAuth(h.siteNodeConnect))
 	// get session event stream
 	h.GET("/webapi/sites/:site/sessions/:sid/events/stream", h.withSiteAuth(h.siteSessionStream))
-	// create a new session
-	h.POST("/webapi/sites/:site/sessions", h.withSiteAuth(h.siteSessionCreate))
+	// generate a new session
+	h.POST("/webapi/sites/:site/sessions", h.withSiteAuth(h.siteSessionGenerate))
 	// update session parameters
 	h.PUT("/webapi/sites/:site/sessions/:sid", h.withSiteAuth(h.siteSessionUpdate))
 	// get session
@@ -533,15 +533,15 @@ func (m *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p ht
 	return nil, nil
 }
 
-type siteSessionCreateReq struct {
+type siteSessionGenerateReq struct {
 	Session session.Session `json:"session"`
 }
 
-type siteSessionCreateResponse struct {
+type siteSessionGenerateResponse struct {
 	Session session.Session `json:"session"`
 }
 
-// siteSessionCreate creates a new site session
+// siteSessionCreate generates a new site session that can be used by UI
 //
 // POST /v1/webapi/sites/:site/sessions
 //
@@ -553,24 +553,16 @@ type siteSessionCreateResponse struct {
 //
 // {"session": {"id": "session-id", "terminal_params": {"w": 100, "h": 100}, "login": "centos"}}
 //
-func (m *Handler) siteSessionCreate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	var req *siteSessionCreateReq
+func (m *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	var req *siteSessionGenerateReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	client, err := ctx.GetClient()
-	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	req.Session.ID = session.NewID()
 	req.Session.Created = time.Now().UTC()
 	req.Session.LastActive = time.Now().UTC()
-	err = client.CreateSession(req.Session)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	log.Infof("Created session: %#v", req.Session)
-	return siteSessionCreateResponse{Session: req.Session}, nil
+	log.Infof("Generated session: %#v", req.Session)
+	return siteSessionGenerateResponse{Session: req.Session}, nil
 }
 
 type siteSessionUpdateReq struct {

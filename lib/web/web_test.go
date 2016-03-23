@@ -687,11 +687,11 @@ func (s *WebSuite) TestCreateSession(c *C) {
 
 	re, err := pack.clt.PostJSON(
 		pack.clt.Endpoint("webapi", "sites", s.domainName, "sessions"),
-		siteSessionCreateReq{Session: sess},
+		siteSessionGenerateReq{Session: sess},
 	)
 	c.Assert(err, IsNil)
 
-	var created *siteSessionCreateResponse
+	var created *siteSessionGenerateResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &created), IsNil)
 	c.Assert(created.Session.ID, Not(Equals), "")
 }

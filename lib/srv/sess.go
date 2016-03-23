@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/recorder"
 	rsession "github.com/gravitational/teleport/lib/session"
@@ -245,7 +246,7 @@ func (s *session) upsertSessionParty(sid rsession.ID, p *party) error {
 		ServerID:   p.serverID,
 		RemoteAddr: p.site,
 		LastActive: p.getLastActive(),
-	}, rsession.DefaultActivePartyTTL)
+	}, defaults.ActivePartyTTL)
 }
 
 // startShell starts a new shell process in the current session

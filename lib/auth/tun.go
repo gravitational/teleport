@@ -613,12 +613,10 @@ func (c *TunClient) Dial(network, address string) (net.Conn, error) {
 func (c *TunClient) fetchAndSync() error {
 	authServers, err := c.fetchAuthServers()
 	if err != nil {
-		log.Infof("failed to fetch auth servers")
 		return trace.Wrap(err)
 	}
 	if len(authServers) == 0 {
-		log.Warningf("no auth servers received")
-		return trace.Wrap(teleport.NotFound("no auth servers"))
+		return trace.Wrap(teleport.NotFound("no auth servers with remote ips advertised"))
 	}
 	// set runtime information about auth servers
 	c.setAuthServers(authServers)
@@ -637,7 +635,7 @@ func (c *TunClient) syncAuthServers() {
 		case <-c.refreshTicker.C:
 			err := c.fetchAndSync()
 			if err != nil {
-				log.Infof("failed to fetch and sync servers: %v", err)
+				log.Infof("fetch and sync servers: %v", err)
 				continue
 			}
 		case <-c.closeC:
@@ -657,7 +655,9 @@ func (c *TunClient) fetchAuthServers() ([]utils.NetAddr, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		authServers = append(authServers, *serverAddr)
+		if !serverAddr.IsLocal() {
+			authServers = append(authServers, *serverAddr)
+		}
 	}
 	return authServers, nil
 }
