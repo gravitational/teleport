@@ -161,6 +161,7 @@ func newSessionRegistry(srv *Server) *sessionRegistry {
 }
 
 type session struct {
+	sync.Mutex
 	id          rsession.ID
 	eid         lunk.EventID
 	registry    *sessionRegistry
@@ -278,13 +279,13 @@ func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) er
 	// start recording the session (if enabled)
 	sessionRecorder := s.registry.srv.rec
 	if sessionRecorder != nil {
-		w, err := newChunkWriter(s.id, sessionRecorder, s.registry.srv.ID())
+		w, err := newChunkWriter(string(s.id), s, sessionRecorder)
 		if err != nil {
 			p.ctx.Errorf("failed to create recorder: %v", err)
 			return trace.Wrap(err)
 		}
 		s.chunkWriter = w
-		s.registry.srv.emit(ctx.eid, events.NewShellSession(string(s.id), sconn, shellCmd, w.rid))
+		s.registry.srv.emit(ctx.eid, events.NewShellSession(string(s.id), sconn, shellCmd, w.recordID))
 		s.writer.addWriter("capture", w, false)
 	} else {
 		s.registry.srv.emit(ctx.eid, events.NewShellSession(string(s.id), sconn, shellCmd, ""))
@@ -532,23 +533,23 @@ func (p *party) Close() error {
 	return p.s.registry.leaveShell(p.s.id, p.id)
 }
 
-func newChunkWriter(sessionID rsession.ID, rec recorder.Recorder, serverID string) (*chunkWriter, error) {
-	cw, err := rec.GetChunkWriter(string(sessionID))
+func newChunkWriter(recordID string, sess *session, rec recorder.Recorder) (*chunkWriter, error) {
+	cw, err := rec.GetChunkWriter(recordID)
 	if err != nil {
 		return nil, err
 	}
 	return &chunkWriter{
+		recordID: recordID,
 		w:        cw,
-		rid:      string(sessionID),
-		serverID: serverID,
+		sess:     sess,
 	}, nil
 }
 
 type chunkWriter struct {
 	before   time.Time
-	rid      string
+	recordID string
 	w        recorder.ChunkWriteCloser
-	serverID string
+	sess     *session
 }
 
 func (l *chunkWriter) Write(b []byte) (int, error) {
@@ -561,7 +562,12 @@ func (l *chunkWriter) Write(b []byte) (int, error) {
 		l.before = now
 	}
 	cs := []recorder.Chunk{
-		recorder.Chunk{Delay: diff, Data: b, ServerID: l.serverID},
+		recorder.Chunk{
+			Delay:          diff,
+			Data:           b,
+			ServerID:       l.sess.registry.srv.ID(),
+			TerminalParams: l.sess.term.getTerminalParams(),
+		},
 	}
 	if err := l.w.WriteChunks(cs); err != nil {
 		return 0, err
