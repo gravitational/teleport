@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/recorder"
+	"github.com/gravitational/teleport/lib/session"
 
 	. "gopkg.in/check.v1"
 )
@@ -36,8 +37,8 @@ func (s *RecorderSuite) Recorder(c *C) {
 	c.Assert(err, IsNil)
 
 	c1 := recorder.Chunk{Data: []byte("chunk1"), ServerID: "id1"}
-	c2 := recorder.Chunk{Delay: 3 * time.Millisecond, Data: []byte("chunk2"), ServerID: "id2"}
-	c3 := recorder.Chunk{Delay: 5 * time.Millisecond, Data: []byte("chunk3"), ServerID: "id3"}
+	c2 := recorder.Chunk{Delay: 3 * time.Millisecond, Data: []byte("chunk2"), ServerID: "id2", TerminalParams: session.TerminalParams{W: 3, H: 2}}
+	c3 := recorder.Chunk{Delay: 5 * time.Millisecond, Data: []byte("chunk3"), ServerID: "id3", TerminalParams: session.TerminalParams{W: 4, H: 6}}
 
 	c.Assert(w.WriteChunks([]recorder.Chunk{c1, c2}), IsNil)
 

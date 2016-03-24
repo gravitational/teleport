@@ -21,6 +21,8 @@ package recorder
 import (
 	"io"
 	"time"
+
+	"github.com/gravitational/teleport/lib/session"
 )
 
 // Recorder is a session recoreder and playback
@@ -41,6 +43,8 @@ type Chunk struct {
 	Delay time.Duration `json:"delay"`
 	// ServerID is a server ID of the recorded session
 	ServerID string `json:"server_id"`
+	// TerminalParams contains terminal params
+	TerminalParams session.TerminalParams `json:"term"`
 }
 
 // ChunkReader is a playback of a recorded session

@@ -37,10 +37,11 @@ import (
 type terminal struct {
 	sync.WaitGroup
 	sync.Mutex
-	pty  *os.File
-	tty  *os.File
-	err  error
-	done bool
+	pty    *os.File
+	tty    *os.File
+	err    error
+	done   bool
+	params rsession.TerminalParams
 }
 
 func parsePTYReq(req *ssh.Request) (*sshutils.PTYReqParams, error) {
@@ -102,7 +103,19 @@ func (t *terminal) setWinsize(params rsession.TerminalParams) error {
 		return trace.Wrap(teleport.NotFound("no pty"))
 	}
 	log.Infof("window resize %v", &params)
-	return trace.Wrap(term.SetWinsize(t.pty.Fd(), params.Winsize()))
+	if err := term.SetWinsize(t.pty.Fd(), params.Winsize()); err != nil {
+		return trace.Wrap(err)
+	}
+	t.params = params
+	return nil
+}
+
+// getTerminalParams is a fast call to get cached terminal parameters
+// and avoid extra system call
+func (t *terminal) getTerminalParams() rsession.TerminalParams {
+	t.Lock()
+	defer t.Unlock()
+	return t.params
 }
 
 func (t *terminal) closeTTY() {
