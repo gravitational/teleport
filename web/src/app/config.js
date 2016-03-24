@@ -20,7 +20,7 @@ let cfg = {
 
   baseUrl: window.location.origin,
 
-  helpUrl: 'https://github.com/gravitational/teleport/blob/master/README.md',
+  helpUrl: 'http://gravitational.com/teleport/docs/quickstart/',
 
   maxSessionLoadSize: 50,
 

@@ -81,21 +81,25 @@ var SessionPlayer = React.createClass({
 
     return (
      <div className="grv-current-session grv-session-player">
-       <SessionLeftPanel/>
+       <SessionLeftPanel/>       
        <TtyTerminal ref="term" tty={this.tty} cols={w} rows={h} />
-       <ReactSlider
-          min={this.state.min}
-          max={this.state.length}
-          value={this.state.current}
-          onAfterChange={this.onAfterChange}
-          onBeforeChange={this.onBeforeChange}
-          defaultValue={1}
-          withBars
-          className="grv-slider">
-       </ReactSlider>
-       <button className="btn" onClick={this.togglePlayStop}>
-         { isPlaying ? <i className="fa fa-stop"></i> :  <i className="fa fa-play"></i> }
-       </button>
+       <div className="grv-session-player-controls">
+         <button className="btn" onClick={this.togglePlayStop}>
+           { isPlaying ? <i className="fa fa-stop"></i> :  <i className="fa fa-play"></i> }
+         </button>
+         <div className="grv-flex-column">
+           <ReactSlider
+              min={this.state.min}
+              max={this.state.length}
+              value={this.state.current}
+              onAfterChange={this.onAfterChange}
+              onBeforeChange={this.onBeforeChange}
+              defaultValue={1}
+              withBars
+              className="grv-slider">
+           </ReactSlider>
+         </div>
+        </div>
      </div>
      );
   }

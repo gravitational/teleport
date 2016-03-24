@@ -43,8 +43,8 @@ var TtyTerminal = React.createClass({
 
   componentDidMount: function() {
     this.term = new Term({
-      cols: 25,
-      rows: 25,
+      cols: 15,
+      rows: 5,
       useStyle: true,
       screenKeys: true,
       cursorBlink: true
@@ -106,7 +106,6 @@ var TtyTerminal = React.createClass({
 
     this.cols = cols;
     this.rows = rows;
-
     this.term.resize(this.cols, this.rows);
   },
 

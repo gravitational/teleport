@@ -15,5 +15,36 @@ limitations under the License.
 */
 
 .grv-session-player{
-  padding: 30px 50px 80px 90px;
+  padding: 15px 25px 50px 90px;
+
+/*
+  .grv-terminal{
+    font-size: 13px;
+    display: flex;
+    .terminal{
+      margin: 0 auto!important;
+    font-size: 13px;
+    }
+  }
+*/
+
+  .grv-session-player-controls{
+    margin-top: 10px;
+    height: 30px;
+    display: flex;
+
+    .grv-flex-column{
+      align-self: center;
+    }
+
+    .btn{
+      padding: 0 12px;
+    }
+
+    .grv-slider{
+      display: block;
+      height: 20px;
+      padding: 0;
+    }
+  }
 }

@@ -67,10 +67,8 @@ var ActiveSession = React.createClass({
        <div className="grv-current-session-server-info">
          <h3>{serverLabelText}</h3>
        </div>
-       <div style={{height: '100%'}}>
-         <TtyTerminal ref="ttyCmntInstance" tty={this.tty} cols={this.props.cols} rows={this.props.rows} />
-         { this.state.isConnected ? <EventStreamer sid={this.props.sid}/> : null }
-       </div>
+       <TtyTerminal ref="ttyCmntInstance" tty={this.tty} cols={this.props.cols} rows={this.props.rows} />
+       { this.state.isConnected ? <EventStreamer sid={this.props.sid}/> : null }       
      </div>
      );
   }
