@@ -14,8 +14,6 @@ markdown_extensions:
   - footnotes
 extra_css: 
     - extra/ext.css
-extra_javascript:
-    - extra/ext.js
 pages:
     - QuickStart Guide: quickstart.md
     - Architecture: architecture.md

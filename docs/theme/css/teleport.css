@@ -245,17 +245,17 @@ a:visited{
 ------------------*/
 @font-face {
     font-family: "Colfax Regular";
-    src: url(fonts/Colfax-Regular.ttf);
+    src: url(../fonts/Colfax-Regular.ttf);
 }
 
 @font-face {
     font-family: "Colfax Medium";
-    src: url(fonts/Colfax-Medium.ttf);
+    src: url(../fonts/Colfax-Medium.ttf);
 }
 
 @font-face {
     font-family: "Colfax Bold";
-    src: url(fonts/Colfax-Bold.ttf);
+    src: url(../fonts/Colfax-Bold.ttf);
 }
 
 @-webkit-keyframes load
