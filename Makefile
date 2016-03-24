@@ -1,7 +1,7 @@
 # these are standard autotools variables, don't change them please
 BUILDDIR ?= build
-BINDIR ?= /usr/bin
-DATADIR ?= /usr/share/teleport
+BINDIR ?= /usr/local/bin
+DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 
 GO15VENDOREXPERIMENT := 1

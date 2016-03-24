@@ -1,8 +1,8 @@
 # these are standard autotools variables, don't change them please
 BUILDDIR ?= build
 BUILDFLAGS ?= %BUILDFLAGS%
-BINDIR ?= /usr/bin
-DATADIR ?= /usr/share/teleport
+BINDIR ?= /usr/local/bin
+DATADIR ?= /usr/local/share/teleport
 PKGPATH := github.com/gravitational/teleport
 GO15VENDOREXPERIMENT := 1
 export
