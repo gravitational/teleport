@@ -362,7 +362,7 @@ turing        d52527f9-b260    10.1.0.5:3022   kernel=3.19.0-56,uptime=up 1 hour
 
 ## Using Teleport with OpenSSH
 
-Teleport is a fully standards-compliant SSH proxy and it can work in environments with with 
+Teleport is a fully standards-compliant SSH proxy and it can work in environments with 
 existing SSH implementations, such as OpenSSH. This section will cover:
 
 * Configuring OpenSSH client `ssh` to login into nodes inside a Teleport cluster.
