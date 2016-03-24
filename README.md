@@ -20,6 +20,18 @@ practices:
 Teleport is built on top of the high-quality [Golang SSH](https://godoc.org/golang.org/x/crypto/ssh) 
 implementation and it is fully compatible with OpenSSH.
 
+## Installing and Running
+
+Download the latest binary release, unpack the .tar.gz and run `sudo make install`.
+This will copy Teleport binaries into `/usr/local/bin` and the web assets 
+to `/usr/local/share/teleport`.
+
+Then you can run Teleport as a single-node cluster:
+
+```
+teleport start 
+```
+
 ## Why Build Teleport?
 
 Mature tech companies with significant infrastructure footprints tend to implement most
@@ -47,7 +59,8 @@ The best way to contribute is to create issues or pull requests right here on Gi
 ### Building
 
 Teleport is written in Go. If you have Golang 1.5 and newer, simply clone this repository
-and run `make`. You'll have to create `/var/lib/teleport` directory and then you can start Teleport as a single-node cluster in development mode: `build/teleport start -d`
+and run `make`. You'll have to create `/var/lib/teleport` directory and then you can start 
+Teleport as a single-node cluster in development mode: `build/teleport start -d`
 
 ## Status
 
