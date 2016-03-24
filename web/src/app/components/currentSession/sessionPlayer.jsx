@@ -22,12 +22,16 @@ var SessionLeftPanel = require('./sessionLeftPanel');
 
 var SessionPlayer = React.createClass({
   calculateState(){
+    let {w, h } = this.tty.getDimensions();
+
     return {
       length: this.tty.length,
       min: 1,
       isPlaying: this.tty.isPlaying,
       current: this.tty.current,
-      canPlay: this.tty.length > 1
+      canPlay: this.tty.length > 1,
+      w,
+      h
     };
   },
 
@@ -47,6 +51,8 @@ var SessionPlayer = React.createClass({
       var newState = this.calculateState();
       this.setState(newState);
     });
+
+    this.tty.play();
   },
 
   togglePlayStop(){
@@ -71,12 +77,12 @@ var SessionPlayer = React.createClass({
   },
 
   render: function() {
-    var {isPlaying} = this.state;
+    var {isPlaying, w, h} = this.state;
 
     return (
      <div className="grv-current-session grv-session-player">
        <SessionLeftPanel/>
-       <TtyTerminal ref="term" tty={this.tty} cols="5" rows="5" />
+       <TtyTerminal ref="term" tty={this.tty} cols={w} rows={h} />
        <ReactSlider
           min={this.state.min}
           max={this.state.length}

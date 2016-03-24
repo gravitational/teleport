@@ -94,7 +94,7 @@ function _fetch(end, sid){
 
       /**
       * remove at least 1 item before storing the sessions, this way we ensure that
-      * there always will be at least one new item on the next 'fetchMore' request.
+      * there will be always at least one item on the next 'fetchMore' request.
       */
       sessions = sessions.slice(0, maxSessionLoadSize-1);
     }

@@ -33,8 +33,9 @@ var TtyTerminal = React.createClass({
     this.tty = this.props.tty;
 
     this.debouncedResize = debounce(()=>{
-      this.resize();
-      this.tty.resize(this.cols, this.rows);
+      // tell back-end to resize
+      let {cols, rows} = this._getDimensions();
+      this.tty.resize(cols, rows);
     }, 200);
 
     return {};

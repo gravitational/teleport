@@ -47,6 +47,18 @@ class TtyPlayer extends Tty {
   resize(){
   }
 
+  getDimensions(){
+    let chunkInfo = this.ttyStream[this.current-1];
+    if(chunkInfo){
+       return {
+         w: chunkInfo.w,
+         h: chunkInfo.h
+       }
+    }else{
+      return {w: undefined, h: undefined};
+    }
+  }
+
   connect(){
     api.get(cfg.api.getFetchSessionLengthUrl(this.sid))
       .done((data)=>{
@@ -133,9 +145,9 @@ class TtyPlayer extends Tty {
     return api.get(cfg.api.getFetchSessionChunkUrl({sid: this.sid, start, end})).
       done((response)=>{
         for(var i = 0; i < end-start; i++){
-          var data = new Buffer(response.chunks[i].data, 'base64').toString('utf8');
-          var delay = response.chunks[i].delay;
-          this.ttyStream[start+i] = { data, delay};
+          let {data, delay, term: {h, w}} = response.chunks[i];
+          data = new Buffer(data, 'base64').toString('utf8');
+          this.ttyStream[start+i] = { data, delay, w, h };
         }
       })
       .fail((err)=>{
