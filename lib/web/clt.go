@@ -2,6 +2,7 @@ package web
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"net/http"
 	"net/url"
 
@@ -15,6 +16,14 @@ func newInsecureClient() *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+}
+
+func newClientWithPool(pool *x509.CertPool) *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{RootCAs: pool},
 		},
 	}
 }

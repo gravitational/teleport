@@ -19,8 +19,11 @@ package client
 import (
 	"bufio"
 	"bytes"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"net"
 	"os"
@@ -601,7 +604,7 @@ func (tc *TeleportClient) Login() error {
 
 	// ask the CA (via proxy) to sign our public key:
 	response, err := web.SSHAgentLogin(tc.Config.ProxyHostPort(defaults.HTTPListenPort), tc.Config.Login,
-		password, hotpToken, pub, tc.KeyTTL, tc.InsecureSkipVerify)
+		password, hotpToken, pub, tc.KeyTTL, tc.InsecureSkipVerify, loopbackPool(tc.Config.ProxyHostPort(defaults.HTTPListenPort)))
 	if err != nil {
 
 		return trace.Wrap(err)
@@ -644,6 +647,40 @@ func (tc *TeleportClient) Login() error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// loopbackPool reads trusted CAs if it finds it in a predefined location
+// and will work only if target proxy address is loopback
+func loopbackPool(proxyAddr string) *x509.CertPool {
+	if !utils.IsLoopback(proxyAddr) {
+		log.Debugf("not using loopback pool for remote proxy addr: %v", proxyAddr)
+		return nil
+	}
+	log.Debugf("attempting to use loopback pool for local proxy addr: %v", proxyAddr)
+	certPool := x509.NewCertPool()
+
+	certPath := filepath.Join(defaults.DataDir, defaults.SelfSignedCertPath)
+	pemByte, err := ioutil.ReadFile(certPath)
+	if err != nil {
+		log.Debugf("could not open any path in: %v", certPath)
+		return nil
+	}
+
+	for {
+		var block *pem.Block
+		block, pemByte = pem.Decode(pemByte)
+		if block == nil {
+			break
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			log.Debugf("could not parse cert in: %v, err: %v", certPath, err)
+			return nil
+		}
+		certPool.AddCert(cert)
+	}
+	log.Debugf("using local pool for loopback proxy: %v, err: %v", certPath, err)
+	return certPool
 }
 
 // connects to a local SSH agent
