@@ -39,6 +39,7 @@ test:
 .PHONY:docs
 docs: bbox
 	docker run $(DOCKERFLAGS) -ti $(NOROOT) -e HOME=$(SRCDIR)/build.assets $(BBOX) mkdocs build
+	@echo "\nSUCCESS: Teleport docs ----> build/docs\n"
 
 #
 # Starts shell inside the build container

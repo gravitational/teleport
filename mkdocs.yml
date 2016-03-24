@@ -5,7 +5,7 @@ site_description: SSH infrastructure for clusters and teams
 site_author: Gravitational Inc
 copyright: Gravitational Inc, 2016
 theme: readthedocs
-site_dir: out/docs
+site_dir: build/docs
 theme_dir: docs/theme
 markdown_extensions:
   - markdown_include.include

@@ -283,3 +283,7 @@ a:visited{
 		opacity: 1;
 	}
 }
+
+/* size of the content area */
+div.wy-nav-content { max-width: 1000px; }
+.rst-content table.docutils td { overflow: hidden; white-space: normal }
