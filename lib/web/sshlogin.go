@@ -1,6 +1,7 @@
 package web
 
 import (
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -20,27 +21,11 @@ const (
 	WSS = "wss"
 )
 
-// isLocalhost returns 'true' if a given hostname resolves to local
-// host's loopback interface
-func isLocalhost(host string) bool {
-	ips, err := net.LookupIP(host)
-	if err != nil {
-		log.Error(err)
-		return false
-	}
-	for _, ip := range ips {
-		if ip.IsLoopback() {
-			return true
-		}
-	}
-	return false
-}
-
 // SSHAgentLogin issues call to web proxy and receives temp certificate
 // if credentials are valid
 //
 // proxyAddr must be specified as host:port
-func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte, ttl time.Duration, insecure bool) (*SSHLoginResponse, error) {
+func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool) (*SSHLoginResponse, error) {
 	// validate proxyAddr:
 	host, port, err := net.SplitHostPort(proxyAddr)
 	if err != nil || host == "" || port == "" {
@@ -55,11 +40,12 @@ func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte, t
 
 	var opts []roundtrip.ClientParam
 
-	// skip https key verification?
-	if insecure || isLocalhost(host) {
-		if insecure {
-			fmt.Printf("WARNING: You are using insecure connection to SSH proxy %v\n", proxyAddr)
-		}
+	if pool != nil {
+		// use custom set of trusted CAs
+		opts = append(opts, roundtrip.HTTPClient(newClientWithPool(pool)))
+	} else if insecure {
+		// skip https cert verification, oh no!
+		fmt.Printf("WARNING: You are using insecure connection to SSH proxy %v\n", proxyAddr)
 		opts = append(opts, roundtrip.HTTPClient(newInsecureClient()))
 	}
 

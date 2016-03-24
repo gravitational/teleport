@@ -18,6 +18,9 @@ var EventEmitter = require('events').EventEmitter;
 var session = require('app/services/session');
 var cfg = require('app/config');
 var {actions} = require('app/modules/currentSession/');
+var Buffer = require('buffer/').Buffer;
+var {isNumber} = require('_');
+
 const logger = require('app/common/logger').create('Tty');
 
 class Tty extends EventEmitter {
@@ -56,7 +59,8 @@ class Tty extends EventEmitter {
     }
 
     this.socket.onmessage = (e)=>{
-      this.emit('data', e.data);
+      let data = new Buffer(e.data, 'base64').toString('utf8');
+      this.emit('data', data);
     }
 
     this.socket.onclose = ()=>{
@@ -65,7 +69,11 @@ class Tty extends EventEmitter {
   }
 
   resize(cols, rows){
-    actions.resize(cols, rows);
+    if(isNumber(cols) && isNumber(rows) && cols > 0 && rows > 0){
+      actions.resize(cols, rows);
+    }else{
+      logger.error('invalid resize parameters', {cols, rows});
+    }
   }
 
   send(data){
