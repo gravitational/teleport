@@ -47,7 +47,7 @@ The best way to contribute is to create issues or pull requests right here on Gi
 ### Building
 
 Teleport is written in Go. If you have Golang 1.5 and newer, simply clone this repository
-and run `make`.
+and run `make`. You'll have to create `/var/lib/teleport` directory and then you can start Teleport as a single-node cluster in development mode: `build/teleport start -d`
 
 ## Status
 
