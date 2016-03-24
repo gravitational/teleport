@@ -29,12 +29,22 @@ Gravitational Teleport natively runs on most Linux distributions. You can
 download pre-built binaries from [here](https://github.com/gravitational/teleport/releases)
 or you can [build it from source](https://github.com/gravitational/teleport).
 
+After downloading the binary tarball, run:
+
+```
+tar -xzf teleport-binary-release.tar.gz
+sudo make install
+```
+
+This will copy Teleport binaries to `/usr/local/bin` and the web assets 
+to `/usr/local/share/teleport`.
+
 Let's start Teleport on a single-node. First, create a directory for Teleport 
 to keep its data. By default it's `/var/lib/teleport`. Then start `teleport` daemon:
 
 ```bash
 mkdir -p /var/lib/teleport
-teleport start
+sudo teleport start
 ```
 
 At this point you should see Teleport print listening IPs of all 3 services into the console.
