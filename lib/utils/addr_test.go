@@ -102,3 +102,21 @@ func (s *AddrTestSuite) TestLocalAddrs(c *C) {
 			Commentf("test case %v, %v should be local(%v)", i, testCase.in, testCase.expected))
 	}
 }
+
+func (s *AddrTestSuite) TestLoopbackAddrs(c *C) {
+	testCases := []struct {
+		in       string
+		expected bool
+	}{
+		{in: "localhost", expected: true},
+		{in: "127.0.0.2", expected: true},
+		{in: "", expected: false},
+		{in: "bad-host.example.com", expected: false},
+	}
+	for i, testCase := range testCases {
+		addr, err := ParseAddr(testCase.in)
+		c.Assert(err, IsNil)
+		c.Assert(addr.IsLoopback(), Equals, testCase.expected,
+			Commentf("test case %v, %v should be loopback(%v)", i, testCase.in, testCase.expected))
+	}
+}

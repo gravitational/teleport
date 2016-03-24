@@ -73,7 +73,7 @@ func (a *Client) Login(proxyAddr string,
 	}
 
 	login, err := web.SSHAgentLogin(proxyAddr, user, pass, hotpToken,
-		pub, ttl, insecure)
+		pub, ttl, insecure, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
