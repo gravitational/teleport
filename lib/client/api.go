@@ -604,7 +604,7 @@ func (tc *TeleportClient) Login() error {
 
 	// ask the CA (via proxy) to sign our public key:
 	response, err := web.SSHAgentLogin(tc.Config.ProxyHostPort(defaults.HTTPListenPort), tc.Config.Login,
-		password, hotpToken, pub, tc.KeyTTL, tc.InsecureSkipVerify, localPool(tc.Config.ProxyHostPort(defaults.HTTPListenPort)))
+		password, hotpToken, pub, tc.KeyTTL, tc.InsecureSkipVerify, loopbackPool(tc.Config.ProxyHostPort(defaults.HTTPListenPort)))
 	if err != nil {
 
 		return trace.Wrap(err)
@@ -649,17 +649,14 @@ func (tc *TeleportClient) Login() error {
 	return nil
 }
 
-// localPool reads trusted CAs if it finds it in a predefined location
+// loopbackPool reads trusted CAs if it finds it in a predefined location
 // and will work only if target proxy address is loopback
-func localPool(proxyAddr string) *x509.CertPool {
-	addr, err := utils.ParseAddr(proxyAddr)
-	if err != nil {
-		log.Debugf("could not parse proxy addr: %v", proxyAddr, err)
+func loopbackPool(proxyAddr string) *x509.CertPool {
+	if !utils.IsLoopback(proxyAddr) {
+		log.Debugf("not using loopback pool for remote proxy addr: %v", proxyAddr)
 		return nil
 	}
-	if !addr.IsLoopback() {
-		return nil
-	}
+	log.Debugf("attempting to use loopback pool for local proxy addr: %v", proxyAddr)
 	certPool := x509.NewCertPool()
 
 	certPath := filepath.Join(defaults.DataDir, defaults.SelfSignedCertPath)

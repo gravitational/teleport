@@ -50,11 +50,7 @@ func (a *NetAddr) IsLocal() bool {
 
 // IsLoopback returns true if this is a loopback address
 func (a *NetAddr) IsLoopback() bool {
-	host, _, err := net.SplitHostPort(a.Addr)
-	if err != nil {
-		return false
-	}
-	return IsLoopback(host)
+	return IsLoopback(a.Addr)
 }
 
 // IsEmpty returns true if address is empty
@@ -230,6 +226,13 @@ func IsLocalhost(host string) bool {
 // IsLoopback returns 'true' if a given hostname resolves to local
 // host's loopback interface
 func IsLoopback(host string) bool {
+	if strings.Contains(host, ":") {
+		var err error
+		host, _, err = net.SplitHostPort(host)
+		if err != nil {
+			return false
+		}
+	}
 	ips, err := net.LookupIP(host)
 	if err != nil {
 		return false
