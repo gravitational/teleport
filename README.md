@@ -3,8 +3,12 @@
 ## Introduction
 
 Gravitational Teleport ("Teleport") is a tool for remotely accessing isolated clusters of 
-Linux servers via SSH or HTTPS. Unlike traditional key-based access, Teleport 
-enables teams to easily adopt the following practices:
+Linux servers via SSH or HTTPS. 
+
+Docs and other info can be found on [http://gravitational.com/teleport](http://gravitational.com/teleport)
+
+Unlike traditional key-based access, Teleport enables teams to easily adopt the following 
+practices:
 
 - Avoid key distribution and [trust on first use](https://en.wikipedia.org/wiki/Trust_on_first_use) issues by using auto-expiring keys signed by a cluster certificate authority (CA).
 - Enforce 2nd factor authentication.
