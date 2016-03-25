@@ -91,6 +91,11 @@ a:visited{
 
 /* Navigation Left Panel Overrides
 -------------------------------------------------------------- */
+
+.wy-nav-content-wrap .wy-nav-top a:visited {
+  color: white;  
+}
+
 .wy-body-for-nav{
   background-image: none;
 }

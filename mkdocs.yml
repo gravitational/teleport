@@ -12,8 +12,8 @@ markdown_extensions:
   - admonition
   - def_list
   - footnotes
-extra_css: 
-    - extra/ext.css
+extra_css: []
+extra_javascript: []
 pages:
     - QuickStart Guide: quickstart.md
     - Architecture: architecture.md
