@@ -113,7 +113,7 @@ binary-release: build
 .PHONY: flags
 flags:
 	$(shell go install $(PKGPATH)/vendor/github.com/gravitational/version/cmd/linkflags)
-	$(eval BUILDFLAGS := $(ADDFLAGS) -ldflags "$(shell linkflags -pkg=$(GOPATH)/src/$(PKGPATH) -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)")
+	$(eval BUILDFLAGS := $(ADDFLAGS) -ldflags "-w $(shell linkflags -pkg=$(GOPATH)/src/$(PKGPATH) -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)")
 
 
 .PHONY: test-with-etcd
