@@ -43,7 +43,7 @@ type AccessPoint interface {
 	UpsertProxy(s services.Server, ttl time.Duration) error
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType services.CertAuthType) ([]*services.CertAuthority, error)
+	GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error)
 
 	// GetWebSessionsKeys returns a list of generated public keys
 	// associated with user web session

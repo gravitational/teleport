@@ -368,6 +368,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
 		Client:      tunClt,
 		HostSigners: []ssh.Signer{s.signer},
+		HostUUID:    s.domainName,
 	})
 	c.Assert(err, IsNil)
 

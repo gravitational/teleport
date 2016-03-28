@@ -183,6 +183,9 @@ var (
 
 	// ETCDPrefix is default key in ETCD clustered configurations
 	ETCDPrefix = "/teleport"
+
+	// ConfigEnvar is a name of teleport's configuration environment variable
+	ConfigEnvar = "TELEPORT_CONFIG"
 )
 
 const (

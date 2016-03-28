@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package utils
 
 import (
@@ -39,7 +40,7 @@ func (s *UtilsSuite) TestHostUUID(c *check.C) {
 	uuid, err = ReadOrMakeHostUUID("/")
 	c.Assert(err, check.NotNil)
 	c.Assert(uuid, check.Equals, "")
-	c.Assert(err.Error(), check.Matches, "^.*permission error.*$")
+	c.Assert(err.Error(), check.Matches, "^.*permission denied.*$")
 }
 
 func (s *UtilsSuite) TestSelfSignedCert(c *check.C) {

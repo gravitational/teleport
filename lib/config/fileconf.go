@@ -17,15 +17,23 @@ limitations under the License.
 package config
 
 import (
+	"bytes"
+	"encoding/base64"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v2"
@@ -34,41 +42,55 @@ import (
 var (
 	// all possible valid YAML config keys
 	validKeys = map[string]bool{
-		"teleport":          true,
-		"enabled":           true,
-		"ssh_service":       true,
-		"proxy_service":     true,
-		"auth_service":      true,
-		"auth_token":        true,
-		"auth_servers":      true,
-		"domain_name":       true,
-		"storage":           true,
-		"nodename":          true,
-		"log":               true,
-		"period":            true,
-		"connection_limits": true,
-		"max_connections":   true,
-		"max_users":         true,
-		"rates":             true,
-		"commands":          true,
-		"labels":            false,
-		"output":            true,
-		"severity":          true,
-		"role":              true,
-		"name":              true,
-		"type":              true,
-		"data_dir":          true,
-		"peers":             true,
-		"prefix":            true,
-		"web_listen_addr":   true,
-		"ssh_listen_addr":   true,
-		"listen_addr":       true,
-		"https_key_file":    true,
-		"https_cert_file":   true,
-		"advertise_ip":      true,
-		"tls_key_file":      true,
-		"tls_cert_file":     true,
-		"tls_ca_file":       true,
+		"cert_file":          true,
+		"private_key_file":   true,
+		"cert":               true,
+		"private_key":        true,
+		"checking_keys":      true,
+		"checking_key_files": true,
+		"signing_keys":       true,
+		"signing_key_files":  true,
+		"allowed_logins":     true,
+		"teleport":           true,
+		"enabled":            true,
+		"ssh_service":        true,
+		"proxy_service":      true,
+		"auth_service":       true,
+		"auth_token":         true,
+		"auth_servers":       true,
+		"domain_name":        true,
+		"storage":            true,
+		"nodename":           true,
+		"log":                true,
+		"period":             true,
+		"connection_limits":  true,
+		"max_connections":    true,
+		"max_users":          true,
+		"rates":              true,
+		"commands":           true,
+		"labels":             false,
+		"output":             true,
+		"severity":           true,
+		"role":               true,
+		"name":               true,
+		"type":               true,
+		"data_dir":           true,
+		"peers":              true,
+		"prefix":             true,
+		"web_listen_addr":    true,
+		"ssh_listen_addr":    true,
+		"listen_addr":        true,
+		"https_key_file":     true,
+		"https_cert_file":    true,
+		"advertise_ip":       true,
+		"tls_key_file":       true,
+		"tls_cert_file":      true,
+		"tls_ca_file":        true,
+		"authorities":        true,
+		"keys":               true,
+		"secrets":            true,
+		"rts":                true,
+		"addresses":          true,
 	}
 )
 
@@ -77,30 +99,53 @@ var (
 //
 // Use config.ReadFromFile() to read the parsed FileConfig from a YAML file.
 type FileConfig struct {
-	Global `yaml:"teleport,omitempty"`
-	Auth   Auth  `yaml:"auth_service,omitempty"`
-	SSH    SSH   `yaml:"ssh_service,omitempty"`
-	Proxy  Proxy `yaml:"proxy_service,omitempty"`
+	Global         `yaml:"teleport,omitempty"`
+	Auth           Auth            `yaml:"auth_service,omitempty"`
+	SSH            SSH             `yaml:"ssh_service,omitempty"`
+	Proxy          Proxy           `yaml:"proxy_service,omitempty"`
+	Secrets        Secrets         `yaml:"secrets,omitempty"`
+	ReverseTunnels []ReverseTunnel `yaml:"rts,omitempty"`
 }
 
 type YAMLMap map[interface{}]interface{}
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
 // format is supported
-func ReadFromFile(fp string) (fc *FileConfig, err error) {
-	ext := strings.ToLower(filepath.Ext(fp))
+func ReadFromFile(filePath string) (*FileConfig, error) {
+	ext := strings.ToLower(filepath.Ext(filePath))
 	if ext != ".yaml" && ext != ".yml" {
-		return nil, trace.Errorf("invalid configuration file type: '%v'. Only .yml is supported", fp)
+		return nil, trace.Wrap(
+			teleport.BadParameter(filePath,
+				fmt.Sprintf("invalid configuration file type: '%v'. Only .yml is supported", ext)))
 	}
-
-	fc = &FileConfig{}
-	// read & parse YAML config:
-	bytes, err := ioutil.ReadFile(fp)
+	f, err := os.Open(filePath)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed reading Teleport configuration: %v", fp)
+		return nil, trace.Wrap(err, fmt.Sprintf("failed to open file: %v", filePath))
 	}
-	if err = yaml.Unmarshal(bytes, fc); err != nil {
-		return nil, trace.Wrap(err, "failed to parse Teleport configuration: %v", fp)
+	defer f.Close()
+	return ReadConfig(f)
+}
+
+// ReadFromString reads values from base64 encoded byte string
+func ReadFromString(configString string) (*FileConfig, error) {
+	data, err := base64.StdEncoding.DecodeString(configString)
+	if err != nil {
+		return nil, trace.Wrap(teleport.BadParameter(
+			"config", fmt.Sprintf("confiugraion should be base64 encoded: %v", err)))
+	}
+	return ReadConfig(bytes.NewBuffer(data))
+}
+
+// ReadConfig reads Teleport configuration from reader in YAML format
+func ReadConfig(reader io.Reader) (*FileConfig, error) {
+	// read & parse YAML config:
+	bytes, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed reading Teleport configuration")
+	}
+	var fc FileConfig
+	if err = yaml.Unmarshal(bytes, &fc); err != nil {
+		return nil, trace.Wrap(err, "failed to parse Teleport configuration")
 	}
 	// now check for unknown (misspelled) config keys:
 	var validateKeys func(m YAMLMap) error
@@ -131,7 +176,7 @@ func ReadFromFile(fp string) (fc *FileConfig, err error) {
 	if err = validateKeys(tmp); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return fc, nil
+	return &fc, nil
 }
 
 // MakeSampleFileConfig returns a sample config structure populated by defaults,
@@ -345,4 +390,126 @@ type Proxy struct {
 	WebAddr  string `yaml:"web_listen_addr,omitempty"`
 	KeyFile  string `yaml:"https_key_file,omitempty"`
 	CertFile string `yaml:"https_cert_file,omitempty"`
+}
+
+// Secrets hold additional initialization secrets passed to the process
+type Secrets struct {
+	// Authorities is a list of authorities that auth server will add
+	// to the backend on the first start
+	Authorities []Authority `yaml:"authorities,omitempty"`
+	// Keys is the list of keys set for this server
+	Keys []KeyPair `yaml:"keys,omitempty"`
+}
+
+// ReverseTunnel is a SSH reverse tunnel mantained by one cluster's
+// proxy to remote Teleport proxy
+type ReverseTunnel struct {
+	DomainName string   `yaml:"domain_name"`
+	Addresses  []string `yaml:"addresses"`
+}
+
+// Tunnel returns validated services.ReverseTunnel or nil and error otherwize
+func (t *ReverseTunnel) Tunnel() (*services.ReverseTunnel, error) {
+	out := &services.ReverseTunnel{
+		DomainName: t.DomainName,
+		DialAddrs:  t.Addresses,
+	}
+	if err := out.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return out, nil
+}
+
+// KeyPair is a pair of private key and certificates
+type KeyPair struct {
+	// PrivateKeyFile is a path to file with private key
+	PrivateKeyFile string `yaml:"private_key_file"`
+	// CertFile is a path to file with OpenSSH certificate
+	CertFile string `yaml:"cert_file"`
+	// PrivateKey is PEM encoded OpenSSH private key
+	PrivateKey string `yaml:"private_key"`
+	// Cert is certificate in OpenSSH authorized keys format
+	Cert string `yaml:"cert"`
+}
+
+// Identity parses keypair into auth server identity
+func (k *KeyPair) Identity() (*auth.Identity, error) {
+	var keyBytes []byte
+	var err error
+	if k.PrivateKeyFile != "" {
+		keyBytes, err = ioutil.ReadFile(k.PrivateKeyFile)
+		if err != nil {
+			return nil, teleport.ConvertSystemError(err)
+		}
+	} else {
+		keyBytes = []byte(k.PrivateKey)
+	}
+	var certBytes []byte
+	if k.CertFile != "" {
+		certBytes, err = ioutil.ReadFile(k.CertFile)
+		if err != nil {
+			return nil, teleport.ConvertSystemError(err)
+		}
+	} else {
+		certBytes = []byte(k.Cert)
+	}
+	return auth.ReadIdentityFromKeyPair(keyBytes, certBytes)
+}
+
+// Authority is a host or user certificate authority that
+// can check and if it has private key stored as well, sign it too
+type Authority struct {
+	// Type is either user or host certificate authority
+	Type services.CertAuthType `yaml:"type"`
+	// DomainName identifies domain name this authority serves,
+	// for host authorities that means base hostname of all servers,
+	// for user authorities that means organization name
+	DomainName string `yaml:"domain_name"`
+	// Checkers is a list of SSH public keys that can be used to check
+	// certificate signatures in OpenSSH authorized keys format
+	CheckingKeys []string `yaml:"checking_keys"`
+	// CheckingKeyFiles is a list of files
+	CheckingKeyFiles []string `yaml:"checking_key_files"`
+	// SigningKeys is a list of PEM-encoded private keys used for signing
+	SigningKeys []string `yaml:"signing_keys"`
+	// SigningKeyFiles is a list of paths to PEM encoded private keys used for signing
+	SigningKeyFiles []string `yaml:"signing_key_files"`
+	// AllowedLogins is a list of allowed logins for users within
+	// this certificate authority
+	AllowedLogins []string `yaml:"allowed_logins"`
+}
+
+// Parse reads values and returns parsed CertAuthority
+func (a *Authority) Parse() (*services.CertAuthority, error) {
+	ca := &services.CertAuthority{
+		AllowedLogins: a.AllowedLogins,
+		DomainName:    a.DomainName,
+		Type:          a.Type,
+	}
+
+	for _, path := range a.CheckingKeyFiles {
+		keyBytes, err := utils.ReadPath(path)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ca.CheckingKeys = append(ca.CheckingKeys, keyBytes)
+	}
+
+	for _, val := range a.CheckingKeys {
+		ca.CheckingKeys = append(ca.CheckingKeys, []byte(val))
+	}
+
+	for _, path := range a.SigningKeyFiles {
+		keyBytes, err := utils.ReadPath(path)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ca.SigningKeys = append(ca.SigningKeys, keyBytes)
+	}
+
+	for _, val := range a.SigningKeys {
+		ca.SigningKeys = append(ca.SigningKeys, []byte(val))
+	}
+
+	return ca, nil
 }

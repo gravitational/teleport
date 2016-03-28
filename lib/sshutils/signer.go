@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package sshutils
 
 import (
@@ -21,6 +22,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// NewSigner returns new ssh Signer using OpenSSH certificates
+// to authenticate itself
 func NewSigner(keyBytes, certBytes []byte) (ssh.Signer, error) {
 	keySigner, err := ssh.ParsePrivateKey(keyBytes)
 	if err != nil {

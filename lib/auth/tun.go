@@ -208,7 +208,7 @@ func (s *AuthTunnel) isUserAuthority(auth ssh.PublicKey) bool {
 }
 
 func (s *AuthTunnel) getTrustedCAKeys(CertType services.CertAuthType) ([]ssh.PublicKey, error) {
-	cas, err := s.authServer.GetCertAuthorities(CertType)
+	cas, err := s.authServer.GetCertAuthorities(CertType, false)
 	if err != nil {
 		return nil, err
 	}
@@ -515,7 +515,8 @@ type TunClient struct {
 // exposed over SSH tunnel, so client  uses SSH credentials to dial and authenticate
 func NewTunClient(authServers []utils.NetAddr, user string, authMethods []ssh.AuthMethod, opts ...TunClientOption) (*TunClient, error) {
 	if user == "" {
-		return nil, trace.Wrap(teleport.BadParameter("user", "SSH connection requires a valid username"))
+		return nil, trace.Wrap(
+			teleport.BadParameter("user", "SSH connection requires a valid username"))
 	}
 	tc := &TunClient{
 		user:          user,

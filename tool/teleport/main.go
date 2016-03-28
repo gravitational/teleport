@@ -83,6 +83,9 @@ func run(cmdlineArgs []string, testRun bool) (executedCommand string, appliedCon
 	start.Flag("config",
 		fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
 		Short('c').ExistingFileVar(&ccf.ConfigFile)
+	start.Flag("config-string",
+		"Base64 encoded configuration string").Hidden().Envar(defaults.ConfigEnvar).
+		StringVar(&ccf.ConfigString)
 	start.Flag("labels", "List of labels for this node").StringVar(&ccf.Labels)
 	start.Flag("httpprofile",
 		"Start profiling endpoint on localhost:6060").Hidden().BoolVar(&ccf.HTTPProfileEndpoint)

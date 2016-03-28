@@ -330,7 +330,7 @@ func (s *Server) getCommandLabels() map[string]services.CommandLabel {
 
 func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser string) error {
 	// find cert authority by it's key
-	cas, err := s.authService.GetCertAuthorities(services.UserCA)
+	cas, err := s.authService.GetCertAuthorities(services.UserCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -395,7 +395,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 // key is the real CA authority key.
 func (s *Server) isAuthority(cert ssh.PublicKey) bool {
 	// find cert authority by it's key
-	cas, err := auth.RetryingClient(s.authService, 20).GetCertAuthorities(services.UserCA)
+	cas, err := auth.RetryingClient(s.authService, 20).GetCertAuthorities(services.UserCA, true)
 	if err != nil {
 		log.Warningf("%v", err)
 		return false

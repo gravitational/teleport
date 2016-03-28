@@ -10,19 +10,29 @@ import (
 // Role identifies the role of SSH server connection
 type Role string
 
+// Set sets the value of the role from string, used to integrate with CLI tools
+func (r *Role) Set(v string) error {
+	val := Role(strings.Title(v))
+	if err := val.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	*r = val
+	return nil
+}
+
 // String returns debug-friendly representation of this role
-func (r Role) String() string {
-	return fmt.Sprintf("%v", strings.ToUpper(string(r)))
+func (r *Role) String() string {
+	return fmt.Sprintf("%v", strings.ToUpper(string(*r)))
 }
 
 // Check checks if this a a valid role value, returns nil
 // if it's ok, false otherwise
-func (r Role) Check() error {
-	switch r {
+func (r *Role) Check() error {
+	switch *r {
 	case RoleAuth, RoleUser, RoleWeb, RoleNode, RoleAdmin, RoleProvisionToken, RoleSignup, RoleProxy:
 		return nil
 	}
-	return trace.Wrap(BadParameter("role", fmt.Sprintf("%v is not supported", r)))
+	return trace.Wrap(BadParameter("role", fmt.Sprintf("%v is not supported", *r)))
 }
 
 const (

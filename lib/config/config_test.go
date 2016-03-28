@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"encoding/base64"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -24,6 +25,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
+
 	"gopkg.in/check.v1"
 )
 
@@ -111,7 +114,7 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(conf, check.NotNil)
 
-	// good config
+	// static config
 	conf, err = ReadFromFile(s.configFile)
 	c.Assert(err, check.IsNil)
 	c.Assert(conf, check.NotNil)
@@ -138,10 +141,20 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(conf.Proxy.ListenAddress, check.Equals, "tcp://proxy_ssh_addr")
 	c.Assert(conf.Proxy.WebAddr, check.Equals, "tcp://web_addr")
 
-	// static config:
+	// good config from file
 	conf, err = ReadFromFile(s.configFileStatic)
 	c.Assert(err, check.IsNil)
 	c.Assert(conf, check.NotNil)
+	checkStaticConfig(c, conf)
+
+	// good config from base64 encoded string
+	conf, err = ReadFromString(base64.StdEncoding.EncodeToString([]byte(StaticConfigString)))
+	c.Assert(err, check.IsNil)
+	c.Assert(conf, check.NotNil)
+	checkStaticConfig(c, conf)
+}
+
+func checkStaticConfig(c *check.C, conf *FileConfig) {
 	c.Assert(conf.AuthToken, check.Equals, "xxxyyy")
 	c.Assert(conf.SSH.Enabled(), check.Equals, false)      // YAML treats 'no' as False
 	c.Assert(conf.Proxy.Configured(), check.Equals, false) // Missing "proxy_service" section must lead to 'not configured'
@@ -172,6 +185,16 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(conf.SSH.Commands[1].Command, check.DeepEquals, []string{"/bin/date"})
 	c.Assert(conf.SSH.Commands[1].Period.Nanoseconds(), check.Equals, int64(20000000))
 
+	c.Assert(conf.Secrets.Keys[0].PrivateKey, check.Equals, "private key")
+	c.Assert(conf.Secrets.Keys[0].Cert, check.Equals, "node.cert")
+	c.Assert(conf.Secrets.Keys[1].PrivateKeyFile, check.Equals, "/proxy.key.file")
+	c.Assert(conf.Secrets.Keys[1].CertFile, check.Equals, "/proxy.cert.file")
+	c.Assert(conf.Secrets.Authorities[0].Type, check.Equals, services.HostCA)
+	c.Assert(conf.Secrets.Authorities[0].DomainName, check.Equals, "example.com")
+	c.Assert(conf.Secrets.Authorities[0].CheckingKeys[0], check.Equals, "checking key 1")
+	c.Assert(conf.Secrets.Authorities[0].CheckingKeyFiles[0], check.Equals, "/ca.checking.key")
+	c.Assert(conf.Secrets.Authorities[0].SigningKeys[0], check.Equals, "signing key 1")
+	c.Assert(conf.Secrets.Authorities[0].SigningKeyFiles[0], check.Equals, "/ca.signing.key")
 }
 
 var (
@@ -292,5 +315,23 @@ ssh_service:
   - name: date
     command: [/bin/date]
     period: 20ms
+
+secrets:
+  keys: 
+  - cert: node.cert
+    private_key: !!binary cHJpdmF0ZSBrZXk=
+  - cert_file: /proxy.cert.file
+    private_key_file: /proxy.key.file
+  authorities: 
+  - type: host
+    domain_name: example.com
+    checking_keys: 
+      - checking key 1
+    checking_key_files:
+      - /ca.checking.key
+    signing_keys: 
+      - !!binary c2lnbmluZyBrZXkgMQ==
+    signing_key_files:
+      - /ca.signing.key
 `
 )

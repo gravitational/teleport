@@ -38,6 +38,8 @@ type AgentPoolConfig struct {
 	EventLog events.Log
 	// HostSigners is a list of host signers this agent presents itself as
 	HostSigners []ssh.Signer
+	// HostUUID is a unique ID of this host
+	HostUUID string
 }
 
 // NewAgentPool returns new isntance of the agent pool
@@ -47,6 +49,9 @@ func NewAgentPool(cfg AgentPoolConfig) (*AgentPool, error) {
 	}
 	if len(cfg.HostSigners) == 0 {
 		return nil, trace.Wrap(teleport.BadParameter("HostSigners", "missing host signers"))
+	}
+	if len(cfg.HostUUID) == 0 {
+		return nil, trace.Wrap(teleport.BadParameter("HostUUID", "missing host UUID"))
 	}
 	if cfg.EventLog == nil {
 		cfg.EventLog = events.NullEventLogger
@@ -127,7 +132,7 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 
 	for _, key := range agentsToAdd {
 		m.Infof("adding %v", &key)
-		agent, err := NewAgent(key.addr, key.domainName, m.cfg.HostSigners, m.cfg.Client, SetEventLogger(m.cfg.EventLog))
+		agent, err := NewAgent(key.addr, m.cfg.HostUUID, m.cfg.HostSigners, m.cfg.Client, SetEventLogger(m.cfg.EventLog))
 		if err != nil {
 			return trace.Wrap(err)
 		}

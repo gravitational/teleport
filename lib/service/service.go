@@ -51,6 +51,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
+	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -82,13 +83,35 @@ type TeleportProcess struct {
 	localAuth *auth.AuthServer
 }
 
-// loginIntoAuthService attempts to login into the auth servers specified in the
+func (process *TeleportProcess) findStaticIdentity(id auth.IdentityID) (*auth.Identity, error) {
+	for i := range process.Config.Identities {
+		identity := process.Config.Identities[i]
+		if identity.ID.Equals(id) {
+			return identity, nil
+		}
+	}
+	return nil, trace.Wrap(teleport.NotFound(fmt.Sprintf("identity %v not found", &id)))
+}
+
+// connectToAuthService attempts to login into the auth servers specified in the
 // configuration. Returns 'true' if successful
 func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*connector, error) {
-	identity, err := auth.ReadIdentity(
-		process.Config.DataDir, auth.IdentityID{HostUUID: process.Config.HostUUID, Role: role})
+	id := auth.IdentityID{HostUUID: process.Config.HostUUID, Role: role}
+	identity, err := auth.ReadIdentity(process.Config.DataDir, id)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if teleport.IsNotFound(err) {
+			// try to locate static identity provide in the file
+			identity, err = process.findStaticIdentity(id)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			log.Infof("found static identity %v in the config file, writing to disk", &id)
+			if err = auth.WriteIdentity(process.Config.DataDir, identity); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		} else {
+			return nil, trace.Wrap(err)
+		}
 	}
 	storage := utils.NewFileAddrStorage(
 		filepath.Join(process.Config.DataDir, "authservers.json"))
@@ -126,7 +149,7 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*conne
 // and starts them under a supervisor, returning the supervisor object
 func NewTeleport(cfg *Config) (Supervisor, error) {
 	if err := validateConfig(cfg); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	// create the data directory if it's missing
@@ -138,10 +161,23 @@ func NewTeleport(cfg *Config) (Supervisor, error) {
 		}
 	}
 
-	// read or generate a host UUID for this node
-	cfg.HostUUID, err = utils.ReadOrMakeHostUUID(cfg.DataDir)
+	// if there's no host uuid initialized yet, try to read one from the
+	// one of the identities
+	cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if !teleport.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		if len(cfg.Identities) != 0 {
+			cfg.HostUUID = cfg.Identities[0].ID.HostUUID
+			log.Infof("[INIT] taking host uuid from first identity: %v", cfg.HostUUID)
+		} else {
+			cfg.HostUUID = uuid.New()
+			log.Infof("[INIT] generating new host UUID: %v", cfg.HostUUID)
+		}
+		if err := utils.WriteHostUUID(cfg.DataDir, cfg.HostUUID); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// if user started auth and another service (without providing the auth address for
@@ -230,9 +266,9 @@ func (process *TeleportProcess) initAuthService() error {
 		DomainName:      cfg.Auth.DomainName,
 		AuthServiceName: cfg.Hostname,
 		DataDir:         cfg.DataDir,
-		SecretKey:       cfg.Auth.SecretKey,
-		AllowedTokens:   cfg.Auth.AllowedTokens,
 		HostUUID:        cfg.HostUUID,
+		Authorities:     cfg.Auth.Authorities,
+		ReverseTunnels:  cfg.ReverseTunnels,
 	}
 	authServer, identity, err := auth.Init(acfg)
 	if err != nil {
@@ -471,6 +507,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *connector) error {
 
 	// Register reverse tunnel agents pool
 	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
+		HostUUID:    conn.identity.ID.HostUUID,
 		Client:      conn.client,
 		EventLog:    conn.client,
 		HostSigners: []ssh.Signer{conn.identity.KeySigner},
@@ -597,6 +634,18 @@ func validateConfig(cfg *Config) error {
 
 	if len(cfg.AuthServers) == 0 {
 		return trace.Wrap(teleport.BadParameter("proxy", "please supply a proxy server"))
+	}
+
+	for i := range cfg.Auth.Authorities {
+		if err := cfg.Auth.Authorities[i].Check(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	for _, tun := range cfg.ReverseTunnels {
+		if err := tun.Check(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil

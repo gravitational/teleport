@@ -35,7 +35,10 @@ import (
 
 // InitConfig is auth server init config
 type InitConfig struct {
-	Backend   backend.Backend
+	// Backend is auth backend to use
+	Backend backend.Backend
+
+	// Authority is key generator that we use
 	Authority Authority
 
 	// HostUUID is a UUID of this host
@@ -45,6 +48,9 @@ type InitConfig struct {
 	// name embedded). It is usually set to the GUID of the host the Auth service runs on
 	DomainName string
 
+	// Authorities is a list of pre-configured authorities to supply on first start
+	Authorities []services.CertAuthority
+
 	// AuthServiceName is a human-readable name of this CA. If several Auth services are running
 	// (managing multiple teleport clusters) this field is used to tell them apart in UIs
 	// It usually defaults to the hostname of the machine the Auth service runs on.
@@ -53,11 +59,17 @@ type InitConfig struct {
 	// DataDir is the full path to the directory where keys, events and logs are kept
 	DataDir string
 
-	SecretKey     string
+	// AllowedTokens is a static set of allowed provisioning tokens
+	// auth server will recognize on the first start
 	AllowedTokens map[string]string
+
+	// ReverseTunnels is a list of reverse tunnels statically supplied
+	// in configuration, so auth server will init the tunnels on the first start
+	ReverseTunnels []services.ReverseTunnel
 
 	// HostCA is an optional host certificate authority keypair
 	HostCA *services.CertAuthority
+
 	// UserCA is an optional user certificate authority keypair
 	UserCA *services.CertAuthority
 }
@@ -65,7 +77,7 @@ type InitConfig struct {
 // Init instantiates and configures an instance of AuthServer
 func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 	if cfg.DataDir == "" {
-		return nil, nil, trace.Wrap(teleport.BadParameter("data_dir", "data dir can not be empty"))
+		return nil, nil, trace.Wrap(teleport.BadParameter("DataDir", "data dir can not be empty"))
 	}
 
 	if cfg.HostUUID == "" {
@@ -91,6 +103,21 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 	// we determine if it's the first start by checking if the CA's are set
 	var firstStart bool
 
+	firstStart, err = isFirstStart(asrv, cfg)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// populate authorities on first start
+	if firstStart && len(cfg.Authorities) != 0 {
+		log.Infof("FIRST START: populating trusted authorities supplied from configuration")
+		for _, ca := range cfg.Authorities {
+			if err := asrv.CAService.UpsertCertAuthority(ca, backend.Forever); err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+		}
+	}
+
 	// this block will generate user CA authority on first start if it's
 	// not currently present, it will also use optional passed user ca keypair
 	// that can be supplied in configuration
@@ -98,7 +125,6 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 		if !teleport.IsNotFound(err) {
 			return nil, nil, trace.Wrap(err)
 		}
-		firstStart = true
 		if cfg.HostCA == nil {
 			log.Infof("FIRST START: Generating host CA on first start")
 			priv, pub, err := asrv.GenerateKeyPair("")
@@ -124,7 +150,6 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 		if !teleport.IsNotFound(err) {
 			return nil, nil, trace.Wrap(err)
 		}
-		firstStart = true
 		if cfg.UserCA == nil {
 			log.Infof("FIRST START: Generating user CA on first start")
 			priv, pub, err := asrv.GenerateKeyPair("")
@@ -158,6 +183,15 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 				}
 			}
 		}
+
+		if len(cfg.ReverseTunnels) != 0 {
+			log.Infof("FIRST START: Initializing reverse tunnels")
+			for _, tunnel := range cfg.ReverseTunnels {
+				if err := asrv.UpsertReverseTunnel(tunnel, 0); err != nil {
+					return nil, nil, trace.Wrap(err)
+				}
+			}
+		}
 	}
 
 	identity, err := initKeys(asrv, cfg.DataDir, IdentityID{HostUUID: cfg.HostUUID, Role: teleport.RoleAdmin})
@@ -166,6 +200,17 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 	}
 
 	return asrv, identity, nil
+}
+
+func isFirstStart(authServer *AuthServer, cfg InitConfig) (bool, error) {
+	_, err := authServer.GetCertAuthority(services.CertAuthID{DomainName: cfg.DomainName, Type: services.HostCA}, false)
+	if err != nil {
+		if !teleport.IsNotFound(err) {
+			return false, trace.Wrap(err)
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 // initKeys initializes this node's host certificate signed by host authority
@@ -219,11 +264,12 @@ func writeKeys(dataDir string, id IdentityID, key []byte, cert []byte) error {
 
 // Identity is a collection of certificates and signers that represent identity
 type Identity struct {
-	KeyBytes  []byte
-	CertBytes []byte
-	KeySigner ssh.Signer
-	PubKey    ssh.PublicKey
-	Cert      *ssh.Certificate
+	ID              IdentityID
+	KeyBytes        []byte
+	CertBytes       []byte
+	KeySigner       ssh.Signer
+	Cert            *ssh.Certificate
+	AuthorityDomain string
 }
 
 // IdentityID is a combination of role and host UUID
@@ -232,46 +278,120 @@ type IdentityID struct {
 	HostUUID string
 }
 
+// Equals returns true if two identities are equal
+func (id *IdentityID) Equals(other IdentityID) bool {
+	return id.Role == other.Role && id.HostUUID == other.HostUUID
+}
+
+// String returns debug friendly representation of this identity
+func (id *IdentityID) String() string {
+	return fmt.Sprintf("Identity(hostuuid=%v, role=%v)", id.HostUUID, id.Role)
+}
+
+// ReadIdentityFromKeyPair reads identity from initialized keypair
+func ReadIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
+	if len(keyBytes) == 0 {
+		return nil, trace.Wrap(teleport.BadParameter("PrivateKey", "missing private key"))
+	}
+
+	if len(certBytes) == 0 {
+		return nil, trace.Wrap(teleport.BadParameter("PrivateKey", "missing private key"))
+	}
+
+	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(certBytes)
+	if err != nil {
+		return nil, trace.Wrap(
+			teleport.BadParameter("cert",
+				fmt.Sprintf("failed to parse server certificate: %v", err)))
+	}
+
+	cert, ok := pubKey.(*ssh.Certificate)
+	if !ok {
+		return nil, trace.Wrap(
+			teleport.BadParameter("cert",
+				fmt.Sprintf("expected ssh.Certificate, got %v", pubKey)))
+	}
+
+	signer, err := ssh.ParsePrivateKey(keyBytes)
+	if err != nil {
+		return nil, trace.Wrap(
+			teleport.BadParameter("key",
+				fmt.Sprintf("failed to parse private key: %v", err)))
+	}
+	// this signer authenticates using certificate signed by the cert authority
+	// not only by the public key
+	certSigner, err := ssh.NewCertSigner(cert, signer)
+	if err != nil {
+		return nil, trace.Wrap(
+			teleport.BadParameter("key",
+				fmt.Sprintf("unsupported private key: %v", err)))
+	}
+	if len(cert.ValidPrincipals) != 1 {
+		return nil, trace.Wrap(
+			teleport.BadParameter("valid principals", "need exactly 1 valid principal: host uuid"))
+	}
+
+	if len(cert.Permissions.Extensions) == 0 {
+		return nil, trace.Wrap(
+			teleport.BadParameter("extensions", "misssing needed extensions for host roles"))
+	}
+
+	roleString := cert.Permissions.Extensions[utils.CertExtensionRole]
+	if roleString == "" {
+		return nil, trace.Wrap(
+			teleport.BadParameter("role",
+				fmt.Sprintf("misssing cert extension %v", utils.CertExtensionRole)))
+	}
+	role := teleport.Role(roleString)
+	if err := role.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authorityDomain := cert.Permissions.Extensions[utils.CertExtensionAuthority]
+	if authorityDomain == "" {
+		return nil, trace.Wrap(
+			teleport.BadParameter("role",
+				fmt.Sprintf("misssing cert extension %v", utils.CertExtensionAuthority)))
+	}
+
+	if cert.ValidPrincipals[0] == "" {
+		return nil, trace.Wrap(
+			teleport.BadParameter("valid principal", "valid principal can not be empty"))
+	}
+
+	return &Identity{
+		ID:              IdentityID{HostUUID: cert.ValidPrincipals[0], Role: role},
+		AuthorityDomain: authorityDomain,
+		KeyBytes:        keyBytes,
+		CertBytes:       certBytes,
+		KeySigner:       certSigner,
+		Cert:            cert,
+	}, nil
+}
+
 // ReadIdentity reads, parses and returns the given pub/pri key + cert from the
 // key storage (dataDir).
 func ReadIdentity(dataDir string, id IdentityID) (i *Identity, err error) {
 	kp, cp := keysPath(dataDir, id)
 	log.Debugf("host identity: [key: %v, cert: %v]", kp, cp)
 
-	i = &Identity{}
-
-	i.KeyBytes, err = utils.ReadPath(kp)
+	keyBytes, err := utils.ReadPath(kp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	i.CertBytes, err = utils.ReadPath(cp)
+	certBytes, err := utils.ReadPath(cp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	i.PubKey, _, _, _, err = ssh.ParseAuthorizedKey(i.CertBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse server CA certificate '%v', err: %v",
-			string(i.CertBytes), err)
-	}
+	return ReadIdentityFromKeyPair(keyBytes, certBytes)
+}
 
-	var ok bool
-	i.Cert, ok = i.PubKey.(*ssh.Certificate)
-	if !ok {
-		return nil, fmt.Errorf("expected CA certificate, got %T ", i.PubKey)
-	}
-
-	signer, err := ssh.ParsePrivateKey(i.KeyBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse host private key, err: %v", err)
-	}
-	// TODO: why NewCertSigner if we already have a signer from ParsePrivateKey?
-	i.KeySigner, err = ssh.NewCertSigner(i.Cert, signer)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse host private key, err: %v", err)
-	}
-	return i, nil
+// WriteIdentity writes identity keypair to disk
+func WriteIdentity(dataDir string, identity *Identity) error {
+	return trace.Wrap(
+		writeKeys(dataDir, identity.ID, identity.KeyBytes, identity.CertBytes))
 }
 
 // HaveHostKeys checks either the host keys are in place

@@ -113,11 +113,11 @@ func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	return privPem, pubBytes, nil
 }
 
-func (n *nauth) GenerateHostCert(pkey, key []byte, hostname, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error) {
+func (n *nauth) GenerateHostCert(privateSigningKey, publicKey []byte, hostname, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error) {
 	if err := role.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
+	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(publicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +136,7 @@ func (n *nauth) GenerateHostCert(pkey, key []byte, hostname, authDomain string, 
 	cert.Permissions.Extensions[utils.CertExtensionRole] = string(role)
 	cert.Permissions.Extensions[utils.CertExtensionAuthority] = string(authDomain)
 
-	signer, err := ssh.ParsePrivateKey(pkey)
+	signer, err := ssh.ParsePrivateKey(privateSigningKey)
 	if err != nil {
 		return nil, err
 	}

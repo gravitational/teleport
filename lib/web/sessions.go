@@ -195,7 +195,7 @@ func (s *sessionCache) GetCertificate(c createSSHCertReq) (*SSHLoginResponse, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	hostSigners, err := clt.GetCertAuthorities(services.HostCA)
+	hostSigners, err := clt.GetCertAuthorities(services.HostCA, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

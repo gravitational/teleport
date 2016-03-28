@@ -171,11 +171,13 @@ func (c *Client) UpsertCertAuthority(ca services.CertAuthority, ttl time.Duratio
 	return trace.Wrap(err)
 }
 
-func (c *Client) GetCertAuthorities(caType services.CertAuthType) ([]*services.CertAuthority, error) {
+func (c *Client) GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error) {
 	if err := caType.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out, err := c.Get(c.Endpoint("authorities", string(caType)), url.Values{})
+	out, err := c.Get(c.Endpoint("authorities", string(caType)), url.Values{
+		"load_keys": []string{fmt.Sprintf("%t", loadKeys)},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -705,7 +707,7 @@ type ClientI interface {
 	UpdateSession(req session.UpdateRequest) error
 	UpsertParty(id session.ID, p session.Party, ttl time.Duration) error
 	UpsertCertAuthority(cert services.CertAuthority, ttl time.Duration) error
-	GetCertAuthorities(caType services.CertAuthType) ([]*services.CertAuthority, error)
+	GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error)
 	DeleteCertAuthority(caType services.CertAuthID) error
 	GenerateToken(role teleport.Role, ttl time.Duration) (string, error)
 	RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error)

@@ -17,7 +17,9 @@ limitations under the License.
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"strconv"
@@ -26,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -36,6 +39,7 @@ import (
 
 	"github.com/buger/goterm"
 	"github.com/gravitational/trace"
+	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -51,11 +55,23 @@ type UserCommand struct {
 
 type NodeCommand struct {
 	config *service.Config
+	// count is optional hidden field that will cause
+	// tctl issue count tokens and output them in JSON format
+	count int
+	// format is the output format, e.g. text or json
+	format string
 }
 
 type AuthCommand struct {
-	config   *service.Config
-	authType string
+	config                     *service.Config
+	authType                   string
+	genPubPath                 string
+	genPrivPath                string
+	genSigningKeyPath          string
+	genRole                    teleport.Role
+	genAuthorityDomain         string
+	exportAuthorityFingerprint string
+	exportPrivateKeys          bool
 }
 
 type AuthServerCommand struct {
@@ -110,6 +126,8 @@ func main() {
 	// add node command
 	nodes := app.Command("nodes", "Issue invites for other nodes to join the cluster")
 	nodeAdd := nodes.Command("add", "Adds a new SSH node to join the cluster")
+	nodeAdd.Flag("count", "add count tokens and output JSON with the list").Hidden().Default("1").IntVar(&cmdNodes.count)
+	nodeAdd.Flag("format", "output format, 'text' or 'json'").Hidden().Default("text").StringVar(&cmdNodes.format)
 	nodeAdd.Alias(AddNodeHelp)
 	nodeList := nodes.Command("ls", "Lists all active SSH nodes within the cluster")
 	nodeList.Alias(ListNodesHelp)
@@ -119,6 +137,19 @@ func main() {
 	auth.Flag("type", "authority type, 'user' or 'host'").Default(string(services.UserCA)).StringVar(&cmdAuth.authType)
 	authList := auth.Command("ls", "List trusted user certificate authorities").Hidden()
 	authExport := auth.Command("export", "Export concatenated keys to standard output").Hidden()
+	authExport.Flag("private-keys", "if set, will print private keys").BoolVar(&cmdAuth.exportPrivateKeys)
+	authExport.Flag("fingerprint", "filter authority by fingerprint").StringVar(&cmdAuth.exportAuthorityFingerprint)
+
+	authGenerate := auth.Command("gen", "Generate new OpenSSH keypair").Hidden()
+	authGenerate.Flag("pub-key", "path to the public key to write").Required().StringVar(&cmdAuth.genPubPath)
+	authGenerate.Flag("priv-key", "path to the private key to write").Required().StringVar(&cmdAuth.genPrivPath)
+
+	authGenAndSign := auth.Command("gencert", "Generate OpenSSH keys and certificate for a joining teleport proxy, node or auth server").Hidden()
+	authGenAndSign.Flag("priv-key", "path to the private key to write").Required().StringVar(&cmdAuth.genPrivPath)
+	authGenAndSign.Flag("cert", "path to the public signed cert to write").Required().StringVar(&cmdAuth.genPubPath)
+	authGenAndSign.Flag("sign-key", "path to the private OpenSSH signing key").Required().StringVar(&cmdAuth.genSigningKeyPath)
+	authGenAndSign.Flag("role", "server role, e.g. 'proxy', 'auth' or 'node'").Required().SetValue(&cmdAuth.genRole)
+	authGenAndSign.Flag("domain", "cluster certificate authority domain name").Required().StringVar(&cmdAuth.genAuthorityDomain)
 
 	// operations with auth servers
 	authServers := app.Command("authservers", "Operations with user and host certificate authorities").Hidden()
@@ -149,6 +180,22 @@ func main() {
 	}
 
 	validateConfig(cfg)
+
+	// some commands do not need a connection to client
+	switch command {
+	case authGenerate.FullCommand():
+		err = cmdAuth.GenerateKeys()
+		if err != nil {
+			utils.FatalError(err)
+		}
+		return
+	case authGenAndSign.FullCommand():
+		err = cmdAuth.GenerateAndSignKeys()
+		if err != nil {
+			utils.FatalError(err)
+		}
+		return
+	}
 
 	// connect to the teleport auth service:
 	client, err := connectToAuthService(cfg)
@@ -257,15 +304,34 @@ func (u *UserCommand) Delete(client *auth.TunClient) error {
 // Invite generates a token which can be used to add another SSH node
 // to a cluster
 func (u *NodeCommand) Invite(client *auth.TunClient) error {
-	token, err := client.GenerateToken(teleport.RoleNode, defaults.MaxProvisioningTokenTTL)
-	if err != nil {
-		return trace.Wrap(err)
+	if u.count < 1 {
+		return trace.Wrap(teleport.BadParameter("count", fmt.Sprintf("count should be > 0, got %v", u.count)))
 	}
-	fmt.Printf(
-		"The invite token: %v\nRun this on the new node to join the cluster:\n> teleport start --roles=node --token=%v --auth-server=<Address>\n\nNotes:\n",
-		token, token)
-	fmt.Printf("  1. This invitation token will expire in %v seconds.\n", defaults.MaxProvisioningTokenTTL.Seconds())
-	fmt.Printf("  2. <Address> is the IP this auth server is reachable at from the node.\n")
+	var tokens []string
+	for i := 0; i < u.count; i++ {
+		token, err := client.GenerateToken(teleport.RoleNode, defaults.MaxProvisioningTokenTTL)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		tokens = append(tokens, token)
+	}
+
+	if u.format == "text" {
+		for _, token := range tokens {
+			fmt.Printf(
+				"The invite token: %v\nRun this on the new node to join the cluster:\n> teleport start --roles=node --token=%v --auth-server=<Address>\n\nNotes:\n",
+				token, token)
+		}
+		fmt.Printf("  1. This invitation token will expire in %v seconds.\n", defaults.MaxProvisioningTokenTTL.Seconds())
+		fmt.Printf("  2. <Address> is the IP this auth server is reachable at from the node.\n")
+	} else {
+		out, err := json.Marshal(tokens)
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal tokens")
+		}
+		fmt.Printf(string(out))
+	}
+
 	return nil
 }
 
@@ -297,24 +363,21 @@ func (a *AuthCommand) ListAuthorities(client *auth.TunClient) error {
 	if err := authType.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	authorities, err := client.GetCertAuthorities(authType)
+	authorities, err := client.GetCertAuthorities(authType, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	view := func() string {
 		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"Type", "Cluster name", "Fingerprint", "Restricted to logins"})
+		printHeader(t, []string{"Type", "Authority Domain", "Fingerprint", "Restricted to logins"})
 		if len(authorities) == 0 {
 			return t.String()
 		}
 		for _, a := range authorities {
 			for _, keyBytes := range a.CheckingKeys {
-				fingerprint := ""
-				key, _, _, _, err := ssh.ParseAuthorizedKey(keyBytes)
+				fingerprint, err := sshutils.AuthorizedKeyFingerprint(keyBytes)
 				if err != nil {
 					fingerprint = fmt.Sprintf("<bad key: %v", err)
-				} else {
-					fingerprint = sshutils.Fingerprint(key)
 				}
 				fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", a.Type, a.DomainName, fingerprint, strings.Join(a.AllowedLogins, ","))
 			}
@@ -325,24 +388,45 @@ func (a *AuthCommand) ListAuthorities(client *auth.TunClient) error {
 	return nil
 }
 
-// ExportAuthorities outputs the list of authorities
+// ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
 	authType := services.CertAuthType(a.authType)
 	if err := authType.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	authorities, err := client.GetCertAuthorities(authType)
+	authorities, err := client.GetCertAuthorities(authType, a.exportPrivateKeys)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for _, a := range authorities {
-		for _, key := range a.CheckingKeys {
-			if authType == services.UserCA {
-				// for user authorities, export in the sshd's TrustedUserCAKeys format
+	for _, ca := range authorities {
+		if a.exportPrivateKeys {
+			for _, key := range ca.SigningKeys {
+				fingerprint, err := sshutils.PrivateKeyFingerprint(key)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if a.exportAuthorityFingerprint != "" && fingerprint != a.exportAuthorityFingerprint {
+					continue
+				}
 				os.Stdout.Write(key)
-			} else {
-				// for host authorities export them in the authorized_keys - compatible format
-				fmt.Fprintf(os.Stdout, "@cert-authority *.%v %v", a.DomainName, string(key))
+				fmt.Fprintf(os.Stdout, "\n")
+			}
+		} else {
+			for _, keyBytes := range ca.CheckingKeys {
+				fingerprint, err := sshutils.AuthorizedKeyFingerprint(keyBytes)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if a.exportAuthorityFingerprint != "" && fingerprint != a.exportAuthorityFingerprint {
+					continue
+				}
+				if authType == services.UserCA {
+					// for user authorities, export in the sshd's TrustedUserCAKeys format
+					os.Stdout.Write(keyBytes)
+				} else {
+					// for host authorities export them in the authorized_keys - compatible format
+					fmt.Fprintf(os.Stdout, "@cert-authority *.%v %v", ca.DomainName, string(keyBytes))
+				}
 			}
 		}
 	}
@@ -366,6 +450,56 @@ func (u *AuthServerCommand) Invite(client *auth.TunClient) error {
 	fmt.Printf(
 		"# Run this config the new auth server to join the cluster:\n# > teleport start --config config.yaml\n# Fill in auth peers in this config:\n")
 	fmt.Println(out)
+	return nil
+}
+
+// GenerateKeys generates a new keypair
+func (a *AuthCommand) GenerateKeys() error {
+	privBytes, pubBytes, err := native.New().GenerateKeyPair("")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = ioutil.WriteFile(a.genPubPath, pubBytes, 0600)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = ioutil.WriteFile(a.genPrivPath, privBytes, 0600)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("wrote public key to: %v and private key to: %v\n", a.genPubPath, a.genPrivPath)
+	return nil
+}
+
+// GenerateAndSignKeys generates a new keypair and signs it for role
+func (a *AuthCommand) GenerateAndSignKeys() error {
+	privSigningKeyBytes, err := ioutil.ReadFile(a.genSigningKeyPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ca := native.New()
+	privBytes, pubBytes, err := ca.GenerateKeyPair("")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	nodeID := uuid.New()
+	certBytes, err := ca.GenerateHostCert(privSigningKeyBytes, pubBytes, nodeID, a.genAuthorityDomain, a.genRole, 0)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = ioutil.WriteFile(a.genPubPath, certBytes, 0600)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = ioutil.WriteFile(a.genPrivPath, privBytes, 0600)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("wrote signed certificate to: %v and private key to: %v\n", a.genPubPath, a.genPrivPath)
 	return nil
 }
 
