@@ -24,7 +24,7 @@ import (
 
 type limitedClient interface {
 	GetNodes() ([]services.Server, error)
-	GetCertAuthorities(caType services.CertAuthType) ([]*services.CertAuthority, error)
+	GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error)
 }
 
 type retryingClient struct {
@@ -54,10 +54,10 @@ func (c *retryingClient) GetServers() ([]services.Server, error) {
 	return nil, trace.Wrap(e)
 }
 
-func (c *retryingClient) GetCertAuthorities(caType services.CertAuthType) ([]*services.CertAuthority, error) {
+func (c *retryingClient) GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error) {
 	var e error
 	for i := 0; i < c.retries; i++ {
-		cas, err := c.limitedClient.GetCertAuthorities(caType)
+		cas, err := c.limitedClient.GetCertAuthorities(caType, loadKeys)
 		if err == nil {
 			return cas, nil
 		}

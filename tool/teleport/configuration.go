@@ -55,6 +55,9 @@ type CommandLineFlags struct {
 	AdvertiseIP net.IP
 	// --config flag
 	ConfigFile string
+	// ConfigString is a base64 encoded configuration string
+	// set by --config-string or TELEPORT_CONFIG environment variable
+	ConfigString string
 	// --roles flag
 	Roles string
 	// -d flag
@@ -115,7 +118,7 @@ func applyFileConfig(fc *config.FileConfig, cfg *service.Config) error {
 
 	// config file has auth servers in there?
 	if len(fc.AuthServers) > 0 {
-		cfg.AuthServers = make(service.NetAddrSlice, 0, len(fc.AuthServers))
+		cfg.AuthServers = make([]utils.NetAddr, 0, len(fc.AuthServers))
 		for _, as := range fc.AuthServers {
 			addr, err := utils.ParseAddr(as)
 			if err != nil {
@@ -200,6 +203,24 @@ func applyFileConfig(fc *config.FileConfig, cfg *service.Config) error {
 			})
 		}
 	}
+	// add static signed keypairs supplied from configs
+	for i := range fc.Secrets.Keys {
+		identity, err := fc.Secrets.Keys[i].Identity()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Identities = append(cfg.Identities, identity)
+	}
+
+	// add reverse tunnels supplied from configs
+	for _, t := range fc.ReverseTunnels {
+		tun, err := t.Tunnel()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.ReverseTunnels = append(cfg.ReverseTunnels, *tun)
+	}
+
 	// apply "proxy_service" section
 	if fc.Proxy.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, int(defaults.SSHProxyListenPort))
@@ -235,6 +256,14 @@ func applyFileConfig(fc *config.FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Auth.SSHAddr = *addr
+	}
+
+	for _, authority := range fc.Secrets.Authorities {
+		ca, err := authority.Parse()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Auth.Authorities = append(cfg.Auth.Authorities, *ca)
 	}
 
 	// apply "ssh_service" section
@@ -285,9 +314,18 @@ func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// if configuration is passed as an environment variable,
+	// try to decode it and override the config file
+	if clf.ConfigString != "" {
+		fileConf, err = config.ReadFromString(clf.ConfigString)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if err = applyFileConfig(fileConf, cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// apply --debug flag:
 	if clf.Debug {
 		cfg.Console = ioutil.Discard

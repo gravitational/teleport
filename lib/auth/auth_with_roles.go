@@ -95,12 +95,17 @@ func (a *AuthWithRoles) UpsertCertAuthority(ca services.CertAuthority, ttl time.
 		return a.authServer.UpsertCertAuthority(ca, ttl)
 	}
 }
-func (a *AuthWithRoles) GetCertAuthorities(caType services.CertAuthType) ([]*services.CertAuthority, error) {
-	if err := a.permChecker.HasPermission(a.role, ActionGetCertAuthorities); err != nil {
-		return nil, trace.Wrap(err)
+func (a *AuthWithRoles) GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error) {
+	if loadKeys {
+		if err := a.permChecker.HasPermission(a.role, ActionGetCertAuthoritiesWithSigningKeys); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	} else {
-		return a.authServer.GetCertAuthorities(caType)
+		if err := a.permChecker.HasPermission(a.role, ActionGetCertAuthorities); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
+	return a.authServer.GetCertAuthorities(caType, loadKeys)
 }
 
 func (a *AuthWithRoles) GetLocalDomain() (string, error) {

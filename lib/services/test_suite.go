@@ -146,10 +146,14 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, ca)
 
-	cas, err := s.CAS.GetCertAuthorities(UserCA)
+	cas, err := s.CAS.GetCertAuthorities(UserCA, false)
 	c.Assert(err, IsNil)
-	ca2 := ca
+	ca2 := *ca
 	ca2.SigningKeys = nil
+	c.Assert(cas[0], DeepEquals, &ca2)
+
+	cas, err = s.CAS.GetCertAuthorities(UserCA, true)
+	c.Assert(err, IsNil)
 	c.Assert(cas[0], DeepEquals, ca)
 
 	err = s.CAS.DeleteCertAuthority(*ca.ID())

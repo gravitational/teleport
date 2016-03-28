@@ -146,9 +146,9 @@ func (s *CAService) GetCertAuthority(id CertAuthID, loadSigningKeys bool) (*Cert
 	return ca, nil
 }
 
-// GetCertAuthorities returns a list of authorities of a given type without
-// signing keys loaded
-func (s *CAService) GetCertAuthorities(caType CertAuthType) ([]*CertAuthority, error) {
+// GetCertAuthorities returns a list of authorities of a given type
+// loadSigningKeys controls whether signing keys should be loaded or not
+func (s *CAService) GetCertAuthorities(caType CertAuthType, loadSigningKeys bool) ([]*CertAuthority, error) {
 	cas := []*CertAuthority{}
 	if caType != HostCA && caType != UserCA {
 		return nil, trace.Wrap(&teleport.BadParameterError{
@@ -161,7 +161,7 @@ func (s *CAService) GetCertAuthorities(caType CertAuthType) ([]*CertAuthority, e
 		return nil, trace.Wrap(err)
 	}
 	for _, domain := range domains {
-		ca, err := s.GetCertAuthority(CertAuthID{DomainName: domain, Type: caType}, false)
+		ca, err := s.GetCertAuthority(CertAuthID{DomainName: domain, Type: caType}, loadSigningKeys)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

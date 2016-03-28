@@ -80,7 +80,7 @@ func CheckHostSignature(hostId string, remote net.Addr, key ssh.PublicKey) error
 	defer bk.Close()
 	ca := services.NewCAService(bk)
 
-	cas, err := ca.GetCertAuthorities(services.HostCA)
+	cas, err := ca.GetCertAuthorities(services.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

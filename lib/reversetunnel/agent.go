@@ -161,7 +161,7 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 	if !ok {
 		return trace.Errorf("expected certificate")
 	}
-	cas, err := a.clt.GetCertAuthorities(services.HostCA)
+	cas, err := a.clt.GetCertAuthorities(services.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err, "failed to fetch remote certs")
 	}

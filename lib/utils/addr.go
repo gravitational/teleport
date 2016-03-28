@@ -166,8 +166,11 @@ func (a *NetAddrVal) Get() interface{} {
 	return NetAddr(*a)
 }
 
+// NetAddrList is a list of NetAddrs that supports
+// helper methods for parsing from CLI tools
 type NetAddrList []NetAddr
 
+// Addresses returns a slice of strings converted from the addresses
 func (nl *NetAddrList) Addresses() []string {
 	var ns []string
 	for _, n := range *nl {
@@ -176,6 +179,7 @@ func (nl *NetAddrList) Addresses() []string {
 	return ns
 }
 
+// Set is called by CLI tools
 func (nl *NetAddrList) Set(s string) error {
 	v, err := ParseAddr(s)
 	if err != nil {
@@ -186,6 +190,7 @@ func (nl *NetAddrList) Set(s string) error {
 	return nil
 }
 
+// String returns debug-friendly representation of the tool
 func (nl *NetAddrList) String() string {
 	var ns []string
 	for _, n := range *nl {

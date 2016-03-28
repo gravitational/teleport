@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/teleport"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/version"
 	"github.com/pborman/uuid"
@@ -121,28 +120,39 @@ func GetFreeTCPPorts(n int) (PortList, error) {
 	return list, nil
 }
 
+// ReadHostUUID reads host UUID from the file in the data dir
+func ReadHostUUID(dataDir string) (string, error) {
+	out, err := ReadPath(filepath.Join(dataDir, HostUUIDFile))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(out), nil
+}
+
+// WriteHostUUID writes host UUID into a file
+func WriteHostUUID(dataDir string, id string) error {
+	err := ioutil.WriteFile(filepath.Join(dataDir, HostUUIDFile), []byte(id), os.ModeExclusive|0400)
+	if err != nil {
+		return trace.Wrap(teleport.ConvertSystemError(err))
+	}
+	return nil
+}
+
 // ReadOrMakeHostUUID looks for a hostid file in the data dir. If present,
 // returns the UUID from it, otherwise generates one
 func ReadOrMakeHostUUID(dataDir string) (string, error) {
-	const ModeReadonly = 0400
-
-	fp := filepath.Join(dataDir, HostUUIDFile)
-	bytes, err := ioutil.ReadFile(fp)
-	if err != nil {
-		// uuid file not found? re-create it
-		if os.IsNotExist(err) {
-			bytes = []byte(uuid.New())
-			err = ioutil.WriteFile(fp, bytes, os.ModeExclusive|ModeReadonly)
-		}
+	id, err := ReadHostUUID(dataDir)
+	if err == nil {
+		return id, nil
 	}
-	if err != nil {
-		if os.IsPermission(err) {
-			return "", trace.Errorf("permission error trying to access %v", fp)
-		}
-		log.Errorf("failed generating host UUID. %v", err)
+	if !teleport.IsNotFound(err) {
 		return "", trace.Wrap(err)
 	}
-	return string(bytes), nil
+	id = uuid.New()
+	if err = WriteHostUUID(dataDir, id); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return id, nil
 }
 
 // PrintVersion prints human readable version

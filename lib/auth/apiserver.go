@@ -614,7 +614,15 @@ func (s *APIServer) upsertCertAuthority(w http.ResponseWriter, r *http.Request, 
 }
 
 func (s *APIServer) getCertAuthorities(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	certs, err := s.a.GetCertAuthorities(services.CertAuthType(p[0].Value))
+	var loadKeys bool
+	if loadKeysS := r.URL.Query().Get("load_keys"); loadKeysS != "" {
+		var err error
+		loadKeys, err = strconv.ParseBool(loadKeysS)
+		if err != nil {
+			return nil, trace.Wrap(teleport.BadParameter("load_keys", fmt.Sprintf("should be 'true' or 'false': %v", loadKeysS)))
+		}
+	}
+	certs, err := s.a.GetCertAuthorities(services.CertAuthType(p[0].Value), loadKeys)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
