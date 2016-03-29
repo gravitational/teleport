@@ -21,6 +21,8 @@ var {showError} = require('app/modules/notifications/actions');
 var Buffer = require('buffer/').Buffer;
 
 const logger = require('app/common/logger').create('TtyPlayer');
+const STREAM_START_INDEX = 1;
+const PRE_FETCH_BUF_SIZE = 5000;
 
 function handleAjaxError(err){
   showError('Unable to retrieve session info');
@@ -31,10 +33,9 @@ class TtyPlayer extends Tty {
   constructor({sid}){
     super({});
     this.sid = sid;
-    this.current = 1;
+    this.current = STREAM_START_INDEX;
     this.length = -1;
     this.ttyStream = new Array();
-    this.isLoaind = false;
     this.isPlaying = false;
     this.isError = false;
     this.isReady = false;
@@ -60,18 +61,20 @@ class TtyPlayer extends Tty {
   }
 
   connect(){
+    this._setStatusFlag({isLoading: true});
     api.get(cfg.api.getFetchSessionLengthUrl(this.sid))
       .done((data)=>{
         this.length = data.count;
-        this.isReady = true;
+        this._setStatusFlag({isReady: true});
       })
       .fail((err)=>{
-        handleAjaxError(err);
-        this.isError = true;
+        handleAjaxError(err);        
       })
       .always(()=>{
         this._change();
       });
+
+    this._change();
   }
 
   move(newPos){
@@ -89,18 +92,14 @@ class TtyPlayer extends Tty {
     }
 
     if(newPos === 0){
-      newPos = 1;
+      newPos = STREAM_START_INDEX;
     }
 
-    if(this.isPlaying){
-      if(this.current < newPos){
-        this._showChunk(this.current, newPos);
-      }else{
-        this.emit('reset');
-        this._showChunk(this.current, newPos);
-      }
+    if(this.current < newPos){
+      this._showChunk(this.current, newPos);
     }else{
-      this.current = newPos;
+      this.emit('reset');
+      this._showChunk(STREAM_START_INDEX, newPos);
     }
 
     this._change();
@@ -121,7 +120,7 @@ class TtyPlayer extends Tty {
 
     // start from the beginning if at the end
     if(this.current === this.length){
-      this.current = 1;
+      this.current = STREAM_START_INDEX;
       this.emit('reset');
     }
 
@@ -140,8 +139,11 @@ class TtyPlayer extends Tty {
   }
 
   _fetch(start, end){
-    end = end + 50;
+    end = end + PRE_FETCH_BUF_SIZE;
     end = end > this.length ? this.length : end;
+
+    this._setStatusFlag({isLoading: true });
+
     return api.get(cfg.api.getFetchSessionChunkUrl({sid: this.sid, start, end})).
       done((response)=>{
         for(var i = 0; i < end-start; i++){
@@ -149,26 +151,65 @@ class TtyPlayer extends Tty {
           data = new Buffer(data, 'base64').toString('utf8');
           this.ttyStream[start+i] = { data, delay, w, h };
         }
+
+        this._setStatusFlag({isReady: true });
       })
       .fail((err)=>{
         handleAjaxError(err);
-        this.isError = true;
+        this._setStatusFlag({isError: true });
       })
   }
 
-  _showChunk(start, end){
-    var display = ()=>{
-      for(var i = start; i < end; i++){
-        this.emit('data', this.ttyStream[i].data);
-      }
-      this.current = end;
-    };
+  _display(start, end){
+    let stream = this.ttyStream;
+    let i;
+    let tmp = [{
+      data: [stream[start].data],
+      w: stream[start].w,
+      h: stream[start].h
+    }];
 
-    if(this._shouldFetch(start, end)){
-      this._fetch(start, end).then(display);
-    }else{
-      display();
+    let cur = tmp[0];
+
+    for(i = start+1; i < end; i++){
+      if(cur.w === stream[i].w && cur.h === stream[i].h){
+        cur.data.push(stream[i].data)
+      }else{
+        cur ={
+          data: [stream[i].data],
+          w: stream[i].w,
+          h: stream[i].h
+        };
+
+        tmp.push(cur);
+      }
     }
+
+    for(i = 0; i < tmp.length; i ++){
+      let str = tmp[i].data.join('');
+      let {h, w} = tmp[i];
+      this.emit('resize', {h, w});
+      this.emit('data', str);
+    }
+
+    this.current = end;
+  }
+
+  _showChunk(start, end){
+    if(this._shouldFetch(start, end)){
+      this._fetch(start, end).then(()=>
+        this._display(start, end));
+    }else{
+      this._display(start, end);
+    }
+  }
+
+  _setStatusFlag(newStatus){
+    let {isReady=false, isError=false, isLoading=false } = newStatus;
+
+    this.isReady = isReady;
+    this.isError = isError;
+    this.isLoading = isLoading;
   }
 
   _change(){
