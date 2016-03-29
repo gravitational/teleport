@@ -1,6 +1,7 @@
 {
 	"ImportPath": "github.com/gravitational/teleport",
 	"GoVersion": "go1.5",
+	"GodepVersion": "v60",
 	"Packages": [
 		"./lib/...",
 		"./tool/..."
@@ -68,13 +69,13 @@
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/system",
-			"Comment": "v1.4.1-10442-gc7d6f0c",
-			"Rev": "c7d6f0c30c824e27f3bf4dd846a68b04544d5a15"
+			"Comment": "v1.4.1-4831-g0f5c9d3",
+			"Rev": "0f5c9d301b9b1cca66b3ea0f9dec3b5317d3686d"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/term",
-			"Comment": "v1.4.1-10442-gc7d6f0c",
-			"Rev": "c7d6f0c30c824e27f3bf4dd846a68b04544d5a15"
+			"Comment": "v1.4.1-4831-g0f5c9d3",
+			"Rev": "0f5c9d301b9b1cca66b3ea0f9dec3b5317d3686d"
 		},
 		{
 			"ImportPath": "github.com/docker/go-units",
