@@ -37,6 +37,7 @@ module.exports = function (config) {
       'src/assets/js/bootstrap-3.3.6.js',
       'src/assets/js/term-0.0.7.js',
       'src/assets/js/jquery-validate-1.14.0.js',
+      'src/assets/js/underscore-1.8.3.js',
       'tests.webpack.js'
     ],
 
@@ -46,7 +47,7 @@ module.exports = function (config) {
 
     webpack: {
       devtool: 'inline-source-map',
-      externals: ['jQuery', 'Terminal' ],
+      externals: ['jQuery', 'Terminal', '_' ],
       resolve: {
         root: [ path.join(__dirname, 'src') ]
       },
