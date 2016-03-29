@@ -47,7 +47,7 @@ func run(cmdlineArgs []string, testRun bool) (executedCommand string, appliedCon
 	app := utils.InitCLIParser("teleport", "Clustered SSH service. Learn more at http://teleport.gravitational.com")
 
 	// define global flags:
-	var ccf CommandLineFlags
+	var ccf config.CommandLineFlags
 	app.Flag("debug", "Enable verbose logging to stderr").
 		Short('d').
 		BoolVar(&ccf.Debug)
@@ -100,7 +100,7 @@ func run(cmdlineArgs []string, testRun bool) (executedCommand string, appliedCon
 	}
 
 	// configuration merge: defaults -> file-based conf -> CLI conf
-	config, err := configure(&ccf)
+	config, err := config.Configure(&ccf)
 	if err != nil {
 		utils.FatalError(err)
 	}
