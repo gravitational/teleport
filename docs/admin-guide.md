@@ -382,10 +382,11 @@ administrator:
 > tctl authorities --type=host export > cluster_node_keys
 ```
 
-On your client machine, you need to import these keys: 
+On your client machine, you need to import these keys. It will allow your OpenSSH client
+to verify that host's certificates are signed by the trusted CA key:
 
 ```bash
-> cat cluster_node_keys >> ~/.ssh/authorized_keys
+> cat cluster_node_keys >> ~/.ssh/known_hosts
 ```
 
 Configure OpenSSH client to use the Teleport proxy when connecting to nodes with matching
