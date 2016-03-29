@@ -42,9 +42,11 @@ var TtyTerminal = React.createClass({
   },
 
   componentDidMount: function() {
+    let {scrollback=1000} = this.props;
     this.term = new Term({
       cols: 15,
       rows: 5,
+      scrollback,
       useStyle: true,
       screenKeys: true,
       cursorBlink: true
@@ -57,6 +59,7 @@ var TtyTerminal = React.createClass({
     this.term.on('data', (data) => this.tty.send(data));
 
     // tty events
+    this.tty.on('resize', ({h, w})=> this.resize(w, h));
     this.tty.on('reset', ()=> this.term.reset());
     this.tty.on('open', ()=> this.term.write(CONNECTED_TXT));
     this.tty.on('close', ()=> this.term.write(DISCONNECT_TXT));
@@ -115,7 +118,7 @@ var TtyTerminal = React.createClass({
 
     $container.find('.terminal').append(fakeRow);
     // get div height
-    let fakeColHeight = fakeRow[0].getBoundingClientRect().height;
+    let fakeColHeight = fakeRow[0].getBoundingClientRect().height;    
     // get span width
     let fakeColWidth = fakeRow.children().first()[0].getBoundingClientRect().width;
 

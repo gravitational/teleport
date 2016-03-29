@@ -18,7 +18,7 @@ var React = require('react');
 var ReactSlider = require('react-slider');
 var TtyPlayer = require('app/common/ttyPlayer')
 var TtyTerminal = require('./../terminal.jsx');
-var SessionLeftPanel = require('./sessionLeftPanel');
+var SessionLeftPanel = require('./sessionLeftPanel.jsx');
 
 var SessionPlayer = React.createClass({
   calculateState(){
@@ -81,8 +81,8 @@ var SessionPlayer = React.createClass({
 
     return (
      <div className="grv-current-session grv-session-player">
-       <SessionLeftPanel/>       
-       <TtyTerminal ref="term" tty={this.tty} cols={w} rows={h} />
+       <SessionLeftPanel/>
+       <TtyTerminal ref="term" tty={this.tty} cols={w} rows={h} scrollback={0} />
        <div className="grv-session-player-controls">
          <button className="btn" onClick={this.togglePlayStop}>
            { isPlaying ? <i className="fa fa-stop"></i> :  <i className="fa fa-play"></i> }
@@ -92,8 +92,7 @@ var SessionPlayer = React.createClass({
               min={this.state.min}
               max={this.state.length}
               value={this.state.current}
-              onAfterChange={this.onAfterChange}
-              onBeforeChange={this.onBeforeChange}
+              onChange={this.move}
               defaultValue={1}
               withBars
               className="grv-slider">
