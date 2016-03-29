@@ -87,9 +87,9 @@ func readConfigFile(cliConfigPath string) (*FileConfig, error) {
 	return ReadFromFile(configFilePath)
 }
 
-// applyFileConfig applies confniguration from a YAML file to Teleport
+// ApplyFileConfig applies confniguration from a YAML file to Teleport
 // runtime config
-func applyFileConfig(fc *FileConfig, cfg *service.Config) error {
+func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	// no config file? no problem
 	if fc == nil {
 		return nil
@@ -321,7 +321,7 @@ func Configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	if err = applyFileConfig(fileConf, cfg); err != nil {
+	if err = ApplyFileConfig(fileConf, cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
