@@ -77,6 +77,13 @@ type Config struct {
 
 	// InsecureSkipVerify is an option to skip HTTPS cert check
 	InsecureSkipVerify bool
+
+	// SkipLocalAuth will not try to connect to local SSH agent
+	// or use any local certs, and not use interactive logins
+	SkipLocalAuth bool
+
+	// AuthMethods if passed will be used to login into cluster
+	AuthMethods []ssh.AuthMethod
 }
 
 // ProxyHostPort returns a full host:port address of the proxy or an empty string if no
@@ -138,6 +145,22 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		authMethods: make([]ssh.AuthMethod, 0),
 	}
 
+	// add auth methods supplied by user if any
+	for _, method := range c.AuthMethods {
+		tc.authMethods = append(tc.authMethods, method)
+	}
+
+	// sometimes we need to use external auth without using local auth
+	// methods, e.g. in automation daemons
+	if c.SkipLocalAuth {
+		if len(tc.authMethods) == 0 {
+			return nil, trace.Wrap(
+				teleport.BadParameter(
+					"AuthMethods", "SkipLocalAuth is true but no AuthMethods provided"),
+			)
+		}
+		return tc, nil
+	}
 	// first, see if we can authenticate with credentials stored in
 	// a local SSH agent:
 	if sshAgent := connectToSSHAgent(); sshAgent != nil {
@@ -528,7 +551,8 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		HostKeyCallback: CheckHostSignature,
 	}
 	if len(tc.authMethods) == 0 {
-		return nil, trace.Errorf("no authentication methods provided")
+		return nil, trace.Wrap(teleport.BadParameter(
+			"AuthMethods", "no authentication methods provided"))
 	}
 	log.Debugf("connecting to proxy: %v", proxyAddr)
 
