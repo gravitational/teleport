@@ -12,6 +12,9 @@ ETCD_FLAGS := TELEPORT_TEST_ETCD_CONFIG='{"nodes": ["https://localhost:4001"], "
 TELEPORT_DEBUG_TESTS ?= no
 export
 
+test-tsh:
+	go test $(PKGPATH)/tool/tsh -v
+
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
 #

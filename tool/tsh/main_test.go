@@ -67,3 +67,38 @@ func (s *MainTestSuite) TestMakeClient(c *check.C) {
 	c.Assert(tc.Config.KeyTTL, check.Equals, time.Minute*time.Duration(conf.MinsToLive))
 	c.Assert(tc.Config.HostLogin, check.Equals, "root")
 }
+
+func (s *MainTestSuite) TestPortsParsing(c *check.C) {
+	// empty:
+	ports, err := parsePortForwardSpec(nil)
+	c.Assert(ports, check.IsNil)
+	c.Assert(err, check.IsNil)
+	ports, err = parsePortForwardSpec([]string{})
+	c.Assert(ports, check.IsNil)
+	c.Assert(err, check.IsNil)
+	// not empty (but valid)
+	spec := []string{
+		"80:remote.host:180",
+		"443:deep.host:1443",
+	}
+	ports, err = parsePortForwardSpec(spec)
+	c.Assert(err, check.IsNil)
+	c.Assert(ports, check.HasLen, 2)
+	c.Assert(ports, check.DeepEquals, []client.ForwardedPort{
+		{
+			SrcPort:  80,
+			DestHost: "remote.host",
+			DestPort: 180,
+		},
+		{
+			SrcPort:  443,
+			DestHost: "deep.host",
+			DestPort: 1443,
+		},
+	})
+	// invalid spec:
+	spec = []string{"foo", "bar"}
+	ports, err = parsePortForwardSpec(spec)
+	c.Assert(ports, check.IsNil)
+	c.Assert(err, check.ErrorMatches, "^Invalid port forwarding spec: .foo.*")
+}
