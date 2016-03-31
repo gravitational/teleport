@@ -517,6 +517,41 @@ func (client *NodeClient) scp(scpCommand scp.Command, shellCmd string) error {
 	}
 }
 
+// listenAndForward listens on a given socket and forwards all incoming connections
+// to the given remote address via
+func (client *NodeClient) listenAndForward(socket net.Listener, remoteAddr string) {
+	defer socket.Close()
+	for {
+		incoming, err := socket.Accept()
+		if err != nil {
+			log.Error(err)
+			break
+		}
+		go func() {
+			defer incoming.Close()
+			log.Infof("forwarding connection from %v to %v", incoming.RemoteAddr(), remoteAddr)
+			conn, err := client.Client.Dial("tcp", remoteAddr)
+			if err != nil {
+				log.Error(err)
+			}
+			defer conn.Close()
+
+			doneC := make(chan interface{}, 2)
+			go func() {
+				io.Copy(incoming, conn)
+				doneC <- true
+			}()
+			go func() {
+				io.Copy(conn, incoming)
+				doneC <- true
+			}()
+			<-doneC
+			<-doneC
+			log.Infof("connection from %v to %v closed!", incoming.RemoteAddr(), remoteAddr)
+		}()
+	}
+}
+
 func (client *NodeClient) Close() error {
 	return client.Client.Close()
 }

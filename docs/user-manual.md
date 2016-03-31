@@ -130,6 +130,7 @@ Flags:
   -d, --debug     Verbose logging to stdout
   -p, --port      SSH port on a remote host
   -l, --login     Remote host login
+  -L, --forward   Forward localhost connections to remote server
 
 Args:
   <[user@]host>  Remote hostname and the login to use
@@ -137,7 +138,7 @@ Args:
 ```
 
 `tsh` tries to mimic `ssh` experience as much as possible, so it supports the most popular `ssh`
-flags like `-p` or `-l`. For example if you have the following alias defined in your 
+flags like `-p`, `-l` or `-L`. For example if you have the following alias defined in your 
 `~/.bashrc`: `alias ssh="tsh --proxy=work.example.com --user=myname"` then you can continue
 using familiar SSH syntax:
 
@@ -145,6 +146,20 @@ using familiar SSH syntax:
 > ssh root@host
 > ssh -p 6122 root@host ls
 ```
+
+### Port Forwarding
+
+`tsh ssh` supports OpenSSH `-L` flag which allows to forward incoming connections from localhost
+to the specified remote host:port.
+
+Exmaple:
+```
+> tsh --proxy=work ssh -L 5000:web.remote:80 -d node
+```
+
+Will connect to remote server `node` via `work` proxy, then it will open a listening socket on
+`localhost:5000` and will forward all incoming connections to `web.remote:80` via this SSH 
+tunnel.
 
 ### Resolving Node Names
 

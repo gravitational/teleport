@@ -51,6 +51,12 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+type ForwardedPort struct {
+	SrcPort  int
+	DestPort int
+	DestHost string
+}
+
 // Config is a client config
 type Config struct {
 	// Login is a teleport user login
@@ -86,6 +92,9 @@ type Config struct {
 
 	// Output is a writer, if not passed, stdout will be used
 	Output io.Writer
+
+	// Locally forwarded ports (parameters to -L ssh flag)
+	LocalForwardPorts []ForwardedPort
 }
 
 // ProxyHostPort returns a full host:port address of the proxy or an empty string if no
@@ -253,6 +262,15 @@ func (tc *TeleportClient) SSH(command string) error {
 		return trace.Wrap(err)
 	}
 	defer nodeClient.Close()
+
+	// proxy local ports (forward incoming connections to remote host ports)
+	for _, fp := range tc.Config.LocalForwardPorts {
+		socket, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(fp.SrcPort)))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		go nodeClient.listenAndForward(socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
+	}
 	return tc.runShell(nodeClient, "")
 }
 
