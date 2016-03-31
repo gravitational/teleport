@@ -66,6 +66,8 @@ const (
 	ProxyIdentityEvent = "ProxyIdentity"
 	// SSHIdentityEvent is generated when node's identity has been received
 	SSHIdentityEvent = "SSHIdentity"
+	// AuthIdentityEvent is generated when auth's identity has been initialized
+	AuthIdentityEvent = "AuthIdentity"
 )
 
 // RoleConfig is a configuration for a server role (either proxy or node)
@@ -303,6 +305,7 @@ func (process *TeleportProcess) initAuthService() error {
 		PermissionChecker: auth.NewStandardPermissions(),
 		Roles:             auth.StandardRoles,
 	})
+
 	process.RegisterFunc(func() error {
 		apiServer.Serve()
 		return nil
@@ -345,6 +348,10 @@ func (process *TeleportProcess) initAuthService() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		process.BroadcastEvent(Event{Name: AuthIdentityEvent, Payload: &Connector{
+			Identity: identity,
+			Client:   authClient,
+		}})
 		srv := services.Server{
 			ID:       process.Config.HostUUID,
 			Addr:     cfg.Auth.SSHAddr.Addr,
