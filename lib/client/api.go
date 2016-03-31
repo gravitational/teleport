@@ -269,38 +269,7 @@ func (tc *TeleportClient) SSH(command string) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		runForwarding := func(remoteAddr string) {
-			for {
-				incoming, err := socket.Accept()
-				if err != nil {
-					log.Error(err)
-					break
-				}
-				defer incoming.Close()
-
-				log.Infof("forwarding connection from %v to %v", incoming.RemoteAddr(), remoteAddr)
-				conn, err := nodeClient.Client.Dial("tcp", remoteAddr)
-				if err != nil {
-					log.Error(err)
-				}
-				defer conn.Close()
-
-				doneC := make(chan interface{}, 2)
-				go func() {
-					io.Copy(incoming, conn)
-					doneC <- true
-				}()
-				go func() {
-					io.Copy(conn, incoming)
-					doneC <- true
-				}()
-				<-doneC
-				<-doneC
-				log.Infof("connection from %v to %v closed!", incoming.RemoteAddr(), remoteAddr)
-			}
-			defer socket.Close()
-		}
-		go runForwarding(net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
+		go nodeClient.listenAndForward(socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
 	}
 	return tc.runShell(nodeClient, "")
 }
