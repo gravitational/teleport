@@ -131,6 +131,7 @@ Flags:
   -p, --port      SSH port on a remote host
   -l, --login     Remote host login
   -L, --forward   Forward localhost connections to remote server
+      --local     Execute command on localhost after connecting to SSH node
 
 Args:
   <[user@]host>  Remote hostname and the login to use
@@ -150,7 +151,13 @@ using familiar SSH syntax:
 ### Port Forwarding
 
 `tsh ssh` supports OpenSSH `-L` flag which allows to forward incoming connections from localhost
-to the specified remote host:port.
+to the specified remote host:port. The syntax of `-L` flag is:
+
+```
+-L [bind_interface]:listen_port:remote_host:remote_port
+```
+
+where "bind_interface" defaults to `127.0.0.1`.
 
 Exmaple:
 ```
@@ -160,6 +167,17 @@ Exmaple:
 Will connect to remote server `node` via `work` proxy, then it will open a listening socket on
 `localhost:5000` and will forward all incoming connections to `web.remote:80` via this SSH 
 tunnel.
+
+It is often convenient to establish port forwarding, execute a local command which uses such 
+connection and disconnect. Yon can do this via `--local` flag.
+
+Example:
+```
+> tsh --proxy=work ssh -L 5000:google.com:80 --local node curl http://localhost:5000
+```
+
+This forwards just one curl request for `localhost:5000` to `google:80` via "node" server located
+behind "work" proxy and terminates.
 
 ### Resolving Node Names
 

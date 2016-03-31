@@ -69,6 +69,8 @@ type CLIConf struct {
 	RecursiveCopy bool
 	// -L flag for ssh. Local port forwarding like 'ssh -L 80:remote.host:80 -L 443:remote.host:443'
 	LocalForwardPorts []string
+	// --local flag for ssh
+	LocalExec bool
 }
 
 // run executes TSH client. same as main() but easier to test
@@ -95,6 +97,7 @@ func run(args []string, underTest bool) {
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int16Var(&cf.NodePort)
 	ssh.Flag("login", "Remote host login").Short('l').StringVar(&cf.NodeLogin)
 	ssh.Flag("forward", "Forward localhost connections to remote server").Short('L').StringsVar(&cf.LocalForwardPorts)
+	ssh.Flag("local", "Execute command on localhost after connecting to SSH node").Default("false").BoolVar(&cf.LocalExec)
 	// join
 	join := app.Command("join", "Join the active SSH session")
 	join.Arg("session-id", "ID of the session to join").Required().SetValue(&cf.SessionID)
@@ -221,7 +224,7 @@ func onSSH(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 
-	if err = tc.SSH(strings.Join(cf.RemoteCommand, " ")); err != nil {
+	if err = tc.SSH(cf.RemoteCommand, cf.LocalExec); err != nil {
 		utils.FatalError(err)
 	}
 }
@@ -309,6 +312,7 @@ func printHeader(t *goterm.Table, cols []string) {
 	fmt.Fprint(t, strings.Join(dots, "\t")+"\n")
 }
 
+// parsePortForwardSpec parses parameter to -L flag, i.e. strings like "[ip]:80:remote.host:3000"
 func parsePortForwardSpec(spec []string) (ports []client.ForwardedPort, err error) {
 	if len(spec) == 0 {
 		return ports, nil
@@ -318,16 +322,20 @@ func parsePortForwardSpec(spec []string) (ports []client.ForwardedPort, err erro
 
 	for i, str := range spec {
 		parts := strings.Split(str, ":")
-		if len(parts) != 3 {
+		if len(parts) < 3 || len(parts) > 4 {
 			return nil, fmt.Errorf(errTemplate, str)
 		}
+		if len(parts) == 3 {
+			parts = append([]string{"127.0.0.1"}, parts...)
+		}
 		p := &ports[i]
-		p.SrcPort, err = strconv.Atoi(parts[0])
+		p.SrcIP = parts[0]
+		p.SrcPort, err = strconv.Atoi(parts[1])
 		if err != nil {
 			return nil, fmt.Errorf(errTemplate, str)
 		}
-		p.DestHost = parts[1]
-		p.DestPort, err = strconv.Atoi(parts[2])
+		p.DestHost = parts[2]
+		p.DestPort, err = strconv.Atoi(parts[3])
 		if err != nil {
 			return nil, fmt.Errorf(errTemplate, str)
 		}
