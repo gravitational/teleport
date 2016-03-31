@@ -143,8 +143,9 @@ func (s *APISuite) TestGenerateUserCert(c *C) {
 	_, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
-	s.a.UpsertUser(
+	err = s.clt.UpsertUser(
 		services.User{Name: "user1", AllowedLogins: []string{"user1"}})
+	c.Assert(err, IsNil)
 
 	// make sure we can parse the private and public key
 	cert, err := s.clt.GenerateUserCert(pub, "user1", time.Hour)

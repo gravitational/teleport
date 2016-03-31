@@ -431,6 +431,12 @@ func (c *Client) UpsertPassword(user string,
 	return re.HotpURL, re.HotpQR, err
 }
 
+// UpsertUser user updates or inserts user entry
+func (c *Client) UpsertUser(user services.User) error {
+	_, err := c.PostJSON(c.Endpoint("users"), upsertUserReq{User: user})
+	return trace.Wrap(err)
+}
+
 // CheckPassword checks if the suplied web access password is valid.
 func (c *Client) CheckPassword(user string,
 	password []byte, hotpToken string) error {
@@ -496,7 +502,7 @@ func (c *Client) GetWebSessionInfo(user string, sid string) (*Session, error) {
 	return sess, nil
 }
 
-// GetWebSessionKeys returns the list of temporary keys generated for this
+// GetWebSessionsKeys returns the list of temporary keys generated for this
 // user web session. Each web session has a temporary user ssh key and
 // certificate generated, that is stored for the duration of this web
 // session. These keys are used to access SSH servers via web portal.
@@ -701,6 +707,7 @@ func (c *chunkRW) Close() error {
 
 // TOODO(klizhentas) this should be just including appropriate service implementations
 type ClientI interface {
+	UpsertUser(user services.User) error
 	GetSessions() ([]session.Session, error)
 	GetSession(id session.ID) (*session.Session, error)
 	CreateSession(s session.Session) error
