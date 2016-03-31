@@ -63,9 +63,17 @@ func (s *MainTestSuite) TestMakeClient(c *check.C) {
 	// specific configuration
 	conf.MinsToLive = 5
 	conf.UserHost = "root@localhost"
+	conf.LocalForwardPorts = []string{"80:remote:180"}
 	tc, err = makeClient(&conf)
 	c.Assert(tc.Config.KeyTTL, check.Equals, time.Minute*time.Duration(conf.MinsToLive))
 	c.Assert(tc.Config.HostLogin, check.Equals, "root")
+	c.Assert(tc.Config.LocalForwardPorts, check.DeepEquals, []client.ForwardedPort{
+		{
+			SrcPort:  80,
+			DestHost: "remote",
+			DestPort: 180,
+		},
+	})
 }
 
 func (s *MainTestSuite) TestPortsParsing(c *check.C) {

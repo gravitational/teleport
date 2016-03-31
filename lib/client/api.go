@@ -262,6 +262,46 @@ func (tc *TeleportClient) SSH(command string) error {
 		return trace.Wrap(err)
 	}
 	defer nodeClient.Close()
+
+	// proxy local ports (forward incoming connections to remote host ports)
+	for _, fp := range tc.Config.LocalForwardPorts {
+		socket, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(fp.SrcPort)))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		runForwarding := func(remoteAddr string) {
+			for {
+				incoming, err := socket.Accept()
+				if err != nil {
+					log.Error(err)
+					break
+				}
+				defer incoming.Close()
+
+				log.Infof("forwarding connection from %v to %v", incoming.RemoteAddr(), remoteAddr)
+				conn, err := nodeClient.Client.Dial("tcp", remoteAddr)
+				if err != nil {
+					log.Error(err)
+				}
+				defer conn.Close()
+
+				done_c := make(chan interface{}, 2)
+				go func() {
+					io.Copy(incoming, conn)
+					done_c <- true
+				}()
+				go func() {
+					io.Copy(conn, incoming)
+					done_c <- true
+				}()
+				<-done_c
+				<-done_c
+				log.Infof("connection from %v to %v closed!", incoming.RemoteAddr(), remoteAddr)
+			}
+			defer socket.Close()
+		}
+		go runForwarding(net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
+	}
 	return tc.runShell(nodeClient, "")
 }
 
