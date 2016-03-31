@@ -94,7 +94,7 @@ func run(args []string, underTest bool) {
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int16Var(&cf.NodePort)
 	ssh.Flag("login", "Remote host login").Short('l').StringVar(&cf.NodeLogin)
-	ssh.Flag("local-forward", "Forward localhost connections to remote server").Short('L').StringsVar(&cf.LocalForwardPorts)
+	ssh.Flag("forward", "Forward localhost connections to remote server").Short('L').StringsVar(&cf.LocalForwardPorts)
 	// join
 	join := app.Command("join", "Join the active SSH session")
 	join.Arg("session-id", "ID of the session to join").Required().SetValue(&cf.SessionID)

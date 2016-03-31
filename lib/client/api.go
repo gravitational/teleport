@@ -285,17 +285,17 @@ func (tc *TeleportClient) SSH(command string) error {
 				}
 				defer conn.Close()
 
-				done_c := make(chan interface{}, 2)
+				doneC := make(chan interface{}, 2)
 				go func() {
 					io.Copy(incoming, conn)
-					done_c <- true
+					doneC <- true
 				}()
 				go func() {
 					io.Copy(conn, incoming)
-					done_c <- true
+					doneC <- true
 				}()
-				<-done_c
-				<-done_c
+				<-doneC
+				<-doneC
 				log.Infof("connection from %v to %v closed!", incoming.RemoteAddr(), remoteAddr)
 			}
 			defer socket.Close()
