@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 
 	"gopkg.in/check.v1"
@@ -70,6 +71,10 @@ func (s *ConfigTestSuite) SetUpSuite(c *check.C) {
 	if err = ioutil.WriteFile(s.configFileBadContent, []byte("bad-data!"), 0660); err != nil {
 		c.FailNow()
 	}
+
+	// configure to look for web/dist in the current directory
+	curdir, _ := os.Getwd()
+	DirsToLookForWebAssets = []string{filepath.Join(curdir, "../../web/dist")}
 }
 
 func (s *ConfigTestSuite) TearDownSuite(c *check.C) {
@@ -152,6 +157,55 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(conf, check.NotNil)
 	checkStaticConfig(c, conf)
+}
+
+func (s *ConfigTestSuite) TestLabelParsing(c *check.C) {
+	var conf service.SSHConfig
+	var err error
+	// empty spec. no errors, no labels
+	err = parseLabels("", &conf)
+	c.Assert(err, check.IsNil)
+	c.Assert(conf.CmdLabels, check.IsNil)
+	c.Assert(conf.Labels, check.IsNil)
+
+	// simple static labels
+	err = parseLabels(`key=value,more="much better"`, &conf)
+	c.Assert(err, check.IsNil)
+	c.Assert(conf.CmdLabels, check.NotNil)
+	c.Assert(conf.CmdLabels, check.HasLen, 0)
+	c.Assert(conf.Labels, check.DeepEquals, map[string]string{
+		"key":  "value",
+		"more": "much better",
+	})
+
+	// static labels + command labels
+	err = parseLabels(`key=value,more="much better",arch=[5m2s:/bin/uname -m "p1 p2"]`, &conf)
+	c.Assert(err, check.IsNil)
+	c.Assert(conf.Labels, check.DeepEquals, map[string]string{
+		"key":  "value",
+		"more": "much better",
+	})
+	c.Assert(conf.CmdLabels, check.DeepEquals, services.CommandLabels{
+		"arch": services.CommandLabel{
+			Period:  time.Minute*5 + time.Second*2,
+			Command: []string{"/bin/uname", "-m", `"p1 p2"`},
+		},
+	})
+}
+
+func (s *ConfigTestSuite) TestLocateWebAssets(c *check.C) {
+	path, err := locateWebAssets()
+	c.Assert(path, check.Equals, DirsToLookForWebAssets[0])
+	c.Assert(err, check.IsNil)
+
+	origDirs := DirsToLookForWebAssets
+	defer func() {
+		DirsToLookForWebAssets = origDirs
+	}()
+	DirsToLookForWebAssets = []string{"/bad/dir"}
+	path, err = locateWebAssets()
+	c.Assert(path, check.Equals, "")
+	c.Assert(err, check.NotNil)
 }
 
 func checkStaticConfig(c *check.C, conf *FileConfig) {

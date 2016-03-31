@@ -13,9 +13,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package service
 
 import (
+	"fmt"
 	"os"
 	"sync"
 
@@ -44,14 +46,37 @@ type Supervisor interface {
 	// Run starts and waits for the service to complete
 	// it's a combinatioin Start() and Wait()
 	Run() error
+
+	// BroadcastEvent generates event and broadcasts it to all
+	// interested parties
+	BroadcastEvent(Event)
+
+	// WaitForEvent waits for event to be broadcastet, if the event
+	// was already broadcasted, payloadC will receive current event immediately
+	// close cancelC channel to skip notification and release resources
+	WaitForEvent(name string, eventC chan Event, cancelC chan struct{})
 }
 
 type LocalSupervisor struct {
 	state int
 	sync.Mutex
-	wg       *sync.WaitGroup
-	services []Service
-	errors   []error
+	wg           *sync.WaitGroup
+	services     []Service
+	errors       []error
+	events       map[string]Event
+	eventsC      chan Event
+	eventWaiters map[string][]*waiter
+}
+
+// Event is a special service event that can be generated
+// by various goroutines in the supervisor
+type Event struct {
+	Name    string
+	Payload interface{}
+}
+
+func (e *Event) String() string {
+	return fmt.Sprintf("event(%v)", e.Name)
 }
 
 func (s *LocalSupervisor) Register(srv Service) {
@@ -109,11 +134,77 @@ func (s *LocalSupervisor) Run() error {
 	return s.Wait()
 }
 
-func NewSupervisor() Supervisor {
-	return &LocalSupervisor{
-		services: []Service{},
-		wg:       &sync.WaitGroup{},
+func (s *LocalSupervisor) BroadcastEvent(event Event) {
+	s.Lock()
+	defer s.Unlock()
+	s.events[event.Name] = event
+	log.Infof("BroadcastEvent: %v", &event)
+
+	go func() {
+		s.eventsC <- event
+	}()
+}
+
+func (s *LocalSupervisor) WaitForEvent(name string, eventC chan Event, cancelC chan struct{}) {
+	s.Lock()
+	defer s.Unlock()
+
+	waiter := &waiter{eventC: eventC, cancelC: cancelC}
+	event, ok := s.events[name]
+	if ok {
+		go s.notifyWaiter(waiter, event)
+		return
 	}
+	s.eventWaiters[name] = append(s.eventWaiters[name], waiter)
+}
+
+func (s *LocalSupervisor) getWaiters(name string) []*waiter {
+	s.Lock()
+	defer s.Unlock()
+
+	waiters := s.eventWaiters[name]
+	out := make([]*waiter, len(waiters))
+	for i := range waiters {
+		out[i] = waiters[i]
+	}
+	return out
+}
+
+func (s *LocalSupervisor) notifyWaiter(w *waiter, event Event) {
+	select {
+	case w.eventC <- event:
+	case <-w.cancelC:
+	}
+}
+
+func (s *LocalSupervisor) fanOut() {
+	for {
+		select {
+		case event := <-s.eventsC:
+			waiters := s.getWaiters(event.Name)
+			for _, waiter := range waiters {
+				go s.notifyWaiter(waiter, event)
+			}
+		}
+	}
+}
+
+// NewSupervisor returns new instance of initialized supervisor
+func NewSupervisor() Supervisor {
+	srv := &LocalSupervisor{
+		services:     []Service{},
+		wg:           &sync.WaitGroup{},
+		events:       map[string]Event{},
+		eventsC:      make(chan Event, 100),
+		eventWaiters: make(map[string][]*waiter),
+	}
+	go srv.fanOut()
+	return srv
+}
+
+type waiter struct {
+	eventC  chan Event
+	cancelC chan struct{}
 }
 
 type Service interface {

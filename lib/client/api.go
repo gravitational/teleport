@@ -32,7 +32,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -77,6 +76,16 @@ type Config struct {
 
 	// InsecureSkipVerify is an option to skip HTTPS cert check
 	InsecureSkipVerify bool
+
+	// SkipLocalAuth will not try to connect to local SSH agent
+	// or use any local certs, and not use interactive logins
+	SkipLocalAuth bool
+
+	// AuthMethods if passed will be used to login into cluster
+	AuthMethods []ssh.AuthMethod
+
+	// Output is a writer, if not passed, stdout will be used
+	Output io.Writer
 }
 
 // ProxyHostPort returns a full host:port address of the proxy or an empty string if no
@@ -133,11 +142,31 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		return nil, trace.Errorf("invalid requested cert TTL")
 	}
 
+	if c.Output == nil {
+		c.Output = os.Stdout
+	}
+
 	tc = &TeleportClient{
 		Config:      *c,
 		authMethods: make([]ssh.AuthMethod, 0),
 	}
 
+	// add auth methods supplied by user if any
+	for _, method := range c.AuthMethods {
+		tc.authMethods = append(tc.authMethods, method)
+	}
+
+	// sometimes we need to use external auth without using local auth
+	// methods, e.g. in automation daemons
+	if c.SkipLocalAuth {
+		if len(tc.authMethods) == 0 {
+			return nil, trace.Wrap(
+				teleport.BadParameter(
+					"AuthMethods", "SkipLocalAuth is true but no AuthMethods provided"),
+			)
+		}
+		return tc, nil
+	}
 	// first, see if we can authenticate with credentials stored in
 	// a local SSH agent:
 	if sshAgent := connectToSSHAgent(); sshAgent != nil {
@@ -187,7 +216,7 @@ func (tc *TeleportClient) getTargetNodes(proxy *ProxyClient) ([]string, error) {
 
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
 // otherwise runs interactive shell
-func (tc *TeleportClient) SSH(command string) (err error) {
+func (tc *TeleportClient) SSH(command string) error {
 	// connect to proxy first:
 	if !tc.Config.ProxySpecified() {
 		return trace.Wrap(teleport.BadParameter("server", "proxy server is not specified"))
@@ -385,16 +414,18 @@ func (tc *TeleportClient) ListNodes() ([]services.Server, error) {
 
 // runCommand executes a given bash command on a bunch of remote nodes
 func (tc *TeleportClient) runCommand(nodeAddresses []string, proxyClient *ProxyClient, command string) error {
-	stdoutMutex := &sync.Mutex{}
-	wg := &sync.WaitGroup{}
 
+	resultsC := make(chan error, len(nodeAddresses))
 	for _, address := range nodeAddresses {
-		wg.Add(1)
 		go func(address string) {
-			defer wg.Done()
-			nodeClient, err := proxyClient.ConnectToNode(address, tc.Config.Login)
+			var err error
+			defer func() {
+				resultsC <- err
+			}()
+			var nodeClient *NodeClient
+			nodeClient, err = proxyClient.ConnectToNode(address, tc.Config.Login)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Fprintln(tc.Output, err)
 			}
 			defer nodeClient.Close()
 
@@ -402,21 +433,29 @@ func (tc *TeleportClient) runCommand(nodeAddresses []string, proxyClient *ProxyC
 			out := bytes.Buffer{}
 			err = nodeClient.Run(command, &out)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Fprintln(tc.Output, err)
 			}
 
-			stdoutMutex.Lock()
-			defer stdoutMutex.Unlock()
-			fmt.Printf("Running command on %v:\n", address)
+			if len(nodeAddresses) > 1 {
+				fmt.Printf("Running command on %v:\n", address)
+			}
+
 			if err != nil {
-				fmt.Println(err)
+				fmt.Fprintln(tc.Output, err)
 			} else {
-				fmt.Printf(out.String())
+				fmt.Fprintf(tc.Output, out.String())
 			}
 		}(address)
 	}
-	wg.Wait()
-	return nil
+
+	var lastError error
+	for range nodeAddresses {
+		if err := <-resultsC; err != nil {
+			lastError = err
+		}
+	}
+
+	return trace.Wrap(lastError)
 }
 
 // runShell starts an interactive SSH session/shell
@@ -528,7 +567,8 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		HostKeyCallback: CheckHostSignature,
 	}
 	if len(tc.authMethods) == 0 {
-		return nil, trace.Errorf("no authentication methods provided")
+		return nil, trace.Wrap(teleport.BadParameter(
+			"AuthMethods", "no authentication methods provided"))
 	}
 	log.Debugf("connecting to proxy: %v", proxyAddr)
 

@@ -6,9 +6,9 @@ import (
 	"syscall"
 )
 
-// StatT type contains status of a file. It contains metadata
-// like permission, owner, group, size, etc about a file.
-type StatT struct {
+// Stat_t type contains status of a file. It contains metadata
+// like permission, owner, group, size, etc about a file
+type Stat_t struct {
 	mode uint32
 	uid  uint32
 	gid  uint32
@@ -17,37 +17,30 @@ type StatT struct {
 	mtim syscall.Timespec
 }
 
-// Mode returns file's permission mode.
-func (s StatT) Mode() uint32 {
+func (s Stat_t) Mode() uint32 {
 	return s.mode
 }
 
-// UID returns file's user id of owner.
-func (s StatT) UID() uint32 {
+func (s Stat_t) Uid() uint32 {
 	return s.uid
 }
 
-// GID returns file's group id of owner.
-func (s StatT) GID() uint32 {
+func (s Stat_t) Gid() uint32 {
 	return s.gid
 }
 
-// Rdev returns file's device ID (if it's special file).
-func (s StatT) Rdev() uint64 {
+func (s Stat_t) Rdev() uint64 {
 	return s.rdev
 }
 
-// Size returns file's size.
-func (s StatT) Size() int64 {
+func (s Stat_t) Size() int64 {
 	return s.size
 }
 
-// Mtim returns file's last modification time.
-func (s StatT) Mtim() syscall.Timespec {
+func (s Stat_t) Mtim() syscall.Timespec {
 	return s.mtim
 }
 
-// GetLastModification returns file's last modification time.
-func (s StatT) GetLastModification() syscall.Timespec {
+func (s Stat_t) GetLastModification() syscall.Timespec {
 	return s.Mtim()
 }
