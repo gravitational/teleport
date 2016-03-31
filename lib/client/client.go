@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -394,7 +395,7 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.Rea
 
 // Run executes command on the remote server and writes its stdout to
 // the 'output' argument
-func (client *NodeClient) Run(cmd string, output io.Writer) error {
+func (client *NodeClient) Run(cmd []string, output io.Writer) error {
 	session, err := client.Client.NewSession()
 	if err != nil {
 		return trace.Wrap(err)
@@ -402,7 +403,7 @@ func (client *NodeClient) Run(cmd string, output io.Writer) error {
 
 	session.Stdout = output
 
-	if err := session.Run(cmd); err != nil {
+	if err := session.Run(strings.Join(cmd, " ")); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -521,6 +522,7 @@ func (client *NodeClient) scp(scpCommand scp.Command, shellCmd string) error {
 // to the given remote address via
 func (client *NodeClient) listenAndForward(socket net.Listener, remoteAddr string) {
 	defer socket.Close()
+	defer client.Close()
 	for {
 		incoming, err := socket.Accept()
 		if err != nil {

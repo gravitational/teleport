@@ -69,6 +69,7 @@ func (s *MainTestSuite) TestMakeClient(c *check.C) {
 	c.Assert(tc.Config.HostLogin, check.Equals, "root")
 	c.Assert(tc.Config.LocalForwardPorts, check.DeepEquals, []client.ForwardedPort{
 		{
+			SrcIP:    "127.0.0.1",
 			SrcPort:  80,
 			DestHost: "remote",
 			DestPort: 180,
@@ -87,18 +88,20 @@ func (s *MainTestSuite) TestPortsParsing(c *check.C) {
 	// not empty (but valid)
 	spec := []string{
 		"80:remote.host:180",
-		"443:deep.host:1443",
+		"10.0.10.1:443:deep.host:1443",
 	}
 	ports, err = parsePortForwardSpec(spec)
 	c.Assert(err, check.IsNil)
 	c.Assert(ports, check.HasLen, 2)
 	c.Assert(ports, check.DeepEquals, []client.ForwardedPort{
 		{
+			SrcIP:    "127.0.0.1",
 			SrcPort:  80,
 			DestHost: "remote.host",
 			DestPort: 180,
 		},
 		{
+			SrcIP:    "10.0.10.1",
 			SrcPort:  443,
 			DestHost: "deep.host",
 			DestPort: 1443,
