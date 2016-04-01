@@ -395,7 +395,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 // key is the real CA authority key.
 func (s *Server) isAuthority(cert ssh.PublicKey) bool {
 	// find cert authority by it's key
-	cas, err := auth.RetryingClient(s.authService, 20).GetCertAuthorities(services.UserCA, true)
+	cas, err := auth.RetryingClient(s.authService, 20).GetCertAuthorities(services.UserCA, false)
 	if err != nil {
 		log.Warningf("%v", err)
 		return false

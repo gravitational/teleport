@@ -27,12 +27,12 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"os/exec"
 	"os/signal"
 	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -51,6 +51,13 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/crypto/ssh/terminal"
 )
+
+type ForwardedPort struct {
+	SrcIP    string
+	SrcPort  int
+	DestPort int
+	DestHost string
+}
 
 // Config is a client config
 type Config struct {
@@ -77,6 +84,19 @@ type Config struct {
 
 	// InsecureSkipVerify is an option to skip HTTPS cert check
 	InsecureSkipVerify bool
+
+	// SkipLocalAuth will not try to connect to local SSH agent
+	// or use any local certs, and not use interactive logins
+	SkipLocalAuth bool
+
+	// AuthMethods if passed will be used to login into cluster
+	AuthMethods []ssh.AuthMethod
+
+	// Output is a writer, if not passed, stdout will be used
+	Output io.Writer
+
+	// Locally forwarded ports (parameters to -L ssh flag)
+	LocalForwardPorts []ForwardedPort
 }
 
 // ProxyHostPort returns a full host:port address of the proxy or an empty string if no
@@ -133,11 +153,31 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		return nil, trace.Errorf("invalid requested cert TTL")
 	}
 
+	if c.Output == nil {
+		c.Output = os.Stdout
+	}
+
 	tc = &TeleportClient{
 		Config:      *c,
 		authMethods: make([]ssh.AuthMethod, 0),
 	}
 
+	// add auth methods supplied by user if any
+	for _, method := range c.AuthMethods {
+		tc.authMethods = append(tc.authMethods, method)
+	}
+
+	// sometimes we need to use external auth without using local auth
+	// methods, e.g. in automation daemons
+	if c.SkipLocalAuth {
+		if len(tc.authMethods) == 0 {
+			return nil, trace.Wrap(
+				teleport.BadParameter(
+					"AuthMethods", "SkipLocalAuth is true but no AuthMethods provided"),
+			)
+		}
+		return tc, nil
+	}
 	// first, see if we can authenticate with credentials stored in
 	// a local SSH agent:
 	if sshAgent := connectToSSHAgent(); sshAgent != nil {
@@ -187,7 +227,7 @@ func (tc *TeleportClient) getTargetNodes(proxy *ProxyClient) ([]string, error) {
 
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
 // otherwise runs interactive shell
-func (tc *TeleportClient) SSH(command string) (err error) {
+func (tc *TeleportClient) SSH(command []string, runLocally bool) error {
 	// connect to proxy first:
 	if !tc.Config.ProxySpecified() {
 		return trace.Wrap(teleport.BadParameter("server", "proxy server is not specified"))
@@ -207,23 +247,43 @@ func (tc *TeleportClient) SSH(command string) (err error) {
 		return trace.Wrap(teleport.BadParameter("host", "no target host specified"))
 	}
 
-	// execute non-interactive SSH command:
-	if len(command) > 0 {
-		return tc.runCommand(nodeAddrs, proxyClient, command)
-	}
-
 	// more than one node for an interactive shell?
 	// that can't be!
 	if len(nodeAddrs) != 1 {
 		return trace.Errorf("Cannot launch shell on multiple nodes: %v", nodeAddrs)
 	}
 
-	// execute SSH shell on a single node:
+	// proxy local ports (forward incoming connections to remote host ports)
+	if len(tc.Config.LocalForwardPorts) > 0 {
+		nodeClient, err := proxyClient.ConnectToNode(nodeAddrs[0], tc.Config.HostLogin)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, fp := range tc.Config.LocalForwardPorts {
+			socket, err := net.Listen("tcp", net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort)))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			go nodeClient.listenAndForward(socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
+		}
+	}
+
+	// local execution?
+	if runLocally {
+		if len(tc.Config.LocalForwardPorts) == 0 {
+			fmt.Println("Executing command locally without connecting to any servers. This makes no sense.")
+		}
+		return runLocalCommand(command)
+	}
+
+	// execute command(s) or a shell on remote node(s)
+	if len(command) > 0 {
+		return tc.runCommand(nodeAddrs, proxyClient, command)
+	}
 	nodeClient, err := proxyClient.ConnectToNode(nodeAddrs[0], tc.Config.HostLogin)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer nodeClient.Close()
 	return tc.runShell(nodeClient, "")
 }
 
@@ -384,17 +444,18 @@ func (tc *TeleportClient) ListNodes() ([]services.Server, error) {
 }
 
 // runCommand executes a given bash command on a bunch of remote nodes
-func (tc *TeleportClient) runCommand(nodeAddresses []string, proxyClient *ProxyClient, command string) error {
-	stdoutMutex := &sync.Mutex{}
-	wg := &sync.WaitGroup{}
-
+func (tc *TeleportClient) runCommand(nodeAddresses []string, proxyClient *ProxyClient, command []string) error {
+	resultsC := make(chan error, len(nodeAddresses))
 	for _, address := range nodeAddresses {
-		wg.Add(1)
 		go func(address string) {
-			defer wg.Done()
-			nodeClient, err := proxyClient.ConnectToNode(address, tc.Config.Login)
+			var err error
+			defer func() {
+				resultsC <- err
+			}()
+			var nodeClient *NodeClient
+			nodeClient, err = proxyClient.ConnectToNode(address, tc.Config.Login)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Fprintln(tc.Output, err)
 			}
 			defer nodeClient.Close()
 
@@ -402,21 +463,29 @@ func (tc *TeleportClient) runCommand(nodeAddresses []string, proxyClient *ProxyC
 			out := bytes.Buffer{}
 			err = nodeClient.Run(command, &out)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Fprintln(tc.Output, err)
 			}
 
-			stdoutMutex.Lock()
-			defer stdoutMutex.Unlock()
-			fmt.Printf("Running command on %v:\n", address)
+			if len(nodeAddresses) > 1 {
+				fmt.Printf("Running command on %v:\n", address)
+			}
+
 			if err != nil {
-				fmt.Println(err)
+				fmt.Fprintln(tc.Output, err)
 			} else {
-				fmt.Printf(out.String())
+				fmt.Fprintf(tc.Output, out.String())
 			}
 		}(address)
 	}
-	wg.Wait()
-	return nil
+
+	var lastError error
+	for range nodeAddresses {
+		if err := <-resultsC; err != nil {
+			lastError = err
+		}
+	}
+
+	return trace.Wrap(lastError)
 }
 
 // runShell starts an interactive SSH session/shell
@@ -528,7 +597,8 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		HostKeyCallback: CheckHostSignature,
 	}
 	if len(tc.authMethods) == 0 {
-		return nil, trace.Errorf("no authentication methods provided")
+		return nil, trace.Wrap(teleport.BadParameter(
+			"AuthMethods", "no authentication methods provided"))
 	}
 	log.Debugf("connecting to proxy: %v", proxyAddr)
 
@@ -806,4 +876,14 @@ func ParseLabelSpec(spec string) (map[string]string, error) {
 
 func authMethodFromAgent(ag agent.Agent) ssh.AuthMethod {
 	return ssh.PublicKeysCallback(ag.Signers)
+}
+
+// Executes the given command on the client machine (localhost). If no command is given,
+// executes shell
+func runLocalCommand(command []string) error {
+	cmd := exec.Command(command[0], command[1:]...)
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	return cmd.Run()
 }

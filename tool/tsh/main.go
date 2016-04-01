@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -66,6 +67,10 @@ type CLIConf struct {
 	CopySpec []string
 	// -r flag for scp
 	RecursiveCopy bool
+	// -L flag for ssh. Local port forwarding like 'ssh -L 80:remote.host:80 -L 443:remote.host:443'
+	LocalForwardPorts []string
+	// --local flag for ssh
+	LocalExec bool
 }
 
 // run executes TSH client. same as main() but easier to test
@@ -91,10 +96,11 @@ func run(args []string, underTest bool) {
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int16Var(&cf.NodePort)
 	ssh.Flag("login", "Remote host login").Short('l').StringVar(&cf.NodeLogin)
+	ssh.Flag("forward", "Forward localhost connections to remote server").Short('L').StringsVar(&cf.LocalForwardPorts)
+	ssh.Flag("local", "Execute command on localhost after connecting to SSH node").Default("false").BoolVar(&cf.LocalExec)
 	// join
 	join := app.Command("join", "Join the active SSH session")
 	join.Arg("session-id", "ID of the session to join").Required().SetValue(&cf.SessionID)
-
 	// scp
 	scp := app.Command("scp", "Secure file copy")
 	scp.Arg("from, to", "Source and destination to copy").Required().StringsVar(&cf.CopySpec)
@@ -218,7 +224,7 @@ func onSSH(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 
-	if err = tc.SSH(strings.Join(cf.RemoteCommand, " ")); err != nil {
+	if err = tc.SSH(cf.RemoteCommand, cf.LocalExec); err != nil {
 		utils.FatalError(err)
 	}
 }
@@ -255,9 +261,10 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 	if cf.MinsToLive == 0 {
 		cf.MinsToLive = int32(defaults.CertDuration / time.Minute)
 	}
+
+	// split login & host
 	hostLogin := cf.Login
 	var labels map[string]string
-	// split login & host
 	if cf.UserHost != "" {
 		parts := strings.Split(cf.UserHost, "@")
 		if len(parts) > 1 {
@@ -272,6 +279,11 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 			}
 		}
 	}
+	fPorts, err := parsePortForwardSpec(cf.LocalForwardPorts)
+	if err != nil {
+		return nil, err
+	}
+
 	// prep client config:
 	c := &client.Config{
 		Login:              cf.Login,
@@ -282,6 +294,7 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 		Labels:             labels,
 		KeyTTL:             time.Minute * time.Duration(cf.MinsToLive),
 		InsecureSkipVerify: cf.InsecureSkipVerify,
+		LocalForwardPorts:  fPorts,
 	}
 	return client.NewClient(c)
 }
@@ -297,4 +310,35 @@ func printHeader(t *goterm.Table, cols []string) {
 	}
 	fmt.Fprint(t, strings.Join(cols, "\t")+"\n")
 	fmt.Fprint(t, strings.Join(dots, "\t")+"\n")
+}
+
+// parsePortForwardSpec parses parameter to -L flag, i.e. strings like "[ip]:80:remote.host:3000"
+func parsePortForwardSpec(spec []string) (ports []client.ForwardedPort, err error) {
+	if len(spec) == 0 {
+		return ports, nil
+	}
+	const errTemplate = "Invalid port forwarding spec: '%s'. Sould be like `80:remote.host:80`"
+	ports = make([]client.ForwardedPort, len(spec), len(spec))
+
+	for i, str := range spec {
+		parts := strings.Split(str, ":")
+		if len(parts) < 3 || len(parts) > 4 {
+			return nil, fmt.Errorf(errTemplate, str)
+		}
+		if len(parts) == 3 {
+			parts = append([]string{"127.0.0.1"}, parts...)
+		}
+		p := &ports[i]
+		p.SrcIP = parts[0]
+		p.SrcPort, err = strconv.Atoi(parts[1])
+		if err != nil {
+			return nil, fmt.Errorf(errTemplate, str)
+		}
+		p.DestHost = parts[2]
+		p.DestPort, err = strconv.Atoi(parts[3])
+		if err != nil {
+			return nil, fmt.Errorf(errTemplate, str)
+		}
+	}
+	return ports, nil
 }

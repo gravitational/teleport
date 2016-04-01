@@ -7,9 +7,7 @@ import (
 	"time"
 )
 
-// StatT type contains status of a file. It contains metadata
-// like name, permission, size, etc about a file.
-type StatT struct {
+type Stat_t struct {
 	name    string
 	size    int64
 	mode    os.FileMode
@@ -17,27 +15,22 @@ type StatT struct {
 	isDir   bool
 }
 
-// Name returns file's name.
-func (s StatT) Name() string {
+func (s Stat_t) Name() string {
 	return s.name
 }
 
-// Size returns file's size.
-func (s StatT) Size() int64 {
+func (s Stat_t) Size() int64 {
 	return s.size
 }
 
-// Mode returns file's permission mode.
-func (s StatT) Mode() os.FileMode {
+func (s Stat_t) Mode() os.FileMode {
 	return s.mode
 }
 
-// ModTime returns file's last modification time.
-func (s StatT) ModTime() time.Time {
+func (s Stat_t) ModTime() time.Time {
 	return s.modTime
 }
 
-// IsDir returns whether file is actually a directory.
-func (s StatT) IsDir() bool {
+func (s Stat_t) IsDir() bool {
 	return s.isDir
 }

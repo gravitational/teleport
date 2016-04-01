@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package config
 
 import (
 	"fmt"
@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/service"
@@ -70,7 +69,7 @@ type CommandLineFlags struct {
 
 // readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
 // and overrides values in 'cfg' structure
-func readConfigFile(cliConfigPath string) (*config.FileConfig, error) {
+func readConfigFile(cliConfigPath string) (*FileConfig, error) {
 	configFilePath := defaults.ConfigFilePath
 	// --config tells us to use a specific conf. file:
 	if cliConfigPath != "" {
@@ -85,12 +84,12 @@ func readConfigFile(cliConfigPath string) (*config.FileConfig, error) {
 		return nil, nil
 	}
 	log.Debug("reading config file: ", configFilePath)
-	return config.ReadFromFile(configFilePath)
+	return ReadFromFile(configFilePath)
 }
 
-// applyFileConfig applies confniguration from a YAML file to Teleport
+// ApplyFileConfig applies confniguration from a YAML file to Teleport
 // runtime config
-func applyFileConfig(fc *config.FileConfig, cfg *service.Config) error {
+func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	// no config file? no problem
 	if fc == nil {
 		return nil
@@ -303,9 +302,9 @@ func applyString(src string, target *string) bool {
 	return false
 }
 
-// configure merges command line arguments with what's in a configuration file
+// Configure merges command line arguments with what's in a configuration file
 // with CLI commands taking precedence
-func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
+func Configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 	// create the default configuration:
 	cfg = service.MakeDefaultConfig()
 
@@ -317,12 +316,12 @@ func configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 	// if configuration is passed as an environment variable,
 	// try to decode it and override the config file
 	if clf.ConfigString != "" {
-		fileConf, err = config.ReadFromString(clf.ConfigString)
+		fileConf, err = ReadFromString(clf.ConfigString)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	if err = applyFileConfig(fileConf, cfg); err != nil {
+	if err = ApplyFileConfig(fileConf, cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
