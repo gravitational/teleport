@@ -52,12 +52,19 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+// ForwardedPort specifies local tunnel to remote
+// destination managed by the client, is equivalent
+// of ssh -L src:host:dst command
 type ForwardedPort struct {
 	SrcIP    string
 	SrcPort  int
 	DestPort int
 	DestHost string
 }
+
+// HostKeyCallback is called by SSH client when it needs to check
+// remote host key or certificate validity
+type HostKeyCallback func(host string, ip net.Addr, key ssh.PublicKey) error
 
 // Config is a client config
 type Config struct {
@@ -101,6 +108,11 @@ type Config struct {
 
 	// Locally forwarded ports (parameters to -L ssh flag)
 	LocalForwardPorts []ForwardedPort
+
+	// HostKeyCallback will be called to check host keys of the remote
+	// node, if not specified will be using CheckHostSignature function
+	// that uses local cache to validate hosts
+	HostKeyCallback HostKeyCallback
 }
 
 // ProxyHostPort returns a full host:port address of the proxy or an empty string if no
@@ -159,6 +171,10 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 
 	if c.Output == nil {
 		c.Output = os.Stdout
+	}
+
+	if c.HostKeyCallback == nil {
+		c.HostKeyCallback = CheckHostSignature
 	}
 
 	tc = &TeleportClient{
@@ -598,7 +614,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	proxyAddr := tc.Config.ProxyHostPort(defaults.SSHProxyListenPort)
 	sshConfig := &ssh.ClientConfig{
 		User:            tc.Config.Login,
-		HostKeyCallback: CheckHostSignature,
+		HostKeyCallback: tc.Config.HostKeyCallback,
 	}
 	if len(tc.authMethods) == 0 {
 		return nil, trace.Wrap(teleport.BadParameter(
