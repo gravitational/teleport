@@ -78,6 +78,7 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.POST("/v1/keypair", httplib.MakeHandler(srv.generateKeyPair))
 
 	// Passwords and sessions
+	srv.POST("/v1/users", httplib.MakeHandler(srv.upsertUser))
 	srv.POST("/v1/users/:user/web/password", httplib.MakeHandler(srv.upsertPassword))
 	srv.POST("/v1/users/:user/web/password/check", httplib.MakeHandler(srv.checkPassword))
 	srv.POST("/v1/users/:user/web/signin", httplib.MakeHandler(srv.signIn))
@@ -322,6 +323,22 @@ func (s *APIServer) upsertPassword(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 	return &upsertPasswordResponse{HotpURL: hotpURL, HotpQR: hotpQR}, nil
+}
+
+type upsertUserReq struct {
+	User services.User `json:"user"`
+}
+
+func (s *APIServer) upsertUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *upsertUserReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err := s.a.UpsertUser(req.User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message(fmt.Sprintf("'%v' user upserted", req.User.Name)), nil
 }
 
 type checkPasswordReq struct {
