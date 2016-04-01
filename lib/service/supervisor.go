@@ -18,10 +18,10 @@ package service
 
 import (
 	"fmt"
-	"os"
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -99,8 +99,7 @@ func (s *LocalSupervisor) serve(srv Service) {
 		defer s.wg.Done()
 		err := srv.Serve()
 		if err != nil {
-			log.Errorf("srv.Serve() error: %v", err)
-			os.Exit(1)
+			utils.FatalError(err)
 		}
 	}()
 }
