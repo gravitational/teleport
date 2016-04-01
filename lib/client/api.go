@@ -375,6 +375,7 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err erro
 	if !tc.Config.ProxySpecified() {
 		return trace.Wrap(teleport.BadParameter("server", "proxy server is not specified"))
 	}
+	log.Infof("Connecting to proxy...")
 	proxyClient, err := tc.ConnectToProxy()
 	if err != nil {
 		return trace.Wrap(err)
@@ -383,7 +384,10 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err erro
 
 	// upload:
 	if isRemoteDest(last) {
-		host, dest := parseSCPDestination(last)
+		login, host, dest := parseSCPDestination(last)
+		if login != "" {
+			tc.HostLogin = login
+		}
 		addr := net.JoinHostPort(host, strconv.Itoa(port))
 
 		client, err := proxyClient.ConnectToNode(addr, tc.HostLogin)
@@ -400,9 +404,11 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err erro
 		}
 		// download:
 	} else {
-		host, src := parseSCPDestination(first)
+		login, host, src := parseSCPDestination(first)
 		addr := net.JoinHostPort(host, strconv.Itoa(port))
-
+		if login != "" {
+			tc.HostLogin = login
+		}
 		client, err := proxyClient.ConnectToNode(addr, tc.HostLogin)
 		if err != nil {
 			return trace.Wrap(err)
@@ -419,9 +425,17 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err erro
 	return nil
 }
 
-func parseSCPDestination(s string) (host, dest string) {
+// parseSCPDestination takes a string representing a remote resource for SCP
+// to download/upload, like "user@host:/path/to/resource.txt" and returns
+// 3 components of it
+func parseSCPDestination(s string) (login, host, dest string) {
+	i := strings.IndexRune(s, '@')
+	if i > 0 && i < len(s) {
+		login = s[:i]
+		s = s[i+1:]
+	}
 	parts := strings.Split(s, ":")
-	return parts[0], strings.Join(parts[1:], ":")
+	return login, parts[0], strings.Join(parts[1:], ":")
 }
 
 func isRemoteDest(name string) bool {
