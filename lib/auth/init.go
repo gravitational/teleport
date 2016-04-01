@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -413,8 +414,8 @@ func HaveHostKeys(dataDir string, id IdentityID) (bool, error) {
 
 // keysPath returns two full file paths: to the host.key and host.cert
 func keysPath(dataDir string, id IdentityID) (key string, cert string) {
-	return filepath.Join(dataDir, fmt.Sprintf("host.%v.%v.key", id.HostUUID, string(id.Role))),
-		filepath.Join(dataDir, fmt.Sprintf("host.%v.%v.cert", id.HostUUID, string(id.Role)))
+	return filepath.Join(dataDir, fmt.Sprintf("%s.key", strings.ToLower(string(id.Role)))),
+		filepath.Join(dataDir, fmt.Sprintf("%s.cert", strings.ToLower(string(id.Role))))
 }
 
 func pathExists(path string) (bool, error) {
