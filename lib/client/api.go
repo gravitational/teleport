@@ -613,7 +613,7 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID)
 func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	proxyAddr := tc.Config.ProxyHostPort(defaults.SSHProxyListenPort)
 	sshConfig := &ssh.ClientConfig{
-		User:            tc.Config.Login,
+		User:            tc.Config.HostLogin,
 		HostKeyCallback: tc.Config.HostKeyCallback,
 	}
 	if len(tc.authMethods) == 0 {
