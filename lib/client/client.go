@@ -74,9 +74,9 @@ func (proxy *ProxyClient) getSite() (*services.Site, error) {
 	if proxy.siteName == "" {
 		return &sites[0], nil
 	}
-	for i := range sites {
-		if sites[i].Name == proxy.siteName {
-			return nil, trace.Wrap(teleport.NotFound("no sites registered"))
+	for _, site := range sites {
+		if site.Name == proxy.siteName {
+			return &site, nil
 		}
 	}
 	return nil, trace.Wrap(
