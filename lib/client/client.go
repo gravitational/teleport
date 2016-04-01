@@ -570,8 +570,5 @@ func (client *NodeClient) listenAndForward(socket net.Listener, remoteAddr strin
 }
 
 func (client *NodeClient) Close() error {
-	if client.Client != nil {
-		return client.Client.Close()
-	}
-	return nil
+	return client.Client.Close()
 }

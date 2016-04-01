@@ -476,6 +476,7 @@ func (tc *TeleportClient) runCommand(nodeAddresses []string, proxyClient *ProxyC
 			nodeClient, err = proxyClient.ConnectToNode(address, tc.Config.Login)
 			if err != nil {
 				fmt.Fprintln(tc.Output, err)
+				return
 			}
 			defer nodeClient.Close()
 
