@@ -52,6 +52,7 @@ type ProxyClient struct {
 	proxyAddress    string
 	hostKeyCallback utils.HostKeyCallback
 	authMethods     []ssh.AuthMethod
+	siteName        string
 }
 
 // NodeClient implements ssh client to a ssh node (teleport or any regular ssh node)
@@ -59,6 +60,26 @@ type ProxyClient struct {
 type NodeClient struct {
 	Client *ssh.Client
 	Proxy  *ProxyClient
+}
+
+func (proxy *ProxyClient) getSite() (*services.Site, error) {
+	sites, err := proxy.GetSites()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(sites) == 0 {
+		return nil, trace.Wrap(teleport.NotFound("no sites registered"))
+	}
+	if proxy.siteName == "" {
+		return &sites[0], nil
+	}
+	for i := range sites {
+		if sites[i].Name == proxy.siteName {
+			return nil, trace.Wrap(teleport.NotFound("no sites registered"))
+		}
+	}
+	return nil, trace.Wrap(
+		teleport.NotFound(fmt.Sprintf("site %v not found", proxy.siteName)))
 }
 
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
@@ -105,16 +126,11 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 func (proxy *ProxyClient) FindServersByLabels(labels map[string]string) ([]services.Server, error) {
 	nodes := make([]services.Server, 0)
 
-	// see which sites (AKA auth servers) this proxy is connected to
-	sites, err := proxy.GetSites()
+	siteInfo, err := proxy.getSite()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(sites) == 0 {
-		return nodes, nil
-	}
-	// this version of teleport only supports 1-site clusters:
-	site, err := proxy.ConnectToSite(sites[0].Name, proxy.hostLogin)
+	site, err := proxy.ConnectToSite(siteInfo.Name, proxy.hostLogin)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -247,13 +263,12 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.Rea
 		sessionID = session.NewID()
 	}
 
-	// see which sites (AKA auth servers) this proxy is connected to
-	sites, err := client.Proxy.GetSites()
+	siteInfo, err := client.Proxy.getSite()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// this version of teleport only supports 1-site clusters:
-	siteClient, err := client.Proxy.ConnectToSite(sites[0].Name, client.Proxy.hostLogin)
+
+	siteClient, err := client.Proxy.ConnectToSite(siteInfo.Name, client.Proxy.hostLogin)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

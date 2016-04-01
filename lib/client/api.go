@@ -86,6 +86,10 @@ type Config struct {
 
 	// Output is a writer, if not passed, stdout will be used
 	Output io.Writer
+
+	// SiteName specifies site to execute operation,
+	// if omitted, first available site will be selected
+	SiteName string
 }
 
 // ProxyHostPort returns a full host:port address of the proxy or an empty string if no
@@ -589,6 +593,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 				hostKeyCallback: sshConfig.HostKeyCallback,
 				authMethods:     tc.authMethods,
 				hostLogin:       tc.Config.HostLogin,
+				siteName:        tc.Config.SiteName,
 			}, nil
 		}
 		// if we get here, it means we failed to authenticate using stored keys
