@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -409,7 +410,7 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.Rea
 
 // Run executes command on the remote server and writes its stdout to
 // the 'output' argument
-func (client *NodeClient) Run(cmd string, output io.Writer) error {
+func (client *NodeClient) Run(cmd []string, output io.Writer) error {
 	session, err := client.Client.NewSession()
 	if err != nil {
 		return trace.Wrap(err)
@@ -417,7 +418,7 @@ func (client *NodeClient) Run(cmd string, output io.Writer) error {
 
 	session.Stdout = output
 
-	if err := session.Run(cmd); err != nil {
+	if err := session.Run(strings.Join(cmd, " ")); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -529,6 +530,42 @@ func (client *NodeClient) scp(scpCommand scp.Command, shellCmd string) error {
 	select {
 	case serverError := <-serverErrors:
 		return trace.Wrap(serverError)
+	}
+}
+
+// listenAndForward listens on a given socket and forwards all incoming connections
+// to the given remote address via
+func (client *NodeClient) listenAndForward(socket net.Listener, remoteAddr string) {
+	defer socket.Close()
+	defer client.Close()
+	for {
+		incoming, err := socket.Accept()
+		if err != nil {
+			log.Error(err)
+			break
+		}
+		go func() {
+			defer incoming.Close()
+			log.Infof("forwarding connection from %v to %v", incoming.RemoteAddr(), remoteAddr)
+			conn, err := client.Client.Dial("tcp", remoteAddr)
+			if err != nil {
+				log.Error(err)
+			}
+			defer conn.Close()
+
+			doneC := make(chan interface{}, 2)
+			go func() {
+				io.Copy(incoming, conn)
+				doneC <- true
+			}()
+			go func() {
+				io.Copy(conn, incoming)
+				doneC <- true
+			}()
+			<-doneC
+			<-doneC
+			log.Infof("connection from %v to %v closed!", incoming.RemoteAddr(), remoteAddr)
+		}()
 	}
 }
 
