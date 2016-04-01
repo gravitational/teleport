@@ -151,6 +151,8 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 		return nil, trace.Wrap(err)
 	}
 	// try calling a test method via auth api:
+	//
+	// ??? in case of failure it never gets back here!!!
 	_, err = authClient.GetLocalDomain()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -444,7 +446,7 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 				return nil
 			}
 			if teleport.IsConnectionProblem(err) {
-				log.Errorf("[%v] failed connect to auth serverr: %v", role, err)
+				utils.Consolef(cfg.Console, "[%v] connecting to auth server: %v", role, err)
 				time.Sleep(time.Second)
 				continue
 			}
@@ -466,10 +468,10 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 				err = auth.Register(cfg.DataDir, token, identityID, cfg.AuthServers)
 			}
 			if err != nil {
-				log.Errorf("[%v] failed to join the cluster: %v", role, err)
+				utils.Consolef(cfg.Console, "[%v] failed to join the cluster: %v", role, err)
 				time.Sleep(time.Second)
 			} else {
-				utils.Consolef(os.Stdout, "[%v] Successfully registered with the cluster", role)
+				utils.Consolef(cfg.Console, "[%v] Successfully registered with the cluster", role)
 				continue
 			}
 		}
@@ -579,8 +581,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				AuthServers: cfg.AuthServers[0],
 				DomainName:  cfg.Hostname})
 		if err != nil {
-			log.Errorf("failed to launch web server: %v", err)
-			return err
+			utils.Consolef(cfg.Console, "[PROXY] starting the web server: %v", err)
+			return trace.Wrap(err)
 		}
 
 		proxyLimiter.WrapHandle(webHandler)
