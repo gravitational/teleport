@@ -165,6 +165,19 @@ func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 		args = append(args, orig...)
 	}
 
+	// try to determine the host name of the 1st available proxy to set a nicer
+	// session URL. fall back to <proxyhost> placeholder
+	proxyHost := "<proxyhost>"
+	if ctx.srv != nil {
+		proxies, err := ctx.srv.authService.GetProxies()
+		if err != nil {
+			log.Error(err)
+		}
+		if len(proxies) > 0 {
+			proxyHost = proxies[0].Hostname
+		}
+	}
+
 	log.Infof("created OS command '%s' with params: '%v'", shellCommand, args)
 	c := exec.Command(shellCommand, args...)
 	c.Env = []string{
@@ -174,7 +187,7 @@ func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 		"USER=" + osUserName,
 		"SHELL=" + c.Path,
 		"SSH_TELEPORT_USER=" + ctx.teleportUser,
-		"SSH_SESSION_WEBPROXY_ADDR=<proxyhost>:3080",
+		fmt.Sprintf("SSH_SESSION_WEBPROXY_ADDR=%s:3080", proxyHost),
 	}
 	// this configures shell to run in 'login' mode
 	c.Args[0] = "-" + filepath.Base(shellCommand)

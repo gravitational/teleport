@@ -208,7 +208,7 @@ func main() {
 	case ver.FullCommand():
 		onVersion()
 	case userAdd.FullCommand():
-		err = cmdUsers.Add(cfg.Hostname, client)
+		err = cmdUsers.Add(client)
 	case userList.FullCommand():
 		err = cmdUsers.List(client)
 	case userDelete.FullCommand():
@@ -251,7 +251,8 @@ func printHeader(t *goterm.Table, cols []string) {
 
 // Add creates a new sign-up token and prints a token URL to stdout.
 // A user is not created until he visits the sign-up URL and completes the process
-func (u *UserCommand) Add(hostname string, client *auth.TunClient) error {
+func (u *UserCommand) Add(client *auth.TunClient) error {
+
 	// if no local logins were specified, default to 'login'
 	if u.allowedLogins == "" {
 		u.allowedLogins = u.login
@@ -260,9 +261,14 @@ func (u *UserCommand) Add(hostname string, client *auth.TunClient) error {
 	if err != nil {
 		return err
 	}
-	if hostname == "" {
-		hostname, _ = os.Hostname()
+	proxies, err := client.GetProxies()
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	if len(proxies) == 0 {
+		return trace.Errorf("Cannot add users to a cluster without a proxy")
+	}
+	hostname := proxies[0].Hostname
 	url := web.CreateSignupLink(net.JoinHostPort(hostname, strconv.Itoa(defaults.HTTPListenPort)), token)
 	fmt.Printf("Signup token has been created and is valid for %v seconds. Share this URL with the user:\n%v\n\nNOTE: make sure the hostname is accessible!\n", defaults.MaxSignupTokenTTL.Seconds(), url)
 	return nil
@@ -316,14 +322,22 @@ func (u *NodeCommand) Invite(client *auth.TunClient) error {
 		tokens = append(tokens, token)
 	}
 
+	authServers, err := client.GetAuthServers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(authServers) == 0 {
+		return trace.Errorf("This cluster does not have any auth servers running")
+	}
+
 	if u.format == "text" {
 		for _, token := range tokens {
 			fmt.Printf(
-				"The invite token: %v\nRun this on the new node to join the cluster:\n> teleport start --roles=node --token=%v --auth-server=<Address>\n\nNotes:\n",
-				token, token)
+				"The invite token: %v\nRun this on the new node to join the cluster:\n> teleport start --roles=node --token=%v --auth-server=%v\n\nNotes:\n",
+				token, token, authServers[0].Addr)
 		}
 		fmt.Printf("  1. This invitation token will expire in %v seconds.\n", defaults.MaxProvisioningTokenTTL.Seconds())
-		fmt.Printf("  2. <Address> is the IP this auth server is reachable at from the node.\n")
+		fmt.Printf("  2. %v auth server is reachable from the node, see --advertise-ip server flag\n", authServers[0].Addr)
 	} else {
 		out, err := json.Marshal(tokens)
 		if err != nil {
@@ -331,7 +345,6 @@ func (u *NodeCommand) Invite(client *auth.TunClient) error {
 		}
 		fmt.Printf(string(out))
 	}
-
 	return nil
 }
 
