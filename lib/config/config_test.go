@@ -215,6 +215,7 @@ func checkStaticConfig(c *check.C, conf *FileConfig) {
 	c.Assert(conf.Proxy.Enabled(), check.Equals, true)     // Missing "proxy_service" section must lead to 'true'
 	c.Assert(conf.Proxy.Disabled(), check.Equals, false)   // Missing "proxy_service" does NOT mean it's been disabled
 	c.Assert(conf.AdvertiseIP.String(), check.Equals, "10.10.10.1")
+	c.Assert(conf.PidFile, check.Equals, "/var/run/teleport.pid")
 
 	c.Assert(conf.Limits.MaxConnections, check.Equals, int64(90))
 	c.Assert(conf.Limits.MaxUsers, check.Equals, 91)
@@ -328,6 +329,7 @@ const (
 teleport:
   nodename: edsger.example.com
   advertise_ip: 10.10.10.1
+  pid_file: /var/run/teleport.pid
   auth_servers:
     - tcp://auth0.server.example.org:3024
     - tcp://auth1.server.example.org:3024

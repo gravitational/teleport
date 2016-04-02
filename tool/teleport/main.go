@@ -64,6 +64,8 @@ func run(cmdlineArgs []string, testRun bool) (executedCommand string, appliedCon
 		fmt.Sprintf("Comma-separated list of roles to start with [%s]", strings.Join(defaults.StartRoles, ","))).
 		Short('r').
 		StringVar(&ccf.Roles)
+	start.Flag("pid-file",
+		"Full path to the PID file. By default no PID file will be created").StringVar(&ccf.PidFile)
 	start.Flag("advertise-ip",
 		"IP to advertise to clients if running behind NAT").
 		IPVar(&ccf.AdvertiseIP)
@@ -141,6 +143,16 @@ func onStart(config *service.Config) error {
 	}
 	if err := srv.Start(); err != nil {
 		return trace.Wrap(err, "starting teleport")
+	}
+
+	// create the pid file
+	if config.PidFile != "" {
+		f, err := os.OpenFile(config.PidFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+		if err != nil {
+			return trace.Wrap(err, "failed to create the PID file")
+		}
+		fmt.Fprintf(f, "%v", os.Getpid())
+		defer f.Close()
 	}
 	srv.Wait()
 	return nil
