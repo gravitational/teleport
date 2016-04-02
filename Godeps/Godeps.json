@@ -1,16 +1,11 @@
 {
 	"ImportPath": "github.com/gravitational/teleport",
 	"GoVersion": "go1.5",
-	"GodepVersion": "v60",
 	"Packages": [
 		"./lib/...",
 		"./tool/..."
 	],
 	"Deps": [
-		{
-			"ImportPath": "github.com/Azure/go-ansiterm",
-			"Rev": "70b2c90b260171e829f1ebd7c17f600c11858dbe"
-		},
 		{
 			"ImportPath": "github.com/Sirupsen/logrus",
 			"Comment": "v0.9.0",
@@ -68,19 +63,9 @@
 			"Rev": "0c41371064666ad159761e0fb12c7f240b3977cb"
 		},
 		{
-			"ImportPath": "github.com/docker/docker/pkg/system",
-			"Comment": "v1.4.1-4831-g0f5c9d3",
-			"Rev": "0f5c9d301b9b1cca66b3ea0f9dec3b5317d3686d"
-		},
-		{
 			"ImportPath": "github.com/docker/docker/pkg/term",
 			"Comment": "v1.4.1-4831-g0f5c9d3",
 			"Rev": "0f5c9d301b9b1cca66b3ea0f9dec3b5317d3686d"
-		},
-		{
-			"ImportPath": "github.com/docker/go-units",
-			"Comment": "v0.1.0-23-g5d2041e",
-			"Rev": "5d2041e26a699eaca682e2ea41c8f891e1060444"
 		},
 		{
 			"ImportPath": "github.com/gokyle/hotp",
@@ -88,7 +73,7 @@
 		},
 		{
 			"ImportPath": "github.com/gravitational/configure/cstrings",
-			"Rev": "be52937128b38f1d99787bb476c789e2af1147f1"
+			"Rev": "76fd15be9a3c26066ef2525b1dcac70d2474c124"
 		},
 		{
 			"ImportPath": "github.com/gravitational/kingpin",
@@ -115,6 +100,10 @@
 			"ImportPath": "github.com/julienschmidt/httprouter",
 			"Comment": "v1-64-gb428fda",
 			"Rev": "b428fda53bb0a764fea9c76c9413512eda291dec"
+		},
+		{
+			"ImportPath": "github.com/kardianos/osext",
+			"Rev": "10da29423eb9a6269092eebdc2be32209612d9d2"
 		},
 		{
 			"ImportPath": "github.com/kr/pty",
