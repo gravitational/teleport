@@ -42,6 +42,9 @@ type AccessPoint interface {
 	// for the specified duration with second resolution if it's >= 1 second
 	UpsertProxy(s services.Server, ttl time.Duration) error
 
+	// GetProxies returns a list of proxy servers registered in the cluster
+	GetProxies() ([]services.Server, error)
+
 	// GetCertAuthorities returns a list of cert authorities
 	GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error)
 
