@@ -65,6 +65,8 @@ type CommandLineFlags struct {
 	Labels string
 	// --httpprofile hidden flag
 	HTTPProfileEndpoint bool
+	// --pid-file flag
+	PidFile string
 }
 
 // readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -114,6 +116,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.AdvertiseIP = advertiseIP
 	}
+	cfg.PidFile = fc.PidFile
 
 	// config file has auth servers in there?
 	if len(fc.AuthServers) > 0 {
@@ -389,6 +392,10 @@ func Configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 		}
 	}
 
+	// --pid-file:
+	if clf.PidFile != "" {
+		cfg.PidFile = clf.PidFile
+	}
 	return cfg, nil
 }
 
