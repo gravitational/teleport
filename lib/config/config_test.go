@@ -240,16 +240,26 @@ func checkStaticConfig(c *check.C, conf *FileConfig) {
 	c.Assert(conf.SSH.Commands[1].Command, check.DeepEquals, []string{"/bin/date"})
 	c.Assert(conf.SSH.Commands[1].Period.Nanoseconds(), check.Equals, int64(20000000))
 
-	c.Assert(conf.Secrets.Keys[0].PrivateKey, check.Equals, "private key")
-	c.Assert(conf.Secrets.Keys[0].Cert, check.Equals, "node.cert")
-	c.Assert(conf.Secrets.Keys[1].PrivateKeyFile, check.Equals, "/proxy.key.file")
-	c.Assert(conf.Secrets.Keys[1].CertFile, check.Equals, "/proxy.cert.file")
-	c.Assert(conf.Secrets.Authorities[0].Type, check.Equals, services.HostCA)
-	c.Assert(conf.Secrets.Authorities[0].DomainName, check.Equals, "example.com")
-	c.Assert(conf.Secrets.Authorities[0].CheckingKeys[0], check.Equals, "checking key 1")
-	c.Assert(conf.Secrets.Authorities[0].CheckingKeyFiles[0], check.Equals, "/ca.checking.key")
-	c.Assert(conf.Secrets.Authorities[0].SigningKeys[0], check.Equals, "signing key 1")
-	c.Assert(conf.Secrets.Authorities[0].SigningKeyFiles[0], check.Equals, "/ca.signing.key")
+	c.Assert(conf.Global.Keys[0].PrivateKey, check.Equals, "private key")
+	c.Assert(conf.Global.Keys[0].Cert, check.Equals, "node.cert")
+	c.Assert(conf.Global.Keys[1].PrivateKeyFile, check.Equals, "/proxy.key.file")
+	c.Assert(conf.Global.Keys[1].CertFile, check.Equals, "/proxy.cert.file")
+	c.Assert(conf.Auth.Authorities[0].Type, check.Equals, services.HostCA)
+	c.Assert(conf.Auth.Authorities[0].DomainName, check.Equals, "example.com")
+	c.Assert(conf.Auth.Authorities[0].CheckingKeys[0], check.Equals, "checking key 1")
+	c.Assert(conf.Auth.Authorities[0].CheckingKeyFiles[0], check.Equals, "/ca.checking.key")
+	c.Assert(conf.Auth.Authorities[0].SigningKeys[0], check.Equals, "signing key 1")
+	c.Assert(conf.Auth.Authorities[0].SigningKeyFiles[0], check.Equals, "/ca.signing.key")
+	c.Assert(conf.Auth.ReverseTunnels, check.DeepEquals, []ReverseTunnel{
+		{
+			DomainName: "tunnel.example.com",
+			Addresses:  []string{"com-1", "com-2"},
+		},
+		{
+			DomainName: "tunnel.example.org",
+			Addresses:  []string{"org-1"},
+		},
+	})
 }
 
 var (
@@ -353,10 +363,31 @@ teleport:
     - period: 10m10s
       average: 170
       burst: 171
+  keys: 
+  - cert: node.cert
+    private_key: !!binary cHJpdmF0ZSBrZXk=
+  - cert_file: /proxy.cert.file
+    private_key_file: /proxy.key.file
 
 auth_service:
   enabled: yes
   listen_addr: tcp://auth
+  authorities: 
+  - type: host
+    domain_name: example.com
+    checking_keys: 
+      - checking key 1
+    checking_key_files:
+      - /ca.checking.key
+    signing_keys: 
+      - !!binary c2lnbmluZyBrZXkgMQ==
+    signing_key_files:
+      - /ca.signing.key
+  reverse_tunnels:
+      - domain_name: tunnel.example.com  	  
+        addresses: ["com-1", "com-2"]
+      - domain_name: tunnel.example.org  	  
+        addresses: ["org-1"]
 
 ssh_service:
   enabled: no
@@ -371,23 +402,5 @@ ssh_service:
   - name: date
     command: [/bin/date]
     period: 20ms
-
-secrets:
-  keys: 
-  - cert: node.cert
-    private_key: !!binary cHJpdmF0ZSBrZXk=
-  - cert_file: /proxy.cert.file
-    private_key_file: /proxy.key.file
-  authorities: 
-  - type: host
-    domain_name: example.com
-    checking_keys: 
-      - checking key 1
-    checking_key_files:
-      - /ca.checking.key
-    signing_keys: 
-      - !!binary c2lnbmluZyBrZXkgMQ==
-    signing_key_files:
-      - /ca.signing.key
 `
 )

@@ -89,8 +89,7 @@ var (
 		"tls_ca_file":        true,
 		"authorities":        true,
 		"keys":               true,
-		"secrets":            true,
-		"rts":                true,
+		"reverse_tunnels":    true,
 		"addresses":          true,
 	}
 )
@@ -100,12 +99,10 @@ var (
 //
 // Use config.ReadFromFile() to read the parsed FileConfig from a YAML file.
 type FileConfig struct {
-	Global         `yaml:"teleport,omitempty"`
-	Auth           Auth            `yaml:"auth_service,omitempty"`
-	SSH            SSH             `yaml:"ssh_service,omitempty"`
-	Proxy          Proxy           `yaml:"proxy_service,omitempty"`
-	Secrets        Secrets         `yaml:"secrets,omitempty"`
-	ReverseTunnels []ReverseTunnel `yaml:"rts,omitempty"`
+	Global `yaml:"teleport,omitempty"`
+	Auth   Auth  `yaml:"auth_service,omitempty"`
+	SSH    SSH   `yaml:"ssh_service,omitempty"`
+	Proxy  Proxy `yaml:"proxy_service,omitempty"`
 }
 
 type YAMLMap map[interface{}]interface{}
@@ -338,6 +335,11 @@ type Global struct {
 	Logger      Log              `yaml:"log,omitempty"`
 	Storage     StorageBackend   `yaml:"storage,omitempty"`
 	AdvertiseIP net.IP           `yaml:"advertise_ip,omitempty"`
+
+	// Keys holds the list of SSH key/cert pairs used by all services
+	// Each service (like proxy, auth, node) can find the key it needs
+	// by looking into certificate
+	Keys []KeyPair `yaml:"keys,omitempty"`
 }
 
 // Service is a common configuration of a teleport service
@@ -371,6 +373,13 @@ type Auth struct {
 	// DomainName is the name of the certificate authority
 	// managed by this domain
 	DomainName string `yaml:"domain_name,omitempty"`
+
+	// Authorities 3rd party authorities this auth service trusts.
+	Authorities []Authority `yaml:"authorities,omitempty"`
+
+	// List of SSH tunnels to 3rd party proxy services (used to talk
+	// to 3rd party auth servers we trust)
+	ReverseTunnels []ReverseTunnel `yaml:"reverse_tunnels,omitempty"`
 }
 
 // SSH is 'ssh_service' section of the config file
@@ -393,15 +402,6 @@ type Proxy struct {
 	WebAddr  string `yaml:"web_listen_addr,omitempty"`
 	KeyFile  string `yaml:"https_key_file,omitempty"`
 	CertFile string `yaml:"https_cert_file,omitempty"`
-}
-
-// Secrets hold additional initialization secrets passed to the process
-type Secrets struct {
-	// Authorities is a list of authorities that auth server will add
-	// to the backend on the first start
-	Authorities []Authority `yaml:"authorities,omitempty"`
-	// Keys is the list of keys set for this server
-	Keys []KeyPair `yaml:"keys,omitempty"`
 }
 
 // ReverseTunnel is a SSH reverse tunnel mantained by one cluster's

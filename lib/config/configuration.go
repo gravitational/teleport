@@ -206,8 +206,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 	// add static signed keypairs supplied from configs
-	for i := range fc.Secrets.Keys {
-		identity, err := fc.Secrets.Keys[i].Identity()
+	for i := range fc.Global.Keys {
+		identity, err := fc.Global.Keys[i].Identity()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -215,7 +215,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// add reverse tunnels supplied from configs
-	for _, t := range fc.ReverseTunnels {
+	for _, t := range fc.Auth.ReverseTunnels {
 		tun, err := t.Tunnel()
 		if err != nil {
 			return trace.Wrap(err)
@@ -260,7 +260,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Auth.SSHAddr = *addr
 	}
 
-	for _, authority := range fc.Secrets.Authorities {
+	for _, authority := range fc.Auth.Authorities {
 		ca, err := authority.Parse()
 		if err != nil {
 			return trace.Wrap(err)
