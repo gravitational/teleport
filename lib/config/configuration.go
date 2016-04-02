@@ -34,9 +34,10 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/trace"
+	"github.com/kardianos/osext"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -542,6 +543,7 @@ func locateWebAssets() (string, error) {
 	}
 	// checker function to determine if dirPath contains the web assets
 	locateAssets := func(dirPath string) bool {
+		fmt.Println("checking ", dirPath)
 		for _, af := range assetsToCheck {
 			if !fileExists(filepath.Join(dirPath, af)) {
 				return false
@@ -550,7 +552,7 @@ func locateWebAssets() (string, error) {
 		return true
 	}
 	// check the directory where teleport binary is located first:
-	exeDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	exeDir, err := osext.ExecutableFolder()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
