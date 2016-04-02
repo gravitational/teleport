@@ -196,7 +196,7 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	g.Limits.MaxUsers = defaults.LimiterMaxConcurrentUsers
 	g.Storage.DirName = defaults.DataDir
 	g.Storage.Type = conf.Auth.RecordsBackend.Type
-	g.PidFile = "/var/run/teleport.pid"
+	g.PIDFile = "/var/run/teleport.pid"
 
 	// sample SSH config:
 	var s SSH
@@ -331,7 +331,7 @@ type StorageBackend struct {
 // Global is 'teleport' (global) section of the config file
 type Global struct {
 	NodeName    string           `yaml:"nodename,omitempty"`
-	PidFile     string           `yaml:"pid_file,omitempty"`
+	PIDFile     string           `yaml:"pid_file,omitempty"`
 	AuthToken   string           `yaml:"auth_token,omitempty"`
 	AuthServers []string         `yaml:"auth_servers,omitempty"`
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`

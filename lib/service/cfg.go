@@ -82,7 +82,7 @@ type Config struct {
 	ReverseTunnels []services.ReverseTunnel
 
 	// PidFile is a full path of the PID file for teleport daemon
-	PidFile string
+	PIDFile string
 }
 
 // ApplyToken assigns a given token to all internal services but only if token

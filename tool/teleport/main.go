@@ -65,7 +65,7 @@ func run(cmdlineArgs []string, testRun bool) (executedCommand string, appliedCon
 		Short('r').
 		StringVar(&ccf.Roles)
 	start.Flag("pid-file",
-		"Full path to the PID file. By default no PID file will be created").StringVar(&ccf.PidFile)
+		"Full path to the PID file. By default no PID file will be created").StringVar(&ccf.PIDFile)
 	start.Flag("advertise-ip",
 		"IP to advertise to clients if running behind NAT").
 		IPVar(&ccf.AdvertiseIP)
@@ -146,8 +146,8 @@ func onStart(config *service.Config) error {
 	}
 
 	// create the pid file
-	if config.PidFile != "" {
-		f, err := os.OpenFile(config.PidFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	if config.PIDFile != "" {
+		f, err := os.OpenFile(config.PIDFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 		if err != nil {
 			return trace.Wrap(err, "failed to create the PID file")
 		}
