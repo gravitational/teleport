@@ -80,6 +80,9 @@ type Config struct {
 	// ReverseTunnels is a list of reverse tunnels to create on the
 	// first cluster start
 	ReverseTunnels []services.ReverseTunnel
+
+	// PidFile is a full path of the PID file for teleport daemon
+	PIDFile string
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
