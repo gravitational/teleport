@@ -25,6 +25,7 @@ import (
 	"html/template"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -159,7 +160,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	h.GET("/webapi/sites/:site/sessions/:sid/chunkscount", h.withSiteAuth(h.siteSessionGetChunksCount))
 
 	// OIDC related callback handlers
-	h.GET("/webapi/oidc/login", httplib.MakeHandler(h.oidcLogin))
+	h.GET("/webapi/oidc/login/web", httplib.MakeHandler(h.oidcLoginWeb))
+	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(h.oidcLoginConsole))
 	h.GET("/webapi/oidc/callback", httplib.MakeHandler(h.oidcCallback))
 
 	indexPath := filepath.Join(cfg.AssetsDir, "/index.html")
@@ -198,8 +200,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	return routingHandler, nil
 }
 
-func (m *Handler) oidcLogin(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	log.Infof("oidcLogin start")
+func (m *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	log.Infof("oidcLoginWeb start")
 	query := r.URL.Query()
 	clientRedirectURL := query.Get("redirect_url")
 	if clientRedirectURL == "" {
@@ -219,6 +221,44 @@ func (m *Handler) oidcLogin(w http.ResponseWriter, r *http.Request, p httprouter
 	return nil, nil
 }
 
+type oidcLoginConsoleReq struct {
+	RedirectURL string        `json:"redirect_url"`
+	PublicKey   []byte        `json:"public_key"`
+	CertTTL     time.Duration `json:"cert_ttl"`
+}
+
+type oidcLoginConsoleResponse struct {
+	RedirectURL string `json:"redirect_url"`
+}
+
+func (m *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	log.Infof("oidcLoginConsole start")
+	var req *oidcLoginConsoleReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if req.RedirectURL == "" {
+		return nil, trace.Wrap(
+			teleport.BadParameter("RedirectURL", "missing RedirectURL"))
+	}
+	if len(req.PublicKey) == 0 {
+		return nil, trace.Wrap(
+			teleport.BadParameter("PublicKey", "missing PublicKey"))
+	}
+	response, err := m.cfg.ProxyClient.CreateOIDCAuthRequest(
+		services.OIDCAuthRequest{
+			ConnectorID:       "google",
+			ClientRedirectURL: req.RedirectURL,
+			PublicKey:         req.PublicKey,
+			CertTTL:           req.CertTTL,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Infof("got auth response: %#v", response)
+	return &oidcLoginConsoleResponse{RedirectURL: response.RedirectURL}, nil
+}
+
 func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	log.Infof("oidcLogin validate: %#v", r.URL.Query())
 	response, err := m.cfg.ProxyClient.ValidateOIDCAuthCallback(r.URL.Query())
@@ -228,13 +268,36 @@ func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	log.Infof("oidcCallback got response: %v", response)
 	// if we created web session, set session cookie and redirect to original url
 	if response.Req.CreateWebSession {
+		log.Infof("oidcCallback redirecting to web browser")
 		if err := SetSession(w, response.User.Name, response.Session.ID); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		http.Redirect(w, r, response.Req.ClientRedirectURL, http.StatusFound)
 		return nil, nil
 	}
-	return response, nil
+	log.Infof("oidcCallback redirecting to console login")
+	if len(response.Req.PublicKey) == 0 {
+		return nil, trace.Wrap(teleport.BadParameter("req", "not a web or console oidc login request"))
+	}
+	u, err := url.Parse(response.Req.ClientRedirectURL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	consoleResponse := SSHLoginResponse{
+		User:        response.User,
+		Cert:        response.Cert,
+		HostSigners: response.HostSigners,
+	}
+	out, err := json.Marshal(consoleResponse)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	values := u.Query()
+	values.Set("response", string(out))
+	u.RawQuery = values.Encode()
+	log.Infof("redirecting to %v", u.String())
+	http.Redirect(w, r, u.String(), http.StatusFound)
+	return nil, nil
 }
 
 // createSessionReq is a request to create session from username, password and second
@@ -896,6 +959,8 @@ type createSSHCertReq struct {
 
 // SSHLoginResponse is a response returned by web proxy
 type SSHLoginResponse struct {
+	// User contains a logged in user informationn
+	User services.User `json:"user"`
 	// Cert is a signed certificate
 	Cert []byte `json:"cert"`
 	// HostSigners is a list of signing host public keys

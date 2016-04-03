@@ -145,16 +145,18 @@ func InsecureSetDevmodeHeaders(w http.ResponseWriter) {
 }
 
 // ParseBool will parse boolean variable from url query
-func ParseBool(q url.Values, name string, required bool) (bool, error) {
+// returns value, ok, error
+func ParseBool(q url.Values, name string) (bool, bool, error) {
 	stringVal := q.Get(name)
 	if stringVal == "" {
-		return false, nil
+		return false, false, nil
 	}
+
 	val, err := strconv.ParseBool(stringVal)
 	if err != nil {
-		return false, trace.Wrap(
+		return false, false, trace.Wrap(
 			teleport.BadParameter(
 				name, fmt.Sprintf("expected 'true' or 'false', got %v", stringVal)))
 	}
-	return val, nil
+	return val, true, nil
 }

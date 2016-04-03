@@ -636,9 +636,6 @@ type OIDCAuthRequest struct {
 	// reuqest coming from
 	StateToken string `json:"state_token"`
 
-	// ClientStateToken is passed by console client
-	ClientStateToken string `json:"client_state_token"`
-
 	// RedirectURL will be used by browser
 	RedirectURL string `json:"redirect_url"`
 

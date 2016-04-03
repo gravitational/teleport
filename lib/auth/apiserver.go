@@ -640,13 +640,9 @@ func (s *APIServer) upsertCertAuthority(w http.ResponseWriter, r *http.Request, 
 }
 
 func (s *APIServer) getCertAuthorities(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var loadKeys bool
-	if loadKeysS := r.URL.Query().Get("load_keys"); loadKeysS != "" {
-		var err error
-		loadKeys, err = strconv.ParseBool(loadKeysS)
-		if err != nil {
-			return nil, trace.Wrap(teleport.BadParameter("load_keys", fmt.Sprintf("should be 'true' or 'false': %v", loadKeysS)))
-		}
+	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	certs, err := s.a.GetCertAuthorities(services.CertAuthType(p[0].Value), loadKeys)
 	if err != nil {
@@ -818,22 +814,8 @@ func (s *APIServer) upsertOIDCConnector(w http.ResponseWriter, r *http.Request, 
 	return message("ok"), nil
 }
 
-func parseBool(q url.Values, name string) (bool, error) {
-	stringVal := q.Get(name)
-	if stringVal == "" {
-		return false, nil
-	}
-	val, err := strconv.ParseBool(stringVal)
-	if err != nil {
-		return false, trace.Wrap(
-			teleport.BadParameter(
-				name, fmt.Sprintf("expected 'true' or 'false', got %v", stringVal)))
-	}
-	return val, nil
-}
-
 func (s *APIServer) getOIDCConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	withSecrets, err := parseBool(r.URL.Query(), "with_secrets")
+	withSecrets, _, err := httplib.ParseBool(r.URL.Query(), "with_secrets")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -853,7 +835,7 @@ func (s *APIServer) deleteOIDCConnector(w http.ResponseWriter, r *http.Request, 
 }
 
 func (s *APIServer) getOIDCConnectors(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	withSecrets, err := parseBool(r.URL.Query(), "with_secrets")
+	withSecrets, _, err := httplib.ParseBool(r.URL.Query(), "with_secrets")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

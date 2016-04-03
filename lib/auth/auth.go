@@ -487,6 +487,9 @@ type OIDCAuthResponse struct {
 	Cert []byte `json:"cert,omitempty"`
 	// Req is original oidc auth request
 	Req services.OIDCAuthRequest `json:"req"`
+	// HostSigners is a list of signing host public keys
+	// trusted by proxy, used in console login
+	HostSigners []services.CertAuthority `json:"host_signers"`
 }
 
 // ValidateOIDCAuthCallback is called by the proxy to check OIDC query parameters
@@ -572,6 +575,14 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 			return nil, trace.Wrap(err)
 		}
 		response.Cert = cert
+
+		authorities, err := a.GetCertAuthorities(services.HostCA, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, authority := range authorities {
+			response.HostSigners = append(response.HostSigners, *authority)
+		}
 	}
 
 	return response, nil
