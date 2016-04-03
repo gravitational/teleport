@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os/exec"
 	"runtime"
 	"time"
@@ -16,6 +17,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/mailgun/lemma/secret"
 )
 
 const (
@@ -25,9 +27,26 @@ const (
 	WSS = "wss"
 )
 
+type sealData struct {
+	Value []byte `json:"value"`
+	Nonce []byte `json:"nonce"`
+}
+
 // SSHAgentOIDCLogin is used by SSH Agent to login using OpenID connect
 func SSHAgentOIDCLogin(proxyAddr string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool) (*SSHLoginResponse, error) {
 	clt, err := initClient(proxyAddr, insecure, pool)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// create one time encoding secret that we will use to verify
+	// callback from proxy that is received over untrusted channel (HTTP)
+	keyBytes, err := secret.NewKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	decryptor, err := secret.New(&secret.Config{KeyBytes: keyBytes})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -39,13 +58,28 @@ func SSHAgentOIDCLogin(proxyAddr string, pubKey []byte, ttl time.Duration, insec
 			http.NotFound(w, r)
 			return
 		}
-		out := r.URL.Query().Get("response")
-		if out == "" {
-			log.Infof("missing required query parameters in %v", r.URL.String())
+		encrypted := r.URL.Query().Get("response")
+		if encrypted == "" {
+			errorC <- trace.Errorf("missing required query parameters in %v", r.URL.String())
+			return
 		}
+
+		var encryptedData *secret.SealedBytes
+		err := json.Unmarshal([]byte(encrypted), &encryptedData)
+		if err != nil {
+			errorC <- trace.Wrap(err)
+			return
+		}
+
+		out, err := decryptor.Open(encryptedData)
+		if err != nil {
+			errorC <- err
+			return
+		}
+
 		var re *SSHLoginResponse
 		log.Infof("callback got response: %v", r.URL.String())
-		err := json.Unmarshal([]byte(out), &re)
+		err = json.Unmarshal([]byte(out), &re)
 		if err != nil {
 			log.Infof("failed to unmarshal response: %v", err)
 			errorC <- trace.Wrap(err)
@@ -57,8 +91,16 @@ func SSHAgentOIDCLogin(proxyAddr string, pubKey []byte, ttl time.Duration, insec
 	}))
 	defer server.Close()
 
+	u, err := url.Parse(server.URL + "/callback")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	query := u.Query()
+	query.Set("secret", secret.KeyToEncodedString(keyBytes))
+	u.RawQuery = query.Encode()
+
 	out, err := clt.PostJSON(clt.Endpoint("webapi", "oidc", "login", "console"), oidcLoginConsoleReq{
-		RedirectURL: server.URL + "/callback",
+		RedirectURL: u.String(),
 		PublicKey:   pubKey,
 		CertTTL:     ttl,
 	})

@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"github.com/mailgun/lemma/secret"
 	"github.com/mailgun/ttlmap"
 )
 
@@ -293,7 +294,28 @@ func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 	values := u.Query()
-	values.Set("response", string(out))
+	secretKey := values.Get("secret")
+	if secretKey == "" {
+		return nil, trace.Wrap(teleport.BadParameter("secret", "missing secret"))
+	}
+	values.Set("secret", "") // remove secret so others can't see it
+	secretKeyBytes, err := secret.EncodedStringToKey(secretKey)
+	if err != nil {
+		return nil, trace.Wrap(teleport.BadParameter("secret", "bad secret"))
+	}
+	encryptor, err := secret.New(&secret.Config{KeyBytes: secretKeyBytes})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sealedBytes, err := encryptor.Seal(out)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sealedBytesData, err := json.Marshal(sealedBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	values.Set("response", string(sealedBytesData))
 	u.RawQuery = values.Encode()
 	log.Infof("redirecting to %v", u.String())
 	http.Redirect(w, r, u.String(), http.StatusFound)
@@ -404,18 +426,22 @@ func (m *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httpro
 //
 //
 func (m *Handler) renewSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *sessionContext) (interface{}, error) {
+	log.Infof("!!!!HIT renew session")
 	newSess, err := ctx.CreateWebSession()
 	if err != nil {
+		log.Warningf("renew session: %v", err)
 		return nil, trace.Wrap(err)
 	}
 	// transfer ownership over connections that were opened in the
 	// sessionContext
 	newContext, err := ctx.parent.ValidateSession(newSess.User.Name, newSess.ID)
 	if err != nil {
+		log.Warningf("renew session: %v", err)
 		return nil, trace.Wrap(err)
 	}
 	newContext.AddClosers(ctx.TransferClosers()...)
 	if err := SetSession(w, newSess.User.Name, newSess.ID); err != nil {
+		log.Warningf("renew session: %v", err)
 		return nil, trace.Wrap(err)
 	}
 	return newSessionResponse(newSess), nil
