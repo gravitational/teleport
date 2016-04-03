@@ -33,6 +33,8 @@ type Recorder interface {
 	GetChunkWriter(id string) (ChunkWriteCloser, error)
 	// GetChunkReader returns a reader of recorded chunks
 	GetChunkReader(id string) (ChunkReadCloser, error)
+	// Close releases the resources taken by the recorder
+	Close() error
 }
 
 // Chunk is a piece of recorded session on some node

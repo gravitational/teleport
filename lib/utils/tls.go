@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"math/big"
 	"net"
-	"net/http"
 	"os"
 	"time"
 
@@ -36,22 +35,15 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// ListenAndServeTLS sets up TLS listener for the http handler
-// and blocks in listening and serving requests
-func ListenAndServeTLS(address string, handler http.Handler,
-	certFile, keyFile string) error {
-
+// ListenTLS sets up TLS listener for the http handler, starts listening
+// on a TCP socket and returns the socket which is ready to be used
+// for http.Serve
+func ListenTLS(address string, certFile, keyFile string) (net.Listener, error) {
 	tlsConfig, err := CreateTLSConfiguration(certFile, keyFile)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	listener, err := tls.Listen("tcp", address, tlsConfig)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return http.Serve(listener, handler)
+	return tls.Listen("tcp", address, tlsConfig)
 }
 
 // CreateTLSConfiguration sets up default TLS configuration

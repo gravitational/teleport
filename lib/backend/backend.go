@@ -55,4 +55,6 @@ type Backend interface {
 	ReleaseLock(token string) error
 	// CompareAndSwap implements compare ans swap operation for a key
 	CompareAndSwap(bucket []string, key string, val []byte, ttl time.Duration, prevVal []byte) ([]byte, error)
+	// Close releases the resources taken up by this backend
+	Close() error
 }

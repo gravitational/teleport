@@ -82,6 +82,9 @@ type Server struct {
 
 	// this gets set to true for unit testing
 	isTestStub bool
+
+	// sets to true when the server needs to be stopped
+	stopped bool
 }
 
 // ServerOption is a functional option passed to the server
@@ -272,7 +275,7 @@ func (s *Server) registerServer() error {
 // heartbeatPresence periodically calls into the auth server to let everyone
 // know we're up & alive
 func (s *Server) heartbeatPresence() {
-	for {
+	for !s.stopped {
 		if err := s.registerServer(); err != nil {
 			log.Warningf("failed to announce %#v presence: %v", s, err)
 		}
@@ -476,11 +479,13 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 
 // Close closes listening socket and stops accepting connections
 func (s *Server) Close() error {
+	s.stopped = true
 	return s.srv.Close()
 }
 
 // Start starts server
 func (s *Server) Start() error {
+	s.stopped = false
 	if len(s.cmdLabels) > 0 {
 		s.updateLabels()
 	}

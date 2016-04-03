@@ -37,6 +37,10 @@ type Supervisor interface {
 	// it within the system
 	RegisterFunc(fn ServiceFunc)
 
+	// ServiceCount returns the number of registered and actively running
+	// services
+	ServiceCount() int
+
 	// Start starts all unstarted services
 	Start() error
 
@@ -51,9 +55,9 @@ type Supervisor interface {
 	// interested parties
 	BroadcastEvent(Event)
 
-	// WaitForEvent waits for event to be broadcastet, if the event
+	// WaitForEvent waits for event to be broadcasted, if the event
 	// was already broadcasted, payloadC will receive current event immediately
-	// close cancelC channel to skip notification and release resources
+	// CLose 'cancelC' channel to force WaitForEvent to return prematurely
 	WaitForEvent(name string, eventC chan Event, cancelC chan struct{})
 }
 
@@ -61,7 +65,7 @@ type LocalSupervisor struct {
 	state int
 	sync.Mutex
 	wg           *sync.WaitGroup
-	services     []Service
+	services     []*Service
 	errors       []error
 	events       map[string]Event
 	eventsC      chan Event
@@ -82,22 +86,47 @@ func (e *Event) String() string {
 func (s *LocalSupervisor) Register(srv Service) {
 	s.Lock()
 	defer s.Unlock()
+	s.services = append(s.services, &srv)
 
-	s.services = append(s.services, srv)
+	log.Infof("[SUPERVISOR] Service %v added (%v)", srv, len(s.services))
+
 	if s.state == stateStarted {
-		s.serve(srv)
+		s.serve(&srv)
 	}
+}
+
+// ServiceCount returns the number of registered and actively running services
+func (s *LocalSupervisor) ServiceCount() int {
+	s.Lock()
+	defer s.Unlock()
+	return len(s.services)
 }
 
 func (s *LocalSupervisor) RegisterFunc(fn ServiceFunc) {
 	s.Register(fn)
 }
 
-func (s *LocalSupervisor) serve(srv Service) {
+func (s *LocalSupervisor) serve(srv *Service) {
+	// this func will be called _after_ a service stops running:
+	removeService := func() {
+		s.Lock()
+		defer s.Unlock()
+		for i, el := range s.services {
+			if el == srv {
+				s.services = append(s.services[:i], s.services[i+1:]...)
+				break
+			}
+		}
+		log.Infof("[SUPERVISOR] Service %v is done (%v)", *srv, len(s.services))
+	}
+
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		err := srv.Serve()
+		defer removeService()
+
+		log.Infof("[SUPERVISOR] Service %v started (%v)", *srv, s.ServiceCount())
+		err := (*srv).Serve()
 		if err != nil {
 			utils.FatalError(err)
 		}
@@ -191,7 +220,7 @@ func (s *LocalSupervisor) fanOut() {
 // NewSupervisor returns new instance of initialized supervisor
 func NewSupervisor() Supervisor {
 	srv := &LocalSupervisor{
-		services:     []Service{},
+		services:     []*Service{},
 		wg:           &sync.WaitGroup{},
 		events:       map[string]Event{},
 		eventsC:      make(chan Event, 100),

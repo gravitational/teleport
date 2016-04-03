@@ -40,6 +40,7 @@ type Server struct {
 	reqHandler     RequestHandler
 	cfg            ssh.ServerConfig
 	limiter        *limiter.Limiter
+	askedToClose   bool
 }
 
 // ServerOption is a functional argument for server
@@ -105,6 +106,7 @@ func (s *Server) Addr() string {
 }
 
 func (s *Server) Start() error {
+	s.askedToClose = false
 	socket, err := net.Listen(s.addr.AddrNetwork, s.addr.Addr)
 	if err != nil {
 		return err
@@ -125,15 +127,25 @@ func (s *Server) Wait() {
 
 // Close closes listening socket and stops accepting connections
 func (s *Server) Close() error {
-	return s.listener.Close()
+	s.askedToClose = true
+	if s.listener != nil {
+		return s.listener.Close()
+	}
+	return nil
 }
 
 func (s *Server) acceptConnections() {
 	defer s.notifyClosed()
-	log.Infof("%v ready to accept connections", s.Addr())
+	addr := s.Addr()
+	log.Infof("%v ready to accept connections", addr)
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
+			if s.askedToClose {
+				log.Infof("SSH server %v exited", addr)
+				s.askedToClose = false
+				return
+			}
 			// our best shot to avoid excessive logging
 			if op, ok := err.(*net.OpError); ok && !op.Timeout() {
 				log.Infof("socket closed: %v", op)
