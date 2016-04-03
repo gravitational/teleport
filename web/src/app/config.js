@@ -38,6 +38,7 @@ let cfg = {
   },
 
   api: {
+    sso: '/v1/webapi/oidc/login?redirect_url=:redirect',
     renewTokenPath:'/v1/webapi/sessions/renew',
     nodesPath: '/v1/webapi/sites/-current-/nodes',
     sessionPath: '/v1/webapi/sessions',
@@ -48,37 +49,41 @@ let cfg = {
     sessionChunkCountPath: '/v1/webapi/sites/-current-/sessions/:sid/chunkscount',
     siteEventSessionFilterPath: `/v1/webapi/sites/-current-/events/sessions?filter=:filter`,
 
-    getFetchSessionChunkUrl: ({sid, start, end})=>{
+    getSsoUrl(redirect){
+      return cfg.baseUrl + formatPattern(cfg.api.sso, {redirect});
+    },
+
+    getFetchSessionChunkUrl({sid, start, end}){
       return formatPattern(cfg.api.sessionChunk, {sid, start, end});
     },
 
-    getFetchSessionLengthUrl: (sid)=>{
+    getFetchSessionLengthUrl(sid){
       return formatPattern(cfg.api.sessionChunkCountPath, {sid});
     },
 
-    getFetchSessionsUrl: (args)=>{
+    getFetchSessionsUrl(args){
       var filter = JSON.stringify(args);
       return formatPattern(cfg.api.siteEventSessionFilterPath, {filter});
     },
 
-    getFetchSessionUrl: (sid)=>{
+    getFetchSessionUrl(sid){
       return formatPattern(cfg.api.siteSessionPath+'/:sid', {sid});
     },
 
-    getTerminalSessionUrl: (sid)=> {
+    getTerminalSessionUrl(sid){
       return formatPattern(cfg.api.siteSessionPath+'/:sid', {sid});
     },
 
-    getInviteUrl: (inviteToken) => {
+    getInviteUrl(inviteToken){
       return formatPattern(cfg.api.invitePath, {inviteToken});
     },
 
-    getEventStreamConnStr: (token, sid) => {
+    getEventStreamConnStr(token, sid){
       var hostname = getWsHostName();
       return `${hostname}/v1/webapi/sites/-current-/sessions/${sid}/events/stream?access_token=${token}`;
     },
 
-    getTtyConnStr: ({token, serverId, login, sid, rows, cols}) => {
+    getTtyConnStr({token, serverId, login, sid, rows, cols}){
       var params = {
         server_id: serverId,
         login,
@@ -94,6 +99,10 @@ let cfg = {
       var hostname = getWsHostName();
       return `${hostname}/v1/webapi/sites/-current-/connect?access_token=${token}&params=${jsonEncoded}`;
     }
+  },
+
+  getFullUrl(url){
+    return cfg.baseUrl + url;
   },
 
   getActiveSessionRouteUrl(sid){

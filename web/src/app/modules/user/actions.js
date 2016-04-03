@@ -62,7 +62,13 @@ export default {
       });
   },
 
-  login({user, password, token}, redirect){
+  login({user, password, token, provider}, redirect){
+    if(provider){
+      let fullPath = cfg.getFullUrl(redirect);
+      window.location = cfg.api.getSsoUrl(fullPath);
+      return;
+    }
+
     restApiActions.start(TRYING_TO_LOGIN);
     auth.login(user, password, token)
       .done((sessionData)=>{

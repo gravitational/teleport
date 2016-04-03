@@ -19,6 +19,8 @@ var session = require('./session');
 var cfg = require('app/config');
 var $ = require('jQuery');
 
+const PROVIDER_GOOGLE = 'google';
+
 const refreshRate = 60000 * 5; // 5 min
 
 var refreshTokenTimerId = null;
@@ -101,3 +103,4 @@ var auth = {
 }
 
 module.exports = auth;
+module.exports.PROVIDER_GOOGLE = PROVIDER_GOOGLE;

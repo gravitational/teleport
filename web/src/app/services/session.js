@@ -35,6 +35,13 @@ var session = {
   },
 
   getUserData(){
+    var hiddenDiv = document.getElementById("bearer_token");
+    if(hiddenDiv!== null){
+      let content = JSON.parse(hiddenDiv.textContent);
+      hiddenDiv.remove();
+      this.setUserData(content.session);
+    }
+
     var item = localStorage.getItem(AUTH_KEY_DATA);
     if(item){
       return JSON.parse(item);
