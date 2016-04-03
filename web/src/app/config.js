@@ -38,7 +38,7 @@ let cfg = {
   },
 
   api: {
-    sso: '/v1/webapi/oidc/login?redirect_url=:redirect',
+    sso: '/v1/webapi/oidc/login/web?redirect_url=:redirect',
     renewTokenPath:'/v1/webapi/sessions/renew',
     nodesPath: '/v1/webapi/sites/-current-/nodes',
     sessionPath: '/v1/webapi/sessions',
