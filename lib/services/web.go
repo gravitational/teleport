@@ -653,6 +653,10 @@ type OIDCAuthRequest struct {
 	// CreateWebSession indicates if user wants to generate a web
 	// session after successful authentication
 	CreateWebSession bool `json:"create_web_session"`
+
+	// ClientRedirectURL is a URL client wants to be redirected
+	// after successfull authentication
+	ClientRedirectURL string `json:"client_redirect_url"`
 }
 
 // Check returns nil if all parameters are great, err otherwise

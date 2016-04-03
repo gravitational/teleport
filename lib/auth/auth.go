@@ -466,11 +466,7 @@ func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*servi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sessionKey, err := utils.CryptoRandomHex(64)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	redirectURL := oauthClient.AuthCodeURL(sessionKey, "", "")
+	redirectURL := oauthClient.AuthCodeURL(req.StateToken, "", "")
 	req.RedirectURL = redirectURL
 
 	err = s.IdentityService.CreateOIDCAuthRequest(req, defaults.OIDCAuthRequestTTL)
@@ -556,6 +552,7 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 
 	response := &OIDCAuthResponse{
 		User: *user,
+		Req:  *req,
 	}
 
 	if req.CreateWebSession {

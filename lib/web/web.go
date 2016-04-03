@@ -21,6 +21,8 @@ package web
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
+	"io/ioutil"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -159,13 +161,34 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	h.GET("/webapi/oidc/login", httplib.MakeHandler(h.oidcLogin))
 	h.GET("/webapi/oidc/callback", httplib.MakeHandler(h.oidcCallback))
 
+	indexPath := filepath.Join(cfg.AssetsDir, "/index.html")
+	log.Infof("INDEX PATH: %v", indexPath)
+	indexContent, err := ioutil.ReadFile(indexPath)
+	if err != nil {
+		return nil, trace.Wrap(teleport.ConvertSystemError(err))
+	}
+	indexPage, err := template.New("index").Parse(string(indexContent))
+	if err != nil {
+		return nil, trace.Wrap(teleport.BadParameter("index", fmt.Sprintf("failed parsing template %v: %v", indexPath, err)))
+	}
+
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			http.Redirect(w, r, "/web", http.StatusFound)
 		} else if strings.HasPrefix(r.URL.Path, "/web/app") {
 			http.StripPrefix("/web", http.FileServer(http.Dir(cfg.AssetsDir))).ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web") {
-			http.ServeFile(w, r, filepath.Join(cfg.AssetsDir, "/index.html"))
+			ctx, err := h.authenticateRequest(w, r, false)
+			session := struct {
+				Session string
+			}{Session: "null"}
+			if err == nil {
+				out, err := json.Marshal(newSessionResponse(ctx.GetWebSession()))
+				if err == nil {
+					session.Session = string(out)
+				}
+			}
+			indexPage.Execute(w, session)
 		} else if strings.HasPrefix(r.URL.Path, "/"+Version) {
 			http.StripPrefix("/"+Version, h).ServeHTTP(w, r)
 		}
@@ -176,23 +199,39 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 
 func (m *Handler) oidcLogin(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	log.Infof("oidcLogin start")
+	query := r.URL.Query()
+	clientRedirectURL := query.Get("redirect_url")
+	if clientRedirectURL == "" {
+		return nil, trace.Wrap(teleport.BadParameter("redirect_url", "missing redirect_url query parameter"))
+	}
 	response, err := m.cfg.ProxyClient.CreateOIDCAuthRequest(
 		services.OIDCAuthRequest{
-			ConnectorID:      "google",
-			CreateWebSession: true,
+			ConnectorID:       "google",
+			CreateWebSession:  true,
+			ClientRedirectURL: clientRedirectURL,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	log.Infof("got auth response: %#v", response)
 	http.Redirect(w, r, response.RedirectURL, http.StatusFound)
 	return nil, nil
 }
 
 func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	log.Infof("oidcLogin validate")
+	log.Infof("oidcLogin validate: %#v", r.URL.Query())
 	response, err := m.cfg.ProxyClient.ValidateOIDCAuthCallback(r.URL.Query())
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	log.Infof("oidcCallback got response: %v", response)
+	// if we created web session, set session cookie and redirect to original url
+	if response.Req.CreateWebSession {
+		if err := SetSession(w, response.User.Name, response.Session.ID); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		http.Redirect(w, r, response.Req.ClientRedirectURL, http.StatusFound)
+		return nil, nil
 	}
 	return response, nil
 }
@@ -905,7 +944,7 @@ type siteHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Param
 // withSiteAuth ensures that request is authenticated and is issued for existing site
 func (h *Handler) withSiteAuth(fn siteHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		ctx, err := h.authenticateRequest(r)
+		ctx, err := h.authenticateRequest(w, r, true)
 		if err != nil {
 			// clear session just in case if the authentication request is not valid
 			ClearSession(w)
@@ -930,7 +969,7 @@ func (h *Handler) withSiteAuth(fn siteHandler) httprouter.Handle {
 // withAuth ensures that request is authenticated
 func (h *Handler) withAuth(fn contextHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		ctx, err := h.authenticateRequest(r)
+		ctx, err := h.authenticateRequest(w, r, true)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -940,7 +979,7 @@ func (h *Handler) withAuth(fn contextHandler) httprouter.Handle {
 
 // authenticateRequest authenticates request using combination of a session cookie
 // and bearer token
-func (h *Handler) authenticateRequest(r *http.Request) (*sessionContext, error) {
+func (h *Handler) authenticateRequest(w http.ResponseWriter, r *http.Request, checkBearerToken bool) (*sessionContext, error) {
 	logger := log.WithFields(log.Fields{
 		"request": fmt.Sprintf("%v %v", r.Method, r.URL.Path),
 	})
@@ -954,19 +993,22 @@ func (h *Handler) authenticateRequest(r *http.Request) (*sessionContext, error) 
 		logger.Warningf("failed to decode cookie: %v", err)
 		return nil, trace.Wrap(teleport.AccessDenied("failed to decode cookie"))
 	}
-	creds, err := roundtrip.ParseAuthHeaders(r)
-	if err != nil {
-		logger.Warningf("no auth headers %v", err)
-		return nil, trace.Wrap(teleport.AccessDenied("need auth"))
-	}
 	ctx, err := h.auth.ValidateSession(d.User, d.SID)
 	if err != nil {
 		logger.Warningf("invalid session: %v", err)
+		ClearSession(w)
 		return nil, trace.Wrap(teleport.AccessDenied("need auth"))
 	}
-	if creds.Password != ctx.GetWebSession().WS.BearerToken {
-		logger.Warningf("bad bearer token")
-		return nil, trace.Wrap(teleport.AccessDenied("bad bearer token"))
+	if checkBearerToken {
+		creds, err := roundtrip.ParseAuthHeaders(r)
+		if err != nil {
+			logger.Warningf("no auth headers %v", err)
+			return nil, trace.Wrap(teleport.AccessDenied("need auth"))
+		}
+		if creds.Password != ctx.GetWebSession().WS.BearerToken {
+			logger.Warningf("bad bearer token")
+			return nil, trace.Wrap(teleport.AccessDenied("bad bearer token"))
+		}
 	}
 	return ctx, nil
 }
