@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/gravitational/teleport"
 
@@ -141,4 +142,19 @@ func InsecureSetDevmodeHeaders(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Headers", "Accept, Origin, Content-type, Authorization")
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
 	w.Header().Set("Access-Control-Max-Age", "1728000")
+}
+
+// ParseBool will parse boolean variable from url query
+func ParseBool(q url.Values, name string, required bool) (bool, error) {
+	stringVal := q.Get(name)
+	if stringVal == "" {
+		return false, nil
+	}
+	val, err := strconv.ParseBool(stringVal)
+	if err != nil {
+		return false, trace.Wrap(
+			teleport.BadParameter(
+				name, fmt.Sprintf("expected 'true' or 'false', got %v", stringVal)))
+	}
+	return val, nil
 }

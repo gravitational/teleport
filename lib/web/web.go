@@ -19,6 +19,7 @@ limitations under the License.
 package web
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -181,11 +182,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 			ctx, err := h.authenticateRequest(w, r, false)
 			session := struct {
 				Session string
-			}{Session: "null"}
+			}{Session: base64.StdEncoding.EncodeToString([]byte("{}"))}
 			if err == nil {
 				out, err := json.Marshal(newSessionResponse(ctx.GetWebSession()))
 				if err == nil {
-					session.Session = string(out)
+					session.Session = base64.StdEncoding.EncodeToString(out)
 				}
 			}
 			indexPage.Execute(w, session)
