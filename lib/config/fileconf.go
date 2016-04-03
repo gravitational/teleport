@@ -91,6 +91,12 @@ var (
 		"keys":               true,
 		"reverse_tunnels":    true,
 		"addresses":          true,
+		"oidc_connectors":    true,
+		"id":                 true,
+		"issuer_url":         true,
+		"client_id":          true,
+		"client_secret":      true,
+		"redirect_url":       true,
 	}
 )
 
@@ -377,9 +383,12 @@ type Auth struct {
 	// Authorities 3rd party authorities this auth service trusts.
 	Authorities []Authority `yaml:"authorities,omitempty"`
 
-	// List of SSH tunnels to 3rd party proxy services (used to talk
+	// ReverseTunnels is aist of SSH tunnels to 3rd party proxy services (used to talk
 	// to 3rd party auth servers we trust)
 	ReverseTunnels []ReverseTunnel `yaml:"reverse_tunnels,omitempty"`
+
+	// OIDCConnectors is a list of trusted OpenID Connect Identity providers
+	OIDCConnectors []OIDCConnector `yaml:"oidc_connectors"`
 }
 
 // SSH is 'ssh_service' section of the config file
@@ -515,4 +524,37 @@ func (a *Authority) Parse() (*services.CertAuthority, error) {
 	}
 
 	return ca, nil
+}
+
+// OIDCConnector specifies configuration fo Open ID Connect compatible external
+// identity provider, e.g. google in some organisation
+type OIDCConnector struct {
+	// ID is a provider id, 'e.g.' google, used internally
+	ID string `yaml:"id"`
+	// Issuer URL is the endpoint of the provider, e.g. https://accounts.google.com
+	IssuerURL string `yaml:"issuer_url"`
+	// ClientID is id for authentication client (in our case it's our Auth server)
+	ClientID string `yaml:"client_id"`
+	// ClientSecret is used to authenticate our client and should not
+	// be visible to end user
+	ClientSecret string `yaml:"client_secret"`
+	// RedirectURL - Identity provider will use this URL to redirect
+	// client's browser back to it after successfull authentication
+	// Should match the URL on Provider's side
+	RedirectURL string `yaml:"redirect_url"`
+}
+
+// Parse parses config struct into services connector and checks if it's valid
+func (o *OIDCConnector) Parse() (*services.OIDCConnector, error) {
+	other := &services.OIDCConnector{
+		ID:           o.ID,
+		IssuerURL:    o.IssuerURL,
+		ClientID:     o.ClientID,
+		ClientSecret: o.ClientSecret,
+		RedirectURL:  o.RedirectURL,
+	}
+	if err := other.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return other, nil
 }

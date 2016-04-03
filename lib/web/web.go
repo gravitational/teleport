@@ -48,11 +48,11 @@ import (
 
 // Handler is HTTP web proxy handler
 type Handler struct {
-	httprouter.Router
-	cfg   Config
-	auth  *sessionCache
-	sites *ttlmap.TtlMap
 	sync.Mutex
+	httprouter.Router
+	cfg                     Config
+	auth                    *sessionCache
+	sites                   *ttlmap.TtlMap
 	sessionStreamPollPeriod time.Duration
 }
 
@@ -85,6 +85,8 @@ type Config struct {
 	AuthServers utils.NetAddr
 	// DomainName is a domain name served by web handler
 	DomainName string
+	// ProxyClient is a client that authenticated as proxy
+	ProxyClient auth.ClientI
 }
 
 // Version is a current webapi version
@@ -153,6 +155,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	// get session chunks count
 	h.GET("/webapi/sites/:site/sessions/:sid/chunkscount", h.withSiteAuth(h.siteSessionGetChunksCount))
 
+	// OIDC related callback handlers
+	h.GET("/webapi/oidc/login", httplib.MakeHandler(h.oidcLogin))
+	h.GET("/webapi/oidc/callback", httplib.MakeHandler(h.oidcCallback))
+
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			http.Redirect(w, r, "/web", http.StatusFound)
@@ -166,6 +172,29 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	})
 
 	return routingHandler, nil
+}
+
+func (m *Handler) oidcLogin(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	log.Infof("oidcLogin start")
+	response, err := m.cfg.ProxyClient.CreateOIDCAuthRequest(
+		services.OIDCAuthRequest{
+			ConnectorID:      "google",
+			CreateWebSession: true,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	http.Redirect(w, r, response.RedirectURL, http.StatusFound)
+	return nil, nil
+}
+
+func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	log.Infof("oidcLogin validate")
+	response, err := m.cfg.ProxyClient.ValidateOIDCAuthCallback(r.URL.Query())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
 }
 
 // createSessionReq is a request to create session from username, password and second

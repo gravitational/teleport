@@ -247,7 +247,7 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 
 	// User will scan QRcode, here we just loads the OTP generator
 	// right from the backend
-	tokenData, err := s.a.WebService.GetSignupToken(token)
+	tokenData, err := s.a.IdentityService.GetSignupToken(token)
 	c.Assert(err, IsNil)
 	otp, err := hotp.Unmarshal(tokenData.Hotp)
 	c.Assert(err, IsNil)
@@ -257,7 +257,7 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 		hotpTokens[i] = otp.OTP()
 	}
 
-	tokenData3, err := s.a.WebService.GetSignupToken(token3)
+	tokenData3, err := s.a.IdentityService.GetSignupToken(token3)
 	c.Assert(err, IsNil)
 	otp3, err := hotp.Unmarshal(tokenData3.Hotp)
 	c.Assert(err, IsNil)
@@ -292,7 +292,7 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	_, err = clt2.CreateUserWithToken(token, "another_user_signup_attempt", hotpTokens[0])
 	c.Assert(err, NotNil)
 
-	_, err = s.a.WebService.GetSignupToken(token)
+	_, err = s.a.IdentityService.GetSignupToken(token)
 	c.Assert(err, NotNil) // token was deleted
 
 	// token out of scan range

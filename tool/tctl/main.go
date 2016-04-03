@@ -51,6 +51,7 @@ type UserCommand struct {
 	config        *service.Config
 	login         string
 	allowedLogins string
+	identity      string
 }
 
 type NodeCommand struct {
@@ -113,6 +114,8 @@ func main() {
 	userAdd.Arg("login", "Teleport user login").Required().StringVar(&cmdUsers.login)
 	userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
 		Default("").StringVar(&cmdUsers.allowedLogins)
+	userAdd.Arg("external-auth", "External authentication methods, e.g. google:bob@gmail.com for google SSO").
+		Default("").StringVar(&cmdUsers.identity)
 	userAdd.Alias(AddUserHelp)
 
 	// list users command
@@ -256,7 +259,18 @@ func (u *UserCommand) Add(hostname string, client *auth.TunClient) error {
 	if u.allowedLogins == "" {
 		u.allowedLogins = u.login
 	}
-	token, err := client.CreateSignupToken(u.login, strings.Split(u.allowedLogins, ","))
+	user := services.User{
+		Name:          u.login,
+		AllowedLogins: strings.Split(u.allowedLogins, ","),
+	}
+	if u.identity != "" {
+		vals := strings.Split(u.identity, ":")
+		if len(vals) != 2 {
+			return trace.Errorf("expected connector:email for external auth method, e.g. google:alice@gmail.com")
+		}
+		user.OIDCIdentities = []services.OIDCIdentity{{ConnectorID: vals[0], Email: vals[1]}}
+	}
+	token, err := client.CreateSignupToken(user)
 	if err != nil {
 		return err
 	}

@@ -78,20 +78,22 @@ func NewStandardPermissions() PermissionChecker {
 	}
 
 	sp.permissions[teleport.RoleProxy] = map[string]bool{
-		ActionGetChunkReader:     true,
-		ActionGetReverseTunnels:  true,
-		ActionGetServers:         true,
-		ActionGetEvents:          true,
-		ActionUpsertProxy:        true,
-		ActionGetProxies:         true,
-		ActionGetAuthServers:     true,
-		ActionGetCertAuthorities: true,
-		ActionGetUsers:           true,
-		ActionGetLocalDomain:     true,
-		ActionGetUserKeys:        true,
-		ActionLogEntry:           true,
-		ActionGetSession:         true,
-		ActionGetSessions:        true,
+		ActionGetChunkReader:           true,
+		ActionGetReverseTunnels:        true,
+		ActionGetServers:               true,
+		ActionGetEvents:                true,
+		ActionUpsertProxy:              true,
+		ActionGetProxies:               true,
+		ActionGetAuthServers:           true,
+		ActionGetCertAuthorities:       true,
+		ActionGetUsers:                 true,
+		ActionGetLocalDomain:           true,
+		ActionGetUserKeys:              true,
+		ActionLogEntry:                 true,
+		ActionGetSession:               true,
+		ActionGetSessions:              true,
+		ActionCreateOIDCAuthRequest:    true,
+		ActionValidateOIDCAuthCallback: true,
 	}
 
 	sp.permissions[teleport.RoleWeb] = map[string]bool{
@@ -214,4 +216,12 @@ const (
 	ActionGetSignupTokenData                = "GetSignupTokenData"
 	ActionCreateUserWithToken               = "CreateUserWithToken"
 	ActionUpsertUser                        = "UpsertUser"
+	ActionUpsertOIDCConnector               = "UpsertOIDCConnector"
+	ActionDeleteOIDCConnector               = "DeleteOIDCConnector"
+	ActionGetOIDCConnectorWithSecrets       = "GetOIDCConnectorWithSecrets"
+	ActionGetOIDCConnectorWithoutSecrets    = "GetOIDCConnectorWithoutSecrets"
+	ActionGetOIDCConnectorsWithSecrets      = "GetOIDCConnectorsWithSecrets"
+	ActionGetOIDCConnectorsWithoutSecrets   = "GetOIDCConnectorsWithoutSecrets"
+	ActionCreateOIDCAuthRequest             = "CreateOIDCAuthRequest"
+	ActionValidateOIDCAuthCallback          = "ValidateOIDCAuthCallback"
 )

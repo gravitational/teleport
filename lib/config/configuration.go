@@ -224,6 +224,15 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.ReverseTunnels = append(cfg.ReverseTunnels, *tun)
 	}
 
+	// add oidc connectors supplied from configs
+	for _, c := range fc.Auth.OIDCConnectors {
+		conn, err := c.Parse()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.OIDCConnectors = append(cfg.OIDCConnectors, *conn)
+	}
+
 	// apply "proxy_service" section
 	if fc.Proxy.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, int(defaults.SSHProxyListenPort))

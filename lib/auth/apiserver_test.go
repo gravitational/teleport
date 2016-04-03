@@ -55,7 +55,7 @@ type APISuite struct {
 	LockS         *services.LockService
 	PresenceS     *services.PresenceService
 	ProvisioningS *services.ProvisioningService
-	WebS          *services.WebService
+	WebS          *services.IdentityService
 }
 
 var _ = Suite(&APISuite{})
@@ -101,7 +101,7 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.LockS = services.NewLockService(s.bk)
 	s.PresenceS = services.NewPresenceService(s.bk)
 	s.ProvisioningS = services.NewProvisioningService(s.bk)
-	s.WebS = services.NewWebService(s.bk)
+	s.WebS = services.NewIdentityService(s.bk)
 }
 
 func (s *APISuite) TearDownTest(c *C) {

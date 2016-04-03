@@ -68,6 +68,10 @@ type InitConfig struct {
 	// in configuration, so auth server will init the tunnels on the first start
 	ReverseTunnels []services.ReverseTunnel
 
+	// OIDCConnectors is a list of trusted OpenID Connect identity providers
+	// in configuration, so auth server will init the tunnels on the first start
+	OIDCConnectors []services.OIDCConnector
+
 	// HostCA is an optional host certificate authority keypair
 	HostCA *services.CertAuthority
 
@@ -189,6 +193,15 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 			log.Infof("FIRST START: Initializing reverse tunnels")
 			for _, tunnel := range cfg.ReverseTunnels {
 				if err := asrv.UpsertReverseTunnel(tunnel, 0); err != nil {
+					return nil, nil, trace.Wrap(err)
+				}
+			}
+		}
+
+		if len(cfg.OIDCConnectors) != 0 {
+			log.Infof("FIRST START: Initializing oidc connectors")
+			for _, connector := range cfg.OIDCConnectors {
+				if err := asrv.UpsertOIDCConnector(connector, 0); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 			}

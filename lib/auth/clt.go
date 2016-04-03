@@ -608,16 +608,12 @@ func (c *Client) GenerateUserCert(
 
 // CreateSignupToken creates one time token for creating account for the user
 // For each token it creates username and hotp generator
-func (c *Client) CreateSignupToken(user string, allowedLogins []string) (string, error) {
-	if len(allowedLogins) == 0 {
-		// TODO(klizhentas) do validation on the serverside
-		return "", trace.Wrap(
-			teleport.BadParameter("allowedUsers",
-				"cannot create a new account without any allowed logins"))
+func (c *Client) CreateSignupToken(user services.User) (string, error) {
+	if err := user.Check(); err != nil {
+		return "", trace.Wrap(err)
 	}
 	out, err := c.PostJSON(c.Endpoint("signuptokens"), createSignupTokenReq{
-		User:          user,
-		AllowedLogins: allowedLogins,
+		User: user,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -661,6 +657,82 @@ func (c *Client) CreateUserWithToken(token, password, hotpToken string) (*Sessio
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil
+}
+
+func (c *Client) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error {
+	_, err := c.PostJSON(c.Endpoint("oidc", "connectors"), upsertOIDCConnectorReq{
+		Connector: connector,
+		TTL:       ttl,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (c *Client) GetOIDCConnector(id string, withSecrets bool) (*services.OIDCConnector, error) {
+	if id == "" {
+		return nil, trace.Wrap(teleport.BadParameter("id", "missing connector id"))
+	}
+	out, err := c.Get(c.Endpoint("oidc", "connectors", id),
+		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
+	if err != nil {
+		return nil, err
+	}
+	var conn *services.OIDCConnector
+	if err := json.Unmarshal(out.Bytes(), &conn); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conn, nil
+}
+
+func (c *Client) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error) {
+	out, err := c.Get(c.Endpoint("oidc", "connectors"),
+		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
+	if err != nil {
+		return nil, err
+	}
+	var connectors []services.OIDCConnector
+	if err := json.Unmarshal(out.Bytes(), &connectors); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return connectors, nil
+}
+
+func (c *Client) DeleteOIDCConnector(connectorID string) error {
+	if connectorID == "" {
+		return trace.Wrap(teleport.BadParameter("id", "missing connector id"))
+	}
+	_, err := c.Delete(c.Endpoint("oidc", "connectors", connectorID))
+	return trace.Wrap(err)
+}
+
+func (c *Client) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
+	out, err := c.PostJSON(c.Endpoint("oidc", "requests", "create"), createOIDCAuthRequestReq{
+		Req: req,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var response *services.OIDCAuthRequest
+	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
+func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
+	out, err := c.PostJSON(c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
+		Query: q,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var response *OIDCAuthResponse
+	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
 }
 
 type chunkRW struct {
@@ -743,4 +815,10 @@ type ClientI interface {
 	GenerateUserCert(key []byte, user string, ttl time.Duration) ([]byte, error)
 	GetSignupTokenData(token string) (user string, QRImg []byte, hotpFirstValues []string, e error)
 	CreateUserWithToken(token, password, hotpToken string) (*Session, error)
+	UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error
+	GetOIDCConnector(id string, withSecrets bool) (*services.OIDCConnector, error)
+	GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error)
+	DeleteOIDCConnector(connectorID string) error
+	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
+	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
 }

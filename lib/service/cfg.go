@@ -81,6 +81,9 @@ type Config struct {
 	// first cluster start
 	ReverseTunnels []services.ReverseTunnel
 
+	// OIDCConnectors is a list of trusted OpenID Connect identity providers
+	OIDCConnectors []services.OIDCConnector
+
 	// PidFile is a full path of the PID file for teleport daemon
 	PIDFile string
 }

@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"net/url"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -343,11 +344,11 @@ func (a *AuthWithRoles) GenerateUserCert(key []byte, user string, ttl time.Durat
 		return a.authServer.GenerateUserCert(key, user, ttl)
 	}
 }
-func (a *AuthWithRoles) CreateSignupToken(user string, mappings []string) (token string, e error) {
+func (a *AuthWithRoles) CreateSignupToken(user services.User) (token string, e error) {
 	if err := a.permChecker.HasPermission(a.role, ActionCreateSignupToken); err != nil {
 		return "", trace.Wrap(err)
 	} else {
-		return a.authServer.CreateSignupToken(user, mappings)
+		return a.authServer.CreateSignupToken(user)
 	}
 }
 
@@ -374,4 +375,58 @@ func (a *AuthWithRoles) UpsertUser(u services.User) error {
 	} else {
 		return a.authServer.UpsertUser(u)
 	}
+}
+
+func (a *AuthWithRoles) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error {
+	if err := a.permChecker.HasPermission(a.role, ActionUpsertOIDCConnector); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.IdentityService.UpsertOIDCConnector(connector, ttl)
+}
+
+func (a *AuthWithRoles) GetOIDCConnector(id string, withSecrets bool) (*services.OIDCConnector, error) {
+	if withSecrets {
+		if err := a.permChecker.HasPermission(a.role, ActionGetOIDCConnectorWithSecrets); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := a.permChecker.HasPermission(a.role, ActionGetOIDCConnectorWithoutSecrets); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return a.authServer.IdentityService.GetOIDCConnector(id, withSecrets)
+}
+
+func (a *AuthWithRoles) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error) {
+	if withSecrets {
+		if err := a.permChecker.HasPermission(a.role, ActionGetOIDCConnectorsWithSecrets); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := a.permChecker.HasPermission(a.role, ActionGetOIDCConnectorsWithoutSecrets); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return a.authServer.IdentityService.GetOIDCConnectors(withSecrets)
+}
+
+func (a *AuthWithRoles) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionCreateOIDCAuthRequest); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.CreateOIDCAuthRequest(req)
+}
+
+func (a *AuthWithRoles) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionValidateOIDCAuthCallback); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.ValidateOIDCAuthCallback(q)
+}
+
+func (a *AuthWithRoles) DeleteOIDCConnector(connectorID string) error {
+	if err := a.permChecker.HasPermission(a.role, ActionDeleteOIDCConnector); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.IdentityService.DeleteOIDCConnector(connectorID)
 }

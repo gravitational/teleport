@@ -54,7 +54,7 @@ type ServicesTestSuite struct {
 	LockS         *LockService
 	PresenceS     *PresenceService
 	ProvisioningS *ProvisioningService
-	WebS          *WebService
+	WebS          *IdentityService
 	ChangesC      chan interface{}
 }
 
@@ -64,7 +64,7 @@ func NewServicesTestSuite(backend backend.Backend) *ServicesTestSuite {
 	s.LockS = NewLockService(backend)
 	s.PresenceS = NewPresenceService(backend)
 	s.ProvisioningS = NewProvisioningService(backend)
-	s.WebS = NewWebService(backend)
+	s.WebS = NewIdentityService(backend)
 	s.ChangesC = make(chan interface{})
 	return &s
 }

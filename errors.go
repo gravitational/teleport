@@ -20,6 +20,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"syscall"
 
@@ -486,5 +487,41 @@ func IsTrustError(e error) bool {
 		IsTrustError() bool
 	}
 	_, ok := e.(te)
+	return ok
+}
+
+// OAuth2Error is error returned during OAuth2 authentication
+// currently used in OIDC (OpenID Connect flow)
+type OAuth2Error struct {
+	Code    string     `code:"code"`
+	Message string     `message:"message"`
+	Query   url.Values `query:"query"`
+}
+
+// NewOAuth2Error returns new instance of OAuth2Error
+func NewOAuth2Error(code, message string, query url.Values) *OAuth2Error {
+	return &OAuth2Error{
+		Code:    code,
+		Message: message,
+		Query:   query,
+	}
+}
+
+// Error returns debug friendly error message
+func (o *OAuth2Error) Error() string {
+	return fmt.Sprintf("OAuth2 error code=%v, message=%v", o.Code, o.Message)
+}
+
+// IsOAuth2Error indicates that this error of OAuth2 type
+func (o *OAuth2Error) IsOAuth2Error() bool {
+	return true
+}
+
+// IsOAuth2Error returns if this is a OAuth2-related error
+func IsOAuth2Error(e error) bool {
+	type oe interface {
+		IsOAuth2Error() bool
+	}
+	_, ok := e.(oe)
 	return ok
 }

@@ -137,6 +137,9 @@ const (
 
 	// ActivePartyTTL is a TTL when party is marked as inactive
 	ActivePartyTTL = 30 * time.Second
+
+	// OIDCAuthRequestTTL is TTL of internally stored auth request created by client
+	OIDCAuthRequestTTL = 60 * time.Second
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

@@ -19,6 +19,7 @@ package auth
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -126,6 +127,14 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.PUT("/v1/sessions/:id", httplib.MakeHandler(srv.updateSession))
 	srv.GET("/v1/sessions", httplib.MakeHandler(srv.getSessions))
 	srv.GET("/v1/sessions/:id", httplib.MakeHandler(srv.getSession))
+
+	// OIDC stuff
+	srv.POST("/v1/oidc/connectors", httplib.MakeHandler(srv.upsertOIDCConnector))
+	srv.GET("/v1/oidc/connectors", httplib.MakeHandler(srv.getOIDCConnectors))
+	srv.GET("/v1/oidc/connectors/:id", httplib.MakeHandler(srv.getOIDCConnector))
+	srv.DELETE("/v1/oidc/connectors/:id", httplib.MakeHandler(srv.deleteOIDCConnector))
+	srv.POST("/v1/oidc/requests/create", httplib.MakeHandler(srv.createOIDCAuthRequest))
+	srv.POST("/v1/oidc/requests/validate", httplib.MakeHandler(srv.validateOIDCAuthCallback))
 
 	return srv
 }
@@ -759,8 +768,7 @@ func (s *APIServer) getSignupTokenData(w http.ResponseWriter, r *http.Request, p
 }
 
 type createSignupTokenReq struct {
-	User          string   `json:"user"`
-	AllowedLogins []string `json:"allowed_logins"`
+	User services.User `json:"user"`
 }
 
 func (s *APIServer) createSignupToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -768,7 +776,7 @@ func (s *APIServer) createSignupToken(w http.ResponseWriter, r *http.Request, p 
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	token, err := s.a.CreateSignupToken(req.User, req.AllowedLogins)
+	token, err := s.a.CreateSignupToken(req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -791,6 +799,101 @@ func (s *APIServer) createUserWithToken(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil
+}
+
+type upsertOIDCConnectorReq struct {
+	Connector services.OIDCConnector `json:"connector"`
+	TTL       time.Duration          `json:"ttl"`
+}
+
+func (s *APIServer) upsertOIDCConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *upsertOIDCConnectorReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err := s.a.UpsertOIDCConnector(req.Connector, req.TTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+func parseBool(q url.Values, name string) (bool, error) {
+	stringVal := q.Get(name)
+	if stringVal == "" {
+		return false, nil
+	}
+	val, err := strconv.ParseBool(stringVal)
+	if err != nil {
+		return false, trace.Wrap(
+			teleport.BadParameter(
+				name, fmt.Sprintf("expected 'true' or 'false', got %v", stringVal)))
+	}
+	return val, nil
+}
+
+func (s *APIServer) getOIDCConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	withSecrets, err := parseBool(r.URL.Query(), "with_secrets")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connector, err := s.a.GetOIDCConnector(p[0].Value, withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return connector, nil
+}
+
+func (s *APIServer) deleteOIDCConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	err := s.a.DeleteOIDCConnector(p[0].Value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+func (s *APIServer) getOIDCConnectors(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	withSecrets, err := parseBool(r.URL.Query(), "with_secrets")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connectors, err := s.a.GetOIDCConnectors(withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return connectors, nil
+}
+
+type createOIDCAuthRequestReq struct {
+	Req services.OIDCAuthRequest `json:"req"`
+}
+
+func (s *APIServer) createOIDCAuthRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *createOIDCAuthRequestReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := s.a.CreateOIDCAuthRequest(req.Req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
+type validateOIDCAuthCallbackReq struct {
+	Query url.Values `json:"query"`
+}
+
+func (s *APIServer) validateOIDCAuthCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *validateOIDCAuthCallbackReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := s.a.ValidateOIDCAuthCallback(req.Query)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
 }
 
 func message(msg string) map[string]interface{} {
