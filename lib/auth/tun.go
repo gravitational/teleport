@@ -119,7 +119,11 @@ func (s *AuthTunnel) Start() error {
 }
 
 func (s *AuthTunnel) Close() error {
-	return s.sshServer.Close()
+	if s != nil && s.sshServer != nil {
+		return s.sshServer.Close()
+	} else {
+		return nil
+	}
 }
 
 // HandleNewChan implements NewChanHandler interface: it gets called every time a new SSH
@@ -562,11 +566,14 @@ func NewTunClient(authServers []utils.NetAddr, user string, authMethods []ssh.Au
 
 // Close releases all the resources allocated for this client
 func (c *TunClient) Close() error {
-	c.tr.CloseIdleConnections()
-	c.refreshTicker.Stop()
-	c.closeOnce.Do(func() {
-		close(c.closeC)
-	})
+	log.Infof("TunClient.Close()")
+	if c != nil {
+		c.tr.CloseIdleConnections()
+		c.refreshTicker.Stop()
+		c.closeOnce.Do(func() {
+			close(c.closeC)
+		})
+	}
 	return nil
 }
 
@@ -631,15 +638,17 @@ func (c *TunClient) fetchAndSync() error {
 }
 
 func (c *TunClient) syncAuthServers() {
+	log.Infof("TunClient (%p): syncAuthServers() started", c)
 	for {
 		select {
 		case <-c.refreshTicker.C:
 			err := c.fetchAndSync()
 			if err != nil {
-				log.Infof("fetch and sync servers: %v", err)
+				log.Infof("TunClient (%p): fetch and sync servers: %v", c, err)
 				continue
 			}
 		case <-c.closeC:
+			log.Infof("TunClient (%p): syncAuthServers() exited", c)
 			return
 		}
 	}

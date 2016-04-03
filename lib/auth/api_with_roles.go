@@ -36,9 +36,10 @@ import (
 )
 
 type APIWithRoles struct {
-	config    APIConfig
-	listeners map[teleport.Role]*fakeSocket
-	servers   map[teleport.Role]*APIServer
+	config      APIConfig
+	listeners   map[teleport.Role]*fakeSocket
+	servers     map[teleport.Role]*APIServer
+	askedToStop bool
 }
 
 // APIConfig is a configuration file
@@ -52,10 +53,10 @@ type APIConfig struct {
 }
 
 func NewAPIWithRoles(config APIConfig) *APIWithRoles {
-
 	api := APIWithRoles{}
 	api.listeners = make(map[teleport.Role]*fakeSocket)
 	api.servers = make(map[teleport.Role]*APIServer)
+	api.config = config
 
 	for _, role := range config.Roles {
 		a := AuthWithRoles{
@@ -77,12 +78,35 @@ func (api *APIWithRoles) Serve() {
 	for role := range api.listeners {
 		wg.Add(1)
 		go func(listener net.Listener, handler http.Handler) {
+			defer wg.Done()
 			if err := http.Serve(listener, handler); (err != nil) && (err != io.EOF) {
-				log.Errorf(err.Error())
+				if !api.askedToStop {
+					log.Errorf(err.Error())
+				}
 			}
 		}(api.listeners[role], api.servers[role])
 	}
 	wg.Wait()
+	log.Infof("[AUTH] API exited")
+}
+
+func (api *APIWithRoles) Close() {
+	api.askedToStop = true
+	var err error
+
+	for _, listener := range api.listeners {
+		listener.Close()
+	}
+	if api.config.EventLog != nil {
+		if err = api.config.EventLog.Close(); err != nil {
+			log.Error(err)
+		}
+	}
+	if api.config.Recorder != nil {
+		if err = api.config.Recorder.Close(); err != nil {
+			log.Error(err)
+		}
+	}
 }
 
 // HandleNewChannel is called when a new SSH channel (SSH connection) wants to communicate via HTTP API
@@ -96,12 +120,6 @@ func (api *APIWithRoles) HandleNewChannel(remoteAddr net.Addr, channel ssh.Chann
 	}
 	// create a bridge between the incoming SSH channel to the HTTP-based API server
 	return listener.CreateBridge(remoteAddr, channel)
-}
-
-func (api *APIWithRoles) Close() {
-	for _, listener := range api.listeners {
-		listener.Close()
-	}
 }
 
 // Implements a fake "socket" (net.Listener interface) on top of exisitng ssh.Channel

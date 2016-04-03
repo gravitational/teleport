@@ -54,6 +54,8 @@ func New() *nauth {
 	return &n
 }
 
+// GetNewKeyPairFromPool returns pre-generated keypair from a channel, which
+// gets replenished by `precalculateKeys` goroutine
 func (n *nauth) GetNewKeyPairFromPool() ([]byte, []byte, error) {
 	select {
 	case key := <-n.generatedKeysC:
@@ -64,7 +66,6 @@ func (n *nauth) GetNewKeyPairFromPool() ([]byte, []byte, error) {
 }
 
 func (n *nauth) precalculateKeys() {
-
 	for {
 		privPem, pubBytes, err := n.GenerateKeyPair("")
 		if err != nil {
@@ -78,6 +79,7 @@ func (n *nauth) precalculateKeys() {
 
 		select {
 		case <-n.closeC:
+			log.Infof("[KEYS] precalculateKeys() exited")
 			return
 		case n.generatedKeysC <- key:
 			continue
@@ -92,6 +94,7 @@ func (n *nauth) Close() error {
 	return nil
 }
 
+// GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute
 func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {

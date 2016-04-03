@@ -82,6 +82,9 @@ type Server struct {
 
 	// this gets set to true for unit testing
 	isTestStub bool
+
+	// sets to true when the server needs to be stopped
+	closer *utils.CloseBroadcaster
 }
 
 // ServerOption is a functional option passed to the server
@@ -93,6 +96,26 @@ func SetEventLogger(e events.Log) ServerOption {
 		s.elog = e
 		return nil
 	}
+}
+
+// Close closes listening socket and stops accepting connections
+func (s *Server) Close() error {
+	s.closer.Close()
+	return s.srv.Close()
+}
+
+// Start starts server
+func (s *Server) Start() error {
+	if len(s.cmdLabels) > 0 {
+		s.updateLabels()
+	}
+	go s.heartbeatPresence()
+	return s.srv.Start()
+}
+
+// Wait waits until server stops
+func (s *Server) Wait() {
+	s.srv.Wait()
 }
 
 // SetShell sets default shell that will be executed for interactive
@@ -179,6 +202,7 @@ func New(addr utils.NetAddr,
 		labelsMutex: &sync.Mutex{},
 		advertiseIP: advertiseIP,
 		uuid:        uuid,
+		closer:      utils.NewCloseBroadcaster(),
 	}
 	s.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
 	if err != nil {
@@ -277,8 +301,16 @@ func (s *Server) heartbeatPresence() {
 			log.Warningf("failed to announce %#v presence: %v", s, err)
 		}
 		sleepTime := defaults.ServerHeartbeatTTL/2 + utils.RandomDuration(defaults.ServerHeartbeatTTL/10)
-		//log.Infof("[SSH] will ping auth service in %v", sleepTime)
 		time.Sleep(sleepTime)
+		select {
+		case <-time.Tick(sleepTime):
+			continue
+		case <-s.closer.C:
+			{
+				log.Infof("server.heartbeatPresence() exited")
+				return
+			}
+		}
 	}
 }
 
@@ -472,25 +504,6 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		return nil, trace.Wrap(err)
 	}
 	return permissions, nil
-}
-
-// Close closes listening socket and stops accepting connections
-func (s *Server) Close() error {
-	return s.srv.Close()
-}
-
-// Start starts server
-func (s *Server) Start() error {
-	if len(s.cmdLabels) > 0 {
-		s.updateLabels()
-	}
-	go s.heartbeatPresence()
-	return s.srv.Start()
-}
-
-// Wait waits until server stops
-func (s *Server) Wait() {
-	s.srv.Wait()
 }
 
 // HandleRequest is a callback for out of band requests

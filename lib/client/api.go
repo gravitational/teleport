@@ -703,7 +703,9 @@ func (tc *TeleportClient) Login() error {
 
 	// generate a new keypair. the public key will be signed via proxy if our password+HOTP
 	// are legit
-	priv, pub, err := native.New().GenerateKeyPair("")
+	keygen := native.New()
+	defer keygen.Close()
+	priv, pub, err := keygen.GenerateKeyPair("")
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -130,6 +130,13 @@ type AuthServer struct {
 	*services.BkKeysService
 }
 
+func (a *AuthServer) Close() error {
+	if a.bk != nil {
+		return trace.Wrap(a.bk.Close())
+	}
+	return nil
+}
+
 // GetLocalDomain returns domain name that identifies this authority server
 func (a *AuthServer) GetLocalDomain() (string, error) {
 	return a.DomainName, nil
