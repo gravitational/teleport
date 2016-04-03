@@ -20,6 +20,8 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
+	"runtime/debug"
 	"sync/atomic"
 	"time"
 
@@ -55,6 +57,9 @@ func New() *nauth {
 }
 
 func (n *nauth) GetNewKeyPairFromPool() ([]byte, []byte, error) {
+	fmt.Println("[KEYS] getting a key...")
+	debug.PrintStack()
+
 	select {
 	case key := <-n.generatedKeysC:
 		return key.privPem, key.pubBytes, nil
@@ -64,7 +69,6 @@ func (n *nauth) GetNewKeyPairFromPool() ([]byte, []byte, error) {
 }
 
 func (n *nauth) precalculateKeys() {
-
 	for {
 		privPem, pubBytes, err := n.GenerateKeyPair("")
 		if err != nil {
