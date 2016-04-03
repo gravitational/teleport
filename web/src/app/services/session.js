@@ -40,6 +40,20 @@ var session = {
       return JSON.parse(item);
     }
 
+    // for sso use-cases, try to grab the token from HTML
+    var hiddenDiv = document.getElementById("bearer_token");
+    if(hiddenDiv!== null){
+      let json = atob(hiddenDiv.textContent);
+      let userData = JSON.parse(json);
+
+      // put it into the session
+      this.setUserData(userData);
+      // remove the element
+      hiddenDiv.remove();
+
+      return userData;
+    }
+
     return {};
   },
 
