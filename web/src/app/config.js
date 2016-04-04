@@ -34,6 +34,7 @@ let cfg = {
     activeSession: '/web/sessions/:sid',
     newUser: '/web/newuser/:inviteToken',
     sessions: '/web/sessions',
+    msgs: '/web/msg/:type(/:subType)',
     pageNotFound: '/web/notfound'
   },
 

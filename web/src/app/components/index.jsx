@@ -20,4 +20,6 @@ module.exports.NewUser = require('./newUser.jsx');
 module.exports.Nodes = require('./nodes/main.jsx');
 module.exports.Sessions = require('./sessions/main.jsx');
 module.exports.CurrentSessionHost = require('./currentSession/main.jsx');
-module.exports.NotFound = require('./errorPage.jsx').NotFound;
+module.exports.ErrorPage = require('./msgPage.jsx').ErrorPage;
+module.exports.NotFound = require('./msgPage.jsx').NotFound;
+module.exports.MessagePage = require('./msgPage.jsx').MessagePage;
