@@ -468,7 +468,9 @@ func (u *AuthServerCommand) Invite(client *auth.TunClient) error {
 
 // GenerateKeys generates a new keypair
 func (a *AuthCommand) GenerateKeys() error {
-	privBytes, pubBytes, err := native.New().GenerateKeyPair("")
+	keygen := native.New()
+	defer keygen.Close()
+	privBytes, pubBytes, err := keygen.GenerateKeyPair("")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -493,6 +495,7 @@ func (a *AuthCommand) GenerateAndSignKeys() error {
 		return trace.Wrap(err)
 	}
 	ca := native.New()
+	defer ca.Close()
 	privBytes, pubBytes, err := ca.GenerateKeyPair("")
 	if err != nil {
 		return trace.Wrap(err)
