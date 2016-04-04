@@ -217,13 +217,13 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	mappings := []string{"admin", "db"}
 
 	// Generate token
-	token, err := s.a.CreateSignupToken(user, mappings)
+	token, err := s.a.CreateSignupToken(services.User{Name: user, AllowedLogins: mappings})
 	c.Assert(err, IsNil)
 	// Generate token2
-	token2, err := s.a.CreateSignupToken(user2, mappings)
+	token2, err := s.a.CreateSignupToken(services.User{Name: user2, AllowedLogins: mappings})
 	c.Assert(err, IsNil)
 	// Generate token3
-	token3, err := s.a.CreateSignupToken(user3, mappings)
+	token3, err := s.a.CreateSignupToken(services.User{Name: user3, AllowedLogins: mappings})
 	c.Assert(err, IsNil)
 
 	// Connect to auth server using wrong token
