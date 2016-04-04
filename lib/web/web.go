@@ -256,6 +256,7 @@ type oidcLoginConsoleReq struct {
 	RedirectURL string        `json:"redirect_url"`
 	PublicKey   []byte        `json:"public_key"`
 	CertTTL     time.Duration `json:"cert_ttl"`
+	ConnectorID string        `json:"connector_id"`
 }
 
 type oidcLoginConsoleResponse struct {
@@ -276,9 +277,13 @@ func (m *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(
 			teleport.BadParameter("PublicKey", "missing PublicKey"))
 	}
+	if req.ConnectorID == "" {
+		return nil, trace.Wrap(
+			teleport.BadParameter("ConnectorID", "missing ConnectorID"))
+	}
 	response, err := m.cfg.ProxyClient.CreateOIDCAuthRequest(
 		services.OIDCAuthRequest{
-			ConnectorID:       "google",
+			ConnectorID:       req.ConnectorID,
 			ClientRedirectURL: req.RedirectURL,
 			PublicKey:         req.PublicKey,
 			CertTTL:           req.CertTTL,

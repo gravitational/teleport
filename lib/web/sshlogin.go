@@ -33,7 +33,7 @@ type sealData struct {
 }
 
 // SSHAgentOIDCLogin is used by SSH Agent to login using OpenID connect
-func SSHAgentOIDCLogin(proxyAddr string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool) (*SSHLoginResponse, error) {
+func SSHAgentOIDCLogin(proxyAddr, connectorID string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool) (*SSHLoginResponse, error) {
 	clt, proxyURL, err := initClient(proxyAddr, insecure, pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -117,6 +117,7 @@ func SSHAgentOIDCLogin(proxyAddr string, pubKey []byte, ttl time.Duration, insec
 		RedirectURL: u.String(),
 		PublicKey:   pubKey,
 		CertTTL:     ttl,
+		ConnectorID: connectorID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

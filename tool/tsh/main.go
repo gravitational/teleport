@@ -298,7 +298,7 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 		KeyTTL:             time.Minute * time.Duration(cf.MinsToLive),
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		LocalForwardPorts:  fPorts,
-		ExternalAuth:       cf.ExternalAuth,
+		ConnectorID:        cf.ExternalAuth,
 	}
 	return client.NewClient(c)
 }

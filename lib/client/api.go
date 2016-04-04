@@ -114,9 +114,9 @@ type Config struct {
 	// that uses local cache to validate hosts
 	HostKeyCallback HostKeyCallback
 
-	// ExternalAuth is used to authenticate user via OpenID Connect
+	// ConnectorID is used to authenticate user via OpenID Connect
 	// registered connector
-	ExternalAuth string
+	ConnectorID string
 }
 
 // ProxyHostPort returns a full host:port address of the proxy or an empty string if no
@@ -712,13 +712,13 @@ func (tc *TeleportClient) Login() error {
 	}
 
 	var response *web.SSHLoginResponse
-	if tc.ExternalAuth == "" {
+	if tc.ConnectorID == "" {
 		response, err = tc.directLogin(pub)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		response, err = tc.oidcLogin(pub)
+		response, err = tc.oidcLogin(tc.ConnectorID, pub)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -781,11 +781,11 @@ func (tc *TeleportClient) directLogin(pub []byte) (*web.SSHLoginResponse, error)
 }
 
 // oidcLogin opens browser window and uses OIDC redirect cycle with browser
-func (tc *TeleportClient) oidcLogin(pub []byte) (*web.SSHLoginResponse, error) {
+func (tc *TeleportClient) oidcLogin(connectorID string, pub []byte) (*web.SSHLoginResponse, error) {
 	log.Infof("oidcLogin start")
 	// ask the CA (via proxy) to sign our public key:
 	response, err := web.SSHAgentOIDCLogin(tc.Config.ProxyHostPort(defaults.HTTPListenPort),
-		pub, tc.KeyTTL, tc.InsecureSkipVerify, loopbackPool(tc.Config.ProxyHostPort(defaults.HTTPListenPort)))
+		connectorID, pub, tc.KeyTTL, tc.InsecureSkipVerify, loopbackPool(tc.Config.ProxyHostPort(defaults.HTTPListenPort)))
 	return response, trace.Wrap(err)
 }
 
