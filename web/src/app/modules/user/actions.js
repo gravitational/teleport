@@ -72,7 +72,7 @@ export default {
   login({user, password, token, provider}, redirect){
     if(provider){
       let fullPath = cfg.getFullUrl(redirect);
-      window.location = cfg.api.getSsoUrl(fullPath);
+      window.location = cfg.api.getSsoUrl(fullPath, provider);
       return;
     }
 

@@ -58,7 +58,8 @@ var LoginInputForm = React.createClass({
 
   render() {
     let {isProcessing, isFailed, message } = this.props.attemp;
-    let {useGoogle} = cfg.auth;
+    let providers = cfg.getAuthProviders();
+    let useGoogle = providers.indexOf(PROVIDER_GOOGLE) !== -1;
 
     return (
       <form ref="form" className="grv-login-input-form">

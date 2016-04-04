@@ -28,7 +28,7 @@ let cfg = {
   displayDateFormat: 'l LTS Z',
 
   auth: {
-    useGoogle: false
+    oidc_connectors: []
   },
 
   routes: {
@@ -44,7 +44,7 @@ let cfg = {
   },
 
   api: {
-    sso: '/v1/webapi/oidc/login/web?redirect_url=:redirect',
+    sso: '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:provider',
     renewTokenPath:'/v1/webapi/sessions/renew',
     nodesPath: '/v1/webapi/sites/-current-/nodes',
     sessionPath: '/v1/webapi/sessions',
@@ -55,8 +55,8 @@ let cfg = {
     sessionChunkCountPath: '/v1/webapi/sites/-current-/sessions/:sid/chunkscount',
     siteEventSessionFilterPath: `/v1/webapi/sites/-current-/events/sessions?filter=:filter`,
 
-    getSsoUrl(redirect){
-      return cfg.baseUrl + formatPattern(cfg.api.sso, {redirect});
+    getSsoUrl(redirect, provider){
+      return cfg.baseUrl + formatPattern(cfg.api.sso, {redirect, provider});
     },
 
     getFetchSessionChunkUrl({sid, start, end}){
@@ -113,6 +113,10 @@ let cfg = {
 
   getActiveSessionRouteUrl(sid){
     return formatPattern(cfg.routes.activeSession, {sid});
+  },
+
+  getAuthProviders(){
+    return cfg.auth.oidc_connectors;
   },
 
   init(config={}){

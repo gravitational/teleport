@@ -36,9 +36,8 @@ var compiler = webpack(webpackConfig);
 
 var server = new WebpackDevServer(compiler, {
   proxy: {
-    '/v1/webapi/*': {
-      target: 'https://' + PROXY_TARGET
-    }
+    '/web/config.js': 'https://' + PROXY_TARGET,
+    '/v1/webapi/*': 'https://' + PROXY_TARGET,    
   },
   publicPath: ROOT +'/app',
   hot: true,
