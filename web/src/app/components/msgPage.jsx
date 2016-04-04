@@ -16,12 +16,15 @@ limitations under the License.
 
 var React = require('react');
 
-const MSG_INFO_LOGIN_SUCCESS = 'Login was successful, this window will close automatically.';
-const MSG_ERROR_LOGIN_FAILED = 'Login unsuccessful. Please try agian, if the problem persisits, contact your system administator';
-const MSG_ERROR_DEFAULT = 'Whoops, something went wrong';
+const MSG_INFO_LOGIN_SUCCESS = 'Login was successful, you can close this window and continue using tsh.';
+const MSG_ERROR_LOGIN_FAILED = 'Login unsuccessful. Please try again, if the problem persists, contact your system administator.';
+const MSG_ERROR_DEFAULT = 'Whoops, something went wrong.';
 
 const MSG_ERROR_NOT_FOUND = 'Whoops, we cannot find that.';
 const MSG_ERROR_NOT_FOUND_DETAILS = `Looks like the page you are looking for isn't here any longer.`;
+
+const MSG_ERROR_EXPIRED_INVITE = 'Invite code has expired.';
+const MSG_ERROR_EXPIRED_INVITE_DETAILS = `Looks like your invite code isn't valid anymore.`;
 
 const MsgType = {
   INFO: 'info',
@@ -73,8 +76,8 @@ var ErrorPage = React.createClass({
     if(type === ErrorTypes.EXPIRED_INVITE){
       msgBody = (
         <div>
-          <h1>Invite code has expired</h1>
-          <div>Looks like your invite code isn't valid anymore</div>
+          <h1>{MSG_ERROR_EXPIRED_INVITE}</h1>
+          <div>{MSG_ERROR_EXPIRED_INVITE_DETAILS}</div>
         </div>
       )
     }
