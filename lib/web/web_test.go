@@ -190,13 +190,16 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(s.tunServer.Start(), IsNil)
 
 	// start handler
+	assetsDir, err := filepath.Abs("../../web/dist")
+	c.Assert(err, IsNil)
 	handler, err := NewHandler(Config{
 		InsecureHTTPMode: true,
 		Proxy:            revTunServer,
-		AssetsDir:        "assets/web",
+		AssetsDir:        assetsDir,
 		AuthServers:      tunAddr,
 		DomainName:       s.domainName,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond))
+	c.Assert(err, IsNil)
 
 	s.webServer = httptest.NewUnstartedServer(handler)
 	s.webServer.StartTLS()
@@ -226,7 +229,7 @@ func (s *WebSuite) TearDownTest(c *C) {
 }
 
 func (s *WebSuite) TestNewUser(c *C) {
-	token, err := s.roleAuth.CreateSignupToken("bob", []string{s.user})
+	token, err := s.roleAuth.CreateSignupToken(services.User{Name: "bob", AllowedLogins: []string{s.user}})
 	c.Assert(err, IsNil)
 
 	clt := s.client()

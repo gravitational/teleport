@@ -542,7 +542,7 @@ var DirsToLookForWebAssets = []string{
 	"/opt/teleport",
 }
 
-// locates the web assets required for the Proxy to start. Retursn the full path
+// locateWebAssets locates the web assets required for the Proxy to start. Retursn the full path
 // to web assets directory
 func locateWebAssets() (string, error) {
 	const errorMessage = "Cannot determine location of web assets."
