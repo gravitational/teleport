@@ -426,22 +426,18 @@ func (m *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httpro
 //
 //
 func (m *Handler) renewSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *sessionContext) (interface{}, error) {
-	log.Infof("!!!!HIT renew session")
 	newSess, err := ctx.CreateWebSession()
 	if err != nil {
-		log.Warningf("renew session: %v", err)
 		return nil, trace.Wrap(err)
 	}
 	// transfer ownership over connections that were opened in the
 	// sessionContext
 	newContext, err := ctx.parent.ValidateSession(newSess.User.Name, newSess.ID)
 	if err != nil {
-		log.Warningf("renew session: %v", err)
 		return nil, trace.Wrap(err)
 	}
 	newContext.AddClosers(ctx.TransferClosers()...)
 	if err := SetSession(w, newSess.User.Name, newSess.ID); err != nil {
-		log.Warningf("renew session: %v", err)
 		return nil, trace.Wrap(err)
 	}
 	return newSessionResponse(newSess), nil
