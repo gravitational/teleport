@@ -39,6 +39,7 @@ var auth = {
 
   login(name, password, token){
     auth._stopTokenRefresher();
+    session.clear();
     return auth._login(name, password, token).done(auth._startTokenRefresher);
   },
 

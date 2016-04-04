@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 let {formatPattern} = require('app/common/patternUtils');
+let $ = require('jQuery');
 
 let cfg = {
 
@@ -25,6 +26,10 @@ let cfg = {
   maxSessionLoadSize: 50,
 
   displayDateFormat: 'l LTS Z',
+
+  auth: {
+    useGoogle: false
+  },
 
   routes: {
     app: '/web',
@@ -108,6 +113,10 @@ let cfg = {
 
   getActiveSessionRouteUrl(sid){
     return formatPattern(cfg.routes.activeSession, {sid});
+  },
+
+  init(config={}){
+    $.extend(true, this, config);
   }
 }
 
