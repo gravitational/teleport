@@ -34,7 +34,7 @@ type sealData struct {
 
 // SSHAgentOIDCLogin is used by SSH Agent to login using OpenID connect
 func SSHAgentOIDCLogin(proxyAddr string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool) (*SSHLoginResponse, error) {
-	clt, err := initClient(proxyAddr, insecure, pool)
+	clt, proxyURL, err := initClient(proxyAddr, insecure, pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -53,41 +53,55 @@ func SSHAgentOIDCLogin(proxyAddr string, pubKey []byte, ttl time.Duration, insec
 
 	waitC := make(chan *SSHLoginResponse, 1)
 	errorC := make(chan error, 1)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	proxyURL.Path = "/web/msg/error/login_failed"
+	redirectErrorURL := proxyURL.String()
+	proxyURL.Path = "/web/msg/info/login_success"
+	redirectSuccessURL := proxyURL.String()
+
+	makeHandler := func(fn func(http.ResponseWriter, *http.Request) (*SSHLoginResponse, error)) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			response, err := fn(w, r)
+			if err != nil {
+				if teleport.IsNotFound(err) {
+					http.NotFound(w, r)
+					return
+				}
+				errorC <- err
+				http.Redirect(w, r, redirectErrorURL, http.StatusFound)
+				return
+			}
+			waitC <- response
+			http.Redirect(w, r, redirectSuccessURL, http.StatusFound)
+		})
+	}
+
+	server := httptest.NewServer(makeHandler(func(w http.ResponseWriter, r *http.Request) (*SSHLoginResponse, error) {
 		if r.URL.Path != "/callback" {
-			http.NotFound(w, r)
-			return
+			return nil, trace.Wrap(teleport.NotFound("path not found"))
 		}
 		encrypted := r.URL.Query().Get("response")
 		if encrypted == "" {
-			errorC <- trace.Errorf("missing required query parameters in %v", r.URL.String())
-			return
+			return nil, teleport.BadParameter("response", fmt.Sprintf("missing required query parameters in %v", r.URL.String()))
 		}
 
 		var encryptedData *secret.SealedBytes
 		err := json.Unmarshal([]byte(encrypted), &encryptedData)
 		if err != nil {
-			errorC <- trace.Wrap(err)
-			return
+			return nil, teleport.BadParameter("response", fmt.Sprintf("failed to decode response in %v", r.URL.String()))
 		}
 
 		out, err := decryptor.Open(encryptedData)
 		if err != nil {
-			errorC <- err
-			return
+			return nil, teleport.BadParameter("response", fmt.Sprintf("failed to decode response: in %v, err: %v", r.URL.String(), err))
 		}
 
 		var re *SSHLoginResponse
 		log.Infof("callback got response: %v", r.URL.String())
 		err = json.Unmarshal([]byte(out), &re)
 		if err != nil {
-			log.Infof("failed to unmarshal response: %v", err)
-			errorC <- trace.Wrap(err)
-			fmt.Fprintf(w, "failed to login")
-			return
+			return nil, teleport.BadParameter("response", fmt.Sprintf("failed to decode response: in %v, err: %v", r.URL.String(), err))
 		}
-		waitC <- re
-		fmt.Fprintf(w, "logged in")
+		return re, nil
 	}))
 	defer server.Close()
 
@@ -146,7 +160,7 @@ func SSHAgentOIDCLogin(proxyAddr string, pubKey []byte, ttl time.Duration, insec
 //
 // proxyAddr must be specified as host:port
 func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool) (*SSHLoginResponse, error) {
-	clt, err := initClient(proxyAddr, insecure, pool)
+	clt, _, err := initClient(proxyAddr, insecure, pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -170,18 +184,24 @@ func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte, t
 	return out, nil
 }
 
-func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*webClient, error) {
+func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*webClient, *url.URL, error) {
 	// validate proxyAddr:
 	host, port, err := net.SplitHostPort(proxyAddr)
 	if err != nil || host == "" || port == "" {
 		if err != nil {
 			log.Error(err)
 		}
-		return nil, trace.Wrap(
+		return nil, nil, trace.Wrap(
 			teleport.BadParameter("proxyAddress",
 				fmt.Sprintf("'%v' is not a valid proxy address", proxyAddr)))
 	}
 	proxyAddr = "https://" + net.JoinHostPort(host, port)
+	u, err := url.Parse(proxyAddr)
+	if err != nil {
+		return nil, nil, trace.Wrap(
+			teleport.BadParameter("proxyAddress",
+				fmt.Sprintf("'%v' is not a valid proxy address", proxyAddr)))
+	}
 
 	var opts []roundtrip.ClientParam
 
@@ -196,7 +216,7 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*webClien
 
 	clt, err := newWebClient(proxyAddr, opts...)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
-	return clt, nil
+	return clt, u, nil
 }
