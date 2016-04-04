@@ -121,9 +121,8 @@ func (s *AuthTunnel) Start() error {
 func (s *AuthTunnel) Close() error {
 	if s != nil && s.sshServer != nil {
 		return s.sshServer.Close()
-	} else {
-		return nil
 	}
+	return nil
 }
 
 // HandleNewChan implements NewChanHandler interface: it gets called every time a new SSH

@@ -284,10 +284,10 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	keygenerator := native.New()
+	keygen := native.New()
 	acfg := auth.InitConfig{
 		Backend:         b,
-		Authority:       keygenerator,
+		Authority:       keygen,
 		DomainName:      cfg.Auth.DomainName,
 		AuthServiceName: cfg.Hostname,
 		DataDir:         cfg.DataDir,
@@ -400,7 +400,7 @@ func (process *TeleportProcess) initAuthService() error {
 		authTunnel.Close()
 		authClient.Close()
 		apiServer.Close()
-		keygenerator.Close()
+		keygen.Close()
 		log.Infof("[AUTH] auth service exited")
 	})
 	return nil
