@@ -16,6 +16,7 @@ limitations under the License.
 
 var { browserHistory, createMemoryHistory } = require('react-router');
 
+const logger = require('app/common/logger').create('services/sessions');
 const AUTH_KEY_DATA = 'authData';
 
 var _history = createMemoryHistory();
@@ -43,15 +44,18 @@ var session = {
     // for sso use-cases, try to grab the token from HTML
     var hiddenDiv = document.getElementById("bearer_token");
     if(hiddenDiv !== null ){
-      let json = atob(hiddenDiv.textContent);
-      let userData = JSON.parse(json);
-      if(userData.token){
-        // put it into the session
-        this.setUserData(userData);
-        // remove the element
-        hiddenDiv.remove();
-
-        return userData;
+      try{
+        let json = window.atob(hiddenDiv.textContent);
+        let userData = JSON.parse(json);
+        if(userData.token){
+          // put it into the session
+          this.setUserData(userData);
+          // remove the element
+          hiddenDiv.remove();
+          return userData;
+        }
+      }catch(err){
+        logger.error('error parsing SSO token:', err);
       }
     }
 

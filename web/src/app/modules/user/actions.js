@@ -44,7 +44,14 @@ export default {
         cb();
       })
       .fail(()=>{
-        replace({redirectTo: nextState.location.pathname }, cfg.routes.login);
+        let newLocation = {
+            pathname: cfg.routes.login,
+            state: {
+              redirectTo: nextState.location.pathname
+            }
+          };
+
+        replace(newLocation);
         cb();
       });
   },
