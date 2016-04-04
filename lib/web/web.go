@@ -166,7 +166,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	h.GET("/webapi/oidc/callback", httplib.MakeHandler(h.oidcCallback))
 
 	indexPath := filepath.Join(cfg.AssetsDir, "/index.html")
-	log.Infof("INDEX PATH: %v", indexPath)
 	indexContent, err := ioutil.ReadFile(indexPath)
 	if err != nil {
 		return nil, trace.Wrap(teleport.ConvertSystemError(err))
@@ -176,11 +175,15 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 		return nil, trace.Wrap(teleport.BadParameter("index", fmt.Sprintf("failed parsing template %v: %v", indexPath, err)))
 	}
 
+	writeSettings := httplib.MakeStdHandler(h.getSettings)
+
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			http.Redirect(w, r, "/web", http.StatusFound)
 		} else if strings.HasPrefix(r.URL.Path, "/web/app") {
 			http.StripPrefix("/web", http.FileServer(http.Dir(cfg.AssetsDir))).ServeHTTP(w, r)
+		} else if strings.HasPrefix(r.URL.Path, "/web/config.json") {
+			writeSettings.ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web") {
 			ctx, err := h.authenticateRequest(w, r, false)
 			session := struct {
@@ -201,6 +204,22 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	return routingHandler, nil
 }
 
+type webSettings struct {
+	OIDCConnectors []string `json:"oidc_connectors"`
+}
+
+func (m *Handler) getSettings(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	settings := &webSettings{}
+	connectors, err := m.cfg.ProxyClient.GetOIDCConnectors(false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, connector := range connectors {
+		settings.OIDCConnectors = append(settings.OIDCConnectors, connector.ID)
+	}
+	return settings, nil
+}
+
 func (m *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	log.Infof("oidcLoginWeb start")
 	query := r.URL.Query()
@@ -208,9 +227,13 @@ func (m *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 	if clientRedirectURL == "" {
 		return nil, trace.Wrap(teleport.BadParameter("redirect_url", "missing redirect_url query parameter"))
 	}
+	connectorID := query.Get("connector_id")
+	if connectorID == "" {
+		return nil, trace.Wrap(teleport.BadParameter("connector_id", "missing connector_id query parameter"))
+	}
 	response, err := m.cfg.ProxyClient.CreateOIDCAuthRequest(
 		services.OIDCAuthRequest{
-			ConnectorID:       "google",
+			ConnectorID:       connectorID,
 			CreateWebSession:  true,
 			ClientRedirectURL: clientRedirectURL,
 		})

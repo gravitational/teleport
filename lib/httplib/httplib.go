@@ -37,10 +37,27 @@ import (
 // HandlerFunc specifies HTTP handler function that returns error
 type HandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error)
 
+// StdHandlerFunc specifies HTTP handler function that returns error
+type StdHandlerFunc func(w http.ResponseWriter, r *http.Request) (interface{}, error)
+
 // MakeHandler returns a new httprouter.Handle func from a handler func
 func MakeHandler(fn HandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		out, err := fn(w, r, p)
+		if err != nil {
+			ReplyError(w, err)
+			return
+		}
+		if out != nil {
+			roundtrip.ReplyJSON(w, http.StatusOK, out)
+		}
+	}
+}
+
+// MakeStdHandler returns a new http.Handle func from http.HandlerFunc
+func MakeStdHandler(fn StdHandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		out, err := fn(w, r)
 		if err != nil {
 			ReplyError(w, err)
 			return
