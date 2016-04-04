@@ -167,6 +167,20 @@
 			"Rev": "05017fcccf23c823bfdea560dcc958a136e54fb7"
 		},
 		{
+			"ImportPath": "github.com/mailgun/lemma/random",
+			"Comment": "0.0.2-1-gc98f59f",
+			"Rev": "c98f59fc291abc521f50deca9a91d2665f32cb42"
+		},
+		{
+			"ImportPath": "github.com/mailgun/lemma/secret",
+			"Comment": "0.0.2-1-gc98f59f",
+			"Rev": "c98f59fc291abc521f50deca9a91d2665f32cb42"
+		},
+		{
+			"ImportPath": "github.com/mailgun/metrics",
+			"Rev": "2b3c4565aafdcd40c8069e50de08ac5379787943"
+		},
+		{
 			"ImportPath": "github.com/mailgun/minheap",
 			"Rev": "7c28d80e2ada649fc8ab1a37b86d30a2633bd47c"
 		},
@@ -225,6 +239,18 @@
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/curve25519",
+			"Rev": "9e7f5dc375abeb9619ea3c5c58502c428f457aa2"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/nacl/secretbox",
+			"Rev": "9e7f5dc375abeb9619ea3c5c58502c428f457aa2"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/poly1305",
+			"Rev": "9e7f5dc375abeb9619ea3c5c58502c428f457aa2"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/salsa20/salsa",
 			"Rev": "9e7f5dc375abeb9619ea3c5c58502c428f457aa2"
 		},
 		{
