@@ -67,6 +67,12 @@ type Session struct {
 	ID string `json:"id"`
 	// User is a user this session belongs to
 	User services.User `json:"user"`
+	// ExpiresAt is an optional expiry time, if set
+	// that means this web session and all derived web sessions
+	// can not continue after this time, used in OIDC use case
+	// when expiry is set by external identity provider, so user
+	// has to relogin (or later on we'd need to refresh the token)
+	ExpiresAt time.Time `json:"expires_at"`
 	// WS is a private keypair used for signing requests
 	WS services.WebSession `json:"web"`
 }
@@ -200,15 +206,26 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 // CreateWebSession creates a new web session for a user based on a valid previous sessionID,
 // method is used to renew the web session for a user
 func (s *AuthServer) CreateWebSession(user string, prevSessionID string) (*Session, error) {
-	_, err := s.GetWebSession(user, prevSessionID)
+	prevSession, err := s.GetWebSession(user, prevSessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// consider absolute expiry time that may be set for this session
+	// by some external identity serivce, so we can not renew this session
+	// any more without extra logic for renewal with external OIDC provider
+	expiresAt := prevSession.ExpiresAt
+	if !expiresAt.IsZero() && expiresAt.Before(s.clock.Now().UTC()) {
+		return nil, trace.Wrap(teleport.NotFound("web session has expired"))
+	}
+
 	sess, err := s.NewWebSession(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := s.UpsertWebSession(user, sess, WebSessionTTL); err != nil {
+	sessionTTL := minTTL(toTTL(s.clock, expiresAt), WebSessionTTL)
+	sess.ExpiresAt = expiresAt
+	if err := s.UpsertWebSession(user, sess, sessionTTL); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sess.WS.Priv = nil
@@ -547,6 +564,8 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 			oauth2.ErrorUnsupportedResponseType, "unable to convert claims to identity", q))
 	}
 
+	log.Infof("[IDENTITY] expires at: %v", ident.ExpiresAt)
+
 	user, err := a.IdentityService.GetUserByOIDCIdentity(services.OIDCIdentity{
 		ConnectorID: req.ConnectorID, Email: ident.Email})
 	if err != nil {
@@ -563,14 +582,17 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := a.UpsertWebSession(user.Name, sess, WebSessionTTL); err != nil {
+		sess.ExpiresAt = ident.ExpiresAt.UTC()
+		sessionTTL := minTTL(toTTL(a.clock, ident.ExpiresAt), WebSessionTTL)
+		if err := a.UpsertWebSession(user.Name, sess, sessionTTL); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		response.Session = sess
 	}
 
 	if len(req.PublicKey) != 0 {
-		cert, err := a.GenerateUserCert(req.PublicKey, user.Name, req.CertTTL)
+		certTTL := minTTL(toTTL(a.clock, ident.ExpiresAt), req.CertTTL)
+		cert, err := a.GenerateUserCert(req.PublicKey, user.Name, certTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -597,3 +619,28 @@ const (
 	// web session random token
 	WebSessionTokenLenBytes = 32
 )
+
+// minTTL finds min non 0 TTL duration,
+// if both durations are 0, fails
+func minTTL(a, b time.Duration) time.Duration {
+	if a == 0 {
+		return b
+	}
+	if b == 0 {
+		return a
+	}
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// toTTL converts expiration time to TTL duration
+// relative to current time as provided by clock
+func toTTL(c clockwork.Clock, tm time.Time) time.Duration {
+	now := c.Now().UTC()
+	if tm.IsZero() || tm.Before(now) {
+		return 0
+	}
+	return tm.Sub(now)
+}
