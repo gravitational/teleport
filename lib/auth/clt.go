@@ -161,6 +161,10 @@ func (c *Client) GetLocalDomain() (string, error) {
 	return domain, nil
 }
 
+func (c *Client) Close() error {
+	return nil
+}
+
 // UpsertCertAuthority updates or inserts new cert authority
 func (c *Client) UpsertCertAuthority(ca services.CertAuthority, ttl time.Duration) error {
 	if err := ca.Check(); err != nil {

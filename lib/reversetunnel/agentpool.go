@@ -71,15 +71,23 @@ func NewAgentPool(cfg AgentPoolConfig) (*AgentPool, error) {
 	return pool, nil
 }
 
-// Start starts agent pool
+// Start starts the agent pool
 func (m *AgentPool) Start() error {
 	go m.pollAndSyncAgents()
 	return nil
 }
 
+// Stop stops the agent pool
+func (m *AgentPool) Stop() {
+	m.closeBroadcast.Close()
+}
+
 // Wait returns when agent pool is closed
 func (m *AgentPool) Wait() error {
-	<-m.closeBroadcast.C
+	select {
+	case <-m.closeBroadcast.C:
+		break
+	}
 	return nil
 }
 
@@ -103,6 +111,7 @@ func (m *AgentPool) pollAndSyncAgents() {
 		select {
 		case <-m.closeBroadcast.C:
 			m.Infof("closing")
+			return
 		case <-ticker.C:
 			err := m.FetchAndSyncAgents()
 			if err != nil {

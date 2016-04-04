@@ -24,6 +24,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -31,7 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	authority "github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
@@ -68,6 +69,9 @@ const (
 	SSHIdentityEvent = "SSHIdentity"
 	// AuthIdentityEvent is generated when auth's identity has been initialized
 	AuthIdentityEvent = "AuthIdentity"
+	// TeleportExitEvent is generated when someone is askign Teleport Process to close
+	// all listening sockets and exit
+	TeleportExitEvent = "TeleportExit"
 )
 
 // RoleConfig is a configuration for a server role (either proxy or node)
@@ -164,7 +168,7 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 
 // NewTeleport takes the daemon configuration, instantiates all required services
 // and starts them under a supervisor, returning the supervisor object
-func NewTeleport(cfg *Config) (Supervisor, error) {
+func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	if err := validateConfig(cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -260,6 +264,10 @@ func (process *TeleportProcess) getLocalAuth() *auth.AuthServer {
 
 // initAuthService can be called to initialize auth server service
 func (process *TeleportProcess) initAuthService() error {
+	var (
+		askedToExit bool = false
+		err         error
+	)
 	cfg := process.Config
 	// Initialize the storage back-ends for keys, events and records
 	b, err := process.initAuthStorage()
@@ -276,10 +284,10 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
+	keygen := native.New()
 	acfg := auth.InitConfig{
 		Backend:         b,
-		Authority:       authority.New(),
+		Authority:       keygen,
 		DomainName:      cfg.Auth.DomainName,
 		AuthServiceName: cfg.Hostname,
 		DataDir:         cfg.DataDir,
@@ -311,6 +319,9 @@ func (process *TeleportProcess) initAuthService() error {
 
 	process.RegisterFunc(func() error {
 		apiServer.Serve()
+		if askedToExit {
+			log.Infof("[AUTH] API server exited")
+		}
 		return nil
 	})
 
@@ -321,9 +332,10 @@ func (process *TeleportProcess) initAuthService() error {
 
 	// Register an SSH endpoint which is used to create an SSH tunnel to send HTTP
 	// requests to the Auth API
+	var authTunnel *auth.AuthTunnel
 	process.RegisterFunc(func() error {
 		utils.Consolef(cfg.Console, "[AUTH]  Auth service is starting on %v", cfg.Auth.SSHAddr.Addr)
-		tsrv, err := auth.NewTunnel(
+		authTunnel, err = auth.NewTunnel(
 			cfg.Auth.SSHAddr, []ssh.Signer{identity.KeySigner},
 			apiServer,
 			authServer,
@@ -333,7 +345,11 @@ func (process *TeleportProcess) initAuthService() error {
 			utils.Consolef(cfg.Console, "[PROXY] Error: %v", err)
 			return trace.Wrap(err)
 		}
-		if err := tsrv.Start(); err != nil {
+		if err := authTunnel.Start(); err != nil {
+			if askedToExit {
+				log.Infof("[PROXY] Auth Tunnel exited")
+				return nil
+			}
 			utils.Consolef(cfg.Console, "[PROXY] Error: %v", err)
 			return trace.Wrap(err)
 		}
@@ -342,8 +358,9 @@ func (process *TeleportProcess) initAuthService() error {
 
 	// Heart beat auth server presence, this is not the best place for this
 	// logic, consolidate it into auth package later
+	var authClient *auth.TunClient
 	process.RegisterFunc(func() error {
-		authClient, err := auth.NewTunClient(
+		authClient, err = auth.NewTunClient(
 			[]utils.NetAddr{cfg.Auth.SSHAddr},
 			identity.Cert.ValidPrincipals[0],
 			[]ssh.AuthMethod{ssh.PublicKeys(identity.KeySigner)})
@@ -367,17 +384,41 @@ func (process *TeleportProcess) initAuthService() error {
 			}
 			srv.Addr = fmt.Sprintf("%v:%v", process.Config.AdvertiseIP.String(), port)
 		}
-		for {
+		for !askedToExit {
 			err := authClient.UpsertAuthServer(srv, defaults.ServerHeartbeatTTL)
 			if err != nil {
 				log.Warningf("failed to announce presence: %v", err)
 			}
 			sleepTime := defaults.ServerHeartbeatTTL/2 + utils.RandomDuration(defaults.ServerHeartbeatTTL/10)
-			//log.Infof("[AUTH] will ping auth service in %v", sleepTime)
 			time.Sleep(sleepTime)
 		}
+		log.Infof("[AUTH] heartbeat to other auth servers exited")
+		return nil
+	})
+	// execute this when process is asked to exit:
+	process.onExit(func(payload interface{}) {
+		askedToExit = true
+		authTunnel.Close()
+		authClient.Close()
+		apiServer.Close()
+		keygen.Close()
+		log.Infof("[AUTH] auth service exited")
 	})
 	return nil
+}
+
+// onExit allows individual services to register a callback function which will be
+// called when Teleport Process is asked to exit. Usually services terminate themselves
+// when the callback is called
+func (process *TeleportProcess) onExit(callback func(interface{})) {
+	go func() {
+		eventC := make(chan Event)
+		process.WaitForEvent(TeleportExitEvent, eventC, make(chan struct{}))
+		select {
+		case event := <-eventC:
+			callback(event.Payload)
+		}
+	}()
 }
 
 func (process *TeleportProcess) initSSH() error {
@@ -439,11 +480,13 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 	// this means the server has not been initialized yet, we are starting
 	// the registering client that attempts to connect to the auth server
 	// and provision the keys
+	var authClient *auth.TunClient
 	process.RegisterFunc(func() error {
 		for {
-			conn, err := process.connectToAuthService(role)
+			connector, err := process.connectToAuthService(role)
 			if err == nil {
-				process.BroadcastEvent(Event{Name: eventName, Payload: conn})
+				process.BroadcastEvent(Event{Name: eventName, Payload: connector})
+				authClient = connector.Client
 				return nil
 			}
 			if teleport.IsConnectionProblem(err) {
@@ -475,6 +518,12 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 				utils.Consolef(cfg.Console, "[%v] Successfully registered with the cluster", role)
 				continue
 			}
+		}
+	})
+
+	process.onExit(func(interface{}) {
+		if authClient != nil {
+			authClient.Close()
 		}
 	})
 }
@@ -509,11 +558,14 @@ func (process *TeleportProcess) initProxy() error {
 		}
 		return trace.Wrap(process.initProxyEndpoint(conn))
 	})
-
 	return nil
 }
 
 func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
+	var (
+		askedToExit = true
+		err         error
+	)
 	cfg := process.Config
 	proxyLimiter, err := limiter.NewLimiter(cfg.Proxy.Limiter)
 	if err != nil {
@@ -569,10 +621,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		// notify parties that we've started reverse tunnel server
 		process.BroadcastEvent(Event{Name: ProxyReverseTunnelServerEvent, Payload: tsrv})
 		tsrv.Wait()
+		if askedToExit {
+			log.Infof("[PROXY] Reverse tunnel exited")
+		}
 		return nil
 	})
 
 	// Register web proxy server
+	var webListener net.Listener
 	process.RegisterFunc(func() error {
 		utils.Consolef(cfg.Console, "[PROXY] Web proxy service is starting on %v", cfg.Proxy.WebAddr.Addr)
 		webHandler, err := web.NewHandler(
@@ -589,19 +645,23 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 
 		proxyLimiter.WrapHandle(webHandler)
-
 		process.BroadcastEvent(Event{Name: ProxyWebServerEvent, Payload: webHandler})
 
 		log.Infof("[PROXY] init TLS listeners")
-		err = utils.ListenAndServeTLS(
+		webListener, err = utils.ListenTLS(
 			cfg.Proxy.WebAddr.Addr,
-			proxyLimiter,
 			cfg.Proxy.TLSCert,
 			cfg.Proxy.TLSKey)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
+		if err = http.Serve(webListener, proxyLimiter); err != nil {
+			if askedToExit {
+				log.Infof("[PROXY] web server exited")
+				return nil
+			}
+			log.Error(err)
+		}
 		return nil
 	})
 
@@ -609,6 +669,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	process.RegisterFunc(func() error {
 		utils.Consolef(cfg.Console, "[PROXY] SSH proxy service is starting on %v", cfg.Proxy.SSHAddr.Addr)
 		if err := SSHProxy.Start(); err != nil {
+			if askedToExit {
+				log.Infof("[PROXY] SSH proxy exited")
+				return nil
+			}
 			utils.Consolef(cfg.Console, "[PROXY] Error: %v", err)
 			return trace.Wrap(err)
 		}
@@ -623,6 +687,15 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		agentPool.Wait()
 		return nil
+	})
+
+	// execute this when process is asked to exit:
+	process.onExit(func(payload interface{}) {
+		tsrv.Close()
+		SSHProxy.Close()
+		agentPool.Stop()
+		webListener.Close()
+		log.Infof("[PROXY] proxy service exited")
 	})
 	return nil
 }
@@ -646,6 +719,11 @@ func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 	}
 
 	return bk, nil
+}
+
+func (process *TeleportProcess) Close() error {
+	process.BroadcastEvent(Event{Name: TeleportExitEvent})
+	return trace.Wrap(process.localAuth.Close())
 }
 
 func initEventStorage(btype string, params string) (events.Log, error) {

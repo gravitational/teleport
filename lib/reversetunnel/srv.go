@@ -71,6 +71,8 @@ type Server interface {
 	FindSimilarSite(name string) (RemoteSite, error)
 	// Start starts server
 	Start() error
+	// CLose closes server's socket
+	Close() error
 	// Wait waits for server to close all outstanding operations
 	Wait()
 }
