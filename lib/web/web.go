@@ -182,7 +182,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 			http.Redirect(w, r, "/web", http.StatusFound)
 		} else if strings.HasPrefix(r.URL.Path, "/web/app") {
 			http.StripPrefix("/web", http.FileServer(http.Dir(cfg.AssetsDir))).ServeHTTP(w, r)
-		} else if strings.HasPrefix(r.URL.Path, "/web/config.json") {
+		} else if strings.HasPrefix(r.URL.Path, "/web/config.js") {
 			writeSettings.ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web") {
 			ctx, err := h.authenticateRequest(w, r, false)
@@ -205,7 +205,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 }
 
 type webSettings struct {
-	OIDCConnectors []string `json:"oidc_connectors"`
+	Auth struct {
+		OIDCConnectors []string `json:"oidc_connectors"`
+	} `json:"auth"`
 }
 
 func (m *Handler) getSettings(w http.ResponseWriter, r *http.Request) (interface{}, error) {
@@ -215,9 +217,14 @@ func (m *Handler) getSettings(w http.ResponseWriter, r *http.Request) (interface
 		return nil, trace.Wrap(err)
 	}
 	for _, connector := range connectors {
-		settings.OIDCConnectors = append(settings.OIDCConnectors, connector.ID)
+		settings.Auth.OIDCConnectors = append(settings.Auth.OIDCConnectors, connector.ID)
 	}
-	return settings, nil
+	out, err := json.Marshal(settings)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	fmt.Fprintf(w, "var GRV_CONFIG = %v;", string(out))
+	return nil, nil
 }
 
 func (m *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
