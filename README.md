@@ -1,11 +1,15 @@
 # Gravitational Teleport
 
+|Project Links|
+|---|
+| [Teleport Website](http://gravitational.com/teleport)  |
+| [Documentation](http://gravitational.com/teleport/docs/quickstart/)  |
+
+
 ## Introduction
 
 Gravitational Teleport ("Teleport") is a tool for remotely accessing isolated clusters of 
 Linux servers via SSH or HTTPS. 
-
-Docs and other info can be found on [http://gravitational.com/teleport](http://gravitational.com/teleport)
 
 Unlike traditional key-based access, Teleport enables teams to easily adopt the following 
 practices:

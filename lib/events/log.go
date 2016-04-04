@@ -79,6 +79,7 @@ type Log interface {
 	LogSession(session.Session) error
 	GetEvents(filter Filter) ([]lunk.Entry, error)
 	GetSessionEvents(filter Filter) ([]session.Session, error)
+	Close() error
 }
 
 // FilterToURL encodes filter to URL query parameters
@@ -139,6 +140,10 @@ func FilterFromURL(vals url.Values) (*Filter, error) {
 var NullEventLogger = &NOPEventLogger{}
 
 type NOPEventLogger struct {
+}
+
+func (*NOPEventLogger) Close() error {
+	return nil
 }
 
 func (*NOPEventLogger) Log(lunk.EventID, lunk.Event) {

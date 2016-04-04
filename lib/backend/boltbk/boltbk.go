@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/teleport"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/boltdb/bolt"
 	"github.com/gravitational/trace"
 	"github.com/mailgun/timetools"
@@ -125,7 +124,6 @@ func (b *BoltBackend) CreateVal(bucket []string, key string, val []byte, ttl tim
 		Value:   val,
 		TTL:     ttl,
 	}
-	log.Infof("createVal: path=%v, key=%v, ttl=%v", bucket, key, ttl)
 	bytes, err := json.Marshal(v)
 	if err != nil {
 		return trace.Wrap(err)
@@ -199,7 +197,6 @@ func (b *BoltBackend) CompareAndSwap(path []string, key string, val []byte, ttl 
 }
 
 func (b *BoltBackend) GetVal(path []string, key string) ([]byte, error) {
-	log.Infof("createVal: path=%v key=%v", path, key)
 	var val []byte
 	if err := b.getKey(path, key, &val); err != nil {
 		return nil, trace.Wrap(err)

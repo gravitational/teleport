@@ -72,6 +72,19 @@ type boltRecorder struct {
 	dbs  map[string]*boltRW
 }
 
+func (r *boltRecorder) Close() error {
+	r.Lock()
+	defer r.Unlock()
+
+	for _, db := range r.dbs {
+		if err := db.Close(); err != nil {
+			log.Error(err)
+		}
+	}
+	r.dbs = nil
+	return nil
+}
+
 func (r *boltRecorder) decRef(b *boltRW) error {
 	r.Lock()
 	defer r.Unlock()

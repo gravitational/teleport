@@ -34,7 +34,8 @@ import (
 )
 
 type BoltLog struct {
-	db *bolt.DB
+	db   *bolt.DB
+	path string
 }
 
 func New(path string) (*BoltLog, error) {
@@ -43,7 +44,8 @@ func New(path string) (*BoltLog, error) {
 		return nil, err
 	}
 	return &BoltLog{
-		db: db,
+		db:   db,
+		path: path,
 	}, nil
 }
 
