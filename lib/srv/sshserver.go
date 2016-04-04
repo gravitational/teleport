@@ -146,7 +146,7 @@ func SetRecorder(rec recorder.Recorder) ServerOption {
 // SetProxyMode starts this server in SSH proxying mode
 func SetProxyMode(tsrv reversetunnel.Server) ServerOption {
 	return func(s *Server) error {
-		s.proxyMode = true
+		s.proxyMode = (tsrv != nil)
 		s.proxyTun = tsrv
 		return nil
 	}
