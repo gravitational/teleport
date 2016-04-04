@@ -58,6 +58,7 @@ var LoginInputForm = React.createClass({
 
   render() {
     let {isProcessing, isFailed, message } = this.props.attemp;
+    let {useGoogle} = cfg.auth;
 
     return (
       <form ref="form" className="grv-login-input-form">
@@ -73,7 +74,7 @@ var LoginInputForm = React.createClass({
             <input autoComplete="off" valueLink={this.linkState('token')} className="form-control required" name="token" placeholder="Two factor token (Google Authenticator)"/>
           </div>
           <button onClick={this.onLogin} disabled={isProcessing} type="submit" className="btn btn-primary block full-width m-b">Login</button>
-          <button onClick={this.onLoginWithGoogle} type="submit" className="btn btn-danger block full-width m-b">With Google</button>
+          { useGoogle ? <button onClick={this.onLoginWithGoogle} type="submit" className="btn btn-danger block full-width m-b">With Google</button> : null }
           { isFailed ? (<label className="error">{message}</label>) : null }
         </div>
       </form>

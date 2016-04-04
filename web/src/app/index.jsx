@@ -28,6 +28,8 @@ require('./modules');
 // init session
 session.init();
 
+cfg.init(window.GRV_CONFIG);
+
 render((
   <Router history={session.getHistory()}>
     <Route path={cfg.routes.msgs} component={MessagePage}/>
