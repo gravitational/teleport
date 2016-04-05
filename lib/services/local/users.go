@@ -94,7 +94,7 @@ func (s *IdentityService) UpsertUser(user services.User) error {
 
 // GetUser returns a user by name
 func (s *IdentityService) GetUser(user string) (services.User, error) {
-	u := services.TeleportUser{Name: user}
+	u := services.TeleportUser{Name: user, AllowedLogins: []string{user}}
 	data, err := s.backend.GetVal([]string{"web", "users", user}, "params")
 	if err != nil {
 		if teleport.IsNotFound(err) {

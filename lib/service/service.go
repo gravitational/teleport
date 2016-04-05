@@ -102,6 +102,10 @@ type TeleportProcess struct {
 	localAuth *auth.AuthServer
 }
 
+func (process *TeleportProcess) GetAuthServer() *auth.AuthServer {
+	return process.localAuth
+}
+
 func (process *TeleportProcess) findStaticIdentity(id auth.IdentityID) (*auth.Identity, error) {
 	for i := range process.Config.Identities {
 		identity := process.Config.Identities[i]
