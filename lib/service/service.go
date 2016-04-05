@@ -265,7 +265,7 @@ func (process *TeleportProcess) getLocalAuth() *auth.AuthServer {
 // initAuthService can be called to initialize auth server service
 func (process *TeleportProcess) initAuthService() error {
 	var (
-		askedToExit bool = false
+		askedToExit = false
 		err         error
 	)
 	cfg := process.Config
@@ -295,6 +295,11 @@ func (process *TeleportProcess) initAuthService() error {
 		Authorities:     cfg.Auth.Authorities,
 		ReverseTunnels:  cfg.ReverseTunnels,
 		OIDCConnectors:  cfg.OIDCConnectors,
+		Trust:           cfg.Trust,
+		Lock:            cfg.Lock,
+		Presence:        cfg.Presence,
+		Provisioner:     cfg.Provisioner,
+		Identity:        cfg.Identity,
 	}
 	authServer, identity, err := auth.Init(acfg)
 	if err != nil {

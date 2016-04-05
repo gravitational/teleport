@@ -78,6 +78,17 @@ type InitConfig struct {
 
 	// UserCA is an optional user certificate authority keypair
 	UserCA *services.CertAuthority
+
+	// Trust is a service that manages users and credentials
+	Trust services.Trust
+	// Lock is a distributed or local lock service
+	Lock services.Lock
+	// Presence service is a discovery and hearbeat tracker
+	Presence services.Presence
+	// Provisioner is a service that keeps track of provisioning tokens
+	Provisioner services.Provisioner
+	// Trust is a service that manages users and credentials
+	Identity services.Identity
 }
 
 // Init instantiates and configures an instance of AuthServer

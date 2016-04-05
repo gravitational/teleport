@@ -90,14 +90,29 @@ func AuthClock(clock clockwork.Clock) AuthServerOption {
 
 // NewAuthServer creates and configures a new AuthServer instance
 func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
+	if cfg.Trust == nil {
+		cfg.Trust = local.NewCAService(cfg.Backend)
+	}
+	if cfg.Lock == nil {
+		cfg.Lock = local.NewLockService(cfg.Backend)
+	}
+	if cfg.Presence == nil {
+		cfg.Presence = local.NewPresenceService(cfg.Backend)
+	}
+	if cfg.Provisioner == nil {
+		cfg.Provisioner = local.NewProvisioningService(cfg.Backend)
+	}
+	if cfg.Identity == nil {
+		cfg.Identity = local.NewIdentityService(cfg.Backend)
+	}
 	as := AuthServer{
 		bk:              cfg.Backend,
 		Authority:       cfg.Authority,
-		Trust:           local.NewCAService(cfg.Backend),
-		Lock:            local.NewLockService(cfg.Backend),
-		Presence:        local.NewPresenceService(cfg.Backend),
-		Provisioner:     local.NewProvisioningService(cfg.Backend),
-		Identity:        local.NewIdentityService(cfg.Backend),
+		Trust:           cfg.Trust,
+		Lock:            cfg.Lock,
+		Presence:        cfg.Presence,
+		Provisioner:     cfg.Provisioner,
+		Identity:        cfg.Identity,
 		DomainName:      cfg.DomainName,
 		AuthServiceName: cfg.AuthServiceName,
 		oidcClients:     make(map[string]*oidc.Client),
