@@ -723,7 +723,7 @@ func (tc *TeleportClient) Login() error {
 			return trace.Wrap(err)
 		}
 		// in this case identity is returned by the proxy
-		tc.Config.Login = response.User.GetName()
+		tc.Config.Login = response.Username
 	}
 
 	// parse the returned&signed key:

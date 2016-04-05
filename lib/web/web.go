@@ -302,13 +302,14 @@ func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	log.Infof("oidcLogin validate: %#v", r.URL.Query())
 	response, err := m.cfg.ProxyClient.ValidateOIDCAuthCallback(r.URL.Query())
 	if err != nil {
+		log.Infof("VALIDATE error: %v", err)
 		return nil, trace.Wrap(err)
 	}
 	log.Infof("oidcCallback got response: %v", response)
 	// if we created web session, set session cookie and redirect to original url
 	if response.Req.CreateWebSession {
 		log.Infof("oidcCallback redirecting to web browser")
-		if err := SetSession(w, response.User.GetName(), response.Session.ID); err != nil {
+		if err := SetSession(w, response.Username, response.Session.ID); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		http.Redirect(w, r, response.Req.ClientRedirectURL, http.StatusFound)
@@ -323,7 +324,7 @@ func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 	consoleResponse := SSHLoginResponse{
-		User:        response.User,
+		Username:    response.Username,
 		Cert:        response.Cert,
 		HostSigners: response.HostSigners,
 	}
@@ -1055,7 +1056,7 @@ type createSSHCertReq struct {
 // SSHLoginResponse is a response returned by web proxy
 type SSHLoginResponse struct {
 	// User contains a logged in user informationn
-	User services.User `json:"user"`
+	Username string `json:"username"`
 	// Cert is a signed certificate
 	Cert []byte `json:"cert"`
 	// HostSigners is a list of signing host public keys
