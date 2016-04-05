@@ -432,6 +432,8 @@ func (process *TeleportProcess) initSSH() error {
 	eventsC := make(chan Event)
 	process.WaitForEvent(SSHIdentityEvent, eventsC, make(chan struct{}))
 
+	var s *srv.Server
+
 	process.RegisterFunc(func() error {
 		event := <-eventsC
 		log.Infof("[SSH] received %v", &event)
@@ -447,7 +449,7 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		s, err := srv.New(cfg.SSH.Addr,
+		s, err = srv.New(cfg.SSH.Addr,
 			cfg.Hostname,
 			[]ssh.Signer{conn.Identity.KeySigner},
 			conn.Client,
@@ -470,7 +472,12 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 		s.Wait()
+		log.Infof("[SSH] node service exited")
 		return nil
+	})
+	// execute this when process is asked to exit:
+	process.onExit(func(payload interface{}) {
+		s.Close()
 	})
 	return nil
 }
