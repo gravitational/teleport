@@ -1,3 +1,5 @@
+// +build test
+
 /*
 Copyright 2015 Gravitational, Inc.
 
