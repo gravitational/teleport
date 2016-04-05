@@ -305,7 +305,7 @@ func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	// if we created web session, set session cookie and redirect to original url
 	if response.Req.CreateWebSession {
 		log.Infof("oidcCallback redirecting to web browser")
-		if err := SetSession(w, response.User.Name, response.Session.ID); err != nil {
+		if err := SetSession(w, response.User.GetName(), response.Session.ID); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		http.Redirect(w, r, response.Req.ClientRedirectURL, http.StatusFound)
@@ -467,12 +467,12 @@ func (m *Handler) renewSession(w http.ResponseWriter, r *http.Request, _ httprou
 	}
 	// transfer ownership over connections that were opened in the
 	// sessionContext
-	newContext, err := ctx.parent.ValidateSession(newSess.User.Name, newSess.ID)
+	newContext, err := ctx.parent.ValidateSession(newSess.User.GetName(), newSess.ID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	newContext.AddClosers(ctx.TransferClosers()...)
-	if err := SetSession(w, newSess.User.Name, newSess.ID); err != nil {
+	if err := SetSession(w, newSess.User.GetName(), newSess.ID); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return newSessionResponse(newSess), nil
@@ -533,7 +533,7 @@ func (m *Handler) createNewUser(w http.ResponseWriter, r *http.Request, p httpro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := SetSession(w, sess.User.Name, sess.ID); err != nil {
+	if err := SetSession(w, sess.User.GetName(), sess.ID); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return newSessionResponse(sess), nil

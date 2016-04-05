@@ -206,7 +206,7 @@ func (s *AuthServer) GenerateUserCert(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.Authority.GenerateUserCert(privateKey, key, username, user.AllowedLogins, ttl)
+	return s.Authority.GenerateUserCert(privateKey, key, username, user.GetAllowedLogins(), ttl)
 }
 
 func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
@@ -397,13 +397,13 @@ func (s *AuthServer) NewWebSession(userName string) (*Session, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := s.Authority.GenerateUserCert(privateKey, pub, user.Name, user.AllowedLogins, WebSessionTTL)
+	cert, err := s.Authority.GenerateUserCert(privateKey, pub, user.GetName(), user.GetAllowedLogins(), WebSessionTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sess := &Session{
 		ID:   token,
-		User: *user,
+		User: user,
 		WS: services.WebSession{
 			Priv:        priv,
 			Pub:         cert,
@@ -429,7 +429,7 @@ func (s *AuthServer) GetWebSession(userName string, id string) (*Session, error)
 	}
 	return &Session{
 		ID:   id,
-		User: *user,
+		User: user,
 		WS:   *ws,
 	}, nil
 }
@@ -446,7 +446,7 @@ func (s *AuthServer) GetWebSessionInfo(userName string, id string) (*Session, er
 	sess.Priv = nil
 	return &Session{
 		ID:   id,
-		User: *user,
+		User: user,
 		WS:   *sess,
 	}, nil
 }
@@ -594,18 +594,18 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 	}
 
 	response := &OIDCAuthResponse{
-		User: *user,
+		User: user,
 		Req:  *req,
 	}
 
 	if req.CreateWebSession {
-		sess, err := a.NewWebSession(user.Name)
+		sess, err := a.NewWebSession(user.GetName())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		sess.ExpiresAt = ident.ExpiresAt.UTC()
 		sessionTTL := minTTL(toTTL(a.clock, ident.ExpiresAt), WebSessionTTL)
-		if err := a.UpsertWebSession(user.Name, sess, sessionTTL); err != nil {
+		if err := a.UpsertWebSession(user.GetName(), sess, sessionTTL); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		response.Session = sess
@@ -613,7 +613,7 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 
 	if len(req.PublicKey) != 0 {
 		certTTL := minTTL(toTTL(a.clock, ident.ExpiresAt), req.CertTTL)
-		cert, err := a.GenerateUserCert(req.PublicKey, user.Name, certTTL)
+		cert, err := a.GenerateUserCert(req.PublicKey, user.GetName(), certTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

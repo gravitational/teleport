@@ -260,7 +260,7 @@ func (u *UserCommand) Add(client *auth.TunClient) error {
 	if u.allowedLogins == "" {
 		u.allowedLogins = u.login
 	}
-	user := services.User{
+	user := services.TeleportUser{
 		Name:          u.login,
 		AllowedLogins: strings.Split(u.allowedLogins, ","),
 	}
@@ -271,7 +271,7 @@ func (u *UserCommand) Add(client *auth.TunClient) error {
 		}
 		user.OIDCIdentities = []services.OIDCIdentity{{ConnectorID: vals[0], Email: vals[1]}}
 	}
-	token, err := client.CreateSignupToken(user)
+	token, err := client.CreateSignupToken(&user)
 	if err != nil {
 		return err
 	}
@@ -301,7 +301,7 @@ func (u *UserCommand) List(client *auth.TunClient) error {
 			return t.String()
 		}
 		for _, u := range users {
-			fmt.Fprintf(t, "%v\t%v\n", u.Name, strings.Join(u.AllowedLogins, ","))
+			fmt.Fprintf(t, "%v\t%v\n", u.GetName(), strings.Join(u.GetAllowedLogins(), ","))
 		}
 		return t.String()
 	}

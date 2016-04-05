@@ -347,7 +347,7 @@ func (s *APIServer) upsertUser(w http.ResponseWriter, r *http.Request, p httprou
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return message(fmt.Sprintf("'%v' user upserted", req.User.Name)), nil
+	return message(fmt.Sprintf("'%v' user upserted", req.User.GetName())), nil
 }
 
 type checkPasswordReq struct {

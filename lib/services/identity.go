@@ -34,8 +34,22 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// User is an optional user entry in the database
-type User struct {
+// User represents teleport or external user
+type User interface {
+	// GetName returns user name
+	GetName() string
+	// GetAllowedLogins returns user's allowed linux logins
+	GetAllowedLogins() []string
+	// GetIdentities returns a list of connected OIDCIdentities
+	GetIdentities() []OIDCIdentity
+	// String returns user
+	String() string
+	// Check checks if all parameters are correct
+	Check() error
+}
+
+// TeleportUser is an optional user entry in the database
+type TeleportUser struct {
 	// Name is a user name
 	Name string `json:"name"`
 
@@ -48,12 +62,27 @@ type User struct {
 	OIDCIdentities []OIDCIdentity `json:"oidc_identities"`
 }
 
-func (u *User) String() string {
+// GetAllowedLogins returns user's allowed linux logins
+func (u *TeleportUser) GetAllowedLogins() []string {
+	return u.AllowedLogins
+}
+
+// GetIdentities returns a list of connected OIDCIdentities
+func (u *TeleportUser) GetIdentities() []OIDCIdentity {
+	return u.OIDCIdentities
+}
+
+// GetName returns user name
+func (u *TeleportUser) GetName() string {
+	return u.Name
+}
+
+func (u *TeleportUser) String() string {
 	return fmt.Sprintf("User(name=%v, allowed_logins=%v, identities=%v)", u.Name, u.AllowedLogins, u.OIDCIdentities)
 }
 
 // Check checks validity of all parameters
-func (u *User) Check() error {
+func (u *TeleportUser) Check() error {
 	if !cstrings.IsValidUnixUser(u.Name) {
 		return trace.Wrap(
 			teleport.BadParameter("Name", fmt.Sprintf("'%v' is not a valid user name", u.Name)))
@@ -89,15 +118,16 @@ type AuthorizedKey struct {
 type Identity interface {
 	// GetUsers returns a list of users registered with the local auth server
 	GetUsers() ([]User, error)
+
 	// UpsertUser updates parameters about user
 	UpsertUser(user User) error
 
 	// GetUser returns a user by name
-	GetUser(user string) (*User, error)
+	GetUser(user string) (User, error)
 
 	// GetUserByOIDCIdentity returns a user by it's specified OIDC Identity, returns first
 	// user specified with this identity
-	GetUserByOIDCIdentity(id OIDCIdentity) (*User, error)
+	GetUserByOIDCIdentity(id OIDCIdentity) (User, error)
 
 	// DeleteUser deletes a user with all the keys from the backend
 	DeleteUser(user string) error

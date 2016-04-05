@@ -46,7 +46,7 @@ func (s *AuthServer) CreateSignupToken(user services.User) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	// make sure that connectors actually exist
-	for _, id := range user.OIDCIdentities {
+	for _, id := range user.GetIdentities() {
 		if err := id.Check(); err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -55,7 +55,7 @@ func (s *AuthServer) CreateSignupToken(user services.User) (string, error) {
 		}
 	}
 	// check existing
-	_, err := s.GetPasswordHash(user.Name)
+	_, err := s.GetPasswordHash(user.GetName())
 	if err == nil {
 		return "", trace.Wrap(
 			teleport.BadParameter(
@@ -72,7 +72,7 @@ func (s *AuthServer) CreateSignupToken(user services.User) (string, error) {
 		log.Errorf("[AUTH API] failed to generate HOTP: %v", err)
 		return "", trace.Wrap(err)
 	}
-	otpQR, err := otp.QR("Teleport: " + user.Name + "@" + s.AuthServiceName)
+	otpQR, err := otp.QR("Teleport: " + user.GetName() + "@" + s.AuthServiceName)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -125,12 +125,12 @@ func (s *AuthServer) GetSignupTokenData(token string) (user string,
 		return "", nil, nil, trace.Wrap(err)
 	}
 
-	_, err = s.GetPasswordHash(tokenData.User.Name)
+	_, err = s.GetPasswordHash(tokenData.User.GetName())
 	if err == nil {
 		return "", nil, nil, trace.Errorf("can't add user %v, user already exists", tokenData.User)
 	}
 
-	return tokenData.User.Name, tokenData.HotpQR, tokenData.HotpFirstValues, nil
+	return tokenData.User.GetName(), tokenData.HotpQR, tokenData.HotpFirstValues, nil
 }
 
 // CreateUserWithToken creates account with provided token and password.
@@ -164,7 +164,7 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Se
 		return nil, trace.Wrap(teleport.BadParameter("hotp", "wrong HOTP token"))
 	}
 
-	_, _, err = s.UpsertPassword(tokenData.User.Name, []byte(password))
+	_, _, err = s.UpsertPassword(tokenData.User.GetName(), []byte(password))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -174,7 +174,7 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Se
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.UpsertHOTP(tokenData.User.Name, otp)
+	err = s.UpsertHOTP(tokenData.User.GetName(), otp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -185,12 +185,12 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Se
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := s.NewWebSession(tokenData.User.Name)
+	sess, err := s.NewWebSession(tokenData.User.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.UpsertWebSession(tokenData.User.Name, sess, WebSessionTTL)
+	err = s.UpsertWebSession(tokenData.User.GetName(), sess, WebSessionTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

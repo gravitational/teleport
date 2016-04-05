@@ -57,25 +57,25 @@ func (s *IdentityService) GetUsers() ([]services.User, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		out[i] = *u
+		out[i] = u
 	}
 	return out, nil
 }
 
 // UpsertUser updates parameters about user
 func (s *IdentityService) UpsertUser(user services.User) error {
-	if !cstrings.IsValidUnixUser(user.Name) {
+	if !cstrings.IsValidUnixUser(user.GetName()) {
 		return trace.Wrap(
-			teleport.BadParameter("user.Name", fmt.Sprintf("'%v is not a valid unix username'", user.Name)))
+			teleport.BadParameter("user.Name", fmt.Sprintf("'%v is not a valid unix username'", user.GetName())))
 	}
 
-	for _, l := range user.AllowedLogins {
+	for _, l := range user.GetAllowedLogins() {
 		if !cstrings.IsValidUnixUser(l) {
 			return trace.Wrap(
 				teleport.BadParameter("login", fmt.Sprintf("'%v is not a valid unix username'", l)))
 		}
 	}
-	for _, i := range user.OIDCIdentities {
+	for _, i := range user.GetIdentities() {
 		if err := i.Check(); err != nil {
 			return trace.Wrap(err)
 		}
@@ -85,7 +85,7 @@ func (s *IdentityService) UpsertUser(user services.User) error {
 		return trace.Wrap(err)
 	}
 
-	err = s.backend.UpsertVal([]string{"web", "users", user.Name}, "params", []byte(data), backend.Forever)
+	err = s.backend.UpsertVal([]string{"web", "users", user.GetName()}, "params", []byte(data), backend.Forever)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -93,8 +93,8 @@ func (s *IdentityService) UpsertUser(user services.User) error {
 }
 
 // GetUser returns a user by name
-func (s *IdentityService) GetUser(user string) (*services.User, error) {
-	u := services.User{Name: user}
+func (s *IdentityService) GetUser(user string) (services.User, error) {
+	u := services.TeleportUser{Name: user}
 	data, err := s.backend.GetVal([]string{"web", "users", user}, "params")
 	if err != nil {
 		if teleport.IsNotFound(err) {
@@ -110,15 +110,15 @@ func (s *IdentityService) GetUser(user string) (*services.User, error) {
 
 // GetUserByOIDCIdentity returns a user by it's specified OIDC Identity, returns first
 // user specified with this identity
-func (s *IdentityService) GetUserByOIDCIdentity(id services.OIDCIdentity) (*services.User, error) {
+func (s *IdentityService) GetUserByOIDCIdentity(id services.OIDCIdentity) (services.User, error) {
 	users, err := s.GetUsers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	for _, u := range users {
-		for _, uid := range u.OIDCIdentities {
+		for _, uid := range u.GetIdentities() {
 			if uid.Equals(&id) {
-				return &u, nil
+				return u, nil
 			}
 		}
 	}
