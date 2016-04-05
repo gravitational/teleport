@@ -75,7 +75,7 @@ test: FLAGS ?= -cover
 test: 
 	go test -v $(PKGPATH)/tool/tsh/... \
 			   $(PKGPATH)/lib/... \
-			   $(PKGPATH)/tool/teleport... $(FLAGS)
+			   $(PKGPATH)/tool/teleport... $(FLAGS) -tags test
 	go vet ./tool/... ./lib/...
 
 
