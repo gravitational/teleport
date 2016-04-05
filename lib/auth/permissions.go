@@ -199,7 +199,6 @@ const (
 	ActionSignIn                            = "SignIn"
 	ActionCreateWebSession                  = "CreateWebSession"
 	ActionGetWebSession                     = "GetWebSession"
-	ActionGetWebSessionsKeys                = "GetWebSessionsKeys"
 	ActionDeleteWebSession                  = "DeleteWebSession"
 	ActionGetUsers                          = "GetUsers"
 	ActionGetUser                           = "GetUser"

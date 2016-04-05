@@ -506,24 +506,6 @@ func (c *Client) GetWebSessionInfo(user string, sid string) (*Session, error) {
 	return sess, nil
 }
 
-// GetWebSessionsKeys returns the list of temporary keys generated for this
-// user web session. Each web session has a temporary user ssh key and
-// certificate generated, that is stored for the duration of this web
-// session. These keys are used to access SSH servers via web portal.
-func (c *Client) GetWebSessionsKeys(
-	user string) ([]services.AuthorizedKey, error) {
-
-	out, err := c.Get(c.Endpoint("users", user, "web", "sessions"), url.Values{})
-	if err != nil {
-		return nil, err
-	}
-	var keys []services.AuthorizedKey
-	if err := json.Unmarshal(out.Bytes(), &keys); err != nil {
-		return nil, err
-	}
-	return keys, nil
-}
-
 // DeleteWebSession deletes a web session for this user by id
 func (c *Client) DeleteWebSession(user string, sid string) error {
 	_, err := c.Delete(c.Endpoint("users", user, "web", "sessions", sid))
@@ -835,7 +817,6 @@ type ClientI interface {
 	SignIn(user string, password []byte) (*Session, error)
 	CreateWebSession(user string, prevSessionID string) (*Session, error)
 	GetWebSessionInfo(user string, sid string) (*Session, error)
-	GetWebSessionsKeys(user string) ([]services.AuthorizedKey, error)
 	DeleteWebSession(user string, sid string) error
 	GetUsers() ([]services.User, error)
 	DeleteUser(user string) error

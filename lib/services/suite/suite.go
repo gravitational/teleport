@@ -274,10 +274,6 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(out2, DeepEquals, &ws1)
 
-	keys, err := s.WebS.GetWebSessionsKeys("user1")
-	c.Assert(err, IsNil)
-	c.Assert(keys[0].Value, DeepEquals, out2.Pub)
-
 	c.Assert(s.WebS.DeleteWebSession("user1", "sid1"), IsNil)
 
 	_, err = s.WebS.GetWebSession("user1", "sid1")

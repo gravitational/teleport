@@ -292,13 +292,6 @@ func (a *AuthWithRoles) GetWebSessionInfo(user string, sid string) (*Session, er
 		return a.authServer.GetWebSessionInfo(user, sid)
 	}
 }
-func (a *AuthWithRoles) GetWebSessionsKeys(user string) ([]services.AuthorizedKey, error) {
-	if err := a.permChecker.HasPermission(a.role, ActionGetWebSessionsKeys); err != nil {
-		return nil, trace.Wrap(err)
-	} else {
-		return a.authServer.GetWebSessionsKeys(user)
-	}
-}
 func (a *AuthWithRoles) DeleteWebSession(user string, sid string) error {
 	if err := a.permChecker.HasPermission(a.role, ActionDeleteWebSession); err != nil {
 		return trace.Wrap(err)

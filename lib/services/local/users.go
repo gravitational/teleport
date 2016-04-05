@@ -221,24 +221,6 @@ func (s *IdentityService) GetWebSession(user, sid string) (*services.WebSession,
 	return &session, nil
 }
 
-// GetWebSessionsKeys returns public keys associated with the session
-func (s *IdentityService) GetWebSessionsKeys(user string) ([]services.AuthorizedKey, error) {
-	keys, err := s.backend.GetKeys([]string{"web", "users", user, "sessions"})
-	if err != nil {
-		return nil, err
-	}
-
-	values := make([]services.AuthorizedKey, len(keys))
-	for i, key := range keys {
-		session, err := s.GetWebSession(user, key)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		values[i].Value = session.Pub
-	}
-	return values, nil
-}
-
 // DeleteWebSession deletes web session from the storage
 func (s *IdentityService) DeleteWebSession(user, sid string) error {
 	err := s.backend.DeleteKey(

@@ -87,7 +87,6 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.POST("/v1/users/:user/web/signin", httplib.MakeHandler(srv.signIn))
 	srv.POST("/v1/users/:user/web/sessions", httplib.MakeHandler(srv.createWebSession))
 	srv.GET("/v1/users/:user/web/sessions/:sid", httplib.MakeHandler(srv.getWebSession))
-	srv.GET("/v1/users/:user/web/sessions", httplib.MakeHandler(srv.getWebSessions))
 	srv.DELETE("/v1/users/:user/web/sessions/:sid", httplib.MakeHandler(srv.deleteWebSession))
 	srv.GET("/v1/signuptokens/:token", httplib.MakeHandler(srv.getSignupTokenData))
 	srv.POST("/v1/signuptokens/users", httplib.MakeHandler(srv.createUserWithToken))
@@ -269,15 +268,6 @@ func (s *APIServer) getWebSession(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil
-}
-
-func (s *APIServer) getWebSessions(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	user := p[0].Value
-	keys, err := s.a.GetWebSessionsKeys(user)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return keys, nil
 }
 
 type signInReq struct {

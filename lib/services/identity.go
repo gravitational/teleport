@@ -135,15 +135,6 @@ func (u *TeleportUser) Check() error {
 	return nil
 }
 
-// AuthorizedKey is a public key that is authorized to access SSH
-// servers
-type AuthorizedKey struct {
-	// ID is a unique key id
-	ID string `json:"id"`
-	// Value is a value of the public key
-	Value []byte `json:"value"`
-}
-
 // Identity is responsible for managing user entries
 type Identity interface {
 	// GetUsers returns a list of users registered with the local auth server
@@ -179,9 +170,6 @@ type Identity interface {
 
 	// GetWebSession returns a web session state for a given user and session id
 	GetWebSession(user, sid string) (*WebSession, error)
-
-	// GetWebSessionsKeys returns public keys associated with the session
-	GetWebSessionsKeys(user string) ([]AuthorizedKey, error)
 
 	// DeleteWebSession deletes web session from the storage
 	DeleteWebSession(user, sid string) error
