@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package suite
 
 import (
 	"sync/atomic"
@@ -23,7 +23,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services/suite"
+	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gokyle/hotp"
 	"golang.org/x/crypto/ssh"
@@ -33,15 +33,15 @@ import (
 
 // NewTestCA returns new test authority with a test key as a public and
 // signing key
-func NewTestCA(caType CertAuthType, domainName string) *CertAuthority {
-	keyBytes := suite.PEMBytes["rsa"]
+func NewTestCA(caType services.CertAuthType, domainName string) *services.CertAuthority {
+	keyBytes := PEMBytes["rsa"]
 	key, err := ssh.ParsePrivateKey(keyBytes)
 	if err != nil {
 		panic(err)
 	}
 	pubKey := key.PublicKey()
 
-	return &CertAuthority{
+	return &services.CertAuthority{
 		Type:         caType,
 		DomainName:   domainName,
 		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
@@ -50,23 +50,12 @@ func NewTestCA(caType CertAuthType, domainName string) *CertAuthority {
 }
 
 type ServicesTestSuite struct {
-	CAS           *CAService
-	LockS         *LockService
-	PresenceS     *PresenceService
-	ProvisioningS *ProvisioningService
-	WebS          *IdentityService
+	CAS           services.Trust
+	LockS         services.Lock
+	PresenceS     services.Presence
+	ProvisioningS services.Provisioner
+	WebS          services.Identity
 	ChangesC      chan interface{}
-}
-
-func NewServicesTestSuite(backend backend.Backend) *ServicesTestSuite {
-	s := ServicesTestSuite{}
-	s.CAS = NewCAService(backend)
-	s.LockS = NewLockService(backend)
-	s.PresenceS = NewPresenceService(backend)
-	s.ProvisioningS = NewProvisioningService(backend)
-	s.WebS = NewIdentityService(backend)
-	s.ChangesC = make(chan interface{})
-	return &s
 }
 
 func (s *ServicesTestSuite) collectChanges(c *C, expected int) []interface{} {
@@ -99,13 +88,13 @@ func (s *ServicesTestSuite) UsersCRUD(c *C) {
 
 	u, err = s.WebS.GetUsers()
 	c.Assert(err, IsNil)
-	c.Assert(toSet(u), DeepEquals, map[string]User{"user1": User{Name: "user1"}, "user2": User{Name: "user2"}})
+	c.Assert(toSet(u), DeepEquals, map[string]services.User{"user1": services.User{Name: "user1"}, "user2": services.User{Name: "user2"}})
 
 	out, err := s.WebS.GetUser("user1")
 	c.Assert(err, IsNil)
-	c.Assert(*out, DeepEquals, User{Name: "user1"})
+	c.Assert(*out, DeepEquals, services.User{Name: "user1"})
 
-	user := User{Name: "user1", AllowedLogins: []string{"admin", "root"}}
+	user := services.User{Name: "user1", AllowedLogins: []string{"admin", "root"}}
 	c.Assert(s.WebS.UpsertUser(user), IsNil)
 
 	out, err = s.WebS.GetUser("user1")
@@ -123,22 +112,22 @@ func (s *ServicesTestSuite) UsersCRUD(c *C) {
 
 	u, err = s.WebS.GetUsers()
 	c.Assert(err, IsNil)
-	c.Assert(toSet(u), DeepEquals, map[string]User{"user2": User{Name: "user2"}})
+	c.Assert(toSet(u), DeepEquals, map[string]services.User{"user2": services.User{Name: "user2"}})
 
 	err = s.WebS.DeleteUser("user1")
 	c.Assert(teleport.IsNotFound(err), Equals, true, Commentf("unexpected %T %#v", err, err))
 
 	// bad username
-	err = s.WebS.UpsertUser(User{Name: ""})
+	err = s.WebS.UpsertUser(services.User{Name: ""})
 	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("expected bad parameter error, got %T", err))
 
 	// bad allowed login
-	err = s.WebS.UpsertUser(User{Name: "bob", AllowedLogins: []string{"oops  typo!"}})
+	err = s.WebS.UpsertUser(services.User{Name: "bob", AllowedLogins: []string{"oops  typo!"}})
 	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("expected bad parameter error, got %T", err))
 }
 
 func (s *ServicesTestSuite) CertAuthCRUD(c *C) {
-	ca := NewTestCA(UserCA, "example.com")
+	ca := NewTestCA(services.UserCA, "example.com")
 	c.Assert(s.CAS.UpsertCertAuthority(
 		*ca, backend.Forever), IsNil)
 
@@ -146,13 +135,13 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, ca)
 
-	cas, err := s.CAS.GetCertAuthorities(UserCA, false)
+	cas, err := s.CAS.GetCertAuthorities(services.UserCA, false)
 	c.Assert(err, IsNil)
 	ca2 := *ca
 	ca2.SigningKeys = nil
 	c.Assert(cas[0], DeepEquals, &ca2)
 
-	cas, err = s.CAS.GetCertAuthorities(UserCA, true)
+	cas, err = s.CAS.GetCertAuthorities(services.UserCA, true)
 	c.Assert(err, IsNil)
 	c.Assert(cas[0], DeepEquals, ca)
 
@@ -165,34 +154,34 @@ func (s *ServicesTestSuite) ServerCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	srv := Server{ID: "srv1", Addr: "localhost:2022"}
+	srv := services.Server{ID: "srv1", Addr: "localhost:2022"}
 	c.Assert(s.PresenceS.UpsertNode(srv, 0), IsNil)
 
 	out, err = s.PresenceS.GetNodes()
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, []Server{srv})
+	c.Assert(out, DeepEquals, []services.Server{srv})
 
 	out, err = s.PresenceS.GetProxies()
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	proxy := Server{ID: "proxy1", Addr: "localhost:2023"}
+	proxy := services.Server{ID: "proxy1", Addr: "localhost:2023"}
 	c.Assert(s.PresenceS.UpsertProxy(proxy, 0), IsNil)
 
 	out, err = s.PresenceS.GetProxies()
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, []Server{proxy})
+	c.Assert(out, DeepEquals, []services.Server{proxy})
 
 	out, err = s.PresenceS.GetAuthServers()
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	auth := Server{ID: "auth1", Addr: "localhost:2025"}
+	auth := services.Server{ID: "auth1", Addr: "localhost:2025"}
 	c.Assert(s.PresenceS.UpsertAuthServer(auth, 0), IsNil)
 
 	out, err = s.PresenceS.GetAuthServers()
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, []Server{auth})
+	c.Assert(out, DeepEquals, []services.Server{auth})
 }
 
 func (s *ServicesTestSuite) ReverseTunnelsCRUD(c *C) {
@@ -200,12 +189,12 @@ func (s *ServicesTestSuite) ReverseTunnelsCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	tunnel := ReverseTunnel{DomainName: "example.com", DialAddrs: []string{"example.com:2023"}}
+	tunnel := services.ReverseTunnel{DomainName: "example.com", DialAddrs: []string{"example.com:2023"}}
 	c.Assert(s.PresenceS.UpsertReverseTunnel(tunnel, 0), IsNil)
 
 	out, err = s.PresenceS.GetReverseTunnels()
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, []ReverseTunnel{tunnel})
+	c.Assert(out, DeepEquals, []services.ReverseTunnel{tunnel})
 
 	err = s.PresenceS.DeleteReverseTunnel(tunnel.DomainName)
 	c.Assert(err, IsNil)
@@ -214,13 +203,13 @@ func (s *ServicesTestSuite) ReverseTunnelsCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	err = s.PresenceS.UpsertReverseTunnel(ReverseTunnel{DomainName: " bad domain", DialAddrs: []string{"example.com:2023"}}, 0)
+	err = s.PresenceS.UpsertReverseTunnel(services.ReverseTunnel{DomainName: " bad domain", DialAddrs: []string{"example.com:2023"}}, 0)
 	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
-	err = s.PresenceS.UpsertReverseTunnel(ReverseTunnel{DomainName: "example.com", DialAddrs: []string{"bad address"}}, 0)
+	err = s.PresenceS.UpsertReverseTunnel(services.ReverseTunnel{DomainName: "example.com", DialAddrs: []string{"bad address"}}, 0)
 	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
-	err = s.PresenceS.UpsertReverseTunnel(ReverseTunnel{DomainName: "example.com"}, 0)
+	err = s.PresenceS.UpsertReverseTunnel(services.ReverseTunnel{DomainName: "example.com"}, 0)
 	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 }
 
@@ -248,7 +237,7 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *C) {
 	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 
 	dt := time.Date(2015, 6, 5, 4, 3, 2, 1, time.UTC).UTC()
-	ws := WebSession{
+	ws := services.WebSession{
 		Pub:     []byte("pub123"),
 		Priv:    []byte("priv123"),
 		Expires: dt,
@@ -260,7 +249,7 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, &ws)
 
-	ws1 := WebSession{Pub: []byte("pub321"), Priv: []byte("priv321"), Expires: dt}
+	ws1 := services.WebSession{Pub: []byte("pub321"), Priv: []byte("priv321"), Expires: dt}
 	err = s.WebS.UpsertWebSession("user1", "sid1", ws1, 0)
 	c.Assert(err, IsNil)
 
@@ -339,10 +328,10 @@ func (s *ServicesTestSuite) TokenCRUD(c *C) {
 	_, err = s.ProvisioningS.GetToken("token")
 	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
 
-	outputToken, err := JoinTokenRole("token1", "Auth")
+	outputToken, err := services.JoinTokenRole("token1", "Auth")
 	c.Assert(err, IsNil)
 
-	tok, role, err := SplitTokenRole(outputToken)
+	tok, role, err := services.SplitTokenRole(outputToken)
 	c.Assert(err, IsNil)
 	c.Assert(tok, Equals, "token1")
 	c.Assert(role, Equals, "Auth")
@@ -408,8 +397,8 @@ func (s *ServicesTestSuite) PasswordGarbage(c *C) {
 	}
 }
 
-func toSet(vals []User) map[string]User {
-	out := make(map[string]User, len(vals))
+func toSet(vals []services.User) map[string]services.User {
+	out := make(map[string]services.User, len(vals))
 	for _, v := range vals {
 		out[v.Name] = v
 	}

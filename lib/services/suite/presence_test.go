@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package suite
 
 import (
 	"time"
+
+	"github.com/gravitational/teleport/lib/services"
 
 	"gopkg.in/check.v1"
 )
@@ -30,19 +32,19 @@ var _ = check.Suite(&PresenceSuite{})
 func (s *PresenceSuite) TestServerLabels(c *check.C) {
 	emptyLabels := make(map[string]string)
 	// empty
-	server := &Server{}
+	server := &services.Server{}
 	c.Assert(server.LabelsMap(), check.DeepEquals, emptyLabels)
 	c.Assert(server.LabelsString(), check.Equals, "")
 	c.Assert(server.MatchAgainst(emptyLabels), check.Equals, true)
 	c.Assert(server.MatchAgainst(map[string]string{"a": "b"}), check.Equals, false)
 
 	// more complex
-	server = &Server{
+	server = &services.Server{
 		Labels: map[string]string{
 			"role": "database",
 		},
-		CmdLabels: map[string]CommandLabel{
-			"time": CommandLabel{
+		CmdLabels: map[string]services.CommandLabel{
+			"time": services.CommandLabel{
 				Period:  time.Second,
 				Command: []string{"time"},
 				Result:  "now",

@@ -32,6 +32,8 @@ import (
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	rtest "github.com/gravitational/teleport/lib/recorder/test"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -51,11 +53,11 @@ type APISuite struct {
 	a   *AuthServer
 	dir string
 
-	CAS           *services.CAService
-	LockS         *services.LockService
-	PresenceS     *services.PresenceService
-	ProvisioningS *services.ProvisioningService
-	WebS          *services.IdentityService
+	CAS           services.Trust
+	LockS         services.Lock
+	PresenceS     services.Presence
+	ProvisioningS services.Provisioner
+	WebS          services.Identity
 }
 
 var _ = Suite(&APISuite{})
@@ -97,11 +99,11 @@ func (s *APISuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.clt = clt
 
-	s.CAS = services.NewCAService(s.bk)
-	s.LockS = services.NewLockService(s.bk)
-	s.PresenceS = services.NewPresenceService(s.bk)
-	s.ProvisioningS = services.NewProvisioningService(s.bk)
-	s.WebS = services.NewIdentityService(s.bk)
+	s.CAS = local.NewCAService(s.bk)
+	s.LockS = local.NewLockService(s.bk)
+	s.PresenceS = local.NewPresenceService(s.bk)
+	s.ProvisioningS = local.NewProvisioningService(s.bk)
+	s.WebS = local.NewIdentityService(s.bk)
 }
 
 func (s *APISuite) TearDownTest(c *C) {
@@ -123,7 +125,7 @@ func (s *APISuite) TestGenerateKeyPair(c *C) {
 
 func (s *APISuite) TestGenerateHostCert(c *C) {
 	c.Assert(s.clt.UpsertCertAuthority(
-		*services.NewTestCA(services.HostCA, "localhost"), backend.Forever), IsNil)
+		*suite.NewTestCA(services.HostCA, "localhost"), backend.Forever), IsNil)
 
 	_, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -138,7 +140,7 @@ func (s *APISuite) TestGenerateHostCert(c *C) {
 
 func (s *APISuite) TestGenerateUserCert(c *C) {
 	c.Assert(s.clt.UpsertCertAuthority(
-		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		*suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	_, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -157,7 +159,7 @@ func (s *APISuite) TestGenerateUserCert(c *C) {
 
 func (s *APISuite) TestKeysCRUD(c *C) {
 	c.Assert(s.clt.UpsertCertAuthority(
-		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		*suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	_, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -234,7 +236,7 @@ func (s *APISuite) TestSessions(c *C) {
 	pass := []byte("abc123")
 
 	c.Assert(s.a.UpsertCertAuthority(
-		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		*suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	s.a.UpsertUser(
 		services.User{Name: "user1", AllowedLogins: []string{"user1"}})

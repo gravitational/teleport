@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
@@ -95,7 +96,7 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 		return nil, nil, err
 	}
 
-	lockService := services.NewLockService(cfg.Backend)
+	lockService := local.NewLockService(cfg.Backend)
 	err = lockService.AcquireLock(cfg.DomainName, 60*time.Second)
 	if err != nil {
 		return nil, nil, err
@@ -117,7 +118,7 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 	if firstStart && len(cfg.Authorities) != 0 {
 		log.Infof("FIRST START: populating trusted authorities supplied from configuration")
 		for _, ca := range cfg.Authorities {
-			if err := asrv.CAService.UpsertCertAuthority(ca, backend.Forever); err != nil {
+			if err := asrv.Trust.UpsertCertAuthority(ca, backend.Forever); err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
 		}
@@ -143,7 +144,7 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 				CheckingKeys: [][]byte{pub},
 			}
 		}
-		if err := asrv.CAService.UpsertCertAuthority(*cfg.HostCA, backend.Forever); err != nil {
+		if err := asrv.Trust.UpsertCertAuthority(*cfg.HostCA, backend.Forever); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	}
@@ -168,7 +169,7 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 				CheckingKeys: [][]byte{pub},
 			}
 		}
-		if err := asrv.CAService.UpsertCertAuthority(*cfg.UserCA, backend.Forever); err != nil {
+		if err := asrv.Trust.UpsertCertAuthority(*cfg.UserCA, backend.Forever); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	}

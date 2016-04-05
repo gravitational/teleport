@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/session"
 	sess "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -103,9 +104,9 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(authServer.UpsertCertAuthority(
-		*services.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
+		*suite.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
 	c.Assert(authServer.UpsertCertAuthority(
-		*services.NewTestCA(services.HostCA, s.domainName), backend.Forever), IsNil)
+		*suite.NewTestCA(services.HostCA, s.domainName), backend.Forever), IsNil)
 
 	recorder, err := boltrec.New(s.dir)
 	c.Assert(err, IsNil)

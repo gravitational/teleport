@@ -14,16 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
-
-import (
-	"github.com/gravitational/teleport/lib/backend"
-)
-
-type BkKeysService struct {
-	backend backend.Backend
-}
-
-func NewBkKeysService(backend backend.Backend) *BkKeysService {
-	return &BkKeysService{backend: backend}
-}
+// Package local implements services interfaces using abstract
+// key value backend provided by lib/backend, what makes it possible
+// for teleport to run using boltdb or etcd
+package local

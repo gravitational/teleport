@@ -14,14 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package local
 
 import (
 	"path/filepath"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
+
 	. "gopkg.in/check.v1"
 )
 
@@ -29,7 +31,7 @@ func TestServices(t *testing.T) { TestingT(t) }
 
 type BoltSuite struct {
 	bk    *boltbk.BoltBackend
-	suite *ServicesTestSuite
+	suite *suite.ServicesTestSuite
 	dir   string
 }
 
@@ -45,7 +47,15 @@ func (s *BoltSuite) SetUpTest(c *C) {
 	var err error
 	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
-	s.suite = NewServicesTestSuite(s.bk)
+
+	suite := &suite.ServicesTestSuite{}
+	suite.CAS = NewCAService(s.bk)
+	suite.LockS = NewLockService(s.bk)
+	suite.PresenceS = NewPresenceService(s.bk)
+	suite.ProvisioningS = NewProvisioningService(s.bk)
+	suite.WebS = NewIdentityService(s.bk)
+	suite.ChangesC = make(chan interface{})
+	s.suite = suite
 }
 
 func (s *BoltSuite) TearDownTest(c *C) {

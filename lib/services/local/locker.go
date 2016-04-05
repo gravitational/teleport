@@ -14,16 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package local
 
 import (
 	"time"
+
+	"github.com/gravitational/teleport/lib/backend"
 )
 
-// Lock implements distributed locking service
-type Lock interface {
-	// AcquireLock grabs a lock that will be released automatically in ttl time
-	AcquireLock(token string, ttl time.Duration) error
-	// ReleaseLock releases
-	ReleaseLock(token string) error
+// Lock is lock service using local lock backend
+type Lock struct {
+	backend backend.Backend
+}
+
+func NewLockService(backend backend.Backend) *Lock {
+	return &Lock{backend}
+}
+
+func (s *Lock) AcquireLock(token string, ttl time.Duration) error {
+	return s.backend.AcquireLock(token, ttl)
+}
+
+func (s *Lock) ReleaseLock(token string) error {
+	return s.backend.ReleaseLock(token)
 }

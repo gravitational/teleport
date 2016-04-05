@@ -19,129 +19,48 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 )
 
-// PresenceService records and reports the presence of all components
+// Presence records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
-type PresenceService struct {
-	backend backend.Backend
-}
+type Presence interface {
+	// GetNodes returns a list of registered servers
+	GetNodes() ([]Server, error)
 
-// NewPresenceService returns new presence service instance
-func NewPresenceService(backend backend.Backend) *PresenceService {
-	return &PresenceService{backend}
-}
+	// UpsertNode registers node presence, permanently if ttl is 0 or
+	// for the specified duration with second resolution if it's >= 1 second
+	UpsertNode(server Server, ttl time.Duration) error
 
-func (s *PresenceService) getServers(prefix string) ([]Server, error) {
-	keys, err := s.backend.GetKeys([]string{prefix})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers := make([]Server, len(keys))
-	for i, key := range keys {
-		data, err := s.backend.GetVal([]string{prefix}, key)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := json.Unmarshal(data, &servers[i]); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	// sorting helps with tests and makes it all deterministic
-	sort.Sort(sortedServers(servers))
-	return servers, nil
-}
+	// GetAuthServers returns a list of registered servers
+	GetAuthServers() ([]Server, error)
 
-func (s *PresenceService) upsertServer(prefix string, server Server, ttl time.Duration) error {
-	data, err := json.Marshal(server)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = s.backend.UpsertVal([]string{prefix}, server.ID, data, ttl)
-	return trace.Wrap(err)
-}
+	// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
+	// for the specified duration with second resolution if it's >= 1 second
+	UpsertAuthServer(server Server, ttl time.Duration) error
 
-// GetNodes returns a list of registered servers
-func (s *PresenceService) GetNodes() ([]Server, error) {
-	return s.getServers(nodesPrefix)
-}
+	// UpsertProxy registers proxy server presence, permanently if ttl is 0 or
+	// for the specified duration with second resolution if it's >= 1 second
+	UpsertProxy(server Server, ttl time.Duration) error
 
-// UpsertNode registers node presence, permanently if ttl is 0 or
-// for the specified duration with second resolution if it's >= 1 second
-func (s *PresenceService) UpsertNode(server Server, ttl time.Duration) error {
-	return s.upsertServer(nodesPrefix, server, ttl)
-}
+	// GetProxies returns a list of registered proxies
+	GetProxies() ([]Server, error)
 
-// GetAuthServers returns a list of registered servers
-func (s *PresenceService) GetAuthServers() ([]Server, error) {
-	return s.getServers(authServersPrefix)
-}
+	// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
+	UpsertReverseTunnel(tunnel ReverseTunnel, ttl time.Duration) error
 
-// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
-// for the specified duration with second resolution if it's >= 1 second
-func (s *PresenceService) UpsertAuthServer(server Server, ttl time.Duration) error {
-	return s.upsertServer(authServersPrefix, server, ttl)
-}
+	// GetReverseTunnels returns a list of registered servers
+	GetReverseTunnels() ([]ReverseTunnel, error)
 
-// UpsertProxy registers proxy server presence, permanently if ttl is 0 or
-// for the specified duration with second resolution if it's >= 1 second
-func (s *PresenceService) UpsertProxy(server Server, ttl time.Duration) error {
-	return s.upsertServer(proxiesPrefix, server, ttl)
-}
-
-// GetProxies returns a list of registered proxies
-func (s *PresenceService) GetProxies() ([]Server, error) {
-	return s.getServers(proxiesPrefix)
-}
-
-// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
-func (s *PresenceService) UpsertReverseTunnel(tunnel ReverseTunnel, ttl time.Duration) error {
-	if err := tunnel.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-	data, err := json.Marshal(tunnel)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = s.backend.UpsertVal([]string{reverseTunnelsPrefix}, tunnel.DomainName, data, ttl)
-	return trace.Wrap(err)
-}
-
-// GetReverseTunnels returns a list of registered servers
-func (s *PresenceService) GetReverseTunnels() ([]ReverseTunnel, error) {
-	keys, err := s.backend.GetKeys([]string{reverseTunnelsPrefix})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tunnels := make([]ReverseTunnel, len(keys))
-	for i, key := range keys {
-		data, err := s.backend.GetVal([]string{reverseTunnelsPrefix}, key)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := json.Unmarshal(data, &tunnels[i]); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	// sorting helps with tests and makes it all deterministic
-	sort.Sort(sortedReverseTunnels(tunnels))
-	return tunnels, nil
-}
-
-// DeleteReverseTunnel deletes reverse tunnel by it's domain name
-func (s *PresenceService) DeleteReverseTunnel(domainName string) error {
-	err := s.backend.DeleteKey([]string{reverseTunnelsPrefix}, domainName)
-	return trace.Wrap(err)
+	// DeleteReverseTunnel deletes reverse tunnel by it's domain name
+	DeleteReverseTunnel(domainName string) error
 }
 
 // Site represents a cluster of teleport nodes who collectively trust the same
@@ -258,39 +177,4 @@ func (s *Server) LabelsString() string {
 		labels = append(labels, fmt.Sprintf("%s=%s", key, val.Result))
 	}
 	return strings.Join(labels, ",")
-}
-
-const (
-	reverseTunnelsPrefix = "reverseTunnels"
-	nodesPrefix          = "nodes"
-	authServersPrefix    = "authservers"
-	proxiesPrefix        = "proxies"
-)
-
-type sortedServers []Server
-
-func (s sortedServers) Len() int {
-	return len(s)
-}
-
-func (s sortedServers) Less(i, j int) bool {
-	return s[i].ID < s[j].ID
-}
-
-func (s sortedServers) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
-type sortedReverseTunnels []ReverseTunnel
-
-func (s sortedReverseTunnels) Len() int {
-	return len(s)
-}
-
-func (s sortedReverseTunnels) Less(i, j int) bool {
-	return s[i].DomainName < s[j].DomainName
-}
-
-func (s sortedReverseTunnels) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
 }

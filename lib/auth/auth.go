@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
@@ -90,17 +91,16 @@ func AuthClock(clock clockwork.Clock) AuthServerOption {
 // NewAuthServer creates and configures a new AuthServer instance
 func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 	as := AuthServer{
-		bk:                  cfg.Backend,
-		Authority:           cfg.Authority,
-		CAService:           services.NewCAService(cfg.Backend),
-		LockService:         services.NewLockService(cfg.Backend),
-		PresenceService:     services.NewPresenceService(cfg.Backend),
-		ProvisioningService: services.NewProvisioningService(cfg.Backend),
-		IdentityService:     services.NewIdentityService(cfg.Backend),
-		BkKeysService:       services.NewBkKeysService(cfg.Backend),
-		DomainName:          cfg.DomainName,
-		AuthServiceName:     cfg.AuthServiceName,
-		oidcClients:         make(map[string]*oidc.Client),
+		bk:              cfg.Backend,
+		Authority:       cfg.Authority,
+		Trust:           local.NewCAService(cfg.Backend),
+		Lock:            local.NewLockService(cfg.Backend),
+		Presence:        local.NewPresenceService(cfg.Backend),
+		Provisioner:     local.NewProvisioningService(cfg.Backend),
+		Identity:        local.NewIdentityService(cfg.Backend),
+		DomainName:      cfg.DomainName,
+		AuthServiceName: cfg.AuthServiceName,
+		oidcClients:     make(map[string]*oidc.Client),
 	}
 	for _, o := range opts {
 		o(&as)
@@ -120,7 +120,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 //   - same for users and their sessions
 //   - checks public keys to see if they're signed by it (can be trusted or not)
 type AuthServer struct {
-	sync.Mutex
+	lock        sync.Mutex
 	oidcClients map[string]*oidc.Client
 	clock       clockwork.Clock
 	bk          backend.Backend
@@ -135,12 +135,11 @@ type AuthServer struct {
 	// It usually defaults to the hostname of the machine the Auth service runs on.
 	AuthServiceName string
 
-	*services.CAService
-	*services.LockService
-	*services.PresenceService
-	*services.ProvisioningService
-	*services.IdentityService
-	*services.BkKeysService
+	services.Trust
+	services.Lock
+	services.Presence
+	services.Provisioner
+	services.Identity
 }
 
 func (a *AuthServer) Close() error {
@@ -158,7 +157,7 @@ func (a *AuthServer) GetLocalDomain() (string, error) {
 // GenerateHostCert generates host certificate, it takes pkey as a signing
 // private key (host certificate authority)
 func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error) {
-	ca, err := s.CAService.GetCertAuthority(services.CertAuthID{
+	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.HostCA,
 		DomainName: s.DomainName,
 	}, true)
@@ -177,7 +176,7 @@ func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, rol
 func (s *AuthServer) GenerateUserCert(
 	key []byte, username string, ttl time.Duration) ([]byte, error) {
 
-	ca, err := s.CAService.GetCertAuthority(services.CertAuthID{
+	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
 		DomainName: s.DomainName,
 	}, true)
@@ -251,7 +250,7 @@ func (s *AuthServer) GenerateToken(role teleport.Role, ttl time.Duration) (strin
 	if err != nil {
 		return "", err
 	}
-	if err := s.ProvisioningService.UpsertToken(token, string(role), ttl); err != nil {
+	if err := s.Provisioner.UpsertToken(token, string(role), ttl); err != nil {
 		return "", err
 	}
 	return outputToken, nil
@@ -262,7 +261,7 @@ func (s *AuthServer) ValidateToken(token string) (role string, e error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	tok, err := s.ProvisioningService.GetToken(token)
+	tok, err := s.Provisioner.GetToken(token)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -304,7 +303,7 @@ func (s *AuthServer) RegisterUsingToken(outputToken, hostID string, role telepor
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tok, err := s.ProvisioningService.GetToken(token)
+	tok, err := s.Provisioner.GetToken(token)
 	if err != nil {
 		log.Warningf("[AUTH] Node `%v` cannot join: token error. %v", hostID, err)
 		return nil, trace.Wrap(err)
@@ -331,7 +330,7 @@ func (s *AuthServer) RegisterNewAuthServer(outputToken string) error {
 		return trace.Wrap(err)
 	}
 
-	tok, err := s.ProvisioningService.GetToken(token)
+	tok, err := s.Provisioner.GetToken(token)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -352,7 +351,7 @@ func (s *AuthServer) DeleteToken(outputToken string) error {
 	if err != nil {
 		return err
 	}
-	return s.ProvisioningService.DeleteToken(token)
+	return s.Provisioner.DeleteToken(token)
 }
 
 func (s *AuthServer) NewWebSession(userName string) (*Session, error) {
@@ -368,7 +367,7 @@ func (s *AuthServer) NewWebSession(userName string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	ca, err := s.CAService.GetCertAuthority(services.CertAuthID{
+	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
 		DomainName: s.DomainName,
 	}, true)
@@ -401,11 +400,11 @@ func (s *AuthServer) NewWebSession(userName string) (*Session, error) {
 }
 
 func (s *AuthServer) UpsertWebSession(user string, sess *Session, ttl time.Duration) error {
-	return s.IdentityService.UpsertWebSession(user, sess.ID, sess.WS, ttl)
+	return s.Identity.UpsertWebSession(user, sess.ID, sess.WS, ttl)
 }
 
 func (s *AuthServer) GetWebSession(userName string, id string) (*Session, error) {
-	ws, err := s.IdentityService.GetWebSession(userName, id)
+	ws, err := s.Identity.GetWebSession(userName, id)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -421,7 +420,7 @@ func (s *AuthServer) GetWebSession(userName string, id string) (*Session, error)
 }
 
 func (s *AuthServer) GetWebSessionInfo(userName string, id string) (*Session, error) {
-	sess, err := s.IdentityService.GetWebSession(userName, id)
+	sess, err := s.Identity.GetWebSession(userName, id)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -438,12 +437,12 @@ func (s *AuthServer) GetWebSessionInfo(userName string, id string) (*Session, er
 }
 
 func (s *AuthServer) DeleteWebSession(user string, id string) error {
-	return trace.Wrap(s.IdentityService.DeleteWebSession(user, id))
+	return trace.Wrap(s.Identity.DeleteWebSession(user, id))
 }
 
 func (s *AuthServer) getOIDCClient(conn *services.OIDCConnector) (*oidc.Client, error) {
-	s.Lock()
-	defer s.Unlock()
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
 	client, ok := s.oidcClients[conn.ID]
 	if ok {
@@ -471,7 +470,7 @@ func (s *AuthServer) getOIDCClient(conn *services.OIDCConnector) (*oidc.Client, 
 }
 
 func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
-	connector, err := s.IdentityService.GetOIDCConnector(req.ConnectorID, true)
+	connector, err := s.Identity.GetOIDCConnector(req.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -493,7 +492,7 @@ func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*servi
 	redirectURL := oauthClient.AuthCodeURL(req.StateToken, "", "")
 	req.RedirectURL = redirectURL
 
-	err = s.IdentityService.CreateOIDCAuthRequest(req, defaults.OIDCAuthRequestTTL)
+	err = s.Identity.CreateOIDCAuthRequest(req, defaults.OIDCAuthRequestTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -537,12 +536,12 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 			oauth2.ErrorInvalidRequest, "missing state query param", q))
 	}
 
-	req, err := a.IdentityService.GetOIDCAuthRequest(stateToken)
+	req, err := a.Identity.GetOIDCAuthRequest(stateToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	connector, err := a.IdentityService.GetOIDCConnector(req.ConnectorID, true)
+	connector, err := a.Identity.GetOIDCConnector(req.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -573,7 +572,7 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 
 	log.Infof("[IDENTITY] expires at: %v", ident.ExpiresAt)
 
-	user, err := a.IdentityService.GetUserByOIDCIdentity(services.OIDCIdentity{
+	user, err := a.Identity.GetUserByOIDCIdentity(services.OIDCIdentity{
 		ConnectorID: req.ConnectorID, Email: ident.Email})
 	if err != nil {
 		return nil, trace.Wrap(err)

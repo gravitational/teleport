@@ -381,7 +381,7 @@ func (a *AuthWithRoles) UpsertOIDCConnector(connector services.OIDCConnector, tt
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertOIDCConnector); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.IdentityService.UpsertOIDCConnector(connector, ttl)
+	return a.authServer.Identity.UpsertOIDCConnector(connector, ttl)
 }
 
 func (a *AuthWithRoles) GetOIDCConnector(id string, withSecrets bool) (*services.OIDCConnector, error) {
@@ -394,7 +394,7 @@ func (a *AuthWithRoles) GetOIDCConnector(id string, withSecrets bool) (*services
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.IdentityService.GetOIDCConnector(id, withSecrets)
+	return a.authServer.Identity.GetOIDCConnector(id, withSecrets)
 }
 
 func (a *AuthWithRoles) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error) {
@@ -407,7 +407,7 @@ func (a *AuthWithRoles) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConn
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.IdentityService.GetOIDCConnectors(withSecrets)
+	return a.authServer.Identity.GetOIDCConnectors(withSecrets)
 }
 
 func (a *AuthWithRoles) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
@@ -428,5 +428,5 @@ func (a *AuthWithRoles) DeleteOIDCConnector(connectorID string) error {
 	if err := a.permChecker.HasPermission(a.role, ActionDeleteOIDCConnector); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.IdentityService.DeleteOIDCConnector(connectorID)
+	return a.authServer.Identity.DeleteOIDCConnector(connectorID)
 }

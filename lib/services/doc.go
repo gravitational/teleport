@@ -14,16 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package services implements statefule services provided by teleport,
+// like certificate authority management, user and web sessions, events and logs.
+//
+// * Local services are implemented in local package
+// * Package suite contains the set of acceptance tests for services
 package services
-
-import (
-	"time"
-)
-
-// Lock implements distributed locking service
-type Lock interface {
-	// AcquireLock grabs a lock that will be released automatically in ttl time
-	AcquireLock(token string, ttl time.Duration) error
-	// ReleaseLock releases
-	ReleaseLock(token string) error
-}
