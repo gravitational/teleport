@@ -88,8 +88,11 @@ func (s *AuthServer) CreateSignupToken(user services.User) (string, error) {
 	}
 
 	tokenData := services.SignupToken{
-		Token:           token,
-		User:            user,
+		Token: token,
+		User: services.TeleportUser{
+			Name:           user.GetName(),
+			AllowedLogins:  user.GetAllowedLogins(),
+			OIDCIdentities: user.GetIdentities()},
 		Hotp:            otpMarshalled,
 		HotpFirstValues: otpFirstValues,
 		HotpQR:          otpQR,
@@ -170,7 +173,7 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Se
 	}
 
 	// apply user allowed logins
-	if err = s.UpsertUser(tokenData.User); err != nil {
+	if err = s.UpsertUser(&tokenData.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

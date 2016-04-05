@@ -17,6 +17,7 @@ limitations under the License.
 package suite
 
 import (
+	"sort"
 	"sync/atomic"
 	"time"
 
@@ -78,6 +79,21 @@ func (s *ServicesTestSuite) expectChanges(c *C, expected ...interface{}) {
 	}
 }
 
+func userSlicesEqual(c *C, a []services.User, b []services.User) {
+	comment := Commentf("a: %#v b: %#v", a, b)
+	c.Assert(len(a), Equals, len(b), comment)
+	sort.Sort(services.Users(a))
+	sort.Sort(services.Users(b))
+	for i := range a {
+		usersEqual(c, a[i], b[i])
+	}
+}
+
+func usersEqual(c *C, a services.User, b services.User) {
+	comment := Commentf("a: %#v b: %#v", a, b)
+	c.Assert(a.Equals(b), Equals, true, comment)
+}
+
 func (s *ServicesTestSuite) UsersCRUD(c *C) {
 	u, err := s.WebS.GetUsers()
 	c.Assert(err, IsNil)
@@ -88,41 +104,42 @@ func (s *ServicesTestSuite) UsersCRUD(c *C) {
 
 	u, err = s.WebS.GetUsers()
 	c.Assert(err, IsNil)
-	c.Assert(toSet(u), DeepEquals, map[string]services.User{"user1": services.User{Name: "user1"}, "user2": services.User{Name: "user2"}})
+	userSlicesEqual(c, u, []services.User{
+		&services.TeleportUser{Name: "user1"}, &services.TeleportUser{Name: "user2"}})
 
 	out, err := s.WebS.GetUser("user1")
 	c.Assert(err, IsNil)
-	c.Assert(*out, DeepEquals, services.User{Name: "user1"})
+	usersEqual(c, out, &services.TeleportUser{Name: "user1"})
 
-	user := services.User{Name: "user1", AllowedLogins: []string{"admin", "root"}}
+	user := &services.TeleportUser{Name: "user1", AllowedLogins: []string{"admin", "root"}}
 	c.Assert(s.WebS.UpsertUser(user), IsNil)
 
 	out, err = s.WebS.GetUser("user1")
 	c.Assert(err, IsNil)
-	c.Assert(*out, DeepEquals, user)
+	usersEqual(c, out, user)
 
 	user.AllowedLogins = nil
 	c.Assert(s.WebS.UpsertUser(user), IsNil)
 
 	out, err = s.WebS.GetUser("user1")
 	c.Assert(err, IsNil)
-	c.Assert(*out, DeepEquals, user)
+	usersEqual(c, out, user)
 
 	c.Assert(s.WebS.DeleteUser("user1"), IsNil)
 
 	u, err = s.WebS.GetUsers()
 	c.Assert(err, IsNil)
-	c.Assert(toSet(u), DeepEquals, map[string]services.User{"user2": services.User{Name: "user2"}})
+	userSlicesEqual(c, u, []services.User{&services.TeleportUser{Name: "user2"}})
 
 	err = s.WebS.DeleteUser("user1")
 	c.Assert(teleport.IsNotFound(err), Equals, true, Commentf("unexpected %T %#v", err, err))
 
 	// bad username
-	err = s.WebS.UpsertUser(services.User{Name: ""})
+	err = s.WebS.UpsertUser(&services.TeleportUser{Name: ""})
 	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("expected bad parameter error, got %T", err))
 
 	// bad allowed login
-	err = s.WebS.UpsertUser(services.User{Name: "bob", AllowedLogins: []string{"oops  typo!"}})
+	err = s.WebS.UpsertUser(&services.TeleportUser{Name: "bob", AllowedLogins: []string{"oops  typo!"}})
 	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("expected bad parameter error, got %T", err))
 }
 
@@ -395,12 +412,4 @@ func (s *ServicesTestSuite) PasswordGarbage(c *C) {
 		err := s.WebS.CheckPassword("user1", g, "123456")
 		c.Assert(err, NotNil)
 	}
-}
-
-func toSet(vals []services.User) map[string]services.User {
-	out := make(map[string]services.User, len(vals))
-	for _, v := range vals {
-		out[v.Name] = v
-	}
-	return out
 }

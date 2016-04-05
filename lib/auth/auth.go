@@ -66,8 +66,8 @@ type Authority interface {
 type Session struct {
 	// ID is a session ID
 	ID string `json:"id"`
-	// User is a user this session belongs to
-	User services.User `json:"user"`
+	// Username is a user this session belongs to
+	Username string `json:"username"`
 	// ExpiresAt is an optional expiry time, if set
 	// that means this web session and all derived web sessions
 	// can not continue after this time, used in OIDC use case
@@ -402,8 +402,8 @@ func (s *AuthServer) NewWebSession(userName string) (*Session, error) {
 		return nil, trace.Wrap(err)
 	}
 	sess := &Session{
-		ID:   token,
-		User: user,
+		ID:       token,
+		Username: user.GetName(),
 		WS: services.WebSession{
 			Priv:        priv,
 			Pub:         cert,
@@ -428,9 +428,9 @@ func (s *AuthServer) GetWebSession(userName string, id string) (*Session, error)
 		return nil, trace.Wrap(err)
 	}
 	return &Session{
-		ID:   id,
-		User: user,
-		WS:   *ws,
+		ID:       id,
+		Username: user.GetName(),
+		WS:       *ws,
 	}, nil
 }
 
@@ -445,9 +445,9 @@ func (s *AuthServer) GetWebSessionInfo(userName string, id string) (*Session, er
 	}
 	sess.Priv = nil
 	return &Session{
-		ID:   id,
-		User: user,
-		WS:   *sess,
+		ID:       id,
+		Username: user.GetName(),
+		WS:       *sess,
 	}, nil
 }
 

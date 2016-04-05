@@ -230,7 +230,7 @@ func (s *WebSuite) TearDownTest(c *C) {
 }
 
 func (s *WebSuite) TestNewUser(c *C) {
-	token, err := s.roleAuth.CreateSignupToken(services.User{Name: "bob", AllowedLogins: []string{s.user}})
+	token, err := s.roleAuth.CreateSignupToken(&services.TeleportUser{Name: "bob", AllowedLogins: []string{s.user}})
 	c.Assert(err, IsNil)
 
 	clt := s.client()
@@ -254,8 +254,8 @@ func (s *WebSuite) TestNewUser(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	var sess *createSessionResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &sess), IsNil)
+	var rawSess *createSessionResponseRaw
+	c.Assert(json.Unmarshal(re.Bytes(), &rawSess), IsNil)
 	cookies := re.Cookies()
 	c.Assert(len(cookies), Equals, 1)
 
@@ -265,7 +265,7 @@ func (s *WebSuite) TestNewUser(c *C) {
 	jar, err := cookiejar.New(nil)
 	c.Assert(err, IsNil)
 
-	clt = s.client(roundtrip.BearerAuth(sess.Token), roundtrip.CookieJar(jar))
+	clt = s.client(roundtrip.BearerAuth(rawSess.Token), roundtrip.CookieJar(jar))
 	jar.SetCookies(s.url(), re.Cookies())
 
 	re, err = clt.Get(clt.Endpoint("webapi", "sites"), url.Values{})
@@ -277,7 +277,7 @@ func (s *WebSuite) TestNewUser(c *C) {
 	// in absense of session cookie or bearer auth the same request fill fail
 
 	// no session cookie:
-	clt = s.client(roundtrip.BearerAuth(sess.Token))
+	clt = s.client(roundtrip.BearerAuth(rawSess.Token))
 	re, err = clt.Get(clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
 	c.Assert(teleport.IsAccessDenied(err), Equals, true)
@@ -298,7 +298,7 @@ type authPack struct {
 }
 
 func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack {
-	var sess *createSessionResponse
+	var sess *createSessionResponseRaw
 	c.Assert(json.Unmarshal(re.Bytes(), &sess), IsNil)
 
 	jar, err := cookiejar.New(nil)
@@ -307,9 +307,13 @@ func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack 
 	clt := s.client(roundtrip.BearerAuth(sess.Token), roundtrip.CookieJar(jar))
 	jar.SetCookies(s.url(), re.Cookies())
 
+	session, err := sess.response()
+	if err != nil {
+		panic(err)
+	}
 	return &authPack{
-		user:    sess.User.Name,
-		session: sess,
+		user:    session.User.GetName(),
+		session: session,
 		clt:     clt,
 		cookies: re.Cookies(),
 	}
@@ -329,7 +333,7 @@ func (s *WebSuite) authPack(c *C) *authPack {
 	otp.Increment()
 
 	err = s.roleAuth.UpsertUser(
-		services.User{Name: user, AllowedLogins: []string{s.user}})
+		&services.TeleportUser{Name: user, AllowedLogins: []string{s.user}})
 	c.Assert(err, IsNil)
 
 	clt := s.client()
@@ -341,8 +345,11 @@ func (s *WebSuite) authPack(c *C) *authPack {
 	})
 	c.Assert(err, IsNil)
 
-	var sess *createSessionResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &sess), IsNil)
+	var rawSess *createSessionResponseRaw
+	c.Assert(json.Unmarshal(re.Bytes(), &rawSess), IsNil)
+
+	sess, err := rawSess.response()
+	c.Assert(err, IsNil)
 
 	jar, err := cookiejar.New(nil)
 	c.Assert(err, IsNil)

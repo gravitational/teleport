@@ -67,6 +67,7 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetAuthServers:     true,
 		ActionGetCertAuthorities: true,
 		ActionGetUsers:           true,
+		ActionGetUser:            true,
 		ActionGetLocalDomain:     true,
 		ActionGetUserKeys:        true,
 		ActionUpsertParty:        true,
@@ -78,6 +79,7 @@ func NewStandardPermissions() PermissionChecker {
 	}
 
 	sp.permissions[teleport.RoleProxy] = map[string]bool{
+		ActionGetUser:                         true,
 		ActionGetOIDCConnectorsWithoutSecrets: true,
 		ActionGetChunkReader:                  true,
 		ActionGetReverseTunnels:               true,
@@ -98,6 +100,7 @@ func NewStandardPermissions() PermissionChecker {
 	}
 
 	sp.permissions[teleport.RoleWeb] = map[string]bool{
+		ActionGetUser:          true,
 		ActionGetAuthServers:   true,
 		ActionUpsertSession:    true,
 		ActionCreateWebSession: true,
@@ -199,6 +202,7 @@ const (
 	ActionGetWebSessionsKeys                = "GetWebSessionsKeys"
 	ActionDeleteWebSession                  = "DeleteWebSession"
 	ActionGetUsers                          = "GetUsers"
+	ActionGetUser                           = "GetUser"
 	ActionDeleteUser                        = "DeleteUser"
 	ActionUpsertUserKey                     = "UpsertUserKey"
 	ActionGetUserKeys                       = "GetUserKeys"

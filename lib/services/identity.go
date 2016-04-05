@@ -21,8 +21,10 @@ limitations under the License.
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -46,6 +48,8 @@ type User interface {
 	String() string
 	// Check checks if all parameters are correct
 	Check() error
+	// Equals checks if user equals to another
+	Equals(other User) bool
 }
 
 // TeleportUser is an optional user entry in the database
@@ -60,6 +64,32 @@ type TeleportUser struct {
 	// OIDCIdentities lists associated OpenID Connect identities
 	// that let user log in using externally verified identity
 	OIDCIdentities []OIDCIdentity `json:"oidc_identities"`
+}
+
+// Equals checks if user equals to another
+func (u *TeleportUser) Equals(other User) bool {
+	if u.Name != other.GetName() {
+		return false
+	}
+	otherLogins := other.GetAllowedLogins()
+	if len(u.AllowedLogins) != len(otherLogins) {
+		return false
+	}
+	for i := range u.AllowedLogins {
+		if u.AllowedLogins[i] != otherLogins[i] {
+			return false
+		}
+	}
+	otherIdentities := other.GetIdentities()
+	if len(u.OIDCIdentities) != len(otherIdentities) {
+		return false
+	}
+	for i := range u.OIDCIdentities {
+		if !u.OIDCIdentities[i].Equals(&otherIdentities[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 // GetAllowedLogins returns user's allowed linux logins
@@ -229,11 +259,11 @@ type WebSession struct {
 // SignupToken stores metadata about user signup token
 // is stored and generated when tctl add user is executed
 type SignupToken struct {
-	Token           string   `json:"token"`
-	User            User     `json:"user"`
-	Hotp            []byte   `json:"hotp"`
-	HotpFirstValues []string `json:"hotp_first_values"`
-	HotpQR          []byte   `json:"hotp_qr"`
+	Token           string       `json:"token"`
+	User            TeleportUser `json:"user"`
+	Hotp            []byte       `json:"hotp"`
+	HotpFirstValues []string     `json:"hotp_first_values"`
+	HotpQR          []byte       `json:"hotp_qr"`
 }
 
 // OIDCConnector specifies configuration fo Open ID Connect compatible external
@@ -356,4 +386,49 @@ func (i *OIDCAuthRequest) Check() error {
 	}
 
 	return nil
+}
+
+// Users represents a slice of users,
+// makes it sort compatible (sorts by username)
+type Users []User
+
+func (u Users) Len() int {
+	return len(u)
+}
+
+func (u Users) Less(i, j int) bool {
+	return u[i].GetName() < u[j].GetName()
+}
+
+func (u Users) Swap(i, j int) {
+	u[i], u[j] = u[j], u[i]
+}
+
+var mtx sync.Mutex
+var unmarshaler UserUnmarshaler
+
+func SetUserUnmarshaler(u UserUnmarshaler) {
+	mtx.Lock()
+	defer mtx.Unlock()
+	unmarshaler = u
+}
+
+func GetUserUnmarshaler() UserUnmarshaler {
+	mtx.Lock()
+	defer mtx.Unlock()
+	if unmarshaler == nil {
+		return TeleportUserUnmarshaler
+	}
+	return unmarshaler
+}
+
+type UserUnmarshaler func(bytes []byte) (User, error)
+
+func TeleportUserUnmarshaler(bytes []byte) (User, error) {
+	var u *TeleportUser
+	err := json.Unmarshal(bytes, &u)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return u, nil
 }

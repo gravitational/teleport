@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -73,6 +74,7 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 
 	// Operations on users
 	srv.GET("/v1/users", httplib.MakeHandler(srv.getUsers))
+	srv.GET("/v1/users/:user", httplib.MakeHandler(srv.getUser))
 	srv.DELETE("/v1/users/:user", httplib.MakeHandler(srv.deleteUser))
 
 	// Generating keypairs
@@ -338,16 +340,24 @@ type upsertUserReq struct {
 	User services.User `json:"user"`
 }
 
+type upsertUserReqRaw struct {
+	User json.RawMessage `json:"user"`
+}
+
 func (s *APIServer) upsertUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *upsertUserReq
+	var req *upsertUserReqRaw
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err := s.a.UpsertUser(req.User)
+	user, err := services.GetUserUnmarshaler()(req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return message(fmt.Sprintf("'%v' user upserted", req.User.GetName())), nil
+	err = s.a.UpsertUser(user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message(fmt.Sprintf("'%v' user upserted", user.GetName())), nil
 }
 
 type checkPasswordReq struct {
@@ -365,6 +375,14 @@ func (s *APIServer) checkPassword(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("'%v' user password matches", user)), nil
+}
+
+func (s *APIServer) getUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	user, err := s.a.GetUser(p[0].Value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return user, nil
 }
 
 func (s *APIServer) getUsers(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -767,12 +785,20 @@ type createSignupTokenReq struct {
 	User services.User `json:"user"`
 }
 
+type createSignupTokenReqRaw struct {
+	User json.RawMessage `json:"user"`
+}
+
 func (s *APIServer) createSignupToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *createSignupTokenReq
+	var req *createSignupTokenReqRaw
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	token, err := s.a.CreateSignupToken(req.User)
+	user, err := services.GetUserUnmarshaler()(req.User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	token, err := s.a.CreateSignupToken(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -190,9 +190,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 				Session string
 			}{Session: base64.StdEncoding.EncodeToString([]byte("{}"))}
 			if err == nil {
-				out, err := json.Marshal(newSessionResponse(ctx.GetWebSession()))
+				re, err := newSessionResponse(ctx)
 				if err == nil {
-					session.Session = base64.StdEncoding.EncodeToString(out)
+					out, err := json.Marshal(re)
+					if err == nil {
+						session.Session = base64.StdEncoding.EncodeToString(out)
+					}
 				}
 			}
 			indexPage.Execute(w, session)
@@ -378,13 +381,41 @@ type createSessionResponse struct {
 	ExpiresIn int `json:"expires_in"`
 }
 
-func newSessionResponse(sess *auth.Session) *createSessionResponse {
+type createSessionResponseRaw struct {
+	// Type is token type (bearer)
+	Type string `json:"type"`
+	// Token value
+	Token string `json:"token"`
+	// User represents the user
+	User json.RawMessage `json:"user"`
+	// ExpiresIn sets seconds before this token is not valid
+	ExpiresIn int `json:"expires_in"`
+}
+
+func (r createSessionResponseRaw) response() (*createSessionResponse, error) {
+	user, err := services.GetUserUnmarshaler()(r.User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &createSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn, User: user}, nil
+}
+
+func newSessionResponse(ctx *sessionContext) (*createSessionResponse, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	webSession := ctx.GetWebSession()
+	user, err := clt.GetUser(webSession.Username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &createSessionResponse{
 		Type:      roundtrip.AuthBearer,
-		Token:     sess.WS.BearerToken,
-		User:      sess.User,
-		ExpiresIn: int(time.Now().Sub(sess.WS.Expires) / time.Second),
-	}
+		Token:     webSession.WS.BearerToken,
+		User:      user,
+		ExpiresIn: int(time.Now().Sub(webSession.WS.Expires) / time.Second),
+	}, nil
 }
 
 // createSession creates a new web session based on user, pass and 2nd factor token
@@ -410,7 +441,11 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 	if err := SetSession(w, req.User, sess.ID); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newSessionResponse(sess), nil
+	ctx, err := m.auth.ValidateSession(req.User, sess.ID)
+	if err != nil {
+		return nil, trace.Wrap(teleport.AccessDenied("need auth"))
+	}
+	return newSessionResponse(ctx)
 }
 
 // logout is a helper that deletes
@@ -467,15 +502,15 @@ func (m *Handler) renewSession(w http.ResponseWriter, r *http.Request, _ httprou
 	}
 	// transfer ownership over connections that were opened in the
 	// sessionContext
-	newContext, err := ctx.parent.ValidateSession(newSess.User.GetName(), newSess.ID)
+	newContext, err := ctx.parent.ValidateSession(newSess.Username, newSess.ID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	newContext.AddClosers(ctx.TransferClosers()...)
-	if err := SetSession(w, newSess.User.GetName(), newSess.ID); err != nil {
+	if err := SetSession(w, newSess.Username, newSess.ID); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newSessionResponse(newSess), nil
+	return newSessionResponse(newContext)
 }
 
 type renderUserInviteResponse struct {
@@ -528,15 +563,18 @@ func (m *Handler) createNewUser(w http.ResponseWriter, r *http.Request, p httpro
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	sess, err := m.auth.CreateNewUser(req.InviteToken, req.Pass, req.SecondFactorToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := SetSession(w, sess.User.GetName(), sess.ID); err != nil {
+	ctx, err := m.auth.ValidateSession(sess.Username, sess.ID)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newSessionResponse(sess), nil
+	if err := SetSession(w, sess.Username, sess.ID); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newSessionResponse(ctx)
 }
 
 type getSitesResponse struct {

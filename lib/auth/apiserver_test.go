@@ -146,7 +146,7 @@ func (s *APISuite) TestGenerateUserCert(c *C) {
 	c.Assert(err, IsNil)
 
 	err = s.clt.UpsertUser(
-		services.User{Name: "user1", AllowedLogins: []string{"user1"}})
+		&services.TeleportUser{Name: "user1", AllowedLogins: []string{"user1"}})
 	c.Assert(err, IsNil)
 
 	// make sure we can parse the private and public key
@@ -165,7 +165,7 @@ func (s *APISuite) TestKeysCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	s.a.UpsertUser(
-		services.User{Name: "user1", AllowedLogins: []string{"user1"}})
+		&services.TeleportUser{Name: "user1", AllowedLogins: []string{"user1"}})
 
 	// make sure we can parse the private and public key
 	cert, err := s.clt.GenerateUserCert(pub, "user1", time.Hour)
@@ -182,7 +182,7 @@ func (s *APISuite) TestUserCRUD(c *C) {
 	users, err := s.WebS.GetUsers()
 	c.Assert(err, IsNil)
 	c.Assert(len(users), Equals, 1)
-	c.Assert(users[0].Name, Equals, "user1")
+	c.Assert(users[0].GetName(), Equals, "user1")
 
 	c.Assert(s.clt.DeleteUser("user1"), IsNil)
 
@@ -239,7 +239,7 @@ func (s *APISuite) TestSessions(c *C) {
 		*suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	s.a.UpsertUser(
-		services.User{Name: "user1", AllowedLogins: []string{"user1"}})
+		&services.TeleportUser{Name: "user1", AllowedLogins: []string{"user1"}})
 
 	ws, err := s.clt.SignIn(user, pass)
 	c.Assert(err, NotNil)

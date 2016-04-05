@@ -313,6 +313,13 @@ func (a *AuthWithRoles) GetUsers() ([]services.User, error) {
 		return a.authServer.GetUsers()
 	}
 }
+func (a *AuthWithRoles) GetUser(name string) (services.User, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionGetUser); err != nil {
+		return nil, trace.Wrap(err)
+	} else {
+		return a.authServer.Identity.GetUser(name)
+	}
+}
 func (a *AuthWithRoles) DeleteUser(user string) error {
 	if err := a.permChecker.HasPermission(a.role, ActionDeleteUser); err != nil {
 		return trace.Wrap(err)

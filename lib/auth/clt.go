@@ -530,15 +530,39 @@ func (c *Client) DeleteWebSession(user string, sid string) error {
 	return trace.Wrap(err)
 }
 
+// GetUser returns a list of usernames registered in the system
+func (c *Client) GetUser(name string) (services.User, error) {
+	if name == "" {
+		return nil, trace.Wrap(teleport.BadParameter("name", fmt.Sprintf("missing username")))
+	}
+	out, err := c.Get(c.Endpoint("users", name), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user, err := services.GetUserUnmarshaler()(out.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return user, nil
+}
+
 // GetUsers returns a list of usernames registered in the system
 func (c *Client) GetUsers() ([]services.User, error) {
 	out, err := c.Get(c.Endpoint("users"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var users []services.User
-	if err := json.Unmarshal(out.Bytes(), &users); err != nil {
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	users := make([]services.User, len(items))
+	for i, userBytes := range items {
+		user, err := services.GetUserUnmarshaler()(userBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		users[i] = user
 	}
 	return users, nil
 }
@@ -783,6 +807,7 @@ func (c *chunkRW) Close() error {
 
 // TOODO(klizhentas) this should be just including appropriate service implementations
 type ClientI interface {
+	GetUser(name string) (services.User, error)
 	UpsertUser(user services.User) error
 	GetSessions() ([]session.Session, error)
 	GetSession(id session.ID) (*session.Session, error)
