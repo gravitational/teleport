@@ -39,6 +39,10 @@ func (s *APITestSuite) TestConfig(c *check.C) {
 	conf.ProxyHost = "example.org"
 	c.Assert(conf.ProxySpecified(), check.Equals, true)
 	c.Assert(conf.ProxyHostPort(12), check.Equals, "example.org:12")
+
+	conf.ProxyHost = "example.org:100"
+	c.Assert(conf.ProxySpecified(), check.Equals, true)
+	c.Assert(conf.ProxyHostPort(12), check.Equals, "example.org:100")
 }
 
 func (s *APITestSuite) TestParseLabels(c *check.C) {

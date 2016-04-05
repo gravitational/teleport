@@ -124,7 +124,13 @@ type Config struct {
 // returns SSH port (proxy servers listen on both)
 func (c *Config) ProxyHostPort(defaultPort int) string {
 	if c.ProxySpecified() {
-		port := fmt.Sprintf("%d", defaultPort)
+		host, port, err := net.SplitHostPort(c.ProxyHost)
+		if err == nil && len(port) > 0 {
+			// c.ProxyHost was already specified as "host:port"
+			return net.JoinHostPort(host, port)
+		}
+		// need to default to the given 'defaultPort'
+		port = fmt.Sprintf("%d", defaultPort)
 		return net.JoinHostPort(c.ProxyHost, port)
 	}
 	return ""
