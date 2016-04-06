@@ -654,6 +654,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	}
 	log.Debugf("connecting to proxy: %v", proxyAddr)
 
+	var failedInteractiveLogin bool
 	for {
 		// try to authenticate using every auth method we have:
 		for _, m := range tc.authMethods {
@@ -674,10 +675,14 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 				siteName:        tc.Config.SiteName,
 			}, nil
 		}
+		if failedInteractiveLogin {
+			return nil, trace.Wrap(teleport.AccessDenied("bad username or credentials"))
+		}
 		// if we get here, it means we failed to authenticate using stored keys
 		// and we need to ask for the login information
 		err := tc.Login()
 		if err != nil {
+			failedInteractiveLogin = true
 			// we need to communicate directly to user here,
 			// otherwise user will see endless loop with no explanation
 			if teleport.IsTrustError(err) {
