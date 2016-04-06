@@ -147,7 +147,7 @@ func run(args []string, underTest bool) {
 
 // onAgentStart start ssh agent on a socket
 func onAgentStart(cf *CLIConf) {
-	_, err := makeClient(cf)
+	tc, err := makeClient(cf)
 	if err != nil {
 		utils.FatalError(err)
 	}
@@ -165,7 +165,7 @@ SSH_AGENT_PID=%v; export SSH_AGENT_PID;
 echo Agent pid %v;
 `, socketAddr.Addr, pid, pid)
 	agentServer := teleagent.NewServer()
-	agentKeys, err := client.GetLocalAgentKeys()
+	agentKeys, err := tc.LocalAgent().GetKeys()
 	if err != nil {
 		utils.FatalError(err)
 	}

@@ -23,10 +23,12 @@ package client
 import (
 	"encoding/json"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"os"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,6 +43,12 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 )
 
+type LocalKeyAgent struct {
+	agent.Agent
+	// KeyDir is the directory path where local keys are stored
+	KeyDir string
+}
+
 // AddHostSignersToCache takes a list of CAs whom we trust. This list is added to a database
 // of "seen" CAs.
 //
@@ -49,8 +57,8 @@ import (
 //
 // Why do we trust these CAs? Because we received them from a trusted Teleport Proxy.
 // Why do we trust the proxy? Because we've connected to it via HTTPS + username + Password + HOTP.
-func AddHostSignersToCache(hostSigners []services.CertAuthority) error {
-	bk, err := boltbk.New(filepath.Join(getKeysDir(), HostSignersFilename))
+func (a *LocalKeyAgent) AddHostSignersToCache(hostSigners []services.CertAuthority) error {
+	bk, err := boltbk.New(filepath.Join(a.KeyDir, HostSignersFilename))
 	if err != nil {
 		return trace.Wrap(nil)
 	}
@@ -68,13 +76,13 @@ func AddHostSignersToCache(hostSigners []services.CertAuthority) error {
 
 // CheckHostSignature checks if the given host key was signed by one of the trusted
 // certificaate authorities (CAs)
-func CheckHostSignature(hostId string, remote net.Addr, key ssh.PublicKey) error {
+func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key ssh.PublicKey) error {
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
 		return trace.Errorf("expected certificate")
 	}
 
-	bk, err := boltbk.New(filepath.Join(getKeysDir(), HostSignersFilename))
+	bk, err := boltbk.New(filepath.Join(a.KeyDir, HostSignersFilename))
 	if err != nil {
 		return trace.Wrap(nil)
 	}
@@ -100,15 +108,9 @@ func CheckHostSignature(hostId string, remote net.Addr, key ssh.PublicKey) error
 	return trace.Errorf("no matching authority found")
 }
 
-// GetLocalAgentKeys returns a list of local keys agents can use
-// to authenticate
-func GetLocalAgentKeys() ([]agent.AddedKey, error) {
-	err := initKeysDir()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	existingKeys, err := loadAllKeys()
+// getKeyes returns a list of local keys agents can use to authenticate
+func (a *LocalKeyAgent) GetKeys() ([]agent.AddedKey, error) {
+	existingKeys, err := a.loadAllKeys()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -136,56 +138,74 @@ func GetLocalAgentKeys() ([]agent.AddedKey, error) {
 
 // GetLocalAgent loads all the saved teleport certificates and
 // creates ssh agent with them
-func GetLocalAgent() (agent.Agent, error) {
-	keys, err := GetLocalAgentKeys()
+func GetLocalAgent(keyDir string) (a *LocalKeyAgent, err error) {
+	if keyDir == "" {
+		keyDir, err = initDefaultKeysDir()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		if !isDir(keyDir) {
+			return nil, trace.Errorf("Cannot store keys. %s is not a directory", keyDir)
+		}
+	}
+	a = &LocalKeyAgent{
+		Agent:  agent.NewKeyring(),
+		KeyDir: keyDir,
+	}
+	keys, err := a.GetKeys()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keyring := agent.NewKeyring()
 	for _, key := range keys {
-		if err := keyring.Add(key); err != nil {
+		if err := a.Add(key); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return keyring, nil
+	return a, nil
 }
 
-func initKeysDir() error {
-	_, err := os.Stat(getKeysDir())
+// initDefaultKeysDir initializes `~/.tsh` directory
+func initDefaultKeysDir() (dirPath string, err error) {
+	// construct `~/.tsh` path name:
+	u, err := user.Current()
+	if err != nil {
+		dirPath = os.TempDir()
+	} else {
+		dirPath = u.HomeDir
+	}
+	dirPath = filepath.Join(dirPath, ".tsh")
+
+	// need to create it?
+	_, err = os.Stat(dirPath)
 	if os.IsNotExist(err) {
-		err = os.MkdirAll(getKeysDir(), os.ModeDir|0777)
+		err = os.MkdirAll(dirPath, os.ModeDir|0777)
 		if err != nil {
-			return trace.Wrap(err)
+			return "", trace.Wrap(err)
 		}
 	} else {
 		if err != nil {
-			return trace.Wrap(err)
+			return "", trace.Wrap(err)
 		}
 	}
-	return nil
+	return dirPath, nil
 }
 
+// Key describes a key on disk
 type Key struct {
-	Priv     []byte
-	Cert     []byte
-	Deadline time.Time
+	Priv     []byte    `json:"Priv,omitempty"`
+	Pub      []byte    `json:"Pub,omitempty"`
+	Cert     []byte    `json:"Cert,omitempty"`
+	Deadline time.Time `json:"Deadline,omitempty"`
 }
 
-func saveKey(key Key, filename string) error {
-	err := initKeysDir()
-	if err != nil {
-		return trace.Wrap(err)
-	}
+func (a *LocalKeyAgent) saveKey(key *Key) error {
+	filename := filepath.Join(a.KeyDir, KeyFilePrefix+strconv.FormatInt(rand.Int63n(100), 16)+KeyFileSuffix)
 	bytes, err := json.Marshal(key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	err = ioutil.WriteFile(filename, bytes, 0666)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return ioutil.WriteFile(filename, bytes, 0666)
 }
 
 func loadKey(filename string) (Key, error) {
@@ -205,16 +225,17 @@ func loadKey(filename string) (Key, error) {
 
 }
 
-func loadAllKeys() ([]Key, error) {
+func (a *LocalKeyAgent) loadAllKeys() ([]Key, error) {
 	keys := make([]Key, 0)
-	files, err := ioutil.ReadDir(getKeysDir())
+	files, err := ioutil.ReadDir(a.KeyDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	for _, file := range files {
-		if !file.IsDir() && strings.HasPrefix(file.Name(), KeyFilePrefix) &&
-			strings.HasSuffix(file.Name(), KeyFileSuffix) {
-			key, err := loadKey(filepath.Join(getKeysDir(), file.Name()))
+		fn := file.Name()
+		if !file.IsDir() && strings.HasPrefix(fn, KeyFilePrefix) && strings.HasSuffix(fn, KeyFileSuffix) {
+			fp := filepath.Join(a.KeyDir, file.Name())
+			key, err := loadKey(fp)
 			if err != nil {
 				log.Errorf(err.Error())
 				continue
@@ -224,7 +245,7 @@ func loadAllKeys() ([]Key, error) {
 				keys = append(keys, key)
 			} else {
 				// remove old keys
-				err = os.Remove(filepath.Join(getKeysDir(), file.Name()))
+				err = os.Remove(fp)
 				if err != nil {
 					log.Errorf(err.Error())
 				}
@@ -234,20 +255,16 @@ func loadAllKeys() ([]Key, error) {
 	return keys, nil
 }
 
-// getKeysDir() returns the directory where a client can store the temporary keys
-func getKeysDir() string {
-	var baseDir string
-	u, err := user.Current()
-	if err != nil {
-		baseDir = os.TempDir()
-	} else {
-		baseDir = u.HomeDir
-	}
-	return filepath.Join(baseDir, ".tsh")
-}
-
 var (
 	KeyFilePrefix       = "teleport_"
 	KeyFileSuffix       = ".tkey"
 	HostSignersFilename = "hostsigners.db"
 )
+
+func isDir(dirPath string) bool {
+	fi, err := os.Stat(dirPath)
+	if err == nil {
+		return fi.IsDir()
+	}
+	return false
+}

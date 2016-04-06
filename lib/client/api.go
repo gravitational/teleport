@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math/rand"
 	"net"
 	"os"
 	"os/exec"
@@ -117,6 +116,10 @@ type Config struct {
 	// ConnectorID is used to authenticate user via OpenID Connect
 	// registered connector
 	ConnectorID string
+
+	// KeyDir defines where temporary session keys will be stored.
+	// if empty, they'll go to ~/.tsh
+	KeysDir string
 }
 
 // ProxyHostPort returns a full host:port address of the proxy or an empty string if no
@@ -155,7 +158,7 @@ func (c *Config) ProxySpecified() bool {
 // workflow built in
 type TeleportClient struct {
 	Config
-	localAgent  agent.Agent
+	localAgent  *LocalKeyAgent
 	authMethods []ssh.AuthMethod
 }
 
@@ -179,17 +182,23 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		return nil, trace.Errorf("invalid requested cert TTL")
 	}
 
+	tc = &TeleportClient{
+		Config:      *c,
+		authMethods: make([]ssh.AuthMethod, 0),
+	}
+
+	// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
+	tc.localAgent, err = GetLocalAgent("")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if c.Output == nil {
 		c.Output = os.Stdout
 	}
 
 	if c.HostKeyCallback == nil {
-		c.HostKeyCallback = CheckHostSignature
-	}
-
-	tc = &TeleportClient{
-		Config:      *c,
-		authMethods: make([]ssh.AuthMethod, 0),
+		c.HostKeyCallback = tc.localAgent.CheckHostSignature
 	}
 
 	// add auth methods supplied by user if any
@@ -213,23 +222,16 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	if sshAgent := connectToSSHAgent(); sshAgent != nil {
 		tc.authMethods = append(tc.authMethods, authMethodFromAgent(sshAgent))
 	}
-
-	// then, we can authenticate via a locally stored cert previously
-	// signed by the CA:
-	localAgent, err := GetLocalAgent()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if localAgent != nil {
-		tc.localAgent = localAgent
-		tc.authMethods = append(tc.authMethods, authMethodFromAgent(localAgent))
-	} else {
-		log.Errorf("unable to obtain locally stored credentials")
-	}
+	// then, we'll auth with the local agent keys:
+	tc.authMethods = append(tc.authMethods, authMethodFromAgent(tc.localAgent))
 
 	// finally, interactive auth (via password + HTOP 2nd factor):
 	tc.authMethods = append(tc.authMethods, tc.makeInteractiveAuthMethod())
 	return tc, nil
+}
+
+func (tc *TeleportClient) LocalAgent() *LocalKeyAgent {
+	return tc.localAgent
 }
 
 // getTargetNodes returns a list of node addresses this SSH command needs to
@@ -310,6 +312,7 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool) error {
 	if len(command) > 0 {
 		return tc.runCommand(nodeAddrs, proxyClient, command)
 	}
+
 	nodeClient, err := proxyClient.ConnectToNode(nodeAddrs[0], tc.Config.HostLogin)
 	if err != nil {
 		return trace.Wrap(err)
@@ -707,37 +710,48 @@ func (tc *TeleportClient) makeInteractiveAuthMethod() ssh.AuthMethod {
 // or used OIDC external authentication, it later
 // saves the generated credentials into local keystore for future use
 func (tc *TeleportClient) Login() error {
-
-	// generate a new keypair. the public key will be signed via proxy if our password+HOTP
-	// are legit
-	keygen := native.New()
-	defer keygen.Close()
-	priv, pub, err := keygen.GenerateKeyPair("")
+	// generate a new keypair. the public key will be signed via proxy if our password+HOTP  are legit
+	key, err := tc.MakeKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	var response *web.SSHLoginResponse
 	if tc.ConnectorID == "" {
-		response, err = tc.directLogin(pub)
+		response, err = tc.directLogin(key.Pub)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		response, err = tc.oidcLogin(tc.ConnectorID, pub)
+		response, err = tc.oidcLogin(tc.ConnectorID, key.Pub)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		// in this case identity is returned by the proxy
 		tc.Config.Login = response.Username
 	}
+	key.Cert = response.Cert
 
-	// parse the returned&signed key:
-	pcert, _, _, _, err := ssh.ParseAuthorizedKey(response.Cert)
+	// save the key:
+	if err = tc.SaveKey(key); err != nil {
+		return trace.Wrap(err)
+	}
+	// save the list of CAs we trust to the cache file
+	err = tc.localAgent.AddHostSignersToCache(response.HostSigners)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	pk, err := ssh.ParseRawPrivateKey(priv)
+	return nil
+}
+
+// SaveKey saves a given key in the local agent's keystore
+func (tc *TeleportClient) SaveKey(key *Key) error {
+	// parse the returned&signed key:
+	pcert, _, _, _, err := ssh.ParseAuthorizedKey(key.Cert)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	pk, err := ssh.ParseRawPrivateKey(key.Priv)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -753,22 +767,22 @@ func (tc *TeleportClient) Login() error {
 	if err := tc.localAgent.Add(addedKey); err != nil {
 		return trace.Wrap(err)
 	}
-	key := Key{
-		Priv:     priv,
-		Cert:     response.Cert,
+	return tc.localAgent.saveKey(key)
+}
+
+// MakeKey generates a new unsigned key. It's useless by itself until a
+// trusted CA signs it
+func (tc *TeleportClient) MakeKey() (key *Key, err error) {
+	key = &Key{
 		Deadline: time.Now().Add(tc.KeyTTL),
 	}
-	keyPath := filepath.Join(getKeysDir(), KeyFilePrefix+strconv.FormatInt(rand.Int63n(100), 16)+KeyFileSuffix)
-	err = saveKey(key, keyPath)
+	keygen := native.New()
+	defer keygen.Close()
+	key.Priv, key.Pub, err = keygen.GenerateKeyPair("")
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	// save the list of CAs we trust to the cache file
-	err = AddHostSignersToCache(response.HostSigners)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return key, nil
 }
 
 // directLogin asks for a password + HOTP token, makes a request to CA via proxy
