@@ -113,6 +113,10 @@ type Config struct {
 	// node, if not specified will be using CheckHostSignature function
 	// that uses local cache to validate hosts
 	HostKeyCallback HostKeyCallback
+
+	// ConnectorID is used to authenticate user via OpenID Connect
+	// registered connector
+	ConnectorID string
 }
 
 // ProxyHostPort returns a full host:port address of the proxy or an empty string if no
@@ -120,7 +124,13 @@ type Config struct {
 // returns SSH port (proxy servers listen on both)
 func (c *Config) ProxyHostPort(defaultPort int) string {
 	if c.ProxySpecified() {
-		port := fmt.Sprintf("%d", defaultPort)
+		host, port, err := net.SplitHostPort(c.ProxyHost)
+		if err == nil && len(port) > 0 {
+			// c.ProxyHost was already specified as "host:port"
+			return net.JoinHostPort(host, port)
+		}
+		// need to default to the given 'defaultPort'
+		port = fmt.Sprintf("%d", defaultPort)
 		return net.JoinHostPort(c.ProxyHost, port)
 	}
 	return ""
@@ -693,13 +703,10 @@ func (tc *TeleportClient) makeInteractiveAuthMethod() ssh.AuthMethod {
 	return ssh.PublicKeysCallback(callbackFunc)
 }
 
-// Login asks for a password + HOTP token, makes a request to CA via proxy and
+// Login logs user in using proxy's local 2FA auth access
+// or used OIDC external authentication, it later
 // saves the generated credentials into local keystore for future use
 func (tc *TeleportClient) Login() error {
-	password, hotpToken, err := tc.AskPasswordAndHOTP()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	// generate a new keypair. the public key will be signed via proxy if our password+HOTP
 	// are legit
@@ -710,12 +717,19 @@ func (tc *TeleportClient) Login() error {
 		return trace.Wrap(err)
 	}
 
-	// ask the CA (via proxy) to sign our public key:
-	response, err := web.SSHAgentLogin(tc.Config.ProxyHostPort(defaults.HTTPListenPort), tc.Config.Login,
-		password, hotpToken, pub, tc.KeyTTL, tc.InsecureSkipVerify, loopbackPool(tc.Config.ProxyHostPort(defaults.HTTPListenPort)))
-	if err != nil {
-
-		return trace.Wrap(err)
+	var response *web.SSHLoginResponse
+	if tc.ConnectorID == "" {
+		response, err = tc.directLogin(pub)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		response, err = tc.oidcLogin(tc.ConnectorID, pub)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// in this case identity is returned by the proxy
+		tc.Config.Login = response.Username
 	}
 
 	// parse the returned&signed key:
@@ -755,6 +769,30 @@ func (tc *TeleportClient) Login() error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// directLogin asks for a password + HOTP token, makes a request to CA via proxy
+func (tc *TeleportClient) directLogin(pub []byte) (*web.SSHLoginResponse, error) {
+	log.Infof("directLogin start")
+	password, hotpToken, err := tc.AskPasswordAndHOTP()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// ask the CA (via proxy) to sign our public key:
+	response, err := web.SSHAgentLogin(tc.Config.ProxyHostPort(defaults.HTTPListenPort), tc.Config.Login,
+		password, hotpToken, pub, tc.KeyTTL, tc.InsecureSkipVerify, loopbackPool(tc.Config.ProxyHostPort(defaults.HTTPListenPort)))
+
+	return response, trace.Wrap(err)
+}
+
+// oidcLogin opens browser window and uses OIDC redirect cycle with browser
+func (tc *TeleportClient) oidcLogin(connectorID string, pub []byte) (*web.SSHLoginResponse, error) {
+	log.Infof("oidcLogin start")
+	// ask the CA (via proxy) to sign our public key:
+	response, err := web.SSHAgentOIDCLogin(tc.Config.ProxyHostPort(defaults.HTTPListenPort),
+		connectorID, pub, tc.KeyTTL, tc.InsecureSkipVerify, loopbackPool(tc.Config.ProxyHostPort(defaults.HTTPListenPort)))
+	return response, trace.Wrap(err)
 }
 
 // loopbackPool reads trusted CAs if it finds it in a predefined location

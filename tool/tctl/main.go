@@ -257,7 +257,11 @@ func (u *UserCommand) Add(client *auth.TunClient) error {
 	if u.allowedLogins == "" {
 		u.allowedLogins = u.login
 	}
-	token, err := client.CreateSignupToken(u.login, strings.Split(u.allowedLogins, ","))
+	user := services.TeleportUser{
+		Name:          u.login,
+		AllowedLogins: strings.Split(u.allowedLogins, ","),
+	}
+	token, err := client.CreateSignupToken(&user)
 	if err != nil {
 		return err
 	}
@@ -287,7 +291,7 @@ func (u *UserCommand) List(client *auth.TunClient) error {
 			return t.String()
 		}
 		for _, u := range users {
-			fmt.Fprintf(t, "%v\t%v\n", u.Name, strings.Join(u.AllowedLogins, ","))
+			fmt.Fprintf(t, "%v\t%v\n", u.GetName(), strings.Join(u.GetAllowedLogins(), ","))
 		}
 		return t.String()
 	}

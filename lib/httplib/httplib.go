@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/gravitational/teleport"
 
@@ -36,10 +37,27 @@ import (
 // HandlerFunc specifies HTTP handler function that returns error
 type HandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error)
 
+// StdHandlerFunc specifies HTTP handler function that returns error
+type StdHandlerFunc func(w http.ResponseWriter, r *http.Request) (interface{}, error)
+
 // MakeHandler returns a new httprouter.Handle func from a handler func
 func MakeHandler(fn HandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		out, err := fn(w, r, p)
+		if err != nil {
+			ReplyError(w, err)
+			return
+		}
+		if out != nil {
+			roundtrip.ReplyJSON(w, http.StatusOK, out)
+		}
+	}
+}
+
+// MakeStdHandler returns a new http.Handle func from http.HandlerFunc
+func MakeStdHandler(fn StdHandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		out, err := fn(w, r)
 		if err != nil {
 			ReplyError(w, err)
 			return
@@ -141,4 +159,21 @@ func InsecureSetDevmodeHeaders(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Headers", "Accept, Origin, Content-type, Authorization")
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
 	w.Header().Set("Access-Control-Max-Age", "1728000")
+}
+
+// ParseBool will parse boolean variable from url query
+// returns value, ok, error
+func ParseBool(q url.Values, name string) (bool, bool, error) {
+	stringVal := q.Get(name)
+	if stringVal == "" {
+		return false, false, nil
+	}
+
+	val, err := strconv.ParseBool(stringVal)
+	if err != nil {
+		return false, false, trace.Wrap(
+			teleport.BadParameter(
+				name, fmt.Sprintf("expected 'true' or 'false', got %v", stringVal)))
+	}
+	return val, true, nil
 }

@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/sshutils"
 
 	log "github.com/Sirupsen/logrus"
@@ -54,7 +55,7 @@ func AddHostSignersToCache(hostSigners []services.CertAuthority) error {
 		return trace.Wrap(nil)
 	}
 	defer bk.Close()
-	ca := services.NewCAService(bk)
+	ca := local.NewCAService(bk)
 
 	for _, hostSigner := range hostSigners {
 		err := ca.UpsertCertAuthority(hostSigner, 0)
@@ -78,7 +79,7 @@ func CheckHostSignature(hostId string, remote net.Addr, key ssh.PublicKey) error
 		return trace.Wrap(nil)
 	}
 	defer bk.Close()
-	ca := services.NewCAService(bk)
+	ca := local.NewCAService(bk)
 
 	cas, err := ca.GetCertAuthorities(services.HostCA, false)
 	if err != nil {

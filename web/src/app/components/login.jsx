@@ -22,6 +22,7 @@ var {actions, getters} = require('app/modules/user');
 var GoogleAuthInfo = require('./googleAuthLogo');
 var cfg = require('app/config');
 var {TeleportLogo} = require('./icons.jsx');
+var {PROVIDER_GOOGLE} = require('app/services/auth');
 
 var LoginInputForm = React.createClass({
 
@@ -31,15 +32,23 @@ var LoginInputForm = React.createClass({
     return {
       user: '',
       password: '',
-      token: ''
+      token: '',
+      provider: null
     }
   },
 
-  onClick: function(e) {
+
+  onLogin(e){
     e.preventDefault();
     if (this.isValid()) {
       this.props.onClick(this.state);
     }
+  },
+
+  onLoginWithGoogle: function(e) {
+    e.preventDefault();
+    this.state.provider = PROVIDER_GOOGLE;
+    this.props.onClick(this.state);
   },
 
   isValid: function() {
@@ -49,6 +58,8 @@ var LoginInputForm = React.createClass({
 
   render() {
     let {isProcessing, isFailed, message } = this.props.attemp;
+    let providers = cfg.getAuthProviders();
+    let useGoogle = providers.indexOf(PROVIDER_GOOGLE) !== -1;
 
     return (
       <form ref="form" className="grv-login-input-form">
@@ -63,7 +74,8 @@ var LoginInputForm = React.createClass({
           <div className="form-group">
             <input autoComplete="off" valueLink={this.linkState('token')} className="form-control required" name="token" placeholder="Two factor token (Google Authenticator)"/>
           </div>
-          <button onClick={this.onClick} disabled={isProcessing} type="submit" className="btn btn-primary block full-width m-b">Login</button>
+          <button onClick={this.onLogin} disabled={isProcessing} type="submit" className="btn btn-primary block full-width m-b">Login</button>
+          { useGoogle ? <button onClick={this.onLoginWithGoogle} type="submit" className="btn btn-danger block full-width m-b">With Google</button> : null }
           { isFailed ? (<label className="error">{message}</label>) : null }
         </div>
       </form>
@@ -94,7 +106,7 @@ var Login = React.createClass({
 
   render() {
     return (
-      <div className="grv-login text-center">        
+      <div className="grv-login text-center">
         <TeleportLogo/>
         <div className="grv-content grv-flex">
           <div className="grv-flex-column">

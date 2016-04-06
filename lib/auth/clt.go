@@ -506,28 +506,26 @@ func (c *Client) GetWebSessionInfo(user string, sid string) (*Session, error) {
 	return sess, nil
 }
 
-// GetWebSessionsKeys returns the list of temporary keys generated for this
-// user web session. Each web session has a temporary user ssh key and
-// certificate generated, that is stored for the duration of this web
-// session. These keys are used to access SSH servers via web portal.
-func (c *Client) GetWebSessionsKeys(
-	user string) ([]services.AuthorizedKey, error) {
-
-	out, err := c.Get(c.Endpoint("users", user, "web", "sessions"), url.Values{})
-	if err != nil {
-		return nil, err
-	}
-	var keys []services.AuthorizedKey
-	if err := json.Unmarshal(out.Bytes(), &keys); err != nil {
-		return nil, err
-	}
-	return keys, nil
-}
-
 // DeleteWebSession deletes a web session for this user by id
 func (c *Client) DeleteWebSession(user string, sid string) error {
 	_, err := c.Delete(c.Endpoint("users", user, "web", "sessions", sid))
 	return trace.Wrap(err)
+}
+
+// GetUser returns a list of usernames registered in the system
+func (c *Client) GetUser(name string) (services.User, error) {
+	if name == "" {
+		return nil, trace.Wrap(teleport.BadParameter("name", fmt.Sprintf("missing username")))
+	}
+	out, err := c.Get(c.Endpoint("users", name), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user, err := services.GetUserUnmarshaler()(out.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return user, nil
 }
 
 // GetUsers returns a list of usernames registered in the system
@@ -536,9 +534,17 @@ func (c *Client) GetUsers() ([]services.User, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var users []services.User
-	if err := json.Unmarshal(out.Bytes(), &users); err != nil {
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	users := make([]services.User, len(items))
+	for i, userBytes := range items {
+		user, err := services.GetUserUnmarshaler()(userBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		users[i] = user
 	}
 	return users, nil
 }
@@ -612,16 +618,12 @@ func (c *Client) GenerateUserCert(
 
 // CreateSignupToken creates one time token for creating account for the user
 // For each token it creates username and hotp generator
-func (c *Client) CreateSignupToken(user string, allowedLogins []string) (string, error) {
-	if len(allowedLogins) == 0 {
-		// TODO(klizhentas) do validation on the serverside
-		return "", trace.Wrap(
-			teleport.BadParameter("allowedUsers",
-				"cannot create a new account without any allowed logins"))
+func (c *Client) CreateSignupToken(user services.User) (string, error) {
+	if err := user.Check(); err != nil {
+		return "", trace.Wrap(err)
 	}
 	out, err := c.PostJSON(c.Endpoint("signuptokens"), createSignupTokenReq{
-		User:          user,
-		AllowedLogins: allowedLogins,
+		User: user,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -665,6 +667,82 @@ func (c *Client) CreateUserWithToken(token, password, hotpToken string) (*Sessio
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil
+}
+
+func (c *Client) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error {
+	_, err := c.PostJSON(c.Endpoint("oidc", "connectors"), upsertOIDCConnectorReq{
+		Connector: connector,
+		TTL:       ttl,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (c *Client) GetOIDCConnector(id string, withSecrets bool) (*services.OIDCConnector, error) {
+	if id == "" {
+		return nil, trace.Wrap(teleport.BadParameter("id", "missing connector id"))
+	}
+	out, err := c.Get(c.Endpoint("oidc", "connectors", id),
+		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
+	if err != nil {
+		return nil, err
+	}
+	var conn *services.OIDCConnector
+	if err := json.Unmarshal(out.Bytes(), &conn); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conn, nil
+}
+
+func (c *Client) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error) {
+	out, err := c.Get(c.Endpoint("oidc", "connectors"),
+		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
+	if err != nil {
+		return nil, err
+	}
+	var connectors []services.OIDCConnector
+	if err := json.Unmarshal(out.Bytes(), &connectors); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return connectors, nil
+}
+
+func (c *Client) DeleteOIDCConnector(connectorID string) error {
+	if connectorID == "" {
+		return trace.Wrap(teleport.BadParameter("id", "missing connector id"))
+	}
+	_, err := c.Delete(c.Endpoint("oidc", "connectors", connectorID))
+	return trace.Wrap(err)
+}
+
+func (c *Client) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
+	out, err := c.PostJSON(c.Endpoint("oidc", "requests", "create"), createOIDCAuthRequestReq{
+		Req: req,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var response *services.OIDCAuthRequest
+	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
+func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
+	out, err := c.PostJSON(c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
+		Query: q,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var response *OIDCAuthResponse
+	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
 }
 
 type chunkRW struct {
@@ -711,6 +789,7 @@ func (c *chunkRW) Close() error {
 
 // TOODO(klizhentas) this should be just including appropriate service implementations
 type ClientI interface {
+	GetUser(name string) (services.User, error)
 	UpsertUser(user services.User) error
 	GetSessions() ([]session.Session, error)
 	GetSession(id session.ID) (*session.Session, error)
@@ -738,7 +817,6 @@ type ClientI interface {
 	SignIn(user string, password []byte) (*Session, error)
 	CreateWebSession(user string, prevSessionID string) (*Session, error)
 	GetWebSessionInfo(user string, sid string) (*Session, error)
-	GetWebSessionsKeys(user string) ([]services.AuthorizedKey, error)
 	DeleteWebSession(user string, sid string) error
 	GetUsers() ([]services.User, error)
 	DeleteUser(user string) error
@@ -747,4 +825,10 @@ type ClientI interface {
 	GenerateUserCert(key []byte, user string, ttl time.Duration) ([]byte, error)
 	GetSignupTokenData(token string) (user string, QRImg []byte, hotpFirstValues []string, e error)
 	CreateUserWithToken(token, password, hotpToken string) (*Session, error)
+	UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error
+	GetOIDCConnector(id string, withSecrets bool) (*services.OIDCConnector, error)
+	GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error)
+	DeleteOIDCConnector(connectorID string) error
+	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
+	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
 }

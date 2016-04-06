@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 let {formatPattern} = require('app/common/patternUtils');
+let $ = require('jQuery');
 
 let cfg = {
 
@@ -26,6 +27,10 @@ let cfg = {
 
   displayDateFormat: 'l LTS Z',
 
+  auth: {
+    oidc_connectors: []
+  },
+
   routes: {
     app: '/web',
     logout: '/web/logout',
@@ -34,10 +39,12 @@ let cfg = {
     activeSession: '/web/sessions/:sid',
     newUser: '/web/newuser/:inviteToken',
     sessions: '/web/sessions',
+    msgs: '/web/msg/:type(/:subType)',
     pageNotFound: '/web/notfound'
   },
 
   api: {
+    sso: '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:provider',
     renewTokenPath:'/v1/webapi/sessions/renew',
     nodesPath: '/v1/webapi/sites/-current-/nodes',
     sessionPath: '/v1/webapi/sessions',
@@ -48,37 +55,41 @@ let cfg = {
     sessionChunkCountPath: '/v1/webapi/sites/-current-/sessions/:sid/chunkscount',
     siteEventSessionFilterPath: `/v1/webapi/sites/-current-/events/sessions?filter=:filter`,
 
-    getFetchSessionChunkUrl: ({sid, start, end})=>{
+    getSsoUrl(redirect, provider){
+      return cfg.baseUrl + formatPattern(cfg.api.sso, {redirect, provider});
+    },
+
+    getFetchSessionChunkUrl({sid, start, end}){
       return formatPattern(cfg.api.sessionChunk, {sid, start, end});
     },
 
-    getFetchSessionLengthUrl: (sid)=>{
+    getFetchSessionLengthUrl(sid){
       return formatPattern(cfg.api.sessionChunkCountPath, {sid});
     },
 
-    getFetchSessionsUrl: (args)=>{
+    getFetchSessionsUrl(args){
       var filter = JSON.stringify(args);
       return formatPattern(cfg.api.siteEventSessionFilterPath, {filter});
     },
 
-    getFetchSessionUrl: (sid)=>{
+    getFetchSessionUrl(sid){
       return formatPattern(cfg.api.siteSessionPath+'/:sid', {sid});
     },
 
-    getTerminalSessionUrl: (sid)=> {
+    getTerminalSessionUrl(sid){
       return formatPattern(cfg.api.siteSessionPath+'/:sid', {sid});
     },
 
-    getInviteUrl: (inviteToken) => {
+    getInviteUrl(inviteToken){
       return formatPattern(cfg.api.invitePath, {inviteToken});
     },
 
-    getEventStreamConnStr: (token, sid) => {
+    getEventStreamConnStr(token, sid){
       var hostname = getWsHostName();
       return `${hostname}/v1/webapi/sites/-current-/sessions/${sid}/events/stream?access_token=${token}`;
     },
 
-    getTtyConnStr: ({token, serverId, login, sid, rows, cols}) => {
+    getTtyConnStr({token, serverId, login, sid, rows, cols}){
       var params = {
         server_id: serverId,
         login,
@@ -96,8 +107,20 @@ let cfg = {
     }
   },
 
+  getFullUrl(url){
+    return cfg.baseUrl + url;
+  },
+
   getActiveSessionRouteUrl(sid){
     return formatPattern(cfg.routes.activeSession, {sid});
+  },
+
+  getAuthProviders(){
+    return cfg.auth.oidc_connectors;
+  },
+
+  init(config={}){
+    $.extend(true, this, config);
   }
 }
 

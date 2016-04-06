@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -93,7 +94,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 
 	// set up host private key and certificate
 	c.Assert(s.a.UpsertCertAuthority(
-		*services.NewTestCA(services.HostCA, "localhost"), backend.Forever), IsNil)
+		*suite.NewTestCA(services.HostCA, "localhost"), backend.Forever), IsNil)
 
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -161,7 +162,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 
 func (s *TunSuite) TestSessions(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
-		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		*suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	user := "ws-test"
 	pass := []byte("ws-abc123")
@@ -208,7 +209,7 @@ func (s *TunSuite) TestSessions(c *C) {
 
 func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
-		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		*suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	user := "user456"
 	user2 := "zxzx"
@@ -217,13 +218,13 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	mappings := []string{"admin", "db"}
 
 	// Generate token
-	token, err := s.a.CreateSignupToken(user, mappings)
+	token, err := s.a.CreateSignupToken(&services.TeleportUser{Name: user, AllowedLogins: mappings})
 	c.Assert(err, IsNil)
 	// Generate token2
-	token2, err := s.a.CreateSignupToken(user2, mappings)
+	token2, err := s.a.CreateSignupToken(&services.TeleportUser{Name: user2, AllowedLogins: mappings})
 	c.Assert(err, IsNil)
 	// Generate token3
-	token3, err := s.a.CreateSignupToken(user3, mappings)
+	token3, err := s.a.CreateSignupToken(&services.TeleportUser{Name: user3, AllowedLogins: mappings})
 	c.Assert(err, IsNil)
 
 	// Connect to auth server using wrong token
@@ -247,7 +248,7 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 
 	// User will scan QRcode, here we just loads the OTP generator
 	// right from the backend
-	tokenData, err := s.a.WebService.GetSignupToken(token)
+	tokenData, err := s.a.Identity.GetSignupToken(token)
 	c.Assert(err, IsNil)
 	otp, err := hotp.Unmarshal(tokenData.Hotp)
 	c.Assert(err, IsNil)
@@ -257,7 +258,7 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 		hotpTokens[i] = otp.OTP()
 	}
 
-	tokenData3, err := s.a.WebService.GetSignupToken(token3)
+	tokenData3, err := s.a.Identity.GetSignupToken(token3)
 	c.Assert(err, IsNil)
 	otp3, err := hotp.Unmarshal(tokenData3.Hotp)
 	c.Assert(err, IsNil)
@@ -292,7 +293,7 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	_, err = clt2.CreateUserWithToken(token, "another_user_signup_attempt", hotpTokens[0])
 	c.Assert(err, NotNil)
 
-	_, err = s.a.WebService.GetSignupToken(token)
+	_, err = s.a.Identity.GetSignupToken(token)
 	c.Assert(err, NotNil) // token was deleted
 
 	// token out of scan range
@@ -325,7 +326,7 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 
 func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
-		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		*suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	user := "ws-test2"
 	pass := []byte("ws-abc1234")
@@ -388,7 +389,7 @@ func (s *TunSuite) TestPermissions(c *C) {
 
 func (s *TunSuite) TestSessionsBadPassword(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
-		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		*suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	user := "system-test"
 	pass := []byte("system-abc123")

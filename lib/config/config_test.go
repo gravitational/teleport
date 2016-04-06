@@ -194,7 +194,7 @@ func (s *ConfigTestSuite) TestLabelParsing(c *check.C) {
 }
 
 func (s *ConfigTestSuite) TestLocateWebAssets(c *check.C) {
-	path, err := locateWebAssets()
+	path, err := LocateWebAssets()
 	c.Assert(path, check.Equals, DirsToLookForWebAssets[0])
 	c.Assert(err, check.IsNil)
 
@@ -203,7 +203,7 @@ func (s *ConfigTestSuite) TestLocateWebAssets(c *check.C) {
 		DirsToLookForWebAssets = origDirs
 	}()
 	DirsToLookForWebAssets = []string{"/bad/dir"}
-	path, err = locateWebAssets()
+	path, err = LocateWebAssets()
 	c.Assert(path, check.Equals, "")
 	c.Assert(err, check.NotNil)
 }

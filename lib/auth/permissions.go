@@ -67,6 +67,7 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetAuthServers:     true,
 		ActionGetCertAuthorities: true,
 		ActionGetUsers:           true,
+		ActionGetUser:            true,
 		ActionGetLocalDomain:     true,
 		ActionGetUserKeys:        true,
 		ActionUpsertParty:        true,
@@ -78,23 +79,28 @@ func NewStandardPermissions() PermissionChecker {
 	}
 
 	sp.permissions[teleport.RoleProxy] = map[string]bool{
-		ActionGetChunkReader:     true,
-		ActionGetReverseTunnels:  true,
-		ActionGetServers:         true,
-		ActionGetEvents:          true,
-		ActionUpsertProxy:        true,
-		ActionGetProxies:         true,
-		ActionGetAuthServers:     true,
-		ActionGetCertAuthorities: true,
-		ActionGetUsers:           true,
-		ActionGetLocalDomain:     true,
-		ActionGetUserKeys:        true,
-		ActionLogEntry:           true,
-		ActionGetSession:         true,
-		ActionGetSessions:        true,
+		ActionGetUser:                         true,
+		ActionGetOIDCConnectorsWithoutSecrets: true,
+		ActionGetChunkReader:                  true,
+		ActionGetReverseTunnels:               true,
+		ActionGetServers:                      true,
+		ActionGetEvents:                       true,
+		ActionUpsertProxy:                     true,
+		ActionGetProxies:                      true,
+		ActionGetAuthServers:                  true,
+		ActionGetCertAuthorities:              true,
+		ActionGetUsers:                        true,
+		ActionGetLocalDomain:                  true,
+		ActionGetUserKeys:                     true,
+		ActionLogEntry:                        true,
+		ActionGetSession:                      true,
+		ActionGetSessions:                     true,
+		ActionCreateOIDCAuthRequest:           true,
+		ActionValidateOIDCAuthCallback:        true,
 	}
 
 	sp.permissions[teleport.RoleWeb] = map[string]bool{
+		ActionGetUser:          true,
 		ActionGetAuthServers:   true,
 		ActionUpsertSession:    true,
 		ActionCreateWebSession: true,
@@ -193,9 +199,9 @@ const (
 	ActionSignIn                            = "SignIn"
 	ActionCreateWebSession                  = "CreateWebSession"
 	ActionGetWebSession                     = "GetWebSession"
-	ActionGetWebSessionsKeys                = "GetWebSessionsKeys"
 	ActionDeleteWebSession                  = "DeleteWebSession"
 	ActionGetUsers                          = "GetUsers"
+	ActionGetUser                           = "GetUser"
 	ActionDeleteUser                        = "DeleteUser"
 	ActionUpsertUserKey                     = "UpsertUserKey"
 	ActionGetUserKeys                       = "GetUserKeys"
@@ -214,4 +220,12 @@ const (
 	ActionGetSignupTokenData                = "GetSignupTokenData"
 	ActionCreateUserWithToken               = "CreateUserWithToken"
 	ActionUpsertUser                        = "UpsertUser"
+	ActionUpsertOIDCConnector               = "UpsertOIDCConnector"
+	ActionDeleteOIDCConnector               = "DeleteOIDCConnector"
+	ActionGetOIDCConnectorWithSecrets       = "GetOIDCConnectorWithSecrets"
+	ActionGetOIDCConnectorWithoutSecrets    = "GetOIDCConnectorWithoutSecrets"
+	ActionGetOIDCConnectorsWithSecrets      = "GetOIDCConnectorsWithSecrets"
+	ActionGetOIDCConnectorsWithoutSecrets   = "GetOIDCConnectorsWithoutSecrets"
+	ActionCreateOIDCAuthRequest             = "CreateOIDCAuthRequest"
+	ActionValidateOIDCAuthCallback          = "ValidateOIDCAuthCallback"
 )

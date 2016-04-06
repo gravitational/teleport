@@ -17,66 +17,24 @@ limitations under the License.
 package services
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/trace"
 )
 
-// ProvisioningService governs adding new nodes to the cluster
-type ProvisioningService struct {
-	backend backend.Backend
-}
+// Provisioner governs adding new nodes to the cluster
+type Provisioner interface {
+	// UpsertToken adds provisioning tokens for the auth server
+	UpsertToken(token, role string, ttl time.Duration) error
 
-// NewProvisioningService returns a new instance of provisioning service
-func NewProvisioningService(backend backend.Backend) *ProvisioningService {
-	return &ProvisioningService{backend}
-}
+	// GetToken finds and returns token by id
+	GetToken(token string) (*ProvisionToken, error)
 
-// UpsertToken adds provisioning tokens for the auth server
-func (s *ProvisioningService) UpsertToken(token, role string, ttl time.Duration) error {
-	if ttl < time.Second || ttl > defaults.MaxProvisioningTokenTTL {
-		ttl = defaults.MaxProvisioningTokenTTL
-	}
-
-	t := ProvisionToken{
-		Role: role,
-	}
-	out, err := json.Marshal(t)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = s.backend.UpsertVal([]string{"tokens"}, token, out, ttl)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// GetToken finds and returns token by id
-func (s *ProvisioningService) GetToken(token string) (*ProvisionToken, error) {
-	out, ttl, err := s.backend.GetValAndTTL([]string{"tokens"}, token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var t *ProvisionToken
-	err = json.Unmarshal(out, &t)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	t.TTL = ttl
-	return t, nil
-}
-
-func (s *ProvisioningService) DeleteToken(token string) error {
-	err := s.backend.DeleteKey([]string{"tokens"}, token)
-	return err
+	// DeleteToken deletes provisioning token
+	DeleteToken(token string) error
 }
 
 func JoinTokenRole(token, role string) (ouputToken string, e error) {
@@ -109,7 +67,8 @@ type ProvisionToken struct {
 }
 
 const (
-	// TokenRoleAuth specifies
+	// TokenRoleAuth authenticates this token to provision Auth server
 	TokenRoleAuth = "Auth"
+	// TokenRoleNode authenticates this token to provision Node
 	TokenRoleNode = "Node"
 )

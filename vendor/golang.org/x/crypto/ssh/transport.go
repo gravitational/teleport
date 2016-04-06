@@ -114,12 +114,27 @@ func (s *connectionState) readPacket(r *bufio.Reader) ([]byte, error) {
 		err = errors.New("ssh: zero length packet")
 	}
 
-	if len(packet) > 0 && packet[0] == msgNewKeys {
-		select {
-		case cipher := <-s.pendingKeyChange:
+	if len(packet) > 0 {
+		switch packet[0] {
+		case msgNewKeys:
+			select {
+			case cipher := <-s.pendingKeyChange:
 			s.packetCipher = cipher
-		default:
-			return nil, errors.New("ssh: got bogus newkeys message.")
+			default:
+				return nil, errors.New("ssh: got bogus newkeys message.")
+			}
+
+		case msgDisconnect:
+			// Transform a disconnect message into an
+			// error. Since this is lowest level at which
+			// we interpret message types, doing it here
+			// ensures that we don't have to handle it
+			// elsewhere.
+			var msg disconnectMsg
+			if err := Unmarshal(packet, &msg); err != nil {
+				return nil, err
+			}
+			return nil, &msg
 		}
 	}
 

@@ -47,7 +47,7 @@ type disconnectMsg struct {
 }
 
 func (d *disconnectMsg) Error() string {
-	return fmt.Sprintf("ssh: disconnect reason %d: %s", d.Reason, d.Message)
+	return fmt.Sprintf("ssh: disconnect, reason %d: %s", d.Reason, d.Message)
 }
 
 // See RFC 4253, section 7.1.

@@ -19,9 +19,13 @@ limitations under the License.
 package web
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html/template"
+	"io/ioutil"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -43,16 +47,17 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"github.com/mailgun/lemma/secret"
 	"github.com/mailgun/ttlmap"
 )
 
 // Handler is HTTP web proxy handler
 type Handler struct {
-	httprouter.Router
-	cfg   Config
-	auth  *sessionCache
-	sites *ttlmap.TtlMap
 	sync.Mutex
+	httprouter.Router
+	cfg                     Config
+	auth                    *sessionCache
+	sites                   *ttlmap.TtlMap
 	sessionStreamPollPeriod time.Duration
 }
 
@@ -85,6 +90,8 @@ type Config struct {
 	AuthServers utils.NetAddr
 	// DomainName is a domain name served by web handler
 	DomainName string
+	// ProxyClient is a client that authenticated as proxy
+	ProxyClient auth.ClientI
 }
 
 // Version is a current webapi version
@@ -153,19 +160,205 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	// get session chunks count
 	h.GET("/webapi/sites/:site/sessions/:sid/chunkscount", h.withSiteAuth(h.siteSessionGetChunksCount))
 
+	// OIDC related callback handlers
+	h.GET("/webapi/oidc/login/web", httplib.MakeHandler(h.oidcLoginWeb))
+	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(h.oidcLoginConsole))
+	h.GET("/webapi/oidc/callback", httplib.MakeHandler(h.oidcCallback))
+
+	indexPath := filepath.Join(cfg.AssetsDir, "/index.html")
+	indexContent, err := ioutil.ReadFile(indexPath)
+	if err != nil {
+		return nil, trace.Wrap(teleport.ConvertSystemError(err))
+	}
+	indexPage, err := template.New("index").Parse(string(indexContent))
+	if err != nil {
+		return nil, trace.Wrap(teleport.BadParameter("index", fmt.Sprintf("failed parsing template %v: %v", indexPath, err)))
+	}
+
+	writeSettings := httplib.MakeStdHandler(h.getSettings)
+
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			http.Redirect(w, r, "/web", http.StatusFound)
 		} else if strings.HasPrefix(r.URL.Path, "/web/app") {
 			http.StripPrefix("/web", http.FileServer(http.Dir(cfg.AssetsDir))).ServeHTTP(w, r)
+		} else if strings.HasPrefix(r.URL.Path, "/web/config.js") {
+			writeSettings.ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web") {
-			http.ServeFile(w, r, filepath.Join(cfg.AssetsDir, "/index.html"))
+			ctx, err := h.authenticateRequest(w, r, false)
+			session := struct {
+				Session string
+			}{Session: base64.StdEncoding.EncodeToString([]byte("{}"))}
+			if err == nil {
+				re, err := newSessionResponse(ctx)
+				if err == nil {
+					out, err := json.Marshal(re)
+					if err == nil {
+						session.Session = base64.StdEncoding.EncodeToString(out)
+					}
+				}
+			}
+			indexPage.Execute(w, session)
 		} else if strings.HasPrefix(r.URL.Path, "/"+Version) {
 			http.StripPrefix("/"+Version, h).ServeHTTP(w, r)
 		}
 	})
 
 	return routingHandler, nil
+}
+
+type webSettings struct {
+	Auth struct {
+		OIDCConnectors []string `json:"oidc_connectors"`
+	} `json:"auth"`
+}
+
+func (m *Handler) getSettings(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	settings := &webSettings{}
+	connectors, err := m.cfg.ProxyClient.GetOIDCConnectors(false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, connector := range connectors {
+		settings.Auth.OIDCConnectors = append(settings.Auth.OIDCConnectors, connector.ID)
+	}
+	out, err := json.Marshal(settings)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	fmt.Fprintf(w, "var GRV_CONFIG = %v;", string(out))
+	return nil, nil
+}
+
+func (m *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	log.Infof("oidcLoginWeb start")
+	query := r.URL.Query()
+	clientRedirectURL := query.Get("redirect_url")
+	if clientRedirectURL == "" {
+		return nil, trace.Wrap(teleport.BadParameter("redirect_url", "missing redirect_url query parameter"))
+	}
+	connectorID := query.Get("connector_id")
+	if connectorID == "" {
+		return nil, trace.Wrap(teleport.BadParameter("connector_id", "missing connector_id query parameter"))
+	}
+	response, err := m.cfg.ProxyClient.CreateOIDCAuthRequest(
+		services.OIDCAuthRequest{
+			ConnectorID:       connectorID,
+			CreateWebSession:  true,
+			ClientRedirectURL: clientRedirectURL,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Infof("got auth response: %#v", response)
+	http.Redirect(w, r, response.RedirectURL, http.StatusFound)
+	return nil, nil
+}
+
+type oidcLoginConsoleReq struct {
+	RedirectURL string        `json:"redirect_url"`
+	PublicKey   []byte        `json:"public_key"`
+	CertTTL     time.Duration `json:"cert_ttl"`
+	ConnectorID string        `json:"connector_id"`
+}
+
+type oidcLoginConsoleResponse struct {
+	RedirectURL string `json:"redirect_url"`
+}
+
+func (m *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	log.Infof("oidcLoginConsole start")
+	var req *oidcLoginConsoleReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if req.RedirectURL == "" {
+		return nil, trace.Wrap(
+			teleport.BadParameter("RedirectURL", "missing RedirectURL"))
+	}
+	if len(req.PublicKey) == 0 {
+		return nil, trace.Wrap(
+			teleport.BadParameter("PublicKey", "missing PublicKey"))
+	}
+	if req.ConnectorID == "" {
+		return nil, trace.Wrap(
+			teleport.BadParameter("ConnectorID", "missing ConnectorID"))
+	}
+	response, err := m.cfg.ProxyClient.CreateOIDCAuthRequest(
+		services.OIDCAuthRequest{
+			ConnectorID:       req.ConnectorID,
+			ClientRedirectURL: req.RedirectURL,
+			PublicKey:         req.PublicKey,
+			CertTTL:           req.CertTTL,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Infof("got auth response: %#v", response)
+	return &oidcLoginConsoleResponse{RedirectURL: response.RedirectURL}, nil
+}
+
+func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	log.Infof("oidcLogin validate: %#v", r.URL.Query())
+	response, err := m.cfg.ProxyClient.ValidateOIDCAuthCallback(r.URL.Query())
+	if err != nil {
+		log.Infof("VALIDATE error: %v", err)
+		return nil, trace.Wrap(err)
+	}
+	log.Infof("oidcCallback got response: %v", response)
+	// if we created web session, set session cookie and redirect to original url
+	if response.Req.CreateWebSession {
+		log.Infof("oidcCallback redirecting to web browser")
+		if err := SetSession(w, response.Username, response.Session.ID); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		http.Redirect(w, r, response.Req.ClientRedirectURL, http.StatusFound)
+		return nil, nil
+	}
+	log.Infof("oidcCallback redirecting to console login")
+	if len(response.Req.PublicKey) == 0 {
+		return nil, trace.Wrap(teleport.BadParameter("req", "not a web or console oidc login request"))
+	}
+	u, err := url.Parse(response.Req.ClientRedirectURL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	consoleResponse := SSHLoginResponse{
+		Username:    response.Username,
+		Cert:        response.Cert,
+		HostSigners: response.HostSigners,
+	}
+	out, err := json.Marshal(consoleResponse)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	values := u.Query()
+	secretKey := values.Get("secret")
+	if secretKey == "" {
+		return nil, trace.Wrap(teleport.BadParameter("secret", "missing secret"))
+	}
+	values.Set("secret", "") // remove secret so others can't see it
+	secretKeyBytes, err := secret.EncodedStringToKey(secretKey)
+	if err != nil {
+		return nil, trace.Wrap(teleport.BadParameter("secret", "bad secret"))
+	}
+	encryptor, err := secret.New(&secret.Config{KeyBytes: secretKeyBytes})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sealedBytes, err := encryptor.Seal(out)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sealedBytesData, err := json.Marshal(sealedBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	values.Set("response", string(sealedBytesData))
+	u.RawQuery = values.Encode()
+	log.Infof("redirecting to %v", u.String())
+	http.Redirect(w, r, u.String(), http.StatusFound)
+	return nil, nil
 }
 
 // createSessionReq is a request to create session from username, password and second
@@ -189,13 +382,41 @@ type createSessionResponse struct {
 	ExpiresIn int `json:"expires_in"`
 }
 
-func newSessionResponse(sess *auth.Session) *createSessionResponse {
+type createSessionResponseRaw struct {
+	// Type is token type (bearer)
+	Type string `json:"type"`
+	// Token value
+	Token string `json:"token"`
+	// User represents the user
+	User json.RawMessage `json:"user"`
+	// ExpiresIn sets seconds before this token is not valid
+	ExpiresIn int `json:"expires_in"`
+}
+
+func (r createSessionResponseRaw) response() (*createSessionResponse, error) {
+	user, err := services.GetUserUnmarshaler()(r.User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &createSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn, User: user}, nil
+}
+
+func newSessionResponse(ctx *sessionContext) (*createSessionResponse, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	webSession := ctx.GetWebSession()
+	user, err := clt.GetUser(webSession.Username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &createSessionResponse{
 		Type:      roundtrip.AuthBearer,
-		Token:     sess.WS.BearerToken,
-		User:      sess.User,
-		ExpiresIn: int(time.Now().Sub(sess.WS.Expires) / time.Second),
-	}
+		Token:     webSession.WS.BearerToken,
+		User:      user,
+		ExpiresIn: int(time.Now().Sub(webSession.WS.Expires) / time.Second),
+	}, nil
 }
 
 // createSession creates a new web session based on user, pass and 2nd factor token
@@ -221,7 +442,11 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 	if err := SetSession(w, req.User, sess.ID); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newSessionResponse(sess), nil
+	ctx, err := m.auth.ValidateSession(req.User, sess.ID)
+	if err != nil {
+		return nil, trace.Wrap(teleport.AccessDenied("need auth"))
+	}
+	return newSessionResponse(ctx)
 }
 
 // logout is a helper that deletes
@@ -278,15 +503,15 @@ func (m *Handler) renewSession(w http.ResponseWriter, r *http.Request, _ httprou
 	}
 	// transfer ownership over connections that were opened in the
 	// sessionContext
-	newContext, err := ctx.parent.ValidateSession(newSess.User.Name, newSess.ID)
+	newContext, err := ctx.parent.ValidateSession(newSess.Username, newSess.ID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	newContext.AddClosers(ctx.TransferClosers()...)
-	if err := SetSession(w, newSess.User.Name, newSess.ID); err != nil {
+	if err := SetSession(w, newSess.Username, newSess.ID); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newSessionResponse(newSess), nil
+	return newSessionResponse(newContext)
 }
 
 type renderUserInviteResponse struct {
@@ -339,15 +564,18 @@ func (m *Handler) createNewUser(w http.ResponseWriter, r *http.Request, p httpro
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	sess, err := m.auth.CreateNewUser(req.InviteToken, req.Pass, req.SecondFactorToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := SetSession(w, sess.User.Name, sess.ID); err != nil {
+	ctx, err := m.auth.ValidateSession(sess.Username, sess.ID)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newSessionResponse(sess), nil
+	if err := SetSession(w, sess.Username, sess.ID); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newSessionResponse(ctx)
 }
 
 type getSitesResponse struct {
@@ -827,6 +1055,8 @@ type createSSHCertReq struct {
 
 // SSHLoginResponse is a response returned by web proxy
 type SSHLoginResponse struct {
+	// User contains a logged in user informationn
+	Username string `json:"username"`
 	// Cert is a signed certificate
 	Cert []byte `json:"cert"`
 	// HostSigners is a list of signing host public keys
@@ -876,7 +1106,7 @@ type siteHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Param
 // withSiteAuth ensures that request is authenticated and is issued for existing site
 func (h *Handler) withSiteAuth(fn siteHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		ctx, err := h.authenticateRequest(r)
+		ctx, err := h.authenticateRequest(w, r, true)
 		if err != nil {
 			// clear session just in case if the authentication request is not valid
 			ClearSession(w)
@@ -901,7 +1131,7 @@ func (h *Handler) withSiteAuth(fn siteHandler) httprouter.Handle {
 // withAuth ensures that request is authenticated
 func (h *Handler) withAuth(fn contextHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		ctx, err := h.authenticateRequest(r)
+		ctx, err := h.authenticateRequest(w, r, true)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -911,7 +1141,7 @@ func (h *Handler) withAuth(fn contextHandler) httprouter.Handle {
 
 // authenticateRequest authenticates request using combination of a session cookie
 // and bearer token
-func (h *Handler) authenticateRequest(r *http.Request) (*sessionContext, error) {
+func (h *Handler) authenticateRequest(w http.ResponseWriter, r *http.Request, checkBearerToken bool) (*sessionContext, error) {
 	logger := log.WithFields(log.Fields{
 		"request": fmt.Sprintf("%v %v", r.Method, r.URL.Path),
 	})
@@ -925,19 +1155,22 @@ func (h *Handler) authenticateRequest(r *http.Request) (*sessionContext, error) 
 		logger.Warningf("failed to decode cookie: %v", err)
 		return nil, trace.Wrap(teleport.AccessDenied("failed to decode cookie"))
 	}
-	creds, err := roundtrip.ParseAuthHeaders(r)
-	if err != nil {
-		logger.Warningf("no auth headers %v", err)
-		return nil, trace.Wrap(teleport.AccessDenied("need auth"))
-	}
 	ctx, err := h.auth.ValidateSession(d.User, d.SID)
 	if err != nil {
 		logger.Warningf("invalid session: %v", err)
+		ClearSession(w)
 		return nil, trace.Wrap(teleport.AccessDenied("need auth"))
 	}
-	if creds.Password != ctx.GetWebSession().WS.BearerToken {
-		logger.Warningf("bad bearer token")
-		return nil, trace.Wrap(teleport.AccessDenied("bad bearer token"))
+	if checkBearerToken {
+		creds, err := roundtrip.ParseAuthHeaders(r)
+		if err != nil {
+			logger.Warningf("no auth headers %v", err)
+			return nil, trace.Wrap(teleport.AccessDenied("need auth"))
+		}
+		if creds.Password != ctx.GetWebSession().WS.BearerToken {
+			logger.Warningf("bad bearer token")
+			return nil, trace.Wrap(teleport.AccessDenied("bad bearer token"))
+		}
 	}
 	return ctx, nil
 }

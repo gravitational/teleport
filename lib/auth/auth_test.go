@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gokyle/hotp"
@@ -60,7 +61,7 @@ func (s *AuthSuite) SetUpTest(c *C) {
 // TODO(klizhentas) introduce more thorough tests, test more edge cases
 func (s *AuthSuite) TestSessions(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
-		*services.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		*suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	user := "user1"
 	pass := []byte("abc123")

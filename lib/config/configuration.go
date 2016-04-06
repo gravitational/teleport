@@ -224,6 +224,15 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.ReverseTunnels = append(cfg.ReverseTunnels, *tun)
 	}
 
+	// add oidc connectors supplied from configs
+	for _, c := range fc.Auth.OIDCConnectors {
+		conn, err := c.Parse()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.OIDCConnectors = append(cfg.OIDCConnectors, *conn)
+	}
+
 	// apply "proxy_service" section
 	if fc.Proxy.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, int(defaults.SSHProxyListenPort))
@@ -387,7 +396,7 @@ func Configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 
 	// locate web assets if web proxy is enabled
 	if cfg.Proxy.Enabled {
-		cfg.Proxy.AssetsDir, err = locateWebAssets()
+		cfg.Proxy.AssetsDir, err = LocateWebAssets()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -533,9 +542,9 @@ var DirsToLookForWebAssets = []string{
 	"/opt/teleport",
 }
 
-// locates the web assets required for the Proxy to start. Retursn the full path
+// LocateWebAssets locates the web assets required for the Proxy to start. Retursn the full path
 // to web assets directory
-func locateWebAssets() (string, error) {
+func LocateWebAssets() (string, error) {
 	const errorMessage = "Cannot determine location of web assets."
 	assetsToCheck := []string{
 		"index.html",

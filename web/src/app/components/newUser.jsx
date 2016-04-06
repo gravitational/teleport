@@ -20,7 +20,7 @@ var reactor = require('app/reactor');
 var {actions, getters} = require('app/modules/user');
 var LinkedStateMixin = require('react-addons-linked-state-mixin');
 var GoogleAuthInfo = require('./googleAuthLogo');
-var {ExpiredInvite} = require('./errorPage');
+var {ErrorPage, ErrorTypes} = require('./msgPage');
 var {TeleportLogo} = require('./icons.jsx');
 
 var InviteInputForm = React.createClass({
@@ -142,7 +142,7 @@ var Invite = React.createClass({
     let {fetchingInvite, invite, attemp} = this.state;
 
     if(fetchingInvite.isFailed){
-      return <ExpiredInvite/>
+      return <ErrorPage type={ErrorTypes.EXPIRED_INVITE}/>
     }
 
     if(!invite) {

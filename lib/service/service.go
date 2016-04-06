@@ -265,7 +265,7 @@ func (process *TeleportProcess) getLocalAuth() *auth.AuthServer {
 // initAuthService can be called to initialize auth server service
 func (process *TeleportProcess) initAuthService() error {
 	var (
-		askedToExit bool = false
+		askedToExit = false
 		err         error
 	)
 	cfg := process.Config
@@ -294,6 +294,12 @@ func (process *TeleportProcess) initAuthService() error {
 		HostUUID:        cfg.HostUUID,
 		Authorities:     cfg.Auth.Authorities,
 		ReverseTunnels:  cfg.ReverseTunnels,
+		OIDCConnectors:  cfg.OIDCConnectors,
+		Trust:           cfg.Trust,
+		Lock:            cfg.Lock,
+		Presence:        cfg.Presence,
+		Provisioner:     cfg.Provisioner,
+		Identity:        cfg.Identity,
 	}
 	authServer, identity, err := auth.Init(acfg)
 	if err != nil {
@@ -635,7 +641,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Proxy:       tsrv,
 				AssetsDir:   cfg.Proxy.AssetsDir,
 				AuthServers: cfg.AuthServers[0],
-				DomainName:  cfg.Hostname})
+				DomainName:  cfg.Hostname,
+				ProxyClient: conn.Client,
+			})
 		if err != nil {
 			utils.Consolef(cfg.Console, "[PROXY] starting the web server: %v", err)
 			return trace.Wrap(err)

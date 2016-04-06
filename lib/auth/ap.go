@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package auth
 
 import (
@@ -47,10 +48,6 @@ type AccessPoint interface {
 
 	// GetCertAuthorities returns a list of cert authorities
 	GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error)
-
-	// GetWebSessionsKeys returns a list of generated public keys
-	// associated with user web session
-	GetWebSessionsKeys(user string) ([]services.AuthorizedKey, error)
 
 	// GetUsers returns a list of local users registered with this domain
 	GetUsers() ([]services.User, error)

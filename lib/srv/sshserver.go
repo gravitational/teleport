@@ -399,8 +399,8 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 			return trace.Wrap(err)
 		}
 		for _, u := range users {
-			if u.Name == teleportUser {
-				for _, login := range u.AllowedLogins {
+			if u.GetName() == teleportUser {
+				for _, login := range u.GetAllowedLogins() {
 					if login == osUser {
 						return nil
 					}

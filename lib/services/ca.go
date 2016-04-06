@@ -14,23 +14,44 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package services implements statefule services provided by teleport,
-// like certificate authority management, user and web sessions,
-// events and logs
 package services
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/backend"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
+
+// Trust is responsible for managing certificate authorities
+// Each authority is managing some domain, e.g. example.com
+//
+// There are two type of authorities, local and remote.
+// Local authorities have both private and public keys, so they can
+// sign public keys of users and hosts
+//
+// Remote authorities have only public keys available, so they can
+// be only used to validate
+type Trust interface {
+
+	// UpsertCertAuthority updates or inserts a new certificate authority
+	UpsertCertAuthority(ca CertAuthority, ttl time.Duration) error
+
+	// DeleteCertAuthority deletes particular certificate authority
+	DeleteCertAuthority(id CertAuthID) error
+
+	// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
+	// controls if signing keys are loaded
+	GetCertAuthority(id CertAuthID, loadSigningKeys bool) (*CertAuthority, error)
+
+	// GetCertAuthorities returns a list of authorities of a given type
+	// loadSigningKeys controls whether signing keys should be loaded or not
+	GetCertAuthorities(caType CertAuthType, loadSigningKeys bool) ([]*CertAuthority, error)
+}
 
 const (
 	// HostCA identifies the key as a host certificate authority
@@ -75,99 +96,6 @@ func (c *CertAuthID) Check() error {
 		})
 	}
 	return nil
-}
-
-// CAService is responsible for managing certificate authorities
-// Each authority is managing some domain, e.g. example.com
-//
-// There are two type of authorities, local and remote.
-// Local authorities have both private and public keys, so they can
-// sign public keys of users and hosts
-//
-// Remote authorities have only public keys available, so they can
-// be only used to validate
-type CAService struct {
-	backend backend.Backend
-}
-
-// NewCAService returns new instance of CAService
-func NewCAService(backend backend.Backend) *CAService {
-	return &CAService{backend: backend}
-}
-
-// UpsertCertAuthority updates or inserts a new certificate authority
-func (s *CAService) UpsertCertAuthority(ca CertAuthority, ttl time.Duration) error {
-	if err := ca.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-	out, err := json.Marshal(ca)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = s.backend.UpsertVal([]string{"authorities", string(ca.Type)}, ca.DomainName, out, ttl)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// DeleteCertAuthority deletes particular certificate authority
-func (s *CAService) DeleteCertAuthority(id CertAuthID) error {
-	if err := id.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-	err := s.backend.DeleteKey([]string{"authorities", string(id.Type)}, id.DomainName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
-// controls if signing keys are loaded
-func (s *CAService) GetCertAuthority(id CertAuthID, loadSigningKeys bool) (*CertAuthority, error) {
-	if err := id.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	val, err := s.backend.GetVal([]string{"authorities", string(id.Type)}, id.DomainName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var ca *CertAuthority
-	if err := json.Unmarshal(val, &ca); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := ca.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if !loadSigningKeys {
-		ca.SigningKeys = nil
-	}
-	return ca, nil
-}
-
-// GetCertAuthorities returns a list of authorities of a given type
-// loadSigningKeys controls whether signing keys should be loaded or not
-func (s *CAService) GetCertAuthorities(caType CertAuthType, loadSigningKeys bool) ([]*CertAuthority, error) {
-	cas := []*CertAuthority{}
-	if caType != HostCA && caType != UserCA {
-		return nil, trace.Wrap(&teleport.BadParameterError{
-			Param: "caType",
-			Err:   fmt.Sprintf("'%v' is not supported type", caType),
-		})
-	}
-	domains, err := s.backend.GetKeys([]string{"authorities", string(caType)})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, domain := range domains {
-		ca, err := s.GetCertAuthority(CertAuthID{DomainName: domain, Type: caType}, loadSigningKeys)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		cas = append(cas, ca)
-	}
-	return cas, nil
 }
 
 // CertAuthority is a host or user certificate authority that

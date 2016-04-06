@@ -81,8 +81,26 @@ type Config struct {
 	// first cluster start
 	ReverseTunnels []services.ReverseTunnel
 
+	// OIDCConnectors is a list of trusted OpenID Connect identity providers
+	OIDCConnectors []services.OIDCConnector
+
 	// PidFile is a full path of the PID file for teleport daemon
 	PIDFile string
+
+	// Trust is a service that manages users and credentials
+	Trust services.Trust
+
+	// Lock is a distributed or local lock service
+	Lock services.Lock
+
+	// Presence service is a discovery and hearbeat tracker
+	Presence services.Presence
+
+	// Provisioner is a service that keeps track of provisioning tokens
+	Provisioner services.Provisioner
+
+	// Trust is a service that manages users and credentials
+	Identity services.Identity
 }
 
 // ApplyToken assigns a given token to all internal services but only if token

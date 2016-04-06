@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
@@ -68,11 +69,26 @@ type InitConfig struct {
 	// in configuration, so auth server will init the tunnels on the first start
 	ReverseTunnels []services.ReverseTunnel
 
+	// OIDCConnectors is a list of trusted OpenID Connect identity providers
+	// in configuration, so auth server will init the tunnels on the first start
+	OIDCConnectors []services.OIDCConnector
+
 	// HostCA is an optional host certificate authority keypair
 	HostCA *services.CertAuthority
 
 	// UserCA is an optional user certificate authority keypair
 	UserCA *services.CertAuthority
+
+	// Trust is a service that manages users and credentials
+	Trust services.Trust
+	// Lock is a distributed or local lock service
+	Lock services.Lock
+	// Presence service is a discovery and hearbeat tracker
+	Presence services.Presence
+	// Provisioner is a service that keeps track of provisioning tokens
+	Provisioner services.Provisioner
+	// Trust is a service that manages users and credentials
+	Identity services.Identity
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -91,7 +107,7 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 		return nil, nil, err
 	}
 
-	lockService := services.NewLockService(cfg.Backend)
+	lockService := local.NewLockService(cfg.Backend)
 	err = lockService.AcquireLock(cfg.DomainName, 60*time.Second)
 	if err != nil {
 		return nil, nil, err
@@ -113,7 +129,7 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 	if firstStart && len(cfg.Authorities) != 0 {
 		log.Infof("FIRST START: populating trusted authorities supplied from configuration")
 		for _, ca := range cfg.Authorities {
-			if err := asrv.CAService.UpsertCertAuthority(ca, backend.Forever); err != nil {
+			if err := asrv.Trust.UpsertCertAuthority(ca, backend.Forever); err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
 		}
@@ -139,7 +155,7 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 				CheckingKeys: [][]byte{pub},
 			}
 		}
-		if err := asrv.CAService.UpsertCertAuthority(*cfg.HostCA, backend.Forever); err != nil {
+		if err := asrv.Trust.UpsertCertAuthority(*cfg.HostCA, backend.Forever); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	}
@@ -164,7 +180,7 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 				CheckingKeys: [][]byte{pub},
 			}
 		}
-		if err := asrv.CAService.UpsertCertAuthority(*cfg.UserCA, backend.Forever); err != nil {
+		if err := asrv.Trust.UpsertCertAuthority(*cfg.UserCA, backend.Forever); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	}
@@ -189,6 +205,15 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 			log.Infof("FIRST START: Initializing reverse tunnels")
 			for _, tunnel := range cfg.ReverseTunnels {
 				if err := asrv.UpsertReverseTunnel(tunnel, 0); err != nil {
+					return nil, nil, trace.Wrap(err)
+				}
+			}
+		}
+
+		if len(cfg.OIDCConnectors) != 0 {
+			log.Infof("FIRST START: Initializing oidc connectors")
+			for _, connector := range cfg.OIDCConnectors {
+				if err := asrv.UpsertOIDCConnector(connector, 0); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
 			}

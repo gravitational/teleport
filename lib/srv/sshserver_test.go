@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/suite"
 	sess "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -108,8 +109,8 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		teleport.RoleAdmin,
 		nil)
 
-	c.Assert(s.a.UpsertCertAuthority(*services.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
-	c.Assert(s.a.UpsertCertAuthority(*services.NewTestCA(services.HostCA, s.domainName), backend.Forever), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(*suite.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(*suite.NewTestCA(services.HostCA, s.domainName), backend.Forever), IsNil)
 
 	// set up host private key and certificate
 	hpriv, hpub, err := s.a.GenerateKeyPair("")
@@ -156,7 +157,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(keyring.Add(addedKey), IsNil)
 	s.up = up
 
-	c.Assert(s.a.UpsertUser(services.User{Name: s.user, AllowedLogins: []string{s.user}}), IsNil)
+	c.Assert(s.a.UpsertUser(&services.TeleportUser{Name: s.user, AllowedLogins: []string{s.user}}), IsNil)
 
 	sshConfig := &ssh.ClientConfig{
 		User: s.user,
@@ -391,7 +392,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
 	}
 
-	c.Assert(s.a.UpsertUser(services.User{Name: "user1", AllowedLogins: []string{s.user}}), IsNil)
+	c.Assert(s.a.UpsertUser(&services.TeleportUser{Name: "user1", AllowedLogins: []string{s.user}}), IsNil)
 
 	s.testClient(c, proxy.Addr(), s.srvAddress, s.srv.Addr(), sshConfig)
 	s.testClient(c, proxy.Addr(), s.srvHostPort, s.srv.Addr(), sshConfig)
@@ -553,7 +554,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
 	}
 
-	c.Assert(s.a.UpsertUser(services.User{
+	c.Assert(s.a.UpsertUser(&services.TeleportUser{
 		Name:          "user1",
 		AllowedLogins: []string{s.user}}), IsNil)
 
@@ -636,7 +637,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
 	}
 
-	c.Assert(s.a.UpsertUser(services.User{
+	c.Assert(s.a.UpsertUser(&services.TeleportUser{
 		Name:          "user1",
 		AllowedLogins: []string{s.user}}), IsNil)
 
@@ -816,7 +817,7 @@ func newUpack(user string, allowedLogins []string, a *auth.AuthServer) (*upack, 
 		return nil, trace.Wrap(err)
 	}
 
-	err = a.UpsertUser(services.User{Name: user, AllowedLogins: allowedLogins})
+	err = a.UpsertUser(&services.TeleportUser{Name: user, AllowedLogins: allowedLogins})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
