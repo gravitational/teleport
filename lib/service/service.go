@@ -654,6 +654,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				AuthServers: cfg.AuthServers[0],
 				DomainName:  cfg.Hostname,
 				ProxyClient: conn.Client,
+				DisableUI:   cfg.Proxy.DisableWebUI,
 			})
 		if err != nil {
 			utils.Consolef(cfg.Console, "[PROXY] starting the web server: %v", err)

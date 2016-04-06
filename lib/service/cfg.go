@@ -183,6 +183,9 @@ type ProxyConfig struct {
 	// Enabled turns proxy role on or off for this process
 	Enabled bool
 
+	// DisableWebUI allows to turn off serving the Web UI
+	DisableWebUI bool
+
 	// Token is a provisioning token for new proxy server registering with auth
 	Token string
 

@@ -92,13 +92,16 @@ type Config struct {
 	DomainName string
 	// ProxyClient is a client that authenticated as proxy
 	ProxyClient auth.ClientI
+	// DIsableUI allows to turn off serving web based UI
+	DisableUI bool
 }
 
 // Version is a current webapi version
-const Version = "v1"
+const APIVersion = "v1"
 
 // NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
+	const apiPrefix = "/" + APIVersion
 	lauth, err := newSessionHandler(!cfg.InsecureHTTPMode, []utils.NetAddr{cfg.AuthServers})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -165,22 +168,45 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(h.oidcLoginConsole))
 	h.GET("/webapi/oidc/callback", httplib.MakeHandler(h.oidcCallback))
 
-	indexPath := filepath.Join(cfg.AssetsDir, "/index.html")
-	indexContent, err := ioutil.ReadFile(indexPath)
-	if err != nil {
-		return nil, trace.Wrap(teleport.ConvertSystemError(err))
+	// if Web UI is enabled, chekc the assets dir:
+	var (
+		writeSettings http.HandlerFunc
+		indexPage     *template.Template
+	)
+	if !cfg.DisableUI {
+		indexPath := filepath.Join(cfg.AssetsDir, "/index.html")
+		indexContent, err := ioutil.ReadFile(indexPath)
+		if err != nil {
+			return nil, trace.Wrap(teleport.ConvertSystemError(err))
+		}
+		indexPage, err = template.New("index").Parse(string(indexContent))
+		if err != nil {
+			return nil, trace.Wrap(teleport.BadParameter("index", fmt.Sprintf("failed parsing template %v: %v", indexPath, err)))
+		}
+		writeSettings = httplib.MakeStdHandler(h.getSettings)
 	}
-	indexPage, err := template.New("index").Parse(string(indexContent))
-	if err != nil {
-		return nil, trace.Wrap(teleport.BadParameter("index", fmt.Sprintf("failed parsing template %v: %v", indexPath, err)))
-	}
-
-	writeSettings := httplib.MakeStdHandler(h.getSettings)
 
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// request is going to the API?
+		if strings.HasPrefix(r.URL.Path, apiPrefix) {
+			http.StripPrefix(apiPrefix, h).ServeHTTP(w, r)
+			return
+		}
+
+		// request is going to the web UI
+		if cfg.DisableUI {
+			w.WriteHeader(http.StatusNotImplemented)
+			return
+		}
+
+		// redirect to "/web" when someone hits "/"
 		if r.URL.Path == "/" {
 			http.Redirect(w, r, "/web", http.StatusFound)
-		} else if strings.HasPrefix(r.URL.Path, "/web/app") {
+			return
+		}
+
+		// serve Web UI:
+		if strings.HasPrefix(r.URL.Path, "/web/app") {
 			http.StripPrefix("/web", http.FileServer(http.Dir(cfg.AssetsDir))).ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web/config.js") {
 			writeSettings.ServeHTTP(w, r)
@@ -199,8 +225,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 				}
 			}
 			indexPage.Execute(w, session)
-		} else if strings.HasPrefix(r.URL.Path, "/"+Version) {
-			http.StripPrefix("/"+Version, h).ServeHTTP(w, r)
 		}
 	})
 
