@@ -71,8 +71,6 @@ type CLIConf struct {
 	LocalForwardPorts []string
 	// --local flag for ssh
 	LocalExec bool
-	// ExternalAuth is used to authenticate using external OIDC method
-	ExternalAuth string
 }
 
 // run executes TSH client. same as main() but easier to test
@@ -86,7 +84,6 @@ func run(args []string, underTest bool) {
 	// configure CLI argument parser:
 	app := utils.InitCLIParser("tsh", "TSH: Teleport SSH client").Interspersed(false)
 	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", client.Username())).StringVar(&cf.Login)
-	app.Flag("external-auth", "Use external authentication, e.g. 'google'").StringVar(&cf.ExternalAuth)
 	app.Flag("proxy", "SSH proxy host or IP address").StringVar(&cf.Proxy)
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
 	app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").Default("false").BoolVar(&cf.InsecureSkipVerify)
