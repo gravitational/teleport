@@ -744,6 +744,11 @@ func (tc *TeleportClient) Login() error {
 	return nil
 }
 
+// Adds a new CA as trusted CA for this client
+func (tc *TeleportClient) AddTrustedCA(ca *services.CertAuthority) error {
+	return tc.LocalAgent().AddHostSignersToCache([]services.CertAuthority{*ca})
+}
+
 // SaveKey saves a given key in the local agent's keystore
 func (tc *TeleportClient) SaveKey(key *Key) error {
 	// parse the returned&signed key:
