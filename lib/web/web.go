@@ -190,7 +190,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 				Session string
 			}{Session: base64.StdEncoding.EncodeToString([]byte("{}"))}
 			if err == nil {
-				re, err := newSessionResponse(ctx)
+				re, err := NewSessionResponse(ctx)
 				if err == nil {
 					out, err := json.Marshal(re)
 					if err == nil {
@@ -376,9 +376,9 @@ type createSessionReq struct {
 	SecondFactorToken string `json:"second_factor_token"`
 }
 
-// createSessionResponse returns OAuth compabible data about
+// CreateSessionResponse returns OAuth compabible data about
 // access token: https://tools.ietf.org/html/rfc6749
-type createSessionResponse struct {
+type CreateSessionResponse struct {
 	// Type is token type (bearer)
 	Type string `json:"type"`
 	// Token value
@@ -400,15 +400,15 @@ type createSessionResponseRaw struct {
 	ExpiresIn int `json:"expires_in"`
 }
 
-func (r createSessionResponseRaw) response() (*createSessionResponse, error) {
+func (r createSessionResponseRaw) response() (*CreateSessionResponse, error) {
 	user, err := services.GetUserUnmarshaler()(r.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &createSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn, User: user}, nil
+	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn, User: user}, nil
 }
 
-func newSessionResponse(ctx *SessionContext) (*createSessionResponse, error) {
+func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -418,7 +418,7 @@ func newSessionResponse(ctx *SessionContext) (*createSessionResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &createSessionResponse{
+	return &CreateSessionResponse{
 		Type:      roundtrip.AuthBearer,
 		Token:     webSession.WS.BearerToken,
 		User:      user,
@@ -453,7 +453,7 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 	if err != nil {
 		return nil, trace.Wrap(teleport.AccessDenied("need auth"))
 	}
-	return newSessionResponse(ctx)
+	return NewSessionResponse(ctx)
 }
 
 // logout is a helper that deletes
@@ -518,7 +518,7 @@ func (m *Handler) renewSession(w http.ResponseWriter, r *http.Request, _ httprou
 	if err := SetSession(w, newSess.Username, newSess.ID); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newSessionResponse(newContext)
+	return NewSessionResponse(newContext)
 }
 
 type renderUserInviteResponse struct {
@@ -582,7 +582,7 @@ func (m *Handler) createNewUser(w http.ResponseWriter, r *http.Request, p httpro
 	if err := SetSession(w, sess.Username, sess.ID); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newSessionResponse(ctx)
+	return NewSessionResponse(ctx)
 }
 
 type getSitesResponse struct {
