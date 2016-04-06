@@ -9,13 +9,13 @@
 	"Deps": [
 		{
 			"ImportPath": "github.com/Sirupsen/logrus",
-			"Comment": "v0.8.3-3-g07d998d",
-			"Rev": "07d998d174c4e2dc90e2f1989a20724220bca1ff"
+			"Comment": "v0.10.0",
+			"Rev": "4b6ea7319e214d98c938f12692336f7ca9348d6b"
 		},
 		{
 			"ImportPath": "github.com/Sirupsen/logrus/hooks/syslog",
-			"Comment": "v0.8.3-3-g07d998d",
-			"Rev": "07d998d174c4e2dc90e2f1989a20724220bca1ff"
+			"Comment": "v0.10.0",
+			"Rev": "4b6ea7319e214d98c938f12692336f7ca9348d6b"
 		},
 		{
 			"ImportPath": "github.com/alecthomas/template",
