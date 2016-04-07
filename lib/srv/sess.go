@@ -371,7 +371,7 @@ func (s *session) pollAndSyncTerm() {
 			return err
 		}
 		if int(winSize.Width) == sess.TerminalParams.W && int(winSize.Height) == sess.TerminalParams.H {
-			log.Debugf("terminal not changed: %v", sess.TerminalParams)
+			//log.Debugf("terminal not changed: %v", sess.TerminalParams)
 			return nil
 		}
 		log.Debugf("terminal has changed from: %v to %v", sess.TerminalParams, winSize)

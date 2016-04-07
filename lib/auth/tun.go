@@ -643,7 +643,7 @@ func (c *TunClient) syncAuthServers() {
 		case <-c.refreshTicker.C:
 			err := c.fetchAndSync()
 			if err != nil {
-				log.Infof("TunClient (%p): fetch and sync servers: %v", c, err)
+				//log.Infof("TunClient (%p): fetch and sync servers: %v", c, err)
 				continue
 			}
 		case <-c.closeC:
