@@ -78,9 +78,6 @@ func SetSessionStreamPollPeriod(period time.Duration) HandlerOption {
 
 // Config represents web handler configuration parameters
 type Config struct {
-	// InsecureHTTPMode tells whether handler is running
-	// in HTTP only that is considered insecure (as opposed to HTTPS)
-	InsecureHTTPMode bool
 	// Proxy is a reverse tunnel proxy that handles connections
 	// to various sites
 	Proxy reversetunnel.Server
@@ -102,7 +99,7 @@ const APIVersion = "v1"
 // NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 	const apiPrefix = "/" + APIVersion
-	lauth, err := newSessionHandler(!cfg.InsecureHTTPMode, []utils.NetAddr{cfg.AuthServers})
+	lauth, err := newSessionCache([]utils.NetAddr{cfg.AuthServers})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -233,6 +230,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 	h.NotFound = routingHandler
 
 	return h, nil
+}
+
+// Close closes associated session cache operations
+func (m *Handler) Close() error {
+	return m.auth.Close()
 }
 
 type webSettings struct {
