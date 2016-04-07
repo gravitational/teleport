@@ -145,6 +145,10 @@
 			"Rev": "0fd0db9ea941edb81e90278f4eb8f29f5615637e"
 		},
 		{
+			"ImportPath": "github.com/gravitational/ttlmap",
+			"Rev": "348cf76cace4d93fdacc38dfdaa2306f4f0e9c16"
+		},
+		{
 			"ImportPath": "github.com/gravitational/version",
 			"Rev": "4459539f89995fd4b12618a2cd29604948d890a2"
 		},
@@ -272,6 +276,10 @@
 		{
 			"ImportPath": "golang.org/x/net/websocket",
 			"Rev": "7dbad50ab5b31073856416cdcfeb2796d682f844"
+		},
+		{
+			"ImportPath": "golang.org/x/sys/unix",
+			"Rev": "442cd600860ce722f6615730eb008a37a87b13ee"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",
