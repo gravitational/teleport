@@ -270,6 +270,11 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool) error {
 	}
 	defer proxyClient.Close()
 
+	siteInfo, err := proxyClient.getSite()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// which nodes are we executing this commands on?
 	nodeAddrs, err := tc.getTargetNodes(proxyClient)
 	if err != nil {
@@ -287,7 +292,7 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool) error {
 
 	// proxy local ports (forward incoming connections to remote host ports)
 	if len(tc.Config.LocalForwardPorts) > 0 {
-		nodeClient, err := proxyClient.ConnectToNode(nodeAddrs[0], tc.Config.HostLogin)
+		nodeClient, err := proxyClient.ConnectToNode(nodeAddrs[0]+"@"+siteInfo.Name, tc.Config.HostLogin)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -313,7 +318,7 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool) error {
 		return tc.runCommand(nodeAddrs, proxyClient, command)
 	}
 
-	nodeClient, err := proxyClient.ConnectToNode(nodeAddrs[0], tc.Config.HostLogin)
+	nodeClient, err := proxyClient.ConnectToNode(nodeAddrs[0]+"@"+siteInfo.Name, tc.Config.HostLogin)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -513,7 +518,6 @@ func (tc *TeleportClient) runCommand(nodeAddresses []string, proxyClient *ProxyC
 			if err != nil {
 				fmt.Fprintln(tc.Output, err)
 			}
-
 			if len(nodeAddresses) > 1 {
 				fmt.Printf("Running command on %v:\n", address)
 			}
@@ -650,6 +654,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	}
 	log.Debugf("connecting to proxy: %v", proxyAddr)
 
+	var failedInteractiveLogin bool
 	for {
 		// try to authenticate using every auth method we have:
 		for _, m := range tc.authMethods {
@@ -670,10 +675,14 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 				siteName:        tc.Config.SiteName,
 			}, nil
 		}
+		if failedInteractiveLogin {
+			return nil, trace.Wrap(teleport.AccessDenied("bad username or credentials"))
+		}
 		// if we get here, it means we failed to authenticate using stored keys
 		// and we need to ask for the login information
 		err := tc.Login()
 		if err != nil {
+			failedInteractiveLogin = true
 			// we need to communicate directly to user here,
 			// otherwise user will see endless loop with no explanation
 			if teleport.IsTrustError(err) {

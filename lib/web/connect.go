@@ -47,7 +47,7 @@ type connectReq struct {
 	SessionID session.ID `json:"sid"`
 }
 
-func newConnectHandler(req connectReq, ctx *sessionContext, site reversetunnel.RemoteSite) (*connectHandler, error) {
+func newConnectHandler(req connectReq, ctx *SessionContext, site reversetunnel.RemoteSite) (*connectHandler, error) {
 	clt, err := site.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -84,7 +84,7 @@ func newConnectHandler(req connectReq, ctx *sessionContext, site reversetunnel.R
 
 // connectHandler is a websocket to SSH proxy handler
 type connectHandler struct {
-	ctx    *sessionContext
+	ctx    *SessionContext
 	site   reversetunnel.RemoteSite
 	up     *sshutils.Upstream
 	req    connectReq
