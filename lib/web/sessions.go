@@ -30,7 +30,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
-	"github.com/mailgun/ttlmap"
+	"github.com/gravitational/ttlmap"
 )
 
 // SessionContext is a context associated with users'
@@ -105,7 +105,7 @@ func (c *SessionContext) GetWebSession() *auth.Session {
 	return c.sess
 }
 
-// CreateNewWebSession creates a new web session for this user
+// CreateWebSession creates a new web session for this user
 // based on the previous session
 func (c *SessionContext) CreateWebSession() (*auth.Session, error) {
 	sess, err := c.clt.CreateWebSession(c.user, c.sess.ID)
@@ -138,34 +138,72 @@ func (c *SessionContext) Close() error {
 	return nil
 }
 
-// newSessionHandler returns new instance of the session handler
-func newSessionHandler(secure bool, servers []utils.NetAddr) (*sessionCache, error) {
-	m, err := ttlmap.NewMap(1024, ttlmap.CallOnExpire(closeContext))
+// newSessionCache returns new instance of the session cache
+func newSessionCache(servers []utils.NetAddr) (*sessionCache, error) {
+	m, err := ttlmap.New(1024, ttlmap.CallOnExpire(closeContext))
 	if err != nil {
 		return nil, err
 	}
-	return &sessionCache{
+	cache := &sessionCache{
 		contexts:    m,
 		authServers: servers,
-	}, nil
+		closer:      utils.NewCloseBroadcaster(),
+	}
+	// periodically close expired and unused sessions
+	go cache.expireSessions()
+	return cache, nil
 }
 
 // sessionCache handles web session authentication,
 // and holds in memory contexts associated with each session
 type sessionCache struct {
 	sync.Mutex
-	secure      bool
-	contexts    *ttlmap.TtlMap
+	contexts    *ttlmap.TTLMap
 	authServers []utils.NetAddr
+	closer      *utils.CloseBroadcaster
+}
+
+// Close closes all allocated resources and stops goroutines
+func (s *sessionCache) Close() error {
+	return s.closer.Close()
 }
 
 // closeContext is called when session context expires from
 // cache and will clean up connections
 func closeContext(key string, val interface{}) {
-	log.Infof("closing context %v", key)
-	ctx := val.(*SessionContext)
-	if err := ctx.Close(); err != nil {
-		log.Infof("failed to close context: %v", err)
+	go func() {
+		log.Infof("[WEB] closing context %v", key)
+		ctx, ok := val.(*SessionContext)
+		if !ok {
+			log.Warningf("warning, not valid value type %T", val)
+			return
+		}
+		if err := ctx.Close(); err != nil {
+			log.Infof("failed to close context: %v", err)
+		}
+	}()
+}
+
+func (s *sessionCache) expireSessions() {
+	ticker := time.NewTicker(time.Second)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				s.clearExpiredSessions()
+			case <-s.closer.C:
+				return
+			}
+		}
+	}()
+}
+
+func (s *sessionCache) clearExpiredSessions() {
+	s.Lock()
+	defer s.Unlock()
+	expired := s.contexts.RemoveExpired(10)
+	if expired != 0 {
+		log.Infof("[WEB] removed %v expired sessions", expired)
 	}
 }
 
@@ -178,7 +216,16 @@ func (s *sessionCache) Auth(user, pass string, hotpToken string) (*auth.Session,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return clt.SignIn(user, []byte(pass))
+	// we are always closing this client, because we will not be using
+	// this connection initiated using password based credentials
+	// down the road, so it's a one call client
+	defer clt.Close()
+	session, err := clt.SignIn(user, []byte(pass))
+	if err != nil {
+		defer clt.Close()
+		return nil, trace.Wrap(err)
+	}
+	return session, nil
 }
 
 func (s *sessionCache) GetCertificate(c createSSHCertReq) (*SSHLoginResponse, error) {
@@ -271,7 +318,7 @@ func (s *sessionCache) insertContext(user, sid string, ctx *SessionContext, ttl 
 	if ok && val != nil { // nil means that we've just invalidated the context now and set it to nil in the cache
 		return val.(*SessionContext), trace.Wrap(&teleport.AlreadyExistsError{})
 	}
-	if err := s.contexts.Set(user+sid, ctx, int(ttl/time.Second)); err != nil {
+	if err := s.contexts.Set(user+sid, ctx, ttl); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return ctx, nil
@@ -280,7 +327,11 @@ func (s *sessionCache) insertContext(user, sid string, ctx *SessionContext, ttl 
 func (s *sessionCache) resetContext(user, sid string) error {
 	s.Lock()
 	defer s.Unlock()
-	return trace.Wrap(s.contexts.Set(user+sid, nil, 1))
+	context, ok := s.contexts.Remove(user + sid)
+	if ok {
+		closeContext(user+sid, context)
+	}
+	return nil
 }
 
 func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error) {
@@ -300,6 +351,7 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer clt.Close()
 	c := &SessionContext{
 		clt:    clt,
 		user:   user,
@@ -310,6 +362,7 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 		"user": user,
 		"sess": sess.ID[:4],
 	})
+
 	out, err := s.insertContext(user, sid, c, auth.WebSessionTTL)
 	if err != nil {
 		// this means that someone has just inserted the context, so
@@ -334,7 +387,7 @@ func (s *sessionCache) SetSession(w http.ResponseWriter, user, sid string) error
 		Value:    d,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   s.secure,
+		Secure:   true,
 	}
 	http.SetCookie(w, c)
 	return nil
@@ -346,6 +399,6 @@ func (s *sessionCache) ClearSession(w http.ResponseWriter) {
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   s.secure,
+		Secure:   true,
 	})
 }
