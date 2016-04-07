@@ -194,11 +194,10 @@ func (s *WebSuite) SetUpTest(c *C) {
 	assetsDir, err := filepath.Abs("../../web/dist")
 	c.Assert(err, IsNil)
 	handler, err := NewHandler(Config{
-		InsecureHTTPMode: true,
-		Proxy:            revTunServer,
-		AssetsDir:        assetsDir,
-		AuthServers:      tunAddr,
-		DomainName:       s.domainName,
+		Proxy:       revTunServer,
+		AssetsDir:   assetsDir,
+		AuthServers: tunAddr,
+		DomainName:  s.domainName,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond))
 	c.Assert(err, IsNil)
 
