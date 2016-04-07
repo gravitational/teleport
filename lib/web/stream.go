@@ -33,7 +33,7 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-func newSessionStreamHandler(sessionID session.ID, ctx *sessionContext, site reversetunnel.RemoteSite, pollPeriod time.Duration) (*sessionStreamHandler, error) {
+func newSessionStreamHandler(sessionID session.ID, ctx *SessionContext, site reversetunnel.RemoteSite, pollPeriod time.Duration) (*sessionStreamHandler, error) {
 	return &sessionStreamHandler{
 		pollPeriod: pollPeriod,
 		sessionID:  sessionID,
@@ -48,7 +48,7 @@ func newSessionStreamHandler(sessionID session.ID, ctx *sessionContext, site rev
 type sessionStreamHandler struct {
 	closeOnce  sync.Once
 	pollPeriod time.Duration
-	ctx        *sessionContext
+	ctx        *SessionContext
 	site       reversetunnel.RemoteSite
 	sessionID  session.ID
 	closeC     chan bool

@@ -292,7 +292,7 @@ func (s *WebSuite) TestNewUser(c *C) {
 type authPack struct {
 	user    string
 	otp     *hotp.HOTP
-	session *createSessionResponse
+	session *CreateSessionResponse
 	clt     *webClient
 	cookies []*http.Cookie
 }

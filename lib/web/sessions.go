@@ -33,11 +33,11 @@ import (
 	"github.com/mailgun/ttlmap"
 )
 
-// sessionContext is a context associated with users'
+// SessionContext is a context associated with users'
 // web session, it stores connected client that persists
 // between requests for example to avoid connecting
 // to the auth server on every page hit
-type sessionContext struct {
+type SessionContext struct {
 	sync.Mutex
 	*log.Entry
 	sess    *auth.Session
@@ -47,7 +47,7 @@ type sessionContext struct {
 	closers []io.Closer
 }
 
-func (c *sessionContext) getConnectHandler(sessionID session.ID) (*connectHandler, error) {
+func (c *SessionContext) getConnectHandler(sessionID session.ID) (*connectHandler, error) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -60,7 +60,7 @@ func (c *sessionContext) getConnectHandler(sessionID session.ID) (*connectHandle
 	return nil, trace.Wrap(teleport.NotFound("no connected streams"))
 }
 
-func (c *sessionContext) UpdateSessionTerminal(sessionID session.ID, params session.TerminalParams) error {
+func (c *SessionContext) UpdateSessionTerminal(sessionID session.ID, params session.TerminalParams) error {
 	err := c.clt.UpdateSession(session.UpdateRequest{ID: sessionID, TerminalParams: &params})
 	if err != nil {
 		return trace.Wrap(err)
@@ -72,13 +72,13 @@ func (c *sessionContext) UpdateSessionTerminal(sessionID session.ID, params sess
 	return trace.Wrap(handler.resizePTYWindow(params))
 }
 
-func (c *sessionContext) AddClosers(closers ...io.Closer) {
+func (c *SessionContext) AddClosers(closers ...io.Closer) {
 	c.Lock()
 	defer c.Unlock()
 	c.closers = append(c.closers, closers...)
 }
 
-func (c *sessionContext) TransferClosers() []io.Closer {
+func (c *SessionContext) TransferClosers() []io.Closer {
 	c.Lock()
 	defer c.Unlock()
 	closers := c.closers
@@ -86,28 +86,28 @@ func (c *sessionContext) TransferClosers() []io.Closer {
 	return closers
 }
 
-func (c *sessionContext) Invalidate() error {
+func (c *SessionContext) Invalidate() error {
 	return c.parent.InvalidateSession(c)
 }
 
 // GetClient returns the client connected to the auth server
-func (c *sessionContext) GetClient() (auth.ClientI, error) {
+func (c *SessionContext) GetClient() (auth.ClientI, error) {
 	return c.clt, nil
 }
 
 // GetUser returns the authenticated teleport user
-func (c *sessionContext) GetUser() string {
+func (c *SessionContext) GetUser() string {
 	return c.user
 }
 
 // GetWebSession returns a web session
-func (c *sessionContext) GetWebSession() *auth.Session {
+func (c *SessionContext) GetWebSession() *auth.Session {
 	return c.sess
 }
 
 // CreateNewWebSession creates a new web session for this user
 // based on the previous session
-func (c *sessionContext) CreateWebSession() (*auth.Session, error) {
+func (c *SessionContext) CreateWebSession() (*auth.Session, error) {
 	sess, err := c.clt.CreateWebSession(c.user, c.sess.ID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -117,7 +117,7 @@ func (c *sessionContext) CreateWebSession() (*auth.Session, error) {
 
 // GetAgent returns agent that can we used to answer challenges
 // for the web to ssh connection
-func (c *sessionContext) GetAgent() (auth.AgentCloser, error) {
+func (c *SessionContext) GetAgent() (auth.AgentCloser, error) {
 	a, err := c.clt.GetAgent()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -126,7 +126,7 @@ func (c *sessionContext) GetAgent() (auth.AgentCloser, error) {
 }
 
 // Close cleans up connections associated with requests
-func (c *sessionContext) Close() error {
+func (c *SessionContext) Close() error {
 	closers := c.TransferClosers()
 	for _, closer := range closers {
 		c.Infof("closing %v", closer)
@@ -163,7 +163,7 @@ type sessionCache struct {
 // cache and will clean up connections
 func closeContext(key string, val interface{}) {
 	log.Infof("closing context %v", key)
-	ctx := val.(*sessionContext)
+	ctx := val.(*SessionContext)
 	if err := ctx.Close(); err != nil {
 		log.Infof("failed to close context: %v", err)
 	}
@@ -239,7 +239,7 @@ func (s *sessionCache) CreateNewUser(token, password, hotpToken string) (*auth.S
 	return sess, trace.Wrap(err)
 }
 
-func (s *sessionCache) InvalidateSession(ctx *sessionContext) error {
+func (s *sessionCache) InvalidateSession(ctx *SessionContext) error {
 	defer ctx.Close()
 	if err := s.resetContext(ctx.GetUser(), ctx.GetWebSession().ID); err != nil {
 		return trace.Wrap(err)
@@ -252,24 +252,24 @@ func (s *sessionCache) InvalidateSession(ctx *sessionContext) error {
 	return trace.Wrap(err)
 }
 
-func (s *sessionCache) getContext(user, sid string) (*sessionContext, error) {
+func (s *sessionCache) getContext(user, sid string) (*SessionContext, error) {
 	s.Lock()
 	defer s.Unlock()
 
 	val, ok := s.contexts.Get(user + sid)
 	if ok {
-		return val.(*sessionContext), nil
+		return val.(*SessionContext), nil
 	}
 	return nil, trace.Wrap(teleport.NotFound("sessionContext not found"))
 }
 
-func (s *sessionCache) insertContext(user, sid string, ctx *sessionContext, ttl time.Duration) (*sessionContext, error) {
+func (s *sessionCache) insertContext(user, sid string, ctx *SessionContext, ttl time.Duration) (*SessionContext, error) {
 	s.Lock()
 	defer s.Unlock()
 
 	val, ok := s.contexts.Get(user + sid)
 	if ok && val != nil { // nil means that we've just invalidated the context now and set it to nil in the cache
-		return val.(*sessionContext), trace.Wrap(&teleport.AlreadyExistsError{})
+		return val.(*SessionContext), trace.Wrap(&teleport.AlreadyExistsError{})
 	}
 	if err := s.contexts.Set(user+sid, ctx, int(ttl/time.Second)); err != nil {
 		return nil, trace.Wrap(err)
@@ -283,7 +283,7 @@ func (s *sessionCache) resetContext(user, sid string) error {
 	return trace.Wrap(s.contexts.Set(user+sid, nil, 1))
 }
 
-func (s *sessionCache) ValidateSession(user, sid string) (*sessionContext, error) {
+func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error) {
 	ctx, err := s.getContext(user, sid)
 	if err == nil {
 		return ctx, nil
@@ -300,7 +300,7 @@ func (s *sessionCache) ValidateSession(user, sid string) (*sessionContext, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	c := &sessionContext{
+	c := &SessionContext{
 		clt:    clt,
 		user:   user,
 		sess:   sess,

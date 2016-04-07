@@ -100,7 +100,7 @@ type Config struct {
 const APIVersion = "v1"
 
 // NewHandler returns a new instance of web proxy handler
-func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
+func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 	const apiPrefix = "/" + APIVersion
 	lauth, err := newSessionHandler(!cfg.InsecureHTTPMode, []utils.NetAddr{cfg.AuthServers})
 	if err != nil {
@@ -211,12 +211,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 		} else if strings.HasPrefix(r.URL.Path, "/web/config.js") {
 			writeSettings.ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web") {
-			ctx, err := h.authenticateRequest(w, r, false)
+			ctx, err := h.AuthenticateRequest(w, r, false)
 			session := struct {
 				Session string
 			}{Session: base64.StdEncoding.EncodeToString([]byte("{}"))}
 			if err == nil {
-				re, err := newSessionResponse(ctx)
+				re, err := NewSessionResponse(ctx)
 				if err == nil {
 					out, err := json.Marshal(re)
 					if err == nil {
@@ -225,10 +225,14 @@ func NewHandler(cfg Config, opts ...HandlerOption) (http.Handler, error) {
 				}
 			}
 			indexPage.Execute(w, session)
+		} else {
+			http.NotFound(w, r)
 		}
 	})
 
-	return routingHandler, nil
+	h.NotFound = routingHandler
+
+	return h, nil
 }
 
 type webSettings struct {
@@ -245,6 +249,9 @@ func (m *Handler) getSettings(w http.ResponseWriter, r *http.Request) (interface
 	}
 	for _, connector := range connectors {
 		settings.Auth.OIDCConnectors = append(settings.Auth.OIDCConnectors, connector.ID)
+	}
+	if len(settings.Auth.OIDCConnectors) == 0 {
+		settings.Auth.OIDCConnectors = make([]string, 0)
 	}
 	out, err := json.Marshal(settings)
 	if err != nil {
@@ -393,9 +400,9 @@ type createSessionReq struct {
 	SecondFactorToken string `json:"second_factor_token"`
 }
 
-// createSessionResponse returns OAuth compabible data about
+// CreateSessionResponse returns OAuth compabible data about
 // access token: https://tools.ietf.org/html/rfc6749
-type createSessionResponse struct {
+type CreateSessionResponse struct {
 	// Type is token type (bearer)
 	Type string `json:"type"`
 	// Token value
@@ -417,15 +424,15 @@ type createSessionResponseRaw struct {
 	ExpiresIn int `json:"expires_in"`
 }
 
-func (r createSessionResponseRaw) response() (*createSessionResponse, error) {
+func (r createSessionResponseRaw) response() (*CreateSessionResponse, error) {
 	user, err := services.GetUserUnmarshaler()(r.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &createSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn, User: user}, nil
+	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn, User: user}, nil
 }
 
-func newSessionResponse(ctx *sessionContext) (*createSessionResponse, error) {
+func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -435,7 +442,7 @@ func newSessionResponse(ctx *sessionContext) (*createSessionResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &createSessionResponse{
+	return &CreateSessionResponse{
 		Type:      roundtrip.AuthBearer,
 		Token:     webSession.WS.BearerToken,
 		User:      user,
@@ -470,7 +477,7 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 	if err != nil {
 		return nil, trace.Wrap(teleport.AccessDenied("need auth"))
 	}
-	return newSessionResponse(ctx)
+	return NewSessionResponse(ctx)
 }
 
 // logout is a helper that deletes
@@ -480,7 +487,7 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 // Response - redirects to /web/login and deletes current session
 //
 //
-func (m *Handler) logout(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *sessionContext) (interface{}, error) {
+func (m *Handler) logout(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	if err := ctx.Invalidate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -499,7 +506,7 @@ func (m *Handler) logout(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 //
 // {"message": "ok"}
 //
-func (m *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *sessionContext) (interface{}, error) {
+func (m *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	if err := ctx.Invalidate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -520,7 +527,7 @@ func (m *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httpro
 // {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
 //
 //
-func (m *Handler) renewSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *sessionContext) (interface{}, error) {
+func (m *Handler) renewSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	newSess, err := ctx.CreateWebSession()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -535,7 +542,7 @@ func (m *Handler) renewSession(w http.ResponseWriter, r *http.Request, _ httprou
 	if err := SetSession(w, newSess.Username, newSess.ID); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newSessionResponse(newContext)
+	return NewSessionResponse(newContext)
 }
 
 type renderUserInviteResponse struct {
@@ -599,7 +606,7 @@ func (m *Handler) createNewUser(w http.ResponseWriter, r *http.Request, p httpro
 	if err := SetSession(w, sess.Username, sess.ID); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newSessionResponse(ctx)
+	return NewSessionResponse(ctx)
 }
 
 type getSitesResponse struct {
@@ -632,7 +639,7 @@ func convertSites(rs []reversetunnel.RemoteSite) []site {
 //
 // {"sites": {"name": "localhost", "last_connected": "RFC3339 time", "status": "active"}}
 //
-func (m *Handler) getSites(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *sessionContext) (interface{}, error) {
+func (m *Handler) getSites(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
 	return getSitesResponse{
 		Sites: convertSites(m.cfg.Proxy.GetSites()),
 	}, nil
@@ -680,7 +687,7 @@ Sucessful response:
   ]
 }
 */
-func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := site.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -727,7 +734,7 @@ func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprou
 //
 // Sucessful response is a websocket stream that allows read write to the server
 //
-func (m *Handler) siteNodeConnect(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (m *Handler) siteNodeConnect(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	q := r.URL.Query()
 	params := q.Get("params")
 	if params == "" {
@@ -766,7 +773,7 @@ type sessionStreamEvent struct {
 // Sucessful response is a websocket stream that allows read write to the server and returns
 // json events
 //
-func (m *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (m *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	sessionID, err := session.ParseID(p.ByName("sid"))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -805,7 +812,7 @@ type siteSessionGenerateResponse struct {
 //
 // {"session": {"id": "session-id", "terminal_params": {"w": 100, "h": 100}, "login": "centos"}}
 //
-func (m *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (m *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	var req *siteSessionGenerateReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -833,7 +840,7 @@ type siteSessionUpdateReq struct {
 //
 // {"message": "ok"}
 //
-func (m *Handler) siteSessionUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (m *Handler) siteSessionUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	sessionID, err := session.ParseID(p.ByName("sid"))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -862,7 +869,7 @@ type siteSessionGetResponse struct {
 //
 // {"session": {"id": "sid", "terminal_params": {"w": 100, "h": 100}, "parties": [], "login": "bob"}}
 //
-func (m *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (m *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	sessionID, err := session.ParseID(p.ByName("sid"))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -895,7 +902,7 @@ type siteSessionGetChunksResponse struct {
 //
 // {"session": {"id": "sid", "terminal_params": {"w": 100, "h": 100}, "parties": [], "login": "bob"}}
 //
-func (m *Handler) siteSessionGetChunks(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (m *Handler) siteSessionGetChunks(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	sessionID := p.ByName("sid")
 
 	st, en := r.URL.Query().Get("start"), r.URL.Query().Get("end")
@@ -935,7 +942,7 @@ type siteSessionGetChunksCountResponse struct {
 //
 // {"count": 100}
 //
-func (m *Handler) siteSessionGetChunksCount(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (m *Handler) siteSessionGetChunksCount(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	sessionID := p.ByName("sid")
 
 	clt, err := site.GetClient()
@@ -977,7 +984,7 @@ Response body:
   {"events": [{}]}
 
 */
-func (m *Handler) siteGetEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (m *Handler) siteGetEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	var filter events.Filter
 	filterQ := r.URL.Query().Get("filter")
 	if filterQ == "" {
@@ -1019,7 +1026,7 @@ Response body:
   {"sessions": [{}]}
 
 */
-func (m *Handler) siteGetSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (m *Handler) siteGetSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	var filter events.Filter
 	filterQ := r.URL.Query().Get("filter")
 	if filterQ == "" {
@@ -1122,15 +1129,15 @@ func (h *Handler) String() string {
 const currentSiteShortcut = "-current-"
 
 // contextHandler is a handler called with the auth context, what means it is authenticated and ready to work
-type contextHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext) (interface{}, error)
+type contextHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error)
 
 // siteHandler is a authenticated handler that is called for some existing remote site
-type siteHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *sessionContext, site reversetunnel.RemoteSite) (interface{}, error)
+type siteHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error)
 
 // withSiteAuth ensures that request is authenticated and is issued for existing site
 func (h *Handler) withSiteAuth(fn siteHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		ctx, err := h.authenticateRequest(w, r, true)
+		ctx, err := h.AuthenticateRequest(w, r, true)
 		if err != nil {
 			// clear session just in case if the authentication request is not valid
 			ClearSession(w)
@@ -1155,7 +1162,7 @@ func (h *Handler) withSiteAuth(fn siteHandler) httprouter.Handle {
 // withAuth ensures that request is authenticated
 func (h *Handler) withAuth(fn contextHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		ctx, err := h.authenticateRequest(w, r, true)
+		ctx, err := h.AuthenticateRequest(w, r, true)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1165,7 +1172,7 @@ func (h *Handler) withAuth(fn contextHandler) httprouter.Handle {
 
 // authenticateRequest authenticates request using combination of a session cookie
 // and bearer token
-func (h *Handler) authenticateRequest(w http.ResponseWriter, r *http.Request, checkBearerToken bool) (*sessionContext, error) {
+func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, checkBearerToken bool) (*SessionContext, error) {
 	logger := log.WithFields(log.Fields{
 		"request": fmt.Sprintf("%v %v", r.Method, r.URL.Path),
 	})
