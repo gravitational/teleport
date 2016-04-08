@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/utils"
+
 	"gopkg.in/check.v1"
 )
 
@@ -32,24 +34,34 @@ func TestIntegrations(t *testing.T) { check.TestingT(t) }
 var _ = check.Suite(&IntSuite{})
 
 func (s *IntSuite) SetUpSuite(c *check.C) {
-	setTestTimeouts()
+	utils.InitLoggerForTests()
+	SetTestTimeouts(10)
 }
 
 func (s *IntSuite) TestEverything(c *check.C) {
-	cl := NewInstance("client", 5000)
-	sr := NewInstance("server", 6000)
+	f := func() {
+		cl := NewInstance("client", 5000)
+		sr := NewInstance("server", 6000)
 
-	fatalIf(sr.Create(cl, false))
-	fatalIf(cl.Create(sr, true))
+		c.Assert(sr.Create(cl, false), check.IsNil)
+		c.Assert(cl.Create(sr, true), check.IsNil)
 
-	fatalIf(sr.Start())
-	fatalIf(cl.Start())
+		c.Assert(sr.Start(), check.IsNil)
+		c.Assert(cl.Start(), check.IsNil)
 
-	fmt.Println("Sleeping for 3 seconds")
-	time.Sleep(time.Second * 3)
+		time.Sleep(time.Second * 3)
 
-	sr.SSH([]string{}, "127.0.0.1", 5000)
+		//cl.SSH([]string{"/bin/ls", "-l", "/"}, "127.0.0.1", 5000)
+		//sr.SSH([]string{"/bin/ls", "-l", "/"}, "127.0.0.1", 5000)
 
-	cl.Stop()
-	sr.Stop()
+		c.Assert(cl.Stop(), check.IsNil)
+		c.Assert(sr.Stop(), check.IsNil)
+		cl = nil
+		sr = nil
+
+		fmt.Println("Iteration is done!")
+	}
+	for i := 0; i < 100; i++ {
+		f()
+	}
 }

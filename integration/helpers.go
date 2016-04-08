@@ -20,8 +20,11 @@ import (
 	"github.com/pborman/uuid"
 )
 
-func setTestTimeouts() {
-	testVal := time.Duration(time.Millisecond * 10)
+func SetTestTimeouts(ms int) {
+	if ms == 0 {
+		ms = 10
+	}
+	testVal := time.Duration(time.Millisecond * time.Duration(ms))
 	defaults.ReverseTunnelsRefreshPeriod = testVal
 	defaults.ReverseTunnelAgentReconnectPeriod = testVal
 	defaults.ReverseTunnelAgentHeartbeatPeriod = testVal
@@ -204,6 +207,7 @@ func (this *TeleInstance) SSH(command []string, host string, port int) error {
 	if err != nil {
 		return err
 	}
+	tc.Output = os.Stdout
 	err = tc.SaveKey(this.UserKey)
 	if err != nil {
 		return err
