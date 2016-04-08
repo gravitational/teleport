@@ -70,22 +70,6 @@ const (
 	// InviteTokenTTL sets the lifespan of tokens used for adding nodes and users
 	// to a cluster
 	InviteTokenTTL = 15 * time.Minute
-
-	// ServerHeartbeatTTL is a period between heartbeats
-	// Median sleep time between node pings is this value / 2 + random
-	// deviation added to this time to avoid lots of simultaneous
-	// heartbeats coming to auth server
-	ServerHeartbeatTTL = 10 * time.Second
-
-	// AuthServersRefreshPeriod is a period for clients to refresh their
-	// their stored list of auth servers
-	AuthServersRefreshPeriod = 5 * time.Second
-
-	// SessionRefreshPeriod is how often tsh polls information about session
-	// TODO(klizhentas) all polling periods should go away once backend
-	// releases events
-	SessionRefreshPeriod = 2 * time.Second
-
 	// DefaultDialTimeout is a default TCP dial timeout we set for our
 	// connection attempts
 	DefaultDialTimeout = 30 * time.Second
@@ -93,17 +77,6 @@ const (
 	// DefaultReadHeadersTimeout is a default TCP timeout when we wait
 	// for the response headers to arrive
 	DefaultReadHeadersTimeout = time.Second
-
-	// ReverseTunnelsRefreshPeriod is a period for agents to refresh their
-	// state of the reverse tunnels (this will be removed once we roll
-	// events streams)
-	ReverseTunnelsRefreshPeriod = 3 * time.Second
-
-	// ReverseTunnelAgentReconnectPeriod is the period between agent reconnect attempts
-	ReverseTunnelAgentReconnectPeriod = 3 * time.Second
-
-	// ReverseTunnelAgentHeartbeatPeriod is the period between agent heartbeat messages
-	ReverseTunnelAgentHeartbeatPeriod = 3 * time.Second
 
 	// MaxSignupTokenTTL is a maximum TTL for a web signup one time token
 	// clients can reduce this time, not increase it
@@ -140,6 +113,34 @@ const (
 
 	// OIDCAuthRequestTTL is TTL of internally stored auth request created by client
 	OIDCAuthRequestTTL = 60 * time.Second
+)
+
+var (
+	// ReverseTunnelsRefreshPeriod is a period for agents to refresh their
+	// state of the reverse tunnels (this will be removed once we roll
+	// events streams)
+	ReverseTunnelsRefreshPeriod = 3 * time.Second
+
+	// ReverseTunnelAgentReconnectPeriod is the period between agent reconnect attempts
+	ReverseTunnelAgentReconnectPeriod = 3 * time.Second
+
+	// ReverseTunnelAgentHeartbeatPeriod is the period between agent heartbeat messages
+	ReverseTunnelAgentHeartbeatPeriod = 3 * time.Second
+
+	// ServerHeartbeatTTL is a period between heartbeats
+	// Median sleep time between node pings is this value / 2 + random
+	// deviation added to this time to avoid lots of simultaneous
+	// heartbeats coming to auth server
+	ServerHeartbeatTTL = 10 * time.Second
+
+	// AuthServersRefreshPeriod is a period for clients to refresh their
+	// their stored list of auth servers
+	AuthServersRefreshPeriod = 5 * time.Second
+
+	// SessionRefreshPeriod is how often tsh polls information about session
+	// TODO(klizhentas) all polling periods should go away once backend
+	// releases events
+	SessionRefreshPeriod = 2 * time.Second
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

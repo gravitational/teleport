@@ -20,7 +20,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -32,7 +32,17 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-var PrecalculatedKeysNum = 20
+var (
+	// this global configures how many pre-caluclated keypairs to keep in the
+	// background (perform key genreation in a separate goroutine, useful for
+	// web sesssion for snappy UI)
+	PrecalculatedKeysNum = 10
+
+	// only one global copy of 'nauth' exists
+	singleton nauth = nauth{
+		closeC: make(chan bool),
+	}
+)
 
 type keyPair struct {
 	privPem  []byte
@@ -42,16 +52,30 @@ type keyPair struct {
 type nauth struct {
 	generatedKeysC chan keyPair
 	closeC         chan bool
-	closed         int32
+	mutex          sync.Mutex
 }
 
+// New returns a pointer to a key generator for production purposes
 func New() *nauth {
-	n := nauth{
-		generatedKeysC: make(chan keyPair, PrecalculatedKeysNum),
-		closeC:         make(chan bool),
+	singleton.mutex.Lock()
+	defer singleton.mutex.Unlock()
+
+	if singleton.generatedKeysC == nil && PrecalculatedKeysNum > 0 {
+		singleton.generatedKeysC = make(chan keyPair, PrecalculatedKeysNum)
+		go singleton.precalculateKeys()
 	}
-	go n.precalculateKeys()
-	return &n
+	return &singleton
+}
+
+// Close() closes and re-sets the key generator (better to call it only once,
+// when the process is stopping, to avoid costly re-initialization)
+func (n *nauth) Close() {
+	n.mutex.Lock()
+	defer n.mutex.Unlock()
+
+	close(n.closeC)
+	n.generatedKeysC = nil
+	n.closeC = make(chan bool)
 }
 
 // GetNewKeyPairFromPool returns pre-generated keypair from a channel, which
@@ -85,13 +109,6 @@ func (n *nauth) precalculateKeys() {
 			continue
 		}
 	}
-}
-
-func (n *nauth) Close() error {
-	if atomic.CompareAndSwapInt32(&n.closed, 0, 1) {
-		close(n.closeC)
-	}
-	return nil
 }
 
 // GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute
