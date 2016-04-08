@@ -70,22 +70,6 @@ const (
 	// InviteTokenTTL sets the lifespan of tokens used for adding nodes and users
 	// to a cluster
 	InviteTokenTTL = 15 * time.Minute
-
-	// ServerHeartbeatTTL is a period between heartbeats
-	// Median sleep time between node pings is this value / 2 + random
-	// deviation added to this time to avoid lots of simultaneous
-	// heartbeats coming to auth server
-	ServerHeartbeatTTL = 10 * time.Second
-
-	// AuthServersRefreshPeriod is a period for clients to refresh their
-	// their stored list of auth servers
-	AuthServersRefreshPeriod = 5 * time.Second
-
-	// SessionRefreshPeriod is how often tsh polls information about session
-	// TODO(klizhentas) all polling periods should go away once backend
-	// releases events
-	SessionRefreshPeriod = 2 * time.Second
-
 	// DefaultDialTimeout is a default TCP dial timeout we set for our
 	// connection attempts
 	DefaultDialTimeout = 30 * time.Second
@@ -142,6 +126,21 @@ var (
 
 	// ReverseTunnelAgentHeartbeatPeriod is the period between agent heartbeat messages
 	ReverseTunnelAgentHeartbeatPeriod = 3 * time.Second
+
+	// ServerHeartbeatTTL is a period between heartbeats
+	// Median sleep time between node pings is this value / 2 + random
+	// deviation added to this time to avoid lots of simultaneous
+	// heartbeats coming to auth server
+	ServerHeartbeatTTL = 10 * time.Second
+
+	// AuthServersRefreshPeriod is a period for clients to refresh their
+	// their stored list of auth servers
+	AuthServersRefreshPeriod = 5 * time.Second
+
+	// SessionRefreshPeriod is how often tsh polls information about session
+	// TODO(klizhentas) all polling periods should go away once backend
+	// releases events
+	SessionRefreshPeriod = 2 * time.Second
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

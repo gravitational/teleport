@@ -21,9 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/defaults"
-
 	"gopkg.in/check.v1"
 )
 
@@ -35,12 +32,7 @@ func TestIntegrations(t *testing.T) { check.TestingT(t) }
 var _ = check.Suite(&IntSuite{})
 
 func (s *IntSuite) SetUpSuite(c *check.C) {
-	testVal := time.Duration(time.Millisecond * 10)
-	defaults.ReverseTunnelsRefreshPeriod = testVal
-	defaults.ReverseTunnelAgentReconnectPeriod = testVal
-	defaults.ReverseTunnelAgentHeartbeatPeriod = testVal
-
-	native.SetTestKeys()
+	setTestTimeouts()
 }
 
 func (s *IntSuite) TestEverything(c *check.C) {
@@ -53,10 +45,10 @@ func (s *IntSuite) TestEverything(c *check.C) {
 	fatalIf(sr.Start())
 	fatalIf(cl.Start())
 
-	fmt.Println("Sleeping for 11 seconds")
-	time.Sleep(time.Second * 11)
+	fmt.Println("Sleeping for 3 seconds")
+	time.Sleep(time.Second * 3)
 
-	sr.SSH([]string{"ls", "/"}, "127.0.0.1", 5000)
+	sr.SSH([]string{}, "127.0.0.1", 5000)
 
 	cl.Stop()
 	sr.Stop()

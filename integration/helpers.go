@@ -14,10 +14,22 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/pborman/uuid"
 )
+
+func setTestTimeouts() {
+	testVal := time.Duration(time.Millisecond * 10)
+	defaults.ReverseTunnelsRefreshPeriod = testVal
+	defaults.ReverseTunnelAgentReconnectPeriod = testVal
+	defaults.ReverseTunnelAgentHeartbeatPeriod = testVal
+	defaults.ServerHeartbeatTTL = testVal
+	defaults.AuthServersRefreshPeriod = testVal
+	defaults.SessionRefreshPeriod = testVal
+	native.SetTestKeys()
+}
 
 // TeleInstance represents an in-memory instance of a teleport
 // process for testing
