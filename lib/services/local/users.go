@@ -381,7 +381,7 @@ func (s *IdentityService) GetOIDCConnector(id string, withSecrets bool) (*servic
 	out, err := s.backend.GetVal(connectorsPath, id)
 	if err != nil {
 		if teleport.IsNotFound(err) {
-			return nil, trace.Wrap(teleport.NotFound(fmt.Sprintf("OpenID Connect connector '%v' not found", id)))
+			return nil, trace.Wrap(teleport.NotFound(fmt.Sprintf("OpenID connector '%v' is not configured", id)))
 		}
 		return nil, trace.Wrap(err)
 	}
