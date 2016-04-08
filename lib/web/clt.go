@@ -29,7 +29,7 @@ func newClientWithPool(pool *x509.CertPool) *http.Client {
 }
 
 func newWebClient(url string, opts ...roundtrip.ClientParam) (*webClient, error) {
-	clt, err := roundtrip.NewClient(url, Version, opts...)
+	clt, err := roundtrip.NewClient(url, APIVersion, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

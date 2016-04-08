@@ -185,7 +185,6 @@ func (conn *FakeSSHConnection) SetWriteDeadline(t time.Time) error {
 // CreateBridge takes an incoming SSH connection and creates an SSH-to-HTTP "bridge connection"
 // and waits for that connection to be closed either by the client or by the server
 func (socket *fakeSocket) CreateBridge(remoteAddr net.Addr, sshChan ssh.Channel) error {
-	log.Debugf("SocketOverSSH.Handle(from=%v) is called", remoteAddr)
 	if sshChan == nil {
 		return trace.Wrap(teleport.BadParameter("sshChan", "supply ssh channel"))
 	}
@@ -201,12 +200,10 @@ func (socket *fakeSocket) CreateBridge(remoteAddr net.Addr, sshChan ssh.Channel)
 	// Accept() will unblock this select
 	case socket.connections <- connection:
 	}
-	log.Debugf("SocketOverSSH.Handle(from=%v) is accepted", remoteAddr)
 	// wait for the connection to close:
 	select {
 	case <-connection.closed:
 	}
-	log.Debugf("SocketOverSSH.Handle(from=%v) is closed", remoteAddr)
 	return nil
 }
 
