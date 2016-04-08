@@ -522,10 +522,12 @@ func (tc *TeleportClient) runCommand(nodeAddresses []string, proxyClient *ProxyC
 				fmt.Printf("Running command on %v:\n", address)
 			}
 
-			if err != nil {
-				fmt.Fprintln(tc.Output, err)
-			} else {
-				fmt.Fprintf(tc.Output, out.String())
+			if tc.Output != nil {
+				if err != nil {
+					fmt.Fprintln(tc.Output, err)
+				} else {
+					fmt.Fprintf(tc.Output, out.String())
+				}
 			}
 		}(address)
 	}

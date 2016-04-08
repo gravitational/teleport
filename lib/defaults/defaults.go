@@ -94,17 +94,6 @@ const (
 	// for the response headers to arrive
 	DefaultReadHeadersTimeout = time.Second
 
-	// ReverseTunnelsRefreshPeriod is a period for agents to refresh their
-	// state of the reverse tunnels (this will be removed once we roll
-	// events streams)
-	ReverseTunnelsRefreshPeriod = 3 * time.Second
-
-	// ReverseTunnelAgentReconnectPeriod is the period between agent reconnect attempts
-	ReverseTunnelAgentReconnectPeriod = 3 * time.Second
-
-	// ReverseTunnelAgentHeartbeatPeriod is the period between agent heartbeat messages
-	ReverseTunnelAgentHeartbeatPeriod = 3 * time.Second
-
 	// MaxSignupTokenTTL is a maximum TTL for a web signup one time token
 	// clients can reduce this time, not increase it
 	MaxSignupTokenTTL = time.Hour
@@ -140,6 +129,19 @@ const (
 
 	// OIDCAuthRequestTTL is TTL of internally stored auth request created by client
 	OIDCAuthRequestTTL = 60 * time.Second
+)
+
+var (
+	// ReverseTunnelsRefreshPeriod is a period for agents to refresh their
+	// state of the reverse tunnels (this will be removed once we roll
+	// events streams)
+	ReverseTunnelsRefreshPeriod = 3 * time.Second
+
+	// ReverseTunnelAgentReconnectPeriod is the period between agent reconnect attempts
+	ReverseTunnelAgentReconnectPeriod = 3 * time.Second
+
+	// ReverseTunnelAgentHeartbeatPeriod is the period between agent heartbeat messages
+	ReverseTunnelAgentHeartbeatPeriod = 3 * time.Second
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport
