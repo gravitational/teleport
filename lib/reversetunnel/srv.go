@@ -366,8 +366,6 @@ func (s *server) upsertSite(conn net.Conn, sshConn *ssh.ServerConn) (*tunnelSite
 			break
 		}
 	}
-	log.Infof("found authority domain: %v", domainName)
-
 	var err error
 	var remoteConn *remoteConn
 	if site != nil {
@@ -384,6 +382,7 @@ func (s *server) upsertSite(conn net.Conn, sshConn *ssh.ServerConn) (*tunnelSite
 		}
 		s.tunnelSites = append(s.tunnelSites, site)
 	}
+	log.Infof("[REVERSE TUNNEL] added remote site: %v", domainName)
 	return site, remoteConn, nil
 }
 
