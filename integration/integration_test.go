@@ -17,7 +17,6 @@ limitations under the License.
 package integration
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -39,29 +38,22 @@ func (s *IntSuite) SetUpSuite(c *check.C) {
 }
 
 func (s *IntSuite) TestEverything(c *check.C) {
-	f := func() {
-		cl := NewInstance("client", 5000)
-		sr := NewInstance("server", 6000)
+	cl := NewInstance("client", 5000)
+	sr := NewInstance("server", 6000)
 
-		c.Assert(sr.Create(cl, false), check.IsNil)
-		c.Assert(cl.Create(sr, true), check.IsNil)
+	c.Assert(sr.Create(cl.Secrets.AsSlice(), false), check.IsNil)
+	c.Assert(cl.Create(sr.Secrets.AsSlice(), true), check.IsNil)
 
-		c.Assert(sr.Start(), check.IsNil)
-		c.Assert(cl.Start(), check.IsNil)
+	c.Assert(sr.Start(), check.IsNil)
+	c.Assert(cl.Start(), check.IsNil)
 
-		time.Sleep(time.Second * 3)
+	time.Sleep(time.Second * 3)
 
-		//cl.SSH([]string{"/bin/ls", "-l", "/"}, "127.0.0.1", 5000)
-		//sr.SSH([]string{"/bin/ls", "-l", "/"}, "127.0.0.1", 5000)
+	cl.SSH([]string{"/bin/ls", "-l", "/"}, "127.0.0.1", 5000)
+	sr.SSH([]string{"/bin/ls", "-l", "/"}, "127.0.0.1", 5000)
 
-		c.Assert(cl.Stop(), check.IsNil)
-		c.Assert(sr.Stop(), check.IsNil)
-		cl = nil
-		sr = nil
-
-		fmt.Println("Iteration is done!")
-	}
-	for i := 0; i < 100; i++ {
-		f()
-	}
+	c.Assert(cl.Stop(), check.IsNil)
+	c.Assert(sr.Stop(), check.IsNil)
+	cl = nil
+	sr = nil
 }

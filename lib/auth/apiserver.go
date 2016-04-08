@@ -151,7 +151,7 @@ func (s *APIServer) upsertServer(role teleport.Role, w http.ResponseWriter, r *h
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("[AUTH API] ping from %v %v (%v) at %v", role, req.Server.ID, req.Server.Hostname, r.RemoteAddr)
+	//log.Debugf("[AUTH API] ping from %v %v (%v) at %v", role, req.Server.ID, req.Server.Hostname, r.RemoteAddr)
 
 	// if server sent "local" IP address to us, replace the ip/host part with the remote address we see
 	// on the socket, but keep the original port:
