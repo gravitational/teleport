@@ -53,8 +53,6 @@ type nauth struct {
 	generatedKeysC chan keyPair
 	closeC         chan bool
 	mutex          sync.Mutex
-	// in production set to nil (used for tests)
-	testKey *keyPair
 }
 
 // New returns a pointer to a key generator for production purposes
@@ -67,20 +65,6 @@ func New() *nauth {
 		go singleton.precalculateKeys()
 	}
 	return &singleton
-}
-
-// NewTestInstance
-func SetTestKeys() {
-	singleton.mutex.Lock()
-	defer singleton.mutex.Unlock()
-
-	if singleton.testKey == nil {
-		priv, pub, _ := genKeypair("")
-		singleton.testKey = &keyPair{
-			privPem:  priv,
-			pubBytes: pub,
-		}
-	}
 }
 
 // Close() closes and re-sets the key generator (better to call it only once,
@@ -129,18 +113,6 @@ func (n *nauth) precalculateKeys() {
 
 // GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute
 func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
-	{
-		n.mutex.Lock()
-		defer n.mutex.Unlock()
-		// have a test key to return?
-		if n.testKey != nil {
-			return n.testKey.privPem, n.testKey.pubBytes, nil
-		}
-	}
-	return genKeypair(passphrase)
-}
-
-func genKeypair(passphrase string) ([]byte, []byte, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, nil, err

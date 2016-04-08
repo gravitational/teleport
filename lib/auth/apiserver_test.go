@@ -63,7 +63,6 @@ type APISuite struct {
 var _ = Suite(&APISuite{})
 
 func (s *APISuite) SetUpSuite(c *C) {
-	authority.SetTestKeys()
 	utils.InitLoggerForTests()
 	authority.PrecalculatedKeysNum = 1
 }
