@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -228,7 +229,8 @@ func (this *TeleInstance) Start() error {
 	return nil
 }
 
-func (this *TeleInstance) SSH(command []string, host string, port int) error {
+// SSH executes SSH command on a remote node behind a given site
+func (this *TeleInstance) SSH(command []string, site string, host string, port int) (output []byte, err error) {
 	tc, err := client.NewClient(&client.Config{
 		Login:              this.User.Username,
 		ProxyHost:          this.Config.Proxy.SSHAddr.Addr,
@@ -237,24 +239,26 @@ func (this *TeleInstance) SSH(command []string, host string, port int) error {
 		HostLogin:          this.User.Username,
 		InsecureSkipVerify: true,
 		KeysDir:            this.Config.DataDir,
-		SiteName:           "client",
+		SiteName:           site,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	tc.Output = os.Stdout
+	var buff bytes.Buffer
+	tc.Output = &buff
 	err = tc.SaveKey(this.UserKey)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	cas := this.Secrets.GetCAs()
 	for i := range cas {
 		err = tc.AddTrustedCA(&cas[i])
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return tc.SSH(command, false)
+	err = tc.SSH(command, false)
+	return buff.Bytes(), err
 }
 
 func (this *TeleInstance) Stop() error {
