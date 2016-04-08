@@ -32,7 +32,6 @@ func SetTestTimeouts(ms int) {
 	defaults.ServerHeartbeatTTL = testVal
 	defaults.AuthServersRefreshPeriod = testVal
 	defaults.SessionRefreshPeriod = testVal
-	native.SetTestKeys()
 }
 
 // TeleInstance represents an in-memory instance of a teleport
@@ -56,17 +55,17 @@ type TeleInstance struct {
 
 type InstanceSecrets struct {
 	// instance name (aka "site name")
-	Name string
+	Name string `json:"name"`
 	// instance keys+cert (reused for hostCA and userCA)
-	PubKey  []byte
-	PrivKey []byte
-	Cert    []byte
+	PubKey  []byte `json:"pub"`
+	PrivKey []byte `json:"priv"`
+	Cert    []byte `json:"cert"`
 	// AllowedLogins is a list of OS logins that this instance trusts
-	AllowedLogins []string
+	AllowedLogins []string `json:"logins"`
 	// ListenPort is a reverse tunnel listening port, allowing
 	// other sites to connect to this instance. Set to empty
 	// string if this instance is not allowing incoming tunnels
-	ListenAddr string
+	ListenAddr string `json:"tunnel_addr"`
 }
 
 // NewInstance creates a new Teleport process instance
