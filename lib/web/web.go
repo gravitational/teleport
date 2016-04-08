@@ -89,7 +89,7 @@ type Config struct {
 	DomainName string
 	// ProxyClient is a client that authenticated as proxy
 	ProxyClient auth.ClientI
-	// DIsableUI allows to turn off serving web based UI
+	// DisableUI allows to turn off serving web based UI
 	DisableUI bool
 }
 
