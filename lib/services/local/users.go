@@ -380,6 +380,9 @@ func (s *IdentityService) DeleteOIDCConnector(connectorID string) error {
 func (s *IdentityService) GetOIDCConnector(id string, withSecrets bool) (*services.OIDCConnector, error) {
 	out, err := s.backend.GetVal(connectorsPath, id)
 	if err != nil {
+		if teleport.IsNotFound(err) {
+			return nil, trace.Wrap(teleport.NotFound(fmt.Sprintf("OpenID connector '%v' is not configured", id)))
+		}
 		return nil, trace.Wrap(err)
 	}
 	var data *services.OIDCConnector

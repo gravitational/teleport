@@ -51,6 +51,7 @@ type UserCommand struct {
 	config        *service.Config
 	login         string
 	allowedLogins string
+	identities    []string
 }
 
 type NodeCommand struct {
@@ -113,6 +114,7 @@ func main() {
 	userAdd.Arg("login", "Teleport user login").Required().StringVar(&cmdUsers.login)
 	userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
 		Default("").StringVar(&cmdUsers.allowedLogins)
+	userAdd.Flag("identity", "[EXPERIMENTAL] Add OpenID Connect identity, e.g. --identity=google:bob@gmail.com").Hidden().StringsVar(&cmdUsers.identities)
 	userAdd.Alias(AddUserHelp)
 
 	// list users command
@@ -260,6 +262,15 @@ func (u *UserCommand) Add(client *auth.TunClient) error {
 	user := services.TeleportUser{
 		Name:          u.login,
 		AllowedLogins: strings.Split(u.allowedLogins, ","),
+	}
+	if len(u.identities) != 0 {
+		for _, identityVar := range u.identities {
+			vals := strings.SplitN(identityVar, ":", 2)
+			if len(vals) != 2 {
+				return trace.Errorf("bad flag --identity=%v, expected <connector-id>:<email> format", identityVar)
+			}
+			user.OIDCIdentities = append(user.OIDCIdentities, services.OIDCIdentity{ConnectorID: vals[0], Email: vals[1]})
+		}
 	}
 	token, err := client.CreateSignupToken(&user)
 	if err != nil {

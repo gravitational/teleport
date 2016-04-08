@@ -71,6 +71,10 @@ type CLIConf struct {
 	LocalForwardPorts []string
 	// --local flag for ssh
 	LocalExec bool
+	// ExternalAuth is used to authenticate using external OIDC method
+	ExternalAuth string
+	// SiteName specifies remote site go login to
+	SiteName string
 }
 
 // run executes TSH client. same as main() but easier to test
@@ -84,6 +88,8 @@ func run(args []string, underTest bool) {
 	// configure CLI argument parser:
 	app := utils.InitCLIParser("tsh", "TSH: Teleport SSH client").Interspersed(false)
 	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", client.Username())).StringVar(&cf.Login)
+	app.Flag("auth", "[EXPERIMENTAL] Use external authentication, e.g. 'google'").Hidden().StringVar(&cf.ExternalAuth)
+	app.Flag("site", "[EXPERIMENTAL] Specify site to connect to via proxy").Hidden().StringVar(&cf.SiteName)
 	app.Flag("proxy", "SSH proxy host or IP address").StringVar(&cf.Proxy)
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
 	app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").Default("false").BoolVar(&cf.InsecureSkipVerify)
@@ -109,6 +115,8 @@ func run(args []string, underTest bool) {
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes")
 	ls.Arg("labels", "List of labels to filter node list").StringVar(&cf.UserHost)
+	// sites
+	sites := app.Command("sites", "[EXPERIMENTAL] List sites connected to the proxy").Hidden()
 	// agent (SSH agent listening on unix socket)
 	agent := app.Command("agent", "Start SSH agent on unix socket")
 	agent.Flag("socket", "SSH agent listening socket address, e.g. unix:///tmp/teleport.agent.sock").SetValue(&cf.AgentSocketAddr)
@@ -138,6 +146,8 @@ func run(args []string, underTest bool) {
 		onSCP(&cf)
 	case ls.FullCommand():
 		onListNodes(&cf)
+	case sites.FullCommand():
+		onListSites(&cf)
 	case agent.FullCommand():
 		onAgentStart(&cf)
 	case login.FullCommand():
@@ -217,6 +227,35 @@ func onListNodes(cf *CLIConf) {
 	fmt.Printf(nodesView(servers))
 }
 
+// onListSites executes 'tsh sites' command
+func onListSites(cf *CLIConf) {
+	tc, err := makeClient(cf)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	proxyClient, err := tc.ConnectToProxy()
+	if err != nil {
+		utils.FatalError(err)
+	}
+	defer proxyClient.Close()
+	sites, err := proxyClient.GetSites()
+	if err != nil {
+		utils.FatalError(err)
+	}
+	sitesView := func() string {
+		t := goterm.NewTable(0, 10, 5, ' ', 0)
+		printHeader(t, []string{"Site Name", "Status", "Last Connected"})
+		if len(sites) == 0 {
+			return t.String()
+		}
+		for _, site := range sites {
+			fmt.Fprintf(t, "%v\t%v\t%v\n", site.Name, site.Status, site.LastConnected)
+		}
+		return t.String()
+	}
+	fmt.Printf(sitesView())
+}
+
 // onSSH executes 'tsh ssh' command
 func onSSH(cf *CLIConf) {
 	tc, err := makeClient(cf)
@@ -286,6 +325,7 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 
 	// prep client config:
 	c := &client.Config{
+		Output:             os.Stdout,
 		Login:              cf.Login,
 		ProxyHost:          cf.Proxy,
 		Host:               cf.UserHost,
@@ -295,6 +335,8 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 		KeyTTL:             time.Minute * time.Duration(cf.MinsToLive),
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		LocalForwardPorts:  fPorts,
+		ConnectorID:        cf.ExternalAuth,
+		SiteName:           cf.SiteName,
 	}
 	return client.NewClient(c)
 }
