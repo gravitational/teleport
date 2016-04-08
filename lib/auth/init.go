@@ -73,12 +73,6 @@ type InitConfig struct {
 	// in configuration, so auth server will init the tunnels on the first start
 	OIDCConnectors []services.OIDCConnector
 
-	// HostCA is an optional host certificate authority keypair
-	HostCA *services.CertAuthority
-
-	// UserCA is an optional user certificate authority keypair
-	UserCA *services.CertAuthority
-
 	// Trust is a service that manages users and credentials
 	Trust services.Trust
 	// Lock is a distributed or local lock service
@@ -142,20 +136,19 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 		if !teleport.IsNotFound(err) {
 			return nil, nil, trace.Wrap(err)
 		}
-		if cfg.HostCA == nil {
-			log.Infof("FIRST START: Generating host CA on first start")
-			priv, pub, err := asrv.GenerateKeyPair("")
-			if err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-			cfg.HostCA = &services.CertAuthority{
-				DomainName:   cfg.DomainName,
-				Type:         services.HostCA,
-				SigningKeys:  [][]byte{priv},
-				CheckingKeys: [][]byte{pub},
-			}
+
+		log.Infof("FIRST START: Generating host CA on first start")
+		priv, pub, err := asrv.GenerateKeyPair("")
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
 		}
-		if err := asrv.Trust.UpsertCertAuthority(*cfg.HostCA, backend.Forever); err != nil {
+		hostCA := services.CertAuthority{
+			DomainName:   cfg.DomainName,
+			Type:         services.HostCA,
+			SigningKeys:  [][]byte{priv},
+			CheckingKeys: [][]byte{pub},
+		}
+		if err := asrv.Trust.UpsertCertAuthority(hostCA, backend.Forever); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	}
@@ -167,20 +160,19 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 		if !teleport.IsNotFound(err) {
 			return nil, nil, trace.Wrap(err)
 		}
-		if cfg.UserCA == nil {
-			log.Infof("FIRST START: Generating user CA on first start")
-			priv, pub, err := asrv.GenerateKeyPair("")
-			if err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-			cfg.UserCA = &services.CertAuthority{
-				DomainName:   cfg.DomainName,
-				Type:         services.UserCA,
-				SigningKeys:  [][]byte{priv},
-				CheckingKeys: [][]byte{pub},
-			}
+
+		log.Infof("FIRST START: Generating user CA on first start")
+		priv, pub, err := asrv.GenerateKeyPair("")
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
 		}
-		if err := asrv.Trust.UpsertCertAuthority(*cfg.UserCA, backend.Forever); err != nil {
+		userCA := services.CertAuthority{
+			DomainName:   cfg.DomainName,
+			Type:         services.UserCA,
+			SigningKeys:  [][]byte{priv},
+			CheckingKeys: [][]byte{pub},
+		}
+		if err := asrv.Trust.UpsertCertAuthority(userCA, backend.Forever); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	}
