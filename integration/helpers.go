@@ -67,6 +67,7 @@ type InstanceSecrets struct {
 	// other sites to connect to this instance. Set to empty
 	// string if this instance is not allowing incoming tunnels
 	ListenAddr string `json:"tunnel_addr"`
+	// UserKey is the key a user can use to login
 }
 
 // NewInstance creates a new Teleport process instance

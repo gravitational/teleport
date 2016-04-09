@@ -362,7 +362,6 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.Rea
 			case <-tick.C:
 				sess, err := siteClient.GetSession(sessionID)
 				if err != nil {
-					log.Infof("failed to get session: %v", err)
 					continue
 				}
 				// no previous session

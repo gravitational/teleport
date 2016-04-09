@@ -552,7 +552,6 @@ func LocateWebAssets() (string, error) {
 	}
 	// checker function to determine if dirPath contains the web assets
 	locateAssets := func(dirPath string) bool {
-		fmt.Println("checking ", dirPath)
 		for _, af := range assetsToCheck {
 			if !fileExists(filepath.Join(dirPath, af)) {
 				return false

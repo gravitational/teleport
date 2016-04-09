@@ -101,27 +101,25 @@ func run(cmdlineArgs []string, testRun bool) (executedCommand string, appliedCon
 		utils.FatalError(err)
 	}
 
-	// configuration merge: defaults -> file-based conf -> CLI conf
-	config, err := config.Configure(&ccf)
-	if err != nil {
-		utils.FatalError(err)
-	}
-
 	// execute the selected command unless we're running tests
 	if !testRun {
-		log.Debug(config.DebugDumpToYAML())
-
 		switch command {
 		case start.FullCommand():
+			// configuration merge: defaults -> file-based conf -> CLI conf
+			appliedConfig, err = config.Configure(&ccf)
+			if err != nil {
+				utils.FatalError(err)
+			}
+			log.Debug(appliedConfig.DebugDumpToYAML())
 			if ccf.HTTPProfileEndpoint {
 				log.Infof("starting http profile endpoint")
 				go func() {
 					log.Println(http.ListenAndServe("localhost:6060", nil))
 				}()
 			}
-			err = onStart(config)
+			err = onStart(appliedConfig)
 		case status.FullCommand():
-			err = onStatus(config)
+			err = onStatus()
 		case dump.FullCommand():
 			onConfigDump()
 		case ver.FullCommand():
@@ -132,7 +130,7 @@ func run(cmdlineArgs []string, testRun bool) (executedCommand string, appliedCon
 		}
 		log.Info("teleport: clean exit")
 	}
-	return command, config
+	return command, appliedConfig
 }
 
 // onStart is the handler for "start" CLI command
@@ -159,7 +157,7 @@ func onStart(config *service.Config) error {
 }
 
 // onStatus is the handler for "status" CLI command
-func onStatus(config *service.Config) error {
+func onStatus() error {
 	sid := os.Getenv("SSH_SESSION_ID")
 	proxyHost := os.Getenv("SSH_SESSION_WEBPROXY_ADDR")
 	tuser := os.Getenv("SSH_TELEPORT_USER")
