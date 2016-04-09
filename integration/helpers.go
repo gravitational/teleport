@@ -16,6 +16,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -48,6 +49,7 @@ type TeleInstance struct {
 	// Internal stuff...
 	Process *service.TeleportProcess
 	Config  *service.Config
+	Tunnel  *reversetunnel.Server
 
 	// Pre-created user which can be used to SSH into this cluster
 	UserKey *client.Key
@@ -67,7 +69,6 @@ type InstanceSecrets struct {
 	// other sites to connect to this instance. Set to empty
 	// string if this instance is not allowing incoming tunnels
 	ListenAddr string `json:"tunnel_addr"`
-	// UserKey is the key a user can use to login
 }
 
 // NewInstance creates a new Teleport process instance
@@ -192,15 +193,17 @@ func (this *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bo
 	return nil
 }
 
-func (this *TeleInstance) Start() error {
+func (this *TeleInstance) Start() (err error) {
 	proxyReady := make(chan service.Event)
 	sshReady := make(chan service.Event)
+	tunnelReady := make(chan service.Event)
 	allReady := make(chan interface{})
 
 	this.Process.WaitForEvent(service.ProxyIdentityEvent, proxyReady, make(chan struct{}))
 	this.Process.WaitForEvent(service.SSHIdentityEvent, sshReady, make(chan struct{}))
+	this.Process.WaitForEvent(service.ProxyReverseTunnelServerEvent, tunnelReady, make(chan struct{}))
 
-	if err := this.Process.Start(); err != nil {
+	if err = this.Process.Start(); err != nil {
 		fatalIf(err)
 	}
 
@@ -214,10 +217,17 @@ func (this *TeleInstance) Start() error {
 			<-sshReady
 		}
 		<-proxyReady
+		te := <-tunnelReady
+		ts, ok := te.Payload.(*reversetunnel.Server)
+		if !ok {
+			err = fmt.Errorf("Global event '%v' did not deliver reverseTunenl server pointer as a payload", service.ProxyReverseTunnelServerEvent)
+			log.Error(err)
+		}
+		this.Tunnel = ts
 		close(allReady)
 	}()
 
-	timeoutTicker := time.NewTicker(time.Second * 10)
+	timeoutTicker := time.NewTicker(time.Second * 5)
 
 	select {
 	case <-allReady:
@@ -227,7 +237,7 @@ func (this *TeleInstance) Start() error {
 		return fmt.Errorf("failed to start local Teleport instance: timeout")
 	}
 	log.Infof("Teleport instance '%v' started!", this.Secrets.Name)
-	return nil
+	return err
 }
 
 // SSH executes SSH command on a remote node behind a given site
