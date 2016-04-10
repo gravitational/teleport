@@ -333,7 +333,7 @@ func (m *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 
 func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	log.Infof("oidcLogin validate: %#v", r.URL.Query())
-	response, err := m.cfg.ProxyClient.ValidateOIDCAuthCallback(r.URL.Query())
+	response, err := m.cfg.ProxyClient.ValidateOIDCAuthCallback(r.URL.Query(), true)
 	if err != nil {
 		log.Infof("VALIDATE error: %v", err)
 		return nil, trace.Wrap(err)
