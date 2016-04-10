@@ -14,6 +14,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -201,6 +202,7 @@ func (this *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bo
 	tconf.AuthServers[0].Addr = tconf.Auth.SSHAddr.Addr
 	tconf.ConfigureBolt(dataDir)
 	tconf.DataDir = dataDir
+	tconf.Keygen = testauthority.New()
 	this.Config = tconf
 	this.Process, err = service.NewTeleport(tconf)
 	if err != nil {
@@ -216,7 +218,8 @@ func (this *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bo
 		if err != nil {
 			return err
 		}
-		priv, pub := makeKey()
+		priv, pub, _ := tconf.Keygen.GenerateKeyPair("")
+		//priv, pub := makeKey()
 		ttl := time.Duration(time.Hour * 24)
 		cert, err := auth.GenerateUserCert(pub, user.Username, ttl)
 		if err != nil {

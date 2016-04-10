@@ -66,6 +66,9 @@ type Config struct {
 	// Auth server authentication and authorizatin server config
 	Auth AuthConfig
 
+	// Keygen points to a key generator implementation
+	Keygen auth.Authority
+
 	// Proxy is SSH proxy that manages incoming and outbound connections
 	// via multiple reverse tunnels
 	Proxy ProxyConfig

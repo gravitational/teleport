@@ -227,7 +227,10 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	serviceStarted := false
 
 	if cfg.Auth.Enabled {
-		if err := process.initAuthService(); err != nil {
+		if cfg.Keygen == nil {
+			cfg.Keygen = native.New()
+		}
+		if err := process.initAuthService(cfg.Keygen); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		serviceStarted = true
@@ -267,7 +270,7 @@ func (process *TeleportProcess) getLocalAuth() *auth.AuthServer {
 }
 
 // initAuthService can be called to initialize auth server service
-func (process *TeleportProcess) initAuthService() error {
+func (process *TeleportProcess) initAuthService(authority auth.Authority) error {
 	var (
 		askedToExit = false
 		err         error
@@ -288,10 +291,9 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	keygen := native.New()
 	acfg := auth.InitConfig{
 		Backend:         b,
-		Authority:       keygen,
+		Authority:       authority,
 		DomainName:      cfg.Auth.DomainName,
 		AuthServiceName: cfg.Hostname,
 		DataDir:         cfg.DataDir,
@@ -410,7 +412,6 @@ func (process *TeleportProcess) initAuthService() error {
 		authTunnel.Close()
 		authClient.Close()
 		apiServer.Close()
-		keygen.Close()
 		log.Infof("[AUTH] auth service exited")
 	})
 	return nil
