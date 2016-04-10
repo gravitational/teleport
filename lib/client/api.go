@@ -326,7 +326,9 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool) error {
 }
 
 // Join connects to the existing/active SSH session
-func (tc *TeleportClient) Join(sessionID session.ID) (err error) {
+func (tc *TeleportClient) Join(sid string) (err error) {
+	sessionID := session.ID(sid)
+
 	var notFoundError = &teleport.NotFoundError{Message: "Session not found or it has ended"}
 	// connect to proxy:
 	if !tc.Config.ProxySpecified() {
@@ -343,6 +345,7 @@ func (tc *TeleportClient) Join(sessionID session.ID) (err error) {
 		return trace.Wrap(err)
 	}
 	if len(sites) == 0 {
+		fmt.Println("no sites!")
 		return trace.Wrap(notFoundError)
 	}
 	site, err := proxyClient.ConnectToSite(sites[0].Name, tc.Config.HostLogin)
