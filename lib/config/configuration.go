@@ -318,9 +318,6 @@ func applyString(src string, target *string) bool {
 // Configure merges command line arguments with what's in a configuration file
 // with CLI commands taking precedence
 func Configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
-	// create the default configuration:
-	cfg = service.MakeDefaultConfig()
-
 	// load /etc/teleport.yaml and apply it's values:
 	fileConf, err := readConfigFile(clf.ConfigFile)
 	if err != nil {

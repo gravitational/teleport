@@ -101,6 +101,9 @@ func run(cmdlineArgs []string, testRun bool) (executedCommand string, appliedCon
 		utils.FatalError(err)
 	}
 
+	// create the default configuration:
+	appliedConfig = service.MakeDefaultConfig()
+
 	// execute the selected command unless we're running tests
 	if !testRun {
 		switch command {
