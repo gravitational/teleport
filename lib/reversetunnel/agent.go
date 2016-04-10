@@ -210,7 +210,6 @@ func (a *Agent) connect() error {
 	go a.handleAccessPoint(c.HandleChannelOpen(chanAccessPoint))
 	go a.handleTransport(c.HandleChannelOpen(chanTransport))
 
-	a.log.Infof("connection established")
 	return nil
 }
 
