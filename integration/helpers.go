@@ -29,10 +29,8 @@ func SetTestTimeouts(ms int) {
 	}
 	testVal := time.Duration(time.Millisecond * time.Duration(ms))
 	defaults.ReverseTunnelsRefreshPeriod = testVal
-	defaults.ReverseTunnelAgentReconnectPeriod = testVal
 	defaults.ReverseTunnelAgentHeartbeatPeriod = testVal
 	defaults.ServerHeartbeatTTL = testVal
-	defaults.AuthServersRefreshPeriod = testVal
 	defaults.SessionRefreshPeriod = testVal
 }
 
@@ -42,9 +40,8 @@ type TeleInstance struct {
 	// Secrets holds the keys (pub, priv and derived cert) of this instance
 	Secrets InstanceSecrets
 
-	// StartPort determines which IP ports this process will start listen
-	// on, value 6000 means it will take 6001, 6002, etc...
-	StartPort int
+	// Slice of TCP ports used by Teleport services
+	Ports []int
 
 	// Hostname is the name of the host where this isnstance is running
 	Hostname string
@@ -82,16 +79,21 @@ func (s *InstanceSecrets) String() string {
 }
 
 // NewInstance creates a new Teleport process instance
-func NewInstance(siteName string, hostName string, startPort int) *TeleInstance {
+func NewInstance(siteName string, hostName string, ports []int, priv, pub []byte) *TeleInstance {
 	var err error
+	if len(ports) < 5 {
+		fatalIf(fmt.Errorf("not enough free ports given: %v", ports))
+	}
 	if hostName == "" {
 		hostName, err = os.Hostname()
 		fatalIf(err)
 	}
 	// generate instance secrets (keys):
 	keygen := native.New()
-	priv, pub, _ := keygen.GenerateKeyPair("")
-	cert, err := native.New().GenerateHostCert(priv, pub,
+	if priv == nil || pub == nil {
+		priv, pub, _ = keygen.GenerateKeyPair("")
+	}
+	cert, err := keygen.GenerateHostCert(priv, pub,
 		hostName, siteName, teleport.RoleAdmin, time.Duration(time.Hour*24))
 	fatalIf(err)
 	secrets := InstanceSecrets{
@@ -99,13 +101,13 @@ func NewInstance(siteName string, hostName string, startPort int) *TeleInstance 
 		PrivKey:    priv,
 		PubKey:     pub,
 		Cert:       cert,
-		ListenAddr: net.JoinHostPort(hostName, strconv.Itoa(startPort+4)),
+		ListenAddr: net.JoinHostPort(hostName, strconv.Itoa(ports[4])),
 		Users:      make(map[string]*User),
 	}
 	return &TeleInstance{
-		Secrets:   secrets,
-		StartPort: startPort,
-		Hostname:  hostName,
+		Secrets:  secrets,
+		Ports:    ports,
+		Hostname: hostName,
 	}
 }
 
@@ -150,19 +152,19 @@ func (this *InstanceSecrets) GetIdentity() *auth.Identity {
 }
 
 func (this *TeleInstance) GetPortSSH() string {
-	return strconv.Itoa(this.StartPort)
+	return strconv.Itoa(this.Ports[0])
 }
 
 func (this *TeleInstance) GetPortAuth() string {
-	return strconv.Itoa(this.StartPort + 1)
+	return strconv.Itoa(this.Ports[1])
 }
 
 func (this *TeleInstance) GetPortProxy() string {
-	return strconv.Itoa(this.StartPort + 2)
+	return strconv.Itoa(this.Ports[2])
 }
 
 func (this *TeleInstance) GetPortWeb() string {
-	return strconv.Itoa(this.StartPort + 3)
+	return strconv.Itoa(this.Ports[3])
 }
 
 // Create creates a new instance of Teleport which trusts a lsit of other clusters (other

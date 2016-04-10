@@ -345,7 +345,6 @@ func (tc *TeleportClient) Join(sid string) (err error) {
 		return trace.Wrap(err)
 	}
 	if len(sites) == 0 {
-		fmt.Println("no sites!")
 		return trace.Wrap(notFoundError)
 	}
 	site, err := proxyClient.ConnectToSite(sites[0].Name, tc.Config.HostLogin)

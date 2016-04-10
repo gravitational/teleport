@@ -113,6 +113,8 @@ func (n *nauth) precalculateKeys() {
 
 // GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute
 func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
+	//fmt.Println("-----> generating new keypair")
+	//debug.PrintStack()
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, nil, err
