@@ -56,45 +56,42 @@ func NewAuthWithRoles(authServer *AuthServer, permChecker PermissionChecker,
 func (a *AuthWithRoles) GetSessions() ([]session.Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetSessions); err != nil {
 		return nil, trace.Wrap(err)
-	} else {
-		return a.sessions.GetSessions()
 	}
+	return a.sessions.GetSessions()
 }
 
 func (a *AuthWithRoles) GetSession(id session.ID) (*session.Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetSession); err != nil {
 		return nil, trace.Wrap(err)
-	} else {
-		return a.sessions.GetSession(id)
 	}
+	return a.sessions.GetSession(id)
+
 }
 func (a *AuthWithRoles) CreateSession(s session.Session) error {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertSession); err != nil {
 		return trace.Wrap(err)
-	} else {
-		return a.sessions.CreateSession(s)
 	}
+	return a.sessions.CreateSession(s)
 }
 func (a *AuthWithRoles) UpdateSession(req session.UpdateRequest) error {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertSession); err != nil {
 		return trace.Wrap(err)
-	} else {
-		return a.sessions.UpdateSession(req)
 	}
+	return a.sessions.UpdateSession(req)
+
 }
 func (a *AuthWithRoles) UpsertParty(id session.ID, p session.Party, ttl time.Duration) error {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertParty); err != nil {
 		return trace.Wrap(err)
-	} else {
-		return a.sessions.UpsertParty(id, p, ttl)
 	}
+	return a.sessions.UpsertParty(id, p, ttl)
 }
 func (a *AuthWithRoles) UpsertCertAuthority(ca services.CertAuthority, ttl time.Duration) error {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertCertAuthority); err != nil {
 		return trace.Wrap(err)
-	} else {
-		return a.authServer.UpsertCertAuthority(ca, ttl)
 	}
+	return a.authServer.UpsertCertAuthority(ca, ttl)
+
 }
 func (a *AuthWithRoles) GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error) {
 	if loadKeys {
@@ -112,220 +109,217 @@ func (a *AuthWithRoles) GetCertAuthorities(caType services.CertAuthType, loadKey
 func (a *AuthWithRoles) GetLocalDomain() (string, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetLocalDomain); err != nil {
 		return "", trace.Wrap(err)
-	} else {
-		return a.authServer.GetLocalDomain()
 	}
+	return a.authServer.GetLocalDomain()
 }
 
 func (a *AuthWithRoles) DeleteCertAuthority(id services.CertAuthID) error {
 	if err := a.permChecker.HasPermission(a.role, ActionDeleteCertAuthority); err != nil {
 		return trace.Wrap(err)
-	} else {
-		return a.authServer.DeleteCertAuthority(id)
 	}
+	return a.authServer.DeleteCertAuthority(id)
 }
 func (a *AuthWithRoles) GenerateToken(role teleport.Role, ttl time.Duration) (string, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGenerateToken); err != nil {
 		return "", trace.Wrap(err)
-	} else {
-		return a.authServer.GenerateToken(role, ttl)
 	}
+	return a.authServer.GenerateToken(role, ttl)
 }
 func (a *AuthWithRoles) RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionRegisterUsingToken); err != nil {
 		return nil, trace.Wrap(err)
-	} else {
-		return a.authServer.RegisterUsingToken(token, hostID, role)
 	}
+	return a.authServer.RegisterUsingToken(token, hostID, role)
+
 }
 func (a *AuthWithRoles) RegisterNewAuthServer(token string) error {
 	if err := a.permChecker.HasPermission(a.role, ActionRegisterNewAuthServer); err != nil {
 		return trace.Wrap(err)
-	} else {
-		return a.authServer.RegisterNewAuthServer(token)
 	}
+	return a.authServer.RegisterNewAuthServer(token)
+
 }
 func (a *AuthWithRoles) Log(id lunk.EventID, e lunk.Event) {
 	if err := a.permChecker.HasPermission(a.role, ActionLog); err != nil {
 		return
-	} else {
-		a.elog.Log(id, e)
 	}
+	a.elog.Log(id, e)
+
 }
 func (a *AuthWithRoles) LogEntry(en lunk.Entry) error {
 	if err := a.permChecker.HasPermission(a.role, ActionLogEntry); err != nil {
 		return trace.Wrap(err)
-	} else {
-		return a.elog.LogEntry(en)
 	}
+	return a.elog.LogEntry(en)
+
 }
 func (a *AuthWithRoles) GetEvents(filter events.Filter) ([]lunk.Entry, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetEvents); err != nil {
 		return nil, trace.Wrap(err)
-	} else {
-		return a.elog.GetEvents(filter)
 	}
+	return a.elog.GetEvents(filter)
+
 }
 func (a *AuthWithRoles) LogSession(sess session.Session) error {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertSession); err != nil {
 		return trace.Wrap(err)
-	} else {
-		return a.elog.LogSession(sess)
 	}
+	return a.elog.LogSession(sess)
+
 }
 func (a *AuthWithRoles) GetSessionEvents(filter events.Filter) ([]session.Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetSessions); err != nil {
 		return nil, trace.Wrap(err)
-	} else {
-		return a.elog.GetSessionEvents(filter)
 	}
+	return a.elog.GetSessionEvents(filter)
+
 }
 func (a *AuthWithRoles) GetChunkWriter(id string) (recorder.ChunkWriteCloser, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetChunkWriter); err != nil {
 		return nil, trace.Wrap(err)
-	} else {
-		return a.recorder.GetChunkWriter(id)
 	}
+	return a.recorder.GetChunkWriter(id)
+
 }
 func (a *AuthWithRoles) GetChunkReader(id string) (recorder.ChunkReadCloser, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetChunkReader); err != nil {
 		return nil, trace.Wrap(err)
-	} else {
-		return a.recorder.GetChunkReader(id)
 	}
+	return a.recorder.GetChunkReader(id)
+
 }
 func (a *AuthWithRoles) UpsertNode(s services.Server, ttl time.Duration) error {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertServer); err != nil {
 		return trace.Wrap(err)
-	} else {
-		return a.authServer.UpsertNode(s, ttl)
 	}
+	return a.authServer.UpsertNode(s, ttl)
+
 }
 func (a *AuthWithRoles) GetNodes() ([]services.Server, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetServers); err != nil {
 		return nil, trace.Wrap(err)
-	} else {
-		return a.authServer.GetNodes()
 	}
+	return a.authServer.GetNodes()
+
 }
 func (a *AuthWithRoles) UpsertAuthServer(s services.Server, ttl time.Duration) error {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertAuthServer); err != nil {
 		return trace.Wrap(err)
-	} else {
-		return a.authServer.UpsertAuthServer(s, ttl)
 	}
+	return a.authServer.UpsertAuthServer(s, ttl)
+
 }
 func (a *AuthWithRoles) GetAuthServers() ([]services.Server, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetAuthServers); err != nil {
 		return nil, err
-	} else {
-		return a.authServer.GetAuthServers()
 	}
+	return a.authServer.GetAuthServers()
+
 }
 func (a *AuthWithRoles) UpsertProxy(s services.Server, ttl time.Duration) error {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertProxy); err != nil {
 		return trace.Wrap(err)
-	} else {
-		return a.authServer.UpsertProxy(s, ttl)
 	}
+	return a.authServer.UpsertProxy(s, ttl)
+
 }
 func (a *AuthWithRoles) GetProxies() ([]services.Server, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetProxies); err != nil {
 		return nil, err
-	} else {
-		return a.authServer.GetProxies()
 	}
+	return a.authServer.GetProxies()
+
 }
 func (a *AuthWithRoles) UpsertReverseTunnel(r services.ReverseTunnel, ttl time.Duration) error {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertReverseTunnel); err != nil {
 		return trace.Wrap(err)
-	} else {
-		return a.authServer.UpsertReverseTunnel(r, ttl)
 	}
+	return a.authServer.UpsertReverseTunnel(r, ttl)
+
 }
 func (a *AuthWithRoles) GetReverseTunnels() ([]services.ReverseTunnel, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetReverseTunnels); err != nil {
 		return nil, trace.Wrap(err)
-	} else {
-		return a.authServer.GetReverseTunnels()
 	}
+	return a.authServer.GetReverseTunnels()
+
 }
 func (a *AuthWithRoles) DeleteReverseTunnel(domainName string) error {
 	if err := a.permChecker.HasPermission(a.role, ActionDeleteReverseTunnel); err != nil {
 		return trace.Wrap(err)
-	} else {
-		return a.authServer.DeleteReverseTunnel(domainName)
 	}
+	return a.authServer.DeleteReverseTunnel(domainName)
+
 }
 func (a *AuthWithRoles) UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error) {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertPassword); err != nil {
 		return "", nil, err
-	} else {
-		return a.authServer.UpsertPassword(user, password)
 	}
+	return a.authServer.UpsertPassword(user, password)
 }
 func (a *AuthWithRoles) CheckPassword(user string, password []byte, hotpToken string) error {
 	if err := a.permChecker.HasPermission(a.role, ActionCheckPassword); err != nil {
 		return trace.Wrap(err)
-	} else {
-		return a.authServer.CheckPassword(user, password, hotpToken)
 	}
+	return a.authServer.CheckPassword(user, password, hotpToken)
 }
 func (a *AuthWithRoles) SignIn(user string, password []byte) (*Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionSignIn); err != nil {
 		return nil, trace.Wrap(err)
-	} else {
-		return a.authServer.SignIn(user, password)
 	}
+	return a.authServer.SignIn(user, password)
 }
-func (a *AuthWithRoles) CreateWebSession(user string, prevSessionID string) (*Session, error) {
+func (a *AuthWithRoles) CreateWebSession(user string) (*Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionCreateWebSession); err != nil {
 		return nil, trace.Wrap(err)
-	} else {
-		return a.authServer.CreateWebSession(user, prevSessionID)
 	}
+	return a.authServer.CreateWebSession(user)
+}
+func (a *AuthWithRoles) ExtendWebSession(user, prevSessionID string) (*Session, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionExtendWebSession); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.ExtendWebSession(user, prevSessionID)
 }
 func (a *AuthWithRoles) GetWebSessionInfo(user string, sid string) (*Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetWebSession); err != nil {
 		return nil, trace.Wrap(err)
-	} else {
-		return a.authServer.GetWebSessionInfo(user, sid)
 	}
+	return a.authServer.GetWebSessionInfo(user, sid)
+
 }
 func (a *AuthWithRoles) DeleteWebSession(user string, sid string) error {
 	if err := a.permChecker.HasPermission(a.role, ActionDeleteWebSession); err != nil {
 		return trace.Wrap(err)
-	} else {
-		return a.authServer.DeleteWebSession(user, sid)
 	}
+	return a.authServer.DeleteWebSession(user, sid)
 }
 func (a *AuthWithRoles) GetUsers() ([]services.User, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetUsers); err != nil {
 		return nil, trace.Wrap(err)
-	} else {
-		return a.authServer.GetUsers()
 	}
+	return a.authServer.GetUsers()
 }
 func (a *AuthWithRoles) GetUser(name string) (services.User, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetUser); err != nil {
 		return nil, trace.Wrap(err)
-	} else {
-		return a.authServer.Identity.GetUser(name)
 	}
+	return a.authServer.Identity.GetUser(name)
+
 }
 func (a *AuthWithRoles) DeleteUser(user string) error {
 	if err := a.permChecker.HasPermission(a.role, ActionDeleteUser); err != nil {
 		return trace.Wrap(err)
-	} else {
-		return a.authServer.DeleteUser(user)
 	}
+	return a.authServer.DeleteUser(user)
+
 }
 func (a *AuthWithRoles) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGenerateKeyPair); err != nil {
 		return nil, nil, trace.Wrap(err)
-	} else {
-		return a.authServer.GenerateKeyPair(pass)
 	}
+	return a.authServer.GenerateKeyPair(pass)
+
 }
 func (a *AuthWithRoles) GenerateHostCert(
 	key []byte, hostname, authDomain string, role teleport.Role,
@@ -333,48 +327,48 @@ func (a *AuthWithRoles) GenerateHostCert(
 
 	if err := a.permChecker.HasPermission(a.role, ActionGenerateHostCert); err != nil {
 		return nil, trace.Wrap(err)
-	} else {
-		return a.authServer.GenerateHostCert(key, hostname, authDomain, role, ttl)
 	}
+	return a.authServer.GenerateHostCert(key, hostname, authDomain, role, ttl)
+
 }
 func (a *AuthWithRoles) GenerateUserCert(key []byte, user string, ttl time.Duration) ([]byte, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGenerateUserCert); err != nil {
 		return nil, trace.Wrap(err)
-	} else {
-		return a.authServer.GenerateUserCert(key, user, ttl)
 	}
+	return a.authServer.GenerateUserCert(key, user, ttl)
+
 }
 func (a *AuthWithRoles) CreateSignupToken(user services.User) (token string, e error) {
 	if err := a.permChecker.HasPermission(a.role, ActionCreateSignupToken); err != nil {
 		return "", trace.Wrap(err)
-	} else {
-		return a.authServer.CreateSignupToken(user)
 	}
+	return a.authServer.CreateSignupToken(user)
+
 }
 
 func (a *AuthWithRoles) GetSignupTokenData(token string) (user string,
 	QRImg []byte, hotpFirstValues []string, e error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetSignupTokenData); err != nil {
 		return "", nil, nil, trace.Wrap(err)
-	} else {
-		return a.authServer.GetSignupTokenData(token)
 	}
+	return a.authServer.GetSignupTokenData(token)
+
 }
 
 func (a *AuthWithRoles) CreateUserWithToken(token, password, hotpToken string) (*Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionCreateUserWithToken); err != nil {
 		return nil, trace.Wrap(err)
-	} else {
-		return a.authServer.CreateUserWithToken(token, password, hotpToken)
 	}
+	return a.authServer.CreateUserWithToken(token, password, hotpToken)
+
 }
 
 func (a *AuthWithRoles) UpsertUser(u services.User) error {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertUser); err != nil {
 		return trace.Wrap(err)
-	} else {
-		return a.authServer.UpsertUser(u)
 	}
+	return a.authServer.UpsertUser(u)
+
 }
 
 func (a *AuthWithRoles) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error {

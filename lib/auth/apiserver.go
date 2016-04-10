@@ -295,7 +295,14 @@ func (s *APIServer) createWebSession(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 	user := p[0].Value
-	sess, err := s.a.CreateWebSession(user, req.PrevSessionID)
+	if req.PrevSessionID != "" {
+		sess, err := s.a.ExtendWebSession(user, req.PrevSessionID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return sess, nil
+	}
+	sess, err := s.a.CreateWebSession(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

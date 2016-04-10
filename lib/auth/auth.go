@@ -224,9 +224,9 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 	return sess, nil
 }
 
-// CreateWebSession creates a new web session for a user based on a valid previous sessionID,
+// ExtendWebSession creates a new web session for a user based on a valid previous sessionID,
 // method is used to renew the web session for a user
-func (s *AuthServer) CreateWebSession(user string, prevSessionID string) (*Session, error) {
+func (s *AuthServer) ExtendWebSession(user string, prevSessionID string) (*Session, error) {
 	prevSession, err := s.GetWebSession(user, prevSessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -247,6 +247,20 @@ func (s *AuthServer) CreateWebSession(user string, prevSessionID string) (*Sessi
 	sessionTTL := minTTL(toTTL(s.clock, expiresAt), WebSessionTTL)
 	sess.ExpiresAt = expiresAt
 	if err := s.UpsertWebSession(user, sess, sessionTTL); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess.WS.Priv = nil
+	return sess, nil
+}
+
+// CreateWebSession creates a new web session for user without any
+// checks, is used by admins
+func (s *AuthServer) CreateWebSession(user string) (*Session, error) {
+	sess, err := s.NewWebSession(user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.UpsertWebSession(user, sess, WebSessionTTL); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sess.WS.Priv = nil

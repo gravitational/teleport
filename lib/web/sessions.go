@@ -105,10 +105,10 @@ func (c *SessionContext) GetWebSession() *auth.Session {
 	return c.sess
 }
 
-// CreateWebSession creates a new web session for this user
+// ExtendWebSession creates a new web session for this user
 // based on the previous session
-func (c *SessionContext) CreateWebSession() (*auth.Session, error) {
-	sess, err := c.clt.CreateWebSession(c.user, c.sess.ID)
+func (c *SessionContext) ExtendWebSession() (*auth.Session, error) {
+	sess, err := c.clt.ExtendWebSession(c.user, c.sess.ID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

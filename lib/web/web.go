@@ -530,7 +530,7 @@ func (m *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httpro
 //
 //
 func (m *Handler) renewSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	newSess, err := ctx.CreateWebSession()
+	newSess, err := ctx.ExtendWebSession()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
