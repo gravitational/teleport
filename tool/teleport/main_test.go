@@ -26,6 +26,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
 )
@@ -42,6 +43,7 @@ type MainTestSuite struct {
 var _ = check.Suite(&MainTestSuite{})
 
 func (s *MainTestSuite) SetUpSuite(c *check.C) {
+	utils.InitLoggerForTests()
 	var err error
 	// get the hostname
 	s.hostname, err = os.Hostname()

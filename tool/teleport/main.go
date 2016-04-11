@@ -38,7 +38,7 @@ func main() {
 }
 
 // same as main() but has a testing switch
-func run(cmdlineArgs []string, testRun bool) (executedCommand string, appliedConfig *service.Config) {
+func run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *service.Config) {
 	var err error
 
 	// configure logger for a typical CLI scenario until configuration file is
@@ -102,38 +102,37 @@ func run(cmdlineArgs []string, testRun bool) (executedCommand string, appliedCon
 	}
 
 	// create the default configuration:
-	appliedConfig = service.MakeDefaultConfig()
+	conf = service.MakeDefaultConfig()
 
 	// execute the selected command unless we're running tests
-	if !testRun {
-		switch command {
-		case start.FullCommand():
-			// configuration merge: defaults -> file-based conf -> CLI conf
-			appliedConfig, err = config.Configure(&ccf)
-			if err != nil {
-				utils.FatalError(err)
-			}
-			log.Debug(appliedConfig.DebugDumpToYAML())
-			if ccf.HTTPProfileEndpoint {
-				log.Infof("starting http profile endpoint")
-				go func() {
-					log.Println(http.ListenAndServe("localhost:6060", nil))
-				}()
-			}
-			err = onStart(appliedConfig)
-		case status.FullCommand():
-			err = onStatus()
-		case dump.FullCommand():
-			onConfigDump()
-		case ver.FullCommand():
-			onVersion()
-		}
-		if err != nil {
+	switch command {
+	case start.FullCommand():
+		// configuration merge: defaults -> file-based conf -> CLI conf
+		if err = config.Configure(&ccf, conf); err != nil {
 			utils.FatalError(err)
 		}
-		log.Info("teleport: clean exit")
+		log.Debug(conf.DebugDumpToYAML())
+		if ccf.HTTPProfileEndpoint {
+			log.Infof("starting http profile endpoint")
+			go func() {
+				log.Println(http.ListenAndServe("localhost:6060", nil))
+			}()
+		}
+		if !testRun {
+			err = onStart(conf)
+		}
+	case status.FullCommand():
+		err = onStatus()
+	case dump.FullCommand():
+		onConfigDump()
+	case ver.FullCommand():
+		onVersion()
 	}
-	return command, appliedConfig
+	if err != nil {
+		utils.FatalError(err)
+	}
+	log.Info("teleport: clean exit")
+	return command, conf
 }
 
 // onStart is the handler for "start" CLI command

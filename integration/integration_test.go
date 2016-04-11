@@ -17,18 +17,20 @@ limitations under the License.
 package integration
 
 import (
+	"os/user"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
 )
 
 type IntSuite struct {
-	portA int
-	portB int
+	ports []int
+	me    *user.User
 }
 
 // bootstrap check
@@ -38,15 +40,18 @@ var _ = check.Suite(&IntSuite{})
 
 func (s *IntSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests()
-	SetTestTimeouts(10)
+	SetTestTimeouts(100)
 
 	// find 10 free litening ports to use
 	fp, err := utils.GetFreeTCPPorts(10)
 	if err != nil {
 		c.Fatal(err)
 	}
-	s.portA, _ = strconv.Atoi(fp[0])
-	s.portB, _ = strconv.Atoi(fp[5])
+	for _, port := range fp {
+		p, _ := strconv.Atoi(port)
+		s.ports = append(s.ports, p)
+	}
+	s.me, _ = user.Current()
 }
 
 // TestTwoSites creates two teleport sites: "a" and "b" and
@@ -55,8 +60,15 @@ func (s *IntSuite) SetUpSuite(c *check.C) {
 // Then it executes an SSH command on A by connecting directly
 // to A and by connecting to B via B<->A tunnel
 func (s *IntSuite) TestEverything(c *check.C) {
-	a := NewInstance("site-A", s.portA)
-	b := NewInstance("site-B", s.portB)
+	username := s.me.Username
+	priv := []byte(testauthority.Priv)
+	pub := []byte(testauthority.Pub)
+
+	a := NewInstance("site-A", "127.0.0.1", s.ports[:5], priv, pub)
+	b := NewInstance("site-B", "127.0.0.1", s.ports[5:], priv, pub)
+
+	a.AddUser(username, []string{username})
+	b.AddUser(username, []string{username})
 
 	c.Assert(b.Create(a.Secrets.AsSlice(), false), check.IsNil)
 	c.Assert(a.Create(b.Secrets.AsSlice(), true), check.IsNil)
@@ -64,14 +76,25 @@ func (s *IntSuite) TestEverything(c *check.C) {
 	c.Assert(b.Start(), check.IsNil)
 	c.Assert(a.Start(), check.IsNil)
 
-	time.Sleep(time.Second * 2)
+	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
+	abortTime := time.Now().Add(time.Second * 10)
+	for len(b.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
+		time.Sleep(time.Millisecond * 200)
+		if time.Now().After(abortTime) {
+			c.Fatalf("two sites do not see each other: tunnels are not working")
+		}
+	}
+
+	// if we got here, it means two sites are cross-connected. lets execute SSH commands
+	sshPort := a.GetPortSSHInt()
+	cmd := []string{"echo", "hello world"}
 
 	// directly:
-	outputA, err := a.SSH([]string{"echo", "hello world"}, "site-A", "127.0.0.1", s.portA)
+	outputA, err := a.SSH(username, cmd, "site-A", "127.0.0.1", sshPort)
 	c.Assert(err, check.IsNil)
 	c.Assert(string(outputA), check.Equals, "hello world\n")
 	// via tunnel b->a:
-	outputB, err := b.SSH([]string{"echo", "hello world"}, "site-A", "127.0.0.1", s.portA)
+	outputB, err := b.SSH(username, cmd, "site-A", "127.0.0.1", sshPort)
 	c.Assert(err, check.IsNil)
 	c.Assert(outputA, check.DeepEquals, outputB)
 

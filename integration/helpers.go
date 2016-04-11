@@ -152,8 +152,12 @@ func (this *InstanceSecrets) GetIdentity() *auth.Identity {
 	return i
 }
 
+func (this *TeleInstance) GetPortSSHInt() int {
+	return this.Ports[0]
+}
+
 func (this *TeleInstance) GetPortSSH() string {
-	return strconv.Itoa(this.Ports[0])
+	return strconv.Itoa(this.GetPortSSHInt())
 }
 
 func (this *TeleInstance) GetPortAuth() string {
