@@ -749,7 +749,8 @@ func (c *Client) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.
 
 func (c *Client) ValidateOIDCAuthCallback(q url.Values, checkUser bool) (*OIDCAuthResponse, error) {
 	out, err := c.PostJSON(c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
-		Query: q,
+		Query:     q,
+		CheckUser: checkUser,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
