@@ -261,7 +261,7 @@ func (s *APISuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, ws)
 
-	new, err := s.clt.CreateWebSession(user, ws.ID)
+	new, err := s.clt.ExtendWebSession(user, ws.ID)
 	c.Assert(err, IsNil)
 	c.Assert(new, NotNil)
 
@@ -271,7 +271,7 @@ func (s *APISuite) TestSessions(c *C) {
 	_, err = s.clt.GetWebSessionInfo(user, ws.ID)
 	c.Assert(err, NotNil)
 
-	_, err = s.clt.CreateWebSession(user, ws.ID)
+	_, err = s.clt.ExtendWebSession(user, ws.ID)
 	c.Assert(err, NotNil)
 }
 

@@ -295,7 +295,14 @@ func (s *APIServer) createWebSession(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 	user := p[0].Value
-	sess, err := s.a.CreateWebSession(user, req.PrevSessionID)
+	if req.PrevSessionID != "" {
+		sess, err := s.a.ExtendWebSession(user, req.PrevSessionID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return sess, nil
+	}
+	sess, err := s.a.CreateWebSession(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -877,7 +884,8 @@ func (s *APIServer) createOIDCAuthRequest(w http.ResponseWriter, r *http.Request
 }
 
 type validateOIDCAuthCallbackReq struct {
-	Query url.Values `json:"query"`
+	Query     url.Values `json:"query"`
+	CheckUser bool       `json:"check_user"`
 }
 
 func (s *APIServer) validateOIDCAuthCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -885,7 +893,7 @@ func (s *APIServer) validateOIDCAuthCallback(w http.ResponseWriter, r *http.Requ
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response, err := s.a.ValidateOIDCAuthCallback(req.Query)
+	response, err := s.a.ValidateOIDCAuthCallback(req.Query, req.CheckUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
