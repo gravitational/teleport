@@ -45,13 +45,13 @@ type AgentPoolConfig struct {
 // NewAgentPool returns new isntance of the agent pool
 func NewAgentPool(cfg AgentPoolConfig) (*AgentPool, error) {
 	if cfg.Client == nil {
-		return nil, trace.Wrap(teleport.BadParameter("Client", "missing client"))
+		return nil, trace.BadParameter("missing 'Client' parameter")
 	}
 	if len(cfg.HostSigners) == 0 {
-		return nil, trace.Wrap(teleport.BadParameter("HostSigners", "missing host signers"))
+		return nil, trace.BadParameter("missing 'HostSigners' parameter")
 	}
 	if len(cfg.HostUUID) == 0 {
-		return nil, trace.Wrap(teleport.BadParameter("HostUUID", "missing host UUID"))
+		return nil, trace.BadParameter("missing 'HostUUID' parameter")
 	}
 	if cfg.EventLog == nil {
 		cfg.EventLog = events.NullEventLogger

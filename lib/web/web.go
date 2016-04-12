@@ -32,7 +32,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -69,7 +68,7 @@ type HandlerOption func(h *Handler) error
 func SetSessionStreamPollPeriod(period time.Duration) HandlerOption {
 	return func(h *Handler) error {
 		if period < 0 {
-			return trace.Wrap(teleport.BadParameter("period", "period should be non zero"))
+			return trace.BadParameter("period should be non zero")
 		}
 		h.sessionStreamPollPeriod = period
 		return nil
@@ -174,11 +173,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 		indexPath := filepath.Join(cfg.AssetsDir, "/index.html")
 		indexContent, err := ioutil.ReadFile(indexPath)
 		if err != nil {
-			return nil, trace.Wrap(teleport.ConvertSystemError(err))
+			return nil, trace.ConvertSystemError(err)
 		}
 		indexPage, err = template.New("index").Parse(string(indexContent))
 		if err != nil {
-			return nil, trace.Wrap(teleport.BadParameter("index", fmt.Sprintf("failed parsing template %v: %v", indexPath, err)))
+			return nil, trace.BadParameter("failed parsing template %v: %v", indexPath, err)
 		}
 		writeSettings = httplib.MakeStdHandler(h.getSettings)
 	}
@@ -268,11 +267,11 @@ func (m *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 	query := r.URL.Query()
 	clientRedirectURL := query.Get("redirect_url")
 	if clientRedirectURL == "" {
-		return nil, trace.Wrap(teleport.BadParameter("redirect_url", "missing redirect_url query parameter"))
+		return nil, trace.BadParameter("missing redirect_url query parameter")
 	}
 	connectorID := query.Get("connector_id")
 	if connectorID == "" {
-		return nil, trace.Wrap(teleport.BadParameter("connector_id", "missing connector_id query parameter"))
+		return nil, trace.BadParameter("missing connector_id query parameter")
 	}
 	response, err := m.cfg.ProxyClient.CreateOIDCAuthRequest(
 		services.OIDCAuthRequest{
@@ -306,16 +305,13 @@ func (m *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 	if req.RedirectURL == "" {
-		return nil, trace.Wrap(
-			teleport.BadParameter("RedirectURL", "missing RedirectURL"))
+		return nil, trace.BadParameter("missing RedirectURL")
 	}
 	if len(req.PublicKey) == 0 {
-		return nil, trace.Wrap(
-			teleport.BadParameter("PublicKey", "missing PublicKey"))
+		return nil, trace.BadParameter("missing PublicKey")
 	}
 	if req.ConnectorID == "" {
-		return nil, trace.Wrap(
-			teleport.BadParameter("ConnectorID", "missing ConnectorID"))
+		return nil, trace.BadParameter("missing ConnectorID")
 	}
 	response, err := m.cfg.ProxyClient.CreateOIDCAuthRequest(
 		services.OIDCAuthRequest{
@@ -350,7 +346,7 @@ func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	}
 	log.Infof("oidcCallback redirecting to console login")
 	if len(response.Req.PublicKey) == 0 {
-		return nil, trace.Wrap(teleport.BadParameter("req", "not a web or console oidc login request"))
+		return nil, trace.BadParameter("not a web or console oidc login request")
 	}
 	u, err := url.Parse(response.Req.ClientRedirectURL)
 	if err != nil {
@@ -368,12 +364,12 @@ func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	values := u.Query()
 	secretKey := values.Get("secret")
 	if secretKey == "" {
-		return nil, trace.Wrap(teleport.BadParameter("secret", "missing secret"))
+		return nil, trace.BadParameter("missing secret")
 	}
 	values.Set("secret", "") // remove secret so others can't see it
 	secretKeyBytes, err := secret.EncodedStringToKey(secretKey)
 	if err != nil {
-		return nil, trace.Wrap(teleport.BadParameter("secret", "bad secret"))
+		return nil, trace.BadParameter("bad secret")
 	}
 	encryptor, err := secret.New(&secret.Config{KeyBytes: secretKeyBytes})
 	if err != nil {
@@ -470,14 +466,14 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 	sess, err := m.auth.Auth(req.User, req.Pass, req.SecondFactorToken)
 	if err != nil {
 		log.Infof("bad access credentials: %v", err)
-		return nil, trace.Wrap(teleport.AccessDenied("bad auth credentials"))
+		return nil, trace.AccessDenied("bad auth credentials")
 	}
 	if err := SetSession(w, req.User, sess.ID); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	ctx, err := m.auth.ValidateSession(req.User, sess.ID)
 	if err != nil {
-		return nil, trace.Wrap(teleport.AccessDenied("need auth"))
+		return nil, trace.AccessDenied("need auth")
 	}
 	return NewSessionResponse(ctx)
 }
@@ -740,7 +736,7 @@ func (m *Handler) siteNodeConnect(w http.ResponseWriter, r *http.Request, p http
 	q := r.URL.Query()
 	params := q.Get("params")
 	if params == "" {
-		return nil, trace.Wrap(teleport.BadParameter("params", "missing params"))
+		return nil, trace.BadParameter("missing params")
 	}
 	var req *connectReq
 	if err := json.Unmarshal([]byte(params), &req); err != nil {
@@ -910,11 +906,11 @@ func (m *Handler) siteSessionGetChunks(w http.ResponseWriter, r *http.Request, p
 	st, en := r.URL.Query().Get("start"), r.URL.Query().Get("end")
 	start, err := strconv.Atoi(st)
 	if err != nil {
-		return nil, trace.Wrap(teleport.BadParameter("start", "need integer"))
+		return nil, trace.BadParameter("start: need integer")
 	}
 	end, err := strconv.Atoi(en)
 	if err != nil {
-		return nil, trace.Wrap(teleport.BadParameter("end", "need integer"))
+		return nil, trace.BadParameter("end: need integer")
 	}
 	clt, err := site.GetClient()
 	if err != nil {
@@ -990,7 +986,7 @@ func (m *Handler) siteGetEvents(w http.ResponseWriter, r *http.Request, p httpro
 	var filter events.Filter
 	filterQ := r.URL.Query().Get("filter")
 	if filterQ == "" {
-		return nil, trace.Wrap(teleport.BadParameter("filter", "missing filter"))
+		return nil, trace.BadParameter("filter", "missing filter")
 	}
 	if err := json.Unmarshal([]byte(filterQ), &filter); err != nil {
 		return nil, trace.Wrap(err)
@@ -1032,7 +1028,7 @@ func (m *Handler) siteGetSessionEvents(w http.ResponseWriter, r *http.Request, p
 	var filter events.Filter
 	filterQ := r.URL.Query().Get("filter")
 	if filterQ == "" {
-		return nil, trace.Wrap(teleport.BadParameter("filter", "missing filter"))
+		return nil, trace.BadParameter("filter: missing filter")
 	}
 	if err := json.Unmarshal([]byte(filterQ), &filter); err != nil {
 		return nil, trace.Wrap(err)
@@ -1149,7 +1145,7 @@ func (h *Handler) withSiteAuth(fn siteHandler) httprouter.Handle {
 		if siteName == currentSiteShortcut {
 			sites := h.cfg.Proxy.GetSites()
 			if len(sites) < 1 {
-				return nil, trace.Wrap(teleport.NotFound("no active sites"))
+				return nil, trace.NotFound("no active sites")
 			}
 			siteName = sites[0].GetName()
 		}
@@ -1181,28 +1177,28 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 	cookie, err := r.Cookie("session")
 	if err != nil {
 		logger.Warningf("missing cookie: %v", err)
-		return nil, trace.Wrap(teleport.AccessDenied("missing cookie"))
+		return nil, trace.AccessDenied("missing cookie")
 	}
 	d, err := DecodeCookie(cookie.Value)
 	if err != nil {
 		logger.Warningf("failed to decode cookie: %v", err)
-		return nil, trace.Wrap(teleport.AccessDenied("failed to decode cookie"))
+		return nil, trace.AccessDenied("failed to decode cookie")
 	}
 	ctx, err := h.auth.ValidateSession(d.User, d.SID)
 	if err != nil {
 		logger.Warningf("invalid session: %v", err)
 		ClearSession(w)
-		return nil, trace.Wrap(teleport.AccessDenied("need auth"))
+		return nil, trace.AccessDenied("need auth")
 	}
 	if checkBearerToken {
 		creds, err := roundtrip.ParseAuthHeaders(r)
 		if err != nil {
 			logger.Warningf("no auth headers %v", err)
-			return nil, trace.Wrap(teleport.AccessDenied("need auth"))
+			return nil, trace.AccessDenied("need auth")
 		}
 		if creds.Password != ctx.GetWebSession().WS.BearerToken {
 			logger.Warningf("bad bearer token")
-			return nil, trace.Wrap(teleport.AccessDenied("bad bearer token"))
+			return nil, trace.AccessDenied("bad bearer token")
 		}
 	}
 	return ctx, nil

@@ -168,10 +168,10 @@ func (n *nauth) GenerateHostCert(privateSigningKey, publicKey []byte, hostname, 
 
 func (n *nauth) GenerateUserCert(pkey, key []byte, teleportUsername string, allowedLogins []string, ttl time.Duration) ([]byte, error) {
 	if (ttl > defaults.MaxCertDuration) || (ttl < defaults.MinCertDuration) {
-		return nil, trace.Wrap(teleport.BadParameter("teleport", "wrong certificate TTL"))
+		return nil, trace.BadParameter("wrong certificate TTL")
 	}
 	if len(allowedLogins) == 0 {
-		return nil, trace.Wrap(teleport.BadParameter("allowedLogins", "need allowed OS logins"))
+		return nil, trace.BadParameter("allowedLogins: need allowed OS logins")
 	}
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
 	if err != nil {

@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/recorder"
 
@@ -155,9 +154,7 @@ func (b *boltRW) GetChunksCount() (uint64, error) {
 		}
 		bytes := bkt.Get([]byte("val"))
 		if bytes == nil {
-			return &teleport.NotFoundError{
-				Message: fmt.Sprintf("not found"),
-			}
+			return trace.NotFound("not found")
 		}
 		lastChunk = binary.BigEndian.Uint64(bytes)
 		return nil
@@ -174,9 +171,7 @@ func (b *boltRW) initWriteIter() error {
 		}
 		bytes := bkt.Get([]byte("val"))
 		if bytes == nil {
-			return &teleport.NotFoundError{
-				Message: fmt.Sprintf("not found"),
-			}
+			return trace.NotFound("not found")
 		}
 		val = make([]byte, len(bytes))
 		copy(val, bytes)
@@ -185,7 +180,7 @@ func (b *boltRW) initWriteIter() error {
 	if err == nil {
 		return nil
 	}
-	if !teleport.IsNotFound(err) {
+	if !trace.IsNotFound(err) {
 		return err
 	}
 	return b.db.Update(func(tx *bolt.Tx) error {
@@ -207,8 +202,7 @@ func (b *boltRW) WriteChunks(ch []recorder.Chunk) error {
 		}
 		iterb := ibkt.Get([]byte("val"))
 		if iterb == nil {
-			return &teleport.NotFoundError{
-				Message: fmt.Sprintf("iter not found")}
+			return trace.NotFound("iter not found")
 		}
 		lastChunk := binary.BigEndian.Uint64(iterb)
 		cbkt, err := boltbk.UpsertBucket(tx, []string{"chunks"})
@@ -242,8 +236,7 @@ func (b *boltRW) ReadChunk(chunk uint64) ([]byte, error) {
 		}
 		bytes := cbkt.Get(bin)
 		if bytes == nil {
-			return &teleport.NotFoundError{
-				Message: fmt.Sprintf("chunk not found")}
+			return trace.NotFound("chunk not found")
 		}
 		bt = make([]byte, len(bytes))
 		copy(bt, bytes)
@@ -277,7 +270,7 @@ func (r *boltRef) ReadChunks(start int, end int) ([]recorder.Chunk, error) {
 	for i := start; i < end; i++ {
 		out, err := r.rw.ReadChunk(uint64(i))
 		if err != nil {
-			if teleport.IsNotFound(err) {
+			if trace.IsNotFound(err) {
 				return chunks, nil
 			}
 			return nil, err

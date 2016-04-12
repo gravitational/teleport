@@ -88,11 +88,11 @@ type InitConfig struct {
 // Init instantiates and configures an instance of AuthServer
 func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 	if cfg.DataDir == "" {
-		return nil, nil, trace.Wrap(teleport.BadParameter("DataDir", "data dir can not be empty"))
+		return nil, nil, trace.BadParameter("DataDir: data dir can not be empty")
 	}
 
 	if cfg.HostUUID == "" {
-		return nil, nil, trace.Wrap(teleport.BadParameter("HostUUID", "host UUID can not be empty"))
+		return nil, nil, trace.BadParameter("HostUUID: host UUID can not be empty")
 	}
 
 	err := os.MkdirAll(cfg.DataDir, os.ModeDir|0777)
@@ -133,7 +133,7 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 	// not currently present, it will also use optional passed user ca keypair
 	// that can be supplied in configuration
 	if _, err := asrv.GetCertAuthority(services.CertAuthID{DomainName: cfg.DomainName, Type: services.HostCA}, false); err != nil {
-		if !teleport.IsNotFound(err) {
+		if !trace.IsNotFound(err) {
 			return nil, nil, trace.Wrap(err)
 		}
 
@@ -157,7 +157,7 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 	// not currently present, it will also use optional passed user ca keypair
 	// that can be supplied in configuration
 	if _, err := asrv.GetCertAuthority(services.CertAuthID{DomainName: cfg.DomainName, Type: services.UserCA}, false); err != nil {
-		if !teleport.IsNotFound(err) {
+		if !trace.IsNotFound(err) {
 			return nil, nil, trace.Wrap(err)
 		}
 
@@ -222,7 +222,7 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 func isFirstStart(authServer *AuthServer, cfg InitConfig) (bool, error) {
 	_, err := authServer.GetCertAuthority(services.CertAuthID{DomainName: cfg.DomainName, Type: services.HostCA}, false)
 	if err != nil {
-		if !teleport.IsNotFound(err) {
+		if !trace.IsNotFound(err) {
 			return false, trace.Wrap(err)
 		}
 		return true, nil
@@ -308,56 +308,44 @@ func (id *IdentityID) String() string {
 // ReadIdentityFromKeyPair reads identity from initialized keypair
 func ReadIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	if len(keyBytes) == 0 {
-		return nil, trace.Wrap(teleport.BadParameter("PrivateKey", "missing private key"))
+		return nil, trace.BadParameter("PrivateKey: missing private key")
 	}
 
 	if len(certBytes) == 0 {
-		return nil, trace.Wrap(teleport.BadParameter("PrivateKey", "missing private key"))
+		return nil, trace.BadParameter("Cert: missing parameter")
 	}
 
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(certBytes)
 	if err != nil {
-		return nil, trace.Wrap(
-			teleport.BadParameter("cert",
-				fmt.Sprintf("failed to parse server certificate: %v", err)))
+		return nil, trace.BadParameter("failed to parse server certificate: %v", err)
 	}
 
 	cert, ok := pubKey.(*ssh.Certificate)
 	if !ok {
-		return nil, trace.Wrap(
-			teleport.BadParameter("cert",
-				fmt.Sprintf("expected ssh.Certificate, got %v", pubKey)))
+		return nil, trace.BadParameter("expected ssh.Certificate, got %v", pubKey)
 	}
 
 	signer, err := ssh.ParsePrivateKey(keyBytes)
 	if err != nil {
-		return nil, trace.Wrap(
-			teleport.BadParameter("key",
-				fmt.Sprintf("failed to parse private key: %v", err)))
+		return nil, trace.BadParameter("failed to parse private key: %v", err)
 	}
 	// this signer authenticates using certificate signed by the cert authority
 	// not only by the public key
 	certSigner, err := ssh.NewCertSigner(cert, signer)
 	if err != nil {
-		return nil, trace.Wrap(
-			teleport.BadParameter("key",
-				fmt.Sprintf("unsupported private key: %v", err)))
+		return nil, trace.BadParameter("unsupported private key: %v", err)
 	}
 	if len(cert.ValidPrincipals) != 1 {
-		return nil, trace.Wrap(
-			teleport.BadParameter("valid principals", "need exactly 1 valid principal: host uuid"))
+		return nil, trace.BadParameter("valid principals: need exactly 1 valid principal: host uuid")
 	}
 
 	if len(cert.Permissions.Extensions) == 0 {
-		return nil, trace.Wrap(
-			teleport.BadParameter("extensions", "misssing needed extensions for host roles"))
+		return nil, trace.BadParameter("extensions: misssing needed extensions for host roles")
 	}
 
 	roleString := cert.Permissions.Extensions[utils.CertExtensionRole]
 	if roleString == "" {
-		return nil, trace.Wrap(
-			teleport.BadParameter("role",
-				fmt.Sprintf("misssing cert extension %v", utils.CertExtensionRole)))
+		return nil, trace.BadParameter("misssing cert extension %v", utils.CertExtensionRole)
 	}
 	role := teleport.Role(roleString)
 	if err := role.Check(); err != nil {
@@ -366,14 +354,11 @@ func ReadIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 
 	authorityDomain := cert.Permissions.Extensions[utils.CertExtensionAuthority]
 	if authorityDomain == "" {
-		return nil, trace.Wrap(
-			teleport.BadParameter("role",
-				fmt.Sprintf("misssing cert extension %v", utils.CertExtensionAuthority)))
+		return nil, trace.BadParameter("misssing cert extension %v", utils.CertExtensionAuthority)
 	}
 
 	if cert.ValidPrincipals[0] == "" {
-		return nil, trace.Wrap(
-			teleport.BadParameter("valid principal", "valid principal can not be empty"))
+		return nil, trace.BadParameter("valid principal can not be empty")
 	}
 
 	return &Identity{

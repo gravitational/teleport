@@ -142,7 +142,7 @@
 		},
 		{
 			"ImportPath": "github.com/gravitational/trace",
-			"Rev": "0fd0db9ea941edb81e90278f4eb8f29f5615637e"
+			"Rev": "b84a3cdafa5abc274d7ba8723151702d571b4658"
 		},
 		{
 			"ImportPath": "github.com/gravitational/ttlmap",

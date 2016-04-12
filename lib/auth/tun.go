@@ -518,8 +518,7 @@ type TunClient struct {
 // exposed over SSH tunnel, so client  uses SSH credentials to dial and authenticate
 func NewTunClient(authServers []utils.NetAddr, user string, authMethods []ssh.AuthMethod, opts ...TunClientOption) (*TunClient, error) {
 	if user == "" {
-		return nil, trace.Wrap(
-			teleport.BadParameter("user", "SSH connection requires a valid username"))
+		return nil, trace.BadParameter("SSH connection requires a valid username")
 	}
 	tc := &TunClient{
 		user:          user,
@@ -550,7 +549,7 @@ func NewTunClient(authServers []utils.NetAddr, user string, authMethods []ssh.Au
 
 		authServers, err := tc.addrStorage.GetAddresses()
 		if err != nil {
-			if !teleport.IsNotFound(err) {
+			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
 			}
 			log.Infof("local storage is provided, not initialized")
@@ -591,9 +590,7 @@ func (c *TunClient) GetAgent() (AgentCloser, error) {
 	}
 	ch, _, err := client.OpenChannel(ReqWebSessionAgent, nil)
 	if err != nil {
-		return nil, trace.Wrap(
-			teleport.ConnectionProblem(
-				"failed to connect to remote API", err))
+		return nil, trace.ConnectionProblem(err, "failed to connect to remote API")
 	}
 	agentCloser := &tunAgent{client: client}
 	agentCloser.Agent = agent.NewClient(ch)
@@ -609,8 +606,7 @@ func (c *TunClient) Dial(network, address string) (net.Conn, error) {
 	}
 	conn, err := client.Dial(network, address)
 	if err != nil {
-		return nil, trace.Wrap(
-			teleport.ConnectionProblem("failed to connect to remote API", err))
+		return nil, trace.ConnectionProblem(err, "failed to connect to remote API")
 	}
 	tc := &tunConn{client: client}
 	tc.Conn = conn
@@ -623,7 +619,7 @@ func (c *TunClient) fetchAndSync() error {
 		return trace.Wrap(err)
 	}
 	if len(authServers) == 0 {
-		return trace.Wrap(teleport.NotFound("no auth servers with remote ips advertised"))
+		return trace.NotFound("no auth servers with remote ips advertised")
 	}
 	// set runtime information about auth servers
 	c.setAuthServers(authServers)
@@ -710,10 +706,9 @@ func (c *TunClient) dialAuthServer(authServer utils.NetAddr) (*ssh.Client, error
 	if err != nil {
 		log.Infof("TunDialer could not ssh.Dial: %v", err)
 		if utils.IsHandshakeFailedError(err) {
-			return nil, teleport.AccessDenied(
-				fmt.Sprintf("access denied to '%v': bad username or credentials", c.user))
+			return nil, trace.AccessDenied("access denied to '%v': bad username or credentials", c.user)
 		}
-		return nil, trace.Wrap(teleport.ConvertSystemError(err))
+		return nil, trace.ConvertSystemError(err)
 	}
 	return client, nil
 }

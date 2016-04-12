@@ -69,7 +69,7 @@ func (proxy *ProxyClient) getSite() (*services.Site, error) {
 		return nil, trace.Wrap(err)
 	}
 	if len(sites) == 0 {
-		return nil, trace.Wrap(teleport.NotFound("no sites registered"))
+		return nil, trace.NotFound("no sites registered")
 	}
 	if proxy.siteName == "" {
 		return &sites[0], nil
@@ -79,8 +79,7 @@ func (proxy *ProxyClient) getSite() (*services.Site, error) {
 			return &site, nil
 		}
 	}
-	return nil, trace.Wrap(
-		teleport.NotFound(fmt.Sprintf("site %v not found", proxy.siteName)))
+	return nil, trace.NotFound("site %v not found", proxy.siteName)
 }
 
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy

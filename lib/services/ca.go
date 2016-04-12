@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/gravitational/configure/cstrings"
-	"github.com/gravitational/teleport"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -66,10 +65,7 @@ type CertAuthType string
 // Check checks if certificate authority type value is correct
 func (c CertAuthType) Check() error {
 	if c != HostCA && c != UserCA {
-		return trace.Wrap(&teleport.BadParameterError{
-			Param: "Type",
-			Err:   fmt.Sprintf("'%v' authority type is not supported", c),
-		})
+		return trace.BadParameter("'%v' authority type is not supported", c)
 	}
 	return nil
 }
@@ -90,10 +86,7 @@ func (c *CertAuthID) Check() error {
 		return trace.Wrap(err)
 	}
 	if !cstrings.IsValidDomainName(c.DomainName) {
-		return trace.Wrap(&teleport.BadParameterError{
-			Param: "DomainName",
-			Err:   fmt.Sprintf("'%v' is a bad domain name", c.DomainName),
-		})
+		return trace.BadParameter("'%v' is a bad domain name", c.DomainName)
 	}
 	return nil
 }
@@ -120,9 +113,7 @@ type CertAuthority struct {
 // FirstSigningKey returns first signing key or returns error if it's not here
 func (ca *CertAuthority) FirstSigningKey() ([]byte, error) {
 	if len(ca.SigningKeys) == 0 {
-		return nil, trace.Wrap(&teleport.NotFoundError{
-			Message: fmt.Sprintf("%v has no signing keys", ca.ID()),
-		})
+		return nil, trace.NotFound("%v has no signing keys", ca.ID())
 	}
 	return ca.SigningKeys[0], nil
 }

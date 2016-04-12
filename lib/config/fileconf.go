@@ -118,9 +118,8 @@ type YAMLMap map[interface{}]interface{}
 func ReadFromFile(filePath string) (*FileConfig, error) {
 	ext := strings.ToLower(filepath.Ext(filePath))
 	if ext != ".yaml" && ext != ".yml" {
-		return nil, trace.Wrap(
-			teleport.BadParameter(filePath,
-				fmt.Sprintf("invalid configuration file type: '%v'. Only .yml is supported", ext)))
+		return nil, trace.BadParameter(
+			"'%v' invalid configuration file type: '%v'. Only .yml is supported", filePath, ext)
 	}
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -134,8 +133,8 @@ func ReadFromFile(filePath string) (*FileConfig, error) {
 func ReadFromString(configString string) (*FileConfig, error) {
 	data, err := base64.StdEncoding.DecodeString(configString)
 	if err != nil {
-		return nil, trace.Wrap(teleport.BadParameter(
-			"config", fmt.Sprintf("confiugraion should be base64 encoded: %v", err)))
+		return nil, trace.BadParameter(
+			"confiugraion should be base64 encoded: %v", err)
 	}
 	return ReadConfig(bytes.NewBuffer(data))
 }
@@ -159,7 +158,7 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 		for k, v := range m {
 			if key, ok = k.(string); ok {
 				if recursive, ok = validKeys[key]; !ok {
-					return trace.Wrap(teleport.BadParameter(key, "this configuration key is unknown"))
+					return trace.BadParameter("this configuration key: '%v' is unknown", key)
 				}
 				if recursive {
 					if m2, ok := v.(YAMLMap); ok {
@@ -175,7 +174,7 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 	// validate configuration keys:
 	var tmp YAMLMap
 	if err = yaml.Unmarshal(bytes, &tmp); err != nil {
-		return nil, trace.Errorf("error parsing YAML config")
+		return nil, trace.BadParameter("error parsing YAML config")
 	}
 	if err = validateKeys(tmp); err != nil {
 		return nil, trace.Wrap(err)
@@ -451,7 +450,7 @@ func (k *KeyPair) Identity() (*auth.Identity, error) {
 	if k.PrivateKeyFile != "" {
 		keyBytes, err = ioutil.ReadFile(k.PrivateKeyFile)
 		if err != nil {
-			return nil, teleport.ConvertSystemError(err)
+			return nil, trace.ConvertSystemError(err)
 		}
 	} else {
 		keyBytes = []byte(k.PrivateKey)
@@ -460,7 +459,7 @@ func (k *KeyPair) Identity() (*auth.Identity, error) {
 	if k.CertFile != "" {
 		certBytes, err = ioutil.ReadFile(k.CertFile)
 		if err != nil {
-			return nil, teleport.ConvertSystemError(err)
+			return nil, trace.ConvertSystemError(err)
 		}
 	} else {
 		certBytes = []byte(k.Cert)

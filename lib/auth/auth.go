@@ -237,7 +237,7 @@ func (s *AuthServer) ExtendWebSession(user string, prevSessionID string) (*Sessi
 	// any more without extra logic for renewal with external OIDC provider
 	expiresAt := prevSession.ExpiresAt
 	if !expiresAt.IsZero() && expiresAt.Before(s.clock.Now().UTC()) {
-		return nil, trace.Wrap(teleport.NotFound("web session has expired"))
+		return nil, trace.NotFound("web session has expired")
 	}
 
 	sess, err := s.NewWebSession(user)
@@ -323,7 +323,7 @@ func (s *AuthServer) GenerateServerKeys(hostID string, role teleport.Role) (*Pac
 func (s *AuthServer) RegisterUsingToken(outputToken, hostID string, role teleport.Role) (*PackedKeys, error) {
 	log.Infof("[AUTH] Node `%v` is trying to join", hostID)
 	if hostID == "" {
-		return nil, trace.Wrap(fmt.Errorf("HostID cannot be empty"))
+		return nil, trace.BadParameter("HostID cannot be empty")
 	}
 	if err := role.Check(); err != nil {
 		return nil, trace.Wrap(err)
@@ -338,8 +338,7 @@ func (s *AuthServer) RegisterUsingToken(outputToken, hostID string, role telepor
 		return nil, trace.Wrap(err)
 	}
 	if tok.Role != string(role) {
-		return nil, trace.Wrap(
-			teleport.BadParameter("token.Role", "role does not match"))
+		return nil, trace.BadParameter("token.Role: role does not match")
 	}
 	keys, err := s.GenerateServerKeys(hostID, role)
 	if err != nil {
@@ -365,7 +364,7 @@ func (s *AuthServer) RegisterNewAuthServer(outputToken string) error {
 	}
 
 	if tok.Role != string(teleport.RoleAuth) {
-		return trace.Wrap(teleport.AccessDenied("role does not match"))
+		return trace.AccessDenied("role does not match")
 	}
 
 	if err := s.DeleteToken(outputToken); err != nil {
@@ -551,20 +550,19 @@ type OIDCAuthResponse struct {
 // will respond with OIDCAuthResponse, otherwise it will return error
 func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values, checkUser bool) (*OIDCAuthResponse, error) {
 	if error := q.Get("error"); error != "" {
-		return nil, trace.Wrap(teleport.NewOAuth2Error(
-			oauth2.ErrorInvalidRequest, error, q))
+		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest, error, q)
 	}
 
 	code := q.Get("code")
 	if code == "" {
-		return nil, trace.Wrap(teleport.NewOAuth2Error(
-			oauth2.ErrorInvalidRequest, "code query param must be set", q))
+		return nil, trace.OAuth2(
+			oauth2.ErrorInvalidRequest, "code query param must be set", q)
 	}
 
 	stateToken := q.Get("state")
 	if stateToken == "" {
-		return nil, trace.Wrap(teleport.NewOAuth2Error(
-			oauth2.ErrorInvalidRequest, "missing state query param", q))
+		return nil, trace.OAuth2(
+			oauth2.ErrorInvalidRequest, "missing state query param", q)
 	}
 
 	req, err := a.Identity.GetOIDCAuthRequest(stateToken)
@@ -584,21 +582,21 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values, checkUser bool) (*OI
 
 	tok, err := oidcClient.ExchangeAuthCode(code)
 	if err != nil {
-		return nil, trace.Wrap(teleport.NewOAuth2Error(
+		return nil, trace.OAuth2(
 			oauth2.ErrorUnsupportedResponseType,
-			"unable to verify auth code with issuer", q))
+			"unable to verify auth code with issuer", q)
 	}
 
 	claims, err := tok.Claims()
 	if err != nil {
-		return nil, trace.Wrap(teleport.NewOAuth2Error(
-			oauth2.ErrorUnsupportedResponseType, "unable to construct claims", q))
+		return nil, trace.OAuth2(
+			oauth2.ErrorUnsupportedResponseType, "unable to construct claims", q)
 	}
 
 	ident, err := oidc.IdentityFromClaims(claims)
 	if err != nil {
-		return nil, trace.Wrap(teleport.NewOAuth2Error(
-			oauth2.ErrorUnsupportedResponseType, "unable to convert claims to identity", q))
+		return nil, trace.OAuth2(
+			oauth2.ErrorUnsupportedResponseType, "unable to convert claims to identity", q)
 	}
 
 	log.Infof("[IDENTITY] expires at: %v", ident.ExpiresAt)

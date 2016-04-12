@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -114,13 +113,13 @@ func (b *BoltLog) GetSessionEvents(f events.Filter) ([]session.Session, error) {
 		}
 	}
 	if f.Order != events.Desc {
-		return nil, trace.Wrap(teleport.BadParameter("order", "only descending order is supported with this backend"))
+		return nil, trace.BadParameter("order: only descending order is supported with this backend")
 	}
 	if f.Start.IsZero() {
-		return nil, trace.Wrap(teleport.BadParameter("start", "supply starting point"))
+		return nil, trace.BadParameter("start: supply starting point")
 	}
 	if f.Limit > events.MaxLimit {
-		return nil, trace.Wrap(teleport.BadParameter("limit", "limit exceeds maximum"))
+		return nil, trace.BadParameter("limit: limit exceeds maximum")
 	}
 	if f.Limit == 0 {
 		f.Limit = events.DefaultLimit
@@ -135,7 +134,7 @@ func (b *BoltLog) GetSessionEvents(f events.Filter) ([]session.Session, error) {
 	err := b.db.View(func(tx *bolt.Tx) error {
 		bkt, err := boltbk.GetBucket(tx, []string{"sessionlog"})
 		if err != nil {
-			if teleport.IsNotFound(err) {
+			if trace.IsNotFound(err) {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -188,7 +187,7 @@ func (b *BoltLog) GetSessionEvents(f events.Filter) ([]session.Session, error) {
 
 func (b *BoltLog) GetEvents(f events.Filter) ([]lunk.Entry, error) {
 	if f.Start.IsZero() {
-		return nil, trace.Wrap(teleport.BadParameter("start", "supply starting point"))
+		return nil, trace.BadParameter("start: supply starting point")
 	}
 	if f.Limit == 0 {
 		f.Limit = events.DefaultLimit
@@ -211,7 +210,7 @@ func (b *BoltLog) GetEvents(f events.Filter) ([]lunk.Entry, error) {
 			bkt, err = boltbk.GetBucket(tx, []string{"events"})
 		}
 		if err != nil {
-			if teleport.IsNotFound(err) {
+			if trace.IsNotFound(err) {
 				return nil
 			}
 			return trace.Wrap(err)

@@ -32,7 +32,7 @@ func (r *Role) Check() error {
 	case RoleAuth, RoleUser, RoleWeb, RoleNode, RoleAdmin, RoleProvisionToken, RoleSignup, RoleProxy:
 		return nil
 	}
-	return trace.Wrap(BadParameter("role", fmt.Sprintf("%v is not supported", *r)))
+	return trace.BadParameter("role %v is not supported", *r)
 }
 
 const (

@@ -23,9 +23,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 
+	"github.com/gravitational/trace"
 	. "gopkg.in/check.v1"
 )
 
@@ -65,13 +65,13 @@ func (s *BackendSuite) BasicCRUD(c *C) {
 	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "akey", []byte("val2"), 0), IsNil)
 
 	_, err = s.B.GetVal([]string{"a"}, "b")
-	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("%#v", err))
+	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 	_, _, err = s.B.GetValAndTTL([]string{"a"}, "b")
-	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("%#v", err))
+	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 	_, err = s.B.GetVal([]string{"a", "b"}, "x")
-	c.Assert(teleport.IsNotFound(err), Equals, true, Commentf("%#v", err))
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 	_, _, err = s.B.GetValAndTTL([]string{"a", "b"}, "x")
-	c.Assert(teleport.IsNotFound(err), Equals, true, Commentf("%#v", err))
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
 	keys, _ = s.B.GetKeys([]string{"a", "b", "bkey"})
 	c.Assert(len(keys), Equals, 0)
@@ -94,22 +94,22 @@ func (s *BackendSuite) BasicCRUD(c *C) {
 	c.Assert(string(out), Equals, "val-updated")
 
 	c.Assert(s.B.DeleteKey([]string{"a", "b"}, "bkey"), IsNil)
-	c.Assert(teleport.IsNotFound(s.B.DeleteKey([]string{"a", "b"}, "bkey")), Equals, true)
+	c.Assert(trace.IsNotFound(s.B.DeleteKey([]string{"a", "b"}, "bkey")), Equals, true)
 	_, err = s.B.GetVal([]string{"a", "b"}, "bkey")
-	c.Assert(teleport.IsNotFound(err), Equals, true, Commentf("%#v", err))
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
 	c.Assert(s.B.UpsertVal([]string{"a", "c"}, "xkey", []byte("val3"), 0), IsNil)
 	c.Assert(s.B.UpsertVal([]string{"a", "c"}, "ykey", []byte("val4"), 0), IsNil)
 	c.Assert(s.B.DeleteBucket([]string{"a"}, "c"), IsNil)
 	_, err = s.B.GetVal([]string{"a", "c"}, "xkey")
-	c.Assert(teleport.IsNotFound(err), Equals, true, Commentf("%#v", err))
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 	_, err = s.B.GetVal([]string{"a", "c"}, "ykey")
-	c.Assert(teleport.IsNotFound(err), Equals, true, Commentf("%#v", err))
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 }
 
 func (s *BackendSuite) CompareAndSwap(c *C) {
 	prev, err := s.B.CompareAndSwap([]string{"a", "b"}, "bkey", []byte("val10"), 0, []byte("1231"))
-	c.Assert(teleport.IsNotFound(err), Equals, true, Commentf("%#v", err))
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 	c.Assert(len(prev), Equals, 0)
 
 	prev, err = s.B.CompareAndSwap([]string{"a", "b"}, "bkey", []byte("val1"), 0, []byte{})
@@ -117,10 +117,10 @@ func (s *BackendSuite) CompareAndSwap(c *C) {
 	c.Assert(len(prev), Equals, 0)
 
 	_, err = s.B.CompareAndSwap([]string{"a", "b"}, "bkey", []byte("val2"), 0, []byte{})
-	c.Assert(teleport.IsAlreadyExists(err), Equals, true, Commentf("%#v", err))
+	c.Assert(trace.IsAlreadyExists(err), Equals, true, Commentf("%#v", err))
 
 	_, err = s.B.CompareAndSwap([]string{"a", "b"}, "bkey", []byte("val2"), 0, []byte("abcd"))
-	c.Assert(teleport.IsCompareFailed(err), Equals, true, Commentf("%#v", err))
+	c.Assert(trace.IsCompareFailed(err), Equals, true, Commentf("%#v", err))
 
 	out, err := s.B.GetVal([]string{"a", "b"}, "bkey")
 	c.Assert(err, IsNil)
@@ -161,13 +161,13 @@ func (s *BackendSuite) Renewal(c *C) {
 	c.Assert(ttl > time.Second, Equals, true)
 
 	err = s.B.TouchVal([]string{"a", "b"}, "non-key", 100*time.Second)
-	c.Assert(teleport.IsNotFound(err), Equals, true)
+	c.Assert(trace.IsNotFound(err), Equals, true)
 }
 
 func (s *BackendSuite) Create(c *C) {
 	c.Assert(s.B.CreateVal([]string{"a", "b"}, "bkey", []byte("val1"), time.Second), IsNil)
 	err := s.B.CreateVal([]string{"a", "b"}, "bkey", []byte("val2"), 0)
-	c.Assert(teleport.IsAlreadyExists(err), Equals, true)
+	c.Assert(trace.IsAlreadyExists(err), Equals, true)
 
 	val, err := s.B.GetVal([]string{"a", "b"}, "bkey")
 	c.Assert(err, IsNil)
@@ -191,8 +191,8 @@ func (s *BackendSuite) Locking(c *C) {
 	tok1 := "token1"
 	tok2 := "token2"
 
-	err := teleport.IsNotFound(s.B.ReleaseLock(tok1))
-	c.Assert(err, Equals, true, Commentf("%#v", err))
+	err := s.B.ReleaseLock(tok1)
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
 	c.Assert(s.B.AcquireLock(tok1, time.Second), IsNil)
 	x := int32(7)
@@ -231,7 +231,8 @@ func (s *BackendSuite) Locking(c *C) {
 	c.Assert(atomic.LoadInt32(&y), Equals, int32(15))
 
 	c.Assert(s.B.ReleaseLock(tok1), IsNil)
-	c.Assert(s.B.ReleaseLock(tok1), FitsTypeOf, &teleport.NotFoundError{})
+	err = s.B.ReleaseLock(tok1)
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%T", err))
 }
 
 func toSet(vals []string) map[string]struct{} {

@@ -35,7 +35,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -170,7 +169,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		log.Infof("no teleport login given. defaulting to %s", c.Login)
 	}
 	if c.ProxyHost == "" {
-		return nil, trace.Wrap(teleport.BadParameter("proxy", "no proxy address specified"))
+		return nil, trace.BadParameter("proxy", "no proxy address specified")
 	}
 	if c.HostLogin == "" {
 		c.HostLogin = c.Login
@@ -210,10 +209,8 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	// methods, e.g. in automation daemons
 	if c.SkipLocalAuth {
 		if len(tc.authMethods) == 0 {
-			return nil, trace.Wrap(
-				teleport.BadParameter(
-					"AuthMethods", "SkipLocalAuth is true but no AuthMethods provided"),
-			)
+			return nil, trace.BadParameter(
+				"SkipLocalAuth is true but no AuthMethods provided")
 		}
 		return tc, nil
 	}
@@ -262,7 +259,7 @@ func (tc *TeleportClient) getTargetNodes(proxy *ProxyClient) ([]string, error) {
 func (tc *TeleportClient) SSH(command []string, runLocally bool) error {
 	// connect to proxy first:
 	if !tc.Config.ProxySpecified() {
-		return trace.Wrap(teleport.BadParameter("server", "proxy server is not specified"))
+		return trace.BadParameter("proxy server is not specified")
 	}
 	proxyClient, err := tc.ConnectToProxy()
 	if err != nil {
@@ -281,13 +278,13 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool) error {
 		return trace.Wrap(err)
 	}
 	if len(nodeAddrs) == 0 {
-		return trace.Wrap(teleport.BadParameter("host", "no target host specified"))
+		return trace.BadParameter("no target host specified")
 	}
 
 	// more than one node for an interactive shell?
 	// that can't be!
 	if len(nodeAddrs) != 1 {
-		return trace.Errorf("Cannot launch shell on multiple nodes: %v", nodeAddrs)
+		return trace.BadParameter("cannot launch shell on multiple nodes: %v", nodeAddrs)
 	}
 
 	// proxy local ports (forward incoming connections to remote host ports)
@@ -332,10 +329,10 @@ func (tc *TeleportClient) Join(sid string) (err error) {
 		return trace.Errorf("Invalid session ID format: %s", sid)
 	}
 
-	var notFoundError = &teleport.NotFoundError{Message: "Session not found or it has ended"}
+	var notFoundErrorMessage = fmt.Sprintf("session %v not found or it has ended", sid)
 	// connect to proxy:
 	if !tc.Config.ProxySpecified() {
-		return trace.Wrap(teleport.BadParameter("server", "proxy server is not specified"))
+		return trace.BadParameter("proxy server is not specified")
 	}
 	proxyClient, err := tc.ConnectToProxy()
 	if err != nil {
@@ -348,7 +345,7 @@ func (tc *TeleportClient) Join(sid string) (err error) {
 		return trace.Wrap(err)
 	}
 	if len(sites) == 0 {
-		return trace.Wrap(notFoundError)
+		return trace.NotFound(notFoundErrorMessage)
 	}
 	site, err := proxyClient.ConnectToSite(sites[0].Name, tc.Config.HostLogin)
 	if err != nil {
@@ -367,11 +364,11 @@ func (tc *TeleportClient) Join(sid string) (err error) {
 		}
 	}
 	if session == nil {
-		return trace.Wrap(notFoundError)
+		return trace.NotFound(notFoundErrorMessage)
 	}
 	// pick the 1st party of the session and use his server ID to connect to
 	if len(session.Parties) == 0 {
-		return trace.Wrap(notFoundError)
+		return trace.NotFound(notFoundErrorMessage)
 	}
 	serverID := session.Parties[0].ServerID
 
@@ -388,7 +385,7 @@ func (tc *TeleportClient) Join(sid string) (err error) {
 		}
 	}
 	if node == nil {
-		return trace.Wrap(notFoundError)
+		return trace.NotFound(notFoundErrorMessage)
 	}
 	// connect to server:
 	nc, err := proxyClient.ConnectToNode(node.Addr, tc.Config.HostLogin)
@@ -408,11 +405,11 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err erro
 
 	// local copy?
 	if !isRemoteDest(first) && !isRemoteDest(last) {
-		return trace.Errorf("Making local copies is not supported")
+		return trace.BadParameter("making local copies is not supported")
 	}
 
 	if !tc.Config.ProxySpecified() {
-		return trace.Wrap(teleport.BadParameter("server", "proxy server is not specified"))
+		return trace.BadParameter("proxy server is not specified")
 	}
 	log.Infof("Connecting to proxy...")
 	proxyClient, err := tc.ConnectToProxy()
@@ -657,8 +654,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		HostKeyCallback: tc.Config.HostKeyCallback,
 	}
 	if len(tc.authMethods) == 0 {
-		return nil, trace.Wrap(teleport.BadParameter(
-			"AuthMethods", "no authentication methods provided"))
+		return nil, trace.BadParameter("no authentication methods provided")
 	}
 	log.Debugf("connecting to proxy: %v", proxyAddr)
 
@@ -684,7 +680,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 			}, nil
 		}
 		if failedInteractiveLogin {
-			return nil, trace.Wrap(teleport.AccessDenied("bad username or credentials"))
+			return nil, trace.AccessDenied("bad username or credentials")
 		}
 		// if we get here, it means we failed to authenticate using stored keys
 		// and we need to ask for the login information
@@ -693,7 +689,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 			failedInteractiveLogin = true
 			// we need to communicate directly to user here,
 			// otherwise user will see endless loop with no explanation
-			if teleport.IsTrustError(err) {
+			if trace.IsTrustError(err) {
 				fmt.Printf("ERROR: refusing to connect to untrusted proxy %v without --insecure flag\n", tc.Config.ProxyHostPort(defaults.HTTPListenPort))
 			} else {
 				fmt.Printf("ERROR: %v\n", err)
@@ -710,7 +706,7 @@ func (tc *TeleportClient) makeInteractiveAuthMethod() ssh.AuthMethod {
 			log.Error(err)
 			// we need to communicate directly to user here,
 			// otherwise user will see endless loop with no explanation
-			if teleport.IsTrustError(err) {
+			if trace.IsTrustError(err) {
 				fmt.Printf("ERROR: refusing to connect to untrusted proxy %v without --insecure flag\n", tc.Config.ProxyHostPort(defaults.HTTPListenPort))
 			} else {
 				fmt.Printf("ERROR: %v\n", err)

@@ -185,9 +185,7 @@ func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.New
 		case extCertTypeHost:
 			site, remoteConn, err = s.upsertSite(conn, sconn)
 		default:
-			err = trace.Wrap(
-				teleport.BadParameter(
-					"certType", "can't retrieve certificate type"))
+			err = trace.BadParameter("can't retrieve certificate type in certType")
 		}
 
 		if err != nil {
@@ -273,8 +271,7 @@ func (s *server) checkTrustedKey(CertType services.CertAuthType, domainName stri
 			}
 		}
 	}
-	return trace.Wrap(&teleport.NotFoundError{
-		Message: fmt.Sprintf("authority domain %v not found or has no mathching keys", domainName)})
+	return trace.NotFound("authority domain %v not found or has no mathching keys", domainName)
 }
 
 func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
@@ -286,15 +283,14 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
 		logger.Warningf("server doesn't support provided key type")
-		return nil, trace.Wrap(
-			teleport.BadParameter("key", "server doesn't support provided key type"))
+		return nil, trace.BadParameter("server doesn't support provided key type")
 	}
 
 	switch cert.CertType {
 	case ssh.HostCert:
 		authDomain, ok := cert.Extensions[utils.CertExtensionAuthority]
 		if !ok || authDomain == "" {
-			err := trace.Wrap(teleport.BadParameter("domainName", "missing authority domain"))
+			err := trace.BadParameter("missing authority domainName parameter")
 			logger.Warningf("failed authenticate host, err: %v", err)
 			return nil, err
 		}
@@ -341,17 +337,14 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 			},
 		}, nil
 	default:
-		return nil, trace.Wrap(
-			teleport.BadParameter("cert",
-				fmt.Sprintf("unsupported cert type: %v", cert.CertType)))
+		return nil, trace.BadParameter("unsupported cert type: %v", cert.CertType)
 	}
 }
 
 func (s *server) upsertSite(conn net.Conn, sshConn *ssh.ServerConn) (*tunnelSite, *remoteConn, error) {
 	domainName := sshConn.Permissions.Extensions[extAuthority]
 	if !cstrings.IsValidDomainName(domainName) {
-		return nil, nil, trace.Wrap(teleport.BadParameter(
-			"authDomain", fmt.Sprintf("'%v' is a bad domain name", domainName)))
+		return nil, nil, trace.BadParameter("'%v' is a bad domain name", domainName)
 	}
 
 	s.Lock()
@@ -411,8 +404,7 @@ func (s *server) GetSite(domainName string) (RemoteSite, error) {
 			return s.directSites[i], nil
 		}
 	}
-	return nil, trace.Wrap(teleport.NotFound(
-		fmt.Sprintf("site '%v' not found", domainName)))
+	return nil, trace.NotFound("site '%v' not found", domainName)
 }
 
 // FindSimilarSite finds the site that is the most similar to domain.
@@ -455,8 +447,7 @@ func (s *server) FindSimilarSite(domainName string) (RemoteSite, error) {
 	if result != -1 {
 		return sites[result], nil
 	}
-	return nil, trace.Wrap(teleport.NotFound(
-		fmt.Sprintf("no site matching '%v' found", domainName)))
+	return nil, trace.NotFound("no site matching '%v' found", domainName)
 }
 
 type remoteConn struct {
@@ -551,8 +542,7 @@ func (s *tunnelSite) nextConn() (*remoteConn, error) {
 
 	for {
 		if len(s.connections) == 0 {
-			return nil, trace.Wrap(
-				teleport.NotFound("no active connections"))
+			return nil, trace.NotFound("no active connections")
 		}
 		s.lastUsed = (s.lastUsed + 1) % len(s.connections)
 		remoteConn := s.connections[s.lastUsed]
@@ -601,12 +591,12 @@ func (s *tunnelSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 			case req := <-reqC:
 				if req == nil {
 					s.log.Infof("agent disconnected")
-					conn.markInvalid(teleport.ConnectionProblem("agent disconnected", nil))
+					conn.markInvalid(trace.ConnectionProblem(nil, "agent disconnected"))
 					return
 				}
 				s.setLastActive(time.Now())
 			case <-time.After(2 * defaults.ReverseTunnelAgentHeartbeatPeriod):
-				conn.markInvalid(teleport.ConnectionProblem("agent missed 2 heartbeats", nil))
+				conn.markInvalid(trace.ConnectionProblem(nil, "agent missed 2 heartbeats"))
 				conn.sshConn.Close()
 			}
 		}
@@ -682,7 +672,7 @@ func (s *tunnelSite) dialAccessPoint(network, addr string) (net.Conn, error) {
 	for {
 		conn, err := s.tryDialAccessPoint(network, addr)
 		if err != nil {
-			if teleport.IsNotFound(err) {
+			if trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
 			}
 			continue
@@ -712,9 +702,8 @@ func (s *tunnelSite) tryDial(net, addr string) (net.Conn, error) {
 	}
 	if !dialed {
 		remoteConn.markInvalid(err)
-		return nil, trace.Wrap(
-			teleport.ConnectionProblem(
-				fmt.Sprintf("remote server %v is not available", addr), nil))
+		return nil, trace.ConnectionProblem(
+			nil, "remote server %v is not available", addr)
 	}
 	return utils.NewChConn(remoteConn.sshConn, ch), nil
 }
@@ -726,7 +715,7 @@ func (s *tunnelSite) Dial(net string, addr string) (net.Conn, error) {
 		if err != nil {
 			s.log.Infof("got connection problem: %v", err)
 			// we interpret it as a "out of connections and will try again"
-			if teleport.IsNotFound(err) {
+			if trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
 			}
 			continue

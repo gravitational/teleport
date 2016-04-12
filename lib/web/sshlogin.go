@@ -12,8 +12,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/gravitational/teleport"
-
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -62,7 +60,7 @@ func SSHAgentOIDCLogin(proxyAddr, connectorID string, pubKey []byte, ttl time.Du
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			response, err := fn(w, r)
 			if err != nil {
-				if teleport.IsNotFound(err) {
+				if trace.IsNotFound(err) {
 					http.NotFound(w, r)
 					return
 				}
@@ -77,29 +75,29 @@ func SSHAgentOIDCLogin(proxyAddr, connectorID string, pubKey []byte, ttl time.Du
 
 	server := httptest.NewServer(makeHandler(func(w http.ResponseWriter, r *http.Request) (*SSHLoginResponse, error) {
 		if r.URL.Path != "/callback" {
-			return nil, trace.Wrap(teleport.NotFound("path not found"))
+			return nil, trace.NotFound("path not found")
 		}
 		encrypted := r.URL.Query().Get("response")
 		if encrypted == "" {
-			return nil, teleport.BadParameter("response", fmt.Sprintf("missing required query parameters in %v", r.URL.String()))
+			return nil, trace.BadParameter("missing required query parameters in %v", r.URL.String())
 		}
 
 		var encryptedData *secret.SealedBytes
 		err := json.Unmarshal([]byte(encrypted), &encryptedData)
 		if err != nil {
-			return nil, teleport.BadParameter("response", fmt.Sprintf("failed to decode response in %v", r.URL.String()))
+			return nil, trace.BadParameter("failed to decode response in %v", r.URL.String())
 		}
 
 		out, err := decryptor.Open(encryptedData)
 		if err != nil {
-			return nil, teleport.BadParameter("response", fmt.Sprintf("failed to decode response: in %v, err: %v", r.URL.String(), err))
+			return nil, trace.BadParameter("failed to decode response: in %v, err: %v", r.URL.String(), err)
 		}
 
 		var re *SSHLoginResponse
 		log.Infof("callback got response: %v", r.URL.String())
 		err = json.Unmarshal([]byte(out), &re)
 		if err != nil {
-			return nil, teleport.BadParameter("response", fmt.Sprintf("failed to decode response: in %v, err: %v", r.URL.String(), err))
+			return nil, trace.BadParameter("failed to decode response: in %v, err: %v", r.URL.String(), err)
 		}
 		return re, nil
 	}))
@@ -192,16 +190,12 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*webClien
 		if err != nil {
 			log.Error(err)
 		}
-		return nil, nil, trace.Wrap(
-			teleport.BadParameter("proxyAddress",
-				fmt.Sprintf("'%v' is not a valid proxy address", proxyAddr)))
+		return nil, nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
 	}
 	proxyAddr = "https://" + net.JoinHostPort(host, port)
 	u, err := url.Parse(proxyAddr)
 	if err != nil {
-		return nil, nil, trace.Wrap(
-			teleport.BadParameter("proxyAddress",
-				fmt.Sprintf("'%v' is not a valid proxy address", proxyAddr)))
+		return nil, nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
 	}
 
 	var opts []roundtrip.ClientParam

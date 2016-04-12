@@ -24,10 +24,8 @@ limitations under the License.
 package auth
 
 import (
-	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -57,9 +55,7 @@ func (s *AuthServer) CreateSignupToken(user services.User) (string, error) {
 	// check existing
 	_, err := s.GetPasswordHash(user.GetName())
 	if err == nil {
-		return "", trace.Wrap(
-			teleport.BadParameter(
-				"user", fmt.Sprintf("user '%v' already exists", user)))
+		return "", trace.BadParameter("user '%v' already exists", user)
 	}
 
 	token, err := utils.CryptoRandomHex(WebSessionTokenLenBytes)
@@ -164,7 +160,7 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Se
 
 	ok := otp.Scan(hotpToken, defaults.HOTPFirstTokensRange)
 	if !ok {
-		return nil, trace.Wrap(teleport.BadParameter("hotp", "wrong HOTP token"))
+		return nil, trace.BadParameter("wrong HOTP token")
 	}
 
 	_, _, err = s.UpsertPassword(tokenData.User.GetName(), []byte(password))

@@ -22,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/configure/cstrings"
@@ -97,13 +96,11 @@ type ReverseTunnel struct {
 // Check returns nil if all parameters are good, error otherwise
 func (r *ReverseTunnel) Check() error {
 	if !cstrings.IsValidDomainName(r.DomainName) {
-		return trace.Wrap(teleport.BadParameter("DomainName",
-			fmt.Sprintf("'%v' is a bad domain name", r.DomainName)))
+		return trace.BadParameter("'%v' is a bad domain name", r.DomainName)
 	}
 
 	if len(r.DialAddrs) == 0 {
-		return trace.Wrap(teleport.BadParameter("DialAddrs",
-			fmt.Sprintf("'%v' is a bad domain name", r.DialAddrs)))
+		return trace.BadParameter("'%v' is a bad domain name", r.DialAddrs)
 	}
 
 	for _, addr := range r.DialAddrs {

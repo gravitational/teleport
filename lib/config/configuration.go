@@ -17,7 +17,6 @@ limitations under the License.
 package config
 
 import (
-	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
@@ -151,8 +150,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	case "":
 		break // not set
 	default:
-		return trace.Wrap(teleport.BadParameter(
-			"storage", fmt.Sprintf("unsupported storage type: '%v'", fc.Storage.Type)))
+		return trace.BadParameter("unsupported storage type: '%v'", fc.Storage.Type)
 	}
 
 	// apply logger settings
@@ -444,8 +442,8 @@ func parseLabels(spec string, sshConf *service.SSHConfig) error {
 func isCmdLabelSpec(spec string) (*services.CommandLabel, error) {
 	// command spec? (surrounded by brackets?)
 	if len(spec) > 5 && spec[0] == '[' && spec[len(spec)-1] == ']' {
-		invalidSpecError := teleport.BadParameter("label",
-			fmt.Sprintf("invalid command label spec: '%s'", spec))
+		invalidSpecError := trace.BadParameter(
+			"invalid command label spec: '%s'", spec)
 		spec = strings.Trim(spec, "[]")
 		idx := strings.IndexRune(spec, ':')
 		if idx < 0 {
@@ -526,7 +524,7 @@ func validateRoles(roles string) error {
 
 func validateAdvertiseIP(advertiseIP net.IP) error {
 	if advertiseIP.IsLoopback() || advertiseIP.IsUnspecified() || advertiseIP.IsMulticast() {
-		return teleport.BadParameter("advertise-ip", fmt.Sprintf("unreachable advertise IP: %v", advertiseIP))
+		return trace.BadParameter("unreachable advertise IP: %v", advertiseIP)
 	}
 	return nil
 }

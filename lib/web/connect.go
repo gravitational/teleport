@@ -22,7 +22,6 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -64,15 +63,13 @@ func newConnectHandler(req connectReq, ctx *SessionContext, site reversetunnel.R
 		}
 	}
 	if server == nil {
-		return nil, trace.Wrap(
-			teleport.NotFound(
-				fmt.Sprintf("node '%v' not found", req.ServerID)))
+		return nil, trace.NotFound("node '%v' not found", req.ServerID)
 	}
 	if req.Login == "" {
-		return nil, trace.Wrap(teleport.BadParameter("login", "missing login"))
+		return nil, trace.BadParameter("login: missing login")
 	}
 	if req.Term.W <= 0 || req.Term.H <= 0 {
-		return nil, trace.Wrap(teleport.BadParameter("term", "bad term dimensions"))
+		return nil, trace.BadParameter("term: bad term dimensions")
 	}
 	return &connectHandler{
 		req:    req,

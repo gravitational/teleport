@@ -600,11 +600,11 @@ func (s *APIServer) getChunks(w http.ResponseWriter, r *http.Request, p httprout
 	st, en := r.URL.Query().Get("start"), r.URL.Query().Get("end")
 	start, err := strconv.Atoi(st)
 	if err != nil {
-		return nil, trace.Wrap(teleport.BadParameter("start", "need integer"))
+		return nil, trace.BadParameter("start: need integer")
 	}
 	end, err := strconv.Atoi(en)
 	if err != nil {
-		return nil, trace.Wrap(teleport.BadParameter("end", "need integer"))
+		return nil, trace.BadParameter("end: need integer")
 	}
 
 	re, err := s.a.GetChunkReader(sid)

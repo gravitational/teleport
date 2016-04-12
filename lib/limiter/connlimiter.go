@@ -17,11 +17,8 @@ limitations under the License.
 package limiter
 
 import (
-	"fmt"
 	"net/http"
 	"sync"
-
-	"github.com/gravitational/teleport"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
@@ -80,9 +77,9 @@ func (l *ConnectionsLimiter) AcquireConnection(token string) error {
 		return nil
 	}
 	if numberOfConnections >= l.maxConnections {
-		return trace.Wrap(
-			teleport.LimitExceeded(
-				fmt.Sprintf("too many connections from %v: %v, max is %v", token, numberOfConnections, l.maxConnections)), nil)
+		return trace.LimitExceeded(
+			"too many connections from %v: %v, max is %v",
+			token, numberOfConnections, l.maxConnections)
 	}
 	l.connections[token] = numberOfConnections + 1
 	return nil

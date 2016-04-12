@@ -20,11 +20,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/coreos/etcd/client"
+	"github.com/gravitational/trace"
 	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
 )
@@ -67,7 +67,7 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 	// Delete all values under the given prefix
 	_, err = s.api.Delete(context.Background(), s.bk.cfg.Key, &client.DeleteOptions{Recursive: true, Dir: true})
 	err = convertErr(err)
-	if err != nil && !teleport.IsNotFound(err) {
+	if err != nil && !trace.IsNotFound(err) {
 		c.Assert(err, IsNil)
 	}
 

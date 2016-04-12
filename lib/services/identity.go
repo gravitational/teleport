@@ -27,7 +27,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gokyle/hotp"
@@ -114,17 +113,14 @@ func (u *TeleportUser) String() string {
 // Check checks validity of all parameters
 func (u *TeleportUser) Check() error {
 	if !cstrings.IsValidUnixUser(u.Name) {
-		return trace.Wrap(
-			teleport.BadParameter("Name", fmt.Sprintf("'%v' is not a valid user name", u.Name)))
+		return trace.BadParameter("'%v' is not a valid user name", u.Name)
 	}
 	if len(u.AllowedLogins) == 0 {
-		return trace.Wrap(teleport.BadParameter(
-			"AllowedLogins", fmt.Sprintf("'%v' has no valid allowed logins", u.Name)))
+		return trace.BadParameter("'%v' has no valid allowed logins", u.Name)
 	}
 	for _, login := range u.AllowedLogins {
 		if !cstrings.IsValidUnixUser(login) {
-			return trace.Wrap(teleport.BadParameter(
-				"login", fmt.Sprintf("'%v' is not a valid user name", login)))
+			return trace.BadParameter("'%v' is not a valid user name", login)
 		}
 	}
 	for _, id := range u.OIDCIdentities {
@@ -216,16 +212,12 @@ type Identity interface {
 // mostly to avoid putting garbage in
 func VerifyPassword(password []byte) error {
 	if len(password) < defaults.MinPasswordLength {
-		return teleport.BadParameter(
-			"password",
-			fmt.Sprintf(
-				"password is too short, min length is %v", defaults.MinPasswordLength))
+		return trace.BadParameter(
+			"password is too short, min length is %v", defaults.MinPasswordLength)
 	}
 	if len(password) > defaults.MaxPasswordLength {
-		return teleport.BadParameter(
-			"password",
-			fmt.Sprintf(
-				"password is too long, max length is %v", defaults.MaxPasswordLength))
+		return trace.BadParameter(
+			"password is too long, max length is %v", defaults.MaxPasswordLength)
 	}
 	return nil
 }
@@ -275,19 +267,19 @@ type OIDCConnector struct {
 // Check returns nil if all parameters are great, err otherwise
 func (o *OIDCConnector) Check() error {
 	if o.ID == "" {
-		return trace.Wrap(teleport.BadParameter("ID", "missing connector id"))
+		return trace.BadParameter("ID: missing connector id")
 	}
 	if _, err := url.Parse(o.IssuerURL); err != nil {
-		return trace.Wrap(teleport.BadParameter("IssuerURL", fmt.Sprintf("bad url: '%v'", o.IssuerURL)))
+		return trace.BadParameter("IssuerURL: bad url: '%v'", o.IssuerURL)
 	}
 	if _, err := url.Parse(o.RedirectURL); err != nil {
-		return trace.Wrap(teleport.BadParameter("RedirectURL", fmt.Sprintf("bad url: '%v'", o.RedirectURL)))
+		return trace.BadParameter("RedirectURL: bad url: '%v'", o.RedirectURL)
 	}
 	if o.ClientID == "" {
-		return trace.Wrap(teleport.BadParameter("ClientID", "missing client id"))
+		return trace.BadParameter("ClientID: missing client id")
 	}
 	if o.ClientSecret == "" {
-		return trace.Wrap(teleport.BadParameter("ClientID", "missing client secret"))
+		return trace.BadParameter("ClientSecret: missing client secret")
 	}
 	return nil
 }
@@ -317,10 +309,10 @@ func (i *OIDCIdentity) Equals(other *OIDCIdentity) bool {
 // Check returns nil if all parameters are great, err otherwise
 func (i *OIDCIdentity) Check() error {
 	if i.ConnectorID == "" {
-		return trace.Wrap(teleport.BadParameter("ConnectorID", "missing value"))
+		return trace.BadParameter("ConnectorID: missing value")
 	}
 	if i.Email == "" {
-		return trace.Wrap(teleport.BadParameter("Email", "missing email"))
+		return trace.BadParameter("Email: missing email")
 	}
 	return nil
 }
@@ -358,18 +350,18 @@ type OIDCAuthRequest struct {
 // Check returns nil if all parameters are great, err otherwise
 func (i *OIDCAuthRequest) Check() error {
 	if i.ConnectorID == "" {
-		return trace.Wrap(teleport.BadParameter("ConnectorID", "missing value"))
+		return trace.BadParameter("ConnectorID: missing value")
 	}
 	if i.StateToken == "" {
-		return trace.Wrap(teleport.BadParameter("StateToken", "missing value"))
+		return trace.BadParameter("StateToken: missing value")
 	}
 	if len(i.PublicKey) != 0 {
 		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
 		if err != nil {
-			return trace.Wrap(teleport.BadParameter("PublicKey", fmt.Sprintf("bad key: %v", err)))
+			return trace.BadParameter("PublicKey: bad key: %v", err)
 		}
 		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
-			return trace.Wrap(teleport.BadParameter("CertTTL", "wrong certificate TTL"))
+			return trace.BadParameter("CertTTL: wrong certificate TTL")
 		}
 	}
 

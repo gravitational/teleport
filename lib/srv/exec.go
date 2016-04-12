@@ -32,7 +32,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/trace"
 
@@ -247,7 +246,7 @@ func (e *execResponse) start(sconn *ssh.ServerConn, shell string, ch ssh.Channel
 
 	if err := e.cmd.Start(); err != nil {
 		e.ctx.Warningf("%v start failure err: %v", e, err)
-		return e.collectStatus(e.cmd, teleport.ConvertSystemError(err))
+		return e.collectStatus(e.cmd, trace.ConvertSystemError(err))
 	}
 	e.ctx.Infof("%v started", e)
 	return nil, nil
