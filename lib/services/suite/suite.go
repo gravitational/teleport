@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gokyle/hotp"
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
 	. "gopkg.in/check.v1"
