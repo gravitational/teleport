@@ -102,7 +102,7 @@ func (t *terminal) setWinsize(params rsession.TerminalParams) error {
 	if t.pty == nil {
 		return trace.Wrap(teleport.NotFound("no pty"))
 	}
-	log.Infof("window resize %v", &params)
+	log.Infof("resizing terminal to %v", &params)
 	if err := term.SetWinsize(t.pty.Fd(), params.Winsize()); err != nil {
 		return trace.Wrap(err)
 	}

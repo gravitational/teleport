@@ -279,14 +279,13 @@ func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) er
 	// start recording the session (if enabled)
 	sessionRecorder := s.registry.srv.rec
 	if sessionRecorder != nil {
-		w, err := newChunkWriter(string(s.id), s, sessionRecorder)
+		s.chunkWriter, err = newChunkWriter(string(s.id), s, sessionRecorder)
 		if err != nil {
 			p.ctx.Errorf("failed to create recorder: %v", err)
 			return trace.Wrap(err)
 		}
-		s.chunkWriter = w
-		s.registry.srv.emit(ctx.eid, events.NewShellSession(string(s.id), sconn, shellCmd, w.recordID))
-		s.writer.addWriter("capture", w, false)
+		s.registry.srv.emit(ctx.eid, events.NewShellSession(string(s.id), sconn, shellCmd, s.chunkWriter.recordID))
+		s.writer.addWriter("capture", s.chunkWriter, false)
 	} else {
 		s.registry.srv.emit(ctx.eid, events.NewShellSession(string(s.id), sconn, shellCmd, ""))
 	}
@@ -377,8 +376,7 @@ func (s *session) pollAndSyncTerm() {
 		return s.term.setWinsize(sess.TerminalParams)
 	}
 
-	const termSizePollingInterval = time.Second * 3
-	tick := time.NewTicker(termSizePollingInterval)
+	tick := time.NewTicker(defaults.TerminalSizeRefreshPeriod)
 	defer tick.Stop()
 	for {
 		if err := syncTerm(); err != nil {
@@ -386,7 +384,7 @@ func (s *session) pollAndSyncTerm() {
 		}
 		select {
 		case <-s.closeC:
-			log.Infof("closed, stopped heartbeat")
+			log.Infof("[SSH] terminal sync stopped")
 			return
 		case <-tick.C:
 		}
