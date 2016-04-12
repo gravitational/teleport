@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 
@@ -80,10 +79,10 @@ func (s *ID) Check() error {
 func ParseID(id string) (*ID, error) {
 	val := uuid.Parse(id)
 	if val == nil {
-		return nil, trace.Wrap(teleport.BadParameter("id", fmt.Sprintf("'%v' is not a valid Time UUID v1", id)))
+		return nil, trace.BadParameter("'%v' is not a valid Time UUID v1", id)
 	}
 	if ver, ok := val.Version(); !ok || ver != 1 {
-		return nil, trace.Wrap(teleport.BadParameter("session id", fmt.Sprintf("'%v' is not a be a valid Time UUID v1", id)))
+		return nil, trace.BadParameter("'%v' is not a be a valid Time UUID v1", id)
 	}
 	uid := ID(id)
 	return &uid, nil
@@ -270,7 +269,7 @@ func (s *server) GetSessions() ([]Session, error) {
 	out := []Session{}
 	for _, sid := range keys {
 		se, err := s.GetSession(ID(sid))
-		if teleport.IsNotFound(err) {
+		if trace.IsNotFound(err) {
 			continue
 		}
 		out = append(out, *se)
@@ -288,7 +287,7 @@ func (s *server) GetSession(id ID) (*Session, error) {
 
 	_, err = s.bk.GetVal(activeBucket(), string(id))
 	if err != nil {
-		if !teleport.IsNotFound(err) {
+		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 		sess.Active = false
@@ -304,7 +303,7 @@ func (s *server) GetSession(id ID) (*Session, error) {
 		var p *Party
 		err := s.bk.GetJSONVal(partiesBucket(id), pk, &p)
 		if err != nil {
-			if teleport.IsNotFound(err) { // key was expired
+			if trace.IsNotFound(err) { // key was expired
 				continue
 			}
 			return nil, err
@@ -322,13 +321,13 @@ func (s *server) CreateSession(sess Session) error {
 		return trace.Wrap(err)
 	}
 	if sess.Login == "" {
-		return trace.Wrap(teleport.BadParameter("login", "session login can not be empty"))
+		return trace.BadParameter("session login can not be empty")
 	}
 	if sess.Created.IsZero() {
-		return trace.Wrap(teleport.BadParameter("created", "can not be empty"))
+		return trace.BadParameter("created can not be empty")
 	}
 	if sess.LastActive.IsZero() {
-		return trace.Wrap(teleport.BadParameter("last_active", "can not be empty"))
+		return trace.BadParameter("last_active can not be empty")
 	}
 	_, err := NewTerminalParamsFromInt(sess.TerminalParams.W, sess.TerminalParams.H)
 	if err != nil {
@@ -372,7 +371,7 @@ func (s *server) UpdateSession(req UpdateRequest) error {
 		if !*req.Active {
 			err := s.bk.DeleteKey(activeBucket(), string(req.ID))
 			if err != nil {
-				if !teleport.IsNotFound(err) {
+				if !trace.IsNotFound(err) {
 					return trace.Wrap(err)
 				}
 			}
@@ -404,10 +403,10 @@ func (s *server) UpsertParty(sessionID ID, p Party, ttl time.Duration) error {
 // NewTerminalParamsFromUint32 returns new terminal parameters from uint32 width and height
 func NewTerminalParamsFromUint32(w uint32, h uint32) (*TerminalParams, error) {
 	if w > maxSize || w < minSize {
-		return nil, trace.Wrap(teleport.BadParameter("width", "bad width"))
+		return nil, trace.BadParameter("bad width")
 	}
 	if h > maxSize || h < minSize {
-		return nil, trace.Wrap(teleport.BadParameter("height", "bad height"))
+		return nil, trace.BadParameter("bad height")
 	}
 	return &TerminalParams{W: int(w), H: int(h)}, nil
 }
@@ -415,10 +414,10 @@ func NewTerminalParamsFromUint32(w uint32, h uint32) (*TerminalParams, error) {
 // NewTerminalParamsFromInt returns new terminal parameters from int width and height
 func NewTerminalParamsFromInt(w int, h int) (*TerminalParams, error) {
 	if w > maxSize || w < minSize {
-		return nil, trace.Wrap(teleport.BadParameter("width", "bad witdth"))
+		return nil, trace.BadParameter("bad witdth")
 	}
 	if h > maxSize || h < minSize {
-		return nil, trace.Wrap(teleport.BadParameter("height", "bad witdth"))
+		return nil, trace.BadParameter("bad height")
 	}
 	return &TerminalParams{W: int(w), H: int(h)}, nil
 }

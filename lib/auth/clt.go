@@ -361,9 +361,7 @@ func (c *Client) DeleteReverseTunnel(domainName string) error {
 	// HTTP route will fail producing generic not found error
 	// instead we catch the error here
 	if !cstrings.IsValidDomainName(domainName) {
-		return trace.Wrap(teleport.BadParameter("domainName",
-			fmt.Sprintf("'%v' is a bad domain name", domainName),
-		))
+		return trace.BadParameter("'%v' is a bad domain name", domainName)
 	}
 	_, err := c.Delete(c.Endpoint("reversetunnels", domainName))
 	return trace.Wrap(err)
@@ -531,7 +529,7 @@ func (c *Client) DeleteWebSession(user string, sid string) error {
 // GetUser returns a list of usernames registered in the system
 func (c *Client) GetUser(name string) (services.User, error) {
 	if name == "" {
-		return nil, trace.Wrap(teleport.BadParameter("name", fmt.Sprintf("missing username")))
+		return nil, trace.BadParameter("missing username")
 	}
 	out, err := c.Get(c.Endpoint("users", name), url.Values{})
 	if err != nil {
@@ -698,7 +696,7 @@ func (c *Client) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.
 
 func (c *Client) GetOIDCConnector(id string, withSecrets bool) (*services.OIDCConnector, error) {
 	if id == "" {
-		return nil, trace.Wrap(teleport.BadParameter("id", "missing connector id"))
+		return nil, trace.BadParameter("missing connector id")
 	}
 	out, err := c.Get(c.Endpoint("oidc", "connectors", id),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
@@ -727,7 +725,7 @@ func (c *Client) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, 
 
 func (c *Client) DeleteOIDCConnector(connectorID string) error {
 	if connectorID == "" {
-		return trace.Wrap(teleport.BadParameter("id", "missing connector id"))
+		return trace.BadParameter("missing connector id")
 	}
 	_, err := c.Delete(c.Endpoint("oidc", "connectors", connectorID))
 	return trace.Wrap(err)

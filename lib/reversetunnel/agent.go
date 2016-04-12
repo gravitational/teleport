@@ -167,7 +167,7 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 	for _, ca := range cas {
 		checkers, err := ca.Checkers()
 		if err != nil {
-			return trace.Wrap(teleport.BadParameter("key", fmt.Sprintf("error parsing key: %v", err)))
+			return trace.BadParameter("error parsing key: %v", err)
 		}
 		for _, checker := range checkers {
 			if sshutils.KeysEqual(checker, cert.SignatureKey) {
@@ -176,15 +176,13 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 			}
 		}
 	}
-	return trace.Wrap(teleport.NotFound(
-		"no matching keys found when checking server's host signature"))
+	return trace.NotFound(
+		"no matching keys found when checking server's host signature")
 }
 
 func (a *Agent) connect() error {
 	if a.addr.IsEmpty() {
-		err := trace.Wrap(
-			teleport.BadParameter("addr",
-				"reverse tunnel cannot be created: target address is empty"))
+		err := trace.BadParameter("reverse tunnel cannot be created: target address is empty")
 		a.log.Error(err)
 		return err
 	}

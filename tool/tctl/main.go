@@ -326,7 +326,7 @@ func (u *UserCommand) Delete(client *auth.TunClient) error {
 // to a cluster
 func (u *NodeCommand) Invite(client *auth.TunClient) error {
 	if u.count < 1 {
-		return trace.Wrap(teleport.BadParameter("count", fmt.Sprintf("count should be > 0, got %v", u.count)))
+		return trace.BadParameter("count should be > 0, got %v", u.count)
 	}
 	var tokens []string
 	for i := 0; i < u.count; i++ {

@@ -23,7 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/recorder"
@@ -80,8 +79,7 @@ func (s *sessionRegistry) leaveShell(sid, pid rsession.ID) error {
 
 	sess, found := s.findSession(sid)
 	if !found {
-		return trace.Wrap(
-			teleport.NotFound(fmt.Sprintf("session %v not found", sid)))
+		return trace.NotFound("session %v not found", sid)
 	}
 	if err := sess.leave(pid); err != nil {
 		return trace.Wrap(err)
@@ -103,8 +101,7 @@ func (s *sessionRegistry) notifyWinChange(sid rsession.ID, params rsession.Termi
 
 	sess, found := s.findSession(sid)
 	if !found {
-		return trace.Wrap(
-			teleport.NotFound(fmt.Sprintf("session %v not found", sid)))
+		return trace.NotFound("session %v not found", sid)
 	}
 	err := sess.term.setWinsize(params)
 	if err != nil {
@@ -129,8 +126,7 @@ func (s *sessionRegistry) broadcastResult(sid rsession.ID, r execResult) error {
 
 	sess, found := s.findSession(sid)
 	if !found {
-		return trace.Wrap(
-			teleport.NotFound(fmt.Sprintf("session %v not found", sid)))
+		return trace.NotFound("session %v not found", sid)
 	}
 	sess.broadcastResult(r)
 	return nil
@@ -193,7 +189,7 @@ func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, err
 	}
 	err := r.srv.sessionServer.CreateSession(rsess)
 	if err != nil {
-		if !teleport.IsAlreadyExists(err) {
+		if !trace.IsAlreadyExists(err) {
 			return nil, trace.Wrap(err)
 		}
 		// if session already exists, make sure they are compatible
@@ -203,10 +199,9 @@ func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, err
 			return nil, trace.Wrap(err)
 		}
 		if existing.Login != rsess.Login {
-			return nil, trace.Wrap(
-				teleport.AccessDenied(
-					fmt.Sprintf("can't switch users from %v to %v for session %v",
-						rsess.Login, existing.Login, id)))
+			return nil, trace.AccessDenied(
+				"can't switch users from %v to %v for session %v",
+				rsess.Login, existing.Login, id)
 		}
 	}
 	if err := r.srv.elog.LogSession(rsess); err != nil {
@@ -274,7 +269,7 @@ func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) er
 	shellCmd := fmt.Sprintf("%s %s", cmd.Path, strings.Join(cmd.Args, " "))
 	if err := s.term.run(cmd); err != nil {
 		ctx.Errorf("shell command failed: %v", err)
-		return teleport.ConvertSystemError(trace.Wrap(err))
+		return trace.ConvertSystemError(err)
 	}
 	// start recording the session (if enabled)
 	sessionRecorder := s.registry.srv.rec
@@ -342,8 +337,7 @@ func (s *session) String() string {
 func (s *session) leave(id rsession.ID) error {
 	p, ok := s.parties[id]
 	if !ok {
-		return trace.Wrap(
-			teleport.NotFound(fmt.Sprintf("party %v not found", id)))
+		return trace.NotFound("party %v not found", id)
 	}
 	p.ctx.Infof("%v is leaving", p)
 	delete(s.parties, p.id)

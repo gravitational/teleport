@@ -22,7 +22,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/gravitational/teleport"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -199,13 +198,11 @@ func (c *ctx) getEnv(key string) (string, bool) {
 func (c *ctx) getSessionID() (*rsession.ID, error) {
 	sid, ok := c.getEnv(sshutils.SessionEnvVar)
 	if !ok || sid == "" {
-		return nil, trace.Wrap(
-			teleport.NotFound("session ID not found"))
+		return nil, trace.NotFound("session ID not found")
 	}
 	sessionID, err := rsession.ParseID(sid)
 	if err != nil {
-		return nil, trace.Wrap(
-			teleport.BadParameter(sshutils.SessionEnvVar, "session ID: bad format"))
+		return nil, trace.BadParameter("%v session ID: bad format", sshutils.SessionEnvVar)
 	}
 	return sessionID, nil
 }
@@ -215,7 +212,7 @@ func (c *ctx) initSessionID() (*rsession.ID, error) {
 	if err == nil {
 		return sessionID, nil
 	}
-	if teleport.IsNotFound(err) {
+	if trace.IsNotFound(err) {
 		sid := rsession.NewID()
 		c.setEnv(sshutils.SessionEnvVar, string(sid))
 		return &sid, nil

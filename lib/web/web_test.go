@@ -279,13 +279,13 @@ func (s *WebSuite) TestNewUser(c *C) {
 	clt = s.client(roundtrip.BearerAuth(rawSess.Token))
 	re, err = clt.Get(clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
-	c.Assert(teleport.IsAccessDenied(err), Equals, true)
+	c.Assert(trace.IsAccessDenied(err), Equals, true)
 
 	// no bearer token:
 	clt = s.client(roundtrip.CookieJar(jar))
 	re, err = clt.Get(clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
-	c.Assert(teleport.IsAccessDenied(err), Equals, true)
+	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
 
 type authPack struct {
@@ -382,7 +382,7 @@ func (s *WebSuite) TestWebSessionsCRUD(c *C) {
 	// subsequent requests trying to use this session will fail
 	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
-	c.Assert(teleport.IsAccessDenied(err), Equals, true)
+	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
 
 func (s *WebSuite) TestWebSessionsLogout(c *C) {
@@ -407,7 +407,7 @@ func (s *WebSuite) TestWebSessionsLogout(c *C) {
 	// subsequent requests trying to use this session will fail
 	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
-	c.Assert(teleport.IsAccessDenied(err), Equals, true)
+	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
 
 func (s *WebSuite) TestWebSessionsRenew(c *C) {
@@ -443,7 +443,7 @@ func (s *WebSuite) TestWebSessionsRenew(c *C) {
 	// subsequent requests trying to use this session will fail
 	re, err = newPack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, NotNil)
-	c.Assert(teleport.IsAccessDenied(err), Equals, true)
+	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
 
 func (s *WebSuite) TestWebSessionsBadInput(c *C) {
@@ -494,7 +494,7 @@ func (s *WebSuite) TestWebSessionsBadInput(c *C) {
 	for i, req := range reqs {
 		_, err = clt.PostJSON(clt.Endpoint("webapi", "sessions"), req)
 		c.Assert(err, NotNil, Commentf("tc %v", i))
-		c.Assert(teleport.IsAccessDenied(err), Equals, true, Commentf("tc %v %T is not access denied", i, err))
+		c.Assert(trace.IsAccessDenied(err), Equals, true, Commentf("tc %v %T is not access denied", i, err))
 	}
 }
 

@@ -23,7 +23,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -57,8 +56,7 @@ func parseProxySubsys(name string, srv *Server) (*proxySubsys, error) {
 		siteName   string
 		host       string
 		port       string
-		paramError error = teleport.BadParameter("proxy",
-			fmt.Sprintf("invalid format for proxy request: '%v', expected 'proxy:host:port@site'", name))
+		paramError = trace.BadParameter("invalid format for proxy request: '%v', expected 'proxy:host:port@site'", name)
 	)
 	const prefix = "proxy:"
 	// get rid of 'proxy:' prefix:
@@ -81,7 +79,7 @@ func parseProxySubsys(name string, srv *Server) (*proxySubsys, error) {
 	if siteName != "" && srv.proxyTun != nil {
 		_, err := srv.proxyTun.GetSite(siteName)
 		if err != nil {
-			return nil, trace.Wrap(teleport.BadParameter("proxy", fmt.Sprintf("unknown site '%s'", siteName)))
+			return nil, trace.BadParameter("unknown site '%s'", siteName)
 		}
 	}
 	return &proxySubsys{
@@ -210,7 +208,7 @@ func (t *proxySubsys) proxyToHost(site reversetunnel.RemoteSite, ch ssh.Channel)
 	// may not be actually DNS resolvable
 	conn, err := site.Dial("tcp", serverAddr)
 	if err != nil {
-		return trace.Wrap(teleport.ConvertSystemError(err))
+		return trace.ConvertSystemError(err)
 	}
 	go func() {
 		var err error

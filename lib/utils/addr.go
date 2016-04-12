@@ -23,8 +23,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gravitational/teleport"
-
 	"github.com/gravitational/trace"
 )
 
@@ -104,7 +102,7 @@ func ParseAddr(a string) (*NetAddr, error) {
 	if !strings.Contains(a, "://") {
 		host, port, err := net.SplitHostPort(a)
 		if err != nil {
-			return nil, trace.Wrap(teleport.BadParameter(a, "bad address, expected host:port"))
+			return nil, trace.BadParameter("'%v' is a bad address, expected host:port", a)
 		}
 		return &NetAddr{Addr: fmt.Sprintf("%v:%v", host, port), AddrNetwork: "tcp"}, nil
 	}
@@ -118,7 +116,7 @@ func ParseAddr(a string) (*NetAddr, error) {
 	case "unix":
 		return &NetAddr{Addr: u.Path, AddrNetwork: u.Scheme}, nil
 	default:
-		return nil, trace.Wrap(teleport.BadParameter(a, fmt.Sprintf("unsupported scheme: '%v'", u.Scheme)))
+		return nil, trace.BadParameter("'%v': unsupported scheme: '%v'", a, u.Scheme)
 	}
 }
 

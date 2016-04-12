@@ -23,13 +23,10 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"fmt"
 	"math/big"
 	"net"
 	"os"
 	"time"
-
-	"github.com/gravitational/teleport"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
@@ -51,10 +48,10 @@ func CreateTLSConfiguration(certFile, keyFile string) (*tls.Config, error) {
 	config := &tls.Config{}
 
 	if _, err := os.Stat(certFile); err != nil {
-		return nil, trace.Wrap(teleport.BadParameter("certificate", fmt.Sprintf("certificate is not accessible by '%v'", certFile)))
+		return nil, trace.BadParameter("certificate is not accessible by '%v'", certFile)
 	}
 	if _, err := os.Stat(keyFile); err != nil {
-		return nil, trace.Wrap(teleport.BadParameter("certificate", fmt.Sprintf("certificate is not accessible by '%v'", certFile)))
+		return nil, trace.BadParameter("certificate is not accessible by '%v'", certFile)
 	}
 
 	log.Infof("[PROXY] TLS cert=%v key=%v", certFile, keyFile)

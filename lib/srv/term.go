@@ -21,7 +21,6 @@ import (
 	"os/exec"
 	"sync"
 
-	"github.com/gravitational/teleport"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 
@@ -87,7 +86,7 @@ func (t *terminal) getWinsize() (*term.Winsize, error) {
 	t.Lock()
 	defer t.Unlock()
 	if t.pty == nil {
-		return nil, trace.Wrap(teleport.NotFound("no pty"))
+		return nil, trace.NotFound("no pty")
 	}
 	ws, err := term.GetWinsize(t.pty.Fd())
 	if err != nil {
@@ -100,7 +99,7 @@ func (t *terminal) setWinsize(params rsession.TerminalParams) error {
 	t.Lock()
 	defer t.Unlock()
 	if t.pty == nil {
-		return trace.Wrap(teleport.NotFound("no pty"))
+		return trace.NotFound("no pty")
 	}
 	log.Infof("window resize %v", &params)
 	if err := term.SetWinsize(t.pty.Fd(), params.Winsize()); err != nil {

@@ -186,7 +186,7 @@ func (conn *FakeSSHConnection) SetWriteDeadline(t time.Time) error {
 // and waits for that connection to be closed either by the client or by the server
 func (socket *fakeSocket) CreateBridge(remoteAddr net.Addr, sshChan ssh.Channel) error {
 	if sshChan == nil {
-		return trace.Wrap(teleport.BadParameter("sshChan", "supply ssh channel"))
+		return trace.BadParameter("sshChan: supply ssh channel")
 	}
 	// wrap sshChan into a 'fake connection' which allows us to
 	//   a) preserve the original address of the connected client

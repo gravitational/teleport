@@ -20,14 +20,11 @@ package boltbk
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"sync"
 	"time"
-
-	"github.com/gravitational/teleport"
 
 	"github.com/boltdb/bolt"
 	"github.com/gravitational/trace"
@@ -66,9 +63,7 @@ func New(path string, opts ...Option) (*BoltBackend, error) {
 		return nil, trace.Wrap(err)
 	}
 	if !s.IsDir() {
-		return nil, trace.Wrap(
-			teleport.BadParameter(
-				"path", fmt.Sprintf("path '%v' should be a valid directory", dir)))
+		return nil, trace.BadParameter("path '%v' should be a valid directory", dir)
 	}
 	b := &BoltBackend{
 		locks: make(map[string]time.Time),
@@ -97,7 +92,7 @@ func (b *BoltBackend) Close() error {
 func (b *BoltBackend) GetKeys(path []string) ([]string, error) {
 	keys, err := b.getKeys(path)
 	if err != nil {
-		if teleport.IsNotFound(err) {
+		if trace.IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, trace.Wrap(err)
@@ -140,8 +135,7 @@ func (b *BoltBackend) TouchVal(bucket []string, key string, ttl time.Duration) e
 		}
 		val := bkt.Get([]byte(key))
 		if val == nil {
-			return trace.Wrap(
-				teleport.NotFound(fmt.Sprintf("'%v' already exists", key)))
+			return trace.NotFound("'%v' already exists", key)
 		}
 		var k *kv
 		if err := json.Unmarshal(val, &k); err != nil {
@@ -177,12 +171,12 @@ func (b *BoltBackend) CompareAndSwap(path []string, key string, val []byte, ttl 
 
 	storedVal, err := b.GetVal(path, key)
 	if err != nil {
-		if teleport.IsNotFound(err) && len(prevVal) != 0 {
+		if trace.IsNotFound(err) && len(prevVal) != 0 {
 			return nil, err
 		}
 	}
 	if len(prevVal) == 0 && err == nil {
-		return nil, trace.Wrap(teleport.AlreadyExists(fmt.Sprintf("key '%v' already exists", key)))
+		return nil, trace.AlreadyExists("key '%v' already exists", key)
 	}
 	if string(prevVal) == string(storedVal) {
 		err = b.upsertVal(path, key, val, ttl)
@@ -191,9 +185,7 @@ func (b *BoltBackend) CompareAndSwap(path []string, key string, val []byte, ttl 
 		}
 		return storedVal, nil
 	}
-	return storedVal, trace.Wrap(&teleport.CompareFailedError{
-		Message: "expected '" + string(prevVal) + "', obtained '" + string(storedVal) + "'",
-	})
+	return storedVal, trace.CompareFailed("expected: %v, got: %v", string(prevVal), string(storedVal))
 }
 
 func (b *BoltBackend) GetVal(path []string, key string) ([]byte, error) {
@@ -209,8 +201,7 @@ func (b *BoltBackend) GetVal(path []string, key string) ([]byte, error) {
 		if err := b.deleteKey(path, key); err != nil {
 			return nil, err
 		}
-		return nil, trace.Wrap(&teleport.NotFoundError{
-			Message: fmt.Sprintf("%v: %v not found", path, key)})
+		return nil, trace.NotFound("%v: %v not found", path, key)
 	}
 	return k.Value, nil
 }
@@ -228,8 +219,7 @@ func (b *BoltBackend) GetValAndTTL(path []string, key string) ([]byte, time.Dura
 		if err := b.deleteKey(path, key); err != nil {
 			return nil, 0, trace.Wrap(err)
 		}
-		return nil, 0, trace.Wrap(&teleport.NotFoundError{
-			Message: fmt.Sprintf("%v: %v not found", path, key)})
+		return nil, 0, trace.NotFound("%v: %v not found", path, key)
 	}
 	var newTTL time.Duration
 	newTTL = 0
@@ -258,8 +248,7 @@ func (b *BoltBackend) deleteBucket(buckets []string, bucket string) error {
 			return trace.Wrap(err)
 		}
 		if bkt.Bucket([]byte(bucket)) == nil {
-			return trace.Wrap(&teleport.NotFoundError{
-				Message: fmt.Sprintf("%v not found", bucket)})
+			return trace.NotFound("%v not found", bucket)
 		}
 		return bkt.DeleteBucket([]byte(bucket))
 	})
@@ -272,9 +261,7 @@ func (b *BoltBackend) deleteKey(buckets []string, key string) error {
 			return trace.Wrap(err)
 		}
 		if bkt.Get([]byte(key)) == nil {
-			return trace.Wrap(&teleport.NotFoundError{
-				Message: fmt.Sprintf("%v is not found", key),
-			})
+			return trace.NotFound("%v is not found", key)
 		}
 		return bkt.Delete([]byte(key))
 	})
@@ -298,8 +285,7 @@ func (b *BoltBackend) createKey(buckets []string, key string, bytes []byte) erro
 		}
 		val := bkt.Get([]byte(key))
 		if val != nil {
-			return trace.Wrap(
-				teleport.AlreadyExists(fmt.Sprintf("'%v' already exists", key)))
+			return trace.AlreadyExists("'%v' already exists", key)
 		}
 		return bkt.Put([]byte(key), bytes)
 	})
@@ -327,9 +313,7 @@ func (b *BoltBackend) getJSONKey(buckets []string, key string, val interface{}) 
 		}
 		bytes := bkt.Get([]byte(key))
 		if bytes == nil {
-			return trace.Wrap(&teleport.NotFoundError{
-				Message: fmt.Sprintf("%v %v not found", buckets, key),
-			})
+			return trace.NotFound("%v %v not found", buckets, key)
 		}
 		return json.Unmarshal(bytes, val)
 	})
@@ -345,11 +329,9 @@ func (b *BoltBackend) getKey(buckets []string, key string, val *[]byte) error {
 		if bytes == nil {
 			_, err := GetBucket(tx, append(buckets, key))
 			if err == nil {
-				return trace.Wrap(teleport.BadParameter(key, "key is a bucket"))
+				return trace.BadParameter("key '%v 'is a bucket", key)
 			}
-			return trace.Wrap(&teleport.NotFoundError{
-				Message: fmt.Sprintf("%v %v not found", buckets, key),
-			})
+			return trace.NotFound("%v %v not found", buckets, key)
 		}
 		*val = make([]byte, len(bytes))
 		copy(*val, bytes)
@@ -393,14 +375,12 @@ func UpsertBucket(b *bolt.Tx, buckets []string) (*bolt.Bucket, error) {
 func GetBucket(b *bolt.Tx, buckets []string) (*bolt.Bucket, error) {
 	bkt := b.Bucket([]byte(buckets[0]))
 	if bkt == nil {
-		return nil, trace.Wrap(&teleport.NotFoundError{
-			Message: fmt.Sprintf("bucket %v not found", buckets[0])})
+		return nil, trace.NotFound("bucket %v not found", buckets[0])
 	}
 	for _, key := range buckets[1:] {
 		bkt = bkt.Bucket([]byte(key))
 		if bkt == nil {
-			return nil, trace.Wrap(&teleport.NotFoundError{
-				Message: fmt.Sprintf("bucket %v not found", key)})
+			return nil, trace.NotFound("bucket %v not found", key)
 		}
 	}
 	return bkt, nil
@@ -431,10 +411,7 @@ func (b *BoltBackend) ReleaseLock(token string) error {
 
 	expires, ok := b.locks[token]
 	if !ok || (!expires.IsZero() && expires.Before(b.clock.UtcNow())) {
-		return trace.Wrap(&teleport.NotFoundError{
-			Message: fmt.Sprintf(
-				"lock %v is deleted or expired", token),
-		})
+		return trace.NotFound("lock %v is deleted or expired", token)
 	}
 	delete(b.locks, token)
 	return nil

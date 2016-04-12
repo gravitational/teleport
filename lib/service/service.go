@@ -113,7 +113,7 @@ func (process *TeleportProcess) findStaticIdentity(id auth.IdentityID) (*auth.Id
 			return identity, nil
 		}
 	}
-	return nil, trace.Wrap(teleport.NotFound(fmt.Sprintf("identity %v not found", &id)))
+	return nil, trace.NotFound("identity %v not found", &id)
 }
 
 // connectToAuthService attempts to login into the auth servers specified in the
@@ -122,7 +122,7 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 	id := auth.IdentityID{HostUUID: process.Config.HostUUID, Role: role}
 	identity, err := auth.ReadIdentity(process.Config.DataDir, id)
 	if err != nil {
-		if teleport.IsNotFound(err) {
+		if trace.IsNotFound(err) {
 			// try to locate static identity provide in the file
 			identity, err = process.findStaticIdentity(id)
 			if err != nil {
@@ -190,7 +190,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	// one of the identities
 	cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
 	if err != nil {
-		if !teleport.IsNotFound(err) {
+		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 		if len(cfg.Identities) != 0 {
@@ -444,7 +444,7 @@ func (process *TeleportProcess) initSSH() error {
 		log.Infof("[SSH] received %v", &event)
 		conn, ok := (event.Payload).(*Connector)
 		if !ok {
-			return trace.Wrap(teleport.BadParameter("Connector", fmt.Sprintf("unsupported type: %T", event.Payload)))
+			return trace.BadParameter("unsupported connector type: %T", event.Payload)
 		}
 
 		cfg := process.Config
@@ -507,12 +507,12 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 				authClient = connector.Client
 				return nil
 			}
-			if teleport.IsConnectionProblem(err) {
+			if trace.IsConnectionProblem(err) {
 				utils.Consolef(cfg.Console, "[%v] connecting to auth server: %v", role, err)
 				time.Sleep(retryTime)
 				continue
 			}
-			if !teleport.IsNotFound(err) {
+			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
 			}
 			//  we haven't connected yet, so we expect the token to exist
@@ -524,7 +524,7 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 			} else {
 				// Auth server is remote, so we need a provisioning token
 				if token == "" {
-					return trace.Wrap(teleport.BadParameter(role.String(), "role has no identity and no provisioning token"))
+					return trace.BadParameter("role %v has no identity and no provisioning token", role.String())
 				}
 				log.Infof("%v joining the cluster with a token %v", role, token)
 				err = auth.Register(cfg.DataDir, token, identityID, cfg.AuthServers)
@@ -572,7 +572,7 @@ func (process *TeleportProcess) initProxy() error {
 		log.Infof("[SSH] received %v", &event)
 		conn, ok := (event.Payload).(*Connector)
 		if !ok {
-			return trace.Wrap(teleport.BadParameter("Connector", fmt.Sprintf("unsupported type: %T", event.Payload)))
+			return trace.BadParameter("unsupported connector type: %T", event.Payload)
 		}
 		return trace.Wrap(process.initProxyEndpoint(conn))
 	})
@@ -763,13 +763,12 @@ func initRecordStorage(btype string, params string) (recorder.Recorder, error) {
 
 func validateConfig(cfg *Config) error {
 	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.Proxy.Enabled {
-		return trace.Wrap(
-			teleport.BadParameter(
-				"config", "supply at least one of Auth, SSH or Proxy roles"))
+		return trace.BadParameter(
+			"config: supply at least one of Auth, SSH or Proxy roles")
 	}
 
 	if cfg.DataDir == "" {
-		return trace.Wrap(teleport.BadParameter("config", "please supply data directory"))
+		return trace.BadParameter("config: please supply data directory")
 	}
 
 	if cfg.Console == nil {
@@ -777,11 +776,11 @@ func validateConfig(cfg *Config) error {
 	}
 
 	if (cfg.Proxy.TLSKey == "" && cfg.Proxy.TLSCert != "") || (cfg.Proxy.TLSKey != "" && cfg.Proxy.TLSCert == "") {
-		return trace.Wrap(teleport.BadParameter("config", "please supply both TLS key and certificate"))
+		return trace.BadParameter("please supply both TLS key and certificate")
 	}
 
 	if len(cfg.AuthServers) == 0 {
-		return trace.Wrap(teleport.BadParameter("proxy", "please supply a proxy server"))
+		return trace.BadParameter("please supply a proxy server")
 	}
 
 	for i := range cfg.Auth.Authorities {

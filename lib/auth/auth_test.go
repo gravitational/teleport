@@ -88,7 +88,7 @@ func (s *AuthSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = s.a.GetWebSession(user, ws.ID)
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 }
 
 func (s *AuthSuite) TestTokensCRUD(c *C) {
@@ -102,7 +102,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(role, Equals, "Node")
 
 	c.Assert(s.a.DeleteToken(tok), IsNil)
-	c.Assert(s.a.DeleteToken(tok), FitsTypeOf, &teleport.NotFoundError{})
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
 	_, err = s.a.ValidateToken(tok)
 	c.Assert(err, NotNil)

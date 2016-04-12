@@ -20,15 +20,11 @@ package httplib
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
 
-	"github.com/gravitational/teleport"
-
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -45,7 +41,7 @@ func MakeHandler(fn HandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		out, err := fn(w, r, p)
 		if err != nil {
-			ReplyError(w, err)
+			trace.WriteError(w, err)
 			return
 		}
 		if out != nil {
@@ -59,7 +55,7 @@ func MakeStdHandler(fn StdHandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		out, err := fn(w, r)
 		if err != nil {
-			ReplyError(w, err)
+			trace.WriteError(w, err)
 			return
 		}
 		if out != nil {
@@ -76,34 +72,9 @@ func ReadJSON(r *http.Request, val interface{}) error {
 		return trace.Wrap(err)
 	}
 	if err := json.Unmarshal(data, &val); err != nil {
-		return trace.Wrap(teleport.BadParameter("request", err.Error()))
+		return trace.BadParameter("request: %v", err.Error())
 	}
 	return nil
-}
-
-const StatusTooManyRequests = 429
-
-// ReplyError sets up http error response and writes it to writer w
-func ReplyError(w http.ResponseWriter, err error) {
-	if teleport.IsNotFound(err) {
-		roundtrip.ReplyJSON(
-			w, http.StatusNotFound, err)
-	} else if teleport.IsBadParameter(err) {
-		roundtrip.ReplyJSON(
-			w, http.StatusBadRequest, err)
-	} else if teleport.IsAccessDenied(err) {
-		roundtrip.ReplyJSON(
-			w, http.StatusForbidden, err)
-	} else if teleport.IsAlreadyExists(err) {
-		roundtrip.ReplyJSON(
-			w, http.StatusConflict, err)
-	} else if teleport.IsLimitExceeded(err) {
-		roundtrip.ReplyJSON(
-			w, StatusTooManyRequests, err)
-	} else {
-		roundtrip.ReplyJSON(
-			w, http.StatusInternalServerError, err)
-	}
 }
 
 // ConvertResponse converts http error to internal error type
@@ -115,41 +86,7 @@ func ConvertResponse(re *roundtrip.Response, err error) (*roundtrip.Response, er
 		}
 		return nil, trace.Wrap(err)
 	}
-	switch re.Code() {
-	case http.StatusNotFound:
-		e := teleport.NotFoundError{}
-		unmarshalError(&e, re)
-		return nil, trace.Wrap(&e)
-	case http.StatusBadRequest:
-		e := teleport.BadParameterError{}
-		unmarshalError(&e, re)
-		return nil, trace.Wrap(&e)
-	case http.StatusForbidden:
-		e := teleport.AccessDeniedError{}
-		unmarshalError(&e, re)
-		return nil, trace.Wrap(&e)
-	case http.StatusConflict:
-		e := teleport.AlreadyExistsError{}
-		unmarshalError(&e, re)
-		return nil, trace.Wrap(&e)
-	case StatusTooManyRequests:
-		e := teleport.LimitExceededError{}
-		unmarshalError(&e, re)
-		return nil, trace.Wrap(&e)
-	}
-	if re.Code() < 200 || re.Code() > 299 {
-		return nil, trace.Wrap(
-			teleport.BadParameter("errorcode",
-				fmt.Sprintf("unrecognized http error: %v %v %v", err, re.Code(), string(re.Bytes()))))
-	}
-	return re, nil
-}
-
-func unmarshalError(err interface{}, re *roundtrip.Response) {
-	err2 := json.Unmarshal(re.Bytes(), err)
-	if err2 != nil {
-		log.Infof("error unmarshaling response: '%v', err: %v", string(re.Bytes()), err2)
-	}
+	return re, trace.ReadError(re.Code(), re.Bytes())
 }
 
 // InsecureSetDevmodeHeaders allows cross-origin requests, used in dev mode only
@@ -171,9 +108,8 @@ func ParseBool(q url.Values, name string) (bool, bool, error) {
 
 	val, err := strconv.ParseBool(stringVal)
 	if err != nil {
-		return false, false, trace.Wrap(
-			teleport.BadParameter(
-				name, fmt.Sprintf("expected 'true' or 'false', got %v", stringVal)))
+		return false, false, trace.BadParameter(
+			"'%v': expected 'true' or 'false', got %v", name, stringVal)
 	}
 	return val, true, nil
 }

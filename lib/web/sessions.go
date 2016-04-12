@@ -22,7 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -57,7 +56,7 @@ func (c *SessionContext) getConnectHandler(sessionID session.ID) (*connectHandle
 			return handler, nil
 		}
 	}
-	return nil, trace.Wrap(teleport.NotFound("no connected streams"))
+	return nil, trace.NotFound("no connected streams")
 }
 
 func (c *SessionContext) UpdateSessionTerminal(sessionID session.ID, params session.TerminalParams) error {
@@ -307,7 +306,7 @@ func (s *sessionCache) getContext(user, sid string) (*SessionContext, error) {
 	if ok {
 		return val.(*SessionContext), nil
 	}
-	return nil, trace.Wrap(teleport.NotFound("sessionContext not found"))
+	return nil, trace.NotFound("sessionContext not found")
 }
 
 func (s *sessionCache) insertContext(user, sid string, ctx *SessionContext, ttl time.Duration) (*SessionContext, error) {
@@ -316,7 +315,7 @@ func (s *sessionCache) insertContext(user, sid string, ctx *SessionContext, ttl 
 
 	val, ok := s.contexts.Get(user + sid)
 	if ok && val != nil { // nil means that we've just invalidated the context now and set it to nil in the cache
-		return val.(*SessionContext), trace.Wrap(&teleport.AlreadyExistsError{})
+		return val.(*SessionContext), trace.AlreadyExists("exists")
 	}
 	if err := s.contexts.Set(user+sid, ctx, ttl); err != nil {
 		return nil, trace.Wrap(err)
@@ -367,7 +366,7 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 	if err != nil {
 		// this means that someone has just inserted the context, so
 		// close our extra context and return
-		if teleport.IsAlreadyExists(err) {
+		if trace.IsAlreadyExists(err) {
 			log.Infof("just created, returning the existing one")
 			defer c.Close()
 			return out, nil

@@ -19,6 +19,7 @@ limitations under the License.
 package trace
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"runtime"
@@ -28,9 +29,13 @@ import (
 
 var debug int32
 
-// EnableDebug turns on debugging mode, that causes Fatalf to panic
-func EnableDebug() {
-	atomic.StoreInt32(&debug, 1)
+// SetDebug turns on/off debugging mode, that causes Fatalf to panic
+func SetDebug(enabled bool) {
+	if enabled {
+		atomic.StoreInt32(&debug, 1)
+	} else {
+		atomic.StoreInt32(&debug, 0)
+	}
 }
 
 // IsDebug returns true if debug mode is on, false otherwize
@@ -41,16 +46,28 @@ func IsDebug() bool {
 // Wrap takes the original error and wraps it into the Trace struct
 // memorizing the context of the error.
 func Wrap(err error, args ...interface{}) Error {
+	return wrap(err, 2, args...)
+}
+
+// Unwrap unwraps error to it's original error
+func Unwrap(err error) error {
+	if terr, ok := err.(Error); ok {
+		return terr.OrigError()
+	}
+	return err
+}
+
+func wrap(err error, depth int, args ...interface{}) Error {
 	if err == nil {
 		return nil
 	}
 
-	t := newTrace(runtime.Caller(1))
+	t := newTrace(runtime.Caller(depth))
 	if s, ok := err.(TraceSetter); ok {
-		s.SetTrace(t.Trace)
+		s.SetTraces(t.Traces...)
 		return s
 	}
-	t.error = err
+	t.Err = err
 	if len(args) != 0 {
 		t.Message = fmt.Sprintf(fmt.Sprintf("%v", args[0]), args[1:]...)
 	}
@@ -62,7 +79,7 @@ func Wrap(err error, args ...interface{}) Error {
 // callee, line number and function that simplifies debugging
 func Errorf(format string, args ...interface{}) error {
 	t := newTrace(runtime.Caller(1))
-	t.error = fmt.Errorf(format, args...)
+	t.Err = fmt.Errorf(format, args...)
 	return t
 }
 
@@ -80,21 +97,22 @@ func newTrace(pc uintptr, filePath string, line int, ok bool) *TraceErr {
 	if !ok {
 		return &TraceErr{
 			nil,
-			Trace{
-				Path: "unknown_path",
-				Func: "unknown_func",
-				Line: 0,
-			},
+			Traces{
+				{
+					Path: "unknown_path",
+					Func: "unknown_func",
+					Line: 0,
+				}},
 			"",
 		}
 	}
 	return &TraceErr{
 		nil,
-		Trace{
+		Traces{{
 			Path: filePath,
 			Func: runtime.FuncForPC(pc).Name(),
 			Line: line,
-		},
+		}},
 		"",
 	}
 }
@@ -102,9 +120,17 @@ func newTrace(pc uintptr, filePath string, line int, ok bool) *TraceErr {
 // Traces is a list of trace entries
 type Traces []Trace
 
-// SetTrace adds a new entry to the list
-func (s *Traces) SetTrace(t Trace) {
-	*s = append(*s, t)
+// SetTraces adds new traces to the list
+func (s *Traces) SetTraces(traces ...Trace) {
+	*s = append(*s, traces...)
+}
+
+// Func returns first function in trace list
+func (s *Traces) Func() string {
+	if len(*s) == 0 {
+		return ""
+	}
+	return (*s)[0].Func
 }
 
 // String returns debug-friendly representaton of traces
@@ -142,18 +168,27 @@ func (t *Trace) String() string {
 // TraceErr contains error message and some additional
 // information about the error origin
 type TraceErr struct {
-	error
-	Trace
-	Message string
+	Err     error `json:"error"`
+	Traces  `json:"traces"`
+	Message string `json:"message"`
+}
+
+type rawTrace struct {
+	Err     json.RawMessage `json:"error"`
+	Traces  `json:"traces"`
+	Message string `json:"message"`
 }
 
 func (e *TraceErr) Error() string {
-	return fmt.Sprintf("[%v] %v %v", e.String(), e.Message, e.error)
+	if IsDebug() {
+		return fmt.Sprintf("[%v] %v %v", e.Traces.String(), e.Message, e.Error)
+	}
+	return e.Err.Error()
 }
 
 // OrigError returns original wrapped error
 func (e *TraceErr) OrigError() error {
-	err := e.error
+	err := e.Err
 	// this is not an endless loop because I'm being
 	// paranoid, this is a safe protection against endless
 	// loops
@@ -183,5 +218,5 @@ type Error interface {
 // TraceSetter indicates that this error can store traces
 type TraceSetter interface {
 	Error
-	SetTrace(Trace)
+	SetTraces(...Trace)
 }

@@ -26,8 +26,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gravitational/teleport"
-
 	"github.com/gravitational/trace"
 	"github.com/gravitational/version"
 	"github.com/pborman/uuid"
@@ -39,15 +37,15 @@ type HostKeyCallback func(hostID string, remote net.Addr, key ssh.PublicKey) err
 func ReadPath(path string) ([]byte, error) {
 	s, err := filepath.Abs(path)
 	if err != nil {
-		return nil, trace.Wrap(teleport.ConvertSystemError(err))
+		return nil, trace.ConvertSystemError(err)
 	}
 	abs, err := filepath.EvalSymlinks(s)
 	if err != nil {
-		return nil, trace.Wrap(teleport.ConvertSystemError(err))
+		return nil, trace.ConvertSystemError(err)
 	}
 	bytes, err := ioutil.ReadFile(abs)
 	if err != nil {
-		return nil, trace.Wrap(teleport.ConvertSystemError(err))
+		return nil, trace.ConvertSystemError(err)
 	}
 	return bytes, nil
 }
@@ -133,7 +131,7 @@ func ReadHostUUID(dataDir string) (string, error) {
 func WriteHostUUID(dataDir string, id string) error {
 	err := ioutil.WriteFile(filepath.Join(dataDir, HostUUIDFile), []byte(id), os.ModeExclusive|0400)
 	if err != nil {
-		return trace.Wrap(teleport.ConvertSystemError(err))
+		return trace.ConvertSystemError(err)
 	}
 	return nil
 }
@@ -145,7 +143,7 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 	if err == nil {
 		return id, nil
 	}
-	if !teleport.IsNotFound(err) {
+	if !trace.IsNotFound(err) {
 		return "", trace.Wrap(err)
 	}
 	id = uuid.New()

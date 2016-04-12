@@ -132,15 +132,15 @@ func (s *ServicesTestSuite) UsersCRUD(c *C) {
 	userSlicesEqual(c, u, []services.User{&services.TeleportUser{Name: "user2"}})
 
 	err = s.WebS.DeleteUser("user1")
-	c.Assert(teleport.IsNotFound(err), Equals, true, Commentf("unexpected %T %#v", err, err))
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("unexpected %T %#v", err, err))
 
 	// bad username
 	err = s.WebS.UpsertUser(&services.TeleportUser{Name: ""})
-	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("expected bad parameter error, got %T", err))
+	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("expected bad parameter error, got %T", err))
 
 	// bad allowed login
 	err = s.WebS.UpsertUser(&services.TeleportUser{Name: "bob", AllowedLogins: []string{"oops  typo!"}})
-	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("expected bad parameter error, got %T", err))
+	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("expected bad parameter error, got %T", err))
 }
 
 func (s *ServicesTestSuite) CertAuthCRUD(c *C) {
@@ -221,18 +221,18 @@ func (s *ServicesTestSuite) ReverseTunnelsCRUD(c *C) {
 	c.Assert(len(out), Equals, 0)
 
 	err = s.PresenceS.UpsertReverseTunnel(services.ReverseTunnel{DomainName: " bad domain", DialAddrs: []string{"example.com:2023"}}, 0)
-	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("%#v", err))
+	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
 	err = s.PresenceS.UpsertReverseTunnel(services.ReverseTunnel{DomainName: "example.com", DialAddrs: []string{"bad address"}}, 0)
-	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("%#v", err))
+	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
 	err = s.PresenceS.UpsertReverseTunnel(services.ReverseTunnel{DomainName: "example.com"}, 0)
-	c.Assert(teleport.IsBadParameter(err), Equals, true, Commentf("%#v", err))
+	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 }
 
 func (s *ServicesTestSuite) PasswordHashCRUD(c *C) {
 	_, err := s.WebS.GetPasswordHash("user1")
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
 	err = s.WebS.UpsertPasswordHash("user1", []byte("hello123"))
 	c.Assert(err, IsNil)
@@ -277,14 +277,15 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *C) {
 	c.Assert(s.WebS.DeleteWebSession("user1", "sid1"), IsNil)
 
 	_, err = s.WebS.GetWebSession("user1", "sid1")
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 }
 
 func (s *ServicesTestSuite) Locking(c *C) {
 	tok1 := "token1"
 	tok2 := "token2"
 
-	c.Assert(s.LockS.ReleaseLock(tok1), FitsTypeOf, &teleport.NotFoundError{})
+	err := s.LockS.ReleaseLock(tok1)
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
 	c.Assert(s.LockS.AcquireLock(tok1, 30*time.Second), IsNil)
 	x := int32(7)
@@ -322,12 +323,13 @@ func (s *ServicesTestSuite) Locking(c *C) {
 	time.Sleep(1 * time.Second)
 	c.Assert(atomic.LoadInt32(&y), Equals, int32(15))
 
-	c.Assert(s.LockS.ReleaseLock(tok1), FitsTypeOf, &teleport.NotFoundError{})
+	err = s.LockS.ReleaseLock(tok1)
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 }
 
 func (s *ServicesTestSuite) TokenCRUD(c *C) {
 	_, err := s.ProvisioningS.GetToken("token")
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
 	c.Assert(s.ProvisioningS.UpsertToken("token", "RoleExample", 0), IsNil)
 
@@ -339,7 +341,7 @@ func (s *ServicesTestSuite) TokenCRUD(c *C) {
 	c.Assert(s.ProvisioningS.DeleteToken("token"), IsNil)
 
 	_, err = s.ProvisioningS.GetToken("token")
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
 	outputToken, err := services.JoinTokenRole("token1", "Auth")
 	c.Assert(err, IsNil)
@@ -372,24 +374,39 @@ func (s *ServicesTestSuite) PasswordCRUD(c *C) {
 	otp.Increment()
 
 	token1 := otp.OTP()
-	c.Assert(s.WebS.CheckPassword("user1", pass, "123456"), FitsTypeOf, &teleport.BadParameterError{})
+	err = s.WebS.CheckPassword("user1", pass, "123456")
+	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%T", err))
+
 	c.Assert(s.WebS.CheckPassword("user1", pass, token1), IsNil)
-	c.Assert(s.WebS.CheckPassword("user1", pass, token1), FitsTypeOf, &teleport.BadParameterError{})
+
+	err = s.WebS.CheckPassword("user1", pass, token1)
+	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%T", err))
 
 	token2 := otp.OTP()
-	c.Assert(s.WebS.CheckPassword("user1", []byte("abc123123"), token2), FitsTypeOf, &teleport.BadParameterError{})
-	c.Assert(s.WebS.CheckPassword("user1", pass, "123456"), FitsTypeOf, &teleport.BadParameterError{})
+	err = s.WebS.CheckPassword("user1", []byte("abc123123"), token2)
+	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%T", err))
+
+	err = s.WebS.CheckPassword("user1", pass, "123456")
+	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%T", err))
+
 	c.Assert(s.WebS.CheckPassword("user1", pass, token2), IsNil)
-	c.Assert(s.WebS.CheckPassword("user1", pass, token1), FitsTypeOf, &teleport.BadParameterError{})
+	err = s.WebS.CheckPassword("user1", pass, token1)
+	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%T", err))
 
 	_ = otp.OTP()
 	_ = otp.OTP()
 	_ = otp.OTP()
 	token6 := otp.OTP()
 	token7 := otp.OTP()
-	c.Assert(s.WebS.CheckPassword("user1", pass, token7), FitsTypeOf, &teleport.BadParameterError{})
+
+	err = s.WebS.CheckPassword("user1", pass, token7)
+	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%T", err))
+
 	c.Assert(s.WebS.CheckPassword("user1", pass, token6), IsNil)
-	c.Assert(s.WebS.CheckPassword("user1", pass, "123456"), FitsTypeOf, &teleport.BadParameterError{})
+
+	err = s.WebS.CheckPassword("user1", pass, "123456")
+	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%T", err))
+
 	c.Assert(s.WebS.CheckPassword("user1", pass, token7), IsNil)
 
 	_ = otp.OTP()

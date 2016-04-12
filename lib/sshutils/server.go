@@ -22,7 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -266,37 +265,22 @@ type AuthMethods struct {
 
 func checkArguments(a utils.NetAddr, h NewChanHandler, hostSigners []ssh.Signer, ah AuthMethods) error {
 	if a.Addr == "" || a.AddrNetwork == "" {
-		return trace.Wrap(&teleport.BadParameterError{
-			Param: "addr",
-			Err:   "specify network and the address for listening socket",
-		})
+		return trace.BadParameter("addr: specify network and the address for listening socket")
 	}
 
 	if h == nil {
-		return trace.Wrap(&teleport.BadParameterError{
-			Param: "handler",
-			Err:   "missing NewChanHandler",
-		})
+		return trace.BadParameter("missing NewChanHandler")
 	}
 	if len(hostSigners) == 0 {
-		return trace.Wrap(&teleport.BadParameterError{
-			Param: "hostSigners",
-			Err:   "need at least one signer",
-		})
+		return trace.BadParameter("need at least one signer")
 	}
 	for _, s := range hostSigners {
 		if s == nil {
-			return trace.Wrap(&teleport.BadParameterError{
-				Param: "hostSigners",
-				Err:   "host signer can not be nil",
-			})
+			return trace.BadParameter("host signer can not be nil")
 		}
 	}
 	if ah.PublicKey == nil && ah.Password == nil && ah.NoClient == false {
-		return trace.Wrap(&teleport.BadParameterError{
-			Param: "authMethod",
-			Err:   "need at least one auth method",
-		})
+		return trace.BadParameter("need at least one auth method")
 	}
 	return nil
 }

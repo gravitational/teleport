@@ -382,9 +382,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 	}
 
 	if ca == nil {
-		return trace.Wrap(teleport.NotFound(
-			fmt.Sprintf("not found authority for key %v", teleportUser),
-		))
+		return trace.NotFound("not found authority for key %v", teleportUser)
 	}
 
 	localDomain, err := s.authService.GetLocalDomain()
@@ -407,9 +405,9 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 				}
 			}
 		}
-		return trace.Wrap(teleport.NotFound(
-			fmt.Sprintf("not found local user entry for %v and os user %v for local authority %v",
-				teleportUser, osUser, ca.ID())))
+		return trace.NotFound(
+			"not found local user entry for %v and os user %v for local authority %v",
+			teleportUser, osUser, ca.ID())
 	}
 
 	// for other authorities, check for authoritiy permissions
@@ -418,9 +416,9 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 			return nil
 		}
 	}
-	return trace.Wrap(teleport.NotFound(
-		fmt.Sprintf("not found user entry for %v and os user %v for remote authority %v",
-			teleportUser, osUser, ca.ID())))
+	return trace.NotFound(
+		"not found user entry for %v and os user %v for remote authority %v",
+		teleportUser, osUser, ca.ID())
 }
 
 // isAuthority is called during checking the client key, to see if the signing
@@ -467,15 +465,15 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
 		logger.Warningf("server doesn't support provided key type")
-		return nil, trace.Wrap(teleport.BadParameter("key", fmt.Sprintf("server doesn't support provided key type: %v", fingerprint)))
+		return nil, trace.BadParameter("server doesn't support provided key type: %v", fingerprint)
 	}
 	if len(cert.ValidPrincipals) == 0 {
 		logger.Warningf("cert does not have valid principals")
-		return nil, trace.Wrap(teleport.BadParameter("key", fmt.Sprintf("need a valid principal for key %v", fingerprint)))
+		return nil, trace.BadParameter("need a valid principal for key %v", fingerprint)
 	}
 	if len(cert.KeyId) == 0 {
 		logger.Warningf("cert does not have valid key id")
-		return nil, trace.Wrap(teleport.BadParameter("key", fmt.Sprintf("need a valid key for key %v", fingerprint)))
+		return nil, trace.BadParameter("need a valid key for key %v", fingerprint)
 	}
 	teleportUser := cert.KeyId
 
@@ -652,9 +650,8 @@ func (s *Server) dispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Reques
 			// we currently ignore setting any environment variables via SSH for security purposes
 			return s.handleEnv(ch, req, ctx)
 		default:
-			return trace.Wrap(
-				teleport.BadParameter("reqType",
-					fmt.Sprintf("proxy doesn't support request type '%v'", req.Type)))
+			return trace.BadParameter(
+				"proxy doesn't support request type '%v'", req.Type)
 		}
 	}
 	switch req.Type {
@@ -684,9 +681,8 @@ func (s *Server) dispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Reques
 		// http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent
 		return s.handleAgentForward(sconn, ch, req, ctx)
 	default:
-		return trace.Wrap(
-			teleport.BadParameter("reqType",
-				fmt.Sprintf("proxy doesn't support request type '%v'", req.Type)))
+		return trace.BadParameter(
+			"proxy doesn't support request type '%v'", req.Type)
 	}
 }
 

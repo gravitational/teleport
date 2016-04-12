@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -65,14 +64,12 @@ func (s *IdentityService) GetUsers() ([]services.User, error) {
 // UpsertUser updates parameters about user
 func (s *IdentityService) UpsertUser(user services.User) error {
 	if !cstrings.IsValidUnixUser(user.GetName()) {
-		return trace.Wrap(
-			teleport.BadParameter("user.Name", fmt.Sprintf("'%v is not a valid unix username'", user.GetName())))
+		return trace.BadParameter("'%v is not a valid unix username'", user.GetName())
 	}
 
 	for _, l := range user.GetAllowedLogins() {
 		if !cstrings.IsValidUnixUser(l) {
-			return trace.Wrap(
-				teleport.BadParameter("login", fmt.Sprintf("'%v is not a valid unix username'", l)))
+			return trace.BadParameter("'%v is not a valid unix username'", l)
 		}
 	}
 	for _, i := range user.GetIdentities() {
@@ -97,7 +94,7 @@ func (s *IdentityService) GetUser(user string) (services.User, error) {
 	u := services.TeleportUser{Name: user}
 	data, err := s.backend.GetVal([]string{"web", "users", user}, "params")
 	if err != nil {
-		if teleport.IsNotFound(err) {
+		if trace.IsNotFound(err) {
 			return &u, nil
 		}
 		return nil, trace.Wrap(err)
@@ -122,15 +119,15 @@ func (s *IdentityService) GetUserByOIDCIdentity(id services.OIDCIdentity) (servi
 			}
 		}
 	}
-	return nil, trace.Wrap(teleport.NotFound(fmt.Sprintf("user with identity %v not found", &id)))
+	return nil, trace.NotFound("user with identity %v not found", &id)
 }
 
 // DeleteUser deletes a user with all the keys from the backend
 func (s *IdentityService) DeleteUser(user string) error {
 	err := s.backend.DeleteBucket([]string{"web", "users"}, user)
 	if err != nil {
-		if teleport.IsNotFound(err) {
-			return trace.Wrap(teleport.NotFound(fmt.Sprintf("user '%v' is not found", user)))
+		if trace.IsNotFound(err) {
+			return trace.NotFound(fmt.Sprintf("user '%v' is not found", user))
 		}
 	}
 	return trace.Wrap(err)
@@ -149,8 +146,8 @@ func (s *IdentityService) UpsertPasswordHash(user string, hash []byte) error {
 func (s *IdentityService) GetPasswordHash(user string) ([]byte, error) {
 	hash, err := s.backend.GetVal([]string{"web", "users", user}, "pwd")
 	if err != nil {
-		if teleport.IsNotFound(err) {
-			return nil, trace.Wrap(teleport.NotFound(fmt.Sprintf("user '%v' is not found", user)))
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("user '%v' is not found", user)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -176,8 +173,8 @@ func (s *IdentityService) GetHOTP(user string) (*hotp.HOTP, error) {
 	bytes, err := s.backend.GetVal([]string{"web", "users", user},
 		"hotp")
 	if err != nil {
-		if teleport.IsNotFound(err) {
-			return nil, trace.Wrap(teleport.NotFound(fmt.Sprintf("user '%v' is not found", user)))
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("user '%v' is not found", user)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -196,8 +193,8 @@ func (s *IdentityService) UpsertWebSession(user, sid string, session services.We
 	}
 	err = s.backend.UpsertVal([]string{"web", "users", user, "sessions"},
 		sid, bytes, ttl)
-	if teleport.IsNotFound(err) {
-		return trace.Wrap(teleport.NotFound(fmt.Sprintf("user '%v' is not found", user)))
+	if trace.IsNotFound(err) {
+		return trace.NotFound("user '%v' is not found", user)
 	}
 	return trace.Wrap(err)
 }
@@ -278,14 +275,14 @@ func (s *IdentityService) CheckPassword(user string, password []byte, hotpToken 
 		return trace.Wrap(err)
 	}
 	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
-		return trace.Wrap(teleport.BadParameter("password", "passwords do not match"))
+		return trace.BadParameter("passwords do not match")
 	}
 	otp, err := s.GetHOTP(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if !otp.Scan(hotpToken, defaults.HOTPFirstTokensRange) {
-		return trace.Wrap(teleport.BadParameter("token", "bad one time token"))
+		return trace.BadParameter("bad one time token")
 	}
 	if err := s.UpsertHOTP(user, otp); err != nil {
 		return trace.Wrap(err)
@@ -304,7 +301,7 @@ func (s *IdentityService) CheckPasswordWOToken(user string, password []byte) err
 		return trace.Wrap(err)
 	}
 	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
-		return &teleport.BadParameterError{Err: "passwords do not match"}
+		return trace.BadParameter("passwords do not match")
 	}
 
 	return nil
@@ -380,8 +377,8 @@ func (s *IdentityService) DeleteOIDCConnector(connectorID string) error {
 func (s *IdentityService) GetOIDCConnector(id string, withSecrets bool) (*services.OIDCConnector, error) {
 	out, err := s.backend.GetVal(connectorsPath, id)
 	if err != nil {
-		if teleport.IsNotFound(err) {
-			return nil, trace.Wrap(teleport.NotFound(fmt.Sprintf("OpenID connector '%v' is not configured", id)))
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("OpenID connector '%v' is not configured", id)
 		}
 		return nil, trace.Wrap(err)
 	}

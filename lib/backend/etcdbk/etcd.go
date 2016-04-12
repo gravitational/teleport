@@ -23,7 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 
@@ -176,7 +175,7 @@ func (b *bk) GetVal(path []string, key string) ([]byte, error) {
 		return nil, convertErr(err)
 	}
 	if re.Node.Dir {
-		return nil, trace.Wrap(teleport.BadParameter(key, "trying to get value of bucket"))
+		return nil, trace.BadParameter("'%v': trying to get value of bucket", key)
 	}
 	value, err := base64.StdEncoding.DecodeString(re.Node.Value)
 	if err != nil {
@@ -191,8 +190,7 @@ func (b *bk) GetValAndTTL(path []string, key string) ([]byte, time.Duration, err
 		return nil, 0, convertErr(err)
 	}
 	if re.Node.Dir {
-		return nil, 0, trace.Wrap(
-			teleport.BadParameter(key, "trying to get value of bucket"))
+		return nil, 0, trace.BadParameter("'%v': trying to get value of bucket", key)
 	}
 	value, err := base64.StdEncoding.DecodeString(re.Node.Value)
 	if err != nil {
@@ -223,7 +221,7 @@ func (b *bk) AcquireLock(token string, ttl time.Duration) error {
 			return nil
 		}
 		if err != nil {
-			if !teleport.IsCompareFailed(err) && !teleport.IsAlreadyExists(err) {
+			if !trace.IsCompareFailed(err) && !trace.IsAlreadyExists(err) {
 				return trace.Wrap(err)
 			}
 			time.Sleep(delayBetweenLockAttempts)
@@ -241,13 +239,13 @@ func (b *bk) getKeys(key string) ([]string, error) {
 	re, err := b.api.Get(context.Background(), key, nil)
 	err = convertErr(err)
 	if err != nil {
-		if teleport.IsNotFound(err) {
+		if trace.IsNotFound(err) {
 			return vals, nil
 		}
 		return nil, trace.Wrap(err)
 	}
 	if !isDir(re.Node) {
-		return nil, trace.Wrap(teleport.BadParameter(key, "expected directory"))
+		return nil, trace.BadParameter("'%v': expected directory", key)
 	}
 	for _, n := range re.Node.Nodes {
 		vals = append(vals, suffix(n.Key))
@@ -263,13 +261,13 @@ func convertErr(e error) error {
 	case client.Error:
 		switch err.Code {
 		case client.ErrorCodeKeyNotFound:
-			return &teleport.NotFoundError{Message: err.Error()}
+			return trace.NotFound(err.Error())
 		case client.ErrorCodeNotFile:
-			return &teleport.BadParameterError{Err: err.Error()}
+			return trace.BadParameter(err.Error())
 		case client.ErrorCodeNodeExist:
-			return &teleport.AlreadyExistsError{Message: err.Error()}
+			return trace.AlreadyExists(err.Error())
 		case client.ErrorCodeTestFailed:
-			return &teleport.CompareFailedError{Message: err.Error()}
+			return trace.CompareFailed(err.Error())
 		}
 	}
 	return e

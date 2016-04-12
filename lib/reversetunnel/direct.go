@@ -104,6 +104,5 @@ func findServer(addr string, servers []services.Server) (*services.Server, error
 			}
 		}
 	}
-	return nil, trace.Wrap(
-		teleport.NotFound(fmt.Sprintf("server %v is unknown", addr)))
+	return nil, trace.NotFound("server %v is unknown", addr)
 }

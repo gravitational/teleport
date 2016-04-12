@@ -67,7 +67,7 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 	// Delete all values under the given prefix
 	_, err = s.api.Delete(context.Background(), s.bk.cfg.Key, &client.DeleteOptions{Recursive: true, Dir: true})
 	err = convertErr(err)
-	if err != nil && !teleport.IsNotFound(err) {
+	if err != nil && !trace.IsNotFound(err) {
 		c.Assert(err, IsNil)
 	}
 

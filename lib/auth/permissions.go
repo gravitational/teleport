@@ -17,8 +17,6 @@ limitations under the License.
 package auth
 
 import (
-	"fmt"
-
 	"github.com/gravitational/teleport"
 
 	"github.com/gravitational/trace"
@@ -132,15 +130,11 @@ func (sp *standardPermissions) HasPermission(role teleport.Role, action string) 
 		if permissions[action] {
 			return nil
 		}
-		return trace.Wrap(
-			teleport.AccessDenied(
-				fmt.Sprintf(
-					"role '%v' doesn't have permission for action '%v'",
-					role, action)))
+		return trace.AccessDenied(
+			"role '%v' doesn't have permission for action '%v'",
+			role, action)
 	}
-	return trace.Wrap(
-		teleport.AccessDenied(
-			fmt.Sprintf("role '%v' is not allowed", role)))
+	return trace.AccessDenied("role '%v' is not allowed", role)
 }
 
 type allowAllPermissions struct {

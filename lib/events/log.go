@@ -24,7 +24,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/codahale/lunk"
@@ -107,24 +106,24 @@ func FilterFromURL(vals url.Values) (*Filter, error) {
 	var err error
 	if vals.Get("start") != "" {
 		if err = f.Start.UnmarshalText([]byte(vals.Get("start"))); err != nil {
-			return nil, trace.Wrap(teleport.BadParameter("start", "need start in RFC3339 format"))
+			return nil, trace.BadParameter("start: need start in RFC3339 format")
 		}
 	}
 	if vals.Get("end") != "" {
 		if err = f.End.UnmarshalText([]byte(vals.Get("end"))); err != nil {
-			return nil, trace.Wrap(teleport.BadParameter("end", "need end in RFC3339 format"))
+			return nil, trace.BadParameter("end: need end in RFC3339 format")
 		}
 	}
 
 	if vals.Get("limit") != "" {
 		if f.Limit, err = strconv.Atoi(vals.Get("limit")); err != nil {
-			return nil, trace.Wrap(teleport.BadParameter("limit", "limits need to be int"))
+			return nil, trace.BadParameter("limit: limits need to be int")
 		}
 	}
 
 	if vals.Get("order") != "" {
 		if f.Order, err = strconv.Atoi(vals.Get("order")); err != nil {
-			return nil, trace.Wrap(teleport.BadParameter("limit", "order is 1 for Ascending, -1 for descending"))
+			return nil, trace.BadParameter("order: order is 1 for Ascending, -1 for descending")
 		}
 	}
 	if vals.Get("sid") != "" {

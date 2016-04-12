@@ -17,10 +17,7 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
 	"time"
-
-	"github.com/gravitational/teleport"
 
 	"github.com/gravitational/trace"
 )
@@ -44,12 +41,12 @@ func JoinTokenRole(token, role string) (ouputToken string, e error) {
 	case TokenRoleNode:
 		return "n" + token, nil
 	}
-	return "", trace.Wrap(teleport.BadParameter("role", fmt.Sprintf("unknown role: %v", role)))
+	return "", trace.BadParameter("unknown role: %v", role)
 }
 
 func SplitTokenRole(outputToken string) (token, role string, e error) {
 	if len(outputToken) <= 1 {
-		return outputToken, "", trace.Wrap(teleport.BadParameter("role", "unknown role"))
+		return outputToken, "", trace.BadParameter("unknown role: '%v'", role)
 	}
 	if outputToken[0] == 'n' {
 		return outputToken[1:], TokenRoleNode, nil
@@ -57,7 +54,7 @@ func SplitTokenRole(outputToken string) (token, role string, e error) {
 	if outputToken[0] == 'a' {
 		return outputToken[1:], TokenRoleAuth, nil
 	}
-	return outputToken, "", trace.Wrap(teleport.BadParameter("role", "unknown role"))
+	return outputToken, "", trace.BadParameter("unknown role: '%v'")
 }
 
 // ProvisionToken stores metadata about some provisioning token

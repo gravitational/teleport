@@ -67,7 +67,7 @@ func (j *JSONFormatter) Format(e *log.Entry) ([]byte, error) {
 		t := newTrace(runtime.Caller(frameNo - 1))
 		new := e.WithFields(log.Fields{
 			FileField:     t.String(),
-			FunctionField: t.Func,
+			FunctionField: t.Func(),
 		})
 		new.Level = e.Level
 		new.Message = e.Message

@@ -19,7 +19,6 @@ package etcdbk
 import (
 	"encoding/json"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -38,16 +37,16 @@ type Config struct {
 // Check checks if all the parameters are valid
 func (cfg *Config) Check() error {
 	if len(cfg.Key) == 0 {
-		return trace.Wrap(teleport.BadParameter("Key", `supply a valid root key for Teleport data`))
+		return trace.BadParameter(`Key: supply a valid root key for Teleport data`)
 	}
 	if len(cfg.Nodes) == 0 {
-		return trace.Wrap(teleport.BadParameter("Nodes", `please supply a valid dictionary, e.g. {"nodes": ["http://localhost:4001]}`))
+		return trace.BadParameter(`Nodes: please supply a valid dictionary, e.g. {"nodes": ["http://localhost:4001]}`)
 	}
 	if cfg.TLSKeyFile == "" {
-		return trace.Wrap(teleport.BadParameter("TLSKeyFile", `please supply a path to TLS private key file`))
+		return trace.BadParameter(`TLSKeyFile: please supply a path to TLS private key file`)
 	}
 	if cfg.TLSCertFile == "" {
-		return trace.Wrap(teleport.BadParameter("TLSCertFile", `please supply a path to TLS certificate file`))
+		return trace.BadParameter(`TLSCertFile: please supply a path to TLS certificate file`)
 	}
 	return nil
 }
