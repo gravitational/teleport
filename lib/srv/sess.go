@@ -47,6 +47,15 @@ func (s *sessionRegistry) addSession(sess *session) {
 	s.sessions[sess.id] = sess
 }
 
+func (r *sessionRegistry) Close() {
+	r.Lock()
+	defer r.Unlock()
+	for _, s := range r.sessions {
+		s.Close()
+	}
+	r.sessions = nil
+}
+
 // joinShell either joins an existing session or starts a new shell
 func (s *sessionRegistry) joinShell(sid rsession.ID, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	ctx.Infof("joinShell(sid=%v)", sid)

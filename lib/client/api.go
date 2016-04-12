@@ -547,7 +547,8 @@ func (tc *TeleportClient) runCommand(nodeAddresses []string, proxyClient *ProxyC
 	return trace.Wrap(lastError)
 }
 
-// runShell starts an interactive SSH session/shell
+// runShell starts an interactive SSH session/shell. If sessionID is empty, it creates
+// a new shell. Otherwise it tries to join the existing session.
 func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID) error {
 	defer nodeClient.Close()
 	address := tc.NodeHostPort()
