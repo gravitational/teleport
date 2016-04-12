@@ -252,7 +252,7 @@ func (s *ServicesTestSuite) PasswordHashCRUD(c *C) {
 
 func (s *ServicesTestSuite) WebSessionCRUD(c *C) {
 	_, err := s.WebS.GetWebSession("user1", "sid1")
-	c.Assert(err, FitsTypeOf, &teleport.NotFoundError{})
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
 	dt := time.Date(2015, 6, 5, 4, 3, 2, 1, time.UTC).UTC()
 	ws := services.WebSession{
