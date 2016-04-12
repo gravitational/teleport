@@ -328,6 +328,9 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool) error {
 // Join connects to the existing/active SSH session
 func (tc *TeleportClient) Join(sid string) (err error) {
 	sessionID := session.ID(sid)
+	if sessionID.Check() != nil {
+		return trace.Errorf("Invalid session ID format: %s", sid)
+	}
 
 	var notFoundError = &teleport.NotFoundError{Message: "Session not found or it has ended"}
 	// connect to proxy:
