@@ -19,7 +19,6 @@ package auth
 import (
 	"path/filepath"
 
-	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
@@ -28,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gokyle/hotp"
+	"github.com/gravitational/trace"
 	. "gopkg.in/check.v1"
 )
 
@@ -101,7 +101,10 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(role, Equals, "Node")
 
-	c.Assert(s.a.DeleteToken(tok), IsNil)
+	err = s.a.DeleteToken(tok)
+	c.Assert(err, IsNil)
+
+	err = s.a.DeleteToken(tok)
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
 	_, err = s.a.ValidateToken(tok)

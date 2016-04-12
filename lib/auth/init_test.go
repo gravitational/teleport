@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/trace"
 	. "gopkg.in/check.v1"
 )
 
