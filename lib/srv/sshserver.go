@@ -101,6 +101,7 @@ func SetEventLogger(e events.Log) ServerOption {
 // Close closes listening socket and stops accepting connections
 func (s *Server) Close() error {
 	s.closer.Close()
+	s.reg.Close()
 	return s.srv.Close()
 }
 
