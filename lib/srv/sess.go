@@ -47,6 +47,15 @@ func (s *sessionRegistry) addSession(sess *session) {
 	s.sessions[sess.id] = sess
 }
 
+func (r *sessionRegistry) Close() {
+	r.Lock()
+	defer r.Unlock()
+	for _, s := range r.sessions {
+		s.Close()
+	}
+	r.sessions = nil
+}
+
 // joinShell either joins an existing session or starts a new shell
 func (s *sessionRegistry) joinShell(sid rsession.ID, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	ctx.Infof("joinShell(sid=%v)", sid)
@@ -166,6 +175,7 @@ type session struct {
 	eid         lunk.EventID
 	registry    *sessionRegistry
 	writer      *multiWriter
+	buffer      *sessionBuffer
 	parties     map[rsession.ID]*party
 	term        *terminal
 	chunkWriter *chunkWriter
@@ -279,14 +289,20 @@ func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) er
 	// start recording the session (if enabled)
 	sessionRecorder := s.registry.srv.rec
 	if sessionRecorder != nil {
-		w, err := newChunkWriter(string(s.id), s, sessionRecorder)
+		sid := string(s.id)
+		// create a 'writer' wrapper which converts io.Write([]byte) calls to recorder.WriteChunks([]chunk)
+		cw, err := sessionRecorder.GetChunkWriter(sid)
 		if err != nil {
 			p.ctx.Errorf("failed to create recorder: %v", err)
 			return trace.Wrap(err)
 		}
-		s.chunkWriter = w
-		s.registry.srv.emit(ctx.eid, events.NewShellSession(string(s.id), sconn, shellCmd, w.recordID))
-		s.writer.addWriter("capture", w, false)
+		s.chunkWriter = newChunkWriter(sid, s, cw)
+		s.registry.srv.emit(ctx.eid, events.NewShellSession(string(s.id), sconn, shellCmd, s.chunkWriter.recordID))
+		s.writer.addWriter("capture", s.chunkWriter, false)
+		// also create another chunk writer (buffer) which keeps the last chunk around for instant replay
+		// if we need to stream the session
+		s.buffer = newSessionBuffer()
+		s.writer.addWriter("session-buffer", newChunkWriter(string(s.id), s, s.buffer), true)
 	} else {
 		s.registry.srv.emit(ctx.eid, events.NewShellSession(string(s.id), sconn, shellCmd, ""))
 	}
@@ -377,8 +393,7 @@ func (s *session) pollAndSyncTerm() {
 		return s.term.setWinsize(sess.TerminalParams)
 	}
 
-	const termSizePollingInterval = time.Second * 3
-	tick := time.NewTicker(termSizePollingInterval)
+	tick := time.NewTicker(defaults.TerminalSizeRefreshPeriod)
 	defer tick.Stop()
 	for {
 		if err := syncTerm(); err != nil {
@@ -386,7 +401,7 @@ func (s *session) pollAndSyncTerm() {
 		}
 		select {
 		case <-s.closeC:
-			log.Infof("closed, stopped heartbeat")
+			log.Infof("[SSH] terminal sync stopped")
 			return
 		case <-tick.C:
 		}
@@ -419,11 +434,11 @@ func (s *session) addParty(p *party) {
 	}()
 }
 
-const partyTTL = 10 * time.Second
-
 func (s *session) join(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) (*party, error) {
 	p := newParty(s, sconn, ch, ctx)
 	s.addParty(p)
+	// replay last chunk to the new party so they'll see what's going on:
+	io.Copy(p, s.buffer)
 	return p, nil
 }
 
@@ -532,16 +547,12 @@ func (p *party) Close() error {
 	return p.s.registry.leaveShell(p.s.id, p.id)
 }
 
-func newChunkWriter(recordID string, sess *session, rec recorder.Recorder) (*chunkWriter, error) {
-	cw, err := rec.GetChunkWriter(recordID)
-	if err != nil {
-		return nil, err
-	}
+func newChunkWriter(recordID string, sess *session, cw recorder.ChunkWriteCloser) *chunkWriter {
 	return &chunkWriter{
 		recordID: recordID,
 		w:        cw,
 		sess:     sess,
-	}, nil
+	}
 }
 
 type chunkWriter struct {
@@ -576,4 +587,43 @@ func (l *chunkWriter) Write(b []byte) (int, error) {
 
 func (l *chunkWriter) Close() error {
 	return l.w.Close()
+}
+
+// sessionBuffer exists for every a session. it keeps the most recently written history
+// "chunk" in memory and replays it for new parties who join a session
+type sessionBuffer struct {
+	recorder.ChunkWriteCloser
+	io.Reader
+	chunk *recorder.Chunk
+	sync.Mutex
+}
+
+func newSessionBuffer() *sessionBuffer {
+	return &sessionBuffer{}
+}
+
+func (s *sessionBuffer) WriteChunks(chunks []recorder.Chunk) error {
+	num := len(chunks)
+	if num > 0 {
+		s.Lock()
+		defer s.Unlock()
+		s.chunk = &chunks[num-1]
+	}
+	return nil
+}
+
+func (s *sessionBuffer) Close() error {
+	s.Lock()
+	defer s.Unlock()
+	s.chunk = nil
+	return nil
+}
+
+func (s *sessionBuffer) Read(p []byte) (n int, err error) {
+	s.Lock()
+	defer s.Unlock()
+	if s.chunk == nil || s.chunk.Data == nil {
+		return 0, io.EOF
+	}
+	return copy(p, s.chunk.Data), io.EOF
 }

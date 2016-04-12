@@ -279,6 +279,7 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.Rea
 		return nil, trace.Wrap(err)
 	}
 
+	// ask the server to drop us into the existing session:
 	if len(sessionID) > 0 {
 		err = clientSession.Setenv(sshutils.SessionEnvVar, string(sessionID))
 		if err != nil {

@@ -70,6 +70,7 @@ const (
 	// InviteTokenTTL sets the lifespan of tokens used for adding nodes and users
 	// to a cluster
 	InviteTokenTTL = 15 * time.Minute
+
 	// DefaultDialTimeout is a default TCP dial timeout we set for our
 	// connection attempts
 	DefaultDialTimeout = 30 * time.Second
@@ -141,6 +142,10 @@ var (
 	// TODO(klizhentas) all polling periods should go away once backend
 	// releases events
 	SessionRefreshPeriod = 2 * time.Second
+
+	// TerminalSizeRefreshPeriod is how frequently clients who share sessions sync up
+	// their terminal sizes
+	TerminalSizeRefreshPeriod = 2 * time.Second
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport
