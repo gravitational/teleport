@@ -25,7 +25,9 @@ module.exports = {
     styles: ['./src/styles/bootstrap/bootstrap.scss', './src/styles/inspinia/style.scss', './src/styles/grv.scss']
   },
 
- output: {
+  devtool: 'source-map',
+
+  output: {
     publicPath: '/web/app',
     path: path.join(__dirname, 'dist/app'),
     filename: '[name].js',
@@ -68,10 +70,10 @@ module.exports = {
     new webpack.optimize.OccurenceOrderPlugin(),
     new webpack.optimize.CommonsChunkPlugin({
        names: ['vendor']
-     }),
+     })
 
-    new webpack.optimize.UglifyJsPlugin({
+    /*new webpack.optimize.UglifyJsPlugin({
      compress: {  warnings: false  }
-   })
+   })*/
   ]
 };

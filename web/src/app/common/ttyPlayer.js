@@ -64,11 +64,15 @@ class TtyPlayer extends Tty {
     this._setStatusFlag({isLoading: true});
     api.get(cfg.api.getFetchSessionLengthUrl(this.sid))
       .done((data)=>{
-        this.length = data.count;
+        /*
+        * temporary hotfix to back-end issue related to session chunks starting at
+        * index=1 and ending at index=length+1
+        **/
+        this.length = data.count+1;
         this._setStatusFlag({isReady: true});
       })
       .fail((err)=>{
-        handleAjaxError(err);        
+        handleAjaxError(err);
       })
       .always(()=>{
         this._change();
