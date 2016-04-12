@@ -357,7 +357,6 @@ func (a *Agent) startHeartbeat(conn ssh.Conn) {
 			errC <- err
 			return
 		}
-		hb.SendRequest("ping", false, nil)
 		for {
 			select {
 			case <-a.broadcastClose.C:
