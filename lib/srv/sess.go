@@ -175,6 +175,7 @@ type session struct {
 	eid         lunk.EventID
 	registry    *sessionRegistry
 	writer      *multiWriter
+	buffer      *sessionBuffer
 	parties     map[rsession.ID]*party
 	term        *terminal
 	chunkWriter *chunkWriter
@@ -288,13 +289,20 @@ func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) er
 	// start recording the session (if enabled)
 	sessionRecorder := s.registry.srv.rec
 	if sessionRecorder != nil {
-		s.chunkWriter, err = newChunkWriter(string(s.id), s, sessionRecorder)
+		sid := string(s.id)
+		// create a 'writer' wrapper which converts io.Write([]byte) calls to recorder.WriteChunks([]chunk)
+		cw, err := sessionRecorder.GetChunkWriter(sid)
 		if err != nil {
 			p.ctx.Errorf("failed to create recorder: %v", err)
 			return trace.Wrap(err)
 		}
+		s.chunkWriter = newChunkWriter(sid, s, cw)
 		s.registry.srv.emit(ctx.eid, events.NewShellSession(string(s.id), sconn, shellCmd, s.chunkWriter.recordID))
 		s.writer.addWriter("capture", s.chunkWriter, false)
+		// also create another chunk writer (buffer) which keeps the last chunk around for instant replay
+		// if we need to stream the session
+		s.buffer = newSessionBuffer()
+		s.writer.addWriter("session-buffer", newChunkWriter(string(s.id), s, s.buffer), true)
 	} else {
 		s.registry.srv.emit(ctx.eid, events.NewShellSession(string(s.id), sconn, shellCmd, ""))
 	}
@@ -429,36 +437,8 @@ func (s *session) addParty(p *party) {
 func (s *session) join(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) (*party, error) {
 	p := newParty(s, sconn, ch, ctx)
 	s.addParty(p)
-
-	// when a new user joins the session, it's visually helpful to replay the last piece of output so they
-	// will see the same prompt the host is seeing
-	replayLastChunk := func() {
-		sessionRecorder := s.registry.srv.rec
-		if sessionRecorder != nil {
-			sr, e := sessionRecorder.GetChunkReader(string(s.id))
-			if e != nil {
-				log.Error(e)
-				return
-			}
-			n, e := sr.GetChunksCount()
-			if e != nil {
-				log.Error(e)
-				return
-			}
-			if n == 0 {
-				return
-			}
-			chunks, e := sr.ReadChunks(int(n), int(n+1))
-			if e != nil {
-				log.Error(e)
-				return
-			}
-			if len(chunks) > 0 {
-				p.Write(chunks[0].Data)
-			}
-		}
-	}
-	replayLastChunk()
+	// replay last chunk to the new party so they'll see what's going on:
+	io.Copy(p, s.buffer)
 	return p, nil
 }
 
@@ -567,16 +547,12 @@ func (p *party) Close() error {
 	return p.s.registry.leaveShell(p.s.id, p.id)
 }
 
-func newChunkWriter(recordID string, sess *session, rec recorder.Recorder) (*chunkWriter, error) {
-	cw, err := rec.GetChunkWriter(recordID)
-	if err != nil {
-		return nil, err
-	}
+func newChunkWriter(recordID string, sess *session, cw recorder.ChunkWriteCloser) *chunkWriter {
 	return &chunkWriter{
 		recordID: recordID,
 		w:        cw,
 		sess:     sess,
-	}, nil
+	}
 }
 
 type chunkWriter struct {
@@ -611,4 +587,43 @@ func (l *chunkWriter) Write(b []byte) (int, error) {
 
 func (l *chunkWriter) Close() error {
 	return l.w.Close()
+}
+
+// sessionBuffer exists for every a session. it keeps the most recently written history
+// "chunk" in memory and replays it for new parties who join a session
+type sessionBuffer struct {
+	recorder.ChunkWriteCloser
+	io.Reader
+	chunk *recorder.Chunk
+	sync.Mutex
+}
+
+func newSessionBuffer() *sessionBuffer {
+	return &sessionBuffer{}
+}
+
+func (s *sessionBuffer) WriteChunks(chunks []recorder.Chunk) error {
+	num := len(chunks)
+	if num > 0 {
+		s.Lock()
+		defer s.Unlock()
+		s.chunk = &chunks[num-1]
+	}
+	return nil
+}
+
+func (s *sessionBuffer) Close() error {
+	s.Lock()
+	defer s.Unlock()
+	s.chunk = nil
+	return nil
+}
+
+func (s *sessionBuffer) Read(p []byte) (n int, err error) {
+	s.Lock()
+	defer s.Unlock()
+	if s.chunk == nil || s.chunk.Data == nil {
+		return 0, io.EOF
+	}
+	return copy(p, s.chunk.Data), io.EOF
 }

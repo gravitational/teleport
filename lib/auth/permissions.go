@@ -76,7 +76,6 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetChunkWriter:     true,
 		ActionGetSession:         true,
 		ActionGetSessions:        true,
-		ActionGetChunkReader:     true,
 	}
 
 	sp.permissions[teleport.RoleProxy] = map[string]bool{
