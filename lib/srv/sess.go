@@ -426,11 +426,39 @@ func (s *session) addParty(p *party) {
 	}()
 }
 
-const partyTTL = 10 * time.Second
-
 func (s *session) join(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) (*party, error) {
 	p := newParty(s, sconn, ch, ctx)
 	s.addParty(p)
+
+	// when a new user joins the session, it's visually helpful to replay the last piece of output so they
+	// will see the same prompt the host is seeing
+	replayLastChunk := func() {
+		sessionRecorder := s.registry.srv.rec
+		if sessionRecorder != nil {
+			sr, e := sessionRecorder.GetChunkReader(string(s.id))
+			if e != nil {
+				log.Error(e)
+				return
+			}
+			n, e := sr.GetChunksCount()
+			if e != nil {
+				log.Error(e)
+				return
+			}
+			if n == 0 {
+				return
+			}
+			chunks, e := sr.ReadChunks(int(n), int(n+1))
+			if e != nil {
+				log.Error(e)
+				return
+			}
+			if len(chunks) > 0 {
+				p.Write(chunks[0].Data)
+			}
+		}
+	}
+	replayLastChunk()
 	return p, nil
 }
 
