@@ -317,25 +317,22 @@ func applyString(src string, target *string) bool {
 
 // Configure merges command line arguments with what's in a configuration file
 // with CLI commands taking precedence
-func Configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
-	// create the default configuration:
-	cfg = service.MakeDefaultConfig()
-
+func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	// load /etc/teleport.yaml and apply it's values:
 	fileConf, err := readConfigFile(clf.ConfigFile)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	// if configuration is passed as an environment variable,
 	// try to decode it and override the config file
 	if clf.ConfigString != "" {
 		fileConf, err = ReadFromString(clf.ConfigString)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 	}
 	if err = ApplyFileConfig(fileConf, cfg); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	// apply --debug flag:
@@ -347,7 +344,7 @@ func Configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 	// apply --roles flag:
 	if clf.Roles != "" {
 		if err := validateRoles(clf.Roles); err != nil {
-			return cfg, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		cfg.SSH.Enabled = strings.Index(clf.Roles, defaults.RoleNode) != -1
 		cfg.Auth.Enabled = strings.Index(clf.Roles, defaults.RoleAuthService) != -1
@@ -362,7 +359,7 @@ func Configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 		}
 		addr, err := utils.ParseHostPortAddr(clf.AuthServerAddr, int(defaults.AuthListenPort))
 		if err != nil {
-			return cfg, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		log.Infof("Using auth server: %v", addr.FullAddress())
 		cfg.AuthServers = []utils.NetAddr{*addr}
@@ -384,21 +381,21 @@ func Configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 	// --advertise-ip flag
 	if clf.AdvertiseIP != nil {
 		if err := validateAdvertiseIP(clf.AdvertiseIP); err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		cfg.AdvertiseIP = clf.AdvertiseIP
 	}
 
 	// apply --labels flag
 	if err = parseLabels(clf.Labels, &cfg.SSH); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	// locate web assets if web proxy is enabled
 	if cfg.Proxy.Enabled {
 		cfg.Proxy.AssetsDir, err = LocateWebAssets()
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 	}
 
@@ -406,7 +403,7 @@ func Configure(clf *CommandLineFlags) (cfg *service.Config, err error) {
 	if clf.PIDFile != "" {
 		cfg.PIDFile = clf.PIDFile
 	}
-	return cfg, nil
+	return nil
 }
 
 // parseLabels takes the value of --labels flag and tries to correctly populate
@@ -552,7 +549,6 @@ func LocateWebAssets() (string, error) {
 	}
 	// checker function to determine if dirPath contains the web assets
 	locateAssets := func(dirPath string) bool {
-		fmt.Println("checking ", dirPath)
 		for _, af := range assetsToCheck {
 			if !fileExists(filepath.Join(dirPath, af)) {
 				return false

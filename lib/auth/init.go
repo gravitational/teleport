@@ -211,7 +211,6 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 			}
 		}
 	}
-
 	identity, err := initKeys(asrv, cfg.DataDir, IdentityID{HostUUID: cfg.HostUUID, Role: teleport.RoleAdmin})
 	if err != nil {
 		return nil, nil, err

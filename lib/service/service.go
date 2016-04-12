@@ -227,7 +227,10 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	serviceStarted := false
 
 	if cfg.Auth.Enabled {
-		if err := process.initAuthService(); err != nil {
+		if cfg.Keygen == nil {
+			cfg.Keygen = native.New()
+		}
+		if err := process.initAuthService(cfg.Keygen); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		serviceStarted = true
@@ -267,7 +270,7 @@ func (process *TeleportProcess) getLocalAuth() *auth.AuthServer {
 }
 
 // initAuthService can be called to initialize auth server service
-func (process *TeleportProcess) initAuthService() error {
+func (process *TeleportProcess) initAuthService(authority auth.Authority) error {
 	var (
 		askedToExit = false
 		err         error
@@ -288,10 +291,9 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	keygen := native.New()
 	acfg := auth.InitConfig{
 		Backend:         b,
-		Authority:       keygen,
+		Authority:       authority,
 		DomainName:      cfg.Auth.DomainName,
 		AuthServiceName: cfg.Hostname,
 		DataDir:         cfg.DataDir,
@@ -394,12 +396,12 @@ func (process *TeleportProcess) initAuthService() error {
 			srv.Addr = fmt.Sprintf("%v:%v", process.Config.AdvertiseIP.String(), port)
 		}
 		for !askedToExit {
+			sleepTime := defaults.ServerHeartbeatTTL/2 + utils.RandomDuration(defaults.ServerHeartbeatTTL/10)
+			time.Sleep(sleepTime)
 			err := authClient.UpsertAuthServer(srv, defaults.ServerHeartbeatTTL)
 			if err != nil {
 				log.Warningf("failed to announce presence: %v", err)
 			}
-			sleepTime := defaults.ServerHeartbeatTTL/2 + utils.RandomDuration(defaults.ServerHeartbeatTTL/10)
-			time.Sleep(sleepTime)
 		}
 		log.Infof("[AUTH] heartbeat to other auth servers exited")
 		return nil
@@ -410,7 +412,6 @@ func (process *TeleportProcess) initAuthService() error {
 		authTunnel.Close()
 		authClient.Close()
 		apiServer.Close()
-		keygen.Close()
 		log.Infof("[AUTH] auth service exited")
 	})
 	return nil
@@ -498,6 +499,7 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 	// and provision the keys
 	var authClient *auth.TunClient
 	process.RegisterFunc(func() error {
+		retryTime := defaults.ServerHeartbeatTTL / 3
 		for {
 			connector, err := process.connectToAuthService(role)
 			if err == nil {
@@ -507,7 +509,7 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 			}
 			if teleport.IsConnectionProblem(err) {
 				utils.Consolef(cfg.Console, "[%v] connecting to auth server: %v", role, err)
-				time.Sleep(time.Second)
+				time.Sleep(retryTime)
 				continue
 			}
 			if !teleport.IsNotFound(err) {
@@ -529,7 +531,7 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 			}
 			if err != nil {
 				utils.Consolef(cfg.Console, "[%v] failed to join the cluster: %v", role, err)
-				time.Sleep(time.Second)
+				time.Sleep(retryTime)
 			} else {
 				utils.Consolef(cfg.Console, "[%v] Successfully registered with the cluster", role)
 				continue

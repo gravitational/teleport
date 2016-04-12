@@ -182,7 +182,6 @@ func (s *Server) handleConnection(conn net.Conn) {
 	}
 	sconn, chans, reqs, err := ssh.NewServerConn(conn, &s.cfg)
 	if err != nil {
-		log.Infof("failed to initiate connection, err: %v", err)
 		conn.SetDeadline(time.Time{})
 		return
 	}

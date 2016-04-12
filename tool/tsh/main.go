@@ -274,7 +274,7 @@ func onJoin(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	if err = tc.Join(cf.SessionID); err != nil {
+	if err = tc.Join(string(cf.SessionID)); err != nil {
 		utils.FatalError(err)
 	}
 }

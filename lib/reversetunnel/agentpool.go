@@ -107,10 +107,16 @@ func (m *AgentPool) FetchAndSyncAgents() error {
 func (m *AgentPool) pollAndSyncAgents() {
 	ticker := time.NewTicker(defaults.ReverseTunnelsRefreshPeriod)
 	defer ticker.Stop()
+	m.FetchAndSyncAgents()
 	for {
 		select {
 		case <-m.closeBroadcast.C:
 			m.Infof("closing")
+			m.Lock()
+			defer m.Unlock()
+			for _, a := range m.agents {
+				a.Close()
+			}
 			return
 		case <-ticker.C:
 			err := m.FetchAndSyncAgents()

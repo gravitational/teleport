@@ -283,8 +283,6 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		"user":   conn.User(),
 	})
 
-	logger.Infof("auth attempt with key %v", key.Type())
-
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
 		logger.Warningf("server doesn't support provided key type")

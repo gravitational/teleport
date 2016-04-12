@@ -137,7 +137,6 @@ func (a *Agent) reconnect() error {
 			return nil
 		case <-ticker.C:
 			if err = a.connect(); err != nil {
-				a.log.Infof("connect attempt %v: %v", i, err)
 				i++
 				continue
 			}
@@ -166,7 +165,6 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 		return trace.Wrap(err, "failed to fetch remote certs")
 	}
 	for _, ca := range cas {
-		a.log.Infof("checking against %v", ca.ID())
 		checkers, err := ca.Checkers()
 		if err != nil {
 			return trace.Wrap(teleport.BadParameter("key", fmt.Sprintf("error parsing key: %v", err)))
@@ -190,7 +188,6 @@ func (a *Agent) connect() error {
 		a.log.Error(err)
 		return err
 	}
-	a.log.Infof("agent connect")
 
 	var c *ssh.Client
 	var err error
@@ -213,7 +210,6 @@ func (a *Agent) connect() error {
 	go a.handleAccessPoint(c.HandleChannelOpen(chanAccessPoint))
 	go a.handleTransport(c.HandleChannelOpen(chanTransport))
 
-	a.log.Infof("connection established")
 	return nil
 }
 
