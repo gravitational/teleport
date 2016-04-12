@@ -20,11 +20,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/coreos/etcd/client"
+	"github.com/gravitational/trace"
 	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
 )
