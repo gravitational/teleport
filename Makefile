@@ -45,7 +45,7 @@ install: build
 goinstall: flags
 	go install $(BUILDFLAGS) $(PKGPATH)/tool/tctl
 	go install $(BUILDFLAGS) $(PKGPATH)/tool/teleport
-	go install $(PKGPATH)/tool/tsh
+	go install $(BUILDFLAGS) $(PKGPATH)/tool/tsh
 
 
 .PHONY: clean
