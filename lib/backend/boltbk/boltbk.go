@@ -76,8 +76,11 @@ func New(path string, opts ...Option) (*BoltBackend, error) {
 	if b.clock == nil {
 		b.clock = &timetools.RealTime{}
 	}
-	db, err := bolt.Open(path, 0600, nil)
+	db, err := bolt.Open(path, 0600, &bolt.Options{Timeout: 5 * time.Second})
 	if err != nil {
+		if err == bolt.ErrTimeout {
+			return nil, trace.Errorf("Local storage is locked. Another instance is running? (%v)", path)
+		}
 		return nil, trace.Wrap(err)
 	}
 	b.db = db
