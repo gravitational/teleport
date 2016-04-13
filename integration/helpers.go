@@ -340,6 +340,21 @@ func (this *TeleInstance) SSH(
 	return buff.Bytes(), err
 }
 
+// NewClient is a quick&dirty helper to create a pre-configured client which assumes
+// single-node defaults (SSH node == proxy node == auth node)
+func (this *TeleInstance) NewClient(login string) (*client.TeleportClient, error) {
+	return client.NewClient(&client.Config{
+		Login:              login,
+		ProxyHost:          this.Config.Proxy.SSHAddr.Addr,
+		Host:               this.Hostname,
+		HostPort:           this.GetPortSSHInt(),
+		HostLogin:          login,
+		InsecureSkipVerify: true,
+		KeysDir:            this.Config.DataDir,
+		SiteName:           this.Secrets.SiteName,
+	})
+}
+
 func (this *TeleInstance) Stop() error {
 	if this.Config != nil {
 		err := os.RemoveAll(this.Config.DataDir)

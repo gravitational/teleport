@@ -28,15 +28,26 @@ import (
 	"gopkg.in/check.v1"
 )
 
+const (
+	Host = "127.0.0.1"
+	Site = "local-site"
+)
+
 type IntSuite struct {
 	ports []int
 	me    *user.User
+	// priv/pub pair to avoid re-generating it
+	priv []byte
+	pub  []byte
 }
 
 // bootstrap check
 func TestIntegrations(t *testing.T) { check.TestingT(t) }
 
-var _ = check.Suite(&IntSuite{})
+var _ = check.Suite(&IntSuite{
+	priv: []byte(testauthority.Priv),
+	pub:  []byte(testauthority.Pub),
+})
 
 func (s *IntSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests()
@@ -54,18 +65,56 @@ func (s *IntSuite) SetUpSuite(c *check.C) {
 	s.me, _ = user.Current()
 }
 
+// newTeleport helper returns a running Teleport instance pre-configured
+// with the current user os.user.Current()
+func (s *IntSuite) newTeleport(c *check.C, enableSSH bool) *TeleInstance {
+	username := s.me.Username
+	t := NewInstance(Site, Host, s.ports[5:], s.priv, s.pub)
+	t.AddUser(username, []string{username})
+	if t.Create(nil, enableSSH) != nil {
+		c.FailNow()
+	}
+	if t.Start() != nil {
+		c.FailNow()
+	}
+	return t
+}
+
+func (s *IntSuite) TestSessionViewing(c *check.C) {
+	t := s.newTeleport(c, true)
+	defer t.Stop()
+
+}
+
+// TestInvalidLogins validates that you can't login with invalid login or
+// with invalid 'site' parameter
+func (s *IntSuite) _TestInvalidLogins(c *check.C) {
+	t := s.newTeleport(c, true)
+	defer t.Stop()
+
+	cmd := []string{"echo", "success"}
+
+	// try the wrong site:
+	out, err := t.SSH(s.me.Username, cmd, "wrong-site", Host, t.GetPortSSHInt())
+	c.Assert(out, check.IsNil)
+	c.Assert(err, check.ErrorMatches, "site wrong-site not found")
+
+	// try the user:
+	out, err = t.SSH("wrong-user", cmd, Site, Host, t.GetPortSSHInt())
+	c.Assert(out, check.IsNil)
+	c.Assert(err, check.ErrorMatches, "unknown login 'wrong-user'")
+}
+
 // TestTwoSites creates two teleport sites: "a" and "b" and
 // creates a tunnel from A to B.
 //
 // Then it executes an SSH command on A by connecting directly
 // to A and by connecting to B via B<->A tunnel
-func (s *IntSuite) TestEverything(c *check.C) {
+func (s *IntSuite) _TestTwoSites(c *check.C) {
 	username := s.me.Username
-	priv := []byte(testauthority.Priv)
-	pub := []byte(testauthority.Pub)
 
-	a := NewInstance("site-A", "127.0.0.1", s.ports[:5], priv, pub)
-	b := NewInstance("site-B", "127.0.0.1", s.ports[5:], priv, pub)
+	a := NewInstance("site-A", Host, s.ports[:5], s.priv, s.pub)
+	b := NewInstance("site-B", Host, s.ports[5:], s.priv, s.pub)
 
 	a.AddUser(username, []string{username})
 	b.AddUser(username, []string{username})
@@ -90,11 +139,11 @@ func (s *IntSuite) TestEverything(c *check.C) {
 	cmd := []string{"echo", "hello world"}
 
 	// directly:
-	outputA, err := a.SSH(username, cmd, "site-A", "127.0.0.1", sshPort)
+	outputA, err := a.SSH(username, cmd, "site-A", Host, sshPort)
 	c.Assert(err, check.IsNil)
 	c.Assert(string(outputA), check.Equals, "hello world\n")
 	// via tunnel b->a:
-	outputB, err := b.SSH(username, cmd, "site-A", "127.0.0.1", sshPort)
+	outputB, err := b.SSH(username, cmd, "site-A", Host, sshPort)
 	c.Assert(err, check.IsNil)
 	c.Assert(outputA, check.DeepEquals, outputB)
 
