@@ -68,7 +68,7 @@ describe('common/ttyPlayer', function () {
   describe('move()', function () {
     beforeEach(()=>{
       spyOn(api, 'get').andReturn(
-        $.Deferred().resolve({count: sampleData.length})
+        $.Deferred().resolve({count: sampleData.length-1})
       );
 
       tty = new TtyPlayer({sid: 'testSid'});
