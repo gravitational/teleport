@@ -111,7 +111,9 @@ func run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *serv
 		if err = config.Configure(&ccf, conf); err != nil {
 			utils.FatalError(err)
 		}
-		log.Debug(conf.DebugDumpToYAML())
+		if !testRun {
+			log.Info(conf.DebugDumpToYAML())
+		}
 		if ccf.HTTPProfileEndpoint {
 			log.Infof("starting http profile endpoint")
 			go func() {

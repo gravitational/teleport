@@ -52,7 +52,6 @@ func (r *sessionRegistry) Close() {
 	for _, s := range r.sessions {
 		s.Close()
 	}
-	r.sessions = nil
 }
 
 // joinShell either joins an existing session or starts a new shell
