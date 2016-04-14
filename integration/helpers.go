@@ -1,9 +1,9 @@
 package integration
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"os"
@@ -174,12 +174,13 @@ func (this *TeleInstance) GetPortWeb() string {
 
 // Create creates a new instance of Teleport which trusts a lsit of other clusters (other
 // instances)
-func (this *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bool) error {
+func (this *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bool, console io.Writer) error {
 	dataDir, err := ioutil.TempDir("", "cluster-"+this.Secrets.SiteName)
 	if err != nil {
 		return err
 	}
 	tconf := service.MakeDefaultConfig()
+	tconf.Console = console
 	tconf.Auth.DomainName = this.Secrets.SiteName
 	tconf.Auth.Authorities = append(tconf.Auth.Authorities, this.Secrets.GetCAs()...)
 	tconf.Identities = append(tconf.Identities, this.Secrets.GetIdentity())
@@ -298,19 +299,9 @@ func (this *TeleInstance) Start() (err error) {
 	return err
 }
 
-// SSH executes SSH command on a remote node behind a given site.
-func (this *TeleInstance) SSH(
-	login string,
-	command []string,
-	site string,
-	host string,
-	port int) (output []byte, err error) {
-
-	user, ok := this.Secrets.Users[login]
-	if !ok {
-		return nil, fmt.Errorf("unknown login '%v'", login)
-	}
-	tc, err := client.NewClient(&client.Config{
+// NewClient returns a fully configured client (with server CAs and user keys)
+func (this *TeleInstance) NewClient(login string, site string, host string, port int) (tc *client.TeleportClient, err error) {
+	tc, err = client.NewClient(&client.Config{
 		Login:              login,
 		ProxyHost:          this.Config.Proxy.SSHAddr.Addr,
 		Host:               host,
@@ -323,12 +314,16 @@ func (this *TeleInstance) SSH(
 	if err != nil {
 		return nil, err
 	}
-	var buff bytes.Buffer
-	tc.Output = &buff
+	// tells the client to use user keys from 'secrets':
+	user, ok := this.Secrets.Users[login]
+	if !ok {
+		return nil, fmt.Errorf("unknown login '%v'", login)
+	}
 	err = tc.SaveKey(user.Key)
 	if err != nil {
 		return nil, err
 	}
+	// tell the client to trust given CAs (from secrets)
 	cas := this.Secrets.GetCAs()
 	for i := range cas {
 		err = tc.AddTrustedCA(&cas[i])
@@ -336,8 +331,7 @@ func (this *TeleInstance) SSH(
 			return nil, err
 		}
 	}
-	err = tc.SSH(command, false)
-	return buff.Bytes(), err
+	return tc, nil
 }
 
 func (this *TeleInstance) Stop() error {

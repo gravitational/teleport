@@ -263,7 +263,7 @@ func onSSH(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 
-	if err = tc.SSH(cf.RemoteCommand, cf.LocalExec); err != nil {
+	if err = tc.SSH(cf.RemoteCommand, cf.LocalExec, nil); err != nil {
 		utils.FatalError(err)
 	}
 }
@@ -274,7 +274,7 @@ func onJoin(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	if err = tc.Join(string(cf.SessionID)); err != nil {
+	if err = tc.Join(string(cf.SessionID), nil); err != nil {
 		utils.FatalError(err)
 	}
 }
