@@ -78,6 +78,12 @@ test:
 			   $(PKGPATH)/tool/teleport... $(FLAGS) -tags test
 	go vet ./tool/... ./lib/...
 
+#
+# integration tests. need a TTY to work and not compatible with a race detector
+#
+.PHONY: integration
+integration: 
+	go test -v $(PKGPATH)/integration/...
 
 #
 # source-release releases source distribution tarball for this particular version

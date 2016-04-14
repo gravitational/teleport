@@ -23,15 +23,19 @@ build: bbox
 bbox:
 	docker build --build-arg UID=$$(id -u) --build-arg GID=$$(id -g) --tag $(BBOX) .
 
-
 #
 # Runs tests inside a build container 
 #
 .PHONY:test
-test:
+test: integration
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
 		/bin/bash -c "$(MAKE) -C $(SRCDIR) TELEPORT_DEBUG_TESTS=true FLAGS='-cover -race' clean test"
 
+
+.PHONY:integration
+integration: bbox
+	docker run $(DOCKERFLAGS) $(NOROOT) -i $(BBOX) \
+		/bin/bash -c "$(MAKE) -C $(SRCDIR) TELEPORT_DEBUG_TESTS=false FLAGS='-cover' integration"
 
 #
 # Builds docs

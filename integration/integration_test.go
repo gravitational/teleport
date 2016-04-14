@@ -76,9 +76,11 @@ func (s *IntSuite) SetUpSuite(c *check.C) {
 	s.me, _ = user.Current()
 
 	// close & re-open stdin because 'go test' runs with os.stdin connected to /dev/null
-	os.Stdin.Close()
-	os.Stdin, err = os.Open("/dev/tty")
-	c.Assert(err, check.IsNil)
+	stdin, err := os.Open("/dev/tty")
+	if err != nil {
+		os.Stdin.Close()
+		os.Stdin = stdin
+	}
 }
 
 // newTeleport helper returns a running Teleport instance pre-configured
@@ -126,12 +128,12 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 		cl, err := t.NewClient(s.me.Username, Site, Host, t.GetPortSSHInt())
 		c.Assert(err, check.IsNil)
 		cl.Output = &personB
-		for i := 0; i < 3; i++ {
+		for i := 0; i < 10; i++ {
+			time.Sleep(time.Millisecond * 5)
 			err = cl.Join(sessionID, &personB)
 			if err == nil {
 				break
 			}
-			time.Sleep(time.Millisecond * 5)
 		}
 		c.Assert(err, check.IsNil)
 	}
