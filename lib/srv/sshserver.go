@@ -738,7 +738,6 @@ func (s *Server) handleSubsystem(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 }
 
 func (s *Server) handleShell(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	ctx.Infof("handleShell()")
 	sessionID, err := ctx.initSessionID()
 	if err != nil {
 		return trace.Wrap(err)

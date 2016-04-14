@@ -17,6 +17,8 @@ limitations under the License.
 package integration
 
 import (
+	"bytes"
+	"os"
 	"os/user"
 	"strconv"
 	"testing"
@@ -49,6 +51,14 @@ var _ = check.Suite(&IntSuite{
 	pub:  []byte(testauthority.Pub),
 })
 
+func (s *IntSuite) TearDownSuite(c *check.C) {
+	var err error
+	// restore os.Stdin to its original condition: connected to /dev/null
+	os.Stdin.Close()
+	os.Stdin, err = os.Open("/dev/null")
+	c.Assert(err, check.IsNil)
+}
+
 func (s *IntSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests()
 	SetTestTimeouts(100)
@@ -63,6 +73,11 @@ func (s *IntSuite) SetUpSuite(c *check.C) {
 		s.ports = append(s.ports, p)
 	}
 	s.me, _ = user.Current()
+
+	// close & re-open stdin because 'go test' runs with os.stdin connected to /dev/null
+	os.Stdin.Close()
+	os.Stdin, err = os.Open("/dev/tty")
+	c.Assert(err, check.IsNil)
 }
 
 // newTeleport helper returns a running Teleport instance pre-configured
@@ -71,7 +86,7 @@ func (s *IntSuite) newTeleport(c *check.C, enableSSH bool) *TeleInstance {
 	username := s.me.Username
 	t := NewInstance(Site, Host, s.ports[5:], s.priv, s.pub)
 	t.AddUser(username, []string{username})
-	if t.Create(nil, enableSSH) != nil {
+	if t.Create(nil, enableSSH, nil) != nil {
 		c.FailNow()
 	}
 	if t.Start() != nil {
@@ -80,29 +95,27 @@ func (s *IntSuite) newTeleport(c *check.C, enableSSH bool) *TeleInstance {
 	return t
 }
 
-func (s *IntSuite) TestSessionViewing(c *check.C) {
+func (s *IntSuite) _TestSessionViewing(c *check.C) {
 	t := s.newTeleport(c, true)
+	time.Sleep(time.Second)
+
 	defer t.Stop()
 
 }
 
 // TestInvalidLogins validates that you can't login with invalid login or
 // with invalid 'site' parameter
-func (s *IntSuite) _TestInvalidLogins(c *check.C) {
+func (s *IntSuite) TestInvalidLogins(c *check.C) {
 	t := s.newTeleport(c, true)
 	defer t.Stop()
 
 	cmd := []string{"echo", "success"}
 
 	// try the wrong site:
-	out, err := t.SSH(s.me.Username, cmd, "wrong-site", Host, t.GetPortSSHInt())
-	c.Assert(out, check.IsNil)
+	tc, err := t.NewClient(s.me.Username, "wrong-site", Host, t.GetPortSSHInt())
+	c.Assert(err, check.IsNil)
+	err = tc.SSH(cmd, false, nil, nil)
 	c.Assert(err, check.ErrorMatches, "site wrong-site not found")
-
-	// try the user:
-	out, err = t.SSH("wrong-user", cmd, Site, Host, t.GetPortSSHInt())
-	c.Assert(out, check.IsNil)
-	c.Assert(err, check.ErrorMatches, "unknown login 'wrong-user'")
 }
 
 // TestTwoSites creates two teleport sites: "a" and "b" and
@@ -110,7 +123,7 @@ func (s *IntSuite) _TestInvalidLogins(c *check.C) {
 //
 // Then it executes an SSH command on A by connecting directly
 // to A and by connecting to B via B<->A tunnel
-func (s *IntSuite) _TestTwoSites(c *check.C) {
+func (s *IntSuite) TestTwoSites(c *check.C) {
 	username := s.me.Username
 
 	a := NewInstance("site-A", Host, s.ports[:5], s.priv, s.pub)
@@ -119,8 +132,8 @@ func (s *IntSuite) _TestTwoSites(c *check.C) {
 	a.AddUser(username, []string{username})
 	b.AddUser(username, []string{username})
 
-	c.Assert(b.Create(a.Secrets.AsSlice(), false), check.IsNil)
-	c.Assert(a.Create(b.Secrets.AsSlice(), true), check.IsNil)
+	c.Assert(b.Create(a.Secrets.AsSlice(), false, nil), check.IsNil)
+	c.Assert(a.Create(b.Secrets.AsSlice(), true, nil), check.IsNil)
 
 	c.Assert(b.Start(), check.IsNil)
 	c.Assert(a.Start(), check.IsNil)
@@ -134,16 +147,28 @@ func (s *IntSuite) _TestTwoSites(c *check.C) {
 		}
 	}
 
+	var (
+		outputA bytes.Buffer
+		outputB bytes.Buffer
+	)
+
 	// if we got here, it means two sites are cross-connected. lets execute SSH commands
 	sshPort := a.GetPortSSHInt()
 	cmd := []string{"echo", "hello world"}
 
 	// directly:
-	outputA, err := a.SSH(username, cmd, "site-A", Host, sshPort)
+	tc, err := a.NewClient(username, "site-A", Host, sshPort)
 	c.Assert(err, check.IsNil)
-	c.Assert(string(outputA), check.Equals, "hello world\n")
+	tc.Output = &outputA
+	err = tc.SSH(cmd, false, nil, nil)
+	c.Assert(err, check.IsNil)
+	c.Assert(outputA.String(), check.Equals, "hello world\n")
+
 	// via tunnel b->a:
-	outputB, err := b.SSH(username, cmd, "site-A", Host, sshPort)
+	tc, err = b.NewClient(username, "site-A", Host, sshPort)
+	c.Assert(err, check.IsNil)
+	tc.Output = &outputB
+	err = tc.SSH(cmd, false, nil, nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(outputA, check.DeepEquals, outputB)
 

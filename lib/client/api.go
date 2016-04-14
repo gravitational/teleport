@@ -256,7 +256,7 @@ func (tc *TeleportClient) getTargetNodes(proxy *ProxyClient) ([]string, error) {
 
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
 // otherwise runs interactive shell
-func (tc *TeleportClient) SSH(command []string, runLocally bool) error {
+func (tc *TeleportClient) SSH(command []string, runLocally bool, stdin, stdout *os.File) error {
 	// connect to proxy first:
 	if !tc.Config.ProxySpecified() {
 		return trace.BadParameter("proxy server is not specified")
@@ -319,7 +319,7 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return tc.runShell(nodeClient, "")
+	return tc.runShell(nodeClient, "", stdin, stdout)
 }
 
 // Join connects to the existing/active SSH session
@@ -392,7 +392,7 @@ func (tc *TeleportClient) Join(sid string) (err error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return tc.runShell(nc, session.ID)
+	return tc.runShell(nc, session.ID, nil, nil)
 }
 
 // SCP securely copies file(s) from one SSH server to another
@@ -544,11 +544,20 @@ func (tc *TeleportClient) runCommand(nodeAddresses []string, proxyClient *ProxyC
 	return trace.Wrap(lastError)
 }
 
-// runShell starts an interactive SSH session/shell. If sessionID is empty, it creates
-// a new shell. Otherwise it tries to join the existing session.
-func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID) error {
+// runShell starts an interactive SSH session/shell.
+// sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
+// stdin  : standard input to use. if nil, uses os.Stdin
+// stdout : standard output to use. if nil, uses os.Stdout
+func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID, stdin, stdout *os.File) error {
 	defer nodeClient.Close()
 	address := tc.NodeHostPort()
+
+	if stdin == nil {
+		stdin = os.Stdin
+	}
+	if stdout == nil {
+		stdout = os.Stdout
+	}
 
 	// If typing on the terminal, we do not want the terminal to echo the
 	// password that is typed (so it doesn't display)
@@ -573,7 +582,8 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID)
 
 	winSize, err := term.GetWinsize(0)
 	if err != nil {
-		return trace.Wrap(err)
+		log.Error(err)
+		winSize = &term.Winsize{Width: 80, Height: 25}
 	}
 
 	shell, err := nodeClient.Shell(int(winSize.Width), int(winSize.Height), sessionID)
@@ -610,7 +620,7 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID)
 	// copy from the remote shell to the local
 	go func() {
 		defer broadcastClose.Close()
-		_, err := io.Copy(os.Stdout, shell)
+		_, err := io.Copy(stdout, shell)
 		if err != nil {
 			log.Errorf(err.Error())
 		}
@@ -622,7 +632,7 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID)
 		defer broadcastClose.Close()
 		buf := make([]byte, 1)
 		for {
-			n, err := os.Stdin.Read(buf)
+			n, err := stdin.Read(buf)
 			if err != nil {
 				fmt.Println(trace.Wrap(err))
 				return

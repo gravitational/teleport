@@ -263,7 +263,7 @@ func onSSH(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 
-	if err = tc.SSH(cf.RemoteCommand, cf.LocalExec); err != nil {
+	if err = tc.SSH(cf.RemoteCommand, cf.LocalExec, nil, nil); err != nil {
 		utils.FatalError(err)
 	}
 }
