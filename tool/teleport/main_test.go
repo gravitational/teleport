@@ -42,8 +42,11 @@ type MainTestSuite struct {
 
 var _ = check.Suite(&MainTestSuite{})
 
-func (s *MainTestSuite) SetUpSuite(c *check.C) {
+func (s *MainTestSuite) SetUpTest(c *check.C) {
 	utils.InitLoggerForTests()
+}
+
+func (s *MainTestSuite) SetUpSuite(c *check.C) {
 	var err error
 	// get the hostname
 	s.hostname, err = os.Hostname()
