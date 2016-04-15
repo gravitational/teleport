@@ -69,7 +69,7 @@ func (elk *UDPHook) Fire(e *log.Entry) error {
 	if frameNo := findFrame(); frameNo != -1 {
 		t := newTrace(runtime.Caller(frameNo - 1))
 		e.Data[FileField] = t.String()
-		e.Data[FunctionField] = t.Func
+		e.Data[FunctionField] = t.Func()
 	}
 	data, err := json.Marshal(Frame{
 		Time:    elk.Clock.Now().UTC(),

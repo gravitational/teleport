@@ -278,11 +278,11 @@ func (m *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 			ConnectorID:       connectorID,
 			CreateWebSession:  true,
 			ClientRedirectURL: clientRedirectURL,
+			CheckUser:         true,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("got auth response: %#v", response)
 	http.Redirect(w, r, response.RedirectURL, http.StatusFound)
 	return nil, nil
 }
@@ -319,22 +319,21 @@ func (m *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 			ClientRedirectURL: req.RedirectURL,
 			PublicKey:         req.PublicKey,
 			CertTTL:           req.CertTTL,
+			CheckUser:         true,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("got auth response: %#v", response)
 	return &oidcLoginConsoleResponse{RedirectURL: response.RedirectURL}, nil
 }
 
 func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	log.Infof("oidcLogin validate: %#v", r.URL.Query())
-	response, err := m.cfg.ProxyClient.ValidateOIDCAuthCallback(r.URL.Query(), true)
+	log.Infof("oidcCallback start")
+	response, err := m.cfg.ProxyClient.ValidateOIDCAuthCallback(r.URL.Query())
 	if err != nil {
 		log.Infof("VALIDATE error: %v", err)
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("oidcCallback got response: %v", response)
 	// if we created web session, set session cookie and redirect to original url
 	if response.Req.CreateWebSession {
 		log.Infof("oidcCallback redirecting to web browser")
@@ -348,6 +347,17 @@ func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	if len(response.Req.PublicKey) == 0 {
 		return nil, trace.BadParameter("not a web or console oidc login request")
 	}
+	redirectURL, err := ConstructSSHResponse(response)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	http.Redirect(w, r, redirectURL.String(), http.StatusFound)
+	return nil, nil
+}
+
+// ConstructSSHResponse creates a special SSH response for SSH login method
+// that encodes everything using the client's secret key
+func ConstructSSHResponse(response *auth.OIDCAuthResponse) (*url.URL, error) {
 	u, err := url.Parse(response.Req.ClientRedirectURL)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -385,9 +395,7 @@ func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	}
 	values.Set("response", string(sealedBytesData))
 	u.RawQuery = values.Encode()
-	log.Infof("redirecting to %v", u.String())
-	http.Redirect(w, r, u.String(), http.StatusFound)
-	return nil, nil
+	return u, nil
 }
 
 // createSessionReq is a request to create session from username, password and second

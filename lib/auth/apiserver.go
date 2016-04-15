@@ -884,8 +884,7 @@ func (s *APIServer) createOIDCAuthRequest(w http.ResponseWriter, r *http.Request
 }
 
 type validateOIDCAuthCallbackReq struct {
-	Query     url.Values `json:"query"`
-	CheckUser bool       `json:"check_user"`
+	Query url.Values `json:"query"`
 }
 
 func (s *APIServer) validateOIDCAuthCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -893,7 +892,7 @@ func (s *APIServer) validateOIDCAuthCallback(w http.ResponseWriter, r *http.Requ
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response, err := s.a.ValidateOIDCAuthCallback(req.Query, req.CheckUser)
+	response, err := s.a.ValidateOIDCAuthCallback(req.Query)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

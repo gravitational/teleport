@@ -745,10 +745,9 @@ func (c *Client) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.
 	return response, nil
 }
 
-func (c *Client) ValidateOIDCAuthCallback(q url.Values, checkUser bool) (*OIDCAuthResponse, error) {
+func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
 	out, err := c.PostJSON(c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
-		Query:     q,
-		CheckUser: checkUser,
+		Query: q,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -846,5 +845,5 @@ type ClientI interface {
 	GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error)
 	DeleteOIDCConnector(connectorID string) error
 	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
-	ValidateOIDCAuthCallback(q url.Values, checkUser bool) (*OIDCAuthResponse, error)
+	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
 }

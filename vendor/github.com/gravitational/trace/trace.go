@@ -181,7 +181,7 @@ type rawTrace struct {
 
 func (e *TraceErr) Error() string {
 	if IsDebug() {
-		return fmt.Sprintf("[%v] %v %v", e.Traces.String(), e.Message, e.Error)
+		return fmt.Sprintf("[%v] %v %v", e.Traces.String(), e.Message, e.Err.Error())
 	}
 	return e.Err.Error()
 }

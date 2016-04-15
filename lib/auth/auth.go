@@ -548,7 +548,7 @@ type OIDCAuthResponse struct {
 // ValidateOIDCAuthCallback is called by the proxy to check OIDC query parameters
 // returned by OIDC Provider, if everything checks out, auth server
 // will respond with OIDCAuthResponse, otherwise it will return error
-func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values, checkUser bool) (*OIDCAuthResponse, error) {
+func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
 	if error := q.Get("error"); error != "" {
 		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest, error, q)
 	}
@@ -606,7 +606,7 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values, checkUser bool) (*OI
 		Req:      *req,
 	}
 
-	if !checkUser {
+	if !req.CheckUser {
 		return response, nil
 	}
 
