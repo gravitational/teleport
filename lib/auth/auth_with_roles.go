@@ -411,11 +411,11 @@ func (a *AuthWithRoles) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*se
 	return a.authServer.CreateOIDCAuthRequest(req)
 }
 
-func (a *AuthWithRoles) ValidateOIDCAuthCallback(q url.Values, checkUser bool) (*OIDCAuthResponse, error) {
+func (a *AuthWithRoles) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionValidateOIDCAuthCallback); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.ValidateOIDCAuthCallback(q, checkUser)
+	return a.authServer.ValidateOIDCAuthCallback(q)
 }
 
 func (a *AuthWithRoles) DeleteOIDCConnector(connectorID string) error {
