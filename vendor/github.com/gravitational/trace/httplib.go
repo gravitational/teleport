@@ -78,7 +78,13 @@ func replyJSON(w http.ResponseWriter, code int, err error) {
 
 	var out []byte
 	if IsDebug() {
-		out, err = json.MarshalIndent(err, "", "    ")
+		// trace error can marshal itself,
+		// otherwise capture error message and marshal it explicitly
+		var obj interface{} = err
+		if _, ok := err.(*TraceErr); !ok {
+			obj = message{Message: err.Error()}
+		}
+		out, err = json.MarshalIndent(obj, "", "    ")
 		if err != nil {
 			out = []byte(`{"message": "internal marshal error"}`)
 		}
