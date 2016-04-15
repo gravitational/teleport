@@ -162,7 +162,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 	// OIDC related callback handlers
 	h.GET("/webapi/oidc/login/web", httplib.MakeHandler(h.oidcLoginWeb))
 	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(h.oidcLoginConsole))
-	h.GET("/webapi/oidc/callback", httplib.MakeHandler(h.OIDCCallback))
+	h.GET("/webapi/oidc/callback", httplib.MakeHandler(h.oidcCallback))
 
 	// if Web UI is enabled, chekc the assets dir:
 	var (
@@ -327,7 +327,7 @@ func (m *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 	return &oidcLoginConsoleResponse{RedirectURL: response.RedirectURL}, nil
 }
 
-func (m *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (m *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	log.Infof("oidcCallback start")
 	response, err := m.cfg.ProxyClient.ValidateOIDCAuthCallback(r.URL.Query())
 	if err != nil {
