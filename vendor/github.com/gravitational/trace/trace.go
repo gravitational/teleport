@@ -68,8 +68,9 @@ func wrap(err error, depth int, args ...interface{}) Error {
 		return s
 	}
 	t.Err = err
+	t.Message = err.Error()
 	if len(args) != 0 {
-		t.Message = fmt.Sprintf(fmt.Sprintf("%v", args[0]), args[1:]...)
+		t.DebugMessage = fmt.Sprintf(fmt.Sprintf("%v", args[0]), args[1:]...)
 	}
 	return t
 }
@@ -104,6 +105,7 @@ func newTrace(pc uintptr, filePath string, line int, ok bool) *TraceErr {
 					Line: 0,
 				}},
 			"",
+			"",
 		}
 	}
 	return &TraceErr{
@@ -113,6 +115,7 @@ func newTrace(pc uintptr, filePath string, line int, ok bool) *TraceErr {
 			Func: runtime.FuncForPC(pc).Name(),
 			Line: line,
 		}},
+		"",
 		"",
 	}
 }
@@ -168,9 +171,10 @@ func (t *Trace) String() string {
 // TraceErr contains error message and some additional
 // information about the error origin
 type TraceErr struct {
-	Err     error `json:"error"`
-	Traces  `json:"traces"`
-	Message string `json:"message"`
+	Err          error `json:"error"`
+	Traces       `json:"traces"`
+	Message      string `json:"message,omitemtpy"`
+	DebugMessage string `json:"debug_message"`
 }
 
 type rawTrace struct {
@@ -181,7 +185,7 @@ type rawTrace struct {
 
 func (e *TraceErr) Error() string {
 	if IsDebug() {
-		return fmt.Sprintf("[%v] %v %v", e.Traces.String(), e.Message, e.Err.Error())
+		return fmt.Sprintf("[%v] %v %v", e.Traces.String(), e.DebugMessage, e.Err.Error())
 	}
 	return e.Err.Error()
 }
