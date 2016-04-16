@@ -57,6 +57,4 @@ ENV LANGUAGE="en_US.UTF-8" \
     PATH="$PATH:/opt/go/bin:/gopath/bin" \
     GO15VENDOREXPERIMENT="1"
 
-RUN /opt/go/bin/go get github.com/gravitational/version/cmd/linkflags
-
 VOLUME ["/gopath/src/github.com/gravitational/teleport"]

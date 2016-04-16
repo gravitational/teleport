@@ -12,6 +12,8 @@ ETCD_FLAGS := TELEPORT_TEST_ETCD_CONFIG='{"nodes": ["https://localhost:4001"], "
 TELEPORT_DEBUG_TESTS ?= no
 export
 
+$(eval BUILDFLAGS := $(ADDFLAGS) -ldflags "-w $(shell go install $(PKGPATH)/vendor/github.com/gravitational/version/cmd/linkflags && linkflags -pkg=$(GOPATH)/src/$(PKGPATH) -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)")
+
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
 #
@@ -19,14 +21,14 @@ export
 all: build
 
 .PHONY: build
-build: flags teleport tctl tsh assets
+build: teleport tctl tsh assets
 
 .PHONY: tctl
 tctl: 
 	go build -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) $(PKGPATH)/tool/tctl
 
 .PHONY: teleport 
-teleport: flags
+teleport:
 	go build -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) $(PKGPATH)/tool/teleport
 
 .PHONY: tsh
@@ -42,7 +44,7 @@ install: build
 	sudo cp -fr web/dist/* $(DATADIR)
 
 .PHONY: goinstall
-goinstall: flags
+goinstall:
 	go install $(BUILDFLAGS) $(PKGPATH)/tool/tctl
 	go install $(BUILDFLAGS) $(PKGPATH)/tool/teleport
 	go install $(BUILDFLAGS) $(PKGPATH)/tool/tsh
@@ -115,11 +117,6 @@ binary-release: build
 	cp -r web/dist $(BUILDDIR)/$(RELEASE)/teleport/src/$(PKGPATH)/web
 	cp -af $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/teleport $(BUILDDIR)/$(RELEASE)/teleport/build
 	tar -czf $(BUILDDIR)/$(RELEASE).tar.gz -C $(BUILDDIR)/$(RELEASE) teleport
-
-.PHONY: flags
-flags:
-	$(shell go install $(PKGPATH)/vendor/github.com/gravitational/version/cmd/linkflags)
-	$(eval BUILDFLAGS := $(ADDFLAGS) -ldflags "-w $(shell linkflags -pkg=$(GOPATH)/src/$(PKGPATH) -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)")
 
 
 .PHONY: test-with-etcd
