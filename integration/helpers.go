@@ -29,7 +29,6 @@ func SetTestTimeouts(ms int) {
 		ms = 10
 	}
 	testVal := time.Duration(time.Millisecond * time.Duration(ms))
-	defaults.ReverseTunnelsRefreshPeriod = testVal
 	defaults.ReverseTunnelAgentHeartbeatPeriod = testVal
 	defaults.ServerHeartbeatTTL = testVal
 	defaults.SessionRefreshPeriod = testVal

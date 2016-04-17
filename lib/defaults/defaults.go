@@ -117,16 +117,8 @@ const (
 )
 
 var (
-	// ReverseTunnelsRefreshPeriod is a period for agents to refresh their
-	// state of the reverse tunnels (this will be removed once we roll
-	// events streams)
-	ReverseTunnelsRefreshPeriod = 3 * time.Second
-
-	// ReverseTunnelAgentReconnectPeriod is the period between agent reconnect attempts
-	ReverseTunnelAgentReconnectPeriod = 3 * time.Second
-
 	// ReverseTunnelAgentHeartbeatPeriod is the period between agent heartbeat messages
-	ReverseTunnelAgentHeartbeatPeriod = 3 * time.Second
+	ReverseTunnelAgentHeartbeatPeriod = 5 * time.Second
 
 	// ServerHeartbeatTTL is a period between heartbeats
 	// Median sleep time between node pings is this value / 2 + random
