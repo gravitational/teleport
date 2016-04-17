@@ -655,11 +655,22 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 	return nil
 }
 
+// nonInteractiveAuthMethods returns a list of ssh auth methods that do not
+// involve asking for passowrd or OAuth
+func (tc *TeleportClient) nonInteractiveAuthMethods() []ssh.AuthMethod {
+	mnum := len(tc.authMethods)
+	if mnum == 0 {
+		return tc.authMethods
+	}
+	// the password auth is the last in the list:
+	return tc.authMethods[:mnum-1]
+}
+
 // ConnectToProxy dials the proxy server and returns ProxyClient if successful
 func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	proxyAddr := tc.Config.ProxyHostPort(defaults.SSHProxyListenPort)
 	sshConfig := &ssh.ClientConfig{
-		User:            tc.Config.HostLogin,
+		User:            tc.Config.Login,
 		HostKeyCallback: tc.Config.HostKeyCallback,
 	}
 	if len(tc.authMethods) == 0 {
@@ -683,7 +694,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 				Client:          proxyClient,
 				proxyAddress:    proxyAddr,
 				hostKeyCallback: sshConfig.HostKeyCallback,
-				authMethods:     tc.authMethods,
+				authMethods:     tc.nonInteractiveAuthMethods(),
 				hostLogin:       tc.Config.HostLogin,
 				siteName:        tc.Config.SiteName,
 			}, nil
@@ -720,7 +731,6 @@ func (tc *TeleportClient) makeInteractiveAuthMethod() ssh.AuthMethod {
 			} else {
 				fmt.Printf("ERROR: %v\n", err)
 			}
-
 			return nil, trace.Wrap(err)
 		}
 		return tc.localAgent.Signers()
@@ -814,7 +824,6 @@ func (tc *TeleportClient) MakeKey() (key *Key, err error) {
 
 // directLogin asks for a password + HOTP token, makes a request to CA via proxy
 func (tc *TeleportClient) directLogin(pub []byte) (*web.SSHLoginResponse, error) {
-	log.Infof("directLogin start")
 	password, hotpToken, err := tc.AskPasswordAndHOTP()
 	if err != nil {
 		return nil, trace.Wrap(err)
