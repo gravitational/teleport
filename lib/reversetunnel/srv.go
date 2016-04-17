@@ -595,8 +595,8 @@ func (s *tunnelSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 					return
 				}
 				s.setLastActive(time.Now())
-			case <-time.After(2 * defaults.ReverseTunnelAgentHeartbeatPeriod):
-				conn.markInvalid(trace.ConnectionProblem(nil, "agent missed 2 heartbeats"))
+			case <-time.After(3 * defaults.ReverseTunnelAgentHeartbeatPeriod):
+				conn.markInvalid(trace.ConnectionProblem(nil, "agent missed 3 heartbeats"))
 				conn.sshConn.Close()
 			}
 		}

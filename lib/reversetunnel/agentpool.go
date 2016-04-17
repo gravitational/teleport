@@ -105,7 +105,7 @@ func (m *AgentPool) FetchAndSyncAgents() error {
 }
 
 func (m *AgentPool) pollAndSyncAgents() {
-	ticker := time.NewTicker(defaults.ReverseTunnelsRefreshPeriod)
+	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
 	defer ticker.Stop()
 	m.FetchAndSyncAgents()
 	for {
@@ -137,7 +137,6 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 		return trace.Wrap(err)
 	}
 	agentsToAdd, agentsToRemove := diffTunnels(m.agents, keys)
-	//m.Infof("agents to add: %v agents to remove: %v", agentsToAdd, agentsToRemove)
 	for _, key := range agentsToRemove {
 		m.Infof("removing %v", &key)
 		agent := m.agents[key]
