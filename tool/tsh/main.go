@@ -302,7 +302,7 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 	}
 
 	// split login & host
-	hostLogin := cf.Login
+	hostLogin := ""
 	var labels map[string]string
 	if cf.UserHost != "" {
 		parts := strings.Split(cf.UserHost, "@")

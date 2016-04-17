@@ -172,7 +172,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		return nil, trace.BadParameter("proxy", "no proxy address specified")
 	}
 	if c.HostLogin == "" {
-		c.HostLogin = c.Login
+		c.HostLogin = Username()
 		log.Infof("no host login given. defaulting to %s", c.HostLogin)
 	}
 	if c.KeyTTL == 0 {
@@ -222,8 +222,6 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	// then, we'll auth with the local agent keys:
 	tc.authMethods = append(tc.authMethods, authMethodFromAgent(tc.localAgent))
 
-	// finally, interactive auth (via password + HTOP 2nd factor):
-	tc.authMethods = append(tc.authMethods, tc.makeInteractiveAuthMethod())
 	return tc, nil
 }
 
@@ -655,25 +653,38 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 	return nil
 }
 
-// nonInteractiveAuthMethods returns a list of ssh auth methods that do not
-// involve asking for passowrd or OAuth
-func (tc *TeleportClient) nonInteractiveAuthMethods() []ssh.AuthMethod {
-	mnum := len(tc.authMethods)
-	if mnum == 0 {
-		return tc.authMethods
+func (tc *TeleportClient) getAuthMethods(includeInteractive bool) []ssh.AuthMethod {
+	m := append([]ssh.AuthMethod{}, tc.authMethods...)
+	if includeInteractive {
+		m = append(m, tc.makeInteractiveAuthMethod())
 	}
-	// the password auth is the last in the list:
-	return tc.authMethods[:mnum-1]
+	return m
+}
+
+// getProxyLogin determines which SSH login to use when connecting to proxy.
+func (tc *TeleportClient) getProxyLogin() string {
+	// we'll fall back to using the target host login
+	proxyLogin := tc.Config.HostLogin
+	// see if we already have a signed key in the cache, we'll use that instead
+	keys, err := tc.LocalAgent().GetKeys()
+	if err == nil && len(keys) > 0 {
+		principals := keys[0].Certificate.ValidPrincipals
+		if len(principals) > 0 {
+			proxyLogin = principals[0]
+		}
+	}
+	return proxyLogin
 }
 
 // ConnectToProxy dials the proxy server and returns ProxyClient if successful
 func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	proxyAddr := tc.Config.ProxyHostPort(defaults.SSHProxyListenPort)
 	sshConfig := &ssh.ClientConfig{
-		User:            tc.Config.Login,
+		User:            tc.getProxyLogin(),
 		HostKeyCallback: tc.Config.HostKeyCallback,
 	}
-	if len(tc.authMethods) == 0 {
+	authMethods := tc.getAuthMethods(true)
+	if len(authMethods) == 0 {
 		return nil, trace.BadParameter("no authentication methods provided")
 	}
 	log.Debugf("connecting to proxy: %v", proxyAddr)
@@ -681,7 +692,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	var failedInteractiveLogin bool
 	for {
 		// try to authenticate using every auth method we have:
-		for _, m := range tc.authMethods {
+		for _, m := range authMethods {
 			sshConfig.Auth = []ssh.AuthMethod{m}
 			proxyClient, err := ssh.Dial("tcp", proxyAddr, sshConfig)
 			if err != nil {
@@ -690,11 +701,12 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 				}
 				return nil, trace.Wrap(err)
 			}
+			log.Infof("Got %v auth methods!", tc.getAuthMethods(false))
 			return &ProxyClient{
 				Client:          proxyClient,
 				proxyAddress:    proxyAddr,
 				hostKeyCallback: sshConfig.HostKeyCallback,
-				authMethods:     tc.nonInteractiveAuthMethods(),
+				authMethods:     tc.getAuthMethods(false),
 				hostLogin:       tc.Config.HostLogin,
 				siteName:        tc.Config.SiteName,
 			}, nil
