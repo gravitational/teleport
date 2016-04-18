@@ -181,7 +181,7 @@ type session struct {
 func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, error) {
 	rsess := rsession.Session{
 		ID:             id,
-		TerminalParams: rsession.TerminalParams{W: 100, H: 100},
+		TerminalParams: rsession.TerminalParams{W: 80, H: 25},
 		Login:          context.login,
 		Created:        time.Now().UTC(),
 		LastActive:     time.Now().UTC(),
