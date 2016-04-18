@@ -40,7 +40,7 @@ RUN (apt-get update && apt-get install -q -y \
     apt-get -y autoclean; apt-get -y clean
 
 # Install Golang:
-RUN (mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/go1.5.4.linux-amd64.tar.gz | tar xz;\
+RUN (mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/go1.6.1.linux-amd64.tar.gz | tar xz;\
      mkdir -p /gopath/src/github.com/gravitational/teleport;\
      chmod a+w /gopath;\
      chmod a+w /var/lib)
