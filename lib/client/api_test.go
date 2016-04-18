@@ -17,6 +17,7 @@ limitations under the License.
 package client
 
 import (
+	"github.com/gravitational/teleport/lib/utils"
 	"gopkg.in/check.v1"
 	"testing"
 )
@@ -31,6 +32,7 @@ func TestClientAPI(t *testing.T) { check.TestingT(t) }
 var _ = check.Suite(&APITestSuite{})
 
 func (s *APITestSuite) SetUpSuite(c *check.C) {
+	utils.InitLoggerForTests()
 }
 
 func (s *APITestSuite) TestConfig(c *check.C) {
@@ -43,6 +45,28 @@ func (s *APITestSuite) TestConfig(c *check.C) {
 	conf.ProxyHost = "example.org:100"
 	c.Assert(conf.ProxySpecified(), check.Equals, true)
 	c.Assert(conf.ProxyHostPort(12), check.Equals, "example.org:100")
+}
+
+func (s *APITestSuite) TestNew(c *check.C) {
+	conf := Config{
+		Host:      "localhost",
+		HostLogin: "vincent",
+		HostPort:  22,
+		KeysDir:   "/tmp",
+		Login:     "localuser",
+		ProxyHost: "proxy",
+		SiteName:  "site",
+	}
+	tc, err := NewClient(&conf)
+	c.Assert(tc, check.NotNil)
+	c.Assert(err, check.IsNil)
+
+	la := tc.LocalAgent()
+	c.Assert(la, check.NotNil)
+
+	c.Assert(tc.NodeHostPort(), check.Equals, "localhost:22")
+	c.Assert(tc.ProxySpecified(), check.Equals, true)
+	c.Assert(tc.ProxyHostPort(12), check.Equals, "proxy:12")
 }
 
 func (s *APITestSuite) TestParseLabels(c *check.C) {

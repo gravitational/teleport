@@ -177,8 +177,18 @@ func (proxy *ProxyClient) ConnectToSite(siteName string, user string) (auth.Clie
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
 func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeClient, error) {
-	log.Debugf("connecting to node: %s", nodeAddress)
+	log.Infof("connecting to node: %s", nodeAddress)
 	e := trace.Errorf("unknown Error")
+
+	// parse destination first:
+	localAddr, err := utils.ParseAddr("tcp://" + proxy.proxyAddress)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	fakeAddr, err := utils.ParseAddr("tcp://" + nodeAddress)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// we have to try every auth method separatedly,
 	// because go SSH will try only one (fist) auth method
@@ -213,14 +223,6 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeC
 			defer printErrors()
 			return nil, trace.Wrap(err)
 		}
-		localAddr, err := utils.ParseAddr("tcp://" + proxy.proxyAddress)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		fakeAddr, err := utils.ParseAddr("tcp://" + nodeAddress)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		pipeNetConn := utils.NewPipeNetConn(
 			proxyReader,
 			proxyWriter,
@@ -248,6 +250,11 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeC
 			return nil, trace.Wrap(err)
 		}
 		return &NodeClient{Client: client, Proxy: proxy}, nil
+	}
+	if utils.IsHandshakeFailedError(e) {
+		// remoe the name of the site from the node address:
+		parts := strings.Split(nodeAddress, "@")
+		return nil, trace.Errorf(`access denied to login "%v" when connecting to %v`, user, parts[0])
 	}
 	return nil, e
 }
