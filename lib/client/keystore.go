@@ -1,265 +1,193 @@
-/*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
-
-Keystore implements functions for saving and loading from hard disc
-temporary teleport certificates
-*/
-
 package client
 
 import (
-	"encoding/json"
 	"io/ioutil"
-	"math/rand"
-	"net"
 	"os"
 	"os/user"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"time"
-
-	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/sshutils"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
+
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 )
 
-type LocalKeyAgent struct {
-	agent.Agent
-	// KeyDir is the directory path where local keys are stored
+const (
+	defaultKeyDir = ".tsh"
+	sessionKeyDir = "sessions"
+	fileNameCert  = "cert"
+	fileNameKey   = "key"
+	fileNamePub   = "pub"
+	fileNameTTL   = ".ttl"
+)
+
+// FSLocalKeyStore implements LocalKeyStore interface using the filesystem
+type FSLocalKeyStore struct {
+	LocalKeyStore
+
+	// KeyDir is the directory where all keys are stored
 	KeyDir string
 }
 
-// AddHostSignersToCache takes a list of CAs whom we trust. This list is added to a database
-// of "seen" CAs.
+// NewFSLocalKeyStore creates a new filesystem-based local keystore object
+// and initializes it.
 //
-// Every time we connect to a new host, we'll request its certificaate to be signed by one
-// of these trusted CAs.
-//
-// Why do we trust these CAs? Because we received them from a trusted Teleport Proxy.
-// Why do we trust the proxy? Because we've connected to it via HTTPS + username + Password + HOTP.
-func (a *LocalKeyAgent) AddHostSignersToCache(hostSigners []services.CertAuthority) error {
-	bk, err := boltbk.New(filepath.Join(a.KeyDir, HostSignersFilename))
+// if dirPath is empty, sets it to ~/.tsh
+func NewFSLocalKeyStore(dirPath string) (s *FSLocalKeyStore, err error) {
+	log.Infof("using FSLocalKeyStore")
+	dirPath, err = initKeysDir(dirPath)
 	if err != nil {
-		return trace.Wrap(nil)
+		return nil, trace.Wrap(err)
 	}
-	defer bk.Close()
-	ca := local.NewCAService(bk)
-
-	for _, hostSigner := range hostSigners {
-		err := ca.UpsertCertAuthority(hostSigner, 0)
-		if err != nil {
-			return trace.Wrap(nil)
-		}
-	}
-	return nil
+	return &FSLocalKeyStore{
+		KeyDir: dirPath,
+	}, nil
 }
 
-// CheckHostSignature checks if the given host key was signed by one of the trusted
-// certificaate authorities (CAs)
-func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key ssh.PublicKey) error {
-	cert, ok := key.(*ssh.Certificate)
-	if !ok {
-		return trace.Errorf("expected certificate")
+func (fs *FSLocalKeyStore) GetKeys() (keys []Key, err error) {
+	dirPath := filepath.Join(fs.KeyDir, sessionKeyDir)
+	if !isDir(dirPath) {
+		return make([]Key, 0), nil
 	}
-
-	bk, err := boltbk.New(filepath.Join(a.KeyDir, HostSignersFilename))
+	dirEntries, err := ioutil.ReadDir(dirPath)
 	if err != nil {
-		return trace.Wrap(nil)
+		return nil, trace.Wrap(err)
 	}
-	defer bk.Close()
-	ca := local.NewCAService(bk)
+	for _, fi := range dirEntries {
+		if !fi.IsDir() {
+			continue
+		}
+		k, err := fs.GetKey(fi.Name())
+		if err != nil {
+			// if a key is reported as 'not found' it's probably because it expired
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			} else {
+				continue
+			}
+		}
+		keys = append(keys, *k)
+	}
+	return keys, nil
+}
 
-	cas, err := ca.GetCertAuthorities(services.HostCA, false)
+func (fs *FSLocalKeyStore) AddKey(host string, key *Key) error {
+	dirPath, err := fs.dirFor(host)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	for i := range cas {
-		checkers, err := cas[i].Checkers()
+	writeBytes := func(fname string, data []byte) error {
+		fp := filepath.Join(dirPath, fname)
+		err := ioutil.WriteFile(fp, data, 0640)
 		if err != nil {
-			return trace.Wrap(err)
+			log.Error(err)
 		}
-		for _, checker := range checkers {
-			if sshutils.KeysEqual(cert.SignatureKey, checker) {
-				return nil
-			}
-		}
+		return err
 	}
-	return trace.Errorf("no matching authority found")
+	if err = writeBytes(fileNameCert, key.Cert); err != nil {
+		return trace.Wrap(err)
+	}
+	if err = writeBytes(fileNamePub, key.Pub); err != nil {
+		return trace.Wrap(err)
+	}
+	if err = writeBytes(fileNameKey, key.Priv); err != nil {
+		return trace.Wrap(err)
+	}
+	ttl, _ := key.Deadline.MarshalJSON()
+	if err = writeBytes(fileNameTTL, ttl); err != nil {
+		return trace.Wrap(err)
+	}
+	log.Infof("keystore.AddKey(%s)", host)
+	return nil
 }
 
-// getKeyes returns a list of local keys agents can use to authenticate
-func (a *LocalKeyAgent) GetKeys() ([]agent.AddedKey, error) {
-	existingKeys, err := a.loadAllKeys()
+func (fs *FSLocalKeyStore) GetKey(host string) (*Key, error) {
+	dirPath, err := fs.dirFor(host)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	addedKeys := make([]agent.AddedKey, len(existingKeys))
-	for i, key := range existingKeys {
-		pcert, _, _, _, err := ssh.ParseAuthorizedKey(key.Cert)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		pk, err := ssh.ParseRawPrivateKey(key.Priv)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		addedKey := agent.AddedKey{
-			PrivateKey:       pk,
-			Certificate:      pcert.(*ssh.Certificate),
-			Comment:          "",
-			LifetimeSecs:     0,
-			ConfirmBeforeUse: false,
-		}
-		addedKeys[i] = addedKey
-	}
-	return addedKeys, nil
-}
-
-// GetLocalAgent loads all the saved teleport certificates and
-// creates ssh agent with them
-func GetLocalAgent(keyDir string) (a *LocalKeyAgent, err error) {
-	if keyDir == "" {
-		keyDir, err = initDefaultKeysDir()
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		if !isDir(keyDir) {
-			return nil, trace.Errorf("Cannot store keys. %s is not a directory", keyDir)
-		}
-	}
-	a = &LocalKeyAgent{
-		Agent:  agent.NewKeyring(),
-		KeyDir: keyDir,
-	}
-	keys, err := a.GetKeys()
+	ttl, err := ioutil.ReadFile(filepath.Join(dirPath, fileNameTTL))
 	if err != nil {
+		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
-	for _, key := range keys {
-		if err := a.Add(key); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	var deadline time.Time
+	if err = deadline.UnmarshalJSON(ttl); err != nil {
+		log.Error(err)
+		return nil, trace.Wrap(err)
 	}
-	return a, nil
+	// this session key is expired
+	if deadline.Before(time.Now()) {
+		os.RemoveAll(dirPath)
+		return nil, trace.NotFound("session keys for %s are not found", host)
+	}
+	cert, err := ioutil.ReadFile(filepath.Join(dirPath, fileNameCert))
+	if err != nil {
+		log.Error(err)
+		return nil, trace.Wrap(err)
+	}
+	pub, err := ioutil.ReadFile(filepath.Join(dirPath, fileNamePub))
+	if err != nil {
+		log.Error(err)
+		return nil, trace.Wrap(err)
+	}
+	priv, err := ioutil.ReadFile(filepath.Join(dirPath, fileNameKey))
+	if err != nil {
+		log.Error(err)
+		return nil, trace.Wrap(err)
+	}
+	log.Infof("keystore.Get(%v)", host)
+	return &Key{
+		Pub:      pub,
+		Priv:     priv,
+		Cert:     cert,
+		Deadline: deadline,
+	}, nil
 }
 
-// initDefaultKeysDir initializes `~/.tsh` directory
-func initDefaultKeysDir() (dirPath string, err error) {
-	// construct `~/.tsh` path name:
-	u, err := user.Current()
-	if err != nil {
-		dirPath = os.TempDir()
-	} else {
-		dirPath = u.HomeDir
-	}
-	dirPath = filepath.Join(dirPath, ".tsh")
+func (fs *FSLocalKeyStore) AddKnownHost(hostname string, publicKeys []ssh.PublicKey) error {
+	return nil
+}
 
-	// need to create it?
-	_, err = os.Stat(dirPath)
-	if os.IsNotExist(err) {
-		err = os.MkdirAll(dirPath, os.ModeDir|0777)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-	} else {
-		if err != nil {
+func (fs *FSLocalKeyStore) dirFor(hostname string) (string, error) {
+	dirPath := filepath.Join(fs.KeyDir, sessionKeyDir, hostname)
+	if !isDir(dirPath) {
+		if err := os.MkdirAll(dirPath, 0777); err != nil {
+			log.Error(err)
 			return "", trace.Wrap(err)
 		}
 	}
 	return dirPath, nil
 }
 
-// Key describes a key on disk
-type Key struct {
-	Priv     []byte    `json:"Priv,omitempty"`
-	Pub      []byte    `json:"Pub,omitempty"`
-	Cert     []byte    `json:"Cert,omitempty"`
-	Deadline time.Time `json:"Deadline,omitempty"`
-}
-
-func (a *LocalKeyAgent) saveKey(key *Key) error {
-	filename := filepath.Join(a.KeyDir, KeyFilePrefix+strconv.FormatInt(rand.Int63n(100), 16)+KeyFileSuffix)
-	bytes, err := json.Marshal(key)
-	if err != nil {
-		return trace.Wrap(err)
+func initKeysDir(dirPath string) (string, error) {
+	var err error
+	// not specified? use `~/.tsh`
+	if dirPath == "" {
+		u, err := user.Current()
+		if err != nil {
+			dirPath = os.TempDir()
+		} else {
+			dirPath = u.HomeDir
+		}
+		dirPath = filepath.Join(dirPath, defaultKeyDir)
 	}
-	return ioutil.WriteFile(filename, bytes, 0666)
-}
-
-func loadKey(filename string) (Key, error) {
-	bytes, err := ioutil.ReadFile(filename)
+	// create if doesn't exist:
+	_, err = os.Stat(dirPath)
 	if err != nil {
-		return Key{}, trace.Wrap(err)
-	}
-
-	var key Key
-
-	err = json.Unmarshal(bytes, &key)
-	if err != nil {
-		return Key{}, trace.Wrap(err)
-	}
-
-	return key, nil
-
-}
-
-func (a *LocalKeyAgent) loadAllKeys() ([]Key, error) {
-	keys := make([]Key, 0)
-	files, err := ioutil.ReadDir(a.KeyDir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, file := range files {
-		fn := file.Name()
-		if !file.IsDir() && strings.HasPrefix(fn, KeyFilePrefix) && strings.HasSuffix(fn, KeyFileSuffix) {
-			fp := filepath.Join(a.KeyDir, file.Name())
-			key, err := loadKey(fp)
+		if os.IsNotExist(err) {
+			err = os.MkdirAll(dirPath, os.ModeDir|0777)
 			if err != nil {
-				log.Errorf(err.Error())
-				continue
+				return "", trace.Wrap(err)
 			}
-
-			if time.Now().Before(key.Deadline) {
-				keys = append(keys, key)
-			} else {
-				// remove old keys
-				err = os.Remove(fp)
-				if err != nil {
-					log.Errorf(err.Error())
-				}
-			}
+		} else {
+			return "", trace.Wrap(err)
 		}
 	}
-	return keys, nil
-}
 
-var (
-	KeyFilePrefix       = "teleport_"
-	KeyFileSuffix       = ".tkey"
-	HostSignersFilename = "hostsigners.db"
-)
+	return dirPath, nil
+}
 
 func isDir(dirPath string) bool {
 	fi, err := os.Stat(dirPath)

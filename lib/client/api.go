@@ -187,7 +187,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	}
 
 	// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
-	tc.localAgent, err = GetLocalAgent("")
+	tc.localAgent, err = NewLocalAgent("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -775,9 +775,8 @@ func (tc *TeleportClient) Login() error {
 		tc.Config.Login = response.Username
 	}
 	key.Cert = response.Cert
-
 	// save the key:
-	if err = tc.SaveKey(key); err != nil {
+	if err = tc.localAgent.AddKey(tc.ProxyHost, key); err != nil {
 		return trace.Wrap(err)
 	}
 	// save the list of CAs we trust to the cache file
@@ -791,32 +790,6 @@ func (tc *TeleportClient) Login() error {
 // Adds a new CA as trusted CA for this client
 func (tc *TeleportClient) AddTrustedCA(ca *services.CertAuthority) error {
 	return tc.LocalAgent().AddHostSignersToCache([]services.CertAuthority{*ca})
-}
-
-// SaveKey saves a given key in the local agent's keystore
-func (tc *TeleportClient) SaveKey(key *Key) error {
-	// parse the returned&signed key:
-	pcert, _, _, _, err := ssh.ParseAuthorizedKey(key.Cert)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	pk, err := ssh.ParseRawPrivateKey(key.Priv)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// store the newly generated key in the local key store
-	addedKey := agent.AddedKey{
-		PrivateKey:       pk,
-		Certificate:      pcert.(*ssh.Certificate),
-		Comment:          "",
-		LifetimeSecs:     0,
-		ConfirmBeforeUse: false,
-	}
-	if err := tc.localAgent.Add(addedKey); err != nil {
-		return trace.Wrap(err)
-	}
-	return tc.localAgent.saveKey(key)
 }
 
 // MakeKey generates a new unsigned key. It's useless by itself until a

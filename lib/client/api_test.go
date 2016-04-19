@@ -58,8 +58,8 @@ func (s *APITestSuite) TestNew(c *check.C) {
 		SiteName:  "site",
 	}
 	tc, err := NewClient(&conf)
-	c.Assert(tc, check.NotNil)
 	c.Assert(err, check.IsNil)
+	c.Assert(tc, check.NotNil)
 
 	la := tc.LocalAgent()
 	c.Assert(la, check.NotNil)
