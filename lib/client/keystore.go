@@ -32,20 +32,20 @@ import (
 )
 
 const (
-	defaultKeyDir      = ".tsh"
-	sessionKeyDir      = "sessions"
-	fileNameCert       = "cert"
-	fileNameKey        = "key"
-	fileNamePub        = "pub"
-	fileNameTTL        = ".ttl"
-	fileNameKnownHosts = "known_hosts"
+	defaultKeyDir    = ".tsh"
+	sessionKeyDir    = "sessions"
+	fileNameCert     = "cert"
+	fileNameKey      = "key"
+	fileNamePub      = "pub"
+	fileNameTTL      = ".ttl"
+	fileNameKnownCAs = "known_cas"
 )
 
 // FSLocalKeyStore implements LocalKeyStore interface using the filesystem
 // Here's the file layout for the FS store:
 // ~/.tsh/
-// ├── known_hosts     --> host keys, similar to openssh ~/.ssh/known_hosts
-// └── sessions        --> server-signed session keys
+// ├── known_cas     --> trusted certificate authorities (their keys) in a format similar to known_hosts
+// └── sessions      --> server-signed session keys
 //     └── host-a
 //     |   ├── cert
 //     |   ├── key
@@ -183,24 +183,24 @@ func (fs *FSLocalKeyStore) GetKey(host string) (*Key, error) {
 	}, nil
 }
 
-// AddKnownHost adds a new host entry to 'known_hosts' file
-func (fs *FSLocalKeyStore) AddKnownHost(hostname string, hostKeys []ssh.PublicKey) error {
-	fp, err := os.OpenFile(filepath.Join(fs.KeyDir, fileNameKnownHosts), os.O_CREATE|os.O_APPEND|os.O_RDWR, 0640)
+// AddKnownHost adds a new entry to 'known_CAs' file
+func (fs *FSLocalKeyStore) AddKnownCA(domainName string, hostKeys []ssh.PublicKey) error {
+	fp, err := os.OpenFile(filepath.Join(fs.KeyDir, fileNameKnownCAs), os.O_CREATE|os.O_APPEND|os.O_RDWR, 0640)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer fp.Close()
 	for i := range hostKeys {
 		bytes := ssh.MarshalAuthorizedKey(hostKeys[i])
-		log.Infof("adding known host %s", hostname)
-		fmt.Fprintf(fp, "%s %s\n", hostname, bytes)
+		log.Infof("adding known CA %s", domainName)
+		fmt.Fprintf(fp, "%s %s\n", domainName, bytes)
 	}
 	return nil
 }
 
-// GetKnownHost returns all saved keys
-func (fs *FSLocalKeyStore) GetKnownHosts() ([]ssh.PublicKey, error) {
-	bytes, err := ioutil.ReadFile(filepath.Join(fs.KeyDir, fileNameKnownHosts))
+// GetKnownHost returns public keys of all trusted CAs
+func (fs *FSLocalKeyStore) GetKnownCAs() ([]ssh.PublicKey, error) {
+	bytes, err := ioutil.ReadFile(filepath.Join(fs.KeyDir, fileNameKnownCAs))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil

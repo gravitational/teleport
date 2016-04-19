@@ -93,7 +93,7 @@ func (a *LocalKeyAgent) AddHostSignersToCache(hostSigners []services.CertAuthori
 			log.Error(err)
 			return trace.Wrap(err)
 		}
-		a.keyStore.AddKnownHost(hostSigner.DomainName, publicKeys)
+		a.keyStore.AddKnownCA(hostSigner.DomainName, publicKeys)
 	}
 	return nil
 }
@@ -105,7 +105,7 @@ func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key s
 	if !ok {
 		return trace.Errorf("expected certificate")
 	}
-	keys, err := a.keyStore.GetKnownHosts()
+	keys, err := a.keyStore.GetKnownCAs()
 	if err != nil {
 		log.Error(err)
 		return trace.Wrap(err)
