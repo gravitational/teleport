@@ -8,15 +8,11 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 )
 
-// Key describes a stored client key
+// Key describes a complete (signed) client key
 type Key struct {
 	Priv []byte `json:"Priv,omitempty"`
 	Pub  []byte `json:"Pub,omitempty"`
 	Cert []byte `json:"Cert,omitempty"`
-
-	// Deadline AKA TTL is the time when this key is safe to be discarded
-	// for garbage collection purposes
-	Deadline time.Time `json:"Deadline,omitempty"`
 }
 
 // LocalKeyStore interface allows for different storage back-ends for TSH to load/save its keys
@@ -49,4 +45,14 @@ func (k *Key) AsAgentKey() (*agent.AddedKey, error) {
 		LifetimeSecs:     0,
 		ConfirmBeforeUse: false,
 	}, nil
+}
+
+// CertValidBefore returns UTC time of the cert expiration
+func (k *Key) CertValidBefore() (time.Time, error) {
+	pcert, _, _, _, err := ssh.ParseAuthorizedKey(k.Cert)
+	if err != nil {
+		return time.Now().UTC(), trace.Wrap(err)
+	}
+	cert := pcert.(*ssh.Certificate)
+	return time.Unix(0, int64(cert.ValidBefore)).UTC(), nil
 }

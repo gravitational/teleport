@@ -60,7 +60,7 @@ func (s *KeyStoreTestSuite) TestListKeys(c *check.C) {
 	// add 5 keys:
 	keys := make([]Key, keyNum)
 	for i := 0; i < keyNum; i++ {
-		key := s.makeSignedKey(c)
+		key := s.makeSignedKey(c, false)
 		s.store.AddKey(fmt.Sprintf("host-%v", i), key)
 		keys[i] = *key
 	}
@@ -72,7 +72,7 @@ func (s *KeyStoreTestSuite) TestListKeys(c *check.C) {
 }
 
 func (s *KeyStoreTestSuite) TestKeySaveLoad(c *check.C) {
-	key := s.makeSignedKey(c)
+	key := s.makeSignedKey(c, false)
 
 	// add key:
 	err := s.store.AddKey("host.a", key)
@@ -85,9 +85,8 @@ func (s *KeyStoreTestSuite) TestKeySaveLoad(c *check.C) {
 
 func (s *KeyStoreTestSuite) TestKeyExpiration(c *check.C) {
 	// make two keys: one is current, and the expire one
-	good := s.makeSignedKey(c)
-	expired := s.makeSignedKey(c)
-	expired.Deadline = time.Now().Add(-time.Hour)
+	good := s.makeSignedKey(c, false)
+	expired := s.makeSignedKey(c, true)
 
 	s.store.AddKey("good.host", good)
 	s.store.AddKey("expired.host", expired)
@@ -120,7 +119,7 @@ func (s *KeyStoreTestSuite) TestKnownHosts(c *check.C) {
 }
 
 // makeSIgnedKey helper returns all 3 components of a user key (signed by CAPriv key)
-func (s *KeyStoreTestSuite) makeSignedKey(c *check.C) *Key {
+func (s *KeyStoreTestSuite) makeSignedKey(c *check.C, makeExpired bool) *Key {
 	var (
 		err             error
 		priv, pub, cert []byte
@@ -129,13 +128,15 @@ func (s *KeyStoreTestSuite) makeSignedKey(c *check.C) *Key {
 	username := "vincento"
 	allowedLogins := []string{username, "root"}
 	ttl := time.Duration(time.Minute * 20)
+	if makeExpired {
+		ttl = -ttl
+	}
 	cert, err = s.keygen.GenerateUserCert(CAPriv, pub, username, allowedLogins, ttl)
 	c.Assert(err, check.IsNil)
 	return &Key{
-		Priv:     priv,
-		Pub:      pub,
-		Cert:     cert,
-		Deadline: time.Now().UTC().Add(ttl),
+		Priv: priv,
+		Pub:  pub,
+		Cert: cert,
 	}
 }
 

@@ -781,9 +781,7 @@ func (tc *TeleportClient) AddTrustedCA(ca *services.CertAuthority) error {
 // MakeKey generates a new unsigned key. It's useless by itself until a
 // trusted CA signs it
 func (tc *TeleportClient) MakeKey() (key *Key, err error) {
-	key = &Key{
-		Deadline: time.Now().Add(tc.KeyTTL),
-	}
+	key = &Key{}
 	keygen := native.New()
 	defer keygen.Close()
 	key.Priv, key.Pub, err = keygen.GenerateKeyPair("")

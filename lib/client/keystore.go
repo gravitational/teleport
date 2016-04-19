@@ -39,7 +39,6 @@ const (
 	fileNameCert       = "cert"
 	fileNameKey        = "key"
 	fileNamePub        = "pub"
-	fileNameTTL        = ".ttl"
 	fileNameKnownHosts = "known_hosts"
 )
 
@@ -129,10 +128,6 @@ func (fs *FSLocalKeyStore) AddKey(host string, key *Key) error {
 	if err = writeBytes(fileNameKey, key.Priv); err != nil {
 		return trace.Wrap(err)
 	}
-	ttl, _ := key.Deadline.UTC().MarshalJSON()
-	if err = writeBytes(fileNameTTL, ttl); err != nil {
-		return trace.Wrap(err)
-	}
 	log.Infof("keystore.AddKey(%s)", host)
 	return nil
 }
@@ -144,23 +139,8 @@ func (fs *FSLocalKeyStore) GetKey(host string) (*Key, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ttl, err := ioutil.ReadFile(filepath.Join(dirPath, fileNameTTL))
-	if err != nil {
-		log.Error(err)
-		return nil, trace.Wrap(err)
-	}
-	var deadline time.Time
-	if err = deadline.UnmarshalJSON(ttl); err != nil {
-		log.Error(err)
-		return nil, trace.Wrap(err)
-	}
-	// this session key is expired
-	if deadline.Before(time.Now().UTC()) {
-		os.RemoveAll(dirPath)
-		log.Infof("TTL expired for session key %v", dirPath)
-		return nil, trace.NotFound("session keys for %s are not found", host)
-	}
-	cert, err := ioutil.ReadFile(filepath.Join(dirPath, fileNameCert))
+	certFile := filepath.Join(dirPath, fileNameCert)
+	cert, err := ioutil.ReadFile(certFile)
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)
@@ -175,13 +155,21 @@ func (fs *FSLocalKeyStore) GetKey(host string) (*Key, error) {
 		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("keystore.Get(%v)", host)
-	return &Key{
-		Pub:      pub,
-		Priv:     priv,
-		Cert:     cert,
-		Deadline: deadline,
-	}, nil
+
+	key := &Key{Pub: pub, Priv: priv, Cert: cert}
+
+	// expired certificate? this key won't be accepted anymore, lets delete it:
+	certExpiration, err := key.CertValidBefore()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Infof("returning cert %v valid until %v", certFile, certExpiration)
+	if certExpiration.Before(time.Now().UTC()) {
+		os.RemoveAll(dirPath)
+		log.Infof("TTL expired for session key %v", dirPath)
+		return nil, trace.NotFound("session keys for %s are not found", host)
+	}
+	return key, nil
 }
 
 // AddKnownHost adds a new entry to 'known_CAs' file

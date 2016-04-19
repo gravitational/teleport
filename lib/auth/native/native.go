@@ -143,7 +143,7 @@ func (n *nauth) GenerateHostCert(privateSigningKey, publicKey []byte, hostname, 
 	}
 	validBefore := uint64(ssh.CertTimeInfinity)
 	if ttl != 0 {
-		b := time.Now().Add(ttl)
+		b := time.Now().UTC().Add(ttl)
 		validBefore = uint64(b.UnixNano())
 	}
 	cert := &ssh.Certificate{
@@ -179,7 +179,7 @@ func (n *nauth) GenerateUserCert(pkey, key []byte, teleportUsername string, allo
 	}
 	validBefore := uint64(ssh.CertTimeInfinity)
 	if ttl != 0 {
-		b := time.Now().Add(ttl)
+		b := time.Now().UTC().Add(ttl)
 		validBefore = uint64(b.Unix())
 	}
 	// we do not use any extensions in users certs because of this:
