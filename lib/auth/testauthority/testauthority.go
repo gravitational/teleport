@@ -25,11 +25,11 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type nauth struct {
+type Keygen struct {
 }
 
-func New() *nauth {
-	return &nauth{}
+func New() *Keygen {
+	return &Keygen{}
 }
 
 const (
@@ -64,14 +64,14 @@ uy6c6X17xkP5q2Lq4i90ikyWm3Oc25aUEw48pRyK/6rABRUzpDLB
 	Pub = `ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC8kYdyZA1ZSNjZ4pqybDXvWplHQHkU6fPL+cAYHUkAT5CiQV4GOjwaSTcvZNK5U2fQ0jm6jknCnsZi1t9JujCjXUT3bYHCnSwWhXN55QzIu530Q/MeXz5W8TxYRrWULgPhqqtq8B9N554+s40higG21fmhhdDtpmQzw3vJLspY05mnL1+fW+RIKkM4rb150sdZXKINxfNQvERteE8WX0vL2yG4RuqJzYtGCDEGeHd+HLne7xfmqPxun7bUYaxAlplhm1z2J41hqaj8pBwDSEV9SBOZXvh6FjS9nvJCT7Z1bbZwWrAO/7E2ac0eV+5iEc0J+TyufO3F9uod+J+AICtB`
 )
 
-func (n *nauth) GetNewKeyPairFromPool() ([]byte, []byte, error) {
+func (n *Keygen) GetNewKeyPairFromPool() ([]byte, []byte, error) {
 	return n.GenerateKeyPair("")
 }
-func (n *nauth) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
+func (n *Keygen) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	return []byte(Priv), []byte(Pub), nil
 }
 
-func (n *nauth) GenerateHostCert(pkey, key []byte, hostname, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error) {
+func (n *Keygen) GenerateHostCert(pkey, key []byte, hostname, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error) {
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
 	if err != nil {
 		return nil, err
@@ -100,7 +100,7 @@ func (n *nauth) GenerateHostCert(pkey, key []byte, hostname, authDomain string, 
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
-func (n *nauth) GenerateUserCert(pkey, key []byte, teleportUsername string, allowedLogins []string, ttl time.Duration) ([]byte, error) {
+func (n *Keygen) GenerateUserCert(pkey, key []byte, teleportUsername string, allowedLogins []string, ttl time.Duration) ([]byte, error) {
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
 	if err != nil {
 		return nil, err

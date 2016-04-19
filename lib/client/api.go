@@ -187,17 +187,17 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	}
 
 	// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
-	tc.localAgent, err = GetLocalAgent("")
+	tc.localAgent, err = NewLocalAgent("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if c.Output == nil {
-		c.Output = os.Stdout
+	if tc.Output == nil {
+		tc.Output = os.Stdout
 	}
 
-	if c.HostKeyCallback == nil {
-		c.HostKeyCallback = tc.localAgent.CheckHostSignature
+	if tc.HostKeyCallback == nil {
+		tc.HostKeyCallback = tc.localAgent.CheckHostSignature
 	}
 
 	// add auth methods supplied by user if any
@@ -681,7 +681,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	proxyAddr := tc.Config.ProxyHostPort(defaults.SSHProxyListenPort)
 	sshConfig := &ssh.ClientConfig{
 		User:            tc.getProxyLogin(),
-		HostKeyCallback: tc.Config.HostKeyCallback,
+		HostKeyCallback: tc.HostKeyCallback,
 	}
 	authMethods := tc.getAuthMethods(true)
 	if len(authMethods) == 0 {
@@ -701,7 +701,6 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 				}
 				return nil, trace.Wrap(err)
 			}
-			log.Infof("Got %v auth methods!", tc.getAuthMethods(false))
 			return &ProxyClient{
 				Client:          proxyClient,
 				proxyAddress:    proxyAddr,
@@ -775,9 +774,8 @@ func (tc *TeleportClient) Login() error {
 		tc.Config.Login = response.Username
 	}
 	key.Cert = response.Cert
-
 	// save the key:
-	if err = tc.SaveKey(key); err != nil {
+	if err = tc.localAgent.AddKey(tc.ProxyHost, key); err != nil {
 		return trace.Wrap(err)
 	}
 	// save the list of CAs we trust to the cache file
@@ -793,32 +791,6 @@ func (tc *TeleportClient) AddTrustedCA(ca *services.CertAuthority) error {
 	return tc.LocalAgent().AddHostSignersToCache([]services.CertAuthority{*ca})
 }
 
-// SaveKey saves a given key in the local agent's keystore
-func (tc *TeleportClient) SaveKey(key *Key) error {
-	// parse the returned&signed key:
-	pcert, _, _, _, err := ssh.ParseAuthorizedKey(key.Cert)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	pk, err := ssh.ParseRawPrivateKey(key.Priv)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// store the newly generated key in the local key store
-	addedKey := agent.AddedKey{
-		PrivateKey:       pk,
-		Certificate:      pcert.(*ssh.Certificate),
-		Comment:          "",
-		LifetimeSecs:     0,
-		ConfirmBeforeUse: false,
-	}
-	if err := tc.localAgent.Add(addedKey); err != nil {
-		return trace.Wrap(err)
-	}
-	return tc.localAgent.saveKey(key)
-}
-
 // MakeKey generates a new unsigned key. It's useless by itself until a
 // trusted CA signs it
 func (tc *TeleportClient) MakeKey() (key *Key, err error) {
@@ -832,6 +804,10 @@ func (tc *TeleportClient) MakeKey() (key *Key, err error) {
 		return nil, trace.Wrap(err)
 	}
 	return key, nil
+}
+
+func (tc *TeleportClient) AddKey(host string, key *Key) error {
+	return tc.localAgent.AddKey(host, key)
 }
 
 // directLogin asks for a password + HOTP token, makes a request to CA via proxy

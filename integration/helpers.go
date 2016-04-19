@@ -300,6 +300,10 @@ func (this *TeleInstance) Start() (err error) {
 
 // NewClient returns a fully configured client (with server CAs and user keys)
 func (this *TeleInstance) NewClient(login string, site string, host string, port int) (tc *client.TeleportClient, err error) {
+	keyDir, err := ioutil.TempDir(this.Config.DataDir, "tsh")
+	if err != nil {
+		return nil, err
+	}
 	tc, err = client.NewClient(&client.Config{
 		Login:              login,
 		ProxyHost:          this.Config.Proxy.SSHAddr.Addr,
@@ -307,7 +311,7 @@ func (this *TeleInstance) NewClient(login string, site string, host string, port
 		HostPort:           port,
 		HostLogin:          login,
 		InsecureSkipVerify: true,
-		KeysDir:            this.Config.DataDir,
+		KeysDir:            keyDir,
 		SiteName:           site,
 	})
 	if err != nil {
@@ -318,7 +322,7 @@ func (this *TeleInstance) NewClient(login string, site string, host string, port
 	if !ok {
 		return nil, fmt.Errorf("unknown login '%v'", login)
 	}
-	err = tc.SaveKey(user.Key)
+	err = tc.AddKey(host, user.Key)
 	if err != nil {
 		return nil, err
 	}
