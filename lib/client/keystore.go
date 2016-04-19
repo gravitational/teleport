@@ -128,7 +128,7 @@ func (fs *FSLocalKeyStore) AddKey(host string, key *Key) error {
 	if err = writeBytes(fileNameKey, key.Priv); err != nil {
 		return trace.Wrap(err)
 	}
-	ttl, _ := key.Deadline.MarshalJSON()
+	ttl, _ := key.Deadline.UTC().MarshalJSON()
 	if err = writeBytes(fileNameTTL, ttl); err != nil {
 		return trace.Wrap(err)
 	}
@@ -154,8 +154,9 @@ func (fs *FSLocalKeyStore) GetKey(host string) (*Key, error) {
 		return nil, trace.Wrap(err)
 	}
 	// this session key is expired
-	if deadline.Before(time.Now()) {
+	if deadline.Before(time.Now().UTC()) {
 		os.RemoveAll(dirPath)
+		log.Infof("TTL expired for session key %v", dirPath)
 		return nil, trace.NotFound("session keys for %s are not found", host)
 	}
 	cert, err := ioutil.ReadFile(filepath.Join(dirPath, fileNameCert))
@@ -191,13 +192,14 @@ func (fs *FSLocalKeyStore) AddKnownHost(hostname string, hostKeys []ssh.PublicKe
 	defer fp.Close()
 	for i := range hostKeys {
 		bytes := ssh.MarshalAuthorizedKey(hostKeys[i])
+		log.Infof("adding known host %s", hostname)
 		fmt.Fprintf(fp, "%s %s\n", hostname, bytes)
 	}
 	return nil
 }
 
-// GetKnownHost returns all saved keys for a given host
-func (fs *FSLocalKeyStore) GetKnownHost(hostname string) ([]ssh.PublicKey, error) {
+// GetKnownHost returns all saved keys
+func (fs *FSLocalKeyStore) GetKnownHosts() ([]ssh.PublicKey, error) {
 	bytes, err := ioutil.ReadFile(filepath.Join(fs.KeyDir, fileNameKnownHosts))
 	if err != nil {
 		if os.IsNotExist(err) {

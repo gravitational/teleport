@@ -157,7 +157,7 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 	waitFor(sessionEndC, time.Second*10)
 
 	// make sure both parites saw the same output:
-	c.Assert(personA.Output(30), check.DeepEquals, personB.Output(30))
+	c.Assert(string(personA.Output(30)), check.Equals, string(personB.Output(30)))
 }
 
 // TestInvalidLogins validates that you can't login with invalid login or

@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -307,7 +309,7 @@ func (this *TeleInstance) NewClient(login string, site string, host string, port
 		HostPort:           port,
 		HostLogin:          login,
 		InsecureSkipVerify: true,
-		KeysDir:            this.Config.DataDir,
+		KeysDir:            filepath.Join(this.Config.DataDir, fmt.Sprintf("%v", rand.Intn(1024*1024*1024))),
 		SiteName:           site,
 	})
 	if err != nil {
@@ -318,7 +320,7 @@ func (this *TeleInstance) NewClient(login string, site string, host string, port
 	if !ok {
 		return nil, fmt.Errorf("unknown login '%v'", login)
 	}
-	err = tc.SaveKey(user.Key)
+	err = tc.AddKey(host, user.Key)
 	if err != nil {
 		return nil, err
 	}

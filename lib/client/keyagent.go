@@ -105,16 +105,20 @@ func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key s
 	if !ok {
 		return trace.Errorf("expected certificate")
 	}
-	keys, err := a.keyStore.GetKnownHost(hostId)
+	keys, err := a.keyStore.GetKnownHosts()
 	if err != nil {
+		log.Error(err)
 		return trace.Wrap(err)
 	}
 	for i := range keys {
 		if sshutils.KeysEqual(cert.SignatureKey, keys[i]) {
+			log.Info("we can trust host %v", hostId)
 			return nil
 		}
 	}
-	return trace.Errorf("no matching authority found")
+	err = trace.AccessDenied("remote host %v at %v cannot be trusted", hostId, remote)
+	log.Error(err)
+	return trace.Wrap(err)
 }
 
 func (a *LocalKeyAgent) AddKey(host string, key *Key) error {

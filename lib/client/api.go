@@ -806,6 +806,10 @@ func (tc *TeleportClient) MakeKey() (key *Key, err error) {
 	return key, nil
 }
 
+func (tc *TeleportClient) AddKey(host string, key *Key) error {
+	return tc.localAgent.AddKey(host, key)
+}
+
 // directLogin asks for a password + HOTP token, makes a request to CA via proxy
 func (tc *TeleportClient) directLogin(pub []byte) (*web.SSHLoginResponse, error) {
 	password, hotpToken, err := tc.AskPasswordAndHOTP()

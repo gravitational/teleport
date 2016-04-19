@@ -73,6 +73,7 @@ func (s *KeyStoreTestSuite) TestListKeys(c *check.C) {
 
 func (s *KeyStoreTestSuite) TestKeySaveLoad(c *check.C) {
 	key := s.makeSignedKey(c)
+
 	// add key:
 	err := s.store.AddKey("host.a", key)
 	c.Assert(err, check.IsNil)
@@ -98,6 +99,7 @@ func (s *KeyStoreTestSuite) TestKeyExpiration(c *check.C) {
 }
 
 func (s *KeyStoreTestSuite) TestKnownHosts(c *check.C) {
+	os.MkdirAll(s.store.KeyDir, 0777)
 	pub, _, _, _, err := ssh.ParseAuthorizedKey(CAPub)
 	c.Assert(err, check.IsNil)
 
@@ -108,14 +110,13 @@ func (s *KeyStoreTestSuite) TestKnownHosts(c *check.C) {
 	c.Assert(err, check.IsNil)
 	err = s.store.AddKnownHost("example.com", []ssh.PublicKey{pub2})
 	c.Assert(err, check.IsNil)
-
-	keys, err := s.store.GetKnownHost("non-existent")
+	err = s.store.AddKnownHost("example.org", []ssh.PublicKey{pub2})
 	c.Assert(err, check.IsNil)
-	c.Assert(keys, check.IsNil)
 
-	keys, err = s.store.GetKnownHost("example.com")
+	keys, err := s.store.GetKnownHosts()
 	c.Assert(err, check.IsNil)
-	c.Assert(keys, check.HasLen, 2)
+	c.Assert(keys, check.HasLen, 3)
+	c.Assert(keys, check.DeepEquals, []ssh.PublicKey{pub, pub2, pub2})
 }
 
 // makeSIgnedKey helper returns all 3 components of a user key (signed by CAPriv key)
@@ -134,7 +135,7 @@ func (s *KeyStoreTestSuite) makeSignedKey(c *check.C) *Key {
 		Priv:     priv,
 		Pub:      pub,
 		Cert:     cert,
-		Deadline: time.Now().Add(ttl),
+		Deadline: time.Now().UTC().Add(ttl),
 	}
 }
 
