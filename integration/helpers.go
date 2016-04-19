@@ -230,10 +230,9 @@ func (this *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bo
 			return err
 		}
 		user.Key = &client.Key{
-			Priv:     priv,
-			Pub:      pub,
-			Cert:     cert,
-			Deadline: time.Now().Add(ttl),
+			Priv: priv,
+			Pub:  pub,
+			Cert: cert,
 		}
 	}
 	return nil
