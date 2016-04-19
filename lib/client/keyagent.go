@@ -12,10 +12,6 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
-
-Keystore implements functions for saving and loading from hard disc
-temporary teleport certificates
 */
 
 package client
@@ -103,7 +99,7 @@ func (a *LocalKeyAgent) AddHostSignersToCache(hostSigners []services.CertAuthori
 func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key ssh.PublicKey) error {
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
-		return trace.Errorf("expected certificate")
+		return trace.BadParameter("expected certificate")
 	}
 	keys, err := a.keyStore.GetKnownHosts()
 	if err != nil {

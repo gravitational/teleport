@@ -95,9 +95,8 @@ func (fs *FSLocalKeyStore) GetKeys() (keys []Key, err error) {
 			// if a key is reported as 'not found' it's probably because it expired
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
-			} else {
-				continue
 			}
+			continue
 		}
 		keys = append(keys, *k)
 	}

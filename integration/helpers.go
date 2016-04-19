@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math/rand"
 	"net"
 	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 
@@ -302,6 +300,10 @@ func (this *TeleInstance) Start() (err error) {
 
 // NewClient returns a fully configured client (with server CAs and user keys)
 func (this *TeleInstance) NewClient(login string, site string, host string, port int) (tc *client.TeleportClient, err error) {
+	keyDir, err := ioutil.TempDir(this.Config.DataDir, "tsh")
+	if err != nil {
+		return nil, err
+	}
 	tc, err = client.NewClient(&client.Config{
 		Login:              login,
 		ProxyHost:          this.Config.Proxy.SSHAddr.Addr,
@@ -309,7 +311,7 @@ func (this *TeleInstance) NewClient(login string, site string, host string, port
 		HostPort:           port,
 		HostLogin:          login,
 		InsecureSkipVerify: true,
-		KeysDir:            filepath.Join(this.Config.DataDir, fmt.Sprintf("%v", rand.Intn(1024*1024*1024))),
+		KeysDir:            keyDir,
 		SiteName:           site,
 	})
 	if err != nil {
