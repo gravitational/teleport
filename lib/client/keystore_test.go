@@ -106,14 +106,14 @@ func (s *KeyStoreTestSuite) TestKnownHosts(c *check.C) {
 	_, p2, _ := s.keygen.GenerateKeyPair("")
 	pub2, _, _, _, _ := ssh.ParseAuthorizedKey(p2)
 
-	err = s.store.AddKnownHost("example.com", []ssh.PublicKey{pub})
+	err = s.store.AddKnownCA("example.com", []ssh.PublicKey{pub})
 	c.Assert(err, check.IsNil)
-	err = s.store.AddKnownHost("example.com", []ssh.PublicKey{pub2})
+	err = s.store.AddKnownCA("example.com", []ssh.PublicKey{pub2})
 	c.Assert(err, check.IsNil)
-	err = s.store.AddKnownHost("example.org", []ssh.PublicKey{pub2})
+	err = s.store.AddKnownCA("example.org", []ssh.PublicKey{pub2})
 	c.Assert(err, check.IsNil)
 
-	keys, err := s.store.GetKnownHosts()
+	keys, err := s.store.GetKnownCAs()
 	c.Assert(err, check.IsNil)
 	c.Assert(keys, check.HasLen, 3)
 	c.Assert(keys, check.DeepEquals, []ssh.PublicKey{pub, pub2, pub2})
