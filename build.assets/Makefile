@@ -29,7 +29,7 @@ bbox:
 .PHONY:test
 test: integration
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
-		/bin/bash -c "$(MAKE) -C $(SRCDIR) TELEPORT_DEBUG_TESTS=0 FLAGS='-cover -race' clean test"
+		/bin/bash -c "$(MAKE) -C $(SRCDIR) TELEPORT_DEBUG_TESTS=1 FLAGS='-cover -race' clean test"
 
 
 .PHONY:integration

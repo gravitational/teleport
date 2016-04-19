@@ -32,19 +32,19 @@ import (
 )
 
 const (
-	defaultKeyDir    = ".tsh"
-	sessionKeyDir    = "sessions"
-	fileNameCert     = "cert"
-	fileNameKey      = "key"
-	fileNamePub      = "pub"
-	fileNameTTL      = ".ttl"
-	fileNameKnownCAs = "known_cas"
+	defaultKeyDir      = ".tsh"
+	sessionKeyDir      = "sessions"
+	fileNameCert       = "cert"
+	fileNameKey        = "key"
+	fileNamePub        = "pub"
+	fileNameTTL        = ".ttl"
+	fileNameKnownHosts = "known_hosts"
 )
 
 // FSLocalKeyStore implements LocalKeyStore interface using the filesystem
 // Here's the file layout for the FS store:
 // ~/.tsh/
-// ├── known_cas     --> trusted certificate authorities (their keys) in a format similar to known_hosts
+// ├── known_hosts   --> trusted certificate authorities (their keys) in a format similar to known_hosts
 // └── sessions      --> server-signed session keys
 //     └── host-a
 //     |   ├── cert
@@ -184,7 +184,7 @@ func (fs *FSLocalKeyStore) GetKey(host string) (*Key, error) {
 
 // AddKnownHost adds a new entry to 'known_CAs' file
 func (fs *FSLocalKeyStore) AddKnownCA(domainName string, hostKeys []ssh.PublicKey) error {
-	fp, err := os.OpenFile(filepath.Join(fs.KeyDir, fileNameKnownCAs), os.O_CREATE|os.O_APPEND|os.O_RDWR, 0640)
+	fp, err := os.OpenFile(filepath.Join(fs.KeyDir, fileNameKnownHosts), os.O_CREATE|os.O_APPEND|os.O_RDWR, 0640)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -199,7 +199,7 @@ func (fs *FSLocalKeyStore) AddKnownCA(domainName string, hostKeys []ssh.PublicKe
 
 // GetKnownHost returns public keys of all trusted CAs
 func (fs *FSLocalKeyStore) GetKnownCAs() ([]ssh.PublicKey, error) {
-	bytes, err := ioutil.ReadFile(filepath.Join(fs.KeyDir, fileNameKnownCAs))
+	bytes, err := ioutil.ReadFile(filepath.Join(fs.KeyDir, fileNameKnownHosts))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
