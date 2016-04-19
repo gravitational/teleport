@@ -483,6 +483,8 @@ func (s *AuthServer) getOIDCClient(conn *services.OIDCConnector) (*oidc.Client, 
 			ID:     conn.ClientID,
 			Secret: conn.ClientSecret,
 		},
+		// open id notifies provider that we are using OIDC scopes
+		Scope: []string{"openid", "email"},
 	}
 
 	client, err := oidc.NewClient(config)
@@ -517,7 +519,8 @@ func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*servi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	redirectURL := oauthClient.AuthCodeURL(req.StateToken, "", "")
+	// online is OIDC online scope, "select_account" forces user to always select account
+	redirectURL := oauthClient.AuthCodeURL(req.StateToken, "online", "select_account")
 	req.RedirectURL = redirectURL
 
 	err = s.Identity.CreateOIDCAuthRequest(req, defaults.OIDCAuthRequestTTL)

@@ -87,6 +87,7 @@ func run(args []string, underTest bool) {
 
 	// configure CLI argument parser:
 	app := utils.InitCLIParser("tsh", "TSH: Teleport SSH client").Interspersed(false)
+	app.Flag("login", "Remote host login").Short('l').StringVar(&cf.NodeLogin)
 	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", client.Username())).StringVar(&cf.Login)
 	app.Flag("auth", "[EXPERIMENTAL] Use external authentication, e.g. 'google'").Hidden().StringVar(&cf.ExternalAuth)
 	app.Flag("site", "[EXPERIMENTAL] Specify site to connect to via proxy").Hidden().StringVar(&cf.SiteName)
@@ -101,7 +102,7 @@ func run(args []string, underTest bool) {
 	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int16Var(&cf.NodePort)
-	ssh.Flag("login", "Remote host login").Short('l').StringVar(&cf.NodeLogin)
+
 	ssh.Flag("forward", "Forward localhost connections to remote server").Short('L').StringsVar(&cf.LocalForwardPorts)
 	ssh.Flag("local", "Execute command on localhost after connecting to SSH node").Default("false").BoolVar(&cf.LocalExec)
 	// join
@@ -302,7 +303,7 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 	}
 
 	// split login & host
-	hostLogin := ""
+	hostLogin := cf.NodeLogin
 	var labels map[string]string
 	if cf.UserHost != "" {
 		parts := strings.Split(cf.UserHost, "@")
