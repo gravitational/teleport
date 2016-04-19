@@ -192,12 +192,12 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if c.Output == nil {
-		c.Output = os.Stdout
+	if tc.Output == nil {
+		tc.Output = os.Stdout
 	}
 
-	if c.HostKeyCallback == nil {
-		c.HostKeyCallback = tc.localAgent.CheckHostSignature
+	if tc.HostKeyCallback == nil {
+		tc.HostKeyCallback = tc.localAgent.CheckHostSignature
 	}
 
 	// add auth methods supplied by user if any
@@ -681,7 +681,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	proxyAddr := tc.Config.ProxyHostPort(defaults.SSHProxyListenPort)
 	sshConfig := &ssh.ClientConfig{
 		User:            tc.getProxyLogin(),
-		HostKeyCallback: tc.Config.HostKeyCallback,
+		HostKeyCallback: tc.HostKeyCallback,
 	}
 	authMethods := tc.getAuthMethods(true)
 	if len(authMethods) == 0 {
@@ -701,7 +701,6 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 				}
 				return nil, trace.Wrap(err)
 			}
-			log.Infof("Got %v auth methods!", tc.getAuthMethods(false))
 			return &ProxyClient{
 				Client:          proxyClient,
 				proxyAddress:    proxyAddr,

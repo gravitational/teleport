@@ -28,6 +28,7 @@ type LocalKeyStore interface {
 
 	// trusted hosts key management:
 	AddKnownHost(hostname string, publicKeys []ssh.PublicKey) error
+	GetKnownHost(hostname string) ([]ssh.PublicKey, error)
 }
 
 // AsAgentKey converts our Key structure to ssh.Agent.Key

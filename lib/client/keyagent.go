@@ -22,11 +22,8 @@ package client
 
 import (
 	"net"
-	"path/filepath"
 
-	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/sshutils"
 
 	log "github.com/Sirupsen/logrus"
@@ -38,11 +35,7 @@ import (
 type LocalKeyAgent struct {
 	// implements ssh agent.Agent interface
 	agent.Agent
-
 	keyStore LocalKeyStore
-
-	// KeyDir is the directory path where local keys are stored
-	KeyDir string
 }
 
 // NewLocalAgent loads all the saved teleport certificates and
@@ -54,7 +47,6 @@ func NewLocalAgent(keyDir string) (a *LocalKeyAgent, err error) {
 	}
 	a = &LocalKeyAgent{
 		Agent:    agent.NewKeyring(),
-		KeyDir:   keystore.KeyDir,
 		keyStore: keystore,
 	}
 	// add all stored keys into the agent:
@@ -95,22 +87,6 @@ func (a *LocalKeyAgent) GetKeys() ([]agent.AddedKey, error) {
 // Why do we trust these CAs? Because we received them from a trusted Teleport Proxy.
 // Why do we trust the proxy? Because we've connected to it via HTTPS + username + Password + HOTP.
 func (a *LocalKeyAgent) AddHostSignersToCache(hostSigners []services.CertAuthority) error {
-	bk, err := boltbk.New(filepath.Join(a.KeyDir, HostSignersFilename))
-	if err != nil {
-		return trace.Wrap(nil)
-	}
-	defer bk.Close()
-	ca := local.NewCAService(bk)
-
-	for _, hostSigner := range hostSigners {
-		err := ca.UpsertCertAuthority(hostSigner, 0)
-		if err != nil {
-			return trace.Wrap(nil)
-		}
-
-	}
-
-	// TODO (ev): keep only this:
 	for _, hostSigner := range hostSigners {
 		publicKeys, err := hostSigner.Checkers()
 		if err != nil {
@@ -129,28 +105,13 @@ func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key s
 	if !ok {
 		return trace.Errorf("expected certificate")
 	}
-
-	bk, err := boltbk.New(filepath.Join(a.KeyDir, HostSignersFilename))
-	if err != nil {
-		return trace.Wrap(nil)
-	}
-	defer bk.Close()
-	ca := local.NewCAService(bk)
-
-	cas, err := ca.GetCertAuthorities(services.HostCA, false)
+	keys, err := a.keyStore.GetKnownHost(hostId)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	for i := range cas {
-		checkers, err := cas[i].Checkers()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, checker := range checkers {
-			if sshutils.KeysEqual(cert.SignatureKey, checker) {
-				return nil
-			}
+	for i := range keys {
+		if sshutils.KeysEqual(cert.SignatureKey, keys[i]) {
+			return nil
 		}
 	}
 	return trace.Errorf("no matching authority found")
@@ -167,7 +128,3 @@ func (a *LocalKeyAgent) AddKey(host string, key *Key) error {
 	}
 	return a.Agent.Add(*agentKey)
 }
-
-var (
-	HostSignersFilename = "hostsigners.db"
-)

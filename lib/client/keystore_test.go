@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/utils"
+	"golang.org/x/crypto/ssh"
 	"gopkg.in/check.v1"
 )
 
@@ -94,6 +95,27 @@ func (s *KeyStoreTestSuite) TestKeyExpiration(c *check.C) {
 	keys, _ := s.store.GetKeys()
 	c.Assert(keys, check.HasLen, 1)
 	c.Assert(keys[0], check.DeepEquals, *good)
+}
+
+func (s *KeyStoreTestSuite) TestKnownHosts(c *check.C) {
+	pub, _, _, _, err := ssh.ParseAuthorizedKey(CAPub)
+	c.Assert(err, check.IsNil)
+
+	_, p2, _ := s.keygen.GenerateKeyPair("")
+	pub2, _, _, _, _ := ssh.ParseAuthorizedKey(p2)
+
+	err = s.store.AddKnownHost("example.com", []ssh.PublicKey{pub})
+	c.Assert(err, check.IsNil)
+	err = s.store.AddKnownHost("example.com", []ssh.PublicKey{pub2})
+	c.Assert(err, check.IsNil)
+
+	keys, err := s.store.GetKnownHost("non-existent")
+	c.Assert(err, check.IsNil)
+	c.Assert(keys, check.IsNil)
+
+	keys, err = s.store.GetKnownHost("example.com")
+	c.Assert(err, check.IsNil)
+	c.Assert(keys, check.HasLen, 2)
 }
 
 // makeSIgnedKey helper returns all 3 components of a user key (signed by CAPriv key)

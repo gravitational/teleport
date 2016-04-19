@@ -1,6 +1,24 @@
+/*
+Copyright 2016 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package client
 
 import (
+	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/user"
@@ -14,15 +32,28 @@ import (
 )
 
 const (
-	defaultKeyDir = ".tsh"
-	sessionKeyDir = "sessions"
-	fileNameCert  = "cert"
-	fileNameKey   = "key"
-	fileNamePub   = "pub"
-	fileNameTTL   = ".ttl"
+	defaultKeyDir      = ".tsh"
+	sessionKeyDir      = "sessions"
+	fileNameCert       = "cert"
+	fileNameKey        = "key"
+	fileNamePub        = "pub"
+	fileNameTTL        = ".ttl"
+	fileNameKnownHosts = "known_hosts"
 )
 
 // FSLocalKeyStore implements LocalKeyStore interface using the filesystem
+// Here's the file layout for the FS store:
+// ~/.tsh/
+// ├── known_hosts     --> host keys, similar to openssh ~/.ssh/known_hosts
+// └── sessions        --> server-signed session keys
+//     └── host-a
+//     |   ├── cert
+//     |   ├── key
+//     |   └── pub
+//     └── host-b
+//         ├── cert
+//         ├── key
+//         └── pub
 type FSLocalKeyStore struct {
 	LocalKeyStore
 
@@ -45,6 +76,7 @@ func NewFSLocalKeyStore(dirPath string) (s *FSLocalKeyStore, err error) {
 	}, nil
 }
 
+// GetKeys returns all user session keys stored in the store
 func (fs *FSLocalKeyStore) GetKeys() (keys []Key, err error) {
 	dirPath := filepath.Join(fs.KeyDir, sessionKeyDir)
 	if !isDir(dirPath) {
@@ -72,6 +104,8 @@ func (fs *FSLocalKeyStore) GetKeys() (keys []Key, err error) {
 	return keys, nil
 }
 
+// AddKey adds a new key to the session store. If a key for the host is already
+// stored, overwrites it.
 func (fs *FSLocalKeyStore) AddKey(host string, key *Key) error {
 	dirPath, err := fs.dirFor(host)
 	if err != nil {
@@ -102,6 +136,8 @@ func (fs *FSLocalKeyStore) AddKey(host string, key *Key) error {
 	return nil
 }
 
+// GetKey returns a key for a given host. If the key is not found,
+// returns trace.NotFound error.
 func (fs *FSLocalKeyStore) GetKey(host string) (*Key, error) {
 	dirPath, err := fs.dirFor(host)
 	if err != nil {
@@ -146,10 +182,48 @@ func (fs *FSLocalKeyStore) GetKey(host string) (*Key, error) {
 	}, nil
 }
 
-func (fs *FSLocalKeyStore) AddKnownHost(hostname string, publicKeys []ssh.PublicKey) error {
+// AddKnownHost adds a new host entry to 'known_hosts' file
+func (fs *FSLocalKeyStore) AddKnownHost(hostname string, hostKeys []ssh.PublicKey) error {
+	fp, err := os.OpenFile(filepath.Join(fs.KeyDir, fileNameKnownHosts), os.O_CREATE|os.O_APPEND|os.O_RDWR, 0640)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer fp.Close()
+	for i := range hostKeys {
+		bytes := ssh.MarshalAuthorizedKey(hostKeys[i])
+		fmt.Fprintf(fp, "%s %s\n", hostname, bytes)
+	}
 	return nil
 }
 
+// GetKnownHost returns all saved keys for a given host
+func (fs *FSLocalKeyStore) GetKnownHost(hostname string) ([]ssh.PublicKey, error) {
+	bytes, err := ioutil.ReadFile(filepath.Join(fs.KeyDir, fileNameKnownHosts))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	var (
+		pubKey ssh.PublicKey
+		retval []ssh.PublicKey = make([]ssh.PublicKey, 0)
+	)
+	for err == nil {
+		_, _, pubKey, _, bytes, err = ssh.ParseKnownHosts(bytes)
+		if err == nil {
+			retval = append(retval, pubKey)
+		}
+	}
+	if err != io.EOF {
+		return nil, trace.Wrap(err)
+	}
+	return retval, nil
+}
+
+// dirFor is a helper function. It returns a directory where session keys
+// for a given host are stored
 func (fs *FSLocalKeyStore) dirFor(hostname string) (string, error) {
 	dirPath := filepath.Join(fs.KeyDir, sessionKeyDir, hostname)
 	if !isDir(dirPath) {
@@ -161,6 +235,7 @@ func (fs *FSLocalKeyStore) dirFor(hostname string) (string, error) {
 	return dirPath, nil
 }
 
+// initKeysDir initializes the keystore root directory. Usually it is ~/.tsh
 func initKeysDir(dirPath string) (string, error) {
 	var err error
 	// not specified? use `~/.tsh`
@@ -189,6 +264,7 @@ func initKeysDir(dirPath string) (string, error) {
 	return dirPath, nil
 }
 
+// isDir is a helper function to quickly check if a given path is a valid directory
 func isDir(dirPath string) bool {
 	fi, err := os.Stat(dirPath)
 	if err == nil {
