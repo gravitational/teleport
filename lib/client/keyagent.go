@@ -107,12 +107,13 @@ func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key s
 		return trace.Wrap(err)
 	}
 	for i := range keys {
+		log.Infof("checking host %v vs trusted CA %v for %v", sshutils.Fingerprint(cert.SignatureKey), sshutils.Fingerprint(keys[i]), hostId)
 		if sshutils.KeysEqual(cert.SignatureKey, keys[i]) {
-			log.Info("we can trust host %v", hostId)
+			log.Infof("found matching signing key for %v, fingerprint:%v", hostId, sshutils.Fingerprint(keys[i]))
 			return nil
 		}
 	}
-	err = trace.AccessDenied("remote host %v at %v cannot be trusted", hostId, remote)
+	err = trace.AccessDenied("could not find matching keys for %v at %v", hostId, remote)
 	log.Error(err)
 	return trace.Wrap(err)
 }

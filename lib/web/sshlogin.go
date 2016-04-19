@@ -94,7 +94,6 @@ func SSHAgentOIDCLogin(proxyAddr, connectorID string, pubKey []byte, ttl time.Du
 		}
 
 		var re *SSHLoginResponse
-		log.Infof("callback got response: %v", r.URL.String())
 		err = json.Unmarshal([]byte(out), &re)
 		if err != nil {
 			return nil, trace.BadParameter("failed to decode response: in %v, err: %v", r.URL.String(), err)
@@ -142,13 +141,13 @@ func SSHAgentOIDCLogin(proxyAddr, connectorID string, pubKey []byte, ttl time.Du
 
 	select {
 	case err := <-errorC:
-		log.Infof("got error: ", err)
+		log.Debugf("got error: %v", err)
 		return nil, trace.Wrap(err)
 	case response := <-waitC:
-		log.Infof("got response: ", err)
+		log.Debugf("got response")
 		return response, nil
 	case <-time.After(60 * time.Second):
-		log.Infof("got timeout ")
+		log.Debugf("got timeout waiting for callback")
 		return nil, trace.Wrap(trace.Errorf("timeout waiting for callback"))
 	}
 

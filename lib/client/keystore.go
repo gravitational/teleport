@@ -25,6 +25,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/gravitational/teleport/lib/sshutils"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 
@@ -191,7 +193,7 @@ func (fs *FSLocalKeyStore) AddKnownCA(domainName string, hostKeys []ssh.PublicKe
 	defer fp.Close()
 	for i := range hostKeys {
 		bytes := ssh.MarshalAuthorizedKey(hostKeys[i])
-		log.Infof("adding known CA %s", domainName)
+		log.Infof("adding known CA %v %v", domainName, sshutils.Fingerprint(hostKeys[i]))
 		fmt.Fprintf(fp, "%s %s\n", domainName, bytes)
 	}
 	return nil
