@@ -230,7 +230,7 @@ func collectStatus(cmd *exec.Cmd, err error) (*execResult, error) {
 	}
 	status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus)
 	if !ok {
-		return nil, fmt.Errorf("unspoorted exit status: %T(%v)", cmd.ProcessState.Sys(), cmd.ProcessState.Sys())
+		return nil, fmt.Errorf("unknown exit status: %T(%v)", cmd.ProcessState.Sys(), cmd.ProcessState.Sys())
 	}
 	return &execResult{code: status.ExitStatus(), command: cmd.Path}, nil
 }

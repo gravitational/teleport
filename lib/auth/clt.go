@@ -248,9 +248,7 @@ func (c *Client) RegisterNewAuthServer(token string) error {
 }
 
 func (c *Client) Log(id lunk.EventID, e lunk.Event) {
-	en := lunk.NewEntry(id, e)
-	en.Time = time.Now()
-	c.LogEntry(en)
+	c.LogEntry(lunk.NewEntry(id, e))
 }
 
 func (c *Client) LogEntry(en lunk.Entry) error {

@@ -281,16 +281,15 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	elog, err := initEventStorage(
-		cfg.Auth.EventsBackend.Type, cfg.Auth.EventsBackend.Params)
+
+	// create the audit log, which will be consuming (and recording) all events
+	// and record sessions
+	auditLog, err := events.NewAuditLog()
 	if err != nil {
+		log.Error(err)
 		return trace.Wrap(err)
 	}
-	rec, err := initRecordStorage(
-		cfg.Auth.RecordsBackend.Type, cfg.Auth.RecordsBackend.Params)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+
 	acfg := auth.InitConfig{
 		Backend:         b,
 		Authority:       authority,
@@ -321,9 +320,9 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 
 	apiServer := auth.NewAPIWithRoles(auth.APIConfig{
 		AuthServer:        authServer,
-		EventLog:          elog,
+		EventLog:          auditLog,
 		SessionService:    sessionService,
-		Recorder:          rec,
+		Recorder:          auditLog,
 		PermissionChecker: auth.NewStandardPermissions(),
 		Roles:             auth.StandardRoles,
 	})

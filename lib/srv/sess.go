@@ -34,6 +34,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// sessionRegistry holds a map of all active sessions on a given
+// SSH server
 type sessionRegistry struct {
 	sync.Mutex
 	sessions map[rsession.ID]*session
@@ -52,6 +54,7 @@ func (r *sessionRegistry) Close() {
 	for _, s := range r.sessions {
 		s.Close()
 	}
+	log.Infof("sessionRegistry.Close()")
 }
 
 // joinShell either joins an existing session or starts a new shell
@@ -141,11 +144,8 @@ func (s *sessionRegistry) broadcastResult(sid rsession.ID, r execResult) error {
 }
 
 func (s *sessionRegistry) findSession(id rsession.ID) (*session, bool) {
-	sess, ok := s.sessions[id]
-	if !ok {
-		return nil, false
-	}
-	return sess, true
+	sess, found := s.sessions[id]
+	return sess, found
 }
 
 func (s *sessionRegistry) lockedFindSession(id rsession.ID) (*session, bool) {
@@ -257,11 +257,13 @@ func (s *session) upsertSessionParty(sid rsession.ID, p *party) error {
 func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
 	s.eid = ctx.eid
 	ctx.session = s
-	// allocate or borrow a terminal:
+	// create a new "party" (connected client)
 	p := newParty(s, sconn, ch, ctx)
-	if p.ctx.getTerm() != nil {
-		s.term = p.ctx.getTerm()
-		p.ctx.setTerm(nil)
+
+	// allocate or borrow a terminal:
+	if ctx.getTerm() != nil {
+		s.term = ctx.getTerm()
+		ctx.setTerm(nil)
 	} else {
 		var err error
 		if s.term, err = newTerminal(); err != nil {
@@ -274,27 +276,28 @@ func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	shellCmd := fmt.Sprintf("%s %s", cmd.Path, strings.Join(cmd.Args, " "))
 	if err := s.term.run(cmd); err != nil {
 		ctx.Errorf("shell command failed: %v", err)
 		return trace.ConvertSystemError(err)
 	}
 	// start recording the session (if enabled)
-	sessionRecorder := s.registry.srv.rec
+	sessionRecorder := ctx.srv.rec
+	recordID := ""
 	if sessionRecorder != nil {
 		sid := string(s.id)
 		// create a 'writer' wrapper which converts io.Write([]byte) calls to recorder.WriteChunks([]chunk)
 		cw, err := sessionRecorder.GetChunkWriter(sid)
 		if err != nil {
-			p.ctx.Errorf("failed to create recorder: %v", err)
+			ctx.Errorf("failed to create recorder: %v", err)
 			return trace.Wrap(err)
 		}
 		s.chunkWriter = newChunkWriter(sid, s, cw)
-		s.registry.srv.emit(ctx.eid, events.NewShellSession(string(s.id), sconn, shellCmd, s.chunkWriter.recordID))
+		recordID = s.chunkWriter.recordID
 		s.writer.addWriter("capture", s.chunkWriter, false)
-	} else {
-		s.registry.srv.emit(ctx.eid, events.NewShellSession(string(s.id), sconn, shellCmd, ""))
 	}
+	// emit 'new session' event into the audit log:
+	shellCmd := fmt.Sprintf("%s %s", cmd.Path, strings.Join(cmd.Args, " "))
+	ctx.emit(events.NewShellSession(string(s.id), sconn, shellCmd, recordID))
 	s.addParty(p)
 
 	// start terminal size syncing loop:
@@ -305,21 +308,26 @@ func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) er
 	go func() {
 		// notify terminal about a copy process going on
 		defer s.term.Add(-1)
-		written, err := io.Copy(s.writer, s.term.pty)
-		p.ctx.Infof("shell to channel copy closed, bytes written: %v, err: %v",
-			written, err)
+		_, err := io.Copy(s.writer, s.term.pty)
+		if err != nil {
+			log.Error(err)
+		}
+		log.Infof("session.io.copy() closed")
+		cmd.Process = nil
 	}()
 
 	// wait for the shell to complete:
 	go func() {
 		result, err := collectStatus(cmd, cmd.Wait())
 		if err != nil {
-			p.ctx.Errorf("wait failed: %v", err)
+			log.Errorf("shell exited with error: %v", err)
 			return
+		}
+		if result.code == 0 {
+			log.Infof("shell exited successfully")
 		}
 		if result != nil {
 			s.registry.broadcastResult(s.id, *result)
-			p.ctx.Infof("result broadcasted")
 		}
 	}()
 
@@ -327,8 +335,10 @@ func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) er
 	go func() {
 		<-s.closeC
 		if cmd.Process != nil {
-			err := cmd.Process.Kill()
-			p.ctx.Infof("killed process: %v", err)
+			log.Infof("session ended. killing process: %v PID=%v", cmd.Path, cmd.Process.Pid)
+			if err := cmd.Process.Kill(); err != nil {
+				log.Error(err)
+			}
 		}
 	}()
 	return nil
@@ -403,9 +413,11 @@ func (s *session) addParty(p *party) {
 	s.term.Add(1)
 	go func() {
 		defer s.term.Add(-1)
-		written, err := io.Copy(s.term.pty, p)
-		p.ctx.Infof("channel to shell copy closed, bytes written: %v, err: %v",
-			written, err)
+		_, err := io.Copy(s.term.pty, p)
+		p.ctx.Infof("party.io.copy(%v) closed", p.id)
+		if err != nil {
+			log.Error(err)
+		}
 	}()
 	go func() {
 		for {
@@ -530,7 +542,7 @@ func (p *party) String() string {
 }
 
 func (p *party) Close() error {
-	p.ctx.Infof("closing")
+	p.ctx.Infof("party[%v].Close()", p.id)
 	close(p.closeC)
 	return p.s.registry.leaveShell(p.s.id, p.id)
 }

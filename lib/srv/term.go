@@ -150,11 +150,10 @@ func (t *terminal) Close() error {
 func (t *terminal) closePTY() {
 	t.Lock()
 	defer t.Unlock()
+	defer log.Infof("PTY is closed")
 
 	// wait until all copying is over
-	log.Infof("Terminal wait for copy to be over")
 	t.Wait()
-	log.Infof("Terminal copy is over")
 
 	t.pty.Close()
 	t.pty = nil
