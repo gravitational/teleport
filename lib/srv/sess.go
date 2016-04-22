@@ -107,9 +107,8 @@ func (s *sessionRegistry) leaveShell(sid, pid rsession.ID) error {
 	return nil
 }
 
-func (s *sessionRegistry) notifyWinChange(sid rsession.ID, params rsession.TerminalParams) error {
+func (s *sessionRegistry) notifyWinChange(sid rsession.ID, params rsession.TerminalParams, ctx *ctx) error {
 	log.Infof("notifyWinChange(%v)", sid)
-
 	sess, found := s.findSession(sid)
 	if !found {
 		return trace.NotFound("session %v not found", sid)
@@ -125,8 +124,15 @@ func (s *sessionRegistry) notifyWinChange(sid rsession.ID, params rsession.Termi
 		err := s.srv.sessionServer.UpdateSession(
 			rsession.UpdateRequest{ID: sid, TerminalParams: &params})
 		if err != nil {
-			log.Infof("notifyWinChange(%v): %v", sid, err)
+			log.Error(err)
 		}
+		// report this to the event/audit log:
+		ctx.emit(&events.TerminalResized{
+			SessionID: string(sid),
+			Width:     params.W,
+			Height:    params.H,
+		})
+
 	}()
 	return nil
 }
@@ -319,15 +325,15 @@ func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) er
 	// wait for the shell to complete:
 	go func() {
 		result, err := collectStatus(cmd, cmd.Wait())
+		exitCode := 0
+		if result != nil {
+			exitCode = result.code
+			s.registry.broadcastResult(s.id, *result)
+		}
+		// send an event indicating that this session has ended
+		ctx.emit(&events.SessionEnded{string(s.id), exitCode, ""})
 		if err != nil {
 			log.Errorf("shell exited with error: %v", err)
-			return
-		}
-		if result.code == 0 {
-			log.Infof("shell exited successfully")
-		}
-		if result != nil {
-			s.registry.broadcastResult(s.id, *result)
 		}
 	}()
 
@@ -372,7 +378,6 @@ func (s *session) pollAndSyncTerm() {
 	if sessionServer == nil {
 		return
 	}
-
 	syncTerm := func() error {
 		sess, err := sessionServer.GetSession(s.id)
 		if err != nil {

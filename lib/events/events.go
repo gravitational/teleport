@@ -31,6 +31,11 @@ const (
 	// SessionEvent indicates that session has been initiated
 	// or updated by a joining party on the server
 	SessionEvent = "teleport.session"
+	// SessionEndEvent indicates taht a session has ended
+	SessionEndEvent = "teleport.session.end"
+	// TerminalResizedEvent fires when the user who initiated the session
+	// resizes his terminal
+	TerminalResizedEvent = "teleport.resized"
 	// ExecEvent is an exec command executed by script or user on
 	// the server side
 	ExecEvent = "teleport.exec"
@@ -149,6 +154,26 @@ func NewShellSession(sid string, conn ssh.ConnMetadata, shell string, recordID s
 		LocalAddr:  conn.LocalAddr().String(),
 		RemoteAddr: conn.RemoteAddr().String(),
 	}
+}
+
+type SessionEnded struct {
+	SessionID string `json:"sid"`
+	ExitCode  int    `json"exit_code"`
+	Output    string `json:"output"`
+}
+
+func (se *SessionEnded) Schema() string {
+	return SessionEndEvent
+}
+
+type TerminalResized struct {
+	SessionID string `json:"sid"`
+	Width     int    `json"W"`
+	Height    int    `json:"H"`
+}
+
+func (se *TerminalResized) Schema() string {
+	return TerminalResizedEvent
 }
 
 // ShellSession is a result of execution of an interactive shell

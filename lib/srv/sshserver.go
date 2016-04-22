@@ -697,7 +697,6 @@ func (s *Server) handleAgentForward(sconn *ssh.ServerConn, ch ssh.Channel, req *
 }
 
 func (s *Server) handleWinChange(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	ctx.Infof("handleWinChange()")
 	params, err := parseWinChange(req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -710,7 +709,7 @@ func (s *Server) handleWinChange(ch ssh.Channel, req *ssh.Request, ctx *ctx) err
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.reg.notifyWinChange(*sessionID, *params)
+	err = s.reg.notifyWinChange(*sessionID, *params, ctx)
 	return trace.Wrap(err)
 }
 
@@ -761,38 +760,37 @@ func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 
 func (s *Server) handlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	ctx.Infof("handlePTYReq()")
-
-	if term := ctx.getTerm(); term != nil {
+	var (
+		params *rsession.TerminalParams
+		err    error
+		term   *terminal
+	)
+	// already have terminal?
+	if term = ctx.getTerm(); term != nil {
 		r, err := parsePTYReq(req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		params, err := rsession.NewTerminalParamsFromUint32(r.W, r.H)
+		params, err = rsession.NewTerminalParamsFromUint32(r.W, r.H)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		term.setWinsize(*params)
-		sessionID, err := ctx.getSessionID()
-		if err == nil {
-			if err := s.reg.notifyWinChange(*sessionID, *params); err != nil {
-				log.Infof("notifyWinChange: %v", err)
-			}
+		// request one:
+	} else {
+		term, params, err = requestPTY(req)
+		if err != nil {
+			return trace.Wrap(err)
 		}
-		return nil
+		ctx.setTerm(term)
 	}
-	log.Infof("handlePTYReq(new terminal)")
-	term, params, err := requestPTY(req)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	// update the session:
 	sessionID, err := ctx.getSessionID()
 	if err == nil {
-		if err := s.reg.notifyWinChange(*sessionID, *params); err != nil {
-			log.Infof("notifyWinChange: %v", err)
+		if err := s.reg.notifyWinChange(*sessionID, *params, ctx); err != nil {
+			log.Error(err)
 		}
 	}
-	ctx.setTerm(term)
-	ctx.Infof("PTY allocated successfully")
 	return nil
 }
 

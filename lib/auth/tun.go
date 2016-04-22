@@ -546,7 +546,6 @@ func NewTunClient(authServers []utils.NetAddr, user string, authMethods []ssh.Au
 
 	// use local information about auth servers if it's available
 	if tc.addrStorage != nil {
-
 		authServers, err := tc.addrStorage.GetAddresses()
 		if err != nil {
 			if !trace.IsNotFound(err) {
@@ -558,7 +557,7 @@ func NewTunClient(authServers []utils.NetAddr, user string, authMethods []ssh.Au
 			tc.authServers = authServers
 		}
 	}
-	go tc.syncAuthServers()
+	go tc.authServersSyncLoop()
 	return tc, nil
 }
 
@@ -632,17 +631,24 @@ func (c *TunClient) fetchAndSync() error {
 	return nil
 }
 
-func (c *TunClient) syncAuthServers() {
-	log.Infof("TunClient (%p): syncAuthServers() started", c)
+// authServersSyncLoop continuously refreshes the list of available auth servers
+// for this client
+func (c *TunClient) authServersSyncLoop() {
+	log.Infof("TunClient (%p): authServersSyncLoop() started", c)
+
+	// initial fetch for quick start-ups
+	c.fetchAndSync()
 	for {
 		select {
+		// timer-based refresh:
 		case <-c.refreshTicker.C:
 			err := c.fetchAndSync()
 			if err != nil {
 				continue
 			}
+		// received a signal to quit?
 		case <-c.closeC:
-			log.Infof("TunClient (%p): syncAuthServers() exited", c)
+			log.Infof("TunClient (%p): authServersSyncLoop() exited", c)
 			return
 		}
 	}
@@ -667,14 +673,7 @@ func (c *TunClient) fetchAuthServers() ([]utils.NetAddr, error) {
 }
 
 func (c *TunClient) getAuthServers() []utils.NetAddr {
-	c.Lock()
-	defer c.Unlock()
-
-	out := make([]utils.NetAddr, len(c.authServers))
-	for i := range c.authServers {
-		out[i] = c.authServers[i]
-	}
-	return out
+	return append([]utils.NetAddr{}, c.authServers...)
 }
 
 func (c *TunClient) setAuthServers(servers []utils.NetAddr) {
