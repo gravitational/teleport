@@ -85,7 +85,6 @@ func (proxy *ProxyClient) getSite() (*services.Site, error) {
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
 // Each site is returned as an instance of its auth server
 //
-// NOTE: this version of teleport supports only one site per proxy
 func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	proxySession, err := proxy.Client.NewSession()
 	if err != nil {
