@@ -128,7 +128,6 @@ func (fs *FSLocalKeyStore) AddKey(host string, key *Key) error {
 	if err = writeBytes(fileNameKey, key.Priv); err != nil {
 		return trace.Wrap(err)
 	}
-	log.Infof("keystore.AddKey(%s)", host)
 	return nil
 }
 
@@ -165,8 +164,8 @@ func (fs *FSLocalKeyStore) GetKey(host string) (*Key, error) {
 	}
 	log.Infof("returning cert %v valid until %v", certFile, certExpiration)
 	if certExpiration.Before(time.Now().UTC()) {
+		log.Infof("TTL expired (%v) for session key %v", certExpiration, dirPath)
 		os.RemoveAll(dirPath)
-		log.Infof("TTL expired for session key %v", dirPath)
 		return nil, trace.NotFound("session keys for %s are not found", host)
 	}
 	return key, nil

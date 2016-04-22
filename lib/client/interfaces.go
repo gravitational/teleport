@@ -51,8 +51,12 @@ func (k *Key) AsAgentKey() (*agent.AddedKey, error) {
 func (k *Key) CertValidBefore() (time.Time, error) {
 	pcert, _, _, _, err := ssh.ParseAuthorizedKey(k.Cert)
 	if err != nil {
-		return time.Now().UTC(), trace.Wrap(err)
+		return time.Now().In(time.UTC), trace.Wrap(err)
 	}
 	cert := pcert.(*ssh.Certificate)
-	return time.Unix(0, int64(cert.ValidBefore)).UTC(), nil
+
+	utime := int64(cert.ValidBefore)
+	etime := time.Unix(0, utime)
+
+	return etime.In(time.UTC), nil
 }

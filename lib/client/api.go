@@ -94,9 +94,6 @@ type Config struct {
 	// or use any local certs, and not use interactive logins
 	SkipLocalAuth bool
 
-	// AuthMethods if passed will be used to login into cluster
-	AuthMethods []ssh.AuthMethod
-
 	// Output is a writer, if not passed, stdout will be used
 	Output io.Writer
 
@@ -198,11 +195,6 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 
 	if tc.HostKeyCallback == nil {
 		tc.HostKeyCallback = tc.localAgent.CheckHostSignature
-	}
-
-	// add auth methods supplied by user if any
-	for _, method := range c.AuthMethods {
-		tc.authMethods = append(tc.authMethods, method)
 	}
 
 	// sometimes we need to use external auth without using local auth
