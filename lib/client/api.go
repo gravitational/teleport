@@ -976,6 +976,13 @@ func authMethodFromAgent(ag agent.Agent) ssh.AuthMethod {
 // Executes the given command on the client machine (localhost). If no command is given,
 // executes shell
 func runLocalCommand(command []string) error {
+	if len(command) == 0 {
+		shell := os.Getenv("SHELL")
+		if shell == "" {
+			shell = "/bin/bash"
+		}
+		command = []string{shell}
+	}
 	cmd := exec.Command(command[0], command[1:]...)
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
