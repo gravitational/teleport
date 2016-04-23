@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -51,11 +50,9 @@ type ctx struct {
 	// srv is a pointer to the server holding the context
 	srv *Server
 
-	// this event id will be associated with all events emitted with this context
-	eid lunk.EventID
-
 	// server specific incremental session id
 	id int
+
 	// info about connection for debugging purposes
 	info ssh.ConnMetadata
 
@@ -95,8 +92,9 @@ type ctx struct {
 }
 
 // emit emits event
-func (c *ctx) emit(e lunk.Event) {
-	c.srv.elog.Log(c.eid, e)
+func (c *ctx) emit(interface{}) {
+	// TODO (ev)
+	//c.srv.elog.Log(c.eid, e)
 }
 
 // addCloser adds any closer in ctx that will be called
@@ -223,7 +221,6 @@ func (c *ctx) initSessionID() (*rsession.ID, error) {
 func newCtx(srv *Server, conn *ssh.ServerConn) *ctx {
 	ctx := &ctx{
 		env:              make(map[string]string),
-		eid:              lunk.NewRootEventID(),
 		info:             conn,
 		id:               int(atomic.AddInt32(&ctxID, int32(1))),
 		result:           make(chan execResult, 10),

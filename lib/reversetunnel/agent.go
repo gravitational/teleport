@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -45,7 +44,6 @@ import (
 type Agent struct {
 	log             *log.Entry
 	addr            utils.NetAddr
-	elog            events.Log
 	clt             *auth.TunClient
 	domainName      string
 	broadcastClose  *utils.CloseBroadcaster
@@ -57,17 +55,12 @@ type Agent struct {
 // AgentOption specifies parameter that could be passed to Agents
 type AgentOption func(a *Agent) error
 
-// SetEventLogger sets structured logger for the agent
-func SetEventLogger(e events.Log) AgentOption {
-	return func(s *Agent) error {
-		s.elog = e
-		return nil
-	}
-}
-
 // NewAgent returns a new reverse tunnel agent
-func NewAgent(addr utils.NetAddr, domainName string, signers []ssh.Signer,
-	clt *auth.TunClient, options ...AgentOption) (*Agent, error) {
+func NewAgent(
+	addr utils.NetAddr,
+	domainName string,
+	signers []ssh.Signer,
+	clt *auth.TunClient) (*Agent, error) {
 
 	a := &Agent{
 		log: log.WithFields(log.Fields{
@@ -86,14 +79,6 @@ func NewAgent(addr utils.NetAddr, domainName string, signers []ssh.Signer,
 		authMethods:    []ssh.AuthMethod{ssh.PublicKeys(signers...)},
 	}
 	a.hostKeyCallback = a.checkHostSignature
-	for _, o := range options {
-		if err := o(a); err != nil {
-			return nil, err
-		}
-	}
-	if a.elog == nil {
-		a.elog = events.NullEventLogger
-	}
 	return a, nil
 }
 

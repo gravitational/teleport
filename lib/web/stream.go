@@ -23,7 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/session"
 
@@ -75,27 +74,11 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 		io.Copy(ioutil.Discard, ws)
 	}()
 
-	var lastCheckpoint time.Time
 	var lastEvent *sessionStreamEvent
 	ticker := time.NewTicker(w.pollPeriod)
 	defer ticker.Stop()
 	defer w.Close()
 	for {
-		now := time.Now()
-		f := events.Filter{
-			SessionID: w.sessionID,
-			Order:     events.Desc,
-			Limit:     20,
-			Start:     now,
-			End:       lastCheckpoint,
-		}
-		events, err := clt.GetEvents(f)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-		}
-
 		servers, err := clt.GetNodes()
 		if err != nil {
 			if !trace.IsNotFound(err) {
@@ -114,11 +97,11 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 			event := &sessionStreamEvent{
 				Session: *sess,
 				Nodes:   servers,
-				Events:  events,
+				// TODO (ev): fix zis
+				//Events:  events,
 			}
 
 			newData := w.diffEvents(lastEvent, event)
-			lastCheckpoint = now
 			lastEvent = event
 			if newData {
 				if err := websocket.JSON.Send(ws, event); err != nil {
@@ -159,11 +142,6 @@ func (w *sessionStreamHandler) logResult(fn func(*websocket.Conn) error) websock
 func (w *sessionStreamHandler) diffEvents(last *sessionStreamEvent, new *sessionStreamEvent) bool {
 	// this is first call, ship whatever we have on this session
 	if last == nil {
-		return true
-	}
-	// we've got new events
-	if len(new.Events) != 0 {
-		log.Infof("got new events")
 		return true
 	}
 	// new servers have arrived or disappeared

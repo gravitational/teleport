@@ -14,8 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package events contains structured events emitted by various parts
-// of teleport, they are collected by auth server for audit purposes
 package events
 
 import (

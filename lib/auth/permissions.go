@@ -50,7 +50,6 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetServers:         true,
 		ActionGetSession:         true,
 		ActionGetSessions:        true,
-		ActionGetEvents:          true,
 	}
 
 	sp.permissions[teleport.RoleProvisionToken] = map[string]bool{
@@ -70,8 +69,6 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetUserKeys:        true,
 		ActionUpsertParty:        true,
 		ActionUpsertSession:      true,
-		ActionLogEntry:           true,
-		ActionGetChunkWriter:     true,
 		ActionGetSession:         true,
 		ActionGetSessions:        true,
 	}
@@ -79,10 +76,8 @@ func NewStandardPermissions() PermissionChecker {
 	sp.permissions[teleport.RoleProxy] = map[string]bool{
 		ActionGetUser:                         true,
 		ActionGetOIDCConnectorsWithoutSecrets: true,
-		ActionGetChunkReader:                  true,
 		ActionGetReverseTunnels:               true,
 		ActionGetServers:                      true,
-		ActionGetEvents:                       true,
 		ActionUpsertProxy:                     true,
 		ActionGetProxies:                      true,
 		ActionGetAuthServers:                  true,
@@ -90,7 +85,6 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetUsers:                        true,
 		ActionGetLocalDomain:                  true,
 		ActionGetUserKeys:                     true,
-		ActionLogEntry:                        true,
 		ActionGetSession:                      true,
 		ActionGetSessions:                     true,
 		ActionCreateOIDCAuthRequest:           true,
@@ -106,7 +100,6 @@ func NewStandardPermissions() PermissionChecker {
 		ActionDeleteWebSession: true,
 		ActionGetSession:       true,
 		ActionGetSessions:      true,
-		ActionGetEvents:        true,
 	}
 
 	sp.permissions[teleport.RoleSignup] = map[string]bool{
@@ -174,11 +167,6 @@ const (
 	ActionGenerateToken                     = "GenerateToken"
 	ActionRegisterUsingToken                = "RegisterUsingToken"
 	ActionRegisterNewAuthServer             = "RegisterNewAuthServer"
-	ActionLog                               = "Log"
-	ActionLogEntry                          = "LogEntry"
-	ActionGetEvents                         = "GetEvents"
-	ActionGetChunkWriter                    = "GetChunkWriter"
-	ActionGetChunkReader                    = "GetChunkReader"
 	ActionUpsertServer                      = "UpsertServer"
 	ActionGetServers                        = "GetServers"
 	ActionUpsertAuthServer                  = "UpsertAuthServer"

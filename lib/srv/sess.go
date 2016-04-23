@@ -25,11 +25,9 @@ import (
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/recorder"
 	rsession "github.com/gravitational/teleport/lib/session"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -172,16 +170,14 @@ func newSessionRegistry(srv *Server) *sessionRegistry {
 
 type session struct {
 	sync.Mutex
-	id          rsession.ID
-	eid         lunk.EventID
-	registry    *sessionRegistry
-	writer      *multiWriter
-	parties     map[rsession.ID]*party
-	term        *terminal
-	chunkWriter *chunkWriter
-	closeC      chan bool
-	login       string
-	closeOnce   sync.Once
+	id        rsession.ID
+	registry  *sessionRegistry
+	writer    *multiWriter
+	parties   map[rsession.ID]*party
+	term      *terminal
+	closeC    chan bool
+	login     string
+	closeOnce sync.Once
 }
 
 func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, error) {
@@ -218,9 +214,11 @@ func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, err
 				rsess.Login, existing.Login, id)
 		}
 	}
+	/* TODO (ev)
 	if err := r.srv.elog.LogSession(rsess); err != nil {
 		log.Warn("failed to log session event: %v", err)
 	}
+	*/
 	sess := &session{
 		id:       id,
 		registry: r,
@@ -240,9 +238,6 @@ func (s *session) Close() error {
 	if s.term != nil {
 		err = s.term.Close()
 	}
-	if s.chunkWriter != nil {
-		err = s.chunkWriter.Close()
-	}
 	return trace.Wrap(err)
 }
 
@@ -261,7 +256,6 @@ func (s *session) upsertSessionParty(sid rsession.ID, p *party) error {
 
 // startShell starts a new shell process in the current session
 func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
-	s.eid = ctx.eid
 	ctx.session = s
 	// create a new "party" (connected client)
 	p := newParty(s, sconn, ch, ctx)
@@ -286,24 +280,9 @@ func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) er
 		ctx.Errorf("shell command failed: %v", err)
 		return trace.ConvertSystemError(err)
 	}
-	// start recording the session (if enabled)
-	sessionRecorder := ctx.srv.rec
-	recordID := ""
-	if sessionRecorder != nil {
-		sid := string(s.id)
-		// create a 'writer' wrapper which converts io.Write([]byte) calls to recorder.WriteChunks([]chunk)
-		cw, err := sessionRecorder.GetChunkWriter(sid)
-		if err != nil {
-			ctx.Errorf("failed to create recorder: %v", err)
-			return trace.Wrap(err)
-		}
-		s.chunkWriter = newChunkWriter(sid, s, cw)
-		recordID = s.chunkWriter.recordID
-		s.writer.addWriter("capture", s.chunkWriter, false)
-	}
 	// emit 'new session' event into the audit log:
 	shellCmd := fmt.Sprintf("%s %s", cmd.Path, strings.Join(cmd.Args, " "))
-	ctx.emit(events.NewShellSession(string(s.id), sconn, shellCmd, recordID))
+	ctx.emit(events.NewShellSession(string(s.id), sconn, shellCmd, ""))
 	s.addParty(p)
 
 	// start terminal size syncing loop:
@@ -442,8 +421,6 @@ func (s *session) addParty(p *party) {
 func (s *session) join(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) (*party, error) {
 	p := newParty(s, sconn, ch, ctx)
 	s.addParty(p)
-	// replay last chunk to the new party so they'll see what's going on:
-	io.Copy(p, s.chunkWriter)
 	return p, nil
 }
 
@@ -550,61 +527,4 @@ func (p *party) Close() error {
 	p.ctx.Infof("party[%v].Close()", p.id)
 	close(p.closeC)
 	return p.s.registry.leaveShell(p.s.id, p.id)
-}
-
-func newChunkWriter(recordID string, sess *session, cw recorder.ChunkWriteCloser) *chunkWriter {
-	return &chunkWriter{
-		recordID: recordID,
-		w:        cw,
-		sess:     sess,
-	}
-}
-
-type chunkWriter struct {
-	sync.Mutex
-	before    time.Time
-	recordID  string
-	w         recorder.ChunkWriteCloser
-	sess      *session
-	lastChunk *recorder.Chunk
-}
-
-func (l *chunkWriter) Write(b []byte) (int, error) {
-	diff := time.Duration(0)
-	if l.before.IsZero() {
-		l.before = time.Now()
-	} else {
-		now := time.Now()
-		diff = now.Sub(l.before)
-		l.before = now
-	}
-	chunk := recorder.Chunk{
-		Delay:          diff,
-		Data:           b,
-		ServerID:       l.sess.registry.srv.ID(),
-		TerminalParams: l.sess.term.getTerminalParams(),
-	}
-	if err := l.w.WriteChunks([]recorder.Chunk{chunk}); err != nil {
-		return 0, err
-	}
-
-	l.Lock()
-	defer l.Unlock()
-	l.lastChunk = &chunk
-
-	return len(b), nil
-}
-
-// Read implements io.Reader for chunkWriter. Reads the last chunk's data
-func (l *chunkWriter) Read(b []byte) (int, error) {
-	l.Lock()
-	defer l.Unlock()
-	if l.lastChunk == nil || l.lastChunk.Data == nil {
-		return 0, io.EOF
-	}
-	return copy(b, l.lastChunk.Data), io.EOF
-}
-
-func (l *chunkWriter) Close() error {
-	return l.w.Close()
 }

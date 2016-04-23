@@ -20,18 +20,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"strconv"
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/codahale/lunk"
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -245,64 +241,6 @@ func (c *Client) RegisterNewAuthServer(token string) error {
 		Token: token,
 	})
 	return trace.Wrap(err)
-}
-
-func (c *Client) Log(id lunk.EventID, e lunk.Event) {
-	c.LogEntry(lunk.NewEntry(id, e))
-}
-
-func (c *Client) LogEntry(en lunk.Entry) error {
-	_, err := c.PostJSON(c.Endpoint("events"), submitEventsReq{Events: []lunk.Entry{en}})
-	return trace.Wrap(err)
-}
-
-func (c *Client) LogSession(sess session.Session) error {
-	_, err := c.PostJSON(c.Endpoint("events", "sessions"), logSessionsReq{Sessions: []session.Session{sess}})
-	return trace.Wrap(err)
-}
-
-// GetEvents returns a list of filtered events
-func (c *Client) GetEvents(filter events.Filter) ([]lunk.Entry, error) {
-	vals, err := events.FilterToURL(filter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.Get(c.Endpoint("events"), vals)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var events []lunk.Entry
-	if err := json.Unmarshal(out.Bytes(), &events); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return events, nil
-}
-
-// GetSessionEvents returns a list of filtered session events
-func (c *Client) GetSessionEvents(filter events.Filter) ([]session.Session, error) {
-	vals, err := events.FilterToURL(filter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.Get(c.Endpoint("events", "sessions"), vals)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var events []session.Session
-	if err := json.Unmarshal(out.Bytes(), &events); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return events, nil
-}
-
-// GetChunkWriter returns a writer for chunks (parts of the recorded session)
-func (c *Client) GetChunkWriter(id string) (recorder.ChunkWriteCloser, error) {
-	return &chunkRW{c: c, id: id}, nil
-}
-
-// GetChunkReader returns a reader of recorded session
-func (c *Client) GetChunkReader(id string) (recorder.ChunkReadCloser, error) {
-	return &chunkRW{c: c, id: id}, nil
 }
 
 // UpsertNode is used by SSH servers to reprt their presense
@@ -757,48 +695,6 @@ func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 	return response, nil
 }
 
-type chunkRW struct {
-	c  *Client
-	id string
-}
-
-func (c *chunkRW) ReadChunks(start int, end int) ([]recorder.Chunk, error) {
-	out, err := c.c.Get(c.c.Endpoint("records", c.id, "chunks"), url.Values{
-		"start": []string{strconv.Itoa(start)},
-		"end":   []string{strconv.Itoa(end)},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var chunks []recorder.Chunk
-	if err := json.Unmarshal(out.Bytes(), &chunks); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return chunks, nil
-}
-
-func (c *chunkRW) GetChunksCount() (uint64, error) {
-	out, err := c.c.Get(c.c.Endpoint("records", c.id, "chunkscount"), url.Values{})
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	var count uint64
-	if err := json.Unmarshal(out.Bytes(), &count); err != nil {
-		return 0, trace.Wrap(err)
-	}
-	return count, nil
-}
-
-func (c *chunkRW) WriteChunks(chunks []recorder.Chunk) error {
-	_, err := c.c.PostJSON(
-		c.c.Endpoint("records", c.id, "chunks"), writeChunksReq{Chunks: chunks})
-	return trace.Wrap(err)
-}
-
-func (c *chunkRW) Close() error {
-	return nil
-}
-
 // TOODO(klizhentas) this should be just including appropriate service implementations
 type ClientI interface {
 	GetUser(name string) (services.User, error)
@@ -814,13 +710,6 @@ type ClientI interface {
 	GenerateToken(role teleport.Role, ttl time.Duration) (string, error)
 	RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error)
 	RegisterNewAuthServer(token string) error
-	Log(id lunk.EventID, e lunk.Event)
-	LogEntry(en lunk.Entry) error
-	LogSession(sess session.Session) error
-	GetEvents(filter events.Filter) ([]lunk.Entry, error)
-	GetSessionEvents(filter events.Filter) ([]session.Session, error)
-	GetChunkWriter(id string) (recorder.ChunkWriteCloser, error)
-	GetChunkReader(id string) (recorder.ChunkReadCloser, error)
 	UpsertNode(s services.Server, ttl time.Duration) error
 	GetNodes() ([]services.Server, error)
 	GetAuthServers() ([]services.Server, error)

@@ -8,13 +8,10 @@ import (
 	"log/syslog"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/codahale/lunk"
-	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
 )
@@ -44,19 +41,14 @@ type AuditEvent struct {
 }
 
 func (e *AuditEvent) String() string {
-	// TODO ev: this is for compatibility. remove it later
-	delete(e.Data, "sessionid")
 	bytes, _ := json.Marshal(e.Data)
 	return fmt.Sprintf("%v,%s,%s", e.Created, e.Kind, string(bytes))
 }
 
 type ISessionLogger interface {
-	recorder.ChunkWriteCloser
-	recorder.ChunkReader
-
 	SID() session.ID
 	UserLogin() string
-	AddEvent(*AuditEvent) error
+	LogEvent(*AuditEvent) error
 }
 
 // BaseSessionLogger implements the common features of a session logger. The imporant
@@ -83,7 +75,7 @@ func (sl *BaseSessionLogger) Close() error {
 	return nil
 }
 
-func (sl *BaseSessionLogger) AddEvent(e *AuditEvent) error {
+func (sl *BaseSessionLogger) LogEvent(e *AuditEvent) error {
 	if _, err := fmt.Fprintf(sl.writer, e.String()); err != nil {
 		logrus.Error(err)
 	}
@@ -99,26 +91,6 @@ func (sl *BaseSessionLogger) initSyslog() {
 	sl.writer = writer
 }
 
-func (sl *BaseSessionLogger) WriteChunks(chunks []recorder.Chunk) error {
-	lc := len(chunks)
-	tl := 0
-	for i := range chunks {
-		tl += len(chunks[i].Data)
-	}
-	infof("BaseLoggerWriteChunks(%v chunks, total len: %v)", lc, tl)
-	return nil
-}
-
-func (sl *BaseSessionLogger) ReadChunks(start int, end int) ([]recorder.Chunk, error) {
-	infof("ReadChunks(%v, %v)", start, end)
-	return make([]recorder.Chunk, 0), nil
-}
-
-func (sl *BaseSessionLogger) GetChunksCount() (uint64, error) {
-	infof("GetChunkCount()")
-	return 0, nil
-}
-
 // SessionLogger is a file system based session logger. Every session is a file. It is
 // based on the BaseSessionLogger
 type SessionLogger struct {
@@ -129,7 +101,7 @@ type SessionLogger struct {
 	streamFile *os.File
 }
 
-func (sl *SessionLogger) AddEvent(e *AuditEvent) (err error) {
+func (sl *SessionLogger) LogEvent(e *AuditEvent) (err error) {
 	defer (func() {
 		sl.Lock()
 		sl.Unlock()
@@ -146,7 +118,7 @@ func (sl *SessionLogger) AddEvent(e *AuditEvent) (err error) {
 		output, _ := e.Data["output"].(string)
 		sl.finalize(exitCode, output)
 	}
-	infof("SessionLogger.AddEvent(sid=%v, event=%s, data=%s)", sl.sid, e.Kind, e.Data)
+	infof("SessionLogger.LogEvent(sid=%v, event=%s, data=%s)", sl.sid, e.Kind, e.Data)
 	return err
 }
 
@@ -174,18 +146,6 @@ func (sl *SessionLogger) WriteStream(bytes []byte) error {
 	return nil
 }
 
-// TODO (ev): kill it
-func (sl *SessionLogger) WriteChunks(chunks []recorder.Chunk) error {
-	lc := len(chunks)
-	tl := 0
-	for i := range chunks {
-		tl += len(chunks[i].Data)
-		sl.WriteStream(chunks[i].Data)
-	}
-	infof("FSLogger.WriteChunks(%v chunks, total len: %v)", lc, tl)
-	return nil
-}
-
 // AuditLog is a new combined facility to record Teleport events and
 // sessions. It implements these interfaces:
 //	- events.Log
@@ -208,6 +168,19 @@ func NewAuditLog(dataDir string) (*AuditLog, error) {
 		dataDir:    dataDir,
 		safeWriter: ioutil.Discard,
 	}, nil
+}
+
+func (l *AuditLog) LogEvent(sid session.ID, e *AuditEvent) {
+	sl := l.GetSessionLogger(sid)
+	if sl != nil {
+		logrus.Errorf("failed to log event %v for session %v: unknown session", e.Kind, sid)
+		return
+	}
+	sl.LogEvent(e)
+}
+
+func (l *AuditLog) Close() error {
+	return nil
 }
 
 func (l *AuditLog) NewSessionLogger(sess *session.Session) (sl ISessionLogger) {
@@ -278,71 +251,4 @@ func (l *AuditLog) GetSessionLogger(id session.ID) ISessionLogger {
 		return nil
 	}
 	return sl
-}
-
-// TODO (ev) kill it
-func (l *AuditLog) Log(id lunk.EventID, e lunk.Event) {
-	l.LogEntry(lunk.NewEntry(id, e))
-}
-
-// TODO (ev) kill it
-func (l *AuditLog) LogEntry(entry lunk.Entry) error {
-	sid := session.ID(entry.Properties["sessionid"])
-	infof("GOT SID: %v", sid)
-	if sid == "" {
-		errorf("received log entry without event ID: %v", entry.Properties)
-		return nil
-	}
-	e := &AuditEvent{
-		SessionID: sid,
-		Created:   time.Now().In(time.UTC).Round(time.Second),
-		Kind:      entry.Schema,
-		Data:      make(map[string]interface{}),
-	}
-	if e.Kind == SessionEndEvent {
-		exitCode, _ := strconv.Atoi(entry.Properties["exitcode"])
-		e.Data["exitcode"] = exitCode
-		e.Data["output"] = entry.Properties["output"]
-	} else {
-		for k, v := range entry.Properties {
-			e.Data[k] = v
-		}
-	}
-	return l.GetSessionLogger(sid).AddEvent(e)
-}
-
-// TODO (ev) kill it
-func (l *AuditLog) LogSession(s session.Session) error {
-	l.NewSessionLogger(&s)
-	infof("LogSession() -> %v", s.ID)
-	return nil
-}
-
-// TODO (ev) kill it
-func (l *AuditLog) GetEvents(filter Filter) ([]lunk.Entry, error) {
-	infof("GetEvents(session=%s)", filter.SessionID)
-	return nil, nil
-}
-
-// TODO (ev) kill it
-func (l *AuditLog) GetSessionEvents(filter Filter) ([]session.Session, error) {
-	infof("GetSessionEvents(session=%s)", filter.SessionID)
-	return nil, nil
-}
-
-func (l *AuditLog) Close() error {
-	infof("Close()")
-	return nil
-}
-
-// TODO (ev) kill it
-func (l *AuditLog) GetChunkWriter(id string) (recorder.ChunkWriteCloser, error) {
-	infof("GetChunkWriter(%s)", id)
-	return l.GetSessionLogger(session.ID(id)), nil
-}
-
-// TODO (ev) kill it
-func (l *AuditLog) GetChunkReader(id string) (recorder.ChunkReadCloser, error) {
-	infof("GetChunkWriter(%s)", id)
-	return l.GetSessionLogger(session.ID(id)), nil
 }

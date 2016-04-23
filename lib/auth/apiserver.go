@@ -21,20 +21,16 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 )
@@ -48,11 +44,9 @@ type Config struct {
 // APIServer implements http API server for AuthServer interface
 type APIServer struct {
 	httprouter.Router
-	a    *AuthWithRoles
-	s    *AuthServer
-	elog events.Log
-	se   session.Service
-	rec  recorder.Recorder
+	a  *AuthWithRoles
+	s  *AuthServer
+	se session.Service
 }
 
 // NewAPIServer returns a new instance of APIServer HTTP handler
@@ -109,18 +103,6 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.POST("/v1/tokens", httplib.MakeHandler(srv.generateToken))
 	srv.POST("/v1/tokens/register", httplib.MakeHandler(srv.registerUsingToken))
 	srv.POST("/v1/tokens/register/auth", httplib.MakeHandler(srv.registerNewAuthServer))
-
-	// Events
-	srv.POST("/v1/events", httplib.MakeHandler(srv.submitEvents))
-	srv.GET("/v1/events", httplib.MakeHandler(srv.getEvents))
-
-	srv.POST("/v1/events/sessions", httplib.MakeHandler(srv.logSessionEvents))
-	srv.GET("/v1/events/sessions", httplib.MakeHandler(srv.getSessionEvents))
-
-	// Recorded sessions
-	srv.POST("/v1/records/:sid/chunks", httplib.MakeHandler(srv.submitChunks))
-	srv.GET("/v1/records/:sid/chunks", httplib.MakeHandler(srv.getChunks))
-	srv.GET("/v1/records/:sid/chunkscount", httplib.MakeHandler(srv.getChunksCount))
 
 	// Sesssions
 	srv.POST("/v1/sessions/:id/parties", httplib.MakeHandler(srv.upsertSessionParty))
@@ -507,133 +489,6 @@ func (s *APIServer) registerNewAuthServer(w http.ResponseWriter, r *http.Request
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
-}
-
-type submitEventsReq struct {
-	Events []lunk.Entry `json:"events"`
-}
-
-func (s *APIServer) submitEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
-	var req *submitEventsReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	for _, e := range req.Events {
-		if err := s.a.LogEntry(e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return message("events submitted"), nil
-}
-
-type logSessionsReq struct {
-	Sessions []session.Session `json:"sessions"`
-}
-
-func (s *APIServer) logSessionEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
-	var req *logSessionsReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	for i := range req.Sessions {
-		if err := s.a.LogSession(req.Sessions[i]); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return message("session events submitted"), nil
-}
-
-func (s *APIServer) getEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
-	f, err := events.FilterFromURL(r.URL.Query())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	events, err := s.a.GetEvents(*f)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return events, nil
-}
-
-func (s *APIServer) getSessionEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
-	f, err := events.FilterFromURL(r.URL.Query())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sessionEvents, err := s.a.GetSessionEvents(*f)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sessionEvents, nil
-}
-
-type writeChunksReq struct {
-	Chunks []recorder.Chunk `json:"chunk"`
-}
-
-func (s *APIServer) submitChunks(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	sid := p[0].Value
-	var req *writeChunksReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	wr, err := s.a.GetChunkWriter(sid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer wr.Close()
-
-	if err := wr.WriteChunks(req.Chunks); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message("chunks submitted"), nil
-}
-
-func (s *APIServer) getChunks(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	sid := p[0].Value
-
-	st, en := r.URL.Query().Get("start"), r.URL.Query().Get("end")
-	start, err := strconv.Atoi(st)
-	if err != nil {
-		return nil, trace.BadParameter("start: need integer")
-	}
-	end, err := strconv.Atoi(en)
-	if err != nil {
-		return nil, trace.BadParameter("end: need integer")
-	}
-
-	re, err := s.a.GetChunkReader(sid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer re.Close()
-
-	chunks, err := re.ReadChunks(start, end)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return chunks, nil
-}
-
-func (s *APIServer) getChunksCount(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	sid := p[0].Value
-
-	re, err := s.a.GetChunkReader(sid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer re.Close()
-
-	count, err := re.GetChunksCount()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return count, nil
 }
 
 type upsertCertAuthorityReq struct {

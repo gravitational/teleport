@@ -31,9 +31,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
@@ -42,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -57,14 +54,12 @@ type Server struct {
 	hostname      string
 	certChecker   ssh.CertChecker
 	resolver      resolver
-	elog          events.Log
 	srv           *sshutils.Server
 	hostSigner    ssh.Signer
 	shell         string
 	authService   auth.AccessPoint
 	reg           *sessionRegistry
 	sessionServer rsession.Service
-	rec           recorder.Recorder
 	limiter       *limiter.Limiter
 
 	labels      map[string]string                //static server labels
@@ -89,14 +84,6 @@ type Server struct {
 
 // ServerOption is a functional option passed to the server
 type ServerOption func(s *Server) error
-
-// SetEventLogger sets structured event logger for this server
-func SetEventLogger(e events.Log) ServerOption {
-	return func(s *Server) error {
-		s.elog = e
-		return nil
-	}
-}
 
 // Close closes listening socket and stops accepting connections
 func (s *Server) Close() error {
@@ -132,14 +119,6 @@ func SetShell(shell string) ServerOption {
 func SetSessionServer(srv rsession.Service) ServerOption {
 	return func(s *Server) error {
 		s.sessionServer = srv
-		return nil
-	}
-}
-
-// SetRecorder records all
-func SetRecorder(rec recorder.Recorder) ServerOption {
-	return func(s *Server) error {
-		s.rec = rec
 		return nil
 	}
 }
@@ -217,10 +196,6 @@ func New(addr utils.NetAddr,
 		}
 	}
 	s.reg = newSessionRegistry(s)
-	if s.elog == nil {
-		s.elog = events.NullEventLogger
-	}
-
 	srv, err := sshutils.NewServer(
 		addr, s, signers,
 		sshutils.AuthMethods{PublicKey: s.keyAuth},
@@ -451,7 +426,6 @@ func (s *Server) isAuthority(cert ssh.PublicKey) bool {
 // by the server every time the client connects
 func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 	cid := fmt.Sprintf("conn(%v->%v, user=%v)", conn.RemoteAddr(), conn.LocalAddr(), conn.User())
-	eventID := lunk.NewRootEventID()
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
 	log.Infof("%v auth attempt with key %v", cid, fingerprint)
 
@@ -479,7 +453,8 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 
 	permissions, err := s.certChecker.Authenticate(conn, key)
 	if err != nil {
-		s.elog.Log(eventID, events.NewAuthAttempt(conn, key, false, err))
+		// TODO (Ev)
+		//s.elog.Log(eventID, events.NewAuthAttempt(conn, key, false, err))
 		logger.Warningf("authenticate err: %v", err)
 		return nil, trace.Wrap(err)
 	}
@@ -741,10 +716,6 @@ func (s *Server) handleShell(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Req
 		return trace.Wrap(err)
 	}
 	return s.reg.joinShell(*sessionID, sconn, ch, req, ctx)
-}
-
-func (s *Server) emit(eid lunk.EventID, e lunk.Event) {
-	s.elog.Log(eid, e)
 }
 
 func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {

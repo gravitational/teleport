@@ -38,10 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/boltlog"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/recorder"
-	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -50,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
@@ -320,9 +316,8 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 
 	apiServer := auth.NewAPIWithRoles(auth.APIConfig{
 		AuthServer:        authServer,
-		EventLog:          auditLog,
+		AuditLog:          auditLog,
 		SessionService:    sessionService,
-		Recorder:          auditLog,
 		PermissionChecker: auth.NewStandardPermissions(),
 		Roles:             auth.StandardRoles,
 	})
@@ -461,9 +456,9 @@ func (process *TeleportProcess) initSSH() error {
 			cfg.AdvertiseIP,
 			srv.SetLimiter(limiter),
 			srv.SetShell(cfg.SSH.Shell),
-			srv.SetEventLogger(conn.Client),
+			// TODO (Ev)
+			//srv.SetEventLogger(conn.Client),
 			srv.SetSessionServer(conn.Client),
-			srv.SetRecorder(conn.Client),
 			srv.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
 		)
 		if err != nil {
@@ -621,9 +616,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register reverse tunnel agents pool
 	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
-		HostUUID:    conn.Identity.ID.HostUUID,
-		Client:      conn.Client,
-		EventLog:    conn.Client,
+		HostUUID: conn.Identity.ID.HostUUID,
+		Client:   conn.Client,
+		// TODO (ev)
+		//EventLog:    conn.Client,
 		HostSigners: []ssh.Signer{conn.Identity.KeySigner},
 	})
 
@@ -744,22 +740,6 @@ func (process *TeleportProcess) Close() error {
 	return trace.Wrap(process.localAuth.Close())
 }
 
-func initEventStorage(btype string, params string) (events.Log, error) {
-	switch btype {
-	case "bolt":
-		return boltlog.FromJSON(params)
-	}
-	return nil, trace.Errorf("unsupported backend type: %v", btype)
-}
-
-func initRecordStorage(btype string, params string) (recorder.Recorder, error) {
-	switch btype {
-	case "bolt":
-		return boltrec.FromJSON(params)
-	}
-	return nil, trace.Errorf("unsupported backend type: %v", btype)
-}
-
 func validateConfig(cfg *Config) error {
 	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.Proxy.Enabled {
 		return trace.BadParameter(
@@ -834,14 +814,4 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 		return trace.Wrap(err, "error writing pub key PEM")
 	}
 	return nil
-}
-
-type FanOutEventLogger struct {
-	Loggers []lunk.EventLogger
-}
-
-func (f *FanOutEventLogger) Log(id lunk.EventID, e lunk.Event) {
-	for _, l := range f.Loggers {
-		l.Log(id, e)
-	}
 }

@@ -39,10 +39,6 @@
 			"Rev": "af3f07dadc88b80c7b5a15f26033c6dd979f012f"
 		},
 		{
-			"ImportPath": "github.com/codahale/lunk",
-			"Rev": "3bb9f3be3053e35972e4a0725dd6e44ae203bc99"
-		},
-		{
 			"ImportPath": "github.com/coreos/etcd/Godeps/_workspace/src/github.com/ugorji/go/codec",
 			"Comment": "v2.3.0-alpha.1-249-g0c41371",
 			"Rev": "0c41371064666ad159761e0fb12c7f240b3977cb"
