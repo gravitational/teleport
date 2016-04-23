@@ -49,16 +49,6 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	s.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
 }
 
-func (s *ExecSuite) TestGetShell(c *check.C) {
-	shell, err := getLoginShell("root")
-	c.Assert(err, check.IsNil)
-	c.Assert(shell, check.Equals, "/bin/bash")
-
-	shell, err = getLoginShell("non-existent-user")
-	c.Assert(err, check.NotNil)
-	c.Assert(err.Error(), check.Matches, ".*cannot determine shell for.*")
-}
-
 func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	expectedEnv := []string{
 		"TERM=xterm",
