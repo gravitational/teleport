@@ -95,8 +95,7 @@ var SessionPlayer = React.createClass({
               onChange={this.move}
               defaultValue={1}
               withBars
-              className="grv-slider">
-           </ReactSlider>
+              className="grv-slider" />           
          </div>
         </div>
      </div>

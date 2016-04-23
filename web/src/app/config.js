@@ -84,27 +84,17 @@ let cfg = {
       return formatPattern(cfg.api.invitePath, {inviteToken});
     },
 
-    getEventStreamConnStr(token, sid){
+    getEventStreamConnStr(){
       var hostname = getWsHostName();
-      return `${hostname}/v1/webapi/sites/-current-/sessions/${sid}/events/stream?access_token=${token}`;
+      return `${hostname}/v1/webapi/sites/-current-`;
     },
 
-    getTtyConnStr({token, serverId, login, sid, rows, cols}){
-      var params = {
-        server_id: serverId,
-        login,
-        sid,
-        term: {
-          h: rows,
-          w: cols
-        }
-      }
-
-      var json = JSON.stringify(params);
-      var jsonEncoded = window.encodeURI(json);
+    getTtyUrl(){
       var hostname = getWsHostName();
-      return `${hostname}/v1/webapi/sites/-current-/connect?access_token=${token}&params=${jsonEncoded}`;
+      return `${hostname}/v1/webapi/sites/-current-`;
     }
+
+
   },
 
   getFullUrl(url){
