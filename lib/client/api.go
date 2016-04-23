@@ -925,7 +925,7 @@ func lineFromConsole() (string, error) {
 	return string(bytes), err
 }
 
-// parseLabelSpec parses a string like 'name=value,"long name"="quoted value"` into a map like
+// ParseLabelSpec parses a string like 'name=value,"long name"="quoted value"` into a map like
 // { "name" -> "value", "long name" -> "quoted value" }
 func ParseLabelSpec(spec string) (map[string]string, error) {
 	tokens := []string{}
@@ -947,7 +947,7 @@ func ParseLabelSpec(spec string) (map[string]string, error) {
 			if !openQuotes {
 				endOfToken = true
 				if ch == '=' {
-					assignCount += 1
+					assignCount++
 				}
 			}
 		}
@@ -977,9 +977,13 @@ func authMethodFromAgent(ag agent.Agent) ssh.AuthMethod {
 // executes shell
 func runLocalCommand(command []string) error {
 	if len(command) == 0 {
-		shell := os.Getenv("SHELL")
-		if shell == "" {
-			shell = "/bin/bash"
+		user, err := user.Current()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		shell, err := utils.GetLoginShell(user.Username)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 		command = []string{shell}
 	}
