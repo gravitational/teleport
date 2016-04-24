@@ -70,6 +70,7 @@ func NewStandardPermissions() PermissionChecker {
 		ActionUpsertSession:      true,
 		ActionGetSession:         true,
 		ActionGetSessions:        true,
+		ActionEmitEvents:         true,
 	}
 
 	sp.permissions[teleport.RoleProxy] = map[string]bool{
@@ -88,6 +89,7 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetSessions:                     true,
 		ActionCreateOIDCAuthRequest:           true,
 		ActionValidateOIDCAuthCallback:        true,
+		ActionEmitEvents:                      true,
 	}
 
 	sp.permissions[teleport.RoleWeb] = map[string]bool{
@@ -210,4 +212,5 @@ const (
 	ActionGetOIDCConnectorsWithoutSecrets   = "GetOIDCConnectorsWithoutSecrets"
 	ActionCreateOIDCAuthRequest             = "CreateOIDCAuthRequest"
 	ActionValidateOIDCAuthCallback          = "ValidateOIDCAuthCallback"
+	ActionEmitEvents                        = "EmitEvents"
 )

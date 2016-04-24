@@ -42,6 +42,10 @@ const (
 	ResizeEvent = "teleport.resize.pty"
 )
 
+type AuditLogI interface {
+	EmitAuditEvent(eventType string, fields map[string]string) error
+}
+
 func infof(format string, params ...interface{}) {
 	logrus.Infof("[audit] -----> "+format, params...)
 }
@@ -189,6 +193,12 @@ func NewAuditLog(dataDir string) (*AuditLog, error) {
 		dataDir:    dataDir,
 		safeWriter: ioutil.Discard,
 	}, nil
+}
+
+// EmitAuditEvent adds a new event to the log. Part of auth.AuditLogI interface.
+func (l *AuditLog) EmitAuditEvent(eventType string, fields map[string]string) error {
+	logrus.Infof("----> AuditLog.EmitAuditEvent()!!!!")
+	return nil
 }
 
 func (l *AuditLog) LogEvent(sid session.ID, e *AuditEvent) {

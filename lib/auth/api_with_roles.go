@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -46,6 +47,7 @@ type APIConfig struct {
 	SessionService    session.Service
 	Roles             []teleport.Role
 	PermissionChecker PermissionChecker
+	AuditLog          events.AuditLogI
 }
 
 func NewAPIWithRoles(config APIConfig) *APIWithRoles {
@@ -60,6 +62,7 @@ func NewAPIWithRoles(config APIConfig) *APIWithRoles {
 			permChecker: config.PermissionChecker,
 			sessions:    config.SessionService,
 			role:        role,
+			alog:        config.AuditLog,
 		}
 		api.servers[role] = NewAPIServer(a)
 		api.listeners[role] = makefakeSocket()

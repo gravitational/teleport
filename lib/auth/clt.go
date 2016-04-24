@@ -699,6 +699,16 @@ func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 	return response, nil
 }
 
+// EmitAuditEvent sends an auditable event to the auth server
+func (c *Client) EmitAuditEvent(eventType string, fields map[string]string) error {
+	fields["t"] = eventType
+	_, err := c.PostJSON(c.Endpoint("events"), fields)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // TOODO(klizhentas) this should be just including appropriate service implementations
 type ClientI interface {
 	GetUser(name string) (services.User, error)
@@ -737,4 +747,5 @@ type ClientI interface {
 	DeleteOIDCConnector(connectorID string) error
 	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
 	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
+	EmitAuditEvent(eventType string, fields map[string]string) error
 }

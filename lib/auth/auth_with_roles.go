@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 
@@ -32,6 +33,7 @@ type AuthWithRoles struct {
 	permChecker PermissionChecker
 	sessions    session.Service
 	role        teleport.Role
+	alog        events.AuditLogI
 }
 
 func (a *AuthWithRoles) GetSessions() ([]session.Session, error) {
@@ -355,4 +357,11 @@ func (a *AuthWithRoles) DeleteOIDCConnector(connectorID string) error {
 		return trace.Wrap(err)
 	}
 	return a.authServer.Identity.DeleteOIDCConnector(connectorID)
+}
+
+func (a *AuthWithRoles) EmitAuditEvent(eventType string, fields map[string]string) error {
+	if err := a.permChecker.HasPermission(a.role, ActionEmitEvents); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.alog.EmitAuditEvent(eventType, fields)
 }

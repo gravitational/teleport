@@ -111,9 +111,6 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.GET("/v1/sessions", httplib.MakeHandler(srv.getSessions))
 	srv.GET("/v1/sessions/:id", httplib.MakeHandler(srv.getSession))
 
-	// Audit logs AKA events
-	srv.POST("/v1/events", httplib.MakeHandler(srv.emitAuditEvent))
-
 	// OIDC stuff
 	srv.POST("/v1/oidc/connectors", httplib.MakeHandler(srv.upsertOIDCConnector))
 	srv.GET("/v1/oidc/connectors", httplib.MakeHandler(srv.getOIDCConnectors))
@@ -121,6 +118,9 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.DELETE("/v1/oidc/connectors/:id", httplib.MakeHandler(srv.deleteOIDCConnector))
 	srv.POST("/v1/oidc/requests/create", httplib.MakeHandler(srv.createOIDCAuthRequest))
 	srv.POST("/v1/oidc/requests/validate", httplib.MakeHandler(srv.validateOIDCAuthCallback))
+
+	// Audit logs AKA events
+	srv.POST("/v1/events", httplib.MakeHandler(srv.emitAuditEvent))
 
 	return srv
 }
@@ -612,13 +612,6 @@ func (s *APIServer) getSession(w http.ResponseWriter, r *http.Request, p httprou
 	return se, nil
 }
 
-// emitAuditEvent receives an audited event which needs to be recorded
-// HTTP	POST /v1/events
-func (s *APIServer) emitAuditEvent(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	// TODO (ev) implement this
-	return nil, nil
-}
-
 type getSignupTokenDataResponse struct {
 	User            string   `json:"user"`
 	QRImg           []byte   `json:"qrimg"`
@@ -762,6 +755,24 @@ func (s *APIServer) validateOIDCAuthCallback(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 	return response, nil
+}
+
+// HTTP	POST /v1/events
+func (s *APIServer) emitAuditEvent(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	fields := make(map[string]string)
+	if err := httplib.ReadJSON(r, &fields); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Infof("-----> api.emitAuditEvent(%v)", fields)
+	eventType, found := fields["t"]
+	if !found {
+		return nil, trace.BadParameter("event type is not given")
+	}
+	delete(fields, "t")
+	if err := s.a.EmitAuditEvent(eventType, fields); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
 }
 
 func message(msg string) map[string]interface{} {
