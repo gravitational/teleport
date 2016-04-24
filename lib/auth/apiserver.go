@@ -111,6 +111,9 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.GET("/v1/sessions", httplib.MakeHandler(srv.getSessions))
 	srv.GET("/v1/sessions/:id", httplib.MakeHandler(srv.getSession))
 
+	// Audit logs AKA events
+	srv.POST("/v1/events", httplib.MakeHandler(srv.emitAuditEvent))
+
 	// OIDC stuff
 	srv.POST("/v1/oidc/connectors", httplib.MakeHandler(srv.upsertOIDCConnector))
 	srv.GET("/v1/oidc/connectors", httplib.MakeHandler(srv.getOIDCConnectors))
@@ -607,6 +610,13 @@ func (s *APIServer) getSession(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 	return se, nil
+}
+
+// emitAuditEvent receives an audited event which needs to be recorded
+// HTTP	POST /v1/events
+func (s *APIServer) emitAuditEvent(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	// TODO (ev) implement this
+	return nil, nil
 }
 
 type getSignupTokenDataResponse struct {

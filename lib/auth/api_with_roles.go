@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -44,7 +43,6 @@ type APIWithRoles struct {
 // APIConfig is a configuration file
 type APIConfig struct {
 	AuthServer        *AuthServer
-	AuditLog          *events.AuditLog
 	SessionService    session.Service
 	Roles             []teleport.Role
 	PermissionChecker PermissionChecker
@@ -57,14 +55,13 @@ func NewAPIWithRoles(config APIConfig) *APIWithRoles {
 	api.config = config
 
 	for _, role := range config.Roles {
-		a := AuthWithRoles{
+		a := &AuthWithRoles{
 			authServer:  config.AuthServer,
-			elog:        config.AuditLog,
-			sessions:    config.SessionService,
 			permChecker: config.PermissionChecker,
+			sessions:    config.SessionService,
 			role:        role,
 		}
-		api.servers[role] = NewAPIServer(&a)
+		api.servers[role] = NewAPIServer(a)
 		api.listeners[role] = makefakeSocket()
 	}
 	return &api
@@ -89,15 +86,8 @@ func (api *APIWithRoles) Serve() {
 
 func (api *APIWithRoles) Close() {
 	api.askedToStop = true
-	var err error
-
 	for _, listener := range api.listeners {
 		listener.Close()
-	}
-	if api.config.AuditLog != nil {
-		if err = api.config.AuditLog.Close(); err != nil {
-			log.Error(err)
-		}
 	}
 }
 

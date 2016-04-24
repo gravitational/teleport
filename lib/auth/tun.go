@@ -43,6 +43,8 @@ import (
 // AuthTunnel listens on TCP/IP socket and accepts SSH connections. It then stablishes
 // an SSH tunnell which HTTP requests travel over. In other words, the Auth Service API
 // runs on HTTP-via-SSH-tunnel.
+//
+// Use auth.TunClient to connect to AuthTunnel
 type AuthTunnel struct {
 	// authServer implements the "beef" of the Auth service
 	authServer *AuthServer
@@ -57,6 +59,24 @@ type AuthTunnel struct {
 	hostCertChecker ssh.CertChecker
 	userCertChecker ssh.CertChecker
 	limiter         *limiter.Limiter
+}
+
+// TunClient is HTTP client that works over SSH tunnel
+// This is done in order to authenticate various teleport roles
+// using existing SSH certificate infrastructure
+type TunClient struct {
+	// embed auth API HTTP client
+	Client
+
+	sync.Mutex
+	user          string
+	authServers   []utils.NetAddr
+	authMethods   []ssh.AuthMethod
+	refreshTicker *time.Ticker
+	closeC        chan struct{}
+	closeOnce     sync.Once
+	tr            *http.Transport
+	addrStorage   utils.AddrStorage
 }
 
 // ServerOption is the functional argument passed to the server
@@ -496,22 +516,6 @@ func TunClientStorage(storage utils.AddrStorage) TunClientOption {
 	return func(t *TunClient) {
 		t.addrStorage = storage
 	}
-}
-
-// TunClient is HTTP client that works over SSH tunnel
-// This is done in order to authenticate various teleport roles
-// using existing SSH certificate infrastructure
-type TunClient struct {
-	sync.Mutex
-	Client
-	user          string
-	authServers   []utils.NetAddr
-	authMethods   []ssh.AuthMethod
-	refreshTicker *time.Ticker
-	closeC        chan struct{}
-	closeOnce     sync.Once
-	tr            *http.Transport
-	addrStorage   utils.AddrStorage
 }
 
 // NewTunClient returns an instance of new HTTP client to Auth server API

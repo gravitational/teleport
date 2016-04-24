@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 
@@ -31,22 +30,8 @@ import (
 type AuthWithRoles struct {
 	authServer  *AuthServer
 	permChecker PermissionChecker
-	elog        *events.AuditLog
 	sessions    session.Service
 	role        teleport.Role
-}
-
-func NewAuthWithRoles(authServer *AuthServer, permChecker PermissionChecker,
-	elog *events.AuditLog, sessions session.Service,
-	role teleport.Role) *AuthWithRoles {
-
-	return &AuthWithRoles{
-		authServer:  authServer,
-		permChecker: permChecker,
-		sessions:    sessions,
-		role:        role,
-		elog:        elog,
-	}
 }
 
 func (a *AuthWithRoles) GetSessions() ([]session.Session, error) {

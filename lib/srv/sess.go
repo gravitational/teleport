@@ -19,13 +19,12 @@ package srv
 import (
 	"fmt"
 	"io"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
@@ -56,40 +55,52 @@ func (r *sessionRegistry) Close() {
 }
 
 // joinShell either joins an existing session or starts a new shell
-func (s *sessionRegistry) joinShell(sid rsession.ID, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	ctx.Infof("joinShell(sid=%v)", sid)
+func (s *sessionRegistry) joinShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+	ctx.Infof("-----> active sessions: %v", s.sessions)
+	ctx.Infof("-----> ctx has env: %v", ctx.env)
+	ctx.Infof("-----> ctx has session: %v", ctx.session)
 
-	sess, found := s.lockedFindSession(sid)
-	if found {
-		ctx.Infof("joining session: %v", sess.id)
-		_, err := sess.join(sconn, ch, req, ctx)
+	if ctx.session != nil {
+		/* TODO (ev)
+		add event log "party joined"
+		*/
+		ctx.Infof("joining session: %v", ctx.session.id)
+		_, err := ctx.session.join(ch, req, ctx)
 		return trace.Wrap(err)
 	}
-
+	// session not found? need to create one. start by getting/generating an ID for it
+	sid, found := ctx.getEnv(sshutils.SessionEnvVar)
+	if !found {
+		sid = string(rsession.NewID())
+		ctx.setEnv(sshutils.SessionEnvVar, sid)
+	}
 	// This logic allows concurrent request to create a new session
 	// to fail, what is ok because we should never have this condition
-	sess, err := newSession(sid, s, ctx)
+	sess, err := newSession(rsession.ID(sid), s, ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := sess.startShell(sconn, ch, ctx); err != nil {
-		defer sess.Close()
+	ctx.session = sess
+	s.addSession(sess)
+	ctx.Infof("ssh.joinShell created new session %v", sid)
+	ctx.Infof("<------- active sessions: %v", s.sessions)
+
+	/* TODO (ev)
+	add event log: "new session started"
+	*/
+
+	if err := sess.startShell(ch, ctx); err != nil {
+		sess.Close()
 		return trace.Wrap(err)
 	}
-	s.addSession(sess)
-	ctx.Infof("created session: %v", sess.id)
 
 	return nil
 }
 
-func (s *sessionRegistry) leaveShell(sid, pid rsession.ID) error {
+func (s *sessionRegistry) leaveShell(sess *session, pid rsession.ID) error {
 	s.Lock()
 	defer s.Unlock()
 
-	sess, found := s.findSession(sid)
-	if !found {
-		return trace.NotFound("session %v not found", sid)
-	}
 	if err := sess.leave(pid); err != nil {
 		return trace.Wrap(err)
 	}
@@ -98,6 +109,7 @@ func (s *sessionRegistry) leaveShell(sid, pid rsession.ID) error {
 	}
 	log.Infof("last party left %v, removing from server", sess)
 	delete(s.sessions, sess.id)
+
 	if err := sess.Close(); err != nil {
 		log.Errorf("failed to close: %v", err)
 		return err
@@ -105,13 +117,15 @@ func (s *sessionRegistry) leaveShell(sid, pid rsession.ID) error {
 	return nil
 }
 
-func (s *sessionRegistry) notifyWinChange(sid rsession.ID, params rsession.TerminalParams, ctx *ctx) error {
-	log.Infof("notifyWinChange(%v)", sid)
-	sess, found := s.findSession(sid)
-	if !found {
-		return trace.NotFound("session %v not found", sid)
+func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *ctx) error {
+	if ctx.session == nil {
+		err := trace.Errorf("SSH context has no associated session")
+		ctx.Error(err)
+		return nil
 	}
-	err := sess.term.setWinsize(params)
+	log.Infof("notifyWinChange(%v)", ctx.session.id)
+
+	err := ctx.session.term.setWinsize(params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -120,16 +134,19 @@ func (s *sessionRegistry) notifyWinChange(sid rsession.ID, params rsession.Termi
 	}
 	go func() {
 		err := s.srv.sessionServer.UpdateSession(
-			rsession.UpdateRequest{ID: sid, TerminalParams: &params})
+			rsession.UpdateRequest{ID: ctx.session.id, TerminalParams: &params})
 		if err != nil {
 			log.Error(err)
 		}
 		// report this to the event/audit log:
-		ctx.emit(&events.TerminalResized{
-			SessionID: string(sid),
-			Width:     params.W,
-			Height:    params.H,
-		})
+		// TODO (ev)
+		/*
+			ctx.emit(&events.TerminalResized{
+				SessionID: string(sid),
+				Width:     params.W,
+				Height:    params.H,
+			})
+		*/
 
 	}()
 	return nil
@@ -150,12 +167,6 @@ func (s *sessionRegistry) broadcastResult(sid rsession.ID, r execResult) error {
 func (s *sessionRegistry) findSession(id rsession.ID) (*session, bool) {
 	sess, found := s.sessions[id]
 	return sess, found
-}
-
-func (s *sessionRegistry) lockedFindSession(id rsession.ID) (*session, bool) {
-	s.Lock()
-	defer s.Unlock()
-	return s.findSession(id)
 }
 
 func newSessionRegistry(srv *Server) *sessionRegistry {
@@ -214,11 +225,6 @@ func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, err
 				rsess.Login, existing.Login, id)
 		}
 	}
-	/* TODO (ev)
-	if err := r.srv.elog.LogSession(rsess); err != nil {
-		log.Warn("failed to log session event: %v", err)
-	}
-	*/
 	sess := &session{
 		id:       id,
 		registry: r,
@@ -255,10 +261,9 @@ func (s *session) upsertSessionParty(sid rsession.ID, p *party) error {
 }
 
 // startShell starts a new shell process in the current session
-func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) error {
-	ctx.session = s
+func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 	// create a new "party" (connected client)
-	p := newParty(s, sconn, ch, ctx)
+	p := newParty(s, ch, ctx)
 
 	// allocate or borrow a terminal:
 	if ctx.getTerm() != nil {
@@ -280,10 +285,14 @@ func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) er
 		ctx.Errorf("shell command failed: %v", err)
 		return trace.ConvertSystemError(err)
 	}
-	// emit 'new session' event into the audit log:
-	shellCmd := fmt.Sprintf("%s %s", cmd.Path, strings.Join(cmd.Args, " "))
-	ctx.emit(events.NewShellSession(string(s.id), sconn, shellCmd, ""))
 	s.addParty(p)
+
+	// emit 'new session' event into the audit log:
+	// TODO (ev)
+	/*
+		shellCmd := fmt.Sprintf("%s %s", cmd.Path, strings.Join(cmd.Args, " "))
+		ctx.emit(events.NewShellSession(string(s.id), sconn, shellCmd, ""))
+	*/
 
 	// start terminal size syncing loop:
 	go s.pollAndSyncTerm()
@@ -293,12 +302,8 @@ func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) er
 	go func() {
 		// notify terminal about a copy process going on
 		defer s.term.Add(-1)
-		_, err := io.Copy(s.writer, s.term.pty)
-		if err != nil {
-			log.Error(err)
-		}
-		log.Infof("session.io.copy() closed")
-		cmd.Process = nil
+		io.Copy(s.writer, s.term.pty)
+		log.Infof("session.io.copy() stopped")
 	}()
 
 	// wait for the shell to complete:
@@ -309,18 +314,20 @@ func (s *session) startShell(sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) er
 			exitCode = result.code
 			s.registry.broadcastResult(s.id, *result)
 		}
-		// send an event indicating that this session has ended
-		ctx.emit(&events.SessionEnded{string(s.id), exitCode, ""})
 		if err != nil {
 			log.Errorf("shell exited with error: %v", err)
 		}
+		// send an event indicating that this session has ended
+		// TODO (ev)
+		// ctx.emit(&events.SessionEnded{string(s.id), exitCode, ""})
+		_ = exitCode
 	}()
 
 	// wait for the session to end before the shell, kill the shell
 	go func() {
 		<-s.closeC
-		if cmd.Process != nil {
-			log.Infof("session ended. killing process: %v PID=%v", cmd.Path, cmd.Process.Pid)
+		if cmd.ProcessState == nil && cmd.Process != nil {
+			log.Infof("killing process: %v PID=%v", cmd.Path, cmd.Process.Pid)
 			if err := cmd.Process.Kill(); err != nil {
 				log.Error(err)
 			}
@@ -340,6 +347,8 @@ func (s *session) String() string {
 }
 
 func (s *session) leave(id rsession.ID) error {
+	s.Lock()
+	defer s.Unlock()
 	p, ok := s.parties[id]
 	if !ok {
 		return trace.NotFound("party %v not found", id)
@@ -418,8 +427,8 @@ func (s *session) addParty(p *party) {
 	}()
 }
 
-func (s *session) join(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) (*party, error) {
-	p := newParty(s, sconn, ch, ctx)
+func (s *session) join(ch ssh.Channel, req *ssh.Request, ctx *ctx) (*party, error) {
+	p := newParty(s, ch, ctx)
 	s.addParty(p)
 	return p, nil
 }
@@ -470,13 +479,12 @@ func (m *multiWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func newParty(s *session, sconn *ssh.ServerConn, ch ssh.Channel, ctx *ctx) *party {
+func newParty(s *session, ch ssh.Channel, ctx *ctx) *party {
 	return &party{
 		user:     ctx.teleportUser,
 		serverID: s.registry.srv.ID(),
-		site:     sconn.RemoteAddr().String(),
+		site:     ctx.conn.RemoteAddr().String(),
 		id:       rsession.NewID(),
-		sconn:    sconn,
 		ch:       ch,
 		ctx:      ctx,
 		s:        s,
@@ -526,5 +534,5 @@ func (p *party) String() string {
 func (p *party) Close() error {
 	p.ctx.Infof("party[%v].Close()", p.id)
 	close(p.closeC)
-	return p.s.registry.leaveShell(p.s.id, p.id)
+	return p.s.registry.leaveShell(p.s, p.id)
 }

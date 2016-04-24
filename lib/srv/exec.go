@@ -27,11 +27,10 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -152,11 +151,11 @@ func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 		c.Env = append(c.Env, fmt.Sprintf("%s=%s", n, v))
 	}
 	// apply SSH_xx environment variables
-	remoteHost, remotePort, err := net.SplitHostPort(ctx.info.RemoteAddr().String())
+	remoteHost, remotePort, err := net.SplitHostPort(ctx.conn.RemoteAddr().String())
 	if err != nil {
 		log.Warn(err)
 	} else {
-		localHost, localPort, err := net.SplitHostPort(ctx.info.LocalAddr().String())
+		localHost, localPort, err := net.SplitHostPort(ctx.conn.LocalAddr().String())
 		if err != nil {
 			log.Warn(err)
 		} else {
@@ -205,11 +204,13 @@ func (e *execResponse) start(sconn *ssh.ServerConn, shell string, ch ssh.Channel
 
 func (e *execResponse) collectStatus(cmd *exec.Cmd, err error) (*execResult, error) {
 	status, err := collectStatus(e.cmd, err)
+	/* TODO (ev)
 	if err != nil {
 		e.ctx.emit(events.NewExec(e.cmdName, e.out, -1, err))
 	} else {
 		e.ctx.emit(events.NewExec(e.cmdName, e.out, status.code, err))
 	}
+	*/
 	return status, err
 }
 

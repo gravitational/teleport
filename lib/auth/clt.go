@@ -36,7 +36,11 @@ import (
 // CurrentVersion is a current API version
 const CurrentVersion = "v1"
 
-// Client is HTTP API client that connects to the remote server
+// Client is HTTP Auth API client. It works by connecting to auth servers
+// via HTTP.
+//
+// When Teleport servers connect to auth API, they usually establish an SSH
+// tunnel first, and then do HTTP-over-SSH, see auth.TunClient in lib/auth/tun.go
 type Client struct {
 	roundtrip.Client
 }

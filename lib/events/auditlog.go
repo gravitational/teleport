@@ -21,6 +21,27 @@ const (
 	SyslogPrefix   = "teleport"
 )
 
+const (
+	// SessionEvent indicates that session has been initiated
+	// or updated by a joining party on the server
+	SessionEvent = "teleport.session"
+	// SessionEndEvent indicates taht a session has ended
+	SessionEndEvent = "teleport.session.end"
+	// TerminalResizedEvent fires when the user who initiated the session
+	// resizes his terminal
+	TerminalResizedEvent = "teleport.resized"
+	// ExecEvent is an exec command executed by script or user on
+	// the server side
+	ExecEvent = "teleport.exec"
+	// AuthAttemptEvent is authentication attempt that either
+	// succeeded or failed based on event status
+	AuthAttemptEvent = "teleport.auth.attempt"
+	// SCPEvent means data transfer that occured on the server
+	SCPEvent = "teleport.scp"
+	// ResizeEvent means that some user resized PTY on the client
+	ResizeEvent = "teleport.resize.pty"
+)
+
 func infof(format string, params ...interface{}) {
 	logrus.Infof("[audit] -----> "+format, params...)
 }

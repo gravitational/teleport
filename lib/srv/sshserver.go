@@ -513,26 +513,29 @@ func (s *Server) HandleNewChan(nc net.Conn, sconn *ssh.ServerConn, nch ssh.NewCh
 			log.Errorf("failed to parse request data: %v, err: %v", string(nch.ExtraData()), err)
 			nch.Reject(ssh.UnknownChannelType, "failed to parse direct-tcpip request")
 		}
-		sshCh, _, err := nch.Accept()
+		ch, _, err := nch.Accept()
 		if err != nil {
 			log.Infof("could not accept channel (%s)", err)
 		}
-		go s.handleDirectTCPIPRequest(sconn, sshCh, req)
+		go s.handleDirectTCPIPRequest(sconn, ch, req)
 	default:
 		nch.Reject(ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", channelType))
 	}
 }
 
+// handleDirectTCPIPRequest does the port forwarding
 func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
-	// ctx holds the session context and all associated resources
+	// ctx holds the connection context and keeps track of the associated resources
 	ctx := newCtx(s, sconn)
 	ctx.isTestStub = s.isTestStub
 	ctx.addCloser(ch)
+	defer ctx.Infof("direct-tcp closed")
 	defer ctx.Close()
 
-	ctx.Infof("opened direct-tcpip channel: %#v", req)
+	// TODO (ev): log port forwarding event here
+
 	addr := fmt.Sprintf("%v:%d", req.Host, req.Port)
-	ctx.Infof("connecting to %v", addr)
+	ctx.Infof("direct-tcpip channel: %#v to --> %v", req, addr)
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		ctx.Infof("failed to connect to: %v, err: %v", addr, err)
@@ -557,27 +560,39 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel,
 		conn.Close()
 	}()
 	wg.Wait()
-	ctx.Infof("direct-tcp closed")
 }
 
 // handleSessionRequests handles out of band session requests once the session channel has been created
 // this function's loop handles all the "exec", "subsystem" and "shell" requests.
 func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in <-chan *ssh.Request) {
-	// ctx holds the session context and all associated resources
+	// ctx holds the connection context and keeps track of the associated resources
 	ctx := newCtx(s, sconn)
 	ctx.isTestStub = s.isTestStub
-	ctx.Infof("opened session channel")
+	ctx.addCloser(ch)
+	ctx.Infof("ssh.handleSessionRequests()")
+	defer ctx.Infof("ssh.handleSessionRequests() completed")
+	defer ctx.Close()
 
-	// this will close the connection + the context
-	defer func() {
-		ctx.Infof("closing session channel")
-		if err := ctx.Close(); err != nil {
-			ctx.Infof("failed to close channel context: %v", err)
+	// As SSH conversation progresses, at some point a session will be created and
+	// its ID will be added to the environment
+	updateContext := func() {
+		ssid, found := ctx.getEnv(sshutils.SessionEnvVar)
+		if found {
+			findSession := func() (*session, bool) {
+				s.reg.Lock()
+				defer s.reg.Unlock()
+				return s.reg.findSession(rsession.ID(ssid))
+			}
+			// update ctx with a session ID
+			ctx.session, _ = findSession()
 		}
-		ch.Close()
-	}()
+	}
 
 	for {
+		// update ctx with the session ID:
+		if !s.proxyMode {
+			updateContext()
+		}
 		select {
 		case creq := <-ctx.subsystemResultC:
 			// this means that subsystem has finished executing and
@@ -587,11 +602,11 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 		case req := <-in:
 			if req == nil {
 				// this will happen when the client closes/drops the connection
-				ctx.Infof("client disconnected")
+				ctx.Infof("ssh.server: client disconnected")
 				return
 			}
-			if err := s.dispatch(sconn, ch, req, ctx); err != nil {
-				ctx.Infof("error dispatching request: %#v", err)
+			if err := s.dispatch(ch, req, ctx); err != nil {
+				ctx.Error(err)
 				replyError(ch, req, err)
 				return
 			}
@@ -599,8 +614,9 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 				req.Reply(true, nil)
 			}
 		case result := <-ctx.result:
-			// this means that exec process has finished and delivered the execution result, we send it back and close the session
-			ctx.Infof("got execution result: %v", result)
+			ctx.Infof("ctx.result = %v", result)
+			// this means that exec process has finished and delivered the execution result,
+			// we send it back and close the session
 			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(result.code)}))
 			if err != nil {
 				ctx.Infof("%v failed to send exit status: %v", result.command, err)
@@ -610,17 +626,17 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 	}
 }
 
-func (s *Server) fwdDispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	ctx.Infof("dispatch(req=%v, wantReply=%v)", req.Type, req.WantReply)
-	return trace.Errorf("unsupported request type: %v", req.Type)
-}
+// dispatch receives an SSH request for a subsystem and disptaches the request to the
+// appropriate subsystem implementation
+func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+	ctx.Infof("ssh.dispatch(req=%v, wantReply=%v)", req.Type, req.WantReply)
 
-func (s *Server) dispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	ctx.Infof("dispatch(req=%v, wantReply=%v)", req.Type, req.WantReply)
+	// if this SSH server is configured to only proxy, we do not support anything other
+	// than our own custom "subsystems" and environment manipulation
 	if s.proxyMode {
 		switch req.Type {
 		case "subsystem":
-			return s.handleSubsystem(sconn, ch, req, ctx)
+			return s.handleSubsystem(ch, req, ctx)
 		case "env":
 			// we currently ignore setting any environment variables via SSH for security purposes
 			return s.handleEnv(ch, req, ctx)
@@ -632,19 +648,19 @@ func (s *Server) dispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Reques
 	switch req.Type {
 	case "exec":
 		// exec is a remote execution of a program, does not use PTY
-		return s.handleExec(sconn, ch, req, ctx)
+		return s.handleExec(ch, req, ctx)
 	case sshutils.PTYReq:
 		// SSH client asked to allocate PTY
 		return s.handlePTYReq(ch, req, ctx)
 	case "shell":
 		// SSH client asked to launch shell, we allocate PTY and start shell session
-		return s.handleShell(sconn, ch, req, ctx)
+		return s.reg.joinShell(ch, req, ctx)
 	case "env":
 		return s.handleEnv(ch, req, ctx)
 	case "subsystem":
 		// subsystems are SSH subsystems defined in http://tools.ietf.org/html/rfc4254 6.6
 		// they are in essence SSH session extensions, allowing to implement new SSH commands
-		return s.handleSubsystem(sconn, ch, req, ctx)
+		return s.handleSubsystem(ch, req, ctx)
 	case sshutils.WindowChangeReq:
 		return s.handleWinChange(ch, req, ctx)
 	case "auth-agent-req@openssh.com":
@@ -654,15 +670,15 @@ func (s *Server) dispatch(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Reques
 		// https://tools.ietf.org/html/draft-ietf-secsh-agent-02
 		// the open ssh proto spec that we implement is here:
 		// http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent
-		return s.handleAgentForward(sconn, ch, req, ctx)
+		return s.handleAgentForward(ch, req, ctx)
 	default:
 		return trace.BadParameter(
 			"proxy doesn't support request type '%v'", req.Type)
 	}
 }
 
-func (s *Server) handleAgentForward(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	authChan, _, err := sconn.OpenChannel("auth-agent@openssh.com", nil)
+func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+	authChan, _, err := ctx.conn.OpenChannel("auth-agent@openssh.com", nil)
 	if err != nil {
 		return err
 	}
@@ -671,6 +687,7 @@ func (s *Server) handleAgentForward(sconn *ssh.ServerConn, ch ssh.Channel, req *
 	return nil
 }
 
+// handleWinChange gets called when 'window chnged' SSH request comes in
 func (s *Server) handleWinChange(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	params, err := parseWinChange(req)
 	if err != nil {
@@ -680,15 +697,11 @@ func (s *Server) handleWinChange(ch ssh.Channel, req *ssh.Request, ctx *ctx) err
 	if term != nil {
 		return trace.Wrap(term.setWinsize(*params))
 	}
-	sessionID, err := ctx.getSessionID()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = s.reg.notifyWinChange(*sessionID, *params, ctx)
+	err = s.reg.notifyWinChange(*params, ctx)
 	return trace.Wrap(err)
 }
 
-func (s *Server) handleSubsystem(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+func (s *Server) handleSubsystem(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	ctx.Infof("handleSubsystem()")
 	sb, err := parseSubsystemRequest(s, req)
 	if err != nil {
@@ -697,7 +710,7 @@ func (s *Server) handleSubsystem(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 	}
 	// starting subsystem is blocking to the client,
 	// while collecting its result and waiting is not blocking
-	if err := sb.start(sconn, ch, req, ctx); err != nil {
+	if err := sb.start(ctx.conn, ch, req, ctx); err != nil {
 		ctx.Infof("failed to execute request, err: %v", err)
 		ctx.sendSubsystemResult(trace.Wrap(err))
 		return trace.Wrap(err)
@@ -710,27 +723,20 @@ func (s *Server) handleSubsystem(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh
 	return nil
 }
 
-func (s *Server) handleShell(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	sessionID, err := ctx.initSessionID()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return s.reg.joinShell(*sessionID, sconn, ch, req, ctx)
-}
-
+// handleEnv accepts environment variables sent by the client and stores them
+// in connection context
 func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	var e sshutils.EnvReqParams
 	if err := ssh.Unmarshal(req.Payload, &e); err != nil {
-		ctx.Errorf("handleEnv(err=%v)", err)
+		ctx.Error(err)
 		return trace.Wrap(err, "failed to parse env request")
 	}
-	ctx.Infof("handleEnv(%#v)", e)
 	ctx.setEnv(e.Name, e.Value)
 	return nil
 }
 
+// handlePTYReq allocates PTY for this SSH connection per client's request
 func (s *Server) handlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	ctx.Infof("handlePTYReq()")
 	var (
 		params *rsession.TerminalParams
 		err    error
@@ -756,19 +762,15 @@ func (s *Server) handlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *ctx) error 
 		ctx.setTerm(term)
 	}
 	// update the session:
-	sessionID, err := ctx.getSessionID()
-	if err == nil {
-		if err := s.reg.notifyWinChange(*sessionID, *params, ctx); err != nil {
-			log.Error(err)
-		}
+	if err := s.reg.notifyWinChange(*params, ctx); err != nil {
+		log.Error(err)
 	}
 	return nil
 }
 
 // handleExec is responsible for executing 'exec' SSH requests (i.e. executing
 // a command after making an SSH connection)
-func (s *Server) handleExec(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	ctx.Infof("handleExec()")
+func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	execResponse, err := parseExecRequest(req, ctx)
 	if err != nil {
 		ctx.Infof("failed to parse exec request: %v", err)
@@ -785,7 +787,7 @@ func (s *Server) handleExec(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 		return ch.Close()
 	}
 
-	result, err := execResponse.start(sconn, s.shell, ch)
+	result, err := execResponse.start(ctx.conn, s.shell, ch)
 	if err != nil {
 		ctx.Infof("error starting command, %v", err)
 		replyError(ch, req, err)
@@ -813,7 +815,7 @@ func (s *Server) handleExec(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 func (s *Server) handleSCP(ch ssh.Channel, req *ssh.Request, ctx *ctx, args string) error {
 	ctx.Infof("handleSCP(cmd=%v)", args)
 
-	cmd, err := scp.ParseCommand(args, ctx.info.User())
+	cmd, err := scp.ParseCommand(args, ctx.conn.User())
 	if err != nil {
 		ctx.Warningf("failed to parse command: %v", cmd)
 		return trace.Wrap(err, fmt.Sprintf("failure to parse command '%v'", cmd))
@@ -850,7 +852,6 @@ func closeAll(closers ...io.Closer) error {
 			continue
 		}
 		if e := cl.Close(); e != nil {
-			log.Infof("%T close failure: %v", cl, e)
 			err = e
 		}
 	}
