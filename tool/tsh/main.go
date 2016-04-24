@@ -87,11 +87,11 @@ func run(args []string, underTest bool) {
 
 	// configure CLI argument parser:
 	app := utils.InitCLIParser("tsh", "TSH: Teleport SSH client").Interspersed(false)
-	app.Flag("login", "Remote host login").Short('l').StringVar(&cf.NodeLogin)
+	app.Flag("login", "Remote host login").Short('l').Envar("TELEPORT_LOGIN").StringVar(&cf.NodeLogin)
 	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", client.Username())).StringVar(&cf.Login)
-	app.Flag("auth", "[EXPERIMENTAL] Use external authentication, e.g. 'google'").Hidden().StringVar(&cf.ExternalAuth)
-	app.Flag("site", "[EXPERIMENTAL] Specify site to connect to via proxy").Hidden().StringVar(&cf.SiteName)
-	app.Flag("proxy", "SSH proxy host or IP address").StringVar(&cf.Proxy)
+	app.Flag("auth", "[EXPERIMENTAL] Use external authentication, e.g. 'google'").Envar("TELEPORT_AUTH").Hidden().StringVar(&cf.ExternalAuth)
+	app.Flag("site", "[EXPERIMENTAL] Specify site to connect to via proxy").Envar("TELEPORT_SITE").Hidden().StringVar(&cf.SiteName)
+	app.Flag("proxy", "SSH proxy host or IP address").Envar("TELEPORT_PROXY").StringVar(&cf.Proxy)
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
 	app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").Default("false").BoolVar(&cf.InsecureSkipVerify)
 	debugMode := app.Flag("debug", "Verbose logging to stdout").Short('d').Bool()
