@@ -27,23 +27,28 @@ const (
 	SessionEvent = "teleport.session"
 	// SessionEndEvent indicates taht a session has ended
 	SessionEndEvent = "teleport.session.end"
-	// TerminalResizedEvent fires when the user who initiated the session
-	// resizes his terminal
-	TerminalResizedEvent = "teleport.resized"
+
 	// ExecEvent is an exec command executed by script or user on
 	// the server side
-	ExecEvent = "teleport.exec"
+	ExecEvent       = "teleport.exec"
+	ExecEventOutput = "output"
+	ExecEventCode   = "exitCode"
+	ExecEventError  = "exitError"
+
 	// AuthAttemptEvent is authentication attempt that either
 	// succeeded or failed based on event status
-	AuthAttemptEvent = "teleport.auth.attempt"
+	AuthAttemptEvent = "teleport.auth"
 	// SCPEvent means data transfer that occured on the server
 	SCPEvent = "teleport.scp"
 	// ResizeEvent means that some user resized PTY on the client
-	ResizeEvent = "teleport.resize.pty"
+	ResizeEvent = "teleport.resize"
 )
 
+// EventFields instance is attached to every logged event
+type EventFields map[string]string
+
 type AuditLogI interface {
-	EmitAuditEvent(eventType string, fields map[string]string) error
+	EmitAuditEvent(eventType string, fields EventFields) error
 }
 
 func infof(format string, params ...interface{}) {
@@ -180,24 +185,41 @@ type AuditLog struct {
 	loggers    map[session.ID]ISessionLogger
 	dataDir    string
 	safeWriter io.Writer
+
+	// lastEvents keeps a map of most recent event
+	// of each types. Useful for testing and debugging
+	RecentEvents map[string]EventFields
 }
 
-func NewAuditLog(dataDir string) (*AuditLog, error) {
+func NewAuditLog(dataDir string, testMode bool) (*AuditLog, error) {
 	dataDir = filepath.Join(dataDir, "sessions")
 	if err := os.MkdirAll(dataDir, 0770); err != nil {
 		logrus.Error(err)
 		return nil, trace.Wrap(err)
 	}
+	makeRecentEvents := func() map[string]EventFields {
+		if testMode {
+			return make(map[string]EventFields)
+		}
+		return nil
+	}
 	return &AuditLog{
-		loggers:    make(map[session.ID]ISessionLogger, 0),
-		dataDir:    dataDir,
-		safeWriter: ioutil.Discard,
+		loggers:      make(map[session.ID]ISessionLogger, 0),
+		dataDir:      dataDir,
+		safeWriter:   ioutil.Discard,
+		RecentEvents: makeRecentEvents(),
 	}, nil
 }
 
 // EmitAuditEvent adds a new event to the log. Part of auth.AuditLogI interface.
-func (l *AuditLog) EmitAuditEvent(eventType string, fields map[string]string) error {
-	logrus.Infof("----> AuditLog.EmitAuditEvent()!!!!")
+func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
+	l.Lock()
+	defer l.Unlock()
+	if l.RecentEvents != nil {
+		l.RecentEvents[eventType] = fields
+	}
+	// TODO (ev) : write this to syslog
+	logrus.Infof("----> AuditLog.EmitAuditEvent(%s, %v)!!!!", eventType, fields)
 	return nil
 }
 

@@ -44,7 +44,7 @@ func (s *KeyStoreTestSuite) SetUpSuite(c *check.C) {
 	s.store, err = NewFSLocalKeyStore(s.storeDir)
 	c.Assert(err, check.IsNil)
 	c.Assert(s.store, check.NotNil)
-	c.Assert(isDir(s.store.KeyDir), check.Equals, true)
+	c.Assert(utils.IsDir(s.store.KeyDir), check.Equals, true)
 }
 
 func (s *KeyStoreTestSuite) TearDownSuite(c *check.C) {

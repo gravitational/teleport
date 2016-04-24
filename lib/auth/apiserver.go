@@ -757,19 +757,18 @@ func (s *APIServer) validateOIDCAuthCallback(w http.ResponseWriter, r *http.Requ
 	return response, nil
 }
 
+type auditEventReq struct {
+	Type   string            `json:"type"`
+	Fields map[string]string `json:"fields"`
+}
+
 // HTTP	POST /v1/events
 func (s *APIServer) emitAuditEvent(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	fields := make(map[string]string)
-	if err := httplib.ReadJSON(r, &fields); err != nil {
+	var req auditEventReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("-----> api.emitAuditEvent(%v)", fields)
-	eventType, found := fields["t"]
-	if !found {
-		return nil, trace.BadParameter("event type is not given")
-	}
-	delete(fields, "t")
-	if err := s.a.EmitAuditEvent(eventType, fields); err != nil {
+	if err := s.a.EmitAuditEvent(req.Type, req.Fields); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil

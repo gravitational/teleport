@@ -33,9 +33,4 @@ func (a *AuditTestSuite) SetUpSuite(c *check.C) {
 }
 
 func (a *AuditTestSuite) TestEverything(c *check.C) {
-	al, _ := NewAuditLog()
-	// open session logger, execute command and close
-	sl := al.NewSessionLogger("s1", userBob, addrBob, addrServerLuna)
-	sl.OnExec(cmdLs)
-	sl.Close()
 }

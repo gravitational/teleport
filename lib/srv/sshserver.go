@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -80,6 +81,10 @@ type Server struct {
 
 	// sets to true when the server needs to be stopped
 	closer *utils.CloseBroadcaster
+
+	// alog points to the AuditLog this server uses to report
+	// auditable events
+	alog events.AuditLogI
 }
 
 // ServerOption is a functional option passed to the server
@@ -155,6 +160,14 @@ func SetLabels(labels map[string]string,
 func SetLimiter(limiter *limiter.Limiter) ServerOption {
 	return func(s *Server) error {
 		s.limiter = limiter
+		return nil
+	}
+}
+
+// SetAuditLog assigns an audit log interfaces to this server
+func SetAuditLog(alog events.AuditLogI) ServerOption {
+	return func(s *Server) error {
+		s.alog = alog
 		return nil
 	}
 }
@@ -533,7 +546,6 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel,
 	defer ctx.Close()
 
 	// TODO (ev): log port forwarding event here
-
 	addr := fmt.Sprintf("%v:%d", req.Host, req.Port)
 	ctx.Infof("direct-tcpip channel: %#v to --> %v", req, addr)
 	conn, err := net.Dial("tcp", addr)

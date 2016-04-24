@@ -359,9 +359,24 @@ func (a *AuthWithRoles) DeleteOIDCConnector(connectorID string) error {
 	return a.authServer.Identity.DeleteOIDCConnector(connectorID)
 }
 
-func (a *AuthWithRoles) EmitAuditEvent(eventType string, fields map[string]string) error {
+func (a *AuthWithRoles) EmitAuditEvent(eventType string, fields events.EventFields) error {
 	if err := a.permChecker.HasPermission(a.role, ActionEmitEvents); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.alog.EmitAuditEvent(eventType, fields)
+}
+
+// test helper
+func NewAuthWithRoles(authServer *AuthServer,
+	permChecker PermissionChecker,
+	sessions session.Service,
+	role teleport.Role,
+	alog events.AuditLogI) *AuthWithRoles {
+	return &AuthWithRoles{
+		authServer:  authServer,
+		permChecker: permChecker,
+		sessions:    sessions,
+		role:        role,
+		alog:        alog,
+	}
 }

@@ -58,7 +58,6 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	s.a = NewAuthServer(authConfig)
 }
 
-// TODO(klizhentas) introduce more thorough tests, test more edge cases
 func (s *AuthSuite) TestSessions(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
 		*suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)

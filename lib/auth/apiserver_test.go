@@ -26,11 +26,7 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/lib/events/boltlog"
-	etest "github.com/gravitational/teleport/lib/events/test"
-	"github.com/gravitational/teleport/lib/recorder"
-	"github.com/gravitational/teleport/lib/recorder/boltrec"
-	rtest "github.com/gravitational/teleport/lib/recorder/test"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -45,13 +41,12 @@ import (
 func TestAPI(t *testing.T) { TestingT(t) }
 
 type APISuite struct {
-	srv *httptest.Server
-	clt *Client
-	bk  backend.Backend
-	bl  *boltlog.BoltLog
-	rec recorder.Recorder
-	a   *AuthServer
-	dir string
+	srv  *httptest.Server
+	clt  *Client
+	bk   backend.Backend
+	a    *AuthServer
+	dir  string
+	alog *events.AuditLog
 
 	CAS           services.Trust
 	LockS         services.Lock
@@ -69,15 +64,12 @@ func (s *APISuite) SetUpSuite(c *C) {
 
 func (s *APISuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
-
 	var err error
+
 	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
 
-	s.bl, err = boltlog.New(filepath.Join(s.dir, "eventsdb"))
-	c.Assert(err, IsNil)
-
-	s.rec, err = boltrec.New(s.dir)
+	s.alog, err = events.NewAuditLog(s.dir, true)
 	c.Assert(err, IsNil)
 
 	s.a = NewAuthServer(&InitConfig{
@@ -90,9 +82,8 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.srv = httptest.NewServer(NewAPIServer(
 		&AuthWithRoles{
 			authServer:  s.a,
-			elog:        s.bl,
+			alog:        s.alog,
 			sessions:    sessionServer,
-			recorder:    s.rec,
 			permChecker: NewAllowAllPermissions(),
 		}))
 	clt, err := NewClient(s.srv.URL)
@@ -108,26 +99,23 @@ func (s *APISuite) SetUpTest(c *C) {
 
 func (s *APISuite) TearDownTest(c *C) {
 	s.srv.Close()
-	s.bl.Close()
+	s.alog.Close()
 }
 
-func (s *APISuite) TestGenerateKeyPair(c *C) {
+func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	priv, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
 	// make sure we can parse the private and public key
 	_, err = ssh.ParsePrivateKey(priv)
 	c.Assert(err, IsNil)
-
 	_, _, _, _, err = ssh.ParseAuthorizedKey(pub)
 	c.Assert(err, IsNil)
-}
 
-func (s *APISuite) TestGenerateHostCert(c *C) {
 	c.Assert(s.clt.UpsertCertAuthority(
 		*suite.NewTestCA(services.HostCA, "localhost"), backend.Forever), IsNil)
 
-	_, pub, err := s.clt.GenerateKeyPair("")
+	_, pub, err = s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
 	// make sure we can parse the private and public key
@@ -136,13 +124,11 @@ func (s *APISuite) TestGenerateHostCert(c *C) {
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
 	c.Assert(err, IsNil)
-}
 
-func (s *APISuite) TestGenerateUserCert(c *C) {
 	c.Assert(s.clt.UpsertCertAuthority(
 		*suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
-	_, pub, err := s.clt.GenerateKeyPair("")
+	_, pub, err = s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
 	err = s.clt.UpsertUser(
@@ -150,7 +136,7 @@ func (s *APISuite) TestGenerateUserCert(c *C) {
 	c.Assert(err, IsNil)
 
 	// make sure we can parse the private and public key
-	cert, err := s.clt.GenerateUserCert(pub, "user1", time.Hour)
+	cert, err = s.clt.GenerateUserCert(pub, "user1", time.Hour)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
@@ -319,7 +305,6 @@ func (s *APISuite) TestServers(c *C) {
 	c.Assert(out, DeepEquals, []services.Server{srv, srv1})
 }
 
-// TODO(klizhentas) this code will be removed and will use test suite
 func (s *APISuite) TestReverseTunnels(c *C) {
 	out, err := s.clt.GetReverseTunnels()
 	c.Assert(err, IsNil)
@@ -340,19 +325,17 @@ func (s *APISuite) TestReverseTunnels(c *C) {
 	c.Assert(len(out), Equals, 0)
 }
 
-func (s *APISuite) TestEvents(c *C) {
-	suite := etest.EventSuite{L: s.clt}
-	suite.EventsCRUD(c)
-}
+func (s *APISuite) TestAuditLog(c *C) {
+	fields := events.EventFields{
+		"1": "one",
+		"2": "two",
+	}
+	err := s.clt.EmitAuditEvent("test-event", fields)
+	c.Assert(err, IsNil)
 
-func (s *APISuite) TestSessionEvents(c *C) {
-	suite := etest.EventSuite{L: s.clt}
-	suite.SessionsCRUD(c)
-}
-
-func (s *APISuite) TestRecorder(c *C) {
-	suite := rtest.RecorderSuite{R: s.clt}
-	suite.Recorder(c)
+	receivedFields, found := s.alog.RecentEvents["test-event"]
+	c.Assert(found, Equals, true)
+	c.Assert(receivedFields, DeepEquals, fields)
 }
 
 func (s *APISuite) TestTokens(c *C) {

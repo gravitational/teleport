@@ -280,7 +280,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 
 	// create the audit log, which will be consuming (and recording) all events
 	// and record sessions
-	auditLog, err := events.NewAuditLog(cfg.DataDir)
+	auditLog, err := events.NewAuditLog(cfg.DataDir, false)
 	if err != nil {
 		log.Error(err)
 		return trace.Wrap(err)
@@ -456,8 +456,7 @@ func (process *TeleportProcess) initSSH() error {
 			cfg.AdvertiseIP,
 			srv.SetLimiter(limiter),
 			srv.SetShell(cfg.SSH.Shell),
-			// TODO (Ev)
-			//srv.SetEventLogger(conn.Client),
+			srv.SetAuditLog(conn.Client),
 			srv.SetSessionServer(conn.Client),
 			srv.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
 		)
@@ -609,6 +608,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		srv.SetLimiter(proxyLimiter),
 		srv.SetProxyMode(tsrv),
 		srv.SetSessionServer(conn.Client),
+		srv.SetAuditLog(conn.Client),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -616,10 +616,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register reverse tunnel agents pool
 	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
-		HostUUID: conn.Identity.ID.HostUUID,
-		Client:   conn.Client,
-		// TODO (ev)
-		//EventLog:    conn.Client,
+		HostUUID:    conn.Identity.ID.HostUUID,
+		Client:      conn.Client,
 		HostSigners: []ssh.Signer{conn.Identity.KeySigner},
 	})
 

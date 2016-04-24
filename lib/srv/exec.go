@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"syscall"
 
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
@@ -49,9 +50,6 @@ type execResponse struct {
 	cmdName string
 	cmd     *exec.Cmd
 	ctx     *ctx
-
-	// TODO(klizhentas) implement capturing as a threadsafe, factored out feature
-	// that uses protected writes & reads to the buffer
 
 	// 'out' contains captured command output
 	out *bytes.Buffer
@@ -202,23 +200,28 @@ func (e *execResponse) start(sconn *ssh.ServerConn, shell string, ch ssh.Channel
 	return nil, nil
 }
 
-func (e *execResponse) collectStatus(cmd *exec.Cmd, err error) (*execResult, error) {
-	status, err := collectStatus(e.cmd, err)
-	/* TODO (ev)
-	if err != nil {
-		e.ctx.emit(events.NewExec(e.cmdName, e.out, -1, err))
-	} else {
-		e.ctx.emit(events.NewExec(e.cmdName, e.out, status.code, err))
-	}
-	*/
-	return status, err
-}
-
 func (e *execResponse) wait() (*execResult, error) {
 	if e.cmd.Process == nil {
 		e.ctx.Errorf("no process")
 	}
 	return e.collectStatus(e.cmd, e.cmd.Wait())
+}
+
+func (e *execResponse) collectStatus(cmd *exec.Cmd, err error) (*execResult, error) {
+	status, err := collectStatus(e.cmd, err)
+	// report the result of this exec event to the audit logger
+	auditLog := e.ctx.srv.alog
+	if auditLog != nil {
+		fields := events.EventFields{
+			events.ExecEventOutput: e.out.String(),
+		}
+		if err != nil {
+			fields[events.ExecEventError] = err.Error()
+			fields[events.ExecEventCode] = strconv.Itoa(status.code)
+		}
+		auditLog.EmitAuditEvent(events.ExecEvent, fields)
+	}
+	return status, err
 }
 
 func collectStatus(cmd *exec.Cmd, err error) (*execResult, error) {

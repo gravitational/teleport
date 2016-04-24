@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -700,9 +701,11 @@ func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 }
 
 // EmitAuditEvent sends an auditable event to the auth server
-func (c *Client) EmitAuditEvent(eventType string, fields map[string]string) error {
-	fields["t"] = eventType
-	_, err := c.PostJSON(c.Endpoint("events"), fields)
+func (c *Client) EmitAuditEvent(eventType string, fields events.EventFields) error {
+	_, err := c.PostJSON(c.Endpoint("events"), &auditEventReq{
+		Type:   eventType,
+		Fields: fields,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -747,5 +750,6 @@ type ClientI interface {
 	DeleteOIDCConnector(connectorID string) error
 	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
 	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
-	EmitAuditEvent(eventType string, fields map[string]string) error
+
+	events.AuditLogI
 }

@@ -26,9 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events/boltlog"
-	"github.com/gravitational/teleport/lib/recorder"
-	"github.com/gravitational/teleport/lib/recorder/boltrec"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/session"
@@ -47,9 +45,8 @@ type TunSuite struct {
 	tsrv   *AuthTunnel
 	a      *AuthServer
 	signer ssh.Signer
-	bl     *boltlog.BoltLog
 	dir    string
-	rec    recorder.Recorder
+	alog   *events.AuditLog
 }
 
 var _ = Suite(&TunSuite{})
@@ -69,11 +66,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
 
-	s.bl, err = boltlog.New(filepath.Join(s.dir, "eventsdb"))
-	c.Assert(err, IsNil)
-
-	s.rec, err = boltrec.New(s.dir)
-	c.Assert(err, IsNil)
+	s.alog, err = events.NewAuditLog(s.dir, true)
 
 	sessionServer, err := session.New(s.bk)
 	c.Assert(err, IsNil)
@@ -85,9 +78,8 @@ func (s *TunSuite) SetUpTest(c *C) {
 	})
 	s.srv = NewAPIWithRoles(APIConfig{
 		AuthServer:        s.a,
-		EventLog:          s.bl,
+		AuditLog:          s.alog,
 		SessionService:    sessionServer,
-		Recorder:          s.rec,
 		PermissionChecker: NewStandardPermissions(),
 		Roles:             StandardRoles})
 	go s.srv.Serve()
@@ -120,9 +112,8 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	c.Assert(err, IsNil)
 	srv := NewAPIWithRoles(APIConfig{
 		AuthServer:        s.a,
-		EventLog:          s.bl,
+		AuditLog:          s.alog,
 		SessionService:    sessionServer,
-		Recorder:          s.rec,
 		PermissionChecker: NewAllowAllPermissions(),
 		Roles:             StandardRoles})
 	go srv.Serve()
