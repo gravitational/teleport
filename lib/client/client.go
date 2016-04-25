@@ -293,7 +293,6 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.Rea
 	}
 
 	// pass language info into the remote session.
-	// TODO: in the future support passing of arbitrary environment variables
 	evarsToPass := []string{"LANG", "LANGUAGE"}
 	for _, evar := range evarsToPass {
 		if value := os.Getenv(evar); value != "" {

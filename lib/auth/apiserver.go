@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -758,8 +759,8 @@ func (s *APIServer) validateOIDCAuthCallback(w http.ResponseWriter, r *http.Requ
 }
 
 type auditEventReq struct {
-	Type   string            `json:"type"`
-	Fields map[string]string `json:"fields"`
+	Type   string             `json:"type"`
+	Fields events.EventFields `json:"fields"`
 }
 
 // HTTP	POST /v1/events

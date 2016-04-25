@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 
@@ -54,16 +55,27 @@ func (r *sessionRegistry) Close() {
 	log.Infof("sessionRegistry.Close()")
 }
 
+// EmitAuditEvent logs a given event to the audit log attached to the
+// server who owns these sessions
+func (s *sessionRegistry) EmitAuditEvent(eventType string, fields events.EventFields) {
+	alog := s.srv.alog
+	if alog != nil {
+		if err := alog.EmitAuditEvent(eventType, fields); err != nil {
+			log.Error(err)
+		}
+	} else {
+		log.Warn("SSH server has no audit log")
+	}
+}
+
 // joinShell either joins an existing session or starts a new shell
 func (s *sessionRegistry) joinShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	ctx.Infof("-----> active sessions: %v", s.sessions)
-	ctx.Infof("-----> ctx has env: %v", ctx.env)
-	ctx.Infof("-----> ctx has session: %v", ctx.session)
-
 	if ctx.session != nil {
-		/* TODO (ev)
-		add event log "party joined"
-		*/
+		// emit "joined session" event:
+		s.EmitAuditEvent(events.SessionJoinEvent, events.EventFields{
+			events.SessionEventID:    string(ctx.session.id),
+			events.SessionEventLogin: ctx.login,
+		})
 		ctx.Infof("joining session: %v", ctx.session.id)
 		_, err := ctx.session.join(ch, req, ctx)
 		return trace.Wrap(err)
@@ -83,11 +95,14 @@ func (s *sessionRegistry) joinShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 	ctx.session = sess
 	s.addSession(sess)
 	ctx.Infof("ssh.joinShell created new session %v", sid)
-	ctx.Infof("<------- active sessions: %v", s.sessions)
 
-	/* TODO (ev)
-	add event log: "new session started"
-	*/
+	// emit "new session created" event:
+	s.EmitAuditEvent(events.SessionJoinEvent, events.EventFields{
+		events.SessionEventID:    string(sid),
+		events.SessionEventLogin: ctx.login,
+		events.SessionLocalAddr:  ctx.conn.LocalAddr().String(),
+		events.SessionRemoveAddr: ctx.conn.RemoteAddr().String(),
+	})
 
 	if err := sess.startShell(ch, ctx); err != nil {
 		sess.Close()
@@ -97,16 +112,28 @@ func (s *sessionRegistry) joinShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 	return nil
 }
 
-func (s *sessionRegistry) leaveShell(sess *session, pid rsession.ID) error {
+// leaveShell remvoes a given party from this session
+func (s *sessionRegistry) leaveShell(party *party) error {
 	s.Lock()
 	defer s.Unlock()
+	sess := party.s
 
-	if err := sess.leave(pid); err != nil {
+	// remove from in-memory representation of the session:
+	if err := sess.removeParty(party); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// emit an audit event
+	s.EmitAuditEvent(events.SessionLeaveEvent, events.EventFields{
+		events.SessionEventID:    string(sess.id),
+		events.SessionEventLogin: party.user,
+	})
+
 	if len(sess.parties) != 0 {
 		return nil
 	}
+
+	// no more people left? Need to end the session!
 	log.Infof("last party left %v, removing from server", sess)
 	delete(s.sessions, sess.id)
 
@@ -117,6 +144,8 @@ func (s *sessionRegistry) leaveShell(sess *session, pid rsession.ID) error {
 	return nil
 }
 
+// notifyWinChange is called when an SSH server receives a command notifying
+// us that the terminal size has changed
 func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *ctx) error {
 	if ctx.session == nil {
 		err := trace.Errorf("SSH context has no associated session")
@@ -133,20 +162,18 @@ func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *c
 		return nil
 	}
 	go func() {
+		sid := ctx.session.id
 		err := s.srv.sessionServer.UpdateSession(
-			rsession.UpdateRequest{ID: ctx.session.id, TerminalParams: &params})
+			rsession.UpdateRequest{ID: sid, TerminalParams: &params})
 		if err != nil {
 			log.Error(err)
 		}
 		// report this to the event/audit log:
-		// TODO (ev)
-		/*
-			ctx.emit(&events.TerminalResized{
-				SessionID: string(sid),
-				Width:     params.W,
-				Height:    params.H,
-			})
-		*/
+		s.EmitAuditEvent(events.ResizeEvent, events.EventFields{
+			events.SessionEventID:    string(sid),
+			events.SessionEventLogin: ctx.login,
+			events.ResizeSize:        fmt.Sprintf("%d:%d", params.W, params.H),
+		})
 
 	}()
 	return nil
@@ -179,18 +206,35 @@ func newSessionRegistry(srv *Server) *sessionRegistry {
 	}
 }
 
+// session struct describes an active (in progress) SSH session. These sessions
+// are managed by 'sessionRegistry' containers which are attached to SSH servers.
 type session struct {
 	sync.Mutex
-	id        rsession.ID
-	registry  *sessionRegistry
-	writer    *multiWriter
-	parties   map[rsession.ID]*party
-	term      *terminal
-	closeC    chan bool
-	login     string
+	// session ID. unique GUID, this is what people use to "join" sessions
+
+	id rsession.ID
+
+	// parent session container
+	registry *sessionRegistry
+
+	// this writer is used to broadcast terminal I/O to different clients
+	writer *multiWriter
+
+	// parties are connected lients/users
+	parties map[rsession.ID]*party
+	term    *terminal
+
+	// closeC channel is used to kill all goroutines owned
+	// by the session
+	closeC chan bool
+
+	// login stores the login of the initial session creator
+	login string
+
 	closeOnce sync.Once
 }
 
+// newSession creates a new session with a given ID within a given context.
 func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, error) {
 	rsess := rsession.Session{
 		ID:             id,
@@ -236,6 +280,7 @@ func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, err
 	return sess, nil
 }
 
+// Close ends the active session forcing all clients to disconnect and freeing all resources
 func (s *session) Close() error {
 	s.closeOnce.Do(func() {
 		close(s.closeC)
@@ -247,10 +292,14 @@ func (s *session) Close() error {
 	return trace.Wrap(err)
 }
 
+// upsertSessionParty updates the persistence layer (session object stored somewhere on disk)
+// with a new connected client.
 func (s *session) upsertSessionParty(sid rsession.ID, p *party) error {
 	if s.registry.srv.sessionServer == nil {
 		return nil
 	}
+	// session registry has a "session server" (which is actually a "session serializer")
+	// and we ask it to update the on-disk copy of this session with a new party
 	return s.registry.srv.sessionServer.UpsertParty(sid, rsession.Party{
 		ID:         p.id,
 		User:       p.user,
@@ -287,12 +336,13 @@ func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 	}
 	s.addParty(p)
 
-	// emit 'new session' event into the audit log:
-	// TODO (ev)
-	/*
-		shellCmd := fmt.Sprintf("%s %s", cmd.Path, strings.Join(cmd.Args, " "))
-		ctx.emit(events.NewShellSession(string(s.id), sconn, shellCmd, ""))
-	*/
+	// emit "new session created" event:
+	s.registry.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
+		events.SessionEventID:    string(s.id),
+		events.SessionEventLogin: ctx.login,
+		events.SessionLocalAddr:  ctx.conn.LocalAddr().String(),
+		events.SessionRemoveAddr: ctx.conn.RemoteAddr().String(),
+	})
 
 	// start terminal size syncing loop:
 	go s.pollAndSyncTerm()
@@ -318,8 +368,9 @@ func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 			log.Errorf("shell exited with error: %v", err)
 		}
 		// send an event indicating that this session has ended
-		// TODO (ev)
-		// ctx.emit(&events.SessionEnded{string(s.id), exitCode, ""})
+		s.registry.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
+			events.SessionEventID: string(s.id),
+		})
 		_ = exitCode
 	}()
 
@@ -346,16 +397,14 @@ func (s *session) String() string {
 	return fmt.Sprintf("session(id=%v, parties=%v)", s.id, len(s.parties))
 }
 
-func (s *session) leave(id rsession.ID) error {
+func (s *session) removeParty(p *party) error {
 	s.Lock()
 	defer s.Unlock()
-	p, ok := s.parties[id]
-	if !ok {
-		return trace.NotFound("party %v not found", id)
-	}
 	p.ctx.Infof("%v is leaving", p)
+
 	delete(s.parties, p.id)
 	s.writer.deleteWriter(string(p.id))
+
 	return nil
 }
 
@@ -534,5 +583,5 @@ func (p *party) String() string {
 func (p *party) Close() error {
 	p.ctx.Infof("party[%v].Close()", p.id)
 	close(p.closeC)
-	return p.s.registry.leaveShell(p.s, p.id)
+	return p.s.registry.leaveShell(p)
 }

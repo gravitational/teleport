@@ -90,12 +90,6 @@ type ctx struct {
 	session *session
 }
 
-// emit emits event
-func (c *ctx) emit(interface{}) {
-	// TODO (ev)
-	//c.srv.elog.Log(c.eid, e)
-}
-
 // addCloser adds any closer in ctx that will be called
 // whenever server closes session channel
 func (c *ctx) addCloser(closer io.Closer) {
