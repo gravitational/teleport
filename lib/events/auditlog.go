@@ -87,18 +87,6 @@ type AuditLogI interface {
 	EmitAuditEvent(eventType string, fields EventFields) error
 }
 
-func infof(format string, params ...interface{}) {
-	logrus.Infof("[audit] -----> "+format, params...)
-}
-
-func warningf(format string, params ...interface{}) {
-	logrus.Warningf("[audit] -----> "+format, params...)
-}
-
-func errorf(format string, params ...interface{}) {
-	logrus.Errorf("[audit] -----> "+format, params...)
-}
-
 type TimeSourceFunc func() time.Time
 
 // AuditLog is a new combined facility to record Teleport events and
@@ -178,7 +166,6 @@ func (sl *SessionLogger) WriteStream(bytes []byte) error {
 		logrus.Error(err)
 		return trace.Wrap(err)
 	}
-	infof("%d bytes -> %s", len(bytes), sl.streamFile.Name())
 	return nil
 }
 
@@ -187,7 +174,6 @@ func (sl *SessionLogger) WriteStream(bytes []byte) error {
 // to assist with unit testing will be performed
 func NewAuditLog(dataDir string, testMode bool) (*AuditLog, error) {
 	// create a directory for session logs:
-	dataDir = filepath.Join(dataDir, "sessions")
 	if err := os.MkdirAll(dataDir, 0770); err != nil {
 		logrus.Error(err)
 		return nil, trace.Wrap(err)
@@ -227,7 +213,8 @@ func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 	if found {
 		sl := l.LoggerFor(session.ID(sessionId))
 		if sl != nil {
-			sl.LogEvent(line)
+			delete(fields, SessionEventID)
+			sl.LogEvent(l.eventToLine(eventType, fields))
 			// Session ended? Get rid of the session logger then:
 			if eventType == SessionEndEvent {
 				logrus.Infof("audit log: removing session logger for SID=%v", sessionId)
@@ -298,14 +285,21 @@ func (l *AuditLog) LoggerFor(sid session.ID) (sl *SessionLogger) {
 	if ok {
 		return sl
 	}
+	// make sure session logs dir is present
+	sdir := filepath.Join(l.dataDir, SessionLogsDir)
+	if err := os.MkdirAll(sdir, 0770); err != nil {
+		logrus.Error(err)
+		return nil
+	}
 	// create a new session stream file:
-	streamFname := filepath.Join(l.dataDir, fmt.Sprintf("%s.session.bytes", sid))
+	streamFname := filepath.Join(sdir, fmt.Sprintf("%s.session.bytes", sid))
 	fstream, err := os.OpenFile(streamFname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 	if err != nil {
 		logrus.Error(err)
+		return nil
 	}
 	// create a new session file:
-	eventsFname := filepath.Join(l.dataDir, fmt.Sprintf("%s.session", sid))
+	eventsFname := filepath.Join(sdir, fmt.Sprintf("%s.session", sid))
 	fevents, err := os.OpenFile(eventsFname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 	if err != nil {
 		logrus.Error(err)
