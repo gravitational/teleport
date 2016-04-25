@@ -508,11 +508,21 @@ func (m *multiWriter) deleteWriter(id string) {
 	delete(m.writers, id)
 }
 
+// Write multiplexes the input to multiple sub-writers. The entire point
+// of multiWriter is to do this
 func (m *multiWriter) Write(p []byte) (n int, err error) {
-	m.RLock()
-	defer m.RUnlock()
-
-	for _, w := range m.writers {
+	// lock and make a local copy of available writers:
+	getWriters := func() (writers []writerWrapper) {
+		m.RLock()
+		defer m.RUnlock()
+		writers = make([]writerWrapper, 0, len(m.writers))
+		for _, w := range m.writers {
+			writers = append(writers, w)
+		}
+		return writers
+	}
+	// unlock and multiplex the write to all writers:
+	for _, w := range getWriters() {
 		n, err = w.Write(p)
 		if err != nil {
 			if w.closeOnError {
