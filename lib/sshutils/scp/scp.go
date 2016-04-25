@@ -29,7 +29,10 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/trace"
 )
 
@@ -52,6 +55,8 @@ type Command struct {
 	Target      string
 	Recursive   bool
 	User        *user.User
+	Conn        ssh.ConnMetadata
+	AuditLog    events.AuditLogI
 }
 
 // Execute implements SSH file copy (SCP)
@@ -139,6 +144,18 @@ func (cmd *Command) sendDir(r *reader, ch io.ReadWriter, fi os.FileInfo, path st
 }
 
 func (cmd *Command) sendFile(r *reader, ch io.ReadWriter, fi os.FileInfo, path string) error {
+	// log audit event:
+	if cmd.AuditLog != nil {
+		cmd.AuditLog.EmitAuditEvent(events.SCPEvent, events.EventFields{
+			events.SCPPath:       path,
+			events.SCPLengh:      fi.Size(),
+			events.SCPLocalAddr:  cmd.Conn.LocalAddr().String(),
+			events.SCPRemoteAddr: cmd.Conn.RemoteAddr().String(),
+			events.SCPLogin:      cmd.User.Username,
+			events.SCPAction:     "read",
+		})
+	}
+
 	out := fmt.Sprintf("C%04o %d %s\n", fi.Mode()&os.ModePerm, fi.Size(), fi.Name())
 	log.Infof("sendFile: %v", out)
 	_, err := io.WriteString(ch, out)
@@ -269,6 +286,19 @@ func (cmd *Command) receiveFile(st *state, fc NewFileCmd, ch io.ReadWriter) erro
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// log audit event:
+	if cmd.AuditLog != nil {
+		cmd.AuditLog.EmitAuditEvent(events.SCPEvent, events.EventFields{
+			events.SCPPath:       path,
+			events.SCPLengh:      fc.Length,
+			events.SCPLocalAddr:  cmd.Conn.LocalAddr().String(),
+			events.SCPRemoteAddr: cmd.Conn.RemoteAddr().String(),
+			events.SCPLogin:      cmd.User.Username,
+			events.SCPAction:     "write",
+		})
+	}
+
 	defer f.Close()
 	n, err := io.CopyN(f, ch, int64(fc.Length))
 	if err != nil {
@@ -318,10 +348,11 @@ func IsSCP(cmd string) bool {
 	return f == "scp"
 }
 
-func ParseCommand(arg, userName string) (*Command, error) {
+func ParseCommand(arg string, conn ssh.ConnMetadata, alog events.AuditLogI) (*Command, error) {
 	if !IsSCP(arg) {
 		return nil, trace.Errorf("not scp command")
 	}
+	userName := conn.User()
 	args := strings.Split(arg, " ")
 	f := flag.NewFlagSet(args[0], flag.ContinueOnError)
 
@@ -330,7 +361,7 @@ func ParseCommand(arg, userName string) (*Command, error) {
 	if err != nil {
 		return nil, trace.Errorf("user not found: %s", userName)
 	}
-	cmd := Command{User: osUser}
+	cmd := Command{User: osUser, Conn: conn, AuditLog: alog}
 
 	f.BoolVar(&cmd.Sink, "t", false, "sink mode (data consumer)")
 	f.BoolVar(&cmd.Source, "f", false, "source mode (data producer)")

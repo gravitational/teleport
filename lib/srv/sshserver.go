@@ -20,6 +20,7 @@ package srv
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -435,6 +436,19 @@ func (s *Server) isAuthority(cert ssh.PublicKey) bool {
 	return false
 }
 
+// EmitAuditEvent logs a given event to the audit log attached to the
+// server who owns these sessions
+func (s *Server) EmitAuditEvent(eventType string, fields events.EventFields) {
+	alog := s.alog
+	if alog != nil {
+		if err := alog.EmitAuditEvent(eventType, fields); err != nil {
+			log.Error(err)
+		}
+	} else {
+		log.Warn("SSH server has no audit log")
+	}
+}
+
 // keyAuth implements SSH client authentication using public keys and is called
 // by the server every time the client connects
 func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
@@ -464,15 +478,23 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	}
 	teleportUser := cert.KeyId
 
+	logAuditEvent := func(err error) {
+		// only failed attempts are logged right now
+		if err != nil {
+			s.EmitAuditEvent(events.AuthAttemptEvent, events.EventFields{
+				events.AuthAttemptUser:    teleportUser,
+				events.AuthAttemptSuccess: false,
+				events.AuthAttemptErr:     err.Error(),
+			})
+		}
+	}
 	permissions, err := s.certChecker.Authenticate(conn, key)
 	if err != nil {
-		// TODO (Ev)
-		//s.elog.Log(eventID, events.NewAuthAttempt(conn, key, false, err))
-		logger.Warningf("authenticate err: %v", err)
+		logAuditEvent(err)
 		return nil, trace.Wrap(err)
 	}
 	if err := s.certChecker.CheckCert(conn.User(), cert); err != nil {
-		logger.Warningf("failed to authenticate user, err: %v", err)
+		logAuditEvent(err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -486,7 +508,7 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 
 	err = s.checkPermissionToLogin(cert.SignatureKey, teleportUser, conn.User())
 	if err != nil {
-		logger.Warningf("authenticate user: %v", err)
+		logAuditEvent(err)
 		return nil, trace.Wrap(err)
 	}
 	return permissions, nil
@@ -545,7 +567,6 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel,
 	defer ctx.Infof("direct-tcp closed")
 	defer ctx.Close()
 
-	// TODO (ev): log port forwarding event here
 	addr := fmt.Sprintf("%v:%d", req.Host, req.Port)
 	ctx.Infof("direct-tcpip channel: %#v to --> %v", req, addr)
 	conn, err := net.Dial("tcp", addr)
@@ -554,21 +575,24 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel,
 		return
 	}
 	defer conn.Close()
+	// audit event:
+	s.EmitAuditEvent(events.PortForwardEvent, events.EventFields{
+		events.PortForwardAddr:       addr,
+		events.PortForwardLogin:      ctx.login,
+		events.PortForwardLocalAddr:  sconn.LocalAddr().String(),
+		events.PortForwardRemoteAddr: sconn.RemoteAddr().String(),
+	})
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		written, err := io.Copy(ch, conn)
-		ctx.Infof("conn to channel copy closed, bytes transferred: %v, err: %v",
-			written, err)
+		io.Copy(ch, conn)
 		ch.Close()
 	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		written, err := io.Copy(conn, ch)
-		ctx.Infof("channel to conn copy closed, bytes transferred: %v, err: %v",
-			ctx, written, err)
+		io.Copy(conn, ch)
 		conn.Close()
 	}()
 	wg.Wait()
@@ -824,15 +848,18 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	return nil
 }
 
+// handleSCP processes SSH requests for uploading or downloading files via `scp` command
 func (s *Server) handleSCP(ch ssh.Channel, req *ssh.Request, ctx *ctx, args string) error {
-	ctx.Infof("handleSCP(cmd=%v)", args)
-
-	cmd, err := scp.ParseCommand(args, ctx.conn.User())
+	cmd, err := scp.ParseCommand(args, ctx.conn, s.alog)
 	if err != nil {
 		ctx.Warningf("failed to parse command: %v", cmd)
 		return trace.Wrap(err, fmt.Sprintf("failure to parse command '%v'", cmd))
 	}
 	ctx.Infof("handleSCP(cmd=%#v)", cmd)
+
+	cmdBytes, _ := json.MarshalIndent(cmd, "", "\t")
+	ctx.Infof("SCP command:\n%s\n", string(cmdBytes))
+
 	// TODO(klizhentas) current version of handling exec is incorrect.
 	// req.Reply should be sent as long as command start is done,
 	// not at the end. This is my fix for SCP only:
@@ -840,12 +867,10 @@ func (s *Server) handleSCP(ch ssh.Channel, req *ssh.Request, ctx *ctx, args stri
 	if err := cmd.Execute(ch); err != nil {
 		return trace.Wrap(err)
 	}
-	ctx.Infof("SCP serve finished")
 	_, err = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(0)}))
 	if err != nil {
-		ctx.Infof("failed to send scp exit status: %v", err)
+		ctx.Errorf("failed to send scp exit status: %v", err)
 	}
-	ctx.Infof("SCP sent exit status")
 	return nil
 }
 

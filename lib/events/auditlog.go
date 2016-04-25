@@ -44,17 +44,33 @@ const (
 
 	// ExecEvent is an exec command executed by script or user on
 	// the server side
-	ExecEvent       = "teleport.exec"
+	ExecEvent       = "exec"
 	ExecEventOutput = "output"
 	ExecEventCode   = "exitCode"
 	ExecEventError  = "exitError"
 
+	// Port forwarding event
+	PortForwardEvent      = "port"
+	PortForwardLogin      = "login"
+	PortForwardAddr       = "addr"
+	PortForwardLocalAddr  = "addr.local"
+	PortForwardRemoteAddr = "addr.remote"
+
 	// AuthAttemptEvent is authentication attempt that either
 	// succeeded or failed based on event status
-	AuthAttemptEvent = "auth"
+	AuthAttemptEvent   = "auth"
+	AuthAttemptUser    = "user"
+	AuthAttemptSuccess = "success"
+	AuthAttemptErr     = "error"
 
 	// SCPEvent means data transfer that occured on the server
-	SCPEvent = "scp"
+	SCPEvent      = "scp"
+	SCPPath       = "path"
+	SCPLengh      = "len"
+	SCPLocalAddr  = "addr.local"
+	SCPRemoteAddr = "addr.remote"
+	SCPLogin      = "login"
+	SCPAction     = "action"
 
 	// ResizeEvent means that some user resized PTY on the client
 	ResizeEvent = "resize"

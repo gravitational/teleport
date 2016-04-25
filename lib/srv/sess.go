@@ -55,24 +55,11 @@ func (r *sessionRegistry) Close() {
 	log.Infof("sessionRegistry.Close()")
 }
 
-// EmitAuditEvent logs a given event to the audit log attached to the
-// server who owns these sessions
-func (s *sessionRegistry) EmitAuditEvent(eventType string, fields events.EventFields) {
-	alog := s.srv.alog
-	if alog != nil {
-		if err := alog.EmitAuditEvent(eventType, fields); err != nil {
-			log.Error(err)
-		}
-	} else {
-		log.Warn("SSH server has no audit log")
-	}
-}
-
 // joinShell either joins an existing session or starts a new shell
 func (s *sessionRegistry) joinShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	if ctx.session != nil {
 		// emit "joined session" event:
-		s.EmitAuditEvent(events.SessionJoinEvent, events.EventFields{
+		s.srv.EmitAuditEvent(events.SessionJoinEvent, events.EventFields{
 			events.SessionEventID:    string(ctx.session.id),
 			events.SessionEventLogin: ctx.login,
 		})
@@ -97,7 +84,7 @@ func (s *sessionRegistry) joinShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 	ctx.Infof("ssh.joinShell created new session %v", sid)
 
 	// emit "new session created" event:
-	s.EmitAuditEvent(events.SessionJoinEvent, events.EventFields{
+	s.srv.EmitAuditEvent(events.SessionJoinEvent, events.EventFields{
 		events.SessionEventID:    string(sid),
 		events.SessionEventLogin: ctx.login,
 		events.SessionLocalAddr:  ctx.conn.LocalAddr().String(),
@@ -124,7 +111,7 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 	}
 
 	// emit an audit event
-	s.EmitAuditEvent(events.SessionLeaveEvent, events.EventFields{
+	s.srv.EmitAuditEvent(events.SessionLeaveEvent, events.EventFields{
 		events.SessionEventID:    string(sess.id),
 		events.SessionEventLogin: party.user,
 	})
@@ -169,7 +156,7 @@ func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *c
 			log.Error(err)
 		}
 		// report this to the event/audit log:
-		s.EmitAuditEvent(events.ResizeEvent, events.EventFields{
+		s.srv.EmitAuditEvent(events.ResizeEvent, events.EventFields{
 			events.SessionEventID:    string(sid),
 			events.SessionEventLogin: ctx.login,
 			events.ResizeSize:        fmt.Sprintf("%d:%d", params.W, params.H),
@@ -337,7 +324,7 @@ func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 	s.addParty(p)
 
 	// emit "new session created" event:
-	s.registry.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
+	s.registry.srv.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
 		events.SessionEventID:    string(s.id),
 		events.SessionEventLogin: ctx.login,
 		events.SessionLocalAddr:  ctx.conn.LocalAddr().String(),
@@ -368,7 +355,7 @@ func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 			log.Errorf("shell exited with error: %v", err)
 		}
 		// send an event indicating that this session has ended
-		s.registry.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
+		s.registry.srv.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
 			events.SessionEventID: string(s.id),
 		})
 		_ = exitCode
