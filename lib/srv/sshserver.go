@@ -482,7 +482,7 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		// only failed attempts are logged right now
 		if err != nil {
 			s.EmitAuditEvent(events.AuthAttemptEvent, events.EventFields{
-				events.AuthAttemptUser:    teleportUser,
+				events.EventUser:          teleportUser,
 				events.AuthAttemptSuccess: false,
 				events.AuthAttemptErr:     err.Error(),
 			})
@@ -577,10 +577,10 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel,
 	defer conn.Close()
 	// audit event:
 	s.EmitAuditEvent(events.PortForwardEvent, events.EventFields{
-		events.PortForwardAddr:       addr,
-		events.PortForwardLogin:      ctx.login,
-		events.PortForwardLocalAddr:  sconn.LocalAddr().String(),
-		events.PortForwardRemoteAddr: sconn.RemoteAddr().String(),
+		events.PortForwardAddr: addr,
+		events.EventLogin:      ctx.login,
+		events.LocalAddr:       sconn.LocalAddr().String(),
+		events.RemoteAddr:      sconn.RemoteAddr().String(),
 	})
 	wg := &sync.WaitGroup{}
 	wg.Add(1)

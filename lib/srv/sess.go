@@ -60,8 +60,11 @@ func (s *sessionRegistry) joinShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 	if ctx.session != nil {
 		// emit "joined session" event:
 		s.srv.EmitAuditEvent(events.SessionJoinEvent, events.EventFields{
-			events.SessionEventID:    string(ctx.session.id),
-			events.SessionEventLogin: ctx.login,
+			events.SessionEventID: string(ctx.session.id),
+			events.EventLogin:     ctx.login,
+			events.EventUser:      ctx.teleportUser,
+			events.LocalAddr:      ctx.conn.LocalAddr().String(),
+			events.RemoteAddr:     ctx.conn.RemoteAddr().String(),
 		})
 		ctx.Infof("joining session: %v", ctx.session.id)
 		_, err := ctx.session.join(ch, req, ctx)
@@ -83,14 +86,6 @@ func (s *sessionRegistry) joinShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 	s.addSession(sess)
 	ctx.Infof("ssh.joinShell created new session %v", sid)
 
-	// emit "new session created" event:
-	s.srv.EmitAuditEvent(events.SessionJoinEvent, events.EventFields{
-		events.SessionEventID:    string(sid),
-		events.SessionEventLogin: ctx.login,
-		events.SessionLocalAddr:  ctx.conn.LocalAddr().String(),
-		events.SessionRemoveAddr: ctx.conn.RemoteAddr().String(),
-	})
-
 	if err := sess.startShell(ch, ctx); err != nil {
 		sess.Close()
 		return trace.Wrap(err)
@@ -110,13 +105,12 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 		return trace.Wrap(err)
 	}
 
-	// emit an audit event
-	s.srv.EmitAuditEvent(events.SessionLeaveEvent, events.EventFields{
-		events.SessionEventID:    string(sess.id),
-		events.SessionEventLogin: party.user,
-	})
-
 	if len(sess.parties) != 0 {
+		// emit an audit event
+		s.srv.EmitAuditEvent(events.SessionLeaveEvent, events.EventFields{
+			events.SessionEventID: string(sess.id),
+			events.EventUser:      party.user,
+		})
 		return nil
 	}
 
@@ -157,9 +151,10 @@ func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *c
 		}
 		// report this to the event/audit log:
 		s.srv.EmitAuditEvent(events.ResizeEvent, events.EventFields{
-			events.SessionEventID:    string(sid),
-			events.SessionEventLogin: ctx.login,
-			events.ResizeSize:        fmt.Sprintf("%d:%d", params.W, params.H),
+			events.SessionEventID: string(sid),
+			events.EventLogin:     ctx.login,
+			events.EventUser:      ctx.teleportUser,
+			events.ResizeSize:     fmt.Sprintf("%d:%d", params.W, params.H),
 		})
 
 	}()
@@ -325,10 +320,11 @@ func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 
 	// emit "new session created" event:
 	s.registry.srv.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
-		events.SessionEventID:    string(s.id),
-		events.SessionEventLogin: ctx.login,
-		events.SessionLocalAddr:  ctx.conn.LocalAddr().String(),
-		events.SessionRemoveAddr: ctx.conn.RemoteAddr().String(),
+		events.SessionEventID: string(s.id),
+		events.EventLogin:     ctx.login,
+		events.EventUser:      ctx.teleportUser,
+		events.LocalAddr:      ctx.conn.LocalAddr().String(),
+		events.RemoteAddr:     ctx.conn.RemoteAddr().String(),
 	})
 
 	// start terminal size syncing loop:
@@ -357,6 +353,7 @@ func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 		// send an event indicating that this session has ended
 		s.registry.srv.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
 			events.SessionEventID: string(s.id),
+			events.EventUser:      ctx.teleportUser,
 		})
 		_ = exitCode
 	}()

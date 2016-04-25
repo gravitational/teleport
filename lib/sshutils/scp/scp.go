@@ -147,12 +147,12 @@ func (cmd *Command) sendFile(r *reader, ch io.ReadWriter, fi os.FileInfo, path s
 	// log audit event:
 	if cmd.AuditLog != nil {
 		cmd.AuditLog.EmitAuditEvent(events.SCPEvent, events.EventFields{
-			events.SCPPath:       path,
-			events.SCPLengh:      fi.Size(),
-			events.SCPLocalAddr:  cmd.Conn.LocalAddr().String(),
-			events.SCPRemoteAddr: cmd.Conn.RemoteAddr().String(),
-			events.SCPLogin:      cmd.User.Username,
-			events.SCPAction:     "read",
+			events.SCPPath:    path,
+			events.SCPLengh:   fi.Size(),
+			events.LocalAddr:  cmd.Conn.LocalAddr().String(),
+			events.RemoteAddr: cmd.Conn.RemoteAddr().String(),
+			events.EventLogin: cmd.User.Username,
+			events.SCPAction:  "read",
 		})
 	}
 
@@ -290,12 +290,12 @@ func (cmd *Command) receiveFile(st *state, fc NewFileCmd, ch io.ReadWriter) erro
 	// log audit event:
 	if cmd.AuditLog != nil {
 		cmd.AuditLog.EmitAuditEvent(events.SCPEvent, events.EventFields{
-			events.SCPPath:       path,
-			events.SCPLengh:      fc.Length,
-			events.SCPLocalAddr:  cmd.Conn.LocalAddr().String(),
-			events.SCPRemoteAddr: cmd.Conn.RemoteAddr().String(),
-			events.SCPLogin:      cmd.User.Username,
-			events.SCPAction:     "write",
+			events.LocalAddr:  cmd.Conn.LocalAddr().String(),
+			events.RemoteAddr: cmd.Conn.RemoteAddr().String(),
+			events.EventLogin: cmd.User.Username,
+			events.SCPPath:    path,
+			events.SCPLengh:   fc.Length,
+			events.SCPAction:  "write",
 		})
 	}
 

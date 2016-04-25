@@ -213,7 +213,11 @@ func (e *execResponse) collectStatus(cmd *exec.Cmd, err error) (*execResult, err
 	auditLog := e.ctx.srv.alog
 	if auditLog != nil {
 		fields := events.EventFields{
-			events.ExecEventOutput: e.out.String(),
+			events.ExecEventCommand: strings.Join(cmd.Args, " "),
+			events.EventUser:        e.ctx.teleportUser,
+			events.EventLogin:       e.ctx.login,
+			events.LocalAddr:        e.ctx.conn.LocalAddr().String(),
+			events.RemoteAddr:       e.ctx.conn.RemoteAddr().String(),
 		}
 		if err != nil {
 			fields[events.ExecEventError] = err.Error()
