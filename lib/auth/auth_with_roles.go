@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"io"
 	"net/url"
 	"time"
 
@@ -364,6 +365,20 @@ func (a *AuthWithRoles) EmitAuditEvent(eventType string, fields events.EventFiel
 		return trace.Wrap(err)
 	}
 	return a.alog.EmitAuditEvent(eventType, fields)
+}
+
+func (a *AuthWithRoles) GetSessionWriter(sid session.ID) (io.WriteCloser, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionEmitEvents); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.alog.GetSessionWriter(sid)
+}
+
+func (a *AuthWithRoles) GetSessionReader(sid session.ID) (io.ReadCloser, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionViewSession); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.alog.GetSessionReader(sid)
 }
 
 // test helper

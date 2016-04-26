@@ -49,6 +49,7 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetServers:         true,
 		ActionGetSession:         true,
 		ActionGetSessions:        true,
+		ActionViewSession:        true,
 	}
 
 	sp.permissions[teleport.RoleProvisionToken] = map[string]bool{
@@ -71,6 +72,7 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetSession:         true,
 		ActionGetSessions:        true,
 		ActionEmitEvents:         true,
+		ActionViewSession:        true,
 	}
 
 	sp.permissions[teleport.RoleProxy] = map[string]bool{
@@ -86,6 +88,7 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetLocalDomain:                  true,
 		ActionGetUserKeys:                     true,
 		ActionGetSession:                      true,
+		ActionViewSession:                     true,
 		ActionGetSessions:                     true,
 		ActionCreateOIDCAuthRequest:           true,
 		ActionValidateOIDCAuthCallback:        true,
@@ -100,6 +103,7 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetWebSession:    true,
 		ActionDeleteWebSession: true,
 		ActionGetSession:       true,
+		ActionViewSession:      true,
 		ActionGetSessions:      true,
 	}
 
@@ -157,6 +161,7 @@ var StandardRoles = []teleport.Role{
 const (
 	ActionGetSessions                       = "GetSessions"
 	ActionGetSession                        = "GetSession"
+	ActionViewSession                       = "ViewSession"
 	ActionDeleteSession                     = "DeleteSession"
 	ActionUpsertSession                     = "UpsertSession"
 	ActionUpsertParty                       = "UpsertParty"

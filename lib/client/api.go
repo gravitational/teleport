@@ -322,8 +322,8 @@ func (tc *TeleportClient) Join(sid string, input io.Reader) (err error) {
 	if sessionID.Check() != nil {
 		return trace.Errorf("Invalid session ID format: %s", sid)
 	}
-
 	var notFoundErrorMessage = fmt.Sprintf("session %v not found or it has ended", sid)
+
 	// connect to proxy:
 	if !tc.Config.ProxySpecified() {
 		return trace.BadParameter("proxy server is not specified")
@@ -345,6 +345,7 @@ func (tc *TeleportClient) Join(sid string, input io.Reader) (err error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	// find the session ID on the site:
 	sessions, err := site.GetSessions()
 	if err != nil {
@@ -360,6 +361,7 @@ func (tc *TeleportClient) Join(sid string, input io.Reader) (err error) {
 	if session == nil {
 		return trace.NotFound(notFoundErrorMessage)
 	}
+
 	// pick the 1st party of the session and use his server ID to connect to
 	if len(session.Parties) == 0 {
 		return trace.NotFound(notFoundErrorMessage)

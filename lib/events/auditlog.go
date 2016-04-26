@@ -1,8 +1,57 @@
+/*
+Copyright 2015 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
+This audit log implementation uses filesystem backend.
+"Implements" means it implements events.AuditLogI interface (see events/api.go)
+
+The main log files are saved as:
+	/var/lib/teleport/log/<date>.log
+
+Each session has its own session log stored as two files
+	/var/lib/teleport/log/<session-id>.session.log
+	/var/lib/teleport/log/<session-id>.session.bytes
+
+Where:
+	- .session.log   (same events as in the main log, but related to the session)
+	- .session.bytes (recorded session bytes: PTY IO)
+
+The log file is rotated every 24 hours. The old files must be cleaned
+up or archived by an external tool.
+
+Log file format:
+utc_date,action,json_fields
+
+Common JSON fields
+- user       : teleport user
+- login      : server OS login, the user logged in as
+- addr.local : server address:port
+- addr.remote: connected client's address:port
+- sid        : session ID (GUID format)
+
+Examples:
+2016-04-25 22:37:29 +0000 UTC,session.start,{"addr.local":"127.0.0.1:3022","addr.remote":"127.0.0.1:35732","login":"root","sid":"4a9d97de-0b36-11e6-a0b3-d8cb8ae5080e","user":"vincent"}
+2016-04-25 22:54:31 +0000 UTC,exec,{"addr.local":"127.0.0.1:3022","addr.remote":"127.0.0.1:35949","command":"-bash -c ls /","login":"root","user":"vincent"}
+*/
 package events
 
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -20,84 +69,18 @@ const (
 	SessionLogsDir = "sessions"
 
 	// LogfilePrefix defines the ending of the daily event log file
-	LogfilePrefix = ".tele.log"
+	LogfilePrefix = ".log"
+
+	// SessionLogPrefix defines the endof of session log files
+	SessionLogPrefix = ".session.log"
+
+	// SessionStreamPrefix defines the ending of session stream files,
+	// that's where interactive PTY I/O is saved.
+	SessionStreamPrefix = ".session.bytes"
 
 	// DefaultRotationPeriod defines how frequently to rotate the log file
 	DefaultRotationPeriod = (time.Hour * 24)
 )
-
-const (
-	// Common event fields:
-	EventLogin = "login"       // OS login
-	EventUser  = "user"        // teleport user
-	LocalAddr  = "addr.local"  // address on the host
-	RemoteAddr = "addr.remote" // client (user's) address
-
-	// SessionEvent indicates that session has been initiated
-	// or updated by a joining party on the server
-	SessionStartEvent = "session.start"
-
-	// SessionEndEvent indicates taht a session has ended
-	SessionEndEvent = "session.end"
-	SessionEventID  = "sid"
-
-	// Join & Leave events indicate when someone joins/leaves a session
-	SessionJoinEvent  = "session.join"
-	SessionLeaveEvent = "session.leave"
-
-	// ExecEvent is an exec command executed by script or user on
-	// the server side
-	ExecEvent        = "exec"
-	ExecEventCommand = "command"
-	ExecEventCode    = "exitCode"
-	ExecEventError   = "exitError"
-
-	// Port forwarding event
-	PortForwardEvent = "port"
-	PortForwardAddr  = "addr"
-
-	// AuthAttemptEvent is authentication attempt that either
-	// succeeded or failed based on event status
-	AuthAttemptEvent   = "auth"
-	AuthAttemptSuccess = "success"
-	AuthAttemptErr     = "error"
-
-	// SCPEvent means data transfer that occured on the server
-	SCPEvent  = "scp"
-	SCPPath   = "path"
-	SCPLengh  = "len"
-	SCPAction = "action"
-
-	// ResizeEvent means that some user resized PTY on the client
-	ResizeEvent = "resize"
-	ResizeSize  = "size" // expressed as 'W:H'
-)
-
-// EventFields instance is attached to every logged event
-type EventFields map[string]interface{}
-
-func (f EventFields) GetString(key string) (string, bool) {
-	val, found := f[key]
-	if !found {
-		return "", false
-	}
-	return val.(string), true
-}
-
-func (f EventFields) GetInt(key string) (int, bool) {
-	val, found := f[key]
-	if !found {
-		return -1, false
-	}
-	return val.(int), true
-}
-
-// AuditLogI is the primary (and the only external-facing) interface for AUditLogger.
-// If you wish to implement a different kind of logger (not filesystem-based), you
-// have to implement this interface
-type AuditLogI interface {
-	EmitAuditEvent(eventType string, fields EventFields) error
-}
 
 type TimeSourceFunc func() time.Time
 
@@ -157,28 +140,30 @@ func (sl *SessionLogger) LogEvent(line string) {
 
 // Close() is called when a session is closed. This releases resources
 // owned by the session logger
-func (sl *SessionLogger) Close() {
+func (sl *SessionLogger) Close() error {
 	sl.once.Do(func() {
 		sl.streamFile.Close()
 		sl.eventsFile.Close()
 		sl.streamFile = nil
 		sl.eventsFile = nil
 	})
+	return nil
 }
 
-// WriteStream takes a stream of bytes (usually the output from a session terminal)
+// Write takes a stream of bytes (usually the output from a session terminal)
 // and writes it into a "stream file", for future replay of interactive sessions.
-func (sl *SessionLogger) WriteStream(bytes []byte) error {
+func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
 	if sl.streamFile == nil {
 		err := trace.Errorf("session %v error: attempt to write to a closed file", sl.sid)
 		logrus.Error(err)
-		return err
+		return 0, err
 	}
-	if _, err := sl.streamFile.Write(bytes); err != nil {
+	if written, err = sl.streamFile.Write(bytes); err != nil {
 		logrus.Error(err)
-		return trace.Wrap(err)
+		return written, trace.Wrap(err)
 	}
-	return nil
+	logrus.Infof("sessionLogger %d bytes -> %v", written, sl.streamFile.Name())
+	return written, nil
 }
 
 // Creates and returns a new Audit Log oboject whish will store its logfiles
@@ -205,6 +190,30 @@ func NewAuditLog(dataDir string, testMode bool) (*AuditLog, error) {
 	}, nil
 }
 
+// GetSessionWriter returns a writer interface for the given session. SSH Server
+// uses this to stream active sessions into the audit log
+func (l *AuditLog) GetSessionWriter(sid session.ID) (io.WriteCloser, error) {
+	logrus.Infof("audit.log: getSessionWriter(%v)", sid)
+	sl := l.LoggerFor(sid)
+	if sl == nil {
+		logrus.Warnf("audit.log: no session writer for %s", sid)
+		return nil, nil
+	}
+	return sl, nil
+}
+
+// GetSessionReader returns a reader which console and web clients request
+// to receive a live stream of a given session
+func (l *AuditLog) GetSessionReader(sid session.ID) (io.ReadCloser, error) {
+	logrus.Infof("audit.log: getSessionReader(%v)", sid)
+	fstream, err := os.OpenFile(l.streamFileName(sid), os.O_RDONLY, 0640)
+	if err != nil {
+		logrus.Error(err)
+		return nil, trace.Wrap(err)
+	}
+	return fstream, nil
+}
+
 // EmitAuditEvent adds a new event to the log. Part of auth.AuditLogI interface.
 func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 	// keep the most recent event of every kind for testing purposes:
@@ -225,8 +234,11 @@ func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 	if found {
 		sl := l.LoggerFor(session.ID(sessionId))
 		if sl != nil {
+			// space optimization: no need to log sessionID into the session log (that log
+			// itself knows which session it belogs to)
 			delete(fields, SessionEventID)
 			sl.LogEvent(l.eventToLine(eventType, fields))
+
 			// Session ended? Get rid of the session logger then:
 			if eventType == SessionEndEvent {
 				logrus.Infof("audit log: removing session logger for SID=%v", sessionId)
@@ -290,6 +302,15 @@ func (l *AuditLog) Close() error {
 	return nil
 }
 
+// streamFileName helper determins the name of the stream file for a given
+// session by its ID
+func (l *AuditLog) streamFileName(sid session.ID) string {
+	return filepath.Join(
+		l.dataDir,
+		SessionLogsDir,
+		fmt.Sprintf("%s%s", sid, SessionStreamPrefix))
+}
+
 // LoggerFor creates a logger for a specified session. Session loggers allow
 // to group all events into special "session log files" for easier audit
 func (l *AuditLog) LoggerFor(sid session.ID) (sl *SessionLogger) {
@@ -304,14 +325,13 @@ func (l *AuditLog) LoggerFor(sid session.ID) (sl *SessionLogger) {
 		return nil
 	}
 	// create a new session stream file:
-	streamFname := filepath.Join(sdir, fmt.Sprintf("%s.session.bytes", sid))
-	fstream, err := os.OpenFile(streamFname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+	fstream, err := os.OpenFile(l.streamFileName(sid), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 	if err != nil {
 		logrus.Error(err)
 		return nil
 	}
 	// create a new session file:
-	eventsFname := filepath.Join(sdir, fmt.Sprintf("%s.session", sid))
+	eventsFname := filepath.Join(sdir, fmt.Sprintf("%s%s", sid, SessionLogPrefix))
 	fevents, err := os.OpenFile(eventsFname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 	if err != nil {
 		logrus.Error(err)

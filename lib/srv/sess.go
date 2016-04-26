@@ -90,7 +90,6 @@ func (s *sessionRegistry) joinShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 		sess.Close()
 		return trace.Wrap(err)
 	}
-
 	return nil
 }
 
@@ -128,24 +127,22 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 // notifyWinChange is called when an SSH server receives a command notifying
 // us that the terminal size has changed
 func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *ctx) error {
-	if ctx.session == nil {
-		err := trace.Errorf("SSH context has no associated session")
-		ctx.Error(err)
+	// update in-memory session (if present)
+	if ctx.session != nil {
+		err := ctx.session.term.setWinsize(params)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	// update the persisted session (if present)
+	sid, found := ctx.getEnv(sshutils.SessionEnvVar)
+	if !found || ctx.srv.sessionServer == nil {
 		return nil
 	}
-	log.Infof("notifyWinChange(%v)", ctx.session.id)
-
-	err := ctx.session.term.setWinsize(params)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if s.srv.sessionServer == nil {
-		return nil
-	}
+	log.Infof("notifyWinChange(%v)", sid)
 	go func() {
-		sid := ctx.session.id
 		err := s.srv.sessionServer.UpdateSession(
-			rsession.UpdateRequest{ID: sid, TerminalParams: &params})
+			rsession.UpdateRequest{ID: rsession.ID(sid), TerminalParams: &params})
 		if err != nil {
 			log.Error(err)
 		}
@@ -271,6 +268,18 @@ func (s *session) Close() error {
 	if s.term != nil {
 		err = s.term.Close()
 	}
+	// close all writers in our multi-writer:
+	s.writer.Lock()
+	defer s.writer.Unlock()
+	for writerName, writer := range s.writer.writers {
+		log.Infof("sesion.close -----> got writer %v", writerName)
+		closer, ok := io.Writer(writer).(io.WriteCloser)
+		if ok {
+			log.Infof("sesion.close -----> closing writer %v", writerName)
+			closer.Close()
+		}
+	}
+
 	return trace.Wrap(err)
 }
 
@@ -326,6 +335,15 @@ func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 		events.LocalAddr:      ctx.conn.LocalAddr().String(),
 		events.RemoteAddr:     ctx.conn.RemoteAddr().String(),
 	})
+
+	// start recording this session
+	auditLog := s.registry.srv.alog
+	if auditLog != nil {
+		writer, err := auditLog.GetSessionWriter(s.id)
+		if err == nil {
+			s.writer.addWriter("session-recorder", writer, true)
+		}
+	}
 
 	// start terminal size syncing loop:
 	go s.pollAndSyncTerm()
@@ -476,14 +494,14 @@ type multiWriter struct {
 }
 
 type writerWrapper struct {
-	io.Writer
+	io.WriteCloser
 	closeOnError bool
 }
 
-func (m *multiWriter) addWriter(id string, w io.Writer, closeOnError bool) {
+func (m *multiWriter) addWriter(id string, w io.WriteCloser, closeOnError bool) {
 	m.Lock()
 	defer m.Unlock()
-	m.writers[id] = writerWrapper{Writer: w, closeOnError: closeOnError}
+	m.writers[id] = writerWrapper{WriteCloser: w, closeOnError: closeOnError}
 }
 
 func (m *multiWriter) deleteWriter(id string) {

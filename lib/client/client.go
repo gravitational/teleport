@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -40,7 +39,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/docker/pkg/term"
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -158,15 +156,11 @@ func (proxy *ProxyClient) ConnectToSite(siteName string, user string) (auth.Clie
 		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
-	clt, err := auth.NewClient(
-		"http://stub:0",
-		roundtrip.HTTPClient(&http.Client{
-			Transport: &http.Transport{
-				Dial: func(network, addr string) (net.Conn, error) {
-					return nodeClient.Client.Dial(network, addr)
-				},
-			},
-		}))
+	// crate HTTP client to Auth API over SSH connection:
+	sshDialer := func(network, addr string) (net.Conn, error) {
+		return nodeClient.Client.Dial(network, addr)
+	}
+	clt, err := auth.NewClient("http://stub:0", sshDialer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

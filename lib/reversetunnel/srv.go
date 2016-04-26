@@ -499,12 +499,7 @@ func newRemoteSite(srv *server, domainName string) (*tunnelSite, error) {
 	remoteSite.transport = &http.Transport{
 		Dial: remoteSite.dialAccessPoint,
 	}
-	clt, err := auth.NewClient(
-		"http://stub:0",
-		roundtrip.HTTPClient(&http.Client{
-			Transport: remoteSite.transport,
-			Timeout:   5 * time.Second,
-		}))
+	clt, err := auth.NewClient("http://stub:0", remoteSite.dialAccessPoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

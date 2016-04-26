@@ -19,8 +19,13 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"net/url"
 	"time"
+
+	"golang.org/x/net/websocket"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
@@ -28,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -37,6 +41,8 @@ import (
 // CurrentVersion is a current API version
 const CurrentVersion = "v1"
 
+type Dialer func(network, addr string) (net.Conn, error)
+
 // Client is HTTP Auth API client. It works by connecting to auth servers
 // via HTTP.
 //
@@ -44,16 +50,29 @@ const CurrentVersion = "v1"
 // tunnel first, and then do HTTP-over-SSH, see auth.TunClient in lib/auth/tun.go
 type Client struct {
 	roundtrip.Client
+
+	// dialer allows this HTTP client to work on top of arbitrary
+	// connections
+	dialer Dialer
 }
 
 // NewClient returns a new instance of the client
-func NewClient(addr string, params ...roundtrip.ClientParam) (*Client, error) {
-	log.Infof("auth.NewClient(%v)", addr)
+func NewClient(addr string, dialer Dialer) (*Client, error) {
+	var params []roundtrip.ClientParam
+	// apply the supplied dialer:
+	if dialer != nil {
+		params = append(params, roundtrip.HTTPClient(&http.Client{
+			Transport: &http.Transport{Dial: dialer},
+		}))
+	}
 	c, err := roundtrip.NewClient(addr, CurrentVersion, params...)
 	if err != nil {
 		return nil, err
 	}
-	return &Client{*c}, nil
+	return &Client{
+		Client: *c,
+		dialer: dialer,
+	}, nil
 }
 
 // PostJSON is a generic method that issues http POST request to the server
@@ -700,7 +719,7 @@ func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 	return response, nil
 }
 
-// EmitAuditEvent sends an auditable event to the auth server
+// EmitAuditEvent sends an auditable event to the auth server (part of evets.AuditLogI interface)
 func (c *Client) EmitAuditEvent(eventType string, fields events.EventFields) error {
 	_, err := c.PostJSON(c.Endpoint("events"), &auditEventReq{
 		Type:   eventType,
@@ -710,6 +729,37 @@ func (c *Client) EmitAuditEvent(eventType string, fields events.EventFields) err
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// GetSessionWriter allows clients to submit their session stream to the audit log
+// (part of evets.AuditLogI interface)
+func (c *Client) GetSessionWriter(sid session.ID) (io.WriteCloser, error) {
+	return c.openWebsocket(c.Endpoint("sessions", string(sid), "writer"))
+}
+
+// GetSessionReader allows clients to recewive a live stream of an active session
+func (c *Client) GetSessionReader(sid session.ID) (io.ReadCloser, error) {
+	return c.openWebsocket(c.Endpoint("sessions", string(sid), "reader"))
+}
+
+func (c *Client) openWebsocket(urlString string) (conn *websocket.Conn, err error) {
+	// create an underlying SSH connection (we'll use it as a transport for websocket):
+	sshConn, err := c.dialer("tcp", "stub:0")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// replace 'http' theme with 'ws'
+	url, err := url.Parse(urlString)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	url.Scheme = "ws"
+	// create a websocket, connect and return the connection:
+	wsConf, err := websocket.NewConfig(url.String(), c.Endpoint())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return websocket.NewClient(wsConf, sshConn)
 }
 
 // TOODO(klizhentas) this should be just including appropriate service implementations

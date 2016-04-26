@@ -19,6 +19,7 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -34,6 +35,8 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+
+	"golang.org/x/net/websocket"
 )
 
 // Config is APIServer config
@@ -111,6 +114,8 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.PUT("/v1/sessions/:id", httplib.MakeHandler(srv.updateSession))
 	srv.GET("/v1/sessions", httplib.MakeHandler(srv.getSessions))
 	srv.GET("/v1/sessions/:id", httplib.MakeHandler(srv.getSession))
+	srv.GET("/v1/sessions/:id/writer", httplib.MakeHandler(srv.getSessionWriter))
+	srv.GET("/v1/sessions/:id/reader", httplib.MakeHandler(srv.getSessionReader))
 
 	// OIDC stuff
 	srv.POST("/v1/oidc/connectors", httplib.MakeHandler(srv.upsertOIDCConnector))
@@ -773,6 +778,50 @@ func (s *APIServer) emitAuditEvent(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
+}
+
+// HTTP GET /v1/sessions/:id/writer
+func (s *APIServer) getSessionWriter(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	sid, err := session.ParseID(p.ByName("id"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	writer, err := s.a.GetSessionWriter(*sid)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer writer.Close()
+	ws := websocket.Server{
+		Handler: func(conn *websocket.Conn) {
+			log.Info("[AUTH] session recording websocket open")
+			written, _ := io.Copy(writer, conn)
+			log.Infof("[AUTH] session recording websocket closed: %v bytes written", written)
+		},
+	}
+	ws.ServeHTTP(w, r)
+	return nil, nil
+}
+
+// HTTP GET /v1/sessions/:id/reader
+func (s *APIServer) getSessionReader(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	sid, err := session.ParseID(p.ByName("id"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	reader, err := s.a.GetSessionReader(*sid)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer reader.Close()
+	ws := websocket.Server{
+		Handler: func(conn *websocket.Conn) {
+			log.Info("[AUTH] session streaming websocket open")
+			read, _ := io.Copy(conn, reader)
+			log.Infof("[AUTH] session streaming websocket closed: %v bytes streamed", read)
+		},
+	}
+	ws.ServeHTTP(w, r)
+	return nil, nil
 }
 
 func message(msg string) map[string]interface{} {

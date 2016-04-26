@@ -45,23 +45,23 @@ func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 	alog.TimeSource = func() time.Time { return now }
 
 	// emit two session-attached events (same session)
-	err = alog.EmitAuditEvent(SessionStartEvent, EventFields{SessionEventID: "100", SessionEventLogin: "vincent"})
+	err = alog.EmitAuditEvent(SessionStartEvent, EventFields{SessionEventID: "100", EventLogin: "vincent"})
 	c.Assert(err, check.IsNil)
 	c.Assert(alog.loggers, check.HasLen, 1)
-	err = alog.EmitAuditEvent(SessionLeaveEvent, EventFields{SessionEventID: "100", SessionEventLogin: "vincent"})
+	err = alog.EmitAuditEvent(SessionLeaveEvent, EventFields{SessionEventID: "100", EventLogin: "vincent"})
 	c.Assert(alog.loggers, check.HasLen, 1)
-	err = alog.EmitAuditEvent(SessionJoinEvent, EventFields{SessionEventID: "200", SessionEventLogin: "doggy"})
+	err = alog.EmitAuditEvent(SessionJoinEvent, EventFields{SessionEventID: "200", EventLogin: "doggy"})
 	c.Assert(err, check.IsNil)
 	c.Assert(alog.loggers, check.HasLen, 2)
 
 	// emit "sesion-end" event. one of the loggers must disappear
-	err = alog.EmitAuditEvent(SessionEndEvent, EventFields{SessionEventID: "200", SessionEventLogin: "doggy"})
+	err = alog.EmitAuditEvent(SessionEndEvent, EventFields{SessionEventID: "200", EventLogin: "doggy"})
 	c.Assert(err, check.IsNil)
 	c.Assert(alog.loggers, check.HasLen, 1)
 
 	// add a few more loggers and close:
-	alog.EmitAuditEvent(SessionJoinEvent, EventFields{SessionEventID: "300", SessionEventLogin: "frankie"})
-	alog.EmitAuditEvent(SessionJoinEvent, EventFields{SessionEventID: "400", SessionEventLogin: "rosie"})
+	alog.EmitAuditEvent(SessionJoinEvent, EventFields{SessionEventID: "300", EventLogin: "frankie"})
+	alog.EmitAuditEvent(SessionJoinEvent, EventFields{SessionEventID: "400", EventLogin: "rosie"})
 	alog.Close()
 	c.Assert(alog.loggers, check.HasLen, 0)
 }
