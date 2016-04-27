@@ -108,7 +108,7 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	select {
 	case doneErr, ok := <-done:
 		if ok && doneErr != nil {
-			return nil, trace.Errorf("read err: %s", doneErr)
+			return nil, trace.Wrap(doneErr)
 		}
 	case <-time.After(teleport.DefaultTimeout):
 		return nil, trace.Errorf("timeout")
