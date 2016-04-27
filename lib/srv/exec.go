@@ -25,6 +25,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/gravitational/teleport/lib/events"
