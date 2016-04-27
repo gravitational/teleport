@@ -102,7 +102,9 @@ func (b *BoltBackend) GetKeys(path []string) ([]string, error) {
 	}
 	// now do an iteration to expire keys
 	for _, key := range keys {
-		b.GetVal(path, key)
+		if _, err = b.GetVal(path, key); err != nil {
+			return nil, err
+		}
 	}
 	keys, err = b.getKeys(path)
 	if err != nil {
