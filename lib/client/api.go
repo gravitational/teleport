@@ -306,7 +306,7 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool, input io.Reader
 
 	// execute command(s) or a shell on remote node(s)
 	if len(command) > 0 {
-		return tc.runCommand(nodeAddrs, proxyClient, command)
+		return tc.runCommand(siteInfo.Name, nodeAddrs, proxyClient, command)
 	}
 
 	nodeClient, err := proxyClient.ConnectToNode(nodeAddrs[0]+"@"+siteInfo.Name, tc.Config.HostLogin)
@@ -492,7 +492,7 @@ func (tc *TeleportClient) ListNodes() ([]services.Server, error) {
 }
 
 // runCommand executes a given bash command on a bunch of remote nodes
-func (tc *TeleportClient) runCommand(nodeAddresses []string, proxyClient *ProxyClient, command []string) error {
+func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string) error {
 	resultsC := make(chan error, len(nodeAddresses))
 	for _, address := range nodeAddresses {
 		go func(address string) {
@@ -501,7 +501,7 @@ func (tc *TeleportClient) runCommand(nodeAddresses []string, proxyClient *ProxyC
 				resultsC <- err
 			}()
 			var nodeClient *NodeClient
-			nodeClient, err = proxyClient.ConnectToNode(address, tc.Config.HostLogin)
+			nodeClient, err = proxyClient.ConnectToNode(address+"@"+siteName, tc.Config.HostLogin)
 			if err != nil {
 				fmt.Fprintln(tc.Output, err)
 				return

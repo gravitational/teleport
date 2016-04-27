@@ -224,6 +224,10 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 
 	go func() {
 		defer wg.Done()
+		// make sure that we close the client connection on a channel
+		// close, otherwise the other goroutine would never know
+		// as it will block on read from the connection
+		defer conn.Close()
 		io.Copy(conn, ch)
 	}()
 
