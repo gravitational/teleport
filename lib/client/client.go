@@ -569,7 +569,7 @@ func (client *NodeClient) listenAndForward(socket net.Listener, remoteAddr strin
 			}()
 			for i := 0; i < 2; i++ {
 				doneErr, ok := <-doneC
-				if ok && doneErr != nil {
+				if ok && doneErr != nil && doneErr != io.EOF {
 					log.Infof("copy err: %s", doneErr)
 				}
 			}
