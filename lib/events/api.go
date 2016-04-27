@@ -24,10 +24,20 @@ import (
 
 const (
 	// Common event fields:
+	EventType  = "e"           // event type/kind
+	EventTime  = "t"           // event time
 	EventLogin = "login"       // OS login
 	EventUser  = "user"        // teleport user
 	LocalAddr  = "addr.local"  // address on the host
 	RemoteAddr = "addr.remote" // client (user's) address
+
+	// SessionEventTermio event happens every time a write occurs to
+	// temirnal I/O during a session
+	SessionEventTermio = "out"
+
+	// SessionEventTimestamp is an offset (in seconds) since the beginning of the
+	// session, when terminal IO event happened
+	SessionEventTimestamp = "s"
 
 	// SessionEvent indicates that session has been initiated
 	// or updated by a joining party on the server
@@ -36,6 +46,10 @@ const (
 	// SessionEndEvent indicates taht a session has ended
 	SessionEndEvent = "session.end"
 	SessionEventID  = "sid"
+
+	// SessionEventBytes is the number of bytes written to session stream since
+	// the beginning
+	SessionEventBytes = "b"
 
 	// Join & Leave events indicate when someone joins/leaves a session
 	SessionJoinEvent  = "session.join"

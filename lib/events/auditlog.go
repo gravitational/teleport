@@ -126,10 +126,30 @@ type SessionLogger struct {
 	eventsFile *os.File
 	// streamFile stores bytes from the session terminal I/O for replaying
 	streamFile *os.File
+
+	// counter of how many bytes have been written during this session
+	writtenBytes int
+
+	// same as time.Now(), but helps with testing
+	timeSource TimeSourceFunc
+
+	createdTime time.Time
 }
 
 // LogEvent logs an event associated with this session
-func (sl *SessionLogger) LogEvent(line string) {
+func (sl *SessionLogger) LogEvent(fields EventFields) {
+	// space optimization: no need to log sessionID into the session log (that log
+	// itself knows which session it belogs to)
+	delete(fields, SessionEventID)
+
+	// add "bytes written" counter:
+	fields[SessionEventBytes] = sl.writtenBytes
+	// add "seconds since" timestamp:
+	now := sl.timeSource().In(time.UTC).Round(time.Second)
+	fields[SessionEventTimestamp] = int(now.Sub(sl.createdTime).Seconds())
+
+	line := eventToLine(fields)
+
 	sl.Lock()
 	sl.Unlock()
 	_, err := fmt.Fprintln(sl.eventsFile, line)
@@ -163,6 +183,19 @@ func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
 		return written, trace.Wrap(err)
 	}
 	logrus.Infof("sessionLogger %d bytes -> %v", written, sl.streamFile.Name())
+
+	// increase the total lengh of the stream
+	lockedMath := func() {
+		sl.Lock()
+		defer sl.Unlock()
+		sl.writtenBytes += len(bytes)
+	}
+	lockedMath()
+
+	// log this as a session event (but not more often than once a sec)
+	sl.LogEvent(EventFields{
+		EventType:         SessionEventTermio,
+		SessionEventBytes: sl.writtenBytes})
 	return written, nil
 }
 
@@ -226,18 +259,19 @@ func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 		logrus.Error(err)
 	}
 
+	// set event type and time:
+	fields[EventType] = eventType
+	fields[EventTime] = l.TimeSource().In(time.UTC).Round(time.Second)
+
 	// line is the text to be logged
-	line := l.eventToLine(eventType, fields)
+	line := eventToLine(fields)
 
 	// if this event is associated with a session -> forward it to the session log as well
 	sessionId, found := fields.GetString(SessionEventID)
 	if found {
 		sl := l.LoggerFor(session.ID(sessionId))
 		if sl != nil {
-			// space optimization: no need to log sessionID into the session log (that log
-			// itself knows which session it belogs to)
-			delete(fields, SessionEventID)
-			sl.LogEvent(l.eventToLine(eventType, fields))
+			sl.LogEvent(fields)
 
 			// Session ended? Get rid of the session logger then:
 			if eventType == SessionEndEvent {
@@ -337,26 +371,26 @@ func (l *AuditLog) LoggerFor(sid session.ID) (sl *SessionLogger) {
 		logrus.Error(err)
 		return nil
 	}
-
+	sl = &SessionLogger{
+		sid:         sid,
+		streamFile:  fstream,
+		eventsFile:  fevents,
+		timeSource:  l.TimeSource,
+		createdTime: l.TimeSource().In(time.UTC).Round(time.Second),
+	}
 	l.Lock()
 	defer l.Unlock()
-	sl = &SessionLogger{
-		sid:        sid,
-		streamFile: fstream,
-		eventsFile: fevents,
-	}
 	l.loggers[sid] = sl
 	return sl
 }
 
 // eventToLine helper creates a loggable line/string for a given event
-func (l *AuditLog) eventToLine(eventType string, fields EventFields) string {
+func eventToLine(fields EventFields) string {
 	jbytes, err := json.Marshal(fields)
 	jsonString := string(jbytes)
 	if err != nil {
 		logrus.Error(err)
-		jsonString = `"error"`
+		jsonString = ""
 	}
-	now := l.TimeSource().In(time.UTC).Round(time.Second).String()
-	return fmt.Sprintf("%s,%s,%s", now, eventType, jsonString)
+	return jsonString
 }

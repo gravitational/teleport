@@ -1,6 +1,7 @@
 package events
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -82,5 +83,6 @@ func (a *AuditTestSuite) TestBasicLogging(c *check.C) {
 	// read back what's been written:
 	bytes, err := ioutil.ReadFile(logfile)
 	c.Assert(err, check.IsNil)
-	c.Assert(string(bytes), check.Equals, now.String()+",user.farted,{\"apples?\":\"yes\"}\n")
+	c.Assert(string(bytes), check.Equals,
+		fmt.Sprintf("{\"apples?\":\"yes\",\"e\":\"user.farted\",\"t\":\"%s\"}\n", now.Format(time.RFC3339)))
 }
