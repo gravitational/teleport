@@ -93,23 +93,29 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 
 	stdout := &bytes.Buffer{}
 	reader, err := proxySession.StdoutPipe()
-	done := make(chan struct{})
+	done := make(chan error)
 	go func() {
-		io.Copy(stdout, reader)
+		_, err := io.Copy(stdout, reader)
+		if err != nil {
+			done <- err
+		}
 		close(done)
 	}()
-
+	
 	if err := proxySession.RequestSubsystem("proxysites"); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	select {
-	case <-done:
+	case doneErr, ok := <-done:
+		if ok && doneErr != nil {
+			return nil, trace.Errorf("read error: %s", doneErr)
+		}
 	case <-time.After(teleport.DefaultTimeout):
 		return nil, trace.Errorf("timeout")
 	}
 
 	log.Infof("proxyClient.GetSites() returned: %v", stdout.String())
-
+	
 	var sites []services.Site
 	if err := json.Unmarshal(stdout.Bytes(), &sites); err != nil {
 		return nil, trace.Wrap(err)
