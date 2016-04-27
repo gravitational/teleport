@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -116,6 +117,7 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.GET("/v1/sessions/:id", httplib.MakeHandler(srv.getSession))
 	srv.GET("/v1/sessions/:id/writer", httplib.MakeHandler(srv.getSessionWriter))
 	srv.GET("/v1/sessions/:id/reader", httplib.MakeHandler(srv.getSessionReader))
+	srv.GET("/v1/sessions/:id/events", httplib.MakeHandler(srv.getSessionEvents))
 
 	// OIDC stuff
 	srv.POST("/v1/oidc/connectors", httplib.MakeHandler(srv.upsertOIDCConnector))
@@ -808,7 +810,13 @@ func (s *APIServer) getSessionReader(w http.ResponseWriter, r *http.Request, p h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	reader, err := s.a.GetSessionReader(*sid)
+	// parse "offset bytes"
+	offsetBytes, err := strconv.Atoi(r.URL.Query().Get("from"))
+	if err != nil || offsetBytes < 0 {
+		offsetBytes = 0
+	}
+	log.Infof("[AUTH] api.getSessionReader(%v, %v)", *sid, offsetBytes)
+	reader, err := s.a.GetSessionReader(*sid, offsetBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -822,6 +830,16 @@ func (s *APIServer) getSessionReader(w http.ResponseWriter, r *http.Request, p h
 	}
 	ws.ServeHTTP(w, r)
 	return nil, nil
+}
+
+// HTTP GET /v1/sessions/:id/events
+func (s *APIServer) getSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	sid, err := session.ParseID(p.ByName("id"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Infof("[AUTH] api.getSessionEvents(%v)", *sid)
+	return s.a.GetSessionEvents(*sid)
 }
 
 func message(msg string) map[string]interface{} {

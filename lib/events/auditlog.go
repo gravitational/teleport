@@ -49,6 +49,7 @@ Examples:
 package events
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -194,7 +195,7 @@ func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
 
 	// log this as a session event (but not more often than once a sec)
 	sl.LogEvent(EventFields{
-		EventType:         SessionEventTermio,
+		EventType:         SessionPrintEvent,
 		SessionEventBytes: sl.writtenBytes})
 	return written, nil
 }
@@ -237,14 +238,47 @@ func (l *AuditLog) GetSessionWriter(sid session.ID) (io.WriteCloser, error) {
 
 // GetSessionReader returns a reader which console and web clients request
 // to receive a live stream of a given session
-func (l *AuditLog) GetSessionReader(sid session.ID) (io.ReadCloser, error) {
+func (l *AuditLog) GetSessionReader(sid session.ID, offsetBytes int) (io.ReadCloser, error) {
 	logrus.Infof("audit.log: getSessionReader(%v)", sid)
-	fstream, err := os.OpenFile(l.streamFileName(sid), os.O_RDONLY, 0640)
+	fstream, err := os.OpenFile(l.sessionStreamFn(sid), os.O_RDONLY, 0640)
 	if err != nil {
 		logrus.Error(err)
 		return nil, trace.Wrap(err)
 	}
+	const fromBeginning = 0
+	fstream.Seek(int64(offsetBytes), fromBeginning)
 	return fstream, nil
+}
+
+// Returns all events that happen during a session sorted by time
+// (oldest first). Some events are "compressed" (like resize events or "session write"
+// events): if more than one of those happen within a second, only the last one
+// will be returned.
+//
+// This function is usually used in conjunction with GetSessionReader to
+// replay recorded session streams.
+func (l *AuditLog) GetSessionEvents(sid session.ID) ([]EventFields, error) {
+	logFile, err := os.OpenFile(l.sessionLogFn(sid), os.O_RDONLY, 0640)
+	if err != nil {
+		logrus.Error(err)
+		return nil, trace.Wrap(err)
+	}
+	defer logFile.Close()
+
+	retval := make([]EventFields, 0, 256)
+
+	// read line by line:
+	scanner := bufio.NewScanner(logFile)
+	for scanner.Scan() {
+		var fields EventFields
+		if err = json.Unmarshal(scanner.Bytes(), &fields); err != nil {
+			logrus.Error(err)
+			return nil, trace.Wrap(err)
+		}
+		retval = append(retval, fields)
+	}
+	logrus.Infof("auditLog.GetSessionEvents() returned %d events", len(retval))
+	return retval, nil
 }
 
 // EmitAuditEvent adds a new event to the log. Part of auth.AuditLogI interface.
@@ -336,13 +370,22 @@ func (l *AuditLog) Close() error {
 	return nil
 }
 
-// streamFileName helper determins the name of the stream file for a given
+// sessionStreamFn helper determins the name of the stream file for a given
 // session by its ID
-func (l *AuditLog) streamFileName(sid session.ID) string {
+func (l *AuditLog) sessionStreamFn(sid session.ID) string {
 	return filepath.Join(
 		l.dataDir,
 		SessionLogsDir,
 		fmt.Sprintf("%s%s", sid, SessionStreamPrefix))
+}
+
+// sessionLogFn helper determins the name of the stream file for a given
+// session by its ID
+func (l *AuditLog) sessionLogFn(sid session.ID) string {
+	return filepath.Join(
+		l.dataDir,
+		SessionLogsDir,
+		fmt.Sprintf("%s%s", sid, SessionLogPrefix))
 }
 
 // LoggerFor creates a logger for a specified session. Session loggers allow
@@ -359,14 +402,13 @@ func (l *AuditLog) LoggerFor(sid session.ID) (sl *SessionLogger) {
 		return nil
 	}
 	// create a new session stream file:
-	fstream, err := os.OpenFile(l.streamFileName(sid), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+	fstream, err := os.OpenFile(l.sessionStreamFn(sid), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 	if err != nil {
 		logrus.Error(err)
 		return nil
 	}
 	// create a new session file:
-	eventsFname := filepath.Join(sdir, fmt.Sprintf("%s%s", sid, SessionLogPrefix))
-	fevents, err := os.OpenFile(eventsFname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+	fevents, err := os.OpenFile(l.sessionLogFn(sid), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 	if err != nil {
 		logrus.Error(err)
 		return nil

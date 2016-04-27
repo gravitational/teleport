@@ -738,10 +738,32 @@ func (c *Client) GetSessionWriter(sid session.ID) (io.WriteCloser, error) {
 }
 
 // GetSessionReader allows clients to recewive a live stream of an active session
-func (c *Client) GetSessionReader(sid session.ID) (io.ReadCloser, error) {
-	return c.openWebsocket(c.Endpoint("sessions", string(sid), "reader"))
+func (c *Client) GetSessionReader(sid session.ID, offsetBytes int) (io.ReadCloser, error) {
+	return c.openWebsocket(c.Endpoint("sessions", string(sid), "reader") +
+		fmt.Sprintf("?from=%d", offsetBytes))
 }
 
+// Returns all events that happen during a session sorted by time
+// (oldest first). Some events are "compressed" (like resize events or "session write"
+// events): if more than one of those happen within a second, only the last one
+// will be returned.
+//
+// This function is usually used in conjunction with GetSessionReader to
+// replay recorded session streams.
+func (c *Client) GetSessionEvents(sid session.ID) (retval []events.EventFields, err error) {
+	response, err := c.Get(c.Endpoint("sessions", string(sid), "events"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	retval = make([]events.EventFields, 0)
+	if err := json.Unmarshal(response.Bytes(), &retval); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return retval, nil
+}
+
+// openWebsocket helper connects to the auth API via SSH and then requests
+// a web socket via HTTP-over-SSH at a given URL. Returns a connected websocket.
 func (c *Client) openWebsocket(urlString string) (conn *websocket.Conn, err error) {
 	// create an underlying SSH connection (we'll use it as a transport for websocket):
 	sshConn, err := c.dialer("tcp", "stub:0")

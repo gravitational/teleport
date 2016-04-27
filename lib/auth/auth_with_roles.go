@@ -374,11 +374,18 @@ func (a *AuthWithRoles) GetSessionWriter(sid session.ID) (io.WriteCloser, error)
 	return a.alog.GetSessionWriter(sid)
 }
 
-func (a *AuthWithRoles) GetSessionReader(sid session.ID) (io.ReadCloser, error) {
+func (a *AuthWithRoles) GetSessionReader(sid session.ID, offsetBytes int) (io.ReadCloser, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionViewSession); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.alog.GetSessionReader(sid)
+	return a.alog.GetSessionReader(sid, offsetBytes)
+}
+
+func (a *AuthWithRoles) GetSessionEvents(sid session.ID) ([]events.EventFields, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionViewSession); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.alog.GetSessionEvents(sid)
 }
 
 // test helper

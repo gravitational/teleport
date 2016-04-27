@@ -2,6 +2,7 @@ package events
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -55,6 +56,13 @@ func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(alog.loggers, check.HasLen, 2)
 
+	// type "hello" into session "200":
+	writer, err := alog.GetSessionWriter("200")
+	c.Assert(err, check.IsNil)
+	n, err := writer.Write([]byte("hello"))
+	c.Assert(err, check.IsNil)
+	c.Assert(n, check.Equals, len("hello"))
+
 	// emit "sesion-end" event. one of the loggers must disappear
 	err = alog.EmitAuditEvent(SessionEndEvent, EventFields{SessionEventID: "200", EventLogin: "doggy"})
 	c.Assert(err, check.IsNil)
@@ -65,6 +73,30 @@ func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 	alog.EmitAuditEvent(SessionJoinEvent, EventFields{SessionEventID: "400", EventLogin: "rosie"})
 	alog.Close()
 	c.Assert(alog.loggers, check.HasLen, 0)
+
+	// inspect session "200". it sould have three events: join, print and leave:
+	history, err := alog.GetSessionEvents("200")
+	c.Assert(err, check.IsNil)
+	c.Assert(history, check.HasLen, 3)
+	c.Assert(history[0][EventLogin], check.Equals, "doggy")
+	c.Assert(history[0][EventType], check.Equals, SessionJoinEvent)
+	c.Assert(history[1][EventType], check.Equals, SessionPrintEvent)
+	c.Assert(history[1][SessionEventBytes].(float64), check.Equals, float64(5))
+	c.Assert(history[2][EventType], check.Equals, SessionEndEvent)
+	writer.Close()
+
+	// lets try session reader (with offset 2 of bytes, i.e. instead of "hello" we should get "llo")
+	reader, err := alog.GetSessionReader("200", 2)
+	c.Assert(err, check.IsNil)
+	defer reader.Close()
+	buff := make([]byte, 100)
+	n, err = reader.Read(buff)
+	c.Assert(err, check.IsNil)
+	c.Assert(n, check.Equals, 3)
+	c.Assert(string(buff[:3]), check.Equals, "llo")
+	n, err = reader.Read(buff)
+	c.Assert(err, check.Equals, io.EOF)
+	c.Assert(n, check.Equals, 0)
 }
 
 func (a *AuditTestSuite) TestBasicLogging(c *check.C) {

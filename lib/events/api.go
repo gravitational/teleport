@@ -31,9 +31,9 @@ const (
 	LocalAddr  = "addr.local"  // address on the host
 	RemoteAddr = "addr.remote" // client (user's) address
 
-	// SessionEventTermio event happens every time a write occurs to
+	// SessionPrintEvent event happens every time a write occurs to
 	// temirnal I/O during a session
-	SessionEventTermio = "out"
+	SessionPrintEvent = "p"
 
 	// SessionEventTimestamp is an offset (in seconds) since the beginning of the
 	// session, when terminal IO event happened
@@ -93,9 +93,19 @@ type AuditLogI interface {
 	// their live sessions into the session log
 	GetSessionWriter(sid session.ID) (io.WriteCloser, error)
 
-	// GetSessionReader returns a reader which console and web clients request
-	// to receive a live stream of a given session
-	GetSessionReader(sid session.ID) (io.ReadCloser, error)
+	// GetSessionReader returns a reader which can be used to read a byte stream
+	// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
+	// beginning)
+	GetSessionReader(sid session.ID, offsetBytes int) (io.ReadCloser, error)
+
+	// Returns all events that happen during a session sorted by time
+	// (oldest first). Some events are "compressed" (like resize events or "session write"
+	// events): if more than one of those happen within a second, only the last one
+	// will be returned.
+	//
+	// This function is usually used in conjunction with GetSessionReader to
+	// replay recorded session streams.
+	GetSessionEvents(sid session.ID) ([]EventFields, error)
 }
 
 // EventFields instance is attached to every logged event
