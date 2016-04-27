@@ -96,7 +96,7 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	done := make(chan error)
 	go func() {
 		_, err := io.Copy(stdout, reader)
-		if err != nil {
+		if err != nil && err != io.EOF {
 			done <- err
 		}
 		close(done)
