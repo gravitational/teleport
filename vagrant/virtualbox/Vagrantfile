@@ -15,7 +15,7 @@ DOCKER_VER ||= "1.10.3"
 VM_BUILDIR ||= "tmp"
 
 Vagrant.configure(2) do |config|
-  config.vm.box = "debian/jessie64"
+  config.vm.box = "debian/contrib-jessie64"
   config.vm.box_check_update = false
 
   basic_config(config.vm)

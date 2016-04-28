@@ -302,7 +302,6 @@ func (s *Server) heartbeatPresence() {
 			log.Warningf("failed to announce %#v presence: %v", s, err)
 		}
 		sleepTime := defaults.ServerHeartbeatTTL/2 + utils.RandomDuration(defaults.ServerHeartbeatTTL/10)
-		time.Sleep(sleepTime)
 		select {
 		case <-time.Tick(sleepTime):
 			continue

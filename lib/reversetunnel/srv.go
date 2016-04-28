@@ -381,11 +381,11 @@ func (s *server) GetSites() []RemoteSite {
 	s.RLock()
 	defer s.RUnlock()
 	out := make([]RemoteSite, 0, len(s.tunnelSites)+len(s.directSites))
-	for i := range s.tunnelSites {
-		out = append(out, s.tunnelSites[i])
-	}
 	for i := range s.directSites {
 		out = append(out, s.directSites[i])
+	}
+	for i := range s.tunnelSites {
+		out = append(out, s.tunnelSites[i])
 	}
 	return out
 }

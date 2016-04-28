@@ -94,7 +94,8 @@ type Config struct {
 	// or use any local certs, and not use interactive logins
 	SkipLocalAuth bool
 
-	// AuthMethods if passed will be used to login into cluster
+	// AuthMethods to use to login into cluster. If left empty, teleport will
+	// use its own session store,
 	AuthMethods []ssh.AuthMethod
 
 	// Output is a writer, if not passed, stdout will be used
@@ -157,8 +158,11 @@ func (c *Config) ProxySpecified() bool {
 // workflow built in
 type TeleportClient struct {
 	Config
-	localAgent  *LocalKeyAgent
-	authMethods []ssh.AuthMethod
+	localAgent *LocalKeyAgent
+}
+
+func (tc *TeleportClient) authMethods() []ssh.AuthMethod {
+	return tc.Config.AuthMethods
 }
 
 // NewClient creates a TeleportClient object and fully configures it
@@ -181,10 +185,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		return nil, trace.Errorf("invalid requested cert TTL")
 	}
 
-	tc = &TeleportClient{
-		Config:      *c,
-		authMethods: make([]ssh.AuthMethod, 0),
-	}
+	tc = &TeleportClient{Config: *c}
 
 	// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
 	tc.localAgent, err = NewLocalAgent("")
@@ -200,27 +201,22 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		tc.HostKeyCallback = tc.localAgent.CheckHostSignature
 	}
 
-	// add auth methods supplied by user if any
-	for _, method := range c.AuthMethods {
-		tc.authMethods = append(tc.authMethods, method)
-	}
-
 	// sometimes we need to use external auth without using local auth
 	// methods, e.g. in automation daemons
 	if c.SkipLocalAuth {
-		if len(tc.authMethods) == 0 {
-			return nil, trace.BadParameter(
-				"SkipLocalAuth is true but no AuthMethods provided")
+		if len(c.AuthMethods) == 0 {
+			return nil, trace.BadParameter("SkipLocalAuth is true but no AuthMethods provided")
 		}
 		return tc, nil
 	}
+
 	// first, see if we can authenticate with credentials stored in
 	// a local SSH agent:
 	if sshAgent := connectToSSHAgent(); sshAgent != nil {
-		tc.authMethods = append(tc.authMethods, authMethodFromAgent(sshAgent))
+		tc.Config.AuthMethods = append(tc.Config.AuthMethods, authMethodFromAgent(sshAgent))
 	}
 	// then, we'll auth with the local agent keys:
-	tc.authMethods = append(tc.authMethods, authMethodFromAgent(tc.localAgent))
+	tc.Config.AuthMethods = append(tc.Config.AuthMethods, authMethodFromAgent(tc.localAgent))
 
 	return tc, nil
 }
@@ -310,7 +306,7 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool, input io.Reader
 
 	// execute command(s) or a shell on remote node(s)
 	if len(command) > 0 {
-		return tc.runCommand(nodeAddrs, proxyClient, command)
+		return tc.runCommand(siteInfo.Name, nodeAddrs, proxyClient, command)
 	}
 
 	nodeClient, err := proxyClient.ConnectToNode(nodeAddrs[0]+"@"+siteInfo.Name, tc.Config.HostLogin)
@@ -496,7 +492,7 @@ func (tc *TeleportClient) ListNodes() ([]services.Server, error) {
 }
 
 // runCommand executes a given bash command on a bunch of remote nodes
-func (tc *TeleportClient) runCommand(nodeAddresses []string, proxyClient *ProxyClient, command []string) error {
+func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string) error {
 	resultsC := make(chan error, len(nodeAddresses))
 	for _, address := range nodeAddresses {
 		go func(address string) {
@@ -505,7 +501,7 @@ func (tc *TeleportClient) runCommand(nodeAddresses []string, proxyClient *ProxyC
 				resultsC <- err
 			}()
 			var nodeClient *NodeClient
-			nodeClient, err = proxyClient.ConnectToNode(address, tc.Config.HostLogin)
+			nodeClient, err = proxyClient.ConnectToNode(address+"@"+siteName, tc.Config.HostLogin)
 			if err != nil {
 				fmt.Fprintln(tc.Output, err)
 				return
@@ -679,7 +675,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	log.Debugf("connecting to proxy: %v with host login %v", proxyAddr, sshConfig.User)
 
 	// try to authenticate using every non interactive auth method we have:
-	for _, m := range tc.authMethods {
+	for _, m := range tc.authMethods() {
 		sshConfig.Auth = []ssh.AuthMethod{m}
 		proxyClient, err := ssh.Dial("tcp", proxyAddr, sshConfig)
 		log.Infof("ssh.Dial error: %v", err)
@@ -694,7 +690,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 			Client:          proxyClient,
 			proxyAddress:    proxyAddr,
 			hostKeyCallback: sshConfig.HostKeyCallback,
-			authMethods:     tc.authMethods,
+			authMethods:     tc.authMethods(),
 			hostLogin:       tc.Config.HostLogin,
 			siteName:        tc.Config.SiteName,
 		}, nil
@@ -730,7 +726,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		Client:          proxyClient,
 		proxyAddress:    proxyAddr,
 		hostKeyCallback: sshConfig.HostKeyCallback,
-		authMethods:     tc.authMethods,
+		authMethods:     tc.authMethods(),
 		hostLogin:       tc.Config.HostLogin,
 		siteName:        tc.Config.SiteName,
 	}, nil
@@ -929,7 +925,7 @@ func lineFromConsole() (string, error) {
 	return string(bytes), err
 }
 
-// parseLabelSpec parses a string like 'name=value,"long name"="quoted value"` into a map like
+// ParseLabelSpec parses a string like 'name=value,"long name"="quoted value"` into a map like
 // { "name" -> "value", "long name" -> "quoted value" }
 func ParseLabelSpec(spec string) (map[string]string, error) {
 	tokens := []string{}
@@ -951,7 +947,7 @@ func ParseLabelSpec(spec string) (map[string]string, error) {
 			if !openQuotes {
 				endOfToken = true
 				if ch == '=' {
-					assignCount += 1
+					assignCount++
 				}
 			}
 		}
@@ -980,6 +976,17 @@ func authMethodFromAgent(ag agent.Agent) ssh.AuthMethod {
 // Executes the given command on the client machine (localhost). If no command is given,
 // executes shell
 func runLocalCommand(command []string) error {
+	if len(command) == 0 {
+		user, err := user.Current()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		shell, err := utils.GetLoginShell(user.Username)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		command = []string{shell}
+	}
 	cmd := exec.Command(command[0], command[1:]...)
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin

@@ -61,3 +61,13 @@ func (s *UtilsSuite) TestRandomDuration(c *check.C) {
 		c.Assert(dur < expectedMax, check.Equals, true)
 	}
 }
+
+func (s *UtilsSuite) TestGetShell(c *check.C) {
+	shell, err := GetLoginShell("root")
+	c.Assert(err, check.IsNil)
+	c.Assert(shell, check.Equals, "/bin/bash")
+
+	shell, err = GetLoginShell("non-existent-user")
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Matches, ".*cannot determine shell for.*")
+}

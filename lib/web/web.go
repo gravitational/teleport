@@ -1179,13 +1179,16 @@ func (h *Handler) withAuth(fn contextHandler) httprouter.Handle {
 // authenticateRequest authenticates request using combination of a session cookie
 // and bearer token
 func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, checkBearerToken bool) (*SessionContext, error) {
+	const missingCookie = "missing session cookie"
 	logger := log.WithFields(log.Fields{
 		"request": fmt.Sprintf("%v %v", r.Method, r.URL.Path),
 	})
 	cookie, err := r.Cookie("session")
-	if err != nil {
-		logger.Warningf("missing cookie: %v", err)
-		return nil, trace.AccessDenied("missing cookie")
+	if err != nil || (cookie != nil && cookie.Value == "") {
+		if err != nil {
+			log.Error(err)
+		}
+		return nil, trace.AccessDenied(missingCookie)
 	}
 	d, err := DecodeCookie(cookie.Value)
 	if err != nil {

@@ -17,30 +17,23 @@ limitations under the License.
 package srv
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
-	"regexp"
-	"runtime"
 	"strconv"
-	"strings"
 	"syscall"
 
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
-
-var osxUserShellRegexp = regexp.MustCompile("UserShell: (/[^ ]+)\n")
 
 type execResult struct {
 	command string
@@ -81,48 +74,6 @@ func (e *execResponse) String() string {
 	return fmt.Sprintf("Exec(cmd=%v)", e.cmdName)
 }
 
-// getLoginShell determines the login shell for a given username
-func getLoginShell(username string) (string, error) {
-	// func to determine user shell on OSX:
-	forMac := func() (string, error) {
-		dir := "Local/Default/Users/" + username
-		out, err := exec.Command("dscl", "localhost", "-read", dir, "UserShell").Output()
-		if err != nil {
-			return "", err
-		}
-		m := osxUserShellRegexp.FindStringSubmatch(string(out))
-		shell := m[1]
-		if shell == "" {
-			return "", trace.Errorf("dscl output parsing error getting shell for %s", username)
-		}
-		return shell, nil
-	}
-	// func to determine user shell on other unixes (linux)
-	forUnix := func() (string, error) {
-		f, err := os.Open("/etc/passwd")
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		defer f.Close()
-		scanner := bufio.NewScanner(f)
-		for scanner.Scan() {
-			parts := strings.Split(strings.TrimSpace(scanner.Text()), ":")
-			if parts[0] == username && len(parts) > 5 {
-				return parts[6], nil
-			}
-		}
-		if scanner.Err() != nil {
-			log.Error(scanner.Err())
-		}
-		return "", trace.Errorf("cannot determine shell for %s", username)
-	}
-	if runtime.GOOS == "darwin" {
-		return forMac()
-	} else {
-		return forUnix()
-	}
-}
-
 // prepareOSCommand configures os.Cmd for executing a given command within an SSH
 // session.
 //
@@ -149,7 +100,7 @@ func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 	}
 
 	// determine shell for the given OS user:
-	shellCommand, err := getLoginShell(osUserName)
+	shellCommand, err := utils.GetLoginShell(osUserName)
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)
