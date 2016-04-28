@@ -619,7 +619,7 @@ func (s *WebSuite) _TestConnect(c *C) {
 
 }
 
-func (s *WebSuite) TestNodesWithSessions(c *C) {
+func (s *WebSuite) _TestNodesWithSessions(c *C) {
 	sid := session.NewID()
 	pack := s.authPack(c)
 	clt := s.connect(c, pack, sid)

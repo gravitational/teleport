@@ -23,6 +23,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 
@@ -194,10 +195,16 @@ const (
 
 // Filter structure is used
 type Filter struct {
+	// Start time (and End time) define a time window to filter by.
+	// Teleport will not return more than MaxSessionSliceLength items
 	Start time.Time
 	End   time.Time
 	State SessionStateFilter
 }
+
+// Due to limitations of the current back-end, Teleport won't return more than 1000 sessions
+// per time window
+const MaxSessionSliceLength = 1000
 
 // Service is a realtime SSH session service
 // that has information about sessions that are in-flight in the
@@ -282,15 +289,19 @@ func (s *server) GetSessions(f Filter) ([]Session, error) {
 	if f.State == SessionStateActive {
 		bucket = activeBucket()
 	}
-	startFilter := f.Start.IsZero()
-	endFilter := f.End.IsZero()
+	startFilter := !f.Start.IsZero()
+	endFilter := !f.End.IsZero()
 
 	keys, err := s.bk.GetKeys(bucket)
 	if err != nil {
 		return nil, err
 	}
+	logrus.Infof("session.GetSessions(state=%v", bucket)
 	var out Sessions
-	for _, sid := range keys {
+	for i, sid := range keys {
+		if i > MaxSessionSliceLength {
+			break
+		}
 		se, err := s.GetSession(ID(sid))
 		if trace.IsNotFound(err) {
 			continue
