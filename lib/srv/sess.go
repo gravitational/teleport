@@ -272,10 +272,9 @@ func (s *session) Close() error {
 	s.writer.Lock()
 	defer s.writer.Unlock()
 	for writerName, writer := range s.writer.writers {
-		log.Infof("sesion.close -----> got writer %v", writerName)
+		log.Infof("session.close(writer=%v)", writerName)
 		closer, ok := io.Writer(writer).(io.WriteCloser)
 		if ok {
-			log.Infof("sesion.close -----> closing writer %v", writerName)
 			closer.Close()
 		}
 	}
@@ -594,6 +593,13 @@ func (p *party) String() string {
 
 func (p *party) Close() error {
 	p.ctx.Infof("party[%v].Close()", p.id)
-	close(p.closeC)
-	return p.s.registry.leaveShell(p)
+	//close(p.closeC)
+	//return p.s.registry.leaveShell(p)
+
+	if p.closeC != nil {
+		close(p.closeC)
+		p.closeC = nil
+		return p.s.registry.leaveShell(p)
+	}
+	return nil
 }

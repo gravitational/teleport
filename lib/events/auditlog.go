@@ -139,6 +139,8 @@ type SessionLogger struct {
 
 // LogEvent logs an event associated with this session
 func (sl *SessionLogger) LogEvent(fields EventFields) {
+	logrus.Infof("sessionLogger(%s).LogEvent(%v)", sl.sid, fields[EventType])
+
 	// space optimization: no need to log sessionID into the session log (that log
 	// itself knows which session it belogs to)
 	delete(fields, SessionEventID)
@@ -258,6 +260,7 @@ func (l *AuditLog) GetSessionReader(sid session.ID, offsetBytes int) (io.ReadClo
 // This function is usually used in conjunction with GetSessionReader to
 // replay recorded session streams.
 func (l *AuditLog) GetSessionEvents(sid session.ID) ([]EventFields, error) {
+	logrus.Infof("auditLog.GetSessionEvents(%s)", sid)
 	logFile, err := os.OpenFile(l.sessionLogFn(sid), os.O_RDONLY, 0640)
 	if err != nil {
 		logrus.Warn(err)
@@ -287,6 +290,8 @@ func (l *AuditLog) GetSessionEvents(sid session.ID) ([]EventFields, error) {
 
 // EmitAuditEvent adds a new event to the log. Part of auth.AuditLogI interface.
 func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
+	logrus.Infof("auditLog.EmitAuditEvent(%s)", eventType)
+
 	// keep the most recent event of every kind for testing purposes:
 	if l.RecentEvents != nil {
 		l.RecentEvents[eventType] = fields

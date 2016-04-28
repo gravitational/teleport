@@ -345,7 +345,9 @@ func (s *APISuite) TestTokens(c *C) {
 }
 
 func (s *APISuite) TestSharedSessions(c *C) {
-	out, err := s.clt.GetSessions()
+	// TODO (Ev): pass not empty filter
+	f := sessions.Filter{}
+	out, err := s.clt.GetSessions(f)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []session.Session{})
 
@@ -360,14 +362,16 @@ func (s *APISuite) TestSharedSessions(c *C) {
 	}
 	c.Assert(s.clt.CreateSession(sess), IsNil)
 
-	out, err = s.clt.GetSessions()
+	out, err = s.clt.GetSessions(f)
 	c.Assert(err, IsNil)
 
 	c.Assert(out, DeepEquals, []session.Session{sess})
 }
 
 func (s *APISuite) TestSharedSessionsParties(c *C) {
-	out, err := s.clt.GetSessions()
+	// TODO (Ev): pass not empty filter
+	f := sessions.Filter{}
+	out, err := s.clt.GetSessions(f)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []session.Session{})
 
@@ -392,7 +396,7 @@ func (s *APISuite) TestSharedSessionsParties(c *C) {
 	c.Assert(s.clt.UpsertParty(sess.ID, p1, 0), IsNil)
 
 	sess.Parties = []session.Party{p1}
-	out, err = s.clt.GetSessions()
+	out, err = s.clt.GetSessions(f)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []session.Session{sess})
 }
