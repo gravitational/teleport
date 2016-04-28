@@ -260,7 +260,11 @@ func (l *AuditLog) GetSessionReader(sid session.ID, offsetBytes int) (io.ReadClo
 func (l *AuditLog) GetSessionEvents(sid session.ID) ([]EventFields, error) {
 	logFile, err := os.OpenFile(l.sessionLogFn(sid), os.O_RDONLY, 0640)
 	if err != nil {
-		logrus.Error(err)
+		logrus.Warn(err)
+		// no file found? this means no events have been logged yet
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
 		return nil, trace.Wrap(err)
 	}
 	defer logFile.Close()

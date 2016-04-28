@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -146,6 +147,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 	h.PUT("/webapi/sites/:site/sessions/:sid", h.withSiteAuth(h.siteSessionUpdate))
 	// get session
 	h.GET("/webapi/sites/:site/sessions/:sid", h.withSiteAuth(h.siteSessionGet))
+	// get session events
+	h.GET("/webapi/sites/:site/sessions/:sid/events", h.withSiteAuth(h.siteSessionEventsGet))
 
 	// OIDC related callback handlers
 	h.GET("/webapi/oidc/login/web", httplib.MakeHandler(h.oidcLoginWeb))
@@ -213,9 +216,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 			http.NotFound(w, r)
 		}
 	})
-
 	h.NotFound = routingHandler
-
 	return h, nil
 }
 
@@ -880,6 +881,34 @@ func (m *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 	return siteSessionGetResponse{Session: *sess}, nil
 }
 
+type siteSessionEventsGetResponse struct {
+	Events []events.EventFields `json:"events"`
+}
+
+// siteSessionEventsGet gets the site session by id
+//
+// GET /v1/webapi/sites/:site/sessions/:sid
+//
+// Response body (each event is an arbitrary JSON structure)
+//
+// {"events": [{...}, {...}, ...}
+//
+func (m *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	sessionID, err := session.ParseID(p.ByName("sid"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clt, err := site.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	e, err := clt.GetSessionEvents(*sessionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return siteSessionEventsGetResponse{Events: e}, nil
+}
+
 // createSSHCertReq are passed by web client
 // to authenticate against teleport server and receive
 // a temporary cert signed by auth server authority
@@ -986,13 +1015,17 @@ func (h *Handler) withAuth(fn contextHandler) httprouter.Handle {
 // authenticateRequest authenticates request using combination of a session cookie
 // and bearer token
 func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, checkBearerToken bool) (*SessionContext, error) {
+	const missingCookieMsg = "missing session cookie"
 	logger := log.WithFields(log.Fields{
 		"request": fmt.Sprintf("%v %v", r.Method, r.URL.Path),
 	})
 	cookie, err := r.Cookie("session")
-	if err != nil {
-		logger.Warningf("missing cookie: %v", err)
-		return nil, trace.AccessDenied("missing cookie")
+	if err != nil || (cookie != nil && cookie.Value == "") {
+		logger.Infof(missingCookieMsg)
+		if err != nil {
+			logger.Warn(err)
+		}
+		return nil, trace.AccessDenied(missingCookieMsg)
 	}
 	d, err := DecodeCookie(cookie.Value)
 	if err != nil {
