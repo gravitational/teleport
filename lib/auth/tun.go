@@ -283,7 +283,9 @@ func (s *AuthTunnel) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel
 		return
 	}
 	if err := agent.ServeAgent(newKeyAgent, ch); err != nil {
-		log.Errorf("Serve agent err: %v", err)
+		if err != io.EOF {
+			log.Errorf("Serve agent err: %v", err)
+		}
 	}
 }
 
