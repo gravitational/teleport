@@ -57,14 +57,13 @@ func NewAPIWithRoles(config APIConfig) *APIWithRoles {
 	api.config = config
 
 	for _, role := range config.Roles {
-		a := &AuthWithRoles{
+		api.servers[role] = NewAPIServer(&AuthWithRoles{
 			authServer:  config.AuthServer,
 			permChecker: config.PermissionChecker,
 			sessions:    config.SessionService,
 			role:        role,
 			alog:        config.AuditLog,
-		}
-		api.servers[role] = NewAPIServer(a)
+		})
 		api.listeners[role] = makefakeSocket()
 	}
 	return &api

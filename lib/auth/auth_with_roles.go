@@ -37,11 +37,11 @@ type AuthWithRoles struct {
 	alog        events.AuditLogI
 }
 
-func (a *AuthWithRoles) GetSessions() ([]session.Session, error) {
+func (a *AuthWithRoles) GetSessions(f session.Filter) ([]session.Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetSessions); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.sessions.GetSessions()
+	return a.sessions.GetSessions(f)
 }
 
 func (a *AuthWithRoles) GetSession(id session.ID) (*session.Session, error) {

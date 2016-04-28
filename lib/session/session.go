@@ -20,6 +20,7 @@ package session
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -183,13 +184,28 @@ func (u *UpdateRequest) Check() error {
 	return nil
 }
 
+type SessionStateFilter int
+
+const (
+	SessionStateActive   = 0
+	SessionStateArchived = 1
+	SessionStateAny      = 3
+)
+
+// Filter structure is used
+type Filter struct {
+	Start time.Time
+	End   time.Time
+	State SessionStateFilter
+}
+
 // Service is a realtime SSH session service
 // that has information about sessions that are in-flight in the
 // cluster at the moment
 type Service interface {
 	// GetSessions returns a list of currently active sessions
 	// with all parties involved
-	GetSessions() ([]Session, error)
+	GetSessions(Filter) ([]Session, error)
 	// GetSession returns a session with it's parties by ID
 	GetSession(id ID) (*Session, error)
 	// CreateSession creates a new active session and it's parameters
@@ -261,20 +277,57 @@ func allBucket() []string {
 }
 
 // GetSessions returns a list of active sessions
-func (s *server) GetSessions() ([]Session, error) {
-	keys, err := s.bk.GetKeys(activeBucket())
+func (s *server) GetSessions(f Filter) ([]Session, error) {
+	bucket := allBucket()
+	if f.State == SessionStateActive {
+		bucket = activeBucket()
+	}
+	startFilter := f.Start.IsZero()
+	endFilter := f.End.IsZero()
+
+	keys, err := s.bk.GetKeys(bucket)
 	if err != nil {
 		return nil, err
 	}
-	out := []Session{}
+	var out Sessions
 	for _, sid := range keys {
 		se, err := s.GetSession(ID(sid))
 		if trace.IsNotFound(err) {
 			continue
 		}
+		// filter by 'created before' filter
+		if startFilter && se.Created.Before(f.Start) {
+			continue
+		}
+		// filter by 'created after' filter
+		if endFilter && se.Created.After(f.End) {
+			continue
+		}
 		out = append(out, *se)
 	}
+	sort.Stable(out)
 	return out, nil
+}
+
+// Sessions type is created over []Session to implement sort.Interface to
+// be able to sort sessions by creation time
+type Sessions []Session
+
+// Swap is part of sort.Interface implementation for []Session
+func (slice Sessions) Swap(i, j int) {
+	s := slice[i]
+	slice[i] = slice[j]
+	slice[j] = s
+}
+
+// Less is part of sort.Interface implementation for []Session
+func (slice Sessions) Less(i, j int) bool {
+	return slice[i].Created.Before(slice[j].Created)
+}
+
+// Len is part of sort.Interface implementation for []Session
+func (slice Sessions) Len() int {
+	return len(slice)
 }
 
 // GetSession returns the session by it's id

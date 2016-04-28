@@ -108,7 +108,8 @@ func (c *Client) Delete(u string) (*roundtrip.Response, error) {
 
 // GetSessions returns a list of active sessions in the cluster
 // as reported by auth server
-func (c *Client) GetSessions() ([]session.Session, error) {
+func (c *Client) GetSessions(filter session.Filter) ([]session.Session, error) {
+	// TODO (ev) support filter
 	out, err := c.Get(c.Endpoint("sessions"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -788,7 +789,7 @@ func (c *Client) openWebsocket(urlString string) (conn *websocket.Conn, err erro
 type ClientI interface {
 	GetUser(name string) (services.User, error)
 	UpsertUser(user services.User) error
-	GetSessions() ([]session.Session, error)
+	GetSessions(session.Filter) ([]session.Session, error)
 	GetSession(id session.ID) (*session.Session, error)
 	CreateSession(s session.Session) error
 	UpdateSession(req session.UpdateRequest) error

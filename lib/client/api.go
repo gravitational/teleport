@@ -347,7 +347,7 @@ func (tc *TeleportClient) Join(sid string, input io.Reader) (err error) {
 	}
 
 	// find the session ID on the site:
-	sessions, err := site.GetSessions()
+	sessions, err := site.GetSessions(session.Filter{})
 	if err != nil {
 		return trace.Wrap(err)
 	}

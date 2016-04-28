@@ -287,7 +287,8 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		return trace.Wrap(err)
 	}
 
-	acfg := auth.InitConfig{
+	// first, create the AuthServer
+	authServer, identity, err := auth.Init(auth.InitConfig{
 		Backend:         b,
 		Authority:       authority,
 		DomainName:      cfg.Auth.DomainName,
@@ -302,19 +303,19 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		Presence:        cfg.Presence,
 		Provisioner:     cfg.Provisioner,
 		Identity:        cfg.Identity,
-	}
-	authServer, identity, err := auth.Init(acfg)
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	process.setLocalAuth(authServer)
+
+	// second, create the API Server: it's actually a collection of API servers,
+	// each serving requests for a "role" which is assigned to every connected
+	// client based on their certificate (user, server, admin, etc)
 	sessionService, err := session.New(b)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// set local auth to use from the same process (to simplify setup
-	// if there are some other roles started in the same process)
-	process.setLocalAuth(authServer)
-
 	apiServer := auth.NewAPIWithRoles(auth.APIConfig{
 		AuthServer:        authServer,
 		SessionService:    sessionService,
@@ -322,7 +323,6 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		Roles:             auth.StandardRoles,
 		AuditLog:          auditLog,
 	})
-
 	process.RegisterFunc(func() error {
 		apiServer.Serve()
 		if askedToExit {

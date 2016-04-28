@@ -145,10 +145,14 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 	h.POST("/webapi/sites/:site/sessions", h.withSiteAuth(h.siteSessionGenerate))
 	// update session parameters
 	h.PUT("/webapi/sites/:site/sessions/:sid", h.withSiteAuth(h.siteSessionUpdate))
-	// get session
+	// get the session list
+	h.GET("/webapi/sites/:site/sessions", h.withSiteAuth(h.siteSessionsGet))
+	// get a session
 	h.GET("/webapi/sites/:site/sessions/:sid", h.withSiteAuth(h.siteSessionGet))
-	// get session events
+	// get session's events
 	h.GET("/webapi/sites/:site/sessions/:sid/events", h.withSiteAuth(h.siteSessionEventsGet))
+	// get session's bytestream
+	h.GET("/webapi/sites/:site/sessions/:sid/stream", h.withSiteAuth(h.siteSessionStreamGet))
 
 	// OIDC related callback handlers
 	h.GET("/webapi/oidc/login/web", httplib.MakeHandler(h.oidcLoginWeb))
@@ -691,7 +695,7 @@ func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprou
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sessions, err := clt.GetSessions()
+	sessions, err := clt.GetSessions(session.Filter{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -851,11 +855,56 @@ func (m *Handler) siteSessionUpdate(w http.ResponseWriter, r *http.Request, p ht
 	return ok(), nil
 }
 
+type siteSessionsGetResponse struct {
+	Sessions []session.Session `json:"sessions"`
+}
+
+// siteSessionGet gets the list of site sessions filtered by creation time
+// and either they're active or not
+//
+// GET /v1/webapi/sites/:site/sessions?filter-query
+//
+// Filter query values:
+//   "start" : RFC3339 date (UTC) - defaults to 'any time'
+//   "end"   : RFC3339 date (UTC) - defaults to 'any time'
+//   "state" : one of (all, active, archived) - defaults to active
+//
+// Response body:
+//
+// {"sessions": [{"id": "sid", "terminal_params": {"w": 100, "h": 100}, "parties": [], "login": "bob"}, ...] }
+func (m *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := site.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var filter session.Filter
+	q := r.URL.Query()
+	if t, err := time.Parse(time.RFC3339, q.Get("start")); err == nil {
+		filter.Start = t
+	}
+	if t, err := time.Parse(time.RFC3339, q.Get("end")); err == nil {
+		filter.End = t
+	}
+	switch q.Get("state") {
+	case "both", "any", "all":
+		filter.State = session.SessionStateAny
+	case "archived", "inactive":
+		filter.State = session.SessionStateArchived
+	default:
+		filter.State = session.SessionStateActive
+	}
+	sessions, err := clt.GetSessions(filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return siteSessionsGetResponse{Sessions: sessions}, nil
+}
+
 type siteSessionGetResponse struct {
 	Session session.Session `json:"session"`
 }
 
-// siteSessionGet gets the site session by id
+// siteSessionGet gets the list of site session by id
 //
 // GET /v1/webapi/sites/:site/sessions/:sid
 //
@@ -881,13 +930,26 @@ func (m *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 	return siteSessionGetResponse{Session: *sess}, nil
 }
 
+type siteSessionStreamGetResponse struct {
+	Bytes []byte `json:"bytes"`
+}
+
+// siteSessionStreamGet returns a byte array from a session's stream
+//
+// GET /v1/webapi/sites/:site/sessions/:sid/stream
+//
+//
+func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	return siteSessionStreamGetResponse{Bytes: []byte("hello world")}, nil
+}
+
 type siteSessionEventsGetResponse struct {
 	Events []events.EventFields `json:"events"`
 }
 
 // siteSessionEventsGet gets the site session by id
 //
-// GET /v1/webapi/sites/:site/sessions/:sid
+// GET /v1/webapi/sites/:site/sessions/:sid/events
 //
 // Response body (each event is an arbitrary JSON structure)
 //
