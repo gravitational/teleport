@@ -30,29 +30,28 @@ const DISCONNECT_TXT = '\x1b[31mdisconnected\x1b[m\r\n';
 const CONNECTED_TXT = 'Connected!\r\n';
 const GRV_CLASS = 'grv-terminal';
 
-var TtyTerminal = function(options){
-  let {
-    tty,
-    cols,
-    rows,
-    scrollBack = 1000 } = options;
+class TtyTerminal {
+  constructor(options){
+    let {
+      tty,
+      cols,
+      rows,
+      scrollBack = 1000 } = options;
 
-  this.ttyParams = tty;
-  this.tty = new Tty();
-  this.ttyEvents = new TtyEvents();
+    this.ttyParams = tty;
+    this.tty = new Tty();
+    this.ttyEvents = new TtyEvents();
 
-  this.scrollBack = scrollBack
-  this.rows = rows;
-  this.cols = cols;
-  this.term = null;
-  this._el = options.el;
+    this.scrollBack = scrollBack
+    this.rows = rows;
+    this.cols = cols;
+    this.term = null;
+    this._el = options.el;
 
-  this.debouncedResize = debounce(this._requestResize.bind(this), 200);
-}
+    this.debouncedResize = debounce(this._requestResize.bind(this), 200);
+  }
 
-TtyTerminal.prototype = {
-
-  open: function() {
+  open() {
     $(this._el).addClass(GRV_CLASS);
 
     this.term = new Term({
@@ -71,7 +70,7 @@ TtyTerminal.prototype = {
     // term events
     this.term.on('data', (data) => this.tty.send(data));
 
-    // tty events
+    // tty
     this.tty.on('resize', ({h, w})=> this.resize(w, h));
     this.tty.on('reset', ()=> this.term.reset());
     this.tty.on('open', ()=> this.term.write(CONNECTED_TXT));
@@ -84,14 +83,18 @@ TtyTerminal.prototype = {
       }
     });
 
-    this.tty.connect(this._getTtyConnStr());
+    // ttyEvents
     this.ttyEvents.on('data', this._handleTtyEventsData.bind(this));
-    this.ttyEvents.connect(this._getTtyEventsConnStr());
-
+    this.connect();
     window.addEventListener('resize', this.debouncedResize);
-  },
+  }
 
-  destroy: function() {
+  connect(){
+    this.tty.connect(this._getTtyConnStr());
+    this.ttyEvents.connect(this._getTtyEventsConnStr());
+  }
+
+  destroy() {
     if(this.tty !== null){
       this.tty.disconnect();
     }
@@ -109,9 +112,9 @@ TtyTerminal.prototype = {
     $(this._el).empty().removeClass(GRV_CLASS);
 
     window.removeEventListener('resize', this.debouncedResize);
-  },
+  }
 
-  resize: function(cols, rows) {
+  resize(cols, rows) {
     // if not defined, use the size of the container
     if(!isNumber(cols) || !isNumber(rows)){
       let dim = this._getDimensions();
@@ -122,7 +125,7 @@ TtyTerminal.prototype = {
     this.cols = cols;
     this.rows = rows;
     this.term.resize(this.cols, this.rows);
-  },
+  }
 
   _requestResize(){
     let {cols, rows} = this._getDimensions();
@@ -140,7 +143,7 @@ TtyTerminal.prototype = {
     api.put(cfg.api.getTerminalSessionUrl(sid), reqData)
       .done(()=> logger.info('resized'))
       .fail((err)=> logger.error('failed to resize', err));
-  },
+  }
 
   _handleTtyEventsData(data){
     if(data && data.terminal_params){
@@ -149,7 +152,7 @@ TtyTerminal.prototype = {
         this.resize(w, h);
       }
     }
-  },
+  }
 
   _getDimensions(){
     let $container = $(this._el);
@@ -169,12 +172,12 @@ TtyTerminal.prototype = {
     fakeRow.remove();
 
     return {cols, rows};
-  },
+  }
 
   _getTtyEventsConnStr(){
     let {sid, url, token } = this.ttyParams;
     return `${url}/sessions/${sid}/events/stream?access_token=${token}`;
-  },
+  }
 
   _getTtyConnStr(){
     let {serverId, login, sid, url, token } = this.ttyParams;

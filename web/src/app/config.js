@@ -53,7 +53,7 @@ let cfg = {
     createUserPath: '/v1/webapi/users',
     sessionChunk: '/v1/webapi/sites/-current-/sessions/:sid/chunks?start=:start&end=:end',
     sessionChunkCountPath: '/v1/webapi/sites/-current-/sessions/:sid/chunkscount',
-    siteEventSessionFilterPath: `/v1/webapi/sites/-current-/events/sessions?filter=:filter`,
+    siteEventSessionFilterPath: `/v1/webapi/sites/-current-/sessions?filter=:filter`,
 
     getSsoUrl(redirect, provider){
       return cfg.baseUrl + formatPattern(cfg.api.sso, {redirect, provider});

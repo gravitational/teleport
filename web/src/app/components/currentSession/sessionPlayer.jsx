@@ -17,21 +17,48 @@ limitations under the License.
 var React = require('react');
 var ReactSlider = require('react-slider');
 var TtyPlayer = require('app/common/ttyPlayer')
-var TtyTerminal = require('./../terminal.jsx');
+var Terminal = require('app/common/terminal');
 var SessionLeftPanel = require('./sessionLeftPanel.jsx');
+
+class MyTerminal extends Terminal{
+  constructor(tty, el){
+    super({el});
+    this.tty = tty;
+  }
+
+  connect(){
+    this.tty.connect();
+  }
+}
+
+var TerminalPlayer = React.createClass({
+
+  componentDidMount: function() {
+    this.terminal = new MyTerminal(this.props.tty, this.refs.container);
+    this.terminal.open();
+  },
+
+  componentWillUnmount: function() {
+    this.terminal.destroy();
+  },
+
+  shouldComponentUpdate: function() {
+    return false;
+  },
+
+  render() {
+    return ( <div ref="container">  </div> );
+  }
+});
 
 var SessionPlayer = React.createClass({
   calculateState(){
-    let {w, h } = this.tty.getDimensions();
-
     return {
       length: this.tty.length,
       min: 1,
       isPlaying: this.tty.isPlaying,
       current: this.tty.current,
-      canPlay: this.tty.length > 1,
-      w,
-      h
+      canPlay: this.tty.length > 1
     };
   },
 
@@ -77,12 +104,12 @@ var SessionPlayer = React.createClass({
   },
 
   render: function() {
-    var {isPlaying, w, h} = this.state;
+    var {isPlaying} = this.state;
 
     return (
      <div className="grv-current-session grv-session-player">
        <SessionLeftPanel/>
-       <TtyTerminal ref="term" tty={this.tty} cols={w} rows={h} scrollback={0} />
+       <TerminalPlayer ref="term" tty={this.tty} scrollback={0} />
        <div className="grv-session-player-controls">
          <button className="btn" onClick={this.togglePlayStop}>
            { isPlaying ? <i className="fa fa-stop"></i> :  <i className="fa fa-play"></i> }
@@ -95,12 +122,14 @@ var SessionPlayer = React.createClass({
               onChange={this.move}
               defaultValue={1}
               withBars
-              className="grv-slider" />           
+              className="grv-slider" />
          </div>
         </div>
      </div>
      );
   }
 });
+
+
 
 export default SessionPlayer;

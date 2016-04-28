@@ -14,6 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+.grv-table{
+  .label{
+    margin: 2px;
+    float: left;
+  }
+
+  .btn-group{
+    display: flex;
+  }
+}
+
 .grv-table-indicator-sort{
   margin-left: 5px;
 

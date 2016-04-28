@@ -24,7 +24,7 @@ export default Store({
 
   initialize() {
     this.on(TLPT_NOTIFICATIONS_ADD, addNotification);
-  },
+  }
 });
 
 function addNotification(state, message) {

@@ -50,7 +50,7 @@ var TtyTerminal = React.createClass({
   },
 
   render() {
-    return ( <div id="terminal-box" ref="container">  </div> );
+    return ( <div ref="container">  </div> );
   }
 });
 

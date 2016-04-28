@@ -97,7 +97,7 @@ export {
   ButtonCell,
   UsersCell,
   DurationCell,
-  DateCreatedCell,  
+  DateCreatedCell,
   SingleUserCell,
   NodeCell
 };
