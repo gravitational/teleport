@@ -60,12 +60,27 @@ class TtyPlayer extends Tty {
     }
   }
 
-  connect(){
-    this._setStatusFlag({isLoading: true});
+  _handleError(){
+
+  }
+
+  _fetchEvents(){
 
 
     api.get(`/v1/webapi/sites/-current-/sessions/${this.sid}/events`);
+    api.get(`/v1/webapi/sites/-current-/sessions/${this.sid}/stream`);
+      //.then(this._initEvents.bind(this))
+      //.fail(handleAjaxError)
 
+
+
+
+  }
+
+  connect(){
+    this._setStatusFlag({isLoading: true});
+
+    this._fetchEvents();
     api.get(cfg.api.getFetchSessionLengthUrl(this.sid))
       .done((data)=>{
         /*
