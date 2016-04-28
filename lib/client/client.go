@@ -558,17 +558,21 @@ func (client *NodeClient) listenAndForward(socket net.Listener, remoteAddr strin
 			}
 			defer conn.Close()
 
-			doneC := make(chan interface{}, 2)
+			doneC := make(chan error, 2)
 			go func() {
-				io.Copy(incoming, conn)
-				doneC <- true
+				_, err := io.Copy(incoming, conn)
+				doneC <- err
 			}()
 			go func() {
-				io.Copy(conn, incoming)
-				doneC <- true
+				_, err := io.Copy(conn, incoming)
+				doneC <- err
 			}()
-			<-doneC
-			<-doneC
+			for i := 0; i < 2; i++ {
+				doneErr, ok := <-doneC
+				if ok && doneErr != nil && doneErr != io.EOF {
+					log.Infof("copy err: %s", doneErr)
+				}
+			}
 			log.Infof("connection from %v to %v closed!", incoming.RemoteAddr(), remoteAddr)
 		}()
 	}
