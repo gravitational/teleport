@@ -64,7 +64,7 @@ class TtyPlayer extends Tty {
     this._setStatusFlag({isLoading: true});
 
 
-    api.get(`/webapi/sites/-curent-/sessions/${this.sid}/events`);
+    api.get(`/v1/webapi/sites/-current-/sessions/${this.sid}/events`);
 
     api.get(cfg.api.getFetchSessionLengthUrl(this.sid))
       .done((data)=>{
