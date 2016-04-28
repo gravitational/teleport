@@ -15,48 +15,43 @@ limitations under the License.
 */
 
 var EventEmitter = require('events').EventEmitter;
-var Buffer = require('buffer/').Buffer;
 
-class Tty extends EventEmitter {
+const logger = require('./logger').create('TtyEvents');
+
+class TtyEvents extends EventEmitter {
 
   constructor(){
     super();
     this.socket = null;
   }
 
-  disconnect(){
-    this.socket.close();
-  }
-
-  reconnect(options){
-    this.disconnect();
-    this.socket.onopen = null;
-    this.socket.onmessage = null;
-    this.socket.onclose = null;
-
-    this.connect(options);
-  }
-
   connect(connStr){
     this.socket = new WebSocket(connStr, 'proto');
 
     this.socket.onopen = () => {
-      this.emit('open');
+      logger.info('Tty event stream is open');
     }
 
-    this.socket.onmessage = (e)=>{
-      let data = new Buffer(e.data, 'base64').toString('utf8');
-      this.emit('data', data);
-    }
+    this.socket.onmessage = (event) => {
+      try
+      {
+        let json = JSON.parse(event.data);
+        this.emit('data', json.session);
+      }
+      catch(err){
+        logger.error('failed to parse event stream data', err);
+      }
+    };
 
-    this.socket.onclose = ()=>{
-      this.emit('close');
-    }
+    this.socket.onclose = () => {
+      logger.info('Tty event stream is closed');
+    };
   }
 
-  send(data){
-    this.socket.send(data);
+  disconnect(){
+    this.socket.close();
   }
+
 }
 
-module.exports = Tty;
+module.exports = TtyEvents;
