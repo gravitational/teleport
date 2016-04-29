@@ -24,8 +24,8 @@ import (
 
 const (
 	// Common event fields:
-	EventType  = "e"           // event type/kind
-	EventTime  = "t"           // event time
+	EventType  = "event"       // event type/kind
+	EventTime  = "time"        // event time
 	EventLogin = "login"       // OS login
 	EventUser  = "user"        // teleport user
 	LocalAddr  = "addr.local"  // address on the host
@@ -33,11 +33,11 @@ const (
 
 	// SessionPrintEvent event happens every time a write occurs to
 	// temirnal I/O during a session
-	SessionPrintEvent = "p"
+	SessionPrintEvent = "print"
 
 	// SessionEventTimestamp is an offset (in seconds) since the beginning of the
 	// session, when terminal IO event happened
-	SessionEventTimestamp = "s"
+	SessionEventTimestamp = "sec"
 
 	// SessionEvent indicates that session has been initiated
 	// or updated by a joining party on the server
@@ -49,7 +49,7 @@ const (
 
 	// SessionEventBytes is the number of bytes written to session stream since
 	// the beginning
-	SessionEventBytes = "b"
+	SessionEventBytes = "offset"
 
 	// Join & Leave events indicate when someone joins/leaves a session
 	SessionJoinEvent  = "session.join"

@@ -19,14 +19,17 @@ limitations under the License.
 package web
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -45,6 +48,9 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/mailgun/lemma/secret"
 	"github.com/mailgun/ttlmap"
+
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 )
 
 // Handler is HTTP web proxy handler
@@ -913,13 +919,56 @@ type siteSessionStreamGetResponse struct {
 	Bytes []byte `json:"bytes"`
 }
 
+const maxStreamBytes = 512 * 1024
+
 // siteSessionStreamGet returns a byte array from a session's stream
 //
-// GET /v1/webapi/sites/:site/sessions/:sid/stream
+// GET /v1/webapi/sites/:site/sessions/:sid/stream?query
 //
+// Query parameters:
+//   "offset"   : bytes from the beginning
+//   "bytes"    : number of bytes to read (it won't return more than 512Kb)
 //
 func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	return siteSessionStreamGetResponse{Bytes: []byte("hello world")}, nil
+	sid, err := session.ParseID(p.ByName("sid"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clt, err := site.GetClient()
+	if err != nil {
+		log.Error(err)
+		return nil, trace.Wrap(err)
+	}
+	// look at 'offset' parameter
+	query := r.URL.Query()
+	offset, _ := strconv.Atoi(query.Get("offset"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	len, err := strconv.Atoi(query.Get("bytes"))
+	if err != nil || len <= 0 {
+		len = maxStreamBytes
+	}
+	if len > maxStreamBytes {
+		return nil, trace.BadParameter("bytes", "bytes=%d, cannot exceed %d", len, maxStreamBytes)
+	}
+
+	// read file:
+	reader, err := clt.GetSessionReader(*sid, offset)
+	if err != nil {
+		log.Error(err)
+		return nil, trace.Wrap(err)
+	}
+	defer reader.Close()
+
+	var buff bytes.Buffer
+	written, err := io.CopyN(&buff, transform.NewReader(reader, unicode.UTF8.NewEncoder()), int64(len))
+	if err != nil {
+		log.Error(err)
+		return nil, trace.Wrap(err)
+	}
+	log.Infof("web.getSessionStream(): returns %d bytes", written)
+	return siteSessionStreamGetResponse{Bytes: buff.Bytes()}, nil
 }
 
 type siteSessionEventsGetResponse struct {

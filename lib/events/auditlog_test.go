@@ -116,5 +116,5 @@ func (a *AuditTestSuite) TestBasicLogging(c *check.C) {
 	bytes, err := ioutil.ReadFile(logfile)
 	c.Assert(err, check.IsNil)
 	c.Assert(string(bytes), check.Equals,
-		fmt.Sprintf("{\"apples?\":\"yes\",\"e\":\"user.farted\",\"t\":\"%s\"}\n", now.Format(time.RFC3339)))
+		fmt.Sprintf("{\"apples?\":\"yes\",\"event\":\"user.farted\",\"time\":\"%s\"}\n", now.Format(time.RFC3339)))
 }
