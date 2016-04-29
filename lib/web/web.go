@@ -695,7 +695,7 @@ func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprou
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sessions, err := clt.GetSessions(session.Filter{})
+	sessions, err := clt.GetSessions()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -862,12 +862,7 @@ type siteSessionsGetResponse struct {
 // siteSessionGet gets the list of site sessions filtered by creation time
 // and either they're active or not
 //
-// GET /v1/webapi/sites/:site/sessions?filter-query
-//
-// Filter query values:
-//   "start" : RFC3339 date (UTC) - defaults to 'any time'
-//   "end"   : RFC3339 date (UTC) - defaults to 'any time'
-//   "state" : one of (all, active, archived) - defaults to active
+// GET /v1/webapi/sites/:site/sessions
 //
 // Response body:
 //
@@ -877,23 +872,7 @@ func (m *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var filter session.Filter
-	q := r.URL.Query()
-	if t, err := time.Parse(time.RFC3339, q.Get("start")); err == nil {
-		filter.Start = t
-	}
-	if t, err := time.Parse(time.RFC3339, q.Get("end")); err == nil {
-		filter.End = t
-	}
-	switch q.Get("state") {
-	case "both", "any", "all":
-		filter.State = session.SessionStateAny
-	case "archived", "inactive":
-		filter.State = session.SessionStateArchived
-	default:
-		filter.State = session.SessionStateActive
-	}
-	sessions, err := clt.GetSessions(filter)
+	sessions, err := clt.GetSessions()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

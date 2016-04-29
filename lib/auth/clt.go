@@ -64,6 +64,8 @@ func NewClient(addr string, dialer Dialer) (*Client, error) {
 		params = append(params, roundtrip.HTTPClient(&http.Client{
 			Transport: &http.Transport{Dial: dialer},
 		}))
+	} else {
+		dialer = net.Dial
 	}
 	c, err := roundtrip.NewClient(addr, CurrentVersion, params...)
 	if err != nil {
@@ -108,8 +110,7 @@ func (c *Client) Delete(u string) (*roundtrip.Response, error) {
 
 // GetSessions returns a list of active sessions in the cluster
 // as reported by auth server
-func (c *Client) GetSessions(filter session.Filter) ([]session.Session, error) {
-	// TODO (ev) support filter
+func (c *Client) GetSessions() ([]session.Session, error) {
 	out, err := c.Get(c.Endpoint("sessions"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -789,7 +790,7 @@ func (c *Client) openWebsocket(urlString string) (conn *websocket.Conn, err erro
 type ClientI interface {
 	GetUser(name string) (services.User, error)
 	UpsertUser(user services.User) error
-	GetSessions(session.Filter) ([]session.Session, error)
+	GetSessions() ([]session.Session, error)
 	GetSession(id session.ID) (*session.Session, error)
 	CreateSession(s session.Session) error
 	UpdateSession(req session.UpdateRequest) error

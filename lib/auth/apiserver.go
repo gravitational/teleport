@@ -601,9 +601,7 @@ func (s *APIServer) upsertSessionParty(w http.ResponseWriter, r *http.Request, p
 }
 
 func (s *APIServer) getSessions(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	// TODO (ev) support filter
-	f := session.Filter{}
-	sessions, err := s.a.GetSessions(f)
+	sessions, err := s.a.GetSessions()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

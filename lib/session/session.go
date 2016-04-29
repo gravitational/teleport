@@ -185,23 +185,6 @@ func (u *UpdateRequest) Check() error {
 	return nil
 }
 
-type SessionStateFilter int
-
-const (
-	SessionStateActive   = 0
-	SessionStateArchived = 1
-	SessionStateAny      = 3
-)
-
-// Filter structure is used
-type Filter struct {
-	// Start time (and End time) define a time window to filter by.
-	// Teleport will not return more than MaxSessionSliceLength items
-	Start time.Time
-	End   time.Time
-	State SessionStateFilter
-}
-
 // Due to limitations of the current back-end, Teleport won't return more than 1000 sessions
 // per time window
 const MaxSessionSliceLength = 1000
@@ -212,7 +195,7 @@ const MaxSessionSliceLength = 1000
 type Service interface {
 	// GetSessions returns a list of currently active sessions
 	// with all parties involved
-	GetSessions(Filter) ([]Session, error)
+	GetSessions() ([]Session, error)
 	// GetSession returns a session with it's parties by ID
 	GetSession(id ID) (*Session, error)
 	// CreateSession creates a new active session and it's parameters
@@ -279,39 +262,23 @@ func partiesBucket(id ID) []string {
 	return []string{"sessions", "parties", string(id)}
 }
 
-func allBucket() []string {
-	return []string{"sessions", "all"}
-}
-
-// GetSessions returns a list of active sessions
-func (s *server) GetSessions(f Filter) ([]Session, error) {
-	bucket := allBucket()
-	if f.State == SessionStateActive {
-		bucket = activeBucket()
-	}
-	startFilter := !f.Start.IsZero()
-	endFilter := !f.End.IsZero()
+// GetSessions returns a list of active sessions. Returns an empty slice
+// if no sessions are active
+func (s *server) GetSessions() ([]Session, error) {
+	bucket := activeBucket()
+	out := make(Sessions, 0)
 
 	keys, err := s.bk.GetKeys(bucket)
 	if err != nil {
 		return nil, err
 	}
 	logrus.Infof("session.GetSessions(state=%v", bucket)
-	var out Sessions
 	for i, sid := range keys {
 		if i > MaxSessionSliceLength {
 			break
 		}
 		se, err := s.GetSession(ID(sid))
 		if trace.IsNotFound(err) {
-			continue
-		}
-		// filter by 'created before' filter
-		if startFilter && se.Created.Before(f.Start) {
-			continue
-		}
-		// filter by 'created after' filter
-		if endFilter && se.Created.After(f.End) {
 			continue
 		}
 		out = append(out, *se)
@@ -344,35 +311,11 @@ func (slice Sessions) Len() int {
 // GetSession returns the session by it's id
 func (s *server) GetSession(id ID) (*Session, error) {
 	var sess *Session
-	err := s.bk.GetJSONVal(allBucket(), string(id), &sess)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	_, err = s.bk.GetVal(activeBucket(), string(id))
+	err := s.bk.GetJSONVal(activeBucket(), string(id), &sess)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
-		sess.Active = false
-	} else {
-		sess.Active = true
-	}
-
-	parties, err := s.bk.GetKeys(partiesBucket(id))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, pk := range parties {
-		var p *Party
-		err := s.bk.GetJSONVal(partiesBucket(id), pk, &p)
-		if err != nil {
-			if trace.IsNotFound(err) { // key was expired
-				continue
-			}
-			return nil, err
-		}
-		sess.Parties = append(sess.Parties, *p)
 	}
 	return sess, nil
 }
@@ -398,11 +341,7 @@ func (s *server) CreateSession(sess Session) error {
 		return trace.Wrap(err)
 	}
 	sess.Parties = nil
-	err = s.bk.CreateJSONVal(allBucket(), string(sess.ID), sess, backend.Forever)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = s.bk.UpsertJSONVal(activeBucket(), string(sess.ID), "active", s.activeSessionTTL)
+	err = s.bk.UpsertJSONVal(activeBucket(), string(sess.ID), sess, s.activeSessionTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -414,54 +353,46 @@ func (s *server) UpdateSession(req UpdateRequest) error {
 	lock := "sessions" + string(req.ID)
 	s.bk.AcquireLock(lock, time.Second)
 	defer s.bk.ReleaseLock(lock)
-
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
 	var sess *Session
-	err := s.bk.GetJSONVal(allBucket(), string(req.ID), &sess)
+	err := s.bk.GetJSONVal(activeBucket(), string(req.ID), &sess)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if req.TerminalParams != nil {
 		sess.TerminalParams = *req.TerminalParams
 	}
-	sess.Parties = nil
-	err = s.bk.UpsertJSONVal(allBucket(), string(req.ID), sess, backend.Forever)
+	if req.Active != nil {
+		sess.Active = *req.Active
+	}
+	err = s.bk.UpsertJSONVal(activeBucket(), string(req.ID), sess, s.activeSessionTTL)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	if req.Active != nil {
-		if !*req.Active {
-			err := s.bk.DeleteKey(activeBucket(), string(req.ID))
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					return trace.Wrap(err)
-				}
-			}
-		} else {
-			err := s.bk.UpsertJSONVal(activeBucket(), string(req.ID), "active", s.activeSessionTTL)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
 	}
 	return nil
 }
 
-// UpsertParty updates or inserts active session party and sets TTL for it
-// it also updates
-func (s *server) UpsertParty(sessionID ID, p Party, ttl time.Duration) error {
-	err := s.bk.UpsertJSONVal(partiesBucket(sessionID), string(p.ID), p, ttl)
+// UpsertParty updates or inserts active session party
+func (s *server) UpsertParty(sid ID, p Party, ttl time.Duration) error {
+	session, err := s.GetSession(sid)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.bk.UpsertJSONVal(activeBucket(),
-		string(sessionID), "active", s.activeSessionTTL)
-	if err != nil {
-		return trace.Wrap(err)
+	update := false
+	for i := range session.Parties {
+		if session.Parties[i].ID == p.ID {
+			session.Parties[i] = p
+			update = true
+			break
+		}
 	}
-	return nil
+	if !update {
+		session.Parties = append(session.Parties, p)
+	}
+	session.Active = true
+	return trace.Wrap(s.bk.UpsertJSONVal(activeBucket(), string(session.ID), session, s.activeSessionTTL))
 }
 
 // NewTerminalParamsFromUint32 returns new terminal parameters from uint32 width and height

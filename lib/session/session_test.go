@@ -76,7 +76,7 @@ func (s *BoltSuite) TestID(c *C) {
 }
 
 func (s *BoltSuite) TestSessionsCRUD(c *C) {
-	out, err := s.srv.GetSessions(Filter{})
+	out, err := s.srv.GetSessions()
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
@@ -90,7 +90,7 @@ func (s *BoltSuite) TestSessionsCRUD(c *C) {
 	}
 	c.Assert(s.srv.CreateSession(sess), IsNil)
 
-	out, err = s.srv.GetSessions(Filter{})
+	out, err = s.srv.GetSessions()
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []Session{sess})
 
@@ -121,34 +121,6 @@ func (s *BoltSuite) TestSessionsCRUD(c *C) {
 	s2, err = s.srv.GetSession(sess.ID)
 	c.Assert(err, IsNil)
 	c.Assert(s2, DeepEquals, &sess)
-
-	// ask for active-only sessions, should get nothing
-	out, _ = s.srv.GetSessions(Filter{State: SessionStateActive})
-	c.Assert(out, HasLen, 0)
-
-	// create another active session (created 24 hours ago)
-	sid2 := NewID()
-	utcnow := time.Now().In(time.UTC)
-	c.Assert(s.srv.CreateSession(Session{
-		ID:             sid2,
-		Active:         true,
-		TerminalParams: TerminalParams{W: 100, H: 100},
-		Login:          "bob",
-		LastActive:     utcnow.Add(-time.Hour * 24),
-		Created:        utcnow.Add(-time.Hour * 24),
-	}), IsNil)
-
-	// ask for active-only sessions, should get just one
-	out, _ = s.srv.GetSessions(Filter{State: SessionStateActive})
-	c.Assert(out, HasLen, 1)
-
-	// ask for active-only sessions created no earlier than 5 minutes ago, should get nothing
-	out, _ = s.srv.GetSessions(Filter{State: SessionStateActive, Start: utcnow.Add(-time.Minute * 5)})
-	c.Assert(out, HasLen, 0)
-
-	// ask for any sessions, should get two
-	out, _ = s.srv.GetSessions(Filter{State: SessionStateAny})
-	c.Assert(out, HasLen, 2)
 }
 
 // TestSessionsInactivity makes sure that session will be marked
@@ -164,12 +136,13 @@ func (s *BoltSuite) TestSessionsInactivity(c *C) {
 	}
 	c.Assert(s.srv.CreateSession(sess), IsNil)
 
+	// sleep to let it expire:
 	s.clock.Sleep(defaults.ActiveSessionTTL + time.Second)
 
-	sess.Active = false
+	// should not be in active sessions:
 	s2, err := s.srv.GetSession(sess.ID)
 	c.Assert(err, IsNil)
-	c.Assert(s2, DeepEquals, &sess)
+	c.Assert(s2, IsNil)
 }
 
 func (s *BoltSuite) TestPartiesCRUD(c *C) {

@@ -86,7 +86,8 @@ func (s *APISuite) SetUpTest(c *C) {
 			sessions:    sessionServer,
 			permChecker: NewAllowAllPermissions(),
 		}))
-	clt, err := NewClient(s.srv.URL)
+
+	clt, err := NewClient(s.srv.URL, nil)
 	c.Assert(err, IsNil)
 	s.clt = clt
 
@@ -333,9 +334,12 @@ func (s *APISuite) TestAuditLog(c *C) {
 	err := s.clt.EmitAuditEvent("test-event", fields)
 	c.Assert(err, IsNil)
 
-	receivedFields, found := s.alog.RecentEvents["test-event"]
+	e, found := s.alog.RecentEvents["test-event"]
 	c.Assert(found, Equals, true)
-	c.Assert(receivedFields, DeepEquals, fields)
+	c.Assert(e, NotNil)
+	c.Assert(e["1"].(string), Equals, "one")
+	c.Assert(e[events.EventType], Equals, "test-event")
+	c.Assert(e[events.EventTime], FitsTypeOf, time.Time{})
 }
 
 func (s *APISuite) TestTokens(c *C) {
@@ -345,9 +349,7 @@ func (s *APISuite) TestTokens(c *C) {
 }
 
 func (s *APISuite) TestSharedSessions(c *C) {
-	// TODO (Ev): pass not empty filter
-	f := sessions.Filter{}
-	out, err := s.clt.GetSessions(f)
+	out, err := s.clt.GetSessions()
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []session.Session{})
 
@@ -362,16 +364,24 @@ func (s *APISuite) TestSharedSessions(c *C) {
 	}
 	c.Assert(s.clt.CreateSession(sess), IsNil)
 
-	out, err = s.clt.GetSessions(f)
+	out, err = s.clt.GetSessions()
 	c.Assert(err, IsNil)
 
 	c.Assert(out, DeepEquals, []session.Session{sess})
+
+	// emit an event into this session:
+	s.clt.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
+		events.SessionEventID: sess.ID,
+		"1": "one",
+	})
+	e, err := s.clt.GetSessionEvents(sess.ID)
+	c.Assert(err, IsNil)
+	c.Assert(len(e), Equals, 1)
+	c.Assert(e[0]["1"].(string), Equals, "one")
 }
 
 func (s *APISuite) TestSharedSessionsParties(c *C) {
-	// TODO (Ev): pass not empty filter
-	f := sessions.Filter{}
-	out, err := s.clt.GetSessions(f)
+	out, err := s.clt.GetSessions()
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []session.Session{})
 
@@ -396,7 +406,7 @@ func (s *APISuite) TestSharedSessionsParties(c *C) {
 	c.Assert(s.clt.UpsertParty(sess.ID, p1, 0), IsNil)
 
 	sess.Parties = []session.Party{p1}
-	out, err = s.clt.GetSessions(f)
+	out, err = s.clt.GetSessions()
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []session.Session{sess})
 }
