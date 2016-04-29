@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"testing"
 	"path/filepath"
 
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -30,6 +31,8 @@ import (
 	"github.com/gravitational/trace"
 	. "gopkg.in/check.v1"
 )
+
+func TestAPI(t *testing.T) { TestingT(t) }
 
 type AuthSuite struct {
 	bk backend.Backend

@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -382,7 +383,10 @@ func (s *AuthTunnel) passwordAuth(
 	if err := json.Unmarshal(password, &ab); err != nil {
 		return nil, err
 	}
+
 	log.Infof("got authentication attempt for user '%v' type '%v'", conn.User(), ab.Type)
+	debug.PrintStack()
+
 	switch ab.Type {
 	case AuthWebPassword:
 		if err := s.authServer.CheckPassword(conn.User(), ab.Pass, ab.HotpToken); err != nil {
@@ -598,6 +602,8 @@ func (c *TunClient) GetAgent() (AgentCloser, error) {
 // Dial dials to Auth server's HTTP API over SSH tunnel
 func (c *TunClient) Dial(network, address string) (net.Conn, error) {
 	log.Debugf("TunDialer.Dial(%v, %v)", network, address)
+	debug.PrintStack()
+
 	client, err := c.getClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -700,9 +706,11 @@ func (c *TunClient) dialAuthServer(authServer utils.NetAddr) (*ssh.Client, error
 		Auth: c.authMethods,
 	}
 	client, err := ssh.Dial(authServer.AddrNetwork, authServer.Addr, config)
-	log.Debugf("TunDialer.getClient(%v)", authServer.String())
+
 	if err != nil {
-		log.Infof("TunDialer could not ssh.Dial: %v", err)
+		log.Infof("TunDialer: ssh.Dial: %v", err)
+		debug.PrintStack()
+
 		if utils.IsHandshakeFailedError(err) {
 			return nil, trace.AccessDenied("access denied to '%v': bad username or credentials", c.user)
 		}

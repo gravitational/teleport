@@ -123,7 +123,6 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 	if as.clock == nil {
 		as.clock = clockwork.NewRealClock()
 	}
-	log.Infof("[AUTH] AuthServer '%v' is created signing as '%v'", as.AuthServiceName, as.DomainName)
 	return &as
 }
 

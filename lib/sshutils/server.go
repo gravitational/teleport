@@ -19,6 +19,7 @@ package sshutils
 import (
 	"crypto/subtle"
 	"net"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -154,6 +155,7 @@ func (s *Server) acceptConnections() {
 			return
 		}
 		log.Infof("%v accepted connection from %v", s.Addr(), conn.RemoteAddr())
+		debug.PrintStack()
 
 		go s.handleConnection(conn)
 	}

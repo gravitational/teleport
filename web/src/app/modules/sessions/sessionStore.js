@@ -43,7 +43,9 @@ function updateSession(state, json){
   return state.set(json.id, toImmutable(json));
 }
 
-function receiveSessions(state, jsonArray=[]){
+function receiveSessions(state, jsonArray){
+  jsonArray = jsonArray || [];
+
   return state.withMutations(state => {
     jsonArray.forEach((item) => {
       item.created = new Date(item.created);
