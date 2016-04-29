@@ -904,15 +904,17 @@ func (m *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	log.Infof("web.getSetssion(%v)", sessionID)
 	clt, err := site.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	sess, err := clt.GetSession(*sessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if sess == nil {
+		return nil, trace.NotFound("Session %v cannot be found", sessionID)
 	}
 	return siteSessionGetResponse{Session: *sess}, nil
 }
@@ -931,6 +933,9 @@ const maxStreamBytes = 512 * 1024
 //             with a field 'key' with value 'value'
 //
 func (m *Handler) siteEventsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	query := r.URL.Query()
+	log.Infof("web.getEvents(%v)", r.URL.RawQuery)
+
 	clt, err := site.GetClient()
 	if err != nil {
 		log.Error(err)
@@ -938,7 +943,6 @@ func (m *Handler) siteEventsGet(w http.ResponseWriter, r *http.Request, p httpro
 	}
 	to := time.Now().In(time.UTC)
 	from := to.AddDate(0, -1, 0) // one month ago
-	query := r.URL.Query()
 
 	// parse 'to' and 'from' params:
 	fromStr := query.Get("from")
