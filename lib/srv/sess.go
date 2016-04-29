@@ -32,10 +32,25 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+type fakeMutex struct{}
+
+func (f *fakeMutex) Lock() {
+}
+
+func (f *fakeMutex) Unlock() {
+}
+
+func (f *fakeMutex) RLock() {
+}
+
+func (f *fakeMutex) RUnlock() {
+}
+
 // sessionRegistry holds a map of all active sessions on a given
 // SSH server
 type sessionRegistry struct {
-	sync.Mutex
+	//sync.Mutex
+	fakeMutex
 	sessions map[rsession.ID]*session
 	srv      *Server
 }
@@ -95,6 +110,8 @@ func (s *sessionRegistry) joinShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 
 // leaveShell remvoes a given party from this session
 func (s *sessionRegistry) leaveShell(party *party) error {
+	log.Info("sessionRegistry.leaveShell(%v)", party.id)
+
 	s.Lock()
 	defer s.Unlock()
 	sess := party.s
@@ -188,7 +205,8 @@ func newSessionRegistry(srv *Server) *sessionRegistry {
 // session struct describes an active (in progress) SSH session. These sessions
 // are managed by 'sessionRegistry' containers which are attached to SSH servers.
 type session struct {
-	sync.Mutex
+	//sync.Mutex
+	fakeMutex
 	// session ID. unique GUID, this is what people use to "join" sessions
 
 	id rsession.ID
@@ -261,24 +279,29 @@ func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, err
 
 // Close ends the active session forcing all clients to disconnect and freeing all resources
 func (s *session) Close() error {
-	s.closeOnce.Do(func() {
-		close(s.closeC)
-	})
 	var err error
-	if s.term != nil {
-		err = s.term.Close()
-	}
-	// close all writers in our multi-writer:
-	s.writer.Lock()
-	defer s.writer.Unlock()
-	for writerName, writer := range s.writer.writers {
-		log.Infof("session.close(writer=%v)", writerName)
-		closer, ok := io.Writer(writer).(io.WriteCloser)
-		if ok {
-			closer.Close()
-		}
-	}
-
+	s.closeOnce.Do(func() {
+		// closing needs to happen asynchronously because the last client
+		// (session writer) will try to close this session, causing a deadlock
+		// because of closeOnce
+		go func() {
+			log.Infof("session.Close(%v)", s.id)
+			if s.term != nil {
+				err = s.term.Close()
+			}
+			close(s.closeC)
+			// close all writers in our multi-writer
+			s.writer.Lock()
+			defer s.writer.Unlock()
+			for writerName, writer := range s.writer.writers {
+				log.Infof("session.close(writer=%v)", writerName)
+				closer, ok := io.Writer(writer).(io.WriteCloser)
+				if ok {
+					closer.Close()
+				}
+			}
+		}()
+	})
 	return trace.Wrap(err)
 }
 
@@ -401,7 +424,7 @@ func (s *session) String() string {
 func (s *session) removeParty(p *party) error {
 	s.Lock()
 	defer s.Unlock()
-	p.ctx.Infof("%v is leaving", p)
+	p.ctx.Infof("session.removeParty(%v)", p)
 
 	delete(s.parties, p.id)
 	s.writer.deleteWriter(string(p.id))
@@ -488,7 +511,8 @@ func newMultiWriter() *multiWriter {
 }
 
 type multiWriter struct {
-	sync.RWMutex
+	fakeMutex
+	//sync.RWMutex
 	writers map[string]writerWrapper
 }
 
@@ -553,7 +577,9 @@ func newParty(s *session, ch ssh.Channel, ctx *ctx) *party {
 }
 
 type party struct {
-	sync.Mutex
+	fakeMutex
+	//sync.Mutex
+
 	user       string
 	serverID   string
 	site       string
@@ -564,6 +590,7 @@ type party struct {
 	ctx        *ctx
 	closeC     chan bool
 	lastActive time.Time
+	closeOnce  sync.Once
 }
 
 func (p *party) updateActivity() {
@@ -591,15 +618,13 @@ func (p *party) String() string {
 	return fmt.Sprintf("%v party(id=%v)", p.ctx, p.id)
 }
 
-func (p *party) Close() error {
-	p.ctx.Infof("party[%v].Close()", p.id)
-	//close(p.closeC)
-	//return p.s.registry.leaveShell(p)
-
-	if p.closeC != nil {
+func (p *party) Close() (err error) {
+	p.closeOnce.Do(func() {
+		p.ctx.Infof("party[%v].Close()", p.id)
+		if err = p.s.registry.leaveShell(p); err != nil {
+			p.ctx.Error(err)
+		}
 		close(p.closeC)
-		p.closeC = nil
-		return p.s.registry.leaveShell(p)
-	}
-	return nil
+	})
+	return err
 }

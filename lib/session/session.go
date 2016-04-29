@@ -270,6 +270,7 @@ func (s *server) GetSessions() ([]Session, error) {
 
 	keys, err := s.bk.GetKeys(bucket)
 	if err != nil {
+		logrus.Error(err)
 		return nil, err
 	}
 	logrus.Infof("session.GetSessions(state=%v", bucket)

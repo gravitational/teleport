@@ -112,7 +112,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 	}
 
 	if h.sessionStreamPollPeriod == 0 {
-		h.sessionStreamPollPeriod = defaultPollPeriod
+		h.sessionStreamPollPeriod = sessionStreamPollPeriod
 	}
 
 	// Helper logout method

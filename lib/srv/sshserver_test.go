@@ -655,8 +655,6 @@ func (s *SrvSuite) TestPasswordAuth(c *C) {
 	c.Assert(err, NotNil)
 }
 
-// TODO(klizhentas): figure out the way to check that resources are properly deallocated
-// on client disconnects
 func (s *SrvSuite) TestClientDisconnect(c *C) {
 	config := &ssh.ClientConfig{
 		User: s.user,

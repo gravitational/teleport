@@ -85,20 +85,16 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 				return trace.Wrap(err)
 			}
 		}
-
 		sess, err := clt.GetSession(w.sessionID)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
 			}
 		}
-
 		if sess != nil {
 			event := &sessionStreamEvent{
 				Session: *sess,
 				Nodes:   servers,
-				// TODO (ev): fix zis
-				//Events:  events,
 			}
 
 			newData := w.diffEvents(lastEvent, event)
@@ -118,7 +114,7 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 	}
 }
 
-const defaultPollPeriod = time.Second
+var sessionStreamPollPeriod = time.Second
 
 func (w *sessionStreamHandler) Handler() http.Handler {
 	// TODO(klizhentas)

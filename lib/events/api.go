@@ -112,28 +112,31 @@ type AuditLogI interface {
 type EventFields map[string]interface{}
 
 // GetString returns a string representation of a logged field
-func (f EventFields) GetString(key string) (string, bool) {
+func (f EventFields) GetString(key string) string {
 	val, found := f[key]
 	if !found {
-		return "", false
+		return ""
 	}
-	return val.(string), true
+	v, _ := val.(string)
+	return v
 }
 
 // GetString returns an int representation of a logged field
-func (f EventFields) GetInt(key string) (int, bool) {
+func (f EventFields) GetInt(key string) int {
 	val, found := f[key]
 	if !found {
-		return 0, false
+		return 0
 	}
-	return val.(int), true
+	v, _ := val.(int)
+	return v
 }
 
 // GetString returns an int representation of a logged field
-func (f EventFields) GetTime(key string) (time.Time, bool) {
+func (f EventFields) GetTime(key string) time.Time {
 	val, found := f[key]
 	if !found {
-		return time.Time{}, false
+		return time.Time{}
 	}
-	return val.(time.Time), true
+	v, _ := val.(time.Time)
+	return v
 }

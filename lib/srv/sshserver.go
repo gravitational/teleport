@@ -439,6 +439,7 @@ func (s *Server) isAuthority(cert ssh.PublicKey) bool {
 // EmitAuditEvent logs a given event to the audit log attached to the
 // server who owns these sessions
 func (s *Server) EmitAuditEvent(eventType string, fields events.EventFields) {
+	log.Infof("server.EmitAuditEvent(%v)", eventType)
 	alog := s.alog
 	if alog != nil {
 		if err := alog.EmitAuditEvent(eventType, fields); err != nil {

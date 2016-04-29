@@ -119,8 +119,7 @@ type AuditLog struct {
 type SessionLogger struct {
 	sync.Mutex
 
-	sid  session.ID
-	once sync.Once
+	sid session.ID
 
 	// eventsFile stores logged events, just like the main logger, except
 	// these are all associated with this session
@@ -154,22 +153,26 @@ func (sl *SessionLogger) LogEvent(fields EventFields) {
 	line := eventToLine(fields)
 
 	sl.Lock()
-	sl.Unlock()
-	_, err := fmt.Fprintln(sl.eventsFile, line)
-	if err != nil {
-		logrus.Error(err)
+	defer sl.Unlock()
+	if sl.eventsFile != nil {
+		_, err := fmt.Fprintln(sl.eventsFile, line)
+		if err != nil {
+			logrus.Error(err)
+		}
 	}
 }
 
 // Close() is called when a session is closed. This releases resources
 // owned by the session logger
 func (sl *SessionLogger) Close() error {
-	sl.once.Do(func() {
+	sl.Lock()
+	defer sl.Unlock()
+	if sl.streamFile != nil {
 		sl.streamFile.Close()
 		sl.eventsFile.Close()
 		sl.streamFile = nil
 		sl.eventsFile = nil
-	})
+	}
 	return nil
 }
 
@@ -310,8 +313,8 @@ func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 	line := eventToLine(fields)
 
 	// if this event is associated with a session -> forward it to the session log as well
-	sessionId, found := fields.GetString(SessionEventID)
-	if found {
+	sessionId := fields.GetString(SessionEventID)
+	if sessionId != "" {
 		sl := l.LoggerFor(session.ID(sessionId))
 		if sl != nil {
 			sl.LogEvent(fields)
