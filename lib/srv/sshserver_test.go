@@ -75,13 +75,13 @@ var _ = Suite(&SrvSuite{})
 
 func (s *SrvSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
-	var err error
-	s.alog, err = events.NewAuditLog(s.dir, true)
-	c.Assert(err, IsNil)
 }
 
 func (s *SrvSuite) SetUpTest(c *C) {
+	var err error
 	s.dir = c.MkDir()
+	s.alog, err = events.NewAuditLog(s.dir, true)
+	c.Assert(err, IsNil)
 
 	u, err := user.Current()
 	c.Assert(err, IsNil)
