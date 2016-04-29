@@ -23,7 +23,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"runtime/debug"
 	"sync"
 	"time"
 
@@ -385,7 +384,6 @@ func (s *AuthTunnel) passwordAuth(
 	}
 
 	log.Infof("got authentication attempt for user '%v' type '%v'", conn.User(), ab.Type)
-	debug.PrintStack()
 
 	switch ab.Type {
 	case AuthWebPassword:
@@ -602,7 +600,6 @@ func (c *TunClient) GetAgent() (AgentCloser, error) {
 // Dial dials to Auth server's HTTP API over SSH tunnel
 func (c *TunClient) Dial(network, address string) (net.Conn, error) {
 	log.Debugf("TunDialer.Dial(%v, %v)", network, address)
-	debug.PrintStack()
 
 	client, err := c.getClient()
 	if err != nil {
@@ -709,7 +706,6 @@ func (c *TunClient) dialAuthServer(authServer utils.NetAddr) (*ssh.Client, error
 
 	if err != nil {
 		log.Infof("TunDialer: ssh.Dial: %v", err)
-		debug.PrintStack()
 
 		if utils.IsHandshakeFailedError(err) {
 			return nil, trace.AccessDenied("access denied to '%v': bad username or credentials", c.user)
