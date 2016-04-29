@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -63,6 +64,9 @@ func (s *IdentityService) GetUsers() ([]services.User, error) {
 
 // UpsertUser updates parameters about user
 func (s *IdentityService) UpsertUser(user services.User) error {
+	logrus.Infof(">> users.UpsertUser(%v)", user.String())
+	defer logrus.Infof("<< users.UpsertUser(%v)", user.String())
+
 	if !cstrings.IsValidUnixUser(user.GetName()) {
 		return trace.BadParameter("'%v is not a valid unix username'", user.GetName())
 	}
@@ -135,6 +139,9 @@ func (s *IdentityService) DeleteUser(user string) error {
 
 // UpsertPasswordHash upserts user password hash
 func (s *IdentityService) UpsertPasswordHash(user string, hash []byte) error {
+	logrus.Infof(">> users.UpsertPassword(%v)", user)
+	defer logrus.Infof("<< users.UpsertPassword(%v)", user)
+
 	err := s.backend.UpsertVal([]string{"web", "users", user}, "pwd", hash, 0)
 	if err != nil {
 		return trace.Wrap(err)
@@ -156,6 +163,9 @@ func (s *IdentityService) GetPasswordHash(user string) ([]byte, error) {
 
 // UpsertHOTP upserts HOTP state for user
 func (s *IdentityService) UpsertHOTP(user string, otp *hotp.HOTP) error {
+	logrus.Infof(">> %p users.UpsertHOTP(%v)", s, user)
+	defer logrus.Infof("<< %p users.UpsertHOTP(%v)", s, user)
+
 	bytes, err := hotp.Marshal(otp)
 	if err != nil {
 		return trace.Wrap(err)
@@ -170,6 +180,9 @@ func (s *IdentityService) UpsertHOTP(user string, otp *hotp.HOTP) error {
 
 // GetHOTP gets HOTP token state for a user
 func (s *IdentityService) GetHOTP(user string) (*hotp.HOTP, error) {
+	logrus.Infof(">> %p users.GetHOTP(%v)", s, user)
+	defer logrus.Infof("<< %p users.GetHOTP(%v)", s, user)
+
 	bytes, err := s.backend.GetVal([]string{"web", "users", user},
 		"hotp")
 	if err != nil {

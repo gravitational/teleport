@@ -96,6 +96,9 @@ func NewTunnel(addr utils.NetAddr,
 	authServer *AuthServer,
 	opts ...ServerOption) (tunnel *AuthTunnel, err error) {
 
+	log.Infof(">> tun.NewTunnel(%v)", addr.String())
+	defer log.Infof("<< tun.NewTunnel(%v)", addr.String())
+
 	tunnel = &AuthTunnel{
 		authServer: authServer,
 		apiServer:  apiServer,

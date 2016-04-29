@@ -18,7 +18,7 @@ $(eval BUILDFLAGS := $(ADDFLAGS) -ldflags "-w $(shell go install $(PKGPATH)/vend
 ev:
 	$(MAKE) teleport
 t:
-	TELEPORT_DEBUG_LOG=1 go test -v ./lib/events
+	TELEPORT_DEBUG_TESTS=1 go test -v ./lib/web
 
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
