@@ -106,6 +106,16 @@ type AuditLogI interface {
 	// This function is usually used in conjunction with GetSessionReader to
 	// replay recorded session streams.
 	GetSessionEvents(sid session.ID) ([]EventFields, error)
+
+	// SearchEvents is a flexible way to find events. The format of a query string
+	// depends on the implementing backend. A recommended format is urlencoded
+	// (good enough for Lucene/Solr)
+	//
+	// Pagination is also defined via backend-specific query format.
+	//
+	// The only mandatory requirement is a date range (UTC). Results must always
+	// show up sorted by date (newest first)
+	SearchEvents(fromUTC, toUTC time.Time, query string) ([]EventFields, error)
 }
 
 // EventFields instance is attached to every logged event

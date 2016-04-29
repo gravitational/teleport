@@ -159,6 +159,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 	h.GET("/webapi/sites/:site/sessions/:sid/events", h.withSiteAuth(h.siteSessionEventsGet))
 	// get session's bytestream
 	h.GET("/webapi/sites/:site/sessions/:sid/stream", h.withSiteAuth(h.siteSessionStreamGet))
+	// search site events
+	h.GET("/webapi/sites/:site/events", h.withSiteAuth(h.siteEventsGet))
 
 	// OIDC related callback handlers
 	h.GET("/webapi/oidc/login/web", httplib.MakeHandler(h.oidcLoginWeb))
@@ -749,7 +751,7 @@ func (m *Handler) siteNodeConnect(w http.ResponseWriter, r *http.Request, p http
 	if err := json.Unmarshal([]byte(params), &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("Connect to node: %#v", req)
+	log.Infof("web client connected to node %#v", req)
 	connect, err := newConnectHandler(*req, ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -915,11 +917,58 @@ func (m *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 	return siteSessionGetResponse{Session: *sess}, nil
 }
 
+const maxStreamBytes = 512 * 1024
+
+// siteEventsGet allows to search for events on site
+//
+// GET /v1/webapi/sites/:site/events
+//
+// Query parameters:
+//   "from"  : date range from, encoded as RFC3339
+//   "to"    : date range to, encoded as RFC3339
+//   ...     : the rest of the query string is passed to the search back-end as-is,
+//             the default backend performs exact search: ?key=value means "event
+//             with a field 'key' with value 'value'
+//
+func (m *Handler) siteEventsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := site.GetClient()
+	if err != nil {
+		log.Error(err)
+		return nil, trace.Wrap(err)
+	}
+	to := time.Now().In(time.UTC)
+	from := to.AddDate(0, -1, 0) // one month ago
+	query := r.URL.Query()
+
+	// parse 'to' and 'from' params:
+	fromStr := query.Get("from")
+	if fromStr != "" {
+		from, err = time.Parse(time.RFC3339, fromStr)
+		if err != nil {
+			return nil, trace.BadParameter("from")
+		}
+	}
+	toStr := query.Get("to")
+	if toStr != "" {
+		to, err = time.Parse(time.RFC3339, toStr)
+		if err != nil {
+			return nil, trace.BadParameter("to")
+		}
+	}
+	// remove to & from fields, and pass the rest of it directly to the back-end:
+	query.Del("to")
+	query.Del("from")
+
+	el, err := clt.SearchEvents(from, to, query.Encode())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return eventsListGetResponse{Events: el}, nil
+}
+
 type siteSessionStreamGetResponse struct {
 	Bytes []byte `json:"bytes"`
 }
-
-const maxStreamBytes = 512 * 1024
 
 // siteSessionStreamGet returns a byte array from a session's stream
 //
@@ -971,7 +1020,7 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	return siteSessionStreamGetResponse{Bytes: buff.Bytes()}, nil
 }
 
-type siteSessionEventsGetResponse struct {
+type eventsListGetResponse struct {
 	Events []events.EventFields `json:"events"`
 }
 
@@ -996,7 +1045,7 @@ func (m *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return siteSessionEventsGetResponse{Events: e}, nil
+	return eventsListGetResponse{Events: e}, nil
 }
 
 // createSSHCertReq are passed by web client

@@ -764,6 +764,12 @@ func (c *Client) GetSessionEvents(sid session.ID) (retval []events.EventFields, 
 	return retval, nil
 }
 
+// SearchEvents returns events that fit the criteria
+func (c *Client) SearchEvents(from, to time.Time, query string) ([]events.EventFields, error) {
+	// TODO (ev)
+	return nil, nil
+}
+
 // openWebsocket helper connects to the auth API via SSH and then requests
 // a web socket via HTTP-over-SSH at a given URL. Returns a connected websocket.
 func (c *Client) openWebsocket(urlString string) (conn *websocket.Conn, err error) {

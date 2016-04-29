@@ -382,9 +382,7 @@ func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 	// wait for the shell to complete:
 	go func() {
 		result, err := collectStatus(cmd, cmd.Wait())
-		exitCode := 0
 		if result != nil {
-			exitCode = result.code
 			s.registry.broadcastResult(s.id, *result)
 		}
 		if err != nil {
@@ -395,7 +393,6 @@ func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 			events.SessionEventID: string(s.id),
 			events.EventUser:      ctx.teleportUser,
 		})
-		_ = exitCode
 	}()
 
 	// wait for the session to end before the shell, kill the shell

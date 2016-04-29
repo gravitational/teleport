@@ -129,6 +129,7 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 
 	// Audit logs AKA events
 	srv.POST("/v1/events", httplib.MakeHandler(srv.emitAuditEvent))
+	srv.GET("/v1/events", httplib.MakeHandler(srv.searchEvents))
 
 	return srv
 }
@@ -763,6 +764,47 @@ func (s *APIServer) validateOIDCAuthCallback(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 	return response, nil
+}
+
+type eventSearchResult struct {
+	Events []events.EventFields `json:"events"`
+}
+
+// HTTP GET /v1/events?query
+//
+// Query fields:
+//	'from'  : time filter in RFC3339 format
+//	'to'    : time filter in RFC3339 format
+//  ...     : other fields are passed directly to the audit backend
+func (s *APIServer) searchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var err error
+	to := time.Now().In(time.UTC)
+	from := to.AddDate(0, -1, 0) // one month ago
+	query := r.URL.Query()
+	// parse 'to' and 'from' params:
+	fromStr := query.Get("from")
+	if fromStr != "" {
+		from, err = time.Parse(time.RFC3339, fromStr)
+		if err != nil {
+			return nil, trace.BadParameter("from")
+		}
+	}
+	toStr := query.Get("to")
+	if toStr != "" {
+		to, err = time.Parse(time.RFC3339, toStr)
+		if err != nil {
+			return nil, trace.BadParameter("to")
+		}
+	}
+	// remove to & from fields, and pass the rest of it directly to the back-end:
+	query.Del("to")
+	query.Del("from")
+	// execute search:
+	eventsList, err := s.a.SearchEvents(from, to, query.Encode())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &eventSearchResult{Events: eventsList}, nil
 }
 
 type auditEventReq struct {

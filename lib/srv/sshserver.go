@@ -606,8 +606,6 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 	ctx := newCtx(s, sconn)
 	ctx.isTestStub = s.isTestStub
 	ctx.addCloser(ch)
-	ctx.Infof("ssh.handleSessionRequests()")
-	defer ctx.Infof("ssh.handleSessionRequests() completed")
 	defer ctx.Close()
 
 	// As SSH conversation progresses, at some point a session will be created and

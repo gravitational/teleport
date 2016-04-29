@@ -53,8 +53,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -332,6 +334,82 @@ func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 		fmt.Fprintln(l.file, line)
 	}
 	return nil
+}
+
+// Search finds events. Results show up sorted by date (newest first)
+func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]EventFields, error) {
+	logrus.Infof("auditLog.SearchEvents(%v, %v, query=%v)", fromUTC, toUTC, query)
+	queryVals, err := url.ParseQuery(query)
+	if err != nil {
+		return nil, trace.BadParameter("query")
+	}
+	// how many days of logs to search
+	days := int(toUTC.Sub(fromUTC).Hours() / 24)
+
+	df, err := os.Open(l.dataDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer df.Close()
+	entries, err := df.Readdir(-1)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	filtered := make([]os.FileInfo, 0, days)
+	for i := range entries {
+		fi := entries[i]
+		if fi.IsDir() {
+			continue
+		}
+		fd := fi.ModTime().UTC()
+		if fd.After(fromUTC) && fd.Before(toUTC) {
+			filtered = append(filtered, fi)
+		}
+	}
+	sort.Sort(byDate(filtered))
+
+	events := make([]EventFields, 0, len(filtered)*50)
+	for i := range filtered {
+		found, err := l.findInFile(filtered[i], queryVals)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		events = append(events, found...)
+	}
+	return events, nil
+}
+
+// byDate implements sort.Interface.
+type byDate []os.FileInfo
+
+func (f byDate) Len() int           { return len(f) }
+func (f byDate) Less(i, j int) bool { return f[i].ModTime().Before(f[j].ModTime()) }
+func (f byDate) Swap(i, j int)      { f[i], f[j] = f[j], f[i] }
+
+// findInFile scans a given log file and returns events that fit the criteria
+func (l *AuditLog) findInFile(fi os.FileInfo, query url.Values) ([]EventFields, error) {
+	logrus.Infof("auditLog.SearchEvents(file=%v, query=%v)", fi.Name(), query)
+	lf, err := os.OpenFile(fi.Name(), os.O_RDONLY, 00)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer lf.Close()
+
+	scanner := bufio.NewScanner(lf)
+	lineNo := 0
+	retval := make([]EventFields, 0)
+	for scanner.Scan() {
+		var ef EventFields
+		if err = json.Unmarshal(scanner.Bytes(), &ef); err != nil {
+			logrus.Warnf("invalid log entry in %s:L%d. not a valid JSON", fi.Name(), lineNo)
+		}
+		lineNo++
+		// see if it fits (for now we only support event types as the only filter value)
+		if ef.GetString(EventType) == query.Get(EventType) {
+			retval = append(retval, ef)
+		}
+	}
+	return retval, nil
 }
 
 // rotateLog() checks if the current log file is older than a given duration,

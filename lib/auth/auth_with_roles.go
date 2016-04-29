@@ -388,6 +388,13 @@ func (a *AuthWithRoles) GetSessionEvents(sid session.ID) ([]events.EventFields, 
 	return a.alog.GetSessionEvents(sid)
 }
 
+func (a *AuthWithRoles) SearchEvents(from, to time.Time, query string) ([]events.EventFields, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionViewSession); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.alog.SearchEvents(from, to, query)
+}
+
 // test helper
 func NewAuthWithRoles(authServer *AuthServer,
 	permChecker PermissionChecker,
