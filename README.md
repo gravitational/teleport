@@ -66,6 +66,9 @@ Teleport is written in Go. If you have Golang 1.5 and newer, simply clone this r
 and run `make`. You'll have to create `/var/lib/teleport` directory and then you can start 
 Teleport as a single-node cluster in development mode: `build/teleport start -d`
 
+NOTE: The Go compiler is somewhat sensitive to amount of memory: you will need at least 1GB of 
+virtual memory to compile Teleport. 512MB instance without swap will not work.
+
 ## Status
 
 **Teleport is not ready to be used in production yet**. Teleport is undergoing a comprehensive 
