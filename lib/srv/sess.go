@@ -168,7 +168,7 @@ func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *c
 			events.SessionEventID: string(sid),
 			events.EventLogin:     ctx.login,
 			events.EventUser:      ctx.teleportUser,
-			events.ResizeSize:     fmt.Sprintf("%d:%d", params.W, params.H),
+			events.TerminalSize:   params.Serialize(),
 		})
 
 	}()
@@ -356,6 +356,7 @@ func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 		events.EventUser:      ctx.teleportUser,
 		events.LocalAddr:      ctx.conn.LocalAddr().String(),
 		events.RemoteAddr:     ctx.conn.RemoteAddr().String(),
+		events.TerminalSize:   s.term.params.Serialize(),
 	})
 
 	// start recording this session

@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/session"
 
@@ -61,6 +62,14 @@ func (w *sessionStreamHandler) Close() error {
 	return nil
 }
 
+// sessionStreamPollPeriod defines how frequently web sessions are
+// sent new events
+var sessionStreamPollPeriod = time.Second
+
+// stream runs in a loop generating "something changed" events for a
+// given active WebSession
+//
+// The events are fed to a web client via the websocket
 func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 	w.ws = ws
 	clt, err := w.site.GetClient()
@@ -74,47 +83,46 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 		io.Copy(ioutil.Discard, ws)
 	}()
 
-	var lastEvent *sessionStreamEvent
+	eventsCursor := 0
+
+	pollEvents := func() {
+		// ask for any events than happened since the last call:
+		re, err := clt.GetSessionEvents(w.sessionID, eventsCursor)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		batchLen := len(re)
+		if batchLen == 0 {
+			return
+		}
+		// advance the cursor, so next time we'll ask for the latest:
+		eventsCursor = re[batchLen-1].GetInt(events.EventCursor)
+
+		// push events to the web client
+		event := &sessionStreamEvent{Events: re}
+		if err := websocket.JSON.Send(ws, event); err != nil {
+			log.Error(err)
+		}
+	}
+
 	ticker := time.NewTicker(w.pollPeriod)
 	defer ticker.Stop()
 	defer w.Close()
-	for {
-		servers, err := clt.GetNodes()
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-		}
-		sess, err := clt.GetSession(w.sessionID)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-		}
-		if sess != nil {
-			event := &sessionStreamEvent{
-				Session: *sess,
-				Nodes:   servers,
-			}
 
-			newData := w.diffEvents(lastEvent, event)
-			lastEvent = event
-			if newData {
-				if err := websocket.JSON.Send(ws, event); err != nil {
-					return trace.Wrap(err)
-				}
-			}
-		}
+	// keep polling in a loop:
+	for {
+		pollEvents()
+
+		// wait for next timer tick or a signal to abort:
 		select {
 		case <-ticker.C:
 		case <-w.closeC:
-			log.Infof("stream is closed")
+			log.Infof("[web] session.stream() exited")
 			return nil
 		}
 	}
 }
-
-var sessionStreamPollPeriod = time.Second
 
 func (w *sessionStreamHandler) Handler() http.Handler {
 	// TODO(klizhentas)
@@ -122,73 +130,10 @@ func (w *sessionStreamHandler) Handler() http.Handler {
 	// websocket.HandlerFunc to set empty origin checker
 	// make sure we check origin when in prod mode
 	return &websocket.Server{
-		Handler: w.logResult(w.stream),
+		Handler: func(ws *websocket.Conn) {
+			if err := w.stream(ws); err != nil {
+				log.WithFields(log.Fields{"sid": w.sessionID}).Infof("handler returned: %#v", err)
+			}
+		},
 	}
-}
-
-func (w *sessionStreamHandler) logResult(fn func(*websocket.Conn) error) websocket.Handler {
-	return func(ws *websocket.Conn) {
-		err := fn(ws)
-		if err != nil {
-			log.WithFields(log.Fields{"sid": w.sessionID}).Infof("handler returned: %#v", err)
-		}
-	}
-}
-
-func (w *sessionStreamHandler) diffEvents(last *sessionStreamEvent, new *sessionStreamEvent) bool {
-	// this is first call, ship whatever we have on this session
-	if last == nil {
-		return true
-	}
-	// new servers have arrived or disappeared
-	if len(last.Nodes) != len(new.Nodes) {
-		log.Infof("nodes have changes")
-		return true
-	}
-	// session parameters were updated
-	if sessionsDifferent(last.Session, new.Session) {
-		log.Infof("session has changes")
-		return true
-	}
-	// parties have joined or left the scene
-	if setsDifferent(partySet(last), partySet(new)) {
-		log.Infof("parties have changes")
-		return true
-	}
-	return false
-}
-
-func sessionsDifferent(a, b session.Session) bool {
-	if a.TerminalParams.W != b.TerminalParams.W {
-		return true
-	}
-	if a.TerminalParams.H != b.TerminalParams.H {
-		return true
-	}
-	if a.Active != b.Active {
-		return true
-	}
-	return false
-}
-
-func partySet(e *sessionStreamEvent) map[session.Party]bool {
-	parties := make(map[session.Party]bool, len(e.Session.Parties))
-	for _, party := range e.Session.Parties {
-		parties[party] = true
-	}
-	return parties
-}
-
-func setsDifferent(a, b map[session.Party]bool) bool {
-	for key := range a {
-		if !b[key] {
-			return true
-		}
-	}
-	for key := range b {
-		if !a[key] {
-			return true
-		}
-	}
-	return false
 }

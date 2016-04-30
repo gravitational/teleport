@@ -766,10 +766,6 @@ func (s *APIServer) validateOIDCAuthCallback(w http.ResponseWriter, r *http.Requ
 	return response, nil
 }
 
-type eventSearchResult struct {
-	Events []events.EventFields `json:"events"`
-}
-
 // HTTP GET /v1/events?query
 //
 // Query fields:
@@ -804,7 +800,7 @@ func (s *APIServer) searchEvents(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &eventSearchResult{Events: eventsList}, nil
+	return eventsList, nil
 }
 
 type auditEventReq struct {
@@ -874,14 +870,20 @@ func (s *APIServer) getSessionReader(w http.ResponseWriter, r *http.Request, p h
 	return nil, nil
 }
 
-// HTTP GET /v1/sessions/:id/events
+// HTTP GET /v1/sessions/:id/events?maxage=n
+// Query:
+//    'after' : cursor value to return events newer than N. Defaults to 0, (return all)
 func (s *APIServer) getSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	sid, err := session.ParseID(p.ByName("id"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("[AUTH] api.getSessionEvents(%v)", *sid)
-	return s.a.GetSessionEvents(*sid)
+	afterN, err := strconv.Atoi(r.URL.Query().Get("after"))
+	if err != nil {
+		afterN = 0
+	}
+	log.Infof("[AUTH] api.getSessionEvents(%v, after=%d)", *sid, afterN)
+	return s.a.GetSessionEvents(*sid, afterN)
 }
 
 func message(msg string) map[string]interface{} {

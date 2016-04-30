@@ -24,12 +24,13 @@ import (
 
 const (
 	// Common event fields:
-	EventType  = "event"       // event type/kind
-	EventTime  = "time"        // event time
-	EventLogin = "login"       // OS login
-	EventUser  = "user"        // teleport user
-	LocalAddr  = "addr.local"  // address on the host
-	RemoteAddr = "addr.remote" // client (user's) address
+	EventType   = "event"       // event type/kind
+	EventTime   = "time"        // event time
+	EventLogin  = "login"       // OS login
+	EventUser   = "user"        // teleport user
+	LocalAddr   = "addr.local"  // address on the host
+	RemoteAddr  = "addr.remote" // client (user's) address
+	EventCursor = "id"          // event ID (used as cursor value for enumeration, not stored)
 
 	// SessionPrintEvent event happens every time a write occurs to
 	// temirnal I/O during a session
@@ -83,8 +84,8 @@ const (
 	SCPAction = "action"
 
 	// ResizeEvent means that some user resized PTY on the client
-	ResizeEvent = "resize"
-	ResizeSize  = "size" // expressed as 'W:H'
+	ResizeEvent  = "resize"
+	TerminalSize = "size" // expressed as 'W:H'
 )
 
 // AuditLogI is the primary (and the only external-facing) interface for AUditLogger.
@@ -103,13 +104,13 @@ type AuditLogI interface {
 	GetSessionReader(sid session.ID, offsetBytes int) (io.ReadCloser, error)
 
 	// Returns all events that happen during a session sorted by time
-	// (oldest first). Some events are "compressed" (like resize events or "session write"
-	// events): if more than one of those happen within a second, only the last one
-	// will be returned.
+	// (oldest first).
+	//
+	// after tells to use only return events after a specified cursor Id
 	//
 	// This function is usually used in conjunction with GetSessionReader to
 	// replay recorded session streams.
-	GetSessionEvents(sid session.ID) ([]EventFields, error)
+	GetSessionEvents(sid session.ID, after int) ([]EventFields, error)
 
 	// SearchEvents is a flexible way to find events. The format of a query string
 	// depends on the implementing backend. A recommended format is urlencoded
