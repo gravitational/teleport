@@ -141,7 +141,7 @@ type SessionLogger struct {
 
 // LogEvent logs an event associated with this session
 func (sl *SessionLogger) LogEvent(fields EventFields) {
-	logrus.Infof("sessionLogger(%s).LogEvent(%v)", sl.sid, fields[EventType])
+	logrus.Infof("--> sessionLogger(%s).LogEvent(%v, bytes:%v)", sl.sid, fields[EventType], sl.writtenBytes)
 
 	// space optimization: no need to log sessionID into the session log (that log
 	// itself knows which session it belogs to)
@@ -151,8 +151,8 @@ func (sl *SessionLogger) LogEvent(fields EventFields) {
 	fields[SessionByteOffset] = sl.writtenBytes
 
 	// add "seconds since" timestamp:
-	now := sl.timeSource().In(time.UTC).Round(time.Second)
-	fields[SessionEventTimestamp] = int(now.Sub(sl.createdTime).Seconds())
+	now := sl.timeSource().In(time.UTC).Round(time.Millisecond)
+	fields[SessionEventTimestamp] = int(now.Sub(sl.createdTime).Nanoseconds() / 1000000)
 	fields[EventTime] = now
 
 	line := eventToLine(fields)
@@ -193,7 +193,7 @@ func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
 		logrus.Error(err)
 		return written, trace.Wrap(err)
 	}
-	logrus.Infof("sessionLogger %d bytes -> %v", written, sl.streamFile.Name())
+	logrus.Infof("--> sessionLogger %d bytes -> %v\n%v", written, sl.streamFile.Name(), bytes)
 
 	// log this as a session event (but not more often than once a sec)
 	sl.LogEvent(EventFields{
@@ -353,6 +353,9 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]Event
 	}
 	// how many days of logs to search?
 	days := int(toUTC.Sub(fromUTC).Hours() / 24)
+	if days < 0 {
+		return nil, trace.BadParameter("query")
+	}
 
 	// scan the log directory:
 	df, err := os.Open(l.dataDir)

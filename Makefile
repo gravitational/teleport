@@ -14,12 +14,6 @@ export
 
 $(eval BUILDFLAGS := $(ADDFLAGS) -ldflags "-w $(shell go install $(PKGPATH)/vendor/github.com/gravitational/version/cmd/linkflags && linkflags -pkg=$(GOPATH)/src/$(PKGPATH) -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)")
 
-# TODO (Ev): get rid of it
-ev:
-	$(MAKE) teleport
-t:
-	TELEPORT_DEBUG_TESTS=1 go test -v ./lib/web
-
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
 #

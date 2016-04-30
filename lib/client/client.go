@@ -122,12 +122,7 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 // If no labels are passed, ALL nodes are returned.
 func (proxy *ProxyClient) FindServersByLabels(labels map[string]string) ([]services.Server, error) {
 	nodes := make([]services.Server, 0)
-
-	siteInfo, err := proxy.getSite()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	site, err := proxy.ConnectToSite(siteInfo.Name, proxy.hostLogin)
+	site, err := proxy.ConnectToSite()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -146,12 +141,17 @@ func (proxy *ProxyClient) FindServersByLabels(labels map[string]string) ([]servi
 
 // ConnectToSite connects to the auth server of the given site via proxy.
 // It returns connected and authenticated auth server client
-func (proxy *ProxyClient) ConnectToSite(siteName string, user string) (auth.ClientI, error) {
+func (proxy *ProxyClient) ConnectToSite() (auth.ClientI, error) {
+	site, err := proxy.getSite()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// this connects us to a node which is an auth server for this site
 	// note the addres we're using: "@sitename", which in practice looks like "@{site-global-id}"
 	// the Teleport proxy interprets such address as a request to connec to the active auth server
 	// of the named site
-	nodeClient, err := proxy.ConnectToNode("@"+siteName, user)
+	nodeClient, err := proxy.ConnectToNode("@"+site.Name, proxy.hostLogin)
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)
@@ -263,12 +263,7 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.Rea
 		sessionID = session.NewID()
 	}
 
-	siteInfo, err := client.Proxy.getSite()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	siteClient, err := client.Proxy.ConnectToSite(siteInfo.Name, client.Proxy.hostLogin)
+	siteClient, err := client.Proxy.ConnectToSite()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

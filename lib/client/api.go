@@ -173,7 +173,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		log.Infof("no teleport login given. defaulting to %s", c.Login)
 	}
 	if c.ProxyHost == "" {
-		return nil, trace.BadParameter("proxy", "no proxy address specified")
+		return nil, trace.Errorf("No proxy address specified, missed --proxy flag?")
 	}
 	if c.HostLogin == "" {
 		c.HostLogin = Username()
@@ -317,12 +317,11 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool, input io.Reader
 }
 
 // Join connects to the existing/active SSH session
-func (tc *TeleportClient) Join(sid string, input io.Reader) (err error) {
-	sessionID := session.ID(sid)
+func (tc *TeleportClient) Join(sessionID session.ID, input io.Reader) (err error) {
 	if sessionID.Check() != nil {
-		return trace.Errorf("Invalid session ID format: %s", sid)
+		return trace.Errorf("Invalid session ID format: %s", string(sessionID))
 	}
-	var notFoundErrorMessage = fmt.Sprintf("session %v not found or it has ended", sid)
+	var notFoundErrorMessage = fmt.Sprintf("session '%s' not found or it has ended", sessionID)
 
 	// connect to proxy:
 	if !tc.Config.ProxySpecified() {
@@ -333,15 +332,7 @@ func (tc *TeleportClient) Join(sid string, input io.Reader) (err error) {
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	// connect to the first site via proxy:
-	sites, err := proxyClient.GetSites()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(sites) == 0 {
-		return trace.NotFound(notFoundErrorMessage)
-	}
-	site, err := proxyClient.ConnectToSite(sites[0].Name, tc.Config.HostLogin)
+	site, err := proxyClient.ConnectToSite()
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -144,32 +144,29 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 // notifyWinChange is called when an SSH server receives a command notifying
 // us that the terminal size has changed
 func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *ctx) error {
-	// update in-memory session (if present)
-	if ctx.session != nil {
-		err := ctx.session.term.setWinsize(params)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	// update the persisted session (if present)
-	sid, found := ctx.getEnv(sshutils.SessionEnvVar)
-	if !found || ctx.srv.sessionServer == nil {
+	if ctx.session == nil {
 		return nil
 	}
+	sid := ctx.session.id
 	log.Infof("notifyWinChange(%v)", sid)
+
+	// report this to the event/audit log:
+	s.srv.EmitAuditEvent(events.ResizeEvent, events.EventFields{
+		events.SessionEventID: sid,
+		events.EventLogin:     ctx.login,
+		events.EventUser:      ctx.teleportUser,
+		events.TerminalSize:   params.Serialize(),
+	})
+	err := ctx.session.term.setWinsize(params)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	go func() {
 		err := s.srv.sessionServer.UpdateSession(
-			rsession.UpdateRequest{ID: rsession.ID(sid), TerminalParams: &params})
+			rsession.UpdateRequest{ID: sid, TerminalParams: &params})
 		if err != nil {
 			log.Error(err)
 		}
-		// report this to the event/audit log:
-		s.srv.EmitAuditEvent(events.ResizeEvent, events.EventFields{
-			events.SessionEventID: string(sid),
-			events.EventLogin:     ctx.login,
-			events.EventUser:      ctx.teleportUser,
-			events.TerminalSize:   params.Serialize(),
-		})
 
 	}()
 	return nil
