@@ -381,11 +381,11 @@ func (a *AuthWithRoles) GetSessionReader(sid session.ID, offsetBytes int) (io.Re
 	return a.alog.GetSessionReader(sid, offsetBytes)
 }
 
-func (a *AuthWithRoles) GetSessionEvents(sid session.ID) ([]events.EventFields, error) {
+func (a *AuthWithRoles) GetSessionEvents(sid session.ID, afterN int) ([]events.EventFields, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionViewSession); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.alog.GetSessionEvents(sid)
+	return a.alog.GetSessionEvents(sid, afterN)
 }
 
 func (a *AuthWithRoles) SearchEvents(from, to time.Time, query string) ([]events.EventFields, error) {

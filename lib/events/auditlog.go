@@ -153,6 +153,7 @@ func (sl *SessionLogger) LogEvent(fields EventFields) {
 	// add "seconds since" timestamp:
 	now := sl.timeSource().In(time.UTC).Round(time.Second)
 	fields[SessionEventTimestamp] = int(now.Sub(sl.createdTime).Seconds())
+	fields[EventTime] = now
 
 	line := eventToLine(fields)
 
@@ -261,14 +262,14 @@ func (l *AuditLog) GetSessionReader(sid session.ID, offsetBytes int) (io.ReadClo
 }
 
 // Returns all events that happen during a session sorted by time
-// (oldest first). Some events are "compressed" (like resize events or "session write"
-// events): if more than one of those happen within a second, only the last one
-// will be returned.
+// (oldest first).
+//
+// Can be filtered by 'after' (cursor value to return events newer than)
 //
 // This function is usually used in conjunction with GetSessionReader to
 // replay recorded session streams.
-func (l *AuditLog) GetSessionEvents(sid session.ID) ([]EventFields, error) {
-	logrus.Infof("auditLog.GetSessionEvents(%s)", sid)
+func (l *AuditLog) GetSessionEvents(sid session.ID, afterN int) ([]EventFields, error) {
+	logrus.Infof("auditLog.GetSessionEvents(%s, after=%d)", sid, afterN)
 	logFile, err := os.OpenFile(l.sessionLogFn(sid), os.O_RDONLY, 0640)
 	if err != nil {
 		logrus.Warn(err)
@@ -284,12 +285,16 @@ func (l *AuditLog) GetSessionEvents(sid session.ID) ([]EventFields, error) {
 
 	// read line by line:
 	scanner := bufio.NewScanner(logFile)
-	for scanner.Scan() {
+	for lineNo := 0; scanner.Scan(); lineNo++ {
+		if lineNo < afterN {
+			continue
+		}
 		var fields EventFields
 		if err = json.Unmarshal(scanner.Bytes(), &fields); err != nil {
 			logrus.Error(err)
 			return nil, trace.Wrap(err)
 		}
+		fields[EventCursor] = lineNo
 		retval = append(retval, fields)
 	}
 	logrus.Infof("auditLog.GetSessionEvents() returned %d events", len(retval))
@@ -366,8 +371,12 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]Event
 			continue
 		}
 		fd := fi.ModTime().UTC()
+
 		if fd.After(fromUTC) && fd.Before(toUTC) {
 			filtered = append(filtered, fi)
+		} else {
+			logrus.Infof("skipping %s created on %v. does not fit range (%v, %v)", fi.Name(),
+				fd, fromUTC, toUTC)
 		}
 	}
 	// sort all accepted  files by date
@@ -376,7 +385,7 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]Event
 	// search within each file:
 	events := make([]EventFields, 0, len(filtered)*50)
 	for i := range filtered {
-		found, err := l.findInFile(filtered[i], queryVals)
+		found, err := l.findInFile(filepath.Join(l.dataDir, filtered[i].Name()), queryVals)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -396,8 +405,8 @@ func (f byDate) Swap(i, j int)      { f[i], f[j] = f[j], f[i] }
 // This simplistic implementation only searches for event type(s)
 //
 // You can pass multiple types like "event=session.start&event=session.end"
-func (l *AuditLog) findInFile(fi os.FileInfo, query url.Values) ([]EventFields, error) {
-	logrus.Infof("auditLog.SearchEvents(file=%v, query=%v)", fi.Name(), query)
+func (l *AuditLog) findInFile(fn string, query url.Values) ([]EventFields, error) {
+	logrus.Infof("auditLog.findInFile(%s, %v)", fn, query)
 	retval := make([]EventFields, 0)
 
 	eventTypes := query[EventType]
@@ -406,7 +415,7 @@ func (l *AuditLog) findInFile(fi os.FileInfo, query url.Values) ([]EventFields, 
 	}
 
 	// open the log file:
-	lf, err := os.OpenFile(fi.Name(), os.O_RDONLY, 00)
+	lf, err := os.OpenFile(fn, os.O_RDONLY, 0)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -431,7 +440,7 @@ func (l *AuditLog) findInFile(fi os.FileInfo, query url.Values) ([]EventFields, 
 		// in the query:
 		var ef EventFields
 		if err = json.Unmarshal(scanner.Bytes(), &ef); err != nil {
-			logrus.Warnf("invalid JSON in %s line %d", fi.Name(), lineNo)
+			logrus.Warnf("invalid JSON in %s line %d", fn, lineNo)
 		}
 		for i := range eventTypes {
 			if ef.GetString(EventType) == eventTypes[i] {

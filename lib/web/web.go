@@ -768,11 +768,9 @@ func (m *Handler) siteNodeConnect(w http.ResponseWriter, r *http.Request, p http
 }
 
 // sessionStreamEvent is sent over the session stream socket, it contains
-// last events that occured (only new events are sent), currently active
-// nodes and current active session
+// last events that occured (only new events are sent)
 type sessionStreamEvent struct {
-	Nodes   []services.Server `json:"nodes"`
-	Session session.Session   `json:"session"`
+	Events []events.EventFields `json:"events"`
 }
 
 // siteSessionStream returns a stream of events related to the session
@@ -890,10 +888,6 @@ func (m *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 	return siteSessionsGetResponse{Sessions: sessions}, nil
 }
 
-type siteSessionGetResponse struct {
-	Session session.Session `json:"session"`
-}
-
 // siteSessionGet gets the list of site session by id
 //
 // GET /v1/webapi/sites/:site/sessions/:sid
@@ -919,7 +913,7 @@ func (m *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 	if sess == nil {
 		return nil, trace.NotFound("Session %v cannot be found", sessionID)
 	}
-	return siteSessionGetResponse{Session: *sess}, nil
+	return *sess, nil
 }
 
 const maxStreamBytes = 512 * 1024
@@ -1033,7 +1027,11 @@ type eventsListGetResponse struct {
 
 // siteSessionEventsGet gets the site session by id
 //
-// GET /v1/webapi/sites/:site/sessions/:sid/events
+// GET /v1/webapi/sites/:site/sessions/:sid/events?after=N
+//
+// Query:
+//    "after" : cursor value of an event to return "newer than" events
+//              good for repeated polling
 //
 // Response body (each event is an arbitrary JSON structure)
 //
@@ -1048,7 +1046,11 @@ func (m *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	e, err := clt.GetSessionEvents(*sessionID)
+	afterN, err := strconv.Atoi(r.URL.Query().Get("after"))
+	if err != nil {
+		afterN = 0
+	}
+	e, err := clt.GetSessionEvents(*sessionID, afterN)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

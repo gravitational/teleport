@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/session"
 
@@ -82,33 +83,38 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 		io.Copy(ioutil.Discard, ws)
 	}()
 
+	eventsCursor := 0
+
+	pollEvents := func() {
+		// ask for any events than happened since the last call:
+		re, err := clt.GetSessionEvents(w.sessionID, eventsCursor)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		batchLen := len(re)
+		if batchLen == 0 {
+			return
+		}
+		// advance the cursor, so next time we'll ask for the latest:
+		eventsCursor = re[batchLen-1].GetInt(events.EventCursor)
+
+		// push events to the web client
+		event := &sessionStreamEvent{Events: re}
+		if err := websocket.JSON.Send(ws, event); err != nil {
+			log.Error(err)
+		}
+	}
+
 	ticker := time.NewTicker(w.pollPeriod)
 	defer ticker.Stop()
 	defer w.Close()
-	for {
-		// TODO: do we need to return nodes to the client here?
-		servers, err := clt.GetNodes()
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-		}
-		sess, err := clt.GetSession(w.sessionID)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-		}
-		if sess != nil {
-			event := &sessionStreamEvent{
-				Session: *sess,
-				Nodes:   servers,
-			}
-			if err := websocket.JSON.Send(ws, event); err != nil {
-				return trace.Wrap(err)
-			}
-		}
 
+	// keep polling in a loop:
+	for {
+		pollEvents()
+
+		// wait for next timer tick or a signal to abort:
 		select {
 		case <-ticker.C:
 		case <-w.closeC:

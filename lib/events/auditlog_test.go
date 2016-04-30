@@ -75,15 +75,21 @@ func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 	c.Assert(alog.loggers, check.HasLen, 0)
 
 	// inspect session "200". it sould have three events: join, print and leave:
-	history, err := alog.GetSessionEvents("200")
+	history, err := alog.GetSessionEvents("200", 0)
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 3)
 	c.Assert(history[0][EventLogin], check.Equals, "doggy")
 	c.Assert(history[0][EventType], check.Equals, SessionJoinEvent)
 	c.Assert(history[1][EventType], check.Equals, SessionPrintEvent)
-	c.Assert(history[1][SessionBytes].(float64), check.Equals, float64(0))
-	c.Assert(history[1][SessionPrintEventDelta].(float64), check.Equals, float64(5))
+	c.Assert(history[1][SessionByteOffset].(float64), check.Equals, float64(0))
+	c.Assert(history[1][SessionPrintEventBytes].(float64), check.Equals, float64(5))
 	c.Assert(history[2][EventType], check.Equals, SessionEndEvent)
+
+	// try the same, but with 'afterN', we should only get the 3rd event:
+	history2, err := alog.GetSessionEvents("200", 2)
+	c.Assert(err, check.IsNil)
+	c.Assert(history2, check.HasLen, 1)
+	c.Assert(history2[0], check.DeepEquals, history[2])
 	writer.Close()
 
 	// lets try session reader (with offset 2 of bytes, i.e. instead of "hello" we should get "llo")
@@ -98,6 +104,24 @@ func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 	n, err = reader.Read(buff)
 	c.Assert(err, check.Equals, io.EOF)
 	c.Assert(n, check.Equals, 0)
+
+	// try searching (in the future)
+	query := fmt.Sprintf("%s=%s", EventType, SessionStartEvent)
+	found, err := alog.SearchEvents(now.Add(time.Hour), now.Add(time.Hour), query)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(found), check.Equals, 0)
+
+	// try searching (wrong query)
+	found, err = alog.SearchEvents(now.Add(time.Hour), now.Add(time.Hour), "foo=bar")
+	c.Assert(err, check.IsNil)
+	c.Assert(len(found), check.Equals, 0)
+
+	// try searching (good query: for "session start")
+	found, err = alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), query)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(found), check.Equals, 1)
+	c.Assert(found[0].GetString(EventLogin), check.Equals, "vincent")
+
 }
 
 func (a *AuditTestSuite) TestBasicLogging(c *check.C) {

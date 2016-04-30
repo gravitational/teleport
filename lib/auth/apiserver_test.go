@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"fmt"
 	"net/http/httptest"
 	"path/filepath"
 	"time"
@@ -36,7 +37,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	. "gopkg.in/check.v1"
 )
-
 
 type APISuite struct {
 	srv  *httptest.Server
@@ -372,10 +372,27 @@ func (s *APISuite) TestSharedSessions(c *C) {
 		events.SessionEventID: sess.ID,
 		"1": "one",
 	})
-	e, err := s.clt.GetSessionEvents(sess.ID)
+	e, err := s.clt.GetSessionEvents(sess.ID, 0)
 	c.Assert(err, IsNil)
 	c.Assert(len(e), Equals, 1)
 	c.Assert(e[0]["1"].(string), Equals, "one")
+
+	// try searching for events (bad query)
+	to := time.Now().In(time.UTC).Add(time.Hour)
+	from := to.Add(-time.Hour * 2)
+	history, err := s.clt.SearchEvents(from, to, "")
+	c.Assert(err, IsNil)
+	c.Assert(history, NotNil)
+	c.Assert(len(history), Equals, 0)
+
+	// try searching for events (good query)
+	history, err = s.clt.SearchEvents(from, to,
+		fmt.Sprintf("%s=%s", events.EventType, events.SessionStartEvent))
+	c.Assert(err, IsNil)
+	c.Assert(history, NotNil)
+	c.Assert(len(history), Equals, 1)
+	c.Assert(history[0].GetString(events.SessionEventID), Equals, string(sess.ID))
+	c.Assert(history[0].GetString("1"), Equals, "one")
 }
 
 func (s *APISuite) TestSharedSessionsParties(c *C) {

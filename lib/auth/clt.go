@@ -23,18 +23,19 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"golang.org/x/net/websocket"
+
+	"github.com/gravitational/configure/cstrings"
+	"github.com/gravitational/roundtrip"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-
-	"github.com/gravitational/configure/cstrings"
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 )
 
@@ -745,15 +746,20 @@ func (c *Client) GetSessionReader(sid session.ID, offsetBytes int) (io.ReadClose
 		fmt.Sprintf("?from=%d", offsetBytes))
 }
 
-// Returns all events that happen during a session sorted by time
-// (oldest first). Some events are "compressed" (like resize events or "session write"
-// events): if more than one of those happen within a second, only the last one
-// will be returned.
+// Returns events that happen during a session sorted by time
+// (oldest first).
+//
+// afterN allows to filter by "newer than N" value where N is the cursor ID
+// of previously returned bunch (good for polling for latest)
 //
 // This function is usually used in conjunction with GetSessionReader to
 // replay recorded session streams.
-func (c *Client) GetSessionEvents(sid session.ID) (retval []events.EventFields, err error) {
-	response, err := c.Get(c.Endpoint("sessions", string(sid), "events"), url.Values{})
+func (c *Client) GetSessionEvents(sid session.ID, afterN int) (retval []events.EventFields, err error) {
+	var query url.Values
+	if afterN > 0 {
+		query.Set("after", strconv.Itoa(afterN))
+	}
+	response, err := c.Get(c.Endpoint("sessions", string(sid), "events"), query)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -766,8 +772,21 @@ func (c *Client) GetSessionEvents(sid session.ID) (retval []events.EventFields, 
 
 // SearchEvents returns events that fit the criteria
 func (c *Client) SearchEvents(from, to time.Time, query string) ([]events.EventFields, error) {
-	// TODO (ev)
-	return nil, nil
+	q, err := url.ParseQuery(query)
+	if err != nil {
+		return nil, trace.BadParameter("query")
+	}
+	q.Set("from", from.Format(time.RFC3339))
+	q.Set("to", to.Format(time.RFC3339))
+	response, err := c.Get(c.Endpoint("events"), q)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	retval := make([]events.EventFields, 0)
+	if err := json.Unmarshal(response.Bytes(), &retval); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return retval, nil
 }
 
 // openWebsocket helper connects to the auth API via SSH and then requests
