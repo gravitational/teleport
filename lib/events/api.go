@@ -35,6 +35,10 @@ const (
 	// temirnal I/O during a session
 	SessionPrintEvent = "print"
 
+	// SessionBytesDelta says how many bytes have been written into the session
+	// during "print" event
+	SessionPrintEventDelta = "delta"
+
 	// SessionEventTimestamp is an offset (in seconds) since the beginning of the
 	// session, when terminal IO event happened
 	SessionEventTimestamp = "sec"
@@ -47,9 +51,9 @@ const (
 	SessionEndEvent = "session.end"
 	SessionEventID  = "sid"
 
-	// SessionEventBytes is the number of bytes written to session stream since
+	// SessionBytes is the number of bytes written to session stream since
 	// the beginning
-	SessionEventBytes = "offset"
+	SessionBytes = "bytes"
 
 	// Join & Leave events indicate when someone joins/leaves a session
 	SessionJoinEvent  = "session.join"

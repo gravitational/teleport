@@ -147,7 +147,8 @@ func (sl *SessionLogger) LogEvent(fields EventFields) {
 	delete(fields, SessionEventID)
 
 	// add "bytes written" counter:
-	fields[SessionEventBytes] = sl.writtenBytes
+	fields[SessionBytes] = sl.writtenBytes
+
 	// add "seconds since" timestamp:
 	now := sl.timeSource().In(time.UTC).Round(time.Second)
 	fields[SessionEventTimestamp] = int(now.Sub(sl.createdTime).Seconds())
@@ -192,6 +193,11 @@ func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
 	}
 	logrus.Infof("sessionLogger %d bytes -> %v", written, sl.streamFile.Name())
 
+	// log this as a session event (but not more often than once a sec)
+	sl.LogEvent(EventFields{
+		EventType:              SessionPrintEvent,
+		SessionPrintEventDelta: len(bytes)})
+
 	// increase the total lengh of the stream
 	lockedMath := func() {
 		sl.Lock()
@@ -200,10 +206,6 @@ func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
 	}
 	lockedMath()
 
-	// log this as a session event (but not more often than once a sec)
-	sl.LogEvent(EventFields{
-		EventType:         SessionPrintEvent,
-		SessionEventBytes: sl.writtenBytes})
 	return written, nil
 }
 

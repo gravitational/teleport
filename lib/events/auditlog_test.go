@@ -81,7 +81,8 @@ func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 	c.Assert(history[0][EventLogin], check.Equals, "doggy")
 	c.Assert(history[0][EventType], check.Equals, SessionJoinEvent)
 	c.Assert(history[1][EventType], check.Equals, SessionPrintEvent)
-	c.Assert(history[1][SessionEventBytes].(float64), check.Equals, float64(5))
+	c.Assert(history[1][SessionBytes].(float64), check.Equals, float64(0))
+	c.Assert(history[1][SessionPrintEventDelta].(float64), check.Equals, float64(5))
 	c.Assert(history[2][EventType], check.Equals, SessionEndEvent)
 	writer.Close()
 
