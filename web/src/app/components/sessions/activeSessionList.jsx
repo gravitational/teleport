@@ -36,7 +36,7 @@ var ActiveSessionList = React.createClass({
                   cell={<TextCell data={data}/> }
                 />
                 <Column
-                  header={<Cell> </Cell> }
+                  header={<Cell /> }
                   cell={
                     <ButtonCell data={data} />
                   }

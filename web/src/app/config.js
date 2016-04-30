@@ -51,6 +51,7 @@ let cfg = {
     siteSessionPath: '/v1/webapi/sites/-current-/sessions',
     invitePath: '/v1/webapi/users/invites/:inviteToken',
     createUserPath: '/v1/webapi/users',
+    sessionEventsPath: '`/v1/webapi/sites/-current-/sessions/:sid/events',
     sessionChunk: '/v1/webapi/sites/-current-/sessions/:sid/chunks?start=:start&end=:end',
     sessionChunkCountPath: '/v1/webapi/sites/-current-/sessions/:sid/chunkscount',
     siteEventSessionFilterPath: `/v1/webapi/sites/-current-/sessions?filter=:filter`,
@@ -63,8 +64,8 @@ let cfg = {
       return formatPattern(cfg.api.sessionChunk, {sid, start, end});
     },
 
-    getFetchSessionLengthUrl(sid){
-      return formatPattern(cfg.api.sessionChunkCountPath, {sid});
+    getSessionEvents(sid){
+      return formatPattern(cfg.api.sessionEventsPath, {sid});
     },
 
     getFetchSessionsUrl(args){

@@ -16,9 +16,10 @@ limitations under the License.
 
 var React = require('react');
 var ReactSlider = require('react-slider');
-var TtyPlayer = require('app/common/ttyPlayer')
+var {TtyPlayer} = require('app/common/ttyPlayer')
 var Terminal = require('app/common/terminal');
 var SessionLeftPanel = require('./sessionLeftPanel.jsx');
+var cfg = require('app/config');
 
 class MyTerminal extends Terminal{
   constructor(tty, el){
@@ -29,6 +30,8 @@ class MyTerminal extends Terminal{
   connect(){
     this.tty.connect();
   }
+
+  _requestResize(){}
 }
 
 var TerminalPlayer = React.createClass({
@@ -63,8 +66,8 @@ var SessionPlayer = React.createClass({
   },
 
   getInitialState() {
-    var sid = this.props.sid;
-    this.tty = new TtyPlayer({sid});
+    var url = cfg.api.getFetchSessionUrl(this.props.sid);
+    this.tty = new TtyPlayer({url });
     return this.calculateState();
   },
 
@@ -79,7 +82,7 @@ var SessionPlayer = React.createClass({
       this.setState(newState);
     });
 
-    this.tty.play();
+    //this.tty.play();
   },
 
   togglePlayStop(){
@@ -104,11 +107,12 @@ var SessionPlayer = React.createClass({
   },
 
   render: function() {
-    var {isPlaying} = this.state;
+    var {isPlaying, current} = this.state;
 
     return (
      <div className="grv-current-session grv-session-player">
        <SessionLeftPanel/>
+       <h1 style={{position: 'absolute'}}>{current}</h1>
        <TerminalPlayer ref="term" tty={this.tty} scrollback={0} />
        <div className="grv-session-player-controls">
          <button className="btn" onClick={this.togglePlayStop}>

@@ -16,30 +16,116 @@ limitations under the License.
 
 var Tty = require('app/common/tty');
 var api = require('app/services/api');
-var cfg = require('app/config');
 var {showError} = require('app/modules/notifications/actions');
 var Buffer = require('buffer/').Buffer;
+var $ = require('jQuery');
+
 
 const logger = require('app/common/logger').create('TtyPlayer');
-const STREAM_START_INDEX = 1;
-const PRE_FETCH_BUF_SIZE = 5000;
+const STREAM_START_INDEX = 0;
+const PRE_FETCH_BUF_SIZE = 50;
+const URL_PREFIX_EVENTS = '/events';
 
 function handleAjaxError(err){
   showError('Unable to retrieve session info');
   logger.error('fetching session length', err);
 }
 
+class EventProvider{
+  constructor({url}){
+    this.url = url;
+    this.buffSize = PRE_FETCH_BUF_SIZE;
+    this.events = [];
+  }
+
+  getLength(){
+    return this.events.length;
+  }
+
+  init(){
+    return api.get(this.url + URL_PREFIX_EVENTS)
+      .done(this._init.bind(this))
+  }
+
+  getEventsWithByteStream(start, end){
+    if(this._shouldFetch(start, end)){
+      //simple buffering for now
+      let size = this.getLength();
+      let buffEnd = end + this.buffSize;
+      buffEnd = buffEnd > size ? size - 1 : buffEnd;
+
+      return this._fetch(start, buffEnd)
+        .then(this.processByteStream.bind(this, start, buffEnd))
+        .then(()=> this.events.slice(start, end));
+    }else{
+      return $.Deferred().resolve(this.events.slice(start, end));
+    }
+  }
+
+  processByteStream(start, end, byteStr){
+    let byteStrOffset = this.events[start].bytes;
+    this.events[start].data = byteStr.slice(0, byteStrOffset);
+    for(var i = start+1; i < end; i++){
+      let {bytes} = this.events[i];
+      this.events[i].data = byteStr.slice(byteStrOffset, byteStrOffset + bytes);
+      byteStrOffset += bytes;
+      console.info(i, this.events[i]);
+    }
+  }
+
+  _init(data){
+    let {events} = data;
+    let w, h;
+    for(var i = 0; i < events.length; i++){
+      if(events[i].event === 'resize'){
+        [w, h] = events[i].size.split(':');
+      }
+
+      if(events[i].event !== 'print'){
+        continue;
+      }
+
+      events[i].data = null;
+      events[i].w = Number(w);
+      events[i].h = Number(h);
+      events[i].bytes = events[i].bytes || 0;
+      this.events.push(events[i]);
+    }
+  }
+
+  _shouldFetch(start, end){
+    for(var i = start; i < end; i++){
+      if(this.events[i].data === null){
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  _fetch(start, end){
+    let offset = this.events[start].offset;
+    let bytes = this.events[end].offset - offset + this.events[end].bytes;
+    let url = `${this.url}/stream?offset=${offset}&bytes=${bytes}`;
+
+    return api.get(url).then((response)=>{
+      return new Buffer(response.bytes, 'base64').toString('utf8');
+    })
+  }
+
+}
+
 class TtyPlayer extends Tty {
-  constructor({sid}){
+  constructor({url}){
     super({});
-    this.sid = sid;
     this.current = STREAM_START_INDEX;
     this.length = -1;
-    this.ttyStream = new Array();
     this.isPlaying = false;
     this.isError = false;
     this.isReady = false;
     this.isLoading = true;
+
+    this._eventProvider = new EventProvider({url});
   }
 
   send(){
@@ -48,54 +134,15 @@ class TtyPlayer extends Tty {
   resize(){
   }
 
-  getDimensions(){
-    let chunkInfo = this.ttyStream[this.current-1];
-    if(chunkInfo){
-       return {
-         w: chunkInfo.w,
-         h: chunkInfo.h
-       }
-    }else{
-      return {w: undefined, h: undefined};
-    }
-  }
-
-  _handleError(){
-
-  }
-
-  _fetchEvents(){
-
-
-    api.get(`/v1/webapi/sites/-current-/sessions/${this.sid}/events`);
-    api.get(`/v1/webapi/sites/-current-/sessions/${this.sid}/stream`);
-      //.then(this._initEvents.bind(this))
-      //.fail(handleAjaxError)
-
-
-
-
-  }
-
   connect(){
     this._setStatusFlag({isLoading: true});
-
-    this._fetchEvents();
-    api.get(cfg.api.getFetchSessionLengthUrl(this.sid))
-      .done((data)=>{
-        /*
-        * temporary hotfix to back-end issue related to session chunks starting at
-        * index=1 and ending at index=length+1
-        **/
-        this.length = data.count+1;
+    this._eventProvider.init()
+      .done(()=>{
+        this.length = this._eventProvider.getLength();
         this._setStatusFlag({isReady: true});
       })
-      .fail((err)=>{
-        handleAjaxError(err);
-      })
-      .always(()=>{
-        this._change();
-      });
+      .fail(handleAjaxError)
+      .always(this._change.bind(this));
 
     this._change();
   }
@@ -151,54 +198,21 @@ class TtyPlayer extends Tty {
     this._change();
   }
 
-  _shouldFetch(start, end){
-    for(var i = start; i < end; i++){
-      if(this.ttyStream[i] === undefined){
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  _fetch(start, end){
-    end = end + PRE_FETCH_BUF_SIZE;
-    end = end > this.length ? this.length : end;
-
-    this._setStatusFlag({isLoading: true });
-
-    return api.get(cfg.api.getFetchSessionChunkUrl({sid: this.sid, start, end})).
-      done((response)=>{
-        for(var i = 0; i < end-start; i++){
-          let {data, delay, term: {h, w}} = response.chunks[i];
-          data = new Buffer(data, 'base64').toString('utf8');
-          this.ttyStream[start+i] = { data, delay, w, h };
-        }
-
-        this._setStatusFlag({isReady: true });
-      })
-      .fail((err)=>{
-        handleAjaxError(err);
-        this._setStatusFlag({isError: true });
-      })
-  }
-
-  _display(start, end){
-    let stream = this.ttyStream;
+  _display(stream){
     let i;
     let tmp = [{
-      data: [stream[start].data],
-      w: stream[start].w,
-      h: stream[start].h
+      data: [stream[0].data],
+      w: stream[0].w,
+      h: stream[0].h
     }];
 
     let cur = tmp[0];
 
-    for(i = start+1; i < end; i++){
+    for(i = 1; i < stream.length; i++){
       if(cur.w === stream[i].w && cur.h === stream[i].h){
         cur.data.push(stream[i].data)
       }else{
-        cur ={
+        cur = {
           data: [stream[i].data],
           w: stream[i].w,
           h: stream[i].h
@@ -211,25 +225,29 @@ class TtyPlayer extends Tty {
     for(i = 0; i < tmp.length; i ++){
       let str = tmp[i].data.join('');
       let {h, w} = tmp[i];
-      this.emit('resize', {h, w});
-      this.emit('data', str);
+      if(str.length > 0){
+        this.emit('resize', {h, w});
+        this.emit('data', str);
+      }
     }
-
-    this.current = end;
   }
 
   _showChunk(start, end){
-    if(this._shouldFetch(start, end)){
-      this._fetch(start, end).then(()=>
-        this._display(start, end));
-    }else{
-      this._display(start, end);
-    }
+    this._setStatusFlag({isLoading: true });
+    this._eventProvider.getEventsWithByteStream(start, end)
+      .done(events =>{
+        this._setStatusFlag({isReady: true });
+        this._display(events);
+        this.current = end;
+      })
+      .fail(err=>{
+        this._setStatusFlag({isError: true });
+        handleAjaxError(err);
+      })
   }
 
   _setStatusFlag(newStatus){
     let {isReady=false, isError=false, isLoading=false } = newStatus;
-
     this.isReady = isReady;
     this.isError = isError;
     this.isLoading = isLoading;
@@ -241,3 +259,7 @@ class TtyPlayer extends Tty {
 }
 
 export default TtyPlayer;
+export {
+  EventProvider,
+  TtyPlayer
+}

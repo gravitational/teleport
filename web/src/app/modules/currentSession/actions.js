@@ -37,20 +37,6 @@ const actions = {
     }
   },
 
-  resize(w, h){
-    // some min values
-    w = w < 5 ? 5 : w;
-    h = h < 5 ? 5 : h;
-
-    let reqData = { terminal_params: { w, h } };
-    let {sid} = reactor.evaluate(getters.currentSession);
-
-    logger.info('resize', `w:${w} and h:${h}`);
-    api.put(cfg.api.getTerminalSessionUrl(sid), reqData)
-      .done(()=> logger.info('resized'))
-      .fail((err)=> logger.error('failed to resize', err));
-  },
-
   openSession(sid){
     logger.info('attempt to open session', {sid});
     sessionModule.actions.fetchSession(sid)
@@ -67,7 +53,7 @@ const actions = {
       })
       .fail((err)=>{
         logger.error('open session', err);
-        session.getHistory().push(cfg.routes.pageNotFound);
+        //session.getHistory().push(cfg.routes.pageNotFound);
       })
   },
 
