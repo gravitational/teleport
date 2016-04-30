@@ -147,7 +147,7 @@ func (sl *SessionLogger) LogEvent(fields EventFields) {
 	delete(fields, SessionEventID)
 
 	// add "bytes written" counter:
-	fields[SessionBytes] = sl.writtenBytes
+	fields[SessionByteOffset] = sl.writtenBytes
 
 	// add "seconds since" timestamp:
 	now := sl.timeSource().In(time.UTC).Round(time.Second)
@@ -196,7 +196,7 @@ func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
 	// log this as a session event (but not more often than once a sec)
 	sl.LogEvent(EventFields{
 		EventType:              SessionPrintEvent,
-		SessionPrintEventDelta: len(bytes)})
+		SessionPrintEventBytes: len(bytes)})
 
 	// increase the total lengh of the stream
 	lockedMath := func() {
