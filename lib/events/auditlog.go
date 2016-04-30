@@ -57,6 +57,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -345,9 +346,10 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]Event
 	if err != nil {
 		return nil, trace.BadParameter("query")
 	}
-	// how many days of logs to search
+	// how many days of logs to search?
 	days := int(toUTC.Sub(fromUTC).Hours() / 24)
 
+	// scan the log directory:
 	df, err := os.Open(l.dataDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -368,8 +370,10 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]Event
 			filtered = append(filtered, fi)
 		}
 	}
+	// sort all accepted  files by date
 	sort.Sort(byDate(filtered))
 
+	// search within each file:
 	events := make([]EventFields, 0, len(filtered)*50)
 	for i := range filtered {
 		found, err := l.findInFile(filtered[i], queryVals)
@@ -389,26 +393,50 @@ func (f byDate) Less(i, j int) bool { return f[i].ModTime().Before(f[j].ModTime(
 func (f byDate) Swap(i, j int)      { f[i], f[j] = f[j], f[i] }
 
 // findInFile scans a given log file and returns events that fit the criteria
+// This simplistic implementation only searches for event type(s)
+//
+// You can pass multiple types like "event=session.start&event=session.end"
 func (l *AuditLog) findInFile(fi os.FileInfo, query url.Values) ([]EventFields, error) {
 	logrus.Infof("auditLog.SearchEvents(file=%v, query=%v)", fi.Name(), query)
+	retval := make([]EventFields, 0)
+
+	eventTypes := query[EventType]
+	if len(eventTypes) == 0 {
+		return retval, nil
+	}
+
+	// open the log file:
 	lf, err := os.OpenFile(fi.Name(), os.O_RDONLY, 00)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer lf.Close()
 
+	// for each line...
 	scanner := bufio.NewScanner(lf)
-	lineNo := 0
-	retval := make([]EventFields, 0)
-	for scanner.Scan() {
+	for lineNo := 0; scanner.Scan(); lineNo++ {
+		// see if any of the requested event types are on this line
+		presentInLine := false
+		for i := range eventTypes {
+			if strings.Contains(scanner.Text(), eventTypes[i]) {
+				presentInLine = true
+				break
+			}
+		}
+		// no need to JSON-parse, move on...
+		if !presentInLine {
+			continue
+		}
+		// parse JSON on the line and compare event type field to what's
+		// in the query:
 		var ef EventFields
 		if err = json.Unmarshal(scanner.Bytes(), &ef); err != nil {
-			logrus.Warnf("invalid log entry in %s:L%d. not a valid JSON", fi.Name(), lineNo)
+			logrus.Warnf("invalid JSON in %s line %d", fi.Name(), lineNo)
 		}
-		lineNo++
-		// see if it fits (for now we only support event types as the only filter value)
-		if ef.GetString(EventType) == query.Get(EventType) {
-			retval = append(retval, ef)
+		for i := range eventTypes {
+			if ef.GetString(EventType) == eventTypes[i] {
+				retval = append(retval, ef)
+			}
 		}
 	}
 	return retval, nil

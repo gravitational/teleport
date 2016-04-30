@@ -145,6 +145,14 @@ type TerminalParams struct {
 	H int `json:"h"`
 }
 
+// Serialize is a more strict version of String(): it returns a string
+// representation of terminal size, this is used in our APIs.
+// Format : "W:H"
+// Example: "80:25"
+func (p *TerminalParams) Serialize() string {
+	return fmt.Sprintf("%d:%d", p.W, p.H)
+}
+
 // String returns debug friendly representation of terminal
 func (p *TerminalParams) String() string {
 	return fmt.Sprintf("TerminalParams(w=%v, h=%v)", p.W, p.H)

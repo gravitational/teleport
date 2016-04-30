@@ -83,8 +83,8 @@ const (
 	SCPAction = "action"
 
 	// ResizeEvent means that some user resized PTY on the client
-	ResizeEvent = "resize"
-	ResizeSize  = "size" // expressed as 'W:H'
+	ResizeEvent  = "resize"
+	TerminalSize = "size" // expressed as 'W:H'
 )
 
 // AuditLogI is the primary (and the only external-facing) interface for AUditLogger.
