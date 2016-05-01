@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
@@ -529,6 +530,7 @@ func NewTunClient(authServers []utils.NetAddr, user string, authMethods []ssh.Au
 		refreshTicker: time.NewTicker(defaults.AuthServersRefreshPeriod),
 		closeC:        make(chan struct{}),
 	}
+	tc.setAuthServers(authServers)
 	for _, o := range opts {
 		o(tc)
 	}
@@ -548,7 +550,6 @@ func NewTunClient(authServers []utils.NetAddr, user string, authMethods []ssh.Au
 
 	// use local information about auth servers if it's available
 	if tc.addrStorage != nil {
-
 		authServers, err := tc.addrStorage.GetAddresses()
 		if err != nil {
 			if !trace.IsNotFound(err) {
@@ -668,27 +669,46 @@ func (c *TunClient) fetchAuthServers() ([]utils.NetAddr, error) {
 	return authServers, nil
 }
 
-func (c *TunClient) getAuthServers() []utils.NetAddr {
-	c.Lock()
-	defer c.Unlock()
-
-	out := make([]utils.NetAddr, len(c.authServers))
-	for i := range c.authServers {
-		out[i] = c.authServers[i]
-	}
+// getAuthServers returns a sorted list of auth servers
+func (c *TunClient) getAuthServers() (out []utils.NetAddr) {
+	// protected clone into 'out':
+	func() {
+		c.Lock()
+		defer c.Unlock()
+		out = make([]utils.NetAddr, len(c.authServers))
+		copy(out, c.authServers)
+	}()
+	// sort & return:
+	sort.Sort(byAddress(out))
 	return out
 }
 
+// byAddress allows to sort slices of addresses by implementing sort.Interface
+type byAddress []utils.NetAddr
+
+func (a byAddress) Len() int           { return len(a) }
+func (a byAddress) Less(i, j int) bool { return a[i].Addr < a[j].Addr }
+func (a byAddress) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+// setAuthServers assigns a new list of auth servers (CAs) who all together
+// control the cluster (site)
+//
+// it keeps the list of auth servers sorted
 func (c *TunClient) setAuthServers(servers []utils.NetAddr) {
+	sort.Sort(byAddress(servers))
+
 	c.Lock()
 	defer c.Unlock()
 
 	c.authServers = servers
 }
 
+// getClient returns an established SSH connection to one of the auth servers (CAs)
+// for the cluster.
 func (c *TunClient) getClient() (*ssh.Client, error) {
 	var client *ssh.Client
 	var err error
+
 	for _, authServer := range c.getAuthServers() {
 		client, err = c.dialAuthServer(authServer)
 		if err == nil {
