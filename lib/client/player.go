@@ -114,10 +114,6 @@ func (p *sessionPlayer) playRange(from, to int) {
 	// wait: waits between events during playback
 	prev := 0
 	wait := func(i int, e events.EventFields) {
-		// before "from"? play that instantly:
-		if i <= from {
-			return
-		}
 		ms := e.GetInt("ms")
 		// do not stop for longer than 1 second:
 		delay := ms - prev
@@ -128,7 +124,10 @@ func (p *sessionPlayer) playRange(from, to int) {
 		if delay > 100 && delay < 500 {
 			delay = 100
 		}
-		time.Sleep(time.Millisecond * time.Duration(delay))
+		// before "from"? play that instantly:
+		if i >= from {
+			time.Sleep(time.Millisecond * time.Duration(delay))
+		}
 		prev = ms
 	}
 	// playback goroutine:
@@ -151,7 +150,7 @@ func (p *sessionPlayer) playRange(from, to int) {
 				bytes = e.GetInt("bytes")
 				os.Stdout.Write(p.stream[offset : offset+bytes])
 			// resize terminal event:
-			case events.TerminalSize:
+			case events.ResizeEvent:
 				parts := strings.Split(e.GetString("size"), ":")
 				if len(parts) != 2 {
 					continue
