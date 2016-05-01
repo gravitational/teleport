@@ -69,7 +69,7 @@ class EventProvider{
       let {bytes} = this.events[i];
       this.events[i].data = byteStr.slice(byteStrOffset, byteStrOffset + bytes);
       byteStrOffset += bytes;
-      console.info(i, this.events[i]);
+      console.info({ index: i, data:this.events[i]});
     }
   }
 

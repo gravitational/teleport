@@ -29,8 +29,14 @@ export default {
     //let sid = '02aa3744-0e21-11e6-85fc-f0def19340e2';
 ///https://localhost:8080/web/sessions/195c1dd3-0e6c-11e6-8a80-f0def19340e2
 
-    //let sid = 'e64a8b03-0e6f-11e6-934b-f0def19340e2';
-    //api.get(`/v1/webapi/sites/-current-/sessions/${sid}/events`);
+    let sid = 'e64a8b03-0e6f-11e6-934b-f0def19340e2';
+    api.get(`/v1/webapi/sites/-current-/sessions/${sid}/events`);
+    api.get(`/v1/webapi/sites/-current-/sessions/${sid}/stream?offset=0&bytes=303`);
+
+    let frm = new Date('12/12/2015').toISOString();
+    let to = new Date('12/12/2016').toISOString();
+    api.get(`/v1/webapi/sites/-current-/events?event=session.start&event=session.end&from=${frm}&to=${to}`);
+    //api.get(`/v1/webapi/sites/-current-/events?from=${to}&to=${frm}`);
     //api.get(`/v1/webapi/sites/-current-/sessions/${sid}/stream?offset=0&bytes=303`);
 
 

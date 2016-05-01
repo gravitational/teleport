@@ -19,9 +19,10 @@ var api = require('app/services/api');
 var apiUtils = require('app/services/apiUtils');
 var cfg = require('app/config');
 var {showError} = require('app/modules/notifications/actions');
+var moment = require('moment');
 
 const logger = require('app/common/logger').create('Modules/Sessions');
-const { TLPT_SESSINS_RECEIVE, TLPT_SESSINS_UPDATE }  = require('./actionTypes');
+const { TLPT_SESSINS_RECEIVE, TLPT_SESSINS_UPDATE, TLPT_SESSINS_RECEIVE_EVENTS }  = require('./actionTypes');
 
 const actions = {
 
@@ -31,6 +32,25 @@ const actions = {
         reactor.dispatch(TLPT_SESSINS_UPDATE, json.session);
       }
     });
+  },
+
+  fetchSiteEvents(start, end){
+    // default values
+    start = start || moment(new Date()).endOf('day').toDate();
+    end = end || moment(end).subtract(3, 'day').startOf('day').toDate();
+
+    start = start.toISOString();
+    end = end.toISOString();
+
+    return api.get(cfg.api.getSiteEventsFilterUrl(start, end))
+      .done((json) => {
+        let {events=[]} = json;
+        reactor.dispatch(TLPT_SESSINS_RECEIVE_EVENTS, events);
+      })
+      .fail((err)=>{
+        showError('Unable to retrieve site events');
+        logger.error('fetchSiteEvents', err);
+      });
   },
 
   fetchSessions({end, sid, limit=cfg.maxSessionLoadSize}={}){

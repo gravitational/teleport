@@ -68,7 +68,13 @@ class TtyTerminal {
     this.resize(this.cols, this.rows);
 
     // term events
+    this.tty.on('data', (data) => {
+      console.info(data);
+    });
+
     this.term.on('data', (data) => this.tty.send(data));
+
+
 
     // tty
     this.tty.on('resize', ({h, w})=> this.resize(w, h));

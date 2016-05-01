@@ -55,6 +55,7 @@ let cfg = {
     sessionChunk: '/v1/webapi/sites/-current-/sessions/:sid/chunks?start=:start&end=:end',
     sessionChunkCountPath: '/v1/webapi/sites/-current-/sessions/:sid/chunkscount',
     siteEventSessionFilterPath: `/v1/webapi/sites/-current-/sessions?filter=:filter`,
+    siteEventsFilterPath: `/v1/webapi/sites/-current-/events?event=session.start&event=session.end&from=:start&to=:end`,
 
     getSsoUrl(redirect, provider){
       return cfg.baseUrl + formatPattern(cfg.api.sso, {redirect, provider});
@@ -62,6 +63,10 @@ let cfg = {
 
     getFetchSessionChunkUrl({sid, start, end}){
       return formatPattern(cfg.api.sessionChunk, {sid, start, end});
+    },
+
+    getSiteEventsFilterUrl(start, end){
+      return formatPattern(cfg.api.siteEventsFilterPath, {start, end});
     },
 
     getSessionEvents(sid){

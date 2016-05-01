@@ -15,7 +15,11 @@ limitations under the License.
 */
 
 var { Store, toImmutable } = require('nuclear-js');
-var { TLPT_SESSINS_RECEIVE, TLPT_SESSINS_UPDATE, TLPT_SESSINS_REMOVE_STORED }  = require('./actionTypes');
+var {
+  TLPT_SESSINS_RECEIVE,
+  TLPT_SESSINS_UPDATE,
+  TLPT_SESSINS_REMOVE_STORED,
+  TLPT_SESSINS_RECEIVE_EVENTS }  = require('./actionTypes');
 
 export default Store({
   getInitialState() {
@@ -23,6 +27,7 @@ export default Store({
   },
 
   initialize() {
+    this.on(TLPT_SESSINS_RECEIVE_EVENTS, receiveSessionEvents);
     this.on(TLPT_SESSINS_RECEIVE, receiveSessions);
     this.on(TLPT_SESSINS_UPDATE, updateSession);
     this.on(TLPT_SESSINS_REMOVE_STORED, removeStoredSessions);
@@ -36,6 +41,34 @@ function removeStoredSessions(state){
         state.remove(item.get('id'));
       }
     });
+  });
+}
+
+function receiveSessionEvents(state, events){
+  return state.withMutations(state => {
+    events.forEach(item=>{
+      // check if record already exists
+      let session = state.get(item.sid);
+      if(!session){
+         session = { id: item.sid };
+      }else{
+        session = session.toJS();
+      }
+
+      if(item.event === 'session.start'){
+        session.login - item.user;
+        session.created = item.time;
+        session.active = true;
+      }
+
+      if(item.event === 'session.end'){
+        session.login = item.user;
+        session.active = false;
+        session.last_active = item.time;
+      }
+
+      state.set(session.id, toImmutable(session));
+    })
   });
 }
 

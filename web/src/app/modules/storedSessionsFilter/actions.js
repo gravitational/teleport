@@ -16,10 +16,7 @@ limitations under the License.
 
 var reactor = require('app/reactor');
 var {filter} = require('./getters');
-var {maxSessionLoadSize} = require('app/config');
-var moment = require('moment');
-var apiUtils = require('app/services/apiUtils');
-
+var {fetchSiteEvents} = require('./../sessions/actions');
 var {showError} = require('app/modules/notifications/actions');
 
 const logger = require('app/common/logger').create('Modules/Sessions');
@@ -28,27 +25,14 @@ const {
   TLPT_STORED_SESSINS_FILTER_SET_RANGE,
   TLPT_STORED_SESSINS_FILTER_SET_STATUS }  = require('./actionTypes');
 
-const {TLPT_SESSINS_RECEIVE, TLPT_SESSINS_REMOVE_STORED }  = require('./../sessions/actionTypes');
+const { TLPT_SESSINS_REMOVE_STORED }  = require('./../sessions/actionTypes');
 
-/**
-* Due to current limitations of the backend API, the filtering logic for the Archived list of Session
-* works as follows:
-*  1) each time a new date range is set, all previously retrieved inactive sessions get deleted.
-*  2) hasMore flag will be determine after a consequent fetch request with new date range values.
-*/
 
 const actions = {
 
   fetch(){
-    let { end } = reactor.evaluate(filter);
-    _fetch(end);
-  },
-
-  fetchMore(){
-    let {status, end } = reactor.evaluate(filter);
-    if(status.hasMore === true && !status.isLoading){
-      _fetch(end, status.sid);
-    }
+    let { start, end } = reactor.evaluate(filter);
+    _fetch(start, end);
   },
 
   removeStoredSessions(){
@@ -57,14 +41,14 @@ const actions = {
 
   setTimeRange(start, end){
     reactor.batch(()=>{
-      reactor.dispatch(TLPT_STORED_SESSINS_FILTER_SET_RANGE, {start, end, hasMore: false});
+      reactor.dispatch(TLPT_STORED_SESSINS_FILTER_SET_RANGE, {start, end});
       reactor.dispatch(TLPT_SESSINS_REMOVE_STORED);
-      _fetch(end);
+      _fetch(start, end);
     });
   }
 }
 
-function _fetch(end, sid){
+function _fetch(start, end){
   let status = {
     hasMore: false,
     isLoading: true
@@ -72,44 +56,14 @@ function _fetch(end, sid){
 
   reactor.dispatch(TLPT_STORED_SESSINS_FILTER_SET_STATUS, status);
 
-  let start = end || new Date();
-  let params = {
-    order: -1,
-    limit: maxSessionLoadSize,
-    start,
-    sid
-  };
-
-  return apiUtils.filterSessions(params).done((json) => {
-    let {sessions} = json;
-    let {start} = reactor.evaluate(filter);
-
-    status.hasMore = false;
-    status.isLoading = false;
-
-    if (sessions.length === maxSessionLoadSize) {
-      let {id, created} = sessions[sessions.length-1];
-      status.sid = id;
-      status.hasMore = moment(start).isBefore(created);
-
-      /**
-      * remove at least 1 item before storing the sessions, this way we ensure that
-      * there will be always at least one item on the next 'fetchMore' request.
-      */
-      sessions = sessions.slice(0, maxSessionLoadSize-1);
-    }
-
-    reactor.batch(()=>{
-      reactor.dispatch(TLPT_SESSINS_RECEIVE, sessions);
-      reactor.dispatch(TLPT_STORED_SESSINS_FILTER_SET_STATUS, status);
+  return fetchSiteEvents(start, end)
+    .done(() => {
+      reactor.dispatch(TLPT_STORED_SESSINS_FILTER_SET_STATUS, {isLoading: false});
+    })
+    .fail((err)=>{
+      showError('Unable to retrieve list of sessions for a given time range');
+      logger.error('fetching filtered set of sessions', err);
     });
-
-  })
-  .fail((err)=>{
-    showError('Unable to retrieve list of sessions');
-    logger.error('fetching filtered set of sessions', err);
-  });
-
 }
 
 export default actions;
