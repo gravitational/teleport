@@ -275,12 +275,6 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool, input io.Reader
 		return trace.BadParameter("no target host specified")
 	}
 
-	// more than one node for an interactive shell?
-	// that can't be!
-	if len(nodeAddrs) != 1 {
-		return trace.BadParameter("cannot launch shell on multiple nodes: %v", nodeAddrs)
-	}
-
 	// proxy local ports (forward incoming connections to remote host ports)
 	if len(tc.Config.LocalForwardPorts) > 0 {
 		nodeClient, err := proxyClient.ConnectToNode(nodeAddrs[0]+"@"+siteInfo.Name, tc.Config.HostLogin)
