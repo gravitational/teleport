@@ -60,11 +60,12 @@ func (s *sessionRegistry) joinShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 	if ctx.session != nil {
 		// emit "joined session" event:
 		s.srv.EmitAuditEvent(events.SessionJoinEvent, events.EventFields{
-			events.SessionEventID: string(ctx.session.id),
-			events.EventLogin:     ctx.login,
-			events.EventUser:      ctx.teleportUser,
-			events.LocalAddr:      ctx.conn.LocalAddr().String(),
-			events.RemoteAddr:     ctx.conn.RemoteAddr().String(),
+			events.SessionEventID:  string(ctx.session.id),
+			events.EventLogin:      ctx.login,
+			events.EventUser:       ctx.teleportUser,
+			events.LocalAddr:       ctx.conn.LocalAddr().String(),
+			events.RemoteAddr:      ctx.conn.RemoteAddr().String(),
+			events.SessionServerID: ctx.srv.ID(),
 		})
 		ctx.Infof("joining session: %v", ctx.session.id)
 		_, err := ctx.session.join(ch, req, ctx)
@@ -109,8 +110,9 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 	if len(sess.parties) != 0 {
 		// emit an audit event
 		s.srv.EmitAuditEvent(events.SessionLeaveEvent, events.EventFields{
-			events.SessionEventID: string(sess.id),
-			events.EventUser:      party.user,
+			events.SessionEventID:  string(sess.id),
+			events.EventUser:       party.user,
+			events.SessionServerID: party.serverID,
 		})
 		return nil
 	}
@@ -341,12 +343,13 @@ func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 
 	// emit "new session created" event:
 	s.registry.srv.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
-		events.SessionEventID: string(s.id),
-		events.EventLogin:     ctx.login,
-		events.EventUser:      ctx.teleportUser,
-		events.LocalAddr:      ctx.conn.LocalAddr().String(),
-		events.RemoteAddr:     ctx.conn.RemoteAddr().String(),
-		events.TerminalSize:   s.term.params.Serialize(),
+		events.SessionEventID:  string(s.id),
+		events.SessionServerID: ctx.srv.ID(),
+		events.EventLogin:      ctx.login,
+		events.EventUser:       ctx.teleportUser,
+		events.LocalAddr:       ctx.conn.LocalAddr().String(),
+		events.RemoteAddr:      ctx.conn.RemoteAddr().String(),
+		events.TerminalSize:    s.term.params.Serialize(),
 	})
 
 	// start recording this session

@@ -41,6 +41,8 @@ func (a *AuditTestSuite) TestNew(c *check.C) {
 
 func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 	now := time.Now().In(time.UTC).Round(time.Second)
+	os.RemoveAll(a.dataDir)
+
 	// create audit log, write a couple of events into it, close it
 	alog, err := NewAuditLog(a.dataDir, true)
 	c.Assert(err, check.IsNil)
@@ -122,6 +124,12 @@ func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 	c.Assert(len(found), check.Equals, 1)
 	c.Assert(found[0].GetString(EventLogin), check.Equals, "vincent")
 
+	// try searching (empty query means "anything")
+	found, err = alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), "")
+	c.Assert(err, check.IsNil)
+	c.Assert(len(found), check.Equals, 6) // total number of events logged in this test
+	fmt.Println(found[0])
+	c.Assert(found[0].GetString(EventLogin), check.Equals, "vincent")
 }
 
 func (a *AuditTestSuite) TestBasicLogging(c *check.C) {

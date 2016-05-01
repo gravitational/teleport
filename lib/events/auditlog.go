@@ -127,6 +127,7 @@ type SessionLogger struct {
 	// eventsFile stores logged events, just like the main logger, except
 	// these are all associated with this session
 	eventsFile *os.File
+
 	// streamFile stores bytes from the session terminal I/O for replaying
 	streamFile *os.File
 
@@ -405,17 +406,15 @@ func (f byDate) Less(i, j int) bool { return f[i].ModTime().Before(f[j].ModTime(
 func (f byDate) Swap(i, j int)      { f[i], f[j] = f[j], f[i] }
 
 // findInFile scans a given log file and returns events that fit the criteria
-// This simplistic implementation only searches for event type(s)
+// This simplistic implementation ONLY SEARCHES FOR EVENT TYPE(s)
 //
 // You can pass multiple types like "event=session.start&event=session.end"
 func (l *AuditLog) findInFile(fn string, query url.Values) ([]EventFields, error) {
 	logrus.Infof("auditLog.findInFile(%s, %v)", fn, query)
 	retval := make([]EventFields, 0)
 
-	eventTypes := query[EventType]
-	if len(eventTypes) == 0 {
-		return retval, nil
-	}
+	eventFilter := query[EventType]
+	doFilter := len(eventFilter) > 0
 
 	// open the log file:
 	lf, err := os.OpenFile(fn, os.O_RDONLY, 0)
@@ -427,16 +426,16 @@ func (l *AuditLog) findInFile(fn string, query url.Values) ([]EventFields, error
 	// for each line...
 	scanner := bufio.NewScanner(lf)
 	for lineNo := 0; scanner.Scan(); lineNo++ {
-		// see if any of the requested event types are on this line
-		presentInLine := false
-		for i := range eventTypes {
-			if strings.Contains(scanner.Text(), eventTypes[i]) {
-				presentInLine = true
+		accepted := false
+		// optimization: to avoid parsing JSON unnecessarily, lets see if we
+		// can filter out lines that don't even have the requested event type on the line
+		for i := range eventFilter {
+			if strings.Contains(scanner.Text(), eventFilter[i]) {
+				accepted = true
 				break
 			}
 		}
-		// no need to JSON-parse, move on...
-		if !presentInLine {
+		if doFilter && !accepted {
 			continue
 		}
 		// parse JSON on the line and compare event type field to what's
@@ -445,10 +444,14 @@ func (l *AuditLog) findInFile(fn string, query url.Values) ([]EventFields, error
 		if err = json.Unmarshal(scanner.Bytes(), &ef); err != nil {
 			logrus.Warnf("invalid JSON in %s line %d", fn, lineNo)
 		}
-		for i := range eventTypes {
-			if ef.GetString(EventType) == eventTypes[i] {
-				retval = append(retval, ef)
+		for i := range eventFilter {
+			if ef.GetString(EventType) == eventFilter[i] {
+				accepted = true
+				break
 			}
+		}
+		if accepted || !doFilter {
+			retval = append(retval, ef)
 		}
 	}
 	return retval, nil

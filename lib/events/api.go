@@ -53,6 +53,7 @@ const (
 	// SessionEndEvent indicates taht a session has ended
 	SessionEndEvent = "session.end"
 	SessionEventID  = "sid"
+	SessionServerID = "server_id"
 
 	// SessionByteOffset is the number of bytes written to session stream since
 	// the beginning
