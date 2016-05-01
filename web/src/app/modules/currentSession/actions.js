@@ -18,7 +18,9 @@ var session = require('app/services/session');
 var api = require('app/services/api');
 var cfg = require('app/config');
 var getters = require('./getters');
-var sessionModule = require('./../sessions');
+var {fetchSessions, fetchSession} = require('./../sessions/actions');
+var sessionGetters = require('./../sessions/getters');
+var $ = require('jQuery');
 
 const logger = require('app/common/logger').create('Current Session');
 const { TLPT_CURRENT_SESSION_OPEN, TLPT_CURRENT_SESSION_CLOSE } = require('./actionTypes');
@@ -39,9 +41,10 @@ const actions = {
 
   openSession(sid){
     logger.info('attempt to open session', {sid});
-    sessionModule.actions.fetchSession(sid)
+
+    $.when(fetchSessions(), fetchSession(sid))        
       .done(()=>{
-        let sView = reactor.evaluate(sessionModule.getters.sessionViewById(sid));
+        let sView = reactor.evaluate(sessionGetters.sessionViewById(sid));
         let { serverId, login } = sView;
         logger.info('open session', 'OK');
         reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {
