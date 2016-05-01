@@ -316,6 +316,7 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.Rea
 
 	broadcastClose := utils.NewCloseBroadcaster()
 
+	// this goroutine sleeps until a terminal size changes (it receives an OS signal)
 	sigC := make(chan os.Signal, 1)
 	signal.Notify(sigC, syscall.SIGWINCH)
 	go func() {
@@ -325,11 +326,13 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.Rea
 				if sig == nil {
 					return
 				}
+				// get the size:
 				winSize, err := term.GetWinsize(0)
 				if err != nil {
 					log.Infof("error getting size: %s", err)
 					continue
 				}
+				// send the new window size to the server
 				_, err = clientSession.SendRequest(
 					sshutils.WindowChangeReq, false,
 					ssh.Marshal(sshutils.WinChangeReqParams{
@@ -367,10 +370,20 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.Rea
 				if prevSess.TerminalParams.W == sess.TerminalParams.W && prevSess.TerminalParams.H == sess.TerminalParams.H {
 					continue
 				}
-				// ok, something have changed, let's resize to the new parameters
-				err = term.SetWinsize(0, sess.TerminalParams.Winsize())
+
+				newSize := sess.TerminalParams.Winsize()
+
+				currentSize, err := term.GetWinsize(0)
 				if err != nil {
-					log.Infof("error setting size: %s", err)
+					log.Error(err)
+				}
+				if currentSize.Width != newSize.Width || currentSize.Height != newSize.Height {
+					// ok, something have changed, let's resize to the new parameters
+					err = term.SetWinsize(0, sess.TerminalParams.Winsize())
+					if err != nil {
+						log.Infof("error setting size: %s", err)
+					}
+					os.Stdout.Write([]byte(fmt.Sprintf("\x1b[8;%d;%dt", newSize.Height, newSize.Width)))
 				}
 				prevSess = sess
 			case <-broadcastClose.C:
