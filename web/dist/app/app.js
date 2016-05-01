@@ -2413,14 +2413,7 @@ webpackJsonp([1],[
 	  };
 	
 	  TtyTerminal.prototype.destroy = function destroy() {
-	    if (this.tty !== null) {
-	      this.tty.disconnect();
-	    }
-	
-	    if (this.ttyEvents !== null) {
-	      this.ttyEvents.disconnect();
-	      this.ttyEvents.removeAllListeners();
-	    }
+	    this._disconnect();
 	
 	    if (this.term !== null) {
 	      this.term.destroy();
@@ -2443,6 +2436,17 @@ webpackJsonp([1],[
 	    this.cols = cols;
 	    this.rows = rows;
 	    this.term.resize(this.cols, this.rows);
+	  };
+	
+	  TtyTerminal.prototype._disconnect = function _disconnect() {
+	    if (this.tty !== null) {
+	      this.tty.disconnect();
+	    }
+	
+	    if (this.ttyEvents !== null) {
+	      this.ttyEvents.disconnect();
+	      this.ttyEvents.removeAllListeners();
+	    }
 	  };
 	
 	  TtyTerminal.prototype._requestResize = function _requestResize() {
@@ -5269,6 +5273,8 @@ webpackJsonp([1],[
 	    this.tty.connect();
 	  };
 	
+	  MyTerminal.prototype._disconnect = function _disconnect() {};
+	
 	  MyTerminal.prototype._requestResize = function _requestResize() {};
 	
 	  return MyTerminal;
@@ -7262,13 +7268,13 @@ webpackJsonp([1],[
 	    //let sid = '02aa3744-0e21-11e6-85fc-f0def19340e2';
 	    ///https://localhost:8080/web/sessions/195c1dd3-0e6c-11e6-8a80-f0def19340e2
 	
-	    var sid = 'd7c2783b-0fdb-11e6-91e1-f0def19340e2';
-	    api.get('/v1/webapi/sites/-current-/sessions/' + sid + '/events');
-	    api.get('/v1/webapi/sites/-current-/sessions/' + sid + '/stream?offset=0&bytes=303');
+	    //let sid = 'd7c2783b-0fdb-11e6-91e1-f0def19340e2';
+	    //api.get(`/v1/webapi/sites/-current-/sessions/${sid}/events`);
+	    //api.get(`/v1/webapi/sites/-current-/sessions/${sid}/stream?offset=0&bytes=303`);
 	
-	    var frm = new Date('12/12/2015').toISOString();
-	    var to = new Date('12/12/2016').toISOString();
-	    api.get('/v1/webapi/sites/-current-/events?event=session.start&event=session.end&from=' + frm + '&to=' + to);
+	    //let frm = new Date('12/12/2015').toISOString();
+	    //let to = new Date('12/12/2016').toISOString();
+	    //api.get(`/v1/webapi/sites/-current-/events?event=session.start&event=session.end&from=${frm}&to=${to}`);
 	    //api.get(`/v1/webapi/sites/-current-/events?from=${to}&to=${frm}`);
 	    //api.get(`/v1/webapi/sites/-current-/sessions/${sid}/stream?offset=0&bytes=303`);
 	
@@ -7639,6 +7645,10 @@ webpackJsonp([1],[
 	function updateSessionWithEvents(state, events) {
 	  return state.withMutations(function (state) {
 	    events.forEach(function (item) {
+	      if (item.event !== 'session.start' && item.event !== 'session.end') {
+	        return;
+	      }
+	
 	      // check if record already exists
 	      var session = state.get(item.sid);
 	      if (!session) {

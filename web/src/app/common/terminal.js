@@ -101,14 +101,7 @@ class TtyTerminal {
   }
 
   destroy() {
-    if(this.tty !== null){
-      this.tty.disconnect();
-    }
-
-    if(this.ttyEvents !== null){
-      this.ttyEvents.disconnect();
-      this.ttyEvents.removeAllListeners();
-    }
+    this._disconnect();
 
     if(this.term !== null){
       this.term.destroy();
@@ -131,6 +124,17 @@ class TtyTerminal {
     this.cols = cols;
     this.rows = rows;
     this.term.resize(this.cols, this.rows);
+  }
+
+  _disconnect(){
+    if(this.tty !== null){
+      this.tty.disconnect();
+    }
+
+    if(this.ttyEvents !== null){
+      this.ttyEvents.disconnect();
+      this.ttyEvents.removeAllListeners();
+    }
   }
 
   _requestResize(){
