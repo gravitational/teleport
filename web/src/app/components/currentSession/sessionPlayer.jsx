@@ -31,6 +31,8 @@ class MyTerminal extends Terminal{
     this.tty.connect();
   }
 
+  _disconnect(){}
+
   _requestResize(){}
 }
 

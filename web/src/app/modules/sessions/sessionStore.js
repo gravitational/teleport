@@ -47,6 +47,10 @@ function removeStoredSessions(state){
 function updateSessionWithEvents(state, events){
   return state.withMutations(state => {
     events.forEach(item=>{
+      if(item.event !== 'session.start' && item.event !== 'session.end'){
+        return;
+      }
+      
       // check if record already exists
       let session = state.get(item.sid);
       if(!session){
