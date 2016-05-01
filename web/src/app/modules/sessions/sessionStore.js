@@ -19,7 +19,7 @@ var {
   TLPT_SESSINS_RECEIVE,
   TLPT_SESSINS_UPDATE,
   TLPT_SESSINS_REMOVE_STORED,
-  TLPT_SESSINS_RECEIVE_EVENTS }  = require('./actionTypes');
+  TLPT_SESSINS_UPDATE_WITH_EVENTS }  = require('./actionTypes');
 
 export default Store({
   getInitialState() {
@@ -27,7 +27,7 @@ export default Store({
   },
 
   initialize() {
-    this.on(TLPT_SESSINS_RECEIVE_EVENTS, receiveSessionEvents);
+    this.on(TLPT_SESSINS_UPDATE_WITH_EVENTS, updateSessionWithEvents);
     this.on(TLPT_SESSINS_RECEIVE, receiveSessions);
     this.on(TLPT_SESSINS_UPDATE, updateSession);
     this.on(TLPT_SESSINS_REMOVE_STORED, removeStoredSessions);
@@ -44,7 +44,7 @@ function removeStoredSessions(state){
   });
 }
 
-function receiveSessionEvents(state, events){
+function updateSessionWithEvents(state, events){
   return state.withMutations(state => {
     events.forEach(item=>{
       // check if record already exists

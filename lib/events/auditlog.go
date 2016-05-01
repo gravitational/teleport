@@ -144,10 +144,6 @@ type SessionLogger struct {
 func (sl *SessionLogger) LogEvent(fields EventFields) {
 	logrus.Infof("--> sessionLogger(%s).LogEvent(%v, bytes:%v)", sl.sid, fields[EventType], sl.writtenBytes)
 
-	// space optimization: no need to log sessionID into the session log (that log
-	// itself knows which session it belogs to)
-	delete(fields, SessionEventID)
-
 	// add "bytes written" counter:
 	fields[SessionByteOffset] = sl.writtenBytes
 

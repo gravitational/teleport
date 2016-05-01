@@ -22,14 +22,14 @@ var {showError} = require('app/modules/notifications/actions');
 var moment = require('moment');
 
 const logger = require('app/common/logger').create('Modules/Sessions');
-const { TLPT_SESSINS_RECEIVE, TLPT_SESSINS_UPDATE, TLPT_SESSINS_RECEIVE_EVENTS }  = require('./actionTypes');
+const { TLPT_SESSINS_RECEIVE, TLPT_SESSINS_UPDATE, TLPT_SESSINS_UPDATE_WITH_EVENTS }  = require('./actionTypes');
 
 const actions = {
 
   fetchSession(sid){
-    return api.get(cfg.api.getFetchSessionUrl(sid)).then(json=>{
-      if(json && json.session){
-        reactor.dispatch(TLPT_SESSINS_UPDATE, json.session);
+    return api.get(cfg.api.getSessionEvents(sid)).then(json=>{      
+      if(json && json.events){
+        reactor.dispatch(TLPT_SESSINS_UPDATE_WITH_EVENTS, json.events);
       }
     });
   },
@@ -45,7 +45,7 @@ const actions = {
     return api.get(cfg.api.getSiteEventsFilterUrl(start, end))
       .done((json) => {
         let {events=[]} = json;
-        reactor.dispatch(TLPT_SESSINS_RECEIVE_EVENTS, events);
+        reactor.dispatch(TLPT_SESSINS_UPDATE_WITH_EVENTS, events);
       })
       .fail((err)=>{
         showError('Unable to retrieve site events');
