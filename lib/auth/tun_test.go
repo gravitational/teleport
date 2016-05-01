@@ -471,4 +471,17 @@ func (s *TunSuite) TestSync(c *C) {
 	syncedServers, err := storage.GetAddresses()
 	c.Assert(err, IsNil)
 	c.Assert(syncedServers, DeepEquals, expected)
+
+	// test sorting
+	unsorted := []utils.NetAddr{
+		{Addr: "2", AddrNetwork: "udp"},
+		{Addr: "1", AddrNetwork: "tcp"},
+		{Addr: "4", AddrNetwork: "smtp"},
+		{Addr: "3", AddrNetwork: "http"},
+	}
+	clt.setAuthServers(unsorted)
+	sorted := clt.getAuthServers()
+	c.Assert(sorted[0].Addr, Equals, "1")
+	c.Assert(sorted[1].Addr, Equals, "2")
+	c.Assert(sorted[2].Addr, Equals, "3")
 }
