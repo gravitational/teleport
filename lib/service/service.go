@@ -395,13 +395,14 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 			}
 			srv.Addr = fmt.Sprintf("%v:%v", process.Config.AdvertiseIP.String(), port)
 		}
+		// immediately register, and then keep repeating in a loop:
 		for !askedToExit {
-			sleepTime := defaults.ServerHeartbeatTTL/2 + utils.RandomDuration(defaults.ServerHeartbeatTTL/10)
-			time.Sleep(sleepTime)
 			err := authClient.UpsertAuthServer(srv, defaults.ServerHeartbeatTTL)
 			if err != nil {
 				log.Warningf("failed to announce presence: %v", err)
 			}
+			sleepTime := defaults.ServerHeartbeatTTL/2 + utils.RandomDuration(defaults.ServerHeartbeatTTL/10)
+			time.Sleep(sleepTime)
 		}
 		log.Infof("[AUTH] heartbeat to other auth servers exited")
 		return nil
