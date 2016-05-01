@@ -767,7 +767,9 @@ func (m *Handler) siteNodeConnect(w http.ResponseWriter, r *http.Request, p http
 // sessionStreamEvent is sent over the session stream socket, it contains
 // last events that occured (only new events are sent)
 type sessionStreamEvent struct {
-	Events []events.EventFields `json:"events"`
+	Events  []events.EventFields `json:"events"`
+	Session *session.Session     `json:"session"`
+	Servers []services.Server    `json:"servers"`
 }
 
 // siteSessionStream returns a stream of events related to the session

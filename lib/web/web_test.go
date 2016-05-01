@@ -22,6 +22,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -620,6 +622,23 @@ func (s *WebSuite) TestConnect(c *C) {
 
 }
 
+func responseFrom(socket *websocket.Conn) (string, error) {
+	err := socket.SetReadDeadline(time.Now().Add(time.Millisecond * 50))
+	if err != nil {
+		return "", err
+	}
+
+	data, err := ioutil.ReadAll(socket)
+	ne, ok := err.(net.Error)
+	if !ok || !ne.Timeout() {
+		return "", err
+	}
+
+	decoded := make([]byte, len(data))
+	_, err := base64.StdEncoding.Decode(decoded, data)
+	return string(decoded), err
+}
+
 func (s *WebSuite) TestNodesWithSessions(c *C) {
 	sid := session.NewID()
 	pack := s.authPack(c)
@@ -631,8 +650,24 @@ func (s *WebSuite) TestNodesWithSessions(c *C) {
 	c.Assert(err, IsNil)
 
 	// make sure server has replied
-	out := make([]byte, 100)
-	clt.Read(out)
+	out := make([]byte, 1024)
+	decoded := make([]byte, len(out))
+
+	for err == nil {
+		clt.SetReadDeadline(time.Now().Add(time.Millisecond * 10))
+		_, err = clt.Read(out)
+		if err == nil {
+			base64.StdEncoding.Decode(decoded, out)
+			fmt.Println(string(decoded))
+		}
+		ne, ok := err.(net.Error)
+		if ok && ne.Timeout() {
+			break
+		}
+		c.Error(err)
+	}
+	fmt.Println(err)
+	return
 
 	var nodes *getSiteNodesResponse
 	for i := 0; i < 3; i++ {

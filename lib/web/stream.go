@@ -85,25 +85,20 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 
 	eventsCursor := 0
 
-	pollEvents := func() {
+	pollEvents := func() []events.EventFields {
 		// ask for any events than happened since the last call:
 		re, err := clt.GetSessionEvents(w.sessionID, eventsCursor)
 		if err != nil {
 			log.Error(err)
-			return
+			return nil
 		}
 		batchLen := len(re)
 		if batchLen == 0 {
-			return
+			return nil
 		}
 		// advance the cursor, so next time we'll ask for the latest:
 		eventsCursor = re[batchLen-1].GetInt(events.EventCursor)
-
-		// push events to the web client
-		event := &sessionStreamEvent{Events: re}
-		if err := websocket.JSON.Send(ws, event); err != nil {
-			log.Error(err)
-		}
+		return re
 	}
 
 	ticker := time.NewTicker(w.pollPeriod)
@@ -112,7 +107,25 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 
 	// keep polling in a loop:
 	for {
-		pollEvents()
+		newEvents := pollEvents()
+		sess, err := clt.GetSession(w.sessionID)
+		if err != nil {
+			log.Error(err)
+		}
+		servers, err := clt.GetNodes()
+		if err != nil {
+			log.Error(err)
+		}
+
+		// push events to the web client
+		event := &sessionStreamEvent{
+			Events:  newEvents,
+			Session: sess,
+			Servers: servers,
+		}
+		if err := websocket.JSON.Send(ws, event); err != nil {
+			log.Error(err)
+		}
 
 		// wait for next timer tick or a signal to abort:
 		select {
