@@ -755,7 +755,7 @@ func (c *Client) GetSessionReader(sid session.ID, offsetBytes int) (io.ReadClose
 // This function is usually used in conjunction with GetSessionReader to
 // replay recorded session streams.
 func (c *Client) GetSessionEvents(sid session.ID, afterN int) (retval []events.EventFields, err error) {
-	var query url.Values
+	query := make(url.Values)
 	if afterN > 0 {
 		query.Set("after", strconv.Itoa(afterN))
 	}
