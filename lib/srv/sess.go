@@ -32,6 +32,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+const lingerTTL = time.Duration(time.Second * 10)
+
 // sessionRegistry holds a map of all active sessions on a given
 // SSH server
 type sessionRegistry struct {
@@ -117,23 +119,31 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 		return nil
 	}
 
-	// no more people left? Need to end the session!
-	log.Infof("last party left %v, removing from server", sess)
-	delete(s.sessions, sess.id)
+	// this goroutine runs for a short amount of time only after a session
+	// becomes empty (no parties). It allows session to "linger" for a bit
+	// allowing parties to reconnect if they lost connection momentarily
+	lingerAndDie := func() {
+		time.Sleep(lingerTTL)
+		// not lingering anymore? someone reconnected? cool then... no need
+		// to die...
+		if !sess.isLingering() {
+			return
+		}
+		// no more people left? Need to end the session!
+		log.Infof("last party left %v, removing from server", sess)
+		delete(s.sessions, sess.id)
 
-	// send an event indicating that this session has ended
-	s.srv.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
-		events.SessionEventID: string(sess.id),
-		events.EventUser:      party.user,
-	})
+		// send an event indicating that this session has ended
+		s.srv.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
+			events.SessionEventID: string(sess.id),
+			events.EventUser:      party.user,
+		})
 
-	if err := sess.Close(); err != nil {
-		log.Errorf("failed to close: %v", err)
-		return err
+		if err := sess.Close(); err != nil {
+			log.Error(err)
+		}
 	}
-
-	if len(sess.parties) == 0 {
-	}
+	go lingerAndDie()
 	return nil
 }
 
@@ -211,7 +221,8 @@ type session struct {
 
 	// parties are connected lients/users
 	parties map[rsession.ID]*party
-	term    *terminal
+
+	term *terminal
 
 	// closeC channel is used to kill all goroutines owned
 	// by the session
@@ -267,6 +278,13 @@ func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, err
 		closeC:   make(chan bool),
 	}
 	return sess, nil
+}
+
+// isLingering returns 'true' if every party has left this session
+func (s *session) isLingering() bool {
+	s.Lock()
+	defer s.Unlock()
+	return len(s.parties) == 0
 }
 
 // Close ends the active session forcing all clients to disconnect and freeing all resources

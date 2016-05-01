@@ -1005,14 +1005,13 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	// read file:
 	reader, err := clt.GetSessionReader(*sid, offset)
 	if err != nil {
-		log.Error(err)
-		return nil, trace.Wrap(err)
+		// return empty buffer if no file found
+		return siteSessionStreamGetResponse{Bytes: []byte{}}, nil
 	}
 	defer reader.Close()
 
 	var buff bytes.Buffer
 	written, err := io.CopyN(&buff, reader, int64(len))
-	//written, err := io.CopyN(&buff, transform.NewReader(reader, unicode.UTF8.NewEncoder()), int64(len))
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)

@@ -250,7 +250,7 @@ func (l *AuditLog) GetSessionReader(sid session.ID, offsetBytes int) (io.ReadClo
 	logrus.Infof("audit.log: getSessionReader(%v)", sid)
 	fstream, err := os.OpenFile(l.sessionStreamFn(sid), os.O_RDONLY, 0640)
 	if err != nil {
-		logrus.Error(err)
+		logrus.Warning(err)
 		return nil, trace.Wrap(err)
 	}
 	const fromBeginning = 0
