@@ -30,8 +30,8 @@ type sessionPlayer struct {
 	stopC chan int
 }
 
-func newSessionPlayer(sessionEvents []events.EventFields, stream []byte) sessionPlayer {
-	return sessionPlayer{
+func newSessionPlayer(sessionEvents []events.EventFields, stream []byte) *sessionPlayer {
+	return &sessionPlayer{
 		stream:        stream,
 		sessionEvents: sessionEvents,
 		stopC:         make(chan int, 0),

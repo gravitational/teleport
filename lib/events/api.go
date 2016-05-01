@@ -17,9 +17,11 @@ limitations under the License.
 package events
 
 import (
-	"github.com/gravitational/teleport/lib/session"
+	"fmt"
 	"io"
 	"time"
+
+	"github.com/gravitational/teleport/lib/session"
 )
 
 const (
@@ -125,6 +127,15 @@ type AuditLogI interface {
 
 // EventFields instance is attached to every logged event
 type EventFields map[string]interface{}
+
+// String returns a string representation of an event structure
+func (f EventFields) AsString() string {
+	return fmt.Sprintf("%s: login=%s, id=%v, bytes=%v",
+		f.GetString(EventType),
+		f.GetString(EventLogin),
+		f.GetInt(EventCursor),
+		f.GetInt(SessionPrintEventBytes))
+}
 
 // GetString returns a string representation of a logged field
 func (f EventFields) GetString(key string) string {

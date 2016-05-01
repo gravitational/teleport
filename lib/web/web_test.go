@@ -235,7 +235,7 @@ func (s *WebSuite) TearDownTest(c *C) {
 	s.webServer.Close()
 }
 
-func (s *WebSuite) _TestNewUser(c *C) {
+func (s *WebSuite) TestNewUser(c *C) {
 	token, err := s.roleAuth.CreateSignupToken(&services.TeleportUser{Name: "bob", AllowedLogins: []string{s.user}})
 	c.Assert(err, IsNil)
 
@@ -371,7 +371,7 @@ func (s *WebSuite) authPack(c *C) *authPack {
 	}
 }
 
-func (s *WebSuite) _TestWebSessionsCRUD(c *C) {
+func (s *WebSuite) TestWebSessionsCRUD(c *C) {
 	pack := s.authPack(c)
 
 	// make sure we can use client to make authenticated requests
@@ -392,7 +392,7 @@ func (s *WebSuite) _TestWebSessionsCRUD(c *C) {
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
 
-func (s *WebSuite) _TestWebSessionsLogout(c *C) {
+func (s *WebSuite) TestWebSessionsLogout(c *C) {
 	pack := s.authPack(c)
 
 	// make sure we can use client to make authenticated requests
@@ -417,7 +417,7 @@ func (s *WebSuite) _TestWebSessionsLogout(c *C) {
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
 
-func (s *WebSuite) _TestWebSessionsRenew(c *C) {
+func (s *WebSuite) TestWebSessionsRenew(c *C) {
 	pack := s.authPack(c)
 
 	// make sure we can use client to make authenticated requests
@@ -453,7 +453,7 @@ func (s *WebSuite) _TestWebSessionsRenew(c *C) {
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
 
-func (s *WebSuite) _TestWebSessionsBadInput(c *C) {
+func (s *WebSuite) TestWebSessionsBadInput(c *C) {
 	user := "bob"
 	pass := "abc123"
 
@@ -505,7 +505,7 @@ func (s *WebSuite) _TestWebSessionsBadInput(c *C) {
 	}
 }
 
-func (s *WebSuite) _TestGetSiteNodes(c *C) {
+func (s *WebSuite) TestGetSiteNodes(c *C) {
 	pack := s.authPack(c)
 
 	// get site nodes
@@ -588,7 +588,7 @@ func (s *WebSuite) sessionStream(c *C, pack *authPack, sessionID session.ID, opt
 	return clt
 }
 
-func (s *WebSuite) _TestConnect(c *C) {
+func (s *WebSuite) TestConnect(c *C) {
 	clt := s.connect(c, s.authPack(c))
 	defer clt.Close()
 
@@ -620,7 +620,7 @@ func (s *WebSuite) _TestConnect(c *C) {
 
 }
 
-func (s *WebSuite) _TestNodesWithSessions(c *C) {
+func (s *WebSuite) TestNodesWithSessions(c *C) {
 	sid := session.NewID()
 	pack := s.authPack(c)
 	clt := s.connect(c, pack, sid)
@@ -662,7 +662,7 @@ func (s *WebSuite) _TestNodesWithSessions(c *C) {
 	c.Assert(event, NotNil)
 }
 
-func (s *WebSuite) _TestCloseConnectionsOnLogout(c *C) {
+func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 	sid := session.NewID()
 	pack := s.authPack(c)
 	clt := s.connect(c, pack, sid)
@@ -700,7 +700,7 @@ func (s *WebSuite) _TestCloseConnectionsOnLogout(c *C) {
 	}
 }
 
-func (s *WebSuite) _TestCreateSession(c *C) {
+func (s *WebSuite) TestCreateSession(c *C) {
 	pack := s.authPack(c)
 
 	sess := session.Session{
@@ -719,7 +719,7 @@ func (s *WebSuite) _TestCreateSession(c *C) {
 	c.Assert(created.Session.ID, Not(Equals), "")
 }
 
-func (s *WebSuite) _TestResizeTerminal(c *C) {
+func (s *WebSuite) TestResizeTerminal(c *C) {
 	sid := session.NewID()
 	pack := s.authPack(c)
 	clt := s.connect(c, pack, sid)
@@ -744,19 +744,14 @@ func (s *WebSuite) _TestResizeTerminal(c *C) {
 		pack.clt.Endpoint("webapi", "sites", s.domainName, "sessions", string(sid)), url.Values{})
 	c.Assert(err, IsNil)
 
-	var sess *siteSessionGetResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &sess), IsNil)
-	c.Assert(sess.Session.TerminalParams, DeepEquals, params)
+	var se *sess.Session
+	c.Assert(json.Unmarshal(re.Bytes(), &se), IsNil)
+	c.Assert(se.TerminalParams, DeepEquals, params)
 }
 
 func (s *WebSuite) TestPlayback(c *C) {
 	// TODO (ev)
-	var pack *authPack
-	for i := 0; i < 100; i++ {
-		time.Sleep(time.Second)
-		pack = s.authPack(c)
-		fmt.Println("--> ", i)
-	}
+	pack := s.authPack(c)
 	sid := session.NewID()
 	clt := s.connect(c, pack, sid)
 	defer clt.Close()

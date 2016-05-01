@@ -119,9 +119,18 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 	log.Infof("last party left %v, removing from server", sess)
 	delete(s.sessions, sess.id)
 
+	// send an event indicating that this session has ended
+	s.srv.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
+		events.SessionEventID: string(sess.id),
+		events.EventUser:      party.user,
+	})
+
 	if err := sess.Close(); err != nil {
 		log.Errorf("failed to close: %v", err)
 		return err
+	}
+
+	if len(sess.parties) == 0 {
 	}
 	return nil
 }
@@ -370,11 +379,6 @@ func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 		if err != nil {
 			log.Errorf("shell exited with error: %v", err)
 		}
-		// send an event indicating that this session has ended
-		s.registry.srv.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
-			events.SessionEventID: string(s.id),
-			events.EventUser:      ctx.teleportUser,
-		})
 	}()
 
 	// wait for the session to end before the shell, kill the shell

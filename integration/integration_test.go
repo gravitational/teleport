@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/user"
 	"strconv"
@@ -27,6 +28,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
@@ -129,7 +132,7 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 		c.Assert(err, check.IsNil)
 		cl.Output = &personB
 		for i := 0; i < 10; i++ {
-			err = cl.Join(sessionID, &personB)
+			err = cl.Join(session.ID(sessionID), &personB)
 			if err == nil {
 				break
 			}
@@ -143,7 +146,7 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 		c.Assert(err, check.IsNil)
 		cl.Output = &personA
 		// Person A types something into the terminal (including "exit")
-		personA.Type("\aecho hi\n\rexit\n\r")
+		personA.Type("\aecho hi\n\r\aexit\n\r\a")
 		err = cl.SSH([]string{}, false, &personA)
 		c.Assert(err, check.IsNil)
 		sessionEndC <- true
@@ -155,11 +158,8 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 	// wait for the session to end
 	waitFor(sessionEndC, time.Second*10)
 
-	// TODO make these tests pass
-
 	// make sure both parites saw the same output:
-	fmt.Println(personA.Output(100)[50:])
-	fmt.Println(personB.Output(100)[50:])
+	c.Assert(personA.Output(100)[50:], check.DeepEquals, personB.Output(100)[50:])
 
 	// talk to the auth API:
 	site, err := t.Tunnel.GetSites()[0].GetClient()
@@ -172,11 +172,32 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 	c.Assert(len(sessions[0].Parties), check.Equals, 2)
 	session := sessions[0]
 
-	// site.GetSessionEvents()
-	history, err := site.GetSessionEvents(session.ID)
+	reader, err := site.GetSessionReader(session.ID, 0)
 	c.Assert(err, check.IsNil)
-	fmt.Println(len(history))
-	c.Assert(history, check.HasLen, 27)
+	defer reader.Close()
+	stream, _ := ioutil.ReadAll(reader)
+	c.Assert(len(stream), check.Equals, 151)
+
+	// site.GetSessionEvents()
+	history, err := site.GetSessionEvents(session.ID, 0)
+	c.Assert(err, check.IsNil)
+
+	first := history[0]
+	beforeLast := history[len(history)-2]
+	last := history[len(history)-1]
+
+	// these 3 events happen all the time:
+	//  first  : session.start
+	//  last-1 : session.leave
+	//  last   : session.end
+	c.Assert(first.GetString(events.EventType), check.Equals, events.SessionStartEvent)
+	c.Assert(beforeLast.GetString(events.EventType), check.Equals, events.SessionLeaveEvent)
+	c.Assert(last.GetString(events.EventType), check.Equals, events.SessionEndEvent)
+
+	// the last event stream offset should total the total
+	// length of the recorded stream:
+	total := last.GetInt(events.SessionByteOffset)
+	c.Assert(total, check.Equals, len(stream))
 }
 
 // TestInvalidLogins validates that you can't login with invalid login or
