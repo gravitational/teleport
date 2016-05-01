@@ -173,7 +173,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		log.Infof("no teleport login given. defaulting to %s", c.Login)
 	}
 	if c.ProxyHost == "" {
-		return nil, trace.BadParameter("proxy", "no proxy address specified")
+		return nil, trace.Errorf("No proxy address specified, missed --proxy flag?")
 	}
 	if c.HostLogin == "" {
 		c.HostLogin = Username()
@@ -317,12 +317,11 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool, input io.Reader
 }
 
 // Join connects to the existing/active SSH session
-func (tc *TeleportClient) Join(sid string, input io.Reader) (err error) {
-	sessionID := session.ID(sid)
+func (tc *TeleportClient) Join(sessionID session.ID, input io.Reader) (err error) {
 	if sessionID.Check() != nil {
-		return trace.Errorf("Invalid session ID format: %s", sid)
+		return trace.Errorf("Invalid session ID format: %s", string(sessionID))
 	}
-	var notFoundErrorMessage = fmt.Sprintf("session %v not found or it has ended", sid)
+	var notFoundErrorMessage = fmt.Sprintf("session '%s' not found or it has ended", sessionID)
 
 	// connect to proxy:
 	if !tc.Config.ProxySpecified() {
@@ -333,15 +332,7 @@ func (tc *TeleportClient) Join(sid string, input io.Reader) (err error) {
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	// connect to the first site via proxy:
-	sites, err := proxyClient.GetSites()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(sites) == 0 {
-		return trace.NotFound(notFoundErrorMessage)
-	}
-	site, err := proxyClient.ConnectToSite(sites[0].Name, tc.Config.HostLogin)
+	site, err := proxyClient.ConnectToSite()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -389,6 +380,89 @@ func (tc *TeleportClient) Join(sid string, input io.Reader) (err error) {
 		return trace.Wrap(err)
 	}
 	return tc.runShell(nc, session.ID, input)
+}
+
+// SCP securely copies file(s) from one SSH server to another
+func (tc *TeleportClient) Play(sessionId string) (err error) {
+	sid, err := session.ParseID(sessionId)
+	if err != nil {
+		return fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
+	}
+	// connect to the auth server (site) who made the recording
+	proxyClient, err := tc.ConnectToProxy()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	site, err := proxyClient.ConnectToSite()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// request events for that session (to get timing data)
+	sessionEvents, err := site.GetSessionEvents(*sid, 0)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// read the stream into a buffer:
+	reader, err := site.GetSessionReader(*sid, 0)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer reader.Close()
+	stream, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// configure terminal for direct unbuffered echo-less input:
+	if term.IsTerminal(0) {
+		state, err := term.SetRawTerminal(0)
+		if err != nil {
+			return nil
+		}
+		defer term.RestoreTerminal(0, state)
+	}
+	player := newSessionPlayer(sessionEvents, stream)
+	// keys:
+	const (
+		keyCtrlC = 3
+		keyCtrlD = 4
+		keySpace = 32
+		keyLeft  = 68
+		keyRight = 67
+		keyUp    = 65
+		keyDown  = 66
+	)
+	// playback control goroutine
+	go func() {
+		defer player.Stop()
+		key := make([]byte, 1)
+		for {
+			_, err = os.Stdin.Read(key)
+			if err != nil {
+				return
+			}
+			switch key[0] {
+			// Ctrl+C or Ctrl+D
+			case keyCtrlC, keyCtrlD:
+				return
+			// Space key
+			case keySpace:
+				player.TogglePause()
+			// <- arrow
+			case keyLeft, keyDown:
+				player.Rewind()
+			// -> arrow
+			case keyRight, keyUp:
+				player.Forward()
+			}
+		}
+	}()
+
+	// player starts playing in its own goroutine
+	player.Play()
+
+	// wait for keypresses loop to end
+	<-player.stopC
+	return trace.Wrap(err)
 }
 
 // SCP securely copies file(s) from one SSH server to another

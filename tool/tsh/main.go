@@ -62,7 +62,7 @@ type CLIConf struct {
 	// AgentSocketAddr is address for agent listeing socket
 	AgentSocketAddr utils.NetAddrVal
 	// Remote SSH session to join
-	SessionID session.ID
+	SessionID string
 	// Src:dest parameter for SCP
 	CopySpec []string
 	// -r flag for scp
@@ -102,12 +102,14 @@ func run(args []string, underTest bool) {
 	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int16Var(&cf.NodePort)
-
 	ssh.Flag("forward", "Forward localhost connections to remote server").Short('L').StringsVar(&cf.LocalForwardPorts)
 	ssh.Flag("local", "Execute command on localhost after connecting to SSH node").Default("false").BoolVar(&cf.LocalExec)
 	// join
 	join := app.Command("join", "Join the active SSH session")
-	join.Arg("session-id", "ID of the session to join").Required().SetValue(&cf.SessionID)
+	join.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
+	// play
+	play := app.Command("play", "Replay the recorded SSH session")
+	play.Arg("session-id", "ID of the session to play").Required().StringVar(&cf.SessionID)
 	// scp
 	scp := app.Command("scp", "Secure file copy")
 	scp.Arg("from, to", "Source and destination to copy").Required().StringsVar(&cf.CopySpec)
@@ -145,6 +147,8 @@ func run(args []string, underTest bool) {
 		onJoin(&cf)
 	case scp.FullCommand():
 		onSCP(&cf)
+	case play.FullCommand():
+		onPlay(&cf)
 	case ls.FullCommand():
 		onListNodes(&cf)
 	case sites.FullCommand():
@@ -156,38 +160,13 @@ func run(args []string, underTest bool) {
 	}
 }
 
-// onAgentStart start ssh agent on a socket
-func onAgentStart(cf *CLIConf) {
+// onPlay replays a session with a given ID
+func onPlay(cf *CLIConf) {
 	tc, err := makeClient(cf)
 	if err != nil {
 		utils.FatalError(err)
 	}
-	socketAddr := utils.NetAddr(cf.AgentSocketAddr)
-	if socketAddr.IsEmpty() {
-		socketAddr = utils.NetAddr{AddrNetwork: "unix", Addr: filepath.Join(os.TempDir(), fmt.Sprintf("%v.socket", uuid.New()))}
-	}
-	// This makes teleport agent behave exactly like ssh-agent command,
-	// the output and behavior matches the openssh behavior,
-	// so users can do 'eval $(tsh agent --proxy=<addr>&)
-	pid := os.Getpid()
-	fmt.Printf(`
-SSH_AUTH_SOCK=%v; export SSH_AUTH_SOCK;
-SSH_AGENT_PID=%v; export SSH_AGENT_PID;
-echo Agent pid %v;
-`, socketAddr.Addr, pid, pid)
-	agentServer := teleagent.NewServer()
-	agentKeys, err := tc.LocalAgent().GetKeys()
-	if err != nil {
-		utils.FatalError(err)
-	}
-	// add existing keys to the running agent for ux purposes
-	for _, key := range agentKeys {
-		err := agentServer.Add(key)
-		if err != nil {
-			utils.FatalError(err)
-		}
-	}
-	if err := agentServer.ListenAndServe(socketAddr); err != nil {
+	if err := tc.Play(cf.SessionID); err != nil {
 		utils.FatalError(err)
 	}
 }
@@ -275,7 +254,11 @@ func onJoin(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	if err = tc.Join(string(cf.SessionID), nil); err != nil {
+	sid, err := session.ParseID(cf.SessionID)
+	if err != nil {
+		utils.FatalError(fmt.Errorf("'%v' is not a valid session ID (must be GUID)", cf.SessionID))
+	}
+	if err = tc.Join(*sid, nil); err != nil {
 		utils.FatalError(err)
 	}
 }
@@ -287,6 +270,42 @@ func onSCP(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 	if err := tc.SCP(cf.CopySpec, int(cf.NodePort), cf.RecursiveCopy); err != nil {
+		utils.FatalError(err)
+	}
+}
+
+// onAgentStart start ssh agent on a socket
+func onAgentStart(cf *CLIConf) {
+	tc, err := makeClient(cf)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	socketAddr := utils.NetAddr(cf.AgentSocketAddr)
+	if socketAddr.IsEmpty() {
+		socketAddr = utils.NetAddr{AddrNetwork: "unix", Addr: filepath.Join(os.TempDir(), fmt.Sprintf("%v.socket", uuid.New()))}
+	}
+	// This makes teleport agent behave exactly like ssh-agent command,
+	// the output and behavior matches the openssh behavior,
+	// so users can do 'eval $(tsh agent --proxy=<addr>&)
+	pid := os.Getpid()
+	fmt.Printf(`
+SSH_AUTH_SOCK=%v; export SSH_AUTH_SOCK;
+SSH_AGENT_PID=%v; export SSH_AGENT_PID;
+echo Agent pid %v;
+`, socketAddr.Addr, pid, pid)
+	agentServer := teleagent.NewServer()
+	agentKeys, err := tc.LocalAgent().GetKeys()
+	if err != nil {
+		utils.FatalError(err)
+	}
+	// add existing keys to the running agent for ux purposes
+	for _, key := range agentKeys {
+		err := agentServer.Add(key)
+		if err != nil {
+			utils.FatalError(err)
+		}
+	}
+	if err := agentServer.ListenAndServe(socketAddr); err != nil {
 		utils.FatalError(err)
 	}
 }

@@ -25,7 +25,7 @@ module.exports = {
     styles: ['./src/styles/bootstrap/bootstrap.scss', './src/styles/inspinia/style.scss', './src/styles/grv.scss']
   },
 
-  devtool: 'inline-source-map',
+  devtool: 'source-map',
 
   output: {
     publicPath: '/web/app',

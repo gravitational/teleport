@@ -17,9 +17,11 @@ limitations under the License.
 package events
 
 import (
-	"github.com/gravitational/teleport/lib/session"
+	"fmt"
 	"io"
 	"time"
+
+	"github.com/gravitational/teleport/lib/session"
 )
 
 const (
@@ -40,9 +42,9 @@ const (
 	// during "print" event
 	SessionPrintEventBytes = "bytes"
 
-	// SessionEventTimestamp is an offset (in seconds) since the beginning of the
-	// session, when terminal IO event happened
-	SessionEventTimestamp = "sec"
+	// SessionEventTimestamp is an offset (in milliseconds) since the beginning of the
+	// session when the terminal IO event happened
+	SessionEventTimestamp = "ms"
 
 	// SessionEvent indicates that session has been initiated
 	// or updated by a joining party on the server
@@ -126,6 +128,15 @@ type AuditLogI interface {
 // EventFields instance is attached to every logged event
 type EventFields map[string]interface{}
 
+// String returns a string representation of an event structure
+func (f EventFields) AsString() string {
+	return fmt.Sprintf("%s: login=%s, id=%v, bytes=%v",
+		f.GetString(EventType),
+		f.GetString(EventLogin),
+		f.GetInt(EventCursor),
+		f.GetInt(SessionPrintEventBytes))
+}
+
 // GetString returns a string representation of a logged field
 func (f EventFields) GetString(key string) string {
 	val, found := f[key]
@@ -142,7 +153,13 @@ func (f EventFields) GetInt(key string) int {
 	if !found {
 		return 0
 	}
-	v, _ := val.(int)
+	v, ok := val.(int)
+	if !ok {
+		f, ok := val.(float64)
+		if ok {
+			v = int(f)
+		}
+	}
 	return v
 }
 

@@ -48,9 +48,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/mailgun/lemma/secret"
 	"github.com/mailgun/ttlmap"
-
-	"golang.org/x/text/encoding/unicode"
-	"golang.org/x/text/transform"
 )
 
 // Handler is HTTP web proxy handler
@@ -1012,7 +1009,8 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	defer reader.Close()
 
 	var buff bytes.Buffer
-	written, err := io.CopyN(&buff, transform.NewReader(reader, unicode.UTF8.NewEncoder()), int64(len))
+	written, err := io.CopyN(&buff, reader, int64(len))
+	//written, err := io.CopyN(&buff, transform.NewReader(reader, unicode.UTF8.NewEncoder()), int64(len))
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)

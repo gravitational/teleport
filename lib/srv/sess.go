@@ -32,25 +32,10 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type fakeMutex struct{}
-
-func (f *fakeMutex) Lock() {
-}
-
-func (f *fakeMutex) Unlock() {
-}
-
-func (f *fakeMutex) RLock() {
-}
-
-func (f *fakeMutex) RUnlock() {
-}
-
 // sessionRegistry holds a map of all active sessions on a given
 // SSH server
 type sessionRegistry struct {
-	//sync.Mutex
-	fakeMutex
+	sync.Mutex
 	sessions map[rsession.ID]*session
 	srv      *Server
 }
@@ -134,9 +119,18 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 	log.Infof("last party left %v, removing from server", sess)
 	delete(s.sessions, sess.id)
 
+	// send an event indicating that this session has ended
+	s.srv.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
+		events.SessionEventID: string(sess.id),
+		events.EventUser:      party.user,
+	})
+
 	if err := sess.Close(); err != nil {
 		log.Errorf("failed to close: %v", err)
 		return err
+	}
+
+	if len(sess.parties) == 0 {
 	}
 	return nil
 }
@@ -144,32 +138,29 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 // notifyWinChange is called when an SSH server receives a command notifying
 // us that the terminal size has changed
 func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *ctx) error {
-	// update in-memory session (if present)
-	if ctx.session != nil {
-		err := ctx.session.term.setWinsize(params)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	// update the persisted session (if present)
-	sid, found := ctx.getEnv(sshutils.SessionEnvVar)
-	if !found || ctx.srv.sessionServer == nil {
+	if ctx.session == nil {
 		return nil
 	}
+	sid := ctx.session.id
 	log.Infof("notifyWinChange(%v)", sid)
+
+	// report this to the event/audit log:
+	s.srv.EmitAuditEvent(events.ResizeEvent, events.EventFields{
+		events.SessionEventID: sid,
+		events.EventLogin:     ctx.login,
+		events.EventUser:      ctx.teleportUser,
+		events.TerminalSize:   params.Serialize(),
+	})
+	err := ctx.session.term.setWinsize(params)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	go func() {
 		err := s.srv.sessionServer.UpdateSession(
-			rsession.UpdateRequest{ID: rsession.ID(sid), TerminalParams: &params})
+			rsession.UpdateRequest{ID: sid, TerminalParams: &params})
 		if err != nil {
 			log.Error(err)
 		}
-		// report this to the event/audit log:
-		s.srv.EmitAuditEvent(events.ResizeEvent, events.EventFields{
-			events.SessionEventID: string(sid),
-			events.EventLogin:     ctx.login,
-			events.EventUser:      ctx.teleportUser,
-			events.TerminalSize:   params.Serialize(),
-		})
 
 	}()
 	return nil
@@ -205,10 +196,9 @@ func newSessionRegistry(srv *Server) *sessionRegistry {
 // session struct describes an active (in progress) SSH session. These sessions
 // are managed by 'sessionRegistry' containers which are attached to SSH servers.
 type session struct {
-	//sync.Mutex
-	fakeMutex
-	// session ID. unique GUID, this is what people use to "join" sessions
+	sync.Mutex
 
+	// session ID. unique GUID, this is what people use to "join" sessions
 	id rsession.ID
 
 	// parent session container
@@ -389,11 +379,6 @@ func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 		if err != nil {
 			log.Errorf("shell exited with error: %v", err)
 		}
-		// send an event indicating that this session has ended
-		s.registry.srv.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
-			events.SessionEventID: string(s.id),
-			events.EventUser:      ctx.teleportUser,
-		})
 	}()
 
 	// wait for the session to end before the shell, kill the shell
@@ -472,9 +457,25 @@ func (s *session) pollAndSyncTerm() {
 
 func (s *session) addParty(p *party) {
 	s.parties[p.id] = p
+	// register this party as one of the session writers
+	// (output will go to it)
 	s.writer.addWriter(string(p.id), p, true)
 	p.ctx.addCloser(p)
 	s.term.Add(1)
+
+	// write last chunk (so the newly joined parties won't stare
+	// at a blank screen)
+	getRecentWrite := func() []byte {
+		s.writer.Lock()
+		defer s.writer.Unlock()
+		return s.writer.lastData
+	}
+	recentData := getRecentWrite()
+	if recentData != nil {
+		p.Write(recentData)
+	}
+
+	// this goroutine keeps pumping party's input into the session
 	go func() {
 		defer s.term.Add(-1)
 		_, err := io.Copy(s.term.pty, p)
@@ -483,6 +484,9 @@ func (s *session) addParty(p *party) {
 			log.Error(err)
 		}
 	}()
+
+	// this goroutine updates the status of this party in the auth
+	// server storage (last activity time)
 	go func() {
 		for {
 			if err := s.upsertSessionParty(s.id, p); err != nil {
@@ -509,9 +513,9 @@ func newMultiWriter() *multiWriter {
 }
 
 type multiWriter struct {
-	fakeMutex
-	//sync.RWMutex
-	writers map[string]writerWrapper
+	sync.RWMutex
+	writers  map[string]writerWrapper
+	lastData []byte
 }
 
 type writerWrapper struct {
@@ -534,6 +538,10 @@ func (m *multiWriter) deleteWriter(id string) {
 // Write multiplexes the input to multiple sub-writers. The entire point
 // of multiWriter is to do this
 func (m *multiWriter) Write(p []byte) (n int, err error) {
+	m.Lock()
+	m.lastData = p
+	m.Unlock()
+
 	// lock and make a local copy of available writers:
 	getWriters := func() (writers []writerWrapper) {
 		m.RLock()
@@ -575,8 +583,7 @@ func newParty(s *session, ch ssh.Channel, ctx *ctx) *party {
 }
 
 type party struct {
-	fakeMutex
-	//sync.Mutex
+	sync.Mutex
 
 	user       string
 	serverID   string
