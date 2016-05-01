@@ -112,12 +112,17 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 		if err != nil {
 			log.Error(err)
 		}
+		if sess == nil {
+			log.Warningf("invalid session ID: %v", w.sessionID)
+			continue
+		}
 		servers, err := clt.GetNodes()
 		if err != nil {
 			log.Error(err)
 		}
 		log.Infof("[WEB] streaming for %v. Events: %v, Nodes: %v, Parties: %v",
 			w.sessionID, len(newEvents), len(servers), len(sess.Parties))
+		log.Infof("[WEB] Events: %v", newEvents)
 
 		// push events to the web client
 		event := &sessionStreamEvent{

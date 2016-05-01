@@ -283,7 +283,7 @@ func (l *AuditLog) GetSessionEvents(sid session.ID, afterN int) ([]EventFields, 
 	// read line by line:
 	scanner := bufio.NewScanner(logFile)
 	for lineNo := 0; scanner.Scan(); lineNo++ {
-		if lineNo < afterN {
+		if lineNo <= afterN {
 			continue
 		}
 		var fields EventFields

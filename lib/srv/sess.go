@@ -119,6 +119,8 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 		return nil
 	}
 
+	// TODO remove session party in session server
+
 	// this goroutine runs for a short amount of time only after a session
 	// becomes empty (no parties). It allows session to "linger" for a bit
 	// allowing parties to reconnect if they lost connection momentarily
@@ -173,7 +175,6 @@ func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *c
 		if err != nil {
 			log.Error(err)
 		}
-
 	}()
 	return nil
 }
@@ -515,7 +516,7 @@ func (s *session) addParty(p *party) {
 			}
 			select {
 			case <-p.closeC:
-				p.ctx.Infof("closed, stopped heartbeat")
+				p.ctx.Infof("party heartbeat ended")
 				return
 			case <-time.After(1 * time.Second):
 			}
