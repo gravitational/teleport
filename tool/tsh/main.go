@@ -18,7 +18,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -27,7 +26,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -164,71 +162,12 @@ func run(args []string, underTest bool) {
 
 // onPlay replays a session with a given ID
 func onPlay(cf *CLIConf) {
-	sid, err := session.ParseID(cf.SessionID)
-	if err != nil {
-		utils.FatalError(fmt.Errorf("'%v' is not a valid session ID (must be GUID)", cf.SessionID))
-	}
 	tc, err := makeClient(cf)
 	if err != nil {
 		utils.FatalError(err)
 	}
-	// connect to the auth server (site) who made the recording
-	proxyClient, err := tc.ConnectToProxy()
-	if err != nil {
-		panic(err)
-	}
-	site, err := proxyClient.ConnectToSite()
-	if err != nil {
-		panic(err)
-	}
-	// request events for that session (to get timing data)
-	sessionEvents, err := site.GetSessionEvents(*sid, 0)
-	if err != nil {
-		panic(err)
-	}
-	// read the stream into a buffer:
-	reader, err := site.GetSessionReader(*sid, 0)
-	if err != nil {
-		panic(err)
-	}
-	defer reader.Close()
-	stream, err := ioutil.ReadAll(reader)
-	if err != nil {
-		panic(err)
-	}
-	// play loop:
-	prev := 0
-	wait := func(e events.EventFields) {
-		ms := e.GetInt("ms")
-		// do not stop for longer than 1 second:
-		delay := ms - prev
-		if delay > 1000 {
-			delay = 1000
-		}
-		// normalize delays for a nicer experience
-		if delay > 100 && delay < 500 {
-			delay = 100
-		}
-		time.Sleep(time.Millisecond * time.Duration(delay))
-		prev = ms
-	}
-	offset, bytes := 0, 0
-	for _, e := range sessionEvents {
-		switch e.GetString("event") {
-		case "print":
-			offset = e.GetInt("offset")
-			bytes = e.GetInt("bytes")
-			wait(e)
-			os.Stdout.Write(stream[offset : offset+bytes])
-		case "resize":
-			parts := strings.Split(e.GetString("size"), ":")
-			if len(parts) != 2 {
-				continue
-			}
-			width, height := parts[0], parts[1]
-			os.Stdout.Write([]byte(fmt.Sprintf("\x1b[8;%s;%st", height, width)))
-			wait(e)
-		}
+	if err := tc.Play(cf.SessionID); err != nil {
+		utils.FatalError(err)
 	}
 }
 

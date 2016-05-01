@@ -383,6 +383,89 @@ func (tc *TeleportClient) Join(sessionID session.ID, input io.Reader) (err error
 }
 
 // SCP securely copies file(s) from one SSH server to another
+func (tc *TeleportClient) Play(sessionId string) (err error) {
+	sid, err := session.ParseID(sessionId)
+	if err != nil {
+		return fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
+	}
+	// connect to the auth server (site) who made the recording
+	proxyClient, err := tc.ConnectToProxy()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	site, err := proxyClient.ConnectToSite()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// request events for that session (to get timing data)
+	sessionEvents, err := site.GetSessionEvents(*sid, 0)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// read the stream into a buffer:
+	reader, err := site.GetSessionReader(*sid, 0)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer reader.Close()
+	stream, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// configure terminal for direct unbuffered echo-less input:
+	if term.IsTerminal(0) {
+		state, err := term.SetRawTerminal(0)
+		if err != nil {
+			return nil
+		}
+		defer term.RestoreTerminal(0, state)
+	}
+	player := newSessionPlayer(sessionEvents, stream)
+	// keys:
+	const (
+		keyCtrlC = 3
+		keyCtrlD = 4
+		keySpace = 32
+		keyLeft  = 68
+		keyRight = 67
+		keyUp    = 65
+		keyDown  = 66
+	)
+	// playback control goroutine
+	go func() {
+		defer player.Stop()
+		key := make([]byte, 1)
+		for {
+			_, err = os.Stdin.Read(key)
+			if err != nil {
+				return
+			}
+			switch key[0] {
+			// Ctrl+C or Ctrl+D
+			case keyCtrlC, keyCtrlD:
+				return
+			// Space key
+			case keySpace:
+				player.TogglePause()
+			// <- arrow
+			case keyLeft, keyDown:
+				player.Rewind()
+			// -> arrow
+			case keyRight, keyUp:
+				player.Forward()
+			}
+		}
+	}()
+
+	// player starts playing in its own goroutine
+	player.Play()
+
+	// wait for keypresses loop to end
+	<-player.stopC
+	return trace.Wrap(err)
+}
+
+// SCP securely copies file(s) from one SSH server to another
 func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err error) {
 	if len(args) < 2 {
 		return trace.Errorf("Need at least two arguments for scp")
