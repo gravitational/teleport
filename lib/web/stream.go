@@ -83,18 +83,19 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 		io.Copy(ioutil.Discard, ws)
 	}()
 
-	eventsCursor := 0
+	eventsCursor := -1
+	emptyEventList := make([]events.EventFields, 0)
 
 	pollEvents := func() []events.EventFields {
 		// ask for any events than happened since the last call:
-		re, err := clt.GetSessionEvents(w.sessionID, eventsCursor)
+		re, err := clt.GetSessionEvents(w.sessionID, eventsCursor+1)
 		if err != nil {
 			log.Error(err)
-			return nil
+			return emptyEventList
 		}
 		batchLen := len(re)
 		if batchLen == 0 {
-			return nil
+			return emptyEventList
 		}
 		// advance the cursor, so next time we'll ask for the latest:
 		eventsCursor = re[batchLen-1].GetInt(events.EventCursor)

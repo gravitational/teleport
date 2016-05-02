@@ -59,6 +59,8 @@ func (r *sessionRegistry) Close() {
 
 // joinShell either joins an existing session or starts a new shell
 func (s *sessionRegistry) joinShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+	log.Infof("-----> joinShell. CTX: %v, session: %v", ctx, ctx.session)
+
 	if ctx.session != nil {
 		// emit "joined session" event:
 		s.srv.EmitAuditEvent(events.SessionJoinEvent, events.EventFields{

@@ -620,6 +620,7 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 			}
 			// update ctx with a session ID
 			ctx.session, _ = findSession()
+			log.Infof("[SSH] loaded session ---> %v", ctx.session)
 		}
 	}
 
