@@ -389,6 +389,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 			}
 			srv.Addr = fmt.Sprintf("%v:%v", process.Config.AdvertiseIP.String(), port)
 		}
+		// immediately register, and then keep repeating in a loop:
 		for !askedToExit {
 			err := authClient.UpsertAuthServer(srv, defaults.ServerHeartbeatTTL)
 			if err != nil {
