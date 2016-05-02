@@ -5,6 +5,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/net/websocket"
+	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/unicode"
 
 	log "github.com/Sirupsen/logrus"
@@ -18,6 +19,9 @@ type WebSockWrapper struct {
 
 	ws   *websocket.Conn
 	mode WebSocketMode
+
+	encoder *encoding.Encoder
+	decoder *encoding.Decoder
 }
 
 // WebSocketMode allows to create WebSocket wrappers working in text
@@ -31,8 +35,10 @@ const (
 
 func NewWebSockWrapper(ws *websocket.Conn, m WebSocketMode) *WebSockWrapper {
 	return &WebSockWrapper{
-		ws:   ws,
-		mode: m,
+		ws:      ws,
+		mode:    m,
+		encoder: unicode.UTF8.NewEncoder(),
+		decoder: unicode.UTF8.NewDecoder(),
 	}
 }
 
@@ -49,7 +55,7 @@ func (w *WebSockWrapper) Write(data []byte) (n int, err error) {
 		// text send:
 	} else {
 		var utf8 string
-		utf8, err = unicode.UTF8.NewEncoder().String(string(data))
+		utf8, err = w.encoder.String(string(data))
 		err = websocket.Message.Send(w.ws, utf8)
 	}
 	if err != nil {
@@ -72,10 +78,9 @@ func (w *WebSockWrapper) Read(out []byte) (n int, err error) {
 		err = websocket.Message.Receive(w.ws, &utf8)
 		switch err {
 		case nil:
-			data, err = unicode.UTF8.NewDecoder().Bytes([]byte(utf8))
+			data, err = w.decoder.Bytes([]byte(utf8))
 			log.Infof("---> websocket.Read(%d), err=%v", len(data), err)
 		case io.EOF:
-			log.Infof("---> websocket.Read(): EOF")
 			return 0, io.EOF
 		default:
 			log.Error(err)
@@ -87,9 +92,7 @@ func (w *WebSockWrapper) Read(out []byte) (n int, err error) {
 	if len(out) < len(data) {
 		log.Warningf("--------WOW!!! Websocket can't receive all of it!!!! : %d vs %d!!!", len(out), len(data))
 	}
-	copy(out, data)
-	log.Infof("---> websocket.Read() returned %d", len(data))
-	return len(data), nil
+	return copy(out, data), nil
 }
 
 func (w *WebSockWrapper) Close() error {
