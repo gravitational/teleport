@@ -64,18 +64,23 @@ func (w *WebSockWrapper) Write(data []byte) (n int, err error) {
 // It replaces raw Read() with "Message.Receive()"
 func (w *WebSockWrapper) Read(out []byte) (n int, err error) {
 	var data []byte
-	log.Infof("---> websocket.Read(%d)", len(out))
 
 	if w.mode == WebSocketBinaryMode {
 		err = websocket.Message.Receive(w.ws, &data)
 	} else {
 		var utf8 string
 		err = websocket.Message.Receive(w.ws, &utf8)
-		if err != nil {
+		switch err {
+		case nil:
 			data, err = unicode.UTF8.NewEncoder().Bytes([]byte(utf8))
+			log.Infof("---> websocket.Read(%d), err=%v", len(data), err)
+		case io.EOF:
+			log.Infof("---> websocket.Read(): EOF")
+			return 0, io.EOF
+		default:
+			log.Error(err)
 		}
 	}
-	log.Infof("---> websocket.Read() err: %v, (len=%d)", err, len(data))
 	if err == nil {
 		return 0, trace.Wrap(err)
 	}
