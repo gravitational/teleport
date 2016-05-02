@@ -49,7 +49,7 @@ func (w *WebSockWrapper) Write(data []byte) (n int, err error) {
 		// text send:
 	} else {
 		var utf8 string
-		utf8, err = unicode.UTF8.NewDecoder().String(string(data))
+		utf8, err = unicode.UTF8.NewEncoder().String(string(data))
 		err = websocket.Message.Send(w.ws, utf8)
 	}
 	if err != nil {
@@ -72,7 +72,7 @@ func (w *WebSockWrapper) Read(out []byte) (n int, err error) {
 		err = websocket.Message.Receive(w.ws, &utf8)
 		switch err {
 		case nil:
-			data, err = unicode.UTF8.NewEncoder().Bytes([]byte(utf8))
+			data, err = unicode.UTF8.NewDecoder().Bytes([]byte(utf8))
 			log.Infof("---> websocket.Read(%d), err=%v", len(data), err)
 		case io.EOF:
 			log.Infof("---> websocket.Read(): EOF")
@@ -81,13 +81,15 @@ func (w *WebSockWrapper) Read(out []byte) (n int, err error) {
 			log.Error(err)
 		}
 	}
-	if err == nil {
+	if err != nil {
 		return 0, trace.Wrap(err)
 	}
 	if len(out) < len(data) {
 		log.Warningf("--------WOW!!! Websocket can't receive all of it!!!! : %d vs %d!!!", len(out), len(data))
 	}
-	return copy(out, data), nil
+	copy(out, data)
+	log.Infof("---> websocket.Read() returned %d", len(data))
+	return len(data), nil
 }
 
 func (w *WebSockWrapper) Close() error {
