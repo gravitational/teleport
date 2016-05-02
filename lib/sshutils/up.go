@@ -23,8 +23,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/text/encoding/unicode"
-	"golang.org/x/text/transform"
 )
 
 // NewUpstream returns new upstream connection to the server
@@ -141,12 +139,12 @@ func (u *Upstream) PipeCommand(ch io.ReadWriter, command string) (int, error) {
 	}()
 
 	go func() {
-		_, err := io.Copy(ch, transform.NewReader(stderr, unicode.UTF8.NewEncoder()))
+		_, err := io.Copy(ch, stderr)
 		closeC <- err
 	}()
 
 	go func() {
-		_, err := io.Copy(ch, transform.NewReader(stdout, unicode.UTF8.NewEncoder()))
+		_, err := io.Copy(ch, stdout)
 		closeC <- err
 	}()
 
@@ -196,12 +194,12 @@ func (u *Upstream) PipeShell(rw io.ReadWriter, req *PTYReqParams) error {
 	}()
 
 	go func() {
-		_, err := io.Copy(rw, transform.NewReader(targetStderr, unicode.UTF8.NewEncoder()))
+		_, err := io.Copy(rw, targetStderr)
 		closeC <- err
 	}()
 
 	go func() {
-		_, err := io.Copy(rw, transform.NewReader(targetStdout, unicode.UTF8.NewEncoder()))
+		_, err := io.Copy(rw, targetStdout)
 		closeC <- err
 	}()
 
