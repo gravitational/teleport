@@ -818,6 +818,8 @@ func (s *APIServer) getSessionWriter(w http.ResponseWriter, r *http.Request, p h
 				err = websocket.Message.Receive(conn, &data)
 				if err == nil {
 					_, err = writer.Write(data)
+				} else {
+					log.Error(err)
 				}
 			}
 			log.Infof("[AUTH] session recording websocket closed")

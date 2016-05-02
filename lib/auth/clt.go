@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -747,8 +748,13 @@ func (w *sshWrapper) Write(data []byte) (int, error) {
 
 // GetSessionReader allows clients to recewive a live stream of an active session
 func (c *Client) GetSessionReader(sid session.ID, offsetBytes int) (io.ReadCloser, error) {
-	return c.openWebsocket(c.Endpoint("sessions", string(sid), "reader") +
-		fmt.Sprintf("?from=%d", offsetBytes))
+	ws, err := c.openWebsocket(
+		c.Endpoint("sessions", string(sid), "reader") +
+			fmt.Sprintf("?from=%d", offsetBytes))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return utils.NewWebSockWrapper(ws, utils.WebSocketBinaryMode), nil
 }
 
 // Returns events that happen during a session sorted by time

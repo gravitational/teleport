@@ -17,15 +17,14 @@ limitations under the License.
 package web
 
 import (
-	"encoding/base64"
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
@@ -111,10 +110,13 @@ func (w *connectHandler) connect(ws *websocket.Conn) {
 	}
 	w.up = up
 	w.ws = ws
-	err = w.up.PipeShell(&encodingReadWriter{ws}, &sshutils.PTYReqParams{
-		W: uint32(w.req.Term.W),
-		H: uint32(w.req.Term.H),
-	})
+
+	err = w.up.PipeShell(utils.NewWebSockWrapper(ws, utils.WebSocketBinaryMode),
+		&sshutils.PTYReqParams{
+			W: uint32(w.req.Term.W),
+			H: uint32(w.req.Term.H),
+		})
+
 	log.Infof("pipe shell finished with: %v", err)
 	ws.Write([]byte("\n\rdisconnected\n\r"))
 }
@@ -169,20 +171,4 @@ func (w *connectHandler) Handler() http.Handler {
 
 func newWSHandler(host string, auth []string) *connectHandler {
 	return &connectHandler{}
-}
-
-type encodingReadWriter struct {
-	io.ReadWriter
-}
-
-func (w *encodingReadWriter) Write(data []byte) (int, error) {
-	encoder := base64.NewEncoder(base64.StdEncoding, w.ReadWriter)
-	_, err := encoder.Write(data)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	if err := encoder.Close(); err != nil {
-		return 0, trace.Wrap(err)
-	}
-	return len(data), nil
 }
