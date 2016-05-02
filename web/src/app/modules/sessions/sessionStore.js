@@ -87,6 +87,7 @@ function receiveSessions(state, jsonArray){
 
   return state.withMutations(state => {
     jsonArray.forEach((item) => {
+      item.isActive = true;
       item.created = new Date(item.created);
       item.last_active = new Date(item.last_active);
       state.set(item.id, toImmutable(item))

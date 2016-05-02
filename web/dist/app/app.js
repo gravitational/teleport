@@ -38,7 +38,7 @@ webpackJsonp([1],[
 	
 	var _nuclearJs = __webpack_require__(12);
 	
-	var enabled = false;
+	var enabled = true;
 	
 	// temporary workaround to disable debug info during unit-tests
 	var karma = window.__karma__;
@@ -119,6 +119,7 @@ webpackJsonp([1],[
 	  api: {
 	    sso: '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:provider',
 	    renewTokenPath: '/v1/webapi/sessions/renew',
+	    sessionPath: '/v1/webapi/sessions',
 	    invitePath: '/v1/webapi/users/invites/:inviteToken',
 	    createUserPath: '/v1/webapi/users',
 	    nodesPath: '/v1/webapi/sites/-current-/nodes',
@@ -7650,6 +7651,7 @@ webpackJsonp([1],[
 	
 	  return state.withMutations(function (state) {
 	    jsonArray.forEach(function (item) {
+	      item.isActive = true;
 	      item.created = new Date(item.created);
 	      item.last_active = new Date(item.last_active);
 	      state.set(item.id, toImmutable(item));
