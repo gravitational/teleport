@@ -109,15 +109,13 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 		return trace.Wrap(err)
 	}
 
-	if len(sess.parties) != 0 {
-		// emit an audit event
-		s.srv.EmitAuditEvent(events.SessionLeaveEvent, events.EventFields{
-			events.SessionEventID:  string(sess.id),
-			events.EventUser:       party.user,
-			events.SessionServerID: party.serverID,
-		})
-		return nil
-	}
+	// emit an audit event
+	s.srv.EmitAuditEvent(events.SessionLeaveEvent, events.EventFields{
+		events.SessionEventID:  string(sess.id),
+		events.EventUser:       party.user,
+		events.SessionServerID: party.serverID,
+	})
+	return nil
 
 	// this goroutine runs for a short amount of time only after a session
 	// becomes empty (no parties). It allows session to "linger" for a bit
@@ -173,7 +171,6 @@ func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *c
 		if err != nil {
 			log.Error(err)
 		}
-
 	}()
 	return nil
 }
@@ -315,23 +312,6 @@ func (s *session) Close() error {
 	return trace.Wrap(err)
 }
 
-// upsertSessionParty updates the persistence layer (session object stored somewhere on disk)
-// with a new connected client.
-func (s *session) upsertSessionParty(sid rsession.ID, p *party) error {
-	if s.registry.srv.sessionServer == nil {
-		return nil
-	}
-	// session registry has a "session server" (which is actually a "session serializer")
-	// and we ask it to update the on-disk copy of this session with a new party
-	return s.registry.srv.sessionServer.UpsertParty(sid, rsession.Party{
-		ID:         p.id,
-		User:       p.user,
-		ServerID:   p.serverID,
-		RemoteAddr: p.site,
-		LastActive: p.getLastActive(),
-	}, defaults.ActivePartyTTL)
-}
-
 // startShell starts a new shell process in the current session
 func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 	// create a new "party" (connected client)
@@ -425,14 +405,38 @@ func (s *session) String() string {
 	return fmt.Sprintf("session(id=%v, parties=%v)", s.id, len(s.parties))
 }
 
+// removeParty removes the party from two places:
+//   1. from in-memory dictionary inside of this session
+//   2. from sessin server's storage
 func (s *session) removeParty(p *party) error {
-	s.Lock()
-	defer s.Unlock()
 	p.ctx.Infof("session.removeParty(%v)", p)
 
-	delete(s.parties, p.id)
-	s.writer.deleteWriter(string(p.id))
+	// in-memory locked remove:
+	lockedRemove := func() {
+		s.Lock()
+		defer s.Unlock()
+		delete(s.parties, p.id)
+		s.writer.deleteWriter(string(p.id))
+	}
+	lockedRemove()
 
+	// remove from the session server (asynchronously)
+	storageRemove := func(db rsession.Service) {
+		dbSession, err := db.GetSession(s.id)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		if dbSession.RemoveParty(p.id) {
+			db.UpdateSession(rsession.UpdateRequest{
+				ID:      dbSession.ID,
+				Parties: &dbSession.Parties,
+			})
+		}
+	}
+	if s.registry.srv.sessionServer != nil {
+		go storageRemove(s.registry.srv.sessionServer)
+	}
 	return nil
 }
 
@@ -445,7 +449,7 @@ func (s *session) pollAndSyncTerm() {
 	}
 	syncTerm := func() error {
 		sess, err := sessionServer.GetSession(s.id)
-		if err != nil {
+		if err != nil || sess == nil {
 			log.Debugf("syncTerm: no session")
 			return err
 		}
@@ -476,6 +480,7 @@ func (s *session) pollAndSyncTerm() {
 	}
 }
 
+// addParty is called when a new party joins the session.
 func (s *session) addParty(p *party) {
 	s.parties[p.id] = p
 	// register this party as one of the session writers
@@ -496,6 +501,29 @@ func (s *session) addParty(p *party) {
 		p.Write(recentData)
 	}
 
+	// update session on the session server
+	storageUpdate := func(db rsession.Service) {
+		dbSession, err := db.GetSession(s.id)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		dbSession.Parties = append(dbSession.Parties, rsession.Party{
+			ID:         p.id,
+			User:       p.user,
+			ServerID:   p.serverID,
+			RemoteAddr: p.site,
+			LastActive: p.getLastActive(),
+		})
+		db.UpdateSession(rsession.UpdateRequest{
+			ID:      dbSession.ID,
+			Parties: &dbSession.Parties,
+		})
+	}
+	if s.registry.srv.sessionServer != nil {
+		go storageUpdate(s.registry.srv.sessionServer)
+	}
+
 	// this goroutine keeps pumping party's input into the session
 	go func() {
 		defer s.term.Add(-1)
@@ -503,22 +531,6 @@ func (s *session) addParty(p *party) {
 		p.ctx.Infof("party.io.copy(%v) closed", p.id)
 		if err != nil {
 			log.Error(err)
-		}
-	}()
-
-	// this goroutine updates the status of this party in the auth
-	// server storage (last activity time)
-	go func() {
-		for {
-			if err := s.upsertSessionParty(s.id, p); err != nil {
-				p.ctx.Warningf("failed to upsert session party: %v", err)
-			}
-			select {
-			case <-p.closeC:
-				p.ctx.Infof("closed, stopped heartbeat")
-				return
-			case <-time.After(1 * time.Second):
-			}
 		}
 	}()
 }

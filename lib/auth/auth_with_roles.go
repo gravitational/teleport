@@ -48,6 +48,7 @@ func (a *AuthWithRoles) GetSession(id session.ID) (*session.Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetSession); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// TODO (ev): need session registry here
 	return a.sessions.GetSession(id)
 
 }
@@ -63,12 +64,6 @@ func (a *AuthWithRoles) UpdateSession(req session.UpdateRequest) error {
 	}
 	return a.sessions.UpdateSession(req)
 
-}
-func (a *AuthWithRoles) UpsertParty(id session.ID, p session.Party, ttl time.Duration) error {
-	if err := a.permChecker.HasPermission(a.role, ActionUpsertParty); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.sessions.UpsertParty(id, p, ttl)
 }
 func (a *AuthWithRoles) UpsertCertAuthority(ca services.CertAuthority, ttl time.Duration) error {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertCertAuthority); err != nil {

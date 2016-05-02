@@ -100,7 +100,7 @@ func NewID() ID {
 type Session struct {
 	// ID is a unique session identifier
 	ID ID `json:"id"`
-	// Parties is a list of session parties
+	// Parties is a list of session parties.
 	Parties []Party `json:"parties"`
 	// TerminalParams sets terminal properties
 	TerminalParams TerminalParams `json:"terminal_params"`
@@ -114,6 +114,18 @@ type Session struct {
 	// LastActive holds the information about when the session
 	// was last active
 	LastActive time.Time `json:"last_active"`
+}
+
+// RemoveParty helper allows to remove a party by it's ID from the
+// session's list. Returns 'false' if pid couldn't be found
+func (s *Session) RemoveParty(pid ID) bool {
+	for i := range s.Parties {
+		if s.Parties[i].ID == pid {
+			s.Parties = append(s.Parties[:i], s.Parties[i+1:]...)
+			return true
+		}
+	}
+	return false
 }
 
 // Party is a participant a user or a script executing some action
@@ -177,6 +189,10 @@ type UpdateRequest struct {
 	ID             ID              `json:"id"`
 	Active         *bool           `json:"active"`
 	TerminalParams *TerminalParams `json:"terminal_params"`
+
+	// Parties allows to update the list of session parties. nil means
+	// "do not update", empty list means "everybody is gone"
+	Parties *[]Party `json:"parties"`
 }
 
 // Check returns nil if request is valid, error otherwize
@@ -212,8 +228,6 @@ type Service interface {
 	// UpdateSession updates certain session parameters (last_active, terminal parameters)
 	// other parameters will not be updated
 	UpdateSession(req UpdateRequest) error
-	// UpsertParty upserts active session party
-	UpsertParty(id ID, p Party, ttl time.Duration) error
 }
 
 type server struct {
@@ -359,6 +373,8 @@ func (s *server) CreateSession(sess Session) error {
 
 // UpdateSession updates session parameters - can mark it as inactive and update it's terminal parameters
 func (s *server) UpdateSession(req UpdateRequest) error {
+	logrus.Infof("sessionServer.UpdateSession(%v). parties: %v", req.ID, req.Parties)
+
 	lock := "sessions" + string(req.ID)
 	s.bk.AcquireLock(lock, time.Second)
 	defer s.bk.ReleaseLock(lock)
@@ -376,32 +392,14 @@ func (s *server) UpdateSession(req UpdateRequest) error {
 	if req.Active != nil {
 		sess.Active = *req.Active
 	}
+	if req.Parties != nil {
+		sess.Parties = *req.Parties
+	}
 	err = s.bk.UpsertJSONVal(activeBucket(), string(req.ID), sess, s.activeSessionTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// UpsertParty updates or inserts active session party
-func (s *server) UpsertParty(sid ID, p Party, ttl time.Duration) error {
-	session, err := s.GetSession(sid)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	update := false
-	for i := range session.Parties {
-		if session.Parties[i].ID == p.ID {
-			session.Parties[i] = p
-			update = true
-			break
-		}
-	}
-	if !update {
-		session.Parties = append(session.Parties, p)
-	}
-	session.Active = true
-	return trace.Wrap(s.bk.UpsertJSONVal(activeBucket(), string(session.ID), session, s.activeSessionTTL))
 }
 
 // NewTerminalParamsFromUint32 returns new terminal parameters from uint32 width and height

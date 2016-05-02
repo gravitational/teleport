@@ -49,9 +49,7 @@ type Config struct {
 // APIServer implements http API server for AuthServer interface
 type APIServer struct {
 	httprouter.Router
-	a  *AuthWithRoles
-	s  *AuthServer
-	se session.Service
+	a *AuthWithRoles
 }
 
 // NewAPIServer returns a new instance of APIServer HTTP handler
@@ -110,7 +108,6 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.POST("/v1/tokens/register/auth", httplib.MakeHandler(srv.registerNewAuthServer))
 
 	// Sesssions
-	srv.POST("/v1/sessions/:id/parties", httplib.MakeHandler(srv.upsertSessionParty))
 	srv.POST("/v1/sessions", httplib.MakeHandler(srv.createSession))
 	srv.PUT("/v1/sessions/:id", httplib.MakeHandler(srv.updateSession))
 	srv.GET("/v1/sessions", httplib.MakeHandler(srv.getSessions))
@@ -578,27 +575,6 @@ func (s *APIServer) updateSession(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
-}
-
-type upsertPartyReq struct {
-	Party session.Party `json:"party"`
-	TTL   time.Duration `json:"ttl"`
-}
-
-func (s *APIServer) upsertSessionParty(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *upsertPartyReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sid, err := session.ParseID(p[0].Value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := s.a.UpsertParty(*sid, req.Party, req.TTL); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return req.Party, nil
 }
 
 func (s *APIServer) getSessions(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
