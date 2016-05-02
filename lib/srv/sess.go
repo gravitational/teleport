@@ -142,6 +142,15 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 		if err := sess.Close(); err != nil {
 			log.Error(err)
 		}
+
+		// mark it as inactive in the DB
+		if s.srv.sessionServer != nil {
+			False := false
+			s.srv.sessionServer.UpdateSession(rsession.UpdateRequest{
+				ID:     sess.id,
+				Active: &False,
+			})
+		}
 	}
 	go lingerAndDie()
 	return nil
@@ -151,6 +160,7 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 // us that the terminal size has changed
 func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *ctx) error {
 	if ctx.session == nil {
+		log.Infof("notifyWinChange(): no session found!")
 		return nil
 	}
 	sid := ctx.session.id
@@ -457,7 +467,6 @@ func (s *session) pollAndSync() {
 	}
 	errCount := 0
 	sync := func() error {
-		log.Infof("[session.registry] pollAndSync(%v)", s.id)
 		sess, err := sessionServer.GetSession(s.id)
 		if err != nil || sess == nil {
 			log.Debugf("syncTerm: no session")

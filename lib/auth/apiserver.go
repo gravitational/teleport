@@ -858,7 +858,7 @@ func (s *APIServer) getSessionEvents(w http.ResponseWriter, r *http.Request, p h
 	if err != nil {
 		afterN = 0
 	}
-	log.Infof("[AUTH] api.getSessionEvents(%v, after=%d)", *sid, afterN)
+	//log.Infof("[AUTH] api.getSessionEvents(%v, after=%d)", *sid, afterN)
 	return s.a.GetSessionEvents(*sid, afterN)
 }
 

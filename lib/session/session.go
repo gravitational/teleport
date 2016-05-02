@@ -375,8 +375,6 @@ func (s *server) CreateSession(sess Session) error {
 
 // UpdateSession updates session parameters - can mark it as inactive and update it's terminal parameters
 func (s *server) UpdateSession(req UpdateRequest) error {
-	logrus.Infof("sessionServer.UpdateSession(%v). parties: %v", req.ID, req.Parties)
-
 	lock := "sessions" + string(req.ID)
 	s.bk.AcquireLock(lock, time.Second)
 	defer s.bk.ReleaseLock(lock)

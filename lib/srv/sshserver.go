@@ -725,16 +725,20 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 
 // handleWinChange gets called when 'window chnged' SSH request comes in
 func (s *Server) handleWinChange(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+	ctx.Infof("srv.handleWinChange(%v)", string(req.Payload))
 	params, err := parseWinChange(req)
 	if err != nil {
+		ctx.Error(err)
 		return trace.Wrap(err)
 	}
 	term := ctx.getTerm()
 	if term != nil {
-		return trace.Wrap(term.setWinsize(*params))
+		err = term.setWinsize(*params)
+		if err != nil {
+			ctx.Error(err)
+		}
 	}
-	err = s.reg.notifyWinChange(*params, ctx)
-	return trace.Wrap(err)
+	return trace.Wrap(s.reg.notifyWinChange(*params, ctx))
 }
 
 func (s *Server) handleSubsystem(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {

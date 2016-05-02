@@ -264,7 +264,6 @@ func (l *AuditLog) GetSessionReader(sid session.ID, offsetBytes int) (io.ReadClo
 // This function is usually used in conjunction with GetSessionReader to
 // replay recorded session streams.
 func (l *AuditLog) GetSessionEvents(sid session.ID, afterN int) ([]EventFields, error) {
-	logrus.Infof("---> auditLog.GetSessionEvents(%s, after=%d)", sid, afterN)
 	logFile, err := os.OpenFile(l.sessionLogFn(sid), os.O_RDONLY, 0640)
 	if err != nil {
 		logrus.Warn(err)
@@ -292,7 +291,7 @@ func (l *AuditLog) GetSessionEvents(sid session.ID, afterN int) ([]EventFields, 
 		fields[EventCursor] = lineNo
 		retval = append(retval, fields)
 	}
-	logrus.Infof("auditLog.GetSessionEvents() returned %d events", len(retval))
+	//logrus.Infof("auditLog.GetSessionEvents() returned %d events", len(retval))
 	return retval, nil
 }
 
