@@ -160,6 +160,7 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 // us that the terminal size has changed
 func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *ctx) error {
 	if ctx.session == nil {
+		log.Infof("notifyWinChange(): no session found!")
 		return nil
 	}
 	sid := ctx.session.id
@@ -466,7 +467,6 @@ func (s *session) pollAndSync() {
 	}
 	errCount := 0
 	sync := func() error {
-		log.Infof("[session.registry] pollAndSync(%v)", s.id)
 		sess, err := sessionServer.GetSession(s.id)
 		if err != nil || sess == nil {
 			log.Debugf("syncTerm: no session")
