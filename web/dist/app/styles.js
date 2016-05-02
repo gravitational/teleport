@@ -10,7 +10,7 @@ webpackJsonp([2],{
 
 /***/ },
 
-/***/ 98:
+/***/ 97:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -266,7 +266,7 @@ webpackJsonp([2],{
 	var content = __webpack_require__(306);
 	if(typeof content === 'string') content = [[module.id, content, '']];
 	// add the styles to the DOM
-	var update = __webpack_require__(98)(content, {});
+	var update = __webpack_require__(97)(content, {});
 	if(content.locals) module.exports = content.locals;
 	// Hot Module Replacement
 	if(false) {
@@ -293,7 +293,7 @@ webpackJsonp([2],{
 	var content = __webpack_require__(307);
 	if(typeof content === 'string') content = [[module.id, content, '']];
 	// add the styles to the DOM
-	var update = __webpack_require__(98)(content, {});
+	var update = __webpack_require__(97)(content, {});
 	if(content.locals) module.exports = content.locals;
 	// Hot Module Replacement
 	if(false) {
@@ -320,7 +320,7 @@ webpackJsonp([2],{
 	var content = __webpack_require__(308);
 	if(typeof content === 'string') content = [[module.id, content, '']];
 	// add the styles to the DOM
-	var update = __webpack_require__(98)(content, {});
+	var update = __webpack_require__(97)(content, {});
 	if(content.locals) module.exports = content.locals;
 	// Hot Module Replacement
 	if(false) {
