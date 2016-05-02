@@ -32,7 +32,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-const lingerTTL = time.Duration(time.Second * 10)
+const lingerTTL = time.Duration(time.Second * 5)
 
 // sessionRegistry holds a map of all active sessions on a given
 // SSH server
@@ -59,7 +59,7 @@ func (r *sessionRegistry) Close() {
 
 // joinShell either joins an existing session or starts a new shell
 func (s *sessionRegistry) joinShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	log.Infof("-----> joinShell. CTX: %v, session: %v", ctx, ctx.session)
+	log.Infof("[session.registry] joinShell(session: %v)", ctx.session)
 
 	if ctx.session != nil {
 		// emit "joined session" event:
@@ -117,7 +117,6 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 		events.EventUser:       party.user,
 		events.SessionServerID: party.serverID,
 	})
-	return nil
 
 	// this goroutine runs for a short amount of time only after a session
 	// becomes empty (no parties). It allows session to "linger" for a bit
@@ -127,10 +126,12 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 		// not lingering anymore? someone reconnected? cool then... no need
 		// to die...
 		if !sess.isLingering() {
+			log.Infof("[session.registry] session %v becomes active again", sess.id)
 			return
 		}
+		log.Infof("[session.registry] session %v to be garbage collected", sess.id)
+
 		// no more people left? Need to end the session!
-		log.Infof("last party left %v, removing from server", sess)
 		delete(s.sessions, sess.id)
 
 		// send an event indicating that this session has ended
@@ -138,7 +139,6 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 			events.SessionEventID: string(sess.id),
 			events.EventUser:      party.user,
 		})
-
 		if err := sess.Close(); err != nil {
 			log.Error(err)
 		}
@@ -241,6 +241,7 @@ func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, err
 		Login:          context.login,
 		Created:        time.Now().UTC(),
 		LastActive:     time.Now().UTC(),
+		ServerID:       context.srv.ID(),
 	}
 	term := context.getTerm()
 	if term != nil {
@@ -361,8 +362,9 @@ func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 		}
 	}
 
-	// start terminal size syncing loop:
-	go s.pollAndSyncTerm()
+	// start asynchronous loop of synchronizing session state with
+	// the session server (terminal size and activity)
+	go s.pollAndSync()
 
 	// Pipe session to shell and visa-versa capturing input and output
 	s.term.Add(1)
@@ -442,36 +444,56 @@ func (s *session) removeParty(p *party) error {
 	return nil
 }
 
-// pollAndSyncTerm is a loop inside a goroutite which keeps synchronizing the terminal
+// pollAndSync is a loop inside a goroutite which keeps synchronizing the terminal
 // size to what's in the session (so all connected parties have the same terminal size)
-func (s *session) pollAndSyncTerm() {
+// it also updates 'active' field on the session.
+func (s *session) pollAndSync() {
+	log.Infof("[session.registry] start pollAndSync()\b")
+	defer log.Infof("[session.registry] end pollAndSync()\n")
+
 	sessionServer := s.registry.srv.sessionServer
 	if sessionServer == nil {
 		return
 	}
-	syncTerm := func() error {
+	errCount := 0
+	sync := func() error {
+		log.Infof("[session.registry] pollAndSync(%v)", s.id)
 		sess, err := sessionServer.GetSession(s.id)
 		if err != nil || sess == nil {
 			log.Debugf("syncTerm: no session")
 			return err
 		}
+		var active = true
+		sessionServer.UpdateSession(rsession.UpdateRequest{
+			ID:      sess.ID,
+			Active:  &active,
+			Parties: nil,
+		})
 		winSize, err := s.term.getWinsize()
 		if err != nil {
 			log.Debugf("syncTerm: no terminal")
 			return err
 		}
-		if int(winSize.Width) == sess.TerminalParams.W && int(winSize.Height) == sess.TerminalParams.H {
-			return nil
+		termSizeChanged := (int(winSize.Width) != sess.TerminalParams.W ||
+			int(winSize.Height) != sess.TerminalParams.H)
+		if termSizeChanged {
+			log.Debugf("terminal has changed from: %v to %v", sess.TerminalParams, winSize)
+			err = s.term.setWinsize(sess.TerminalParams)
 		}
-		log.Debugf("terminal has changed from: %v to %v", sess.TerminalParams, winSize)
-		return s.term.setWinsize(sess.TerminalParams)
+		return err
 	}
 
 	tick := time.NewTicker(defaults.TerminalSizeRefreshPeriod)
 	defer tick.Stop()
 	for {
-		if err := syncTerm(); err != nil {
+		if err := sync(); err != nil {
 			log.Infof("sync term error: %v", err)
+			errCount++
+		}
+		// if the error count keeps going up, this means we're stuck in
+		// a bad state: end this goroutine to avoid leaks
+		if errCount > 600 {
+			return
 		}
 		select {
 		case <-s.closeC:

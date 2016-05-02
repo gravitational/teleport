@@ -114,6 +114,8 @@ type Session struct {
 	// LastActive holds the information about when the session
 	// was last active
 	LastActive time.Time `json:"last_active"`
+	// ServerID
+	ServerID string `json:"server_id"`
 }
 
 // RemoveParty helper allows to remove a party by it's ID from the
