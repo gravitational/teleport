@@ -111,7 +111,7 @@ func (w *connectHandler) connect(ws *websocket.Conn) {
 	w.up = up
 	w.ws = ws
 
-	err = w.up.PipeShell(utils.NewWebSockWrapper(ws, utils.WebSocketBinaryMode),
+	err = w.up.PipeShell(utils.NewWebSockWrapper(ws, utils.WebSocketTextMode),
 		&sshutils.PTYReqParams{
 			W: uint32(w.req.Term.W),
 			H: uint32(w.req.Term.H),

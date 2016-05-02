@@ -810,17 +810,10 @@ func (s *APIServer) getSessionWriter(w http.ResponseWriter, r *http.Request, p h
 	ws := websocket.Server{
 		Handler: func(conn *websocket.Conn) {
 			log.Info("[AUTH] session recording websocket open")
-			for err == nil {
-				// we receive session stream as JSON blobs. we cannot use websocket's read/write
-				// because they break our writes into more smaller chunks (critical for terminal replay)
-				// check out auth/clt.go for the client side
-				var data []byte
-				err = websocket.Message.Receive(conn, &data)
-				if err == nil {
-					_, err = writer.Write(data)
-				} else {
-					log.Error(err)
-				}
+			wsReader := utils.NewWebSockWrapper(conn, utils.WebSocketTextMode)
+			_, err := io.Copy(writer, wsReader)
+			if err != nil {
+				log.Error(err)
 			}
 			log.Infof("[AUTH] session recording websocket closed")
 		},
@@ -848,8 +841,9 @@ func (s *APIServer) getSessionReader(w http.ResponseWriter, r *http.Request, p h
 	defer reader.Close()
 	ws := websocket.Server{
 		Handler: func(conn *websocket.Conn) {
+			wsWriter := utils.NewWebSockWrapper(conn, utils.WebSocketTextMode)
 			log.Info("[AUTH] session streaming websocket open")
-			read, _ := io.Copy(conn, reader)
+			read, _ := io.Copy(wsWriter, reader)
 			log.Infof("[AUTH] session streaming websocket closed: %v bytes streamed", read)
 		},
 	}

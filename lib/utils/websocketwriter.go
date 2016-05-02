@@ -75,7 +75,7 @@ func (w *WebSockWrapper) Read(out []byte) (n int, err error) {
 			data, err = unicode.UTF8.NewEncoder().Bytes([]byte(utf8))
 		}
 	}
-	log.Infof("---> websocket.Read() err: %v, got %v (len=%d)", err, data[0], len(data))
+	log.Infof("---> websocket.Read() err: %v, (len=%d)", err, len(data))
 	if err == nil {
 		return 0, trace.Wrap(err)
 	}

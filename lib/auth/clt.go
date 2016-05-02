@@ -754,7 +754,7 @@ func (c *Client) GetSessionReader(sid session.ID, offsetBytes int) (io.ReadClose
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return utils.NewWebSockWrapper(ws, utils.WebSocketBinaryMode), nil
+	return utils.NewWebSockWrapper(ws, utils.WebSocketTextMode), nil
 }
 
 // Returns events that happen during a session sorted by time
