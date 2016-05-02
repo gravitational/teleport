@@ -181,7 +181,7 @@ func (sl *SessionLogger) Close() error {
 // Write takes a stream of bytes (usually the output from a session terminal)
 // and writes it into a "stream file", for future replay of interactive sessions.
 func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
-	//logrus.Infof("-----> chunk %d bytes", len(bytes))
+	logrus.Infof("-----> chunk %d bytes", len(bytes))
 	if sl.streamFile == nil {
 		err := trace.Errorf("session %v error: attempt to write to a closed file", sl.sid)
 		logrus.Error(err)

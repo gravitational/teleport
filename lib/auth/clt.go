@@ -742,7 +742,7 @@ type sshWrapper struct {
 }
 
 func (w *sshWrapper) Write(data []byte) (int, error) {
-	return len(data), websocket.JSON.Send(&w.Conn, data)
+	return len(data), websocket.Message.Send(&w.Conn, data)
 }
 
 // GetSessionReader allows clients to recewive a live stream of an active session

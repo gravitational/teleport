@@ -815,7 +815,7 @@ func (s *APIServer) getSessionWriter(w http.ResponseWriter, r *http.Request, p h
 				// because they break our writes into more smaller chunks (critical for terminal replay)
 				// check out auth/clt.go for the client side
 				var data []byte
-				err = websocket.JSON.Receive(conn, &data)
+				err = websocket.Message.Receive(conn, &data)
 				if err == nil {
 					_, err = writer.Write(data)
 				}

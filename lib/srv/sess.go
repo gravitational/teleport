@@ -498,11 +498,13 @@ func (s *session) pollAndSync() {
 		if err := sync(); err != nil {
 			log.Infof("sync term error: %v", err)
 			errCount++
-		}
-		// if the error count keeps going up, this means we're stuck in
-		// a bad state: end this goroutine to avoid leaks
-		if errCount > 600 {
-			return
+			// if the error count keeps going up, this means we're stuck in
+			// a bad state: end this goroutine to avoid leaks
+			if errCount > 600 {
+				return
+			}
+		} else {
+			errCount = 0
 		}
 		select {
 		case <-s.closeC:
@@ -604,6 +606,7 @@ func (m *multiWriter) deleteWriter(id string) {
 // Write multiplexes the input to multiple sub-writers. The entire point
 // of multiWriter is to do this
 func (m *multiWriter) Write(p []byte) (n int, err error) {
+	log.Infof("---> multiWriter.Write(%d)", len(p))
 	// lock and make a local copy of available writers:
 	getWriters := func() (writers []writerWrapper) {
 		m.RLock()
