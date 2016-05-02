@@ -84,7 +84,7 @@ var SessionPlayer = React.createClass({
       this.setState(newState);
     });
 
-    //this.tty.play();
+    this.tty.play();
   },
 
   togglePlayStop(){
@@ -109,12 +109,11 @@ var SessionPlayer = React.createClass({
   },
 
   render: function() {
-    var {isPlaying, current} = this.state;
+    var {isPlaying} = this.state;
 
     return (
      <div className="grv-current-session grv-session-player">
        <SessionLeftPanel/>
-       <h1 style={{position: 'absolute'}}>{current}</h1>
        <TerminalPlayer ref="term" tty={this.tty} scrollback={0} />
        <div className="grv-session-player-controls">
          <button className="btn" onClick={this.togglePlayStop}>

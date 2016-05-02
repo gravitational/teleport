@@ -50,7 +50,11 @@ function updateSessionWithEvents(state, events){
       if(item.event !== 'session.start' && item.event !== 'session.end'){
         return;
       }
-      
+
+      if(state.getIn([item.sid, 'active']) === true){
+        return;
+      }
+
       // check if record already exists
       let session = state.get(item.sid);
       if(!session){
@@ -59,15 +63,13 @@ function updateSessionWithEvents(state, events){
         session = session.toJS();
       }
 
+      session.login = item.user;
+
       if(item.event === 'session.start'){
-        session.login - item.user;
         session.created = item.time;
-        session.active = true;
       }
 
       if(item.event === 'session.end'){
-        session.login = item.user;
-        session.active = false;
         session.last_active = item.time;
       }
 

@@ -18,7 +18,7 @@ var session = require('app/services/session');
 var api = require('app/services/api');
 var cfg = require('app/config');
 var getters = require('./getters');
-var {fetchSessions, fetchSession} = require('./../sessions/actions');
+var {fetchActiveSessions, fetchStoredSession} = require('./../sessions/actions');
 var sessionGetters = require('./../sessions/getters');
 var $ = require('jQuery');
 
@@ -42,7 +42,7 @@ const actions = {
   openSession(sid){
     logger.info('attempt to open session', {sid});
 
-    $.when(fetchSessions(), fetchSession(sid))        
+    $.when(fetchActiveSessions(), fetchStoredSession(sid))
       .done(()=>{
         let sView = reactor.evaluate(sessionGetters.sessionViewById(sid));
         let { serverId, login } = sView;
@@ -56,7 +56,7 @@ const actions = {
       })
       .fail((err)=>{
         logger.error('open session', err);
-        //session.getHistory().push(cfg.routes.pageNotFound);
+        session.getHistory().push(cfg.routes.pageNotFound);
       })
   },
 

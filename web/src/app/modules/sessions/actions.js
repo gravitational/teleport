@@ -26,8 +26,8 @@ const { TLPT_SESSINS_RECEIVE, TLPT_SESSINS_UPDATE, TLPT_SESSINS_UPDATE_WITH_EVEN
 
 const actions = {
 
-  fetchSession(sid){
-    return api.get(cfg.api.getSessionEvents(sid)).then(json=>{      
+  fetchStoredSession(sid){
+    return api.get(cfg.api.getSessionEvents(sid)).then(json=>{
       if(json && json.events){
         reactor.dispatch(TLPT_SESSINS_UPDATE_WITH_EVENTS, json.events);
       }
@@ -53,7 +53,7 @@ const actions = {
       });
   },
 
-  fetchSessions({end, sid, limit=cfg.maxSessionLoadSize}={}){
+  fetchActiveSessions({end, sid, limit=cfg.maxSessionLoadSize}={}){
     let start = end || new Date();
     let params = {
       order: -1,
@@ -68,7 +68,7 @@ const actions = {
       })
       .fail((err)=>{
         showError('Unable to retrieve list of sessions');
-        logger.error('fetchSessions', err);
+        logger.error('fetchActiveSessions', err);
       });
   },
 

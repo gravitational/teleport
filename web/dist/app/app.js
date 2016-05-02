@@ -38,7 +38,7 @@ webpackJsonp([1],[
 	
 	var _nuclearJs = __webpack_require__(12);
 	
-	var enabled = true;
+	var enabled = false;
 	
 	// temporary workaround to disable debug info during unit-tests
 	var karma = window.__karma__;
@@ -1210,7 +1210,7 @@ webpackJsonp([1],[
 	
 	var actions = {
 	
-	  fetchSession: function fetchSession(sid) {
+	  fetchStoredSession: function fetchStoredSession(sid) {
 	    return api.get(cfg.api.getSessionEvents(sid)).then(function (json) {
 	      if (json && json.events) {
 	        reactor.dispatch(TLPT_SESSINS_UPDATE_WITH_EVENTS, json.events);
@@ -1237,7 +1237,7 @@ webpackJsonp([1],[
 	    });
 	  },
 	
-	  fetchSessions: function fetchSessions() {
+	  fetchActiveSessions: function fetchActiveSessions() {
 	    var _ref = arguments.length <= 0 || arguments[0] === undefined ? {} : arguments[0];
 	
 	    var end = _ref.end;
@@ -1257,7 +1257,7 @@ webpackJsonp([1],[
 	      reactor.dispatch(TLPT_SESSINS_RECEIVE, json.sessions);
 	    }).fail(function (err) {
 	      showError('Unable to retrieve list of sessions');
-	      logger.error('fetchSessions', err);
+	      logger.error('fetchActiveSessions', err);
 	    });
 	  },
 	
@@ -2370,10 +2370,6 @@ webpackJsonp([1],[
 	    this.resize(this.cols, this.rows);
 	
 	    // term events
-	    this.tty.on('data', function (data) {
-	      console.info(data);
-	    });
-	
 	    this.term.on('data', function (data) {
 	      return _this.tty.send(data);
 	    });
@@ -3470,8 +3466,8 @@ webpackJsonp([1],[
 	
 	var _require = __webpack_require__(52);
 	
-	var fetchSessions = _require.fetchSessions;
-	var fetchSession = _require.fetchSession;
+	var fetchActiveSessions = _require.fetchActiveSessions;
+	var fetchStoredSession = _require.fetchStoredSession;
 	
 	var sessionGetters = __webpack_require__(71);
 	var $ = __webpack_require__(18);
@@ -3502,7 +3498,7 @@ webpackJsonp([1],[
 	  openSession: function openSession(sid) {
 	    logger.info('attempt to open session', { sid: sid });
 	
-	    $.when(fetchSessions(), fetchSession(sid)).done(function () {
+	    $.when(fetchActiveSessions(), fetchStoredSession(sid)).done(function () {
 	      var sView = reactor.evaluate(sessionGetters.sessionViewById(sid));
 	      var serverId = sView.serverId;
 	      var login = sView.login;
@@ -3516,7 +3512,7 @@ webpackJsonp([1],[
 	      });
 	    }).fail(function (err) {
 	      logger.error('open session', err);
-	      //session.getHistory().push(cfg.routes.pageNotFound);
+	      session.getHistory().push(cfg.routes.pageNotFound);
 	    });
 	  },
 	
@@ -4734,7 +4730,7 @@ webpackJsonp([1],[
 	
 	function handleAjaxError(err) {
 	  showError('Unable to retrieve session info');
-	  logger.error('fetching session length', err);
+	  logger.error('fetching recorded session info', err);
 	}
 	
 	var EventProvider = (function () {
@@ -4759,17 +4755,20 @@ webpackJsonp([1],[
 	  EventProvider.prototype.getEventsWithByteStream = function getEventsWithByteStream(start, end) {
 	    var _this = this;
 	
-	    if (this._shouldFetch(start, end)) {
-	      //simple buffering for now
-	      var size = this.getLength();
-	      var buffEnd = end + this.buffSize;
-	      buffEnd = buffEnd > size ? size - 1 : buffEnd;
-	
-	      return this._fetch(start, buffEnd).then(this.processByteStream.bind(this, start, buffEnd)).then(function () {
-	        return _this.events.slice(start, end);
-	      });
-	    } else {
-	      return $.Deferred().resolve(this.events.slice(start, end));
+	    try {
+	      if (this._shouldFetch(start, end)) {
+	        //simple buffering for now
+	        var size = this.getLength();
+	        var buffEnd = end + this.buffSize;
+	        buffEnd = buffEnd >= size ? size - 1 : buffEnd;
+	        return this._fetch(start, buffEnd).then(this.processByteStream.bind(this, start, buffEnd)).then(function () {
+	          return _this.events.slice(start, end);
+	        });
+	      } else {
+	        return $.Deferred().resolve(this.events.slice(start, end));
+	      }
+	    } catch (err) {
+	      return $.Deferred().reject(err);
 	    }
 	  };
 	
@@ -4781,7 +4780,6 @@ webpackJsonp([1],[
 	
 	      this.events[i].data = byteStr.slice(byteStrOffset, byteStrOffset + bytes);
 	      byteStrOffset += bytes;
-	      console.info({ index: i, data: this.events[i] });
 	    }
 	  };
 	
@@ -5337,7 +5335,7 @@ webpackJsonp([1],[
 	      _this.setState(newState);
 	    });
 	
-	    //this.tty.play();
+	    this.tty.play();
 	  },
 	
 	  togglePlayStop: function togglePlayStop() {
@@ -5362,19 +5360,12 @@ webpackJsonp([1],[
 	  },
 	
 	  render: function render() {
-	    var _state = this.state;
-	    var isPlaying = _state.isPlaying;
-	    var current = _state.current;
+	    var isPlaying = this.state.isPlaying;
 	
 	    return React.createElement(
 	      'div',
 	      { className: 'grv-current-session grv-session-player' },
 	      React.createElement(SessionLeftPanel, null),
-	      React.createElement(
-	        'h1',
-	        { style: { position: 'absolute' } },
-	        current
-	      ),
 	      React.createElement(TerminalPlayer, { ref: 'term', tty: this.tty, scrollback: 0 }),
 	      React.createElement(
 	        'div',
@@ -7015,7 +7006,7 @@ webpackJsonp([1],[
 	
 	var _require = __webpack_require__(52);
 	
-	var fetchSessions = _require.fetchSessions;
+	var fetchActiveSessions = _require.fetchActiveSessions;
 	
 	var _require2 = __webpack_require__(337);
 	
@@ -7041,7 +7032,7 @@ webpackJsonp([1],[
 	  },
 	
 	  fetchNodesAndSessions: function fetchNodesAndSessions() {
-	    return $.when(fetchNodes(), fetchSessions());
+	    return $.when(fetchNodes(), fetchActiveSessions());
 	  }
 	};
 	
@@ -7263,21 +7254,6 @@ webpackJsonp([1],[
 	
 	exports['default'] = {
 	  fetchNodes: function fetchNodes() {
-	
-	    //let sid = 'e0536e4c-0e1f-11e6-85fc-f0def19340e2';
-	    //let sid = '02aa3744-0e21-11e6-85fc-f0def19340e2';
-	    ///https://localhost:8080/web/sessions/195c1dd3-0e6c-11e6-8a80-f0def19340e2
-	
-	    //let sid = 'd7c2783b-0fdb-11e6-91e1-f0def19340e2';
-	    //api.get(`/v1/webapi/sites/-current-/sessions/${sid}/events`);
-	    //api.get(`/v1/webapi/sites/-current-/sessions/${sid}/stream?offset=0&bytes=303`);
-	
-	    //let frm = new Date('12/12/2015').toISOString();
-	    //let to = new Date('12/12/2016').toISOString();
-	    //api.get(`/v1/webapi/sites/-current-/events?event=session.start&event=session.end&from=${frm}&to=${to}`);
-	    //api.get(`/v1/webapi/sites/-current-/events?from=${to}&to=${frm}`);
-	    //api.get(`/v1/webapi/sites/-current-/sessions/${sid}/stream?offset=0&bytes=303`);
-	
 	    api.get(cfg.api.nodesPath).done(function () {
 	      var data = arguments.length <= 0 || arguments[0] === undefined ? [] : arguments[0];
 	
@@ -7649,6 +7625,10 @@ webpackJsonp([1],[
 	        return;
 	      }
 	
+	      if (state.getIn([item.sid, 'active']) === true) {
+	        return;
+	      }
+	
 	      // check if record already exists
 	      var session = state.get(item.sid);
 	      if (!session) {
@@ -7657,15 +7637,13 @@ webpackJsonp([1],[
 	        session = session.toJS();
 	      }
 	
+	      session.login = item.user;
+	
 	      if (item.event === 'session.start') {
-	        session.login - item.user;
 	        session.created = item.time;
-	        session.active = true;
 	      }
 	
 	      if (item.event === 'session.end') {
-	        session.login = item.user;
-	        session.active = false;
 	        session.last_active = item.time;
 	      }
 	

@@ -20,7 +20,6 @@ var {showError} = require('app/modules/notifications/actions');
 var Buffer = require('buffer/').Buffer;
 var $ = require('jQuery');
 
-
 const logger = require('app/common/logger').create('TtyPlayer');
 const STREAM_START_INDEX = 0;
 const PRE_FETCH_BUF_SIZE = 50;
@@ -28,7 +27,7 @@ const URL_PREFIX_EVENTS = '/events';
 
 function handleAjaxError(err){
   showError('Unable to retrieve session info');
-  logger.error('fetching session length', err);
+  logger.error('fetching recorded session info', err);
 }
 
 class EventProvider{
@@ -48,17 +47,20 @@ class EventProvider{
   }
 
   getEventsWithByteStream(start, end){
-    if(this._shouldFetch(start, end)){
-      //simple buffering for now
-      let size = this.getLength();
-      let buffEnd = end + this.buffSize;
-      buffEnd = buffEnd > size ? size - 1 : buffEnd;
-
-      return this._fetch(start, buffEnd)
-        .then(this.processByteStream.bind(this, start, buffEnd))
-        .then(()=> this.events.slice(start, end));
-    }else{
-      return $.Deferred().resolve(this.events.slice(start, end));
+    try{
+      if(this._shouldFetch(start, end)){
+        //simple buffering for now
+        let size = this.getLength();
+        let buffEnd = end + this.buffSize;
+        buffEnd = buffEnd >= size ? size - 1 : buffEnd;
+        return this._fetch(start, buffEnd)
+          .then(this.processByteStream.bind(this, start, buffEnd))
+          .then(()=> this.events.slice(start, end));
+      }else{
+        return $.Deferred().resolve(this.events.slice(start, end));
+      }
+    }catch(err){
+      return $.Deferred().reject(err);
     }
   }
 
@@ -69,7 +71,6 @@ class EventProvider{
       let {bytes} = this.events[i];
       this.events[i].data = byteStr.slice(byteStrOffset, byteStrOffset + bytes);
       byteStrOffset += bytes;
-      console.info({ index: i, data:this.events[i]});
     }
   }
 
@@ -112,7 +113,6 @@ class EventProvider{
       return new Buffer(response.bytes, 'base64').toString('utf8');
     })
   }
-
 }
 
 class TtyPlayer extends Tty {
