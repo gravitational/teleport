@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 var EventEmitter = require('events').EventEmitter;
-var Buffer = require('buffer/').Buffer;
+//var Buffer = require('buffer/').Buffer;
 
 class Tty extends EventEmitter {
 
@@ -45,8 +45,8 @@ class Tty extends EventEmitter {
     }
 
     this.socket.onmessage = (e)=>{
-      let data = new Buffer(e.data, 'base64').toString('utf8');
-      this.emit('data', data);
+      //let data = new Buffer(e.data, 'base64').toString('utf8');
+      this.emit('data', e.data);
     }
 
     this.socket.onclose = ()=>{
