@@ -142,6 +142,15 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 		if err := sess.Close(); err != nil {
 			log.Error(err)
 		}
+
+		// mark it as inactive in the DB
+		if s.srv.sessionServer != nil {
+			False := false
+			s.srv.sessionServer.UpdateSession(rsession.UpdateRequest{
+				ID:     sess.id,
+				Active: &False,
+			})
+		}
 	}
 	go lingerAndDie()
 	return nil
