@@ -46,14 +46,11 @@ let cfg = {
   api: {
     sso: '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:provider',
     renewTokenPath:'/v1/webapi/sessions/renew',
-    nodesPath: '/v1/webapi/sites/-current-/nodes',
-    sessionPath: '/v1/webapi/sessions',
-    siteSessionPath: '/v1/webapi/sites/-current-/sessions',
     invitePath: '/v1/webapi/users/invites/:inviteToken',
     createUserPath: '/v1/webapi/users',
+    nodesPath: '/v1/webapi/sites/-current-/nodes',    
+    siteSessionPath: '/v1/webapi/sites/-current-/sessions',
     sessionEventsPath: '/v1/webapi/sites/-current-/sessions/:sid/events',
-    sessionChunk: '/v1/webapi/sites/-current-/sessions/:sid/chunks?start=:start&end=:end',
-    sessionChunkCountPath: '/v1/webapi/sites/-current-/sessions/:sid/chunkscount',
     siteEventSessionFilterPath: `/v1/webapi/sites/-current-/sessions?filter=:filter`,
     siteEventsFilterPath: `/v1/webapi/sites/-current-/events?event=session.start&event=session.end&from=:start&to=:end`,
 
@@ -61,15 +58,11 @@ let cfg = {
       return cfg.baseUrl + formatPattern(cfg.api.sso, {redirect, provider});
     },
 
-    getFetchSessionChunkUrl({sid, start, end}){
-      return formatPattern(cfg.api.sessionChunk, {sid, start, end});
-    },
-
     getSiteEventsFilterUrl(start, end){
       return formatPattern(cfg.api.siteEventsFilterPath, {start, end});
     },
 
-    getSessionEvents(sid){
+    getSessionEventsUrl(sid){
       return formatPattern(cfg.api.sessionEventsPath, {sid});
     },
 

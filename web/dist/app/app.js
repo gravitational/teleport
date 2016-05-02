@@ -119,14 +119,11 @@ webpackJsonp([1],[
 	  api: {
 	    sso: '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:provider',
 	    renewTokenPath: '/v1/webapi/sessions/renew',
-	    nodesPath: '/v1/webapi/sites/-current-/nodes',
-	    sessionPath: '/v1/webapi/sessions',
-	    siteSessionPath: '/v1/webapi/sites/-current-/sessions',
 	    invitePath: '/v1/webapi/users/invites/:inviteToken',
 	    createUserPath: '/v1/webapi/users',
+	    nodesPath: '/v1/webapi/sites/-current-/nodes',
+	    siteSessionPath: '/v1/webapi/sites/-current-/sessions',
 	    sessionEventsPath: '/v1/webapi/sites/-current-/sessions/:sid/events',
-	    sessionChunk: '/v1/webapi/sites/-current-/sessions/:sid/chunks?start=:start&end=:end',
-	    sessionChunkCountPath: '/v1/webapi/sites/-current-/sessions/:sid/chunkscount',
 	    siteEventSessionFilterPath: '/v1/webapi/sites/-current-/sessions?filter=:filter',
 	    siteEventsFilterPath: '/v1/webapi/sites/-current-/events?event=session.start&event=session.end&from=:start&to=:end',
 	
@@ -134,19 +131,11 @@ webpackJsonp([1],[
 	      return cfg.baseUrl + formatPattern(cfg.api.sso, { redirect: redirect, provider: provider });
 	    },
 	
-	    getFetchSessionChunkUrl: function getFetchSessionChunkUrl(_ref) {
-	      var sid = _ref.sid;
-	      var start = _ref.start;
-	      var end = _ref.end;
-	
-	      return formatPattern(cfg.api.sessionChunk, { sid: sid, start: start, end: end });
-	    },
-	
 	    getSiteEventsFilterUrl: function getSiteEventsFilterUrl(start, end) {
 	      return formatPattern(cfg.api.siteEventsFilterPath, { start: start, end: end });
 	    },
 	
-	    getSessionEvents: function getSessionEvents(sid) {
+	    getSessionEventsUrl: function getSessionEventsUrl(sid) {
 	      return formatPattern(cfg.api.sessionEventsPath, { sid: sid });
 	    },
 	
@@ -1211,7 +1200,7 @@ webpackJsonp([1],[
 	var actions = {
 	
 	  fetchStoredSession: function fetchStoredSession(sid) {
-	    return api.get(cfg.api.getSessionEvents(sid)).then(function (json) {
+	    return api.get(cfg.api.getSessionEventsUrl(sid)).then(function (json) {
 	      if (json && json.events) {
 	        reactor.dispatch(TLPT_SESSINS_UPDATE_WITH_EVENTS, json.events);
 	      }

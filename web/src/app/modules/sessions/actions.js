@@ -27,7 +27,7 @@ const { TLPT_SESSINS_RECEIVE, TLPT_SESSINS_UPDATE, TLPT_SESSINS_UPDATE_WITH_EVEN
 const actions = {
 
   fetchStoredSession(sid){
-    return api.get(cfg.api.getSessionEvents(sid)).then(json=>{
+    return api.get(cfg.api.getSessionEventsUrl(sid)).then(json=>{
       if(json && json.events){
         reactor.dispatch(TLPT_SESSINS_UPDATE_WITH_EVENTS, json.events);
       }
