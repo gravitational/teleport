@@ -190,8 +190,6 @@ func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
 		logrus.Error(err)
 		return written, trace.Wrap(err)
 	}
-	logrus.Infof("--> sessionLogger %d bytes -> %v\n%v", written, sl.streamFile.Name(), bytes)
-
 	// log this as a session event (but not more often than once a sec)
 	sl.LogEvent(EventFields{
 		EventType:              SessionPrintEvent,

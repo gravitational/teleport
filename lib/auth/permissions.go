@@ -67,7 +67,6 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetUser:            true,
 		ActionGetLocalDomain:     true,
 		ActionGetUserKeys:        true,
-		ActionUpsertParty:        true,
 		ActionUpsertSession:      true,
 		ActionGetSession:         true,
 		ActionGetSessions:        true,
@@ -164,7 +163,6 @@ const (
 	ActionViewSession                       = "ViewSession"
 	ActionDeleteSession                     = "DeleteSession"
 	ActionUpsertSession                     = "UpsertSession"
-	ActionUpsertParty                       = "UpsertParty"
 	ActionUpsertCertAuthority               = "UpsertCertAuthority"
 	ActionGetCertAuthorities                = "GetCertAuthorities"
 	ActionGetCertAuthoritiesWithSigningKeys = "GetCertAuthoritiesWithSigningKeys"

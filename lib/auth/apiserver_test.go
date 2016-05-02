@@ -394,34 +394,3 @@ func (s *APISuite) TestSharedSessions(c *C) {
 	c.Assert(history[0].GetString(events.SessionEventID), Equals, string(sess.ID))
 	c.Assert(history[0].GetString("1"), Equals, "one")
 }
-
-func (s *APISuite) TestSharedSessionsParties(c *C) {
-	out, err := s.clt.GetSessions()
-	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, []session.Session{})
-
-	date := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
-	sess := session.Session{
-		Active:         true,
-		ID:             session.NewID(),
-		TerminalParams: session.TerminalParams{W: 100, H: 100},
-		Created:        date,
-		LastActive:     date,
-		Login:          "bob",
-	}
-	c.Assert(s.clt.CreateSession(sess), IsNil)
-
-	p1 := session.Party{
-		ID:         session.NewID(),
-		User:       "bob",
-		RemoteAddr: "example.com",
-		ServerID:   "id-1",
-		LastActive: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
-	}
-	c.Assert(s.clt.UpsertParty(sess.ID, p1, 0), IsNil)
-
-	sess.Parties = []session.Party{p1}
-	out, err = s.clt.GetSessions()
-	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, []session.Session{sess})
-}

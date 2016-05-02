@@ -107,6 +107,14 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 
 	// keep polling in a loop:
 	for {
+		// wait for next timer tick or a signal to abort:
+		select {
+		case <-ticker.C:
+		case <-w.closeC:
+			log.Infof("[web] session.stream() exited")
+			return nil
+		}
+
 		newEvents := pollEvents()
 		sess, err := clt.GetSession(w.sessionID)
 		if err != nil {
@@ -120,9 +128,8 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 		if err != nil {
 			log.Error(err)
 		}
-		log.Infof("[WEB] streaming for %v. Events: %v, Nodes: %v, Parties: %v",
-			w.sessionID, len(newEvents), len(servers), len(sess.Parties))
-		log.Infof("[WEB] Events: %v", newEvents)
+		log.Infof("[WEB] streaming for %v. Events: %v, Nodes: %v, Parties: %v, Events: %v",
+			w.sessionID, len(newEvents), len(servers), len(sess.Parties), newEvents)
 
 		// push events to the web client
 		event := &sessionStreamEvent{
@@ -132,14 +139,6 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 		}
 		if err := websocket.JSON.Send(ws, event); err != nil {
 			log.Error(err)
-		}
-
-		// wait for next timer tick or a signal to abort:
-		select {
-		case <-ticker.C:
-		case <-w.closeC:
-			log.Infof("[web] session.stream() exited")
-			return nil
 		}
 	}
 }

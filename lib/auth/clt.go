@@ -161,16 +161,6 @@ func (c *Client) UpdateSession(req session.UpdateRequest) error {
 	return trace.Wrap(err)
 }
 
-// UpsertParty updates existing session party or inserts new party
-func (c *Client) UpsertParty(id session.ID, p session.Party, ttl time.Duration) error {
-	// saving extra round-trip
-	if err := id.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-	_, err := c.PostJSON(c.Endpoint("sessions", string(id), "parties"), upsertPartyReq{Party: p, TTL: ttl})
-	return trace.Wrap(err)
-}
-
 // GetLocalDomain returns local auth domain of the current auth server
 func (c *Client) GetLocalDomain() (string, error) {
 	out, err := c.Get(c.Endpoint("domain"), url.Values{})
@@ -819,7 +809,6 @@ type ClientI interface {
 	GetSession(id session.ID) (*session.Session, error)
 	CreateSession(s session.Session) error
 	UpdateSession(req session.UpdateRequest) error
-	UpsertParty(id session.ID, p session.Party, ttl time.Duration) error
 	UpsertCertAuthority(cert services.CertAuthority, ttl time.Duration) error
 	GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error)
 	DeleteCertAuthority(caType services.CertAuthID) error
