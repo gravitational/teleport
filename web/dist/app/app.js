@@ -4704,9 +4704,10 @@ webpackJsonp([1],[
 	
 	var logger = __webpack_require__(23).create('TtyPlayer');
 	var STREAM_START_INDEX = 0;
-	var PRE_FETCH_BUF_SIZE = 50;
+	var PRE_FETCH_BUF_SIZE = 150;
 	var URL_PREFIX_EVENTS = '/events';
-	var EVENT_MIN_TIME_DIFFERENCE = 50;
+	var EVENT_MIN_TIME_DIFFERENCE = 10;
+	var PLAY_SPEED = 120;
 	
 	function handleAjaxError(err) {
 	  showError('Unable to retrieve session info');
@@ -4909,7 +4910,7 @@ webpackJsonp([1],[
 	      this.emit('reset');
 	    }
 	
-	    this.timer = setInterval(this.move.bind(this), 150);
+	    this.timer = setInterval(this.move.bind(this), PLAY_SPEED);
 	    this._change();
 	  };
 	
