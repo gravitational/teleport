@@ -22,9 +22,10 @@ var $ = require('jQuery');
 
 const logger = require('app/common/logger').create('TtyPlayer');
 const STREAM_START_INDEX = 0;
-const PRE_FETCH_BUF_SIZE = 50;
+const PRE_FETCH_BUF_SIZE = 150;
 const URL_PREFIX_EVENTS = '/events';
-const EVENT_MIN_TIME_DIFFERENCE = 50;
+const EVENT_MIN_TIME_DIFFERENCE = 10;
+const PLAY_SPEED = 120;
 
 function handleAjaxError(err){
   showError('Unable to retrieve session info');
@@ -211,7 +212,7 @@ class TtyPlayer extends Tty {
       this.emit('reset');
     }
 
-    this.timer = setInterval(this.move.bind(this), 150);
+    this.timer = setInterval(this.move.bind(this), PLAY_SPEED);
     this._change();
   }
 
