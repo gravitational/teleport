@@ -38,7 +38,7 @@ webpackJsonp([1],[
 	
 	var _nuclearJs = __webpack_require__(12);
 	
-	var enabled = true;
+	var enabled = false;
 	
 	// temporary workaround to disable debug info during unit-tests
 	var karma = window.__karma__;
@@ -4706,6 +4706,7 @@ webpackJsonp([1],[
 	var STREAM_START_INDEX = 0;
 	var PRE_FETCH_BUF_SIZE = 50;
 	var URL_PREFIX_EVENTS = '/events';
+	var EVENT_MIN_TIME_DIFFERENCE = 50;
 	
 	function handleAjaxError(err) {
 	  showError('Unable to retrieve session info');
@@ -4767,6 +4768,9 @@ webpackJsonp([1],[
 	
 	    var w = undefined,
 	        h = undefined;
+	    var tmp = [];
+	
+	    // ensure that each event has the right screen size
 	    for (var i = 0; i < events.length; i++) {
 	      if (events[i].event === 'resize') {
 	        var _events$i$size$split = events[i].size.split(':');
@@ -4783,7 +4787,20 @@ webpackJsonp([1],[
 	      events[i].w = Number(w);
 	      events[i].h = Number(h);
 	      events[i].bytes = events[i].bytes || 0;
-	      this.events.push(events[i]);
+	      tmp.push(events[i]);
+	    }
+	
+	    // merge events that have very short time difference between each other
+	    var cur = tmp[0];
+	    for (var i = 1; i < tmp.length; i++) {
+	      var sameSize = cur.w === tmp[i].w && cur.h === tmp[i].h;
+	      if (tmp[i].ms - cur.ms < EVENT_MIN_TIME_DIFFERENCE && sameSize) {
+	        cur.bytes += tmp[i].bytes;
+	        cur.ms = tmp[i].ms;
+	      } else {
+	        this.events.push(cur);
+	        cur = tmp[i];
+	      }
 	    }
 	  };
 	
@@ -5236,51 +5253,26 @@ webpackJsonp([1],[
 	var SessionLeftPanel = __webpack_require__(215);
 	var cfg = __webpack_require__(8);
 	
-	var MyTerminal = (function (_Terminal) {
-	  _inherits(MyTerminal, _Terminal);
+	var Term = (function (_Terminal) {
+	  _inherits(Term, _Terminal);
 	
-	  function MyTerminal(tty, el) {
-	    _classCallCheck(this, MyTerminal);
+	  function Term(tty, el) {
+	    _classCallCheck(this, Term);
 	
 	    _Terminal.call(this, { el: el });
 	    this.tty = tty;
 	  }
 	
-	  MyTerminal.prototype.connect = function connect() {
+	  Term.prototype.connect = function connect() {
 	    this.tty.connect();
 	  };
 	
-	  MyTerminal.prototype._disconnect = function _disconnect() {};
+	  Term.prototype._disconnect = function _disconnect() {};
 	
-	  MyTerminal.prototype._requestResize = function _requestResize() {};
+	  Term.prototype._requestResize = function _requestResize() {};
 	
-	  return MyTerminal;
+	  return Term;
 	})(Terminal);
-	
-	var TerminalPlayer = React.createClass({
-	  displayName: 'TerminalPlayer',
-	
-	  componentDidMount: function componentDidMount() {
-	    this.terminal = new MyTerminal(this.props.tty, this.refs.container);
-	    this.terminal.open();
-	  },
-	
-	  componentWillUnmount: function componentWillUnmount() {
-	    this.terminal.destroy();
-	  },
-	
-	  shouldComponentUpdate: function shouldComponentUpdate() {
-	    return false;
-	  },
-	
-	  render: function render() {
-	    return React.createElement(
-	      'div',
-	      { ref: 'container' },
-	      '  '
-	    );
-	  }
-	});
 	
 	var SessionPlayer = React.createClass({
 	  displayName: 'SessionPlayer',
@@ -5296,25 +5288,28 @@ webpackJsonp([1],[
 	  },
 	
 	  getInitialState: function getInitialState() {
-	    var url = cfg.api.getFetchSessionUrl(this.props.sid);
-	    this.tty = new TtyPlayer({ url: url });
-	    return this.calculateState();
-	  },
-	
-	  componentWillUnmount: function componentWillUnmount() {
-	    this.tty.stop();
-	    this.tty.removeAllListeners();
-	  },
-	
-	  componentDidMount: function componentDidMount() {
 	    var _this = this;
 	
+	    var url = cfg.api.getFetchSessionUrl(this.props.sid);
+	    this.tty = new TtyPlayer({ url: url });
 	    this.tty.on('change', function () {
 	      var newState = _this.calculateState();
 	      _this.setState(newState);
 	    });
 	
+	    return this.calculateState();
+	  },
+	
+	  componentDidMount: function componentDidMount() {
+	    this.terminal = new Term(this.tty, this.refs.container);
+	    this.terminal.open();
 	    this.tty.play();
+	  },
+	
+	  componentWillUnmount: function componentWillUnmount() {
+	    this.tty.stop();
+	    this.tty.removeAllListeners();
+	    this.terminal.destroy();
 	  },
 	
 	  togglePlayStop: function togglePlayStop() {
@@ -5345,7 +5340,7 @@ webpackJsonp([1],[
 	      'div',
 	      { className: 'grv-current-session grv-session-player' },
 	      React.createElement(SessionLeftPanel, null),
-	      React.createElement(TerminalPlayer, { ref: 'term', tty: this.tty, scrollback: 0 }),
+	      React.createElement('div', { ref: 'container' }),
 	      React.createElement(
 	        'div',
 	        { className: 'grv-session-player-controls' },

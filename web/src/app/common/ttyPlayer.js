@@ -24,6 +24,7 @@ const logger = require('app/common/logger').create('TtyPlayer');
 const STREAM_START_INDEX = 0;
 const PRE_FETCH_BUF_SIZE = 50;
 const URL_PREFIX_EVENTS = '/events';
+const EVENT_MIN_TIME_DIFFERENCE = 50;
 
 function handleAjaxError(err){
   showError('Unable to retrieve session info');
@@ -77,7 +78,10 @@ class EventProvider{
   _init(data){
     let {events} = data;
     let w, h;
-    for(var i = 0; i < events.length; i++){
+    let tmp = [];
+
+    // ensure that each event has the right screen size
+    for(let i = 0; i < events.length; i++){
       if(events[i].event === 'resize'){
         [w, h] = events[i].size.split(':');
       }
@@ -90,7 +94,20 @@ class EventProvider{
       events[i].w = Number(w);
       events[i].h = Number(h);
       events[i].bytes = events[i].bytes || 0;
-      this.events.push(events[i]);
+      tmp.push(events[i]);
+    }
+
+    // merge events that have very short time difference between each other
+    var cur = tmp[0];
+    for(let i = 1; i < tmp.length; i++){
+      let sameSize = cur.w === tmp[i].w && cur.h === tmp[i].h;
+      if(tmp[i].ms - cur.ms < EVENT_MIN_TIME_DIFFERENCE && sameSize ){
+        cur.bytes += tmp[i].bytes;
+        cur.ms = tmp[i].ms;
+      }else{
+        this.events.push(cur);
+        cur = tmp[i];
+      }
     }
   }
 

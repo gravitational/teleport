@@ -21,7 +21,7 @@ var Terminal = require('app/common/terminal');
 var SessionLeftPanel = require('./sessionLeftPanel.jsx');
 var cfg = require('app/config');
 
-class MyTerminal extends Terminal{
+class Term extends Terminal{
   constructor(tty, el){
     super({el});
     this.tty = tty;
@@ -36,26 +36,6 @@ class MyTerminal extends Terminal{
   _requestResize(){}
 }
 
-var TerminalPlayer = React.createClass({
-
-  componentDidMount: function() {
-    this.terminal = new MyTerminal(this.props.tty, this.refs.container);
-    this.terminal.open();
-  },
-
-  componentWillUnmount: function() {
-    this.terminal.destroy();
-  },
-
-  shouldComponentUpdate: function() {
-    return false;
-  },
-
-  render() {
-    return ( <div ref="container">  </div> );
-  }
-});
-
 var SessionPlayer = React.createClass({
   calculateState(){
     return {
@@ -69,22 +49,25 @@ var SessionPlayer = React.createClass({
 
   getInitialState() {
     var url = cfg.api.getFetchSessionUrl(this.props.sid);
-    this.tty = new TtyPlayer({url });
-    return this.calculateState();
-  },
-
-  componentWillUnmount() {
-    this.tty.stop();
-    this.tty.removeAllListeners();
-  },
-
-  componentDidMount() {
+    this.tty = new TtyPlayer({url});
     this.tty.on('change', ()=>{
       var newState = this.calculateState();
       this.setState(newState);
     });
 
+    return this.calculateState();
+  },
+
+  componentDidMount() {
+    this.terminal = new Term(this.tty, this.refs.container);
+    this.terminal.open();
     this.tty.play();
+  },
+
+  componentWillUnmount() {
+    this.tty.stop();
+    this.tty.removeAllListeners();
+    this.terminal.destroy();
   },
 
   togglePlayStop(){
@@ -114,7 +97,7 @@ var SessionPlayer = React.createClass({
     return (
      <div className="grv-current-session grv-session-player">
        <SessionLeftPanel/>
-       <TerminalPlayer ref="term" tty={this.tty} scrollback={0} />
+       <div ref="container"/>
        <div className="grv-session-player-controls">
          <button className="btn" onClick={this.togglePlayStop}>
            { isPlaying ? <i className="fa fa-stop"></i> :  <i className="fa fa-play"></i> }
@@ -134,7 +117,5 @@ var SessionPlayer = React.createClass({
      );
   }
 });
-
-
 
 export default SessionPlayer;
