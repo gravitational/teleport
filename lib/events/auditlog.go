@@ -142,7 +142,7 @@ type SessionLogger struct {
 
 // LogEvent logs an event associated with this session
 func (sl *SessionLogger) LogEvent(fields EventFields) {
-	logrus.Infof("--> sessionLogger(%s).LogEvent(%v, bytes:%v)", sl.sid, fields[EventType], sl.writtenBytes)
+	//logrus.Infof("--> sessionLogger(%s).LogEvent(%v, bytes:%v)", sl.sid, fields[EventType], sl.writtenBytes)
 
 	// add "bytes written" counter:
 	fields[SessionByteOffset] = sl.writtenBytes
@@ -181,6 +181,7 @@ func (sl *SessionLogger) Close() error {
 // Write takes a stream of bytes (usually the output from a session terminal)
 // and writes it into a "stream file", for future replay of interactive sessions.
 func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
+	logrus.Infof("-----> chunk %d bytes", len(bytes))
 	if sl.streamFile == nil {
 		err := trace.Errorf("session %v error: attempt to write to a closed file", sl.sid)
 		logrus.Error(err)
