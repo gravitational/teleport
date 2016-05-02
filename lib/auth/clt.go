@@ -727,7 +727,22 @@ func (c *Client) EmitAuditEvent(eventType string, fields events.EventFields) err
 // GetSessionWriter allows clients to submit their session stream to the audit log
 // (part of evets.AuditLogI interface)
 func (c *Client) GetSessionWriter(sid session.ID) (io.WriteCloser, error) {
-	return c.openWebsocket(c.Endpoint("sessions", string(sid), "writer"))
+	ws, err := c.openWebsocket(c.Endpoint("sessions", string(sid), "writer"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// we send the session stream as a sequence of JSON blobs. we cannot use
+	// websocket's read/write because they break our writes into more smaller chunks
+	// (critical for terminal replay)
+	return &sshWrapper{*ws}, nil
+}
+
+type sshWrapper struct {
+	websocket.Conn
+}
+
+func (w *sshWrapper) Write(data []byte) (int, error) {
+	return len(data), websocket.JSON.Send(&w.Conn, data)
 }
 
 // GetSessionReader allows clients to recewive a live stream of an active session
