@@ -156,6 +156,22 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 	return nil
 }
 
+// getParties allows to safely return a list of parties connected to this
+// session (as determined by ctx)
+func (s *sessionRegistry) getParties(ctx *ctx) (parties []*party) {
+	sess := ctx.session
+	if sess != nil {
+		sess.Lock()
+		defer sess.Unlock()
+
+		parties = make([]*party, 0, len(sess.parties))
+		for _, p := range sess.parties {
+			parties = append(parties, p)
+		}
+	}
+	return parties
+}
+
 // notifyWinChange is called when an SSH server receives a command notifying
 // us that the terminal size has changed
 func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *ctx) error {
@@ -177,7 +193,12 @@ func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *c
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ctx.session.termSizeC <- []byte("\x00" + params.Serialize())
+
+	// notify all connected parties about the change in real time
+	// (if they're capable)
+	for _, p := range s.getParties(ctx) {
+		p.onWindowChanged(&params)
+	}
 
 	go func() {
 		err := s.srv.sessionServer.UpdateSession(
@@ -186,17 +207,6 @@ func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *c
 			log.Error(err)
 		}
 	}()
-	return nil
-}
-
-func (s *sessionRegistry) SessionForConnection(conn *ssh.ServerConn) *session {
-	s.Lock()
-	defer s.Unlock()
-	for _, sess := range s.sessions {
-		if sess.sshConn == conn {
-			return sess
-		}
-	}
 	return nil
 }
 
@@ -257,9 +267,6 @@ type session struct {
 	// login stores the login of the initial session creator
 	login string
 
-	// SSH connection we're servicing
-	sshConn *ssh.ServerConn
-
 	closeOnce sync.Once
 }
 
@@ -306,31 +313,64 @@ func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, err
 		writer:    newMultiWriter(),
 		login:     context.login,
 		closeC:    make(chan bool),
-		termSizeC: make(chan []byte),
-		sshConn:   context.conn,
+		termSizeC: nil, // only needed for web clients
 	}
 	return sess, nil
 }
 
-// This goroutine pushes terminal resize events directly into a connected web client
-func (s *session) termSizePusher(ch ssh.Channel) {
-	var err error
-	for err == nil {
-		select {
-		case newSize := <-s.termSizeC:
-			log.Infof("---> pushed new size: %s", string(newSize))
-			_, err = ch.Write(newSize)
-			if err != nil {
-				break
+func (r *sessionRegistry) PartyForConnection(sconn *ssh.ServerConn) *party {
+	r.Lock()
+	sessions := r.sessions
+	r.Unlock()
+
+	log.Infof("-----> looking for party. got %d sessions to check", len(sessions))
+	for _, session := range sessions {
+		session.Lock()
+		parties := session.parties
+		session.Unlock()
+		log.Infof("-----> looking for party. got %d parties to check at %v", len(parties), session.id)
+		for _, party := range parties {
+			log.Infof("-----> checking %p against %p", party.sconn, sconn)
+			if party.sconn == sconn {
+				return party
 			}
-		case <-s.closeC:
-			break
 		}
 	}
-	if err != nil {
-		log.Error(err)
+	return nil
+}
+
+// This goroutine pushes terminal resize events directly into a connected web client
+func (p *party) termSizePusher(ch ssh.Channel) {
+	var (
+		err error
+		n   int
+	)
+	defer func() {
+		if err != nil {
+			log.Error(err)
+		}
+		log.Infof("---> terminal size pushing ended... %v", ch)
+	}()
+
+	p.termSizeC = make(chan []byte, 2)
+	defer close(p.termSizeC)
+
+	log.Infof("---> terminal size pushing started!!! %v", ch)
+	for err == nil {
+		select {
+		case newSize := <-p.termSizeC:
+			n, err = ch.Write(newSize)
+			log.Infof("---> pushed new size: %s, (written=%d, err=%v)", string(newSize), n, err)
+			if err == io.EOF {
+				continue
+			}
+			if err != nil || n == 0 {
+				return
+			}
+		case <-p.closeC:
+			return
+		}
 	}
-	log.Infof("---> terminal size pushing ended!!!")
 }
 
 // isLingering returns 'true' if every party has left this session
@@ -353,7 +393,6 @@ func (s *session) Close() error {
 				err = s.term.Close()
 			}
 			close(s.closeC)
-			close(s.termSizeC)
 
 			// close all writers in our multi-writer
 			s.writer.Lock()
@@ -651,7 +690,7 @@ func (m *multiWriter) deleteWriter(id string) {
 // Write multiplexes the input to multiple sub-writers. The entire point
 // of multiWriter is to do this
 func (m *multiWriter) Write(p []byte) (n int, err error) {
-	log.Infof("---> multiWriter.Write(%d)", len(p))
+	//log.Infof("---> multiWriter.Write(%d)", len(p))
 	// lock and make a local copy of available writers:
 	getWriters := func() (writers []writerWrapper) {
 		m.RLock()
@@ -689,6 +728,7 @@ func newParty(s *session, ch ssh.Channel, ctx *ctx) *party {
 		ch:       ch,
 		ctx:      ctx,
 		s:        s,
+		sconn:    ctx.conn,
 		closeC:   make(chan bool),
 	}
 }
@@ -705,8 +745,19 @@ type party struct {
 	ch         ssh.Channel
 	ctx        *ctx
 	closeC     chan bool
+	termSizeC  chan []byte
 	lastActive time.Time
 	closeOnce  sync.Once
+}
+
+func (p *party) onWindowChanged(params *rsession.TerminalParams) {
+	log.Infof("----> party(%s).onWindowChanged(%v)", p.id, params.Serialize())
+	// this prefix will be appended to the end of every socker write going
+	// to this party:
+	prefix := []byte("\x00" + params.Serialize())
+	if p.termSizeC != nil && len(p.termSizeC) == 0 {
+		p.termSizeC <- prefix
+	}
 }
 
 func (p *party) updateActivity() {

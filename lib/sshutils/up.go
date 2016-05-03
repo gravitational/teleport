@@ -231,7 +231,9 @@ func (u *Upstream) PipeShell(rw io.ReadWriter, req *PTYReqParams) error {
 				}
 			}
 		}
-		logrus.Error(err)
+		if err != io.EOF {
+			logrus.Error(err)
+		}
 		return err
 	}
 

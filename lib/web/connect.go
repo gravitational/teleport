@@ -124,7 +124,7 @@ func (w *connectHandler) connect(ws *websocket.Conn) {
 		})
 
 	log.Infof("pipe shell finished with: %v", err)
-	ws.Write([]byte("\n\rdisconnected\n\r"))
+	//ws.Write([]byte("\n\rdisconnected\n\r"))
 }
 
 // resizePTYWindow is called when a brower resizes its window. Now the node
@@ -174,9 +174,12 @@ func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
 		switch err {
 		case io.EOF:
 			log.Infof("terminal-size-notifier-client: I AM DONE!")
+		case nil:
+			break
 		default:
 			log.Error(err)
 		}
+		log.Infof("---> terminal size reading ended!")
 	}()
 
 	up.GetSession().SendRequest(

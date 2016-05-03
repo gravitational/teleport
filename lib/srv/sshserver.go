@@ -607,17 +607,17 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel,
 
 func (s *Server) handleTerminalResize(sconn *ssh.ServerConn, ch ssh.Channel) {
 	for i := 0; i < 10; i++ {
-		sess := s.reg.SessionForConnection(sconn)
-		if sess == nil {
+		party := s.reg.PartyForConnection(sconn)
+		if party == nil {
 			time.Sleep(time.Millisecond * 250)
 			continue
 		}
 		// this will run in a loop until ch closes
-		sess.termSizePusher(ch)
+		party.termSizePusher(ch)
 		return
 	}
 	// if we got here, we could nto find the session to push terminal size from
-	log.Warn("--> no session for terminal resize!")
+	log.Warn("--> no active party for terminal resize!")
 }
 
 // handleSessionRequests handles out of band session requests once the session channel has been created
@@ -641,7 +641,7 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 			}
 			// update ctx with a session ID
 			ctx.session, _ = findSession()
-			log.Infof("[SSH] loaded session ---> %v", ctx.session)
+			log.Infof("[SSH] loaded session %v for SSH connection %v", ctx.session, sconn)
 		}
 	}
 

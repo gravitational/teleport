@@ -47,7 +47,7 @@ func NewWebSockWrapper(ws *websocket.Conn, m WebSocketMode) *WebSockWrapper {
 //
 // It replaces raw Write() with "Message.Send()"
 func (w *WebSockWrapper) Write(data []byte) (n int, err error) {
-	log.Infof("---> websocket.Write(%d) with %v", len(data), data[0])
+	//log.Infof("---> websocket.Write(%d) with %v", len(data), data[0])
 	n = len(data)
 	if w.mode == WebSocketBinaryMode {
 		// binary send:
@@ -79,7 +79,7 @@ func (w *WebSockWrapper) Read(out []byte) (n int, err error) {
 		switch err {
 		case nil:
 			data, err = w.decoder.Bytes([]byte(utf8))
-			log.Infof("---> websocket.Read(%d), err=%v", len(data), err)
+			//log.Infof("---> websocket.Read(%d), err=%v", len(data), err)
 		case io.EOF:
 			return 0, io.EOF
 		default:
@@ -90,7 +90,7 @@ func (w *WebSockWrapper) Read(out []byte) (n int, err error) {
 		return 0, trace.Wrap(err)
 	}
 	if len(out) < len(data) {
-		log.Warningf("--------WOW!!! Websocket can't receive all of it!!!! : %d vs %d!!!", len(out), len(data))
+		log.Warningf("websocket failed to receive everything: %d vs %d", len(out), len(data))
 	}
 	return copy(out, data), nil
 }

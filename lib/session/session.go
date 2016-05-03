@@ -297,7 +297,7 @@ func (s *server) GetSessions() ([]Session, error) {
 		logrus.Error(err)
 		return nil, err
 	}
-	logrus.Infof("session.GetSessions(state=%v", bucket)
+	//	logrus.Infof("session.GetSessions(state=%v", bucket)
 	for i, sid := range keys {
 		if i > MaxSessionSliceLength {
 			break
