@@ -127,9 +127,10 @@ class TtyTerminal {
 
   _ensureScreenSize(data){
     let pos = data.lastIndexOf('\0');
-    if(pos !==-1 && pos < data.length-3){
-      let tmp = data.substr(pos+1);
-      if(tmp.length > 2 && tmp.length < 10){
+    if(pos !==-1){
+      let length = data.length - pos;
+      if(length  > 2 && length < 10){
+        let tmp = data.substr(pos+1);
         let [w, h] = tmp.split(':');
         if($.isNumeric(w) && $.isNumeric(h)){
           w = Number(w);

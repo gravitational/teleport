@@ -2419,9 +2419,11 @@ webpackJsonp([1],[
 	
 	  TtyTerminal.prototype._ensureScreenSize = function _ensureScreenSize(data) {
 	    var pos = data.lastIndexOf('\0');
-	    if (pos !== -1 && pos < data.length - 3) {
-	      var tmp = data.substr(pos + 1);
-	      if (tmp.length > 2 && tmp.length < 10) {
+	    if (pos !== -1) {
+	      var _length = data.length - pos;
+	      if (_length > 2 && _length < 10) {
+	        var tmp = data.substr(pos + 1);
+	
 	        var _tmp$split = tmp.split(':');
 	
 	        var w = _tmp$split[0];
