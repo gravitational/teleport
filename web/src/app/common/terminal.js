@@ -77,6 +77,7 @@ class TtyTerminal {
     this.tty.on('close', ()=> this.term.write(DISCONNECT_TXT));
     this.tty.on('data', (data) => {
       try{
+        data = this._ensureScreenSize(data);
         this.term.write(data);
       }catch(err){
         console.error(err);
@@ -115,9 +116,34 @@ class TtyTerminal {
       rows = dim.rows;
     }
 
+    if( cols === this.cols && rows === this.rows){
+      return;
+    }
+
     this.cols = cols;
     this.rows = rows;
     this.term.resize(this.cols, this.rows);
+  }
+
+  _ensureScreenSize(data){
+    let pos = data.lastIndexOf('\0');
+    if(pos !==-1 && pos < data.length-3){
+      let tmp = data.substr(pos+1);
+      if(tmp.length > 2 && tmp.length < 10){
+        let [w, h] = tmp.split(':');
+        if($.isNumeric(w) && $.isNumeric(h)){
+          w = Number(w);
+          h = Number(h);
+
+          if(w < 500 && h < 500){
+            data = data.slice(0, pos);
+            this.resize(w, h)
+          }
+        }
+      }
+    }
+
+    return data;
   }
 
   _disconnect(){

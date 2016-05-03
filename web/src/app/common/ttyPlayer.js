@@ -17,7 +17,6 @@ limitations under the License.
 var Tty = require('app/common/tty');
 var api = require('app/services/api');
 var {showError} = require('app/modules/notifications/actions');
-var Buffer = require('buffer/').Buffer;
 var $ = require('jQuery');
 
 const logger = require('app/common/logger').create('TtyPlayer');
@@ -134,7 +133,8 @@ class EventProvider{
     let url = `${this.url}/stream?offset=${offset}&bytes=${bytes}`;
 
     return api.get(url).then((response)=>{
-      return new Buffer(response.bytes, 'base64').toString('utf8');
+      return response.bytes;
+      //return new Buffer(response.bytes, 'base64').toString('utf8');
     })
   }
 }
