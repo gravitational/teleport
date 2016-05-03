@@ -18,6 +18,7 @@ package web
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -102,7 +103,10 @@ func (w *connectHandler) Close() error {
 	return nil
 }
 
+// connect is called when a web browser wants to start piping an active terminal session
+// io/out via the provided websocket
 func (w *connectHandler) connect(ws *websocket.Conn) {
+	// connectUpstream establishes an SSH connection to a requested node
 	up, err := w.connectUpstream()
 	if err != nil {
 		log.Errorf("wsHandler: failed: %v", err)
@@ -111,6 +115,8 @@ func (w *connectHandler) connect(ws *websocket.Conn) {
 	w.up = up
 	w.ws = ws
 
+	// PipeShell will be piping inputs/output to/from SSH connection (to the node)
+	// and the websocket (to a browser)
 	err = w.up.PipeShell(utils.NewWebSockWrapper(ws, utils.WebSocketTextMode),
 		&sshutils.PTYReqParams{
 			W: uint32(w.req.Term.W),
@@ -121,8 +127,11 @@ func (w *connectHandler) connect(ws *websocket.Conn) {
 	ws.Write([]byte("\n\rdisconnected\n\r"))
 }
 
+// resizePTYWindow is called when a brower resizes its window. Now the node
+// needs to be notified via SSH
 func (w *connectHandler) resizePTYWindow(params session.TerminalParams) error {
 	_, err := w.up.GetSession().SendRequest(
+		// send SSH "window resized" SSH request:
 		sshutils.WindowChangeReq, false,
 		ssh.Marshal(sshutils.WinChangeReqParams{
 			W: uint32(params.W),
@@ -131,6 +140,7 @@ func (w *connectHandler) resizePTYWindow(params session.TerminalParams) error {
 	return trace.Wrap(err)
 }
 
+// connectUpstream establishes the SSH connection to a requested SSH server (node)
 func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
 	agent, err := w.ctx.GetAgent()
 	if err != nil {
@@ -150,6 +160,25 @@ func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	go func() {
+		buff := make([]byte, 16)
+		sshChan, _, err := up.GetClient().OpenChannel("terminal-size-notifier", nil)
+		for err == nil {
+			n, err := sshChan.Read(buff)
+			if err != nil {
+				break
+			}
+			up.SetPrefix(buff[:n])
+		}
+		switch err {
+		case io.EOF:
+			log.Infof("terminal-size-notifier-client: I AM DONE!")
+		default:
+			log.Error(err)
+		}
+	}()
+
 	up.GetSession().SendRequest(
 		sshutils.SetEnvReq, false,
 		ssh.Marshal(sshutils.EnvReqParams{

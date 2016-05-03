@@ -19,7 +19,9 @@ package sshutils
 import (
 	"fmt"
 	"io"
+	"sync"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 
 	"golang.org/x/crypto/ssh"
@@ -66,9 +68,25 @@ func DialUpstream(username, addr string, signers []ssh.Signer) (*Upstream, error
 // that provides some handy functions to work with interactive shells
 // and launching commands
 type Upstream struct {
+	sync.Mutex
+
 	addr    string
 	client  *ssh.Client
 	session *ssh.Session
+
+	prefix []byte
+}
+
+func (u *Upstream) SetPrefix(data []byte) {
+	u.Lock()
+	defer u.Unlock()
+
+	u.prefix = data
+}
+
+// GetClient returns current active ssh client
+func (u *Upstream) GetClient() *ssh.Client {
+	return u.client
 }
 
 // GetSession returns current active sesson
@@ -188,19 +206,45 @@ func (u *Upstream) PipeShell(rw io.ReadWriter, req *PTYReqParams) error {
 		u.session.SendRequest(PTYReq, false, ssh.Marshal(*req))
 	}
 
+	getPrefix := func() []byte {
+		u.Lock()
+		defer u.Unlock()
+		return u.prefix
+	}
+
+	copyOutput := func(w io.Writer, r io.Reader) (err error) {
+		defer logrus.Infof("upstream.CopyOutput() ended!!!")
+		written, n := 0, 0
+		const bufflen = 32 * 1024
+		buffer := make([]byte, bufflen)
+		for err == nil {
+			prefix := getPrefix()
+			n, err = r.Read(buffer)
+			if err == nil {
+				if prefix != nil {
+					copy(buffer[n:], prefix)
+					n += len(prefix)
+				}
+				written, err = w.Write(buffer[:n])
+				if written != n {
+					err = io.ErrShortWrite
+				}
+			}
+		}
+		logrus.Error(err)
+		return err
+	}
+
 	go func() {
-		_, err := io.Copy(targetStdin, rw)
-		closeC <- err
+		closeC <- copyOutput(targetStdin, rw)
 	}()
 
 	go func() {
-		_, err := io.Copy(rw, targetStderr)
-		closeC <- err
+		closeC <- copyOutput(rw, targetStderr)
 	}()
 
 	go func() {
-		_, err := io.Copy(rw, targetStdout)
-		closeC <- err
+		closeC <- copyOutput(rw, targetStdout)
 	}()
 
 	go func() {

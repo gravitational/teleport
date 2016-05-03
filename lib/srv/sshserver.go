@@ -517,7 +517,7 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 
 // HandleRequest is a callback for out of band requests
 func (s *Server) HandleRequest(r *ssh.Request) {
-	log.Infof("recieved out-of-band request: %+v", r)
+	log.Infof("-----> recieved out-of-band request: %+v", r)
 }
 
 // HandleNewChan is called when new channel is opened
@@ -537,6 +537,12 @@ func (s *Server) HandleNewChan(nc net.Conn, sconn *ssh.ServerConn, nch ssh.NewCh
 	}
 
 	switch channelType {
+	case "terminal-size-notifier":
+		ch, _, err := nch.Accept()
+		if err != nil {
+			log.Infof("----> could not accept terminal-size-notifier: (%s)", err)
+		}
+		go s.handleTerminalResize(sconn, ch)
 	case "session": // interactive sessions
 		ch, requests, err := nch.Accept()
 		if err != nil {
@@ -597,6 +603,21 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel,
 		conn.Close()
 	}()
 	wg.Wait()
+}
+
+func (s *Server) handleTerminalResize(sconn *ssh.ServerConn, ch ssh.Channel) {
+	for i := 0; i < 10; i++ {
+		sess := s.reg.SessionForConnection(sconn)
+		if sess == nil {
+			time.Sleep(time.Millisecond * 250)
+			continue
+		}
+		// this will run in a loop until ch closes
+		sess.termSizePusher(ch)
+		return
+	}
+	// if we got here, we could nto find the session to push terminal size from
+	log.Warn("--> no session for terminal resize!")
 }
 
 // handleSessionRequests handles out of band session requests once the session channel has been created

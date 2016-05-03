@@ -177,6 +177,8 @@ func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *c
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	ctx.session.termSizeC <- []byte("\x00" + params.Serialize())
+
 	go func() {
 		err := s.srv.sessionServer.UpdateSession(
 			rsession.UpdateRequest{ID: sid, TerminalParams: &params})
@@ -184,6 +186,17 @@ func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *c
 			log.Error(err)
 		}
 	}()
+	return nil
+}
+
+func (s *sessionRegistry) SessionForConnection(conn *ssh.ServerConn) *session {
+	s.Lock()
+	defer s.Unlock()
+	for _, sess := range s.sessions {
+		if sess.sshConn == conn {
+			return sess
+		}
+	}
 	return nil
 }
 
@@ -237,8 +250,15 @@ type session struct {
 	// by the session
 	closeC chan bool
 
+	// termSizeC is used to push terminal resize events from SSH "on-size-changed"
+	// event handler into "push-to-web-client" loop.
+	termSizeC chan []byte
+
 	// login stores the login of the initial session creator
 	login string
+
+	// SSH connection we're servicing
+	sshConn *ssh.ServerConn
 
 	closeOnce sync.Once
 }
@@ -280,14 +300,37 @@ func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, err
 		}
 	}
 	sess := &session{
-		id:       id,
-		registry: r,
-		parties:  make(map[rsession.ID]*party),
-		writer:   newMultiWriter(),
-		login:    context.login,
-		closeC:   make(chan bool),
+		id:        id,
+		registry:  r,
+		parties:   make(map[rsession.ID]*party),
+		writer:    newMultiWriter(),
+		login:     context.login,
+		closeC:    make(chan bool),
+		termSizeC: make(chan []byte),
+		sshConn:   context.conn,
 	}
 	return sess, nil
+}
+
+// This goroutine pushes terminal resize events directly into a connected web client
+func (s *session) termSizePusher(ch ssh.Channel) {
+	var err error
+	for err == nil {
+		select {
+		case newSize := <-s.termSizeC:
+			log.Infof("---> pushed new size: %s", string(newSize))
+			_, err := ch.Write(newSize)
+			if err != nil {
+				break
+			}
+		case <-s.closeC:
+			break
+		}
+	}
+	if err != nil {
+		log.Error(err)
+	}
+	log.Infof("---> terminal size pushing ended!!!")
 }
 
 // isLingering returns 'true' if every party has left this session
@@ -310,6 +353,8 @@ func (s *session) Close() error {
 				err = s.term.Close()
 			}
 			close(s.closeC)
+			close(s.termSizeC)
+
 			// close all writers in our multi-writer
 			s.writer.Lock()
 			defer s.writer.Unlock()
