@@ -236,11 +236,13 @@ func (u *Upstream) PipeShell(rw io.ReadWriter, req *PTYReqParams) error {
 	}
 
 	go func() {
-		closeC <- copyOutput(targetStdin, rw)
+		_, err := io.Copy(targetStdin, rw)
+		closeC <- err
 	}()
 
 	go func() {
-		closeC <- copyOutput(rw, targetStderr)
+		_, err := io.Copy(rw, targetStderr)
+		closeC <- err
 	}()
 
 	go func() {

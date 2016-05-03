@@ -319,7 +319,7 @@ func (s *session) termSizePusher(ch ssh.Channel) {
 		select {
 		case newSize := <-s.termSizeC:
 			log.Infof("---> pushed new size: %s", string(newSize))
-			_, err := ch.Write(newSize)
+			_, err = ch.Write(newSize)
 			if err != nil {
 				break
 			}
