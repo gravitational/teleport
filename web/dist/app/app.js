@@ -438,15 +438,15 @@ webpackJsonp([1],[
 	  },
 	
 	  getUserData: function getUserData() {
-	    var item = localStorage.getItem(AUTH_KEY_DATA);
-	    if (item) {
-	      return JSON.parse(item);
-	    }
+	    try {
+	      var item = localStorage.getItem(AUTH_KEY_DATA);
+	      if (item) {
+	        return JSON.parse(item);
+	      }
 	
-	    // for sso use-cases, try to grab the token from HTML
-	    var hiddenDiv = document.getElementById("bearer_token");
-	    if (hiddenDiv !== null) {
-	      try {
+	      // for sso use-cases, try to grab the token from HTML
+	      var hiddenDiv = document.getElementById("bearer_token");
+	      if (hiddenDiv !== null) {
 	        var json = window.atob(hiddenDiv.textContent);
 	        var userData = JSON.parse(json);
 	        if (userData.token) {
@@ -456,9 +456,9 @@ webpackJsonp([1],[
 	          hiddenDiv.remove();
 	          return userData;
 	        }
-	      } catch (err) {
-	        logger.error('error parsing SSO token:', err);
 	      }
+	    } catch (err) {
+	      logger.error('error trying to read user auth data:', err);
 	    }
 	
 	    return {};
@@ -1798,39 +1798,60 @@ webpackJsonp([1],[
 	
 	var PROVIDER_GOOGLE = 'google';
 	
-	var REFRESH_RATE_COEFFICIENT = 0.66;
+	var CHECK_TOKEN_REFRESH_RATE = 10 * 1000; // 10 sec
 	
 	var refreshTokenTimerId = null;
+	
+	var UserData = function UserData(json) {
+	  $.extend(this, json);
+	  this.created = new Date().getTime();
+	};
 	
 	var auth = {
 	
 	  signUp: function signUp(name, password, token, inviteToken) {
 	    var data = { user: name, pass: password, second_factor_token: token, invite_token: inviteToken };
 	    return api.post(cfg.api.createUserPath, data).then(function (user) {
-	      session.setUserData(user);
+	      session.setUserData(new UserData(user));
 	      auth._startTokenRefresher();
 	      return user;
 	    });
 	  },
 	
 	  login: function login(name, password, token) {
+	    var _this = this;
+	
 	    auth._stopTokenRefresher();
 	    session.clear();
-	    return auth._login(name, password, token).done(auth._startTokenRefresher);
+	
+	    var data = {
+	      user: name,
+	      pass: password,
+	      second_factor_token: token
+	    };
+	
+	    return api.post(cfg.api.sessionPath, data, false).then(function (data) {
+	      session.setUserData(new UserData(data));
+	      _this._startTokenRefresher();
+	      return data;
+	    });
 	  },
 	
 	  ensureUser: function ensureUser() {
-	    var userData = session.getUserData();
-	    if (userData.token) {
-	      // refresh timer will not be set in case of browser refresh event
-	      if (auth._getRefreshTokenTimerId() === null) {
-	        return auth._refreshToken().done(auth._startTokenRefresher);
-	      }
+	    this._stopTokenRefresher();
 	
-	      return $.Deferred().resolve(userData);
+	    var userData = session.getUserData();
+	
+	    if (!userData.token) {
+	      return $.Deferred().reject();
 	    }
 	
-	    return $.Deferred().reject();
+	    if (this._shouldRefreshToken(userData)) {
+	      return this._refreshToken().then(this._startTokenRefresher);
+	    }
+	
+	    this._startTokenRefresher();
+	    return $.Deferred().resolve(userData);
 	  },
 	
 	  logout: function logout() {
@@ -1843,18 +1864,23 @@ webpackJsonp([1],[
 	    window.location = cfg.routes.login;
 	  },
 	
-	  _startTokenRefresher: function _startTokenRefresher() {
-	    var _session$getUserData = session.getUserData();
-	
-	    var expires_in = _session$getUserData.expires_in;
+	  _shouldRefreshToken: function _shouldRefreshToken(_ref) {
+	    var expires_in = _ref.expires_in;
+	    var created = _ref.created;
 	
 	    if (expires_in < 0) {
 	      expires_in = expires_in * -1;
 	    }
 	
-	    var refreshRate = expires_in * 1000 * REFRESH_RATE_COEFFICIENT;
+	    expires_in = expires_in * 1000;
 	
-	    refreshTokenTimerId = setInterval(auth._refreshToken, refreshRate);
+	    var delta = created + expires_in - new Date().getTime();
+	
+	    return delta < expires_in * 0.33;
+	  },
+	
+	  _startTokenRefresher: function _startTokenRefresher() {
+	    refreshTokenTimerId = setInterval(auth.ensureUser.bind(auth), CHECK_TOKEN_REFRESH_RATE);
 	  },
 	
 	  _stopTokenRefresher: function _stopTokenRefresher() {
@@ -1862,31 +1888,15 @@ webpackJsonp([1],[
 	    refreshTokenTimerId = null;
 	  },
 	
-	  _getRefreshTokenTimerId: function _getRefreshTokenTimerId() {
-	    return refreshTokenTimerId;
-	  },
-	
 	  _refreshToken: function _refreshToken() {
 	    return api.post(cfg.api.renewTokenPath).then(function (data) {
-	      session.setUserData(data);
+	      session.setUserData(new UserData(data));
 	      return data;
 	    }).fail(function () {
 	      auth.logout();
 	    });
-	  },
-	
-	  _login: function _login(name, password, token) {
-	    var data = {
-	      user: name,
-	      pass: password,
-	      second_factor_token: token
-	    };
-	
-	    return api.post(cfg.api.sessionPath, data, false).then(function (data) {
-	      session.setUserData(data);
-	      return data;
-	    });
 	  }
+	
 	};
 	
 	module.exports = auth;

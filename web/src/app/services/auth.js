@@ -21,9 +21,14 @@ var $ = require('jQuery');
 
 const PROVIDER_GOOGLE = 'google';
 
-const REFRESH_RATE_COEFFICIENT = 0.66;
+const CHECK_TOKEN_REFRESH_RATE = 10*1000; // 10 sec
 
 var refreshTokenTimerId = null;
+
+var UserData = function(json){
+  $.extend(this, json);
+  this.created = new Date().getTime();
+}
 
 var auth = {
 
@@ -31,7 +36,7 @@ var auth = {
     var data = {user: name, pass: password, second_factor_token: token, invite_token: inviteToken};
     return api.post(cfg.api.createUserPath, data)
       .then((user)=>{
-        session.setUserData(user);
+        session.setUserData(new UserData(user));
         auth._startTokenRefresher();
         return user;
       });
@@ -40,21 +45,35 @@ var auth = {
   login(name, password, token){
     auth._stopTokenRefresher();
     session.clear();
-    return auth._login(name, password, token).done(auth._startTokenRefresher);
+
+    var data = {
+      user: name,
+      pass: password,
+      second_factor_token: token
+    };
+
+    return api.post(cfg.api.sessionPath, data, false).then(data=>{
+      session.setUserData(new UserData(data));
+      this._startTokenRefresher();
+      return data;
+    });
   },
 
   ensureUser(){
-    var userData = session.getUserData();
-    if(userData.token){
-      // refresh timer will not be set in case of browser refresh event
-      if(auth._getRefreshTokenTimerId() === null){
-        return auth._refreshToken().done(auth._startTokenRefresher);
-      }
+    this._stopTokenRefresher();
 
-      return $.Deferred().resolve(userData);
+    var userData = session.getUserData();
+
+    if(!userData.token){
+      return $.Deferred().reject();
     }
 
-    return $.Deferred().reject();
+    if(this._shouldRefreshToken(userData)){
+      return this._refreshToken().then(this._startTokenRefresher);
+    }
+
+    this._startTokenRefresher();
+    return $.Deferred().resolve(userData);
   },
 
   logout(){
@@ -67,15 +86,20 @@ var auth = {
     window.location = cfg.routes.login;
   },
 
-  _startTokenRefresher(){
-    var {expires_in} = session.getUserData();
+  _shouldRefreshToken({ expires_in, created } ){
     if(expires_in < 0) {
       expires_in = expires_in * -1;
     }
 
-    var refreshRate = (expires_in * 1000) * REFRESH_RATE_COEFFICIENT;
+    expires_in = expires_in * 1000;
 
-    refreshTokenTimerId = setInterval(auth._refreshToken, refreshRate);
+    var delta = created + expires_in - new Date().getTime();
+
+    return delta < expires_in * 0.33;
+  },
+
+  _startTokenRefresher(){
+    refreshTokenTimerId = setInterval(auth.ensureUser.bind(auth), CHECK_TOKEN_REFRESH_RATE);
   },
 
   _stopTokenRefresher(){
@@ -83,31 +107,15 @@ var auth = {
     refreshTokenTimerId = null;
   },
 
-  _getRefreshTokenTimerId(){
-    return refreshTokenTimerId;
-  },
-
   _refreshToken(){
     return api.post(cfg.api.renewTokenPath).then(data=>{
-      session.setUserData(data);
+      session.setUserData(new UserData(data));
       return data;
     }).fail(()=>{
       auth.logout();
     });
-  },
-
-  _login(name, password, token){
-    var data = {
-      user: name,
-      pass: password,
-      second_factor_token: token
-    };
-
-    return api.post(cfg.api.sessionPath, data, false).then(data=>{
-      session.setUserData(data);
-      return data;
-    });
   }
+
 }
 
 module.exports = auth;
