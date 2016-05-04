@@ -991,12 +991,12 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	len, err := strconv.Atoi(query.Get("bytes"))
-	if err != nil || len <= 0 {
-		len = maxStreamBytes
+	max, err := strconv.Atoi(query.Get("bytes"))
+	if err != nil || max <= 0 {
+		max = maxStreamBytes
 	}
-	if len > maxStreamBytes {
-		return nil, trace.BadParameter("bytes", "bytes=%d, cannot exceed %d", len, maxStreamBytes)
+	if max > maxStreamBytes {
+		return nil, trace.BadParameter("bytes", "bytes=%d, cannot exceed %d", max, maxStreamBytes)
 	}
 
 	// read file:
@@ -1008,11 +1008,12 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	defer reader.Close()
 
 	var buff bytes.Buffer
-	written, err := io.CopyN(&buff, reader, int64(len))
+	written, err := io.CopyN(&buff, reader, int64(max))
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
+	log.Infof("[web] siteSessionStreamGet() returned %d/%d bytes", len(buff.Bytes()), written)
 	return siteSessionStreamGetResponse{Bytes: buff.Bytes()}, nil
 }
 

@@ -542,12 +542,11 @@ func NewTunClient(purpose string,
 		return nil, trace.BadParameter("SSH connection requires a valid username")
 	}
 	tc := &TunClient{
-		purpose:       purpose,
-		user:          user,
-		authServers:   authServers,
-		authMethods:   authMethods,
-		refreshTicker: time.NewTicker(defaults.AuthServersRefreshPeriod),
-		closeC:        make(chan struct{}),
+		purpose:     purpose,
+		user:        user,
+		authServers: authServers,
+		authMethods: authMethods,
+		closeC:      make(chan struct{}),
 	}
 	tc.setAuthServers(authServers)
 	for _, o := range opts {
@@ -572,7 +571,6 @@ func NewTunClient(purpose string,
 			tc.authServers = authServers
 		}
 	}
-	go tc.authServersSyncLoop()
 	return tc, nil
 }
 
@@ -581,8 +579,10 @@ func (c *TunClient) Close() error {
 	if c != nil {
 		log.Infof("TunClient[%s].Close()", c.purpose)
 		c.GetTransport().CloseIdleConnections()
-		c.refreshTicker.Stop()
 		c.closeOnce.Do(func() {
+			if c.refreshTicker != nil {
+				c.refreshTicker.Stop()
+			}
 			close(c.closeC)
 		})
 	}
@@ -622,6 +622,9 @@ func (c *TunClient) Dial(network, address string) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.ConnectionProblem(err, "can't connect to auth API")
 	}
+	// dialed & authenticated? lets start synchronizing the
+	// list of auth servers:
+	go c.authServersSyncLoop()
 	return &tunConn{client: client, Conn: conn}, nil
 }
 
@@ -648,9 +651,23 @@ func (c *TunClient) fetchAndSync() error {
 // for this client
 func (c *TunClient) authServersSyncLoop() {
 	log.Infof("TunClient[%s]: authServersSyncLoop() started", c.purpose)
+	alreadyRunning := func() bool {
+		c.Lock()
+		defer c.Unlock()
+		// already running the loop:
+		if c.refreshTicker != nil {
+			return true
+		}
+		c.refreshTicker = time.NewTicker(defaults.AuthServersRefreshPeriod)
+		return false
+	}
+	if alreadyRunning() {
+		return
+	}
+	defer c.refreshTicker.Stop()
 
 	// initial fetch for quick start-ups
-	c.fetchAndSync()
+	//c.fetchAndSync()
 	for {
 		select {
 		// timer-based refresh:
