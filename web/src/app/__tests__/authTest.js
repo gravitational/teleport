@@ -22,7 +22,7 @@ var spyOn = expect.spyOn;
 var auth = require('app/services/auth');
 
 describe('auth', function () {
-  var sample = { token: 'token' };
+  var sample = { token: 'token', expires_in: -599, created: new Date().getTime() };
 
   beforeEach(function () {
     spyOn(session, 'setUserData');
@@ -31,8 +31,8 @@ describe('auth', function () {
     spyOn(api, 'post');
     spyOn(auth, '_startTokenRefresher');
     spyOn(auth, '_stopTokenRefresher');
-    spyOn(auth, '_getRefreshTokenTimerId');
     spyOn(auth, '_redirect');
+    spyOn(auth, '_shouldRefreshToken').andCallThrough();
   });
 
   afterEach(function () {
@@ -43,7 +43,7 @@ describe('auth', function () {
     it('should successfully login and put user data in the session', function () {
       var token = null;
       api.post.andReturn($.Deferred().resolve(sample));
-      auth.login('user', 'password').done(user=>{ token = sample.token; });
+      auth.login('user', 'password').done(()=>{ token = sample.token; });
 
       expect(token).toEqual(sample.token);
       expect(auth._startTokenRefresher.calls.length).toEqual(1);
@@ -51,7 +51,6 @@ describe('auth', function () {
     });
 
     it('should return rejected promise if failed to log in', function () {
-      var token = null;
       var wasCalled = false;
       api.post.andReturn($.Deferred().reject());
       auth.login('user', 'password').fail(()=> { wasCalled = true });
@@ -60,41 +59,44 @@ describe('auth', function () {
   });
 
   describe('ensureUser()', function () {
-    describe('when session has a token and refreshTimer is active', function () {
+    describe('when token is valid', function () {
       it('should be resolved', function () {
         var wasCalled = false;
-        auth._getRefreshTokenTimerId.andReturn(11);
         session.getUserData.andReturn(sample);
         auth.ensureUser('user', 'password').done(()=> { wasCalled = true });
 
         expect(wasCalled).toEqual(true);
+        expect(auth._startTokenRefresher).toHaveBeenCalled();
+        expect(auth._shouldRefreshToken).toHaveBeenCalled();
       });
     });
 
-    describe('when session has a token but refreshTimer is not active (browser refresh case)', function () {
-      it('should be resolved succesfully if token is valid', function () {
+    describe('when token is about to be expired', function () {
+      it('should renew the token', function () {
         var wasCalled = false;
         api.post.andReturn($.Deferred().resolve(sample));
-        auth._getRefreshTokenTimerId.andReturn(null);
-        session.getUserData.andReturn(sample);
+        session.getUserData.andReturn({
+           ...sample,
+           created: new Date('12/12/2000').getTime()
+         });
+
         auth.ensureUser('user', 'password').done(()=> { wasCalled = true });
 
-        expect(api.post.calls.length).toEqual(1);
         expect(wasCalled).toEqual(true);
-      });
-
-      it('should be rejected if token is invalid', function () {
-        var wasCalled = false;
-        api.post.andReturn($.Deferred().reject());
-        auth._getRefreshTokenTimerId.andReturn(null);
-        session.getUserData.andReturn(sample);
-        auth.ensureUser('user', 'password').fail(()=> { wasCalled = true });
-
-        expect(api.post.calls.length).toEqual(1);
-        expect(wasCalled).toEqual(true);
-
+        expect(auth._startTokenRefresher).toHaveBeenCalled();
+        expect(auth._shouldRefreshToken).toHaveBeenCalled();
       });
     });
+
+    describe('when token is missing', function () {
+      it('should reject', function () {
+        var wasCalled = false;
+        session.getUserData.andReturn({});
+        auth.ensureUser('user', 'password').fail(()=> { wasCalled = true });
+        expect(wasCalled).toEqual(true);
+      });
+    });
+
   });
 
   describe('logout()', function () {
