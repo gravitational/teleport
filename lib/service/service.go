@@ -145,6 +145,7 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 	log.Infof("connecting to auth servers: %v", authServers)
 	authUser := identity.Cert.ValidPrincipals[0]
 	authClient, err := auth.NewTunClient(
+		string(role),
 		authServers,
 		authUser,
 		[]ssh.AuthMethod{ssh.PublicKeys(identity.KeySigner)},
@@ -366,6 +367,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 	var authClient *auth.TunClient
 	process.RegisterFunc(func() error {
 		authClient, err = auth.NewTunClient(
+			"auth.server",
 			[]utils.NetAddr{cfg.Auth.SSHAddr},
 			identity.Cert.ValidPrincipals[0],
 			[]ssh.AuthMethod{ssh.PublicKeys(identity.KeySigner)})

@@ -211,7 +211,7 @@ func (s *sessionCache) Auth(user, pass string, hotpToken string) (*auth.Session,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clt, err := auth.NewTunClient(s.authServers, user, method)
+	clt, err := auth.NewTunClient("web.client", s.authServers, user, method)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -233,10 +233,11 @@ func (s *sessionCache) GetCertificate(c createSSHCertReq) (*SSHLoginResponse, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clt, err := auth.NewTunClient(s.authServers, c.User, method)
+	clt, err := auth.NewTunClient("web.session", s.authServers, c.User, method)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer clt.Close()
 	cert, err := clt.GenerateUserCert(c.PubKey, c.User, c.TTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -264,10 +265,11 @@ func (s *sessionCache) GetUserInviteInfo(token string) (user string,
 	if err != nil {
 		return "", nil, nil, trace.Wrap(err)
 	}
-	clt, err := auth.NewTunClient(s.authServers, "tokenAuth", method)
+	clt, err := auth.NewTunClient("web.get-user-invite", s.authServers, "tokenAuth", method)
 	if err != nil {
 		return "", nil, nil, trace.Wrap(err)
 	}
+	defer clt.Close()
 
 	return clt.GetSignupTokenData(token)
 }
@@ -277,10 +279,11 @@ func (s *sessionCache) CreateNewUser(token, password, hotpToken string) (*auth.S
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clt, err := auth.NewTunClient(s.authServers, "tokenAuth", method)
+	clt, err := auth.NewTunClient("web.crate-user", s.authServers, "tokenAuth", method)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer clt.Close()
 	sess, err := clt.CreateUserWithToken(token, password, hotpToken)
 	return sess, trace.Wrap(err)
 }
@@ -338,11 +341,13 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 	if err == nil {
 		return ctx, nil
 	}
+	log.Infof("-------> ValidateSession(%s, %s)", user, sid)
 	method, err := auth.NewWebSessionAuth(user, []byte(sid))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clt, err := auth.NewTunClient(s.authServers, user, method)
+	// Note: do not close this auth API client now. It will exist inside of "session context"
+	clt, err := auth.NewTunClient("web.session-user", s.authServers, user, method)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -350,7 +355,6 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer clt.Close()
 	c := &SessionContext{
 		clt:    clt,
 		user:   user,

@@ -17,16 +17,9 @@ limitations under the License.
 .grv-session-player{
   padding: 15px 25px 50px 90px;
 
-/*
   .grv-terminal{
-    font-size: 13px;
-    display: flex;
-    .terminal{
-      margin: 0 auto!important;
-    font-size: 13px;
-    }
+    overflow: auto;
   }
-*/
 
   .grv-session-player-controls{
     margin-top: 10px;

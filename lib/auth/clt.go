@@ -28,6 +28,7 @@ import (
 
 	"golang.org/x/net/websocket"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/roundtrip"
 
@@ -36,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -49,34 +49,38 @@ type Dialer func(network, addr string) (net.Conn, error)
 // via HTTP.
 //
 // When Teleport servers connect to auth API, they usually establish an SSH
-// tunnel first, and then do HTTP-over-SSH, see auth.TunClient in lib/auth/tun.go
+// tunnel first, and then do HTTP-over-SSH. This client is wrapped by auth.TunClient
+// in lib/auth/tun.go
 type Client struct {
 	roundtrip.Client
-
-	// dialer allows this HTTP client to work on top of arbitrary
-	// connections
-	dialer Dialer
+	transport *http.Transport
 }
 
-// NewClient returns a new instance of the client
+// NewAuthClient returns a new instance of the client which talks to
+// an Auth server API (aka "site API") via HTTP-over-SSH
 func NewClient(addr string, dialer Dialer) (*Client, error) {
 	var params []roundtrip.ClientParam
-	// apply the supplied dialer:
-	if dialer != nil {
-		params = append(params, roundtrip.HTTPClient(&http.Client{
-			Transport: &http.Transport{Dial: dialer},
-		}))
-	} else {
+
+	if dialer == nil {
 		dialer = net.Dial
 	}
+	transport := &http.Transport{Dial: dialer}
+	params = append(params, roundtrip.HTTPClient(&http.Client{
+		Transport: transport,
+	}))
+
 	c, err := roundtrip.NewClient(addr, CurrentVersion, params...)
 	if err != nil {
 		return nil, err
 	}
 	return &Client{
-		Client: *c,
-		dialer: dialer,
+		Client:    *c,
+		transport: transport,
 	}, nil
+}
+
+func (c *Client) GetTransport() *http.Transport {
+	return c.transport
 }
 
 // PostJSON is a generic method that issues http POST request to the server
@@ -408,6 +412,9 @@ func (c *Client) CheckPassword(user string,
 // SignIn checks if the web access password is valid, and if it is valid
 // returns a secure web session id.
 func (c *Client) SignIn(user string, password []byte) (*Session, error) {
+	logrus.Infof(">> auth.Client.SignIn(%s)", user)
+	defer logrus.Infof("<< auth.Client.SignIn(%s)", user)
+
 	out, err := c.PostJSON(
 		c.Endpoint("users", user, "web", "signin"),
 		signInReq{
@@ -751,10 +758,13 @@ func (c *Client) GetSessionReader(sid session.ID, offsetBytes int) (io.ReadClose
 	ws, err := c.openWebsocket(
 		c.Endpoint("sessions", string(sid), "reader") +
 			fmt.Sprintf("?from=%d", offsetBytes))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return utils.NewWebSockWrapper(ws, utils.WebSocketTextMode), nil
+	/*
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return utils.NewWebSockWrapper(ws, utils.WebSocketTextMode), nil
+	*/
+	return ws, err
 }
 
 // Returns events that happen during a session sorted by time
@@ -804,7 +814,7 @@ func (c *Client) SearchEvents(from, to time.Time, query string) ([]events.EventF
 // a web socket via HTTP-over-SSH at a given URL. Returns a connected websocket.
 func (c *Client) openWebsocket(urlString string) (conn *websocket.Conn, err error) {
 	// create an underlying SSH connection (we'll use it as a transport for websocket):
-	sshConn, err := c.dialer("tcp", "stub:0")
+	sshConn, err := c.transport.Dial("tcp", "stub:0")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

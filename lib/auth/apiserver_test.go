@@ -19,6 +19,7 @@ package auth
 import (
 	"fmt"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -99,6 +100,7 @@ func (s *APISuite) SetUpTest(c *C) {
 func (s *APISuite) TearDownTest(c *C) {
 	s.srv.Close()
 	s.alog.Close()
+	os.RemoveAll(s.dir)
 }
 
 func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
@@ -367,30 +369,42 @@ func (s *APISuite) TestSharedSessions(c *C) {
 
 	c.Assert(out, DeepEquals, []session.Session{sess})
 
-	// emit an event into this session:
+	// emit two events: "one" and "two" for this session, and event "three"
+	// for some other session
 	s.clt.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
 		events.SessionEventID: sess.ID,
-		"1": "one",
+		"val": "one",
 	})
+	s.clt.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
+		events.SessionEventID: sess.ID,
+		"val": "two",
+	})
+	anotherSessionID := session.NewID()
+	s.clt.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
+		events.SessionEventID: anotherSessionID,
+		"val": "three",
+	})
+	// ask for strictly session events:
 	e, err := s.clt.GetSessionEvents(sess.ID, 0)
 	c.Assert(err, IsNil)
-	c.Assert(len(e), Equals, 1)
-	c.Assert(e[0]["1"].(string), Equals, "one")
+	c.Assert(len(e), Equals, 2)
+	c.Assert(e[0].GetString("val"), Equals, "one")
+	c.Assert(e[1].GetString("val"), Equals, "two")
 
-	// try searching for events (bad query)
+	// try searching for events with no filter (empty query) - shuld get all 3 events:
 	to := time.Now().In(time.UTC).Add(time.Hour)
 	from := to.Add(-time.Hour * 2)
 	history, err := s.clt.SearchEvents(from, to, "")
 	c.Assert(err, IsNil)
 	c.Assert(history, NotNil)
-	c.Assert(len(history), Equals, 0)
+	c.Assert(len(history), Equals, 3)
 
-	// try searching for events (good query)
+	// try searching for only "session.end" events (real query)
 	history, err = s.clt.SearchEvents(from, to,
-		fmt.Sprintf("%s=%s", events.EventType, events.SessionStartEvent))
+		fmt.Sprintf("%s=%s", events.EventType, events.SessionEndEvent))
 	c.Assert(err, IsNil)
 	c.Assert(history, NotNil)
 	c.Assert(len(history), Equals, 1)
-	c.Assert(history[0].GetString(events.SessionEventID), Equals, string(sess.ID))
-	c.Assert(history[0].GetString("1"), Equals, "one")
+	c.Assert(history[0].GetString(events.SessionEventID), Equals, string(anotherSessionID))
+	c.Assert(history[0].GetString("val"), Equals, "three")
 }

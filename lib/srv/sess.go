@@ -323,14 +323,11 @@ func (r *sessionRegistry) PartyForConnection(sconn *ssh.ServerConn) *party {
 	sessions := r.sessions
 	r.Unlock()
 
-	log.Infof("-----> looking for party. got %d sessions to check", len(sessions))
 	for _, session := range sessions {
 		session.Lock()
 		parties := session.parties
 		session.Unlock()
-		log.Infof("-----> looking for party. got %d parties to check at %v", len(parties), session.id)
 		for _, party := range parties {
-			log.Infof("-----> checking %p against %p", party.sconn, sconn)
 			if party.sconn == sconn {
 				return party
 			}
@@ -690,7 +687,6 @@ func (m *multiWriter) deleteWriter(id string) {
 // Write multiplexes the input to multiple sub-writers. The entire point
 // of multiWriter is to do this
 func (m *multiWriter) Write(p []byte) (n int, err error) {
-	//log.Infof("---> multiWriter.Write(%d)", len(p))
 	// lock and make a local copy of available writers:
 	getWriters := func() (writers []writerWrapper) {
 		m.RLock()
@@ -751,7 +747,7 @@ type party struct {
 }
 
 func (p *party) onWindowChanged(params *rsession.TerminalParams) {
-	log.Infof("----> party(%s).onWindowChanged(%v)", p.id, params.Serialize())
+	log.Infof("party(%s).onWindowChanged(%v)", p.id, params.Serialize())
 	// this prefix will be appended to the end of every socker write going
 	// to this party:
 	prefix := []byte("\x00" + params.Serialize())

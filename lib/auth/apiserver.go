@@ -841,9 +841,9 @@ func (s *APIServer) getSessionReader(w http.ResponseWriter, r *http.Request, p h
 	defer reader.Close()
 	ws := websocket.Server{
 		Handler: func(conn *websocket.Conn) {
-			wsWriter := utils.NewWebSockWrapper(conn, utils.WebSocketTextMode)
+			//wsWriter := utils.NewWebSockWrapper(conn, utils.WebSocketTextMode)
 			log.Info("[AUTH] session streaming websocket open")
-			read, _ := io.Copy(wsWriter, reader)
+			read, _ := io.Copy(conn, reader)
 			log.Infof("[AUTH] session streaming websocket closed: %v bytes streamed", read)
 		},
 	}

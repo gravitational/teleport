@@ -79,8 +79,8 @@ func (w *WebSockWrapper) Read(out []byte) (n int, err error) {
 		switch err {
 		case nil:
 			data, err = w.decoder.Bytes([]byte(utf8))
-			//log.Infof("---> websocket.Read(%d), err=%v", len(data), err)
 		case io.EOF:
+			//log.Infof("-----> websocket.Read(EOF)")
 			return 0, io.EOF
 		default:
 			log.Error(err)
@@ -92,6 +92,7 @@ func (w *WebSockWrapper) Read(out []byte) (n int, err error) {
 	if len(out) < len(data) {
 		log.Warningf("websocket failed to receive everything: %d vs %d", len(out), len(data))
 	}
+	//log.Infof("-----> websocket.Read(%d)", len(data))
 	return copy(out, data), nil
 }
 

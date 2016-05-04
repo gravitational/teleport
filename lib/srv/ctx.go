@@ -124,7 +124,6 @@ func (c *ctx) getTerm() *terminal {
 func (c *ctx) setTerm(t *terminal) {
 	c.Lock()
 	defer c.Unlock()
-	log.Infof("setTerm: %v", t)
 	c.term = t
 }
 

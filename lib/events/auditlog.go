@@ -72,8 +72,8 @@ const (
 	// in /var/lib/teleport/logs/sessions
 	SessionLogsDir = "sessions"
 
-	// LogfilePrefix defines the ending of the daily event log file
-	LogfilePrefix = ".log"
+	// LogfileExt defines the ending of the daily event log file
+	LogfileExt = ".log"
 
 	// SessionLogPrefix defines the endof of session log files
 	SessionLogPrefix = ".session.log"
@@ -181,7 +181,7 @@ func (sl *SessionLogger) Close() error {
 // Write takes a stream of bytes (usually the output from a session terminal)
 // and writes it into a "stream file", for future replay of interactive sessions.
 func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
-	//logrus.Infof("-----> chunk %d bytes", len(bytes))
+	//logrus.Infof("-----> event.write(%d) bytes", len(bytes))
 	if sl.streamFile == nil {
 		err := trace.Errorf("session %v error: attempt to write to a closed file", sl.sid)
 		logrus.Error(err)
@@ -299,7 +299,6 @@ func (l *AuditLog) GetSessionEvents(sid session.ID, afterN int) ([]EventFields, 
 // EmitAuditEvent adds a new event to the log. Part of auth.AuditLogI interface.
 func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 	logrus.Infof("auditLog.EmitAuditEvent(%s)", eventType)
-
 	// keep the most recent event of every kind for testing purposes:
 	if l.RecentEvents != nil {
 		l.RecentEvents[eventType] = fields
@@ -365,7 +364,7 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]Event
 	filtered := make([]os.FileInfo, 0, days)
 	for i := range entries {
 		fi := entries[i]
-		if fi.IsDir() {
+		if fi.IsDir() || filepath.Ext(fi.Name()) != LogfileExt {
 			continue
 		}
 		fd := fi.ModTime().UTC()
@@ -381,7 +380,7 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]Event
 	sort.Sort(byDate(filtered))
 
 	// search within each file:
-	events := make([]EventFields, 0, len(filtered)*50)
+	events := make([]EventFields, 0)
 	for i := range filtered {
 		found, err := l.findInFile(filepath.Join(l.dataDir, filtered[i].Name()), queryVals)
 		if err != nil {
@@ -461,7 +460,7 @@ func (l *AuditLog) rotateLog() (err error) {
 		l.Lock()
 		defer l.Unlock()
 		logfname := filepath.Join(l.dataDir,
-			fileTime.Format("2006-01-02.15:04:05")+LogfilePrefix)
+			fileTime.Format("2006-01-02.15:04:05")+LogfileExt)
 		l.file, err = os.OpenFile(logfname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 		if err != nil {
 			logrus.Error(err)

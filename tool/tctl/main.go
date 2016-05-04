@@ -595,6 +595,7 @@ func connectToAuthService(cfg *service.Config) (client *auth.TunClient, err erro
 		return nil, trace.Wrap(err)
 	}
 	client, err = auth.NewTunClient(
+		"tctl",
 		cfg.AuthServers,
 		cfg.HostUUID,
 		[]ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)})

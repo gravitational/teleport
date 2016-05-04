@@ -179,7 +179,6 @@ func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
 		default:
 			log.Error(err)
 		}
-		log.Infof("---> terminal size reading ended!")
 	}()
 
 	up.GetSession().SendRequest(

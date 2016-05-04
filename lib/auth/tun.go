@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/http"
 	"os"
 	"sort"
 	"sync"
@@ -65,18 +64,21 @@ type AuthTunnel struct {
 // This is done in order to authenticate various teleport roles
 // using existing SSH certificate infrastructure
 type TunClient struct {
+	sync.Mutex
+
 	// embed auth API HTTP client
 	Client
 
-	sync.Mutex
 	user          string
 	authServers   []utils.NetAddr
 	authMethods   []ssh.AuthMethod
 	refreshTicker *time.Ticker
 	closeC        chan struct{}
 	closeOnce     sync.Once
-	tr            *http.Transport
 	addrStorage   utils.AddrStorage
+	// purpose is used for more informative logging. it explains _why_ this
+	// client was created
+	purpose string
 }
 
 // ServerOption is the functional argument passed to the server
@@ -90,14 +92,16 @@ func SetLimiter(limiter *limiter.Limiter) ServerOption {
 	}
 }
 
-// NewTunnel creates a new SSH tunnel server which is not started yet
+// NewTunnel creates a new SSH tunnel server which is not started yet.
+// Usually this is how "site API" (aka "auth API") is served: by creating
+// a tunnel server and having tun clients connect.
 func NewTunnel(addr utils.NetAddr,
 	hostSigners []ssh.Signer,
 	apiServer *APIWithRoles,
 	authServer *AuthServer,
 	opts ...ServerOption) (tunnel *AuthTunnel, err error) {
 
-	log.Infof(">> tun.NewTunnel(%v)", addr.String())
+	log.Infof("tun.NewTunnel(%v)", addr.String())
 	defer log.Infof("<< tun.NewTunnel(%v)", addr.String())
 
 	tunnel = &AuthTunnel{
@@ -305,7 +309,7 @@ func (s *AuthTunnel) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel
 		log.Errorf("failed to add: %v", err)
 		return
 	}
-	if err := agent.ServeAgent(newKeyAgent, ch); err != nil {
+	if err := agent.ServeAgent(newKeyAgent, ch); err != nil && err != io.EOF {
 		log.Errorf("Serve agent err: %v", err)
 	}
 }
@@ -387,7 +391,7 @@ func (s *AuthTunnel) passwordAuth(
 		return nil, err
 	}
 
-	log.Infof("got authentication attempt for user '%v' type '%v'", conn.User(), ab.Type)
+	log.Infof("auth attempt: user '%v' type '%v'", conn.User(), ab.Type)
 
 	switch ab.Type {
 	case AuthWebPassword:
@@ -525,11 +529,20 @@ func TunClientStorage(storage utils.AddrStorage) TunClientOption {
 
 // NewTunClient returns an instance of new HTTP client to Auth server API
 // exposed over SSH tunnel, so client  uses SSH credentials to dial and authenticate
-func NewTunClient(authServers []utils.NetAddr, user string, authMethods []ssh.AuthMethod, opts ...TunClientOption) (*TunClient, error) {
+//  - purpose is mostly for debuggin, like "web client" or "reverse tunnel client"
+//  - authServers: list of auth servers in this cluster (they are supposed to be in sync)
+//  - authMethods: how to authenticate (via cert, web passwowrd, etc)
+//  - opts : hip way to make this code hard to read
+func NewTunClient(purpose string,
+	authServers []utils.NetAddr,
+	user string,
+	authMethods []ssh.AuthMethod,
+	opts ...TunClientOption) (*TunClient, error) {
 	if user == "" {
 		return nil, trace.BadParameter("SSH connection requires a valid username")
 	}
 	tc := &TunClient{
+		purpose:       purpose,
 		user:          user,
 		authServers:   authServers,
 		authMethods:   authMethods,
@@ -540,15 +553,11 @@ func NewTunClient(authServers []utils.NetAddr, user string, authMethods []ssh.Au
 	for _, o := range opts {
 		o(tc)
 	}
-	tr := &http.Transport{
-		Dial: tc.Dial,
-	}
 	clt, err := NewClient("http://stub:0", tc.Dial)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	tc.Client = *clt
-	tc.tr = tr
 
 	// use local information about auth servers if it's available
 	if tc.addrStorage != nil {
@@ -569,9 +578,9 @@ func NewTunClient(authServers []utils.NetAddr, user string, authMethods []ssh.Au
 
 // Close releases all the resources allocated for this client
 func (c *TunClient) Close() error {
-	log.Infof("TunClient.Close()")
 	if c != nil {
-		c.tr.CloseIdleConnections()
+		log.Infof("TunClient[%s].Close()", c.purpose)
+		c.GetTransport().CloseIdleConnections()
 		c.refreshTicker.Stop()
 		c.closeOnce.Do(func() {
 			close(c.closeC)
@@ -604,19 +613,16 @@ func (c *TunClient) GetAgent() (AgentCloser, error) {
 
 // Dial dials to Auth server's HTTP API over SSH tunnel
 func (c *TunClient) Dial(network, address string) (net.Conn, error) {
-	log.Debugf("TunDialer.Dial(%v, %v)", network, address)
-
+	log.Infof("TunClient[%s].Dial(%v, %v)", c.purpose, network, address)
 	client, err := c.getClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	conn, err := client.Dial(network, address)
 	if err != nil {
-		return nil, trace.ConnectionProblem(err, "failed to connect to remote API")
+		return nil, trace.ConnectionProblem(err, "can't connect to auth API")
 	}
-	tc := &tunConn{client: client}
-	tc.Conn = conn
-	return tc, nil
+	return &tunConn{client: client, Conn: conn}, nil
 }
 
 func (c *TunClient) fetchAndSync() error {
@@ -625,7 +631,7 @@ func (c *TunClient) fetchAndSync() error {
 		return trace.Wrap(err)
 	}
 	if len(authServers) == 0 {
-		return trace.NotFound("no auth servers with remote ips advertised")
+		return trace.NotFound("no auth servers with remote IPs advertised")
 	}
 	// set runtime information about auth servers
 	c.setAuthServers(authServers)
@@ -641,7 +647,10 @@ func (c *TunClient) fetchAndSync() error {
 // authServersSyncLoop continuously refreshes the list of available auth servers
 // for this client
 func (c *TunClient) authServersSyncLoop() {
-	log.Infof("TunClient (%p): authServersSyncLoop() started", c)
+	log.Infof("TunClient[%s]: authServersSyncLoop() started", c.purpose)
+
+	// TODO (ev) remove me
+	time.Sleep(100 * time.Second)
 
 	// initial fetch for quick start-ups
 	c.fetchAndSync()
@@ -651,11 +660,11 @@ func (c *TunClient) authServersSyncLoop() {
 		case <-c.refreshTicker.C:
 			err := c.fetchAndSync()
 			if err != nil {
-				continue
+				log.Warnf("tunClient[%s]: %v", c.purpose, err)
 			}
 		// received a signal to quit?
 		case <-c.closeC:
-			log.Infof("TunClient (%p): authServersSyncLoop() exited", c)
+			log.Infof("TunClient[%s]: authServersSyncLoop() exited", c.purpose)
 			return
 		}
 	}

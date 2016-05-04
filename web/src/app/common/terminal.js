@@ -34,8 +34,6 @@ class TtyTerminal {
   constructor(options){
     let {
       tty,
-      cols,
-      rows,
       scrollBack = 1000 } = options;
 
     this.ttyParams = tty;
@@ -43,8 +41,8 @@ class TtyTerminal {
     this.ttyEvents = new TtyEvents();
 
     this.scrollBack = scrollBack
-    this.rows = rows;
-    this.cols = cols;
+    this.rows = undefined;
+    this.cols = undefined;
     this.term = null;
     this._el = options.el;
 
@@ -80,12 +78,17 @@ class TtyTerminal {
         data = this._ensureScreenSize(data);
         this.term.write(data);
       }catch(err){
-        console.error(err);
+        logger.error({
+          w: this.cols,
+          h: this.rows,
+          text: 'failed to resize termjs',
+          data: data,
+          err
+        });
       }
     });
 
-    // ttyEvents
-    this.ttyEvents.on('data', this._handleTtyEventsData.bind(this));
+    // ttyEvents    
     this.connect();
     window.addEventListener('resize', this.debouncedResize);
   }
@@ -170,19 +173,10 @@ class TtyTerminal {
     let {sid } = this.ttyParams;
     let reqData = { terminal_params: { w, h } };
 
-    logger.info('resize', `w:${w} and h:${h}`);
+    logger.info('request new screen size', `w:${w} and h:${h}`);
     api.put(cfg.api.getTerminalSessionUrl(sid), reqData)
-      .done(()=> logger.info('resized'))
-      .fail((err)=> logger.error('failed to resize', err));
-  }
-
-  _handleTtyEventsData(data){
-    if(data && data.terminal_params){
-      let {w, h} = data.terminal_params;
-      if(h !== this.rows || w !== this.cols){
-        this.resize(w, h);
-      }
-    }
+      .done(()=> logger.info('new screen size requested'))
+      .fail((err)=> logger.error('request new screen size', err));
   }
 
   _getDimensions(){

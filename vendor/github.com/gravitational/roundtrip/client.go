@@ -202,6 +202,7 @@ func (c *Client) PostJSON(endpoint string, data interface{}) (*Response, error) 
 		}
 		req.Header.Set("Content-Type", "application/json")
 		c.addAuth(req)
+
 		return c.client.Do(req)
 	})
 }

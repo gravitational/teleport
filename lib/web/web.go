@@ -465,9 +465,6 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 // {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
 //
 func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	log.Infof(">> web.createSession()")
-	defer log.Infof("<< web.createSession()")
-
 	var req *createSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1017,6 +1014,7 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 	log.Infof("web.getSessionStream(): returns %d bytes", written)
+	log.Infof("got: %s", string(buff.Bytes()))
 	return siteSessionStreamGetResponse{Bytes: buff.Bytes()}, nil
 }
 

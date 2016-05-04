@@ -18,7 +18,7 @@ var React = require('react');
 var cfg = require('app/config');
 var session = require('app/services/session');
 var Terminal = require('app/common/terminal');
-var {updateSession} = require('app/modules/sessions/actions');
+var {processSessionEventStreamData} = require('app/modules/currentSession/actions');
 
 var TtyTerminal = React.createClass({
 
@@ -37,7 +37,7 @@ var TtyTerminal = React.createClass({
     }
 
     this.terminal = new Terminal(options);
-    this.terminal.ttyEvents.on('data', updateSession);
+    this.terminal.ttyEvents.on('data', processSessionEventStreamData);
     this.terminal.open();
   },
 

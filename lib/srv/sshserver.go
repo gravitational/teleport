@@ -616,8 +616,6 @@ func (s *Server) handleTerminalResize(sconn *ssh.ServerConn, ch ssh.Channel) {
 		party.termSizePusher(ch)
 		return
 	}
-	// if we got here, we could nto find the session to push terminal size from
-	log.Warn("--> no active party for terminal resize!")
 }
 
 // handleSessionRequests handles out of band session requests once the session channel has been created

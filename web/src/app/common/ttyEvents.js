@@ -36,7 +36,7 @@ class TtyEvents extends EventEmitter {
       try
       {
         let json = JSON.parse(event.data);
-        this.emit('data', json.session);
+        this.emit('data', json);
       }
       catch(err){
         logger.error('failed to parse event stream data', err);

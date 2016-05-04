@@ -18,11 +18,9 @@ package web
 
 import (
 	"crypto/tls"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -594,7 +592,7 @@ func (s *WebSuite) TestConnect(c *C) {
 	clt := s.connect(c, s.authPack(c))
 	defer clt.Close()
 
-	_, err := io.WriteString(clt, "expr 137 + 39\r\n")
+	_, err := io.WriteString(clt, "echo vinsong\r\n")
 	c.Assert(err, IsNil)
 
 	resultC := make(chan struct{})
@@ -604,9 +602,8 @@ func (s *WebSuite) TestConnect(c *C) {
 		for {
 			n, err := clt.Read(out)
 			c.Assert(err, IsNil)
-			decoded, err := base64.StdEncoding.DecodeString(string(out[:n]))
-			c.Assert(err, IsNil)
-			if strings.Contains(removeSpace(string(decoded)), "176") {
+			c.Assert(n > 0, Equals, true)
+			if strings.Contains(removeSpace(string(out)), "vinsong") {
 				close(resultC)
 				return
 			}
@@ -622,23 +619,6 @@ func (s *WebSuite) TestConnect(c *C) {
 
 }
 
-func responseFrom(socket *websocket.Conn) (string, error) {
-	err := socket.SetReadDeadline(time.Now().Add(time.Millisecond * 50))
-	if err != nil {
-		return "", err
-	}
-
-	data, err := ioutil.ReadAll(socket)
-	ne, ok := err.(net.Error)
-	if !ok || !ne.Timeout() {
-		return "", err
-	}
-
-	decoded := make([]byte, len(data))
-	_, err := base64.StdEncoding.Decode(decoded, data)
-	return string(decoded), err
-}
-
 func (s *WebSuite) TestNodesWithSessions(c *C) {
 	sid := session.NewID()
 	pack := s.authPack(c)
@@ -646,28 +626,25 @@ func (s *WebSuite) TestNodesWithSessions(c *C) {
 	defer clt.Close()
 
 	// to make sure we have a session
-	_, err := io.WriteString(clt, "expr 137 + 39\r\n")
+	_, err := io.WriteString(clt, "echo vinsong\r\n")
 	c.Assert(err, IsNil)
 
 	// make sure server has replied
 	out := make([]byte, 1024)
-	decoded := make([]byte, len(out))
-
+	n := 0
 	for err == nil {
-		clt.SetReadDeadline(time.Now().Add(time.Millisecond * 10))
-		_, err = clt.Read(out)
-		if err == nil {
-			base64.StdEncoding.Decode(decoded, out)
-			fmt.Println(string(decoded))
+		clt.SetReadDeadline(time.Now().Add(time.Millisecond * 20))
+		n, err = clt.Read(out)
+		if err == nil && n > 0 {
+			break
 		}
 		ne, ok := err.(net.Error)
 		if ok && ne.Timeout() {
-			break
+			err = nil
+			continue
 		}
 		c.Error(err)
 	}
-	fmt.Println(err)
-	return
 
 	var nodes *getSiteNodesResponse
 	for i := 0; i < 3; i++ {
@@ -785,7 +762,6 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 }
 
 func (s *WebSuite) TestPlayback(c *C) {
-	// TODO (ev)
 	pack := s.authPack(c)
 	sid := session.NewID()
 	clt := s.connect(c, pack, sid)

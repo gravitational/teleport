@@ -18,7 +18,7 @@ var session = require('app/services/session');
 var api = require('app/services/api');
 var cfg = require('app/config');
 var getters = require('./getters');
-var {fetchActiveSessions, fetchStoredSession} = require('./../sessions/actions');
+var {fetchActiveSessions, fetchStoredSession, updateSession} = require('./../sessions/actions');
 var sessionGetters = require('./../sessions/getters');
 var $ = require('jQuery');
 
@@ -26,6 +26,16 @@ const logger = require('app/common/logger').create('Current Session');
 const { TLPT_CURRENT_SESSION_OPEN, TLPT_CURRENT_SESSION_CLOSE } = require('./actionTypes');
 
 const actions = {
+
+  processSessionEventStreamData(data){
+    data.events.forEach(item=> {
+      if(item.event === 'session.end'){
+        actions.close();
+      }
+    })
+
+    updateSession(data.session);
+  },
 
   close(){
     let {isNewSession} = reactor.evaluate(getters.currentSession);

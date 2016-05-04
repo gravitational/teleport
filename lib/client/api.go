@@ -402,6 +402,7 @@ func (tc *TeleportClient) Play(sessionId string) (err error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	// read the stream into a buffer:
 	reader, err := site.GetSessionReader(*sid, 0)
 	if err != nil {
@@ -412,6 +413,7 @@ func (tc *TeleportClient) Play(sessionId string) (err error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	// configure terminal for direct unbuffered echo-less input:
 	if term.IsTerminal(0) {
 		state, err := term.SetRawTerminal(0)
@@ -462,6 +464,7 @@ func (tc *TeleportClient) Play(sessionId string) (err error) {
 
 	// wait for keypresses loop to end
 	<-player.stopC
+	fmt.Println("\n\nend of session playback")
 	return trace.Wrap(err)
 }
 
@@ -627,16 +630,26 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 	if tc.Output == nil {
 		tc.Output = os.Stdout
 	}
-
-	// If typing on the terminal, we do not want the terminal to echo the
-	// password that is typed (so it doesn't display)
+	// terminal must be in raw mode
+	var (
+		state   *term.State
+		err     error
+		exitMsg string
+	)
 	if stdin == os.Stdin && term.IsTerminal(0) {
-		state, err := term.SetRawTerminal(0)
+		state, err = term.SetRawTerminal(0)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer term.RestoreTerminal(0, state)
 	}
+	defer func() {
+		if state != nil {
+			term.RestoreTerminal(0, state)
+		}
+		if exitMsg != "" {
+			fmt.Println(exitMsg)
+		}
+	}()
 
 	broadcastClose := utils.NewCloseBroadcaster()
 
@@ -646,7 +659,7 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 	go func() {
 		defer broadcastClose.Close()
 		<-exitSignals
-		fmt.Printf("\nConnection to %s closed\n", address)
+		exitMsg = fmt.Sprintf("\nConnection to %s closed\n", address)
 	}()
 
 	winSize, err := term.GetWinsize(0)
@@ -693,7 +706,7 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 		if err != nil {
 			log.Errorf(err.Error())
 		}
-		fmt.Printf("\nConnection to %s closed from the remote side\n", address)
+		exitMsg = fmt.Sprintf("Connection to %s closed from the remote side", address)
 	}()
 
 	// copy from the local shell to the remote
@@ -709,12 +722,12 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 			if n > 0 {
 				// catch Ctrl-D
 				if buf[0] == 4 {
-					fmt.Printf("\nConnection to %s closed\n", address)
+					exitMsg = fmt.Sprintf("\nConnection to %s closed\n", address)
 					return
 				}
 				_, err = shell.Write(buf[:n])
 				if err != nil {
-					fmt.Println(trace.Wrap(err))
+					exitMsg = err.Error()
 					return
 				}
 			}

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/teleport/lib/events"
 )
 
@@ -97,6 +98,28 @@ func (p *sessionPlayer) waitUntil(state int) {
 	}
 }
 
+// timestampFrame prints 'event timestamp' in the top right corner of the
+// terminal after playing every 'print' event
+func timestampFrame(message string) {
+	const (
+		saveCursor    = "7"
+		restoreCursor = "8"
+	)
+	sz, err := term.GetWinsize(0)
+	if err != nil {
+		return
+	}
+	esc := func(s string) {
+		os.Stdout.Write([]byte("\x1b" + s))
+	}
+	esc(saveCursor)
+	defer esc(restoreCursor)
+
+	// move cursor to -10:0
+	esc(fmt.Sprintf("[%d;%df", 0, int(sz.Width)-len(message)))
+	os.Stdout.WriteString(message)
+}
+
 // playRange plays events from a given from:to range. In order for the replay
 // to render correctly, playRange always plays from the beginning, but starts
 // applying timing info (delays) only after 'from' event, creating an impression
@@ -110,23 +133,29 @@ func (p *sessionPlayer) playRange(from, to int) {
 		to = len(p.sessionEvents)
 	}
 	// clear screen between runs:
-	os.Stdout.Write([]byte("\033[H\033[2J"))
+	os.Stdout.Write([]byte("\x1bc"))
 	// wait: waits between events during playback
-	prev := 0
+	prev := time.Duration(0)
 	wait := func(i int, e events.EventFields) {
-		ms := e.GetInt("ms")
-		// do not stop for longer than 1 second:
-		delay := ms - prev
-		if delay > 1000 {
-			delay = 1000
-		}
-		// normalize delays for a nicer experience
-		if delay > 100 && delay < 500 {
-			delay = 100
-		}
+		ms := time.Duration(e.GetInt("ms"))
 		// before "from"? play that instantly:
 		if i >= from {
-			time.Sleep(time.Millisecond * time.Duration(delay))
+			delay := ms - prev
+			// make playback smoother:
+			if delay < 10 {
+				delay = 0
+			}
+			if delay > 100 && delay < 500 {
+				delay = 100
+			}
+			if delay > 500 && delay < 1500 {
+				delay = 500
+			}
+			if delay > 1500 {
+				delay = 1000
+			}
+			timestampFrame(e.GetString("time"))
+			time.Sleep(time.Millisecond * delay)
 		}
 		prev = ms
 	}
