@@ -1013,8 +1013,6 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("web.getSessionStream(): returns %d bytes", written)
-	log.Infof("got: %s", string(buff.Bytes()))
 	return siteSessionStreamGetResponse{Bytes: buff.Bytes()}, nil
 }
 
