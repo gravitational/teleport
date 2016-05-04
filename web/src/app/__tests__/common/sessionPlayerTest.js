@@ -21,12 +21,12 @@ var sampleData = require('./../sessionPlayerSampleData');
 */
 
 var { expect, $, spyOn, api, Dfd } = require('./..');
-var {EventProvider, TtyPlayer} = require('app/common/ttyPlayer');
+var {EventProvider, TtyPlayer} = require('app/common/term/ttyPlayer');
 
 var sampleStreamData = {bytes: "G10wO2Frb250c2V2b3lAeDIyMDogfgdha29udHNldm95QHgyMjA6fiQgDRtbSxtdMDtha29udHNldm95QHgyMjA6IH4HYWtvbnRzZXZveUB4MjIwOn4kIGENCmE6IGNvbW1hbmQgbm90IGZvdW5kDQobXTA7YWtvbnRzZXZveUB4MjIwOiB+B2Frb250c2V2b3lAeDIyMDp+JCBiDQpiOiBjb21tYW5kIG5vdCBmb3VuZA0KG10wO2Frb250c2V2b3lAeDIyMDogfgdha29udHNldm95QHgyMjA6fiQgYw0KYzogY29tbWFuZCBub3QgZm91bmQNChtdMDtha29udHNldm95QHgyMjA6IH4HYWtvbnRzZXZveUB4MjIwOn4kIGV4aXQNCmxvZ291dA0K"};
 var sampleEvents = {"events":[{"addr.local":"127.0.0.1:3022","addr.remote":"127.0.0.1:52238","event":"session.start","login":"akontsevoy","offset":0,"sec":0,"time":"2016-04-30T01:07:25Z","user":"akontsevoy"},{"event":"resize","login":"akontsevoy","offset":0,"sec":0,"size":"130:20","time":"2016-04-30T01:07:25Z","user":"akontsevoy"},{"bytes":42,"event":"print","offset":0,"sec":0},{"bytes":46,"event":"print","offset":42,"sec":4},{"bytes":1,"event":"print","offset":88,"sec":4},{"bytes":2,"event":"print","offset":89,"sec":5},{"bytes":22,"event":"print","offset":91,"sec":5},{"bytes":42,"event":"print","offset":113,"sec":5},{"bytes":1,"event":"print","offset":155,"sec":6},{"bytes":2,"event":"print","offset":156,"sec":6},{"bytes":22,"event":"print","offset":158,"sec":6},{"bytes":42,"event":"print","offset":180,"sec":6},{"bytes":1,"event":"print","offset":222,"sec":6},{"bytes":2,"event":"print","offset":223,"sec":7},{"bytes":22,"event":"print","offset":225,"sec":7},{"bytes":42,"event":"print","offset":247,"sec":7},{"bytes":1,"event":"print","offset":289,"sec":8},{"bytes":1,"event":"print","offset":290,"sec":9},{"bytes":1,"event":"print","offset":291,"sec":9},{"bytes":1,"event":"print","offset":292,"sec":9},{"bytes":2,"event":"print","offset":293,"sec":10},{"bytes":8,"event":"print","offset":295,"sec":10},{"event":"session.end","offset":303,"sec":10,"time":"2016-04-30T01:07:35Z","user":"akontsevoy"}]};
 
-describe('common/ttyPlayer/eventProvider', function(){
+describe('common/term/ttyPlayer/eventProvider', function(){
 
   afterEach(function () {
     expect.restoreSpies();

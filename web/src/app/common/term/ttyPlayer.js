@@ -14,17 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var Tty = require('app/common/tty');
+var Tty = require('./tty');
 var api = require('app/services/api');
 var {showError} = require('app/modules/notifications/actions');
 var $ = require('jQuery');
+var Buffer = require('buffer/').Buffer;
 
 const logger = require('app/common/logger').create('TtyPlayer');
 const STREAM_START_INDEX = 0;
 const PRE_FETCH_BUF_SIZE = 150;
 const URL_PREFIX_EVENTS = '/events';
-//const EVENT_MIN_TIME_DIFFERENCE = 1;
-const PLAY_SPEED = 120;
+const EVENT_MIN_TIME_DIFFERENCE = 10;
+const PLAY_SPEED = 150;
 
 function handleAjaxError(err){
   showError('Unable to retrieve session info');
@@ -68,14 +69,10 @@ class EventProvider{
   processByteStream(start, end, byteStr){
     let byteStrOffset = this.events[start].bytes;
     this.events[start].data = byteStr.slice(0, byteStrOffset);
-
-    console.info(this.events[0].data);
-
     for(var i = start+1; i < end; i++){
       let {bytes} = this.events[i];
       this.events[i].data = byteStr.slice(byteStrOffset, byteStrOffset + bytes);
       byteStrOffset += bytes;
-      console.info(this.events[i].data);
     }
   }
 
@@ -95,16 +92,14 @@ class EventProvider{
       }
 
       events[i].data = null;
+      events[i].delay = null;
       events[i].w = Number(w);
       events[i].h = Number(h);
-      //events[i].bytes = events[i].bytes || 0;
       tmp.push(events[i]);
     }
 
-    this.events = tmp;
-
-    // merge events that have very short time difference between each other
-    /*var cur = tmp[0];
+    // merge events with short delay
+    var cur = tmp[0];
     for(let i = 1; i < tmp.length; i++){
       let sameSize = cur.w === tmp[i].w && cur.h === tmp[i].h;
       if(tmp[i].ms - cur.ms < EVENT_MIN_TIME_DIFFERENCE && sameSize ){
@@ -114,7 +109,11 @@ class EventProvider{
         this.events.push(cur);
         cur = tmp[i];
       }
-    }*/
+    }
+
+    if(this.events.indexOf(cur) === -1){
+      this.events.push(cur);
+    }
   }
 
   _shouldFetch(start, end){
@@ -133,8 +132,8 @@ class EventProvider{
     let url = `${this.url}/stream?offset=${offset}&bytes=${bytes}`;
 
     return api.get(url).then((response)=>{
-      return response.bytes;
-      //return new Buffer(response.bytes, 'base64').toString('utf8');
+      //return response.bytes;
+      return new Buffer(response.bytes, 'base64').toString('utf8');
     })
   }
 }

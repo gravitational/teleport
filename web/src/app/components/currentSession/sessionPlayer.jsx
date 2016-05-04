@@ -16,14 +16,14 @@ limitations under the License.
 
 var React = require('react');
 var ReactSlider = require('react-slider');
-var {TtyPlayer} = require('app/common/ttyPlayer')
-var Terminal = require('app/common/terminal');
+var {TtyPlayer} = require('app/common/term/ttyPlayer')
+var Terminal = require('app/common/term/terminal');
 var SessionLeftPanel = require('./sessionLeftPanel.jsx');
 var cfg = require('app/config');
 
 class Term extends Terminal{
   constructor(tty, el){
-    super({el});
+    super({el, scrollBack: 0});
     this.tty = tty;
   }
 

@@ -17,11 +17,14 @@ limitations under the License.
 var React = require('react');
 var reactor = require('app/reactor');
 var {nodeHostNameByServerId} = require('app/modules/nodes/getters');
-var TtyTerminal = require('./../terminal.jsx');
 var SessionLeftPanel = require('./sessionLeftPanel');
+var cfg = require('app/config');
+var session = require('app/services/session');
+var Terminal = require('app/common/term/terminal');
+var {processSessionEventStream} = require('app/modules/currentSession/actions');
 
 var ActiveSession = React.createClass({
-  render: function() {
+  render() {
     let {login, parties, serverId} = this.props;
     let serverLabelText = '';
     if(serverId){
@@ -38,6 +41,39 @@ var ActiveSession = React.createClass({
        <TtyTerminal ref="ttyCmntInstance" {...this.props} />
      </div>
      );
+  }
+});
+
+var TtyTerminal = React.createClass({
+  componentDidMount() {
+    let {serverId, login, sid, rows, cols} = this.props;
+    let {token} = session.getUserData();
+    let url = cfg.api.getTtyUrl();
+
+    let options = {
+      tty: {
+        serverId, login, sid, token, url
+      },
+     rows,
+     cols,
+     el: this.refs.container
+    }
+
+    this.terminal = new Terminal(options);
+    this.terminal.ttyEvents.on('data', processSessionEventStream);
+    this.terminal.open();
+  },
+
+  componentWillUnmount() {
+    this.terminal.destroy();
+  },
+
+  shouldComponentUpdate() {
+    return false;
+  },
+
+  render() {
+    return ( <div ref="container">  </div> );
   }
 });
 

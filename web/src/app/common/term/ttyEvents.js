@@ -16,7 +16,7 @@ limitations under the License.
 
 var EventEmitter = require('events').EventEmitter;
 
-const logger = require('./logger').create('TtyEvents');
+const logger = require('./../logger').create('TtyEvents');
 
 class TtyEvents extends EventEmitter {
 

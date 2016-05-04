@@ -33,7 +33,7 @@ var App = React.createClass({
 
   componentWillMount(){
     actions.initApp();
-    this.refreshInterval = setInterval(actions.fetchNodesAndSessions, 35000);
+    this.refreshInterval = setInterval(actions.fetchNodesAndSessions, 2500);
   },
 
   componentWillUnmount: function() {

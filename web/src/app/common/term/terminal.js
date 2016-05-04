@@ -29,6 +29,7 @@ Term.colors[256] = '#252323';
 const DISCONNECT_TXT = '\x1b[31mdisconnected\x1b[m\r\n';
 const CONNECTED_TXT = 'Connected!\r\n';
 const GRV_CLASS = 'grv-terminal';
+const WINDOW_RESIZE_DEBOUNCE_DELAY = 100;
 
 class TtyTerminal {
   constructor(options){
@@ -46,16 +47,20 @@ class TtyTerminal {
     this.term = null;
     this._el = options.el;
 
-    this.debouncedResize = debounce(this._requestResize.bind(this), 200);
+    this.debouncedResize = debounce(
+      this._requestResize.bind(this),
+      WINDOW_RESIZE_DEBOUNCE_DELAY
+    );
   }
 
   open() {
     $(this._el).addClass(GRV_CLASS);
 
+    // render termjs with default values (will be used to calculate the character size)
     this.term = new Term({
       cols: 15,
       rows: 5,
-      scrollback: this.scrollback,
+      scrollback: this.scrollBack,
       useStyle: true,
       screenKeys: true,
       cursorBlink: true
@@ -63,32 +68,19 @@ class TtyTerminal {
 
     this.term.open(this._el);
 
+    // resize to available space (by given container)
     this.resize(this.cols, this.rows);
 
-    // term events
+    // subscribe termjs events
     this.term.on('data', (data) => this.tty.send(data));
 
-    // tty
+    // subscribe to tty events
     this.tty.on('resize', ({h, w})=> this.resize(w, h));
     this.tty.on('reset', ()=> this.term.reset());
     this.tty.on('open', ()=> this.term.write(CONNECTED_TXT));
     this.tty.on('close', ()=> this.term.write(DISCONNECT_TXT));
-    this.tty.on('data', (data) => {
-      try{
-        data = this._ensureScreenSize(data);
-        this.term.write(data);
-      }catch(err){
-        logger.error({
-          w: this.cols,
-          h: this.rows,
-          text: 'failed to resize termjs',
-          data: data,
-          err
-        });
-      }
-    });
+    this.tty.on('data', this._processData.bind(this));
 
-    // ttyEvents    
     this.connect();
     window.addEventListener('resize', this.debouncedResize);
   }
@@ -128,7 +120,26 @@ class TtyTerminal {
     this.term.resize(this.cols, this.rows);
   }
 
+  _processData(data){
+    try{
+      data = this._ensureScreenSize(data);
+      this.term.write(data);
+    }catch(err){
+      logger.error({
+        w: this.cols,
+        h: this.rows,
+        text: 'failed to resize termjs',
+        data: data,
+        err
+      });
+    }
+  }
+
   _ensureScreenSize(data){
+    /**
+    * for better sync purposes, the screen values are inserted to the end of the chunk
+    * with the following format: '\0NUMBER:NUMBER'
+    */
     let pos = data.lastIndexOf('\0');
     if(pos !==-1){
       let length = data.length - pos;

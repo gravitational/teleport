@@ -21,7 +21,7 @@ var $ = require('jQuery');
 
 const PROVIDER_GOOGLE = 'google';
 
-const refreshRate = 60000 * 5; // 5 min
+const REFRESH_RATE_COEFFICIENT = 0.66;
 
 var refreshTokenTimerId = null;
 
@@ -68,6 +68,13 @@ var auth = {
   },
 
   _startTokenRefresher(){
+    var {expires_in} = session.getUserData();
+    if(expires_in < 0) {
+      expires_in = expires_in * -1;
+    }
+
+    var refreshRate = (expires_in * 1000) * REFRESH_RATE_COEFFICIENT;
+
     refreshTokenTimerId = setInterval(auth._refreshToken, refreshRate);
   },
 

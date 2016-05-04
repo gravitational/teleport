@@ -27,7 +27,7 @@ const { TLPT_CURRENT_SESSION_OPEN, TLPT_CURRENT_SESSION_CLOSE } = require('./act
 
 const actions = {
 
-  processSessionEventStreamData(data){
+  processSessionEventStream(data){
     data.events.forEach(item=> {
       if(item.event === 'session.end'){
         actions.close();
