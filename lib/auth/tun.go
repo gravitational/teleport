@@ -658,10 +658,7 @@ func (c *TunClient) authServersSyncLoop() {
 		select {
 		// timer-based refresh:
 		case <-c.refreshTicker.C:
-			err := c.fetchAndSync()
-			if err != nil {
-				log.Warnf("tunClient[%s]: %v", c.purpose, err)
-			}
+			c.fetchAndSync()
 		// received a signal to quit?
 		case <-c.closeC:
 			log.Infof("TunClient[%s]: authServersSyncLoop() exited", c.purpose)
