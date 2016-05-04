@@ -170,6 +170,10 @@ func (f EventFields) GetTime(key string) time.Time {
 	if !found {
 		return time.Time{}
 	}
-	v, _ := val.(time.Time)
+	v, ok := val.(time.Time)
+	if !ok {
+		s := f.GetString(key)
+		v, _ = time.Parse(time.RFC3339, s)
+	}
 	return v
 }

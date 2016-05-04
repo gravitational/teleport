@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/user"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,7 +40,7 @@ const (
 	Host = "127.0.0.1"
 	Site = "local-site"
 
-	AllocatePortsNum = 20
+	AllocatePortsNum = 100
 )
 
 type IntSuite struct {
@@ -88,10 +89,16 @@ func (s *IntSuite) SetUpSuite(c *check.C) {
 
 // newTeleport helper returns a running Teleport instance pre-configured
 // with the current user os.user.Current()
-func (s *IntSuite) newTeleport(c *check.C, enableSSH bool) *TeleInstance {
-	username := s.me.Username
+func (s *IntSuite) newTeleport(c *check.C, logins []string, enableSSH bool) *TeleInstance {
 	t := NewInstance(Site, Host, s.getPorts(5), s.priv, s.pub)
-	t.AddUser(username, []string{username})
+	// use passed logins, but use suite's default login if nothing was passed
+	if logins == nil || len(logins) == 0 {
+		logins = []string{s.me.Username}
+	}
+	for _, login := range logins {
+		t.AddUser(login, []string{login})
+	}
+
 	if t.Create(nil, enableSSH, nil) != nil {
 		c.FailNow()
 	}
@@ -101,20 +108,157 @@ func (s *IntSuite) newTeleport(c *check.C, enableSSH bool) *TeleInstance {
 	return t
 }
 
+// TestAudit creates a live session, records a bunch of data through it (>5MB) and
+// then reads it back and compares against simulated reality
+func (s *IntSuite) TestAudit(c *check.C) {
+	var err error
+
+	// create server and get the reference to the site API:
+	t := s.newTeleport(c, nil, true)
+	site := t.GetSiteAPI(Site)
+	c.Assert(site, check.NotNil)
+	defer t.Stop()
+
+	// should have no sessions:
+	sessions, _ := site.GetSessions()
+	c.Assert(len(sessions), check.Equals, 0)
+
+	// create interactive session (this goroutine is this user's terminal time)
+	endC := make(chan error, 0)
+	myTerm := NewTerminal(250)
+	go func() {
+		cl, err := t.NewClient(s.me.Username, Site, Host, t.GetPortSSHInt())
+		c.Assert(err, check.IsNil)
+		cl.Output = &myTerm
+
+		endC <- cl.SSH([]string{}, false, &myTerm)
+	}()
+
+	// wait until there's a session in there:
+	for len(sessions) == 0 {
+		time.Sleep(time.Millisecond * 5)
+		sessions, _ = site.GetSessions()
+	}
+	session := &sessions[0]
+	// wait for the user to join this session:
+	for len(session.Parties) == 0 {
+		time.Sleep(time.Millisecond * 5)
+		session, err = site.GetSession(sessions[0].ID)
+		c.Assert(err, check.IsNil)
+	}
+	// make sure it's us who joined! :)
+	c.Assert(session.Parties[0].User, check.Equals, s.me.Username)
+
+	// lets type "echo hi" followed by "enter" and then "exit" + "enter":
+	myTerm.Type("\aecho hi\n\r\aexit\n\r\a")
+
+	// wait for session to end:
+	<-endC
+
+	// using 'session writer' lets add something to the session streaam:
+	w, err := site.GetSessionWriter(session.ID)
+	c.Assert(err, check.IsNil)
+	// write 5MB of data:
+	fiveMegChunk := make([]byte, 100) //1024*1024*5)
+	n, err := w.Write(fiveMegChunk)
+	c.Assert(err, check.Equals, nil)
+	c.Assert(n, check.Equals, len(fiveMegChunk))
+	// then add small prefix:
+	w.Write([]byte("\nsuffix"))
+	w.Close()
+
+	// read back the entire session:
+	r, err := site.GetSessionReader(session.ID, 0)
+	c.Assert(err, check.IsNil)
+	sessionStream, err := ioutil.ReadAll(r)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(sessionStream) > len(fiveMegChunk), check.Equals, true)
+	r.Close()
+
+	// see what we got. It looks different based on bash settings, but here it is
+	// on Ev's machine (hostname is 'edsger'):
+	//
+	// edsger ~: echo hi
+	// hi
+	// edsger ~: exit
+	// logout
+	// <5MB of zeros here>
+	// suffix
+	//
+	c.Assert(strings.Contains(string(sessionStream), "echo hi"), check.Equals, true)
+	c.Assert(strings.HasSuffix(string(sessionStream), "\nsuffix"), check.Equals, true)
+
+	// now lets look at session events:
+	history, err := site.GetSessionEvents(session.ID, 0)
+	c.Assert(err, check.IsNil)
+	first := history[0]
+	beforeLast := history[len(history)-2]
+	last := history[len(history)-1]
+
+	getChunk := func(e events.EventFields) string {
+		offset := e.GetInt("offset")
+		length := e.GetInt("bytes")
+		if length == 0 {
+			return ""
+		}
+		c.Assert(offset+length <= len(sessionStream), check.Equals, true)
+		return string(sessionStream[offset : offset+length])
+	}
+
+	// last two are manually-typed (5MB chunk and "suffix"):
+	c.Assert(last.GetString(events.EventType), check.Equals, "print")
+	c.Assert(beforeLast.GetString(events.EventType), check.Equals, "print")
+	c.Assert(last.GetInt("bytes"), check.Equals, len("\nsuffix"))
+	c.Assert(beforeLast.GetInt("bytes"), check.Equals, len(fiveMegChunk))
+
+	// 10th chunk should be printed "hi":
+	c.Assert(strings.HasPrefix(getChunk(history[10]), "hi"), check.Equals, true)
+
+	// 1st should be "session.start"
+	c.Assert(first.GetString(events.EventType), check.Equals, events.SessionStartEvent)
+
+	// last-3 should be "session.end", and the one before - "session.leave"
+	endEvent := history[len(history)-3]
+	leaveEvent := history[len(history)-4]
+	c.Assert(endEvent.GetString(events.EventType), check.Equals, events.SessionEndEvent)
+	c.Assert(leaveEvent.GetString(events.EventType), check.Equals, events.SessionLeaveEvent)
+
+	// session events should have session ID assigned
+	c.Assert(first.GetString(events.SessionEventID) != "", check.Equals, true)
+	c.Assert(endEvent.GetString(events.SessionEventID) != "", check.Equals, true)
+	c.Assert(leaveEvent.GetString(events.SessionEventID) != "", check.Equals, true)
+
+	// all of them should have a proper time:
+	for _, e := range history {
+		c.Assert(e.GetTime("time").IsZero(), check.Equals, false)
+	}
+}
+
 // TestInteractive covers SSH into shell and joining the same session from another client
 func (s *IntSuite) TestInteractive(c *check.C) {
-	t := s.newTeleport(c, true)
+	t := s.newTeleport(c, nil, true)
 	defer t.Stop()
 
 	sessionEndC := make(chan interface{}, 0)
 
 	// get a reference to site obj:
-	siteTunnel, _ := t.Tunnel.GetSite(Site)
-	site, _ := siteTunnel.GetClient()
+	site := t.GetSiteAPI(Site)
 	c.Assert(site, check.NotNil)
 
 	personA := NewTerminal(250)
 	personB := NewTerminal(250)
+
+	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
+	openSession := func() {
+		cl, err := t.NewClient(s.me.Username, Site, Host, t.GetPortSSHInt())
+		c.Assert(err, check.IsNil)
+		cl.Output = &personA
+		// Person A types something into the terminal (including "exit")
+		personA.Type("\aecho hi\n\r\aexit\n\r\a")
+		err = cl.SSH([]string{}, false, &personA)
+		c.Assert(err, check.IsNil)
+		sessionEndC <- true
+	}
 
 	// PersonB: wait for a session to become available, then join:
 	joinSession := func() {
@@ -140,18 +284,6 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 		c.Assert(err, check.IsNil)
 	}
 
-	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
-	openSession := func() {
-		cl, err := t.NewClient(s.me.Username, Site, Host, t.GetPortSSHInt())
-		c.Assert(err, check.IsNil)
-		cl.Output = &personA
-		// Person A types something into the terminal (including "exit")
-		personA.Type("\aecho hi\n\r\aexit\n\r\a")
-		err = cl.SSH([]string{}, false, &personA)
-		c.Assert(err, check.IsNil)
-		sessionEndC <- true
-	}
-
 	go openSession()
 	go joinSession()
 
@@ -160,50 +292,12 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 
 	// make sure both parites saw the same output:
 	c.Assert(personA.Output(100)[50:], check.DeepEquals, personB.Output(100)[50:])
-
-	// talk to the auth API:
-	site, err := t.Tunnel.GetSites()[0].GetClient()
-	c.Assert(err, check.IsNil)
-
-	// site.GetSessions()
-	sessions, err := site.GetSessions()
-	c.Assert(err, check.IsNil)
-	c.Assert(len(sessions), check.Equals, 1)
-	c.Assert(len(sessions[0].Parties), check.Equals, 2)
-	session := sessions[0]
-
-	reader, err := site.GetSessionReader(session.ID, 0)
-	c.Assert(err, check.IsNil)
-	defer reader.Close()
-	stream, _ := ioutil.ReadAll(reader)
-	c.Assert(len(stream), check.Equals, 151)
-
-	// site.GetSessionEvents()
-	history, err := site.GetSessionEvents(session.ID, 0)
-	c.Assert(err, check.IsNil)
-
-	first := history[0]
-	beforeLast := history[len(history)-2]
-	last := history[len(history)-1]
-
-	// these 3 events happen all the time:
-	//  first  : session.start
-	//  last-1 : session.leave
-	//  last   : session.end
-	c.Assert(first.GetString(events.EventType), check.Equals, events.SessionStartEvent)
-	c.Assert(beforeLast.GetString(events.EventType), check.Equals, events.SessionLeaveEvent)
-	c.Assert(last.GetString(events.EventType), check.Equals, events.SessionEndEvent)
-
-	// the last event stream offset should total the total
-	// length of the recorded stream:
-	total := last.GetInt(events.SessionByteOffset)
-	c.Assert(total, check.Equals, len(stream))
 }
 
 // TestInvalidLogins validates that you can't login with invalid login or
 // with invalid 'site' parameter
 func (s *IntSuite) TestInvalidLogins(c *check.C) {
-	t := s.newTeleport(c, true)
+	t := s.newTeleport(c, nil, true)
 	defer t.Stop()
 
 	cmd := []string{"echo", "success"}

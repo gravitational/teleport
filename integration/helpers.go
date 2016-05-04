@@ -171,6 +171,23 @@ func (this *TeleInstance) GetPortWeb() string {
 	return strconv.Itoa(this.Ports[3])
 }
 
+// GetSiteAPI() is a helper which returns an API endpoint to a site with
+// a given name. This endpoint implements HTTP-over-SSH access to the
+// site's auth server.
+func (this *TeleInstance) GetSiteAPI(siteName string) auth.ClientI {
+	siteTunnel, err := this.Tunnel.GetSite(siteName)
+	if siteTunnel == nil || err != nil {
+		log.Warn(err)
+		return nil
+	}
+	siteAPI, err := siteTunnel.GetClient()
+	if err != nil {
+		log.Warn(err)
+		return nil
+	}
+	return siteAPI
+}
+
 // Create creates a new instance of Teleport which trusts a lsit of other clusters (other
 // instances)
 func (this *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bool, console io.Writer) error {
@@ -241,6 +258,7 @@ func (this *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bo
 // Adds a new user into this Teleport instance. 'mappings' is a comma-separated
 // list of OS users
 func (this *TeleInstance) AddUser(username string, mappings []string) {
+	log.Infof("teleInstance.AddUser(%v) mapped to %v", username, mappings)
 	if mappings == nil {
 		mappings = make([]string, 0)
 	}
@@ -320,6 +338,9 @@ func (this *TeleInstance) NewClient(login string, site string, host string, port
 	user, ok := this.Secrets.Users[login]
 	if !ok {
 		return nil, fmt.Errorf("unknown login '%v'", login)
+	}
+	if user.Key == nil {
+		return nil, fmt.Errorf("user %v has no key", login)
 	}
 	err = tc.AddKey(host, user.Key)
 	if err != nil {

@@ -122,7 +122,9 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 	// becomes empty (no parties). It allows session to "linger" for a bit
 	// allowing parties to reconnect if they lost connection momentarily
 	lingerAndDie := func() {
-		time.Sleep(lingerTTL)
+		if sess.lingerTTL > 0 {
+			time.Sleep(sess.lingerTTL)
+		}
 		// not lingering anymore? someone reconnected? cool then... no need
 		// to die...
 		if !sess.isLingering() {
@@ -260,6 +262,10 @@ type session struct {
 	// by the session
 	closeC chan bool
 
+	// linger time means "how long to keep session around after the last client
+	// disconnected"
+	lingerTTL time.Duration
+
 	// termSizeC is used to push terminal resize events from SSH "on-size-changed"
 	// event handler into "push-to-web-client" loop.
 	termSizeC chan []byte
@@ -313,6 +319,7 @@ func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, err
 		writer:    newMultiWriter(),
 		login:     context.login,
 		closeC:    make(chan bool),
+		lingerTTL: lingerTTL,
 		termSizeC: nil, // only needed for web clients
 	}
 	return sess, nil
@@ -474,6 +481,10 @@ func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 		}
 		if err != nil {
 			log.Errorf("shell exited with error: %v", err)
+		} else {
+			// no error? this means the command exited cleanly: no need
+			// for this session to "linger" after this.
+			s.lingerTTL = time.Duration(0)
 		}
 	}()
 

@@ -108,6 +108,7 @@ func (fs *FSLocalKeyStore) GetKeys() (keys []Key, err error) {
 // AddKey adds a new key to the session store. If a key for the host is already
 // stored, overwrites it.
 func (fs *FSLocalKeyStore) AddKey(host string, key *Key) error {
+	log.Infof("localKeyStore.AddKey(host=%s, key=%p)", host, key)
 	dirPath, err := fs.dirFor(host)
 	if err != nil {
 		return trace.Wrap(err)
