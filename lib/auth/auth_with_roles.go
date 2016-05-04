@@ -48,7 +48,6 @@ func (a *AuthWithRoles) GetSession(id session.ID) (*session.Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetSession); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// TODO (ev): need session registry here
 	return a.sessions.GetSession(id)
 
 }

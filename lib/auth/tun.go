@@ -532,7 +532,7 @@ func TunClientStorage(storage utils.AddrStorage) TunClientOption {
 //  - purpose is mostly for debuggin, like "web client" or "reverse tunnel client"
 //  - authServers: list of auth servers in this cluster (they are supposed to be in sync)
 //  - authMethods: how to authenticate (via cert, web passwowrd, etc)
-//  - opts : hip way to make this code hard to read
+//  - opts : functional arguments for further extending
 func NewTunClient(purpose string,
 	authServers []utils.NetAddr,
 	user string,
@@ -648,9 +648,6 @@ func (c *TunClient) fetchAndSync() error {
 // for this client
 func (c *TunClient) authServersSyncLoop() {
 	log.Infof("TunClient[%s]: authServersSyncLoop() started", c.purpose)
-
-	// TODO (ev) remove me
-	time.Sleep(100 * time.Second)
 
 	// initial fetch for quick start-ups
 	c.fetchAndSync()
