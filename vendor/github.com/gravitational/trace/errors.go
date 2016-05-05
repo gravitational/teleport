@@ -19,6 +19,7 @@ package trace
 import (
 	"crypto/x509"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -131,6 +132,10 @@ func (b *BadParameterError) OrigError() error {
 // IsBadParameterError indicates that this error is of BadParameterError type
 func (b *BadParameterError) IsBadParameterError() bool {
 	return true
+}
+
+func IsEOF(e error) bool {
+	return Unwrap(e) == io.EOF
 }
 
 // IsBadParameter returns whether this error is of BadParameterType

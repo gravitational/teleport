@@ -34,6 +34,9 @@ const (
 )
 
 func NewWebSockWrapper(ws *websocket.Conn, m WebSocketMode) *WebSockWrapper {
+	if ws == nil {
+		return nil
+	}
 	return &WebSockWrapper{
 		ws:      ws,
 		mode:    m,

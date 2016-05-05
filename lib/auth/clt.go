@@ -735,36 +735,13 @@ func (c *Client) EmitAuditEvent(eventType string, fields events.EventFields) err
 // GetSessionWriter allows clients to submit their session stream to the audit log
 // (part of evets.AuditLogI interface)
 func (c *Client) GetSessionWriter(sid session.ID) (io.WriteCloser, error) {
-	ws, err := c.openWebsocket(c.Endpoint("sessions", string(sid), "writer"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// we send the session stream as a sequence of JSON blobs. we cannot use
-	// websocket's read/write because they break our writes into more smaller chunks
-	// (critical for terminal replay)
-	return &sshWrapper{*ws}, nil
-}
-
-type sshWrapper struct {
-	websocket.Conn
-}
-
-func (w *sshWrapper) Write(data []byte) (int, error) {
-	return len(data), websocket.Message.Send(&w.Conn, data)
+	return c.openWebsocket(c.Endpoint("sessions", string(sid), "writer"))
 }
 
 // GetSessionReader allows clients to recewive a live stream of an active session
 func (c *Client) GetSessionReader(sid session.ID, offsetBytes int) (io.ReadCloser, error) {
-	ws, err := c.openWebsocket(
-		c.Endpoint("sessions", string(sid), "reader") +
-			fmt.Sprintf("?from=%d", offsetBytes))
-	/*
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return utils.NewWebSockWrapper(ws, utils.WebSocketTextMode), nil
-	*/
-	return ws, err
+	return c.openWebsocket(c.Endpoint("sessions", string(sid), "reader") +
+		fmt.Sprintf("?from=%d", offsetBytes))
 }
 
 // Returns events that happen during a session sorted by time
@@ -812,7 +789,7 @@ func (c *Client) SearchEvents(from, to time.Time, query string) ([]events.EventF
 
 // openWebsocket helper connects to the auth API via SSH and then requests
 // a web socket via HTTP-over-SSH at a given URL. Returns a connected websocket.
-func (c *Client) openWebsocket(urlString string) (conn *websocket.Conn, err error) {
+func (c *Client) openWebsocket(urlString string) (conn *ev, err error) {
 	// create an underlying SSH connection (we'll use it as a transport for websocket):
 	sshConn, err := c.transport.Dial("tcp", "stub:0")
 	if err != nil {
@@ -829,7 +806,30 @@ func (c *Client) openWebsocket(urlString string) (conn *websocket.Conn, err erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return websocket.NewClient(wsConf, sshConn)
+	ws, err := websocket.NewClient(wsConf, sshConn)
+	return &ev{ws: ws}, err
+}
+
+type ev struct {
+	ws *websocket.Conn
+}
+
+func (e *ev) Close() error {
+	return e.ws.Close()
+}
+
+func (e *ev) Write(data []byte) (int, error) {
+	n, err := e.ws.Write(data)
+	logrus.Infof("----> websocket.Write(%d) written %d bytes err: %v",
+		len(data), n, err)
+	return n, err
+}
+
+func (e *ev) Read(data []byte) (int, error) {
+	n, err := e.ws.Read(data)
+	logrus.Infof("----> websocket.Read(%d) read %d bytes err: %v",
+		len(data), n, err)
+	return n, err
 }
 
 // TOODO(klizhentas) this should be just including appropriate service implementations

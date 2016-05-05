@@ -167,12 +167,14 @@ func (sl *SessionLogger) LogEvent(fields EventFields) {
 // Close() is called when a session is closed. This releases resources
 // owned by the session logger
 func (sl *SessionLogger) Close() error {
+	logrus.Infof("-----> sessionLog.Close()")
+
 	sl.Lock()
 	defer sl.Unlock()
 	if sl.streamFile != nil {
-		sl.streamFile.Close()
+		//sl.streamFile.Close()
 		sl.eventsFile.Close()
-		sl.streamFile = nil
+		//sl.streamFile = nil
 		sl.eventsFile = nil
 	}
 	return nil
@@ -181,7 +183,7 @@ func (sl *SessionLogger) Close() error {
 // Write takes a stream of bytes (usually the output from a session terminal)
 // and writes it into a "stream file", for future replay of interactive sessions.
 func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
-	//logrus.Infof("-----> event.write(%d) bytes", len(bytes))
+	logrus.Infof("-----> sessionLog.write(%d) bytes", len(bytes))
 	if sl.streamFile == nil {
 		err := trace.Errorf("session %v error: attempt to write to a closed file", sl.sid)
 		logrus.Error(err)
