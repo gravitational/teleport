@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/user"
 	"strconv"
@@ -27,12 +28,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/kontsevoy/telecast/log"
 
 	"gopkg.in/check.v1"
 )
@@ -109,21 +108,6 @@ func (s *IntSuite) newTeleport(c *check.C, logins []string, enableSSH bool) *Tel
 	return t
 }
 
-func readAll(r io.Reader, bufsize int) (out []byte, err error) {
-	buff := make([]byte, bufsize)
-	n := 0
-	for err == nil {
-		n, err = r.Read(buff)
-		if n > 0 {
-			out = append(out, buff[:n]...)
-		}
-	}
-	if err == io.EOF {
-		err = nil
-	}
-	return out, err
-}
-
 // TestAudit creates a live session, records a bunch of data through it (>5MB) and
 // then reads it back and compares against simulated reality
 func (s *IntSuite) TestAudit(c *check.C) {
@@ -164,89 +148,31 @@ func (s *IntSuite) TestAudit(c *check.C) {
 	}
 	// make sure it's us who joined! :)
 	c.Assert(session.Parties[0].User, check.Equals, s.me.Username)
-	/*
 
-		// lets type "echo hi" followed by "enter" and then "exit" + "enter":
-		myTerm.Type("\aecho hi\n\r\aexit\n\r\a")
+	// lets type "echo hi" followed by "enter" and then "exit" + "enter":
+	myTerm.Type("\aecho hi\n\r\aexit\n\r\a")
 
-		// wait for session to end:
-		<-endC
-	*/
-	time.Sleep(time.Second)
-	r, err := site.GetSessionReader(session.ID, 0)
+	// wait for session to end:
+	<-endC
+
+	// using 'session writer' lets add something to the session streaam:
+	w, err := site.GetSessionWriter(session.ID)
 	c.Assert(err, check.IsNil)
-	buff, err := readAll(r, 1024)
-	prev := len(buff)
-	r.Close()
-
-	chunks := []int{1, 4, 8, 256}
-	for _, size := range chunks {
-		// using 'session writer' lets add something to the session streaam:
-		w, err := site.GetSessionWriter(session.ID)
-		c.Assert(err, check.IsNil)
-		fmt.Printf("\n\n[SIZE: %dkb]-----------------------------\n", size)
-
-		size = size*1024 + 1
-		chunk := make([]byte, size)
-		n, err := w.Write(chunk)
-		c.Assert(err, check.Equals, nil)
-		c.Assert(n, check.Equals, size)
-		fmt.Printf("Closing writer in Test...\n")
-		w.Close()
-	}
-
-	shouldBe := 0
-	for _, cs := range chunks {
-		shouldBe += cs
-	}
-	return
-
-	for i := 0; i < 4; i++ {
-		r, err = site.GetSessionReader(session.ID, 0)
-		c.Assert(err, check.IsNil)
-		buff, err = readAll(r, 1024*32)
-		fmt.Println("readAll completed!")
-		time.Sleep(time.Second)
-		fmt.Println("Calling websocket.Close() on the client")
-		r.Close()
-		fmt.Printf("\nGOT TOTAL BACK: %d vs %d\n\n", len(buff)-prev, shouldBe*1024)
-	}
-
-	return
-	// write 5MB of data:
-	fiveMegChunk := make([]byte, 1024*64)
-	/*
-		n, err := w.Write(fiveMegChunk)
-		c.Assert(err, check.Equals, nil)
-		c.Assert(n, check.Equals, len(fiveMegChunk))
-
-		// then add small prefix:
-		w.Write([]byte("\nsuffix"))
-		w.Close()
-	*/
-	return
+	// write 32Kb chunk
+	bigChunk := make([]byte, 1024*32)
+	n, err := w.Write(bigChunk)
+	c.Assert(err, check.Equals, nil)
+	c.Assert(n, check.Equals, len(bigChunk))
+	// then add small prefix:
+	w.Write([]byte("\nsuffix"))
+	w.Close()
 
 	// read back the entire session:
-	r, err = site.GetSessionReader(session.ID, 0)
+	r, err := site.GetSessionReader(session.ID, 0)
 	c.Assert(err, check.IsNil)
-
-	total := 0
-	sessionStream := make([]byte, 0)
-	buff = make([]byte, auth.WebSockBuffLen)
-	for {
-		n, err := r.Read(buff)
-		if err == io.EOF {
-			break
-		}
-		c.Assert(err, check.IsNil)
-		log.Infof("-------> test.Read(%d bytes)", n)
-		total += n
-		sessionStream = append(sessionStream, buff[:n]...)
-	}
-	log.Infof("-------> test.Read() got %d bytes total (%d)", total, len(sessionStream))
-	//sessionStream, err := ioutil.ReadAll(r)
-	//c.Assert(err, check.IsNil)
-	c.Assert(len(sessionStream) > len(fiveMegChunk), check.Equals, true)
+	sessionStream, err := ioutil.ReadAll(r)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(sessionStream) > len(bigChunk), check.Equals, true)
 	r.Close()
 
 	// see what we got. It looks different based on bash settings, but here it is
@@ -279,12 +205,11 @@ func (s *IntSuite) TestAudit(c *check.C) {
 		return string(sessionStream[offset : offset+length])
 	}
 
-	// last two are manually-typed (5MB chunk and "suffix"):
+	// last two are manually-typed (32Kb chunk and "suffix"):
 	c.Assert(last.GetString(events.EventType), check.Equals, "print")
 	c.Assert(beforeLast.GetString(events.EventType), check.Equals, "print")
 	c.Assert(last.GetInt("bytes"), check.Equals, len("\nsuffix"))
-
-	//c.Assert(beforeLast.GetInt("bytes"), check.Equals, len(fiveMegChunk))
+	c.Assert(beforeLast.GetInt("bytes"), check.Equals, len(bigChunk))
 
 	// 10th chunk should be printed "hi":
 	c.Assert(strings.HasPrefix(getChunk(history[10]), "hi"), check.Equals, true)

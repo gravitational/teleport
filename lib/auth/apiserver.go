@@ -796,8 +796,6 @@ func (s *APIServer) emitAuditEvent(w http.ResponseWriter, r *http.Request, p htt
 	return message("ok"), nil
 }
 
-const WebSockBuffLen = 1024 * 32
-
 // HTTP GET /v1/sessions/:id/writer
 func (s *APIServer) getSessionWriter(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	sid, err := session.ParseID(p.ByName("id"))
@@ -808,18 +806,18 @@ func (s *APIServer) getSessionWriter(w http.ResponseWriter, r *http.Request, p h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer writer.Close()
 	ws := websocket.Server{
-		Handler: func(ws *websocket.Conn) {
-			defer writer.Close()
-			// web sockets can't handle big writes, use 4K buffer max:
-			buff := make([]byte, WebSockBuffLen)
-			total, _ := io.CopyBuffer(writer, ws, buff)
-			/*
-				if err != nil && !trace.IsEOF(err) {
-					log.Error(err)
-				}
-			*/
-			log.Infof("(writer) -----> ws.Close() %v bytes written", total)
+		Handler: func(conn *websocket.Conn) {
+			log.Info("[AUTH] session recording websocket open")
+			wsReader := utils.NewWebSockWrapper(conn, utils.WebSocketTextMode)
+			// set websocket to 64K read/writes
+			buffer := make([]byte, 1024*64)
+			_, err := io.CopyBuffer(writer, wsReader, buffer)
+			if err != nil {
+				log.Error(err)
+			}
+			log.Infof("[AUTH] session recording websocket closed")
 		},
 	}
 	ws.ServeHTTP(w, r)
@@ -842,13 +840,14 @@ func (s *APIServer) getSessionReader(w http.ResponseWriter, r *http.Request, p h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer reader.Close()
 	ws := websocket.Server{
 		Handler: func(conn *websocket.Conn) {
-			defer reader.Close()
 			log.Info("[AUTH] session streaming websocket open")
-			buff := make([]byte, WebSockBuffLen)
-			total, _ := io.CopyBuffer(conn, reader, buff)
-			log.Infof("(reader) -----> ws.Close() %v read", total)
+			// set websocket to 64K read/writes
+			buffer := make([]byte, 1024*64)
+			read, _ := io.CopyBuffer(conn, reader, buffer)
+			log.Infof("[AUTH] session streaming websocket closed: %v bytes streamed", read)
 		},
 	}
 	ws.ServeHTTP(w, r)
