@@ -158,11 +158,11 @@ func (s *IntSuite) TestAudit(c *check.C) {
 	// using 'session writer' lets add something to the session streaam:
 	w, err := site.GetSessionWriter(session.ID)
 	c.Assert(err, check.IsNil)
-	// write 5MB of data:
-	fiveMegChunk := make([]byte, 100) //1024*1024*5)
-	n, err := w.Write(fiveMegChunk)
+	// write 32Kb chunk
+	bigChunk := make([]byte, 1024*32)
+	n, err := w.Write(bigChunk)
 	c.Assert(err, check.Equals, nil)
-	c.Assert(n, check.Equals, len(fiveMegChunk))
+	c.Assert(n, check.Equals, len(bigChunk))
 	// then add small prefix:
 	w.Write([]byte("\nsuffix"))
 	w.Close()
@@ -172,7 +172,7 @@ func (s *IntSuite) TestAudit(c *check.C) {
 	c.Assert(err, check.IsNil)
 	sessionStream, err := ioutil.ReadAll(r)
 	c.Assert(err, check.IsNil)
-	c.Assert(len(sessionStream) > len(fiveMegChunk), check.Equals, true)
+	c.Assert(len(sessionStream) > len(bigChunk), check.Equals, true)
 	r.Close()
 
 	// see what we got. It looks different based on bash settings, but here it is
@@ -205,11 +205,11 @@ func (s *IntSuite) TestAudit(c *check.C) {
 		return string(sessionStream[offset : offset+length])
 	}
 
-	// last two are manually-typed (5MB chunk and "suffix"):
+	// last two are manually-typed (32Kb chunk and "suffix"):
 	c.Assert(last.GetString(events.EventType), check.Equals, "print")
 	c.Assert(beforeLast.GetString(events.EventType), check.Equals, "print")
 	c.Assert(last.GetInt("bytes"), check.Equals, len("\nsuffix"))
-	c.Assert(beforeLast.GetInt("bytes"), check.Equals, len(fiveMegChunk))
+	c.Assert(beforeLast.GetInt("bytes"), check.Equals, len(bigChunk))
 
 	// 10th chunk should be printed "hi":
 	c.Assert(strings.HasPrefix(getChunk(history[10]), "hi"), check.Equals, true)

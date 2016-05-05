@@ -145,13 +145,13 @@ func (p *sessionPlayer) playRange(from, to int) {
 			if delay < 10 {
 				delay = 0
 			}
-			if delay > 100 && delay < 500 {
-				delay = 100
+			if delay > 250 && delay < 500 {
+				delay = 250
 			}
-			if delay > 500 && delay < 1500 {
+			if delay > 500 && delay < 1000 {
 				delay = 500
 			}
-			if delay > 1500 {
+			if delay > 1000 {
 				delay = 1000
 			}
 			timestampFrame(e.GetString("time"))
@@ -178,8 +178,8 @@ func (p *sessionPlayer) playRange(from, to int) {
 				offset = e.GetInt("offset")
 				bytes = e.GetInt("bytes")
 				os.Stdout.Write(p.stream[offset : offset+bytes])
-			// resize terminal event:
-			case events.ResizeEvent:
+			// resize terminal event (also on session start)
+			case events.ResizeEvent, events.SessionStartEvent:
 				parts := strings.Split(e.GetString("size"), ":")
 				if len(parts) != 2 {
 					continue
