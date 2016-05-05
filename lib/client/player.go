@@ -175,6 +175,7 @@ func (p *sessionPlayer) playRange(from, to int) {
 			switch e.GetString(events.EventType) {
 			// 'print' event (output)
 			case events.SessionPrintEvent:
+				wait(i, e)
 				offset = e.GetInt("offset")
 				bytes = e.GetInt("bytes")
 				os.Stdout.Write(p.stream[offset : offset+bytes])
@@ -191,7 +192,6 @@ func (p *sessionPlayer) playRange(from, to int) {
 				continue
 			}
 			p.position = i
-			wait(i, e)
 		}
 		// played last event?
 		if i == len(p.sessionEvents) {

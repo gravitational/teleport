@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -70,6 +71,11 @@ func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(alog.loggers, check.HasLen, 1)
 
+	// and the writer for "200" must be closed
+	_, err = writer.Write([]byte("trying to write to a file which should be closed"))
+	c.Assert(err, check.NotNil)
+	c.Assert(strings.HasSuffix(err.Error(), "attempt to write to a closed file"), check.Equals, true)
+
 	// add a few more loggers and close:
 	alog.EmitAuditEvent(SessionJoinEvent, EventFields{SessionEventID: "300", EventLogin: "frankie"})
 	alog.EmitAuditEvent(SessionJoinEvent, EventFields{SessionEventID: "400", EventLogin: "rosie"})
@@ -128,7 +134,6 @@ func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 	found, err = alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), "")
 	c.Assert(err, check.IsNil)
 	c.Assert(len(found), check.Equals, 6) // total number of events logged in this test
-	fmt.Println(found[0])
 	c.Assert(found[0].GetString(EventLogin), check.Equals, "vincent")
 }
 

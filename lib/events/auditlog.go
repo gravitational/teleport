@@ -164,12 +164,21 @@ func (sl *SessionLogger) LogEvent(fields EventFields) {
 	}
 }
 
-// Close() is called when a session is closed. This releases resources
-// owned by the session logger
+// Close() is called when clients close on the requested "session writer".
+// We ignore their requests because this writer (file) should be closed only
+// when the session logger is closed
 func (sl *SessionLogger) Close() error {
+	logrus.Infof("sessionLogger.Close(sid=%s)", sl.sid)
+	return nil
+}
+
+// Finalize is called by the session when it's closing. This is where we're
+// releasing audit resources associated with the session
+func (sl *SessionLogger) Finalize() error {
 	sl.Lock()
 	defer sl.Unlock()
 	if sl.streamFile != nil {
+		logrus.Infof("sessionLogger.Finalize(sid=%s)", sl.sid)
 		sl.streamFile.Close()
 		sl.eventsFile.Close()
 		sl.streamFile = nil
@@ -181,7 +190,7 @@ func (sl *SessionLogger) Close() error {
 // Write takes a stream of bytes (usually the output from a session terminal)
 // and writes it into a "stream file", for future replay of interactive sessions.
 func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
-	//logrus.Infof("-----> event.write(%d) bytes", len(bytes))
+	logrus.Infof("-----> event.write(%d) bytes", len(bytes))
 	if sl.streamFile == nil {
 		err := trace.Errorf("session %v error: attempt to write to a closed file", sl.sid)
 		logrus.Error(err)
@@ -327,7 +336,9 @@ func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 			if eventType == SessionEndEvent {
 				logrus.Infof("audit log: removing session logger for SID=%v", sessionId)
 				delete(l.loggers, session.ID(sessionId))
-				sl.Close()
+				if err := sl.Finalize(); err != nil {
+					logrus.Error(err)
+				}
 			}
 		}
 	}
