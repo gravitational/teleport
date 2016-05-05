@@ -361,11 +361,11 @@ func (a *AuthWithRoles) EmitAuditEvent(eventType string, fields events.EventFiel
 	return a.alog.EmitAuditEvent(eventType, fields)
 }
 
-func (a *AuthWithRoles) GetSessionWriter(sid session.ID) (io.WriteCloser, error) {
+func (a *AuthWithRoles) PostSessionChunk(sid session.ID, reader io.Reader) error {
 	if err := a.permChecker.HasPermission(a.role, ActionEmitEvents); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	return a.alog.GetSessionWriter(sid)
+	return a.alog.PostSessionChunk(sid, reader)
 }
 
 func (a *AuthWithRoles) GetSessionReader(sid session.ID, offsetBytes int) (io.ReadCloser, error) {

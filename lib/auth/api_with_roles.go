@@ -34,6 +34,15 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// APIWithRoles is a wrapper around several APIServer objects. For security
+// benefits, every "teleport role" talks to its own instance of an APIServer.
+//
+// Every client always authenticates with a SSH certificate, which has a role
+// encoded in it. Based on that role they get their own instance of APIServer
+// to talk to.
+//
+// This allows APIServer to exist in a more trustworthy, separated-by-role
+// context.
 type APIWithRoles struct {
 	config      APIConfig
 	listeners   map[teleport.Role]*fakeSocket
@@ -56,6 +65,9 @@ func NewAPIWithRoles(config APIConfig) *APIWithRoles {
 	api.servers = make(map[teleport.Role]*APIServer)
 	api.config = config
 
+	// create a new APIServer instance for every possible telerpot
+	// role and have them listen on fake sockets (we'll proxy requests
+	// for them based on client's roles - see HandleNewChannel)
 	for _, role := range config.Roles {
 		api.servers[role] = NewAPIServer(&AuthWithRoles{
 			authServer:  config.AuthServer,

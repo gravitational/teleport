@@ -732,10 +732,24 @@ func (c *Client) EmitAuditEvent(eventType string, fields events.EventFields) err
 	return nil
 }
 
-// GetSessionWriter allows clients to submit their session stream to the audit log
+// PostSessionChunk allows clients to submit session stream chunks to the audit log
 // (part of evets.AuditLogI interface)
-func (c *Client) GetSessionWriter(sid session.ID) (io.WriteCloser, error) {
-	return c.openWebsocket(c.Endpoint("sessions", string(sid), "writer"))
+//
+// The data is POSTed to HTTP server as a simple binary body (no encodings of any
+// kind are needed)
+func (c *Client) PostSessionChunk(sid session.ID, reader io.Reader) error {
+	logrus.Infof("authClient.PostSessionChunk(%v)", sid)
+
+	request, err := http.NewRequest("POST",
+		c.Endpoint("sessions", string(sid), "stream"),
+		reader)
+	request.Header.Set("Content-Type", "application/octet-stream")
+
+	_, err = c.Client.HTTPClient().Do(request)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // GetSessionReader allows clients to recewive a live stream of an active session

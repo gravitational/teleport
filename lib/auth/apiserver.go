@@ -112,7 +112,7 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.PUT("/v1/sessions/:id", httplib.MakeHandler(srv.updateSession))
 	srv.GET("/v1/sessions", httplib.MakeHandler(srv.getSessions))
 	srv.GET("/v1/sessions/:id", httplib.MakeHandler(srv.getSession))
-	srv.GET("/v1/sessions/:id/writer", httplib.MakeHandler(srv.getSessionWriter))
+	srv.POST("/v1/sessions/:id/stream", httplib.MakeHandler(srv.postSessionChunk))
 	srv.GET("/v1/sessions/:id/reader", httplib.MakeHandler(srv.getSessionReader))
 	srv.GET("/v1/sessions/:id/events", httplib.MakeHandler(srv.getSessionEvents))
 
@@ -796,32 +796,16 @@ func (s *APIServer) emitAuditEvent(w http.ResponseWriter, r *http.Request, p htt
 	return message("ok"), nil
 }
 
-// HTTP GET /v1/sessions/:id/writer
-func (s *APIServer) getSessionWriter(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+// HTTP POST /v1/sessions/:id/stream
+func (s *APIServer) postSessionChunk(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	sid, err := session.ParseID(p.ByName("id"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	writer, err := s.a.GetSessionWriter(*sid)
-	if err != nil {
+	if err = s.a.PostSessionChunk(*sid, r.Body); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer writer.Close()
-	ws := websocket.Server{
-		Handler: func(conn *websocket.Conn) {
-			log.Info("[AUTH] session recording websocket open")
-			wsReader := utils.NewWebSockWrapper(conn, utils.WebSocketTextMode)
-			// set websocket to 64K read/writes
-			buffer := make([]byte, 1024*64)
-			_, err := io.CopyBuffer(writer, wsReader, buffer)
-			if err != nil {
-				log.Error(err)
-			}
-			log.Infof("[AUTH] session recording websocket closed")
-		},
-	}
-	ws.ServeHTTP(w, r)
-	return nil, nil
+	return message("ok"), nil
 }
 
 // HTTP GET /v1/sessions/:id/reader

@@ -17,6 +17,7 @@ limitations under the License.
 package srv
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"sync"
@@ -413,6 +414,29 @@ func (s *session) Close() error {
 	return trace.Wrap(err)
 }
 
+// sessionRecorder implements io.Writer to be plugged into the multi-writer
+// associated with every session. It forwards session stream to the audit log
+type sessionRecorder struct {
+	// alog is the audit log to store session chunks
+	alog events.AuditLogI
+	// sid defines the session to record
+	sid rsession.ID
+}
+
+// Write takes a chunk and writes it into the audit log
+func (r *sessionRecorder) Write(data []byte) (int, error) {
+	log.Infof("sessionRecorder.Write(%d)", len(data))
+	if err := r.alog.PostSessionChunk(r.sid, bytes.NewReader(data)); err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return len(data), nil
+}
+
+// Close() does nothing for session recorder (audit log cannot be closed)
+func (r *sessionRecorder) Close() error {
+	return nil
+}
+
 // startShell starts a new shell process in the current session
 func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 	// create a new "party" (connected client)
@@ -454,10 +478,9 @@ func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 	// start recording this session
 	auditLog := s.registry.srv.alog
 	if auditLog != nil {
-		writer, err := auditLog.GetSessionWriter(s.id)
-		if err == nil {
-			s.writer.addWriter("session-recorder", writer, true)
-		}
+		s.writer.addWriter("session-recorder",
+			&sessionRecorder{alog: auditLog, sid: s.id},
+			true)
 	}
 
 	// start asynchronous loop of synchronizing session state with

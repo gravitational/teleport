@@ -97,9 +97,9 @@ const (
 type AuditLogI interface {
 	EmitAuditEvent(eventType string, fields EventFields) error
 
-	// GetSessionWriter returns a writer which SSH nodes use to submit
+	// PostSessionChunk returns a writer which SSH nodes use to submit
 	// their live sessions into the session log
-	GetSessionWriter(sid session.ID) (io.WriteCloser, error)
+	PostSessionChunk(sid session.ID, reader io.Reader) error
 
 	// GetSessionReader returns a reader which can be used to read a byte stream
 	// of a recorded session starting from 'offsetBytes' (pass 0 to start from the

@@ -240,16 +240,20 @@ func NewAuditLog(dataDir string, testMode bool) (*AuditLog, error) {
 	}, nil
 }
 
-// GetSessionWriter returns a writer interface for the given session. SSH Server
-// uses this to stream active sessions into the audit log
-func (l *AuditLog) GetSessionWriter(sid session.ID) (io.WriteCloser, error) {
-	logrus.Infof("audit.log: getSessionWriter(%v)", sid)
+// PostSessionChunk writes a new chunk of session stream into the audit log
+func (l *AuditLog) PostSessionChunk(sid session.ID, reader io.Reader) error {
 	sl := l.LoggerFor(sid)
 	if sl == nil {
 		logrus.Warnf("audit.log: no session writer for %s", sid)
-		return nil, nil
+		return nil
 	}
-	return sl, nil
+	written, err := io.CopyBuffer(sl, reader, make([]byte, 8*1024))
+	if err != nil {
+		logrus.Error(err)
+		return trace.Wrap(err)
+	}
+	logrus.Infof("audit.log: PostSessionChunk(%v): %d bytes written", sid, written)
+	return nil
 }
 
 // GetSessionReader returns a reader which console and web clients request
