@@ -87,6 +87,10 @@ var auth = {
   },
 
   _shouldRefreshToken({ expires_in, created } ){
+    if(!created || !expires_in){
+      return true;
+    }
+
     if(expires_in < 0) {
       expires_in = expires_in * -1;
     }
@@ -108,7 +112,7 @@ var auth = {
   },
 
   _refreshToken(){
-    return api.post(cfg.api.renewTokenPath).then(data=>{
+    return api.post(cfg.api.renewTokenPath).then(data=>{      
       session.setUserData(new UserData(data));
       return data;
     }).fail(()=>{

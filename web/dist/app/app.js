@@ -1868,6 +1868,10 @@ webpackJsonp([1],[
 	    var expires_in = _ref.expires_in;
 	    var created = _ref.created;
 	
+	    if (!created || !expires_in) {
+	      return true;
+	    }
+	
 	    if (expires_in < 0) {
 	      expires_in = expires_in * -1;
 	    }
