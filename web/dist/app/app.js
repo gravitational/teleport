@@ -2749,7 +2749,7 @@ webpackJsonp([1],[
 	  Tty.prototype.connect = function connect(connStr) {
 	    var _this = this;
 	
-	    this.socket = new WebSocket(connStr, 'proto');
+	    this.socket = new WebSocket(connStr);
 	
 	    this.socket.onopen = function () {
 	      _this.emit('open');
@@ -4695,7 +4695,7 @@ webpackJsonp([1],[
 	  TtyEvents.prototype.connect = function connect(connStr) {
 	    var _this = this;
 	
-	    this.socket = new WebSocket(connStr, 'proto');
+	    this.socket = new WebSocket(connStr);
 	
 	    this.socket.onopen = function () {
 	      logger.info('Tty event stream is open');
@@ -4770,7 +4770,7 @@ webpackJsonp([1],[
 	var STREAM_START_INDEX = 0;
 	var PRE_FETCH_BUF_SIZE = 150;
 	var URL_PREFIX_EVENTS = '/events';
-	var EVENT_MIN_TIME_DIFFERENCE = 10;
+	//const EVENT_MIN_TIME_DIFFERENCE = 10;
 	var PLAY_SPEED = 150;
 	
 	function handleAjaxError(err) {
@@ -4819,7 +4819,7 @@ webpackJsonp([1],[
 	
 	  EventProvider.prototype.processByteStream = function processByteStream(start, end, byteStr) {
 	    var byteStrOffset = this.events[start].bytes;
-	    this.events[start].data = byteStr.slice(0, byteStrOffset);
+	    this.events[start].data = byteStr.slice(0, byteStrOffset).toString('utf8');
 	    for (var i = start + 1; i < end; i++) {
 	      var bytes = this.events[i].bytes;
 	
@@ -4837,7 +4837,7 @@ webpackJsonp([1],[
 	
 	    // ensure that each event has the right screen size
 	    for (var i = 0; i < events.length; i++) {
-	      if (events[i].event === 'resize') {
+	      if (events[i].event === 'resize' || events[i].event === 'session.start') {
 	        var _events$i$size$split = events[i].size.split(':');
 	
 	        w = _events$i$size$split[0];
@@ -4855,22 +4855,23 @@ webpackJsonp([1],[
 	      tmp.push(events[i]);
 	    }
 	
+	    this.events = tmp;
+	
 	    // merge events with short delay
-	    var cur = tmp[0];
-	    for (var i = 1; i < tmp.length; i++) {
-	      var sameSize = cur.w === tmp[i].w && cur.h === tmp[i].h;
-	      if (tmp[i].ms - cur.ms < EVENT_MIN_TIME_DIFFERENCE && sameSize) {
+	    /*var cur = tmp[0];
+	    for(let i = 1; i < tmp.length; i++){
+	      let sameSize = cur.w === tmp[i].w && cur.h === tmp[i].h;
+	      if(tmp[i].ms - cur.ms < EVENT_MIN_TIME_DIFFERENCE && sameSize ){
 	        cur.bytes += tmp[i].bytes;
 	        cur.ms = tmp[i].ms;
-	      } else {
+	      }else{
 	        this.events.push(cur);
 	        cur = tmp[i];
 	      }
 	    }
-	
-	    if (this.events.indexOf(cur) === -1) {
+	     if(this.events.indexOf(cur) === -1){
 	      this.events.push(cur);
-	    }
+	    }*/
 	  };
 	
 	  EventProvider.prototype._shouldFetch = function _shouldFetch(start, end) {
@@ -4890,7 +4891,7 @@ webpackJsonp([1],[
 	
 	    return api.get(url).then(function (response) {
 	      //return response.bytes;
-	      return new Buffer(response.bytes, 'base64').toString('utf8');
+	      return new Buffer(response.bytes, 'base64');
 	    });
 	  };
 	
