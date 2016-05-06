@@ -19,10 +19,12 @@ limitations under the License.
 package web
 
 import (
+	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -973,6 +975,10 @@ type siteSessionStreamGetResponse struct {
 //   "offset"   : bytes from the beginning
 //   "bytes"    : number of bytes to read (it won't return more than 512Kb)
 //
+// Unlike other request handlers, this one does not return JSON.
+// It returns the binary stream unencoded, directly in the respose body,
+// with Content-Type of application/octet-stream, gzipped with up to 95%
+// compression ratio.
 func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	var site reversetunnel.RemoteSite
 	onError := func(err error) {
@@ -1034,7 +1040,22 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 		onError(trace.Wrap(err))
 		return
 	}
-	n, err := w.Write(bytes)
+	// see if we can gzip it. TODO (ev): lets switch to gzipping during recording (not replay),
+	// to save on space as well.
+	var writer io.Writer = w
+	for _, acceptedEnc := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
+		if strings.TrimSpace(acceptedEnc) == "gzip" {
+			gzipper, err := gzip.NewWriterLevel(w, gzip.BestCompression)
+			if err != nil {
+				onError(trace.Wrap(err))
+				return
+			}
+			writer = gzipper
+			defer gzipper.Close()
+			w.Header().Set("Content-Encoding", "gzip")
+		}
+	}
+	n, err := writer.Write(bytes)
 	if err != nil {
 		onError(trace.Wrap(err))
 		return
