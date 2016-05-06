@@ -17,7 +17,7 @@ func IsDir(dirPath string) bool {
 // ReadAll is similarl to ioutil.ReadAll, except it doesn't use ever-increasing
 // internal buffer, instead asking for the exact buffer size.
 //
-// We need this for websockets: they can't deal with huge Reads > 32K
+// This is useful when you want to limit the sze of Read/Writes (websockets)
 func ReadAll(r io.Reader, bufsize int) (out []byte, err error) {
 	buff := make([]byte, bufsize)
 	n := 0

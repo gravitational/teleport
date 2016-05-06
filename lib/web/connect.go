@@ -160,6 +160,9 @@ func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// this goroutine receives terminal window size changes in real time
+	// and stores the last size (example: "100:25") as a special "prefix"
+	// which gets added to future SSH reads by web clients.
 	go func() {
 		buff := make([]byte, 16)
 		sshChan, _, err := up.GetClient().OpenChannel("terminal-size-notifier", nil)

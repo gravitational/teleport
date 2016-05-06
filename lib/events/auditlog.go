@@ -107,10 +107,6 @@ type AuditLog struct {
 	// currently opened file
 	fileTime time.Time
 
-	// lastEvents keeps a map of most recent event
-	// of each types. Useful for testing and debugging
-	RecentEvents map[string]EventFields
-
 	// RotationPeriod defines how frequently to rotate the log file
 	RotationPeriod time.Duration
 
@@ -144,8 +140,8 @@ type SessionLogger struct {
 
 // LogEvent logs an event associated with this session
 func (sl *SessionLogger) LogEvent(fields EventFields) {
-	logrus.Infof("---> sessionLogger.LogEvent(%v, bytes:%v)",
-		fields.GetType(), fields.GetInt("bytes"))
+	sl.Lock()
+	defer sl.Unlock()
 
 	// add "bytes written" counter:
 	fields[SessionByteOffset] = sl.writtenBytes
@@ -157,8 +153,6 @@ func (sl *SessionLogger) LogEvent(fields EventFields) {
 
 	line := eventToLine(fields)
 
-	sl.Lock()
-	defer sl.Unlock()
 	if sl.eventsFile != nil {
 		_, err := fmt.Fprintln(sl.eventsFile, line)
 		if err != nil {
@@ -219,24 +213,16 @@ func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
 }
 
 // Creates and returns a new Audit Log oboject whish will store its logfiles
-// in a given directory> When 'testMode' is set to True, additional bookeeing
-// to assist with unit testing will be performed
-func NewAuditLog(dataDir string, testMode bool) (*AuditLog, error) {
+// in a given directory>
+func NewAuditLog(dataDir string) (*AuditLog, error) {
 	// create a directory for session logs:
 	if err := os.MkdirAll(dataDir, 0770); err != nil {
 		logrus.Error(err)
 		return nil, trace.Wrap(err)
 	}
-	makeRecentEvents := func() map[string]EventFields {
-		if testMode {
-			return make(map[string]EventFields)
-		}
-		return nil
-	}
 	return &AuditLog{
 		loggers:        make(map[session.ID]*SessionLogger, 0),
 		dataDir:        dataDir,
-		RecentEvents:   makeRecentEvents(),
 		RotationPeriod: DefaultRotationPeriod,
 		TimeSource:     time.Now,
 	}, nil
@@ -250,12 +236,11 @@ func (l *AuditLog) PostSessionChunk(sid session.ID, reader io.Reader) error {
 		return nil
 	}
 	tmp, err := utils.ReadAll(reader, 16*1024)
-	written, err := sl.Write(tmp)
+	_, err = sl.Write(tmp)
 	if err != nil {
 		logrus.Error(err)
 		return trace.Wrap(err)
 	}
-	logrus.Infof("---> audit.log: PostSessionChunk(bytes=%d/%d)", written, len(tmp))
 	return nil
 }
 
@@ -325,10 +310,6 @@ func (l *AuditLog) GetSessionEvents(sid session.ID, afterN int) ([]EventFields, 
 // EmitAuditEvent adds a new event to the log. Part of auth.AuditLogI interface.
 func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 	logrus.Infof("auditLog.EmitAuditEvent(%s)", eventType)
-	// keep the most recent event of every kind for testing purposes:
-	if l.RecentEvents != nil {
-		l.RecentEvents[eventType] = fields
-	}
 
 	// see if the log needs to be rotated
 	if err := l.rotateLog(); err != nil {
@@ -547,6 +528,9 @@ func (l *AuditLog) sessionLogFn(sid session.ID) string {
 // LoggerFor creates a logger for a specified session. Session loggers allow
 // to group all events into special "session log files" for easier audit
 func (l *AuditLog) LoggerFor(sid session.ID) (sl *SessionLogger) {
+	l.Lock()
+	defer l.Unlock()
+
 	sl, ok := l.loggers[sid]
 	if ok {
 		return sl
@@ -576,8 +560,6 @@ func (l *AuditLog) LoggerFor(sid session.ID) (sl *SessionLogger) {
 		timeSource:  l.TimeSource,
 		createdTime: l.TimeSource().In(time.UTC).Round(time.Second),
 	}
-	l.Lock()
-	defer l.Unlock()
 	l.loggers[sid] = sl
 	return sl
 }

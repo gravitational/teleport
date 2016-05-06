@@ -87,7 +87,7 @@ func (s *WebSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
 	sessionStreamPollPeriod = time.Millisecond
 	s.logDir = c.MkDir()
-	s.auditLog, err = events.NewAuditLog(s.logDir, true)
+	s.auditLog, err = events.NewAuditLog(s.logDir)
 	c.Assert(err, IsNil)
 	c.Assert(s.auditLog, NotNil)
 }

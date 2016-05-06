@@ -68,7 +68,7 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
 
-	s.alog, err = events.NewAuditLog(s.dir, true)
+	s.alog, err = events.NewAuditLog(s.dir)
 	c.Assert(err, IsNil)
 
 	s.a = NewAuthServer(&InitConfig{
@@ -324,22 +324,6 @@ func (s *APISuite) TestReverseTunnels(c *C) {
 	out, err = s.clt.GetReverseTunnels()
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
-}
-
-func (s *APISuite) TestAuditLog(c *C) {
-	fields := events.EventFields{
-		"1": "one",
-		"2": "two",
-	}
-	err := s.clt.EmitAuditEvent("test-event", fields)
-	c.Assert(err, IsNil)
-
-	e, found := s.alog.RecentEvents["test-event"]
-	c.Assert(found, Equals, true)
-	c.Assert(e, NotNil)
-	c.Assert(e["1"].(string), Equals, "one")
-	c.Assert(e[events.EventType], Equals, "test-event")
-	c.Assert(e[events.EventTime], FitsTypeOf, time.Time{})
 }
 
 func (s *APISuite) TestTokens(c *C) {

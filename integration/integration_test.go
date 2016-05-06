@@ -154,6 +154,7 @@ func (s *IntSuite) TestAudit(c *check.C) {
 	bigChunk := make([]byte, 1024*1024)
 	err = site.PostSessionChunk(session.ID, bytes.NewReader(bigChunk))
 	c.Assert(err, check.Equals, nil)
+
 	// then add small prefix:
 	err = site.PostSessionChunk(session.ID, bytes.NewBufferString("\nsuffix"))
 	c.Assert(err, check.Equals, nil)
@@ -195,11 +196,14 @@ func (s *IntSuite) TestAudit(c *check.C) {
 	history, err := site.GetSessionEvents(session.ID, 0)
 	c.Assert(err, check.IsNil)
 
-	getChunk := func(e events.EventFields) string {
+	getChunk := func(e events.EventFields, maxlen int) string {
 		offset := e.GetInt("offset")
 		length := e.GetInt("bytes")
 		if length == 0 {
 			return ""
+		}
+		if length > maxlen {
+			length = maxlen
 		}
 		return string(sessionStream[offset : offset+length])
 	}
@@ -221,9 +225,23 @@ func (s *IntSuite) TestAudit(c *check.C) {
 	c.Assert(start.GetString(events.SessionEventID) != "", check.Equals, true)
 	c.Assert(start.GetString(events.TerminalSize) != "", check.Equals, true)
 
-	// 3rd event is always "print suffix"
-	c.Assert(history[2].GetType(), check.Equals, events.SessionPrintEvent)
-	c.Assert(getChunk(history[2]), check.Equals, "\nsuffix")
+	// find "\nsuffix" write and find our huge 1MB chunk
+	prefixFound, hugeChunkFound := false, false
+	for _, e := range history {
+		if getChunk(e, 10) == "\nsuffix" {
+			prefixFound = true
+		}
+		if e.GetInt("bytes") == 1048576 {
+			hugeChunkFound = true
+		}
+		/* uncomment to see all chunks
+		fmt.Printf("%s: offset=%d bytes=%d, chunk=%s\n",
+			e.GetType(), e.GetInt("offset"), e.GetInt("bytes"),
+			strings.TrimSpace(getChunk(e, 10)))
+		*/
+	}
+	c.Assert(prefixFound, check.Equals, true)
+	c.Assert(hugeChunkFound, check.Equals, true)
 
 	// there should alwys be 'session.end' event
 	end := findByType(events.SessionEndEvent)
@@ -300,7 +318,7 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 	waitFor(sessionEndC, time.Second*10)
 
 	// make sure both parites saw the same output:
-	c.Assert(personA.Output(100)[50:], check.DeepEquals, personB.Output(100)[50:])
+	c.Assert(string(personA.Output(100)), check.DeepEquals, string(personB.Output(100)))
 }
 
 // TestInvalidLogins validates that you can't login with invalid login or
@@ -411,13 +429,14 @@ func (t *Terminal) Type(data string) {
 	}
 }
 
-// Output returns a number of first num bytes printed into this fake terminal
-func (t *Terminal) Output(num int) []byte {
-	w := t.written.Bytes()
-	if len(w) > num {
-		return w[:num]
+// Output returns a number of first 'limit' bytes printed into this fake terminal
+func (t *Terminal) Output(limit int) string {
+	buff := t.written.Bytes()
+	if len(buff) > limit {
+		buff = buff[:limit]
 	}
-	return w
+	// clean up white space for easier comparison:
+	return strings.TrimSpace(string(buff))
 }
 
 func (t *Terminal) Write(data []byte) (n int, err error) {

@@ -52,6 +52,9 @@ type execResponse struct {
 	cmd     *exec.Cmd
 	ctx     *ctx
 
+	// TODO(klizhentas) implement capturing as a threadsafe, factored out feature
+	// that uses protected writes & reads to the buffer
+
 	// 'out' contains captured command output
 	out *bytes.Buffer
 }

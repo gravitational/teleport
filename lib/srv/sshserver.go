@@ -538,10 +538,7 @@ func (s *Server) HandleNewChan(nc net.Conn, sconn *ssh.ServerConn, nch ssh.NewCh
 
 	switch channelType {
 	case "terminal-size-notifier":
-		ch, _, err := nch.Accept()
-		if err != nil {
-			log.Infof("----> could not accept terminal-size-notifier: (%s)", err)
-		}
+		ch, _, _ := nch.Accept()
 		go s.handleTerminalResize(sconn, ch)
 	case "session": // interactive sessions
 		ch, requests, err := nch.Accept()
@@ -605,14 +602,24 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel,
 	wg.Wait()
 }
 
+// handleTerminalResize is called by the web proxy via its SSH connection.
+// when a web browser connects to the web API, the web proxy asks us,
+// by creating this new SSH channel, to start injecting the terminal size
+// into every SSH write back to it.
+//
+// this is the only way to make web-based terminal UI not break apart
+// when window changes its size
 func (s *Server) handleTerminalResize(sconn *ssh.ServerConn, ch ssh.Channel) {
+	// the party may not be immediately available for this connection,
+	// keep asking for a full second:
 	for i := 0; i < 10; i++ {
 		party := s.reg.PartyForConnection(sconn)
 		if party == nil {
-			time.Sleep(time.Millisecond * 250)
+			time.Sleep(time.Millisecond * 100)
 			continue
 		}
-		// this will run in a loop until ch closes
+		// this starts a loop which will keep updating the terminal
+		// size for every SSH write back to this connection
 		party.termSizePusher(ch)
 		return
 	}
