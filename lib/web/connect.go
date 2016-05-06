@@ -124,7 +124,6 @@ func (w *connectHandler) connect(ws *websocket.Conn) {
 		})
 
 	log.Infof("pipe shell finished with: %v", err)
-	//ws.Write([]byte("\n\rdisconnected\n\r"))
 }
 
 // resizePTYWindow is called when a brower resizes its window. Now the node

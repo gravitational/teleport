@@ -206,24 +206,31 @@ func (u *Upstream) PipeShell(rw io.ReadWriter, req *PTYReqParams) error {
 		u.session.SendRequest(PTYReq, false, ssh.Marshal(*req))
 	}
 
+	// getPrefix protects u.prefix with a mutex
 	getPrefix := func() []byte {
 		u.Lock()
 		defer u.Unlock()
 		return u.prefix
 	}
 
+	// copyOutput works exactly like io.Copy() but it does two additional things:
+	//  - it appends 'prefix' in front of every write (used to send screensize back to
+	//    the web client in real time (it must know the screen size ahead of every write)
+	//  - it converts everything into UTF8
 	copyOutput := func(w io.Writer, r io.Reader) (err error) {
-		defer logrus.Infof("upstream.CopyOutput() ended!!!")
 		written, n := 0, 0
-		const bufflen = 32 * 1024
-		buffer := make([]byte, bufflen)
+		const buflen = 16 * 1024
+		buffer := make([]byte, buflen)
 		for err == nil {
 			prefix := getPrefix()
 			n, err = r.Read(buffer)
 			if err == nil {
 				if prefix != nil {
-					copy(buffer[n:], prefix)
-					n += len(prefix)
+					pl := len(prefix)
+					if pl+n <= buflen {
+						copy(buffer[n:], prefix)
+						n += pl
+					}
 				}
 				written, err = w.Write(buffer[:n])
 				if written != n {
