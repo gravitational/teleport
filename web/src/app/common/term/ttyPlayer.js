@@ -24,7 +24,7 @@ const logger = require('app/common/logger').create('TtyPlayer');
 const STREAM_START_INDEX = 0;
 const PRE_FETCH_BUF_SIZE = 150;
 const URL_PREFIX_EVENTS = '/events';
-const EVENT_MIN_TIME_DIFFERENCE = 10;
+//const EVENT_MIN_TIME_DIFFERENCE = 10;
 const PLAY_SPEED = 150;
 
 function handleAjaxError(err){
@@ -68,10 +68,10 @@ class EventProvider{
 
   processByteStream(start, end, byteStr){
     let byteStrOffset = this.events[start].bytes;
-    this.events[start].data = byteStr.slice(0, byteStrOffset);
+    this.events[start].data = byteStr.slice(0, byteStrOffset).toString('utf8');
     for(var i = start+1; i < end; i++){
       let {bytes} = this.events[i];
-      this.events[i].data = byteStr.slice(byteStrOffset, byteStrOffset + bytes);
+      this.events[i].data = byteStr.slice(byteStrOffset, byteStrOffset + bytes).toString('utf8');
       byteStrOffset += bytes;
     }
   }
@@ -83,7 +83,7 @@ class EventProvider{
 
     // ensure that each event has the right screen size
     for(let i = 0; i < events.length; i++){
-      if(events[i].event === 'resize'){
+      if(events[i].event === 'resize' || events[i].event === 'session.start'){
         [w, h] = events[i].size.split(':');
       }
 
@@ -98,8 +98,10 @@ class EventProvider{
       tmp.push(events[i]);
     }
 
+    this.events = tmp;
+
     // merge events with short delay
-    var cur = tmp[0];
+    /*var cur = tmp[0];
     for(let i = 1; i < tmp.length; i++){
       let sameSize = cur.w === tmp[i].w && cur.h === tmp[i].h;
       if(tmp[i].ms - cur.ms < EVENT_MIN_TIME_DIFFERENCE && sameSize ){
@@ -113,7 +115,7 @@ class EventProvider{
 
     if(this.events.indexOf(cur) === -1){
       this.events.push(cur);
-    }
+    }*/
   }
 
   _shouldFetch(start, end){
@@ -131,10 +133,9 @@ class EventProvider{
     let bytes = this.events[end].offset - offset + this.events[end].bytes;
     let url = `${this.url}/stream?offset=${offset}&bytes=${bytes}`;
 
-    return api.get(url).then((response)=>{
-      //return response.bytes;
-      return new Buffer(response.bytes, 'base64').toString('utf8');
-    })
+    return api.ajax({url, processData: false, dataType: 'text'}).then((response)=>{      
+      return new Buffer(response);
+    });
   }
 }
 
