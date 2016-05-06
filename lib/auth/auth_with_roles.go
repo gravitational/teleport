@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -368,11 +369,12 @@ func (a *AuthWithRoles) PostSessionChunk(sid session.ID, reader io.Reader) error
 	return a.alog.PostSessionChunk(sid, reader)
 }
 
-func (a *AuthWithRoles) GetSessionReader(sid session.ID, offsetBytes int) (io.ReadCloser, error) {
+func (a *AuthWithRoles) GetSessionChunk(sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
+	logrus.Infof("----> authWithRoles.GetSessionChunk(%v, offset=%d)", sid, offsetBytes)
 	if err := a.permChecker.HasPermission(a.role, ActionViewSession); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.alog.GetSessionReader(sid, offsetBytes)
+	return a.alog.GetSessionChunk(sid, offsetBytes, maxBytes)
 }
 
 func (a *AuthWithRoles) GetSessionEvents(sid session.ID, afterN int) ([]events.EventFields, error) {

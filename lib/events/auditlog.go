@@ -50,6 +50,7 @@ package events
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -63,6 +64,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -242,12 +244,16 @@ func NewAuditLog(dataDir string, testMode bool) (*AuditLog, error) {
 
 // PostSessionChunk writes a new chunk of session stream into the audit log
 func (l *AuditLog) PostSessionChunk(sid session.ID, reader io.Reader) error {
+	//buffer, err := utils.ReadAll(reader, 1024*32)
+	//logrus.Infof("----> auditLog.OnPostSessionChunk() got %d bytes,err=%v", len(buffer), err)
+
 	sl := l.LoggerFor(sid)
 	if sl == nil {
 		logrus.Warnf("audit.log: no session writer for %s", sid)
 		return nil
 	}
-	written, err := io.CopyBuffer(sl, reader, make([]byte, 8*1024))
+	tmp, err := utils.ReadAll(reader, 8*1024)
+	written, err := sl.Write(tmp)
 	if err != nil {
 		logrus.Error(err)
 		return trace.Wrap(err)
@@ -256,18 +262,28 @@ func (l *AuditLog) PostSessionChunk(sid session.ID, reader io.Reader) error {
 	return nil
 }
 
-// GetSessionReader returns a reader which console and web clients request
-// to receive a live stream of a given session
-func (l *AuditLog) GetSessionReader(sid session.ID, offsetBytes int) (io.ReadCloser, error) {
+// GetSessionChunk returns a reader which console and web clients request
+// to receive a live stream of a given session. The reader allows access to a
+// session stream range from offsetBytes to offsetBytes+maxBytes
+//
+func (l *AuditLog) GetSessionChunk(sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
 	logrus.Infof("audit.log: getSessionReader(%v)", sid)
 	fstream, err := os.OpenFile(l.sessionStreamFn(sid), os.O_RDONLY, 0640)
 	if err != nil {
 		logrus.Warning(err)
 		return nil, trace.Wrap(err)
 	}
+	defer fstream.Close()
+
+	// seek to 'offset'
 	const fromBeginning = 0
 	fstream.Seek(int64(offsetBytes), fromBeginning)
-	return fstream, nil
+
+	// copy up to maxBytes from the offset position:
+	var buff bytes.Buffer
+	io.Copy(&buff, io.LimitReader(fstream, int64(maxBytes)))
+
+	return buff.Bytes(), nil
 }
 
 // Returns all events that happen during a session sorted by time

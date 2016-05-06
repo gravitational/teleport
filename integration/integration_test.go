@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/user"
 	"strconv"
@@ -131,7 +130,8 @@ func (s *IntSuite) TestAudit(c *check.C) {
 		c.Assert(err, check.IsNil)
 		cl.Output = &myTerm
 
-		endC <- cl.SSH([]string{}, false, &myTerm)
+		err = cl.SSH([]string{}, false, &myTerm)
+		endC <- err
 	}()
 
 	// wait until there's a session in there:
@@ -149,31 +149,34 @@ func (s *IntSuite) TestAudit(c *check.C) {
 	// make sure it's us who joined! :)
 	c.Assert(session.Parties[0].User, check.Equals, s.me.Username)
 
+	// lets add something to the session streaam:
+	// write 1MB chunk
+	bigChunk := make([]byte, 1024*1024)
+	err = site.PostSessionChunk(session.ID, bytes.NewReader(bigChunk))
+	c.Assert(err, check.Equals, nil)
+	// then add small prefix:
+	err = site.PostSessionChunk(session.ID, bytes.NewBufferString("\nsuffix"))
+	c.Assert(err, check.Equals, nil)
+
 	// lets type "echo hi" followed by "enter" and then "exit" + "enter":
 	myTerm.Type("\aecho hi\n\r\aexit\n\r\a")
 
 	// wait for session to end:
 	<-endC
 
-	// using 'session writer' lets add something to the session streaam:
-	w, err := site.GetSessionWriter(session.ID)
-	c.Assert(err, check.IsNil)
-	// write 32Kb chunk
-	bigChunk := make([]byte, 1024*32)
-	n, err := w.Write(bigChunk)
-	c.Assert(err, check.Equals, nil)
-	c.Assert(n, check.Equals, len(bigChunk))
-	// then add small prefix:
-	w.Write([]byte("\nsuffix"))
-	w.Close()
-
-	// read back the entire session:
-	r, err := site.GetSessionReader(session.ID, 0)
-	c.Assert(err, check.IsNil)
-	sessionStream, err := ioutil.ReadAll(r)
-	c.Assert(err, check.IsNil)
-	c.Assert(len(sessionStream) > len(bigChunk), check.Equals, true)
-	r.Close()
+	// read back the entire session (we have to try several times until we get back
+	// everything because the session is closing)
+	expectedLen := 1048600
+	var sessionStream []byte
+	for i := 0; len(sessionStream) < expectedLen; i++ {
+		sessionStream, err = site.GetSessionChunk(session.ID, 0, events.MaxChunkBytes)
+		c.Assert(err, check.IsNil)
+		time.Sleep(time.Millisecond * 250)
+		if i > 10 {
+			// session stream keeps coming back short
+			c.Fatalf("stream is too short: <%d", expectedLen)
+		}
+	}
 
 	// see what we got. It looks different based on bash settings, but here it is
 	// on Ev's machine (hostname is 'edsger'):
@@ -182,18 +185,15 @@ func (s *IntSuite) TestAudit(c *check.C) {
 	// hi
 	// edsger ~: exit
 	// logout
-	// <5MB of zeros here>
+	// <1MB of zeros here>
 	// suffix
 	//
 	c.Assert(strings.Contains(string(sessionStream), "echo hi"), check.Equals, true)
-	c.Assert(strings.HasSuffix(string(sessionStream), "\nsuffix"), check.Equals, true)
+	c.Assert(strings.Contains(string(sessionStream), "\nsuffix"), check.Equals, true)
 
 	// now lets look at session events:
 	history, err := site.GetSessionEvents(session.ID, 0)
 	c.Assert(err, check.IsNil)
-	first := history[0]
-	beforeLast := history[len(history)-2]
-	last := history[len(history)-1]
 
 	getChunk := func(e events.EventFields) string {
 		offset := e.GetInt("offset")
@@ -201,32 +201,41 @@ func (s *IntSuite) TestAudit(c *check.C) {
 		if length == 0 {
 			return ""
 		}
-		c.Assert(offset+length <= len(sessionStream), check.Equals, true)
 		return string(sessionStream[offset : offset+length])
 	}
 
-	// last two are manually-typed (32Kb chunk and "suffix"):
-	c.Assert(last.GetString(events.EventType), check.Equals, "print")
-	c.Assert(beforeLast.GetString(events.EventType), check.Equals, "print")
-	c.Assert(last.GetInt("bytes"), check.Equals, len("\nsuffix"))
-	c.Assert(beforeLast.GetInt("bytes"), check.Equals, len(bigChunk))
+	findByType := func(et string) events.EventFields {
+		for _, e := range history {
+			if e.GetType() == et {
+				return e
+			}
+		}
+		return nil
+	}
 
-	// 10th chunk should be printed "hi":
-	c.Assert(strings.HasPrefix(getChunk(history[10]), "hi"), check.Equals, true)
+	// there should alwys be 'session.start' event (and it must be first)
+	first := history[0]
+	start := findByType(events.SessionStartEvent)
+	c.Assert(start, check.DeepEquals, first)
+	c.Assert(start.GetInt("bytes"), check.Equals, 0)
+	c.Assert(start.GetString(events.SessionEventID) != "", check.Equals, true)
+	c.Assert(start.GetString(events.TerminalSize) != "", check.Equals, true)
 
-	// 1st should be "session.start"
-	c.Assert(first.GetString(events.EventType), check.Equals, events.SessionStartEvent)
+	// 3rd event is always "print suffix"
+	c.Assert(history[2].GetType(), check.Equals, events.SessionPrintEvent)
+	c.Assert(getChunk(history[2]), check.Equals, "\nsuffix")
 
-	// last-3 should be "session.end", and the one before - "session.leave"
-	endEvent := history[len(history)-3]
-	leaveEvent := history[len(history)-4]
-	c.Assert(endEvent.GetString(events.EventType), check.Equals, events.SessionEndEvent)
-	c.Assert(leaveEvent.GetString(events.EventType), check.Equals, events.SessionLeaveEvent)
+	// there should alwys be 'session.end' event
+	end := findByType(events.SessionEndEvent)
+	c.Assert(end, check.NotNil)
+	c.Assert(end.GetInt("bytes"), check.Equals, 0)
+	c.Assert(end.GetString(events.SessionEventID) != "", check.Equals, true)
 
-	// session events should have session ID assigned
-	c.Assert(first.GetString(events.SessionEventID) != "", check.Equals, true)
-	c.Assert(endEvent.GetString(events.SessionEventID) != "", check.Equals, true)
-	c.Assert(leaveEvent.GetString(events.SessionEventID) != "", check.Equals, true)
+	// there should alwys be 'session.leave' event
+	leave := findByType(events.SessionLeaveEvent)
+	c.Assert(leave, check.NotNil)
+	c.Assert(leave.GetInt("bytes"), check.Equals, 0)
+	c.Assert(leave.GetString(events.SessionEventID) != "", check.Equals, true)
 
 	// all of them should have a proper time:
 	for _, e := range history {

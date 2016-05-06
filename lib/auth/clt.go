@@ -738,24 +738,35 @@ func (c *Client) EmitAuditEvent(eventType string, fields events.EventFields) err
 // The data is POSTed to HTTP server as a simple binary body (no encodings of any
 // kind are needed)
 func (c *Client) PostSessionChunk(sid session.ID, reader io.Reader) error {
-	logrus.Infof("authClient.PostSessionChunk(%v)", sid)
+	logrus.Infof("----> authClient.PostSessionChunk(%v)", sid)
 
 	request, err := http.NewRequest("POST",
 		c.Endpoint("sessions", string(sid), "stream"),
 		reader)
 	request.Header.Set("Content-Type", "application/octet-stream")
 
-	_, err = c.Client.HTTPClient().Do(request)
+	resp, err := c.Client.HTTPClient().Do(request)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer resp.Body.Close()
 	return nil
 }
 
-// GetSessionReader allows clients to recewive a live stream of an active session
-func (c *Client) GetSessionReader(sid session.ID, offsetBytes int) (io.ReadCloser, error) {
-	return c.openWebsocket(c.Endpoint("sessions", string(sid), "reader") +
-		fmt.Sprintf("?from=%d", offsetBytes))
+// GetSessionChunk allows clients to receive a byte array (chunk) from a recorded
+// session stream, starting from 'offset', up to 'max' in length. The upper bound
+// of 'max' is set to events.MaxChunkBytes
+func (c *Client) GetSessionChunk(sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
+	logrus.Infof("----> authClient.GetSessionChunk(from=%d, max=%d)", offsetBytes, maxBytes)
+	response, err := c.Get(c.Endpoint("sessions", string(sid), "stream"), url.Values{
+		"offset": []string{strconv.Itoa(offsetBytes)},
+		"bytes":  []string{strconv.Itoa(maxBytes)},
+	})
+	if err != nil {
+		logrus.Error(err)
+		return nil, trace.Wrap(err)
+	}
+	return response.Bytes(), nil
 }
 
 // Returns events that happen during a session sorted by time

@@ -91,6 +91,12 @@ const (
 	TerminalSize = "size" // expressed as 'W:H'
 )
 
+const (
+	// MaxChunkBytes defines the maximum size of a session stream chunk that
+	// can be requested via AuditLog.GetSessionChunk(). Set to 5MB
+	MaxChunkBytes = 1024 * 1024 * 5
+)
+
 // AuditLogI is the primary (and the only external-facing) interface for AUditLogger.
 // If you wish to implement a different kind of logger (not filesystem-based), you
 // have to implement this interface
@@ -101,10 +107,12 @@ type AuditLogI interface {
 	// their live sessions into the session log
 	PostSessionChunk(sid session.ID, reader io.Reader) error
 
-	// GetSessionReader returns a reader which can be used to read a byte stream
+	// GetSessionChunk returns a reader which can be used to read a byte stream
 	// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
-	// beginning)
-	GetSessionReader(sid session.ID, offsetBytes int) (io.ReadCloser, error)
+	// beginning) up to maxBytes bytes.
+	//
+	// If maxBytes > MaxChunkBytes, it gets rounded down to MaxChunkBytes
+	GetSessionChunk(sid session.ID, offsetBytes, maxBytes int) ([]byte, error)
 
 	// Returns all events that happen during a session sorted by time
 	// (oldest first).
@@ -136,6 +144,11 @@ func (f EventFields) AsString() string {
 		f.GetString(EventLogin),
 		f.GetInt(EventCursor),
 		f.GetInt(SessionPrintEventBytes))
+}
+
+// GetType returns the type (string) of the event
+func (f EventFields) GetType() string {
+	return f.GetString(EventType)
 }
 
 // GetString returns a string representation of a logged field

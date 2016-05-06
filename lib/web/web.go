@@ -19,12 +19,10 @@ limitations under the License.
 package web
 
 import (
-	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -999,22 +997,13 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.BadParameter("bytes", "bytes=%d, cannot exceed %d", max, maxStreamBytes)
 	}
 
-	// read file:
-	reader, err := clt.GetSessionReader(*sid, offset)
-	if err != nil {
-		// return empty buffer if no file found
-		return siteSessionStreamGetResponse{Bytes: []byte{}}, nil
-	}
-	defer reader.Close()
-
-	var buff bytes.Buffer
-	written, err := io.CopyN(&buff, reader, int64(max))
+	bytes, err := clt.GetSessionChunk(*sid, offset, max)
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("[web] siteSessionStreamGet() returned %d/%d bytes", len(buff.Bytes()), written)
-	return siteSessionStreamGetResponse{Bytes: buff.Bytes()}, nil
+	log.Infof("----> [web] siteSessionStreamGet() returned %d bytes", len(bytes))
+	return siteSessionStreamGetResponse{Bytes: bytes}, nil
 }
 
 type eventsListGetResponse struct {

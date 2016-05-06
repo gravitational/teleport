@@ -19,7 +19,6 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -36,8 +35,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-
-	"golang.org/x/net/websocket"
 )
 
 // Config is APIServer config
@@ -113,7 +110,7 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.GET("/v1/sessions", httplib.MakeHandler(srv.getSessions))
 	srv.GET("/v1/sessions/:id", httplib.MakeHandler(srv.getSession))
 	srv.POST("/v1/sessions/:id/stream", httplib.MakeHandler(srv.postSessionChunk))
-	srv.GET("/v1/sessions/:id/reader", httplib.MakeHandler(srv.getSessionReader))
+	srv.GET("/v1/sessions/:id/stream", srv.getSessionChunk)
 	srv.GET("/v1/sessions/:id/events", httplib.MakeHandler(srv.getSessionEvents))
 
 	// OIDC stuff
@@ -802,40 +799,46 @@ func (s *APIServer) postSessionChunk(w http.ResponseWriter, r *http.Request, p h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if err = s.a.PostSessionChunk(*sid, r.Body); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
 }
 
-// HTTP GET /v1/sessions/:id/reader
-func (s *APIServer) getSessionReader(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+// HTTP GET /v1/sessions/:id/stream?offset=x&bytes=y
+// Query parameters:
+//   "offset"   : bytes from the beginning
+//   "bytes"    : number of bytes to read (it won't return more than 512Kb)
+func (s *APIServer) getSessionChunk(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	sid, err := session.ParseID(p.ByName("id"))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-	// parse "offset bytes"
-	offsetBytes, err := strconv.Atoi(r.URL.Query().Get("from"))
+	// "offset bytes" query param
+	offsetBytes, err := strconv.Atoi(r.URL.Query().Get("offset"))
 	if err != nil || offsetBytes < 0 {
 		offsetBytes = 0
 	}
-	log.Infof("[AUTH] api.getSessionReader(%v, %v)", *sid, offsetBytes)
-	reader, err := s.a.GetSessionReader(*sid, offsetBytes)
+	// "max bytes" query param
+	max, err := strconv.Atoi(r.URL.Query().Get("bytes"))
+	if err != nil || offsetBytes < 0 {
+		offsetBytes = 0
+	}
+	log.Infof("----> apiserver.GetSessionChunk(%v, offset=%d)", *sid, offsetBytes)
+	w.Header().Set("Content-Type", "text/plain")
+
+	buffer, err := s.a.GetSessionChunk(*sid, offsetBytes, max)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-	defer reader.Close()
-	ws := websocket.Server{
-		Handler: func(conn *websocket.Conn) {
-			log.Info("[AUTH] session streaming websocket open")
-			// set websocket to 64K read/writes
-			buffer := make([]byte, 1024*64)
-			read, _ := io.CopyBuffer(conn, reader, buffer)
-			log.Infof("[AUTH] session streaming websocket closed: %v bytes streamed", read)
-		},
+	if _, err = w.Write(buffer); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-	ws.ServeHTTP(w, r)
-	return nil, nil
+	w.Header().Set("Content-Type", "application/octet-stream")
 }
 
 // HTTP GET /v1/sessions/:id/events?maxage=n

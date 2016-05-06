@@ -549,6 +549,8 @@ func NewTunClient(purpose string,
 	for _, o := range opts {
 		o(tc)
 	}
+	log.Infof("newTunClient(%s)", purpose)
+
 	clt, err := NewClient("http://stub:0", tc.Dial)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -621,7 +623,9 @@ func (c *TunClient) Dial(network, address string) (net.Conn, error) {
 	}
 	// dialed & authenticated? lets start synchronizing the
 	// list of auth servers:
-	go c.authServersSyncLoop()
+	if c.refreshTicker == nil {
+		go c.authServersSyncLoop()
+	}
 	return &tunConn{client: client, Conn: conn}, nil
 }
 
@@ -647,7 +651,6 @@ func (c *TunClient) fetchAndSync() error {
 // authServersSyncLoop continuously refreshes the list of available auth servers
 // for this client
 func (c *TunClient) authServersSyncLoop() {
-	log.Infof("TunClient[%s]: authServersSyncLoop() started", c.purpose)
 	alreadyRunning := func() bool {
 		c.Lock()
 		defer c.Unlock()
@@ -661,6 +664,7 @@ func (c *TunClient) authServersSyncLoop() {
 	if alreadyRunning() {
 		return
 	}
+	log.Infof("TunClient[%s]: authServersSyncLoop() started", c.purpose)
 	defer c.refreshTicker.Stop()
 
 	// initial fetch for quick start-ups

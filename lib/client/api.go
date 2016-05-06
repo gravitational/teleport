@@ -37,6 +37,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -382,26 +383,6 @@ func (tc *TeleportClient) Join(sessionID session.ID, input io.Reader) (err error
 	return tc.runShell(nc, session.ID, input)
 }
 
-// readAll is similarl to ioutil.ReadAll, except it doesn't use ever-increasing
-// internal buffer, instead asking for the exact buffer size.
-//
-// we need this for websockets: they can't deal with huge Reads
-// (set bufsize to 32K)
-func readAll(r io.Reader, bufsize int) (out []byte, err error) {
-	buff := make([]byte, bufsize)
-	n := 0
-	for err == nil {
-		n, err = r.Read(buff)
-		if n > 0 {
-			out = append(out, buff[:n]...)
-		}
-	}
-	if err == io.EOF {
-		err = nil
-	}
-	return out, err
-}
-
 // SCP securely copies file(s) from one SSH server to another
 func (tc *TeleportClient) Play(sessionId string) (err error) {
 	sid, err := session.ParseID(sessionId)
@@ -424,14 +405,17 @@ func (tc *TeleportClient) Play(sessionId string) (err error) {
 	}
 
 	// read the stream into a buffer:
-	reader, err := site.GetSessionReader(*sid, 0)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer reader.Close()
-	stream, err := readAll(reader, 1024*32) //ioutil.ReadAll(reader)
-	if err != nil {
-		return trace.Wrap(err)
+	var stream []byte
+	for err == nil {
+		tmp, err := site.GetSessionChunk(*sid, len(stream), events.MaxChunkBytes)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(tmp) == 0 {
+			err = io.EOF
+			break
+		}
+		stream = append(stream, tmp...)
 	}
 
 	// configure terminal for direct unbuffered echo-less input:
