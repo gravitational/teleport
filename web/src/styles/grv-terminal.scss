@@ -19,10 +19,19 @@ limitations under the License.
  width: 100%;
  font-size: 14px;
  overflow: hidden;
+
  .terminal{
    font-family: "DejaVu Sans Mono", "Liberation Mono", "Andale Mono", Consolas, monospace;
    border: none;
    font-size: inherit;
    line-height: 1.1;
+
+   /**
+   *  Safari renders bold text too fat which distrups terminal screen
+   */
+   * {
+     font-weight: normal!important;
+   }
+
  }
 }

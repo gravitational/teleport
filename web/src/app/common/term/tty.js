@@ -37,7 +37,7 @@ class Tty extends EventEmitter {
   }
 
   connect(connStr){
-    this.socket = new WebSocket(connStr, 'proto');
+    this.socket = new WebSocket(connStr);
 
     this.socket.onopen = () => {
       this.emit('open');
