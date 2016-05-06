@@ -425,7 +425,7 @@ type sessionRecorder struct {
 
 // Write takes a chunk and writes it into the audit log
 func (r *sessionRecorder) Write(data []byte) (int, error) {
-	log.Infof("sessionRecorder.Write(%d)", len(data))
+	log.Infof("\n\n---> sessionRecorder.Write(%d)", len(data))
 	if err := r.alog.PostSessionChunk(r.sid, bytes.NewReader(data)); err != nil {
 		return 0, trace.Wrap(err)
 	}

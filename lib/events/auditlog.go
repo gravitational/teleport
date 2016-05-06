@@ -144,7 +144,8 @@ type SessionLogger struct {
 
 // LogEvent logs an event associated with this session
 func (sl *SessionLogger) LogEvent(fields EventFields) {
-	//logrus.Infof("--> sessionLogger(%s).LogEvent(%v, bytes:%v)", sl.sid, fields[EventType], sl.writtenBytes)
+	logrus.Infof("---> sessionLogger.LogEvent(%v, bytes:%v)",
+		fields.GetType(), fields.GetInt("bytes"))
 
 	// add "bytes written" counter:
 	fields[SessionByteOffset] = sl.writtenBytes
@@ -192,7 +193,6 @@ func (sl *SessionLogger) Finalize() error {
 // Write takes a stream of bytes (usually the output from a session terminal)
 // and writes it into a "stream file", for future replay of interactive sessions.
 func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
-	logrus.Infof("-----> event.write(%d) bytes", len(bytes))
 	if sl.streamFile == nil {
 		err := trace.Errorf("session %v error: attempt to write to a closed file", sl.sid)
 		logrus.Error(err)
@@ -244,21 +244,18 @@ func NewAuditLog(dataDir string, testMode bool) (*AuditLog, error) {
 
 // PostSessionChunk writes a new chunk of session stream into the audit log
 func (l *AuditLog) PostSessionChunk(sid session.ID, reader io.Reader) error {
-	//buffer, err := utils.ReadAll(reader, 1024*32)
-	//logrus.Infof("----> auditLog.OnPostSessionChunk() got %d bytes,err=%v", len(buffer), err)
-
 	sl := l.LoggerFor(sid)
 	if sl == nil {
 		logrus.Warnf("audit.log: no session writer for %s", sid)
 		return nil
 	}
-	tmp, err := utils.ReadAll(reader, 8*1024)
+	tmp, err := utils.ReadAll(reader, 16*1024)
 	written, err := sl.Write(tmp)
 	if err != nil {
 		logrus.Error(err)
 		return trace.Wrap(err)
 	}
-	logrus.Infof("audit.log: PostSessionChunk(%v): %d bytes written", sid, written)
+	logrus.Infof("---> audit.log: PostSessionChunk(bytes=%d/%d)", written, len(tmp))
 	return nil
 }
 

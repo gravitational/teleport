@@ -738,18 +738,24 @@ func (c *Client) EmitAuditEvent(eventType string, fields events.EventFields) err
 // The data is POSTed to HTTP server as a simple binary body (no encodings of any
 // kind are needed)
 func (c *Client) PostSessionChunk(sid session.ID, reader io.Reader) error {
-	logrus.Infof("----> authClient.PostSessionChunk(%v)", sid)
-
-	request, err := http.NewRequest("POST",
-		c.Endpoint("sessions", string(sid), "stream"),
-		reader)
-	request.Header.Set("Content-Type", "application/octet-stream")
-
-	resp, err := c.Client.HTTPClient().Do(request)
+	//logrus.Infof("-----> authClient.PostSessionChunk(%v)", sid)
+	r, err := http.NewRequest("POST", c.Endpoint("sessions", string(sid), "stream"), reader)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer resp.Body.Close()
+	r.Header.Set("Content-Type", "application/octet-stream")
+	c.Client.SetAuthHeader(r.Header)
+	re, err := c.Client.HTTPClient().Do(r)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// we **must** consume response by reading all of its body, otherwise the http
+	// client will allocate a new connection for subsequent requests
+	defer re.Body.Close()
+	var buff [1024]byte
+	for err == nil {
+		_, err = re.Body.Read(buff[:])
+	}
 	return nil
 }
 
