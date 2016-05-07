@@ -57,28 +57,40 @@ func (s *KeyStoreTestSuite) SetUpTest(c *check.C) {
 
 func (s *KeyStoreTestSuite) TestListKeys(c *check.C) {
 	const keyNum = 5
-	// add 5 keys:
+	// add 5 keys for "bob"
 	keys := make([]Key, keyNum)
 	for i := 0; i < keyNum; i++ {
 		key := s.makeSignedKey(c, false)
-		s.store.AddKey(fmt.Sprintf("host-%v", i), key)
+		s.store.AddKey(fmt.Sprintf("host-%v", i), "bob", key)
 		keys[i] = *key
 	}
-	// read them all:
-	keys2, err := s.store.GetKeys()
+	// add 1 key for "sam"
+	samKey := s.makeSignedKey(c, false)
+	s.store.AddKey("sam.host", "sam", samKey)
+
+	// read all bob keys:
+	keys2, err := s.store.GetKeys("bob")
 	c.Assert(err, check.IsNil)
-	c.Assert(keys, check.HasLen, keyNum)
-	c.Assert(keys, check.DeepEquals, keys2)
+	c.Assert(keys2, check.HasLen, keyNum)
+	c.Assert(keys2, check.DeepEquals, keys)
+
+	// read sam's key and make sure it's the same:
+	keys, err = s.store.GetKeys("sam")
+	c.Assert(err, check.IsNil)
+	c.Assert(keys, check.HasLen, 1)
+	c.Assert(samKey.Cert, check.DeepEquals, keys[0].Cert)
+	c.Assert(samKey.Pub, check.DeepEquals, keys[0].Pub)
 }
 
 func (s *KeyStoreTestSuite) TestKeySaveLoad(c *check.C) {
 	key := s.makeSignedKey(c, false)
 
 	// add key:
-	err := s.store.AddKey("host.a", key)
+	err := s.store.AddKey("host.a", "bob", key)
 	c.Assert(err, check.IsNil)
+
 	// load back and compare:
-	keyCopy, err := s.store.GetKey("host.a")
+	keyCopy, err := s.store.GetKey("host.a", "bob")
 	c.Assert(err, check.IsNil)
 	c.Assert(key, check.DeepEquals, keyCopy)
 }
@@ -88,11 +100,11 @@ func (s *KeyStoreTestSuite) TestKeyExpiration(c *check.C) {
 	good := s.makeSignedKey(c, false)
 	expired := s.makeSignedKey(c, true)
 
-	s.store.AddKey("good.host", good)
-	s.store.AddKey("expired.host", expired)
+	s.store.AddKey("good.host", "sam", good)
+	s.store.AddKey("expired.host", "sam", expired)
 
 	// get all keys back. only "good" key should be returned:
-	keys, _ := s.store.GetKeys()
+	keys, _ := s.store.GetKeys("sam")
 	c.Assert(keys, check.HasLen, 1)
 	c.Assert(keys[0], check.DeepEquals, *good)
 }

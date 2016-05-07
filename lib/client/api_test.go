@@ -53,7 +53,7 @@ func (s *APITestSuite) TestNew(c *check.C) {
 		HostLogin: "vincent",
 		HostPort:  22,
 		KeysDir:   "/tmp",
-		Login:     "localuser",
+		Username:  "localuser",
 		ProxyHost: "proxy",
 		SiteName:  "site",
 	}

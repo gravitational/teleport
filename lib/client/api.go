@@ -66,8 +66,8 @@ type HostKeyCallback func(host string, ip net.Addr, key ssh.PublicKey) error
 
 // Config is a client config
 type Config struct {
-	// Login is a teleport user login
-	Login string
+	// Username is the Teleport account username (for logging into Teleport proxies)
+	Username string
 
 	// Remote host to connect
 	Host string
@@ -168,9 +168,9 @@ func (tc *TeleportClient) authMethods() []ssh.AuthMethod {
 // NewClient creates a TeleportClient object and fully configures it
 func NewClient(c *Config) (tc *TeleportClient, err error) {
 	// validate configuration
-	if c.Login == "" {
-		c.Login = Username()
-		log.Infof("no teleport login given. defaulting to %s", c.Login)
+	if c.Username == "" {
+		c.Username = Username()
+		log.Infof("no teleport login given. defaulting to %s", c.Username)
 	}
 	if c.ProxyHost == "" {
 		return nil, trace.BadParameter("proxy", "no proxy address specified")
@@ -188,7 +188,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	tc = &TeleportClient{Config: *c}
 
 	// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
-	tc.localAgent, err = NewLocalAgent("")
+	tc.localAgent, err = NewLocalAgent("", c.Username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -654,7 +654,7 @@ func (tc *TeleportClient) getProxyLogin() string {
 	// we'll fall back to using the target host login
 	proxyLogin := tc.Config.HostLogin
 	// see if we already have a signed key in the cache, we'll use that instead
-	keys, err := tc.LocalAgent().GetKeys()
+	keys, err := tc.GetKeys()
 	if err == nil && len(keys) > 0 {
 		principals := keys[0].Certificate.ValidPrincipals
 		if len(principals) > 0 {
@@ -662,6 +662,12 @@ func (tc *TeleportClient) getProxyLogin() string {
 		}
 	}
 	return proxyLogin
+}
+
+// GetKeys returns a list of stored local keys/certs for this Teleport
+// user
+func (tc *TeleportClient) GetKeys() ([]agent.AddedKey, error) {
+	return tc.LocalAgent().GetKeys(tc.Username)
 }
 
 // ConnectToProxy dials the proxy server and returns ProxyClient if successful
@@ -672,7 +678,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		HostKeyCallback: tc.HostKeyCallback,
 	}
 
-	log.Debugf("connecting to proxy: %v with host login %v", proxyAddr, sshConfig.User)
+	log.Infof("connecting to proxy: %v with host login %v", proxyAddr, sshConfig.User)
 
 	// try to authenticate using every non interactive auth method we have:
 	for _, m := range tc.authMethods() {
@@ -707,7 +713,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		// we need to communicate directly to user here,
 		// otherwise user will see endless loop with no explanation
 		if trace.IsTrustError(err) {
-			fmt.Printf("ERROR: refusing to connect to untrusted proxy %v without --insecure flag\n", proxyAddr)
+			fmt.Printf("Refusing to connect to untrusted proxy %v without --insecure flag\n", proxyAddr)
 		} else {
 			fmt.Printf("ERROR: %v\n", err)
 		}
@@ -754,11 +760,11 @@ func (tc *TeleportClient) Login() error {
 			return trace.Wrap(err)
 		}
 		// in this case identity is returned by the proxy
-		tc.Config.Login = response.Username
+		tc.Username = response.Username
 	}
 	key.Cert = response.Cert
 	// save the key:
-	if err = tc.localAgent.AddKey(tc.ProxyHost, key); err != nil {
+	if err = tc.localAgent.AddKey(tc.ProxyHost, tc.Config.Username, key); err != nil {
 		return trace.Wrap(err)
 	}
 	// save the list of CAs we trust to the cache file
@@ -788,7 +794,7 @@ func (tc *TeleportClient) MakeKey() (key *Key, err error) {
 }
 
 func (tc *TeleportClient) AddKey(host string, key *Key) error {
-	return tc.localAgent.AddKey(host, key)
+	return tc.localAgent.AddKey(host, tc.Username, key)
 }
 
 // directLogin asks for a password + HOTP token, makes a request to CA via proxy
@@ -799,7 +805,7 @@ func (tc *TeleportClient) directLogin(pub []byte) (*web.SSHLoginResponse, error)
 	}
 
 	// ask the CA (via proxy) to sign our public key:
-	response, err := web.SSHAgentLogin(tc.Config.ProxyHostPort(defaults.HTTPListenPort), tc.Config.Login,
+	response, err := web.SSHAgentLogin(tc.Config.ProxyHostPort(defaults.HTTPListenPort), tc.Config.Username,
 		password, hotpToken, pub, tc.KeyTTL, tc.InsecureSkipVerify, loopbackPool(tc.Config.ProxyHostPort(defaults.HTTPListenPort)))
 
 	return response, trace.Wrap(err)
@@ -874,7 +880,7 @@ func Username() string {
 
 // AskPasswordAndHOTP prompts the user to enter the password + HTOP 2nd factor
 func (tc *TeleportClient) AskPasswordAndHOTP() (pwd string, token string, err error) {
-	fmt.Printf("Enter password for %v:\n", tc.Config.Login)
+	fmt.Printf("Enter password for Teleport user %v:\n", tc.Config.Username)
 	pwd, err = passwordFromConsole()
 	if err != nil {
 		fmt.Println(err)
