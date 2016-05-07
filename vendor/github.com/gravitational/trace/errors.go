@@ -59,7 +59,11 @@ func IsNotFound(e error) bool {
 	type nf interface {
 		IsNotFoundError() bool
 	}
-	_, ok := Unwrap(e).(nf)
+	err := Unwrap(e)
+	_, ok := err.(nf)
+	if !ok {
+		return os.IsNotExist(err)
+	}
 	return ok
 }
 

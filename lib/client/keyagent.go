@@ -36,7 +36,7 @@ type LocalKeyAgent struct {
 
 // NewLocalAgent loads all the saved teleport certificates and
 // creates ssh agent with them
-func NewLocalAgent(keyDir string) (a *LocalKeyAgent, err error) {
+func NewLocalAgent(keyDir, username string) (a *LocalKeyAgent, err error) {
 	keystore, err := NewFSLocalKeyStore(keyDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -46,7 +46,7 @@ func NewLocalAgent(keyDir string) (a *LocalKeyAgent, err error) {
 		keyStore: keystore,
 	}
 	// add all stored keys into the agent:
-	keys, err := a.GetKeys()
+	keys, err := a.GetKeys(username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -58,8 +58,10 @@ func NewLocalAgent(keyDir string) (a *LocalKeyAgent, err error) {
 	return a, nil
 }
 
-func (a *LocalKeyAgent) GetKeys() ([]agent.AddedKey, error) {
-	keys, err := a.keyStore.GetKeys()
+// GetKeys return the list of keys for the given user
+// from the local keystore (files in ~/.tsh)
+func (a *LocalKeyAgent) GetKeys(username string) ([]agent.AddedKey, error) {
+	keys, err := a.keyStore.GetKeys(username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -118,8 +120,8 @@ func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key s
 	return trace.Wrap(err)
 }
 
-func (a *LocalKeyAgent) AddKey(host string, key *Key) error {
-	err := a.keyStore.AddKey(host, key)
+func (a *LocalKeyAgent) AddKey(host string, username string, key *Key) error {
+	err := a.keyStore.AddKey(host, username, key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
