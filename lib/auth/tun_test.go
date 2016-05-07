@@ -66,7 +66,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
 
-	s.alog, err = events.NewAuditLog(s.dir, true)
+	s.alog, err = events.NewAuditLog(s.dir)
 
 	sessionServer, err := session.New(s.bk)
 	c.Assert(err, IsNil)

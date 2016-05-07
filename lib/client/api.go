@@ -663,7 +663,7 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 	go func() {
 		defer broadcastClose.Close()
 		<-exitSignals
-		exitMsg = fmt.Sprintf("\nConnection to %s closed\n", address)
+		exitMsg = fmt.Sprintf("Connection to %s closed\n", address)
 	}()
 
 	winSize, err := term.GetWinsize(0)
@@ -696,6 +696,7 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 	go func() {
 		for {
 			<-ctrlZSignal
+			fmt.Println("---> 3")
 			_, err := shell.Write([]byte{26})
 			if err != nil {
 				log.Errorf(err.Error())
@@ -724,11 +725,6 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 				return
 			}
 			if n > 0 {
-				// catch Ctrl-D
-				if buf[0] == 4 {
-					exitMsg = fmt.Sprintf("\nConnection to %s closed\n", address)
-					return
-				}
 				_, err = shell.Write(buf[:n])
 				if err != nil {
 					exitMsg = err.Error()

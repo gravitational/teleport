@@ -18,6 +18,7 @@ package auth
 
 import (
 	"github.com/gravitational/teleport"
+
 	"github.com/gravitational/trace"
 )
 

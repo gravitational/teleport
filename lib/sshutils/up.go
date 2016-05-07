@@ -214,9 +214,8 @@ func (u *Upstream) PipeShell(rw io.ReadWriter, req *PTYReqParams) error {
 	}
 
 	// copyOutput works exactly like io.Copy() but it does two additional things:
-	//  - it appends 'prefix' in front of every write (used to send screensize back to
-	//    the web client in real time (it must know the screen size ahead of every write)
-	//  - it converts everything into UTF8
+	// It appends 'prefix' in front of every write (used to send screensize back to
+	// the web client in real time (it MUST know the screen size ahead of every write)
 	copyOutput := func(w io.Writer, r io.Reader) (err error) {
 		written, n := 0, 0
 		const buflen = 16 * 1024
@@ -250,8 +249,7 @@ func (u *Upstream) PipeShell(rw io.ReadWriter, req *PTYReqParams) error {
 	}()
 
 	go func() {
-		_, err := io.Copy(rw, targetStderr)
-		closeC <- err
+		closeC <- copyOutput(rw, targetStderr)
 	}()
 
 	go func() {

@@ -14,6 +14,11 @@ import (
 // WebSockWrapper wraps the raw websocket and converts Write() calls
 // to proper websocket.Send() working in binary or text mode. If text
 // mode is selected, it converts the data passed to Write() into UTF8 bytes
+//
+// We need this to make sure that the entire buffer in io.Writer.Write(buffer)
+// is delivered as a single chunk to the web browser, instead of being split
+// into multiple frames. This wrapper basically substitues every Write() with 
+// Send() and every Read() with Receive()
 type WebSockWrapper struct {
 	io.ReadWriteCloser
 
@@ -50,7 +55,6 @@ func NewWebSockWrapper(ws *websocket.Conn, m WebSocketMode) *WebSockWrapper {
 //
 // It replaces raw Write() with "Message.Send()"
 func (w *WebSockWrapper) Write(data []byte) (n int, err error) {
-	//log.Infof("---> websocket.Write(%d) with %v", len(data), data[0])
 	n = len(data)
 	if w.mode == WebSocketBinaryMode {
 		// binary send:
@@ -83,7 +87,6 @@ func (w *WebSockWrapper) Read(out []byte) (n int, err error) {
 		case nil:
 			data, err = w.decoder.Bytes([]byte(utf8))
 		case io.EOF:
-			//log.Infof("-----> websocket.Read(EOF)")
 			return 0, io.EOF
 		default:
 			log.Error(err)
@@ -95,7 +98,6 @@ func (w *WebSockWrapper) Read(out []byte) (n int, err error) {
 	if len(out) < len(data) {
 		log.Warningf("websocket failed to receive everything: %d vs %d", len(out), len(data))
 	}
-	//log.Infof("-----> websocket.Read(%d)", len(data))
 	return copy(out, data), nil
 }
 

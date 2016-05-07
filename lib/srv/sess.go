@@ -33,6 +33,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// lingerTTL is the default value for session's "LingerTTL" property
 const lingerTTL = time.Duration(time.Second * 5)
 
 // sessionRegistry holds a map of all active sessions on a given
@@ -101,11 +102,9 @@ func (s *sessionRegistry) joinShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 
 // leaveShell remvoes a given party from this session
 func (s *sessionRegistry) leaveShell(party *party) error {
-	log.Info("sessionRegistry.leaveShell(%v)", party.id)
-
+	sess := party.s
 	s.Lock()
 	defer s.Unlock()
-	sess := party.s
 
 	// remove from in-memory representation of the session:
 	if err := sess.removeParty(party); err != nil {
@@ -123,8 +122,9 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 	// becomes empty (no parties). It allows session to "linger" for a bit
 	// allowing parties to reconnect if they lost connection momentarily
 	lingerAndDie := func() {
-		if sess.lingerTTL > 0 {
-			time.Sleep(sess.lingerTTL)
+		lingerTTL := sess.GetLingerTTL()
+		if lingerTTL > 0 {
+			time.Sleep(lingerTTL)
 		}
 		// not lingering anymore? someone reconnected? cool then... no need
 		// to die...
@@ -135,7 +135,9 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 		log.Infof("[session.registry] session %v to be garbage collected", sess.id)
 
 		// no more people left? Need to end the session!
+		s.Lock()
 		delete(s.sessions, sess.id)
+		s.Unlock()
 
 		// send an event indicating that this session has ended
 		s.srv.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
@@ -263,8 +265,10 @@ type session struct {
 	// by the session
 	closeC chan bool
 
-	// linger time means "how long to keep session around after the last client
-	// disconnected"
+	// Linger TTL means "how long to keep session in memory after the last client
+	// disconnected". It's useful to keep it alive for a bit in case the client
+	// temporarily dropped the connection and will reconnect (or a browser-based
+	// client hits "page refresh").
 	lingerTTL time.Duration
 
 	// termSizeC is used to push terminal resize events from SSH "on-size-changed"
@@ -326,12 +330,12 @@ func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, err
 	return sess, nil
 }
 
+// PartyForConnection finds an existing party which owns the given connection
 func (r *sessionRegistry) PartyForConnection(sconn *ssh.ServerConn) *party {
 	r.Lock()
-	sessions := r.sessions
-	r.Unlock()
+	defer r.Unlock()
 
-	for _, session := range sessions {
+	for _, session := range r.sessions {
 		session.Lock()
 		parties := session.parties
 		session.Unlock()
@@ -354,18 +358,19 @@ func (p *party) termSizePusher(ch ssh.Channel) {
 		if err != nil {
 			log.Error(err)
 		}
-		log.Infof("---> terminal size pushing ended... %v", ch)
 	}()
 
+	p.Lock()
 	p.termSizeC = make(chan []byte, 2)
+	p.Unlock()
+
 	defer close(p.termSizeC)
 
-	log.Infof("---> terminal size pushing started!!! %v", ch)
 	for err == nil {
 		select {
 		case newSize := <-p.termSizeC:
 			n, err = ch.Write(newSize)
-			log.Infof("---> pushed new size: %s, (written=%d, err=%v)", string(newSize), n, err)
+			log.Infof("Pushed size: %s, (written=%d, err=%v)", string(newSize), n, err)
 			if err == io.EOF {
 				continue
 			}
@@ -387,7 +392,6 @@ func (s *session) isLingering() bool {
 
 // Close ends the active session forcing all clients to disconnect and freeing all resources
 func (s *session) Close() error {
-	var err error
 	s.closeOnce.Do(func() {
 		// closing needs to happen asynchronously because the last client
 		// (session writer) will try to close this session, causing a deadlock
@@ -395,7 +399,7 @@ func (s *session) Close() error {
 		go func() {
 			log.Infof("session.Close(%v)", s.id)
 			if s.term != nil {
-				err = s.term.Close()
+				s.term.Close()
 			}
 			close(s.closeC)
 
@@ -411,7 +415,7 @@ func (s *session) Close() error {
 			}
 		}()
 	})
-	return trace.Wrap(err)
+	return nil
 }
 
 // sessionRecorder implements io.Writer to be plugged into the multi-writer
@@ -425,7 +429,7 @@ type sessionRecorder struct {
 
 // Write takes a chunk and writes it into the audit log
 func (r *sessionRecorder) Write(data []byte) (int, error) {
-	log.Infof("\n\n---> sessionRecorder.Write(%d)", len(data))
+	//log.Infof("\n\n---> sessionRecorder.Write(%d)", len(data))
 	if err := r.alog.PostSessionChunk(r.sid, bytes.NewReader(data)); err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -507,15 +511,14 @@ func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 		} else {
 			// no error? this means the command exited cleanly: no need
 			// for this session to "linger" after this.
-			s.lingerTTL = time.Duration(0)
+			s.SetLingerTTL(time.Duration(0))
 		}
 	}()
 
 	// wait for the session to end before the shell, kill the shell
 	go func() {
 		<-s.closeC
-		if cmd.ProcessState == nil && cmd.Process != nil {
-			log.Infof("killing process: %v PID=%v", cmd.Path, cmd.Process.Pid)
+		if cmd.Process != nil {
 			if err := cmd.Process.Kill(); err != nil {
 				log.Error(err)
 			}
@@ -567,6 +570,18 @@ func (s *session) removeParty(p *party) error {
 		go storageRemove(s.registry.srv.sessionServer)
 	}
 	return nil
+}
+
+func (s *session) GetLingerTTL() time.Duration {
+	s.Lock()
+	defer s.Unlock()
+	return s.lingerTTL
+}
+
+func (s *session) SetLingerTTL(ttl time.Duration) {
+	s.Lock()
+	defer s.Unlock()
+	s.lingerTTL = ttl
 }
 
 // pollAndSync is a loop inside a goroutite which keeps synchronizing the terminal
@@ -782,6 +797,10 @@ type party struct {
 
 func (p *party) onWindowChanged(params *rsession.TerminalParams) {
 	log.Infof("party(%s).onWindowChanged(%v)", p.id, params.Serialize())
+
+	p.Lock()
+	defer p.Unlock()
+
 	// this prefix will be appended to the end of every socker write going
 	// to this party:
 	prefix := []byte("\x00" + params.Serialize())

@@ -25,7 +25,7 @@ const STREAM_START_INDEX = 0;
 const PRE_FETCH_BUF_SIZE = 150;
 const URL_PREFIX_EVENTS = '/events';
 //const EVENT_MIN_TIME_DIFFERENCE = 10;
-const PLAY_SPEED = 150;
+const PLAY_SPEED = 1;
 
 function handleAjaxError(err){
   showError('Unable to retrieve session info');
@@ -41,6 +41,15 @@ class EventProvider{
 
   getLength(){
     return this.events.length;
+  }
+
+  getLengthInTime(){
+    var length = this.events.length;
+    if(length === 0) {
+      return 0;
+    }
+
+    return this.events[length-1].ms;
   }
 
   init(){
@@ -71,7 +80,7 @@ class EventProvider{
     this.events[start].data = byteStr.slice(0, byteStrOffset).toString('utf8');
     for(var i = start+1; i < end; i++){
       let {bytes} = this.events[i];
-      this.events[i].data = byteStr.slice(byteStrOffset, byteStrOffset + bytes);
+      this.events[i].data = byteStr.slice(byteStrOffset, byteStrOffset + bytes).toString('utf8');
       byteStrOffset += bytes;
     }
   }
@@ -116,6 +125,7 @@ class EventProvider{
     if(this.events.indexOf(cur) === -1){
       this.events.push(cur);
     }*/
+
   }
 
   _shouldFetch(start, end){
@@ -133,16 +143,16 @@ class EventProvider{
     let bytes = this.events[end].offset - offset + this.events[end].bytes;
     let url = `${this.url}/stream?offset=${offset}&bytes=${bytes}`;
 
-    return api.get(url).then((response)=>{
-      //return response.bytes;
-      return new Buffer(response.bytes, 'base64');
-    })
+    return api.ajax({url, processData: false, dataType: 'text'}).then((response)=>{
+      return new Buffer(response);
+    });
   }
 }
 
 class TtyPlayer extends Tty {
   constructor({url}){
     super({});
+    this.currentIndex = 0;
     this.current = STREAM_START_INDEX;
     this.length = -1;
     this.isPlaying = false;
@@ -163,7 +173,12 @@ class TtyPlayer extends Tty {
     this._setStatusFlag({isLoading: true});
     this._eventProvider.init()
       .done(()=>{
-        this.length = this._eventProvider.getLength();
+        this.length = this._eventProvider.getLengthInTime();
+        this.msToEventMap = {};
+        this._eventProvider.events.forEach((item, index)=>{
+          this.msToEventMap[item.ms] = index;
+        })
+
         this._setStatusFlag({isReady: true});
       })
       .fail(handleAjaxError)
@@ -171,6 +186,11 @@ class TtyPlayer extends Tty {
 
     this._change();
   }
+
+  _getChunkIndex(ms){
+    return this.msToEventMap[ms] !== undefined? this.msToEventMap[ms] : null;
+  }
+
 
   move(newPos){
     if(!this.isReady){
@@ -190,11 +210,28 @@ class TtyPlayer extends Tty {
       newPos = STREAM_START_INDEX;
     }
 
-    if(this.current < newPos){
-      this._showChunk(this.current, newPos);
+    var newPosIndex = this._getChunkIndex(newPos);
+
+
+    if(!newPosIndex){
+      this.current = newPos;
+      this._change();
+      return;
+    }
+
+
+    if(this.currentIndex < newPosIndex){
+      this._showChunk(this.currentIndex, newPosIndex)
+        .then(()=>{
+          this.currentIndex = newPosIndex;
+          this.current = newPos;
+        })
     }else{
       this.emit('reset');
-      this._showChunk(STREAM_START_INDEX, newPos);
+      this._showChunk(STREAM_START_INDEX, newPosIndex).then(()=>{
+        this.currentIndex = newPosIndex;
+        this.current = newPos;
+      })
     }
 
     this._change();
@@ -221,6 +258,19 @@ class TtyPlayer extends Tty {
 
     this.timer = setInterval(this.move.bind(this), PLAY_SPEED);
     this._change();
+  }
+
+  _showChunk(start, end){
+    this._setStatusFlag({isLoading: true });
+    return this._eventProvider.getEventsWithByteStream(start, end)
+      .done(events =>{
+        this._setStatusFlag({isReady: true });
+        this._display(events);
+      })
+      .fail(err=>{
+        this._setStatusFlag({isError: true });
+        handleAjaxError(err);
+      })
   }
 
   _display(stream){
@@ -255,20 +305,6 @@ class TtyPlayer extends Tty {
         this.emit('data', str);
       }
     }
-  }
-
-  _showChunk(start, end){
-    this._setStatusFlag({isLoading: true });
-    this._eventProvider.getEventsWithByteStream(start, end)
-      .done(events =>{
-        this._setStatusFlag({isReady: true });
-        this._display(events);
-        this.current = end;
-      })
-      .fail(err=>{
-        this._setStatusFlag({isError: true });
-        handleAjaxError(err);
-      })
   }
 
   _setStatusFlag(newStatus){

@@ -19,10 +19,12 @@ limitations under the License.
 package web
 
 import (
+	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -153,7 +155,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 	// get session's events
 	h.GET("/webapi/sites/:site/sessions/:sid/events", h.withSiteAuth(h.siteSessionEventsGet))
 	// get session's bytestream
-	h.GET("/webapi/sites/:site/sessions/:sid/stream", h.withSiteAuth(h.siteSessionStreamGet))
+	h.GET("/webapi/sites/:site/sessions/:sid/stream", h.siteSessionStreamGet)
 	// search site events
 	h.GET("/webapi/sites/:site/events", h.withSiteAuth(h.siteEventsGet))
 
@@ -973,37 +975,93 @@ type siteSessionStreamGetResponse struct {
 //   "offset"   : bytes from the beginning
 //   "bytes"    : number of bytes to read (it won't return more than 512Kb)
 //
-func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+// Unlike other request handlers, this one does not return JSON.
+// It returns the binary stream unencoded, directly in the respose body,
+// with Content-Type of application/octet-stream, gzipped with up to 95%
+// compression ratio.
+func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	var site reversetunnel.RemoteSite
+	onError := func(err error) {
+		w.Header().Set("Content-Type", "text/json")
+		trace.WriteError(w, err)
+	}
+	// authenticate first:
+	_, err := m.AuthenticateRequest(w, r, true)
+	if err != nil {
+		// clear session just in case if the authentication request is not valid
+		ClearSession(w)
+		onError(err)
+		return
+	}
+	// get the site interface:
+	siteName := p.ByName("site")
+	if siteName == currentSiteShortcut {
+		sites := m.cfg.Proxy.GetSites()
+		if len(sites) < 1 {
+			onError(trace.NotFound("no active sites"))
+			return
+		}
+		siteName = sites[0].GetName()
+	}
+	site, err = m.cfg.Proxy.GetSite(siteName)
+	if err != nil {
+		onError(err)
+		return
+	}
+	// get the session:
 	sid, err := session.ParseID(p.ByName("sid"))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		onError(trace.Wrap(err))
+		return
 	}
 	clt, err := site.GetClient()
 	if err != nil {
-		log.Error(err)
-		return nil, trace.Wrap(err)
+		onError(trace.Wrap(err))
+		return
 	}
 	// look at 'offset' parameter
 	query := r.URL.Query()
 	offset, _ := strconv.Atoi(query.Get("offset"))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		onError(trace.Wrap(err))
+		return
 	}
 	max, err := strconv.Atoi(query.Get("bytes"))
 	if err != nil || max <= 0 {
 		max = maxStreamBytes
 	}
 	if max > maxStreamBytes {
-		return nil, trace.BadParameter("bytes", "bytes=%d, cannot exceed %d", max, maxStreamBytes)
+		onError(trace.BadParameter("bytes", "bytes=%d, cannot exceed %d", max, maxStreamBytes))
+		return
 	}
-
+	// call the site API to get the chunk:
 	bytes, err := clt.GetSessionChunk(*sid, offset, max)
 	if err != nil {
-		log.Error(err)
-		return nil, trace.Wrap(err)
+		onError(trace.Wrap(err))
+		return
 	}
-	log.Infof("----> [web] siteSessionStreamGet() returned %d bytes", len(bytes))
-	return siteSessionStreamGetResponse{Bytes: bytes}, nil
+	// see if we can gzip it. TODO (ev): lets switch to gzipping during recording (not replay),
+	// to save on space as well.
+	var writer io.Writer = w
+	for _, acceptedEnc := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
+		if strings.TrimSpace(acceptedEnc) == "gzip" {
+			gzipper, err := gzip.NewWriterLevel(w, gzip.BestCompression)
+			if err != nil {
+				onError(trace.Wrap(err))
+				return
+			}
+			writer = gzipper
+			defer gzipper.Close()
+			w.Header().Set("Content-Encoding", "gzip")
+		}
+	}
+	n, err := writer.Write(bytes)
+	if err != nil {
+		onError(trace.Wrap(err))
+		return
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+	log.Infof("----> [web] siteSessionStreamGet() returned %d bytes", n)
 }
 
 type eventsListGetResponse struct {

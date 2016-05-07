@@ -579,9 +579,6 @@ func (c *TunClient) Close() error {
 		log.Infof("TunClient[%s].Close()", c.purpose)
 		c.GetTransport().CloseIdleConnections()
 		c.closeOnce.Do(func() {
-			if c.refreshTicker != nil {
-				c.refreshTicker.Stop()
-			}
 			close(c.closeC)
 		})
 	}
@@ -624,6 +621,7 @@ func (c *TunClient) Dial(network, address string) (net.Conn, error) {
 	// dialed & authenticated? lets start synchronizing the
 	// list of auth servers:
 	if c.refreshTicker == nil {
+		c.refreshTicker = time.NewTicker(defaults.AuthServersRefreshPeriod)
 		go c.authServersSyncLoop()
 	}
 	return &tunConn{client: client, Conn: conn}, nil
@@ -651,19 +649,6 @@ func (c *TunClient) fetchAndSync() error {
 // authServersSyncLoop continuously refreshes the list of available auth servers
 // for this client
 func (c *TunClient) authServersSyncLoop() {
-	alreadyRunning := func() bool {
-		c.Lock()
-		defer c.Unlock()
-		// already running the loop:
-		if c.refreshTicker != nil {
-			return true
-		}
-		c.refreshTicker = time.NewTicker(defaults.AuthServersRefreshPeriod)
-		return false
-	}
-	if alreadyRunning() {
-		return
-	}
 	log.Infof("TunClient[%s]: authServersSyncLoop() started", c.purpose)
 	defer c.refreshTicker.Stop()
 

@@ -4771,7 +4771,7 @@ webpackJsonp([1],[
 	var PRE_FETCH_BUF_SIZE = 150;
 	var URL_PREFIX_EVENTS = '/events';
 	//const EVENT_MIN_TIME_DIFFERENCE = 10;
-	var PLAY_SPEED = 150;
+	var PLAY_SPEED = 1;
 	
 	function handleAjaxError(err) {
 	  showError('Unable to retrieve session info');
@@ -4791,6 +4791,15 @@ webpackJsonp([1],[
 	
 	  EventProvider.prototype.getLength = function getLength() {
 	    return this.events.length;
+	  };
+	
+	  EventProvider.prototype.getLengthInTime = function getLengthInTime() {
+	    var length = this.events.length;
+	    if (length === 0) {
+	      return 0;
+	    }
+	
+	    return this.events[length - 1].ms;
 	  };
 	
 	  EventProvider.prototype.init = function init() {
@@ -4823,7 +4832,7 @@ webpackJsonp([1],[
 	    for (var i = start + 1; i < end; i++) {
 	      var bytes = this.events[i].bytes;
 	
-	      this.events[i].data = byteStr.slice(byteStrOffset, byteStrOffset + bytes);
+	      this.events[i].data = byteStr.slice(byteStrOffset, byteStrOffset + bytes).toString('utf8');
 	      byteStrOffset += bytes;
 	    }
 	  };
@@ -4889,9 +4898,8 @@ webpackJsonp([1],[
 	    var bytes = this.events[end].offset - offset + this.events[end].bytes;
 	    var url = this.url + '/stream?offset=' + offset + '&bytes=' + bytes;
 	
-	    return api.get(url).then(function (response) {
-	      //return response.bytes;
-	      return new Buffer(response.bytes, 'base64');
+	    return api.ajax({ url: url, processData: false, dataType: 'text' }).then(function (response) {
+	      return new Buffer(response);
 	    });
 	  };
 	
@@ -4907,6 +4915,7 @@ webpackJsonp([1],[
 	    _classCallCheck(this, TtyPlayer);
 	
 	    _Tty.call(this, {});
+	    this.currentIndex = 0;
 	    this.current = STREAM_START_INDEX;
 	    this.length = -1;
 	    this.isPlaying = false;
@@ -4926,14 +4935,25 @@ webpackJsonp([1],[
 	
 	    this._setStatusFlag({ isLoading: true });
 	    this._eventProvider.init().done(function () {
-	      _this2.length = _this2._eventProvider.getLength();
+	      _this2.length = _this2._eventProvider.getLengthInTime();
+	      _this2.msToEventMap = {};
+	      _this2._eventProvider.events.forEach(function (item, index) {
+	        _this2.msToEventMap[item.ms] = index;
+	      });
+	
 	      _this2._setStatusFlag({ isReady: true });
 	    }).fail(handleAjaxError).always(this._change.bind(this));
 	
 	    this._change();
 	  };
 	
+	  TtyPlayer.prototype._getChunkIndex = function _getChunkIndex(ms) {
+	    return this.msToEventMap[ms] !== undefined ? this.msToEventMap[ms] : null;
+	  };
+	
 	  TtyPlayer.prototype.move = function move(newPos) {
+	    var _this3 = this;
+	
 	    if (!this.isReady) {
 	      return;
 	    }
@@ -4951,11 +4971,25 @@ webpackJsonp([1],[
 	      newPos = STREAM_START_INDEX;
 	    }
 	
-	    if (this.current < newPos) {
-	      this._showChunk(this.current, newPos);
+	    var newPosIndex = this._getChunkIndex(newPos);
+	
+	    if (!newPosIndex) {
+	      this.current = newPos;
+	      this._change();
+	      return;
+	    }
+	
+	    if (this.currentIndex < newPosIndex) {
+	      this._showChunk(this.currentIndex, newPosIndex).then(function () {
+	        _this3.currentIndex = newPosIndex;
+	        _this3.current = newPos;
+	      });
 	    } else {
 	      this.emit('reset');
-	      this._showChunk(STREAM_START_INDEX, newPos);
+	      this._showChunk(STREAM_START_INDEX, newPosIndex).then(function () {
+	        _this3.currentIndex = newPosIndex;
+	        _this3.current = newPos;
+	      });
 	    }
 	
 	    this._change();
@@ -4982,6 +5016,19 @@ webpackJsonp([1],[
 	
 	    this.timer = setInterval(this.move.bind(this), PLAY_SPEED);
 	    this._change();
+	  };
+	
+	  TtyPlayer.prototype._showChunk = function _showChunk(start, end) {
+	    var _this4 = this;
+	
+	    this._setStatusFlag({ isLoading: true });
+	    return this._eventProvider.getEventsWithByteStream(start, end).done(function (events) {
+	      _this4._setStatusFlag({ isReady: true });
+	      _this4._display(events);
+	    }).fail(function (err) {
+	      _this4._setStatusFlag({ isError: true });
+	      handleAjaxError(err);
+	    });
 	  };
 	
 	  TtyPlayer.prototype._display = function _display(stream) {
@@ -5019,20 +5066,6 @@ webpackJsonp([1],[
 	        this.emit('data', str);
 	      }
 	    }
-	  };
-	
-	  TtyPlayer.prototype._showChunk = function _showChunk(start, end) {
-	    var _this3 = this;
-	
-	    this._setStatusFlag({ isLoading: true });
-	    this._eventProvider.getEventsWithByteStream(start, end).done(function (events) {
-	      _this3._setStatusFlag({ isReady: true });
-	      _this3._display(events);
-	      _this3.current = end;
-	    }).fail(function (err) {
-	      _this3._setStatusFlag({ isError: true });
-	      handleAjaxError(err);
-	    });
 	  };
 	
 	  TtyPlayer.prototype._setStatusFlag = function _setStatusFlag(newStatus) {

@@ -1,11 +1,10 @@
 package events
 
 import (
+	"bytes"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -33,7 +32,7 @@ func (a *AuditTestSuite) SetUpSuite(c *check.C) {
 }
 
 func (a *AuditTestSuite) TestNew(c *check.C) {
-	alog, err := NewAuditLog(a.dataDir, true)
+	alog, err := NewAuditLog(a.dataDir)
 	c.Assert(err, check.IsNil)
 	// close twice:
 	c.Assert(alog.Close(), check.IsNil)
@@ -45,7 +44,7 @@ func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 	os.RemoveAll(a.dataDir)
 
 	// create audit log, write a couple of events into it, close it
-	alog, err := NewAuditLog(a.dataDir, true)
+	alog, err := NewAuditLog(a.dataDir)
 	c.Assert(err, check.IsNil)
 	alog.TimeSource = func() time.Time { return now }
 
@@ -60,21 +59,13 @@ func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 	c.Assert(alog.loggers, check.HasLen, 2)
 
 	// type "hello" into session "200":
-	writer, err := alog.GetSessionWriter("200")
+	err = alog.PostSessionChunk("200", bytes.NewBufferString("hello"))
 	c.Assert(err, check.IsNil)
-	n, err := writer.Write([]byte("hello"))
-	c.Assert(err, check.IsNil)
-	c.Assert(n, check.Equals, len("hello"))
 
 	// emit "sesion-end" event. one of the loggers must disappear
 	err = alog.EmitAuditEvent(SessionEndEvent, EventFields{SessionEventID: "200", EventLogin: "doggy"})
 	c.Assert(err, check.IsNil)
 	c.Assert(alog.loggers, check.HasLen, 1)
-
-	// and the writer for "200" must be closed
-	_, err = writer.Write([]byte("trying to write to a file which should be closed"))
-	c.Assert(err, check.NotNil)
-	c.Assert(strings.HasSuffix(err.Error(), "attempt to write to a closed file"), check.Equals, true)
 
 	// add a few more loggers and close:
 	alog.EmitAuditEvent(SessionJoinEvent, EventFields{SessionEventID: "300", EventLogin: "frankie"})
@@ -98,20 +89,11 @@ func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(history2, check.HasLen, 1)
 	c.Assert(history2[0], check.DeepEquals, history[2])
-	writer.Close()
 
-	// lets try session reader (with offset 2 of bytes, i.e. instead of "hello" we should get "llo")
-	reader, err := alog.GetSessionReader("200", 2)
+	// lets try session session stream (with offset 2 of bytes, i.e. instead of "hello" we should get "llo")
+	buff, err := alog.GetSessionChunk("200", 2, 5000)
 	c.Assert(err, check.IsNil)
-	defer reader.Close()
-	buff := make([]byte, 100)
-	n, err = reader.Read(buff)
-	c.Assert(err, check.IsNil)
-	c.Assert(n, check.Equals, 3)
 	c.Assert(string(buff[:3]), check.Equals, "llo")
-	n, err = reader.Read(buff)
-	c.Assert(err, check.Equals, io.EOF)
-	c.Assert(n, check.Equals, 0)
 
 	// try searching (in the future)
 	query := fmt.Sprintf("%s=%s", EventType, SessionStartEvent)
@@ -140,7 +122,7 @@ func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 func (a *AuditTestSuite) TestBasicLogging(c *check.C) {
 	now := time.Now().In(time.UTC).Round(time.Second)
 	// create audit log, write a couple of events into it, close it
-	alog, err := NewAuditLog(a.dataDir, true)
+	alog, err := NewAuditLog(a.dataDir)
 	c.Assert(err, check.IsNil)
 	alog.TimeSource = func() time.Time { return now }
 

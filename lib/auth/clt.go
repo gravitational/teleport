@@ -26,8 +26,6 @@ import (
 	"strconv"
 	"time"
 
-	"golang.org/x/net/websocket"
-
 	"github.com/Sirupsen/logrus"
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/roundtrip"
@@ -412,9 +410,6 @@ func (c *Client) CheckPassword(user string,
 // SignIn checks if the web access password is valid, and if it is valid
 // returns a secure web session id.
 func (c *Client) SignIn(user string, password []byte) (*Session, error) {
-	logrus.Infof(">> auth.Client.SignIn(%s)", user)
-	defer logrus.Infof("<< auth.Client.SignIn(%s)", user)
-
 	out, err := c.PostJSON(
 		c.Endpoint("users", user, "web", "signin"),
 		signInReq{
@@ -738,7 +733,6 @@ func (c *Client) EmitAuditEvent(eventType string, fields events.EventFields) err
 // The data is POSTed to HTTP server as a simple binary body (no encodings of any
 // kind are needed)
 func (c *Client) PostSessionChunk(sid session.ID, reader io.Reader) error {
-	//logrus.Infof("-----> authClient.PostSessionChunk(%v)", sid)
 	r, err := http.NewRequest("POST", c.Endpoint("sessions", string(sid), "stream"), reader)
 	if err != nil {
 		return trace.Wrap(err)
@@ -763,7 +757,6 @@ func (c *Client) PostSessionChunk(sid session.ID, reader io.Reader) error {
 // session stream, starting from 'offset', up to 'max' in length. The upper bound
 // of 'max' is set to events.MaxChunkBytes
 func (c *Client) GetSessionChunk(sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	logrus.Infof("----> authClient.GetSessionChunk(from=%d, max=%d)", offsetBytes, maxBytes)
 	response, err := c.Get(c.Endpoint("sessions", string(sid), "stream"), url.Values{
 		"offset": []string{strconv.Itoa(offsetBytes)},
 		"bytes":  []string{strconv.Itoa(maxBytes)},
@@ -816,51 +809,6 @@ func (c *Client) SearchEvents(from, to time.Time, query string) ([]events.EventF
 		return nil, trace.Wrap(err)
 	}
 	return retval, nil
-}
-
-// openWebsocket helper connects to the auth API via SSH and then requests
-// a web socket via HTTP-over-SSH at a given URL. Returns a connected websocket.
-func (c *Client) openWebsocket(urlString string) (conn *ev, err error) {
-	// create an underlying SSH connection (we'll use it as a transport for websocket):
-	sshConn, err := c.transport.Dial("tcp", "stub:0")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// replace 'http' theme with 'ws'
-	url, err := url.Parse(urlString)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	url.Scheme = "ws"
-	// create a websocket, connect and return the connection:
-	wsConf, err := websocket.NewConfig(url.String(), c.Endpoint())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ws, err := websocket.NewClient(wsConf, sshConn)
-	return &ev{ws: ws}, err
-}
-
-type ev struct {
-	ws *websocket.Conn
-}
-
-func (e *ev) Close() error {
-	return e.ws.Close()
-}
-
-func (e *ev) Write(data []byte) (int, error) {
-	n, err := e.ws.Write(data)
-	logrus.Infof("----> websocket.Write(%d) written %d bytes err: %v",
-		len(data), n, err)
-	return n, err
-}
-
-func (e *ev) Read(data []byte) (int, error) {
-	n, err := e.ws.Read(data)
-	logrus.Infof("----> websocket.Read(%d) read %d bytes err: %v",
-		len(data), n, err)
-	return n, err
 }
 
 // TOODO(klizhentas) this should be just including appropriate service implementations
