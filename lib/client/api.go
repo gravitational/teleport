@@ -678,7 +678,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		HostKeyCallback: tc.HostKeyCallback,
 	}
 
-	log.Debugf("connecting to proxy: %v with host login %v", proxyAddr, sshConfig.User)
+	log.Infof("connecting to proxy: %v with host login %v", proxyAddr, sshConfig.User)
 
 	// try to authenticate using every non interactive auth method we have:
 	for _, m := range tc.authMethods() {
@@ -713,7 +713,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		// we need to communicate directly to user here,
 		// otherwise user will see endless loop with no explanation
 		if trace.IsTrustError(err) {
-			fmt.Printf("ERROR: refusing to connect to untrusted proxy %v without --insecure flag\n", proxyAddr)
+			fmt.Printf("Refusing to connect to untrusted proxy %v without --insecure flag\n", proxyAddr)
 		} else {
 			fmt.Printf("ERROR: %v\n", err)
 		}
