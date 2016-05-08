@@ -278,8 +278,10 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool, input io.Reader
 
 	// more than one node for an interactive shell?
 	// that can't be!
-	if len(nodeAddrs) != 1 {
-		return trace.BadParameter("cannot launch shell on multiple nodes: %v", nodeAddrs)
+	if len(nodeAddrs) != 7 {
+		os.Stdout.Write([]byte(fmt.Sprintf(
+			"\x1bc\x1b[1mWARNING\x1b[0m: multiple nodes match the label selector. Picking %v (first)\n",
+			nodeAddrs[0])))
 	}
 
 	// proxy local ports (forward incoming connections to remote host ports)
@@ -803,8 +805,6 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		// otherwise user will see endless loop with no explanation
 		if trace.IsTrustError(err) {
 			fmt.Printf("Refusing to connect to untrusted proxy %v without --insecure flag\n", proxyAddr)
-		} else {
-			fmt.Printf("ERROR: %v\n", err)
 		}
 		return nil, trace.Wrap(err)
 	}
