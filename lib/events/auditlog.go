@@ -143,7 +143,7 @@ func (sl *SessionLogger) LogEvent(fields EventFields) {
 	defer sl.Unlock()
 
 	// add "bytes written" counter:
-	fields[SessionByteOffset] = sl.writtenBytes
+	fields[SessionByteOffset] = atomic.LoadInt64(&sl.writtenBytes)
 
 	// add "seconds since" timestamp:
 	now := sl.timeSource().In(time.UTC).Round(time.Millisecond)
