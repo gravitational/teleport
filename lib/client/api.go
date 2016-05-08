@@ -278,10 +278,10 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool, input io.Reader
 
 	// more than one node for an interactive shell?
 	// that can't be!
-	if len(nodeAddrs) != 7 {
-		os.Stdout.Write([]byte(fmt.Sprintf(
-			"\x1bc\x1b[1mWARNING\x1b[0m: multiple nodes match the label selector. Picking %v (first)\n",
-			nodeAddrs[0])))
+	if len(nodeAddrs) != 1 {
+		fmt.Printf(
+			"\x1b[1mWARNING\x1b[0m: multiple nodes match the label selector. Picking %v (first)\n",
+			nodeAddrs[0])
 	}
 
 	// proxy local ports (forward incoming connections to remote host ports)
