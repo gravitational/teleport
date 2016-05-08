@@ -17,8 +17,19 @@ limitations under the License.
 var React = require('react');
 var {Table, Column, Cell, TextCell, EmptyIndicator} = require('app/components/table.jsx');
 var {ButtonCell, UsersCell, NodeCell, DateCreatedCell} = require('./listItems');
+var {fetchActiveSessions} = require('app/modules/sessions/actions');
 
 var ActiveSessionList = React.createClass({
+
+  componentWillMount(){
+    fetchActiveSessions();
+    this.refreshInterval = setInterval(fetchActiveSessions, 2500);
+  },
+
+  componentWillUnmount(){
+    clearInterval(this.refreshInterval);    
+  },
+
   render: function() {
     let data = this.props.data.filter(item => item.active);
     return (

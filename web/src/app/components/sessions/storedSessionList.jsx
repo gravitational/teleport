@@ -33,11 +33,12 @@ var ArchivedSessions = React.createClass({
   },
 
   componentWillMount(){
-    setTimeout(()=>actions.fetch(), 0);
+    actions.fetch();
+    this.refreshInterval = setInterval(actions.fetch, 2500);
   },
 
   componentWillUnmount(){
-    actions.removeStoredSessions();
+    clearInterval(this.refreshInterval);    
   },
 
   onFilterChange(value){
@@ -141,7 +142,7 @@ var ArchivedSessions = React.createClass({
               </Table>
             </div>
           }
-        </div>        
+        </div>
       </div>
     )
   }

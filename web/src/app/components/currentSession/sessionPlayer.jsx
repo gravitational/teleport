@@ -19,6 +19,7 @@ var ReactSlider = require('react-slider');
 var {TtyPlayer} = require('app/common/term/ttyPlayer')
 var Terminal = require('app/common/term/terminal');
 var SessionLeftPanel = require('./sessionLeftPanel.jsx');
+var $ = require('jQuery');
 var cfg = require('app/config');
 
 class Term extends Terminal{
@@ -29,6 +30,20 @@ class Term extends Terminal{
 
   connect(){
     this.tty.connect();
+  }
+
+  open() {
+    super.open();
+    $(this._el).perfectScrollbar();
+  }
+
+  resize(cols, rows) {
+    if(cols === this.cols && rows === this.rows){
+      return;
+    }
+
+    super.resize(cols, rows);
+    $(this._el).perfectScrollbar('update');
   }
 
   _disconnect(){}
@@ -50,17 +65,18 @@ var SessionPlayer = React.createClass({
   getInitialState() {
     var url = cfg.api.getFetchSessionUrl(this.props.sid);
     this.tty = new TtyPlayer({url});
-    this.tty.on('change', ()=>{
-      var newState = this.calculateState();
-      this.setState(newState);
-    });
-
     return this.calculateState();
   },
 
   componentDidMount() {
     this.terminal = new Term(this.tty, this.refs.container);
     this.terminal.open();
+
+    this.tty.on('change', ()=>{
+      var newState = this.calculateState();
+      this.setState(newState);
+    });
+
     this.tty.play();
   },
 
@@ -68,6 +84,7 @@ var SessionPlayer = React.createClass({
     this.tty.stop();
     this.tty.removeAllListeners();
     this.terminal.destroy();
+    $(this.refs.container).perfectScrollbar('destroy');
   },
 
   togglePlayStop(){
