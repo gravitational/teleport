@@ -323,7 +323,7 @@ func (i *TeleInstance) NewClient(login string, site string, host string, port in
 		return nil, err
 	}
 	tc, err = client.NewClient(&client.Config{
-		Login:              login,
+		Username:           login,
 		ProxyHost:          i.Config.Proxy.SSHAddr.Addr,
 		Host:               host,
 		HostPort:           port,

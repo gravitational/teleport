@@ -18,9 +18,9 @@ type Key struct {
 // LocalKeyStore interface allows for different storage back-ends for TSH to load/save its keys
 type LocalKeyStore interface {
 	// client key management
-	GetKeys() ([]Key, error)
-	AddKey(host string, key *Key) error
-	GetKey(host string) (*Key, error)
+	GetKeys(username string) ([]Key, error)
+	AddKey(host string, username string, key *Key) error
+	GetKey(host string, username string) (*Key, error)
 
 	// trusted CAs management:
 	AddKnownCA(domainName string, publicKeys []ssh.PublicKey) error

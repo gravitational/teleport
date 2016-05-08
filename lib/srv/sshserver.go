@@ -24,7 +24,9 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"os/exec"
+	"os/user"
 	"strings"
 	"sync"
 	"time"
@@ -499,6 +501,16 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		return nil, trace.Wrap(err)
 	}
 
+	// see if the host user is valid (no need to do this in proxy mode)
+	if !s.proxyMode {
+		_, err = user.Lookup(conn.User())
+		if err != nil {
+			host, _ := os.Hostname()
+			logger.Warningf("host '%s' does not have OS user '%s'", host, conn.User())
+			return nil, trace.AccessDenied("invalid host login: '%s'", conn.User())
+		}
+	}
+
 	// this is the only way I know of to pass valid principal with the
 	// connection
 	permissions.Extensions[utils.CertTeleportUser] = teleportUser
@@ -710,6 +722,7 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 				"proxy doesn't support request type '%v'", req.Type)
 		}
 	}
+
 	switch req.Type {
 	case "exec":
 		// exec is a remote execution of a program, does not use PTY

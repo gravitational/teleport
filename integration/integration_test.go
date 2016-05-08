@@ -53,10 +53,7 @@ type IntSuite struct {
 // bootstrap check
 func TestIntegrations(t *testing.T) { check.TestingT(t) }
 
-var _ = check.Suite(&IntSuite{
-	priv: []byte(testauthority.Priv),
-	pub:  []byte(testauthority.Pub),
-})
+var _ = check.Suite(&IntSuite{})
 
 func (s *IntSuite) TearDownSuite(c *check.C) {
 	var err error
@@ -70,6 +67,9 @@ func (s *IntSuite) SetUpSuite(c *check.C) {
 	var err error
 	utils.InitLoggerForTests()
 	SetTestTimeouts(100)
+
+	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
 
 	// find 10 free litening ports to use
 	s.ports, err = utils.GetFreeTCPPorts(AllocatePortsNum)
