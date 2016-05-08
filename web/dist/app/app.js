@@ -4860,21 +4860,26 @@ webpackJsonp([1],[
 	      return 0;
 	    }
 	
-	    return this.events[length - 1].ms;
+	    return this.events[length - 1].msNormalized;
 	  };
 	
 	  EventProvider.prototype.init = function init() {
-	    return api.get(this.url + URL_PREFIX_EVENTS).done(this._init.bind(this));
+	    var _this = this;
+	
+	    return api.get(this.url + URL_PREFIX_EVENTS).done(function (data) {
+	      _this._createPrintEvents(data.events);
+	      _this._normalizeEventsByTime();
+	    });
 	  };
 	
 	  EventProvider.prototype.getEventsWithByteStream = function getEventsWithByteStream(start, end) {
-	    var _this = this;
+	    var _this2 = this;
 	
 	    try {
 	      if (this._shouldFetch(start, end)) {
 	        // TODO: add buffering logic, as for now, load everything
 	        return this._fetch().then(this.processByteStream.bind(this, start, this.getLength())).then(function () {
-	          return _this.events.slice(start, end);
+	          return _this2.events.slice(start, end);
 	        });
 	      } else {
 	        return $.Deferred().resolve(this.events.slice(start, end));
@@ -4895,70 +4900,6 @@ webpackJsonp([1],[
 	    }
 	  };
 	
-	  EventProvider.prototype._init = function _init(data) {
-	    var events = data.events;
-	
-	    var w = undefined,
-	        h = undefined;
-	    var tmp = [];
-	
-	    // ensure that each event has the right screen size and valid values
-	    for (var i = 0; i < events.length; i++) {
-	      var _events$i = events[i];
-	      var ms = _events$i.ms;
-	      var _event = _events$i.event;
-	      var time = _events$i.time;
-	
-	      if (_event === 'resize' || _event === 'session.start') {
-	        var _events$i$size$split = events[i].size.split(':');
-	
-	        w = _events$i$size$split[0];
-	        h = _events$i$size$split[1];
-	      }
-	
-	      if (_event !== 'print') {
-	        continue;
-	      }
-	
-	      // use smaller numbers
-	      events[i].ms = ms > 0 ? Math.floor(ms / 10) : 0;
-	      events[i].data = null;
-	      events[i].w = Number(w);
-	      events[i].h = Number(h);
-	      events[i].time = new Date(time);
-	      tmp.push(events[i]);
-	    }
-	
-	    var cur = tmp[0];
-	    for (var i = 1; i < tmp.length; i++) {
-	      var sameSize = cur.w === tmp[i].w && cur.h === tmp[i].h;
-	      var delay = tmp[i].ms - cur.ms;
-	
-	      // merge events with tiny delay
-	      if (delay < 2 && sameSize) {
-	        cur.bytes += tmp[i].bytes;
-	        cur.ms = tmp[i].ms;
-	        continue;
-	      }
-	
-	      // avoid long delays between chunks
-	      if (delay > 25 && delay < 50) {
-	        tmp[i].ms = cur.ms + 25;
-	      } else if (delay > 50 && delay < 100) {
-	        tmp[i].ms = cur.ms + 50;
-	      } else if (delay >= 100) {
-	        tmp[i].ms = cur.ms + 100;
-	      }
-	
-	      this.events.push(cur);
-	      cur = tmp[i];
-	    }
-	
-	    if (this.events.indexOf(cur) === -1) {
-	      this.events.push(cur);
-	    }
-	  };
-	
 	  EventProvider.prototype._shouldFetch = function _shouldFetch(start, end) {
 	    for (var i = start; i < end; i++) {
 	      if (this.events[i].data === null) {
@@ -4974,28 +4915,104 @@ webpackJsonp([1],[
 	    var offset = this.events[0].offset;
 	    var bytes = this.events[end].offset - offset + this.events[end].bytes;
 	    var url = this.url + '/stream?offset=' + offset + '&bytes=' + bytes;
-	
-	    /*    var session = require('app/services/session');
-	        var { token } = session.getUserData();
-	    
-	        var xhr = new XMLHttpRequest();
-	    
-	        xhr.open('GET', encodeURI(url));
-	        xhr.setRequestHeader('Authorization','Bearer ' + token);
-	        xhr.onload = function() {
-	            if (xhr.status === 200) {
-	                alert('User\'s name is ' + xhr.responseText);
-	            }
-	            else {
-	                alert('Request failed.  Returned status of ' + xhr.status);
-	            }
-	        };
-	        xhr.send();
-	    */
-	
 	    return api.ajax({ url: url, processData: true, dataType: 'text' }).then(function (response) {
 	      return new Buffer(response);
 	    });
+	  };
+	
+	  EventProvider.prototype._formatDisplayTime = function _formatDisplayTime(ms) {
+	    if (ms < 0) {
+	      return '0:0';
+	    }
+	
+	    var totalSec = Math.floor(ms / 1000);
+	    var h = Math.floor(totalSec % 31536000 % 86400 / 3600);
+	    var m = Math.floor(totalSec % 31536000 % 86400 % 3600 / 60);
+	    var s = totalSec % 31536000 % 86400 % 3600 % 60;
+	
+	    return h + ':' + m + ':' + s;
+	  };
+	
+	  EventProvider.prototype._createPrintEvents = function _createPrintEvents(json) {
+	    var w = undefined,
+	        h = undefined;
+	    var events = [];
+	
+	    // filter print events and ensure that each event has the right screen size and valid values
+	    for (var i = 0; i < json.length; i++) {
+	      var _json$i = json[i];
+	      var ms = _json$i.ms;
+	      var _event = _json$i.event;
+	      var time = _json$i.time;
+	      var bytes = _json$i.bytes;
+	
+	      // grab new screen size for the next events
+	      if (_event === 'resize' || _event === 'session.start') {
+	        var _json$i$size$split = json[i].size.split(':');
+	
+	        w = _json$i$size$split[0];
+	        h = _json$i$size$split[1];
+	      }
+	
+	      if (_event !== 'print') {
+	        continue;
+	      }
+	
+	      var displayTime = this._formatDisplayTime(ms);
+	
+	      // use smaller numbers
+	      ms = ms > 0 ? Math.floor(ms / 10) : 0;
+	
+	      events.push({
+	        displayTime: displayTime,
+	        ms: ms,
+	        msNormalized: ms,
+	        bytes: bytes,
+	        data: null,
+	        w: Number(w),
+	        h: Number(h),
+	        time: new Date(time)
+	      });
+	    }
+	
+	    this.events = events;
+	  };
+	
+	  EventProvider.prototype._normalizeEventsByTime = function _normalizeEventsByTime() {
+	    var events = this.events;
+	    var cur = events[0];
+	    var tmp = [];
+	    for (var i = 1; i < events.length; i++) {
+	      var sameSize = cur.w === events[i].w && cur.h === events[i].h;
+	      var delay = events[i].ms - cur.ms;
+	
+	      // merge events with tiny delay
+	      if (delay < 2 && sameSize) {
+	        cur.bytes += events[i].bytes;
+	        cur.msNormalized += delay;
+	        continue;
+	      }
+	
+	      // avoid long delays between chunks
+	      if (delay >= 25 && delay < 50) {
+	        events[i].msNormalized = cur.msNormalized + 25;
+	      } else if (delay >= 50 && delay < 100) {
+	        events[i].msNormalized = cur.msNormalized + 50;
+	      } else if (delay >= 100) {
+	        events[i].msNormalized = cur.msNormalized + 100;
+	      } else {
+	        events[i].msNormalized = cur.msNormalized + delay;
+	      }
+	
+	      tmp.push(cur);
+	      cur = events[i];
+	    }
+	
+	    if (tmp.indexOf(cur) === -1) {
+	      tmp.push(cur);
+	    }
+	
+	    this.events = tmp;
 	  };
 	
 	  return EventProvider;
@@ -5027,22 +5044,22 @@ webpackJsonp([1],[
 	  TtyPlayer.prototype.resize = function resize() {};
 	
 	  TtyPlayer.prototype.connect = function connect() {
-	    var _this2 = this;
+	    var _this3 = this;
 	
 	    this._setStatusFlag({ isLoading: true });
 	    this._eventProvider.init().done(function () {
-	      _this2.length = _this2._eventProvider.getLengthInTime();
-	      _this2._eventProvider.events.forEach(function (item) {
-	        return _this2._posToEventIndexMap.push(item.ms);
+	      _this3.length = _this3._eventProvider.getLengthInTime();
+	      _this3._eventProvider.events.forEach(function (item) {
+	        return _this3._posToEventIndexMap.push(item.msNormalized);
 	      });
-	      _this2._setStatusFlag({ isReady: true });
+	      _this3._setStatusFlag({ isReady: true });
 	    }).fail(handleAjaxError).always(this._change.bind(this));
 	
 	    this._change();
 	  };
 	
 	  TtyPlayer.prototype.move = function move(newPos) {
-	    var _this3 = this;
+	    var _this4 = this;
 	
 	    if (!this.isReady) {
 	      return;
@@ -5076,9 +5093,9 @@ webpackJsonp([1],[
 	      }
 	
 	      this._showChunk(isRewind ? 0 : this.currentEventIndex, newEventIndex).then(function () {
-	        _this3.currentEventIndex = newEventIndex;
-	        _this3.current = newPos;
-	        _this3._change();
+	        _this4.currentEventIndex = newEventIndex;
+	        _this4.current = newPos;
+	        _this4._change();
 	      });
 	    } catch (err) {
 	      logger.error('move', err);
@@ -5108,15 +5125,25 @@ webpackJsonp([1],[
 	    this._change();
 	  };
 	
+	  TtyPlayer.prototype.getCurrentTime = function getCurrentTime() {
+	    if (this.currentEventIndex) {
+	      var displayTime = this._eventProvider.events[this.currentEventIndex - 1].displayTime;
+	
+	      return displayTime;
+	    } else {
+	      return '';
+	    }
+	  };
+	
 	  TtyPlayer.prototype._showChunk = function _showChunk(start, end) {
-	    var _this4 = this;
+	    var _this5 = this;
 	
 	    this._setStatusFlag({ isLoading: true });
 	    return this._eventProvider.getEventsWithByteStream(start, end).done(function (events) {
-	      _this4._setStatusFlag({ isReady: true });
-	      _this4._display(events);
+	      _this5._setStatusFlag({ isReady: true });
+	      _this5._display(events);
 	    }).fail(function (err) {
-	      _this4._setStatusFlag({ isError: true });
+	      _this5._setStatusFlag({ isError: true });
 	      handleAjaxError(err);
 	    });
 	  };
@@ -5561,6 +5588,7 @@ webpackJsonp([1],[
 	    return {
 	      length: this.tty.length,
 	      min: 1,
+	      time: this.tty.getCurrentTime(),
 	      isPlaying: this.tty.isPlaying,
 	      current: this.tty.current,
 	      canPlay: this.tty.length > 1
@@ -5574,17 +5602,16 @@ webpackJsonp([1],[
 	  },
 	
 	  componentDidMount: function componentDidMount() {
-	    var _this = this;
-	
 	    this.terminal = new Term(this.tty, this.refs.container);
 	    this.terminal.open();
 	
-	    this.tty.on('change', function () {
-	      var newState = _this.calculateState();
-	      _this.setState(newState);
-	    });
-	
+	    this.tty.on('change', this.updateState.bind(this));
 	    this.tty.play();
+	  },
+	
+	  updateState: function updateState() {
+	    var newState = this.calculateState();
+	    this.setState(newState);
 	  },
 	
 	  componentWillUnmount: function componentWillUnmount() {
@@ -5616,7 +5643,9 @@ webpackJsonp([1],[
 	  },
 	
 	  render: function render() {
-	    var isPlaying = this.state.isPlaying;
+	    var _state = this.state;
+	    var isPlaying = _state.isPlaying;
+	    var time = _state.time;
 	
 	    return React.createElement(
 	      'div',
@@ -5630,6 +5659,11 @@ webpackJsonp([1],[
 	          'button',
 	          { className: 'btn', onClick: this.togglePlayStop },
 	          isPlaying ? React.createElement('i', { className: 'fa fa-stop' }) : React.createElement('i', { className: 'fa fa-play' })
+	        ),
+	        React.createElement(
+	          'div',
+	          { className: 'grv-session-player-controls-time' },
+	          time
 	        ),
 	        React.createElement(
 	          'div',
@@ -7877,7 +7911,6 @@ webpackJsonp([1],[
 	  setTimeRange: function setTimeRange(start, end) {
 	    reactor.batch(function () {
 	      reactor.dispatch(TLPT_STORED_SESSINS_FILTER_SET_RANGE, { start: start, end: end });
-	      reactor.dispatch(TLPT_SESSINS_REMOVE_STORED);
 	      _fetch(start, end);
 	    });
 	  }

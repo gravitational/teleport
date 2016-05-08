@@ -52,12 +52,15 @@ class EventProvider{
       return 0;
     }
 
-    return this.events[length-1].ms;
+    return this.events[length-1].msNormalized;
   }
 
   init(){
     return api.get(this.url + URL_PREFIX_EVENTS)
-      .done(this._init.bind(this))
+      .done(data => {
+        this._createPrintEvents(data.events);
+        this._normalizeEventsByTime();
+      });
   }
 
   getEventsWithByteStream(start, end){
@@ -85,63 +88,6 @@ class EventProvider{
     }
   }
 
-  _init(data){
-    let {events} = data;
-    let w, h;
-    let tmp = [];
-
-    // ensure that each event has the right screen size and valid values
-    for(let i = 0; i < events.length; i++){
-
-      let { ms, event, time } = events[i];
-
-      if(event === 'resize' || event === 'session.start'){
-        [w, h] = events[i].size.split(':');
-      }
-
-      if(event !== 'print'){
-        continue;
-      }
-
-      // use smaller numbers
-      events[i].ms = ms > 0 ? Math.floor(ms / 10) : 0;
-      events[i].data = null;
-      events[i].w = Number(w);
-      events[i].h = Number(h);
-      events[i].time = new Date(time);
-      tmp.push(events[i]);
-    }
-
-    var cur = tmp[0];
-    for(let i = 1; i < tmp.length; i++){
-      let sameSize = cur.w === tmp[i].w && cur.h === tmp[i].h;
-      let delay = tmp[i].ms - cur.ms;
-
-      // merge events with tiny delay
-      if(delay < 2 && sameSize ){
-        cur.bytes += tmp[i].bytes;
-        cur.ms = tmp[i].ms;
-        continue;
-      }
-
-      // avoid long delays between chunks
-      if(delay > 25 && delay < 50){
-        tmp[i].ms = cur.ms + 25;
-      }else if(delay > 50 && delay < 100){
-        tmp[i].ms = cur.ms + 50;
-      }else if(delay >= 100){
-        tmp[i].ms = cur.ms + 100;
-      }
-
-      this.events.push(cur);
-      cur = tmp[i];
-    }
-
-    if(this.events.indexOf(cur) === -1){
-      this.events.push(cur);
-    }
-  }
-
   _shouldFetch(start, end){
     for(var i = start; i < end; i++){
       if(this.events[i].data === null){
@@ -157,28 +103,97 @@ class EventProvider{
     let offset = this.events[0].offset;
     let bytes = this.events[end].offset - offset + this.events[end].bytes;
     let url = `${this.url}/stream?offset=${offset}&bytes=${bytes}`;
-
-/*    var session = require('app/services/session');
-    var { token } = session.getUserData();
-
-    var xhr = new XMLHttpRequest();
-
-    xhr.open('GET', encodeURI(url));
-    xhr.setRequestHeader('Authorization','Bearer ' + token);
-    xhr.onload = function() {
-        if (xhr.status === 200) {
-            alert('User\'s name is ' + xhr.responseText);
-        }
-        else {
-            alert('Request failed.  Returned status of ' + xhr.status);
-        }
-    };
-    xhr.send();
-*/
-
     return api.ajax({url, processData: true, dataType: 'text' }).then((response)=>{
       return new Buffer(response);
     });
+  }
+
+  _formatDisplayTime(ms){
+    if(ms < 0){
+      return '0:0';
+    }
+
+    let totalSec = Math.floor(ms / 1000);
+    let h = Math.floor(((totalSec % 31536000) % 86400) / 3600);
+    let m = Math.floor((((totalSec % 31536000) % 86400) % 3600) / 60);
+    let s = (((totalSec % 31536000) % 86400) % 3600) % 60;
+
+    return `${h}:${m}:${s}`;
+  }
+
+  _createPrintEvents(json){
+    let w, h;
+    let events = [];
+
+    // filter print events and ensure that each event has the right screen size and valid values
+    for(let i = 0; i < json.length; i++){
+
+      let { ms, event, time, bytes } = json[i];
+
+      // grab new screen size for the next events
+      if(event === 'resize' || event === 'session.start'){
+        [w, h] = json[i].size.split(':');
+      }
+
+      if(event !== 'print'){
+        continue;
+      }
+
+      let displayTime = this._formatDisplayTime(ms);
+
+      // use smaller numbers
+      ms =  ms > 0 ? Math.floor(ms / 10) : 0;
+
+      events.push({
+        displayTime,
+        ms,
+        msNormalized: ms,
+        bytes,
+        data: null,
+        w: Number(w),
+        h: Number(h),
+        time: new Date(time)
+      });
+    }
+
+    this.events = events;
+  }
+
+  _normalizeEventsByTime(){
+    let events = this.events;
+    let cur = events[0];
+    let tmp = [];
+    for(let i = 1; i < events.length; i++){
+      let sameSize = cur.w === events[i].w && cur.h === events[i].h;
+      let delay = events[i].ms - cur.ms;
+
+      // merge events with tiny delay
+      if(delay < 2 && sameSize ){
+        cur.bytes += events[i].bytes;
+        cur.msNormalized += delay;
+        continue;
+      }
+
+      // avoid long delays between chunks
+      if(delay >= 25 && delay < 50){
+        events[i].msNormalized = cur.msNormalized + 25;
+      }else if(delay >= 50 && delay < 100){
+        events[i].msNormalized = cur.msNormalized + 50;
+      }else if(delay >= 100){
+        events[i].msNormalized = cur.msNormalized + 100;
+      }else{
+        events[i].msNormalized = cur.msNormalized + delay;
+      }
+
+      tmp.push(cur);
+      cur = events[i];
+    }
+
+    if(tmp.indexOf(cur) === -1){
+      tmp.push(cur);
+    }
+
+    this.events = tmp;
   }
 }
 
@@ -208,7 +223,7 @@ class TtyPlayer extends Tty {
     this._eventProvider.init()
       .done(()=>{
         this.length = this._eventProvider.getLengthInTime();
-        this._eventProvider.events.forEach(item => this._posToEventIndexMap.push(item.ms));
+        this._eventProvider.events.forEach(item => this._posToEventIndexMap.push(item.msNormalized));
         this._setStatusFlag({isReady: true});
       })
       .fail(handleAjaxError)
@@ -282,6 +297,15 @@ class TtyPlayer extends Tty {
 
     this.timer = setInterval(this.move.bind(this), PLAY_SPEED);
     this._change();
+  }
+
+  getCurrentTime(){
+    if(this.currentEventIndex){
+      let {displayTime} = this._eventProvider.events[this.currentEventIndex-1];
+      return displayTime;
+    }else{
+      return '';
+    }
   }
 
   _showChunk(start, end){
@@ -364,7 +388,6 @@ class TtyPlayer extends Tty {
     this.emit('change');
   }
 }
-
 
 export default TtyPlayer;
 export {

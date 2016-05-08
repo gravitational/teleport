@@ -56,6 +56,7 @@ var SessionPlayer = React.createClass({
     return {
       length: this.tty.length,
       min: 1,
+      time: this.tty.getCurrentTime(),
       isPlaying: this.tty.isPlaying,
       current: this.tty.current,
       canPlay: this.tty.length > 1
@@ -72,12 +73,13 @@ var SessionPlayer = React.createClass({
     this.terminal = new Term(this.tty, this.refs.container);
     this.terminal.open();
 
-    this.tty.on('change', ()=>{
-      var newState = this.calculateState();
-      this.setState(newState);
-    });
-
+    this.tty.on('change', this.updateState.bind(this))
     this.tty.play();
+  },
+
+  updateState(){
+    var newState = this.calculateState();
+    this.setState(newState);
   },
 
   componentWillUnmount() {
@@ -109,7 +111,7 @@ var SessionPlayer = React.createClass({
   },
 
   render: function() {
-    var {isPlaying} = this.state;
+    var {isPlaying, time} = this.state;
 
     return (
      <div className="grv-current-session grv-session-player">
@@ -119,6 +121,7 @@ var SessionPlayer = React.createClass({
          <button className="btn" onClick={this.togglePlayStop}>
            { isPlaying ? <i className="fa fa-stop"></i> :  <i className="fa fa-play"></i> }
          </button>
+         <div className="grv-session-player-controls-time">{time}</div>
          <div className="grv-flex-column">
            <ReactSlider
               min={this.state.min}
