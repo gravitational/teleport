@@ -279,7 +279,7 @@ func (s *sessionCache) CreateNewUser(token, password, hotpToken string) (*auth.S
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clt, err := auth.NewTunClient("web.crate-user", s.authServers, "tokenAuth", method)
+	clt, err := auth.NewTunClient("web.create-user", s.authServers, "tokenAuth", method)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -341,7 +341,7 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 	if err == nil {
 		return ctx, nil
 	}
-	log.Infof("-------> ValidateSession(%s, %s)", user, sid)
+	log.Debugf("ValidateSession(%s, %s)", user, sid)
 	method, err := auth.NewWebSessionAuth(user, []byte(sid))
 	if err != nil {
 		return nil, trace.Wrap(err)

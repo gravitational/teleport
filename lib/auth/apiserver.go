@@ -765,10 +765,10 @@ func (s *APIServer) searchEvents(w http.ResponseWriter, r *http.Request, p httpr
 			return nil, trace.BadParameter("to")
 		}
 	}
-	// remove to & from fields, and pass the rest of it directly to the back-end:
+	// remove 'to' & 'from' fields, passing the rest of the query unmodified
+	// to whatever pluggable search is implemented by the backend
 	query.Del("to")
 	query.Del("from")
-	// execute search:
 	eventsList, err := s.a.SearchEvents(from, to, query.Encode())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -826,7 +826,7 @@ func (s *APIServer) getSessionChunk(w http.ResponseWriter, r *http.Request, p ht
 	if err != nil || offsetBytes < 0 {
 		offsetBytes = 0
 	}
-	log.Infof("----> apiserver.GetSessionChunk(%v, offset=%d)", *sid, offsetBytes)
+	log.Debugf("apiserver.GetSessionChunk(%v, offset=%d)", *sid, offsetBytes)
 	w.Header().Set("Content-Type", "text/plain")
 
 	buffer, err := s.a.GetSessionChunk(*sid, offsetBytes, max)
@@ -853,7 +853,7 @@ func (s *APIServer) getSessionEvents(w http.ResponseWriter, r *http.Request, p h
 	if err != nil {
 		afterN = 0
 	}
-	//log.Infof("[AUTH] api.getSessionEvents(%v, after=%d)", *sid, afterN)
+	log.Debugf("[AUTH] api.getSessionEvents(%v, after=%d)", *sid, afterN)
 	return s.a.GetSessionEvents(*sid, afterN)
 }
 

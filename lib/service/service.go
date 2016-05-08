@@ -283,7 +283,6 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 	// and record sessions
 	auditLog, err := events.NewAuditLog(filepath.Join(cfg.DataDir, "log"))
 	if err != nil {
-		log.Error(err)
 		return trace.Wrap(err)
 	}
 

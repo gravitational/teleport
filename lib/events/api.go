@@ -97,10 +97,10 @@ const (
 	MaxChunkBytes = 1024 * 1024 * 5
 )
 
-// AuditLogI is the primary (and the only external-facing) interface for AUditLogger.
+// IAuditLog is the primary (and the only external-facing) interface for AUditLogger.
 // If you wish to implement a different kind of logger (not filesystem-based), you
 // have to implement this interface
-type AuditLogI interface {
+type IAuditLog interface {
 	EmitAuditEvent(eventType string, fields EventFields) error
 
 	// PostSessionChunk returns a writer which SSH nodes use to submit

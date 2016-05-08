@@ -85,7 +85,7 @@ type Server struct {
 
 	// alog points to the AuditLog this server uses to report
 	// auditable events
-	alog events.AuditLogI
+	alog events.IAuditLog
 }
 
 // ServerOption is a functional option passed to the server
@@ -166,7 +166,7 @@ func SetLimiter(limiter *limiter.Limiter) ServerOption {
 }
 
 // SetAuditLog assigns an audit log interfaces to this server
-func SetAuditLog(alog events.AuditLogI) ServerOption {
+func SetAuditLog(alog events.IAuditLog) ServerOption {
 	return func(s *Server) error {
 		s.alog = alog
 		return nil
@@ -517,7 +517,7 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 
 // HandleRequest is a callback for out of band requests
 func (s *Server) HandleRequest(r *ssh.Request) {
-	log.Infof("-----> recieved out-of-band request: %+v", r)
+	log.Debugf("recieved out-of-band request: %+v", r)
 }
 
 // HandleNewChan is called when new channel is opened
@@ -537,7 +537,9 @@ func (s *Server) HandleNewChan(nc net.Conn, sconn *ssh.ServerConn, nch ssh.NewCh
 	}
 
 	switch channelType {
-	case "terminal-size-notifier":
+	// a client requested the terminal size to be sent along with every
+	// session message (Teleport-specific SSH channel for web-based terminals)
+	case "x-teleport-request-resize-events":
 		ch, _, _ := nch.Accept()
 		go s.handleTerminalResize(sconn, ch)
 	case "session": // interactive sessions
@@ -568,7 +570,7 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel,
 	ctx := newCtx(s, sconn)
 	ctx.isTestStub = s.isTestStub
 	ctx.addCloser(ch)
-	defer ctx.Infof("direct-tcp closed")
+	defer ctx.Debugf("direct-tcp closed")
 	defer ctx.Close()
 
 	addr := fmt.Sprintf("%v:%d", req.Host, req.Port)
@@ -638,16 +640,17 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 	// its ID will be added to the environment
 	updateContext := func() {
 		ssid, found := ctx.getEnv(sshutils.SessionEnvVar)
-		if found {
-			findSession := func() (*session, bool) {
-				s.reg.Lock()
-				defer s.reg.Unlock()
-				return s.reg.findSession(rsession.ID(ssid))
-			}
-			// update ctx with a session ID
-			ctx.session, _ = findSession()
-			log.Infof("[SSH] loaded session %v for SSH connection %v", ctx.session, sconn)
+		if !found {
+			return
 		}
+		findSession := func() (*session, bool) {
+			s.reg.Lock()
+			defer s.reg.Unlock()
+			return s.reg.findSession(rsession.ID(ssid))
+		}
+		// update ctx with a session ID
+		ctx.session, _ = findSession()
+		log.Infof("[SSH] loaded session %v for SSH connection %v", ctx.session, sconn)
 	}
 
 	for {

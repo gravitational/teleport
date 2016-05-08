@@ -111,7 +111,10 @@ func (l *RateLimiter) RegisterRequest(token string) error {
 		bucketSet = ratelimit.NewTokenBucketSet(l.rates, l.clock)
 		// We set ttl as 10 times rate period. E.g. if rate is 100 requests/second per client ip
 		// the counters for this ip will expire after 10 seconds of inactivity
-		l.rateLimits.Set(token, bucketSet, int(bucketSet.GetMaxPeriod()/time.Second)*10+1)
+		err := l.rateLimits.Set(token, bucketSet, int(bucketSet.GetMaxPeriod()/time.Second)*10+1)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	delay, err := bucketSet.Consume(1)
 	if err != nil {

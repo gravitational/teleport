@@ -56,7 +56,7 @@ type APIConfig struct {
 	SessionService    session.Service
 	Roles             []teleport.Role
 	PermissionChecker PermissionChecker
-	AuditLog          events.AuditLogI
+	AuditLog          events.IAuditLog
 }
 
 func NewAPIWithRoles(config APIConfig) *APIWithRoles {

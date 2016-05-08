@@ -149,7 +149,7 @@ func (t *terminal) Close() error {
 func (t *terminal) closePTY() {
 	t.Lock()
 	defer t.Unlock()
-	defer log.Infof("PTY is closed")
+	defer log.Debugf("PTY is closed")
 
 	// wait until all copying is over
 	t.Wait()

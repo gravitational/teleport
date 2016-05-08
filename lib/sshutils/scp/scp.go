@@ -56,7 +56,7 @@ type Command struct {
 	Recursive   bool
 	User        *user.User
 	Conn        ssh.ConnMetadata
-	AuditLog    events.AuditLogI
+	AuditLog    events.IAuditLog
 }
 
 // Execute implements SSH file copy (SCP)
@@ -348,7 +348,7 @@ func IsSCP(cmd string) bool {
 	return f == "scp"
 }
 
-func ParseCommand(arg string, conn ssh.ConnMetadata, alog events.AuditLogI) (*Command, error) {
+func ParseCommand(arg string, conn ssh.ConnMetadata, alog events.IAuditLog) (*Command, error) {
 	if !IsSCP(arg) {
 		return nil, trace.Errorf("not scp command")
 	}

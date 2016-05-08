@@ -167,7 +167,7 @@ func (s *IntSuite) TestAudit(c *check.C) {
 
 	// read back the entire session (we have to try several times until we get back
 	// everything because the session is closing)
-	expectedLen := 1048600
+	const expectedLen = 1048600
 	var sessionStream []byte
 	for i := 0; len(sessionStream) < expectedLen; i++ {
 		sessionStream, err = site.GetSessionChunk(session.ID, 0, events.MaxChunkBytes)
@@ -234,11 +234,6 @@ func (s *IntSuite) TestAudit(c *check.C) {
 		if e.GetInt("bytes") == 1048576 {
 			hugeChunkFound = true
 		}
-		/* uncomment to see all chunks
-		fmt.Printf("%s: offset=%d bytes=%d, chunk=%s\n",
-			e.GetType(), e.GetInt("offset"), e.GetInt("bytes"),
-			strings.TrimSpace(getChunk(e, 10)))
-		*/
 	}
 	c.Assert(prefixFound, check.Equals, true)
 	c.Assert(hugeChunkFound, check.Equals, true)

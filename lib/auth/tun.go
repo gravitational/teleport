@@ -653,7 +653,7 @@ func (c *TunClient) authServersSyncLoop() {
 	defer c.refreshTicker.Stop()
 
 	// initial fetch for quick start-ups
-	//c.fetchAndSync()
+	c.fetchAndSync()
 	for {
 		select {
 		// timer-based refresh:
