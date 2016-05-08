@@ -135,7 +135,7 @@ var GrvTable = React.createClass({
       children.push(child);
     });
 
-    var tableClass = 'table ' + this.props.className;
+    var tableClass = 'table grv-table ' + this.props.className;
 
     return (
       <table className={tableClass}>

@@ -56,7 +56,7 @@ module.exports = {
         include: path.join(__dirname, 'src'),
         test: /\.(js|jsx)$/,
         exclude: /node_modules/,
-        loader: 'eslint!react-hot!babel?loose=all&cacheDirectory'
+        loader: 'react-hot!babel?loose=all&cacheDirectory!eslint'
       },
       {
         test: /\.scss$/,

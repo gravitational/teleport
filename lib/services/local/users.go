@@ -63,6 +63,7 @@ func (s *IdentityService) GetUsers() ([]services.User, error) {
 
 // UpsertUser updates parameters about user
 func (s *IdentityService) UpsertUser(user services.User) error {
+
 	if !cstrings.IsValidUnixUser(user.GetName()) {
 		return trace.BadParameter("'%v is not a valid unix username'", user.GetName())
 	}

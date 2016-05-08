@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 var reactor = require('app/reactor');
-var {fetchSessions} = require('./../sessions/actions');
+var {fetchActiveSessions} = require('./../sessions/actions');
 var {fetchNodes} = require('./../nodes/actions');
 var $ = require('jQuery');
 
@@ -31,7 +31,7 @@ const actions = {
   },
 
   fetchNodesAndSessions() {
-    return $.when(fetchNodes(), fetchSessions());
+    return $.when(fetchNodes(), fetchActiveSessions());
   }
 }
 

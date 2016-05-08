@@ -19,10 +19,12 @@ limitations under the License.
 package web
 
 import (
+	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -35,14 +37,12 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/codahale/lunk"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -115,7 +115,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 	}
 
 	if h.sessionStreamPollPeriod == 0 {
-		h.sessionStreamPollPeriod = defaultPollPeriod
+		h.sessionStreamPollPeriod = sessionStreamPollPeriod
 	}
 
 	// Helper logout method
@@ -140,10 +140,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 
 	// get nodes
 	h.GET("/webapi/sites/:site/nodes", h.withSiteAuth(h.getSiteNodes))
-	// get site events
-	h.GET("/webapi/sites/:site/events", h.withSiteAuth(h.siteGetEvents))
-	// get site session events
-	h.GET("/webapi/sites/:site/events/sessions", h.withSiteAuth(h.siteGetSessionEvents))
 	// connect to node via websocket (that's why it's a GET method)
 	h.GET("/webapi/sites/:site/connect", h.withSiteAuth(h.siteNodeConnect))
 	// get session event stream
@@ -152,12 +148,16 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 	h.POST("/webapi/sites/:site/sessions", h.withSiteAuth(h.siteSessionGenerate))
 	// update session parameters
 	h.PUT("/webapi/sites/:site/sessions/:sid", h.withSiteAuth(h.siteSessionUpdate))
-	// get session
+	// get the session list
+	h.GET("/webapi/sites/:site/sessions", h.withSiteAuth(h.siteSessionsGet))
+	// get a session
 	h.GET("/webapi/sites/:site/sessions/:sid", h.withSiteAuth(h.siteSessionGet))
-	// get session chunks
-	h.GET("/webapi/sites/:site/sessions/:sid/chunks", h.withSiteAuth(h.siteSessionGetChunks))
-	// get session chunks count
-	h.GET("/webapi/sites/:site/sessions/:sid/chunkscount", h.withSiteAuth(h.siteSessionGetChunksCount))
+	// get session's events
+	h.GET("/webapi/sites/:site/sessions/:sid/events", h.withSiteAuth(h.siteSessionEventsGet))
+	// get session's bytestream
+	h.GET("/webapi/sites/:site/sessions/:sid/stream", h.siteSessionStreamGet)
+	// search site events
+	h.GET("/webapi/sites/:site/events", h.withSiteAuth(h.siteEventsGet))
 
 	// OIDC related callback handlers
 	h.GET("/webapi/oidc/login/web", httplib.MakeHandler(h.oidcLoginWeb))
@@ -225,9 +225,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 			http.NotFound(w, r)
 		}
 	})
-
 	h.NotFound = routingHandler
-
 	return h, nil
 }
 
@@ -750,7 +748,7 @@ func (m *Handler) siteNodeConnect(w http.ResponseWriter, r *http.Request, p http
 	if err := json.Unmarshal([]byte(params), &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("Connect to node: %#v", req)
+	log.Infof("web client connected to node %#v", req)
 	connect, err := newConnectHandler(*req, ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -764,12 +762,11 @@ func (m *Handler) siteNodeConnect(w http.ResponseWriter, r *http.Request, p http
 }
 
 // sessionStreamEvent is sent over the session stream socket, it contains
-// last events that occured (only new events are sent), currently active
-// nodes and current active session
+// last events that occured (only new events are sent)
 type sessionStreamEvent struct {
-	Events  []lunk.Entry      `json:"events"`
-	Nodes   []services.Server `json:"nodes"`
-	Session session.Session   `json:"session"`
+	Events  []events.EventFields `json:"events"`
+	Session *session.Session     `json:"session"`
+	Servers []services.Server    `json:"servers"`
 }
 
 // siteSessionStream returns a stream of events related to the session
@@ -863,11 +860,31 @@ func (m *Handler) siteSessionUpdate(w http.ResponseWriter, r *http.Request, p ht
 	return ok(), nil
 }
 
-type siteSessionGetResponse struct {
-	Session session.Session `json:"session"`
+type siteSessionsGetResponse struct {
+	Sessions []session.Session `json:"sessions"`
 }
 
-// siteSessionGet gets the site session by id
+// siteSessionGet gets the list of site sessions filtered by creation time
+// and either they're active or not
+//
+// GET /v1/webapi/sites/:site/sessions
+//
+// Response body:
+//
+// {"sessions": [{"id": "sid", "terminal_params": {"w": 100, "h": 100}, "parties": [], "login": "bob"}, ...] }
+func (m *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := site.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sessions, err := clt.GetSessions()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return siteSessionsGetResponse{Sessions: sessions}, nil
+}
+
+// siteSessionGet gets the list of site session by id
 //
 // GET /v1/webapi/sites/:site/sessions/:sid
 //
@@ -880,197 +897,206 @@ func (m *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	log.Infof("web.getSetssion(%v)", sessionID)
 	clt, err := site.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	sess, err := clt.GetSession(*sessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return siteSessionGetResponse{Session: *sess}, nil
+	if sess == nil {
+		return nil, trace.NotFound("Session %v cannot be found", sessionID)
+	}
+	return *sess, nil
 }
 
-type siteSessionGetChunksResponse struct {
-	Chunks []recorder.Chunk `json:"chunks"`
-}
+const maxStreamBytes = 512 * 1024
 
-// siteSessionGetChunks gets the site session recorded chunks
+// siteEventsGet allows to search for events on site
 //
-// GET /v1/webapi/sites/:site/sessions/:id/chunks?start=1&end=100
+// GET /v1/webapi/sites/:site/events
 //
-// *IMPORTANT* start is a chunk id and chunks start from 1 so you have to supply
-// chunk starting from 1
+// Query parameters:
+//   "from"  : date range from, encoded as RFC3339
+//   "to"    : date range to, encoded as RFC3339
+//   ...     : the rest of the query string is passed to the search back-end as-is,
+//             the default backend performs exact search: ?key=value means "event
+//             with a field 'key' with value 'value'
 //
-// Response body:
-//
-// {"session": {"id": "sid", "terminal_params": {"w": 100, "h": 100}, "parties": [], "login": "bob"}}
-//
-func (m *Handler) siteSessionGetChunks(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	sessionID := p.ByName("sid")
-
-	st, en := r.URL.Query().Get("start"), r.URL.Query().Get("end")
-	start, err := strconv.Atoi(st)
-	if err != nil {
-		return nil, trace.BadParameter("start: need integer")
-	}
-	end, err := strconv.Atoi(en)
-	if err != nil {
-		return nil, trace.BadParameter("end: need integer")
-	}
-	clt, err := site.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	reader, err := clt.GetChunkReader(sessionID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer reader.Close()
-	chunks, err := reader.ReadChunks(start, end)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &siteSessionGetChunksResponse{Chunks: chunks}, nil
-}
-
-type siteSessionGetChunksCountResponse struct {
-	Count uint64 `json:"count"`
-}
-
-// siteSessionGetChunksCount returns count of chunks for this session
-//
-// GET /v1/webapi/sites/:site/sessions/:id/chunkscount
-//
-// Response body:
-//
-// {"count": 100}
-//
-func (m *Handler) siteSessionGetChunksCount(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	sessionID := p.ByName("sid")
+func (m *Handler) siteEventsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	query := r.URL.Query()
+	log.Infof("web.getEvents(%v)", r.URL.RawQuery)
 
 	clt, err := site.GetClient()
 	if err != nil {
+		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
-	reader, err := clt.GetChunkReader(sessionID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer reader.Close()
-	count, err := reader.GetChunksCount()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &siteSessionGetChunksCountResponse{Count: count}, nil
-}
+	to := time.Now().In(time.UTC)
+	from := to.AddDate(0, -1, 0) // one month ago
 
-type siteGetEventsResponse struct {
-	Events []lunk.Entry `json:"events"`
-}
-
-/* siteGetEvents gets the site session events
-
- GET /v1/webapi/sites/:site/events?filter=urlencoded filter struct
-
-  filter struct format:
-
-    {
-      "start": "RFC339 start",  // start must always be specified
-      "end": "RFC3339 end",     // optional end
-      "order": 1,               // 1 for asc, -1 for descending
-      "session_id": "",         // optional session id to filter by
-      "limit": 2                // limit
-    }
-
-Response body:
-
-  {"events": [{}]}
-
-*/
-func (m *Handler) siteGetEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	var filter events.Filter
-	filterQ := r.URL.Query().Get("filter")
-	if filterQ == "" {
-		return nil, trace.BadParameter("filter", "missing filter")
-	}
-	if err := json.Unmarshal([]byte(filterQ), &filter); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	clt, err := site.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	events, err := clt.GetEvents(filter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return siteGetEventsResponse{Events: events}, nil
-}
-
-type siteGetSessionEventsResponse struct {
-	Sessions []session.Session `json:"sessions"`
-}
-
-/* siteGetSessionsEvents gets the site session events
-
- GET /v1/webapi/sites/:site/events/sessions?filter=urlencoded filter struct
-
-  filter struct format:
-
-    {
-      "start": "RFC339 start",  // start must always be specified
-      "end": "RFC3339 end",     // optional end
-      "order": 1,               // 1 for asc, -1 for descending
-      "limit": 2                // limit
-    }
-
-Response body:
-
-  {"sessions": [{}]}
-
-*/
-func (m *Handler) siteGetSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	var filter events.Filter
-	filterQ := r.URL.Query().Get("filter")
-	if filterQ == "" {
-		return nil, trace.BadParameter("filter: missing filter")
-	}
-	if err := json.Unmarshal([]byte(filterQ), &filter); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	clt, err := site.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sessionEvents, err := clt.GetSessionEvents(filter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// get active sessions too
-	sessions, err := clt.GetSessions()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// merge retrieved events and sessions if there's a match
-	s2id := make(map[string]*session.Session)
-	for i := range sessions {
-		s2id[string(sessions[i].ID)] = &sessions[i]
-	}
-	for i := range sessionEvents {
-		id := string(sessionEvents[i].ID)
-		sess, ok := s2id[id]
-		if ok {
-			// replace it with real time data about event
-			sessionEvents[i] = *sess
-		} else {
-			// assume it is not active
-			sessionEvents[i].Active = false
+	// parse 'to' and 'from' params:
+	fromStr := query.Get("from")
+	if fromStr != "" {
+		from, err = time.Parse(time.RFC3339, fromStr)
+		if err != nil {
+			return nil, trace.BadParameter("from")
 		}
 	}
-	return siteGetSessionEventsResponse{Sessions: sessionEvents}, nil
+	toStr := query.Get("to")
+	if toStr != "" {
+		to, err = time.Parse(time.RFC3339, toStr)
+		if err != nil {
+			return nil, trace.BadParameter("to")
+		}
+	}
+	// remove to & from fields, and pass the rest of it directly to the back-end:
+	query.Del("to")
+	query.Del("from")
+
+	el, err := clt.SearchEvents(from, to, query.Encode())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return eventsListGetResponse{Events: el}, nil
+}
+
+type siteSessionStreamGetResponse struct {
+	Bytes []byte `json:"bytes"`
+}
+
+// siteSessionStreamGet returns a byte array from a session's stream
+//
+// GET /v1/webapi/sites/:site/sessions/:sid/stream?query
+//
+// Query parameters:
+//   "offset"   : bytes from the beginning
+//   "bytes"    : number of bytes to read (it won't return more than 512Kb)
+//
+// Unlike other request handlers, this one does not return JSON.
+// It returns the binary stream unencoded, directly in the respose body,
+// with Content-Type of application/octet-stream, gzipped with up to 95%
+// compression ratio.
+func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	var site reversetunnel.RemoteSite
+	onError := func(err error) {
+		w.Header().Set("Content-Type", "text/json")
+		trace.WriteError(w, err)
+	}
+	// authenticate first:
+	_, err := m.AuthenticateRequest(w, r, true)
+	if err != nil {
+		// clear session just in case if the authentication request is not valid
+		ClearSession(w)
+		onError(err)
+		return
+	}
+	// get the site interface:
+	siteName := p.ByName("site")
+	if siteName == currentSiteShortcut {
+		sites := m.cfg.Proxy.GetSites()
+		if len(sites) < 1 {
+			onError(trace.NotFound("no active sites"))
+			return
+		}
+		siteName = sites[0].GetName()
+	}
+	site, err = m.cfg.Proxy.GetSite(siteName)
+	if err != nil {
+		onError(err)
+		return
+	}
+	// get the session:
+	sid, err := session.ParseID(p.ByName("sid"))
+	if err != nil {
+		onError(trace.Wrap(err))
+		return
+	}
+	clt, err := site.GetClient()
+	if err != nil {
+		onError(trace.Wrap(err))
+		return
+	}
+	// look at 'offset' parameter
+	query := r.URL.Query()
+	offset, _ := strconv.Atoi(query.Get("offset"))
+	if err != nil {
+		onError(trace.Wrap(err))
+		return
+	}
+	max, err := strconv.Atoi(query.Get("bytes"))
+	if err != nil || max <= 0 {
+		max = maxStreamBytes
+	}
+	if max > maxStreamBytes {
+		onError(trace.BadParameter("bytes", "bytes=%d, cannot exceed %d", max, maxStreamBytes))
+		return
+	}
+	// call the site API to get the chunk:
+	bytes, err := clt.GetSessionChunk(*sid, offset, max)
+	if err != nil {
+		onError(trace.Wrap(err))
+		return
+	}
+	// see if we can gzip it. TODO (ev): lets switch to gzipping during recording (not replay),
+	// to save on space as well.
+	var writer io.Writer = w
+	for _, acceptedEnc := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
+		if strings.TrimSpace(acceptedEnc) == "gzip" {
+			gzipper, err := gzip.NewWriterLevel(w, gzip.BestCompression)
+			if err != nil {
+				onError(trace.Wrap(err))
+				return
+			}
+			writer = gzipper
+			defer gzipper.Close()
+			w.Header().Set("Content-Encoding", "gzip")
+		}
+	}
+	_, err = writer.Write(bytes)
+	if err != nil {
+		onError(trace.Wrap(err))
+		return
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+}
+
+type eventsListGetResponse struct {
+	Events []events.EventFields `json:"events"`
+}
+
+// siteSessionEventsGet gets the site session by id
+//
+// GET /v1/webapi/sites/:site/sessions/:sid/events?after=N
+//
+// Query:
+//    "after" : cursor value of an event to return "newer than" events
+//              good for repeated polling
+//
+// Response body (each event is an arbitrary JSON structure)
+//
+// {"events": [{...}, {...}, ...}
+//
+func (m *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	sessionID, err := session.ParseID(p.ByName("sid"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clt, err := site.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	afterN, err := strconv.Atoi(r.URL.Query().Get("after"))
+	if err != nil {
+		afterN = 0
+	}
+	e, err := clt.GetSessionEvents(*sessionID, afterN)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return eventsListGetResponse{Events: e}, nil
 }
 
 // createSSHCertReq are passed by web client
@@ -1179,16 +1205,17 @@ func (h *Handler) withAuth(fn contextHandler) httprouter.Handle {
 // authenticateRequest authenticates request using combination of a session cookie
 // and bearer token
 func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, checkBearerToken bool) (*SessionContext, error) {
-	const missingCookie = "missing session cookie"
+	const missingCookieMsg = "missing session cookie"
 	logger := log.WithFields(log.Fields{
 		"request": fmt.Sprintf("%v %v", r.Method, r.URL.Path),
 	})
 	cookie, err := r.Cookie("session")
 	if err != nil || (cookie != nil && cookie.Value == "") {
+		logger.Infof(missingCookieMsg)
 		if err != nil {
-			log.Error(err)
+			logger.Warn(err)
 		}
-		return nil, trace.AccessDenied(missingCookie)
+		return nil, trace.AccessDenied(missingCookieMsg)
 	}
 	d, err := DecodeCookie(cookie.Value)
 	if err != nil {

@@ -50,7 +50,7 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetServers:         true,
 		ActionGetSession:         true,
 		ActionGetSessions:        true,
-		ActionGetEvents:          true,
+		ActionViewSession:        true,
 	}
 
 	sp.permissions[teleport.RoleProvisionToken] = map[string]bool{
@@ -68,21 +68,18 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetUser:            true,
 		ActionGetLocalDomain:     true,
 		ActionGetUserKeys:        true,
-		ActionUpsertParty:        true,
 		ActionUpsertSession:      true,
-		ActionLogEntry:           true,
-		ActionGetChunkWriter:     true,
 		ActionGetSession:         true,
 		ActionGetSessions:        true,
+		ActionEmitEvents:         true,
+		ActionViewSession:        true,
 	}
 
 	sp.permissions[teleport.RoleProxy] = map[string]bool{
 		ActionGetUser:                         true,
 		ActionGetOIDCConnectorsWithoutSecrets: true,
-		ActionGetChunkReader:                  true,
 		ActionGetReverseTunnels:               true,
 		ActionGetServers:                      true,
-		ActionGetEvents:                       true,
 		ActionUpsertProxy:                     true,
 		ActionGetProxies:                      true,
 		ActionGetAuthServers:                  true,
@@ -90,11 +87,12 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetUsers:                        true,
 		ActionGetLocalDomain:                  true,
 		ActionGetUserKeys:                     true,
-		ActionLogEntry:                        true,
 		ActionGetSession:                      true,
+		ActionViewSession:                     true,
 		ActionGetSessions:                     true,
 		ActionCreateOIDCAuthRequest:           true,
 		ActionValidateOIDCAuthCallback:        true,
+		ActionEmitEvents:                      true,
 	}
 
 	sp.permissions[teleport.RoleWeb] = map[string]bool{
@@ -105,8 +103,8 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetWebSession:    true,
 		ActionDeleteWebSession: true,
 		ActionGetSession:       true,
+		ActionViewSession:      true,
 		ActionGetSessions:      true,
-		ActionGetEvents:        true,
 	}
 
 	sp.permissions[teleport.RoleSignup] = map[string]bool{
@@ -163,9 +161,9 @@ var StandardRoles = []teleport.Role{
 const (
 	ActionGetSessions                       = "GetSessions"
 	ActionGetSession                        = "GetSession"
+	ActionViewSession                       = "ViewSession"
 	ActionDeleteSession                     = "DeleteSession"
 	ActionUpsertSession                     = "UpsertSession"
-	ActionUpsertParty                       = "UpsertParty"
 	ActionUpsertCertAuthority               = "UpsertCertAuthority"
 	ActionGetCertAuthorities                = "GetCertAuthorities"
 	ActionGetCertAuthoritiesWithSigningKeys = "GetCertAuthoritiesWithSigningKeys"
@@ -174,11 +172,6 @@ const (
 	ActionGenerateToken                     = "GenerateToken"
 	ActionRegisterUsingToken                = "RegisterUsingToken"
 	ActionRegisterNewAuthServer             = "RegisterNewAuthServer"
-	ActionLog                               = "Log"
-	ActionLogEntry                          = "LogEntry"
-	ActionGetEvents                         = "GetEvents"
-	ActionGetChunkWriter                    = "GetChunkWriter"
-	ActionGetChunkReader                    = "GetChunkReader"
 	ActionUpsertServer                      = "UpsertServer"
 	ActionGetServers                        = "GetServers"
 	ActionUpsertAuthServer                  = "UpsertAuthServer"
@@ -223,4 +216,5 @@ const (
 	ActionGetOIDCConnectorsWithoutSecrets   = "GetOIDCConnectorsWithoutSecrets"
 	ActionCreateOIDCAuthRequest             = "CreateOIDCAuthRequest"
 	ActionValidateOIDCAuthCallback          = "ValidateOIDCAuthCallback"
+	ActionEmitEvents                        = "EmitEvents"
 )

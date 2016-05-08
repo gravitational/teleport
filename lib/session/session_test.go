@@ -99,7 +99,6 @@ func (s *BoltSuite) TestSessionsCRUD(c *C) {
 	c.Assert(s2, DeepEquals, &sess)
 
 	// Mark session inactive
-
 	err = s.srv.UpdateSession(UpdateRequest{
 		ID:     sess.ID,
 		Active: Bool(false),
@@ -137,61 +136,65 @@ func (s *BoltSuite) TestSessionsInactivity(c *C) {
 	}
 	c.Assert(s.srv.CreateSession(sess), IsNil)
 
+	// sleep to let it expire:
 	s.clock.Sleep(defaults.ActiveSessionTTL + time.Second)
 
-	sess.Active = false
+	// should not be in active sessions:
 	s2, err := s.srv.GetSession(sess.ID)
 	c.Assert(err, IsNil)
-	c.Assert(s2, DeepEquals, &sess)
+	c.Assert(s2, IsNil)
 }
 
 func (s *BoltSuite) TestPartiesCRUD(c *C) {
+	// create session:
 	sess := Session{
 		ID:             NewID(),
 		Active:         true,
 		TerminalParams: TerminalParams{W: 100, H: 100},
-		Login:          "bob",
+		Login:          "vincent",
 		LastActive:     s.clock.UtcNow(),
 		Created:        s.clock.UtcNow(),
 	}
 	c.Assert(s.srv.CreateSession(sess), IsNil)
-
-	p1 := Party{
-		ID:         NewID(),
-		User:       "bob",
-		RemoteAddr: "example.com",
-		ServerID:   "id-1",
-		LastActive: s.clock.UtcNow(),
+	// add two people:
+	parties := []Party{
+		{
+			ID:         NewID(),
+			RemoteAddr: "1_remote_addr",
+			User:       "first",
+			ServerID:   "luna",
+			LastActive: s.clock.UtcNow(),
+		},
+		{
+			ID:         NewID(),
+			RemoteAddr: "2_remote_addr",
+			User:       "second",
+			ServerID:   "luna",
+			LastActive: s.clock.UtcNow(),
+		},
 	}
-	c.Assert(s.srv.UpsertParty(sess.ID, p1, defaults.ActivePartyTTL), IsNil)
-
-	out, err := s.srv.GetSession(sess.ID)
+	s.srv.UpdateSession(UpdateRequest{
+		ID:      sess.ID,
+		Parties: &parties,
+	})
+	// verify they're in the session:
+	copy, err := s.srv.GetSession(sess.ID)
 	c.Assert(err, IsNil)
-	sess.Parties = []Party{p1}
-	c.Assert(out, DeepEquals, &sess)
+	c.Assert(len(copy.Parties), Equals, 2)
 
-	// add one more party
-	p2 := Party{
-		ID:         NewID(),
-		User:       "alice",
-		RemoteAddr: "example.com",
-		ServerID:   "id-2",
-		LastActive: s.clock.UtcNow(),
-	}
-	c.Assert(s.srv.UpsertParty(sess.ID, p2, defaults.ActivePartyTTL), IsNil)
+	// empty update (list of parties must not change)
+	s.srv.UpdateSession(UpdateRequest{ID: sess.ID})
+	copy, _ = s.srv.GetSession(sess.ID)
+	c.Assert(len(copy.Parties), Equals, 2)
 
-	out, err = s.srv.GetSession(sess.ID)
-	c.Assert(err, IsNil)
-	sess.Parties = []Party{p1, p2}
-	c.Assert(out, DeepEquals, &sess)
+	// remove the 2nd party:
+	deleted := copy.RemoveParty(parties[1].ID)
+	c.Assert(deleted, Equals, true)
+	s.srv.UpdateSession(UpdateRequest{ID: copy.ID,
+		Parties: &copy.Parties})
+	copy, _ = s.srv.GetSession(sess.ID)
+	c.Assert(len(copy.Parties), Equals, 1)
 
-	// Update session party
-	s.clock.Sleep(time.Second)
-	p1.LastActive = s.clock.UtcNow()
-	c.Assert(s.srv.UpsertParty(sess.ID, p1, defaults.ActivePartyTTL), IsNil)
-
-	out, err = s.srv.GetSession(sess.ID)
-	c.Assert(err, IsNil)
-	sess.Parties = []Party{p1, p2}
-	c.Assert(out, DeepEquals, &sess)
+	// we still have the 1st party in:
+	c.Assert(parties[0].ID, Equals, copy.Parties[0].ID)
 }

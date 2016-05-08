@@ -22,13 +22,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	rsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/codahale/lunk"
-	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
@@ -51,20 +47,20 @@ type ctx struct {
 	// srv is a pointer to the server holding the context
 	srv *Server
 
-	// this event id will be associated with all events emitted with this context
-	eid lunk.EventID
-
 	// server specific incremental session id
 	id int
-	// info about connection for debugging purposes
-	info ssh.ConnMetadata
+
+	// SSH connection
+	conn *ssh.ServerConn
 
 	sync.RWMutex
+
 	// term holds PTY if it was requested by the session
 	term *terminal
 
 	// agent is a client to remote SSH agent
 	agent agent.Agent
+
 	// agentCh is SSH channel using SSH agent protocol
 	agentCh ssh.Channel
 
@@ -92,11 +88,6 @@ type ctx struct {
 
 	// session, if there's an active one
 	session *session
-}
-
-// emit emits event
-func (c *ctx) emit(e lunk.Event) {
-	c.srv.elog.Log(c.eid, e)
 }
 
 // addCloser adds any closer in ctx that will be called
@@ -133,7 +124,6 @@ func (c *ctx) getTerm() *terminal {
 func (c *ctx) setTerm(t *terminal) {
 	c.Lock()
 	defer c.Unlock()
-	log.Infof("setTerm: %v", t)
 	c.term = t
 }
 
@@ -182,7 +172,7 @@ func (c *ctx) resolver() resolver {
 }
 
 func (c *ctx) String() string {
-	return fmt.Sprintf("sess(%v->%v, user=%v, id=%v)", c.info.RemoteAddr(), c.info.LocalAddr(), c.info.User(), c.id)
+	return fmt.Sprintf("sess(%v->%v, user=%v, id=%v)", c.conn.RemoteAddr(), c.conn.LocalAddr(), c.conn.User(), c.id)
 }
 
 func (c *ctx) setEnv(key, val string) {
@@ -195,36 +185,10 @@ func (c *ctx) getEnv(key string) (string, bool) {
 	return val, ok
 }
 
-func (c *ctx) getSessionID() (*rsession.ID, error) {
-	sid, ok := c.getEnv(sshutils.SessionEnvVar)
-	if !ok || sid == "" {
-		return nil, trace.NotFound("session ID not found")
-	}
-	sessionID, err := rsession.ParseID(sid)
-	if err != nil {
-		return nil, trace.BadParameter("%v session ID: bad format", sshutils.SessionEnvVar)
-	}
-	return sessionID, nil
-}
-
-func (c *ctx) initSessionID() (*rsession.ID, error) {
-	sessionID, err := c.getSessionID()
-	if err == nil {
-		return sessionID, nil
-	}
-	if trace.IsNotFound(err) {
-		sid := rsession.NewID()
-		c.setEnv(sshutils.SessionEnvVar, string(sid))
-		return &sid, nil
-	}
-	return nil, trace.Wrap(err)
-}
-
 func newCtx(srv *Server, conn *ssh.ServerConn) *ctx {
 	ctx := &ctx{
 		env:              make(map[string]string),
-		eid:              lunk.NewRootEventID(),
-		info:             conn,
+		conn:             conn,
 		id:               int(atomic.AddInt32(&ctxID, int32(1))),
 		result:           make(chan execResult, 10),
 		subsystemResultC: make(chan subsystemResult, 10),

@@ -45,38 +45,29 @@ const partiesBySessionId = (sid) =>
     return [];
   }
 
-  var lastActiveUsrName = getLastActiveUser(parties).get('user');
-
   return parties.map(item=>{
-    var user = item.get('user');
     return {
       user: item.get('user'),
       serverIp: item.get('remote_addr'),
-      serverId: item.get('server_id'),
-      isActive: lastActiveUsrName === user
+      serverId: item.get('server_id')
     }
   }).toJS();
 }];
 
-function getLastActiveUser(parties){
-  return parties.sortBy(item=> new Date(item.get('lastActive'))).last();
-}
-
 function createView(session){
   var sid = session.get('id');
-  var serverIp, serverId;
+  var serverIp;
   var parties = reactor.evaluate(partiesBySessionId(sid));
 
   if(parties.length > 0){
-    serverIp = parties[0].serverIp;
-    serverId = parties[0].serverId;
+    serverIp = parties[0].serverIp;    
   }
 
   return {
     sid: sid,
     sessionUrl: cfg.getActiveSessionRouteUrl(sid),
     serverIp,
-    serverId,
+    serverId: session.get('server_id'),
     active: session.get('active'),
     created: session.get('created'),
     lastActive: session.get('last_active'),

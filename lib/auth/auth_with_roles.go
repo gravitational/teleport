@@ -17,40 +17,24 @@ limitations under the License.
 package auth
 
 import (
+	"io"
 	"net/url"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 
-	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
 )
 
 type AuthWithRoles struct {
 	authServer  *AuthServer
 	permChecker PermissionChecker
-	elog        events.Log
 	sessions    session.Service
 	role        teleport.Role
-	recorder    recorder.Recorder
-}
-
-func NewAuthWithRoles(authServer *AuthServer, permChecker PermissionChecker,
-	elog events.Log, sessions session.Service,
-	role teleport.Role, recorder recorder.Recorder) *AuthWithRoles {
-
-	return &AuthWithRoles{
-		authServer:  authServer,
-		permChecker: permChecker,
-		sessions:    sessions,
-		role:        role,
-		recorder:    recorder,
-		elog:        elog,
-	}
+	alog        events.IAuditLog
 }
 
 func (a *AuthWithRoles) GetSessions() ([]session.Session, error) {
@@ -79,12 +63,6 @@ func (a *AuthWithRoles) UpdateSession(req session.UpdateRequest) error {
 	}
 	return a.sessions.UpdateSession(req)
 
-}
-func (a *AuthWithRoles) UpsertParty(id session.ID, p session.Party, ttl time.Duration) error {
-	if err := a.permChecker.HasPermission(a.role, ActionUpsertParty); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.sessions.UpsertParty(id, p, ttl)
 }
 func (a *AuthWithRoles) UpsertCertAuthority(ca services.CertAuthority, ttl time.Duration) error {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertCertAuthority); err != nil {
@@ -137,55 +115,6 @@ func (a *AuthWithRoles) RegisterNewAuthServer(token string) error {
 		return trace.Wrap(err)
 	}
 	return a.authServer.RegisterNewAuthServer(token)
-
-}
-func (a *AuthWithRoles) Log(id lunk.EventID, e lunk.Event) {
-	if err := a.permChecker.HasPermission(a.role, ActionLog); err != nil {
-		return
-	}
-	a.elog.Log(id, e)
-
-}
-func (a *AuthWithRoles) LogEntry(en lunk.Entry) error {
-	if err := a.permChecker.HasPermission(a.role, ActionLogEntry); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.elog.LogEntry(en)
-
-}
-func (a *AuthWithRoles) GetEvents(filter events.Filter) ([]lunk.Entry, error) {
-	if err := a.permChecker.HasPermission(a.role, ActionGetEvents); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.elog.GetEvents(filter)
-
-}
-func (a *AuthWithRoles) LogSession(sess session.Session) error {
-	if err := a.permChecker.HasPermission(a.role, ActionUpsertSession); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.elog.LogSession(sess)
-
-}
-func (a *AuthWithRoles) GetSessionEvents(filter events.Filter) ([]session.Session, error) {
-	if err := a.permChecker.HasPermission(a.role, ActionGetSessions); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.elog.GetSessionEvents(filter)
-
-}
-func (a *AuthWithRoles) GetChunkWriter(id string) (recorder.ChunkWriteCloser, error) {
-	if err := a.permChecker.HasPermission(a.role, ActionGetChunkWriter); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.recorder.GetChunkWriter(id)
-
-}
-func (a *AuthWithRoles) GetChunkReader(id string) (recorder.ChunkReadCloser, error) {
-	if err := a.permChecker.HasPermission(a.role, ActionGetChunkReader); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.recorder.GetChunkReader(id)
 
 }
 func (a *AuthWithRoles) UpsertNode(s services.Server, ttl time.Duration) error {
@@ -423,4 +352,54 @@ func (a *AuthWithRoles) DeleteOIDCConnector(connectorID string) error {
 		return trace.Wrap(err)
 	}
 	return a.authServer.Identity.DeleteOIDCConnector(connectorID)
+}
+
+func (a *AuthWithRoles) EmitAuditEvent(eventType string, fields events.EventFields) error {
+	if err := a.permChecker.HasPermission(a.role, ActionEmitEvents); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.alog.EmitAuditEvent(eventType, fields)
+}
+
+func (a *AuthWithRoles) PostSessionChunk(sid session.ID, reader io.Reader) error {
+	if err := a.permChecker.HasPermission(a.role, ActionEmitEvents); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.alog.PostSessionChunk(sid, reader)
+}
+
+func (a *AuthWithRoles) GetSessionChunk(sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionViewSession); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.alog.GetSessionChunk(sid, offsetBytes, maxBytes)
+}
+
+func (a *AuthWithRoles) GetSessionEvents(sid session.ID, afterN int) ([]events.EventFields, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionViewSession); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.alog.GetSessionEvents(sid, afterN)
+}
+
+func (a *AuthWithRoles) SearchEvents(from, to time.Time, query string) ([]events.EventFields, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionViewSession); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.alog.SearchEvents(from, to, query)
+}
+
+// test helper
+func NewAuthWithRoles(authServer *AuthServer,
+	permChecker PermissionChecker,
+	sessions session.Service,
+	role teleport.Role,
+	alog events.IAuditLog) *AuthWithRoles {
+	return &AuthWithRoles{
+		authServer:  authServer,
+		permChecker: permChecker,
+		sessions:    sessions,
+		role:        role,
+		alog:        alog,
+	}
 }

@@ -170,7 +170,7 @@ var NodeList = React.createClass({
               />
               <Column
                 columnKey="tags"
-                header={<Cell></Cell> }
+                header={<Cell /> }
                 cell={<TagCell data={data}/> }
               />
               <Column

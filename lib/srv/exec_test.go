@@ -21,9 +21,11 @@ import (
 	"net"
 	"os/user"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"gopkg.in/check.v1"
-	//	"golang.org/x/crypto/ssh"
+
+	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ExecSuite also implements ssh.ConnMetadata
@@ -41,10 +43,9 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	s.usr, _ = user.Current()
 	s.ctx = &ctx{isTestStub: true}
 	s.ctx.login = s.usr.Username
-	s.ctx.info = s
 	s.ctx.session = &session{id: "xxx"}
 	s.ctx.teleportUser = "galt"
-
+	s.ctx.conn = &ssh.ServerConn{Conn: s}
 	s.localAddr, _ = utils.ParseAddr("127.0.0.1:3022")
 	s.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
 }
@@ -82,10 +83,16 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
 }
 
-// implementation of ssh.ConnMetadata interface
-func (s *ExecSuite) User() string          { return s.usr.Username }
-func (s *ExecSuite) SessionID() []byte     { return []byte{1, 2, 3} }
-func (s *ExecSuite) ClientVersion() []byte { return []byte{1} }
-func (s *ExecSuite) ServerVersion() []byte { return []byte{1} }
-func (s *ExecSuite) RemoteAddr() net.Addr  { return s.remoteAddr }
-func (s *ExecSuite) LocalAddr() net.Addr   { return s.localAddr }
+// implementation of ssh.Conn interface
+func (s *ExecSuite) User() string                                           { return s.usr.Username }
+func (s *ExecSuite) SessionID() []byte                                      { return []byte{1, 2, 3} }
+func (s *ExecSuite) ClientVersion() []byte                                  { return []byte{1} }
+func (s *ExecSuite) ServerVersion() []byte                                  { return []byte{1} }
+func (s *ExecSuite) RemoteAddr() net.Addr                                   { return s.remoteAddr }
+func (s *ExecSuite) LocalAddr() net.Addr                                    { return s.localAddr }
+func (s *ExecSuite) Close() error                                           { return nil }
+func (s *ExecSuite) SendRequest(string, bool, []byte) (bool, []byte, error) { return false, nil, nil }
+func (s *ExecSuite) OpenChannel(string, []byte) (ssh.Channel, <-chan *ssh.Request, error) {
+	return nil, nil, nil
+}
+func (s *ExecSuite) Wait() error { return nil }

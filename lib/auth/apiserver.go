@@ -28,13 +28,11 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 )
@@ -48,11 +46,7 @@ type Config struct {
 // APIServer implements http API server for AuthServer interface
 type APIServer struct {
 	httprouter.Router
-	a    *AuthWithRoles
-	s    *AuthServer
-	elog events.Log
-	se   session.Service
-	rec  recorder.Recorder
+	a *AuthWithRoles
 }
 
 // NewAPIServer returns a new instance of APIServer HTTP handler
@@ -110,24 +104,14 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.POST("/v1/tokens/register", httplib.MakeHandler(srv.registerUsingToken))
 	srv.POST("/v1/tokens/register/auth", httplib.MakeHandler(srv.registerNewAuthServer))
 
-	// Events
-	srv.POST("/v1/events", httplib.MakeHandler(srv.submitEvents))
-	srv.GET("/v1/events", httplib.MakeHandler(srv.getEvents))
-
-	srv.POST("/v1/events/sessions", httplib.MakeHandler(srv.logSessionEvents))
-	srv.GET("/v1/events/sessions", httplib.MakeHandler(srv.getSessionEvents))
-
-	// Recorded sessions
-	srv.POST("/v1/records/:sid/chunks", httplib.MakeHandler(srv.submitChunks))
-	srv.GET("/v1/records/:sid/chunks", httplib.MakeHandler(srv.getChunks))
-	srv.GET("/v1/records/:sid/chunkscount", httplib.MakeHandler(srv.getChunksCount))
-
 	// Sesssions
-	srv.POST("/v1/sessions/:id/parties", httplib.MakeHandler(srv.upsertSessionParty))
 	srv.POST("/v1/sessions", httplib.MakeHandler(srv.createSession))
 	srv.PUT("/v1/sessions/:id", httplib.MakeHandler(srv.updateSession))
 	srv.GET("/v1/sessions", httplib.MakeHandler(srv.getSessions))
 	srv.GET("/v1/sessions/:id", httplib.MakeHandler(srv.getSession))
+	srv.POST("/v1/sessions/:id/stream", httplib.MakeHandler(srv.postSessionChunk))
+	srv.GET("/v1/sessions/:id/stream", srv.getSessionChunk)
+	srv.GET("/v1/sessions/:id/events", httplib.MakeHandler(srv.getSessionEvents))
 
 	// OIDC stuff
 	srv.POST("/v1/oidc/connectors", httplib.MakeHandler(srv.upsertOIDCConnector))
@@ -136,6 +120,10 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.DELETE("/v1/oidc/connectors/:id", httplib.MakeHandler(srv.deleteOIDCConnector))
 	srv.POST("/v1/oidc/requests/create", httplib.MakeHandler(srv.createOIDCAuthRequest))
 	srv.POST("/v1/oidc/requests/validate", httplib.MakeHandler(srv.validateOIDCAuthCallback))
+
+	// Audit logs AKA events
+	srv.POST("/v1/events", httplib.MakeHandler(srv.emitAuditEvent))
+	srv.GET("/v1/events", httplib.MakeHandler(srv.searchEvents))
 
 	return srv
 }
@@ -509,133 +497,6 @@ func (s *APIServer) registerNewAuthServer(w http.ResponseWriter, r *http.Request
 	return message("ok"), nil
 }
 
-type submitEventsReq struct {
-	Events []lunk.Entry `json:"events"`
-}
-
-func (s *APIServer) submitEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
-	var req *submitEventsReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	for _, e := range req.Events {
-		if err := s.a.LogEntry(e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return message("events submitted"), nil
-}
-
-type logSessionsReq struct {
-	Sessions []session.Session `json:"sessions"`
-}
-
-func (s *APIServer) logSessionEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
-	var req *logSessionsReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	for i := range req.Sessions {
-		if err := s.a.LogSession(req.Sessions[i]); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return message("session events submitted"), nil
-}
-
-func (s *APIServer) getEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
-	f, err := events.FilterFromURL(r.URL.Query())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	events, err := s.a.GetEvents(*f)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return events, nil
-}
-
-func (s *APIServer) getSessionEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
-	f, err := events.FilterFromURL(r.URL.Query())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sessionEvents, err := s.a.GetSessionEvents(*f)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sessionEvents, nil
-}
-
-type writeChunksReq struct {
-	Chunks []recorder.Chunk `json:"chunk"`
-}
-
-func (s *APIServer) submitChunks(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	sid := p[0].Value
-	var req *writeChunksReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	wr, err := s.a.GetChunkWriter(sid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer wr.Close()
-
-	if err := wr.WriteChunks(req.Chunks); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message("chunks submitted"), nil
-}
-
-func (s *APIServer) getChunks(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	sid := p[0].Value
-
-	st, en := r.URL.Query().Get("start"), r.URL.Query().Get("end")
-	start, err := strconv.Atoi(st)
-	if err != nil {
-		return nil, trace.BadParameter("start: need integer")
-	}
-	end, err := strconv.Atoi(en)
-	if err != nil {
-		return nil, trace.BadParameter("end: need integer")
-	}
-
-	re, err := s.a.GetChunkReader(sid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer re.Close()
-
-	chunks, err := re.ReadChunks(start, end)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return chunks, nil
-}
-
-func (s *APIServer) getChunksCount(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	sid := p[0].Value
-
-	re, err := s.a.GetChunkReader(sid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer re.Close()
-
-	count, err := re.GetChunksCount()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return count, nil
-}
-
 type upsertCertAuthorityReq struct {
 	CA  services.CertAuthority `json:"ca"`
 	TTL time.Duration          `json:"ttl"`
@@ -711,27 +572,6 @@ func (s *APIServer) updateSession(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
-}
-
-type upsertPartyReq struct {
-	Party session.Party `json:"party"`
-	TTL   time.Duration `json:"ttl"`
-}
-
-func (s *APIServer) upsertSessionParty(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *upsertPartyReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sid, err := session.ParseID(p[0].Value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := s.a.UpsertParty(*sid, req.Party, req.TTL); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return req.Party, nil
 }
 
 func (s *APIServer) getSessions(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -897,6 +737,124 @@ func (s *APIServer) validateOIDCAuthCallback(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 	return response, nil
+}
+
+// HTTP GET /v1/events?query
+//
+// Query fields:
+//	'from'  : time filter in RFC3339 format
+//	'to'    : time filter in RFC3339 format
+//  ...     : other fields are passed directly to the audit backend
+func (s *APIServer) searchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var err error
+	to := time.Now().In(time.UTC)
+	from := to.AddDate(0, -1, 0) // one month ago
+	query := r.URL.Query()
+	// parse 'to' and 'from' params:
+	fromStr := query.Get("from")
+	if fromStr != "" {
+		from, err = time.Parse(time.RFC3339, fromStr)
+		if err != nil {
+			return nil, trace.BadParameter("from")
+		}
+	}
+	toStr := query.Get("to")
+	if toStr != "" {
+		to, err = time.Parse(time.RFC3339, toStr)
+		if err != nil {
+			return nil, trace.BadParameter("to")
+		}
+	}
+	// remove 'to' & 'from' fields, passing the rest of the query unmodified
+	// to whatever pluggable search is implemented by the backend
+	query.Del("to")
+	query.Del("from")
+	eventsList, err := s.a.SearchEvents(from, to, query.Encode())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return eventsList, nil
+}
+
+type auditEventReq struct {
+	Type   string             `json:"type"`
+	Fields events.EventFields `json:"fields"`
+}
+
+// HTTP	POST /v1/events
+func (s *APIServer) emitAuditEvent(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req auditEventReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.a.EmitAuditEvent(req.Type, req.Fields); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+// HTTP POST /v1/sessions/:id/stream
+func (s *APIServer) postSessionChunk(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	sid, err := session.ParseID(p.ByName("id"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = s.a.PostSessionChunk(*sid, r.Body); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+// HTTP GET /v1/sessions/:id/stream?offset=x&bytes=y
+// Query parameters:
+//   "offset"   : bytes from the beginning
+//   "bytes"    : number of bytes to read (it won't return more than 512Kb)
+func (s *APIServer) getSessionChunk(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	sid, err := session.ParseID(p.ByName("id"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	// "offset bytes" query param
+	offsetBytes, err := strconv.Atoi(r.URL.Query().Get("offset"))
+	if err != nil || offsetBytes < 0 {
+		offsetBytes = 0
+	}
+	// "max bytes" query param
+	max, err := strconv.Atoi(r.URL.Query().Get("bytes"))
+	if err != nil || offsetBytes < 0 {
+		offsetBytes = 0
+	}
+	log.Debugf("apiserver.GetSessionChunk(%v, offset=%d)", *sid, offsetBytes)
+	w.Header().Set("Content-Type", "text/plain")
+
+	buffer, err := s.a.GetSessionChunk(*sid, offsetBytes, max)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if _, err = w.Write(buffer); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+}
+
+// HTTP GET /v1/sessions/:id/events?maxage=n
+// Query:
+//    'after' : cursor value to return events newer than N. Defaults to 0, (return all)
+func (s *APIServer) getSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	sid, err := session.ParseID(p.ByName("id"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	afterN, err := strconv.Atoi(r.URL.Query().Get("after"))
+	if err != nil {
+		afterN = 0
+	}
+	log.Debugf("[AUTH] api.getSessionEvents(%v, after=%d)", *sid, afterN)
+	return s.a.GetSessionEvents(*sid, afterN)
 }
 
 func message(msg string) map[string]interface{} {

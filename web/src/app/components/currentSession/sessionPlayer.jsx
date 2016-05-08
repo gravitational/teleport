@@ -16,43 +16,58 @@ limitations under the License.
 
 var React = require('react');
 var ReactSlider = require('react-slider');
-var TtyPlayer = require('app/common/ttyPlayer')
-var TtyTerminal = require('./../terminal.jsx');
+var {TtyPlayer} = require('app/common/term/ttyPlayer')
+var Terminal = require('app/common/term/terminal');
 var SessionLeftPanel = require('./sessionLeftPanel.jsx');
+var cfg = require('app/config');
+
+class Term extends Terminal{
+  constructor(tty, el){
+    super({el, scrollBack: 0});
+    this.tty = tty;
+  }
+
+  connect(){
+    this.tty.connect();
+  }
+
+  _disconnect(){}
+
+  _requestResize(){}
+}
 
 var SessionPlayer = React.createClass({
   calculateState(){
-    let {w, h } = this.tty.getDimensions();
-
     return {
       length: this.tty.length,
       min: 1,
       isPlaying: this.tty.isPlaying,
       current: this.tty.current,
-      canPlay: this.tty.length > 1,
-      w,
-      h
+      canPlay: this.tty.length > 1
     };
   },
 
   getInitialState() {
-    var sid = this.props.sid;
-    this.tty = new TtyPlayer({sid});
-    return this.calculateState();
-  },
-
-  componentWillUnmount() {
-    this.tty.stop();
-    this.tty.removeAllListeners();
-  },
-
-  componentDidMount() {
+    var url = cfg.api.getFetchSessionUrl(this.props.sid);
+    this.tty = new TtyPlayer({url});
     this.tty.on('change', ()=>{
       var newState = this.calculateState();
       this.setState(newState);
     });
 
+    return this.calculateState();
+  },
+
+  componentDidMount() {
+    this.terminal = new Term(this.tty, this.refs.container);
+    this.terminal.open();
     this.tty.play();
+  },
+
+  componentWillUnmount() {
+    this.tty.stop();
+    this.tty.removeAllListeners();
+    this.terminal.destroy();
   },
 
   togglePlayStop(){
@@ -77,12 +92,12 @@ var SessionPlayer = React.createClass({
   },
 
   render: function() {
-    var {isPlaying, w, h} = this.state;
+    var {isPlaying} = this.state;
 
     return (
      <div className="grv-current-session grv-session-player">
        <SessionLeftPanel/>
-       <TtyTerminal ref="term" tty={this.tty} cols={w} rows={h} scrollback={0} />
+       <div ref="container"/>
        <div className="grv-session-player-controls">
          <button className="btn" onClick={this.togglePlayStop}>
            { isPlaying ? <i className="fa fa-stop"></i> :  <i className="fa fa-play"></i> }
@@ -95,8 +110,7 @@ var SessionPlayer = React.createClass({
               onChange={this.move}
               defaultValue={1}
               withBars
-              className="grv-slider">
-           </ReactSlider>
+              className="grv-slider" />
          </div>
         </div>
      </div>

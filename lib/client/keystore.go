@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
@@ -80,7 +81,7 @@ func NewFSLocalKeyStore(dirPath string) (s *FSLocalKeyStore, err error) {
 // GetKeys returns all user session keys stored in the store
 func (fs *FSLocalKeyStore) GetKeys(username string) (keys []Key, err error) {
 	dirPath := filepath.Join(fs.KeyDir, sessionKeyDir)
-	if !isDir(dirPath) {
+	if !utils.IsDir(dirPath) {
 		return make([]Key, 0), nil
 	}
 	dirEntries, err := ioutil.ReadDir(dirPath)
@@ -218,11 +219,9 @@ func (fs *FSLocalKeyStore) GetKnownCAs() ([]ssh.PublicKey, error) {
 // for a given host are stored
 func (fs *FSLocalKeyStore) dirFor(hostname string) (string, error) {
 	dirPath := filepath.Join(fs.KeyDir, sessionKeyDir, hostname)
-	if !isDir(dirPath) {
-		if err := os.MkdirAll(dirPath, 0777); err != nil {
-			log.Error(err)
-			return "", trace.Wrap(err)
-		}
+	if err := os.MkdirAll(dirPath, 0777); err != nil {
+		log.Error(err)
+		return "", trace.Wrap(err)
 	}
 	return dirPath, nil
 }
@@ -254,13 +253,4 @@ func initKeysDir(dirPath string) (string, error) {
 	}
 
 	return dirPath, nil
-}
-
-// isDir is a helper function to quickly check if a given path is a valid directory
-func isDir(dirPath string) bool {
-	fi, err := os.Stat(dirPath)
-	if err == nil {
-		return fi.IsDir()
-	}
-	return false
 }

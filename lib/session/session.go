@@ -20,8 +20,10 @@ package session
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 
@@ -98,7 +100,7 @@ func NewID() ID {
 type Session struct {
 	// ID is a unique session identifier
 	ID ID `json:"id"`
-	// Parties is a list of session parties
+	// Parties is a list of session parties.
 	Parties []Party `json:"parties"`
 	// TerminalParams sets terminal properties
 	TerminalParams TerminalParams `json:"terminal_params"`
@@ -112,6 +114,20 @@ type Session struct {
 	// LastActive holds the information about when the session
 	// was last active
 	LastActive time.Time `json:"last_active"`
+	// ServerID
+	ServerID string `json:"server_id"`
+}
+
+// RemoveParty helper allows to remove a party by it's ID from the
+// session's list. Returns 'false' if pid couldn't be found
+func (s *Session) RemoveParty(pid ID) bool {
+	for i := range s.Parties {
+		if s.Parties[i].ID == pid {
+			s.Parties = append(s.Parties[:i], s.Parties[i+1:]...)
+			return true
+		}
+	}
+	return false
 }
 
 // Party is a participant a user or a script executing some action
@@ -143,6 +159,14 @@ type TerminalParams struct {
 	H int `json:"h"`
 }
 
+// Serialize is a more strict version of String(): it returns a string
+// representation of terminal size, this is used in our APIs.
+// Format : "W:H"
+// Example: "80:25"
+func (p *TerminalParams) Serialize() string {
+	return fmt.Sprintf("%d:%d", p.W, p.H)
+}
+
 // String returns debug friendly representation of terminal
 func (p *TerminalParams) String() string {
 	return fmt.Sprintf("TerminalParams(w=%v, h=%v)", p.W, p.H)
@@ -167,6 +191,10 @@ type UpdateRequest struct {
 	ID             ID              `json:"id"`
 	Active         *bool           `json:"active"`
 	TerminalParams *TerminalParams `json:"terminal_params"`
+
+	// Parties allows to update the list of session parties. nil means
+	// "do not update", empty list means "everybody is gone"
+	Parties *[]Party `json:"parties"`
 }
 
 // Check returns nil if request is valid, error otherwize
@@ -183,6 +211,10 @@ func (u *UpdateRequest) Check() error {
 	return nil
 }
 
+// Due to limitations of the current back-end, Teleport won't return more than 1000 sessions
+// per time window
+const MaxSessionSliceLength = 1000
+
 // Service is a realtime SSH session service
 // that has information about sessions that are in-flight in the
 // cluster at the moment
@@ -198,8 +230,6 @@ type Service interface {
 	// UpdateSession updates certain session parameters (last_active, terminal parameters)
 	// other parameters will not be updated
 	UpdateSession(req UpdateRequest) error
-	// UpsertParty upserts active session party
-	UpsertParty(id ID, p Party, ttl time.Duration) error
 }
 
 type server struct {
@@ -256,59 +286,60 @@ func partiesBucket(id ID) []string {
 	return []string{"sessions", "parties", string(id)}
 }
 
-func allBucket() []string {
-	return []string{"sessions", "all"}
-}
-
-// GetSessions returns a list of active sessions
+// GetSessions returns a list of active sessions. Returns an empty slice
+// if no sessions are active
 func (s *server) GetSessions() ([]Session, error) {
-	keys, err := s.bk.GetKeys(activeBucket())
+	bucket := activeBucket()
+	out := make(Sessions, 0)
+
+	keys, err := s.bk.GetKeys(bucket)
 	if err != nil {
+		log.Error(err)
 		return nil, err
 	}
-	out := []Session{}
-	for _, sid := range keys {
+	for i, sid := range keys {
+		if i > MaxSessionSliceLength {
+			break
+		}
 		se, err := s.GetSession(ID(sid))
 		if trace.IsNotFound(err) {
 			continue
 		}
 		out = append(out, *se)
 	}
+	sort.Stable(out)
 	return out, nil
+}
+
+// Sessions type is created over []Session to implement sort.Interface to
+// be able to sort sessions by creation time
+type Sessions []Session
+
+// Swap is part of sort.Interface implementation for []Session
+func (slice Sessions) Swap(i, j int) {
+	s := slice[i]
+	slice[i] = slice[j]
+	slice[j] = s
+}
+
+// Less is part of sort.Interface implementation for []Session
+func (slice Sessions) Less(i, j int) bool {
+	return slice[i].Created.Before(slice[j].Created)
+}
+
+// Len is part of sort.Interface implementation for []Session
+func (slice Sessions) Len() int {
+	return len(slice)
 }
 
 // GetSession returns the session by it's id
 func (s *server) GetSession(id ID) (*Session, error) {
 	var sess *Session
-	err := s.bk.GetJSONVal(allBucket(), string(id), &sess)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	_, err = s.bk.GetVal(activeBucket(), string(id))
+	err := s.bk.GetJSONVal(activeBucket(), string(id), &sess)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
-		sess.Active = false
-	} else {
-		sess.Active = true
-	}
-
-	parties, err := s.bk.GetKeys(partiesBucket(id))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, pk := range parties {
-		var p *Party
-		err := s.bk.GetJSONVal(partiesBucket(id), pk, &p)
-		if err != nil {
-			if trace.IsNotFound(err) { // key was expired
-				continue
-			}
-			return nil, err
-		}
-		sess.Parties = append(sess.Parties, *p)
 	}
 	return sess, nil
 }
@@ -334,11 +365,7 @@ func (s *server) CreateSession(sess Session) error {
 		return trace.Wrap(err)
 	}
 	sess.Parties = nil
-	err = s.bk.CreateJSONVal(allBucket(), string(sess.ID), sess, backend.Forever)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = s.bk.UpsertJSONVal(activeBucket(), string(sess.ID), "active", s.activeSessionTTL)
+	err = s.bk.UpsertJSONVal(activeBucket(), string(sess.ID), sess, s.activeSessionTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -350,50 +377,24 @@ func (s *server) UpdateSession(req UpdateRequest) error {
 	lock := "sessions" + string(req.ID)
 	s.bk.AcquireLock(lock, time.Second)
 	defer s.bk.ReleaseLock(lock)
-
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
 	var sess *Session
-	err := s.bk.GetJSONVal(allBucket(), string(req.ID), &sess)
+	err := s.bk.GetJSONVal(activeBucket(), string(req.ID), &sess)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if req.TerminalParams != nil {
 		sess.TerminalParams = *req.TerminalParams
 	}
-	sess.Parties = nil
-	err = s.bk.UpsertJSONVal(allBucket(), string(req.ID), sess, backend.Forever)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	if req.Active != nil {
-		if !*req.Active {
-			err := s.bk.DeleteKey(activeBucket(), string(req.ID))
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					return trace.Wrap(err)
-				}
-			}
-		} else {
-			err := s.bk.UpsertJSONVal(activeBucket(), string(req.ID), "active", s.activeSessionTTL)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
+		sess.Active = *req.Active
 	}
-	return nil
-}
-
-// UpsertParty updates or inserts active session party and sets TTL for it
-// it also updates
-func (s *server) UpsertParty(sessionID ID, p Party, ttl time.Duration) error {
-	err := s.bk.UpsertJSONVal(partiesBucket(sessionID), string(p.ID), p, ttl)
-	if err != nil {
-		return trace.Wrap(err)
+	if req.Parties != nil {
+		sess.Parties = *req.Parties
 	}
-	err = s.bk.UpsertJSONVal(activeBucket(),
-		string(sessionID), "active", s.activeSessionTTL)
+	err = s.bk.UpsertJSONVal(activeBucket(), string(req.ID), sess, s.activeSessionTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}

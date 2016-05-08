@@ -154,7 +154,6 @@ func (s *Server) acceptConnections() {
 			return
 		}
 		log.Infof("%v accepted connection from %v", s.Addr(), conn.RemoteAddr())
-
 		go s.handleConnection(conn)
 	}
 }

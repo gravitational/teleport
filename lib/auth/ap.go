@@ -19,16 +19,12 @@ package auth
 import (
 	"time"
 
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/codahale/lunk"
 )
 
 // AccessPoint is a interface needed by nodes to control the access
 // to the node, and provide heartbeats
 type AccessPoint interface {
-
 	// GetLocalDomain returns domain name of the local authority server
 	GetLocalDomain() (string, error)
 
@@ -51,7 +47,4 @@ type AccessPoint interface {
 
 	// GetUsers returns a list of local users registered with this domain
 	GetUsers() ([]services.User, error)
-
-	// GetEvents returns a list of events that
-	GetEvents(filter events.Filter) ([]lunk.Entry, error)
 }

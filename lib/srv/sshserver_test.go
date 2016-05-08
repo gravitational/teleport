@@ -34,9 +34,8 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/lib/events/boltlog"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -63,6 +62,7 @@ type SrvSuite struct {
 	bk            backend.Backend
 	a             *auth.AuthServer
 	roleAuth      *auth.AuthWithRoles
+	alog          *events.AuditLog
 	up            *upack
 	signer        ssh.Signer
 	dir           string
@@ -78,7 +78,10 @@ func (s *SrvSuite) SetUpSuite(c *C) {
 }
 
 func (s *SrvSuite) SetUpTest(c *C) {
+	var err error
 	s.dir = c.MkDir()
+	s.alog, err = events.NewAuditLog(s.dir)
+	c.Assert(err, IsNil)
 
 	u, err := user.Current()
 	c.Assert(err, IsNil)
@@ -96,15 +99,12 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		Authority:  authority.New(),
 		DomainName: s.domainName})
 
-	eventsLog, err := boltlog.New(filepath.Join(s.dir, "boltlog"))
-	c.Assert(err, IsNil)
-
 	sessionServer, err := sess.New(s.bk)
 	s.sessionServer = sessionServer
 	c.Assert(err, IsNil)
+
 	s.roleAuth = auth.NewAuthWithRoles(s.a,
 		auth.NewStandardPermissions(),
-		eventsLog,
 		sessionServer,
 		teleport.RoleAdmin,
 		nil)
@@ -337,19 +337,12 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	up, err := newUpack(s.user, []string{s.user}, s.a)
 	c.Assert(err, IsNil)
 
-	bl, err := boltlog.New(filepath.Join(s.dir, "eventsdb"))
-	c.Assert(err, IsNil)
-
-	rec, err := boltrec.New(s.dir)
-	c.Assert(err, IsNil)
-
 	sessionServer, err := sess.New(s.bk)
 	c.Assert(err, IsNil)
 	apiSrv := auth.NewAPIWithRoles(auth.APIConfig{
 		AuthServer:        s.a,
-		EventLog:          bl,
+		AuditLog:          s.alog,
 		SessionService:    sessionServer,
-		Recorder:          rec,
 		PermissionChecker: auth.NewAllowAllPermissions(),
 		Roles:             auth.StandardRoles})
 	go apiSrv.Serve()
@@ -361,7 +354,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
 
-	tunClt, err := auth.NewTunClient(
+	tunClt, err := auth.NewTunClient("test",
 		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: tsrv.Addr()}}, s.domainName, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
 	c.Assert(err, IsNil)
 	defer tunClt.Close()
@@ -504,19 +497,12 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	up, err := newUpack(s.user, []string{s.user}, s.a)
 	c.Assert(err, IsNil)
 
-	bl, err := boltlog.New(filepath.Join(s.dir, "eventsdb"))
-	c.Assert(err, IsNil)
-
-	rec, err := boltrec.New(s.dir)
-	c.Assert(err, IsNil)
-
 	sessionServer, err := sess.New(s.bk)
 	c.Assert(err, IsNil)
 	apiSrv := auth.NewAPIWithRoles(auth.APIConfig{
 		AuthServer:        s.a,
-		EventLog:          bl,
+		AuditLog:          s.alog,
 		SessionService:    sessionServer,
-		Recorder:          rec,
 		PermissionChecker: auth.NewAllowAllPermissions(),
 		Roles:             auth.StandardRoles})
 	go apiSrv.Serve()
@@ -528,7 +514,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
 
-	tunClt, err := auth.NewTunClient(
+	tunClt, err := auth.NewTunClient("test",
 		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: tsrv.Addr()}}, s.domainName, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
 	c.Assert(err, IsNil)
 	defer tunClt.Close()
@@ -602,20 +588,13 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	up, err := newUpack(s.user, []string{s.user}, s.a)
 	c.Assert(err, IsNil)
 
-	bl, err := boltlog.New(filepath.Join(s.dir, "eventsdb"))
-	c.Assert(err, IsNil)
-
-	rec, err := boltrec.New(s.dir)
-	c.Assert(err, IsNil)
-
 	sessionServer, err := sess.New(s.bk)
 	c.Assert(err, IsNil)
 
 	apiSrv := auth.NewAPIWithRoles(auth.APIConfig{
 		AuthServer:        s.a,
-		EventLog:          bl,
+		AuditLog:          s.alog,
 		SessionService:    sessionServer,
-		Recorder:          rec,
 		PermissionChecker: auth.NewAllowAllPermissions(),
 		Roles:             auth.StandardRoles})
 	go apiSrv.Serve()
@@ -627,7 +606,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
 
-	tunClt, err := auth.NewTunClient(
+	tunClt, err := auth.NewTunClient("test",
 		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: tsrv.Addr()}}, s.domainName, []ssh.AuthMethod{ssh.PublicKeys(s.signer)})
 	c.Assert(err, IsNil)
 	defer tunClt.Close()
@@ -676,8 +655,6 @@ func (s *SrvSuite) TestPasswordAuth(c *C) {
 	c.Assert(err, NotNil)
 }
 
-// TODO(klizhentas): figure out the way to check that resources are properly deallocated
-// on client disconnects
 func (s *SrvSuite) TestClientDisconnect(c *C) {
 	config := &ssh.ClientConfig{
 		User: s.user,

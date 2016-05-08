@@ -118,7 +118,7 @@ var ArchivedSessions = React.createClass({
                   cell={<TextCell data={data}/> }
                 />
                 <Column
-                  header={<Cell> </Cell> }
+                  header={<Cell/>}
                   cell={
                     <ButtonCell data={data} />
                   }
@@ -141,15 +141,7 @@ var ArchivedSessions = React.createClass({
               </Table>
             </div>
           }
-        </div>
-        {
-          status.hasMore ?
-            (<div className="grv-footer">
-              <button disabled={status.isLoading} className="btn btn-primary btn-outline" onClick={actions.fetchMore}>
-                <span>Load more...</span>
-              </button>
-            </div>) : null
-        }
+        </div>        
       </div>
     )
   }

@@ -17,20 +17,17 @@ limitations under the License.
 package auth
 
 import (
+	"fmt"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/lib/events/boltlog"
-	etest "github.com/gravitational/teleport/lib/events/test"
-	"github.com/gravitational/teleport/lib/recorder"
-	"github.com/gravitational/teleport/lib/recorder/boltrec"
-	rtest "github.com/gravitational/teleport/lib/recorder/test"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -42,16 +39,13 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func TestAPI(t *testing.T) { TestingT(t) }
-
 type APISuite struct {
-	srv *httptest.Server
-	clt *Client
-	bk  backend.Backend
-	bl  *boltlog.BoltLog
-	rec recorder.Recorder
-	a   *AuthServer
-	dir string
+	srv  *httptest.Server
+	clt  *Client
+	bk   backend.Backend
+	a    *AuthServer
+	dir  string
+	alog *events.AuditLog
 
 	CAS           services.Trust
 	LockS         services.Lock
@@ -69,15 +63,12 @@ func (s *APISuite) SetUpSuite(c *C) {
 
 func (s *APISuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
-
 	var err error
+
 	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
 
-	s.bl, err = boltlog.New(filepath.Join(s.dir, "eventsdb"))
-	c.Assert(err, IsNil)
-
-	s.rec, err = boltrec.New(s.dir)
+	s.alog, err = events.NewAuditLog(s.dir)
 	c.Assert(err, IsNil)
 
 	s.a = NewAuthServer(&InitConfig{
@@ -90,12 +81,12 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.srv = httptest.NewServer(NewAPIServer(
 		&AuthWithRoles{
 			authServer:  s.a,
-			elog:        s.bl,
+			alog:        s.alog,
 			sessions:    sessionServer,
-			recorder:    s.rec,
 			permChecker: NewAllowAllPermissions(),
 		}))
-	clt, err := NewClient(s.srv.URL)
+
+	clt, err := NewClient(s.srv.URL, nil)
 	c.Assert(err, IsNil)
 	s.clt = clt
 
@@ -108,26 +99,24 @@ func (s *APISuite) SetUpTest(c *C) {
 
 func (s *APISuite) TearDownTest(c *C) {
 	s.srv.Close()
-	s.bl.Close()
+	s.alog.Close()
+	os.RemoveAll(s.dir)
 }
 
-func (s *APISuite) TestGenerateKeyPair(c *C) {
+func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	priv, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
 	// make sure we can parse the private and public key
 	_, err = ssh.ParsePrivateKey(priv)
 	c.Assert(err, IsNil)
-
 	_, _, _, _, err = ssh.ParseAuthorizedKey(pub)
 	c.Assert(err, IsNil)
-}
 
-func (s *APISuite) TestGenerateHostCert(c *C) {
 	c.Assert(s.clt.UpsertCertAuthority(
 		*suite.NewTestCA(services.HostCA, "localhost"), backend.Forever), IsNil)
 
-	_, pub, err := s.clt.GenerateKeyPair("")
+	_, pub, err = s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
 	// make sure we can parse the private and public key
@@ -136,13 +125,11 @@ func (s *APISuite) TestGenerateHostCert(c *C) {
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
 	c.Assert(err, IsNil)
-}
 
-func (s *APISuite) TestGenerateUserCert(c *C) {
 	c.Assert(s.clt.UpsertCertAuthority(
 		*suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
-	_, pub, err := s.clt.GenerateKeyPair("")
+	_, pub, err = s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
 	err = s.clt.UpsertUser(
@@ -150,7 +137,7 @@ func (s *APISuite) TestGenerateUserCert(c *C) {
 	c.Assert(err, IsNil)
 
 	// make sure we can parse the private and public key
-	cert, err := s.clt.GenerateUserCert(pub, "user1", time.Hour)
+	cert, err = s.clt.GenerateUserCert(pub, "user1", time.Hour)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
@@ -319,7 +306,6 @@ func (s *APISuite) TestServers(c *C) {
 	c.Assert(out, DeepEquals, []services.Server{srv, srv1})
 }
 
-// TODO(klizhentas) this code will be removed and will use test suite
 func (s *APISuite) TestReverseTunnels(c *C) {
 	out, err := s.clt.GetReverseTunnels()
 	c.Assert(err, IsNil)
@@ -338,21 +324,6 @@ func (s *APISuite) TestReverseTunnels(c *C) {
 	out, err = s.clt.GetReverseTunnels()
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
-}
-
-func (s *APISuite) TestEvents(c *C) {
-	suite := etest.EventSuite{L: s.clt}
-	suite.EventsCRUD(c)
-}
-
-func (s *APISuite) TestSessionEvents(c *C) {
-	suite := etest.EventSuite{L: s.clt}
-	suite.SessionsCRUD(c)
-}
-
-func (s *APISuite) TestRecorder(c *C) {
-	suite := rtest.RecorderSuite{R: s.clt}
-	suite.Recorder(c)
 }
 
 func (s *APISuite) TestTokens(c *C) {
@@ -381,35 +352,43 @@ func (s *APISuite) TestSharedSessions(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(out, DeepEquals, []session.Session{sess})
-}
 
-func (s *APISuite) TestSharedSessionsParties(c *C) {
-	out, err := s.clt.GetSessions()
+	// emit two events: "one" and "two" for this session, and event "three"
+	// for some other session
+	s.clt.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
+		events.SessionEventID: sess.ID,
+		"val": "one",
+	})
+	s.clt.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
+		events.SessionEventID: sess.ID,
+		"val": "two",
+	})
+	anotherSessionID := session.NewID()
+	s.clt.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
+		events.SessionEventID: anotherSessionID,
+		"val": "three",
+	})
+	// ask for strictly session events:
+	e, err := s.clt.GetSessionEvents(sess.ID, 0)
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, []session.Session{})
+	c.Assert(len(e), Equals, 2)
+	c.Assert(e[0].GetString("val"), Equals, "one")
+	c.Assert(e[1].GetString("val"), Equals, "two")
 
-	date := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
-	sess := session.Session{
-		Active:         true,
-		ID:             session.NewID(),
-		TerminalParams: session.TerminalParams{W: 100, H: 100},
-		Created:        date,
-		LastActive:     date,
-		Login:          "bob",
-	}
-	c.Assert(s.clt.CreateSession(sess), IsNil)
-
-	p1 := session.Party{
-		ID:         session.NewID(),
-		User:       "bob",
-		RemoteAddr: "example.com",
-		ServerID:   "id-1",
-		LastActive: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
-	}
-	c.Assert(s.clt.UpsertParty(sess.ID, p1, 0), IsNil)
-
-	sess.Parties = []session.Party{p1}
-	out, err = s.clt.GetSessions()
+	// try searching for events with no filter (empty query) - shuld get all 3 events:
+	to := time.Now().In(time.UTC).Add(time.Hour)
+	from := to.Add(-time.Hour * 2)
+	history, err := s.clt.SearchEvents(from, to, "")
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, []session.Session{sess})
+	c.Assert(history, NotNil)
+	c.Assert(len(history), Equals, 3)
+
+	// try searching for only "session.end" events (real query)
+	history, err = s.clt.SearchEvents(from, to,
+		fmt.Sprintf("%s=%s", events.EventType, events.SessionEndEvent))
+	c.Assert(err, IsNil)
+	c.Assert(history, NotNil)
+	c.Assert(len(history), Equals, 1)
+	c.Assert(history[0].GetString(events.SessionEventID), Equals, string(anotherSessionID))
+	c.Assert(history[0].GetString("val"), Equals, "three")
 }

@@ -38,10 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/boltlog"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/recorder"
-	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -50,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/codahale/lunk"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
@@ -149,6 +145,7 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 	log.Infof("connecting to auth servers: %v", authServers)
 	authUser := identity.Cert.ValidPrincipals[0]
 	authClient, err := auth.NewTunClient(
+		string(role),
 		authServers,
 		authUser,
 		[]ssh.AuthMethod{ssh.PublicKeys(identity.KeySigner)},
@@ -281,17 +278,16 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	elog, err := initEventStorage(
-		cfg.Auth.EventsBackend.Type, cfg.Auth.EventsBackend.Params)
+
+	// create the audit log, which will be consuming (and recording) all events
+	// and record sessions
+	auditLog, err := events.NewAuditLog(filepath.Join(cfg.DataDir, "log"))
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	rec, err := initRecordStorage(
-		cfg.Auth.RecordsBackend.Type, cfg.Auth.RecordsBackend.Params)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	acfg := auth.InitConfig{
+
+	// first, create the AuthServer
+	authServer, identity, err := auth.Init(auth.InitConfig{
 		Backend:         b,
 		Authority:       authority,
 		DomainName:      cfg.Auth.DomainName,
@@ -306,28 +302,26 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		Presence:        cfg.Presence,
 		Provisioner:     cfg.Provisioner,
 		Identity:        cfg.Identity,
-	}
-	authServer, identity, err := auth.Init(acfg)
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	process.setLocalAuth(authServer)
+
+	// second, create the API Server: it's actually a collection of API servers,
+	// each serving requests for a "role" which is assigned to every connected
+	// client based on their certificate (user, server, admin, etc)
 	sessionService, err := session.New(b)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// set local auth to use from the same process (to simplify setup
-	// if there are some other roles started in the same process)
-	process.setLocalAuth(authServer)
-
 	apiServer := auth.NewAPIWithRoles(auth.APIConfig{
 		AuthServer:        authServer,
-		EventLog:          elog,
 		SessionService:    sessionService,
-		Recorder:          rec,
 		PermissionChecker: auth.NewStandardPermissions(),
 		Roles:             auth.StandardRoles,
+		AuditLog:          auditLog,
 	})
-
 	process.RegisterFunc(func() error {
 		apiServer.Serve()
 		if askedToExit {
@@ -372,6 +366,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 	var authClient *auth.TunClient
 	process.RegisterFunc(func() error {
 		authClient, err = auth.NewTunClient(
+			"auth.server",
 			[]utils.NetAddr{cfg.Auth.SSHAddr},
 			identity.Cert.ValidPrincipals[0],
 			[]ssh.AuthMethod{ssh.PublicKeys(identity.KeySigner)})
@@ -463,9 +458,8 @@ func (process *TeleportProcess) initSSH() error {
 			cfg.AdvertiseIP,
 			srv.SetLimiter(limiter),
 			srv.SetShell(cfg.SSH.Shell),
-			srv.SetEventLogger(conn.Client),
+			srv.SetAuditLog(conn.Client),
 			srv.SetSessionServer(conn.Client),
-			srv.SetRecorder(conn.Client),
 			srv.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
 		)
 		if err != nil {
@@ -616,6 +610,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		srv.SetLimiter(proxyLimiter),
 		srv.SetProxyMode(tsrv),
 		srv.SetSessionServer(conn.Client),
+		srv.SetAuditLog(conn.Client),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -625,7 +620,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
 		HostUUID:    conn.Identity.ID.HostUUID,
 		Client:      conn.Client,
-		EventLog:    conn.Client,
 		HostSigners: []ssh.Signer{conn.Identity.KeySigner},
 	})
 
@@ -746,22 +740,6 @@ func (process *TeleportProcess) Close() error {
 	return trace.Wrap(process.localAuth.Close())
 }
 
-func initEventStorage(btype string, params string) (events.Log, error) {
-	switch btype {
-	case "bolt":
-		return boltlog.FromJSON(params)
-	}
-	return nil, trace.Errorf("unsupported backend type: %v", btype)
-}
-
-func initRecordStorage(btype string, params string) (recorder.Recorder, error) {
-	switch btype {
-	case "bolt":
-		return boltrec.FromJSON(params)
-	}
-	return nil, trace.Errorf("unsupported backend type: %v", btype)
-}
-
 func validateConfig(cfg *Config) error {
 	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.Proxy.Enabled {
 		return trace.BadParameter(
@@ -836,14 +814,4 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 		return trace.Wrap(err, "error writing pub key PEM")
 	}
 	return nil
-}
-
-type FanOutEventLogger struct {
-	Loggers []lunk.EventLogger
-}
-
-func (f *FanOutEventLogger) Log(id lunk.EventID, e lunk.Event) {
-	for _, l := range f.Loggers {
-		l.Log(id, e)
-	}
 }

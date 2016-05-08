@@ -113,7 +113,7 @@ func (l *RateLimiter) RegisterRequest(token string) error {
 		// the counters for this ip will expire after 10 seconds of inactivity
 		err := l.rateLimits.Set(token, bucketSet, int(bucketSet.GetMaxPeriod()/time.Second)*10+1)
 		if err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 	}
 	delay, err := bucketSet.Consume(1)

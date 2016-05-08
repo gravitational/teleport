@@ -46,25 +46,25 @@ let cfg = {
   api: {
     sso: '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:provider',
     renewTokenPath:'/v1/webapi/sessions/renew',
-    nodesPath: '/v1/webapi/sites/-current-/nodes',
     sessionPath: '/v1/webapi/sessions',
-    siteSessionPath: '/v1/webapi/sites/-current-/sessions',
     invitePath: '/v1/webapi/users/invites/:inviteToken',
     createUserPath: '/v1/webapi/users',
-    sessionChunk: '/v1/webapi/sites/-current-/sessions/:sid/chunks?start=:start&end=:end',
-    sessionChunkCountPath: '/v1/webapi/sites/-current-/sessions/:sid/chunkscount',
-    siteEventSessionFilterPath: `/v1/webapi/sites/-current-/events/sessions?filter=:filter`,
+    nodesPath: '/v1/webapi/sites/-current-/nodes',
+    siteSessionPath: '/v1/webapi/sites/-current-/sessions',
+    sessionEventsPath: '/v1/webapi/sites/-current-/sessions/:sid/events',
+    siteEventSessionFilterPath: `/v1/webapi/sites/-current-/sessions?filter=:filter`,
+    siteEventsFilterPath: `/v1/webapi/sites/-current-/events?event=session.start&event=session.end&from=:start&to=:end`,
 
     getSsoUrl(redirect, provider){
       return cfg.baseUrl + formatPattern(cfg.api.sso, {redirect, provider});
     },
 
-    getFetchSessionChunkUrl({sid, start, end}){
-      return formatPattern(cfg.api.sessionChunk, {sid, start, end});
+    getSiteEventsFilterUrl(start, end){
+      return formatPattern(cfg.api.siteEventsFilterPath, {start, end});
     },
 
-    getFetchSessionLengthUrl(sid){
-      return formatPattern(cfg.api.sessionChunkCountPath, {sid});
+    getSessionEventsUrl(sid){
+      return formatPattern(cfg.api.sessionEventsPath, {sid});
     },
 
     getFetchSessionsUrl(args){
@@ -84,27 +84,17 @@ let cfg = {
       return formatPattern(cfg.api.invitePath, {inviteToken});
     },
 
-    getEventStreamConnStr(token, sid){
+    getEventStreamConnStr(){
       var hostname = getWsHostName();
-      return `${hostname}/v1/webapi/sites/-current-/sessions/${sid}/events/stream?access_token=${token}`;
+      return `${hostname}/v1/webapi/sites/-current-`;
     },
 
-    getTtyConnStr({token, serverId, login, sid, rows, cols}){
-      var params = {
-        server_id: serverId,
-        login,
-        sid,
-        term: {
-          h: rows,
-          w: cols
-        }
-      }
-
-      var json = JSON.stringify(params);
-      var jsonEncoded = window.encodeURI(json);
+    getTtyUrl(){
       var hostname = getWsHostName();
-      return `${hostname}/v1/webapi/sites/-current-/connect?access_token=${token}&params=${jsonEncoded}`;
+      return `${hostname}/v1/webapi/sites/-current-`;
     }
+
+
   },
 
   getFullUrl(url){

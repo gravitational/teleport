@@ -19,40 +19,67 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"net"
+	"net/http"
 	"net/url"
 	"strconv"
 	"time"
 
+	"github.com/Sirupsen/logrus"
+	"github.com/gravitational/configure/cstrings"
+	"github.com/gravitational/roundtrip"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-
-	log "github.com/Sirupsen/logrus"
-	"github.com/codahale/lunk"
-	"github.com/gravitational/configure/cstrings"
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 )
 
 // CurrentVersion is a current API version
 const CurrentVersion = "v1"
 
-// Client is HTTP API client that connects to the remote server
+type Dialer func(network, addr string) (net.Conn, error)
+
+// Client is HTTP Auth API client. It works by connecting to auth servers
+// via HTTP.
+//
+// When Teleport servers connect to auth API, they usually establish an SSH
+// tunnel first, and then do HTTP-over-SSH. This client is wrapped by auth.TunClient
+// in lib/auth/tun.go
 type Client struct {
 	roundtrip.Client
+	transport *http.Transport
 }
 
-// NewClient returns a new instance of the client
-func NewClient(addr string, params ...roundtrip.ClientParam) (*Client, error) {
-	log.Infof("auth.NewClient(%v)", addr)
+// NewAuthClient returns a new instance of the client which talks to
+// an Auth server API (aka "site API") via HTTP-over-SSH
+func NewClient(addr string, dialer Dialer) (*Client, error) {
+	var params []roundtrip.ClientParam
+
+	if dialer == nil {
+		dialer = net.Dial
+	}
+	transport := &http.Transport{Dial: dialer}
+	params = append(params, roundtrip.HTTPClient(&http.Client{
+		Transport: transport,
+	}))
+
 	c, err := roundtrip.NewClient(addr, CurrentVersion, params...)
 	if err != nil {
 		return nil, err
 	}
-	return &Client{*c}, nil
+	return &Client{
+		Client:    *c,
+		transport: transport,
+	}, nil
+}
+
+func (c *Client) GetTransport() *http.Transport {
+	return c.transport
 }
 
 // PostJSON is a generic method that issues http POST request to the server
@@ -135,16 +162,6 @@ func (c *Client) UpdateSession(req session.UpdateRequest) error {
 		return trace.Wrap(err)
 	}
 	_, err := c.PutJSON(c.Endpoint("sessions", string(req.ID)), updateSessionReq{Update: req})
-	return trace.Wrap(err)
-}
-
-// UpsertParty updates existing session party or inserts new party
-func (c *Client) UpsertParty(id session.ID, p session.Party, ttl time.Duration) error {
-	// saving extra round-trip
-	if err := id.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-	_, err := c.PostJSON(c.Endpoint("sessions", string(id), "parties"), upsertPartyReq{Party: p, TTL: ttl})
 	return trace.Wrap(err)
 }
 
@@ -245,66 +262,6 @@ func (c *Client) RegisterNewAuthServer(token string) error {
 		Token: token,
 	})
 	return trace.Wrap(err)
-}
-
-func (c *Client) Log(id lunk.EventID, e lunk.Event) {
-	en := lunk.NewEntry(id, e)
-	en.Time = time.Now()
-	c.LogEntry(en)
-}
-
-func (c *Client) LogEntry(en lunk.Entry) error {
-	_, err := c.PostJSON(c.Endpoint("events"), submitEventsReq{Events: []lunk.Entry{en}})
-	return trace.Wrap(err)
-}
-
-func (c *Client) LogSession(sess session.Session) error {
-	_, err := c.PostJSON(c.Endpoint("events", "sessions"), logSessionsReq{Sessions: []session.Session{sess}})
-	return trace.Wrap(err)
-}
-
-// GetEvents returns a list of filtered events
-func (c *Client) GetEvents(filter events.Filter) ([]lunk.Entry, error) {
-	vals, err := events.FilterToURL(filter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.Get(c.Endpoint("events"), vals)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var events []lunk.Entry
-	if err := json.Unmarshal(out.Bytes(), &events); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return events, nil
-}
-
-// GetSessionEvents returns a list of filtered session events
-func (c *Client) GetSessionEvents(filter events.Filter) ([]session.Session, error) {
-	vals, err := events.FilterToURL(filter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.Get(c.Endpoint("events", "sessions"), vals)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var events []session.Session
-	if err := json.Unmarshal(out.Bytes(), &events); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return events, nil
-}
-
-// GetChunkWriter returns a writer for chunks (parts of the recorded session)
-func (c *Client) GetChunkWriter(id string) (recorder.ChunkWriteCloser, error) {
-	return &chunkRW{c: c, id: id}, nil
-}
-
-// GetChunkReader returns a reader of recorded session
-func (c *Client) GetChunkReader(id string) (recorder.ChunkReadCloser, error) {
-	return &chunkRW{c: c, id: id}, nil
 }
 
 // UpsertNode is used by SSH servers to reprt their presense
@@ -759,46 +716,98 @@ func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 	return response, nil
 }
 
-type chunkRW struct {
-	c  *Client
-	id string
-}
-
-func (c *chunkRW) ReadChunks(start int, end int) ([]recorder.Chunk, error) {
-	out, err := c.c.Get(c.c.Endpoint("records", c.id, "chunks"), url.Values{
-		"start": []string{strconv.Itoa(start)},
-		"end":   []string{strconv.Itoa(end)},
+// EmitAuditEvent sends an auditable event to the auth server (part of evets.IAuditLog interface)
+func (c *Client) EmitAuditEvent(eventType string, fields events.EventFields) error {
+	_, err := c.PostJSON(c.Endpoint("events"), &auditEventReq{
+		Type:   eventType,
+		Fields: fields,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	var chunks []recorder.Chunk
-	if err := json.Unmarshal(out.Bytes(), &chunks); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return chunks, nil
-}
-
-func (c *chunkRW) GetChunksCount() (uint64, error) {
-	out, err := c.c.Get(c.c.Endpoint("records", c.id, "chunkscount"), url.Values{})
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	var count uint64
-	if err := json.Unmarshal(out.Bytes(), &count); err != nil {
-		return 0, trace.Wrap(err)
-	}
-	return count, nil
-}
-
-func (c *chunkRW) WriteChunks(chunks []recorder.Chunk) error {
-	_, err := c.c.PostJSON(
-		c.c.Endpoint("records", c.id, "chunks"), writeChunksReq{Chunks: chunks})
-	return trace.Wrap(err)
-}
-
-func (c *chunkRW) Close() error {
 	return nil
+}
+
+// PostSessionChunk allows clients to submit session stream chunks to the audit log
+// (part of evets.IAuditLog interface)
+//
+// The data is POSTed to HTTP server as a simple binary body (no encodings of any
+// kind are needed)
+func (c *Client) PostSessionChunk(sid session.ID, reader io.Reader) error {
+	r, err := http.NewRequest("POST", c.Endpoint("sessions", string(sid), "stream"), reader)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	r.Header.Set("Content-Type", "application/octet-stream")
+	c.Client.SetAuthHeader(r.Header)
+	re, err := c.Client.HTTPClient().Do(r)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// we **must** consume response by reading all of its body, otherwise the http
+	// client will allocate a new connection for subsequent requests
+	defer re.Body.Close()
+	var buff [1024]byte
+	io.CopyBuffer(ioutil.Discard, re.Body, buff[:])
+	return nil
+}
+
+// GetSessionChunk allows clients to receive a byte array (chunk) from a recorded
+// session stream, starting from 'offset', up to 'max' in length. The upper bound
+// of 'max' is set to events.MaxChunkBytes
+func (c *Client) GetSessionChunk(sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
+	response, err := c.Get(c.Endpoint("sessions", string(sid), "stream"), url.Values{
+		"offset": []string{strconv.Itoa(offsetBytes)},
+		"bytes":  []string{strconv.Itoa(maxBytes)},
+	})
+	if err != nil {
+		logrus.Error(err)
+		return nil, trace.Wrap(err)
+	}
+	return response.Bytes(), nil
+}
+
+// Returns events that happen during a session sorted by time
+// (oldest first).
+//
+// afterN allows to filter by "newer than N" value where N is the cursor ID
+// of previously returned bunch (good for polling for latest)
+//
+// This function is usually used in conjunction with GetSessionReader to
+// replay recorded session streams.
+func (c *Client) GetSessionEvents(sid session.ID, afterN int) (retval []events.EventFields, err error) {
+	query := make(url.Values)
+	if afterN > 0 {
+		query.Set("after", strconv.Itoa(afterN))
+	}
+	response, err := c.Get(c.Endpoint("sessions", string(sid), "events"), query)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	retval = make([]events.EventFields, 0)
+	if err := json.Unmarshal(response.Bytes(), &retval); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return retval, nil
+}
+
+// SearchEvents returns events that fit the criteria
+func (c *Client) SearchEvents(from, to time.Time, query string) ([]events.EventFields, error) {
+	q, err := url.ParseQuery(query)
+	if err != nil {
+		return nil, trace.BadParameter("query")
+	}
+	q.Set("from", from.Format(time.RFC3339))
+	q.Set("to", to.Format(time.RFC3339))
+	response, err := c.Get(c.Endpoint("events"), q)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	retval := make([]events.EventFields, 0)
+	if err := json.Unmarshal(response.Bytes(), &retval); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return retval, nil
 }
 
 // TOODO(klizhentas) this should be just including appropriate service implementations
@@ -809,20 +818,12 @@ type ClientI interface {
 	GetSession(id session.ID) (*session.Session, error)
 	CreateSession(s session.Session) error
 	UpdateSession(req session.UpdateRequest) error
-	UpsertParty(id session.ID, p session.Party, ttl time.Duration) error
 	UpsertCertAuthority(cert services.CertAuthority, ttl time.Duration) error
 	GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error)
 	DeleteCertAuthority(caType services.CertAuthID) error
 	GenerateToken(role teleport.Role, ttl time.Duration) (string, error)
 	RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error)
 	RegisterNewAuthServer(token string) error
-	Log(id lunk.EventID, e lunk.Event)
-	LogEntry(en lunk.Entry) error
-	LogSession(sess session.Session) error
-	GetEvents(filter events.Filter) ([]lunk.Entry, error)
-	GetSessionEvents(filter events.Filter) ([]session.Session, error)
-	GetChunkWriter(id string) (recorder.ChunkWriteCloser, error)
-	GetChunkReader(id string) (recorder.ChunkReadCloser, error)
 	UpsertNode(s services.Server, ttl time.Duration) error
 	GetNodes() ([]services.Server, error)
 	GetAuthServers() ([]services.Server, error)
@@ -846,4 +847,6 @@ type ClientI interface {
 	DeleteOIDCConnector(connectorID string) error
 	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
 	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
+
+	events.IAuditLog
 }

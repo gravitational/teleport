@@ -37,6 +37,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -173,7 +174,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		log.Infof("no teleport login given. defaulting to %s", c.Username)
 	}
 	if c.ProxyHost == "" {
-		return nil, trace.BadParameter("proxy", "no proxy address specified")
+		return nil, trace.Errorf("No proxy address specified, missed --proxy flag?")
 	}
 	if c.HostLogin == "" {
 		c.HostLogin = Username()
@@ -277,8 +278,10 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool, input io.Reader
 
 	// more than one node for an interactive shell?
 	// that can't be!
-	if len(nodeAddrs) != 1 {
-		return trace.BadParameter("cannot launch shell on multiple nodes: %v", nodeAddrs)
+	if len(nodeAddrs) != 7 {
+		os.Stdout.Write([]byte(fmt.Sprintf(
+			"\x1bc\x1b[1mWARNING\x1b[0m: multiple nodes match the label selector. Picking %v (first)\n",
+			nodeAddrs[0])))
 	}
 
 	// proxy local ports (forward incoming connections to remote host ports)
@@ -317,13 +320,12 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool, input io.Reader
 }
 
 // Join connects to the existing/active SSH session
-func (tc *TeleportClient) Join(sid string, input io.Reader) (err error) {
-	sessionID := session.ID(sid)
+func (tc *TeleportClient) Join(sessionID session.ID, input io.Reader) (err error) {
 	if sessionID.Check() != nil {
-		return trace.Errorf("Invalid session ID format: %s", sid)
+		return trace.Errorf("Invalid session ID format: %s", string(sessionID))
 	}
+	var notFoundErrorMessage = fmt.Sprintf("session '%s' not found or it has ended", sessionID)
 
-	var notFoundErrorMessage = fmt.Sprintf("session %v not found or it has ended", sid)
 	// connect to proxy:
 	if !tc.Config.ProxySpecified() {
 		return trace.BadParameter("proxy server is not specified")
@@ -333,18 +335,11 @@ func (tc *TeleportClient) Join(sid string, input io.Reader) (err error) {
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	// connect to the first site via proxy:
-	sites, err := proxyClient.GetSites()
+	site, err := proxyClient.ConnectToSite()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(sites) == 0 {
-		return trace.NotFound(notFoundErrorMessage)
-	}
-	site, err := proxyClient.ConnectToSite(sites[0].Name, tc.Config.HostLogin)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+
 	// find the session ID on the site:
 	sessions, err := site.GetSessions()
 	if err != nil {
@@ -360,6 +355,7 @@ func (tc *TeleportClient) Join(sid string, input io.Reader) (err error) {
 	if session == nil {
 		return trace.NotFound(notFoundErrorMessage)
 	}
+
 	// pick the 1st party of the session and use his server ID to connect to
 	if len(session.Parties) == 0 {
 		return trace.NotFound(notFoundErrorMessage)
@@ -387,6 +383,95 @@ func (tc *TeleportClient) Join(sid string, input io.Reader) (err error) {
 		return trace.Wrap(err)
 	}
 	return tc.runShell(nc, session.ID, input)
+}
+
+// SCP securely copies file(s) from one SSH server to another
+func (tc *TeleportClient) Play(sessionId string) (err error) {
+	sid, err := session.ParseID(sessionId)
+	if err != nil {
+		return fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
+	}
+	// connect to the auth server (site) who made the recording
+	proxyClient, err := tc.ConnectToProxy()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	site, err := proxyClient.ConnectToSite()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// request events for that session (to get timing data)
+	sessionEvents, err := site.GetSessionEvents(*sid, 0)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// read the stream into a buffer:
+	var stream []byte
+	for err == nil {
+		tmp, err := site.GetSessionChunk(*sid, len(stream), events.MaxChunkBytes)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(tmp) == 0 {
+			err = io.EOF
+			break
+		}
+		stream = append(stream, tmp...)
+	}
+
+	// configure terminal for direct unbuffered echo-less input:
+	if term.IsTerminal(0) {
+		state, err := term.SetRawTerminal(0)
+		if err != nil {
+			return nil
+		}
+		defer term.RestoreTerminal(0, state)
+	}
+	player := newSessionPlayer(sessionEvents, stream)
+	// keys:
+	const (
+		keyCtrlC = 3
+		keyCtrlD = 4
+		keySpace = 32
+		keyLeft  = 68
+		keyRight = 67
+		keyUp    = 65
+		keyDown  = 66
+	)
+	// playback control goroutine
+	go func() {
+		defer player.Stop()
+		key := make([]byte, 1)
+		for {
+			_, err = os.Stdin.Read(key)
+			if err != nil {
+				return
+			}
+			switch key[0] {
+			// Ctrl+C or Ctrl+D
+			case keyCtrlC, keyCtrlD:
+				return
+			// Space key
+			case keySpace:
+				player.TogglePause()
+			// <- arrow
+			case keyLeft, keyDown:
+				player.Rewind()
+			// -> arrow
+			case keyRight, keyUp:
+				player.Forward()
+			}
+		}
+	}()
+
+	// player starts playing in its own goroutine
+	player.Play()
+
+	// wait for keypresses loop to end
+	<-player.stopC
+	fmt.Println("\n\nend of session playback")
+	return trace.Wrap(err)
 }
 
 // SCP securely copies file(s) from one SSH server to another
@@ -551,16 +636,26 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 	if tc.Output == nil {
 		tc.Output = os.Stdout
 	}
-
-	// If typing on the terminal, we do not want the terminal to echo the
-	// password that is typed (so it doesn't display)
+	// terminal must be in raw mode
+	var (
+		state   *term.State
+		err     error
+		exitMsg string
+	)
 	if stdin == os.Stdin && term.IsTerminal(0) {
-		state, err := term.SetRawTerminal(0)
+		state, err = term.SetRawTerminal(0)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer term.RestoreTerminal(0, state)
 	}
+	defer func() {
+		if state != nil {
+			term.RestoreTerminal(0, state)
+		}
+		if exitMsg != "" {
+			fmt.Println(exitMsg)
+		}
+	}()
 
 	broadcastClose := utils.NewCloseBroadcaster()
 
@@ -570,7 +665,7 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 	go func() {
 		defer broadcastClose.Close()
 		<-exitSignals
-		fmt.Printf("\nConnection to %s closed\n", address)
+		exitMsg = fmt.Sprintf("Connection to %s closed\n", address)
 	}()
 
 	winSize, err := term.GetWinsize(0)
@@ -603,6 +698,7 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 	go func() {
 		for {
 			<-ctrlZSignal
+			fmt.Println("---> 3")
 			_, err := shell.Write([]byte{26})
 			if err != nil {
 				log.Errorf(err.Error())
@@ -617,7 +713,7 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 		if err != nil {
 			log.Errorf(err.Error())
 		}
-		fmt.Printf("\nConnection to %s closed from the remote side\n", address)
+		exitMsg = fmt.Sprintf("Connection to %s closed from the remote side", address)
 	}()
 
 	// copy from the local shell to the remote
@@ -631,14 +727,9 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 				return
 			}
 			if n > 0 {
-				// catch Ctrl-D
-				if buf[0] == 4 {
-					fmt.Printf("\nConnection to %s closed\n", address)
-					return
-				}
 				_, err = shell.Write(buf[:n])
 				if err != nil {
-					fmt.Println(trace.Wrap(err))
+					exitMsg = err.Error()
 					return
 				}
 			}
@@ -714,8 +805,6 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		// otherwise user will see endless loop with no explanation
 		if trace.IsTrustError(err) {
 			fmt.Printf("Refusing to connect to untrusted proxy %v without --insecure flag\n", proxyAddr)
-		} else {
-			fmt.Printf("ERROR: %v\n", err)
 		}
 		return nil, trace.Wrap(err)
 	}

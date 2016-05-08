@@ -25,13 +25,14 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -152,11 +153,11 @@ func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 		c.Env = append(c.Env, fmt.Sprintf("%s=%s", n, v))
 	}
 	// apply SSH_xx environment variables
-	remoteHost, remotePort, err := net.SplitHostPort(ctx.info.RemoteAddr().String())
+	remoteHost, remotePort, err := net.SplitHostPort(ctx.conn.RemoteAddr().String())
 	if err != nil {
 		log.Warn(err)
 	} else {
-		localHost, localPort, err := net.SplitHostPort(ctx.info.LocalAddr().String())
+		localHost, localPort, err := net.SplitHostPort(ctx.conn.LocalAddr().String())
 		if err != nil {
 			log.Warn(err)
 		} else {
@@ -203,21 +204,33 @@ func (e *execResponse) start(sconn *ssh.ServerConn, shell string, ch ssh.Channel
 	return nil, nil
 }
 
-func (e *execResponse) collectStatus(cmd *exec.Cmd, err error) (*execResult, error) {
-	status, err := collectStatus(e.cmd, err)
-	if err != nil {
-		e.ctx.emit(events.NewExec(e.cmdName, e.out, -1, err))
-	} else {
-		e.ctx.emit(events.NewExec(e.cmdName, e.out, status.code, err))
-	}
-	return status, err
-}
-
 func (e *execResponse) wait() (*execResult, error) {
 	if e.cmd.Process == nil {
 		e.ctx.Errorf("no process")
 	}
 	return e.collectStatus(e.cmd, e.cmd.Wait())
+}
+
+func (e *execResponse) collectStatus(cmd *exec.Cmd, err error) (*execResult, error) {
+	status, err := collectStatus(e.cmd, err)
+	// report the result of this exec event to the audit logger
+	auditLog := e.ctx.srv.alog
+	if auditLog == nil {
+		return status, err
+	}
+	fields := events.EventFields{
+		events.ExecEventCommand: strings.Join(cmd.Args, " "),
+		events.EventUser:        e.ctx.teleportUser,
+		events.EventLogin:       e.ctx.login,
+		events.LocalAddr:        e.ctx.conn.LocalAddr().String(),
+		events.RemoteAddr:       e.ctx.conn.RemoteAddr().String(),
+	}
+	if err != nil {
+		fields[events.ExecEventError] = err.Error()
+		fields[events.ExecEventCode] = strconv.Itoa(status.code)
+	}
+	auditLog.EmitAuditEvent(events.ExecEvent, fields)
+	return status, err
 }
 
 func collectStatus(cmd *exec.Cmd, err error) (*execResult, error) {
@@ -230,7 +243,7 @@ func collectStatus(cmd *exec.Cmd, err error) (*execResult, error) {
 	}
 	status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus)
 	if !ok {
-		return nil, fmt.Errorf("unspoorted exit status: %T(%v)", cmd.ProcessState.Sys(), cmd.ProcessState.Sys())
+		return nil, fmt.Errorf("unknown exit status: %T(%v)", cmd.ProcessState.Sys(), cmd.ProcessState.Sys())
 	}
 	return &execResult{code: status.ExitStatus(), command: cmd.Path}, nil
 }

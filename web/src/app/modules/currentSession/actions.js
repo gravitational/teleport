@@ -18,12 +18,24 @@ var session = require('app/services/session');
 var api = require('app/services/api');
 var cfg = require('app/config');
 var getters = require('./getters');
-var sessionModule = require('./../sessions');
+var {fetchActiveSessions, fetchStoredSession, updateSession} = require('./../sessions/actions');
+var sessionGetters = require('./../sessions/getters');
+var $ = require('jQuery');
 
 const logger = require('app/common/logger').create('Current Session');
 const { TLPT_CURRENT_SESSION_OPEN, TLPT_CURRENT_SESSION_CLOSE } = require('./actionTypes');
 
 const actions = {
+
+  processSessionEventStream(data){
+    data.events.forEach(item=> {
+      if(item.event === 'session.end'){
+        actions.close();
+      }
+    })
+
+    updateSession(data.session);
+  },
 
   close(){
     let {isNewSession} = reactor.evaluate(getters.currentSession);
@@ -37,25 +49,12 @@ const actions = {
     }
   },
 
-  resize(w, h){
-    // some min values
-    w = w < 5 ? 5 : w;
-    h = h < 5 ? 5 : h;
-
-    let reqData = { terminal_params: { w, h } };
-    let {sid} = reactor.evaluate(getters.currentSession);
-
-    logger.info('resize', `w:${w} and h:${h}`);
-    api.put(cfg.api.getTerminalSessionUrl(sid), reqData)
-      .done(()=> logger.info('resized'))
-      .fail((err)=> logger.error('failed to resize', err));
-  },
-
   openSession(sid){
     logger.info('attempt to open session', {sid});
-    sessionModule.actions.fetchSession(sid)
+
+    $.when(fetchActiveSessions(), fetchStoredSession(sid))
       .done(()=>{
-        let sView = reactor.evaluate(sessionModule.getters.sessionViewById(sid));
+        let sView = reactor.evaluate(sessionGetters.sessionViewById(sid));
         let { serverId, login } = sView;
         logger.info('open session', 'OK');
         reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {

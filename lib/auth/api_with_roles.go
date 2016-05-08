@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/recorder"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -35,6 +34,15 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// APIWithRoles is a wrapper around several APIServer objects. For security
+// benefits, every "teleport role" talks to its own instance of an APIServer.
+//
+// Every client always authenticates with a SSH certificate, which has a role
+// encoded in it. Based on that role they get their own instance of APIServer
+// to talk to.
+//
+// This allows APIServer to exist in a more trustworthy, separated-by-role
+// context.
 type APIWithRoles struct {
 	config      APIConfig
 	listeners   map[teleport.Role]*fakeSocket
@@ -45,11 +53,10 @@ type APIWithRoles struct {
 // APIConfig is a configuration file
 type APIConfig struct {
 	AuthServer        *AuthServer
-	EventLog          events.Log
 	SessionService    session.Service
-	Recorder          recorder.Recorder
 	Roles             []teleport.Role
 	PermissionChecker PermissionChecker
+	AuditLog          events.IAuditLog
 }
 
 func NewAPIWithRoles(config APIConfig) *APIWithRoles {
@@ -58,16 +65,17 @@ func NewAPIWithRoles(config APIConfig) *APIWithRoles {
 	api.servers = make(map[teleport.Role]*APIServer)
 	api.config = config
 
+	// create a new APIServer instance for every possible telerpot
+	// role and have them listen on fake sockets (we'll proxy requests
+	// for them based on client's roles - see HandleNewChannel)
 	for _, role := range config.Roles {
-		a := AuthWithRoles{
+		api.servers[role] = NewAPIServer(&AuthWithRoles{
 			authServer:  config.AuthServer,
-			elog:        config.EventLog,
-			sessions:    config.SessionService,
-			recorder:    config.Recorder,
 			permChecker: config.PermissionChecker,
+			sessions:    config.SessionService,
 			role:        role,
-		}
-		api.servers[role] = NewAPIServer(&a)
+			alog:        config.AuditLog,
+		})
 		api.listeners[role] = makefakeSocket()
 	}
 	return &api
@@ -92,20 +100,8 @@ func (api *APIWithRoles) Serve() {
 
 func (api *APIWithRoles) Close() {
 	api.askedToStop = true
-	var err error
-
 	for _, listener := range api.listeners {
 		listener.Close()
-	}
-	if api.config.EventLog != nil {
-		if err = api.config.EventLog.Close(); err != nil {
-			log.Error(err)
-		}
-	}
-	if api.config.Recorder != nil {
-		if err = api.config.Recorder.Close(); err != nil {
-			log.Error(err)
-		}
 	}
 }
 

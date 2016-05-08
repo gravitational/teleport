@@ -62,6 +62,14 @@ func (w *sessionStreamHandler) Close() error {
 	return nil
 }
 
+// sessionStreamPollPeriod defines how frequently web sessions are
+// sent new events
+var sessionStreamPollPeriod = time.Second
+
+// stream runs in a loop generating "something changed" events for a
+// given active WebSession
+//
+// The events are fed to a web client via the websocket
 func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 	w.ws = ws
 	clt, err := w.site.GetClient()
@@ -75,67 +83,68 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 		io.Copy(ioutil.Discard, ws)
 	}()
 
-	var lastCheckpoint time.Time
-	var lastEvent *sessionStreamEvent
+	eventsCursor := -1
+	emptyEventList := make([]events.EventFields, 0)
+
+	pollEvents := func() []events.EventFields {
+		// ask for any events than happened since the last call:
+		re, err := clt.GetSessionEvents(w.sessionID, eventsCursor+1)
+		if err != nil {
+			log.Error(err)
+			return emptyEventList
+		}
+		batchLen := len(re)
+		if batchLen == 0 {
+			return emptyEventList
+		}
+		// advance the cursor, so next time we'll ask for the latest:
+		eventsCursor = re[batchLen-1].GetInt(events.EventCursor)
+		return re
+	}
+
 	ticker := time.NewTicker(w.pollPeriod)
 	defer ticker.Stop()
 	defer w.Close()
+
+	// keep polling in a loop:
 	for {
-		now := time.Now()
-		f := events.Filter{
-			SessionID: w.sessionID,
-			Order:     events.Desc,
-			Limit:     20,
-			Start:     now,
-			End:       lastCheckpoint,
-		}
-		events, err := clt.GetEvents(f)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-		}
-
-		servers, err := clt.GetNodes()
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-		}
-
-		sess, err := clt.GetSession(w.sessionID)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-		}
-
-		if sess != nil {
-			event := &sessionStreamEvent{
-				Session: *sess,
-				Nodes:   servers,
-				Events:  events,
-			}
-
-			newData := w.diffEvents(lastEvent, event)
-			lastCheckpoint = now
-			lastEvent = event
-			if newData {
-				if err := websocket.JSON.Send(ws, event); err != nil {
-					return trace.Wrap(err)
-				}
-			}
-		}
+		// wait for next timer tick or a signal to abort:
 		select {
 		case <-ticker.C:
 		case <-w.closeC:
-			log.Infof("stream is closed")
+			log.Infof("[web] session.stream() exited")
 			return nil
+		}
+
+		newEvents := pollEvents()
+		sess, err := clt.GetSession(w.sessionID)
+		if err != nil {
+			log.Error(err)
+		}
+		if sess == nil {
+			log.Warningf("invalid session ID: %v", w.sessionID)
+			continue
+		}
+		servers, err := clt.GetNodes()
+		if err != nil {
+			log.Error(err)
+		}
+		if len(newEvents) > 0 {
+			log.Infof("[WEB] streaming for %v. Events: %v, Nodes: %v, Parties: %v",
+				w.sessionID, len(newEvents), len(servers), len(sess.Parties))
+		}
+
+		// push events to the web client
+		event := &sessionStreamEvent{
+			Events:  newEvents,
+			Session: sess,
+			Servers: servers,
+		}
+		if err := websocket.JSON.Send(ws, event); err != nil {
+			log.Error(err)
 		}
 	}
 }
-
-const defaultPollPeriod = time.Second
 
 func (w *sessionStreamHandler) Handler() http.Handler {
 	// TODO(klizhentas)
@@ -143,78 +152,10 @@ func (w *sessionStreamHandler) Handler() http.Handler {
 	// websocket.HandlerFunc to set empty origin checker
 	// make sure we check origin when in prod mode
 	return &websocket.Server{
-		Handler: w.logResult(w.stream),
+		Handler: func(ws *websocket.Conn) {
+			if err := w.stream(ws); err != nil {
+				log.WithFields(log.Fields{"sid": w.sessionID}).Infof("handler returned: %#v", err)
+			}
+		},
 	}
-}
-
-func (w *sessionStreamHandler) logResult(fn func(*websocket.Conn) error) websocket.Handler {
-	return func(ws *websocket.Conn) {
-		err := fn(ws)
-		if err != nil {
-			log.WithFields(log.Fields{"sid": w.sessionID}).Infof("handler returned: %#v", err)
-		}
-	}
-}
-
-func (w *sessionStreamHandler) diffEvents(last *sessionStreamEvent, new *sessionStreamEvent) bool {
-	// this is first call, ship whatever we have on this session
-	if last == nil {
-		return true
-	}
-	// we've got new events
-	if len(new.Events) != 0 {
-		log.Infof("got new events")
-		return true
-	}
-	// new servers have arrived or disappeared
-	if len(last.Nodes) != len(new.Nodes) {
-		log.Infof("nodes have changes")
-		return true
-	}
-	// session parameters were updated
-	if sessionsDifferent(last.Session, new.Session) {
-		log.Infof("session has changes")
-		return true
-	}
-	// parties have joined or left the scene
-	if setsDifferent(partySet(last), partySet(new)) {
-		log.Infof("parties have changes")
-		return true
-	}
-	return false
-}
-
-func sessionsDifferent(a, b session.Session) bool {
-	if a.TerminalParams.W != b.TerminalParams.W {
-		return true
-	}
-	if a.TerminalParams.H != b.TerminalParams.H {
-		return true
-	}
-	if a.Active != b.Active {
-		return true
-	}
-	return false
-}
-
-func partySet(e *sessionStreamEvent) map[session.Party]bool {
-	parties := make(map[session.Party]bool, len(e.Session.Parties))
-	for _, party := range e.Session.Parties {
-		parties[party] = true
-	}
-	return parties
-}
-
-func setsDifferent(a, b map[session.Party]bool) bool {
-	for key := range a {
-		if !b[key] {
-			return true
-		}
-	}
-	for key := range b {
-		if !a[key] {
-			return true
-		}
-	}
-	return false
 }

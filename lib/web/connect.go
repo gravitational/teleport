@@ -17,15 +17,14 @@ limitations under the License.
 package web
 
 import (
-	"encoding/base64"
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
@@ -103,7 +102,10 @@ func (w *connectHandler) Close() error {
 	return nil
 }
 
+// connect is called when a web browser wants to start piping an active terminal session
+// io/out via the provided websocket
 func (w *connectHandler) connect(ws *websocket.Conn) {
+	// connectUpstream establishes an SSH connection to a requested node
 	up, err := w.connectUpstream()
 	if err != nil {
 		log.Errorf("wsHandler: failed: %v", err)
@@ -111,16 +113,23 @@ func (w *connectHandler) connect(ws *websocket.Conn) {
 	}
 	w.up = up
 	w.ws = ws
-	err = w.up.PipeShell(&encodingReadWriter{ws}, &sshutils.PTYReqParams{
-		W: uint32(w.req.Term.W),
-		H: uint32(w.req.Term.H),
-	})
+
+	// PipeShell will be piping inputs/output to/from SSH connection (to the node)
+	// and the websocket (to a browser)
+	err = w.up.PipeShell(utils.NewWebSockWrapper(ws, utils.WebSocketTextMode),
+		&sshutils.PTYReqParams{
+			W: uint32(w.req.Term.W),
+			H: uint32(w.req.Term.H),
+		})
+
 	log.Infof("pipe shell finished with: %v", err)
-	ws.Write([]byte("\n\rdisconnected\n\r"))
 }
 
+// resizePTYWindow is called when a brower resizes its window. Now the node
+// needs to be notified via SSH
 func (w *connectHandler) resizePTYWindow(params session.TerminalParams) error {
 	_, err := w.up.GetSession().SendRequest(
+		// send SSH "window resized" SSH request:
 		sshutils.WindowChangeReq, false,
 		ssh.Marshal(sshutils.WinChangeReqParams{
 			W: uint32(params.W),
@@ -129,6 +138,7 @@ func (w *connectHandler) resizePTYWindow(params session.TerminalParams) error {
 	return trace.Wrap(err)
 }
 
+// connectUpstream establishes the SSH connection to a requested SSH server (node)
 func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
 	agent, err := w.ctx.GetAgent()
 	if err != nil {
@@ -148,6 +158,25 @@ func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// this goroutine receives terminal window size changes in real time
+	// and stores the last size (example: "100:25") as a special "prefix"
+	// which gets added to future SSH reads by web clients.
+	go func() {
+		buff := make([]byte, 16)
+		sshChan, _, err := up.GetClient().OpenChannel("x-teleport-request-resize-events", nil)
+		for err == nil {
+			n, err := sshChan.Read(buff)
+			if err != nil {
+				break
+			}
+			up.SetPrefix(buff[:n])
+		}
+		if err != nil {
+			log.Error(err)
+		}
+	}()
+
 	up.GetSession().SendRequest(
 		sshutils.SetEnvReq, false,
 		ssh.Marshal(sshutils.EnvReqParams{
@@ -169,20 +198,4 @@ func (w *connectHandler) Handler() http.Handler {
 
 func newWSHandler(host string, auth []string) *connectHandler {
 	return &connectHandler{}
-}
-
-type encodingReadWriter struct {
-	io.ReadWriter
-}
-
-func (w *encodingReadWriter) Write(data []byte) (int, error) {
-	encoder := base64.NewEncoder(base64.StdEncoding, w.ReadWriter)
-	_, err := encoder.Write(data)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	if err := encoder.Close(); err != nil {
-		return 0, trace.Wrap(err)
-	}
-	return len(data), nil
 }

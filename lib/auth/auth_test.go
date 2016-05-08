@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"testing"
 	"path/filepath"
 
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -30,6 +31,8 @@ import (
 	"github.com/gravitational/trace"
 	. "gopkg.in/check.v1"
 )
+
+func TestAPI(t *testing.T) { TestingT(t) }
 
 type AuthSuite struct {
 	bk backend.Backend
@@ -58,7 +61,6 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	s.a = NewAuthServer(authConfig)
 }
 
-// TODO(klizhentas) introduce more thorough tests, test more edge cases
 func (s *AuthSuite) TestSessions(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
 		*suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)

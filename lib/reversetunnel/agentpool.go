@@ -8,7 +8,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -34,8 +33,6 @@ type AgentPoolConfig struct {
 	// Client is client to the auth server this agent connects to recieve
 	// a list of pools
 	Client *auth.TunClient
-	// EventLog is optional event log recording all events
-	EventLog events.Log
 	// HostSigners is a list of host signers this agent presents itself as
 	HostSigners []ssh.Signer
 	// HostUUID is a unique ID of this host
@@ -52,9 +49,6 @@ func NewAgentPool(cfg AgentPoolConfig) (*AgentPool, error) {
 	}
 	if len(cfg.HostUUID) == 0 {
 		return nil, trace.BadParameter("missing 'HostUUID' parameter")
-	}
-	if cfg.EventLog == nil {
-		cfg.EventLog = events.NullEventLogger
 	}
 	pool := &AgentPool{
 		agents:         make(map[agentKey]*Agent),
@@ -146,7 +140,7 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 
 	for _, key := range agentsToAdd {
 		m.Infof("adding %v", &key)
-		agent, err := NewAgent(key.addr, m.cfg.HostUUID, m.cfg.HostSigners, m.cfg.Client, SetEventLogger(m.cfg.EventLog))
+		agent, err := NewAgent(key.addr, m.cfg.HostUUID, m.cfg.HostSigners, m.cfg.Client)
 		if err != nil {
 			return trace.Wrap(err)
 		}

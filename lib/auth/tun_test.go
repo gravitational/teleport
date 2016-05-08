@@ -26,9 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events/boltlog"
-	"github.com/gravitational/teleport/lib/recorder"
-	"github.com/gravitational/teleport/lib/recorder/boltrec"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/session"
@@ -47,9 +45,8 @@ type TunSuite struct {
 	tsrv   *AuthTunnel
 	a      *AuthServer
 	signer ssh.Signer
-	bl     *boltlog.BoltLog
 	dir    string
-	rec    recorder.Recorder
+	alog   *events.AuditLog
 }
 
 var _ = Suite(&TunSuite{})
@@ -69,11 +66,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
 
-	s.bl, err = boltlog.New(filepath.Join(s.dir, "eventsdb"))
-	c.Assert(err, IsNil)
-
-	s.rec, err = boltrec.New(s.dir)
-	c.Assert(err, IsNil)
+	s.alog, err = events.NewAuditLog(s.dir)
 
 	sessionServer, err := session.New(s.bk)
 	c.Assert(err, IsNil)
@@ -85,9 +78,8 @@ func (s *TunSuite) SetUpTest(c *C) {
 	})
 	s.srv = NewAPIWithRoles(APIConfig{
 		AuthServer:        s.a,
-		EventLog:          s.bl,
+		AuditLog:          s.alog,
 		SessionService:    sessionServer,
-		Recorder:          s.rec,
 		PermissionChecker: NewStandardPermissions(),
 		Roles:             StandardRoles})
 	go s.srv.Serve()
@@ -120,9 +112,8 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	c.Assert(err, IsNil)
 	srv := NewAPIWithRoles(APIConfig{
 		AuthServer:        s.a,
-		EventLog:          s.bl,
+		AuditLog:          s.alog,
 		SessionService:    sessionServer,
-		Recorder:          s.rec,
 		PermissionChecker: NewAllowAllPermissions(),
 		Roles:             StandardRoles})
 	go srv.Serve()
@@ -150,7 +141,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	authMethod, err := NewWebPasswordAuth(user, pass, otp.OTP())
 	c.Assert(err, IsNil)
 
-	clt, err := NewTunClient(
+	clt, err := NewTunClient("test",
 		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: tsrv.Addr()}},
 		"test", authMethod)
 	c.Assert(err, IsNil)
@@ -178,7 +169,7 @@ func (s *TunSuite) TestSessions(c *C) {
 	authMethod, err := NewWebPasswordAuth(user, pass, otp.OTP())
 	c.Assert(err, IsNil)
 
-	clt, err := NewTunClient(
+	clt, err := NewTunClient("test",
 		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer clt.Close()
@@ -191,7 +182,7 @@ func (s *TunSuite) TestSessions(c *C) {
 	authMethod, err = NewWebSessionAuth(user, []byte(ws.ID))
 	c.Assert(err, IsNil)
 
-	cltw, err := NewTunClient(
+	cltw, err := NewTunClient("test",
 		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer cltw.Close()
@@ -231,7 +222,7 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	authMethod0, err := NewSignupTokenAuth("some_wrong_token")
 	c.Assert(err, IsNil)
 
-	clt0, err := NewTunClient(
+	clt0, err := NewTunClient("test",
 		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod0)
 	c.Assert(err, IsNil)
 	_, _, _, err = clt0.GetSignupTokenData(token2)
@@ -241,7 +232,7 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	authMethod, err := NewSignupTokenAuth(token)
 	c.Assert(err, IsNil)
 
-	clt, err := NewTunClient(
+	clt, err := NewTunClient("test",
 		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer clt.Close()
@@ -280,7 +271,7 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	c.Assert(user, Equals, user1)
 
 	// Saving new password
-	clt2, err := NewTunClient(
+	clt2, err := NewTunClient("test",
 		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer clt2.Close()
@@ -304,7 +295,7 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	c.Assert(err, IsNil)
 
 	// trying to connect to the auth server using used token
-	clt0, err = NewTunClient(
+	clt0, err = NewTunClient("test",
 		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
 	c.Assert(err, IsNil) // shouldn't accept such connection twice
 	_, _, _, err = clt0.GetSignupTokenData(token2)
@@ -314,7 +305,7 @@ func (s *TunSuite) TestWebCreatingNewUser(c *C) {
 	authMethod3, err := NewWebPasswordAuth(user, []byte(password), hotpTokens[1])
 	c.Assert(err, IsNil)
 
-	clt3, err := NewTunClient(
+	clt3, err := NewTunClient("test",
 		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod3)
 	c.Assert(err, IsNil)
 	defer clt3.Close()
@@ -342,7 +333,7 @@ func (s *TunSuite) TestPermissions(c *C) {
 	authMethod, err := NewWebPasswordAuth(user, pass, otp.OTP())
 	c.Assert(err, IsNil)
 
-	clt, err := NewTunClient(
+	clt, err := NewTunClient("test",
 		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer clt.Close()
@@ -363,7 +354,7 @@ func (s *TunSuite) TestPermissions(c *C) {
 	authMethod, err = NewWebSessionAuth(user, []byte(ws.ID))
 	c.Assert(err, IsNil)
 
-	cltw, err := NewTunClient(
+	cltw, err := NewTunClient("test",
 		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer cltw.Close()
@@ -405,7 +396,7 @@ func (s *TunSuite) TestSessionsBadPassword(c *C) {
 	authMethod, err := NewWebPasswordAuth(user, pass, otp.OTP())
 	c.Assert(err, IsNil)
 
-	clt, err := NewTunClient(
+	clt, err := NewTunClient("test",
 		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
 	c.Assert(err, IsNil)
 	defer clt.Close()
@@ -430,7 +421,7 @@ func (s *TunSuite) TestFailover(c *C) {
 	ports, err := utils.GetFreeTCPPorts(1)
 	c.Assert(err, IsNil)
 
-	clt, err := NewTunClient(
+	clt, err := NewTunClient("test",
 		[]utils.NetAddr{
 			{AddrNetwork: "tcp", Addr: fmt.Sprintf("127.0.0.1:%v", ports.Pop())},
 			{AddrNetwork: "tcp", Addr: s.tsrv.Addr()},
@@ -453,7 +444,7 @@ func (s *TunSuite) TestSync(c *C) {
 
 	storage := utils.NewFileAddrStorage(filepath.Join(c.MkDir(), "addr.json"))
 
-	clt, err := NewTunClient(
+	clt, err := NewTunClient("test",
 		[]utils.NetAddr{
 			{AddrNetwork: "tcp", Addr: s.tsrv.Addr()},
 		}, "localhost", []ssh.AuthMethod{ssh.PublicKeys(s.signer)},

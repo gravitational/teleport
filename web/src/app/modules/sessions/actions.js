@@ -19,21 +19,41 @@ var api = require('app/services/api');
 var apiUtils = require('app/services/apiUtils');
 var cfg = require('app/config');
 var {showError} = require('app/modules/notifications/actions');
+var moment = require('moment');
 
 const logger = require('app/common/logger').create('Modules/Sessions');
-const { TLPT_SESSINS_RECEIVE, TLPT_SESSINS_UPDATE }  = require('./actionTypes');
+const { TLPT_SESSINS_RECEIVE, TLPT_SESSINS_UPDATE, TLPT_SESSINS_UPDATE_WITH_EVENTS }  = require('./actionTypes');
 
 const actions = {
 
-  fetchSession(sid){
-    return api.get(cfg.api.getFetchSessionUrl(sid)).then(json=>{
-      if(json && json.session){
-        reactor.dispatch(TLPT_SESSINS_UPDATE, json.session);
+  fetchStoredSession(sid){
+    return api.get(cfg.api.getSessionEventsUrl(sid)).then(json=>{
+      if(json && json.events){
+        reactor.dispatch(TLPT_SESSINS_UPDATE_WITH_EVENTS, json.events);
       }
     });
   },
 
-  fetchSessions({end, sid, limit=cfg.maxSessionLoadSize}={}){
+  fetchSiteEvents(start, end){
+    // default values
+    start = start || moment(new Date()).endOf('day').toDate();
+    end = end || moment(end).subtract(3, 'day').startOf('day').toDate();
+
+    start = start.toISOString();
+    end = end.toISOString();
+
+    return api.get(cfg.api.getSiteEventsFilterUrl(start, end))
+      .done((json) => {
+        let {events=[]} = json;
+        reactor.dispatch(TLPT_SESSINS_UPDATE_WITH_EVENTS, events);
+      })
+      .fail((err)=>{
+        showError('Unable to retrieve site events');
+        logger.error('fetchSiteEvents', err);
+      });
+  },
+
+  fetchActiveSessions({end, sid, limit=cfg.maxSessionLoadSize}={}){
     let start = end || new Date();
     let params = {
       order: -1,
@@ -48,7 +68,7 @@ const actions = {
       })
       .fail((err)=>{
         showError('Unable to retrieve list of sessions');
-        logger.error('fetchSessions', err);
+        logger.error('fetchActiveSessions', err);
       });
   },
 

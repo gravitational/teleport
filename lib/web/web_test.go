@@ -18,14 +18,15 @@ package web
 
 import (
 	"crypto/tls"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"os/user"
 	"path/filepath"
 	"strings"
@@ -38,8 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/boltlog"
-	"github.com/gravitational/teleport/lib/recorder/boltrec"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -49,7 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/codahale/lunk"
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -59,7 +57,6 @@ import (
 )
 
 func TestWeb(t *testing.T) {
-	utils.InitLoggerForTests()
 	TestingT(t)
 }
 
@@ -77,9 +74,27 @@ type WebSuite struct {
 	tunServer   *auth.AuthTunnel
 	webServer   *httptest.Server
 	freePorts   []string
+
+	// audit log and its dir:
+	auditLog *events.AuditLog
+	logDir   string
 }
 
 var _ = Suite(&WebSuite{})
+
+func (s *WebSuite) SetUpSuite(c *C) {
+	var err error
+	utils.InitLoggerForTests()
+	sessionStreamPollPeriod = time.Millisecond
+	s.logDir = c.MkDir()
+	s.auditLog, err = events.NewAuditLog(s.logDir)
+	c.Assert(err, IsNil)
+	c.Assert(s.auditLog, NotNil)
+}
+
+func (s *WebSuite) TearDownSuite(c *C) {
+	os.RemoveAll(s.logDir)
+}
 
 func (s *WebSuite) SetUpTest(c *C) {
 	s.dir = c.MkDir()
@@ -100,26 +115,19 @@ func (s *WebSuite) SetUpTest(c *C) {
 		Authority:  authority.New(),
 		DomainName: s.domainName})
 
-	eventsLog, err := boltlog.New(filepath.Join(s.dir, "boltlog"))
-	c.Assert(err, IsNil)
-
 	c.Assert(authServer.UpsertCertAuthority(
 		*suite.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
 	c.Assert(authServer.UpsertCertAuthority(
 		*suite.NewTestCA(services.HostCA, s.domainName), backend.Forever), IsNil)
-
-	recorder, err := boltrec.New(s.dir)
-	c.Assert(err, IsNil)
 
 	sessionServer, err := sess.New(s.bk)
 	c.Assert(err, IsNil)
 
 	s.roleAuth = auth.NewAuthWithRoles(authServer,
 		auth.NewStandardPermissions(),
-		eventsLog,
 		sessionServer,
 		teleport.RoleAdmin,
-		recorder)
+		s.auditLog)
 
 	// set up host private key and certificate
 	hpriv, hpub, err := authServer.GenerateKeyPair("")
@@ -146,8 +154,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		nil,
 		srv.SetShell("/bin/sh"),
 		srv.SetSessionServer(sessionServer),
-		srv.SetRecorder(recorder),
-		srv.SetEventLogger(eventsLog),
+		srv.SetAuditLog(s.roleAuth),
 	)
 	c.Assert(err, IsNil)
 	s.node = node
@@ -172,11 +179,11 @@ func (s *WebSuite) SetUpTest(c *C) {
 
 	apiServer := auth.NewAPIWithRoles(auth.APIConfig{
 		AuthServer:        authServer,
-		EventLog:          eventsLog,
 		SessionService:    sessionServer,
-		Recorder:          recorder,
 		PermissionChecker: auth.NewAllowAllPermissions(),
-		Roles:             auth.StandardRoles})
+		Roles:             auth.StandardRoles,
+		AuditLog:          s.auditLog,
+	})
 	go apiServer.Serve()
 
 	tunAddr := utils.NetAddr{
@@ -585,7 +592,7 @@ func (s *WebSuite) TestConnect(c *C) {
 	clt := s.connect(c, s.authPack(c))
 	defer clt.Close()
 
-	_, err := io.WriteString(clt, "expr 137 + 39\r\n")
+	_, err := io.WriteString(clt, "echo vinsong\r\n")
 	c.Assert(err, IsNil)
 
 	resultC := make(chan struct{})
@@ -595,9 +602,8 @@ func (s *WebSuite) TestConnect(c *C) {
 		for {
 			n, err := clt.Read(out)
 			c.Assert(err, IsNil)
-			decoded, err := base64.StdEncoding.DecodeString(string(out[:n]))
-			c.Assert(err, IsNil)
-			if strings.Contains(removeSpace(string(decoded)), "176") {
+			c.Assert(n > 0, Equals, true)
+			if strings.Contains(removeSpace(string(out)), "vinsong") {
 				close(resultC)
 				return
 			}
@@ -620,12 +626,25 @@ func (s *WebSuite) TestNodesWithSessions(c *C) {
 	defer clt.Close()
 
 	// to make sure we have a session
-	_, err := io.WriteString(clt, "expr 137 + 39\r\n")
+	_, err := io.WriteString(clt, "echo vinsong\r\n")
 	c.Assert(err, IsNil)
 
 	// make sure server has replied
-	out := make([]byte, 100)
-	clt.Read(out)
+	out := make([]byte, 1024)
+	n := 0
+	for err == nil {
+		clt.SetReadDeadline(time.Now().Add(time.Millisecond * 20))
+		n, err = clt.Read(out)
+		if err == nil && n > 0 {
+			break
+		}
+		ne, ok := err.(net.Error)
+		if ok && ne.Timeout() {
+			err = nil
+			continue
+		}
+		c.Error(err)
+	}
 
 	var nodes *getSiteNodesResponse
 	for i := 0; i < 3; i++ {
@@ -641,7 +660,7 @@ func (s *WebSuite) TestNodesWithSessions(c *C) {
 		}
 		// sessions do not appear momentarily as there's async heartbeat
 		// procedure
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(30 * time.Millisecond)
 	}
 
 	c.Assert(len(nodes.Nodes[0].Sessions), Equals, 1)
@@ -653,18 +672,6 @@ func (s *WebSuite) TestNodesWithSessions(c *C) {
 	var event *sessionStreamEvent
 	c.Assert(websocket.JSON.Receive(stream, &event), IsNil)
 	c.Assert(event, NotNil)
-	c.Assert(getEvent(events.SessionEvent, event.Events), NotNil)
-
-	// one more party joins the session
-	clt2 := s.connect(c, pack, sid)
-	defer clt2.Close()
-
-	// to make sure we have a session
-	_, err = io.WriteString(clt, "expr 147 + 29\r\n")
-	c.Assert(err, IsNil)
-
-	c.Assert(websocket.JSON.Receive(stream, &event), IsNil)
-	c.Assert(len(event.Session.Parties), Equals, 2)
 }
 
 func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
@@ -749,78 +756,16 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 		pack.clt.Endpoint("webapi", "sites", s.domainName, "sessions", string(sid)), url.Values{})
 	c.Assert(err, IsNil)
 
-	var sess *siteSessionGetResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &sess), IsNil)
-	c.Assert(sess.Session.TerminalParams, DeepEquals, params)
+	var se *sess.Session
+	c.Assert(json.Unmarshal(re.Bytes(), &se), IsNil)
+	c.Assert(se.TerminalParams, DeepEquals, params)
 }
 
 func (s *WebSuite) TestPlayback(c *C) {
-	sid := session.NewID()
 	pack := s.authPack(c)
+	sid := session.NewID()
 	clt := s.connect(c, pack, sid)
 	defer clt.Close()
-
-	// to make sure we have a session
-	_, err := io.WriteString(clt, "expr 137 + 39\r\nexit\r\n")
-	c.Assert(err, IsNil)
-
-	// make sure server has replied
-	out := make([]byte, 100)
-	clt.Read(out)
-
-	// retrieve the chunks
-	var chunks *siteSessionGetChunksResponse
-	re, err := pack.clt.Get(
-		pack.clt.Endpoint("webapi", "sites", s.domainName, "sessions", string(sid), "chunks"), url.Values{"start": []string{"1"}, "end": []string{"100"}})
-	c.Assert(err, IsNil)
-	c.Assert(json.Unmarshal(re.Bytes(), &chunks), IsNil)
-	c.Assert(len(chunks.Chunks), Not(Equals), 0)
-
-	var chunksCount *siteSessionGetChunksCountResponse
-	re, err = pack.clt.Get(
-		pack.clt.Endpoint("webapi", "sites", s.domainName, "sessions", string(sid), "chunkscount"), url.Values{})
-	c.Assert(err, IsNil)
-	c.Assert(json.Unmarshal(re.Bytes(), &chunksCount), IsNil)
-	c.Assert(int(chunksCount.Count), Not(Equals), 0)
-}
-
-func (s *WebSuite) TestSessionEvents(c *C) {
-	sid := session.NewID()
-	pack := s.authPack(c)
-	clt := s.connect(c, pack, sid)
-	defer clt.Close()
-
-	// to make sure we have a session
-	_, err := io.WriteString(clt, "expr 137 + 39\r\nexit\r\n")
-	c.Assert(err, IsNil)
-
-	// make sure server has replied
-	out := make([]byte, 100)
-	clt.Read(out)
-
-	data, err := json.Marshal(events.Filter{
-		Start: time.Now().UTC(),
-		Order: events.Desc,
-		Limit: 10,
-	})
-	c.Assert(err, IsNil)
-
-	var events *siteGetSessionEventsResponse
-	re, err := pack.clt.Get(
-		pack.clt.Endpoint("webapi", "sites", s.domainName, "events", "sessions"), url.Values{"filter": []string{string(data)}})
-	c.Assert(err, IsNil)
-	c.Assert(json.Unmarshal(re.Bytes(), &events), IsNil)
-	c.Assert(len(events.Sessions), Not(Equals), 0)
-}
-
-func getEvent(schema string, events []lunk.Entry) *lunk.Entry {
-	for i := range events {
-		e := events[i]
-		if e.Schema == schema {
-			return &e
-		}
-	}
-	return nil
 }
 
 func removeSpace(in string) string {
