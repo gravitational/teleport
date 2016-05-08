@@ -85,7 +85,6 @@ class EventProvider{
     }
   }
 
-
   _init(data){
     let {events} = data;
     let w, h;
@@ -95,7 +94,7 @@ class EventProvider{
     for(let i = 0; i < events.length; i++){
 
       let { ms, event, time } = events[i];
-  
+
       if(event === 'resize' || event === 'session.start'){
         [w, h] = events[i].size.split(':');
       }
@@ -110,7 +109,6 @@ class EventProvider{
       events[i].w = Number(w);
       events[i].h = Number(h);
       events[i].time = new Date(time);
-      events[i].displayTime =
       tmp.push(events[i]);
     }
 

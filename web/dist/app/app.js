@@ -1847,7 +1847,7 @@ webpackJsonp([1],[
 	    }
 	
 	    if (this._shouldRefreshToken(userData)) {
-	      return this._refreshToken().then(this._startTokenRefresher);
+	      return this._refreshToken().done(this._startTokenRefresher);
 	    }
 	
 	    this._startTokenRefresher();
@@ -4926,7 +4926,7 @@ webpackJsonp([1],[
 	      events[i].w = Number(w);
 	      events[i].h = Number(h);
 	      events[i].time = new Date(time);
-	      events[i].displayTime = tmp.push(events[i]);
+	      tmp.push(events[i]);
 	    }
 	
 	    var cur = tmp[0];
