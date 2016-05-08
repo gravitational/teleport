@@ -6999,7 +6999,13 @@ webpackJsonp([1],[
 	    var startDate = _ref.startDate;
 	    var endDate = _ref.endDate;
 	
-	    actions.setTimeRange(startDate, endDate);
+	    /**
+	    * as date picker uses timeouts its important to ensure that
+	    * component is still mounted when data picker triggers an update
+	    */
+	    if (this.isMounted()) {
+	      actions.setTimeRange(startDate, endDate);
+	    }
 	  },
 	
 	  searchAndFilterCb: function searchAndFilterCb(targetValue, searchValue, propName) {

@@ -52,7 +52,13 @@ var ArchivedSessions = React.createClass({
   },
 
   onRangePickerChange({startDate, endDate}){
-    actions.setTimeRange(startDate, endDate);
+    /**
+    * as date picker uses timeouts its important to ensure that
+    * component is still mounted when data picker triggers an update
+    */
+    if(this.isMounted()){
+      actions.setTimeRange(startDate, endDate);
+    }
   },
 
   searchAndFilterCb(targetValue, searchValue, propName){
