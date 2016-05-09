@@ -1045,22 +1045,18 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	var writer io.Writer = w
 	for _, acceptedEnc := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
 		if strings.TrimSpace(acceptedEnc) == "gzip" {
-			gzipper, err := gzip.NewWriterLevel(w, gzip.BestCompression)
-			if err != nil {
-				onError(trace.Wrap(err))
-				return
-			}
+			gzipper := gzip.NewWriter(w)
 			writer = gzipper
 			defer gzipper.Close()
 			w.Header().Set("Content-Encoding", "gzip")
 		}
 	}
+	w.Header().Set("Content-Type", "application/octet-stream")
 	_, err = writer.Write(bytes)
 	if err != nil {
 		onError(trace.Wrap(err))
 		return
 	}
-	w.Header().Set("Content-Type", "application/octet-stream")
 }
 
 type eventsListGetResponse struct {
