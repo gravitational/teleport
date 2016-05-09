@@ -73,7 +73,7 @@ var SessionPlayer = React.createClass({
     this.terminal = new Term(this.tty, this.refs.container);
     this.terminal.open();
 
-    this.tty.on('change', this.updateState.bind(this))
+    this.tty.on('change', this.updateState)
     this.tty.play();
   },
 

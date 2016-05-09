@@ -38,16 +38,8 @@ webpackJsonp([1],[
 	
 	var _nuclearJs = __webpack_require__(12);
 	
-	var enabled = false;
-	
-	// temporary workaround to disable debug info during unit-tests
-	var karma = window.__karma__;
-	if (karma && karma.config.args.length === 1) {
-	  enabled = false;
-	}
-	
 	var reactor = new _nuclearJs.Reactor({
-	  debug: enabled
+	  debug: false
 	});
 	
 	window.reactor = reactor;
@@ -4829,7 +4821,6 @@ webpackJsonp([1],[
 	var STREAM_START_INDEX = 0;
 	var PRE_FETCH_BUF_SIZE = 150;
 	var URL_PREFIX_EVENTS = '/events';
-	//const EVENT_MIN_TIME_DIFFERENCE = 10;
 	var PLAY_SPEED = 5;
 	
 	function handleAjaxError(err) {
@@ -4930,7 +4921,11 @@ webpackJsonp([1],[
 	    var m = Math.floor(totalSec % 31536000 % 86400 % 3600 / 60);
 	    var s = totalSec % 31536000 % 86400 % 3600 % 60;
 	
-	    return h + ':' + m + ':' + s;
+	    m = m > 9 ? m : '0' + m;
+	    s = s > 9 ? s : '0' + s;
+	    h = h > 0 ? h + ':' : '';
+	
+	    return '' + h + m + ':' + s;
 	  };
 	
 	  EventProvider.prototype._createPrintEvents = function _createPrintEvents(json) {
@@ -4943,6 +4938,7 @@ webpackJsonp([1],[
 	      var _json$i = json[i];
 	      var ms = _json$i.ms;
 	      var _event = _json$i.event;
+	      var offset = _json$i.offset;
 	      var time = _json$i.time;
 	      var bytes = _json$i.bytes;
 	
@@ -4968,6 +4964,7 @@ webpackJsonp([1],[
 	        ms: ms,
 	        msNormalized: ms,
 	        bytes: bytes,
+	        offset: offset,
 	        data: null,
 	        w: Number(w),
 	        h: Number(h),
@@ -5044,18 +5041,20 @@ webpackJsonp([1],[
 	  TtyPlayer.prototype.resize = function resize() {};
 	
 	  TtyPlayer.prototype.connect = function connect() {
-	    var _this3 = this;
-	
 	    this._setStatusFlag({ isLoading: true });
-	    this._eventProvider.init().done(function () {
-	      _this3.length = _this3._eventProvider.getLengthInTime();
-	      _this3._eventProvider.events.forEach(function (item) {
-	        return _this3._posToEventIndexMap.push(item.msNormalized);
-	      });
-	      _this3._setStatusFlag({ isReady: true });
-	    }).fail(handleAjaxError).always(this._change.bind(this));
+	    this._eventProvider.init().done(this._init.bind(this)).fail(handleAjaxError).always(this._change.bind(this));
 	
 	    this._change();
+	  };
+	
+	  TtyPlayer.prototype._init = function _init() {
+	    var _this3 = this;
+	
+	    this.length = this._eventProvider.getLengthInTime();
+	    this._eventProvider.events.forEach(function (item) {
+	      return _this3._posToEventIndexMap.push(item.msNormalized);
+	    });
+	    this._setStatusFlag({ isReady: true });
 	  };
 	
 	  TtyPlayer.prototype.move = function move(newPos) {
@@ -5230,6 +5229,7 @@ webpackJsonp([1],[
 	exports['default'] = TtyPlayer;
 	exports.EventProvider = EventProvider;
 	exports.TtyPlayer = TtyPlayer;
+	exports.Buffer = Buffer;
 	
 	/* REACT HOT LOADER */ }).call(this); } finally { if (false) { (function () { var foundReactClasses = module.hot.data && module.hot.data.foundReactClasses || false; if (module.exports && module.makeHot) { var makeExportsHot = require("/home/akontsevoy/go/src/github.com/gravitational/teleport/web/node_modules/react-hot-loader/makeExportsHot.js"); if (makeExportsHot(module, require("react"))) { foundReactClasses = true; } var shouldAcceptModule = true && foundReactClasses; if (shouldAcceptModule) { module.hot.accept(function (err) { if (err) { console.error("Cannot not apply hot update to " + "ttyPlayer.js" + ": " + err.message); } }); } } module.hot.dispose(function (data) { data.makeHot = module.makeHot; data.foundReactClasses = foundReactClasses; }); })(); } }
 
@@ -5605,7 +5605,7 @@ webpackJsonp([1],[
 	    this.terminal = new Term(this.tty, this.refs.container);
 	    this.terminal.open();
 	
-	    this.tty.on('change', this.updateState.bind(this));
+	    this.tty.on('change', this.updateState);
 	    this.tty.play();
 	  },
 	
@@ -6975,7 +6975,7 @@ webpackJsonp([1],[
 	  },
 	
 	  componentWillMount: function componentWillMount() {
-	    actions.fetch();
+	    setTimeout(actions.fetch, 0);
 	    this.refreshInterval = setInterval(actions.fetch, 2500);
 	  },
 	

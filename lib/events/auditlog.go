@@ -368,12 +368,8 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]Event
 			continue
 		}
 		fd := fi.ModTime().UTC()
-
 		if fd.After(fromUTC) && fd.Before(toUTC) {
 			filtered = append(filtered, fi)
-		} else {
-			log.Infof("skipping %s created on %v. does not fit range (%v, %v)", fi.Name(),
-				fd, fromUTC, toUTC)
 		}
 	}
 	// sort all accepted  files by date

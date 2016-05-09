@@ -647,7 +647,7 @@ func (s *WebSuite) TestNodesWithSessions(c *C) {
 	}
 
 	var nodes *getSiteNodesResponse
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 10; i++ {
 		// get site nodes and make sure the node has our active party
 		re, err := pack.clt.Get(pack.clt.Endpoint("webapi", "sites", s.domainName, "nodes"), url.Values{})
 		c.Assert(err, IsNil)

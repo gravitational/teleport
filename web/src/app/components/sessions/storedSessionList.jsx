@@ -33,12 +33,12 @@ var ArchivedSessions = React.createClass({
   },
 
   componentWillMount(){
-    actions.fetch();
+    setTimeout(actions.fetch, 0);
     this.refreshInterval = setInterval(actions.fetch, 2500);
   },
 
   componentWillUnmount(){
-    clearInterval(this.refreshInterval);    
+    clearInterval(this.refreshInterval);
   },
 
   onFilterChange(value){
