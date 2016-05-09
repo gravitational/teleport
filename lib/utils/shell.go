@@ -37,7 +37,8 @@ func GetLoginShell(username string) (string, error) {
 		dir := "Local/Default/Users/" + username
 		out, err := exec.Command("dscl", "localhost", "-read", dir, "UserShell").Output()
 		if err != nil {
-			return "", err
+			log.Warn(err)
+			return "", trace.Errorf("cannot determine shell for %s", username)
 		}
 		m := osxUserShellRegexp.FindStringSubmatch(string(out))
 		shell := m[1]

@@ -65,7 +65,7 @@ func (s *UtilsSuite) TestRandomDuration(c *check.C) {
 func (s *UtilsSuite) TestGetShell(c *check.C) {
 	shell, err := GetLoginShell("root")
 	c.Assert(err, check.IsNil)
-	c.Assert(shell, check.Equals, "/bin/bash")
+	c.Assert(shell == "/bin/bash" || shell == "/bin/sh", check.Equals, true)
 
 	shell, err = GetLoginShell("non-existent-user")
 	c.Assert(err, check.NotNil)
