@@ -447,6 +447,74 @@ configuring OpenSSH client to work with Teleport Proxy:
 scp_if_ssh = True
 ```
 
+## External authentication with OIDC
+
+Teleport supports [OIDC](http://openid.net/connect/) to provide external authentication
+using services like Google.
+
+### Setting up Google External auth
+
+To set up external Google auth for Teleport let's set up OIDC credentials in Google's Developers Center.
+Check out [this guide](https://developers.google.com/identity/protocols/OpenIDConnect) on setting up OIDC applications,
+it will help you to follow the instructions below.
+
+* Create Teleport Project that will identify your installation:
+
+![Create project](img/oidc-create-project.png)
+
+* Set up consent screen:
+
+![Create project](img/oidc-consent.png)
+
+* Create "Web application" client id:
+
+![Client ID](img/oidc-create-client-id.png)
+
+* Get Oauth 2.0 client credentials:
+
+![Client Creds](img/oidc-copy-creds.png)
+
+* Add OIDC connector to teleport config:
+
+```
+auth_service:
+  enabled: true
+  domain_name: localhost
+  oidc_connectors:    
+    - id: google
+      redirect_url: https://localhost:3080/v1/webapi/oidc/callback
+      client_id: id-from-google.apps.googleusercontent.com
+      client_secret: secret-key-from-google
+      issuer_url: https://accounts.google.com
+```
+
+* Create user with OIDC connector:
+
+```
+tctl users add sasha sasha --identity google:klizhentas@gmail.com
+```
+
+You still have to activate user using signup link to be able to log in.
+
+
+### Logging in
+
+**Web**
+
+Now, if everything is set up correctly, you will see "Login with Google" button on the login screen:
+
+![OIDC Login](img/oidc-login.png)
+
+**Console**
+
+To login via `tsh` simply type:
+
+```
+tsh --proxy localhost --auth google ssh localhost
+```
+
+and follow the instructions.
+
 ## High Availability and Clustering
  
 Teleport uses etcd backend to achieve highly available deployments. 
