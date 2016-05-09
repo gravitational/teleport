@@ -18,11 +18,20 @@ var React = require('react');
 var reactor = require('app/reactor');
 var userGetters = require('app/modules/user/getters');
 var nodeGetters = require('app/modules/nodes/getters');
+var {fetchNodes} = require('app/modules/nodes/actions');
 var NodeList = require('./nodeList.jsx');
 
 var Nodes = React.createClass({
 
   mixins: [reactor.ReactMixin],
+
+  componentDidMount(){
+    this.refreshInterval = setInterval(fetchNodes, 2500);
+  },
+
+  componentWillUnmount: function() {
+    clearInterval(this.refreshInterval);
+  },
 
   getDataBindings() {
     return {
