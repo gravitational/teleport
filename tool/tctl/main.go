@@ -280,12 +280,14 @@ func (u *UserCommand) Add(client *auth.TunClient) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	hostname := "teleport-proxy"
 	if len(proxies) == 0 {
-		return trace.Errorf("Cannot add users to a cluster without a proxy")
+		fmt.Println("\x1b[1mWARNING\x1b[0m: this Teleport cluster does not have any proxy servers online.\nYou need to start some to be able to login.\n")
+	} else {
+		hostname = proxies[0].Hostname
 	}
-	hostname := proxies[0].Hostname
 	url := web.CreateSignupLink(net.JoinHostPort(hostname, strconv.Itoa(defaults.HTTPListenPort)), token)
-	fmt.Printf("Signup token has been created and is valid for %v seconds. Share this URL with the user:\n%v\n\nNOTE: make sure the hostname is accessible!\n", defaults.MaxSignupTokenTTL.Seconds(), url)
+	fmt.Printf("Signup token has been created and is valid for %v seconds. Share this URL with the user:\n%v\n\nNOTE: make sure '%s' is accessible!\n", defaults.MaxSignupTokenTTL.Seconds(), url, hostname)
 	return nil
 }
 
