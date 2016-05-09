@@ -33,11 +33,12 @@ var ArchivedSessions = React.createClass({
   },
 
   componentWillMount(){
-    setTimeout(()=>actions.fetch(), 0);
+    actions.fetch();
+    this.refreshInterval = setInterval(actions.fetch, 2500);
   },
 
   componentWillUnmount(){
-    actions.removeStoredSessions();
+    clearInterval(this.refreshInterval);    
   },
 
   onFilterChange(value){
@@ -51,7 +52,13 @@ var ArchivedSessions = React.createClass({
   },
 
   onRangePickerChange({startDate, endDate}){
-    actions.setTimeRange(startDate, endDate);
+    /**
+    * as date picker uses timeouts its important to ensure that
+    * component is still mounted when data picker triggers an update
+    */
+    if(this.isMounted()){
+      actions.setTimeRange(startDate, endDate);
+    }
   },
 
   searchAndFilterCb(targetValue, searchValue, propName){
@@ -141,7 +148,7 @@ var ArchivedSessions = React.createClass({
               </Table>
             </div>
           }
-        </div>        
+        </div>
       </div>
     )
   }

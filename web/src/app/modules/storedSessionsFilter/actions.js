@@ -42,7 +42,6 @@ const actions = {
   setTimeRange(start, end){
     reactor.batch(()=>{
       reactor.dispatch(TLPT_STORED_SESSINS_FILTER_SET_RANGE, {start, end});
-      reactor.dispatch(TLPT_SESSINS_REMOVE_STORED);
       _fetch(start, end);
     });
   }

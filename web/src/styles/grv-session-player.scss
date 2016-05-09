@@ -18,12 +18,19 @@ limitations under the License.
   padding: 15px 25px 50px 90px;
 
   .grv-terminal{
-    overflow: auto;
+    overflow: hidden;
+    position: relative;
+    height: 100%;
+  }
+
+  // scrollbars
+  .ps-container:hover > .ps-scrollbar-x-rail:hover,
+  .ps-container:hover > .ps-scrollbar-y-rail:hover {
+    background-color: #676a6c;
   }
 
   .grv-session-player-controls{
     margin-top: 10px;
-    height: 30px;
     display: flex;
 
     .grv-flex-column{
@@ -31,13 +38,27 @@ limitations under the License.
     }
 
     .btn{
-      padding: 0 12px;
+      width: 15px;
+      background-color: transparent;
+      padding: 0 12px 0 0;
+
+      &:focus{
+        color: inherit!important;
+      }
+    }
+
+    .grv-session-player-controls-time{
+      width: 35px;
+      margin: 1px 7px 0;
+      display: block;
+      text-align: right;
     }
 
     .grv-slider{
       display: block;
-      height: 20px;
+      height: 10px;
       padding: 0;
+      margin-top: 4px;
     }
   }
 }

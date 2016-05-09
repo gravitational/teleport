@@ -26,7 +26,7 @@ class TtyEvents extends EventEmitter {
   }
 
   connect(connStr){
-    this.socket = new WebSocket(connStr, 'proto');
+    this.socket = new WebSocket(connStr);
 
     this.socket.onopen = () => {
       logger.info('Tty event stream is open');
