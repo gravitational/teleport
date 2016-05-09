@@ -69,7 +69,7 @@ var auth = {
     }
 
     if(this._shouldRefreshToken(userData)){
-      return this._refreshToken().then(this._startTokenRefresher);
+      return this._refreshToken().done(this._startTokenRefresher);
     }
 
     this._startTokenRefresher();
@@ -112,7 +112,7 @@ var auth = {
   },
 
   _refreshToken(){
-    return api.post(cfg.api.renewTokenPath).then(data=>{      
+    return api.post(cfg.api.renewTokenPath).then(data=>{
       session.setUserData(new UserData(data));
       return data;
     }).fail(()=>{
