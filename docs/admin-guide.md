@@ -507,10 +507,10 @@ Now, if everything is set up correctly, you will see "Login with Google" button 
 
 **CLI**
 
-When you try to connect to a remote server using Teleport:
+You have to tell `tsh` to authenticate via Google by providing an `--auth` flag: 
 
 ```
-tsh --proxy <proxy-addr> ssh <server-addr>
+tsh --proxy <proxy-addr> ssh --auth=google <server-addr>
 ```
 
 ... you should get a browser open a login window for you, where you will have to enter
