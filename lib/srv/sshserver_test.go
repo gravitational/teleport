@@ -80,6 +80,7 @@ func (s *SrvSuite) SetUpSuite(c *C) {
 func (s *SrvSuite) SetUpTest(c *C) {
 	var err error
 	s.dir = c.MkDir()
+
 	s.alog, err = events.NewAuditLog(s.dir)
 	c.Assert(err, IsNil)
 
@@ -207,16 +208,20 @@ func (s *SrvSuite) TestShell(c *C) {
 
 	c.Assert(se.Shell(), IsNil)
 
-	out, err := reader.ReadString('$')
+	buf := make([]byte, 36)
+	_, err = reader.Read(buf)
 	c.Assert(err, IsNil)
-	c.Assert(out, Equals, "$")
+	c.Assert(len(buf) > 0, Equals, true)
 
-	_, err = io.WriteString(writer, "expr 7 + 70\n")
+	// send a few "keyboard inputs" into the session:
+	_, err = io.WriteString(writer, "echo $((50+100))\n\r")
 	c.Assert(err, IsNil)
+	time.Sleep(time.Millisecond * 3)
 
-	out, err = reader.ReadString('$')
+	// read the output and make sure that "150" (output of $((50+100)) is there
+	_, err = reader.Read(buf)
 	c.Assert(err, IsNil)
-	c.Assert(removeNL(out), Equals, " expr 7 + 7077$")
+	c.Assert(strings.Contains(string(buf), "150"), Equals, true)
 
 	c.Assert(se.Close(), IsNil)
 }
