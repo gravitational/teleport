@@ -912,7 +912,7 @@ func (m *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 	return *sess, nil
 }
 
-const maxStreamBytes = 512 * 1024
+const maxStreamBytes = 5 * 1024 * 1024
 
 // siteEventsGet allows to search for events on site
 //
@@ -1031,8 +1031,7 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 		max = maxStreamBytes
 	}
 	if max > maxStreamBytes {
-		onError(trace.BadParameter("bytes", "bytes=%d, cannot exceed %d", max, maxStreamBytes))
-		return
+		max = maxStreamBytes
 	}
 	// call the site API to get the chunk:
 	bytes, err := clt.GetSessionChunk(*sid, offset, max)
@@ -1045,22 +1044,18 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	var writer io.Writer = w
 	for _, acceptedEnc := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
 		if strings.TrimSpace(acceptedEnc) == "gzip" {
-			gzipper, err := gzip.NewWriterLevel(w, gzip.BestCompression)
-			if err != nil {
-				onError(trace.Wrap(err))
-				return
-			}
+			gzipper := gzip.NewWriter(w)
 			writer = gzipper
 			defer gzipper.Close()
 			w.Header().Set("Content-Encoding", "gzip")
 		}
 	}
+	w.Header().Set("Content-Type", "application/octet-stream")
 	_, err = writer.Write(bytes)
 	if err != nil {
 		onError(trace.Wrap(err))
 		return
 	}
-	w.Header().Set("Content-Type", "application/octet-stream")
 }
 
 type eventsListGetResponse struct {
