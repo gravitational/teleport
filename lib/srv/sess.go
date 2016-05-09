@@ -322,7 +322,6 @@ func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, err
 		login:     context.login,
 		closeC:    make(chan bool),
 		lingerTTL: defaults.SessionLingerTTL,
-		termSizeC: make(chan []byte, 2),
 	}
 	return sess, nil
 }
@@ -356,13 +355,11 @@ func (p *party) termSizePusher(ch ssh.Channel) {
 			log.Error(err)
 		}
 	}()
-	defer close(p.termSizeC)
 
 	for err == nil {
 		select {
 		case newSize := <-p.termSizeC:
 			n, err = ch.Write(newSize)
-			log.Infof("Pushed size: %s, (written=%d, err=%v)", string(newSize), n, err)
 			if err == io.EOF {
 				continue
 			}
@@ -758,15 +755,16 @@ func (m *multiWriter) Write(p []byte) (n int, err error) {
 
 func newParty(s *session, ch ssh.Channel, ctx *ctx) *party {
 	return &party{
-		user:     ctx.teleportUser,
-		serverID: s.registry.srv.ID(),
-		site:     ctx.conn.RemoteAddr().String(),
-		id:       rsession.NewID(),
-		ch:       ch,
-		ctx:      ctx,
-		s:        s,
-		sconn:    ctx.conn,
-		closeC:   make(chan bool),
+		user:      ctx.teleportUser,
+		serverID:  s.registry.srv.ID(),
+		site:      ctx.conn.RemoteAddr().String(),
+		id:        rsession.NewID(),
+		ch:        ch,
+		ctx:       ctx,
+		s:         s,
+		sconn:     ctx.conn,
+		termSizeC: make(chan []byte, 5),
+		closeC:    make(chan bool),
 	}
 }
 
@@ -833,6 +831,7 @@ func (p *party) Close() (err error) {
 			p.ctx.Error(err)
 		}
 		close(p.closeC)
+		close(p.termSizeC)
 	})
 	return err
 }
