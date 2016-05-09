@@ -24,7 +24,6 @@ const logger = require('app/common/logger').create('TtyPlayer');
 const STREAM_START_INDEX = 0;
 const PRE_FETCH_BUF_SIZE = 150;
 const URL_PREFIX_EVENTS = '/events';
-//const EVENT_MIN_TIME_DIFFERENCE = 10;
 const PLAY_SPEED = 5;
 
 function handleAjaxError(err){
@@ -118,7 +117,11 @@ class EventProvider{
     let m = Math.floor((((totalSec % 31536000) % 86400) % 3600) / 60);
     let s = (((totalSec % 31536000) % 86400) % 3600) % 60;
 
-    return `${h}:${m}:${s}`;
+    m = m > 9 ? m : '0' + m;
+    s = s > 9 ? s : '0' + s;
+    h = h > 0 ? h + ':' : '';
+
+    return `${h}${m}:${s}`;
   }
 
   _createPrintEvents(json){
@@ -128,7 +131,7 @@ class EventProvider{
     // filter print events and ensure that each event has the right screen size and valid values
     for(let i = 0; i < json.length; i++){
 
-      let { ms, event, time, bytes } = json[i];
+      let { ms, event, offset, time, bytes } = json[i];
 
       // grab new screen size for the next events
       if(event === 'resize' || event === 'session.start'){
@@ -149,6 +152,7 @@ class EventProvider{
         ms,
         msNormalized: ms,
         bytes,
+        offset,
         data: null,
         w: Number(w),
         h: Number(h),
@@ -221,15 +225,17 @@ class TtyPlayer extends Tty {
   connect(){
     this._setStatusFlag({isLoading: true});
     this._eventProvider.init()
-      .done(()=>{
-        this.length = this._eventProvider.getLengthInTime();
-        this._eventProvider.events.forEach(item => this._posToEventIndexMap.push(item.msNormalized));
-        this._setStatusFlag({isReady: true});
-      })
+      .done(this._init.bind(this))
       .fail(handleAjaxError)
       .always(this._change.bind(this));
 
     this._change();
+  }
+
+  _init(){
+    this.length = this._eventProvider.getLengthInTime();
+    this._eventProvider.events.forEach(item => this._posToEventIndexMap.push(item.msNormalized));
+    this._setStatusFlag({isReady: true});
   }
 
   move(newPos){
@@ -392,5 +398,6 @@ class TtyPlayer extends Tty {
 export default TtyPlayer;
 export {
   EventProvider,
-  TtyPlayer
+  TtyPlayer,
+  Buffer
 }

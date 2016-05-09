@@ -16,16 +16,8 @@ limitations under the License.
 
 import { Reactor } from 'nuclear-js'
 
-let enabled = false;
-
-// temporary workaround to disable debug info during unit-tests
-let karma = window.__karma__;
-if(karma && karma.config.args.length === 1){
-  enabled = false;
-}
-
 const reactor = new Reactor({
-  debug: enabled
+  debug: false
 })
 
 window.reactor = reactor;
