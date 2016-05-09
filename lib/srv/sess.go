@@ -182,7 +182,6 @@ func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *c
 		return nil
 	}
 	sid := ctx.session.id
-	log.Infof("notifyWinChange(%v)", sid)
 
 	// report this to the event/audit log:
 	s.srv.EmitAuditEvent(events.ResizeEvent, events.EventFields{
@@ -786,7 +785,7 @@ type party struct {
 }
 
 func (p *party) onWindowChanged(params *rsession.TerminalParams) {
-	log.Infof("party(%s).onWindowChanged(%v)", p.id, params.Serialize())
+	log.Debugf("party(%s).onWindowChanged(%v)", p.id, params.Serialize())
 
 	p.Lock()
 	defer p.Unlock()

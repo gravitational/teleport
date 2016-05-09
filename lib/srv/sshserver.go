@@ -662,7 +662,7 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 		}
 		// update ctx with a session ID
 		ctx.session, _ = findSession()
-		log.Infof("[SSH] loaded session %v for SSH connection %v", ctx.session, sconn)
+		log.Debugf("[SSH] loaded session %v for SSH connection %v", ctx.session, sconn)
 	}
 
 	for {
@@ -767,7 +767,6 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 
 // handleWinChange gets called when 'window chnged' SSH request comes in
 func (s *Server) handleWinChange(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	ctx.Infof("srv.handleWinChange(%v)", string(req.Payload))
 	params, err := parseWinChange(req)
 	if err != nil {
 		ctx.Error(err)
