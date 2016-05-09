@@ -33,9 +33,6 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// lingerTTL is the default value for session's "LingerTTL" property
-const lingerTTL = time.Duration(time.Second * 5)
-
 // sessionRegistry holds a map of all active sessions on a given
 // SSH server
 type sessionRegistry struct {
@@ -111,7 +108,7 @@ func (s *sessionRegistry) leaveShell(party *party) error {
 		return trace.Wrap(err)
 	}
 
-	// emit an audit event
+	// emit "session leave" event (party left the session)
 	s.srv.EmitAuditEvent(events.SessionLeaveEvent, events.EventFields{
 		events.SessionEventID:  string(sess.id),
 		events.EventUser:       party.user,
@@ -324,8 +321,8 @@ func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, err
 		writer:    newMultiWriter(),
 		login:     context.login,
 		closeC:    make(chan bool),
-		lingerTTL: lingerTTL,
-		termSizeC: nil, // only needed for web clients
+		lingerTTL: defaults.SessionLingerTTL,
+		termSizeC: make(chan []byte, 2),
 	}
 	return sess, nil
 }
@@ -359,11 +356,6 @@ func (p *party) termSizePusher(ch ssh.Channel) {
 			log.Error(err)
 		}
 	}()
-
-	p.Lock()
-	p.termSizeC = make(chan []byte, 2)
-	p.Unlock()
-
 	defer close(p.termSizeC)
 
 	for err == nil {
@@ -422,14 +414,13 @@ func (s *session) Close() error {
 // associated with every session. It forwards session stream to the audit log
 type sessionRecorder struct {
 	// alog is the audit log to store session chunks
-	alog events.AuditLogI
+	alog events.IAuditLog
 	// sid defines the session to record
 	sid rsession.ID
 }
 
 // Write takes a chunk and writes it into the audit log
 func (r *sessionRecorder) Write(data []byte) (int, error) {
-	//log.Infof("\n\n---> sessionRecorder.Write(%d)", len(data))
 	if err := r.alog.PostSessionChunk(r.sid, bytes.NewReader(data)); err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -446,7 +437,8 @@ func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 	// create a new "party" (connected client)
 	p := newParty(s, ch, ctx)
 
-	// allocate or borrow a terminal:
+	// allocate a terminal or take the one previously allocated via a
+	// seaprate "allocate TTY" SSH request
 	if ctx.getTerm() != nil {
 		s.term = ctx.getTerm()
 		ctx.setTerm(nil)
@@ -588,8 +580,8 @@ func (s *session) SetLingerTTL(ttl time.Duration) {
 // size to what's in the session (so all connected parties have the same terminal size)
 // it also updates 'active' field on the session.
 func (s *session) pollAndSync() {
-	log.Infof("[session.registry] start pollAndSync()\b")
-	defer log.Infof("[session.registry] end pollAndSync()\n")
+	log.Debugf("[session.registry] start pollAndSync()\b")
+	defer log.Debugf("[session.registry] end pollAndSync()\n")
 
 	sessionServer := s.registry.srv.sessionServer
 	if sessionServer == nil {
@@ -598,9 +590,9 @@ func (s *session) pollAndSync() {
 	errCount := 0
 	sync := func() error {
 		sess, err := sessionServer.GetSession(s.id)
-		if err != nil || sess == nil {
+		if sess == nil {
 			log.Debugf("syncTerm: no session")
-			return err
+			return trace.Wrap(err)
 		}
 		var active = true
 		sessionServer.UpdateSession(rsession.UpdateRequest{

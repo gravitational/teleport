@@ -53,10 +53,7 @@ type IntSuite struct {
 // bootstrap check
 func TestIntegrations(t *testing.T) { check.TestingT(t) }
 
-var _ = check.Suite(&IntSuite{
-	priv: []byte(testauthority.Priv),
-	pub:  []byte(testauthority.Pub),
-})
+var _ = check.Suite(&IntSuite{})
 
 func (s *IntSuite) TearDownSuite(c *check.C) {
 	var err error
@@ -70,6 +67,9 @@ func (s *IntSuite) SetUpSuite(c *check.C) {
 	var err error
 	utils.InitLoggerForTests()
 	SetTestTimeouts(100)
+
+	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
 
 	// find 10 free litening ports to use
 	s.ports, err = utils.GetFreeTCPPorts(AllocatePortsNum)
@@ -167,7 +167,7 @@ func (s *IntSuite) TestAudit(c *check.C) {
 
 	// read back the entire session (we have to try several times until we get back
 	// everything because the session is closing)
-	expectedLen := 1048600
+	const expectedLen = 1048600
 	var sessionStream []byte
 	for i := 0; len(sessionStream) < expectedLen; i++ {
 		sessionStream, err = site.GetSessionChunk(session.ID, 0, events.MaxChunkBytes)
@@ -234,11 +234,6 @@ func (s *IntSuite) TestAudit(c *check.C) {
 		if e.GetInt("bytes") == 1048576 {
 			hugeChunkFound = true
 		}
-		/* uncomment to see all chunks
-		fmt.Printf("%s: offset=%d bytes=%d, chunk=%s\n",
-			e.GetType(), e.GetInt("offset"), e.GetInt("bytes"),
-			strings.TrimSpace(getChunk(e, 10)))
-		*/
 	}
 	c.Assert(prefixFound, check.Equals, true)
 	c.Assert(hugeChunkFound, check.Equals, true)

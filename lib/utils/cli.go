@@ -34,12 +34,12 @@ import (
 
 // InitLoggerCLI tools by default log into syslog, not stderr
 func InitLoggerCLI() {
-	log.SetLevel(log.ErrorLevel)
+	log.SetLevel(log.WarnLevel)
 	// clear existing hooks:
 	log.StandardLogger().Hooks = make(log.LevelHooks)
 	log.SetFormatter(&trace.TextFormatter{})
 
-	hook, err := logrusSyslog.NewSyslogHook("", "", syslog.LOG_INFO, "")
+	hook, err := logrusSyslog.NewSyslogHook("", "", syslog.LOG_WARNING, "")
 	if err != nil {
 		// syslog not available
 		log.Warn("syslog not available. reverting to stderr")
@@ -67,7 +67,7 @@ func InitLoggerForTests() {
 		InitLoggerDebug()
 		return
 	}
-	log.SetLevel(log.ErrorLevel)
+	log.SetLevel(log.WarnLevel)
 	log.StandardLogger().Hooks = make(log.LevelHooks)
 	log.SetOutput(ioutil.Discard)
 }

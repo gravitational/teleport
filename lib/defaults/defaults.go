@@ -114,6 +114,13 @@ const (
 
 	// OIDCAuthRequestTTL is TTL of internally stored auth request created by client
 	OIDCAuthRequestTTL = 60 * time.Second
+
+	// LogRotationPeriod defines how frequently to rotate the audit log file
+	LogRotationPeriod = (time.Hour * 24)
+
+	// SessionLingerTTL defines for how long abandoned sessions remain active,
+	// waiting for their parties to restore connection (before being garbage-collected)
+	SessionLingerTTL = time.Duration(time.Second * 5)
 )
 
 var (

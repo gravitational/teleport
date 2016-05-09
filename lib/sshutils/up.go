@@ -214,7 +214,7 @@ func (u *Upstream) PipeShell(rw io.ReadWriter, req *PTYReqParams) error {
 	}
 
 	// copyOutput works exactly like io.Copy() but it does two additional things:
-	// It appends 'prefix' in front of every write (used to send screensize back to
+	// It appends 'prefix' to the end of every write (used to send screensize back to
 	// the web client in real time (it MUST know the screen size ahead of every write)
 	copyOutput := func(w io.Writer, r io.Reader) (err error) {
 		written, n := 0, 0
@@ -223,18 +223,19 @@ func (u *Upstream) PipeShell(rw io.ReadWriter, req *PTYReqParams) error {
 		for err == nil {
 			prefix := getPrefix()
 			n, err = r.Read(buffer)
-			if err == nil {
-				if prefix != nil {
-					pl := len(prefix)
-					if pl+n <= buflen {
-						copy(buffer[n:], prefix)
-						n += pl
-					}
+			if err != nil {
+				break
+			}
+			if prefix != nil {
+				pl := len(prefix)
+				if pl+n <= buflen {
+					copy(buffer[n:], prefix)
+					n += pl
 				}
-				written, err = w.Write(buffer[:n])
-				if written != n {
-					err = io.ErrShortWrite
-				}
+			}
+			written, err = w.Write(buffer[:n])
+			if written != n {
+				err = io.ErrShortWrite
 			}
 		}
 		if err != io.EOF {

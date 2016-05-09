@@ -23,7 +23,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/Sirupsen/logrus"
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 
@@ -294,7 +294,7 @@ func (s *server) GetSessions() ([]Session, error) {
 
 	keys, err := s.bk.GetKeys(bucket)
 	if err != nil {
-		logrus.Error(err)
+		log.Error(err)
 		return nil, err
 	}
 	for i, sid := range keys {

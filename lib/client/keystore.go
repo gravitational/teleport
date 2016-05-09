@@ -36,10 +36,10 @@ import (
 
 const (
 	defaultKeyDir      = ".tsh"
-	sessionKeyDir      = "sessions"
-	fileNameCert       = "cert"
-	fileNameKey        = "key"
-	fileNamePub        = "pub"
+	fileExtCert        = ".cert"
+	fileExtKey         = ".key"
+	fileExtPub         = ".pub"
+	sessionKeyDir      = "keys"
 	fileNameKnownHosts = "known_hosts"
 )
 
@@ -79,7 +79,7 @@ func NewFSLocalKeyStore(dirPath string) (s *FSLocalKeyStore, err error) {
 }
 
 // GetKeys returns all user session keys stored in the store
-func (fs *FSLocalKeyStore) GetKeys() (keys []Key, err error) {
+func (fs *FSLocalKeyStore) GetKeys(username string) (keys []Key, err error) {
 	dirPath := filepath.Join(fs.KeyDir, sessionKeyDir)
 	if !utils.IsDir(dirPath) {
 		return make([]Key, 0), nil
@@ -92,10 +92,12 @@ func (fs *FSLocalKeyStore) GetKeys() (keys []Key, err error) {
 		if !fi.IsDir() {
 			continue
 		}
-		k, err := fs.GetKey(fi.Name())
+		k, err := fs.GetKey(fi.Name(), username)
 		if err != nil {
+			log.Infof("Got error after GetKey(%s): %v", username, err)
 			// if a key is reported as 'not found' it's probably because it expired
 			if !trace.IsNotFound(err) {
+				log.Infof("ITS ANOTHER ERROR")
 				return nil, trace.Wrap(err)
 			}
 			continue
@@ -107,8 +109,7 @@ func (fs *FSLocalKeyStore) GetKeys() (keys []Key, err error) {
 
 // AddKey adds a new key to the session store. If a key for the host is already
 // stored, overwrites it.
-func (fs *FSLocalKeyStore) AddKey(host string, key *Key) error {
-	log.Infof("localKeyStore.AddKey(host=%s, key=%p)", host, key)
+func (fs *FSLocalKeyStore) AddKey(host, username string, key *Key) error {
 	dirPath, err := fs.dirFor(host)
 	if err != nil {
 		return trace.Wrap(err)
@@ -121,13 +122,13 @@ func (fs *FSLocalKeyStore) AddKey(host string, key *Key) error {
 		}
 		return err
 	}
-	if err = writeBytes(fileNameCert, key.Cert); err != nil {
+	if err = writeBytes(username+fileExtCert, key.Cert); err != nil {
 		return trace.Wrap(err)
 	}
-	if err = writeBytes(fileNamePub, key.Pub); err != nil {
+	if err = writeBytes(username+fileExtPub, key.Pub); err != nil {
 		return trace.Wrap(err)
 	}
-	if err = writeBytes(fileNameKey, key.Priv); err != nil {
+	if err = writeBytes(username+fileExtKey, key.Priv); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -135,23 +136,23 @@ func (fs *FSLocalKeyStore) AddKey(host string, key *Key) error {
 
 // GetKey returns a key for a given host. If the key is not found,
 // returns trace.NotFound error.
-func (fs *FSLocalKeyStore) GetKey(host string) (*Key, error) {
+func (fs *FSLocalKeyStore) GetKey(host, username string) (*Key, error) {
 	dirPath, err := fs.dirFor(host)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certFile := filepath.Join(dirPath, fileNameCert)
+	certFile := filepath.Join(dirPath, username+fileExtCert)
 	cert, err := ioutil.ReadFile(certFile)
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
-	pub, err := ioutil.ReadFile(filepath.Join(dirPath, fileNamePub))
+	pub, err := ioutil.ReadFile(filepath.Join(dirPath, username+fileExtPub))
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
-	priv, err := ioutil.ReadFile(filepath.Join(dirPath, fileNameKey))
+	priv, err := ioutil.ReadFile(filepath.Join(dirPath, username+fileExtKey))
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)

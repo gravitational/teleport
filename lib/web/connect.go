@@ -18,7 +18,6 @@ package web
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -165,7 +164,7 @@ func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
 	// which gets added to future SSH reads by web clients.
 	go func() {
 		buff := make([]byte, 16)
-		sshChan, _, err := up.GetClient().OpenChannel("terminal-size-notifier", nil)
+		sshChan, _, err := up.GetClient().OpenChannel("x-teleport-request-resize-events", nil)
 		for err == nil {
 			n, err := sshChan.Read(buff)
 			if err != nil {
@@ -173,12 +172,7 @@ func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
 			}
 			up.SetPrefix(buff[:n])
 		}
-		switch err {
-		case io.EOF:
-			log.Infof("terminal-size-notifier-client: I AM DONE!")
-		case nil:
-			break
-		default:
+		if err != nil {
 			log.Error(err)
 		}
 	}()

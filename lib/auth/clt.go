@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -715,7 +716,7 @@ func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 	return response, nil
 }
 
-// EmitAuditEvent sends an auditable event to the auth server (part of evets.AuditLogI interface)
+// EmitAuditEvent sends an auditable event to the auth server (part of evets.IAuditLog interface)
 func (c *Client) EmitAuditEvent(eventType string, fields events.EventFields) error {
 	_, err := c.PostJSON(c.Endpoint("events"), &auditEventReq{
 		Type:   eventType,
@@ -728,7 +729,7 @@ func (c *Client) EmitAuditEvent(eventType string, fields events.EventFields) err
 }
 
 // PostSessionChunk allows clients to submit session stream chunks to the audit log
-// (part of evets.AuditLogI interface)
+// (part of evets.IAuditLog interface)
 //
 // The data is POSTed to HTTP server as a simple binary body (no encodings of any
 // kind are needed)
@@ -747,9 +748,7 @@ func (c *Client) PostSessionChunk(sid session.ID, reader io.Reader) error {
 	// client will allocate a new connection for subsequent requests
 	defer re.Body.Close()
 	var buff [1024]byte
-	for err == nil {
-		_, err = re.Body.Read(buff[:])
-	}
+	io.CopyBuffer(ioutil.Discard, re.Body, buff[:])
 	return nil
 }
 
@@ -849,5 +848,5 @@ type ClientI interface {
 	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
 	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
 
-	events.AuditLogI
+	events.IAuditLog
 }

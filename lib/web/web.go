@@ -1055,13 +1055,12 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 			w.Header().Set("Content-Encoding", "gzip")
 		}
 	}
-	n, err := writer.Write(bytes)
+	_, err = writer.Write(bytes)
 	if err != nil {
 		onError(trace.Wrap(err))
 		return
 	}
 	w.Header().Set("Content-Type", "application/octet-stream")
-	log.Infof("----> [web] siteSessionStreamGet() returned %d bytes", n)
 }
 
 type eventsListGetResponse struct {

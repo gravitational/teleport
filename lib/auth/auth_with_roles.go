@@ -21,7 +21,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -35,7 +34,7 @@ type AuthWithRoles struct {
 	permChecker PermissionChecker
 	sessions    session.Service
 	role        teleport.Role
-	alog        events.AuditLogI
+	alog        events.IAuditLog
 }
 
 func (a *AuthWithRoles) GetSessions() ([]session.Session, error) {
@@ -370,7 +369,6 @@ func (a *AuthWithRoles) PostSessionChunk(sid session.ID, reader io.Reader) error
 }
 
 func (a *AuthWithRoles) GetSessionChunk(sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	logrus.Infof("----> authWithRoles.GetSessionChunk(%v, offset=%d)", sid, offsetBytes)
 	if err := a.permChecker.HasPermission(a.role, ActionViewSession); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -396,7 +394,7 @@ func NewAuthWithRoles(authServer *AuthServer,
 	permChecker PermissionChecker,
 	sessions session.Service,
 	role teleport.Role,
-	alog events.AuditLogI) *AuthWithRoles {
+	alog events.IAuditLog) *AuthWithRoles {
 	return &AuthWithRoles{
 		authServer:  authServer,
 		permChecker: permChecker,

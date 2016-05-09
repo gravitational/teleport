@@ -215,20 +215,21 @@ func (e *execResponse) collectStatus(cmd *exec.Cmd, err error) (*execResult, err
 	status, err := collectStatus(e.cmd, err)
 	// report the result of this exec event to the audit logger
 	auditLog := e.ctx.srv.alog
-	if auditLog != nil {
-		fields := events.EventFields{
-			events.ExecEventCommand: strings.Join(cmd.Args, " "),
-			events.EventUser:        e.ctx.teleportUser,
-			events.EventLogin:       e.ctx.login,
-			events.LocalAddr:        e.ctx.conn.LocalAddr().String(),
-			events.RemoteAddr:       e.ctx.conn.RemoteAddr().String(),
-		}
-		if err != nil {
-			fields[events.ExecEventError] = err.Error()
-			fields[events.ExecEventCode] = strconv.Itoa(status.code)
-		}
-		auditLog.EmitAuditEvent(events.ExecEvent, fields)
+	if auditLog == nil {
+		return status, err
 	}
+	fields := events.EventFields{
+		events.ExecEventCommand: strings.Join(cmd.Args, " "),
+		events.EventUser:        e.ctx.teleportUser,
+		events.EventLogin:       e.ctx.login,
+		events.LocalAddr:        e.ctx.conn.LocalAddr().String(),
+		events.RemoteAddr:       e.ctx.conn.RemoteAddr().String(),
+	}
+	if err != nil {
+		fields[events.ExecEventError] = err.Error()
+		fields[events.ExecEventCode] = strconv.Itoa(status.code)
+	}
+	auditLog.EmitAuditEvent(events.ExecEvent, fields)
 	return status, err
 }
 

@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 /*
-This audit log implementation uses filesystem backend.
-"Implements" means it implements events.AuditLogI interface (see events/api.go)
+Package events currently implements the audit log using a simple filesystem backend.
+"Implements" means it implements events.IAuditLog interface (see events/api.go)
 
 The main log files are saved as:
 	/var/lib/teleport/log/<date>.log
@@ -60,9 +60,11 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"github.com/Sirupsen/logrus"
+	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -83,9 +85,6 @@ const (
 	// SessionStreamPrefix defines the ending of session stream files,
 	// that's where interactive PTY I/O is saved.
 	SessionStreamPrefix = ".session.bytes"
-
-	// DefaultRotationPeriod defines how frequently to rotate the log file
-	DefaultRotationPeriod = (time.Hour * 24)
 )
 
 type TimeSourceFunc func() time.Time
@@ -130,7 +129,7 @@ type SessionLogger struct {
 	streamFile *os.File
 
 	// counter of how many bytes have been written during this session
-	writtenBytes int
+	writtenBytes int64
 
 	// same as time.Now(), but helps with testing
 	timeSource TimeSourceFunc
@@ -144,7 +143,7 @@ func (sl *SessionLogger) LogEvent(fields EventFields) {
 	defer sl.Unlock()
 
 	// add "bytes written" counter:
-	fields[SessionByteOffset] = sl.writtenBytes
+	fields[SessionByteOffset] = atomic.LoadInt64(&sl.writtenBytes)
 
 	// add "seconds since" timestamp:
 	now := sl.timeSource().In(time.UTC).Round(time.Millisecond)
@@ -156,7 +155,7 @@ func (sl *SessionLogger) LogEvent(fields EventFields) {
 	if sl.eventsFile != nil {
 		_, err := fmt.Fprintln(sl.eventsFile, line)
 		if err != nil {
-			logrus.Error(err)
+			log.Error(err)
 		}
 	}
 }
@@ -165,7 +164,7 @@ func (sl *SessionLogger) LogEvent(fields EventFields) {
 // We ignore their requests because this writer (file) should be closed only
 // when the session logger is closed
 func (sl *SessionLogger) Close() error {
-	logrus.Infof("sessionLogger.Close(sid=%s)", sl.sid)
+	log.Infof("sessionLogger.Close(sid=%s)", sl.sid)
 	return nil
 }
 
@@ -175,7 +174,7 @@ func (sl *SessionLogger) Finalize() error {
 	sl.Lock()
 	defer sl.Unlock()
 	if sl.streamFile != nil {
-		logrus.Infof("sessionLogger.Finalize(sid=%s)", sl.sid)
+		log.Infof("sessionLogger.Finalize(sid=%s)", sl.sid)
 		sl.streamFile.Close()
 		sl.eventsFile.Close()
 		sl.streamFile = nil
@@ -189,11 +188,10 @@ func (sl *SessionLogger) Finalize() error {
 func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
 	if sl.streamFile == nil {
 		err := trace.Errorf("session %v error: attempt to write to a closed file", sl.sid)
-		logrus.Error(err)
-		return 0, err
+		return 0, trace.Wrap(err)
 	}
 	if written, err = sl.streamFile.Write(bytes); err != nil {
-		logrus.Error(err)
+		log.Error(err)
 		return written, trace.Wrap(err)
 	}
 	// log this as a session event (but not more often than once a sec)
@@ -202,13 +200,7 @@ func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
 		SessionPrintEventBytes: len(bytes)})
 
 	// increase the total lengh of the stream
-	lockedMath := func() {
-		sl.Lock()
-		defer sl.Unlock()
-		sl.writtenBytes += len(bytes)
-	}
-	lockedMath()
-
+	atomic.AddInt64(&sl.writtenBytes, int64(len(bytes)))
 	return written, nil
 }
 
@@ -217,28 +209,26 @@ func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
 func NewAuditLog(dataDir string) (*AuditLog, error) {
 	// create a directory for session logs:
 	if err := os.MkdirAll(dataDir, 0770); err != nil {
-		logrus.Error(err)
 		return nil, trace.Wrap(err)
 	}
 	return &AuditLog{
 		loggers:        make(map[session.ID]*SessionLogger, 0),
 		dataDir:        dataDir,
-		RotationPeriod: DefaultRotationPeriod,
+		RotationPeriod: defaults.LogRotationPeriod,
 		TimeSource:     time.Now,
 	}, nil
 }
 
 // PostSessionChunk writes a new chunk of session stream into the audit log
 func (l *AuditLog) PostSessionChunk(sid session.ID, reader io.Reader) error {
-	sl := l.LoggerFor(sid)
-	if sl == nil {
-		logrus.Warnf("audit.log: no session writer for %s", sid)
+	sl, err := l.LoggerFor(sid)
+	if err != nil {
+		log.Warnf("audit.log: no session writer for %s", sid)
 		return nil
 	}
 	tmp, err := utils.ReadAll(reader, 16*1024)
 	_, err = sl.Write(tmp)
 	if err != nil {
-		logrus.Error(err)
 		return trace.Wrap(err)
 	}
 	return nil
@@ -249,17 +239,16 @@ func (l *AuditLog) PostSessionChunk(sid session.ID, reader io.Reader) error {
 // session stream range from offsetBytes to offsetBytes+maxBytes
 //
 func (l *AuditLog) GetSessionChunk(sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	logrus.Infof("audit.log: getSessionReader(%v)", sid)
+	log.Debugf("audit.log: getSessionReader(%v)", sid)
 	fstream, err := os.OpenFile(l.sessionStreamFn(sid), os.O_RDONLY, 0640)
 	if err != nil {
-		logrus.Warning(err)
+		log.Warning(err)
 		return nil, trace.Wrap(err)
 	}
 	defer fstream.Close()
 
-	// seek to 'offset'
-	const fromBeginning = 0
-	fstream.Seek(int64(offsetBytes), fromBeginning)
+	// seek to 'offset' from the beginning
+	fstream.Seek(int64(offsetBytes), 0)
 
 	// copy up to maxBytes from the offset position:
 	var buff bytes.Buffer
@@ -278,7 +267,7 @@ func (l *AuditLog) GetSessionChunk(sid session.ID, offsetBytes, maxBytes int) ([
 func (l *AuditLog) GetSessionEvents(sid session.ID, afterN int) ([]EventFields, error) {
 	logFile, err := os.OpenFile(l.sessionLogFn(sid), os.O_RDONLY, 0640)
 	if err != nil {
-		logrus.Warn(err)
+		log.Warn(err)
 		// no file found? this means no events have been logged yet
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -297,23 +286,23 @@ func (l *AuditLog) GetSessionEvents(sid session.ID, afterN int) ([]EventFields, 
 		}
 		var fields EventFields
 		if err = json.Unmarshal(scanner.Bytes(), &fields); err != nil {
-			logrus.Error(err)
+			log.Error(err)
 			return nil, trace.Wrap(err)
 		}
 		fields[EventCursor] = lineNo
 		retval = append(retval, fields)
 	}
-	//logrus.Infof("auditLog.GetSessionEvents() returned %d events", len(retval))
+	log.Debugf("auditLog.GetSessionEvents() returned %d events", len(retval))
 	return retval, nil
 }
 
-// EmitAuditEvent adds a new event to the log. Part of auth.AuditLogI interface.
+// EmitAuditEvent adds a new event to the log. Part of auth.IAuditLog interface.
 func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
-	logrus.Infof("auditLog.EmitAuditEvent(%s)", eventType)
+	log.Debugf("auditLog.EmitAuditEvent(%s)", eventType)
 
 	// see if the log needs to be rotated
 	if err := l.rotateLog(); err != nil {
-		logrus.Error(err)
+		log.Error(err)
 	}
 
 	// set event type and time:
@@ -324,18 +313,20 @@ func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 	line := eventToLine(fields)
 
 	// if this event is associated with a session -> forward it to the session log as well
-	sessionId := fields.GetString(SessionEventID)
-	if sessionId != "" {
-		sl := l.LoggerFor(session.ID(sessionId))
-		if sl != nil {
+	sessionID := fields.GetString(SessionEventID)
+	if sessionID != "" {
+		sl, err := l.LoggerFor(session.ID(sessionID))
+		if err == nil {
 			sl.LogEvent(fields)
 
 			// Session ended? Get rid of the session logger then:
 			if eventType == SessionEndEvent {
-				logrus.Infof("audit log: removing session logger for SID=%v", sessionId)
-				delete(l.loggers, session.ID(sessionId))
+				log.Infof("audit log: removing session logger for SID=%v", sessionID)
+				l.Lock()
+				delete(l.loggers, session.ID(sessionID))
+				l.Unlock()
 				if err := sl.Finalize(); err != nil {
-					logrus.Error(err)
+					log.Error(err)
 				}
 			}
 		}
@@ -349,15 +340,15 @@ func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 
 // Search finds events. Results show up sorted by date (newest first)
 func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]EventFields, error) {
-	logrus.Infof("auditLog.SearchEvents(%v, %v, query=%v)", fromUTC, toUTC, query)
+	log.Infof("auditLog.SearchEvents(%v, %v, query=%v)", fromUTC, toUTC, query)
 	queryVals, err := url.ParseQuery(query)
 	if err != nil {
-		return nil, trace.BadParameter("query")
+		return nil, trace.BadParameter("query", query)
 	}
 	// how many days of logs to search?
 	days := int(toUTC.Sub(fromUTC).Hours() / 24)
 	if days < 0 {
-		return nil, trace.BadParameter("query")
+		return nil, trace.BadParameter("query", query)
 	}
 
 	// scan the log directory:
@@ -381,7 +372,7 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]Event
 		if fd.After(fromUTC) && fd.Before(toUTC) {
 			filtered = append(filtered, fi)
 		} else {
-			logrus.Infof("skipping %s created on %v. does not fit range (%v, %v)", fi.Name(),
+			log.Infof("skipping %s created on %v. does not fit range (%v, %v)", fi.Name(),
 				fd, fromUTC, toUTC)
 		}
 	}
@@ -412,7 +403,7 @@ func (f byDate) Swap(i, j int)      { f[i], f[j] = f[j], f[i] }
 //
 // You can pass multiple types like "event=session.start&event=session.end"
 func (l *AuditLog) findInFile(fn string, query url.Values) ([]EventFields, error) {
-	logrus.Infof("auditLog.findInFile(%s, %v)", fn, query)
+	log.Infof("auditLog.findInFile(%s, %v)", fn, query)
 	retval := make([]EventFields, 0)
 
 	eventFilter := query[EventType]
@@ -444,7 +435,7 @@ func (l *AuditLog) findInFile(fn string, query url.Values) ([]EventFields, error
 		// in the query:
 		var ef EventFields
 		if err = json.Unmarshal(scanner.Bytes(), &ef); err != nil {
-			logrus.Warnf("invalid JSON in %s line %d", fn, lineNo)
+			log.Warnf("invalid JSON in %s line %d", fn, lineNo)
 		}
 		for i := range eventFilter {
 			if ef.GetString(EventType) == eventFilter[i] {
@@ -472,7 +463,7 @@ func (l *AuditLog) rotateLog() (err error) {
 			fileTime.Format("2006-01-02.15:04:05")+LogfileExt)
 		l.file, err = os.OpenFile(logfname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 		if err != nil {
-			logrus.Error(err)
+			log.Error(err)
 		}
 		l.fileTime = fileTime
 		return trace.Wrap(err)
@@ -527,31 +518,31 @@ func (l *AuditLog) sessionLogFn(sid session.ID) string {
 
 // LoggerFor creates a logger for a specified session. Session loggers allow
 // to group all events into special "session log files" for easier audit
-func (l *AuditLog) LoggerFor(sid session.ID) (sl *SessionLogger) {
+func (l *AuditLog) LoggerFor(sid session.ID) (sl *SessionLogger, err error) {
 	l.Lock()
 	defer l.Unlock()
 
 	sl, ok := l.loggers[sid]
 	if ok {
-		return sl
+		return sl, nil
 	}
 	// make sure session logs dir is present
 	sdir := filepath.Join(l.dataDir, SessionLogsDir)
 	if err := os.MkdirAll(sdir, 0770); err != nil {
-		logrus.Error(err)
-		return nil
+		log.Error(err)
+		return nil, trace.Wrap(err)
 	}
 	// create a new session stream file:
 	fstream, err := os.OpenFile(l.sessionStreamFn(sid), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 	if err != nil {
-		logrus.Error(err)
-		return nil
+		log.Error(err)
+		return nil, trace.Wrap(err)
 	}
 	// create a new session file:
 	fevents, err := os.OpenFile(l.sessionLogFn(sid), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 	if err != nil {
-		logrus.Error(err)
-		return nil
+		log.Error(err)
+		return nil, trace.Wrap(err)
 	}
 	sl = &SessionLogger{
 		sid:         sid,
@@ -561,7 +552,7 @@ func (l *AuditLog) LoggerFor(sid session.ID) (sl *SessionLogger) {
 		createdTime: l.TimeSource().In(time.UTC).Round(time.Second),
 	}
 	l.loggers[sid] = sl
-	return sl
+	return sl, nil
 }
 
 // eventToLine helper creates a loggable line/string for a given event
@@ -569,7 +560,7 @@ func eventToLine(fields EventFields) string {
 	jbytes, err := json.Marshal(fields)
 	jsonString := string(jbytes)
 	if err != nil {
-		logrus.Error(err)
+		log.Error(err)
 		jsonString = ""
 	}
 	return jsonString
