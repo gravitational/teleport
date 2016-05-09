@@ -447,16 +447,16 @@ configuring OpenSSH client to work with Teleport Proxy:
 scp_if_ssh = True
 ```
 
-## External authentication with OIDC
+## Authentication with OpenID Connect / OAuth2
 
-Teleport supports [OIDC](http://openid.net/connect/) to provide external authentication
-using services like Google.
+Teleport supports [OpenID Connect](http://openid.net/connect/) (also known as `OIDC`) to 
+provide external authentication using OpenID providers like Google Apps.
 
-### Setting up Google External auth
+### Using OpenID Connect / OAuth2 with Google Apps
 
-To set up external Google auth for Teleport let's set up OIDC credentials in Google's Developers Center.
-Check out [this guide](https://developers.google.com/identity/protocols/OpenIDConnect) on setting up OIDC applications,
-it will help you to follow the instructions below.
+First, you must configure OpenID Connect credentials via Google's Developers Center. Please refer 
+to [this guide](https://developers.google.com/identity/protocols/OpenIDConnect) to configure an 
+OIDC integration with applications like Teleport. 
 
 * Create Teleport Project that will identify your installation:
 
@@ -466,11 +466,11 @@ it will help you to follow the instructions below.
 
 ![Create project](img/oidc-consent.png)
 
-* Create "Web application" client id:
+* Create "Web application" client ID:
 
 ![Client ID](img/oidc-create-client-id.png)
 
-* Get Oauth 2.0 client credentials:
+* Get OAuth 2.0 client credentials:
 
 ![Client Creds](img/oidc-copy-creds.png)
 
@@ -488,32 +488,38 @@ auth_service:
       issuer_url: https://accounts.google.com
 ```
 
-* Create user with OIDC connector:
+Now you should be able to create Teleport users whose identity is managed by Google.
+Assuming your company domain is `example.com` and it's hosted on Google Apps, lets
+create a new Teleport user "sasha" with an email address `sasha@example.com` and allow
+him to login as `root` to Teleport nodes:
 
 ```
-tctl users add sasha sasha --identity google:klizhentas@gmail.com
+tctl users add sasha root,sasha --identity google:sasha@example.com
 ```
 
-You still have to activate user using signup link to be able to log in.
+### Logging in via OpenID Connect
 
-
-### Logging in
-
-**Web**
+**Web UI**
 
 Now, if everything is set up correctly, you will see "Login with Google" button on the login screen:
 
 ![OIDC Login](img/oidc-login.png)
 
-**Console**
+**CLI**
 
-To login via `tsh` simply type:
+When you try to connect to a remote server using Teleport:
 
 ```
-tsh --proxy localhost --auth google ssh localhost
+tsh --proxy <proxy-addr> ssh <server-addr>
 ```
 
-and follow the instructions.
+... you should get a browser open a login window for you, where you will have to enter
+your Google credentials. Teleport will keep you logged in for the next 23 hours.
+
+!!! note "IMPORTANT": 
+    It is not recommended to run Teleport in production with verbose logging
+    as it generates substantial amount of data.
+
 
 ## High Availability and Clustering
  
@@ -558,9 +564,10 @@ You can simply remove the file so that the configuration file's values can take 
 
 To diagnose problems you can configure `teleport` to run with verbose logging enabled.
 
-!!! warning "IMPORTANT": 
-    It is not recommended to run Teleport in production with verbose logging
-    as it generates substantial amount of data.
+!!! tip "Other Providers?": 
+    We have already received the requests to add support for other OpenID/OAuth2 providers 
+    like Github. Teleport is an open source project and adding proivders is not hard, your 
+    contributions are welcome, just search the code for OIDC! :-)
 
 Sometimes you may want to reset `teleport` to a clean state. This can be accomplished
 by erasing everything under `"data_dir"` directory. Assuming the default location, 
