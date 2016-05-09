@@ -516,9 +516,10 @@ tsh --proxy <proxy-addr> ssh <server-addr>
 ... you should get a browser open a login window for you, where you will have to enter
 your Google credentials. Teleport will keep you logged in for the next 23 hours.
 
-!!! note "IMPORTANT": 
-    It is not recommended to run Teleport in production with verbose logging
-    as it generates substantial amount of data.
+!!! tip "Other Providers?": 
+    We have already received the requests to add support for other OpenID/OAuth2 providers 
+    like Github. Teleport is an open source project and adding proivders is not hard, your 
+    contributions are welcome, just search the code for OIDC! :-)
 
 
 ## High Availability and Clustering
@@ -564,10 +565,9 @@ You can simply remove the file so that the configuration file's values can take 
 
 To diagnose problems you can configure `teleport` to run with verbose logging enabled.
 
-!!! tip "Other Providers?": 
-    We have already received the requests to add support for other OpenID/OAuth2 providers 
-    like Github. Teleport is an open source project and adding proivders is not hard, your 
-    contributions are welcome, just search the code for OIDC! :-)
+!!! note "IMPORTANT": 
+    It is not recommended to run Teleport in production with verbose logging
+    as it generates substantial amount of data.
 
 Sometimes you may want to reset `teleport` to a clean state. This can be accomplished
 by erasing everything under `"data_dir"` directory. Assuming the default location, 
