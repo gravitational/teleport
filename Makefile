@@ -94,7 +94,7 @@ integration:
 source-release: LINKFLAGS := $(shell linkflags -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)
 source-release: RELEASE := teleport-$(shell linkflags --tag)-src
 source-release: RELEASEDIR := $(BUILDDIR)/$(RELEASE)
-source-release: flags
+source-release:
 	mkdir -p $(RELEASEDIR)/src/github.com/gravitational/teleport
 	find -type f | grep -v node_modules | grep -v ./build | grep -v ./.git | grep -v .test$$ > $(BUILDDIR)/files.txt
 	tar --transform "s_./_teleport/src/github.com/gravitational/teleport/_" -cvf $(BUILDDIR)/$(RELEASE).tar -T $(BUILDDIR)/files.txt
