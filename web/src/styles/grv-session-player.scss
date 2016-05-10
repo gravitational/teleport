@@ -32,6 +32,7 @@ limitations under the License.
   .grv-session-player-controls{
     margin-top: 10px;
     display: flex;
+    color: #ddd;
 
     .grv-flex-column{
       align-self: center;
@@ -42,15 +43,15 @@ limitations under the License.
       background-color: transparent;
       padding: 0 12px 0 0;
 
-      &:focus{
-        color: inherit!important;
+      &:focus, &:hover{
+        color: #ddd;
       }
     }
 
     .grv-session-player-controls-time{
       width: 35px;
       margin: 1px 7px 0;
-      display: block;      
+      display: block;
     }
 
     .grv-slider{
