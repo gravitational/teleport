@@ -266,34 +266,28 @@ func (s *AuthServer) CreateWebSession(user string) (*Session, error) {
 	return sess, nil
 }
 
-func (s *AuthServer) GenerateToken(role teleport.Role, ttl time.Duration) (string, error) {
-	if err := role.Check(); err != nil {
-		return "", trace.Wrap(err)
+func (s *AuthServer) GenerateToken(roles teleport.Roles, ttl time.Duration) (string, error) {
+	for _, role := range roles {
+		if err := role.Check(); err != nil {
+			return "", trace.Wrap(err)
+		}
 	}
 	token, err := utils.CryptoRandomHex(TokenLenBytes)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	outputToken, err := services.JoinTokenRole(token, string(role))
-	if err != nil {
+	if err := s.Provisioner.UpsertToken(token, roles, ttl); err != nil {
 		return "", err
 	}
-	if err := s.Provisioner.UpsertToken(token, string(role), ttl); err != nil {
-		return "", err
-	}
-	return outputToken, nil
+	return token, nil
 }
 
-func (s *AuthServer) ValidateToken(token string) (role string, e error) {
-	token, _, err := services.SplitTokenRole(token)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+func (s *AuthServer) ValidateToken(token string) (roles teleport.Roles, e error) {
 	tok, err := s.Provisioner.GetToken(token)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return tok.Role, nil
+	return tok.Roles, nil
 }
 
 // GenerateServerKeys generates private key and certificate signed
@@ -319,7 +313,7 @@ func (s *AuthServer) GenerateServerKeys(hostID string, role teleport.Role) (*Pac
 	}, nil
 }
 
-func (s *AuthServer) RegisterUsingToken(outputToken, hostID string, role teleport.Role) (*PackedKeys, error) {
+func (s *AuthServer) RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error) {
 	log.Infof("[AUTH] Node `%v` is trying to join", hostID)
 	if hostID == "" {
 		return nil, trace.BadParameter("HostID cannot be empty")
@@ -327,57 +321,40 @@ func (s *AuthServer) RegisterUsingToken(outputToken, hostID string, role telepor
 	if err := role.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	token, _, err := services.SplitTokenRole(outputToken)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	tok, err := s.Provisioner.GetToken(token)
 	if err != nil {
 		log.Warningf("[AUTH] Node `%v` cannot join: token error. %v", hostID, err)
 		return nil, trace.Wrap(err)
 	}
-	if tok.Role != string(role) {
+	if !tok.Roles.Include(role) {
 		return nil, trace.BadParameter("token.Role: role does not match")
 	}
 	keys, err := s.GenerateServerKeys(hostID, role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := s.DeleteToken(outputToken); err != nil {
+	if err := s.DeleteToken(token); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	utils.Consolef(os.Stdout, "[AUTH] Node `%v` joined the cluster", hostID)
 	return keys, nil
 }
 
-func (s *AuthServer) RegisterNewAuthServer(outputToken string) error {
-
-	token, _, err := services.SplitTokenRole(outputToken)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+func (s *AuthServer) RegisterNewAuthServer(token string) error {
 	tok, err := s.Provisioner.GetToken(token)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	if tok.Role != string(teleport.RoleAuth) {
+	if !tok.Roles.Include(teleport.RoleAuth) {
 		return trace.AccessDenied("role does not match")
 	}
-
-	if err := s.DeleteToken(outputToken); err != nil {
+	if err := s.DeleteToken(token); err != nil {
 		return trace.Wrap(err)
 	}
-
 	return nil
 }
 
-func (s *AuthServer) DeleteToken(outputToken string) error {
-	token, _, err := services.SplitTokenRole(outputToken)
-	if err != nil {
-		return err
-	}
+func (s *AuthServer) DeleteToken(token string) error {
 	return s.Provisioner.DeleteToken(token)
 }
 

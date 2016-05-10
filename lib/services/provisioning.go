@@ -19,13 +19,13 @@ package services
 import (
 	"time"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport"
 )
 
 // Provisioner governs adding new nodes to the cluster
 type Provisioner interface {
 	// UpsertToken adds provisioning tokens for the auth server
-	UpsertToken(token, role string, ttl time.Duration) error
+	UpsertToken(token string, roles teleport.Roles, ttl time.Duration) error
 
 	// GetToken finds and returns token by id
 	GetToken(token string) (*ProvisionToken, error)
@@ -34,33 +34,10 @@ type Provisioner interface {
 	DeleteToken(token string) error
 }
 
-func JoinTokenRole(token, role string) (ouputToken string, e error) {
-	switch role {
-	case TokenRoleAuth:
-		return "a" + token, nil
-	case TokenRoleNode:
-		return "n" + token, nil
-	}
-	return "", trace.BadParameter("unknown role: %v", role)
-}
-
-func SplitTokenRole(outputToken string) (token, role string, e error) {
-	if len(outputToken) <= 1 {
-		return outputToken, "", trace.BadParameter("unknown role: '%v'", role)
-	}
-	if outputToken[0] == 'n' {
-		return outputToken[1:], TokenRoleNode, nil
-	}
-	if outputToken[0] == 'a' {
-		return outputToken[1:], TokenRoleAuth, nil
-	}
-	return outputToken, "", trace.BadParameter("unknown role: '%v'")
-}
-
 // ProvisionToken stores metadata about some provisioning token
 type ProvisionToken struct {
-	Role string        `json:"role"`
-	TTL  time.Duration `json:"-"`
+	Roles teleport.Roles `json:"roles"`
+	TTL   time.Duration  `json:"-"`
 }
 
 const (

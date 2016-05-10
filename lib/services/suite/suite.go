@@ -21,6 +21,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -331,10 +332,12 @@ func (s *ServicesTestSuite) TokenCRUD(c *C) {
 	_, err := s.ProvisioningS.GetToken("token")
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
-	c.Assert(s.ProvisioningS.UpsertToken("token", "RoleExample", 0), IsNil)
+	c.Assert(s.ProvisioningS.UpsertToken("token", teleport.Roles{teleport.RoleAuth, teleport.RoleNode}, 0), IsNil)
 
 	token, err := s.ProvisioningS.GetToken("token")
-	c.Assert(token.Role, Equals, "RoleExample")
+	c.Assert(token.Roles.Include(teleport.RoleAuth), Equals, true)
+	c.Assert(token.Roles.Include(teleport.RoleNode), Equals, true)
+	c.Assert(token.Roles.Include(teleport.RoleProxy), Equals, false)
 	c.Assert(token.TTL > 0 && token.TTL <= defaults.MaxProvisioningTokenTTL, Equals, true, Commentf("%v", token.TTL))
 	c.Assert(err, IsNil)
 
@@ -342,21 +345,6 @@ func (s *ServicesTestSuite) TokenCRUD(c *C) {
 
 	_, err = s.ProvisioningS.GetToken("token")
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
-
-	outputToken, err := services.JoinTokenRole("token1", "Auth")
-	c.Assert(err, IsNil)
-
-	tok, role, err := services.SplitTokenRole(outputToken)
-	c.Assert(err, IsNil)
-	c.Assert(tok, Equals, "token1")
-	c.Assert(role, Equals, "Auth")
-
-	c.Assert(s.ProvisioningS.UpsertToken("token2", "RoleExample", 2*defaults.MaxProvisioningTokenTTL), IsNil)
-
-	token, err = s.ProvisioningS.GetToken("token2")
-	c.Assert(token.Role, Equals, "RoleExample")
-	c.Assert(token.TTL > 0 && token.TTL <= defaults.MaxProvisioningTokenTTL, Equals, true, Commentf("%v", token.TTL))
-	c.Assert(err, IsNil)
 }
 
 func (s *ServicesTestSuite) PasswordCRUD(c *C) {

@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -38,13 +39,12 @@ func NewProvisioningService(backend backend.Backend) *ProvisioningService {
 }
 
 // UpsertToken adds provisioning tokens for the auth server
-func (s *ProvisioningService) UpsertToken(token, role string, ttl time.Duration) error {
+func (s *ProvisioningService) UpsertToken(token string, roles teleport.Roles, ttl time.Duration) error {
 	if ttl < time.Second || ttl > defaults.MaxProvisioningTokenTTL {
 		ttl = defaults.MaxProvisioningTokenTTL
 	}
-
 	t := services.ProvisionToken{
-		Role: role,
+		Roles: roles,
 	}
 	out, err := json.Marshal(t)
 	if err != nil {

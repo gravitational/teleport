@@ -447,8 +447,8 @@ func (s *APIServer) generateUserCert(w http.ResponseWriter, r *http.Request, _ h
 }
 
 type generateTokenReq struct {
-	Role teleport.Role `json:"role"`
-	TTL  time.Duration `json:"ttl"`
+	Roles teleport.Roles `json:"roles"`
+	TTL   time.Duration  `json:"ttl"`
 }
 
 func (s *APIServer) generateToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
@@ -456,7 +456,7 @@ func (s *APIServer) generateToken(w http.ResponseWriter, r *http.Request, _ http
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	token, err := s.a.GenerateToken(req.Role, req.TTL)
+	token, err := s.a.GenerateToken(req.Roles, req.TTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
