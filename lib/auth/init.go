@@ -61,10 +61,6 @@ type InitConfig struct {
 	// DataDir is the full path to the directory where keys, events and logs are kept
 	DataDir string
 
-	// AllowedTokens is a static set of allowed provisioning tokens
-	// auth server will recognize on the first start
-	AllowedTokens map[string]string
-
 	// ReverseTunnels is a list of reverse tunnels statically supplied
 	// in configuration, so auth server will init the tunnels on the first start
 	ReverseTunnels []services.ReverseTunnel
@@ -177,22 +173,6 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 		}
 	}
 	if firstStart {
-		if len(cfg.AllowedTokens) != 0 {
-			log.Infof("FIRST START: Setting allowed provisioning tokens")
-			for token, domainName := range cfg.AllowedTokens {
-				log.Infof("FIRST START: upsert provisioning token: domainName: %v", domainName)
-				var role string
-				token, role, err = services.SplitTokenRole(token)
-				if err != nil {
-					return nil, nil, trace.Wrap(err)
-				}
-
-				if err := asrv.UpsertToken(token, role, 600*time.Second); err != nil {
-					return nil, nil, trace.Wrap(err)
-				}
-			}
-		}
-
 		if len(cfg.ReverseTunnels) != 0 {
 			log.Infof("FIRST START: Initializing reverse tunnels")
 			for _, tunnel := range cfg.ReverseTunnels {
@@ -201,7 +181,6 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 				}
 			}
 		}
-
 		if len(cfg.OIDCConnectors) != 0 {
 			log.Infof("FIRST START: Initializing oidc connectors")
 			for _, connector := range cfg.OIDCConnectors {

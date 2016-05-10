@@ -327,7 +327,7 @@ func (s *APISuite) TestReverseTunnels(c *C) {
 }
 
 func (s *APISuite) TestTokens(c *C) {
-	out, err := s.clt.GenerateToken("Node", 0)
+	out, err := s.clt.GenerateToken(teleport.Roles{teleport.RoleNode}, 0)
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Not(Equals), 0)
 }

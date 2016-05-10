@@ -15,11 +15,17 @@ limitations under the License.
 */
 
 var { browserHistory, createMemoryHistory } = require('react-router');
+var $ = require('jQuery');
 
 const logger = require('app/common/logger').create('services/sessions');
 const AUTH_KEY_DATA = 'authData';
 
 var _history = createMemoryHistory();
+
+var UserData = function(json){
+  $.extend(this, json);
+  this.created = new Date().getTime();
+}
 
 var session = {
 
@@ -31,8 +37,10 @@ var session = {
     return _history;
   },
 
-  setUserData(userData){
+  setUserData(data){
+    var userData = new UserData(data);
     localStorage.setItem(AUTH_KEY_DATA, JSON.stringify(userData));
+    return userData;
   },
 
   getUserData(){
@@ -46,10 +54,10 @@ var session = {
       var hiddenDiv = document.getElementById("bearer_token");
       if(hiddenDiv !== null ){
           let json = window.atob(hiddenDiv.textContent);
-          let userData = JSON.parse(json);
-          if(userData.token){
+          let data = JSON.parse(json);
+          if(data.token){
             // put it into the session
-            this.setUserData(userData);
+            var userData = this.setUserData(data);
             // remove the element
             hiddenDiv.remove();
             return userData;

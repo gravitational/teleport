@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -95,7 +94,6 @@ func main() {
 	cmdUsers := UserCommand{config: cfg}
 	cmdNodes := NodeCommand{config: cfg}
 	cmdAuth := AuthCommand{config: cfg}
-	cmdAuthServers := AuthServerCommand{config: cfg}
 	cmdReverseTunnel := ReverseTunnelCommand{config: cfg}
 
 	// define global flags:
@@ -152,10 +150,6 @@ func main() {
 	authGenAndSign.Flag("sign-key", "path to the private OpenSSH signing key").Required().StringVar(&cmdAuth.genSigningKeyPath)
 	authGenAndSign.Flag("role", "server role, e.g. 'proxy', 'auth' or 'node'").Required().SetValue(&cmdAuth.genRole)
 	authGenAndSign.Flag("domain", "cluster certificate authority domain name").Required().StringVar(&cmdAuth.genAuthorityDomain)
-
-	// operations with auth servers
-	authServers := app.Command("authservers", "Operations with user and host certificate authorities").Hidden()
-	authServerAdd := authServers.Command("add", "Add a new auth server node to the cluster").Hidden()
 
 	// operations with reverse tunnels
 	reverseTunnels := app.Command("rts", "Operations with reverse tunnels").Hidden()
@@ -223,8 +217,6 @@ func main() {
 		err = cmdAuth.ListAuthorities(client)
 	case authExport.FullCommand():
 		err = cmdAuth.ExportAuthorities(client)
-	case authServerAdd.FullCommand():
-		err = cmdAuthServers.Invite(client)
 	case reverseTunnelsList.FullCommand():
 		err = cmdReverseTunnel.ListActive(client)
 	case reverseTunnelsDelete.FullCommand():
@@ -332,7 +324,7 @@ func (u *NodeCommand) Invite(client *auth.TunClient) error {
 	}
 	var tokens []string
 	for i := 0; i < u.count; i++ {
-		token, err := client.GenerateToken(teleport.RoleNode, defaults.MaxProvisioningTokenTTL)
+		token, err := client.GenerateToken(teleport.Roles{teleport.RoleNode}, defaults.MaxProvisioningTokenTTL)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -460,26 +452,6 @@ func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
 			}
 		}
 	}
-	return nil
-}
-
-// Invite generates a token which can be used to add another SSH auth server
-// to the cluster
-func (u *AuthServerCommand) Invite(client *auth.TunClient) error {
-	authDomainName, err := client.GetLocalDomain()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	token, err := client.GenerateToken(teleport.RoleAuth, defaults.InviteTokenTTL)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	cfg := config.MakeAuthPeerFileConfig(authDomainName, token)
-	out := cfg.DebugDumpToYAML()
-
-	fmt.Printf(
-		"# Run this config the new auth server to join the cluster:\n# > teleport start --config config.yaml\n# Fill in auth peers in this config:\n")
-	fmt.Println(out)
 	return nil
 }
 

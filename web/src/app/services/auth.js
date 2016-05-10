@@ -25,20 +25,15 @@ const CHECK_TOKEN_REFRESH_RATE = 10*1000; // 10 sec
 
 var refreshTokenTimerId = null;
 
-var UserData = function(json){
-  $.extend(this, json);
-  this.created = new Date().getTime();
-}
-
 var auth = {
 
   signUp(name, password, token, inviteToken){
     var data = {user: name, pass: password, second_factor_token: token, invite_token: inviteToken};
     return api.post(cfg.api.createUserPath, data)
-      .then((user)=>{
-        session.setUserData(new UserData(user));
+      .then((data)=>{
+        session.setUserData(data);
         auth._startTokenRefresher();
-        return user;
+        return data;
       });
   },
 
@@ -53,7 +48,7 @@ var auth = {
     };
 
     return api.post(cfg.api.sessionPath, data, false).then(data=>{
-      session.setUserData(new UserData(data));
+      session.setUserData(data);
       this._startTokenRefresher();
       return data;
     });
@@ -113,7 +108,7 @@ var auth = {
 
   _refreshToken(){
     return api.post(cfg.api.renewTokenPath).then(data=>{
-      session.setUserData(new UserData(data));
+      session.setUserData(data);
       return data;
     }).fail(()=>{
       auth.logout();
