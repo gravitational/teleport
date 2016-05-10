@@ -282,7 +282,7 @@ func (u *UserCommand) Add(client *auth.TunClient) error {
 	}
 	hostname := "teleport-proxy"
 	if len(proxies) == 0 {
-		fmt.Println("\x1b[1mWARNING\x1b[0m: this Teleport cluster does not have any proxy servers online.\nYou need to start some to be able to login.\n")
+		fmt.Printf("\x1b[1mWARNING\x1b[0m: this Teleport cluster does not have any proxy servers online.\nYou need to start some to be able to login.\n\n")
 	} else {
 		hostname = proxies[0].Hostname
 	}
