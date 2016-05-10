@@ -408,10 +408,17 @@ webpackJsonp([1],[
 	var browserHistory = _require.browserHistory;
 	var createMemoryHistory = _require.createMemoryHistory;
 	
+	var $ = __webpack_require__(14);
+	
 	var logger = __webpack_require__(23).create('services/sessions');
 	var AUTH_KEY_DATA = 'authData';
 	
 	var _history = createMemoryHistory();
+	
+	var UserData = function UserData(json) {
+	  $.extend(this, json);
+	  this.created = new Date().getTime();
+	};
 	
 	var session = {
 	
@@ -425,8 +432,10 @@ webpackJsonp([1],[
 	    return _history;
 	  },
 	
-	  setUserData: function setUserData(userData) {
+	  setUserData: function setUserData(data) {
+	    var userData = new UserData(data);
 	    localStorage.setItem(AUTH_KEY_DATA, JSON.stringify(userData));
+	    return userData;
 	  },
 	
 	  getUserData: function getUserData() {
@@ -440,10 +449,10 @@ webpackJsonp([1],[
 	      var hiddenDiv = document.getElementById("bearer_token");
 	      if (hiddenDiv !== null) {
 	        var json = window.atob(hiddenDiv.textContent);
-	        var userData = JSON.parse(json);
-	        if (userData.token) {
+	        var data = JSON.parse(json);
+	        if (data.token) {
 	          // put it into the session
-	          this.setUserData(userData);
+	          var userData = this.setUserData(data);
 	          // remove the element
 	          hiddenDiv.remove();
 	          return userData;
@@ -1794,19 +1803,14 @@ webpackJsonp([1],[
 	
 	var refreshTokenTimerId = null;
 	
-	var UserData = function UserData(json) {
-	  $.extend(this, json);
-	  this.created = new Date().getTime();
-	};
-	
 	var auth = {
 	
 	  signUp: function signUp(name, password, token, inviteToken) {
 	    var data = { user: name, pass: password, second_factor_token: token, invite_token: inviteToken };
-	    return api.post(cfg.api.createUserPath, data).then(function (user) {
-	      session.setUserData(new UserData(user));
+	    return api.post(cfg.api.createUserPath, data).then(function (data) {
+	      session.setUserData(data);
 	      auth._startTokenRefresher();
-	      return user;
+	      return data;
 	    });
 	  },
 	
@@ -1823,7 +1827,7 @@ webpackJsonp([1],[
 	    };
 	
 	    return api.post(cfg.api.sessionPath, data, false).then(function (data) {
-	      session.setUserData(new UserData(data));
+	      session.setUserData(data);
 	      _this._startTokenRefresher();
 	      return data;
 	    });
@@ -1886,7 +1890,7 @@ webpackJsonp([1],[
 	
 	  _refreshToken: function _refreshToken() {
 	    return api.post(cfg.api.renewTokenPath).then(function (data) {
-	      session.setUserData(new UserData(data));
+	      session.setUserData(data);
 	      return data;
 	    }).fail(function () {
 	      auth.logout();
