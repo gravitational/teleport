@@ -16,12 +16,12 @@ DOCKER_VER ||= "1.10.3"
 VM_BUILDIR ||= "tmp"
 
 Vagrant.configure(2) do |config|
-  config.vm.box = "libvirt/debian-jessie"
+  config.vm.box = "http://s3.gravitational.io/vms/libvirt-debian.box"
   config.vm.box_check_update = false
 
   basic_config(config.vm)
   configure_ssh(config.vm)
-  apt_update(config.vm)
+  #apt_update(config.vm)
   install_docker(config.vm, DOCKER_VER)
 
   config.vm.synced_folder "../../", "/home/vagrant/teleport", type: "9p", disabled: false, accessmode: "mapped"
@@ -39,12 +39,13 @@ Vagrant.configure(2) do |config|
   config.vm.define "telenode-b" do |config|
       config.vm.hostname = "telenode-b"
       config.vm.network "private_network", ip: NODEB
+      config.vm.synced_folder "data-2", "/var/lib/teleport", type: "9p", disabled: false, accessmode: "squash", owner: 'anyuser'
       config.vm.provider "libvirt" do |vb|
           vb.driver = "kvm"
           vb.cpus = 2
           vb.memory = 1024
       end
-  end
+  end if false
 end
 
 def install_docker(vm, docker_version)
@@ -76,11 +77,11 @@ def apt_update(vm)
   vm.provision "shell", inline: <<-SHELL
     if [ ! -f /root/apt.updated ]; then
         apt-get -y update
+        apt-get -y purge exim4-* libcairo*
+        apt-get -y autoremove
         apt-get -y upgrade
         apt-get -y dist-upgrade
         apt-get -y install htop tree vim aufs-tools
-        apt-get -y purge exim4-*
-        apt-get -y autoremove
         touch /root/apt.updated
     fi
   SHELL
