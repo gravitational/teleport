@@ -97,11 +97,11 @@ func (a *AuthWithRoles) DeleteCertAuthority(id services.CertAuthID) error {
 	}
 	return a.authServer.DeleteCertAuthority(id)
 }
-func (a *AuthWithRoles) GenerateToken(role teleport.Role, ttl time.Duration) (string, error) {
+func (a *AuthWithRoles) GenerateToken(roles teleport.Roles, ttl time.Duration) (string, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGenerateToken); err != nil {
 		return "", trace.Wrap(err)
 	}
-	return a.authServer.GenerateToken(role, ttl)
+	return a.authServer.GenerateToken(roles, ttl)
 }
 func (a *AuthWithRoles) RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionRegisterUsingToken); err != nil {

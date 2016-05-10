@@ -17,9 +17,10 @@ limitations under the License.
 package auth
 
 import (
-	"testing"
 	"path/filepath"
+	"testing"
 
+	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
@@ -94,14 +95,14 @@ func (s *AuthSuite) TestSessions(c *C) {
 }
 
 func (s *AuthSuite) TestTokensCRUD(c *C) {
-	tok, err := s.a.GenerateToken("Node", 0)
+	tok, err := s.a.GenerateToken(teleport.Roles{teleport.RoleNode}, 0)
 	c.Assert(err, IsNil)
-	c.Assert(len(tok), Equals, 2*TokenLenBytes+1)
-	c.Assert(tok[0:1], Equals, "n")
+	c.Assert(len(tok), Equals, 2*TokenLenBytes)
 
-	role, err := s.a.ValidateToken(tok)
+	roles, err := s.a.ValidateToken(tok)
 	c.Assert(err, IsNil)
-	c.Assert(role, Equals, "Node")
+	c.Assert(roles.Include(teleport.RoleNode), Equals, true)
+	c.Assert(roles.Include(teleport.RoleProxy), Equals, false)
 
 	err = s.a.DeleteToken(tok)
 	c.Assert(err, IsNil)
@@ -123,7 +124,7 @@ func (s *AuthSuite) TestBadTokens(c *C) {
 	c.Assert(err, NotNil)
 
 	// tampered
-	tok, err := s.a.GenerateToken("Auth", 0)
+	tok, err := s.a.GenerateToken(teleport.Roles{teleport.RoleAuth}, 0)
 	c.Assert(err, IsNil)
 
 	tampered := string(tok[0]+1) + tok[1:]

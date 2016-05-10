@@ -9,6 +9,17 @@ import (
 
 // Role identifies the role of SSH server connection
 type Role string
+type Roles []Role
+
+// Includes returns 'true' if a given list of roles includes a given role
+func (roles Roles) Include(role Role) bool {
+	for _, r := range roles {
+		if r == role {
+			return true
+		}
+	}
+	return false
+}
 
 // Set sets the value of the role from string, used to integrate with CLI tools
 func (r *Role) Set(v string) error {

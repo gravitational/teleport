@@ -224,9 +224,9 @@ func (c *Client) DeleteCertAuthority(id services.CertAuthID) error {
 // and get signed certificate and private key from the auth server.
 //
 // The token can be used only once.
-func (c *Client) GenerateToken(role teleport.Role, ttl time.Duration) (string, error) {
+func (c *Client) GenerateToken(roles teleport.Roles, ttl time.Duration) (string, error) {
 	out, err := c.PostJSON(c.Endpoint("tokens"), generateTokenReq{
-		Role: role,
+		Roles: roles,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -821,7 +821,7 @@ type ClientI interface {
 	UpsertCertAuthority(cert services.CertAuthority, ttl time.Duration) error
 	GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error)
 	DeleteCertAuthority(caType services.CertAuthID) error
-	GenerateToken(role teleport.Role, ttl time.Duration) (string, error)
+	GenerateToken(roles teleport.Roles, ttl time.Duration) (string, error)
 	RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error)
 	RegisterNewAuthServer(token string) error
 	UpsertNode(s services.Server, ttl time.Duration) error

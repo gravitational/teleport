@@ -147,7 +147,7 @@ func (aap *allowAllPermissions) HasPermission(role teleport.Role, action string)
 	return nil
 }
 
-var StandardRoles = []teleport.Role{
+var StandardRoles = teleport.Roles{
 	teleport.RoleAuth,
 	teleport.RoleUser,
 	teleport.RoleWeb,
