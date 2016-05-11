@@ -11,6 +11,19 @@ import (
 type Role string
 type Roles []Role
 
+// ParseRoles takes a comma-separated list of roles and returns a slice
+// of roles, or an error if parsing failed
+func ParseRoles(str string) (roles Roles, err error) {
+	for _, s := range strings.Split(str, ",") {
+		r := Role(strings.Title(s))
+		if err = r.Check(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		roles = append(roles, r)
+	}
+	return roles, nil
+}
+
 // Includes returns 'true' if a given list of roles includes a given role
 func (roles Roles) Include(role Role) bool {
 	for _, r := range roles {

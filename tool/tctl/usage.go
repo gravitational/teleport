@@ -23,8 +23,21 @@ Examples:
   as 'joe' to SSH nodes.
 `
 	AddNodeHelp = `Notes:
-  This command generates and prints a one-time invitation token another node can 
-  use to join the cluster. 
+  This command generates and prints an invitation token another node can use to 
+  join the cluster. 
+
+Examples:
+
+  > tctl nodes add 
+
+  Generates a token when can be used to add a regular SSH node to the cluster.
+  The token will be valid for 15 minutes.
+
+  > tctl nodes add --roles=node,proxy --ttl=1h
+
+  Generates a token when can be used to add an SSH node to the cluster which
+  will also be a proxy node. The token can be used multiple times within an 
+  hour.
 `
 	ListNodesHelp = `Notes:
   SSH nodes send periodic heartbeat to the Auth service. This command prints
