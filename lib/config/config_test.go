@@ -278,7 +278,7 @@ var (
 		},
 	}
 	Labels = map[string]string{
-		"name": "mondoserver",
+		"name": "mongoserver",
 		"role": "slave",
 	}
 	CommandLabels = []CommandLabel{
@@ -393,7 +393,7 @@ ssh_service:
   enabled: no
   listen_addr: tcp://ssh
   labels:
-    name: mondoserver
+    name: mongoserver
     role: slave
   commands:
   - name: hostname

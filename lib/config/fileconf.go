@@ -379,10 +379,10 @@ type Auth struct {
 	// managed by this domain
 	DomainName string `yaml:"domain_name,omitempty"`
 
-	// Authorities 3rd party authorities this auth service trusts.
+	// Authorities : 3rd party certificate authorities (CAs) this auth service trusts.
 	Authorities []Authority `yaml:"authorities,omitempty"`
 
-	// ReverseTunnels is aist of SSH tunnels to 3rd party proxy services (used to talk
+	// ReverseTunnels is a list of SSH tunnels to 3rd party proxy services (used to talk
 	// to 3rd party auth servers we trust)
 	ReverseTunnels []ReverseTunnel `yaml:"reverse_tunnels,omitempty"`
 
