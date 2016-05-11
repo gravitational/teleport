@@ -39,7 +39,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 )
 
-// AuthTunnel listens on TCP/IP socket and accepts SSH connections. It then stablishes
+// AuthTunnel listens on TCP/IP socket and accepts SSH connections. It then establishes
 // an SSH tunnell which HTTP requests travel over. In other words, the Auth Service API
 // runs on HTTP-via-SSH-tunnel.
 //
@@ -740,10 +740,8 @@ func (c *TunClient) dialAuthServer(authServer utils.NetAddr) (*ssh.Client, error
 		Auth: c.authMethods,
 	}
 	client, err := ssh.Dial(authServer.AddrNetwork, authServer.Addr, config)
-
 	if err != nil {
-		log.Infof("TunDialer: ssh.Dial: %v", err)
-
+		log.Infof("TunDialer: ssh.Dial(%v): %v", authServer, err)
 		if utils.IsHandshakeFailedError(err) {
 			return nil, trace.AccessDenied("access denied to '%v': bad username or credentials", c.user)
 		}

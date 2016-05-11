@@ -116,7 +116,7 @@ func (s *IntSuite) TestAudit(c *check.C) {
 	t := s.newTeleport(c, nil, true)
 	site := t.GetSiteAPI(Site)
 	c.Assert(site, check.NotNil)
-	defer t.Stop()
+	defer t.Stop(true)
 
 	// should have no sessions:
 	sessions, _ := site.GetSessions()
@@ -259,7 +259,7 @@ func (s *IntSuite) TestAudit(c *check.C) {
 // TestInteractive covers SSH into shell and joining the same session from another client
 func (s *IntSuite) TestInteractive(c *check.C) {
 	t := s.newTeleport(c, nil, true)
-	defer t.Stop()
+	defer t.Stop(true)
 
 	sessionEndC := make(chan interface{}, 0)
 
@@ -320,7 +320,7 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 // with invalid 'site' parameter
 func (s *IntSuite) TestInvalidLogins(c *check.C) {
 	t := s.newTeleport(c, nil, true)
-	defer t.Stop()
+	defer t.Stop(true)
 
 	cmd := []string{"echo", "success"}
 
@@ -385,8 +385,31 @@ func (s *IntSuite) TestTwoSites(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(outputA, check.DeepEquals, outputB)
 
-	c.Assert(b.Stop(), check.IsNil)
-	c.Assert(a.Stop(), check.IsNil)
+	// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
+	a.Stop(false)
+	err = tc.SSH(cmd, false, nil)
+	c.Assert(err, check.ErrorMatches, "Failed connecting to cluster site-A: ssh: subsystem request failed")
+
+	// Reset and start "Site-A" again
+	a.Reset()
+	err = a.Start()
+	c.Assert(err, check.IsNil)
+
+	// try to execute an SSH command using the same old client  to Site-B
+	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
+	// and 'tc' (client) is also supposed to reconnect
+	for i := 0; i < 10; i++ {
+		time.Sleep(time.Millisecond * 5)
+		err = tc.SSH(cmd, false, nil)
+		if err == nil {
+			break
+		}
+	}
+	c.Assert(err, check.IsNil)
+
+	// stop both sites for realZ
+	c.Assert(b.Stop(true), check.IsNil)
+	c.Assert(a.Stop(true), check.IsNil)
 }
 
 // getPorts helper returns a range of unallocated ports available for litening on

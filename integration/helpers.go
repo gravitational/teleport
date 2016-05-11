@@ -256,6 +256,16 @@ func (i *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bool,
 	return nil
 }
 
+// Reset re-creates the teleport instance based on the same configuration
+// This is needed if you want to stop the instance, reset it and start again
+func (i *TeleInstance) Reset() (err error) {
+	i.Process, err = service.NewTeleport(i.Config)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // Adds a new user into i Teleport instance. 'mappings' is a comma-separated
 // list of OS users
 func (i *TeleInstance) AddUser(username string, mappings []string) {
@@ -280,7 +290,7 @@ func (i *TeleInstance) Start() (err error) {
 	i.Process.WaitForEvent(service.ProxyReverseTunnelServerEvent, tunnelReady, make(chan struct{}))
 
 	if err = i.Process.Start(); err != nil {
-		fatalIf(err)
+		return trace.Wrap(err)
 	}
 
 	defer func() {
@@ -358,8 +368,8 @@ func (i *TeleInstance) NewClient(login string, site string, host string, port in
 	return tc, nil
 }
 
-func (i *TeleInstance) Stop() error {
-	if i.Config != nil {
+func (i *TeleInstance) Stop(removeData bool) error {
+	if i.Config != nil && removeData {
 		err := os.RemoveAll(i.Config.DataDir)
 		if err != nil {
 			log.Error("failed removing temporary local Teleport directory", err)
