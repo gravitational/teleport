@@ -407,11 +407,11 @@ func (s *APIServer) generateKeyPair(w http.ResponseWriter, r *http.Request, _ ht
 }
 
 type generateHostCertReq struct {
-	Key        []byte        `json:"key"`
-	Hostname   string        `json:"hostname"`
-	AuthDomain string        `json:"auth_domain"`
-	Role       teleport.Role `json:"role"`
-	TTL        time.Duration `json:"ttl"`
+	Key        []byte         `json:"key"`
+	Hostname   string         `json:"hostname"`
+	AuthDomain string         `json:"auth_domain"`
+	Roles      teleport.Roles `json:"roles"`
+	TTL        time.Duration  `json:"ttl"`
 }
 
 func (s *APIServer) generateHostCert(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
@@ -419,7 +419,7 @@ func (s *APIServer) generateHostCert(w http.ResponseWriter, r *http.Request, _ h
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := s.a.GenerateHostCert(req.Key, req.Hostname, req.AuthDomain, req.Role, req.TTL)
+	cert, err := s.a.GenerateHostCert(req.Key, req.Hostname, req.AuthDomain, req.Roles, req.TTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

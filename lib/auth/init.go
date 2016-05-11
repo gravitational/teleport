@@ -228,7 +228,7 @@ func initKeys(a *AuthServer, dataDir string, id IdentityID) (*Identity, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cert, err := a.GenerateHostCert(publicKey, id.HostUUID, a.DomainName, id.Role, 0)
+		cert, err := a.GenerateHostCert(publicKey, id.HostUUID, a.DomainName, teleport.Roles{id.Role}, 0)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -321,7 +321,8 @@ func ReadIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	if len(cert.Permissions.Extensions) == 0 {
 		return nil, trace.BadParameter("extensions: misssing needed extensions for host roles")
 	}
-
+	// TODO (ev) currently only one role per certificate is supported. make sure
+	// to add support for multi-role certs
 	roleString := cert.Permissions.Extensions[utils.CertExtensionRole]
 	if roleString == "" {
 		return nil, trace.BadParameter("misssing cert extension %v", utils.CertExtensionRole)

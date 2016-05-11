@@ -133,7 +133,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	hpriv, hpub, err := authServer.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 	hcert, err := authServer.GenerateHostCert(
-		hpub, s.domainName, s.domainName, teleport.RoleAdmin, 0)
+		hpub, s.domainName, s.domainName, teleport.Roles{teleport.RoleAdmin}, 0)
 	c.Assert(err, IsNil)
 
 	// set up user CA and set up a user that has access to the server

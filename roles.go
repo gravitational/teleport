@@ -21,6 +21,23 @@ func (roles Roles) Include(role Role) bool {
 	return false
 }
 
+func (roles Roles) Check() (err error) {
+	for _, role := range roles {
+		if err = role.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (roles Roles) String() string {
+	s := make([]string, 0)
+	for _, r := range roles {
+		s = append(s, string(r))
+	}
+	return strings.Join(s, ",")
+}
+
 // Set sets the value of the role from string, used to integrate with CLI tools
 func (r *Role) Set(v string) error {
 	val := Role(strings.Title(v))

@@ -251,13 +251,13 @@ func (a *AuthWithRoles) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 
 }
 func (a *AuthWithRoles) GenerateHostCert(
-	key []byte, hostname, authDomain string, role teleport.Role,
+	key []byte, hostname, authDomain string, roles teleport.Roles,
 	ttl time.Duration) ([]byte, error) {
 
 	if err := a.permChecker.HasPermission(a.role, ActionGenerateHostCert); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GenerateHostCert(key, hostname, authDomain, role, ttl)
+	return a.authServer.GenerateHostCert(key, hostname, authDomain, roles, ttl)
 
 }
 func (a *AuthWithRoles) GenerateUserCert(key []byte, user string, ttl time.Duration) ([]byte, error) {

@@ -41,7 +41,7 @@ func (s *AuthInitSuite) TestReadIdentity(c *C) {
 	priv, pub, err := t.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
-	cert, err := t.GenerateHostCert(priv, pub, "id1", "example.com", teleport.RoleNode, 0)
+	cert, err := t.GenerateHostCert(priv, pub, "id1", "example.com", teleport.Roles{teleport.RoleNode}, 0)
 	c.Assert(err, IsNil)
 
 	id, err := ReadIdentityFromKeyPair(priv, cert)
@@ -62,21 +62,21 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
 	// missing authority domain
-	cert, err := t.GenerateHostCert(priv, pub, "", "id2", teleport.RoleNode, 0)
+	cert, err := t.GenerateHostCert(priv, pub, "", "id2", teleport.Roles{teleport.RoleNode}, 0)
 	c.Assert(err, IsNil)
 
 	_, err = ReadIdentityFromKeyPair(priv, cert)
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
 	// missing host uuid
-	cert, err = t.GenerateHostCert(priv, pub, "example.com", "", teleport.RoleNode, 0)
+	cert, err = t.GenerateHostCert(priv, pub, "example.com", "", teleport.Roles{teleport.RoleNode}, 0)
 	c.Assert(err, IsNil)
 
 	_, err = ReadIdentityFromKeyPair(priv, cert)
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
 	// unrecognized role
-	cert, err = t.GenerateHostCert(priv, pub, "example.com", "id1", teleport.Role("bad role"), 0)
+	cert, err = t.GenerateHostCert(priv, pub, "example.com", "id1", teleport.Roles{teleport.Role("bad role")}, 0)
 	c.Assert(err, IsNil)
 
 	_, err = ReadIdentityFromKeyPair(priv, cert)

@@ -41,7 +41,7 @@ func (n *Keygen) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	return randomKey.Priv, randomKey.Pub, nil
 }
 
-func (n *Keygen) GenerateHostCert(pkey, key []byte, hostname, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error) {
+func (n *Keygen) GenerateHostCert(pkey, key []byte, hostname, authDomain string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
 	if err != nil {
 		return nil, err
@@ -58,7 +58,7 @@ func (n *Keygen) GenerateHostCert(pkey, key []byte, hostname, authDomain string,
 		CertType:        ssh.HostCert,
 	}
 	cert.Permissions.Extensions = make(map[string]string)
-	cert.Permissions.Extensions[utils.CertExtensionRole] = string(role)
+	cert.Permissions.Extensions[utils.CertExtensionRole] = roles.String()
 	cert.Permissions.Extensions[utils.CertExtensionAuthority] = authDomain
 	signer, err := ssh.ParsePrivateKey(pkey)
 	if err != nil {

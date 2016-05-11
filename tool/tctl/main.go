@@ -490,7 +490,7 @@ func (a *AuthCommand) GenerateAndSignKeys() error {
 		return trace.Wrap(err)
 	}
 	nodeID := uuid.New()
-	certBytes, err := ca.GenerateHostCert(privSigningKeyBytes, pubBytes, nodeID, a.genAuthorityDomain, a.genRole, 0)
+	certBytes, err := ca.GenerateHostCert(privSigningKeyBytes, pubBytes, nodeID, a.genAuthorityDomain, teleport.Roles{a.genRole}, 0)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -545,14 +545,14 @@ func (c *Client) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 // plain text format, signs it using Host Certificate Authority private key and returns the
 // resulting certificate.
 func (c *Client) GenerateHostCert(
-	key []byte, hostname, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error) {
+	key []byte, hostname, authDomain string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
 
 	out, err := c.PostJSON(c.Endpoint("ca", "host", "certs"),
 		generateHostCertReq{
 			Key:        key,
 			Hostname:   hostname,
 			AuthDomain: authDomain,
-			Role:       role,
+			Roles:      roles,
 			TTL:        ttl,
 		})
 	if err != nil {
@@ -837,7 +837,7 @@ type ClientI interface {
 	GetUsers() ([]services.User, error)
 	DeleteUser(user string) error
 	GenerateKeyPair(pass string) ([]byte, []byte, error)
-	GenerateHostCert(key []byte, hostname, authServer string, role teleport.Role, ttl time.Duration) ([]byte, error)
+	GenerateHostCert(key []byte, hostname, authServer string, roles teleport.Roles, ttl time.Duration) ([]byte, error)
 	GenerateUserCert(key []byte, user string, ttl time.Duration) ([]byte, error)
 	GetSignupTokenData(token string) (user string, QRImg []byte, hotpFirstValues []string, e error)
 	CreateUserWithToken(token, password, hotpToken string) (*Session, error)

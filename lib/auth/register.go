@@ -20,6 +20,7 @@ import (
 	"io/ioutil"
 	"strings"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -28,7 +29,7 @@ import (
 // LocalRegister is used in standalone mode to register roles without
 // connecting to remote clients and provisioning tokens
 func LocalRegister(dataDir string, id IdentityID, authServer *AuthServer) error {
-	keys, err := authServer.GenerateServerKeys(id.HostUUID, id.Role)
+	keys, err := authServer.GenerateServerKeys(id.HostUUID, teleport.Roles{id.Role})
 	if err != nil {
 		return trace.Wrap(err)
 	}

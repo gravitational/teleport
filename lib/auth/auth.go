@@ -55,9 +55,9 @@ type Authority interface {
 
 	// GenerateHostCert generates host certificate, it takes pkey as a signing
 	// private key (host certificate authority)
-	GenerateHostCert(pkey, key []byte, hostID, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error)
+	GenerateHostCert(pkey, key []byte, hostID, authDomain string, roles teleport.Roles, ttl time.Duration) ([]byte, error)
 
-	// GenerateHostCert generates user certificate, it takes pkey as a signing
+	// GenerateUserCert generates user certificate, it takes pkey as a signing
 	// private key (user certificate authority)
 	GenerateUserCert(pkey, key []byte, teleportUsername string, allowedLogins []string, ttl time.Duration) ([]byte, error)
 }
@@ -170,7 +170,7 @@ func (a *AuthServer) GetLocalDomain() (string, error) {
 
 // GenerateHostCert generates host certificate, it takes pkey as a signing
 // private key (host certificate authority)
-func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error) {
+func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
 	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.HostCA,
 		DomainName: s.DomainName,
@@ -182,7 +182,7 @@ func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, rol
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.Authority.GenerateHostCert(privateKey, key, hostID, authDomain, role, ttl)
+	return s.Authority.GenerateHostCert(privateKey, key, hostID, authDomain, roles, ttl)
 }
 
 // GenerateUserCert generates user certificate, it takes pkey as a signing
@@ -292,7 +292,7 @@ func (s *AuthServer) ValidateToken(token string) (roles teleport.Roles, e error)
 
 // GenerateServerKeys generates private key and certificate signed
 // by the host certificate authority, listing the role of this server
-func (s *AuthServer) GenerateServerKeys(hostID string, role teleport.Role) (*PackedKeys, error) {
+func (s *AuthServer) GenerateServerKeys(hostID string, roles teleport.Roles) (*PackedKeys, error) {
 	k, pub, err := s.GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -301,7 +301,7 @@ func (s *AuthServer) GenerateServerKeys(hostID string, role teleport.Role) (*Pac
 	// that's how we make sure that nodes are uniquely identified/found
 	// in cases when we have multiple environments/organizations
 	fqdn := fmt.Sprintf("%s.%s", hostID, s.DomainName)
-	c, err := s.GenerateHostCert(pub, fqdn, s.DomainName, role, 0)
+	c, err := s.GenerateHostCert(pub, fqdn, s.DomainName, roles, 0)
 	if err != nil {
 		log.Warningf("[AUTH] Node `%v` cannot join: cert generation error. %v", hostID, err)
 		return nil, trace.Wrap(err)
@@ -329,7 +329,7 @@ func (s *AuthServer) RegisterUsingToken(token, hostID string, role teleport.Role
 	if !tok.Roles.Include(role) {
 		return nil, trace.BadParameter("token.Role: role does not match")
 	}
-	keys, err := s.GenerateServerKeys(hostID, role)
+	keys, err := s.GenerateServerKeys(hostID, teleport.Roles{role})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
