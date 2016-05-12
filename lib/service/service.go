@@ -370,7 +370,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 			[]utils.NetAddr{cfg.Auth.SSHAddr},
 			identity.Cert.ValidPrincipals[0],
 			[]ssh.AuthMethod{ssh.PublicKeys(identity.KeySigner)})
-		// success?
+		// failure?
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -519,7 +519,7 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 			} else {
 				// Auth server is remote, so we need a provisioning token
 				if token == "" {
-					return trace.BadParameter("role %v has no identity and no provisioning token", role.String())
+					return trace.BadParameter("%v must join a cluster and needs a provisioning token", role)
 				}
 				log.Infof("%v joining the cluster with a token %v", role, token)
 				err = auth.Register(cfg.DataDir, token, identityID, cfg.AuthServers)

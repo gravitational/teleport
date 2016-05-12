@@ -538,6 +538,7 @@ func NewTunClient(purpose string,
 	if user == "" {
 		return nil, trace.BadParameter("SSH connection requires a valid username")
 	}
+
 	tc := &TunClient{
 		purpose:     purpose,
 		user:        user,
@@ -734,22 +735,25 @@ func (c *TunClient) getClient() (*ssh.Client, error) {
 	return nil, trace.Wrap(err)
 }
 
-func (c *TunClient) dialAuthServer(authServer utils.NetAddr) (*ssh.Client, error) {
+func (c *TunClient) dialAuthServer(authServer utils.NetAddr) (sshClient *ssh.Client, err error) {
 	config := &ssh.ClientConfig{
 		User: c.user,
 		Auth: c.authMethods,
 	}
-	client, err := ssh.Dial(authServer.AddrNetwork, authServer.Addr, config)
-
-	if err != nil {
-		log.Infof("TunDialer: ssh.Dial: %v", err)
-
+	const dialRetryInterval = time.Duration(time.Millisecond * 50)
+	for attempt := 0; attempt < 5; attempt++ {
+		log.Infof("tunClient.Dial(to=%v, attempt=%d)", authServer.Addr, attempt+1)
+		sshClient, err = ssh.Dial(authServer.AddrNetwork, authServer.Addr, config)
+		// success -> get out of here
+		if err == nil {
+			break
+		}
 		if utils.IsHandshakeFailedError(err) {
 			return nil, trace.AccessDenied("access denied to '%v': bad username or credentials", c.user)
 		}
-		return nil, trace.ConvertSystemError(err)
+		time.Sleep(dialRetryInterval * time.Duration(attempt))
 	}
-	return client, nil
+	return sshClient, nil
 }
 
 type AgentCloser interface {
