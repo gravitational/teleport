@@ -31,12 +31,12 @@ Examples:
   > tctl nodes add 
 
   Generates a token when can be used to add a regular SSH node to the cluster.
-  The token will be valid for 15 minutes.
+  The token genrated single-use token will be valid for 30 minutes.
 
   > tctl nodes add --roles=node,proxy --ttl=1h
 
   Generates a token when can be used to add an SSH node to the cluster which
-  will also be a proxy node. The token can be used multiple times within an 
+  will also be a proxy node. This token can be used multiple times within an 
   hour.
 `
 	ListNodesHelp = `Notes:

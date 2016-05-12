@@ -156,6 +156,13 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	// expired token should be gone now
 	err = s.a.DeleteToken(multiUseToken)
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
+
+	// lets use static tokens now
+	s.a.StaticTokens = append(s.a.StaticTokens, StaticToken{Value: "static-token-value", Roles: teleport.Roles{teleport.RoleProxy}})
+	_, err = s.a.RegisterUsingToken("static-token-value", "static.host", teleport.RoleProxy)
+	c.Assert(err, IsNil)
+	_, err = s.a.RegisterUsingToken("static-token-value", "wrong.role", teleport.RoleAuth)
+	c.Assert(err, NotNil)
 }
 
 func (s *AuthSuite) TestBadTokens(c *C) {

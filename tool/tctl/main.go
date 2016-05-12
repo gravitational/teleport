@@ -132,7 +132,7 @@ func main() {
 	nodes := app.Command("nodes", "Issue invites for other nodes to join the cluster")
 	nodeAdd := nodes.Command("add", "Generates an invitation token. Use it to add a new node to the Teleport cluster")
 	nodeAdd.Flag("roles", "Comma-separated list of roles for the new node to assume [node]").Default("node").StringVar(&cmdNodes.roles)
-	nodeAdd.Flag("ttl", "Time to live for a generated token [15m]").Default("15m").DurationVar(&cmdNodes.ttl)
+	nodeAdd.Flag("ttl", "Time to live for a generated token").DurationVar(&cmdNodes.ttl)
 	nodeAdd.Flag("count", "add count tokens and output JSON with the list").Hidden().Default("1").IntVar(&cmdNodes.count)
 	nodeAdd.Flag("format", "output format, 'text' or 'json'").Hidden().Default("text").StringVar(&cmdNodes.format)
 	nodeAdd.Alias(AddNodeHelp)
@@ -334,11 +334,6 @@ func (u *NodeCommand) Invite(client *auth.TunClient) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// parse --ttl flag
-	if u.ttl == time.Duration(0) {
-		u.ttl = defaults.MaxProvisioningTokenTTL
-	}
-
 	var tokens []string
 	for i := 0; i < u.count; i++ {
 		token, err := client.GenerateToken(roles, u.ttl)

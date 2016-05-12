@@ -326,32 +326,45 @@ func (s *AuthServer) RegisterUsingToken(token, hostID string, role teleport.Role
 	if err := role.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// find the token:
-	tok, err := s.Provisioner.GetToken(token)
-	if err != nil {
-		log.Warningf("[AUTH] Node `%v` cannot join: token error. %v", hostID, err)
-		return nil, trace.Wrap(err)
+	// check against static tokens first:
+	foundStaticToken := false
+	for _, st := range s.StaticTokens {
+		if st.Value == token {
+			if st.Roles.Include(role) {
+				foundStaticToken = true
+				break
+			}
+		}
 	}
-	// check token's role:
-	if !tok.Roles.Include(role) {
-		return nil, trace.BadParameter("token.Role: role does not match")
-	}
-	// check token TTL:
-	if tok.TTL > 0 {
-		now := s.clock.Now().UTC()
-		if tok.Created.Add(tok.TTL).Before(now) {
-			err = s.DeleteToken(token)
-			if err != nil {
+	// look for the generated token in the token storage:
+	if !foundStaticToken {
+		tok, err := s.Provisioner.GetToken(token)
+		if err != nil {
+			log.Warningf("[AUTH] Node `%v` cannot join: token error. %v", hostID, err)
+			return nil, trace.Wrap(err)
+		}
+		// check token's role:
+		if !tok.Roles.Include(role) {
+			return nil, trace.BadParameter("token.Role: role does not match")
+		}
+		// check token TTL:
+		if tok.TTL > 0 {
+			now := s.clock.Now().UTC()
+			if tok.Created.Add(tok.TTL).Before(now) {
+				err = s.DeleteToken(token)
+				if err != nil {
+					log.Error(err)
+				}
+				return nil, trace.Errorf("token expired")
+			}
+			// TTL==0? this is a single-use token: delete it
+		} else {
+			if err = s.DeleteToken(token); err != nil {
 				log.Error(err)
 			}
-			return nil, trace.Errorf("token expired")
-		}
-		// TTL==0? this is a single-use token: delete it
-	} else {
-		if err = s.DeleteToken(token); err != nil {
-			log.Error(err)
 		}
 	}
+
 	keys, err := s.GenerateServerKeys(hostID, teleport.Roles{role})
 	if err != nil {
 		return nil, trace.Wrap(err)
