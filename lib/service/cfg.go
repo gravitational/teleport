@@ -48,6 +48,9 @@ type Config struct {
 	// Hostname is a node host name
 	Hostname string
 
+	// Token is used to register this Teleport instance with the auth server
+	Token string
+
 	// AuthServers is a list of auth servers nodes, proxies and peer auth servers
 	// connect to
 	AuthServers []utils.NetAddr
@@ -112,9 +115,7 @@ type Config struct {
 // Returns 'true' if token was modified
 func (cfg *Config) ApplyToken(token string) bool {
 	if token != "" {
-		cfg.SSH.Token = token
-		cfg.Proxy.Token = token
-		cfg.Auth.Token = token
+		cfg.Token = token
 		return true
 	}
 	return false
@@ -221,9 +222,6 @@ type AuthConfig struct {
 	// SSHAddr is the listening address of SSH tunnel to HTTP service
 	SSHAddr utils.NetAddr
 
-	// Token is a provisioning token for new proxy server registering with auth
-	Token string
-
 	// Authorities is a set of trusted certificate authorities
 	// that will be added by this auth server on the first start
 	Authorities []services.CertAuthority
@@ -233,6 +231,10 @@ type AuthConfig struct {
 	// as a base name, e.g. if authority domain name is example.com,
 	// all nodes in the cluster will have UUIDs in the form: <uuid>.example.com
 	DomainName string
+
+	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
+	// environments where paranoid security is not needed
+	StaticTokens []auth.StaticToken
 
 	// KeysBackend configures backend that stores auth keys, certificates, tokens ...
 	KeysBackend struct {
@@ -264,7 +266,6 @@ type AuthConfig struct {
 // SSHConfig configures SSH server node role
 type SSHConfig struct {
 	Enabled   bool
-	Token     string
 	Addr      utils.NetAddr
 	Shell     string
 	Limiter   limiter.LimiterConfig

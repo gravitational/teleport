@@ -97,6 +97,7 @@ var (
 		"client_id":          true,
 		"client_secret":      true,
 		"redirect_url":       true,
+		"tokens":             true,
 	}
 )
 
@@ -388,7 +389,16 @@ type Auth struct {
 
 	// OIDCConnectors is a list of trusted OpenID Connect Identity providers
 	OIDCConnectors []OIDCConnector `yaml:"oidc_connectors"`
+
+	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
+	// environments where paranoid security is not needed
+	//
+	// Each token string has the following format: "role1,role2,..:token",
+	// for exmple: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
+	StaticTokens []StaticToken `yaml:"tokens"`
 }
+
+type StaticToken string
 
 // SSH is 'ssh_service' section of the config file
 type SSH struct {
@@ -556,4 +566,15 @@ func (o *OIDCConnector) Parse() (*services.OIDCConnector, error) {
 		return nil, trace.Wrap(err)
 	}
 	return other, nil
+}
+
+// Parse() is applied to a string in "role,role,role:token" format. It breaks it
+// apart into a slice of roles, token and optional error
+func (t StaticToken) Parse() (roles teleport.Roles, token string, err error) {
+	parts := strings.Split(string(t), ":")
+	if len(parts) != 2 {
+		return nil, "", trace.Errorf("invalid static token spec: '%s'", t)
+	}
+	roles, err = teleport.ParseRoles(parts[0])
+	return roles, parts[1], trace.Wrap(err)
 }

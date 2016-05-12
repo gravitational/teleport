@@ -81,13 +81,6 @@ type Session struct {
 // AuthServerOption allows setting options as functional arguments to AuthServer
 type AuthServerOption func(*AuthServer)
 
-// AuthClock allows setting clock for auth server (used in tests)
-func AuthClock(clock clockwork.Clock) AuthServerOption {
-	return func(a *AuthServer) {
-		a.clock = clock
-	}
-}
-
 // NewAuthServer creates and configures a new AuthServer instance
 func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 	if cfg.Trust == nil {
@@ -116,6 +109,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 		DomainName:      cfg.DomainName,
 		AuthServiceName: cfg.AuthServiceName,
 		oidcClients:     make(map[string]*oidc.Client),
+		StaticTokens:    cfg.StaticTokens,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -149,6 +143,10 @@ type AuthServer struct {
 	// It usually defaults to the hostname of the machine the Auth service runs on.
 	AuthServiceName string
 
+	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
+	// environments where paranoid security is not needed
+	StaticTokens []StaticToken
+
 	services.Trust
 	services.Lock
 	services.Presence
@@ -176,7 +174,7 @@ func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, rol
 		DomainName: s.DomainName,
 	}, true)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Errorf("failed to load host CA for '%s': %v", s.DomainName, err)
 	}
 	privateKey, err := ca.FirstSigningKey()
 	if err != nil {
@@ -313,27 +311,49 @@ func (s *AuthServer) GenerateServerKeys(hostID string, roles teleport.Roles) (*P
 	}, nil
 }
 
+// RegisterUsingToken adds a new node to the Teleport cluster using previously issued token.
+// A node must also request a specific role (and the role must match one of the roles
+// the token was generated for).
+//
+// If a token was generated with a TTL, it gets enforced (can't register new nodes after TTL expires)
+// If a token was generated with a TTL=0, it means it's a single-use token and it gets destroyed
+// after a successful registration.
 func (s *AuthServer) RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error) {
-	log.Infof("[AUTH] Node `%v` is trying to join", hostID)
+	log.Infof("[AUTH] Node `%v` is trying to join as %v", hostID, role)
 	if hostID == "" {
 		return nil, trace.BadParameter("HostID cannot be empty")
 	}
 	if err := role.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// find the token:
 	tok, err := s.Provisioner.GetToken(token)
 	if err != nil {
 		log.Warningf("[AUTH] Node `%v` cannot join: token error. %v", hostID, err)
 		return nil, trace.Wrap(err)
 	}
+	// check token's role:
 	if !tok.Roles.Include(role) {
 		return nil, trace.BadParameter("token.Role: role does not match")
 	}
+	// check token TTL:
+	if tok.TTL > 0 {
+		now := s.clock.Now().UTC()
+		if tok.Created.Add(tok.TTL).Before(now) {
+			err = s.DeleteToken(token)
+			if err != nil {
+				log.Error(err)
+			}
+			return nil, trace.Errorf("token expired")
+		}
+		// TTL==0? this is a single-use token: delete it
+	} else {
+		if err = s.DeleteToken(token); err != nil {
+			log.Error(err)
+		}
+	}
 	keys, err := s.GenerateServerKeys(hostID, teleport.Roles{role})
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := s.DeleteToken(token); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	utils.Consolef(os.Stdout, "[AUTH] Node `%v` joined the cluster", hostID)

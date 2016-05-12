@@ -302,6 +302,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		Presence:        cfg.Presence,
 		Provisioner:     cfg.Provisioner,
 		Identity:        cfg.Identity,
+		StaticTokens:    cfg.Auth.StaticTokens,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -429,7 +430,7 @@ func (process *TeleportProcess) onExit(callback func(interface{})) {
 
 func (process *TeleportProcess) initSSH() error {
 	process.RegisterWithAuthServer(
-		process.Config.SSH.Token, teleport.RoleNode, SSHIdentityEvent)
+		process.Config.Token, teleport.RoleNode, SSHIdentityEvent)
 	eventsC := make(chan Event)
 	process.WaitForEvent(SSHIdentityEvent, eventsC, make(chan struct{}))
 

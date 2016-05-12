@@ -85,7 +85,7 @@ const (
 
 	// MaxProvisioningTokenTTL is a maximum TTL for a server provisioning token
 	// clients can reduce this time, not increase it
-	MaxProvisioningTokenTTL = 15 * time.Minute
+	MaxProvisioningTokenTTL = 30 * time.Minute
 
 	// HOTPFirstTokensRange is amount of lookahead tokens we remember
 	// for sync purposes

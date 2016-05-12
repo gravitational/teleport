@@ -36,8 +36,9 @@ type Provisioner interface {
 
 // ProvisionToken stores metadata about some provisioning token
 type ProvisionToken struct {
-	Roles teleport.Roles `json:"roles"`
-	TTL   time.Duration  `json:"-"`
+	Roles   teleport.Roles `json:"roles"`
+	TTL     time.Duration  `json:"ttl"`
+	Created time.Time      `json:"created"`
 }
 
 const (
