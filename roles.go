@@ -15,7 +15,7 @@ type Roles []Role
 // of roles, or an error if parsing failed
 func ParseRoles(str string) (roles Roles, err error) {
 	for _, s := range strings.Split(str, ",") {
-		r := Role(strings.Title(s))
+		r := Role(strings.Title(strings.ToLower(strings.TrimSpace(s))))
 		if err = r.Check(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -34,6 +34,20 @@ func (roles Roles) Include(role Role) bool {
 	return false
 }
 
+// Equals compares two sets of roles
+func (roles Roles) Equals(other Roles) bool {
+	if len(roles) != len(other) {
+		return false
+	}
+	for _, r := range roles {
+		if !other.Include(r) {
+			return false
+		}
+	}
+	return true
+}
+
+// Check returns an erorr if the role set is incorrect (contains unknown roles)
 func (roles Roles) Check() (err error) {
 	for _, role := range roles {
 		if err = role.Check(); err != nil {
