@@ -321,17 +321,20 @@ func ReadIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	if len(cert.Permissions.Extensions) == 0 {
 		return nil, trace.BadParameter("extensions: misssing needed extensions for host roles")
 	}
-	// TODO (ev) currently only one role per certificate is supported. make sure
-	// to add support for multi-role certs
 	roleString := cert.Permissions.Extensions[utils.CertExtensionRole]
 	if roleString == "" {
 		return nil, trace.BadParameter("misssing cert extension %v", utils.CertExtensionRole)
 	}
-	role := teleport.Role(roleString)
-	if err := role.Check(); err != nil {
+	roles, err := teleport.ParseRoles(roleString)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	foundRoles := len(roles)
+	if foundRoles != 1 {
+		return nil, trace.Errorf("expected one role per certificate. found %d: '%s'",
+			foundRoles, roles.String())
+	}
+	role := roles[0]
 	authorityDomain := cert.Permissions.Extensions[utils.CertExtensionAuthority]
 	if authorityDomain == "" {
 		return nil, trace.BadParameter("misssing cert extension %v", utils.CertExtensionAuthority)
