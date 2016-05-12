@@ -722,11 +722,15 @@ func (c *TunClient) setAuthServers(servers []utils.NetAddr) {
 
 // getClient returns an established SSH connection to one of the auth servers (CAs)
 // for the cluster.
-func (c *TunClient) getClient() (*ssh.Client, error) {
-	var client *ssh.Client
-	var err error
+func (c *TunClient) getClient() (client *ssh.Client, err error) {
+	// see if we have any auth servers online:
+	authServers := c.getAuthServers()
+	if len(authServers) == 0 {
+		return nil, trace.Errorf("all auth servers are offline")
+	}
 
-	for _, authServer := range c.getAuthServers() {
+	// try to connect to the 1st one who will pick up:
+	for _, authServer := range authServers {
 		client, err = c.dialAuthServer(authServer)
 		if err == nil {
 			return client, nil
@@ -753,7 +757,7 @@ func (c *TunClient) dialAuthServer(authServer utils.NetAddr) (sshClient *ssh.Cli
 		}
 		time.Sleep(dialRetryInterval * time.Duration(attempt))
 	}
-	return sshClient, nil
+	return sshClient, trace.Wrap(err)
 }
 
 type AgentCloser interface {
