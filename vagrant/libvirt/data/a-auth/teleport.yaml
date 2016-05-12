@@ -1,0 +1,18 @@
+# Auth-only config
+teleport:
+  nodename: auth-a
+  log:
+    output: stderr
+    severity: INFO
+
+auth_service:
+  enabled: yes
+  cluster_name: cluster-a.local.com
+  listen_addr: 0.0.0.0:3025
+  tokens: ["node,proxy:helloworld"]
+
+ssh_service:
+  enabled: no
+
+proxy_service:
+  enabled: no

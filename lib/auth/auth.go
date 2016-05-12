@@ -280,14 +280,6 @@ func (s *AuthServer) GenerateToken(roles teleport.Roles, ttl time.Duration) (str
 	return token, nil
 }
 
-func (s *AuthServer) ValidateToken(token string) (roles teleport.Roles, e error) {
-	tok, err := s.Provisioner.GetToken(token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return tok.Roles, nil
-}
-
 // GenerateServerKeys generates private key and certificate signed
 // by the host certificate authority, listing the role of this server
 func (s *AuthServer) GenerateServerKeys(hostID string, roles teleport.Roles) (*PackedKeys, error) {
@@ -309,6 +301,24 @@ func (s *AuthServer) GenerateServerKeys(hostID string, roles teleport.Roles) (*P
 		Key:  k,
 		Cert: c,
 	}, nil
+}
+
+// ValidteToken takes a provisioning token value and finds if it's valid. Returns
+// a list of roles this token allows its owner to assume, or an error if the token
+// cannot be found
+func (s *AuthServer) ValidateToken(token string) (roles teleport.Roles, e error) {
+	// look at static tokesn first:
+	for _, st := range s.StaticTokens {
+		if st.Value == token {
+			return st.Roles, nil
+		}
+	}
+	// look at the tokens in the token storage
+	tok, err := s.Provisioner.GetToken(token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return tok.Roles, nil
 }
 
 // RegisterUsingToken adds a new node to the Teleport cluster using previously issued token.

@@ -158,11 +158,15 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
 	// lets use static tokens now
-	s.a.StaticTokens = append(s.a.StaticTokens, StaticToken{Value: "static-token-value", Roles: teleport.Roles{teleport.RoleProxy}})
+	roles = teleport.Roles{teleport.RoleProxy}
+	s.a.StaticTokens = append(s.a.StaticTokens, StaticToken{Value: "static-token-value", Roles: roles})
 	_, err = s.a.RegisterUsingToken("static-token-value", "static.host", teleport.RoleProxy)
 	c.Assert(err, IsNil)
 	_, err = s.a.RegisterUsingToken("static-token-value", "wrong.role", teleport.RoleAuth)
 	c.Assert(err, NotNil)
+	r, err := s.a.ValidateToken("static-token-value")
+	c.Assert(err, IsNil)
+	c.Assert(r, DeepEquals, roles)
 }
 
 func (s *AuthSuite) TestBadTokens(c *C) {
