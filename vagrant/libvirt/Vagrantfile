@@ -4,7 +4,7 @@
 # This Vagrantfile is for quick making a multi-host environment
 # to experiment & play with Teleport.
 #
-#   1. Creates two VMs
+#   1. Creates several identical VMs
 #   2. Based on Debian Jessie 8
 #   3. With private networking
 #   4. With Docker installed
@@ -12,6 +12,7 @@
 # NOTE: uses libvirt/KVM instead of Virtualbox
 NODEA ||= "10.0.10.30"
 NODEB ||= "10.0.10.31"
+NODEC ||= "10.0.10.32"
 DOCKER_VER ||= "1.10.3"
 VM_BUILDIR ||= "tmp"
 
@@ -25,27 +26,26 @@ Vagrant.configure(2) do |config|
   install_docker(config.vm, DOCKER_VER)
 
   config.vm.synced_folder "../../", "/home/vagrant/teleport", type: "9p", disabled: false, accessmode: "mapped"
-
-  config.vm.define "telenode-a" do |config|
-      config.vm.hostname = "telenode-a"
-      config.vm.network "private_network", ip: NODEA
-      config.vm.provider "libvirt" do |vb|
-          vb.driver = "kvm"
-          vb.cpus = 2
-          vb.memory = 1024
+  nodes = {
+    "a" => NODEA, 
+    "b" => NODEB, 
+    "c" => NODEC
+  }
+  nodes.each do |n, addr|
+      node = "telenode-#{n}"
+      dir  = "data/#{n}"
+      FileUtils.mkpath(dir)
+      config.vm.define node do |config|
+          config.vm.hostname = node
+          config.vm.network "private_network", ip: addr
+          config.vm.synced_folder dir, "/opt/teleport", type: "9p", disabled: false, accessmode: "mapped"
+          config.vm.provider "libvirt" do |vb|
+              vb.driver = "kvm"
+              vb.cpus = 1
+              vb.memory = 512
+          end
       end
-  end
-
-  config.vm.define "telenode-b" do |config|
-      config.vm.hostname = "telenode-b"
-      config.vm.network "private_network", ip: NODEB
-      config.vm.synced_folder "data-2", "/var/lib/teleport", type: "9p", disabled: false, accessmode: "squash", owner: 'anyuser'
-      config.vm.provider "libvirt" do |vb|
-          vb.driver = "kvm"
-          vb.cpus = 2
-          vb.memory = 1024
-      end
-  end if false
+  end 
 end
 
 def install_docker(vm, docker_version)
@@ -97,7 +97,7 @@ def basic_config(vm)
         echo "customizing ~/bashrc"
         echo "\n\n# Customizations from Vagrantfile:" >> #{bashrc}
         echo "export PS1='\\[\\033[31;1m\\]\\h\\[\\033[0;32m\\] \\w\\[\\033[00m\\]: '" >> #{bashrc}
-        echo export PATH="\$PATH:/usr/lib/git-core" >> #{bashrc}
+        echo export PATH="\$PATH:/usr/lib/git-core:/home/vagrant/teleport/build" >> #{bashrc}
         echo export GREP_OPTIONS="--color=auto" >> #{bashrc}
         echo "alias ll='ls -lh'" >> #{bashrc}
     fi

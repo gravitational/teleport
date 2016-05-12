@@ -1,0 +1,18 @@
+# Proxy-only config
+teleport:
+  nodename: proxy-node
+  auth_servers: ["10.0.10.30:3025"]
+  auth_token: "59fa000c72e3f0524e65f84453eeaa89"
+  log:
+    output: stderr
+    severity: INFO
+
+auth_service:
+  enabled: no
+  listen_addr: 0.0.0.0:3025
+
+ssh_service:
+  enabled: no
+
+proxy_service:
+  enabled: yes
