@@ -9,7 +9,7 @@ auth_service:
   enabled: yes
   cluster_name: cluster-a.local.com
   listen_addr: 0.0.0.0:3025
-  tokens: ["node,proxy:helloworld"]
+  tokens: ["proxy:helloworld"]
 
 ssh_service:
   enabled: no

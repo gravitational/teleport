@@ -222,11 +222,11 @@ func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 	c.Assert(cfg.Auth.StaticTokens, check.DeepEquals, []auth.StaticToken{
 		{
 			Value: "xxx",
-			Roles: teleport.Roles{teleport.RoleProxy, teleport.RoleNode},
+			Roles: teleport.Roles([]teleport.Role{"Proxy", "Node"}),
 		},
 		{
 			Value: "yyy",
-			Roles: teleport.Roles{teleport.RoleAuth},
+			Roles: teleport.Roles([]teleport.Role{"Auth"}),
 		},
 	})
 }

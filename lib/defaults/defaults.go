@@ -83,9 +83,10 @@ const (
 	// clients can reduce this time, not increase it
 	MaxSignupTokenTTL = time.Hour
 
-	// MaxProvisioningTokenTTL is a maximum TTL for a server provisioning token
-	// clients can reduce this time, not increase it
-	MaxProvisioningTokenTTL = 30 * time.Minute
+	// ProvisioningTokenTTL is a the default TTL for server provisioning
+	// tokens. When a user generates a token without an explicit TTL, this
+	// value is used.
+	ProvisioningTokenTTL = 30 * time.Minute
 
 	// HOTPFirstTokensRange is amount of lookahead tokens we remember
 	// for sync purposes

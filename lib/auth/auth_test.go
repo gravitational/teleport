@@ -114,27 +114,10 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	keys, err := s.a.RegisterUsingToken(tok, "bad-host", teleport.RoleProxy)
 	c.Assert(keys, IsNil)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, "token.Role: role does not match")
+	c.Assert(err, ErrorMatches, "'bad-host' cannot join the cluster, the token does not allow 'Proxy' role")
 
 	roles, err = s.a.ValidateToken(tok)
 	c.Assert(err, IsNil)
-
-	// successful registration:
-	keys, err = s.a.RegisterUsingToken(tok, "good-host", teleport.RoleNode)
-	c.Assert(err, IsNil)
-	c.Assert(keys, NotNil)
-
-	// unsuccessful registration (single-use token can't be used twice)
-	keys, err = s.a.RegisterUsingToken(tok, "good-host-2", teleport.RoleNode)
-	c.Assert(err, NotNil)
-	c.Assert(keys, IsNil)
-
-	// token should be gone by now:
-	err = s.a.DeleteToken(tok)
-	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
-
-	_, err = s.a.ValidateToken(tok)
-	c.Assert(err, NotNil)
 
 	// generate multi-use token with long TTL:
 	multiUseToken, err := s.a.GenerateToken(teleport.Roles{teleport.RoleProxy}, time.Hour)
@@ -151,7 +134,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	// try to use after TTL:
 	s.a.clock = clockwork.NewFakeClockAt(time.Now().UTC().Add(time.Hour + 1))
 	_, err = s.a.RegisterUsingToken(multiUseToken, "late.bird", teleport.RoleProxy)
-	c.Assert(err, ErrorMatches, "token expired")
+	c.Assert(err, ErrorMatches, "'late.bird' cannot join the cluster. The token has expired")
 
 	// expired token should be gone now
 	err = s.a.DeleteToken(multiUseToken)

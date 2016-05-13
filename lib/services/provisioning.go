@@ -37,13 +37,5 @@ type Provisioner interface {
 // ProvisionToken stores metadata about some provisioning token
 type ProvisionToken struct {
 	Roles   teleport.Roles `json:"roles"`
-	TTL     time.Duration  `json:"ttl"`
-	Created time.Time      `json:"created"`
+	Expires time.Time      `json:"expires"`
 }
-
-const (
-	// TokenRoleAuth authenticates this token to provision Auth server
-	TokenRoleAuth = "Auth"
-	// TokenRoleNode authenticates this token to provision Node
-	TokenRoleNode = "Node"
-)

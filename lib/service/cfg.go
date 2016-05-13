@@ -190,9 +190,6 @@ type ProxyConfig struct {
 	// DisableWebUI allows to turn off serving the Web UI
 	DisableWebUI bool
 
-	// Token is a provisioning token for new proxy server registering with auth
-	Token string
-
 	// ReverseTunnelListenAddr is address where reverse tunnel dialers connect to
 	ReverseTunnelListenAddr utils.NetAddr
 

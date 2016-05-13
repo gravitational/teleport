@@ -557,7 +557,7 @@ func (process *TeleportProcess) initProxy() error {
 	}
 
 	process.RegisterWithAuthServer(
-		process.Config.Proxy.Token, teleport.RoleProxy,
+		process.Config.Token, teleport.RoleProxy,
 		ProxyIdentityEvent)
 
 	process.RegisterFunc(func() error {

@@ -316,9 +316,29 @@ func (s *AuthServer) ValidateToken(token string) (roles teleport.Roles, e error)
 	// look at the tokens in the token storage
 	tok, err := s.Provisioner.GetToken(token)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		log.Warn(err)
+		return nil, trace.Errorf("token not recognized")
 	}
 	return tok.Roles, nil
+}
+
+// enforceTokenTTL deletes the given token if it's TTL is over. Returns 'false'
+// if this token cannot be used
+func (s *AuthServer) checkTokenTTL(token string) bool {
+	// look at the tokens in the token storage
+	tok, err := s.Provisioner.GetToken(token)
+	if err != nil {
+		log.Warn(err)
+		return true
+	}
+	now := s.clock.Now().UTC()
+	if tok.Expires.Before(now) {
+		if err = s.DeleteToken(token); err != nil {
+			log.Error(err)
+		}
+		return false
+	}
+	return true
 }
 
 // RegisterUsingToken adds a new node to the Teleport cluster using previously issued token.
@@ -336,45 +356,23 @@ func (s *AuthServer) RegisterUsingToken(token, hostID string, role teleport.Role
 	if err := role.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// check against static tokens first:
-	foundStaticToken := false
-	for _, st := range s.StaticTokens {
-		if st.Value == token {
-			if st.Roles.Include(role) {
-				foundStaticToken = true
-				break
-			}
-		}
+	// make sure the token is valid:
+	roles, err := s.ValidateToken(token)
+	if err != nil {
+		msg := fmt.Sprintf("`%v` cannot join the cluster as %s. Token error: %v", hostID, role, err)
+		log.Warnf("[AUTH] %s", msg)
+		return nil, trace.AccessDenied(msg)
 	}
-	// look for the generated token in the token storage:
-	if !foundStaticToken {
-		tok, err := s.Provisioner.GetToken(token)
-		if err != nil {
-			log.Warningf("[AUTH] Node `%v` cannot join: token error. %v", hostID, err)
-			return nil, trace.Wrap(err)
-		}
-		// check token's role:
-		if !tok.Roles.Include(role) {
-			return nil, trace.BadParameter("token.Role: role does not match")
-		}
-		// check token TTL:
-		if tok.TTL > 0 {
-			now := s.clock.Now().UTC()
-			if tok.Created.Add(tok.TTL).Before(now) {
-				err = s.DeleteToken(token)
-				if err != nil {
-					log.Error(err)
-				}
-				return nil, trace.Errorf("token expired")
-			}
-			// TTL==0? this is a single-use token: delete it
-		} else {
-			if err = s.DeleteToken(token); err != nil {
-				log.Error(err)
-			}
-		}
+	// make sure the caller is requested wthe role allowed by the token:
+	if !roles.Include(role) {
+		msg := fmt.Sprintf("'%v' cannot join the cluster, the token does not allow '%s' role", hostID, role)
+		log.Warningf("[AUTH] %s", msg)
+		return nil, trace.BadParameter(msg)
 	}
-
+	if !s.checkTokenTTL(token) {
+		return nil, trace.AccessDenied("'%v' cannot join the cluster. The token has expired", hostID)
+	}
+	// generate & return the node cert:
 	keys, err := s.GenerateServerKeys(hostID, teleport.Roles{role})
 	if err != nil {
 		return nil, trace.Wrap(err)

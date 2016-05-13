@@ -418,6 +418,8 @@ func (s *AuthTunnel) passwordAuth(
 		}
 		log.Infof("session authenticated user: '%v'", conn.User())
 		return perms, nil
+	// when a new server tries to use the auth API to register in the cluster,
+	// it will use the token as a passowrd (happens only once during registration):
 	case AuthToken:
 		_, err := s.authServer.ValidateToken(string(ab.Pass))
 		if err != nil {
@@ -429,7 +431,7 @@ func (s *AuthTunnel) passwordAuth(
 				ExtToken: string(password),
 				ExtRole:  string(teleport.RoleProvisionToken),
 			}}
-		utils.Consolef(os.Stdout, "[AUTH] Successfully accepted token %v for %v", string(password), conn.User())
+		utils.Consolef(os.Stdout, "[AUTH] Successfully accepted token for %v", conn.User())
 		return perms, nil
 	case AuthSignupToken:
 		_, err := s.authServer.GetSignupToken(string(ab.Pass))

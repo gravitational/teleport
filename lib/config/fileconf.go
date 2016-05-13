@@ -42,6 +42,7 @@ import (
 var (
 	// all possible valid YAML config keys
 	validKeys = map[string]bool{
+		"cluster_name":       true,
 		"pid_file":           true,
 		"cert_file":          true,
 		"private_key_file":   true,

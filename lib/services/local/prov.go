@@ -40,27 +40,19 @@ func NewProvisioningService(backend backend.Backend) *ProvisioningService {
 
 // UpsertToken adds provisioning tokens for the auth server
 func (s *ProvisioningService) UpsertToken(token string, roles teleport.Roles, ttl time.Duration) error {
-	// storageTTL is a storage-specific time to live. The record will
-	// automatically disappear after it expires.
-	//
-	// If zero TTL is specified, it means the client is asking to create a single-use
-	// token. For such tokens we set the storage TTL to 30 minutes (MaxProvisioningTokenTTL)
-	// and delete them after 1st use.
-	storageTTL := ttl
-	if storageTTL < time.Second {
-		storageTTL = defaults.MaxProvisioningTokenTTL
+	if ttl < time.Second {
+		ttl = defaults.ProvisioningTokenTTL
 	}
 	t := services.ProvisionToken{
 		Roles:   roles,
-		Created: time.Now().UTC(),
-		TTL:     ttl,
+		Expires: time.Now().UTC().Add(ttl),
 	}
 	out, err := json.Marshal(t)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = s.backend.UpsertVal([]string{"tokens"}, token, out, storageTTL)
+	err = s.backend.UpsertVal([]string{"tokens"}, token, out, ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
