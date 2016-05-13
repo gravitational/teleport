@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 )
 
@@ -246,4 +247,72 @@ func IsLoopback(host string) bool {
 		}
 	}
 	return false
+}
+
+// ReplaceHostWith takes a network address in "host:port" form and replaces
+// "host" part with a given host and returns the result.
+func ReplaceHostWith(addr string, host string) string {
+	_, p, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	return net.JoinHostPort(host, p)
+}
+
+// GuessIP tries to guess an IP address this machine is reachable at on the
+// internal network, always picking IPv4 from the internal address space
+//
+// If no internal IPs are found, it returns 127.0.0.1 but it never returns
+// an address from the public IP space
+func GuessHostIP() (ip net.IP, err error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// collect the list of all IPv4s
+	ips := make([]net.IP, 0)
+	for _, iface := range ifaces {
+		addrs, err := iface.Addrs()
+		if err != nil {
+			log.Warn(err)
+			continue
+		}
+		for _, addr := range addrs {
+			a, ok := addr.(*net.IPAddr)
+			if ok {
+				ip = a.IP
+			} else {
+				in, ok := addr.(*net.IPNet)
+				if ok {
+					ip = in.IP
+				} else {
+					continue
+				}
+			}
+			if ip.To4() == nil || ip.IsLoopback() || ip.IsMulticast() {
+				continue
+			}
+			ips = append(ips, ip)
+		}
+	}
+	for i := range ips {
+		switch ips[i][12] {
+		// our first pick would be "10.x.x.x" IPs:
+		case 10:
+			return ips[i], nil
+			// our 2nd pick would be "192.x.x.x"
+		case 192:
+			ip = ips[i]
+			// our 3rd pick would be "172.x.x.x"
+		case 172:
+			if ip == nil {
+				ip = ips[i]
+			}
+		}
+	}
+	// did not find anything? return loopback
+	if ip == nil {
+		ip = net.IPv4(127, 0, 0, 1)
+	}
+	return ip, nil
 }

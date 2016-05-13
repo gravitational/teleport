@@ -120,3 +120,15 @@ func (s *AddrTestSuite) TestLoopbackAddrs(c *C) {
 			Commentf("test case %v, %v should be loopback(%v)", i, testCase.in, testCase.expected))
 	}
 }
+
+func (s *AddrTestSuite) TestReplaceHost(c *C) {
+	c.Assert(ReplaceHostWith("one:1", "two"), Equals, "two:1")
+	c.Assert(ReplaceHostWith("foobar", "two"), Equals, "foobar")
+}
+
+func (s *AddrTestSuite) TestGuess(c *C) {
+	ip, err := GuessHostIP()
+	c.Assert(err, IsNil)
+	c.Assert(ip, NotNil)
+	c.Assert(ip[12] == 10 || ip[12] == 192 || ip[12] == 172, Equals, true)
+}

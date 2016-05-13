@@ -384,7 +384,15 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 			Addr:     cfg.Auth.SSHAddr.Addr,
 			Hostname: process.Config.Hostname,
 		}
-		if process.Config.AdvertiseIP != nil {
+		if process.Config.AdvertiseIP == nil {
+			log.Warnf("advertise_ip is not set for this auth server!!! Trying to guess the IP this server can be reached at: %v", srv.Addr)
+			autoIP, err := utils.GuessHostIP()
+			if err != nil {
+				log.Warn(err)
+			} else {
+				srv.Addr = utils.ReplaceHostWith(srv.Addr, autoIP.String())
+			}
+		} else {
 			_, port, err := net.SplitHostPort(srv.Addr)
 			if err != nil {
 				return trace.Wrap(err)
