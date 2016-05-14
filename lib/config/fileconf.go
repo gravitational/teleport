@@ -377,9 +377,8 @@ func (s *Service) Disabled() bool {
 // Auth is 'auth_service' section of the config file
 type Auth struct {
 	Service `yaml:",inline"`
-	// DomainName is the name of the certificate authority
-	// managed by this domain
-	DomainName string `yaml:"domain_name,omitempty"`
+	// DomainName is the name of the CA who manages this cluster
+	DomainName string `yaml:"cluster_name,omitempty"`
 
 	// Authorities : 3rd party certificate authorities (CAs) this auth service trusts.
 	Authorities []Authority `yaml:"authorities,omitempty"`
@@ -396,7 +395,7 @@ type Auth struct {
 	//
 	// Each token string has the following format: "role1,role2,..:token",
 	// for exmple: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
-	StaticTokens []StaticToken `yaml:"tokens"`
+	StaticTokens []StaticToken `yaml:"tokens,omitempty"`
 }
 
 type StaticToken string

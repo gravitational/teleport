@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -229,6 +230,8 @@ func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 			Roles: teleport.Roles([]teleport.Role{"Auth"}),
 		},
 	})
+	c.Assert(cfg.Auth.DomainName, check.Equals, "magadan")
+	c.Assert(cfg.AdvertiseIP, check.DeepEquals, net.ParseIP("10.10.10.1"))
 }
 
 func checkStaticConfig(c *check.C, conf *FileConfig) {
@@ -396,7 +399,7 @@ teleport:
 
 auth_service:
   enabled: yes
-  listen_addr: tcp://auth
+  listen_addr: auth:3025
   tokens:
   - "proxy,node:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
   - "auth:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -419,7 +422,7 @@ auth_service:
 
 ssh_service:
   enabled: no
-  listen_addr: tcp://ssh
+  listen_addr: ssh:3025
   labels:
     name: mongoserver
     role: slave
@@ -455,7 +458,8 @@ teleport:
       burst: 171
 auth_service:
   enabled: yes
-  listen_addr: tcp://10.5.5.1
+  listen_addr: 10.5.5.1:3025
+  cluster_name: magadan
   tokens:
   - "proxy,node:xxx"
   - "auth:yyy"

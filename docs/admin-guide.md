@@ -152,7 +152,7 @@ below. By default it is stored in `/etc/teleport.yaml`
     When editing YAML configuration, please pay attention to how your editor 
     handles white space. YAML requires consistent handling of tab characters.
 
-```yaml
+```bash
 # By default, this file should be stored in /etc/teleport.yaml
 
 # This section of the configuration file applies to all teleport
@@ -165,6 +165,10 @@ teleport:
     # one-time invitation token used to join a cluster. it is not used on 
     # subsequent starts
     auth_token: xxxx-token-xxxx
+
+    # when running in multi-homed or NATed environments Teleport nodes need 
+    # to know which IP it will be reachable at by other nodes
+    advertise_ip: 10.1.0.5
 
     # list of auth servers in a cluster. you will have more than one auth server
     # if you configure teleport auth to run in HA configuration
@@ -193,12 +197,27 @@ teleport:
 # This section configures the 'auth service':
 auth_service:
     enabled: yes
-    listen_addr: 127.0.0.1:3025
+    # IP and the port to bind to. Other Teleport nodes will be connecting to
+    # this port (AKA "Auth API" or "Cluster API") to validate client 
+    # certificates 
+    listen_addr: 0.0.0.0:3025
+
+    # Pre-defined tokens for adding new nodes to a cluster. Each token specifies
+    # the role a new node will be allowed to assume. The more secure way to 
+    # add nodes is to use `ttl node add --ttl` command to generate auto-expiring 
+    # tokens. 
+    #
+    # We recommend to use tools like `pwgen` to generate sufficiently random
+    # tokens of 32+ byte length.
+    tokens:
+        - "proxy,node:xxxxx"
+        - "auth:yyyy"
 
 # This section configures the 'node service':
 ssh_service:
     enabled: yes
-    listen_addr: 127.0.0.1:3022
+    # IP and the port for SSH service to bind to. 
+    listen_addr: 0.0.0.0:3022
     # See explanation of labels in "Labeling Nodes" section below
     labels:
         role: master
@@ -294,31 +313,59 @@ and re-create it.
 
 The user will have to re-initialize Google Authenticator on their phone.
 
-## Adding nodes to the cluster
+## Adding Nodes to the Cluster
 
 Gravitational Teleport is a cluster SSH manager. It only allows SSH access to nodes
-who had been previously granted cluster membership.
+who had been previously granted cluster membership, which means that every node in 
+a cluster has its own "host certificate" signed by the cluster's certificate 
+authority (CA). This prevents an attacker from creating a "honeypot" node within a 
+cluster.
 
-Use `tctl` tool to "invite" a new node to the Teleport cluster:
+A new Teleport node needs an "invite token" to join a cluster. An invitation token 
+also defines which role a new node can assume within a cluster: `auth`, `proxy` or 
+`node`. 
+
+There are two ways to create invitation tokens.
+
+**Static Tokens**
+
+You can pre-generate your own tokens and add them to certificate authority (CA)
+config file: 
 
 ```bash
-tctl nodes add
+# Example CA section in `/etc/teleport/teleport.yaml` file for the CA node running on 10.0.10.5
+auth_service:
+    enabled: true
+    listen_addr: 0.0.0.0:3025
+    tokens:
+    - "proxy,node:xxxxxx"
 ```
 
-Just like with adding users above, Teleport generates a single-use auto-expiring token
-with a TTL of 15 minutes and prints the following:
+Now you can start a new Teleport node by setting its invitation token via `--token`
+flag to "xxxxxx". This node will join the cluster as a regular node but also
+as a proxy server:
 
+```bash
+teleport start --roles=node,auth --token=xxxxx --auth-server=10.0.10.5
 ```
-The invite token: n7305ee47a3829e118a7466ac7a0d78ad
-Run this on the new node to join the cluster:
-> teleport start --roles=node --token=n7305ee47a3829e118a7466ac7a0d78ad --auth-server=<Address>
+
+
+**Short-lived Tokens**
+
+A more secure way to add nodes to a cluster is to generate tokens as they are 
+needed. Such token can be used multiple times until its time to live (TTL) 
+expires.
+
+Use `tctl` tool to invite a new node into the cluster with `node` and `auth` 
+roles:
+
+```bash
+tctl nodes --ttl=5m --roles=node,proxy add
 ```
 
-`tctl` shows you the exact command you would need to use on the
-new member node to start a `teleport` node service on it.
-
-When a new node comes online, it will start sending ping requests every few seconds
-to the auth server. This allows everyone to see which nodes are up:
+As new nodes come online, they start sending ping requests every few seconds
+to the CA of the cluster. This allows everyone to explore cluster membership
+and size:
 
 ```bash
 > tctl nodes ls
@@ -447,7 +494,7 @@ configuring OpenSSH client to work with Teleport Proxy:
 scp_if_ssh = True
 ```
 
-## Authentication with OpenID Connect / OAuth2
+## OpenID / OAuth2
 
 Teleport supports [OpenID Connect](http://openid.net/connect/) (also known as `OIDC`) to 
 provide external authentication using OpenID providers like Google Apps.
@@ -479,7 +526,7 @@ OIDC integration with applications like Teleport.
 ```
 auth_service:
   enabled: true
-  domain_name: localhost
+  cluster_name: magadan
   oidc_connectors:    
     - id: google
       redirect_url: https://localhost:3080/v1/webapi/oidc/callback

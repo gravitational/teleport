@@ -58,3 +58,4 @@ ENV LANGUAGE="en_US.UTF-8" \
     GO15VENDOREXPERIMENT="1"
 
 VOLUME ["/gopath/src/github.com/gravitational/teleport"]
+EXPOSE 6600
