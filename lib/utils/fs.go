@@ -5,6 +5,15 @@ import (
 	"os"
 )
 
+// IsFile returns true if a given file path points to an existing file
+func IsFile(fp string) bool {
+	fi, err := os.Stat(fp)
+	if err == nil {
+		return !fi.IsDir()
+	}
+	return false
+}
+
 // IsDir is a helper function to quickly check if a given path is a valid directory
 func IsDir(dirPath string) bool {
 	fi, err := os.Stat(dirPath)
