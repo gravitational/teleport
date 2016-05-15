@@ -69,5 +69,9 @@ func (s *UtilsSuite) TestGetShell(c *check.C) {
 
 	shell, err = GetLoginShell("non-existent-user")
 	c.Assert(err, check.NotNil)
-	c.Assert(err.Error(), check.Matches, ".*cannot determine shell for.*")
+	c.Assert(err.Error(), check.Matches, "user: unknown user non-existent-user")
+
+	shell, err = GetLoginShell("daemon")
+	c.Assert(err, check.IsNil)
+	c.Assert(shell == "/usr/sbin/nologin" || shell == "/usr/bin/false", check.Equals, true)
 }
