@@ -109,7 +109,6 @@ func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key s
 		return trace.Wrap(err)
 	}
 	for i := range keys {
-		//log.Infof("checking host %v vs trusted CA %v for %v", sshutils.Fingerprint(cert.SignatureKey), sshutils.Fingerprint(keys[i]), hostId)
 		if sshutils.KeysEqual(cert.SignatureKey, keys[i]) {
 			return nil
 		}

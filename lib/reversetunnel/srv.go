@@ -174,8 +174,10 @@ func (s *server) Close() error {
 
 func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	if nch.ChannelType() != chanHeartbeat {
-		log.Warningf("reversetunnel received unknown channel request %v from %v",
+		msg := fmt.Sprintf("reversetunnel received unknown channel request %v from %v",
 			nch.ChannelType(), sconn)
+		log.Warningf(msg)
+		nch.Reject(ssh.ConnectionFailed, msg)
 		return
 	}
 	log.Infof("got heartbeat request from agent: %v", sconn)
