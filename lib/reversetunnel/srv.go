@@ -173,35 +173,33 @@ func (s *server) Close() error {
 }
 
 func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
-	log.Infof("got new channel request: %v", nch.ChannelType())
-	switch nch.ChannelType() {
-	case chanHeartbeat:
-		log.Infof("got heartbeat request from agent: %v", sconn)
-		var site *tunnelSite
-		var remoteConn *remoteConn
-		var err error
-
-		switch sconn.Permissions.Extensions[extCertType] {
-		case extCertTypeHost:
-			site, remoteConn, err = s.upsertSite(conn, sconn)
-		default:
-			err = trace.BadParameter("can't retrieve certificate type in certType")
-		}
-
-		if err != nil {
-			log.Errorf("failed to upsert site: %v", err)
-			nch.Reject(ssh.ConnectionFailed, "failed to upsert site")
-			return
-		}
-
-		ch, req, err := nch.Accept()
-		if err != nil {
-			log.Errorf("failed to accept channel: %v", err)
-			sconn.Close()
-			return
-		}
-		go site.handleHeartbeat(remoteConn, ch, req)
+	if nch.ChannelType() != chanHeartbeat {
+		msg := fmt.Sprintf("reversetunnel received unknown channel request %v from %v",
+			nch.ChannelType(), sconn)
+		log.Warningf(msg)
+		nch.Reject(ssh.ConnectionFailed, msg)
+		return
 	}
+	log.Infof("got heartbeat request from agent: %v", sconn)
+	if sconn.Permissions.Extensions[extCertType] != extCertTypeHost {
+		log.Error(trace.BadParameter("can't retrieve certificate type in certType"))
+		return
+	}
+	// add the incoming site (cluster) to the list of active connections:
+	site, remoteConn, err := s.upsertSite(conn, sconn)
+	if err != nil {
+		log.Error(trace.Wrap(err))
+		nch.Reject(ssh.ConnectionFailed, "failed to accept incoming cluster connection")
+		return
+	}
+	// accept the request and start the heartbeat on it:
+	ch, req, err := nch.Accept()
+	if err != nil {
+		log.Error(trace.Wrap(err))
+		sconn.Close()
+		return
+	}
+	go site.handleHeartbeat(remoteConn, ch, req)
 }
 
 // isHostAuthority is called during checking the client key, to see if the signing
@@ -537,7 +535,7 @@ func (s *tunnelSite) nextConn() (*remoteConn, error) {
 
 	for {
 		if len(s.connections) == 0 {
-			return nil, trace.NotFound("no active connections")
+			return nil, trace.NotFound("no active tunnels to cluster %v", s.GetName())
 		}
 		s.lastUsed = (s.lastUsed + 1) % len(s.connections)
 		remoteConn := s.connections[s.lastUsed]
