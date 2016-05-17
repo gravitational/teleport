@@ -90,6 +90,12 @@ type ReverseTunnelCommand struct {
 	ttl         time.Duration
 }
 
+type TokenCommand struct {
+	config *service.Config
+	// token argument to 'tokens del' command
+	token string
+}
+
 func main() {
 	utils.InitLoggerCLI()
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
@@ -100,6 +106,7 @@ func main() {
 	cmdNodes := NodeCommand{config: cfg}
 	cmdAuth := AuthCommand{config: cfg}
 	cmdReverseTunnel := ReverseTunnelCommand{config: cfg}
+	cmdTokens := TokenCommand{config: cfg}
 
 	// define global flags:
 	var ccf CLIConfig
@@ -138,6 +145,12 @@ func main() {
 	nodeAdd.Alias(AddNodeHelp)
 	nodeList := nodes.Command("ls", "Lists all active SSH nodes within the cluster")
 	nodeList.Alias(ListNodesHelp)
+
+	// operations on invitation tokens
+	tokens := app.Command("tokens", "List or revoke invitation tokens")
+	tokenList := tokens.Command("ls", "List node and user invitation tokens")
+	tokenDel := tokens.Command("del", "Delete/revoke an invitation token")
+	tokenDel.Arg("token", "Token to delete").StringVar(&cmdTokens.token)
 
 	// operations with authorities
 	auth := app.Command("authorities", "Operations with user and host certificate authorities").Hidden()
@@ -230,6 +243,10 @@ func main() {
 		err = cmdReverseTunnel.Delete(client)
 	case reverseTunnelsUpsert.FullCommand():
 		err = cmdReverseTunnel.Upsert(client)
+	case tokenList.FullCommand():
+		err = cmdTokens.List(client)
+	case tokenDel.FullCommand():
+		err = cmdTokens.Del(client)
 	}
 
 	if err != nil {
@@ -608,4 +625,28 @@ func validateConfig(cfg *service.Config) {
 	if err != nil {
 		utils.FatalError(err)
 	}
+}
+
+// onTokenList is called to execute "tokens ls" command
+func (c *TokenCommand) List(client *auth.TunClient) error {
+	tokens, err := client.GetTokens()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, t := range tokens {
+		fmt.Println(t)
+	}
+	return nil
+}
+
+// onTokenList is called to execute "tokens del" command
+func (c *TokenCommand) Del(client *auth.TunClient) error {
+	if c.token == "" {
+		return trace.Errorf("Need an argument: token")
+	}
+	if err := client.DeleteToken(c.token); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Token %s has been deleted\n", c.token)
+	return nil
 }

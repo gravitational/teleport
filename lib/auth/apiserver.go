@@ -121,6 +121,10 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.POST("/v1/oidc/requests/create", httplib.MakeHandler(srv.createOIDCAuthRequest))
 	srv.POST("/v1/oidc/requests/validate", httplib.MakeHandler(srv.validateOIDCAuthCallback))
 
+	// Provisioning tokens
+	srv.GET("/v1/tokens", httplib.MakeHandler(srv.getTokens))
+	srv.DELETE("/v1/tokens/:token", httplib.MakeHandler(srv.deleteToken))
+
 	// Audit logs AKA events
 	srv.POST("/v1/events", httplib.MakeHandler(srv.emitAuditEvent))
 	srv.GET("/v1/events", httplib.MakeHandler(srv.searchEvents))
@@ -236,6 +240,22 @@ func (s *APIServer) deleteReverseTunnel(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("reverse tunnel %v deleted", domainName)), nil
+}
+
+// getTokens returns a list of active provisioning tokens. expired (inactive) tokens are not returned
+func (s *APIServer) getTokens(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	a := make([]services.ProvisionToken, 0)
+	a = append(a, services.ProvisionToken{
+		Expires: time.Now(),
+		Roles:   teleport.Roles{"vincent", "hvostovski"},
+	})
+	return a, nil
+}
+
+// deleteToken deletes (revokes) a token by its value
+func (s *APIServer) deleteToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	token := p.ByName("token")
+	return message(fmt.Sprintf("TOKEN %v deleted", token)), nil
 }
 
 func (s *APIServer) deleteWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {

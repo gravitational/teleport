@@ -257,6 +257,25 @@ func (c *Client) RegisterUsingToken(token, hostID string, role teleport.Role) (*
 	return &keys, nil
 }
 
+// GetTokens returns a list of active invitation tokens for nodes and users
+func (c *Client) GetTokens() (tokens []services.ProvisionToken, err error) {
+	out, err := c.Get(c.Endpoint("tokens"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := json.Unmarshal(out.Bytes(), &tokens); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return tokens, nil
+}
+
+// DeleteToken deletes a given provisioning token on the auth server (CA). It
+// could be a user token or a machine token
+func (c *Client) DeleteToken(token string) error {
+	_, err := c.Delete(c.Endpoint("tokens", token))
+	return trace.Wrap(err)
+}
+
 func (c *Client) RegisterNewAuthServer(token string) error {
 	_, err := c.PostJSON(c.Endpoint("tokens", "register", "auth"), registerNewAuthServerReq{
 		Token: token,
