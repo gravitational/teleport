@@ -42,6 +42,7 @@ import (
 var (
 	// all possible valid YAML config keys
 	validKeys = map[string]bool{
+		"cluster_name":       true,
 		"pid_file":           true,
 		"cert_file":          true,
 		"private_key_file":   true,
@@ -97,6 +98,7 @@ var (
 		"client_id":          true,
 		"client_secret":      true,
 		"redirect_url":       true,
+		"tokens":             true,
 	}
 )
 
@@ -375,20 +377,28 @@ func (s *Service) Disabled() bool {
 // Auth is 'auth_service' section of the config file
 type Auth struct {
 	Service `yaml:",inline"`
-	// DomainName is the name of the certificate authority
-	// managed by this domain
-	DomainName string `yaml:"domain_name,omitempty"`
+	// DomainName is the name of the CA who manages this cluster
+	DomainName string `yaml:"cluster_name,omitempty"`
 
-	// Authorities 3rd party authorities this auth service trusts.
+	// Authorities : 3rd party certificate authorities (CAs) this auth service trusts.
 	Authorities []Authority `yaml:"authorities,omitempty"`
 
-	// ReverseTunnels is aist of SSH tunnels to 3rd party proxy services (used to talk
+	// ReverseTunnels is a list of SSH tunnels to 3rd party proxy services (used to talk
 	// to 3rd party auth servers we trust)
 	ReverseTunnels []ReverseTunnel `yaml:"reverse_tunnels,omitempty"`
 
 	// OIDCConnectors is a list of trusted OpenID Connect Identity providers
 	OIDCConnectors []OIDCConnector `yaml:"oidc_connectors"`
+
+	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
+	// environments where paranoid security is not needed
+	//
+	// Each token string has the following format: "role1,role2,..:token",
+	// for exmple: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
+	StaticTokens []StaticToken `yaml:"tokens,omitempty"`
 }
+
+type StaticToken string
 
 // SSH is 'ssh_service' section of the config file
 type SSH struct {
@@ -556,4 +566,15 @@ func (o *OIDCConnector) Parse() (*services.OIDCConnector, error) {
 		return nil, trace.Wrap(err)
 	}
 	return other, nil
+}
+
+// Parse() is applied to a string in "role,role,role:token" format. It breaks it
+// apart into a slice of roles, token and optional error
+func (t StaticToken) Parse() (roles teleport.Roles, token string, err error) {
+	parts := strings.Split(string(t), ":")
+	if len(parts) != 2 {
+		return nil, "", trace.Errorf("invalid static token spec: '%s'", t)
+	}
+	roles, err = teleport.ParseRoles(parts[0])
+	return roles, parts[1], trace.Wrap(err)
 }

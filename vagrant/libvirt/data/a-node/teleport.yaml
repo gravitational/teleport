@@ -1,0 +1,18 @@
+# Node-only config
+teleport:
+  nodename: node-a
+  auth_servers: ["10.0.10.10:3025"]
+  auth_token: helloworld
+  log:
+    output: stderr
+    severity: ERROR
+
+auth_service:
+  enabled: no
+  listen_addr: 0.0.0.0:3025
+
+ssh_service:
+  enabled: yes
+
+proxy_service:
+  enabled: no

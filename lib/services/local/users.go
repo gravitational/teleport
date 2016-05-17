@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -319,6 +320,7 @@ func (s *IdentityService) UpsertSignupToken(token string, tokenData services.Sig
 	if ttl < time.Second || ttl > defaults.MaxSignupTokenTTL {
 		ttl = defaults.MaxSignupTokenTTL
 	}
+	tokenData.Expires = time.Now().UTC().Add(ttl)
 	out, err := json.Marshal(tokenData)
 	if err != nil {
 		return trace.Wrap(err)
@@ -344,6 +346,22 @@ func (s *IdentityService) GetSignupToken(token string) (*services.SignupToken, e
 		return nil, trace.Wrap(err)
 	}
 	return data, nil
+}
+
+// GetSignupTokens returns all non-expired user tokens
+func (s *IdentityService) GetSignupTokens() (tokens []services.SignupToken, err error) {
+	keys, err := s.backend.GetKeys(userTokensPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, key := range keys {
+		token, err := s.GetSignupToken(key)
+		if err != nil {
+			log.Error(err)
+		}
+		tokens = append(tokens, *token)
+	}
+	return tokens, trace.Wrap(err)
 }
 
 // DeleteSignupToken deletes signup token from the storage

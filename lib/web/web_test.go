@@ -133,7 +133,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	hpriv, hpub, err := authServer.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 	hcert, err := authServer.GenerateHostCert(
-		hpub, s.domainName, s.domainName, teleport.RoleAdmin, 0)
+		hpub, s.domainName, s.domainName, teleport.Roles{teleport.RoleAdmin}, 0)
 	c.Assert(err, IsNil)
 
 	// set up user CA and set up a user that has access to the server
@@ -238,6 +238,11 @@ func (s *WebSuite) TearDownTest(c *C) {
 func (s *WebSuite) TestNewUser(c *C) {
 	token, err := s.roleAuth.CreateSignupToken(&services.TeleportUser{Name: "bob", AllowedLogins: []string{s.user}})
 	c.Assert(err, IsNil)
+
+	tokens, err := s.roleAuth.GetTokens()
+	c.Assert(err, IsNil)
+	c.Assert(len(tokens), Equals, 1)
+	c.Assert(tokens[0].Token, Equals, token)
 
 	clt := s.client()
 	re, err := clt.Get(clt.Endpoint("webapi", "users", "invites", token), url.Values{})

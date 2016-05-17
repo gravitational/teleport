@@ -60,7 +60,7 @@ func (s *AuthSuite) GenerateHostCert(c *C) {
 	c.Assert(err, IsNil)
 
 	cert, err := s.A.GenerateHostCert(priv, pub, "auth.example.com",
-		"example.com", teleport.RoleAdmin, time.Hour)
+		"example.com", teleport.Roles{teleport.RoleAdmin}, time.Hour)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)

@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -40,11 +41,13 @@ func NewProvisioningService(backend backend.Backend) *ProvisioningService {
 
 // UpsertToken adds provisioning tokens for the auth server
 func (s *ProvisioningService) UpsertToken(token string, roles teleport.Roles, ttl time.Duration) error {
-	if ttl < time.Second || ttl > defaults.MaxProvisioningTokenTTL {
-		ttl = defaults.MaxProvisioningTokenTTL
+	if ttl < time.Second {
+		ttl = defaults.ProvisioningTokenTTL
 	}
 	t := services.ProvisionToken{
-		Roles: roles,
+		Roles:   roles,
+		Expires: time.Now().UTC().Add(ttl),
+		Token:   token,
 	}
 	out, err := json.Marshal(t)
 	if err != nil {
@@ -60,20 +63,36 @@ func (s *ProvisioningService) UpsertToken(token string, roles teleport.Roles, tt
 
 // GetToken finds and returns token by id
 func (s *ProvisioningService) GetToken(token string) (*services.ProvisionToken, error) {
-	out, ttl, err := s.backend.GetValAndTTL([]string{"tokens"}, token)
+	out, _, err := s.backend.GetValAndTTL([]string{"tokens"}, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	var t *services.ProvisionToken
 	err = json.Unmarshal(out, &t)
 	if err != nil {
+		t.Token = token // for backwards compatibility with older tokens
 		return nil, trace.Wrap(err)
 	}
-	t.TTL = ttl
 	return t, nil
 }
 
 func (s *ProvisioningService) DeleteToken(token string) error {
 	err := s.backend.DeleteKey([]string{"tokens"}, token)
 	return err
+}
+
+// GetTokens returns all active (non-expired) provisioning tokens
+func (s *ProvisioningService) GetTokens() (tokens []services.ProvisionToken, err error) {
+	keys, err := s.backend.GetKeys([]string{"tokens"})
+	if err != nil {
+		return tokens, trace.Wrap(err)
+	}
+	for _, k := range keys {
+		tok, err := s.GetToken(k)
+		if err != nil {
+			log.Error(err)
+		}
+		tokens = append(tokens, *tok)
+	}
+	return tokens, nil
 }

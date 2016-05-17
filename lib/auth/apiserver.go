@@ -121,6 +121,10 @@ func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv.POST("/v1/oidc/requests/create", httplib.MakeHandler(srv.createOIDCAuthRequest))
 	srv.POST("/v1/oidc/requests/validate", httplib.MakeHandler(srv.validateOIDCAuthCallback))
 
+	// Provisioning tokens
+	srv.GET("/v1/tokens", httplib.MakeHandler(srv.getTokens))
+	srv.DELETE("/v1/tokens/:token", httplib.MakeHandler(srv.deleteToken))
+
 	// Audit logs AKA events
 	srv.POST("/v1/events", httplib.MakeHandler(srv.emitAuditEvent))
 	srv.GET("/v1/events", httplib.MakeHandler(srv.searchEvents))
@@ -236,6 +240,24 @@ func (s *APIServer) deleteReverseTunnel(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("reverse tunnel %v deleted", domainName)), nil
+}
+
+// getTokens returns a list of active provisioning tokens. expired (inactive) tokens are not returned
+func (s *APIServer) getTokens(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	tokens, err := s.a.GetTokens()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return tokens, nil
+}
+
+// deleteToken deletes (revokes) a token by its value
+func (s *APIServer) deleteToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	token := p.ByName("token")
+	if err := s.a.DeleteToken(token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message(fmt.Sprintf("Token %v deleted", token)), nil
 }
 
 func (s *APIServer) deleteWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -407,11 +429,11 @@ func (s *APIServer) generateKeyPair(w http.ResponseWriter, r *http.Request, _ ht
 }
 
 type generateHostCertReq struct {
-	Key        []byte        `json:"key"`
-	Hostname   string        `json:"hostname"`
-	AuthDomain string        `json:"auth_domain"`
-	Role       teleport.Role `json:"role"`
-	TTL        time.Duration `json:"ttl"`
+	Key        []byte         `json:"key"`
+	Hostname   string         `json:"hostname"`
+	AuthDomain string         `json:"auth_domain"`
+	Roles      teleport.Roles `json:"roles"`
+	TTL        time.Duration  `json:"ttl"`
 }
 
 func (s *APIServer) generateHostCert(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
@@ -419,7 +441,7 @@ func (s *APIServer) generateHostCert(w http.ResponseWriter, r *http.Request, _ h
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := s.a.GenerateHostCert(req.Key, req.Hostname, req.AuthDomain, req.Role, req.TTL)
+	cert, err := s.a.GenerateHostCert(req.Key, req.Hostname, req.AuthDomain, req.Roles, req.TTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

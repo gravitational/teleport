@@ -19,6 +19,7 @@ package auth
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -27,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
@@ -57,14 +59,14 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	authConfig := &InitConfig{
 		Backend:    s.bk,
 		Authority:  authority.New(),
-		DomainName: "localhost",
+		DomainName: "me.localhost",
 	}
 	s.a = NewAuthServer(authConfig)
 }
 
 func (s *AuthSuite) TestSessions(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
-		*suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		*suite.NewTestCA(services.UserCA, "me.localhost"), backend.Forever), IsNil)
 
 	user := "user1"
 	pass := []byte("abc123")
@@ -95,23 +97,69 @@ func (s *AuthSuite) TestSessions(c *C) {
 }
 
 func (s *AuthSuite) TestTokensCRUD(c *C) {
+	c.Assert(s.a.UpsertCertAuthority(
+		*suite.NewTestCA(services.HostCA, "me.localhost"), backend.Forever), IsNil)
+
+	// generate single-use token (TTL is 0)
 	tok, err := s.a.GenerateToken(teleport.Roles{teleport.RoleNode}, 0)
 	c.Assert(err, IsNil)
 	c.Assert(len(tok), Equals, 2*TokenLenBytes)
+
+	tokens, err := s.a.GetTokens()
+	c.Assert(err, IsNil)
+	c.Assert(len(tokens), Equals, 1)
+	c.Assert(tokens[0].Token, Equals, tok)
 
 	roles, err := s.a.ValidateToken(tok)
 	c.Assert(err, IsNil)
 	c.Assert(roles.Include(teleport.RoleNode), Equals, true)
 	c.Assert(roles.Include(teleport.RoleProxy), Equals, false)
 
-	err = s.a.DeleteToken(tok)
+	// unsuccessful registration (wrong role)
+	keys, err := s.a.RegisterUsingToken(tok, "bad-host", teleport.RoleProxy)
+	c.Assert(keys, IsNil)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, "'bad-host' cannot join the cluster, the token does not allow 'Proxy' role")
+
+	roles, err = s.a.ValidateToken(tok)
 	c.Assert(err, IsNil)
 
-	err = s.a.DeleteToken(tok)
+	// generate multi-use token with long TTL:
+	multiUseToken, err := s.a.GenerateToken(teleport.Roles{teleport.RoleProxy}, time.Hour)
+	c.Assert(err, IsNil)
+	_, err = s.a.ValidateToken(multiUseToken)
+	c.Assert(err, IsNil)
+
+	// use it twice:
+	_, err = s.a.RegisterUsingToken(multiUseToken, "once", teleport.RoleProxy)
+	c.Assert(err, IsNil)
+	_, err = s.a.RegisterUsingToken(multiUseToken, "twice", teleport.RoleProxy)
+	c.Assert(err, IsNil)
+
+	// try to use after TTL:
+	s.a.clock = clockwork.NewFakeClockAt(time.Now().UTC().Add(time.Hour + 1))
+	_, err = s.a.RegisterUsingToken(multiUseToken, "late.bird", teleport.RoleProxy)
+	c.Assert(err, ErrorMatches, "'late.bird' cannot join the cluster. The token has expired")
+
+	// expired token should be gone now
+	err = s.a.DeleteToken(multiUseToken)
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
-	_, err = s.a.ValidateToken(tok)
+	// lets use static tokens now
+	roles = teleport.Roles{teleport.RoleProxy}
+	s.a.StaticTokens = append(s.a.StaticTokens, services.ProvisionToken{Token: "static-token-value", Roles: roles, Expires: time.Unix(0, 0)})
+	_, err = s.a.RegisterUsingToken("static-token-value", "static.host", teleport.RoleProxy)
+	c.Assert(err, IsNil)
+	_, err = s.a.RegisterUsingToken("static-token-value", "wrong.role", teleport.RoleAuth)
 	c.Assert(err, NotNil)
+	r, err := s.a.ValidateToken("static-token-value")
+	c.Assert(err, IsNil)
+	c.Assert(r, DeepEquals, roles)
+
+	// List tokens (should see 2: one static, one regular)
+	tokens, err = s.a.GetTokens()
+	c.Assert(err, IsNil)
+	c.Assert(len(tokens), Equals, 2)
 }
 
 func (s *AuthSuite) TestBadTokens(c *C) {

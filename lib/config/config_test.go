@@ -17,13 +17,16 @@ limitations under the License.
 package config
 
 import (
+	"bytes"
 	"encoding/base64"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -208,6 +211,30 @@ func (s *ConfigTestSuite) TestLocateWebAssets(c *check.C) {
 	c.Assert(err, check.NotNil)
 }
 
+func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
+	conf, err := ReadConfig(bytes.NewBufferString(SmallConfigString))
+	c.Assert(err, check.IsNil)
+	c.Assert(conf, check.NotNil)
+
+	var cfg service.Config
+	err = ApplyFileConfig(conf, &cfg)
+	c.Assert(err, check.IsNil)
+	c.Assert(cfg.Auth.StaticTokens, check.DeepEquals, []services.ProvisionToken{
+		{
+			Token:   "xxx",
+			Roles:   teleport.Roles([]teleport.Role{"Proxy", "Node"}),
+			Expires: time.Unix(0, 0),
+		},
+		{
+			Token:   "yyy",
+			Roles:   teleport.Roles([]teleport.Role{"Auth"}),
+			Expires: time.Unix(0, 0),
+		},
+	})
+	c.Assert(cfg.Auth.DomainName, check.Equals, "magadan")
+	c.Assert(cfg.AdvertiseIP, check.DeepEquals, net.ParseIP("10.10.10.1"))
+}
+
 func checkStaticConfig(c *check.C, conf *FileConfig) {
 	c.Assert(conf.AuthToken, check.Equals, "xxxyyy")
 	c.Assert(conf.SSH.Enabled(), check.Equals, false)      // YAML treats 'no' as False
@@ -260,6 +287,8 @@ func checkStaticConfig(c *check.C, conf *FileConfig) {
 			Addresses:  []string{"org-1"},
 		},
 	})
+	c.Assert(conf.Auth.StaticTokens, check.DeepEquals,
+		[]StaticToken{"proxy,node:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "auth:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
 }
 
 var (
@@ -278,7 +307,7 @@ var (
 		},
 	}
 	Labels = map[string]string{
-		"name": "mondoserver",
+		"name": "mongoserver",
 		"role": "slave",
 	}
 	CommandLabels = []CommandLabel{
@@ -371,7 +400,10 @@ teleport:
 
 auth_service:
   enabled: yes
-  listen_addr: tcp://auth
+  listen_addr: auth:3025
+  tokens:
+  - "proxy,node:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  - "auth:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   authorities: 
   - type: host
     domain_name: example.com
@@ -391,9 +423,9 @@ auth_service:
 
 ssh_service:
   enabled: no
-  listen_addr: tcp://ssh
+  listen_addr: ssh:3025
   labels:
-    name: mondoserver
+    name: mongoserver
     role: slave
   commands:
   - name: hostname
@@ -402,5 +434,39 @@ ssh_service:
   - name: date
     command: [/bin/date]
     period: 20ms
+`
+	SmallConfigString = `
+teleport:
+  nodename: cat.example.com
+  advertise_ip: 10.10.10.1
+  pid_file: /var/run/teleport.pid
+  auth_servers:
+    - tcp://auth0.server.example.org:3024
+    - tcp://auth1.server.example.org:3024
+  auth_token: xxxyyy
+  log:
+    output: stderr
+    severity: INFO
+  connection_limits:
+    max_connections: 90
+    max_users: 91
+    rates:
+    - period: 1m1s
+      average: 70
+      burst: 71
+    - period: 10m10s
+      average: 170
+      burst: 171
+auth_service:
+  enabled: yes
+  listen_addr: 10.5.5.1:3025
+  cluster_name: magadan
+  tokens:
+  - "proxy,node:xxx"
+  - "auth:yyy"
+ssh_service:
+  enabled: no
+proxy_service:
+  enabled: no
 `
 )

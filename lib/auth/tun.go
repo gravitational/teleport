@@ -418,6 +418,8 @@ func (s *AuthTunnel) passwordAuth(
 		}
 		log.Infof("session authenticated user: '%v'", conn.User())
 		return perms, nil
+	// when a new server tries to use the auth API to register in the cluster,
+	// it will use the token as a passowrd (happens only once during registration):
 	case AuthToken:
 		_, err := s.authServer.ValidateToken(string(ab.Pass))
 		if err != nil {
@@ -429,7 +431,7 @@ func (s *AuthTunnel) passwordAuth(
 				ExtToken: string(password),
 				ExtRole:  string(teleport.RoleProvisionToken),
 			}}
-		utils.Consolef(os.Stdout, "[AUTH] Successfully accepted token %v for %v", string(password), conn.User())
+		utils.Consolef(os.Stdout, "[AUTH] Successfully accepted token for %v", conn.User())
 		return perms, nil
 	case AuthSignupToken:
 		_, err := s.authServer.GetSignupToken(string(ab.Pass))
@@ -538,6 +540,7 @@ func NewTunClient(purpose string,
 	if user == "" {
 		return nil, trace.BadParameter("SSH connection requires a valid username")
 	}
+
 	tc := &TunClient{
 		purpose:     purpose,
 		user:        user,
@@ -721,11 +724,15 @@ func (c *TunClient) setAuthServers(servers []utils.NetAddr) {
 
 // getClient returns an established SSH connection to one of the auth servers (CAs)
 // for the cluster.
-func (c *TunClient) getClient() (*ssh.Client, error) {
-	var client *ssh.Client
-	var err error
+func (c *TunClient) getClient() (client *ssh.Client, err error) {
+	// see if we have any auth servers online:
+	authServers := c.getAuthServers()
+	if len(authServers) == 0 {
+		return nil, trace.Errorf("all auth servers are offline")
+	}
 
-	for _, authServer := range c.getAuthServers() {
+	// try to connect to the 1st one who will pick up:
+	for _, authServer := range authServers {
 		client, err = c.dialAuthServer(authServer)
 		if err == nil {
 			return client, nil
@@ -734,20 +741,25 @@ func (c *TunClient) getClient() (*ssh.Client, error) {
 	return nil, trace.Wrap(err)
 }
 
-func (c *TunClient) dialAuthServer(authServer utils.NetAddr) (*ssh.Client, error) {
+func (c *TunClient) dialAuthServer(authServer utils.NetAddr) (sshClient *ssh.Client, err error) {
 	config := &ssh.ClientConfig{
 		User: c.user,
 		Auth: c.authMethods,
 	}
-	client, err := ssh.Dial(authServer.AddrNetwork, authServer.Addr, config)
-	if err != nil {
-		log.Infof("TunDialer: ssh.Dial(%v): %v", authServer, err)
+	const dialRetryInterval = time.Duration(time.Millisecond * 50)
+	for attempt := 0; attempt < 5; attempt++ {
+		log.Infof("tunClient.Dial(to=%v, attempt=%d)", authServer.Addr, attempt+1)
+		sshClient, err = ssh.Dial(authServer.AddrNetwork, authServer.Addr, config)
+		// success -> get out of here
+		if err == nil {
+			break
+		}
 		if utils.IsHandshakeFailedError(err) {
 			return nil, trace.AccessDenied("access denied to '%v': bad username or credentials", c.user)
 		}
-		return nil, trace.ConvertSystemError(err)
+		time.Sleep(dialRetryInterval * time.Duration(attempt))
 	}
-	return client, nil
+	return sshClient, trace.Wrap(err)
 }
 
 type AgentCloser interface {

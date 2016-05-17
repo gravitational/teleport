@@ -183,6 +183,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	default:
 		return trace.Errorf("unsupported logger severity: '%v'", fc.Logger.Severity)
 	}
+
 	// apply connection throttling:
 	limiters := []limiter.LimiterConfig{
 		cfg.SSH.Limiter,
@@ -204,6 +205,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			})
 		}
 	}
+
 	// add static signed keypairs supplied from configs
 	for i := range fc.Global.Keys {
 		identity, err := fc.Global.Keys[i].Identity()
@@ -267,13 +269,19 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Auth.SSHAddr = *addr
 	}
-
 	for _, authority := range fc.Auth.Authorities {
 		ca, err := authority.Parse()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Auth.Authorities = append(cfg.Auth.Authorities, *ca)
+	}
+	for _, token := range fc.Auth.StaticTokens {
+		roles, tokenValue, err := token.Parse()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Auth.StaticTokens = append(cfg.Auth.StaticTokens, services.ProvisionToken{Token: tokenValue, Roles: roles, Expires: time.Unix(0, 0)})
 	}
 
 	// apply "ssh_service" section

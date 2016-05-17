@@ -302,6 +302,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		Presence:        cfg.Presence,
 		Provisioner:     cfg.Provisioner,
 		Identity:        cfg.Identity,
+		StaticTokens:    cfg.Auth.StaticTokens,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -370,7 +371,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 			[]utils.NetAddr{cfg.Auth.SSHAddr},
 			identity.Cert.ValidPrincipals[0],
 			[]ssh.AuthMethod{ssh.PublicKeys(identity.KeySigner)})
-		// success?
+		// failure?
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -429,7 +430,7 @@ func (process *TeleportProcess) onExit(callback func(interface{})) {
 
 func (process *TeleportProcess) initSSH() error {
 	process.RegisterWithAuthServer(
-		process.Config.SSH.Token, teleport.RoleNode, SSHIdentityEvent)
+		process.Config.Token, teleport.RoleNode, SSHIdentityEvent)
 	eventsC := make(chan Event)
 	process.WaitForEvent(SSHIdentityEvent, eventsC, make(chan struct{}))
 
@@ -519,7 +520,7 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 			} else {
 				// Auth server is remote, so we need a provisioning token
 				if token == "" {
-					return trace.BadParameter("role %v has no identity and no provisioning token", role.String())
+					return trace.BadParameter("%v must join a cluster and needs a provisioning token", role)
 				}
 				log.Infof("%v joining the cluster with a token %v", role, token)
 				err = auth.Register(cfg.DataDir, token, identityID, cfg.AuthServers)
@@ -556,7 +557,7 @@ func (process *TeleportProcess) initProxy() error {
 	}
 
 	process.RegisterWithAuthServer(
-		process.Config.Proxy.Token, teleport.RoleProxy,
+		process.Config.Token, teleport.RoleProxy,
 		ProxyIdentityEvent)
 
 	process.RegisterFunc(func() error {

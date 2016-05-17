@@ -58,7 +58,7 @@ func (s *AuthServer) CreateSignupToken(user services.User) (string, error) {
 		return "", trace.BadParameter("user '%v' already exists", user)
 	}
 
-	token, err := utils.CryptoRandomHex(WebSessionTokenLenBytes)
+	token, err := utils.CryptoRandomHex(TokenLenBytes)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

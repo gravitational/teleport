@@ -60,6 +60,11 @@ type NodeCommand struct {
 	count int
 	// format is the output format, e.g. text or json
 	format string
+	// list of roles for the new node to assume
+	roles string
+	// TTL: duration of time during which a generated node token will
+	// be valid.
+	ttl time.Duration
 }
 
 type AuthCommand struct {
@@ -85,6 +90,12 @@ type ReverseTunnelCommand struct {
 	ttl         time.Duration
 }
 
+type TokenCommand struct {
+	config *service.Config
+	// token argument to 'tokens del' command
+	token string
+}
+
 func main() {
 	utils.InitLoggerCLI()
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
@@ -95,6 +106,7 @@ func main() {
 	cmdNodes := NodeCommand{config: cfg}
 	cmdAuth := AuthCommand{config: cfg}
 	cmdReverseTunnel := ReverseTunnelCommand{config: cfg}
+	cmdTokens := TokenCommand{config: cfg}
 
 	// define global flags:
 	var ccf CLIConfig
@@ -125,12 +137,20 @@ func main() {
 
 	// add node command
 	nodes := app.Command("nodes", "Issue invites for other nodes to join the cluster")
-	nodeAdd := nodes.Command("add", "Adds a new SSH node to join the cluster")
+	nodeAdd := nodes.Command("add", "Generates an invitation token. Use it to add a new node to the Teleport cluster")
+	nodeAdd.Flag("roles", "Comma-separated list of roles for the new node to assume [node]").Default("node").StringVar(&cmdNodes.roles)
+	nodeAdd.Flag("ttl", "Time to live for a generated token").DurationVar(&cmdNodes.ttl)
 	nodeAdd.Flag("count", "add count tokens and output JSON with the list").Hidden().Default("1").IntVar(&cmdNodes.count)
 	nodeAdd.Flag("format", "output format, 'text' or 'json'").Hidden().Default("text").StringVar(&cmdNodes.format)
 	nodeAdd.Alias(AddNodeHelp)
 	nodeList := nodes.Command("ls", "Lists all active SSH nodes within the cluster")
 	nodeList.Alias(ListNodesHelp)
+
+	// operations on invitation tokens
+	tokens := app.Command("tokens", "List or revoke invitation tokens")
+	tokenList := tokens.Command("ls", "List node and user invitation tokens")
+	tokenDel := tokens.Command("del", "Delete/revoke an invitation token")
+	tokenDel.Arg("token", "Token to delete").StringVar(&cmdTokens.token)
 
 	// operations with authorities
 	auth := app.Command("authorities", "Operations with user and host certificate authorities").Hidden()
@@ -223,6 +243,10 @@ func main() {
 		err = cmdReverseTunnel.Delete(client)
 	case reverseTunnelsUpsert.FullCommand():
 		err = cmdReverseTunnel.Upsert(client)
+	case tokenList.FullCommand():
+		err = cmdTokens.List(client)
+	case tokenDel.FullCommand():
+		err = cmdTokens.Del(client)
 	}
 
 	if err != nil {
@@ -322,9 +346,14 @@ func (u *NodeCommand) Invite(client *auth.TunClient) error {
 	if u.count < 1 {
 		return trace.BadParameter("count should be > 0, got %v", u.count)
 	}
+	// parse --roles flag
+	roles, err := teleport.ParseRoles(u.roles)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	var tokens []string
 	for i := 0; i < u.count; i++ {
-		token, err := client.GenerateToken(teleport.Roles{teleport.RoleNode}, defaults.MaxProvisioningTokenTTL)
+		token, err := client.GenerateToken(roles, u.ttl)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -339,14 +368,15 @@ func (u *NodeCommand) Invite(client *auth.TunClient) error {
 		return trace.Errorf("This cluster does not have any auth servers running")
 	}
 
+	// output format swtich:
 	if u.format == "text" {
 		for _, token := range tokens {
 			fmt.Printf(
-				"The invite token: %v\nRun this on the new node to join the cluster:\n> teleport start --roles=node --token=%v --auth-server=%v\n\nNotes:\n",
-				token, token, authServers[0].Addr)
+				"The invite token: %v\nRun this on the new node to join the cluster:\n> teleport start --roles=%s --token=%v --auth-server=%v\n\nPlease note:\n",
+				token, strings.ToLower(roles.String()), token, authServers[0].Addr)
 		}
-		fmt.Printf("  1. This invitation token will expire in %v seconds.\n", defaults.MaxProvisioningTokenTTL.Seconds())
-		fmt.Printf("  2. %v auth server is reachable from the node, see --advertise-ip server flag\n", authServers[0].Addr)
+		fmt.Printf("  - This invitation token will expire in %d minutes\n", int(u.ttl.Minutes()))
+		fmt.Printf("  - %v must be reachable from the new node, see --advertise-ip server flag\n", authServers[0].Addr)
 	} else {
 		out, err := json.Marshal(tokens)
 		if err != nil {
@@ -490,7 +520,7 @@ func (a *AuthCommand) GenerateAndSignKeys() error {
 		return trace.Wrap(err)
 	}
 	nodeID := uuid.New()
-	certBytes, err := ca.GenerateHostCert(privSigningKeyBytes, pubBytes, nodeID, a.genAuthorityDomain, a.genRole, 0)
+	certBytes, err := ca.GenerateHostCert(privSigningKeyBytes, pubBytes, nodeID, a.genAuthorityDomain, teleport.Roles{a.genRole}, 0)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -595,4 +625,42 @@ func validateConfig(cfg *service.Config) {
 	if err != nil {
 		utils.FatalError(err)
 	}
+}
+
+// onTokenList is called to execute "tokens ls" command
+func (c *TokenCommand) List(client *auth.TunClient) error {
+	tokens, err := client.GetTokens()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(tokens) == 0 {
+		fmt.Println("No active tokens found.")
+		return nil
+	}
+	tokensView := func() string {
+		table := goterm.NewTable(0, 10, 5, ' ', 0)
+		printHeader(table, []string{"Token", "Role", "Expiry Time (UTC)"})
+		for _, t := range tokens {
+			expiry := "never"
+			if t.Expires.Unix() > 0 {
+				expiry = t.Expires.Format(time.RFC822)
+			}
+			fmt.Fprintf(table, "%v\t%v\t%s\n", t.Token, t.Roles.String(), expiry)
+		}
+		return table.String()
+	}
+	fmt.Printf(tokensView())
+	return nil
+}
+
+// onTokenList is called to execute "tokens del" command
+func (c *TokenCommand) Del(client *auth.TunClient) error {
+	if c.token == "" {
+		return trace.Errorf("Need an argument: token")
+	}
+	if err := client.DeleteToken(c.token); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Token %s has been deleted\n", c.token)
+	return nil
 }

@@ -112,6 +112,9 @@ localhost     xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.1:3022
 new-node      xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022     
 ```
 
+**NOTE:** Teleport also supports static pre-defined invitation tokens which can be set in
+the [configuration file](admin-guide.md#adding-nodes-to-the-cluster)
+
 ## Using Node Labels
 
 Notice the "Labels" column in the output above. It is currently not populated. Teleport lets 
@@ -160,7 +163,7 @@ on all servers located in Virginia:
 > tsh --proxy=localhost ssh location=virginia ls -l /
 ```
 
-## Sharing SSH Sessions with Colleagues
+## Sharing SSH Sessions 
 
 Suppose you are trying to troubleshoot a problem on a node. Sometimes it makes sense to ask 
 another team member for help. Traditionally this could be done by letting them know which 
@@ -190,7 +193,7 @@ Also, people can join your session via terminal assuming they have Teleport inst
 NOTE: for this to work, both of you must have proper user mappings allowing you 
 access `db` under the same OS user.
 
-## Inviting Colleagues to your Laptop
+## Sharing Localhost
 
 Sometimes you may want to temporarily share the terminal on your own laptop (if you
 trust your guests, of course). First, you will have to start teleport with `--roles=node` in
@@ -211,6 +214,9 @@ localhost> teleport status
 Now you can invite someone into your localhost session. They will need to have a proper
 user mapping, of course, to be allowed to join your session. To disconnect, shut down 
 `teleport` daemon or simply exit the `tsh` session.
+
+**NOTE:** For this to work, your laptop has to join the SSH cluster first. See 
+[adding nodes](admin-guide.md#adding-nodes-to-the-cluster) for more information.
 
 ## Running in Production
 

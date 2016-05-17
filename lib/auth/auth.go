@@ -55,9 +55,9 @@ type Authority interface {
 
 	// GenerateHostCert generates host certificate, it takes pkey as a signing
 	// private key (host certificate authority)
-	GenerateHostCert(pkey, key []byte, hostID, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error)
+	GenerateHostCert(pkey, key []byte, hostID, authDomain string, roles teleport.Roles, ttl time.Duration) ([]byte, error)
 
-	// GenerateHostCert generates user certificate, it takes pkey as a signing
+	// GenerateUserCert generates user certificate, it takes pkey as a signing
 	// private key (user certificate authority)
 	GenerateUserCert(pkey, key []byte, teleportUsername string, allowedLogins []string, ttl time.Duration) ([]byte, error)
 }
@@ -80,13 +80,6 @@ type Session struct {
 
 // AuthServerOption allows setting options as functional arguments to AuthServer
 type AuthServerOption func(*AuthServer)
-
-// AuthClock allows setting clock for auth server (used in tests)
-func AuthClock(clock clockwork.Clock) AuthServerOption {
-	return func(a *AuthServer) {
-		a.clock = clock
-	}
-}
 
 // NewAuthServer creates and configures a new AuthServer instance
 func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
@@ -116,6 +109,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 		DomainName:      cfg.DomainName,
 		AuthServiceName: cfg.AuthServiceName,
 		oidcClients:     make(map[string]*oidc.Client),
+		StaticTokens:    cfg.StaticTokens,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -149,6 +143,10 @@ type AuthServer struct {
 	// It usually defaults to the hostname of the machine the Auth service runs on.
 	AuthServiceName string
 
+	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
+	// environments where paranoid security is not needed
+	StaticTokens []services.ProvisionToken
+
 	services.Trust
 	services.Lock
 	services.Presence
@@ -170,19 +168,19 @@ func (a *AuthServer) GetLocalDomain() (string, error) {
 
 // GenerateHostCert generates host certificate, it takes pkey as a signing
 // private key (host certificate authority)
-func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error) {
+func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
 	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.HostCA,
 		DomainName: s.DomainName,
 	}, true)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Errorf("failed to load host CA for '%s': %v", s.DomainName, err)
 	}
 	privateKey, err := ca.FirstSigningKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.Authority.GenerateHostCert(privateKey, key, hostID, authDomain, role, ttl)
+	return s.Authority.GenerateHostCert(privateKey, key, hostID, authDomain, roles, ttl)
 }
 
 // GenerateUserCert generates user certificate, it takes pkey as a signing
@@ -282,17 +280,9 @@ func (s *AuthServer) GenerateToken(roles teleport.Roles, ttl time.Duration) (str
 	return token, nil
 }
 
-func (s *AuthServer) ValidateToken(token string) (roles teleport.Roles, e error) {
-	tok, err := s.Provisioner.GetToken(token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return tok.Roles, nil
-}
-
 // GenerateServerKeys generates private key and certificate signed
 // by the host certificate authority, listing the role of this server
-func (s *AuthServer) GenerateServerKeys(hostID string, role teleport.Role) (*PackedKeys, error) {
+func (s *AuthServer) GenerateServerKeys(hostID string, roles teleport.Roles) (*PackedKeys, error) {
 	k, pub, err := s.GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -301,7 +291,7 @@ func (s *AuthServer) GenerateServerKeys(hostID string, role teleport.Role) (*Pac
 	// that's how we make sure that nodes are uniquely identified/found
 	// in cases when we have multiple environments/organizations
 	fqdn := fmt.Sprintf("%s.%s", hostID, s.DomainName)
-	c, err := s.GenerateHostCert(pub, fqdn, s.DomainName, role, 0)
+	c, err := s.GenerateHostCert(pub, fqdn, s.DomainName, roles, 0)
 	if err != nil {
 		log.Warningf("[AUTH] Node `%v` cannot join: cert generation error. %v", hostID, err)
 		return nil, trace.Wrap(err)
@@ -313,27 +303,78 @@ func (s *AuthServer) GenerateServerKeys(hostID string, role teleport.Role) (*Pac
 	}, nil
 }
 
+// ValidteToken takes a provisioning token value and finds if it's valid. Returns
+// a list of roles this token allows its owner to assume, or an error if the token
+// cannot be found
+func (s *AuthServer) ValidateToken(token string) (roles teleport.Roles, e error) {
+	// look at static tokesn first:
+	for _, st := range s.StaticTokens {
+		if st.Token == token {
+			return st.Roles, nil
+		}
+	}
+	// look at the tokens in the token storage
+	tok, err := s.Provisioner.GetToken(token)
+	if err != nil {
+		log.Warn(err)
+		return nil, trace.Errorf("token not recognized")
+	}
+	return tok.Roles, nil
+}
+
+// enforceTokenTTL deletes the given token if it's TTL is over. Returns 'false'
+// if this token cannot be used
+func (s *AuthServer) checkTokenTTL(token string) bool {
+	// look at the tokens in the token storage
+	tok, err := s.Provisioner.GetToken(token)
+	if err != nil {
+		log.Warn(err)
+		return true
+	}
+	now := s.clock.Now().UTC()
+	if tok.Expires.Before(now) {
+		if err = s.DeleteToken(token); err != nil {
+			log.Error(err)
+		}
+		return false
+	}
+	return true
+}
+
+// RegisterUsingToken adds a new node to the Teleport cluster using previously issued token.
+// A node must also request a specific role (and the role must match one of the roles
+// the token was generated for).
+//
+// If a token was generated with a TTL, it gets enforced (can't register new nodes after TTL expires)
+// If a token was generated with a TTL=0, it means it's a single-use token and it gets destroyed
+// after a successful registration.
 func (s *AuthServer) RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error) {
-	log.Infof("[AUTH] Node `%v` is trying to join", hostID)
+	log.Infof("[AUTH] Node `%v` is trying to join as %v", hostID, role)
 	if hostID == "" {
 		return nil, trace.BadParameter("HostID cannot be empty")
 	}
 	if err := role.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tok, err := s.Provisioner.GetToken(token)
+	// make sure the token is valid:
+	roles, err := s.ValidateToken(token)
 	if err != nil {
-		log.Warningf("[AUTH] Node `%v` cannot join: token error. %v", hostID, err)
-		return nil, trace.Wrap(err)
+		msg := fmt.Sprintf("`%v` cannot join the cluster as %s. Token error: %v", hostID, role, err)
+		log.Warnf("[AUTH] %s", msg)
+		return nil, trace.AccessDenied(msg)
 	}
-	if !tok.Roles.Include(role) {
-		return nil, trace.BadParameter("token.Role: role does not match")
+	// make sure the caller is requested wthe role allowed by the token:
+	if !roles.Include(role) {
+		msg := fmt.Sprintf("'%v' cannot join the cluster, the token does not allow '%s' role", hostID, role)
+		log.Warningf("[AUTH] %s", msg)
+		return nil, trace.BadParameter(msg)
 	}
-	keys, err := s.GenerateServerKeys(hostID, role)
+	if !s.checkTokenTTL(token) {
+		return nil, trace.AccessDenied("'%v' cannot join the cluster. The token has expired", hostID)
+	}
+	// generate & return the node cert:
+	keys, err := s.GenerateServerKeys(hostID, teleport.Roles{role})
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := s.DeleteToken(token); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	utils.Consolef(os.Stdout, "[AUTH] Node `%v` joined the cluster", hostID)
@@ -354,16 +395,57 @@ func (s *AuthServer) RegisterNewAuthServer(token string) error {
 	return nil
 }
 
-func (s *AuthServer) DeleteToken(token string) error {
-	return s.Provisioner.DeleteToken(token)
+func (s *AuthServer) DeleteToken(token string) (err error) {
+	// is this a static token?
+	for _, st := range s.StaticTokens {
+		if st.Token == token {
+			return trace.BadParameter("token %s is statically configured and cannot be removed", token)
+		}
+	}
+	// delete user token:
+	if err = s.Identity.DeleteSignupToken(token); err == nil {
+		return nil
+	}
+	// delete node token:
+	if err = s.Provisioner.DeleteToken(token); err == nil {
+		return nil
+	}
+	return trace.Wrap(err)
 }
 
-func (s *AuthServer) NewWebSession(userName string) (*Session, error) {
-	token, err := utils.CryptoRandomHex(WebSessionTokenLenBytes)
+// GetTokens returns all tokens (machine provisioning ones and user invitation tokens). Machine
+// tokens usually have "node roles", like auth,proxy,node and user invitation tokens have 'signup' role
+func (s *AuthServer) GetTokens() (tokens []services.ProvisionToken, err error) {
+	// get node tokens:
+	tokens, err = s.Provisioner.GetTokens()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	bearerToken, err := utils.CryptoRandomHex(WebSessionTokenLenBytes)
+	// get static tokens:
+	tokens = append(tokens, s.StaticTokens...)
+	// get user tokens:
+	userTokens, err := s.Identity.GetSignupTokens()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// convert user tokens to machine tokens:
+	for _, t := range userTokens {
+		roles := teleport.Roles{teleport.RoleSignup}
+		tokens = append(tokens, services.ProvisionToken{
+			Token:   t.Token,
+			Expires: t.Expires,
+			Roles:   roles,
+		})
+	}
+	return tokens, nil
+}
+
+func (s *AuthServer) NewWebSession(userName string) (*Session, error) {
+	token, err := utils.CryptoRandomHex(TokenLenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	bearerToken, err := utils.CryptoRandomHex(TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -485,7 +567,7 @@ func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*servi
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := utils.CryptoRandomHex(WebSessionTokenLenBytes)
+	token, err := utils.CryptoRandomHex(TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -634,9 +716,6 @@ const (
 	WebSessionTTL = 10 * time.Minute
 	// TokenLenBytes is len in bytes of the invite token
 	TokenLenBytes = 16
-	// WebSessionTokenLenBytes specifies len in bytes of the
-	// web session random token
-	WebSessionTokenLenBytes = 32
 )
 
 // minTTL finds min non 0 TTL duration,

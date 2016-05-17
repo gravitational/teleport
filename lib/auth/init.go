@@ -71,14 +71,22 @@ type InitConfig struct {
 
 	// Trust is a service that manages users and credentials
 	Trust services.Trust
+
 	// Lock is a distributed or local lock service
 	Lock services.Lock
+
 	// Presence service is a discovery and hearbeat tracker
 	Presence services.Presence
+
 	// Provisioner is a service that keeps track of provisioning tokens
 	Provisioner services.Provisioner
+
 	// Trust is a service that manages users and credentials
 	Identity services.Identity
+
+	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
+	// environments where paranoid security is not needed
+	StaticTokens []services.ProvisionToken
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -228,7 +236,7 @@ func initKeys(a *AuthServer, dataDir string, id IdentityID) (*Identity, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cert, err := a.GenerateHostCert(publicKey, id.HostUUID, a.DomainName, id.Role, 0)
+		cert, err := a.GenerateHostCert(publicKey, id.HostUUID, a.DomainName, teleport.Roles{id.Role}, 0)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -321,16 +329,20 @@ func ReadIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	if len(cert.Permissions.Extensions) == 0 {
 		return nil, trace.BadParameter("extensions: misssing needed extensions for host roles")
 	}
-
 	roleString := cert.Permissions.Extensions[utils.CertExtensionRole]
 	if roleString == "" {
 		return nil, trace.BadParameter("misssing cert extension %v", utils.CertExtensionRole)
 	}
-	role := teleport.Role(roleString)
-	if err := role.Check(); err != nil {
+	roles, err := teleport.ParseRoles(roleString)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	foundRoles := len(roles)
+	if foundRoles != 1 {
+		return nil, trace.Errorf("expected one role per certificate. found %d: '%s'",
+			foundRoles, roles.String())
+	}
+	role := roles[0]
 	authorityDomain := cert.Permissions.Extensions[utils.CertExtensionAuthority]
 	if authorityDomain == "" {
 		return nil, trace.BadParameter("misssing cert extension %v", utils.CertExtensionAuthority)

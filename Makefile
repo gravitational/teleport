@@ -70,6 +70,14 @@ docs:
 	$(MAKE) -C build.assets docs
 
 #
+# Runs the documentation site inside a container on localhost with live updates
+# Convenient for editing documentation.
+#
+.PHONY:run-docs
+run-docs:
+	$(MAKE) -C build.assets run-docs
+
+#
 # tests everything: called by Jenkins
 #
 .PHONY: test

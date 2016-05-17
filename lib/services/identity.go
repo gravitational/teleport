@@ -186,6 +186,9 @@ type Identity interface {
 	// GetSignupToken returns signup token data
 	GetSignupToken(token string) (*SignupToken, error)
 
+	// GetSignupTokens returns a list of signup tokens
+	GetSignupTokens() ([]SignupToken, error)
+
 	// DeleteSignupToken deletes signup token from the storage
 	DeleteSignupToken(token string) error
 
@@ -244,6 +247,7 @@ type SignupToken struct {
 	Hotp            []byte       `json:"hotp"`
 	HotpFirstValues []string     `json:"hotp_first_values"`
 	HotpQR          []byte       `json:"hotp_qr"`
+	Expires         time.Time    `json:"expires"`
 }
 
 // OIDCConnector specifies configuration fo Open ID Connect compatible external

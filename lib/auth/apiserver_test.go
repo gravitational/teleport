@@ -120,7 +120,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	c.Assert(err, IsNil)
 
 	// make sure we can parse the private and public key
-	cert, err := s.clt.GenerateHostCert(pub, "localhost", "localhost", teleport.RoleNode, time.Hour)
+	cert, err := s.clt.GenerateHostCert(pub, "localhost", "localhost", teleport.Roles{teleport.RoleNode}, time.Hour)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)

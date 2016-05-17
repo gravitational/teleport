@@ -257,6 +257,25 @@ func (c *Client) RegisterUsingToken(token, hostID string, role teleport.Role) (*
 	return &keys, nil
 }
 
+// GetTokens returns a list of active invitation tokens for nodes and users
+func (c *Client) GetTokens() (tokens []services.ProvisionToken, err error) {
+	out, err := c.Get(c.Endpoint("tokens"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := json.Unmarshal(out.Bytes(), &tokens); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return tokens, nil
+}
+
+// DeleteToken deletes a given provisioning token on the auth server (CA). It
+// could be a user token or a machine token
+func (c *Client) DeleteToken(token string) error {
+	_, err := c.Delete(c.Endpoint("tokens", token))
+	return trace.Wrap(err)
+}
+
 func (c *Client) RegisterNewAuthServer(token string) error {
 	_, err := c.PostJSON(c.Endpoint("tokens", "register", "auth"), registerNewAuthServerReq{
 		Token: token,
@@ -545,14 +564,14 @@ func (c *Client) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 // plain text format, signs it using Host Certificate Authority private key and returns the
 // resulting certificate.
 func (c *Client) GenerateHostCert(
-	key []byte, hostname, authDomain string, role teleport.Role, ttl time.Duration) ([]byte, error) {
+	key []byte, hostname, authDomain string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
 
 	out, err := c.PostJSON(c.Endpoint("ca", "host", "certs"),
 		generateHostCertReq{
 			Key:        key,
 			Hostname:   hostname,
 			AuthDomain: authDomain,
-			Role:       role,
+			Roles:      roles,
 			TTL:        ttl,
 		})
 	if err != nil {
@@ -837,7 +856,7 @@ type ClientI interface {
 	GetUsers() ([]services.User, error)
 	DeleteUser(user string) error
 	GenerateKeyPair(pass string) ([]byte, []byte, error)
-	GenerateHostCert(key []byte, hostname, authServer string, role teleport.Role, ttl time.Duration) ([]byte, error)
+	GenerateHostCert(key []byte, hostname, authServer string, roles teleport.Roles, ttl time.Duration) ([]byte, error)
 	GenerateUserCert(key []byte, user string, ttl time.Duration) ([]byte, error)
 	GetSignupTokenData(token string) (user string, QRImg []byte, hotpFirstValues []string, e error)
 	CreateUserWithToken(token, password, hotpToken string) (*Session, error)

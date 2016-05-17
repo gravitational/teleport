@@ -95,7 +95,7 @@ func NewInstance(siteName string, hostName string, ports []int, priv, pub []byte
 		priv, pub, _ = keygen.GenerateKeyPair("")
 	}
 	cert, err := keygen.GenerateHostCert(priv, pub,
-		hostName, siteName, teleport.RoleAdmin, time.Duration(time.Hour*24))
+		hostName, siteName, teleport.Roles{teleport.RoleAdmin}, time.Duration(time.Hour*24))
 	fatalIf(err)
 	secrets := InstanceSecrets{
 		SiteName:   siteName,

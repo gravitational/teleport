@@ -34,7 +34,6 @@ test: integration
 
 .PHONY:integration
 integration: bbox
-	echo "Disabled for now"
 	docker run $(DOCKERFLAGS) $(NOROOT) -i $(BBOX) \
  		/bin/bash -c "$(MAKE) -C $(SRCDIR) FLAGS='-cover' integration"
 
@@ -45,6 +44,13 @@ integration: bbox
 docs: bbox
 	docker run $(DOCKERFLAGS) -ti $(NOROOT) -e HOME=$(SRCDIR)/build.assets $(BBOX) mkdocs build
 	@echo "\nSUCCESS: Teleport docs ----> build/docs\n"
+
+#
+# Runs docs website on localhost
+#
+.PHONY:run-docs
+run-docs: bbox
+	docker run $(DOCKERFLAGS) -ti $(NOROOT) -e HOME=$(SRCDIR)/build.assets -p 6600:6600 -w $(SRCDIR) $(BBOX) mkdocs serve -a 0.0.0.0:6600
 
 #
 # Starts shell inside the build container
