@@ -17,12 +17,14 @@ limitations under the License.
 package client
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -176,15 +178,42 @@ func (fs *FSLocalKeyStore) GetKey(host, username string) (*Key, error) {
 
 // AddKnownHost adds a new entry to 'known_CAs' file
 func (fs *FSLocalKeyStore) AddKnownCA(domainName string, hostKeys []ssh.PublicKey) error {
-	fp, err := os.OpenFile(filepath.Join(fs.KeyDir, fileNameKnownHosts), os.O_CREATE|os.O_APPEND|os.O_RDWR, 0640)
+	fp, err := os.OpenFile(filepath.Join(fs.KeyDir, fileNameKnownHosts), os.O_CREATE|os.O_RDWR, 0640)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer fp.Sync()
 	defer fp.Close()
+	// read all existing entries into a map (this removes any pre-existing dupes)
+	entries := make(map[string]int)
+	output := make([]string, 0)
+	scanner := bufio.NewScanner(fp)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if _, exists := entries[line]; !exists {
+			output = append(output, line)
+			entries[line] = 1
+		}
+	}
+	// add every host key to the list of entries
 	for i := range hostKeys {
-		bytes := ssh.MarshalAuthorizedKey(hostKeys[i])
 		log.Infof("adding known CA %v %v", domainName, sshutils.Fingerprint(hostKeys[i]))
-		fmt.Fprintf(fp, "%s %s\n", domainName, bytes)
+		bytes := ssh.MarshalAuthorizedKey(hostKeys[i])
+		line := strings.TrimSpace(fmt.Sprintf("%s %s", domainName, bytes))
+		if _, exists := entries[line]; !exists {
+			output = append(output, line)
+		}
+	}
+	// re-create the file:
+	_, err = fp.Seek(0, 0)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err = fp.Truncate(0); err != nil {
+		return trace.Wrap(err)
+	}
+	for _, line := range output {
+		fmt.Fprintf(fp, "%s\n", line)
 	}
 	return nil
 }
@@ -198,7 +227,6 @@ func (fs *FSLocalKeyStore) GetKnownCAs() ([]ssh.PublicKey, error) {
 		}
 		return nil, trace.Wrap(err)
 	}
-
 	var (
 		pubKey ssh.PublicKey
 		retval []ssh.PublicKey = make([]ssh.PublicKey, 0)

@@ -128,6 +128,13 @@ func (s *KeyStoreTestSuite) TestKnownHosts(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(keys, check.HasLen, 3)
 	c.Assert(keys, check.DeepEquals, []ssh.PublicKey{pub, pub2, pub2})
+
+	// check against dupes:
+	before, _ := s.store.GetKnownCAs()
+	s.store.AddKnownCA("example.org", []ssh.PublicKey{pub2})
+	s.store.AddKnownCA("example.org", []ssh.PublicKey{pub2})
+	after, _ := s.store.GetKnownCAs()
+	c.Assert(len(before), check.Equals, len(after))
 }
 
 // makeSIgnedKey helper returns all 3 components of a user key (signed by CAPriv key)
