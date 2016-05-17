@@ -396,6 +396,12 @@ func (s *AuthServer) RegisterNewAuthServer(token string) error {
 }
 
 func (s *AuthServer) DeleteToken(token string) (err error) {
+	// is this a static token?
+	for _, st := range s.StaticTokens {
+		if st.Token == token {
+			return trace.BadParameter("token %s is statically configured and cannot be removed", token)
+		}
+	}
 	// delete user token:
 	if err = s.Identity.DeleteSignupToken(token); err == nil {
 		return nil
