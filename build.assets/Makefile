@@ -34,7 +34,6 @@ test: integration
 
 .PHONY:integration
 integration: bbox
-	echo "Disabled for now"
 	docker run $(DOCKERFLAGS) $(NOROOT) -i $(BBOX) \
  		/bin/bash -c "$(MAKE) -C $(SRCDIR) FLAGS='-cover' integration"
 

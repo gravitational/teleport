@@ -430,10 +430,11 @@ func (s *AuthServer) GetTokens() (tokens []services.ProvisionToken, err error) {
 	}
 	// convert user tokens to machine tokens:
 	for _, t := range userTokens {
+		roles := teleport.Roles{teleport.RoleSignup}
 		tokens = append(tokens, services.ProvisionToken{
 			Token:   t.Token,
 			Expires: t.Expires,
-			Roles:   teleport.Roles{teleport.RoleSignup},
+			Roles:   roles,
 		})
 	}
 	return tokens, nil
