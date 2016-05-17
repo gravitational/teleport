@@ -32,10 +32,14 @@ type Provisioner interface {
 
 	// DeleteToken deletes provisioning token
 	DeleteToken(token string) error
+
+	// GetTokens returns all non-expired tokens
+	GetTokens() ([]ProvisionToken, error)
 }
 
 // ProvisionToken stores metadata about some provisioning token
 type ProvisionToken struct {
 	Roles   teleport.Roles `json:"roles"`
 	Expires time.Time      `json:"expires"`
+	Token   string         `json:"token"`
 }

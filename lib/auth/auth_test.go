@@ -105,6 +105,11 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(tok), Equals, 2*TokenLenBytes)
 
+	tokens, err := s.a.GetTokens()
+	c.Assert(err, IsNil)
+	c.Assert(len(tokens), Equals, 1)
+	c.Assert(tokens[0].Token, Equals, tok)
+
 	roles, err := s.a.ValidateToken(tok)
 	c.Assert(err, IsNil)
 	c.Assert(roles.Include(teleport.RoleNode), Equals, true)
@@ -142,7 +147,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 
 	// lets use static tokens now
 	roles = teleport.Roles{teleport.RoleProxy}
-	s.a.StaticTokens = append(s.a.StaticTokens, StaticToken{Value: "static-token-value", Roles: roles})
+	s.a.StaticTokens = append(s.a.StaticTokens, services.ProvisionToken{Token: "static-token-value", Roles: roles, Expires: time.Unix(0, 0)})
 	_, err = s.a.RegisterUsingToken("static-token-value", "static.host", teleport.RoleProxy)
 	c.Assert(err, IsNil)
 	_, err = s.a.RegisterUsingToken("static-token-value", "wrong.role", teleport.RoleAuth)
@@ -150,6 +155,11 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	r, err := s.a.ValidateToken("static-token-value")
 	c.Assert(err, IsNil)
 	c.Assert(r, DeepEquals, roles)
+
+	// List tokens (should see 2: one static, one regular)
+	tokens, err = s.a.GetTokens()
+	c.Assert(err, IsNil)
+	c.Assert(len(tokens), Equals, 2)
 }
 
 func (s *AuthSuite) TestBadTokens(c *C) {

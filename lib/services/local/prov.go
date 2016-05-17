@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -46,6 +47,7 @@ func (s *ProvisioningService) UpsertToken(token string, roles teleport.Roles, tt
 	t := services.ProvisionToken{
 		Roles:   roles,
 		Expires: time.Now().UTC().Add(ttl),
+		Token:   token,
 	}
 	out, err := json.Marshal(t)
 	if err != nil {
@@ -68,6 +70,7 @@ func (s *ProvisioningService) GetToken(token string) (*services.ProvisionToken, 
 	var t *services.ProvisionToken
 	err = json.Unmarshal(out, &t)
 	if err != nil {
+		t.Token = token // for backwards compatibility with older tokens
 		return nil, trace.Wrap(err)
 	}
 	return t, nil
@@ -76,4 +79,20 @@ func (s *ProvisioningService) GetToken(token string) (*services.ProvisionToken, 
 func (s *ProvisioningService) DeleteToken(token string) error {
 	err := s.backend.DeleteKey([]string{"tokens"}, token)
 	return err
+}
+
+// GetTokens returns all active (non-expired) provisioning tokens
+func (s *ProvisioningService) GetTokens() (tokens []services.ProvisionToken, err error) {
+	keys, err := s.backend.GetKeys([]string{"tokens"})
+	if err != nil {
+		return tokens, trace.Wrap(err)
+	}
+	for _, k := range keys {
+		tok, err := s.GetToken(k)
+		if err != nil {
+			log.Error(err)
+		}
+		tokens = append(tokens, *tok)
+	}
+	return tokens, nil
 }

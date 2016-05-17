@@ -86,15 +86,7 @@ type InitConfig struct {
 
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
-	StaticTokens []StaticToken
-}
-
-// StaticToken describes a pre-defined always-live token, usually stored in a config file.
-type StaticToken struct {
-	// Value is the token string, usually it's a base64-encoded binary
-	Value string
-	// Roles is a list of machine roles that this token allows to provision
-	Roles teleport.Roles
+	StaticTokens []services.ProvisionToken
 }
 
 // Init instantiates and configures an instance of AuthServer

@@ -145,7 +145,7 @@ type AuthServer struct {
 
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
-	StaticTokens []StaticToken
+	StaticTokens []services.ProvisionToken
 
 	services.Trust
 	services.Lock
@@ -309,7 +309,7 @@ func (s *AuthServer) GenerateServerKeys(hostID string, roles teleport.Roles) (*P
 func (s *AuthServer) ValidateToken(token string) (roles teleport.Roles, e error) {
 	// look at static tokesn first:
 	for _, st := range s.StaticTokens {
-		if st.Value == token {
+		if st.Token == token {
 			return st.Roles, nil
 		}
 	}
@@ -395,16 +395,50 @@ func (s *AuthServer) RegisterNewAuthServer(token string) error {
 	return nil
 }
 
-func (s *AuthServer) DeleteToken(token string) error {
-	return s.Provisioner.DeleteToken(token)
+func (s *AuthServer) DeleteToken(token string) (err error) {
+	// delete user token:
+	if err = s.Identity.DeleteSignupToken(token); err == nil {
+		return nil
+	}
+	// delete node token:
+	if err = s.Provisioner.DeleteToken(token); err == nil {
+		return nil
+	}
+	return trace.Wrap(err)
 }
 
-func (s *AuthServer) NewWebSession(userName string) (*Session, error) {
-	token, err := utils.CryptoRandomHex(WebSessionTokenLenBytes)
+// GetTokens returns all tokens (machine provisioning ones and user invitation tokens). Machine
+// tokens usually have "node roles", like auth,proxy,node and user invitation tokens have 'signup' role
+func (s *AuthServer) GetTokens() (tokens []services.ProvisionToken, err error) {
+	// get node tokens:
+	tokens, err = s.Provisioner.GetTokens()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	bearerToken, err := utils.CryptoRandomHex(WebSessionTokenLenBytes)
+	// get static tokens:
+	tokens = append(tokens, s.StaticTokens...)
+	// get user tokens:
+	userTokens, err := s.Identity.GetSignupTokens()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// convert user tokens to machine tokens:
+	for _, t := range userTokens {
+		tokens = append(tokens, services.ProvisionToken{
+			Token:   t.Token,
+			Expires: t.Expires,
+			Roles:   teleport.Roles{teleport.RoleSignup},
+		})
+	}
+	return tokens, nil
+}
+
+func (s *AuthServer) NewWebSession(userName string) (*Session, error) {
+	token, err := utils.CryptoRandomHex(TokenLenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	bearerToken, err := utils.CryptoRandomHex(TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -526,7 +560,7 @@ func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*servi
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := utils.CryptoRandomHex(WebSessionTokenLenBytes)
+	token, err := utils.CryptoRandomHex(TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -675,9 +709,6 @@ const (
 	WebSessionTTL = 10 * time.Minute
 	// TokenLenBytes is len in bytes of the invite token
 	TokenLenBytes = 16
-	// WebSessionTokenLenBytes specifies len in bytes of the
-	// web session random token
-	WebSessionTokenLenBytes = 32
 )
 
 // minTTL finds min non 0 TTL duration,

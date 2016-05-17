@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -220,14 +219,16 @@ func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 	var cfg service.Config
 	err = ApplyFileConfig(conf, &cfg)
 	c.Assert(err, check.IsNil)
-	c.Assert(cfg.Auth.StaticTokens, check.DeepEquals, []auth.StaticToken{
+	c.Assert(cfg.Auth.StaticTokens, check.DeepEquals, []services.ProvisionToken{
 		{
-			Value: "xxx",
-			Roles: teleport.Roles([]teleport.Role{"Proxy", "Node"}),
+			Token:   "xxx",
+			Roles:   teleport.Roles([]teleport.Role{"Proxy", "Node"}),
+			Expires: time.Unix(0, 0),
 		},
 		{
-			Value: "yyy",
-			Roles: teleport.Roles([]teleport.Role{"Auth"}),
+			Token:   "yyy",
+			Roles:   teleport.Roles([]teleport.Role{"Auth"}),
+			Expires: time.Unix(0, 0),
 		},
 	})
 	c.Assert(cfg.Auth.DomainName, check.Equals, "magadan")

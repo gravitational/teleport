@@ -178,8 +178,22 @@ func (a *AuthWithRoles) DeleteReverseTunnel(domainName string) error {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteReverseTunnel(domainName)
-
 }
+
+func (a *AuthWithRoles) DeleteToken(token string) error {
+	if err := a.permChecker.HasPermission(a.role, ActionGenerateToken); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteToken(token)
+}
+
+func (a *AuthWithRoles) GetTokens() ([]services.ProvisionToken, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionGenerateToken); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetTokens()
+}
+
 func (a *AuthWithRoles) UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error) {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertPassword); err != nil {
 		return "", nil, err

@@ -244,18 +244,20 @@ func (s *APIServer) deleteReverseTunnel(w http.ResponseWriter, r *http.Request, 
 
 // getTokens returns a list of active provisioning tokens. expired (inactive) tokens are not returned
 func (s *APIServer) getTokens(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	a := make([]services.ProvisionToken, 0)
-	a = append(a, services.ProvisionToken{
-		Expires: time.Now(),
-		Roles:   teleport.Roles{"vincent", "hvostovski"},
-	})
-	return a, nil
+	tokens, err := s.a.GetTokens()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return tokens, nil
 }
 
 // deleteToken deletes (revokes) a token by its value
 func (s *APIServer) deleteToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	token := p.ByName("token")
-	return message(fmt.Sprintf("TOKEN %v deleted", token)), nil
+	if err := s.a.DeleteToken(token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message(fmt.Sprintf("Token %v deleted", token)), nil
 }
 
 func (s *APIServer) deleteWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {

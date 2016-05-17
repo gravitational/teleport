@@ -231,7 +231,7 @@ type AuthConfig struct {
 
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
-	StaticTokens []auth.StaticToken
+	StaticTokens []services.ProvisionToken
 
 	// KeysBackend configures backend that stores auth keys, certificates, tokens ...
 	KeysBackend struct {

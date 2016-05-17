@@ -26,7 +26,6 @@ import (
 	"unicode"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -282,7 +281,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.Auth.StaticTokens = append(cfg.Auth.StaticTokens, auth.StaticToken{Value: tokenValue, Roles: roles})
+		cfg.Auth.StaticTokens = append(cfg.Auth.StaticTokens, services.ProvisionToken{Token: tokenValue, Roles: roles, Expires: time.Unix(0, 0)})
 	}
 
 	// apply "ssh_service" section

@@ -633,9 +633,23 @@ func (c *TokenCommand) List(client *auth.TunClient) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for _, t := range tokens {
-		fmt.Println(t)
+	if len(tokens) == 0 {
+		fmt.Println("No active tokens found.")
+		return nil
 	}
+	tokensView := func() string {
+		table := goterm.NewTable(0, 10, 5, ' ', 0)
+		printHeader(table, []string{"Token", "Role", "Expiry Time (UTC)"})
+		for _, t := range tokens {
+			expiry := "never"
+			if t.Expires.Unix() > 0 {
+				expiry = t.Expires.Format(time.RFC822)
+			}
+			fmt.Fprintf(table, "%v\t%v\t%s\n", t.Token, t.Roles.String(), expiry)
+		}
+		return table.String()
+	}
+	fmt.Printf(tokensView())
 	return nil
 }
 

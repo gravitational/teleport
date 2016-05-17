@@ -239,6 +239,11 @@ func (s *WebSuite) TestNewUser(c *C) {
 	token, err := s.roleAuth.CreateSignupToken(&services.TeleportUser{Name: "bob", AllowedLogins: []string{s.user}})
 	c.Assert(err, IsNil)
 
+	tokens, err := s.roleAuth.GetTokens()
+	c.Assert(err, IsNil)
+	c.Assert(len(tokens), Equals, 1)
+	c.Assert(tokens[0].Token, Equals, token)
+
 	clt := s.client()
 	re, err := clt.Get(clt.Endpoint("webapi", "users", "invites", token), url.Values{})
 	c.Assert(err, IsNil)
