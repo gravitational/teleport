@@ -154,7 +154,7 @@ func (s *LocalSupervisor) Start() error {
 	s.state = stateStarted
 
 	if len(s.services) == 0 {
-		log.Infof("no services registered, returning")
+		log.Warning("supervisor.Start(): nothing to run")
 		return nil
 	}
 

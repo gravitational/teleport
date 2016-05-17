@@ -62,6 +62,8 @@ func NewAgent(
 	signers []ssh.Signer,
 	clt *auth.TunClient) (*Agent, error) {
 
+	log.Debugf("reversetunnel.NewAgent(%v)", domainName)
+
 	a := &Agent{
 		log: log.WithFields(log.Fields{
 			teleport.Component: teleport.ComponentReverseTunnel,

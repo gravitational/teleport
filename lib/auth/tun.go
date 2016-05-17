@@ -39,7 +39,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 )
 
-// AuthTunnel listens on TCP/IP socket and accepts SSH connections. It then stablishes
+// AuthTunnel listens on TCP/IP socket and accepts SSH connections. It then establishes
 // an SSH tunnell which HTTP requests travel over. In other words, the Auth Service API
 // runs on HTTP-via-SSH-tunnel.
 //

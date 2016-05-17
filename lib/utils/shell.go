@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"os"
 	"os/exec"
+	"os/user"
 	"regexp"
 	"runtime"
 	"strings"
@@ -32,6 +33,10 @@ var osxUserShellRegexp = regexp.MustCompile("UserShell: (/[^ ]+)\n")
 
 // GetLoginShell determines the login shell for a given username
 func GetLoginShell(username string) (string, error) {
+	user, err := user.Lookup(username)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
 	// func to determine user shell on OSX:
 	forMac := func() (string, error) {
 		dir := "Local/Default/Users/" + username
@@ -57,8 +62,13 @@ func GetLoginShell(username string) (string, error) {
 		scanner := bufio.NewScanner(f)
 		for scanner.Scan() {
 			parts := strings.Split(strings.TrimSpace(scanner.Text()), ":")
-			if parts[0] == username && len(parts) > 5 {
-				return parts[6], nil
+			if parts[0] != user.Uid && parts[0] != user.Username {
+				continue
+			}
+			for i := len(parts) - 1; i > 0; i-- {
+				if IsFile(parts[i]) {
+					return parts[i], nil
+				}
 			}
 		}
 		if scanner.Err() != nil {

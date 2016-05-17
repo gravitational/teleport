@@ -38,5 +38,5 @@ const (
 	DefaultTimeout time.Duration = 30 * time.Second
 
 	// DebugOutputEnvVar tells tests to use verbose debug output
-	DebugOutputEnvVar = "TELEPORT_DEBUG_TESTS"
+	DebugOutputEnvVar = "TELEPORT_DEBUG"
 )

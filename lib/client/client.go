@@ -214,7 +214,9 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeC
 		err = proxySession.RequestSubsystem("proxy:" + nodeAddress)
 		if err != nil {
 			defer printErrors()
-			return nil, trace.Wrap(err)
+			parts := strings.Split(nodeAddress, "@")
+			siteName := parts[len(parts)-1]
+			return nil, trace.Errorf("Failed connecting to cluster %v: %v", siteName, err)
 		}
 		pipeNetConn := utils.NewPipeNetConn(
 			proxyReader,
@@ -544,34 +546,53 @@ func (client *NodeClient) scp(scpCommand scp.Command, shellCmd string) error {
 func (client *NodeClient) listenAndForward(socket net.Listener, remoteAddr string) {
 	defer socket.Close()
 	defer client.Close()
+	proxyConnection := func(incoming net.Conn) {
+		defer incoming.Close()
+		var (
+			conn net.Conn
+			err  error
+		)
+		log.Debugf("nodeClient.listenAndForward(%v -> %v) started", incoming.RemoteAddr(), remoteAddr)
+		for attempt := 1; attempt <= 5; attempt++ {
+			conn, err = client.Client.Dial("tcp", remoteAddr)
+			if err != nil {
+				log.Errorf("Connection attempt %v: %v", attempt, err)
+				// failed to establish an outbound connection? try again:
+				time.Sleep(time.Millisecond * time.Duration(100*attempt))
+				continue
+			}
+			// connection established: continue:
+			break
+		}
+		// permanent failure establishing connection
+		if err != nil {
+			log.Errorf("Failed to connect to node %v", remoteAddr)
+			return
+		}
+		defer conn.Close()
+		// start proxying:
+		doneC := make(chan interface{}, 2)
+		go func() {
+			io.Copy(incoming, conn)
+			doneC <- true
+		}()
+		go func() {
+			io.Copy(conn, incoming)
+			doneC <- true
+		}()
+		<-doneC
+		<-doneC
+		log.Debugf("nodeClient.listenAndForward(%v -> %v) exited", incoming.RemoteAddr(), remoteAddr)
+	}
+	// request processing loop: accept incoming requests to be connected to nodes
+	// and proxy them to 'remoteAddr'
 	for {
 		incoming, err := socket.Accept()
 		if err != nil {
 			log.Error(err)
 			break
 		}
-		go func() {
-			defer incoming.Close()
-			log.Infof("forwarding connection from %v to %v", incoming.RemoteAddr(), remoteAddr)
-			conn, err := client.Client.Dial("tcp", remoteAddr)
-			if err != nil {
-				log.Error(err)
-			}
-			defer conn.Close()
-
-			doneC := make(chan interface{}, 2)
-			go func() {
-				io.Copy(incoming, conn)
-				doneC <- true
-			}()
-			go func() {
-				io.Copy(conn, incoming)
-				doneC <- true
-			}()
-			<-doneC
-			<-doneC
-			log.Infof("connection from %v to %v closed!", incoming.RemoteAddr(), remoteAddr)
-		}()
+		go proxyConnection(incoming)
 	}
 }
 
