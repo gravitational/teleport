@@ -31,10 +31,7 @@ static int mygetpwnam_r(const char *name, struct passwd *pwd,
 import "C"
 
 import (
-	"os/exec"
 	"os/user"
-	"regexp"
-	"runtime"
 	"syscall"
 	"unsafe"
 
@@ -42,47 +39,14 @@ import (
 	"github.com/gravitational/trace"
 )
 
-var osxUserShellRegexp = regexp.MustCompile("UserShell: (/[^ ]+)\n")
-
 // GetLoginShell determines the login shell for a given username
 func GetLoginShell(username string) (string, error) {
-	user, err := user.Lookup(username)
+	// see if the username is valid
+	_, err := user.Lookup(username)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	// func to determine user shell on OSX:
-	forMac := func() (string, error) {
-		dir := "Local/Default/Users/" + username
-		out, err := exec.Command("dscl", "localhost", "-read", dir, "UserShell").Output()
-		if err != nil {
-			log.Warn(err)
-			return "", trace.Errorf("cannot determine shell for %s", username)
-		}
-		m := osxUserShellRegexp.FindStringSubmatch(string(out))
-		shell := m[1]
-		if shell == "" {
-			return "", trace.Errorf("dscl output parsing error getting shell for %s", username)
-		}
-		return shell, nil
-	}
-	// func to determine user shell on other unixes (linux)
-	forUnix := func() (string, error) {
-		// didn't find it in /etc/passwd? try
-		shell, err := lookupPosixShell(user.Username)
-		if err != nil {
-			log.Error(err)
-			return "", trace.Errorf("cannot determine shell for %s", username)
-		}
-		return shell, nil
-	}
-	if runtime.GOOS == "darwin" {
-		return forMac()
-	}
-	return forUnix()
-}
 
-// lookupPosixShell determines the login shell for a given username using posix system call
-func lookupPosixShell(username string) (string, error) {
 	// based on stdlib user/lookup_unix.go packages which does not return user shell
 	// https://golang.org/src/os/user/lookup_unix.go
 	var pwd C.struct_passwd
@@ -105,11 +69,9 @@ func lookupPosixShell(username string) (string, error) {
 		(*C.char)(buf),
 		C.size_t(bufSize),
 		&result)
-	if rv != 0 {
-		return "", trace.Errorf("lookupPosixShell: lookup username %s: %s", username, syscall.Errno(rv))
-	}
-	if result == nil {
-		return "", trace.Errorf("lookupPosixShell: unknown username %s", username)
+	if rv != 0 || result == nil {
+		log.Errorf("lookupPosixShell: lookup username %s: %s", username, syscall.Errno(rv))
+		return "", trace.Errorf("cannot determine shell for %s", username)
 	}
 	return C.GoString(pwd.pw_shell), nil
 }
