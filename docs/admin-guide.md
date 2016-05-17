@@ -376,6 +376,37 @@ turing        d52527f9-b260-41d0-bb5a-e23b0cfe0f8f     10.1.0.5:3022      distro
 dijkstra      c9s93fd9-3333-91d3-9999-c9s93fd98f43     10.1.0.6:3022      distro:debian
 ```
 
+## Revoking Invitations
+
+As you have seen above, Teleport uses tokens to invite users to a cluster (sign-up tokens) or 
+to add new nodes to it (provisioning tokens).
+
+Both types of tokens can be revoked before they can be used. To see a list of outstanding tokens,
+run this command:
+
+```bash
+> tctl tokens ls
+
+Token                                Role       Expiry Time (UTC)
+-----                                ----       -----------------
+eoKoh0caiw6weoGupahgh6Wuo7jaTee2     Proxy      never
+696c0471453e75882ff70a761c1a8bfa     Node       17 May 16 03:51 UTC
+6fc5545ab78c2ea978caabef9dbd08a5     Signup     17 May 16 04:24 UTC
+```
+
+In this exampe, wthe first token with "never" expiry date is a static token configured via
+a config file. It cannot be revoked. 
+
+The 2nd token with "Node" role was generated to invite a new node to this cluster. And the
+3rd token was generated to invite a new user.
+
+The latter two tokens can be deleted (revoked) via `tctl tokens del` command:
+
+```bash
+> tctl tokens del 696c0471453e75882ff70a761c1a8bfa
+Token 696c0471453e75882ff70a761c1a8bfa has been deleted
+```
+
 ### Labeling Nodes
 
 In addition to specifying a custom nodename, Teleport also allows to apply arbitrary
@@ -607,6 +638,7 @@ node's and proxies will refresh the list of available auth servers refresh the c
 store the updated list locally in `/var/lib/teleport/authservers.json`. The values from this
 file, if present, will take precendence over configuration file's values.
 You can simply remove the file so that the configuration file's values can take effect again.
+
 
 ## Troubleshooting
 
