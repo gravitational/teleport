@@ -16,68 +16,62 @@ limitations under the License.
 
 package utils
 
+/*
+#cgo solaris CFLAGS: -D_POSIX_PTHREAD_SEMANTICS
+#include <unistd.h>
+#include <sys/types.h>
+#include <pwd.h>
+#include <stdlib.h>
+
+static int mygetpwnam_r(const char *name, struct passwd *pwd,
+	char *buf, size_t buflen, struct passwd **result) {
+	return getpwnam_r(name, pwd, buf, buflen, result);
+}
+*/
+import "C"
+
 import (
-	"bufio"
-	"os"
-	"os/exec"
 	"os/user"
-	"regexp"
-	"runtime"
-	"strings"
+	"syscall"
+	"unsafe"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 )
 
-var osxUserShellRegexp = regexp.MustCompile("UserShell: (/[^ ]+)\n")
-
 // GetLoginShell determines the login shell for a given username
 func GetLoginShell(username string) (string, error) {
-	user, err := user.Lookup(username)
+	// see if the username is valid
+	_, err := user.Lookup(username)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	// func to determine user shell on OSX:
-	forMac := func() (string, error) {
-		dir := "Local/Default/Users/" + username
-		out, err := exec.Command("dscl", "localhost", "-read", dir, "UserShell").Output()
-		if err != nil {
-			log.Warn(err)
-			return "", trace.Errorf("cannot determine shell for %s", username)
-		}
-		m := osxUserShellRegexp.FindStringSubmatch(string(out))
-		shell := m[1]
-		if shell == "" {
-			return "", trace.Errorf("dscl output parsing error getting shell for %s", username)
-		}
-		return shell, nil
+
+	// based on stdlib user/lookup_unix.go packages which does not return user shell
+	// https://golang.org/src/os/user/lookup_unix.go
+	var pwd C.struct_passwd
+	var result *C.struct_passwd
+
+	bufSize := C.sysconf(C._SC_GETPW_R_SIZE_MAX)
+	if bufSize == -1 {
+		bufSize = 1024
 	}
-	// func to determine user shell on other unixes (linux)
-	forUnix := func() (string, error) {
-		f, err := os.Open("/etc/passwd")
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		defer f.Close()
-		scanner := bufio.NewScanner(f)
-		for scanner.Scan() {
-			parts := strings.Split(strings.TrimSpace(scanner.Text()), ":")
-			if parts[0] != user.Uid && parts[0] != user.Username {
-				continue
-			}
-			for i := len(parts) - 1; i > 0; i-- {
-				if IsFile(parts[i]) {
-					return parts[i], nil
-				}
-			}
-		}
-		if scanner.Err() != nil {
-			log.Error(scanner.Err())
-		}
+	if bufSize <= 0 || bufSize > 1<<20 {
+		return "", trace.Errorf("lookupPosixShell: unreasonable _SC_GETPW_R_SIZE_MAX of %d", bufSize)
+	}
+	buf := C.malloc(C.size_t(bufSize))
+	defer C.free(buf)
+	var rv C.int
+	nameC := C.CString(username)
+	defer C.free(unsafe.Pointer(nameC))
+	rv = C.mygetpwnam_r(nameC,
+		&pwd,
+		(*C.char)(buf),
+		C.size_t(bufSize),
+		&result)
+	if rv != 0 || result == nil {
+		log.Errorf("lookupPosixShell: lookup username %s: %s", username, syscall.Errno(rv))
 		return "", trace.Errorf("cannot determine shell for %s", username)
 	}
-	if runtime.GOOS == "darwin" {
-		return forMac()
-	}
-	return forUnix()
+	return C.GoString(pwd.pw_shell), nil
 }
