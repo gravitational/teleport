@@ -216,7 +216,7 @@ func (s *SrvSuite) TestShell(c *C) {
 	// send a few "keyboard inputs" into the session:
 	_, err = io.WriteString(writer, "echo $((50+100))\n\r")
 	c.Assert(err, IsNil)
-	time.Sleep(time.Millisecond * 3)
+	time.Sleep(time.Millisecond * 5)
 
 	// read the output and make sure that "150" (output of $((50+100)) is there
 	_, err = reader.Read(buf)
