@@ -609,7 +609,7 @@ func (c *TunClient) GetDialer() AccessPointDialer {
 			time.Sleep(dialRetryInterval * time.Duration(attempt))
 		}
 		log.Error(err)
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 }
 
