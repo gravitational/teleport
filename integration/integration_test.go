@@ -134,8 +134,6 @@ func (s *IntSuite) TestAudit(c *check.C) {
 		endC <- err
 	}()
 
-	fmt.Println("Lets wait for session")
-
 	// wait until there's a session in there:
 	for i := 0; len(sessions) == 0; i++ {
 		time.Sleep(time.Millisecond * 20)
