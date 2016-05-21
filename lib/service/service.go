@@ -377,10 +377,10 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 			}
 			srv.Addr = fmt.Sprintf("%v:%v", process.Config.AdvertiseIP.String(), port)
 		} else {
-			// advertise-ip is not set, lets try our best guess:
-			ip := net.ParseIP(host)
-			if ip.IsLoopback() || ip.IsUnspecified() || ip.IsMulticast() {
-				ip, err = utils.GuessHostIP()
+			// advertise-ip is not set, while the CA is listening on 0.0.0.0? lets try
+			// to guess the 'advertise ip' then:
+			if net.ParseIP(host).IsUnspecified() {
+				ip, err := utils.GuessHostIP()
 				if err != nil {
 					log.Warn(err)
 				} else {

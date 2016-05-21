@@ -134,12 +134,20 @@ func (s *IntSuite) TestAudit(c *check.C) {
 		endC <- err
 	}()
 
+	fmt.Println("Lets wait for session")
+
 	// wait until there's a session in there:
-	for len(sessions) == 0 {
-		time.Sleep(time.Millisecond * 5)
+	for i := 0; len(sessions) == 0; i++ {
+		time.Sleep(time.Millisecond * 20)
 		sessions, _ = site.GetSessions()
+		if i > 100 {
+			// waited too long
+			c.FailNow()
+			return
+		}
 	}
 	session := &sessions[0]
+
 	// wait for the user to join this session:
 	for len(session.Parties) == 0 {
 		time.Sleep(time.Millisecond * 5)
