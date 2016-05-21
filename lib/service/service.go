@@ -63,8 +63,6 @@ const (
 	ProxyIdentityEvent = "ProxyIdentity"
 	// SSHIdentityEvent is generated when node's identity has been received
 	SSHIdentityEvent = "SSHIdentity"
-	// AuthIdentityEvent is generated when auth's identity has been initialized
-	AuthIdentityEvent = "AuthIdentity"
 	// TeleportExitEvent is generated when someone is askign Teleport Process to close
 	// all listening sockets and exit
 	TeleportExitEvent = "TeleportExit"
@@ -366,42 +364,35 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 	// logic, consolidate it into auth package later
 	var authClient *auth.TunClient
 	process.RegisterFunc(func() error {
-		authClient, err = auth.NewTunClient(
-			"auth.server",
-			[]utils.NetAddr{cfg.Auth.SSHAddr},
-			identity.Cert.ValidPrincipals[0],
-			[]ssh.AuthMethod{ssh.PublicKeys(identity.KeySigner)})
-		// failure?
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		process.BroadcastEvent(Event{Name: AuthIdentityEvent, Payload: &Connector{
-			Identity: identity,
-			Client:   authClient,
-		}})
 		srv := services.Server{
 			ID:       process.Config.HostUUID,
 			Addr:     cfg.Auth.SSHAddr.Addr,
 			Hostname: process.Config.Hostname,
 		}
-		if process.Config.AdvertiseIP == nil {
-			log.Warnf("advertise_ip is not set for this auth server!!! Trying to guess the IP this server can be reached at: %v", srv.Addr)
-			autoIP, err := utils.GuessHostIP()
-			if err != nil {
-				log.Warn(err)
-			} else {
-				srv.Addr = utils.ReplaceHostWith(srv.Addr, autoIP.String())
-			}
-		} else {
-			_, port, err := net.SplitHostPort(srv.Addr)
+		host, port, err := net.SplitHostPort(srv.Addr)
+		// advertise-ip is explicitly set:
+		if process.Config.AdvertiseIP != nil {
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			srv.Addr = fmt.Sprintf("%v:%v", process.Config.AdvertiseIP.String(), port)
+		} else {
+			// advertise-ip is not set, lets try our best guess:
+			ip := net.ParseIP(host)
+			if ip.IsLoopback() || ip.IsUnspecified() || ip.IsMulticast() {
+				ip, err = utils.GuessHostIP()
+				if err != nil {
+					log.Warn(err)
+				} else {
+					srv.Addr = net.JoinHostPort(ip.String(), port)
+				}
+			}
+			log.Warnf("advertise_ip is not set for this auth server!!! Trying to guess the IP this server can be reached at: %v", srv.Addr)
 		}
 		// immediately register, and then keep repeating in a loop:
 		for !askedToExit {
-			err := authClient.UpsertAuthServer(srv, defaults.ServerHeartbeatTTL)
+			log.Infof("[AUTH] heartbeat listening on %s, announcing %s", cfg.Auth.SSHAddr.Addr, srv.Addr)
+			err := authServer.UpsertAuthServer(srv, defaults.ServerHeartbeatTTL)
 			if err != nil {
 				log.Warningf("failed to announce presence: %v", err)
 			}

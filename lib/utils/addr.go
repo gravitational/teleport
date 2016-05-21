@@ -249,16 +249,6 @@ func IsLoopback(host string) bool {
 	return false
 }
 
-// ReplaceHostWith takes a network address in "host:port" form and replaces
-// "host" part with a given host and returns the result.
-func ReplaceHostWith(addr string, host string) string {
-	_, p, err := net.SplitHostPort(addr)
-	if err != nil {
-		return addr
-	}
-	return net.JoinHostPort(host, p)
-}
-
 // GuessIP tries to guess an IP address this machine is reachable at on the
 // internal network, always picking IPv4 from the internal address space
 //

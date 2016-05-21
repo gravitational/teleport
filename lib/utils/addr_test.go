@@ -121,11 +121,6 @@ func (s *AddrTestSuite) TestLoopbackAddrs(c *C) {
 	}
 }
 
-func (s *AddrTestSuite) TestReplaceHost(c *C) {
-	c.Assert(ReplaceHostWith("one:1", "two"), Equals, "two:1")
-	c.Assert(ReplaceHostWith("foobar", "two"), Equals, "foobar")
-}
-
 func (s *AddrTestSuite) TestGuess(c *C) {
 	ip, err := GuessHostIP()
 	c.Assert(err, IsNil)
