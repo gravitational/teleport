@@ -444,9 +444,12 @@ func (s *TunSuite) TestSync(c *C) {
 
 	storage := utils.NewFileAddrStorage(filepath.Join(c.MkDir(), "addr.json"))
 
+	// authAddr is 'statically' configured CA address:
+	authAddr := s.tsrv.Addr()
+
 	clt, err := NewTunClient("test",
 		[]utils.NetAddr{
-			{AddrNetwork: "tcp", Addr: s.tsrv.Addr()},
+			{AddrNetwork: "tcp", Addr: authAddr},
 		}, "localhost", []ssh.AuthMethod{ssh.PublicKeys(s.signer)},
 		TunClientStorage(storage),
 	)
@@ -456,12 +459,18 @@ func (s *TunSuite) TestSync(c *C) {
 	err = clt.fetchAndSync()
 	c.Assert(err, IsNil)
 
-	expected := []utils.NetAddr{{Addr: "node.example.com:12345", AddrNetwork: "tcp"}}
-	c.Assert(clt.getAuthServers(), DeepEquals, expected)
+	allServers := []utils.NetAddr{
+		{Addr: authAddr, AddrNetwork: "tcp", Path: ""},
+		{Addr: "node.example.com:12345", AddrNetwork: "tcp"},
+	}
+	discoveredServers := []utils.NetAddr{
+		{Addr: "node.example.com:12345", AddrNetwork: "tcp"},
+	}
+	c.Assert(clt.getAuthServers(), DeepEquals, allServers)
 
 	syncedServers, err := storage.GetAddresses()
 	c.Assert(err, IsNil)
-	c.Assert(syncedServers, DeepEquals, expected)
+	c.Assert(syncedServers, DeepEquals, discoveredServers)
 
 	// test sorting
 	unsorted := []utils.NetAddr{
@@ -472,7 +481,8 @@ func (s *TunSuite) TestSync(c *C) {
 	}
 	clt.setAuthServers(unsorted)
 	sorted := clt.getAuthServers()
-	c.Assert(sorted[0].Addr, Equals, "1")
-	c.Assert(sorted[1].Addr, Equals, "2")
-	c.Assert(sorted[2].Addr, Equals, "3")
+	c.Assert(sorted[0].Addr, Equals, authAddr) // the statically set CA addr is always 1st
+	c.Assert(sorted[1].Addr, Equals, "1")
+	c.Assert(sorted[2].Addr, Equals, "2")
+	c.Assert(sorted[3].Addr, Equals, "3")
 }

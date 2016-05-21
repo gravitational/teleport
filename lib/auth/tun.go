@@ -39,6 +39,10 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 )
 
+// dialRetryInterval specifies the time interval tun client waits to retry
+// dialing the same auth server
+const dialRetryInterval = time.Duration(time.Millisecond * 50)
+
 // AuthTunnel listens on TCP/IP socket and accepts SSH connections. It then establishes
 // an SSH tunnell which HTTP requests travel over. In other words, the Auth Service API
 // runs on HTTP-via-SSH-tunnel.
@@ -69,13 +73,18 @@ type TunClient struct {
 	// embed auth API HTTP client
 	Client
 
-	user          string
-	authServers   []utils.NetAddr
-	authMethods   []ssh.AuthMethod
-	refreshTicker *time.Ticker
-	closeC        chan struct{}
-	closeOnce     sync.Once
-	addrStorage   utils.AddrStorage
+	user string
+
+	// static auth servers are CAs set via configuration (--auth flag) and
+	// they do not change
+	staticAuthServers []utils.NetAddr
+	// discoveredAuthServers are CAs that get discovered at runtime
+	discoveredAuthServers []utils.NetAddr
+	authMethods           []ssh.AuthMethod
+	refreshTicker         *time.Ticker
+	closeC                chan struct{}
+	closeOnce             sync.Once
+	addrStorage           utils.AddrStorage
 	// purpose is used for more informative logging. it explains _why_ this
 	// client was created
 	purpose string
@@ -542,13 +551,12 @@ func NewTunClient(purpose string,
 	}
 
 	tc := &TunClient{
-		purpose:     purpose,
-		user:        user,
-		authServers: authServers,
-		authMethods: authMethods,
-		closeC:      make(chan struct{}),
+		purpose:           purpose,
+		user:              user,
+		staticAuthServers: authServers,
+		authMethods:       authMethods,
+		closeC:            make(chan struct{}),
 	}
-	tc.setAuthServers(authServers)
 	for _, o := range opts {
 		o(tc)
 	}
@@ -569,8 +577,7 @@ func NewTunClient(purpose string,
 			}
 			log.Infof("local storage is provided, not initialized")
 		} else {
-			log.Infof("using auth servers from local storage: %v", authServers)
-			tc.authServers = authServers
+			tc.setAuthServers(authServers)
 		}
 	}
 	return tc, nil
@@ -590,8 +597,19 @@ func (c *TunClient) Close() error {
 
 // GetDialer returns dialer that will connect to auth server API
 func (c *TunClient) GetDialer() AccessPointDialer {
-	return func() (net.Conn, error) {
-		return c.Dial(c.authServers[0].AddrNetwork, "accesspoint:0")
+	addrNetwork := c.staticAuthServers[0].AddrNetwork
+	const dialRetryTimes = 5
+
+	return func() (conn net.Conn, err error) {
+		for attempt := 0; attempt < dialRetryTimes; attempt++ {
+			conn, err = c.Dial(addrNetwork, "accesspoint:0")
+			if err == nil {
+				return conn, nil
+			}
+			time.Sleep(dialRetryInterval * time.Duration(attempt))
+		}
+		log.Error(err)
+		return nil, trace.Wrap(err)
 	}
 }
 
@@ -690,15 +708,14 @@ func (c *TunClient) fetchAuthServers() ([]utils.NetAddr, error) {
 
 // getAuthServers returns a sorted list of auth servers
 func (c *TunClient) getAuthServers() (out []utils.NetAddr) {
-	// protected clone into 'out':
-	func() {
-		c.Lock()
-		defer c.Unlock()
-		out = make([]utils.NetAddr, len(c.authServers))
-		copy(out, c.authServers)
-	}()
-	// sort & return:
-	sort.Sort(byAddress(out))
+	c.Lock()
+	defer c.Unlock()
+
+	// return static auth servers followed by discovered ones. this guarantees
+	// that the client will try statically configured ones first
+	out = make([]utils.NetAddr, 0, len(c.staticAuthServers)+len(c.discoveredAuthServers))
+	out = append(out, c.staticAuthServers...)
+	out = append(out, c.discoveredAuthServers...)
 	return out
 }
 
@@ -719,7 +736,7 @@ func (c *TunClient) setAuthServers(servers []utils.NetAddr) {
 	c.Lock()
 	defer c.Unlock()
 
-	c.authServers = servers
+	c.discoveredAuthServers = servers
 }
 
 // getClient returns an established SSH connection to one of the auth servers (CAs)
@@ -746,9 +763,9 @@ func (c *TunClient) dialAuthServer(authServer utils.NetAddr) (sshClient *ssh.Cli
 		User: c.user,
 		Auth: c.authMethods,
 	}
-	const dialRetryInterval = time.Duration(time.Millisecond * 50)
-	for attempt := 0; attempt < 5; attempt++ {
-		log.Infof("tunClient.Dial(to=%v, attempt=%d)", authServer.Addr, attempt+1)
+	const dialRetryTimes = 5
+	for attempt := 0; attempt < dialRetryTimes; attempt++ {
+		log.Debugf("tunClient.Dial(to=%v, attempt=%d)", authServer.Addr, attempt+1)
 		sshClient, err = ssh.Dial(authServer.AddrNetwork, authServer.Addr, config)
 		// success -> get out of here
 		if err == nil {

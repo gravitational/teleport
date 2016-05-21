@@ -17,8 +17,10 @@ limitations under the License.
 package utils
 
 import (
-	. "gopkg.in/check.v1"
+	"os"
 	"testing"
+
+	. "gopkg.in/check.v1"
 )
 
 func TestAddrSturct(t *testing.T) { TestingT(t) }
@@ -118,5 +120,17 @@ func (s *AddrTestSuite) TestLoopbackAddrs(c *C) {
 	for i, testCase := range testCases {
 		c.Assert(IsLoopback(testCase.in), Equals, testCase.expected,
 			Commentf("test case %v, %v should be loopback(%v)", i, testCase.in, testCase.expected))
+	}
+}
+
+func (s *AddrTestSuite) TestGuess(c *C) {
+	ip, err := GuessHostIP()
+	c.Assert(err, IsNil)
+	c.Assert(ip, NotNil)
+	h, _ := os.Hostname()
+	// testing NOT under docker's "buildbox"? lets check to see a
+	// proper IP auto-detection
+	if h != "buildbox" {
+		c.Assert(ip[12] == 10 || ip[12] == 192 || ip[12] == 172, Equals, true)
 	}
 }

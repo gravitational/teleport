@@ -110,6 +110,8 @@ def basic_config(vm)
         echo export GREP_OPTIONS="--color=auto" >> #{bashrc}
         echo "alias ll='ls -lh'" >> #{bashrc}
     fi
+    mkdir -p /var/lib/teleport
+    chown vagrant /var/lib/teleport
   SHELL
 end
 

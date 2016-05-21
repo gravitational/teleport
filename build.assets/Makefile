@@ -2,8 +2,9 @@
 # This Makefile is used for producing official Teleport releases
 #
 BBOX=teleport-buildbox:latest
+HOSTNAME=buildbox
 SRCDIR=/gopath/src/github.com/gravitational/teleport
-DOCKERFLAGS=--rm=true -v "$$(pwd)/../":$(SRCDIR) -w $(SRCDIR)
+DOCKERFLAGS=--rm=true -v "$$(pwd)/../":$(SRCDIR) -w $(SRCDIR) -h $(HOSTNAME)
 ADDFLAGS=-ldflags -w
 NOROOT=-u $$(id -u):$$(id -g)
 
