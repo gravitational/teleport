@@ -43,10 +43,6 @@ import (
 // dialing the same auth server
 const dialRetryInterval = time.Duration(time.Millisecond * 50)
 
-// dialRetryTimes specifies how many times a tun client will try to
-// dial the same auth server
-const dialRetryTimes = 5
-
 // AuthTunnel listens on TCP/IP socket and accepts SSH connections. It then establishes
 // an SSH tunnell which HTTP requests travel over. In other words, the Auth Service API
 // runs on HTTP-via-SSH-tunnel.
@@ -601,16 +597,16 @@ func (c *TunClient) Close() error {
 
 // GetDialer returns dialer that will connect to auth server API
 func (c *TunClient) GetDialer() AccessPointDialer {
+	addrNetwork := c.staticAuthServers[0].AddrNetwork
+	const dialRetryTimes = 5
+
 	return func() (conn net.Conn, err error) {
-		for _, a := range c.getAuthServers() {
-			for attempt := 0; attempt < dialRetryTimes; attempt++ {
-				log.Debugf("TunClient.Dial(%v) attempt=%d", a.AddrNetwork, attempt)
-				conn, err = c.Dial(a.AddrNetwork, "accesspoint:0")
-				if err == nil {
-					return conn, nil
-				}
-				time.Sleep(dialRetryInterval * time.Duration(attempt))
+		for attempt := 0; attempt < dialRetryTimes; attempt++ {
+			conn, err = c.Dial(addrNetwork, "accesspoint:0")
+			if err == nil {
+				return conn, nil
 			}
+			time.Sleep(dialRetryInterval * time.Duration(attempt))
 		}
 		log.Error(err)
 		return nil, err
@@ -767,6 +763,7 @@ func (c *TunClient) dialAuthServer(authServer utils.NetAddr) (sshClient *ssh.Cli
 		User: c.user,
 		Auth: c.authMethods,
 	}
+	const dialRetryTimes = 5
 	for attempt := 0; attempt < dialRetryTimes; attempt++ {
 		log.Debugf("tunClient.Dial(to=%v, attempt=%d)", authServer.Addr, attempt+1)
 		sshClient, err = ssh.Dial(authServer.AddrNetwork, authServer.Addr, config)
