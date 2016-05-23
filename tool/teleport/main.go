@@ -21,11 +21,14 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"os/user"
+	"path/filepath"
 	"strings"
 
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
@@ -48,18 +51,20 @@ func run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *serv
 
 	// define global flags:
 	var ccf config.CommandLineFlags
-	app.Flag("debug", "Enable verbose logging to stderr").
-		Short('d').
-		BoolVar(&ccf.Debug)
+	var scpCommand scp.Command
 
 	// define commands:
 	start := app.Command("start", "Starts the Teleport service.")
 	status := app.Command("status", "Print the status of the current SSH session.")
 	dump := app.Command("configure", "Print the sample config file into stdout.")
 	ver := app.Command("version", "Print the version.")
+	scpc := app.Command("scp", "server-side implementation of scp").Hidden()
 	app.HelpFlag.Short('h')
 
 	// define start flags:
+	start.Flag("debug", "Enable verbose logging to stderr").
+		Short('d').
+		BoolVar(&ccf.Debug)
 	start.Flag("roles",
 		fmt.Sprintf("Comma-separated list of roles to start with [%s]", strings.Join(defaults.StartRoles, ","))).
 		Short('r').
@@ -95,6 +100,17 @@ func run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *serv
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)
 
+	// define a hidden 'scp' command (it implements server-side implementation of handling
+	// 'scp' requests)
+	scpc.Flag("t", "sink mode (data consumer)").Short('t').Default("false").BoolVar(&scpCommand.Sink)
+	scpc.Flag("f", "source mode (data producer)").Short('f').Default("false").BoolVar(&scpCommand.Source)
+	scpc.Flag("v", "verbose mode").Default("false").Short('v').BoolVar(&scpCommand.Verbose)
+	scpc.Flag("d", "target is dir and must exist").Short('d').Default("false").BoolVar(&scpCommand.TargetIsDir)
+	scpc.Flag("r", "recursive mode").Default("false").Short('r').BoolVar(&scpCommand.Recursive)
+	scpc.Flag("remote-addr", "address of the remote client").StringVar(&scpCommand.RemoteAddr)
+	scpc.Flag("local-addr", "local address which accepted the request").StringVar(&scpCommand.LocalAddr)
+	scpc.Arg("target", "").StringVar(&scpCommand.Target)
+
 	// parse CLI commands+flags:
 	command, err := app.Parse(cmdlineArgs)
 	if err != nil {
@@ -123,6 +139,8 @@ func run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *serv
 		if !testRun {
 			err = onStart(conf)
 		}
+	case scpc.FullCommand():
+		err = onSCP(&scpCommand)
 	case status.FullCommand():
 		err = onStatus()
 	case dump.FullCommand():
@@ -178,6 +196,52 @@ func onStatus() error {
 func onConfigDump() {
 	sfc := config.MakeSampleFileConfig()
 	fmt.Printf("%s\n%s\n", sampleConfComment, sfc.DebugDumpToYAML())
+}
+
+// onSCP implements handling of 'scp' requests on the server side. When the teleport SSH daemon
+// receives an SSH "scp" request, it launches itself with 'scp' flag under the requested
+// user's privileges
+//
+// This is the entry point of "teleport scp" call (the parent process is the teleport daemon)
+func onSCP(cmd *scp.Command) (err error) {
+	// get user's home dir (it serves as a default destination)
+	cmd.User, err = user.Current()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// see if the target is absolute. if not, use user's homedir to make
+	// it absolute (and if the user doesn't have a homedir, use "/")
+	slash := string(filepath.Separator)
+	withSlash := strings.HasSuffix(cmd.Target, slash)
+	if !filepath.IsAbs(cmd.Target) {
+		rootDir := cmd.User.HomeDir
+		if !utils.IsDir(rootDir) {
+			cmd.Target = slash + cmd.Target
+		} else {
+			cmd.Target = filepath.Join(rootDir, cmd.Target)
+			if withSlash {
+				cmd.Target = cmd.Target + slash
+			}
+		}
+	}
+	if !cmd.Source && !cmd.Sink {
+		log.Errorf("remote mode is not supported")
+		return trace.Errorf("remote mode is not supported")
+	}
+	log.Errorf("%v", os.Args[1:])
+	cmd.Execute(&StdReadWriter{})
+	return nil
+}
+
+type StdReadWriter struct {
+}
+
+func (rw *StdReadWriter) Read(b []byte) (int, error) {
+	return os.Stdin.Read(b)
+}
+
+func (rw *StdReadWriter) Write(b []byte) (int, error) {
+	return os.Stdout.Write(b)
 }
 
 // onVersion is the handler for "version"

@@ -33,6 +33,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -55,8 +56,12 @@ type Command struct {
 	Target      string
 	Recursive   bool
 	User        *user.User
-	Conn        ssh.ConnMetadata
-	AuditLog    events.IAuditLog
+	//Conn        ssh.ConnMetadata
+	AuditLog events.IAuditLog
+
+	// Ev:
+	RemoteAddr string
+	LocalAddr  string
 }
 
 // Execute implements SSH file copy (SCP)
@@ -149,8 +154,8 @@ func (cmd *Command) sendFile(r *reader, ch io.ReadWriter, fi os.FileInfo, path s
 		cmd.AuditLog.EmitAuditEvent(events.SCPEvent, events.EventFields{
 			events.SCPPath:    path,
 			events.SCPLengh:   fi.Size(),
-			events.LocalAddr:  cmd.Conn.LocalAddr().String(),
-			events.RemoteAddr: cmd.Conn.RemoteAddr().String(),
+			events.LocalAddr:  cmd.LocalAddr,
+			events.RemoteAddr: cmd.RemoteAddr,
 			events.EventLogin: cmd.User.Username,
 			events.SCPAction:  "read",
 		})
@@ -269,17 +274,10 @@ func (cmd *Command) processCommand(ch io.ReadWriter, st *state, b byte, line str
 }
 
 func (cmd *Command) receiveFile(st *state, fc NewFileCmd, ch io.ReadWriter) error {
-	isDir := func(target string) bool {
-		fi, err := os.Stat(target)
-		if err != nil {
-			return false
-		}
-		return fi.IsDir()
-	}
 	// if the dest path is a folder, we should save the file to that folder, but
 	// only if is 'recursive' is set
 	path := cmd.Target
-	if cmd.Recursive || isDir(path) {
+	if cmd.Recursive || utils.IsDir(path) {
 		path = st.makePath(path, fc.Name)
 	}
 	f, err := os.Create(path)
@@ -290,8 +288,8 @@ func (cmd *Command) receiveFile(st *state, fc NewFileCmd, ch io.ReadWriter) erro
 	// log audit event:
 	if cmd.AuditLog != nil {
 		cmd.AuditLog.EmitAuditEvent(events.SCPEvent, events.EventFields{
-			events.LocalAddr:  cmd.Conn.LocalAddr().String(),
-			events.RemoteAddr: cmd.Conn.RemoteAddr().String(),
+			events.LocalAddr:  cmd.LocalAddr,
+			events.RemoteAddr: cmd.RemoteAddr,
 			events.EventLogin: cmd.User.Username,
 			events.SCPPath:    path,
 			events.SCPLengh:   fc.Length,
@@ -339,29 +337,17 @@ func (cmd *Command) receiveDir(st *state, fc NewFileCmd, ch io.ReadWriter) error
 	return nil
 }
 
-func IsSCP(cmd string) bool {
-	args := strings.Split(cmd, " ")
-	if len(args) < 1 {
-		return false
-	}
-	_, f := filepath.Split(args[0])
-	return f == "scp"
-}
-
 func ParseCommand(arg string, conn ssh.ConnMetadata, alog events.IAuditLog) (*Command, error) {
-	if !IsSCP(arg) {
-		return nil, trace.Errorf("not scp command")
-	}
-	userName := conn.User()
 	args := strings.Split(arg, " ")
 	f := flag.NewFlagSet(args[0], flag.ContinueOnError)
 
 	// get user's home dir (it serves as a default destination)
-	osUser, err := user.Lookup(userName)
+	osUser, err := user.Current()
 	if err != nil {
-		return nil, trace.Errorf("user not found: %s", userName)
+		log.Error(err)
+		return nil, trace.Wrap(err)
 	}
-	cmd := Command{User: osUser, Conn: conn, AuditLog: alog}
+	cmd := Command{User: osUser, AuditLog: alog}
 
 	f.BoolVar(&cmd.Sink, "t", false, "sink mode (data consumer)")
 	f.BoolVar(&cmd.Source, "f", false, "source mode (data producer)")
@@ -380,7 +366,7 @@ func ParseCommand(arg string, conn ssh.ConnMetadata, alog events.IAuditLog) (*Co
 	withSlash := strings.HasSuffix(cmd.Target, slash)
 	if !filepath.IsAbs(cmd.Target) {
 		rootDir := cmd.User.HomeDir
-		if !isDir(rootDir) {
+		if !utils.IsDir(rootDir) {
 			cmd.Target = slash + cmd.Target
 		} else {
 			cmd.Target = filepath.Join(rootDir, cmd.Target)
@@ -394,16 +380,6 @@ func ParseCommand(arg string, conn ssh.ConnMetadata, alog events.IAuditLog) (*Co
 		return nil, trace.Errorf("remote mode is not supported")
 	}
 	return &cmd, nil
-}
-
-// isDir returns 'true' if a given path points to a valid, existing directory
-func isDir(dirPath string) bool {
-	fs, err := os.Stat(dirPath)
-	if err != nil {
-		log.Warn(err)
-		return false
-	}
-	return fs.IsDir()
 }
 
 type NewFileCmd struct {

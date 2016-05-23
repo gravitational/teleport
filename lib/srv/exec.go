@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
@@ -31,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	"github.com/kardianos/osext"
 
 	log "github.com/Sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -51,6 +53,7 @@ type execResponse struct {
 	cmdName string
 	cmd     *exec.Cmd
 	ctx     *ctx
+	isSCP   bool
 
 	// TODO(klizhentas) implement capturing as a threadsafe, factored out feature
 	// that uses protected writes & reads to the buffer
@@ -59,15 +62,36 @@ type execResponse struct {
 	out *bytes.Buffer
 }
 
+// parseExecRequest parses SSH exec request
 func parseExecRequest(req *ssh.Request, ctx *ctx) (*execResponse, error) {
 	var e execReq
 	if err := ssh.Unmarshal(req.Payload, &e); err != nil {
 		return nil, fmt.Errorf("failed to parse exec request, error: %v", err)
 	}
+	// is this scp request?
+	isSCP := false
+	args := strings.Split(e.Command, " ")
+	if len(args) > 0 {
+		_, f := filepath.Split(args[0])
+		if f == "scp" {
+			isSCP = true
+			// for 'scp' requests, we'll fork ourselves with scp parameters:
+			teleportBin, err := osext.Executable()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			e.Command = fmt.Sprintf("%s scp --remote-addr=%s --local-addr=%s %v",
+				teleportBin,
+				ctx.conn.RemoteAddr().String(),
+				ctx.conn.LocalAddr().String(),
+				strings.Join(args[1:], " "))
+		}
+	}
 	return &execResponse{
 		ctx:     ctx,
 		cmdName: e.Command,
 		out:     &bytes.Buffer{},
+		isSCP:   isSCP,
 	}, nil
 }
 
@@ -81,6 +105,10 @@ func (e *execResponse) String() string {
 // If args are empty, it means a simple shell must be launched
 // Otherwise, a shell launches with "-c args" as parameters
 func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
+
+	args = strings.Split(args[0], " ")
+	log.Infof("-----------------> ARGS: \n%v", strings.Join(args, "="))
+
 	osUserName := ctx.login
 	// configure UID & GID of the requested OS user:
 	osUser, err := user.Lookup(osUserName)
@@ -99,7 +127,6 @@ func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	// determine shell for the given OS user:
 	shellCommand, err := utils.GetLoginShell(osUserName)
 	if err != nil {
@@ -109,11 +136,6 @@ func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 	// in test mode short-circuit to /bin/sh
 	if ctx.isTestStub {
 		shellCommand = "/bin/sh"
-	}
-	if len(args) > 0 {
-		orig := args
-		args = []string{"-c"}
-		args = append(args, orig...)
 	}
 
 	// try to determine the host name of the 1st available proxy to set a nicer
@@ -129,8 +151,19 @@ func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 		}
 	}
 
-	log.Infof("created OS command '%s' with params: '%v'", shellCommand, args)
-	c := exec.Command(shellCommand, args...)
+	/*
+		if len(args) > 0 {
+			orig := args
+			args = []string{"-c"}
+			args = append(args, orig...)
+		}
+
+
+		log.Infof("created OS command '%s' with params: '%v'", shellCommand, args)
+		c := exec.Command(shellCommand, args...)
+	*/
+	c := exec.Command(args[0], args[1:]...)
+
 	c.Env = []string{
 		"TERM=xterm",
 		"LANG=en_US.UTF-8",
@@ -185,17 +218,23 @@ func (e *execResponse) start(sconn *ssh.ServerConn, shell string, ch ssh.Channel
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// scp request? fork oursevles with scp flags and pipe SSH connection via stdin/out:
+	if e.isSCP {
+		log.Debugf("executing SCP commnand: %v", e.cmd.Args)
+		e.cmd.Stdin = ch
+		e.cmd.Stdout = ch
+		e.cmd.Stderr = os.Stderr
+	} else {
+		// regular exec request: capture output to the buffer
+		e.cmd.Stdout = io.MultiWriter(e.out, ch)
+		e.cmd.Stderr = io.MultiWriter(e.out, ch)
 
-	// capture output to the buffer
-	e.cmd.Stdout = io.MultiWriter(e.out, ch)
-	e.cmd.Stderr = io.MultiWriter(e.out, ch)
-
-	// TODO(klizhentas) figure out the way to see if stdin is ever needed.
-	// e.cmd.Stdin = ch leads to the following problem:
-	// e.cmd.Wait() never returns  because stdin never gets closed or never reached
-	// see cmd.Stdin comments
-	e.cmd.Stdin = nil
-
+		// TODO(klizhentas) figure out the way to see if stdin is ever needed.
+		// e.cmd.Stdin = ch leads to the following problem:
+		// e.cmd.Wait() never returns  because stdin never gets closed or never reached
+		// see cmd.Stdin comments
+		e.cmd.Stdin = nil
+	}
 	if err := e.cmd.Start(); err != nil {
 		e.ctx.Warningf("%v start failure err: %v", e, err)
 		return e.collectStatus(e.cmd, trace.ConvertSystemError(err))
@@ -227,7 +266,9 @@ func (e *execResponse) collectStatus(cmd *exec.Cmd, err error) (*execResult, err
 	}
 	if err != nil {
 		fields[events.ExecEventError] = err.Error()
-		fields[events.ExecEventCode] = strconv.Itoa(status.code)
+		if status != nil {
+			fields[events.ExecEventCode] = strconv.Itoa(status.code)
+		}
 	}
 	auditLog.EmitAuditEvent(events.ExecEvent, fields)
 	return status, err
