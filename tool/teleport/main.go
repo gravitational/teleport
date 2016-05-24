@@ -225,12 +225,9 @@ func onSCP(cmd *scp.Command) (err error) {
 		}
 	}
 	if !cmd.Source && !cmd.Sink {
-		log.Errorf("remote mode is not supported")
 		return trace.Errorf("remote mode is not supported")
 	}
-	log.Errorf("%v", os.Args[1:])
-	cmd.Execute(&StdReadWriter{})
-	return nil
+	return trace.Wrap(cmd.Execute(&StdReadWriter{}))
 }
 
 type StdReadWriter struct {

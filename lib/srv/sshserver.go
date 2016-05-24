@@ -858,8 +858,7 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 		replyError(ch, req, err)
 		return trace.Wrap(err)
 	}
-	// TODO (ev): scp needs this:
-	if execResponse.isSCP {
+	if req.WantReply {
 		req.Reply(true, nil)
 	}
 	result, err := execResponse.start(ctx.conn, s.shell, ch)
@@ -881,14 +880,6 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 		if result != nil {
 			ctx.Infof("%v result collected: %v", execResponse, result)
 			ctx.sendResult(*result)
-
-			// TODO (ev): scp needs this:
-			if execResponse.isSCP {
-				_, err = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(0)}))
-				if err != nil {
-					ctx.Errorf("failed to send scp exit status: %v", err)
-				}
-			}
 		}
 	}()
 	return nil

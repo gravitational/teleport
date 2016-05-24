@@ -105,10 +105,6 @@ func (e *execResponse) String() string {
 // If args are empty, it means a simple shell must be launched
 // Otherwise, a shell launches with "-c args" as parameters
 func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
-
-	args = strings.Split(args[0], " ")
-	log.Infof("-----------------> ARGS: \n%v", strings.Join(args, "="))
-
 	osUserName := ctx.login
 	// configure UID & GID of the requested OS user:
 	osUser, err := user.Lookup(osUserName)
@@ -151,18 +147,14 @@ func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 		}
 	}
 
-	/*
-		if len(args) > 0 {
-			orig := args
-			args = []string{"-c"}
-			args = append(args, orig...)
-		}
+	if len(args) > 0 {
+		orig := args
+		args = []string{"-c"}
+		args = append(args, orig...)
+	}
 
-
-		log.Infof("created OS command '%s' with params: '%v'", shellCommand, args)
-		c := exec.Command(shellCommand, args...)
-	*/
-	c := exec.Command(args[0], args[1:]...)
+	log.Infof("created OS command '%s' with params: '%v'", shellCommand, args)
+	c := exec.Command(shellCommand, args...)
 
 	c.Env = []string{
 		"TERM=xterm",
@@ -220,7 +212,6 @@ func (e *execResponse) start(sconn *ssh.ServerConn, shell string, ch ssh.Channel
 	}
 	// scp request? fork oursevles with scp flags and pipe SSH connection via stdin/out:
 	if e.isSCP {
-		log.Debugf("executing SCP commnand: %v", e.cmd.Args)
 		e.cmd.Stdin = ch
 		e.cmd.Stdout = ch
 		e.cmd.Stderr = os.Stderr

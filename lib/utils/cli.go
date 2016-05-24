@@ -34,7 +34,7 @@ import (
 
 // InitLoggerCLI tools by default log into syslog, not stderr
 func InitLoggerCLI() {
-	log.SetLevel(log.DebugLevel)
+	log.SetLevel(log.WarnLevel)
 	// clear existing hooks:
 	log.StandardLogger().Hooks = make(log.LevelHooks)
 	log.SetFormatter(&trace.TextFormatter{})
