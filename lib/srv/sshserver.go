@@ -432,7 +432,6 @@ func (s *Server) isAuthority(cert ssh.PublicKey) bool {
 			}
 		}
 	}
-	log.Warningf("no matching authority found")
 	return false
 }
 
@@ -690,6 +689,10 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 			}
 		case result := <-ctx.result:
 			ctx.Infof("ctx.result = %v", result)
+			// pass back stderr output
+			if result.stderr != nil {
+				ch.Stderr().Write(result.stderr)
+			}
 			// this means that exec process has finished and delivered the execution result,
 			// we send it back and close the session
 			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(result.code)}))
@@ -861,7 +864,7 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	if req.WantReply {
 		req.Reply(true, nil)
 	}
-	result, err := execResponse.start(ctx.conn, s.shell, ch)
+	result, err := execResponse.start(s.shell, ch)
 	if err != nil {
 		ctx.Infof("error starting command, %v", err)
 		replyError(ch, req, err)
@@ -875,10 +878,9 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	go func() {
 		result, err := execResponse.wait()
 		if err != nil {
-			ctx.Infof("%v wait failed: %v", execResponse, err)
+			ctx.Errorf("%v wait failed: %v", execResponse, err)
 		}
 		if result != nil {
-			ctx.Infof("%v result collected: %v", execResponse, result)
 			ctx.sendResult(*result)
 		}
 	}()

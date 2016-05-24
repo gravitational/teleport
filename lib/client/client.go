@@ -205,11 +205,7 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeC
 			return nil, trace.Wrap(err)
 		}
 		printErrors := func() {
-			buf := &bytes.Buffer{}
-			io.Copy(buf, proxyErr)
-			if buf.String() != "" {
-				fmt.Println("ERROR: " + buf.String())
-			}
+			io.Copy(os.Stderr, proxyErr)
 		}
 		err = proxySession.RequestSubsystem("proxy:" + nodeAddress)
 		if err != nil {
@@ -395,11 +391,7 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.Rea
 	}()
 
 	go func() {
-		buf := &bytes.Buffer{}
-		io.Copy(buf, stderr)
-		if buf.String() != "" {
-			fmt.Println("ERROR: " + buf.String())
-		}
+		io.Copy(os.Stderr, stderr)
 	}()
 
 	err = clientSession.Shell()
@@ -418,23 +410,18 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.Rea
 
 // Run executes command on the remote server and writes its stdout to
 // the 'output' argument
-func (client *NodeClient) Run(cmd []string, output io.Writer) error {
+func (client *NodeClient) Run(cmd []string, stdout, stderr io.Writer) error {
 	session, err := client.Client.NewSession()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	session.Stdout = output
-
-	if err := session.Run(strings.Join(cmd, " ")); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	session.Stdout = stdout
+	session.Stderr = stderr
+	return session.Run(strings.Join(cmd, " "))
 }
 
 // Upload uploads file or dir to the remote server
-func (client *NodeClient) Upload(localSourcePath, remoteDestinationPath string) error {
+func (client *NodeClient) Upload(localSourcePath, remoteDestinationPath string, stderr io.Writer) error {
 	file, err := os.Open(localSourcePath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -460,11 +447,11 @@ func (client *NodeClient) Upload(localSourcePath, remoteDestinationPath string) 
 	}
 	shellCmd += " " + remoteDestinationPath
 
-	return client.scp(scpConf, shellCmd)
+	return client.scp(scpConf, shellCmd, stderr)
 }
 
 // Download downloads file or dir from the remote server
-func (client *NodeClient) Download(remoteSourcePath, localDestinationPath string, isDir bool) error {
+func (client *NodeClient) Download(remoteSourcePath, localDestinationPath string, isDir bool, stderr io.Writer) error {
 	scpConf := scp.Command{
 		Sink:        true,
 		TargetIsDir: isDir,
@@ -479,12 +466,12 @@ func (client *NodeClient) Download(remoteSourcePath, localDestinationPath string
 	}
 	shellCmd += " " + remoteSourcePath
 
-	return client.scp(scpConf, shellCmd)
+	return client.scp(scpConf, shellCmd, stderr)
 }
 
 // scp runs remote scp command(shellCmd) on the remote server and
 // runs local scp handler using scpConf
-func (client *NodeClient) scp(scpCommand scp.Command, shellCmd string) error {
+func (client *NodeClient) scp(scpCommand scp.Command, shellCmd string, errWriter io.Writer) error {
 	session, err := client.Client.NewSession()
 	if err != nil {
 		return trace.Wrap(err)
@@ -506,15 +493,8 @@ func (client *NodeClient) scp(scpCommand scp.Command, shellCmd string) error {
 		return trace.Wrap(err)
 	}
 
-	serverErrors := make(chan error, 2)
 	go func() {
-		var errMsg bytes.Buffer
-		io.Copy(&errMsg, stderr)
-		if len(errMsg.Bytes()) > 0 {
-			serverErrors <- trace.Errorf(errMsg.String())
-		} else {
-			close(serverErrors)
-		}
+		io.Copy(errWriter, stderr)
 	}()
 
 	ch := utils.NewPipeNetConn(
@@ -526,19 +506,13 @@ func (client *NodeClient) scp(scpCommand scp.Command, shellCmd string) error {
 	)
 
 	go func() {
-		err := scpCommand.Execute(ch)
-		if err != nil {
-			log.Errorf(err.Error())
+		if err = scpCommand.Execute(ch); err != nil {
+			log.Error(err)
 		}
 		stdin.Close()
 	}()
 
-	err = session.Run(shellCmd)
-
-	select {
-	case serverError := <-serverErrors:
-		return trace.Wrap(serverError)
-	}
+	return trace.Wrap(session.Run(shellCmd))
 }
 
 // listenAndForward listens on a given socket and forwards all incoming connections

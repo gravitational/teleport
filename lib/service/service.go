@@ -133,18 +133,10 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 	storage := utils.NewFileAddrStorage(
 		filepath.Join(process.Config.DataDir, "authservers.json"))
 
-	var authServers []utils.NetAddr
-	authServers, err = storage.GetAddresses()
-	if err != nil && len(authServers) == 0 {
-		log.Infof("no auth servers are available from the local storage")
-		authServers = process.Config.AuthServers
-	}
-
-	log.Infof("connecting to auth servers: %v", authServers)
 	authUser := identity.Cert.ValidPrincipals[0]
 	authClient, err := auth.NewTunClient(
 		string(role),
-		authServers,
+		process.Config.AuthServers,
 		authUser,
 		[]ssh.AuthMethod{ssh.PublicKeys(identity.KeySigner)},
 		auth.TunClientStorage(storage),
@@ -391,7 +383,6 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		}
 		// immediately register, and then keep repeating in a loop:
 		for !askedToExit {
-			log.Infof("[AUTH] heartbeat listening on %s, announcing %s", cfg.Auth.SSHAddr.Addr, srv.Addr)
 			err := authServer.UpsertAuthServer(srv, defaults.ServerHeartbeatTTL)
 			if err != nil {
 				log.Warningf("failed to announce presence: %v", err)

@@ -242,9 +242,13 @@ func onSSH(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-
 	if err = tc.SSH(cf.RemoteCommand, cf.LocalExec, nil); err != nil {
-		utils.FatalError(err)
+		// exit with the same exit status as the failed command:
+		if tc.ExitStatus != 0 {
+			os.Exit(tc.ExitStatus)
+		} else {
+			utils.FatalError(err)
+		}
 	}
 }
 
@@ -270,7 +274,12 @@ func onSCP(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 	if err := tc.SCP(cf.CopySpec, int(cf.NodePort), cf.RecursiveCopy); err != nil {
-		utils.FatalError(err)
+		// exit with the same exit status as the failed command:
+		if tc.ExitStatus != 0 {
+			os.Exit(tc.ExitStatus)
+		} else {
+			utils.FatalError(err)
+		}
 	}
 }
 
@@ -345,7 +354,8 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 
 	// prep client config:
 	c := &client.Config{
-		Output:             os.Stdout,
+		Stdout:             os.Stdout,
+		Stderr:             os.Stderr,
 		Username:           cf.Username,
 		ProxyHost:          cf.Proxy,
 		Host:               cf.UserHost,

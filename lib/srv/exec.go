@@ -17,11 +17,8 @@ limitations under the License.
 package srv
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"net"
-	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
@@ -38,9 +35,16 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// execResult is used internally to send the result of a command execution from
+// a goroutine to SSH request handler and back to the calling client
 type execResult struct {
 	command string
-	code    int
+
+	// returned exec code
+	code int
+
+	// stderr output
+	stderr []byte
 }
 
 type execReq struct {
@@ -54,12 +58,6 @@ type execResponse struct {
 	cmd     *exec.Cmd
 	ctx     *ctx
 	isSCP   bool
-
-	// TODO(klizhentas) implement capturing as a threadsafe, factored out feature
-	// that uses protected writes & reads to the buffer
-
-	// 'out' contains captured command output
-	out *bytes.Buffer
 }
 
 // parseExecRequest parses SSH exec request
@@ -90,7 +88,6 @@ func parseExecRequest(req *ssh.Request, ctx *ctx) (*execResponse, error) {
 	return &execResponse{
 		ctx:     ctx,
 		cmdName: e.Command,
-		out:     &bytes.Buffer{},
 		isSCP:   isSCP,
 	}, nil
 }
@@ -204,22 +201,19 @@ func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 
 // start launches the given command returns (nil, nil) if successful. execResult is only used
 // to communicate an error while launching
-func (e *execResponse) start(sconn *ssh.ServerConn, shell string, ch ssh.Channel) (*execResult, error) {
+func (e *execResponse) start(shell string, ch ssh.Channel) (*execResult, error) {
 	var err error
 	e.cmd, err = prepareOSCommand(e.ctx, e.cmdName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// scp request? fork oursevles with scp flags and pipe SSH connection via stdin/out:
+	e.cmd.Stdout = ch
+	e.cmd.Stderr = ch.Stderr()
+
+	// SCP request?
 	if e.isSCP {
 		e.cmd.Stdin = ch
-		e.cmd.Stdout = ch
-		e.cmd.Stderr = os.Stderr
 	} else {
-		// regular exec request: capture output to the buffer
-		e.cmd.Stdout = io.MultiWriter(e.out, ch)
-		e.cmd.Stderr = io.MultiWriter(e.out, ch)
-
 		// TODO(klizhentas) figure out the way to see if stdin is ever needed.
 		// e.cmd.Stdin = ch leads to the following problem:
 		// e.cmd.Wait() never returns  because stdin never gets closed or never reached

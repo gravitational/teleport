@@ -549,7 +549,6 @@ func NewTunClient(purpose string,
 	if user == "" {
 		return nil, trace.BadParameter("SSH connection requires a valid username")
 	}
-
 	tc := &TunClient{
 		purpose:           purpose,
 		user:              user,
@@ -570,14 +569,11 @@ func NewTunClient(purpose string,
 
 	// use local information about auth servers if it's available
 	if tc.addrStorage != nil {
-		authServers, err := tc.addrStorage.GetAddresses()
+		cachedAuthServers, err := tc.addrStorage.GetAddresses()
 		if err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
-			log.Infof("local storage is provided, not initialized")
+			log.Errorf("unable to load from auth server cache: %v", err)
 		} else {
-			tc.setAuthServers(authServers)
+			tc.setAuthServers(cachedAuthServers)
 		}
 	}
 	return tc, nil

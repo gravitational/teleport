@@ -18,7 +18,6 @@ package client
 
 import (
 	"bufio"
-	"bytes"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -99,8 +98,12 @@ type Config struct {
 	// use its own session store,
 	AuthMethods []ssh.AuthMethod
 
-	// Output is a writer, if not passed, stdout will be used
-	Output io.Writer
+	Stdout io.Writer
+	Stderr io.Writer
+
+	// ExitStatus carries the returned value (exit status) of the remote
+	// process execution (via SSh exec)
+	ExitStatus int
 
 	// SiteName specifies site to execute operation,
 	// if omitted, first available site will be selected
@@ -194,10 +197,12 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if tc.Output == nil {
-		tc.Output = os.Stdout
+	if tc.Stdout == nil {
+		tc.Stdout = os.Stdout
 	}
-
+	if tc.Stderr == nil {
+		tc.Stderr = os.Stderr
+	}
 	if tc.HostKeyCallback == nil {
 		tc.HostKeyCallback = tc.localAgent.CheckHostSignature
 	}
@@ -251,6 +256,8 @@ func (tc *TeleportClient) getTargetNodes(proxy *ProxyClient) ([]string, error) {
 
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
 // otherwise runs interactive shell
+//
+// Returns nil if successful, or (possibly) *exec.ExitError
 func (tc *TeleportClient) SSH(command []string, runLocally bool, input io.Reader) error {
 	// connect to proxy first:
 	if !tc.Config.ProxySpecified() {
@@ -385,7 +392,7 @@ func (tc *TeleportClient) Join(sessionID session.ID, input io.Reader) (err error
 	return tc.runShell(nc, session.ID, input)
 }
 
-// SCP securely copies file(s) from one SSH server to another
+// Play replays the recorded session
 func (tc *TeleportClient) Play(sessionId string) (err error) {
 	sid, err := session.ParseID(sessionId)
 	if err != nil {
@@ -497,6 +504,15 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err erro
 	}
 	defer proxyClient.Close()
 
+	// gets called to convert SSH error code to tc.ExitStatus
+	onError := func(err error) error {
+		exitError, _ := trace.Unwrap(err).(*ssh.ExitError)
+		if exitError != nil {
+			tc.ExitStatus = exitError.ExitStatus()
+		}
+		return err
+	}
+
 	// upload:
 	if isRemoteDest(last) {
 		login, host, dest := parseSCPDestination(last)
@@ -511,9 +527,9 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err erro
 		}
 		// copy everything except the last arg (that's destination)
 		for _, src := range args[:len(args)-1] {
-			err = client.Upload(src, dest)
+			err = client.Upload(src, dest, tc.Stderr)
 			if err != nil {
-				return trace.Wrap(err)
+				return onError(err)
 			}
 			fmt.Printf("uploaded %s\n", src)
 		}
@@ -530,9 +546,9 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err erro
 		}
 		// copy everything except the last arg (that's destination)
 		for _, dest := range args[1:] {
-			err = client.Download(src, dest, recursive)
+			err = client.Download(src, dest, recursive, tc.Stderr)
 			if err != nil {
-				return trace.Wrap(err)
+				return onError(err)
 			}
 			fmt.Printf("downloaded %s\n", src)
 		}
@@ -588,26 +604,20 @@ func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, pr
 			var nodeClient *NodeClient
 			nodeClient, err = proxyClient.ConnectToNode(address+"@"+siteName, tc.Config.HostLogin)
 			if err != nil {
-				fmt.Fprintln(tc.Output, err)
+				fmt.Fprintln(tc.Stderr, err)
 				return
 			}
 			defer nodeClient.Close()
 
 			// run the command on one node:
-			out := bytes.Buffer{}
-			err = nodeClient.Run(command, &out)
-			if err != nil {
-				fmt.Fprintln(tc.Output, err)
-			}
 			if len(nodeAddresses) > 1 {
 				fmt.Printf("Running command on %v:\n", address)
 			}
-
-			if tc.Output != nil {
-				if err != nil {
-					fmt.Fprintln(tc.Output, err)
-				} else {
-					fmt.Fprintf(tc.Output, out.String())
+			err = nodeClient.Run(command, tc.Stdout, tc.Stderr)
+			if err != nil {
+				exitErr, ok := err.(*ssh.ExitError)
+				if ok {
+					tc.ExitStatus = exitErr.ExitStatus()
 				}
 			}
 		}(address)
@@ -633,8 +643,11 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 	if stdin == nil {
 		stdin = os.Stdin
 	}
-	if tc.Output == nil {
-		tc.Output = os.Stdout
+	if tc.Stdout == nil {
+		tc.Stdout = os.Stdout
+	}
+	if tc.Stderr == nil {
+		tc.Stderr = os.Stderr
 	}
 	// terminal must be in raw mode
 	var (
@@ -698,7 +711,6 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 	go func() {
 		for {
 			<-ctrlZSignal
-			fmt.Println("---> 3")
 			_, err := shell.Write([]byte{26})
 			if err != nil {
 				log.Errorf(err.Error())
@@ -709,7 +721,7 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 	// copy from the remote shell to the local
 	go func() {
 		defer broadcastClose.Close()
-		_, err := io.Copy(tc.Output, shell)
+		_, err := io.Copy(tc.Stdout, shell)
 		if err != nil {
 			log.Errorf(err.Error())
 		}
