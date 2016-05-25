@@ -56,16 +56,16 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 		"LANG=en_US.UTF-8",
 		fmt.Sprintf("HOME=%s", s.usr.HomeDir),
 		fmt.Sprintf("USER=%s", s.usr.Username),
-		"SHELL=/bin/sh",
 		"SSH_TELEPORT_USER=galt",
 		"SSH_SESSION_WEBPROXY_ADDR=<proxyhost>:3080",
+		"SHELL=/bin/sh",
 		"SSH_CLIENT=10.0.0.5 4817 3022",
 		"SSH_CONNECTION=10.0.0.5 4817 127.0.0.1 3022",
 		"SSH_SESSION_ID=xxx",
 	}
 
 	// empty command (simple shell)
-	cmd, err := prepareOSCommand(s.ctx)
+	cmd, err := prepareShell(s.ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd, check.NotNil)
 	c.Assert(cmd.Path, check.Equals, "/bin/sh")
@@ -74,11 +74,11 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
 
 	// non-empty command (exec a prog)
-	cmd, err = prepareOSCommand(s.ctx, "ls -lh")
+	cmd, err = prepareCommand(s.ctx, "ls", "-lh", "/etc")
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd, check.NotNil)
-	c.Assert(cmd.Path, check.Equals, "/bin/sh")
-	c.Assert(cmd.Args, check.DeepEquals, []string{"-sh", "-c", "ls -lh"})
+	c.Assert(cmd.Path, check.Equals, "/bin/ls")
+	c.Assert(cmd.Args, check.DeepEquals, []string{"ls", "-lh", "/etc"})
 	c.Assert(cmd.Dir, check.Equals, s.usr.HomeDir)
 	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
 }

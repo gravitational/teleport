@@ -864,7 +864,7 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	if req.WantReply {
 		req.Reply(true, nil)
 	}
-	result, err := execResponse.start(s.shell, ch)
+	result, err := execResponse.start(ch)
 	if err != nil {
 		ctx.Infof("error starting command, %v", err)
 		replyError(ch, req, err)

@@ -96,12 +96,31 @@ func (e *execResponse) String() string {
 	return fmt.Sprintf("Exec(cmd=%v)", e.cmdName)
 }
 
-// prepareOSCommand configures os.Cmd for executing a given command within an SSH
+// prepareShell configures exec.Cmd object for launching shell for an SSH user
+func prepareShell(ctx *ctx) (*exec.Cmd, error) {
+	// determine shell for the given OS user:
+	shellCommand, err := utils.GetLoginShell(ctx.login)
+	if err != nil {
+		log.Error(err)
+		return nil, trace.Wrap(err)
+	}
+	// in test mode short-circuit to /bin/sh
+	if ctx.isTestStub {
+		shellCommand = "/bin/sh"
+	}
+	c, err := prepareCommand(ctx, shellCommand)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// this configures shell to run in 'login' mode
+	c.Args[0] = "-" + filepath.Base(shellCommand)
+	return c, nil
+}
+
+// prepareCommand configures exec.Cmd for executing a given command within an SSH
 // session.
 //
-// If args are empty, it means a simple shell must be launched
-// Otherwise, a shell launches with "-c args" as parameters
-func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
+func prepareCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 	osUserName := ctx.login
 	// configure UID & GID of the requested OS user:
 	osUser, err := user.Lookup(osUserName)
@@ -116,21 +135,6 @@ func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	curUser, err := user.Current()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// determine shell for the given OS user:
-	shellCommand, err := utils.GetLoginShell(osUserName)
-	if err != nil {
-		log.Error(err)
-		return nil, trace.Wrap(err)
-	}
-	// in test mode short-circuit to /bin/sh
-	if ctx.isTestStub {
-		shellCommand = "/bin/sh"
-	}
-
 	// try to determine the host name of the 1st available proxy to set a nicer
 	// session URL. fall back to <proxyhost> placeholder
 	proxyHost := "<proxyhost>"
@@ -143,33 +147,35 @@ func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 			proxyHost = proxies[0].Hostname
 		}
 	}
-
-	if len(args) > 0 {
-		orig := args
-		args = []string{"-c"}
-		args = append(args, orig...)
+	var c *exec.Cmd
+	if len(args) == 1 {
+		c = exec.Command(args[0])
+	} else {
+		c = exec.Command(args[0], args[1:]...)
 	}
-
-	log.Infof("created OS command '%s' with params: '%v'", shellCommand, args)
-	c := exec.Command(shellCommand, args...)
-
 	c.Env = []string{
 		"TERM=xterm",
 		"LANG=en_US.UTF-8",
 		"HOME=" + osUser.HomeDir,
 		"USER=" + osUserName,
-		"SHELL=" + c.Path,
 		"SSH_TELEPORT_USER=" + ctx.teleportUser,
 		fmt.Sprintf("SSH_SESSION_WEBPROXY_ADDR=%s:3080", proxyHost),
 	}
-	// this configures shell to run in 'login' mode
-	c.Args[0] = "-" + filepath.Base(shellCommand)
+	shell, err := utils.GetLoginShell(ctx.login)
+	if err != nil {
+		log.Warn(err)
+	} else {
+		if ctx.isTestStub {
+			shell = "/bin/sh"
+		}
+		c.Env = append(c.Env, "SHELL="+shell)
+	}
 	c.Dir = osUser.HomeDir
 	c.SysProcAttr = &syscall.SysProcAttr{}
+
 	// execute the command under requested user's UID:GID
-	if curUser.Uid != osUser.Uid {
-		c.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
-	}
+	c.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
+
 	// apply environment variables passed from the client
 	for n, v := range ctx.env {
 		c.Env = append(c.Env, fmt.Sprintf("%s=%s", n, v))
@@ -201,9 +207,10 @@ func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 
 // start launches the given command returns (nil, nil) if successful. execResult is only used
 // to communicate an error while launching
-func (e *execResponse) start(shell string, ch ssh.Channel) (*execResult, error) {
+func (e *execResponse) start(ch ssh.Channel) (*execResult, error) {
 	var err error
-	e.cmd, err = prepareOSCommand(e.ctx, e.cmdName)
+	parts := strings.Split(e.cmdName, " ")
+	e.cmd, err = prepareCommand(e.ctx, parts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
