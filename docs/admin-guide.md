@@ -497,18 +497,18 @@ behind `work.example.com`:
 
 ### Integrating with OpenSSH Servers
 
-Existing `sshd` servers can be added to a Teleport cluster. 
+Existing `sshd` servers can be added to a Teleport cluster. For that to work, you
+have to configure `sshd` to trust Teleport CA.
 
-1. First, you have to export the CA certificate into a file:
+Export the Teleport CA certificate into a file:
 
 ```bash
 > tctl authorities --type=user export > cluster-ca.pub
 ```
 
-2. Then you should copy this file to every node running `sshd`, for example 
-   `into /etc/ssh/teleport-ca.pub`
+Copy this file to every node running `sshd`, for example into `/etc/ssh/teleport-ca.pub`
+Then update the `sshd` configuration, usually `/etc/ssh/sshd_config`:
 
-3. Update `sshd` configuration, usually `/etc/ssh/sshd_config`:
 ```
 TrustedUserCAKeys /etc/ssh/user-ca.pub
 ```

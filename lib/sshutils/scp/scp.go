@@ -78,7 +78,6 @@ func (cmd *Command) serveSource(ch io.ReadWriter) error {
 	log.Infof("SCP: serving source")
 
 	r := newReader(ch)
-
 	if err := r.read(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -219,7 +218,9 @@ func (cmd *Command) serveSink(ch io.ReadWriter) error {
 			continue
 		}
 
+		log.Infof(">> scanner.Scan()")
 		scanner.Scan()
+		log.Infof("<< scanner.Scan()")
 		if err := scanner.Err(); err != nil {
 			return trace.Wrap(err)
 		}

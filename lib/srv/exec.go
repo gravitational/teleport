@@ -214,24 +214,16 @@ func (e *execResponse) start(ch ssh.Channel) (*execResult, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	e.cmd.Stdout = ch
 	e.cmd.Stderr = ch.Stderr()
+	e.cmd.Stdout = ch
+	e.cmd.Stdin = ch
 
-	// SCP request?
-	if e.isSCP {
-		e.cmd.Stdin = ch
-	} else {
-		// TODO(klizhentas) figure out the way to see if stdin is ever needed.
-		// e.cmd.Stdin = ch leads to the following problem:
-		// e.cmd.Wait() never returns  because stdin never gets closed or never reached
-		// see cmd.Stdin comments
-		e.cmd.Stdin = nil
-	}
 	if err := e.cmd.Start(); err != nil {
 		e.ctx.Warningf("%v start failure err: %v", e, err)
 		return e.collectStatus(e.cmd, trace.ConvertSystemError(err))
 	}
 	e.ctx.Infof("%v started", e)
+
 	return nil, nil
 }
 
@@ -239,7 +231,10 @@ func (e *execResponse) wait() (*execResult, error) {
 	if e.cmd.Process == nil {
 		e.ctx.Errorf("no process")
 	}
-	return e.collectStatus(e.cmd, e.cmd.Wait())
+	log.Debugf(">> e.cmd.Wait()...")
+	err := e.cmd.Wait()
+	log.Debugf("<< e.cmd.Wait()!!!")
+	return e.collectStatus(e.cmd, err)
 }
 
 func (e *execResponse) collectStatus(cmd *exec.Cmd, err error) (*execResult, error) {

@@ -356,6 +356,7 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 	c := &client.Config{
 		Stdout:             os.Stdout,
 		Stderr:             os.Stderr,
+		Stdin:              os.Stdin,
 		Username:           cf.Username,
 		ProxyHost:          cf.Proxy,
 		Host:               cf.UserHost,

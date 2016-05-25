@@ -205,14 +205,15 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeC
 			return nil, trace.Wrap(err)
 		}
 		printErrors := func() {
-			io.Copy(os.Stderr, proxyErr)
+			n, _ := io.Copy(os.Stderr, proxyErr)
+			if n > 0 {
+				os.Stderr.WriteString("\n")
+			}
 		}
 		err = proxySession.RequestSubsystem("proxy:" + nodeAddress)
 		if err != nil {
 			defer printErrors()
-			parts := strings.Split(nodeAddress, "@")
-			siteName := parts[len(parts)-1]
-			return nil, trace.Errorf("Failed connecting to cluster %v: %v", siteName, err)
+			return nil, trace.Wrap(err)
 		}
 		pipeNetConn := utils.NewPipeNetConn(
 			proxyReader,
@@ -243,9 +244,9 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeC
 		return &NodeClient{Client: client, Proxy: proxy}, nil
 	}
 	if utils.IsHandshakeFailedError(e) {
-		// remoe the name of the site from the node address:
+		// remove the name of the site from the node address:
 		parts := strings.Split(nodeAddress, "@")
-		return nil, trace.Errorf(`access denied to login "%v" when connecting to %v`, user, parts[0])
+		return nil, trace.Errorf(`access denied to login "%v" when connecting to %v: %v`, user, parts[0], e)
 	}
 	return nil, e
 }
@@ -275,7 +276,7 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.Rea
 	if len(sessionID) > 0 {
 		err = clientSession.Setenv(sshutils.SessionEnvVar, string(sessionID))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			log.Warn(err)
 		}
 	}
 
@@ -410,13 +411,14 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.Rea
 
 // Run executes command on the remote server and writes its stdout to
 // the 'output' argument
-func (client *NodeClient) Run(cmd []string, stdout, stderr io.Writer) error {
+func (client *NodeClient) Run(cmd []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	session, err := client.Client.NewSession()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	session.Stdout = stdout
 	session.Stderr = stderr
+	session.Stdin = stdin
 	return session.Run(strings.Join(cmd, " "))
 }
 

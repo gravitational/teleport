@@ -155,12 +155,12 @@ func main() {
 	// operations with authorities
 	auth := app.Command("authorities", "Operations with user and host certificate authorities").Hidden()
 	auth.Flag("type", "authority type, 'user' or 'host'").Default(string(services.UserCA)).StringVar(&cmdAuth.authType)
-	authList := auth.Command("ls", "List trusted user certificate authorities").Hidden()
-	authExport := auth.Command("export", "Export concatenated keys to standard output").Hidden()
+	authList := auth.Command("ls", "List trusted user certificate authorities")
+	authExport := auth.Command("export", "Export concatenated keys to standard output")
 	authExport.Flag("private-keys", "if set, will print private keys").BoolVar(&cmdAuth.exportPrivateKeys)
 	authExport.Flag("fingerprint", "filter authority by fingerprint").StringVar(&cmdAuth.exportAuthorityFingerprint)
 
-	authGenerate := auth.Command("gen", "Generate new OpenSSH keypair").Hidden()
+	authGenerate := auth.Command("gen", "Generate new OpenSSH keypair")
 	authGenerate.Flag("pub-key", "path to the public key to write").Required().StringVar(&cmdAuth.genPubPath)
 	authGenerate.Flag("priv-key", "path to the private key to write").Required().StringVar(&cmdAuth.genPrivPath)
 

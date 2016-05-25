@@ -100,6 +100,7 @@ type Config struct {
 
 	Stdout io.Writer
 	Stderr io.Writer
+	Stdin  io.Reader
 
 	// ExitStatus carries the returned value (exit status) of the remote
 	// process execution (via SSh exec)
@@ -512,7 +513,6 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err erro
 		}
 		return err
 	}
-
 	// upload:
 	if isRemoteDest(last) {
 		login, host, dest := parseSCPDestination(last)
@@ -531,7 +531,7 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err erro
 			if err != nil {
 				return onError(err)
 			}
-			fmt.Printf("uploaded %s\n", src)
+			fmt.Printf("Uploaded %s\n", src)
 		}
 		// download:
 	} else {
@@ -550,7 +550,7 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err erro
 			if err != nil {
 				return onError(err)
 			}
-			fmt.Printf("downloaded %s\n", src)
+			fmt.Printf("Downloaded %s\n", src)
 		}
 	}
 	return nil
@@ -594,6 +594,11 @@ func (tc *TeleportClient) ListNodes() ([]services.Server, error) {
 
 // runCommand executes a given bash command on a bunch of remote nodes
 func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string) error {
+	stdin := tc.Stdin
+	// do not pass terminal input into SSH commands
+	if stdin == os.Stdin && terminal.IsTerminal(int(os.Stdin.Fd())) {
+		stdin = nil
+	}
 	resultsC := make(chan error, len(nodeAddresses))
 	for _, address := range nodeAddresses {
 		go func(address string) {
@@ -613,7 +618,7 @@ func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, pr
 			if len(nodeAddresses) > 1 {
 				fmt.Printf("Running command on %v:\n", address)
 			}
-			err = nodeClient.Run(command, tc.Stdout, tc.Stderr)
+			err = nodeClient.Run(command, stdin, tc.Stdout, tc.Stderr)
 			if err != nil {
 				exitErr, ok := err.(*ssh.ExitError)
 				if ok {
@@ -622,14 +627,12 @@ func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, pr
 			}
 		}(address)
 	}
-
 	var lastError error
 	for range nodeAddresses {
 		if err := <-resultsC; err != nil {
 			lastError = err
 		}
 	}
-
 	return trace.Wrap(lastError)
 }
 
@@ -787,7 +790,6 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	for _, m := range tc.authMethods() {
 		sshConfig.Auth = []ssh.AuthMethod{m}
 		proxyClient, err := ssh.Dial("tcp", proxyAddr, sshConfig)
-		log.Infof("ssh.Dial error: %v", err)
 		if err != nil {
 			if utils.IsHandshakeFailedError(err) {
 				continue
