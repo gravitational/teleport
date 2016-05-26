@@ -342,12 +342,8 @@ func (s *AuthTunnel) handleDirectTCPIPRequest(sconn *ssh.ServerConn, sshChannel 
 
 func (s *AuthTunnel) keyAuth(
 	conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-	cid := fmt.Sprintf(
-		"conn(%v->%v, user=%v)", conn.RemoteAddr(),
-		conn.LocalAddr(), conn.User())
 
-	log.Infof("%v auth attempt with key %v", cid, key.Type())
-
+	log.Infof("keyAuth: %v->%v, user=%v", conn.RemoteAddr(), conn.LocalAddr(), conn.User())
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
 		return nil, trace.Errorf("ERROR: Server doesn't support provided key type")

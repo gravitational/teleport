@@ -65,13 +65,15 @@ type Command struct {
 }
 
 // Execute implements SSH file copy (SCP)
-func (cmd *Command) Execute(ch io.ReadWriter) error {
+func (cmd *Command) Execute(ch io.ReadWriter) (err error) {
 	if cmd.Source {
 		// download
-		return cmd.serveSource(ch)
+		err = cmd.serveSource(ch)
+	} else {
+		// upload
+		err = cmd.serveSink(ch)
 	}
-	// upload
-	return cmd.serveSink(ch)
+	return trace.Wrap(err)
 }
 
 func (cmd *Command) serveSource(ch io.ReadWriter) error {
@@ -84,24 +86,21 @@ func (cmd *Command) serveSource(ch io.ReadWriter) error {
 
 	f, err := os.Stat(cmd.Target)
 	if err != nil {
-		log.Infof("failed to stat file: %v", err)
-		return sendError(ch, err.Error())
+		return trace.Wrap(sendError(ch, err))
 	}
 
 	if f.IsDir() && !cmd.Recursive {
-		return sendError(
-			ch, fmt.Sprintf(
-				"%v is not a file, turn recursive mode to copy dirs",
-				cmd.Target))
+		err := trace.Errorf("%v is not a file, turn recursive mode to copy dirs", cmd.Target)
+		return trace.Wrap(sendError(ch, err))
 	}
 
 	if f.IsDir() {
 		if err := cmd.sendDir(r, ch, f, cmd.Target); err != nil {
-			return sendError(ch, err.Error())
+			return trace.Wrap(sendError(ch, err))
 		}
 	} else {
 		if err := cmd.sendFile(r, ch, f, cmd.Target); err != nil {
-			return sendError(ch, err.Error())
+			return trace.Wrap(sendError(ch, err))
 		}
 	}
 
@@ -218,17 +217,12 @@ func (cmd *Command) serveSink(ch io.ReadWriter) error {
 			continue
 		}
 
-		log.Infof(">> scanner.Scan()")
 		scanner.Scan()
-		log.Infof("<< scanner.Scan()")
 		if err := scanner.Err(); err != nil {
 			return trace.Wrap(err)
 		}
 		if err := cmd.processCommand(ch, &st, b[0], scanner.Text()); err != nil {
-			if e := sendError(ch, err.Error()); e != nil {
-				log.Warningf("error sending error: %v", e)
-			}
-			return trace.Wrap(err)
+			return sendError(ch, err)
 		}
 		if err := sendOK(ch); err != nil {
 			return trace.Wrap(err)
@@ -440,17 +434,22 @@ func sendOK(ch io.ReadWriter) error {
 	}
 }
 
-func sendError(ch io.ReadWriter, message string) error {
+// sendError gets called during all errors during SCP transmission. It does
+// logs the error into Teleport log and also writes it back to the SCP client
+func sendError(ch io.ReadWriter, err error) error {
+	if err == nil {
+		return nil
+	}
+	message := err.Error()
 	bytes := make([]byte, 0, len(message)+2)
 	bytes = append(bytes, ErrByte)
 	bytes = append(bytes, message...)
 	bytes = append(bytes, []byte{'\n'}...)
-	_, err := ch.Write(bytes)
-	if err != nil {
-		return trace.Wrap(err)
-	} else {
-		return nil
+	_, writeErr := ch.Write(bytes)
+	if writeErr != nil {
+		log.Error(writeErr)
 	}
+	return trace.Wrap(err)
 }
 
 type state struct {
@@ -514,8 +513,7 @@ func (r *reader) read() error {
 		if r.b[0] == ErrByte {
 			return trace.Wrap(err)
 		}
-		log.Warningf("warn: %v", r.s.Text())
-		return nil
+		return trace.Errorf(r.s.Text())
 	}
 	return trace.Errorf("unrecognized command: %#v", r.b)
 }

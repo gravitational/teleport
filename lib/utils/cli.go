@@ -75,7 +75,7 @@ func InitLoggerForTests() {
 // FatalError is for CLI front-ends: it detects gravitational.Trace debugging
 // information, sends it to the logger, strips it off and prints a clean message to stderr
 func FatalError(err error) {
-	fmt.Fprintln(os.Stderr, "ERROR: "+UserMessageFromError(err))
+	fmt.Fprintln(os.Stderr, UserMessageFromError(err))
 	os.Exit(1)
 }
 

@@ -18,6 +18,7 @@ package srv
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"os/exec"
 	"os/user"
@@ -216,7 +217,15 @@ func (e *execResponse) start(ch ssh.Channel) (*execResult, error) {
 	}
 	e.cmd.Stderr = ch.Stderr()
 	e.cmd.Stdout = ch
-	e.cmd.Stdin = ch
+
+	inputWriter, err := e.cmd.StdinPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go func() {
+		io.Copy(inputWriter, ch)
+		inputWriter.Close()
+	}()
 
 	if err := e.cmd.Start(); err != nil {
 		e.ctx.Warningf("%v start failure err: %v", e, err)
@@ -231,9 +240,7 @@ func (e *execResponse) wait() (*execResult, error) {
 	if e.cmd.Process == nil {
 		e.ctx.Errorf("no process")
 	}
-	log.Debugf(">> e.cmd.Wait()...")
 	err := e.cmd.Wait()
-	log.Debugf("<< e.cmd.Wait()!!!")
 	return e.collectStatus(e.cmd, err)
 }
 
