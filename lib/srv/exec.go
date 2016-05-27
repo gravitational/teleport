@@ -117,7 +117,13 @@ func prepareShell(ctx *ctx) (*exec.Cmd, error) {
 // prepareCommand configures exec.Cmd for executing a given command within an SSH
 // session.
 //
-func prepareCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
+// 'cmd' is the string passed as parameter to 'ssh' command, like "ls -l /"
+//
+// If 'cmd' does not have any spaces in it, it gets executed directly, otherwise
+// it is passed to user's shell for interpretation
+func prepareCommand(ctx *ctx, cmd string) (*exec.Cmd, error) {
+	args := strings.Split(cmd, " ")
+
 	osUserName := ctx.login
 	// configure UID & GID of the requested OS user:
 	osUser, err := user.Lookup(osUserName)
@@ -131,6 +137,14 @@ func prepareCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 	gid, err := strconv.Atoi(osUser.Gid)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	// get user's shell:
+	shell, err := utils.GetLoginShell(ctx.login)
+	if err != nil {
+		log.Warn(err)
+	}
+	if ctx.isTestStub {
+		shell = "/bin/sh"
 	}
 	// try to determine the host name of the 1st available proxy to set a nicer
 	// session URL. fall back to <proxyhost> placeholder
@@ -148,24 +162,16 @@ func prepareCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 	if len(args) == 1 {
 		c = exec.Command(args[0])
 	} else {
-		c = exec.Command(args[0], args[1:]...)
+		c = exec.Command(shell, append([]string{"-c", cmd})...)
 	}
 	c.Env = []string{
 		"TERM=xterm",
 		"LANG=en_US.UTF-8",
 		"HOME=" + osUser.HomeDir,
 		"USER=" + osUserName,
+		"SHELL=" + shell,
 		"SSH_TELEPORT_USER=" + ctx.teleportUser,
 		fmt.Sprintf("SSH_SESSION_WEBPROXY_ADDR=%s:3080", proxyHost),
-	}
-	shell, err := utils.GetLoginShell(ctx.login)
-	if err != nil {
-		log.Warn(err)
-	} else {
-		if ctx.isTestStub {
-			shell = "/bin/sh"
-		}
-		c.Env = append(c.Env, "SHELL="+shell)
 	}
 	c.Dir = osUser.HomeDir
 	c.SysProcAttr = &syscall.SysProcAttr{}
@@ -206,8 +212,7 @@ func prepareCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 // to communicate an error while launching
 func (e *execResponse) start(ch ssh.Channel) (*execResult, error) {
 	var err error
-	parts := strings.Split(e.cmdName, " ")
-	e.cmd, err = prepareCommand(e.ctx, parts...)
+	e.cmd, err = prepareCommand(e.ctx, e.cmdName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
