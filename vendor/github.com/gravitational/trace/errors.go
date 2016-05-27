@@ -242,7 +242,7 @@ func ConvertSystemError(err error) error {
 	switch realErr := innerError.(type) {
 	case *net.OpError:
 		return wrap(&ConnectionProblemError{
-			Message: fmt.Sprintf("failed to connect to server %v", realErr.Addr),
+			Message: fmt.Sprintf("failed to connecting to %v", realErr.Addr),
 			Err:     realErr}, 2)
 	case *os.PathError:
 		return wrap(&AccessDeniedError{

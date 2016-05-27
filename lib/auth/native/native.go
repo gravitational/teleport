@@ -191,6 +191,11 @@ func (n *nauth) GenerateUserCert(pkey, key []byte, teleportUsername string, allo
 		ValidBefore:     validBefore,
 		CertType:        ssh.UserCert,
 	}
+	cert.Permissions.Extensions = map[string]string{
+		"permit-pty":             "",
+		"permit-port-forwarding": "",
+	}
+
 	signer, err := ssh.ParsePrivateKey(pkey)
 	if err != nil {
 		return nil, err

@@ -17,7 +17,6 @@ limitations under the License.
 package srv
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -31,14 +30,22 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	"github.com/kardianos/osext"
 
 	log "github.com/Sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
 
+// execResult is used internally to send the result of a command execution from
+// a goroutine to SSH request handler and back to the calling client
 type execResult struct {
 	command string
-	code    int
+
+	// returned exec code
+	code int
+
+	// stderr output
+	stderr []byte
 }
 
 type execReq struct {
@@ -51,23 +58,34 @@ type execResponse struct {
 	cmdName string
 	cmd     *exec.Cmd
 	ctx     *ctx
-
-	// TODO(klizhentas) implement capturing as a threadsafe, factored out feature
-	// that uses protected writes & reads to the buffer
-
-	// 'out' contains captured command output
-	out *bytes.Buffer
 }
 
+// parseExecRequest parses SSH exec request
 func parseExecRequest(req *ssh.Request, ctx *ctx) (*execResponse, error) {
 	var e execReq
 	if err := ssh.Unmarshal(req.Payload, &e); err != nil {
 		return nil, fmt.Errorf("failed to parse exec request, error: %v", err)
 	}
+	// is this scp request?
+	args := strings.Split(e.Command, " ")
+	if len(args) > 0 {
+		_, f := filepath.Split(args[0])
+		if f == "scp" {
+			// for 'scp' requests, we'll fork ourselves with scp parameters:
+			teleportBin, err := osext.Executable()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			e.Command = fmt.Sprintf("%s scp --remote-addr=%s --local-addr=%s %v",
+				teleportBin,
+				ctx.conn.RemoteAddr().String(),
+				ctx.conn.LocalAddr().String(),
+				strings.Join(args[1:], " "))
+		}
+	}
 	return &execResponse{
 		ctx:     ctx,
 		cmdName: e.Command,
-		out:     &bytes.Buffer{},
 	}, nil
 }
 
@@ -75,12 +93,37 @@ func (e *execResponse) String() string {
 	return fmt.Sprintf("Exec(cmd=%v)", e.cmdName)
 }
 
-// prepareOSCommand configures os.Cmd for executing a given command within an SSH
+// prepareShell configures exec.Cmd object for launching shell for an SSH user
+func prepareShell(ctx *ctx) (*exec.Cmd, error) {
+	// determine shell for the given OS user:
+	shellCommand, err := utils.GetLoginShell(ctx.login)
+	if err != nil {
+		log.Error(err)
+		return nil, trace.Wrap(err)
+	}
+	// in test mode short-circuit to /bin/sh
+	if ctx.isTestStub {
+		shellCommand = "/bin/sh"
+	}
+	c, err := prepareCommand(ctx, shellCommand)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// this configures shell to run in 'login' mode
+	c.Args[0] = "-" + filepath.Base(shellCommand)
+	return c, nil
+}
+
+// prepareCommand configures exec.Cmd for executing a given command within an SSH
 // session.
 //
-// If args are empty, it means a simple shell must be launched
-// Otherwise, a shell launches with "-c args" as parameters
-func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
+// 'cmd' is the string passed as parameter to 'ssh' command, like "ls -l /"
+//
+// If 'cmd' does not have any spaces in it, it gets executed directly, otherwise
+// it is passed to user's shell for interpretation
+func prepareCommand(ctx *ctx, cmd string) (*exec.Cmd, error) {
+	args := strings.Split(cmd, " ")
+
 	osUserName := ctx.login
 	// configure UID & GID of the requested OS user:
 	osUser, err := user.Lookup(osUserName)
@@ -95,27 +138,14 @@ func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	curUser, err := user.Current()
+	// get user's shell:
+	shell, err := utils.GetLoginShell(ctx.login)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		log.Warn(err)
 	}
-
-	// determine shell for the given OS user:
-	shellCommand, err := utils.GetLoginShell(osUserName)
-	if err != nil {
-		log.Error(err)
-		return nil, trace.Wrap(err)
-	}
-	// in test mode short-circuit to /bin/sh
 	if ctx.isTestStub {
-		shellCommand = "/bin/sh"
+		shell = "/bin/sh"
 	}
-	if len(args) > 0 {
-		orig := args
-		args = []string{"-c"}
-		args = append(args, orig...)
-	}
-
 	// try to determine the host name of the 1st available proxy to set a nicer
 	// session URL. fall back to <proxyhost> placeholder
 	proxyHost := "<proxyhost>"
@@ -128,26 +158,27 @@ func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 			proxyHost = proxies[0].Hostname
 		}
 	}
-
-	log.Infof("created OS command '%s' with params: '%v'", shellCommand, args)
-	c := exec.Command(shellCommand, args...)
+	var c *exec.Cmd
+	if len(args) == 1 {
+		c = exec.Command(args[0])
+	} else {
+		c = exec.Command(shell, append([]string{"-c", cmd})...)
+	}
 	c.Env = []string{
 		"TERM=xterm",
 		"LANG=en_US.UTF-8",
 		"HOME=" + osUser.HomeDir,
 		"USER=" + osUserName,
-		"SHELL=" + c.Path,
+		"SHELL=" + shell,
 		"SSH_TELEPORT_USER=" + ctx.teleportUser,
 		fmt.Sprintf("SSH_SESSION_WEBPROXY_ADDR=%s:3080", proxyHost),
 	}
-	// this configures shell to run in 'login' mode
-	c.Args[0] = "-" + filepath.Base(shellCommand)
 	c.Dir = osUser.HomeDir
 	c.SysProcAttr = &syscall.SysProcAttr{}
+
 	// execute the command under requested user's UID:GID
-	if curUser.Uid != osUser.Uid {
-		c.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
-	}
+	c.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
+
 	// apply environment variables passed from the client
 	for n, v := range ctx.env {
 		c.Env = append(c.Env, fmt.Sprintf("%s=%s", n, v))
@@ -179,28 +210,30 @@ func prepareOSCommand(ctx *ctx, args ...string) (*exec.Cmd, error) {
 
 // start launches the given command returns (nil, nil) if successful. execResult is only used
 // to communicate an error while launching
-func (e *execResponse) start(sconn *ssh.ServerConn, shell string, ch ssh.Channel) (*execResult, error) {
+func (e *execResponse) start(ch ssh.Channel) (*execResult, error) {
 	var err error
-	e.cmd, err = prepareOSCommand(e.ctx, e.cmdName)
+	e.cmd, err = prepareCommand(e.ctx, e.cmdName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	e.cmd.Stderr = ch.Stderr()
+	e.cmd.Stdout = ch
 
-	// capture output to the buffer
-	e.cmd.Stdout = io.MultiWriter(e.out, ch)
-	e.cmd.Stderr = io.MultiWriter(e.out, ch)
-
-	// TODO(klizhentas) figure out the way to see if stdin is ever needed.
-	// e.cmd.Stdin = ch leads to the following problem:
-	// e.cmd.Wait() never returns  because stdin never gets closed or never reached
-	// see cmd.Stdin comments
-	e.cmd.Stdin = nil
+	inputWriter, err := e.cmd.StdinPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go func() {
+		io.Copy(inputWriter, ch)
+		inputWriter.Close()
+	}()
 
 	if err := e.cmd.Start(); err != nil {
 		e.ctx.Warningf("%v start failure err: %v", e, err)
 		return e.collectStatus(e.cmd, trace.ConvertSystemError(err))
 	}
 	e.ctx.Infof("%v started", e)
+
 	return nil, nil
 }
 
@@ -208,7 +241,8 @@ func (e *execResponse) wait() (*execResult, error) {
 	if e.cmd.Process == nil {
 		e.ctx.Errorf("no process")
 	}
-	return e.collectStatus(e.cmd, e.cmd.Wait())
+	err := e.cmd.Wait()
+	return e.collectStatus(e.cmd, err)
 }
 
 func (e *execResponse) collectStatus(cmd *exec.Cmd, err error) (*execResult, error) {
@@ -227,7 +261,9 @@ func (e *execResponse) collectStatus(cmd *exec.Cmd, err error) (*execResult, err
 	}
 	if err != nil {
 		fields[events.ExecEventError] = err.Error()
-		fields[events.ExecEventCode] = strconv.Itoa(status.code)
+		if status != nil {
+			fields[events.ExecEventCode] = strconv.Itoa(status.code)
+		}
 	}
 	auditLog.EmitAuditEvent(events.ExecEvent, fields)
 	return status, err

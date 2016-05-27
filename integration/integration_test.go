@@ -128,7 +128,7 @@ func (s *IntSuite) TestAudit(c *check.C) {
 	go func() {
 		cl, err := t.NewClient(s.me.Username, Site, Host, t.GetPortSSHInt())
 		c.Assert(err, check.IsNil)
-		cl.Output = &myTerm
+		cl.Stdout = &myTerm
 
 		err = cl.SSH([]string{}, false, &myTerm)
 		endC <- err
@@ -280,7 +280,7 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 	openSession := func() {
 		cl, err := t.NewClient(s.me.Username, Site, Host, t.GetPortSSHInt())
 		c.Assert(err, check.IsNil)
-		cl.Output = &personA
+		cl.Stdout = &personA
 		// Person A types something into the terminal (including "exit")
 		personA.Type("\aecho hi\n\r\aexit\n\r\a")
 		err = cl.SSH([]string{}, false, &personA)
@@ -302,7 +302,7 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 		}
 		cl, err := t.NewClient(s.me.Username, Site, Host, t.GetPortSSHInt())
 		c.Assert(err, check.IsNil)
-		cl.Output = &personB
+		cl.Stdout = &personB
 		for i := 0; i < 10; i++ {
 			err = cl.Join(session.ID(sessionID), &personB)
 			if err == nil {
@@ -377,7 +377,7 @@ func (s *IntSuite) TestTwoSites(c *check.C) {
 
 	// directly:
 	tc, err := a.NewClient(username, "site-A", Host, sshPort)
-	tc.Output = &outputA
+	tc.Stdout = &outputA
 	c.Assert(err, check.IsNil)
 	err = tc.SSH(cmd, false, nil)
 	c.Assert(err, check.IsNil)
@@ -385,7 +385,7 @@ func (s *IntSuite) TestTwoSites(c *check.C) {
 
 	// via tunnel b->a:
 	tc, err = b.NewClient(username, "site-A", Host, sshPort)
-	tc.Output = &outputB
+	tc.Stdout = &outputB
 	c.Assert(err, check.IsNil)
 	err = tc.SSH(cmd, false, nil)
 	c.Assert(err, check.IsNil)

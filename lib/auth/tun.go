@@ -342,12 +342,8 @@ func (s *AuthTunnel) handleDirectTCPIPRequest(sconn *ssh.ServerConn, sshChannel 
 
 func (s *AuthTunnel) keyAuth(
 	conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-	cid := fmt.Sprintf(
-		"conn(%v->%v, user=%v)", conn.RemoteAddr(),
-		conn.LocalAddr(), conn.User())
 
-	log.Infof("%v auth attempt with key %v", cid, key.Type())
-
+	log.Infof("keyAuth: %v->%v, user=%v", conn.RemoteAddr(), conn.LocalAddr(), conn.User())
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
 		return nil, trace.Errorf("ERROR: Server doesn't support provided key type")
@@ -549,7 +545,6 @@ func NewTunClient(purpose string,
 	if user == "" {
 		return nil, trace.BadParameter("SSH connection requires a valid username")
 	}
-
 	tc := &TunClient{
 		purpose:           purpose,
 		user:              user,
@@ -570,14 +565,11 @@ func NewTunClient(purpose string,
 
 	// use local information about auth servers if it's available
 	if tc.addrStorage != nil {
-		authServers, err := tc.addrStorage.GetAddresses()
+		cachedAuthServers, err := tc.addrStorage.GetAddresses()
 		if err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
-			log.Infof("local storage is provided, not initialized")
+			log.Errorf("unable to load from auth server cache: %v", err)
 		} else {
-			tc.setAuthServers(authServers)
+			tc.setAuthServers(cachedAuthServers)
 		}
 	}
 	return tc, nil

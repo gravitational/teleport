@@ -33,6 +33,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -55,49 +56,51 @@ type Command struct {
 	Target      string
 	Recursive   bool
 	User        *user.User
-	Conn        ssh.ConnMetadata
-	AuditLog    events.IAuditLog
+	//Conn        ssh.ConnMetadata
+	AuditLog events.IAuditLog
+
+	// Ev:
+	RemoteAddr string
+	LocalAddr  string
 }
 
 // Execute implements SSH file copy (SCP)
-func (cmd *Command) Execute(ch io.ReadWriter) error {
+func (cmd *Command) Execute(ch io.ReadWriter) (err error) {
 	if cmd.Source {
 		// download
-		return cmd.serveSource(ch)
+		err = cmd.serveSource(ch)
+	} else {
+		// upload
+		err = cmd.serveSink(ch)
 	}
-	// upload
-	return cmd.serveSink(ch)
+	return trace.Wrap(err)
 }
 
 func (cmd *Command) serveSource(ch io.ReadWriter) error {
 	log.Infof("SCP: serving source")
 
 	r := newReader(ch)
-
 	if err := r.read(); err != nil {
 		return trace.Wrap(err)
 	}
 
 	f, err := os.Stat(cmd.Target)
 	if err != nil {
-		log.Infof("failed to stat file: %v", err)
-		return sendError(ch, err.Error())
+		return trace.Wrap(sendError(ch, err))
 	}
 
 	if f.IsDir() && !cmd.Recursive {
-		return sendError(
-			ch, fmt.Sprintf(
-				"%v is not a file, turn recursive mode to copy dirs",
-				cmd.Target))
+		err := trace.Errorf("%v is not a file, turn recursive mode to copy dirs", cmd.Target)
+		return trace.Wrap(sendError(ch, err))
 	}
 
 	if f.IsDir() {
 		if err := cmd.sendDir(r, ch, f, cmd.Target); err != nil {
-			return sendError(ch, err.Error())
+			return trace.Wrap(sendError(ch, err))
 		}
 	} else {
 		if err := cmd.sendFile(r, ch, f, cmd.Target); err != nil {
-			return sendError(ch, err.Error())
+			return trace.Wrap(sendError(ch, err))
 		}
 	}
 
@@ -149,23 +152,24 @@ func (cmd *Command) sendFile(r *reader, ch io.ReadWriter, fi os.FileInfo, path s
 		cmd.AuditLog.EmitAuditEvent(events.SCPEvent, events.EventFields{
 			events.SCPPath:    path,
 			events.SCPLengh:   fi.Size(),
-			events.LocalAddr:  cmd.Conn.LocalAddr().String(),
-			events.RemoteAddr: cmd.Conn.RemoteAddr().String(),
+			events.LocalAddr:  cmd.LocalAddr,
+			events.RemoteAddr: cmd.RemoteAddr,
 			events.EventLogin: cmd.User.Username,
 			events.SCPAction:  "read",
 		})
 	}
-
 	out := fmt.Sprintf("C%04o %d %s\n", fi.Mode()&os.ModePerm, fi.Size(), fi.Name())
 	log.Infof("sendFile: %v", out)
+
 	_, err := io.WriteString(ch, out)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	if err := r.read(); err != nil {
 		return trace.Wrap(err)
 	}
-	log.Infof("sendFile got OK")
+
 	f, err := os.Open(path)
 	if err != nil {
 		return trace.Wrap(err)
@@ -182,7 +186,7 @@ func (cmd *Command) sendFile(r *reader, ch io.ReadWriter, fi os.FileInfo, path s
 	if err := sendOK(ch); err != nil {
 		return trace.Wrap(err)
 	}
-	return r.read()
+	return trace.Wrap(r.read())
 }
 
 // serveSink executes file uploading, when a remote server sends file(s)
@@ -219,10 +223,7 @@ func (cmd *Command) serveSink(ch io.ReadWriter) error {
 			return trace.Wrap(err)
 		}
 		if err := cmd.processCommand(ch, &st, b[0], scanner.Text()); err != nil {
-			if e := sendError(ch, err.Error()); e != nil {
-				log.Warningf("error sending error: %v", e)
-			}
-			return trace.Wrap(err)
+			return sendError(ch, err)
 		}
 		if err := sendOK(ch); err != nil {
 			return trace.Wrap(err)
@@ -235,8 +236,7 @@ func (cmd *Command) processCommand(ch io.ReadWriter, st *state, b byte, line str
 	log.Infof("<- %v %v", string(b), line)
 	switch b {
 	case WarnByte:
-		log.Warningf("got warning: %v", line)
-		return nil
+		return trace.Errorf(line)
 	case ErrByte:
 		return trace.Errorf(line)
 	case 'C':
@@ -244,10 +244,11 @@ func (cmd *Command) processCommand(ch io.ReadWriter, st *state, b byte, line str
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := sendOK(ch); err != nil {
+		err = cmd.receiveFile(st, *f, ch)
+		if err != nil {
 			return trace.Wrap(err)
 		}
-		return cmd.receiveFile(st, *f, ch)
+		return nil
 	case 'D':
 		d, err := ParseNewFile(line)
 		if err != nil {
@@ -269,17 +270,12 @@ func (cmd *Command) processCommand(ch io.ReadWriter, st *state, b byte, line str
 }
 
 func (cmd *Command) receiveFile(st *state, fc NewFileCmd, ch io.ReadWriter) error {
-	isDir := func(target string) bool {
-		fi, err := os.Stat(target)
-		if err != nil {
-			return false
-		}
-		return fi.IsDir()
-	}
+	log.Infof("scp.receiveFile(%v)", cmd.Target)
+
 	// if the dest path is a folder, we should save the file to that folder, but
 	// only if is 'recursive' is set
 	path := cmd.Target
-	if cmd.Recursive || isDir(path) {
+	if cmd.Recursive || utils.IsDir(path) {
 		path = st.makePath(path, fc.Name)
 	}
 	f, err := os.Create(path)
@@ -290,8 +286,8 @@ func (cmd *Command) receiveFile(st *state, fc NewFileCmd, ch io.ReadWriter) erro
 	// log audit event:
 	if cmd.AuditLog != nil {
 		cmd.AuditLog.EmitAuditEvent(events.SCPEvent, events.EventFields{
-			events.LocalAddr:  cmd.Conn.LocalAddr().String(),
-			events.RemoteAddr: cmd.Conn.RemoteAddr().String(),
+			events.LocalAddr:  cmd.LocalAddr,
+			events.RemoteAddr: cmd.RemoteAddr,
 			events.EventLogin: cmd.User.Username,
 			events.SCPPath:    path,
 			events.SCPLengh:   fc.Length,
@@ -300,10 +296,17 @@ func (cmd *Command) receiveFile(st *state, fc NewFileCmd, ch io.ReadWriter) erro
 	}
 
 	defer f.Close()
-	n, err := io.CopyN(f, ch, int64(fc.Length))
-	if err != nil {
+
+	if err = sendOK(ch); err != nil {
 		return trace.Wrap(err)
 	}
+
+	n, err := io.CopyN(f, ch, int64(fc.Length))
+	if err != nil {
+		log.Error(err)
+		return trace.Wrap(err)
+	}
+
 	if n != int64(fc.Length) {
 		return trace.Errorf("unexpected file copy length: %v", n)
 	}
@@ -339,29 +342,17 @@ func (cmd *Command) receiveDir(st *state, fc NewFileCmd, ch io.ReadWriter) error
 	return nil
 }
 
-func IsSCP(cmd string) bool {
-	args := strings.Split(cmd, " ")
-	if len(args) < 1 {
-		return false
-	}
-	_, f := filepath.Split(args[0])
-	return f == "scp"
-}
-
 func ParseCommand(arg string, conn ssh.ConnMetadata, alog events.IAuditLog) (*Command, error) {
-	if !IsSCP(arg) {
-		return nil, trace.Errorf("not scp command")
-	}
-	userName := conn.User()
 	args := strings.Split(arg, " ")
 	f := flag.NewFlagSet(args[0], flag.ContinueOnError)
 
 	// get user's home dir (it serves as a default destination)
-	osUser, err := user.Lookup(userName)
+	osUser, err := user.Current()
 	if err != nil {
-		return nil, trace.Errorf("user not found: %s", userName)
+		log.Error(err)
+		return nil, trace.Wrap(err)
 	}
-	cmd := Command{User: osUser, Conn: conn, AuditLog: alog}
+	cmd := Command{User: osUser, AuditLog: alog}
 
 	f.BoolVar(&cmd.Sink, "t", false, "sink mode (data consumer)")
 	f.BoolVar(&cmd.Source, "f", false, "source mode (data producer)")
@@ -380,7 +371,7 @@ func ParseCommand(arg string, conn ssh.ConnMetadata, alog events.IAuditLog) (*Co
 	withSlash := strings.HasSuffix(cmd.Target, slash)
 	if !filepath.IsAbs(cmd.Target) {
 		rootDir := cmd.User.HomeDir
-		if !isDir(rootDir) {
+		if !utils.IsDir(rootDir) {
 			cmd.Target = slash + cmd.Target
 		} else {
 			cmd.Target = filepath.Join(rootDir, cmd.Target)
@@ -394,16 +385,6 @@ func ParseCommand(arg string, conn ssh.ConnMetadata, alog events.IAuditLog) (*Co
 		return nil, trace.Errorf("remote mode is not supported")
 	}
 	return &cmd, nil
-}
-
-// isDir returns 'true' if a given path points to a valid, existing directory
-func isDir(dirPath string) bool {
-	fs, err := os.Stat(dirPath)
-	if err != nil {
-		log.Warn(err)
-		return false
-	}
-	return fs.IsDir()
 }
 
 type NewFileCmd struct {
@@ -463,17 +444,23 @@ func sendOK(ch io.ReadWriter) error {
 	}
 }
 
-func sendError(ch io.ReadWriter, message string) error {
+// sendError gets called during all errors during SCP transmission. It does
+// logs the error into Teleport log and also writes it back to the SCP client
+func sendError(ch io.ReadWriter, err error) error {
+	log.Error(err)
+	if err == nil {
+		return nil
+	}
+	message := err.Error()
 	bytes := make([]byte, 0, len(message)+2)
 	bytes = append(bytes, ErrByte)
 	bytes = append(bytes, message...)
 	bytes = append(bytes, []byte{'\n'}...)
-	_, err := ch.Write(bytes)
-	if err != nil {
-		return trace.Wrap(err)
-	} else {
-		return nil
+	_, writeErr := ch.Write(bytes)
+	if writeErr != nil {
+		log.Error(writeErr)
 	}
+	return trace.Wrap(err)
 }
 
 type state struct {
@@ -516,6 +503,9 @@ type reader struct {
 	r io.Reader
 }
 
+// read is used to "ask" for response messages after each SCP transmission
+// it only reads text data until a newline and returns 'nil' for "OK" responses
+// and errors for everything else
 func (r *reader) read() error {
 	n, err := r.r.Read(r.b)
 	if err != nil {
@@ -534,11 +524,7 @@ func (r *reader) read() error {
 		if err := r.s.Err(); err != nil {
 			return trace.Wrap(err)
 		}
-		if r.b[0] == ErrByte {
-			return trace.Wrap(err)
-		}
-		log.Warningf("warn: %v", r.s.Text())
-		return nil
+		return trace.Errorf(r.s.Text())
 	}
 	return trace.Errorf("unrecognized command: %#v", r.b)
 }

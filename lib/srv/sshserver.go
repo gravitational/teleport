@@ -20,7 +20,6 @@ package srv
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -40,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
@@ -434,7 +432,6 @@ func (s *Server) isAuthority(cert ssh.PublicKey) bool {
 			}
 		}
 	}
-	log.Warningf("no matching authority found")
 	return false
 }
 
@@ -692,6 +689,10 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 			}
 		case result := <-ctx.result:
 			ctx.Infof("ctx.result = %v", result)
+			// pass back stderr output
+			if result.stderr != nil {
+				ch.Stderr().Write(result.stderr)
+			}
 			// this means that exec process has finished and delivered the execution result,
 			// we send it back and close the session
 			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(result.code)}))
@@ -851,6 +852,8 @@ func (s *Server) handlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *ctx) error 
 
 // handleExec is responsible for executing 'exec' SSH requests (i.e. executing
 // a command after making an SSH connection)
+//
+// Note: this also handles 'scp' requests because 'scp' is a subset of "exec"
 func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	execResponse, err := parseExecRequest(req, ctx)
 	if err != nil {
@@ -858,17 +861,10 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 		replyError(ch, req, err)
 		return trace.Wrap(err)
 	}
-
-	if scp.IsSCP(execResponse.cmdName) {
-		ctx.Infof("detected SCP command: %v", execResponse.cmdName)
-		if err := s.handleSCP(ch, req, ctx, execResponse.cmdName); err != nil {
-			ctx.Warningf("handleSCP() err: %v", err)
-			return trace.Wrap(err)
-		}
-		return ch.Close()
+	if req.WantReply {
+		req.Reply(true, nil)
 	}
-
-	result, err := execResponse.start(ctx.conn, s.shell, ch)
+	result, err := execResponse.start(ch)
 	if err != nil {
 		ctx.Infof("error starting command, %v", err)
 		replyError(ch, req, err)
@@ -880,42 +876,14 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	// in case if result is nil and no error, this means that program is
 	// running in the background
 	go func() {
-		ctx.Infof("%v waiting for result", execResponse)
 		result, err := execResponse.wait()
 		if err != nil {
-			ctx.Infof("%v wait failed: %v", execResponse, err)
+			ctx.Errorf("%v wait failed: %v", execResponse, err)
 		}
 		if result != nil {
-			ctx.Infof("%v result collected: %v", execResponse, result)
 			ctx.sendResult(*result)
 		}
 	}()
-	return nil
-}
-
-// handleSCP processes SSH requests for uploading or downloading files via `scp` command
-func (s *Server) handleSCP(ch ssh.Channel, req *ssh.Request, ctx *ctx, args string) error {
-	cmd, err := scp.ParseCommand(args, ctx.conn, s.alog)
-	if err != nil {
-		ctx.Warningf("failed to parse command: %v", cmd)
-		return trace.Wrap(err, fmt.Sprintf("failure to parse command '%v'", cmd))
-	}
-	ctx.Infof("handleSCP(cmd=%#v)", cmd)
-
-	cmdBytes, _ := json.MarshalIndent(cmd, "", "\t")
-	ctx.Infof("SCP command:\n%s\n", string(cmdBytes))
-
-	// TODO(klizhentas) current version of handling exec is incorrect.
-	// req.Reply should be sent as long as command start is done,
-	// not at the end. This is my fix for SCP only:
-	req.Reply(true, nil)
-	if err := cmd.Execute(ch); err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(0)}))
-	if err != nil {
-		ctx.Errorf("failed to send scp exit status: %v", err)
-	}
 	return nil
 }
 

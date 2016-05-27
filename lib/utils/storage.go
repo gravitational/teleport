@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 )
 
@@ -30,6 +31,7 @@ func (fs *FileAddrStorage) SetAddresses(addrs []NetAddr) error {
 	}
 	err = ioutil.WriteFile(fs.filePath, bytes, 0666)
 	if err != nil {
+		log.Error(err)
 		return trace.ConvertSystemError(err)
 	}
 	return nil
@@ -39,12 +41,15 @@ func (fs *FileAddrStorage) SetAddresses(addrs []NetAddr) error {
 func (fs *FileAddrStorage) GetAddresses() ([]NetAddr, error) {
 	bytes, err := ioutil.ReadFile(fs.filePath)
 	if err != nil {
+		log.Error(err)
 		return nil, trace.ConvertSystemError(err)
 	}
 	var addrs []NetAddr
-	err = json.Unmarshal(bytes, &addrs)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if len(bytes) > 0 {
+		err = json.Unmarshal(bytes, &addrs)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return addrs, nil
 }

@@ -205,15 +205,15 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeC
 			return nil, trace.Wrap(err)
 		}
 		printErrors := func() {
-			buf := &bytes.Buffer{}
-			io.Copy(buf, proxyErr)
-			if buf.String() != "" {
-				fmt.Println("ERROR: " + buf.String())
+			n, _ := io.Copy(os.Stderr, proxyErr)
+			if n > 0 {
+				os.Stderr.WriteString("\n")
 			}
 		}
 		err = proxySession.RequestSubsystem("proxy:" + nodeAddress)
 		if err != nil {
 			defer printErrors()
+
 			parts := strings.Split(nodeAddress, "@")
 			siteName := parts[len(parts)-1]
 			return nil, trace.Errorf("Failed connecting to cluster %v: %v", siteName, err)
@@ -247,9 +247,9 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeC
 		return &NodeClient{Client: client, Proxy: proxy}, nil
 	}
 	if utils.IsHandshakeFailedError(e) {
-		// remoe the name of the site from the node address:
+		// remove the name of the site from the node address:
 		parts := strings.Split(nodeAddress, "@")
-		return nil, trace.Errorf(`access denied to login "%v" when connecting to %v`, user, parts[0])
+		return nil, trace.Errorf(`access denied to login "%v" when connecting to %v: %v`, user, parts[0], e)
 	}
 	return nil, e
 }
@@ -279,7 +279,7 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.Rea
 	if len(sessionID) > 0 {
 		err = clientSession.Setenv(sshutils.SessionEnvVar, string(sessionID))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			log.Warn(err)
 		}
 	}
 
@@ -395,11 +395,7 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.Rea
 	}()
 
 	go func() {
-		buf := &bytes.Buffer{}
-		io.Copy(buf, stderr)
-		if buf.String() != "" {
-			fmt.Println("ERROR: " + buf.String())
-		}
+		io.Copy(os.Stderr, stderr)
 	}()
 
 	err = clientSession.Shell()
@@ -418,23 +414,19 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.Rea
 
 // Run executes command on the remote server and writes its stdout to
 // the 'output' argument
-func (client *NodeClient) Run(cmd []string, output io.Writer) error {
+func (client *NodeClient) Run(cmd []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	session, err := client.Client.NewSession()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	session.Stdout = output
-
-	if err := session.Run(strings.Join(cmd, " ")); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	session.Stdout = stdout
+	session.Stderr = stderr
+	session.Stdin = stdin
+	return session.Run(strings.Join(cmd, " "))
 }
 
 // Upload uploads file or dir to the remote server
-func (client *NodeClient) Upload(localSourcePath, remoteDestinationPath string) error {
+func (client *NodeClient) Upload(localSourcePath, remoteDestinationPath string, stderr io.Writer) error {
 	file, err := os.Open(localSourcePath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -460,11 +452,11 @@ func (client *NodeClient) Upload(localSourcePath, remoteDestinationPath string) 
 	}
 	shellCmd += " " + remoteDestinationPath
 
-	return client.scp(scpConf, shellCmd)
+	return client.scp(scpConf, shellCmd, stderr)
 }
 
 // Download downloads file or dir from the remote server
-func (client *NodeClient) Download(remoteSourcePath, localDestinationPath string, isDir bool) error {
+func (client *NodeClient) Download(remoteSourcePath, localDestinationPath string, isDir bool, stderr io.Writer) error {
 	scpConf := scp.Command{
 		Sink:        true,
 		TargetIsDir: isDir,
@@ -479,12 +471,12 @@ func (client *NodeClient) Download(remoteSourcePath, localDestinationPath string
 	}
 	shellCmd += " " + remoteSourcePath
 
-	return client.scp(scpConf, shellCmd)
+	return client.scp(scpConf, shellCmd, stderr)
 }
 
 // scp runs remote scp command(shellCmd) on the remote server and
 // runs local scp handler using scpConf
-func (client *NodeClient) scp(scpCommand scp.Command, shellCmd string) error {
+func (client *NodeClient) scp(scpCommand scp.Command, shellCmd string, errWriter io.Writer) error {
 	session, err := client.Client.NewSession()
 	if err != nil {
 		return trace.Wrap(err)
@@ -501,22 +493,6 @@ func (client *NodeClient) scp(scpCommand scp.Command, shellCmd string) error {
 		return trace.Wrap(err)
 	}
 
-	stderr, err := session.StderrPipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	serverErrors := make(chan error, 2)
-	go func() {
-		var errMsg bytes.Buffer
-		io.Copy(&errMsg, stderr)
-		if len(errMsg.Bytes()) > 0 {
-			serverErrors <- trace.Errorf(errMsg.String())
-		} else {
-			close(serverErrors)
-		}
-	}()
-
 	ch := utils.NewPipeNetConn(
 		stdout,
 		stdin,
@@ -525,20 +501,24 @@ func (client *NodeClient) scp(scpCommand scp.Command, shellCmd string) error {
 		&net.IPAddr{},
 	)
 
+	closeC := make(chan interface{}, 1)
 	go func() {
-		err := scpCommand.Execute(ch)
-		if err != nil {
-			log.Errorf(err.Error())
+		if err = scpCommand.Execute(ch); err != nil {
+			log.Error(err)
 		}
 		stdin.Close()
+		close(closeC)
 	}()
 
-	err = session.Run(shellCmd)
-
-	select {
-	case serverError := <-serverErrors:
-		return trace.Wrap(serverError)
+	runErr := session.Run(shellCmd)
+	if runErr != nil && err == nil {
+		err = runErr
 	}
+	<-closeC
+	if trace.IsEOF(err) {
+		err = nil
+	}
+	return trace.Wrap(err)
 }
 
 // listenAndForward listens on a given socket and forwards all incoming connections

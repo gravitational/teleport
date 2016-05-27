@@ -446,7 +446,7 @@ func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 		}
 	}
 	// prepare environment & Launch shell:
-	cmd, err := prepareOSCommand(ctx)
+	cmd, err := prepareShell(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

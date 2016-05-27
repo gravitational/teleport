@@ -65,7 +65,7 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	}
 
 	// empty command (simple shell)
-	cmd, err := prepareOSCommand(s.ctx)
+	cmd, err := prepareShell(s.ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd, check.NotNil)
 	c.Assert(cmd.Path, check.Equals, "/bin/sh")
@@ -74,13 +74,20 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
 
 	// non-empty command (exec a prog)
-	cmd, err = prepareOSCommand(s.ctx, "ls -lh")
+	s.ctx.isTestStub = true
+	cmd, err = prepareCommand(s.ctx, "ls -lh /etc")
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd, check.NotNil)
 	c.Assert(cmd.Path, check.Equals, "/bin/sh")
-	c.Assert(cmd.Args, check.DeepEquals, []string{"-sh", "-c", "ls -lh"})
+	c.Assert(cmd.Args, check.DeepEquals, []string{"/bin/sh", "-c", "ls -lh /etc"})
 	c.Assert(cmd.Dir, check.Equals, s.usr.HomeDir)
 	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
+
+	// command without args
+	cmd, err = prepareCommand(s.ctx, "top")
+	c.Assert(err, check.IsNil)
+	c.Assert(cmd.Path, check.Equals, "/usr/bin/top")
+	c.Assert(cmd.Args, check.DeepEquals, []string{"top"})
 }
 
 // implementation of ssh.Conn interface
