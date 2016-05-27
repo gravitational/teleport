@@ -99,10 +99,6 @@ func (a *LocalKeyAgent) AddHostSignersToCache(hostSigners []services.CertAuthori
 // CheckHostSignature checks if the given host key was signed by one of the trusted
 // certificaate authorities (CAs)
 func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key ssh.PublicKey) error {
-	// TODO (ev) remove this!
-	// we're temporarily turning off host validation to experiment with OpenSSH servers
-	//return nil
-
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
 		return trace.BadParameter("Cannot trust %v. Expected a certificate", remote.String())

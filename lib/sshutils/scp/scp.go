@@ -19,7 +19,6 @@ package scp
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -28,8 +27,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"golang.org/x/crypto/ssh"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/events"
@@ -340,51 +337,6 @@ func (cmd *Command) receiveDir(st *state, fc NewFileCmd, ch io.ReadWriter) error
 	}
 	log.Infof("dir %v(%v) created", fc.Name, path)
 	return nil
-}
-
-func ParseCommand(arg string, conn ssh.ConnMetadata, alog events.IAuditLog) (*Command, error) {
-	args := strings.Split(arg, " ")
-	f := flag.NewFlagSet(args[0], flag.ContinueOnError)
-
-	// get user's home dir (it serves as a default destination)
-	osUser, err := user.Current()
-	if err != nil {
-		log.Error(err)
-		return nil, trace.Wrap(err)
-	}
-	cmd := Command{User: osUser, AuditLog: alog}
-
-	f.BoolVar(&cmd.Sink, "t", false, "sink mode (data consumer)")
-	f.BoolVar(&cmd.Source, "f", false, "source mode (data producer)")
-	f.BoolVar(&cmd.Verbose, "v", false, "verbose mode")
-	f.BoolVar(&cmd.TargetIsDir, "d", false, "target is dir and must exist")
-	f.BoolVar(&cmd.Recursive, "r", false, "is recursive")
-
-	if err := f.Parse(args[1:]); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// see if the target is absolute. if not, use user's homedir to make
-	// it absolute (and if the user doesn't have a homedir, use "/")
-	cmd.Target = f.Arg(0)
-	slash := string(filepath.Separator)
-	withSlash := strings.HasSuffix(cmd.Target, slash)
-	if !filepath.IsAbs(cmd.Target) {
-		rootDir := cmd.User.HomeDir
-		if !utils.IsDir(rootDir) {
-			cmd.Target = slash + cmd.Target
-		} else {
-			cmd.Target = filepath.Join(rootDir, cmd.Target)
-			if withSlash {
-				cmd.Target = cmd.Target + slash
-			}
-		}
-	}
-
-	if !cmd.Source && !cmd.Sink {
-		return nil, trace.Errorf("remote mode is not supported")
-	}
-	return &cmd, nil
 }
 
 type NewFileCmd struct {

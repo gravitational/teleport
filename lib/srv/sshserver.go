@@ -690,7 +690,7 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 		case result := <-ctx.result:
 			ctx.Infof("ctx.result = %v", result)
 			// pass back stderr output
-			if result.stderr != nil {
+			if len(result.stderr) != 0 {
 				ch.Stderr().Write(result.stderr)
 			}
 			// this means that exec process has finished and delivered the execution result,
