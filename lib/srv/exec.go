@@ -58,7 +58,6 @@ type execResponse struct {
 	cmdName string
 	cmd     *exec.Cmd
 	ctx     *ctx
-	isSCP   bool
 }
 
 // parseExecRequest parses SSH exec request
@@ -68,12 +67,10 @@ func parseExecRequest(req *ssh.Request, ctx *ctx) (*execResponse, error) {
 		return nil, fmt.Errorf("failed to parse exec request, error: %v", err)
 	}
 	// is this scp request?
-	isSCP := false
 	args := strings.Split(e.Command, " ")
 	if len(args) > 0 {
 		_, f := filepath.Split(args[0])
 		if f == "scp" {
-			isSCP = true
 			// for 'scp' requests, we'll fork ourselves with scp parameters:
 			teleportBin, err := osext.Executable()
 			if err != nil {
@@ -89,7 +86,6 @@ func parseExecRequest(req *ssh.Request, ctx *ctx) (*execResponse, error) {
 	return &execResponse{
 		ctx:     ctx,
 		cmdName: e.Command,
-		isSCP:   isSCP,
 	}, nil
 }
 

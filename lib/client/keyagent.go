@@ -101,7 +101,7 @@ func (a *LocalKeyAgent) AddHostSignersToCache(hostSigners []services.CertAuthori
 func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key ssh.PublicKey) error {
 	// TODO (ev) remove this!
 	// we're temporarily turning off host validation to experiment with OpenSSH servers
-	return nil
+	//return nil
 
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {

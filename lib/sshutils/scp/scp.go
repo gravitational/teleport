@@ -158,17 +158,18 @@ func (cmd *Command) sendFile(r *reader, ch io.ReadWriter, fi os.FileInfo, path s
 			events.SCPAction:  "read",
 		})
 	}
-
 	out := fmt.Sprintf("C%04o %d %s\n", fi.Mode()&os.ModePerm, fi.Size(), fi.Name())
 	log.Infof("sendFile: %v", out)
+
 	_, err := io.WriteString(ch, out)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	if err := r.read(); err != nil {
 		return trace.Wrap(err)
 	}
-	log.Infof("sendFile got OK")
+
 	f, err := os.Open(path)
 	if err != nil {
 		return trace.Wrap(err)
@@ -185,7 +186,7 @@ func (cmd *Command) sendFile(r *reader, ch io.ReadWriter, fi os.FileInfo, path s
 	if err := sendOK(ch); err != nil {
 		return trace.Wrap(err)
 	}
-	return r.read()
+	return trace.Wrap(r.read())
 }
 
 // serveSink executes file uploading, when a remote server sends file(s)
@@ -235,8 +236,7 @@ func (cmd *Command) processCommand(ch io.ReadWriter, st *state, b byte, line str
 	log.Infof("<- %v %v", string(b), line)
 	switch b {
 	case WarnByte:
-		log.Warningf("got warning: %v", line)
-		return nil
+		return trace.Errorf(line)
 	case ErrByte:
 		return trace.Errorf(line)
 	case 'C':
@@ -244,10 +244,11 @@ func (cmd *Command) processCommand(ch io.ReadWriter, st *state, b byte, line str
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := sendOK(ch); err != nil {
+		err = cmd.receiveFile(st, *f, ch)
+		if err != nil {
 			return trace.Wrap(err)
 		}
-		return cmd.receiveFile(st, *f, ch)
+		return nil
 	case 'D':
 		d, err := ParseNewFile(line)
 		if err != nil {
@@ -269,6 +270,8 @@ func (cmd *Command) processCommand(ch io.ReadWriter, st *state, b byte, line str
 }
 
 func (cmd *Command) receiveFile(st *state, fc NewFileCmd, ch io.ReadWriter) error {
+	log.Infof("scp.receiveFile(%v)", cmd.Target)
+
 	// if the dest path is a folder, we should save the file to that folder, but
 	// only if is 'recursive' is set
 	path := cmd.Target
@@ -293,10 +296,17 @@ func (cmd *Command) receiveFile(st *state, fc NewFileCmd, ch io.ReadWriter) erro
 	}
 
 	defer f.Close()
-	n, err := io.CopyN(f, ch, int64(fc.Length))
-	if err != nil {
+
+	if err = sendOK(ch); err != nil {
 		return trace.Wrap(err)
 	}
+
+	n, err := io.CopyN(f, ch, int64(fc.Length))
+	if err != nil {
+		log.Error(err)
+		return trace.Wrap(err)
+	}
+
 	if n != int64(fc.Length) {
 		return trace.Errorf("unexpected file copy length: %v", n)
 	}
@@ -437,6 +447,7 @@ func sendOK(ch io.ReadWriter) error {
 // sendError gets called during all errors during SCP transmission. It does
 // logs the error into Teleport log and also writes it back to the SCP client
 func sendError(ch io.ReadWriter, err error) error {
+	log.Error(err)
 	if err == nil {
 		return nil
 	}
@@ -492,6 +503,9 @@ type reader struct {
 	r io.Reader
 }
 
+// read is used to "ask" for response messages after each SCP transmission
+// it only reads text data until a newline and returns 'nil' for "OK" responses
+// and errors for everything else
 func (r *reader) read() error {
 	n, err := r.r.Read(r.b)
 	if err != nil {
@@ -508,9 +522,6 @@ func (r *reader) read() error {
 	case WarnByte, ErrByte:
 		r.s.Scan()
 		if err := r.s.Err(); err != nil {
-			return trace.Wrap(err)
-		}
-		if r.b[0] == ErrByte {
 			return trace.Wrap(err)
 		}
 		return trace.Errorf(r.s.Text())

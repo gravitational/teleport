@@ -213,7 +213,10 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeC
 		err = proxySession.RequestSubsystem("proxy:" + nodeAddress)
 		if err != nil {
 			defer printErrors()
-			return nil, trace.Wrap(err)
+
+			parts := strings.Split(nodeAddress, "@")
+			siteName := parts[len(parts)-1]
+			return nil, trace.Errorf("Failed connecting to cluster %v: %v", siteName, err)
 		}
 		pipeNetConn := utils.NewPipeNetConn(
 			proxyReader,
@@ -490,15 +493,6 @@ func (client *NodeClient) scp(scpCommand scp.Command, shellCmd string, errWriter
 		return trace.Wrap(err)
 	}
 
-	stderr, err := session.StderrPipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	go func() {
-		io.Copy(errWriter, stderr)
-	}()
-
 	ch := utils.NewPipeNetConn(
 		stdout,
 		stdin,
@@ -507,14 +501,24 @@ func (client *NodeClient) scp(scpCommand scp.Command, shellCmd string, errWriter
 		&net.IPAddr{},
 	)
 
+	closeC := make(chan interface{}, 1)
 	go func() {
 		if err = scpCommand.Execute(ch); err != nil {
 			log.Error(err)
 		}
 		stdin.Close()
+		close(closeC)
 	}()
 
-	return trace.Wrap(session.Run(shellCmd))
+	runErr := session.Run(shellCmd)
+	if runErr != nil && err == nil {
+		err = runErr
+	}
+	<-closeC
+	if trace.IsEOF(err) {
+		err = nil
+	}
+	return trace.Wrap(err)
 }
 
 // listenAndForward listens on a given socket and forwards all incoming connections
