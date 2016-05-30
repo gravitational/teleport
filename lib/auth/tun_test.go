@@ -41,22 +41,19 @@ import (
 type TunSuite struct {
 	bk backend.Backend
 
-	srv    *APIWithRoles
-	tsrv   *AuthTunnel
-	a      *AuthServer
-	signer ssh.Signer
-	dir    string
-	alog   *events.AuditLog
+	tsrv          *AuthTunnel
+	a             *AuthServer
+	signer        ssh.Signer
+	dir           string
+	alog          *events.AuditLog
+	conf          *APIConfig
+	sessionServer session.Service
 }
 
 var _ = Suite(&TunSuite{})
 
 func (s *TunSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
-}
-
-func (s *TunSuite) TearDownTest(c *C) {
-	s.srv.Close()
 }
 
 func (s *TunSuite) SetUpTest(c *C) {
@@ -68,7 +65,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 
 	s.alog, err = events.NewAuditLog(s.dir)
 
-	sessionServer, err := session.New(s.bk)
+	s.sessionServer, err = session.New(s.bk)
 	c.Assert(err, IsNil)
 
 	s.a = NewAuthServer(&InitConfig{
@@ -76,13 +73,6 @@ func (s *TunSuite) SetUpTest(c *C) {
 		Authority:  authority.New(),
 		DomainName: "localhost",
 	})
-	s.srv = NewAPIWithRoles(APIConfig{
-		AuthServer:        s.a,
-		AuditLog:          s.alog,
-		SessionService:    sessionServer,
-		PermissionChecker: NewStandardPermissions(),
-		Roles:             StandardRoles})
-	go s.srv.Serve()
 
 	// set up host private key and certificate
 	c.Assert(s.a.UpsertCertAuthority(
@@ -96,32 +86,30 @@ func (s *TunSuite) SetUpTest(c *C) {
 	signer, err := sshutils.NewSigner(hpriv, hcert)
 	c.Assert(err, IsNil)
 	s.signer = signer
+	s.conf = &APIConfig{
+		AuthServer:        s.a,
+		PermissionChecker: NewStandardPermissions(),
+		SessionService:    s.sessionServer,
+		AuditLog:          s.alog,
+	}
 
-	tsrv, err := NewTunnel(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
-		[]ssh.Signer{signer},
-		s.srv, s.a)
-
+	tsrv, err := NewTunnel(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}, signer, s.conf)
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
 	s.tsrv = tsrv
 }
 
 func (s *TunSuite) TestUnixServerClient(c *C) {
-	sessionServer, err := session.New(s.bk)
-	c.Assert(err, IsNil)
-	srv := NewAPIWithRoles(APIConfig{
-		AuthServer:        s.a,
-		AuditLog:          s.alog,
-		SessionService:    sessionServer,
-		PermissionChecker: NewAllowAllPermissions(),
-		Roles:             StandardRoles})
-	go srv.Serve()
-
 	tsrv, err := NewTunnel(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
-		[]ssh.Signer{s.signer},
-		srv, s.a)
+		s.signer,
+		&APIConfig{
+			AuthServer:        s.a,
+			PermissionChecker: NewAllowAllPermissions(),
+			SessionService:    s.sessionServer,
+			AuditLog:          s.alog,
+		},
+	)
 
 	c.Assert(err, IsNil)
 	c.Assert(tsrv.Start(), IsNil)
@@ -342,11 +330,11 @@ func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ws, Not(Equals), "")
 
-	// Requesting forbidded for User action
+	// Requesting forbidden for User action
 	err = clt.UpsertNode(services.Server{}, time.Second)
 	c.Assert(err, NotNil)
 
-	// Requesting forbidded for User action
+	// Requesting forbidden for User action
 	_, err = clt.GetWebSessionInfo(user, ws.ID)
 	c.Assert(err, NotNil)
 

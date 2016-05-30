@@ -177,23 +177,18 @@ func (s *WebSuite) SetUpTest(c *C) {
 	apiPort := s.freePorts[len(s.freePorts)-1]
 	s.freePorts = s.freePorts[:len(s.freePorts)-1]
 
-	apiServer := auth.NewAPIWithRoles(auth.APIConfig{
-		AuthServer:        authServer,
-		SessionService:    sessionServer,
-		PermissionChecker: auth.NewAllowAllPermissions(),
-		Roles:             auth.StandardRoles,
-		AuditLog:          s.auditLog,
-	})
-	go apiServer.Serve()
-
 	tunAddr := utils.NetAddr{
 		AddrNetwork: "tcp", Addr: fmt.Sprintf("127.0.0.1:%v", apiPort),
 	}
-
 	s.tunServer, err = auth.NewTunnel(
 		tunAddr,
-		[]ssh.Signer{s.signer},
-		apiServer, authServer)
+		s.signer,
+		&auth.APIConfig{
+			AuthServer:        authServer,
+			SessionService:    sessionServer,
+			PermissionChecker: auth.NewAllowAllPermissions(),
+			AuditLog:          s.auditLog,
+		})
 	c.Assert(err, IsNil)
 	c.Assert(s.tunServer.Start(), IsNil)
 

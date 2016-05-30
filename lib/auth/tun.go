@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"sort"
 	"sync"
@@ -51,10 +52,8 @@ const dialRetryInterval = time.Duration(time.Millisecond * 50)
 type AuthTunnel struct {
 	// authServer implements the "beef" of the Auth service
 	authServer *AuthServer
-	// apiServer maintains a map of API servers, each assigned
-	// to a certain role. this allows to break Auth API into
-	// a set of restricted API services with well-defined permissions
-	apiServer *APIWithRoles
+	config     *APIConfig
+
 	// sshServer implements the nuts & bolts of serving an SSH connection
 	// to create a tunnel
 	sshServer       *sshutils.Server
@@ -102,17 +101,16 @@ func SetLimiter(limiter *limiter.Limiter) ServerOption {
 }
 
 // NewTunnel creates a new SSH tunnel server which is not started yet.
-// Usually this is how "site API" (aka "auth API") is served: by creating
-// a tunnel server and having tun clients connect.
+// This is how "site API" (aka "auth API") is served: by creating
+// an "tunnel server" which serves HTTP via SSH.
 func NewTunnel(addr utils.NetAddr,
-	hostSigners []ssh.Signer,
-	apiServer *APIWithRoles,
-	authServer *AuthServer,
+	hostSigner ssh.Signer,
+	apiConf *APIConfig,
 	opts ...ServerOption) (tunnel *AuthTunnel, err error) {
 
 	tunnel = &AuthTunnel{
-		authServer: authServer,
-		apiServer:  apiServer,
+		authServer: apiConf.AuthServer,
+		config:     apiConf,
 	}
 	tunnel.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
 	if err != nil {
@@ -128,7 +126,7 @@ func NewTunnel(addr utils.NetAddr,
 	tunnel.sshServer, err = sshutils.NewServer(
 		addr,
 		tunnel,
-		hostSigners,
+		[]ssh.Signer{hostSigner},
 		sshutils.AuthMethods{
 			Password:  tunnel.passwordAuth,
 			PublicKey: tunnel.keyAuth,
@@ -164,6 +162,8 @@ func (s *AuthTunnel) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.Ne
 	log.Infof("[AUTH] new channel request: %v", nch.ChannelType())
 	cht := nch.ChannelType()
 	switch cht {
+
+	// New connection to the Auth API via SSH:
 	case ReqDirectTCPIP:
 		if !s.haveExt(sconn, ExtHost, ExtWebSession, ExtWebPassword) {
 			nch.Reject(
@@ -184,7 +184,8 @@ func (s *AuthTunnel) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.Ne
 			log.Infof("[AUTH] could not accept channel (%s)", err)
 			return
 		}
-		go s.handleDirectTCPIPRequest(sconn, sshCh, req)
+		go s.onAPIConnection(sconn, sshCh, req)
+
 	case ReqWebSessionAgent:
 		// this is a protective measure, so web requests can be only done
 		// if have session ready
@@ -320,9 +321,10 @@ func (s *AuthTunnel) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel
 	}
 }
 
-// handleDirectTCPIPRequest accepts an incoming SSH connection via TCP/IP and forwards
+// onAPIConnection accepts an incoming SSH connection via TCP/IP and forwards
 // it to the local auth server which listens on local UNIX pipe
-func (s *AuthTunnel) handleDirectTCPIPRequest(sconn *ssh.ServerConn, sshChannel ssh.Channel, req *sshutils.DirectTCPIPReq) {
+//
+func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	defer sconn.Close()
 
 	// retreive the role from thsi connection's permissions (make sure it's a valid role)
@@ -332,12 +334,33 @@ func (s *AuthTunnel) handleDirectTCPIPRequest(sconn *ssh.ServerConn, sshChannel 
 		return
 	}
 
-	// Forward this new SSH channel to API-with-roles server. It will try to proxy this
-	// connection to the API service mapped to this role:
-	if err := s.apiServer.HandleNewChannel(sconn.RemoteAddr(), sshChannel, role); err != nil {
-		log.Error(err)
-		return
+	api := NewAPIServer(s.config, role)
+	socket := fakeSocket{
+		closed:      make(chan int),
+		connections: make(chan net.Conn),
 	}
+
+	go func() {
+		connection := &FakeSSHConnection{
+			remoteAddr: sconn.RemoteAddr(),
+			sshChan:    sshChan,
+			closed:     make(chan int),
+		}
+		// fakesocket.Accept() will pick it up:
+		socket.connections <- connection
+
+		// wait for the connection wrapper to close, so we'll close
+		// the fake socket, causing http.Serve() below to stop
+		<-connection.closed
+		socket.Close()
+	}()
+
+	// serve HTTP API via this SSH connection until it gets closed:
+	http.Serve(&socket, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// take SSH client name and pass it to HTTP API via HTTP Auth
+		r.SetBasicAuth(sconn.User(), "")
+		api.ServeHTTP(w, r)
+	}))
 }
 
 func (s *AuthTunnel) keyAuth(

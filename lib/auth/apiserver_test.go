@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -78,13 +79,14 @@ func (s *APISuite) SetUpTest(c *C) {
 	})
 	sessionServer, err := session.New(s.bk)
 	c.Assert(err, IsNil)
-	s.srv = httptest.NewServer(NewAPIServer(
-		&AuthWithRoles{
-			authServer:  s.a,
-			alog:        s.alog,
-			sessions:    sessionServer,
-			permChecker: NewAllowAllPermissions(),
-		}))
+
+	apiServer := NewAPIServer(&APIConfig{
+		AuthServer:        s.a,
+		PermissionChecker: NewAllowAllPermissions(),
+		SessionService:    sessionServer,
+		AuditLog:          s.alog,
+	}, teleport.RoleAdmin)
+	s.srv = httptest.NewServer(&apiServer)
 
 	clt, err := NewClient(s.srv.URL, nil)
 	c.Assert(err, IsNil)
@@ -136,26 +138,14 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 		&services.TeleportUser{Name: "user1", AllowedLogins: []string{"user1"}})
 	c.Assert(err, IsNil)
 
-	// make sure we can parse the private and public key
+	// should NOT be able to generate a user cert without basic HTTP auth
 	cert, err = s.clt.GenerateUserCert(pub, "user1", time.Hour)
-	c.Assert(err, IsNil)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, ".*cannot request a certificate for user1")
 
-	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
-	c.Assert(err, IsNil)
-}
-
-func (s *APISuite) TestKeysCRUD(c *C) {
-	c.Assert(s.clt.UpsertCertAuthority(
-		*suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
-
-	_, pub, err := s.clt.GenerateKeyPair("")
-	c.Assert(err, IsNil)
-
-	s.a.UpsertUser(
-		&services.TeleportUser{Name: "user1", AllowedLogins: []string{"user1"}})
-
-	// make sure we can parse the private and public key
-	cert, err := s.clt.GenerateUserCert(pub, "user1", time.Hour)
+	// apply HTTP Auth to generate user cert:
+	roundtrip.BasicAuth("user1", "two")(&s.clt.Client)
+	cert, err = s.clt.GenerateUserCert(pub, "user1", time.Hour)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
