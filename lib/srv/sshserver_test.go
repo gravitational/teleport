@@ -342,21 +342,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	up, err := newUpack(s.user, []string{s.user}, s.a)
 	c.Assert(err, IsNil)
 
-	sessionServer, err := sess.New(s.bk)
-	c.Assert(err, IsNil)
-	apiSrv := auth.NewAPIWithRoles(auth.APIConfig{
-		AuthServer:        s.a,
-		AuditLog:          s.alog,
-		SessionService:    sessionServer,
-		PermissionChecker: auth.NewAllowAllPermissions(),
-		Roles:             auth.StandardRoles})
-	go apiSrv.Serve()
-
-	tsrv, err := auth.NewTunnel(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
-		[]ssh.Signer{s.signer},
-		apiSrv, s.a)
-	c.Assert(err, IsNil)
+	tsrv := s.makeTunnel(c)
 	c.Assert(tsrv.Start(), IsNil)
 
 	tunClt, err := auth.NewTunClient("test",
@@ -502,21 +488,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	up, err := newUpack(s.user, []string{s.user}, s.a)
 	c.Assert(err, IsNil)
 
-	sessionServer, err := sess.New(s.bk)
-	c.Assert(err, IsNil)
-	apiSrv := auth.NewAPIWithRoles(auth.APIConfig{
-		AuthServer:        s.a,
-		AuditLog:          s.alog,
-		SessionService:    sessionServer,
-		PermissionChecker: auth.NewAllowAllPermissions(),
-		Roles:             auth.StandardRoles})
-	go apiSrv.Serve()
-
-	tsrv, err := auth.NewTunnel(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
-		[]ssh.Signer{s.signer},
-		apiSrv, s.a)
-	c.Assert(err, IsNil)
+	tsrv := s.makeTunnel(c)
 	c.Assert(tsrv.Start(), IsNil)
 
 	tunClt, err := auth.NewTunClient("test",
@@ -593,22 +565,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	up, err := newUpack(s.user, []string{s.user}, s.a)
 	c.Assert(err, IsNil)
 
-	sessionServer, err := sess.New(s.bk)
-	c.Assert(err, IsNil)
-
-	apiSrv := auth.NewAPIWithRoles(auth.APIConfig{
-		AuthServer:        s.a,
-		AuditLog:          s.alog,
-		SessionService:    sessionServer,
-		PermissionChecker: auth.NewAllowAllPermissions(),
-		Roles:             auth.StandardRoles})
-	go apiSrv.Serve()
-
-	tsrv, err := auth.NewTunnel(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
-		[]ssh.Signer{s.signer},
-		apiSrv, s.a)
-	c.Assert(err, IsNil)
+	tsrv := s.makeTunnel(c)
 	c.Assert(tsrv.Start(), IsNil)
 
 	tunClt, err := auth.NewTunClient("test",
@@ -844,4 +801,18 @@ func removeNL(v string) string {
 	v = strings.Replace(v, "\r", "", -1)
 	v = strings.Replace(v, "\n", "", -1)
 	return v
+}
+
+func (s *SrvSuite) makeTunnel(c *C) *auth.AuthTunnel {
+	tsrv, err := auth.NewTunnel(
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+		s.signer,
+		&auth.APIConfig{
+			AuthServer:        s.a,
+			AuditLog:          s.alog,
+			SessionService:    s.sessionServer,
+			PermissionChecker: auth.NewAllowAllPermissions(),
+		})
+	c.Assert(err, IsNil)
+	return tsrv
 }

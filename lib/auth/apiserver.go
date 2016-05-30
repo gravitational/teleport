@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
@@ -37,40 +36,29 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-// Config is APIServer config
-type Config struct {
-	Backend backend.Backend
-	Addr    string
+type APIConfig struct {
+	AuthServer        *AuthServer
+	SessionService    session.Service
+	PermissionChecker PermissionChecker
+	AuditLog          events.IAuditLog
 }
 
 // APIServer implements http API server for AuthServer interface
 type APIServer struct {
 	httprouter.Router
-	a *AuthWithRoles
-}
-
-type APIConfig struct {
-	AuthServer        *AuthServer
-	SessionService    session.Service
-	Roles             []teleport.Role
-	PermissionChecker PermissionChecker
-	AuditLog          events.IAuditLog
-}
-
-func APIServerFor(config *APIConfig, role teleport.Role) *APIServer {
-	return NewAPIServer(&AuthWithRoles{
-		authServer:  config.AuthServer,
-		permChecker: config.PermissionChecker,
-		sessions:    config.SessionService,
-		role:        role,
-		alog:        config.AuditLog,
-	})
+	a AuthWithRoles
 }
 
 // NewAPIServer returns a new instance of APIServer HTTP handler
-func NewAPIServer(a *AuthWithRoles) *APIServer {
-	srv := &APIServer{
-		a: a,
+func NewAPIServer(config *APIConfig, role teleport.Role) APIServer {
+	srv := APIServer{
+		a: AuthWithRoles{
+			authServer:  config.AuthServer,
+			permChecker: config.PermissionChecker,
+			sessions:    config.SessionService,
+			alog:        config.AuditLog,
+			role:        role,
+		},
 	}
 	srv.Router = *httprouter.New()
 
@@ -478,9 +466,13 @@ func (s *APIServer) generateUserCert(w http.ResponseWriter, r *http.Request, _ h
 		log.Errorf("failed parsing JSON request. %v", err)
 		return nil, trace.Wrap(err)
 	}
-	if req.User != r.Header.Get("TELEPORT_USER") {
+	// SSH-to-HTTP gateway (tun server) sets HTTP basic auth to SSH cert principal
+	// This allows us to make sure that users can only request new certificates
+	// only for themselves
+	caller, _, _ := r.BasicAuth()
+	if req.User != caller {
 		return nil, trace.AccessDenied("User %s cannot request a certificate for %s",
-			r.Header.Get("TELEPORT_USER"), req.User)
+			caller, req.User)
 	}
 	cert, err := s.a.GenerateUserCert(req.Key, req.User, req.TTL)
 	if err != nil {

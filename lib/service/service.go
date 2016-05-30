@@ -310,7 +310,6 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		AuthServer:        authServer,
 		SessionService:    sessionService,
 		PermissionChecker: auth.NewStandardPermissions(),
-		Roles:             auth.StandardRoles,
 		AuditLog:          auditLog,
 	}
 
@@ -325,9 +324,9 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 	process.RegisterFunc(func() error {
 		utils.Consolef(cfg.Console, "[AUTH]  Auth service is starting on %v", cfg.Auth.SSHAddr.Addr)
 		authTunnel, err = auth.NewTunnel(
-			cfg.Auth.SSHAddr, []ssh.Signer{identity.KeySigner},
+			cfg.Auth.SSHAddr,
+			identity.KeySigner,
 			apiConf,
-			authServer,
 			auth.SetLimiter(limiter),
 		)
 		if err != nil {

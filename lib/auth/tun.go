@@ -101,16 +101,15 @@ func SetLimiter(limiter *limiter.Limiter) ServerOption {
 }
 
 // NewTunnel creates a new SSH tunnel server which is not started yet.
-// Usually this is how "site API" (aka "auth API") is served: by creating
-// a tunnel server and having tun clients connect.
+// This is how "site API" (aka "auth API") is served: by creating
+// an "tunnel server" which serves HTTP via SSH.
 func NewTunnel(addr utils.NetAddr,
-	hostSigners []ssh.Signer,
+	hostSigner ssh.Signer,
 	apiConf *APIConfig,
-	authServer *AuthServer,
 	opts ...ServerOption) (tunnel *AuthTunnel, err error) {
 
 	tunnel = &AuthTunnel{
-		authServer: authServer,
+		authServer: apiConf.AuthServer,
 		config:     apiConf,
 	}
 	tunnel.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
@@ -127,7 +126,7 @@ func NewTunnel(addr utils.NetAddr,
 	tunnel.sshServer, err = sshutils.NewServer(
 		addr,
 		tunnel,
-		hostSigners,
+		[]ssh.Signer{hostSigner},
 		sshutils.AuthMethods{
 			Password:  tunnel.passwordAuth,
 			PublicKey: tunnel.keyAuth,
@@ -163,6 +162,8 @@ func (s *AuthTunnel) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.Ne
 	log.Infof("[AUTH] new channel request: %v", nch.ChannelType())
 	cht := nch.ChannelType()
 	switch cht {
+
+	// New connection to the Auth API via SSH:
 	case ReqDirectTCPIP:
 		if !s.haveExt(sconn, ExtHost, ExtWebSession, ExtWebPassword) {
 			nch.Reject(
@@ -183,7 +184,8 @@ func (s *AuthTunnel) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.Ne
 			log.Infof("[AUTH] could not accept channel (%s)", err)
 			return
 		}
-		go s.handleDirectTCPIPRequest(sconn, sshCh, req)
+		go s.onAPIConnection(sconn, sshCh, req)
+
 	case ReqWebSessionAgent:
 		// this is a protective measure, so web requests can be only done
 		// if have session ready
@@ -319,10 +321,10 @@ func (s *AuthTunnel) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel
 	}
 }
 
-// handleDirectTCPIPRequest accepts an incoming SSH connection via TCP/IP and forwards
+// onAPIConnection accepts an incoming SSH connection via TCP/IP and forwards
 // it to the local auth server which listens on local UNIX pipe
 //
-func (s *AuthTunnel) handleDirectTCPIPRequest(sconn *ssh.ServerConn, sshChannel ssh.Channel, req *sshutils.DirectTCPIPReq) {
+func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	defer sconn.Close()
 
 	// retreive the role from thsi connection's permissions (make sure it's a valid role)
@@ -332,36 +334,31 @@ func (s *AuthTunnel) handleDirectTCPIPRequest(sconn *ssh.ServerConn, sshChannel 
 		return
 	}
 
-	api := NewAPIServer(&AuthWithRoles{
-		authServer:  s.config.AuthServer,
-		permChecker: s.config.PermissionChecker,
-		sessions:    s.config.SessionService,
-		role:        role,
-		alog:        s.config.AuditLog,
-	})
-	fs := makefakeSocket()
+	api := NewAPIServer(s.config, role)
+	socket := fakeSocket{
+		closed:      make(chan int),
+		connections: make(chan net.Conn),
+	}
 
 	go func() {
 		connection := &FakeSSHConnection{
 			remoteAddr: sconn.RemoteAddr(),
-			sshChan:    sshChannel,
+			sshChan:    sshChan,
 			closed:     make(chan int),
 		}
-		select {
-		// Accept() will unblock this select
-		case fs.connections <- connection:
-		}
-		// wait for the connection to close:
-		select {
-		case <-connection.closed:
-			fs.Close()
-		}
+		// fakesocket.Accept() will pick it up:
+		socket.connections <- connection
+
+		// wait for the connection wrapper to close, so we'll close
+		// the fake socket, causing http.Serve() below to stop
+		<-connection.closed
+		socket.Close()
 	}()
 
 	// serve HTTP API via this SSH connection until it gets closed:
-	http.Serve(&fs, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Infof("[API] %v %v", r.Method, r.URL.String())
-		r.Header.Set("TELEPORT_USER", sconn.User())
+	http.Serve(&socket, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// take SSH client name and pass it to HTTP API via HTTP Auth
+		r.SetBasicAuth(sconn.User(), "")
 		api.ServeHTTP(w, r)
 	}))
 }
