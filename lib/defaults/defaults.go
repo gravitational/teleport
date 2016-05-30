@@ -122,6 +122,14 @@ const (
 	// SessionLingerTTL defines for how long abandoned sessions remain active,
 	// waiting for their parties to restore connection (before being garbage-collected)
 	SessionLingerTTL = time.Duration(time.Second * 5)
+
+	// MaxLoginAttempts sets the max. number of allowed failed login attempts
+	// before a user account is locked for AccountLockInterval
+	MaxLoginAttempts byte = 5
+
+	// AccountLockInterval defines a time interval during which a user account
+	// is locked after MaxLoginAttempts
+	AccountLockInterval = time.Duration(20 * time.Minute)
 )
 
 var (

@@ -35,13 +35,21 @@ import (
 // IdentityService is responsible for managing web users and currently
 // user accounts as well
 type IdentityService struct {
-	backend backend.Backend
+	backend      backend.Backend
+	lockAfter    byte
+	lockDuration time.Duration
 }
 
-// NewIdentityService returns new instance of WebService
-func NewIdentityService(backend backend.Backend) *IdentityService {
+// NewIdentityService returns a new instance of IdentityService object
+func NewIdentityService(
+	backend backend.Backend,
+	lockAfter byte,
+	lockDuration time.Duration) *IdentityService {
+
 	return &IdentityService{
-		backend: backend,
+		backend:      backend,
+		lockAfter:    lockAfter,
+		lockDuration: lockDuration,
 	}
 }
 
@@ -201,6 +209,37 @@ func (s *IdentityService) UpsertWebSession(user, sid string, session services.We
 	return trace.Wrap(err)
 }
 
+// LockUser bumps "login attempt" counter for the given user. If the counter
+// reaches 'lockAfter' value, it locks the account and returns access denied error.
+func (s *IdentityService) LockUser(user string) error {
+	bucket := []string{"web", "users", user}
+	data, _, err := s.backend.GetValAndTTL(bucket, "lock")
+	// unexpected error?
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	// bump the attempt count
+	if len(data) < 1 {
+		data = []byte{0}
+	}
+	data[0] += 1
+	// check the attempt count
+	if len(data) > 0 && data[0] > s.lockAfter {
+		return trace.AccessDenied("this account has been locked for %v", s.lockDuration)
+	}
+	return trace.Wrap(
+		s.backend.UpsertVal(bucket, "lock", data, s.lockDuration))
+}
+
+// UnlockUser resets the "login attempt" counter to zero.
+func (s *IdentityService) UnlockUser(user string) error {
+	err := s.backend.DeleteKey([]string{"web", "users", user}, "lock")
+	if trace.IsNotFound(err) {
+		return nil
+	}
+	return trace.Wrap(err)
+}
+
 // GetWebSession returns a web session state for a given user and session id
 func (s *IdentityService) GetWebSession(user, sid string) (*services.WebSession, error) {
 	val, err := s.backend.GetVal(
@@ -269,23 +308,24 @@ func (s *IdentityService) UpsertPassword(user string,
 
 // CheckPassword is called on web user or tsh user login
 func (s *IdentityService) CheckPassword(user string, password []byte, hotpToken string) error {
-	if err := services.VerifyPassword(password); err != nil {
-		return trace.Wrap(err)
-	}
 	hash, err := s.GetPasswordHash(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if err = s.LockUser(user); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
-		return trace.BadParameter("passwords do not match")
+		return trace.AccessDenied("passwords do not match")
 	}
 	otp, err := s.GetHOTP(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if !otp.Scan(hotpToken, defaults.HOTPFirstTokensRange) {
-		return trace.BadParameter("bad one time token")
+		return trace.AccessDenied("bad one time token")
 	}
+	defer s.UnlockUser(user)
 	if err := s.UpsertHOTP(user, otp); err != nil {
 		return trace.Wrap(err)
 	}
@@ -302,10 +342,13 @@ func (s *IdentityService) CheckPasswordWOToken(user string, password []byte) err
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if err = s.LockUser(user); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
 		return trace.BadParameter("passwords do not match")
 	}
-
+	defer s.UnlockUser(user)
 	return nil
 }
 

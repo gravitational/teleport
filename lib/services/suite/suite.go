@@ -363,23 +363,23 @@ func (s *ServicesTestSuite) PasswordCRUD(c *C) {
 
 	token1 := otp.OTP()
 	err = s.WebS.CheckPassword("user1", pass, "123456")
-	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%T", err))
+	c.Assert(trace.IsAccessDenied(err), Equals, true, Commentf("%T", err))
 
 	c.Assert(s.WebS.CheckPassword("user1", pass, token1), IsNil)
 
 	err = s.WebS.CheckPassword("user1", pass, token1)
-	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%T", err))
+	c.Assert(trace.IsAccessDenied(err), Equals, true, Commentf("%T", err))
 
 	token2 := otp.OTP()
 	err = s.WebS.CheckPassword("user1", []byte("abc123123"), token2)
-	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%T", err))
+	c.Assert(trace.IsAccessDenied(err), Equals, true, Commentf("%T", err))
 
 	err = s.WebS.CheckPassword("user1", pass, "123456")
-	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%T", err))
+	c.Assert(trace.IsAccessDenied(err), Equals, true, Commentf("%T", err))
 
 	c.Assert(s.WebS.CheckPassword("user1", pass, token2), IsNil)
 	err = s.WebS.CheckPassword("user1", pass, token1)
-	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%T", err))
+	c.Assert(trace.IsAccessDenied(err), Equals, true, Commentf("%T", err))
 
 	_ = otp.OTP()
 	_ = otp.OTP()
@@ -388,12 +388,12 @@ func (s *ServicesTestSuite) PasswordCRUD(c *C) {
 	token7 := otp.OTP()
 
 	err = s.WebS.CheckPassword("user1", pass, token7)
-	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%T", err))
+	c.Assert(trace.IsAccessDenied(err), Equals, true, Commentf("%T", err))
 
 	c.Assert(s.WebS.CheckPassword("user1", pass, token6), IsNil)
 
 	err = s.WebS.CheckPassword("user1", pass, "123456")
-	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%T", err))
+	c.Assert(trace.IsAccessDenied(err), Equals, true, Commentf("%T", err))
 
 	c.Assert(s.WebS.CheckPassword("user1", pass, token7), IsNil)
 

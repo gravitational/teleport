@@ -96,7 +96,8 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 		cfg.Provisioner = local.NewProvisioningService(cfg.Backend)
 	}
 	if cfg.Identity == nil {
-		cfg.Identity = local.NewIdentityService(cfg.Backend)
+		cfg.Identity = local.NewIdentityService(cfg.Backend,
+			defaults.MaxLoginAttempts, defaults.AccountLockInterval)
 	}
 	as := AuthServer{
 		bk:              cfg.Backend,
