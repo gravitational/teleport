@@ -167,7 +167,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	// create the data directory if it's missing
 	_, err := os.Stat(cfg.DataDir)
 	if os.IsNotExist(err) {
-		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0777)
+		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0700)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

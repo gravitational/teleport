@@ -99,14 +99,8 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 		return nil, nil, trace.BadParameter("HostUUID: host UUID can not be empty")
 	}
 
-	err := os.MkdirAll(cfg.DataDir, os.ModeDir|0777)
-	if err != nil {
-		log.Errorf(err.Error())
-		return nil, nil, err
-	}
-
 	lockService := local.NewLockService(cfg.Backend)
-	err = lockService.AcquireLock(cfg.DomainName, 60*time.Second)
+	err := lockService.AcquireLock(cfg.DomainName, 60*time.Second)
 	if err != nil {
 		return nil, nil, err
 	}
