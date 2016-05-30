@@ -306,20 +306,13 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	apiServer := auth.NewAPIWithRoles(auth.APIConfig{
+	apiConf := &auth.APIConfig{
 		AuthServer:        authServer,
 		SessionService:    sessionService,
 		PermissionChecker: auth.NewStandardPermissions(),
 		Roles:             auth.StandardRoles,
 		AuditLog:          auditLog,
-	})
-	process.RegisterFunc(func() error {
-		apiServer.Serve()
-		if askedToExit {
-			log.Infof("[AUTH] API server exited")
-		}
-		return nil
-	})
+	}
 
 	limiter, err := limiter.NewLimiter(cfg.Auth.Limiter)
 	if err != nil {
@@ -333,7 +326,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		utils.Consolef(cfg.Console, "[AUTH]  Auth service is starting on %v", cfg.Auth.SSHAddr.Addr)
 		authTunnel, err = auth.NewTunnel(
 			cfg.Auth.SSHAddr, []ssh.Signer{identity.KeySigner},
-			apiServer,
+			apiConf,
 			authServer,
 			auth.SetLimiter(limiter),
 		)
@@ -398,7 +391,6 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		askedToExit = true
 		authTunnel.Close()
 		authClient.Close()
-		apiServer.Close()
 		log.Infof("[AUTH] auth service exited")
 	})
 	return nil

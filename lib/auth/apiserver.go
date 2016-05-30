@@ -49,6 +49,24 @@ type APIServer struct {
 	a *AuthWithRoles
 }
 
+type APIConfig struct {
+	AuthServer        *AuthServer
+	SessionService    session.Service
+	Roles             []teleport.Role
+	PermissionChecker PermissionChecker
+	AuditLog          events.IAuditLog
+}
+
+func APIServerFor(config *APIConfig, role teleport.Role) *APIServer {
+	return NewAPIServer(&AuthWithRoles{
+		authServer:  config.AuthServer,
+		permChecker: config.PermissionChecker,
+		sessions:    config.SessionService,
+		role:        role,
+		alog:        config.AuditLog,
+	})
+}
+
 // NewAPIServer returns a new instance of APIServer HTTP handler
 func NewAPIServer(a *AuthWithRoles) *APIServer {
 	srv := &APIServer{
@@ -459,6 +477,10 @@ func (s *APIServer) generateUserCert(w http.ResponseWriter, r *http.Request, _ h
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		log.Errorf("failed parsing JSON request. %v", err)
 		return nil, trace.Wrap(err)
+	}
+	if req.User != r.Header.Get("TELEPORT_USER") {
+		return nil, trace.AccessDenied("User %s cannot request a certificate for %s",
+			r.Header.Get("TELEPORT_USER"), req.User)
 	}
 	cert, err := s.a.GenerateUserCert(req.Key, req.User, req.TTL)
 	if err != nil {
