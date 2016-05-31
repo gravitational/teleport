@@ -162,6 +162,10 @@ teleport:
     # by default it's equal to hostname
     nodename: graviton
 
+    # Data directory where Teleport keeps its data, like keys/users for 
+    # authentication (if using the default BoltDB back-end)
+    data_dir: /var/lib/teleport
+
     # one-time invitation token used to join a cluster. it is not used on 
     # subsequent starts
     auth_token: xxxx-token-xxxx
@@ -192,7 +196,6 @@ teleport:
     # backend if you want to run Teleport in HA configuration.
     storage:
         type: bolt
-        data_dir: /var/lib/teleport
 
 # This section configures the 'auth service':
 auth_service:

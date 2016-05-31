@@ -689,6 +689,7 @@ func (s *APIServer) createUserWithToken(w http.ResponseWriter, r *http.Request, 
 	}
 	sess, err := s.a.CreateUserWithToken(req.Token, req.Password, req.HOTPToken)
 	if err != nil {
+		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil

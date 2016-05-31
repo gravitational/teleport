@@ -98,7 +98,7 @@ func (s *ConfigTestSuite) TestSampleConfig(c *check.C) {
 
 	// validate a couple of values:
 	c.Assert(fc.Limits.MaxUsers, check.Equals, defaults.LimiterMaxConcurrentUsers)
-	c.Assert(fc.Global.Storage.DirName, check.Equals, defaults.DataDir)
+	c.Assert(fc.Global.DataDir, check.Equals, defaults.DataDir)
 	c.Assert(fc.Logger.Severity, check.Equals, "INFO")
 
 }
@@ -134,7 +134,7 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(conf.Logger.Output, check.Equals, "stderr")
 	c.Assert(conf.Logger.Severity, check.Equals, "INFO")
 	c.Assert(conf.Storage.Type, check.Equals, "bolt")
-	c.Assert(conf.Storage.DirName, check.Equals, "/var/lib/teleport")
+	c.Assert(conf.DataDir, check.Equals, "/path/to/data")
 	c.Assert(conf.Auth.Enabled(), check.Equals, true)
 	c.Assert(conf.Auth.ListenAddress, check.Equals, "tcp://auth")
 	c.Assert(conf.SSH.Configured(), check.Equals, true)
@@ -330,6 +330,7 @@ func makeConfigFixture() string {
 
 	// common config:
 	conf.NodeName = NodeName
+	conf.DataDir = "/path/to/data"
 	conf.AuthServers = AuthServers
 	conf.Limits.MaxConnections = 100
 	conf.Limits.MaxUsers = 5
@@ -337,7 +338,6 @@ func makeConfigFixture() string {
 	conf.Logger.Output = "stderr"
 	conf.Logger.Severity = "INFO"
 	conf.Storage.Type = "bolt"
-	conf.Storage.DirName = "/var/lib/teleport"
 
 	// auth service:
 	conf.Auth.EnabledFlag = "Yeah"

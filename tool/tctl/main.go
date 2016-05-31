@@ -26,9 +26,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -43,7 +45,8 @@ import (
 )
 
 type CLIConfig struct {
-	Debug bool
+	Debug      bool
+	ConfigFile string
 }
 
 type UserCommand struct {
@@ -113,6 +116,9 @@ func main() {
 	app.Flag("debug", "Enable verbose logging to stderr").
 		Short('d').
 		BoolVar(&ccf.Debug)
+	app.Flag("config", fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
+		Short('c').
+		ExistingFileVar(&ccf.ConfigFile)
 
 	// commands:
 	ver := app.Command("version", "Print the version.")
@@ -160,9 +166,9 @@ func main() {
 	authExport.Flag("keys", "if set, will print private keys").BoolVar(&cmdAuth.exportPrivateKeys)
 	authExport.Flag("fingerprint", "filter authority by fingerprint").StringVar(&cmdAuth.exportAuthorityFingerprint)
 
-	authGenerate := auth.Command("gen", "Generate new OpenSSH keypair")
-	authGenerate.Flag("pub-key", "path to the public key to write").Required().StringVar(&cmdAuth.genPubPath)
-	authGenerate.Flag("priv-key", "path to the private key to write").Required().StringVar(&cmdAuth.genPrivPath)
+	authGenerate := auth.Command("gen", "Generate a new SSH keypair")
+	authGenerate.Flag("pub-key", "path to the public key").Required().StringVar(&cmdAuth.genPubPath)
+	authGenerate.Flag("priv-key", "path to the private key").Required().StringVar(&cmdAuth.genPrivPath)
 
 	authGenAndSign := auth.Command("gencert", "Generate OpenSSH keys and certificate for a joining teleport proxy, node or auth server").Hidden()
 	authGenAndSign.Flag("priv-key", "path to the private key to write").Required().StringVar(&cmdAuth.genPrivPath)
@@ -172,17 +178,17 @@ func main() {
 	authGenAndSign.Flag("domain", "cluster certificate authority domain name").Required().StringVar(&cmdAuth.genAuthorityDomain)
 
 	// operations with reverse tunnels
-	reverseTunnels := app.Command("clusters", "Operations on trusted clusters")
-	reverseTunnelsList := reverseTunnels.Command("ls", "List trusted clusters")
-	reverseTunnelsDelete := reverseTunnels.Command("del", "Disconnect a trusted cluster")
-	reverseTunnelsDelete.Arg("name", "Comma-separated list of clusters to disconnect").
+	reverseTunnels := app.Command("tunnels", "Operations on reverse tunnels clusters").Hidden()
+	reverseTunnelsList := reverseTunnels.Command("ls", "List tunnels").Hidden()
+	reverseTunnelsDelete := reverseTunnels.Command("del", "Delete a tunnel").Hidden()
+	reverseTunnelsDelete.Arg("name", "Tunnels to delete").
 		Required().StringVar(&cmdReverseTunnel.domainNames)
-	reverseTunnelsUpsert := reverseTunnels.Command("add", "Connect a new trusted cluster")
-	reverseTunnelsUpsert.Arg("name", "Name of the trusted cluster").
+	reverseTunnelsUpsert := reverseTunnels.Command("add", "Create a new reverse tunnel").Hidden()
+	reverseTunnelsUpsert.Arg("name", "Name of the tunnel").
 		Required().StringVar(&cmdReverseTunnel.domainNames)
-	reverseTunnelsUpsert.Arg("addrs", "Comma-separated list of addresses for cluster CAs").
+	reverseTunnelsUpsert.Arg("addrs", "Comma-separated list of tunnels").
 		Required().SetValue(&cmdReverseTunnel.dialAddrs)
-	reverseTunnelsUpsert.Flag("ttl", "Optional TTL (time to live) for a tunnel to a cluster").DurationVar(&cmdReverseTunnel.ttl)
+	reverseTunnelsUpsert.Flag("ttl", "Optional TTL (time to live) for the tunnel").DurationVar(&cmdReverseTunnel.ttl)
 
 	// parse CLI commands+flags:
 	command, err := app.Parse(os.Args[1:])
@@ -190,11 +196,7 @@ func main() {
 		utils.FatalError(err)
 	}
 
-	// --debug flag
-	if ccf.Debug {
-		utils.InitLoggerDebug()
-	}
-
+	applyConfig(&ccf, cfg)
 	validateConfig(cfg)
 
 	// some commands do not need a connection to client
@@ -421,7 +423,7 @@ func (a *AuthCommand) ListAuthorities(client *auth.TunClient) error {
 	}
 	view := func() string {
 		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"Type", "Authority Domain", "Fingerprint", "Restricted to logins"})
+		printHeader(t, []string{"Type", "Cluster Name", "Fingerprint", "Allowed Logins"})
 		if len(authorities) == 0 {
 			return t.String()
 		}
@@ -431,7 +433,11 @@ func (a *AuthCommand) ListAuthorities(client *auth.TunClient) error {
 				if err != nil {
 					fingerprint = fmt.Sprintf("<bad key: %v", err)
 				}
-				fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", a.Type, a.DomainName, fingerprint, strings.Join(a.AllowedLogins, ","))
+				logins := strings.Join(a.AllowedLogins, ",")
+				if logins == "" {
+					logins = "<any>"
+				}
+				fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", a.Type, a.DomainName, fingerprint, logins)
 			}
 		}
 		return t.String()
@@ -592,10 +598,11 @@ func (r *ReverseTunnelCommand) Delete(client *auth.TunClient) error {
 func connectToAuthService(cfg *service.Config) (client *auth.TunClient, err error) {
 	// connect to the local auth server by default:
 	cfg.Auth.Enabled = true
-	cfg.AuthServers = []utils.NetAddr{
-		*defaults.AuthConnectAddr(),
+	if len(cfg.AuthServers) == 0 {
+		cfg.AuthServers = []utils.NetAddr{
+			*defaults.AuthConnectAddr(),
+		}
 	}
-
 	// read the host SSH keys and use them to open an SSH connection to the auth service
 	i, err := auth.ReadIdentity(cfg.DataDir, auth.IdentityID{Role: teleport.RoleAdmin, HostUUID: cfg.HostUUID})
 	if err != nil {
@@ -628,6 +635,25 @@ func validateConfig(cfg *service.Config) {
 	if err != nil {
 		utils.FatalError(err)
 	}
+}
+
+// applyConfig takes configuration values from the config file and applies
+// them to 'service.Config' object
+func applyConfig(ccf *CLIConfig, cfg *service.Config) error {
+	// load /etc/teleport.yaml and apply it's values:
+	fileConf, err := config.ReadConfigFile(ccf.ConfigFile)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err = config.ApplyFileConfig(fileConf, cfg); err != nil {
+		return trace.Wrap(err)
+	}
+	// --debug flag
+	if ccf.Debug {
+		utils.InitLoggerDebug()
+		logrus.Debugf("DEBUG loggign enabled")
+	}
+	return nil
 }
 
 // onTokenList is called to execute "tokens ls" command
