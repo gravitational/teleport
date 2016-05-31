@@ -19,7 +19,6 @@ package local
 import (
 	"encoding/json"
 	"fmt"
-	"sync"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -36,7 +35,6 @@ import (
 // IdentityService is responsible for managing web users and currently
 // user accounts as well
 type IdentityService struct {
-	sync.Mutex
 	backend      backend.Backend
 	lockAfter    byte
 	lockDuration time.Duration
@@ -214,10 +212,8 @@ func (s *IdentityService) UpsertWebSession(user, sid string, session services.We
 // IncreaseLoginAttempts bumps "login attempt" counter for the given user. If the counter
 // reaches 'lockAfter' value, it locks the account and returns access denied error.
 func (s *IdentityService) IncreaseLoginAttempts(user string) error {
-	s.Lock()
-	defer s.Unlock()
-
 	bucket := []string{"web", "users", user}
+
 	data, _, err := s.backend.GetValAndTTL(bucket, "lock")
 	// unexpected error?
 	if err != nil && !trace.IsNotFound(err) {
@@ -227,12 +223,21 @@ func (s *IdentityService) IncreaseLoginAttempts(user string) error {
 	if len(data) < 1 {
 		data = []byte{0}
 	}
-	data[0] += 1
 	// check the attempt count
-	if len(data) > 0 && data[0] > s.lockAfter {
+	if len(data) > 0 && data[0] >= s.lockAfter {
 		return trace.AccessDenied("this account has been locked for %v", s.lockDuration)
 	}
-	return s.backend.UpsertVal(bucket, "lock", data, s.lockDuration)
+	newData := []byte{data[0] + 1}
+	// "create val" will create a new login attempt counter, or it will
+	// do nothing if it's already there.
+	//
+	// "compare and swap" will bump the counter +1
+	s.backend.CreateVal(bucket, "lock", data, s.lockDuration)
+	_, err = s.backend.CompareAndSwap(bucket, "lock", newData, s.lockDuration, data)
+	if err != nil {
+		panic(err.Error())
+	}
+	return trace.Wrap(err)
 }
 
 // ResetLoginAttempts resets the "login attempt" counter to zero.
