@@ -96,7 +96,7 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.LockS = local.NewLockService(s.bk)
 	s.PresenceS = local.NewPresenceService(s.bk)
 	s.ProvisioningS = local.NewProvisioningService(s.bk)
-	s.WebS = local.NewIdentityService(s.bk)
+	s.WebS = local.NewIdentityService(s.bk, 10, time.Duration(time.Hour))
 }
 
 func (s *APISuite) TearDownTest(c *C) {
