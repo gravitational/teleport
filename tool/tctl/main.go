@@ -120,7 +120,7 @@ func main() {
 
 	// user add command:
 	users := app.Command("users", "Manage users logins")
-	userAdd := users.Command("add", "Generates an invitation token and prints the signup URL for setting up 2nd factor auth.")
+	userAdd := users.Command("add", "Generate an invitation token and print the signup URL")
 	userAdd.Arg("login", "Teleport user login").Required().StringVar(&cmdUsers.login)
 	userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
 		Default("").StringVar(&cmdUsers.allowedLogins)
@@ -128,7 +128,7 @@ func main() {
 	userAdd.Alias(AddUserHelp)
 
 	// list users command
-	userList := users.Command("ls", "Lists all user accounts")
+	userList := users.Command("ls", "List all user accounts")
 
 	// delete user command
 	userDelete := users.Command("del", "Deletes user accounts")
@@ -137,13 +137,13 @@ func main() {
 
 	// add node command
 	nodes := app.Command("nodes", "Issue invites for other nodes to join the cluster")
-	nodeAdd := nodes.Command("add", "Generates an invitation token. Use it to add a new node to the Teleport cluster")
+	nodeAdd := nodes.Command("add", "Generate an invitation token. Use it to add a new node to the Teleport cluster")
 	nodeAdd.Flag("roles", "Comma-separated list of roles for the new node to assume [node]").Default("node").StringVar(&cmdNodes.roles)
 	nodeAdd.Flag("ttl", "Time to live for a generated token").DurationVar(&cmdNodes.ttl)
 	nodeAdd.Flag("count", "add count tokens and output JSON with the list").Hidden().Default("1").IntVar(&cmdNodes.count)
 	nodeAdd.Flag("format", "output format, 'text' or 'json'").Hidden().Default("text").StringVar(&cmdNodes.format)
 	nodeAdd.Alias(AddNodeHelp)
-	nodeList := nodes.Command("ls", "Lists all active SSH nodes within the cluster")
+	nodeList := nodes.Command("ls", "List all active SSH nodes within the cluster")
 	nodeList.Alias(ListNodesHelp)
 
 	// operations on invitation tokens
@@ -153,11 +153,11 @@ func main() {
 	tokenDel.Arg("token", "Token to delete").StringVar(&cmdTokens.token)
 
 	// operations with authorities
-	auth := app.Command("authorities", "Operations with user and host certificate authorities").Hidden()
+	auth := app.Command("auth", "Operations with user and host certificate authorities").Hidden()
 	auth.Flag("type", "authority type, 'user' or 'host'").Default(string(services.UserCA)).StringVar(&cmdAuth.authType)
-	authList := auth.Command("ls", "List trusted user certificate authorities")
-	authExport := auth.Command("export", "Export concatenated keys to standard output")
-	authExport.Flag("private-keys", "if set, will print private keys").BoolVar(&cmdAuth.exportPrivateKeys)
+	authList := auth.Command("ls", "List trusted certificate authorities (CAs)")
+	authExport := auth.Command("export", "Export CA keys to standard output")
+	authExport.Flag("keys", "if set, will print private keys").BoolVar(&cmdAuth.exportPrivateKeys)
 	authExport.Flag("fingerprint", "filter authority by fingerprint").StringVar(&cmdAuth.exportAuthorityFingerprint)
 
 	authGenerate := auth.Command("gen", "Generate new OpenSSH keypair")
@@ -172,17 +172,17 @@ func main() {
 	authGenAndSign.Flag("domain", "cluster certificate authority domain name").Required().StringVar(&cmdAuth.genAuthorityDomain)
 
 	// operations with reverse tunnels
-	reverseTunnels := app.Command("rts", "Operations with reverse tunnels").Hidden()
-	reverseTunnelsList := reverseTunnels.Command("ls", "List reverse tunnels").Hidden()
-	reverseTunnelsDelete := reverseTunnels.Command("del", "Deletes reverse tunnels").Hidden()
-	reverseTunnelsDelete.Arg("domain", "Comma-separated list of reverse tunnels to delete").
+	reverseTunnels := app.Command("clusters", "Operations on trusted clusters")
+	reverseTunnelsList := reverseTunnels.Command("ls", "List trusted clusters")
+	reverseTunnelsDelete := reverseTunnels.Command("del", "Disconnect a trusted cluster")
+	reverseTunnelsDelete.Arg("name", "Comma-separated list of clusters to disconnect").
 		Required().StringVar(&cmdReverseTunnel.domainNames)
-	reverseTunnelsUpsert := reverseTunnels.Command("upsert", "Update or add a new reverse tunnel").Hidden()
-	reverseTunnelsUpsert.Arg("domain", "Domain name of the reverse tunnel").
+	reverseTunnelsUpsert := reverseTunnels.Command("add", "Connect a new trusted cluster")
+	reverseTunnelsUpsert.Arg("name", "Name of the trusted cluster").
 		Required().StringVar(&cmdReverseTunnel.domainNames)
-	reverseTunnelsUpsert.Arg("addrs", "Comma-separated list of dial addresses for reverse tunnels to dial").
+	reverseTunnelsUpsert.Arg("addrs", "Comma-separated list of addresses for cluster CAs").
 		Required().SetValue(&cmdReverseTunnel.dialAddrs)
-	reverseTunnelsUpsert.Flag("ttl", "Optional TTL (time to live) for reverse tunnel").DurationVar(&cmdReverseTunnel.ttl)
+	reverseTunnelsUpsert.Flag("ttl", "Optional TTL (time to live) for a tunnel to a cluster").DurationVar(&cmdReverseTunnel.ttl)
 
 	// parse CLI commands+flags:
 	command, err := app.Parse(os.Args[1:])
@@ -578,9 +578,12 @@ func (r *ReverseTunnelCommand) Upsert(client *auth.TunClient) error {
 func (r *ReverseTunnelCommand) Delete(client *auth.TunClient) error {
 	for _, domainName := range strings.Split(r.domainNames, ",") {
 		if err := client.DeleteReverseTunnel(domainName); err != nil {
+			if trace.IsNotFound(err) {
+				return trace.Errorf("'%v' is not found", domainName)
+			}
 			return trace.Wrap(err)
 		}
-		fmt.Printf("Reverse tunnel '%v' has been deleted\n", domainName)
+		fmt.Printf("Cluster '%v' has been disconnected\n", domainName)
 	}
 	return nil
 }
