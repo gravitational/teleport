@@ -234,9 +234,6 @@ func (s *IdentityService) IncreaseLoginAttempts(user string) error {
 	// "compare and swap" will bump the counter +1
 	s.backend.CreateVal(bucket, "lock", data, s.lockDuration)
 	_, err = s.backend.CompareAndSwap(bucket, "lock", newData, s.lockDuration, data)
-	if err != nil {
-		panic(err.Error())
-	}
 	return trace.Wrap(err)
 }
 
