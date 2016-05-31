@@ -71,7 +71,7 @@ type CommandLineFlags struct {
 
 // readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
 // and overrides values in 'cfg' structure
-func readConfigFile(cliConfigPath string) (*FileConfig, error) {
+func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 	configFilePath := defaults.ConfigFilePath
 	// --config tells us to use a specific conf. file:
 	if cliConfigPath != "" {
@@ -126,25 +126,30 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			if err != nil {
 				return trace.Errorf("cannot parse auth server address: '%v'", as)
 			}
-			cfg.AuthServers = append(cfg.AuthServers, *addr)
+			cfg.AuthServers = []utils.NetAddr{*addr}
 		}
 	}
 	cfg.ApplyToken(fc.AuthToken)
 	cfg.Auth.DomainName = fc.Auth.DomainName
+	if fc.Global.DataDir != "" {
+		cfg.DataDir = fc.Global.DataDir
+	}
+	if fc.Storage.Type == "" {
+		fc.Storage.Type = teleport.BoltBackendType
+	}
 
 	// configure storage:
 	switch fc.Storage.Type {
 	case teleport.BoltBackendType:
-		cfg.ConfigureBolt(fc.Storage.DirName)
+		cfg.ConfigureBolt()
 	case teleport.ETCDBackendType:
-		if err := cfg.ConfigureETCD(
-			fc.Storage.DirName, etcdbk.Config{
-				Nodes:       fc.Storage.Peers,
-				Key:         fc.Storage.Prefix,
-				TLSKeyFile:  fc.Storage.TLSKeyFile,
-				TLSCertFile: fc.Storage.TLSCertFile,
-				TLSCAFile:   fc.Storage.TLSCAFile,
-			}); err != nil {
+		if err := cfg.ConfigureETCD(etcdbk.Config{
+			Nodes:       fc.Storage.Peers,
+			Key:         fc.Storage.Prefix,
+			TLSKeyFile:  fc.Storage.TLSKeyFile,
+			TLSCertFile: fc.Storage.TLSCertFile,
+			TLSCAFile:   fc.Storage.TLSCAFile,
+		}); err != nil {
 			return trace.Wrap(err)
 		}
 	case "":
@@ -268,6 +273,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Auth.SSHAddr = *addr
+		cfg.AuthServers = append(cfg.AuthServers, *addr)
 	}
 	for _, authority := range fc.Auth.Authorities {
 		ca, err := authority.Parse()
@@ -325,7 +331,7 @@ func applyString(src string, target *string) bool {
 // with CLI commands taking precedence
 func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	// load /etc/teleport.yaml and apply it's values:
-	fileConf, err := readConfigFile(clf.ConfigFile)
+	fileConf, err := ReadConfigFile(clf.ConfigFile)
 	if err != nil {
 		return trace.Wrap(err)
 	}

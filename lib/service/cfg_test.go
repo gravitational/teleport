@@ -54,11 +54,9 @@ func (s *ConfigSuite) TestDefaultConfig(c *C) {
 	if len(config.Hostname) < 2 {
 		c.Error("default hostname wasn't properly set")
 	}
-	c.Assert(config.AuthServers, DeepEquals, []utils.NetAddr{localAuthAddr})
 
 	// auth section
 	auth := config.Auth
-	c.Assert(config.AuthServers, DeepEquals, []utils.NetAddr{auth.SSHAddr})
 	c.Assert(auth.SSHAddr, DeepEquals, localAuthAddr)
 	c.Assert(auth.Limiter.MaxConnections, Equals, int64(defaults.LimiterMaxConnections))
 	c.Assert(auth.Limiter.MaxNumberOfUsers, Equals, defaults.LimiterMaxConcurrentUsers)
