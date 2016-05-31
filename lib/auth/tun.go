@@ -578,7 +578,7 @@ func NewTunClient(purpose string,
 	for _, o := range opts {
 		o(tc)
 	}
-	log.Infof("newTunClient(%s)", purpose)
+	log.Infof("newTunClient(%s) with auth: %v", purpose, authServers)
 
 	clt, err := NewClient("http://stub:0", tc.Dial)
 	if err != nil {
@@ -645,7 +645,7 @@ func (c *TunClient) GetAgent() (AgentCloser, error) {
 
 // Dial dials to Auth server's HTTP API over SSH tunnel
 func (c *TunClient) Dial(network, address string) (net.Conn, error) {
-	log.Infof("TunClient[%s].Dial(%v, %v)", c.purpose, network, address)
+	log.Infof("TunClient[%s].Dial()", c.purpose)
 	client, err := c.getClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -762,6 +762,7 @@ func (c *TunClient) getClient() (client *ssh.Client, err error) {
 	if len(authServers) == 0 {
 		return nil, trace.Errorf("all auth servers are offline")
 	}
+	log.Infof("tunClient(%s).authServers: %v", c.purpose, authServers)
 
 	// try to connect to the 1st one who will pick up:
 	for _, authServer := range authServers {

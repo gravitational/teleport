@@ -198,7 +198,7 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	g.AuthServers = []string{defaults.AuthListenAddr().Addr}
 	g.Limits.MaxConnections = defaults.LimiterMaxConnections
 	g.Limits.MaxUsers = defaults.LimiterMaxConcurrentUsers
-	g.Storage.DirName = defaults.DataDir
+	g.DataDir = defaults.DataDir
 	g.Storage.Type = conf.Auth.RecordsBackend.Type
 	g.PIDFile = "/var/run/teleport.pid"
 
@@ -259,7 +259,6 @@ func MakeAuthPeerFileConfig(domainName string, token string) (fc *FileConfig) {
 	g.AuthServers = []string{"<insert auth server peer address here>"}
 	g.Limits.MaxConnections = defaults.LimiterMaxConnections
 	g.Limits.MaxUsers = defaults.LimiterMaxConcurrentUsers
-	g.Storage.DirName = defaults.DataDir
 	g.Storage.Type = teleport.ETCDBackendType
 	g.Storage.Prefix = defaults.ETCDPrefix
 	g.Storage.Peers = []string{"insert ETCD peers addresses here"}
@@ -318,8 +317,6 @@ type Log struct {
 type StorageBackend struct {
 	// Type can be "bolt" or "etcd"
 	Type string `yaml:"type,omitempty"`
-	// DirName is valid only for bolt
-	DirName string `yaml:"data_dir,omitempty"`
 	// Peers is a lsit of etcd peers,  valid only for etcd
 	Peers []string `yaml:"peers,omitempty"`
 	// Prefix is etcd key prefix, valid only for etcd
@@ -342,6 +339,7 @@ type Global struct {
 	Logger      Log              `yaml:"log,omitempty"`
 	Storage     StorageBackend   `yaml:"storage,omitempty"`
 	AdvertiseIP net.IP           `yaml:"advertise_ip,omitempty"`
+	DataDir     string           `yaml:"data_dir,omitempty"`
 
 	// Keys holds the list of SSH key/cert pairs used by all services
 	// Each service (like proxy, auth, node) can find the key it needs

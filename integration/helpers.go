@@ -197,6 +197,7 @@ func (i *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bool,
 		return err
 	}
 	tconf := service.MakeDefaultConfig()
+	tconf.DataDir = dataDir
 	tconf.Console = console
 	tconf.Auth.DomainName = i.Secrets.SiteName
 	tconf.Auth.Authorities = append(tconf.Auth.Authorities, i.Secrets.GetCAs()...)
@@ -221,9 +222,8 @@ func (i *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bool,
 	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortProxy())
 	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
 	tconf.Proxy.DisableWebUI = true
-	tconf.AuthServers[0].Addr = tconf.Auth.SSHAddr.Addr
-	tconf.ConfigureBolt(dataDir)
-	tconf.DataDir = dataDir
+	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
+	tconf.ConfigureBolt()
 	tconf.Keygen = testauthority.New()
 	i.Config = tconf
 	i.Process, err = service.NewTeleport(tconf)
