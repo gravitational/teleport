@@ -902,14 +902,28 @@ func (tc *TeleportClient) AddKey(host string, key *Key) error {
 
 // directLogin asks for a password + HOTP token, makes a request to CA via proxy
 func (tc *TeleportClient) directLogin(pub []byte) (*web.SSHLoginResponse, error) {
+	httpsProxyHostPort := tc.Config.ProxyHostPort(defaults.HTTPListenPort)
+	certPool := loopbackPool(httpsProxyHostPort)
+
+	// ping the HTTPs endpoint first:
+	if err := web.Ping(httpsProxyHostPort, tc.InsecureSkipVerify, certPool); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	password, hotpToken, err := tc.AskPasswordAndHOTP()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// ask the CA (via proxy) to sign our public key:
-	response, err := web.SSHAgentLogin(tc.Config.ProxyHostPort(defaults.HTTPListenPort), tc.Config.Username,
-		password, hotpToken, pub, tc.KeyTTL, tc.InsecureSkipVerify, loopbackPool(tc.Config.ProxyHostPort(defaults.HTTPListenPort)))
+	response, err := web.SSHAgentLogin(httpsProxyHostPort,
+		tc.Config.Username,
+		password,
+		hotpToken,
+		pub,
+		tc.KeyTTL,
+		tc.InsecureSkipVerify,
+		certPool)
 
 	return response, trace.Wrap(err)
 }

@@ -101,7 +101,7 @@ func GenerateSelfSignedCert(hostNames []string) (*TLSCredentials, error) {
 		return nil, trace.Wrap(err)
 	}
 	notBefore := time.Now()
-	notAfter := notBefore.Add(DefaultCertTTL)
+	notAfter := notBefore.Add(time.Hour * 24 * 365 * 10) // 10 years
 
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
@@ -109,26 +109,25 @@ func GenerateSelfSignedCert(hostNames []string) (*TLSCredentials, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	template := x509.Certificate{
-		SerialNumber: serialNumber,
-		Issuer: pkix.Name{
-			CommonName:   "*",
-			Organization: []string{"Self-signed certificate. Make sure to replace!"},
-		},
-		Subject: pkix.Name{
-			CommonName:   "*",
-			Organization: []string{"Self-signed certificate. Make sure to replace!"},
-		},
-		NotBefore: notBefore,
-		NotAfter:  notAfter,
+	entity := pkix.Name{
+		CommonName:   "localhost",
+		Country:      []string{"US"},
+		Organization: []string{"localhost"},
+	}
 
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	template := x509.Certificate{
+		SerialNumber:          serialNumber,
+		Issuer:                entity,
+		Subject:               entity,
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
+		IsCA: true,
 	}
 
 	// collect IP addresses localhost resolves to and add them to the cert. template:
-	template.DNSNames = append(hostNames, "*")
+	template.DNSNames = append(hostNames, "localhost.local")
 	ips, _ := net.LookupIP("localhost")
 	if ips != nil {
 		template.IPAddresses = ips

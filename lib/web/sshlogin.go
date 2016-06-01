@@ -153,6 +153,20 @@ func SSHAgentOIDCLogin(proxyAddr, connectorID string, pubKey []byte, ttl time.Du
 
 }
 
+// Ping is used to validate HTTPS endpoing of Teleport proxy. This leads to better
+// user experience: they get connection errors before being asked for passwords
+func Ping(proxyAddr string, insecure bool, pool *x509.CertPool) error {
+	clt, _, err := initClient(proxyAddr, insecure, pool)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = clt.Get(clt.Endpoint("webapi"), url.Values{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // SSHAgentLogin issues call to web proxy and receives temp certificate
 // if credentials are valid
 //

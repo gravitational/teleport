@@ -49,7 +49,6 @@ func (s *UtilsSuite) TestSelfSignedCert(c *check.C) {
 	c.Assert(creds, check.NotNil)
 	c.Assert(len(creds.PublicKey)/100, check.Equals, 4)
 	c.Assert(len(creds.PrivateKey)/100, check.Equals, 16)
-	c.Assert(len(creds.Cert)/100, check.Equals, 12)
 }
 
 func (s *UtilsSuite) TestRandomDuration(c *check.C) {
