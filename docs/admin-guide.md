@@ -131,7 +131,12 @@ Lets cover some of these flags in more detail:
   [Teleport Architecture](architecture.md) document.
 
 * `--advertise-ip` flag can be used when Teleport nodes are running behind NAT and
-  their externally routable IP cannot be automatically determined.
+  their externally routable IP cannot be automatically determined. 
+  For example, assume that a host "foo" can be reached via `10.0.0.10` but there is
+  no `A` DNS record for "foo", so you cannot connect to it via `tsh ssh foo`. If
+  you start teleport on "foo" with `--advertise-ip=10.0.0.10`, it will automatically 
+  tell Teleport proxy to use that IP when someone tries to connect
+  to "foo". This is also useful when connecting to Teleport nodes using their labels.
 
 * `--nodename` flag lets you assign an alternative name the node which can be used
   by clients to login. By default it's equal to the value returned by `hostname` 
@@ -161,6 +166,10 @@ teleport:
     # nodename allows to assign an alternative name this node can be reached by.
     # by default it's equal to hostname
     nodename: graviton
+
+    # Data directory where Teleport keeps its data, like keys/users for 
+    # authentication (if using the default BoltDB back-end)
+    data_dir: /var/lib/teleport
 
     # one-time invitation token used to join a cluster. it is not used on 
     # subsequent starts
@@ -192,7 +201,6 @@ teleport:
     # backend if you want to run Teleport in HA configuration.
     storage:
         type: bolt
-        data_dir: /var/lib/teleport
 
 # This section configures the 'auth service':
 auth_service:

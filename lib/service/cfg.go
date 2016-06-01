@@ -122,22 +122,22 @@ func (cfg *Config) ApplyToken(token string) bool {
 }
 
 // ConfigureBolt configures Bolt back-ends with a data dir.
-func (cfg *Config) ConfigureBolt(dataDir string) {
+func (cfg *Config) ConfigureBolt() {
 	a := &cfg.Auth
 
 	if a.EventsBackend.Type == teleport.BoltBackendType {
-		a.EventsBackend.Params = boltParams(dataDir, defaults.EventsBoltFile)
+		a.EventsBackend.Params = boltParams(cfg.DataDir, defaults.EventsBoltFile)
 	}
 	if a.KeysBackend.Type == teleport.BoltBackendType {
-		a.KeysBackend.Params = boltParams(dataDir, defaults.KeysBoltFile)
+		a.KeysBackend.Params = boltParams(cfg.DataDir, defaults.KeysBoltFile)
 	}
 	if a.RecordsBackend.Type == teleport.BoltBackendType {
-		a.RecordsBackend.Params = boltParams(dataDir, defaults.RecordsBoltFile)
+		a.RecordsBackend.Params = boltParams(cfg.DataDir, defaults.RecordsBoltFile)
 	}
 }
 
 // ConfigureETCD configures ETCD backend (still uses BoltDB for some cases)
-func (cfg *Config) ConfigureETCD(dataDir string, etcdCfg etcdbk.Config) error {
+func (cfg *Config) ConfigureETCD(etcdCfg etcdbk.Config) error {
 	a := &cfg.Auth
 
 	params, err := etcdParams(etcdCfg)
@@ -149,10 +149,10 @@ func (cfg *Config) ConfigureETCD(dataDir string, etcdCfg etcdbk.Config) error {
 
 	// We can't store records and events in ETCD
 	a.EventsBackend.Type = teleport.BoltBackendType
-	a.EventsBackend.Params = boltParams(dataDir, defaults.EventsBoltFile)
+	a.EventsBackend.Params = boltParams(cfg.DataDir, defaults.EventsBoltFile)
 
 	a.RecordsBackend.Type = teleport.BoltBackendType
-	a.RecordsBackend.Params = boltParams(dataDir, defaults.RecordsBoltFile)
+	a.RecordsBackend.Params = boltParams(cfg.DataDir, defaults.RecordsBoltFile)
 	return nil
 }
 
@@ -313,9 +313,6 @@ func ApplyDefaults(cfg *Config) {
 	// global defaults
 	cfg.Hostname = hostname
 	cfg.DataDir = defaults.DataDir
-	if cfg.Auth.Enabled {
-		cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
-	}
 	cfg.Console = os.Stdout
 }
 

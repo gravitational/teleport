@@ -51,6 +51,7 @@ docs: bbox
 #
 .PHONY:run-docs
 run-docs: bbox
+	@echo -e "\n\n----> LIVE EDIT HERE: http://localhost:6600/admin-guide/\n"
 	docker run $(DOCKERFLAGS) -ti $(NOROOT) -e HOME=$(SRCDIR)/build.assets -p 6600:6600 -w $(SRCDIR) $(BBOX) mkdocs serve -a 0.0.0.0:6600
 
 #
