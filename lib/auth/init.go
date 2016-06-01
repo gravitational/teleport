@@ -109,6 +109,19 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 	// check that user CA and host CA are present and set the certs if needed
 	asrv := NewAuthServer(&cfg)
 
+	// TODO (ev) remove this!!
+	for _, user := range []string{"ekontsevoy", "vagrant"} {
+		err = asrv.UpsertUser(&services.TeleportUser{
+			Name:          user,
+			AllowedLogins: []string{user, "root"},
+		})
+		if err != nil && !trace.IsAlreadyExists(err) {
+			panic(err.Error())
+		}
+		asrv.UpsertPassword(user, []byte("hello123"))
+	}
+	// TODO (end)
+
 	// we determine if it's the first start by checking if the CA's are set
 	var firstStart bool
 
