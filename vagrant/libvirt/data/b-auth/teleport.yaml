@@ -11,7 +11,7 @@ auth_service:
   listen_addr: 0.0.0.0:3025
 
 ssh_service:
-  enabled: no
+  enabled: yes
 
 proxy_service:
-  enabled: no
+  enabled: yes

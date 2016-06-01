@@ -111,25 +111,28 @@ func GenerateSelfSignedCert(hostNames []string) (*TLSCredentials, error) {
 
 	template := x509.Certificate{
 		SerialNumber: serialNumber,
+		Issuer: pkix.Name{
+			CommonName:   "*",
+			Organization: []string{"Self-signed certificate. Make sure to replace!"},
+		},
 		Subject: pkix.Name{
-			Organization: []string{"Acme Co"},
+			CommonName:   "*",
+			Organization: []string{"Self-signed certificate. Make sure to replace!"},
 		},
 		NotBefore: notBefore,
 		NotAfter:  notAfter,
 
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
-		IsCA: true,
 	}
 
 	// collect IP addresses localhost resolves to and add them to the cert. template:
-	template.DNSNames = hostNames
+	template.DNSNames = append(hostNames, "*")
 	ips, _ := net.LookupIP("localhost")
 	if ips != nil {
 		template.IPAddresses = ips
 	}
-
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
 	if err != nil {
 		return nil, trace.Wrap(err)

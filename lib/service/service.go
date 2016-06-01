@@ -766,7 +766,6 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 
 	keyPath := filepath.Join(cfg.DataDir, defaults.SelfSignedKeyPath)
 	certPath := filepath.Join(cfg.DataDir, defaults.SelfSignedCertPath)
-	pubPath := filepath.Join(cfg.DataDir, defaults.SelfSignedPubPath)
 
 	cfg.Proxy.TLSKey = keyPath
 	cfg.Proxy.TLSCert = certPath
@@ -791,9 +790,6 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 	}
 	if err := ioutil.WriteFile(certPath, creds.Cert, 0600); err != nil {
 		return trace.Wrap(err, "error writing key PEM")
-	}
-	if err := ioutil.WriteFile(pubPath, creds.PublicKey, 0600); err != nil {
-		return trace.Wrap(err, "error writing pub key PEM")
 	}
 	return nil
 }
