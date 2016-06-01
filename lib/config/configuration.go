@@ -415,6 +415,12 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	if clf.PIDFile != "" {
 		cfg.PIDFile = clf.PIDFile
 	}
+
+	// auth_servers not configured, but the 'auth' is enabled (auth is on localhost)?
+	if len(cfg.AuthServers) == 0 && cfg.Auth.Enabled {
+		cfg.AuthServers = append(cfg.AuthServers, cfg.Auth.SSHAddr)
+	}
+
 	return nil
 }
 

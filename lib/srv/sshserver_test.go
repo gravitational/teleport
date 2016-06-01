@@ -208,7 +208,7 @@ func (s *SrvSuite) TestShell(c *C) {
 
 	c.Assert(se.Shell(), IsNil)
 
-	buf := make([]byte, 36)
+	buf := make([]byte, 256)
 	_, err = reader.Read(buf)
 	c.Assert(err, IsNil)
 	c.Assert(len(buf) > 0, Equals, true)
@@ -219,6 +219,7 @@ func (s *SrvSuite) TestShell(c *C) {
 	time.Sleep(time.Millisecond * 5)
 
 	// read the output and make sure that "150" (output of $((50+100)) is there
+	// NOTE: this test may fail if you have faulty .bashrc or .profile
 	_, err = reader.Read(buf)
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(buf), "150"), Equals, true)

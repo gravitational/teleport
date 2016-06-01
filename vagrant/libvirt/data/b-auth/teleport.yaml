@@ -7,7 +7,7 @@ teleport:
 
 auth_service:
   enabled: yes
-  cluster_name: cluster-a.local.com
+  cluster_name: cluster-b
   listen_addr: 0.0.0.0:3025
 
 ssh_service:

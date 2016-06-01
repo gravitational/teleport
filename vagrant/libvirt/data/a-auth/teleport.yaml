@@ -7,12 +7,11 @@ teleport:
 
 auth_service:
   enabled: yes
-  cluster_name: cluster-a.local.com
+  cluster_name: cluster-a
   listen_addr: 0.0.0.0:3025
-  tokens: ["proxy:helloworld", "node:node"]
 
 ssh_service:
-  enabled: no
+  enabled: yes
 
 proxy_service:
-  enabled: no
+  enabled: yes

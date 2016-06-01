@@ -160,7 +160,7 @@ func main() {
 
 	// operations with authorities
 	auth := app.Command("auth", "Operations with user and host certificate authorities").Hidden()
-	auth.Flag("type", "authority type, 'user' or 'host'").Default(string(services.UserCA)).StringVar(&cmdAuth.authType)
+	auth.Flag("type", "authority type, 'user' or 'host'").StringVar(&cmdAuth.authType)
 	authList := auth.Command("ls", "List trusted certificate authorities (CAs)")
 	authExport := auth.Command("export", "Export CA keys to standard output")
 	authExport.Flag("keys", "if set, will print private keys").BoolVar(&cmdAuth.exportPrivateKeys)
@@ -413,13 +413,25 @@ func (u *NodeCommand) ListActive(client *auth.TunClient) error {
 
 // ListAuthorities shows list of user authorities we trust
 func (a *AuthCommand) ListAuthorities(client *auth.TunClient) error {
-	authType := services.CertAuthType(a.authType)
-	if err := authType.Check(); err != nil {
-		return trace.Wrap(err)
+	// by default show authorities of both types:
+	authTypes := []services.CertAuthType{
+		services.UserCA,
+		services.HostCA,
 	}
-	authorities, err := client.GetCertAuthorities(authType, false)
-	if err != nil {
-		return trace.Wrap(err)
+	// but if there was a --type switch, only select those:
+	if a.authType != "" {
+		authTypes = []services.CertAuthType{services.CertAuthType(a.authType)}
+		if err := authTypes[0].Check(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	authorities := make([]*services.CertAuthority, 0)
+	for _, t := range authTypes {
+		ats, err := client.GetCertAuthorities(t, false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		authorities = append(authorities, ats...)
 	}
 	view := func() string {
 		t := goterm.NewTable(0, 10, 5, ' ', 0)
