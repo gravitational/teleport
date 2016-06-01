@@ -741,7 +741,7 @@ func validateConfig(cfg *Config) error {
 	}
 
 	if len(cfg.AuthServers) == 0 {
-		return trace.BadParameter("please supply a proxy server")
+		return trace.BadParameter("auth_servers is empty")
 	}
 
 	for i := range cfg.Auth.Authorities {

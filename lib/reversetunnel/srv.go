@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -67,8 +66,6 @@ type Server interface {
 	GetSites() []RemoteSite
 	// GetSite returns remote site this node belongs to
 	GetSite(name string) (RemoteSite, error)
-	// FindSimilarSite returns site that matches domain name
-	FindSimilarSite(name string) (RemoteSite, error)
 	// Start starts server
 	Start() error
 	// CLose closes server's socket
@@ -403,49 +400,6 @@ func (s *server) GetSite(domainName string) (RemoteSite, error) {
 		}
 	}
 	return nil, trace.NotFound("site '%v' not found", domainName)
-}
-
-// FindSimilarSite finds the site that is the most similar to domain.
-// Returns nil if no sites with such domain name.
-//
-// NOTE: currently the notion of "sites" is not exposed to teleport users via tsh or tctl,
-//       only Gravitational products use this capability
-func (s *server) FindSimilarSite(domainName string) (RemoteSite, error) {
-	s.RLock()
-	defer s.RUnlock()
-
-	sites := s.GetSites()
-
-	// this is always true:
-	if len(sites) == 1 {
-		return sites[0], nil
-	}
-
-	result := -1
-	resultSimilarity := 1
-
-	domainName1 := strings.Split(domainName, ".")
-	log.Infof("Find matching domain: %v", domainName)
-
-	for i, site := range sites {
-		domainName2 := strings.Split(site.GetName(), ".")
-		similarity := 0
-		for j := 1; (j <= len(domainName1)) && (j <= len(domainName2)); j++ {
-			if domainName1[len(domainName1)-j] != domainName2[len(domainName2)-j] {
-				break
-			}
-			similarity++
-		}
-		if (similarity > resultSimilarity) || (result == -1) {
-			result = i
-			resultSimilarity = similarity
-		}
-	}
-
-	if result != -1 {
-		return sites[result], nil
-	}
-	return nil, trace.NotFound("no site matching '%v' found", domainName)
 }
 
 type remoteConn struct {
