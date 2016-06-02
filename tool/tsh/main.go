@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 
 	"github.com/buger/goterm"
 	"github.com/pborman/uuid"
@@ -124,8 +125,12 @@ func run(args []string, underTest bool) {
 	agent := app.Command("agent", "Start SSH agent on unix socket")
 	agent.Flag("socket", "SSH agent listening socket address, e.g. unix:///tmp/teleport.agent.sock").SetValue(&cf.AgentSocketAddr)
 
-	// login logs in with remote proxy and obtains certificate
-	login := app.Command("login", "Log in with remote proxy and get signed certificate")
+	// login logs in with remote proxy and obtains a "session certificate" which gets
+	// stored in ~/.tsh directory
+	login := app.Command("login", "Log in to the cluster and store the session certificate to avoid login prompts")
+
+	// logout deletes obtained session certificates in ~/.tsh
+	logout := app.Command("logout", "Delete a cluster certificate")
 
 	// parse CLI commands+flags:
 	command, err := app.Parse(args)
@@ -157,6 +162,8 @@ func run(args []string, underTest bool) {
 		onAgentStart(&cf)
 	case login.FullCommand():
 		onLogin(&cf)
+	case logout.FullCommand():
+		onLogout(&cf)
 	}
 }
 
@@ -180,7 +187,27 @@ func onLogin(cf *CLIConf) {
 	if err := tc.Login(); err != nil {
 		utils.FatalError(err)
 	}
-	fmt.Println("\nlogged in successfully")
+	if tc.SiteName != "" {
+		fmt.Printf("\nYou are now logged into %s as %s\n", tc.SiteName, tc.Username)
+	} else {
+		fmt.Printf("\nYou are now logged in\n")
+	}
+}
+
+// onLogout deletes a "session certificate" from ~/.tsh for a given proxy
+func onLogout(cf *CLIConf) {
+	tc, err := makeClient(cf)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	if err = tc.Logout(); err != nil {
+		if trace.IsNotFound(err) {
+			fmt.Println("You are not logged in")
+			return
+		}
+		utils.FatalError(err)
+	}
+	fmt.Printf("%s has logged out\n", tc.Username)
 }
 
 // onListNodes executes 'tsh ls' command

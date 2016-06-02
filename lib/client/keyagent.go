@@ -129,3 +129,7 @@ func (a *LocalKeyAgent) AddKey(host string, username string, key *Key) error {
 	}
 	return a.Agent.Add(*agentKey)
 }
+
+func (a *LocalKeyAgent) DeleteKey(host string, username string) error {
+	return trace.Wrap(a.keyStore.DeleteKey(host, username))
+}

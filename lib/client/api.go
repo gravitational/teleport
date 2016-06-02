@@ -841,6 +841,11 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 	}, nil
 }
 
+// Logout locates a certificate stored for a given proxy and deletes it
+func (tc *TeleportClient) Logout() error {
+	return trace.Wrap(tc.localAgent.DeleteKey(tc.ProxyHost, tc.Config.Username))
+}
+
 // Login logs user in using proxy's local 2FA auth access
 // or used OIDC external authentication, it later
 // saves the generated credentials into local keystore for future use
@@ -875,6 +880,17 @@ func (tc *TeleportClient) Login() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// get site info:
+	proxy, err := tc.ConnectToProxy()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	site, err := proxy.getSite()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tc.SiteName = site.Name
 	return nil
 }
 

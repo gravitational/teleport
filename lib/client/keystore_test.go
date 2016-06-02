@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/check.v1"
 )
@@ -82,7 +83,7 @@ func (s *KeyStoreTestSuite) TestListKeys(c *check.C) {
 	c.Assert(samKey.Pub, check.DeepEquals, keys[0].Pub)
 }
 
-func (s *KeyStoreTestSuite) TestKeySaveLoad(c *check.C) {
+func (s *KeyStoreTestSuite) TestKeyCRUD(c *check.C) {
 	key := s.makeSignedKey(c, false)
 
 	// add key:
@@ -93,6 +94,18 @@ func (s *KeyStoreTestSuite) TestKeySaveLoad(c *check.C) {
 	keyCopy, err := s.store.GetKey("host.a", "bob")
 	c.Assert(err, check.IsNil)
 	c.Assert(key, check.DeepEquals, keyCopy)
+
+	// Delete & verify that its' gone
+	err = s.store.DeleteKey("host.a", "bob")
+	c.Assert(err, check.IsNil)
+	keyCopy, err = s.store.GetKey("host.a", "bob")
+	c.Assert(err, check.NotNil)
+	c.Assert(trace.IsNotFound(err), check.Equals, true)
+
+	// Delete non-existing
+	err = s.store.DeleteKey("non-existing-host", "non-existing-user")
+	c.Assert(err, check.NotNil)
+	c.Assert(trace.IsNotFound(err), check.Equals, true)
 }
 
 func (s *KeyStoreTestSuite) TestKeyExpiration(c *check.C) {

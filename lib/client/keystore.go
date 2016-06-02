@@ -136,6 +136,25 @@ func (fs *FSLocalKeyStore) AddKey(host, username string, key *Key) error {
 	return nil
 }
 
+// DeleteKey deletes a key from the local store
+func (fs *FSLocalKeyStore) DeleteKey(host string, username string) error {
+	dirPath, err := fs.dirFor(host)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	files := []string{
+		filepath.Join(dirPath, username+fileExtCert),
+		filepath.Join(dirPath, username+fileExtPub),
+		filepath.Join(dirPath, username+fileExtKey),
+	}
+	for _, fn := range files {
+		if err = os.Remove(fn); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
 // GetKey returns a key for a given host. If the key is not found,
 // returns trace.NotFound error.
 func (fs *FSLocalKeyStore) GetKey(host, username string) (*Key, error) {

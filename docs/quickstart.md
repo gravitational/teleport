@@ -148,7 +148,7 @@ db            xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022     location=virginia,a
 Let's use the newly created labels to filter the output of `tsh ls` and ask to show only
 nodes located in Virginia:
 
-```
+```bash
 > tsh --proxy=localhost ls location=virginia
 
 Node Name     Node ID                     Address            Labels
