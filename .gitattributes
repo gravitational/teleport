@@ -1,0 +1,6 @@
+web/dist/app/vendor.js linguist-vendored
+web/dist/app/assets/* linguist-vendored
+web/src/assets/* linguist-vendored
+web/src/styles/bootstrap/bootstrap.scss linguist-vendored
+docs/theme/js/* linguist-vendored
+docs/theme/js/theme.js linguist-vendored=false
