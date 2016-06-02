@@ -19,6 +19,7 @@ package config
 import (
 	"bytes"
 	"encoding/base64"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
@@ -209,6 +210,17 @@ func (s *ConfigTestSuite) TestLocateWebAssets(c *check.C) {
 	path, err = LocateWebAssets()
 	c.Assert(path, check.Equals, "")
 	c.Assert(err, check.NotNil)
+}
+
+func (s *ConfigTestSuite) TestTrustedClusters(c *check.C) {
+	files := []string{
+		"../../fixtures/user-ca",
+		"../../fixtures/host-ca",
+	}
+	authorities, err := readTrustedClusters(files)
+	c.Assert(err, check.NotNil)
+	c.Assert(authorities, check.IsNil)
+	fmt.Println(err.Error())
 }
 
 func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {

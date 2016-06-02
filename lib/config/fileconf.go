@@ -43,6 +43,7 @@ var (
 	// all possible valid YAML config keys
 	validKeys = map[string]bool{
 		"cluster_name":       true,
+		"trusted_clusters":   true,
 		"pid_file":           true,
 		"cert_file":          true,
 		"private_key_file":   true,
@@ -377,6 +378,10 @@ type Auth struct {
 	Service `yaml:",inline"`
 	// DomainName is the name of the CA who manages this cluster
 	DomainName string `yaml:"cluster_name,omitempty"`
+
+	// TrustedClustersFile is a file path to a file containing public CA keys
+	// of clusters we trust. One key per line, those starting with '#' are comments
+	TrustedClusters []string `yaml:"trusted_clusters",omitempty"`
 
 	// Authorities : 3rd party certificate authorities (CAs) this auth service trusts.
 	Authorities []Authority `yaml:"authorities,omitempty"`

@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
@@ -24,6 +25,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
@@ -314,7 +317,60 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			}
 		}
 	}
+	// read 'trusted_clusters' section:
+	if fc.Auth.Enabled() && len(fc.Auth.TrustedClusters) > 0 {
+		authorities, err := readTrustedClusters(fc.Auth.TrustedClusters)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(authorities) > 0 {
+			cfg.Auth.Authorities = append(cfg.Auth.Authorities, authorities...)
+		}
+	}
 	return nil
+}
+
+func readTrustedClusters(certFiles []string) ([]services.CertAuthority, error) {
+	for _, fp := range certFiles {
+		bytes, err := utils.ReadPath(fp)
+		if err != nil {
+			return nil, trace.Wrap(err, "cannot read the certificate file")
+		}
+		fmt.Printf("Got %d bytes: %s\n", len(bytes), bytes)
+
+		_, err = ssh.ParsePublicKey(bytes)
+		if err != nil {
+			fmt.Printf("failed paring public key: %s\n", err.Error())
+			auth, _, _, _, err := ssh.ParseAuthorizedKey(bytes)
+			if err != nil {
+				fmt.Printf("failed paring auth key: %s\n", err.Error())
+
+				priv, err := ssh.ParsePrivateKey(bytes)
+				if err != nil {
+					fmt.Printf("failed paring private key: %s\n", err.Error())
+				}
+				pk := priv.PublicKey()
+				fmt.Println(pk.Type())
+			} else {
+				fmt.Println(auth.Type())
+			}
+		}
+
+		pubkey, _, _, _, err := ssh.ParseAuthorizedKey(bytes)
+		if err != nil {
+			return nil, trace.Errorf("cannot parse auth key. %v", err)
+		}
+		cert, ok := pubkey.(*ssh.Certificate)
+		if !ok {
+			// TODO better error handling here
+			return nil, trace.Errorf("invalid entry")
+		}
+		fmt.Println("Type: ", cert.Type())
+		fmt.Println("Nonce: ", string(cert.Nonce))
+		fmt.Println("Principals: ", cert.ValidPrincipals)
+		fmt.Println("Extensions: ", cert.Extensions)
+	}
+	return nil, nil
 }
 
 // applyString takes 'src' and overwrites target with it, unless 'src' is empty
