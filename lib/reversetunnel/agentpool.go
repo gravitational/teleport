@@ -146,7 +146,7 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 		}
 		go func() {
 			if err := agent.Start(); err != nil {
-				m.Warningf("%v failed to start", agent)
+				m.Warningf("%v failed to start: %v", agent, err)
 			}
 		}()
 		m.agents[key] = agent
