@@ -743,13 +743,11 @@ func validateConfig(cfg *Config) error {
 	if len(cfg.AuthServers) == 0 {
 		return trace.BadParameter("auth_servers is empty")
 	}
-
 	for i := range cfg.Auth.Authorities {
 		if err := cfg.Auth.Authorities[i].Check(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-
 	for _, tun := range cfg.ReverseTunnels {
 		if err := tun.Check(); err != nil {
 			return trace.Wrap(err)

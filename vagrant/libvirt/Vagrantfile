@@ -90,7 +90,7 @@ def apt_update(vm)
         apt-get -y autoremove
         apt-get -y upgrade
         apt-get -y dist-upgrade
-        apt-get -y install htop tree vim aufs-tools
+        apt-get -y install htop tree vim aufs-tools screen
         touch /root/apt.updated
     fi
   SHELL
@@ -125,4 +125,5 @@ def configure_ssh(vm)
   SHELL
   vm.provision "file", source: '~/.ssh/id_rsa', destination: '~/.ssh/id_rsa'
   vm.provision "file", source: '~/.ssh/id_rsa.pub', destination: '~/.ssh/id_rsa.pub'
+  vm.provision "file", source: '~/.screenrc', destination: '~/' if File.exists? "~/.screnrc"
 end

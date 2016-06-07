@@ -17,9 +17,10 @@ limitations under the License.
 package config
 
 import (
-	"fmt"
+	"bufio"
 	"io/ioutil"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -323,54 +324,65 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if len(authorities) > 0 {
-			cfg.Auth.Authorities = append(cfg.Auth.Authorities, authorities...)
-		}
+		cfg.Auth.Authorities = append(cfg.Auth.Authorities, authorities...)
 	}
 	return nil
 }
 
-func readTrustedClusters(certFiles []string) ([]services.CertAuthority, error) {
-	for _, fp := range certFiles {
-		bytes, err := utils.ReadPath(fp)
-		if err != nil {
-			return nil, trace.Wrap(err, "cannot read the certificate file")
+// readTrustedClusters takes a list of files, parses them and returns a list of CertAuthority
+// objects. Each file is exected to have an output of "tctl auth export"
+func readTrustedClusters(certFiles []string) (cas []services.CertAuthority, err error) {
+	if len(certFiles) == 0 {
+		return nil, nil
+	}
+	processCert := func(bytes []byte) error {
+		// is this a "host CA" key (known host)
+		marker, options, pubKey, comment, _, err := ssh.ParseKnownHosts(bytes)
+		if marker != "cert-authority" {
+			return trace.Errorf("invalid file format. expected '@cert-authority` marker")
 		}
-		fmt.Printf("Got %d bytes: %s\n", len(bytes), bytes)
-
-		_, err = ssh.ParsePublicKey(bytes)
 		if err != nil {
-			fmt.Printf("failed paring public key: %s\n", err.Error())
-			auth, _, _, _, err := ssh.ParseAuthorizedKey(bytes)
-			if err != nil {
-				fmt.Printf("failed paring auth key: %s\n", err.Error())
+			return trace.Errorf("invalid public key")
+		}
+		teleportOpts, err := url.ParseQuery(comment)
+		if err != nil {
+			return trace.Errorf("invalid key comment: '%s'", comment)
+		}
+		authType := services.CertAuthType(teleportOpts.Get("type"))
+		if authType != services.HostCA && authType != services.UserCA {
+			return trace.Errorf("unsupported CA type: '%s'", authType)
+		}
+		if len(options) == 0 {
+			return trace.Errorf("key without cluster_name")
+		}
+		const prefix = "*."
+		domainName := strings.TrimPrefix(options[0], prefix)
+		ca := services.CertAuthority{
+			CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
+			Type:         authType,
+			DomainName:   domainName,
+		}
+		cas = append(cas, ca)
+		return nil
+	}
 
-				priv, err := ssh.ParsePrivateKey(bytes)
-				if err != nil {
-					fmt.Printf("failed paring private key: %s\n", err.Error())
-				}
-				pk := priv.PublicKey()
-				fmt.Println(pk.Type())
-			} else {
-				fmt.Println(auth.Type())
+	// go over all certificate files, find and process all certs:
+	for _, fp := range certFiles {
+		log.Debugf("reading 'trusted cluster' file %s", fp)
+		f, err := os.Open(fp)
+		if err != nil {
+			return nil, trace.Errorf("error reading trusted cluster keys: %v", err)
+		}
+		defer f.Close()
+		scanner := bufio.NewScanner(f)
+		// every line in a file is a cert:
+		for line := 0; scanner.Scan(); {
+			if err = processCert(scanner.Bytes()); err != nil {
+				return nil, trace.Errorf("%s:L%d. %v", fp, line, err)
 			}
 		}
-
-		pubkey, _, _, _, err := ssh.ParseAuthorizedKey(bytes)
-		if err != nil {
-			return nil, trace.Errorf("cannot parse auth key. %v", err)
-		}
-		cert, ok := pubkey.(*ssh.Certificate)
-		if !ok {
-			// TODO better error handling here
-			return nil, trace.Errorf("invalid entry")
-		}
-		fmt.Println("Type: ", cert.Type())
-		fmt.Println("Nonce: ", string(cert.Nonce))
-		fmt.Println("Principals: ", cert.ValidPrincipals)
-		fmt.Println("Extensions: ", cert.Extensions)
 	}
-	return nil, nil
+	return cas, nil
 }
 
 // applyString takes 'src' and overwrites target with it, unless 'src' is empty

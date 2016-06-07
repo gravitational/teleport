@@ -1,15 +1,16 @@
-# Auth-only config
+# Auth for cluster-B
 teleport:
   nodename: auth-node
   log:
     output: stderr
     severity: INFO
-  trusted_auth: /opt/teleport/cas
 
 auth_service:
   enabled: yes
   cluster_name: cluster-b
   listen_addr: 0.0.0.0:3025
+  trusted_clusters:
+      - /opt/teleport/cluster-a
 
 ssh_service:
   enabled: yes

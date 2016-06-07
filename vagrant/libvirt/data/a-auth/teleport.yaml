@@ -1,4 +1,4 @@
-# Auth-only config
+# Auth for cluster-A
 teleport:
   nodename: auth-a
   log:
@@ -9,6 +9,8 @@ auth_service:
   enabled: yes
   cluster_name: cluster-a
   listen_addr: 0.0.0.0:3025
+  trusted_clusters:
+      - /opt/teleport/cluster-b
 
 ssh_service:
   enabled: yes

@@ -161,7 +161,7 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 		for k, v := range m {
 			if key, ok = k.(string); ok {
 				if recursive, ok = validKeys[key]; !ok {
-					return trace.BadParameter("this configuration key: '%v' is unknown", key)
+					return trace.BadParameter("unrecognized configuration key: '%v'", key)
 				}
 				if recursive {
 					if m2, ok := v.(YAMLMap); ok {
@@ -381,11 +381,13 @@ type Auth struct {
 
 	// TrustedClustersFile is a file path to a file containing public CA keys
 	// of clusters we trust. One key per line, those starting with '#' are comments
-	TrustedClusters []string `yaml:"trusted_clusters",omitempty"`
+	TrustedClusters []string `yaml:"trusted_clusters,omitempty"`
 
+	// FOR INTERNAL USE:
 	// Authorities : 3rd party certificate authorities (CAs) this auth service trusts.
 	Authorities []Authority `yaml:"authorities,omitempty"`
 
+	// FOR INTERNAL USE:
 	// ReverseTunnels is a list of SSH tunnels to 3rd party proxy services (used to talk
 	// to 3rd party auth servers we trust)
 	ReverseTunnels []ReverseTunnel `yaml:"reverse_tunnels,omitempty"`

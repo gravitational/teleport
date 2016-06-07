@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -459,15 +460,33 @@ func (a *AuthCommand) ListAuthorities(client *auth.TunClient) error {
 }
 
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
+// If --type flag is given, only prints keys for CAs of this type, otherwise
+// prints all keys
 func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
-	authType := services.CertAuthType(a.authType)
-	if err := authType.Check(); err != nil {
-		return trace.Wrap(err)
+	var typesToExport []services.CertAuthType
+
+	// if no --type flag is given, export all types
+	if a.authType == "" {
+		typesToExport = []services.CertAuthType{services.HostCA, services.UserCA}
+	} else {
+		authType := services.CertAuthType(a.authType)
+		if err := authType.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+		typesToExport = []services.CertAuthType{authType}
 	}
-	authorities, err := client.GetCertAuthorities(authType, a.exportPrivateKeys)
-	if err != nil {
-		return trace.Wrap(err)
+
+	// fetch authorities via auth API:
+	var authorities []*services.CertAuthority
+	for _, at := range typesToExport {
+		ats, err := client.GetCertAuthorities(at, a.exportPrivateKeys)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		authorities = append(authorities, ats...)
 	}
+
+	// print:
 	for _, ca := range authorities {
 		if a.exportPrivateKeys {
 			for _, key := range ca.SigningKeys {
@@ -490,13 +509,19 @@ func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
 				if a.exportAuthorityFingerprint != "" && fingerprint != a.exportAuthorityFingerprint {
 					continue
 				}
-				if authType == services.UserCA {
-					// for user authorities, export in the sshd's TrustedUserCAKeys format
-					os.Stdout.Write(keyBytes)
-				} else {
-					// for host authorities export them in the authorized_keys - compatible format
-					fmt.Fprintf(os.Stdout, "@cert-authority *.%v %v", ca.DomainName, string(keyBytes))
+				options := url.Values{
+					"type": []string{string(ca.Type)},
 				}
+				if len(ca.AllowedLogins) > 0 {
+					options["logins"] = ca.AllowedLogins
+				}
+				// Every auth public key is exported as a single line adhering to man sshd (8)
+				// authorized_hosts format, a space-separated list of: makrer, hosts, key, and comment
+				// example:
+				// 		@cert-authority *.cluster-a ssh-rsa AAA... type=user
+				// We use URL encoding to pass the CA type and allowed logins into the comment field
+				fmt.Fprintf(os.Stdout, "@cert-authority *.%s %s %s\n",
+					ca.DomainName, strings.TrimSpace(string(keyBytes)), options.Encode())
 			}
 		}
 	}

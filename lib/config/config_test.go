@@ -19,7 +19,6 @@ package config
 import (
 	"bytes"
 	"encoding/base64"
-	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
@@ -32,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 
+	"golang.org/x/crypto/ssh"
 	"gopkg.in/check.v1"
 )
 
@@ -214,13 +214,25 @@ func (s *ConfigTestSuite) TestLocateWebAssets(c *check.C) {
 
 func (s *ConfigTestSuite) TestTrustedClusters(c *check.C) {
 	files := []string{
-		"../../fixtures/user-ca",
-		"../../fixtures/host-ca",
+		"../../fixtures/trusted_clusters/cluster-a",
 	}
 	authorities, err := readTrustedClusters(files)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(authorities), check.Equals, 2)
+	c.Assert(authorities[0].DomainName, check.Equals, "cluster-a")
+	c.Assert(authorities[0].Type, check.Equals, services.HostCA)
+	c.Assert(len(authorities[0].CheckingKeys), check.Equals, 1)
+	c.Assert(authorities[1].DomainName, check.Equals, "cluster-a")
+	c.Assert(authorities[1].Type, check.Equals, services.UserCA)
+	c.Assert(len(authorities[1].CheckingKeys), check.Equals, 1)
+	_, _, _, _, err = ssh.ParseAuthorizedKey(authorities[1].CheckingKeys[0])
+	c.Assert(err, check.IsNil)
+
+	// try to read the file of a wrong format:
+	authorities, err = readTrustedClusters([]string{"../../README.md"})
 	c.Assert(err, check.NotNil)
 	c.Assert(authorities, check.IsNil)
-	fmt.Println(err.Error())
+	c.Assert(err, check.ErrorMatches, "^.*invalid file format.*$")
 }
 
 func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
