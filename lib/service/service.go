@@ -332,41 +332,35 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 			auth.SetLimiter(limiter),
 		)
 		if err != nil {
-			utils.Consolef(cfg.Console, "[PROXY] Error: %v", err)
+			utils.Consolef(cfg.Console, "[AUTH] Error: %v", err)
 			return trace.Wrap(err)
 		}
 		if err := authTunnel.Start(); err != nil {
 			if askedToExit {
-				log.Infof("[PROXY] Auth Tunnel exited")
+				log.Infof("[AUTH] Auth Tunnel exited")
 				return nil
 			}
-			utils.Consolef(cfg.Console, "[PROXY] Error: %v", err)
+			utils.Consolef(cfg.Console, "[AUTH] Error: %v", err)
 			return trace.Wrap(err)
 		}
 		return nil
 	})
 
-	// Heart beat auth server presence, this is not the best place for this
-	// logic, consolidate it into auth package later
-	storage := utils.NewFileAddrStorage(
-		filepath.Join(process.Config.DataDir, "authservers.json"))
+	process.RegisterFunc(func() error {
+		// Heart beat auth server presence, this is not the best place for this
+		// logic, consolidate it into auth package later
+		connector, err := process.connectToAuthService(teleport.RoleAdmin)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// External integrations rely on this event:
+		process.BroadcastEvent(Event{Name: AuthIdentityEvent, Payload: connector})
+		process.onExit(func(payload interface{}) {
+			connector.Client.Close()
+		})
+		return nil
+	})
 
-	authUser := identity.Cert.ValidPrincipals[0]
-	authClient, err := auth.NewTunClient(
-		string(teleport.RoleAuth),
-		process.Config.AuthServers,
-		authUser,
-		[]ssh.AuthMethod{ssh.PublicKeys(identity.KeySigner)},
-		auth.TunClientStorage(storage),
-	)
-	// success?
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	process.BroadcastEvent(Event{Name: AuthIdentityEvent, Payload: &Connector{
-		Identity: identity,
-		Client:   authClient,
-	}})
 	process.RegisterFunc(func() error {
 		srv := services.Server{
 			ID:       process.Config.HostUUID,
@@ -409,7 +403,6 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 	process.onExit(func(payload interface{}) {
 		askedToExit = true
 		authTunnel.Close()
-		authClient.Close()
 		log.Infof("[AUTH] auth service exited")
 	})
 	return nil

@@ -42,7 +42,7 @@ import (
 
 // dialRetryInterval specifies the time interval tun client waits to retry
 // dialing the same auth server
-const dialRetryInterval = time.Duration(time.Millisecond * 50)
+const dialRetryInterval = time.Duration(time.Second)
 
 // AuthTunnel listens on TCP/IP socket and accepts SSH connections. It then establishes
 // an SSH tunnell which HTTP requests travel over. In other words, the Auth Service API
