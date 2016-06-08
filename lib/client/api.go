@@ -759,12 +759,15 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 func (tc *TeleportClient) getProxyLogin() string {
 	// we'll fall back to using the target host login
 	proxyLogin := tc.Config.HostLogin
+
 	// see if we already have a signed key in the cache, we'll use that instead
-	keys, err := tc.GetKeys()
-	if err == nil && len(keys) > 0 {
-		principals := keys[0].Certificate.ValidPrincipals
-		if len(principals) > 0 {
-			proxyLogin = principals[0]
+	if !tc.Config.SkipLocalAuth {
+		keys, err := tc.GetKeys()
+		if err == nil && len(keys) > 0 {
+			principals := keys[0].Certificate.ValidPrincipals
+			if len(principals) > 0 {
+				proxyLogin = principals[0]
+			}
 		}
 	}
 	return proxyLogin
