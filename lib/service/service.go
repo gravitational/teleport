@@ -66,6 +66,8 @@ const (
 	// TeleportExitEvent is generated when someone is askign Teleport Process to close
 	// all listening sockets and exit
 	TeleportExitEvent = "TeleportExit"
+	// AuthIdentityEvent is generated when auth's identity has been initialized
+	AuthIdentityEvent = "AuthIdentity"
 )
 
 // RoleConfig is a configuration for a server role (either proxy or node)
@@ -346,7 +348,25 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 
 	// Heart beat auth server presence, this is not the best place for this
 	// logic, consolidate it into auth package later
-	var authClient *auth.TunClient
+	storage := utils.NewFileAddrStorage(
+		filepath.Join(process.Config.DataDir, "authservers.json"))
+
+	authUser := identity.Cert.ValidPrincipals[0]
+	authClient, err := auth.NewTunClient(
+		string(teleport.RoleAuth),
+		process.Config.AuthServers,
+		authUser,
+		[]ssh.AuthMethod{ssh.PublicKeys(identity.KeySigner)},
+		auth.TunClientStorage(storage),
+	)
+	// success?
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	process.BroadcastEvent(Event{Name: AuthIdentityEvent, Payload: &Connector{
+		Identity: identity,
+		Client:   authClient,
+	}})
 	process.RegisterFunc(func() error {
 		srv := services.Server{
 			ID:       process.Config.HostUUID,
