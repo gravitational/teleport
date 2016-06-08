@@ -3,12 +3,6 @@
 This document covers the underlying design principles of Teleport and a detailed 
 description of Teleport architecture.
 
-!!! danger "IMPORTANT": 
-    At this time Teleport is NOT recommended for production use, but the code is open and 
-    available for your security team to inspect. Currently Teleport is undergoing an independent 
-    security review. We will be more comfortable recommending it for production use once the 
-    review will have completed.
-
 ## High Level Overview
 
 ### Design Principles

@@ -229,10 +229,3 @@ localhost. For production environments we strongly recommend the following:
 - Use a configuration file instead of command line flags because it gives you 
   more flexibility, for example for configuring HA clusters.
 - Review the [Architecture Overview](architecture.md), [Admin Manual](admin-guide.md) and [User Manual](user-manual.md) for a better understanding of Teleport.
-
-
-!!! danger "IMPORTANT": 
-    At this time Teleport is NOT recommended for production use, but the code is open and 
-    available for your security team to inspect. Currently Teleport is undergoing an independent 
-    security review. We will be more comfortable recommending it for production use once the 
-    review will have completed.
