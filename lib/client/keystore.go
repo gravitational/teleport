@@ -96,10 +96,8 @@ func (fs *FSLocalKeyStore) GetKeys(username string) (keys []Key, err error) {
 		}
 		k, err := fs.GetKey(fi.Name(), username)
 		if err != nil {
-			log.Infof("Got error after GetKey(%s): %v", username, err)
 			// if a key is reported as 'not found' it's probably because it expired
 			if !trace.IsNotFound(err) {
-				log.Infof("ITS ANOTHER ERROR")
 				return nil, trace.Wrap(err)
 			}
 			continue

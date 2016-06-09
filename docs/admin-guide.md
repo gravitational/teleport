@@ -3,12 +3,6 @@
 This manual covers installation and configuration of Teleport and the ongoing 
 management of a Teleport cluster. It assumes that the reader has good understanding 
 of Linux administration.
-
-!!! danger "IMPORTANT": 
-    At this time Teleport is NOT recommended for production use, but the code is open and 
-    available for your security team to inspect. Currently Teleport is undergoing an independent 
-    security review. We will be more comfortable recommending it for production use once the 
-    review will have completed.
     
 ## Installation
 
