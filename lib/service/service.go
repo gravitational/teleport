@@ -66,6 +66,8 @@ const (
 	// TeleportExitEvent is generated when someone is askign Teleport Process to close
 	// all listening sockets and exit
 	TeleportExitEvent = "TeleportExit"
+	// AuthIdentityEvent is generated when auth's identity has been initialized
+	AuthIdentityEvent = "AuthIdentity"
 )
 
 // RoleConfig is a configuration for a server role (either proxy or node)
@@ -330,23 +332,35 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 			auth.SetLimiter(limiter),
 		)
 		if err != nil {
-			utils.Consolef(cfg.Console, "[PROXY] Error: %v", err)
+			utils.Consolef(cfg.Console, "[AUTH] Error: %v", err)
 			return trace.Wrap(err)
 		}
 		if err := authTunnel.Start(); err != nil {
 			if askedToExit {
-				log.Infof("[PROXY] Auth Tunnel exited")
+				log.Infof("[AUTH] Auth Tunnel exited")
 				return nil
 			}
-			utils.Consolef(cfg.Console, "[PROXY] Error: %v", err)
+			utils.Consolef(cfg.Console, "[AUTH] Error: %v", err)
 			return trace.Wrap(err)
 		}
 		return nil
 	})
 
-	// Heart beat auth server presence, this is not the best place for this
-	// logic, consolidate it into auth package later
-	var authClient *auth.TunClient
+	process.RegisterFunc(func() error {
+		// Heart beat auth server presence, this is not the best place for this
+		// logic, consolidate it into auth package later
+		connector, err := process.connectToAuthService(teleport.RoleAdmin)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// External integrations rely on this event:
+		process.BroadcastEvent(Event{Name: AuthIdentityEvent, Payload: connector})
+		process.onExit(func(payload interface{}) {
+			connector.Client.Close()
+		})
+		return nil
+	})
+
 	process.RegisterFunc(func() error {
 		srv := services.Server{
 			ID:       process.Config.HostUUID,
@@ -389,7 +403,6 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 	process.onExit(func(payload interface{}) {
 		askedToExit = true
 		authTunnel.Close()
-		authClient.Close()
 		log.Infof("[AUTH] auth service exited")
 	})
 	return nil
