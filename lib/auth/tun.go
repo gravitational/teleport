@@ -42,7 +42,7 @@ import (
 
 // dialRetryInterval specifies the time interval tun client waits to retry
 // dialing the same auth server
-const dialRetryInterval = time.Duration(time.Second)
+const dialRetryInterval = 100 * time.Millisecond
 
 // AuthTunnel listens on TCP/IP socket and accepts SSH connections. It then establishes
 // an SSH tunnell which HTTP requests travel over. In other words, the Auth Service API
@@ -621,7 +621,7 @@ func (c *TunClient) GetDialer() AccessPointDialer {
 			if err == nil {
 				return conn, nil
 			}
-			time.Sleep(dialRetryInterval * time.Duration(attempt))
+			time.Sleep(4 * time.Duration(attempt) * dialRetryInterval)
 		}
 		log.Error(err)
 		return nil, trace.Wrap(err)
