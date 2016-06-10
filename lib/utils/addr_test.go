@@ -18,12 +18,14 @@ package utils
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/yaml.v2"
 )
 
-func TestAddrSturct(t *testing.T) { TestingT(t) }
+func TestAddrStruct(t *testing.T) { TestingT(t) }
 
 type AddrTestSuite struct {
 }
@@ -132,5 +134,43 @@ func (s *AddrTestSuite) TestGuess(c *C) {
 	// proper IP auto-detection
 	if h != "buildbox" {
 		c.Assert(ip[12] == 10 || ip[12] == 192 || ip[12] == 172, Equals, true)
+	}
+}
+
+func (s *AddrTestSuite) TestMarshal(c *C) {
+	testCases := []struct {
+		in       *NetAddr
+		expected string
+	}{
+		{in: &NetAddr{Addr: "localhost:5000"}, expected: "localhost:5000"},
+		{in: &NetAddr{AddrNetwork: "tcp", Addr: "localhost:5000"}, expected: "tcp://localhost:5000"},
+		{in: &NetAddr{AddrNetwork: "tcp", Addr: "localhost:5000", Path: "/path"}, expected: "tcp://localhost:5000/path"},
+		{in: &NetAddr{AddrNetwork: "unix", Path: "/path"}, expected: "unix:///path"},
+	}
+
+	for i, testCase := range testCases {
+		bytes, err := yaml.Marshal(testCase.in)
+		c.Assert(err, IsNil)
+		c.Assert(strings.TrimSpace(string(bytes)), Equals, testCase.expected,
+			Commentf("test case %v, %v should be marshalled to: %v", i, testCase.in, testCase.expected))
+	}
+}
+
+func (s *AddrTestSuite) TestUnmarshal(c *C) {
+	testCases := []struct {
+		in       string
+		expected *NetAddr
+	}{
+		{in: "localhost:5000", expected: &NetAddr{AddrNetwork: "tcp", Addr: "localhost:5000"}},
+		{in: "tcp://localhost:5000/path", expected: &NetAddr{AddrNetwork: "tcp", Addr: "localhost:5000", Path: "/path"}},
+		{in: "unix:///path", expected: &NetAddr{AddrNetwork: "unix", Addr: "/path"}},
+	}
+
+	for i, testCase := range testCases {
+		addr := &NetAddr{}
+		err := yaml.Unmarshal([]byte(testCase.in), addr)
+		c.Assert(err, IsNil)
+		c.Assert(addr, DeepEquals, testCase.expected,
+			Commentf("test case %v, %v should be unmarshalled to: %v", i, testCase.in, testCase.expected))
 	}
 }
