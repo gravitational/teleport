@@ -163,7 +163,7 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 // and starts them under a supervisor, returning the supervisor object
 func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	if err := validateConfig(cfg); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Configuration error")
 	}
 
 	// create the data directory if it's missing

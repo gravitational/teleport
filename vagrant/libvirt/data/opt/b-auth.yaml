@@ -1,6 +1,6 @@
 # Auth for cluster-B
 teleport:
-  nodename: auth-node
+  nodename: auth-b
   log:
     output: stderr
     severity: INFO
@@ -8,9 +8,8 @@ teleport:
 auth_service:
   enabled: yes
   cluster_name: cluster-b
-  listen_addr: 0.0.0.0:3025
   trusted_clusters:
-      - /opt/teleport/cluster-a
+    - /opt/shared/cluster-a
 
 ssh_service:
   enabled: yes

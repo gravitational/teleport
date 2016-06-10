@@ -28,6 +28,8 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -36,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -434,8 +435,16 @@ type ReverseTunnel struct {
 	Addresses  []string `yaml:"addresses"`
 }
 
-// Tunnel returns validated services.ReverseTunnel or nil and error otherwize
-func (t *ReverseTunnel) Tunnel() (*services.ReverseTunnel, error) {
+// ConvertAndValidate returns validated services.ReverseTunnel or nil and error otherwize
+func (t *ReverseTunnel) ConvertAndValidate() (*services.ReverseTunnel, error) {
+	for i := range t.Addresses {
+		addr, err := utils.ParseHostPortAddr(t.Addresses[i], defaults.SSHProxyTunnelListenPort)
+		if err != nil {
+			return nil, trace.Wrap(err, "Invalid address for tunnel %v", t.DomainName)
+		}
+		t.Addresses[i] = addr.String()
+	}
+
 	out := &services.ReverseTunnel{
 		DomainName: t.DomainName,
 		DialAddrs:  t.Addresses,

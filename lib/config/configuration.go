@@ -226,7 +226,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 
 	// add reverse tunnels supplied from configs
 	for _, t := range fc.Auth.ReverseTunnels {
-		tun, err := t.Tunnel()
+		tun, err := t.ConvertAndValidate()
 		if err != nil {
 			return trace.Wrap(err)
 		}

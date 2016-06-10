@@ -42,27 +42,32 @@ import (
 // Agent is a reverse tunnel agent running as a part of teleport Proxies
 // to establish outbound reverse tunnels to remote proxies
 type Agent struct {
-	log             *log.Entry
-	addr            utils.NetAddr
-	clt             *auth.TunClient
-	domainName      string
-	broadcastClose  *utils.CloseBroadcaster
-	disconnectC     chan bool
-	hostKeyCallback utils.HostKeyCallback
-	authMethods     []ssh.AuthMethod
+	log              *log.Entry
+	addr             utils.NetAddr
+	clt              *auth.TunClient
+	remoteDomainName string
+	clientName       string
+	broadcastClose   *utils.CloseBroadcaster
+	disconnectC      chan bool
+	hostKeyCallback  utils.HostKeyCallback
+	authMethods      []ssh.AuthMethod
 }
 
 // AgentOption specifies parameter that could be passed to Agents
 type AgentOption func(a *Agent) error
 
 // NewAgent returns a new reverse tunnel agent
+// Parameters:
+//	  addr and remoteDomainName point to the remote reverse tunnel server
+//    clientName is usually hostid.domain (where 'domain' is local auth domain name)
 func NewAgent(
 	addr utils.NetAddr,
-	domainName string,
+	remoteDomainName string,
+	clientName string,
 	signers []ssh.Signer,
 	clt *auth.TunClient) (*Agent, error) {
 
-	log.Debugf("reversetunnel.NewAgent(%v)", domainName)
+	log.Debugf("reversetunnel.NewAgent %s -> %s", clientName, remoteDomainName)
 
 	a := &Agent{
 		log: log.WithFields(log.Fields{
@@ -73,12 +78,13 @@ func NewAgent(
 				"mode":   "agent",
 			},
 		}),
-		clt:            clt,
-		addr:           addr,
-		domainName:     domainName,
-		broadcastClose: utils.NewCloseBroadcaster(),
-		disconnectC:    make(chan bool, 10),
-		authMethods:    []ssh.AuthMethod{ssh.PublicKeys(signers...)},
+		clt:              clt,
+		addr:             addr,
+		remoteDomainName: remoteDomainName,
+		clientName:       clientName,
+		broadcastClose:   utils.NewCloseBroadcaster(),
+		disconnectC:      make(chan bool, 10),
+		authMethods:      []ssh.AuthMethod{ssh.PublicKeys(signers...)},
 	}
 	a.hostKeyCallback = a.checkHostSignature
 	return a, nil
@@ -92,6 +98,10 @@ func (a *Agent) Close() error {
 // Start starts agent that attempts to connect to remote server part
 func (a *Agent) Start() error {
 	conn, err := a.connect()
+	if err != nil {
+		log.Errorf("Failed to create remote tunnel for %v on %s(%s): %v",
+			a.clientName, a.remoteDomainName, a.addr.FullAddress(), err)
+	}
 	// start heartbeat even if error happend, it will reconnect
 	go a.runHeartbeat(conn)
 	return err
@@ -104,7 +114,7 @@ func (a *Agent) Wait() error {
 
 // String returns debug-friendly
 func (a *Agent) String() string {
-	return fmt.Sprintf("tunagent(remote=%v)", a.addr)
+	return fmt.Sprintf("tunagent(remote=%s)", a.addr.String())
 }
 
 func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.PublicKey) error {
@@ -138,7 +148,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 	}
 	for _, authMethod := range a.authMethods {
 		conn, err = ssh.Dial(a.addr.AddrNetwork, a.addr.Addr, &ssh.ClientConfig{
-			User:            a.domainName,
+			User:            a.clientName,
 			Auth:            []ssh.AuthMethod{authMethod},
 			HostKeyCallback: a.hostKeyCallback,
 		})
@@ -234,6 +244,7 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 		if conn == nil {
 			return trace.Errorf("heartbeat cannot ping: need to reconnect")
 		}
+		log.Infof("reverse tunnel agent connected to %s", conn.RemoteAddr())
 		defer conn.Close()
 		hb, reqC, err := conn.OpenChannel(chanHeartbeat, nil)
 		if err != nil {
@@ -254,8 +265,10 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 				return nil
 			// time to ping:
 			case <-ticker.C:
+				log.Infof("reverse tunnel agent pings \"%s\" at %s", a.remoteDomainName, conn.RemoteAddr())
 				_, err := hb.SendRequest("ping", false, nil)
 				if err != nil {
+					log.Error(err)
 					return trace.Wrap(err)
 				}
 			// ssh channel closed:

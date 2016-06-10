@@ -103,7 +103,7 @@ func ParseAddr(a string) (*NetAddr, error) {
 	if !strings.Contains(a, "://") {
 		host, port, err := net.SplitHostPort(a)
 		if err != nil {
-			return nil, trace.BadParameter("'%v' is a bad address, expected host:port", a)
+			return nil, trace.BadParameter("invalid network address: '%v', expecting host:port", a)
 		}
 		return &NetAddr{Addr: fmt.Sprintf("%v:%v", host, port), AddrNetwork: "tcp"}, nil
 	}

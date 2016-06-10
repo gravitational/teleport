@@ -8,9 +8,11 @@ teleport:
 auth_service:
   enabled: yes
   cluster_name: cluster-a
-  listen_addr: 0.0.0.0:3025
   trusted_clusters:
-      - /opt/teleport/cluster-b
+    - /opt/shared/cluster-b
+  reverse_tunnels:
+    - domain_name: cluster-b
+      addresses: [b-auth]
 
 ssh_service:
   enabled: yes

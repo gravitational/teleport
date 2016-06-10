@@ -131,8 +131,7 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 	}
 
 	// populate authorities on first start
-	if firstStart && len(cfg.Authorities) != 0 {
-		log.Infof("FIRST START: populating trusted authorities supplied from configuration")
+	if len(cfg.Authorities) != 0 {
 		for _, ca := range cfg.Authorities {
 			if err := asrv.Trust.UpsertCertAuthority(ca, backend.Forever); err != nil {
 				return nil, nil, trace.Wrap(err)
@@ -187,15 +186,15 @@ func Init(cfg InitConfig) (*AuthServer, *Identity, error) {
 			return nil, nil, trace.Wrap(err)
 		}
 	}
-	if firstStart {
-		if len(cfg.ReverseTunnels) != 0 {
-			log.Infof("FIRST START: Initializing reverse tunnels")
-			for _, tunnel := range cfg.ReverseTunnels {
-				if err := asrv.UpsertReverseTunnel(tunnel, 0); err != nil {
-					return nil, nil, trace.Wrap(err)
-				}
+	if len(cfg.ReverseTunnels) != 0 {
+		log.Infof("Initializing reverse tunnels")
+		for _, tunnel := range cfg.ReverseTunnels {
+			if err := asrv.UpsertReverseTunnel(tunnel, 0); err != nil {
+				return nil, nil, trace.Wrap(err)
 			}
 		}
+	}
+	if firstStart {
 		if len(cfg.OIDCConnectors) != 0 {
 			log.Infof("FIRST START: Initializing oidc connectors")
 			for _, connector := range cfg.OIDCConnectors {

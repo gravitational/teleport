@@ -177,7 +177,7 @@ func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.New
 		nch.Reject(ssh.ConnectionFailed, msg)
 		return
 	}
-	log.Infof("got heartbeat request from agent: %v", sconn)
+	log.Infof("new reverse tunnel agent: %s", sconn.RemoteAddr())
 	if sconn.Permissions.Extensions[extCertType] != extCertTypeHost {
 		log.Error(trace.BadParameter("can't retrieve certificate type in certType"))
 		return
@@ -339,7 +339,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 func (s *server) upsertSite(conn net.Conn, sshConn *ssh.ServerConn) (*tunnelSite, *remoteConn, error) {
 	domainName := sshConn.Permissions.Extensions[extAuthority]
 	if !cstrings.IsValidDomainName(domainName) {
-		return nil, nil, trace.BadParameter("'%v' is a bad domain name", domainName)
+		return nil, nil, trace.BadParameter("Cannot create reverse tunnel: '%v' is not a valid FQDN", domainName)
 	}
 
 	s.Lock()
@@ -541,6 +541,7 @@ func (s *tunnelSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 					conn.markInvalid(trace.ConnectionProblem(nil, "agent disconnected"))
 					return
 				}
+				log.Infof("ping from reverse tunnel client \"%s\" %s", s.domainName, conn.conn.RemoteAddr())
 				s.setLastActive(time.Now())
 			case <-time.After(3 * defaults.ReverseTunnelAgentHeartbeatPeriod):
 				conn.markInvalid(trace.ConnectionProblem(nil, "agent missed 3 heartbeats"))
