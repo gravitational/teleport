@@ -12,12 +12,12 @@
 # NOTE: uses libvirt/KVM instead of Virtualbox
 NODES = {
   "a-auth"  => "10.0.10.10", 
-  "a-proxy" => "10.0.10.11", 
-  "a-node"  => "10.0.10.12",
+#  "a-proxy" => "10.0.10.11", 
+#  "a-node"  => "10.0.10.12",
 
   "b-auth"  => "10.0.10.20", 
-  "b-proxy" => "10.0.10.21", 
-  "b-node"  => "10.0.10.22"
+#  "b-proxy" => "10.0.10.21", 
+#  "b-node"  => "10.0.10.22"
 }
 
 DOCKER_VER ||= "1.10.3"
