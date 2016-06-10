@@ -324,6 +324,26 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 
 // TestInvalidLogins validates that you can't login with invalid login or
 // with invalid 'site' parameter
+func (s *IntSuite) TestEnvironmentVariables(c *check.C) {
+	t := s.newTeleport(c, nil, true)
+	defer t.Stop(true)
+
+	testKey, testVal := "TELEPORT_TEST_ENV", "howdy"
+	cmd := []string{"echo", fmt.Sprintf("$%v", testKey)}
+
+	// make sure sessions set run command
+	tc, err := t.NewClient(s.me.Username, Site, Host, t.GetPortSSHInt())
+	tc.Env = map[string]string{testKey: testVal}
+	out := &bytes.Buffer{}
+	tc.Stdout = out
+	c.Assert(err, check.IsNil)
+	err = tc.SSH(cmd, false, nil)
+	c.Assert(err, check.IsNil)
+	c.Assert(strings.TrimSpace(out.String()), check.Equals, testVal)
+}
+
+// TestInvalidLogins validates that you can't login with invalid login or
+// with invalid 'site' parameter
 func (s *IntSuite) TestInvalidLogins(c *check.C) {
 	t := s.newTeleport(c, nil, true)
 	defer t.Stop(true)

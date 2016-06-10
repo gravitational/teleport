@@ -259,7 +259,7 @@ func (proxy *ProxyClient) Close() error {
 }
 
 // Shell returns remote shell as io.ReadWriterCloser object
-func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.ReadWriteCloser, error) {
+func (client *NodeClient) Shell(width, height int, sessionID session.ID, env map[string]string) (io.ReadWriteCloser, error) {
 	if sessionID == "" {
 		// initiate a new session if not passed
 		sessionID = session.NewID()
@@ -291,6 +291,14 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.Rea
 			if err != nil {
 				log.Warn(err)
 			}
+		}
+	}
+
+	// pass environment variables set by client
+	for key, val := range env {
+		err = clientSession.Setenv(key, val)
+		if err != nil {
+			log.Warn(err)
 		}
 	}
 
@@ -414,10 +422,17 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID) (io.Rea
 
 // Run executes command on the remote server and writes its stdout to
 // the 'output' argument
-func (client *NodeClient) Run(cmd []string, stdin io.Reader, stdout, stderr io.Writer) error {
+func (client *NodeClient) Run(cmd []string, stdin io.Reader, stdout, stderr io.Writer, env map[string]string) error {
 	session, err := client.Client.NewSession()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	// pass environment variables set by client
+	for key, val := range env {
+		err = session.Setenv(key, val)
+		if err != nil {
+			log.Warn(err)
+		}
 	}
 	session.Stdout = stdout
 	session.Stderr = stderr
