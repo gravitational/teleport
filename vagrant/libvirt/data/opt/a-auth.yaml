@@ -9,10 +9,9 @@ auth_service:
   enabled: yes
   cluster_name: cluster-a
   trusted_clusters:
-    - /opt/shared/cluster-b
-  reverse_tunnels:
-    - domain_name: cluster-b
-      addresses: [b-auth]
+      - keyfile: /opt/shared/cluster-b
+        allow_logins: root,vagrant
+        tunnel_addr: b-auth
 
 ssh_service:
   enabled: yes

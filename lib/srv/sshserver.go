@@ -403,7 +403,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 
 	// for other authorities, check for authoritiy permissions
 	for _, login := range ca.AllowedLogins {
-		if login == osUser {
+		if login == osUser || login == "*" {
 			return nil
 		}
 	}

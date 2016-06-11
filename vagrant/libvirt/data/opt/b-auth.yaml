@@ -9,7 +9,7 @@ auth_service:
   enabled: yes
   cluster_name: cluster-b
   trusted_clusters:
-    - /opt/shared/cluster-a
+      - keyfile: /opt/shared/cluster-b
 
 ssh_service:
   enabled: yes

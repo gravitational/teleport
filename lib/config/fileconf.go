@@ -382,7 +382,7 @@ type Auth struct {
 
 	// TrustedClustersFile is a file path to a file containing public CA keys
 	// of clusters we trust. One key per line, those starting with '#' are comments
-	TrustedClusters []string `yaml:"trusted_clusters,omitempty"`
+	TrustedClusters []TrustedCluster `yaml:"trusted_clusters,omitempty"`
 
 	// FOR INTERNAL USE:
 	// Authorities : 3rd party certificate authorities (CAs) this auth service trusts.
@@ -402,6 +402,17 @@ type Auth struct {
 	// Each token string has the following format: "role1,role2,..:token",
 	// for exmple: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
 	StaticTokens []StaticToken `yaml:"tokens,omitempty"`
+}
+
+// TrustedCluster struct holds configuration values under "trusted_clusters" key
+type TrustedCluster struct {
+	// KeyFile is a path to a remote authority (AKA "trusted cluster") public keys
+	KeyFile string `yaml:"keyfile,omitempty"`
+	// AllowedLogins is a comma-separated list of user logins allowed from that cluster
+	AllowedLogins string `yaml:"allow_logins,omitempty"`
+	// TunnelAddr is a comma-separated list of reverse tunnel addressess to
+	// connect to
+	TunnelAddr string `yaml:"tunnel_addr,omitempty"`
 }
 
 type StaticToken string

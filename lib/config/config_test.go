@@ -213,11 +213,19 @@ func (s *ConfigTestSuite) TestLocateWebAssets(c *check.C) {
 }
 
 func (s *ConfigTestSuite) TestTrustedClusters(c *check.C) {
-	files := []string{
-		"../../fixtures/trusted_clusters/cluster-a",
-	}
-	authorities, err := readTrustedClusters(files)
+	err := readTrustedClusters(nil, nil)
 	c.Assert(err, check.IsNil)
+
+	var conf service.Config
+	err = readTrustedClusters([]TrustedCluster{
+		{
+			AllowedLogins: "vagrant, root",
+			KeyFile:       "../../fixtures/trusted_clusters/cluster-a",
+			TunnelAddr:    "one,two",
+		},
+	}, &conf)
+	c.Assert(err, check.IsNil)
+	authorities := conf.Auth.Authorities
 	c.Assert(len(authorities), check.Equals, 2)
 	c.Assert(authorities[0].DomainName, check.Equals, "cluster-a")
 	c.Assert(authorities[0].Type, check.Equals, services.HostCA)
@@ -228,11 +236,40 @@ func (s *ConfigTestSuite) TestTrustedClusters(c *check.C) {
 	_, _, _, _, err = ssh.ParseAuthorizedKey(authorities[1].CheckingKeys[0])
 	c.Assert(err, check.IsNil)
 
-	// try to read the file of a wrong format:
-	authorities, err = readTrustedClusters([]string{"../../README.md"})
+	tunnels := conf.ReverseTunnels
+	c.Assert(len(tunnels), check.Equals, 1)
+	c.Assert(tunnels[0].DomainName, check.Equals, "cluster-a")
+	c.Assert(len(tunnels[0].DialAddrs), check.Equals, 2)
+	c.Assert(tunnels[0].DialAddrs[0], check.Equals, "tcp://one:3024")
+	c.Assert(tunnels[0].DialAddrs[1], check.Equals, "tcp://two:3024")
+
+	// invalid data:
+	err = readTrustedClusters([]TrustedCluster{
+		{
+			AllowedLogins: "vagrant, root",
+			KeyFile:       "non-existing",
+			TunnelAddr:    "one,two",
+		},
+	}, &conf)
 	c.Assert(err, check.NotNil)
-	c.Assert(authorities, check.IsNil)
-	c.Assert(err, check.ErrorMatches, "^.*invalid file format.*$")
+	c.Assert(err, check.ErrorMatches, "^.*reading trusted cluster keys.*$")
+	err = readTrustedClusters([]TrustedCluster{
+		{
+			KeyFile:    "../../fixtures/trusted_clusters/cluster-a",
+			TunnelAddr: "one,two",
+		},
+	}, &conf)
+	c.Assert(err, check.ErrorMatches, ".*needs allow_logins parameter")
+	conf.ReverseTunnels = nil
+	err = readTrustedClusters([]TrustedCluster{
+		{
+			KeyFile:       "../../fixtures/trusted_clusters/cluster-a",
+			AllowedLogins: "vagrant",
+			TunnelAddr:    "",
+		},
+	}, &conf)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(conf.ReverseTunnels), check.Equals, 0)
 }
 
 func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
