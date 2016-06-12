@@ -383,6 +383,9 @@ func readTrustedClusters(clusters []TrustedCluster, conf *service.Config) error 
 		}
 		// open the key file for this cluster:
 		log.Debugf("reading trusted cluster key file %s", tc.KeyFile)
+		if tc.KeyFile == "" {
+			return trace.Errorf("key_file is missing for a trusted cluster")
+		}
 		f, err := os.Open(tc.KeyFile)
 		if err != nil {
 			return trace.Errorf("reading trusted cluster keys: %v", err)

@@ -9,7 +9,7 @@ auth_service:
   enabled: yes
   cluster_name: cluster-a
   trusted_clusters:
-      - keyfile: /opt/shared/cluster-b
+      - key_file: /opt/shared/cluster-b
         allow_logins: root,vagrant
         tunnel_addr: b-auth
 
