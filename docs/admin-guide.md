@@ -85,7 +85,8 @@ Teleport services listen on several ports. This table shows the default port num
 |----------|------------|-------------------------------------------
 |3022      | Node       | SSH port. This is Teleport's equivalent of port `#22` for SSH.
 |3023      | Proxy      | SSH port clients connect to. A proxy will forward this connection to port `#3022` on the destination node.
-|3024      | Auth       | SSH port used by the Auth Service to serve its API to other nodes in a cluster.
+|3025      | Auth       | SSH port used by the Auth Service to serve its API to other nodes in a cluster.
+|3024      | Tunnel     | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server.
 |3080      | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI.
 
 
@@ -236,11 +237,21 @@ ssh_service:
 # This section configures the 'proxy servie'
 proxy_service:
     enabled: yes
-    listen_addr: 127.0.0.1:3023
-    web_listen_addr: 127.0.0.1:3080
+    # SSH forwrading/proxy address. Command line (CLI) clients always begin their
+    # SSH sessions by connecting to this port
+    listen_addr: 0.0.0.0:3023
 
-    # TLS certificate for the server-side HTTPS connection.
-    # Configuring these properly is critical for Teleport security.
+    # Reverse tunnel listening address. An auth server (CA) can establish an outbound 
+    # (from behind the firwall) connection to this address. This will allow users of
+    # the outside CA to connect to behind-the-firewall nodes.
+    tunnel_listen_addr: 0.0.0.0:3024
+
+    # The HTTPS listen address to serve the Web UI and also to authenticate the 
+    # command line (CLI) users via password+HOTP
+    web_listen_addr: 0.0.0.0:3080
+
+    # TLS certificate for the HTTPS connection. Configuring these properly is 
+    # critical for Teleport security.
     https_key_file: /etc/teleport/teleport.key
     https_cert_file: /etc/teleport/teleport.crt
 ```
