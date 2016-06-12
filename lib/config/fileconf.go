@@ -409,7 +409,7 @@ type Auth struct {
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
 type TrustedCluster struct {
 	// KeyFile is a path to a remote authority (AKA "trusted cluster") public keys
-	KeyFile string `yaml:"keyfile,omitempty"`
+	KeyFile string `yaml:"key_file,omitempty"`
 	// AllowedLogins is a comma-separated list of user logins allowed from that cluster
 	AllowedLogins string `yaml:"allow_logins,omitempty"`
 	// TunnelAddr is a comma-separated list of reverse tunnel addressess to

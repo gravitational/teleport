@@ -238,7 +238,9 @@ ssh_service:
     labels:
         role: master
         type: postgres
-    # See explanation of commands in "Labeling Nodes" section below
+    # List (YAML array) of commands to periodically execute and use
+    # their output as labels. 
+    # See explanation of how this works in "Labeling Nodes" section below
     commands:
     - name: hostname
       command: [/usr/bin/hostname]
@@ -254,10 +256,22 @@ proxy_service:
     # SSH sessions by connecting to this port
     listen_addr: 0.0.0.0:3023
 
-    # Reverse tunnel listening address. An auth server (CA) can establish an outbound 
-    # (from behind the firwall) connection to this address. This will allow users of
-    # the outside CA to connect to behind-the-firewall nodes.
+    # Reverse tunnel listening address. An auth server (CA) can establish an 
+    # outbound (from behind the firwall) connection to this address. 
+    # This will allow users of the outside CA to connect to behind-the-firewall 
+    # nodes.
     tunnel_listen_addr: 0.0.0.0:3024
+
+    # List (array) of other clusters this CA trusts.
+    trusted_clusters:
+      - key_file: /path/to/main-cluster.ca
+        # Comma-separated list of OS logins allowed to users of this 
+        # trusted cluster
+        allow_logins: john,root
+        # Establishes a reverse SSH tunnel from this cluster to the trusted
+        # cluster, allowing the trusted cluster users to access nodes of this 
+        # cluster
+        tunnel_addr: 80.10.0.12:3024
 
     # The HTTPS listen address to serve the Web UI and also to authenticate the 
     # command line (CLI) users via password+HOTP
@@ -480,8 +494,8 @@ Now, to add behind-the-firewall machines and restrict access only to "john", we 
 to do the following:
 
 1. Create a new cluster for behind-the-firewall machines. Lets call it "cluster-b".
-2. Add "cluster-b" to the list of `trusted clusters` of "main-cluster".
-3. Add "main-cluster" to the list of `trusted clusters` of "cluster-b".
+2. Add "cluster-b" to the list of `trusted clusters` of "main".
+3. Add "main" cluster to the list of `trusted clusters` of "cluster-b".
 4. Tell "cluster-b" to open a reverse tunnel to "main" cluster, this SSH tunnel will connect from behind a firewall out to the proxy service of "main" cluster.
 5. Tell "cluster-b" to only allow "john" from cluster "main".
 6. John will have to use `--cluster` flag when using `tsh` command to connect to nodes inside of "cluster-b".
@@ -527,7 +541,7 @@ auth_service:
   enabled: yes
   cluster_name: main
   trusted_clusters:
-      - keyfile: /path/to/b-cluster.ca
+      - key_file: /path/to/b-cluster.ca
 ```
 
 On "cluster-b":
@@ -537,7 +551,9 @@ auth_service:
   enabled: yes
   cluster_name: cluster-b
   trusted_clusters:
-      - keyfile: /path/to/main-cluster.ca
+      - key_file: /path/to/main-cluster.ca
+        # This line contains comma-separated list of OS logins allowed
+        # to users from this trusted cluster
         allow_logins: john
         # This line establishes a reverse SSH tunnel from 
         # cluster-b to main:
