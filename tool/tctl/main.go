@@ -426,36 +426,71 @@ func (a *AuthCommand) ListAuthorities(client *auth.TunClient) error {
 			return trace.Wrap(err)
 		}
 	}
-	authorities := make([]*services.CertAuthority, 0)
+	localAuthName, err := client.GetLocalDomain()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var (
+		localCAs   []*services.CertAuthority
+		trustedCAs []*services.CertAuthority
+	)
 	for _, t := range authTypes {
-		ats, err := client.GetCertAuthorities(t, false)
+		cas, err := client.GetCertAuthorities(t, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		authorities = append(authorities, ats...)
-	}
-	view := func() string {
-		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"Type", "Cluster Name", "Fingerprint", "Allowed Logins"})
-		if len(authorities) == 0 {
-			return t.String()
+		for i := range cas {
+			if cas[i].DomainName == localAuthName {
+				localCAs = append(localCAs, cas[i])
+			} else {
+				trustedCAs = append(trustedCAs, cas[i])
+			}
 		}
-		for _, a := range authorities {
+	}
+	localCAsView := func() string {
+		t := goterm.NewTable(0, 10, 5, ' ', 0)
+		printHeader(t, []string{"CA Type", "Fingerprint"})
+		for _, a := range localCAs {
 			for _, keyBytes := range a.CheckingKeys {
 				fingerprint, err := sshutils.AuthorizedKeyFingerprint(keyBytes)
 				if err != nil {
 					fingerprint = fmt.Sprintf("<bad key: %v", err)
 				}
-				logins := strings.Join(a.AllowedLogins, ",")
-				if logins == "" {
-					logins = "<any>"
-				}
-				fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", a.Type, a.DomainName, fingerprint, logins)
+				fmt.Fprintf(t, "%v\t%v\n", a.Type, fingerprint)
 			}
 		}
-		return t.String()
+		return fmt.Sprintf("CA keys for the local cluster %v:\n\n", localAuthName) +
+			t.String()
 	}
-	fmt.Printf(view())
+	trustedCAsView := func() string {
+		t := goterm.NewTable(0, 10, 5, ' ', 0)
+		printHeader(t, []string{"Cluster Name", "CA Type", "Fingerprint", "Allowed Logins"})
+		for _, a := range trustedCAs {
+			for _, keyBytes := range a.CheckingKeys {
+				fingerprint, err := sshutils.AuthorizedKeyFingerprint(keyBytes)
+				if err != nil {
+					fingerprint = fmt.Sprintf("<bad key: %v", err)
+				}
+				var logins string
+				if a.Type == services.HostCA {
+					logins = "N/A"
+				} else {
+					logins = strings.Join(a.AllowedLogins, ",")
+					if logins == "" {
+						logins = "<nobody>"
+					} else if logins == "*" {
+						logins = "<everyone>"
+					}
+				}
+				fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", a.DomainName, a.Type, fingerprint, logins)
+			}
+		}
+		return "\nCA Keys for Trusted Clusters:\n\n" + t.String()
+	}
+	fmt.Printf(localCAsView())
+	if len(trustedCAs) > 0 {
+		fmt.Printf(trustedCAsView())
+	}
 	return nil
 }
 
@@ -475,15 +510,24 @@ func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
 		}
 		typesToExport = []services.CertAuthType{authType}
 	}
+	localAuthName, err := client.GetLocalDomain()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	// fetch authorities via auth API:
+	// fetch authorities via auth API (and only take local CAs, ignoring
+	// trusted ones)
 	var authorities []*services.CertAuthority
 	for _, at := range typesToExport {
-		ats, err := client.GetCertAuthorities(at, a.exportPrivateKeys)
+		cas, err := client.GetCertAuthorities(at, a.exportPrivateKeys)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		authorities = append(authorities, ats...)
+		for _, ca := range cas {
+			if ca.DomainName == localAuthName {
+				authorities = append(authorities, ca)
+			}
+		}
 	}
 
 	// print:
