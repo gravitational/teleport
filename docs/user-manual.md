@@ -4,8 +4,8 @@ This User Manual covers usage of the Teleport client tool `tsh`. In this
 document you will learn how to:
 
 * Securely login into interactive shell on remote cluster nodes.
-* Execute commands on cluster nodes.
 * Securely copy files to and from cluster nodes.
+* Connect to SSH clusters behind firewals without any open ports using SSH reverse tunnels.
 * Explore a cluster and execute commands on those nodes in a cluster that match your criteria.
 * Share interactive shell sessions with colleagues or join someone else's session.
 * Replay recorded interactive sessions.
@@ -19,16 +19,17 @@ usage: tsh [<flags>] <command> [<command-args> ...]
 Gravitational Teleport SSH tool
 
 Commands:
-  help       shows help for a given command
-  ssh        connect and log into a remote host(s) for executing commands
-  scp        secure copy file(s) to a remote SSH host(s)
-  share      invite a colleague to share your current terminal
-  join       join a colleague who invited you into his SSH session
-  ls         list remote SSH hosts available via SSH proxy (bastion)
-  login      logs in the SSH proxy and enables usage of OpenSSH client
-  logout     logs off the SSH proxy
-  agent      starts SSH session agent for compatibility with OpenSSH client
-  configure  dump a sample profile file into stdout
+  help         Show help.
+  version      Print the version
+  ssh          Run shell or execute a command on a remote SSH node
+  join         Join the active SSH session
+  play         Replay the recorded SSH session
+  scp          Secure file copy
+  ls           List remote SSH nodes
+  clusters     List available Teleport clusters
+  agent        Start SSH agent on unix socket
+  login        Log in to the cluster and store the session certificate to avoid login prompts
+  logout       Delete a cluster certificate
 
 Notes:
 
@@ -214,7 +215,12 @@ This command logs you into the cluster with a very short-lived (1 minute) tempor
 tsh --proxy=work --ttl=1 ssh
 ```
 
-You will be logged out after one minute.
+You will be logged out after one minute, but if you want to log out immediately, you can 
+always do:
+
+```bash
+tsh --proxy=work logout
+```
 
 ## Copying Files
 
@@ -278,6 +284,43 @@ Or you can share the session ID and she can join you through her terminal by typ
 ```bash
 > tsh --proxy=work join 7645d523-60cb-436d-b732-99c5df14b7c4
 ```
+
+## Connecting to SSH Clusters behind Firewalls
+
+Teleport supports creating clusters of servers located behind firewalls without any open ports.
+This works by creating reverse SSH tunnels from behind-firewall environments into a Teleport
+proxy you have access to. This feature is called "Trusted Clusters". 
+
+Assuming your "work" Teleport server is configured with a few trusted clusters, this is how you can
+see a list of them:
+
+```bash
+> tsh --proxy=work clusters
+
+Cluster Name     Status
+------------     ------
+staging          online
+production       offline
+```
+
+Now you can use `--cluster` flag with any `tsh` command. For example, to list SSH nodes that
+are members of "production" cluster, simply do:
+
+```bash
+> tsh --proxy=work --cluster=production ls
+Node Name     Node ID       Address            Labels
+---------     -------       -------            ------
+db-1          xxxxxxxxx     10.0.20.31:3022    kernel:4.4
+db-2          xxxxxxxxx     10.0.20.41:3022    kernel:4.2
+```
+
+Similarly, if you want to SSH into `db-1` inside "production" cluster:
+
+```bash
+> tsh --proxy=work --cluster=production ssh db-1
+```
+
+For more details on configuring Trusted Clusters please look at the Admin Guide.
 
 ## Troubleshooting
 

@@ -459,7 +459,7 @@ on a node which runs Teleport auth server and probably must be done by a Telepor
 administrator:
 
 ```bash
-> tctl authorities --type=host export > cluster_node_keys
+> tctl auth --type=host export > cluster_node_keys
 ```
 
 On your client machine, you need to import these keys. It will allow your OpenSSH client
@@ -505,7 +505,7 @@ have to configure `sshd` to trust Teleport CA.
 Export the Teleport CA certificate into a file:
 
 ```bash
-> tctl authorities --type=user export > cluster-ca.pub
+> tctl auth --type=user export > cluster-ca.pub
 ```
 
 Copy this file to every node running `sshd`, for example into `/etc/ssh/teleport-ca.pub`

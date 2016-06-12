@@ -41,7 +41,6 @@ func (fs *FileAddrStorage) SetAddresses(addrs []NetAddr) error {
 func (fs *FileAddrStorage) GetAddresses() ([]NetAddr, error) {
 	bytes, err := ioutil.ReadFile(fs.filePath)
 	if err != nil {
-		log.Error(err)
 		return nil, trace.ConvertSystemError(err)
 	}
 	var addrs []NetAddr
