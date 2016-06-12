@@ -42,15 +42,17 @@ import (
 // Agent is a reverse tunnel agent running as a part of teleport Proxies
 // to establish outbound reverse tunnels to remote proxies
 type Agent struct {
-	log              *log.Entry
-	addr             utils.NetAddr
-	clt              *auth.TunClient
+	log  *log.Entry
+	addr utils.NetAddr
+	clt  *auth.TunClient
+	// domain name of the tunnel server, used only for debugging & logging
 	remoteDomainName string
-	clientName       string
-	broadcastClose   *utils.CloseBroadcaster
-	disconnectC      chan bool
-	hostKeyCallback  utils.HostKeyCallback
-	authMethods      []ssh.AuthMethod
+	// clientName format is "hostid.domain" (where 'domain' is local domain name)
+	clientName      string
+	broadcastClose  *utils.CloseBroadcaster
+	disconnectC     chan bool
+	hostKeyCallback utils.HostKeyCallback
+	authMethods     []ssh.AuthMethod
 }
 
 // AgentOption specifies parameter that could be passed to Agents
@@ -58,8 +60,9 @@ type AgentOption func(a *Agent) error
 
 // NewAgent returns a new reverse tunnel agent
 // Parameters:
-//	  addr and remoteDomainName point to the remote reverse tunnel server
-//    clientName is usually hostid.domain (where 'domain' is local auth domain name)
+//	  addr points to the remote reverse tunnel server
+//    remoteDomainName is the domain name of the runnel server, used only for logging
+//    clientName is hostid.domain (where 'domain' is local domain name)
 func NewAgent(
 	addr utils.NetAddr,
 	remoteDomainName string,

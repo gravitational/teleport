@@ -367,6 +367,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 
 	rsAgent, err := reversetunnel.NewAgent(
 		reverseTunnelAddress,
+		"remote",
 		"localhost",
 		[]ssh.Signer{s.signer}, tunClt)
 	c.Assert(err, IsNil)
@@ -500,6 +501,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	// start agent and load balance requests
 	rsAgent, err := reversetunnel.NewAgent(
 		reverseTunnelAddress,
+		"remote",
 		"localhost",
 		[]ssh.Signer{s.signer}, tunClt)
 	c.Assert(err, IsNil)
@@ -507,6 +509,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 
 	rsAgent2, err := reversetunnel.NewAgent(
 		reverseTunnelAddress,
+		"remote",
 		"localhost",
 		[]ssh.Signer{s.signer}, tunClt)
 	c.Assert(err, IsNil)
