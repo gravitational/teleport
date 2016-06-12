@@ -80,6 +80,7 @@ var (
 		"peers":              true,
 		"prefix":             true,
 		"web_listen_addr":    true,
+		"tunnel_listen_addr": true,
 		"ssh_listen_addr":    true,
 		"listen_addr":        true,
 		"https_key_file":     true,
@@ -233,6 +234,7 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	p.EnabledFlag = "yes"
 	p.ListenAddress = conf.Proxy.SSHAddr.Addr
 	p.WebAddr = conf.Proxy.WebAddr.Addr
+	p.TunAddr = conf.Proxy.ReverseTunnelListenAddr.Addr
 	p.CertFile = "/etc/teleport/teleport.crt"
 	p.KeyFile = "/etc/teleport/teleport.key"
 
@@ -416,6 +418,7 @@ type CommandLabel struct {
 type Proxy struct {
 	Service  `yaml:",inline"`
 	WebAddr  string `yaml:"web_listen_addr,omitempty"`
+	TunAddr  string `yaml:"tunnel_listen_addr,omitempty"`
 	KeyFile  string `yaml:"https_key_file,omitempty"`
 	CertFile string `yaml:"https_cert_file,omitempty"`
 }

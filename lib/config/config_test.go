@@ -148,6 +148,7 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(conf.Proxy.CertFile, check.Equals, "/etc/teleport/proxy.crt")
 	c.Assert(conf.Proxy.ListenAddress, check.Equals, "tcp://proxy_ssh_addr")
 	c.Assert(conf.Proxy.WebAddr, check.Equals, "tcp://web_addr")
+	c.Assert(conf.Proxy.TunAddr, check.Equals, "reverse_tunnel_address:3311")
 
 	// good config from file
 	conf, err = ReadFromFile(s.configFileStatic)
@@ -216,8 +217,8 @@ func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(conf, check.NotNil)
 
-	var cfg service.Config
-	err = ApplyFileConfig(conf, &cfg)
+	cfg := service.MakeDefaultConfig()
+	err = ApplyFileConfig(conf, cfg)
 	c.Assert(err, check.IsNil)
 	c.Assert(cfg.Auth.StaticTokens, check.DeepEquals, []services.ProvisionToken{
 		{
@@ -233,6 +234,10 @@ func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 	})
 	c.Assert(cfg.Auth.DomainName, check.Equals, "magadan")
 	c.Assert(cfg.AdvertiseIP, check.DeepEquals, net.ParseIP("10.10.10.1"))
+
+	c.Assert(cfg.Proxy.Enabled, check.Equals, true)
+	c.Assert(cfg.Proxy.WebAddr.FullAddress(), check.Equals, "tcp://webhost:3080")
+	c.Assert(cfg.Proxy.ReverseTunnelListenAddr.FullAddress(), check.Equals, "tcp://tunnelhost:1001")
 }
 
 func checkStaticConfig(c *check.C, conf *FileConfig) {
@@ -356,6 +361,7 @@ func makeConfigFixture() string {
 	conf.Proxy.CertFile = "/etc/teleport/proxy.crt"
 	conf.Proxy.ListenAddress = "tcp://proxy_ssh_addr"
 	conf.Proxy.WebAddr = "tcp://web_addr"
+	conf.Proxy.TunAddr = "reverse_tunnel_address:3311"
 
 	return conf.DebugDumpToYAML()
 }
@@ -466,7 +472,10 @@ auth_service:
   - "auth:yyy"
 ssh_service:
   enabled: no
+
 proxy_service:
-  enabled: no
+  enabled: yes
+  web_listen_addr: webhost
+  tunnel_listen_addr: tunnelhost:1001
 `
 )
