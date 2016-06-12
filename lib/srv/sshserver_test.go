@@ -216,14 +216,18 @@ func (s *SrvSuite) TestShell(c *C) {
 	// send a few "keyboard inputs" into the session:
 	_, err = io.WriteString(writer, "echo $((50+100))\n\r")
 	c.Assert(err, IsNil)
-	time.Sleep(time.Millisecond * 5)
 
 	// read the output and make sure that "150" (output of $((50+100)) is there
-	// NOTE: this test may fail if you have faulty .bashrc or .profile
-	_, err = reader.Read(buf)
-	c.Assert(err, IsNil)
-	c.Assert(strings.Contains(string(buf), "150"), Equals, true)
-
+	// NOTE: this test may fail if you have errors in your .bashrc or .profile
+	// leading to tons of output when opening new bash session
+	foundOutput := false
+	for i := 0; i < 50 && !foundOutput; i++ {
+		time.Sleep(time.Millisecond)
+		_, err = reader.Read(buf)
+		c.Assert(err, IsNil)
+		foundOutput = strings.Contains(string(buf), "150")
+	}
+	c.Assert(foundOutput, Equals, true)
 	c.Assert(se.Close(), IsNil)
 }
 

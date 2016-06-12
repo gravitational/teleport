@@ -128,7 +128,7 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(conf, check.NotNil)
 	c.Assert(conf.NodeName, check.Equals, NodeName)
-	c.Assert(conf.AuthServers, check.DeepEquals, []string{"tcp://auth0.server.example.org:3024", "tcp://auth1.server.example.org:3024"})
+	c.Assert(conf.AuthServers, check.DeepEquals, []string{"auth0.server.example.org:3024", "auth1.server.example.org:3024"})
 	c.Assert(conf.Limits.MaxConnections, check.Equals, int64(100))
 	c.Assert(conf.Limits.MaxUsers, check.Equals, 5)
 	c.Assert(conf.Limits.Rates, check.DeepEquals, ConnectionRates)
@@ -359,7 +359,7 @@ func checkStaticConfig(c *check.C, conf *FileConfig) {
 
 var (
 	NodeName        = "edsger.example.com"
-	AuthServers     = []string{"tcp://auth0.server.example.org:3024", "tcp://auth1.server.example.org:3024"}
+	AuthServers     = []string{"auth0.server.example.org:3024", "auth1.server.example.org:3024"}
 	ConnectionRates = []ConnectionRate{
 		{
 			Period:  time.Minute,
@@ -437,8 +437,8 @@ teleport:
   advertise_ip: 10.10.10.1
   pid_file: /var/run/teleport.pid
   auth_servers:
-    - tcp://auth0.server.example.org:3024
-    - tcp://auth1.server.example.org:3024
+    - auth0.server.example.org:3024
+    - auth1.server.example.org:3024
   auth_token: xxxyyy
   log:
     output: stderr
@@ -508,8 +508,8 @@ teleport:
   advertise_ip: 10.10.10.1
   pid_file: /var/run/teleport.pid
   auth_servers:
-    - tcp://auth0.server.example.org:3024
-    - tcp://auth1.server.example.org:3024
+    - auth0.server.example.org:3024
+    - auth1.server.example.org:3024
   auth_token: xxxyyy
   log:
     output: stderr
