@@ -67,10 +67,18 @@ func (a *NetAddr) String() string {
 	return a.Addr
 }
 
+// Network returns the scheme for this network address (tcp or unix)
 func (a *NetAddr) Network() string {
 	return a.AddrNetwork
 }
 
+// MarshalYAML defines how a network address should be marshalled to a string
+func (a *NetAddr) MarshalYAML() (interface{}, error) {
+	url := url.URL{Scheme: a.AddrNetwork, Host: a.Addr, Path: a.Path}
+	return strings.TrimLeft(url.String(), "/"), nil
+}
+
+// UnmarshalYAML defines how a string can be unmarshalled into a network address
 func (a *NetAddr) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var addr string
 	err := unmarshal(&addr)
@@ -119,6 +127,15 @@ func ParseAddr(a string) (*NetAddr, error) {
 	default:
 		return nil, trace.BadParameter("'%v': unsupported scheme: '%v'", a, u.Scheme)
 	}
+}
+
+// MustParseAddr parses the provided string into NetAddr or panics on an error
+func MustParseAddr(a string) *NetAddr {
+	addr, err := ParseAddr(a)
+	if err != nil {
+		panic(fmt.Sprintf("failed to parse %v: %v", a, err))
+	}
+	return addr
 }
 
 // ParseHostPortAddr takes strings like "host:port" and returns

@@ -125,6 +125,9 @@ type Config struct {
 	// KeyDir defines where temporary session keys will be stored.
 	// if empty, they'll go to ~/.tsh
 	KeysDir string
+
+	// Env is a map of environmnent variables to send when opening session
+	Env map[string]string
 }
 
 // ProxyHostPort returns a full host:port address of the proxy or an empty string if no
@@ -618,7 +621,7 @@ func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, pr
 			if len(nodeAddresses) > 1 {
 				fmt.Printf("Running command on %v:\n", address)
 			}
-			err = nodeClient.Run(command, stdin, tc.Stdout, tc.Stderr)
+			err = nodeClient.Run(command, stdin, tc.Stdout, tc.Stderr, tc.Config.Env)
 			if err != nil {
 				exitErr, ok := err.(*ssh.ExitError)
 				if ok {
@@ -690,7 +693,7 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 		winSize = &term.Winsize{Width: 80, Height: 25}
 	}
 
-	shell, err := nodeClient.Shell(int(winSize.Width), int(winSize.Height), sessionID)
+	shell, err := nodeClient.Shell(int(winSize.Width), int(winSize.Height), sessionID, tc.Config.Env)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -46,8 +46,9 @@ import (
 )
 
 type CLIConfig struct {
-	Debug      bool
-	ConfigFile string
+	Debug        bool
+	ConfigFile   string
+	ConfigString string
 }
 
 type UserCommand struct {
@@ -120,6 +121,8 @@ func main() {
 	app.Flag("config", fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
 		Short('c').
 		ExistingFileVar(&ccf.ConfigFile)
+	app.Flag("config-string",
+		"Base64 encoded configuration string").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
 
 	// commands:
 	ver := app.Command("version", "Print the version.")
@@ -725,6 +728,14 @@ func applyConfig(ccf *CLIConfig, cfg *service.Config) error {
 	fileConf, err := config.ReadConfigFile(ccf.ConfigFile)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	// if configuration is passed as an environment variable,
+	// try to decode it and override the config file
+	if ccf.ConfigString != "" {
+		fileConf, err = config.ReadFromString(ccf.ConfigString)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if err = config.ApplyFileConfig(fileConf, cfg); err != nil {
 		return trace.Wrap(err)
