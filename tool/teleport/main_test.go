@@ -121,7 +121,7 @@ teleport:
   advertise_ip: 10.5.5.5
   nodename: hvostongo.example.org
   auth_servers:
-    - tcp://auth.server.example.org:3024
+    - auth.server.example.org:3024
   auth_token: xxxyyy
   log:
     output: stderr

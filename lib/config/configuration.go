@@ -126,7 +126,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if len(fc.AuthServers) > 0 {
 		cfg.AuthServers = make([]utils.NetAddr, 0, len(fc.AuthServers))
 		for _, as := range fc.AuthServers {
-			addr, err := utils.ParseAddr(as)
+			addr, err := utils.ParseHostPortAddr(as, defaults.AuthListenPort)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 			if err != nil {
 				return trace.Errorf("cannot parse auth server address: '%v'", as)
 			}

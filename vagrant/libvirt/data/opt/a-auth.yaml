@@ -8,6 +8,8 @@ teleport:
 auth_service:
   enabled: yes
   cluster_name: cluster-a
+  tokens: 
+      - "node:hello"
   trusted_clusters:
       - key_file: /opt/shared/cluster-b
         allow_logins: root,vagrant
