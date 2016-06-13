@@ -177,7 +177,13 @@ func prepareCommand(ctx *ctx, cmd string) (*exec.Cmd, error) {
 	c.SysProcAttr = &syscall.SysProcAttr{}
 
 	// execute the command under requested user's UID:GID
-	c.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
+	me, err := user.Current()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if me.Uid != osUser.Uid || me.Gid != osUser.Gid {
+		c.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
+	}
 
 	// apply environment variables passed from the client
 	for n, v := range ctx.env {

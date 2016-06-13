@@ -182,7 +182,7 @@ func (s *SrvSuite) TestExec(c *C) {
 	c.Assert(err, IsNil)
 	defer se.Close()
 
-	out, err := se.Output("expr 2 + 3")
+	out, err := se.Output("echo $((2 + 3))")
 	c.Assert(err, IsNil)
 	c.Assert(strings.Trim(string(out), " \n"), Equals, "5")
 }

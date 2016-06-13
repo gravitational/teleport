@@ -684,7 +684,6 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 				return
 			}
 			if err := s.dispatch(ch, req, ctx); err != nil {
-				ctx.Error(err)
 				replyError(ch, req, err)
 				return
 			}
@@ -870,12 +869,15 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	}
 	result, err := execResponse.start(ch)
 	if err != nil {
-		ctx.Infof("error starting command, %v", err)
+		ctx.Error(err)
 		replyError(ch, req, err)
 	}
 	if result != nil {
 		ctx.Infof("%v result collected: %v", execResponse, result)
 		ctx.sendResult(*result)
+	}
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	// in case if result is nil and no error, this means that program is
 	// running in the background
