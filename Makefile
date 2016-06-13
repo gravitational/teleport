@@ -12,7 +12,7 @@ ETCD_FLAGS := TELEPORT_TEST_ETCD_CONFIG='{"nodes": ["https://localhost:4001"], "
 TELEPORT_DEBUG ?= no
 export
 
-$(eval BUILDFLAGS := $(ADDFLAGS) -ldflags "-w $(shell go install $(PKGPATH)/vendor/github.com/gravitational/version/cmd/linkflags && linkflags -pkg=$(GOPATH)/src/$(PKGPATH) -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)")
+$(eval BUILDFLAGS := $(ADDFLAGS) -ldflags -w)
 
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
@@ -95,21 +95,11 @@ test:
 integration: 
 	go test -v $(PKGPATH)/integration/...
 
-#
-# source-release releases source distribution tarball for this particular version
-#
-.PHONY: source-release
-source-release: LINKFLAGS := $(shell linkflags -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)
-source-release: RELEASE := teleport-$(shell linkflags --tag)-src
-source-release: RELEASEDIR := $(BUILDDIR)/$(RELEASE)
-source-release:
-	mkdir -p $(RELEASEDIR)/src/github.com/gravitational/teleport
-	find -type f | grep -v node_modules | grep -v ./build | grep -v ./.git | grep -v .test$$ > $(BUILDDIR)/files.txt
-	tar --transform "s_./_teleport/src/github.com/gravitational/teleport/_" -cvf $(BUILDDIR)/$(RELEASE).tar -T $(BUILDDIR)/files.txt
-	sed 's_%BUILDFLAGS%_-ldflags "$(LINKFLAGS)"_' build.assets/release/Makefile > $(BUILDDIR)/Makefile
-	tar --transform "s__teleport/_" -uvf $(BUILDDIR)/$(RELEASE).tar README.md LICENSE docs
-	tar --transform "s_$(BUILDDIR)/_teleport/_" -uvf $(BUILDDIR)/$(RELEASE).tar $(BUILDDIR)/Makefile
-	gzip $(BUILDDIR)/$(RELEASE).tar
+
+.PHONY: foo
+foo:
+	$(MAKE) -f version.mk
+
 
 #
 # bianry-release releases binary distribution tarball for this particular version
