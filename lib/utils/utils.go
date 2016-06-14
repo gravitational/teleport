@@ -26,8 +26,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/version"
 	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
 )
@@ -155,12 +155,11 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 
 // PrintVersion prints human readable version
 func PrintVersion() {
-	ver := version.Get()
-	if ver.GitCommit != "" {
-		fmt.Printf("%v git:%v\n", ver.Version, ver.GitCommit)
-	} else {
-		fmt.Printf("%v\n", ver.Version)
+	ver := fmt.Sprintf("Teleport v%s-%s", teleport.Version, teleport.Suffix)
+	if teleport.Gitref != "" {
+		ver = fmt.Sprintf("%s git:%s", ver, teleport.Gitref)
 	}
+	fmt.Println(ver)
 }
 
 const (

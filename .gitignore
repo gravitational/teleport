@@ -1,3 +1,5 @@
+gitref.go
+
 # built web assets
 web/dist/app/app
 
