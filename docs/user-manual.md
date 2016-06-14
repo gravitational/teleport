@@ -320,7 +320,7 @@ Similarly, if you want to SSH into `db-1` inside "production" cluster:
 > tsh --proxy=work --cluster=production ssh db-1
 ```
 
-For more details on configuring Trusted Clusters please look at [that section in the Admin Guide](http://gravitational.com/teleport/docs/admin-guide/#configuration).
+For more details on configuring Trusted Clusters please look at [that section in the Admin Guide](https://web.gravitational.io/teleport/docs/admin-guide/#trusted-clusters).
 
 ## Troubleshooting
 
