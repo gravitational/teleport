@@ -10,14 +10,15 @@
 #   4. With Docker installed
 #
 # NOTE: uses libvirt/KVM instead of Virtualbox
+NODES = {
+  "a-auth"  => "10.0.10.10", 
+#  "a-proxy" => "10.0.10.11", 
+  "a-node"  => "10.0.10.12",
 
-A_AUTH  ||= "10.0.10.10"
-A_PROXY ||= "10.0.10.11"
-A_NODE  ||= "10.0.10.12"
-
-B_AUTH  ||= "10.0.20.20"
-B_PROXY ||= "10.0.20.21"
-B_NODE  ||= "10.0.20.22"
+  "b-auth"  => "10.0.10.20", 
+#  "b-proxy" => "10.0.10.21", 
+#  "b-node"  => "10.0.10.22"
+}
 
 DOCKER_VER ||= "1.10.3"
 VM_BUILDIR ||= "tmp"
@@ -32,22 +33,14 @@ Vagrant.configure(2) do |config|
   install_docker(config.vm, DOCKER_VER)
 
   config.vm.synced_folder "../../", "/home/vagrant/teleport", type: "9p", disabled: false, accessmode: "mapped"
-  nodes = {
-    "a-auth"  => A_AUTH, 
-    "a-proxy" => A_PROXY, 
-    "a-node"  => A_NODE,
+  config.vm.synced_folder "data/opt", "/opt/teleport", type: "9p", disabled: false, accessmode: "mapped"
+  FileUtils.mkpath("data/var")
+  config.vm.synced_folder "data/var", "/opt/shared", type: "9p", disabled: false, accessmode: "mapped"
 
-    "b-auth"  => B_AUTH, 
-    "b-proxy" => B_PROXY, 
-    "b-node"  => B_NODE
-  }
-  nodes.each do |role, addr|
-      dir  = "data/#{role}"
-      FileUtils.mkpath(dir)
+  NODES.each do |role, addr|
       config.vm.define role do |config|
           config.vm.hostname = role
           config.vm.network "private_network", ip: addr
-          config.vm.synced_folder dir, "/opt/teleport", type: "9p", disabled: false, accessmode: "mapped"
           config.vm.provider "libvirt" do |vb|
               vb.driver = "kvm"
               vb.cpus = 1
@@ -90,7 +83,7 @@ def apt_update(vm)
         apt-get -y autoremove
         apt-get -y upgrade
         apt-get -y dist-upgrade
-        apt-get -y install htop tree vim aufs-tools
+        apt-get -y install htop tree vim aufs-tools screen
         touch /root/apt.updated
     fi
   SHELL
@@ -100,6 +93,7 @@ end
 
 # basic/recommended configuration of every machine:
 def basic_config(vm)
+  hosts = NODES.map { |hostname, addr| "#{addr} #{hostname}" }.join("\n")
   bashrc="/home/vagrant/.bashrc"
   vm.provision "shell", inline: <<-SHELL
     if ! grep -q "git-core" #{bashrc} ; then 
@@ -110,8 +104,12 @@ def basic_config(vm)
         echo export GREP_OPTIONS="--color=auto" >> #{bashrc}
         echo "alias ll='ls -lh'" >> #{bashrc}
     fi
+    if ! grep -q "Teleport" /etc/hosts ; then 
+        echo "# Teleport entries added by Vagrant:" >> /etc/hosts
+        echo -e "#{hosts}" >> /etc/hosts
+    fi
     mkdir -p /var/lib/teleport
-    chown vagrant /var/lib/teleport
+    chown vagrant:vagrant /var/lib/teleport
   SHELL
 end
 
@@ -125,4 +123,5 @@ def configure_ssh(vm)
   SHELL
   vm.provision "file", source: '~/.ssh/id_rsa', destination: '~/.ssh/id_rsa'
   vm.provision "file", source: '~/.ssh/id_rsa.pub', destination: '~/.ssh/id_rsa.pub'
+  vm.provision "file", source: '~/.screenrc', destination: '~/' if File.exists? "~/.screnrc"
 end

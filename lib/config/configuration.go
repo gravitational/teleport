@@ -17,13 +17,17 @@ limitations under the License.
 package config
 
 import (
+	"bufio"
 	"io/ioutil"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 	"unicode"
+
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
@@ -122,7 +126,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if len(fc.AuthServers) > 0 {
 		cfg.AuthServers = make([]utils.NetAddr, 0, len(fc.AuthServers))
 		for _, as := range fc.AuthServers {
-			addr, err := utils.ParseAddr(as)
+			addr, err := utils.ParseHostPortAddr(as, defaults.AuthListenPort)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 			if err != nil {
 				return trace.Errorf("cannot parse auth server address: '%v'", as)
 			}
@@ -222,7 +230,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 
 	// add reverse tunnels supplied from configs
 	for _, t := range fc.Auth.ReverseTunnels {
-		tun, err := t.Tunnel()
+		tun, err := t.ConvertAndValidate()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -319,6 +327,112 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 				Command: cmdLabel.Command,
 				Result:  "",
 			}
+		}
+	}
+	// read 'trusted_clusters' section:
+	if fc.Auth.Enabled() && len(fc.Auth.TrustedClusters) > 0 {
+		if err := readTrustedClusters(fc.Auth.TrustedClusters, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// parseCAKey() gets called for every line in a "CA key file" which is
+// the same as 'known_hosts' format for openssh
+func parseCAKey(bytes []byte) (*services.CertAuthority, error) {
+	marker, options, pubKey, comment, _, err := ssh.ParseKnownHosts(bytes)
+	if marker != "cert-authority" {
+		return nil, trace.BadParameter("invalid file format. expected '@cert-authority` marker")
+	}
+	if err != nil {
+		return nil, trace.BadParameter("invalid public key")
+	}
+	teleportOpts, err := url.ParseQuery(comment)
+	if err != nil {
+		return nil, trace.BadParameter("invalid key comment: '%s'", comment)
+	}
+	authType := services.CertAuthType(teleportOpts.Get("type"))
+	if authType != services.HostCA && authType != services.UserCA {
+		return nil, trace.Errorf("unsupported CA type: '%s'", authType)
+	}
+	if len(options) == 0 {
+		return nil, trace.Errorf("key without cluster_name")
+	}
+	const prefix = "*."
+	domainName := strings.TrimPrefix(options[0], prefix)
+	return &services.CertAuthority{
+		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
+		Type:         authType,
+		DomainName:   domainName,
+	}, nil
+}
+
+// readTrustedClusters parses the content of "trusted_clusters" YAML structure
+// and modifies Teleport 'conf' by adding "authorities" and "reverse tunnels"
+// to it
+func readTrustedClusters(clusters []TrustedCluster, conf *service.Config) error {
+	if len(clusters) == 0 {
+		return nil
+	}
+	// go over all trusted clusters:
+	for i := range clusters {
+		tc := &clusters[i]
+		// parse "allow_logins"
+		var allowedLogins []string
+		for _, login := range strings.Split(tc.AllowedLogins, ",") {
+			login = strings.TrimSpace(login)
+			if login != "" {
+				allowedLogins = append(allowedLogins, login)
+			}
+		}
+		// open the key file for this cluster:
+		log.Debugf("reading trusted cluster key file %s", tc.KeyFile)
+		if tc.KeyFile == "" {
+			return trace.Errorf("key_file is missing for a trusted cluster")
+		}
+		f, err := os.Open(tc.KeyFile)
+		if err != nil {
+			return trace.Errorf("reading trusted cluster keys: %v", err)
+		}
+		defer f.Close()
+		// read the keyfile for this cluster and get trusted CA keys:
+		var authorities []services.CertAuthority
+		scanner := bufio.NewScanner(f)
+		for line := 0; scanner.Scan(); {
+			ca, err := parseCAKey(scanner.Bytes())
+			if err != nil {
+				return trace.Errorf("%s:L%d. %v", tc.KeyFile, line, err)
+			}
+			if ca.Type == services.UserCA && len(allowedLogins) == 0 && len(tc.TunnelAddr) > 0 {
+				return trace.Errorf("trusted cluster '%s' needs allow_logins parameter",
+					ca.DomainName)
+			}
+			ca.AllowedLogins = allowedLogins
+			authorities = append(authorities, *ca)
+		}
+		conf.Auth.Authorities = append(conf.Auth.Authorities, authorities...)
+		clusterName := authorities[0].DomainName
+		// parse "tunnel_addr"
+		var tunnelAddresses []string
+		for _, ta := range strings.Split(tc.TunnelAddr, ",") {
+			ta := strings.TrimSpace(ta)
+			if ta == "" {
+				continue
+			}
+			addr, err := utils.ParseHostPortAddr(ta, defaults.SSHProxyTunnelListenPort)
+			if err != nil {
+				return trace.Wrap(err,
+					"Invalid tunnel address '%s' for cluster '%s'. Expect host:port format",
+					ta, clusterName)
+			}
+			tunnelAddresses = append(tunnelAddresses, addr.FullAddress())
+		}
+		if len(tunnelAddresses) > 0 {
+			conf.ReverseTunnels = append(conf.ReverseTunnels, services.ReverseTunnel{
+				DomainName: clusterName,
+				DialAddrs:  tunnelAddresses,
+			})
 		}
 	}
 	return nil

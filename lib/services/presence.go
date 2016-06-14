@@ -96,11 +96,11 @@ type ReverseTunnel struct {
 // Check returns nil if all parameters are good, error otherwise
 func (r *ReverseTunnel) Check() error {
 	if !cstrings.IsValidDomainName(r.DomainName) {
-		return trace.BadParameter("'%v' is a bad domain name", r.DomainName)
+		return trace.BadParameter("Reverse tunnel validation error: '%v' is not a valid FQDN", r.DomainName)
 	}
 
 	if len(r.DialAddrs) == 0 {
-		return trace.BadParameter("'%v' is a bad domain name", r.DialAddrs)
+		return trace.BadParameter("Invalid dial address for reverse tunnel '%v'", r.DomainName)
 	}
 
 	for _, addr := range r.DialAddrs {

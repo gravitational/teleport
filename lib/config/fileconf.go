@@ -28,6 +28,8 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -36,13 +38,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v2"
 )
 
 var (
 	// all possible valid YAML config keys
 	validKeys = map[string]bool{
 		"cluster_name":       true,
+		"trusted_clusters":   true,
 		"pid_file":           true,
 		"cert_file":          true,
 		"private_key_file":   true,
@@ -161,7 +163,7 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 		for k, v := range m {
 			if key, ok = k.(string); ok {
 				if recursive, ok = validKeys[key]; !ok {
-					return trace.BadParameter("this configuration key: '%v' is unknown", key)
+					return trace.BadParameter("unrecognized configuration key: '%v'", key)
 				}
 				if recursive {
 					if m2, ok := v.(YAMLMap); ok {
@@ -380,9 +382,15 @@ type Auth struct {
 	// DomainName is the name of the CA who manages this cluster
 	DomainName string `yaml:"cluster_name,omitempty"`
 
+	// TrustedClustersFile is a file path to a file containing public CA keys
+	// of clusters we trust. One key per line, those starting with '#' are comments
+	TrustedClusters []TrustedCluster `yaml:"trusted_clusters,omitempty"`
+
+	// FOR INTERNAL USE:
 	// Authorities : 3rd party certificate authorities (CAs) this auth service trusts.
 	Authorities []Authority `yaml:"authorities,omitempty"`
 
+	// FOR INTERNAL USE:
 	// ReverseTunnels is a list of SSH tunnels to 3rd party proxy services (used to talk
 	// to 3rd party auth servers we trust)
 	ReverseTunnels []ReverseTunnel `yaml:"reverse_tunnels,omitempty"`
@@ -396,6 +404,17 @@ type Auth struct {
 	// Each token string has the following format: "role1,role2,..:token",
 	// for exmple: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
 	StaticTokens []StaticToken `yaml:"tokens,omitempty"`
+}
+
+// TrustedCluster struct holds configuration values under "trusted_clusters" key
+type TrustedCluster struct {
+	// KeyFile is a path to a remote authority (AKA "trusted cluster") public keys
+	KeyFile string `yaml:"key_file,omitempty"`
+	// AllowedLogins is a comma-separated list of user logins allowed from that cluster
+	AllowedLogins string `yaml:"allow_logins,omitempty"`
+	// TunnelAddr is a comma-separated list of reverse tunnel addressess to
+	// connect to
+	TunnelAddr string `yaml:"tunnel_addr,omitempty"`
 }
 
 type StaticToken string
@@ -430,8 +449,16 @@ type ReverseTunnel struct {
 	Addresses  []string `yaml:"addresses"`
 }
 
-// Tunnel returns validated services.ReverseTunnel or nil and error otherwize
-func (t *ReverseTunnel) Tunnel() (*services.ReverseTunnel, error) {
+// ConvertAndValidate returns validated services.ReverseTunnel or nil and error otherwize
+func (t *ReverseTunnel) ConvertAndValidate() (*services.ReverseTunnel, error) {
+	for i := range t.Addresses {
+		addr, err := utils.ParseHostPortAddr(t.Addresses[i], defaults.SSHProxyTunnelListenPort)
+		if err != nil {
+			return nil, trace.Wrap(err, "Invalid address for tunnel %v", t.DomainName)
+		}
+		t.Addresses[i] = addr.String()
+	}
+
 	out := &services.ReverseTunnel{
 		DomainName: t.DomainName,
 		DialAddrs:  t.Addresses,

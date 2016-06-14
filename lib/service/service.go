@@ -163,7 +163,7 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 // and starts them under a supervisor, returning the supervisor object
 func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	if err := validateConfig(cfg); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Configuration error")
 	}
 
 	// create the data directory if it's missing
@@ -756,13 +756,11 @@ func validateConfig(cfg *Config) error {
 	if len(cfg.AuthServers) == 0 {
 		return trace.BadParameter("auth_servers is empty")
 	}
-
 	for i := range cfg.Auth.Authorities {
 		if err := cfg.Auth.Authorities[i].Check(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-
 	for _, tun := range cfg.ReverseTunnels {
 		if err := tun.Check(); err != nil {
 			return trace.Wrap(err)

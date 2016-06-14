@@ -349,13 +349,15 @@ func (s *Server) getCommandLabels() map[string]services.CommandLabel {
 	return out
 }
 
+// checkPermissionToLogin checks the given certificate (supplied by a connected client)
+// to see if this certificate can be allowed to login as user:login pair
 func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser string) error {
-	// find cert authority by it's key
+	// enumerate all known CAs and see if any of them signed the
+	// supplied certificate
 	cas, err := s.authService.GetCertAuthorities(services.UserCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	var ca *services.CertAuthority
 	for i := range cas {
 		checkers, err := cas[i].Checkers()
@@ -369,9 +371,10 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 			}
 		}
 	}
-
+	// the certificate was signed by unknown authority
 	if ca == nil {
-		return trace.NotFound("not found authority for key %v", teleportUser)
+		return trace.AccessDenied("the certificate for user '%v' is signed by untrusted CA",
+			teleportUser)
 	}
 
 	localDomain, err := s.authService.GetLocalDomain()
@@ -394,20 +397,18 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 				}
 			}
 		}
-		return trace.NotFound(
-			"not found local user entry for %v and os user %v for local authority %v",
-			teleportUser, osUser, ca.ID())
+		return trace.AccessDenied("user %v is not authorized to login as %v",
+			teleportUser, osUser)
 	}
 
 	// for other authorities, check for authoritiy permissions
 	for _, login := range ca.AllowedLogins {
-		if login == osUser {
+		if login == osUser || login == "*" {
 			return nil
 		}
 	}
-	return trace.NotFound(
-		"not found user entry for %v and os user %v for remote authority %v",
-		teleportUser, osUser, ca.ID())
+	return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s",
+		teleportUser, ca.DomainName, osUser, localDomain)
 }
 
 // isAuthority is called during checking the client key, to see if the signing
@@ -497,6 +498,7 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		logAuditEvent(err)
 		return nil, trace.Wrap(err)
 	}
+	logger.Infof("successfully authenticated")
 
 	// see if the host user is valid (no need to do this in proxy mode)
 	if !s.proxyMode {
@@ -504,7 +506,8 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		if err != nil {
 			host, _ := os.Hostname()
 			logger.Warningf("host '%s' does not have OS user '%s'", host, conn.User())
-			return nil, trace.AccessDenied("invalid host login: '%s'", conn.User())
+			logger.Errorf("no such user")
+			return nil, trace.AccessDenied("no such user: '%s'", conn.User())
 		}
 	}
 
@@ -518,6 +521,7 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 
 	err = s.checkPermissionToLogin(cert.SignatureKey, teleportUser, conn.User())
 	if err != nil {
+		logger.Error(err)
 		logAuditEvent(err)
 		return nil, trace.Wrap(err)
 	}
@@ -680,7 +684,6 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 				return
 			}
 			if err := s.dispatch(ch, req, ctx); err != nil {
-				ctx.Error(err)
 				replyError(ch, req, err)
 				return
 			}
@@ -866,12 +869,15 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	}
 	result, err := execResponse.start(ch)
 	if err != nil {
-		ctx.Infof("error starting command, %v", err)
+		ctx.Error(err)
 		replyError(ch, req, err)
 	}
 	if result != nil {
 		ctx.Infof("%v result collected: %v", execResponse, result)
 		ctx.sendResult(*result)
+	}
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	// in case if result is nil and no error, this means that program is
 	// running in the background

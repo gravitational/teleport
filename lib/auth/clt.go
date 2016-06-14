@@ -337,7 +337,7 @@ func (c *Client) DeleteReverseTunnel(domainName string) error {
 	// HTTP route will fail producing generic not found error
 	// instead we catch the error here
 	if !cstrings.IsValidDomainName(domainName) {
-		return trace.BadParameter("'%v' is a bad domain name", domainName)
+		return trace.BadParameter("'%v' is not a valid FQDN", domainName)
 	}
 	_, err := c.Delete(c.Endpoint("reversetunnels", domainName))
 	return trace.Wrap(err)

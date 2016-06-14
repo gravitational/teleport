@@ -17,9 +17,9 @@ import (
 	log "github.com/Sirupsen/logrus"
 )
 
-// AgentPool manages the pool of outbound reverse tunnel agents
-// it watches the reverse tunnels entries created by admin and
-// establishes shuts down the tunnels based on records
+// AgentPool manages the pool of outbound reverse tunnel agents.
+// The agent pool watches the reverse tunnel entries created by the admin and
+// connects/disconnects to added/deleted tunnels.
 type AgentPool struct {
 	sync.Mutex
 	*log.Entry
@@ -28,7 +28,7 @@ type AgentPool struct {
 	closeBroadcast *utils.CloseBroadcaster
 }
 
-// AgentPoolConfig is a configuration parameters for agent pool
+// AgentPoolConfig holds configuration parameters for the agent pool
 type AgentPoolConfig struct {
 	// Client is client to the auth server this agent connects to recieve
 	// a list of pools
@@ -140,15 +140,13 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 
 	for _, key := range agentsToAdd {
 		m.Infof("adding %v", &key)
-		agent, err := NewAgent(key.addr, m.cfg.HostUUID, m.cfg.HostSigners, m.cfg.Client)
+		agent, err := NewAgent(key.addr, key.domainName, m.cfg.HostUUID, m.cfg.HostSigners, m.cfg.Client)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		go func() {
-			if err := agent.Start(); err != nil {
-				m.Warningf("%v failed to start: %v", agent, err)
-			}
-		}()
+		// start the agent in a goroutine. no need to handle Start() errors: Start() will be
+		// retrying itself until the agent is closed
+		go agent.Start()
 		m.agents[key] = agent
 	}
 	return nil

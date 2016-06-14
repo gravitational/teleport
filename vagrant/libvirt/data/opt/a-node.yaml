@@ -1,0 +1,17 @@
+# Node for cluster-A
+teleport:
+  nodename: node
+  auth_token: hello
+  auth_servers: [a-auth]
+  log:
+    output: stderr
+    severity: INFO
+
+auth_service:
+  enabled: no
+
+ssh_service:
+  enabled: yes
+
+proxy_service:
+  enabled: no

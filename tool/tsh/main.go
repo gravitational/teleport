@@ -91,7 +91,7 @@ func run(args []string, underTest bool) {
 	app.Flag("login", "Remote host login").Short('l').Envar("TELEPORT_LOGIN").StringVar(&cf.NodeLogin)
 	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", client.Username())).Envar("TELEPORT_USER").StringVar(&cf.Username)
 	app.Flag("auth", "[EXPERIMENTAL] Use external authentication, e.g. 'google'").Envar("TELEPORT_AUTH").Hidden().StringVar(&cf.ExternalAuth)
-	app.Flag("site", "[EXPERIMENTAL] Specify site to connect to via proxy").Envar("TELEPORT_SITE").Hidden().StringVar(&cf.SiteName)
+	app.Flag("cluster", "Specify the cluster to connect").Envar("TELEPORT_SITE").StringVar(&cf.SiteName)
 	app.Flag("proxy", "SSH proxy host or IP address").Envar("TELEPORT_PROXY").StringVar(&cf.Proxy)
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
 	app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").Default("false").BoolVar(&cf.InsecureSkipVerify)
@@ -119,8 +119,8 @@ func run(args []string, underTest bool) {
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes")
 	ls.Arg("labels", "List of labels to filter node list").StringVar(&cf.UserHost)
-	// sites
-	sites := app.Command("sites", "[EXPERIMENTAL] List sites connected to the proxy").Hidden()
+	// clusters
+	clusters := app.Command("clusters", "List available Teleport clusters")
 	// agent (SSH agent listening on unix socket)
 	agent := app.Command("agent", "Start SSH agent on unix socket")
 	agent.Flag("socket", "SSH agent listening socket address, e.g. unix:///tmp/teleport.agent.sock").SetValue(&cf.AgentSocketAddr)
@@ -156,7 +156,7 @@ func run(args []string, underTest bool) {
 		onPlay(&cf)
 	case ls.FullCommand():
 		onListNodes(&cf)
-	case sites.FullCommand():
+	case clusters.FullCommand():
 		onListSites(&cf)
 	case agent.FullCommand():
 		onAgentStart(&cf)
@@ -245,18 +245,19 @@ func onListSites(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 	defer proxyClient.Close()
+
 	sites, err := proxyClient.GetSites()
 	if err != nil {
 		utils.FatalError(err)
 	}
 	sitesView := func() string {
 		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"Site Name", "Status", "Last Connected"})
+		printHeader(t, []string{"Cluster Name", "Status"})
 		if len(sites) == 0 {
 			return t.String()
 		}
 		for _, site := range sites {
-			fmt.Fprintf(t, "%v\t%v\t%v\n", site.Name, site.Status, site.LastConnected)
+			fmt.Fprintf(t, "%v\t%v\n", site.Name, site.Status)
 		}
 		return t.String()
 	}

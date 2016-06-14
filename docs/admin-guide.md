@@ -30,9 +30,22 @@ this way:
 
 You can download binaries from [Github releases](https://github.com/gravitational/teleport/releases). 
 
-## Running
+## Nomenclature
 
-Teleport supports only a handful of commands
+Before diving into configuring and running Teleport, it helps to take a look at the [Teleport Architecture](/architecture) 
+and go over the key concepts this document will be referring to:
+
+|Concept   | Description
+|----------|------------
+|Node      | Synonym to "server" or "computer", something one can "SSH to". A node must be running `teleport` daemon running with "node" role/service turned on.
+|Certificate Authority (CA) | A pair of public/private keys Teleport uses to manage access. A CA can sign a public key of a user or node establishing their cluster membership.
+|Teleport Cluster | A Teleport Auth Service contains two CAs. One is used to sign user keys and the other signs node keys. A collection of nodes connected to the same CA is called a "cluster". 
+|Cluster Name | Every Teleport cluster must have a name. If a name is not supplied via `teleport.yaml` configuration file, a GUID will be generated. **IMPORTANT:** renaming a cluster invalidates its keys and all certificates it had created.
+|Trusted Cluster | Teleport Auth Service can allow 3rd party users or nodes to connect if their public keys are signed by a trusted CA. A "trusted cluster" is a pair of public keys of the trusted CA. It can be configured via `teleport.yaml` file.
+
+## Running Teleport Servers
+
+The Teleport daemon supports the following commands:
 
 |Command     | Description
 |------------|-------------------------------------------------------
@@ -85,8 +98,8 @@ Teleport services listen on several ports. This table shows the default port num
 |----------|------------|-------------------------------------------
 |3022      | Node       | SSH port. This is Teleport's equivalent of port `#22` for SSH.
 |3023      | Proxy      | SSH port clients connect to. A proxy will forward this connection to port `#3022` on the destination node.
+|3024      | Proxy      | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server.
 |3025      | Auth       | SSH port used by the Auth Service to serve its API to other nodes in a cluster.
-|3024      | Tunnel     | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server.
 |3080      | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI.
 
 
@@ -225,7 +238,9 @@ ssh_service:
     labels:
         role: master
         type: postgres
-    # See explanation of commands in "Labeling Nodes" section below
+    # List (YAML array) of commands to periodically execute and use
+    # their output as labels. 
+    # See explanation of how this works in "Labeling Nodes" section below
     commands:
     - name: hostname
       command: [/usr/bin/hostname]
@@ -241,10 +256,22 @@ proxy_service:
     # SSH sessions by connecting to this port
     listen_addr: 0.0.0.0:3023
 
-    # Reverse tunnel listening address. An auth server (CA) can establish an outbound 
-    # (from behind the firwall) connection to this address. This will allow users of
-    # the outside CA to connect to behind-the-firewall nodes.
+    # Reverse tunnel listening address. An auth server (CA) can establish an 
+    # outbound (from behind the firwall) connection to this address. 
+    # This will allow users of the outside CA to connect to behind-the-firewall 
+    # nodes.
     tunnel_listen_addr: 0.0.0.0:3024
+
+    # List (array) of other clusters this CA trusts.
+    trusted_clusters:
+      - key_file: /path/to/main-cluster.ca
+        # Comma-separated list of OS logins allowed to users of this 
+        # trusted cluster
+        allow_logins: john,root
+        # Establishes a reverse SSH tunnel from this cluster to the trusted
+        # cluster, allowing the trusted cluster users to access nodes of this 
+        # cluster
+        tunnel_addr: 80.10.0.12:3024
 
     # The HTTPS listen address to serve the Web UI and also to authenticate the 
     # command line (CLI) users via password+HOTP
@@ -420,7 +447,7 @@ The latter two tokens can be deleted (revoked) via `tctl tokens del` command:
 Token 696c0471453e75882ff70a761c1a8bfa has been deleted
 ```
 
-### Labeling Nodes
+## Labeling Nodes
 
 In addition to specifying a custom nodename, Teleport also allows to apply arbitrary
 key:value pairs to each node. They are called labels. There are two kinds of labels:
@@ -451,6 +478,126 @@ Node Name     Node ID          Address         Labels
 turing        d52527f9-b260    10.1.0.5:3022   kernel=3.19.0-56,uptime=up 1 hour, 15 minutes
 ```
 
+## Trusted Clusters
+
+Teleport allows to partition your infrastructure into multiple clusters. Some clusters can be 
+located behind firewalls without any open ports. They can also have different access rights.
+
+As [explained above](#nomenclature), a Teleport Cluster has a name and is managed by a 
+`teleport` daemon with "auth service" enabled.
+
+Lets assume we need to place some servers behind a firewall, and we only want Teleport 
+user "john" to have access to them. Assume we already have our primary Teleport cluster 
+and our users set up. Say, this cluster is called "main". 
+
+Now, to add behind-the-firewall machines and restrict access only to "john", we will have 
+to do the following:
+
+1. Create a new cluster for behind-the-firewall machines. Lets call it "cluster-b".
+2. Add "cluster-b" to the list of `trusted clusters` of "main".
+3. Add "main" cluster to the list of `trusted clusters` of "cluster-b".
+4. Tell "cluster-b" to open a reverse tunnel to "main" cluster, this SSH tunnel will connect from behind a firewall out to the proxy service of "main" cluster.
+5. Tell "cluster-b" to only allow "john" from cluster "main".
+6. John will have to use `--cluster` flag when using `tsh` command to connect to nodes inside of "cluster-b".
+
+Lets look into the details of each step. First, lets configure two independent (at first) 
+clusters: 
+
+```
+auth_service:
+  enabled: yes
+  cluster_name: main
+```
+
+And our behind-the-firewall cluster:
+
+```
+auth_service:
+  enabled: yes
+  cluster_name: cluster-b
+```
+
+Start both servers. At this point they do not know about each other.
+Now, export their public CA keys:
+
+On "main":
+
+```
+> tctl auth export > main-cluster.ca
+```
+
+On "cluster-b":
+
+```
+> tctl auth export > b-cluster.ca
+```
+
+Now, modify the YAML configuration of both clusters to connect them.
+
+On "main" (running on 62.28.10.1)
+
+```yaml
+auth_service:
+  enabled: yes
+  cluster_name: main
+  trusted_clusters:
+      - key_file: /path/to/b-cluster.ca
+```
+
+On "cluster-b":
+
+```yaml
+auth_service:
+  enabled: yes
+  cluster_name: cluster-b
+  trusted_clusters:
+      - key_file: /path/to/main-cluster.ca
+        # This line contains comma-separated list of OS logins allowed
+        # to users from this trusted cluster
+        allow_logins: john
+        # This line establishes a reverse SSH tunnel from 
+        # cluster-b to main:
+        tunnel_addr: 62.28.10.1
+```
+
+Now, if you restart `teleport` auth service on both clusters, they should trust each
+other. To verify, run this on "cluster-b":
+
+```
+> tctl auth ls
+CA keys for the local cluster cluster-b:
+
+CA Type     Fingerprint
+-------     -----------
+user        xxxxxxxxxxxxxxx
+host        zzzzzzzzzzzzzzz
+
+CA Keys for Trusted Clusters:
+
+Cluster Name     CA Type     Fingerprint                     Allowed Logins
+------------     -------     -----------                     --------------
+main             user        zzzzzzzzzzzzzzzzzzzzzzzzzzz     john
+main             host        xxxxxxxxxxxxxxxxxxxxxxxxxxx     N/A
+```
+
+Notice that each cluster is shown as two CAs: one is used to establish trust between nodes,
+and another one is for trusting users. 
+
+Now, John, having direct access to a proxy server of cluster "main" (lets call it main.proxy) can 
+use `tsh` command to see which clusters are online:
+
+```
+> tsh --proxy=main.proxy clusters
+```
+
+John can also list all nodes in the cluster-b:
+
+```
+> tsh --proxy=main.proxy --cluster=cluster-b ls
+```
+
+Similarly, by passing `--cluster=cluster-b` to `tsh` John can login into cluster-b nodes.
+
 ## Using Teleport with OpenSSH
 
 Teleport is a fully standards-compliant SSH proxy and it can work in environments with 
@@ -470,7 +617,7 @@ on a node which runs Teleport auth server and probably must be done by a Telepor
 administrator:
 
 ```bash
-> tctl authorities --type=host export > cluster_node_keys
+> tctl auth --type=host export > cluster_node_keys
 ```
 
 On your client machine, you need to import these keys. It will allow your OpenSSH client
@@ -516,7 +663,7 @@ have to configure `sshd` to trust Teleport CA.
 Export the Teleport CA certificate into a file:
 
 ```bash
-> tctl authorities --type=user export > cluster-ca.pub
+> tctl auth --type=user export > cluster-ca.pub
 ```
 
 Copy this file to every node running `sshd`, for example into `/etc/ssh/teleport-ca.pub`

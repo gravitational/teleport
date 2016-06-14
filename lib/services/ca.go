@@ -86,7 +86,7 @@ func (c *CertAuthID) Check() error {
 		return trace.Wrap(err)
 	}
 	if !cstrings.IsValidDomainName(c.DomainName) {
-		return trace.BadParameter("'%v' is a bad domain name", c.DomainName)
+		return trace.BadParameter("identity validation error: '%v' is not a valid FQDN", c.DomainName)
 	}
 	return nil
 }
@@ -130,7 +130,7 @@ func (ca *CertAuthority) Checkers() ([]ssh.PublicKey, error) {
 	for _, keyBytes := range ca.CheckingKeys {
 		key, _, _, _, err := ssh.ParseAuthorizedKey(keyBytes)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Errorf("invalid authority public key (len=%d): %v", len(keyBytes), err)
 		}
 		out = append(out, key)
 	}

@@ -1,0 +1,22 @@
+# Auth for cluster-A
+teleport:
+  nodename: auth-a
+  log:
+    output: stderr
+    severity: INFO
+
+auth_service:
+  enabled: yes
+  cluster_name: cluster-a
+  tokens: 
+      - "node:hello"
+  trusted_clusters:
+      - key_file: /opt/shared/cluster-b
+        allow_logins: root,vagrant
+        tunnel_addr: b-auth
+
+ssh_service:
+  enabled: yes
+
+proxy_service:
+  enabled: yes

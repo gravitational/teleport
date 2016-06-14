@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 
+	"golang.org/x/crypto/ssh"
 	"gopkg.in/check.v1"
 )
 
@@ -127,7 +128,7 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(conf, check.NotNil)
 	c.Assert(conf.NodeName, check.Equals, NodeName)
-	c.Assert(conf.AuthServers, check.DeepEquals, []string{"tcp://auth0.server.example.org:3024", "tcp://auth1.server.example.org:3024"})
+	c.Assert(conf.AuthServers, check.DeepEquals, []string{"auth0.server.example.org:3024", "auth1.server.example.org:3024"})
 	c.Assert(conf.Limits.MaxConnections, check.Equals, int64(100))
 	c.Assert(conf.Limits.MaxUsers, check.Equals, 5)
 	c.Assert(conf.Limits.Rates, check.DeepEquals, ConnectionRates)
@@ -210,6 +211,66 @@ func (s *ConfigTestSuite) TestLocateWebAssets(c *check.C) {
 	path, err = LocateWebAssets()
 	c.Assert(path, check.Equals, "")
 	c.Assert(err, check.NotNil)
+}
+
+func (s *ConfigTestSuite) TestTrustedClusters(c *check.C) {
+	err := readTrustedClusters(nil, nil)
+	c.Assert(err, check.IsNil)
+
+	var conf service.Config
+	err = readTrustedClusters([]TrustedCluster{
+		{
+			AllowedLogins: "vagrant, root",
+			KeyFile:       "../../fixtures/trusted_clusters/cluster-a",
+			TunnelAddr:    "one,two",
+		},
+	}, &conf)
+	c.Assert(err, check.IsNil)
+	authorities := conf.Auth.Authorities
+	c.Assert(len(authorities), check.Equals, 2)
+	c.Assert(authorities[0].DomainName, check.Equals, "cluster-a")
+	c.Assert(authorities[0].Type, check.Equals, services.HostCA)
+	c.Assert(len(authorities[0].CheckingKeys), check.Equals, 1)
+	c.Assert(authorities[1].DomainName, check.Equals, "cluster-a")
+	c.Assert(authorities[1].Type, check.Equals, services.UserCA)
+	c.Assert(len(authorities[1].CheckingKeys), check.Equals, 1)
+	_, _, _, _, err = ssh.ParseAuthorizedKey(authorities[1].CheckingKeys[0])
+	c.Assert(err, check.IsNil)
+
+	tunnels := conf.ReverseTunnels
+	c.Assert(len(tunnels), check.Equals, 1)
+	c.Assert(tunnels[0].DomainName, check.Equals, "cluster-a")
+	c.Assert(len(tunnels[0].DialAddrs), check.Equals, 2)
+	c.Assert(tunnels[0].DialAddrs[0], check.Equals, "tcp://one:3024")
+	c.Assert(tunnels[0].DialAddrs[1], check.Equals, "tcp://two:3024")
+
+	// invalid data:
+	err = readTrustedClusters([]TrustedCluster{
+		{
+			AllowedLogins: "vagrant, root",
+			KeyFile:       "non-existing",
+			TunnelAddr:    "one,two",
+		},
+	}, &conf)
+	c.Assert(err, check.NotNil)
+	c.Assert(err, check.ErrorMatches, "^.*reading trusted cluster keys.*$")
+	err = readTrustedClusters([]TrustedCluster{
+		{
+			KeyFile:    "../../fixtures/trusted_clusters/cluster-a",
+			TunnelAddr: "one,two",
+		},
+	}, &conf)
+	c.Assert(err, check.ErrorMatches, ".*needs allow_logins parameter")
+	conf.ReverseTunnels = nil
+	err = readTrustedClusters([]TrustedCluster{
+		{
+			KeyFile:       "../../fixtures/trusted_clusters/cluster-a",
+			AllowedLogins: "vagrant",
+			TunnelAddr:    "",
+		},
+	}, &conf)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(conf.ReverseTunnels), check.Equals, 0)
 }
 
 func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
@@ -298,7 +359,7 @@ func checkStaticConfig(c *check.C, conf *FileConfig) {
 
 var (
 	NodeName        = "edsger.example.com"
-	AuthServers     = []string{"tcp://auth0.server.example.org:3024", "tcp://auth1.server.example.org:3024"}
+	AuthServers     = []string{"auth0.server.example.org:3024", "auth1.server.example.org:3024"}
 	ConnectionRates = []ConnectionRate{
 		{
 			Period:  time.Minute,
@@ -376,8 +437,8 @@ teleport:
   advertise_ip: 10.10.10.1
   pid_file: /var/run/teleport.pid
   auth_servers:
-    - tcp://auth0.server.example.org:3024
-    - tcp://auth1.server.example.org:3024
+    - auth0.server.example.org:3024
+    - auth1.server.example.org:3024
   auth_token: xxxyyy
   log:
     output: stderr
@@ -447,8 +508,8 @@ teleport:
   advertise_ip: 10.10.10.1
   pid_file: /var/run/teleport.pid
   auth_servers:
-    - tcp://auth0.server.example.org:3024
-    - tcp://auth1.server.example.org:3024
+    - auth0.server.example.org:3024
+    - auth1.server.example.org:3024
   auth_token: xxxyyy
   log:
     output: stderr
