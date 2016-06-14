@@ -338,41 +338,42 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	return nil
 }
 
+// parseCAKey() gets called for every line in a "CA key file" which is
+// the same as 'known_hosts' format for openssh
+func parseCAKey(bytes []byte) (*services.CertAuthority, error) {
+	marker, options, pubKey, comment, _, err := ssh.ParseKnownHosts(bytes)
+	if marker != "cert-authority" {
+		return nil, trace.BadParameter("invalid file format. expected '@cert-authority` marker")
+	}
+	if err != nil {
+		return nil, trace.BadParameter("invalid public key")
+	}
+	teleportOpts, err := url.ParseQuery(comment)
+	if err != nil {
+		return nil, trace.BadParameter("invalid key comment: '%s'", comment)
+	}
+	authType := services.CertAuthType(teleportOpts.Get("type"))
+	if authType != services.HostCA && authType != services.UserCA {
+		return nil, trace.Errorf("unsupported CA type: '%s'", authType)
+	}
+	if len(options) == 0 {
+		return nil, trace.Errorf("key without cluster_name")
+	}
+	const prefix = "*."
+	domainName := strings.TrimPrefix(options[0], prefix)
+	return &services.CertAuthority{
+		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
+		Type:         authType,
+		DomainName:   domainName,
+	}, nil
+}
+
 // readTrustedClusters parses the content of "trusted_clusters" YAML structure
 // and modifies Teleport 'conf' by adding "authorities" and "reverse tunnels"
 // to it
 func readTrustedClusters(clusters []TrustedCluster, conf *service.Config) error {
 	if len(clusters) == 0 {
 		return nil
-	}
-	// parseCAKey() gets called for every line in a "CA key file" which is
-	// the same as 'known_hosts' format for openssh
-	parseCAKey := func(bytes []byte) (*services.CertAuthority, error) {
-		marker, options, pubKey, comment, _, err := ssh.ParseKnownHosts(bytes)
-		if marker != "cert-authority" {
-			return nil, trace.Errorf("invalid file format. expected '@cert-authority` marker")
-		}
-		if err != nil {
-			return nil, trace.Errorf("invalid public key")
-		}
-		teleportOpts, err := url.ParseQuery(comment)
-		if err != nil {
-			return nil, trace.Errorf("invalid key comment: '%s'", comment)
-		}
-		authType := services.CertAuthType(teleportOpts.Get("type"))
-		if authType != services.HostCA && authType != services.UserCA {
-			return nil, trace.Errorf("unsupported CA type: '%s'", authType)
-		}
-		if len(options) == 0 {
-			return nil, trace.Errorf("key without cluster_name")
-		}
-		const prefix = "*."
-		domainName := strings.TrimPrefix(options[0], prefix)
-		return &services.CertAuthority{
-			CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
-			Type:         authType,
-			DomainName:   domainName,
-		}, nil
 	}
 	// go over all trusted clusters:
 	for i := range clusters {

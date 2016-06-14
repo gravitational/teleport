@@ -86,7 +86,7 @@ func (c *CertAuthID) Check() error {
 		return trace.Wrap(err)
 	}
 	if !cstrings.IsValidDomainName(c.DomainName) {
-		return trace.BadParameter("Identity validation error: '%v' is not a valid FQDN", c.DomainName)
+		return trace.BadParameter("identity validation error: '%v' is not a valid FQDN", c.DomainName)
 	}
 	return nil
 }
