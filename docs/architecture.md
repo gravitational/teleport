@@ -153,7 +153,7 @@ nodes in the cluster.
 Cluster administration is performed using `tctl` command line tool.
 
 **Production note:** For high availability a Teleport cluster can be serviced by multiple auth servers 
-running in sync. Check [HA configuration](../admin-guide.md) in the Admin Guide.
+running in sync. Check [HA configuration](docs/admin-guide.md) in the Admin Guide.
 
 ### Storage Backends
 
