@@ -1,34 +1,33 @@
 # FAQ
 
-**Can I use Gravitational Teleport in production today?**
+### Can I use Gravitational Teleport in production today?
 
-Teleport has completed a security audit from a nationally recongized technology security company. So we are comfortable with the use of Teleport from a security perspective. However, Teleport is still a relatively young product so you may find bugs and other issues. We are actively supporting Teleport and addressing any issues that are submitted to the [github repo](https://github.com/gravitational/teleport).
+Teleport has completed a security audit from a nationally recongized technology security company. So we are comfortable with the use of Teleport from a security perspective. However, Teleport is still a relatively young product so you may usability issues. We are actively supporting Teleport and addressing any issues that are submitted to the [github repo](https://github.com/gravitational/teleport).
 
-**Can I connect to nodes behind a firewall via SSH with Teleport?**
+### Can I connect to nodes behind a firewall via SSH with Teleport?
 
 Yes, Teleport supports reverse SSH tunnels out of the box. To configure behind-firewall clusters
 refer to [Trusted Clusters](admin-guide/#trusted-clusters) section of the Admin Manual.
 
-
-**Can I use OpenSSH client to connect to servers in a Teleport cluster?**
+### Can I use OpenSSH client to connect to servers in a Teleport cluster?
 
 Yes. Take a look at [Using OpenSSH client](user-manual.md#integration-with-openssh) section in the User Manual
 and [Using OpenSSH servers](admin-guide.md) in the Admin Manual.
 
-**What TCP ports does Teleport use?**
+### What TCP ports does Teleport use?
 
 [Ports](admin-guide.md#ports) section of the Admin Manual covers it.
 
-**Does Teleport support 3rd party Authentication?**
+### Does Teleport support 3rd party Authentication?
 
 Teleport supports Google Apps out of the box, see [OpenID/OAuth2](admin-guide/#openid-oauth2) for how to configure it.
 Other OpenID providers can easily be added - Teleport code is open and your contributions are welcome! :)
 
-**Does Teleport support Authentication via LDAP or Active Directory?**
+### Does Teleport support Authentication via LDAP or Active Directory?
 
 Gravitational offers this feature as part of the commercial support for Teleport.
 
-**Do you offer commercial support for Teleport?**
+### Do you offer commercial support for Teleport?
 
 Yes, we offer commercial support which includes:
 
