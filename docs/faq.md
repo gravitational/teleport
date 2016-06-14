@@ -7,7 +7,7 @@ Teleport has completed a security audit from a nationally recongized technology 
 ### Can I connect to nodes behind a firewall via SSH with Teleport?
 
 Yes, Teleport supports reverse SSH tunnels out of the box. To configure behind-firewall clusters
-refer to [Trusted Clusters](admin-guide/#trusted-clusters) section of the Admin Manual.
+refer to [Trusted Clusters](admin-guide.md#trusted-clusters) section of the Admin Manual.
 
 ### Can I use OpenSSH client to connect to servers in a Teleport cluster?
 
