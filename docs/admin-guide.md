@@ -367,7 +367,7 @@ also defines which role a new node can assume within a cluster: `auth`, `proxy` 
 
 There are two ways to create invitation tokens.
 
-**Static Tokens**
+### Static Tokens
 
 You can pre-generate your own tokens and add them to certificate authority (CA)
 config file: 
@@ -390,7 +390,7 @@ teleport start --roles=node,auth --token=xxxxx --auth-server=10.0.10.5
 ```
 
 
-**Short-lived Tokens**
+### Short-lived Tokens
 
 A more secure way to add nodes to a cluster is to generate tokens as they are 
 needed. Such token can be used multiple times until its time to live (TTL) 
@@ -434,7 +434,7 @@ eoKoh0caiw6weoGupahgh6Wuo7jaTee2     Proxy      never
 6fc5545ab78c2ea978caabef9dbd08a5     Signup     17 May 16 04:24 UTC
 ```
 
-In this exampe, wthe first token with "never" expiry date is a static token configured via
+In this exampe, the first token with "never" expiry date is a static token configured via
 a config file. It cannot be revoked. 
 
 The 2nd token with "Node" role was generated to invite a new node to this cluster. And the
