@@ -737,13 +737,13 @@ tctl users add sasha root,sasha --identity google:sasha@example.com
 
 ### Logging in via OpenID Connect
 
-**Web UI**
+#### Web UI
 
 Now, if everything is set up correctly, you will see "Login with Google" button on the login screen:
 
 ![OIDC Login](img/oidc-login.png)
 
-**CLI**
+#### CLI
 
 You have to tell `tsh` to authenticate via Google by providing an `--auth` flag: 
 
