@@ -251,7 +251,7 @@ the certificate using standard OpenSSH client (and get it using ssh-agent socket
 
 Teleport uses standard Open SSH certificates for client and host authentication.
 
-**Host certificates and roles**
+### Host certificates and roles
 
 Nodes, proxy and auth servers use certificates to authenticate with auth server and user's client connections.
 Users should check if host's certificate is signed by the trusted authority.
@@ -261,7 +261,7 @@ All nodes in the cluster can connect to auth server's HTTP API via SSH tunnel th
 to enforce access control (e.g. client connection using node's certificate won't be able to add and delete users, and
 can only get auth servers registered in the cluster).
 
-**User certificates and allowed logins**
+### User certificates and allowed logins
 
 When auth server generates a user certificate, it uses information provided by administrator about allowed linux logins
 to populate the list of "valid principals". This list is used by OpenSSH and Teleport to check if the user has option
