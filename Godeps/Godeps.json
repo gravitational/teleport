@@ -145,10 +145,6 @@
 			"Rev": "348cf76cace4d93fdacc38dfdaa2306f4f0e9c16"
 		},
 		{
-			"ImportPath": "github.com/gravitational/version",
-			"Rev": "4459539f89995fd4b12618a2cd29604948d890a2"
-		},
-		{
 			"ImportPath": "github.com/jonboulle/clockwork",
 			"Rev": "ed104f61ea4877bea08af6f759805674861e968d"
 		},

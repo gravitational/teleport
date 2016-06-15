@@ -36,7 +36,18 @@ Then you can run Teleport as a single-node cluster:
 teleport start 
 ```
 
-## Why Build Teleport?
+## Building Teleport
+
+You need to have Golang v1.5 or newer.
+
+Clone this repository into `$GOPATH/gravitational/teleport` and run `make`. 
+
+If you want to release your own Teleport version, edit this [Makefile](Makefile), update 
+`VERSION` and `SUFFIX` constants, then run `make setver` to update [version.go](version.go)
+
+If you want to cut another binary release tarball, run `make release`.
+
+## Why did We Build Teleport?
 
 Mature tech companies with significant infrastructure footprints tend to implement most
 of these patterns internally. Teleport allows smaller companies without 

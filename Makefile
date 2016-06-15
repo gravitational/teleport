@@ -1,3 +1,8 @@
+# Update these two variables, then run 'make setver'
+VERSION=1.0.0
+SUFFIX=stable
+GITTAG=v$(VERSION)-$(SUFFIX)
+
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
 BINDIR ?= /usr/local/bin
@@ -5,54 +10,58 @@ DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 
 GO15VENDOREXPERIMENT := 1
-PKGPATH=github.com/gravitational/teleport
 PWD ?= $(shell pwd)
 ETCD_CERTS := $(realpath fixtures/certs)
 ETCD_FLAGS := TELEPORT_TEST_ETCD_CONFIG='{"nodes": ["https://localhost:4001"], "key":"/teleport/test", "tls_key_file": "$(ETCD_CERTS)/proxy1-key.pem", "tls_cert_file": "$(ETCD_CERTS)/proxy1.pem", "tls_ca_file": "$(ETCD_CERTS)/ca.pem"}'
 TELEPORT_DEBUG ?= no
+RELEASE := teleport-$(GITTAG)-$(shell go env GOOS)-$(shell go env GOARCH)-bin
+RELEASEDIR := $(BUILDDIR)/$(RELEASE)
+
 export
 
-$(eval BUILDFLAGS := $(ADDFLAGS) -ldflags "-w $(shell go install $(PKGPATH)/vendor/github.com/gravitational/version/cmd/linkflags && linkflags -pkg=$(GOPATH)/src/$(PKGPATH) -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)")
+$(eval BUILDFLAGS := $(ADDFLAGS) -ldflags -w)
 
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
 #
 .PHONY: all
-all: build
-
-.PHONY: build
-build: teleport tctl tsh assets
+all: setver teleport tctl tsh assets
 
 .PHONY: tctl
 tctl: 
-	go build -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) $(PKGPATH)/tool/tctl
+	go build -o $(BUILDDIR)/tctl -i $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: teleport 
 teleport:
-	go build -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) $(PKGPATH)/tool/teleport
+	go build -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: tsh
 tsh: 
-	go build -o $(BUILDDIR)/tsh -i $(BUILDFLAGS) $(PKGPATH)/tool/tsh
+	go build -o $(BUILDDIR)/tsh -i $(BUILDFLAGS) ./tool/tsh
 
+#
+# make install will installs system-wide teleport 
+# 
 .PHONY: install
 install: build
-	sudo cp -f $(BUILDDIR)/tctl      $(BINDIR)/
-	sudo cp -f $(BUILDDIR)/tsh       $(BINDIR)/
-	sudo cp -f $(BUILDDIR)/teleport  $(BINDIR)/
-	sudo mkdir -p $(DATADIR)
-	sudo cp -fr web/dist/* $(DATADIR)
+	@echo "\n** Make sure to run 'make install' as root! **\n"
+	cp -f $(BUILDDIR)/tctl      $(BINDIR)/
+	cp -f $(BUILDDIR)/tsh       $(BINDIR)/
+	cp -f $(BUILDDIR)/teleport  $(BINDIR)/
+	mkdir -p $(DATADIR)
+	cp -fr web/dist/* $(DATADIR)
 
 .PHONY: goinstall
 goinstall:
-	go install $(BUILDFLAGS) $(PKGPATH)/tool/tctl
-	go install $(BUILDFLAGS) $(PKGPATH)/tool/teleport
-	go install $(BUILDFLAGS) $(PKGPATH)/tool/tsh
+	go install $(BUILDFLAGS) ./tool/tctl
+	go install $(BUILDFLAGS) ./tool/teleport
+	go install $(BUILDFLAGS) ./tool/tsh
 
 
 .PHONY: clean
 clean:
 	rm -rf $(BUILDDIR)
+	rm -rf teleport
 
 .PHONY: assets
 assets:
@@ -83,9 +92,9 @@ run-docs:
 .PHONY: test
 test: FLAGS ?= -cover
 test: 
-	go test -v $(PKGPATH)/tool/tsh/... \
-			   $(PKGPATH)/lib/... \
-			   $(PKGPATH)/tool/teleport... $(FLAGS) -tags test
+	go test -v ./tool/tsh/... \
+			   ./lib/... \
+			   ./tool/teleport... $(FLAGS) -tags test
 	go vet ./tool/... ./lib/...
 
 #
@@ -93,38 +102,33 @@ test:
 #
 .PHONY: integration
 integration: 
-	go test -v $(PKGPATH)/integration/...
+	go test -v ./integration/...
 
-#
-# source-release releases source distribution tarball for this particular version
-#
-.PHONY: source-release
-source-release: LINKFLAGS := $(shell linkflags -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)
-source-release: RELEASE := teleport-$(shell linkflags --tag)-src
-source-release: RELEASEDIR := $(BUILDDIR)/$(RELEASE)
-source-release:
-	mkdir -p $(RELEASEDIR)/src/github.com/gravitational/teleport
-	find -type f | grep -v node_modules | grep -v ./build | grep -v ./.git | grep -v .test$$ > $(BUILDDIR)/files.txt
-	tar --transform "s_./_teleport/src/github.com/gravitational/teleport/_" -cvf $(BUILDDIR)/$(RELEASE).tar -T $(BUILDDIR)/files.txt
-	sed 's_%BUILDFLAGS%_-ldflags "$(LINKFLAGS)"_' build.assets/release/Makefile > $(BUILDDIR)/Makefile
-	tar --transform "s__teleport/_" -uvf $(BUILDDIR)/$(RELEASE).tar README.md LICENSE docs
-	tar --transform "s_$(BUILDDIR)/_teleport/_" -uvf $(BUILDDIR)/$(RELEASE).tar $(BUILDDIR)/Makefile
-	gzip $(BUILDDIR)/$(RELEASE).tar
+
+# make setver - bump the version of teleport
+#	Reads the version from version.mk, updates version.go and
+#	assigns a git tag to the currently checked out tree
+.PHONY: setver
+setver:
+	$(MAKE) -f version.mk setver
+
+# make settag - set a git tag with the current version from version.mk
+.PHONY: settag
+settag:
+	echo $(GITTAG)
 
 #
 # bianry-release releases binary distribution tarball for this particular version
 #
-.PHONY: binary-release
-binary-release: LINKFLAGS := $(shell linkflags -verpkg=$(PKGPATH)/vendor/github.com/gravitational/version)
-binary-release: RELEASE := teleport-$(shell linkflags --os-release)-bin
-binary-release: RELEASEDIR := $(BUILDDIR)/$(RELEASE)
-binary-release: build
-	sed 's_%BUILDFLAGS%_-ldflags "$(LINKFLAGS)"_' build.assets/release/Makefile > $(BUILDDIR)/Makefile
-	mkdir -p $(BUILDDIR)/$(RELEASE)/teleport/src/$(PKGPATH)/web $(BUILDDIR)/$(RELEASE)/teleport/build
-	cp -r $(BUILDDIR)/Makefile LICENSE README.md docs $(BUILDDIR)/$(RELEASE)/teleport
-	cp -r web/dist $(BUILDDIR)/$(RELEASE)/teleport/src/$(PKGPATH)/web
-	cp -af $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/teleport $(BUILDDIR)/$(RELEASE)/teleport/build
-	tar -czf $(BUILDDIR)/$(RELEASE).tar.gz -C $(BUILDDIR)/$(RELEASE) teleport
+.PHONY: release
+release: clean all
+	@rm -rf $(RELEASE)
+	mkdir $(RELEASE)
+	cp -r $(BUILDDIR)/* $(RELEASE)/
+	tar -czf $(RELEASE).tar.gz $(RELEASE)
+	@echo "\n\n"
+	@echo "CREATED: $(RELEASE)"
+	@echo "CREATED: $(RELEASE).tar.gz"
 
 
 .PHONY: test-with-etcd
