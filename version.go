@@ -3,7 +3,6 @@ package teleport
 
 const (
 	Version = "1.0.0"
-	Suffix  = "stable"
 )
 
 var Gitref string

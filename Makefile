@@ -1,7 +1,8 @@
-# Update these two variables, then run 'make setver'
+# Update this variable, then run 'make setver'
+# Naming convention:
+#	for stable releases we use "1.0.0" format
+#   for pre-releases, we use   "1.0.0-beta.2" format
 VERSION=1.0.0
-SUFFIX=stable
-GITTAG=v$(VERSION)-$(SUFFIX)
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -14,8 +15,8 @@ PWD ?= $(shell pwd)
 ETCD_CERTS := $(realpath fixtures/certs)
 ETCD_FLAGS := TELEPORT_TEST_ETCD_CONFIG='{"nodes": ["https://localhost:4001"], "key":"/teleport/test", "tls_key_file": "$(ETCD_CERTS)/proxy1-key.pem", "tls_cert_file": "$(ETCD_CERTS)/proxy1.pem", "tls_ca_file": "$(ETCD_CERTS)/ca.pem"}'
 TELEPORT_DEBUG ?= no
+GITTAG=v$(VERSION)
 RELEASE := teleport-$(GITTAG)-$(shell go env GOOS)-$(shell go env GOARCH)-bin
-RELEASEDIR := $(BUILDDIR)/$(RELEASE)
 
 export
 
@@ -112,22 +113,27 @@ integration:
 setver:
 	$(MAKE) -f version.mk setver
 
-# make settag - set a git tag with the current version from version.mk
-.PHONY: settag
-settag:
-	echo $(GITTAG)
+# make tag - prints a tag to use with git for the current version
+# 	To put a new release on Github:
+# 		- bump VERSION variable
+# 		- run make setver
+# 		- commit changes to git
+# 		- build binaries with 'make release'
+# 		- run `make tag` and use its output to 'git tag' and 'git push --tags'
+.PHONY: tag
+tag:
+	@echo "Run this:\n> git tag $(GITTAG)\n> git push --tags"
 
 #
-# bianry-release releases binary distribution tarball for this particular version
-#
+# make release - produces a binary release tarball 
+#	
 .PHONY: release
 release: clean all
-	@rm -rf $(RELEASE)
-	mkdir $(RELEASE)
-	cp -r $(BUILDDIR)/* $(RELEASE)/
-	tar -czf $(RELEASE).tar.gz $(RELEASE)
-	@echo "\n\n"
-	@echo "CREATED: $(RELEASE)"
+	cp -rf $(BUILDDIR) teleport
+	@echo $(GITTAG) > teleport/VERSION
+	tar -czf $(RELEASE).tar.gz teleport
+	rm -rf teleport
+	@echo "\n"
 	@echo "CREATED: $(RELEASE).tar.gz"
 
 
