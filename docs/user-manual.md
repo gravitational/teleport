@@ -74,7 +74,7 @@ These examples assume your localhost username is 'joe':
 > tsh ssh --proxy=work.example.com node
 ```
 
-`tsh` allows to login into the cluster without connecting to any master nodes:
+`tsh` allows you to login into the cluster without connecting to any master nodes:
 
 ```
 > tsh login --proxy=work.example.com
@@ -82,7 +82,7 @@ These examples assume your localhost username is 'joe':
 
 This allows you to supply your password and the 2nd factor authentication
 at the beginning of the day. Subsequent `tsh ssh` commands will run without
-asking for your credentials until the temporary certificate expires (by default 12 hours).
+asking for your credentials until the temporary certificate expires (by default 23 hours).
 
 ## Exploring the Cluster
 
@@ -206,7 +206,7 @@ system packages on machines that run Linux:
 ### Temporary Logins
 
 Suppose you are borrowing someone else's computer to login into a cluster. You probably don't 
-want to stay authenticated on this computer for 12 hours (Teleport default). This is where `--ttl`
+want to stay authenticated on this computer for 23 hours (Teleport default). This is where `--ttl`
 flag can help.
 
 This command logs you into the cluster with a very short-lived (1 minute) temporary certificate:
