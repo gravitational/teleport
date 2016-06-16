@@ -137,8 +137,7 @@ and the certificate is signed by the auth server's host CA.
 To invite a node, the auth server generates a disposable one-time token which
 the new node must submit when requesting its certificate for the first time.
 
-!!! danger "IMPORTANT":
-Token default TTL is 15 minutes, but can be reduced (not increased) if requested by tctl.
+.. note:: Token default TTL is 15 minutes, but can be reduced (not increased) if requested by tctl.
 
 Teleport cluster members (servers) can interact with the auth server using the auth API. The API is 
 implemented as an HTTP REST service running over the SSH tunnel, authenticated using host or user
