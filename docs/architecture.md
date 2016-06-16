@@ -9,19 +9,19 @@ description of Teleport architecture.
 
 Teleport was designed in accordance with the following design principles:
 
-* **Off the Shelf Security**. Teleport does not re-implement any security primitives
+* **Off the Shelf Security**: Teleport does not re-implement any security primitives
   and uses well-established, popular implementations of the encryption and network protocols.
 
-* **Open Standards**. There is no security through obscurity. Teleport is fully compatible
+* **Open Standards**: There is no security through obscurity. Teleport is fully compatible
   with existing and open standards and other software, including OpenSSH.
 
-* **Cluster-oriented Design**. Teleport is built for managing clusters, not individual
+* **Cluster-oriented Design**: Teleport is built for managing clusters, not individual
   servers. In practice this means that hosts and users have cluster memberships. Identity 
   management and authorization happen on a cluster level.
 
-* **Built for Teams**. Teleport was created under the assumption of multiple teams operating
-  on several disconnected clusters, for example production-vs-staging, or perhaps
-  on a cluster-per-customer or cluster-per-application basis.
+* **Built for Teams**: Teleport was created under the assumption of multiple teams operating
+  on several disconnected clusters (production-vs-staging, or perhaps
+  on a cluster-per-customer or cluster-per-application basis).
 
 ### Core Concepts
 
@@ -63,7 +63,7 @@ node.
 1. The client tries to establish an SSH connection to a proxy using either the CLI interface or a 
    web browser (via HTTPS). Clients must always connect through a proxy for two reasons:
 
-      * Individual nodes may not always be reacheable from "the outside".
+      * Individual nodes may not always be reachable from "the outside".
       * Proxies always record SSH sessions and keep track of active user sessions. This makes it possible
       for an SSH user to see if someone else is connected to a node she is about to work on.
 
@@ -80,7 +80,7 @@ node.
       The password + 2nd factor are submitted to a proxy via HTTPS, therefore it is critical for 
       a secure configuration of Teleport to install a proper HTTPS certificate on a proxy.
      
-      **Security note:** Do not use the self-signed certificate installed by default in production.
+      .. note:: Do not use the self-signed certificate installed by default in production.
    
       If the credentials are correct, the auth server generates and signs a new certificate and returns
       it to a client via the proxy. The client stores this key and will use it for subsequent 
@@ -137,7 +137,7 @@ and the certificate is signed by the auth server's host CA.
 To invite a node, the auth server generates a disposable one-time token which
 the new node must submit when requesting its certificate for the first time.
 
-**Note:** Token default TTL is 15 minutes, but can be reduced (not increased) if requested by tctl.
+.. note:: Token default TTL is 15 minutes, but can be reduced (not increased) if requested by tctl.
 
 Teleport cluster members (servers) can interact with the auth server using the auth API. The API is 
 implemented as an HTTP REST service running over the SSH tunnel, authenticated using host or user
@@ -195,7 +195,7 @@ recommended to have several of them running.
 When you launch the Teleport Proxy for the first time, it will generate self-signed HTTPS 
 certificate to make it easier to explore Teleport.
 
-**Security note:** It is absolutely crucial to properly configure TLS for HTTPS when you 
+.. warning:: It is absolutely crucial to properly configure TLS for HTTPS when you 
 prepare to use Teleport Proxy in production.
 
 
@@ -209,12 +209,12 @@ In this mode Teleport Proxy implements WSS (secure web sockets) to SSH proxy:
 2. Proxy passes credentials to the auth server's API
 3. If auth server accepts credentials, it generates a new web session and generates a special
    ssh keypair associated with this web session.
-   auth server starts serving [OpenSSH ssh-agent protocol](https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.agent)
+   Auth server starts serving [OpenSSH ssh-agent protocol](https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.agent)
    to the proxy.
 4. From the SSH node's perspective it's a regular SSH client connection that is authenticated using
    OpenSSH certificate, so no special logic is needed.
 
-**Security note:** Unlike in SSH proxying, in web mode Teleport Proxy terminates the traffic
+.. note:: Unlike in SSH proxying, in web mode Teleport Proxy terminates the traffic
 and re-encodes for SSH client connection.
 
 #### SSH Proxy
@@ -230,7 +230,7 @@ Teleport Proxy implements a special method to let clients get short lived certif
 3. If auth server accepts credentials, it generates a new certificate signed by its user CA and sends it back to the proxy.
 4. Proxy 
 
-**Security note:** Unlike in SSH proxying, in web mode Teleport Proxy terminates the traffic
+.. note:: Unlike in SSH proxying, in web mode Teleport Proxy terminates the traffic
 and re-encodes for SSH client connection.
 
 **2. Connecting to the nodes**
@@ -244,7 +244,7 @@ the certificate using standard OpenSSH client (and get it using ssh-agent socket
 2. Proxy dials to the target TCP address and starts forwarding the traffic to the client.
 3. SSH client uses established SSH tunnel to open new SSH connection and authenticate with the target node using its client certificate.
 
-**Implementation note:** Teleport's proxy command makes it compatible with [SSH jump host](https://wiki.gentoo.org/wiki/SSH_jump_host) pattern implemented using OpenSSH's `ProxyCommand`
+.. note:: Teleport's proxy command makes it compatible with [SSH jump host](https://wiki.gentoo.org/wiki/SSH_jump_host) pattern implemented using OpenSSH's `ProxyCommand`
 
 
 ## Certificates
