@@ -84,7 +84,7 @@ node.
    
       If the credentials are correct, the auth server generates and signs a new certificate and returns
       it to a client via the proxy. The client stores this key and will use it for subsequent 
-      logins. The key will automatically expire after 12 hours by default. This TTL can be configured
+      logins. The key will automatically expire after 23 hours by default. This TTL can be configured
    to a maximum of 30 hours and a minimum of 1 minute.
 
 3. At this step, the proxy tries to locate the requested node in a cluster. There are three
@@ -291,7 +291,7 @@ them so you can call:
 Unlike `ssh`, `tsh` is very opinionated about authentication: it always uses auto-expiring
 keys and it always connects to Teleport nodes via a proxy, it is a mandatory parameter.
 
-When `tsh` logs in, the auto-expiring key is stored in `~/.tsh` and is valid for 12 hours by
+When `tsh` logs in, the auto-expiring key is stored in `~/.tsh` and is valid for 23 hours by
 default, unless you specify another interval via `--ttl` flag (max of 30 hours and minimum of 1 minute and capped by the server-side configuration).
 
 You can learn more about `tsh` in the [User Manual](user-manual.md).
