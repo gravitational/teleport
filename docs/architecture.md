@@ -80,7 +80,8 @@ node.
       The password + 2nd factor are submitted to a proxy via HTTPS, therefore it is critical for 
       a secure configuration of Teleport to install a proper HTTPS certificate on a proxy.
      
-      .. note:: Do not use the self-signed certificate installed by default in production.
+      !!! danger "IMPORTANT": 
+            Do not use the self-signed certificate installed by default in production.
    
       If the credentials are correct, the auth server generates and signs a new certificate and returns
       it to a client via the proxy. The client stores this key and will use it for subsequent 
@@ -137,7 +138,8 @@ and the certificate is signed by the auth server's host CA.
 To invite a node, the auth server generates a disposable one-time token which
 the new node must submit when requesting its certificate for the first time.
 
-.. note:: Token default TTL is 15 minutes, but can be reduced (not increased) if requested by tctl.
+!!! tip "NOTE": 
+    Token default TTL is 15 minutes, but can be reduced (not increased) if requested by tctl.
 
 Teleport cluster members (servers) can interact with the auth server using the auth API. The API is 
 implemented as an HTTP REST service running over the SSH tunnel, authenticated using host or user
@@ -152,8 +154,8 @@ nodes in the cluster.
 
 Cluster administration is performed using `tctl` command line tool.
 
-**Production note:** For high availability a Teleport cluster can be serviced by multiple auth servers 
-running in sync. Check [HA configuration](admin-guide.md#high-availability-and-clustering) in the Admin Guide.
+!!! tip "NOTE": 
+    For high availability in production, a Teleport cluster can be serviced by multiple auth servers running in sync. Check [HA configuration](admin-guide.md#high-availability-and-clustering) in the Admin Guide.
 
 ### Storage Backends
 
@@ -214,8 +216,8 @@ In this mode Teleport Proxy implements WSS (secure web sockets) to SSH proxy:
 4. From the SSH node's perspective it's a regular SSH client connection that is authenticated using
    OpenSSH certificate, so no special logic is needed.
 
-.. note:: Unlike in SSH proxying, in web mode Teleport Proxy terminates the traffic
-and re-encodes for SSH client connection.
+!!! tip "NOTE": 
+    Unlike in SSH proxying, in web mode Teleport Proxy terminates the traffic and re-encodes for SSH client connection.
 
 #### SSH Proxy
 
@@ -230,8 +232,8 @@ Teleport Proxy implements a special method to let clients get short lived certif
 3. If auth server accepts credentials, it generates a new certificate signed by its user CA and sends it back to the proxy.
 4. Proxy 
 
-.. note:: Unlike in SSH proxying, in web mode Teleport Proxy terminates the traffic
-and re-encodes for SSH client connection.
+!!! tip "NOTE": 
+    Unlike in SSH proxying, in web mode Teleport Proxy terminates the traffic and re-encodes for SSH client connection.
 
 **2. Connecting to the nodes**
 
@@ -244,7 +246,8 @@ the certificate using standard OpenSSH client (and get it using ssh-agent socket
 2. Proxy dials to the target TCP address and starts forwarding the traffic to the client.
 3. SSH client uses established SSH tunnel to open new SSH connection and authenticate with the target node using its client certificate.
 
-.. note:: Teleport's proxy command makes it compatible with [SSH jump host](https://wiki.gentoo.org/wiki/SSH_jump_host) pattern implemented using OpenSSH's `ProxyCommand`
+!!! tip "NOTE": 
+    Teleport's proxy command makes it compatible with [SSH jump host](https://wiki.gentoo.org/wiki/SSH_jump_host) pattern implemented using OpenSSH's `ProxyCommand`
 
 
 ## Certificates

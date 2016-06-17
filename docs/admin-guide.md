@@ -67,7 +67,7 @@ directory. Teleport process checks the following locations for its web assets:
    3. `/usr/share/teleport`
    4. `/opt/teleport`
 
-!!! tip "IMPORTANT": 
+!!! danger "WARNING": 
     Teleport stores data in `/var/lib/teleport`. Make sure that regular users do not 
     have access to this folder of the Auth server, otherwise anyone can gain admin access to Teleport's API.
 
@@ -131,7 +131,7 @@ Flags:
 
 ### Configuration Flags
 
-Lets cover some of these flags in more detail:
+Let's cover some of these flags in more detail:
 
 * `--roles` flag tells Teleport which services to start. It is a comma-separated
   list of roles. The possible values are `auth`, `node` and `proxy`. The default 
@@ -290,7 +290,7 @@ of a cluster have multiple OS users on them. A Teleport administrator assigns
 allowed logins to every Teleport account, allowing it to login as one of the 
 specified OS users.
 
-Lets look at this table:
+Let's look at this table:
 
 |Teleport Username | Allowed Logins | Description
 |------------------|---------------|-----------------------------
@@ -318,7 +318,7 @@ NOTE: make sure the <proxy> host is accessible.
 The user will complete registration by visiting this URL, picking a password and 
 configuring the 2nd factor authentication. If the credentials are correct, the auth 
 server generates and signs a new certificate and the client stores this key and will use 
-it for subsequent logins. The key will automatically expire after 12 hours by default after which 
+it for subsequent logins. The key will automatically expire after 23 hours by default after which 
 the user will need to log back in with her credentials. This TTL can be configured to a maximum
 of 30 hours and a minimum of 1 minute. Once authenticated, the account will become visible via `tctl`:
 
@@ -486,21 +486,21 @@ located behind firewalls without any open ports. They can also have different ac
 As [explained above](#nomenclature), a Teleport Cluster has a name and is managed by a 
 `teleport` daemon with "auth service" enabled.
 
-Lets assume we need to place some servers behind a firewall, and we only want Teleport 
+Let's assume we need to place some servers behind a firewall and we only want Teleport 
 user "john" to have access to them. Assume we already have our primary Teleport cluster 
-and our users set up. Say, this cluster is called "main". 
+and our users set up. Say this cluster is called "main". 
 
 Now, to add behind-the-firewall machines and restrict access only to "john", we will have 
 to do the following:
 
-1. Create a new cluster for behind-the-firewall machines. Lets call it "cluster-b".
+1. Create a new cluster for behind-the-firewall machines. Let's call it "cluster-b".
 2. Add "cluster-b" to the list of `trusted clusters` of "main".
 3. Add "main" cluster to the list of `trusted clusters` of "cluster-b".
 4. Tell "cluster-b" to open a reverse tunnel to "main" cluster, this SSH tunnel will connect from behind a firewall out to the proxy service of "main" cluster.
 5. Tell "cluster-b" to only allow "john" from cluster "main".
 6. John will have to use `--cluster` flag when using `tsh` command to connect to nodes inside of "cluster-b".
 
-Lets look into the details of each step. First, lets configure two independent (at first) 
+Let's look into the details of each step. First, let's configure two independent (at first) 
 clusters: 
 
 ```
@@ -583,7 +583,7 @@ main             host        xxxxxxxxxxxxxxxxxxxxxxxxxxx     N/A
 Notice that each cluster is shown as two CAs: one is used to establish trust between nodes,
 and another one is for trusting users. 
 
-Now, John, having direct access to a proxy server of cluster "main" (lets call it main.proxy) can 
+Now, John, having direct access to a proxy server of cluster "main" (let's call it main.proxy) can 
 use `tsh` command to see which clusters are online:
 
 ```
@@ -678,7 +678,7 @@ TrustedUserCAKeys /etc/ssh/user-ca.pub
 Ansible is using OpenSSH client by default, this makes it compatible with Teleport without any extra work except
 configuring OpenSSH client to work with Teleport Proxy:
 
-* config your OpenSSH to connect to Teleport proxy and user `tsh agent` socket
+* configure your OpenSSH to connect to Teleport proxy and user `tsh agent` socket
 * enable scp mode in the Ansible config file (default is `/etc/ansible/ansible.cfg`):
  
 ```bash
@@ -727,7 +727,7 @@ auth_service:
 ```
 
 Now you should be able to create Teleport users whose identity is managed by Google.
-Assuming your company domain is `example.com` and it's hosted on Google Apps, lets
+Assuming your company domain is `example.com` and it's hosted on Google Apps, let's
 create a new Teleport user "sasha" with an email address `sasha@example.com` and allow
 him to login as `root` to Teleport nodes:
 
@@ -751,7 +751,7 @@ You have to tell `tsh` to authenticate via Google by providing an `--auth` flag:
 tsh --proxy <proxy-addr> ssh --auth=google <server-addr>
 ```
 
-... you should get a browser open a login window for you, where you will have to enter
+You should get a browser open a login window for you, where you will have to enter
 your Google credentials. Teleport will keep you logged in for the next 23 hours.
 
 !!! tip "Other Providers?": 
@@ -767,8 +767,8 @@ Teleport uses etcd backend to achieve highly available deployments.
 * Install etcd and configure peer and client TLS authentication using
    [etcd security guide](https://github.com/coreos/etcd/blob/master/Documentation/security.md).
 
-      **Security note:** Only Auth servers should have client certificates allowing etcd access,
-      otherwise anyone can write and overwrite keys in the backend!
+      !!! danger "SECURITY WARNING": 
+        Only Auth servers should have client certificates allowing etcd access, otherwise anyone can write and overwrite keys in the backend.
 
 * Set up Auth server to use etcd in `storage` section of Auth server's config file:
 
@@ -790,21 +790,18 @@ teleport:
         tls_ca_file: /var/lib/teleport/etcd-ca.pem
 ```
 
-* Deploy several Auth servers connected to etcd backend
-* Deploy several Proxy nodes that have `auth_servers` pointed to list of Auth servers to connect
+* Deploy several Auth servers connected to etcd backend.
+* Deploy several Proxy nodes that have `auth_servers` pointed to list of Auth servers to connect.
 
-**NOTE** As new Auth servers will be added to the cluster and old servers will be decommisioned,
-node's and proxies will refresh the list of available auth servers refresh the cluster info and
-store the updated list locally in `/var/lib/teleport/authservers.json`. The values from this
-file, if present, will take precendence over configuration file's values.
-You can simply remove the file so that the configuration file's values can take effect again.
+!!! tip:"NOTE": 
+    As new Auth servers will be added to the cluster and old servers will be decommisioned, node's and proxies will refresh the list of available auth servers refresh the cluster info and store the updated list locally in `/var/lib/teleport/authservers.json`. The values from this file, if present, will take precendence over configuration file's values. You can simply remove the file so that the configuration file's values can take effect again.
 
 
 ## Troubleshooting
 
 To diagnose problems you can configure `teleport` to run with verbose logging enabled.
 
-!!! note "IMPORTANT": 
+!!! tip: "NOTE": 
     It is not recommended to run Teleport in production with verbose logging
     as it generates substantial amount of data.
 

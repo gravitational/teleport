@@ -2,7 +2,7 @@
 
 ### Can I use Gravitational Teleport in production today?
 
-Teleport has completed a security audit from a nationally recongized technology security company. So we are comfortable with the use of Teleport from a security perspective. However, Teleport is still a relatively young product so you may usability issues. We are actively supporting Teleport and addressing any issues that are submitted to the [github repo](https://github.com/gravitational/teleport).
+Teleport has completed a security audit from a nationally recongized technology security company. So we are comfortable with the use of Teleport from a security perspective. However, Teleport is still a relatively young product so you may experience usability issues. We are actively supporting Teleport and addressing any issues that are submitted to the [github repo](https://github.com/gravitational/teleport).
 
 ### Can I connect to nodes behind a firewall via SSH with Teleport?
 
@@ -25,16 +25,15 @@ Other OpenID providers can easily be added - Teleport code is open and your cont
 
 ### Does Teleport support Authentication via LDAP or Active Directory?
 
-Gravitational offers this feature as part of the commercial support for Teleport.
+Gravitational offers this feature as part of the commercial version for Teleport.
 
-### Do you offer commercial support for Teleport?
+### Do you offer a commercial version of Teleport?
 
-Yes, we offer commercial support which includes:
+Yes, we offer a commercial version which includes:
 
-* Commercial version of Teleport which includes multi-cluster capabilities, 
-  integration with enterprise identity management (LDAP and others) and custom features.
-* Option of fully managed Teleport clusters running on your infrastructure.
-* Shipping of the audit logs to 3rd party log management systems.
-* Commercial support with guaranteed response times.
+* Features like multi-cluster capabilities, integration with enterprise identity management (LDAP and others) and custom feature development.
+* The option of fully managed Teleport clusters running on your infrastructure.
+* Shipping of audit logs to 3rd party log management systems.
+* Premium SLA with guaranteed response times.
 
 Reach out to `sales@gravitational.com` if you have questions about commerial edition of Teleport.
