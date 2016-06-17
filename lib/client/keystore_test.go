@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -130,24 +131,31 @@ func (s *KeyStoreTestSuite) TestKnownHosts(c *check.C) {
 	_, p2, _ := s.keygen.GenerateKeyPair("")
 	pub2, _, _, _, _ := ssh.ParseAuthorizedKey(p2)
 
-	err = s.store.AddKnownCA("example.com", []ssh.PublicKey{pub})
+	err = s.store.AddKnownHostKeys("example.com", []ssh.PublicKey{pub})
 	c.Assert(err, check.IsNil)
-	err = s.store.AddKnownCA("example.com", []ssh.PublicKey{pub2})
+	err = s.store.AddKnownHostKeys("example.com", []ssh.PublicKey{pub2})
 	c.Assert(err, check.IsNil)
-	err = s.store.AddKnownCA("example.org", []ssh.PublicKey{pub2})
+	err = s.store.AddKnownHostKeys("example.org", []ssh.PublicKey{pub2})
 	c.Assert(err, check.IsNil)
 
-	keys, err := s.store.GetKnownCAs()
+	keys, err := s.store.GetKnownHostKeys("")
 	c.Assert(err, check.IsNil)
 	c.Assert(keys, check.HasLen, 3)
 	c.Assert(keys, check.DeepEquals, []ssh.PublicKey{pub, pub2, pub2})
 
 	// check against dupes:
-	before, _ := s.store.GetKnownCAs()
-	s.store.AddKnownCA("example.org", []ssh.PublicKey{pub2})
-	s.store.AddKnownCA("example.org", []ssh.PublicKey{pub2})
-	after, _ := s.store.GetKnownCAs()
+	before, _ := s.store.GetKnownHostKeys("")
+	s.store.AddKnownHostKeys("example.org", []ssh.PublicKey{pub2})
+	s.store.AddKnownHostKeys("example.org", []ssh.PublicKey{pub2})
+	after, _ := s.store.GetKnownHostKeys("")
 	c.Assert(len(before), check.Equals, len(after))
+
+	// check by hostname:
+	keys, _ = s.store.GetKnownHostKeys("badhost")
+	c.Assert(len(keys), check.Equals, 0)
+	keys, _ = s.store.GetKnownHostKeys("example.org")
+	c.Assert(len(keys), check.Equals, 1)
+	c.Assert(sshutils.KeysEqual(keys[0], pub2), check.Equals, true)
 }
 
 // makeSIgnedKey helper returns all 3 components of a user key (signed by CAPriv key)
