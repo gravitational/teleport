@@ -112,8 +112,8 @@ localhost     xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.1:3022
 new-node      xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022     
 ```
 
-**NOTE:** Teleport also supports static pre-defined invitation tokens which can be set in
-the [configuration file](admin-guide.md#adding-nodes-to-the-cluster)
+!!! tip "NOTE": 
+  Teleport also supports static pre-defined invitation tokens which can be set in the [configuration file](admin-guide.md#adding-nodes-to-the-cluster)
 
 ## Using Node Labels
 
@@ -190,8 +190,9 @@ Also, people can join your session via terminal assuming they have Teleport inst
 > tsh --proxy=teleport.example.com join 7645d523-60cb-436d-b732-99c5df14b7c4
 ```
 
-NOTE: for this to work, both of you must have proper user mappings allowing you 
-access `db` under the same OS user.
+!!! tip "NOTE": 
+  For this to work, both of you must have proper user mappings allowing you 
+  access `db` under the same OS user.
 
 ## Sharing Localhost
 
@@ -215,8 +216,8 @@ Now you can invite someone into your localhost session. They will need to have a
 user mapping, of course, to be allowed to join your session. To disconnect, shut down 
 `teleport` daemon or simply exit the `tsh` session.
 
-**NOTE:** For this to work, your laptop has to join the SSH cluster first. See 
-[adding nodes](admin-guide.md#adding-nodes-to-the-cluster) for more information.
+!!! tip "NOTE": 
+  For this to work, your laptop has to join the SSH cluster first. See [adding nodes](admin-guide.md#adding-nodes-to-the-cluster) for more information.
 
 ## Running in Production
 
