@@ -43,6 +43,7 @@ import (
 var (
 	// all possible valid YAML config keys
 	validKeys = map[string]bool{
+		"seed_config":        true,
 		"cluster_name":       true,
 		"trusted_clusters":   true,
 		"pid_file":           true,
@@ -349,6 +350,11 @@ type Global struct {
 	// Each service (like proxy, auth, node) can find the key it needs
 	// by looking into certificate
 	Keys []KeyPair `yaml:"keys,omitempty"`
+
+	// SeedConfig [GRAVITATIONAL USE] when set to true, Teleport treats
+	// its configuration file simply as a seed data on initial start-up.
+	// For OSS Teleport it should always be 'false' by default.
+	SeedConfig bool `yaml:"seed_config,omitempty"`
 }
 
 // Service is a common configuration of a teleport service

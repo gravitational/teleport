@@ -63,6 +63,9 @@ func (s *IntSuite) TearDownSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
+func (s *IntSuite) SetUpTest(c *check.C) {
+}
+
 func (s *IntSuite) SetUpSuite(c *check.C) {
 	var err error
 	utils.InitLoggerForTests()

@@ -273,6 +273,22 @@ func (s *ConfigTestSuite) TestTrustedClusters(c *check.C) {
 	c.Assert(len(conf.ReverseTunnels), check.Equals, 0)
 }
 
+func (s *ConfigTestSuite) TestSeedConfig(c *check.C) {
+	config := `teleport:
+  nodename: cat.example.com
+  seed_config: true
+`
+	fc, err := ReadConfig(bytes.NewBufferString(config))
+	c.Assert(err, check.IsNil)
+	c.Assert(fc.SeedConfig, check.Equals, true)
+
+	conf := service.MakeDefaultConfig()
+	c.Assert(conf.SeedConfig, check.Equals, false)
+
+	ApplyFileConfig(fc, conf)
+	c.Assert(conf.SeedConfig, check.Equals, true)
+}
+
 func (s *ConfigTestSuite) TestApplyConfig(c *check.C) {
 	conf, err := ReadConfig(bytes.NewBufferString(SmallConfigString))
 	c.Assert(err, check.IsNil)

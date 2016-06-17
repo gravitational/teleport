@@ -197,6 +197,7 @@ func (i *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bool,
 		return err
 	}
 	tconf := service.MakeDefaultConfig()
+	tconf.SeedConfig = true
 	tconf.DataDir = dataDir
 	tconf.Console = console
 	tconf.Auth.DomainName = i.Secrets.SiteName

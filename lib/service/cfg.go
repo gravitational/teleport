@@ -107,6 +107,10 @@ type Config struct {
 
 	// Trust is a service that manages users and credentials
 	Identity services.Identity
+
+	// SeedConfig tells teleport to treat its start-up configuration as initial
+	// "seed" configuration on 1st start.
+	SeedConfig bool
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -284,6 +288,7 @@ func ApplyDefaults(cfg *Config) {
 		hostname = "localhost"
 		log.Errorf("Failed to determine hostname: %v", err)
 	}
+	cfg.SeedConfig = false
 
 	// defaults for the auth service:
 	cfg.Auth.Enabled = true
