@@ -8,8 +8,8 @@ teleport:
 auth_service:
   enabled: yes
   cluster_name: cluster-b
-  trusted_clusters:
-      - key_file: /opt/shared/cluster-a
+#  trusted_clusters:
+#      - key_file: /opt/shared/cluster-a
 
 ssh_service:
   enabled: yes

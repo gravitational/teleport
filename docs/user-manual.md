@@ -39,8 +39,12 @@ Notes:
 
 ## Difference vs OpenSSH
 
-There are many differences between Teleport's `tsh` and OpenSSH's `ssh` but the 
-most obvious two are:
+There are a few differences between Teleport's `tsh` and OpenSSH's `ssh` but the 
+most noticeable ones are:
+
+* Teleport only uses certificate-based authentication. Teleport is about clusters
+  centered around a certificate authority (CA). The concept of "cluster membership" 
+  essential in Teleport.
 
 * `tsh` always requires `--proxy` flag because `tsh` needs to know which cluster
   you are connecting to. 
@@ -51,6 +55,11 @@ most obvious two are:
 
 While it may appear less convenient than `ssh`, we hope that the default behavior
 and techniques like bash aliases will help to minimize the amount of typing.
+
+On the other hand, Teleport is built using solely standard SSH constructus: keys,
+certificates, protocols. This means that Teleport is 100% compatible with OpenSSH
+clients and servers. See [Using Teleport with OpenSSH](admin-guide#using-teleport-with-openssh) 
+chapter in the Admin Guide for more information.
 
 ## User Identities
 

@@ -17,7 +17,10 @@ limitations under the License.
 package client
 
 import (
+	"fmt"
 	"net"
+	"os"
+	"strings"
 
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -99,9 +102,34 @@ func (a *LocalKeyAgent) AddHostSignersToCache(hostSigners []services.CertAuthori
 // CheckHostSignature checks if the given host key was signed by one of the trusted
 // certificaate authorities (CAs)
 func (a *LocalKeyAgent) CheckHostSignature(hostId string, remote net.Addr, key ssh.PublicKey) error {
+	log.Debugf("checking host key of %s\n", hostId)
+
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
-		return trace.BadParameter("Cannot trust %v. Expected a certificate", remote.String())
+		// not a signed cert? perhaps we're given a host public key (happens when the host is running
+		// sshd instead of teleport daemon
+		cachedKey, _ := a.keyStore.GetHostKey(hostId)
+		if cachedKey != nil {
+			if string(key.Marshal()) == string(cachedKey.Marshal()) {
+				return nil
+			}
+		}
+		// ask the user if they want to trust this host
+		fmt.Printf("The authenticity of host '%s' can't be established. "+
+			"Its public key is:\n%s\nAre you sure you want to continue (yes/no)? ",
+			hostId, ssh.MarshalAuthorizedKey(key))
+
+		bytes := make([]byte, 12)
+		os.Stdin.Read(bytes)
+		if strings.TrimSpace(strings.ToLower(string(bytes)))[0] != 'y' {
+			return trace.AccessDenied("Host key verification failed.")
+		}
+		// remember the host key (put it into 'known_hosts')
+		if err := a.keyStore.AddHostKey(hostId, key); err != nil {
+			log.Warnf("error saving the host key: %v", err)
+		}
+		// success
+		return nil
 	}
 	keys, err := a.keyStore.GetKnownCAs()
 	if err != nil {

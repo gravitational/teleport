@@ -10,10 +10,10 @@ auth_service:
   cluster_name: cluster-a
   tokens: 
       - "node:hello"
-  trusted_clusters:
-      - key_file: /opt/shared/cluster-b
-        allow_logins: root,vagrant
-        tunnel_addr: b-auth
+#  trusted_clusters:
+#      - key_file: /opt/shared/cluster-b
+#        allow_logins: root,vagrant
+#        tunnel_addr: b-auth
 
 ssh_service:
   enabled: yes
