@@ -26,9 +26,9 @@ implementation and it is fully compatible with OpenSSH.
 
 ## Installing and Running
 
-Download the latest binary release, unpack the .tar.gz and run `sudo make install`.
-This will copy Teleport binaries into `/usr/local/bin` and the web assets 
-to `/usr/local/share/teleport`.
+Download the [latest binary release](https://github.com/gravitational/teleport/releases), 
+unpack the .tar.gz and run `sudo make install`. This will copy Teleport binaries into 
+`/usr/local/bin` and the web assets to `/usr/local/share/teleport`.
 
 Then you can run Teleport as a single-node cluster:
 
