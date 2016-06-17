@@ -23,13 +23,9 @@ type LocalKeyStore interface {
 	GetKey(host string, username string) (*Key, error)
 	DeleteKey(host string, username string) error
 
-	// host key support (for interopability with sshd-powered servers)
-	GetHostKey(host string) (ssh.PublicKey, error)
-	AddHostKey(host string, key ssh.PublicKey) error
-
-	// trusted CAs management:
-	AddKnownCA(domainName string, publicKeys []ssh.PublicKey) error
-	GetKnownCAs() ([]ssh.PublicKey, error)
+	// interface to known_hosts file:
+	AddKnownHostKeys(hostname string, keys []ssh.PublicKey) error
+	GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error)
 }
 
 // AsAgentKey converts our Key structure to ssh.Agent.Key

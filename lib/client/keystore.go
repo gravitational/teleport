@@ -193,8 +193,8 @@ func (fs *FSLocalKeyStore) GetKey(host, username string) (*Key, error) {
 	return key, nil
 }
 
-// AddKnownHost adds a new entry to 'known_CAs' file
-func (fs *FSLocalKeyStore) AddKnownCA(domainName string, hostKeys []ssh.PublicKey) error {
+// AddKnownHostKeys adds a new entry to 'known_hosts' file
+func (fs *FSLocalKeyStore) AddKnownHostKeys(hostname string, hostKeys []ssh.PublicKey) error {
 	fp, err := os.OpenFile(filepath.Join(fs.KeyDir, fileNameKnownHosts), os.O_CREATE|os.O_RDWR, 0640)
 	if err != nil {
 		return trace.Wrap(err)
@@ -214,9 +214,9 @@ func (fs *FSLocalKeyStore) AddKnownCA(domainName string, hostKeys []ssh.PublicKe
 	}
 	// add every host key to the list of entries
 	for i := range hostKeys {
-		log.Infof("adding known CA %v %v", domainName, sshutils.Fingerprint(hostKeys[i]))
+		log.Infof("adding known host %s with key: %v", hostname, sshutils.Fingerprint(hostKeys[i]))
 		bytes := ssh.MarshalAuthorizedKey(hostKeys[i])
-		line := strings.TrimSpace(fmt.Sprintf("%s %s", domainName, bytes))
+		line := strings.TrimSpace(fmt.Sprintf("%s %s", hostname, bytes))
 		if _, exists := entries[line]; !exists {
 			output = append(output, line)
 		}
@@ -235,8 +235,8 @@ func (fs *FSLocalKeyStore) AddKnownCA(domainName string, hostKeys []ssh.PublicKe
 	return nil
 }
 
-// GetKnownHost returns all known public keys from 'known_hosts'
-func (fs *FSLocalKeyStore) GetKnownCAs() ([]ssh.PublicKey, error) {
+// GetKnownHostKeys returns all known public keys from 'known_hosts'
+func (fs *FSLocalKeyStore) GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error) {
 	bytes, err := ioutil.ReadFile(filepath.Join(fs.KeyDir, fileNameKnownHosts))
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -245,67 +245,32 @@ func (fs *FSLocalKeyStore) GetKnownCAs() ([]ssh.PublicKey, error) {
 		return nil, trace.Wrap(err)
 	}
 	var (
-		pubKey ssh.PublicKey
-		retval []ssh.PublicKey = make([]ssh.PublicKey, 0)
+		pubKey    ssh.PublicKey
+		retval    []ssh.PublicKey = make([]ssh.PublicKey, 0)
+		hosts     []string
+		hostMatch bool
 	)
 	for err == nil {
-		_, _, pubKey, _, bytes, err = ssh.ParseKnownHosts(bytes)
+		_, hosts, pubKey, _, bytes, err = ssh.ParseKnownHosts(bytes)
 		if err == nil {
-			retval = append(retval, pubKey)
+			hostMatch = (hostname == "")
+			if !hostMatch {
+				for i := range hosts {
+					if hosts[i] == hostname {
+						hostMatch = true
+						break
+					}
+				}
+			}
+			if hostMatch {
+				retval = append(retval, pubKey)
+			}
 		}
 	}
 	if err != io.EOF {
 		return nil, trace.Wrap(err)
 	}
 	return retval, nil
-}
-
-// GetHostKey returns the public key of the given host (from 'known_hosts')
-func (fs *FSLocalKeyStore) GetHostKey(host string) (key ssh.PublicKey, err error) {
-	knownHostsFile := filepath.Join(fs.KeyDir, fileNameKnownHosts)
-	log.Debugf("checking %s for a public key of %s", knownHostsFile, host)
-
-	bytes, err := ioutil.ReadFile(knownHostsFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		log.Error(err)
-		return nil, trace.Wrap(err)
-	}
-	var (
-		hosts []string
-	)
-	for err == nil {
-		_, hosts, key, _, bytes, err = ssh.ParseKnownHosts(bytes)
-		for i := range hosts {
-			if hosts[i] == host {
-				return key, nil
-			}
-		}
-	}
-	return nil, nil
-}
-
-// GetHostKey saves the public key of the host (to 'known_hosts')
-func (fs *FSLocalKeyStore) AddHostKey(host string, key ssh.PublicKey) error {
-	log.Debugf("adding a new public key for '%s' to %s", host, fileNameKnownHosts)
-
-	// we already have this hostkey?
-	existing, _ := fs.GetHostKey(host)
-	if existing != nil && sshutils.KeysEqual(existing, key) {
-		return nil
-	}
-	// add a new entry to known_hosts file:
-	fp, err := os.OpenFile(filepath.Join(fs.KeyDir, fileNameKnownHosts), os.O_CREATE|os.O_RDWR|os.O_APPEND, 0640)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer fp.Sync()
-	defer fp.Close()
-
-	_, err = fmt.Fprintf(fp, "%s %s", host, ssh.MarshalAuthorizedKey(key))
-	return trace.Wrap(err)
 }
 
 // dirFor is a helper function. It returns a directory where session keys
