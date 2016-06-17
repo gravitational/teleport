@@ -23,9 +23,9 @@ type LocalKeyStore interface {
 	GetKey(host string, username string) (*Key, error)
 	DeleteKey(host string, username string) error
 
-	// trusted CAs management:
-	AddKnownCA(domainName string, publicKeys []ssh.PublicKey) error
-	GetKnownCAs() ([]ssh.PublicKey, error)
+	// interface to known_hosts file:
+	AddKnownHostKeys(hostname string, keys []ssh.PublicKey) error
+	GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error)
 }
 
 // AsAgentKey converts our Key structure to ssh.Agent.Key

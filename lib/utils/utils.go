@@ -155,7 +155,7 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 
 // PrintVersion prints human readable version
 func PrintVersion() {
-	ver := fmt.Sprintf("Teleport v%s-%s", teleport.Version, teleport.Suffix)
+	ver := fmt.Sprintf("Teleport v%s", teleport.Version)
 	if teleport.Gitref != "" {
 		ver = fmt.Sprintf("%s git:%s", ver, teleport.Gitref)
 	}

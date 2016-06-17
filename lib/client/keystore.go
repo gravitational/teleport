@@ -193,8 +193,8 @@ func (fs *FSLocalKeyStore) GetKey(host, username string) (*Key, error) {
 	return key, nil
 }
 
-// AddKnownHost adds a new entry to 'known_CAs' file
-func (fs *FSLocalKeyStore) AddKnownCA(domainName string, hostKeys []ssh.PublicKey) error {
+// AddKnownHostKeys adds a new entry to 'known_hosts' file
+func (fs *FSLocalKeyStore) AddKnownHostKeys(hostname string, hostKeys []ssh.PublicKey) error {
 	fp, err := os.OpenFile(filepath.Join(fs.KeyDir, fileNameKnownHosts), os.O_CREATE|os.O_RDWR, 0640)
 	if err != nil {
 		return trace.Wrap(err)
@@ -214,9 +214,9 @@ func (fs *FSLocalKeyStore) AddKnownCA(domainName string, hostKeys []ssh.PublicKe
 	}
 	// add every host key to the list of entries
 	for i := range hostKeys {
-		log.Infof("adding known CA %v %v", domainName, sshutils.Fingerprint(hostKeys[i]))
+		log.Infof("adding known host %s with key: %v", hostname, sshutils.Fingerprint(hostKeys[i]))
 		bytes := ssh.MarshalAuthorizedKey(hostKeys[i])
-		line := strings.TrimSpace(fmt.Sprintf("%s %s", domainName, bytes))
+		line := strings.TrimSpace(fmt.Sprintf("%s %s", hostname, bytes))
 		if _, exists := entries[line]; !exists {
 			output = append(output, line)
 		}
@@ -235,8 +235,8 @@ func (fs *FSLocalKeyStore) AddKnownCA(domainName string, hostKeys []ssh.PublicKe
 	return nil
 }
 
-// GetKnownHost returns public keys of all trusted CAs
-func (fs *FSLocalKeyStore) GetKnownCAs() ([]ssh.PublicKey, error) {
+// GetKnownHostKeys returns all known public keys from 'known_hosts'
+func (fs *FSLocalKeyStore) GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error) {
 	bytes, err := ioutil.ReadFile(filepath.Join(fs.KeyDir, fileNameKnownHosts))
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -245,13 +245,26 @@ func (fs *FSLocalKeyStore) GetKnownCAs() ([]ssh.PublicKey, error) {
 		return nil, trace.Wrap(err)
 	}
 	var (
-		pubKey ssh.PublicKey
-		retval []ssh.PublicKey = make([]ssh.PublicKey, 0)
+		pubKey    ssh.PublicKey
+		retval    []ssh.PublicKey = make([]ssh.PublicKey, 0)
+		hosts     []string
+		hostMatch bool
 	)
 	for err == nil {
-		_, _, pubKey, _, bytes, err = ssh.ParseKnownHosts(bytes)
+		_, hosts, pubKey, _, bytes, err = ssh.ParseKnownHosts(bytes)
 		if err == nil {
-			retval = append(retval, pubKey)
+			hostMatch = (hostname == "")
+			if !hostMatch {
+				for i := range hosts {
+					if hosts[i] == hostname {
+						hostMatch = true
+						break
+					}
+				}
+			}
+			if hostMatch {
+				retval = append(retval, pubKey)
+			}
 		}
 	}
 	if err != io.EOF {
