@@ -25,7 +25,7 @@ Other OpenID providers can easily be added - Teleport code is open and your cont
 
 ### Does Teleport support Authentication via LDAP or Active Directory?
 
-Gravitational offers this feature as part of the commercial support for Teleport.
+Gravitational offers this feature as part of the commercial version for Teleport.
 
 ### Do you offer a commercial version of Teleport?
 
