@@ -131,7 +131,7 @@ Flags:
 
 ### Configuration Flags
 
-Lets cover some of these flags in more detail:
+Let's cover some of these flags in more detail:
 
 * `--roles` flag tells Teleport which services to start. It is a comma-separated
   list of roles. The possible values are `auth`, `node` and `proxy`. The default 
@@ -290,7 +290,7 @@ of a cluster have multiple OS users on them. A Teleport administrator assigns
 allowed logins to every Teleport account, allowing it to login as one of the 
 specified OS users.
 
-Lets look at this table:
+Let's look at this table:
 
 |Teleport Username | Allowed Logins | Description
 |------------------|---------------|-----------------------------
@@ -486,21 +486,21 @@ located behind firewalls without any open ports. They can also have different ac
 As [explained above](#nomenclature), a Teleport Cluster has a name and is managed by a 
 `teleport` daemon with "auth service" enabled.
 
-Lets assume we need to place some servers behind a firewall, and we only want Teleport 
+Let's assume we need to place some servers behind a firewall, and we only want Teleport 
 user "john" to have access to them. Assume we already have our primary Teleport cluster 
 and our users set up. Say, this cluster is called "main". 
 
 Now, to add behind-the-firewall machines and restrict access only to "john", we will have 
 to do the following:
 
-1. Create a new cluster for behind-the-firewall machines. Lets call it "cluster-b".
+1. Create a new cluster for behind-the-firewall machines. Let's call it "cluster-b".
 2. Add "cluster-b" to the list of `trusted clusters` of "main".
 3. Add "main" cluster to the list of `trusted clusters` of "cluster-b".
 4. Tell "cluster-b" to open a reverse tunnel to "main" cluster, this SSH tunnel will connect from behind a firewall out to the proxy service of "main" cluster.
 5. Tell "cluster-b" to only allow "john" from cluster "main".
 6. John will have to use `--cluster` flag when using `tsh` command to connect to nodes inside of "cluster-b".
 
-Lets look into the details of each step. First, lets configure two independent (at first) 
+Let's look into the details of each step. First, let's configure two independent (at first) 
 clusters: 
 
 ```
@@ -583,7 +583,7 @@ main             host        xxxxxxxxxxxxxxxxxxxxxxxxxxx     N/A
 Notice that each cluster is shown as two CAs: one is used to establish trust between nodes,
 and another one is for trusting users. 
 
-Now, John, having direct access to a proxy server of cluster "main" (lets call it main.proxy) can 
+Now, John, having direct access to a proxy server of cluster "main" (let's call it main.proxy) can 
 use `tsh` command to see which clusters are online:
 
 ```
@@ -727,7 +727,7 @@ auth_service:
 ```
 
 Now you should be able to create Teleport users whose identity is managed by Google.
-Assuming your company domain is `example.com` and it's hosted on Google Apps, lets
+Assuming your company domain is `example.com` and it's hosted on Google Apps, let's
 create a new Teleport user "sasha" with an email address `sasha@example.com` and allow
 him to login as `root` to Teleport nodes:
 
