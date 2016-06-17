@@ -67,7 +67,7 @@ directory. Teleport process checks the following locations for its web assets:
    3. `/usr/share/teleport`
    4. `/opt/teleport`
 
-!!! tip "IMPORTANT": 
+!!! danger "WARNING": 
     Teleport stores data in `/var/lib/teleport`. Make sure that regular users do not 
     have access to this folder of the Auth server, otherwise anyone can gain admin access to Teleport's API.
 
