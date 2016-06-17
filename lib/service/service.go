@@ -295,7 +295,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		Provisioner:     cfg.Provisioner,
 		Identity:        cfg.Identity,
 		StaticTokens:    cfg.Auth.StaticTokens,
-	})
+	}, cfg.SeedConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -399,6 +399,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		log.Infof("[AUTH] heartbeat to other auth servers exited")
 		return nil
 	})
+
 	// execute this when process is asked to exit:
 	process.onExit(func(payload interface{}) {
 		askedToExit = true

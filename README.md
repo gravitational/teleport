@@ -42,10 +42,16 @@ You need to have Golang v1.5 or newer.
 
 Clone this repository into `$GOPATH/gravitational/teleport` and run `make`. 
 
+You'll have to create `/var/lib/teleport` directory and then you can start 
+Teleport as a single-node cluster in development mode: `build/teleport start -d`
+
 If you want to release your own Teleport version, edit this [Makefile](Makefile), update 
 `VERSION` and `SUFFIX` constants, then run `make setver` to update [version.go](version.go)
 
 If you want to cut another binary release tarball, run `make release`.
+
+NOTE: The Go compiler is somewhat sensitive to amount of memory: you will need at least 1GB of 
+virtual memory to compile Teleport. 512MB instance without swap will not work.
 
 ## Why did We Build Teleport?
 
@@ -71,14 +77,6 @@ within multiple organizations.
 
 The best way to contribute is to create issues or pull requests right here on Github. You can also reach the Gravitational team through their [website](http://gravitational.com/)
 
-### Building
-
-Teleport is written in Go. If you have Golang 1.5 and newer, simply clone this repository
-and run `make`. You'll have to create `/var/lib/teleport` directory and then you can start 
-Teleport as a single-node cluster in development mode: `build/teleport start -d`
-
-NOTE: The Go compiler is somewhat sensitive to amount of memory: you will need at least 1GB of 
-virtual memory to compile Teleport. 512MB instance without swap will not work.
 
 ## Status
 

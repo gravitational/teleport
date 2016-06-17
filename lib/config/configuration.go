@@ -100,6 +100,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc == nil {
 		return nil
 	}
+	cfg.SeedConfig = fc.SeedConfig
 	// merge file-based config with defaults in 'cfg'
 	if fc.Auth.Disabled() {
 		cfg.Auth.Enabled = false
