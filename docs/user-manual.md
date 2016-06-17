@@ -329,6 +329,11 @@ Similarly, if you want to SSH into `db-1` inside "production" cluster:
 > tsh --proxy=work --cluster=production ssh db-1
 ```
 
+This is possible even if nodes of the "production" cluster are located behind a firewall
+without open ports. This works because "production" cluster establishes a reverse
+SSH tunnel back into "work" proxy, and this tunnels is used to establish inbound SSH
+connections.
+
 For more details on configuring Trusted Clusters please look at [that section in the Admin Guide](admin-guide.md#trusted-clusters).
 
 ## Troubleshooting
