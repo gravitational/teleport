@@ -27,6 +27,7 @@ $(eval BUILDFLAGS := $(ADDFLAGS) -ldflags -w)
 #
 .PHONY: all
 all: setver teleport tctl tsh assets
+	cp -f build.assets/release.mk $(BUILDDIR)/Makefile
 
 .PHONY: tctl
 tctl: 
