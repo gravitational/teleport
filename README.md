@@ -80,8 +80,7 @@ The best way to contribute is to create issues or pull requests right here on Gi
 
 ## Status
 
-**Teleport is not ready to be used in production yet**. Teleport is undergoing a comprehensive 
-independent security audit.
+Teleport [v1.0.0](https://github.com/gravitational/teleport/releases/tag/v1.0.0) is out
 
 ## Who Built Teleport?
 
