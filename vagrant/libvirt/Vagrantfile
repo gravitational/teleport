@@ -12,12 +12,8 @@
 # NOTE: uses libvirt/KVM instead of Virtualbox
 NODES = {
   "a-auth"  => "10.0.10.10", 
-#  "a-proxy" => "10.0.10.11", 
   "a-node"  => "10.0.10.12",
-
   "b-auth"  => "10.0.10.20", 
-#  "b-proxy" => "10.0.10.21", 
-#  "b-node"  => "10.0.10.22"
 }
 
 DOCKER_VER ||= "1.10.3"
@@ -29,13 +25,11 @@ Vagrant.configure(2) do |config|
 
   basic_config(config.vm)
   configure_ssh(config.vm)
-  apt_update(config.vm)
+  #apt_update(config.vm)
   install_docker(config.vm, DOCKER_VER)
+  configure_teleport(config.vm)
 
   config.vm.synced_folder "../../", "/home/vagrant/teleport", type: "9p", disabled: false, accessmode: "mapped"
-  config.vm.synced_folder "data/opt", "/opt/teleport", type: "9p", disabled: false, accessmode: "mapped"
-  FileUtils.mkpath("data/var")
-  config.vm.synced_folder "data/var", "/opt/shared", type: "9p", disabled: false, accessmode: "mapped"
 
   NODES.each do |role, addr|
       config.vm.define role do |config|
@@ -46,9 +40,23 @@ Vagrant.configure(2) do |config|
               vb.cpus = 1
               vb.memory = 512
           end
+          config.vm.synced_folder "../data/opt/#{role}", "/opt/teleport", type: "9p", disabled: false, accessmode: "mapped"
+          config.vm.synced_folder "../data/var/#{role}", "/var/lib/teleport", type: "rsync", disabled: false
       end
   end 
 end
+
+
+def configure_teleport(vm)
+  vm.provision "file", source: '../teleport.service', destination: '/tmp/teleport.service'
+  vm.provision "shell", inline: <<-SHELL
+    cp -f /tmp/teleport.service /etc/systemd/system/
+    systemctl daemon-reload
+    systemctl enable teleport.service
+    systemctl start teleport.service
+  SHELL
+end
+
 
 def install_docker(vm, docker_version)
   vm.provision "file", source: '../docker.service', destination: '/tmp/docker.service'
