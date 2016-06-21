@@ -82,6 +82,10 @@ The best way to contribute is to create issues or pull requests right here on Gi
 
 Teleport [v1.0.0](https://github.com/gravitational/teleport/releases/tag/v1.0.0) is out
 
+## Known Issues
+
+* Teleport does not officially support IPv6 yet.
+
 ## Who Built Teleport?
 
 Teleport was created by [Gravitational Inc](https://gravitational.com). We have built Teleport 
