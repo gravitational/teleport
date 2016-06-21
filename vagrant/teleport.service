@@ -1,0 +1,17 @@
+[Unit]
+Description=Teleport SSH server
+After=network.target 
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+ExecStartPre=/bin/mkdir -p /var/lib/teleport
+ExecStart=/home/vagrant/teleport/build/teleport start -c /opt/teleport/teleport.yaml
+MountFlags=slave
+LimitNOFILE=1048576
+LimitNPROC=1048576
+LimitCORE=infinity
+
+[Install]
+WantedBy=multi-user.target

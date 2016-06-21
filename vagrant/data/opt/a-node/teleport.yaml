@@ -1,6 +1,6 @@
 # Node for cluster-A
 teleport:
-  nodename: node
+  nodename: node-a
   auth_token: hello
   auth_servers: [a-auth]
   log:
@@ -12,6 +12,12 @@ auth_service:
 
 ssh_service:
   enabled: yes
+  labels:
+      role: node
+  commands:
+      - name: kernel
+        command: [/bin/uname, -r]
+        period: 5m
 
 proxy_service:
   enabled: no

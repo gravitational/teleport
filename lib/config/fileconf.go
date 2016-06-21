@@ -314,7 +314,10 @@ type ConnectionLimits struct {
 
 // Log configures teleport logging
 type Log struct {
-	Output   string `yaml:"output,omitempty"`
+	// Output defines where logs go. It can be one of the following: "stderr", "stdout" or
+	// a path to a log file
+	Output string `yaml:"output,omitempty"`
+	// Severity defines how verbose the log will be. Possible valus are "error", "info", "warn"
 	Severity string `yaml:"severity,omitempty"`
 }
 
