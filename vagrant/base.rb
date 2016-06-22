@@ -1,4 +1,12 @@
 # common routines shared by Vagrantfiles for different providers
+DOCKER_VER ||= "1.10.3"
+
+NODES ||= {
+  "a-auth"  => ["10.0.10.10", "auth-a", "cluster-a"],
+  "a-node"  => ["10.0.10.12"],
+  "b-auth"  => ["10.0.10.20", "auth-b", "cluster-b"], 
+}
+
 
 def configure_teleport(vm)
   vm.provision "file", source: '../teleport.service', destination: '/tmp/teleport.service'
@@ -54,7 +62,7 @@ end
 
 # basic/recommended configuration of every machine:
 def basic_config(vm)
-  hosts = NODES.map { |hostname, addr| "#{addr} #{hostname}" }.join("\n")
+  hosts = NODES.map { |hostname, array| "#{array[0]} #{hostname} #{array[1,5].join(" ")}" }.join("\n")
   bashrc="/home/vagrant/.bashrc"
   vm.provision "shell", inline: <<-SHELL
     if ! grep -q "git-core" #{bashrc} ; then 
@@ -64,6 +72,7 @@ def basic_config(vm)
         echo export PATH="\$PATH:/usr/lib/git-core:/home/vagrant/teleport/build" >> #{bashrc}
         echo export GREP_OPTIONS="--color=auto" >> #{bashrc}
         echo "alias ll='ls -lh'" >> #{bashrc}
+        echo "alias tsh='tsh --insecure'" >> #{bashrc}
     fi
     if ! grep -q "Teleport" /etc/hosts ; then 
         echo "# Teleport entries added by Vagrant:" >> /etc/hosts
