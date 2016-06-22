@@ -2,9 +2,13 @@
 DOCKER_VER ||= "1.10.3"
 
 NODES ||= {
-  "a-auth"  => ["10.0.10.10", "auth-a", "cluster-a"],
-  "a-node"  => ["10.0.10.12"],
-  "b-auth"  => ["10.0.10.20", "auth-b", "cluster-b"], 
+  "a-auth" => ["a-auth", "10.0.10.10", "auth-a", "cluster-a"],
+  "b-auth" => ["b-auth", "10.0.10.20", "auth-b", "cluster-b"], 
+  "web-1"  => ["a-node", "10.0.10.12"],
+  "web-2"  => ["a-node", "10.0.10.13"],
+  "redis"  => ["a-node", "10.0.10.14"],
+  "postgres-1" => ["a-node", "10.0.10.15"],
+  "postgres-2" => ["a-node", "10.0.10.16"],
 }
 
 
@@ -62,7 +66,7 @@ end
 
 # basic/recommended configuration of every machine:
 def basic_config(vm)
-  hosts = NODES.map { |hostname, array| "#{array[0]} #{hostname} #{array[1,5].join(" ")}" }.join("\n")
+  hosts = NODES.map { |hostname, array| "#{array[1]} #{hostname} #{array[1,5].join(" ")}" }.join("\n")
   bashrc="/home/vagrant/.bashrc"
   vm.provision "shell", inline: <<-SHELL
     if ! grep -q "git-core" #{bashrc} ; then 

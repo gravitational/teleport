@@ -1,6 +1,6 @@
 # Auth for cluster-B
 teleport:
-  nodename: auth-b
+  nodename: b-auth
   log:
     output: stderr
     severity: INFO

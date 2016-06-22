@@ -1,6 +1,5 @@
 # Node for cluster-A
 teleport:
-  nodename: node-a
   auth_token: hello
   auth_servers: [a-auth]
   log:

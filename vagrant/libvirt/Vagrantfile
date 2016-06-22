@@ -25,7 +25,8 @@ Vagrant.configure(2) do |config|
   config.vm.synced_folder "../../", "/home/vagrant/teleport", type: "9p", disabled: false, accessmode: "mapped"
 
   NODES.each do |role, array|
-      addr = array[0]
+      conf = array[0]
+      addr = array[1]
       config.vm.define role do |config|
           config.vm.hostname = role
           config.vm.network "private_network", ip: addr
@@ -34,8 +35,11 @@ Vagrant.configure(2) do |config|
               vb.cpus = 1
               vb.memory = 512
           end
-          config.vm.synced_folder "../data/opt/#{role}", "/opt/teleport", type: "9p", disabled: false, accessmode: "mapped"
-          config.vm.synced_folder "../data/var/#{role}", "/var/lib/teleport", type: "rsync", disabled: false
+          config.vm.synced_folder "../data/opt/#{conf}", "/opt/teleport", type: "9p", disabled: false, accessmode: "mapped"
+          data_dir = "../data/var/#{conf}"
+          if File.directory? data_dir
+            config.vm.synced_folder(data_dir, "/var/lib/teleport", type: "rsync", disabled: false)
+          end
       end
   end 
 end
