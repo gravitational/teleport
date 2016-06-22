@@ -47,8 +47,8 @@ end
 
 def install_teleport(vm)
     vm.provision "shell", inline: <<-SHELL
-        ln -s /home/vagrant/teleport/build/teleport /usr/local/bin/teleport
-        ln -s /home/vagrant/teleport/build/tsh /usr/local/bin/tsh
-        ln -s /home/vagrant/teleport/build/tctl /usr/local/bin/ctl
+        ln -fs /home/vagrant/teleport/build/teleport /usr/local/bin/teleport
+        ln -fs /home/vagrant/teleport/build/tsh /usr/local/bin/tsh
+        ln -fs /home/vagrant/teleport/build/tctl /usr/local/bin/ctl
     SHELL
 end

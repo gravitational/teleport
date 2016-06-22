@@ -481,27 +481,38 @@ turing        d52527f9-b260    10.1.0.5:3022   kernel=3.19.0-56,uptime=up 1 hour
 ## Trusted Clusters
 
 Teleport allows to partition your infrastructure into multiple clusters. Some clusters can be 
-located behind firewalls without any open ports. They can also have different access rights.
+located behind firewalls without any open ports. They can also have their own restrictions on
+which users have the access.
 
 As [explained above](#nomenclature), a Teleport Cluster has a name and is managed by a 
 `teleport` daemon with "auth service" enabled.
 
+#### How does it work?
+
 Let's assume we need to place some servers behind a firewall and we only want Teleport 
-user "john" to have access to them. Assume we already have our primary Teleport cluster 
-and our users set up. Say this cluster is called "main". 
+user "john" to have access to them. We already have our primary Teleport cluster and our 
+users set up. Say this primary cluster is called `main`, and behind-the-firewall cluster
+is called `cluster-b` as shown on this diagram:
 
-Now, to add behind-the-firewall machines and restrict access only to "john", we will have 
-to do the following:
+![Tunels](img/tunnel.svg)
 
-1. Create a new cluster for behind-the-firewall machines. Let's call it "cluster-b".
-2. Add "cluster-b" to the list of `trusted clusters` of "main".
-3. Add "main" cluster to the list of `trusted clusters` of "cluster-b".
-4. Tell "cluster-b" to open a reverse tunnel to "main" cluster, this SSH tunnel will connect from behind a firewall out to the proxy service of "main" cluster.
-5. Tell "cluster-b" to only allow "john" from cluster "main".
-6. John will have to use `--cluster` flag when using `tsh` command to connect to nodes inside of "cluster-b".
+This setup works as follows:
 
-Let's look into the details of each step. First, let's configure two independent (at first) 
-clusters: 
+0. `cluster-b` and `main` trust each other: they are "trusted clusters".
+1. `cluster-b` creates an outbound reverse SSH tunnel to `main` and keeps it open.
+2. Users of `main` user `--cluster=cluster-b` flag of `tsh` tool if they want to connect to any nodes of `cluster-b`.
+3. The `main` cluster uses the tunnel to connect back to any node of `cluster-b`.
+
+#### Example Configuration
+
+To add behind-the-firewall machines and restrict access only to "john", we will have to do the following:
+
+1. Add `cluster-b` to the list of trusted clusters of `main`.
+2. Add `main` cluster to the list of trusted clusters of `cluster-b`.
+3. Tell `cluster-b` to open a reverse tunnel to `main`. 
+4. Tell `cluster-b` to only allow user "john" from the `main` cluster.
+
+Let's look into the details of each step. First, let's configure two independent (at first) clusters: 
 
 ```
 auth_service:
@@ -532,9 +543,7 @@ On "cluster-b":
 > tctl auth export > b-cluster.ca
 ```
 
-Now, modify the YAML configuration of both clusters to connect them.
-
-On "main" (running on 62.28.10.1)
+Update the YAML configuration of both clusters to connect them. On `main`:
 
 ```yaml
 auth_service:
@@ -544,7 +553,7 @@ auth_service:
       - key_file: /path/to/b-cluster.ca
 ```
 
-On "cluster-b":
+... and on `cluster-b`, notice the `tunnel_addr` - that should point to the address of `main` proxy node:
 
 ```yaml
 auth_service:

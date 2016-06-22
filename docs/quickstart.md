@@ -1,8 +1,8 @@
 # Quick Start Guide
 
-Welcome to the Teleport Quick Start Guide. The goal of this document is to show off the basic
-capabilities of Teleport.
+Welcome to the Teleport Quick Start Guide!
 
+The goal of this document is to show off the basic capabilities of Teleport. 
 There are three types of services Teleport nodes can run: `nodes`, `proxies` and `auth servers`.
 
 - An auth server is the core of a cluster. Auth servers store user accounts and offer  
@@ -113,7 +113,7 @@ new-node      xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022
 ```
 
 !!! tip "NOTE": 
-  Teleport also supports static pre-defined invitation tokens which can be set in the [configuration file](admin-guide.md#adding-nodes-to-the-cluster)
+    Teleport also supports static pre-defined invitation tokens which can be set in the [configuration file](admin-guide.md#adding-nodes-to-the-cluster)
 
 ## Using Node Labels
 
@@ -191,8 +191,7 @@ Also, people can join your session via terminal assuming they have Teleport inst
 ```
 
 !!! tip "NOTE": 
-  For this to work, both of you must have proper user mappings allowing you 
-  access `db` under the same OS user.
+    For this to work, both of you must have proper user mappings allowing you access `db` under the same OS user.
 
 ## Sharing Localhost
 
@@ -217,7 +216,15 @@ user mapping, of course, to be allowed to join your session. To disconnect, shut
 `teleport` daemon or simply exit the `tsh` session.
 
 !!! tip "NOTE": 
-  For this to work, your laptop has to join the SSH cluster first. See [adding nodes](admin-guide.md#adding-nodes-to-the-cluster) for more information.
+    For this to work, your laptop has to join the SSH cluster first. See [adding nodes](admin-guide.md#adding-nodes-to-the-cluster) for more information.
+
+
+## Firewalls
+
+Teleport allows to connect to behind-the-firewall clusters of servers even if the firewall
+does not have any ports open for inbound connections. To learn more about this, visit 
+[Trusted Clusters](admin-guide/#trusted-clusters) section of the Admin Manual.
+
 
 ## Running in Production
 
@@ -230,3 +237,4 @@ localhost. For production environments we strongly recommend the following:
 - Use a configuration file instead of command line flags because it gives you 
   more flexibility, for example for configuring HA clusters.
 - Review the [Architecture Overview](architecture.md), [Admin Manual](admin-guide.md) and [User Manual](user-manual.md) for a better understanding of Teleport.
+
