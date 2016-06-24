@@ -17,7 +17,7 @@ limitations under the License.
 package utils
 
 import (
-	"os"
+	"net"
 	"strings"
 	"testing"
 
@@ -125,17 +125,87 @@ func (s *AddrTestSuite) TestLoopbackAddrs(c *C) {
 	}
 }
 
-func (s *AddrTestSuite) TestGuess(c *C) {
-	ip, err := GuessHostIP()
-	c.Assert(err, IsNil)
-	c.Assert(ip, NotNil)
-	h, _ := os.Hostname()
-	// testing NOT under docker's "buildbox"? lets check to see a
-	// proper IP auto-detection
-	if h != "buildbox" {
-		c.Assert(ip[12] == 10 || ip[12] == 192 || ip[12] == 172, Equals, true)
+func (s *AddrTestSuite) TestGuessesIPAddress(c *C) {
+	var testCases = []struct {
+		ifaces   []netInterface
+		expected net.IP
+		comment  string
+	}{
+		{
+			ifaces: []netInterface{
+				iface{
+					addrs: []net.Addr{
+						&net.IPAddr{IP: net.ParseIP("10.0.100.80")},
+						&net.IPAddr{IP: net.ParseIP("192.13.1.80")},
+						&net.IPAddr{IP: net.ParseIP("172.192.12.1")},
+					},
+				},
+			},
+			expected: net.ParseIP("10.0.100.80"),
+			comment:  "prefers 10.x.y.z",
+		},
+		{
+			ifaces: []netInterface{
+				iface{
+					addrs: []net.Addr{
+						&net.IPAddr{IP: net.ParseIP("192.13.1.80")},
+						&net.IPAddr{IP: net.ParseIP("172.192.12.1")},
+					},
+				},
+			},
+			expected: net.ParseIP("192.13.1.80"),
+			comment:  "prefers 192.x.y.z",
+		},
+		{
+			ifaces: []netInterface{
+				iface{
+					addrs: []net.Addr{
+						&net.IPAddr{IP: net.ParseIP("172.192.12.1")},
+						&net.IPAddr{IP: net.ParseIP("52.35.21.180")},
+					},
+				},
+			},
+			expected: net.ParseIP("172.192.12.1"),
+			comment:  "prefers 172.x.y.z",
+		},
+		{
+			ifaces: []netInterface{
+				iface{
+					addrs: []net.Addr{
+						&net.IPAddr{IP: net.ParseIP("192.192.12.1")},
+						&net.IPAddr{IP: net.ParseIP("192.192.12.2")},
+						&net.IPAddr{IP: net.ParseIP("52.35.21.180")},
+					},
+				},
+			},
+			expected: net.ParseIP("192.192.12.2"),
+			comment:  "prefers last",
+		},
+		{
+			ifaces: []netInterface{
+				iface{
+					addrs: []net.Addr{
+						&net.IPAddr{IP: net.ParseIP("172.192.12.1")},
+						&net.IPAddr{IP: net.ParseIP("fe80::af:6dff:fefd:150f")},
+					},
+				},
+			},
+			expected: net.ParseIP("172.192.12.1"),
+			comment:  "ignores IPv6",
+		},
+	}
+
+	for _, testCase := range testCases {
+		ip := guessHostIP(testCase.ifaces)
+		c.Assert(ip, DeepEquals, testCase.expected, Commentf(testCase.comment))
 	}
 }
+
+type iface struct {
+	addrs []net.Addr
+}
+
+func (r iface) Addrs() ([]net.Addr, error) { return r.addrs, nil }
 
 func (s *AddrTestSuite) TestMarshal(c *C) {
 	testCases := []struct {
