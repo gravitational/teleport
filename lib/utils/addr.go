@@ -326,8 +326,11 @@ func guessHostIP(ifaces []netInterface) (ip net.IP) {
 			}
 		}
 	}
-	// did not find anything? return loopback
 	if ip == nil {
+		if len(ips) > 0 {
+			return ips[0]
+		}
+		// fallback to loopback
 		ip = net.IPv4(127, 0, 0, 1)
 	}
 	return ip
