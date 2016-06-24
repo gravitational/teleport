@@ -276,8 +276,16 @@ func GuessHostIP() (ip net.IP, err error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	input := make([]netInterface, len(ifaces))
+	for i, iface := range ifaces {
+		input[i] = netInterface(&iface)
+	}
+	return guessHostIP(input), nil
+}
+
+func guessHostIP(ifaces []netInterface) (ip net.IP) {
 	// collect the list of all IPv4s
-	ips := make([]net.IP, 0)
+	var ips []net.IP
 	for _, iface := range ifaces {
 		addrs, err := iface.Addrs()
 		if err != nil {
@@ -285,28 +293,29 @@ func GuessHostIP() (ip net.IP, err error) {
 			continue
 		}
 		for _, addr := range addrs {
+			var ipAddr net.IP
 			a, ok := addr.(*net.IPAddr)
 			if ok {
-				ip = a.IP
+				ipAddr = a.IP
 			} else {
 				in, ok := addr.(*net.IPNet)
 				if ok {
-					ip = in.IP
+					ipAddr = in.IP
 				} else {
 					continue
 				}
 			}
-			if ip.To4() == nil || ip.IsLoopback() || ip.IsMulticast() {
+			if ipAddr.To4() == nil || ipAddr.IsLoopback() || ipAddr.IsMulticast() {
 				continue
 			}
-			ips = append(ips, ip)
+			ips = append(ips, ipAddr)
 		}
 	}
 	for i := range ips {
 		switch ips[i][12] {
 		// our first pick would be "10.x.x.x" IPs:
 		case 10:
-			return ips[i], nil
+			return ips[i]
 			// our 2nd pick would be "192.x.x.x"
 		case 192:
 			ip = ips[i]
@@ -321,5 +330,10 @@ func GuessHostIP() (ip net.IP, err error) {
 	if ip == nil {
 		ip = net.IPv4(127, 0, 0, 1)
 	}
-	return ip, nil
+	return ip
+}
+
+// netInterface defines a partial view of net.Interface for testing
+type netInterface interface {
+	Addrs() ([]net.Addr, error)
 }
