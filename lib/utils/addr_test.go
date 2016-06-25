@@ -185,13 +185,24 @@ func (s *AddrTestSuite) TestGuessesIPAddress(c *C) {
 			ifaces: []netInterface{
 				iface{
 					addrs: []net.Addr{
-						&net.IPAddr{IP: net.ParseIP("172.192.12.1")},
+						&net.IPAddr{IP: net.ParseIP("52.35.21.180")},
 						&net.IPAddr{IP: net.ParseIP("fe80::af:6dff:fefd:150f")},
 					},
 				},
 			},
-			expected: net.ParseIP("172.192.12.1"),
+			expected: net.ParseIP("52.35.21.180"),
 			comment:  "ignores IPv6",
+		},
+		{
+			ifaces: []netInterface{
+				iface{
+					addrs: []net.Addr{
+						&net.IPAddr{IP: net.ParseIP("fe80::af:6dff:fefd:150f")},
+					},
+				},
+			},
+			expected: net.ParseIP("127.0.0.1"),
+			comment:  "falls back to loopback",
 		},
 	}
 
