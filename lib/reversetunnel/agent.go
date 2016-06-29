@@ -243,6 +243,9 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 // to the given SSH connection.
 //
 func (a *Agent) runHeartbeat(conn *ssh.Client) {
+	ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
+	defer ticker.Stop()
+
 	heartbeatLoop := func() error {
 		if conn == nil {
 			return trace.Errorf("heartbeat cannot ping: need to reconnect")
@@ -258,8 +261,6 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 
 		// send first ping right away, then start a ping timer:
 		hb.SendRequest("ping", false, nil)
-		ticker := time.NewTicker(defaults.ReverseTunnelAgentHeartbeatPeriod)
-		defer ticker.Stop()
 
 		for {
 			select {
@@ -307,10 +308,18 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 		}
 	}
 
+	// run heartbeat loop, and when it fails (probably means that a tunnel got disconnected)
+	// keep repeating to reconnect until we're asked to stop
 	err := heartbeatLoop()
 	if err != nil || conn == nil {
-		time.Sleep(defaults.ReverseTunnelAgentHeartbeatPeriod)
-		a.Start()
+		select {
+		// abort if asked to stop:
+		case <-a.broadcastClose.C:
+			return
+			// reconnect
+		case <-ticker.C:
+			a.Start()
+		}
 	}
 }
 
