@@ -91,6 +91,10 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 
 	stdout := &bytes.Buffer{}
 	reader, err := proxySession.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+
 	done := make(chan struct{})
 	go func() {
 		io.Copy(stdout, reader)
