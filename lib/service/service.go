@@ -618,6 +618,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		Client:      conn.Client,
 		HostSigners: []ssh.Signer{conn.Identity.KeySigner},
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
