@@ -16,5 +16,5 @@ func init() { Gitref = \"$(GITREF)\"}  "
 #
 .PHONY:setver
 setver:
-	@echo $(VERSION_GO) | gofmt > version.go
-	@echo $(GITREF_GO) | gofmt > gitref.go
+	@printf $(VERSION_GO) | gofmt > version.go
+	@printf $(GITREF_GO) | gofmt > gitref.go
