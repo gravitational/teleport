@@ -547,7 +547,7 @@ func (s *session) removeParty(p *party) error {
 			log.Error(err)
 			return
 		}
-		if dbSession.RemoveParty(p.id) {
+		if dbSession != nil && dbSession.RemoveParty(p.id) {
 			db.UpdateSession(rsession.UpdateRequest{
 				ID:      dbSession.ID,
 				Parties: &dbSession.Parties,
