@@ -56,7 +56,7 @@ def apt_update(vm)
         apt-get -y autoremove
         apt-get -y upgrade
         apt-get -y dist-upgrade
-        apt-get -y install htop tree vim aufs-tools screen
+        apt-get -y install htop tree vim aufs-tools screen curl
         touch /root/apt.updated
     fi
   SHELL
