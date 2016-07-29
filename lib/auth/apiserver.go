@@ -468,10 +468,13 @@ func (s *APIServer) generateUserCert(w http.ResponseWriter, r *http.Request, _ h
 	}
 	// SSH-to-HTTP gateway (tun server) sets HTTP basic auth to SSH cert principal
 	// This allows us to make sure that users can only request new certificates
-	// only for themselves
-	caller, _, _ := r.BasicAuth()
-	if req.User != caller {
-		return nil, trace.AccessDenied("User %s cannot request a certificate for %s",
+	// only for themselves, except admin users
+	caller, _, ok := r.BasicAuth()
+	if !ok {
+		return nil, trace.AccessDenied("missing username or password")
+	}
+	if req.User != caller && s.a.role != teleport.RoleAdmin {
+		return nil, trace.AccessDenied("user %s cannot request a certificate for %s",
 			caller, req.User)
 	}
 	cert, err := s.a.GenerateUserCert(req.Key, req.User, req.TTL)
