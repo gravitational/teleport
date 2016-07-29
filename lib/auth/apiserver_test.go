@@ -154,7 +154,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	// should NOT be able to generate a user cert without basic HTTP auth
 	cert, err = userClient.GenerateUserCert(pub, "user1", time.Hour)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, ".*cannot request a certificate for user1")
+	c.Assert(err, ErrorMatches, ".*username or password")
 
 	// Users don't match
 	roundtrip.BasicAuth("user2", "two")(&userClient.Client)

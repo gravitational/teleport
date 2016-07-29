@@ -471,10 +471,10 @@ func (s *APIServer) generateUserCert(w http.ResponseWriter, r *http.Request, _ h
 	// only for themselves, except admin users
 	caller, _, ok := r.BasicAuth()
 	if !ok {
-		return nil, trace.AccessDenied("Missing username or password")
+		return nil, trace.AccessDenied("missing username or password")
 	}
 	if req.User != caller && s.a.role != teleport.RoleAdmin {
-		return nil, trace.AccessDenied("User %s cannot request a certificate for %s",
+		return nil, trace.AccessDenied("user %s cannot request a certificate for %s",
 			caller, req.User)
 	}
 	cert, err := s.a.GenerateUserCert(req.Key, req.User, req.TTL)
