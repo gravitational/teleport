@@ -41,12 +41,13 @@ import (
 )
 
 type APISuite struct {
-	srv  *httptest.Server
-	clt  *Client
-	bk   backend.Backend
-	a    *AuthServer
-	dir  string
-	alog *events.AuditLog
+	srv      *httptest.Server
+	clt      *Client
+	bk       backend.Backend
+	a        *AuthServer
+	dir      string
+	alog     *events.AuditLog
+	sessions session.Service
 
 	CAS           services.Trust
 	LockS         services.Lock
@@ -77,13 +78,13 @@ func (s *APISuite) SetUpTest(c *C) {
 		Authority:  authority.New(),
 		DomainName: "localhost",
 	})
-	sessionServer, err := session.New(s.bk)
+	s.sessions, err = session.New(s.bk)
 	c.Assert(err, IsNil)
 
 	apiServer := NewAPIServer(&APIConfig{
 		AuthServer:        s.a,
 		PermissionChecker: NewAllowAllPermissions(),
-		SessionService:    sessionServer,
+		SessionService:    s.sessions,
 		AuditLog:          s.alog,
 	}, teleport.RoleAdmin)
 	s.srv = httptest.NewServer(&apiServer)
@@ -138,14 +139,32 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 		&services.TeleportUser{Name: "user1", AllowedLogins: []string{"user1"}})
 	c.Assert(err, IsNil)
 
+	userServer := NewAPIServer(&APIConfig{
+		AuthServer:        s.a,
+		PermissionChecker: NewAllowAllPermissions(),
+		SessionService:    s.sessions,
+		AuditLog:          s.alog,
+	}, teleport.RoleUser)
+	authServer := httptest.NewServer(&userServer)
+	defer authServer.Close()
+
+	userClient, err := NewClient(authServer.URL, nil)
+	c.Assert(err, IsNil)
+
 	// should NOT be able to generate a user cert without basic HTTP auth
-	cert, err = s.clt.GenerateUserCert(pub, "user1", time.Hour)
+	cert, err = userClient.GenerateUserCert(pub, "user1", time.Hour)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, ".*cannot request a certificate for user1")
+
+	// Users don't match
+	roundtrip.BasicAuth("user2", "two")(&userClient.Client)
+	cert, err = userClient.GenerateUserCert(pub, "user1", time.Hour)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, ".*cannot request a certificate for user1")
 
 	// apply HTTP Auth to generate user cert:
-	roundtrip.BasicAuth("user1", "two")(&s.clt.Client)
-	cert, err = s.clt.GenerateUserCert(pub, "user1", time.Hour)
+	roundtrip.BasicAuth("user1", "two")(&userClient.Client)
+	cert, err = userClient.GenerateUserCert(pub, "user1", time.Hour)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
