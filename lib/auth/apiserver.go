@@ -470,7 +470,10 @@ func (s *APIServer) generateUserCert(w http.ResponseWriter, r *http.Request, _ h
 	// This allows us to make sure that users can only request new certificates
 	// only for themselves, except admin users
 	caller, _, ok := r.BasicAuth()
-	if !ok || (req.User != caller && s.a.role != teleport.RoleAdmin) {
+	if !ok {
+		return nil, trace.AccessDenied("Missing username or password")
+	}
+	if req.User != caller && s.a.role != teleport.RoleAdmin {
 		return nil, trace.AccessDenied("User %s cannot request a certificate for %s",
 			caller, req.User)
 	}
