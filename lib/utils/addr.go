@@ -276,40 +276,38 @@ func GuessHostIP() (ip net.IP, err error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	input := make([]netInterface, len(ifaces))
-	for i, iface := range ifaces {
-		input[i] = netInterface(&iface)
-	}
-	return guessHostIP(input), nil
-}
-
-func guessHostIP(ifaces []netInterface) (ip net.IP) {
-	// collect the list of all IPv4s
-	var ips []net.IP
+	adrs := make([]net.Addr, 0)
 	for _, iface := range ifaces {
-		addrs, err := iface.Addrs()
+		ifadrs, err := iface.Addrs()
 		if err != nil {
 			log.Warn(err)
-			continue
+		} else {
+			adrs = append(adrs, ifadrs...)
 		}
-		for _, addr := range addrs {
-			var ipAddr net.IP
-			a, ok := addr.(*net.IPAddr)
+	}
+	return guessHostIP(adrs), nil
+}
+
+func guessHostIP(addrs []net.Addr) (ip net.IP) {
+	// collect the list of all IPv4s
+	var ips []net.IP
+	for _, addr := range addrs {
+		var ipAddr net.IP
+		a, ok := addr.(*net.IPAddr)
+		if ok {
+			ipAddr = a.IP
+		} else {
+			in, ok := addr.(*net.IPNet)
 			if ok {
-				ipAddr = a.IP
+				ipAddr = in.IP
 			} else {
-				in, ok := addr.(*net.IPNet)
-				if ok {
-					ipAddr = in.IP
-				} else {
-					continue
-				}
-			}
-			if ipAddr.To4() == nil || ipAddr.IsLoopback() || ipAddr.IsMulticast() {
 				continue
 			}
-			ips = append(ips, ipAddr)
 		}
+		if ipAddr.To4() == nil || ipAddr.IsLoopback() || ipAddr.IsMulticast() {
+			continue
+		}
+		ips = append(ips, ipAddr)
 	}
 	for i := range ips {
 		switch ips[i][12] {
@@ -334,9 +332,4 @@ func guessHostIP(ifaces []netInterface) (ip net.IP) {
 		ip = net.IPv4(127, 0, 0, 1)
 	}
 	return ip
-}
-
-// netInterface defines a partial view of net.Interface for testing
-type netInterface interface {
-	Addrs() ([]net.Addr, error)
 }
