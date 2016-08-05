@@ -56,7 +56,8 @@ func (s *MainTestSuite) TestMakeClient(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(tc, check.NotNil)
 	c.Assert(tc.Config.NodeHostPort(), check.Equals, "localhost:3022")
-	c.Assert(tc.Config.ProxyHostPort(666), check.Equals, "proxy:666")
+	c.Assert(tc.Config.ProxyHostPort(false), check.Equals, "proxy:3023")
+	c.Assert(tc.Config.ProxyHostPort(true), check.Equals, "proxy:3080")
 	c.Assert(tc.Config.HostLogin, check.Equals, client.Username())
 	c.Assert(tc.Config.KeyTTL, check.Equals, defaults.CertDuration)
 

@@ -81,7 +81,8 @@ type Config struct {
 	// HostPort is a remote host port to connect to
 	HostPort int
 
-	// ProxyHost is a host or IP of the proxy (with optional ":port")
+	// ProxyHost is a host or IP of the proxy (with optional ":ssh_port,https_port"). This parameter
+	// is taken from the --proxy flag and can look like --proxy=host:5025,5080
 	ProxyHost string
 
 	// KeyTTL is a time to live for the temporary SSH keypair to remain valid:
@@ -130,13 +131,32 @@ type Config struct {
 	Env map[string]string
 }
 
-// ProxyHostPort returns a full host:port address of the proxy or an empty string if no
-// proxy is given. If 'forWeb' flag is set, returns HTTPS port, otherwise
+// ProxyHostPort returns a full host:port address of the SSH proxy
+// Otherwise, returns an empty string if no proxy is given.
+//
+// If 'forWeb' flag is set, returns HTTPS port, otherwise
 // returns SSH port (proxy servers listen on both)
-func (c *Config) ProxyHostPort(defaultPort int) string {
+func (c *Config) ProxyHostPort(forWeb bool) string {
+	var defaultPort int
+
 	if c.ProxySpecified() {
+		if forWeb {
+			defaultPort = defaults.HTTPListenPort
+		} else {
+			defaultPort = defaults.SSHProxyListenPort
+		}
 		host, port, err := net.SplitHostPort(c.ProxyHost)
 		if err == nil && len(port) > 0 {
+			ports := strings.Split(port, ",")
+			if forWeb {
+				if len(ports) > 1 {
+					port = ports[1]
+				} else {
+					port = strconv.Itoa(defaultPort)
+				}
+			} else {
+				port = ports[0]
+			}
 			// c.ProxyHost was already specified as "host:port"
 			return net.JoinHostPort(host, port)
 		}
@@ -586,11 +606,13 @@ func (tc *TeleportClient) ListNodes() ([]services.Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+
 	// connect to the proxy and ask it to return a full list of servers
 	proxyClient, err := tc.ConnectToProxy()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	defer proxyClient.Close()
 	return proxyClient.FindServersByLabels(tc.Labels)
 }
@@ -784,7 +806,7 @@ func (tc *TeleportClient) GetKeys() ([]agent.AddedKey, error) {
 
 // ConnectToProxy dials the proxy server and returns ProxyClient if successful
 func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
-	proxyAddr := tc.Config.ProxyHostPort(defaults.SSHProxyListenPort)
+	proxyAddr := tc.Config.ProxyHostPort(false)
 	sshConfig := &ssh.ClientConfig{
 		User:            tc.getProxyLogin(),
 		HostKeyCallback: tc.HostKeyCallback,
@@ -924,7 +946,7 @@ func (tc *TeleportClient) AddKey(host string, key *Key) error {
 
 // directLogin asks for a password + HOTP token, makes a request to CA via proxy
 func (tc *TeleportClient) directLogin(pub []byte) (*web.SSHLoginResponse, error) {
-	httpsProxyHostPort := tc.Config.ProxyHostPort(defaults.HTTPListenPort)
+	httpsProxyHostPort := tc.Config.ProxyHostPort(true)
 	certPool := loopbackPool(httpsProxyHostPort)
 
 	// ping the HTTPs endpoint first:
@@ -954,8 +976,9 @@ func (tc *TeleportClient) directLogin(pub []byte) (*web.SSHLoginResponse, error)
 func (tc *TeleportClient) oidcLogin(connectorID string, pub []byte) (*web.SSHLoginResponse, error) {
 	log.Infof("oidcLogin start")
 	// ask the CA (via proxy) to sign our public key:
-	response, err := web.SSHAgentOIDCLogin(tc.Config.ProxyHostPort(defaults.HTTPListenPort),
-		connectorID, pub, tc.KeyTTL, tc.InsecureSkipVerify, loopbackPool(tc.Config.ProxyHostPort(defaults.HTTPListenPort)))
+	webProxyAddr := tc.Config.ProxyHostPort(true)
+	response, err := web.SSHAgentOIDCLogin(webProxyAddr,
+		connectorID, pub, tc.KeyTTL, tc.InsecureSkipVerify, loopbackPool(webProxyAddr))
 	return response, trace.Wrap(err)
 }
 

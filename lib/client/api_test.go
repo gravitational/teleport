@@ -40,11 +40,20 @@ func (s *APITestSuite) TestConfig(c *check.C) {
 	c.Assert(conf.ProxySpecified(), check.Equals, false)
 	conf.ProxyHost = "example.org"
 	c.Assert(conf.ProxySpecified(), check.Equals, true)
-	c.Assert(conf.ProxyHostPort(12), check.Equals, "example.org:12")
+	c.Assert(conf.ProxyHostPort(false), check.Equals, "example.org:3023")
+	c.Assert(conf.ProxyHostPort(true), check.Equals, "example.org:3080")
 
 	conf.ProxyHost = "example.org:100"
 	c.Assert(conf.ProxySpecified(), check.Equals, true)
-	c.Assert(conf.ProxyHostPort(12), check.Equals, "example.org:100")
+	c.Assert(conf.ProxyHostPort(false), check.Equals, "example.org:100")
+	c.Assert(conf.ProxyHostPort(true), check.Equals, "example.org:3080")
+
+	conf.ProxyHost = "example.org:100,200"
+	c.Assert(conf.ProxyHostPort(false), check.Equals, "example.org:100")
+	c.Assert(conf.ProxyHostPort(true), check.Equals, "example.org:200")
+
+	conf.ProxyHost = "example.org:,200"
+	c.Assert(conf.ProxyHostPort(true), check.Equals, "example.org:200")
 }
 
 func (s *APITestSuite) TestNew(c *check.C) {
@@ -63,10 +72,7 @@ func (s *APITestSuite) TestNew(c *check.C) {
 
 	la := tc.LocalAgent()
 	c.Assert(la, check.NotNil)
-
 	c.Assert(tc.NodeHostPort(), check.Equals, "localhost:22")
-	c.Assert(tc.ProxySpecified(), check.Equals, true)
-	c.Assert(tc.ProxyHostPort(12), check.Equals, "proxy:12")
 }
 
 func (s *APITestSuite) TestParseLabels(c *check.C) {
