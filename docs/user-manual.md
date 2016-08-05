@@ -134,7 +134,7 @@ Run shell or execute a command on a remote SSH node.
 
 Flags:
       --user      SSH proxy user [ekontsevoy]
-      --proxy     SSH proxy host or IP address
+      --proxy     SSH proxy host or IP address, for example --proxy=host:ssh_port,https_port
       --ttl       Minutes to live for a SSH session 
       --insecure  Do not verify server certificate and host name. Use only in test environments
   -d, --debug     Verbose logging to stdout
@@ -157,6 +157,20 @@ using familiar SSH syntax:
 > ssh root@host
 > ssh -p 6122 root@host ls
 ```
+
+### Note about Proxies
+
+A Teleport proxy uses two ports: `3080` for HTTPS and `3023` for proxying SSH connections.
+The HTTPS port is used to serve Web UI and also to implement 2nd factor auth for `tsh` client.
+
+If your Teleport proxy is configured to listen on other ports, you should specify
+them via `--proxy` flag as shown:
+
+```
+tsh --proxy=host:5000,5001
+```
+
+This means "connect to the port `5000` for SSH and to `5001` for HTTPS".
 
 ### Port Forwarding
 
