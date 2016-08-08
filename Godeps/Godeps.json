@@ -1,7 +1,7 @@
 {
 	"ImportPath": "github.com/gravitational/teleport",
 	"GoVersion": "go1.6",
-	"GodepVersion": "v62",
+	"GodepVersion": "v74",
 	"Packages": [
 		"./lib/...",
 		"./tool/..."
@@ -36,7 +36,7 @@
 		},
 		{
 			"ImportPath": "github.com/buger/goterm",
-			"Rev": "af3f07dadc88b80c7b5a15f26033c6dd979f012f"
+			"Rev": "d281585cd7365cff9edfed1a5115fc624a012bdc"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/Godeps/_workspace/src/github.com/ugorji/go/codec",
