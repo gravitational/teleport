@@ -8,7 +8,7 @@ Full API documentation: http://godoc.org/github.com/buger/goterm
 
 ## Basic usage
 
-Full screen console app, priting current time:
+Full screen console app, printing current time:
 
 ```go
 import (
@@ -33,6 +33,10 @@ func main() {
 }
 ```
 
+This can be seen in [examples/time_example.go](examples/time_example.go).  To
+run it yourself, go into your `$GOPATH/src/github.com/buger/goterm` directory
+and run `go run ./examples/time_example.go`
+
 
 Print red bold message on white background:
 
@@ -44,8 +48,10 @@ tm.Println(tm.Backgound(tm.Color(tm.Bold("Important header"), tm.RED), tm.WHITE)
 Create box and move it to center of the screen:
 
 ```go
+tm.Clear()
+
 // Create Box with 30% width of current screen, and height of 20 lines
-box := tm.NewBox(30|tm.PCT, 20)
+box := tm.NewBox(30|tm.PCT, 20, 0)
 
 // Add some content to the box
 // Note that you can add ANY content, even tables
@@ -53,8 +59,11 @@ fmt.Fprint(box, "Some box content")
 
 // Move Box to approx center of the screen
 tm.Print(tm.MoveTo(box.String(), 40|tm.PCT, 40|tm.PCT))
+
+tm.Flush()
 ```
 
+This can be found in [examples/box_example.go](examples/box_example.go).
 
 Draw table:
 
@@ -64,7 +73,10 @@ totals := tm.NewTable(0, 10, 5, ' ', 0)
 fmt.Fprintf(totals, "Time\tStarted\tActive\tFinished\n")
 fmt.Fprintf(totals, "%s\t%d\t%d\t%d\n", "All", started, started-finished, finished)
 tm.Println(totals)
+tm.Flush()
 ```
+
+This can be found in [examples/table_example.go](examples/table_example.go).
 
 ## Line charts
 
@@ -92,6 +104,7 @@ Chart example:
     tm.Println(chart.Draw(data))
 ```
 
+This can be found in [examples/chart_example.go](examples/chart_example.go).
 
 Drawing 2 separate graphs in different scales. Each graph have its own Y axe.
 
