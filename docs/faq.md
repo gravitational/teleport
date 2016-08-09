@@ -2,12 +2,24 @@
 
 ### Can I use Gravitational Teleport in production today?
 
-Teleport has completed a security audit from a nationally recongized technology security company. So we are comfortable with the use of Teleport from a security perspective. However, Teleport is still a relatively young product so you may experience usability issues. We are actively supporting Teleport and addressing any issues that are submitted to the [github repo](https://github.com/gravitational/teleport).
+Teleport has completed a security audit from a nationally recongized technology security company. 
+So we are comfortable with the use of Teleport from a security perspective. However, Teleport 
+is still a relatively young product so you may experience usability issues. We are actively 
+supporting Teleport and addressing any issues that are submitted to the [github repo](https://github.com/gravitational/teleport).
 
 ### Can I connect to nodes behind a firewall via SSH with Teleport?
 
 Yes, Teleport supports reverse SSH tunnels out of the box. To configure behind-firewall clusters
 refer to [Trusted Clusters](admin-guide.md#trusted-clusters) section of the Admin Manual.
+
+### Does Web UI support copy and paste?
+
+Yes. You can copy&paste using the mouse. For working with a keyboard, Teleport employs `tmux`-like
+"prefix" mode. To enter prefix mode, press `Ctrl+A`.
+
+While in prefix mode, you can press `Ctrl+V` to paste, or enter text selection mode by pressing `[`.
+When in text selection mode, move around using `hjkl`, select text by toggling `space` and copy
+it via `Ctrl+C`.
 
 ### Can I use OpenSSH client to connect to servers in a Teleport cluster?
 
