@@ -866,6 +866,13 @@ type ClientI interface {
 	DeleteOIDCConnector(connectorID string) error
 	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
 	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
+	// UpsertReverseTunnel is used by admins to create a new reverse tunnel
+	// to the remote proxy to bypass firewall restrictions
+	UpsertReverseTunnel(tunnel services.ReverseTunnel, ttl time.Duration) error
+	// GetReverseTunnels returns the list of created reverse tunnels
+	GetReverseTunnels() ([]services.ReverseTunnel, error)
+	// DeleteReverseTunnel deletes reverse tunnel by domain name
+	DeleteReverseTunnel(domainName string) error
 
 	events.IAuditLog
 }
