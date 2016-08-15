@@ -21,12 +21,9 @@ var {showError} = require('app/modules/notifications/actions');
 
 const logger = require('app/common/logger').create('Modules/Sessions');
 
-const {
-  TLPT_STORED_SESSINS_FILTER_SET_RANGE,
-  TLPT_STORED_SESSINS_FILTER_SET_STATUS }  = require('./actionTypes');
+const { TLPT_STORED_SESSINS_FILTER_SET_RANGE }  = require('./actionTypes');
 
 const { TLPT_SESSINS_REMOVE_STORED }  = require('./../sessions/actionTypes');
-
 
 const actions = {
 
@@ -48,17 +45,7 @@ const actions = {
 }
 
 function _fetch(start, end){
-  let status = {
-    hasMore: false,
-    isLoading: true
-  }
-
-  reactor.dispatch(TLPT_STORED_SESSINS_FILTER_SET_STATUS, status);
-
   return fetchSiteEvents(start, end)
-    .done(() => {
-      reactor.dispatch(TLPT_STORED_SESSINS_FILTER_SET_STATUS, {isLoading: false});
-    })
     .fail((err)=>{
       showError('Unable to retrieve list of sessions for a given time range');
       logger.error('fetching filtered set of sessions', err);

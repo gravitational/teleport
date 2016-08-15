@@ -4168,7 +4168,8 @@ webpackJsonp([1],[
 	      restApiActions.success(TRYING_TO_SIGN_UP);
 	      session.getHistory().push({ pathname: cfg.routes.app });
 	    }).fail(function (err) {
-	      restApiActions.fail(TRYING_TO_SIGN_UP, err.responseJSON.message || 'failed to sing up');
+	      var msg = err.responseJSON ? err.responseJSON.message : 'Failed to sing up';
+	      restApiActions.fail(TRYING_TO_SIGN_UP, msg);
 	    });
 	  },
 	
@@ -4190,7 +4191,8 @@ webpackJsonp([1],[
 	      reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
 	      session.getHistory().push({ pathname: redirect });
 	    }).fail(function (err) {
-	      return restApiActions.fail(TRYING_TO_LOGIN, err.responseJSON.message);
+	      var msg = err.responseJSON ? err.responseJSON.message : 'Error';
+	      restApiActions.fail(TRYING_TO_LOGIN, msg);
 	    });
 	  }
 	};
@@ -7896,7 +7898,6 @@ webpackJsonp([1],[
 	var _require4 = __webpack_require__(234);
 	
 	var TLPT_STORED_SESSINS_FILTER_SET_RANGE = _require4.TLPT_STORED_SESSINS_FILTER_SET_RANGE;
-	var TLPT_STORED_SESSINS_FILTER_SET_STATUS = _require4.TLPT_STORED_SESSINS_FILTER_SET_STATUS;
 	
 	var _require5 = __webpack_require__(70);
 	
@@ -7926,16 +7927,7 @@ webpackJsonp([1],[
 	};
 	
 	function _fetch(start, end) {
-	  var status = {
-	    hasMore: false,
-	    isLoading: true
-	  };
-	
-	  reactor.dispatch(TLPT_STORED_SESSINS_FILTER_SET_STATUS, status);
-	
-	  return fetchSiteEvents(start, end).done(function () {
-	    reactor.dispatch(TLPT_STORED_SESSINS_FILTER_SET_STATUS, { isLoading: false });
-	  }).fail(function (err) {
+	  return fetchSiteEvents(start, end).fail(function (err) {
 	    showError('Unable to retrieve list of sessions for a given time range');
 	    logger.error('fetching filtered set of sessions', err);
 	  });
@@ -8010,7 +8002,6 @@ webpackJsonp([1],[
 	var _require2 = __webpack_require__(234);
 	
 	var TLPT_STORED_SESSINS_FILTER_SET_RANGE = _require2.TLPT_STORED_SESSINS_FILTER_SET_RANGE;
-	var TLPT_STORED_SESSINS_FILTER_SET_STATUS = _require2.TLPT_STORED_SESSINS_FILTER_SET_STATUS;
 	exports['default'] = Store({
 	  getInitialState: function getInitialState() {
 	
@@ -8018,11 +8009,7 @@ webpackJsonp([1],[
 	    var start = moment(end).subtract(3, 'day').startOf('day').toDate();
 	    var state = {
 	      start: start,
-	      end: end,
-	      status: {
-	        isLoading: false,
-	        hasMore: false
-	      }
+	      end: end
 	    };
 	
 	    return toImmutable(state);
@@ -8030,13 +8017,8 @@ webpackJsonp([1],[
 	
 	  initialize: function initialize() {
 	    this.on(TLPT_STORED_SESSINS_FILTER_SET_RANGE, setRange);
-	    this.on(TLPT_STORED_SESSINS_FILTER_SET_STATUS, setStatus);
 	  }
 	});
-	
-	function setStatus(state, status) {
-	  return state.mergeIn(['status'], status);
-	}
 	
 	function setRange(state, newState) {
 	  return state.merge(newState);

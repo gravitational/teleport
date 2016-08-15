@@ -65,7 +65,8 @@ export default {
         session.getHistory().push({pathname: cfg.routes.app});
       })
       .fail((err)=>{
-        restApiActions.fail(TRYING_TO_SIGN_UP, err.responseJSON.message || 'failed to sing up');
+        let msg = err.responseJSON ? err.responseJSON.message : 'Failed to sing up';
+        restApiActions.fail(TRYING_TO_SIGN_UP, msg);
       });
   },
 
@@ -83,6 +84,9 @@ export default {
         reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
         session.getHistory().push({pathname: redirect});
       })
-      .fail((err)=> restApiActions.fail(TRYING_TO_LOGIN, err.responseJSON.message))
+      .fail((err)=> {
+        let msg = err.responseJSON ? err.responseJSON.message : 'Error';
+        restApiActions.fail(TRYING_TO_LOGIN, msg);
+      })
     }
 }

@@ -37,6 +37,12 @@ limitations under the License.
   font-style: normal;
 }
 
+@import url("https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700");
+
+h1{
+  font-weight: 500;
+}
+
 .grv {
   background-color: white;
 
@@ -46,6 +52,7 @@ limitations under the License.
 
   .grv-page {
     padding: 0 5%;
+    margin-top: 5px;
     display: flex;
     overflow: auto;
     width: 100%;
@@ -113,6 +120,6 @@ limitations under the License.
   height: 1px;
   width:40%;
   display:block;
-  margin: 9px auto;  
+  margin: 9px auto;
   background-color: #e5e6e7;
 }
