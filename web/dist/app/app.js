@@ -7043,7 +7043,6 @@ webpackJsonp([1],[
 	    var _props$filter = this.props.filter;
 	    var start = _props$filter.start;
 	    var end = _props$filter.end;
-	    var status = _props$filter.status;
 	
 	    var data = this.props.data.filter(function (item) {
 	      return !item.active && moment(item.created).isBetween(start, end);
@@ -7091,7 +7090,7 @@ webpackJsonp([1],[
 	      React.createElement(
 	        'div',
 	        { className: 'grv-content' },
-	        data.length === 0 && !status.isLoading ? React.createElement(EmptyIndicator, { text: 'No matching archived sessions found.' }) : React.createElement(
+	        data.length === 0 ? React.createElement(EmptyIndicator, { text: 'No matching archived sessions found.' }) : React.createElement(
 	          'div',
 	          { className: '' },
 	          React.createElement(

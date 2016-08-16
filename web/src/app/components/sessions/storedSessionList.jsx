@@ -86,7 +86,7 @@ var ArchivedSessions = React.createClass({
   },
 
   render: function() {
-    let {start, end, status} = this.props.filter;
+    let { start, end } = this.props.filter;
     let data = this.props.data.filter(
       item => !item.active && moment(item.created).isBetween(start, end));
 
@@ -116,7 +116,7 @@ var ArchivedSessions = React.createClass({
         </div>
 
         <div className="grv-content">
-          {data.length === 0 && !status.isLoading ? <EmptyIndicator text="No matching archived sessions found."/> :
+          {data.length === 0 ? <EmptyIndicator text="No matching archived sessions found."/> :
             <div className="">
               <Table rowCount={data.length} className="table-striped">
                 <Column
