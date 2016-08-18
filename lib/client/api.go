@@ -409,7 +409,11 @@ func (tc *TeleportClient) Join(sessionID session.ID, input io.Reader) (err error
 		return trace.NotFound(notFoundErrorMessage)
 	}
 	// connect to server:
-	nc, err := proxyClient.ConnectToNode(node.Addr, tc.Config.HostLogin)
+	fullNodeAddr := node.Addr
+	if tc.SiteName != "" {
+		fullNodeAddr = fmt.Sprintf("%s@%s", node.Addr, tc.SiteName)
+	}
+	nc, err := proxyClient.ConnectToNode(fullNodeAddr, tc.Config.HostLogin)
 	if err != nil {
 		return trace.Wrap(err)
 	}
