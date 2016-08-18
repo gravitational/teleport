@@ -216,7 +216,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	tc = &TeleportClient{Config: *c}
 
 	// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
-	tc.localAgent, err = NewLocalAgent("", c.Username)
+	tc.localAgent, err = NewLocalAgent(c.KeysDir, c.Username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
