@@ -138,6 +138,7 @@ func prepareCommand(ctx *ctx, cmd string) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// get user's shell:
 	shell, err := utils.GetLoginShell(ctx.login)
 	if err != nil {
@@ -182,7 +183,28 @@ func prepareCommand(ctx *ctx, cmd string) (*exec.Cmd, error) {
 		return nil, trace.Wrap(err)
 	}
 	if me.Uid != osUser.Uid || me.Gid != osUser.Gid {
-		c.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
+		userGroups, err := osUser.GroupIds()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		groups := make([]uint32, 0)
+		for _, sgid := range userGroups {
+			igid, err := strconv.Atoi(sgid)
+			if err != nil {
+				log.Warnf("Cannot interpret user group: '%v'", sgid)
+			} else {
+				groups = append(groups, uint32(igid))
+			}
+		}
+		if len(groups) == 0 {
+			groups = append(groups, uint32(gid))
+		}
+		c.SysProcAttr.Credential = &syscall.Credential{
+			Uid:    uint32(uid),
+			Gid:    uint32(gid),
+			Groups: groups,
+		}
+		c.SysProcAttr.Setsid = true
 	}
 
 	// apply environment variables passed from the client
