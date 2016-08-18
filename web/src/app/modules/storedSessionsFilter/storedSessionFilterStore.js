@@ -17,9 +17,7 @@ limitations under the License.
 var { Store, toImmutable } = require('nuclear-js');
 var moment = require('moment');
 
-var {
-  TLPT_STORED_SESSINS_FILTER_SET_RANGE,
-  TLPT_STORED_SESSINS_FILTER_SET_STATUS } = require('./actionTypes');
+var { TLPT_STORED_SESSINS_FILTER_SET_RANGE } = require('./actionTypes');
 
 export default Store({
   getInitialState() {
@@ -28,11 +26,7 @@ export default Store({
     let start = moment(end).subtract(3, 'day').startOf('day').toDate();
     let state = {
       start,
-      end,
-      status: {
-        isLoading: false,
-        hasMore: false
-      }
+      end
     }
 
     return toImmutable(state);
@@ -40,13 +34,8 @@ export default Store({
 
   initialize() {
     this.on(TLPT_STORED_SESSINS_FILTER_SET_RANGE, setRange);
-    this.on(TLPT_STORED_SESSINS_FILTER_SET_STATUS, setStatus);
   }
 })
-
-function setStatus(state, status){
-  return state.mergeIn(['status'], status);
-}
 
 function setRange(state, newState){
   return state.merge(newState);
