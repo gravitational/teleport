@@ -71,7 +71,7 @@ type InstanceSecrets struct {
 	// string if i instance is not allowing incoming tunnels
 	ListenAddr string `json:"tunnel_addr"`
 	// list of users i instance trusts (key in the map is username)
-	Users map[string]*User `json:"-"`
+	Users map[string]*User `json:"users"`
 }
 
 func (s *InstanceSecrets) String() string {

@@ -257,10 +257,6 @@ func ReverseTunnellListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, SSHProxyTunnelListenPort)
 }
 
-func ReverseTunnellConnectAddr() *utils.NetAddr {
-	return makeAddr("127.0.0.1", SSHProxyTunnelListenPort)
-}
-
 func makeAddr(host string, port int16) *utils.NetAddr {
 	addrSpec := fmt.Sprintf("tcp://%s:%d", host, port)
 	retval, err := utils.ParseAddr(addrSpec)
