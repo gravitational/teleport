@@ -276,7 +276,6 @@ func printHeader(t *goterm.Table, cols []string) {
 // Add creates a new sign-up token and prints a token URL to stdout.
 // A user is not created until he visits the sign-up URL and completes the process
 func (u *UserCommand) Add(client *auth.TunClient) error {
-
 	// if no local logins were specified, default to 'login'
 	if u.allowedLogins == "" {
 		u.allowedLogins = u.login
@@ -308,7 +307,13 @@ func (u *UserCommand) Add(client *auth.TunClient) error {
 	} else {
 		hostname = proxies[0].Hostname
 	}
-	url := web.CreateSignupLink(net.JoinHostPort(hostname, strconv.Itoa(defaults.HTTPListenPort)), token)
+
+	// try to auto-suggest the activation link
+	_, proxyPort, err := net.SplitHostPort(u.config.Proxy.WebAddr.Addr)
+	if err != nil {
+		proxyPort = strconv.Itoa(defaults.HTTPListenPort)
+	}
+	url := web.CreateSignupLink(net.JoinHostPort(hostname, proxyPort), token)
 	fmt.Printf("Signup token has been created and is valid for %v seconds. Share this URL with the user:\n%v\n\nNOTE: make sure '%s' is accessible!\n", defaults.MaxSignupTokenTTL.Seconds(), url, hostname)
 	return nil
 }

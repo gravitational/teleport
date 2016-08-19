@@ -2,7 +2,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=1.0.4
+VERSION=1.0.5
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -129,7 +129,7 @@ tag:
 # make release - produces a binary release tarball 
 #	
 .PHONY: release
-release: clean all
+release: clean setver all
 	cp -rf $(BUILDDIR) teleport
 	@echo $(GITTAG) > teleport/VERSION
 	tar -czf $(RELEASE).tar.gz teleport
