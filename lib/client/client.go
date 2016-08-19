@@ -382,13 +382,10 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID, env map
 				}
 				// nothing changed
 				if prevSess.TerminalParams.W == sess.TerminalParams.W && prevSess.TerminalParams.H == sess.TerminalParams.H {
-					log.Infof("TERMINAL SIZE HAS NOT CHANGED")
 					continue
 				}
 
 				newSize := sess.TerminalParams.Winsize()
-
-				log.Infof("NEW TERMINAL SIZE: %v", newSize)
 
 				currentSize, err := term.GetWinsize(0)
 				if err != nil {
