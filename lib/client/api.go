@@ -696,27 +696,23 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 	if tc.Stderr == nil {
 		tc.Stderr = os.Stderr
 	}
+	attachedTerm := (stdin == os.Stdin && term.IsTerminal(0))
 
-	broadcastClose := utils.NewCloseBroadcaster()
-
-	// Catch term signals
-	exitSignals := make(chan os.Signal, 1)
-	signal.Notify(exitSignals, syscall.SIGTERM)
-	go func() {
-		defer broadcastClose.Close()
-		<-exitSignals
-		if tc.ExitMsg == "" {
-			tc.ExitMsg = fmt.Sprintf("Connection to %s closed\n", address)
+	winSize := &term.Winsize{Width: 80, Height: 25}
+	if attachedTerm {
+		winSize, err = term.GetWinsize(0)
+		if err != nil {
+			log.Error(err)
 		}
-	}()
-
-	winSize, err := term.GetWinsize(0)
-	if err != nil {
-		log.Error(err)
-		winSize = &term.Winsize{Width: 80, Height: 25}
 	}
 
-	shell, err := nodeClient.Shell(int(winSize.Width), int(winSize.Height), sessionID, tc.Config.Env)
+	shell, err := nodeClient.Shell(
+		int(winSize.Width),
+		int(winSize.Height),
+		sessionID,
+		tc.Config.Env,
+		attachedTerm)
+
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -731,11 +727,14 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 	}
 
 	// terminal must be in raw mode
-	if stdin == os.Stdin && term.IsTerminal(0) {
+	if attachedTerm {
 		state, err = term.SetRawTerminal(0)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		log.Infof("connecting to remote shell using stdin")
+	} else {
+		log.Infof("connecting to remote shell NOT using stdin")
 	}
 	defer func() {
 		if state != nil {
@@ -746,31 +745,46 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 		}
 	}()
 
-	// Catch Ctrl-C signal
-	ctrlCSignal := make(chan os.Signal, 1)
-	signal.Notify(ctrlCSignal, syscall.SIGINT)
-	go func() {
-		for {
-			<-ctrlCSignal
-			_, err := shell.Write([]byte{3})
-			if err != nil {
-				log.Errorf(err.Error())
-			}
-		}
-	}()
+	broadcastClose := utils.NewCloseBroadcaster()
 
-	// Catch Ctrl-Z signal
-	ctrlZSignal := make(chan os.Signal, 1)
-	signal.Notify(ctrlZSignal, syscall.SIGTSTP)
-	go func() {
-		for {
-			<-ctrlZSignal
-			_, err := shell.Write([]byte{26})
-			if err != nil {
-				log.Errorf(err.Error())
+	// Catch term signals, but only if we're attached to a real terminal
+	if attachedTerm {
+		exitSignals := make(chan os.Signal, 1)
+		signal.Notify(exitSignals, syscall.SIGTERM)
+		go func() {
+			defer broadcastClose.Close()
+			<-exitSignals
+			if tc.ExitMsg == "" {
+				tc.ExitMsg = fmt.Sprintf("Connection to %s closed\n", address)
 			}
-		}
-	}()
+		}()
+
+		// Catch Ctrl-C signal
+		ctrlCSignal := make(chan os.Signal, 1)
+		signal.Notify(ctrlCSignal, syscall.SIGINT)
+		go func() {
+			for {
+				<-ctrlCSignal
+				_, err := shell.Write([]byte{3})
+				if err != nil {
+					log.Errorf(err.Error())
+				}
+			}
+		}()
+
+		// Catch Ctrl-Z signal
+		ctrlZSignal := make(chan os.Signal, 1)
+		signal.Notify(ctrlZSignal, syscall.SIGTSTP)
+		go func() {
+			for {
+				<-ctrlZSignal
+				_, err := shell.Write([]byte{26})
+				if err != nil {
+					log.Errorf(err.Error())
+				}
+			}
+		}()
+	}
 
 	// copy from the remote shell to the local
 	go func() {
