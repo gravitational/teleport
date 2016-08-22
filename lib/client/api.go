@@ -187,7 +187,18 @@ func (c *Config) ProxySpecified() bool {
 type TeleportClient struct {
 	Config
 	localAgent *LocalKeyAgent
+
+	OnShellCreated ShellCreatedCallback
+
+	// ExitMsg (if set) will be printed at the end of the SSH session
+	ExitMsg string
 }
+
+// This callback can be supplied for every teleport client. It will be called
+// right after the remote shell is created, but the session hasn't begun yet.
+//
+// It allows clients to cancel SSH action
+type ShellCreatedCallback func(shell io.ReadWriteCloser) (exit bool, err error)
 
 func (tc *TeleportClient) authMethods() []ssh.AuthMethod {
 	return tc.Config.AuthMethods
@@ -669,6 +680,10 @@ func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, pr
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
 // stdin  : standard input to use. if nil, uses os.Stdin
 func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID, stdin io.Reader) error {
+	var (
+		state *term.State
+		err   error
+	)
 	defer nodeClient.Close()
 	address := tc.NodeHostPort()
 
@@ -681,26 +696,6 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 	if tc.Stderr == nil {
 		tc.Stderr = os.Stderr
 	}
-	// terminal must be in raw mode
-	var (
-		state   *term.State
-		err     error
-		exitMsg string
-	)
-	if stdin == os.Stdin && term.IsTerminal(0) {
-		state, err = term.SetRawTerminal(0)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	defer func() {
-		if state != nil {
-			term.RestoreTerminal(0, state)
-		}
-		if exitMsg != "" {
-			fmt.Println(exitMsg)
-		}
-	}()
 
 	broadcastClose := utils.NewCloseBroadcaster()
 
@@ -710,7 +705,9 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 	go func() {
 		defer broadcastClose.Close()
 		<-exitSignals
-		exitMsg = fmt.Sprintf("Connection to %s closed\n", address)
+		if tc.ExitMsg == "" {
+			tc.ExitMsg = fmt.Sprintf("Connection to %s closed\n", address)
+		}
 	}()
 
 	winSize, err := term.GetWinsize(0)
@@ -723,6 +720,31 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer shell.Close()
+
+	// user-supplied callback
+	if tc.OnShellCreated != nil {
+		exit, err := tc.OnShellCreated(shell)
+		if exit {
+			return err
+		}
+	}
+
+	// terminal must be in raw mode
+	if stdin == os.Stdin && term.IsTerminal(0) {
+		state, err = term.SetRawTerminal(0)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	defer func() {
+		if state != nil {
+			term.RestoreTerminal(0, state)
+		}
+		if tc.ExitMsg != "" {
+			fmt.Println(tc.ExitMsg)
+		}
+	}()
 
 	// Catch Ctrl-C signal
 	ctrlCSignal := make(chan os.Signal, 1)
@@ -757,7 +779,9 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 		if err != nil {
 			log.Errorf(err.Error())
 		}
-		exitMsg = fmt.Sprintf("Connection to %s closed from the remote side", address)
+		if tc.ExitMsg == "" {
+			tc.ExitMsg = fmt.Sprintf("Connection to %s closed from the remote side", address)
+		}
 	}()
 
 	// copy from the local shell to the remote
@@ -773,7 +797,7 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 			if n > 0 {
 				_, err = shell.Write(buf[:n])
 				if err != nil {
-					exitMsg = err.Error()
+					tc.ExitMsg = err.Error()
 					return
 				}
 			}
