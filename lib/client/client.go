@@ -346,7 +346,7 @@ func (client *NodeClient) Shell(
 	// this goroutine sleeps until a terminal size changes (it receives an OS signal)
 	sigC := make(chan os.Signal, 1)
 	signal.Notify(sigC, syscall.SIGWINCH)
-	broadcastOurTerminalSize := func() {
+	broadcastTerminalSize := func() {
 		for {
 			select {
 			case sig := <-sigC:
@@ -376,7 +376,7 @@ func (client *NodeClient) Shell(
 	}
 
 	// detect changes of the session's terminal
-	updateOurTerminalSize := func() {
+	updateTerminalSize := func() {
 		tick := time.NewTicker(defaults.SessionRefreshPeriod)
 		defer tick.Stop()
 		var prevSess *session.Session
@@ -419,8 +419,8 @@ func (client *NodeClient) Shell(
 	}
 
 	if attachedTerm {
-		go broadcastOurTerminalSize()
-		go updateOurTerminalSize()
+		go broadcastTerminalSize()
+		go updateTerminalSize()
 	}
 
 	go func() {

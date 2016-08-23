@@ -188,14 +188,17 @@ type TeleportClient struct {
 	Config
 	localAgent *LocalKeyAgent
 
+	// OnShellCreated gets called when the shell is created. It's
+	// safe to keep it nil
 	OnShellCreated ShellCreatedCallback
 
 	// ExitMsg (if set) will be printed at the end of the SSH session
 	ExitMsg string
 }
 
-// This callback can be supplied for every teleport client. It will be called
-// right after the remote shell is created, but the session hasn't begun yet.
+// ShellCreatedCallback can be supplied for every teleport client. It will
+// be called right after the remote shell is created, but the session
+// hasn't begun yet.
 //
 // It allows clients to cancel SSH action
 type ShellCreatedCallback func(shell io.ReadWriteCloser) (exit bool, err error)
@@ -722,7 +725,7 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 	if tc.OnShellCreated != nil {
 		exit, err := tc.OnShellCreated(shell)
 		if exit {
-			return err
+			return trace.Wrap(err)
 		}
 	}
 
