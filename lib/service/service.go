@@ -656,6 +656,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			utils.Consolef(cfg.Console, "[PROXY] starting the web server: %v", err)
 			return trace.Wrap(err)
 		}
+		defer webHandler.Close()
 
 		proxyLimiter.WrapHandle(webHandler)
 		process.BroadcastEvent(Event{Name: ProxyWebServerEvent, Payload: webHandler})

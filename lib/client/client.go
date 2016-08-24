@@ -262,8 +262,21 @@ func (proxy *ProxyClient) Close() error {
 	return proxy.Client.Close()
 }
 
-// Shell returns remote shell as io.ReadWriterCloser object
-func (client *NodeClient) Shell(width, height int, sessionID session.ID, env map[string]string) (io.ReadWriteCloser, error) {
+// Shell returns a configured remote shell (for a window of a requested size)
+// as io.ReadWriterCloser object
+//
+// Parameters:
+//	- width & height : size of the window
+//  - session id     : ID of a session (if joining existing) or empty to create
+//                     a new session
+//  - env            : list of environment variables to set for a new session
+//  - attachedTerm   : boolean indicating if this client is attached to a real terminal
+func (client *NodeClient) Shell(
+	width, height int,
+	sessionID session.ID,
+	env map[string]string,
+	attachedTerm bool) (io.ReadWriteCloser, error) {
+
 	if sessionID == "" {
 		// initiate a new session if not passed
 		sessionID = session.NewID()
@@ -333,7 +346,7 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID, env map
 	// this goroutine sleeps until a terminal size changes (it receives an OS signal)
 	sigC := make(chan os.Signal, 1)
 	signal.Notify(sigC, syscall.SIGWINCH)
-	go func() {
+	broadcastTerminalSize := func() {
 		for {
 			select {
 			case sig := <-sigC:
@@ -343,8 +356,8 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID, env map
 				// get the size:
 				winSize, err := term.GetWinsize(0)
 				if err != nil {
-					log.Infof("error getting size: %s", err)
-					continue
+					log.Errorf("Error getting size: %s", err)
+					break
 				}
 				// send the new window size to the server
 				_, err = clientSession.SendRequest(
@@ -357,15 +370,14 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID, env map
 					log.Infof("failed to send window change reqest: %v", err)
 				}
 			case <-broadcastClose.C:
-				log.Infof("detected close")
 				return
 			}
 		}
-	}()
+	}
 
-	tick := time.NewTicker(defaults.SessionRefreshPeriod)
 	// detect changes of the session's terminal
-	go func() error {
+	updateTerminalSize := func() {
+		tick := time.NewTicker(defaults.SessionRefreshPeriod)
 		defer tick.Stop()
 		var prevSess *session.Session
 		for {
@@ -373,6 +385,7 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID, env map
 			case <-tick.C:
 				sess, err := siteClient.GetSession(sessionID)
 				if err != nil {
+					log.Error(err)
 					continue
 				}
 				// no previous session
@@ -386,7 +399,6 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID, env map
 				}
 
 				newSize := sess.TerminalParams.Winsize()
-
 				currentSize, err := term.GetWinsize(0)
 				if err != nil {
 					log.Error(err)
@@ -401,10 +413,15 @@ func (client *NodeClient) Shell(width, height int, sessionID session.ID, env map
 				}
 				prevSess = sess
 			case <-broadcastClose.C:
-				return nil
+				return
 			}
 		}
-	}()
+	}
+
+	if attachedTerm {
+		go broadcastTerminalSize()
+		go updateTerminalSize()
+	}
 
 	go func() {
 		io.Copy(os.Stderr, stderr)

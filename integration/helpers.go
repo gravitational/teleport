@@ -194,7 +194,7 @@ func (i *TeleInstance) GetSiteAPI(siteName string) auth.ClientI {
 func (i *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bool, console io.Writer) error {
 	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	tconf := service.MakeDefaultConfig()
 	tconf.SeedConfig = true
@@ -229,7 +229,7 @@ func (i *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bool,
 	i.Config = tconf
 	i.Process, err = service.NewTeleport(tconf)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	// create users:
 	auth := i.Process.GetAuthServer()
@@ -239,7 +239,7 @@ func (i *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bool,
 			AllowedLogins: user.AllowedLogins,
 		})
 		if err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 		priv, pub, _ := tconf.Keygen.GenerateKeyPair("")
 		//priv, pub := makeKey()
@@ -262,7 +262,7 @@ func (i *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bool,
 func (i *TeleInstance) Reset() (err error) {
 	i.Process, err = service.NewTeleport(i.Config)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	return nil
 }

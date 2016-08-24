@@ -164,6 +164,7 @@ type sessionCache struct {
 
 // Close closes all allocated resources and stops goroutines
 func (s *sessionCache) Close() error {
+	log.Infof("[WEB] closing session cache")
 	return s.closer.Close()
 }
 

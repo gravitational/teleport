@@ -1249,17 +1249,6 @@ type Server struct {
 	http.Server
 }
 
-func New(addr utils.NetAddr, cfg Config) (*Server, error) {
-	h, err := NewHandler(cfg)
-	if err != nil {
-		return nil, err
-	}
-	srv := &Server{}
-	srv.Server.Addr = addr.Addr
-	srv.Server.Handler = h
-	return srv, nil
-}
-
 // CreateSignupLink generates and returns a URL which is given to a new
 // user to complete registration with Teleport via Web UI
 func CreateSignupLink(hostPort string, token string) string {
