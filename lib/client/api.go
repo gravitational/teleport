@@ -361,7 +361,8 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool, input io.Reader
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return tc.runShell(nodeClient, "", input)
+
+	return tc.runShell(nodeClient, nil, input)
 }
 
 // Join connects to the existing/active SSH session
@@ -431,7 +432,8 @@ func (tc *TeleportClient) Join(sessionID session.ID, input io.Reader) (err error
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return tc.runShell(nc, session.ID, input)
+
+	return tc.runShell(nc, session, input)
 }
 
 // Play replays the recorded session
@@ -682,7 +684,7 @@ func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, pr
 // runShell starts an interactive SSH session/shell.
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
 // stdin  : standard input to use. if nil, uses os.Stdin
-func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID, stdin io.Reader) error {
+func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.Session, stdin io.Reader) error {
 	var (
 		state *term.State
 		err   error
@@ -706,6 +708,21 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessionID session.ID,
 		winSize, err = term.GetWinsize(0)
 		if err != nil {
 			log.Error(err)
+		}
+	}
+
+	var sessionID session.ID
+	if sessToJoin != nil {
+		// if we're joining an existing session, we need to assume that session's
+		// existing/current terminal size:
+		sessionID = sessToJoin.ID
+		winSize = sessToJoin.TerminalParams.Winsize()
+		if attachedTerm {
+			err = term.SetWinsize(0, winSize)
+			if err != nil {
+				log.Error(err)
+			}
+			os.Stdout.Write([]byte(fmt.Sprintf("\x1b[8;%d;%dt", winSize.Height, winSize.Width)))
 		}
 	}
 
