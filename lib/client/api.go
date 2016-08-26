@@ -329,20 +329,13 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool, input io.Reader
 			nodeAddrs[0])
 	}
 
-	// proxy local ports (forward incoming connections to remote host ports)
-	if len(tc.Config.LocalForwardPorts) > 0 {
-		nodeClient, err := proxyClient.ConnectToNode(nodeAddrs[0]+"@"+siteInfo.Name, tc.Config.HostLogin)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, fp := range tc.Config.LocalForwardPorts {
-			socket, err := net.Listen("tcp", net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort)))
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			go nodeClient.listenAndForward(socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
-		}
+	nodeClient, err := proxyClient.ConnectToNode(nodeAddrs[0]+"@"+siteInfo.Name, tc.Config.HostLogin)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+
+	// proxy local ports (forward incoming connections to remote host ports)
+	tc.startPortForwarding(nodeClient)
 
 	// local execution?
 	if runLocally {
@@ -357,12 +350,20 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool, input io.Reader
 		return tc.runCommand(siteInfo.Name, nodeAddrs, proxyClient, command)
 	}
 
-	nodeClient, err := proxyClient.ConnectToNode(nodeAddrs[0]+"@"+siteInfo.Name, tc.Config.HostLogin)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	return tc.runShell(nodeClient, nil, input)
+}
+
+func (tc *TeleportClient) startPortForwarding(nodeClient *NodeClient) error {
+	if len(tc.Config.LocalForwardPorts) > 0 {
+		for _, fp := range tc.Config.LocalForwardPorts {
+			socket, err := net.Listen("tcp", net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort)))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			go nodeClient.listenAndForward(socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
+		}
+	}
+	return nil
 }
 
 // Join connects to the existing/active SSH session
@@ -433,6 +434,10 @@ func (tc *TeleportClient) Join(sessionID session.ID, input io.Reader) (err error
 		return trace.Wrap(err)
 	}
 
+	// start forwarding ports, if configured:
+	tc.startPortForwarding(nc)
+
+	// running shell with a given session means "join" it:
 	return tc.runShell(nc, session, input)
 }
 
