@@ -329,20 +329,13 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool, input io.Reader
 			nodeAddrs[0])
 	}
 
-	// proxy local ports (forward incoming connections to remote host ports)
-	if len(tc.Config.LocalForwardPorts) > 0 {
-		nodeClient, err := proxyClient.ConnectToNode(nodeAddrs[0]+"@"+siteInfo.Name, tc.Config.HostLogin)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, fp := range tc.Config.LocalForwardPorts {
-			socket, err := net.Listen("tcp", net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort)))
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			go nodeClient.listenAndForward(socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
-		}
+	nodeClient, err := proxyClient.ConnectToNode(nodeAddrs[0]+"@"+siteInfo.Name, tc.Config.HostLogin)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+
+	// proxy local ports (forward incoming connections to remote host ports)
+	tc.startPortForwarding(nodeClient)
 
 	// local execution?
 	if runLocally {
@@ -357,12 +350,20 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool, input io.Reader
 		return tc.runCommand(siteInfo.Name, nodeAddrs, proxyClient, command)
 	}
 
-	nodeClient, err := proxyClient.ConnectToNode(nodeAddrs[0]+"@"+siteInfo.Name, tc.Config.HostLogin)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	return tc.runShell(nodeClient, nil, input)
+}
+
+func (tc *TeleportClient) startPortForwarding(nodeClient *NodeClient) error {
+	if len(tc.Config.LocalForwardPorts) > 0 {
+		for _, fp := range tc.Config.LocalForwardPorts {
+			socket, err := net.Listen("tcp", net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort)))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			go nodeClient.listenAndForward(socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
+		}
+	}
+	return nil
 }
 
 // Join connects to the existing/active SSH session
@@ -433,6 +434,10 @@ func (tc *TeleportClient) Join(sessionID session.ID, input io.Reader) (err error
 		return trace.Wrap(err)
 	}
 
+	// start forwarding ports, if configured:
+	tc.startPortForwarding(nc)
+
+	// running shell with a given session means "join" it:
 	return tc.runShell(nc, session, input)
 }
 
@@ -1222,4 +1227,35 @@ func runLocalCommand(command []string) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	return cmd.Run()
+}
+
+// ParsePortForwardSpec parses parameter to -L flag, i.e. strings like "[ip]:80:remote.host:3000"
+func ParsePortForwardSpec(spec []string) (ports []ForwardedPort, err error) {
+	if len(spec) == 0 {
+		return ports, nil
+	}
+	const errTemplate = "Invalid port forwarding spec: '%s'. Sould be like `80:remote.host:80`"
+	ports = make([]ForwardedPort, len(spec), len(spec))
+
+	for i, str := range spec {
+		parts := strings.Split(str, ":")
+		if len(parts) < 3 || len(parts) > 4 {
+			return nil, fmt.Errorf(errTemplate, str)
+		}
+		if len(parts) == 3 {
+			parts = append([]string{"127.0.0.1"}, parts...)
+		}
+		p := &ports[i]
+		p.SrcIP = parts[0]
+		p.SrcPort, err = strconv.Atoi(parts[1])
+		if err != nil {
+			return nil, fmt.Errorf(errTemplate, str)
+		}
+		p.DestHost = parts[2]
+		p.DestPort, err = strconv.Atoi(parts[3])
+		if err != nil {
+			return nil, fmt.Errorf(errTemplate, str)
+		}
+	}
+	return ports, nil
 }

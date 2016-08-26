@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -375,7 +374,7 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 			}
 		}
 	}
-	fPorts, err := parsePortForwardSpec(cf.LocalForwardPorts)
+	fPorts, err := client.ParsePortForwardSpec(cf.LocalForwardPorts)
 	if err != nil {
 		return nil, err
 	}
@@ -411,35 +410,4 @@ func printHeader(t *goterm.Table, cols []string) {
 	}
 	fmt.Fprint(t, strings.Join(cols, "\t")+"\n")
 	fmt.Fprint(t, strings.Join(dots, "\t")+"\n")
-}
-
-// parsePortForwardSpec parses parameter to -L flag, i.e. strings like "[ip]:80:remote.host:3000"
-func parsePortForwardSpec(spec []string) (ports []client.ForwardedPort, err error) {
-	if len(spec) == 0 {
-		return ports, nil
-	}
-	const errTemplate = "Invalid port forwarding spec: '%s'. Sould be like `80:remote.host:80`"
-	ports = make([]client.ForwardedPort, len(spec), len(spec))
-
-	for i, str := range spec {
-		parts := strings.Split(str, ":")
-		if len(parts) < 3 || len(parts) > 4 {
-			return nil, fmt.Errorf(errTemplate, str)
-		}
-		if len(parts) == 3 {
-			parts = append([]string{"127.0.0.1"}, parts...)
-		}
-		p := &ports[i]
-		p.SrcIP = parts[0]
-		p.SrcPort, err = strconv.Atoi(parts[1])
-		if err != nil {
-			return nil, fmt.Errorf(errTemplate, str)
-		}
-		p.DestHost = parts[2]
-		p.DestPort, err = strconv.Atoi(parts[3])
-		if err != nil {
-			return nil, fmt.Errorf(errTemplate, str)
-		}
-	}
-	return ports, nil
 }
