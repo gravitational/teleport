@@ -405,9 +405,9 @@ func (client *NodeClient) Shell(
 				}
 				if currentSize.Width != newSize.Width || currentSize.Height != newSize.Height {
 					// ok, something have changed, let's resize to the new parameters
-					err = term.SetWinsize(0, sess.TerminalParams.Winsize())
+					err = term.SetWinsize(0, newSize)
 					if err != nil {
-						log.Infof("error setting size: %s", err)
+						log.Error(err)
 					}
 					os.Stdout.Write([]byte(fmt.Sprintf("\x1b[8;%d;%dt", newSize.Height, newSize.Width)))
 				}
