@@ -544,7 +544,7 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 //    3. take care of revse tunnels
 func (process *TeleportProcess) initProxy() error {
 	// if no TLS key was provided for the web UI, generate a self signed cert
-	if process.Config.Proxy.TLSKey == "" {
+	if process.Config.Proxy.TLSKey == "" && !process.Config.Proxy.DisableWebUI {
 		err := initSelfSignedHTTPSCert(process.Config)
 		if err != nil {
 			return trace.Wrap(err)
@@ -641,43 +641,47 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register web proxy server
 	var webListener net.Listener
-	process.RegisterFunc(func() error {
-		utils.Consolef(cfg.Console, "[PROXY] Web proxy service is starting on %v", cfg.Proxy.WebAddr.Addr)
-		webHandler, err := web.NewHandler(
-			web.Config{
-				Proxy:       tsrv,
-				AssetsDir:   cfg.Proxy.AssetsDir,
-				AuthServers: cfg.AuthServers[0],
-				DomainName:  cfg.Hostname,
-				ProxyClient: conn.Client,
-				DisableUI:   cfg.Proxy.DisableWebUI,
-			})
-		if err != nil {
-			utils.Consolef(cfg.Console, "[PROXY] starting the web server: %v", err)
-			return trace.Wrap(err)
-		}
-		defer webHandler.Close()
-
-		proxyLimiter.WrapHandle(webHandler)
-		process.BroadcastEvent(Event{Name: ProxyWebServerEvent, Payload: webHandler})
-
-		log.Infof("[PROXY] init TLS listeners")
-		webListener, err = utils.ListenTLS(
-			cfg.Proxy.WebAddr.Addr,
-			cfg.Proxy.TLSCert,
-			cfg.Proxy.TLSKey)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err = http.Serve(webListener, proxyLimiter); err != nil {
-			if askedToExit {
-				log.Infof("[PROXY] web server exited")
-				return nil
+	if !process.Config.Proxy.DisableWebUI {
+		process.RegisterFunc(func() error {
+			utils.Consolef(cfg.Console, "[PROXY] Web proxy service is starting on %v", cfg.Proxy.WebAddr.Addr)
+			webHandler, err := web.NewHandler(
+				web.Config{
+					Proxy:       tsrv,
+					AssetsDir:   cfg.Proxy.AssetsDir,
+					AuthServers: cfg.AuthServers[0],
+					DomainName:  cfg.Hostname,
+					ProxyClient: conn.Client,
+					DisableUI:   cfg.Proxy.DisableWebUI,
+				})
+			if err != nil {
+				utils.Consolef(cfg.Console, "[PROXY] starting the web server: %v", err)
+				return trace.Wrap(err)
 			}
-			log.Error(err)
-		}
-		return nil
-	})
+			defer webHandler.Close()
+
+			proxyLimiter.WrapHandle(webHandler)
+			process.BroadcastEvent(Event{Name: ProxyWebServerEvent, Payload: webHandler})
+
+			log.Infof("[PROXY] init TLS listeners")
+			webListener, err = utils.ListenTLS(
+				cfg.Proxy.WebAddr.Addr,
+				cfg.Proxy.TLSCert,
+				cfg.Proxy.TLSKey)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err = http.Serve(webListener, proxyLimiter); err != nil {
+				if askedToExit {
+					log.Infof("[PROXY] web server exited")
+					return nil
+				}
+				log.Error(err)
+			}
+			return nil
+		})
+	} else {
+		log.Infof("[WEB] Web UI is disabled")
+	}
 
 	// Register ssh proxy server
 	process.RegisterFunc(func() error {
@@ -708,7 +712,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		tsrv.Close()
 		SSHProxy.Close()
 		agentPool.Stop()
-		webListener.Close()
+		if webListener != nil {
+			webListener.Close()
+		}
 		log.Infof("[PROXY] proxy service exited")
 	})
 	return nil
