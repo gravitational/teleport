@@ -80,7 +80,14 @@ The best way to contribute is to create issues or pull requests right here on Gi
 
 ## Status
 
-Teleport [v1.0.0](https://github.com/gravitational/teleport/releases/tag/v1.0.0) is out
+Teleport has completed a security audit from a nationally recongized technology security company. 
+So we are comfortable with the use of Teleport from a security perspective.
+
+However, Teleport is still a relatively young product so you may experience usability issues. 
+We are actively supporting Teleport and addressing any issues that are submitted to this repo. Ask questions,
+send pull requests, report issues and don't be shy! :)
+
+The latest stable Teleport build can be found in [Releases](releases)
 
 ## Known Issues
 
