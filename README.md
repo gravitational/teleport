@@ -38,7 +38,7 @@ teleport start
 
 ## Building Teleport
 
-You need to have Golang v1.5 or newer.
+You need to have Golang `v1.7` or newer. 
 
 Clone this repository into `$GOPATH/gravitational/teleport` and run `make`. 
 
