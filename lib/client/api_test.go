@@ -111,3 +111,40 @@ func (s *APITestSuite) TestSCPParsing(c *check.C) {
 	c.Assert(host, check.Equals, "remote.host")
 	c.Assert(dest, check.Equals, "/etc/nginx.conf")
 }
+
+func (s *APITestSuite) TestPortsParsing(c *check.C) {
+	// empty:
+	ports, err := ParsePortForwardSpec(nil)
+	c.Assert(ports, check.IsNil)
+	c.Assert(err, check.IsNil)
+	ports, err = ParsePortForwardSpec([]string{})
+	c.Assert(ports, check.IsNil)
+	c.Assert(err, check.IsNil)
+	// not empty (but valid)
+	spec := []string{
+		"80:remote.host:180",
+		"10.0.10.1:443:deep.host:1443",
+	}
+	ports, err = ParsePortForwardSpec(spec)
+	c.Assert(err, check.IsNil)
+	c.Assert(ports, check.HasLen, 2)
+	c.Assert(ports, check.DeepEquals, []ForwardedPort{
+		{
+			SrcIP:    "127.0.0.1",
+			SrcPort:  80,
+			DestHost: "remote.host",
+			DestPort: 180,
+		},
+		{
+			SrcIP:    "10.0.10.1",
+			SrcPort:  443,
+			DestHost: "deep.host",
+			DestPort: 1443,
+		},
+	})
+	// invalid spec:
+	spec = []string{"foo", "bar"}
+	ports, err = ParsePortForwardSpec(spec)
+	c.Assert(ports, check.IsNil)
+	c.Assert(err, check.ErrorMatches, "^Invalid port forwarding spec: .foo.*")
+}

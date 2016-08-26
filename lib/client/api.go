@@ -1228,3 +1228,34 @@ func runLocalCommand(command []string) error {
 	cmd.Stdout = os.Stdout
 	return cmd.Run()
 }
+
+// ParsePortForwardSpec parses parameter to -L flag, i.e. strings like "[ip]:80:remote.host:3000"
+func ParsePortForwardSpec(spec []string) (ports []ForwardedPort, err error) {
+	if len(spec) == 0 {
+		return ports, nil
+	}
+	const errTemplate = "Invalid port forwarding spec: '%s'. Sould be like `80:remote.host:80`"
+	ports = make([]ForwardedPort, len(spec), len(spec))
+
+	for i, str := range spec {
+		parts := strings.Split(str, ":")
+		if len(parts) < 3 || len(parts) > 4 {
+			return nil, fmt.Errorf(errTemplate, str)
+		}
+		if len(parts) == 3 {
+			parts = append([]string{"127.0.0.1"}, parts...)
+		}
+		p := &ports[i]
+		p.SrcIP = parts[0]
+		p.SrcPort, err = strconv.Atoi(parts[1])
+		if err != nil {
+			return nil, fmt.Errorf(errTemplate, str)
+		}
+		p.DestHost = parts[2]
+		p.DestPort, err = strconv.Atoi(parts[3])
+		if err != nil {
+			return nil, fmt.Errorf(errTemplate, str)
+		}
+	}
+	return ports, nil
+}
