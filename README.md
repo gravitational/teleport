@@ -87,7 +87,7 @@ However, Teleport is still a relatively young product so you may experience usab
 We are actively supporting Teleport and addressing any issues that are submitted to this repo. Ask questions,
 send pull requests, report issues and don't be shy! :)
 
-The latest stable Teleport build can be found in [Releases](/gravitational/teleport/releases)
+The latest stable Teleport build can be found in [Releases](https://github.com/gravitational/teleport/releases)
 
 ## Known Issues
 
