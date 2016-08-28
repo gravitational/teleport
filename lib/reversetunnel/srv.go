@@ -419,7 +419,7 @@ func (rc *remoteConn) Close() error {
 }
 
 func (rc *remoteConn) markInvalid(err error) {
-	rc.log.Infof("%v is marked as invalid because of error: %v", rc, err)
+	rc.log.Infof("%v is invalid: %v", rc, err)
 	atomic.StoreInt32(&rc.invalid, 1)
 }
 

@@ -25,14 +25,10 @@ import (
 
 // SetTestTimeouts affects global timeouts inside Teleport, making connections
 // work faster but consuming more CPU (useful for integration testing)
-func SetTestTimeouts(ms int) {
-	if ms == 0 {
-		ms = 10
-	}
-	testVal := time.Duration(time.Millisecond * time.Duration(ms))
-	defaults.ReverseTunnelAgentHeartbeatPeriod = testVal
-	defaults.ServerHeartbeatTTL = testVal
-	defaults.SessionRefreshPeriod = testVal
+func SetTestTimeouts(t time.Duration) {
+	defaults.ReverseTunnelAgentHeartbeatPeriod = t
+	defaults.ServerHeartbeatTTL = t
+	defaults.SessionRefreshPeriod = t
 }
 
 // TeleInstance represents an in-memory instance of a teleport

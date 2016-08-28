@@ -69,7 +69,7 @@ func (s *IntSuite) SetUpTest(c *check.C) {
 func (s *IntSuite) SetUpSuite(c *check.C) {
 	var err error
 	utils.InitLoggerForTests()
-	SetTestTimeouts(100)
+	SetTestTimeouts(time.Millisecond * time.Duration(100))
 
 	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")
 	c.Assert(err, check.IsNil)
