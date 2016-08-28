@@ -186,6 +186,8 @@ func closeContext(key string, val interface{}) {
 
 func (s *sessionCache) expireSessions() {
 	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
 	go func() {
 		for {
 			select {
