@@ -311,6 +311,7 @@ func (i *TeleInstance) Start() (err error) {
 	}()
 
 	timeoutTicker := time.NewTicker(time.Second * 5)
+	defer timeoutTicker.Stop()
 
 	select {
 	case <-allReady:

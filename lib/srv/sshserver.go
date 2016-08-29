@@ -286,13 +286,16 @@ func (s *Server) registerServer() error {
 // heartbeatPresence periodically calls into the auth server to let everyone
 // know we're up & alive
 func (s *Server) heartbeatPresence() {
+	sleepTime := defaults.ServerHeartbeatTTL/2 + utils.RandomDuration(defaults.ServerHeartbeatTTL/10)
+	ticker := time.NewTicker(sleepTime)
+	defer ticker.Stop()
+
 	for {
 		if err := s.registerServer(); err != nil {
 			log.Warningf("failed to announce %#v presence: %v", s, err)
 		}
-		sleepTime := defaults.ServerHeartbeatTTL/2 + utils.RandomDuration(defaults.ServerHeartbeatTTL/10)
 		select {
-		case <-time.Tick(sleepTime):
+		case <-ticker.C:
 			continue
 		case <-s.closer.C:
 			{
