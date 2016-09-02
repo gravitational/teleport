@@ -136,7 +136,7 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 		}
 		for _, checker := range checkers {
 			if sshutils.KeysEqual(checker, cert.SignatureKey) {
-				a.log.Infof("matched key %v for %v", ca.ID(), hostport)
+				a.log.Debugf("matched key %v for %v", ca.ID(), hostport)
 				return nil
 			}
 		}
@@ -250,7 +250,7 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 		if conn == nil {
 			return trace.Errorf("heartbeat cannot ping: need to reconnect")
 		}
-		log.Infof("reverse tunnel agent connected to %s", conn.RemoteAddr())
+		log.Infof("[TUNNEL CLIENT] connected to %s", conn.RemoteAddr())
 		defer conn.Close()
 		hb, reqC, err := conn.OpenChannel(chanHeartbeat, nil)
 		if err != nil {
@@ -269,7 +269,7 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 				return nil
 			// time to ping:
 			case <-ticker.C:
-				log.Infof("reverse tunnel agent pings \"%s\" at %s", a.remoteDomainName, conn.RemoteAddr())
+				log.Debugf("[TUNNEL CLIENT] pings \"%s\" at %s", a.remoteDomainName, conn.RemoteAddr())
 				_, err := hb.SendRequest("ping", false, nil)
 				if err != nil {
 					log.Error(err)
@@ -285,7 +285,7 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 				if nch == nil {
 					continue
 				}
-				a.log.Infof("reverseTunnel.Agent: access point request: %v", nch.ChannelType())
+				a.log.Infof("[TUNNEL CLIENT] access point request: %v", nch.ChannelType())
 				ch, req, err := nch.Accept()
 				if err != nil {
 					a.log.Errorf("failed to accept request: %v", err)
@@ -297,7 +297,7 @@ func (a *Agent) runHeartbeat(conn *ssh.Client) {
 				if nch == nil {
 					continue
 				}
-				a.log.Infof("reverseTunnel.Agent: transport request: %v", nch.ChannelType())
+				a.log.Infof("[TUNNEL CLIENT] transport request: %v", nch.ChannelType())
 				ch, req, err := nch.Accept()
 				if err != nil {
 					a.log.Errorf("failed to accept request: %v", err)

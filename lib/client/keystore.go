@@ -70,7 +70,7 @@ type FSLocalKeyStore struct {
 //
 // if dirPath is empty, sets it to ~/.tsh
 func NewFSLocalKeyStore(dirPath string) (s *FSLocalKeyStore, err error) {
-	log.Infof("using FSLocalKeyStore")
+	log.Debugf("using FSLocalKeyStore")
 	dirPath, err = initKeysDir(dirPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -184,7 +184,7 @@ func (fs *FSLocalKeyStore) GetKey(host, username string) (*Key, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Infof("returning cert %v valid until %v", certFile, certExpiration)
+	log.Debugf("returning cert %v valid until %v", certFile, certExpiration)
 	if certExpiration.Before(time.Now().UTC()) {
 		log.Infof("TTL expired (%v) for session key %v", certExpiration, dirPath)
 		os.RemoveAll(dirPath)
@@ -214,7 +214,7 @@ func (fs *FSLocalKeyStore) AddKnownHostKeys(hostname string, hostKeys []ssh.Publ
 	}
 	// add every host key to the list of entries
 	for i := range hostKeys {
-		log.Infof("adding known host %s with key: %v", hostname, sshutils.Fingerprint(hostKeys[i]))
+		log.Debugf("adding known host %s with key: %v", hostname, sshutils.Fingerprint(hostKeys[i]))
 		bytes := ssh.MarshalAuthorizedKey(hostKeys[i])
 		line := strings.TrimSpace(fmt.Sprintf("%s %s", hostname, bytes))
 		if _, exists := entries[line]; !exists {

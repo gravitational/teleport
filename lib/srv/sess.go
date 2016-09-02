@@ -53,13 +53,11 @@ func (r *sessionRegistry) Close() {
 	for _, s := range r.sessions {
 		s.Close()
 	}
-	log.Infof("sessionRegistry.Close()")
+	log.Debugf("sessionRegistry.Close()")
 }
 
 // joinShell either joins an existing session or starts a new shell
 func (s *sessionRegistry) joinShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	log.Infof("[session.registry] joinShell(session: %v)", ctx.session)
-
 	if ctx.session != nil {
 		// emit "joined session" event:
 		s.srv.EmitAuditEvent(events.SessionJoinEvent, events.EventFields{
@@ -70,7 +68,7 @@ func (s *sessionRegistry) joinShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 			events.RemoteAddr:      ctx.conn.RemoteAddr().String(),
 			events.SessionServerID: ctx.srv.ID(),
 		})
-		ctx.Infof("joining session: %v", ctx.session.id)
+		ctx.Infof("[SESSION] joining session: %v", ctx.session.id)
 		_, err := ctx.session.join(ch, req, ctx)
 		return trace.Wrap(err)
 	}
@@ -88,7 +86,7 @@ func (s *sessionRegistry) joinShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 	}
 	ctx.session = sess
 	s.addSession(sess)
-	ctx.Infof("ssh.joinShell created new session %v", sid)
+	ctx.Infof("[SESSION] new session %v", sid)
 
 	if err := sess.startShell(ch, ctx); err != nil {
 		sess.Close()
@@ -178,7 +176,7 @@ func (s *sessionRegistry) getParties(ctx *ctx) (parties []*party) {
 // us that the terminal size has changed
 func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *ctx) error {
 	if ctx.session == nil {
-		log.Infof("notifyWinChange(): no session found!")
+		log.Debugf("notifyWinChange(): no session found!")
 		return nil
 	}
 	sid := ctx.session.id
@@ -320,7 +318,7 @@ func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, err
 		writer:    newMultiWriter(),
 		login:     context.login,
 		closeC:    make(chan bool),
-		lingerTTL: defaults.SessionLingerTTL,
+		lingerTTL: defaults.SessionRefreshPeriod * 10,
 	}
 	return sess, nil
 }
@@ -676,6 +674,8 @@ func (s *session) addParty(p *party) {
 	if s.registry.srv.sessionServer != nil {
 		go storageUpdate(s.registry.srv.sessionServer)
 	}
+
+	p.ctx.Infof("[SESSION] new party joined: %v", p.String())
 
 	// this goroutine keeps pumping party's input into the session
 	go func() {

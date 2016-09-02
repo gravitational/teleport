@@ -51,7 +51,7 @@ type proxySubsys struct {
 //  "proxy:@sitename"        - Teleport request to connect to an auth server for site with name 'sitename'
 //  "proxy:host:22@sitename" - Teleport request to connect to host:22 on site 'sitename'
 func parseProxySubsys(name string, srv *Server) (*proxySubsys, error) {
-	log.Infof("parse_proxy_subsys(%s)", name)
+	log.Debugf("parse_proxy_subsys(%s)", name)
 	var (
 		siteName   string
 		host       string
@@ -122,7 +122,7 @@ func (t *proxySubsys) start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 				return trace.Errorf("no connected sites")
 			}
 			site = sites[0]
-			log.Infof("proxy_subsystem: no site specified. connecting to default: '%s'", site.GetName())
+			log.Debugf("proxy_subsystem: no site specified. connecting to default: '%s'", site.GetName())
 		}
 		return t.proxyToHost(site, ch)
 	}
@@ -151,7 +151,7 @@ func (t *proxySubsys) proxyToSite(site reversetunnel.RemoteSite, ch ssh.Channel)
 			log.Error(err)
 			continue
 		}
-		log.Infof("proxy_subsystem: connected to auth server: %v", authServer.Addr)
+		log.Infof("[PROXY] connected to auth server: %v", authServer.Addr)
 		go func() {
 			var err error
 			defer func() {

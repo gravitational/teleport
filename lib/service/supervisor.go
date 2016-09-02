@@ -103,7 +103,7 @@ func (s *LocalSupervisor) Register(srv Service) {
 	defer s.Unlock()
 	s.services = append(s.services, &srv)
 
-	log.Infof("[SUPERVISOR] Service %v added (%v)", srv, len(s.services))
+	log.Debugf("[SUPERVISOR] Service %v added (%v)", srv, len(s.services))
 
 	if s.state == stateStarted {
 		s.serve(&srv)
@@ -132,7 +132,7 @@ func (s *LocalSupervisor) serve(srv *Service) {
 				break
 			}
 		}
-		log.Infof("[SUPERVISOR] Service %v is done (%v)", *srv, len(s.services))
+		log.Debugf("[SUPERVISOR] Service %v is done (%v)", *srv, len(s.services))
 	}
 
 	s.wg.Add(1)
@@ -140,7 +140,7 @@ func (s *LocalSupervisor) serve(srv *Service) {
 		defer s.wg.Done()
 		defer removeService()
 
-		log.Infof("[SUPERVISOR] Service %v started (%v)", *srv, s.ServiceCount())
+		log.Debugf("[SUPERVISOR] Service %v started (%v)", *srv, s.ServiceCount())
 		err := (*srv).Serve()
 		if err != nil {
 			utils.FatalError(err)
@@ -182,7 +182,7 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 	s.Lock()
 	defer s.Unlock()
 	s.events[event.Name] = event
-	log.Infof("BroadcastEvent: %v", &event)
+	log.Debugf("BroadcastEvent: %v", &event)
 
 	go func() {
 		s.eventsC <- event

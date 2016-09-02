@@ -25,6 +25,9 @@ const (
 	// to bypass firewall restrictions
 	ComponentReverseTunnel = "reversetunnel"
 
+	// ComponentAuth is the cluster CA node (auth server API)
+	ComponentAuth = "auth"
+
 	// ComponentNode is SSH node (SSH server serving requests)
 	ComponentNode = "node"
 

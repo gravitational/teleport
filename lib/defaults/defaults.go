@@ -119,10 +119,6 @@ const (
 	// LogRotationPeriod defines how frequently to rotate the audit log file
 	LogRotationPeriod = (time.Hour * 24)
 
-	// SessionLingerTTL defines for how long abandoned sessions remain active,
-	// waiting for their parties to restore connection (before being garbage-collected)
-	SessionLingerTTL = time.Duration(time.Second * 5)
-
 	// MaxLoginAttempts sets the max. number of allowed failed login attempts
 	// before a user account is locked for AccountLockInterval
 	MaxLoginAttempts byte = 5

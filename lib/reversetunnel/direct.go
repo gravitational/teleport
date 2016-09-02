@@ -82,12 +82,12 @@ func (s *directSite) ConnectToServer(server, user string, auth []ssh.AuthMethod)
 }
 
 func (s *directSite) Dial(network string, addr string) (net.Conn, error) {
-	s.log.Infof("Dial(net=%v, addr=%v)", network, addr)
+	s.log.Debugf("Dial(addr=%v)", addr)
 	return net.Dial(network, addr)
 }
 
 func (s *directSite) DialServer(addr string) (net.Conn, error) {
-	s.log.Infof("DialServer(addr=%v)", addr)
+	s.log.Debugf("DialServer(addr=%v)", addr)
 	return s.Dial("tcp", addr)
 }
 
