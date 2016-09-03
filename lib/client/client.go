@@ -110,7 +110,7 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 		return nil, trace.Errorf("timeout")
 	}
 
-	log.Infof("proxyClient.GetSites() returned: %v", stdout.String())
+	log.Infof("[CLIENT] found sites: %v", stdout.String())
 
 	var sites []services.Site
 	if err := json.Unmarshal(stdout.Bytes(), &sites); err != nil {
@@ -174,7 +174,7 @@ func (proxy *ProxyClient) ConnectToSite() (auth.ClientI, error) {
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
 func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeClient, error) {
-	log.Infof("connecting to node: %s", nodeAddress)
+	log.Infof("[CLIENT] connecting to node: %s", nodeAddress)
 	e := trace.Errorf("unknown Error")
 
 	// parse destination first:
@@ -346,6 +346,7 @@ func (client *NodeClient) Shell(
 	// this goroutine sleeps until a terminal size changes (it receives an OS signal)
 	sigC := make(chan os.Signal, 1)
 	signal.Notify(sigC, syscall.SIGWINCH)
+	currentSize, _ := term.GetWinsize(0)
 	broadcastTerminalSize := func() {
 		for {
 			select {
@@ -356,8 +357,12 @@ func (client *NodeClient) Shell(
 				// get the size:
 				winSize, err := term.GetWinsize(0)
 				if err != nil {
-					log.Errorf("Error getting size: %s", err)
+					log.Warnf("[CLIENT] Error getting size: %s", err)
 					break
+				}
+				// it's the result of our own size change (see below)
+				if winSize.Height == currentSize.Height && winSize.Width == currentSize.Width {
+					continue
 				}
 				// send the new window size to the server
 				_, err = clientSession.SendRequest(
@@ -367,7 +372,7 @@ func (client *NodeClient) Shell(
 						H: uint32(winSize.Height),
 					}))
 				if err != nil {
-					log.Infof("failed to send window change reqest: %v", err)
+					log.Warnf("[CLIENT] failed to send window change reqest: %v", err)
 				}
 			case <-broadcastClose.C:
 				return
@@ -379,6 +384,7 @@ func (client *NodeClient) Shell(
 	updateTerminalSize := func() {
 		tick := time.NewTicker(defaults.SessionRefreshPeriod)
 		defer tick.Stop()
+
 		var prevSess *session.Session
 		for {
 			select {
@@ -388,6 +394,7 @@ func (client *NodeClient) Shell(
 					log.Error(err)
 					continue
 				}
+				log.Infof("[CLIENT] updating the session %v with %d parties", sess.ID, len(sess.Parties))
 				// no previous session
 				if prevSess == nil {
 					prevSess = sess
@@ -399,7 +406,7 @@ func (client *NodeClient) Shell(
 				}
 
 				newSize := sess.TerminalParams.Winsize()
-				currentSize, err := term.GetWinsize(0)
+				currentSize, err = term.GetWinsize(0)
 				if err != nil {
 					log.Error(err)
 				}

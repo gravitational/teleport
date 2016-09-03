@@ -124,6 +124,7 @@ func NewTunnel(addr utils.NetAddr,
 	}
 	// create an SSH server and assign the tunnel to be it's "new SSH channel handler"
 	tunnel.sshServer, err = sshutils.NewServer(
+		teleport.ComponentAuth,
 		addr,
 		tunnel,
 		[]ssh.Signer{hostSigner},
@@ -159,7 +160,7 @@ func (s *AuthTunnel) Close() error {
 // HandleNewChan implements NewChanHandler interface: it gets called every time a new SSH
 // connection is established
 func (s *AuthTunnel) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
-	log.Infof("[AUTH] new channel request: %v", nch.ChannelType())
+	log.Debugf("[AUTH] new channel request for %v from %v", nch.ChannelType(), sconn.RemoteAddr())
 	cht := nch.ChannelType()
 	switch cht {
 
@@ -366,7 +367,7 @@ func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel,
 func (s *AuthTunnel) keyAuth(
 	conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 
-	log.Infof("keyAuth: %v->%v, user=%v", conn.RemoteAddr(), conn.LocalAddr(), conn.User())
+	log.Infof("[AUTH] keyAuth: %v->%v, user=%v", conn.RemoteAddr(), conn.LocalAddr(), conn.User())
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
 		return nil, trace.Errorf("ERROR: Server doesn't support provided key type")
@@ -416,7 +417,7 @@ func (s *AuthTunnel) passwordAuth(
 		return nil, err
 	}
 
-	log.Infof("auth attempt: user '%v' type '%v'", conn.User(), ab.Type)
+	log.Infof("[AUTH] login attempt: user '%v' type '%v'", conn.User(), ab.Type)
 
 	switch ab.Type {
 	case AuthWebPassword:
@@ -430,7 +431,7 @@ func (s *AuthTunnel) passwordAuth(
 				ExtRole:        string(teleport.RoleUser),
 			},
 		}
-		log.Infof("password authenticated user: '%v'", conn.User())
+		log.Infof("[AUTH] password authenticated user: '%v'", conn.User())
 		return perms, nil
 	case AuthWebSession:
 		// we use extra permissions mechanism to keep the connection data
@@ -444,7 +445,7 @@ func (s *AuthTunnel) passwordAuth(
 		if _, err := s.authServer.GetWebSession(conn.User(), string(ab.Pass)); err != nil {
 			return nil, trace.Errorf("session resume error: %v", trace.Wrap(err))
 		}
-		log.Infof("session authenticated user: '%v'", conn.User())
+		log.Infof("[AUTH] session authenticated user: '%v'", conn.User())
 		return perms, nil
 	// when a new server tries to use the auth API to register in the cluster,
 	// it will use the token as a passowrd (happens only once during registration):
@@ -471,7 +472,7 @@ func (s *AuthTunnel) passwordAuth(
 				ExtToken: string(password),
 				ExtRole:  string(teleport.RoleSignup),
 			}}
-		log.Infof("session authenticated prov. token: '%v'", conn.User())
+		log.Infof("[AUTH] session authenticated prov. token: '%v'", conn.User())
 		return perms, nil
 	default:
 		return nil, trace.Errorf("unsupported auth method: '%v'", ab.Type)
@@ -578,7 +579,7 @@ func NewTunClient(purpose string,
 	for _, o := range opts {
 		o(tc)
 	}
-	log.Infof("newTunClient(%s) with auth: %v", purpose, authServers)
+	log.Debugf("newTunClient(%s) with auth: %v", purpose, authServers)
 
 	clt, err := NewClient("http://stub:0", tc.Dial)
 	if err != nil {
@@ -601,7 +602,7 @@ func NewTunClient(purpose string,
 // Close releases all the resources allocated for this client
 func (c *TunClient) Close() error {
 	if c != nil {
-		log.Infof("TunClient[%s].Close()", c.purpose)
+		log.Debugf("TunClient[%s].Close()", c.purpose)
 		c.GetTransport().CloseIdleConnections()
 		c.closeOnce.Do(func() {
 			close(c.closeC)
@@ -645,7 +646,7 @@ func (c *TunClient) GetAgent() (AgentCloser, error) {
 
 // Dial dials to Auth server's HTTP API over SSH tunnel
 func (c *TunClient) Dial(network, address string) (net.Conn, error) {
-	log.Infof("TunClient[%s].Dial()", c.purpose)
+	log.Debugf("TunClient[%s].Dial()", c.purpose)
 	client, err := c.getClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -685,7 +686,7 @@ func (c *TunClient) fetchAndSync() error {
 // authServersSyncLoop continuously refreshes the list of available auth servers
 // for this client
 func (c *TunClient) authServersSyncLoop() {
-	log.Infof("TunClient[%s]: authServersSyncLoop() started", c.purpose)
+	log.Debugf("TunClient[%s]: authServersSyncLoop() started", c.purpose)
 	defer c.refreshTicker.Stop()
 
 	// initial fetch for quick start-ups
@@ -697,7 +698,7 @@ func (c *TunClient) authServersSyncLoop() {
 			c.fetchAndSync()
 		// received a signal to quit?
 		case <-c.closeC:
-			log.Infof("TunClient[%s]: authServersSyncLoop() exited", c.purpose)
+			log.Debugf("TunClient[%s]: authServersSyncLoop() exited", c.purpose)
 			return
 		}
 	}
@@ -762,7 +763,7 @@ func (c *TunClient) getClient() (client *ssh.Client, err error) {
 	if len(authServers) == 0 {
 		return nil, trace.Errorf("all auth servers are offline")
 	}
-	log.Infof("tunClient(%s).authServers: %v", c.purpose, authServers)
+	log.Debugf("tunClient(%s).authServers: %v", c.purpose, authServers)
 
 	// try to connect to the 1st one who will pick up:
 	for _, authServer := range authServers {
@@ -806,7 +807,7 @@ type tunAgent struct {
 }
 
 func (ta *tunAgent) Close() error {
-	log.Infof("tunAgent.Close")
+	log.Debugf("tunAgent.Close")
 	return ta.client.Close()
 }
 

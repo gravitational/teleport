@@ -209,8 +209,17 @@ func New(addr utils.NetAddr,
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	var component string
+	if s.proxyMode {
+		component = teleport.ComponentProxy
+	} else {
+		component = teleport.ComponentNode
+	}
+
 	s.reg = newSessionRegistry(s)
 	srv, err := sshutils.NewServer(
+		component,
 		addr, s, signers,
 		sshutils.AuthMethods{PublicKey: s.keyAuth},
 		sshutils.SetLimiter(s.limiter),
@@ -299,7 +308,7 @@ func (s *Server) heartbeatPresence() {
 			continue
 		case <-s.closer.C:
 			{
-				log.Infof("server.heartbeatPresence() exited")
+				log.Debugf("server.heartbeatPresence() exited")
 				return
 			}
 		}
@@ -442,7 +451,7 @@ func (s *Server) isAuthority(cert ssh.PublicKey) bool {
 // EmitAuditEvent logs a given event to the audit log attached to the
 // server who owns these sessions
 func (s *Server) EmitAuditEvent(eventType string, fields events.EventFields) {
-	log.Infof("server.EmitAuditEvent(%v)", eventType)
+	log.Debugf("server.EmitAuditEvent(%v)", eventType)
 	alog := s.alog
 	if alog != nil {
 		if err := alog.EmitAuditEvent(eventType, fields); err != nil {
@@ -458,7 +467,7 @@ func (s *Server) EmitAuditEvent(eventType string, fields events.EventFields) {
 func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 	cid := fmt.Sprintf("conn(%v->%v, user=%v)", conn.RemoteAddr(), conn.LocalAddr(), conn.User())
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
-	log.Infof("%v auth attempt with key %v", cid, fingerprint)
+	log.Debugf("[SSH] %v auth attempt with key %v", cid, fingerprint)
 
 	logger := log.WithFields(log.Fields{
 		"local":       conn.LocalAddr(),
@@ -469,15 +478,12 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
-		logger.Warningf("server doesn't support provided key type")
-		return nil, trace.BadParameter("server doesn't support provided key type: %v", fingerprint)
+		return nil, trace.BadParameter("unsupported key type: %v", fingerprint)
 	}
 	if len(cert.ValidPrincipals) == 0 {
-		logger.Warningf("cert does not have valid principals")
 		return nil, trace.BadParameter("need a valid principal for key %v", fingerprint)
 	}
 	if len(cert.KeyId) == 0 {
-		logger.Warningf("cert does not have valid key id")
 		return nil, trace.BadParameter("need a valid key for key %v", fingerprint)
 	}
 	teleportUser := cert.KeyId
@@ -501,7 +507,7 @@ func (s *Server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 		logAuditEvent(err)
 		return nil, trace.Wrap(err)
 	}
-	logger.Infof("successfully authenticated")
+	logger.Debugf("[SSH] successfully authenticated")
 
 	// see if the host user is valid (no need to do this in proxy mode)
 	if !s.proxyMode {
@@ -678,12 +684,12 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 		case creq := <-ctx.subsystemResultC:
 			// this means that subsystem has finished executing and
 			// want us to close session and the channel
-			ctx.Infof("close session request: %v", creq.err)
+			ctx.Debugf("[SSH] close session request: %v", creq.err)
 			return
 		case req := <-in:
 			if req == nil {
 				// this will happen when the client closes/drops the connection
-				ctx.Infof("ssh.server: client disconnected")
+				ctx.Debugf("[SSH] client %v disconnected", sconn.RemoteAddr())
 				return
 			}
 			if err := s.dispatch(ch, req, ctx); err != nil {
@@ -694,7 +700,7 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 				req.Reply(true, nil)
 			}
 		case result := <-ctx.result:
-			ctx.Infof("ctx.result = %v", result)
+			ctx.Debugf("[SSH] ctx.result = %v", result)
 			// pass back stderr output
 			if len(result.stderr) != 0 {
 				ch.Stderr().Write(result.stderr)
@@ -703,7 +709,7 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 			// we send it back and close the session
 			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(result.code)}))
 			if err != nil {
-				ctx.Infof("%v failed to send exit status: %v", result.command, err)
+				ctx.Infof("[SSH] %v failed to send exit status: %v", result.command, err)
 			}
 			return
 		}
@@ -713,7 +719,7 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 // dispatch receives an SSH request for a subsystem and disptaches the request to the
 // appropriate subsystem implementation
 func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	ctx.Infof("ssh.dispatch(req=%v, wantReply=%v)", req.Type, req.WantReply)
+	ctx.Debugf("ssh.dispatch(req=%v, wantReply=%v)", req.Type, req.WantReply)
 
 	// if this SSH server is configured to only proxy, we do not support anything other
 	// than our own custom "subsystems" and environment manipulation
@@ -767,7 +773,7 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 	if err != nil {
 		return err
 	}
-	ctx.Infof("opened agent channel")
+	ctx.Debugf("[SSH] opened agent channel")
 	ctx.setAgent(agent.NewClient(authChan), authChan)
 	return nil
 }
@@ -790,22 +796,22 @@ func (s *Server) handleWinChange(ch ssh.Channel, req *ssh.Request, ctx *ctx) err
 }
 
 func (s *Server) handleSubsystem(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	ctx.Infof("handleSubsystem()")
+	ctx.Debugf("[SSH] handleSubsystem()")
 	sb, err := parseSubsystemRequest(s, req)
 	if err != nil {
-		ctx.Infof("%v failed to parse subsystem request: %v", err)
+		ctx.Warnf("[SSH] %v failed to parse subsystem request: %v", err)
 		return trace.Wrap(err)
 	}
 	// starting subsystem is blocking to the client,
 	// while collecting its result and waiting is not blocking
 	if err := sb.start(ctx.conn, ch, req, ctx); err != nil {
-		ctx.Infof("failed to execute request, err: %v", err)
+		ctx.Warnf("[SSH] failed to execute request, err: %v", err)
 		ctx.sendSubsystemResult(trace.Wrap(err))
 		return trace.Wrap(err)
 	}
 	go func() {
 		err := sb.wait()
-		log.Infof("%v finished with result: %v", sb, err)
+		log.Debugf("%v finished with result: %v", sb, err)
 		ctx.sendSubsystemResult(trace.Wrap(err))
 	}()
 	return nil
@@ -876,7 +882,7 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 		replyError(ch, req, err)
 	}
 	if result != nil {
-		ctx.Infof("%v result collected: %v", execResponse, result)
+		ctx.Debugf("%v result collected: %v", execResponse, result)
 		ctx.sendResult(*result)
 	}
 	if err != nil {

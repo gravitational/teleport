@@ -52,6 +52,7 @@ func (s *ServerSuite) TestStartStop(c *C) {
 	})
 
 	srv, err := NewServer(
+		"test",
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		fn,
 		s.signers,

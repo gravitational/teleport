@@ -150,12 +150,12 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 	// try calling a test method via auth api:
 	//
 	// ??? in case of failure it never gets back here!!!
-	_, err = authClient.GetLocalDomain()
+	dn, err := authClient.GetLocalDomain()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// success ? we're logged in!
-	log.Infof("%s connected to the cluster", authUser)
+	log.Infof("[Node] %s connected to the cluster '%s'", authUser, dn)
 	return &Connector{Client: authClient, Identity: identity}, nil
 }
 
@@ -510,14 +510,14 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 			if process.getLocalAuth() != nil {
 				// Auth service is on the same host, no need to go though the invitation
 				// procedure
-				log.Infof("this server has local Auth server started, using it to add role to the cluster")
+				log.Debugf("[Node] this server has local Auth server started, using it to add role to the cluster")
 				err = auth.LocalRegister(cfg.DataDir, identityID, process.getLocalAuth())
 			} else {
 				// Auth server is remote, so we need a provisioning token
 				if token == "" {
 					return trace.BadParameter("%v must join a cluster and needs a provisioning token", role)
 				}
-				log.Infof("%v joining the cluster with a token %v", role, token)
+				log.Infof("[Node] %v joining the cluster with a token %v", role, token)
 				err = auth.Register(cfg.DataDir, token, identityID, cfg.AuthServers)
 			}
 			if err != nil {

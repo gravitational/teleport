@@ -105,7 +105,7 @@ func (m *AgentPool) pollAndSyncAgents() {
 	for {
 		select {
 		case <-m.closeBroadcast.C:
-			m.Infof("closing")
+			m.Debugf("closing")
 			m.Lock()
 			defer m.Unlock()
 			for _, a := range m.agents {
@@ -132,14 +132,14 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 	}
 	agentsToAdd, agentsToRemove := diffTunnels(m.agents, keys)
 	for _, key := range agentsToRemove {
-		m.Infof("removing %v", &key)
+		m.Debugf("removing %v", &key)
 		agent := m.agents[key]
 		delete(m.agents, key)
 		agent.Close()
 	}
 
 	for _, key := range agentsToAdd {
-		m.Infof("adding %v", &key)
+		m.Debugf("adding %v", &key)
 		agent, err := NewAgent(key.addr, key.domainName, m.cfg.HostUUID, m.cfg.HostSigners, m.cfg.Client)
 		if err != nil {
 			return trace.Wrap(err)

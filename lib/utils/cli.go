@@ -52,11 +52,20 @@ func InitLoggerCLI() {
 
 // InitLoggerDebug configures the logger to dump everything to stderr
 func InitLoggerDebug() {
+	InitDebugLogger(log.DebugLevel)
+}
+
+// InitLoggerVerbose is a less chatty version of debug logger above
+func InitLoggerVerbose() {
+	InitDebugLogger(log.InfoLevel)
+}
+
+func InitDebugLogger(level log.Level) {
 	// clear existing hooks:
 	log.StandardLogger().Hooks = make(log.LevelHooks)
 	log.SetFormatter(&trace.TextFormatter{})
 	log.SetOutput(os.Stderr)
-	log.SetLevel(log.DebugLevel)
+	log.SetLevel(level)
 }
 
 // InitLoggerForTests inits logger to discard ouput in tests unless

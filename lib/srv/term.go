@@ -46,7 +46,7 @@ type terminal struct {
 func parsePTYReq(req *ssh.Request) (*sshutils.PTYReqParams, error) {
 	var r sshutils.PTYReqParams
 	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
-		log.Infof("failed to parse PTY request: %v", err)
+		log.Warnf("failed to parse PTY request: %v", err)
 		return nil, err
 	}
 	return &r, nil
@@ -56,7 +56,7 @@ func newTerminal() (*terminal, error) {
 	// Create new PTY
 	pty, tty, err := pty.Open()
 	if err != nil {
-		log.Infof("could not start pty (%s)", err)
+		log.Warnf("could not start pty (%s)", err)
 		return nil, err
 	}
 	return &terminal{pty: pty, tty: tty, err: err}, nil
@@ -65,13 +65,13 @@ func newTerminal() (*terminal, error) {
 func requestPTY(req *ssh.Request) (*terminal, *rsession.TerminalParams, error) {
 	var r sshutils.PTYReqParams
 	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
-		log.Infof("failed to parse PTY request: %v", err)
+		log.Warnf("failed to parse PTY request: %v", err)
 		return nil, nil, trace.Wrap(err)
 	}
-	log.Infof("Parsed pty request pty(enn=%v, w=%v, h=%v)", r.Env, r.W, r.H)
+	log.Debugf("Parsed pty request pty(enn=%v, w=%v, h=%v)", r.Env, r.W, r.H)
 	t, err := newTerminal()
 	if err != nil {
-		log.Infof("failed to create term: %v", err)
+		log.Warnf("failed to create term: %v", err)
 		return nil, nil, trace.Wrap(err)
 	}
 	params, err := rsession.NewTerminalParamsFromUint32(r.W, r.H)
@@ -118,7 +118,7 @@ func (t *terminal) getTerminalParams() rsession.TerminalParams {
 
 func (t *terminal) closeTTY() {
 	if err := t.tty.Close(); err != nil {
-		log.Infof("failed to close TTY: %v", err)
+		log.Warnf("failed to close TTY: %v", err)
 	}
 	t.tty = nil
 }

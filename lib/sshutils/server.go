@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	//"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -32,6 +33,7 @@ import (
 
 // Server is a generic implementation of a frame for SSH server
 type Server struct {
+	component      string
 	addr           utils.NetAddr
 	listener       net.Listener
 	closeC         chan struct{}
@@ -52,7 +54,9 @@ func SetLimiter(limiter *limiter.Limiter) ServerOption {
 	}
 }
 
-func NewServer(a utils.NetAddr,
+func NewServer(
+	component string,
+	a utils.NetAddr,
 	h NewChanHandler,
 	hostSigners []ssh.Signer,
 	ah AuthMethods,
@@ -63,6 +67,7 @@ func NewServer(a utils.NetAddr,
 		return nil, err
 	}
 	s := &Server{
+		component:      component,
 		addr:           a,
 		newChanHandler: h,
 		closeC:         make(chan struct{}),
@@ -111,7 +116,7 @@ func (s *Server) Start() error {
 		return err
 	}
 	s.listener = socket
-	log.Infof("created listening socket: %v", socket.Addr())
+	log.Infof("[SSH:%s] listening socket: %v", s.component, socket.Addr())
 	go s.acceptConnections()
 	return nil
 }
@@ -136,24 +141,23 @@ func (s *Server) Close() error {
 func (s *Server) acceptConnections() {
 	defer s.notifyClosed()
 	addr := s.Addr()
-	log.Infof("%v ready to accept connections", addr)
+	log.Infof("[SSH:%v] is listening on %v", s.component, addr)
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			if s.askedToClose {
-				log.Infof("SSH server %v exited", addr)
+				log.Infof("[SSH:%v] server %v exited", s.component, addr)
 				s.askedToClose = false
 				return
 			}
 			// our best shot to avoid excessive logging
 			if op, ok := err.(*net.OpError); ok && !op.Timeout() {
-				log.Infof("socket closed: %v", op)
+				log.Debugf("[SSH:%v] closed socket %v", s.component, op)
 				return
 			}
-			log.Infof("accept error: %T %v", err, err)
+			log.Errorf("SSH:%v accept error: %T %v", s.component, err, err)
 			return
 		}
-		log.Infof("%v accepted connection from %v", s.Addr(), conn.RemoteAddr())
 		go s.handleConnection(conn)
 	}
 }
@@ -197,8 +201,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 		return
 	}
 	// Connection successfully initiated
-	log.Infof("new ssh connection %v -> %v vesion: %v",
-		sconn.RemoteAddr(), sconn.LocalAddr(), string(sconn.ClientVersion()))
+	log.Infof("[SSH:%v] new connection %v -> %v vesion: %v",
+		s.component, sconn.RemoteAddr(), sconn.LocalAddr(), string(sconn.ClientVersion()))
 
 	wg := sync.WaitGroup{}
 	wg.Add(2)
@@ -219,7 +223,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 func (s *Server) handleRequests(reqs <-chan *ssh.Request) {
 	for req := range reqs {
-		log.Infof("recieved out-of-band request: %+v", req)
+		log.Infof("[SSH:%v] recieved out-of-band request: %+v", s.component, req)
 		if s.reqHandler != nil {
 			s.reqHandler.HandleRequest(req)
 		}

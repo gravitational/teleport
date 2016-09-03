@@ -136,6 +136,7 @@ func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 	}
 
 	s, err := sshutils.NewServer(
+		teleport.ComponentReverseTunnel,
 		addr,
 		srv,
 		hostSigners,
@@ -177,7 +178,7 @@ func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.New
 		nch.Reject(ssh.ConnectionFailed, msg)
 		return
 	}
-	log.Infof("new reverse tunnel agent: %s", sconn.RemoteAddr())
+	log.Debugf("[TUNNEL] new tunnel from %s", sconn.RemoteAddr())
 	if sconn.Permissions.Extensions[extCertType] != extCertTypeHost {
 		log.Error(trace.BadParameter("can't retrieve certificate type in certType"))
 		return
@@ -368,7 +369,8 @@ func (s *server) upsertSite(conn net.Conn, sshConn *ssh.ServerConn) (*tunnelSite
 		}
 		s.tunnelSites = append(s.tunnelSites, site)
 	}
-	log.Infof("[REVERSE TUNNEL] added remote site: %v", domainName)
+	log.Infof("[TUNNEL] site %v connected from %v. sites: %d",
+		domainName, conn.RemoteAddr(), len(s.tunnelSites))
 	return site, remoteConn, nil
 }
 
@@ -419,7 +421,6 @@ func (rc *remoteConn) Close() error {
 }
 
 func (rc *remoteConn) markInvalid(err error) {
-	rc.log.Infof("%v is invalid: %v", rc, err)
 	atomic.StoreInt32(&rc.invalid, 1)
 }
 
@@ -494,7 +495,6 @@ func (s *tunnelSite) nextConn() (*remoteConn, error) {
 		s.lastUsed = (s.lastUsed + 1) % len(s.connections)
 		remoteConn := s.connections[s.lastUsed]
 		if !remoteConn.isInvalid() {
-			s.log.Infof("return connection %v", s.lastUsed)
 			return remoteConn, nil
 		}
 		s.connections = append(s.connections[:s.lastUsed], s.connections[s.lastUsed+1:]...)
@@ -537,11 +537,11 @@ func (s *tunnelSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 			select {
 			case req := <-reqC:
 				if req == nil {
-					s.log.Infof("agent disconnected")
+					s.log.Infof("[TUNNEL] site disconnected: %v", s.domainName)
 					conn.markInvalid(trace.ConnectionProblem(nil, "agent disconnected"))
 					return
 				}
-				log.Infof("ping from reverse tunnel client \"%s\" %s", s.domainName, conn.conn.RemoteAddr())
+				log.Debugf("[TUNNEL] ping from \"%s\" %s", s.domainName, conn.conn.RemoteAddr())
 				s.setLastActive(time.Now())
 			case <-time.After(3 * defaults.ReverseTunnelAgentHeartbeatPeriod):
 				conn.markInvalid(trace.ConnectionProblem(nil, "agent missed 3 heartbeats"))
@@ -566,7 +566,7 @@ func (s *tunnelSite) timeout() time.Duration {
 }
 
 func (s *tunnelSite) ConnectToServer(server, user string, auth []ssh.AuthMethod) (*ssh.Client, error) {
-	s.log.Infof("ConnectToServer(server=%v, user=%v)", server, user)
+	s.log.Infof("[TUNNEL] connect(server=%v, user=%v)", server, user)
 	remoteConn, err := s.nextConn()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -593,32 +593,37 @@ func (s *tunnelSite) ConnectToServer(server, user string, auth []ssh.AuthMethod)
 			Auth: auth,
 		})
 	if err != nil {
-		s.log.Infof("connectToServer %v", err)
+		s.log.Errorf("[TUNNEL] connect(server=%v): %v", server, err)
 		return nil, trace.Wrap(err)
 	}
 	return ssh.NewClient(conn, chans, reqs), nil
 }
 
-func (s *tunnelSite) tryDialAccessPoint(network, addr string) (net.Conn, error) {
-	s.log.Infof("tryDialAccessPoint(net=%v, addr=%v)", network, addr)
-	remoteConn, err := s.nextConn()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ch, _, err := remoteConn.sshConn.OpenChannel(chanAccessPoint, nil)
-	if err != nil {
-		remoteConn.markInvalid(err)
-		s.log.Infof("%v marking connection invalid, conn err: %v", remoteConn.conn.RemoteAddr(), err)
-		return nil, trace.Wrap(err)
-	}
-	return utils.NewChConn(remoteConn.sshConn, ch), nil
-}
-
+// dialAccessPoint establishes a connection from the proxy (reverse tunnel server)
+// back into the client using previously established tunnel.
 func (s *tunnelSite) dialAccessPoint(network, addr string) (net.Conn, error) {
-	s.log.Infof("dialAccessPoint(net=%v, addr=%v)", network, addr)
+	s.log.Infof("[TUNNEL] dial to site '%s'", s.GetName())
+
+	try := func() (net.Conn, error) {
+		remoteConn, err := s.nextConn()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ch, _, err := remoteConn.sshConn.OpenChannel(chanAccessPoint, nil)
+		if err != nil {
+			remoteConn.markInvalid(err)
+			s.log.Errorf("[TUNNEL] disconnecting site '%s' on %v. Err: %v",
+				s.GetName(),
+				remoteConn.conn.RemoteAddr(),
+				err)
+			return nil, trace.Wrap(err)
+		}
+		s.log.Infof("[TUNNEL] success dialing to site '%s'", s.GetName())
+		return utils.NewChConn(remoteConn.sshConn, ch), nil
+	}
 
 	for {
-		conn, err := s.tryDialAccessPoint(network, addr)
+		conn, err := try()
 		if err != nil {
 			if trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
@@ -629,39 +634,43 @@ func (s *tunnelSite) dialAccessPoint(network, addr string) (net.Conn, error) {
 	}
 }
 
-func (s *tunnelSite) tryDial(net, addr string) (net.Conn, error) {
-	s.log.Infof("tryDial(net=%v, addr=%v)", net, addr)
-	remoteConn, err := s.nextConn()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var ch ssh.Channel
-	ch, _, err = remoteConn.sshConn.OpenChannel(chanTransport, nil)
-	if err != nil {
-		remoteConn.markInvalid(err)
-		return nil, trace.Wrap(err)
-	}
-	// ask remote channel to dial
-	var dialed bool
-	dialed, err = ch.SendRequest(chanTransportDialReq, true, []byte(addr))
-	if err != nil {
-		remoteConn.markInvalid(err)
-		return nil, trace.Wrap(err)
-	}
-	if !dialed {
-		remoteConn.markInvalid(err)
-		return nil, trace.ConnectionProblem(
-			nil, "remote server %v is not available", addr)
-	}
-	return utils.NewChConn(remoteConn.sshConn, ch), nil
-}
+// Dial is used to connect a requesting client (say, tsh) to an SSH server
+// located in a remote connected site, the connection goes through the
+// reverse proxy tunnel.
+func (s *tunnelSite) Dial(network string, addr string) (net.Conn, error) {
+	s.log.Infof("[TUNNEL] dialing %v@%v through the tunnel", addr, s.domainName)
 
-func (s *tunnelSite) Dial(net string, addr string) (net.Conn, error) {
-	s.log.Infof("Dial(net=%v, addr=%v)", net, addr)
-	for {
-		conn, err := s.tryDial(net, addr)
+	try := func() (net.Conn, error) {
+		remoteConn, err := s.nextConn()
 		if err != nil {
-			s.log.Infof("got connection problem: %v", err)
+			return nil, trace.Wrap(err)
+		}
+		var ch ssh.Channel
+		ch, _, err = remoteConn.sshConn.OpenChannel(chanTransport, nil)
+		if err != nil {
+			remoteConn.markInvalid(err)
+			return nil, trace.Wrap(err)
+		}
+		// we're creating a new SSH connection inside reverse SSH connection
+		// as a new SSH channel:
+		var dialed bool
+		dialed, err = ch.SendRequest(chanTransportDialReq, true, []byte(addr))
+		if err != nil {
+			remoteConn.markInvalid(err)
+			return nil, trace.Wrap(err)
+		}
+		if !dialed {
+			remoteConn.markInvalid(err)
+			return nil, trace.ConnectionProblem(
+				nil, "remote server %v is not available", addr)
+		}
+		return utils.NewChConn(remoteConn.sshConn, ch), nil
+	}
+
+	for {
+		conn, err := try()
+		if err != nil {
+			s.log.Errorf("[TUNNEL] Dial(addr=%v) failed: %v", addr, err)
 			// we interpret it as a "out of connections and will try again"
 			if trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
@@ -673,7 +682,7 @@ func (s *tunnelSite) Dial(net string, addr string) (net.Conn, error) {
 }
 
 func (s *tunnelSite) DialServer(addr string) (net.Conn, error) {
-	s.log.Infof("DialServer(addr=%v)", addr)
+	s.log.Infof("[TUNNEL] DialServer(addr=%v)", addr)
 	clt, err := s.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -682,7 +691,7 @@ func (s *tunnelSite) DialServer(addr string) (net.Conn, error) {
 	for i := 0; i < 10; i++ {
 		knownServers, err = clt.GetNodes()
 		if err != nil {
-			log.Infof("failed to get servers: %v", err)
+			log.Errorf("[TUNNEL] failed to get servers: %v", err)
 			time.Sleep(time.Second)
 		}
 	}
@@ -697,7 +706,7 @@ func (s *tunnelSite) DialServer(addr string) (net.Conn, error) {
 }
 
 func (s *tunnelSite) handleAuthProxy(w http.ResponseWriter, r *http.Request) {
-	s.log.Infof("handleAuthProxy()")
+	s.log.Infof("[TUNNEL] handleAuthProxy()")
 
 	fwd, err := forward.New(forward.RoundTripper(s.transport), forward.Logger(s.log))
 	if err != nil {

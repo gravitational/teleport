@@ -757,9 +757,9 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.S
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		log.Infof("connecting to remote shell using stdin")
+		log.Infof("[CLIENT] connecting to remote shell using stdin")
 	} else {
-		log.Infof("connecting to remote shell NOT using stdin")
+		log.Infof("[CLIENT] connecting to remote shell NOT using stdin")
 	}
 	defer func() {
 		if state != nil {
@@ -879,7 +879,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		HostKeyCallback: tc.HostKeyCallback,
 	}
 
-	log.Infof("connecting to proxy: %v with host login %v", proxyAddr, sshConfig.User)
+	log.Infof("[CLIENT] connecting to proxy %v with host login '%v'", proxyAddr, sshConfig.User)
 
 	// try to authenticate using every non interactive auth method we have:
 	for _, m := range tc.authMethods() {
@@ -891,7 +891,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 			}
 			return nil, trace.Wrap(err)
 		}
-		log.Infof("Successfully authenticated with %v", proxyAddr)
+		log.Infof("[CLIENT] successfully authenticated with %v", proxyAddr)
 		return &ProxyClient{
 			Client:          proxyClient,
 			proxyAddress:    proxyAddr,

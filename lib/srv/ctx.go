@@ -176,7 +176,7 @@ func (c *ctx) String() string {
 }
 
 func (c *ctx) setEnv(key, val string) {
-	c.Infof("setEnv(%v=%v)", key, val)
+	c.Debugf("setEnv(%v=%v)", key, val)
 	c.env[key] = val
 }
 
