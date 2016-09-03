@@ -826,7 +826,7 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.S
 	// copy from the local shell to the remote
 	go func() {
 		defer broadcastClose.Close()
-		buf := make([]byte, 1)
+		buf := make([]byte, 128)
 		for {
 			n, err := stdin.Read(buf)
 			if err != nil {
