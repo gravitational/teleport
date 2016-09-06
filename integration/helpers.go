@@ -188,14 +188,27 @@ func (i *TeleInstance) GetSiteAPI(siteName string) auth.ClientI {
 // Create creates a new instance of Teleport which trusts a lsit of other clusters (other
 // instances)
 func (i *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bool, console io.Writer) error {
+	tconf := service.MakeDefaultConfig()
+	tconf.SSH.Enabled = enableSSH
+	tconf.Console = console
+	return i.CreateEx(trustedSecrets, tconf)
+}
+
+// CreateEx creates a new instance of Teleport which trusts a lsit of other clusters (other
+// instances)
+//
+// Unlike Create() it allows for greater customization because it accepts
+// a full Teleport config structure
+func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *service.Config) error {
 	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tconf := service.MakeDefaultConfig()
+	if tconf == nil {
+		tconf = service.MakeDefaultConfig()
+	}
 	tconf.SeedConfig = true
 	tconf.DataDir = dataDir
-	tconf.Console = console
 	tconf.Auth.DomainName = i.Secrets.SiteName
 	tconf.Auth.Authorities = append(tconf.Auth.Authorities, i.Secrets.GetCAs()...)
 	tconf.Identities = append(tconf.Identities, i.Secrets.GetIdentity())
@@ -213,7 +226,6 @@ func (i *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bool,
 	}
 	tconf.Proxy.ReverseTunnelListenAddr.Addr = i.Secrets.ListenAddr
 	tconf.HostUUID = i.Secrets.GetIdentity().ID.HostUUID
-	tconf.SSH.Enabled = enableSSH
 	tconf.SSH.Addr.Addr = net.JoinHostPort(i.Hostname, i.GetPortSSH())
 	tconf.Auth.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortAuth())
 	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortProxy())

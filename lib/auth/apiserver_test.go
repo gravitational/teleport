@@ -46,7 +46,7 @@ type APISuite struct {
 	bk       backend.Backend
 	a        *AuthServer
 	dir      string
-	alog     *events.AuditLog
+	alog     events.IAuditLog
 	sessions session.Service
 
 	CAS           services.Trust
@@ -101,8 +101,12 @@ func (s *APISuite) SetUpTest(c *C) {
 }
 
 func (s *APISuite) TearDownTest(c *C) {
+	fileBasedLog, ok := s.alog.(*events.AuditLog)
+	c.Assert(ok, Equals, true)
+	if ok {
+		fileBasedLog.Close()
+	}
 	s.srv.Close()
-	s.alog.Close()
 	os.RemoveAll(s.dir)
 }
 

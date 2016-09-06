@@ -11,6 +11,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 type AuditTestSuite struct {
@@ -26,13 +27,27 @@ func (a *AuditTestSuite) TearDownSuite(c *check.C) {
 	os.RemoveAll(a.dataDir)
 }
 
+// creates a file-based audit log and returns a proper *AuditLog pointer
+// instead of the usual IAuditLog interface
+func (a *AuditTestSuite) makeLog(c *check.C, dataDir string) (*AuditLog, error) {
+	alog, err := NewAuditLog(dataDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	retval, ok := alog.(*AuditLog)
+	if !ok {
+		c.FailNow()
+	}
+	return retval, nil
+}
+
 func (a *AuditTestSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests()
 	a.dataDir = c.MkDir()
 }
 
 func (a *AuditTestSuite) TestNew(c *check.C) {
-	alog, err := NewAuditLog(a.dataDir)
+	alog, err := a.makeLog(c, a.dataDir)
 	c.Assert(err, check.IsNil)
 	// close twice:
 	c.Assert(alog.Close(), check.IsNil)
@@ -44,7 +59,7 @@ func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 	os.RemoveAll(a.dataDir)
 
 	// create audit log, write a couple of events into it, close it
-	alog, err := NewAuditLog(a.dataDir)
+	alog, err := a.makeLog(c, a.dataDir)
 	c.Assert(err, check.IsNil)
 	alog.TimeSource = func() time.Time { return now }
 
@@ -122,7 +137,7 @@ func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 func (a *AuditTestSuite) TestBasicLogging(c *check.C) {
 	now := time.Now().In(time.UTC).Round(time.Second)
 	// create audit log, write a couple of events into it, close it
-	alog, err := NewAuditLog(a.dataDir)
+	alog, err := a.makeLog(c, a.dataDir)
 	c.Assert(err, check.IsNil)
 	alog.TimeSource = func() time.Time { return now }
 

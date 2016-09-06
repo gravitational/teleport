@@ -62,7 +62,7 @@ type SrvSuite struct {
 	bk            backend.Backend
 	a             *auth.AuthServer
 	roleAuth      *auth.AuthWithRoles
-	alog          *events.AuditLog
+	alog          events.IAuditLog
 	up            *upack
 	signer        ssh.Signer
 	dir           string
