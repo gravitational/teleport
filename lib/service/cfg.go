@@ -262,6 +262,9 @@ type AuthConfig struct {
 	}
 
 	Limiter limiter.LimiterConfig
+
+	// NoAudit, when set to true, disables session recording and event audit
+	NoAudit bool
 }
 
 // SSHConfig configures SSH server node role

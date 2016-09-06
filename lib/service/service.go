@@ -273,9 +273,15 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 
 	// create the audit log, which will be consuming (and recording) all events
 	// and record sessions
-	auditLog, err := events.NewAuditLog(filepath.Join(cfg.DataDir, "log"))
-	if err != nil {
-		return trace.Wrap(err)
+	var auditLog events.IAuditLog
+	if cfg.Auth.NoAudit {
+		auditLog = &events.DiscardAuditLog{}
+		log.Warn("the audit and session recording are turned off")
+	} else {
+		auditLog, err = events.NewAuditLog(filepath.Join(cfg.DataDir, "log"))
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// first, create the AuthServer

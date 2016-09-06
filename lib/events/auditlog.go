@@ -90,9 +90,7 @@ const (
 type TimeSourceFunc func() time.Time
 
 // AuditLog is a new combined facility to record Teleport events and
-// sessions. It implements these interfaces:
-//	- events.Log
-//	- recorder.Recorder
+// sessions. It implements IAuditLog
 type AuditLog struct {
 	sync.Mutex
 	loggers map[session.ID]*SessionLogger
@@ -206,7 +204,7 @@ func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
 
 // Creates and returns a new Audit Log oboject whish will store its logfiles
 // in a given directory>
-func NewAuditLog(dataDir string) (*AuditLog, error) {
+func NewAuditLog(dataDir string) (IAuditLog, error) {
 	// create a directory for session logs:
 	if err := os.MkdirAll(dataDir, 0770); err != nil {
 		return nil, trace.Wrap(err)

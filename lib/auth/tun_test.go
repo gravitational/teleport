@@ -45,7 +45,7 @@ type TunSuite struct {
 	a             *AuthServer
 	signer        ssh.Signer
 	dir           string
-	alog          *events.AuditLog
+	alog          events.IAuditLog
 	conf          *APIConfig
 	sessionServer session.Service
 }

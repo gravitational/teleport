@@ -76,7 +76,7 @@ type WebSuite struct {
 	freePorts   []string
 
 	// audit log and its dir:
-	auditLog *events.AuditLog
+	auditLog events.IAuditLog
 	logDir   string
 }
 
