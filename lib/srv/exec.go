@@ -166,7 +166,6 @@ func prepareCommand(ctx *ctx, cmd string) (*exec.Cmd, error) {
 		c = exec.Command(shell, append([]string{"-c", cmd})...)
 	}
 	c.Env = []string{
-		"TERM=xterm",
 		"LANG=en_US.UTF-8",
 		"HOME=" + osUser.HomeDir,
 		"USER=" + osUserName,

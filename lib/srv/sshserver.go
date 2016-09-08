@@ -719,7 +719,7 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 // dispatch receives an SSH request for a subsystem and disptaches the request to the
 // appropriate subsystem implementation
 func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	ctx.Debugf("ssh.dispatch(req=%v, wantReply=%v)", req.Type, req.WantReply)
+	ctx.Debugf("[SSH] ssh.dispatch(req=%v, wantReply=%v)", req.Type, req.WantReply)
 
 	// if this SSH server is configured to only proxy, we do not support anything other
 	// than our own custom "subsystems" and environment manipulation
@@ -796,7 +796,6 @@ func (s *Server) handleWinChange(ch ssh.Channel, req *ssh.Request, ctx *ctx) err
 }
 
 func (s *Server) handleSubsystem(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	ctx.Debugf("[SSH] handleSubsystem()")
 	sb, err := parseSubsystemRequest(s, req)
 	if err != nil {
 		ctx.Warnf("[SSH] %v failed to parse subsystem request: %v", err)
@@ -836,25 +835,26 @@ func (s *Server) handlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *ctx) error 
 		err    error
 		term   *terminal
 	)
+	r, err := parsePTYReq(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	params, err = rsession.NewTerminalParamsFromUint32(r.W, r.H)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ctx.Debugf("[SSH] terminal requested of size %v", *params)
+
 	// already have terminal?
-	if term = ctx.getTerm(); term != nil {
-		r, err := parsePTYReq(req)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		params, err = rsession.NewTerminalParamsFromUint32(r.W, r.H)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		term.setWinsize(*params)
-		// request one:
-	} else {
+	if term = ctx.getTerm(); term == nil {
 		term, params, err = requestPTY(req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		ctx.setTerm(term)
 	}
+	term.setWinsize(*params)
+
 	// update the session:
 	if err := s.reg.notifyWinChange(*params, ctx); err != nil {
 		log.Error(err)

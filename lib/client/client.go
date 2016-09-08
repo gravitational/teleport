@@ -255,26 +255,6 @@ func (proxy *ProxyClient) Close() error {
 	return proxy.Client.Close()
 }
 
-// Run executes command on the remote server and writes its stdout to
-// the 'output' argument
-func (client *NodeClient) Run(cmd []string, stdin io.Reader, stdout, stderr io.Writer, env map[string]string) error {
-	session, err := client.Client.NewSession()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// pass environment variables set by client
-	for key, val := range env {
-		err = session.Setenv(key, val)
-		if err != nil {
-			log.Warn(err)
-		}
-	}
-	session.Stdout = stdout
-	session.Stderr = stderr
-	session.Stdin = stdin
-	return session.Run(strings.Join(cmd, " "))
-}
-
 // Upload uploads file or dir to the remote server
 func (client *NodeClient) Upload(localSourcePath, remoteDestinationPath string, stderr io.Writer) error {
 	file, err := os.Open(localSourcePath)

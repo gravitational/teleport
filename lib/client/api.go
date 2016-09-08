@@ -650,7 +650,10 @@ func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, pr
 	resultsC := make(chan error, len(nodeAddresses))
 	for _, address := range nodeAddresses {
 		go func(address string) {
-			var err error
+			var (
+				err         error
+				nodeSession *NodeSession
+			)
 			defer func() {
 				resultsC <- err
 			}()
@@ -666,8 +669,13 @@ func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, pr
 			if len(nodeAddresses) > 1 {
 				fmt.Printf("Running command on %v:\n", address)
 			}
-			err = nodeClient.Run(command, stdin, tc.Stdout, tc.Stderr, tc.Config.Env)
+			nodeSession, err = newSession(nodeClient, nil, tc.Config.Env, stdin, tc.Stdout, tc.Stderr)
 			if err != nil {
+				log.Error(err)
+				return
+			}
+			// TODO: instead of "always false" (always non-interactive) implement a proper flag!!!
+			if err = nodeSession.runCommand(command, false); err != nil {
 				exitErr, ok := err.(*ssh.ExitError)
 				if ok {
 					tc.ExitStatus = exitErr.ExitStatus()

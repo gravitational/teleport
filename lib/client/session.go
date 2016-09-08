@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -44,6 +45,9 @@ type NodeSession struct {
 	ExitMsg string
 }
 
+// newSession creates a new Teleport session with the given remote node
+// if 'joinSessin' is given, the session will join the existing session
+// of another user
 func newSession(client *NodeClient,
 	joinSession *session.Session,
 	env map[string]string,
@@ -93,15 +97,23 @@ func newSession(client *NodeClient,
 	return ns, nil
 }
 
-type interactiveCallback func(serverSession *ssh.Session, shell io.ReadWriteCloser) error
-
-// interactiveSession creates an interactive session on the remote node, executes
-// the given callback on it, and waits for the session to end
-func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
-	// create the server-side session:
-	sess, err := ns.nodeClient.Client.NewSession()
+func (ns *NodeSession) regularSession(callback func(s *ssh.Session) error) error {
+	session, err := ns.createServerSession()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	session.Stdout = ns.stdout
+	session.Stderr = ns.stderr
+	session.Stdin = ns.stdin
+	return trace.Wrap(callback(session))
+}
+
+type interactiveCallback func(serverSession *ssh.Session, shell io.ReadWriteCloser) error
+
+func (ns *NodeSession) createServerSession() (*ssh.Session, error) {
+	sess, err := ns.nodeClient.Client.NewSession()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	// pass language info into the remote session.
 	evarsToPass := []string{"LANG", "LANGUAGE"}
@@ -119,6 +131,19 @@ func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
 		if err != nil {
 			log.Warn(err)
 		}
+	}
+	return sess, nil
+}
+
+// interactiveSession creates an interactive session on the remote node, executes
+// the given callback on it, and waits for the session to end
+func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
+	ns.env["TERM"] = os.Getenv("TERM")
+
+	// create the server-side session:
+	sess, err := ns.createServerSession()
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	// allocate terminal on the server:
 	remoteTerm, err := ns.allocateTerminal(sess)
@@ -160,7 +185,7 @@ func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
 func (ns *NodeSession) allocateTerminal(s *ssh.Session) (io.ReadWriteCloser, error) {
 	var err error
 	// read the size of the terminal window:
-	tsize := &term.Winsize{Width: 80, Height: 25}
+	tsize := &term.Winsize{Width: 120, Height: 40}
 	if ns.isTerminalAttached() {
 		tsize, err = term.GetWinsize(0)
 		if err != nil {
@@ -219,6 +244,7 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 	var prevSess *session.Session
 	for {
 		select {
+		// our own terminal window got resized:
 		case sig := <-sigC:
 			if sig == nil {
 				return
@@ -288,8 +314,9 @@ func (ns *NodeSession) isTerminalAttached() bool {
 	return ns.stdin == os.Stdin && term.IsTerminal(0)
 }
 
+// runShell executes user's shell on the remote node under an interactive session
 func (ns *NodeSession) runShell(callback ShellCreatedCallback) error {
-	ns.interactiveSession(func(s *ssh.Session, shell io.ReadWriteCloser) error {
+	return ns.interactiveSession(func(s *ssh.Session, shell io.ReadWriteCloser) error {
 		// start the shell on the server:
 		if err := s.Shell(); err != nil {
 			return trace.Wrap(err)
@@ -303,8 +330,23 @@ func (ns *NodeSession) runShell(callback ShellCreatedCallback) error {
 		}
 		return nil
 	})
+}
 
-	return nil
+// runCommand executes a given command either in interactive (with terminal attached)
+// or non-intractive mode
+func (ns *NodeSession) runCommand(cmd []string, interactive bool) error {
+	// interactive session:
+	if interactive {
+		return ns.interactiveSession(func(s *ssh.Session, shell io.ReadWriteCloser) error {
+			log.Infof("running with terminal attached")
+			return s.Start(strings.Join(cmd, " "))
+		})
+		// non-interactive session:
+	} else {
+		return ns.regularSession(func(s *ssh.Session) error {
+			return s.Run(strings.Join(cmd, " "))
+		})
+	}
 }
 
 // watchSignals register UNIX signal handlers and properly terminates a remote shell session
