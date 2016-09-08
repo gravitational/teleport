@@ -690,13 +690,7 @@ func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, pr
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
 // stdin  : standard input to use. if nil, uses os.Stdin
 func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.Session, stdin io.Reader) error {
-	var (
-		state *term.State
-		err   error
-	)
 	defer nodeClient.Close()
-	address := tc.NodeHostPort()
-
 	if stdin == nil {
 		stdin = os.Stdin
 	}
@@ -707,128 +701,59 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.S
 		tc.Stderr = os.Stderr
 	}
 	attachedTerm := (stdin == os.Stdin && term.IsTerminal(0))
+	sess, err := newSession(nodeClient, sessToJoin, tc.Config.Env, attachedTerm)
 
-	winSize := &term.Winsize{Width: 80, Height: 25}
-	if attachedTerm {
-		winSize, err = term.GetWinsize(0)
-		if err != nil {
-			log.Error(err)
-		}
-	}
-
-	var sessionID session.ID
-	if sessToJoin != nil {
-		// if we're joining an existing session, we need to assume that session's
-		// existing/current terminal size:
-		sessionID = sessToJoin.ID
-		winSize = sessToJoin.TerminalParams.Winsize()
-		if attachedTerm {
-			err = term.SetWinsize(0, winSize)
-			if err != nil {
-				log.Error(err)
-			}
-			os.Stdout.Write([]byte(fmt.Sprintf("\x1b[8;%d;%dt", winSize.Height, winSize.Width)))
-		}
-	}
-
-	shell, err := nodeClient.Shell(
-		int(winSize.Width),
-		int(winSize.Height),
-		sessionID,
-		tc.Config.Env,
-		attachedTerm)
-
+	// request a new shell session on the SSH server:
+	shell, err := nodeClient.Shell(sess)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer shell.Close()
-
-	// user-supplied callback
+	// call the client-supplied callback
 	if tc.OnShellCreated != nil {
 		exit, err := tc.OnShellCreated(shell)
 		if exit {
 			return trace.Wrap(err)
 		}
 	}
-
-	// terminal must be in raw mode
-	if attachedTerm {
-		state, err = term.SetRawTerminal(0)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		log.Infof("[CLIENT] connecting to remote shell using stdin")
-	} else {
-		log.Infof("[CLIENT] connecting to remote shell NOT using stdin")
-	}
 	defer func() {
-		if state != nil {
-			term.RestoreTerminal(0, state)
-		}
 		if tc.ExitMsg != "" {
 			fmt.Println(tc.ExitMsg)
 		}
 	}()
-
-	broadcastClose := utils.NewCloseBroadcaster()
-
 	// Catch term signals, but only if we're attached to a real terminal
+	closer := utils.NewCloseBroadcaster()
 	if attachedTerm {
-		exitSignals := make(chan os.Signal, 1)
-		signal.Notify(exitSignals, syscall.SIGTERM)
-		go func() {
-			defer broadcastClose.Close()
-			<-exitSignals
-			if tc.ExitMsg == "" {
-				tc.ExitMsg = fmt.Sprintf("Connection to %s closed\n", address)
-			}
-		}()
-
-		// Catch Ctrl-C signal
-		ctrlCSignal := make(chan os.Signal, 1)
-		signal.Notify(ctrlCSignal, syscall.SIGINT)
-		go func() {
-			for {
-				<-ctrlCSignal
-				_, err := shell.Write([]byte{3})
-				if err != nil {
-					log.Errorf(err.Error())
-				}
-			}
-		}()
-
-		// Catch Ctrl-Z signal
-		ctrlZSignal := make(chan os.Signal, 1)
-		signal.Notify(ctrlZSignal, syscall.SIGTSTP)
-		go func() {
-			for {
-				<-ctrlZSignal
-				_, err := shell.Write([]byte{26})
-				if err != nil {
-					log.Errorf(err.Error())
-				}
-			}
-		}()
+		tc.watchSignals(shell, closer)
 	}
+	// start piping input into the remote shell and pipe the output from
+	// the remote shell into stdout:
+	tc.pipeInOut(shell, stdin, closer)
+	// wait for the session to end
+	<-closer.C
+	return nil
+}
 
-	// copy from the remote shell to the local
+// pipeInOut launches two goroutines: one to pipe the local input into the remote shell,
+// and another to pipe the output of the remote shell into the local output
+func (tc *TeleportClient) pipeInOut(shell io.ReadWriteCloser, localInput io.Reader, closer *utils.CloseBroadcaster) {
+	// copy from the remote shell to the local output
 	go func() {
-		defer broadcastClose.Close()
+		defer closer.Close()
 		_, err := io.Copy(tc.Stdout, shell)
 		if err != nil {
 			log.Errorf(err.Error())
 		}
 		if tc.ExitMsg == "" {
-			tc.ExitMsg = fmt.Sprintf("Connection to %s closed from the remote side", address)
+			tc.ExitMsg = fmt.Sprintf("Connection to %s closed from the remote side", tc.NodeHostPort())
 		}
 	}()
-
-	// copy from the local shell to the remote
+	// copy from the local input to the remote shell:
 	go func() {
-		defer broadcastClose.Close()
+		defer closer.Close()
 		buf := make([]byte, 128)
 		for {
-			n, err := stdin.Read(buf)
+			n, err := localInput.Read(buf)
 			if err != nil {
 				fmt.Println(trace.Wrap(err))
 				return
@@ -843,8 +768,45 @@ func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.S
 		}
 	}()
 
-	<-broadcastClose.C
-	return nil
+}
+
+// watchSignals register UNIX signal handlers and properly terminates a remote shell session
+// must be called as a goroutine right after a remote shell is created
+func (tc *TeleportClient) watchSignals(shell io.Writer, closer *utils.CloseBroadcaster) {
+	exitSignals := make(chan os.Signal, 1)
+	// catch SIGTERM
+	signal.Notify(exitSignals, syscall.SIGTERM)
+	go func() {
+		defer closer.Close()
+		<-exitSignals
+		if tc.ExitMsg == "" {
+			tc.ExitMsg = fmt.Sprintf("Connection to %s closed\n", tc.NodeHostPort())
+		}
+	}()
+	// Catch Ctrl-C signal
+	ctrlCSignal := make(chan os.Signal, 1)
+	signal.Notify(ctrlCSignal, syscall.SIGINT)
+	go func() {
+		for {
+			<-ctrlCSignal
+			_, err := shell.Write([]byte{3})
+			if err != nil {
+				log.Errorf(err.Error())
+			}
+		}
+	}()
+	// Catch Ctrl-Z signal
+	ctrlZSignal := make(chan os.Signal, 1)
+	signal.Notify(ctrlZSignal, syscall.SIGTSTP)
+	go func() {
+		for {
+			<-ctrlZSignal
+			_, err := shell.Write([]byte{26})
+			if err != nil {
+				log.Errorf(err.Error())
+			}
+		}
+	}()
 }
 
 // getProxyLogin determines which SSH login to use when connecting to proxy.
