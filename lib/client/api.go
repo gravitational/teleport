@@ -191,9 +191,6 @@ type TeleportClient struct {
 	// OnShellCreated gets called when the shell is created. It's
 	// safe to keep it nil
 	OnShellCreated ShellCreatedCallback
-
-	// ExitMsg (if set) will be printed at the end of the SSH session
-	ExitMsg string
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -433,6 +430,7 @@ func (tc *TeleportClient) Join(sessionID session.ID, input io.Reader) (err error
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer nc.Close()
 
 	// start forwarding ports, if configured:
 	tc.startPortForwarding(nc)
@@ -690,123 +688,19 @@ func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, pr
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
 // stdin  : standard input to use. if nil, uses os.Stdin
 func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.Session, stdin io.Reader) error {
-	defer nodeClient.Close()
-	if stdin == nil {
-		stdin = os.Stdin
-	}
-	if tc.Stdout == nil {
-		tc.Stdout = os.Stdout
-	}
-	if tc.Stderr == nil {
-		tc.Stderr = os.Stderr
-	}
-	attachedTerm := (stdin == os.Stdin && term.IsTerminal(0))
-	sess, err := newSession(nodeClient, sessToJoin, tc.Config.Env, attachedTerm)
-
-	// request a new shell session on the SSH server:
-	shell, err := nodeClient.Shell(sess)
+	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, stdin, tc.Stdout, tc.Stderr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer shell.Close()
-	// call the client-supplied callback
-	if tc.OnShellCreated != nil {
-		exit, err := tc.OnShellCreated(shell)
-		if exit {
-			return trace.Wrap(err)
-		}
+	if err = nodeSession.runShell(tc.OnShellCreated); err != nil {
+		return trace.Wrap(err)
 	}
-	defer func() {
-		if tc.ExitMsg != "" {
-			fmt.Println(tc.ExitMsg)
-		}
-	}()
-	// Catch term signals, but only if we're attached to a real terminal
-	closer := utils.NewCloseBroadcaster()
-	if attachedTerm {
-		tc.watchSignals(shell, closer)
+	if nodeSession.ExitMsg == "" {
+		fmt.Printf("Connection to %s closed from the remote side\n", tc.NodeHostPort())
+	} else {
+		fmt.Println(nodeSession.ExitMsg)
 	}
-	// start piping input into the remote shell and pipe the output from
-	// the remote shell into stdout:
-	tc.pipeInOut(shell, stdin, closer)
-	// wait for the session to end
-	<-closer.C
 	return nil
-}
-
-// pipeInOut launches two goroutines: one to pipe the local input into the remote shell,
-// and another to pipe the output of the remote shell into the local output
-func (tc *TeleportClient) pipeInOut(shell io.ReadWriteCloser, localInput io.Reader, closer *utils.CloseBroadcaster) {
-	// copy from the remote shell to the local output
-	go func() {
-		defer closer.Close()
-		_, err := io.Copy(tc.Stdout, shell)
-		if err != nil {
-			log.Errorf(err.Error())
-		}
-		if tc.ExitMsg == "" {
-			tc.ExitMsg = fmt.Sprintf("Connection to %s closed from the remote side", tc.NodeHostPort())
-		}
-	}()
-	// copy from the local input to the remote shell:
-	go func() {
-		defer closer.Close()
-		buf := make([]byte, 128)
-		for {
-			n, err := localInput.Read(buf)
-			if err != nil {
-				fmt.Println(trace.Wrap(err))
-				return
-			}
-			if n > 0 {
-				_, err = shell.Write(buf[:n])
-				if err != nil {
-					tc.ExitMsg = err.Error()
-					return
-				}
-			}
-		}
-	}()
-
-}
-
-// watchSignals register UNIX signal handlers and properly terminates a remote shell session
-// must be called as a goroutine right after a remote shell is created
-func (tc *TeleportClient) watchSignals(shell io.Writer, closer *utils.CloseBroadcaster) {
-	exitSignals := make(chan os.Signal, 1)
-	// catch SIGTERM
-	signal.Notify(exitSignals, syscall.SIGTERM)
-	go func() {
-		defer closer.Close()
-		<-exitSignals
-		if tc.ExitMsg == "" {
-			tc.ExitMsg = fmt.Sprintf("Connection to %s closed\n", tc.NodeHostPort())
-		}
-	}()
-	// Catch Ctrl-C signal
-	ctrlCSignal := make(chan os.Signal, 1)
-	signal.Notify(ctrlCSignal, syscall.SIGINT)
-	go func() {
-		for {
-			<-ctrlCSignal
-			_, err := shell.Write([]byte{3})
-			if err != nil {
-				log.Errorf(err.Error())
-			}
-		}
-	}()
-	// Catch Ctrl-Z signal
-	ctrlZSignal := make(chan os.Signal, 1)
-	signal.Notify(ctrlZSignal, syscall.SIGTSTP)
-	go func() {
-		for {
-			<-ctrlZSignal
-			_, err := shell.Write([]byte{26})
-			if err != nil {
-				log.Errorf(err.Error())
-			}
-		}
-	}()
 }
 
 // getProxyLogin determines which SSH login to use when connecting to proxy.

@@ -255,24 +255,6 @@ func (proxy *ProxyClient) Close() error {
 	return proxy.Client.Close()
 }
 
-// Shell returns a configured remote shell (for a window of a requested size)
-// as io.ReadWriterCloser object
-//
-// Parameters:
-//	- width & height : size of the window
-//  - session id     : ID of a session (if joining existing) or empty to create
-//                     a new session
-//  - env            : list of environment variables to set for a new session
-//  - attachedTerm   : boolean indicating if this client is attached to a real terminal
-func (client *NodeClient) Shell(nc *NodeSession) (io.ReadWriteCloser, error) {
-	pipe, err := nc.allocateTerminal()
-	// start the shell on the server:
-	if err := nc.serverSession.Shell(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return pipe, err
-}
-
 // Run executes command on the remote server and writes its stdout to
 // the 'output' argument
 func (client *NodeClient) Run(cmd []string, stdin io.Reader, stdout, stderr io.Writer, env map[string]string) error {
