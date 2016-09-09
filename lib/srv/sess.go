@@ -57,7 +57,7 @@ func (r *sessionRegistry) Close() {
 }
 
 // joinShell either joins an existing session or starts a new shell
-func (s *sessionRegistry) joinShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
+func (s *sessionRegistry) openSession(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	if ctx.session != nil {
 		// emit "joined session" event:
 		s.srv.EmitAuditEvent(events.SessionJoinEvent, events.EventFields{
@@ -88,15 +88,15 @@ func (s *sessionRegistry) joinShell(ch ssh.Channel, req *ssh.Request, ctx *ctx) 
 	s.addSession(sess)
 	ctx.Infof("[SESSION] new session %v", sid)
 
-	if err := sess.startShell(ch, ctx); err != nil {
+	if err := sess.start(ch, ctx); err != nil {
 		sess.Close()
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// leaveShell remvoes a given party from this session
-func (s *sessionRegistry) leaveShell(party *party) error {
+// leaveSession removes the given party from this session
+func (s *sessionRegistry) leaveSession(party *party) error {
 	sess := party.s
 	s.Lock()
 	defer s.Unlock()
@@ -426,8 +426,8 @@ func (r *sessionRecorder) Close() error {
 	return nil
 }
 
-// startShell starts a new shell process in the current session
-func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
+// start starts a new interactive process (or a shell) in the current session
+func (s *session) start(ch ssh.Channel, ctx *ctx) error {
 	// create a new "party" (connected client)
 	p := newParty(s, ch, ctx)
 
@@ -444,7 +444,7 @@ func (s *session) startShell(ch ssh.Channel, ctx *ctx) error {
 		}
 	}
 	// prepare environment & Launch shell:
-	cmd, err := prepareShell(ctx)
+	cmd, err := prepInteractiveCommand(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -826,7 +826,7 @@ func (p *party) String() string {
 func (p *party) Close() (err error) {
 	p.closeOnce.Do(func() {
 		p.ctx.Infof("party[%v].Close()", p.id)
-		if err = p.s.registry.leaveShell(p); err != nil {
+		if err = p.s.registry.leaveSession(p); err != nil {
 			p.ctx.Error(err)
 		}
 		close(p.closeC)

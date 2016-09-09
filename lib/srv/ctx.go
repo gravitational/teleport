@@ -88,6 +88,9 @@ type ctx struct {
 
 	// session, if there's an active one
 	session *session
+
+	// full command asked to be executed in this context
+	exec *execResponse
 }
 
 // addCloser adds any closer in ctx that will be called
