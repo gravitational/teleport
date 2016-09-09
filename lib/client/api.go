@@ -129,6 +129,10 @@ type Config struct {
 
 	// Env is a map of environmnent variables to send when opening session
 	Env map[string]string
+
+	// Interactive, when set to true, tells tsh to launch a remote command
+	// in interactive mode, i.e. attaching the temrinal to it
+	Interactive bool
 }
 
 // ProxyHostPort returns a full host:port address of the SSH proxy
@@ -675,7 +679,7 @@ func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, pr
 				return
 			}
 			// TODO: instead of "always false" (always non-interactive) implement a proper flag!!!
-			if err = nodeSession.runCommand(command, false); err != nil {
+			if err = nodeSession.runCommand(command, tc.Config.Interactive); err != nil {
 				exitErr, ok := err.(*ssh.ExitError)
 				if ok {
 					tc.ExitStatus = exitErr.ExitStatus()

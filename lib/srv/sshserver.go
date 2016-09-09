@@ -745,7 +745,8 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 		return s.handlePTYReq(ch, req, ctx)
 	case "shell":
 		// SSH client asked to launch shell, we allocate PTY and start shell session
-		return s.reg.joinShell(ch, req, ctx)
+		ctx.exec = &execResponse{ctx: ctx}
+		return s.reg.openSession(ch, req, ctx)
 	case "env":
 		return s.handleEnv(ch, req, ctx)
 	case "subsystem":
@@ -801,6 +802,7 @@ func (s *Server) handleSubsystem(ch ssh.Channel, req *ssh.Request, ctx *ctx) err
 		ctx.Warnf("[SSH] %v failed to parse subsystem request: %v", err)
 		return trace.Wrap(err)
 	}
+	ctx.Debugf("[SSH] subsystem request: %v", sb)
 	// starting subsystem is blocking to the client,
 	// while collecting its result and waiting is not blocking
 	if err := sb.start(ctx.conn, ch, req, ctx); err != nil {
@@ -810,7 +812,7 @@ func (s *Server) handleSubsystem(ch ssh.Channel, req *ssh.Request, ctx *ctx) err
 	}
 	go func() {
 		err := sb.wait()
-		log.Debugf("%v finished with result: %v", sb, err)
+		log.Debugf("[SSH] %v finished with result: %v", sb, err)
 		ctx.sendSubsystemResult(trace.Wrap(err))
 	}()
 	return nil
@@ -876,6 +878,12 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	if req.WantReply {
 		req.Reply(true, nil)
 	}
+	// a terminal has been previously allocate for this command.
+	// run this inside an interactive session
+	if ctx.term != nil {
+		return s.reg.openSession(ch, req, ctx)
+	}
+	// ... otherwise, regular execution:
 	result, err := execResponse.start(ch)
 	if err != nil {
 		ctx.Error(err)

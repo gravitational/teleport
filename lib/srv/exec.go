@@ -83,34 +83,45 @@ func parseExecRequest(req *ssh.Request, ctx *ctx) (*execResponse, error) {
 				strings.Join(args[1:], " "))
 		}
 	}
-	return &execResponse{
+	ctx.exec = &execResponse{
 		ctx:     ctx,
 		cmdName: e.Command,
-	}, nil
+	}
+	return ctx.exec, nil
 }
 
 func (e *execResponse) String() string {
 	return fmt.Sprintf("Exec(cmd=%v)", e.cmdName)
 }
 
-// prepareShell configures exec.Cmd object for launching shell for an SSH user
-func prepareShell(ctx *ctx) (*exec.Cmd, error) {
+// prepInteractiveCommand configures exec.Cmd object for launching an interactive command
+// (or a shell)
+func prepInteractiveCommand(ctx *ctx) (*exec.Cmd, error) {
+	var (
+		err      error
+		runShell bool
+	)
 	// determine shell for the given OS user:
-	shellCommand, err := utils.GetLoginShell(ctx.login)
-	if err != nil {
-		log.Error(err)
-		return nil, trace.Wrap(err)
+	if ctx.exec.cmdName == "" {
+		runShell = true
+		ctx.exec.cmdName, err = utils.GetLoginShell(ctx.login)
+		if err != nil {
+			log.Error(err)
+			return nil, trace.Wrap(err)
+		}
+		// in test mode short-circuit to /bin/sh
+		if ctx.isTestStub {
+			ctx.exec.cmdName = "/bin/sh"
+		}
 	}
-	// in test mode short-circuit to /bin/sh
-	if ctx.isTestStub {
-		shellCommand = "/bin/sh"
-	}
-	c, err := prepareCommand(ctx, shellCommand)
+	c, err := prepareCommand(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// this configures shell to run in 'login' mode
-	c.Args[0] = "-" + filepath.Base(shellCommand)
+	if runShell {
+		c.Args[0] = "-" + filepath.Base(ctx.exec.cmdName)
+	}
 	return c, nil
 }
 
@@ -121,7 +132,8 @@ func prepareShell(ctx *ctx) (*exec.Cmd, error) {
 //
 // If 'cmd' does not have any spaces in it, it gets executed directly, otherwise
 // it is passed to user's shell for interpretation
-func prepareCommand(ctx *ctx, cmd string) (*exec.Cmd, error) {
+func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
+	cmd := ctx.exec.cmdName
 	args := strings.Split(cmd, " ")
 
 	osUserName := ctx.login
@@ -239,7 +251,7 @@ func prepareCommand(ctx *ctx, cmd string) (*exec.Cmd, error) {
 // to communicate an error while launching
 func (e *execResponse) start(ch ssh.Channel) (*execResult, error) {
 	var err error
-	e.cmd, err = prepareCommand(e.ctx, e.cmdName)
+	e.cmd, err = prepareCommand(e.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

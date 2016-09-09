@@ -65,7 +65,7 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	}
 
 	// empty command (simple shell)
-	cmd, err := prepareShell(s.ctx)
+	cmd, err := prepInteractiveCommand(s.ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd, check.NotNil)
 	c.Assert(cmd.Path, check.Equals, "/bin/sh")
