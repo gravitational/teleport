@@ -334,12 +334,19 @@ func (ns *NodeSession) runShell(callback ShellCreatedCallback) error {
 
 // runCommand executes a given command either in interactive (with terminal attached)
 // or non-intractive mode
-func (ns *NodeSession) runCommand(cmd []string, interactive bool) error {
+func (ns *NodeSession) runCommand(cmd []string, callback ShellCreatedCallback, interactive bool) error {
 	// interactive session:
 	if interactive {
 		return ns.interactiveSession(func(s *ssh.Session, shell io.ReadWriteCloser) error {
-			log.Infof("running with terminal attached")
-			return s.Start(strings.Join(cmd, " "))
+			err := s.Start(strings.Join(cmd, " "))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			exit, err := callback(shell)
+			if exit {
+				return trace.Wrap(err)
+			}
+			return nil
 		})
 		// non-interactive session:
 	} else {

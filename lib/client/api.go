@@ -678,8 +678,7 @@ func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, pr
 				log.Error(err)
 				return
 			}
-			// TODO: instead of "always false" (always non-interactive) implement a proper flag!!!
-			if err = nodeSession.runCommand(command, tc.Config.Interactive); err != nil {
+			if err = nodeSession.runCommand(command, tc.OnShellCreated, tc.Config.Interactive); err != nil {
 				exitErr, ok := err.(*ssh.ExitError)
 				if ok {
 					tc.ExitStatus = exitErr.ExitStatus()
