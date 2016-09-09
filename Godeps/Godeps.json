@@ -125,7 +125,7 @@
 		},
 		{
 			"ImportPath": "github.com/gravitational/configure/cstrings",
-			"Rev": "76fd15be9a3c26066ef2525b1dcac70d2474c124"
+			"Rev": "1db4b84fe9dbbbaf40827aa714dcca17b368de2c"
 		},
 		{
 			"ImportPath": "github.com/gravitational/kingpin",
