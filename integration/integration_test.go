@@ -132,8 +132,8 @@ func (s *IntSuite) TestAudit(c *check.C) {
 		cl, err := t.NewClient(s.me.Username, Site, Host, t.GetPortSSHInt())
 		c.Assert(err, check.IsNil)
 		cl.Stdout = &myTerm
-
-		err = cl.SSH([]string{}, false, &myTerm)
+		cl.Stdin = &myTerm
+		err = cl.SSH([]string{}, false)
 		endC <- err
 	}()
 
@@ -284,9 +284,10 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 		cl, err := t.NewClient(s.me.Username, Site, Host, t.GetPortSSHInt())
 		c.Assert(err, check.IsNil)
 		cl.Stdout = &personA
+		cl.Stdin = &personA
 		// Person A types something into the terminal (including "exit")
 		personA.Type("\aecho hi\n\r\aexit\n\r\a")
-		err = cl.SSH([]string{}, false, &personA)
+		err = cl.SSH([]string{}, false)
 		c.Assert(err, check.IsNil)
 		sessionEndC <- true
 	}
@@ -321,8 +322,10 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 	// wait for the session to end
 	waitFor(sessionEndC, time.Second*10)
 
-	// make sure both parites saw the same output:
-	c.Assert(string(personA.Output(100)), check.DeepEquals, string(personB.Output(100)))
+	// make sure the output of B is mirrored in A
+	outputOfA := string(personA.Output(100))
+	outputOfB := string(personB.Output(100))
+	c.Assert(strings.Contains(outputOfA, outputOfB), check.Equals, true)
 }
 
 // TestInvalidLogins validates that you can't login with invalid login or
@@ -336,11 +339,14 @@ func (s *IntSuite) TestEnvironmentVariables(c *check.C) {
 
 	// make sure sessions set run command
 	tc, err := t.NewClient(s.me.Username, Site, Host, t.GetPortSSHInt())
+	c.Assert(err, check.IsNil)
+
 	tc.Env = map[string]string{testKey: testVal}
 	out := &bytes.Buffer{}
 	tc.Stdout = out
-	c.Assert(err, check.IsNil)
-	err = tc.SSH(cmd, false, nil)
+	tc.Stdin = nil
+	err = tc.SSH(cmd, false)
+
 	c.Assert(err, check.IsNil)
 	c.Assert(strings.TrimSpace(out.String()), check.Equals, testVal)
 }
@@ -356,7 +362,7 @@ func (s *IntSuite) TestInvalidLogins(c *check.C) {
 	// try the wrong site:
 	tc, err := t.NewClient(s.me.Username, "wrong-site", Host, t.GetPortSSHInt())
 	c.Assert(err, check.IsNil)
-	err = tc.SSH(cmd, false, nil)
+	err = tc.SSH(cmd, false)
 	c.Assert(err, check.ErrorMatches, "site wrong-site not found")
 }
 
@@ -402,7 +408,7 @@ func (s *IntSuite) TestTwoSites(c *check.C) {
 	tc, err := a.NewClient(username, "site-A", Host, sshPort)
 	tc.Stdout = &outputA
 	c.Assert(err, check.IsNil)
-	err = tc.SSH(cmd, false, nil)
+	err = tc.SSH(cmd, false)
 	c.Assert(err, check.IsNil)
 	c.Assert(outputA.String(), check.Equals, "hello world\n")
 
@@ -410,13 +416,13 @@ func (s *IntSuite) TestTwoSites(c *check.C) {
 	tc, err = b.NewClient(username, "site-A", Host, sshPort)
 	tc.Stdout = &outputB
 	c.Assert(err, check.IsNil)
-	err = tc.SSH(cmd, false, nil)
+	err = tc.SSH(cmd, false)
 	c.Assert(err, check.IsNil)
 	c.Assert(outputA, check.DeepEquals, outputB)
 
 	// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
 	a.Stop(false)
-	err = tc.SSH(cmd, false, nil)
+	err = tc.SSH(cmd, false)
 	c.Assert(err, check.ErrorMatches, "Failed connecting to cluster site-A: ssh: subsystem request failed")
 
 	// Reset and start "Site-A" again
@@ -429,7 +435,7 @@ func (s *IntSuite) TestTwoSites(c *check.C) {
 	// and 'tc' (client) is also supposed to reconnect
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 5)
-		err = tc.SSH(cmd, false, nil)
+		err = tc.SSH(cmd, false)
 		if err == nil {
 			break
 		}

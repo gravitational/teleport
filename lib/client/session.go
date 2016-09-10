@@ -311,7 +311,7 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 // It will return False for sessions initiated by the Web client or
 // for non-interactive sessions (commands)
 func (ns *NodeSession) isTerminalAttached() bool {
-	return ns.stdin == os.Stdin && term.IsTerminal(0)
+	return ns.stdin == os.Stdin && term.IsTerminal(os.Stdin.Fd())
 }
 
 // runShell executes user's shell on the remote node under an interactive session
@@ -335,6 +335,13 @@ func (ns *NodeSession) runShell(callback ShellCreatedCallback) error {
 // runCommand executes a given command either in interactive (with terminal attached)
 // or non-intractive mode
 func (ns *NodeSession) runCommand(cmd []string, callback ShellCreatedCallback, interactive bool) error {
+	// stdin is not a terminal? refuse to allocate terminal on the server and go back
+	// to "non-interactive":
+	if interactive && ns.stdin == os.Stdin && !term.IsTerminal(os.Stdin.Fd()) {
+		interactive = false
+		fmt.Fprintf(os.Stderr, "TTY will not be allocated on the server because stdin is not a terminal\n")
+	}
+
 	// interactive session:
 	if interactive {
 		return ns.interactiveSession(func(s *ssh.Session, shell io.ReadWriteCloser) error {
@@ -342,18 +349,19 @@ func (ns *NodeSession) runCommand(cmd []string, callback ShellCreatedCallback, i
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			exit, err := callback(shell)
-			if exit {
-				return trace.Wrap(err)
+			if callback != nil {
+				exit, err := callback(shell)
+				if exit {
+					return trace.Wrap(err)
+				}
 			}
 			return nil
 		})
-		// non-interactive session:
-	} else {
-		return ns.regularSession(func(s *ssh.Session) error {
-			return s.Run(strings.Join(cmd, " "))
-		})
 	}
+	// non-interactive session:
+	return ns.regularSession(func(s *ssh.Session) error {
+		return s.Run(strings.Join(cmd, " "))
+	})
 }
 
 // watchSignals register UNIX signal handlers and properly terminates a remote shell session

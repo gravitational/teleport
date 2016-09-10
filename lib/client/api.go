@@ -242,6 +242,9 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	if tc.Stderr == nil {
 		tc.Stderr = os.Stderr
 	}
+	if tc.Stdin == nil {
+		tc.Stdin = os.Stdin
+	}
 	if tc.HostKeyCallback == nil {
 		tc.HostKeyCallback = tc.localAgent.CheckHostSignature
 	}
@@ -297,7 +300,7 @@ func (tc *TeleportClient) getTargetNodes(proxy *ProxyClient) ([]string, error) {
 // otherwise runs interactive shell
 //
 // Returns nil if successful, or (possibly) *exec.ExitError
-func (tc *TeleportClient) SSH(command []string, runLocally bool, input io.Reader) error {
+func (tc *TeleportClient) SSH(command []string, runLocally bool) error {
 	// connect to proxy first:
 	if !tc.Config.ProxySpecified() {
 		return trace.BadParameter("proxy server is not specified")
@@ -307,12 +310,10 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool, input io.Reader
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-
 	siteInfo, err := proxyClient.getSite()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	// which nodes are we executing this commands on?
 	nodeAddrs, err := tc.getTargetNodes(proxyClient)
 	if err != nil {
@@ -321,7 +322,6 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool, input io.Reader
 	if len(nodeAddrs) == 0 {
 		return trace.BadParameter("no target host specified")
 	}
-
 	// more than one node for an interactive shell?
 	// that can't be!
 	if len(nodeAddrs) != 1 {
@@ -329,12 +329,10 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool, input io.Reader
 			"\x1b[1mWARNING\x1b[0m: multiple nodes match the label selector. Picking %v (first)\n",
 			nodeAddrs[0])
 	}
-
 	nodeClient, err := proxyClient.ConnectToNode(nodeAddrs[0]+"@"+siteInfo.Name, tc.Config.HostLogin)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	// proxy local ports (forward incoming connections to remote host ports)
 	tc.startPortForwarding(nodeClient)
 
@@ -345,13 +343,11 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool, input io.Reader
 		}
 		return runLocalCommand(command)
 	}
-
 	// execute command(s) or a shell on remote node(s)
 	if len(command) > 0 {
 		return tc.runCommand(siteInfo.Name, nodeAddrs, proxyClient, command)
 	}
-
-	return tc.runShell(nodeClient, nil, input)
+	return tc.runShell(nodeClient, nil)
 }
 
 func (tc *TeleportClient) startPortForwarding(nodeClient *NodeClient) error {
@@ -369,6 +365,7 @@ func (tc *TeleportClient) startPortForwarding(nodeClient *NodeClient) error {
 
 // Join connects to the existing/active SSH session
 func (tc *TeleportClient) Join(sessionID session.ID, input io.Reader) (err error) {
+	tc.Stdin = input
 	if sessionID.Check() != nil {
 		return trace.Errorf("Invalid session ID format: %s", string(sessionID))
 	}
@@ -440,7 +437,7 @@ func (tc *TeleportClient) Join(sessionID session.ID, input io.Reader) (err error
 	tc.startPortForwarding(nc)
 
 	// running shell with a given session means "join" it:
-	return tc.runShell(nc, session, input)
+	return tc.runShell(nc, session)
 }
 
 // Play replays the recorded session
@@ -646,11 +643,6 @@ func (tc *TeleportClient) ListNodes() ([]services.Server, error) {
 
 // runCommand executes a given bash command on a bunch of remote nodes
 func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string) error {
-	stdin := tc.Stdin
-	// do not pass terminal input into SSH commands
-	if stdin == os.Stdin && terminal.IsTerminal(int(os.Stdin.Fd())) {
-		stdin = nil
-	}
 	resultsC := make(chan error, len(nodeAddresses))
 	for _, address := range nodeAddresses {
 		go func(address string) {
@@ -673,7 +665,7 @@ func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, pr
 			if len(nodeAddresses) > 1 {
 				fmt.Printf("Running command on %v:\n", address)
 			}
-			nodeSession, err = newSession(nodeClient, nil, tc.Config.Env, stdin, tc.Stdout, tc.Stderr)
+			nodeSession, err = newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr)
 			if err != nil {
 				log.Error(err)
 				return
@@ -697,9 +689,8 @@ func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, pr
 
 // runShell starts an interactive SSH session/shell.
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
-// stdin  : standard input to use. if nil, uses os.Stdin
-func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.Session, stdin io.Reader) error {
-	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, stdin, tc.Stdout, tc.Stderr)
+func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.Session) error {
+	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
