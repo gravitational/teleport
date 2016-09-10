@@ -35,7 +35,7 @@ test: integration
 
 .PHONY:integration
 integration: bbox
-	docker run $(DOCKERFLAGS) $(NOROOT) -i $(BBOX) \
+	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BBOX) \
  		/bin/bash -c "$(MAKE) -C $(SRCDIR) FLAGS='-cover' integration"
 
 #

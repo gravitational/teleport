@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	rsession "github.com/gravitational/teleport/lib/session"
@@ -278,12 +279,15 @@ type session struct {
 // newSession creates a new session with a given ID within a given context.
 func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, error) {
 	rsess := rsession.Session{
-		ID:             id,
-		TerminalParams: rsession.TerminalParams{W: 80, H: 25},
-		Login:          context.login,
-		Created:        time.Now().UTC(),
-		LastActive:     time.Now().UTC(),
-		ServerID:       context.srv.ID(),
+		ID: id,
+		TerminalParams: rsession.TerminalParams{
+			W: teleport.DefaultTerminalWidth,
+			H: teleport.DefaultTerminalHeight,
+		},
+		Login:      context.login,
+		Created:    time.Now().UTC(),
+		LastActive: time.Now().UTC(),
+		ServerID:   context.srv.ID(),
 	}
 	term := context.getTerm()
 	if term != nil {
