@@ -33,6 +33,13 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+const (
+	// number of the most recent session writes (what's been written
+	// in a terminal) to be instanly replayed to the newly joining
+	// parties
+	instantReplayLen = 20
+)
+
 // sessionRegistry holds a map of all active sessions on a given
 // SSH server
 type sessionRegistry struct {
@@ -330,8 +337,8 @@ func (r *sessionRegistry) PartyForConnection(sconn *ssh.ServerConn) *party {
 
 	for _, session := range r.sessions {
 		session.Lock()
+		defer session.Unlock()
 		parties := session.parties
-		session.Unlock()
 		for _, party := range parties {
 			if party.sconn == sconn {
 				return party
@@ -634,23 +641,24 @@ func (s *session) pollAndSync() {
 // addParty is called when a new party joins the session.
 func (s *session) addParty(p *party) {
 	s.parties[p.id] = p
-	// register this party as one of the session writers
-	// (output will go to it)
-	s.writer.addWriter(string(p.id), p, true)
-	p.ctx.addCloser(p)
-	s.term.Add(1)
-
 	// write last chunk (so the newly joined parties won't stare
 	// at a blank screen)
 	getRecentWrite := func() []byte {
 		s.writer.Lock()
 		defer s.writer.Unlock()
-		return s.writer.lastData
+		data := make([]byte, 0, 1024)
+		for i := range s.writer.recentWrites {
+			data = append(data, s.writer.recentWrites[i]...)
+		}
+		return data
 	}
-	recentData := getRecentWrite()
-	if recentData != nil {
-		p.Write(recentData)
-	}
+	p.Write(getRecentWrite())
+
+	// register this party as one of the session writers
+	// (output will go to it)
+	s.writer.addWriter(string(p.id), p, true)
+	p.ctx.addCloser(p)
+	s.term.Add(1)
 
 	// update session on the session server
 	storageUpdate := func(db rsession.Service) {
@@ -700,8 +708,8 @@ func newMultiWriter() *multiWriter {
 
 type multiWriter struct {
 	sync.RWMutex
-	writers  map[string]writerWrapper
-	lastData []byte
+	writers      map[string]writerWrapper
+	recentWrites [][]byte
 }
 
 type writerWrapper struct {
@@ -721,6 +729,17 @@ func (m *multiWriter) deleteWriter(id string) {
 	delete(m.writers, id)
 }
 
+func (m *multiWriter) lockedAddRecentWrite(p []byte) {
+	// make a copy of it (this slice is based on a shared buffer)
+	clone := make([]byte, len(p))
+	copy(clone, p)
+	// add to the list of recent writes
+	m.recentWrites = append(m.recentWrites, clone)
+	for len(m.recentWrites) > instantReplayLen {
+		m.recentWrites = m.recentWrites[1:]
+	}
+}
+
 // Write multiplexes the input to multiple sub-writers. The entire point
 // of multiWriter is to do this
 func (m *multiWriter) Write(p []byte) (n int, err error) {
@@ -732,9 +751,13 @@ func (m *multiWriter) Write(p []byte) (n int, err error) {
 		for _, w := range m.writers {
 			writers = append(writers, w)
 		}
-		m.lastData = p
+
+		// add the recent write chunk to the "instant replay" buffer
+		// of the session, to be replayed to newly joining parties:
+		m.lockedAddRecentWrite(p)
 		return writers
 	}
+
 	// unlock and multiplex the write to all writers:
 	for _, w := range getWriters() {
 		n, err = w.Write(p)
