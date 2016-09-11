@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/pkg/term"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -138,15 +139,19 @@ func (ns *NodeSession) createServerSession() (*ssh.Session, error) {
 // interactiveSession creates an interactive session on the remote node, executes
 // the given callback on it, and waits for the session to end
 func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
-	ns.env["TERM"] = os.Getenv("TERM")
-
+	// determine what kind of a terminal we need
+	termType := os.Getenv("TERM")
+	if termType == "" {
+		termType = teleport.SafeTerminalType
+	}
+	ns.env["TERM"] = termType
 	// create the server-side session:
 	sess, err := ns.createServerSession()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// allocate terminal on the server:
-	remoteTerm, err := ns.allocateTerminal(sess)
+	remoteTerm, err := ns.allocateTerminal(termType, sess)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -182,10 +187,13 @@ func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
 }
 
 // allocateTerminal creates (allocates) a server-side terminal for this session.
-func (ns *NodeSession) allocateTerminal(s *ssh.Session) (io.ReadWriteCloser, error) {
+func (ns *NodeSession) allocateTerminal(termType string, s *ssh.Session) (io.ReadWriteCloser, error) {
 	var err error
 	// read the size of the terminal window:
-	tsize := &term.Winsize{Width: 120, Height: 40}
+	tsize := &term.Winsize{
+		Width:  teleport.DefaultTerminalWidth,
+		Height: teleport.DefaultTerminalHeight,
+	}
 	if ns.isTerminalAttached() {
 		tsize, err = term.GetWinsize(0)
 		if err != nil {
@@ -193,7 +201,7 @@ func (ns *NodeSession) allocateTerminal(s *ssh.Session) (io.ReadWriteCloser, err
 		}
 	}
 	// ... and request a server-side terminal of the same size:
-	err = s.RequestPty("xterm",
+	err = s.RequestPty(termType,
 		int(tsize.Height),
 		int(tsize.Width),
 		ssh.TerminalModes{})
