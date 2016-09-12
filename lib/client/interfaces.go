@@ -48,16 +48,15 @@ func (k *Key) AsAgentKey() (*agent.AddedKey, error) {
 	}, nil
 }
 
-// CertValidBefore returns UTC time of the cert expiration
-func (k *Key) CertValidBefore() (time.Time, error) {
+// CertValidBefore returns the time of the cert expiration
+func (k *Key) CertValidBefore() (t time.Time, err error) {
 	pcert, _, _, _, err := ssh.ParseAuthorizedKey(k.Cert)
 	if err != nil {
-		return time.Now().In(time.UTC), trace.Wrap(err)
+		return t, trace.Wrap(err)
 	}
-	cert := pcert.(*ssh.Certificate)
-
-	utime := int64(cert.ValidBefore)
-	etime := time.Unix(0, utime)
-
-	return etime.In(time.UTC), nil
+	cert, ok := pcert.(*ssh.Certificate)
+	if !ok {
+		return t, trace.Errorf("not supported certificate type")
+	}
+	return time.Unix(int64(cert.ValidBefore), 0), nil
 }

@@ -17,9 +17,12 @@ limitations under the License.
 package auth
 
 import (
+	"time"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/utils"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/trace"
 	. "gopkg.in/check.v1"
@@ -50,6 +53,17 @@ func (s *AuthInitSuite) TestReadIdentity(c *C) {
 	c.Assert(id.ID, DeepEquals, IdentityID{HostUUID: "id1", Role: teleport.RoleNode})
 	c.Assert(id.CertBytes, DeepEquals, cert)
 	c.Assert(id.KeyBytes, DeepEquals, priv)
+
+	// test TTL by converting the generated cert to text -> back and making sure ExpireAfter is valid
+	ttl := time.Second * 10
+	expiryDate := time.Now().Add(ttl)
+	bytes, err := t.GenerateHostCert(priv, pub, "id1", "example.com", teleport.Roles{teleport.RoleNode}, ttl)
+	c.Assert(err, IsNil)
+	pk, _, _, _, err := ssh.ParseAuthorizedKey(bytes)
+	c.Assert(err, IsNil)
+	copy, ok := pk.(*ssh.Certificate)
+	c.Assert(ok, Equals, true)
+	c.Assert(uint64(expiryDate.Unix()), Equals, copy.ValidBefore)
 }
 
 func (s *AuthInitSuite) TestBadIdentity(c *C) {

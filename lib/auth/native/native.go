@@ -143,8 +143,8 @@ func (n *nauth) GenerateHostCert(privateSigningKey, publicKey []byte, hostname, 
 	}
 	validBefore := uint64(ssh.CertTimeInfinity)
 	if ttl != 0 {
-		b := time.Now().In(time.UTC).Add(ttl)
-		validBefore = uint64(b.UnixNano())
+		b := time.Now().Add(ttl)
+		validBefore = uint64(b.Unix())
 	}
 	cert := &ssh.Certificate{
 		ValidPrincipals: []string{hostname},
@@ -178,8 +178,8 @@ func (n *nauth) GenerateUserCert(pkey, key []byte, teleportUsername string, allo
 	}
 	validBefore := uint64(ssh.CertTimeInfinity)
 	if ttl != 0 {
-		b := time.Now().In(time.UTC).Add(ttl)
-		validBefore = uint64(b.UnixNano())
+		b := time.Now().Add(ttl)
+		validBefore = uint64(b.Unix())
 		log.Infof("generated user key for %v with expiry on (%v) %v", allowedLogins, validBefore, b)
 	}
 	// we do not use any extensions in users certs because of this:

@@ -17,7 +17,6 @@ limitations under the License.
 package client
 
 import (
-	//log "github.com/Sirupsen/logrus"
 	"fmt"
 	"os"
 	"time"

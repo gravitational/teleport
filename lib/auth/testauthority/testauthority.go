@@ -48,8 +48,8 @@ func (n *Keygen) GenerateHostCert(pkey, key []byte, hostname, authDomain string,
 	}
 	validBefore := uint64(ssh.CertTimeInfinity)
 	if ttl != 0 {
-		b := time.Now().In(time.UTC).Add(ttl)
-		validBefore = uint64(b.UnixNano())
+		b := time.Now().Add(ttl)
+		validBefore = uint64(b.Unix())
 	}
 	cert := &ssh.Certificate{
 		ValidPrincipals: []string{hostname},
@@ -77,8 +77,8 @@ func (n *Keygen) GenerateUserCert(pkey, key []byte, teleportUsername string, all
 	}
 	validBefore := uint64(ssh.CertTimeInfinity)
 	if ttl != 0 {
-		b := time.Now().In(time.UTC).Add(ttl)
-		validBefore = uint64(b.UnixNano())
+		b := time.Now().Add(ttl)
+		validBefore = uint64(b.Unix())
 	}
 	cert := &ssh.Certificate{
 		KeyId:           teleportUsername,
