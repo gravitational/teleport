@@ -46,13 +46,13 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	s.ctx.session = &session{id: "xxx"}
 	s.ctx.teleportUser = "galt"
 	s.ctx.conn = &ssh.ServerConn{Conn: s}
+	s.ctx.exec = &execResponse{ctx: s.ctx}
 	s.localAddr, _ = utils.ParseAddr("127.0.0.1:3022")
 	s.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
 }
 
 func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	expectedEnv := []string{
-		"TERM=xterm",
 		"LANG=en_US.UTF-8",
 		fmt.Sprintf("HOME=%s", s.usr.HomeDir),
 		fmt.Sprintf("USER=%s", s.usr.Username),
@@ -65,7 +65,7 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	}
 
 	// empty command (simple shell)
-	cmd, err := prepareShell(s.ctx)
+	cmd, err := prepInteractiveCommand(s.ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd, check.NotNil)
 	c.Assert(cmd.Path, check.Equals, "/bin/sh")
@@ -75,7 +75,8 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 
 	// non-empty command (exec a prog)
 	s.ctx.isTestStub = true
-	cmd, err = prepareCommand(s.ctx, "ls -lh /etc")
+	s.ctx.exec.cmdName = "ls -lh /etc"
+	cmd, err = prepareCommand(s.ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd, check.NotNil)
 	c.Assert(cmd.Path, check.Equals, "/bin/sh")
@@ -84,7 +85,8 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
 
 	// command without args
-	cmd, err = prepareCommand(s.ctx, "top")
+	s.ctx.exec.cmdName = "top"
+	cmd, err = prepareCommand(s.ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(cmd.Path, check.Equals, "/usr/bin/top")
 	c.Assert(cmd.Args, check.DeepEquals, []string{"top"})

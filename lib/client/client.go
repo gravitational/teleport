@@ -19,26 +19,19 @@ package client
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/docker/docker/pkg/term"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -260,212 +253,6 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeC
 
 func (proxy *ProxyClient) Close() error {
 	return proxy.Client.Close()
-}
-
-// Shell returns a configured remote shell (for a window of a requested size)
-// as io.ReadWriterCloser object
-//
-// Parameters:
-//	- width & height : size of the window
-//  - session id     : ID of a session (if joining existing) or empty to create
-//                     a new session
-//  - env            : list of environment variables to set for a new session
-//  - attachedTerm   : boolean indicating if this client is attached to a real terminal
-func (client *NodeClient) Shell(
-	width, height int,
-	sessionID session.ID,
-	env map[string]string,
-	attachedTerm bool) (io.ReadWriteCloser, error) {
-
-	if sessionID == "" {
-		// initiate a new session if not passed
-		sessionID = session.NewID()
-	}
-
-	siteClient, err := client.Proxy.ConnectToSite()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clientSession, err := client.Client.NewSession()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// ask the server to drop us into the existing session:
-	if len(sessionID) > 0 {
-		err = clientSession.Setenv(sshutils.SessionEnvVar, string(sessionID))
-		if err != nil {
-			log.Warn(err)
-		}
-	}
-
-	// pass language info into the remote session.
-	evarsToPass := []string{"LANG", "LANGUAGE"}
-	for _, evar := range evarsToPass {
-		if value := os.Getenv(evar); value != "" {
-			err = clientSession.Setenv(evar, value)
-			if err != nil {
-				log.Warn(err)
-			}
-		}
-	}
-
-	// pass environment variables set by client
-	for key, val := range env {
-		err = clientSession.Setenv(key, val)
-		if err != nil {
-			log.Warn(err)
-		}
-	}
-
-	terminalModes := ssh.TerminalModes{}
-
-	err = clientSession.RequestPty("xterm", height, width, terminalModes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	writer, err := clientSession.StdinPipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	reader, err := clientSession.StdoutPipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	stderr, err := clientSession.StderrPipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	broadcastClose := utils.NewCloseBroadcaster()
-
-	// this goroutine sleeps until a terminal size changes (it receives an OS signal)
-	sigC := make(chan os.Signal, 1)
-	signal.Notify(sigC, syscall.SIGWINCH)
-	currentSize, _ := term.GetWinsize(0)
-	broadcastTerminalSize := func() {
-		for {
-			select {
-			case sig := <-sigC:
-				if sig == nil {
-					return
-				}
-				// get the size:
-				winSize, err := term.GetWinsize(0)
-				if err != nil {
-					log.Warnf("[CLIENT] Error getting size: %s", err)
-					break
-				}
-				// it's the result of our own size change (see below)
-				if winSize.Height == currentSize.Height && winSize.Width == currentSize.Width {
-					continue
-				}
-				// send the new window size to the server
-				_, err = clientSession.SendRequest(
-					sshutils.WindowChangeReq, false,
-					ssh.Marshal(sshutils.WinChangeReqParams{
-						W: uint32(winSize.Width),
-						H: uint32(winSize.Height),
-					}))
-				if err != nil {
-					log.Warnf("[CLIENT] failed to send window change reqest: %v", err)
-				}
-			case <-broadcastClose.C:
-				return
-			}
-		}
-	}
-
-	// detect changes of the session's terminal
-	updateTerminalSize := func() {
-		tick := time.NewTicker(defaults.SessionRefreshPeriod)
-		defer tick.Stop()
-
-		var prevSess *session.Session
-		for {
-			select {
-			case <-tick.C:
-				sess, err := siteClient.GetSession(sessionID)
-				if err != nil {
-					log.Error(err)
-					continue
-				}
-				log.Infof("[CLIENT] updating the session %v with %d parties", sess.ID, len(sess.Parties))
-				// no previous session
-				if prevSess == nil {
-					prevSess = sess
-					continue
-				}
-				// nothing changed
-				if prevSess.TerminalParams.W == sess.TerminalParams.W && prevSess.TerminalParams.H == sess.TerminalParams.H {
-					continue
-				}
-
-				newSize := sess.TerminalParams.Winsize()
-				currentSize, err = term.GetWinsize(0)
-				if err != nil {
-					log.Error(err)
-				}
-				if currentSize.Width != newSize.Width || currentSize.Height != newSize.Height {
-					// ok, something have changed, let's resize to the new parameters
-					err = term.SetWinsize(0, newSize)
-					if err != nil {
-						log.Error(err)
-					}
-					os.Stdout.Write([]byte(fmt.Sprintf("\x1b[8;%d;%dt", newSize.Height, newSize.Width)))
-				}
-				prevSess = sess
-			case <-broadcastClose.C:
-				return
-			}
-		}
-	}
-
-	if attachedTerm {
-		go broadcastTerminalSize()
-		go updateTerminalSize()
-	}
-
-	go func() {
-		io.Copy(os.Stderr, stderr)
-	}()
-
-	err = clientSession.Shell()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return utils.NewPipeNetConn(
-		reader,
-		writer,
-		utils.MultiCloser(writer, clientSession, broadcastClose),
-		&net.IPAddr{},
-		&net.IPAddr{},
-	), nil
-}
-
-// Run executes command on the remote server and writes its stdout to
-// the 'output' argument
-func (client *NodeClient) Run(cmd []string, stdin io.Reader, stdout, stderr io.Writer, env map[string]string) error {
-	session, err := client.Client.NewSession()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// pass environment variables set by client
-	for key, val := range env {
-		err = session.Setenv(key, val)
-		if err != nil {
-			log.Warn(err)
-		}
-	}
-	session.Stdout = stdout
-	session.Stderr = stderr
-	session.Stdin = stdin
-	return session.Run(strings.Join(cmd, " "))
 }
 
 // Upload uploads file or dir to the remote server

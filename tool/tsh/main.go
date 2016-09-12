@@ -75,6 +75,8 @@ type CLIConf struct {
 	ExternalAuth string
 	// SiteName specifies remote site go login to
 	SiteName string
+	// Interactive, when set to true, launches remote command with the terminal attached
+	Interactive bool
 }
 
 // run executes TSH client. same as main() but easier to test
@@ -104,6 +106,7 @@ func run(args []string, underTest bool) {
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int16Var(&cf.NodePort)
 	ssh.Flag("forward", "Forward localhost connections to remote server").Short('L').StringsVar(&cf.LocalForwardPorts)
 	ssh.Flag("local", "Execute command on localhost after connecting to SSH node").Default("false").BoolVar(&cf.LocalExec)
+	ssh.Flag("", "Allocate TTY").Short('t').BoolVar(&cf.Interactive)
 	// join
 	join := app.Command("join", "Join the active SSH session")
 	join.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
@@ -269,7 +272,8 @@ func onSSH(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	if err = tc.SSH(cf.RemoteCommand, cf.LocalExec, nil); err != nil {
+	tc.Stdin = os.Stdin
+	if err = tc.SSH(cf.RemoteCommand, cf.LocalExec); err != nil {
 		// exit with the same exit status as the failed command:
 		if tc.ExitStatus != 0 {
 			os.Exit(tc.ExitStatus)
@@ -395,6 +399,7 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 		LocalForwardPorts:  fPorts,
 		ConnectorID:        cf.ExternalAuth,
 		SiteName:           cf.SiteName,
+		Interactive:        cf.Interactive,
 	}
 	return client.NewClient(c)
 }

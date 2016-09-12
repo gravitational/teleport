@@ -719,7 +719,7 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, ch ssh.Channel, in
 // dispatch receives an SSH request for a subsystem and disptaches the request to the
 // appropriate subsystem implementation
 func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	ctx.Debugf("ssh.dispatch(req=%v, wantReply=%v)", req.Type, req.WantReply)
+	ctx.Debugf("[SSH] ssh.dispatch(req=%v, wantReply=%v)", req.Type, req.WantReply)
 
 	// if this SSH server is configured to only proxy, we do not support anything other
 	// than our own custom "subsystems" and environment manipulation
@@ -745,7 +745,8 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 		return s.handlePTYReq(ch, req, ctx)
 	case "shell":
 		// SSH client asked to launch shell, we allocate PTY and start shell session
-		return s.reg.joinShell(ch, req, ctx)
+		ctx.exec = &execResponse{ctx: ctx}
+		return s.reg.openSession(ch, req, ctx)
 	case "env":
 		return s.handleEnv(ch, req, ctx)
 	case "subsystem":
@@ -796,12 +797,12 @@ func (s *Server) handleWinChange(ch ssh.Channel, req *ssh.Request, ctx *ctx) err
 }
 
 func (s *Server) handleSubsystem(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	ctx.Debugf("[SSH] handleSubsystem()")
 	sb, err := parseSubsystemRequest(s, req)
 	if err != nil {
 		ctx.Warnf("[SSH] %v failed to parse subsystem request: %v", err)
 		return trace.Wrap(err)
 	}
+	ctx.Debugf("[SSH] subsystem request: %v", sb)
 	// starting subsystem is blocking to the client,
 	// while collecting its result and waiting is not blocking
 	if err := sb.start(ctx.conn, ch, req, ctx); err != nil {
@@ -811,7 +812,7 @@ func (s *Server) handleSubsystem(ch ssh.Channel, req *ssh.Request, ctx *ctx) err
 	}
 	go func() {
 		err := sb.wait()
-		log.Debugf("%v finished with result: %v", sb, err)
+		log.Debugf("[SSH] %v finished with result: %v", sb, err)
 		ctx.sendSubsystemResult(trace.Wrap(err))
 	}()
 	return nil
@@ -836,25 +837,26 @@ func (s *Server) handlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *ctx) error 
 		err    error
 		term   *terminal
 	)
+	r, err := parsePTYReq(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	params, err = rsession.NewTerminalParamsFromUint32(r.W, r.H)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ctx.Debugf("[SSH] terminal requested of size %v", *params)
+
 	// already have terminal?
-	if term = ctx.getTerm(); term != nil {
-		r, err := parsePTYReq(req)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		params, err = rsession.NewTerminalParamsFromUint32(r.W, r.H)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		term.setWinsize(*params)
-		// request one:
-	} else {
+	if term = ctx.getTerm(); term == nil {
 		term, params, err = requestPTY(req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		ctx.setTerm(term)
 	}
+	term.setWinsize(*params)
+
 	// update the session:
 	if err := s.reg.notifyWinChange(*params, ctx); err != nil {
 		log.Error(err)
@@ -876,6 +878,12 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	if req.WantReply {
 		req.Reply(true, nil)
 	}
+	// a terminal has been previously allocate for this command.
+	// run this inside an interactive session
+	if ctx.term != nil {
+		return s.reg.openSession(ch, req, ctx)
+	}
+	// ... otherwise, regular execution:
 	result, err := execResponse.start(ch)
 	if err != nil {
 		ctx.Error(err)
