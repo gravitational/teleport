@@ -239,7 +239,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// create users:
+	// create users if they don't exist, or sign their keys if they're already present
 	auth := i.Process.GetAuthServer()
 	for _, user := range i.Secrets.Users {
 		err := auth.UpsertUser(&services.TeleportUser{
@@ -249,17 +249,19 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		priv, pub, _ := tconf.Keygen.GenerateKeyPair("")
-		//priv, pub := makeKey()
+		// if user keys are not present, auto-geneate keys:
+		if user.Key == nil || len(user.Key.Pub) == 0 {
+			priv, pub, _ := tconf.Keygen.GenerateKeyPair("")
+			user.Key = &client.Key{
+				Priv: priv,
+				Pub:  pub,
+			}
+		}
+		// sign user's keys:
 		ttl := time.Duration(time.Hour * 24)
-		cert, err := auth.GenerateUserCert(pub, user.Username, ttl)
+		user.Key.Cert, err = auth.GenerateUserCert(user.Key.Pub, user.Username, ttl)
 		if err != nil {
 			return err
-		}
-		user.Key = &client.Key{
-			Priv: priv,
-			Pub:  pub,
-			Cert: cert,
 		}
 	}
 	return nil
@@ -277,15 +279,17 @@ func (i *TeleInstance) Reset() (err error) {
 
 // Adds a new user into i Teleport instance. 'mappings' is a comma-separated
 // list of OS users
-func (i *TeleInstance) AddUser(username string, mappings []string) {
+func (i *TeleInstance) AddUser(username string, mappings []string) *User {
 	log.Infof("teleInstance.AddUser(%v) mapped to %v", username, mappings)
 	if mappings == nil {
 		mappings = make([]string, 0)
 	}
-	i.Secrets.Users[username] = &User{
+	user := &User{
 		Username:      username,
 		AllowedLogins: mappings,
 	}
+	i.Secrets.Users[username] = user
+	return user
 }
 
 func (i *TeleInstance) Start() (err error) {
