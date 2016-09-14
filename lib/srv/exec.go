@@ -17,9 +17,11 @@ limitations under the License.
 package srv
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
@@ -179,6 +181,7 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 	}
 	c.Env = []string{
 		"LANG=en_US.UTF-8",
+		getDefaultEnvPath(""),
 		"HOME=" + osUser.HomeDir,
 		"USER=" + osUserName,
 		"SHELL=" + shell,
@@ -321,4 +324,39 @@ func collectStatus(cmd *exec.Cmd, err error) (*execResult, error) {
 		return nil, fmt.Errorf("unknown exit status: %T(%v)", cmd.ProcessState.Sys(), cmd.ProcessState.Sys())
 	}
 	return &execResult{code: status.ExitStatus(), command: cmd.Path}, nil
+}
+
+// getDefaultEnvPath returns the default value of PATH environment variable for
+// new logins (prior to shell)
+//
+// Normally getDefaultEnvPath is set to "" (default /etc/login.defs is used)
+// but for unit testing it takes any file
+//
+// Returns a strings which looks like "PATH=/usr/bin:/bin"
+func getDefaultEnvPath(loginDefsPath string) string {
+	const emptyPath = "PATH="
+	if loginDefsPath == "" {
+		loginDefsPath = "/etc/login.defs"
+	}
+	f, err := os.Open(loginDefsPath)
+	if err != nil {
+		log.Warn(err)
+		return emptyPath
+	}
+	defer f.Close()
+
+	// read /etc/login.defs line by line:
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		// skip comments and empty lines:
+		if line == "" || line[0] == '#' {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) > 1 && fields[0] == "ENV_PATH" {
+			return strings.TrimSpace(fields[1])
+		}
+	}
+	return emptyPath
 }
