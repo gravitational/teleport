@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"crypto/x509"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -90,9 +91,13 @@ func FatalError(err error) {
 
 // UserMessageFromError returns user friendly error message from error
 func UserMessageFromError(err error) string {
-	te, ok := err.(trace.Error)
-	if ok {
-		return te.OrigError().Error()
+	err = trace.Unwrap(err)
+
+	// untrusted cert?
+	switch err.(interface{}).(type) {
+	case x509.UnknownAuthorityError, x509.CertificateInvalidError:
+		return "WARNING:\n The proxy you are connecting to uses the self-signed HTTPS certificate.\n" +
+			" Try --insecure flag if you know what you're doing.\n"
 	}
 	return err.Error()
 }

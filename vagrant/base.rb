@@ -4,11 +4,6 @@ DOCKER_VER ||= "1.10.3"
 NODES ||= {
   "a-auth" => ["a-auth", "10.0.10.10", "auth-a", "cluster-a"],
   "b-auth" => ["b-auth", "10.0.10.20", "auth-b", "cluster-b"], 
-  "web-1"  => ["a-node", "10.0.10.12"],
-  "web-2"  => ["a-node", "10.0.10.13"],
-  "redis"  => ["a-node", "10.0.10.14"],
-  "postgres-1" => ["a-node", "10.0.10.15"],
-  "postgres-2" => ["a-node", "10.0.10.16"],
 }
 
 
@@ -54,8 +49,8 @@ def apt_update(vm)
         apt-get -y update
         apt-get -y purge exim4-* libcairo*
         apt-get -y autoremove
-        apt-get -y upgrade
-        apt-get -y dist-upgrade
+        #apt-get -y upgrade
+        #apt-get -y dist-upgrade
         apt-get -y install htop tree vim aufs-tools screen curl
         touch /root/apt.updated
     fi

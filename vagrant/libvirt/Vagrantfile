@@ -17,7 +17,7 @@ Vagrant.configure(2) do |config|
 
   basic_config(config.vm)
   configure_ssh(config.vm)
-  #apt_update(config.vm)
+  apt_update(config.vm)
   install_docker(config.vm, DOCKER_VER)
   install_teleport(config.vm)
   configure_teleport(config.vm)
