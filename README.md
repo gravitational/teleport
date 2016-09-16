@@ -8,15 +8,15 @@
 
 ## Introduction
 
-Gravitational Teleport ("Teleport") is a modern SSH server for remotely accessing isolated clusters of Linux servers via SSH or HTTPS. It is intended to be used instead of `sshd`. Teleport enables teams to easily adopt the following practices:
+Gravitational Teleport is a modern SSH server for remotely accessing clusters of Linux servers via SSH or HTTPS. It is intended to be used instead of `sshd`. Teleport enables teams to easily adopt the best SSH practices like:
 
-- Avoid key distribution and [trust on first use](https://en.wikipedia.org/wiki/Trust_on_first_use) issues by using auto-expiring keys signed by a cluster certificate authority (CA).
-- Integrate SSH credentials into Google Apps or other OAuth identitiy providers.
-- Enforce 2nd factor authentication.
-- Connect to clusters located behind firewalls without direct Internet access via SSH bastions.
+- Integrated SSH credentials with your organization Google Apps identities or other OAuth identitiy providers.
+- No need to distribute keys: Teleport uses certificate-based access with automatic expiration time.
+- Enforcement of 2nd factor authentication.
+- Cluster introspection: every Teleport node becomes a part of a cluster and is visible on the Web UI.
 - Record and replay SSH sessions for knowledge sharing and auditing purposes.
 - Collaboratively troubleshoot issues through session sharing.
-- Discover online servers and Docker containers within a cluster with dynamic node labels.
+- Connect to clusters located behind firewalls without direct Internet access via SSH bastions.
 
 Teleport is built on top of the high-quality [Golang SSH](https://godoc.org/golang.org/x/crypto/ssh) implementation and it is fully compatible with OpenSSH.
 
