@@ -86,7 +86,7 @@ webpackJsonp([1],[
 	
 	  baseUrl: window.location.origin,
 	
-	  helpUrl: 'http://gravitational.com/teleport/docs/quickstart/',
+	  helpUrl: 'https://gravitational.com/teleport/docs/quickstart/',
 	
 	  maxSessionLoadSize: 50,
 	

@@ -821,7 +821,7 @@ by erasing everything under `"data_dir"` directory. Assuming the default locatio
 ## Getting Help
 
 Please open an [issue on Github](https://github.com/gravitational/teleport/issues).
-Alternatively, you can reach through the contact form on our [website](http://gravitational.com/).
+Alternatively, you can reach through the contact form on our [website](https://gravitational.com/).
 
 For commercial support, custom features or to try our multi-cluster edition of Teleport,
 please reach out to us: `sales@gravitational.com`. 

@@ -2,8 +2,8 @@
 
 |Project Links|
 |---|
-| [Teleport Website](http://gravitational.com/teleport)  |
-| [Documentation](http://gravitational.com/teleport/docs/quickstart/)  |
+| [Teleport Website](https://gravitational.com/teleport)  |
+| [Documentation](https://gravitational.com/teleport/docs/quickstart/)  |
 
 
 ## Introduction
@@ -71,7 +71,7 @@ within multiple organizations.
 
 ## Contributing
 
-The best way to contribute is to create issues or pull requests right here on Github. You can also reach the Gravitational team through their [website](http://gravitational.com/)
+The best way to contribute is to create issues or pull requests right here on Github. You can also reach the Gravitational team through their [website](https://gravitational.com/)
 
 
 ## Status
@@ -92,5 +92,5 @@ The latest stable Teleport build can be found in [Releases](https://github.com/g
 ## Who Built Teleport?
 
 Teleport was created by [Gravitational Inc](https://gravitational.com). We have built Teleport 
-by borrowing from our previous experiences at Rackspace. It has been extracted from [Gravity](http://gravitational.com/vendors.html), our system for helping our clients to deploy 
+by borrowing from our previous experiences at Rackspace. It has been extracted from [Gravity](https://gravitational.com/vendors.html), our system for helping our clients to deploy 
 and remotely manage their SaaS applications on many cloud regions or even on-premise.
