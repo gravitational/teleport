@@ -2,9 +2,9 @@
 
 |Project Links|
 |---|
-| [Teleport Website](https://gravitational.com/teleport)  |
-| [Documentation](https://gravitational.com/teleport/docs/quickstart/)  |
-
+| [Teleport Website](http://gravitational.com/teleport)  |
+| [Documentation](http://gravitational.com/teleport/docs/quickstart/)  |
+| [Demo Video](https://www.youtube.com/watch?v=7eVAC2U8OtM) |
 
 ## Introduction
 
