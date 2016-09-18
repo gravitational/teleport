@@ -273,7 +273,7 @@ to log in as a certain OS user.
 Teleport's user name is stored as a OpenSSH key id field.
 
 User's certificates do not use any cert extensions as a workaround to the [bug](https://bugzilla.mindrot.org/show_bug.cgi?id=2387)
- that treats any extenison as a critical one, breaking access to the cluster.
+ that treats any extension as a critical one, breaking access to the cluster.
     
 
 ## Teleport Tools

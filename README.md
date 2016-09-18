@@ -54,7 +54,7 @@ virtual memory to compile Teleport. 512MB instance without swap will not work.
 Mature tech companies with significant infrastructure footprints tend to implement most
 of these patterns internally. Teleport allows smaller companies without 
 significant in-house SSH expertise to easily adopt them, as well. Teleport comes with an 
-accesible Web UI and a very permissive [Apache 2.0](https://github.com/gravitational/teleport/blob/master/LICENSE)
+accessible Web UI and a very permissive [Apache 2.0](https://github.com/gravitational/teleport/blob/master/LICENSE)
 license to facilitate adoption and use.
 
 Being a complete standalone tool, Teleport can be used as a software library enabling 
@@ -76,7 +76,7 @@ The best way to contribute is to create issues or pull requests right here on Gi
 
 ## Status
 
-Teleport has completed a security audit from a nationally recongized technology security company. 
+Teleport has completed a security audit from a nationally recognized technology security company. 
 So we are comfortable with the use of Teleport from a security perspective.
 
 However, Teleport is still a relatively young product so you may experience usability issues. 

@@ -2,7 +2,7 @@
 
 ### Can I use Gravitational Teleport in production today?
 
-Teleport has completed a security audit from a nationally recongized technology security company. 
+Teleport has completed a security audit from a nationally recognized technology security company. 
 So we are comfortable with the use of Teleport from a security perspective. However, Teleport 
 is still a relatively young product so you may experience usability issues. We are actively 
 supporting Teleport and addressing any issues that are submitted to the [github repo](https://github.com/gravitational/teleport).
@@ -48,4 +48,4 @@ Yes, we offer a commercial version which includes:
 * Shipping of audit logs to 3rd party log management systems.
 * Premium SLA with guaranteed response times.
 
-Reach out to `sales@gravitational.com` if you have questions about commerial edition of Teleport.
+Reach out to `sales@gravitational.com` if you have questions about commercial edition of Teleport.
