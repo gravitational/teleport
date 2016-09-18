@@ -21,7 +21,7 @@ implementation and it is fully compatible with OpenSSH.
 Mature tech companies with significant infrastructure footprints tend to implement most
 of these patterns internally. Teleport allows smaller companies without 
 significant in-house SSH expertise to easily adopt them, as well. Teleport comes with an 
-accesible Web UI and a very permissive [Apache 2.0](https://github.com/gravitational/teleport/blob/master/LICENSE)
+accessible Web UI and a very permissive [Apache 2.0](https://github.com/gravitational/teleport/blob/master/LICENSE)
 license to facilitate adoption and use.
 
 Being a complete standalone tool, Teleport can be used as a software library enabling 

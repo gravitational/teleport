@@ -5,7 +5,7 @@ document you will learn how to:
 
 * Securely login into interactive shell on remote cluster nodes.
 * Securely copy files to and from cluster nodes.
-* Connect to SSH clusters behind firewals without any open ports using SSH reverse tunnels.
+* Connect to SSH clusters behind firewalls without any open ports using SSH reverse tunnels.
 * Explore a cluster and execute commands on those nodes in a cluster that match your criteria.
 * Share interactive shell sessions with colleagues or join someone else's session.
 * Replay recorded interactive sessions.
@@ -183,7 +183,7 @@ to the specified remote host:port. The syntax of `-L` flag is:
 
 where "bind_interface" defaults to `127.0.0.1`.
 
-Exmaple:
+Example:
 ```
 > tsh --proxy=work ssh -L 5000:web.remote:80 -d node
 ```

@@ -52,7 +52,7 @@ The Teleport daemon supports the following commands:
 |start       | Starts the Teleport daemon.
 |configure   | Dumps a sample configuration file in YAML format into standard output.
 |version     | Shows the Teleport version.
-|status      | Shows the status of a Teleport connection. This command is only available from inside of an active SSH seession.
+|status      | Shows the status of a Teleport connection. This command is only available from inside of an active SSH session.
 |help        | Shows help.
 
 When experimenting you can quickly start `teleport` with verbose logging by typing 
@@ -150,7 +150,7 @@ Let's cover some of these flags in more detail:
   by clients to login. By default it's equal to the value returned by `hostname` 
   command.
 
-* `--listen-ip` shoud be used to tell `teleport` daemon to bind to a specific network
+* `--listen-ip` should be used to tell `teleport` daemon to bind to a specific network
   interface. By default it listens on all.
 
 * `--labels` flag allows to assign a set of labels to a node. See the explanation
@@ -252,12 +252,12 @@ ssh_service:
 # This section configures the 'proxy servie'
 proxy_service:
     enabled: yes
-    # SSH forwrading/proxy address. Command line (CLI) clients always begin their
+    # SSH forwarding/proxy address. Command line (CLI) clients always begin their
     # SSH sessions by connecting to this port
     listen_addr: 0.0.0.0:3023
 
     # Reverse tunnel listening address. An auth server (CA) can establish an 
-    # outbound (from behind the firwall) connection to this address. 
+    # outbound (from behind the firewall) connection to this address. 
     # This will allow users of the outside CA to connect to behind-the-firewall 
     # nodes.
     tunnel_listen_addr: 0.0.0.0:3024
@@ -434,7 +434,7 @@ eoKoh0caiw6weoGupahgh6Wuo7jaTee2     Proxy      never
 6fc5545ab78c2ea978caabef9dbd08a5     Signup     17 May 16 04:24 UTC
 ```
 
-In this exampe, the first token with "never" expiry date is a static token configured via
+In this example, the first token with "never" expiry date is a static token configured via
 a config file. It cannot be revoked. 
 
 The 2nd token with "Node" role was generated to invite a new node to this cluster. And the
@@ -466,7 +466,7 @@ Labels can be configured in a configuration file or via `--labels` flag as shown
 > teleport start --labels uptime=[1m:"uptime -p"],kernel=[1h:"uname -r"]
 ```
 
-Obvioiusly the kernel version is not going to change often, so this example runs
+Obviously the kernel version is not going to change often, so this example runs
 `uname` once an hour. When this node starts and reports its labels into the cluster,
 users will see:
 
@@ -642,7 +642,7 @@ names. Edit `/etc/ssh/ssh_config`:
 ```
 # Tell OpenSSH client to use work.example.com as a jumphost (proxy) when logging
 # to any remote node whose name matches the pattern *.work.example.com
-# Beware of recurison here (when proxy name matches your pattern)
+# Beware of recursion here (when proxy name matches your pattern)
 Host *.work.example.com
   ProxyCommand ssh -p 3023 %r@work.example.com -s proxy:%h:%p
 ```
@@ -765,7 +765,7 @@ your Google credentials. Teleport will keep you logged in for the next 23 hours.
 
 !!! tip "Other Providers?": 
     We have already received the requests to add support for other OpenID/OAuth2 providers 
-    like Github. Teleport is an open source project and adding proivders is not hard, your 
+    like Github. Teleport is an open source project and adding providers is not hard, your 
     contributions are welcome, just search the code for OIDC! :-)
 
 
@@ -794,7 +794,7 @@ teleport:
         tls_cert_file: /var/lib/teleport/etcd-cert.pem
         # required path to TLS private key file to connect to etc
         tls_key_file: /var/lib/teleport/etcd-key.pem
-        # optioinal file with trusted CA authority
+        # optional file with trusted CA authority
         # file to authenticate etcd nodes
         tls_ca_file: /var/lib/teleport/etcd-ca.pem
 ```
@@ -803,7 +803,7 @@ teleport:
 * Deploy several Proxy nodes that have `auth_servers` pointed to list of Auth servers to connect.
 
 !!! tip:"NOTE": 
-    As new Auth servers will be added to the cluster and old servers will be decommisioned, node's and proxies will refresh the list of available auth servers refresh the cluster info and store the updated list locally in `/var/lib/teleport/authservers.json`. The values from this file, if present, will take precendence over configuration file's values. You can simply remove the file so that the configuration file's values can take effect again.
+    As new Auth servers will be added to the cluster and old servers will be decommissioned, node's and proxies will refresh the list of available auth servers refresh the cluster info and store the updated list locally in `/var/lib/teleport/authservers.json`. The values from this file, if present, will take precedence over configuration file's values. You can simply remove the file so that the configuration file's values can take effect again.
 
 
 ## Troubleshooting
