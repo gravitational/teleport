@@ -716,11 +716,11 @@ func connectToAuthService(cfg *service.Config) (client *auth.TunClient, err erro
 	return client, nil
 }
 
-// validateConfig updtes&validates tctl configuration
+// validateConfig validates and updates tctl configuration
 func validateConfig(cfg *service.Config) {
 	var err error
-	// read or generate a host UUID for this node
-	cfg.HostUUID, err = utils.ReadOrMakeHostUUID(cfg.DataDir)
+	// read a host UUID for this node
+	cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
 	if err != nil {
 		utils.FatalError(err)
 	}
