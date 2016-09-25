@@ -23,7 +23,8 @@ RUN (locale-gen \
 	&& locale-gen en_US.UTF-8 \
 	&& dpkg-reconfigure locales)
 
-RUN (apt-get update && apt-get install -q -y \
+RUN apt-get -y update && apt-get -y upgrade 
+RUN apt-get install -q -y \
          libsqlite3-0 \
          curl \
          make \
@@ -35,9 +36,9 @@ RUN (apt-get update && apt-get install -q -y \
          python \
          python-pip \
          libyaml-dev \
-         python-dev) ;\
-    pip install click==4.1 recommonmark mkdocs  markdown-include ;\
-    apt-get -y autoclean; apt-get -y clean
+         python-dev 
+RUN (pip install click==4.1 recommonmark mkdocs  markdown-include ;\
+     apt-get -y autoclean; apt-get -y clean)
 
 # Install Golang:
 RUN (mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/go1.7.linux-amd64.tar.gz | tar xz;\
@@ -45,7 +46,7 @@ RUN (mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/go1.
      chmod a+w /gopath;\
      chmod a+w /var/lib)
 
-RUN groupadd jenkins --gid=$GID && useradd jenkins --uid=$UID --gid=$GID --create-home --shell=/bin/sh
+RUN groupadd jenkins --gid=$GID -o && useradd jenkins --uid=$UID --gid=$GID --create-home --shell=/bin/sh
 RUN (mkdir -p /var/lib/teleport && chown -R jenkins /var/lib/teleport)
 
 ENV LANGUAGE="en_US.UTF-8" \

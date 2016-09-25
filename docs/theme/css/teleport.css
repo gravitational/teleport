@@ -295,3 +295,23 @@ div.wy-nav-content { max-width: 1000px; }
 
 h3 { margin: 0 auto 0 auto; width: 100% }
 
+.wy-menu-vertical li ul li a { font-size: 90% }
+.wy-nav-content { padding-left: 20px; padding-top: 10px; padding-right: 20px; }
+div[role=navigation] hr { margin: 10px 0px }
+
+div.admonition {
+    border-radius: 4px;
+}
+div.admonition p.admonition-title {
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+.admonition.danger {
+    color: #c57317;
+}
+.admonition.tip {
+    background-color: #e1eff2;
+}
+.admonition.tip p.admonition-title {
+    background-color: #6eabb6;
+}
