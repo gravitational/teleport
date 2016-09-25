@@ -1,6 +1,6 @@
 <div role="navigation" aria-label="breadcrumbs navigation">
   <ul class="wy-breadcrumbs">
-    <li><a href="{{ homepage_url }}">Docs</a> &raquo;</li>
+    <li><a href="/teleport">Teleport</a> &raquo;</li>
     {% if current_page %}
       {% for doc in current_page.ancestors %}
         {% if doc.link %}
@@ -12,13 +12,7 @@
     {% endif %}
     {% if current_page %}<li>{{ current_page.title }}</li>{% endif %}
     <li class="wy-breadcrumbs-aside">
-      {% if repo_url %}
-        {% if repo_name == 'GitHub' %}
-          <a href="{{ repo_url }}" class="icon icon-github"> Edit on GitHub</a>          
-        {% elif repo_name == 'Bitbucket' %}
-          <a href="{{ repo_url }}" class="icon icon-bitbucket"> Edit on BitBucket</a>
-        {% endif %}
-      {% endif %}
+        <a href="http://gravitational.com">About Us</a>          
     </li>
   </ul>
   <hr/>
