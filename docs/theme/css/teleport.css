@@ -363,6 +363,6 @@ div[role=contentinfo]  img.footer-talk {
 	width: 70px;
 }
 div[role=contentinfo] li.contact {
-	background: url(/img/bridge.svg) no-repeat center;
+	background: url(../img/bridge.svg) no-repeat center;
 	background-size: 180px 180px;
 }
