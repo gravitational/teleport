@@ -317,7 +317,7 @@ div.admonition p.admonition-title {
 }
 
 
-footer div[role=contentinfo] {
+div[role=contentinfo] {
 	padding: 20px 0px 0px 0px;
 	width: 100%;
 	overflow: hidden;
@@ -325,26 +325,30 @@ footer div[role=contentinfo] {
 	background-color: #f0f1f8;
 }
 
-footer div[role=contentinfo] ul {
+div[role=contentinfo] ul {
     display: flex;
     padding: 0px;
 }
-footer div[role=contentinfo] p {
-    line-height: 1em;
+div[role=contentinfo] a {
+    text-decoration: underline;
+}
+div[role=contentinfo] p {
+    line-height: 2.2em;
     font-size: 13px;
+    margin-bottom: 0px;
 }
 
-footer ul, ol, dl {
+div[role=contentinfo] ul, ol, dl {
 	margin: 0;
 	padding: 0;
 	list-style: none;
 	list-style-image: none;
 }
-footer li.double {
+div[role=contentinfo] li.double {
 	padding: 0px 0 125px 0;
 }
 
-footer li {
+div[role=contentinfo] li {
 	display: inline-block;
 	margin: auto;
 	width: 25%;
@@ -352,13 +356,13 @@ footer li {
 	max-height: 60px;
 	vertical-align: middle;
 	text-align: center;
-	border-right: 1px solid #dadaea;
+	border-right: 1px dotted #dadaea;
 	padding: 170px 0;
 }
-footer img.footer-talk {
+div[role=contentinfo]  img.footer-talk {
 	width: 70px;
 }
-footer li.contact {
+div[role=contentinfo] li.contact {
 	background: url(/img/bridge.svg) no-repeat center;
-	background-size: contain;
+	background-size: 180px 180px;
 }
