@@ -4,7 +4,6 @@ BUILDFLAGS ?= %BUILDFLAGS%
 BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 PKGPATH := github.com/gravitational/teleport
-GO15VENDOREXPERIMENT := 1
 export
 
 #

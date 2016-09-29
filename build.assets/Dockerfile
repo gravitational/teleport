@@ -55,8 +55,7 @@ ENV LANGUAGE="en_US.UTF-8" \
     LC_CTYPE="en_US.UTF-8" \
     GOPATH="/gopath" \
     GOROOT="/opt/go" \
-    PATH="$PATH:/opt/go/bin:/gopath/bin" \
-    GO15VENDOREXPERIMENT="1"
+    PATH="$PATH:/opt/go/bin:/gopath/bin"
 
 VOLUME ["/gopath/src/github.com/gravitational/teleport"]
 EXPOSE 6600
