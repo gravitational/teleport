@@ -165,7 +165,7 @@ of data the auth server stores:
 * **Key storage**. As described above, a Teleport cluster is a set of machines whose public keys are 
   signed by the same certificate authority (CA), with the auth server acting as the CA of a cluster.
   The auth server stores its own keys in a key storage. Currently there are two storage backends
-  for keys: [BoldDB](https://github.com/boltdb/bolt) for single-node auth server, and 
+  for keys: [BoltDB](https://github.com/boltdb/bolt) for single-node auth server, and 
   [etcd](https://github.com/coreos/etcd) for HA configurations. Implementing another key storage 
   backend is simple, see `lib/backend` directory in Teleport source code.
 
