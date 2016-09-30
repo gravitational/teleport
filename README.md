@@ -36,7 +36,13 @@ teleport start
 
 You need to have Golang `v1.7` or newer. 
 
-Clone this repository into `$GOPATH/gravitational/teleport` and run `make`. 
+Run 
+
+1. `go get github.com/gravitational/teleport`
+2. `cd $GOPATH/src/github.com/gravitational/teleport`
+3. `make`
+
+If the build was successful the binaries are here: `$GOPATH/src/github.com/gravitational/teleport/build`
 
 You'll have to create `/var/lib/teleport` directory and then you can start 
 Teleport as a single-node cluster in development mode: `build/teleport start -d`
