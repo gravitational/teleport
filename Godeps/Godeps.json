@@ -8,6 +8,14 @@
 	],
 	"Deps": [
 		{
+			"ImportPath": "github.com/GeertJohan/go.rice",
+			"Rev": "9fdfd46f9806a9228aae341d65ab75c5235c383c"
+		},
+		{
+			"ImportPath": "github.com/GeertJohan/go.rice/embedded",
+			"Rev": "9fdfd46f9806a9228aae341d65ab75c5235c383c"
+		},
+		{
 			"ImportPath": "github.com/Sirupsen/logrus",
 			"Comment": "v0.10.0",
 			"Rev": "4b6ea7319e214d98c938f12692336f7ca9348d6b"
@@ -108,6 +116,10 @@
 		{
 			"ImportPath": "github.com/coreos/pkg/timeutil",
 			"Rev": "1914e367e85eaf0c25d495b48e060dfe6190f8d0"
+		},
+		{
+			"ImportPath": "github.com/daaku/go.zipexe",
+			"Rev": "a5fe2436ffcb3236e175e5149162b41cd28bd27d"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/term",

@@ -36,8 +36,7 @@ tar -xzf teleport-binary-release.tar.gz
 sudo make install
 ```
 
-This will copy Teleport binaries to `/usr/local/bin` and the web assets 
-to `/usr/local/share/teleport`.
+This will copy Teleport binaries to `/usr/local/bin`.
 
 Let's start Teleport on a single-node. First, create a directory for Teleport 
 to keep its data. By default it's `/var/lib/teleport`. Then start `teleport` daemon:

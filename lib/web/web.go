@@ -25,15 +25,14 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	rice "github.com/GeertJohan/go.rice"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -80,8 +79,6 @@ type Config struct {
 	// Proxy is a reverse tunnel proxy that handles connections
 	// to various sites
 	Proxy reversetunnel.Server
-	// AssetsDir is a directory with web assets (js files, css files)
-	AssetsDir string
 	// AuthServers is a list of auth servers this proxy talks to
 	AuthServers utils.NetAddr
 	// DomainName is a domain name served by web handler
@@ -168,16 +165,16 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 	var (
 		writeSettings http.HandlerFunc
 		indexPage     *template.Template
+		box           = rice.MustFindBox("../../web/dist")
 	)
 	if !cfg.DisableUI {
-		indexPath := filepath.Join(cfg.AssetsDir, "/index.html")
-		indexContent, err := ioutil.ReadFile(indexPath)
+		indexContent, err := box.String("index.html")
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
-		indexPage, err = template.New("index").Parse(string(indexContent))
+		indexPage, err = template.New("index").Parse(indexContent)
 		if err != nil {
-			return nil, trace.BadParameter("failed parsing template %v: %v", indexPath, err)
+			return nil, trace.BadParameter("failed parsing template index.html: %v", err)
 		}
 		writeSettings = httplib.MakeStdHandler(h.getSettings)
 	}
@@ -203,7 +200,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 
 		// serve Web UI:
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
-			http.StripPrefix("/web", http.FileServer(http.Dir(cfg.AssetsDir))).ServeHTTP(w, r)
+			http.StripPrefix("/web", http.FileServer(box.HTTPBox())).ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web/config.js") {
 			writeSettings.ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web") {

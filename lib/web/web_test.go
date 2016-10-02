@@ -193,11 +193,9 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(s.tunServer.Start(), IsNil)
 
 	// start handler
-	assetsDir, err := filepath.Abs("../../web/dist")
 	c.Assert(err, IsNil)
 	handler, err := NewHandler(Config{
 		Proxy:       revTunServer,
-		AssetsDir:   assetsDir,
 		AuthServers: tunAddr,
 		DomainName:  s.domainName,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond))
