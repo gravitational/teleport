@@ -1,0 +1,116 @@
+# By default, this file should be stored in /etc/teleport.yaml
+
+## IMPORTANT ##
+#When editing YAML configuration, please pay attention to how your editor handles white space. YAML requires consistent handling of tab characters
+# This section of the configuration file applies to all teleport
+# services.
+teleport:
+    # nodename allows to assign an alternative name this node can be reached by.
+    # by default it's equal to hostname
+    nodename: graviton
+
+    # Data directory where Teleport keeps its data, like keys/users for 
+    # authentication (if using the default BoltDB back-end)
+    data_dir: /var/lib/teleport
+
+    # one-time invitation token used to join a cluster. it is not used on 
+    # subsequent starts
+    auth_token: xxxx-token-xxxx
+
+    # when running in multi-homed or NATed environments Teleport nodes need 
+    # to know which IP it will be reachable at by other nodes
+    #advertise_ip: 0.0.0.0
+
+    # list of auth servers in a cluster. you will have more than one auth server
+    # if you configure teleport auth to run in HA configuration
+    auth_servers: 
+        - localhost:3025
+
+    # Teleport throttles all connections to avoid abuse. These settings allow
+    # you to adjust the default limits
+    connection_limits:
+        max_connections: 1000
+        max_users: 250
+
+    # Logging configuration. Possible output values are 'stdout', 'stderr' and 
+    # 'syslog'. Possible severity values are INFO, WARN and ERROR (default).
+    log:
+        output: stderr
+        severity: ERROR
+
+    # Type of storage used for keys. You need to configure this to use etcd
+    # backend if you want to run Teleport in HA configuration.
+    storage:
+        type: bolt
+
+# This section configures the 'auth service':
+auth_service:
+    enabled: yes
+    # IP and the port to bind to. Other Teleport nodes will be connecting to
+    # this port (AKA "Auth API" or "Cluster API") to validate client 
+    # certificates 
+    listen_addr: 0.0.0.0:3025
+
+    # Pre-defined tokens for adding new nodes to a cluster. Each token specifies
+    # the role a new node will be allowed to assume. The more secure way to 
+    # add nodes is to use `ttl node add --ttl` command to generate auto-expiring 
+    # tokens. 
+    #
+    # We recommend to use tools like `pwgen` to generate sufficiently random
+    # tokens of 32+ byte length.
+    tokens:
+        - "proxy,node:xxxxx"
+        - "auth:yyyy"
+
+# This section configures the 'node service':
+ssh_service:
+    enabled: yes
+    # IP and the port for SSH service to bind to. 
+    listen_addr: 0.0.0.0:3022
+    # See explanation of labels in "Labeling Nodes" section below
+    labels:
+        role: master
+        type: postgres
+    # List (YAML array) of commands to periodically execute and use
+    # their output as labels. 
+    # See explanation of how this works in "Labeling Nodes" section below
+    commands:
+    - name: hostname
+      command: [/usr/bin/hostname]
+      period: 1m0s
+    - name: arch
+      command: [/usr/bin/uname, -p]
+      period: 1h0m0s
+
+# This section configures the 'proxy servie'
+proxy_service:
+    enabled: yes
+    # SSH forwarding/proxy address. Command line (CLI) clients always begin their
+    # SSH sessions by connecting to this port
+    listen_addr: 0.0.0.0:3023
+
+    # Reverse tunnel listening address. An auth server (CA) can establish an 
+    # outbound (from behind the firewall) connection to this address. 
+    # This will allow users of the outside CA to connect to behind-the-firewall 
+    # nodes.
+    tunnel_listen_addr: 0.0.0.0:3024
+
+    # List (array) of other clusters this CA trusts.
+    trusted_clusters:
+      - key_file: /path/to/main-cluster.ca
+        # Comma-separated list of OS logins allowed to users of this 
+        # trusted cluster
+        allow_logins: john,root
+        # Establishes a reverse SSH tunnel from this cluster to the trusted
+        # cluster, allowing the trusted cluster users to access nodes of this 
+        # cluster
+        #tunnel_addr: 80.10.0.12:3024
+
+    # The HTTPS listen address to serve the Web UI and also to authenticate the 
+    # command line (CLI) users via password+HOTP
+    web_listen_addr: 0.0.0.0:3080
+
+    # TLS certificate for the HTTPS connection. Configuring these properly is 
+    # critical for Teleport security.
+    https_key_file: /etc/teleport/teleport.key
+    https_cert_file: /etc/teleport/teleport.crt
