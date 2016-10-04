@@ -19,10 +19,10 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/gravitational/teleport/lib/utils"
+	"sort"
 	"strings"
 	"time"
-
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
@@ -173,5 +173,6 @@ func (s *Server) LabelsString() string {
 	for key, val := range s.CmdLabels {
 		labels = append(labels, fmt.Sprintf("%s=%s", key, val.Result))
 	}
+	sort.Strings(labels)
 	return strings.Join(labels, ",")
 }
