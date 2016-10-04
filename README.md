@@ -1,10 +1,11 @@
 # Gravitational Teleport
 
-|Project Links|
-|---|
-| [Teleport Website](http://gravitational.com/teleport)  |
-| [Documentation](http://gravitational.com/teleport/docs/quickstart/)  |
-| [Demo Video](https://www.youtube.com/watch?v=7eVAC2U8OtM) |
+|Project Links| Description
+|---|----
+| [Teleport Website](http://gravitational.com/teleport)  | The official website of the project |
+| [Documentation](http://gravitational.com/teleport/docs/quickstart/)  | Admin guide, user manual and more |
+| [Demo Video](https://www.youtube.com/watch?v=7eVAC2U8OtM) | 3-minute video overview of the UI. |
+| [Teleconsole](http://www.teleconsole.com) | The free service to "invite" SSH clients behind NAT, built on top of Teleport |
 
 ## Introduction
 
