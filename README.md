@@ -6,6 +6,7 @@
 | [Documentation](http://gravitational.com/teleport/docs/quickstart/)  | Admin guide, user manual and more |
 | [Demo Video](https://www.youtube.com/watch?v=7eVAC2U8OtM) | 3-minute video overview of the UI. |
 | [Teleconsole](http://www.teleconsole.com) | The free service to "invite" SSH clients behind NAT, built on top of Teleport |
+| [Blog](http://blog.gravitational.com) | Our blog where we publish Teleport news |
 
 ## Introduction
 
