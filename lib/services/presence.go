@@ -19,10 +19,11 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gravitational/teleport/lib/utils"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
