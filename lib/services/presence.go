@@ -19,6 +19,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -173,5 +174,6 @@ func (s *Server) LabelsString() string {
 	for key, val := range s.CmdLabels {
 		labels = append(labels, fmt.Sprintf("%s=%s", key, val.Result))
 	}
+	sort.Strings(labels)
 	return strings.Join(labels, ",")
 }
