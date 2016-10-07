@@ -84,7 +84,7 @@ After=network.target
 [Service]
 Type=simple
 Restart=always
-ExecStart=/usr/bin/teleport --config=/etc/teleport.yaml start
+ExecStart=/usr/local/bin/teleport --config=/etc/teleport.yaml start
 
 [Install]
 WantedBy=multi-user.target
