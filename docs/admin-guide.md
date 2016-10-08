@@ -8,22 +8,13 @@ of Linux administration.
 
 ### Installing from Source
 
-Gravitational Teleport is written in Go language. It requires Golang v1.5 or newer. 
+Gravitational Teleport is written in Go language. It requires Golang v1.7 or newer. 
 If you have Go already installed, type:
 
 ```bash
-> git clone https://github.com/gravitational/teleport 
-> cd teleport
-> make 
-```
-
-If you do not have Go but you have Docker installed and running, you can build Teleport
-this way:
-
-```bash
-> git clone https://github.com/gravitational/teleport
-> cd teleport/build.assets
-> make
+$ go get github.com/gravitational/teleport
+$ cd $GOPATH/src/github.com/gravitational/teleport
+$ make
 ```
 
 ### Installing from Binaries
