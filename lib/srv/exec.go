@@ -38,6 +38,11 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+const (
+	defaultPath = "/bin:/usr/bin:/usr/local/bin:/sbin"
+	defaultTerm = "xterm"
+)
+
 // execResult is used internally to send the result of a command execution from
 // a goroutine to SSH request handler and back to the calling client
 type execResult struct {
@@ -190,6 +195,9 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 	}
 	c.Dir = osUser.HomeDir
 	c.SysProcAttr = &syscall.SysProcAttr{}
+	if _, found := ctx.env["TERM"]; !found {
+		c.Env = append(c.Env, "TERM="+defaultTerm)
+	}
 
 	// execute the command under requested user's UID:GID
 	me, err := user.Current()
@@ -334,14 +342,14 @@ func collectStatus(cmd *exec.Cmd, err error) (*execResult, error) {
 //
 // Returns a strings which looks like "PATH=/usr/bin:/bin"
 func getDefaultEnvPath(loginDefsPath string) string {
-	const emptyPath = "PATH="
+	defaultValue := "PATH=" + defaultPath
 	if loginDefsPath == "" {
 		loginDefsPath = "/etc/login.defs"
 	}
 	f, err := os.Open(loginDefsPath)
 	if err != nil {
 		log.Warn(err)
-		return emptyPath
+		return defaultValue
 	}
 	defer f.Close()
 
@@ -358,5 +366,5 @@ func getDefaultEnvPath(loginDefsPath string) string {
 			return strings.TrimSpace(fields[1])
 		}
 	}
-	return emptyPath
+	return defaultValue
 }

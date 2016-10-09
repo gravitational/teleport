@@ -60,6 +60,7 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 		"SHELL=/bin/sh",
 		"SSH_TELEPORT_USER=galt",
 		"SSH_SESSION_WEBPROXY_ADDR=<proxyhost>:3080",
+		"TERM=xterm",
 		"SSH_CLIENT=10.0.0.5 4817 3022",
 		"SSH_CONNECTION=10.0.0.5 4817 127.0.0.1 3022",
 		"SSH_SESSION_ID=xxx",
@@ -95,7 +96,7 @@ func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
 
 func (s *ExecSuite) TestLoginDefsParser(c *check.C) {
 	c.Assert(getDefaultEnvPath("../../fixtures/login.defs"), check.Equals, "PATH=/usr/local/bin:/usr/bin:/bin:/foo")
-	c.Assert(getDefaultEnvPath("bad/file"), check.Equals, "PATH=")
+	c.Assert(getDefaultEnvPath("bad/file"), check.Equals, "PATH="+defaultPath)
 }
 
 // implementation of ssh.Conn interface
