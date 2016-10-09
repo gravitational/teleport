@@ -245,6 +245,7 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 	siteClient, err := ns.nodeClient.Proxy.ConnectToSite()
 	if err != nil {
 		log.Error(err)
+		return
 	}
 	tick := time.NewTicker(defaults.SessionRefreshPeriod)
 	defer tick.Stop()
