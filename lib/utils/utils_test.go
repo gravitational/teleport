@@ -72,5 +72,8 @@ func (s *UtilsSuite) TestGetShell(c *check.C) {
 
 	shell, err = GetLoginShell("daemon")
 	c.Assert(err, check.IsNil)
-	c.Assert(shell == "/usr/sbin/nologin" || shell == "/usr/bin/nologin" || shell == "/usr/bin/false", check.Equals, true)
+	c.Assert(shell == "/usr/sbin/nologin" ||
+		shell == "/sbin/nologin" ||
+		shell == "/usr/bin/nologin" ||
+		shell == "/usr/bin/false", check.Equals, true)
 }
