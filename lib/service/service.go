@@ -429,6 +429,7 @@ func (process *TeleportProcess) onExit(callback func(interface{})) {
 	}()
 }
 
+// initSSH initializes the "node" role, i.e. a simple SSH server connected to the auth server.
 func (process *TeleportProcess) initSSH() error {
 	process.RegisterWithAuthServer(
 		process.Config.Token, teleport.RoleNode, SSHIdentityEvent)
@@ -527,7 +528,7 @@ func (process *TeleportProcess) RegisterWithAuthServer(token string, role telepo
 				err = auth.Register(cfg.DataDir, token, identityID, cfg.AuthServers)
 			}
 			if err != nil {
-				utils.Consolef(cfg.Console, "[%v] failed to join the cluster: %v", role, err)
+				log.Errorf("[%v] failed to join the cluster: %v", role, err)
 				time.Sleep(retryTime)
 			} else {
 				utils.Consolef(cfg.Console, "[%v] Successfully registered with the cluster", role)

@@ -21,6 +21,10 @@ export
 
 $(eval BUILDFLAGS := $(ADDFLAGS) -ldflags -w)
 
+# TODO: remove this target
+ev:
+	$(MAKE) teleport
+
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
 #
@@ -183,3 +187,8 @@ start-test-etcd:
 .PHONY: remove-temp-files
 remove-temp-files:
 	find . -name flymake_* -delete
+
+# Dockerized build: usefule for making Linux releases on OSX
+.PHONY:docker
+docker:
+	make -C build.assets

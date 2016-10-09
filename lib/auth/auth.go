@@ -317,7 +317,7 @@ func (s *AuthServer) ValidateToken(token string) (roles teleport.Roles, e error)
 	// look at the tokens in the token storage
 	tok, err := s.Provisioner.GetToken(token)
 	if err != nil {
-		log.Warn(err)
+		log.Info(err)
 		return nil, trace.Errorf("token not recognized")
 	}
 	return tok.Roles, nil
