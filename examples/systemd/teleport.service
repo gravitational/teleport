@@ -1,0 +1,11 @@
+[Unit]
+Description=Teleport SSH Service
+After=network.target 
+
+[Service]
+Type=simple
+Restart=always
+ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml
+
+[Install]
+WantedBy=multi-user.target
