@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/state"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 
@@ -96,6 +97,9 @@ type TeleportProcess struct {
 	// localAuth has local auth server listed in case if this process
 	// has started with auth server role enabled
 	localAuth *auth.AuthServer
+
+	// identities of this process (credentials to auth sever, basically)
+	Identities map[teleport.Role]*auth.Identity
 }
 
 func (process *TeleportProcess) GetAuthServer() *auth.AuthServer {
@@ -112,25 +116,45 @@ func (process *TeleportProcess) findStaticIdentity(id auth.IdentityID) (*auth.Id
 	return nil, trace.NotFound("identity %v not found", &id)
 }
 
+// GetIdentity returns the process identity (credentials to the auth server) for a given
+// teleport Role. A teleport process can have any combination of 3 roles: auth, node, proxy
+// and they have their own identities
+func (process *TeleportProcess) GetIdentity(role teleport.Role) (i *auth.Identity, err error) {
+	var found bool
+
+	process.Lock()
+	defer process.Unlock()
+
+	i, found = process.Identities[role]
+	if !found {
+		id := auth.IdentityID{HostUUID: process.Config.HostUUID, Role: role}
+		i, err = auth.ReadIdentity(process.Config.DataDir, id)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				// try to locate static identity provide in the file
+				i, err = process.findStaticIdentity(id)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				log.Infof("found static identity %v in the config file, writing to disk", &id)
+				if err = auth.WriteIdentity(process.Config.DataDir, i); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			} else {
+				return nil, trace.Wrap(err)
+			}
+		}
+		process.Identities[role] = i
+	}
+	return i, nil
+}
+
 // connectToAuthService attempts to login into the auth servers specified in the
 // configuration. Returns 'true' if successful
 func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Connector, error) {
-	id := auth.IdentityID{HostUUID: process.Config.HostUUID, Role: role}
-	identity, err := auth.ReadIdentity(process.Config.DataDir, id)
+	identity, err := process.GetIdentity(role)
 	if err != nil {
-		if trace.IsNotFound(err) {
-			// try to locate static identity provide in the file
-			identity, err = process.findStaticIdentity(id)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			log.Infof("found static identity %v in the config file, writing to disk", &id)
-			if err = auth.WriteIdentity(process.Config.DataDir, identity); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		} else {
-			return nil, trace.Wrap(err)
-		}
+		return nil, trace.Wrap(err)
 	}
 	storage := utils.NewFileAddrStorage(
 		filepath.Join(process.Config.DataDir, "authservers.json"))
@@ -211,6 +235,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	process := &TeleportProcess{
 		Supervisor: NewSupervisor(),
 		Config:     cfg,
+		Identities: make(map[teleport.Role]*auth.Identity),
 	}
 
 	serviceStarted := false
@@ -453,10 +478,16 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
+		snap, err := state.MakeClusterSnapshot(conn.Client)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		s, err = srv.New(cfg.SSH.Addr,
 			cfg.Hostname,
 			[]ssh.Signer{conn.Identity.KeySigner},
-			conn.Client,
+			//conn.Client,
+			snap,
 			cfg.DataDir,
 			cfg.AdvertiseIP,
 			srv.SetLimiter(limiter),
@@ -557,11 +588,9 @@ func (process *TeleportProcess) initProxy() error {
 			return trace.Wrap(err)
 		}
 	}
+	myRole := teleport.RoleProxy
 
-	process.RegisterWithAuthServer(
-		process.Config.Token, teleport.RoleProxy,
-		ProxyIdentityEvent)
-
+	process.RegisterWithAuthServer(process.Config.Token, myRole, ProxyIdentityEvent)
 	process.RegisterFunc(func() error {
 		eventsC := make(chan Event)
 		process.WaitForEvent(ProxyIdentityEvent, eventsC, make(chan struct{}))
@@ -572,7 +601,22 @@ func (process *TeleportProcess) initProxy() error {
 		if !ok {
 			return trace.BadParameter("unsupported connector type: %T", event.Payload)
 		}
-		return trace.Wrap(process.initProxyEndpoint(conn))
+
+		// read our identity:
+		identity, err := process.GetIdentity(myRole)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// make a snapshot of the cluster:
+		if _, err = state.MakeClusterSnapshot(conn.Client); err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(process.initProxyEndpoint(&Connector{
+			Client:   conn.Client,
+			Identity: identity,
+		}))
+
+		//return trace.Wrap(process.initProxyEndpoint(conn))
 	})
 	return nil
 }

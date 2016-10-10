@@ -24,6 +24,8 @@ $(eval BUILDFLAGS := $(ADDFLAGS) -ldflags -w)
 # TODO: remove this target
 ev:
 	$(MAKE) teleport
+test-state:
+	go test -v ./lib/state... $(FLAGS) -tags test
 
 #
 # Default target: builds all 3 executables and plaaces them in a current directory

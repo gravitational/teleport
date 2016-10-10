@@ -1,0 +1,154 @@
+/*
+Copyright 2015 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+*/
+
+package state
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
+
+	"gopkg.in/check.v1"
+)
+
+// fake cluster we're testing on:
+var (
+	Nodes = []services.Server{
+		{
+			ID:        "1",
+			Addr:      "10.50.0.1",
+			Hostname:  "one",
+			Labels:    make(map[string]string),
+			CmdLabels: make(map[string]services.CommandLabel),
+		},
+		{
+			ID:        "2",
+			Addr:      "10.50.0.2",
+			Hostname:  "two",
+			Labels:    make(map[string]string),
+			CmdLabels: make(map[string]services.CommandLabel),
+		},
+	}
+	Proxies = []services.Server{
+		{
+			ID:       "3",
+			Addr:     "10.50.0.3",
+			Hostname: "three",
+			Labels:   map[string]string{"os": "linux", "role": "proxy"},
+			CmdLabels: map[string]services.CommandLabel{
+				"uptime": {Period: time.Second, Command: []string{"uptime"}},
+			},
+		},
+	}
+	Users = []services.TeleportUser{
+		{
+			Name:           "elliot",
+			AllowedLogins:  []string{"elliot", "root"},
+			OIDCIdentities: []services.OIDCIdentity{},
+		},
+		{
+			Name:          "bob",
+			AllowedLogins: []string{"bob"},
+			OIDCIdentities: []services.OIDCIdentity{
+				{
+					ConnectorID: "example.com",
+					Email:       "bob@example.com",
+				},
+				{
+					ConnectorID: "example.net",
+					Email:       "bob@example.net",
+				},
+			},
+		},
+	}
+)
+
+type ClusterSnapshotSuite struct {
+	dataDir    string
+	backend    *boltbk.BoltBackend
+	authServer *auth.AuthServer
+}
+
+var _ = check.Suite(&ClusterSnapshotSuite{})
+
+// bootstrap check
+func TestState(t *testing.T) { check.TestingT(t) }
+
+func (s *ClusterSnapshotSuite) SetUpSuite(c *check.C) {
+	// create a new auth server:
+	s.dataDir = c.MkDir()
+	var err error
+	s.backend, err = boltbk.New(filepath.Join(s.dataDir, "db"))
+	c.Assert(err, check.IsNil)
+	s.authServer = auth.NewAuthServer(&auth.InitConfig{
+		Backend:    s.backend,
+		Authority:  testauthority.New(),
+		DomainName: "auth.local",
+	})
+	// add some nodes to it:
+	for _, n := range Nodes {
+		err = s.authServer.UpsertNode(n, defaults.ServerHeartbeatTTL)
+		c.Assert(err, check.IsNil)
+	}
+	// add some proxies to it:
+	for _, p := range Proxies {
+		err = s.authServer.UpsertProxy(p, defaults.ServerHeartbeatTTL)
+		c.Assert(err, check.IsNil)
+	}
+	// add some users to it:
+	for _, u := range Users {
+		err = s.authServer.UpsertUser(&u)
+		c.Assert(err, check.IsNil)
+	}
+}
+
+func (s *ClusterSnapshotSuite) TearDownSuite(c *check.C) {
+	s.authServer.Close()
+	s.backend.Close()
+	os.RemoveAll(s.dataDir)
+}
+
+func (s *ClusterSnapshotSuite) SetUpTest(c *check.C) {
+}
+
+func (s *ClusterSnapshotSuite) TearDownTest(c *check.C) {
+}
+
+func (s *ClusterSnapshotSuite) TestMakeSnapshot(c *check.C) {
+	snap, err := MakeClusterSnapshot(s.authServer)
+	c.Assert(err, check.IsNil)
+	c.Assert(snap, check.NotNil)
+
+	users, err := snap.GetUsers()
+	c.Assert(err, check.IsNil)
+	c.Assert(users, check.HasLen, len(Users))
+
+	nodes, err := snap.GetNodes()
+	c.Assert(err, check.IsNil)
+	c.Assert(nodes, check.HasLen, len(Nodes))
+
+	proxies, err := snap.GetProxies()
+	c.Assert(err, check.IsNil)
+	c.Assert(proxies, check.HasLen, len(Proxies))
+}
