@@ -135,12 +135,6 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 	storage := utils.NewFileAddrStorage(
 		filepath.Join(process.Config.DataDir, "authservers.json"))
 
-	if len(process.Config.AuthServers) > 0 {
-		if err := storage.SetAddresses(process.Config.AuthServers); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	authUser := identity.Cert.ValidPrincipals[0]
 	authClient, err := auth.NewTunClient(
 		string(role),
