@@ -18,9 +18,8 @@ package services
 
 import (
 	"fmt"
+	"strings"
 	"time"
-
-	"github.com/gravitational/configure/cstrings"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -85,8 +84,8 @@ func (c *CertAuthID) Check() error {
 	if err := c.Type.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	if !cstrings.IsValidDomainName(c.DomainName) {
-		return trace.BadParameter("identity validation error: '%v' is not a valid FQDN", c.DomainName)
+	if strings.TrimSpace(c.DomainName) == "" {
+		return trace.BadParameter("identity validation error: empty domain name")
 	}
 	return nil
 }

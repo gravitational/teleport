@@ -221,7 +221,7 @@ func (s *ServicesTestSuite) ReverseTunnelsCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	err = s.PresenceS.UpsertReverseTunnel(services.ReverseTunnel{DomainName: " bad domain", DialAddrs: []string{"example.com:2023"}}, 0)
+	err = s.PresenceS.UpsertReverseTunnel(services.ReverseTunnel{DomainName: "", DialAddrs: []string{"example.com:2023"}}, 0)
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
 	err = s.PresenceS.UpsertReverseTunnel(services.ReverseTunnel{DomainName: "example.com", DialAddrs: []string{"bad address"}}, 0)
