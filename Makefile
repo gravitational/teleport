@@ -24,6 +24,8 @@ $(eval BUILDFLAGS := $(ADDFLAGS) -ldflags -w)
 # TODO: remove this target
 ev:
 	$(MAKE) teleport
+	killall teleport || true
+
 test-state:
 	go test -v ./lib/state... $(FLAGS) -tags test
 

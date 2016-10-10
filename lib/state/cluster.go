@@ -44,7 +44,8 @@ type ClusterSnapshot struct {
 	nodes      []services.Server
 	proxies    []services.Server
 	users      []services.User
-	trustedCAs []*services.CertAuthority
+	userCAs    []*services.CertAuthority
+	hostCAs    []*services.CertAuthority
 }
 
 // MakeClusterSnapshot creates a new instance of ClusterSnapshot using a live connection
@@ -67,19 +68,22 @@ func MakeClusterSnapshot(ap auth.AccessPoint) (*ClusterSnapshot, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	/*
-		trustedCAs, err := ap.GetCertAuthorities(services.UserCA, true)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	*/
+	userCAs, err := ap.GetCertAuthorities(services.UserCA, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	hostCAs, err := ap.GetCertAuthorities(services.HostCA, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	cs := &ClusterSnapshot{
 		ap:         ap,
 		domainName: domainName,
 		nodes:      nodes,
 		proxies:    proxies,
 		users:      users,
-		trustedCAs: make([]*services.CertAuthority, 0),
+		userCAs:    userCAs,
+		hostCAs:    hostCAs,
 	}
 	return cs, nil
 }
@@ -96,8 +100,11 @@ func (cs *ClusterSnapshot) GetNodes() ([]services.Server, error) {
 func (cs *ClusterSnapshot) GetProxies() ([]services.Server, error) {
 	return cs.proxies, nil
 }
-func (cs *ClusterSnapshot) GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error) {
-	return cs.trustedCAs, nil
+func (cs *ClusterSnapshot) GetCertAuthorities(ct services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error) {
+	if ct == services.UserCA {
+		return cs.userCAs, nil
+	}
+	return cs.hostCAs, nil
 }
 func (cs *ClusterSnapshot) GetUsers() ([]services.User, error) {
 	return cs.users, nil

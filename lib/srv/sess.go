@@ -39,6 +39,11 @@ const (
 	// in a terminal) to be instanly replayed to the newly joining
 	// parties
 	instantReplayLen = 20
+
+	// maxTermSyncErrorCount defines how many subsequent erorrs
+	// we should tolerate before giving up trying to sync the
+	// term size
+	maxTermSyncErrorCount = 5
 )
 
 // sessionRegistry holds a map of all active sessions on a given
@@ -307,21 +312,25 @@ func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, err
 	}
 	err := r.srv.sessionServer.CreateSession(rsess)
 	if err != nil {
-		if !trace.IsAlreadyExists(err) {
-			return nil, trace.Wrap(err)
+		if trace.IsAlreadyExists(err) {
+			// if session already exists, make sure they are compatible
+			// Login matches existing login
+			existing, err := r.srv.sessionServer.GetSession(id)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if existing.Login != rsess.Login {
+				return nil, trace.AccessDenied(
+					"can't switch users from %v to %v for session %v",
+					rsess.Login, existing.Login, id)
+			}
 		}
-		// if session already exists, make sure they are compatible
-		// Login matches existing login
-		existing, err := r.srv.sessionServer.GetSession(id)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if existing.Login != rsess.Login {
-			return nil, trace.AccessDenied(
-				"can't switch users from %v to %v for session %v",
-				rsess.Login, existing.Login, id)
-		}
+		// return nil, trace.Wrap(err)
+		// No need to abort. Perhaps the auth server is down?
+		// Log the error and continue:
+		log.Errorf("failed logging new session: %v", err)
 	}
+
 	sess := &session{
 		id:        id,
 		registry:  r,
@@ -424,12 +433,44 @@ type sessionRecorder struct {
 	sid rsession.ID
 }
 
+func newSessionRecorder(alog events.IAuditLog, sid rsession.ID) *sessionRecorder {
+	sr := &sessionRecorder{
+		alog: alog,
+		sid:  sid,
+	}
+	return sr
+}
+
 // Write takes a chunk and writes it into the audit log
 func (r *sessionRecorder) Write(data []byte) (int, error) {
-	if err := r.alog.PostSessionChunk(r.sid, bytes.NewReader(data)); err != nil {
-		return 0, trace.Wrap(err)
+	const (
+		minChunkLen   = 4
+		maxDelay      = time.Millisecond * 20
+		requiredDelay = time.Millisecond * 5
+	)
+	// terminal recording is a tricky business. the TTY subsystem expects a certain
+	// delay when it writes to a virtual console. In our case recording takes no time
+	// so we have to emulate a bit of a delay here:
+	var start time.Time
+	dataLen := len(data)
+	if dataLen > minChunkLen {
+		start = time.Now()
+		defer func() {
+			postingDuration := time.Now().Sub(start)
+			if postingDuration < requiredDelay {
+				delay := time.Millisecond * time.Duration(dataLen)
+				if delay > maxDelay {
+					delay = maxDelay
+				}
+				time.Sleep(delay)
+			}
+		}()
 	}
-	return len(data), nil
+	// post the chunk of bytes to the audit log:
+	if err := r.alog.PostSessionChunk(r.sid, bytes.NewReader(data)); err != nil {
+		log.Error(err)
+	}
+	return dataLen, nil
 }
 
 // Close() does nothing for session recorder (audit log cannot be closed)
@@ -480,7 +521,7 @@ func (s *session) start(ch ssh.Channel, ctx *ctx) error {
 	auditLog := s.registry.srv.alog
 	if auditLog != nil {
 		s.writer.addWriter("session-recorder",
-			&sessionRecorder{alog: auditLog, sid: s.id},
+			newSessionRecorder(auditLog, s.id),
 			true)
 	}
 
@@ -596,7 +637,6 @@ func (s *session) pollAndSync() {
 	sync := func() error {
 		sess, err := sessionServer.GetSession(s.id)
 		if sess == nil {
-			log.Debugf("syncTerm: no session")
 			return trace.Wrap(err)
 		}
 		var active = true
@@ -607,7 +647,6 @@ func (s *session) pollAndSync() {
 		})
 		winSize, err := s.term.getWinsize()
 		if err != nil {
-			log.Debugf("syncTerm: no terminal")
 			return err
 		}
 		termSizeChanged := (int(winSize.Width) != sess.TerminalParams.W ||
@@ -627,7 +666,7 @@ func (s *session) pollAndSync() {
 			errCount++
 			// if the error count keeps going up, this means we're stuck in
 			// a bad state: end this goroutine to avoid leaks
-			if errCount > 600 {
+			if errCount > maxTermSyncErrorCount {
 				return
 			}
 		} else {

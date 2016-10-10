@@ -692,16 +692,20 @@ Sucessful response:
 }
 */
 func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	log.Debugf("[web] GET /nodes")
 	clt, err := site.GetClient()
 	if err != nil {
+		log.Warn(err)
 		return nil, trace.Wrap(err)
 	}
 	servers, err := clt.GetNodes()
 	if err != nil {
+		log.Warn(err)
 		return nil, trace.Wrap(err)
 	}
 	sessions, err := clt.GetSessions()
 	if err != nil {
+		log.Warn(err)
 		return nil, trace.Wrap(err)
 	}
 	nodeMap := make(map[string]*nodeWithSessions, len(servers))
@@ -1166,6 +1170,7 @@ func (h *Handler) withSiteAuth(fn siteHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		ctx, err := h.AuthenticateRequest(w, r, true)
 		if err != nil {
+			log.Info(err)
 			// clear session just in case if the authentication request is not valid
 			ClearSession(w)
 			return nil, trace.Wrap(err)
@@ -1180,6 +1185,7 @@ func (h *Handler) withSiteAuth(fn siteHandler) httprouter.Handle {
 		}
 		site, err := h.cfg.Proxy.GetSite(siteName)
 		if err != nil {
+			log.Warn(err)
 			return nil, trace.Wrap(err)
 		}
 		return fn(w, r, p, ctx, site)

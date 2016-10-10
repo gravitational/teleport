@@ -299,7 +299,7 @@ func (s *Server) heartbeatPresence() {
 
 	for {
 		if err := s.registerServer(); err != nil {
-			log.Warningf("failed to announce %#v presence: %v", s, err)
+			//log.Warningf("failed to announce %#v presence: %v", s, err)
 		}
 		select {
 		case <-ticker.C:
@@ -425,7 +425,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 // key is the real CA authority key.
 func (s *Server) isAuthority(cert ssh.PublicKey) bool {
 	// find cert authority by it's key
-	cas, err := auth.RetryingClient(s.authService, 20).GetCertAuthorities(services.UserCA, false)
+	cas, err := s.authService.GetCertAuthorities(services.UserCA, false)
 	if err != nil {
 		log.Warningf("%v", err)
 		return false
@@ -744,7 +744,11 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	case "shell":
 		// SSH client asked to launch shell, we allocate PTY and start shell session
 		ctx.exec = &execResponse{ctx: ctx}
-		return s.reg.openSession(ch, req, ctx)
+		if err := s.reg.openSession(ch, req, ctx); err != nil {
+			log.Error(err)
+			return trace.Wrap(err)
+		}
+		return nil
 	case "env":
 		return s.handleEnv(ch, req, ctx)
 	case "subsystem":

@@ -482,17 +482,22 @@ func (process *TeleportProcess) initSSH() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		localLog := state.MakeLocalAuditLog(conn.Client)
+		//defer localLog.EmitAuditEvent(state.CloseLog, nil)
+		go func() {
+			time.Sleep(time.Second * 2)
+			defer localLog.EmitAuditEvent(state.CloseLog, nil)
+		}()
 
 		s, err = srv.New(cfg.SSH.Addr,
 			cfg.Hostname,
 			[]ssh.Signer{conn.Identity.KeySigner},
-			//conn.Client,
 			snap,
 			cfg.DataDir,
 			cfg.AdvertiseIP,
 			srv.SetLimiter(limiter),
 			srv.SetShell(cfg.SSH.Shell),
-			srv.SetAuditLog(conn.Client),
+			srv.SetAuditLog(localLog),
 			srv.SetSessionServer(conn.Client),
 			srv.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
 		)
@@ -601,22 +606,23 @@ func (process *TeleportProcess) initProxy() error {
 		if !ok {
 			return trace.BadParameter("unsupported connector type: %T", event.Payload)
 		}
-
-		// read our identity:
-		identity, err := process.GetIdentity(myRole)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		// make a snapshot of the cluster:
-		if _, err = state.MakeClusterSnapshot(conn.Client); err != nil {
-			return trace.Wrap(err)
-		}
-		return trace.Wrap(process.initProxyEndpoint(&Connector{
-			Client:   conn.Client,
-			Identity: identity,
-		}))
-
-		//return trace.Wrap(process.initProxyEndpoint(conn))
+		/*
+			// read our identity:
+			identity, err := process.GetIdentity(myRole)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			// make a snapshot of the cluster:
+			snap, err := state.MakeClusterSnapshot(conn.Client)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Wrap(process.initProxyEndpoint(&Connector{
+				Client:   snap,
+				Identity: identity,
+			}))
+		*/
+		return trace.Wrap(process.initProxyEndpoint(conn))
 	})
 	return nil
 }
@@ -648,10 +654,17 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	// make a snapshot of the cluster:
+	snap, err := state.MakeClusterSnapshot(conn.Client)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	SSHProxy, err := srv.New(cfg.Proxy.SSHAddr,
 		cfg.Hostname,
 		[]ssh.Signer{conn.Identity.KeySigner},
-		conn.Client,
+		snap,
+		// conn.Client,
 		cfg.DataDir,
 		nil,
 		srv.SetLimiter(proxyLimiter),
