@@ -200,6 +200,12 @@ func main() {
 		utils.FatalError(err)
 	}
 
+	// "version" command?
+	if command == ver.FullCommand() {
+		onVersion()
+		return
+	}
+
 	applyConfig(&ccf, cfg)
 	validateConfig(cfg)
 
@@ -218,7 +224,6 @@ func main() {
 		}
 		return
 	}
-
 	// connect to the teleport auth service:
 	client, err := connectToAuthService(cfg)
 	if err != nil {
@@ -227,8 +232,6 @@ func main() {
 
 	// execute the selected command:
 	switch command {
-	case ver.FullCommand():
-		onVersion()
 	case userAdd.FullCommand():
 		err = cmdUsers.Add(client)
 	case userList.FullCommand():
@@ -722,7 +725,7 @@ func validateConfig(cfg *service.Config) {
 	// read a host UUID for this node
 	cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
 	if err != nil {
-		utils.FatalError(err)
+		utils.FatalError(fmt.Errorf("Invalid data directory: '%s'", cfg.DataDir))
 	}
 }
 
