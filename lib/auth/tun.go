@@ -591,7 +591,7 @@ func NewTunClient(purpose string,
 	if tc.addrStorage != nil {
 		cachedAuthServers, err := tc.addrStorage.GetAddresses()
 		if err != nil {
-			log.Warningf("unable to load the auth server cache: %v", err)
+			log.Infof("unable to load the auth server cache: %v", err)
 		} else {
 			tc.setAuthServers(cachedAuthServers)
 		}
