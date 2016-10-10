@@ -162,8 +162,9 @@ func (a *AuthServer) Close() error {
 	return nil
 }
 
-// GetLocalDomain returns domain name that identifies this authority server
-func (a *AuthServer) GetLocalDomain() (string, error) {
+// GetDomainName returns the domain name that identifies this authority server.
+// Also known as "cluster name"
+func (a *AuthServer) GetDomainName() (string, error) {
 	return a.DomainName, nil
 }
 

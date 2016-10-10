@@ -150,7 +150,7 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 	// try calling a test method via auth api:
 	//
 	// ??? in case of failure it never gets back here!!!
-	dn, err := authClient.GetLocalDomain()
+	dn, err := authClient.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

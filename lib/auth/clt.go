@@ -165,8 +165,8 @@ func (c *Client) UpdateSession(req session.UpdateRequest) error {
 	return trace.Wrap(err)
 }
 
-// GetLocalDomain returns local auth domain of the current auth server
-func (c *Client) GetLocalDomain() (string, error) {
+// GetDomainName returns local auth domain of the current auth server
+func (c *Client) GetDomainName() (string, error) {
 	out, err := c.Get(c.Endpoint("domain"), url.Values{})
 	if err != nil {
 		return "", trace.Wrap(err)

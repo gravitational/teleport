@@ -389,13 +389,13 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 			teleportUser)
 	}
 
-	localDomain, err := s.authService.GetLocalDomain()
+	domainName, err := s.authService.GetDomainName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// for local users, go and check their individual permissions
-	if localDomain == ca.DomainName {
+	if domainName == ca.DomainName {
 		users, err := s.authService.GetUsers()
 		if err != nil {
 			return trace.Wrap(err)
@@ -420,7 +420,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 		}
 	}
 	return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s",
-		teleportUser, ca.DomainName, osUser, localDomain)
+		teleportUser, ca.DomainName, osUser, domainName)
 }
 
 // isAuthority is called during checking the client key, to see if the signing
