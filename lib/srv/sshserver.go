@@ -55,7 +55,6 @@ type Server struct {
 	addr          utils.NetAddr
 	hostname      string
 	certChecker   ssh.CertChecker
-	resolver      resolver
 	srv           *sshutils.Server
 	hostSigner    ssh.Signer
 	shell         string
@@ -191,7 +190,6 @@ func New(addr utils.NetAddr,
 	s := &Server{
 		addr:        addr,
 		authService: authService,
-		resolver:    &backendResolver{authService: authService},
 		hostname:    hostname,
 		labelsMutex: &sync.Mutex{},
 		advertiseIP: advertiseIP,
