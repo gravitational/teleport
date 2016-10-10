@@ -20,11 +20,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/gravitational/configure/cstrings"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -339,8 +338,8 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 
 func (s *server) upsertSite(conn net.Conn, sshConn *ssh.ServerConn) (*tunnelSite, *remoteConn, error) {
 	domainName := sshConn.Permissions.Extensions[extAuthority]
-	if !cstrings.IsValidDomainName(domainName) {
-		return nil, nil, trace.BadParameter("Cannot create reverse tunnel: '%v' is not a valid FQDN", domainName)
+	if strings.TrimSpace(domainName) == "" {
+		return nil, nil, trace.BadParameter("Cannot create reverse tunnel: empty domain name")
 	}
 
 	s.Lock()
