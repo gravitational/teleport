@@ -64,7 +64,9 @@ type Server interface {
 	// GetSites returns a list of connected remote sites
 	GetSites() []RemoteSite
 	// GetSite returns remote site this node belongs to
-	GetSite(name string) (RemoteSite, error)
+	GetSite(domainName string) (RemoteSite, error)
+	// RemoveSite removes the site with the specified name from the list of connected sites
+	RemoveSite(domainName string) error
 	// Start starts server
 	Start() error
 	// CLose closes server's socket
@@ -394,13 +396,30 @@ func (s *server) GetSite(domainName string) (RemoteSite, error) {
 			return s.tunnelSites[i], nil
 		}
 	}
-
 	for i := range s.directSites {
 		if s.directSites[i].domainName == domainName {
 			return s.directSites[i], nil
 		}
 	}
 	return nil, trace.NotFound("site '%v' not found", domainName)
+}
+
+func (s *server) RemoveSite(domainName string) error {
+	s.RLock()
+	defer s.RUnlock()
+	for i := range s.tunnelSites {
+		if s.tunnelSites[i].domainName == domainName {
+			s.tunnelSites = append(s.tunnelSites[:i], s.tunnelSites[i+1:]...)
+			return nil
+		}
+	}
+	for i := range s.directSites {
+		if s.directSites[i].domainName == domainName {
+			s.directSites = append(s.directSites[:i], s.directSites[i+1:]...)
+			return nil
+		}
+	}
+	return trace.NotFound("site '%v' not found", domainName)
 }
 
 type remoteConn struct {
