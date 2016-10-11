@@ -793,7 +793,7 @@ teleport:
 * Deploy several Auth servers connected to etcd backend.
 * Deploy several Proxy nodes that have `auth_servers` pointed to list of Auth servers to connect.
 
-!!! tip:"NOTE": 
+!!! tip "NOTE": 
     As new Auth servers will be added to the cluster and old servers will be decommissioned, node's and proxies will refresh the list of available auth servers refresh the cluster info and store the updated list locally in `/var/lib/teleport/authservers.json`. The values from this file, if present, will take precedence over configuration file's values. You can simply remove the file so that the configuration file's values can take effect again.
 
 
@@ -801,7 +801,7 @@ teleport:
 
 To diagnose problems you can configure `teleport` to run with verbose logging enabled.
 
-!!! tip: "NOTE": 
+!!! tip "NOTE": 
     It is not recommended to run Teleport in production with verbose logging
     as it generates substantial amount of data.
 

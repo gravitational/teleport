@@ -6,6 +6,8 @@ auth_service:
   listen_addr: 0.0.0.0:5000
   tokens:
      - "proxy,node:hello"
+  trusted_clusters:
+     - key_file: ev.ca
 ssh_service:
   enabled: "no"
 proxy_service:

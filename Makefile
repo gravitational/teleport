@@ -21,14 +21,6 @@ export
 
 $(eval BUILDFLAGS := $(ADDFLAGS) -ldflags -w)
 
-# TODO: remove this target
-ev:
-	$(MAKE) teleport
-	killall teleport || true
-
-test-state:
-	go test -v ./lib/state... $(FLAGS) -tags test
-
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
 #
@@ -195,4 +187,4 @@ remove-temp-files:
 # Dockerized build: usefule for making Linux releases on OSX
 .PHONY:docker
 docker:
-	make -C build.assets
+	make -C build.assets teleport
