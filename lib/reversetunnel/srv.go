@@ -405,8 +405,8 @@ func (s *server) GetSite(domainName string) (RemoteSite, error) {
 }
 
 func (s *server) RemoveSite(domainName string) error {
-	s.RLock()
-	defer s.RUnlock()
+	s.Lock()
+	defer s.Unlock()
 	for i := range s.tunnelSites {
 		if s.tunnelSites[i].domainName == domainName {
 			s.tunnelSites = append(s.tunnelSites[:i], s.tunnelSites[i+1:]...)
