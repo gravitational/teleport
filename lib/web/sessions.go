@@ -188,16 +188,14 @@ func (s *sessionCache) expireSessions() {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				s.clearExpiredSessions()
-			case <-s.closer.C:
-				return
-			}
+	for {
+		select {
+		case <-ticker.C:
+			s.clearExpiredSessions()
+		case <-s.closer.C:
+			return
 		}
-	}()
+	}
 }
 
 func (s *sessionCache) clearExpiredSessions() {
