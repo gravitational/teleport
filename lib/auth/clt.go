@@ -25,10 +25,10 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/roundtrip"
 
 	"github.com/gravitational/teleport"
@@ -336,8 +336,8 @@ func (c *Client) DeleteReverseTunnel(domainName string) error {
 	// this is to avoid confusing error in case if domain emtpy for example
 	// HTTP route will fail producing generic not found error
 	// instead we catch the error here
-	if !cstrings.IsValidDomainName(domainName) {
-		return trace.BadParameter("'%v' is not a valid FQDN", domainName)
+	if strings.TrimSpace(domainName) == "" {
+		return trace.BadParameter("empty domain name")
 	}
 	_, err := c.Delete(c.Endpoint("reversetunnels", domainName))
 	return trace.Wrap(err)
