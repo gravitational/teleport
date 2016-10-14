@@ -87,6 +87,8 @@ type InitConfig struct {
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
 	StaticTokens []services.ProvisionToken
+
+	U2fAppId string
 }
 
 // Init instantiates and configures an instance of AuthServer

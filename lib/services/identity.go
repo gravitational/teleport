@@ -33,6 +33,8 @@ import (
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/tstranex/u2f"
 )
 
 // User represents teleport or external user
@@ -191,6 +193,24 @@ type Identity interface {
 
 	// DeleteSignupToken deletes signup token from the storage
 	DeleteSignupToken(token string) error
+
+	// upserts a U2F challenge for a new user corresponding to the token
+	UpsertU2fRegisterChallenge(token string, u2fChallenge u2f.Challenge) (error)
+
+	// returns a U2F challenge for a new user corresponding to the token
+	GetU2fRegisterChallenge(token string) (u2f.Challenge, error)
+
+	// upserts a U2F registration from a valid register response
+	UpsertU2fRegistration(user string, u2fReg *u2f.Registration) (error)
+
+	// returns a U2F registration from a valid register response
+	GetU2fRegistration(user string) (*u2f.Registration, error)
+
+	// upserts a counter associated with a U2F registration
+	UpsertU2fRegistrationCounter(user string, counter uint32) (error)
+
+	// returns a counter associated with a U2F registration
+	GetU2fRegistrationCounter(user string) (uint32, error)
 
 	// UpsertOIDCConnector upserts OIDC Connector
 	UpsertOIDCConnector(connector OIDCConnector, ttl time.Duration) error

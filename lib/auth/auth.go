@@ -42,6 +42,8 @@ import (
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+
+	"github.com/tstranex/u2f"
 )
 
 // Authority implements minimal key-management facility for generating OpenSSH
@@ -111,6 +113,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 		AuthServiceName: cfg.AuthServiceName,
 		oidcClients:     make(map[string]*oidc.Client),
 		StaticTokens:    cfg.StaticTokens,
+		U2fAppId:        cfg.U2fAppId,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -147,6 +150,8 @@ type AuthServer struct {
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
 	StaticTokens []services.ProvisionToken
+
+	U2fAppId string
 
 	services.Trust
 	services.Lock
@@ -220,6 +225,29 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 	}
 	sess.WS.Priv = nil
 	return sess, nil
+}
+
+func (s *AuthServer) U2fSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
+	if err := s.CheckPasswordWOToken(user, password); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	u2fReg, err := s.GetU2fRegistration(user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// FIXME: should save challenge to database!!!
+	c, err := u2f.NewChallenge(s.U2fAppId, []string{s.U2fAppId})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.Errorf("%v", u2fReg)
+
+	u2fSignReq := c.SignRequest(*u2fReg)
+
+	return u2fSignReq, nil
 }
 
 // ExtendWebSession creates a new web session for a user based on a valid previous sessionID,

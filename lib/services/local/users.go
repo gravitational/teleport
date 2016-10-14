@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+	"errors"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/backend"
@@ -30,6 +31,10 @@ import (
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/tstranex/u2f"
+	"crypto/x509"
+	"crypto/ecdsa"
 )
 
 // IdentityService is responsible for managing web users and currently
@@ -360,6 +365,9 @@ func (s *IdentityService) CheckPasswordWOToken(user string, password []byte) err
 
 var (
 	userTokensPath   = []string{"addusertokens"}
+	u2fRegChalPath   = []string{"adduseru2fchallenges"}
+	u2fRegPath       = []string{"u2fregistrations"}
+	u2fRegCounterPath= []string{"u2fregistrationcounters"}
 	connectorsPath   = []string{"web", "connectors", "oidc", "connectors"}
 	authRequestsPath = []string{"web", "connectors", "oidc", "requests"}
 )
@@ -417,6 +425,129 @@ func (s *IdentityService) GetSignupTokens() (tokens []services.SignupToken, err 
 func (s *IdentityService) DeleteSignupToken(token string) error {
 	err := s.backend.DeleteKey(userTokensPath, token)
 	return trace.Wrap(err)
+}
+
+func (s *IdentityService) UpsertU2fRegisterChallenge(token string, u2fChallenge u2f.Challenge) (e error) {
+	// The u2f challenge has its own timestamp inside so it's ok to store it forever here
+	data, err := json.Marshal(u2fChallenge)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.backend.UpsertVal(u2fRegChalPath, token, data, backend.Forever)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *IdentityService) GetU2fRegisterChallenge(token string) (u2fChallenge u2f.Challenge, e error) {
+	data, err := s.backend.GetVal(u2fRegChalPath, token)
+	if err != nil {
+		return u2f.Challenge{}, trace.Wrap(err)
+	}
+	err = json.Unmarshal(data, &u2fChallenge)
+	if err != nil {
+		return u2f.Challenge{}, trace.Wrap(err)
+	}
+	return u2fChallenge, nil
+}
+
+// u2f.Registration cannot be json marshalled due to the public key pointer so we have this marshallable version
+type MarshallableU2fRegistration struct {
+	Raw []byte `"json:raw"`
+
+	KeyHandle []byte `"json:keyhandle"`
+	MarshalledPubKey []byte `"json:marshalled_pubkey"`
+
+	// AttestationCert is not needed for authentication so we don't need to store it
+}
+
+func (s *IdentityService) UpsertU2fRegistration(user string, u2fReg *u2f.Registration) (e error) {
+	marshalledPubkey, err := x509.MarshalPKIXPublicKey(&u2fReg.PubKey)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	marshallableReg := MarshallableU2fRegistration{
+		Raw: u2fReg.Raw,
+		KeyHandle: u2fReg.KeyHandle,
+		MarshalledPubKey: marshalledPubkey,
+	}
+
+	data, err := json.Marshal(marshallableReg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.backend.UpsertVal(u2fRegPath, user, data, backend.Forever)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *IdentityService) GetU2fRegistration(user string) (u2fReg *u2f.Registration, e error) {
+	data, err := s.backend.GetVal(u2fRegPath, user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	marshallableReg := MarshallableU2fRegistration{}
+	err = json.Unmarshal(data, &marshallableReg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pubkeyInterface, err := x509.ParsePKIXPublicKey(marshallableReg.MarshalledPubKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pubkey, ok := pubkeyInterface.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, trace.Wrap(errors.New("failed to convert crypto.PublicKey back to ecdsa.PublicKey"))
+	}
+
+	return &u2f.Registration{
+		Raw: marshallableReg.Raw,
+		KeyHandle: marshallableReg.KeyHandle,
+		PubKey: *pubkey,
+		AttestationCert: nil,
+	}, nil
+}
+
+type U2fRegistrationCounter struct {
+	Counter uint32 `"json:counter"`
+}
+
+func (s *IdentityService) UpsertU2fRegistrationCounter(user string, counter uint32) (e error) {
+	data, err := json.Marshal(U2fRegistrationCounter{
+		Counter: counter,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.backend.UpsertVal(u2fRegCounterPath, user, data, backend.Forever)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *IdentityService) GetU2fRegistrationCounter(user string) (counter uint32, e error) {
+	data, err := s.backend.GetVal(u2fRegCounterPath, user)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	u2fRegCounter := U2fRegistrationCounter{}
+	err = json.Unmarshal(data, &u2fRegCounter)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return u2fRegCounter.Counter, nil
 }
 
 // UpsertOIDCConnector upserts OIDC Connector

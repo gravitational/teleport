@@ -433,6 +433,19 @@ func (s *AuthTunnel) passwordAuth(
 		}
 		log.Infof("[AUTH] password authenticated user: '%v'", conn.User())
 		return perms, nil
+	case AuthWebU2fSign:
+		if err := s.authServer.CheckPasswordWOToken(conn.User(), ab.Pass); err != nil {
+			log.Warningf("password auth error: %#v", err)
+			return nil, trace.Wrap(err)
+		}
+		perms := &ssh.Permissions{
+			Extensions: map[string]string{
+				ExtWebPassword: "<password>",
+				ExtRole:        string(teleport.RoleU2fSign),
+			},
+		}
+		log.Infof("[AUTH] u2f sign authenticated user: '%v'", conn.User())
+		return perms, nil
 	case AuthWebSession:
 		// we use extra permissions mechanism to keep the connection data
 		// after authorization, in this case the session
@@ -518,6 +531,18 @@ func NewWebPasswordAuth(user string, password []byte, hotpToken string) ([]ssh.A
 		User:      user,
 		Pass:      password,
 		HotpToken: hotpToken,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
+}
+
+func NewWebPasswordU2fSignAuth(user string, password []byte) ([]ssh.AuthMethod, error) {
+	data, err := json.Marshal(authBucket{
+		Type: AuthWebU2fSign,
+		User: user,
+		Pass: password,
 	})
 	if err != nil {
 		return nil, err
@@ -843,6 +868,7 @@ const (
 	ExtRole        = "role@teleport"
 
 	AuthWebPassword = "password"
+	AuthWebU2fSign  = "u2f-sign"
 	AuthWebSession  = "session"
 	AuthToken       = "provision-token"
 	AuthSignupToken = "signup-token"

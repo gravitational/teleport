@@ -113,6 +113,10 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetAuthServers:      true,
 	}
 
+	sp.permissions[teleport.RoleU2fSign] = map[string]bool{
+		ActionSignIn:  true,
+	}
+
 	return &sp
 }
 
@@ -156,6 +160,7 @@ var StandardRoles = teleport.Roles{
 	teleport.RoleAdmin,
 	teleport.RoleProvisionToken,
 	teleport.RoleSignup,
+	teleport.RoleU2fSign,
 }
 
 const (

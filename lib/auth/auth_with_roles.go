@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"
+
+	"github.com/tstranex/u2f"
 )
 
 type AuthWithRoles struct {
@@ -212,6 +214,13 @@ func (a *AuthWithRoles) SignIn(user string, password []byte) (*Session, error) {
 	}
 	return a.authServer.SignIn(user, password)
 }
+func (a *AuthWithRoles) U2fSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
+	// FIXME: MAYBE ADD NEW PERMISSION
+	if err := a.permChecker.HasPermission(a.role, ActionSignIn); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.U2fSignRequest(user, password)
+}
 func (a *AuthWithRoles) CreateWebSession(user string) (*Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionCreateWebSession); err != nil {
 		return nil, trace.Wrap(err)
@@ -295,7 +304,14 @@ func (a *AuthWithRoles) GetSignupTokenData(token string) (user string,
 		return "", nil, nil, trace.Wrap(err)
 	}
 	return a.authServer.GetSignupTokenData(token)
+}
 
+func (a *AuthWithRoles) GetSignupU2fRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error){
+	// FIXME: MAYBE ADD NEW PERMISSION
+	if err := a.permChecker.HasPermission(a.role, ActionGetSignupTokenData); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.CreateSignupU2fRegisterRequest(token)
 }
 
 func (a *AuthWithRoles) CreateUserWithToken(token, password, hotpToken string) (*Session, error) {
@@ -304,6 +320,13 @@ func (a *AuthWithRoles) CreateUserWithToken(token, password, hotpToken string) (
 	}
 	return a.authServer.CreateUserWithToken(token, password, hotpToken)
 
+}
+
+func (a *AuthWithRoles) CreateU2fUserWithToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*Session, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionCreateUserWithToken); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.CreateU2fUserWithToken(token, password, u2fRegisterResponse)
 }
 
 func (a *AuthWithRoles) UpsertUser(u services.User) error {

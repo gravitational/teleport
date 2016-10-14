@@ -37,6 +37,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
+
+	"github.com/tstranex/u2f"
 )
 
 // CurrentVersion is a current API version
@@ -446,6 +448,23 @@ func (c *Client) SignIn(user string, password []byte) (*Session, error) {
 	return sess, nil
 }
 
+func (c *Client) GetU2fSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
+	out, err := c.PostJSON(
+		c.Endpoint("users", user, "web", "u2f_sign"),
+		signInReq{
+			Password: string(password),
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var u2fSignReq *u2f.SignRequest
+	if err := json.Unmarshal(out.Bytes(), &u2fSignReq); err != nil {
+		return nil, err
+	}
+	return u2fSignReq, nil
+}
+
 // ExtendWebSession creates a new web session for a user based on another
 // valid web session
 func (c *Client) ExtendWebSession(user string, prevSessionID string) (*Session, error) {
@@ -640,6 +659,18 @@ func (c *Client) GetSignupTokenData(token string) (user string,
 	return tokenData.User, tokenData.QRImg, tokenData.HotpFirstValues, nil
 }
 
+func (c *Client) GetSignupU2fRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
+	out, err := c.Get(c.Endpoint("signuptokens_u2f_register_request", token), url.Values{})
+	if err != nil {
+		return nil, err
+	}
+	var u2fRegReq u2f.RegisterRequest
+	if err := json.Unmarshal(out.Bytes(), &u2fRegReq); err != nil {
+		return nil, err
+	}
+	return &u2fRegReq, nil
+}
+
 // CreateUserWithToken creates account with provided token and password.
 // Account username and hotp generator are taken from token data.
 // Deletes token after account creation.
@@ -648,6 +679,22 @@ func (c *Client) CreateUserWithToken(token, password, hotpToken string) (*Sessio
 		Token:     token,
 		Password:  password,
 		HOTPToken: hotpToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var sess *Session
+	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sess, nil
+}
+
+func (c *Client) CreateU2fUserWithToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*Session, error) {
+	out, err := c.PostJSON(c.Endpoint("signuptokens", "users_u2f"), createU2fUserWithTokenReq{
+		Token:     token,
+		Password:  password,
+		U2fRegisterResponse: u2fRegisterResponse,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -48,6 +48,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/mailgun/lemma/secret"
 	"github.com/mailgun/ttlmap"
+
+	"github.com/tstranex/u2f"
 )
 
 // Handler is HTTP web proxy handler
@@ -123,12 +125,15 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 
 	// Web sessions
 	h.POST("/webapi/sessions", httplib.MakeHandler(h.createSession))
+	h.POST("/webapi/sessions_u2f_sign", httplib.MakeHandler(h.u2fSignRequest))
 	h.DELETE("/webapi/sessions/:sid", h.withAuth(h.deleteSession))
 	h.POST("/webapi/sessions/renew", h.withAuth(h.renewSession))
 
 	// Users
 	h.GET("/webapi/users/invites/:token", httplib.MakeHandler(h.renderUserInvite))
+	h.GET("/webapi/users/invites_u2f_register/:token", httplib.MakeHandler(h.u2fRegisterRequest))
 	h.POST("/webapi/users", httplib.MakeHandler(h.createNewUser))
+	h.POST("/webapi/users_u2f", httplib.MakeHandler(h.createNewU2fUser))
 
 	// Issues SSH temp certificates based on 2FA access creds
 	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
@@ -578,6 +583,36 @@ func (m *Handler) renderUserInvite(w http.ResponseWriter, r *http.Request, p htt
 	}, nil
 }
 
+func (m *Handler) u2fRegisterRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	token := p[0].Value
+	u2fRegisterRequest, err := m.auth.GetUserInviteU2fRegisterRequest(token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return u2fRegisterRequest, nil
+}
+
+// A request from the client for a U2F sign request from the server
+type u2fSignRequestReq struct {
+	User string `json:"user"`
+	Pass string `json:"pass"`
+}
+
+func (m *Handler) u2fSignRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *u2fSignRequestReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	u2fSignReq, err := m.auth.GetU2fSignRequest(req.User, req.Pass)
+	if err != nil {
+		log.Infof("bad access credentials: %v", err)
+		return nil, trace.AccessDenied("bad auth credentials")
+	}
+
+	return u2fSignReq, nil
+}
+
 // createNewUser req is a request to create a new Teleport user
 type createNewUserReq struct {
 	InviteToken       string `json:"invite_token"`
@@ -600,6 +635,30 @@ func (m *Handler) createNewUser(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 	sess, err := m.auth.CreateNewUser(req.InviteToken, req.Pass, req.SecondFactorToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ctx, err := m.auth.ValidateSession(sess.Username, sess.ID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := SetSession(w, sess.Username, sess.ID); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return NewSessionResponse(ctx)
+}
+
+type createNewU2fUserReq struct {
+	InviteToken       string `json:"invite_token"`
+	Pass              string `json:"pass"`
+	U2fRegisterResponse u2f.RegisterResponse `json:"u2f_register_response"`
+}
+func (m *Handler) createNewU2fUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *createNewU2fUserReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess, err := m.auth.CreateNewU2fUser(req.InviteToken, req.Pass, req.U2fRegisterResponse)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

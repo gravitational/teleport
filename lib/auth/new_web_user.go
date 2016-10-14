@@ -33,6 +33,13 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
+
+	"github.com/tstranex/u2f"
+
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/ecdsa"
+	"crypto/x509"
 )
 
 // CreateSignupToken creates one time token for creating account for the user
@@ -132,6 +139,44 @@ func (s *AuthServer) GetSignupTokenData(token string) (user string,
 	return tokenData.User.GetName(), tokenData.HotpQR, tokenData.HotpFirstValues, nil
 }
 
+func (s *AuthServer) CreateSignupU2fRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
+	err := s.AcquireLock("signuptoken"+token, time.Hour)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer func() {
+		err := s.ReleaseLock("signuptoken" + token)
+		if err != nil {
+			log.Errorf(err.Error())
+		}
+	}()
+
+	tokenData, err := s.GetSignupToken(token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err = s.GetPasswordHash(tokenData.User.GetName())
+	if err == nil {
+		return nil, trace.Errorf("can't add user %v, user already exists", tokenData.User)
+	}
+
+	c, err := u2f.NewChallenge(s.U2fAppId, []string{s.U2fAppId})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	u2fRegReq := c.RegisterRequest()
+
+	err = s.UpsertU2fRegisterChallenge(token, *c)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return u2fRegReq, nil
+}
+
 // CreateUserWithToken creates account with provided token and password.
 // Account username and hotp generator are taken from token data.
 // Deletes token after account creation.
@@ -175,6 +220,74 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Se
 
 	err = s.UpsertHOTP(tokenData.User.GetName(), otp)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.Infof("[AUTH] created new user: %v", &tokenData.User)
+
+	if err = s.DeleteSignupToken(token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sess, err := s.NewWebSession(tokenData.User.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.UpsertWebSession(tokenData.User.GetName(), sess, WebSessionTTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sess.WS.Priv = nil
+	return sess, nil
+}
+
+func (s *AuthServer) CreateU2fUserWithToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*Session, error) {
+	err := s.AcquireLock("signuptoken"+token, time.Hour)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer func() {
+		err := s.ReleaseLock("signuptoken" + token)
+		if err != nil {
+			log.Errorf(err.Error())
+		}
+	}()
+
+	tokenData, err := s.GetSignupToken(token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	challenge, err := s.GetU2fRegisterChallenge(token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	reg, err := u2f.Register(u2fRegisterResponse, challenge, &u2f.Config{SkipAttestationVerify: true})
+	if err != nil {
+		log.Errorf("%v", err)
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.UpsertU2fRegistration(tokenData.User.GetName(), reg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = s.UpsertU2fRegistrationCounter(tokenData.User.GetName(), 0)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, _, err = s.UpsertPassword(tokenData.User.GetName(), []byte(password))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// apply user allowed logins
+	if err = s.UpsertUser(&tokenData.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

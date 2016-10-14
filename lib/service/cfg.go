@@ -265,6 +265,8 @@ type AuthConfig struct {
 
 	// NoAudit, when set to true, disables session recording and event audit
 	NoAudit bool
+
+	U2fAppId string
 }
 
 // SSHConfig configures SSH server node role

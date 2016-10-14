@@ -30,6 +30,8 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
+
+	"github.com/tstranex/u2f"
 )
 
 // SessionContext is a context associated with users'
@@ -228,6 +230,27 @@ func (s *sessionCache) Auth(user, pass string, hotpToken string) (*auth.Session,
 	return session, nil
 }
 
+func (s *sessionCache) GetU2fSignRequest(user, pass string) (*u2f.SignRequest, error) {
+	method, err := auth.NewWebPasswordU2fSignAuth(user, []byte(pass))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clt, err := auth.NewTunClient("web.get-u2f-sign-request", s.authServers, user, method)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// we are always closing this client, because we will not be using
+	// this connection initiated using password based credentials
+	// down the road, so it's a one call client
+	defer clt.Close()
+	u2fSignReq, err := clt.GetU2fSignRequest(user, []byte(pass))
+	if err != nil {
+		defer clt.Close()
+		return nil, trace.Wrap(err)
+	}
+	return u2fSignReq, nil
+}
+
 func (s *sessionCache) GetCertificate(c createSSHCertReq) (*SSHLoginResponse, error) {
 	method, err := auth.NewWebPasswordAuth(c.User, []byte(c.Password),
 		c.HOTPToken)
@@ -275,6 +298,20 @@ func (s *sessionCache) GetUserInviteInfo(token string) (user string,
 	return clt.GetSignupTokenData(token)
 }
 
+func (s *sessionCache) GetUserInviteU2fRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
+	method, err := auth.NewSignupTokenAuth(token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clt, err := auth.NewTunClient("web.get-user-invite-u2f-register-request", s.authServers, "tokenAuth", method)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	return clt.GetSignupU2fRegisterRequest(token)
+}
+
 func (s *sessionCache) CreateNewUser(token, password, hotpToken string) (*auth.Session, error) {
 	method, err := auth.NewSignupTokenAuth(token)
 	if err != nil {
@@ -286,6 +323,20 @@ func (s *sessionCache) CreateNewUser(token, password, hotpToken string) (*auth.S
 	}
 	defer clt.Close()
 	sess, err := clt.CreateUserWithToken(token, password, hotpToken)
+	return sess, trace.Wrap(err)
+}
+
+func (s *sessionCache) CreateNewU2fUser(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*auth.Session, error) {
+	method, err := auth.NewSignupTokenAuth(token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clt, err := auth.NewTunClient("web.create-u2f-user", s.authServers, "tokenAuth", method)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer clt.Close()
+	sess, err := clt.CreateU2fUserWithToken(token, password, u2fRegisterResponse)
 	return sess, trace.Wrap(err)
 }
 

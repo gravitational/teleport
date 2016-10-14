@@ -34,6 +34,9 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+
+	"github.com/tstranex/u2f"
+	"errors"
 )
 
 type APIConfig struct {
@@ -85,11 +88,14 @@ func NewAPIServer(config *APIConfig, role teleport.Role) APIServer {
 	srv.POST("/v1/users/:user/web/password", httplib.MakeHandler(srv.upsertPassword))
 	srv.POST("/v1/users/:user/web/password/check", httplib.MakeHandler(srv.checkPassword))
 	srv.POST("/v1/users/:user/web/signin", httplib.MakeHandler(srv.signIn))
+	srv.POST("/v1/users/:user/web/u2f_sign", httplib.MakeHandler(srv.u2fSignRequest))
 	srv.POST("/v1/users/:user/web/sessions", httplib.MakeHandler(srv.createWebSession))
 	srv.GET("/v1/users/:user/web/sessions/:sid", httplib.MakeHandler(srv.getWebSession))
 	srv.DELETE("/v1/users/:user/web/sessions/:sid", httplib.MakeHandler(srv.deleteWebSession))
 	srv.GET("/v1/signuptokens/:token", httplib.MakeHandler(srv.getSignupTokenData))
+	srv.GET("/v1/signuptokens_u2f_register_request/:token", httplib.MakeHandler(srv.getSignupU2fRegisterRequest))
 	srv.POST("/v1/signuptokens/users", httplib.MakeHandler(srv.createUserWithToken))
+	srv.POST("/v1/signuptokens/users_u2f", httplib.MakeHandler(srv.createU2fUserWithToken))
 	srv.POST("/v1/signuptokens", httplib.MakeHandler(srv.createSignupToken))
 
 	// Servers and presence heartbeat
@@ -299,6 +305,20 @@ func (s *APIServer) signIn(w http.ResponseWriter, r *http.Request, p httprouter.
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil
+}
+
+func (s *APIServer) u2fSignRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *signInReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user := p[0].Value
+	pass := []byte(req.Password)
+	u2fSignReq, err := s.a.U2fSignRequest(user, pass)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return u2fSignReq, nil
 }
 
 type createWebSessionReq struct {
@@ -655,6 +675,15 @@ func (s *APIServer) getSignupTokenData(w http.ResponseWriter, r *http.Request, p
 	}, nil
 }
 
+func (s *APIServer) getSignupU2fRegisterRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	token := p[0].Value
+	u2fRegReq, err := s.a.GetSignupU2fRegisterRequest(token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return u2fRegReq, nil
+}
+
 type createSignupTokenReq struct {
 	User services.User `json:"user"`
 }
@@ -691,6 +720,26 @@ func (s *APIServer) createUserWithToken(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 	sess, err := s.a.CreateUserWithToken(req.Token, req.Password, req.HOTPToken)
+	if err != nil {
+		log.Error(err)
+		return nil, trace.Wrap(err)
+	}
+	return sess, nil
+}
+
+type createU2fUserWithTokenReq struct {
+	Token     string `json:"token"`
+	Password  string `json:"password"`
+	U2fRegisterResponse u2f.RegisterResponse `json:"u2f_register_response"`
+}
+
+func (s *APIServer) createU2fUserWithToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *createU2fUserWithTokenReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sess, err := s.a.CreateU2fUserWithToken(req.Token, req.Password, req.U2fRegisterResponse)
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)

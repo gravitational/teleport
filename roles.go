@@ -84,7 +84,7 @@ func (r *Role) String() string {
 // if it's ok, false otherwise
 func (r *Role) Check() error {
 	switch *r {
-	case RoleAuth, RoleUser, RoleWeb, RoleNode, RoleAdmin, RoleProvisionToken, RoleSignup, RoleProxy:
+	case RoleAuth, RoleUser, RoleWeb, RoleNode, RoleAdmin, RoleProvisionToken, RoleSignup, RoleProxy, RoleU2fSign:
 		return nil
 	}
 	return trace.BadParameter("role %v is not supported", *r)
@@ -107,4 +107,6 @@ const (
 	RoleProvisionToken Role = "ProvisionToken"
 	// RoleSignup is for first time signing up users
 	RoleSignup Role = "Signup"
+	// RoleU2fSign is for requesting a U2F auth challenge
+	RoleU2fSign = "U2fSign"
 )

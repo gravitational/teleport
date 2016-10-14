@@ -140,6 +140,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.ApplyToken(fc.AuthToken)
 	cfg.Auth.DomainName = fc.Auth.DomainName
+	cfg.Auth.U2fAppId = fc.Auth.U2fAppId
 	if fc.Global.DataDir != "" {
 		cfg.DataDir = fc.Global.DataDir
 	}
