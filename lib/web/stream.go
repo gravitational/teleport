@@ -55,7 +55,9 @@ type sessionStreamHandler struct {
 }
 
 func (w *sessionStreamHandler) Close() error {
-	w.ws.Close()
+	if w.ws != nil {
+		w.ws.Close()
+	}
 	w.closeOnce.Do(func() {
 		close(w.closeC)
 	})
