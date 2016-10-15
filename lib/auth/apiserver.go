@@ -36,7 +36,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/tstranex/u2f"
-	"errors"
 )
 
 type APIConfig struct {

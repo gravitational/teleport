@@ -35,11 +35,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/tstranex/u2f"
-
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/ecdsa"
-	"crypto/x509"
 )
 
 // CreateSignupToken creates one time token for creating account for the user
