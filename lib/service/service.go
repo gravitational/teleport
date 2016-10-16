@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/backend/dynamodbbk"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -737,6 +738,8 @@ func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 		bk, err = etcdbk.FromJSON(cfg.KeysBackend.Params)
 	case teleport.BoltBackendType:
 		bk, err = boltbk.FromJSON(cfg.KeysBackend.Params)
+	case teleport.DynamoDBBackendType:
+		bk, err = dynamodbbk.FromJSON(cfg.KeysBackend.Params)
 	default:
 		return nil, trace.Errorf("unsupported backend type: %v", cfg.KeysBackend.Type)
 	}

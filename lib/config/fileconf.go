@@ -103,6 +103,10 @@ var (
 		"client_secret":      true,
 		"redirect_url":       true,
 		"tokens":             true,
+		"region":             true,
+		"table_name":         true,
+		"access_key":         true,
+		"secret_key":         true,
 	}
 )
 
