@@ -335,6 +335,14 @@ type StorageBackend struct {
 	TLSKeyFile string `yaml:"tls_key_file,omitempty"`
 	// TLSCAFile is a tls client trusted CA file, used for etcd
 	TLSCAFile string `yaml:"tls_ca_file,omitempty"`
+	// Region is where DynamoDB Table will be used to store k/v
+	Region string `yaml:"region,omitempty"`
+	// AWS AccessKey used to authenticate DynamoDB queries (prefer IAM role instead of hardcoded value)
+	AccessKey string `yaml:"access_key,omitempty"`
+	// AWS SecretKey used to authenticate DynamoDB queries (prefer IAM role instead of hardcoded value)
+	SecretKey string `yaml:"secret_key,omitempty"`
+	// Tablename where to store K/V in DynamoDB
+	Tablename string `yaml:"table_name,omitempty"`
 }
 
 // Global is 'teleport' (global) section of the config file

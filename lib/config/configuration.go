@@ -30,6 +30,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/backend/dynamodbbk"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -158,6 +159,15 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			TLSKeyFile:  fc.Storage.TLSKeyFile,
 			TLSCertFile: fc.Storage.TLSCertFile,
 			TLSCAFile:   fc.Storage.TLSCAFile,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+	case teleport.DynamoDBBackendType:
+		if err := cfg.ConfigureDynamoDB(dynamodbbk.Config{
+			Region:    fc.Storage.Region,
+			AccessKey: fc.Storage.AccessKey,
+			SecretKey: fc.Storage.SecretKey,
+			Tablename: fc.Storage.Tablename,
 		}); err != nil {
 			return trace.Wrap(err)
 		}

@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/backend/dynamodbbk"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -152,6 +153,26 @@ func (cfg *Config) ConfigureETCD(etcdCfg etcdbk.Config) error {
 	a.KeysBackend.Params = params
 
 	// We can't store records and events in ETCD
+	a.EventsBackend.Type = teleport.BoltBackendType
+	a.EventsBackend.Params = boltParams(cfg.DataDir, defaults.EventsBoltFile)
+
+	a.RecordsBackend.Type = teleport.BoltBackendType
+	a.RecordsBackend.Params = boltParams(cfg.DataDir, defaults.RecordsBoltFile)
+	return nil
+}
+
+// ConfigureDynamoDB configures DynamoDB backend
+func (cfg *Config) ConfigureDynamoDB(dynCfg dynamodbbk.Config) error {
+	a := &cfg.Auth
+
+	params, err := dynamodbParams(dynCfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	a.KeysBackend.Type = teleport.DynamoDBBackendType
+	a.KeysBackend.Params = params
+
+	// We can't store records and events in DynamoDB
 	a.EventsBackend.Type = teleport.BoltBackendType
 	a.EventsBackend.Params = boltParams(cfg.DataDir, defaults.EventsBoltFile)
 
@@ -332,6 +353,15 @@ func boltParams(storagePath, dbFile string) string {
 
 // etcdParams generates a string accepted by the ETCD driver, like this:
 func etcdParams(cfg etcdbk.Config) (string, error) {
+	out, err := json.Marshal(cfg)
+	if err != nil { // don't know what to do seriously
+		return "", trace.Wrap(err)
+	}
+	return string(out), nil
+}
+
+// dynamodbParams generates a string accepted by the DynamoDB driver, like this:
+func dynamodbParams(cfg dynamodbbk.Config) (string, error) {
 	out, err := json.Marshal(cfg)
 	if err != nil { // don't know what to do seriously
 		return "", trace.Wrap(err)

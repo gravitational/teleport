@@ -14,6 +14,9 @@ const (
 	// ETCDBackendType is etcd backend
 	ETCDBackendType = "etcd"
 
+	// DynamoDBBackendType is DynamoDB backend
+	DynamoDBBackendType = "dynamodb"
+
 	// Component indicates a component of teleport, used for logging
 	Component = "component"
 
