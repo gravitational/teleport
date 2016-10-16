@@ -251,6 +251,27 @@ func (s *sessionCache) GetU2fSignRequest(user, pass string) (*u2f.SignRequest, e
 	return u2fSignReq, nil
 }
 
+func (s *sessionCache) AuthWithU2fSignResponse(user string, u2fSignResponse *u2f.SignResponse) (*auth.Session, error) {
+	method, err := auth.NewWebU2fSignResponseAuth(user, u2fSignResponse)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clt, err := auth.NewTunClient("web.auth-u2f-sign-response", s.authServers, user, method)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// we are always closing this client, because we will not be using
+	// this connection initiated using password based credentials
+	// down the road, so it's a one call client
+	defer clt.Close()
+	session, err := clt.PreAuthenticatedSignIn(user)
+	if err != nil {
+		defer clt.Close()
+		return nil, trace.Wrap(err)
+	}
+	return session, nil
+}
+
 func (s *sessionCache) GetCertificate(c createSSHCertReq) (*SSHLoginResponse, error) {
 	method, err := auth.NewWebPasswordAuth(c.User, []byte(c.Password),
 		c.HOTPToken)

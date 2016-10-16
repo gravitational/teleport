@@ -216,6 +216,12 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 	if err := s.CheckPasswordWOToken(user, password); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return s.PreAuthenticatedSignIn(user)
+}
+
+// PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is
+// already checked before issueing the second factor challenge
+func (s *AuthServer) PreAuthenticatedSignIn(user string) (*Session, error) {
 	sess, err := s.NewWebSession(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -237,17 +243,48 @@ func (s *AuthServer) U2fSignRequest(user string, password []byte) (*u2f.SignRequ
 		return nil, trace.Wrap(err)
 	}
 
-	// FIXME: should save challenge to database!!!
-	c, err := u2f.NewChallenge(s.U2fAppId, []string{s.U2fAppId})
+	challenge, err := u2f.NewChallenge(s.U2fAppId, []string{s.U2fAppId})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	log.Errorf("%v", u2fReg)
+	err = s.UpsertU2fSignChallenge(user, challenge)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	u2fSignReq := c.SignRequest(*u2fReg)
+	u2fSignReq := challenge.SignRequest(*u2fReg)
 
 	return u2fSignReq, nil
+}
+
+func (s *AuthServer) CheckU2fSignResponse(user string, u2fSignResponse *u2f.SignResponse) (error) {
+	reg, err := s.GetU2fRegistration(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	counter, err := s.GetU2fRegistrationCounter(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	challenge, err := s.GetU2fSignChallenge(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	newCounter, err := reg.Authenticate(*u2fSignResponse, *challenge, counter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.UpsertU2fRegistrationCounter(user, newCounter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // ExtendWebSession creates a new web session for a user based on a valid previous sessionID,

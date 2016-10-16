@@ -206,6 +206,12 @@ type Identity interface {
 	// returns a U2F registration from a valid register response
 	GetU2fRegistration(user string) (*u2f.Registration, error)
 
+	// upserts a U2F sign (auth) challenge
+	UpsertU2fSignChallenge(user string, u2fChallenge *u2f.Challenge) (error)
+
+	// returns a U2F sign (auth) challenge
+	GetU2fSignChallenge(user string) (*u2f.Challenge, error)
+
 	// upserts a counter associated with a U2F registration
 	UpsertU2fRegistrationCounter(user string, counter uint32) (error)
 

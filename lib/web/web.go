@@ -126,6 +126,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 	// Web sessions
 	h.POST("/webapi/sessions", httplib.MakeHandler(h.createSession))
 	h.POST("/webapi/sessions_u2f_sign", httplib.MakeHandler(h.u2fSignRequest))
+	h.POST("/webapi/sessions_u2f", httplib.MakeHandler(h.createSessionWithU2fSignResponse))
 	h.DELETE("/webapi/sessions/:sid", h.withAuth(h.deleteSession))
 	h.POST("/webapi/sessions/renew", h.withAuth(h.renewSession))
 
@@ -611,6 +612,32 @@ func (m *Handler) u2fSignRequest(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	return u2fSignReq, nil
+}
+
+type u2fSignResponseReq struct {
+	User string `json:"user"`
+	U2fSignResponse u2f.SignResponse `json:"u2f_sign_response"`
+}
+
+func (m *Handler) createSessionWithU2fSignResponse(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *u2fSignResponseReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sess, err := m.auth.AuthWithU2fSignResponse(req.User, &req.U2fSignResponse)
+	if err != nil {
+		log.Infof("bad access credentials: %v", err)
+		return nil, trace.AccessDenied("bad auth credentials")
+	}
+	if err := SetSession(w, req.User, sess.ID); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ctx, err := m.auth.ValidateSession(req.User, sess.ID)
+	if err != nil {
+		return nil, trace.AccessDenied("need auth")
+	}
+	return NewSessionResponse(ctx)
 }
 
 // createNewUser req is a request to create a new Teleport user

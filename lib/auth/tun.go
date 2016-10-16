@@ -38,6 +38,8 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+
+	"github.com/tstranex/u2f"
 )
 
 // dialRetryInterval specifies the time interval tun client waits to retry
@@ -446,6 +448,18 @@ func (s *AuthTunnel) passwordAuth(
 		}
 		log.Infof("[AUTH] u2f sign authenticated user: '%v'", conn.User())
 		return perms, nil
+	case AuthWebU2f:
+		if err := s.authServer.CheckU2fSignResponse(conn.User(), &ab.U2fSignResponse); err != nil {
+			log.Warningf("u2f auth error: %#v", err)
+			return nil, trace.Wrap(err)
+		}
+		perms := &ssh.Permissions{
+			Extensions: map[string]string{
+				ExtWebU2f: "<u2f-sign-response>",
+				ExtRole:   string(teleport.RoleU2fUser),
+			},
+		}
+		return perms, nil
 	case AuthWebSession:
 		// we use extra permissions mechanism to keep the connection data
 		// after authorization, in this case the session
@@ -499,6 +513,7 @@ type authBucket struct {
 	Type      string `json:"type"`
 	Pass      []byte `json:"pass"`
 	HotpToken string `json:"hotpToken"`
+	U2fSignResponse u2f.SignResponse `json:"u2fSignResponse"`
 }
 
 func NewTokenAuth(domainName, token string) ([]ssh.AuthMethod, error) {
@@ -543,6 +558,18 @@ func NewWebPasswordU2fSignAuth(user string, password []byte) ([]ssh.AuthMethod, 
 		Type: AuthWebU2fSign,
 		User: user,
 		Pass: password,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
+}
+
+func NewWebU2fSignResponseAuth(user string, u2fSignResponse *u2f.SignResponse) ([]ssh.AuthMethod, error) {
+	data, err := json.Marshal(authBucket{
+		Type: AuthWebU2f,
+		User: user,
+		U2fSignResponse: *u2fSignResponse,
 	})
 	if err != nil {
 		return nil, err
@@ -863,12 +890,14 @@ const (
 
 	ExtWebSession  = "web-session@teleport"
 	ExtWebPassword = "web-password@teleport"
+	ExtWebU2f      = "web-u2f@teleport"
 	ExtToken       = "provision@teleport"
 	ExtHost        = "host@teleport"
 	ExtRole        = "role@teleport"
 
 	AuthWebPassword = "password"
 	AuthWebU2fSign  = "u2f-sign"
+	AuthWebU2f      = "u2f"
 	AuthWebSession  = "session"
 	AuthToken       = "provision-token"
 	AuthSignupToken = "signup-token"

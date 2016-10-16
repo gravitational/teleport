@@ -87,6 +87,7 @@ func NewAPIServer(config *APIConfig, role teleport.Role) APIServer {
 	srv.POST("/v1/users/:user/web/password", httplib.MakeHandler(srv.upsertPassword))
 	srv.POST("/v1/users/:user/web/password/check", httplib.MakeHandler(srv.checkPassword))
 	srv.POST("/v1/users/:user/web/signin", httplib.MakeHandler(srv.signIn))
+	srv.GET("/v1/users/:user/web/signin_preauth", httplib.MakeHandler(srv.preAuthenticatedSignIn))
 	srv.POST("/v1/users/:user/web/u2f_sign", httplib.MakeHandler(srv.u2fSignRequest))
 	srv.POST("/v1/users/:user/web/sessions", httplib.MakeHandler(srv.createWebSession))
 	srv.GET("/v1/users/:user/web/sessions/:sid", httplib.MakeHandler(srv.getWebSession))
@@ -300,6 +301,15 @@ func (s *APIServer) signIn(w http.ResponseWriter, r *http.Request, p httprouter.
 	}
 	user := p[0].Value
 	sess, err := s.a.SignIn(user, []byte(req.Password))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sess, nil
+}
+
+func (s *APIServer) preAuthenticatedSignIn(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	user := p[0].Value
+	sess, err := s.a.PreAuthenticatedSignIn(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

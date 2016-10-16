@@ -368,6 +368,7 @@ var (
 	u2fRegChalPath   = []string{"adduseru2fchallenges"}
 	u2fRegPath       = []string{"u2fregistrations"}
 	u2fRegCounterPath= []string{"u2fregistrationcounters"}
+	u2fSignChalPath  = []string{"u2fsignchallenges"}
 	connectorsPath   = []string{"web", "connectors", "oidc", "connectors"}
 	authRequestsPath = []string{"web", "connectors", "oidc", "requests"}
 )
@@ -548,6 +549,31 @@ func (s *IdentityService) GetU2fRegistrationCounter(user string) (counter uint32
 	}
 
 	return u2fRegCounter.Counter, nil
+}
+
+func (s *IdentityService) UpsertU2fSignChallenge(user string, u2fChallenge *u2f.Challenge) (e error) {
+	data, err := json.Marshal(u2fChallenge)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.backend.UpsertVal(u2fSignChalPath, user, data, backend.Forever)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *IdentityService) GetU2fSignChallenge(user string) (u2fChallenge *u2f.Challenge, e error) {
+	data, err := s.backend.GetVal(u2fSignChalPath, user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	u2fChal := u2f.Challenge{}
+	err = json.Unmarshal(data, &u2fChal)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &u2fChal, nil
 }
 
 // UpsertOIDCConnector upserts OIDC Connector

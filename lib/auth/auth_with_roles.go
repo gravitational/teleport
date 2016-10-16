@@ -214,9 +214,14 @@ func (a *AuthWithRoles) SignIn(user string, password []byte) (*Session, error) {
 	}
 	return a.authServer.SignIn(user, password)
 }
+func (a *AuthWithRoles) PreAuthenticatedSignIn(user string) (*Session, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionPreAuthSignIn); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.PreAuthenticatedSignIn(user)
+}
 func (a *AuthWithRoles) U2fSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
-	// FIXME: MAYBE ADD NEW PERMISSION
-	if err := a.permChecker.HasPermission(a.role, ActionSignIn); err != nil {
+	if err := a.permChecker.HasPermission(a.role, ActionU2fSignReq); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.U2fSignRequest(user, password)

@@ -448,6 +448,23 @@ func (c *Client) SignIn(user string, password []byte) (*Session, error) {
 	return sess, nil
 }
 
+// PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is
+// already checked before issueing the second factor challenge
+func (c *Client) PreAuthenticatedSignIn(user string) (*Session, error) {
+	out, err := c.Get(
+		c.Endpoint("users", user, "web", "signin_preauth"),
+		url.Values{},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var sess *Session
+	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
+		return nil, err
+	}
+	return sess, nil
+}
+
 func (c *Client) GetU2fSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
 	out, err := c.PostJSON(
 		c.Endpoint("users", user, "web", "u2f_sign"),

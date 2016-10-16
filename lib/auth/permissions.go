@@ -114,7 +114,11 @@ func NewStandardPermissions() PermissionChecker {
 	}
 
 	sp.permissions[teleport.RoleU2fSign] = map[string]bool{
-		ActionSignIn:  true,
+		ActionU2fSignReq: true,
+	}
+
+	sp.permissions[teleport.RoleU2fUser] = map[string]bool{
+		ActionPreAuthSignIn: true,
 	}
 
 	return &sp
@@ -189,6 +193,8 @@ const (
 	ActionUpsertPassword                    = "UpsertPassword"
 	ActionCheckPassword                     = "CheckPassword"
 	ActionSignIn                            = "SignIn"
+	ActionPreAuthSignIn                     = "PreAuthSignIn"
+	ActionU2fSignReq                        = "U2fSignReq"
 	ActionExtendWebSession                  = "ExtendWebSession"
 	ActionCreateWebSession                  = "CreateWebSession"
 	ActionGetWebSession                     = "GetWebSession"
