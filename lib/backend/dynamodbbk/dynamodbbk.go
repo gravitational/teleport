@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
@@ -59,7 +60,13 @@ func New(cfg Config) (backend.Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 	b := &DynamoDBBackend{tableName: cfg.Tablename, region: cfg.Region}
-	sess, err := session.NewSession(&aws.Config{Region: &b.region})
+	var awsConfig aws.Config
+	awsConfig.Region = &b.region
+	if cfg.AccessKey != "" && cfg.SecretKey != "" {
+		creds := credentials.NewStaticCredentials(cfg.AccessKey, cfg.SecretKey, "")
+		awsConfig.Credentials = creds
+	}
+	sess, err := session.NewSession(&awsConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
