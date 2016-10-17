@@ -157,7 +157,7 @@ func (s *AuthServer) CreateSignupU2fRegisterRequest(token string) (u2fRegisterRe
 		return nil, trace.Errorf("can't add user %v, user already exists", tokenData.User)
 	}
 
-	c, err := u2f.NewChallenge(s.U2fAppId, []string{s.U2fAppId})
+	c, err := u2f.NewChallenge(s.U2fAppId, s.U2fTrustedFacets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -104,6 +104,7 @@ var (
 		"redirect_url":       true,
 		"tokens":             true,
 		"u2f_appid":          true,
+		"u2f_facets":         true,
 	}
 )
 
@@ -232,6 +233,8 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	var a Auth
 	a.ListenAddress = conf.Auth.SSHAddr.Addr
 	a.EnabledFlag = "yes"
+	a.U2fAppId = conf.Hostname
+	a.U2fTrustedFacets = []string{conf.Hostname}
 
 	// sample proxy config:
 	var p Proxy
@@ -416,6 +419,8 @@ type Auth struct {
 	StaticTokens []StaticToken `yaml:"tokens,omitempty"`
 
 	U2fAppId string `yaml:"u2f_appid,omitempty"`
+
+	U2fTrustedFacets []string `yaml:"u2f_facets,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key

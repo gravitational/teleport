@@ -114,6 +114,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 		oidcClients:     make(map[string]*oidc.Client),
 		StaticTokens:    cfg.StaticTokens,
 		U2fAppId:        cfg.U2fAppId,
+		U2fTrustedFacets:cfg.U2fTrustedFacets,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -152,6 +153,7 @@ type AuthServer struct {
 	StaticTokens []services.ProvisionToken
 
 	U2fAppId string
+	U2fTrustedFacets []string
 
 	services.Trust
 	services.Lock
@@ -243,7 +245,7 @@ func (s *AuthServer) U2fSignRequest(user string, password []byte) (*u2f.SignRequ
 		return nil, trace.Wrap(err)
 	}
 
-	challenge, err := u2f.NewChallenge(s.U2fAppId, []string{s.U2fAppId})
+	challenge, err := u2f.NewChallenge(s.U2fAppId, s.U2fTrustedFacets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

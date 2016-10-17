@@ -267,6 +267,8 @@ type AuthConfig struct {
 	NoAudit bool
 
 	U2fAppId string
+
+	U2fTrustedFacets []string
 }
 
 // SSHConfig configures SSH server node role
@@ -304,6 +306,8 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.KeysBackend.Params = boltParams(defaults.DataDir, defaults.KeysBoltFile)
 	cfg.Auth.RecordsBackend.Type = defaults.BackendType
 	cfg.Auth.RecordsBackend.Params = boltParams(defaults.DataDir, defaults.RecordsBoltFile)
+	cfg.Auth.U2fAppId = hostname
+	cfg.Auth.U2fTrustedFacets = []string{hostname}
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
 
 	// defaults for the SSH proxy service:
