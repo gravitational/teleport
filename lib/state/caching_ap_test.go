@@ -135,10 +135,13 @@ func (s *ClusterSnapshotSuite) SetUpTest(c *check.C) {
 func (s *ClusterSnapshotSuite) TearDownTest(c *check.C) {
 }
 
-func (s *ClusterSnapshotSuite) TestMakeSnapshot(c *check.C) {
-	snap, err := MakeClusterSnapshot(s.authServer)
+func (s *ClusterSnapshotSuite) TestEverything(c *check.C) {
+	snap, err := MakeCachingAuthClient(s.authServer)
 	c.Assert(err, check.IsNil)
 	c.Assert(snap, check.NotNil)
+
+	// kill the 'upstream' server:
+	s.authServer.Close()
 
 	users, err := snap.GetUsers()
 	c.Assert(err, check.IsNil)
@@ -151,4 +154,5 @@ func (s *ClusterSnapshotSuite) TestMakeSnapshot(c *check.C) {
 	proxies, err := snap.GetProxies()
 	c.Assert(err, check.IsNil)
 	c.Assert(proxies, check.HasLen, len(Proxies))
+
 }

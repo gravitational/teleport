@@ -15,18 +15,14 @@ var (
 )
 
 const (
-	// CloseLog is a fake (only supported and understood here) event type
-	// which signals the Local Audit Log to close its resources
-	CloseLog = "x-close-local-log"
-
 	// MaxQueueSize determines how many logging events to queue in-memory
 	// before start dropping them (probably because logging server is down)
 	MaxQueueSize = 10
 )
 
-// LocalAuditLog implements events.IAuditLog on the recording machine (SSH server)
+// CachingAuditLog implements events.IAuditLog on the recording machine (SSH server)
 // It captures the local recording and forwards it to the AuditLog network server
-type LocalAuditLog struct {
+type CachingAuditLog struct {
 	server events.IAuditLog
 	queue  chan msg
 }
@@ -40,9 +36,9 @@ type msg struct {
 	reader    io.Reader
 }
 
-// MakeLocalAuditLog creaets a new & fully initialized instance of the alog
-func MakeLocalAuditLog(logServer events.IAuditLog) events.IAuditLog {
-	ll := &LocalAuditLog{
+// MakeCachingAuditLog creaets a new & fully initialized instance of the alog
+func MakeCachingAuditLog(logServer events.IAuditLog) *CachingAuditLog {
+	ll := &CachingAuditLog{
 		server: logServer,
 	}
 	// start the queue:
@@ -55,7 +51,7 @@ func MakeLocalAuditLog(logServer events.IAuditLog) events.IAuditLog {
 
 // run thread is picking up logging events and tries to forward them
 // to the logging server
-func (ll *LocalAuditLog) run() {
+func (ll *CachingAuditLog) run() {
 	var err error
 	for ll.server != nil {
 		select {
@@ -72,14 +68,14 @@ func (ll *LocalAuditLog) run() {
 	}
 }
 
-func (ll *LocalAuditLog) post(m msg) error {
+func (ll *CachingAuditLog) post(m msg) error {
 	if len(ll.queue) < MaxQueueSize {
 		ll.queue <- m
 	}
 	return nil
 }
 
-func (ll *LocalAuditLog) Close() error {
+func (ll *CachingAuditLog) Close() error {
 	if ll.server != nil {
 		ll.server = nil
 		close(ll.queue)
@@ -87,29 +83,26 @@ func (ll *LocalAuditLog) Close() error {
 	return nil
 }
 
-func (ll *LocalAuditLog) EmitAuditEvent(eventType string, fields events.EventFields) error {
-	if eventType == CloseLog {
-		return ll.Close()
-	}
+func (ll *CachingAuditLog) EmitAuditEvent(eventType string, fields events.EventFields) error {
 	if ll.server == nil {
 		return nil
 	}
 	return ll.post(msg{eventType: eventType, fields: fields})
 }
 
-func (ll *LocalAuditLog) PostSessionChunk(sid session.ID, reader io.Reader) error {
+func (ll *CachingAuditLog) PostSessionChunk(sid session.ID, reader io.Reader) error {
 	if ll.server == nil {
 		return nil
 	}
 	return ll.post(msg{sid: sid, reader: reader})
 }
 
-func (ll *LocalAuditLog) GetSessionChunk(session.ID, int, int) ([]byte, error) {
+func (ll *CachingAuditLog) GetSessionChunk(session.ID, int, int) ([]byte, error) {
 	return nil, errNotSupported
 }
-func (ll *LocalAuditLog) GetSessionEvents(session.ID, int) ([]events.EventFields, error) {
+func (ll *CachingAuditLog) GetSessionEvents(session.ID, int) ([]events.EventFields, error) {
 	return nil, errNotSupported
 }
-func (ll *LocalAuditLog) SearchEvents(time.Time, time.Time, string) ([]events.EventFields, error) {
+func (ll *CachingAuditLog) SearchEvents(time.Time, time.Time, string) ([]events.EventFields, error) {
 	return nil, errNotSupported
 }

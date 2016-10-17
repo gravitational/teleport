@@ -478,26 +478,23 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		snap, err := state.MakeClusterSnapshot(conn.Client)
+		authClient, err := state.MakeCachingAuthClient(conn.Client)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		localLog := state.MakeLocalAuditLog(conn.Client)
-		//defer localLog.EmitAuditEvent(state.CloseLog, nil)
-		go func() {
-			time.Sleep(time.Second * 2)
-			defer localLog.EmitAuditEvent(state.CloseLog, nil)
-		}()
+
+		alog := state.MakeCachingAuditLog(conn.Client)
+		defer alog.Close()
 
 		s, err = srv.New(cfg.SSH.Addr,
 			cfg.Hostname,
 			[]ssh.Signer{conn.Identity.KeySigner},
-			snap,
+			authClient,
 			cfg.DataDir,
 			cfg.AdvertiseIP,
 			srv.SetLimiter(limiter),
 			srv.SetShell(cfg.SSH.Shell),
-			srv.SetAuditLog(localLog),
+			srv.SetAuditLog(alog),
 			srv.SetSessionServer(conn.Client),
 			srv.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
 		)
@@ -606,22 +603,6 @@ func (process *TeleportProcess) initProxy() error {
 		if !ok {
 			return trace.BadParameter("unsupported connector type: %T", event.Payload)
 		}
-		/*
-			// read our identity:
-			identity, err := process.GetIdentity(myRole)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			// make a snapshot of the cluster:
-			snap, err := state.MakeClusterSnapshot(conn.Client)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			return trace.Wrap(process.initProxyEndpoint(&Connector{
-				Client:   snap,
-				Identity: identity,
-			}))
-		*/
 		return trace.Wrap(process.initProxyEndpoint(conn))
 	})
 	return nil
@@ -633,6 +614,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		err         error
 	)
 	cfg := process.Config
+
 	proxyLimiter, err := limiter.NewLimiter(cfg.Proxy.Limiter)
 	if err != nil {
 		return trace.Wrap(err)
@@ -643,19 +625,20 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	tsrv, err := reversetunnel.NewServer(
-		cfg.Proxy.ReverseTunnelListenAddr,
-		[]ssh.Signer{conn.Identity.KeySigner},
-		conn.Client,
-		reversetunnel.SetLimiter(reverseTunnelLimiter),
-		reversetunnel.DirectSite(conn.Identity.Cert.Extensions[utils.CertExtensionAuthority], conn.Client),
-	)
+	// make a caching auth client for the auth server:
+	authClient, err := state.MakeCachingAuthClient(conn.Client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// make a snapshot of the cluster:
-	snap, err := state.MakeClusterSnapshot(conn.Client)
+	tsrv, err := reversetunnel.NewServer(
+		cfg.Proxy.ReverseTunnelListenAddr,
+		[]ssh.Signer{conn.Identity.KeySigner},
+		authClient,
+		reversetunnel.SetLimiter(reverseTunnelLimiter),
+		reversetunnel.DirectSite(conn.Identity.Cert.Extensions[utils.CertExtensionAuthority],
+			conn.Client),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -663,8 +646,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	SSHProxy, err := srv.New(cfg.Proxy.SSHAddr,
 		cfg.Hostname,
 		[]ssh.Signer{conn.Identity.KeySigner},
-		snap,
-		// conn.Client,
+		authClient,
 		cfg.DataDir,
 		nil,
 		srv.SetLimiter(proxyLimiter),

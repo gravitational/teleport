@@ -138,6 +138,9 @@ func (proxy *ProxyClient) FindServersByLabels(labels map[string]string) ([]servi
 
 // ConnectToSite connects to the auth server of the given site via proxy.
 // It returns connected and authenticated auth server client
+//
+// if 'quiet' is set to true, no errors will be printed to stdout, otherwise
+// any connection errors are visible to a user.
 func (proxy *ProxyClient) ConnectToSite(quiet bool) (auth.ClientI, error) {
 	site, err := proxy.getSite()
 	if err != nil {
