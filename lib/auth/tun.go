@@ -646,7 +646,7 @@ func (c *TunClient) GetAgent() (AgentCloser, error) {
 
 // Dial dials to Auth server's HTTP API over SSH tunnel.
 func (c *TunClient) Dial(network, address string) (net.Conn, error) {
-	//log.Debugf("TunClient[%s].Dial()", c.purpose)
+	log.Debugf("TunClient[%s].Dial()", c.purpose)
 
 	client, err := c.getClient()
 	if err != nil {
@@ -764,7 +764,7 @@ func (c *TunClient) getClient() (client *ssh.Client, err error) {
 	if len(authServers) == 0 {
 		return nil, trace.Errorf("all auth servers are offline")
 	}
-	//log.Debugf("tunClient(%s).authServers: %v", c.purpose, authServers)
+	log.Debugf("tunClient(%s).authServers: %v", c.purpose, authServers)
 
 	// try to connect to the 1st one who will pick up:
 	for _, authServer := range authServers {
@@ -783,7 +783,7 @@ func (c *TunClient) dialAuthServer(authServer utils.NetAddr) (sshClient *ssh.Cli
 	}
 	const dialRetryTimes = 5
 	for attempt := 0; attempt < dialRetryTimes; attempt++ {
-		//log.Debugf("tunClient.Dial(to=%v, attempt=%d)", authServer.Addr, attempt+1)
+		log.Debugf("tunClient.Dial(to=%v, attempt=%d)", authServer.Addr, attempt+1)
 		sshClient, err = ssh.Dial(authServer.AddrNetwork, authServer.Addr, config)
 		// success -> get out of here
 		if err == nil {

@@ -695,17 +695,14 @@ func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprou
 	log.Debugf("[web] GET /nodes")
 	clt, err := site.GetClient()
 	if err != nil {
-		log.Warn(err)
 		return nil, trace.Wrap(err)
 	}
 	servers, err := clt.GetNodes()
 	if err != nil {
-		log.Warn(err)
 		return nil, trace.Wrap(err)
 	}
 	sessions, err := clt.GetSessions()
 	if err != nil {
-		log.Warn(err)
 		return nil, trace.Wrap(err)
 	}
 	nodeMap := make(map[string]*nodeWithSessions, len(servers))

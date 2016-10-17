@@ -115,7 +115,7 @@ func (m *AgentPool) pollAndSyncAgents() {
 		case <-ticker.C:
 			err := m.FetchAndSyncAgents()
 			if err != nil {
-				//m.Warningf("failed to get reverse tunnels: %v", err)
+				m.Warningf("failed to get reverse tunnels: %v", err)
 				continue
 			}
 		}

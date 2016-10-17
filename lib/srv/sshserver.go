@@ -299,7 +299,7 @@ func (s *Server) heartbeatPresence() {
 
 	for {
 		if err := s.registerServer(); err != nil {
-			//log.Warningf("failed to announce %#v presence: %v", s, err)
+			log.Warningf("failed to announce %v presence: %v", s.ID(), err)
 		}
 		select {
 		case <-ticker.C:
