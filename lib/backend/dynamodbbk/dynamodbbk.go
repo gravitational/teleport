@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -56,6 +57,7 @@ var hashKey = "teleport"
 
 // New returns new instance of Etcd-powered backend
 func New(cfg Config) (backend.Backend, error) {
+	log.Info("[DynamoDB] Initializing DynamoDB backend")
 	if err := cfg.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -72,6 +74,7 @@ func New(cfg Config) (backend.Backend, error) {
 	}
 
 	b.svc = dynamodb.New(sess)
+	log.Debug("[DynamoDB] AWS session created")
 	return b, nil
 }
 
@@ -107,21 +110,42 @@ func (b *DynamoDBBackend) getKeys(key string) ([]string, error) {
 			if r.TTL != 0 && time.Unix(r.Timestamp, 0).Add(r.TTL).Before(time.Now().UTC()) {
 				b.deleteKey(r.Key)
 			} else {
-				vals = append(vals, suffix(r.Key))
+				vals = append(vals, suffix(r.Key[len(key)+1:]))
 			}
 		}
 	}
-	// TODO: remove expired keys
 	return vals, nil
+}
+
+func removeDuplicates(elements []string) []string {
+	// Use map to record duplicates as we find them.
+	encountered := map[string]bool{}
+	result := []string{}
+
+	for v := range elements {
+		if encountered[elements[v]] == true {
+			// Do not add duplicate.
+		} else {
+			// Record this element as an encountered element.
+			encountered[elements[v]] = true
+			// Append to result slice.
+			result = append(result, elements[v])
+		}
+	}
+	// Return the new slice.
+	return result
 }
 
 // GetKeys retrieve all keys matching specific path
 func (b *DynamoDBBackend) GetKeys(path []string) ([]string, error) {
+	log.Debugf("[DynamoDB] call GetKeys(%s)", path)
 	keys, err := b.getKeys(b.key(path...))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sort.Sort(sort.StringSlice(keys))
+	keys = removeDuplicates(keys)
+	log.Debugf("[DynamoDB] return GetKeys(%s)=%s", path, keys)
 	return keys, nil
 }
 
@@ -316,5 +340,5 @@ func (b *DynamoDBBackend) GetValAndTTL(path []string, key string) ([]byte, time.
 
 func suffix(key string) string {
 	vals := strings.Split(key, "/")
-	return vals[len(vals)-1]
+	return vals[0]
 }
