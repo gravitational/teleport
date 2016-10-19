@@ -14,6 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+@import "~assets/css/animate.css";
+@import "~assets/css/datepicker3-1.6.0.css";
+@import "~assets/css/toastr-2.1.2.css";
+@import "~perfect-scrollbar/dist/css/perfect-scrollbar.css";
+@import "bootstrap/bootstrap";
+@import 'inspinia/style';
+
 @import "grv-vars";
 @import "grv-invite";
 @import "grv-login";
@@ -29,15 +36,7 @@ limitations under the License.
 @import "grv-terminal";
 @import "grv-dialog-select-node";
 @import "grv-notifications";
-
-@font-face {
-  font-family: "DejaVu Sans Mono";
-  src: url("assets/fonts/dejavu-sans-mono.woff") format("woff"),url("assets/fonts/dejavu-sans-mono.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-}
-
-@import url("https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700");
+@import "grv-fonts";
 
 h1{
   font-weight: 500;
