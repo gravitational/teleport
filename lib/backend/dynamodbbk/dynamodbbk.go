@@ -75,7 +75,38 @@ func New(cfg Config) (backend.Backend, error) {
 
 	b.svc = dynamodb.New(sess)
 	log.Debug("[DynamoDB] AWS session created")
+	b.checkOrCreateTable()
 	return b, nil
+}
+
+// check if table already exist in DynamoDB. If not create it
+func (b *DynamoDBBackend) checkOrCreateTable() error {
+	lt := dynamodb.ListTablesInput{ExclusiveStartTableName: aws.String(b.tableName)}
+	r, err := b.svc.ListTables(&lt)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, t := range r.TableNames {
+		if *t == b.tableName {
+			log.Info("[DynamoDB] Table already created")
+			return nil
+		}
+	}
+	pThroughput := dynamodb.ProvisionedThroughput{ReadCapacityUnits: aws.Int64(5), WriteCapacityUnits: aws.Int64(5)}
+	def := []*dynamodb.AttributeDefinition{{AttributeName: aws.String("HashKey"), AttributeType: aws.String("S")}, {AttributeName: aws.String("Key"), AttributeType: aws.String("S")}}
+	elems := []*dynamodb.KeySchemaElement{{AttributeName: aws.String("HashKey"), KeyType: aws.String("HASH")}, {AttributeName: aws.String("Key"), KeyType: aws.String("RANGE")}}
+	c := dynamodb.CreateTableInput{TableName: aws.String(b.tableName), AttributeDefinitions: def, KeySchema: elems, ProvisionedThroughput: &pThroughput}
+	_, err = b.svc.CreateTable(&c)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	log.Info("[DynamoDB] Wait until table is created")
+	err = b.svc.WaitUntilTableExists(&dynamodb.DescribeTableInput{TableName: aws.String(b.tableName)})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	log.Info("[DynamoDB] Table created")
+	return nil
 }
 
 // Close the DynamoDB driver
