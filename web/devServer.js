@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 var WebpackDevServer = require("webpack-dev-server");
-var webpackConfig = require('./webpack.config.dev.js');
+var webpackConfig = require('./webpack/webpack.config.dev.js');
 var express = require('express');
 var webpack = require('webpack');
 var proxy = require('http-proxy').createProxyServer();
@@ -37,27 +37,23 @@ var compiler = webpack(webpackConfig);
 var server = new WebpackDevServer(compiler, {
   proxy: {
     '/web/config.js': 'https://' + PROXY_TARGET,
-    '/v1/webapi/*': 'https://' + PROXY_TARGET,    
+    '/v1/webapi/*': 'https://' + PROXY_TARGET
   },
   publicPath: ROOT +'/app',
   hot: true,
   https: true,
-  secure: false,
   inline: true,
   headers: { 'X-Custom-Header': 'yes' },
   stats: 'errors-only'
-  //stats: { colors: true },
 });
 
 // tell webpack dev server to proxy below sockets requests to actual server
 server.listeningApp.on('upgrade', function(req, socket) {
-  if (req.url.match('/v1/webapi/sites')) {
-    console.log('proxying ws', req.url);
-    proxy.ws(req, socket, {
-      target: 'wss://' + PROXY_TARGET,
-      secure: false
-    });
-  }
+  console.log('proxying ws', req.url);
+  proxy.ws(req, socket, {
+    target: 'wss://' + PROXY_TARGET,
+    secure: false
+  });
 });
 
 server.app.use(ROOT, express.static(__dirname + "//dist"));
@@ -65,8 +61,6 @@ server.app.get(ROOT +'/*', function (req, res) {
     res.sendfile(__dirname + "//dist//index.html");
 });
 
-module.exports = function(){
-  server.listen(PORT, "0.0.0.0", function() {
-    console.log('Dev Server is up and running: https://location:' + PORT +'/web');
-  });
-}
+server.listen(PORT, "0.0.0.0", function() {
+  console.log('Dev Server is up and running: https://location:' + PORT +'/web');
+});

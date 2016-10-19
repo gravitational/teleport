@@ -14,26 +14,33 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var webpackCfg = require('./webpack/webpack.config.test');
+var baseCfg = require('./webpack.base');
 
-module.exports = function (config) {
-  config.set({
-    browsers: [],
-    frameworks: [ 'mocha' ],
-    reporters: [ 'spec' ],
-    files: [
-      'node_modules/phantomjs-polyfill/bind-polyfill.js',
-      'karma.test.files.js'
-    ],
+var cfg = {
 
-    preprocessors: {
-      'karma.test.files.js': [ 'webpack' ]
-    },
+  entry: baseCfg.entry,
+  output: baseCfg.output,
+  resolve: baseCfg.resolve,
+  externals: baseCfg.externals,
 
-    webpack: webpackCfg,
+  module: {
+    loaders: [
+      baseCfg.loaders.fonts,
+      baseCfg.loaders.svg,
+      baseCfg.loaders.images,
+      baseCfg.loaders.js(),
+      baseCfg.loaders.css
+    ]
+  },
 
-    webpackServer: {
-      noInfo: true
-    }
-  });
+  plugins:  [
+    baseCfg.plugins.releaseBuild,
+    baseCfg.plugins.extractCss,
+    baseCfg.plugins.createIndexHtml,
+    baseCfg.plugins.vendorBundle,
+    baseCfg.plugins.uglify({onlyVendor: true})
+ ]
+
 };
+
+module.exports = cfg;
