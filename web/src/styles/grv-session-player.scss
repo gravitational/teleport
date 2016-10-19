@@ -29,6 +29,17 @@ limitations under the License.
     background-color: #676a6c;
   }
 
+  .ps-container {
+
+    > .ps-scrollbar-y-rail{
+      width: 0;
+    }
+
+    > .ps-scrollbar-x-rail{
+      height: 0;
+    }
+  }
+
   .grv-session-player-controls{
     margin-top: 10px;
     display: flex;
