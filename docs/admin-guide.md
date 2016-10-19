@@ -356,28 +356,33 @@ The user will have to re-initialize Google Authenticator on their phone.
 
 ## Adding Nodes to the Cluster
 
-Gravitational Teleport is a cluster SSH manager. It only allows SSH access to nodes
-who had been previously granted cluster membership, which means that every node in 
-a cluster has its own "host certificate" signed by the cluster's certificate 
-authority (CA). This prevents an attacker from creating a "honeypot" node within a 
-cluster.
+Gravitational Teleport is a "clustered" SSH manager, meaning it only allows SSH
+access to nodes that had been previously granted cluster membership. 
+
+A cluster membership means that every node in a cluster has its own host
+certificate signed by the cluster's auth server. 
 
 A new Teleport node needs an "invite token" to join a cluster. An invitation token 
 also defines which role a new node can assume within a cluster: `auth`, `proxy` or 
 `node`. 
 
-There are two ways to create invitation tokens.
+There are two ways to create invitation tokens:
+
+* Static Tokens
+* Short-lived Tokens
 
 ### Static Tokens
 
-You can pre-generate your own tokens and add them to certificate authority (CA)
-config file: 
+You can pick your own tokens and add them to the auth server's config file: 
 
 ```bash
-# Example CA section in `/etc/teleport/teleport.yaml` file for the CA node running on 10.0.10.5
+# Config section in `/etc/teleport/teleport.yaml` file for the auth server
 auth_service:
     enabled: true
-    listen_addr: 0.0.0.0:3025
+    #
+    # statically assigned token: obviously we recommend a much harder to guess
+    # value than `xxxxx`, consider generating tokens using a tool like pwgen
+    #
     tokens:
     - "proxy,node:xxxxxx"
 ```
@@ -389,7 +394,6 @@ as a proxy server:
 ```bash
 teleport start --roles=node,auth --token=xxxxx --auth-server=10.0.10.5
 ```
-
 
 ### Short-lived Tokens
 
