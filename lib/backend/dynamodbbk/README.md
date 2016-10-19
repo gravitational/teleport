@@ -18,7 +18,7 @@ replace region and table_name with appropriate settings.
 You can use IAM role instead of hard coded access and secret key (IAM role is recommended).
 You must apply correct policy in order to the auth to create/get/update K/V in DynamoDB.
 
-Example of a typical policy:
+Example of a typical policy (change region and account ID):
 
 {
     "Version": "2012-10-17",
@@ -27,7 +27,7 @@ Example of a typical policy:
             "Sid": "AllAPIActionsOnTeleportAuth",
             "Effect": "Allow",
             "Action": "dynamodb:*",
-            "Resource": "arn:aws:dynamodb:us-west-2:123456789012:table/prod.teleport.auth"
+            "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/prod.teleport.auth"
         }
     ]
 }
