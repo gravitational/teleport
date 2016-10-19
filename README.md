@@ -26,7 +26,7 @@ Teleport is built on top of the high-quality [Golang SSH](https://godoc.org/gola
 
 Download the [latest binary release](https://github.com/gravitational/teleport/releases), 
 unpack the .tar.gz and run `sudo make install`. This will copy Teleport binaries into 
-`/usr/local/bin` and the web assets to `/usr/local/share/teleport`.
+`/usr/local/bin`.
 
 Then you can run Teleport as a single-node cluster:
 
@@ -36,7 +36,8 @@ teleport start
 
 ## Building Teleport
 
-You need to have Golang `v1.7` or newer. 
+You need to have Golang `v1.7` or newer, and you must have the `zip` binary on
+your path.
 
 Run 
 

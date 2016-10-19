@@ -7,7 +7,6 @@ VERSION=1.2.0
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
 BINDIR ?= /usr/local/bin
-DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 
 PWD ?= $(shell pwd)
@@ -25,7 +24,7 @@ $(eval BUILDFLAGS := $(ADDFLAGS) -ldflags -w)
 # Default target: builds all 3 executables and plaaces them in a current directory
 #
 .PHONY: all
-all: setver teleport tctl tsh assets
+all: setver assets tctl tsh
 	cp -f build.assets/release.mk $(BUILDDIR)/Makefile
 
 .PHONY: tctl
@@ -49,8 +48,6 @@ install: build
 	cp -f $(BUILDDIR)/tctl      $(BINDIR)/
 	cp -f $(BUILDDIR)/tsh       $(BINDIR)/
 	cp -f $(BUILDDIR)/teleport  $(BINDIR)/
-	mkdir -p $(DATADIR)
-	cp -fr web/dist/* $(DATADIR)
 
 .PHONY: goinstall
 goinstall:
@@ -65,11 +62,9 @@ clean:
 	rm -rf teleport
 
 .PHONY: assets
-assets:
-	rm -rf $(BUILDDIR)/app
-	rm -f web/dist/app/app
-	cp -r web/dist/app $(BUILDDIR)
-	cp web/dist/index.html $(BUILDDIR)
+assets: teleport
+	go get github.com/GeertJohan/go.rice
+	$(GOPATH)/bin/rice append --exec=$(BUILDDIR)/teleport -i github.com/gravitational/teleport/lib/web
 	cp README.md $(BUILDDIR)
 
 #
