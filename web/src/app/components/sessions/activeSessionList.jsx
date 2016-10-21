@@ -2,8 +2,8 @@
 Copyright 2015 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
+you may not use this file except in compliance with the License.
 
     http://www.apache.org/licenses/LICENSE-2.0
 
@@ -17,25 +17,16 @@ limitations under the License.
 var React = require('react');
 var {Table, Column, Cell, TextCell, EmptyIndicator} = require('app/components/table.jsx');
 var {ButtonCell, UsersCell, NodeCell, DateCreatedCell} = require('./listItems');
-var {fetchActiveSessions} = require('app/modules/sessions/actions');
 
 var ActiveSessionList = React.createClass({
 
-  componentWillMount(){
-    fetchActiveSessions();
-    this.refreshInterval = setInterval(fetchActiveSessions, 2500);
-  },
-
-  componentWillUnmount(){
-    clearInterval(this.refreshInterval);    
-  },
-
-  render: function() {
+  render() {
     let data = this.props.data.filter(item => item.active);
+
     return (
       <div className="grv-sessions-active">
         <div className="grv-header">
-          <h1> Active Sessions </h1>
+          <h2 className="text-center"> Active Sessions </h2>
         </div>
         <div className="grv-content">
           {data.length === 0 ? <EmptyIndicator text="You have no active sessions."/> :

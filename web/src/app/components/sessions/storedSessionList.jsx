@@ -14,31 +14,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var React = require('react');
-var {actions} = require('app/modules/storedSessionsFilter');
-var InputSearch = require('./../inputSearch.jsx');
-var {Table, Column, Cell, TextCell, SortHeaderCell, SortTypes, EmptyIndicator} = require('app/components/table.jsx');
-var {ButtonCell, SingleUserCell, DateCreatedCell} = require('./listItems');
-var {DateRangePicker} = require('./../datePicker.jsx');
-var moment =  require('moment');
-var {isMatch} = require('app/common/objectUtils');
 var _ = require('_');
-var {displayDateFormat} = require('app/config');
+var React = require('react');
+var moment =  require('moment');
+var InputSearch = require('./../inputSearch.jsx');
+var { isMatch } = require('app/common/objectUtils');
+var { displayDateFormat} = require('app/config');
+var { actions } = require('app/modules/storedSessionsFilter');
+var { Table, Column, Cell, TextCell, SortHeaderCell, SortTypes, EmptyIndicator } = require('app/components/table.jsx');
+var { ButtonCell, SingleUserCell, DateCreatedCell } = require('./listItems');
+var { DateRangePicker } = require('./../datePicker.jsx');
+
 
 var ArchivedSessions = React.createClass({
 
   getInitialState(){
-    this.searchableProps = ['serverIp', 'created', 'sid', 'login'];
+    this.searchableProps = ['clientIp', 'nodeIp', 'created', 'sid', 'login'];
     return { filter: '', colSortDirs: {created: 'ASC'}};
-  },
-
-  componentWillMount(){
-    setTimeout(actions.fetch, 0);
-    this.refreshInterval = setInterval(actions.fetch, 2500);
-  },
-
-  componentWillUnmount(){
-    clearInterval(this.refreshInterval);
   },
 
   onFilterChange(value){
@@ -85,7 +77,7 @@ var ArchivedSessions = React.createClass({
     return sorted;
   },
 
-  render: function() {
+  render() {
     let { start, end } = this.props.filter;
     let data = this.props.data.filter(
       item => !item.active && moment(item.created).isBetween(start, end));
@@ -95,10 +87,10 @@ var ArchivedSessions = React.createClass({
     return (
       <div className="grv-sessions-stored">
         <div className="grv-header">
-          <div className="grv-flex">
+          <div className="grv-flex m-b-md">
             <div className="grv-flex-column"></div>
             <div className="grv-flex-column">
-              <h1> Archived Sessions </h1>
+              <h2 className="text-center"> Archived Sessions </h2>
             </div>
             <div className="grv-flex-column">
               <InputSearch value={this.filter} onChange={this.onFilterChange}/>
@@ -114,21 +106,30 @@ var ArchivedSessions = React.createClass({
           </div>
         </div>
         </div>
-
         <div className="grv-content">
           {data.length === 0 ? <EmptyIndicator text="No matching archived sessions found."/> :
             <div className="">
               <Table rowCount={data.length} className="table-striped">
                 <Column
-                  columnKey="sid"
-                  header={<Cell> Session ID </Cell> }
-                  cell={<TextCell data={data}/> }
-                />
-                <Column
                   header={<Cell/>}
                   cell={
                     <ButtonCell data={data} />
                   }
+                />
+                <Column
+                  columnKey="nodeIp"
+                  header={<Cell> Node IP </Cell> }
+                  cell={<TextCell data={data} /> }
+                />
+                <Column
+                  columnKey="clientIp"
+                  header={<Cell> Client IP </Cell> }
+                  cell={<TextCell data={data} /> }
+                />
+                <Column
+                  columnKey="sid"
+                  header={<Cell> Session ID </Cell> }
+                  cell={<TextCell data={data}/> }
                 />
                 <Column
                   columnKey="created"

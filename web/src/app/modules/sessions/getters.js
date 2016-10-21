@@ -60,7 +60,7 @@ function createView(session){
   var parties = reactor.evaluate(partiesBySessionId(sid));
 
   if(parties.length > 0){
-    serverIp = parties[0].serverIp;    
+    serverIp = parties[0].serverIp;
   }
 
   return {
@@ -68,6 +68,8 @@ function createView(session){
     sessionUrl: cfg.getActiveSessionRouteUrl(sid),
     serverIp,
     serverId: session.get('server_id'),
+    clientIp: session.get('clientIp'),
+    nodeIp: session.get('nodeIp'),
     active: session.get('active'),
     created: session.get('created'),
     lastActive: session.get('last_active'),
@@ -79,7 +81,6 @@ function createView(session){
 }
 
 export default {
-  partiesBySessionId,
   sessionsByServer,
   sessionsView,
   sessionViewById,

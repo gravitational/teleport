@@ -15,8 +15,9 @@ limitations under the License.
 */
 
 var reactor = require('app/reactor');
-var {fetchActiveSessions} = require('./../sessions/actions');
-var {fetchNodes} = require('./../nodes/actions');
+var { fetchActiveSessions } = require('./../sessions/actions');
+var { fetchNodes } = require('./../nodes/actions');
+var { logout } = require('app/services/auth');
 var $ = require('jQuery');
 
 const { TLPT_APP_INIT, TLPT_APP_FAILED, TLPT_APP_READY } = require('./actionTypes');
@@ -24,10 +25,22 @@ const { TLPT_APP_INIT, TLPT_APP_FAILED, TLPT_APP_READY } = require('./actionType
 const actions = {
 
   initApp() {
-    reactor.dispatch(TLPT_APP_INIT);    
+    reactor.dispatch(TLPT_APP_INIT);
     actions.fetchNodesAndSessions()
       .done(()=> reactor.dispatch(TLPT_APP_READY) )
       .fail(()=> reactor.dispatch(TLPT_APP_FAILED) );
+  },
+
+  checkIfUserLoggedIn(){
+    /*
+    * lets query for nodes as a checker for a valid user session, in case of 403
+    * make a redirect to a login page (in case if a server got restarted).
+    */
+    fetchNodes().fail(err => {
+      if(err.status == 403){
+        logout();
+      }
+    });
   },
 
   fetchNodesAndSessions() {
