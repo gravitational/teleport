@@ -81,6 +81,7 @@ function createView(session){
 }
 
 export default {
+  partiesBySessionId,
   sessionsByServer,
   sessionsView,
   sessionViewById,
