@@ -103,8 +103,8 @@ var (
 		"client_secret":      true,
 		"redirect_url":       true,
 		"tokens":             true,
-		"u2f_appid":          true,
-		"u2f_facets":         true,
+		"u2fappid":           true,
+		"u2ftrustedfacets":   true,
 	}
 )
 
@@ -418,9 +418,9 @@ type Auth struct {
 	// for exmple: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
 	StaticTokens []StaticToken `yaml:"tokens,omitempty"`
 
-	U2fAppId string `yaml:"u2f_appid,omitempty"`
+	U2fAppId string `yaml:"u2fappid,omitempty"`
 
-	U2fTrustedFacets []string `yaml:"u2f_facets,omitempty"`
+	U2fTrustedFacets []string `yaml:"u2ftrustedfacets,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
