@@ -14,29 +14,28 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var reactor = require('app/reactor');
-var { TLPT_NOTIFICATIONS_ADD }  = require('./actionTypes');
+var React = require('react');
 
-export default {
+let Timer = React.createClass({
 
-  showError(title='Error'){
-    dispatch({isError: true, title});
+  shouldComponentUpdate(){
+    return false;
   },
 
-  showSuccess(title='SUCCESS'){
-    dispatch({isSuccess:true, title});
+  componentWillMount(){
+    let { onTimeout, interval=2500 } = this.props;
+    onTimeout();
+    this.refreshInterval = setInterval(onTimeout, interval);
   },
 
-  showInfo(text, title='INFO'){
-    dispatch({isInfo:true, text: text, title});
+  componentWillUnmount(){
+    clearInterval(this.refreshInterval);
   },
 
-  showWarning(text, title='WARNING'){
-    dispatch({isWarning: true, text: text, title});
+  render() {
+    return null
   }
 
-}
+});
 
-function dispatch(msg){
-  reactor.dispatch(TLPT_NOTIFICATIONS_ADD, msg);
-}
+module.exports = Timer;

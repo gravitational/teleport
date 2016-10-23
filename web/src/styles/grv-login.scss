@@ -26,7 +26,7 @@ limitations under the License.
   }
 
   .grv-content {
-    padding: 15px;
+    padding: 10px;
     max-width: 350px;
     z-index: 100;
     margin: 10px auto 0;
@@ -45,13 +45,13 @@ limitations under the License.
     }
 
     .grv-login-info {
-      text-align: initial;
+      text-align: left;
       position: relative;
       margin: 15px 0 0;
-      padding: 0 0 0 70px;
+      padding: 0 0 0 60px;
       .fa-question {
         position: absolute;
-        left: 20px;
+        left: 7px;
         font-size: 40px;
       }
     }

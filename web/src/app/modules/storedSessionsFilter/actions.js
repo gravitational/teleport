@@ -27,7 +27,7 @@ const { TLPT_SESSINS_REMOVE_STORED }  = require('./../sessions/actionTypes');
 
 const actions = {
 
-  fetch(){
+  fetchStoredSession(){
     let { start, end } = reactor.evaluate(filter);
     _fetch(start, end);
   },

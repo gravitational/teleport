@@ -131,10 +131,10 @@ var NodeList = React.createClass({
 
     return (
       <div className="grv-nodes grv-page">
-        <div className="grv-flex grv-header">
+        <div className="grv-flex grv-header m-t-md">
           <div className="grv-flex-column"></div>
           <div className="grv-flex-column">
-            <h1> Nodes </h1>
+            <h2 className="text-center no-margins"> Nodes </h2>
           </div>
           <div className="grv-flex-column">
             <InputSearch value={this.filter} onChange={this.onFilterChange}/>
