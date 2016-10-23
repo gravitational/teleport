@@ -28,6 +28,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"os/user"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -50,6 +51,11 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+const (
+	// Directory location where tsh profiles (and session keys) are stored
+	ProfileDir = ".tsh"
+)
+
 // ForwardedPort specifies local tunnel to remote
 // destination managed by the client, is equivalent
 // of ssh -L src:host:dst command
@@ -58,6 +64,19 @@ type ForwardedPort struct {
 	SrcPort  int
 	DestPort int
 	DestHost string
+}
+
+type ForwardedPorts []ForwardedPort
+
+// ToString() returns a string representation of a forwarded port spec, compatible
+// with OpenSSH's -L  flag, i.e. "src_host:src_port:dest_host:dest_port"
+func (p *ForwardedPort) ToString() string {
+	sport := strconv.Itoa(p.SrcPort)
+	dport := strconv.Itoa(p.DestPort)
+	if utils.IsLocalhost(p.SrcIP) {
+		return sport + ":" + net.JoinHostPort(p.DestHost, dport)
+	}
+	return net.JoinHostPort(p.SrcIP, sport) + ":" + net.JoinHostPort(p.DestHost, dport)
 }
 
 // HostKeyCallback is called by SSH client when it needs to check
@@ -81,9 +100,9 @@ type Config struct {
 	// HostPort is a remote host port to connect to
 	HostPort int
 
-	// ProxyHost is a host or IP of the proxy (with optional ":ssh_port,https_port"). This parameter
-	// is taken from the --proxy flag and can look like --proxy=host:5025,5080
-	ProxyHost string
+	// ProxyHostPort is a host or IP of the proxy (with optional ":ssh_port,https_port").
+	// The value is taken from the --proxy flag and can look like --proxy=host:5025,5080
+	ProxyHostPort string
 
 	// KeyTTL is a time to live for the temporary SSH keypair to remain valid:
 	KeyTTL time.Duration
@@ -112,7 +131,7 @@ type Config struct {
 	SiteName string
 
 	// Locally forwarded ports (parameters to -L ssh flag)
-	LocalForwardPorts []ForwardedPort
+	LocalForwardPorts ForwardedPorts
 
 	// HostKeyCallback will be called to check host keys of the remote
 	// node, if not specified will be using CheckHostSignature function
@@ -135,40 +154,113 @@ type Config struct {
 	Interactive bool
 }
 
-// ProxyHostPort returns a full host:port address of the SSH proxy
-// Otherwise, returns an empty string if no proxy is given.
-//
-// If 'forWeb' flag is set, returns HTTPS port, otherwise
-// returns SSH port (proxy servers listen on both)
-func (c *Config) ProxyHostPort(forWeb bool) string {
-	var defaultPort int
-
-	if c.ProxySpecified() {
-		if forWeb {
-			defaultPort = defaults.HTTPListenPort
-		} else {
-			defaultPort = defaults.SSHProxyListenPort
-		}
-		host, port, err := net.SplitHostPort(c.ProxyHost)
-		if err == nil && len(port) > 0 {
-			ports := strings.Split(port, ",")
-			if forWeb {
-				if len(ports) > 1 {
-					port = ports[1]
-				} else {
-					port = strconv.Itoa(defaultPort)
-				}
-			} else {
-				port = ports[0]
-			}
-			// c.ProxyHost was already specified as "host:port"
-			return net.JoinHostPort(host, port)
-		}
-		// need to default to the given 'defaultPort'
-		port = fmt.Sprintf("%d", defaultPort)
-		return net.JoinHostPort(c.ProxyHost, port)
+func MakeDefaultConfig() *Config {
+	return &Config{
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+		Stdin:  os.Stdin,
 	}
-	return ""
+}
+
+// LoadProfile populates Config with the values stored in the given
+// profiles directory. If profileDir is an empty string, the default profile
+// directory ~/.tsh is used
+func (c *Config) LoadProfile(profileDir string) error {
+	profileDir = FullProfilePath(profileDir)
+	// read the profile:
+	cp, err := ProfileFromDir(profileDir)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+	// apply the profile to the current configuration:
+	c.SetProxy(cp.ProxyHost, cp.ProxyWebPort, cp.ProxySSHPort)
+	c.HostLogin = cp.HostLogin
+	c.Username = cp.Username
+	c.SiteName = cp.SiteName
+	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
+	if err != nil {
+		log.Warnf("Error parsing user profile: %v", err)
+	}
+	return nil
+}
+
+// SaveProfile updates the given profiles directory with the current configuration
+// If profileDir is an empty string, the default ~/.tsh is used
+func (c *Config) SaveProfile(profileDir string) error {
+	if c.ProxyHostPort == "" {
+		return nil
+	}
+	profileDir = FullProfilePath(profileDir)
+	profilePath := path.Join(profileDir, c.ProxyHost()) + ".yaml"
+
+	var cp ClientProfile
+	cp.ProxyHost = c.ProxyHost()
+	cp.HostLogin = c.HostLogin
+	cp.Username = c.Username
+	cp.ProxySSHPort = c.ProxySSHPort()
+	cp.ProxyWebPort = c.ProxyWebPort()
+	cp.ForwardedPorts = c.LocalForwardPorts.ToStringSpec()
+	cp.SiteName = c.SiteName
+
+	// create a profile file:
+	if err := cp.SaveTo(profilePath, ProfileMakeCurrent); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (c *Config) SetProxy(host string, webPort, sshPort int) {
+	c.ProxyHostPort = fmt.Sprintf("%s:%d,%d", host, webPort, sshPort)
+}
+
+// ProxyHost returns the hostname of the proxy server (without any port numbers)
+func (c *Config) ProxyHost() string {
+	host, _, err := net.SplitHostPort(c.ProxyHostPort)
+	if err != nil {
+		return c.ProxyHostPort
+	}
+	return host
+}
+
+func (c *Config) ProxySSHHostPort() string {
+	return net.JoinHostPort(c.ProxyHost(), strconv.Itoa(c.ProxySSHPort()))
+}
+
+func (c *Config) ProxyWebHostPort() string {
+	return net.JoinHostPort(c.ProxyHost(), strconv.Itoa(c.ProxyWebPort()))
+}
+
+func (c *Config) ProxyWebPort() (retval int) {
+	retval = defaults.HTTPListenPort
+	_, port, err := net.SplitHostPort(c.ProxyHostPort)
+	if err == nil && len(port) > 0 && port[0] != ',' {
+		ports := strings.Split(port, ",")
+		if len(ports) > 0 {
+			retval, err = strconv.Atoi(ports[0])
+			if err != nil {
+				log.Warnf("invalid proxy web port: '%v': %v", ports, err)
+			}
+		}
+	}
+	return retval
+}
+
+func (c *Config) ProxySSHPort() (retval int) {
+	retval = defaults.SSHProxyListenPort
+	_, port, err := net.SplitHostPort(c.ProxyHostPort)
+	if err == nil && len(port) > 0 {
+		ports := strings.Split(port, ",")
+		if len(ports) > 1 {
+			retval, err = strconv.Atoi(ports[1])
+			if err != nil {
+				log.Warnf("invalid proxy SSH port: '%v': %v", ports, err)
+			}
+		}
+	}
+	return retval
 }
 
 // NodeHostPort returns host:port string based on user supplied data
@@ -183,7 +275,7 @@ func (c *Config) NodeHostPort() string {
 
 // ProxySpecified returns true if proxy has been specified
 func (c *Config) ProxySpecified() bool {
-	return len(c.ProxyHost) > 0
+	return len(c.ProxyHostPort) > 0
 }
 
 // TeleportClient is a wrapper around SSH client with teleport specific
@@ -215,7 +307,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		c.Username = Username()
 		log.Infof("no teleport login given. defaulting to %s", c.Username)
 	}
-	if c.ProxyHost == "" {
+	if c.ProxyHostPort == "" {
 		return nil, trace.Errorf("No proxy address specified, missed --proxy flag?")
 	}
 	if c.HostLogin == "" {
@@ -734,7 +826,7 @@ func (tc *TeleportClient) GetKeys() ([]agent.AddedKey, error) {
 
 // ConnectToProxy dials the proxy server and returns ProxyClient if successful
 func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
-	proxyAddr := tc.Config.ProxyHostPort(false)
+	proxyAddr := tc.Config.ProxySSHHostPort()
 	sshConfig := &ssh.ClientConfig{
 		User:            tc.getProxyLogin(),
 		HostKeyCallback: tc.HostKeyCallback,
@@ -799,7 +891,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 
 // Logout locates a certificate stored for a given proxy and deletes it
 func (tc *TeleportClient) Logout() error {
-	return trace.Wrap(tc.localAgent.DeleteKey(tc.ProxyHost, tc.Config.Username))
+	return trace.Wrap(tc.localAgent.DeleteKey(tc.ProxyHost(), tc.Config.Username))
 }
 
 // Login logs user in using proxy's local 2FA auth access
@@ -828,7 +920,7 @@ func (tc *TeleportClient) Login() error {
 	}
 	key.Cert = response.Cert
 	// save the key:
-	if err = tc.localAgent.AddKey(tc.ProxyHost, tc.Config.Username, key); err != nil {
+	if err = tc.localAgent.AddKey(tc.ProxyHost(), tc.Config.Username, key); err != nil {
 		return trace.Wrap(err)
 	}
 	// save the list of CAs we trust to the cache file
@@ -874,7 +966,7 @@ func (tc *TeleportClient) AddKey(host string, key *Key) error {
 
 // directLogin asks for a password + HOTP token, makes a request to CA via proxy
 func (tc *TeleportClient) directLogin(pub []byte) (*web.SSHLoginResponse, error) {
-	httpsProxyHostPort := tc.Config.ProxyHostPort(true)
+	httpsProxyHostPort := tc.Config.ProxyWebHostPort()
 	certPool := loopbackPool(httpsProxyHostPort)
 
 	// ping the HTTPs endpoint first:
@@ -904,7 +996,7 @@ func (tc *TeleportClient) directLogin(pub []byte) (*web.SSHLoginResponse, error)
 func (tc *TeleportClient) oidcLogin(connectorID string, pub []byte) (*web.SSHLoginResponse, error) {
 	log.Infof("oidcLogin start")
 	// ask the CA (via proxy) to sign our public key:
-	webProxyAddr := tc.Config.ProxyHostPort(true)
+	webProxyAddr := tc.Config.ProxyWebHostPort()
 	response, err := web.SSHAgentOIDCLogin(webProxyAddr,
 		connectorID, pub, tc.KeyTTL, tc.InsecureSkipVerify, loopbackPool(webProxyAddr))
 	return response, trace.Wrap(err)
@@ -1090,8 +1182,17 @@ func runLocalCommand(command []string) error {
 	return cmd.Run()
 }
 
+// ToString() returns the same string spec which can be parsed by ParsePortForwardSpec
+func (fp ForwardedPorts) ToStringSpec() (retval []string) {
+	for _, p := range fp {
+		retval = append(retval, p.ToString())
+	}
+	return retval
+}
+
 // ParsePortForwardSpec parses parameter to -L flag, i.e. strings like "[ip]:80:remote.host:3000"
-func ParsePortForwardSpec(spec []string) (ports []ForwardedPort, err error) {
+// The opposite of this function (spec generation) is ForwardedPorts.ToString()
+func ParsePortForwardSpec(spec []string) (ports ForwardedPorts, err error) {
 	if len(spec) == 0 {
 		return ports, nil
 	}

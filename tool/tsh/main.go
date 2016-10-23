@@ -272,6 +272,7 @@ func onSSH(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
+
 	tc.Stdin = os.Stdin
 	if err = tc.SSH(cf.RemoteCommand, cf.LocalExec); err != nil {
 		// exit with the same exit status as the failed command:
@@ -280,6 +281,9 @@ func onSSH(cf *CLIConf) {
 		} else {
 			utils.FatalError(err)
 		}
+	} else {
+		// successful session? update the profile then:
+		tc.SaveProfile("")
 	}
 }
 
@@ -295,6 +299,9 @@ func onJoin(cf *CLIConf) {
 	}
 	if err = tc.Join(*sid, nil); err != nil {
 		utils.FatalError(err)
+	} else {
+		// successful session? update the profile then:
+		tc.SaveProfile("")
 	}
 }
 
@@ -311,6 +318,9 @@ func onSCP(cf *CLIConf) {
 		} else {
 			utils.FatalError(err)
 		}
+	} else {
+		// successful session? update the profile then:
+		tc.SaveProfile("")
 	}
 }
 
@@ -383,24 +393,34 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 		return nil, err
 	}
 
-	// prep client config:
-	c := &client.Config{
-		Stdout:             os.Stdout,
-		Stderr:             os.Stderr,
-		Stdin:              os.Stdin,
-		Username:           cf.Username,
-		ProxyHost:          cf.Proxy,
-		Host:               cf.UserHost,
-		HostPort:           int(cf.NodePort),
-		HostLogin:          hostLogin,
-		Labels:             labels,
-		KeyTTL:             time.Minute * time.Duration(cf.MinsToLive),
-		InsecureSkipVerify: cf.InsecureSkipVerify,
-		LocalForwardPorts:  fPorts,
-		ConnectorID:        cf.ExternalAuth,
-		SiteName:           cf.SiteName,
-		Interactive:        cf.Interactive,
+	// 1: start with the defaults
+	c := client.MakeDefaultConfig()
+
+	// 2: override with `./tsh` profiles
+	if err = c.LoadProfile(""); err != nil {
+		fmt.Printf("WARNING: Failed loading tsh profile.\n%v\n", err)
 	}
+	// 3: override with the CLI flags
+	if cf.Username != "" {
+		c.Username = cf.Username
+	}
+	if cf.Proxy != "" {
+		c.ProxyHostPort = cf.Proxy
+	}
+	if len(fPorts) > 0 {
+		c.LocalForwardPorts = fPorts
+	}
+	if cf.SiteName != "" {
+		c.SiteName = cf.SiteName
+	}
+	c.Host = cf.UserHost
+	c.HostPort = int(cf.NodePort)
+	c.HostLogin = hostLogin
+	c.Labels = labels
+	c.KeyTTL = time.Minute * time.Duration(cf.MinsToLive)
+	c.InsecureSkipVerify = cf.InsecureSkipVerify
+	c.ConnectorID = cf.ExternalAuth
+	c.Interactive = cf.Interactive
 	return client.NewClient(c)
 }
 

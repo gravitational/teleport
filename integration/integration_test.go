@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -64,6 +65,7 @@ func (s *IntSuite) TearDownSuite(c *check.C) {
 }
 
 func (s *IntSuite) SetUpTest(c *check.C) {
+	os.RemoveAll(client.FullProfilePath(""))
 }
 
 func (s *IntSuite) SetUpSuite(c *check.C) {
