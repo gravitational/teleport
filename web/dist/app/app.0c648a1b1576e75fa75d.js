@@ -49,15 +49,15 @@ webpackJsonp([0],{
 	var MessagePage = _require2.MessagePage;
 	var NotFound = _require2.NotFound;
 
-	var _require3 = __webpack_require__(385);
+	var _require3 = __webpack_require__(387);
 
 	var ensureUser = _require3.ensureUser;
 
-	var auth = __webpack_require__(389);
+	var auth = __webpack_require__(345);
 	var session = __webpack_require__(237);
 	var cfg = __webpack_require__(221);
 
-	__webpack_require__(453);
+	__webpack_require__(454);
 
 	// init session
 	session.init();
@@ -106,14 +106,14 @@ webpackJsonp([0],{
 	'use strict';
 
 	module.exports.App = __webpack_require__(213);
-	module.exports.Login = __webpack_require__(379);
-	module.exports.NewUser = __webpack_require__(392);
-	module.exports.Nodes = __webpack_require__(394);
-	module.exports.Sessions = __webpack_require__(395);
-	module.exports.CurrentSessionHost = __webpack_require__(404);
-	module.exports.ErrorPage = __webpack_require__(393).ErrorPage;
-	module.exports.NotFound = __webpack_require__(393).NotFound;
-	module.exports.MessagePage = __webpack_require__(393).MessagePage;
+	module.exports.Login = __webpack_require__(381);
+	module.exports.NewUser = __webpack_require__(393);
+	module.exports.Nodes = __webpack_require__(395);
+	module.exports.Sessions = __webpack_require__(396);
+	module.exports.CurrentSessionHost = __webpack_require__(405);
+	module.exports.ErrorPage = __webpack_require__(394).ErrorPage;
+	module.exports.NotFound = __webpack_require__(394).NotFound;
+	module.exports.MessagePage = __webpack_require__(394).MessagePage;
 
 /***/ },
 
@@ -147,8 +147,9 @@ webpackJsonp([0],{
 	var actions = _require.actions;
 	var getters = _require.getters;
 
-	var SelectNodeDialog = __webpack_require__(347);
-	var NotificationHost = __webpack_require__(364);
+	var SelectNodeDialog = __webpack_require__(348);
+	var NotificationHost = __webpack_require__(365);
+	var Timer = __webpack_require__(380);
 
 	var App = React.createClass({
 	  displayName: 'App',
@@ -173,6 +174,7 @@ webpackJsonp([0],{
 	    return React.createElement(
 	      'div',
 	      { className: 'grv-tlpt grv-flex grv-flex-row' },
+	      React.createElement(Timer, { onTimeout: actions.checkIfUserLoggedIn }),
 	      React.createElement(SelectNodeDialog, null),
 	      React.createElement(NotificationHost, null),
 	      this.props.CurrentSessionHost,
@@ -1358,7 +1360,7 @@ webpackJsonp([0],{
 
 	module.exports.getters = __webpack_require__(233);
 	module.exports.actions = __webpack_require__(234);
-	module.exports.appStore = __webpack_require__(346);
+	module.exports.appStore = __webpack_require__(347);
 
 /***/ },
 
@@ -1431,13 +1433,17 @@ webpackJsonp([0],{
 
 	var fetchNodes = _require2.fetchNodes;
 
-	var $ = __webpack_require__(223);
-
 	var _require3 = __webpack_require__(345);
 
-	var TLPT_APP_INIT = _require3.TLPT_APP_INIT;
-	var TLPT_APP_FAILED = _require3.TLPT_APP_FAILED;
-	var TLPT_APP_READY = _require3.TLPT_APP_READY;
+	var logout = _require3.logout;
+
+	var $ = __webpack_require__(223);
+
+	var _require4 = __webpack_require__(346);
+
+	var TLPT_APP_INIT = _require4.TLPT_APP_INIT;
+	var TLPT_APP_FAILED = _require4.TLPT_APP_FAILED;
+	var TLPT_APP_READY = _require4.TLPT_APP_READY;
 
 	var actions = {
 
@@ -1447,6 +1453,18 @@ webpackJsonp([0],{
 	      return reactor.dispatch(TLPT_APP_READY);
 	    }).fail(function () {
 	      return reactor.dispatch(TLPT_APP_FAILED);
+	    });
+	  },
+
+	  checkIfUserLoggedIn: function checkIfUserLoggedIn() {
+	    /*
+	    * lets query for nodes as a checker for a valid user session, in case of 403
+	    * make a redirect to a login page (in case if a server got restarted).
+	    */
+	    fetchNodes().fail(function (err) {
+	      if (err.status == 403) {
+	        logout();
+	      }
 	    });
 	  },
 
@@ -1909,16 +1927,16 @@ webpackJsonp([0],{
 	var TLPT_NOTIFICATIONS_ADD = _require.TLPT_NOTIFICATIONS_ADD;
 	exports['default'] = {
 
-	  showError: function showError(text) {
-	    var title = arguments.length <= 1 || arguments[1] === undefined ? 'ERROR' : arguments[1];
+	  showError: function showError() {
+	    var title = arguments.length <= 0 || arguments[0] === undefined ? 'Error' : arguments[0];
 
-	    dispatch({ isError: true, text: text, title: title });
+	    dispatch({ isError: true, title: title });
 	  },
 
-	  showSuccess: function showSuccess(text) {
-	    var title = arguments.length <= 1 || arguments[1] === undefined ? 'SUCCESS' : arguments[1];
+	  showSuccess: function showSuccess() {
+	    var title = arguments.length <= 0 || arguments[0] === undefined ? 'SUCCESS' : arguments[0];
 
-	    dispatch({ isSuccess: true, text: text, title: title });
+	    dispatch({ isSuccess: true, title: title });
 	  },
 
 	  showInfo: function showInfo(text) {
@@ -2062,7 +2080,7 @@ webpackJsonp([0],{
 
 	exports['default'] = {
 	  fetchNodes: function fetchNodes() {
-	    api.get(cfg.api.nodesPath).done(function () {
+	    return api.get(cfg.api.nodesPath).done(function () {
 	      var data = arguments.length <= 0 || arguments[0] === undefined ? [] : arguments[0];
 
 	      var nodeArray = data.nodes.map(function (item) {
@@ -2138,6 +2156,139 @@ webpackJsonp([0],{
 
 	'use strict';
 
+	var api = __webpack_require__(236);
+	var session = __webpack_require__(237);
+	var cfg = __webpack_require__(221);
+	var $ = __webpack_require__(223);
+
+	var PROVIDER_GOOGLE = 'google';
+
+	var CHECK_TOKEN_REFRESH_RATE = 10 * 1000; // 10 sec
+
+	var refreshTokenTimerId = null;
+
+	var auth = {
+
+	  signUp: function signUp(name, password, token, inviteToken) {
+	    var data = { user: name, pass: password, second_factor_token: token, invite_token: inviteToken };
+	    return api.post(cfg.api.createUserPath, data).then(function (data) {
+	      session.setUserData(data);
+	      auth._startTokenRefresher();
+	      return data;
+	    });
+	  },
+
+	  login: function login(name, password, token) {
+	    var _this = this;
+
+	    auth._stopTokenRefresher();
+	    session.clear();
+
+	    var data = {
+	      user: name,
+	      pass: password,
+	      second_factor_token: token
+	    };
+
+	    return api.post(cfg.api.sessionPath, data, false).then(function (data) {
+	      session.setUserData(data);
+	      _this._startTokenRefresher();
+	      return data;
+	    });
+	  },
+
+	  ensureUser: function ensureUser() {
+	    this._stopTokenRefresher();
+
+	    var userData = session.getUserData();
+
+	    if (!userData.token) {
+	      return $.Deferred().reject();
+	    }
+
+	    if (this._shouldRefreshToken(userData)) {
+	      return this._refreshToken().done(this._startTokenRefresher);
+	    }
+
+	    this._startTokenRefresher();
+	    return $.Deferred().resolve(userData);
+	  },
+
+	  logout: function logout() {
+	    auth._stopTokenRefresher();
+	    session.clear();
+	    auth._redirect();
+	  },
+
+	  _redirect: function _redirect() {
+	    window.location = cfg.routes.login;
+	  },
+
+	  _shouldRefreshToken: function _shouldRefreshToken(_ref) {
+	    var expires_in = _ref.expires_in;
+	    var created = _ref.created;
+
+	    if (!created || !expires_in) {
+	      return true;
+	    }
+
+	    if (expires_in < 0) {
+	      expires_in = expires_in * -1;
+	    }
+
+	    expires_in = expires_in * 1000;
+
+	    var delta = created + expires_in - new Date().getTime();
+
+	    return delta < expires_in * 0.33;
+	  },
+
+	  _startTokenRefresher: function _startTokenRefresher() {
+	    refreshTokenTimerId = setInterval(auth.ensureUser.bind(auth), CHECK_TOKEN_REFRESH_RATE);
+	  },
+
+	  _stopTokenRefresher: function _stopTokenRefresher() {
+	    clearInterval(refreshTokenTimerId);
+	    refreshTokenTimerId = null;
+	  },
+
+	  _refreshToken: function _refreshToken() {
+	    return api.post(cfg.api.renewTokenPath).then(function (data) {
+	      session.setUserData(data);
+	      return data;
+	    }).fail(function () {
+	      auth.logout();
+	    });
+	  }
+
+	};
+
+	module.exports = auth;
+	module.exports.PROVIDER_GOOGLE = PROVIDER_GOOGLE;
+
+/***/ },
+
+/***/ 346:
+/***/ function(module, exports, __webpack_require__) {
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	'use strict';
+
 	Object.defineProperty(exports, '__esModule', {
 	  value: true
 	});
@@ -2157,7 +2308,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 346:
+/***/ 347:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -2186,7 +2337,7 @@ webpackJsonp([0],{
 	var Store = _require.Store;
 	var toImmutable = _require.toImmutable;
 
-	var _require2 = __webpack_require__(345);
+	var _require2 = __webpack_require__(346);
 
 	var TLPT_APP_INIT = _require2.TLPT_APP_INIT;
 	var TLPT_APP_FAILED = _require2.TLPT_APP_FAILED;
@@ -2220,7 +2371,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 347:
+/***/ 348:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -2244,17 +2395,17 @@ webpackJsonp([0],{
 	var React = __webpack_require__(2);
 	var reactor = __webpack_require__(215);
 
-	var _require = __webpack_require__(348);
+	var _require = __webpack_require__(349);
 
 	var getters = _require.getters;
 
-	var _require2 = __webpack_require__(350);
+	var _require2 = __webpack_require__(351);
 
 	var closeSelectNodeDialog = _require2.closeSelectNodeDialog;
 
-	var NodeList = __webpack_require__(353);
-	var currentSessionGetters = __webpack_require__(359);
-	var nodeGetters = __webpack_require__(363);
+	var NodeList = __webpack_require__(354);
+	var currentSessionGetters = __webpack_require__(360);
+	var nodeGetters = __webpack_require__(364);
 	var $ = __webpack_require__(223);
 
 	var SelectNodeDialog = React.createClass({
@@ -2333,7 +2484,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 348:
+/***/ 349:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -2354,13 +2505,13 @@ webpackJsonp([0],{
 
 	'use strict';
 
-	module.exports.getters = __webpack_require__(349);
-	module.exports.actions = __webpack_require__(350);
-	module.exports.dialogStore = __webpack_require__(352);
+	module.exports.getters = __webpack_require__(350);
+	module.exports.actions = __webpack_require__(351);
+	module.exports.dialogStore = __webpack_require__(353);
 
 /***/ },
 
-/***/ 349:
+/***/ 350:
 /***/ function(module, exports) {
 
 	/*
@@ -2395,7 +2546,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 350:
+/***/ 351:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -2421,7 +2572,7 @@ webpackJsonp([0],{
 	});
 	var reactor = __webpack_require__(215);
 
-	var _require = __webpack_require__(351);
+	var _require = __webpack_require__(352);
 
 	var TLPT_DIALOG_SELECT_NODE_SHOW = _require.TLPT_DIALOG_SELECT_NODE_SHOW;
 	var TLPT_DIALOG_SELECT_NODE_CLOSE = _require.TLPT_DIALOG_SELECT_NODE_CLOSE;
@@ -2441,7 +2592,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 351:
+/***/ 352:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -2480,7 +2631,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 352:
+/***/ 353:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -2510,7 +2661,7 @@ webpackJsonp([0],{
 	var Store = _require.Store;
 	var toImmutable = _require.toImmutable;
 
-	var _require2 = __webpack_require__(351);
+	var _require2 = __webpack_require__(352);
 
 	var TLPT_DIALOG_SELECT_NODE_SHOW = _require2.TLPT_DIALOG_SELECT_NODE_SHOW;
 	var TLPT_DIALOG_SELECT_NODE_CLOSE = _require2.TLPT_DIALOG_SELECT_NODE_CLOSE;
@@ -2539,7 +2690,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 353:
+/***/ 354:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -2565,9 +2716,9 @@ webpackJsonp([0],{
 	function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
 	var React = __webpack_require__(2);
-	var InputSearch = __webpack_require__(354);
+	var InputSearch = __webpack_require__(355);
 
-	var _require = __webpack_require__(357);
+	var _require = __webpack_require__(358);
 
 	var Table = _require.Table;
 	var Column = _require.Column;
@@ -2576,13 +2727,13 @@ webpackJsonp([0],{
 	var SortTypes = _require.SortTypes;
 	var EmptyIndicator = _require.EmptyIndicator;
 
-	var _require2 = __webpack_require__(358);
+	var _require2 = __webpack_require__(359);
 
 	var createNewSession = _require2.createNewSession;
 
-	var _ = __webpack_require__(355);
+	var _ = __webpack_require__(356);
 
-	var _require3 = __webpack_require__(362);
+	var _require3 = __webpack_require__(363);
 
 	var isMatch = _require3.isMatch;
 
@@ -2745,14 +2896,14 @@ webpackJsonp([0],{
 	      { className: 'grv-nodes grv-page' },
 	      React.createElement(
 	        'div',
-	        { className: 'grv-flex grv-header' },
+	        { className: 'grv-flex grv-header m-t-md' },
 	        React.createElement('div', { className: 'grv-flex-column' }),
 	        React.createElement(
 	          'div',
 	          { className: 'grv-flex-column' },
 	          React.createElement(
-	            'h1',
-	            null,
+	            'h2',
+	            { className: 'text-center no-margins' },
 	            ' Nodes '
 	          )
 	        ),
@@ -2812,7 +2963,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 354:
+/***/ 355:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -2835,7 +2986,7 @@ webpackJsonp([0],{
 
 	var React = __webpack_require__(2);
 
-	var _require = __webpack_require__(355);
+	var _require = __webpack_require__(356);
 
 	var debounce = _require.debounce;
 
@@ -2876,7 +3027,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 357:
+/***/ 358:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -3119,7 +3270,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 358:
+/***/ 359:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -3146,7 +3297,7 @@ webpackJsonp([0],{
 	var session = __webpack_require__(237);
 	var api = __webpack_require__(236);
 	var cfg = __webpack_require__(221);
-	var getters = __webpack_require__(359);
+	var getters = __webpack_require__(360);
 
 	var _require = __webpack_require__(235);
 
@@ -3154,12 +3305,12 @@ webpackJsonp([0],{
 	var fetchStoredSession = _require.fetchStoredSession;
 	var updateSession = _require.updateSession;
 
-	var sessionGetters = __webpack_require__(360);
+	var sessionGetters = __webpack_require__(361);
 	var $ = __webpack_require__(223);
 
 	var logger = __webpack_require__(238).create('Current Session');
 
-	var _require2 = __webpack_require__(361);
+	var _require2 = __webpack_require__(362);
 
 	var TLPT_CURRENT_SESSION_OPEN = _require2.TLPT_CURRENT_SESSION_OPEN;
 	var TLPT_CURRENT_SESSION_CLOSE = _require2.TLPT_CURRENT_SESSION_CLOSE;
@@ -3235,7 +3386,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 359:
+/***/ 360:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -3260,7 +3411,7 @@ webpackJsonp([0],{
 	  value: true
 	});
 
-	var _require = __webpack_require__(360);
+	var _require = __webpack_require__(361);
 
 	var createView = _require.createView;
 
@@ -3310,7 +3461,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 360:
+/***/ 361:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -3334,6 +3485,7 @@ webpackJsonp([0],{
 	Object.defineProperty(exports, '__esModule', {
 	  value: true
 	});
+	var moment = __webpack_require__(242);
 
 	var _require = __webpack_require__(216);
 
@@ -3394,16 +3546,23 @@ webpackJsonp([0],{
 	    serverIp = parties[0].serverIp;
 	  }
 
+	  var created = session.get('created');
+	  var lastActive = session.get('last_active');
+	  var duration = moment(created).diff(lastActive);
+
 	  return {
+	    parties: parties,
 	    sid: sid,
-	    sessionUrl: cfg.getActiveSessionRouteUrl(sid),
+	    created: created,
+	    lastActive: lastActive,
+	    duration: duration,
 	    serverIp: serverIp,
 	    serverId: session.get('server_id'),
+	    clientIp: session.get('clientIp'),
+	    nodeIp: session.get('nodeIp'),
 	    active: session.get('active'),
-	    created: session.get('created'),
-	    lastActive: session.get('last_active'),
 	    login: session.get('login'),
-	    parties: parties,
+	    sessionUrl: cfg.getActiveSessionRouteUrl(sid),
 	    cols: session.getIn(['terminal_params', 'w']),
 	    rows: session.getIn(['terminal_params', 'h'])
 	  };
@@ -3423,7 +3582,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 361:
+/***/ 362:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -3461,7 +3620,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 362:
+/***/ 363:
 /***/ function(module, exports) {
 
 	/*
@@ -3509,7 +3668,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 363:
+/***/ 364:
 /***/ function(module, exports) {
 
 	/*
@@ -3590,7 +3749,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 364:
+/***/ 365:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -3613,13 +3772,13 @@ webpackJsonp([0],{
 
 	var React = __webpack_require__(2);
 	var reactor = __webpack_require__(215);
-	var PureRenderMixin = __webpack_require__(365);
+	var PureRenderMixin = __webpack_require__(366);
 
-	var _require = __webpack_require__(368);
+	var _require = __webpack_require__(369);
 
 	var lastMessage = _require.lastMessage;
 
-	var _require2 = __webpack_require__(369);
+	var _require2 = __webpack_require__(370);
 
 	var ToastContainer = _require2.ToastContainer;
 	var ToastMessage = _require2.ToastMessage;
@@ -3672,7 +3831,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 368:
+/***/ 369:
 /***/ function(module, exports) {
 
 	/*
@@ -3703,7 +3862,61 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 379:
+/***/ 380:
+/***/ function(module, exports, __webpack_require__) {
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	'use strict';
+
+	var React = __webpack_require__(2);
+
+	var Timer = React.createClass({
+	  displayName: 'Timer',
+
+	  shouldComponentUpdate: function shouldComponentUpdate() {
+	    return false;
+	  },
+
+	  componentWillMount: function componentWillMount() {
+	    var _props = this.props;
+	    var onTimeout = _props.onTimeout;
+	    var _props$interval = _props.interval;
+	    var interval = _props$interval === undefined ? 2500 : _props$interval;
+
+	    onTimeout();
+	    this.refreshInterval = setInterval(onTimeout, interval);
+	  },
+
+	  componentWillUnmount: function componentWillUnmount() {
+	    clearInterval(this.refreshInterval);
+	  },
+
+	  render: function render() {
+	    return null;
+	  }
+
+	});
+
+	module.exports = Timer;
+
+/***/ },
+
+/***/ 381:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -3727,21 +3940,21 @@ webpackJsonp([0],{
 	var React = __webpack_require__(2);
 	var $ = __webpack_require__(223);
 	var reactor = __webpack_require__(215);
-	var LinkedStateMixin = __webpack_require__(380);
+	var LinkedStateMixin = __webpack_require__(382);
 
-	var _require = __webpack_require__(384);
+	var _require = __webpack_require__(386);
 
 	var actions = _require.actions;
 	var getters = _require.getters;
 
-	var GoogleAuthInfo = __webpack_require__(391);
+	var GoogleAuthInfo = __webpack_require__(392);
 	var cfg = __webpack_require__(221);
 
 	var _require2 = __webpack_require__(226);
 
 	var TeleportLogo = _require2.TeleportLogo;
 
-	var _require3 = __webpack_require__(389);
+	var _require3 = __webpack_require__(345);
 
 	var PROVIDER_GOOGLE = _require3.PROVIDER_GOOGLE;
 
@@ -3892,7 +4105,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 384:
+/***/ 386:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -3914,12 +4127,12 @@ webpackJsonp([0],{
 	'use strict';
 
 	module.exports.getters = __webpack_require__(217);
-	module.exports.actions = __webpack_require__(385);
-	module.exports.nodeStore = __webpack_require__(390);
+	module.exports.actions = __webpack_require__(387);
+	module.exports.nodeStore = __webpack_require__(391);
 
 /***/ },
 
-/***/ 385:
+/***/ 387:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -3945,7 +4158,7 @@ webpackJsonp([0],{
 	});
 	var reactor = __webpack_require__(215);
 
-	var _require = __webpack_require__(386);
+	var _require = __webpack_require__(388);
 
 	var TLPT_RECEIVE_USER = _require.TLPT_RECEIVE_USER;
 	var TLPT_RECEIVE_USER_INVITE = _require.TLPT_RECEIVE_USER_INVITE;
@@ -3956,8 +4169,8 @@ webpackJsonp([0],{
 	var TRYING_TO_LOGIN = _require2.TRYING_TO_LOGIN;
 	var FETCHING_INVITE = _require2.FETCHING_INVITE;
 
-	var restApiActions = __webpack_require__(387);
-	var auth = __webpack_require__(389);
+	var restApiActions = __webpack_require__(389);
+	var auth = __webpack_require__(345);
 	var session = __webpack_require__(237);
 	var cfg = __webpack_require__(221);
 	var api = __webpack_require__(236);
@@ -4036,7 +4249,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 386:
+/***/ 388:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -4075,7 +4288,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 387:
+/***/ 389:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -4101,7 +4314,7 @@ webpackJsonp([0],{
 	});
 	var reactor = __webpack_require__(215);
 
-	var _require = __webpack_require__(388);
+	var _require = __webpack_require__(390);
 
 	var TLPT_REST_API_START = _require.TLPT_REST_API_START;
 	var TLPT_REST_API_SUCCESS = _require.TLPT_REST_API_SUCCESS;
@@ -4125,7 +4338,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 388:
+/***/ 390:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -4165,140 +4378,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 389:
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	'use strict';
-
-	var api = __webpack_require__(236);
-	var session = __webpack_require__(237);
-	var cfg = __webpack_require__(221);
-	var $ = __webpack_require__(223);
-
-	var PROVIDER_GOOGLE = 'google';
-
-	var CHECK_TOKEN_REFRESH_RATE = 10 * 1000; // 10 sec
-
-	var refreshTokenTimerId = null;
-
-	var auth = {
-
-	  signUp: function signUp(name, password, token, inviteToken) {
-	    var data = { user: name, pass: password, second_factor_token: token, invite_token: inviteToken };
-	    return api.post(cfg.api.createUserPath, data).then(function (data) {
-	      session.setUserData(data);
-	      auth._startTokenRefresher();
-	      return data;
-	    });
-	  },
-
-	  login: function login(name, password, token) {
-	    var _this = this;
-
-	    auth._stopTokenRefresher();
-	    session.clear();
-
-	    var data = {
-	      user: name,
-	      pass: password,
-	      second_factor_token: token
-	    };
-
-	    return api.post(cfg.api.sessionPath, data, false).then(function (data) {
-	      session.setUserData(data);
-	      _this._startTokenRefresher();
-	      return data;
-	    });
-	  },
-
-	  ensureUser: function ensureUser() {
-	    this._stopTokenRefresher();
-
-	    var userData = session.getUserData();
-
-	    if (!userData.token) {
-	      return $.Deferred().reject();
-	    }
-
-	    if (this._shouldRefreshToken(userData)) {
-	      return this._refreshToken().done(this._startTokenRefresher);
-	    }
-
-	    this._startTokenRefresher();
-	    return $.Deferred().resolve(userData);
-	  },
-
-	  logout: function logout() {
-	    auth._stopTokenRefresher();
-	    session.clear();
-	    auth._redirect();
-	  },
-
-	  _redirect: function _redirect() {
-	    window.location = cfg.routes.login;
-	  },
-
-	  _shouldRefreshToken: function _shouldRefreshToken(_ref) {
-	    var expires_in = _ref.expires_in;
-	    var created = _ref.created;
-
-	    if (!created || !expires_in) {
-	      return true;
-	    }
-
-	    if (expires_in < 0) {
-	      expires_in = expires_in * -1;
-	    }
-
-	    expires_in = expires_in * 1000;
-
-	    var delta = created + expires_in - new Date().getTime();
-
-	    return delta < expires_in * 0.33;
-	  },
-
-	  _startTokenRefresher: function _startTokenRefresher() {
-	    refreshTokenTimerId = setInterval(auth.ensureUser.bind(auth), CHECK_TOKEN_REFRESH_RATE);
-	  },
-
-	  _stopTokenRefresher: function _stopTokenRefresher() {
-	    clearInterval(refreshTokenTimerId);
-	    refreshTokenTimerId = null;
-	  },
-
-	  _refreshToken: function _refreshToken() {
-	    return api.post(cfg.api.renewTokenPath).then(function (data) {
-	      session.setUserData(data);
-	      return data;
-	    }).fail(function () {
-	      auth.logout();
-	    });
-	  }
-
-	};
-
-	module.exports = auth;
-	module.exports.PROVIDER_GOOGLE = PROVIDER_GOOGLE;
-
-/***/ },
-
-/***/ 390:
+/***/ 391:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -4328,7 +4408,7 @@ webpackJsonp([0],{
 	var Store = _require.Store;
 	var toImmutable = _require.toImmutable;
 
-	var _require2 = __webpack_require__(386);
+	var _require2 = __webpack_require__(388);
 
 	var TLPT_RECEIVE_USER = _require2.TLPT_RECEIVE_USER;
 	exports['default'] = Store({
@@ -4349,7 +4429,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 391:
+/***/ 392:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -4378,7 +4458,7 @@ webpackJsonp([0],{
 	  render: function render() {
 	    return React.createElement(
 	      "div",
-	      { className: "grv-google-auth" },
+	      { className: "grv-google-auth text-left" },
 	      React.createElement("div", { className: "grv-icon-google-auth" }),
 	      React.createElement(
 	        "strong",
@@ -4404,7 +4484,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 392:
+/***/ 393:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -4429,15 +4509,15 @@ webpackJsonp([0],{
 	var $ = __webpack_require__(223);
 	var reactor = __webpack_require__(215);
 
-	var _require = __webpack_require__(384);
+	var _require = __webpack_require__(386);
 
 	var actions = _require.actions;
 	var getters = _require.getters;
 
-	var LinkedStateMixin = __webpack_require__(380);
-	var GoogleAuthInfo = __webpack_require__(391);
+	var LinkedStateMixin = __webpack_require__(382);
+	var GoogleAuthInfo = __webpack_require__(392);
 
-	var _require2 = __webpack_require__(393);
+	var _require2 = __webpack_require__(394);
 
 	var ErrorPage = _require2.ErrorPage;
 	var ErrorTypes = _require2.ErrorTypes;
@@ -4642,7 +4722,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 393:
+/***/ 394:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -4845,69 +4925,6 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 394:
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	'use strict';
-
-	var React = __webpack_require__(2);
-	var reactor = __webpack_require__(215);
-	var userGetters = __webpack_require__(217);
-	var nodeGetters = __webpack_require__(363);
-
-	var _require = __webpack_require__(343);
-
-	var fetchNodes = _require.fetchNodes;
-
-	var NodeList = __webpack_require__(353);
-
-	var Nodes = React.createClass({
-	  displayName: 'Nodes',
-
-	  mixins: [reactor.ReactMixin],
-
-	  componentDidMount: function componentDidMount() {
-	    this.refreshInterval = setInterval(fetchNodes, 2500);
-	  },
-
-	  componentWillUnmount: function componentWillUnmount() {
-	    clearInterval(this.refreshInterval);
-	  },
-
-	  getDataBindings: function getDataBindings() {
-	    return {
-	      nodeRecords: nodeGetters.nodeListView,
-	      user: userGetters.user
-	    };
-	  },
-
-	  render: function render() {
-	    var nodeRecords = this.state.nodeRecords;
-	    var logins = this.state.user.logins;
-	    return React.createElement(NodeList, { nodeRecords: nodeRecords, logins: logins });
-	  }
-	});
-
-	module.exports = Nodes;
-
-/***/ },
-
 /***/ 395:
 /***/ function(module, exports, __webpack_require__) {
 
@@ -4931,17 +4948,76 @@ webpackJsonp([0],{
 
 	var React = __webpack_require__(2);
 	var reactor = __webpack_require__(215);
+	var userGetters = __webpack_require__(217);
+	var nodeGetters = __webpack_require__(364);
+	var NodeList = __webpack_require__(354);
 
-	var _require = __webpack_require__(360);
+	var Nodes = React.createClass({
+	  displayName: 'Nodes',
 
-	var sessionsView = _require.sessionsView;
+	  mixins: [reactor.ReactMixin],
 
-	var _require2 = __webpack_require__(396);
+	  getDataBindings: function getDataBindings() {
+	    return {
+	      nodeRecords: nodeGetters.nodeListView,
+	      user: userGetters.user
+	    };
+	  },
 
-	var filter = _require2.filter;
+	  render: function render() {
+	    var nodeRecords = this.state.nodeRecords;
+	    var logins = this.state.user.logins;
+	    return React.createElement(NodeList, { nodeRecords: nodeRecords, logins: logins });
+	  }
+	});
 
-	var StoredSessionList = __webpack_require__(397);
-	var ActiveSessionList = __webpack_require__(403);
+	module.exports = Nodes;
+
+/***/ },
+
+/***/ 396:
+/***/ function(module, exports, __webpack_require__) {
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	'use strict';
+
+	var React = __webpack_require__(2);
+	var reactor = __webpack_require__(215);
+
+	var _require = __webpack_require__(235);
+
+	var fetchActiveSessions = _require.fetchActiveSessions;
+
+	var _require2 = __webpack_require__(397);
+
+	var fetchStoredSession = _require2.fetchStoredSession;
+
+	var _require3 = __webpack_require__(361);
+
+	var sessionsView = _require3.sessionsView;
+
+	var _require4 = __webpack_require__(398);
+
+	var filter = _require4.filter;
+
+	var StoredSessionList = __webpack_require__(400);
+	var ActiveSessionList = __webpack_require__(404);
+	var Timer = __webpack_require__(380);
 
 	var Sessions = React.createClass({
 	  displayName: 'Sessions',
@@ -4955,6 +5031,11 @@ webpackJsonp([0],{
 	    };
 	  },
 
+	  refresh: function refresh() {
+	    fetchStoredSession();
+	    fetchActiveSessions();
+	  },
+
 	  render: function render() {
 	    var _state = this.state;
 	    var data = _state.data;
@@ -4963,6 +5044,7 @@ webpackJsonp([0],{
 	    return React.createElement(
 	      'div',
 	      { className: 'grv-sessions grv-page' },
+	      React.createElement(Timer, { onTimeout: this.refresh }),
 	      React.createElement(ActiveSessionList, { data: data }),
 	      React.createElement('hr', { className: 'grv-divider' }),
 	      React.createElement(StoredSessionList, { data: data, filter: storedSessionsFilter })
@@ -4974,7 +5056,90 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 396:
+/***/ 397:
+/***/ function(module, exports, __webpack_require__) {
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	'use strict';
+
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
+	var reactor = __webpack_require__(215);
+
+	var _require = __webpack_require__(398);
+
+	var filter = _require.filter;
+
+	var _require2 = __webpack_require__(235);
+
+	var fetchSiteEvents = _require2.fetchSiteEvents;
+
+	var _require3 = __webpack_require__(240);
+
+	var showError = _require3.showError;
+
+	var logger = __webpack_require__(238).create('Modules/Sessions');
+
+	var _require4 = __webpack_require__(399);
+
+	var TLPT_STORED_SESSINS_FILTER_SET_RANGE = _require4.TLPT_STORED_SESSINS_FILTER_SET_RANGE;
+
+	var _require5 = __webpack_require__(342);
+
+	var TLPT_SESSINS_REMOVE_STORED = _require5.TLPT_SESSINS_REMOVE_STORED;
+
+	var actions = {
+
+	  fetchStoredSession: function fetchStoredSession() {
+	    var _reactor$evaluate = reactor.evaluate(filter);
+
+	    var start = _reactor$evaluate.start;
+	    var end = _reactor$evaluate.end;
+
+	    _fetch(start, end);
+	  },
+
+	  removeStoredSessions: function removeStoredSessions() {
+	    reactor.dispatch(TLPT_SESSINS_REMOVE_STORED);
+	  },
+
+	  setTimeRange: function setTimeRange(start, end) {
+	    reactor.batch(function () {
+	      reactor.dispatch(TLPT_STORED_SESSINS_FILTER_SET_RANGE, { start: start, end: end });
+	      _fetch(start, end);
+	    });
+	  }
+	};
+
+	function _fetch(start, end) {
+	  return fetchSiteEvents(start, end).fail(function (err) {
+	    showError('Unable to retrieve list of sessions for a given time range');
+	    logger.error('fetching filtered set of sessions', err);
+	  });
+	}
+
+	exports['default'] = actions;
+	module.exports = exports['default'];
+
+/***/ },
+
+/***/ 398:
 /***/ function(module, exports) {
 
 	/*
@@ -5009,7 +5174,47 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 397:
+/***/ 399:
+/***/ function(module, exports, __webpack_require__) {
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	'use strict';
+
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
+
+	var _keymirror = __webpack_require__(219);
+
+	var _keymirror2 = _interopRequireDefault(_keymirror);
+
+	exports['default'] = (0, _keymirror2['default'])({
+	  TLPT_STORED_SESSINS_FILTER_SET_RANGE: null,
+	  TLPT_STORED_SESSINS_FILTER_SET_STATUS: null,
+	  TLPT_STORED_SESSINS_FILTER_RECEIVE_MORE: null
+	});
+	module.exports = exports['default'];
+
+/***/ },
+
+/***/ 400:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -5032,61 +5237,50 @@ webpackJsonp([0],{
 
 	function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
+	var _ = __webpack_require__(356);
 	var React = __webpack_require__(2);
+	var moment = __webpack_require__(242);
+	var InputSearch = __webpack_require__(355);
 
-	var _require = __webpack_require__(398);
+	var _require = __webpack_require__(363);
 
-	var actions = _require.actions;
+	var isMatch = _require.isMatch;
 
-	var InputSearch = __webpack_require__(354);
+	var _require2 = __webpack_require__(221);
 
-	var _require2 = __webpack_require__(357);
-
-	var Table = _require2.Table;
-	var Column = _require2.Column;
-	var Cell = _require2.Cell;
-	var TextCell = _require2.TextCell;
-	var SortHeaderCell = _require2.SortHeaderCell;
-	var SortTypes = _require2.SortTypes;
-	var EmptyIndicator = _require2.EmptyIndicator;
+	var displayDateFormat = _require2.displayDateFormat;
 
 	var _require3 = __webpack_require__(401);
 
-	var ButtonCell = _require3.ButtonCell;
-	var SingleUserCell = _require3.SingleUserCell;
-	var DateCreatedCell = _require3.DateCreatedCell;
+	var actions = _require3.actions;
 
-	var _require4 = __webpack_require__(402);
+	var _require4 = __webpack_require__(358);
 
-	var DateRangePicker = _require4.DateRangePicker;
+	var Table = _require4.Table;
+	var Column = _require4.Column;
+	var Cell = _require4.Cell;
+	var TextCell = _require4.TextCell;
+	var SortHeaderCell = _require4.SortHeaderCell;
+	var SortTypes = _require4.SortTypes;
+	var EmptyIndicator = _require4.EmptyIndicator;
 
-	var moment = __webpack_require__(242);
+	var _require5 = __webpack_require__(402);
 
-	var _require5 = __webpack_require__(362);
+	var ButtonCell = _require5.ButtonCell;
+	var SingleUserCell = _require5.SingleUserCell;
+	var DateCreatedCell = _require5.DateCreatedCell;
+	var DurationCell = _require5.DurationCell;
 
-	var isMatch = _require5.isMatch;
+	var _require6 = __webpack_require__(403);
 
-	var _ = __webpack_require__(355);
-
-	var _require6 = __webpack_require__(221);
-
-	var displayDateFormat = _require6.displayDateFormat;
+	var DateRangePicker = _require6.DateRangePicker;
 
 	var ArchivedSessions = React.createClass({
 	  displayName: 'ArchivedSessions',
 
 	  getInitialState: function getInitialState() {
-	    this.searchableProps = ['serverIp', 'created', 'sid', 'login'];
+	    this.searchableProps = ['clientIp', 'nodeIp', 'created', 'sid', 'login'];
 	    return { filter: '', colSortDirs: { created: 'ASC' } };
-	  },
-
-	  componentWillMount: function componentWillMount() {
-	    setTimeout(actions.fetch, 0);
-	    this.refreshInterval = setInterval(actions.fetch, 2500);
-	  },
-
-	  componentWillUnmount: function componentWillUnmount() {
-	    clearInterval(this.refreshInterval);
 	  },
 
 	  onFilterChange: function onFilterChange(value) {
@@ -5158,14 +5352,14 @@ webpackJsonp([0],{
 	        { className: 'grv-header' },
 	        React.createElement(
 	          'div',
-	          { className: 'grv-flex' },
+	          { className: 'grv-flex m-b-md' },
 	          React.createElement('div', { className: 'grv-flex-column' }),
 	          React.createElement(
 	            'div',
 	            { className: 'grv-flex-column' },
 	            React.createElement(
-	              'h1',
-	              null,
+	              'h2',
+	              { className: 'text-center' },
 	              ' Archived Sessions '
 	            )
 	          ),
@@ -5197,6 +5391,10 @@ webpackJsonp([0],{
 	            Table,
 	            { rowCount: data.length, className: 'table-striped' },
 	            React.createElement(Column, {
+	              header: React.createElement(Cell, null),
+	              cell: React.createElement(ButtonCell, { data: data })
+	            }),
+	            React.createElement(Column, {
 	              columnKey: 'sid',
 	              header: React.createElement(
 	                Cell,
@@ -5206,8 +5404,22 @@ webpackJsonp([0],{
 	              cell: React.createElement(TextCell, { data: data })
 	            }),
 	            React.createElement(Column, {
-	              header: React.createElement(Cell, null),
-	              cell: React.createElement(ButtonCell, { data: data })
+	              columnKey: 'nodeIp',
+	              header: React.createElement(SortHeaderCell, {
+	                sortDir: this.state.colSortDirs.nodeIp,
+	                onSortChange: this.onSortChange,
+	                title: 'Node IP'
+	              }),
+	              cell: React.createElement(TextCell, { data: data })
+	            }),
+	            React.createElement(Column, {
+	              columnKey: 'clientIp',
+	              header: React.createElement(SortHeaderCell, {
+	                sortDir: this.state.colSortDirs.clientIp,
+	                onSortChange: this.onSortChange,
+	                title: 'Client IP'
+	              }),
+	              cell: React.createElement(TextCell, { data: data })
 	            }),
 	            React.createElement(Column, {
 	              columnKey: 'created',
@@ -5217,6 +5429,15 @@ webpackJsonp([0],{
 	                title: 'Created'
 	              }),
 	              cell: React.createElement(DateCreatedCell, { data: data })
+	            }),
+	            React.createElement(Column, {
+	              columnKey: 'duration',
+	              header: React.createElement(SortHeaderCell, {
+	                sortDir: this.state.colSortDirs.duration,
+	                onSortChange: this.onSortChange,
+	                title: 'Duration'
+	              }),
+	              cell: React.createElement(DurationCell, { data: data })
 	            }),
 	            React.createElement(Column, {
 	              header: React.createElement(
@@ -5237,155 +5458,32 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 398:
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-	'use strict';
-
-	module.exports.getters = __webpack_require__(396);
-	module.exports.actions = __webpack_require__(399);
-
-/***/ },
-
-/***/ 399:
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	'use strict';
-
-	Object.defineProperty(exports, '__esModule', {
-	  value: true
-	});
-	var reactor = __webpack_require__(215);
-
-	var _require = __webpack_require__(396);
-
-	var filter = _require.filter;
-
-	var _require2 = __webpack_require__(235);
-
-	var fetchSiteEvents = _require2.fetchSiteEvents;
-
-	var _require3 = __webpack_require__(240);
-
-	var showError = _require3.showError;
-
-	var logger = __webpack_require__(238).create('Modules/Sessions');
-
-	var _require4 = __webpack_require__(400);
-
-	var TLPT_STORED_SESSINS_FILTER_SET_RANGE = _require4.TLPT_STORED_SESSINS_FILTER_SET_RANGE;
-
-	var _require5 = __webpack_require__(342);
-
-	var TLPT_SESSINS_REMOVE_STORED = _require5.TLPT_SESSINS_REMOVE_STORED;
-
-	var actions = {
-
-	  fetch: function fetch() {
-	    var _reactor$evaluate = reactor.evaluate(filter);
-
-	    var start = _reactor$evaluate.start;
-	    var end = _reactor$evaluate.end;
-
-	    _fetch(start, end);
-	  },
-
-	  removeStoredSessions: function removeStoredSessions() {
-	    reactor.dispatch(TLPT_SESSINS_REMOVE_STORED);
-	  },
-
-	  setTimeRange: function setTimeRange(start, end) {
-	    reactor.batch(function () {
-	      reactor.dispatch(TLPT_STORED_SESSINS_FILTER_SET_RANGE, { start: start, end: end });
-	      _fetch(start, end);
-	    });
-	  }
-	};
-
-	function _fetch(start, end) {
-	  return fetchSiteEvents(start, end).fail(function (err) {
-	    showError('Unable to retrieve list of sessions for a given time range');
-	    logger.error('fetching filtered set of sessions', err);
-	  });
-	}
-
-	exports['default'] = actions;
-	module.exports = exports['default'];
-
-/***/ },
-
-/***/ 400:
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	'use strict';
-
-	Object.defineProperty(exports, '__esModule', {
-	  value: true
-	});
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
-
-	var _keymirror = __webpack_require__(219);
-
-	var _keymirror2 = _interopRequireDefault(_keymirror);
-
-	exports['default'] = (0, _keymirror2['default'])({
-	  TLPT_STORED_SESSINS_FILTER_SET_RANGE: null,
-	  TLPT_STORED_SESSINS_FILTER_SET_STATUS: null,
-	  TLPT_STORED_SESSINS_FILTER_RECEIVE_MORE: null
-	});
-	module.exports = exports['default'];
-
-/***/ },
-
 /***/ 401:
+/***/ function(module, exports, __webpack_require__) {
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+	'use strict';
+
+	module.exports.getters = __webpack_require__(398);
+	module.exports.actions = __webpack_require__(397);
+
+/***/ },
+
+/***/ 402:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -5421,7 +5519,7 @@ webpackJsonp([0],{
 
 	var Link = _require.Link;
 
-	var _require2 = __webpack_require__(363);
+	var _require2 = __webpack_require__(364);
 
 	var nodeHostNameByServerId = _require2.nodeHostNameByServerId;
 
@@ -5429,7 +5527,7 @@ webpackJsonp([0],{
 
 	var displayDateFormat = _require3.displayDateFormat;
 
-	var _require4 = __webpack_require__(357);
+	var _require4 = __webpack_require__(358);
 
 	var Cell = _require4.Cell;
 
@@ -5456,14 +5554,9 @@ webpackJsonp([0],{
 
 	  var props = _objectWithoutProperties(_ref2, ['rowIndex', 'data']);
 
-	  var created = data[rowIndex].created;
-	  var lastActive = data[rowIndex].lastActive;
+	  var duration = data[rowIndex].duration;
 
-	  var end = moment(created);
-	  var now = moment(lastActive);
-	  var duration = moment.duration(now.diff(end));
-	  var displayDate = duration.humanize();
-
+	  var displayDate = moment.duration(duration).humanize();
 	  return React.createElement(
 	    Cell,
 	    props,
@@ -5568,7 +5661,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 402:
+/***/ 403:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -5599,7 +5692,7 @@ webpackJsonp([0],{
 	var $ = __webpack_require__(223);
 	var moment = __webpack_require__(242);
 
-	var _require = __webpack_require__(355);
+	var _require = __webpack_require__(356);
 
 	var debounce = _require.debounce;
 
@@ -5746,15 +5839,15 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 403:
+/***/ 404:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
 	Copyright 2015 Gravitational, Inc.
 
 	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
 	You may obtain a copy of the License at
+	you may not use this file except in compliance with the License.
 
 	    http://www.apache.org/licenses/LICENSE-2.0
 
@@ -5769,7 +5862,7 @@ webpackJsonp([0],{
 
 	var React = __webpack_require__(2);
 
-	var _require = __webpack_require__(357);
+	var _require = __webpack_require__(358);
 
 	var Table = _require.Table;
 	var Column = _require.Column;
@@ -5777,33 +5870,21 @@ webpackJsonp([0],{
 	var TextCell = _require.TextCell;
 	var EmptyIndicator = _require.EmptyIndicator;
 
-	var _require2 = __webpack_require__(401);
+	var _require2 = __webpack_require__(402);
 
 	var ButtonCell = _require2.ButtonCell;
 	var UsersCell = _require2.UsersCell;
 	var NodeCell = _require2.NodeCell;
 	var DateCreatedCell = _require2.DateCreatedCell;
 
-	var _require3 = __webpack_require__(235);
-
-	var fetchActiveSessions = _require3.fetchActiveSessions;
-
 	var ActiveSessionList = React.createClass({
 	  displayName: 'ActiveSessionList',
-
-	  componentWillMount: function componentWillMount() {
-	    fetchActiveSessions();
-	    this.refreshInterval = setInterval(fetchActiveSessions, 2500);
-	  },
-
-	  componentWillUnmount: function componentWillUnmount() {
-	    clearInterval(this.refreshInterval);
-	  },
 
 	  render: function render() {
 	    var data = this.props.data.filter(function (item) {
 	      return item.active;
 	    });
+
 	    return React.createElement(
 	      'div',
 	      { className: 'grv-sessions-active' },
@@ -5811,8 +5892,8 @@ webpackJsonp([0],{
 	        'div',
 	        { className: 'grv-header' },
 	        React.createElement(
-	          'h1',
-	          null,
+	          'h2',
+	          { className: 'text-center' },
 	          ' Active Sessions '
 	        )
 	      ),
@@ -5826,6 +5907,10 @@ webpackJsonp([0],{
 	            Table,
 	            { rowCount: data.length, className: 'table-striped' },
 	            React.createElement(Column, {
+	              header: React.createElement(Cell, null),
+	              cell: React.createElement(ButtonCell, { data: data })
+	            }),
+	            React.createElement(Column, {
 	              columnKey: 'sid',
 	              header: React.createElement(
 	                Cell,
@@ -5835,14 +5920,10 @@ webpackJsonp([0],{
 	              cell: React.createElement(TextCell, { data: data })
 	            }),
 	            React.createElement(Column, {
-	              header: React.createElement(Cell, null),
-	              cell: React.createElement(ButtonCell, { data: data })
-	            }),
-	            React.createElement(Column, {
 	              header: React.createElement(
 	                Cell,
 	                null,
-	                ' Node '
+	                'Node'
 	              ),
 	              cell: React.createElement(NodeCell, { data: data })
 	            }),
@@ -5859,7 +5940,7 @@ webpackJsonp([0],{
 	              header: React.createElement(
 	                Cell,
 	                null,
-	                ' Users '
+	                ' User '
 	              ),
 	              cell: React.createElement(UsersCell, { data: data })
 	            })
@@ -5874,7 +5955,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 404:
+/***/ 405:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -5898,13 +5979,13 @@ webpackJsonp([0],{
 	var React = __webpack_require__(2);
 	var reactor = __webpack_require__(215);
 
-	var _require = __webpack_require__(405);
+	var _require = __webpack_require__(406);
 
 	var getters = _require.getters;
 	var actions = _require.actions;
 
-	var SessionPlayer = __webpack_require__(407);
-	var ActiveSession = __webpack_require__(452);
+	var SessionPlayer = __webpack_require__(408);
+	var ActiveSession = __webpack_require__(453);
 
 	var CurrentSessionHost = React.createClass({
 	  displayName: 'CurrentSessionHost',
@@ -5943,7 +6024,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 405:
+/***/ 406:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -5963,13 +6044,13 @@ webpackJsonp([0],{
 	*/
 	'use strict';
 
-	module.exports.getters = __webpack_require__(359);
-	module.exports.actions = __webpack_require__(358);
-	module.exports.activeTermStore = __webpack_require__(406);
+	module.exports.getters = __webpack_require__(360);
+	module.exports.actions = __webpack_require__(359);
+	module.exports.activeTermStore = __webpack_require__(407);
 
 /***/ },
 
-/***/ 406:
+/***/ 407:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -5999,7 +6080,7 @@ webpackJsonp([0],{
 	var Store = _require.Store;
 	var toImmutable = _require.toImmutable;
 
-	var _require2 = __webpack_require__(361);
+	var _require2 = __webpack_require__(362);
 
 	var TLPT_CURRENT_SESSION_OPEN = _require2.TLPT_CURRENT_SESSION_OPEN;
 	var TLPT_CURRENT_SESSION_CLOSE = _require2.TLPT_CURRENT_SESSION_CLOSE;
@@ -6035,7 +6116,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 407:
+/***/ 408:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -6069,17 +6150,17 @@ webpackJsonp([0],{
 	function _inherits(subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
 	var React = __webpack_require__(2);
-	var ReactSlider = __webpack_require__(408);
+	var ReactSlider = __webpack_require__(409);
 
-	var _require = __webpack_require__(409);
+	var _require = __webpack_require__(410);
 
 	var TtyPlayer = _require.TtyPlayer;
 
-	var Terminal = __webpack_require__(419);
-	var SessionLeftPanel = __webpack_require__(423);
+	var Terminal = __webpack_require__(420);
+	var SessionLeftPanel = __webpack_require__(424);
 	var cfg = __webpack_require__(221);
 	var $ = __webpack_require__(223);
-	__webpack_require__(430)($);
+	__webpack_require__(431)($);
 
 	var Term = (function (_Terminal) {
 	  _inherits(Term, _Terminal);
@@ -6229,7 +6310,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 409:
+/***/ 410:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -6264,7 +6345,7 @@ webpackJsonp([0],{
 
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } }
 
-	var Tty = __webpack_require__(410);
+	var Tty = __webpack_require__(411);
 	var api = __webpack_require__(236);
 
 	var _require = __webpack_require__(240);
@@ -6272,7 +6353,7 @@ webpackJsonp([0],{
 	var showError = _require.showError;
 
 	var $ = __webpack_require__(223);
-	var Buffer = __webpack_require__(412).Buffer;
+	var Buffer = __webpack_require__(413).Buffer;
 
 	var logger = __webpack_require__(238).create('TtyPlayer');
 	var STREAM_START_INDEX = 0;
@@ -6720,7 +6801,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 410:
+/***/ 411:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -6749,7 +6830,7 @@ webpackJsonp([0],{
 
 	function _inherits(subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-	var EventEmitter = __webpack_require__(411).EventEmitter;
+	var EventEmitter = __webpack_require__(412).EventEmitter;
 
 	var Tty = (function (_EventEmitter) {
 	  _inherits(Tty, _EventEmitter);
@@ -6809,7 +6890,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 411:
+/***/ 412:
 /***/ function(module, exports) {
 
 	// Copyright Joyent, Inc. and other Node contributors.
@@ -7117,7 +7198,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 419:
+/***/ 420:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -7144,11 +7225,11 @@ webpackJsonp([0],{
 
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } }
 
-	var Term = __webpack_require__(420);
-	var Tty = __webpack_require__(410);
-	var TtyEvents = __webpack_require__(422);
+	var Term = __webpack_require__(421);
+	var Tty = __webpack_require__(411);
+	var TtyEvents = __webpack_require__(423);
 
-	var _require = __webpack_require__(355);
+	var _require = __webpack_require__(356);
 
 	var debounce = _require.debounce;
 	var isNumber = _require.isNumber;
@@ -7424,7 +7505,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 422:
+/***/ 423:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -7453,7 +7534,7 @@ webpackJsonp([0],{
 
 	function _inherits(subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-	var EventEmitter = __webpack_require__(411).EventEmitter;
+	var EventEmitter = __webpack_require__(412).EventEmitter;
 
 	var logger = __webpack_require__(238).create('TtyEvents');
 
@@ -7505,7 +7586,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 423:
+/***/ 424:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -7528,7 +7609,7 @@ webpackJsonp([0],{
 
 	var React = __webpack_require__(2);
 
-	var _require = __webpack_require__(405);
+	var _require = __webpack_require__(406);
 
 	var actions = _require.actions;
 
@@ -7536,7 +7617,7 @@ webpackJsonp([0],{
 
 	var UserIcon = _require2.UserIcon;
 
-	var ReactCSSTransitionGroup = __webpack_require__(424);
+	var ReactCSSTransitionGroup = __webpack_require__(425);
 
 	var SessionLeftPanel = function SessionLeftPanel(_ref) {
 	  var parties = _ref.parties;
@@ -7562,7 +7643,11 @@ webpackJsonp([0],{
 	        React.createElement(
 	          'button',
 	          { onClick: actions.close, className: 'btn btn-danger btn-circle', type: 'button' },
-	          React.createElement('i', { className: 'fa fa-times' })
+	          React.createElement(
+	            'span',
+	            null,
+	            '✖'
+	          )
 	        )
 	      )
 	    ),
@@ -7585,7 +7670,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 452:
+/***/ 453:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -7611,16 +7696,16 @@ webpackJsonp([0],{
 	var React = __webpack_require__(2);
 	var reactor = __webpack_require__(215);
 
-	var _require = __webpack_require__(363);
+	var _require = __webpack_require__(364);
 
 	var nodeHostNameByServerId = _require.nodeHostNameByServerId;
 
-	var SessionLeftPanel = __webpack_require__(423);
+	var SessionLeftPanel = __webpack_require__(424);
 	var cfg = __webpack_require__(221);
 	var session = __webpack_require__(237);
-	var Terminal = __webpack_require__(419);
+	var Terminal = __webpack_require__(420);
 
-	var _require2 = __webpack_require__(358);
+	var _require2 = __webpack_require__(359);
 
 	var processSessionEventStream = _require2.processSessionEventStream;
 
@@ -7709,7 +7794,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 453:
+/***/ 454:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -7732,21 +7817,21 @@ webpackJsonp([0],{
 
 	var reactor = __webpack_require__(215);
 	reactor.registerStores({
-	  'tlpt': __webpack_require__(346),
-	  'tlpt_dialogs': __webpack_require__(352),
-	  'tlpt_current_session': __webpack_require__(406),
-	  'tlpt_user': __webpack_require__(390),
-	  'tlpt_user_invite': __webpack_require__(454),
-	  'tlpt_nodes': __webpack_require__(455),
-	  'tlpt_rest_api': __webpack_require__(456),
-	  'tlpt_sessions': __webpack_require__(457),
-	  'tlpt_stored_sessions_filter': __webpack_require__(458),
-	  'tlpt_notifications': __webpack_require__(459)
+	  'tlpt': __webpack_require__(347),
+	  'tlpt_dialogs': __webpack_require__(353),
+	  'tlpt_current_session': __webpack_require__(407),
+	  'tlpt_user': __webpack_require__(391),
+	  'tlpt_user_invite': __webpack_require__(455),
+	  'tlpt_nodes': __webpack_require__(456),
+	  'tlpt_rest_api': __webpack_require__(457),
+	  'tlpt_sessions': __webpack_require__(458),
+	  'tlpt_stored_sessions_filter': __webpack_require__(459),
+	  'tlpt_notifications': __webpack_require__(460)
 	});
 
 /***/ },
 
-/***/ 454:
+/***/ 455:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -7776,7 +7861,7 @@ webpackJsonp([0],{
 	var Store = _require.Store;
 	var toImmutable = _require.toImmutable;
 
-	var _require2 = __webpack_require__(386);
+	var _require2 = __webpack_require__(388);
 
 	var TLPT_RECEIVE_USER_INVITE = _require2.TLPT_RECEIVE_USER_INVITE;
 	exports['default'] = Store({
@@ -7796,7 +7881,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 455:
+/***/ 456:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -7846,7 +7931,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 456:
+/***/ 457:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -7876,7 +7961,7 @@ webpackJsonp([0],{
 	var Store = _require.Store;
 	var toImmutable = _require.toImmutable;
 
-	var _require2 = __webpack_require__(388);
+	var _require2 = __webpack_require__(390);
 
 	var TLPT_REST_API_START = _require2.TLPT_REST_API_START;
 	var TLPT_REST_API_SUCCESS = _require2.TLPT_REST_API_SUCCESS;
@@ -7908,7 +7993,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 457:
+/***/ 458:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -7967,6 +8052,11 @@ webpackJsonp([0],{
 	  });
 	}
 
+	function parseIp(ip) {
+	  ip = ip || '';
+	  return ip.split(':')[0];
+	}
+
 	function updateSessionWithEvents(state, events) {
 	  return state.withMutations(function (state) {
 	    events.forEach(function (item) {
@@ -7981,7 +8071,11 @@ webpackJsonp([0],{
 	      // check if record already exists
 	      var session = state.get(item.sid);
 	      if (!session) {
-	        session = { id: item.sid };
+	        session = {
+	          nodeIp: parseIp(item['addr.local']),
+	          clientIp: parseIp(item['addr.remote']),
+	          id: item.sid
+	        };
 	      } else {
 	        session = session.toJS();
 	      }
@@ -8021,7 +8115,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 458:
+/***/ 459:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -8053,7 +8147,7 @@ webpackJsonp([0],{
 
 	var moment = __webpack_require__(242);
 
-	var _require2 = __webpack_require__(400);
+	var _require2 = __webpack_require__(399);
 
 	var TLPT_STORED_SESSINS_FILTER_SET_RANGE = _require2.TLPT_STORED_SESSINS_FILTER_SET_RANGE;
 	exports['default'] = Store({
@@ -8081,7 +8175,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 459:
+/***/ 460:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*

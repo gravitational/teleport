@@ -44,6 +44,11 @@ function removeStoredSessions(state){
   });
 }
 
+function parseIp(ip){
+  ip = ip || '';
+  return ip.split(':')[0];
+}
+
 function updateSessionWithEvents(state, events){
   return state.withMutations(state => {
     events.forEach(item=>{
@@ -57,8 +62,12 @@ function updateSessionWithEvents(state, events){
 
       // check if record already exists
       let session = state.get(item.sid);
-      if(!session){
-         session = { id: item.sid };
+      if(!session){        
+         session = {
+           nodeIp: parseIp(item['addr.local']),
+           clientIp: parseIp(item['addr.remote']),
+           id: item.sid
+         };
       }else{
         session = session.toJS();
       }
