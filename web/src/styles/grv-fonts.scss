@@ -14,14 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Reactor } from 'nuclear-js'
+@import "~font-awesome/scss/font-awesome";
 
-const __DEV__ = process.env.NODE_ENV === 'development';
+@font-face {
+  font-family: "DejaVu Sans Mono";
+  src: url("~assets/fonts/dejavu-sans-mono.woff") format("woff"),url("~assets/fonts/dejavu-sans-mono.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
 
-const reactor = new Reactor({
-  debug: __DEV__
-})
-
-window.reactor = reactor;
-
-export default reactor
+@import url("https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700");
