@@ -14,14 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Reactor } from 'nuclear-js'
+var baseCfg = require('./webpack.base');
+var config = require('./webpack.config');
 
-const __DEV__ = process.env.NODE_ENV === 'development';
+config.devtool = 'source-map';
+config.output.filename = '[name].js';
+config.cache = true;
+config.module = {
+    loaders: [
+      baseCfg.loaders.fonts,
+      baseCfg.loaders.svg,
+      baseCfg.loaders.images,
+      baseCfg.loaders.js({withHot: true}),
+      baseCfg.loaders.scss
+    ]
+  };
 
-const reactor = new Reactor({
-  debug: __DEV__
-})
+config.plugins =  [
+  baseCfg.plugins.devBuild,
+  baseCfg.plugins.hotReplacement,
+  baseCfg.plugins.createIndexHtml,
+  baseCfg.plugins.vendorBundle
+];
 
-window.reactor = reactor;
-
-export default reactor
+module.exports = config;

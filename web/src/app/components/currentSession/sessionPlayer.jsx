@@ -19,8 +19,9 @@ var ReactSlider = require('react-slider');
 var {TtyPlayer} = require('app/common/term/ttyPlayer')
 var Terminal = require('app/common/term/terminal');
 var SessionLeftPanel = require('./sessionLeftPanel.jsx');
-var $ = require('jQuery');
 var cfg = require('app/config');
+var $ = require('jQuery');
+require('perfect-scrollbar/jquery')($);
 
 class Term extends Terminal{
   constructor(tty, el){
