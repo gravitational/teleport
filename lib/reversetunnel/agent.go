@@ -222,6 +222,10 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 
+	conn = utils.ObeyTimeouts(conn,
+		defaults.ReverseTunnelAgentHeartbeatPeriod*10,
+		"reverse tunnel client")
+
 	go func() {
 		defer wg.Done()
 		// make sure that we close the client connection on a channel
