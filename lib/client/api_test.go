@@ -38,33 +38,33 @@ func (s *APITestSuite) SetUpSuite(c *check.C) {
 func (s *APITestSuite) TestConfig(c *check.C) {
 	var conf Config
 	c.Assert(conf.ProxySpecified(), check.Equals, false)
-	conf.ProxyHost = "example.org"
+	conf.ProxyHostPort = "example.org"
 	c.Assert(conf.ProxySpecified(), check.Equals, true)
-	c.Assert(conf.ProxyHostPort(false), check.Equals, "example.org:3023")
-	c.Assert(conf.ProxyHostPort(true), check.Equals, "example.org:3080")
+	c.Assert(conf.ProxySSHHostPort(), check.Equals, "example.org:3023")
+	c.Assert(conf.ProxyWebHostPort(), check.Equals, "example.org:3080")
 
-	conf.ProxyHost = "example.org:100"
-	c.Assert(conf.ProxySpecified(), check.Equals, true)
-	c.Assert(conf.ProxyHostPort(false), check.Equals, "example.org:100")
-	c.Assert(conf.ProxyHostPort(true), check.Equals, "example.org:3080")
+	conf.SetProxy("example.org", 100, 200)
+	c.Assert(conf.ProxyWebHostPort(), check.Equals, "example.org:100")
+	c.Assert(conf.ProxySSHHostPort(), check.Equals, "example.org:200")
 
-	conf.ProxyHost = "example.org:100,200"
-	c.Assert(conf.ProxyHostPort(false), check.Equals, "example.org:100")
-	c.Assert(conf.ProxyHostPort(true), check.Equals, "example.org:200")
+	conf.ProxyHostPort = "example.org:200"
+	c.Assert(conf.ProxyWebHostPort(), check.Equals, "example.org:200")
+	c.Assert(conf.ProxySSHHostPort(), check.Equals, "example.org:3023")
 
-	conf.ProxyHost = "example.org:,200"
-	c.Assert(conf.ProxyHostPort(true), check.Equals, "example.org:200")
+	conf.ProxyHostPort = "example.org:,200"
+	c.Assert(conf.ProxySSHHostPort(), check.Equals, "example.org:200")
+	c.Assert(conf.ProxyWebHostPort(), check.Equals, "example.org:3080")
 }
 
 func (s *APITestSuite) TestNew(c *check.C) {
 	conf := Config{
-		Host:      "localhost",
-		HostLogin: "vincent",
-		HostPort:  22,
-		KeysDir:   "/tmp",
-		Username:  "localuser",
-		ProxyHost: "proxy",
-		SiteName:  "site",
+		Host:          "localhost",
+		HostLogin:     "vincent",
+		HostPort:      22,
+		KeysDir:       "/tmp",
+		Username:      "localuser",
+		ProxyHostPort: "proxy",
+		SiteName:      "site",
 	}
 	tc, err := NewClient(&conf)
 	c.Assert(err, check.IsNil)
@@ -128,7 +128,7 @@ func (s *APITestSuite) TestPortsParsing(c *check.C) {
 	ports, err = ParsePortForwardSpec(spec)
 	c.Assert(err, check.IsNil)
 	c.Assert(ports, check.HasLen, 2)
-	c.Assert(ports, check.DeepEquals, []ForwardedPort{
+	c.Assert(ports, check.DeepEquals, ForwardedPorts{
 		{
 			SrcIP:    "127.0.0.1",
 			SrcPort:  80,
@@ -142,7 +142,12 @@ func (s *APITestSuite) TestPortsParsing(c *check.C) {
 			DestPort: 1443,
 		},
 	})
-	// invalid spec:
+	// back to strings:
+	clone := ports.ToStringSpec()
+	c.Assert(spec[0], check.Equals, clone[0])
+	c.Assert(spec[1], check.Equals, clone[1])
+
+	// parse invalid spec:
 	spec = []string{"foo", "bar"}
 	ports, err = ParsePortForwardSpec(spec)
 	c.Assert(ports, check.IsNil)

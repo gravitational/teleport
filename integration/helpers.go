@@ -346,16 +346,37 @@ func (i *TeleInstance) NewClient(login string, site string, host string, port in
 	if err != nil {
 		return nil, err
 	}
-	tc, err = client.NewClient(&client.Config{
+
+	// break down proxy address into host, ssh_port and web_port:
+	proxyConf := &i.Config.Proxy
+	proxyHost, sp, err := net.SplitHostPort(proxyConf.SSHAddr.Addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxySSHPort, err := strconv.Atoi(sp)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	_, sp, err = net.SplitHostPort(proxyConf.WebAddr.Addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyWebPort, err := strconv.Atoi(sp)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cconf := &client.Config{
 		Username:           login,
-		ProxyHost:          i.Config.Proxy.SSHAddr.Addr,
 		Host:               host,
 		HostPort:           port,
 		HostLogin:          login,
 		InsecureSkipVerify: true,
 		KeysDir:            keyDir,
 		SiteName:           site,
-	})
+	}
+	cconf.SetProxy(proxyHost, proxyWebPort, proxySSHPort)
+
+	tc, err = client.NewClient(cconf)
 	if err != nil {
 		return nil, err
 	}

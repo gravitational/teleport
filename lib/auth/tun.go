@@ -202,6 +202,10 @@ func (s *AuthTunnel) HandleNewChan(_ net.Conn, sconn *ssh.ServerConn, nch ssh.Ne
 			return
 		}
 		go s.handleWebAgentRequest(sconn, ch)
+
+	case "session":
+		nch.Reject(ssh.UnknownChannelType,
+			"Cannot open new SSH session on the auth server. Are you connecting to the right port?")
 	default:
 		nch.Reject(ssh.UnknownChannelType, fmt.Sprintf(
 			"unknown channel type: %v", cht))

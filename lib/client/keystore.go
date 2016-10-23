@@ -37,7 +37,7 @@ import (
 )
 
 const (
-	defaultKeyDir      = ".tsh"
+	defaultKeyDir      = ProfileDir
 	fileExtCert        = ".cert"
 	fileExtKey         = ".key"
 	fileExtPub         = ".pub"
