@@ -260,9 +260,6 @@ func (s *sessionCache) AuthWithU2fSignResponse(user string, u2fSignResponse *u2f
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// we are always closing this client, because we will not be using
-	// this connection initiated using password based credentials
-	// down the road, so it's a one call client
 	defer clt.Close()
 	session, err := clt.PreAuthenticatedSignIn(user)
 	if err != nil {
@@ -283,6 +280,35 @@ func (s *sessionCache) GetCertificate(c createSSHCertReq) (*SSHLoginResponse, er
 		return nil, trace.Wrap(err)
 	}
 	defer clt.Close()
+	cert, err := clt.GenerateUserCert(c.PubKey, c.User, c.TTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	hostSigners, err := clt.GetCertAuthorities(services.HostCA, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	signers := []services.CertAuthority{}
+	for _, hs := range hostSigners {
+		signers = append(signers, *hs)
+	}
+
+	return &SSHLoginResponse{
+		Cert:        cert,
+		HostSigners: signers,
+	}, nil
+}
+
+func (s *sessionCache) GetCertificateWithU2f(c createSSHCertWithU2fReq) (*SSHLoginResponse, error) {
+	method, err := auth.NewWebU2fSignResponseAuth(c.User, &c.U2fSignResponse)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clt, err := auth.NewTunClient("web.auth-u2f-sign-response", s.authServers, c.User, method)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	cert, err := clt.GenerateUserCert(c.PubKey, c.User, c.TTL)
 	if err != nil {
 		return nil, trace.Wrap(err)

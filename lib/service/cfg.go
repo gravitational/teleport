@@ -306,8 +306,8 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.KeysBackend.Params = boltParams(defaults.DataDir, defaults.KeysBoltFile)
 	cfg.Auth.RecordsBackend.Type = defaults.BackendType
 	cfg.Auth.RecordsBackend.Params = boltParams(defaults.DataDir, defaults.RecordsBoltFile)
-	cfg.Auth.U2fAppId = hostname
-	cfg.Auth.U2fTrustedFacets = []string{hostname}
+	cfg.Auth.U2fAppId = "https://" + hostname
+	cfg.Auth.U2fTrustedFacets = []string{fmt.Sprintf("%s:%d", cfg.Auth.U2fAppId, defaults.HTTPListenPort)}
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
 
 	// defaults for the SSH proxy service:

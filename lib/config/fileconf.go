@@ -233,8 +233,8 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	var a Auth
 	a.ListenAddress = conf.Auth.SSHAddr.Addr
 	a.EnabledFlag = "yes"
-	a.U2fAppId = conf.Hostname
-	a.U2fTrustedFacets = []string{conf.Hostname}
+	a.U2fAppId = conf.Auth.U2fAppId
+	a.U2fTrustedFacets = conf.Auth.U2fTrustedFacets
 
 	// sample proxy config:
 	var p Proxy

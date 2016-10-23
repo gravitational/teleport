@@ -125,16 +125,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 
 	// Web sessions
 	h.POST("/webapi/sessions", httplib.MakeHandler(h.createSession))
-	h.POST("/webapi/sessions_u2f_sign", httplib.MakeHandler(h.u2fSignRequest))
-	h.POST("/webapi/sessions_u2f", httplib.MakeHandler(h.createSessionWithU2fSignResponse))
 	h.DELETE("/webapi/sessions/:sid", h.withAuth(h.deleteSession))
 	h.POST("/webapi/sessions/renew", h.withAuth(h.renewSession))
 
 	// Users
 	h.GET("/webapi/users/invites/:token", httplib.MakeHandler(h.renderUserInvite))
-	h.GET("/webapi/users/invites_u2f_register/:token", httplib.MakeHandler(h.u2fRegisterRequest))
 	h.POST("/webapi/users", httplib.MakeHandler(h.createNewUser))
-	h.POST("/webapi/users_u2f", httplib.MakeHandler(h.createNewU2fUser))
 
 	// Issues SSH temp certificates based on 2FA access creds
 	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
@@ -169,6 +165,13 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 	h.GET("/webapi/oidc/login/web", httplib.MakeHandler(h.oidcLoginWeb))
 	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(h.oidcLoginConsole))
 	h.GET("/webapi/oidc/callback", httplib.MakeHandler(h.oidcCallback))
+
+	// U2F related APIs
+	h.GET("/webapi/u2f/invite_register_request/:token", httplib.MakeHandler(h.u2fRegisterRequest))
+	h.POST("/webapi/u2f/new_user", httplib.MakeHandler(h.createNewU2fUser))
+	h.POST("/webapi/u2f/sign_request", httplib.MakeHandler(h.u2fSignRequest))
+	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.createSessionWithU2fSignResponse))
+	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.createSSHCertWithU2fSignResponse))
 
 	// if Web UI is enabled, chekc the assets dir:
 	var (
@@ -1226,6 +1229,35 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	cert, err := h.auth.GetCertificate(*req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cert, nil
+}
+
+// createSSHCertWithU2fReq are passed by web client
+// to authenticate against teleport server and receive
+// a temporary cert signed by auth server authority
+type createSSHCertWithU2fReq struct {
+	// User is a teleport username
+	User string `json:"user"`
+	// We only issue U2F sign requests after checking the password, so there's no need to check again.
+	// U2fSignResponse is the signature from the U2F device
+	U2fSignResponse u2f.SignResponse `json:"u2f_sign_response"`
+	// PubKey is a public key user wishes to sign
+	PubKey []byte `json:"pub_key"`
+	// TTL is a desired TTL for the cert (max is still capped by server,
+	// however user can shorten the time)
+	TTL time.Duration `json:"ttl"`
+}
+
+func (h *Handler) createSSHCertWithU2fSignResponse(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *createSSHCertWithU2fReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := h.auth.GetCertificateWithU2f(*req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

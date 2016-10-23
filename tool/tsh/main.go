@@ -73,6 +73,8 @@ type CLIConf struct {
 	LocalExec bool
 	// ExternalAuth is used to authenticate using external OIDC method
 	ExternalAuth string
+	// U2f switches to logging in using U2F as the second factor
+	U2f bool
 	// SiteName specifies remote site go login to
 	SiteName string
 	// Interactive, when set to true, launches remote command with the terminal attached
@@ -92,6 +94,7 @@ func run(args []string, underTest bool) {
 	app.Flag("login", "Remote host login").Short('l').Envar("TELEPORT_LOGIN").StringVar(&cf.NodeLogin)
 	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", client.Username())).Envar("TELEPORT_USER").StringVar(&cf.Username)
 	app.Flag("auth", "[EXPERIMENTAL] Use external authentication, e.g. 'google'").Envar("TELEPORT_AUTH").Hidden().StringVar(&cf.ExternalAuth)
+	app.Flag("u2f", "Use U2F as second factor").Default("false").BoolVar(&cf.U2f)
 	app.Flag("cluster", "Specify the cluster to connect").Envar("TELEPORT_SITE").StringVar(&cf.SiteName)
 	app.Flag("proxy", "SSH proxy host or IP address").Envar("TELEPORT_PROXY").StringVar(&cf.Proxy)
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
@@ -383,6 +386,15 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 		return nil, err
 	}
 
+	var secondFactorType string
+	if cf.ExternalAuth != "" {
+		secondFactorType = "oidc"
+	} else if cf.U2f {
+		secondFactorType = "u2f"
+	} else {
+		secondFactorType = "hotp"
+	}
+
 	// prep client config:
 	c := &client.Config{
 		Stdout:             os.Stdout,
@@ -397,6 +409,7 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 		KeyTTL:             time.Minute * time.Duration(cf.MinsToLive),
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		LocalForwardPorts:  fPorts,
+		SecondFactorType:   secondFactorType,
 		ConnectorID:        cf.ExternalAuth,
 		SiteName:           cf.SiteName,
 		Interactive:        cf.Interactive,

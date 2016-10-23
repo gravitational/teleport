@@ -119,6 +119,8 @@ func NewStandardPermissions() PermissionChecker {
 
 	sp.permissions[teleport.RoleU2fUser] = map[string]bool{
 		ActionPreAuthSignIn: true,
+		ActionGenerateUserCert: true,
+		ActionGetCertAuthorities: true,
 	}
 
 	return &sp
@@ -165,6 +167,7 @@ var StandardRoles = teleport.Roles{
 	teleport.RoleProvisionToken,
 	teleport.RoleSignup,
 	teleport.RoleU2fSign,
+	teleport.RoleU2fUser,
 }
 
 const (

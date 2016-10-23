@@ -107,7 +107,7 @@ const (
 	RoleProvisionToken Role = "ProvisionToken"
 	// RoleSignup is for first time signing up users
 	RoleSignup Role = "Signup"
-	// RoleU2fSign is for requesting a U2F auth challenge
+	// RoleU2fSign is for partially authenticated U2F users who need to request a U2F auth challenge
 	RoleU2fSign = "U2fSign"
 	// RoleU2fUser is for teleport SSH user already authenticated with U2F
 	RoleU2fUser = "U2fUser"
