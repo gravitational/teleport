@@ -14,14 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Reactor } from 'nuclear-js'
+var baseCfg = require('./webpack.base');
 
-const __DEV__ = process.env.NODE_ENV === 'development';
+var config = {
+  devtool: 'inline-source-map',
+  resolve: baseCfg.resolve,
+  module: {
+    loaders: [
+      { test: /\.(js|jsx)$/, exclude: /node_modules/, loader: 'babel' }
+    ]
+  },
+  plugins: [ baseCfg.plugins.testBuild ]
+};
 
-const reactor = new Reactor({
-  debug: __DEV__
-})
-
-window.reactor = reactor;
-
-export default reactor
+module.exports = config;
