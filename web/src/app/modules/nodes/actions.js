@@ -24,7 +24,7 @@ const logger = require('app/common/logger').create('Modules/Nodes');
 
 export default {
   fetchNodes(){
-    api.get(cfg.api.nodesPath).done((data=[])=>{
+    return api.get(cfg.api.nodesPath).done((data=[])=>{
       var nodeArray = data.nodes.map(item=>item.node);
       reactor.dispatch(TLPT_NODES_RECEIVE, nodeArray);
     }).fail((err)=>{
