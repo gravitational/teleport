@@ -63,7 +63,7 @@ func NewAPIServer(config *APIConfig, role teleport.Role) APIServer {
 	srv.Router = *httprouter.New()
 
 	// Operations on certificate authorities
-	srv.GET("/v1/domain", httplib.MakeHandler(srv.getLocalDomain))
+	srv.GET("/v1/domain", httplib.MakeHandler(srv.getDomainName))
 	srv.POST("/v1/authorities/:type", httplib.MakeHandler(srv.upsertCertAuthority))
 	srv.DELETE("/v1/authorities/:type/:domain", httplib.MakeHandler(srv.deleteCertAuthority))
 	srv.GET("/v1/authorities/:type", httplib.MakeHandler(srv.getCertAuthorities))
@@ -564,8 +564,8 @@ func (s *APIServer) getCertAuthorities(w http.ResponseWriter, r *http.Request, p
 	return certs, nil
 }
 
-func (s *APIServer) getLocalDomain(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	domain, err := s.a.GetLocalDomain()
+func (s *APIServer) getDomainName(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	domain, err := s.a.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

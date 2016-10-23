@@ -196,7 +196,7 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	// sample global config:
 	var g Global
 	g.NodeName = conf.Hostname
-	g.AuthToken = "xxxx-token-xxxx"
+	g.AuthToken = "cluster-join-token"
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
 	g.AuthServers = []string{defaults.AuthListenAddr().Addr}
@@ -231,6 +231,7 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	var a Auth
 	a.ListenAddress = conf.Auth.SSHAddr.Addr
 	a.EnabledFlag = "yes"
+	a.StaticTokens = []StaticToken{"proxy,node:cluster-join-token"}
 
 	// sample proxy config:
 	var p Proxy

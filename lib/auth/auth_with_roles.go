@@ -84,11 +84,11 @@ func (a *AuthWithRoles) GetCertAuthorities(caType services.CertAuthType, loadKey
 	return a.authServer.GetCertAuthorities(caType, loadKeys)
 }
 
-func (a *AuthWithRoles) GetLocalDomain() (string, error) {
+func (a *AuthWithRoles) GetDomainName() (string, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionGetLocalDomain); err != nil {
 		return "", trace.Wrap(err)
 	}
-	return a.authServer.GetLocalDomain()
+	return a.authServer.GetDomainName()
 }
 
 func (a *AuthWithRoles) DeleteCertAuthority(id services.CertAuthID) error {

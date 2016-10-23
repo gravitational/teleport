@@ -22,11 +22,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// AccessPoint is a interface needed by nodes to control the access
-// to the node, and provide heartbeats
+// AccessPoint is an API interface implemented by a certificate authority (CA)
 type AccessPoint interface {
-	// GetLocalDomain returns domain name of the local authority server
-	GetLocalDomain() (string, error)
+	// GetDomainName returns domain name AKA ("cluster name") of the auth
+	// server / certificate authority (CA)
+	GetDomainName() (string, error)
 
 	// GetServers returns a list of registered servers
 	GetNodes() ([]services.Server, error)

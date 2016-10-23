@@ -14,7 +14,7 @@ NOROOT=-u $$(id -u):$$(id -g)
 .PHONY:build
 build: bbox
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BBOX) \
-		/bin/bash -c "$(MAKE) -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' all"
+		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' all
 
 #
 # Builds a Docker container which is used for building official Teleport 

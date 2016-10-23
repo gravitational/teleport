@@ -183,3 +183,8 @@ start-test-etcd:
 .PHONY: remove-temp-files
 remove-temp-files:
 	find . -name flymake_* -delete
+
+# Dockerized build: usefule for making Linux releases on OSX
+.PHONY:docker
+docker:
+	make -C build.assets teleport

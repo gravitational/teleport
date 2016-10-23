@@ -78,7 +78,7 @@ type Server interface {
 type server struct {
 	sync.RWMutex
 
-	localAuth       auth.ClientI
+	localAuth       auth.AccessPoint
 	hostCertChecker ssh.CertChecker
 	userCertChecker ssh.CertChecker
 	l               net.Listener
@@ -114,14 +114,15 @@ func SetLimiter(limiter *limiter.Limiter) ServerOption {
 	}
 }
 
-// NewServer returns an unstarted server
+// NewServer creates and returns a reverse tunnel server which is fully
+// initialized but hasn't been started yet
 func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
-	clt auth.ClientI, opts ...ServerOption) (Server, error) {
+	authAPI auth.AccessPoint, opts ...ServerOption) (Server, error) {
 
 	srv := &server{
 		directSites: []*directSite{},
 		tunnelSites: []*tunnelSite{},
-		localAuth:   clt,
+		localAuth:   authAPI,
 	}
 	var err error
 	srv.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})

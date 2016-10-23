@@ -242,7 +242,7 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 	currentSize, _ := term.GetWinsize(0)
 
 	// start the timer which asks for server-side window size changes:
-	siteClient, err := ns.nodeClient.Proxy.ConnectToSite()
+	siteClient, err := ns.nodeClient.Proxy.ConnectToSite(true)
 	if err != nil {
 		log.Error(err)
 		return

@@ -648,9 +648,10 @@ func (c *TunClient) GetAgent() (AgentCloser, error) {
 	return agentCloser, nil
 }
 
-// Dial dials to Auth server's HTTP API over SSH tunnel
+// Dial dials to Auth server's HTTP API over SSH tunnel.
 func (c *TunClient) Dial(network, address string) (net.Conn, error) {
 	log.Debugf("TunClient[%s].Dial()", c.purpose)
+
 	client, err := c.getClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -781,10 +782,11 @@ func (c *TunClient) getClient() (client *ssh.Client, err error) {
 
 func (c *TunClient) dialAuthServer(authServer utils.NetAddr) (sshClient *ssh.Client, err error) {
 	config := &ssh.ClientConfig{
-		User: c.user,
-		Auth: c.authMethods,
+		User:    c.user,
+		Auth:    c.authMethods,
+		Timeout: defaults.DefaultDialTimeout,
 	}
-	const dialRetryTimes = 5
+	const dialRetryTimes = 3
 	for attempt := 0; attempt < dialRetryTimes; attempt++ {
 		log.Debugf("tunClient.Dial(to=%v, attempt=%d)", authServer.Addr, attempt+1)
 		sshClient, err = ssh.Dial(authServer.AddrNetwork, authServer.Addr, config)

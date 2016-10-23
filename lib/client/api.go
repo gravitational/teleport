@@ -421,7 +421,10 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool) error {
 			"\x1b[1mWARNING\x1b[0m: multiple nodes match the label selector. Picking %v (first)\n",
 			nodeAddrs[0])
 	}
-	nodeClient, err := proxyClient.ConnectToNode(nodeAddrs[0]+"@"+siteInfo.Name, tc.Config.HostLogin)
+	nodeClient, err := proxyClient.ConnectToNode(
+		nodeAddrs[0]+"@"+siteInfo.Name,
+		tc.Config.HostLogin,
+		false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -472,7 +475,7 @@ func (tc *TeleportClient) Join(sessionID session.ID, input io.Reader) (err error
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	site, err := proxyClient.ConnectToSite()
+	site, err := proxyClient.ConnectToSite(false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -519,7 +522,7 @@ func (tc *TeleportClient) Join(sessionID session.ID, input io.Reader) (err error
 	if tc.SiteName != "" {
 		fullNodeAddr = fmt.Sprintf("%s@%s", node.Addr, tc.SiteName)
 	}
-	nc, err := proxyClient.ConnectToNode(fullNodeAddr, tc.Config.HostLogin)
+	nc, err := proxyClient.ConnectToNode(fullNodeAddr, tc.Config.HostLogin, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -543,7 +546,7 @@ func (tc *TeleportClient) Play(sessionId string) (err error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	site, err := proxyClient.ConnectToSite()
+	site, err := proxyClient.ConnectToSite(false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -660,7 +663,7 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err erro
 		}
 		addr := net.JoinHostPort(host, strconv.Itoa(port))
 
-		client, err := proxyClient.ConnectToNode(addr, tc.HostLogin)
+		client, err := proxyClient.ConnectToNode(addr, tc.HostLogin, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -679,7 +682,7 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err erro
 		if login != "" {
 			tc.HostLogin = login
 		}
-		client, err := proxyClient.ConnectToNode(addr, tc.HostLogin)
+		client, err := proxyClient.ConnectToNode(addr, tc.HostLogin, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -746,7 +749,7 @@ func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, pr
 				resultsC <- err
 			}()
 			var nodeClient *NodeClient
-			nodeClient, err = proxyClient.ConnectToNode(address+"@"+siteName, tc.Config.HostLogin)
+			nodeClient, err = proxyClient.ConnectToNode(address+"@"+siteName, tc.Config.HostLogin, false)
 			if err != nil {
 				fmt.Fprintln(tc.Stderr, err)
 				return
