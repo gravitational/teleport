@@ -55,7 +55,7 @@ type ClientProfile struct {
 	ForwardedPorts []string `yaml:"forward_ports,omitempty"`
 }
 
-// fullProfilePath returns the full path to the user profile directory.
+// FullProfilePath returns the full path to the user profile directory.
 // If the parameter is empty, it returns expanded "~/.tsh", otherwise
 // returns its unmodified parameter
 func FullProfilePath(pDir string) string {
