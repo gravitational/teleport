@@ -126,26 +126,28 @@ func (process *TeleportProcess) GetIdentity(role teleport.Role) (i *auth.Identit
 	defer process.Unlock()
 
 	i, found = process.Identities[role]
-	if !found {
-		id := auth.IdentityID{HostUUID: process.Config.HostUUID, Role: role}
-		i, err = auth.ReadIdentity(process.Config.DataDir, id)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				// try to locate static identity provide in the file
-				i, err = process.findStaticIdentity(id)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				log.Infof("found static identity %v in the config file, writing to disk", &id)
-				if err = auth.WriteIdentity(process.Config.DataDir, i); err != nil {
-					return nil, trace.Wrap(err)
-				}
-			} else {
+	if found {
+		return i, nil
+	}
+
+	id := auth.IdentityID{HostUUID: process.Config.HostUUID, Role: role}
+	i, err = auth.ReadIdentity(process.Config.DataDir, id)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			// try to locate static identity provide in the file
+			i, err = process.findStaticIdentity(id)
+			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			log.Infof("found static identity %v in the config file, writing to disk", &id)
+			if err = auth.WriteIdentity(process.Config.DataDir, i); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		} else {
+			return nil, trace.Wrap(err)
 		}
-		process.Identities[role] = i
 	}
+	process.Identities[role] = i
 	return i, nil
 }
 
@@ -478,7 +480,7 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		authClient, err := state.MakeCachingAuthClient(conn.Client)
+		authClient, err := state.NewCachingAuthClient(conn.Client)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -626,7 +628,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	// make a caching auth client for the auth server:
-	authClient, err := state.MakeCachingAuthClient(conn.Client)
+	authClient, err := state.NewCachingAuthClient(conn.Client)
 	if err != nil {
 		return trace.Wrap(err)
 	}

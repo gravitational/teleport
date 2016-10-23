@@ -18,6 +18,7 @@ limitations under the License.
 package state
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -95,7 +96,7 @@ var _ = check.Suite(&ClusterSnapshotSuite{})
 // bootstrap check
 func TestState(t *testing.T) { check.TestingT(t) }
 
-func (s *ClusterSnapshotSuite) SetUpSuite(c *check.C) {
+func (s *ClusterSnapshotSuite) SetUpTest(c *check.C) {
 	// create a new auth server:
 	s.dataDir = c.MkDir()
 	var err error
@@ -123,20 +124,14 @@ func (s *ClusterSnapshotSuite) SetUpSuite(c *check.C) {
 	}
 }
 
-func (s *ClusterSnapshotSuite) TearDownSuite(c *check.C) {
+func (s *ClusterSnapshotSuite) TearDownTest(c *check.C) {
 	s.authServer.Close()
 	s.backend.Close()
 	os.RemoveAll(s.dataDir)
 }
 
-func (s *ClusterSnapshotSuite) SetUpTest(c *check.C) {
-}
-
-func (s *ClusterSnapshotSuite) TearDownTest(c *check.C) {
-}
-
 func (s *ClusterSnapshotSuite) TestEverything(c *check.C) {
-	snap, err := MakeCachingAuthClient(s.authServer)
+	snap, err := NewCachingAuthClient(s.authServer)
 	c.Assert(err, check.IsNil)
 	c.Assert(snap, check.NotNil)
 
@@ -154,5 +149,38 @@ func (s *ClusterSnapshotSuite) TestEverything(c *check.C) {
 	proxies, err := snap.GetProxies()
 	c.Assert(err, check.IsNil)
 	c.Assert(proxies, check.HasLen, len(Proxies))
+}
 
+func (s *ClusterSnapshotSuite) TestTry(c *check.C) {
+	var (
+		successfullCalls int
+		failedCalls      int
+	)
+	success := func() error { successfullCalls++; return nil }
+	failure := func() error { failedCalls++; return fmt.Errorf("eror") }
+
+	ap, err := NewCachingAuthClient(s.authServer)
+	c.Assert(err, check.IsNil)
+
+	ap.try(success)
+	ap.try(failure)
+
+	c.Assert(successfullCalls, check.Equals, 1)
+	c.Assert(failedCalls, check.Equals, 1)
+
+	// these two calls should not happen because of a recent failure:
+	ap.try(success)
+	ap.try(failure)
+
+	c.Assert(successfullCalls, check.Equals, 1)
+	c.Assert(failedCalls, check.Equals, 1)
+
+	// "wait" for backoff duration and try again:
+	ap.lastErrorTime = time.Now().Add(-backoffDuration)
+
+	ap.try(success)
+	ap.try(failure)
+
+	c.Assert(successfullCalls, check.Equals, 2)
+	c.Assert(failedCalls, check.Equals, 2)
 }

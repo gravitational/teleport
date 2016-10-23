@@ -450,8 +450,11 @@ func (r *sessionRecorder) Write(data []byte) (int, error) {
 	)
 	// terminal recording is a tricky business. the TTY subsystem expects a certain
 	// delay when it writes to a virtual console. In our case recording takes no time
-	// so we have to emulate a bit of a delay here:
+	// so we have to emulate TTY delay here:
 	var start time.Time
+
+	// the delay depends on the chunk size, but shouldn't be higher than a certain
+	// ceiling (maxDelay)
 	dataLen := len(data)
 	if dataLen > minChunkLen {
 		start = time.Now()

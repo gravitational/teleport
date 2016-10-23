@@ -39,10 +39,7 @@ const (
 type CachingAuthClient struct {
 	sync.Mutex
 
-	// implements AccessPoint interface of a CA
-	auth.AccessPoint
-
-	// pointer to the original AP:
+	// ap points to the access ponit we're caching access to:
 	ap auth.AccessPoint
 
 	// timestamp of the last error when talking to the AP
@@ -60,9 +57,9 @@ type CachingAuthClient struct {
 	hostCAs    []*services.CertAuthority
 }
 
-// MakeCachingAuthClient creates a new instance of CachingAuthClient using a
+// NewCachingAuthClient creates a new instance of CachingAuthClient using a
 // live connection to the auth server (ap)
-func MakeCachingAuthClient(ap auth.AccessPoint) (*CachingAuthClient, error) {
+func NewCachingAuthClient(ap auth.AccessPoint) (*CachingAuthClient, error) {
 	// read everything from the auth access point:
 	domainName, err := ap.GetDomainName()
 	if err != nil {
@@ -187,14 +184,16 @@ func (cs *CachingAuthClient) UpsertProxy(s services.Server, ttl time.Duration) e
 	return cs.ap.UpsertProxy(s, ttl)
 }
 
+// try calls a given function f and checks for errors. If f() fails, the current
+// time is recorded. Future calls to f will be ingored until sufficient time passes
+// since th last error
 func (cs *CachingAuthClient) try(f func() error) {
-	if cs.lastErrorTime.Add(backoffDuration).After(time.Now()) {
-		// backoff: the recent error happend too recently
-		log.Error("BACKING OFF!!!! %v", f)
+	tooSoon := cs.lastErrorTime.Add(backoffDuration).After(time.Now())
+	if tooSoon {
+		log.Warnf("Not calling auth access point due to recent errors. Using cached value instead")
 		return
 	}
 	if err := f(); err != nil {
-		log.Warn("=========================> ", err)
 		cs.lastErrorTime = time.Now()
 	}
 }

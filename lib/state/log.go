@@ -2,6 +2,7 @@ package state
 
 import (
 	"io"
+	"sync"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -11,7 +12,7 @@ import (
 )
 
 var (
-	errNotSupported = trace.Errorf("method not supported")
+	errNotSupported = trace.BadParameter("method not supported")
 )
 
 const (
@@ -23,8 +24,10 @@ const (
 // CachingAuditLog implements events.IAuditLog on the recording machine (SSH server)
 // It captures the local recording and forwards it to the AuditLog network server
 type CachingAuditLog struct {
-	server events.IAuditLog
-	queue  chan msg
+	server    events.IAuditLog
+	queue     chan msg
+	closeC    chan int
+	closeOnce sync.Once
 }
 
 // msg structure is used to transfer logging calls from the calling thread into
@@ -40,6 +43,7 @@ type msg struct {
 func MakeCachingAuditLog(logServer events.IAuditLog) *CachingAuditLog {
 	ll := &CachingAuditLog{
 		server: logServer,
+		closeC: make(chan int),
 	}
 	// start the queue:
 	if logServer != nil {
@@ -55,6 +59,8 @@ func (ll *CachingAuditLog) run() {
 	var err error
 	for ll.server != nil {
 		select {
+		case <-ll.closeC:
+			return
 		case msg := <-ll.queue:
 			if msg.fields != nil {
 				err = ll.server.EmitAuditEvent(msg.eventType, msg.fields)
@@ -69,31 +75,27 @@ func (ll *CachingAuditLog) run() {
 }
 
 func (ll *CachingAuditLog) post(m msg) error {
-	if len(ll.queue) < MaxQueueSize {
-		ll.queue <- m
+	select {
+	case ll.queue <- m:
+	default:
+		log.Warnf("Audit log cannot keep up. Dropping event '%v'", m.eventType)
 	}
 	return nil
+
 }
 
 func (ll *CachingAuditLog) Close() error {
-	if ll.server != nil {
-		ll.server = nil
-		close(ll.queue)
-	}
+	ll.closeOnce.Do(func() {
+		close(ll.closeC)
+	})
 	return nil
 }
 
 func (ll *CachingAuditLog) EmitAuditEvent(eventType string, fields events.EventFields) error {
-	if ll.server == nil {
-		return nil
-	}
 	return ll.post(msg{eventType: eventType, fields: fields})
 }
 
 func (ll *CachingAuditLog) PostSessionChunk(sid session.ID, reader io.Reader) error {
-	if ll.server == nil {
-		return nil
-	}
 	return ll.post(msg{sid: sid, reader: reader})
 }
 
