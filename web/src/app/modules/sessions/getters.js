@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+var moment =  require('moment');
 var { toImmutable } = require('nuclear-js');
 var reactor = require('app/reactor');
 var cfg = require('app/config');
@@ -63,18 +64,23 @@ function createView(session){
     serverIp = parties[0].serverIp;
   }
 
+  let created = session.get('created');
+  let lastActive = session.get('last_active');
+  let duration = moment(created).diff(lastActive);
+    
   return {
-    sid: sid,
-    sessionUrl: cfg.getActiveSessionRouteUrl(sid),
+    parties,
+    sid,
+    created,
+    lastActive,
+    duration,
     serverIp,
     serverId: session.get('server_id'),
     clientIp: session.get('clientIp'),
     nodeIp: session.get('nodeIp'),
     active: session.get('active'),
-    created: session.get('created'),
-    lastActive: session.get('last_active'),
     login: session.get('login'),
-    parties: parties,
+    sessionUrl: cfg.getActiveSessionRouteUrl(sid),
     cols: session.getIn(['terminal_params', 'w']),
     rows: session.getIn(['terminal_params', 'h'])
   }

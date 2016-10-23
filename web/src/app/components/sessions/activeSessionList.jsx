@@ -33,18 +33,16 @@ var ActiveSessionList = React.createClass({
             <div className="">
               <Table rowCount={data.length} className="table-striped">
                 <Column
+                  header={<Cell /> }
+                  cell={ <ButtonCell data={data} /> }
+                />
+                <Column
                   columnKey="sid"
                   header={<Cell> Session ID </Cell> }
                   cell={<TextCell data={data}/> }
                 />
                 <Column
-                  header={<Cell /> }
-                  cell={
-                    <ButtonCell data={data} />
-                  }
-                />
-                <Column
-                  header={<Cell> Node </Cell> }
+                  header={<Cell>Node</Cell> }
                   cell={<NodeCell data={data} /> }
                 />
                 <Column
@@ -53,7 +51,7 @@ var ActiveSessionList = React.createClass({
                   cell={<DateCreatedCell data={data}/> }
                 />
                 <Column
-                  header={<Cell> Users </Cell> }
+                  header={<Cell> User </Cell> }
                   cell={<UsersCell data={data} /> }
                 />
               </Table>

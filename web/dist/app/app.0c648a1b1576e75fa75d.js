@@ -1458,7 +1458,7 @@ webpackJsonp([0],{
 
 	  checkIfUserLoggedIn: function checkIfUserLoggedIn() {
 	    /*
-	    * lets query for nodes as a checker for a valid user, in case of 403 response
+	    * lets query for nodes as a checker for a valid user session, in case of 403
 	    * make a redirect to a login page (in case if a server got restarted).
 	    */
 	    fetchNodes().fail(function (err) {
@@ -3485,6 +3485,7 @@ webpackJsonp([0],{
 	Object.defineProperty(exports, '__esModule', {
 	  value: true
 	});
+	var moment = __webpack_require__(242);
 
 	var _require = __webpack_require__(216);
 
@@ -3545,24 +3546,30 @@ webpackJsonp([0],{
 	    serverIp = parties[0].serverIp;
 	  }
 
+	  var created = session.get('created');
+	  var lastActive = session.get('last_active');
+	  var duration = moment(created).diff(lastActive);
+
 	  return {
+	    parties: parties,
 	    sid: sid,
-	    sessionUrl: cfg.getActiveSessionRouteUrl(sid),
+	    created: created,
+	    lastActive: lastActive,
+	    duration: duration,
 	    serverIp: serverIp,
 	    serverId: session.get('server_id'),
 	    clientIp: session.get('clientIp'),
 	    nodeIp: session.get('nodeIp'),
 	    active: session.get('active'),
-	    created: session.get('created'),
-	    lastActive: session.get('last_active'),
 	    login: session.get('login'),
-	    parties: parties,
+	    sessionUrl: cfg.getActiveSessionRouteUrl(sid),
 	    cols: session.getIn(['terminal_params', 'w']),
 	    rows: session.getIn(['terminal_params', 'h'])
 	  };
 	}
 
 	exports['default'] = {
+	  partiesBySessionId: partiesBySessionId,
 	  sessionsByServer: sessionsByServer,
 	  sessionsView: sessionsView,
 	  sessionViewById: sessionViewById,
@@ -3990,7 +3997,7 @@ webpackJsonp([0],{
 	    var message = _props$attemp.message;
 
 	    var providers = cfg.getAuthProviders();
-	    var useGoogle = providers.indexOf(PROVIDER_GOOGLE) === -1;
+	    var useGoogle = providers.indexOf(PROVIDER_GOOGLE) !== -1;
 
 	    return React.createElement(
 	      'form',
@@ -4451,7 +4458,7 @@ webpackJsonp([0],{
 	  render: function render() {
 	    return React.createElement(
 	      "div",
-	      { className: "grv-google-auth" },
+	      { className: "grv-google-auth text-left" },
 	      React.createElement("div", { className: "grv-icon-google-auth" }),
 	      React.createElement(
 	        "strong",
@@ -5262,6 +5269,7 @@ webpackJsonp([0],{
 	var ButtonCell = _require5.ButtonCell;
 	var SingleUserCell = _require5.SingleUserCell;
 	var DateCreatedCell = _require5.DateCreatedCell;
+	var DurationCell = _require5.DurationCell;
 
 	var _require6 = __webpack_require__(403);
 
@@ -5387,30 +5395,30 @@ webpackJsonp([0],{
 	              cell: React.createElement(ButtonCell, { data: data })
 	            }),
 	            React.createElement(Column, {
-	              columnKey: 'nodeIp',
-	              header: React.createElement(
-	                Cell,
-	                null,
-	                ' Node IP '
-	              ),
-	              cell: React.createElement(TextCell, { data: data })
-	            }),
-	            React.createElement(Column, {
-	              columnKey: 'clientIp',
-	              header: React.createElement(
-	                Cell,
-	                null,
-	                ' Client IP '
-	              ),
-	              cell: React.createElement(TextCell, { data: data })
-	            }),
-	            React.createElement(Column, {
 	              columnKey: 'sid',
 	              header: React.createElement(
 	                Cell,
 	                null,
 	                ' Session ID '
 	              ),
+	              cell: React.createElement(TextCell, { data: data })
+	            }),
+	            React.createElement(Column, {
+	              columnKey: 'nodeIp',
+	              header: React.createElement(SortHeaderCell, {
+	                sortDir: this.state.colSortDirs.nodeIp,
+	                onSortChange: this.onSortChange,
+	                title: 'Node IP'
+	              }),
+	              cell: React.createElement(TextCell, { data: data })
+	            }),
+	            React.createElement(Column, {
+	              columnKey: 'clientIp',
+	              header: React.createElement(SortHeaderCell, {
+	                sortDir: this.state.colSortDirs.clientIp,
+	                onSortChange: this.onSortChange,
+	                title: 'Client IP'
+	              }),
 	              cell: React.createElement(TextCell, { data: data })
 	            }),
 	            React.createElement(Column, {
@@ -5421,6 +5429,15 @@ webpackJsonp([0],{
 	                title: 'Created'
 	              }),
 	              cell: React.createElement(DateCreatedCell, { data: data })
+	            }),
+	            React.createElement(Column, {
+	              columnKey: 'duration',
+	              header: React.createElement(SortHeaderCell, {
+	                sortDir: this.state.colSortDirs.duration,
+	                onSortChange: this.onSortChange,
+	                title: 'Duration'
+	              }),
+	              cell: React.createElement(DurationCell, { data: data })
 	            }),
 	            React.createElement(Column, {
 	              header: React.createElement(
@@ -5537,14 +5554,9 @@ webpackJsonp([0],{
 
 	  var props = _objectWithoutProperties(_ref2, ['rowIndex', 'data']);
 
-	  var created = data[rowIndex].created;
-	  var lastActive = data[rowIndex].lastActive;
+	  var duration = data[rowIndex].duration;
 
-	  var end = moment(created);
-	  var now = moment(lastActive);
-	  var duration = moment.duration(now.diff(end));
-	  var displayDate = duration.humanize();
-
+	  var displayDate = moment.duration(duration).humanize();
 	  return React.createElement(
 	    Cell,
 	    props,
@@ -5895,6 +5907,10 @@ webpackJsonp([0],{
 	            Table,
 	            { rowCount: data.length, className: 'table-striped' },
 	            React.createElement(Column, {
+	              header: React.createElement(Cell, null),
+	              cell: React.createElement(ButtonCell, { data: data })
+	            }),
+	            React.createElement(Column, {
 	              columnKey: 'sid',
 	              header: React.createElement(
 	                Cell,
@@ -5904,14 +5920,10 @@ webpackJsonp([0],{
 	              cell: React.createElement(TextCell, { data: data })
 	            }),
 	            React.createElement(Column, {
-	              header: React.createElement(Cell, null),
-	              cell: React.createElement(ButtonCell, { data: data })
-	            }),
-	            React.createElement(Column, {
 	              header: React.createElement(
 	                Cell,
 	                null,
-	                ' Node '
+	                'Node'
 	              ),
 	              cell: React.createElement(NodeCell, { data: data })
 	            }),
@@ -5928,7 +5940,7 @@ webpackJsonp([0],{
 	              header: React.createElement(
 	                Cell,
 	                null,
-	                ' Users '
+	                ' User '
 	              ),
 	              cell: React.createElement(UsersCell, { data: data })
 	            })
@@ -7631,7 +7643,11 @@ webpackJsonp([0],{
 	        React.createElement(
 	          'button',
 	          { onClick: actions.close, className: 'btn btn-danger btn-circle', type: 'button' },
-	          React.createElement('i', { className: 'fa fa-times' })
+	          React.createElement(
+	            'span',
+	            null,
+	            '✖'
+	          )
 	        )
 	      )
 	    ),

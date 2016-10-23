@@ -19,8 +19,8 @@ var React = require('react');
 var GoogleAuthInfo = React.createClass({
   render() {
     return (
-      <div className="grv-google-auth">
-        <div className="grv-icon-google-auth"></div>
+      <div className="grv-google-auth text-left">
+        <div className="grv-icon-google-auth"/>
         <strong>Google Authenticator</strong>
         <div>Download <a href="https://support.google.com/accounts/answer/1066447?hl=en">Google Authenticator</a> on your phone to access your two factor token</div>
       </div>

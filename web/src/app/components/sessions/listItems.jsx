@@ -33,14 +33,8 @@ const DateCreatedCell = ({ rowIndex, data, ...props }) => {
 };
 
 const DurationCell = ({ rowIndex, data, ...props }) => {
-  let created = data[rowIndex].created;
-  let lastActive = data[rowIndex].lastActive;
-
-  let end = moment(created);
-  let now = moment(lastActive);
-  let duration = moment.duration(now.diff(end));
-  let displayDate = duration.humanize();
-
+  let { duration } = data[rowIndex];
+  let displayDate = moment.duration(duration).humanize();
   return (
     <Cell {...props}>
       { displayDate }

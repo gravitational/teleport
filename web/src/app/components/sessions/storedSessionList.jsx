@@ -22,7 +22,7 @@ var { isMatch } = require('app/common/objectUtils');
 var { displayDateFormat} = require('app/config');
 var { actions } = require('app/modules/storedSessionsFilter');
 var { Table, Column, Cell, TextCell, SortHeaderCell, SortTypes, EmptyIndicator } = require('app/components/table.jsx');
-var { ButtonCell, SingleUserCell, DateCreatedCell } = require('./listItems');
+var { ButtonCell, SingleUserCell, DateCreatedCell, DurationCell } = require('./listItems');
 var { DateRangePicker } = require('./../datePicker.jsx');
 
 
@@ -117,19 +117,31 @@ var ArchivedSessions = React.createClass({
                   }
                 />
                 <Column
+                  columnKey="sid"
+                  header={<Cell> Session ID </Cell> }
+                  cell={<TextCell data={data}/> }
+                />
+                <Column
                   columnKey="nodeIp"
-                  header={<Cell> Node IP </Cell> }
+                  header={
+                    <SortHeaderCell
+                      sortDir={this.state.colSortDirs.nodeIp}
+                      onSortChange={this.onSortChange}
+                      title="Node IP"
+                    />
+                  }
                   cell={<TextCell data={data} /> }
                 />
                 <Column
                   columnKey="clientIp"
-                  header={<Cell> Client IP </Cell> }
+                  header={
+                    <SortHeaderCell
+                      sortDir={this.state.colSortDirs.clientIp}
+                      onSortChange={this.onSortChange}
+                      title="Client IP"
+                    />
+                  }
                   cell={<TextCell data={data} /> }
-                />
-                <Column
-                  columnKey="sid"
-                  header={<Cell> Session ID </Cell> }
-                  cell={<TextCell data={data}/> }
                 />
                 <Column
                   columnKey="created"
@@ -141,6 +153,17 @@ var ArchivedSessions = React.createClass({
                     />
                   }
                   cell={<DateCreatedCell data={data}/> }
+                />
+                <Column
+                  columnKey="duration"
+                  header={
+                    <SortHeaderCell
+                      sortDir={this.state.colSortDirs.duration}
+                      onSortChange={this.onSortChange}
+                      title="Duration"
+                    />
+                  }
+                  cell={<DurationCell data={data} /> }
                 />
                 <Column
                   header={<Cell> User </Cell> }
