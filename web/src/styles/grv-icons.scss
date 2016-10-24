@@ -23,16 +23,16 @@ limitations under the License.
   text-align: initial;
   position: relative;
   margin: 15px 0 0 0;
-  padding: 0 0 0 70px;
+  padding: 0 0 0 60px;
 
   .grv-icon-google-auth{
     position: absolute;
-    left: 15px;
+    left: 0px;
     height: 40px;
     width: 40px;
     background-size: contain;
     background-repeat: no-repeat;
-    background-image: url("/web/app/assets/img/authenticator-icon.png");
+    background-image: url("~assets/img/authenticator-icon.png");
   }
 }
 

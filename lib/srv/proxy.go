@@ -82,6 +82,7 @@ func parseProxySubsys(name string, srv *Server) (*proxySubsys, error) {
 			return nil, trace.BadParameter("unknown site '%s'", siteName)
 		}
 	}
+
 	return &proxySubsys{
 		srv:      srv,
 		host:     host,
@@ -109,6 +110,7 @@ func (t *proxySubsys) start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 	if t.siteName != "" {
 		site, err = tunnel.GetSite(t.siteName)
 		if err != nil {
+			log.Warn(err)
 			return trace.Wrap(err)
 		}
 	}
@@ -177,13 +179,36 @@ func (t *proxySubsys) proxyToSite(site reversetunnel.RemoteSite, ch ssh.Channel)
 // proxyToHost establishes a proxy connection from the connected SSH client to the
 // requested remote node (t.host:t.port) via the given site
 func (t *proxySubsys) proxyToHost(site reversetunnel.RemoteSite, ch ssh.Channel) error {
-	siteClient, err := site.GetClient()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	servers, err := siteClient.GetNodes()
-	if err != nil {
-		return trace.Wrap(err)
+	//
+	// first, lets fetch a list of servers at the given site. this allows us to
+	// match the given "host name" against node configuration (their 'nodename' setting)
+	//
+	// but failing to fetch the list of servers is also OK, we'll use standard
+	// network resolution (by IP or DNS)
+	//
+	var (
+		servers []services.Server
+		err     error
+	)
+	localDomain, _ := t.srv.authService.GetDomainName()
+	// going to "local" CA? lets use the caching 'auth service' directly and avoid
+	// hitting the reverse tunnel link (it can be offline if the CA is down)
+	if site.GetName() == localDomain {
+		servers, err = t.srv.authService.GetNodes()
+		if err != nil {
+			log.Warn(err)
+		}
+	} else {
+		// "remote" CA? use a reverse tunnel to talk to it:
+		siteClient, err := site.GetClient()
+		if err != nil {
+			log.Warn(err)
+		} else {
+			servers, err = siteClient.GetNodes()
+			if err != nil {
+				log.Warn(err)
+			}
+		}
 	}
 	// enumerate and try to find a server with a matching name
 	serverAddr := net.JoinHostPort(t.host, t.port)

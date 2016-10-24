@@ -30,7 +30,7 @@ const SessionLeftPanel = ({parties}) => {
       <ul className="nav">
         <li title="Close">
           <button onClick={actions.close} className="btn btn-danger btn-circle" type="button">
-            <i className="fa fa-times"></i>
+            <span>✖</span>
           </button>
         </li>
       </ul>

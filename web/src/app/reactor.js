@@ -16,8 +16,10 @@ limitations under the License.
 
 import { Reactor } from 'nuclear-js'
 
+const __DEV__ = process.env.NODE_ENV === 'development';
+
 const reactor = new Reactor({
-  debug: false
+  debug: __DEV__
 })
 
 window.reactor = reactor;

@@ -78,7 +78,7 @@ type Server interface {
 type server struct {
 	sync.RWMutex
 
-	localAuth       auth.ClientI
+	localAuth       auth.AccessPoint
 	hostCertChecker ssh.CertChecker
 	userCertChecker ssh.CertChecker
 	l               net.Listener
@@ -114,14 +114,15 @@ func SetLimiter(limiter *limiter.Limiter) ServerOption {
 	}
 }
 
-// NewServer returns an unstarted server
+// NewServer creates and returns a reverse tunnel server which is fully
+// initialized but hasn't been started yet
 func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
-	clt auth.ClientI, opts ...ServerOption) (Server, error) {
+	authAPI auth.AccessPoint, opts ...ServerOption) (Server, error) {
 
 	srv := &server{
 		directSites: []*directSite{},
 		tunnelSites: []*tunnelSite{},
-		localAuth:   clt,
+		localAuth:   authAPI,
 	}
 	var err error
 	srv.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
@@ -172,9 +173,15 @@ func (s *server) Close() error {
 }
 
 func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
-	if nch.ChannelType() != chanHeartbeat {
+	ct := nch.ChannelType()
+	if ct != chanHeartbeat {
 		msg := fmt.Sprintf("reversetunnel received unknown channel request %v from %v",
 			nch.ChannelType(), sconn)
+		// if someone is trying to open a new SSH session by talking to a reverse tunnel,
+		// they're most likely using the wrong port number. Lets give them the explicit hint:
+		if ct == "session" {
+			msg = "Cannot open new SSH session on reverse tunnel. Are you connecting to the right port?"
+		}
 		log.Warningf(msg)
 		nch.Reject(ssh.ConnectionFailed, msg)
 		return

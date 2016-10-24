@@ -73,7 +73,7 @@ const (
 
 	// DefaultDialTimeout is a default TCP dial timeout we set for our
 	// connection attempts
-	DefaultDialTimeout = 30 * time.Second
+	DefaultDialTimeout = 10 * time.Second
 
 	// DefaultReadHeadersTimeout is a default TCP timeout when we wait
 	// for the response headers to arrive

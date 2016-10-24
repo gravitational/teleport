@@ -169,8 +169,9 @@ func (a *AuthServer) Close() error {
 	return nil
 }
 
-// GetLocalDomain returns domain name that identifies this authority server
-func (a *AuthServer) GetLocalDomain() (string, error) {
+// GetDomainName returns the domain name that identifies this authority server.
+// Also known as "cluster name"
+func (a *AuthServer) GetDomainName() (string, error) {
 	return a.DomainName, nil
 }
 
@@ -384,7 +385,7 @@ func (s *AuthServer) ValidateToken(token string) (roles teleport.Roles, e error)
 	// look at the tokens in the token storage
 	tok, err := s.Provisioner.GetToken(token)
 	if err != nil {
-		log.Warn(err)
+		log.Info(err)
 		return nil, trace.Errorf("token not recognized")
 	}
 	return tok.Roles, nil

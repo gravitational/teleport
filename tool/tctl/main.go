@@ -437,7 +437,7 @@ func (a *AuthCommand) ListAuthorities(client *auth.TunClient) error {
 			return trace.Wrap(err)
 		}
 	}
-	localAuthName, err := client.GetLocalDomain()
+	localAuthName, err := client.GetDomainName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -521,7 +521,7 @@ func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
 		}
 		typesToExport = []services.CertAuthType{authType}
 	}
-	localAuthName, err := client.GetLocalDomain()
+	localAuthName, err := client.GetDomainName()
 	if err != nil {
 		return trace.Wrap(err)
 	}

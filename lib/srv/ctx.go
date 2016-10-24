@@ -170,10 +170,6 @@ func (c *ctx) sendSubsystemResult(err error) {
 	}
 }
 
-func (c *ctx) resolver() resolver {
-	return c.srv.resolver
-}
-
 func (c *ctx) String() string {
 	return fmt.Sprintf("sess(%v->%v, user=%v, id=%v)", c.conn.RemoteAddr(), c.conn.LocalAddr(), c.conn.User(), c.id)
 }

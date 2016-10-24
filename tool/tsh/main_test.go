@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -39,6 +40,8 @@ type MainTestSuite struct {
 var _ = check.Suite(&MainTestSuite{})
 
 func (s *MainTestSuite) SetUpSuite(c *check.C) {
+	dir := client.FullProfilePath("")
+	os.RemoveAll(dir)
 }
 
 func (s *MainTestSuite) TestMakeClient(c *check.C) {
@@ -56,8 +59,8 @@ func (s *MainTestSuite) TestMakeClient(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(tc, check.NotNil)
 	c.Assert(tc.Config.NodeHostPort(), check.Equals, "localhost:3022")
-	c.Assert(tc.Config.ProxyHostPort(false), check.Equals, "proxy:3023")
-	c.Assert(tc.Config.ProxyHostPort(true), check.Equals, "proxy:3080")
+	c.Assert(tc.Config.ProxySSHHostPort(), check.Equals, "proxy:3023")
+	c.Assert(tc.Config.ProxyWebHostPort(), check.Equals, "proxy:3080")
 	c.Assert(tc.Config.HostLogin, check.Equals, client.Username())
 	c.Assert(tc.Config.KeyTTL, check.Equals, defaults.CertDuration)
 
@@ -68,7 +71,7 @@ func (s *MainTestSuite) TestMakeClient(c *check.C) {
 	tc, err = makeClient(&conf)
 	c.Assert(tc.Config.KeyTTL, check.Equals, time.Minute*time.Duration(conf.MinsToLive))
 	c.Assert(tc.Config.HostLogin, check.Equals, "root")
-	c.Assert(tc.Config.LocalForwardPorts, check.DeepEquals, []client.ForwardedPort{
+	c.Assert(tc.Config.LocalForwardPorts, check.DeepEquals, client.ForwardedPorts{
 		{
 			SrcIP:    "127.0.0.1",
 			SrcPort:  80,

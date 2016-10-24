@@ -691,7 +691,7 @@ func LocateWebAssets() (string, error) {
 	const errorMessage = "Cannot determine location of web assets."
 	assetsToCheck := []string{
 		"index.html",
-		"/app/app.js",
+		"/app",
 	}
 	// checker function to determine if dirPath contains the web assets
 	locateAssets := func(dirPath string) bool {

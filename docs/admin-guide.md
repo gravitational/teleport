@@ -356,28 +356,33 @@ The user will have to re-initialize Google Authenticator on their phone.
 
 ## Adding Nodes to the Cluster
 
-Gravitational Teleport is a cluster SSH manager. It only allows SSH access to nodes
-who had been previously granted cluster membership, which means that every node in 
-a cluster has its own "host certificate" signed by the cluster's certificate 
-authority (CA). This prevents an attacker from creating a "honeypot" node within a 
-cluster.
+Gravitational Teleport is a "clustered" SSH manager, meaning it only allows SSH
+access to nodes that had been previously granted cluster membership. 
+
+A cluster membership means that every node in a cluster has its own host
+certificate signed by the cluster's auth server. 
 
 A new Teleport node needs an "invite token" to join a cluster. An invitation token 
 also defines which role a new node can assume within a cluster: `auth`, `proxy` or 
 `node`. 
 
-There are two ways to create invitation tokens.
+There are two ways to create invitation tokens:
+
+* Static Tokens
+* Short-lived Tokens
 
 ### Static Tokens
 
-You can pre-generate your own tokens and add them to certificate authority (CA)
-config file: 
+You can pick your own tokens and add them to the auth server's config file: 
 
 ```bash
-# Example CA section in `/etc/teleport/teleport.yaml` file for the CA node running on 10.0.10.5
+# Config section in `/etc/teleport/teleport.yaml` file for the auth server
 auth_service:
     enabled: true
-    listen_addr: 0.0.0.0:3025
+    #
+    # statically assigned token: obviously we recommend a much harder to guess
+    # value than `xxxxx`, consider generating tokens using a tool like pwgen
+    #
     tokens:
     - "proxy,node:xxxxxx"
 ```
@@ -389,7 +394,6 @@ as a proxy server:
 ```bash
 teleport start --roles=node,auth --token=xxxxx --auth-server=10.0.10.5
 ```
-
 
 ### Short-lived Tokens
 
@@ -501,7 +505,7 @@ This setup works as follows:
 
 0. `cluster-b` and `main` trust each other: they are "trusted clusters".
 1. `cluster-b` creates an outbound reverse SSH tunnel to `main` and keeps it open.
-2. Users of `main` user `--cluster=cluster-b` flag of `tsh` tool if they want to connect to any nodes of `cluster-b`.
+2. Users of `main` should use `--cluster=cluster-b` flag of `tsh` tool if they want to connect to any nodes of `cluster-b`.
 3. The `main` cluster uses the tunnel to connect back to any node of `cluster-b`.
 
 #### Example Configuration
@@ -772,15 +776,18 @@ your Google credentials. Teleport will keep you logged in for the next 23 hours.
 
 ## High Availability and Clustering
  
-Teleport uses etcd backend to achieve highly available deployments. 
+Teleport can use [etcd](https://coreos.com/etcd/) as a storage backend to
+achieve highly available deployments.  Obviously, you must take steps to
+protect access to `etcd` in this configuration, because that is where Teleport
+secrets like keys and user records will be stored.
+
+To configure Teleport for using etcd backend:
 
 * Install etcd and configure peer and client TLS authentication using
-   [etcd security guide](https://github.com/coreos/etcd/blob/master/Documentation/security.md).
+   [etcd security guide](https://coreos.com/etcd/docs/latest/security.html).
 
-      !!! danger "SECURITY WARNING": 
-        Only Auth servers should have client certificates allowing etcd access, otherwise anyone can write and overwrite keys in the backend.
-
-* Set up Auth server to use etcd in `storage` section of Auth server's config file:
+* Confnigure Teleport `auth` server to use etcd in the "storage" section of
+  the config file:
 
 ```
 teleport:

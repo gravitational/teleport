@@ -55,7 +55,6 @@ type Server struct {
 	addr          utils.NetAddr
 	hostname      string
 	certChecker   ssh.CertChecker
-	resolver      resolver
 	srv           *sshutils.Server
 	hostSigner    ssh.Signer
 	shell         string
@@ -191,7 +190,6 @@ func New(addr utils.NetAddr,
 	s := &Server{
 		addr:        addr,
 		authService: authService,
-		resolver:    &backendResolver{authService: authService},
 		hostname:    hostname,
 		labelsMutex: &sync.Mutex{},
 		advertiseIP: advertiseIP,
@@ -301,7 +299,7 @@ func (s *Server) heartbeatPresence() {
 
 	for {
 		if err := s.registerServer(); err != nil {
-			log.Warningf("failed to announce %#v presence: %v", s, err)
+			log.Warningf("failed to announce %v presence: %v", s.ID(), err)
 		}
 		select {
 		case <-ticker.C:
@@ -389,13 +387,13 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 			teleportUser)
 	}
 
-	localDomain, err := s.authService.GetLocalDomain()
+	domainName, err := s.authService.GetDomainName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// for local users, go and check their individual permissions
-	if localDomain == ca.DomainName {
+	if domainName == ca.DomainName {
 		users, err := s.authService.GetUsers()
 		if err != nil {
 			return trace.Wrap(err)
@@ -420,14 +418,14 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 		}
 	}
 	return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s",
-		teleportUser, ca.DomainName, osUser, localDomain)
+		teleportUser, ca.DomainName, osUser, domainName)
 }
 
 // isAuthority is called during checking the client key, to see if the signing
 // key is the real CA authority key.
 func (s *Server) isAuthority(cert ssh.PublicKey) bool {
 	// find cert authority by it's key
-	cas, err := auth.RetryingClient(s.authService, 20).GetCertAuthorities(services.UserCA, false)
+	cas, err := s.authService.GetCertAuthorities(services.UserCA, false)
 	if err != nil {
 		log.Warningf("%v", err)
 		return false
@@ -746,7 +744,11 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 	case "shell":
 		// SSH client asked to launch shell, we allocate PTY and start shell session
 		ctx.exec = &execResponse{ctx: ctx}
-		return s.reg.openSession(ch, req, ctx)
+		if err := s.reg.openSession(ch, req, ctx); err != nil {
+			log.Error(err)
+			return trace.Wrap(err)
+		}
+		return nil
 	case "env":
 		return s.handleEnv(ch, req, ctx)
 	case "subsystem":

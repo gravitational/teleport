@@ -1,7 +1,7 @@
 body {
-  font-family: "open sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
   background-color: #2f4050;
-  font-size: 13px;
+  font-size: 14px;
   color: $text-color;
   overflow-x: hidden;
 
@@ -21,9 +21,6 @@ body.full-height-layout #page-wrapper {
   min-height: auto;
 }
 
-body.boxed-layout {
-  background: $boxed-backgound;
-}
 
 body.boxed-layout #wrapper {
   background-color: #2f4050;
