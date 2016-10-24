@@ -49,15 +49,19 @@ webpackJsonp([0],{
 	var MessagePage = _require2.MessagePage;
 	var NotFound = _require2.NotFound;
 
-	var _require3 = __webpack_require__(387);
+	var _require3 = __webpack_require__(370);
 
 	var ensureUser = _require3.ensureUser;
+
+	var _require4 = __webpack_require__(385);
+
+	var openSession = _require4.openSession;
 
 	var auth = __webpack_require__(345);
 	var session = __webpack_require__(237);
 	var cfg = __webpack_require__(221);
 
-	__webpack_require__(454);
+	__webpack_require__(448);
 
 	// init session
 	session.init();
@@ -75,9 +79,9 @@ webpackJsonp([0],{
 	  React.createElement(
 	    Route,
 	    { path: cfg.routes.app, component: App, onEnter: ensureUser },
+	    React.createElement(Route, { path: cfg.routes.sessions, component: Sessions }),
 	    React.createElement(Route, { path: cfg.routes.nodes, component: Nodes }),
-	    React.createElement(Route, { path: cfg.routes.activeSession, components: { CurrentSessionHost: CurrentSessionHost } }),
-	    React.createElement(Route, { path: cfg.routes.sessions, component: Sessions })
+	    React.createElement(Route, { path: cfg.routes.currentSession, onEnter: openSession, components: { CurrentSessionHost: CurrentSessionHost } })
 	  ),
 	  React.createElement(Route, { path: '*', component: NotFound })
 	), document.getElementById("app"));
@@ -106,14 +110,14 @@ webpackJsonp([0],{
 	'use strict';
 
 	module.exports.App = __webpack_require__(213);
-	module.exports.Login = __webpack_require__(381);
-	module.exports.NewUser = __webpack_require__(393);
-	module.exports.Nodes = __webpack_require__(395);
-	module.exports.Sessions = __webpack_require__(396);
-	module.exports.CurrentSessionHost = __webpack_require__(405);
-	module.exports.ErrorPage = __webpack_require__(394).ErrorPage;
-	module.exports.NotFound = __webpack_require__(394).NotFound;
-	module.exports.MessagePage = __webpack_require__(394).MessagePage;
+	module.exports.Login = __webpack_require__(364);
+	module.exports.NewUser = __webpack_require__(376);
+	module.exports.Nodes = __webpack_require__(378);
+	module.exports.Sessions = __webpack_require__(390);
+	module.exports.CurrentSessionHost = __webpack_require__(399);
+	module.exports.ErrorPage = __webpack_require__(377).ErrorPage;
+	module.exports.NotFound = __webpack_require__(377).NotFound;
+	module.exports.MessagePage = __webpack_require__(377).MessagePage;
 
 /***/ },
 
@@ -147,9 +151,8 @@ webpackJsonp([0],{
 	var actions = _require.actions;
 	var getters = _require.getters;
 
-	var SelectNodeDialog = __webpack_require__(348);
-	var NotificationHost = __webpack_require__(365);
-	var Timer = __webpack_require__(380);
+	var NotificationHost = __webpack_require__(348);
+	var Timer = __webpack_require__(363);
 
 	var App = React.createClass({
 	  displayName: 'App',
@@ -175,7 +178,6 @@ webpackJsonp([0],{
 	      'div',
 	      { className: 'grv-tlpt grv-flex grv-flex-row' },
 	      React.createElement(Timer, { onTimeout: actions.checkIfUserLoggedIn }),
-	      React.createElement(SelectNodeDialog, null),
 	      React.createElement(NotificationHost, null),
 	      this.props.CurrentSessionHost,
 	      React.createElement(NavLeftBar, null),
@@ -529,7 +531,7 @@ webpackJsonp([0],{
 	    logout: '/web/logout',
 	    login: '/web/login',
 	    nodes: '/web/nodes',
-	    activeSession: '/web/sessions/:sid',
+	    currentSession: '/web/sessions/:sid',
 	    newUser: '/web/newuser/:inviteToken',
 	    sessions: '/web/sessions',
 	    msgs: '/web/msg/:type(/:subType)',
@@ -593,8 +595,8 @@ webpackJsonp([0],{
 	    return cfg.baseUrl + url;
 	  },
 
-	  getActiveSessionRouteUrl: function getActiveSessionRouteUrl(sid) {
-	    return formatPattern(cfg.routes.activeSession, { sid: sid });
+	  getCurrentSessionRouteUrl: function getCurrentSessionRouteUrl(sid) {
+	    return formatPattern(cfg.routes.currentSession, { sid: sid });
 	  },
 
 	  getAuthProviders: function getAuthProviders() {
@@ -1517,16 +1519,16 @@ webpackJsonp([0],{
 
 	var _require2 = __webpack_require__(342);
 
-	var TLPT_SESSINS_RECEIVE = _require2.TLPT_SESSINS_RECEIVE;
-	var TLPT_SESSINS_UPDATE = _require2.TLPT_SESSINS_UPDATE;
-	var TLPT_SESSINS_UPDATE_WITH_EVENTS = _require2.TLPT_SESSINS_UPDATE_WITH_EVENTS;
+	var TLPT_SESSIONS_RECEIVE = _require2.TLPT_SESSIONS_RECEIVE;
+	var TLPT_SESSIONS_UPDATE = _require2.TLPT_SESSIONS_UPDATE;
+	var TLPT_SESSIONS_UPDATE_WITH_EVENTS = _require2.TLPT_SESSIONS_UPDATE_WITH_EVENTS;
 
 	var actions = {
 
 	  fetchStoredSession: function fetchStoredSession(sid) {
 	    return api.get(cfg.api.getSessionEventsUrl(sid)).then(function (json) {
 	      if (json && json.events) {
-	        reactor.dispatch(TLPT_SESSINS_UPDATE_WITH_EVENTS, json.events);
+	        reactor.dispatch(TLPT_SESSIONS_UPDATE_WITH_EVENTS, json.events);
 	      }
 	    });
 	  },
@@ -1543,7 +1545,7 @@ webpackJsonp([0],{
 	      var _json$events = json.events;
 	      var events = _json$events === undefined ? [] : _json$events;
 
-	      reactor.dispatch(TLPT_SESSINS_UPDATE_WITH_EVENTS, events);
+	      reactor.dispatch(TLPT_SESSIONS_UPDATE_WITH_EVENTS, events);
 	    }).fail(function (err) {
 	      showError('Unable to retrieve site events');
 	      logger.error('fetchSiteEvents', err);
@@ -1567,7 +1569,7 @@ webpackJsonp([0],{
 	    };
 
 	    return apiUtils.filterSessions(params).done(function (json) {
-	      reactor.dispatch(TLPT_SESSINS_RECEIVE, json.sessions);
+	      reactor.dispatch(TLPT_SESSIONS_RECEIVE, json.sessions);
 	    }).fail(function (err) {
 	      showError('Unable to retrieve list of sessions');
 	      logger.error('fetchActiveSessions', err);
@@ -1575,7 +1577,7 @@ webpackJsonp([0],{
 	  },
 
 	  updateSession: function updateSession(json) {
-	    reactor.dispatch(TLPT_SESSINS_UPDATE, json);
+	    reactor.dispatch(TLPT_SESSIONS_UPDATE, json);
 	  }
 	};
 
@@ -2030,10 +2032,9 @@ webpackJsonp([0],{
 	var _keymirror2 = _interopRequireDefault(_keymirror);
 
 	exports['default'] = (0, _keymirror2['default'])({
-	  TLPT_SESSINS_RECEIVE: null,
-	  TLPT_SESSINS_UPDATE: null,
-	  TLPT_SESSINS_REMOVE_STORED: null,
-	  TLPT_SESSINS_UPDATE_WITH_EVENTS: null
+	  TLPT_SESSIONS_RECEIVE: null,
+	  TLPT_SESSIONS_UPDATE: null,
+	  TLPT_SESSIONS_UPDATE_WITH_EVENTS: null
 	});
 	module.exports = exports['default'];
 
@@ -2394,124 +2395,66 @@ webpackJsonp([0],{
 
 	var React = __webpack_require__(2);
 	var reactor = __webpack_require__(215);
+	var PureRenderMixin = __webpack_require__(349);
 
-	var _require = __webpack_require__(349);
+	var _require = __webpack_require__(352);
 
-	var getters = _require.getters;
+	var lastMessage = _require.lastMessage;
 
-	var _require2 = __webpack_require__(351);
+	var _require2 = __webpack_require__(353);
 
-	var closeSelectNodeDialog = _require2.closeSelectNodeDialog;
+	var ToastContainer = _require2.ToastContainer;
+	var ToastMessage = _require2.ToastMessage;
 
-	var NodeList = __webpack_require__(354);
-	var currentSessionGetters = __webpack_require__(360);
-	var nodeGetters = __webpack_require__(364);
-	var $ = __webpack_require__(223);
+	var ToastMessageFactory = React.createFactory(ToastMessage.animation);
 
-	var SelectNodeDialog = React.createClass({
-	  displayName: 'SelectNodeDialog',
+	var animationOptions = {
+	  showAnimation: 'animated fadeIn',
+	  hideAnimation: 'animated fadeOut'
+	};
 
-	  mixins: [reactor.ReactMixin],
+	var NotificationHost = React.createClass({
+	  displayName: 'NotificationHost',
+
+	  mixins: [reactor.ReactMixin, PureRenderMixin],
 
 	  getDataBindings: function getDataBindings() {
-	    return {
-	      dialogs: getters.dialogs
-	    };
+	    return { msg: lastMessage };
 	  },
 
-	  render: function render() {
-	    return this.state.dialogs.isSelectNodeDialogOpen ? React.createElement(Dialog, null) : null;
-	  }
-	});
-
-	var Dialog = React.createClass({
-	  displayName: 'Dialog',
-
-	  onLoginClick: function onLoginClick(serverId) {
-	    if (SelectNodeDialog.onServerChangeCallBack) {
-	      SelectNodeDialog.onServerChangeCallBack({ serverId: serverId });
+	  update: function update(msg) {
+	    if (msg) {
+	      if (msg.isError) {
+	        this.refs.container.error(msg.text, msg.title, animationOptions);
+	      } else if (msg.isWarning) {
+	        this.refs.container.warning(msg.text, msg.title, animationOptions);
+	      } else if (msg.isSuccess) {
+	        this.refs.container.success(msg.text, msg.title, animationOptions);
+	      } else {
+	        this.refs.container.info(msg.text, msg.title, animationOptions);
+	      }
 	    }
-
-	    closeSelectNodeDialog();
-	  },
-
-	  componentWillUnmount: function componentWillUnmount() {
-	    $('.modal').modal('hide');
 	  },
 
 	  componentDidMount: function componentDidMount() {
-	    $('.modal').modal('show');
+	    reactor.observe(lastMessage, this.update);
+	  },
+
+	  componentWillUnmount: function componentWillUnmount() {
+	    reactor.unobserve(lastMessage, this.update);
 	  },
 
 	  render: function render() {
-	    var activeSession = reactor.evaluate(currentSessionGetters.currentSession) || {};
-	    var nodeRecords = reactor.evaluate(nodeGetters.nodeListView);
-	    var logins = [activeSession.login];
-
-	    return React.createElement(
-	      'div',
-	      { className: 'modal fade grv-dialog-select-node', tabIndex: -1, role: 'dialog' },
-	      React.createElement(
-	        'div',
-	        { className: 'modal-dialog' },
-	        React.createElement(
-	          'div',
-	          { className: 'modal-content' },
-	          React.createElement('div', { className: 'modal-header' }),
-	          React.createElement(
-	            'div',
-	            { className: 'modal-body' },
-	            React.createElement(NodeList, { nodeRecords: nodeRecords, logins: logins, onLoginClick: this.onLoginClick })
-	          ),
-	          React.createElement(
-	            'div',
-	            { className: 'modal-footer' },
-	            React.createElement(
-	              'button',
-	              { onClick: closeSelectNodeDialog, type: 'button', className: 'btn btn-primary' },
-	              'Close'
-	            )
-	          )
-	        )
-	      )
-	    );
+	    return React.createElement(ToastContainer, {
+	      ref: 'container', toastMessageFactory: ToastMessageFactory, className: 'toast-top-right' });
 	  }
 	});
 
-	SelectNodeDialog.onServerChangeCallBack = function () {};
-
-	module.exports = SelectNodeDialog;
+	module.exports = NotificationHost;
 
 /***/ },
 
-/***/ 349:
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	'use strict';
-
-	module.exports.getters = __webpack_require__(350);
-	module.exports.actions = __webpack_require__(351);
-	module.exports.dialogStore = __webpack_require__(353);
-
-/***/ },
-
-/***/ 350:
+/***/ 352:
 /***/ function(module, exports) {
 
 	/*
@@ -2533,20 +2476,286 @@ webpackJsonp([0],{
 	'use strict';
 
 	Object.defineProperty(exports, '__esModule', {
-	  value: true
+	    value: true
 	});
-	var dialogs = [['tlpt_dialogs'], function (state) {
-	  return state.toJS();
+	var lastMessage = [['tlpt_notifications'], function (notifications) {
+	    return notifications.last();
 	}];
-
-	exports['default'] = {
-	  dialogs: dialogs
-	};
-	module.exports = exports['default'];
+	exports.lastMessage = lastMessage;
 
 /***/ },
 
-/***/ 351:
+/***/ 363:
+/***/ function(module, exports, __webpack_require__) {
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	'use strict';
+
+	var React = __webpack_require__(2);
+
+	var Timer = React.createClass({
+	  displayName: 'Timer',
+
+	  shouldComponentUpdate: function shouldComponentUpdate() {
+	    return false;
+	  },
+
+	  componentWillMount: function componentWillMount() {
+	    var _props = this.props;
+	    var onTimeout = _props.onTimeout;
+	    var _props$interval = _props.interval;
+	    var interval = _props$interval === undefined ? 2500 : _props$interval;
+
+	    onTimeout();
+	    this.refreshInterval = setInterval(onTimeout, interval);
+	  },
+
+	  componentWillUnmount: function componentWillUnmount() {
+	    clearInterval(this.refreshInterval);
+	  },
+
+	  render: function render() {
+	    return null;
+	  }
+
+	});
+
+	module.exports = Timer;
+
+/***/ },
+
+/***/ 364:
+/***/ function(module, exports, __webpack_require__) {
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	'use strict';
+
+	var React = __webpack_require__(2);
+	var $ = __webpack_require__(223);
+	var reactor = __webpack_require__(215);
+	var LinkedStateMixin = __webpack_require__(365);
+
+	var _require = __webpack_require__(369);
+
+	var actions = _require.actions;
+	var getters = _require.getters;
+
+	var GoogleAuthInfo = __webpack_require__(375);
+	var cfg = __webpack_require__(221);
+
+	var _require2 = __webpack_require__(226);
+
+	var TeleportLogo = _require2.TeleportLogo;
+
+	var _require3 = __webpack_require__(345);
+
+	var PROVIDER_GOOGLE = _require3.PROVIDER_GOOGLE;
+
+	var LoginInputForm = React.createClass({
+	  displayName: 'LoginInputForm',
+
+	  mixins: [LinkedStateMixin],
+
+	  getInitialState: function getInitialState() {
+	    return {
+	      user: '',
+	      password: '',
+	      token: '',
+	      provider: null
+	    };
+	  },
+
+	  onLogin: function onLogin(e) {
+	    e.preventDefault();
+	    if (this.isValid()) {
+	      this.props.onClick(this.state);
+	    }
+	  },
+
+	  onLoginWithGoogle: function onLoginWithGoogle(e) {
+	    e.preventDefault();
+	    this.state.provider = PROVIDER_GOOGLE;
+	    this.props.onClick(this.state);
+	  },
+
+	  isValid: function isValid() {
+	    var $form = $(this.refs.form);
+	    return $form.length === 0 || $form.valid();
+	  },
+
+	  render: function render() {
+	    var _props$attemp = this.props.attemp;
+	    var isProcessing = _props$attemp.isProcessing;
+	    var isFailed = _props$attemp.isFailed;
+	    var message = _props$attemp.message;
+
+	    var providers = cfg.getAuthProviders();
+	    var useGoogle = providers.indexOf(PROVIDER_GOOGLE) !== -1;
+
+	    return React.createElement(
+	      'form',
+	      { ref: 'form', className: 'grv-login-input-form' },
+	      React.createElement(
+	        'h3',
+	        null,
+	        ' Welcome to Teleport '
+	      ),
+	      React.createElement(
+	        'div',
+	        { className: '' },
+	        React.createElement(
+	          'div',
+	          { className: 'form-group' },
+	          React.createElement('input', { autoFocus: true, valueLink: this.linkState('user'), className: 'form-control required', placeholder: 'User name', name: 'userName' })
+	        ),
+	        React.createElement(
+	          'div',
+	          { className: 'form-group' },
+	          React.createElement('input', { valueLink: this.linkState('password'), type: 'password', name: 'password', className: 'form-control required', placeholder: 'Password' })
+	        ),
+	        React.createElement(
+	          'div',
+	          { className: 'form-group' },
+	          React.createElement('input', { autoComplete: 'off', valueLink: this.linkState('token'), className: 'form-control required', name: 'token', placeholder: 'Two factor token (Google Authenticator)' })
+	        ),
+	        React.createElement(
+	          'button',
+	          { onClick: this.onLogin, disabled: isProcessing, type: 'submit', className: 'btn btn-primary block full-width m-b' },
+	          'Login'
+	        ),
+	        useGoogle ? React.createElement(
+	          'button',
+	          { onClick: this.onLoginWithGoogle, type: 'submit', className: 'btn btn-danger block full-width m-b' },
+	          'With Google'
+	        ) : null,
+	        isFailed ? React.createElement(
+	          'label',
+	          { className: 'error' },
+	          message
+	        ) : null
+	      )
+	    );
+	  }
+	});
+
+	var Login = React.createClass({
+	  displayName: 'Login',
+
+	  mixins: [reactor.ReactMixin],
+
+	  getDataBindings: function getDataBindings() {
+	    return {
+	      attemp: getters.loginAttemp
+	    };
+	  },
+
+	  onClick: function onClick(inputData) {
+	    var loc = this.props.location;
+	    var redirect = cfg.routes.app;
+
+	    if (loc.state && loc.state.redirectTo) {
+	      redirect = loc.state.redirectTo;
+	    }
+
+	    actions.login(inputData, redirect);
+	  },
+
+	  render: function render() {
+	    return React.createElement(
+	      'div',
+	      { className: 'grv-login text-center' },
+	      React.createElement(TeleportLogo, null),
+	      React.createElement(
+	        'div',
+	        { className: 'grv-content grv-flex' },
+	        React.createElement(
+	          'div',
+	          { className: 'grv-flex-column' },
+	          React.createElement(LoginInputForm, { attemp: this.state.attemp, onClick: this.onClick }),
+	          React.createElement(GoogleAuthInfo, null),
+	          React.createElement(
+	            'div',
+	            { className: 'grv-login-info' },
+	            React.createElement('i', { className: 'fa fa-question' }),
+	            React.createElement(
+	              'strong',
+	              null,
+	              'New Account or forgot password?'
+	            ),
+	            React.createElement(
+	              'div',
+	              null,
+	              'Ask for assistance from your Company administrator'
+	            )
+	          )
+	        )
+	      )
+	    );
+	  }
+	});
+
+	module.exports = Login;
+
+/***/ },
+
+/***/ 369:
+/***/ function(module, exports, __webpack_require__) {
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	'use strict';
+
+	module.exports.getters = __webpack_require__(217);
+	module.exports.actions = __webpack_require__(370);
+	module.exports.nodeStore = __webpack_require__(374);
+
+/***/ },
+
+/***/ 370:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -2572,27 +2781,98 @@ webpackJsonp([0],{
 	});
 	var reactor = __webpack_require__(215);
 
-	var _require = __webpack_require__(352);
+	var _require = __webpack_require__(371);
 
-	var TLPT_DIALOG_SELECT_NODE_SHOW = _require.TLPT_DIALOG_SELECT_NODE_SHOW;
-	var TLPT_DIALOG_SELECT_NODE_CLOSE = _require.TLPT_DIALOG_SELECT_NODE_CLOSE;
+	var TLPT_RECEIVE_USER = _require.TLPT_RECEIVE_USER;
+	var TLPT_RECEIVE_USER_INVITE = _require.TLPT_RECEIVE_USER_INVITE;
 
-	var actions = {
-	  showSelectNodeDialog: function showSelectNodeDialog() {
-	    reactor.dispatch(TLPT_DIALOG_SELECT_NODE_SHOW);
+	var _require2 = __webpack_require__(218);
+
+	var TRYING_TO_SIGN_UP = _require2.TRYING_TO_SIGN_UP;
+	var TRYING_TO_LOGIN = _require2.TRYING_TO_LOGIN;
+	var FETCHING_INVITE = _require2.FETCHING_INVITE;
+
+	var restApiActions = __webpack_require__(372);
+	var auth = __webpack_require__(345);
+	var session = __webpack_require__(237);
+	var cfg = __webpack_require__(221);
+	var api = __webpack_require__(236);
+
+	exports['default'] = {
+
+	  fetchInvite: function fetchInvite(inviteToken) {
+	    var path = cfg.api.getInviteUrl(inviteToken);
+	    restApiActions.start(FETCHING_INVITE);
+	    api.get(path).done(function (invite) {
+	      restApiActions.success(FETCHING_INVITE);
+	      reactor.dispatch(TLPT_RECEIVE_USER_INVITE, invite);
+	    }).fail(function (err) {
+	      restApiActions.fail(FETCHING_INVITE, err.responseJSON.message);
+	    });
 	  },
 
-	  closeSelectNodeDialog: function closeSelectNodeDialog() {
-	    reactor.dispatch(TLPT_DIALOG_SELECT_NODE_CLOSE);
+	  ensureUser: function ensureUser(nextState, replace, cb) {
+	    auth.ensureUser().done(function (userData) {
+	      reactor.dispatch(TLPT_RECEIVE_USER, userData.user);
+	      cb();
+	    }).fail(function () {
+	      var newLocation = {
+	        pathname: cfg.routes.login,
+	        state: {
+	          redirectTo: nextState.location.pathname
+	        }
+	      };
+
+	      replace(newLocation);
+	      cb();
+	    });
+	  },
+
+	  signUp: function signUp(_ref) {
+	    var name = _ref.name;
+	    var psw = _ref.psw;
+	    var token = _ref.token;
+	    var inviteToken = _ref.inviteToken;
+
+	    restApiActions.start(TRYING_TO_SIGN_UP);
+	    auth.signUp(name, psw, token, inviteToken).done(function (sessionData) {
+	      reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
+	      restApiActions.success(TRYING_TO_SIGN_UP);
+	      session.getHistory().push({ pathname: cfg.routes.app });
+	    }).fail(function (err) {
+	      var msg = err.responseJSON ? err.responseJSON.message : 'Failed to sing up';
+	      restApiActions.fail(TRYING_TO_SIGN_UP, msg);
+	    });
+	  },
+
+	  login: function login(_ref2, redirect) {
+	    var user = _ref2.user;
+	    var password = _ref2.password;
+	    var token = _ref2.token;
+	    var provider = _ref2.provider;
+
+	    if (provider) {
+	      var fullPath = cfg.getFullUrl(redirect);
+	      window.location = cfg.api.getSsoUrl(fullPath, provider);
+	      return;
+	    }
+
+	    restApiActions.start(TRYING_TO_LOGIN);
+	    auth.login(user, password, token).done(function (sessionData) {
+	      restApiActions.success(TRYING_TO_LOGIN);
+	      reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
+	      session.getHistory().push({ pathname: redirect });
+	    }).fail(function (err) {
+	      var msg = err.responseJSON ? err.responseJSON.message : 'Error';
+	      restApiActions.fail(TRYING_TO_LOGIN, msg);
+	    });
 	  }
 	};
-
-	exports['default'] = actions;
 	module.exports = exports['default'];
 
 /***/ },
 
-/***/ 352:
+/***/ 371:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -2624,14 +2904,104 @@ webpackJsonp([0],{
 	var _keymirror2 = _interopRequireDefault(_keymirror);
 
 	exports['default'] = (0, _keymirror2['default'])({
-	  TLPT_DIALOG_SELECT_NODE_SHOW: null,
-	  TLPT_DIALOG_SELECT_NODE_CLOSE: null
+	  TLPT_RECEIVE_USER: null,
+	  TLPT_RECEIVE_USER_INVITE: null
 	});
 	module.exports = exports['default'];
 
 /***/ },
 
-/***/ 353:
+/***/ 372:
+/***/ function(module, exports, __webpack_require__) {
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	'use strict';
+
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
+	var reactor = __webpack_require__(215);
+
+	var _require = __webpack_require__(373);
+
+	var TLPT_REST_API_START = _require.TLPT_REST_API_START;
+	var TLPT_REST_API_SUCCESS = _require.TLPT_REST_API_SUCCESS;
+	var TLPT_REST_API_FAIL = _require.TLPT_REST_API_FAIL;
+	exports['default'] = {
+
+	  start: function start(reqType) {
+	    reactor.dispatch(TLPT_REST_API_START, { type: reqType });
+	  },
+
+	  fail: function fail(reqType, message) {
+	    reactor.dispatch(TLPT_REST_API_FAIL, { type: reqType, message: message });
+	  },
+
+	  success: function success(reqType) {
+	    reactor.dispatch(TLPT_REST_API_SUCCESS, { type: reqType });
+	  }
+
+	};
+	module.exports = exports['default'];
+
+/***/ },
+
+/***/ 373:
+/***/ function(module, exports, __webpack_require__) {
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	'use strict';
+
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
+
+	var _keymirror = __webpack_require__(219);
+
+	var _keymirror2 = _interopRequireDefault(_keymirror);
+
+	exports['default'] = (0, _keymirror2['default'])({
+	  TLPT_REST_API_START: null,
+	  TLPT_REST_API_SUCCESS: null,
+	  TLPT_REST_API_FAIL: null
+	});
+	module.exports = exports['default'];
+
+/***/ },
+
+/***/ 374:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -2661,36 +3031,655 @@ webpackJsonp([0],{
 	var Store = _require.Store;
 	var toImmutable = _require.toImmutable;
 
-	var _require2 = __webpack_require__(352);
+	var _require2 = __webpack_require__(371);
 
-	var TLPT_DIALOG_SELECT_NODE_SHOW = _require2.TLPT_DIALOG_SELECT_NODE_SHOW;
-	var TLPT_DIALOG_SELECT_NODE_CLOSE = _require2.TLPT_DIALOG_SELECT_NODE_CLOSE;
+	var TLPT_RECEIVE_USER = _require2.TLPT_RECEIVE_USER;
 	exports['default'] = Store({
-
 	  getInitialState: function getInitialState() {
-	    return toImmutable({
-	      isSelectNodeDialogOpen: false
-	    });
+	    return toImmutable(null);
 	  },
 
 	  initialize: function initialize() {
-	    this.on(TLPT_DIALOG_SELECT_NODE_SHOW, showSelectNodeDialog);
-	    this.on(TLPT_DIALOG_SELECT_NODE_CLOSE, closeSelectNodeDialog);
+	    this.on(TLPT_RECEIVE_USER, receiveUser);
 	  }
+
 	});
 
-	function showSelectNodeDialog(state) {
-	  return state.set('isSelectNodeDialogOpen', true);
-	}
-
-	function closeSelectNodeDialog(state) {
-	  return state.set('isSelectNodeDialogOpen', false);
+	function receiveUser(state, user) {
+	  return toImmutable(user);
 	}
 	module.exports = exports['default'];
 
 /***/ },
 
-/***/ 354:
+/***/ 375:
+/***/ function(module, exports, __webpack_require__) {
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	"use strict";
+
+	var React = __webpack_require__(2);
+
+	var GoogleAuthInfo = React.createClass({
+	  displayName: "GoogleAuthInfo",
+
+	  render: function render() {
+	    return React.createElement(
+	      "div",
+	      { className: "grv-google-auth text-left" },
+	      React.createElement("div", { className: "grv-icon-google-auth" }),
+	      React.createElement(
+	        "strong",
+	        null,
+	        "Google Authenticator"
+	      ),
+	      React.createElement(
+	        "div",
+	        null,
+	        "Download ",
+	        React.createElement(
+	          "a",
+	          { href: "https://support.google.com/accounts/answer/1066447?hl=en" },
+	          "Google Authenticator"
+	        ),
+	        " on your phone to access your two factor token"
+	      )
+	    );
+	  }
+	});
+
+	module.exports = GoogleAuthInfo;
+
+/***/ },
+
+/***/ 376:
+/***/ function(module, exports, __webpack_require__) {
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	'use strict';
+
+	var React = __webpack_require__(2);
+	var $ = __webpack_require__(223);
+	var reactor = __webpack_require__(215);
+
+	var _require = __webpack_require__(369);
+
+	var actions = _require.actions;
+	var getters = _require.getters;
+
+	var LinkedStateMixin = __webpack_require__(365);
+	var GoogleAuthInfo = __webpack_require__(375);
+
+	var _require2 = __webpack_require__(377);
+
+	var ErrorPage = _require2.ErrorPage;
+	var ErrorTypes = _require2.ErrorTypes;
+
+	var _require3 = __webpack_require__(226);
+
+	var TeleportLogo = _require3.TeleportLogo;
+
+	var InviteInputForm = React.createClass({
+	  displayName: 'InviteInputForm',
+
+	  mixins: [LinkedStateMixin],
+
+	  componentDidMount: function componentDidMount() {
+	    $(this.refs.form).validate({
+	      rules: {
+	        password: {
+	          minlength: 6,
+	          required: true
+	        },
+	        passwordConfirmed: {
+	          required: true,
+	          equalTo: this.refs.password
+	        }
+	      },
+
+	      messages: {
+	        passwordConfirmed: {
+	          minlength: $.validator.format('Enter at least {0} characters'),
+	          equalTo: 'Enter the same password as above'
+	        }
+	      }
+	    });
+	  },
+
+	  getInitialState: function getInitialState() {
+	    return {
+	      name: this.props.invite.user,
+	      psw: '',
+	      pswConfirmed: '',
+	      token: ''
+	    };
+	  },
+
+	  onClick: function onClick(e) {
+	    e.preventDefault();
+	    if (this.isValid()) {
+	      actions.signUp({
+	        name: this.state.name,
+	        psw: this.state.psw,
+	        token: this.state.token,
+	        inviteToken: this.props.invite.invite_token });
+	    }
+	  },
+
+	  isValid: function isValid() {
+	    var $form = $(this.refs.form);
+	    return $form.length === 0 || $form.valid();
+	  },
+
+	  render: function render() {
+	    var _props$attemp = this.props.attemp;
+	    var isProcessing = _props$attemp.isProcessing;
+	    var isFailed = _props$attemp.isFailed;
+	    var message = _props$attemp.message;
+
+	    return React.createElement(
+	      'form',
+	      { ref: 'form', className: 'grv-invite-input-form' },
+	      React.createElement(
+	        'h3',
+	        null,
+	        ' Get started with Teleport '
+	      ),
+	      React.createElement(
+	        'div',
+	        { className: '' },
+	        React.createElement(
+	          'div',
+	          { className: 'form-group' },
+	          React.createElement('input', {
+	            disabled: true,
+	            valueLink: this.linkState('name'),
+	            name: 'userName',
+	            className: 'form-control required',
+	            placeholder: 'User name' })
+	        ),
+	        React.createElement(
+	          'div',
+	          { className: 'form-group' },
+	          React.createElement('input', {
+	            autoFocus: true,
+	            valueLink: this.linkState('psw'),
+	            ref: 'password',
+	            type: 'password',
+	            name: 'password',
+	            className: 'form-control',
+	            placeholder: 'Password' })
+	        ),
+	        React.createElement(
+	          'div',
+	          { className: 'form-group' },
+	          React.createElement('input', {
+	            valueLink: this.linkState('pswConfirmed'),
+	            type: 'password',
+	            name: 'passwordConfirmed',
+	            className: 'form-control',
+	            placeholder: 'Password confirm' })
+	        ),
+	        React.createElement(
+	          'div',
+	          { className: 'form-group' },
+	          React.createElement('input', {
+	            autoComplete: 'off',
+	            name: 'token',
+	            valueLink: this.linkState('token'),
+	            className: 'form-control required',
+	            placeholder: 'Two factor token (Google Authenticator)' })
+	        ),
+	        React.createElement(
+	          'button',
+	          { type: 'submit', disabled: isProcessing, className: 'btn btn-primary block full-width m-b', onClick: this.onClick },
+	          'Sign up'
+	        ),
+	        isFailed ? React.createElement(
+	          'label',
+	          { className: 'error' },
+	          message
+	        ) : null
+	      )
+	    );
+	  }
+	});
+
+	var Invite = React.createClass({
+	  displayName: 'Invite',
+
+	  mixins: [reactor.ReactMixin],
+
+	  getDataBindings: function getDataBindings() {
+	    return {
+	      invite: getters.invite,
+	      attemp: getters.attemp,
+	      fetchingInvite: getters.fetchingInvite
+	    };
+	  },
+
+	  componentDidMount: function componentDidMount() {
+	    actions.fetchInvite(this.props.params.inviteToken);
+	  },
+
+	  render: function render() {
+	    var _state = this.state;
+	    var fetchingInvite = _state.fetchingInvite;
+	    var invite = _state.invite;
+	    var attemp = _state.attemp;
+
+	    if (fetchingInvite.isFailed) {
+	      return React.createElement(ErrorPage, { type: ErrorTypes.EXPIRED_INVITE });
+	    }
+
+	    if (!invite) {
+	      return null;
+	    }
+
+	    return React.createElement(
+	      'div',
+	      { className: 'grv-invite text-center' },
+	      React.createElement(TeleportLogo, null),
+	      React.createElement(
+	        'div',
+	        { className: 'grv-content grv-flex' },
+	        React.createElement(
+	          'div',
+	          { className: 'grv-flex-column' },
+	          React.createElement(InviteInputForm, { attemp: attemp, invite: invite.toJS() }),
+	          React.createElement(GoogleAuthInfo, null)
+	        ),
+	        React.createElement(
+	          'div',
+	          { className: 'grv-flex-column grv-invite-barcode' },
+	          React.createElement(
+	            'h4',
+	            null,
+	            'Scan bar code for auth token ',
+	            React.createElement('br', null),
+	            ' ',
+	            React.createElement(
+	              'small',
+	              null,
+	              'Scan below to generate your two factor token'
+	            )
+	          ),
+	          React.createElement('img', { className: 'img-thumbnail', src: 'data:image/png;base64,' + invite.get('qr') })
+	        )
+	      )
+	    );
+	  }
+	});
+
+	module.exports = Invite;
+
+/***/ },
+
+/***/ 377:
+/***/ function(module, exports, __webpack_require__) {
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	'use strict';
+
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
+	var React = __webpack_require__(2);
+
+	var MSG_INFO_LOGIN_SUCCESS = 'Login was successful, you can close this window and continue using tsh.';
+	var MSG_ERROR_LOGIN_FAILED = 'Login unsuccessful. Please try again, if the problem persists, contact your system administator.';
+	var MSG_ERROR_DEFAULT = 'Whoops, something went wrong.';
+
+	var MSG_ERROR_NOT_FOUND = 'Whoops, we cannot find that.';
+	var MSG_ERROR_NOT_FOUND_DETAILS = 'Looks like the page you are looking for isn\'t here any longer.';
+
+	var MSG_ERROR_EXPIRED_INVITE = 'Invite code has expired.';
+	var MSG_ERROR_EXPIRED_INVITE_DETAILS = 'Looks like your invite code isn\'t valid anymore.';
+
+	var MsgType = {
+	  INFO: 'info',
+	  ERROR: 'error'
+	};
+
+	var ErrorTypes = {
+	  FAILED_TO_LOGIN: 'login_failed',
+	  EXPIRED_INVITE: 'expired_invite',
+	  NOT_FOUND: 'not_found'
+	};
+
+	var InfoTypes = {
+	  LOGIN_SUCCESS: 'login_success'
+	};
+
+	var MessagePage = React.createClass({
+	  displayName: 'MessagePage',
+
+	  render: function render() {
+	    var _props$params = this.props.params;
+	    var type = _props$params.type;
+	    var subType = _props$params.subType;
+
+	    if (type === MsgType.ERROR) {
+	      return React.createElement(ErrorPage, { type: subType });
+	    }
+
+	    if (type === MsgType.INFO) {
+	      return React.createElement(InfoPage, { type: subType });
+	    }
+
+	    return null;
+	  }
+	});
+
+	var ErrorPage = React.createClass({
+	  displayName: 'ErrorPage',
+
+	  render: function render() {
+	    var type = this.props.type;
+
+	    var msgBody = React.createElement(
+	      'div',
+	      null,
+	      React.createElement(
+	        'h1',
+	        null,
+	        MSG_ERROR_DEFAULT
+	      )
+	    );
+
+	    if (type === ErrorTypes.FAILED_TO_LOGIN) {
+	      msgBody = React.createElement(
+	        'div',
+	        null,
+	        React.createElement(
+	          'h1',
+	          null,
+	          MSG_ERROR_LOGIN_FAILED
+	        )
+	      );
+	    }
+
+	    if (type === ErrorTypes.EXPIRED_INVITE) {
+	      msgBody = React.createElement(
+	        'div',
+	        null,
+	        React.createElement(
+	          'h1',
+	          null,
+	          MSG_ERROR_EXPIRED_INVITE
+	        ),
+	        React.createElement(
+	          'div',
+	          null,
+	          MSG_ERROR_EXPIRED_INVITE_DETAILS
+	        )
+	      );
+	    }
+
+	    if (type === ErrorTypes.NOT_FOUND) {
+	      msgBody = React.createElement(
+	        'div',
+	        null,
+	        React.createElement(
+	          'h1',
+	          null,
+	          MSG_ERROR_NOT_FOUND
+	        ),
+	        React.createElement(
+	          'div',
+	          null,
+	          MSG_ERROR_NOT_FOUND_DETAILS
+	        )
+	      );
+	    }
+
+	    return React.createElement(
+	      'div',
+	      { className: 'grv-msg-page' },
+	      React.createElement(
+	        'div',
+	        { className: 'grv-header' },
+	        React.createElement('i', { className: 'fa fa-frown-o' }),
+	        ' '
+	      ),
+	      msgBody,
+	      React.createElement(
+	        'div',
+	        { className: 'contact-section' },
+	        'If you believe this is an issue with Teleport, please ',
+	        React.createElement(
+	          'a',
+	          { href: 'https://github.com/gravitational/teleport/issues/new' },
+	          'create a GitHub issue.'
+	        )
+	      )
+	    );
+	  }
+	});
+
+	var InfoPage = React.createClass({
+	  displayName: 'InfoPage',
+
+	  render: function render() {
+	    var type = this.props.type;
+
+	    var msgBody = null;
+
+	    if (type === InfoTypes.LOGIN_SUCCESS) {
+	      msgBody = React.createElement(
+	        'div',
+	        null,
+	        React.createElement(
+	          'h1',
+	          null,
+	          MSG_INFO_LOGIN_SUCCESS
+	        )
+	      );
+	    }
+
+	    return React.createElement(
+	      'div',
+	      { className: 'grv-msg-page' },
+	      React.createElement(
+	        'div',
+	        { className: 'grv-header' },
+	        React.createElement('i', { className: 'fa fa-smile-o' }),
+	        ' '
+	      ),
+	      msgBody
+	    );
+	  }
+	});
+
+	var NotFound = function NotFound() {
+	  return React.createElement(ErrorPage, { type: ErrorTypes.NOT_FOUND });
+	};
+
+	exports.ErrorPage = ErrorPage;
+	exports.InfoPage = InfoPage;
+	exports.NotFound = NotFound;
+	exports.ErrorTypes = ErrorTypes;
+	exports.MessagePage = MessagePage;
+
+/***/ },
+
+/***/ 378:
+/***/ function(module, exports, __webpack_require__) {
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	'use strict';
+
+	var React = __webpack_require__(2);
+	var reactor = __webpack_require__(215);
+	var userGetters = __webpack_require__(217);
+	var nodeGetters = __webpack_require__(379);
+	var NodeList = __webpack_require__(380);
+
+	var Nodes = React.createClass({
+	  displayName: 'Nodes',
+
+	  mixins: [reactor.ReactMixin],
+
+	  getDataBindings: function getDataBindings() {
+	    return {
+	      nodeRecords: nodeGetters.nodeListView,
+	      user: userGetters.user
+	    };
+	  },
+
+	  render: function render() {
+	    var nodeRecords = this.state.nodeRecords;
+	    var logins = this.state.user.logins;
+	    return React.createElement(NodeList, { nodeRecords: nodeRecords, logins: logins });
+	  }
+	});
+
+	module.exports = Nodes;
+
+/***/ },
+
+/***/ 379:
+/***/ function(module, exports) {
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	'use strict';
+
+	Object.defineProperty(exports, '__esModule', {
+	  value: true
+	});
+	var nodeHostNameByServerId = function nodeHostNameByServerId(serverId) {
+	  return [['tlpt_nodes'], function (nodes) {
+	    var server = nodes.find(function (item) {
+	      return item.get('id') === serverId;
+	    });
+	    return !server ? '' : server.get('hostname');
+	  }];
+	};
+
+	var nodeListView = [['tlpt_nodes'], function (nodes) {
+	  return nodes.map(function (item) {
+	    var serverId = item.get('id');
+	    return {
+	      id: serverId,
+	      hostname: item.get('hostname'),
+	      tags: getTags(item),
+	      addr: item.get('addr')
+	    };
+	  }).toJS();
+	}];
+
+	function getTags(node) {
+	  var allLabels = [];
+	  var labels = node.get('labels');
+
+	  if (labels) {
+	    labels.entrySeq().toArray().forEach(function (item) {
+	      allLabels.push({
+	        role: item[0],
+	        value: item[1]
+	      });
+	    });
+	  }
+
+	  labels = node.get('cmd_labels');
+
+	  if (labels) {
+	    labels.entrySeq().toArray().forEach(function (item) {
+	      allLabels.push({
+	        role: item[0],
+	        value: item[1].get('result'),
+	        tooltip: item[1].get('command')
+	      });
+	    });
+	  }
+
+	  return allLabels;
+	}
+
+	exports['default'] = {
+	  nodeListView: nodeListView,
+	  nodeHostNameByServerId: nodeHostNameByServerId
+	};
+	module.exports = exports['default'];
+
+/***/ },
+
+/***/ 380:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -2716,9 +3705,9 @@ webpackJsonp([0],{
 	function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
 	var React = __webpack_require__(2);
-	var InputSearch = __webpack_require__(355);
+	var InputSearch = __webpack_require__(381);
 
-	var _require = __webpack_require__(358);
+	var _require = __webpack_require__(384);
 
 	var Table = _require.Table;
 	var Column = _require.Column;
@@ -2727,13 +3716,13 @@ webpackJsonp([0],{
 	var SortTypes = _require.SortTypes;
 	var EmptyIndicator = _require.EmptyIndicator;
 
-	var _require2 = __webpack_require__(359);
+	var _require2 = __webpack_require__(385);
 
 	var createNewSession = _require2.createNewSession;
 
-	var _ = __webpack_require__(356);
+	var _ = __webpack_require__(382);
 
-	var _require3 = __webpack_require__(363);
+	var _require3 = __webpack_require__(389);
 
 	var isMatch = _require3.isMatch;
 
@@ -2963,7 +3952,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 355:
+/***/ 381:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -2986,7 +3975,7 @@ webpackJsonp([0],{
 
 	var React = __webpack_require__(2);
 
-	var _require = __webpack_require__(356);
+	var _require = __webpack_require__(382);
 
 	var debounce = _require.debounce;
 
@@ -3027,7 +4016,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 358:
+/***/ 384:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -3270,7 +4259,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 359:
+/***/ 385:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -3297,7 +4286,7 @@ webpackJsonp([0],{
 	var session = __webpack_require__(237);
 	var api = __webpack_require__(236);
 	var cfg = __webpack_require__(221);
-	var getters = __webpack_require__(360);
+	var getters = __webpack_require__(386);
 
 	var _require = __webpack_require__(235);
 
@@ -3305,26 +4294,61 @@ webpackJsonp([0],{
 	var fetchStoredSession = _require.fetchStoredSession;
 	var updateSession = _require.updateSession;
 
-	var sessionGetters = __webpack_require__(361);
+	var sessionGetters = __webpack_require__(387);
 	var $ = __webpack_require__(223);
 
 	var logger = __webpack_require__(238).create('Current Session');
 
-	var _require2 = __webpack_require__(362);
+	var _require2 = __webpack_require__(388);
 
 	var TLPT_CURRENT_SESSION_OPEN = _require2.TLPT_CURRENT_SESSION_OPEN;
 	var TLPT_CURRENT_SESSION_CLOSE = _require2.TLPT_CURRENT_SESSION_CLOSE;
 
 	var actions = {
 
-	  processSessionEventStream: function processSessionEventStream(data) {
-	    data.events.forEach(function (item) {
-	      if (item.event === 'session.end') {
-	        actions.close();
-	      }
-	    });
+	  createNewSession: function createNewSession(serverId, login) {
+	    var data = { 'session': { 'terminal_params': { 'w': 45, 'h': 5 }, login: login } };
+	    api.post(cfg.api.siteSessionPath, data).then(function (json) {
+	      var sid = json.session.id;
+	      var routeUrl = cfg.getCurrentSessionRouteUrl(sid);
+	      var history = session.getHistory();
 
-	    updateSession(data.session);
+	      reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {
+	        serverId: serverId,
+	        login: login,
+	        sid: sid,
+	        isNewSession: true
+	      });
+
+	      history.push(routeUrl);
+	    });
+	  },
+
+	  openSession: function openSession(nextState) {
+	    var sid = nextState.params.sid;
+
+	    var currentSession = reactor.evaluate(getters.currentSession);
+	    if (currentSession) {
+	      return;
+	    }
+
+	    logger.info('attempt to open session', { sid: sid });
+	    $.when(fetchActiveSessions(), fetchStoredSession(sid)).done(function () {
+	      var sView = reactor.evaluate(sessionGetters.sessionViewById(sid));
+	      var serverId = sView.serverId;
+	      var login = sView.login;
+
+	      logger.info('open session', 'OK');
+	      reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {
+	        serverId: serverId,
+	        login: login,
+	        sid: sid,
+	        isNewSession: false
+	      });
+	    }).fail(function (err) {
+	      logger.error('open session', err);
+	      reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, null);
+	    });
 	  },
 
 	  close: function close() {
@@ -3341,44 +4365,16 @@ webpackJsonp([0],{
 	    }
 	  },
 
-	  openSession: function openSession(sid) {
-	    logger.info('attempt to open session', { sid: sid });
-
-	    $.when(fetchActiveSessions(), fetchStoredSession(sid)).done(function () {
-	      var sView = reactor.evaluate(sessionGetters.sessionViewById(sid));
-	      var serverId = sView.serverId;
-	      var login = sView.login;
-
-	      logger.info('open session', 'OK');
-	      reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {
-	        serverId: serverId,
-	        login: login,
-	        sid: sid,
-	        isNewSession: false
-	      });
-	    }).fail(function (err) {
-	      logger.error('open session', err);
-	      session.getHistory().push(cfg.routes.pageNotFound);
+	  processSessionEventStream: function processSessionEventStream(data) {
+	    data.events.forEach(function (item) {
+	      if (item.event === 'session.end') {
+	        actions.close();
+	      }
 	    });
-	  },
 
-	  createNewSession: function createNewSession(serverId, login) {
-	    var data = { 'session': { 'terminal_params': { 'w': 45, 'h': 5 }, login: login } };
-	    api.post(cfg.api.siteSessionPath, data).then(function (json) {
-	      var sid = json.session.id;
-	      var routeUrl = cfg.getActiveSessionRouteUrl(sid);
-	      var history = session.getHistory();
-
-	      reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {
-	        serverId: serverId,
-	        login: login,
-	        sid: sid,
-	        isNewSession: true
-	      });
-
-	      history.push(routeUrl);
-	    });
+	    updateSession(data.session);
 	  }
+
 	};
 
 	exports['default'] = actions;
@@ -3386,7 +4382,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 360:
+/***/ 386:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -3411,7 +4407,7 @@ webpackJsonp([0],{
 	  value: true
 	});
 
-	var _require = __webpack_require__(361);
+	var _require = __webpack_require__(387);
 
 	var createView = _require.createView;
 
@@ -3427,10 +4423,7 @@ webpackJsonp([0],{
 	  */
 	  var curSessionView = {
 	    isNewSession: current.get('isNewSession'),
-	    notFound: current.get('notFound'),
-	    addr: current.get('addr'),
 	    serverId: current.get('serverId'),
-	    serverIp: undefined,
 	    login: current.get('login'),
 	    sid: current.get('sid'),
 	    cols: undefined,
@@ -3444,7 +4437,6 @@ webpackJsonp([0],{
 	    var existing = createView(sessions.get(curSessionView.sid));
 
 	    curSessionView.parties = existing.parties;
-	    curSessionView.serverIp = existing.serverIp;
 	    curSessionView.serverId = existing.serverId;
 	    curSessionView.active = existing.active;
 	    curSessionView.cols = existing.cols;
@@ -3461,7 +4453,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 361:
+/***/ 387:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -3486,25 +4478,8 @@ webpackJsonp([0],{
 	  value: true
 	});
 	var moment = __webpack_require__(242);
-
-	var _require = __webpack_require__(216);
-
-	var toImmutable = _require.toImmutable;
-
 	var reactor = __webpack_require__(215);
 	var cfg = __webpack_require__(221);
-
-	var sessionsByServer = function sessionsByServer(serverId) {
-	  return [['tlpt_sessions'], function (sessions) {
-	    return sessions.valueSeq().filter(function (item) {
-	      var parties = item.get('parties') || toImmutable([]);
-	      var hasServer = parties.find(function (item2) {
-	        return item2.get('server_id') === serverId;
-	      });
-	      return hasServer;
-	    }).toList();
-	  }];
-	};
 
 	var sessionsView = [['tlpt_sessions'], function (sessions) {
 	  return sessions.valueSeq().map(createView).toJS();
@@ -3546,8 +4521,8 @@ webpackJsonp([0],{
 	    serverIp = parties[0].serverIp;
 	  }
 
-	  var created = session.get('created');
-	  var lastActive = session.get('last_active');
+	  var created = new Date(session.get('created'));
+	  var lastActive = new Date(session.get('last_active'));
 	  var duration = moment(created).diff(lastActive);
 
 	  return {
@@ -3557,12 +4532,14 @@ webpackJsonp([0],{
 	    lastActive: lastActive,
 	    duration: duration,
 	    serverIp: serverIp,
+	    stored: session.get('stored'),
 	    serverId: session.get('server_id'),
 	    clientIp: session.get('clientIp'),
 	    nodeIp: session.get('nodeIp'),
 	    active: session.get('active'),
+	    user: session.get('user'),
 	    login: session.get('login'),
-	    sessionUrl: cfg.getActiveSessionRouteUrl(sid),
+	    sessionUrl: cfg.getCurrentSessionRouteUrl(sid),
 	    cols: session.getIn(['terminal_params', 'w']),
 	    rows: session.getIn(['terminal_params', 'h'])
 	  };
@@ -3570,7 +4547,6 @@ webpackJsonp([0],{
 
 	exports['default'] = {
 	  partiesBySessionId: partiesBySessionId,
-	  sessionsByServer: sessionsByServer,
 	  sessionsView: sessionsView,
 	  sessionViewById: sessionViewById,
 	  createView: createView,
@@ -3582,7 +4558,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 362:
+/***/ 388:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -3620,7 +4596,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 363:
+/***/ 389:
 /***/ function(module, exports) {
 
 	/*
@@ -3668,1314 +4644,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 364:
-/***/ function(module, exports) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	'use strict';
-
-	Object.defineProperty(exports, '__esModule', {
-	  value: true
-	});
-	var nodeHostNameByServerId = function nodeHostNameByServerId(serverId) {
-	  return [['tlpt_nodes'], function (nodes) {
-	    var server = nodes.find(function (item) {
-	      return item.get('id') === serverId;
-	    });
-	    return !server ? '' : server.get('hostname');
-	  }];
-	};
-
-	var nodeListView = [['tlpt_nodes'], function (nodes) {
-	  return nodes.map(function (item) {
-	    var serverId = item.get('id');
-	    return {
-	      id: serverId,
-	      hostname: item.get('hostname'),
-	      tags: getTags(item),
-	      addr: item.get('addr')
-	    };
-	  }).toJS();
-	}];
-
-	function getTags(node) {
-	  var allLabels = [];
-	  var labels = node.get('labels');
-
-	  if (labels) {
-	    labels.entrySeq().toArray().forEach(function (item) {
-	      allLabels.push({
-	        role: item[0],
-	        value: item[1]
-	      });
-	    });
-	  }
-
-	  labels = node.get('cmd_labels');
-
-	  if (labels) {
-	    labels.entrySeq().toArray().forEach(function (item) {
-	      allLabels.push({
-	        role: item[0],
-	        value: item[1].get('result'),
-	        tooltip: item[1].get('command')
-	      });
-	    });
-	  }
-
-	  return allLabels;
-	}
-
-	exports['default'] = {
-	  nodeListView: nodeListView,
-	  nodeHostNameByServerId: nodeHostNameByServerId
-	};
-	module.exports = exports['default'];
-
-/***/ },
-
-/***/ 365:
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	'use strict';
-
-	var React = __webpack_require__(2);
-	var reactor = __webpack_require__(215);
-	var PureRenderMixin = __webpack_require__(366);
-
-	var _require = __webpack_require__(369);
-
-	var lastMessage = _require.lastMessage;
-
-	var _require2 = __webpack_require__(370);
-
-	var ToastContainer = _require2.ToastContainer;
-	var ToastMessage = _require2.ToastMessage;
-
-	var ToastMessageFactory = React.createFactory(ToastMessage.animation);
-
-	var animationOptions = {
-	  showAnimation: 'animated fadeIn',
-	  hideAnimation: 'animated fadeOut'
-	};
-
-	var NotificationHost = React.createClass({
-	  displayName: 'NotificationHost',
-
-	  mixins: [reactor.ReactMixin, PureRenderMixin],
-
-	  getDataBindings: function getDataBindings() {
-	    return { msg: lastMessage };
-	  },
-
-	  update: function update(msg) {
-	    if (msg) {
-	      if (msg.isError) {
-	        this.refs.container.error(msg.text, msg.title, animationOptions);
-	      } else if (msg.isWarning) {
-	        this.refs.container.warning(msg.text, msg.title, animationOptions);
-	      } else if (msg.isSuccess) {
-	        this.refs.container.success(msg.text, msg.title, animationOptions);
-	      } else {
-	        this.refs.container.info(msg.text, msg.title, animationOptions);
-	      }
-	    }
-	  },
-
-	  componentDidMount: function componentDidMount() {
-	    reactor.observe(lastMessage, this.update);
-	  },
-
-	  componentWillUnmount: function componentWillUnmount() {
-	    reactor.unobserve(lastMessage, this.update);
-	  },
-
-	  render: function render() {
-	    return React.createElement(ToastContainer, {
-	      ref: 'container', toastMessageFactory: ToastMessageFactory, className: 'toast-top-right' });
-	  }
-	});
-
-	module.exports = NotificationHost;
-
-/***/ },
-
-/***/ 369:
-/***/ function(module, exports) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	'use strict';
-
-	Object.defineProperty(exports, '__esModule', {
-	    value: true
-	});
-	var lastMessage = [['tlpt_notifications'], function (notifications) {
-	    return notifications.last();
-	}];
-	exports.lastMessage = lastMessage;
-
-/***/ },
-
-/***/ 380:
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	'use strict';
-
-	var React = __webpack_require__(2);
-
-	var Timer = React.createClass({
-	  displayName: 'Timer',
-
-	  shouldComponentUpdate: function shouldComponentUpdate() {
-	    return false;
-	  },
-
-	  componentWillMount: function componentWillMount() {
-	    var _props = this.props;
-	    var onTimeout = _props.onTimeout;
-	    var _props$interval = _props.interval;
-	    var interval = _props$interval === undefined ? 2500 : _props$interval;
-
-	    onTimeout();
-	    this.refreshInterval = setInterval(onTimeout, interval);
-	  },
-
-	  componentWillUnmount: function componentWillUnmount() {
-	    clearInterval(this.refreshInterval);
-	  },
-
-	  render: function render() {
-	    return null;
-	  }
-
-	});
-
-	module.exports = Timer;
-
-/***/ },
-
-/***/ 381:
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	'use strict';
-
-	var React = __webpack_require__(2);
-	var $ = __webpack_require__(223);
-	var reactor = __webpack_require__(215);
-	var LinkedStateMixin = __webpack_require__(382);
-
-	var _require = __webpack_require__(386);
-
-	var actions = _require.actions;
-	var getters = _require.getters;
-
-	var GoogleAuthInfo = __webpack_require__(392);
-	var cfg = __webpack_require__(221);
-
-	var _require2 = __webpack_require__(226);
-
-	var TeleportLogo = _require2.TeleportLogo;
-
-	var _require3 = __webpack_require__(345);
-
-	var PROVIDER_GOOGLE = _require3.PROVIDER_GOOGLE;
-
-	var LoginInputForm = React.createClass({
-	  displayName: 'LoginInputForm',
-
-	  mixins: [LinkedStateMixin],
-
-	  getInitialState: function getInitialState() {
-	    return {
-	      user: '',
-	      password: '',
-	      token: '',
-	      provider: null
-	    };
-	  },
-
-	  onLogin: function onLogin(e) {
-	    e.preventDefault();
-	    if (this.isValid()) {
-	      this.props.onClick(this.state);
-	    }
-	  },
-
-	  onLoginWithGoogle: function onLoginWithGoogle(e) {
-	    e.preventDefault();
-	    this.state.provider = PROVIDER_GOOGLE;
-	    this.props.onClick(this.state);
-	  },
-
-	  isValid: function isValid() {
-	    var $form = $(this.refs.form);
-	    return $form.length === 0 || $form.valid();
-	  },
-
-	  render: function render() {
-	    var _props$attemp = this.props.attemp;
-	    var isProcessing = _props$attemp.isProcessing;
-	    var isFailed = _props$attemp.isFailed;
-	    var message = _props$attemp.message;
-
-	    var providers = cfg.getAuthProviders();
-	    var useGoogle = providers.indexOf(PROVIDER_GOOGLE) !== -1;
-
-	    return React.createElement(
-	      'form',
-	      { ref: 'form', className: 'grv-login-input-form' },
-	      React.createElement(
-	        'h3',
-	        null,
-	        ' Welcome to Teleport '
-	      ),
-	      React.createElement(
-	        'div',
-	        { className: '' },
-	        React.createElement(
-	          'div',
-	          { className: 'form-group' },
-	          React.createElement('input', { autoFocus: true, valueLink: this.linkState('user'), className: 'form-control required', placeholder: 'User name', name: 'userName' })
-	        ),
-	        React.createElement(
-	          'div',
-	          { className: 'form-group' },
-	          React.createElement('input', { valueLink: this.linkState('password'), type: 'password', name: 'password', className: 'form-control required', placeholder: 'Password' })
-	        ),
-	        React.createElement(
-	          'div',
-	          { className: 'form-group' },
-	          React.createElement('input', { autoComplete: 'off', valueLink: this.linkState('token'), className: 'form-control required', name: 'token', placeholder: 'Two factor token (Google Authenticator)' })
-	        ),
-	        React.createElement(
-	          'button',
-	          { onClick: this.onLogin, disabled: isProcessing, type: 'submit', className: 'btn btn-primary block full-width m-b' },
-	          'Login'
-	        ),
-	        useGoogle ? React.createElement(
-	          'button',
-	          { onClick: this.onLoginWithGoogle, type: 'submit', className: 'btn btn-danger block full-width m-b' },
-	          'With Google'
-	        ) : null,
-	        isFailed ? React.createElement(
-	          'label',
-	          { className: 'error' },
-	          message
-	        ) : null
-	      )
-	    );
-	  }
-	});
-
-	var Login = React.createClass({
-	  displayName: 'Login',
-
-	  mixins: [reactor.ReactMixin],
-
-	  getDataBindings: function getDataBindings() {
-	    return {
-	      attemp: getters.loginAttemp
-	    };
-	  },
-
-	  onClick: function onClick(inputData) {
-	    var loc = this.props.location;
-	    var redirect = cfg.routes.app;
-
-	    if (loc.state && loc.state.redirectTo) {
-	      redirect = loc.state.redirectTo;
-	    }
-
-	    actions.login(inputData, redirect);
-	  },
-
-	  render: function render() {
-	    return React.createElement(
-	      'div',
-	      { className: 'grv-login text-center' },
-	      React.createElement(TeleportLogo, null),
-	      React.createElement(
-	        'div',
-	        { className: 'grv-content grv-flex' },
-	        React.createElement(
-	          'div',
-	          { className: 'grv-flex-column' },
-	          React.createElement(LoginInputForm, { attemp: this.state.attemp, onClick: this.onClick }),
-	          React.createElement(GoogleAuthInfo, null),
-	          React.createElement(
-	            'div',
-	            { className: 'grv-login-info' },
-	            React.createElement('i', { className: 'fa fa-question' }),
-	            React.createElement(
-	              'strong',
-	              null,
-	              'New Account or forgot password?'
-	            ),
-	            React.createElement(
-	              'div',
-	              null,
-	              'Ask for assistance from your Company administrator'
-	            )
-	          )
-	        )
-	      )
-	    );
-	  }
-	});
-
-	module.exports = Login;
-
-/***/ },
-
-/***/ 386:
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	'use strict';
-
-	module.exports.getters = __webpack_require__(217);
-	module.exports.actions = __webpack_require__(387);
-	module.exports.nodeStore = __webpack_require__(391);
-
-/***/ },
-
-/***/ 387:
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	'use strict';
-
-	Object.defineProperty(exports, '__esModule', {
-	  value: true
-	});
-	var reactor = __webpack_require__(215);
-
-	var _require = __webpack_require__(388);
-
-	var TLPT_RECEIVE_USER = _require.TLPT_RECEIVE_USER;
-	var TLPT_RECEIVE_USER_INVITE = _require.TLPT_RECEIVE_USER_INVITE;
-
-	var _require2 = __webpack_require__(218);
-
-	var TRYING_TO_SIGN_UP = _require2.TRYING_TO_SIGN_UP;
-	var TRYING_TO_LOGIN = _require2.TRYING_TO_LOGIN;
-	var FETCHING_INVITE = _require2.FETCHING_INVITE;
-
-	var restApiActions = __webpack_require__(389);
-	var auth = __webpack_require__(345);
-	var session = __webpack_require__(237);
-	var cfg = __webpack_require__(221);
-	var api = __webpack_require__(236);
-
-	exports['default'] = {
-
-	  fetchInvite: function fetchInvite(inviteToken) {
-	    var path = cfg.api.getInviteUrl(inviteToken);
-	    restApiActions.start(FETCHING_INVITE);
-	    api.get(path).done(function (invite) {
-	      restApiActions.success(FETCHING_INVITE);
-	      reactor.dispatch(TLPT_RECEIVE_USER_INVITE, invite);
-	    }).fail(function (err) {
-	      restApiActions.fail(FETCHING_INVITE, err.responseJSON.message);
-	    });
-	  },
-
-	  ensureUser: function ensureUser(nextState, replace, cb) {
-	    auth.ensureUser().done(function (userData) {
-	      reactor.dispatch(TLPT_RECEIVE_USER, userData.user);
-	      cb();
-	    }).fail(function () {
-	      var newLocation = {
-	        pathname: cfg.routes.login,
-	        state: {
-	          redirectTo: nextState.location.pathname
-	        }
-	      };
-
-	      replace(newLocation);
-	      cb();
-	    });
-	  },
-
-	  signUp: function signUp(_ref) {
-	    var name = _ref.name;
-	    var psw = _ref.psw;
-	    var token = _ref.token;
-	    var inviteToken = _ref.inviteToken;
-
-	    restApiActions.start(TRYING_TO_SIGN_UP);
-	    auth.signUp(name, psw, token, inviteToken).done(function (sessionData) {
-	      reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
-	      restApiActions.success(TRYING_TO_SIGN_UP);
-	      session.getHistory().push({ pathname: cfg.routes.app });
-	    }).fail(function (err) {
-	      var msg = err.responseJSON ? err.responseJSON.message : 'Failed to sing up';
-	      restApiActions.fail(TRYING_TO_SIGN_UP, msg);
-	    });
-	  },
-
-	  login: function login(_ref2, redirect) {
-	    var user = _ref2.user;
-	    var password = _ref2.password;
-	    var token = _ref2.token;
-	    var provider = _ref2.provider;
-
-	    if (provider) {
-	      var fullPath = cfg.getFullUrl(redirect);
-	      window.location = cfg.api.getSsoUrl(fullPath, provider);
-	      return;
-	    }
-
-	    restApiActions.start(TRYING_TO_LOGIN);
-	    auth.login(user, password, token).done(function (sessionData) {
-	      restApiActions.success(TRYING_TO_LOGIN);
-	      reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
-	      session.getHistory().push({ pathname: redirect });
-	    }).fail(function (err) {
-	      var msg = err.responseJSON ? err.responseJSON.message : 'Error';
-	      restApiActions.fail(TRYING_TO_LOGIN, msg);
-	    });
-	  }
-	};
-	module.exports = exports['default'];
-
-/***/ },
-
-/***/ 388:
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	'use strict';
-
-	Object.defineProperty(exports, '__esModule', {
-	  value: true
-	});
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
-
-	var _keymirror = __webpack_require__(219);
-
-	var _keymirror2 = _interopRequireDefault(_keymirror);
-
-	exports['default'] = (0, _keymirror2['default'])({
-	  TLPT_RECEIVE_USER: null,
-	  TLPT_RECEIVE_USER_INVITE: null
-	});
-	module.exports = exports['default'];
-
-/***/ },
-
-/***/ 389:
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	'use strict';
-
-	Object.defineProperty(exports, '__esModule', {
-	  value: true
-	});
-	var reactor = __webpack_require__(215);
-
-	var _require = __webpack_require__(390);
-
-	var TLPT_REST_API_START = _require.TLPT_REST_API_START;
-	var TLPT_REST_API_SUCCESS = _require.TLPT_REST_API_SUCCESS;
-	var TLPT_REST_API_FAIL = _require.TLPT_REST_API_FAIL;
-	exports['default'] = {
-
-	  start: function start(reqType) {
-	    reactor.dispatch(TLPT_REST_API_START, { type: reqType });
-	  },
-
-	  fail: function fail(reqType, message) {
-	    reactor.dispatch(TLPT_REST_API_FAIL, { type: reqType, message: message });
-	  },
-
-	  success: function success(reqType) {
-	    reactor.dispatch(TLPT_REST_API_SUCCESS, { type: reqType });
-	  }
-
-	};
-	module.exports = exports['default'];
-
-/***/ },
-
 /***/ 390:
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	'use strict';
-
-	Object.defineProperty(exports, '__esModule', {
-	  value: true
-	});
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
-
-	var _keymirror = __webpack_require__(219);
-
-	var _keymirror2 = _interopRequireDefault(_keymirror);
-
-	exports['default'] = (0, _keymirror2['default'])({
-	  TLPT_REST_API_START: null,
-	  TLPT_REST_API_SUCCESS: null,
-	  TLPT_REST_API_FAIL: null
-	});
-	module.exports = exports['default'];
-
-/***/ },
-
-/***/ 391:
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	'use strict';
-
-	Object.defineProperty(exports, '__esModule', {
-	  value: true
-	});
-
-	var _require = __webpack_require__(216);
-
-	var Store = _require.Store;
-	var toImmutable = _require.toImmutable;
-
-	var _require2 = __webpack_require__(388);
-
-	var TLPT_RECEIVE_USER = _require2.TLPT_RECEIVE_USER;
-	exports['default'] = Store({
-	  getInitialState: function getInitialState() {
-	    return toImmutable(null);
-	  },
-
-	  initialize: function initialize() {
-	    this.on(TLPT_RECEIVE_USER, receiveUser);
-	  }
-
-	});
-
-	function receiveUser(state, user) {
-	  return toImmutable(user);
-	}
-	module.exports = exports['default'];
-
-/***/ },
-
-/***/ 392:
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	"use strict";
-
-	var React = __webpack_require__(2);
-
-	var GoogleAuthInfo = React.createClass({
-	  displayName: "GoogleAuthInfo",
-
-	  render: function render() {
-	    return React.createElement(
-	      "div",
-	      { className: "grv-google-auth text-left" },
-	      React.createElement("div", { className: "grv-icon-google-auth" }),
-	      React.createElement(
-	        "strong",
-	        null,
-	        "Google Authenticator"
-	      ),
-	      React.createElement(
-	        "div",
-	        null,
-	        "Download ",
-	        React.createElement(
-	          "a",
-	          { href: "https://support.google.com/accounts/answer/1066447?hl=en" },
-	          "Google Authenticator"
-	        ),
-	        " on your phone to access your two factor token"
-	      )
-	    );
-	  }
-	});
-
-	module.exports = GoogleAuthInfo;
-
-/***/ },
-
-/***/ 393:
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	'use strict';
-
-	var React = __webpack_require__(2);
-	var $ = __webpack_require__(223);
-	var reactor = __webpack_require__(215);
-
-	var _require = __webpack_require__(386);
-
-	var actions = _require.actions;
-	var getters = _require.getters;
-
-	var LinkedStateMixin = __webpack_require__(382);
-	var GoogleAuthInfo = __webpack_require__(392);
-
-	var _require2 = __webpack_require__(394);
-
-	var ErrorPage = _require2.ErrorPage;
-	var ErrorTypes = _require2.ErrorTypes;
-
-	var _require3 = __webpack_require__(226);
-
-	var TeleportLogo = _require3.TeleportLogo;
-
-	var InviteInputForm = React.createClass({
-	  displayName: 'InviteInputForm',
-
-	  mixins: [LinkedStateMixin],
-
-	  componentDidMount: function componentDidMount() {
-	    $(this.refs.form).validate({
-	      rules: {
-	        password: {
-	          minlength: 6,
-	          required: true
-	        },
-	        passwordConfirmed: {
-	          required: true,
-	          equalTo: this.refs.password
-	        }
-	      },
-
-	      messages: {
-	        passwordConfirmed: {
-	          minlength: $.validator.format('Enter at least {0} characters'),
-	          equalTo: 'Enter the same password as above'
-	        }
-	      }
-	    });
-	  },
-
-	  getInitialState: function getInitialState() {
-	    return {
-	      name: this.props.invite.user,
-	      psw: '',
-	      pswConfirmed: '',
-	      token: ''
-	    };
-	  },
-
-	  onClick: function onClick(e) {
-	    e.preventDefault();
-	    if (this.isValid()) {
-	      actions.signUp({
-	        name: this.state.name,
-	        psw: this.state.psw,
-	        token: this.state.token,
-	        inviteToken: this.props.invite.invite_token });
-	    }
-	  },
-
-	  isValid: function isValid() {
-	    var $form = $(this.refs.form);
-	    return $form.length === 0 || $form.valid();
-	  },
-
-	  render: function render() {
-	    var _props$attemp = this.props.attemp;
-	    var isProcessing = _props$attemp.isProcessing;
-	    var isFailed = _props$attemp.isFailed;
-	    var message = _props$attemp.message;
-
-	    return React.createElement(
-	      'form',
-	      { ref: 'form', className: 'grv-invite-input-form' },
-	      React.createElement(
-	        'h3',
-	        null,
-	        ' Get started with Teleport '
-	      ),
-	      React.createElement(
-	        'div',
-	        { className: '' },
-	        React.createElement(
-	          'div',
-	          { className: 'form-group' },
-	          React.createElement('input', {
-	            disabled: true,
-	            valueLink: this.linkState('name'),
-	            name: 'userName',
-	            className: 'form-control required',
-	            placeholder: 'User name' })
-	        ),
-	        React.createElement(
-	          'div',
-	          { className: 'form-group' },
-	          React.createElement('input', {
-	            autoFocus: true,
-	            valueLink: this.linkState('psw'),
-	            ref: 'password',
-	            type: 'password',
-	            name: 'password',
-	            className: 'form-control',
-	            placeholder: 'Password' })
-	        ),
-	        React.createElement(
-	          'div',
-	          { className: 'form-group' },
-	          React.createElement('input', {
-	            valueLink: this.linkState('pswConfirmed'),
-	            type: 'password',
-	            name: 'passwordConfirmed',
-	            className: 'form-control',
-	            placeholder: 'Password confirm' })
-	        ),
-	        React.createElement(
-	          'div',
-	          { className: 'form-group' },
-	          React.createElement('input', {
-	            autoComplete: 'off',
-	            name: 'token',
-	            valueLink: this.linkState('token'),
-	            className: 'form-control required',
-	            placeholder: 'Two factor token (Google Authenticator)' })
-	        ),
-	        React.createElement(
-	          'button',
-	          { type: 'submit', disabled: isProcessing, className: 'btn btn-primary block full-width m-b', onClick: this.onClick },
-	          'Sign up'
-	        ),
-	        isFailed ? React.createElement(
-	          'label',
-	          { className: 'error' },
-	          message
-	        ) : null
-	      )
-	    );
-	  }
-	});
-
-	var Invite = React.createClass({
-	  displayName: 'Invite',
-
-	  mixins: [reactor.ReactMixin],
-
-	  getDataBindings: function getDataBindings() {
-	    return {
-	      invite: getters.invite,
-	      attemp: getters.attemp,
-	      fetchingInvite: getters.fetchingInvite
-	    };
-	  },
-
-	  componentDidMount: function componentDidMount() {
-	    actions.fetchInvite(this.props.params.inviteToken);
-	  },
-
-	  render: function render() {
-	    var _state = this.state;
-	    var fetchingInvite = _state.fetchingInvite;
-	    var invite = _state.invite;
-	    var attemp = _state.attemp;
-
-	    if (fetchingInvite.isFailed) {
-	      return React.createElement(ErrorPage, { type: ErrorTypes.EXPIRED_INVITE });
-	    }
-
-	    if (!invite) {
-	      return null;
-	    }
-
-	    return React.createElement(
-	      'div',
-	      { className: 'grv-invite text-center' },
-	      React.createElement(TeleportLogo, null),
-	      React.createElement(
-	        'div',
-	        { className: 'grv-content grv-flex' },
-	        React.createElement(
-	          'div',
-	          { className: 'grv-flex-column' },
-	          React.createElement(InviteInputForm, { attemp: attemp, invite: invite.toJS() }),
-	          React.createElement(GoogleAuthInfo, null)
-	        ),
-	        React.createElement(
-	          'div',
-	          { className: 'grv-flex-column grv-invite-barcode' },
-	          React.createElement(
-	            'h4',
-	            null,
-	            'Scan bar code for auth token ',
-	            React.createElement('br', null),
-	            ' ',
-	            React.createElement(
-	              'small',
-	              null,
-	              'Scan below to generate your two factor token'
-	            )
-	          ),
-	          React.createElement('img', { className: 'img-thumbnail', src: 'data:image/png;base64,' + invite.get('qr') })
-	        )
-	      )
-	    );
-	  }
-	});
-
-	module.exports = Invite;
-
-/***/ },
-
-/***/ 394:
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	'use strict';
-
-	Object.defineProperty(exports, '__esModule', {
-	  value: true
-	});
-	var React = __webpack_require__(2);
-
-	var MSG_INFO_LOGIN_SUCCESS = 'Login was successful, you can close this window and continue using tsh.';
-	var MSG_ERROR_LOGIN_FAILED = 'Login unsuccessful. Please try again, if the problem persists, contact your system administator.';
-	var MSG_ERROR_DEFAULT = 'Whoops, something went wrong.';
-
-	var MSG_ERROR_NOT_FOUND = 'Whoops, we cannot find that.';
-	var MSG_ERROR_NOT_FOUND_DETAILS = 'Looks like the page you are looking for isn\'t here any longer.';
-
-	var MSG_ERROR_EXPIRED_INVITE = 'Invite code has expired.';
-	var MSG_ERROR_EXPIRED_INVITE_DETAILS = 'Looks like your invite code isn\'t valid anymore.';
-
-	var MsgType = {
-	  INFO: 'info',
-	  ERROR: 'error'
-	};
-
-	var ErrorTypes = {
-	  FAILED_TO_LOGIN: 'login_failed',
-	  EXPIRED_INVITE: 'expired_invite',
-	  NOT_FOUND: 'not_found'
-	};
-
-	var InfoTypes = {
-	  LOGIN_SUCCESS: 'login_success'
-	};
-
-	var MessagePage = React.createClass({
-	  displayName: 'MessagePage',
-
-	  render: function render() {
-	    var _props$params = this.props.params;
-	    var type = _props$params.type;
-	    var subType = _props$params.subType;
-
-	    if (type === MsgType.ERROR) {
-	      return React.createElement(ErrorPage, { type: subType });
-	    }
-
-	    if (type === MsgType.INFO) {
-	      return React.createElement(InfoPage, { type: subType });
-	    }
-
-	    return null;
-	  }
-	});
-
-	var ErrorPage = React.createClass({
-	  displayName: 'ErrorPage',
-
-	  render: function render() {
-	    var type = this.props.type;
-
-	    var msgBody = React.createElement(
-	      'div',
-	      null,
-	      React.createElement(
-	        'h1',
-	        null,
-	        MSG_ERROR_DEFAULT
-	      )
-	    );
-
-	    if (type === ErrorTypes.FAILED_TO_LOGIN) {
-	      msgBody = React.createElement(
-	        'div',
-	        null,
-	        React.createElement(
-	          'h1',
-	          null,
-	          MSG_ERROR_LOGIN_FAILED
-	        )
-	      );
-	    }
-
-	    if (type === ErrorTypes.EXPIRED_INVITE) {
-	      msgBody = React.createElement(
-	        'div',
-	        null,
-	        React.createElement(
-	          'h1',
-	          null,
-	          MSG_ERROR_EXPIRED_INVITE
-	        ),
-	        React.createElement(
-	          'div',
-	          null,
-	          MSG_ERROR_EXPIRED_INVITE_DETAILS
-	        )
-	      );
-	    }
-
-	    if (type === ErrorTypes.NOT_FOUND) {
-	      msgBody = React.createElement(
-	        'div',
-	        null,
-	        React.createElement(
-	          'h1',
-	          null,
-	          MSG_ERROR_NOT_FOUND
-	        ),
-	        React.createElement(
-	          'div',
-	          null,
-	          MSG_ERROR_NOT_FOUND_DETAILS
-	        )
-	      );
-	    }
-
-	    return React.createElement(
-	      'div',
-	      { className: 'grv-msg-page' },
-	      React.createElement(
-	        'div',
-	        { className: 'grv-header' },
-	        React.createElement('i', { className: 'fa fa-frown-o' }),
-	        ' '
-	      ),
-	      msgBody,
-	      React.createElement(
-	        'div',
-	        { className: 'contact-section' },
-	        'If you believe this is an issue with Teleport, please ',
-	        React.createElement(
-	          'a',
-	          { href: 'https://github.com/gravitational/teleport/issues/new' },
-	          'create a GitHub issue.'
-	        )
-	      )
-	    );
-	  }
-	});
-
-	var InfoPage = React.createClass({
-	  displayName: 'InfoPage',
-
-	  render: function render() {
-	    var type = this.props.type;
-
-	    var msgBody = null;
-
-	    if (type === InfoTypes.LOGIN_SUCCESS) {
-	      msgBody = React.createElement(
-	        'div',
-	        null,
-	        React.createElement(
-	          'h1',
-	          null,
-	          MSG_INFO_LOGIN_SUCCESS
-	        )
-	      );
-	    }
-
-	    return React.createElement(
-	      'div',
-	      { className: 'grv-msg-page' },
-	      React.createElement(
-	        'div',
-	        { className: 'grv-header' },
-	        React.createElement('i', { className: 'fa fa-smile-o' }),
-	        ' '
-	      ),
-	      msgBody
-	    );
-	  }
-	});
-
-	var NotFound = function NotFound() {
-	  return React.createElement(ErrorPage, { type: ErrorTypes.NOT_FOUND });
-	};
-
-	exports.ErrorPage = ErrorPage;
-	exports.InfoPage = InfoPage;
-	exports.NotFound = NotFound;
-	exports.ErrorTypes = ErrorTypes;
-	exports.MessagePage = MessagePage;
-
-/***/ },
-
-/***/ 395:
-/***/ function(module, exports, __webpack_require__) {
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	'use strict';
-
-	var React = __webpack_require__(2);
-	var reactor = __webpack_require__(215);
-	var userGetters = __webpack_require__(217);
-	var nodeGetters = __webpack_require__(364);
-	var NodeList = __webpack_require__(354);
-
-	var Nodes = React.createClass({
-	  displayName: 'Nodes',
-
-	  mixins: [reactor.ReactMixin],
-
-	  getDataBindings: function getDataBindings() {
-	    return {
-	      nodeRecords: nodeGetters.nodeListView,
-	      user: userGetters.user
-	    };
-	  },
-
-	  render: function render() {
-	    var nodeRecords = this.state.nodeRecords;
-	    var logins = this.state.user.logins;
-	    return React.createElement(NodeList, { nodeRecords: nodeRecords, logins: logins });
-	  }
-	});
-
-	module.exports = Nodes;
-
-/***/ },
-
-/***/ 396:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -5003,21 +4672,21 @@ webpackJsonp([0],{
 
 	var fetchActiveSessions = _require.fetchActiveSessions;
 
-	var _require2 = __webpack_require__(397);
+	var _require2 = __webpack_require__(391);
 
 	var fetchStoredSession = _require2.fetchStoredSession;
 
-	var _require3 = __webpack_require__(361);
+	var _require3 = __webpack_require__(387);
 
 	var sessionsView = _require3.sessionsView;
 
-	var _require4 = __webpack_require__(398);
+	var _require4 = __webpack_require__(392);
 
 	var filter = _require4.filter;
 
-	var StoredSessionList = __webpack_require__(400);
-	var ActiveSessionList = __webpack_require__(404);
-	var Timer = __webpack_require__(380);
+	var StoredSessionList = __webpack_require__(394);
+	var ActiveSessionList = __webpack_require__(398);
+	var Timer = __webpack_require__(363);
 
 	var Sessions = React.createClass({
 	  displayName: 'Sessions',
@@ -5056,7 +4725,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 397:
+/***/ 391:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -5082,7 +4751,7 @@ webpackJsonp([0],{
 	});
 	var reactor = __webpack_require__(215);
 
-	var _require = __webpack_require__(398);
+	var _require = __webpack_require__(392);
 
 	var filter = _require.filter;
 
@@ -5096,13 +4765,9 @@ webpackJsonp([0],{
 
 	var logger = __webpack_require__(238).create('Modules/Sessions');
 
-	var _require4 = __webpack_require__(399);
+	var _require4 = __webpack_require__(393);
 
 	var TLPT_STORED_SESSINS_FILTER_SET_RANGE = _require4.TLPT_STORED_SESSINS_FILTER_SET_RANGE;
-
-	var _require5 = __webpack_require__(342);
-
-	var TLPT_SESSINS_REMOVE_STORED = _require5.TLPT_SESSINS_REMOVE_STORED;
 
 	var actions = {
 
@@ -5113,10 +4778,6 @@ webpackJsonp([0],{
 	    var end = _reactor$evaluate.end;
 
 	    _fetch(start, end);
-	  },
-
-	  removeStoredSessions: function removeStoredSessions() {
-	    reactor.dispatch(TLPT_SESSINS_REMOVE_STORED);
 	  },
 
 	  setTimeRange: function setTimeRange(start, end) {
@@ -5139,7 +4800,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 398:
+/***/ 392:
 /***/ function(module, exports) {
 
 	/*
@@ -5174,7 +4835,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 399:
+/***/ 393:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -5214,7 +4875,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 400:
+/***/ 394:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -5237,12 +4898,12 @@ webpackJsonp([0],{
 
 	function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
-	var _ = __webpack_require__(356);
+	var _ = __webpack_require__(382);
 	var React = __webpack_require__(2);
 	var moment = __webpack_require__(242);
-	var InputSearch = __webpack_require__(355);
+	var InputSearch = __webpack_require__(381);
 
-	var _require = __webpack_require__(363);
+	var _require = __webpack_require__(389);
 
 	var isMatch = _require.isMatch;
 
@@ -5250,11 +4911,11 @@ webpackJsonp([0],{
 
 	var displayDateFormat = _require2.displayDateFormat;
 
-	var _require3 = __webpack_require__(401);
+	var _require3 = __webpack_require__(395);
 
 	var actions = _require3.actions;
 
-	var _require4 = __webpack_require__(358);
+	var _require4 = __webpack_require__(384);
 
 	var Table = _require4.Table;
 	var Column = _require4.Column;
@@ -5264,19 +4925,19 @@ webpackJsonp([0],{
 	var SortTypes = _require4.SortTypes;
 	var EmptyIndicator = _require4.EmptyIndicator;
 
-	var _require5 = __webpack_require__(402);
+	var _require5 = __webpack_require__(396);
 
 	var ButtonCell = _require5.ButtonCell;
 	var SingleUserCell = _require5.SingleUserCell;
 	var DateCreatedCell = _require5.DateCreatedCell;
 	var DurationCell = _require5.DurationCell;
 
-	var _require6 = __webpack_require__(403);
+	var _require6 = __webpack_require__(397);
 
 	var DateRangePicker = _require6.DateRangePicker;
 
-	var ArchivedSessions = React.createClass({
-	  displayName: 'ArchivedSessions',
+	var StoredSessions = React.createClass({
+	  displayName: 'StoredSessions',
 
 	  getInitialState: function getInitialState() {
 	    this.searchableProps = ['clientIp', 'nodeIp', 'created', 'sid', 'login'];
@@ -5339,7 +5000,7 @@ webpackJsonp([0],{
 	    var end = _props$filter.end;
 
 	    var data = this.props.data.filter(function (item) {
-	      return !item.active && moment(item.created).isBetween(start, end);
+	      return item.stored && moment(item.created).isBetween(start, end);
 	    });
 
 	    data = this.sortAndFilter(data);
@@ -5454,11 +5115,11 @@ webpackJsonp([0],{
 	  }
 	});
 
-	module.exports = ArchivedSessions;
+	module.exports = StoredSessions;
 
 /***/ },
 
-/***/ 401:
+/***/ 395:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -5478,12 +5139,12 @@ webpackJsonp([0],{
 	*/
 	'use strict';
 
-	module.exports.getters = __webpack_require__(398);
-	module.exports.actions = __webpack_require__(397);
+	module.exports.getters = __webpack_require__(392);
+	module.exports.actions = __webpack_require__(391);
 
 /***/ },
 
-/***/ 402:
+/***/ 396:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -5519,7 +5180,7 @@ webpackJsonp([0],{
 
 	var Link = _require.Link;
 
-	var _require2 = __webpack_require__(364);
+	var _require2 = __webpack_require__(379);
 
 	var nodeHostNameByServerId = _require2.nodeHostNameByServerId;
 
@@ -5527,7 +5188,7 @@ webpackJsonp([0],{
 
 	var displayDateFormat = _require3.displayDateFormat;
 
-	var _require4 = __webpack_require__(358);
+	var _require4 = __webpack_require__(384);
 
 	var Cell = _require4.Cell;
 
@@ -5570,13 +5231,15 @@ webpackJsonp([0],{
 
 	  var props = _objectWithoutProperties(_ref3, ['rowIndex', 'data']);
 
+	  var user = data[rowIndex].user;
+
 	  return React.createElement(
 	    Cell,
 	    props,
 	    React.createElement(
 	      'span',
 	      { className: 'grv-sessions-user label label-default' },
-	      data[rowIndex].login
+	      user
 	    )
 	  );
 	};
@@ -5661,7 +5324,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 403:
+/***/ 397:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -5692,7 +5355,7 @@ webpackJsonp([0],{
 	var $ = __webpack_require__(223);
 	var moment = __webpack_require__(242);
 
-	var _require = __webpack_require__(356);
+	var _require = __webpack_require__(382);
 
 	var debounce = _require.debounce;
 
@@ -5839,7 +5502,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 404:
+/***/ 398:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -5862,7 +5525,7 @@ webpackJsonp([0],{
 
 	var React = __webpack_require__(2);
 
-	var _require = __webpack_require__(358);
+	var _require = __webpack_require__(384);
 
 	var Table = _require.Table;
 	var Column = _require.Column;
@@ -5870,7 +5533,7 @@ webpackJsonp([0],{
 	var TextCell = _require.TextCell;
 	var EmptyIndicator = _require.EmptyIndicator;
 
-	var _require2 = __webpack_require__(402);
+	var _require2 = __webpack_require__(396);
 
 	var ButtonCell = _require2.ButtonCell;
 	var UsersCell = _require2.UsersCell;
@@ -5955,7 +5618,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 405:
+/***/ 399:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -5979,13 +5642,12 @@ webpackJsonp([0],{
 	var React = __webpack_require__(2);
 	var reactor = __webpack_require__(215);
 
-	var _require = __webpack_require__(406);
+	var _require = __webpack_require__(400);
 
 	var getters = _require.getters;
-	var actions = _require.actions;
 
-	var SessionPlayer = __webpack_require__(408);
-	var ActiveSession = __webpack_require__(453);
+	var SessionPlayer = __webpack_require__(402);
+	var ActiveSession = __webpack_require__(447);
 
 	var CurrentSessionHost = React.createClass({
 	  displayName: 'CurrentSessionHost',
@@ -5998,16 +5660,9 @@ webpackJsonp([0],{
 	    };
 	  },
 
-	  componentDidMount: function componentDidMount() {
-	    var sid = this.props.params.sid;
-
-	    if (!this.state.currentSession) {
-	      actions.openSession(sid);
-	    }
-	  },
-
 	  render: function render() {
 	    var currentSession = this.state.currentSession;
+
 	    if (!currentSession) {
 	      return null;
 	    }
@@ -6016,7 +5671,9 @@ webpackJsonp([0],{
 	      return React.createElement(ActiveSession, currentSession);
 	    }
 
-	    return React.createElement(SessionPlayer, currentSession);
+	    var sid = currentSession.sid;
+
+	    return React.createElement(SessionPlayer, { sid: sid });
 	  }
 	});
 
@@ -6024,7 +5681,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 406:
+/***/ 400:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -6044,13 +5701,13 @@ webpackJsonp([0],{
 	*/
 	'use strict';
 
-	module.exports.getters = __webpack_require__(360);
-	module.exports.actions = __webpack_require__(359);
-	module.exports.activeTermStore = __webpack_require__(407);
+	module.exports.getters = __webpack_require__(386);
+	module.exports.actions = __webpack_require__(385);
+	module.exports.activeTermStore = __webpack_require__(401);
 
 /***/ },
 
-/***/ 407:
+/***/ 401:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -6080,7 +5737,7 @@ webpackJsonp([0],{
 	var Store = _require.Store;
 	var toImmutable = _require.toImmutable;
 
-	var _require2 = __webpack_require__(362);
+	var _require2 = __webpack_require__(388);
 
 	var TLPT_CURRENT_SESSION_OPEN = _require2.TLPT_CURRENT_SESSION_OPEN;
 	var TLPT_CURRENT_SESSION_CLOSE = _require2.TLPT_CURRENT_SESSION_CLOSE;
@@ -6116,7 +5773,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 408:
+/***/ 402:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -6150,17 +5807,17 @@ webpackJsonp([0],{
 	function _inherits(subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
 	var React = __webpack_require__(2);
-	var ReactSlider = __webpack_require__(409);
+	var ReactSlider = __webpack_require__(403);
 
-	var _require = __webpack_require__(410);
+	var _require = __webpack_require__(404);
 
 	var TtyPlayer = _require.TtyPlayer;
 
-	var Terminal = __webpack_require__(420);
-	var SessionLeftPanel = __webpack_require__(424);
+	var Terminal = __webpack_require__(414);
+	var SessionLeftPanel = __webpack_require__(418);
 	var cfg = __webpack_require__(221);
 	var $ = __webpack_require__(223);
-	__webpack_require__(431)($);
+	__webpack_require__(425)($);
 
 	var Term = (function (_Terminal) {
 	  _inherits(Term, _Terminal);
@@ -6310,7 +5967,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 410:
+/***/ 404:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -6345,7 +6002,7 @@ webpackJsonp([0],{
 
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } }
 
-	var Tty = __webpack_require__(411);
+	var Tty = __webpack_require__(405);
 	var api = __webpack_require__(236);
 
 	var _require = __webpack_require__(240);
@@ -6353,7 +6010,7 @@ webpackJsonp([0],{
 	var showError = _require.showError;
 
 	var $ = __webpack_require__(223);
-	var Buffer = __webpack_require__(413).Buffer;
+	var Buffer = __webpack_require__(407).Buffer;
 
 	var logger = __webpack_require__(238).create('TtyPlayer');
 	var STREAM_START_INDEX = 0;
@@ -6801,7 +6458,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 411:
+/***/ 405:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -6830,7 +6487,7 @@ webpackJsonp([0],{
 
 	function _inherits(subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-	var EventEmitter = __webpack_require__(412).EventEmitter;
+	var EventEmitter = __webpack_require__(406).EventEmitter;
 
 	var Tty = (function (_EventEmitter) {
 	  _inherits(Tty, _EventEmitter);
@@ -6890,7 +6547,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 412:
+/***/ 406:
 /***/ function(module, exports) {
 
 	// Copyright Joyent, Inc. and other Node contributors.
@@ -7198,7 +6855,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 420:
+/***/ 414:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -7225,11 +6882,11 @@ webpackJsonp([0],{
 
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError('Cannot call a class as a function'); } }
 
-	var Term = __webpack_require__(421);
-	var Tty = __webpack_require__(411);
-	var TtyEvents = __webpack_require__(423);
+	var Term = __webpack_require__(415);
+	var Tty = __webpack_require__(405);
+	var TtyEvents = __webpack_require__(417);
 
-	var _require = __webpack_require__(356);
+	var _require = __webpack_require__(382);
 
 	var debounce = _require.debounce;
 	var isNumber = _require.isNumber;
@@ -7505,7 +7162,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 423:
+/***/ 417:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -7534,7 +7191,7 @@ webpackJsonp([0],{
 
 	function _inherits(subClass, superClass) { if (typeof superClass !== 'function' && superClass !== null) { throw new TypeError('Super expression must either be null or a function, not ' + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-	var EventEmitter = __webpack_require__(412).EventEmitter;
+	var EventEmitter = __webpack_require__(406).EventEmitter;
 
 	var logger = __webpack_require__(238).create('TtyEvents');
 
@@ -7586,7 +7243,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 424:
+/***/ 418:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -7609,7 +7266,7 @@ webpackJsonp([0],{
 
 	var React = __webpack_require__(2);
 
-	var _require = __webpack_require__(406);
+	var _require = __webpack_require__(400);
 
 	var actions = _require.actions;
 
@@ -7617,7 +7274,7 @@ webpackJsonp([0],{
 
 	var UserIcon = _require2.UserIcon;
 
-	var ReactCSSTransitionGroup = __webpack_require__(425);
+	var ReactCSSTransitionGroup = __webpack_require__(419);
 
 	var SessionLeftPanel = function SessionLeftPanel(_ref) {
 	  var parties = _ref.parties;
@@ -7670,7 +7327,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 453:
+/***/ 447:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -7696,16 +7353,16 @@ webpackJsonp([0],{
 	var React = __webpack_require__(2);
 	var reactor = __webpack_require__(215);
 
-	var _require = __webpack_require__(364);
+	var _require = __webpack_require__(379);
 
 	var nodeHostNameByServerId = _require.nodeHostNameByServerId;
 
-	var SessionLeftPanel = __webpack_require__(424);
+	var SessionLeftPanel = __webpack_require__(418);
 	var cfg = __webpack_require__(221);
 	var session = __webpack_require__(237);
-	var Terminal = __webpack_require__(420);
+	var Terminal = __webpack_require__(414);
 
-	var _require2 = __webpack_require__(359);
+	var _require2 = __webpack_require__(385);
 
 	var processSessionEventStream = _require2.processSessionEventStream;
 
@@ -7794,7 +7451,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 454:
+/***/ 448:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -7818,20 +7475,19 @@ webpackJsonp([0],{
 	var reactor = __webpack_require__(215);
 	reactor.registerStores({
 	  'tlpt': __webpack_require__(347),
-	  'tlpt_dialogs': __webpack_require__(353),
-	  'tlpt_current_session': __webpack_require__(407),
-	  'tlpt_user': __webpack_require__(391),
-	  'tlpt_user_invite': __webpack_require__(455),
-	  'tlpt_nodes': __webpack_require__(456),
-	  'tlpt_rest_api': __webpack_require__(457),
-	  'tlpt_sessions': __webpack_require__(458),
-	  'tlpt_stored_sessions_filter': __webpack_require__(459),
-	  'tlpt_notifications': __webpack_require__(460)
+	  'tlpt_current_session': __webpack_require__(401),
+	  'tlpt_user': __webpack_require__(374),
+	  'tlpt_user_invite': __webpack_require__(449),
+	  'tlpt_nodes': __webpack_require__(450),
+	  'tlpt_rest_api': __webpack_require__(451),
+	  'tlpt_sessions': __webpack_require__(452),
+	  'tlpt_stored_sessions_filter': __webpack_require__(453),
+	  'tlpt_notifications': __webpack_require__(454)
 	});
 
 /***/ },
 
-/***/ 455:
+/***/ 449:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -7861,7 +7517,7 @@ webpackJsonp([0],{
 	var Store = _require.Store;
 	var toImmutable = _require.toImmutable;
 
-	var _require2 = __webpack_require__(388);
+	var _require2 = __webpack_require__(371);
 
 	var TLPT_RECEIVE_USER_INVITE = _require2.TLPT_RECEIVE_USER_INVITE;
 	exports['default'] = Store({
@@ -7881,7 +7537,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 456:
+/***/ 450:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -7931,7 +7587,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 457:
+/***/ 451:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -7961,7 +7617,7 @@ webpackJsonp([0],{
 	var Store = _require.Store;
 	var toImmutable = _require.toImmutable;
 
-	var _require2 = __webpack_require__(390);
+	var _require2 = __webpack_require__(373);
 
 	var TLPT_REST_API_START = _require2.TLPT_REST_API_START;
 	var TLPT_REST_API_SUCCESS = _require2.TLPT_REST_API_SUCCESS;
@@ -7993,7 +7649,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 458:
+/***/ 452:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -8025,32 +7681,20 @@ webpackJsonp([0],{
 
 	var _require2 = __webpack_require__(342);
 
-	var TLPT_SESSINS_RECEIVE = _require2.TLPT_SESSINS_RECEIVE;
-	var TLPT_SESSINS_UPDATE = _require2.TLPT_SESSINS_UPDATE;
-	var TLPT_SESSINS_REMOVE_STORED = _require2.TLPT_SESSINS_REMOVE_STORED;
-	var TLPT_SESSINS_UPDATE_WITH_EVENTS = _require2.TLPT_SESSINS_UPDATE_WITH_EVENTS;
+	var TLPT_SESSIONS_RECEIVE = _require2.TLPT_SESSIONS_RECEIVE;
+	var TLPT_SESSIONS_UPDATE = _require2.TLPT_SESSIONS_UPDATE;
+	var TLPT_SESSIONS_UPDATE_WITH_EVENTS = _require2.TLPT_SESSIONS_UPDATE_WITH_EVENTS;
 	exports['default'] = Store({
 	  getInitialState: function getInitialState() {
 	    return toImmutable({});
 	  },
 
 	  initialize: function initialize() {
-	    this.on(TLPT_SESSINS_UPDATE_WITH_EVENTS, updateSessionWithEvents);
-	    this.on(TLPT_SESSINS_RECEIVE, receiveSessions);
-	    this.on(TLPT_SESSINS_UPDATE, updateSession);
-	    this.on(TLPT_SESSINS_REMOVE_STORED, removeStoredSessions);
+	    this.on(TLPT_SESSIONS_UPDATE_WITH_EVENTS, updateSessionWithEvents);
+	    this.on(TLPT_SESSIONS_RECEIVE, receiveSessions);
+	    this.on(TLPT_SESSIONS_UPDATE, updateSession);
 	  }
 	});
-
-	function removeStoredSessions(state) {
-	  return state.withMutations(function (state) {
-	    state.valueSeq().forEach(function (item) {
-	      if (item.get('active') !== true) {
-	        state.remove(item.get('id'));
-	      }
-	    });
-	  });
-	}
 
 	function parseIp(ip) {
 	  ip = ip || '';
@@ -8064,30 +7708,27 @@ webpackJsonp([0],{
 	        return;
 	      }
 
-	      if (state.getIn([item.sid, 'active']) === true) {
-	        return;
-	      }
-
 	      // check if record already exists
 	      var session = state.get(item.sid);
 	      if (!session) {
-	        session = {
-	          nodeIp: parseIp(item['addr.local']),
-	          clientIp: parseIp(item['addr.remote']),
-	          id: item.sid
-	        };
+	        session = {};
 	      } else {
 	        session = session.toJS();
 	      }
 
-	      session.login = item.user;
+	      session.id = item.sid;
+	      session.user = item.user;
 
 	      if (item.event === 'session.start') {
 	        session.created = item.time;
+	        session.nodeIp = parseIp(item['addr.local']);
+	        session.clientIp = parseIp(item['addr.remote']);
 	      }
 
 	      if (item.event === 'session.end') {
 	        session.last_active = item.time;
+	        session.active = false;
+	        session.stored = true;
 	      }
 
 	      state.set(session.id, toImmutable(session));
@@ -8104,10 +7745,9 @@ webpackJsonp([0],{
 
 	  return state.withMutations(function (state) {
 	    jsonArray.forEach(function (item) {
-	      item.isActive = true;
-	      item.created = new Date(item.created);
-	      item.last_active = new Date(item.last_active);
-	      state.set(item.id, toImmutable(item));
+	      if (!state.getIn([item.id, 'stored'])) {
+	        state.set(item.id, toImmutable(item));
+	      }
 	    });
 	  });
 	}
@@ -8115,7 +7755,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 459:
+/***/ 453:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*
@@ -8147,7 +7787,7 @@ webpackJsonp([0],{
 
 	var moment = __webpack_require__(242);
 
-	var _require2 = __webpack_require__(399);
+	var _require2 = __webpack_require__(393);
 
 	var TLPT_STORED_SESSINS_FILTER_SET_RANGE = _require2.TLPT_STORED_SESSINS_FILTER_SET_RANGE;
 	exports['default'] = Store({
@@ -8175,7 +7815,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 460:
+/***/ 454:
 /***/ function(module, exports, __webpack_require__) {
 
 	/*

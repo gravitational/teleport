@@ -26,7 +26,7 @@ var { ButtonCell, SingleUserCell, DateCreatedCell, DurationCell } = require('./l
 var { DateRangePicker } = require('./../datePicker.jsx');
 
 
-var ArchivedSessions = React.createClass({
+var StoredSessions = React.createClass({
 
   getInitialState(){
     this.searchableProps = ['clientIp', 'nodeIp', 'created', 'sid', 'login'];
@@ -80,7 +80,7 @@ var ArchivedSessions = React.createClass({
   render() {
     let { start, end } = this.props.filter;
     let data = this.props.data.filter(
-      item => !item.active && moment(item.created).isBetween(start, end));
+      item => item.stored && moment(item.created).isBetween(start, end));
 
     data = this.sortAndFilter(data);
 
@@ -178,4 +178,4 @@ var ArchivedSessions = React.createClass({
   }
 });
 
-module.exports = ArchivedSessions;
+module.exports = StoredSessions;

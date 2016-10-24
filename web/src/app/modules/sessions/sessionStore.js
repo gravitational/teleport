@@ -16,10 +16,9 @@ limitations under the License.
 
 var { Store, toImmutable } = require('nuclear-js');
 var {
-  TLPT_SESSINS_RECEIVE,
-  TLPT_SESSINS_UPDATE,
-  TLPT_SESSINS_REMOVE_STORED,
-  TLPT_SESSINS_UPDATE_WITH_EVENTS }  = require('./actionTypes');
+  TLPT_SESSIONS_RECEIVE,
+  TLPT_SESSIONS_UPDATE,
+  TLPT_SESSIONS_UPDATE_WITH_EVENTS }  = require('./actionTypes');
 
 export default Store({
   getInitialState() {
@@ -27,22 +26,11 @@ export default Store({
   },
 
   initialize() {
-    this.on(TLPT_SESSINS_UPDATE_WITH_EVENTS, updateSessionWithEvents);
-    this.on(TLPT_SESSINS_RECEIVE, receiveSessions);
-    this.on(TLPT_SESSINS_UPDATE, updateSession);
-    this.on(TLPT_SESSINS_REMOVE_STORED, removeStoredSessions);
+    this.on(TLPT_SESSIONS_UPDATE_WITH_EVENTS, updateSessionWithEvents);
+    this.on(TLPT_SESSIONS_RECEIVE, receiveSessions);
+    this.on(TLPT_SESSIONS_UPDATE, updateSession);
   }
 })
-
-function removeStoredSessions(state){
-  return state.withMutations(state => {
-    state.valueSeq().forEach(item=> {
-      if(item.get('active') !== true){
-        state.remove(item.get('id'));
-      }
-    });
-  });
-}
 
 function parseIp(ip){
   ip = ip || '';
@@ -56,30 +44,27 @@ function updateSessionWithEvents(state, events){
         return;
       }
 
-      if(state.getIn([item.sid, 'active']) === true){
-        return;
-      }
-
       // check if record already exists
       let session = state.get(item.sid);
-      if(!session){        
-         session = {
-           nodeIp: parseIp(item['addr.local']),
-           clientIp: parseIp(item['addr.remote']),
-           id: item.sid
-         };
+      if(!session){
+         session = {};
       }else{
         session = session.toJS();
       }
 
-      session.login = item.user;
+      session.id = item.sid;
+      session.user = item.user;
 
       if(item.event === 'session.start'){
         session.created = item.time;
+        session.nodeIp = parseIp(item['addr.local']);
+        session.clientIp = parseIp(item['addr.remote']);
       }
 
       if(item.event === 'session.end'){
         session.last_active = item.time;
+        session.active = false;
+        session.stored = true;
       }
 
       state.set(session.id, toImmutable(session));
@@ -95,11 +80,10 @@ function receiveSessions(state, jsonArray){
   jsonArray = jsonArray || [];
 
   return state.withMutations(state => {
-    jsonArray.forEach((item) => {
-      item.isActive = true;
-      item.created = new Date(item.created);
-      item.last_active = new Date(item.last_active);
-      state.set(item.id, toImmutable(item))
+    jsonArray.forEach(item => {
+      if(!state.getIn([item.id, 'stored'])){
+        state.set(item.id, toImmutable(item))
+      }
     })
   });
 }
