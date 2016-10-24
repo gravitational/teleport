@@ -2,7 +2,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=1.2.0
+VERSION=1.2.5
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -95,7 +95,7 @@ test: FLAGS ?= -cover
 test: 
 	go test -v ./tool/tsh/... \
 			   ./lib/... \
-			   ./tool/teleport... $(FLAGS) -tags test
+			   ./tool/teleport... $(FLAGS) $(ADDFLAGS)
 	go vet ./tool/... ./lib/...
 
 #
