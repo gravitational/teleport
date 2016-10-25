@@ -20,6 +20,8 @@ var {
   TLPT_SESSIONS_UPDATE,
   TLPT_SESSIONS_UPDATE_WITH_EVENTS }  = require('./actionTypes');
 
+var PORT_REGEX = /:\d+$/;
+
 export default Store({
   getInitialState() {
     return toImmutable({});
@@ -32,9 +34,9 @@ export default Store({
   }
 })
 
-function parseIp(ip){
-  ip = ip || '';
-  return ip.split(':')[0];
+function getIp(addr){  
+  addr = addr || '';
+  return addr.replace(PORT_REGEX, '');
 }
 
 function updateSessionWithEvents(state, events){
@@ -57,8 +59,8 @@ function updateSessionWithEvents(state, events){
 
       if(item.event === 'session.start'){
         session.created = item.time;
-        session.nodeIp = parseIp(item['addr.local']);
-        session.clientIp = parseIp(item['addr.remote']);
+        session.nodeIp = getIp(item['addr.local']);
+        session.clientIp = getIp(item['addr.remote']);
       }
 
       if(item.event === 'session.end'){

@@ -57,7 +57,6 @@ webpackJsonp([0],{
 
 	var openSession = _require4.openSession;
 
-	var auth = __webpack_require__(345);
 	var session = __webpack_require__(237);
 	var cfg = __webpack_require__(221);
 
@@ -73,8 +72,8 @@ webpackJsonp([0],{
 	  { history: session.getHistory() },
 	  React.createElement(Route, { path: cfg.routes.msgs, component: MessagePage }),
 	  React.createElement(Route, { path: cfg.routes.login, component: Login }),
-	  React.createElement(Route, { path: cfg.routes.logout, onEnter: auth.logout }),
 	  React.createElement(Route, { path: cfg.routes.newUser, component: NewUser }),
+	  React.createElement(Redirect, { from: cfg.routes.logout, to: cfg.routes.login }),
 	  React.createElement(Redirect, { from: cfg.routes.app, to: cfg.routes.nodes }),
 	  React.createElement(
 	    Route,
@@ -4129,15 +4128,21 @@ webpackJsonp([0],{
 	  displayName: 'GrvTableCell',
 
 	  render: function render() {
-	    var props = this.props;
-	    return props.isHeader ? React.createElement(
+	    var _props2 = this.props;
+	    var isHeader = _props2.isHeader;
+	    var children = _props2.children;
+	    var _props2$className = _props2.className;
+	    var className = _props2$className === undefined ? '' : _props2$className;
+
+	    className = 'grv-table-cell ' + className;
+	    return isHeader ? React.createElement(
 	      'th',
-	      { key: props.key, className: 'grv-table-cell' },
-	      props.children
+	      { className: className },
+	      children
 	    ) : React.createElement(
 	      'td',
-	      { key: props.key },
-	      props.children
+	      null,
+	      children
 	    );
 	  }
 	});
@@ -5069,7 +5074,8 @@ webpackJsonp([0],{
 	              header: React.createElement(SortHeaderCell, {
 	                sortDir: this.state.colSortDirs.nodeIp,
 	                onSortChange: this.onSortChange,
-	                title: 'Node IP'
+	                title: 'Node IP',
+	                className: 'grv-sessions-stored-col-ip'
 	              }),
 	              cell: React.createElement(TextCell, { data: data })
 	            }),
@@ -5078,6 +5084,7 @@ webpackJsonp([0],{
 	              header: React.createElement(SortHeaderCell, {
 	                sortDir: this.state.colSortDirs.clientIp,
 	                onSortChange: this.onSortChange,
+	                className: 'grv-sessions-stored-col-ip',
 	                title: 'Client IP'
 	              }),
 	              cell: React.createElement(TextCell, { data: data })
@@ -7684,6 +7691,9 @@ webpackJsonp([0],{
 	var TLPT_SESSIONS_RECEIVE = _require2.TLPT_SESSIONS_RECEIVE;
 	var TLPT_SESSIONS_UPDATE = _require2.TLPT_SESSIONS_UPDATE;
 	var TLPT_SESSIONS_UPDATE_WITH_EVENTS = _require2.TLPT_SESSIONS_UPDATE_WITH_EVENTS;
+
+	var PORT_REGEX = /:\d+$/;
+
 	exports['default'] = Store({
 	  getInitialState: function getInitialState() {
 	    return toImmutable({});
@@ -7696,9 +7706,9 @@ webpackJsonp([0],{
 	  }
 	});
 
-	function parseIp(ip) {
-	  ip = ip || '';
-	  return ip.split(':')[0];
+	function getIp(addr) {
+	  addr = addr || '';
+	  return addr.replace(PORT_REGEX, '');
 	}
 
 	function updateSessionWithEvents(state, events) {
@@ -7721,8 +7731,8 @@ webpackJsonp([0],{
 
 	      if (item.event === 'session.start') {
 	        session.created = item.time;
-	        session.nodeIp = parseIp(item['addr.local']);
-	        session.clientIp = parseIp(item['addr.remote']);
+	        session.nodeIp = getIp(item['addr.local']);
+	        session.clientIp = getIp(item['addr.remote']);
 	      }
 
 	      if (item.event === 'session.end') {

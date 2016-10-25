@@ -128,6 +128,7 @@ var StoredSessions = React.createClass({
                       sortDir={this.state.colSortDirs.nodeIp}
                       onSortChange={this.onSortChange}
                       title="Node IP"
+                      className="grv-sessions-stored-col-ip"
                     />
                   }
                   cell={<TextCell data={data} /> }
@@ -138,6 +139,7 @@ var StoredSessions = React.createClass({
                     <SortHeaderCell
                       sortDir={this.state.colSortDirs.clientIp}
                       onSortChange={this.onSortChange}
+                      className="grv-sessions-stored-col-ip"
                       title="Client IP"
                     />
                   }
