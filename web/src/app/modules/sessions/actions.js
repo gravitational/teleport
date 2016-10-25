@@ -22,14 +22,14 @@ var {showError} = require('app/modules/notifications/actions');
 var moment = require('moment');
 
 const logger = require('app/common/logger').create('Modules/Sessions');
-const { TLPT_SESSINS_RECEIVE, TLPT_SESSINS_UPDATE, TLPT_SESSINS_UPDATE_WITH_EVENTS }  = require('./actionTypes');
+const { TLPT_SESSIONS_RECEIVE, TLPT_SESSIONS_UPDATE, TLPT_SESSIONS_UPDATE_WITH_EVENTS }  = require('./actionTypes');
 
 const actions = {
 
   fetchStoredSession(sid){
     return api.get(cfg.api.getSessionEventsUrl(sid)).then(json=>{
       if(json && json.events){
-        reactor.dispatch(TLPT_SESSINS_UPDATE_WITH_EVENTS, json.events);
+        reactor.dispatch(TLPT_SESSIONS_UPDATE_WITH_EVENTS, json.events);
       }
     });
   },
@@ -45,7 +45,7 @@ const actions = {
     return api.get(cfg.api.getSiteEventsFilterUrl(start, end))
       .done((json) => {
         let {events=[]} = json;
-        reactor.dispatch(TLPT_SESSINS_UPDATE_WITH_EVENTS, events);
+        reactor.dispatch(TLPT_SESSIONS_UPDATE_WITH_EVENTS, events);
       })
       .fail((err)=>{
         showError('Unable to retrieve site events');
@@ -64,7 +64,7 @@ const actions = {
 
     return apiUtils.filterSessions(params)
       .done((json) => {
-        reactor.dispatch(TLPT_SESSINS_RECEIVE, json.sessions);
+        reactor.dispatch(TLPT_SESSIONS_RECEIVE, json.sessions);
       })
       .fail((err)=>{
         showError('Unable to retrieve list of sessions');
@@ -73,7 +73,7 @@ const actions = {
   },
 
   updateSession(json){
-    reactor.dispatch(TLPT_SESSINS_UPDATE, json);
+    reactor.dispatch(TLPT_SESSIONS_UPDATE, json);
   }
 }
 

@@ -36,7 +36,7 @@ let cfg = {
     logout: '/web/logout',
     login: '/web/login',
     nodes: '/web/nodes',
-    activeSession: '/web/sessions/:sid',
+    currentSession: '/web/sessions/:sid',
     newUser: '/web/newuser/:inviteToken',
     sessions: '/web/sessions',
     msgs: '/web/msg/:type(/:subType)',
@@ -101,8 +101,8 @@ let cfg = {
     return cfg.baseUrl + url;
   },
 
-  getActiveSessionRouteUrl(sid){
-    return formatPattern(cfg.routes.activeSession, {sid});
+  getCurrentSessionRouteUrl(sid){
+    return formatPattern(cfg.routes.currentSession, {sid});
   },
 
   getAuthProviders(){
