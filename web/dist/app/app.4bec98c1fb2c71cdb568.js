@@ -1068,6 +1068,9 @@ webpackJsonp([0],{
 	    var withToken = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
 
 	    var defaultCfg = {
+	      // to avoid caching in IE browsers
+	      // (implicitly disabling caching adds a timestamp to each ajax requestStatus)
+	      cache: false,
 	      type: "GET",
 	      dataType: "json",
 	      beforeSend: function beforeSend(xhr) {

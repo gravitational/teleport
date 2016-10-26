@@ -36,7 +36,10 @@ const api = {
   },
 
   ajax(cfg, withToken = true){
-    var defaultCfg = {
+    var defaultCfg = {      
+      // to avoid caching in IE browsers
+      // (implicitly disabling caching adds a timestamp to each ajax requestStatus)
+      cache: false,
       type: "GET",
       dataType: "json",
       beforeSend: function(xhr) {
