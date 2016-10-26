@@ -50,7 +50,7 @@ type User interface {
 	// Equals checks if user equals to another
 	Equals(other User) bool
 	// WebSessionInfo returns web session information
-	WebSessionInfo() interface{}
+	WebSessionInfo() User
 }
 
 // TeleportUser is an optional user entry in the database

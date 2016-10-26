@@ -412,7 +412,7 @@ type CreateSessionResponse struct {
 	// Token value
 	Token string `json:"token"`
 	// User represents the user
-	User interface{} `json:"user"`
+	User services.User `json:"user"`
 	// ExpiresIn sets seconds before this token is not valid
 	ExpiresIn int `json:"expires_in"`
 }
