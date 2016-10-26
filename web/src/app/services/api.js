@@ -27,6 +27,10 @@ const api = {
     return api.ajax({url: path, data: JSON.stringify(data), type: 'POST'}, withToken);
   },
 
+  delete(path, data, withToken){
+    return api.ajax({url: path, data: JSON.stringify(data), type: 'DELETE'}, withToken);
+  },
+
   get(path){
     return api.ajax({url: path});
   },
