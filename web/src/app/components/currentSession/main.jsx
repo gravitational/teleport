@@ -16,7 +16,7 @@ limitations under the License.
 
 var React = require('react');
 var reactor = require('app/reactor');
-var {getters, actions} = require('app/modules/currentSession/');
+var { getters } = require('app/modules/currentSession/');
 var SessionPlayer = require('./sessionPlayer.jsx');
 var ActiveSession = require('./activeSession.jsx');
 
@@ -30,24 +30,19 @@ var CurrentSessionHost = React.createClass({
     }
   },
 
-  componentDidMount(){
-    var { sid } = this.props.params;
-    if(!this.state.currentSession){
-      actions.openSession(sid);
-    }
-  },
-
-  render: function() {
-    var currentSession = this.state.currentSession;
+  render() {
+    let { currentSession } = this.state;
     if(!currentSession){
-      return null;      
+      return null;
     }
 
     if(currentSession.isNewSession || currentSession.active){
       return <ActiveSession {...currentSession}/>;
     }
 
-    return <SessionPlayer {...currentSession}/>;
+    let { sid } = currentSession;
+
+    return <SessionPlayer sid={sid}/>;
   }
 });
 

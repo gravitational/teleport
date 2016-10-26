@@ -42,10 +42,11 @@ const DurationCell = ({ rowIndex, data, ...props }) => {
   )
 };
 
-const SingleUserCell = ({ rowIndex, data, ...props }) => {
+const SingleUserCell = ({ rowIndex, data, ...props }) => {  
+  let { user } = data[rowIndex];
   return (
     <Cell {...props}>
-      <span className="grv-sessions-user label label-default">{data[rowIndex].login}</span>
+      <span className="grv-sessions-user label label-default">{user}</span>
     </Cell>
   )
 };

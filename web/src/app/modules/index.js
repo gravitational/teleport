@@ -16,8 +16,7 @@ limitations under the License.
 
 var reactor = require('app/reactor');
 reactor.registerStores({
-  'tlpt': require('./app/appStore'),
-  'tlpt_dialogs': require('./dialogs/dialogStore'),
+  'tlpt': require('./app/appStore'),  
   'tlpt_current_session': require('./currentSession/currentSessionStore'),
   'tlpt_user': require('./user/userStore'),
   'tlpt_user_invite': require('./user/userInviteStore'),

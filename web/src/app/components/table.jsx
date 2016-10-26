@@ -78,8 +78,9 @@ var SortHeaderCell = React.createClass({
 */
 var GrvTableCell = React.createClass({
   render(){
-    var props = this.props;
-    return props.isHeader ? <th key={props.key} className="grv-table-cell">{props.children}</th> : <td key={props.key}>{props.children}</td>;
+    let { isHeader, children, className='' } = this.props;
+    className = 'grv-table-cell ' + className;
+    return isHeader ? <th className={className}>{children}</th> : <td>{children}</td>;
   }
 });
 
