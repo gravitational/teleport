@@ -412,7 +412,7 @@ type CreateSessionResponse struct {
 	// Token value
 	Token string `json:"token"`
 	// User represents the user
-	User services.User `json:"user"`
+	User interface{} `json:"user"`
 	// ExpiresIn sets seconds before this token is not valid
 	ExpiresIn int `json:"expires_in"`
 }
@@ -433,7 +433,7 @@ func (r createSessionResponseRaw) response() (*CreateSessionResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn, User: user}, nil
+	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn, User: user.WebSessionInfo()}, nil
 }
 
 func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
@@ -449,7 +449,7 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	return &CreateSessionResponse{
 		Type:      roundtrip.AuthBearer,
 		Token:     webSession.WS.BearerToken,
-		User:      user,
+		User:      user.WebSessionInfo(),
 		ExpiresIn: int(time.Now().Sub(webSession.WS.Expires) / time.Second),
 	}, nil
 }
@@ -989,6 +989,7 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	// authenticate first:
 	_, err := m.AuthenticateRequest(w, r, true)
 	if err != nil {
+		log.Info(err)
 		// clear session just in case if the authentication request is not valid
 		ClearSession(w)
 		onError(err)
