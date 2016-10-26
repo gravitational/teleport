@@ -94,7 +94,7 @@ func (u *TeleportUser) Equals(other User) bool {
 }
 
 // WebSessionInfo returns web session information
-func (u *TeleportUser) WebSessionInfo() interface{} {
+func (u *TeleportUser) WebSessionInfo() User {
 	return u
 }
 
