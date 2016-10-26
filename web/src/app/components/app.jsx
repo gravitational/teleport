@@ -18,8 +18,6 @@ var React = require('react');
 var NavLeftBar = require('./navLeftBar');
 var reactor = require('app/reactor');
 var {actions, getters} = require('app/modules/app');
-
-var SelectNodeDialog = require('./selectNodeDialog.jsx');
 var NotificationHost = require('./notificationHost.jsx');
 var Timer = require('./timer.jsx');
 
@@ -44,8 +42,7 @@ var App = React.createClass({
 
     return (
       <div className="grv-tlpt grv-flex grv-flex-row">
-        <Timer onTimeout={actions.checkIfUserLoggedIn}/>   
-        <SelectNodeDialog/>
+        <Timer onTimeout={actions.checkIfUserLoggedIn}/>
         <NotificationHost/>
         {this.props.CurrentSessionHost}
         <NavLeftBar/>
