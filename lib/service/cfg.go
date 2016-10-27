@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -306,8 +307,8 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.KeysBackend.Params = boltParams(defaults.DataDir, defaults.KeysBoltFile)
 	cfg.Auth.RecordsBackend.Type = defaults.BackendType
 	cfg.Auth.RecordsBackend.Params = boltParams(defaults.DataDir, defaults.RecordsBoltFile)
-	cfg.Auth.U2fAppId = "https://" + hostname
-	cfg.Auth.U2fTrustedFacets = []string{fmt.Sprintf("%s:%d", cfg.Auth.U2fAppId, defaults.HTTPListenPort)}
+	cfg.Auth.U2fAppId = fmt.Sprintf("https://%s:%d", strings.ToLower(hostname), defaults.HTTPListenPort)
+	cfg.Auth.U2fTrustedFacets = []string{cfg.Auth.U2fAppId}
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
 
 	// defaults for the SSH proxy service:

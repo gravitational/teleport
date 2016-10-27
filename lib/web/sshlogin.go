@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -219,7 +220,7 @@ func SSHAgentU2fLogin(proxyAddr, user, password string, pubKey []byte, ttl time.
 	}
 
 	// Pass the JSON-encoded data undecoded to the u2f-host binary
-	u2fFacet := "https://" + proxyAddr
+	u2fFacet := "https://" + strings.ToLower(proxyAddr)
 	cmd := exec.Command("u2f-host", "-aauthenticate", "-o", u2fFacet)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
