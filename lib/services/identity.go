@@ -49,6 +49,8 @@ type User interface {
 	Check() error
 	// Equals checks if user equals to another
 	Equals(other User) bool
+	// WebSessionInfo returns web session information
+	WebSessionInfo() User
 }
 
 // TeleportUser is an optional user entry in the database
@@ -89,6 +91,11 @@ func (u *TeleportUser) Equals(other User) bool {
 		}
 	}
 	return true
+}
+
+// WebSessionInfo returns web session information
+func (u *TeleportUser) WebSessionInfo() User {
+	return u
 }
 
 // GetAllowedLogins returns user's allowed linux logins
