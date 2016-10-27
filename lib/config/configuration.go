@@ -135,7 +135,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			if err != nil {
 				return trace.Errorf("cannot parse auth server address: '%v'", as)
 			}
-			cfg.AuthServers = []utils.NetAddr{*addr}
+			cfg.AuthServers = append(cfg.AuthServers, *addr)
 		}
 	}
 	cfg.ApplyToken(fc.AuthToken)
