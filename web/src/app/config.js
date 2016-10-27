@@ -49,6 +49,10 @@ let cfg = {
     sessionPath: '/v1/webapi/sessions',
     invitePath: '/v1/webapi/users/invites/:inviteToken',
     createUserPath: '/v1/webapi/users',
+    u2fCreateUserChallengePath: '/webapi/u2f/invite_register_request/:inviteToken',
+    u2fCreateUserPath: '/webapi/u2f/new_user',
+    u2fSessionChallengePath: '/webapi/u2f/sign_request',
+    u2fSessionPath: '/webapi/u2f/sessions',
     nodesPath: '/v1/webapi/sites/-current-/nodes',
     siteSessionPath: '/v1/webapi/sites/-current-/sessions',
     sessionEventsPath: '/v1/webapi/sites/-current-/sessions/:sid/events',
@@ -82,6 +86,10 @@ let cfg = {
 
     getInviteUrl(inviteToken){
       return formatPattern(cfg.api.invitePath, {inviteToken});
+    },
+
+    getU2fCreateUserChallengeUrl(inviteToken){
+      return formatPattern(cfg.api.u2fCreateUserChallengePath, {inviteToken});
     },
 
     getEventStreamConnStr(){

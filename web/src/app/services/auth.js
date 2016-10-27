@@ -18,8 +18,13 @@ var api = require('./api');
 var session = require('./session');
 var cfg = require('app/config');
 var $ = require('jQuery');
+require('u2f-api-polyfill'); // This puts it in window.u2f
 
 const PROVIDER_GOOGLE = 'google';
+
+const SECOND_FACTOR_TYPE_HOTP = 'hotp';
+const SECOND_FACTOR_TYPE_OIDC = 'oidc';
+const SECOND_FACTOR_TYPE_U2F = 'u2f';
 
 const CHECK_TOKEN_REFRESH_RATE = 10*1000; // 10 sec
 
@@ -52,6 +57,46 @@ var auth = {
       this._startTokenRefresher();
       return data;
     });
+  },
+
+  u2fLogin(name, password, successCb, errorCb){
+    auth._stopTokenRefresher();
+    session.clear();
+
+    var data = {
+      user: name,
+      pass: password
+    }
+
+    api.post(cfg.api.u2fSessionChallengePath, data, false).then(data=>{
+      window.u2f.sign(data.appId, data.challenge, [data],function(res){
+        if(res.errorCode){
+          var errorMsg;
+          // lookup error message...
+          for(var err in window.u2f.ErrorCodes){
+            if(window.u2f.ErrorCodes[err] == res.errorCode){
+              errorMsg = err;
+            }
+          }
+          errorCb("U2F Error: " + errorMsg);
+          return;
+        }
+
+        var response = {
+          user:              name,
+          u2f_sign_response: res
+        }
+        api.post(cfg.api.u2fSessionPath, response, false).then(data=>{
+          session.setUserData(data);
+          auth._startTokenRefresher();
+          successCb(data);
+        }).fail(data=>{
+          errorCb(data.responseJSON);
+        })
+      });
+    }).fail(data=>{
+      errorCb(data.responseJSON);
+    })
   },
 
   ensureUser(){
@@ -119,3 +164,6 @@ var auth = {
 
 module.exports = auth;
 module.exports.PROVIDER_GOOGLE = PROVIDER_GOOGLE;
+module.exports.SECOND_FACTOR_TYPE_HOTP = SECOND_FACTOR_TYPE_HOTP;
+module.exports.SECOND_FACTOR_TYPE_OIDC = SECOND_FACTOR_TYPE_OIDC;
+module.exports.SECOND_FACTOR_TYPE_U2F = SECOND_FACTOR_TYPE_U2F;

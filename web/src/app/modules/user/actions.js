@@ -22,6 +22,7 @@ var auth = require('app/services/auth');
 var session = require('app/services/session');
 var cfg = require('app/config');
 var api = require('app/services/api');
+var {SECOND_FACTOR_TYPE_OIDC, SECOND_FACTOR_TYPE_U2F} = require('app/services/auth');
 
 export default {
 
@@ -70,14 +71,27 @@ export default {
       });
   },
 
-  login({user, password, token, provider}, redirect){
-    if(provider){
+  login({user, password, token, provider, second_factor_type}, redirect){
+    if(second_factor_type == SECOND_FACTOR_TYPE_OIDC){
       let fullPath = cfg.getFullUrl(redirect);
       window.location = cfg.api.getSsoUrl(fullPath, provider);
       return;
     }
 
     restApiActions.start(TRYING_TO_LOGIN);
+
+    if(second_factor_type == SECOND_FACTOR_TYPE_U2F){
+      // Because the U2f API is asynchronous, we have to pass in callbacks
+      auth.u2fLogin(user, password, function(sessionData){
+          restApiActions.success(TRYING_TO_LOGIN);
+          reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
+          session.getHistory().push({pathname: redirect});
+        }, function(msg){
+          restApiActions.fail(TRYING_TO_LOGIN, msg);
+        });
+      return
+    }
+
     auth.login(user, password, token)
       .done((sessionData)=>{
         restApiActions.success(TRYING_TO_LOGIN);
