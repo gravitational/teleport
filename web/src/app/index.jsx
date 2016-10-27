@@ -35,7 +35,6 @@ render((
     <Route path={cfg.routes.msgs} component={MessagePage}/>
     <Route path={cfg.routes.login} component={Login}/>
     <Route path={cfg.routes.newUser} component={NewUser}/>
-    <Redirect from={cfg.routes.logout} to={cfg.routes.login}/>
     <Redirect from={cfg.routes.app} to={cfg.routes.nodes}/>
     <Route path={cfg.routes.app} component={App} onEnter={ensureUser} >
       <Route path={cfg.routes.sessions} component={Sessions}/>

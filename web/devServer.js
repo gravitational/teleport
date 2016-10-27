@@ -31,10 +31,18 @@ webpackConfig.entry.styles.unshift(WEBPACK_CLIENT_ENTRY, WEBPACK_SRV_ENTRY);
 
 var compiler = webpack(webpackConfig);
 
+function getTargetOptions() {
+  return {
+    target: "https://"+PROXY_TARGET,
+    secure: false,
+    changeOrigin: true
+  }
+}
+
 var server = new WebpackDevServer(compiler, {
   proxy: {
-    '/web/config.js': 'https://' + PROXY_TARGET,
-    '/v1/webapi/*': 'https://' + PROXY_TARGET
+    '/web/config.js': getTargetOptions(),
+    '/v1/webapi/*': getTargetOptions()
   },
   publicPath: ROOT +'/app',
   hot: true,

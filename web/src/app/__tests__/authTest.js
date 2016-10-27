@@ -29,6 +29,7 @@ describe('auth', function () {
     spyOn(session, 'getUserData');
     spyOn(session, 'clear');
     spyOn(api, 'post');
+    spyOn(api, 'delete').andReturn($.Deferred().resolve());
     spyOn(auth, '_startTokenRefresher');
     spyOn(auth, '_stopTokenRefresher');
     spyOn(auth, '_redirect');
@@ -102,6 +103,7 @@ describe('auth', function () {
   describe('logout()', function () {
     it('should clear the session and stop refreshTimer', function () {
       auth.logout();
+      expect(api.delete.calls.length).toEqual(1);
       expect(session.clear.calls.length).toEqual(1);
       expect(auth._stopTokenRefresher.calls.length).toEqual(1);
     });
