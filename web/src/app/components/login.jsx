@@ -34,14 +34,14 @@ var LoginInputForm = React.createClass({
       password: '',
       token: '',
       provider: null,
-      second_factor_type: SECOND_FACTOR_TYPE_HOTP
+      secondFactorType: SECOND_FACTOR_TYPE_HOTP
     }
   },
 
 
   onLogin(e){
     e.preventDefault();
-    this.state.second_factor_type = SECOND_FACTOR_TYPE_HOTP;
+    this.state.secondFactorType = SECOND_FACTOR_TYPE_HOTP;
     // token field is required for Google Authenticator
     $('input[name=token]').addClass("required");
     if (this.isValid()) {
@@ -51,14 +51,14 @@ var LoginInputForm = React.createClass({
 
   onLoginWithGoogle: function(e) {
     e.preventDefault();
-    this.state.second_factor_type = SECOND_FACTOR_TYPE_OIDC;
+    this.state.secondFactorType = SECOND_FACTOR_TYPE_OIDC;
     this.state.provider = PROVIDER_GOOGLE;
     this.props.onClick(this.state);
   },
 
   onLoginWithU2f: function(e) {
     e.preventDefault();
-    this.state.second_factor_type = SECOND_FACTOR_TYPE_U2F;
+    this.state.secondFactorType = SECOND_FACTOR_TYPE_U2F;
     // token field not required for U2F
     $('input[name=token]').removeClass("required");
     if (this.isValid()) {
@@ -92,7 +92,7 @@ var LoginInputForm = React.createClass({
           <button onClick={this.onLogin} disabled={isProcessing} type="submit" className="btn btn-primary block full-width m-b">Login</button>
           <button onClick={this.onLoginWithU2f} disabled={isProcessing} type="submit" className="btn btn-primary block full-width m-b">Login with U2F</button>
           { useGoogle ? <button onClick={this.onLoginWithGoogle} type="submit" className="btn btn-danger block full-width m-b">With Google</button> : null }
-          { isProcessing && this.state.second_factor_type == SECOND_FACTOR_TYPE_U2F ? (<label className="help-block">Insert your U2F key and press the button on the key</label>) : null }
+          { isProcessing && this.state.secondFactorType == SECOND_FACTOR_TYPE_U2F ? (<label className="help-block">Insert your U2F key and press the button on the key</label>) : null }
           { isFailed ? (<label className="error">{message}</label>) : null }
         </div>
       </form>

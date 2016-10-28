@@ -57,8 +57,20 @@ export default {
       });
   },
 
-  signUp({name, psw, token, inviteToken}){
+  signUp({name, psw, token, inviteToken, secondFactorType}){
     restApiActions.start(TRYING_TO_SIGN_UP);
+
+    if(secondFactorType == SECOND_FACTOR_TYPE_U2F){
+      auth.u2fSignUp(name, psw, inviteToken, function(sessionData){
+        reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
+        restApiActions.success(TRYING_TO_SIGN_UP);
+        session.getHistory().push({pathname: cfg.routes.app});
+      }, function(msg){
+        restApiActions.fail(TRYING_TO_SIGN_UP, msg);
+      });
+      return;
+    }
+
     auth.signUp(name, psw, token, inviteToken)
       .done((sessionData)=>{
         reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
@@ -71,8 +83,8 @@ export default {
       });
   },
 
-  login({user, password, token, provider, second_factor_type}, redirect){
-    if(second_factor_type == SECOND_FACTOR_TYPE_OIDC){
+  login({user, password, token, provider, secondFactorType}, redirect){
+    if(secondFactorType == SECOND_FACTOR_TYPE_OIDC){
       let fullPath = cfg.getFullUrl(redirect);
       window.location = cfg.api.getSsoUrl(fullPath, provider);
       return;
@@ -80,7 +92,7 @@ export default {
 
     restApiActions.start(TRYING_TO_LOGIN);
 
-    if(second_factor_type == SECOND_FACTOR_TYPE_U2F){
+    if(secondFactorType == SECOND_FACTOR_TYPE_U2F){
       // Because the U2f API is asynchronous, we have to pass in callbacks
       auth.u2fLogin(user, password, function(sessionData){
           restApiActions.success(TRYING_TO_LOGIN);

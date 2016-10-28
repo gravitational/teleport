@@ -42,6 +42,40 @@ var auth = {
       });
   },
 
+  u2fSignUp(name, password, inviteToken, successCb, errorCb){
+    api.get(cfg.api.getU2fCreateUserChallengeUrl(inviteToken)).then(data=>{
+      window.u2f.register(data.appId, [data], [], function(res){
+        if(res.errorCode){
+          var errorMsg = "";
+          // lookup error message...
+          for(var err in window.u2f.ErrorCodes){
+            if(window.u2f.ErrorCodes[err] == res.errorCode){
+              errorMsg = err;
+            }
+          }
+          errorCb("U2F Error: " + errorMsg);
+          return;
+        }
+
+        var response = {
+          user:                  name,
+          pass:                  password,
+          u2f_register_response: res,
+          invite_token:          inviteToken
+        }
+        api.post(cfg.api.u2fCreateUserPath, response, false).then(data=>{
+          session.setUserData(data);
+          auth._startTokenRefresher();
+          successCb(data);
+        }).fail(data=>{
+          errorCb(data.responseJSON.message);
+        })
+      });
+    }).fail(data=>{
+      errorCb(data.responseJSON.message);
+    })
+  },
+
   login(name, password, token){
     auth._stopTokenRefresher();
     session.clear();
@@ -71,7 +105,7 @@ var auth = {
     api.post(cfg.api.u2fSessionChallengePath, data, false).then(data=>{
       window.u2f.sign(data.appId, data.challenge, [data],function(res){
         if(res.errorCode){
-          var errorMsg;
+          var errorMsg = "";
           // lookup error message...
           for(var err in window.u2f.ErrorCodes){
             if(window.u2f.ErrorCodes[err] == res.errorCode){
@@ -91,11 +125,11 @@ var auth = {
           auth._startTokenRefresher();
           successCb(data);
         }).fail(data=>{
-          errorCb(data.responseJSON);
+          errorCb(data.responseJSON.message);
         })
       });
     }).fail(data=>{
-      errorCb(data.responseJSON);
+      errorCb(data.responseJSON.message);
     })
   },
 
