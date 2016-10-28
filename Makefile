@@ -19,7 +19,7 @@ RELEASE := teleport-$(GITTAG)-$(shell go env GOOS)-$(shell go env GOARCH)-bin
 
 export
 
-$(eval BUILDFLAGS := $(ADDFLAGS) -ldflags -w)
+$(eval BUILDFLAGS := $(ADDFLAGS) -ldflags '-w -s')
 
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
