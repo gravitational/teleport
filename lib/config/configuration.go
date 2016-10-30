@@ -22,7 +22,6 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 	"unicode"
@@ -41,7 +40,6 @@ import (
 	"github.com/gravitational/trace"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/kardianos/osext"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -540,14 +538,6 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 
-	// locate web assets if web proxy is enabled
-	if cfg.Proxy.Enabled {
-		cfg.Proxy.AssetsDir, err = LocateWebAssets()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	// --pid-file:
 	if clf.PIDFile != "" {
 		cfg.PIDFile = clf.PIDFile
@@ -684,47 +674,4 @@ func validateAdvertiseIP(advertiseIP net.IP) error {
 		return trace.BadParameter("unreachable advertise IP: %v", advertiseIP)
 	}
 	return nil
-}
-
-// DirsToLookForWebAssets defines the locations where teleport proxy looks for
-// its web assets
-var DirsToLookForWebAssets = []string{
-	"/usr/local/share/teleport",
-	"/usr/share/teleport",
-	"/opt/teleport",
-}
-
-// LocateWebAssets locates the web assets required for the Proxy to start. Retursn the full path
-// to web assets directory
-func LocateWebAssets() (string, error) {
-	const errorMessage = "Cannot determine location of web assets."
-	assetsToCheck := []string{
-		"index.html",
-		"/app",
-	}
-	// checker function to determine if dirPath contains the web assets
-	locateAssets := func(dirPath string) bool {
-		for _, af := range assetsToCheck {
-			if !fileExists(filepath.Join(dirPath, af)) {
-				return false
-			}
-		}
-		return true
-	}
-	// check the directory where teleport binary is located first:
-	exeDir, err := osext.ExecutableFolder()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	if locateAssets(exeDir) {
-		return exeDir, nil
-	}
-	// look in other possible locations:
-	for _, dir := range DirsToLookForWebAssets {
-		if locateAssets(dir) {
-			return dir, nil
-		}
-	}
-	return "",
-		trace.Errorf("Cannot find web assets. Unable to locate %v", filepath.Join(exeDir, assetsToCheck[0]))
 }

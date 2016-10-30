@@ -35,6 +35,9 @@ tctl:
 .PHONY: teleport 
 teleport:
 	go build -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
+	cd web/dist ; zip -r ../../$(BUILDDIR)/webassets.zip .
+	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
+	zip -q -A $(BUILDDIR)/teleport
 
 .PHONY: tsh
 tsh: 
