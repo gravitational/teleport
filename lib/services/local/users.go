@@ -455,10 +455,10 @@ func (s *IdentityService) GetU2fRegisterChallenge(token string) (u2fChallenge u2
 
 // u2f.Registration cannot be json marshalled due to the public key pointer so we have this marshallable version
 type MarshallableU2fRegistration struct {
-	Raw []byte `"json:raw"`
+	Raw []byte `json:"raw"`
 
-	KeyHandle []byte `"json:keyhandle"`
-	MarshalledPubKey []byte `"json:marshalled_pubkey"`
+	KeyHandle []byte `json:"keyhandle"`
+	MarshalledPubKey []byte `json:"marshalled_pubkey"`
 
 	// AttestationCert is not needed for authentication so we don't need to store it
 }
@@ -518,7 +518,7 @@ func (s *IdentityService) GetU2fRegistration(user string) (u2fReg *u2f.Registrat
 }
 
 type U2fRegistrationCounter struct {
-	Counter uint32 `"json:counter"`
+	Counter uint32 `json:"counter"`
 }
 
 func (s *IdentityService) UpsertU2fRegistrationCounter(user string, counter uint32) (e error) {
