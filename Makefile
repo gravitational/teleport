@@ -35,9 +35,10 @@ tctl:
 .PHONY: teleport 
 teleport:
 	go build -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
-	cd web/dist ; zip -r ../../$(BUILDDIR)/webassets.zip .
+	cd web/dist ; zip -qr ../../$(BUILDDIR)/webassets.zip .
 	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
-	zip -q -A $(BUILDDIR)/teleport
+	@rm $(BUILDDIR)/webassets.zip
+	@zip -q -A $(BUILDDIR)/teleport
 
 .PHONY: tsh
 tsh: 
@@ -71,8 +72,6 @@ clean:
 assets:
 	rm -rf $(BUILDDIR)/app
 	rm -f web/dist/app/app
-	cp -r web/dist/app $(BUILDDIR)
-	cp web/dist/index.html $(BUILDDIR)
 	cp README.md $(BUILDDIR)
 
 #

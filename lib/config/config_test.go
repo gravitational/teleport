@@ -75,10 +75,6 @@ func (s *ConfigTestSuite) SetUpSuite(c *check.C) {
 	if err = ioutil.WriteFile(s.configFileBadContent, []byte("bad-data!"), 0660); err != nil {
 		c.FailNow()
 	}
-
-	// configure to look for web/dist in the current directory
-	curdir, _ := os.Getwd()
-	DirsToLookForWebAssets = []string{filepath.Join(curdir, "../../web/dist")}
 }
 
 func (s *ConfigTestSuite) TearDownSuite(c *check.C) {
@@ -196,21 +192,6 @@ func (s *ConfigTestSuite) TestLabelParsing(c *check.C) {
 			Command: []string{"/bin/uname", "-m", `"p1 p2"`},
 		},
 	})
-}
-
-func (s *ConfigTestSuite) TestLocateWebAssets(c *check.C) {
-	path, err := LocateWebAssets()
-	c.Assert(path, check.Equals, DirsToLookForWebAssets[0])
-	c.Assert(err, check.IsNil)
-
-	origDirs := DirsToLookForWebAssets
-	defer func() {
-		DirsToLookForWebAssets = origDirs
-	}()
-	DirsToLookForWebAssets = []string{"/bad/dir"}
-	path, err = LocateWebAssets()
-	c.Assert(path, check.Equals, "")
-	c.Assert(err, check.NotNil)
 }
 
 func (s *ConfigTestSuite) TestTrustedClusters(c *check.C) {

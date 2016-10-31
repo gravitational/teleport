@@ -165,7 +165,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 		staticFS      http.FileSystem
 	)
 	if !cfg.DisableUI {
-		staticFS, err = NewStaticFileSystem()
+		staticFS, err = NewStaticFileSystem(isDebugMode())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

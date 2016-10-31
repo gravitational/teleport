@@ -13,10 +13,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-This file contains utilities to load web resources (static files
-like HTML, JavaScript and CSS) from the executable instead of
-the file system.
-
 */
 
 package web
@@ -28,6 +24,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
@@ -35,61 +32,70 @@ import (
 	"github.com/kardianos/osext"
 )
 
-const (
-	// relative path to static assets. this is useful during development:
-	debugAssetsPath = "../web/dist"
-
-	// useDebugPath constant, if set to true, allows Teleport to seek
-	// static assets in debugAssetsPath (relative to its executable).
-	useDebugPath = true
-)
+// relative path to static assets. this is useful during development.
+var debugAssetsPath string
 
 // NewStaticFileSystem returns the initialized implementation of http.FileSystem
 // interface which can be used to serve Teleport Proxy Web UI
-func NewStaticFileSystem() (http.FileSystem, error) {
-	useLocalDisk := useDebugPath
-	assetsToCheck := []string{"index.html", "/app"}
+//
+// If 'debugMode' is true, it will load the web assets from the same git repo
+// directory where the executable is, otherwise it will load them from the embedded
+// zip archive.
+//
+func NewStaticFileSystem(debugMode bool) (http.FileSystem, error) {
+	if debugMode {
+		assetsToCheck := []string{"index.html", "/app"}
 
-	// shall we look for web assets in the "debug assets path", i.e. the
-	// path relative to the executable, as laid out in the git repo?
-	if useLocalDisk {
-		exePath, err := osext.ExecutableFolder()
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if debugAssetsPath == "" {
+			exePath, err := osext.ExecutableFolder()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			debugAssetsPath = path.Join(exePath, "../web/dist")
 		}
-		dp := path.Join(exePath, debugAssetsPath)
 
 		for _, af := range assetsToCheck {
-			_, err := os.Stat(filepath.Join(dp, af))
-			if os.IsNotExist(err) {
-				useLocalDisk = false
-				break
+			_, err := os.Stat(filepath.Join(debugAssetsPath, af))
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
 		}
-		if useLocalDisk {
-			log.Infof("[Web] Using filesystem for serving web assets: %s", dp)
-			return http.Dir(dp), nil
-		}
+		log.Infof("[Web] Using filesystem for serving web assets: %s", debugAssetsPath)
+		return http.Dir(debugAssetsPath), nil
 	}
 
 	// otherwise, lets use the zip archive attached to the executable:
 	return loadZippedExeAssets()
 }
 
+// isDebugMode determines if teleport is running in a "debug" mode.
+// It looks at DEBUG environment variable
+func isDebugMode() bool {
+	v, err := strconv.ParseBool(os.Getenv("DEBUG"))
+	return v && err == nil
+}
+
 // LoadWebResources returns a filesystem implementation compatible
-// with http.Serve. The "filesystem" is served from a zip file attached
-// at the end of the executable
+// with http.Serve.
+//
+// The "filesystem" is served from a zip file attached at the end of
+// the executable
+//
 func loadZippedExeAssets() (ResourceMap, error) {
 	// open ourselves (teleport binary) for reading:
+	// NOTE: the file stays open to serve future Read() requests
 	myExe, err := osext.Executable()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	file, err := os.Open(myExe)
+	return readZipArchive(myExe)
+}
+
+func readZipArchive(archivePath string) (ResourceMap, error) {
+	file, err := os.Open(archivePath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// defer file.Close()
 	// feed the binary into the zip reader and enumerate all files
 	// found in the attached zip file:
 	info, err := file.Stat()
