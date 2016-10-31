@@ -366,8 +366,6 @@ func (s *IdentityService) CheckPasswordWOToken(user string, password []byte) err
 var (
 	userTokensPath   = []string{"addusertokens"}
 	u2fRegChalPath   = []string{"adduseru2fchallenges"}
-	u2fRegPath       = []string{"u2fregistrations"}
-	u2fRegCounterPath= []string{"u2fregistrationcounters"}
 	u2fSignChalPath  = []string{"u2fsignchallenges"}
 	connectorsPath   = []string{"web", "connectors", "oidc", "connectors"}
 	authRequestsPath = []string{"web", "connectors", "oidc", "requests"}
@@ -428,13 +426,15 @@ func (s *IdentityService) DeleteSignupToken(token string) error {
 	return trace.Wrap(err)
 }
 
+// This is hardcoded in the U2F library
+const u2fChallengeTimeout = 5 * time.Minute
+
 func (s *IdentityService) UpsertU2fRegisterChallenge(token string, u2fChallenge u2f.Challenge) (e error) {
-	// The u2f challenge has its own timestamp inside so it's ok to store it forever here
 	data, err := json.Marshal(u2fChallenge)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal(u2fRegChalPath, token, data, backend.Forever)
+	err = s.backend.UpsertVal(u2fRegChalPath, token, data, u2fChallengeTimeout)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -480,7 +480,7 @@ func (s *IdentityService) UpsertU2fRegistration(user string, u2fReg *u2f.Registr
 		return trace.Wrap(err)
 	}
 
-	err = s.backend.UpsertVal(u2fRegPath, user, data, backend.Forever)
+	err = s.backend.UpsertVal([]string{"web", "users", user}, "u2fregistration", data, backend.Forever)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -488,7 +488,7 @@ func (s *IdentityService) UpsertU2fRegistration(user string, u2fReg *u2f.Registr
 }
 
 func (s *IdentityService) GetU2fRegistration(user string) (u2fReg *u2f.Registration, e error) {
-	data, err := s.backend.GetVal(u2fRegPath, user)
+	data, err := s.backend.GetVal([]string{"web", "users", user}, "u2fregistration")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -529,7 +529,7 @@ func (s *IdentityService) UpsertU2fRegistrationCounter(user string, counter uint
 		return trace.Wrap(err)
 	}
 
-	err = s.backend.UpsertVal(u2fRegCounterPath, user, data, backend.Forever)
+	err = s.backend.UpsertVal([]string{"web", "users", user}, "u2fregistrationcounter", data, backend.Forever)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -537,7 +537,7 @@ func (s *IdentityService) UpsertU2fRegistrationCounter(user string, counter uint
 }
 
 func (s *IdentityService) GetU2fRegistrationCounter(user string) (counter uint32, e error) {
-	data, err := s.backend.GetVal(u2fRegCounterPath, user)
+	data, err := s.backend.GetVal([]string{"web", "users", user}, "u2fregistrationcounter")
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -556,7 +556,7 @@ func (s *IdentityService) UpsertU2fSignChallenge(user string, u2fChallenge *u2f.
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal(u2fSignChalPath, user, data, backend.Forever)
+	err = s.backend.UpsertVal(u2fSignChalPath, user, data, u2fChallengeTimeout)
 	if err != nil {
 		return trace.Wrap(err)
 	}
