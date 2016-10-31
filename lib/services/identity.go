@@ -202,10 +202,10 @@ type Identity interface {
 	DeleteSignupToken(token string) error
 
 	// upserts a U2F challenge for a new user corresponding to the token
-	UpsertU2fRegisterChallenge(token string, u2fChallenge u2f.Challenge) (error)
+	UpsertU2fRegisterChallenge(token string, u2fChallenge *u2f.Challenge) (error)
 
 	// returns a U2F challenge for a new user corresponding to the token
-	GetU2fRegisterChallenge(token string) (u2f.Challenge, error)
+	GetU2fRegisterChallenge(token string) (*u2f.Challenge, error)
 
 	// upserts a U2F registration from a valid register response
 	UpsertU2fRegistration(user string, u2fReg *u2f.Registration) (error)

@@ -164,7 +164,7 @@ func (s *AuthServer) CreateSignupU2fRegisterRequest(token string) (u2fRegisterRe
 
 	u2fRegReq := c.RegisterRequest()
 
-	err = s.UpsertU2fRegisterChallenge(token, *c)
+	err = s.UpsertU2fRegisterChallenge(token, c)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -261,7 +261,7 @@ func (s *AuthServer) CreateU2fUserWithToken(token string, password string, u2fRe
 		return nil, trace.Wrap(err)
 	}
 
-	reg, err := u2f.Register(u2fRegisterResponse, challenge, &u2f.Config{SkipAttestationVerify: true})
+	reg, err := u2f.Register(u2fRegisterResponse, *challenge, &u2f.Config{SkipAttestationVerify: true})
 	if err != nil {
 		log.Errorf("%v", err)
 		return nil, trace.Wrap(err)

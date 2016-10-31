@@ -429,7 +429,7 @@ func (s *IdentityService) DeleteSignupToken(token string) error {
 // This is hardcoded in the U2F library
 const u2fChallengeTimeout = 5 * time.Minute
 
-func (s *IdentityService) UpsertU2fRegisterChallenge(token string, u2fChallenge u2f.Challenge) (e error) {
+func (s *IdentityService) UpsertU2fRegisterChallenge(token string, u2fChallenge *u2f.Challenge) (e error) {
 	data, err := json.Marshal(u2fChallenge)
 	if err != nil {
 		return trace.Wrap(err)
@@ -441,16 +441,17 @@ func (s *IdentityService) UpsertU2fRegisterChallenge(token string, u2fChallenge 
 	return nil
 }
 
-func (s *IdentityService) GetU2fRegisterChallenge(token string) (u2fChallenge u2f.Challenge, e error) {
+func (s *IdentityService) GetU2fRegisterChallenge(token string) (u2fChallenge *u2f.Challenge, e error) {
 	data, err := s.backend.GetVal(u2fRegChalPath, token)
 	if err != nil {
-		return u2f.Challenge{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	err = json.Unmarshal(data, &u2fChallenge)
+	u2fChal := u2f.Challenge{}
+	err = json.Unmarshal(data, &u2fChal)
 	if err != nil {
-		return u2f.Challenge{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return u2fChallenge, nil
+	return &u2fChal, nil
 }
 
 // u2f.Registration cannot be json marshalled due to the public key pointer so we have this marshallable version

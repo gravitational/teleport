@@ -102,3 +102,7 @@ func (s *BoltSuite) TestLocking(c *C) {
 func (s *BoltSuite) TestToken(c *C) {
 	s.suite.TokenCRUD(c)
 }
+
+func (s *BoltSuite) TestU2fCRUD(c *C) {
+	s.suite.U2fCRUD(c)
+}
