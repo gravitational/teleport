@@ -23,17 +23,11 @@ const logger = require('app/common/logger').create('Modules/Sessions');
 
 const { TLPT_STORED_SESSINS_FILTER_SET_RANGE }  = require('./actionTypes');
 
-const { TLPT_SESSINS_REMOVE_STORED }  = require('./../sessions/actionTypes');
-
 const actions = {
 
   fetchStoredSession(){
     let { start, end } = reactor.evaluate(filter);
     _fetch(start, end);
-  },
-
-  removeStoredSessions(){
-    reactor.dispatch(TLPT_SESSINS_REMOVE_STORED);
   },
 
   setTimeRange(start, end){

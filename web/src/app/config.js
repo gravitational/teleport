@@ -33,10 +33,9 @@ let cfg = {
 
   routes: {
     app: '/web',
-    logout: '/web/logout',
     login: '/web/login',
     nodes: '/web/nodes',
-    activeSession: '/web/sessions/:sid',
+    currentSession: '/web/sessions/:sid',
     newUser: '/web/newuser/:inviteToken',
     sessions: '/web/sessions',
     msgs: '/web/msg/:type(/:subType)',
@@ -44,7 +43,7 @@ let cfg = {
   },
 
   api: {
-    sso: '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:provider',
+    sso: '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:provider',    
     renewTokenPath:'/v1/webapi/sessions/renew',
     sessionPath: '/v1/webapi/sessions',
     invitePath: '/v1/webapi/users/invites/:inviteToken',
@@ -109,8 +108,8 @@ let cfg = {
     return cfg.baseUrl + url;
   },
 
-  getActiveSessionRouteUrl(sid){
-    return formatPattern(cfg.routes.activeSession, {sid});
+  getCurrentSessionRouteUrl(sid){
+    return formatPattern(cfg.routes.currentSession, {sid});
   },
 
   getAuthProviders(){

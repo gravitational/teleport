@@ -2,7 +2,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=1.2.0
+VERSION=1.2.5
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -19,7 +19,7 @@ RELEASE := teleport-$(GITTAG)-$(shell go env GOOS)-$(shell go env GOARCH)-bin
 
 export
 
-$(eval BUILDFLAGS := $(ADDFLAGS) -ldflags -w)
+$(eval BUILDFLAGS := $(ADDFLAGS) -ldflags '-w -s')
 
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
@@ -95,7 +95,7 @@ test: FLAGS ?= -cover
 test: 
 	go test -v ./tool/tsh/... \
 			   ./lib/... \
-			   ./tool/teleport... $(FLAGS) -tags test
+			   ./tool/teleport... $(FLAGS) $(ADDFLAGS)
 	go vet ./tool/... ./lib/...
 
 #

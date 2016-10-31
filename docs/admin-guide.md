@@ -814,6 +814,13 @@ teleport:
     As new Auth servers will be added to the cluster and old servers will be decommissioned, node's and proxies will refresh the list of available auth servers refresh the cluster info and store the updated list locally in `/var/lib/teleport/authservers.json`. The values from this file, if present, will take precedence over configuration file's values. You can simply remove the file so that the configuration file's values can take effect again.
 
 
+### DynamoDB back-end
+
+Teleport also supports community-supplied DynamoDB support for storing secrets.
+You need to compile Teleport with DynamoDB build tags. 
+See [DynamoDB plugin](https://github.com/gravitational/teleport/blob/master/lib/backend/dynamo/README.md) 
+documentation for more details.
+
 ## Troubleshooting
 
 To diagnose problems you can configure `teleport` to run with verbose logging enabled.

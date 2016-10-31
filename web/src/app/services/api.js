@@ -27,12 +27,19 @@ const api = {
     return api.ajax({url: path, data: JSON.stringify(data), type: 'POST'}, withToken);
   },
 
+  delete(path, data, withToken){
+    return api.ajax({url: path, data: JSON.stringify(data), type: 'DELETE'}, withToken);
+  },
+
   get(path){
     return api.ajax({url: path});
   },
 
   ajax(cfg, withToken = true){
-    var defaultCfg = {
+    var defaultCfg = {      
+      // to avoid caching in IE browsers
+      // (implicitly disabling caching adds a timestamp to each ajax requestStatus)
+      cache: false,
       type: "GET",
       dataType: "json",
       beforeSend: function(xhr) {

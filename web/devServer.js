@@ -22,22 +22,27 @@ var proxy = require('http-proxy').createProxyServer();
 
 var PROXY_TARGET = '0.0.0.0:3080/';
 var ROOT = '/web';
-var PORT = '8080';
+var PORT = '8081';
 var WEBPACK_CLIENT_ENTRY = 'webpack-dev-server/client?https://localhost:' + PORT;
 var WEBPACK_SRV_ENTRY = 'webpack/hot/dev-server';
 
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-
-webpackConfig.plugins.unshift(new webpack.HotModuleReplacementPlugin());
 webpackConfig.entry.app.unshift(WEBPACK_CLIENT_ENTRY, WEBPACK_SRV_ENTRY);
 webpackConfig.entry.styles.unshift(WEBPACK_CLIENT_ENTRY, WEBPACK_SRV_ENTRY);
 
 var compiler = webpack(webpackConfig);
 
+function getTargetOptions() {
+  return {
+    target: "https://"+PROXY_TARGET,
+    secure: false,
+    changeOrigin: true
+  }
+}
+
 var server = new WebpackDevServer(compiler, {
   proxy: {
-    '/web/config.js': 'https://' + PROXY_TARGET,
-    '/v1/webapi/*': 'https://' + PROXY_TARGET
+    '/web/config.js': getTargetOptions(),
+    '/v1/webapi/*': getTargetOptions()
   },
   publicPath: ROOT +'/app',
   hot: true,

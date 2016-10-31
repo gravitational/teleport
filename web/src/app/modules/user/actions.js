@@ -24,7 +24,7 @@ var cfg = require('app/config');
 var api = require('app/services/api');
 var {SECOND_FACTOR_TYPE_OIDC, SECOND_FACTOR_TYPE_U2F} = require('app/services/auth');
 
-export default {
+var actions = {
 
   fetchInvite(inviteToken){
     var path = cfg.api.getInviteUrl(inviteToken);
@@ -116,3 +116,5 @@ export default {
       })
     }
 }
+
+export default actions;

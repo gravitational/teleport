@@ -15,10 +15,11 @@ limitations under the License.
 */
 var React = require('react');
 var reactor = require('app/reactor');
-var { IndexLink } = require('react-router');
-var getters = require('app/modules/user/getters');
 var cfg = require('app/config');
-var {UserIcon} = require('./icons.jsx');
+var userGetters = require('app/modules/user/getters');
+var { IndexLink } = require('react-router');
+var { logoutUser } = require('app/modules/app/actions');
+var { UserIcon } = require('./icons.jsx');
 
 var menuItems = [
   {icon: 'fa fa-share-alt', to: cfg.routes.nodes, title: 'Nodes'},
@@ -26,8 +27,8 @@ var menuItems = [
 ];
 
 var NavLeftBar = React.createClass({
-  render: function(){
-    var {name} = reactor.evaluate(getters.user);
+  render(){
+    var {name} = reactor.evaluate(userGetters.user);
     var items = menuItems.map((i, index)=>{
       var className = this.context.router.isActive(i.to) ? 'active' : '';
       return (
@@ -48,7 +49,7 @@ var NavLeftBar = React.createClass({
 
     items.push((
       <li key={items.length} title="logout">
-        <a href={cfg.routes.logout}>
+        <a href="#" onClick={logoutUser} >
           <i className="fa fa-sign-out" style={{marginRight: 0}}></i>
         </a>
       </li>

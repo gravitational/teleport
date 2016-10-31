@@ -120,12 +120,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 		h.sessionStreamPollPeriod = sessionStreamPollPeriod
 	}
 
-	// Helper logout method
-	h.GET("/webapi/logout", h.withAuth(h.logout))
-
 	// Web sessions
 	h.POST("/webapi/sessions", httplib.MakeHandler(h.createSession))
-	h.DELETE("/webapi/sessions/:sid", h.withAuth(h.deleteSession))
+	h.DELETE("/webapi/sessions", h.withAuth(h.deleteSession))
 	h.POST("/webapi/sessions/renew", h.withAuth(h.renewSession))
 
 	// Users
@@ -442,7 +439,7 @@ func (r createSessionResponseRaw) response() (*CreateSessionResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn, User: user}, nil
+	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn, User: user.WebSessionInfo()}, nil
 }
 
 func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
@@ -458,7 +455,7 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	return &CreateSessionResponse{
 		Type:      roundtrip.AuthBearer,
 		Token:     webSession.WS.BearerToken,
-		User:      user,
+		User:      user.WebSessionInfo(),
 		ExpiresIn: int(time.Now().Sub(webSession.WS.Expires) / time.Second),
 	}, nil
 }
@@ -491,24 +488,6 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.AccessDenied("need auth")
 	}
 	return NewSessionResponse(ctx)
-}
-
-// logout is a helper that deletes
-//
-// GET /v1/webapi/logout
-//
-// Response - redirects to /web/login and deletes current session
-//
-//
-func (m *Handler) logout(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	if err := ctx.Invalidate(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := ClearSession(w); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	http.Redirect(w, r, "/web/login", http.StatusFound)
-	return nil, nil
 }
 
 // deleteSession is called to sign out user
@@ -1078,6 +1057,7 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	// authenticate first:
 	_, err := m.AuthenticateRequest(w, r, true)
 	if err != nil {
+		log.Info(err)
 		// clear session just in case if the authentication request is not valid
 		ClearSession(w)
 		onError(err)

@@ -29,10 +29,7 @@ const currentSession = [ ['tlpt_current_session'], ['tlpt_sessions'],
     */
     let curSessionView = {
       isNewSession: current.get('isNewSession'),
-      notFound: current.get('notFound'),
-      addr: current.get('addr'),
       serverId: current.get('serverId'),
-      serverIp: undefined,
       login: current.get('login'),
       sid: current.get('sid'),
       cols: undefined,
@@ -46,7 +43,6 @@ const currentSession = [ ['tlpt_current_session'], ['tlpt_sessions'],
       let existing = createView(sessions.get(curSessionView.sid));
 
       curSessionView.parties = existing.parties;
-      curSessionView.serverIp = existing.serverIp;
       curSessionView.serverId = existing.serverId;
       curSessionView.active = existing.active;
       curSessionView.cols = existing.cols;

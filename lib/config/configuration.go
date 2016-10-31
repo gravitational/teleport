@@ -30,6 +30,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -135,7 +136,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			if err != nil {
 				return trace.Errorf("cannot parse auth server address: '%v'", as)
 			}
-			cfg.AuthServers = []utils.NetAddr{*addr}
+			cfg.AuthServers = append(cfg.AuthServers, *addr)
 		}
 	}
 	cfg.ApplyToken(fc.AuthToken)
@@ -154,11 +155,15 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// configure storage:
+	var err error
 	switch fc.Storage.Type {
+	// bolt backend (default):
 	case teleport.BoltBackendType:
 		cfg.ConfigureBolt()
+
+		// etcd backend (default):
 	case teleport.ETCDBackendType:
-		if err := cfg.ConfigureETCD(etcdbk.Config{
+		if err = cfg.ConfigureETCD(etcdbk.Config{
 			Nodes:       fc.Storage.Peers,
 			Key:         fc.Storage.Prefix,
 			TLSKeyFile:  fc.Storage.TLSKeyFile,
@@ -167,6 +172,16 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}); err != nil {
 			return trace.Wrap(err)
 		}
+
+		// optionally-built-in DynamoDB back-end:
+	case dynamo.BackendType:
+		cfg.ConfigureBolt()
+		// dynamo only stores keys, not events/sessions, everything else
+		// is configured to use bolt:
+		a := &cfg.Auth
+		a.KeysBackend.Type = dynamo.BackendType
+		a.KeysBackend.Params, err = dynamo.ConfigureBackend(&fc.Storage)
+		return trace.Wrap(err)
 	case "":
 		break // not set
 	default:
