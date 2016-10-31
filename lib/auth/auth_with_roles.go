@@ -312,7 +312,6 @@ func (a *AuthWithRoles) GetSignupTokenData(token string) (user string,
 }
 
 func (a *AuthWithRoles) GetSignupU2fRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error){
-	// FIXME: MAYBE ADD NEW PERMISSION
 	if err := a.permChecker.HasPermission(a.role, ActionGetSignupTokenData); err != nil {
 		return nil, trace.Wrap(err)
 	}
