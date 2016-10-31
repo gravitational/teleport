@@ -556,7 +556,7 @@ func (s *IdentityService) UpsertU2fSignChallenge(user string, u2fChallenge *u2f.
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal(u2fSignChalPath, user, data, u2fChallengeTimeout)
+	err = s.backend.UpsertVal([]string{"web", "users", user}, "u2fsignchallenge", data, u2fChallengeTimeout)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -564,7 +564,7 @@ func (s *IdentityService) UpsertU2fSignChallenge(user string, u2fChallenge *u2f.
 }
 
 func (s *IdentityService) GetU2fSignChallenge(user string) (u2fChallenge *u2f.Challenge, e error) {
-	data, err := s.backend.GetVal(u2fSignChalPath, user)
+	data, err := s.backend.GetVal([]string{"web", "users", user}, "u2fsignchallenge")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
