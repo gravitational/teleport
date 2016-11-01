@@ -18,6 +18,7 @@ var api = require('./api');
 var session = require('./session');
 var cfg = require('app/config');
 var $ = require('jQuery');
+var logger = require('app/common/logger').create('services/auth');
 
 const PROVIDER_GOOGLE = 'google';
 
@@ -72,9 +73,12 @@ var auth = {
   },
 
   logout(){
-    auth._stopTokenRefresher();
+    logger.info('logout()');
+    api.delete(cfg.api.sessionPath).always(()=>{
+      auth._redirect();
+    });
     session.clear();
-    auth._redirect();
+    auth._stopTokenRefresher();
   },
 
   _redirect(){

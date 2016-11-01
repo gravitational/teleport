@@ -128,7 +128,6 @@ func (cfg *Config) ApplyToken(token string) bool {
 // ConfigureBolt configures Bolt back-ends with a data dir.
 func (cfg *Config) ConfigureBolt() {
 	a := &cfg.Auth
-
 	if a.EventsBackend.Type == teleport.BoltBackendType {
 		a.EventsBackend.Params = boltParams(cfg.DataDir, defaults.EventsBoltFile)
 	}

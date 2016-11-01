@@ -383,33 +383,8 @@ func (s *WebSuite) TestWebSessionsCRUD(c *C) {
 
 	// now delete session
 	_, err = pack.clt.Delete(
-		pack.clt.Endpoint("webapi", "sessions", pack.session.Token))
+		pack.clt.Endpoint("webapi", "sessions"))
 	c.Assert(err, IsNil)
-
-	// subsequent requests trying to use this session will fail
-	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
-	c.Assert(err, NotNil)
-	c.Assert(trace.IsAccessDenied(err), Equals, true)
-}
-
-func (s *WebSuite) TestWebSessionsLogout(c *C) {
-	pack := s.authPack(c)
-
-	// make sure we can use client to make authenticated requests
-	re, err := pack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
-	c.Assert(err, IsNil)
-
-	var sites *getSitesResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &sites), IsNil)
-
-	// now delete session
-	var redirectErr = trace.Errorf("attempted redirect")
-	pack.clt.HTTPClient().CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		return redirectErr
-	}
-	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "logout"), url.Values{})
-	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Matches, ".*attempted redirect.*")
 
 	// subsequent requests trying to use this session will fail
 	re, err = pack.clt.Get(pack.clt.Endpoint("webapi", "sites"), url.Values{})
@@ -444,7 +419,7 @@ func (s *WebSuite) TestWebSessionsRenew(c *C) {
 
 	// now delete session
 	_, err = newPack.clt.Delete(
-		pack.clt.Endpoint("webapi", "sessions", newPack.session.Token))
+		pack.clt.Endpoint("webapi", "sessions"))
 	c.Assert(err, IsNil)
 
 	// subsequent requests trying to use this session will fail
@@ -689,7 +664,7 @@ func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 	clt.Read(out)
 
 	_, err = pack.clt.Delete(
-		pack.clt.Endpoint("webapi", "sessions", pack.session.Token))
+		pack.clt.Endpoint("webapi", "sessions"))
 	c.Assert(err, IsNil)
 
 	// wait until we timeout or detect that connection has been closed

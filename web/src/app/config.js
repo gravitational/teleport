@@ -33,7 +33,6 @@ let cfg = {
 
   routes: {
     app: '/web',
-    logout: '/web/logout',
     login: '/web/login',
     nodes: '/web/nodes',
     currentSession: '/web/sessions/:sid',
@@ -44,7 +43,7 @@ let cfg = {
   },
 
   api: {
-    sso: '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:provider',
+    sso: '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:provider',    
     renewTokenPath:'/v1/webapi/sessions/renew',
     sessionPath: '/v1/webapi/sessions',
     invitePath: '/v1/webapi/users/invites/:inviteToken',

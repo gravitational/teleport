@@ -23,7 +23,7 @@ var session = require('app/services/session');
 var cfg = require('app/config');
 var api = require('app/services/api');
 
-export default {
+var actions = {
 
   fetchInvite(inviteToken){
     var path = cfg.api.getInviteUrl(inviteToken);
@@ -90,3 +90,5 @@ export default {
       })
     }
 }
+
+export default actions;

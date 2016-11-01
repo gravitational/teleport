@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -103,6 +104,10 @@ var (
 		"client_secret":      true,
 		"redirect_url":       true,
 		"tokens":             true,
+		"region":             true,
+		"table_name":         true,
+		"access_key":         true,
+		"secret_key":         true,
 	}
 )
 
@@ -322,22 +327,6 @@ type Log struct {
 	Severity string `yaml:"severity,omitempty"`
 }
 
-// StorageBackend is used for 'storage' config section. stores values for 'boltdb' and 'etcd'
-type StorageBackend struct {
-	// Type can be "bolt" or "etcd"
-	Type string `yaml:"type,omitempty"`
-	// Peers is a lsit of etcd peers,  valid only for etcd
-	Peers []string `yaml:"peers,omitempty"`
-	// Prefix is etcd key prefix, valid only for etcd
-	Prefix string `yaml:"prefix,omitempty"`
-	// TLSCertFile is a tls client cert file, used for etcd
-	TLSCertFile string `yaml:"tls_cert_file,omitempty"`
-	// TLSKeyFile is a file with TLS private key for client auth
-	TLSKeyFile string `yaml:"tls_key_file,omitempty"`
-	// TLSCAFile is a tls client trusted CA file, used for etcd
-	TLSCAFile string `yaml:"tls_ca_file,omitempty"`
-}
-
 // Global is 'teleport' (global) section of the config file
 type Global struct {
 	NodeName    string           `yaml:"nodename,omitempty"`
@@ -346,7 +335,7 @@ type Global struct {
 	AuthServers []string         `yaml:"auth_servers,omitempty"`
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
-	Storage     StorageBackend   `yaml:"storage,omitempty"`
+	Storage     backend.Config   `yaml:"storage,omitempty"`
 	AdvertiseIP net.IP           `yaml:"advertise_ip,omitempty"`
 	DataDir     string           `yaml:"data_dir,omitempty"`
 

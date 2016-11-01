@@ -17,7 +17,8 @@ limitations under the License.
 var React = require('react');
 var NavLeftBar = require('./navLeftBar');
 var reactor = require('app/reactor');
-var {actions, getters} = require('app/modules/app');
+var { getters } = require('app/modules/app');
+var { initApp, checkIfValidUser } = require('app/modules/app/actions');
 var NotificationHost = require('./notificationHost.jsx');
 var Timer = require('./timer.jsx');
 
@@ -32,7 +33,7 @@ var App = React.createClass({
   },
 
   componentWillMount(){
-    actions.initApp();
+    initApp();
   },
 
   render() {
@@ -42,7 +43,7 @@ var App = React.createClass({
 
     return (
       <div className="grv-tlpt grv-flex grv-flex-row">
-        <Timer onTimeout={actions.checkIfUserLoggedIn}/>
+        <Timer onTimeout={checkIfValidUser} interval={4000}/>
         <NotificationHost/>
         {this.props.CurrentSessionHost}
         <NavLeftBar/>
