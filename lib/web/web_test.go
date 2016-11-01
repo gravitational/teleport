@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
@@ -78,6 +79,7 @@ type WebSuite struct {
 	// audit log and its dir:
 	auditLog events.IAuditLog
 	logDir   string
+	mockU2f  *mocku2f.MockU2fKey
 }
 
 var _ = Suite(&WebSuite{})
@@ -90,6 +92,9 @@ func (s *WebSuite) SetUpSuite(c *C) {
 	s.auditLog, err = events.NewAuditLog(s.logDir)
 	c.Assert(err, IsNil)
 	c.Assert(s.auditLog, NotNil)
+	s.mockU2f, err = mocku2f.Create()
+	c.Assert(err, IsNil)
+	c.Assert(s.mockU2f, NotNil)
 }
 
 func (s *WebSuite) TearDownSuite(c *C) {
@@ -113,7 +118,9 @@ func (s *WebSuite) SetUpTest(c *C) {
 	authServer := auth.NewAuthServer(&auth.InitConfig{
 		Backend:    s.bk,
 		Authority:  authority.New(),
-		DomainName: s.domainName})
+		DomainName: s.domainName,
+		U2fAppId: "https://" + s.domainName,
+		U2fTrustedFacets: []string{"https://" + s.domainName}})
 
 	c.Assert(authServer.UpsertCertAuthority(
 		*suite.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
