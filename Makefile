@@ -35,10 +35,6 @@ tctl:
 .PHONY: teleport 
 teleport:
 	go build -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
-	cd web/dist ; zip -qr ../../$(BUILDDIR)/webassets.zip .
-	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
-	@rm $(BUILDDIR)/webassets.zip
-	@zip -q -A $(BUILDDIR)/teleport
 
 .PHONY: tsh
 tsh: 
@@ -131,6 +127,10 @@ tag:
 #	
 .PHONY: release
 release: clean setver all
+	cd web/dist ; zip -qr ../../$(BUILDDIR)/webassets.zip .
+	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
+	zip -q -A $(BUILDDIR)/teleport
+	rm $(BUILDDIR)/webassets.zip
 	cp -rf $(BUILDDIR) teleport
 	@echo $(GITTAG) > teleport/VERSION
 	tar -czf $(RELEASE).tar.gz teleport
