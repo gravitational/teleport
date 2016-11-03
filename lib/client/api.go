@@ -647,6 +647,16 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err erro
 	}
 	defer proxyClient.Close()
 
+	// helper function connects to the src/target node:
+	connectToNode := func(addr string) (*NodeClient, error) {
+		// determine which cluster we're connecting to:
+		siteInfo, err := proxyClient.getSite()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return proxyClient.ConnectToNode(addr+"@"+siteInfo.Name, tc.HostLogin, false)
+	}
+
 	// gets called to convert SSH error code to tc.ExitStatus
 	onError := func(err error) error {
 		exitError, _ := trace.Unwrap(err).(*ssh.ExitError)
@@ -663,7 +673,7 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err erro
 		}
 		addr := net.JoinHostPort(host, strconv.Itoa(port))
 
-		client, err := proxyClient.ConnectToNode(addr, tc.HostLogin, false)
+		client, err := connectToNode(addr)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -682,7 +692,7 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err erro
 		if login != "" {
 			tc.HostLogin = login
 		}
-		client, err := proxyClient.ConnectToNode(addr, tc.HostLogin, false)
+		client, err := connectToNode(addr)
 		if err != nil {
 			return trace.Wrap(err)
 		}

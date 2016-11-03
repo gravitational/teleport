@@ -171,7 +171,7 @@ func run(args []string, underTest bool) {
 
 // onPlay replays a session with a given ID
 func onPlay(cf *CLIConf) {
-	tc, err := makeClient(cf)
+	tc, err := makeClient(cf, true)
 	if err != nil {
 		utils.FatalError(err)
 	}
@@ -182,7 +182,7 @@ func onPlay(cf *CLIConf) {
 
 // onLogin logs in with remote proxy and gets signed certificates
 func onLogin(cf *CLIConf) {
-	tc, err := makeClient(cf)
+	tc, err := makeClient(cf, true)
 	if err != nil {
 		utils.FatalError(err)
 	}
@@ -198,7 +198,7 @@ func onLogin(cf *CLIConf) {
 
 // onLogout deletes a "session certificate" from ~/.tsh for a given proxy
 func onLogout(cf *CLIConf) {
-	tc, err := makeClient(cf)
+	tc, err := makeClient(cf, true)
 	if err != nil {
 		utils.FatalError(err)
 	}
@@ -214,7 +214,7 @@ func onLogout(cf *CLIConf) {
 
 // onListNodes executes 'tsh ls' command
 func onListNodes(cf *CLIConf) {
-	tc, err := makeClient(cf)
+	tc, err := makeClient(cf, true)
 	if err != nil {
 		utils.FatalError(err)
 	}
@@ -238,7 +238,7 @@ func onListNodes(cf *CLIConf) {
 
 // onListSites executes 'tsh sites' command
 func onListSites(cf *CLIConf) {
-	tc, err := makeClient(cf)
+	tc, err := makeClient(cf, true)
 	if err != nil {
 		utils.FatalError(err)
 	}
@@ -268,7 +268,7 @@ func onListSites(cf *CLIConf) {
 
 // onSSH executes 'tsh ssh' command
 func onSSH(cf *CLIConf) {
-	tc, err := makeClient(cf)
+	tc, err := makeClient(cf, false)
 	if err != nil {
 		utils.FatalError(err)
 	}
@@ -289,7 +289,7 @@ func onSSH(cf *CLIConf) {
 
 // onJoin executes 'ssh join' command
 func onJoin(cf *CLIConf) {
-	tc, err := makeClient(cf)
+	tc, err := makeClient(cf, true)
 	if err != nil {
 		utils.FatalError(err)
 	}
@@ -307,7 +307,7 @@ func onJoin(cf *CLIConf) {
 
 // onSCP executes 'tsh scp' command
 func onSCP(cf *CLIConf) {
-	tc, err := makeClient(cf)
+	tc, err := makeClient(cf, false)
 	if err != nil {
 		utils.FatalError(err)
 	}
@@ -326,7 +326,7 @@ func onSCP(cf *CLIConf) {
 
 // onAgentStart start ssh agent on a socket
 func onAgentStart(cf *CLIConf) {
-	tc, err := makeClient(cf)
+	tc, err := makeClient(cf, true)
 	if err != nil {
 		utils.FatalError(err)
 	}
@@ -362,7 +362,7 @@ echo Agent pid %v;
 
 // makeClient takes the command-line configuration and constructs & returns
 // a fully configured TeleportClient object
-func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
+func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, err error) {
 	// apply defults
 	if cf.NodePort == 0 {
 		cf.NodePort = defaults.SSHServerListenPort
@@ -413,9 +413,15 @@ func makeClient(cf *CLIConf) (tc *client.TeleportClient, err error) {
 	if cf.SiteName != "" {
 		c.SiteName = cf.SiteName
 	}
+	// if host logins stored in profiles must be ignored...
+	if !useProfileLogin {
+		c.HostLogin = ""
+	}
+	if hostLogin != "" {
+		c.HostLogin = hostLogin
+	}
 	c.Host = cf.UserHost
 	c.HostPort = int(cf.NodePort)
-	c.HostLogin = hostLogin
 	c.Labels = labels
 	c.KeyTTL = time.Minute * time.Duration(cf.MinsToLive)
 	c.InsecureSkipVerify = cf.InsecureSkipVerify
