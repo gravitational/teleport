@@ -640,7 +640,7 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err erro
 	if !tc.Config.ProxySpecified() {
 		return trace.BadParameter("proxy server is not specified")
 	}
-	log.Infof("Connecting to proxy...")
+	log.Infof("Connecting to proxy to copy (recursively=%v)...", recursive)
 	proxyClient, err := tc.ConnectToProxy()
 	if err != nil {
 		return trace.Wrap(err)
@@ -679,7 +679,7 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool) (err erro
 		}
 		// copy everything except the last arg (that's destination)
 		for _, src := range args[:len(args)-1] {
-			err = client.Upload(src, dest, tc.Stderr)
+			err = client.Upload(src, dest, recursive, tc.Stderr)
 			if err != nil {
 				return onError(err)
 			}

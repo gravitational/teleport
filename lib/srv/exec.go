@@ -83,7 +83,7 @@ func parseExecRequest(req *ssh.Request, ctx *ctx) (*execResponse, error) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			e.Command = fmt.Sprintf("%s scp --remote-addr=%s --local-addr=%s %v",
+			e.Command = fmt.Sprintf("%s scp %s --remote-addr=%s --local-addr=%s %v",
 				teleportBin,
 				ctx.conn.RemoteAddr().String(),
 				ctx.conn.LocalAddr().String(),
