@@ -46,16 +46,18 @@ const (
 // Command mimics behavior of SCP command line tool
 // to teleport can pretend it launches real scp behind the scenes
 type Command struct {
-	Source      bool // data producer
-	Sink        bool // data consumer
-	Verbose     bool // verbose
-	TargetIsDir bool // target should be dir
-	Target      string
-	Recursive   bool
-	User        *user.User
-	AuditLog    events.IAuditLog
-	RemoteAddr  string
-	LocalAddr   string
+	Source     bool // data producer
+	Sink       bool // data consumer
+	Verbose    bool // verbose
+	Target     string
+	Recursive  bool
+	User       *user.User
+	AuditLog   events.IAuditLog
+	RemoteAddr string
+	LocalAddr  string
+
+	// terminal is only initialized on the client, for printing the progress
+	Terminal io.Writer
 }
 
 // Execute implements SSH file copy (SCP)
@@ -154,6 +156,11 @@ func (cmd *Command) sendFile(r *reader, ch io.ReadWriter, fi os.FileInfo, path s
 	}
 	out := fmt.Sprintf("C%04o %d %s\n", fi.Mode()&os.ModePerm, fi.Size(), fi.Name())
 	log.Debugf("sendFile: %v", out)
+
+	// report progress:
+	if cmd.Terminal != nil {
+		defer fmt.Fprintf(cmd.Terminal, "-> %s/%s (%d)\n", path, fi.Name(), fi.Size())
+	}
 
 	_, err := io.WriteString(ch, out)
 	if err != nil {
@@ -277,6 +284,11 @@ func (cmd *Command) receiveFile(st *state, fc NewFileCmd, ch io.ReadWriter) erro
 		return trace.Wrap(err)
 	}
 
+	// report progress:
+	if cmd.Terminal != nil {
+		defer fmt.Fprintf(cmd.Terminal, "<- %s (%d)\n", path, fc.Length)
+	}
+
 	// log audit event:
 	if cmd.AuditLog != nil {
 		cmd.AuditLog.EmitAuditEvent(events.SCPEvent, events.EventFields{
@@ -313,20 +325,10 @@ func (cmd *Command) receiveFile(st *state, fc NewFileCmd, ch io.ReadWriter) erro
 }
 
 func (cmd *Command) receiveDir(st *state, fc NewFileCmd, ch io.ReadWriter) error {
-	path := cmd.Target
+	path := st.makePath(cmd.Target, fc.Name)
+	st.push(fc.Name)
 
-	// if the dest path ends with "/", we should copy source folder
-	// inside the dest folder
-	// if the dest path doesn't end with "/", we should copy only the
-	// content of the source folder to the dest folder
-	// for all the copied subfolders we should copy source folder
-	// inside dest folder
-	if strings.HasSuffix(cmd.Target, "/") || st.notRoot {
-		path = st.makePath(cmd.Target, fc.Name)
-		st.push(fc.Name)
-		log.Debugf("state.path: %v", filepath.Join(st.path...))
-	}
-	st.notRoot = true //next calls of receiveDir will be for subfolders
+	st.notRoot = true // future calls of receiveDir within this command will be for subfolders
 	mode := os.FileMode(int(fc.Mode) & int(os.ModePerm))
 	err := os.MkdirAll(path, mode)
 	if err != nil && !os.IsExist(err) {

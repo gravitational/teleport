@@ -77,6 +77,8 @@ type CLIConf struct {
 	SiteName string
 	// Interactive, when set to true, launches remote command with the terminal attached
 	Interactive bool
+	// Quiet mode, -q command (disables progress printing)
+	Quiet bool
 }
 
 // run executes TSH client. same as main() but easier to test
@@ -118,6 +120,7 @@ func run(args []string, underTest bool) {
 	scp.Arg("from, to", "Source and destination to copy").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
 	scp.Flag("port", "Port to connect to on the remote host").Short('P').Int16Var(&cf.NodePort)
+	scp.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes")
 	ls.Arg("labels", "List of labels to filter node list").StringVar(&cf.UserHost)
@@ -311,7 +314,7 @@ func onSCP(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	if err := tc.SCP(cf.CopySpec, int(cf.NodePort), cf.RecursiveCopy); err != nil {
+	if err := tc.SCP(cf.CopySpec, int(cf.NodePort), cf.RecursiveCopy, cf.Quiet); err != nil {
 		// exit with the same exit status as the failed command:
 		if tc.ExitStatus != 0 {
 			os.Exit(tc.ExitStatus)

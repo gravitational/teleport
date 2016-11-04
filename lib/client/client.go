@@ -262,12 +262,12 @@ func (proxy *ProxyClient) Close() error {
 }
 
 // Upload uploads local file(s) or to the remote server's destination path
-func (client *NodeClient) Upload(srcPath, rDestPath string, recursive bool, stderr io.Writer) error {
+func (client *NodeClient) Upload(srcPath, rDestPath string, recursive bool, stderr, progressWriter io.Writer) error {
 	scpConf := scp.Command{
-		Source:      true,
-		TargetIsDir: utils.IsDir(rDestPath),
-		Recursive:   recursive,
-		Target:      srcPath,
+		Source:    true,
+		Recursive: recursive,
+		Target:    srcPath,
+		Terminal:  progressWriter,
 	}
 
 	// "impersonate" scp to a server
@@ -280,12 +280,12 @@ func (client *NodeClient) Upload(srcPath, rDestPath string, recursive bool, stde
 }
 
 // Download downloads file or dir from the remote server
-func (client *NodeClient) Download(remoteSourcePath, localDestinationPath string, recursive bool, stderr io.Writer) error {
+func (client *NodeClient) Download(remoteSourcePath, localDestinationPath string, recursive bool, stderr, progressWriter io.Writer) error {
 	scpConf := scp.Command{
-		Sink:        true,
-		TargetIsDir: recursive,
-		Recursive:   recursive,
-		Target:      localDestinationPath,
+		Sink:      true,
+		Recursive: recursive,
+		Target:    localDestinationPath,
+		Terminal:  progressWriter,
 	}
 
 	// "impersonate" scp to a server
