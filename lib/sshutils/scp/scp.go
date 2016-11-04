@@ -46,19 +46,18 @@ const (
 // Command mimics behavior of SCP command line tool
 // to teleport can pretend it launches real scp behind the scenes
 type Command struct {
-	Source      bool // data producer
-	Sink        bool // data consumer
-	Verbose     bool // verbose
-	TargetIsDir bool // target should be dir
-	Target      string
-	Recursive   bool
-	User        *user.User
-	//Conn        ssh.ConnMetadata
-	AuditLog events.IAuditLog
-
-	// Ev:
+	Source     bool // data producer
+	Sink       bool // data consumer
+	Verbose    bool // verbose
+	Target     string
+	Recursive  bool
+	User       *user.User
+	AuditLog   events.IAuditLog
 	RemoteAddr string
 	LocalAddr  string
+
+	// terminal is only initialized on the client, for printing the progress
+	Terminal io.Writer
 }
 
 // Execute implements SSH file copy (SCP)
@@ -74,7 +73,7 @@ func (cmd *Command) Execute(ch io.ReadWriter) (err error) {
 }
 
 func (cmd *Command) serveSource(ch io.ReadWriter) error {
-	log.Infof("SCP: serving source")
+	log.Debug("SCP: serving source")
 
 	r := newReader(ch)
 	if err := r.read(); err != nil {
@@ -101,13 +100,13 @@ func (cmd *Command) serveSource(ch io.ReadWriter) error {
 		}
 	}
 
-	log.Infof("send completed")
+	log.Debugf("send completed")
 	return nil
 }
 
 func (cmd *Command) sendDir(r *reader, ch io.ReadWriter, fi os.FileInfo, path string) error {
 	out := fmt.Sprintf("D%04o 0 %s\n", fi.Mode()&os.ModePerm, fi.Name())
-	log.Infof("sendDir: %v", out)
+	log.Debugf("sendDir: %v", out)
 	_, err := io.WriteString(ch, out)
 	if err != nil {
 		return trace.Wrap(err)
@@ -115,7 +114,7 @@ func (cmd *Command) sendDir(r *reader, ch io.ReadWriter, fi os.FileInfo, path st
 	if err := r.read(); err != nil {
 		return trace.Wrap(err)
 	}
-	log.Infof("sendDir got OK")
+	log.Debug("sendDir got OK")
 	f, err := os.Open(path)
 	if err != nil {
 		return trace.Wrap(err)
@@ -156,7 +155,12 @@ func (cmd *Command) sendFile(r *reader, ch io.ReadWriter, fi os.FileInfo, path s
 		})
 	}
 	out := fmt.Sprintf("C%04o %d %s\n", fi.Mode()&os.ModePerm, fi.Size(), fi.Name())
-	log.Infof("sendFile: %v", out)
+	log.Debugf("sendFile: %v", out)
+
+	// report progress:
+	if cmd.Terminal != nil {
+		defer fmt.Fprintf(cmd.Terminal, "-> %s/%s (%d)\n", path, fi.Name(), fi.Size())
+	}
 
 	_, err := io.WriteString(ch, out)
 	if err != nil {
@@ -189,7 +193,7 @@ func (cmd *Command) sendFile(r *reader, ch io.ReadWriter, fi os.FileInfo, path s
 // serveSink executes file uploading, when a remote server sends file(s)
 // via scp
 func (cmd *Command) serveSink(ch io.ReadWriter) error {
-	log.Infof("SCP: serving sink")
+	log.Debug("SCP: serving sink")
 
 	if err := sendOK(ch); err != nil {
 		return trace.Wrap(err)
@@ -201,7 +205,7 @@ func (cmd *Command) serveSink(ch io.ReadWriter) error {
 		n, err := ch.Read(b)
 		if err != nil {
 			if err == io.EOF {
-				log.Infof("<- EOF")
+				log.Debug("<- EOF")
 				return nil
 			}
 			return trace.Wrap(err)
@@ -211,7 +215,7 @@ func (cmd *Command) serveSink(ch io.ReadWriter) error {
 		}
 
 		if b[0] == OKByte {
-			log.Infof("<- OK")
+			log.Debug("<- OK")
 			continue
 		}
 
@@ -225,12 +229,12 @@ func (cmd *Command) serveSink(ch io.ReadWriter) error {
 		if err := sendOK(ch); err != nil {
 			return trace.Wrap(err)
 		}
-		log.Infof("-> OK")
+		log.Debug("-> OK")
 	}
 }
 
 func (cmd *Command) processCommand(ch io.ReadWriter, st *state, b byte, line string) error {
-	log.Infof("<- %v %v", string(b), line)
+	log.Debugf("<- %v %v", string(b), line)
 	switch b {
 	case WarnByte:
 		return trace.Errorf(line)
@@ -267,7 +271,7 @@ func (cmd *Command) processCommand(ch io.ReadWriter, st *state, b byte, line str
 }
 
 func (cmd *Command) receiveFile(st *state, fc NewFileCmd, ch io.ReadWriter) error {
-	log.Infof("scp.receiveFile(%v)", cmd.Target)
+	log.Debugf("scp.receiveFile(%v)", cmd.Target)
 
 	// if the dest path is a folder, we should save the file to that folder, but
 	// only if is 'recursive' is set
@@ -278,6 +282,11 @@ func (cmd *Command) receiveFile(st *state, fc NewFileCmd, ch io.ReadWriter) erro
 	f, err := os.Create(path)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// report progress:
+	if cmd.Terminal != nil {
+		defer fmt.Fprintf(cmd.Terminal, "<- %s (%d)\n", path, fc.Length)
 	}
 
 	// log audit event:
@@ -311,31 +320,21 @@ func (cmd *Command) receiveFile(st *state, fc NewFileCmd, ch io.ReadWriter) erro
 	if err := os.Chmod(path, mode); err != nil {
 		return trace.Wrap(err)
 	}
-	log.Infof("file %v(%v) copied to %v", fc.Name, fc.Length, path)
+	log.Debugf("file %v(%v) copied to %v", fc.Name, fc.Length, path)
 	return nil
 }
 
 func (cmd *Command) receiveDir(st *state, fc NewFileCmd, ch io.ReadWriter) error {
-	path := cmd.Target
+	path := st.makePath(cmd.Target, fc.Name)
+	st.push(fc.Name)
 
-	// if the dest path ends with "/", we should copy source folder
-	// inside the dest folder
-	// if the dest path doesn't end with "/", we should copy only the
-	// content of the source folder to the dest folder
-	// for all the copied subfolders we should copy source folder
-	// inside dest folder
-	if strings.HasSuffix(cmd.Target, "/") || st.notRoot {
-		path = st.makePath(cmd.Target, fc.Name)
-		st.push(fc.Name)
-		log.Infof("state.path: %v", filepath.Join(st.path...))
-	}
-	st.notRoot = true //next calls of receiveDir will be for subfolders
+	st.notRoot = true // future calls of receiveDir within this command will be for subfolders
 	mode := os.FileMode(int(fc.Mode) & int(os.ModePerm))
 	err := os.MkdirAll(path, mode)
 	if err != nil && !os.IsExist(err) {
 		return trace.Wrap(err)
 	}
-	log.Infof("dir %v(%v) created", fc.Name, path)
+	log.Debugf("dir %v(%v) created", fc.Name, path)
 	return nil
 }
 
@@ -346,7 +345,7 @@ type NewFileCmd struct {
 }
 
 func ParseNewFile(line string) (*NewFileCmd, error) {
-	log.Infof("ParseNewFile(%v)", line)
+	log.Debugf("ParseNewFile(%v)", line)
 	parts := strings.SplitN(line, " ", 3)
 	if len(parts) != 3 {
 		return nil, trace.Errorf("broken command")
@@ -469,7 +468,7 @@ func (r *reader) read() error {
 
 	switch r.b[0] {
 	case OKByte:
-		log.Infof("<- OK")
+		log.Debug("<- OK")
 		return nil
 	case WarnByte, ErrByte:
 		r.s.Scan()

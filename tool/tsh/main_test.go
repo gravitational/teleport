@@ -48,14 +48,14 @@ func (s *MainTestSuite) TestMakeClient(c *check.C) {
 	var conf CLIConf
 
 	// empty config won't work:
-	tc, err := makeClient(&conf)
+	tc, err := makeClient(&conf, true)
 	c.Assert(tc, check.IsNil)
 	c.Assert(err, check.NotNil)
 
 	// minimal configuration (with defaults)
 	conf.Proxy = "proxy"
 	conf.UserHost = "localhost"
-	tc, err = makeClient(&conf)
+	tc, err = makeClient(&conf, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(tc, check.NotNil)
 	c.Assert(tc.Config.NodeHostPort(), check.Equals, "localhost:3022")
@@ -68,7 +68,7 @@ func (s *MainTestSuite) TestMakeClient(c *check.C) {
 	conf.MinsToLive = 5
 	conf.UserHost = "root@localhost"
 	conf.LocalForwardPorts = []string{"80:remote:180"}
-	tc, err = makeClient(&conf)
+	tc, err = makeClient(&conf, true)
 	c.Assert(tc.Config.KeyTTL, check.Equals, time.Minute*time.Duration(conf.MinsToLive))
 	c.Assert(tc.Config.HostLogin, check.Equals, "root")
 	c.Assert(tc.Config.LocalForwardPorts, check.DeepEquals, client.ForwardedPorts{
