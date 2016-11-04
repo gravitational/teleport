@@ -261,52 +261,39 @@ func (proxy *ProxyClient) Close() error {
 	return proxy.Client.Close()
 }
 
-// Upload uploads file or dir to the remote server
-func (client *NodeClient) Upload(localSourcePath, remoteDestinationPath string, stderr io.Writer) error {
-	file, err := os.Open(localSourcePath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	file.Close()
-
+// Upload uploads local file(s) or to the remote server's destination path
+func (client *NodeClient) Upload(srcPath, rDestPath string, recursive bool, stderr, progressWriter io.Writer) error {
 	scpConf := scp.Command{
-		Source:      true,
-		TargetIsDir: fileInfo.IsDir(),
-		Recursive:   fileInfo.IsDir(),
-		Target:      localSourcePath,
+		Source:    true,
+		Recursive: recursive,
+		Target:    srcPath,
+		Terminal:  progressWriter,
 	}
 
 	// "impersonate" scp to a server
 	shellCmd := "/usr/bin/scp -t"
-	if fileInfo.IsDir() {
+	if recursive {
 		shellCmd += " -r"
 	}
-	shellCmd += " " + remoteDestinationPath
-
+	shellCmd += " " + rDestPath
 	return client.scp(scpConf, shellCmd, stderr)
 }
 
 // Download downloads file or dir from the remote server
-func (client *NodeClient) Download(remoteSourcePath, localDestinationPath string, isDir bool, stderr io.Writer) error {
+func (client *NodeClient) Download(remoteSourcePath, localDestinationPath string, recursive bool, stderr, progressWriter io.Writer) error {
 	scpConf := scp.Command{
-		Sink:        true,
-		TargetIsDir: isDir,
-		Recursive:   isDir,
-		Target:      localDestinationPath,
+		Sink:      true,
+		Recursive: recursive,
+		Target:    localDestinationPath,
+		Terminal:  progressWriter,
 	}
 
 	// "impersonate" scp to a server
 	shellCmd := "/usr/bin/scp -f"
-	if isDir {
+	if recursive {
 		shellCmd += " -r"
 	}
 	shellCmd += " " + remoteSourcePath
-
 	return client.scp(scpConf, shellCmd, stderr)
 }
 
