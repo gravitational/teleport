@@ -317,6 +317,9 @@ func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack 
 	if err != nil {
 		panic(err)
 	}
+	if session.ExpiresIn < 0 {
+		c.Errorf("expected expiry time to be in the future but got %v", session.ExpiresIn)
+	}
 	return &authPack{
 		user:    session.User.GetName(),
 		session: session,
