@@ -88,14 +88,11 @@ func NewAPIServer(config *APIConfig, role teleport.Role) APIServer {
 	srv.POST("/v1/users/:user/web/password/check", httplib.MakeHandler(srv.checkPassword))
 	srv.POST("/v1/users/:user/web/signin", httplib.MakeHandler(srv.signIn))
 	srv.GET("/v1/users/:user/web/signin_preauth", httplib.MakeHandler(srv.preAuthenticatedSignIn))
-	srv.POST("/v1/users/:user/web/u2f_sign", httplib.MakeHandler(srv.u2fSignRequest))
 	srv.POST("/v1/users/:user/web/sessions", httplib.MakeHandler(srv.createWebSession))
 	srv.GET("/v1/users/:user/web/sessions/:sid", httplib.MakeHandler(srv.getWebSession))
 	srv.DELETE("/v1/users/:user/web/sessions/:sid", httplib.MakeHandler(srv.deleteWebSession))
 	srv.GET("/v1/signuptokens/:token", httplib.MakeHandler(srv.getSignupTokenData))
-	srv.GET("/v1/signuptokens_u2f_register_request/:token", httplib.MakeHandler(srv.getSignupU2fRegisterRequest))
 	srv.POST("/v1/signuptokens/users", httplib.MakeHandler(srv.createUserWithToken))
-	srv.POST("/v1/signuptokens/users_u2f", httplib.MakeHandler(srv.createU2fUserWithToken))
 	srv.POST("/v1/signuptokens", httplib.MakeHandler(srv.createSignupToken))
 
 	// Servers and presence heartbeat
@@ -132,6 +129,11 @@ func NewAPIServer(config *APIConfig, role teleport.Role) APIServer {
 	srv.DELETE("/v1/oidc/connectors/:id", httplib.MakeHandler(srv.deleteOIDCConnector))
 	srv.POST("/v1/oidc/requests/create", httplib.MakeHandler(srv.createOIDCAuthRequest))
 	srv.POST("/v1/oidc/requests/validate", httplib.MakeHandler(srv.validateOIDCAuthCallback))
+
+	// U2F stuff
+	srv.GET("/v1/u2f/invite_register_request/:token", httplib.MakeHandler(srv.getSignupU2fRegisterRequest))
+	srv.POST("/v1/u2f/new_user", httplib.MakeHandler(srv.createU2fUserWithToken))
+	srv.POST("/v1/u2f/sign_request/:user", httplib.MakeHandler(srv.u2fSignRequest))
 
 	// Provisioning tokens
 	srv.GET("/v1/tokens", httplib.MakeHandler(srv.getTokens))
