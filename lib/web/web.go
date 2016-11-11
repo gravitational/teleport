@@ -566,6 +566,15 @@ func (m *Handler) renderUserInvite(w http.ResponseWriter, r *http.Request, p htt
 	}, nil
 }
 
+
+// u2fRegisterRequest is called to get a U2F challenge for registering a U2F key
+//
+// GET /webapi/u2f/invite_register_request/:token
+//
+// Response:
+//
+// {"version":"U2F_V2","challenge":"randombase64string","appId":"https://mycorp.com:3080"}
+//
 func (m *Handler) u2fRegisterRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	token := p[0].Value
 	u2fRegisterRequest, err := m.auth.GetUserInviteU2fRegisterRequest(token)
@@ -582,6 +591,16 @@ type u2fSignRequestReq struct {
 	Pass string `json:"pass"`
 }
 
+// u2fSignRequest is called to get a U2F challenge for authenticating
+//
+// POST /webapi/u2f/sign_request
+//
+// {"user": "alex", "pass": "abc123"}
+//
+// Successful response:
+//
+// {"version":"U2F_V2","challenge":"randombase64string","keyHandle":"longbase64string","appId":"https://mycorp.com:3080"}
+//
 func (m *Handler) u2fSignRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *u2fSignRequestReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -596,11 +615,22 @@ func (m *Handler) u2fSignRequest(w http.ResponseWriter, r *http.Request, p httpr
 	return u2fSignReq, nil
 }
 
+// A request from the client to send the signature from the U2F key
 type u2fSignResponseReq struct {
 	User string `json:"user"`
 	U2fSignResponse u2f.SignResponse `json:"u2f_sign_response"`
 }
 
+// createSessionWithU2fSignResponse is called to sign in with a U2F signature
+//
+// POST /webapi/u2f/session
+//
+// {"user": "alex", "u2f_sign_response": { "signatureData": "signatureinbase64", "clientData": "verylongbase64string", "challenge": "randombase64string" }}
+//
+// Successful response:
+//
+// {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
+//
 func (m *Handler) createSessionWithU2fSignResponse(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *u2fSignResponseReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -657,11 +687,22 @@ func (m *Handler) createNewUser(w http.ResponseWriter, r *http.Request, p httpro
 	return NewSessionResponse(ctx)
 }
 
+// A request to create a new user which uses U2F as the second factor
 type createNewU2fUserReq struct {
 	InviteToken       string `json:"invite_token"`
 	Pass              string `json:"pass"`
 	U2fRegisterResponse u2f.RegisterResponse `json:"u2f_register_response"`
 }
+
+// createNewU2fUser creates a new user configured to use U2F as the second factor
+//
+// POST /webapi/u2f/new_user
+//
+// {"invite_token": "unique invite token", "pass": "user password", "u2f_register_response": {"registrationData":"verylongbase64string","clientData":"longbase64string"}}
+//
+// Sucessful response: (session cookie is set)
+//
+// {"type": "bearer", "token": "bearer token", "user": "alex", "expires_in": 20}
 func (m *Handler) createNewU2fUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *createNewU2fUserReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -1232,6 +1273,17 @@ type createSSHCertWithU2fReq struct {
 	TTL time.Duration `json:"ttl"`
 }
 
+// createSSHCertWithU2fSignResponse is a web call that generates new SSH certificate based
+// on user's name, password, U2F signature and public key user wishes to sign
+//
+// POST /v1/webapi/u2f/certs
+//
+// { "user": "bob", "password": "pass", "u2f_sign_response": { "signatureData": "signatureinbase64", "clientData": "verylongbase64string", "challenge": "randombase64string" }, "pub_key": "key to sign", "ttl": 1000000000 }
+//
+// Success response
+//
+// { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
+//
 func (h *Handler) createSSHCertWithU2fSignResponse(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *createSSHCertWithU2fReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
