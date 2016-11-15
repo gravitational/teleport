@@ -22,7 +22,6 @@ var {actions, getters} = require('app/modules/user');
 var GoogleAuthInfo = require('./googleAuthLogo');
 var cfg = require('app/config');
 var {TeleportLogo} = require('./icons.jsx');
-var {PROVIDER_GOOGLE} = require('app/services/auth');
 
 var LoginInputForm = React.createClass({
 
@@ -45,10 +44,13 @@ var LoginInputForm = React.createClass({
     }
   },
 
-  onLoginWithGoogle: function(e) {
-    e.preventDefault();
-    this.state.provider = PROVIDER_GOOGLE;
-    this.props.onClick(this.state);
+  providerLogin: function (provider) {
+    var self = this;
+    return function (e) {
+      e.preventDefault();
+      self.state.provider = provider.id;
+      self.props.onClick(self.state);
+    }
   },
 
   isValid: function() {
@@ -59,7 +61,6 @@ var LoginInputForm = React.createClass({
   render() {
     let {isProcessing, isFailed, message } = this.props.attemp;
     let providers = cfg.getAuthProviders();
-    let useGoogle = providers.indexOf(PROVIDER_GOOGLE) !== -1;
 
     return (
       <form ref="form" className="grv-login-input-form">
@@ -75,7 +76,7 @@ var LoginInputForm = React.createClass({
             <input autoComplete="off" valueLink={this.linkState('token')} className="form-control required" name="token" placeholder="Two factor token (Google Authenticator)"/>
           </div>
           <button onClick={this.onLogin} disabled={isProcessing} type="submit" className="btn btn-primary block full-width m-b">Login</button>
-          { useGoogle ? <button onClick={this.onLoginWithGoogle} type="submit" className="btn btn-danger block full-width m-b">With Google</button> : null }
+          { providers.map((provider) => <button onClick={this.providerLogin(provider)} type="submit" className="btn btn-danger block full-width m-b">With {provider.display}</button>) }
           { isFailed ? (<label className="error">{message}</label>) : null }
         </div>
       </form>
