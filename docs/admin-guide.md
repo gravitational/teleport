@@ -49,18 +49,9 @@ The Teleport daemon supports the following commands:
 When experimenting you can quickly start `teleport` with verbose logging by typing 
 `teleport start -d`. 
 
-When running `teleport` with a proxy role you have to make sure the assets
-for the Web UI can be found. The web assets are composedof `index.html` file and `app` 
-directory. Teleport process checks the following locations for its web assets:
-
-   1. The same directory it's in
-   2. `/usr/local/share/teleport`
-   3. `/usr/share/teleport`
-   4. `/opt/teleport`
-
 !!! danger "WARNING": 
     Teleport stores data in `/var/lib/teleport`. Make sure that regular users do not 
-    have access to this folder of the Auth server, otherwise anyone can gain admin access to Teleport's API.
+    have access to this folder on the Auth server.
 
 #### Systemd Unit File
 
