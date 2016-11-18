@@ -696,7 +696,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			webHandler, err := web.NewHandler(
 				web.Config{
 					Proxy:       tsrv,
-					AssetsDir:   cfg.Proxy.AssetsDir,
 					AuthServers: cfg.AuthServers[0],
 					DomainName:  cfg.Hostname,
 					ProxyClient: conn.Client,

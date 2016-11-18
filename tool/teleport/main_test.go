@@ -24,7 +24,6 @@ import (
 	"testing"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -64,10 +63,6 @@ func (s *MainTestSuite) SetUpSuite(c *check.C) {
 	// set imprtant defaults to test-mode (non-existing files&locations)
 	defaults.ConfigFilePath = "/tmp/teleport/etc/teleport.yaml"
 	defaults.DataDir = "/tmp/teleport/var/lib/teleport"
-
-	// configure to look for web/dist in the current directory
-	curdir, _ := os.Getwd()
-	config.DirsToLookForWebAssets = []string{filepath.Join(curdir, "../../web/dist")}
 }
 
 func (s *MainTestSuite) TestDefault(c *check.C) {
