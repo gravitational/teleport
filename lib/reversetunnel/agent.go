@@ -171,6 +171,12 @@ func (a *Agent) proxyAccessPoint(ch ssh.Channel, req <-chan *ssh.Request) {
 		return
 	}
 
+	// apply read/write timeouts to this connection that are 10x of what normal
+	// reverse tunnel ping is supposed to be:
+	conn = utils.ObeyTimeouts(conn,
+		defaults.ReverseTunnelAgentHeartbeatPeriod*10,
+		"reverse tunnel client")
+
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 
