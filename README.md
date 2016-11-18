@@ -42,7 +42,7 @@ Run
 
 1. `go get github.com/gravitational/teleport`
 2. `cd $GOPATH/src/github.com/gravitational/teleport`
-3. `make`
+3. `CGO_ENABLED=true make`
 
 If the build was successful the binaries are here: `$GOPATH/src/github.com/gravitational/teleport/build`
 
