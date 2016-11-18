@@ -10,7 +10,9 @@
 
 ## Introduction
 
-Gravitational Teleport is a modern SSH server for remotely accessing clusters of Linux servers via SSH or HTTPS. It is intended to be used instead of `sshd`. Teleport enables teams to easily adopt the best SSH practices like:
+Gravitational Teleport is a modern SSH server for remotely accessing clusters
+of Linux servers via SSH or HTTPS. It is intended to be used instead of `sshd`.
+Teleport enables teams to easily adopt the best SSH practices like:
 
 - No need to distribute keys: Teleport uses certificate-based access with automatic expiration time.
 - Enforcement of 2nd factor authentication.
@@ -20,13 +22,14 @@ Gravitational Teleport is a modern SSH server for remotely accessing clusters of
 - Connect to clusters located behind firewalls without direct Internet access via SSH bastions.
 - Ability to integrate SSH credentials with your organization identities via OAuth (Google Apps, Github).
 
-Teleport is built on top of the high-quality [Golang SSH](https://godoc.org/golang.org/x/crypto/ssh) implementation and it is fully compatible with OpenSSH.
+Teleport is built on top of the high-quality [Golang SSH](https://godoc.org/golang.org/x/crypto/ssh) 
+implementation and it is fully compatible with OpenSSH.
 
 ## Installing and Running
 
 Download the [latest binary release](https://github.com/gravitational/teleport/releases), 
 unpack the .tar.gz and run `sudo make install`. This will copy Teleport binaries into 
-`/usr/local/bin` and the web assets to `/usr/local/share/teleport`.
+`/usr/local/bin`.
 
 Then you can run Teleport as a single-node cluster:
 
@@ -79,7 +82,15 @@ within multiple organizations.
 
 ## Contributing
 
-The best way to contribute is to create issues or pull requests right here on Github. You can also reach the Gravitational team through their [website](https://gravitational.com/)
+The best way to contribute is to create issues or pull requests right here on Github. 
+You can also reach the Gravitational team through their [website](https://gravitational.com/)
+
+It is possible to make changes to the Web UI without having to rebuild and restart `teleport`.
+Simply launch it with `DEBUG` environment variable set from `$GOPATH`:
+
+```bash
+$ DEBUG=1 $GOPATH/gravitational/teleport/build/teleport start
+```
 
 
 ## Status
