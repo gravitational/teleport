@@ -19,6 +19,7 @@ package suite
 import (
 	"crypto/x509"
 	"crypto/ecdsa"
+	"encoding/base64"
 	"sort"
 	"sync/atomic"
 	"time"
@@ -440,7 +441,9 @@ func (s *ServicesTestSuite) U2fCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(*challenge, DeepEquals, *challengeOut)
 
-	pubkeyInterface, err := x509.ParsePKIXPublicKey([]byte("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEGOi54Eun0r3Xrj8PjyOGYzJObENYI/t/Lr9g9PsHTHnp1qI2ysIhsdMPd7x/vpsL6cr+2EPVik7921OSsVjEMw=="))
+	derKey, err := base64.StdEncoding.DecodeString("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEGOi54Eun0r3Xrj8PjyOGYzJObENYI/t/Lr9g9PsHTHnp1qI2ysIhsdMPd7x/vpsL6cr+2EPVik7921OSsVjEMw==")
+	c.Assert(err, IsNil)
+	pubkeyInterface, err := x509.ParsePKIXPublicKey(derKey)
 	c.Assert(err, IsNil)
 
 	pubkey, ok := pubkeyInterface.(*ecdsa.PublicKey)
@@ -456,5 +459,5 @@ func (s *ServicesTestSuite) U2fCRUD(c *C) {
 
 	registrationOut, err := s.WebS.GetU2fRegistration(user1)
 	c.Assert(err, IsNil)
-	c.Assert(registration, DeepEquals, registrationOut)
+	c.Assert(&registration, DeepEquals, registrationOut)
 }
