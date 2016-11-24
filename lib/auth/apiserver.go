@@ -181,6 +181,10 @@ func (s *APIServer) getNodes(w http.ResponseWriter, r *http.Request, p httproute
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	username := r.URL.Query().Get("username")
+	if username != "" {
+		servers, err = s.a.GetUserNodes(username)
+	}
 	return servers, nil
 }
 

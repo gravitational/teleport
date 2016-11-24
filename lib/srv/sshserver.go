@@ -399,6 +399,25 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 		}
 		for _, u := range users {
 			if u.GetName() == teleportUser {
+				// check node labels
+				userLabels := u.GetNodeLabels()
+				if userLabels != nil && len(userLabels) > 0 {
+					accessDenied := true
+				LabelLoop:
+					for sk, sv := range s.labels {
+						tempLabel := sk + "=" + sv
+						for _, uv := range userLabels {
+							if tempLabel == uv {
+								accessDenied = false
+								break LabelLoop
+							}
+						}
+					}
+					if accessDenied {
+						return trace.AccessDenied("user '%v' has no permission to access this server", teleportUser)
+					}
+				}
+				// check allowed logins
 				for _, login := range u.GetAllowedLogins() {
 					if login == osUser {
 						return nil

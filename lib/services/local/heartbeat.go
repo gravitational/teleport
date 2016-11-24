@@ -72,6 +72,37 @@ func (s *PresenceService) GetNodes() ([]services.Server, error) {
 	return s.getServers(nodesPrefix)
 }
 
+// GetUserNodes returns a list of registered servers filtered by user
+func (s *PresenceService) GetUserNodes(username string) ([]services.Server, error) {
+	nodes, err := s.getServers(nodesPrefix)
+	if err != nil {
+		return nodes, err
+	}
+	is := NewIdentityService(s.backend, 10, time.Duration(time.Hour))
+	user, err := is.GetUser(username)
+	if err == nil {
+		userLabels := user.GetNodeLabels()
+		if len(userLabels) > 0 {
+			newNodes := make([]services.Server, 0)
+			for _, node := range nodes {
+			LabelLoop:
+				for lk, lv := range node.Labels {
+					tempLabel := lk + "=" + lv
+					for _, userLabel := range userLabels {
+						if tempLabel == userLabel {
+							newNodes = append(newNodes, node)
+							break LabelLoop
+						}
+					}
+				}
+			}
+			nodes = newNodes
+		}
+	}
+
+	return nodes, err
+}
+
 // UpsertNode registers node presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
 func (s *PresenceService) UpsertNode(server services.Server, ttl time.Duration) error {

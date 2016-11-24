@@ -41,6 +41,7 @@ import (
 type ProxyClient struct {
 	Client          *ssh.Client
 	hostLogin       string
+	teleportLogin   string
 	proxyAddress    string
 	hostKeyCallback utils.HostKeyCallback
 	authMethods     []ssh.AuthMethod
@@ -123,7 +124,7 @@ func (proxy *ProxyClient) FindServersByLabels(labels map[string]string) ([]servi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	siteNodes, err := site.GetNodes()
+	siteNodes, err := site.GetUserNodes(proxy.teleportLogin)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

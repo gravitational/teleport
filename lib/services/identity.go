@@ -121,7 +121,13 @@ func (u *TeleportUser) GetAllowedLogins() []string {
 
 // GetNodeLabels returns user's allowed node labels
 func (u *TeleportUser) GetNodeLabels() []string {
-	return u.NodeLabels
+	labels := make([]string, 0)
+	for _, l := range u.NodeLabels {
+		if l != "" {
+			labels = append(labels, l)
+		}
+	}
+	return labels
 }
 
 // GetIdentities returns a list of connected OIDCIdentities
