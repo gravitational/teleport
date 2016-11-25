@@ -43,8 +43,9 @@ var auth = {
       });
   },
 
-  u2fSignUp(name, password, inviteToken, successCb, errorCb){
-    api.get(cfg.api.getU2fCreateUserChallengeUrl(inviteToken)).then(data=>{
+  u2fSignUp(name, password, inviteToken){
+    return api.get(cfg.api.getU2fCreateUserChallengeUrl(inviteToken)).then(data=>{
+      var deferred = $.Deferred();
       window.u2f.register(data.appId, [data], [], function(res){
         if(res.errorCode){
           var errorMsg = "";
@@ -54,7 +55,7 @@ var auth = {
               errorMsg = err;
             }
           }
-          errorCb("U2F Error: " + errorMsg);
+          deferred.reject({responseJSON:{message:"U2F Error: " + errorMsg}});
           return;
         }
 
@@ -67,14 +68,13 @@ var auth = {
         api.post(cfg.api.u2fCreateUserPath, response, false).then(data=>{
           session.setUserData(data);
           auth._startTokenRefresher();
-          successCb(data);
+          deferred.resolve(data);
         }).fail(data=>{
-          errorCb(data.responseJSON.message);
+          deferred.reject(data);
         })
       });
-    }).fail(data=>{
-      errorCb(data.responseJSON.message);
-    })
+      return deferred.promise();
+    });
   },
 
   login(name, password, token){

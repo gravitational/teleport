@@ -60,27 +60,23 @@ var actions = {
   signUp({name, psw, token, inviteToken, secondFactorType}){
     restApiActions.start(TRYING_TO_SIGN_UP);
 
+    var onSuccess = function(sessionData){
+      reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
+      restApiActions.success(TRYING_TO_SIGN_UP);
+      session.getHistory().push({pathname: cfg.routes.app});
+    };
+
+    var onFailure = function(err){
+      let msg = err.responseJSON ? err.responseJSON.message : 'Failed to sign up';
+      restApiActions.fail(TRYING_TO_SIGN_UP, msg);
+    };
+
     if(secondFactorType == SECOND_FACTOR_TYPE_U2F){
-      auth.u2fSignUp(name, psw, inviteToken, function(sessionData){
-        reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
-        restApiActions.success(TRYING_TO_SIGN_UP);
-        session.getHistory().push({pathname: cfg.routes.app});
-      }, function(msg){
-        restApiActions.fail(TRYING_TO_SIGN_UP, msg);
-      });
+      auth.u2fSignUp(name, psw, inviteToken).done(onSuccess).fail(onFailure);
       return;
     }
 
-    auth.signUp(name, psw, token, inviteToken)
-      .done((sessionData)=>{
-        reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
-        restApiActions.success(TRYING_TO_SIGN_UP);
-        session.getHistory().push({pathname: cfg.routes.app});
-      })
-      .fail((err)=>{
-        let msg = err.responseJSON ? err.responseJSON.message : 'Failed to sing up';
-        restApiActions.fail(TRYING_TO_SIGN_UP, msg);
-      });
+    auth.signUp(name, psw, token, inviteToken).done(onSuccess).fail(onFailure);
   },
 
   login({user, password, token, provider, secondFactorType}, redirect){
