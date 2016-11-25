@@ -59,6 +59,59 @@ describe('auth', function () {
     });
   });
 
+  describe('u2flogin(name, password)', function () {
+    var u2fSample = { type: 2, signRequests: -2, timeoutSeconds: -599, requestId: 2 };
+
+    it('should successfully login and put user data in the session', function () {
+      window.u2f = {
+	sign: function(appId, challenge, registeredKeys, callback) {
+	  u2fSample.errorCode = 0;
+	  callback(u2fSample);
+	}
+      };
+
+      var token = null;
+      var successCb = function() {
+        token = u2fSample;
+      };
+
+      api.post.andReturn($.Deferred().resolve(u2fSample));
+      auth.u2fLogin('user', 'password', successCb, null);
+
+      expect(token).toEqual(u2fSample);
+      expect(auth._startTokenRefresher.calls.length).toEqual(1);
+      expect(getCallArgs(session.setUserData).token, u2fSample);
+    });
+
+    it('should return rejected promise if failed to log in', function () {
+      var wasCalled = false;
+      var failureCb = function() {
+        wasCalled = true;
+      };
+
+      api.post.andReturn($.Deferred().reject());
+      auth.u2fLogin('user', 'password', null, failureCb);
+      expect(wasCalled).toEqual(true);
+    });
+
+    it('should return rejected promise if u2f api throws an error', function() {
+      window.u2f = {
+	sign: function(appId, challenge, registeredKeys, callback) {
+	  callback({errorCode: 1});
+	}
+      };
+
+      var wasCalled = false;
+      var failureCb = function() {
+        wasCalled = true;
+      };
+
+      api.post.andReturn($.Deferred().resolve(u2fSample));
+      auth.u2fLogin('user', 'password', null, failureCb);
+      expect(wasCalled).toEqual(true);
+    });
+  });
+
   describe('ensureUser()', function () {
     describe('when token is valid', function () {
       it('should be resolved', function () {

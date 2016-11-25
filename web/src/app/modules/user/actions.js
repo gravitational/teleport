@@ -60,27 +60,24 @@ var actions = {
   signUp({name, psw, token, inviteToken, secondFactorType}){
     restApiActions.start(TRYING_TO_SIGN_UP);
 
-    if(secondFactorType == SECOND_FACTOR_TYPE_U2F){
-      auth.u2fSignUp(name, psw, inviteToken, function(sessionData){
-        reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
-        restApiActions.success(TRYING_TO_SIGN_UP);
-        session.getHistory().push({pathname: cfg.routes.app});
-      }, function(msg){
-        restApiActions.fail(TRYING_TO_SIGN_UP, msg);
-      });
-      return;
+    var onSignUpSuccess = function(sessionData) {
+      reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
+      restApiActions.success(TRYING_TO_SIGN_UP);
+      session.getHistory().push({pathname: cfg.routes.app});
+    };
+
+    var onSignUpFailure = function(err) {
+      let msg = err.responseJSON ? err.responseJSON.message : 'Failed to sign up';
+      restApiActions.fail(TRYING_TO_SIGN_UP, msg);
     }
 
-    auth.signUp(name, psw, token, inviteToken)
-      .done((sessionData)=>{
-        reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
-        restApiActions.success(TRYING_TO_SIGN_UP);
-        session.getHistory().push({pathname: cfg.routes.app});
-      })
-      .fail((err)=>{
-        let msg = err.responseJSON ? err.responseJSON.message : 'Failed to sing up';
-        restApiActions.fail(TRYING_TO_SIGN_UP, msg);
-      });
+    if(secondFactorType == SECOND_FACTOR_TYPE_U2F){
+      auth.u2fSignUp(name, psw, inviteToken, onSignUpSuccess, onSignUpFailure);
+    } else {
+      auth.signUp(name, psw, token, inviteToken)
+        .done(onSignUpSuccess)
+        .fail(onSignUpFailure);
+    }
   },
 
   login({user, password, token, provider, secondFactorType}, redirect){
@@ -92,29 +89,26 @@ var actions = {
 
     restApiActions.start(TRYING_TO_LOGIN);
 
+    var onLoginSuccess = function(sessionData){
+      restApiActions.success(TRYING_TO_LOGIN);
+      reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
+      session.getHistory().push({pathname: redirect});
+    };
+
+    var onLoginFailure = function(err) {
+      let msg = err.responseJSON ? err.responseJSON.message : 'Error';
+      restApiActions.fail(TRYING_TO_LOGIN, msg);
+    };
+
     if(secondFactorType == SECOND_FACTOR_TYPE_U2F){
       // Because the U2f API is asynchronous, we have to pass in callbacks
-      auth.u2fLogin(user, password, function(sessionData){
-          restApiActions.success(TRYING_TO_LOGIN);
-          reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
-          session.getHistory().push({pathname: redirect});
-        }, function(msg){
-          restApiActions.fail(TRYING_TO_LOGIN, msg);
-        });
-      return
+      auth.u2fLogin(user, password, onLoginSuccess, onLoginFailure);
+    } else {
+      auth.login(user, password, token)
+        .done(onLoginSuccess)
+        .fail(onLoginFailure);
     }
-
-    auth.login(user, password, token)
-      .done((sessionData)=>{
-        restApiActions.success(TRYING_TO_LOGIN);
-        reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
-        session.getHistory().push({pathname: redirect});
-      })
-      .fail((err)=> {
-        let msg = err.responseJSON ? err.responseJSON.message : 'Error';
-        restApiActions.fail(TRYING_TO_LOGIN, msg);
-      })
-    }
+  }
 }
 
 export default actions;

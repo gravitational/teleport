@@ -47,14 +47,19 @@ var auth = {
     api.get(cfg.api.getU2fCreateUserChallengeUrl(inviteToken)).then(data=>{
       window.u2f.register(data.appId, [data], [], function(res){
         if(res.errorCode){
-          var errorMsg = "";
+          var err = {
+            JSONresponse: {
+              message: "U2F error: "
+            }
+          };
+
           // lookup error message...
-          for(var err in window.u2f.ErrorCodes){
-            if(window.u2f.ErrorCodes[err] == res.errorCode){
-              errorMsg = err;
+          for(var msg in window.u2f.ErrorCodes){
+            if(window.u2f.ErrorCodes[msg] == res.errorCode){
+              err.responseJSON.message += msg;
             }
           }
-          errorCb("U2F Error: " + errorMsg);
+          errorCb(err);
           return;
         }
 
@@ -63,18 +68,16 @@ var auth = {
           pass:                  password,
           u2f_register_response: res,
           invite_token:          inviteToken
-        }
+        };
         api.post(cfg.api.u2fCreateUserPath, response, false).then(data=>{
           session.setUserData(data);
           auth._startTokenRefresher();
           successCb(data);
-        }).fail(data=>{
-          errorCb(data.responseJSON.message);
-        })
+        }).fail(errorCb);
+
       });
-    }).fail(data=>{
-      errorCb(data.responseJSON.message);
-    })
+
+    }).fail(errorCb);
   },
 
   login(name, password, token){
@@ -101,37 +104,40 @@ var auth = {
     var data = {
       user: name,
       pass: password
-    }
+    };
 
     api.post(cfg.api.u2fSessionChallengePath, data, false).then(data=>{
-      window.u2f.sign(data.appId, data.challenge, [data],function(res){
+      window.u2f.sign(data.appId, data.challenge, [data], function(res){
         if(res.errorCode){
-          var errorMsg = "";
+          var err = {
+            JSONresponse: {
+              message: "U2F error: "
+            }
+          };
+
           // lookup error message...
-          for(var err in window.u2f.ErrorCodes){
-            if(window.u2f.ErrorCodes[err] == res.errorCode){
-              errorMsg = err;
+          for(var msg in window.u2f.ErrorCodes){
+            if(window.u2f.ErrorCodes[msg] == res.errorCode){
+              err.responseJSON.message += msg;
             }
           }
-          errorCb("U2F Error: " + errorMsg);
+          errorCb(err);
           return;
         }
 
         var response = {
           user:              name,
           u2f_sign_response: res
-        }
+        };
         api.post(cfg.api.u2fSessionPath, response, false).then(data=>{
           session.setUserData(data);
           auth._startTokenRefresher();
           successCb(data);
-        }).fail(data=>{
-          errorCb(data.responseJSON.message);
-        })
+        }).fail(errorCb);
+
       });
-    }).fail(data=>{
-      errorCb(data.responseJSON.message);
-    })
+
+    }).fail(errorCb);
   },
 
   ensureUser(){
