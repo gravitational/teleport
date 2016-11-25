@@ -94,7 +94,7 @@ var auth = {
     });
   },
 
-  u2fLogin(name, password, successCb, errorCb){
+  u2fLogin(name, password){
     auth._stopTokenRefresher();
     session.clear();
 
@@ -104,34 +104,22 @@ var auth = {
     }
 
     api.post(cfg.api.u2fSessionChallengePath, data, false).then(data=>{
-      window.u2f.sign(data.appId, data.challenge, [data],function(res){
-        if(res.errorCode){
-          var errorMsg = "";
-          // lookup error message...
-          for(var err in window.u2f.ErrorCodes){
-            if(window.u2f.ErrorCodes[err] == res.errorCode){
-              errorMsg = err;
-            }
-          }
-          errorCb("U2F Error: " + errorMsg);
-          return;
-        }
+      window.u2f.sign(data.appId, data.challenge, [data], function(res){
+	if(res.errorCode) {
+	  let err = JSON.stringify(res);
+	  return $.Deferred().reject(err);
+	}
 
         var response = {
-          user:              name,
+          user: data.user,
           u2f_sign_response: res
         }
         api.post(cfg.api.u2fSessionPath, response, false).then(data=>{
           session.setUserData(data);
           auth._startTokenRefresher();
-          successCb(data);
-        }).fail(data=>{
-          errorCb(data.responseJSON.message);
-        })
+        });
       });
-    }).fail(data=>{
-      errorCb(data.responseJSON.message);
-    })
+    });
   },
 
   ensureUser(){

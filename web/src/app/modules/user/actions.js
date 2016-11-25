@@ -92,29 +92,23 @@ var actions = {
 
     restApiActions.start(TRYING_TO_LOGIN);
 
-    if(secondFactorType == SECOND_FACTOR_TYPE_U2F){
-      // Because the U2f API is asynchronous, we have to pass in callbacks
-      auth.u2fLogin(user, password, function(sessionData){
-          restApiActions.success(TRYING_TO_LOGIN);
-          reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
-          session.getHistory().push({pathname: redirect});
-        }, function(msg){
-          restApiActions.fail(TRYING_TO_LOGIN, msg);
-        });
-      return
-    }
+    var onSuccess = function(sessionData){
+      restApiActions.success(TRYING_TO_LOGIN);
+      reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
+      session.getHistory().push({pathname: redirect});
+    };
 
-    auth.login(user, password, token)
-      .done((sessionData)=>{
-        restApiActions.success(TRYING_TO_LOGIN);
-        reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
-        session.getHistory().push({pathname: redirect});
-      })
-      .fail((err)=> {
-        let msg = err.responseJSON ? err.responseJSON.message : 'Error';
-        restApiActions.fail(TRYING_TO_LOGIN, msg);
-      })
+    var onFailure = function(err){
+      var msg = err.responseJSON ? err.responseJSON.message : 'Error';
+      restApiActions.fail(TRYING_TO_LOGIN, msg);
+    };
+
+    if(secondFactorType == SECOND_FACTOR_TYPE_U2F){
+      auth.u2fLogin(user, password).done(onSuccess).fail(onFailure);
+    } else if (secondFactorType == SECOND_FACTOR_TYPE_OIDC) {
+      auth.login(user, password, token).done(onSuccess).fail(onFailure);
     }
+  }
 }
 
 export default actions;
