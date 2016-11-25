@@ -105,7 +105,7 @@ var actions = {
 
     if(secondFactorType == SECOND_FACTOR_TYPE_U2F){
       auth.u2fLogin(user, password).done(onSuccess).fail(onFailure);
-    } else if (secondFactorType == SECOND_FACTOR_TYPE_OIDC) {
+    } else {
       auth.login(user, password, token).done(onSuccess).fail(onFailure);
     }
   }
