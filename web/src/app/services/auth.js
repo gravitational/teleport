@@ -101,24 +101,32 @@ var auth = {
     var data = {
       user: name,
       pass: password
-    }
+    };
 
-    api.post(cfg.api.u2fSessionChallengePath, data, false).then(data=>{
+    return api.post(cfg.api.u2fSessionChallengePath, data, false).then(data=>{
+      // u2f.sign doesn't return a value, so this lets us handle done()/fail() nicely
+      var u2fSignRet = null;
+
       window.u2f.sign(data.appId, data.challenge, [data], function(res){
 	if(res.errorCode) {
 	  let err = JSON.stringify(res);
-	  return $.Deferred().reject(err);
+	  u2fSignRet = $.Deferred().reject(err);
+	  return;
 	}
 
         var response = {
           user: data.user,
           u2f_sign_response: res
-        }
-        api.post(cfg.api.u2fSessionPath, response, false).then(data=>{
+        };
+
+	u2fSignRet = api.post(cfg.api.u2fSessionPath, response, false).then(data=>{
           session.setUserData(data);
           auth._startTokenRefresher();
+	  return data;
         });
       });
+
+      return u2fSignRet;
     });
   },
 
