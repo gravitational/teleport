@@ -38,7 +38,7 @@ describe('auth', function () {
 
   afterEach(function () {
     expect.restoreSpies();
-  })
+  });
 
   describe('login(username, password, token)', function () {
     it('should successfully login and put user data in the session', function () {
@@ -71,12 +71,8 @@ describe('auth', function () {
       };
 
       var token = null;
-      var successCb = function() {
-        token = u2fSample;
-      };
-
       api.post.andReturn($.Deferred().resolve(u2fSample));
-      auth.u2fLogin('user', 'password', successCb, null);
+      auth.u2fLogin('user', 'password').done(()=>{ token = u2fSample; });
 
       expect(token).toEqual(u2fSample);
       expect(auth._startTokenRefresher.calls.length).toEqual(1);
@@ -85,12 +81,8 @@ describe('auth', function () {
 
     it('should return rejected promise if failed to log in', function () {
       var wasCalled = false;
-      var failureCb = function() {
-        wasCalled = true;
-      };
-
       api.post.andReturn($.Deferred().reject());
-      auth.u2fLogin('user', 'password', null, failureCb);
+      auth.u2fLogin('user', 'password').fail(()=> { wasCalled = true });
       expect(wasCalled).toEqual(true);
     });
 
@@ -101,13 +93,9 @@ describe('auth', function () {
 	}
       };
 
-      var wasCalled = false;
-      var failureCb = function() {
-        wasCalled = true;
-      };
-
+      var wasCalled = false;-
       api.post.andReturn($.Deferred().resolve(u2fSample));
-      auth.u2fLogin('user', 'password', null, failureCb);
+      auth.u2fLogin('user', 'password').fail(()=> { wasCalled = true });
       expect(wasCalled).toEqual(true);
     });
   });

@@ -60,24 +60,23 @@ var actions = {
   signUp({name, psw, token, inviteToken, secondFactorType}){
     restApiActions.start(TRYING_TO_SIGN_UP);
 
-    var onSignUpSuccess = function(sessionData) {
+    var onSuccess = function(sessionData){
       reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
       restApiActions.success(TRYING_TO_SIGN_UP);
       session.getHistory().push({pathname: cfg.routes.app});
     };
 
-    var onSignUpFailure = function(err) {
-      let msg = err.responseJSON ? err.responseJSON.message : 'Failed to sign up';
+    var onFailure = function(err){
+      var msg = err.responseJSON ? err.responseJSON.message : 'Failed to sign up';
       restApiActions.fail(TRYING_TO_SIGN_UP, msg);
-    }
+    };
 
     if(secondFactorType == SECOND_FACTOR_TYPE_U2F){
-      auth.u2fSignUp(name, psw, inviteToken, onSignUpSuccess, onSignUpFailure);
+      auth.u2fSignUp(name, psw, inviteToken).done(onSuccess).fail(onFailure);
     } else {
-      auth.signUp(name, psw, token, inviteToken)
-        .done(onSignUpSuccess)
-        .fail(onSignUpFailure);
+      auth.signUp(name, psw, token, inviteToken).done(onSuccess).fail(onFailure);
     }
+
   },
 
   login({user, password, token, provider, secondFactorType}, redirect){
@@ -89,24 +88,21 @@ var actions = {
 
     restApiActions.start(TRYING_TO_LOGIN);
 
-    var onLoginSuccess = function(sessionData){
+    var onSuccess = function(sessionData){
       restApiActions.success(TRYING_TO_LOGIN);
       reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
       session.getHistory().push({pathname: redirect});
     };
 
-    var onLoginFailure = function(err) {
-      let msg = err.responseJSON ? err.responseJSON.message : 'Error';
+    var onFailure = function(err){
+      var msg = err.responseJSON ? err.responseJSON.message : 'Error';
       restApiActions.fail(TRYING_TO_LOGIN, msg);
     };
 
     if(secondFactorType == SECOND_FACTOR_TYPE_U2F){
-      // Because the U2f API is asynchronous, we have to pass in callbacks
-      auth.u2fLogin(user, password, onLoginSuccess, onLoginFailure);
+      auth.u2fLogin(user, password).done(onSuccess).fail(onFailure);
     } else {
-      auth.login(user, password, token)
-        .done(onLoginSuccess)
-        .fail(onLoginFailure);
+      auth.login(user, password, token).done(onSuccess).fail(onFailure);
     }
   }
 }

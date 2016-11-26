@@ -43,23 +43,14 @@ var auth = {
       });
   },
 
-  u2fSignUp(name, password, inviteToken, successCb, errorCb){
-    api.get(cfg.api.getU2fCreateUserChallengeUrl(inviteToken)).then(data=>{
+  u2fSignUp(name, password, inviteToken){
+    return api.get(cfg.api.getU2fCreateUserChallengeUrl(inviteToken)).then(data=>{
+      var deferred = $.Deferred();
+
       window.u2f.register(data.appId, [data], [], function(res){
         if(res.errorCode){
-          var err = {
-            JSONresponse: {
-              message: "U2F error: "
-            }
-          };
-
-          // lookup error message...
-          for(var msg in window.u2f.ErrorCodes){
-            if(window.u2f.ErrorCodes[msg] == res.errorCode){
-              err.responseJSON.message += msg;
-            }
-          }
-          errorCb(err);
+          var err = auth._getU2fErr(res.errorCode);
+          deferred.reject(err);
           return;
         }
 
@@ -72,12 +63,14 @@ var auth = {
         api.post(cfg.api.u2fCreateUserPath, response, false).then(data=>{
           session.setUserData(data);
           auth._startTokenRefresher();
-          successCb(data);
-        }).fail(errorCb);
-
+          deferred.resolve(data);
+        }).fail(data=>{
+          deferred.reject(data);
+        })
       });
 
-    }).fail(errorCb);
+      return deferred.promise();
+    });
   },
 
   login(name, password, token){
@@ -97,7 +90,7 @@ var auth = {
     });
   },
 
-  u2fLogin(name, password, successCb, errorCb){
+  u2fLogin(name, password){
     auth._stopTokenRefresher();
     session.clear();
 
@@ -106,22 +99,13 @@ var auth = {
       pass: password
     };
 
-    api.post(cfg.api.u2fSessionChallengePath, data, false).then(data=>{
+    return api.post(cfg.api.u2fSessionChallengePath, data, false).then(data=>{
+      var deferred = $.Deferred();
+
       window.u2f.sign(data.appId, data.challenge, [data], function(res){
         if(res.errorCode){
-          var err = {
-            JSONresponse: {
-              message: "U2F error: "
-            }
-          };
-
-          // lookup error message...
-          for(var msg in window.u2f.ErrorCodes){
-            if(window.u2f.ErrorCodes[msg] == res.errorCode){
-              err.responseJSON.message += msg;
-            }
-          }
-          errorCb(err);
+          var err = auth._getU2fErr(res.errorCode);
+          deferred.reject(err);
           return;
         }
 
@@ -132,12 +116,14 @@ var auth = {
         api.post(cfg.api.u2fSessionPath, response, false).then(data=>{
           session.setUserData(data);
           auth._startTokenRefresher();
-          successCb(data);
-        }).fail(errorCb);
-
+          deferred.resolve(data);
+        }).fail(data=>{
+          deferred.reject(data);
+        });
       });
 
-    }).fail(errorCb);
+      return deferred.promise();
+    });
   },
 
   ensureUser(){
@@ -202,6 +188,17 @@ var auth = {
     }).fail(()=>{
       auth.logout();
     });
+  },
+
+  _getU2fErr(errorCode){
+    var errorMsg = "";
+    // lookup error message...
+    for(var msg in window.u2f.ErrorCodes){
+      if(window.u2f.ErrorCodes[msg] == errorCode){
+        errorMsg = msg;
+      }
+    }
+    return {responseJSON:{message:"U2F Error: " + errorMsg}};
   }
 
 }
