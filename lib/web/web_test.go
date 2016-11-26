@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gokyle/hotp"
+	//"github.com/tstranex/u2f"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -743,6 +744,8 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 	c.Assert(se.TerminalParams, DeepEquals, params)
 }
 
+
+
 func (s *WebSuite) TestPlayback(c *C) {
 	pack := s.authPack(c)
 	sid := session.NewID()
@@ -756,3 +759,185 @@ func removeSpace(in string) string {
 	}
 	return strings.TrimSpace(in)
 }
+
+//U2f Tests
+
+func (s *WebSuite) TestNewU2fUser(c *C) {
+	token, err := s.roleAuth.CreateSignupToken(&services.TeleportUser{Name: "bob", AllowedLogins: []string{s.user}})
+	c.Assert(err, IsNil)
+
+	tokens, err := s.roleAuth.GetTokens()
+	c.Assert(err, IsNil)
+	c.Assert(len(tokens), Equals, 1)
+	c.Assert(tokens[0].Token, Equals, token)
+
+	clt := s.client()
+	re, err := clt.Get(clt.Endpoint("webapi", "users", "invites", token), url.Values{})
+	c.Assert(err, IsNil)
+
+	var out *renderUserInviteResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
+	c.Assert(out.User, Equals, "bob")
+	c.Assert(out.InviteToken, Equals, token)
+
+	u2fRegReq, err := s.roleAuth.GetSignupU2fRegisterRequest(token)
+	c.Assert(err, IsNil)
+
+	u2fRegResp, err := s.mockU2f.RegisterResponse(u2fRegReq)
+	c.Assert(err, IsNil)
+
+	tempPass := "abc123"
+
+	re, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "new_user"), createNewU2fUserReq{
+		InviteToken:       token,
+		Pass:              tempPass,
+		U2fRegisterResponse: *u2fRegResp,
+	})
+	c.Assert(err, IsNil)
+
+	var rawSess *createSessionResponseRaw
+	c.Assert(json.Unmarshal(re.Bytes(), &rawSess), IsNil)
+	cookies := re.Cookies()
+	c.Assert(len(cookies), Equals, 1)
+
+	// now make sure we are logged in by calling authenticated method
+	// we need to supply both session cookie and bearer token for
+	// request to succeed
+	jar, err := cookiejar.New(nil)
+	c.Assert(err, IsNil)
+
+	clt = s.client(roundtrip.BearerAuth(rawSess.Token), roundtrip.CookieJar(jar))
+	jar.SetCookies(s.url(), re.Cookies())
+
+	re, err = clt.Get(clt.Endpoint("webapi", "sites"), url.Values{})
+	c.Assert(err, IsNil)
+
+	var sites *getSitesResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &sites), IsNil)
+
+	// in absense of session cookie or bearer auth the same request fill fail
+
+	// no session cookie:
+	clt = s.client(roundtrip.BearerAuth(rawSess.Token))
+	re, err = clt.Get(clt.Endpoint("webapi", "sites"), url.Values{})
+	c.Assert(err, NotNil)
+	c.Assert(trace.IsAccessDenied(err), Equals, true)
+
+	// no bearer token:
+	clt = s.client(roundtrip.CookieJar(jar))
+	re, err = clt.Get(clt.Endpoint("webapi", "sites"), url.Values{})
+	c.Assert(err, NotNil)
+	c.Assert(trace.IsAccessDenied(err), Equals, true)
+}
+
+/*
+type u2fAuthPack struct {
+	user    string
+	u2fSignResp     *u2f.SignResponse
+	session *CreateSessionResponse
+	clt     *webClient
+	cookies []*http.Cookie
+}
+
+func (s *WebSuite) u2fAuthPackFromResponse(c *C, re *roundtrip.Response) *u2fAuthPack {
+	var sess *createSessionResponseRaw
+	c.Assert(json.Unmarshal(re.Bytes(), &sess), IsNil)
+
+	jar, err := cookiejar.New(nil)
+	c.Assert(err, IsNil)
+
+	clt := s.client(roundtrip.BearerAuth(sess.Token), roundtrip.CookieJar(jar))
+	jar.SetCookies(s.url(), re.Cookies())
+
+	session, err := sess.response()
+	if err != nil {
+		panic(err)
+	}
+	return &u2fAuthPack{
+		user:    session.User.GetName(),
+		session: session,
+		clt:     clt,
+		cookies: re.Cookies(),
+	}
+}
+
+// authPack returns new authenticated package consisting
+// of created valid user, u2f Sign Response, created web session and
+// authenticated client
+func (s *WebSuite) u2fAuthPack(c *C) *u2fAuthPack {
+	user := s.user
+	pass := "abc123"
+
+	u2fSignReq, err := s.roleAuth.U2fSignRequest(user, []byte(pass))
+	c.Assert(err, IsNil)
+	u2fSignResp, err := s.mockU2f.SignResponse(u2fSignReq)
+	c.Assert(err, IsNil)
+
+	err = s.roleAuth.UpsertUser(
+		&services.TeleportUser{Name: user, AllowedLogins: []string{s.user}})
+	c.Assert(err, IsNil)
+
+	clt := s.client()
+
+	re, err := clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
+		User:              user,
+		U2fSignResponse: *u2fSignResp,
+	})
+	c.Assert(err, IsNil)
+
+	var rawSess *createSessionResponseRaw
+	c.Assert(json.Unmarshal(re.Bytes(), &rawSess), IsNil)
+
+	sess, err := rawSess.response()
+	c.Assert(err, IsNil)
+
+	jar, err := cookiejar.New(nil)
+	c.Assert(err, IsNil)
+
+	clt = s.client(roundtrip.BearerAuth(sess.Token), roundtrip.CookieJar(jar))
+	jar.SetCookies(s.url(), re.Cookies())
+
+	return &u2fAuthPack{
+		user:    user,
+		session: sess,
+		clt:     clt,
+		cookies: re.Cookies(),
+	}
+}
+*/
+/*
+func (s *WebSuite) TestU2fWebSessionsBadInput(c *C) {
+	user := "bob"
+	pass := "abc123"
+
+	u2fReq,err := s.roleAuth.U2fSignRequest(user,[]byte(pass))
+	c.Assert(err,IsNil)
+	u2fResp, err := s.mockU2f.SignResponse(u2fReq)
+	c.Assert(err, IsNil)
+
+	clt := s.client()
+
+
+	reqs := []u2fSignResponseReq{
+		// emtpy request
+		{},
+		// missing user
+		{
+			U2fSignResponse: *u2fResp,
+		},
+		// bad u2f Sign Response
+		{
+			User:              user,
+		},
+		// missing u2f Sign Response
+		{
+			User: user,
+		},
+	}
+	for i, req := range reqs {
+		_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), req)
+		c.Assert(err, NotNil, Commentf("tc %v", i))
+		c.Assert(trace.IsAccessDenied(err), Equals, true, Commentf("tc %v %T is not access denied", i, err))
+	}
+}
+*/

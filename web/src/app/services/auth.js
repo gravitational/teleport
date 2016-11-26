@@ -43,8 +43,9 @@ var auth = {
       });
   },
 
-  u2fSignUp(name, password, inviteToken, successCb, errorCb){
-    api.get(cfg.api.getU2fCreateUserChallengeUrl(inviteToken)).then(data=>{
+  u2fSignUp(name, password, inviteToken){
+    return api.get(cfg.api.getU2fCreateUserChallengeUrl(inviteToken)).then(data=>{
+      var deferred = $.Deferred();
       window.u2f.register(data.appId, [data], [], function(res){
         if(res.errorCode){
           var errorMsg = "";
@@ -54,7 +55,7 @@ var auth = {
               errorMsg = err;
             }
           }
-          errorCb("U2F Error: " + errorMsg);
+          deferred.reject({responseJSON:{message:"U2F Error: " + errorMsg}});
           return;
         }
 
@@ -67,14 +68,13 @@ var auth = {
         api.post(cfg.api.u2fCreateUserPath, response, false).then(data=>{
           session.setUserData(data);
           auth._startTokenRefresher();
-          successCb(data);
+          deferred.resolve(data);
         }).fail(data=>{
-          errorCb(data.responseJSON.message);
+          deferred.reject(data);
         })
       });
-    }).fail(data=>{
-      errorCb(data.responseJSON.message);
-    })
+      return deferred.promise();
+    });
   },
 
   login(name, password, token){
@@ -104,29 +104,33 @@ var auth = {
     };
 
     return api.post(cfg.api.u2fSessionChallengePath, data, false).then(data=>{
-      // u2f.sign doesn't return a value, so this lets us handle done()/fail() nicely
-      var u2fSignRet = null;
-
-      window.u2f.sign(data.appId, data.challenge, [data], function(res){
-	if(res.errorCode) {
-	  let err = JSON.stringify(res);
-	  u2fSignRet = $.Deferred().reject(err);
-	  return;
-	}
+      var deferred = $.Deferred();
+      window.u2f.sign(data.appId, data.challenge, [data],function(res){
+        if(res.errorCode){
+          var errorMsg = "";
+          // lookup error message...
+          for(var err in window.u2f.ErrorCodes){
+            if(window.u2f.ErrorCodes[err] == res.errorCode){
+              errorMsg = err;
+            }
+          }
+          deferred.reject({responseJSON:{message:"U2F Error: " + errorMsg}});
+          return;
+        }
 
         var response = {
-          user: data.user,
+          user:              name,
           u2f_sign_response: res
-        };
-
-	u2fSignRet = api.post(cfg.api.u2fSessionPath, response, false).then(data=>{
+        }
+        api.post(cfg.api.u2fSessionPath, response, false).then(data=>{
           session.setUserData(data);
           auth._startTokenRefresher();
-	  return data;
+          deferred.resolve(data);
+        }).fail(data=>{
+          deferred.reject(data);
         });
       });
-
-      return u2fSignRet;
+      return deferred.promise();
     });
   },
 
