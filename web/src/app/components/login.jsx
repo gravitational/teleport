@@ -75,6 +75,7 @@ var LoginInputForm = React.createClass({
     let {isProcessing, isFailed, message } = this.props.attemp;
     let providers = cfg.getAuthProviders();
     let useGoogle = providers.indexOf(PROVIDER_GOOGLE) !== -1;
+    let useU2f = !!cfg.getU2fAppId();
 
     return (
       <form ref="form" className="grv-login-input-form">
@@ -90,7 +91,7 @@ var LoginInputForm = React.createClass({
             <input autoComplete="off" valueLink={this.linkState('token')} className="form-control required" name="token" placeholder="Two factor token (Google Authenticator)"/>
           </div>
           <button onClick={this.onLogin} disabled={isProcessing} type="submit" className="btn btn-primary block full-width m-b">Login</button>
-          <button onClick={this.onLoginWithU2f} disabled={isProcessing} type="submit" className="btn btn-primary block full-width m-b">Login with U2F</button>
+          { useU2f ? <button onClick={this.onLoginWithU2f} disabled={isProcessing} type="submit" className="btn btn-primary block full-width m-b">Login with U2F</button> : null }
           { useGoogle ? <button onClick={this.onLoginWithGoogle} type="submit" className="btn btn-danger block full-width m-b">With Google</button> : null }
           { isProcessing && this.state.secondFactorType == SECOND_FACTOR_TYPE_U2F ? (<label className="help-block">Insert your U2F key and press the button on the key</label>) : null }
           { isFailed ? (<label className="error">{message}</label>) : null }

@@ -243,8 +243,8 @@ func (m *Handler) Close() error {
 type webSettings struct {
 	Auth struct {
 		OIDCConnectors []string `json:"oidc_connectors"`
+		U2fAppId string `json:"u2f_appid"`
 	} `json:"auth"`
-	U2fAppId string `json:"u2f_appid"`
 }
 
 func (m *Handler) getSettings(w http.ResponseWriter, r *http.Request) (interface{}, error) {
@@ -263,7 +263,7 @@ func (m *Handler) getSettings(w http.ResponseWriter, r *http.Request) (interface
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	settings.U2fAppId = u2fAppId
+	settings.Auth.U2fAppId = u2fAppId
 	out, err := json.Marshal(settings)
 	if err != nil {
 		return nil, trace.Wrap(err)

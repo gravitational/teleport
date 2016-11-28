@@ -28,7 +28,8 @@ let cfg = {
   displayDateFormat: 'l LTS Z',
 
   auth: {
-    oidc_connectors: []
+    oidc_connectors: [],
+    u2f_appid: ""
   },
 
   routes: {
@@ -114,6 +115,10 @@ let cfg = {
 
   getAuthProviders(){
     return cfg.auth.oidc_connectors;
+  },
+
+  getU2fAppId(){
+    return cfg.auth.u2f_appid;
   },
 
   init(config={}){

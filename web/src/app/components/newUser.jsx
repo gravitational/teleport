@@ -23,6 +23,7 @@ var GoogleAuthInfo = require('./googleAuthLogo');
 var {ErrorPage, ErrorTypes} = require('./msgPage');
 var {TeleportLogo} = require('./icons.jsx');
 var {SECOND_FACTOR_TYPE_HOTP, SECOND_FACTOR_TYPE_U2F} = require('app/services/auth');
+var cfg = require('app/config');
 
 var InviteInputForm = React.createClass({
 
@@ -87,6 +88,7 @@ var InviteInputForm = React.createClass({
 
   render() {
     let {isProcessing, isFailed, message } = this.props.attemp;
+    let useU2f = !!cfg.getU2fAppId();
     return (
       <form ref="form" className="grv-invite-input-form">
         <h3> Get started with Teleport </h3>
@@ -117,6 +119,7 @@ var InviteInputForm = React.createClass({
               className="form-control"
               placeholder="Password confirm"/>
           </div>
+          { useU2f ?
           <div className="form-group">
             <input
               type="radio"
@@ -131,6 +134,7 @@ var InviteInputForm = React.createClass({
               onChange={ this.onSecondFactorTypeChanged }/>
             U2F
           </div>
+          : null }
           { this.state.secondFactorType == SECOND_FACTOR_TYPE_HOTP ?
           <div className="form-group">
             <input
