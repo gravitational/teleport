@@ -175,6 +175,10 @@ func (a *AuthServer) GetDomainName() (string, error) {
 	return a.DomainName, nil
 }
 
+func (a *AuthServer) GetU2fAppId() (string, error) {
+	return a.U2fAppId, nil
+}
+
 // GenerateHostCert generates host certificate, it takes pkey as a signing
 // private key (host certificate authority)
 func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {

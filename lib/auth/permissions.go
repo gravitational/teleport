@@ -62,6 +62,7 @@ func NewStandardPermissions() PermissionChecker {
 		ActionUpsertServer:       true,
 		ActionGetServers:         true,
 		ActionGetProxies:         true,
+		ActionGetU2fAppId:        true,
 		ActionGetAuthServers:     true,
 		ActionGetCertAuthorities: true,
 		ActionGetUsers:           true,
@@ -82,6 +83,7 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetServers:                      true,
 		ActionUpsertProxy:                     true,
 		ActionGetProxies:                      true,
+		ActionGetU2fAppId:                     true,
 		ActionGetAuthServers:                  true,
 		ActionGetCertAuthorities:              true,
 		ActionGetUsers:                        true,
@@ -190,6 +192,7 @@ const (
 	ActionGetAuthServers                    = "GetAuthServers"
 	ActionUpsertProxy                       = "UpsertProxy"
 	ActionGetProxies                        = "GetProxies"
+	ActionGetU2fAppId                       = "GetU2fAppId"
 	ActionUpsertReverseTunnel               = "UpsertReverseTunnel"
 	ActionGetReverseTunnels                 = "GetReverseTunnels"
 	ActionDeleteReverseTunnel               = "DeleteReverseTunnel"

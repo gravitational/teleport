@@ -134,6 +134,7 @@ func NewAPIServer(config *APIConfig, role teleport.Role) APIServer {
 	srv.GET("/v1/u2f/invite_register_request/:token", httplib.MakeHandler(srv.getSignupU2fRegisterRequest))
 	srv.POST("/v1/u2f/new_user", httplib.MakeHandler(srv.createU2fUserWithToken))
 	srv.POST("/v1/u2f/sign_request/:user", httplib.MakeHandler(srv.u2fSignRequest))
+	srv.GET("/v1/u2f/appid", httplib.MakeHandler(srv.getU2fAppId))
 
 	// Provisioning tokens
 	srv.GET("/v1/tokens", httplib.MakeHandler(srv.getTokens))
@@ -601,6 +602,15 @@ func (s *APIServer) getDomainName(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 	return domain, nil
+}
+
+// getU2fAppId returns the U2F AppID in the auth configuration
+func (s *APIServer) getU2fAppId(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	appid, err := s.a.GetU2fAppId()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return appid, nil
 }
 
 func (s *APIServer) deleteCertAuthority(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {

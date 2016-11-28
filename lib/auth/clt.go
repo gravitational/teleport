@@ -393,6 +393,18 @@ func (c *Client) GetProxies() ([]services.Server, error) {
 	return re, nil
 }
 
+func (c *Client) GetU2fAppId() (string, error) {
+	out, err := c.Get(c.Endpoint("u2f", "appId"), url.Values{})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	var appid string
+	if err := json.Unmarshal(out.Bytes(), &appid); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return appid, nil
+}
+
 // UpsertPassword updates web access password for the user
 func (c *Client) UpsertPassword(user string,
 	password []byte) (hotpURL string, hotpQR []byte, err error) {
@@ -930,6 +942,11 @@ type ClientI interface {
 	DeleteOIDCConnector(connectorID string) error
 	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
 	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
+	GetU2fSignRequest(user string, password []byte) (*u2f.SignRequest, error)
+	GetSignupU2fRegisterRequest(token string) (*u2f.RegisterRequest, error)
+	CreateU2fUserWithToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*Session, error)
+	PreAuthenticatedSignIn(user string) (*Session, error)
+	GetU2fAppId() (string, error)
 	// UpsertReverseTunnel is used by admins to create a new reverse tunnel
 	// to the remote proxy to bypass firewall restrictions
 	UpsertReverseTunnel(tunnel services.ReverseTunnel, ttl time.Duration) error

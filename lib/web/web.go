@@ -244,6 +244,7 @@ type webSettings struct {
 	Auth struct {
 		OIDCConnectors []string `json:"oidc_connectors"`
 	} `json:"auth"`
+	U2fAppId string `json:"u2f_appid"`
 }
 
 func (m *Handler) getSettings(w http.ResponseWriter, r *http.Request) (interface{}, error) {
@@ -258,6 +259,11 @@ func (m *Handler) getSettings(w http.ResponseWriter, r *http.Request) (interface
 	if len(settings.Auth.OIDCConnectors) == 0 {
 		settings.Auth.OIDCConnectors = make([]string, 0)
 	}
+	u2fAppId, err := m.cfg.ProxyClient.GetU2fAppId()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	settings.U2fAppId = u2fAppId
 	out, err := json.Marshal(settings)
 	if err != nil {
 		return nil, trace.Wrap(err)

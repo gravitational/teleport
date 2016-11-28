@@ -93,6 +93,13 @@ func (a *AuthWithRoles) GetDomainName() (string, error) {
 	return a.authServer.GetDomainName()
 }
 
+func (a *AuthWithRoles) GetU2fAppId() (string, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionGetU2fAppId); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return a.authServer.GetU2fAppId()
+}
+
 func (a *AuthWithRoles) DeleteCertAuthority(id services.CertAuthID) error {
 	if err := a.permChecker.HasPermission(a.role, ActionDeleteCertAuthority); err != nil {
 		return trace.Wrap(err)
