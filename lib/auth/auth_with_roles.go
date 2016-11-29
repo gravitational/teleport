@@ -227,12 +227,6 @@ func (a *AuthWithRoles) PreAuthenticatedSignIn(user string) (*Session, error) {
 	}
 	return a.authServer.PreAuthenticatedSignIn(user)
 }
-func (a *AuthWithRoles) U2fSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
-	if err := a.permChecker.HasPermission(a.role, ActionU2fSignReq); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.U2fSignRequest(user, password)
-}
 func (a *AuthWithRoles) GetU2fSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
         if err := a.permChecker.HasPermission(a.role, ActionU2fSignReq); err != nil {
                 return nil, trace.Wrap(err)

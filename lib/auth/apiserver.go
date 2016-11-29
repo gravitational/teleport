@@ -326,7 +326,7 @@ func (s *APIServer) u2fSignRequest(w http.ResponseWriter, r *http.Request, p htt
 	}
 	user := p[0].Value
 	pass := []byte(req.Password)
-	u2fSignReq, err := s.a.U2fSignRequest(user, pass)
+	u2fSignReq, err := s.a.GetU2fSignRequest(user, pass)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
