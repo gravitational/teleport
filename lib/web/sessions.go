@@ -256,7 +256,7 @@ func (s *sessionCache) AuthWithU2fSignResponse(user string, u2fSignResponse *u2f
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clt, err := auth.NewTunClient("web.auth-u2f-sign-response", s.authServers, user, method)
+	clt, err := auth.NewTunClient("web.client-u2f", s.authServers, user, method)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -280,7 +280,11 @@ func (s *sessionCache) GetCertificate(c createSSHCertReq) (*SSHLoginResponse, er
 		return nil, trace.Wrap(err)
 	}
 	defer clt.Close()
-	cert, err := clt.GenerateUserCert(c.PubKey, c.User, c.TTL)
+	return createCertificate(c.User, c.PubKey, c.TTL, clt)
+}
+
+func createCertificate(user string, pubkey []byte, ttl time.Duration, clt *auth.TunClient) (*SSHLoginResponse, error) {
+	cert, err := clt.GenerateUserCert(pubkey, user, ttl)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -305,28 +309,12 @@ func (s *sessionCache) GetCertificateWithU2f(c createSSHCertWithU2fReq) (*SSHLog
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clt, err := auth.NewTunClient("web.auth-u2f-sign-response", s.authServers, c.User, method)
+	clt, err := auth.NewTunClient("web.session-u2f", s.authServers, c.User, method)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := clt.GenerateUserCert(c.PubKey, c.User, c.TTL)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	hostSigners, err := clt.GetCertAuthorities(services.HostCA, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	signers := []services.CertAuthority{}
-	for _, hs := range hostSigners {
-		signers = append(signers, *hs)
-	}
-
-	return &SSHLoginResponse{
-		Cert:        cert,
-		HostSigners: signers,
-	}, nil
+	defer clt.Close()
+	return createCertificate(c.User, c.PubKey, c.TTL, clt)
 }
 
 func (s *sessionCache) GetUserInviteInfo(token string) (user string,

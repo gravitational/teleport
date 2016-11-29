@@ -50,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gokyle/hotp"
-	//"github.com/tstranex/u2f"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
