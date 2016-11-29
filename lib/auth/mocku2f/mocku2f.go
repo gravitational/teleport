@@ -168,3 +168,6 @@ func (muk *MockU2fKey) SignResponse(req *u2f.SignRequest) (*u2f.SignResponse, er
 	}, nil
 }
 
+func (muk *MockU2fKey) SetCounter(counter uint32) {
+	muk.counter = counter
+}

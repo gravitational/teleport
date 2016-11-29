@@ -55,6 +55,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/websocket"
 	. "gopkg.in/check.v1"
+	"github.com/tstranex/u2f"
 )
 
 func TestWeb(t *testing.T) {
@@ -769,18 +770,13 @@ func (s *WebSuite) TestNewU2fUser(c *C) {
 	c.Assert(tokens[0].Token, Equals, token)
 
 	clt := s.client()
-	re, err := clt.Get(clt.Endpoint("webapi", "users", "invites", token), url.Values{})
+	re, err := clt.Get(clt.Endpoint("webapi", "u2f", "invite_register_request", token), url.Values{})
 	c.Assert(err, IsNil)
 
-	var out *renderUserInviteResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &out), IsNil)
-	c.Assert(out.User, Equals, "bob")
-	c.Assert(out.InviteToken, Equals, token)
+	var u2fRegReq u2f.RegisterRequest
+	c.Assert(json.Unmarshal(re.Bytes(), &u2fRegReq), IsNil)
 
-	u2fRegReq, err := s.roleAuth.GetSignupU2fRegisterRequest(token)
-	c.Assert(err, IsNil)
-
-	u2fRegResp, err := s.mockU2f.RegisterResponse(u2fRegReq)
+	u2fRegResp, err := s.mockU2f.RegisterResponse(&u2fRegReq)
 	c.Assert(err, IsNil)
 
 	tempPass := "abc123"
@@ -827,3 +823,100 @@ func (s *WebSuite) TestNewU2fUser(c *C) {
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
 
+func (s *WebSuite) TestU2fLogin(c *C) {
+	token, err := s.roleAuth.CreateSignupToken(&services.TeleportUser{Name: "bob", AllowedLogins: []string{s.user}})
+	c.Assert(err, IsNil)
+
+	u2fRegReq, err := s.roleAuth.GetSignupU2fRegisterRequest(token)
+	c.Assert(err, IsNil)
+
+	u2fRegResp, err := s.mockU2f.RegisterResponse(u2fRegReq)
+	c.Assert(err, IsNil)
+
+	tempPass := "abc123"
+
+	_, err = s.roleAuth.CreateU2fUserWithToken(token, tempPass, *u2fRegResp)
+	c.Assert(err, IsNil)
+
+	// normal login
+
+	clt := s.client()
+	re, err := clt.PostJSON(clt.Endpoint("webapi","u2f", "sign_request"), u2fSignRequestReq{
+		User:              "bob",
+		Pass:              tempPass,
+	})
+	c.Assert(err, IsNil)
+	var u2fSignReq u2f.SignRequest
+	c.Assert(json.Unmarshal(re.Bytes(), &u2fSignReq), IsNil)
+
+	u2fSignResp, err := s.mockU2f.SignResponse(&u2fSignReq)
+	c.Assert(err, IsNil)
+
+	_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
+		User:              "bob",
+		U2fSignResponse:   *u2fSignResp,
+	})
+	c.Assert(err, IsNil)
+
+	// bad login: corrupted sign responses, should fail
+
+	re, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sign_request"), u2fSignRequestReq{
+		User:              "bob",
+		Pass:              tempPass,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(json.Unmarshal(re.Bytes(), &u2fSignReq), IsNil)
+
+	u2fSignResp, err = s.mockU2f.SignResponse(&u2fSignReq)
+	c.Assert(err, IsNil)
+
+	// corrupted KeyHandle
+	u2fSignRespCopy := u2fSignResp
+	u2fSignRespCopy.KeyHandle = u2fSignRespCopy.KeyHandle + u2fSignRespCopy.KeyHandle
+
+	_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
+		User:              "bob",
+		U2fSignResponse:   *u2fSignRespCopy,
+	})
+	c.Assert(err, NotNil)
+
+	// corrupted SignatureData
+	u2fSignRespCopy = u2fSignResp
+	u2fSignRespCopy.SignatureData = u2fSignRespCopy.SignatureData[:10] + u2fSignRespCopy.SignatureData[20:]
+
+	_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
+		User:              "bob",
+		U2fSignResponse:   *u2fSignRespCopy,
+	})
+	c.Assert(err, NotNil)
+
+	// corrupted ClientData
+	u2fSignRespCopy = u2fSignResp
+	u2fSignRespCopy.ClientData = u2fSignRespCopy.ClientData[:10] + u2fSignRespCopy.ClientData[20:]
+
+	_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
+		User:              "bob",
+		U2fSignResponse:   *u2fSignRespCopy,
+	})
+	c.Assert(err, NotNil)
+
+	// bad login: counter not increasing, should fail
+
+	s.mockU2f.SetCounter(0)
+
+	re, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sign_request"), u2fSignRequestReq{
+		User:              "bob",
+		Pass:              tempPass,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(json.Unmarshal(re.Bytes(), &u2fSignReq), IsNil)
+
+	u2fSignResp, err = s.mockU2f.SignResponse(&u2fSignReq)
+	c.Assert(err, IsNil)
+
+	_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
+		User:              "bob",
+		U2fSignResponse:   *u2fSignResp,
+	})
+	c.Assert(err, NotNil)
+}
