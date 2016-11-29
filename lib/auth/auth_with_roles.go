@@ -233,6 +233,12 @@ func (a *AuthWithRoles) U2fSignRequest(user string, password []byte) (*u2f.SignR
 	}
 	return a.authServer.U2fSignRequest(user, password)
 }
+func (a *AuthWithRoles) GetU2fSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
+        if err := a.permChecker.HasPermission(a.role, ActionU2fSignReq); err != nil {
+                return nil, trace.Wrap(err)
+        }
+        return a.authServer.U2fSignRequest(user, password)
+}
 func (a *AuthWithRoles) CreateWebSession(user string) (*Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionCreateWebSession); err != nil {
 		return nil, trace.Wrap(err)
