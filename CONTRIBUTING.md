@@ -17,6 +17,5 @@ If you want to work on a bigger idea, submit an issue describing your proposed d
 ### Adding dependencies
 
 If your patch depends on new packages, add that package with
-[`godep`](https://github.com/tools/godep).  Follow the [instructions to add a
-dependency](docs/devel/development.md#godep-and-dependency-management).
+[`godep`](https://github.com/tools/godep).
 
