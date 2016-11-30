@@ -47,7 +47,7 @@ type RemoteSite interface {
 	ConnectToServer(addr, user string, auth []ssh.AuthMethod) (*ssh.Client, error)
 	// DialServer dials teleport server and returns connection
 	DialServer(addr string) (net.Conn, error)
-	// Dial dials any address withing reach of remote site's servers
+	// Dial dials any address within the site network
 	Dial(network, addr string) (net.Conn, error)
 	// GetLastConnected returns last time the remote site was seen connected
 	GetLastConnected() time.Time
