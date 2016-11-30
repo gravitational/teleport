@@ -19,7 +19,6 @@ limitations under the License.
 package srv
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -914,7 +913,7 @@ func (s *Server) handleExec(ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
 
 func replyError(ch ssh.Channel, req *ssh.Request, err error) {
 	message := []byte(utils.UserMessageFromError(err))
-	io.Copy(ch.Stderr(), bytes.NewBuffer(message))
+	ch.Stderr().Write(message)
 	if req.WantReply {
 		req.Reply(false, message)
 	}

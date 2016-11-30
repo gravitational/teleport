@@ -462,7 +462,7 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 		Type:      roundtrip.AuthBearer,
 		Token:     webSession.WS.BearerToken,
 		User:      user.WebSessionInfo(),
-		ExpiresIn: int(time.Now().Sub(webSession.WS.Expires) / time.Second),
+		ExpiresIn: int(webSession.WS.Expires.Sub(time.Now()) / time.Second),
 	}, nil
 }
 
