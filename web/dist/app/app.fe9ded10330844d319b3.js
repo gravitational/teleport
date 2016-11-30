@@ -2457,9 +2457,6 @@ webpackJsonp([0],{
 	var _require2 = __webpack_require__(339),
 	    TeleportLogo = _require2.TeleportLogo;
 
-	var _require3 = __webpack_require__(227),
-	    PROVIDER_GOOGLE = _require3.PROVIDER_GOOGLE;
-
 	var LoginInputForm = React.createClass({
 	  displayName: 'LoginInputForm',
 
@@ -2482,10 +2479,13 @@ webpackJsonp([0],{
 	  },
 
 
-	  onLoginWithGoogle: function onLoginWithGoogle(e) {
-	    e.preventDefault();
-	    this.state.provider = PROVIDER_GOOGLE;
-	    this.props.onClick(this.state);
+	  providerLogin: function providerLogin(provider) {
+	    var self = this;
+	    return function (e) {
+	      e.preventDefault();
+	      self.state.provider = provider.id;
+	      self.props.onClick(self.state);
+	    };
 	  },
 
 	  isValid: function isValid() {
@@ -2494,13 +2494,14 @@ webpackJsonp([0],{
 	  },
 
 	  render: function render() {
+	    var _this = this;
+
 	    var _props$attemp = this.props.attemp,
 	        isProcessing = _props$attemp.isProcessing,
 	        isFailed = _props$attemp.isFailed,
 	        message = _props$attemp.message;
 
 	    var providers = cfg.getAuthProviders();
-	    var useGoogle = providers.indexOf(PROVIDER_GOOGLE) !== -1;
 
 	    return React.createElement(
 	      'form',
@@ -2533,11 +2534,14 @@ webpackJsonp([0],{
 	          { onClick: this.onLogin, disabled: isProcessing, type: 'submit', className: 'btn btn-primary block full-width m-b' },
 	          'Login'
 	        ),
-	        useGoogle ? React.createElement(
-	          'button',
-	          { onClick: this.onLoginWithGoogle, type: 'submit', className: 'btn btn-danger block full-width m-b' },
-	          'With Google'
-	        ) : null,
+	        providers.map(function (provider) {
+	          return React.createElement(
+	            'button',
+	            { onClick: _this.providerLogin(provider), type: 'submit', className: 'btn btn-danger block full-width m-b' },
+	            'With ',
+	            provider.display
+	          );
+	        }),
 	        isFailed ? React.createElement(
 	          'label',
 	          { className: 'error' },
