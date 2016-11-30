@@ -25,11 +25,10 @@ var { Table, Column, Cell, TextCell, SortHeaderCell, SortTypes, EmptyIndicator }
 var { ButtonCell, SingleUserCell, DateCreatedCell, DurationCell } = require('./listItems');
 var { DateRangePicker } = require('./../datePicker.jsx');
 
-
 var StoredSessions = React.createClass({
 
   getInitialState(){
-    this.searchableProps = ['clientIp', 'nodeIp', 'created', 'sid', 'login'];
+    this.searchableProps = ['nodeIp', 'created', 'sid', 'login'];
     return { filter: '', colSortDirs: {created: 'ASC'}};
   },
 
@@ -129,18 +128,6 @@ var StoredSessions = React.createClass({
                       onSortChange={this.onSortChange}
                       title="Node IP"
                       className="grv-sessions-stored-col-ip"
-                    />
-                  }
-                  cell={<TextCell data={data} /> }
-                />
-                <Column
-                  columnKey="clientIp"
-                  header={
-                    <SortHeaderCell
-                      sortDir={this.state.colSortDirs.clientIp}
-                      onSortChange={this.onSortChange}
-                      className="grv-sessions-stored-col-ip"
-                      title="Client IP"
                     />
                   }
                   cell={<TextCell data={data} /> }
