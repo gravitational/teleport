@@ -214,6 +214,10 @@
 			"Rev": "c55201b036063326c5b1b89ccfe45a184973d073"
 		},
 		{
+			"ImportPath": "github.com/tstranex/u2f",
+			"Rev": "eb799ce68da4150b16ff5d0c89a24e2a2ad993d8"
+		},
+		{
 			"ImportPath": "github.com/vulcand/oxy/connlimit",
 			"Rev": "5725fecc9a4f3aa6fdc3ffd29cef771241809add"
 		},
