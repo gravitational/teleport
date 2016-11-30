@@ -773,7 +773,7 @@ func (s *WebSuite) TestNewU2fUser(c *C) {
 	c.Assert(tokens[0].Token, Equals, token)
 
 	clt := s.client()
-	re, err := clt.Get(clt.Endpoint("webapi", "u2f", "invite_register_request", token), url.Values{})
+	re, err := clt.Get(clt.Endpoint("webapi", "u2f", "inviteregisterrequest", token), url.Values{})
 	c.Assert(err, IsNil)
 
 	var u2fRegReq u2f.RegisterRequest
@@ -784,7 +784,7 @@ func (s *WebSuite) TestNewU2fUser(c *C) {
 
 	tempPass := "abc123"
 
-	re, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "new_user"), createNewU2fUserReq{
+	re, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "newuser"), createNewU2fUserReq{
 		InviteToken:       token,
 		Pass:              tempPass,
 		U2fRegisterResponse: *u2fRegResp,
@@ -844,7 +844,7 @@ func (s *WebSuite) TestU2fLogin(c *C) {
 	// normal login
 
 	clt := s.client()
-	re, err := clt.PostJSON(clt.Endpoint("webapi","u2f", "sign_request"), u2fSignRequestReq{
+	re, err := clt.PostJSON(clt.Endpoint("webapi","u2f", "signrequest"), u2fSignRequestReq{
 		User:              "bob",
 		Pass:              tempPass,
 	})
@@ -863,7 +863,7 @@ func (s *WebSuite) TestU2fLogin(c *C) {
 
 	// bad login: corrupted sign responses, should fail
 
-	re, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sign_request"), u2fSignRequestReq{
+	re, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "signrequest"), u2fSignRequestReq{
 		User:              "bob",
 		Pass:              tempPass,
 	})
@@ -907,7 +907,7 @@ func (s *WebSuite) TestU2fLogin(c *C) {
 
 	s.mockU2f.SetCounter(0)
 
-	re, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sign_request"), u2fSignRequestReq{
+	re, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "signrequest"), u2fSignRequestReq{
 		User:              "bob",
 		Pass:              tempPass,
 	})

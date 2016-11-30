@@ -164,9 +164,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 	h.GET("/webapi/oidc/callback", httplib.MakeHandler(h.oidcCallback))
 
 	// U2F related APIs
-	h.GET("/webapi/u2f/invite_register_request/:token", httplib.MakeHandler(h.u2fRegisterRequest))
-	h.POST("/webapi/u2f/new_user", httplib.MakeHandler(h.createNewU2fUser))
-	h.POST("/webapi/u2f/sign_request", httplib.MakeHandler(h.u2fSignRequest))
+	h.GET("/webapi/u2f/inviteregisterrequest/:token", httplib.MakeHandler(h.u2fRegisterRequest))
+	h.POST("/webapi/u2f/newuser", httplib.MakeHandler(h.createNewU2fUser))
+	h.POST("/webapi/u2f/signrequest", httplib.MakeHandler(h.u2fSignRequest))
 	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.createSessionWithU2fSignResponse))
 	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.createSSHCertWithU2fSignResponse))
 
@@ -575,7 +575,7 @@ func (m *Handler) renderUserInvite(w http.ResponseWriter, r *http.Request, p htt
 
 // u2fRegisterRequest is called to get a U2F challenge for registering a U2F key
 //
-// GET /webapi/u2f/invite_register_request/:token
+// GET /webapi/u2f/inviteregisterrequest/:token
 //
 // Response:
 //
@@ -599,7 +599,7 @@ type u2fSignRequestReq struct {
 
 // u2fSignRequest is called to get a U2F challenge for authenticating
 //
-// POST /webapi/u2f/sign_request
+// POST /webapi/u2f/signrequest
 //
 // {"user": "alex", "pass": "abc123"}
 //
@@ -702,7 +702,7 @@ type createNewU2fUserReq struct {
 
 // createNewU2fUser creates a new user configured to use U2F as the second factor
 //
-// POST /webapi/u2f/new_user
+// POST /webapi/u2f/newuser
 //
 // {"invite_token": "unique invite token", "pass": "user password", "u2f_register_response": {"registrationData":"verylongbase64string","clientData":"longbase64string"}}
 //

@@ -211,7 +211,7 @@ func SSHAgentU2fLogin(proxyAddr, user, password string, pubKey []byte, ttl time.
 		return nil, trace.Wrap(err)
 	}
 
-	u2fSignRequest, err := clt.PostJSON(clt.Endpoint("webapi", "u2f", "sign_request"), u2fSignRequestReq{
+	u2fSignRequest, err := clt.PostJSON(clt.Endpoint("webapi", "u2f", "signrequest"), u2fSignRequestReq{
 		User: user,
 		Pass: password,
 	})
