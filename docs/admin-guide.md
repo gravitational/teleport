@@ -807,11 +807,13 @@ Leave the two factor token field blank when logging in with U2F.
 
 #### CLI
 
+
 You have to tell `tsh` to authenticate using U2F with the `--u2f` switch:
 
 ```
 tsh --proxy <proxy-addr> ssh --u2f <server-addr>
 ```
+NOTE: You will need `u2f-host-binary` in order to use U2F with the CLI.
 
 ## High Availability and Clustering
  
