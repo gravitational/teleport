@@ -65,7 +65,7 @@ virtual memory to compile Teleport. 512MB instance without swap will not work.
 ### Rebuilding Web UI
 
 If you want to make changes to the web UI, you have to re-build the content of `/dist` directory
-See [web/README.md](web/README.me) for instructions on how to update the Web UI.
+See [web/README.md](web/README.md) for instructions on how to update the Web UI.
 
 ## Why did We Build Teleport?
 
