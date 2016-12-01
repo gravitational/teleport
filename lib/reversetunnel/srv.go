@@ -47,7 +47,7 @@ type RemoteSite interface {
 	ConnectToServer(addr, user string, auth []ssh.AuthMethod) (*ssh.Client, error)
 	// DialServer dials teleport server and returns connection
 	DialServer(addr string) (net.Conn, error)
-	// Dial dials any address withing reach of remote site's servers
+	// Dial dials any address within the site network
 	Dial(network, addr string) (net.Conn, error)
 	// GetLastConnected returns last time the remote site was seen connected
 	GetLastConnected() time.Time
@@ -173,6 +173,11 @@ func (s *server) Close() error {
 }
 
 func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
+	// apply read/write timeouts to the server connection
+	conn = utils.ObeyTimeouts(conn,
+		defaults.ReverseTunnelAgentHeartbeatPeriod*10,
+		"reverse tunnel server connection")
+
 	ct := nch.ChannelType()
 	if ct != chanHeartbeat {
 		msg := fmt.Sprintf("reversetunnel received unknown channel request %v from %v",
@@ -557,23 +562,24 @@ func (s *tunnelSite) setLastActive(t time.Time) {
 }
 
 func (s *tunnelSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
-	go func() {
-		for {
-			select {
-			case req := <-reqC:
-				if req == nil {
-					s.log.Infof("[TUNNEL] site disconnected: %v", s.domainName)
-					conn.markInvalid(trace.ConnectionProblem(nil, "agent disconnected"))
-					return
-				}
-				log.Debugf("[TUNNEL] ping from \"%s\" %s", s.domainName, conn.conn.RemoteAddr())
-				s.setLastActive(time.Now())
-			case <-time.After(3 * defaults.ReverseTunnelAgentHeartbeatPeriod):
-				conn.markInvalid(trace.ConnectionProblem(nil, "agent missed 3 heartbeats"))
-				conn.sshConn.Close()
-			}
-		}
+	defer func() {
+		s.log.Infof("[TUNNEL] site connection closed: %v", s.domainName)
+		conn.Close()
 	}()
+	for {
+		select {
+		case req := <-reqC:
+			if req == nil {
+				s.log.Infof("[TUNNEL] site disconnected: %v", s.domainName)
+				conn.markInvalid(trace.ConnectionProblem(nil, "agent disconnected"))
+				return
+			}
+			log.Debugf("[TUNNEL] ping from \"%s\" %s", s.domainName, conn.conn.RemoteAddr())
+			s.setLastActive(time.Now())
+		case <-time.After(3 * defaults.ReverseTunnelAgentHeartbeatPeriod):
+			conn.markInvalid(trace.ConnectionProblem(nil, "agent missed 3 heartbeats"))
+		}
+	}
 }
 
 func (s *tunnelSite) GetName() string {

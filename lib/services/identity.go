@@ -283,7 +283,7 @@ type SignupToken struct {
 	Expires         time.Time    `json:"expires"`
 }
 
-// OIDCConnector specifies configuration fo Open ID Connect compatible external
+// OIDCConnector specifies configuration for Open ID Connect compatible external
 // identity provider, e.g. google in some organisation
 type OIDCConnector struct {
 	// ID is a provider id, 'e.g.' google, used internally
@@ -299,6 +299,8 @@ type OIDCConnector struct {
 	// client's browser back to it after successfull authentication
 	// Should match the URL on Provider's side
 	RedirectURL string `json:"redirect_url"`
+	// Display - Friendly name for this provider.
+	Display string `json:"display"`
 }
 
 // Check returns nil if all parameters are great, err otherwise

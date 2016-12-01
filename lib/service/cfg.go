@@ -203,9 +203,6 @@ type ProxyConfig struct {
 	// SSHAddr is address of ssh proxy
 	SSHAddr utils.NetAddr
 
-	// AssetsDir is a directory with proxy website assets
-	AssetsDir string
-
 	// TLSKey is a base64 encoded private key used by web portal
 	TLSKey string
 
@@ -312,7 +309,6 @@ func ApplyDefaults(cfg *Config) {
 
 	// defaults for the SSH proxy service:
 	cfg.Proxy.Enabled = true
-	cfg.Proxy.AssetsDir = defaults.DataDir
 	cfg.Proxy.SSHAddr = *defaults.ProxyListenAddr()
 	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
 	cfg.Proxy.ReverseTunnelListenAddr = *defaults.ReverseTunnellListenAddr()

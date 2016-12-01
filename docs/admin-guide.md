@@ -49,18 +49,9 @@ The Teleport daemon supports the following commands:
 When experimenting you can quickly start `teleport` with verbose logging by typing 
 `teleport start -d`. 
 
-When running `teleport` with a proxy role you have to make sure the assets
-for the Web UI can be found. The web assets are composedof `index.html` file and `app` 
-directory. Teleport process checks the following locations for its web assets:
-
-   1. The same directory it's in
-   2. `/usr/local/share/teleport`
-   3. `/usr/share/teleport`
-   4. `/opt/teleport`
-
 !!! danger "WARNING": 
     Teleport stores data in `/var/lib/teleport`. Make sure that regular users do not 
-    have access to this folder of the Auth server, otherwise anyone can gain admin access to Teleport's API.
+    have access to this folder on the Auth server.
 
 #### Systemd Unit File
 
@@ -230,6 +221,17 @@ auth_service:
     # certificates and keys (may need to wipe out /var/lib/teleport directory)
     cluster_name: "main"
 
+    # List (array) of other clusters this CA trusts.
+    trusted_clusters:
+      - key_file: /path/to/main-cluster.ca
+        # Comma-separated list of OS logins allowed to users of this 
+        # trusted cluster
+        allow_logins: john,root
+        # Establishes a reverse SSH tunnel from this cluster to the trusted
+        # cluster, allowing the trusted cluster users to access nodes of this 
+        # cluster
+        tunnel_addr: 80.10.0.12:3024
+
 # This section configures the 'node service':
 ssh_service:
     enabled: yes
@@ -262,17 +264,6 @@ proxy_service:
     # This will allow users of the outside CA to connect to behind-the-firewall 
     # nodes.
     tunnel_listen_addr: 0.0.0.0:3024
-
-    # List (array) of other clusters this CA trusts.
-    trusted_clusters:
-      - key_file: /path/to/main-cluster.ca
-        # Comma-separated list of OS logins allowed to users of this 
-        # trusted cluster
-        allow_logins: john,root
-        # Establishes a reverse SSH tunnel from this cluster to the trusted
-        # cluster, allowing the trusted cluster users to access nodes of this 
-        # cluster
-        tunnel_addr: 80.10.0.12:3024
 
     # The HTTPS listen address to serve the Web UI and also to authenticate the 
     # command line (CLI) users via password+HOTP

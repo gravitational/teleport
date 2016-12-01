@@ -75,7 +75,6 @@ func (s *ConfigSuite) TestDefaultConfig(c *C) {
 
 	// proxy section
 	proxy := config.Proxy
-	c.Assert(proxy.AssetsDir, Equals, defaults.DataDir)
 	c.Assert(proxy.SSHAddr, DeepEquals, localProxyAddr)
 	c.Assert(proxy.Limiter.MaxConnections, Equals, int64(defaults.LimiterMaxConnections))
 	c.Assert(proxy.Limiter.MaxNumberOfUsers, Equals, defaults.LimiterMaxConcurrentUsers)

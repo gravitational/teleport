@@ -12,6 +12,8 @@
 require "../base.rb"
 
 Vagrant.configure(2) do |config|
+  config.vbguest.auto_update = true
+
   config.vm.box = "debian/contrib-jessie64"
   config.vm.box_check_update = false
 
@@ -48,7 +50,7 @@ end
 def install_teleport(vm)
     vm.provision "shell", inline: <<-SHELL
         cd /tmp
-        curl -L https://github.com/gravitational/teleport/releases/download/v1.0.0/teleport-v1.0.0-linux-amd64-bin.tar.gz | tar -xz
+        curl -L https://github.com/gravitational/teleport/releases/download/v1.2.0/teleport-v1.2.0-linux-amd64-bin.tar.gz | tar -xz
         make -C teleport install
     SHELL
 end

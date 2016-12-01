@@ -87,6 +87,11 @@ var _ = Suite(&WebSuite{})
 
 func (s *WebSuite) SetUpSuite(c *C) {
 	var err error
+
+	// configure tests to use static assets from web/dist:
+	debugAssetsPath = "../../web/dist"
+	os.Setenv("DEBUG", "true")
+
 	utils.InitLoggerForTests()
 	sessionStreamPollPeriod = time.Millisecond
 	s.logDir = c.MkDir()
@@ -201,11 +206,8 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(s.tunServer.Start(), IsNil)
 
 	// start handler
-	assetsDir, err := filepath.Abs("../../web/dist")
-	c.Assert(err, IsNil)
 	handler, err := NewHandler(Config{
 		Proxy:       revTunServer,
-		AssetsDir:   assetsDir,
 		AuthServers: tunAddr,
 		DomainName:  s.domainName,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond))

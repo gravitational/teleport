@@ -260,7 +260,6 @@ func (a *AuthWithRoles) GetWebSessionInfo(user string, sid string) (*Session, er
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetWebSessionInfo(user, sid)
-
 }
 
 func (a *AuthWithRoles) DeleteWebSession(user string, sid string) error {

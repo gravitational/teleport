@@ -101,8 +101,6 @@ let cfg = {
       var hostname = getWsHostName();
       return `${hostname}/v1/webapi/sites/-current-`;
     }
-
-
   },
 
   getFullUrl(url){

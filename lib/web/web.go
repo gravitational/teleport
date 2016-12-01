@@ -28,7 +28,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -82,8 +81,6 @@ type Config struct {
 	// Proxy is a reverse tunnel proxy that handles connections
 	// to various sites
 	Proxy reversetunnel.Server
-	// AssetsDir is a directory with web assets (js files, css files)
-	AssetsDir string
 	// AuthServers is a list of auth servers this proxy talks to
 	AuthServers utils.NetAddr
 	// DomainName is a domain name served by web handler
@@ -174,16 +171,26 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 	var (
 		writeSettings http.HandlerFunc
 		indexPage     *template.Template
+		staticFS      http.FileSystem
 	)
 	if !cfg.DisableUI {
-		indexPath := filepath.Join(cfg.AssetsDir, "/index.html")
-		indexContent, err := ioutil.ReadFile(indexPath)
+		staticFS, err = NewStaticFileSystem(isDebugMode())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		index, err := staticFS.Open("/index.html")
+		if err != nil {
+			log.Error(err)
+			return nil, trace.Wrap(err)
+		}
+		defer index.Close()
+		indexContent, err := ioutil.ReadAll(index)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
 		indexPage, err = template.New("index").Parse(string(indexContent))
 		if err != nil {
-			return nil, trace.BadParameter("failed parsing template %v: %v", indexPath, err)
+			return nil, trace.BadParameter("failed parsing index.html template: %v", err)
 		}
 		writeSettings = httplib.MakeStdHandler(h.getSettings)
 	}
@@ -209,7 +216,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 
 		// serve Web UI:
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
-			http.StripPrefix("/web", http.FileServer(http.Dir(cfg.AssetsDir))).ServeHTTP(w, r)
+			http.StripPrefix("/web", http.FileServer(staticFS)).ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web/config.js") {
 			writeSettings.ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web") {
@@ -240,9 +247,14 @@ func (m *Handler) Close() error {
 	return m.auth.Close()
 }
 
+type oidcConnector struct {
+	ID      string `json:"id"`
+	Display string `json:"display"`
+}
+
 type webSettings struct {
 	Auth struct {
-		OIDCConnectors []string `json:"oidc_connectors"`
+		OIDCConnectors []oidcConnector `json:"oidc_connectors"`
 		U2fAppId string `json:"u2f_appid"`
 	} `json:"auth"`
 }
@@ -253,11 +265,17 @@ func (m *Handler) getSettings(w http.ResponseWriter, r *http.Request) (interface
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	for _, connector := range connectors {
-		settings.Auth.OIDCConnectors = append(settings.Auth.OIDCConnectors, connector.ID)
+		fmt.Printf("%v\n", connectors)
+		settings.Auth.OIDCConnectors = append(settings.Auth.OIDCConnectors, oidcConnector{
+			ID:      connector.ID,
+			Display: connector.Display,
+		})
 	}
+
 	if len(settings.Auth.OIDCConnectors) == 0 {
-		settings.Auth.OIDCConnectors = make([]string, 0)
+		settings.Auth.OIDCConnectors = make([]oidcConnector, 0)
 	}
 	u2fAppId, err := m.cfg.ProxyClient.GetU2fAppId()
 	if err != nil {
@@ -1156,8 +1174,7 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 		onError(trace.Wrap(err))
 		return
 	}
-	// see if we can gzip it. TODO (ev): lets switch to gzipping during recording (not replay),
-	// to save on space as well.
+	// see if we can gzip it:
 	var writer io.Writer = w
 	for _, acceptedEnc := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
 		if strings.TrimSpace(acceptedEnc) == "gzip" {

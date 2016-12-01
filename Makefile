@@ -2,7 +2,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=1.2.5
+VERSION=1.2.6
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -68,8 +68,6 @@ clean:
 assets:
 	rm -rf $(BUILDDIR)/app
 	rm -f web/dist/app/app
-	cp -r web/dist/app $(BUILDDIR)
-	cp web/dist/index.html $(BUILDDIR)
 	cp README.md $(BUILDDIR)
 
 #
@@ -129,6 +127,10 @@ tag:
 #	
 .PHONY: release
 release: clean setver all
+	cd web/dist ; zip -qr ../../$(BUILDDIR)/webassets.zip .
+	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
+	zip -q -A $(BUILDDIR)/teleport
+	rm $(BUILDDIR)/webassets.zip
 	cp -rf $(BUILDDIR) teleport
 	@echo $(GITTAG) > teleport/VERSION
 	tar -czf $(RELEASE).tar.gz teleport
