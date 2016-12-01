@@ -94,8 +94,8 @@ var LoginInputForm = React.createClass({
           </div>
           <button onClick={this.onLogin} disabled={isProcessing} type="submit" className="btn btn-primary block full-width m-b">Login</button>
           { useU2f ? <button onClick={this.onLoginWithU2f} disabled={isProcessing} type="submit" className="btn btn-primary block full-width m-b">Login with U2F</button> : null }
-          { isProcessing && this.state.secondFactorType == SECOND_FACTOR_TYPE_U2F ? (<label className="help-block">Insert your U2F key and press the button on the key</label>) : null }
           { providers.map((provider) => <button onClick={this.providerLogin(provider)} type="submit" className="btn btn-danger block full-width m-b">With {provider.display}</button>) }
+          { isProcessing && this.state.secondFactorType == SECOND_FACTOR_TYPE_U2F ? (<label className="help-block">Insert your U2F key and press the button on the key</label>) : null }
           { isFailed ? (<label className="error">{message}</label>) : null }
         </div>
       </form>
