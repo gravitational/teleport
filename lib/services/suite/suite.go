@@ -432,14 +432,20 @@ func (s *ServicesTestSuite) U2fCRUD(c *C) {
 
 	challengeOut, err := s.WebS.GetU2fRegisterChallenge(token)
 	c.Assert(err, IsNil)
-	c.Assert(*challenge, DeepEquals, *challengeOut)
+	c.Assert(challenge.Challenge, DeepEquals, challengeOut.Challenge)
+	c.Assert(challenge.Timestamp.Unix(), Equals, challengeOut.Timestamp.Unix())
+	c.Assert(challenge.AppID, Equals, challengeOut.AppID)
+	c.Assert(challenge.TrustedFacets, DeepEquals, challengeOut.TrustedFacets)
 
 	err = s.WebS.UpsertU2fSignChallenge(user1, challenge)
 	c.Assert(err, IsNil)
 
 	challengeOut, err = s.WebS.GetU2fSignChallenge(user1)
 	c.Assert(err, IsNil)
-	c.Assert(*challenge, DeepEquals, *challengeOut)
+	c.Assert(challenge.Challenge, DeepEquals, challengeOut.Challenge)
+	c.Assert(challenge.Timestamp.Unix(), Equals, challengeOut.Timestamp.Unix())
+	c.Assert(challenge.AppID, Equals, challengeOut.AppID)
+	c.Assert(challenge.TrustedFacets, DeepEquals, challengeOut.TrustedFacets)
 
 	derKey, err := base64.StdEncoding.DecodeString("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEGOi54Eun0r3Xrj8PjyOGYzJObENYI/t/Lr9g9PsHTHnp1qI2ysIhsdMPd7x/vpsL6cr+2EPVik7921OSsVjEMw==")
 	c.Assert(err, IsNil)
