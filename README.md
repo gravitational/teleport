@@ -39,9 +39,11 @@ teleport start
 
 ## Building Teleport
 
-You need to have Golang `v1.7` or newer. 
+Teleport source code consists of the actual Teleport daemon binary written in Golang, and also
+it has a web UI (located in /web directory) written in Javascript. The WebUI is not changed often
+and we keep it checked into Git under `/dist`, so you only need to build Golang:
 
-Run 
+Make sure you have Golang `v1.7` or newer, then run:
 
 1. `go get github.com/gravitational/teleport`
 2. `cd $GOPATH/src/github.com/gravitational/teleport`
@@ -59,6 +61,11 @@ If you want to cut another binary release tarball, run `make release`.
 
 NOTE: The Go compiler is somewhat sensitive to amount of memory: you will need at least 1GB of 
 virtual memory to compile Teleport. 512MB instance without swap will not work.
+
+### Rebuilding Web UI
+
+If you want to make changes to the web UI, you have to re-build the content of `/dist` directory
+See [web/README.md](web/README.md) for instructions on how to update the Web UI.
 
 ## Why did We Build Teleport?
 

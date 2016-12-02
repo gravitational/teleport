@@ -399,10 +399,13 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
 
-	// 2: override with `./tsh` profiles
-	if err = c.LoadProfile(""); err != nil {
-		fmt.Printf("WARNING: Failed loading tsh profile.\n%v\n", err)
+	// 2: override with `./tsh` profiles (but only if no proxy is given via the CLI)
+	if cf.Proxy == "" {
+		if err = c.LoadProfile(""); err != nil {
+			fmt.Printf("WARNING: Failed loading tsh profile.\n%v\n", err)
+		}
 	}
+
 	// 3: override with the CLI flags
 	if cf.Username != "" {
 		c.Username = cf.Username
