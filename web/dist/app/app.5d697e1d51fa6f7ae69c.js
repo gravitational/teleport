@@ -4726,7 +4726,7 @@ webpackJsonp([0],{
 	var StoredSessions = React.createClass({
 	  displayName: 'StoredSessions',
 	  getInitialState: function getInitialState() {
-	    this.searchableProps = ['clientIp', 'nodeIp', 'created', 'sid', 'login'];
+	    this.searchableProps = ['nodeIp', 'created', 'sid', 'login'];
 	    return { filter: '', colSortDirs: { created: 'ASC' } };
 	  },
 	  onFilterChange: function onFilterChange(value) {
@@ -4853,16 +4853,6 @@ webpackJsonp([0],{
 	                onSortChange: this.onSortChange,
 	                title: 'Node IP',
 	                className: 'grv-sessions-stored-col-ip'
-	              }),
-	              cell: React.createElement(TextCell, { data: data })
-	            }),
-	            React.createElement(Column, {
-	              columnKey: 'clientIp',
-	              header: React.createElement(SortHeaderCell, {
-	                sortDir: this.state.colSortDirs.clientIp,
-	                onSortChange: this.onSortChange,
-	                className: 'grv-sessions-stored-col-ip',
-	                title: 'Client IP'
 	              }),
 	              cell: React.createElement(TextCell, { data: data })
 	            }),
