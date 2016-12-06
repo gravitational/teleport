@@ -174,7 +174,7 @@ func (n *nauth) GenerateUserCert(pkey, key []byte, teleportUsername string, allo
 	}
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	validBefore := uint64(ssh.CertTimeInfinity)
 	if ttl != 0 {
