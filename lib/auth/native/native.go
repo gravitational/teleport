@@ -166,7 +166,7 @@ func (n *nauth) GenerateHostCert(privateSigningKey, publicKey []byte, hostname, 
 }
 
 func (n *nauth) GenerateUserCert(pkey, key []byte, teleportUsername string, allowedLogins []string, ttl time.Duration) ([]byte, error) {
-	if (ttl > defaults.MaxCertDuration) || (ttl < defaults.MinCertDuration) {
+	if ttl < defaults.MinCertDuration {
 		return nil, trace.BadParameter("wrong certificate TTL")
 	}
 	if len(allowedLogins) == 0 {
