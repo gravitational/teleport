@@ -166,6 +166,12 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, ".*cannot request a certificate for user1")
 
+	// should not be able to generate cert for longer than duration
+	roundtrip.BasicAuth("user1", "two")(&userClient.Client)
+	cert, err = userClient.GenerateUserCert(pub, "user1", 40*time.Hour)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, ".*cannot request a certificate for user1 for 40h0m0s")
+
 	// apply HTTP Auth to generate user cert:
 	roundtrip.BasicAuth("user1", "two")(&userClient.Client)
 	cert, err = userClient.GenerateUserCert(pub, "user1", time.Hour)

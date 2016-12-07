@@ -83,9 +83,6 @@ func (s *AuthSuite) GenerateUserCert(c *C) {
 	_, err = s.A.GenerateUserCert(priv, pub, "user", []string{"root"}, 0)
 	c.Assert(err, NotNil)
 
-	_, err = s.A.GenerateUserCert(priv, pub, "user", []string{"root"}, 40*time.Hour)
-	c.Assert(err, NotNil)
-
 	_, err = s.A.GenerateUserCert(priv, pub, "user", []string{"root"}, time.Hour)
 	c.Assert(err, IsNil)
 }
