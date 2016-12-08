@@ -439,7 +439,7 @@ func (s *AuthTunnel) passwordAuth(
 		}
 		log.Infof("[AUTH] password authenticated user: '%v'", conn.User())
 		return perms, nil
-	case AuthWebU2fSign:
+	case AuthWebU2FSign:
 		if err := s.authServer.CheckPasswordWOToken(conn.User(), ab.Pass); err != nil {
 			log.Warningf("password auth error: %#v", err)
 			return nil, trace.Wrap(err)
@@ -447,20 +447,20 @@ func (s *AuthTunnel) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebPassword: "<password>",
-				ExtRole:        string(teleport.RoleU2fSign),
+				ExtRole:        string(teleport.RoleU2FSign),
 			},
 		}
 		log.Infof("[AUTH] u2f sign authenticated user: '%v'", conn.User())
 		return perms, nil
-	case AuthWebU2f:
-		if err := s.authServer.CheckU2fSignResponse(conn.User(), &ab.U2fSignResponse); err != nil {
+	case AuthWebU2F:
+		if err := s.authServer.CheckU2FSignResponse(conn.User(), &ab.U2FSignResponse); err != nil {
 			log.Warningf("u2f auth error: %#v", err)
 			return nil, trace.Wrap(err)
 		}
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
-				ExtWebU2f: "<u2f-sign-response>",
-				ExtRole:   string(teleport.RoleU2fUser),
+				ExtWebU2F: "<u2f-sign-response>",
+				ExtRole:   string(teleport.RoleU2FUser),
 			},
 		}
 		return perms, nil
@@ -517,7 +517,7 @@ type authBucket struct {
 	Type      string `json:"type"`
 	Pass      []byte `json:"pass"`
 	HotpToken string `json:"hotpToken"`
-	U2fSignResponse u2f.SignResponse `json:"u2fSignResponse"`
+	U2FSignResponse u2f.SignResponse `json:"u2fSignResponse"`
 }
 
 func NewTokenAuth(domainName, token string) ([]ssh.AuthMethod, error) {
@@ -557,9 +557,9 @@ func NewWebPasswordAuth(user string, password []byte, hotpToken string) ([]ssh.A
 	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
 }
 
-func NewWebPasswordU2fSignAuth(user string, password []byte) ([]ssh.AuthMethod, error) {
+func NewWebPasswordU2FSignAuth(user string, password []byte) ([]ssh.AuthMethod, error) {
 	data, err := json.Marshal(authBucket{
-		Type: AuthWebU2fSign,
+		Type: AuthWebU2FSign,
 		User: user,
 		Pass: password,
 	})
@@ -569,11 +569,11 @@ func NewWebPasswordU2fSignAuth(user string, password []byte) ([]ssh.AuthMethod, 
 	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
 }
 
-func NewWebU2fSignResponseAuth(user string, u2fSignResponse *u2f.SignResponse) ([]ssh.AuthMethod, error) {
+func NewWebU2FSignResponseAuth(user string, u2fSignResponse *u2f.SignResponse) ([]ssh.AuthMethod, error) {
 	data, err := json.Marshal(authBucket{
-		Type: AuthWebU2f,
+		Type: AuthWebU2F,
 		User: user,
-		U2fSignResponse: *u2fSignResponse,
+		U2FSignResponse: *u2fSignResponse,
 	})
 	if err != nil {
 		return nil, err
@@ -896,14 +896,14 @@ const (
 
 	ExtWebSession  = "web-session@teleport"
 	ExtWebPassword = "web-password@teleport"
-	ExtWebU2f      = "web-u2f@teleport"
+	ExtWebU2F      = "web-u2f@teleport"
 	ExtToken       = "provision@teleport"
 	ExtHost        = "host@teleport"
 	ExtRole        = "role@teleport"
 
 	AuthWebPassword = "password"
-	AuthWebU2fSign  = "u2f-sign"
-	AuthWebU2f      = "u2f"
+	AuthWebU2FSign  = "u2f-sign"
+	AuthWebU2F      = "u2f"
 	AuthWebSession  = "session"
 	AuthToken       = "provision-token"
 	AuthSignupToken = "signup-token"

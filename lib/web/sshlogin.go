@@ -201,11 +201,11 @@ func SSHAgentLogin(proxyAddr, user, password, hotpToken string, pubKey []byte, t
 	return out, nil
 }
 
-// SSHAgentU2fLogin requests a U2F sign request (authentication challenge) via the proxy.
+// SSHAgentU2FLogin requests a U2F sign request (authentication challenge) via the proxy.
 // If the credentials are valid, the proxy wiil return a challenge.
 // We then call the official u2f-host binary to perform the signing and pass the signature to the proxy.
 // If the authentication succeeds, we will get a temporary certificate back
-func SSHAgentU2fLogin(proxyAddr, user, password string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool) (*SSHLoginResponse, error) {
+func SSHAgentU2FLogin(proxyAddr, user, password string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool) (*SSHLoginResponse, error) {
 	clt, _, err := initClient(proxyAddr, insecure, pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -220,8 +220,8 @@ func SSHAgentU2fLogin(proxyAddr, user, password string, pubKey []byte, ttl time.
 	}
 
 	// Pass the JSON-encoded data undecoded to the u2f-host binary
-	u2fFacet := "https://" + strings.ToLower(proxyAddr)
-	cmd := exec.Command("u2f-host", "-aauthenticate", "-o", u2fFacet)
+	facet := "https://" + strings.ToLower(proxyAddr)
+	cmd := exec.Command("u2f-host", "-aauthenticate", "-o", facet)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -252,7 +252,10 @@ func SSHAgentU2fLogin(proxyAddr, user, password string, pubKey []byte, ttl time.
 
 	// Read error message (if any). 100 bytes is more than enough for any error message u2f-host outputs
 	errMsgBuf := make([]byte, 100)
-	errMsgLen, _ := io.ReadFull(stderr, errMsgBuf)
+	errMsgLen, err := io.ReadFull(stderr, errMsgBuf)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	err = cmd.Wait()
 	if err != nil {
@@ -265,9 +268,9 @@ func SSHAgentU2fLogin(proxyAddr, user, password string, pubKey []byte, ttl time.
 		return nil, trace.Wrap(err)
 	}
 
-	re, err := clt.PostJSON(clt.Endpoint("webapi", "u2f", "certs"), createSSHCertWithU2fReq{
+	re, err := clt.PostJSON(clt.Endpoint("webapi", "u2f", "certs"), createSSHCertWithU2FReq{
 		User:            user,
-		U2fSignResponse: *u2fSignResponse,
+		U2FSignResponse: *u2fSignResponse,
 		PubKey:          pubKey,
 		TTL:             ttl,
 	})

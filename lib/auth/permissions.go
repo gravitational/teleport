@@ -62,7 +62,7 @@ func NewStandardPermissions() PermissionChecker {
 		ActionUpsertServer:       true,
 		ActionGetServers:         true,
 		ActionGetProxies:         true,
-		ActionGetU2fAppId:        true,
+		ActionGetU2FAppID:        true,
 		ActionGetAuthServers:     true,
 		ActionGetCertAuthorities: true,
 		ActionGetUsers:           true,
@@ -83,7 +83,7 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetServers:                      true,
 		ActionUpsertProxy:                     true,
 		ActionGetProxies:                      true,
-		ActionGetU2fAppId:                     true,
+		ActionGetU2FAppID:                     true,
 		ActionGetAuthServers:                  true,
 		ActionGetCertAuthorities:              true,
 		ActionGetUsers:                        true,
@@ -115,11 +115,11 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetAuthServers:      true,
 	}
 
-	sp.permissions[teleport.RoleU2fSign] = map[string]bool{
-		ActionU2fSignReq: true,
+	sp.permissions[teleport.RoleU2FSign] = map[string]bool{
+		ActionU2FSignReq: true,
 	}
 
-	sp.permissions[teleport.RoleU2fUser] = map[string]bool{
+	sp.permissions[teleport.RoleU2FUser] = map[string]bool{
 		ActionPreAuthSignIn: true,
 		ActionGenerateUserCert: true,
 		ActionGetCertAuthorities: true,
@@ -168,8 +168,8 @@ var StandardRoles = teleport.Roles{
 	teleport.RoleAdmin,
 	teleport.RoleProvisionToken,
 	teleport.RoleSignup,
-	teleport.RoleU2fSign,
-	teleport.RoleU2fUser,
+	teleport.RoleU2FSign,
+	teleport.RoleU2FUser,
 }
 
 const (
@@ -192,7 +192,7 @@ const (
 	ActionGetAuthServers                    = "GetAuthServers"
 	ActionUpsertProxy                       = "UpsertProxy"
 	ActionGetProxies                        = "GetProxies"
-	ActionGetU2fAppId                       = "GetU2fAppId"
+	ActionGetU2FAppID                       = "GetU2FAppID"
 	ActionUpsertReverseTunnel               = "UpsertReverseTunnel"
 	ActionGetReverseTunnels                 = "GetReverseTunnels"
 	ActionDeleteReverseTunnel               = "DeleteReverseTunnel"
@@ -200,7 +200,7 @@ const (
 	ActionCheckPassword                     = "CheckPassword"
 	ActionSignIn                            = "SignIn"
 	ActionPreAuthSignIn                     = "PreAuthSignIn"
-	ActionU2fSignReq                        = "U2fSignReq"
+	ActionU2FSignReq                        = "U2FSignReq"
 	ActionExtendWebSession                  = "ExtendWebSession"
 	ActionCreateWebSession                  = "CreateWebSession"
 	ActionGetWebSession                     = "GetWebSession"

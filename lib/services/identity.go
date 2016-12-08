@@ -202,29 +202,29 @@ type Identity interface {
 	// DeleteSignupToken deletes signup token from the storage
 	DeleteSignupToken(token string) error
 
-	// upserts a U2F challenge for a new user corresponding to the token
-	UpsertU2fRegisterChallenge(token string, u2fChallenge *u2f.Challenge) (error)
+	// UpsertU2FRegisterChallenge upserts a U2F challenge for a new user corresponding to the token
+	UpsertU2FRegisterChallenge(token string, u2fChallenge *u2f.Challenge) (error)
 
-	// returns a U2F challenge for a new user corresponding to the token
-	GetU2fRegisterChallenge(token string) (*u2f.Challenge, error)
+	// GetU2FRegisterChallenge returns a U2F challenge for a new user corresponding to the token
+	GetU2FRegisterChallenge(token string) (*u2f.Challenge, error)
 
-	// upserts a U2F registration from a valid register response
-	UpsertU2fRegistration(user string, u2fReg *u2f.Registration) (error)
+	// UpsertU2FRegistration upserts a U2F registration from a valid register response
+	UpsertU2FRegistration(user string, u2fReg *u2f.Registration) (error)
 
-	// returns a U2F registration from a valid register response
-	GetU2fRegistration(user string) (*u2f.Registration, error)
+	// GetU2FRegistration returns a U2F registration from a valid register response
+	GetU2FRegistration(user string) (*u2f.Registration, error)
 
-	// upserts a U2F sign (auth) challenge
-	UpsertU2fSignChallenge(user string, u2fChallenge *u2f.Challenge) (error)
+	// UpsertU2FSignChallenge upserts a U2F sign (auth) challenge
+	UpsertU2FSignChallenge(user string, u2fChallenge *u2f.Challenge) (error)
 
-	// returns a U2F sign (auth) challenge
-	GetU2fSignChallenge(user string) (*u2f.Challenge, error)
+	// GetU2FSignChallenge returns a U2F sign (auth) challenge
+	GetU2FSignChallenge(user string) (*u2f.Challenge, error)
 
-	// upserts a counter associated with a U2F registration
-	UpsertU2fRegistrationCounter(user string, counter uint32) (error)
+	// UpsertU2FRegistrationCounter upserts a counter associated with a U2F registration
+	UpsertU2FRegistrationCounter(user string, counter uint32) (error)
 
-	// returns a counter associated with a U2F registration
-	GetU2fRegistrationCounter(user string) (uint32, error)
+	// GetU2FRegistrationCounter returns a counter associated with a U2F registration
+	GetU2FRegistrationCounter(user string) (uint32, error)
 
 	// UpsertOIDCConnector upserts OIDC Connector
 	UpsertOIDCConnector(connector OIDCConnector, ttl time.Duration) error

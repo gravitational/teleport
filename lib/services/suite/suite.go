@@ -419,7 +419,7 @@ func (s *ServicesTestSuite) PasswordGarbage(c *C) {
 	}
 }
 
-func (s *ServicesTestSuite) U2fCRUD(c *C) {
+func (s *ServicesTestSuite) U2FCRUD(c *C) {
 	token := "tok1"
 	appId := "https://localhost"
 	user1 := "user1"
@@ -427,20 +427,20 @@ func (s *ServicesTestSuite) U2fCRUD(c *C) {
 	challenge, err := u2f.NewChallenge(appId, []string{appId})
 	c.Assert(err, IsNil)
 
-	err = s.WebS.UpsertU2fRegisterChallenge(token, challenge)
+	err = s.WebS.UpsertU2FRegisterChallenge(token, challenge)
 	c.Assert(err, IsNil)
 
-	challengeOut, err := s.WebS.GetU2fRegisterChallenge(token)
+	challengeOut, err := s.WebS.GetU2FRegisterChallenge(token)
 	c.Assert(err, IsNil)
 	c.Assert(challenge.Challenge, DeepEquals, challengeOut.Challenge)
 	c.Assert(challenge.Timestamp.Unix(), Equals, challengeOut.Timestamp.Unix())
 	c.Assert(challenge.AppID, Equals, challengeOut.AppID)
 	c.Assert(challenge.TrustedFacets, DeepEquals, challengeOut.TrustedFacets)
 
-	err = s.WebS.UpsertU2fSignChallenge(user1, challenge)
+	err = s.WebS.UpsertU2FSignChallenge(user1, challenge)
 	c.Assert(err, IsNil)
 
-	challengeOut, err = s.WebS.GetU2fSignChallenge(user1)
+	challengeOut, err = s.WebS.GetU2FSignChallenge(user1)
 	c.Assert(err, IsNil)
 	c.Assert(challenge.Challenge, DeepEquals, challengeOut.Challenge)
 	c.Assert(challenge.Timestamp.Unix(), Equals, challengeOut.Timestamp.Unix())
@@ -460,10 +460,10 @@ func (s *ServicesTestSuite) U2fCRUD(c *C) {
 		KeyHandle:[]byte("gn49UWxiMRrReCfH6yJBrF2WS75T4nZbnlTk2s3WIYhzQCaH7QfCFtXZb3Qbv1zEhhLZJUgUB2pNMNe89clt4A=="),
 		PubKey:*pubkey,
 	}
-	err = s.WebS.UpsertU2fRegistration(user1, &registration)
+	err = s.WebS.UpsertU2FRegistration(user1, &registration)
 	c.Assert(err, IsNil)
 
-	registrationOut, err := s.WebS.GetU2fRegistration(user1)
+	registrationOut, err := s.WebS.GetU2FRegistration(user1)
 	c.Assert(err, IsNil)
 	c.Assert(&registration, DeepEquals, registrationOut)
 }

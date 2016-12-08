@@ -131,10 +131,10 @@ func NewAPIServer(config *APIConfig, role teleport.Role) APIServer {
 	srv.POST("/v1/oidc/requests/validate", httplib.MakeHandler(srv.validateOIDCAuthCallback))
 
 	// U2F stuff
-	srv.GET("/v1/u2f/signuptokens/:token", httplib.MakeHandler(srv.getSignupU2fRegisterRequest))
-	srv.POST("/v1/u2f/users", httplib.MakeHandler(srv.createU2fUserWithToken))
+	srv.GET("/v1/u2f/signuptokens/:token", httplib.MakeHandler(srv.getSignupU2FRegisterRequest))
+	srv.POST("/v1/u2f/users", httplib.MakeHandler(srv.createUserWithU2FToken))
 	srv.POST("/v1/u2f/users/:user/sign", httplib.MakeHandler(srv.u2fSignRequest))
-	srv.GET("/v1/u2f/appid", httplib.MakeHandler(srv.getU2fAppId))
+	srv.GET("/v1/u2f/appid", httplib.MakeHandler(srv.getU2FAppID))
 
 	// Provisioning tokens
 	srv.GET("/v1/tokens", httplib.MakeHandler(srv.getTokens))
@@ -326,7 +326,7 @@ func (s *APIServer) u2fSignRequest(w http.ResponseWriter, r *http.Request, p htt
 	}
 	user := p[0].Value
 	pass := []byte(req.Password)
-	u2fSignReq, err := s.a.GetU2fSignRequest(user, pass)
+	u2fSignReq, err := s.a.GetU2FSignRequest(user, pass)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -604,13 +604,14 @@ func (s *APIServer) getDomainName(w http.ResponseWriter, r *http.Request, p http
 	return domain, nil
 }
 
-// getU2fAppId returns the U2F AppID in the auth configuration
-func (s *APIServer) getU2fAppId(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	appid, err := s.a.GetU2fAppId()
+// getU2FAppID returns the U2F AppID in the auth configuration
+func (s *APIServer) getU2FAppID(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	appID, err := s.a.GetU2FAppID()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return appid, nil
+	w.Header().Set("Content-Type", "application/fido.trusted-apps+json")
+	return appID, nil
 }
 
 func (s *APIServer) deleteCertAuthority(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -696,9 +697,9 @@ func (s *APIServer) getSignupTokenData(w http.ResponseWriter, r *http.Request, p
 	}, nil
 }
 
-func (s *APIServer) getSignupU2fRegisterRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (s *APIServer) getSignupU2FRegisterRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	token := p[0].Value
-	u2fRegReq, err := s.a.GetSignupU2fRegisterRequest(token)
+	u2fRegReq, err := s.a.GetSignupU2FRegisterRequest(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -748,19 +749,19 @@ func (s *APIServer) createUserWithToken(w http.ResponseWriter, r *http.Request, 
 	return sess, nil
 }
 
-type createU2fUserWithTokenReq struct {
+type createUserWithU2FTokenReq struct {
 	Token     string `json:"token"`
 	Password  string `json:"password"`
-	U2fRegisterResponse u2f.RegisterResponse `json:"u2f_register_response"`
+	U2FRegisterResponse u2f.RegisterResponse `json:"u2f_register_response"`
 }
 
-func (s *APIServer) createU2fUserWithToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *createU2fUserWithTokenReq
+func (s *APIServer) createUserWithU2FToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *createUserWithU2FTokenReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := s.a.CreateU2fUserWithToken(req.Token, req.Password, req.U2fRegisterResponse)
+	sess, err := s.a.CreateUserWithU2FToken(req.Token, req.Password, req.U2FRegisterResponse)
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)

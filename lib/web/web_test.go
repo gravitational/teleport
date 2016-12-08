@@ -80,7 +80,7 @@ type WebSuite struct {
 	// audit log and its dir:
 	auditLog events.IAuditLog
 	logDir   string
-	mockU2f  *mocku2f.MockU2fKey
+	mockU2F  *mocku2f.MockU2FKey
 }
 
 var _ = Suite(&WebSuite{})
@@ -98,9 +98,9 @@ func (s *WebSuite) SetUpSuite(c *C) {
 	s.auditLog, err = events.NewAuditLog(s.logDir)
 	c.Assert(err, IsNil)
 	c.Assert(s.auditLog, NotNil)
-	s.mockU2f, err = mocku2f.Create()
+	s.mockU2F, err = mocku2f.Create()
 	c.Assert(err, IsNil)
-	c.Assert(s.mockU2f, NotNil)
+	c.Assert(s.mockU2F, NotNil)
 }
 
 func (s *WebSuite) TearDownSuite(c *C) {
@@ -769,7 +769,7 @@ func removeSpace(in string) string {
 	return strings.TrimSpace(in)
 }
 
-func (s *WebSuite) TestNewU2fUser(c *C) {
+func (s *WebSuite) TestNewU2FUser(c *C) {
 	token, err := s.roleAuth.CreateSignupToken(&services.TeleportUser{Name: "bob", AllowedLogins: []string{s.user}})
 	c.Assert(err, IsNil)
 
@@ -785,15 +785,15 @@ func (s *WebSuite) TestNewU2fUser(c *C) {
 	var u2fRegReq u2f.RegisterRequest
 	c.Assert(json.Unmarshal(re.Bytes(), &u2fRegReq), IsNil)
 
-	u2fRegResp, err := s.mockU2f.RegisterResponse(&u2fRegReq)
+	u2fRegResp, err := s.mockU2F.RegisterResponse(&u2fRegReq)
 	c.Assert(err, IsNil)
 
 	tempPass := "abc123"
 
-	re, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "users"), createNewU2fUserReq{
+	re, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "users"), createNewU2FUserReq{
 		InviteToken:       token,
 		Pass:              tempPass,
-		U2fRegisterResponse: *u2fRegResp,
+		U2FRegisterResponse: *u2fRegResp,
 	})
 	c.Assert(err, IsNil)
 
@@ -832,19 +832,19 @@ func (s *WebSuite) TestNewU2fUser(c *C) {
 	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
 
-func (s *WebSuite) TestU2fLogin(c *C) {
+func (s *WebSuite) TestU2FLogin(c *C) {
 	token, err := s.roleAuth.CreateSignupToken(&services.TeleportUser{Name: "bob", AllowedLogins: []string{s.user}})
 	c.Assert(err, IsNil)
 
-	u2fRegReq, err := s.roleAuth.GetSignupU2fRegisterRequest(token)
+	u2fRegReq, err := s.roleAuth.GetSignupU2FRegisterRequest(token)
 	c.Assert(err, IsNil)
 
-	u2fRegResp, err := s.mockU2f.RegisterResponse(u2fRegReq)
+	u2fRegResp, err := s.mockU2F.RegisterResponse(u2fRegReq)
 	c.Assert(err, IsNil)
 
 	tempPass := "abc123"
 
-	_, err = s.roleAuth.CreateU2fUserWithToken(token, tempPass, *u2fRegResp)
+	_, err = s.roleAuth.CreateUserWithU2FToken(token, tempPass, *u2fRegResp)
 	c.Assert(err, IsNil)
 
 	// normal login
@@ -858,12 +858,12 @@ func (s *WebSuite) TestU2fLogin(c *C) {
 	var u2fSignReq u2f.SignRequest
 	c.Assert(json.Unmarshal(re.Bytes(), &u2fSignReq), IsNil)
 
-	u2fSignResp, err := s.mockU2f.SignResponse(&u2fSignReq)
+	u2fSignResp, err := s.mockU2F.SignResponse(&u2fSignReq)
 	c.Assert(err, IsNil)
 
 	_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
 		User:              "bob",
-		U2fSignResponse:   *u2fSignResp,
+		U2FSignResponse:   *u2fSignResp,
 	})
 	c.Assert(err, IsNil)
 
@@ -876,7 +876,7 @@ func (s *WebSuite) TestU2fLogin(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(json.Unmarshal(re.Bytes(), &u2fSignReq), IsNil)
 
-	u2fSignResp, err = s.mockU2f.SignResponse(&u2fSignReq)
+	u2fSignResp, err = s.mockU2F.SignResponse(&u2fSignReq)
 	c.Assert(err, IsNil)
 
 	// corrupted KeyHandle
@@ -885,7 +885,7 @@ func (s *WebSuite) TestU2fLogin(c *C) {
 
 	_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
 		User:              "bob",
-		U2fSignResponse:   *u2fSignRespCopy,
+		U2FSignResponse:   *u2fSignRespCopy,
 	})
 	c.Assert(err, NotNil)
 
@@ -895,7 +895,7 @@ func (s *WebSuite) TestU2fLogin(c *C) {
 
 	_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
 		User:              "bob",
-		U2fSignResponse:   *u2fSignRespCopy,
+		U2FSignResponse:   *u2fSignRespCopy,
 	})
 	c.Assert(err, NotNil)
 
@@ -905,13 +905,13 @@ func (s *WebSuite) TestU2fLogin(c *C) {
 
 	_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
 		User:              "bob",
-		U2fSignResponse:   *u2fSignRespCopy,
+		U2FSignResponse:   *u2fSignRespCopy,
 	})
 	c.Assert(err, NotNil)
 
 	// bad login: counter not increasing, should fail
 
-	s.mockU2f.SetCounter(0)
+	s.mockU2F.SetCounter(0)
 
 	re, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "signrequest"), u2fSignRequestReq{
 		User:              "bob",
@@ -920,12 +920,12 @@ func (s *WebSuite) TestU2fLogin(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(json.Unmarshal(re.Bytes(), &u2fSignReq), IsNil)
 
-	u2fSignResp, err = s.mockU2f.SignResponse(&u2fSignReq)
+	u2fSignResp, err = s.mockU2F.SignResponse(&u2fSignReq)
 	c.Assert(err, IsNil)
 
 	_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
 		User:              "bob",
-		U2fSignResponse:   *u2fSignResp,
+		U2FSignResponse:   *u2fSignResp,
 	})
 	c.Assert(err, NotNil)
 }

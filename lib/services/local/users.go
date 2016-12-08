@@ -425,22 +425,19 @@ func (s *IdentityService) DeleteSignupToken(token string) error {
 	return trace.Wrap(err)
 }
 
-// This is hardcoded in the U2F library
-const u2fChallengeTimeout = 5 * time.Minute
-
-func (s *IdentityService) UpsertU2fRegisterChallenge(token string, u2fChallenge *u2f.Challenge) error {
+func (s *IdentityService) UpsertU2FRegisterChallenge(token string, u2fChallenge *u2f.Challenge) error {
 	data, err := json.Marshal(u2fChallenge)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal(u2fRegChalPath, token, data, u2fChallengeTimeout)
+	err = s.backend.UpsertVal(u2fRegChalPath, token, data, defaults.U2FChallengeTimeout)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (s *IdentityService) GetU2fRegisterChallenge(token string) (*u2f.Challenge, error) {
+func (s *IdentityService) GetU2FRegisterChallenge(token string) (*u2f.Challenge, error) {
 	data, err := s.backend.GetVal(u2fRegChalPath, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -454,7 +451,7 @@ func (s *IdentityService) GetU2fRegisterChallenge(token string) (*u2f.Challenge,
 }
 
 // u2f.Registration cannot be json marshalled due to the pointer in the public key so we have this marshallable version
-type MarshallableU2fRegistration struct {
+type MarshallableU2FRegistration struct {
 	Raw []byte `json:"raw"`
 	KeyHandle []byte `json:"keyhandle"`
 	MarshalledPubKey []byte `json:"marshalled_pubkey"`
@@ -462,13 +459,13 @@ type MarshallableU2fRegistration struct {
 	// AttestationCert is not needed for authentication so we don't need to store it
 }
 
-func (s *IdentityService) UpsertU2fRegistration(user string, u2fReg *u2f.Registration) error {
+func (s *IdentityService) UpsertU2FRegistration(user string, u2fReg *u2f.Registration) error {
 	marshalledPubkey, err := x509.MarshalPKIXPublicKey(&u2fReg.PubKey)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	marshallableReg := MarshallableU2fRegistration{
+	marshallableReg := MarshallableU2FRegistration{
 		Raw: u2fReg.Raw,
 		KeyHandle: u2fReg.KeyHandle,
 		MarshalledPubKey: marshalledPubkey,
@@ -486,13 +483,13 @@ func (s *IdentityService) UpsertU2fRegistration(user string, u2fReg *u2f.Registr
 	return nil
 }
 
-func (s *IdentityService) GetU2fRegistration(user string) (*u2f.Registration, error) {
+func (s *IdentityService) GetU2FRegistration(user string) (*u2f.Registration, error) {
 	data, err := s.backend.GetVal([]string{"web", "users", user}, "u2fregistration")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	marshallableReg := MarshallableU2fRegistration{}
+	marshallableReg := MarshallableU2FRegistration{}
 	err = json.Unmarshal(data, &marshallableReg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -516,12 +513,12 @@ func (s *IdentityService) GetU2fRegistration(user string) (*u2f.Registration, er
 	}, nil
 }
 
-type U2fRegistrationCounter struct {
+type U2FRegistrationCounter struct {
 	Counter uint32 `json:"counter"`
 }
 
-func (s *IdentityService) UpsertU2fRegistrationCounter(user string, counter uint32) error {
-	data, err := json.Marshal(U2fRegistrationCounter{
+func (s *IdentityService) UpsertU2FRegistrationCounter(user string, counter uint32) error {
+	data, err := json.Marshal(U2FRegistrationCounter{
 		Counter: counter,
 	})
 	if err != nil {
@@ -535,13 +532,13 @@ func (s *IdentityService) UpsertU2fRegistrationCounter(user string, counter uint
 	return nil
 }
 
-func (s *IdentityService) GetU2fRegistrationCounter(user string) (counter uint32, e error) {
+func (s *IdentityService) GetU2FRegistrationCounter(user string) (counter uint32, e error) {
 	data, err := s.backend.GetVal([]string{"web", "users", user}, "u2fregistrationcounter")
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
 
-	u2fRegCounter := U2fRegistrationCounter{}
+	u2fRegCounter := U2FRegistrationCounter{}
 	err = json.Unmarshal(data, &u2fRegCounter)
 	if err != nil {
 		return 0, trace.Wrap(err)
@@ -550,19 +547,19 @@ func (s *IdentityService) GetU2fRegistrationCounter(user string) (counter uint32
 	return u2fRegCounter.Counter, nil
 }
 
-func (s *IdentityService) UpsertU2fSignChallenge(user string, u2fChallenge *u2f.Challenge) error {
+func (s *IdentityService) UpsertU2FSignChallenge(user string, u2fChallenge *u2f.Challenge) error {
 	data, err := json.Marshal(u2fChallenge)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal([]string{"web", "users", user}, "u2fsignchallenge", data, u2fChallengeTimeout)
+	err = s.backend.UpsertVal([]string{"web", "users", user}, "u2fsignchallenge", data, defaults.U2FChallengeTimeout)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (s *IdentityService) GetU2fSignChallenge(user string) (*u2f.Challenge, error) {
+func (s *IdentityService) GetU2FSignChallenge(user string) (*u2f.Challenge, error) {
 	data, err := s.backend.GetVal([]string{"web", "users", user}, "u2fsignchallenge")
 	if err != nil {
 		return nil, trace.Wrap(err)

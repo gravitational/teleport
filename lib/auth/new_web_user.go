@@ -134,7 +134,7 @@ func (s *AuthServer) GetSignupTokenData(token string) (user string,
 	return tokenData.User.GetName(), tokenData.HotpQR, tokenData.HotpFirstValues, nil
 }
 
-func (s *AuthServer) CreateSignupU2fRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
+func (s *AuthServer) CreateSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
 	err := s.CheckU2FEnabled()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -159,7 +159,7 @@ func (s *AuthServer) CreateSignupU2fRegisterRequest(token string) (u2fRegisterRe
 
 	_, err = s.GetPasswordHash(tokenData.User.GetName())
 	if err == nil {
-		return nil, trace.Errorf("can't add user %v, user already exists", tokenData.User)
+		return nil, trace.AlreadyExists("can't add user %v, user already exists", tokenData.User)
 	}
 
 	c, err := u2f.NewChallenge(s.U2F.AppID, s.U2F.Facets)
@@ -169,7 +169,7 @@ func (s *AuthServer) CreateSignupU2fRegisterRequest(token string) (u2fRegisterRe
 
 	u2fRegReq := c.RegisterRequest()
 
-	err = s.UpsertU2fRegisterChallenge(token, c)
+	err = s.UpsertU2FRegisterChallenge(token, c)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -243,7 +243,7 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Se
 	return sess, nil
 }
 
-func (s *AuthServer) CreateU2fUserWithToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*Session, error) {
+func (s *AuthServer) CreateUserWithU2FToken(token string, password string, response u2f.RegisterResponse) (*Session, error) {
 	err := s.CheckU2FEnabled()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -266,22 +266,22 @@ func (s *AuthServer) CreateU2fUserWithToken(token string, password string, u2fRe
 		return nil, trace.Wrap(err)
 	}
 
-	challenge, err := s.GetU2fRegisterChallenge(token)
+	challenge, err := s.GetU2FRegisterChallenge(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	reg, err := u2f.Register(u2fRegisterResponse, *challenge, &u2f.Config{SkipAttestationVerify: true})
+	reg, err := u2f.Register(response, *challenge, &u2f.Config{SkipAttestationVerify: true})
 	if err != nil {
 		log.Errorf("%v", err)
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.UpsertU2fRegistration(tokenData.User.GetName(), reg)
+	err = s.UpsertU2FRegistration(tokenData.User.GetName(), reg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = s.UpsertU2fRegistrationCounter(tokenData.User.GetName(), 0)
+	err = s.UpsertU2FRegistrationCounter(tokenData.User.GetName(), 0)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

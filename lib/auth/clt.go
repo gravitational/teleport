@@ -393,8 +393,8 @@ func (c *Client) GetProxies() ([]services.Server, error) {
 	return re, nil
 }
 
-func (c *Client) GetU2fAppId() (string, error) {
-	out, err := c.Get(c.Endpoint("u2f", "appId"), url.Values{})
+func (c *Client) GetU2FAppID() (string, error) {
+	out, err := c.Get(c.Endpoint("u2f", "appID"), url.Values{})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -477,7 +477,7 @@ func (c *Client) PreAuthenticatedSignIn(user string) (*Session, error) {
 	return sess, nil
 }
 
-func (c *Client) GetU2fSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
+func (c *Client) GetU2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
 	out, err := c.PostJSON(
 		c.Endpoint("u2f", "users", user, "sign"),
 		signInReq{
@@ -487,11 +487,11 @@ func (c *Client) GetU2fSignRequest(user string, password []byte) (*u2f.SignReque
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var u2fSignReq *u2f.SignRequest
-	if err := json.Unmarshal(out.Bytes(), &u2fSignReq); err != nil {
+	var signRequest *u2f.SignRequest
+	if err := json.Unmarshal(out.Bytes(), &signRequest); err != nil {
 		return nil, err
 	}
-	return u2fSignReq, nil
+	return signRequest, nil
 }
 
 // ExtendWebSession creates a new web session for a user based on another
@@ -688,7 +688,7 @@ func (c *Client) GetSignupTokenData(token string) (user string,
 	return tokenData.User, tokenData.QRImg, tokenData.HotpFirstValues, nil
 }
 
-func (c *Client) GetSignupU2fRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
+func (c *Client) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
 	out, err := c.Get(c.Endpoint("u2f", "signuptokens", token), url.Values{})
 	if err != nil {
 		return nil, err
@@ -719,11 +719,11 @@ func (c *Client) CreateUserWithToken(token, password, hotpToken string) (*Sessio
 	return sess, nil
 }
 
-func (c *Client) CreateU2fUserWithToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*Session, error) {
-	out, err := c.PostJSON(c.Endpoint("u2f", "users"), createU2fUserWithTokenReq{
+func (c *Client) CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*Session, error) {
+	out, err := c.PostJSON(c.Endpoint("u2f", "users"), createUserWithU2FTokenReq{
 		Token:     token,
 		Password:  password,
-		U2fRegisterResponse: u2fRegisterResponse,
+		U2FRegisterResponse: u2fRegisterResponse,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -942,11 +942,11 @@ type ClientI interface {
 	DeleteOIDCConnector(connectorID string) error
 	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
 	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
-	GetU2fSignRequest(user string, password []byte) (*u2f.SignRequest, error)
-	GetSignupU2fRegisterRequest(token string) (*u2f.RegisterRequest, error)
-	CreateU2fUserWithToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*Session, error)
+	GetU2FSignRequest(user string, password []byte) (*u2f.SignRequest, error)
+	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterRequest, error)
+	CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*Session, error)
 	PreAuthenticatedSignIn(user string) (*Session, error)
-	GetU2fAppId() (string, error)
+	GetU2FAppID() (string, error)
 	// UpsertReverseTunnel is used by admins to create a new reverse tunnel
 	// to the remote proxy to bypass firewall restrictions
 	UpsertReverseTunnel(tunnel services.ReverseTunnel, ttl time.Duration) error

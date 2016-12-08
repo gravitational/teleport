@@ -174,7 +174,7 @@ func (a *AuthServer) GetDomainName() (string, error) {
 	return a.DomainName, nil
 }
 
-func (a *AuthServer) GetU2fAppId() (string, error) {
+func (a *AuthServer) GetU2FAppID() (string, error) {
 	return a.U2F.AppID, nil
 }
 
@@ -246,7 +246,7 @@ func (s *AuthServer) PreAuthenticatedSignIn(user string) (*Session, error) {
 	return sess, nil
 }
 
-func (s *AuthServer) U2fSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
+func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
 	err := s.CheckU2FEnabled()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -256,7 +256,7 @@ func (s *AuthServer) U2fSignRequest(user string, password []byte) (*u2f.SignRequ
 		return nil, trace.Wrap(err)
 	}
 
-	u2fReg, err := s.GetU2fRegistration(user)
+	registration, err := s.GetU2FRegistration(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -266,43 +266,43 @@ func (s *AuthServer) U2fSignRequest(user string, password []byte) (*u2f.SignRequ
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.UpsertU2fSignChallenge(user, challenge)
+	err = s.UpsertU2FSignChallenge(user, challenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	u2fSignReq := challenge.SignRequest(*u2fReg)
+	u2fSignReq := challenge.SignRequest(*registration)
 
 	return u2fSignReq, nil
 }
 
-func (s *AuthServer) CheckU2fSignResponse(user string, u2fSignResponse *u2f.SignResponse) (error) {
+func (s *AuthServer) CheckU2FSignResponse(user string, response *u2f.SignResponse) (error) {
 	err := s.CheckU2FEnabled()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	reg, err := s.GetU2fRegistration(user)
+	reg, err := s.GetU2FRegistration(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	counter, err := s.GetU2fRegistrationCounter(user)
+	counter, err := s.GetU2FRegistrationCounter(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	challenge, err := s.GetU2fSignChallenge(user)
+	challenge, err := s.GetU2FSignChallenge(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	newCounter, err := reg.Authenticate(*u2fSignResponse, *challenge, counter)
+	newCounter, err := reg.Authenticate(*response, *challenge, counter)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = s.UpsertU2fRegistrationCounter(user, newCounter)
+	err = s.UpsertU2FRegistrationCounter(user, newCounter)
 	if err != nil {
 		return trace.Wrap(err)
 	}

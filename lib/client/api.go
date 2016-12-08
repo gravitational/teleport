@@ -1030,15 +1030,18 @@ func (tc *TeleportClient) u2fLogin(pub []byte) (*web.SSHLoginResponse, error) {
 	// U2F login requires the official u2f-host executable
 	_, err := exec.LookPath("u2f-host")
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	httpsProxyHostPort := tc.Config.ProxyWebHostPort()
 	certPool := loopbackPool(httpsProxyHostPort)
 
 	password, err := tc.AskPassword()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	response, err := web.SSHAgentU2fLogin(httpsProxyHostPort,
+	response, err := web.SSHAgentU2FLogin(httpsProxyHostPort,
 		tc.Config.Username,
 		password,
 		pub,

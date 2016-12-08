@@ -230,8 +230,8 @@ func (s *sessionCache) Auth(user, pass string, hotpToken string) (*auth.Session,
 	return session, nil
 }
 
-func (s *sessionCache) GetU2fSignRequest(user, pass string) (*u2f.SignRequest, error) {
-	method, err := auth.NewWebPasswordU2fSignAuth(user, []byte(pass))
+func (s *sessionCache) GetU2FSignRequest(user, pass string) (*u2f.SignRequest, error) {
+	method, err := auth.NewWebPasswordU2FSignAuth(user, []byte(pass))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -243,7 +243,7 @@ func (s *sessionCache) GetU2fSignRequest(user, pass string) (*u2f.SignRequest, e
 	// this connection initiated using password based credentials
 	// down the road, so it's a one call client
 	defer clt.Close()
-	u2fSignReq, err := clt.GetU2fSignRequest(user, []byte(pass))
+	u2fSignReq, err := clt.GetU2FSignRequest(user, []byte(pass))
 	if err != nil {
 		defer clt.Close()
 		return nil, trace.Wrap(err)
@@ -251,8 +251,8 @@ func (s *sessionCache) GetU2fSignRequest(user, pass string) (*u2f.SignRequest, e
 	return u2fSignReq, nil
 }
 
-func (s *sessionCache) AuthWithU2fSignResponse(user string, u2fSignResponse *u2f.SignResponse) (*auth.Session, error) {
-	method, err := auth.NewWebU2fSignResponseAuth(user, u2fSignResponse)
+func (s *sessionCache) AuthWithU2FSignResponse(user string, response *u2f.SignResponse) (*auth.Session, error) {
+	method, err := auth.NewWebU2FSignResponseAuth(user, response)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -304,8 +304,8 @@ func createCertificate(user string, pubkey []byte, ttl time.Duration, clt *auth.
 	}, nil
 }
 
-func (s *sessionCache) GetCertificateWithU2f(c createSSHCertWithU2fReq) (*SSHLoginResponse, error) {
-	method, err := auth.NewWebU2fSignResponseAuth(c.User, &c.U2fSignResponse)
+func (s *sessionCache) GetCertificateWithU2F(c createSSHCertWithU2FReq) (*SSHLoginResponse, error) {
+	method, err := auth.NewWebU2FSignResponseAuth(c.User, &c.U2FSignResponse)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -333,7 +333,7 @@ func (s *sessionCache) GetUserInviteInfo(token string) (user string,
 	return clt.GetSignupTokenData(token)
 }
 
-func (s *sessionCache) GetUserInviteU2fRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
+func (s *sessionCache) GetUserInviteU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
 	method, err := auth.NewSignupTokenAuth(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -344,7 +344,7 @@ func (s *sessionCache) GetUserInviteU2fRegisterRequest(token string) (u2fRegiste
 	}
 	defer clt.Close()
 
-	return clt.GetSignupU2fRegisterRequest(token)
+	return clt.GetSignupU2FRegisterRequest(token)
 }
 
 func (s *sessionCache) CreateNewUser(token, password, hotpToken string) (*auth.Session, error) {
@@ -361,7 +361,7 @@ func (s *sessionCache) CreateNewUser(token, password, hotpToken string) (*auth.S
 	return sess, trace.Wrap(err)
 }
 
-func (s *sessionCache) CreateNewU2fUser(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*auth.Session, error) {
+func (s *sessionCache) CreateNewU2FUser(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*auth.Session, error) {
 	method, err := auth.NewSignupTokenAuth(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -371,7 +371,7 @@ func (s *sessionCache) CreateNewU2fUser(token string, password string, u2fRegist
 		return nil, trace.Wrap(err)
 	}
 	defer clt.Close()
-	sess, err := clt.CreateU2fUserWithToken(token, password, u2fRegisterResponse)
+	sess, err := clt.CreateUserWithU2FToken(token, password, u2fRegisterResponse)
 	return sess, trace.Wrap(err)
 }
 
