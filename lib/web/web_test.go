@@ -80,7 +80,7 @@ type WebSuite struct {
 	// audit log and its dir:
 	auditLog events.IAuditLog
 	logDir   string
-	mockU2F  *mocku2f.MockU2FKey
+	mockU2F  *mocku2f.Key
 }
 
 var _ = Suite(&WebSuite{})
