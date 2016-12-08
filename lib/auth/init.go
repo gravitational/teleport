@@ -88,12 +88,8 @@ type InitConfig struct {
 	// environments where paranoid security is not needed
 	StaticTokens []services.ProvisionToken
 
-	// App ID identifies the website to the U2F keys. It should not be changed once a U2F
-	// key is registered or all existing registrations will become invalid.
-	U2fAppId string
-
-	// Trusted facets should include the domain name of all proxies.
-	U2fTrustedFacets []string
+	// U2F is the configuration of the U2F 2 factor authentication
+	U2F services.U2F
 }
 
 // Init instantiates and configures an instance of AuthServer

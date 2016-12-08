@@ -113,8 +113,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 		AuthServiceName: cfg.AuthServiceName,
 		oidcClients:     make(map[string]*oidc.Client),
 		StaticTokens:    cfg.StaticTokens,
-		U2fAppId:        cfg.U2fAppId,
-		U2fTrustedFacets:cfg.U2fTrustedFacets,
+		U2F:             cfg.U2F,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -152,8 +151,8 @@ type AuthServer struct {
 	// environments where paranoid security is not needed
 	StaticTokens []services.ProvisionToken
 
-	U2fAppId string
-	U2fTrustedFacets []string
+	// U2F is the configuration of the U2F 2 factor authentication
+	U2F services.U2F
 
 	services.Trust
 	services.Lock
@@ -176,7 +175,14 @@ func (a *AuthServer) GetDomainName() (string, error) {
 }
 
 func (a *AuthServer) GetU2fAppId() (string, error) {
-	return a.U2fAppId, nil
+	return a.U2F.AppID, nil
+}
+
+func (a *AuthServer) CheckU2FEnabled() error {
+	if !a.U2F.Enabled {
+		return trace.AccessDenied("U2F is disabled")
+	}
+	return nil
 }
 
 // GenerateHostCert generates host certificate, it takes pkey as a signing
@@ -241,6 +247,11 @@ func (s *AuthServer) PreAuthenticatedSignIn(user string) (*Session, error) {
 }
 
 func (s *AuthServer) U2fSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
+	err := s.CheckU2FEnabled()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := s.CheckPasswordWOToken(user, password); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -250,7 +261,7 @@ func (s *AuthServer) U2fSignRequest(user string, password []byte) (*u2f.SignRequ
 		return nil, trace.Wrap(err)
 	}
 
-	challenge, err := u2f.NewChallenge(s.U2fAppId, s.U2fTrustedFacets)
+	challenge, err := u2f.NewChallenge(s.U2F.AppID, s.U2F.Facets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -266,6 +277,11 @@ func (s *AuthServer) U2fSignRequest(user string, password []byte) (*u2f.SignRequ
 }
 
 func (s *AuthServer) CheckU2fSignResponse(user string, u2fSignResponse *u2f.SignResponse) (error) {
+	err := s.CheckU2FEnabled()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	reg, err := s.GetU2fRegistration(user)
 	if err != nil {
 		return trace.Wrap(err)

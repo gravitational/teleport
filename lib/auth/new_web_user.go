@@ -135,7 +135,12 @@ func (s *AuthServer) GetSignupTokenData(token string) (user string,
 }
 
 func (s *AuthServer) CreateSignupU2fRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
-	err := s.AcquireLock("signuptoken"+token, time.Hour)
+	err := s.CheckU2FEnabled()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.AcquireLock("signuptoken"+token, time.Hour)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -157,7 +162,7 @@ func (s *AuthServer) CreateSignupU2fRegisterRequest(token string) (u2fRegisterRe
 		return nil, trace.Errorf("can't add user %v, user already exists", tokenData.User)
 	}
 
-	c, err := u2f.NewChallenge(s.U2fAppId, s.U2fTrustedFacets)
+	c, err := u2f.NewChallenge(s.U2F.AppID, s.U2F.Facets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -239,7 +244,12 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Se
 }
 
 func (s *AuthServer) CreateU2fUserWithToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*Session, error) {
-	err := s.AcquireLock("signuptoken"+token, time.Hour)
+	err := s.CheckU2FEnabled()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.AcquireLock("signuptoken"+token, time.Hour)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

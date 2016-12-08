@@ -125,8 +125,12 @@ func (s *WebSuite) SetUpTest(c *C) {
 		Backend:    s.bk,
 		Authority:  authority.New(),
 		DomainName: s.domainName,
-		U2fAppId: "https://" + s.domainName,
-		U2fTrustedFacets: []string{"https://" + s.domainName}})
+		U2F: services.U2F{
+			Enabled: true,
+			AppID: "https://" + s.domainName,
+			Facets: []string{"https://" + s.domainName},
+		},
+	})
 
 	c.Assert(authServer.UpsertCertAuthority(
 		*suite.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
