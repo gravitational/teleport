@@ -37,6 +37,7 @@ import (
 	"time"
 
 	"github.com/tstranex/u2f"
+	"github.com/gravitational/trace"
 )
 
 type Key struct {
