@@ -87,7 +87,7 @@ func NewAPIServer(config *APIConfig, role teleport.Role) APIServer {
 	srv.POST("/v1/users/:user/web/password", httplib.MakeHandler(srv.upsertPassword))
 	srv.POST("/v1/users/:user/web/password/check", httplib.MakeHandler(srv.checkPassword))
 	srv.POST("/v1/users/:user/web/signin", httplib.MakeHandler(srv.signIn))
-	srv.GET("/v1/users/:user/web/signinpreauth", httplib.MakeHandler(srv.preAuthenticatedSignIn))
+	srv.GET("/v1/users/:user/web/signin/preauth", httplib.MakeHandler(srv.preAuthenticatedSignIn))
 	srv.POST("/v1/users/:user/web/sessions", httplib.MakeHandler(srv.createWebSession))
 	srv.GET("/v1/users/:user/web/sessions/:sid", httplib.MakeHandler(srv.getWebSession))
 	srv.DELETE("/v1/users/:user/web/sessions/:sid", httplib.MakeHandler(srv.deleteWebSession))
@@ -131,9 +131,9 @@ func NewAPIServer(config *APIConfig, role teleport.Role) APIServer {
 	srv.POST("/v1/oidc/requests/validate", httplib.MakeHandler(srv.validateOIDCAuthCallback))
 
 	// U2F stuff
-	srv.GET("/v1/u2f/inviteregisterrequest/:token", httplib.MakeHandler(srv.getSignupU2fRegisterRequest))
-	srv.POST("/v1/u2f/newuser", httplib.MakeHandler(srv.createU2fUserWithToken))
-	srv.POST("/v1/u2f/signrequest/:user", httplib.MakeHandler(srv.u2fSignRequest))
+	srv.GET("/v1/u2f/signuptokens/:token", httplib.MakeHandler(srv.getSignupU2fRegisterRequest))
+	srv.POST("/v1/u2f/users", httplib.MakeHandler(srv.createU2fUserWithToken))
+	srv.POST("/v1/u2f/users/:user/sign", httplib.MakeHandler(srv.u2fSignRequest))
 	srv.GET("/v1/u2f/appid", httplib.MakeHandler(srv.getU2fAppId))
 
 	// Provisioning tokens

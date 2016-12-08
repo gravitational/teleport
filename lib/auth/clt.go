@@ -464,7 +464,7 @@ func (c *Client) SignIn(user string, password []byte) (*Session, error) {
 // already checked before issueing the second factor challenge
 func (c *Client) PreAuthenticatedSignIn(user string) (*Session, error) {
 	out, err := c.Get(
-		c.Endpoint("users", user, "web", "signinpreauth"),
+		c.Endpoint("users", user, "web", "signin", "preauth"),
 		url.Values{},
 	)
 	if err != nil {
@@ -479,7 +479,7 @@ func (c *Client) PreAuthenticatedSignIn(user string) (*Session, error) {
 
 func (c *Client) GetU2fSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
 	out, err := c.PostJSON(
-		c.Endpoint("u2f", "signrequest", user),
+		c.Endpoint("u2f", "users", user, "sign"),
 		signInReq{
 			Password: string(password),
 		},
@@ -689,7 +689,7 @@ func (c *Client) GetSignupTokenData(token string) (user string,
 }
 
 func (c *Client) GetSignupU2fRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
-	out, err := c.Get(c.Endpoint("u2f", "inviteregisterrequest", token), url.Values{})
+	out, err := c.Get(c.Endpoint("u2f", "signuptokens", token), url.Values{})
 	if err != nil {
 		return nil, err
 	}
@@ -720,7 +720,7 @@ func (c *Client) CreateUserWithToken(token, password, hotpToken string) (*Sessio
 }
 
 func (c *Client) CreateU2fUserWithToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*Session, error) {
-	out, err := c.PostJSON(c.Endpoint("u2f", "newuser"), createU2fUserWithTokenReq{
+	out, err := c.PostJSON(c.Endpoint("u2f", "users"), createU2fUserWithTokenReq{
 		Token:     token,
 		Password:  password,
 		U2fRegisterResponse: u2fRegisterResponse,

@@ -775,7 +775,7 @@ func (s *WebSuite) TestNewU2fUser(c *C) {
 	c.Assert(tokens[0].Token, Equals, token)
 
 	clt := s.client()
-	re, err := clt.Get(clt.Endpoint("webapi", "u2f", "inviteregisterrequest", token), url.Values{})
+	re, err := clt.Get(clt.Endpoint("webapi", "u2f", "signuptokens", token), url.Values{})
 	c.Assert(err, IsNil)
 
 	var u2fRegReq u2f.RegisterRequest
@@ -786,7 +786,7 @@ func (s *WebSuite) TestNewU2fUser(c *C) {
 
 	tempPass := "abc123"
 
-	re, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "newuser"), createNewU2fUserReq{
+	re, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "users"), createNewU2fUserReq{
 		InviteToken:       token,
 		Pass:              tempPass,
 		U2fRegisterResponse: *u2fRegResp,
