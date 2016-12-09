@@ -140,13 +140,15 @@ func (s *AuthServer) CreateSignupU2FRegisterRequest(token string) (u2fRegisterRe
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.AcquireLock("signuptoken"+token, time.Hour)
+	lock := "signuptoken"+token
+
+	err = s.AcquireLock(lock, time.Hour)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	defer func() {
-		err := s.ReleaseLock("signuptoken" + token)
+		err := s.ReleaseLock(lock)
 		if err != nil {
 			log.Errorf(err.Error())
 		}
@@ -249,13 +251,15 @@ func (s *AuthServer) CreateUserWithU2FToken(token string, password string, respo
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.AcquireLock("signuptoken"+token, time.Hour)
+	lock := "signuptoken"+token
+
+	err = s.AcquireLock(lock, time.Hour)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	defer func() {
-		err := s.ReleaseLock("signuptoken" + token)
+		err := s.ReleaseLock(lock)
 		if err != nil {
 			log.Errorf(err.Error())
 		}
