@@ -3,7 +3,6 @@ package web
 import (
 	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -247,19 +246,21 @@ func SSHAgentU2FLogin(proxyAddr, user, password string, pubKey []byte, ttl time.
 	signResponseLen, err = io.ReadFull(stdout, signResponseBuf)
 	// unexpected EOF means we have read the data completely.
 	if err == nil {
-		return nil, errors.New("u2f sign response exceeded buffer size")
+		return nil, trace.LimitExceeded("u2f sign response exceeded buffer size")
 	}
 
 	// Read error message (if any). 100 bytes is more than enough for any error message u2f-host outputs
 	errMsgBuf := make([]byte, 100)
 	errMsgLen, err := io.ReadFull(stderr, errMsgBuf)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if err == nil {
+		return nil, trace.LimitExceeded("u2f error message exceeded buffer size")
 	}
 
 	err = cmd.Wait()
 	if err != nil {
-		return nil, errors.New("u2f-host returned error: " + string(errMsgBuf[:errMsgLen]))
+		return nil, trace.AccessDenied("u2f-host returned error: " + string(errMsgBuf[:errMsgLen]))
+	} else if signResponseLen == 0 {
+		return nil, trace.NotFound("u2f-host returned no error and no sign response")
 	}
 
 	var u2fSignResponse *u2f.SignResponse
