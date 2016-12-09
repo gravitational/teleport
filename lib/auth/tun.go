@@ -557,6 +557,7 @@ func NewWebPasswordAuth(user string, password []byte, hotpToken string) ([]ssh.A
 	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
 }
 
+// NewWebPasswordU2FSignAuth is for getting a U2F sign challenge
 func NewWebPasswordU2FSignAuth(user string, password []byte) ([]ssh.AuthMethod, error) {
 	data, err := json.Marshal(authBucket{
 		Type: AuthWebU2FSign,
@@ -569,6 +570,7 @@ func NewWebPasswordU2FSignAuth(user string, password []byte) ([]ssh.AuthMethod, 
 	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
 }
 
+// NewWebU2FSignResponseAuth is for signing in with a U2F sign response
 func NewWebU2FSignResponseAuth(user string, u2fSignResponse *u2f.SignResponse) ([]ssh.AuthMethod, error) {
 	data, err := json.Marshal(authBucket{
 		Type: AuthWebU2F,
