@@ -277,7 +277,7 @@ func (s *AuthServer) CreateUserWithU2FToken(token string, password string, respo
 
 	reg, err := u2f.Register(response, *challenge, &u2f.Config{SkipAttestationVerify: true})
 	if err != nil {
-		log.Errorf("%v", err)
+		log.Error(trace.DebugReport(err))
 		return nil, trace.Wrap(err)
 	}
 
