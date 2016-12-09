@@ -25,6 +25,8 @@ import (
 	"runtime"
 	"strings"
 	"sync/atomic"
+
+	"golang.org/x/net/context"
 )
 
 var debug int32
@@ -46,7 +48,12 @@ func IsDebug() bool {
 // Wrap takes the original error and wraps it into the Trace struct
 // memorizing the context of the error.
 func Wrap(err error, args ...interface{}) Error {
-	return wrap(err, 2, args...)
+	if len(args) > 0 {
+		format := args[0]
+		args = args[1:]
+		return WrapWithMessage(err, format, args...)
+	}
+	return wrapWithDepth(err, 2)
 }
 
 // Unwrap unwraps error to it's original error
@@ -57,31 +64,60 @@ func Unwrap(err error) error {
 	return err
 }
 
-func wrap(err error, depth int, args ...interface{}) Error {
+// UserMessage returns user-friendly part of the error
+func UserMessage(err error) string {
+	if err == nil {
+		return ""
+	}
+	if wrap, ok := err.(Error); ok {
+		return wrap.UserMessage()
+	}
+	return err.Error()
+}
+
+// DebugReport returns debug report with all known information
+// about the error including stack trace if it was captured
+func DebugReport(err error) string {
+	if err == nil {
+		return ""
+	}
+	if wrap, ok := err.(Error); ok {
+		return wrap.DebugReport()
+	}
+	return err.Error()
+}
+
+// WrapWithMessage wraps the original error into Error and adds user message if any
+func WrapWithMessage(err error, message interface{}, args ...interface{}) Error {
+	trace := wrapWithDepth(err, 3)
+	if trace != nil {
+		trace.AddUserMessage(message, args...)
+	}
+	return trace
+}
+
+func wrapWithDepth(err error, depth int) Error {
 	if err == nil {
 		return nil
 	}
+	var trace Error
+	if wrapped, ok := err.(Error); ok {
+		trace = wrapped
+	} else {
+		trace = newTrace(depth+1, err)
+	}
 
-	t := newTrace(runtime.Caller(depth))
-	if s, ok := err.(TraceSetter); ok {
-		s.SetTraces(t.Traces...)
-		return s
-	}
-	t.Err = err
-	t.Message = err.Error()
-	if len(args) != 0 {
-		t.DebugMessage = fmt.Sprintf(fmt.Sprintf("%v", args[0]), args[1:]...)
-	}
-	return t
+	return trace
 }
 
 // Errorf is similar to fmt.Errorf except that it captures
 // more information about the origin of error, such as
 // callee, line number and function that simplifies debugging
-func Errorf(format string, args ...interface{}) error {
-	t := newTrace(runtime.Caller(1))
-	t.Err = fmt.Errorf(format, args...)
-	return t
+func Errorf(format string, args ...interface{}) (err error) {
+	err = fmt.Errorf(format, args...)
+	trace := wrapWithDepth(err, 2)
+	trace.AddUserMessage(format, args...)
+	return trace
 }
 
 // Fatalf - If debug is false Fatalf calls Errorf. If debug is
@@ -94,28 +130,23 @@ func Fatalf(format string, args ...interface{}) error {
 	}
 }
 
-func newTrace(pc uintptr, filePath string, line int, ok bool) *TraceErr {
-	if !ok {
-		return &TraceErr{
-			nil,
-			Traces{
-				{
-					Path: "unknown_path",
-					Func: "unknown_func",
-					Line: 0,
-				}},
-			"",
-			"",
+func newTrace(depth int, err error) *TraceErr {
+	var pc [32]uintptr
+	count := runtime.Callers(depth+1, pc[:])
+
+	traces := make(Traces, count)
+	for i := 0; i < count; i++ {
+		fn := runtime.FuncForPC(pc[i])
+		filePath, line := fn.FileLine(pc[i])
+		traces[i] = Trace{
+			Func: fn.Name(),
+			Path: filePath,
+			Line: line,
 		}
 	}
 	return &TraceErr{
-		nil,
-		Traces{{
-			Path: filePath,
-			Func: runtime.FuncForPC(pc).Name(),
-			Line: line,
-		}},
-		"",
+		err,
+		traces,
 		"",
 	}
 }
@@ -124,28 +155,49 @@ func newTrace(pc uintptr, filePath string, line int, ok bool) *TraceErr {
 type Traces []Trace
 
 // SetTraces adds new traces to the list
-func (s *Traces) SetTraces(traces ...Trace) {
-	*s = append(*s, traces...)
+func (s Traces) SetTraces(traces ...Trace) {
+	s = append(s, traces...)
 }
 
 // Func returns first function in trace list
-func (s *Traces) Func() string {
-	if len(*s) == 0 {
+func (s Traces) Func() string {
+	if len(s) == 0 {
 		return ""
 	}
-	return (*s)[0].Func
+	return s[0].Func
 }
 
-// String returns debug-friendly representaton of traces
+// Func returns just function name
+func (s Traces) FuncName() string {
+	if len(s) == 0 {
+		return ""
+	}
+	fn := filepath.ToSlash(s[0].Func)
+	idx := strings.LastIndex(fn, "/")
+	if idx == -1 || idx == len(fn)-1 {
+		return fn
+	}
+	return fn[idx+1:]
+}
+
+// Loc points to file/line location in the code
+func (s Traces) Loc() string {
+	if len(s) == 0 {
+		return ""
+	}
+	return s[0].String()
+}
+
+// String returns debug-friendly representaton of trace stack
 func (s Traces) String() string {
 	if len(s) == 0 {
 		return ""
 	}
 	out := make([]string, len(s))
 	for i, t := range s {
-		out[i] = t.String()
+		out[i] = fmt.Sprintf("\t%v:%v %v", t.Path, t.Line, t.Func)
 	}
-	return strings.Join(out, ",")
+	return strings.Join(out, "\n")
 }
 
 // Trace stores structured trace entry, including file line and path
@@ -171,23 +223,46 @@ func (t *Trace) String() string {
 // TraceErr contains error message and some additional
 // information about the error origin
 type TraceErr struct {
-	Err          error `json:"error"`
-	Traces       `json:"traces"`
-	Message      string `json:"message,omitemtpy"`
-	DebugMessage string `json:"debug_message"`
+	Err     error `json:"error"`
+	Traces  `json:"traces"`
+	Message string `json:"message,omitemtpy"`
 }
 
-type rawTrace struct {
+type RawTrace struct {
 	Err     json.RawMessage `json:"error"`
 	Traces  `json:"traces"`
 	Message string `json:"message"`
 }
 
-func (e *TraceErr) Error() string {
-	if IsDebug() {
-		return fmt.Sprintf("[%v] %v %v", e.Traces.String(), e.DebugMessage, e.Err.Error())
+// AddUserMessage adds user-friendly message describing the error nature
+func (e *TraceErr) AddUserMessage(formatArg interface{}, rest ...interface{}) {
+	newMessage := fmt.Sprintf(fmt.Sprintf("%v", formatArg), rest...)
+	if len(e.Message) == 0 {
+		e.Message = newMessage
+	} else {
+		e.Message = strings.Join([]string{e.Message, newMessage}, ", ")
+	}
+}
+
+// UserMessage returns user-friendly error message
+func (e *TraceErr) UserMessage() string {
+	if e.Message != "" {
+		return e.Message
 	}
 	return e.Err.Error()
+}
+
+// DebugReport returns develeoper-friendly error report
+func (e *TraceErr) DebugReport() string {
+	return fmt.Sprintf("\nERROR REPORT:\nOriginal Error: %T %v\nStack Trace:\n%v\nUser Message: %v\n", e.Err, e.Err.Error(), e.Traces.String(), e.Message)
+}
+
+// Error returns user-friendly error message when not in debug mode
+func (e *TraceErr) Error() string {
+	if IsDebug() {
+		return e.DebugReport()
+	}
+	return e.UserMessage()
 }
 
 // OrigError returns original wrapped error
@@ -216,11 +291,91 @@ const maxHops = 50
 // So error handlers can use OrigError() to retrieve error from the wrapper
 type Error interface {
 	error
+	// OrigError returns original error wrapped in this error
 	OrigError() error
+	// AddMessage adds formatted user-facing message
+	// to the error, depends on the implementation,
+	// usually works as fmt.Sprintf(formatArg, rest...)
+	// but implementations can choose another way, e.g. treat
+	// arguments as structured args
+	AddUserMessage(formatArg interface{}, rest ...interface{})
+
+	// UserMessage returns user-friendly error message
+	UserMessage() string
+
+	// DebugReport returns develeoper-friendly error report
+	DebugReport() string
 }
 
-// TraceSetter indicates that this error can store traces
-type TraceSetter interface {
-	Error
-	SetTraces(...Trace)
+// NewAggregate creates a new aggregate instance from the specified
+// list of errors
+func NewAggregate(errs ...error) error {
+	// filter out possible nil values
+	var nonNils []error
+	for _, err := range errs {
+		if err != nil {
+			nonNils = append(nonNils, err)
+		}
+	}
+	if len(nonNils) == 0 {
+		return nil
+	}
+	return wrapWithDepth(aggregate(nonNils), 2)
+}
+
+// NewAggregateFromChannel creates a new aggregate instance from the provided
+// errors channel.
+//
+// A context.Context can be passed in so the caller has the ability to cancel
+// the operation. If this is not desired, simply pass context.Background().
+func NewAggregateFromChannel(errCh chan error, ctx context.Context) error {
+	var errs []error
+
+Loop:
+	for {
+		select {
+		case err, ok := <-errCh:
+			if !ok { // the channel is closed, time to exit
+				break Loop
+			}
+			errs = append(errs, err)
+		case <-ctx.Done():
+			break Loop
+		}
+	}
+
+	return NewAggregate(errs...)
+}
+
+// Aggregate interface combines several errors into one error
+type Aggregate interface {
+	error
+	// Errors obtains the list of errors this aggregate combines
+	Errors() []error
+}
+
+// aggregate implements Aggregate
+type aggregate []error
+
+// Error implements the error interface
+func (r aggregate) Error() string {
+	if len(r) == 0 {
+		return ""
+	}
+	output := r[0].Error()
+	for i := 1; i < len(r); i++ {
+		output = fmt.Sprintf("%v, %v", output, r[i])
+	}
+	return output
+}
+
+// Errors obtains the list of errors this aggregate combines
+func (r aggregate) Errors() []error {
+	return []error(r)
+}
+
+// IsAggregate returns whether this error of Aggregate error type
+func IsAggregate(err error) bool {
+	_, ok := Unwrap(err).(Aggregate)
+	return ok
 }

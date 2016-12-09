@@ -3,7 +3,6 @@ package trace
 import (
 	"encoding/json"
 	"net"
-	"runtime"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -66,17 +65,19 @@ type Frame struct {
 
 // Fire fires the event to the ELK beat
 func (elk *UDPHook) Fire(e *log.Entry) error {
+	// Make a copy to safely modify
+	entry := e.WithFields(nil)
 	if frameNo := findFrame(); frameNo != -1 {
-		t := newTrace(runtime.Caller(frameNo - 1))
-		e.Data[FileField] = t.String()
-		e.Data[FunctionField] = t.Func()
+		t := newTrace(frameNo-1, nil)
+		entry.Data[FileField] = t.String()
+		entry.Data[FunctionField] = t.Func()
 	}
 	data, err := json.Marshal(Frame{
 		Time:    elk.Clock.Now().UTC(),
 		Type:    "trace",
-		Entry:   e.Data,
-		Message: e.Message,
-		Level:   e.Level.String(),
+		Entry:   entry.Data,
+		Message: entry.Message,
+		Level:   entry.Level.String(),
 	})
 	if err != nil {
 		return Wrap(err)

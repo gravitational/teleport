@@ -1,7 +1,7 @@
 {
 	"ImportPath": "github.com/gravitational/teleport",
 	"GoVersion": "go1.6",
-	"GodepVersion": "v74",
+	"GodepVersion": "v75",
 	"Packages": [
 		"./lib/...",
 		"./tool/..."
@@ -138,7 +138,7 @@
 		},
 		{
 			"ImportPath": "github.com/gravitational/trace",
-			"Rev": "8245bfd83ac483f4f0e8a98f595aa965fcb69a10"
+			"Rev": "6e153c7add15eb07e311f892779fb294373c4cfa"
 		},
 		{
 			"ImportPath": "github.com/gravitational/ttlmap",
