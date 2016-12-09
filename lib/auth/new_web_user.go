@@ -169,14 +169,14 @@ func (s *AuthServer) CreateSignupU2FRegisterRequest(token string) (u2fRegisterRe
 		return nil, trace.Wrap(err)
 	}
 
-	u2fRegReq := c.RegisterRequest()
+	request := c.RegisterRequest()
 
 	err = s.UpsertU2FRegisterChallenge(token, c)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return u2fRegReq, nil
+	return request, nil
 }
 
 // CreateUserWithToken creates account with provided token and password.
