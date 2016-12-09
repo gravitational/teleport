@@ -18,10 +18,11 @@ package mocku2f
 
 /* Mock U2F device for testing.
  * This is not a complete implementation of U2F keys.
- * In particular, the key always returns a dummy key handle and doesn't differentiate between key handles
+ * In particular, the key only supports a single key handle that is specified upon creation
  */
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -41,13 +42,13 @@ import (
 )
 
 type Key struct {
+	keyHandle []byte
 	privatekey *ecdsa.PrivateKey
 	cert []byte
 	counter uint32
 }
 
-const keyHandle = "asdf"
-
+// The "websafe-base64 encoding" in the U2F specifications removes the padding
 func decodeBase64(s string) ([]byte, error) {
 	for i := 0; i < len(s)%4; i++ {
 		s += "="
@@ -85,6 +86,19 @@ func selfSignPublicKey(keyToSign *ecdsa.PublicKey) (cert []byte, err error) {
 }
 
 func Create() (*Key, error) {
+	keyHandle := make([]byte, 128)
+	_, err := rand.Read(keyHandle)
+	if err != nil {
+		return nil, err
+	}
+	return CreateWithKeyHandle(keyHandle)
+}
+
+func CreateWithKeyHandle(keyHandle []byte) (*Key, error) {
+	if len(keyHandle) > 255 {
+		return nil, trace.BadParameter("keyHandle length exceeds limit")
+	}
+
 	privatekey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, err
@@ -96,6 +110,7 @@ func Create() (*Key, error) {
 	}
 
 	return &Key{
+		keyHandle: keyHandle,
 		privatekey: privatekey,
 		cert: cert,
 		counter: 1,
@@ -112,7 +127,7 @@ func (muk *Key) RegisterResponse(req *u2f.RegisterRequest) (*u2f.RegisterRespons
 	}
 	clientDataJson, err := json.Marshal(clientData)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	clientDataHash := sha256.Sum256(clientDataJson)
 
@@ -122,19 +137,22 @@ func (muk *Key) RegisterResponse(req *u2f.RegisterRequest) (*u2f.RegisterRespons
 	dataToSign = append(dataToSign[:], []byte{ 0 }[:]...)
 	dataToSign = append(dataToSign[:], appIDHash[:]...)
 	dataToSign = append(dataToSign[:], clientDataHash[:]...)
-	dataToSign = append(dataToSign[:], keyHandle[:]...)
+	dataToSign = append(dataToSign[:], muk.keyHandle[:]...)
 	dataToSign = append(dataToSign[:], marshalledPublickey[:]...)
 
 	dataHash := sha256.Sum256(dataToSign)
 
 	// Despite taking a hash function, this actually does not hash the input.
 	sig, err := muk.privatekey.Sign(rand.Reader, dataHash[:], crypto.SHA256)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	var regData []byte
 	regData  = append(regData, []byte{ 5 }[:]...) // fixed by specification
 	regData = append(regData, marshalledPublickey[:]...)
-	regData = append(regData, []byte{ byte(len(keyHandle)) }[:]...)
-	regData = append(regData, keyHandle[:]...)
+	regData = append(regData, []byte{ byte(len(muk.keyHandle)) }[:]...)
+	regData = append(regData, muk.keyHandle[:]...)
 	regData = append(regData, muk.cert[:]...)
 	regData = append(regData, sig[:]...)
 
@@ -145,6 +163,14 @@ func (muk *Key) RegisterResponse(req *u2f.RegisterRequest) (*u2f.RegisterRespons
 }
 
 func (muk *Key) SignResponse(req *u2f.SignRequest) (*u2f.SignResponse, error) {
+	rawKeyHandle, err := decodeBase64(req.KeyHandle)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !bytes.Equal(rawKeyHandle, muk.keyHandle) {
+		return nil, trace.CompareFailed("wrong keyHandle")
+	}
+
 	appIDHash := sha256.Sum256([]byte(req.AppID))
 
 	counterBytes := make([]byte, 4)
@@ -191,3 +217,4 @@ func (muk *Key) SignResponse(req *u2f.SignRequest) (*u2f.SignResponse, error) {
 func (muk *Key) SetCounter(counter uint32) {
 	muk.counter = counter
 }
+
