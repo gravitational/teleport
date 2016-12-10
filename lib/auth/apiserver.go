@@ -360,7 +360,7 @@ func (s *APIServer) upsertUser(w http.ResponseWriter, r *http.Request, p httprou
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := services.GetUserUnmarshaler()(req.User)
+	user, err := services.GetUserMarshaler().UnmarshalUser(req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -668,7 +668,7 @@ func (s *APIServer) createSignupToken(w http.ResponseWriter, r *http.Request, p 
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := services.GetUserUnmarshaler()(req.User)
+	user, err := services.GetUserMarshaler().UnmarshalUser(req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -49,6 +49,22 @@ const (
 	V1 = "v1"
 )
 
+// Role contains a set of permissions or settings
+type Role interface {
+	// GetMetadata returns role metadata
+	GetMetadata() Metadata
+	// GetMaxSessionTTL is a maximum SSH or Web session TTL
+	GetMaxSessionTTL() Duration
+	// GetLogins returns a list of linux logins allowed for this role
+	GetLogins() []string
+	// GetNodeLabels returns a list of matchign nodes this role has access to
+	GetNodeLabels() map[string]string
+	// GetNamespaces returns a list of namespaces this role has access to
+	GetNamespaces() []string
+	// GetResources returns access to resources
+	GetResources() map[string][]string
+}
+
 // Metadata is resource metadata
 type Metadata struct {
 	// Name is an object name
@@ -71,6 +87,36 @@ type RoleResource struct {
 	Metadata Metadata `json:"metadata"`
 	// Spec contains role specification
 	Spec RoleSpec `json:"spec"`
+}
+
+// GetMetadata returns role metadata
+func (r *RoleResource) GetMetadata() Metadata {
+	return r.Metadata
+}
+
+// GetMaxSessionTTL is a maximum SSH or Web session TTL
+func (r *RoleResource) GetMaxSessionTTL() Duration {
+	return r.Spec.MaxSessionTTL
+}
+
+// GetLogins returns a list of linux logins allowed for this role
+func (r *RoleResource) GetLogins() []string {
+	return r.Spec.Logins
+}
+
+// GetNodeLabels returns a list of matchign nodes this role has access to
+func (r *RoleResource) GetNodeLabels() map[string]string {
+	return r.Spec.NodeLabels
+}
+
+// GetNamespaces returns a list of namespaces this role has access to
+func (r *RoleResource) GetNamespaces() []string {
+	return r.Spec.Namespaces
+}
+
+// GetResources returns access to resources
+func (r *RoleResource) GetResources() map[string][]string {
+	return r.Spec.Resources
 }
 
 // RoleSpec is role specification
@@ -113,19 +159,6 @@ func (d *Duration) UnmarshalJSON(data []byte) error {
 	}
 	d.Duration = out
 	return nil
-}
-
-// UnmarshalRole unmarshals role from JSON or YAML,
-// sets defaults and checks the schema
-func UnmarshalRole(data []byte) (*RoleResource, error) {
-	if len(data) == 0 {
-		return nil, trace.BadParameter("empty input")
-	}
-	var role RoleResource
-	if err := utils.UnmarshalWithSchema(RoleSchema, &role, data); err != nil {
-		return nil, trace.BadParameter(err.Error())
-	}
-	return &role, nil
 }
 
 const MetadataSchema = `{
@@ -209,3 +242,51 @@ const NodeSelectorSchema = `{
     }
   }
 }`
+
+// UnmarshalRoleResource unmarshals role from JSON or YAML,
+// sets defaults and checks the schema
+func UnmarshalRoleResource(data []byte) (*RoleResource, error) {
+	if len(data) == 0 {
+		return nil, trace.BadParameter("empty input")
+	}
+	var role RoleResource
+	if err := utils.UnmarshalWithSchema(RoleSchema, &role, data); err != nil {
+		return nil, trace.BadParameter(err.Error())
+	}
+	return &role, nil
+}
+
+var roleMarshaler RoleMarshaler = &TeleportRoleMarshaler{}
+
+func SetRoleMarshaler(u RoleMarshaler) {
+	mtx.Lock()
+	defer mtx.Unlock()
+	roleMarshaler = u
+}
+
+func GetRoleMarshaler() RoleMarshaler {
+	mtx.Lock()
+	defer mtx.Unlock()
+	return roleMarshaler
+}
+
+// RoleMarshaler implements marshal/unmarshal of Role implementations
+// mostly adds support for extended versions
+type RoleMarshaler interface {
+	// UnmarshalRole from binary representation
+	UnmarshalRole(bytes []byte) (Role, error)
+	// MarshalRole to binary representation
+	MarshalRole(u Role) ([]byte, error)
+}
+
+type TeleportRoleMarshaler struct{}
+
+// UnmarshalRole unmarshals role from JSON
+func (*TeleportRoleMarshaler) UnmarshalRole(bytes []byte) (Role, error) {
+	return UnmarshalRoleResource(bytes)
+}
+
+// MarshalRole marshalls role into JSON
+func (*TeleportRoleMarshaler) MarshalRole(u Role) ([]byte, error) {
+	return json.Marshal(u)
+}

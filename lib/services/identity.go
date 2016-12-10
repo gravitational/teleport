@@ -404,30 +404,42 @@ func (u Users) Swap(i, j int) {
 }
 
 var mtx sync.Mutex
-var unmarshaler UserUnmarshaler
+var userMarshaler UserMarshaler = &TeleportUserMarshaler{}
 
-func SetUserUnmarshaler(u UserUnmarshaler) {
+func SetUserMarshaler(u UserMarshaler) {
 	mtx.Lock()
 	defer mtx.Unlock()
-	unmarshaler = u
+	userMarshaler = u
 }
 
-func GetUserUnmarshaler() UserUnmarshaler {
+func GetUserMarshaler() UserMarshaler {
 	mtx.Lock()
 	defer mtx.Unlock()
-	if unmarshaler == nil {
-		return TeleportUserUnmarshaler
-	}
-	return unmarshaler
+	return userMarshaler
 }
 
-type UserUnmarshaler func(bytes []byte) (User, error)
+// UserMarshaler implements marshal/unmarshal of User implementations
+// mostly adds support for extended versions
+type UserMarshaler interface {
+	// UnmarshalUser from binary representation
+	UnmarshalUser(bytes []byte) (User, error)
+	// MarshalUser to binary representation
+	MarshalUser(u User) ([]byte, error)
+}
 
-func TeleportUserUnmarshaler(bytes []byte) (User, error) {
+type TeleportUserMarshaler struct{}
+
+// UnmarshalUser unmarshals user from JSON
+func (*TeleportUserMarshaler) UnmarshalUser(bytes []byte) (User, error) {
 	var u *TeleportUser
 	err := json.Unmarshal(bytes, &u)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return u, nil
+}
+
+// MarshalUser marshalls user into JSON
+func (*TeleportUserMarshaler) MarshalUser(u User) ([]byte, error) {
+	return json.Marshal(u)
 }

@@ -18,7 +18,6 @@ package services
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 
@@ -121,7 +120,7 @@ spec:
 	}
 	for i, tc := range testCases {
 		comment := Commentf("test case %v", i)
-		role, err := UnmarshalRole([]byte(tc.in))
+		role, err := UnmarshalRoleResource([]byte(tc.in))
 		if tc.error != nil {
 			c.Assert(err, NotNil, comment)
 		} else {
@@ -131,9 +130,7 @@ spec:
 			out, err := json.Marshal(*role)
 			c.Assert(err, IsNil, comment)
 
-			fmt.Printf("out: %v\n", string(out))
-
-			role2, err := UnmarshalRole(out)
+			role2, err := UnmarshalRoleResource(out)
 			c.Assert(err, IsNil, comment)
 			c.Assert(*role2, DeepEquals, tc.role, comment)
 		}

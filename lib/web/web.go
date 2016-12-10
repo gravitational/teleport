@@ -444,7 +444,7 @@ type createSessionResponseRaw struct {
 }
 
 func (r createSessionResponseRaw) response() (*CreateSessionResponse, error) {
-	user, err := services.GetUserUnmarshaler()(r.User)
+	user, err := services.GetUserMarshaler().UnmarshalUser(r.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

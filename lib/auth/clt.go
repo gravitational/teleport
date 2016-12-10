@@ -511,7 +511,7 @@ func (c *Client) GetUser(name string) (services.User, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := services.GetUserUnmarshaler()(out.Bytes())
+	user, err := services.GetUserMarshaler().UnmarshalUser(out.Bytes())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -530,7 +530,7 @@ func (c *Client) GetUsers() ([]services.User, error) {
 	}
 	users := make([]services.User, len(items))
 	for i, userBytes := range items {
-		user, err := services.GetUserUnmarshaler()(userBytes)
+		user, err := services.GetUserMarshaler().UnmarshalUser(userBytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
