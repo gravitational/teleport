@@ -179,7 +179,7 @@ const MetadataSchema = `{
   }
 }`
 
-const RoleSpecSchema = `{
+const RoleSpecSchemaTemplate = `{
   "type": "object",
   "additionalProperties": false,
   "default": {},
@@ -202,11 +202,12 @@ const RoleSpecSchema = `{
       "patternProperties": {
          "^[a-zA-Z/.0-9_]$":  { "type": "array", "items": {"type": "string"} }
        }
-    }
+    },
+    "extensions": %v
   }
 }`
 
-var RoleSchema = fmt.Sprintf(`{
+const RoleSchemaTemplate = `{
   "type": "object",
   "additionalProperties": false,
   "default": {},
@@ -217,31 +218,19 @@ var RoleSchema = fmt.Sprintf(`{
     "metadata": %v,
     "spec": %v
   }
-}`, MetadataSchema, RoleSpecSchema)
-
-const NodeSelectorSchema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "default": {},
-  "properties": {
-    "match_labels": {
-      "type": "object",
-      "default": {},
-      "additionalProperties": false,
-      "patternProperties": {
-         "^[a-zA-Z/.0-9_]$":  { "type": "string" }
-      }
-    },
-    "namespaces": {
-      "type": "object",
-      "default": {},
-      "additionalProperties": false,
-      "patternProperties": {
-         ".*":  { "type": "boolean" }
-      }
-    }
-  }
 }`
+
+// GetRoleSchema returns role schema with optionally injected
+// schema for extensions
+func GetRoleSchema(extensionSchema string) string {
+	var roleSchema string
+	if extensionSchema == "" {
+		roleSchema = fmt.Sprintf(RoleSpecSchemaTemplate, `{"type": "object"}`)
+	} else {
+		roleSchema = fmt.Sprintf(RoleSpecSchemaTemplate, extensionSchema)
+	}
+	return fmt.Sprintf(RoleSchemaTemplate, MetadataSchema, roleSchema)
+}
 
 // UnmarshalRoleResource unmarshals role from JSON or YAML,
 // sets defaults and checks the schema
@@ -250,7 +239,7 @@ func UnmarshalRoleResource(data []byte) (*RoleResource, error) {
 		return nil, trace.BadParameter("empty input")
 	}
 	var role RoleResource
-	if err := utils.UnmarshalWithSchema(RoleSchema, &role, data); err != nil {
+	if err := utils.UnmarshalWithSchema(GetRoleSchema(""), &role, data); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
 	return &role, nil
