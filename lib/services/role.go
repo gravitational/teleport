@@ -408,3 +408,21 @@ func (*TeleportRoleMarshaler) UnmarshalRole(bytes []byte) (Role, error) {
 func (*TeleportRoleMarshaler) MarshalRole(u Role) ([]byte, error) {
 	return json.Marshal(u)
 }
+
+// SortedRoles sorts roles by name
+type SortedRoles []Role
+
+// Len returns length of a role list
+func (s SortedRoles) Len() int {
+	return len(s)
+}
+
+// Less compares roles by name
+func (s SortedRoles) Less(i, j int) bool {
+	return s[i].GetMetadata().Name < s[j].GetMetadata().Name
+}
+
+// Swap swaps two roles in a list
+func (s SortedRoles) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
