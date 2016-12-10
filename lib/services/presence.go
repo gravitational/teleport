@@ -78,8 +78,13 @@ type Server struct {
 	ID        string                  `json:"id"`
 	Addr      string                  `json:"addr"`
 	Hostname  string                  `json:"hostname"`
+	Namespace string                  `json:"namespace"`
 	Labels    map[string]string       `json:"labels"`
 	CmdLabels map[string]CommandLabel `json:"cmd_labels"`
+}
+
+func (s *Server) GetNamespace() string {
+	return ProcessNamespace(s.Namespace)
 }
 
 // ReverseTunnel is SSH reverse tunnel established between a local Proxy

@@ -21,7 +21,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 )
 
@@ -48,6 +50,21 @@ const (
 	// V1 is our current version
 	V1 = "v1"
 )
+
+// Access service manages roles and permissions
+type Access interface {
+	// GetRoles returns a list of roles
+	GetRoles() ([]Role, error)
+
+	// UpsertRole creates or updates role
+	UpserRole(role Role) error
+
+	// GetRole returns role by name
+	GetRole(name string) (Role, error)
+
+	// DeleteRole deletes role by name
+	DeleteRole(name string) error
+}
 
 // Role contains a set of permissions or settings
 type Role interface {
@@ -119,6 +136,25 @@ func (r *RoleResource) GetResources() map[string][]string {
 	return r.Spec.Resources
 }
 
+// Check checks validity of all parameters and sets defaults
+func (r *RoleResource) CheckAndSetDefaults() error {
+	if r.Metadata.Name == "" {
+		return trace.BadParameter("missing parameter Name")
+	}
+	if r.Spec.MaxSessionTTL.Duration == 0 {
+		r.Spec.MaxSessionTTL.Duration = defaults.MaxCertDuration
+	}
+	if r.Spec.MaxSessionTTL.Duration < defaults.MinCertDuration {
+		return trace.BadParameter("maximum session TTL can not be less than")
+	}
+	for key, val := range r.Spec.NodeLabels {
+		if key == Wildcard && val != Wildcard {
+			return trace.BadParameter("selector *:<val> is not supported")
+		}
+	}
+	return nil
+}
+
 // RoleSpec is role specification
 type RoleSpec struct {
 	// MaxSessionTTL is a maximum SSH or Web session TTL
@@ -132,6 +168,99 @@ type RoleSpec struct {
 	Namespaces []string `json:"namespaces,omitempty"`
 	// Resources limits access to resources
 	Resources map[string][]string `json:"resources,omitempty"`
+}
+
+// AccessChecker interface implements access checks for given role
+type AccessChecker interface {
+	// CheckAccessToServer checks access to server
+	CheckAccessToServer(Server) error
+	// CheckAccessToResourceAction check access to resource action
+	CheckAccessToResourceAction(resourceNamespace, resourceName, accessType string) error
+}
+
+// RoleSet is a set of roles that implements access control functionality
+type RoleSet []Role
+
+// MatchResourceAction tests if selector matches required resource action in a given namespace
+func MatchResourceAction(selector map[string][]string, resourceName, resourceAction string) bool {
+	// empty selector matches nothing
+	if len(selector) == 0 {
+		return false
+	}
+
+	// check for wildcard resource matcher
+	for _, action := range selector[Wildcard] {
+		if action == Wildcard || action == resourceAction {
+			return true
+		}
+	}
+
+	// check for matching resource by name
+	for _, action := range selector[resourceName] {
+		if action == Wildcard || action == resourceAction {
+			return true
+		}
+	}
+	return false
+}
+
+// MatchNamespace returns true if given list of namespace matches
+// target namespace, wildcard matches everything
+func MatchNamespace(selector []string, namespace string) bool {
+	for _, n := range selector {
+		if n == namespace || n == Wildcard {
+			return true
+		}
+	}
+	return false
+}
+
+// MatchLabels matches selector against target
+func MatchLabels(selector map[string]string, target map[string]string) bool {
+	// empty selector matches nothing
+	if len(selector) == 0 {
+		return false
+	}
+	// *: * matches everything even empty target set
+	if selector[Wildcard] == Wildcard {
+		return true
+	}
+	for key, val := range selector {
+		if targetVal, ok := target[key]; !ok || (val != targetVal && val != Wildcard) {
+			return false
+		}
+	}
+	return true
+}
+
+// CheckAccessToServer checks if role set has access to server based
+// on combined role's selector
+func (set RoleSet) CheckAccessToServer(s Server) error {
+	for _, role := range set {
+		if MatchNamespace(role.GetNamespaces(), s.GetNamespace()) && MatchLabels(role.GetNodeLabels(), s.Labels) {
+			return nil
+		}
+	}
+	return trace.AccessDenied("access to server is denied")
+}
+
+// CheckAccessToResourceAction checks if role set has access to this resource action
+func (set RoleSet) CheckAccessToResourceAction(resourceNamespace, resourceName, accessType string) error {
+	resourceNamespace = ProcessNamespace(resourceNamespace)
+	for _, role := range set {
+		if MatchNamespace(role.GetNamespaces(), resourceNamespace) && MatchResourceAction(role.GetResources(), resourceName, accessType) {
+			return nil
+		}
+	}
+	return trace.AccessDenied("%v access %v in namespace %v is denied")
+}
+
+// ProcessNamespace sets default namespace in case if namespace is empty
+func ProcessNamespace(namespace string) string {
+	if namespace == "" {
+		return DefaultNamespace
+	}
+	return namespace
 }
 
 // Duration is a wrapper around duration to set up custom marshal/unmarshal
