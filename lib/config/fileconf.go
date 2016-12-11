@@ -109,7 +109,7 @@ var (
 		"access_key":         true,
 		"secret_key":         true,
 		"u2f":                true,
-		"appid":              true,
+		"app_id":             true,
 		"facets":             true,
 	}
 )
@@ -623,7 +623,7 @@ func (t StaticToken) Parse() (roles teleport.Roles, token string, err error) {
 
 type U2F struct {
 	EnabledFlag string   `yaml:"enabled"`
-	AppID       string   `yaml:"appid,omitempty"`
+	AppID       string   `yaml:"app_id,omitempty"`
 	Facets      []string `yaml:"facets,omitempty"`
 }
 
