@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
@@ -508,6 +509,10 @@ func (s *APIServer) generateUserCert(w http.ResponseWriter, r *http.Request, _ h
 	if req.User != caller && s.a.role != teleport.RoleAdmin {
 		return nil, trace.AccessDenied("user %s cannot request a certificate for %s",
 			caller, req.User)
+	}
+	if req.TTL > defaults.MaxCertDuration && s.a.role != teleport.RoleAdmin {
+		return nil, trace.AccessDenied("user %s cannot request a certificate for %s for %v",
+			caller, req.User, req.TTL)
 	}
 	cert, err := s.a.GenerateUserCert(req.Key, req.User, req.TTL)
 	if err != nil {
