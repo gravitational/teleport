@@ -110,7 +110,7 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	conf, err = ReadFromFile("/heaven/trees/apple.ymL")
 	c.Assert(conf, check.IsNil)
 	c.Assert(err, check.NotNil)
-	c.Assert(err, check.ErrorMatches, ".*no such file.*")
+	c.Assert(err, check.ErrorMatches, ".*failed to open file.*")
 	// bad content:
 	conf, err = ReadFromFile(s.configFileBadContent)
 	c.Assert(err, check.NotNil)
