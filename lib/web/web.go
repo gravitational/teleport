@@ -279,9 +279,10 @@ func (m *Handler) getSettings(w http.ResponseWriter, r *http.Request) (interface
 	}
 	u2fAppID, err := m.cfg.ProxyClient.GetU2FAppID()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		settings.Auth.U2FAppID = ""
+	} else {
+		settings.Auth.U2FAppID = u2fAppID
 	}
-	settings.Auth.U2FAppID = u2fAppID
 	out, err := json.Marshal(settings)
 	if err != nil {
 		return nil, trace.Wrap(err)

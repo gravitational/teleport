@@ -175,6 +175,9 @@ func (a *AuthServer) GetDomainName() (string, error) {
 }
 
 func (a *AuthServer) GetU2FAppID() (string, error) {
+	if err := a.CheckU2FEnabled(); err != nil {
+		return "", err
+	}
 	return a.U2F.AppID, nil
 }
 
