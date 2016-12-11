@@ -633,14 +633,23 @@ func (u *U2F) Parse() (*services.U2F, error) {
 	case "yes", "yeah", "y", "true", "1":
 		enabled = true
 	}
+	appID := u.AppID
+	// If no appID specified, default to hostname
+	if appID == "" {
+		hostname, err := os.Hostname()
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to automatically determine U2F AppID from hostname")
+		}
+		appID = fmt.Sprintf("https://%s:%d", strings.ToLower(hostname), defaults.HTTPListenPort)
+	}
 	facets := u.Facets
 	// If no facets specified, default to AppID
 	if len(facets) == 0 {
-		facets = []string{u.AppID}
+		facets = []string{appID}
 	}
 	other := &services.U2F{
 		Enabled: enabled,
-		AppID:   u.AppID,
+		AppID:   appID,
 		Facets:  facets,
 	}
 	if err := other.Check(); err != nil {
