@@ -79,7 +79,6 @@ func (s *AccessService) GetRole(name string) (services.Role, error) {
 		}
 		return nil, trace.Wrap(err)
 	}
-
 	return services.UnmarshalRoleResource(data)
 }
 

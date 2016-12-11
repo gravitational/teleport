@@ -52,6 +52,7 @@ func NewTestCA(caType services.CertAuthType, domainName string) *services.CertAu
 }
 
 type ServicesTestSuite struct {
+	Access        services.Access
 	CAS           services.Trust
 	LockS         services.Lock
 	PresenceS     services.Presence
@@ -401,6 +402,46 @@ func (s *ServicesTestSuite) PasswordCRUD(c *C) {
 	token9 := otp.OTP()
 	c.Assert(s.WebS.CheckPassword("user1", pass, token9), IsNil)
 
+}
+
+func (s *ServicesTestSuite) RolesCRUD(c *C) {
+	out, err := s.Access.GetRoles()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
+
+	role := services.RoleResource{
+		Kind:    services.KindRole,
+		Version: services.V1,
+		Metadata: services.Metadata{
+			Name:      "role1",
+			Namespace: services.DefaultNamespace,
+		},
+		Spec: services.RoleSpec{
+			Logins:        []string{"root", "bob"},
+			NodeLabels:    map[string]string{services.Wildcard: services.Wildcard},
+			MaxSessionTTL: services.Duration{Duration: time.Hour},
+			Namespaces:    []string{"default", "system"},
+			Resources:     map[string][]string{services.KindRole: []string{services.ActionRead}},
+		},
+	}
+	err = s.Access.UpsertRole(&role)
+	c.Assert(err, IsNil)
+	rout, err := s.Access.GetRole(role.Metadata.Name)
+	c.Assert(err, IsNil)
+	c.Assert(rout, DeepEquals, &role)
+
+	role.Spec.Logins = []string{"bob"}
+	err = s.Access.UpsertRole(&role)
+	c.Assert(err, IsNil)
+	rout, err = s.Access.GetRole(role.Metadata.Name)
+	c.Assert(err, IsNil)
+	c.Assert(rout, DeepEquals, &role)
+
+	err = s.Access.DeleteRole(role.Metadata.Name)
+	c.Assert(err, IsNil)
+
+	_, err = s.Access.GetRole(role.Metadata.Name)
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%T", err))
 }
 
 func (s *ServicesTestSuite) PasswordGarbage(c *C) {

@@ -57,7 +57,7 @@ type Access interface {
 	GetRoles() ([]Role, error)
 
 	// UpsertRole creates or updates role
-	UpserRole(role Role) error
+	UpsertRole(role Role) error
 
 	// GetRole returns role by name
 	GetRole(name string) (Role, error)
@@ -321,6 +321,12 @@ const RoleSpecSchemaTemplate = `{
       }
     },
     "namespaces": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "logins": {
       "type": "array",
       "items": {
         "type": "string"
