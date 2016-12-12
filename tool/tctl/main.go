@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -76,11 +77,11 @@ type AuthCommand struct {
 	authType                   string
 	genPubPath                 string
 	genPrivPath                string
-	genCertPath                string
 	genUser                    string
 	genTTL                     time.Duration
 	exportAuthorityFingerprint string
 	exportPrivateKeys          bool
+	outDir                     string
 }
 
 type AuthServerCommand struct {
@@ -173,12 +174,10 @@ func main() {
 	authGenerate.Flag("pub-key", "path to the public key").Required().StringVar(&cmdAuth.genPubPath)
 	authGenerate.Flag("priv-key", "path to the private key").Required().StringVar(&cmdAuth.genPrivPath)
 
-	authSign := auth.Command("sign", "Generate OpenSSH keys and certificate for user").Hidden()
-	authSign.Flag("priv-key", "path to the private key to write").Required().StringVar(&cmdAuth.genPrivPath)
-	authSign.Flag("pub-key", "path to the private key to write").Required().StringVar(&cmdAuth.genPubPath)
-	authSign.Flag("cert", "path to the public signed cert to write").Required().StringVar(&cmdAuth.genCertPath)
-	authSign.Flag("user", "teleport user name").Required().StringVar(&cmdAuth.genUser)
-	authSign.Flag("ttl", "path to the public signed cert to write").Default(fmt.Sprintf("%v", defaults.CertDuration)).DurationVar(&cmdAuth.genTTL)
+	authSign := auth.Command("sign", "Create a signed user session cerfiticate")
+	authSign.Flag("user", "Teleport user name").Required().StringVar(&cmdAuth.genUser)
+	authSign.Flag("out", "Output directory [defaults to current]").Short('o').StringVar(&cmdAuth.outDir)
+	authSign.Flag("ttl", "TTL (time to live) for the generated certificate").Default(fmt.Sprintf("%v", defaults.CertDuration)).DurationVar(&cmdAuth.genTTL)
 
 	// operations with reverse tunnels
 	reverseTunnels := app.Command("tunnels", "Operations on reverse tunnels clusters").Hidden()
@@ -617,22 +616,39 @@ func (a *AuthCommand) GenerateAndSignKeys(client *auth.TunClient) error {
 		return trace.Wrap(err)
 	}
 
-	err = ioutil.WriteFile(a.genCertPath, cert, 0600)
+	certPath := a.genUser + ".cert"
+	keyPath := a.genUser + ".key"
+	pubPath := a.genUser + ".pub"
+
+	// --out flag
+	if a.outDir != "" {
+		if !utils.IsDir(a.outDir) {
+			if err = os.MkdirAll(a.outDir, 0770); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		certPath = filepath.Join(a.outDir, certPath)
+		keyPath = filepath.Join(a.outDir, keyPath)
+		pubPath = filepath.Join(a.outDir, pubPath)
+	}
+
+	err = ioutil.WriteFile(certPath, cert, 0600)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = ioutil.WriteFile(a.genPrivPath, privateKey, 0600)
+	err = ioutil.WriteFile(keyPath, privateKey, 0600)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = ioutil.WriteFile(a.genPubPath, publicKey, 0600)
+	err = ioutil.WriteFile(pubPath, publicKey, 0600)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("wrote public key to: %v, private key to: %v, certificate to: %v\n", a.genPubPath, a.genPrivPath, a.genCertPath)
+	fmt.Printf("Public key : %v\nPrivate key: %v\nCertificate: %v\n",
+		pubPath, keyPath, certPath)
 	return nil
 }
 
