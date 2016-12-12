@@ -218,8 +218,11 @@ func NewAuditLog(dataDir string) (IAuditLog, error) {
 }
 
 // PostSessionChunk writes a new chunk of session stream into the audit log
-func (l *AuditLog) PostSessionChunk(sid session.ID, reader io.Reader) error {
-	sl, err := l.LoggerFor(sid)
+func (l *AuditLog) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
+	if namespace == "" {
+		return trace.BadParameter("missing parameter Namespace")
+	}
+	sl, err := l.LoggerFor(namespace, sid)
 	if err != nil {
 		log.Warnf("audit.log: no session writer for %s", sid)
 		return nil
@@ -236,9 +239,12 @@ func (l *AuditLog) PostSessionChunk(sid session.ID, reader io.Reader) error {
 // to receive a live stream of a given session. The reader allows access to a
 // session stream range from offsetBytes to offsetBytes+maxBytes
 //
-func (l *AuditLog) GetSessionChunk(sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	log.Debugf("audit.log: getSessionReader(%v)", sid)
-	fstream, err := os.OpenFile(l.sessionStreamFn(sid), os.O_RDONLY, 0640)
+func (l *AuditLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
+	log.Debugf("audit.log: getSessionReader(%v, %v)", namespace, sid)
+	if namespace == "" {
+		return nil, trace.BadParameter("missing parameter namespace")
+	}
+	fstream, err := os.OpenFile(l.sessionStreamFn(namespace, sid), os.O_RDONLY, 0640)
 	if err != nil {
 		log.Warning(err)
 		return nil, trace.Wrap(err)
@@ -262,8 +268,11 @@ func (l *AuditLog) GetSessionChunk(sid session.ID, offsetBytes, maxBytes int) ([
 //
 // This function is usually used in conjunction with GetSessionReader to
 // replay recorded session streams.
-func (l *AuditLog) GetSessionEvents(sid session.ID, afterN int) ([]EventFields, error) {
-	logFile, err := os.OpenFile(l.sessionLogFn(sid), os.O_RDONLY, 0640)
+func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int) ([]EventFields, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing parameter namespace")
+	}
+	logFile, err := os.OpenFile(l.sessionLogFn(namespace, sid), os.O_RDONLY, 0640)
 	if err != nil {
 		log.Warn(err)
 		// no file found? this means no events have been logged yet
@@ -313,7 +322,7 @@ func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 	// if this event is associated with a session -> forward it to the session log as well
 	sessionID := fields.GetString(SessionEventID)
 	if sessionID != "" {
-		sl, err := l.LoggerFor(session.ID(sessionID))
+		sl, err := l.LoggerFor(fields.GetString(EventNamespace), session.ID(sessionID))
 		if err == nil {
 			sl.LogEvent(fields)
 
@@ -327,6 +336,8 @@ func (l *AuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 					log.Error(err)
 				}
 			}
+		} else {
+			log.Warning(err.Error())
 		}
 	}
 	// log it to the main log file:
@@ -341,7 +352,7 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]Event
 	log.Infof("auditLog.SearchEvents(%v, %v, query=%v)", fromUTC, toUTC, query)
 	queryVals, err := url.ParseQuery(query)
 	if err != nil {
-		return nil, trace.BadParameter("query", query)
+		return nil, trace.BadParameter("missing parameter query", query)
 	}
 	// how many days of logs to search?
 	days := int(toUTC.Sub(fromUTC).Hours() / 24)
@@ -494,46 +505,52 @@ func (l *AuditLog) Close() error {
 
 // sessionStreamFn helper determins the name of the stream file for a given
 // session by its ID
-func (l *AuditLog) sessionStreamFn(sid session.ID) string {
+func (l *AuditLog) sessionStreamFn(namespace string, sid session.ID) string {
 	return filepath.Join(
 		l.dataDir,
 		SessionLogsDir,
+		namespace,
 		fmt.Sprintf("%s%s", sid, SessionStreamPrefix))
 }
 
 // sessionLogFn helper determins the name of the stream file for a given
 // session by its ID
-func (l *AuditLog) sessionLogFn(sid session.ID) string {
+func (l *AuditLog) sessionLogFn(namespace string, sid session.ID) string {
 	return filepath.Join(
 		l.dataDir,
 		SessionLogsDir,
+		namespace,
 		fmt.Sprintf("%s%s", sid, SessionLogPrefix))
 }
 
 // LoggerFor creates a logger for a specified session. Session loggers allow
 // to group all events into special "session log files" for easier audit
-func (l *AuditLog) LoggerFor(sid session.ID) (sl *SessionLogger, err error) {
+func (l *AuditLog) LoggerFor(namespace string, sid session.ID) (sl *SessionLogger, err error) {
 	l.Lock()
 	defer l.Unlock()
+
+	if namespace == "" {
+		return nil, trace.BadParameter("missing parameter namespace")
+	}
 
 	sl, ok := l.loggers[sid]
 	if ok {
 		return sl, nil
 	}
 	// make sure session logs dir is present
-	sdir := filepath.Join(l.dataDir, SessionLogsDir)
+	sdir := filepath.Join(l.dataDir, SessionLogsDir, namespace)
 	if err := os.MkdirAll(sdir, 0770); err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
 	// create a new session stream file:
-	fstream, err := os.OpenFile(l.sessionStreamFn(sid), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+	fstream, err := os.OpenFile(l.sessionStreamFn(namespace, sid), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
 	// create a new session file:
-	fevents, err := os.OpenFile(l.sessionLogFn(sid), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+	fevents, err := os.OpenFile(l.sessionLogFn(namespace, sid), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)

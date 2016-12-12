@@ -126,6 +126,9 @@ const (
 	// AccountLockInterval defines a time interval during which a user account
 	// is locked after MaxLoginAttempts
 	AccountLockInterval = time.Duration(20 * time.Minute)
+
+	// Namespace is default namespace
+	Namespace = "default"
 )
 
 var (

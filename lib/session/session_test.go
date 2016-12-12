@@ -76,12 +76,13 @@ func (s *BoltSuite) TestID(c *C) {
 }
 
 func (s *BoltSuite) TestSessionsCRUD(c *C) {
-	out, err := s.srv.GetSessions()
+	out, err := s.srv.GetSessions(defaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
 	sess := Session{
 		ID:             NewID(),
+		Namespace:      defaults.Namespace,
 		Active:         true,
 		TerminalParams: TerminalParams{W: 100, H: 100},
 		Login:          "bob",
@@ -90,35 +91,37 @@ func (s *BoltSuite) TestSessionsCRUD(c *C) {
 	}
 	c.Assert(s.srv.CreateSession(sess), IsNil)
 
-	out, err = s.srv.GetSessions()
+	out, err = s.srv.GetSessions(defaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []Session{sess})
 
-	s2, err := s.srv.GetSession(sess.ID)
+	s2, err := s.srv.GetSession(defaults.Namespace, sess.ID)
 	c.Assert(err, IsNil)
 	c.Assert(s2, DeepEquals, &sess)
 
 	// Mark session inactive
 	err = s.srv.UpdateSession(UpdateRequest{
-		ID:     sess.ID,
-		Active: Bool(false),
+		ID:        sess.ID,
+		Namespace: defaults.Namespace,
+		Active:    Bool(false),
 	})
 	c.Assert(err, IsNil)
 
 	sess.Active = false
-	s2, err = s.srv.GetSession(sess.ID)
+	s2, err = s.srv.GetSession(defaults.Namespace, sess.ID)
 	c.Assert(err, IsNil)
 	c.Assert(s2, DeepEquals, &sess)
 
 	// Update session terminal parameter
 	err = s.srv.UpdateSession(UpdateRequest{
 		ID:             sess.ID,
+		Namespace:      defaults.Namespace,
 		TerminalParams: &TerminalParams{W: 101, H: 101},
 	})
 	c.Assert(err, IsNil)
 
 	sess.TerminalParams = TerminalParams{W: 101, H: 101}
-	s2, err = s.srv.GetSession(sess.ID)
+	s2, err = s.srv.GetSession(defaults.Namespace, sess.ID)
 	c.Assert(err, IsNil)
 	c.Assert(s2, DeepEquals, &sess)
 }
@@ -128,6 +131,7 @@ func (s *BoltSuite) TestSessionsCRUD(c *C) {
 func (s *BoltSuite) TestSessionsInactivity(c *C) {
 	sess := Session{
 		ID:             NewID(),
+		Namespace:      defaults.Namespace,
 		Active:         true,
 		TerminalParams: TerminalParams{W: 100, H: 100},
 		Login:          "bob",
@@ -140,7 +144,7 @@ func (s *BoltSuite) TestSessionsInactivity(c *C) {
 	s.clock.Sleep(defaults.ActiveSessionTTL + time.Second)
 
 	// should not be in active sessions:
-	s2, err := s.srv.GetSession(sess.ID)
+	s2, err := s.srv.GetSession(defaults.Namespace, sess.ID)
 	c.Assert(err, IsNil)
 	c.Assert(s2, IsNil)
 }
@@ -149,6 +153,7 @@ func (s *BoltSuite) TestPartiesCRUD(c *C) {
 	// create session:
 	sess := Session{
 		ID:             NewID(),
+		Namespace:      defaults.Namespace,
 		Active:         true,
 		TerminalParams: TerminalParams{W: 100, H: 100},
 		Login:          "vincent",
@@ -174,25 +179,26 @@ func (s *BoltSuite) TestPartiesCRUD(c *C) {
 		},
 	}
 	s.srv.UpdateSession(UpdateRequest{
-		ID:      sess.ID,
-		Parties: &parties,
+		ID:        sess.ID,
+		Namespace: defaults.Namespace,
+		Parties:   &parties,
 	})
 	// verify they're in the session:
-	copy, err := s.srv.GetSession(sess.ID)
+	copy, err := s.srv.GetSession(defaults.Namespace, sess.ID)
 	c.Assert(err, IsNil)
 	c.Assert(len(copy.Parties), Equals, 2)
 
 	// empty update (list of parties must not change)
-	s.srv.UpdateSession(UpdateRequest{ID: sess.ID})
-	copy, _ = s.srv.GetSession(sess.ID)
+	s.srv.UpdateSession(UpdateRequest{ID: sess.ID, Namespace: defaults.Namespace})
+	copy, _ = s.srv.GetSession(defaults.Namespace, sess.ID)
 	c.Assert(len(copy.Parties), Equals, 2)
 
 	// remove the 2nd party:
 	deleted := copy.RemoveParty(parties[1].ID)
 	c.Assert(deleted, Equals, true)
 	s.srv.UpdateSession(UpdateRequest{ID: copy.ID,
-		Parties: &copy.Parties})
-	copy, _ = s.srv.GetSession(sess.ID)
+		Parties: &copy.Parties, Namespace: defaults.Namespace})
+	copy, _ = s.srv.GetSession(defaults.Namespace, sess.ID)
 	c.Assert(len(copy.Parties), Equals, 1)
 
 	// we still have the 1st party in:

@@ -205,6 +205,9 @@ func (u *UpdateRequest) Check() error {
 	if err := u.ID.Check(); err != nil {
 		return trace.Wrap(err)
 	}
+	if u.Namespace == "" {
+		return trace.BadParameter("missing parameter Namespace")
+	}
 	if u.TerminalParams != nil {
 		_, err := NewTerminalParamsFromInt(u.TerminalParams.W, u.TerminalParams.H)
 		if err != nil {
@@ -281,18 +284,18 @@ func New(bk backend.Backend, opts ...Option) (Service, error) {
 	return s, nil
 }
 
-func activeBucket() []string {
-	return []string{"sessions", "active"}
+func activeBucket(namespace string) []string {
+	return []string{"sessions", namespace, "active"}
 }
 
-func partiesBucket(id ID) []string {
-	return []string{"sessions", "parties", string(id)}
+func partiesBucket(namespace string, id ID) []string {
+	return []string{"sessions", namespace, "parties", string(id)}
 }
 
 // GetSessions returns a list of active sessions. Returns an empty slice
 // if no sessions are active
-func (s *server) GetSessions() ([]Session, error) {
-	bucket := activeBucket()
+func (s *server) GetSessions(namespace string) ([]Session, error) {
+	bucket := activeBucket(namespace)
 	out := make(Sessions, 0)
 
 	keys, err := s.bk.GetKeys(bucket)
@@ -304,7 +307,7 @@ func (s *server) GetSessions() ([]Session, error) {
 		if i > MaxSessionSliceLength {
 			break
 		}
-		se, err := s.GetSession(ID(sid))
+		se, err := s.GetSession(namespace, ID(sid))
 		if trace.IsNotFound(err) {
 			continue
 		}
@@ -337,9 +340,9 @@ func (slice Sessions) Len() int {
 
 // GetSession returns the session by it's id. Returns nil if a session
 // is not found
-func (s *server) GetSession(id ID) (*Session, error) {
+func (s *server) GetSession(namespace string, id ID) (*Session, error) {
 	var sess *Session
-	err := s.bk.GetJSONVal(activeBucket(), string(id), &sess)
+	err := s.bk.GetJSONVal(activeBucket(namespace), string(id), &sess)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -355,6 +358,9 @@ func (s *server) CreateSession(sess Session) error {
 	if err := sess.ID.Check(); err != nil {
 		return trace.Wrap(err)
 	}
+	if sess.Namespace == "" {
+		return trace.BadParameter("session namespace can not be empty")
+	}
 	if sess.Login == "" {
 		return trace.BadParameter("session login can not be empty")
 	}
@@ -369,7 +375,7 @@ func (s *server) CreateSession(sess Session) error {
 		return trace.Wrap(err)
 	}
 	sess.Parties = nil
-	err = s.bk.UpsertJSONVal(activeBucket(), string(sess.ID), sess, s.activeSessionTTL)
+	err = s.bk.UpsertJSONVal(activeBucket(sess.Namespace), string(sess.ID), sess, s.activeSessionTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -385,7 +391,7 @@ func (s *server) UpdateSession(req UpdateRequest) error {
 		return trace.Wrap(err)
 	}
 	var sess *Session
-	err := s.bk.GetJSONVal(activeBucket(), string(req.ID), &sess)
+	err := s.bk.GetJSONVal(activeBucket(req.Namespace), string(req.ID), &sess)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -398,7 +404,7 @@ func (s *server) UpdateSession(req UpdateRequest) error {
 	if req.Parties != nil {
 		sess.Parties = *req.Parties
 	}
-	err = s.bk.UpsertJSONVal(activeBucket(), string(req.ID), sess, s.activeSessionTTL)
+	err = s.bk.UpsertJSONVal(activeBucket(req.Namespace), string(req.ID), sess, s.activeSessionTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
