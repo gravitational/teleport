@@ -100,6 +100,8 @@ func NewID() ID {
 type Session struct {
 	// ID is a unique session identifier
 	ID ID `json:"id"`
+	// Namespace is a session namespace, separating sessions from each other
+	Namespace string `json:"namespace"`
 	// Parties is a list of session parties.
 	Parties []Party `json:"parties"`
 	// TerminalParams sets terminal properties
@@ -189,6 +191,7 @@ func Bool(val bool) *bool {
 // UpdateRequest is a session update request
 type UpdateRequest struct {
 	ID             ID              `json:"id"`
+	Namespace      string          `json:"namespace"`
 	Active         *bool           `json:"active"`
 	TerminalParams *TerminalParams `json:"terminal_params"`
 
@@ -221,9 +224,9 @@ const MaxSessionSliceLength = 1000
 type Service interface {
 	// GetSessions returns a list of currently active sessions
 	// with all parties involved
-	GetSessions() ([]Session, error)
+	GetSessions(namespace string) ([]Session, error)
 	// GetSession returns a session with it's parties by ID
-	GetSession(id ID) (*Session, error)
+	GetSession(namespace string, id ID) (*Session, error)
 	// CreateSession creates a new active session and it's parameters
 	// if term is skipped, terminal size won't be recorded
 	CreateSession(sess Session) error

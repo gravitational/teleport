@@ -43,6 +43,8 @@ type User interface {
 	GetAllowedLogins() []string
 	// GetIdentities returns a list of connected OIDCIdentities
 	GetIdentities() []OIDCIdentity
+	// GetRoles returns a list of roles assigned to user
+	GetRoles() []string
 	// String returns user
 	String() string
 	// Check checks if all parameters are correct
@@ -65,6 +67,9 @@ type TeleportUser struct {
 	// OIDCIdentities lists associated OpenID Connect identities
 	// that let user log in using externally verified identity
 	OIDCIdentities []OIDCIdentity `json:"oidc_identities"`
+
+	// Roles is a list of roles assigned to user
+	Roles string `json:"roles"`
 }
 
 // Equals checks if user equals to another
@@ -106,6 +111,11 @@ func (u *TeleportUser) GetAllowedLogins() []string {
 // GetIdentities returns a list of connected OIDCIdentities
 func (u *TeleportUser) GetIdentities() []OIDCIdentity {
 	return u.OIDCIdentities
+}
+
+// GetRoles returns a list of roles assigned to user
+func (u *TeleportUser) GetRoles() []string {
+	return u.Roles
 }
 
 // GetName returns user name

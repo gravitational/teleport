@@ -90,6 +90,11 @@ func (r *Role) Check() error {
 	return trace.BadParameter("role %v is not supported", *r)
 }
 
+// Role returns system username associated with it
+func (r *Role) User() string {
+	return fmt.Sprintf("@%v", strings.ToLower(string(*r)))
+}
+
 const (
 	// RoleAuth is for teleport auth server (authority, authentication and authorization)
 	RoleAuth Role = "Auth"

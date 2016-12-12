@@ -17,204 +17,124 @@ limitations under the License.
 package auth
 
 import (
+	"time"
+
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
 )
 
-// PermissionChecker interface verifies that clients have permissions
-// to execute any action of the auth server
-type PermissionChecker interface {
-	// HasPermission checks if the given role has a permission to execute
-	// the action
-	HasPermission(role teleport.Role, action string) error
+// NewChecker is a function that returns new access checker based on username
+type NewChecker func(username string) (services.AccessChecker, error)
+
+// AccessCheckers creates new checkers using Access services
+type AccessCheckers struct {
+	Access   services.Access
+	Identity services.Identity
 }
 
-// NewStandardPermissions returns permission checker with hardcoded roles
-// that are built in when auth server starts in standard mode
-func NewStandardPermissions() PermissionChecker {
-	sp := standardPermissions{}
-	sp.permissions = make(map[teleport.Role](map[string]bool))
-
-	sp.permissions[teleport.RoleAuth] = map[string]bool{
-		ActionUpsertAuthServer: true,
-		ActionGetAuthServers:   true,
+// GetChecker returns access checker based on the username
+func (a *AccessCheckers) GetChecker(username string) (services.AccessChecker, error) {
+	checker, err := GetCheckerForSystemUsers()
+	if err == nil {
+		return checker, nil
+	}
+	user, err := a.Identity.GetUser()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	sp.permissions[teleport.RoleUser] = map[string]bool{
-		ActionGetAuthServers:     true,
-		ActionSignIn:             true,
-		ActionExtendWebSession:   true,
-		ActionGenerateUserCert:   true,
-		ActionGetCertAuthorities: true,
-		ActionGetServers:         true,
-		ActionGetSession:         true,
-		ActionGetSessions:        true,
-		ActionViewSession:        true,
-	}
-
-	sp.permissions[teleport.RoleProvisionToken] = map[string]bool{
-		ActionRegisterUsingToken:    true,
-		ActionRegisterNewAuthServer: true,
-	}
-
-	sp.permissions[teleport.RoleNode] = map[string]bool{
-		ActionUpsertServer:       true,
-		ActionGetServers:         true,
-		ActionGetProxies:         true,
-		ActionGetAuthServers:     true,
-		ActionGetCertAuthorities: true,
-		ActionGetUsers:           true,
-		ActionGetUser:            true,
-		ActionGetLocalDomain:     true,
-		ActionGetUserKeys:        true,
-		ActionUpsertSession:      true,
-		ActionGetSession:         true,
-		ActionGetSessions:        true,
-		ActionEmitEvents:         true,
-		ActionViewSession:        true,
-	}
-
-	sp.permissions[teleport.RoleProxy] = map[string]bool{
-		ActionGetUser:                         true,
-		ActionGetOIDCConnectorsWithoutSecrets: true,
-		ActionGetReverseTunnels:               true,
-		ActionGetServers:                      true,
-		ActionUpsertProxy:                     true,
-		ActionGetProxies:                      true,
-		ActionGetAuthServers:                  true,
-		ActionGetCertAuthorities:              true,
-		ActionGetUsers:                        true,
-		ActionGetLocalDomain:                  true,
-		ActionGetUserKeys:                     true,
-		ActionGetSession:                      true,
-		ActionViewSession:                     true,
-		ActionGetSessions:                     true,
-		ActionCreateOIDCAuthRequest:           true,
-		ActionValidateOIDCAuthCallback:        true,
-		ActionEmitEvents:                      true,
-	}
-
-	sp.permissions[teleport.RoleWeb] = map[string]bool{
-		ActionGetUser:          true,
-		ActionGetAuthServers:   true,
-		ActionUpsertSession:    true,
-		ActionExtendWebSession: true,
-		ActionGetWebSession:    true,
-		ActionDeleteWebSession: true,
-		ActionGetSession:       true,
-		ActionViewSession:      true,
-		ActionGetSessions:      true,
-	}
-
-	sp.permissions[teleport.RoleSignup] = map[string]bool{
-		ActionGetSignupTokenData:  true,
-		ActionCreateUserWithToken: true,
-		ActionGetAuthServers:      true,
-	}
-
-	return &sp
-}
-
-type standardPermissions struct {
-	permissions map[teleport.Role](map[string]bool)
-}
-
-func (sp *standardPermissions) HasPermission(role teleport.Role, action string) error {
-	if role == teleport.RoleAdmin {
-		return nil
-	}
-	if permissions, ok := sp.permissions[role]; ok {
-		if permissions[action] {
-			return nil
+	var roles RoleSet
+	for _, roleName := range user.GetRoles() {
+		role, err := a.Access.GetRole(roleName)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return trace.AccessDenied(
-			"role '%v' doesn't have permission for action '%v'",
-			role, action)
+		roles = append(roles, role)
 	}
-	return trace.AccessDenied("role '%v' is not allowed", role)
+	return roles, nil
 }
 
-type allowAllPermissions struct {
-}
+// GetCheckerForSystemUsers returns checkers for embedded system users
+// hardcoded in the system
+func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
+	switch role {
+	case teleport.RoleAuth.User():
+		return services.FromSpec(
+			role.String(),
+			services.RoleSpec{
+				Resources: map[string][]string{
+					services.KindAuthServer: services.RW()},
+			})
+	case teleport.RoleProvisionToken.User():
+		return services.FromSpec(role.String(), services.RoleSpec{})
+	case teleport.RoleNode.User():
+		return services.FromSpec(
+			role.String(),
+			services.RoleSpec{
+				Resources: map[string][]string{
+					services.KindNode:          services.RW(),
+					services.KindSession:       services.RW(),
+					services.KindEvent:         services.RW(),
+					services.KindProxy:         services.RO(),
+					services.KindCertAuthority: services.RO(),
+					services.KindUser:          services.RO(),
+					services.KindRole:          services.RO(),
+				},
+			})
+	case teleport.RoleProxy.User():
+		return services.FromSpec(
+			role.String(),
+			services.RoleSpec{
+				Resources: map[string][]string{
+					services.KindProxy:         services.RW(),
+					services.KindOIDCRequest:   services.RW(),
+					services.KindEvent:         services.RW(),
+					services.KindSession:       services.RO(),
+					services.KindNode:          services.RO(),
+					services.KindAuthServer:    services.RO(),
+					services.KindReverseTunnel: services.RO(),
+					services.KindCertAuthority: services.RO(),
+					services.KindUser:          services.RO(),
+					services.KindRole:          services.RO(),
+				},
+			})
+	case teleport.RoleWeb.User():
+		return services.FromSpec(
+			role.String(),
+			services.RoleSpec{
+				Resources: map[string][]string{
+					services.KindWebSession: services.RW(),
+					services.KindSession:    services.RO(),
+					services.KindAuthServer: services.RO(),
+					services.KindUser:       services.RO(),
+					services.KindRole:       services.RO(),
+				},
+			})
+	case teleport.RoleSignup.User():
+		return services.FromSpec(
+			role.String(),
+			services.RoleSpec{
+				Resources: map[string][]string{
+					services.KindAuthServer: services.RO(),
+					services.KindUser:       services.RW(),
+					services.KindRole:       services.RW(),
+				},
+			})
+	case teleport.RoleAdmin.User():
+		return services.FromSpec(
+			role.String(),
+			services.RoleSpec{
+				MaxSessionTTL: time.Duration(1<<63 - 1),
+				Logins:        []string{services.Wildcard},
+				Namespaces:    []string{services.Wildcard},
+				NodeLabels:    map[string]string{services.Wildcard: services.Wildcard},
+				Resources: map[string][]string{
+					services.Wildcard: services.RO(),
+				},
+			})
+	}
 
-func NewAllowAllPermissions() PermissionChecker {
-	aap := allowAllPermissions{}
-	return &aap
+	return nil, trace.NotFound("%v is not reconginzed", role.String())
 }
-
-func (aap *allowAllPermissions) HasPermission(role teleport.Role, action string) error {
-	return nil
-}
-
-var StandardRoles = teleport.Roles{
-	teleport.RoleAuth,
-	teleport.RoleUser,
-	teleport.RoleWeb,
-	teleport.RoleNode,
-	teleport.RoleProxy,
-	teleport.RoleAdmin,
-	teleport.RoleProvisionToken,
-	teleport.RoleSignup,
-}
-
-const (
-	ActionGetSessions                       = "GetSessions"
-	ActionGetSession                        = "GetSession"
-	ActionViewSession                       = "ViewSession"
-	ActionDeleteSession                     = "DeleteSession"
-	ActionUpsertSession                     = "UpsertSession"
-	ActionUpsertCertAuthority               = "UpsertCertAuthority"
-	ActionGetCertAuthorities                = "GetCertAuthorities"
-	ActionGetCertAuthoritiesWithSigningKeys = "GetCertAuthoritiesWithSigningKeys"
-	ActionGetLocalDomain                    = "GetLocalDomain"
-	ActionDeleteCertAuthority               = "DeleteCertAuthority"
-	ActionGenerateToken                     = "GenerateToken"
-	ActionRegisterUsingToken                = "RegisterUsingToken"
-	ActionRegisterNewAuthServer             = "RegisterNewAuthServer"
-	ActionUpsertServer                      = "UpsertServer"
-	ActionGetServers                        = "GetServers"
-	ActionUpsertAuthServer                  = "UpsertAuthServer"
-	ActionGetAuthServers                    = "GetAuthServers"
-	ActionUpsertProxy                       = "UpsertProxy"
-	ActionGetProxies                        = "GetProxies"
-	ActionUpsertReverseTunnel               = "UpsertReverseTunnel"
-	ActionGetReverseTunnels                 = "GetReverseTunnels"
-	ActionDeleteReverseTunnel               = "DeleteReverseTunnel"
-	ActionUpsertPassword                    = "UpsertPassword"
-	ActionCheckPassword                     = "CheckPassword"
-	ActionSignIn                            = "SignIn"
-	ActionExtendWebSession                  = "ExtendWebSession"
-	ActionCreateWebSession                  = "CreateWebSession"
-	ActionGetWebSession                     = "GetWebSession"
-	ActionDeleteWebSession                  = "DeleteWebSession"
-	ActionGetUsers                          = "GetUsers"
-	ActionGetUser                           = "GetUser"
-	ActionDeleteUser                        = "DeleteUser"
-	ActionUpsertUserKey                     = "UpsertUserKey"
-	ActionGetUserKeys                       = "GetUserKeys"
-	ActionDeleteUserKey                     = "DeleteUserKey"
-	ActionGenerateKeyPair                   = "GenerateKeyPair"
-	ActionGenerateHostCert                  = "GenerateHostCert"
-	ActionGenerateUserCert                  = "GenerateUserCert"
-	ActionResetHostCertificateAuthority     = "ResetHostCertificateAuthority"
-	ActionResetUserCertificateAuthority     = "ResetUserCertificateAuthority"
-	ActionGenerateSealKey                   = "GenerateSealKey"
-	ActionGetSealKeys                       = "GetSeakKeys"
-	ActionGetSealKey                        = "GetSealKey"
-	ActionDeleteSealKey                     = "DeleteSealKey"
-	ActionAddSealKey                        = "AddSealKey"
-	ActionCreateSignupToken                 = "CreateSignupToken"
-	ActionGetSignupTokenData                = "GetSignupTokenData"
-	ActionCreateUserWithToken               = "CreateUserWithToken"
-	ActionUpsertUser                        = "UpsertUser"
-	ActionUpsertOIDCConnector               = "UpsertOIDCConnector"
-	ActionDeleteOIDCConnector               = "DeleteOIDCConnector"
-	ActionGetOIDCConnectorWithSecrets       = "GetOIDCConnectorWithSecrets"
-	ActionGetOIDCConnectorWithoutSecrets    = "GetOIDCConnectorWithoutSecrets"
-	ActionGetOIDCConnectorsWithSecrets      = "GetOIDCConnectorsWithSecrets"
-	ActionGetOIDCConnectorsWithoutSecrets   = "GetOIDCConnectorsWithoutSecrets"
-	ActionCreateOIDCAuthRequest             = "CreateOIDCAuthRequest"
-	ActionValidateOIDCAuthCallback          = "ValidateOIDCAuthCallback"
-	ActionEmitEvents                        = "EmitEvents"
-)

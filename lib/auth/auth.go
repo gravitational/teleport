@@ -176,7 +176,7 @@ func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, rol
 		DomainName: s.DomainName,
 	}, true)
 	if err != nil {
-		return nil, trace.Errorf("failed to load host CA for '%s': %v", s.DomainName, err)
+		return nil, trace.BadParameter("failed to load host CA for '%s': %v", s.DomainName, err)
 	}
 	privateKey, err := ca.FirstSigningKey()
 	if err != nil {

@@ -37,105 +37,128 @@ import (
 )
 
 type APIConfig struct {
-	AuthServer        *AuthServer
-	SessionService    session.Service
-	PermissionChecker PermissionChecker
-	AuditLog          events.IAuditLog
+	AuthServer     *AuthServer
+	SessionService session.Service
+	AccessChecker  services.AccessChecker
+	AuditLog       events.IAuditLog
+	NewChecker     NewChecker
 }
 
 // APIServer implements http API server for AuthServer interface
 type APIServer struct {
+	APIConfig
 	httprouter.Router
-	a AuthWithRoles
 }
 
 // NewAPIServer returns a new instance of APIServer HTTP handler
-func NewAPIServer(config *APIConfig, role teleport.Role) APIServer {
+func NewAPIServer(config *APIConfig) APIServer {
 	srv := APIServer{
-		a: AuthWithRoles{
-			authServer:  config.AuthServer,
-			permChecker: config.PermissionChecker,
-			sessions:    config.SessionService,
-			alog:        config.AuditLog,
-			role:        role,
-		},
+		Config: *config,
 	}
 	srv.Router = *httprouter.New()
 
 	// Operations on certificate authorities
-	srv.GET("/v1/domain", httplib.MakeHandler(srv.getDomainName))
-	srv.POST("/v1/authorities/:type", httplib.MakeHandler(srv.upsertCertAuthority))
-	srv.DELETE("/v1/authorities/:type/:domain", httplib.MakeHandler(srv.deleteCertAuthority))
-	srv.GET("/v1/authorities/:type", httplib.MakeHandler(srv.getCertAuthorities))
+	srv.GET("/v1/domain", srv.withAuth(srv.getDomainName))
+	srv.POST("/v1/authorities/:type", srv.withAuth(srv.upsertCertAuthority))
+	srv.DELETE("/v1/authorities/:type/:domain", srv.withAuth(srv.deleteCertAuthority))
+	srv.GET("/v1/authorities/:type", srv.withAuth(srv.getCertAuthorities))
 
 	// Generating certificates for user and host authorities
-	srv.POST("/v1/ca/host/certs", httplib.MakeHandler(srv.generateHostCert))
-	srv.POST("/v1/ca/user/certs", httplib.MakeHandler(srv.generateUserCert))
+	srv.POST("/v1/ca/host/certs", srv.withAuth(srv.generateHostCert))
+	srv.POST("/v1/ca/user/certs", srv.withAuth(srv.generateUserCert))
 
 	// Operations on users
-	srv.GET("/v1/users", httplib.MakeHandler(srv.getUsers))
-	srv.GET("/v1/users/:user", httplib.MakeHandler(srv.getUser))
-	srv.DELETE("/v1/users/:user", httplib.MakeHandler(srv.deleteUser))
+	srv.GET("/v1/users", srv.withAuth(srv.getUsers))
+	srv.GET("/v1/users/:user", srv.withAuth(srv.getUser))
+	srv.DELETE("/v1/users/:user", srv.withAuth(srv.deleteUser))
 
 	// Generating keypairs
-	srv.POST("/v1/keypair", httplib.MakeHandler(srv.generateKeyPair))
+	srv.POST("/v1/keypair", srv.withAuth(srv.generateKeyPair))
 
 	// Passwords and sessions
-	srv.POST("/v1/users", httplib.MakeHandler(srv.upsertUser))
-	srv.POST("/v1/users/:user/web/password", httplib.MakeHandler(srv.upsertPassword))
-	srv.POST("/v1/users/:user/web/password/check", httplib.MakeHandler(srv.checkPassword))
-	srv.POST("/v1/users/:user/web/signin", httplib.MakeHandler(srv.signIn))
-	srv.POST("/v1/users/:user/web/sessions", httplib.MakeHandler(srv.createWebSession))
-	srv.GET("/v1/users/:user/web/sessions/:sid", httplib.MakeHandler(srv.getWebSession))
-	srv.DELETE("/v1/users/:user/web/sessions/:sid", httplib.MakeHandler(srv.deleteWebSession))
-	srv.GET("/v1/signuptokens/:token", httplib.MakeHandler(srv.getSignupTokenData))
-	srv.POST("/v1/signuptokens/users", httplib.MakeHandler(srv.createUserWithToken))
-	srv.POST("/v1/signuptokens", httplib.MakeHandler(srv.createSignupToken))
+	srv.POST("/v1/users", srv.withAuth(srv.upsertUser))
+	srv.POST("/v1/users/:user/web/password", srv.withAuth(srv.upsertPassword))
+	srv.POST("/v1/users/:user/web/password/check", srv.withAuth(srv.checkPassword))
+	srv.POST("/v1/users/:user/web/signin", srv.withAuth(srv.signIn))
+	srv.POST("/v1/users/:user/web/sessions", srv.withAuth(srv.createWebSession))
+	srv.GET("/v1/users/:user/web/sessions/:sid", srv.withAuth(srv.getWebSession))
+	srv.DELETE("/v1/users/:user/web/sessions/:sid", srv.withAuth(srv.deleteWebSession))
+	srv.GET("/v1/signuptokens/:token", srv.withAuth(srv.getSignupTokenData))
+	srv.POST("/v1/signuptokens/users", srv.withAuth(srv.createUserWithToken))
+	srv.POST("/v1/signuptokens", srv.withAuth(srv.createSignupToken))
 
 	// Servers and presence heartbeat
-	srv.POST("/v1/nodes", httplib.MakeHandler(srv.upsertNode))
-	srv.GET("/v1/nodes", httplib.MakeHandler(srv.getNodes))
-	srv.POST("/v1/authservers", httplib.MakeHandler(srv.upsertAuthServer))
-	srv.GET("/v1/authservers", httplib.MakeHandler(srv.getAuthServers))
-	srv.POST("/v1/proxies", httplib.MakeHandler(srv.upsertProxy))
-	srv.GET("/v1/proxies", httplib.MakeHandler(srv.getProxies))
+	srv.POST("/v1/nodes", srv.withAuth(srv.upsertNode))
+	srv.GET("/v1/nodes", srv.withAuth(srv.getNodes))
+	srv.POST("/v1/authservers", srv.withAuth(srv.upsertAuthServer))
+	srv.GET("/v1/authservers", srv.withAuth(srv.getAuthServers))
+	srv.POST("/v1/proxies", srv.withAuth(srv.upsertProxy))
+	srv.GET("/v1/proxies", srv.withAuth(srv.getProxies))
 
 	// Reverse tunnels
-	srv.POST("/v1/reversetunnels", httplib.MakeHandler(srv.upsertReverseTunnel))
-	srv.GET("/v1/reversetunnels", httplib.MakeHandler(srv.getReverseTunnels))
-	srv.DELETE("/v1/reversetunnels/:domain", httplib.MakeHandler(srv.deleteReverseTunnel))
+	srv.POST("/v1/reversetunnels", srv.withAuth(srv.upsertReverseTunnel))
+	srv.GET("/v1/reversetunnels", srv.withAuth(srv.getReverseTunnels))
+	srv.DELETE("/v1/reversetunnels/:domain", srv.withAuth(srv.deleteReverseTunnel))
 
 	// Tokens
-	srv.POST("/v1/tokens", httplib.MakeHandler(srv.generateToken))
-	srv.POST("/v1/tokens/register", httplib.MakeHandler(srv.registerUsingToken))
-	srv.POST("/v1/tokens/register/auth", httplib.MakeHandler(srv.registerNewAuthServer))
+	srv.POST("/v1/tokens", srv.withAuth(srv.generateToken))
+	srv.POST("/v1/tokens/register", srv.withAuth(srv.registerUsingToken))
+	srv.POST("/v1/tokens/register/auth", srv.withAuth(srv.registerNewAuthServer))
 
 	// Sesssions
-	srv.POST("/v1/sessions", httplib.MakeHandler(srv.createSession))
-	srv.PUT("/v1/sessions/:id", httplib.MakeHandler(srv.updateSession))
-	srv.GET("/v1/sessions", httplib.MakeHandler(srv.getSessions))
-	srv.GET("/v1/sessions/:id", httplib.MakeHandler(srv.getSession))
-	srv.POST("/v1/sessions/:id/stream", httplib.MakeHandler(srv.postSessionChunk))
+	srv.POST("/v1/sessions", srv.withAuth(srv.createSession))
+	srv.PUT("/v1/sessions/:id", srv.withAuth(srv.updateSession))
+	srv.GET("/v1/sessions", srv.withAuth(srv.getSessions))
+	srv.GET("/v1/sessions/:id", srv.withAuth(srv.getSession))
+	srv.POST("/v1/sessions/:id/stream", srv.withAuth(srv.postSessionChunk))
 	srv.GET("/v1/sessions/:id/stream", srv.getSessionChunk)
-	srv.GET("/v1/sessions/:id/events", httplib.MakeHandler(srv.getSessionEvents))
+	srv.GET("/v1/sessions/:id/events", srv.withAuth(srv.getSessionEvents))
 
 	// OIDC stuff
-	srv.POST("/v1/oidc/connectors", httplib.MakeHandler(srv.upsertOIDCConnector))
-	srv.GET("/v1/oidc/connectors", httplib.MakeHandler(srv.getOIDCConnectors))
-	srv.GET("/v1/oidc/connectors/:id", httplib.MakeHandler(srv.getOIDCConnector))
-	srv.DELETE("/v1/oidc/connectors/:id", httplib.MakeHandler(srv.deleteOIDCConnector))
-	srv.POST("/v1/oidc/requests/create", httplib.MakeHandler(srv.createOIDCAuthRequest))
-	srv.POST("/v1/oidc/requests/validate", httplib.MakeHandler(srv.validateOIDCAuthCallback))
+	srv.POST("/v1/oidc/connectors", srv.withAuth(srv.upsertOIDCConnector))
+	srv.GET("/v1/oidc/connectors", srv.withAuth(srv.getOIDCConnectors))
+	srv.GET("/v1/oidc/connectors/:id", srv.withAuth(srv.getOIDCConnector))
+	srv.DELETE("/v1/oidc/connectors/:id", srv.withAuth(srv.deleteOIDCConnector))
+	srv.POST("/v1/oidc/requests/create", srv.withAuth(srv.createOIDCAuthRequest))
+	srv.POST("/v1/oidc/requests/validate", srv.withAuth(srv.validateOIDCAuthCallback))
 
 	// Provisioning tokens
-	srv.GET("/v1/tokens", httplib.MakeHandler(srv.getTokens))
-	srv.DELETE("/v1/tokens/:token", httplib.MakeHandler(srv.deleteToken))
+	srv.GET("/v1/tokens", srv.withAuth(srv.getTokens))
+	srv.DELETE("/v1/tokens/:token", srv.withAuth(srv.deleteToken))
 
 	// Audit logs AKA events
-	srv.POST("/v1/events", httplib.MakeHandler(srv.emitAuditEvent))
-	srv.GET("/v1/events", httplib.MakeHandler(srv.searchEvents))
+	srv.POST("/v1/events", srv.withAuth(srv.emitAuditEvent))
+	srv.GET("/v1/events", srv.withAuth(srv.searchEvents))
 
 	return srv
+}
+
+// HandlerWithAuthFunc is http handler with passed auth context
+type HandlerWithAuthFunc func(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error)
+
+func (s *APIServer) withAuth(handler httplib.HandlerWithAuthFunc) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		// SSH-to-HTTP gateway (tun server) sets HTTP basic auth to SSH cert principal
+		// This allows us to make sure that users can only request new certificates
+		// only for themselves, except admin users
+		caller, _, ok := r.BasicAuth()
+		if !ok {
+			return nil, trace.AccessDenied("missing username or password")
+		}
+		checker, err := s.NewChecker(caller)
+		if err != nil {
+			log.Debugf("failed to create checker: %v for %v", err, caller)
+			return nil, trace.AccessDenied("missing username or password")
+		}
+		auth := &AuthWithRoles{
+			authServer: s.AuthServer,
+			user:       caller,
+			checker:    checker,
+			sessions:   s.SessionService,
+			alog:       s.AuditLog,
+		}
+		return fn(auth, w, r, p)
+	})
 }
 
 type upsertServerReq struct {
@@ -463,19 +486,7 @@ type generateUserCertReq struct {
 func (s *APIServer) generateUserCert(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
 	var req *generateUserCertReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
-		log.Errorf("failed parsing JSON request. %v", err)
 		return nil, trace.Wrap(err)
-	}
-	// SSH-to-HTTP gateway (tun server) sets HTTP basic auth to SSH cert principal
-	// This allows us to make sure that users can only request new certificates
-	// only for themselves, except admin users
-	caller, _, ok := r.BasicAuth()
-	if !ok {
-		return nil, trace.AccessDenied("missing username or password")
-	}
-	if req.User != caller && s.a.role != teleport.RoleAdmin {
-		return nil, trace.AccessDenied("user %s cannot request a certificate for %s",
-			caller, req.User)
 	}
 	cert, err := s.a.GenerateUserCert(req.Key, req.User, req.TTL)
 	if err != nil {

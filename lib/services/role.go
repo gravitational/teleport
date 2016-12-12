@@ -44,8 +44,53 @@ const (
 	// DefaultNamespace is a default namespace of all resources
 	DefaultNamespace = "default"
 
-	// KindRole is a resource of kind role
+	// SystemNamespace is a system namespace
+	SystemNamespace = "system"
+
+	// KindUser is a user resource
+	KindUser = "user"
+
+	// KindKeyPair is a public/private key pair
+	KindKeyPair = "key_pair"
+
+	// KindHostCert is a host certificate
+	KindHostCert = "host_cert"
+
+	// KindRole is a role resource
 	KindRole = "role"
+
+	// KindOIDC is oidc connector resource
+	KindOIDC = "oidc"
+
+	// KindOIDCReques is oidc auth request resource
+	KindOIDCRequest = "oidc_request"
+
+	// KindSession is a recorded session resource
+	KindSession = "session"
+
+	// KindWebSession is a web session resource
+	KindWebSession = "web_session"
+
+	// KindEvent is structured audit logging event
+	KindEvent = "event"
+
+	// KindAuthServer is auth server resource
+	KindAuthServer = "auth_server"
+
+	// KindProxy is proxy resource
+	KindProxy = "proxy"
+
+	// KindNode is node resource
+	KindNode = "node"
+
+	// KindToken is a provisioning token resource
+	KindToken = "token"
+
+	// KindCertAuthority is a certificate authority resource
+	KindCertAuthority = "cert_authority"
+
+	// KindReverseTunnel is a reverse tunnel connection
+	KindReverseTunnel = "tunnel"
 
 	// V1 is our current version
 	V1 = "v1"
@@ -172,10 +217,51 @@ type RoleSpec struct {
 
 // AccessChecker interface implements access checks for given role
 type AccessChecker interface {
-	// CheckAccessToServer checks access to server
-	CheckAccessToServer(Server) error
-	// CheckAccessToResourceAction check access to resource action
-	CheckAccessToResourceAction(resourceNamespace, resourceName, accessType string) error
+	// CheckServer checks access to server
+	CheckServer(Server) error
+	// CheckResourceAction check access to resource action
+	CheckResourceAction(resourceNamespace, resourceName, accessType string) error
+}
+
+// FromSpec returns new RoleSet created from spec
+func FromSpec(name string, spec RoleSpec) (RoleSet, error) {
+	role, err := NewRole(name, spec)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return NewRoleSet(role), nil
+}
+
+// RW returns read write action list
+func RW() []string {
+	return []string{ActionRead, ActionWrite}
+}
+
+// RO returns read only action list
+func RO() []string {
+	return []string{ActionRead}
+}
+
+// NewRole constructs new standard role
+func NewRole(name string, spec RoleSpec) (Role, error) {
+	role := RoleResource{
+		Kind:    KindRole,
+		Version: V1,
+		Metadata: Metadata{
+			Name:      name,
+			Namespace: DefaultNamespace,
+		},
+		Spec: spec,
+	}
+	if err := role.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &role, nil
+}
+
+// NewRoleSet returns new RoleSet based on the roles
+func NewRoleSet(roles ...Role) RoleSet {
+	return roles
 }
 
 // RoleSet is a set of roles that implements access control functionality
@@ -233,9 +319,9 @@ func MatchLabels(selector map[string]string, target map[string]string) bool {
 	return true
 }
 
-// CheckAccessToServer checks if role set has access to server based
+// CheckServer checks if role set has access to server based
 // on combined role's selector
-func (set RoleSet) CheckAccessToServer(s Server) error {
+func (set RoleSet) CheckServer(s Server) error {
 	for _, role := range set {
 		if MatchNamespace(role.GetNamespaces(), s.GetNamespace()) && MatchLabels(role.GetNodeLabels(), s.Labels) {
 			return nil
@@ -244,8 +330,8 @@ func (set RoleSet) CheckAccessToServer(s Server) error {
 	return trace.AccessDenied("access to server is denied")
 }
 
-// CheckAccessToResourceAction checks if role set has access to this resource action
-func (set RoleSet) CheckAccessToResourceAction(resourceNamespace, resourceName, accessType string) error {
+// CheckResourceAction checks if role set has access to this resource action
+func (set RoleSet) CheckResourceAction(resourceNamespace, resourceName, accessType string) error {
 	resourceNamespace = ProcessNamespace(resourceNamespace)
 	for _, role := range set {
 		if MatchNamespace(role.GetNamespaces(), resourceNamespace) && MatchResourceAction(role.GetResources(), resourceName, accessType) {
