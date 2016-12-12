@@ -126,6 +126,7 @@ func run(args []string, underTest bool) {
 	ls.Arg("labels", "List of labels to filter node list").StringVar(&cf.UserHost)
 	// clusters
 	clusters := app.Command("clusters", "List available Teleport clusters")
+	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 	// agent (SSH agent listening on unix socket)
 	agent := app.Command("agent", "Start SSH agent on unix socket")
 	agent.Flag("socket", "SSH agent listening socket address, e.g. unix:///tmp/teleport.agent.sock").SetValue(&cf.AgentSocketAddr)
@@ -265,6 +266,16 @@ func onListSites(cf *CLIConf) {
 			fmt.Fprintf(t, "%v\t%v\n", site.Name, site.Status)
 		}
 		return t.String()
+	}
+	quietSitesView := func() string {
+		names := make([]string, 0)
+		for _, site := range sites {
+			names = append(names, site.Name)
+		}
+		return strings.Join(names, "\n")
+	}
+	if cf.Quiet {
+		sitesView = quietSitesView
 	}
 	fmt.Printf(sitesView())
 }
