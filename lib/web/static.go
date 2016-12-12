@@ -100,11 +100,14 @@ func readZipArchive(archivePath string) (ResourceMap, error) {
 	// found in the attached zip file:
 	info, err := file.Stat()
 	if err != nil {
-		log.Fatal(err)
+		return nil, trace.Wrap(err)
 	}
 	zreader, err := zip.NewReader(file, info.Size())
 	if err != nil {
-		log.Fatal(err)
+		// this often happens when teleport is launched without the web assets
+		// zip file attached to the binary. for launching it in such mode
+		// set DEBUG environment variable to 1
+		return nil, trace.NotFound("Failed reading web assets from the binary. %v", err)
 	}
 	entries := make(ResourceMap)
 	for _, file := range zreader.File {
