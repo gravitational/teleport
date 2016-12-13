@@ -414,7 +414,7 @@ func (s *ServicesTestSuite) RolesCRUD(c *C) {
 		Version: services.V1,
 		Metadata: services.Metadata{
 			Name:      "role1",
-			Namespace: services.DefaultNamespace,
+			Namespace: defaults.Namespace,
 		},
 		Spec: services.RoleSpec{
 			Logins:        []string{"root", "bob"},
@@ -441,6 +441,32 @@ func (s *ServicesTestSuite) RolesCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = s.Access.GetRole(role.Metadata.Name)
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%T", err))
+}
+
+func (s *ServicesTestSuite) NamespacesCRUD(c *C) {
+	out, err := s.PresenceS.GetNamespaces()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
+
+	ns := services.Namespace{
+		Kind:    services.KindNamespace,
+		Version: services.V1,
+		Metadata: services.Metadata{
+			Name:      defaults.Namespace,
+			Namespace: defaults.Namespace,
+		},
+	}
+	err = s.PresenceS.UpsertNamespace(ns)
+	c.Assert(err, IsNil)
+	nsout, err := s.PresenceS.GetNamespace(ns.Metadata.Name)
+	c.Assert(err, IsNil)
+	c.Assert(nsout, DeepEquals, &ns)
+
+	err = s.PresenceS.DeleteNamespace(ns.Metadata.Name)
+	c.Assert(err, IsNil)
+
+	_, err = s.PresenceS.GetNamespace(ns.Metadata.Name)
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%T", err))
 }
 

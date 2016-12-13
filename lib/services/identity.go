@@ -69,7 +69,7 @@ type TeleportUser struct {
 	OIDCIdentities []OIDCIdentity `json:"oidc_identities"`
 
 	// Roles is a list of roles assigned to user
-	Roles string `json:"roles"`
+	Roles []string `json:"roles"`
 }
 
 // Equals checks if user equals to another

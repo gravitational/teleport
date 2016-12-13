@@ -60,6 +60,18 @@ type Presence interface {
 
 	// DeleteReverseTunnel deletes reverse tunnel by it's domain name
 	DeleteReverseTunnel(domainName string) error
+
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*Namespace, error)
+
+	// UpsertNamespace upserts namespace
+	UpsertNamespace(Namespace) error
+
+	// DeleteNamespace deletes namespace by name
+	DeleteNamespace(name string) error
 }
 
 // Site represents a cluster of teleport nodes who collectively trust the same

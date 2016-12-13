@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/defaults"
+
 	"github.com/gravitational/trace"
 	. "gopkg.in/check.v1"
 )
@@ -57,7 +59,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 				Version: V1,
 				Metadata: Metadata{
 					Name:      "name1",
-					Namespace: DefaultNamespace,
+					Namespace: defaults.Namespace,
 				},
 				Spec: RoleSpec{},
 			},
@@ -80,7 +82,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 				Version: V1,
 				Metadata: Metadata{
 					Name:      "name1",
-					Namespace: DefaultNamespace,
+					Namespace: defaults.Namespace,
 				},
 				Spec: RoleSpec{
 					MaxSessionTTL: Duration{20 * time.Hour},
@@ -107,7 +109,7 @@ spec:
 				Version: V1,
 				Metadata: Metadata{
 					Name:      "name1",
-					Namespace: DefaultNamespace,
+					Namespace: defaults.Namespace,
 				},
 				Spec: RoleSpec{
 					MaxSessionTTL: Duration{20 * time.Hour},

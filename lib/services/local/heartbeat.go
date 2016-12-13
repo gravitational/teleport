@@ -38,6 +38,66 @@ func NewPresenceService(backend backend.Backend) *PresenceService {
 	return &PresenceService{backend}
 }
 
+// GetNamespaces returns a list of namespaces
+func (s *PresenceService) GetNamespaces() ([]services.Namespace, error) {
+	keys, err := s.backend.GetKeys([]string{"namespaces"})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out := make([]services.Namespace, len(keys))
+	for i, name := range keys {
+		u, err := s.GetNamespace(name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out[i] = *u
+	}
+	sort.Sort(services.SortedNamespaces(out))
+	return out, nil
+}
+
+// UpsertNamespace upserts namespace
+func (s *PresenceService) UpsertNamespace(n services.Namespace) error {
+	data, err := json.Marshal(n)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.backend.UpsertVal([]string{"namespaces", n.Metadata.Name}, "params", []byte(data), backend.Forever)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetNamespace returns a namespace by name
+func (s *PresenceService) GetNamespace(name string) (*services.Namespace, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing namespace name")
+	}
+	data, err := s.backend.GetVal([]string{"namespaces", name}, "params")
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("namespace %v is not found", name)
+		}
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalNamespace(data)
+}
+
+// DeleteNamespace deletes a namespace with all the keys from the backend
+func (s *PresenceService) DeleteNamespace(namespace string) error {
+	if namespace == "" {
+		return trace.BadParameter("missing namespace name")
+	}
+	err := s.backend.DeleteBucket([]string{"namespaces"}, namespace)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("namespace '%v' is not found", namespace)
+		}
+	}
+	return trace.Wrap(err)
+}
+
 func (s *PresenceService) getServers(prefix string) ([]services.Server, error) {
 	keys, err := s.backend.GetKeys([]string{prefix})
 	if err != nil {

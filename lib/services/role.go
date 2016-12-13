@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2016 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,75 +25,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-)
-
-const (
-	// DefaultAPIGroup is a default group of permissions API,
-	// lets us to add different permission types
-	DefaultAPIGroup = "gravitational.io/teleport"
-
-	// ActionRead grants read access (get, list)
-	ActionRead = "read"
-
-	// ActionWrite allows to write (create, update, delete)
-	ActionWrite = "write"
-
-	// Wildcard is a special wildcard character matching everything
-	Wildcard = "*"
-
-	// DefaultNamespace is a default namespace of all resources
-	DefaultNamespace = "default"
-
-	// SystemNamespace is a system namespace
-	SystemNamespace = "system"
-
-	// KindUser is a user resource
-	KindUser = "user"
-
-	// KindKeyPair is a public/private key pair
-	KindKeyPair = "key_pair"
-
-	// KindHostCert is a host certificate
-	KindHostCert = "host_cert"
-
-	// KindRole is a role resource
-	KindRole = "role"
-
-	// KindOIDC is oidc connector resource
-	KindOIDC = "oidc"
-
-	// KindOIDCReques is oidc auth request resource
-	KindOIDCRequest = "oidc_request"
-
-	// KindSession is a recorded session resource
-	KindSession = "session"
-
-	// KindWebSession is a web session resource
-	KindWebSession = "web_session"
-
-	// KindEvent is structured audit logging event
-	KindEvent = "event"
-
-	// KindAuthServer is auth server resource
-	KindAuthServer = "auth_server"
-
-	// KindProxy is proxy resource
-	KindProxy = "proxy"
-
-	// KindNode is node resource
-	KindNode = "node"
-
-	// KindToken is a provisioning token resource
-	KindToken = "token"
-
-	// KindCertAuthority is a certificate authority resource
-	KindCertAuthority = "cert_authority"
-
-	// KindReverseTunnel is a reverse tunnel connection
-	KindReverseTunnel = "tunnel"
-
-	// V1 is our current version
-	V1 = "v1"
 )
 
 // Access service manages roles and permissions
@@ -125,18 +56,6 @@ type Role interface {
 	GetNamespaces() []string
 	// GetResources returns access to resources
 	GetResources() map[string][]string
-}
-
-// Metadata is resource metadata
-type Metadata struct {
-	// Name is an object name
-	Name string `json:"name"`
-	// Namespace is object namespace
-	Namespace string `json:"namespace"`
-	// Description is object description
-	Description string `json:"description"`
-	// Labels is a set of labels
-	Labels map[string]string `json:"labels,omitempty"`
 }
 
 // RoleResource represents role resource specification
@@ -249,7 +168,7 @@ func NewRole(name string, spec RoleSpec) (Role, error) {
 		Version: V1,
 		Metadata: Metadata{
 			Name:      name,
-			Namespace: DefaultNamespace,
+			Namespace: defaults.Namespace,
 		},
 		Spec: spec,
 	}
@@ -344,7 +263,7 @@ func (set RoleSet) CheckResourceAction(resourceNamespace, resourceName, accessTy
 // ProcessNamespace sets default namespace in case if namespace is empty
 func ProcessNamespace(namespace string) string {
 	if namespace == "" {
-		return DefaultNamespace
+		return defaults.Namespace
 	}
 	return namespace
 }
