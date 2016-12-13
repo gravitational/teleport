@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 
 	"github.com/gravitational/roundtrip"
@@ -112,4 +113,31 @@ func ParseBool(q url.Values, name string) (bool, bool, error) {
 			"'%v': expected 'true' or 'false', got %v", name, stringVal)
 	}
 	return val, true, nil
+}
+
+// RewritePair is a rewrite expression
+type RewritePair struct {
+	// Expr is matching expression
+	Expr *regexp.Regexp
+	// Replacement is replacement
+	Replacement string
+}
+
+// Rewrite creates a rewrite pair, panics if in epxression
+// is not a valid regular expressoin
+func Rewrite(in, out string) *RewritePair {
+	return &RewritePair{
+		Expr:        regexp.MustCompile(in),
+		Replacement: out,
+	}
+}
+
+// RewritePaths creates a middleware that rewrites paths in incoming request
+func RewritePaths(next http.Handler, rewrites ...RewritePair) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		for _, rewrite := range rewrites {
+			req.URL.Path = rewrite.Expr.ReplaceAllString(req.URL.Path, rewrite.Replacement)
+		}
+		next.ServeHTTP(w, req)
+	})
 }
