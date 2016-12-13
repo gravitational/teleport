@@ -829,23 +829,34 @@ func (c *Client) SearchEvents(from, to time.Time, query string) ([]events.EventF
 	return retval, nil
 }
 
-// TOODO(klizhentas) this should be just including appropriate service implementations
+// ClientI is a client to Auth service
 type ClientI interface {
+	// GetDomainName returns local auth domain name
+	GetDomainName() (string, error)
+	// GetUser returns a user
 	GetUser(name string) (services.User, error)
+	// UpsertUser updates or creates new user
 	UpsertUser(user services.User) error
-	GetSessions() ([]session.Session, error)
-	GetSession(id session.ID) (*session.Session, error)
+	// GetSessions resturns a list of interactive sessions
+	GetSessions(namespace string) ([]session.Session, error)
+	// GetSession gets session by ID
+	GetSession(namespace string, id session.ID) (*session.Session, error)
+	// CreateSession creates interactive session
 	CreateSession(s session.Session) error
+	// UpdateSession updates session
 	UpdateSession(req session.UpdateRequest) error
+	// UpsertCertAuhtority updates or inserts cert authorities
 	UpsertCertAuthority(cert services.CertAuthority, ttl time.Duration) error
+	// GetCertAuthorities returns  list of cert authorities
 	GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error)
+	// DeleteCertAuthority deletes cert authority
 	DeleteCertAuthority(caType services.CertAuthID) error
+	// GenerateToken generates provisioning token
 	GenerateToken(roles teleport.Roles, ttl time.Duration) (string, error)
+	// RegisterUsingToken registers new node
 	RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error)
+	// RegisterNewAuthServer registers new auth server
 	RegisterNewAuthServer(token string) error
-	UpsertNode(s services.Server, ttl time.Duration) error
-	GetNodes() ([]services.Server, error)
-	GetAuthServers() ([]services.Server, error)
 	UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error)
 	CheckPassword(user string, password []byte, hotpToken string) error
 	SignIn(user string, password []byte) (*Session, error)
@@ -866,13 +877,9 @@ type ClientI interface {
 	DeleteOIDCConnector(connectorID string) error
 	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
 	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
-	// UpsertReverseTunnel is used by admins to create a new reverse tunnel
-	// to the remote proxy to bypass firewall restrictions
-	UpsertReverseTunnel(tunnel services.ReverseTunnel, ttl time.Duration) error
-	// GetReverseTunnels returns the list of created reverse tunnels
-	GetReverseTunnels() ([]services.ReverseTunnel, error)
-	// DeleteReverseTunnel deletes reverse tunnel by domain name
-	DeleteReverseTunnel(domainName string) error
 
 	events.IAuditLog
+	services.Presence
+	services.Access
+	services.Provisioner
 }
