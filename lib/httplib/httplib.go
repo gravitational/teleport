@@ -125,8 +125,8 @@ type RewritePair struct {
 
 // Rewrite creates a rewrite pair, panics if in epxression
 // is not a valid regular expressoin
-func Rewrite(in, out string) *RewritePair {
-	return &RewritePair{
+func Rewrite(in, out string) RewritePair {
+	return RewritePair{
 		Expr:        regexp.MustCompile(in),
 		Replacement: out,
 	}

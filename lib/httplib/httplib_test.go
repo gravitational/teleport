@@ -18,6 +18,7 @@ package httplib
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/julienschmidt/httprouter"
@@ -32,7 +33,22 @@ type HTTPSuite struct {
 var _ = Suite(&HTTPSuite{})
 
 func (s *HTTPSuite) TestRewritePaths(c *C) {
-	RewritePaths(newTestHandler(), Rewrite("/v1/sessions/([^/]+)/stream", "/v1/namespaces/default/sessions/1/stream"))
+	handler := newTestHandler()
+	server := httptest.NewServer(
+		RewritePaths(handler,
+			Rewrite("/v1/sessions/([^/]+)/stream", "/v1/namespaces/default/sessions/$1/stream")))
+	defer server.Close()
+	re, err := http.Post(server.URL+"/v1/sessions/s1/stream", "text/json", nil)
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+	c.Assert(handler.capturedNamespace, Equals, "default")
+	c.Assert(handler.capturedID, Equals, "s1")
+
+	re, err = http.Post(server.URL+"/v1/namespaces/system/sessions/s2/stream", "text/json", nil)
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+	c.Assert(handler.capturedNamespace, Equals, "system")
+	c.Assert(handler.capturedID, Equals, "s2")
 }
 
 type testHandler struct {
@@ -41,7 +57,7 @@ type testHandler struct {
 	capturedID        string
 }
 
-func newTestHandler() http.Handler {
+func newTestHandler() *testHandler {
 	h := &testHandler{}
 	h.Router = *httprouter.New()
 	h.POST("/v1/sessions/:id/stream", MakeHandler(h.postSessionChunkOriginal))
