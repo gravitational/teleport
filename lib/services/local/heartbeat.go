@@ -40,7 +40,7 @@ func NewPresenceService(backend backend.Backend) *PresenceService {
 
 // GetNamespaces returns a list of namespaces
 func (s *PresenceService) GetNamespaces() ([]services.Namespace, error) {
-	keys, err := s.backend.GetKeys([]string{"namespaces"})
+	keys, err := s.backend.GetKeys([]string{namespacesPrefix})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -62,7 +62,7 @@ func (s *PresenceService) UpsertNamespace(n services.Namespace) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal([]string{"namespaces", n.Metadata.Name}, "params", []byte(data), backend.Forever)
+	err = s.backend.UpsertVal([]string{namespacesPrefix, n.Metadata.Name}, "params", []byte(data), backend.Forever)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -74,7 +74,7 @@ func (s *PresenceService) GetNamespace(name string) (*services.Namespace, error)
 	if name == "" {
 		return nil, trace.BadParameter("missing namespace name")
 	}
-	data, err := s.backend.GetVal([]string{"namespaces", name}, "params")
+	data, err := s.backend.GetVal([]string{namespacesPrefix, name}, "params")
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("namespace %v is not found", name)
@@ -89,7 +89,7 @@ func (s *PresenceService) DeleteNamespace(namespace string) error {
 	if namespace == "" {
 		return trace.BadParameter("missing namespace name")
 	}
-	err := s.backend.DeleteBucket([]string{"namespaces"}, namespace)
+	err := s.backend.DeleteBucket([]string{namespacesPrefix}, namespace)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("namespace '%v' is not found", namespace)
@@ -128,14 +128,25 @@ func (s *PresenceService) upsertServer(prefix string, server services.Server, tt
 }
 
 // GetNodes returns a list of registered servers
-func (s *PresenceService) GetNodes() ([]services.Server, error) {
+func (s *PresenceService) GetNodes(namespace string) ([]services.Server, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing namespace value")
+	}
 	return s.getServers(nodesPrefix)
 }
 
 // UpsertNode registers node presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
 func (s *PresenceService) UpsertNode(server services.Server, ttl time.Duration) error {
-	return s.upsertServer(nodesPrefix, server, ttl)
+	if server.Namespace == "" {
+		return trace.BadParameter("missing node namespace")
+	}
+	data, err := json.Marshal(server)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.backend.UpsertVal([]string{namespacesPrefix, server.Namespace, nodesPrefix}, server.ID, data, ttl)
+	return trace.Wrap(err)
 }
 
 // GetAuthServers returns a list of registered servers
@@ -203,6 +214,7 @@ func (s *PresenceService) DeleteReverseTunnel(domainName string) error {
 const (
 	reverseTunnelsPrefix = "reverseTunnels"
 	nodesPrefix          = "nodes"
+	namespacesPrefix     = "namespaces"
 	authServersPrefix    = "authservers"
 	proxiesPrefix        = "proxies"
 )

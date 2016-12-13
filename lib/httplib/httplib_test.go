@@ -36,7 +36,7 @@ func (s *HTTPSuite) TestRewritePaths(c *C) {
 	handler := newTestHandler()
 	server := httptest.NewServer(
 		RewritePaths(handler,
-			Rewrite("/v1/sessions/([^/]+)/stream", "/v1/namespaces/default/sessions/$1/stream")))
+			Rewrite("/v1/sessions/([^/]+)/(.*)", "/v1/namespaces/default/sessions/$1/$2")))
 	defer server.Close()
 	re, err := http.Post(server.URL+"/v1/sessions/s1/stream", "text/json", nil)
 	c.Assert(err, IsNil)

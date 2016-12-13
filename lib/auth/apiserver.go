@@ -51,7 +51,7 @@ type APIServer struct {
 }
 
 // NewAPIServer returns a new instance of APIServer HTTP handler
-func NewAPIServer(config *APIConfig) APIServer {
+func NewAPIServer(config *APIConfig) http.Handler {
 	srv := APIServer{
 		APIConfig: *config,
 	}
@@ -88,8 +88,8 @@ func NewAPIServer(config *APIConfig) APIServer {
 	srv.POST("/v1/signuptokens", srv.withAuth(srv.createSignupToken))
 
 	// Servers and presence heartbeat
-	srv.POST("/v1/nodes", srv.withAuth(srv.upsertNode))
-	srv.GET("/v1/nodes", srv.withAuth(srv.getNodes))
+	srv.POST("/v1/namespaces/:namespace/nodes", srv.withAuth(srv.upsertNode))
+	srv.GET("/v1/namespaces/:namespace/nodes", srv.withAuth(srv.getNodes))
 	srv.POST("/v1/authservers", srv.withAuth(srv.upsertAuthServer))
 	srv.GET("/v1/authservers", srv.withAuth(srv.getAuthServers))
 	srv.POST("/v1/proxies", srv.withAuth(srv.upsertProxy))
@@ -106,13 +106,13 @@ func NewAPIServer(config *APIConfig) APIServer {
 	srv.POST("/v1/tokens/register/auth", srv.withAuth(srv.registerNewAuthServer))
 
 	// Sesssions
-	srv.POST("/v1/sessions", srv.withAuth(srv.createSession))
-	srv.PUT("/v1/sessions/:id", srv.withAuth(srv.updateSession))
-	srv.GET("/v1/sessions", srv.withAuth(srv.getSessions))
-	srv.GET("/v1/sessions/:id", srv.withAuth(srv.getSession))
-	srv.POST("/v1/sessions/:id/stream", srv.withAuth(srv.postSessionChunk))
-	srv.GET("/v1/sessions/:id/stream", srv.withAuth(srv.getSessionChunk))
-	srv.GET("/v1/sessions/:id/events", srv.withAuth(srv.getSessionEvents))
+	srv.POST("/v1/namespaces/:namespace/sessions", srv.withAuth(srv.createSession))
+	srv.PUT("/v1/namespaces/:namespace/sessions/:id", srv.withAuth(srv.updateSession))
+	srv.GET("/v1/namespaces/:namespace/sessions", srv.withAuth(srv.getSessions))
+	srv.GET("/v1/namespaces/:namespace/sessions/:id", srv.withAuth(srv.getSession))
+	srv.POST("/v1/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.postSessionChunk))
+	srv.GET("/v1/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.getSessionChunk))
+	srv.GET("/v1/namespaces/:namespace/sessions/:id/events", srv.withAuth(srv.getSessionEvents))
 
 	// OIDC stuff
 	srv.POST("/v1/oidc/connectors", srv.withAuth(srv.upsertOIDCConnector))
@@ -142,7 +142,11 @@ func NewAPIServer(config *APIConfig) APIServer {
 	srv.POST("/v1/events", srv.withAuth(srv.emitAuditEvent))
 	srv.GET("/v1/events", srv.withAuth(srv.searchEvents))
 
-	return srv
+	return httplib.RewritePaths(&srv.Router,
+		httplib.Rewrite("/v1/nodes", "/v1/namespaces/default/nodes"),
+		httplib.Rewrite("/v1/sessions", "/v1/namespaces/default/sessions"),
+		httplib.Rewrite("/v1/sessions/([^/]+)/(.*)", "/v1/namespaces/default/sessions/$1/$2"),
+	)
 }
 
 // HandlerWithAuthFunc is http handler with passed auth context
@@ -178,7 +182,7 @@ type upsertServerReq struct {
 	TTL    time.Duration   `json:"ttl"`
 }
 
-// upsertNode is called by remote SSH nodes when they ping back into the auth service
+// upsertServer is a common utility function
 func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req upsertServerReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -190,6 +194,7 @@ func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.Respon
 
 	switch role {
 	case teleport.RoleNode:
+		req.Server.Namespace = p.ByName("namespace")
 		if err := auth.UpsertNode(req.Server, req.TTL); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -212,7 +217,7 @@ func (s *APIServer) upsertNode(auth ClientI, w http.ResponseWriter, r *http.Requ
 
 // getNodes returns registered SSH nodes
 func (s *APIServer) getNodes(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	servers, err := auth.GetNodes()
+	servers, err := auth.GetNodes(p.ByName("namespace"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -615,6 +620,7 @@ func (s *APIServer) createSession(auth ClientI, w http.ResponseWriter, r *http.R
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	req.Session.Namespace = p.ByName("namespace")
 	if err := auth.CreateSession(req.Session); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -630,6 +636,7 @@ func (s *APIServer) updateSession(auth ClientI, w http.ResponseWriter, r *http.R
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	req.Update.Namespace = p.ByName("namespace")
 	if err := auth.UpdateSession(req.Update); err != nil {
 		return nil, trace.Wrap(err)
 	}

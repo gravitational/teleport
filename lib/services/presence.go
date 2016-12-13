@@ -32,7 +32,7 @@ import (
 // of the cluster - Nodes, Proxies and SSH nodes
 type Presence interface {
 	// GetNodes returns a list of registered servers
-	GetNodes() ([]Server, error)
+	GetNodes(namespace string) ([]Server, error)
 
 	// UpsertNode registers node presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second

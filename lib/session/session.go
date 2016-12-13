@@ -285,11 +285,11 @@ func New(bk backend.Backend, opts ...Option) (Service, error) {
 }
 
 func activeBucket(namespace string) []string {
-	return []string{"sessions", namespace, "active"}
+	return []string{"namespaces", namespace, "sessions", "active"}
 }
 
 func partiesBucket(namespace string, id ID) []string {
-	return []string{"sessions", namespace, "parties", string(id)}
+	return []string{"namespaces", namespace, "sessions", "parties", string(id)}
 }
 
 // GetSessions returns a list of active sessions. Returns an empty slice
