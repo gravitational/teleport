@@ -329,6 +329,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		Provisioner:     cfg.Provisioner,
 		Identity:        cfg.Identity,
 		StaticTokens:    cfg.Auth.StaticTokens,
+		U2F:             cfg.Auth.U2F,
 	}, cfg.SeedConfig)
 	if err != nil {
 		return trace.Wrap(err)

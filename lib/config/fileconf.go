@@ -108,6 +108,9 @@ var (
 		"table_name":         true,
 		"access_key":         true,
 		"secret_key":         true,
+		"u2f":                true,
+		"app_id":             true,
+		"facets":             true,
 	}
 )
 
@@ -237,6 +240,10 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	a.ListenAddress = conf.Auth.SSHAddr.Addr
 	a.EnabledFlag = "yes"
 	a.StaticTokens = []StaticToken{"proxy,node:cluster-join-token"}
+
+	a.U2F.EnabledFlag = "yes"
+	a.U2F.AppID = conf.Auth.U2F.AppID
+	a.U2F.Facets = conf.Auth.U2F.Facets
 
 	// sample proxy config:
 	var p Proxy
@@ -403,6 +410,8 @@ type Auth struct {
 	// Each token string has the following format: "role1,role2,..:token",
 	// for exmple: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
 	StaticTokens []StaticToken `yaml:"tokens,omitempty"`
+
+	U2F U2F `yaml:"u2f,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -610,4 +619,41 @@ func (t StaticToken) Parse() (roles teleport.Roles, token string, err error) {
 	}
 	roles, err = teleport.ParseRoles(parts[0])
 	return roles, parts[1], trace.Wrap(err)
+}
+
+type U2F struct {
+	EnabledFlag string   `yaml:"enabled"`
+	AppID       string   `yaml:"app_id,omitempty"`
+	Facets      []string `yaml:"facets,omitempty"`
+}
+
+func (u *U2F) Parse() (*services.U2F, error) {
+	enabled := false
+	switch strings.ToLower(u.EnabledFlag) {
+	case "yes", "yeah", "y", "true", "1":
+		enabled = true
+	}
+	appID := u.AppID
+	// If no appID specified, default to hostname
+	if appID == "" {
+		hostname, err := os.Hostname()
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to automatically determine U2F AppID from hostname")
+		}
+		appID = fmt.Sprintf("https://%s:%d", strings.ToLower(hostname), defaults.HTTPListenPort)
+	}
+	facets := u.Facets
+	// If no facets specified, default to AppID
+	if len(facets) == 0 {
+		facets = []string{appID}
+	}
+	other := &services.U2F{
+		Enabled: enabled,
+		AppID:   appID,
+		Facets:  facets,
+	}
+	if err := other.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return other, nil
 }

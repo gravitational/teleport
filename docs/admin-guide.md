@@ -764,6 +764,65 @@ your Google credentials. Teleport will keep you logged in for the next 23 hours.
     like Github. Teleport is an open source project and adding providers is not hard, your 
     contributions are welcome, just search the code for OIDC! :-)
 
+## FIDO U2F
+
+Teleport supports [FIDO U2F](https://www.yubico.com/about/background/fido/) hardware keys as a second authentication factor.
+
+### Enabling/Disabling U2F
+
+U2F is enabled in the demo configuration.
+To enable U2F, add the following to the auth service configuration.
+
+````
+auth_service:
+  u2f:
+    enabled: yes
+    app_id: https://mycorp.com/appid.js
+    facets:
+    - https://proxy1.mycorp.com:3080
+    - https://proxy2.mycorp.com:3080
+````
+
+In single-server setups, `app_id` and `facets` can be omitted.
+
+To disable U2F, set `enabled` to `no`.
+
+`app_id` should be the App ID of your cluster. `app_id` defaults to the auth server's hostname if not set.
+
+`facets` should include proxies (if any).
+If a proxy is on a port that is not standard for HTTPS (i.e. 3080), then the port must be specified in the facets list.
+`facets` defaults to having `app_id` as the only entry if not set.
+
+### Using U2F
+
+Once U2F is enabled, users can select U2F as their second factor during registration and log in with their U2F keys.
+
+#### Web UI
+
+On the signup page, a set of radio buttons should appear that allow the user to select Google Authenticator or U2F as their second factor.
+On the login page, a "Login with U2F" button should appear below the "Login" button.
+Leave the two factor token field blank when logging in with U2F.
+
+#### CLI
+
+You have to tell `tsh` to authenticate using U2F with the `--u2f` switch:
+
+```
+tsh --proxy <proxy-addr> ssh --u2f
+```
+NOTE: You will need the [`u2f-host`](https://developers.yubico.com/libu2f-host/) binary in order to use U2F with the CLI.
+
+#### Additional considerations
+
+The App ID identifies the web application to the U2F keys and should not change in the lifetime of the cluster.
+If the App ID changes, all existing U2F key registrations will become invalid and all users who use U2F as the second factor will need to re-register.
+
+For single-proxy setups, the App ID can be equal to the domain name of the proxy, but this will prevent you from adding more proxies without changing the App ID.
+For multi-proxy setups, the App ID should be an HTTPS URL pointing to a JSON file that mirrors `facets` in the auth config.
+
+The JSON file should be hosted on a domain you control and it should be accessible anonymously.
+See the [official U2F specification](https://fidoalliance.org/specs/fido-u2f-v1.0-ps-20141009/fido-appid-and-facets-ps-20141009.html#processing-rules-for-appid-and-facetid-assertions)
+for the exact format of the JSON file.
 
 ## High Availability and Clustering
  

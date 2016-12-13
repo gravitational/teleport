@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,6 +34,8 @@ import (
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/tstranex/u2f"
 )
 
 // User represents teleport or external user
@@ -198,6 +201,30 @@ type Identity interface {
 
 	// DeleteSignupToken deletes signup token from the storage
 	DeleteSignupToken(token string) error
+
+	// UpsertU2FRegisterChallenge upserts a U2F challenge for a new user corresponding to the token
+	UpsertU2FRegisterChallenge(token string, u2fChallenge *u2f.Challenge) (error)
+
+	// GetU2FRegisterChallenge returns a U2F challenge for a new user corresponding to the token
+	GetU2FRegisterChallenge(token string) (*u2f.Challenge, error)
+
+	// UpsertU2FRegistration upserts a U2F registration from a valid register response
+	UpsertU2FRegistration(user string, u2fReg *u2f.Registration) (error)
+
+	// GetU2FRegistration returns a U2F registration from a valid register response
+	GetU2FRegistration(user string) (*u2f.Registration, error)
+
+	// UpsertU2FSignChallenge upserts a U2F sign (auth) challenge
+	UpsertU2FSignChallenge(user string, u2fChallenge *u2f.Challenge) (error)
+
+	// GetU2FSignChallenge returns a U2F sign (auth) challenge
+	GetU2FSignChallenge(user string) (*u2f.Challenge, error)
+
+	// UpsertU2FRegistrationCounter upserts a counter associated with a U2F registration
+	UpsertU2FRegistrationCounter(user string, counter uint32) (error)
+
+	// GetU2FRegistrationCounter returns a counter associated with a U2F registration
+	GetU2FRegistrationCounter(user string) (uint32, error)
 
 	// UpsertOIDCConnector upserts OIDC Connector
 	UpsertOIDCConnector(connector OIDCConnector, ttl time.Duration) error
@@ -384,6 +411,34 @@ func (i *OIDCAuthRequest) Check() error {
 		}
 	}
 
+	return nil
+}
+
+// U2F is a configuration of the U2F two factor authentication
+type U2F struct {
+	Enabled bool
+	// AppID identifies the website to the U2F keys. It should not be changed once a U2F
+	// key is registered or all existing registrations will become invalid.
+	AppID   string
+	// Facets should include the domain name of all proxies.
+	Facets  []string
+}
+
+func (u *U2F) Check() error {
+	if u.Enabled {
+		// Basic verification of the U2F config
+		if !strings.HasPrefix(u.AppID, "https://") {
+			return trace.BadParameter("U2F: invalid AppID: %s", u.AppID)
+		}
+		if len(u.Facets) == 0 {
+			return trace.BadParameter("U2F: no Facets specified")
+		}
+		for i := range u.Facets {
+			if !strings.HasPrefix(u.Facets[i], "https://") {
+				return trace.BadParameter("U2F: invalid Facet: %s", u.Facets[i])
+			}
+		}
+	}
 	return nil
 }
 

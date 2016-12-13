@@ -30,7 +30,8 @@
     "react-dom": "0.14.3",
     "react-router": "2.0.0",
     "react-slider": "0.6.1",
-    "react-toastr": "2.4.0"
+    "react-toastr": "2.4.0",
+    "u2f-api-polyfill": "^0.4.3"
   },
   "devDependencies": {
     "babel-core": "^6.7.2",

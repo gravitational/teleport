@@ -42,6 +42,8 @@ import (
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+
+	"github.com/tstranex/u2f"
 )
 
 // Authority implements minimal key-management facility for generating OpenSSH
@@ -111,6 +113,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 		AuthServiceName: cfg.AuthServiceName,
 		oidcClients:     make(map[string]*oidc.Client),
 		StaticTokens:    cfg.StaticTokens,
+		U2F:             cfg.U2F,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -148,6 +151,9 @@ type AuthServer struct {
 	// environments where paranoid security is not needed
 	StaticTokens []services.ProvisionToken
 
+	// U2F is the configuration of the U2F 2 factor authentication
+	U2F services.U2F
+
 	services.Trust
 	services.Lock
 	services.Presence
@@ -166,6 +172,20 @@ func (a *AuthServer) Close() error {
 // Also known as "cluster name"
 func (a *AuthServer) GetDomainName() (string, error) {
 	return a.DomainName, nil
+}
+
+func (a *AuthServer) GetU2FAppID() (string, error) {
+	if err := a.CheckU2FEnabled(); err != nil {
+		return "", err
+	}
+	return a.U2F.AppID, nil
+}
+
+func (a *AuthServer) CheckU2FEnabled() error {
+	if !a.U2F.Enabled {
+		return trace.AccessDenied("U2F is disabled")
+	}
+	return nil
 }
 
 // GenerateHostCert generates host certificate, it takes pkey as a signing
@@ -212,6 +232,12 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 	if err := s.CheckPasswordWOToken(user, password); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return s.PreAuthenticatedSignIn(user)
+}
+
+// PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is
+// already checked before issueing the second factor challenge
+func (s *AuthServer) PreAuthenticatedSignIn(user string) (*Session, error) {
 	sess, err := s.NewWebSession(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -221,6 +247,70 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 	}
 	sess.WS.Priv = nil
 	return sess, nil
+}
+
+func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
+	err := s.CheckU2FEnabled()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.CheckPasswordWOToken(user, password); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	registration, err := s.GetU2FRegistration(user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	challenge, err := u2f.NewChallenge(s.U2F.AppID, s.U2F.Facets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.UpsertU2FSignChallenge(user, challenge)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	u2fSignReq := challenge.SignRequest(*registration)
+
+	return u2fSignReq, nil
+}
+
+func (s *AuthServer) CheckU2FSignResponse(user string, response *u2f.SignResponse) (error) {
+	err := s.CheckU2FEnabled()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	reg, err := s.GetU2FRegistration(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	counter, err := s.GetU2FRegistrationCounter(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	challenge, err := s.GetU2FSignChallenge(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	newCounter, err := reg.Authenticate(*response, *challenge, counter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.UpsertU2FRegistrationCounter(user, newCounter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // ExtendWebSession creates a new web session for a user based on a valid previous sessionID,

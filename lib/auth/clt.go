@@ -37,6 +37,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
+
+	"github.com/tstranex/u2f"
 )
 
 // CurrentVersion is a current API version
@@ -391,6 +393,18 @@ func (c *Client) GetProxies() ([]services.Server, error) {
 	return re, nil
 }
 
+func (c *Client) GetU2FAppID() (string, error) {
+	out, err := c.Get(c.Endpoint("u2f", "appID"), url.Values{})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	var appid string
+	if err := json.Unmarshal(out.Bytes(), &appid); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return appid, nil
+}
+
 // UpsertPassword updates web access password for the user
 func (c *Client) UpsertPassword(user string,
 	password []byte) (hotpURL string, hotpQR []byte, err error) {
@@ -444,6 +458,40 @@ func (c *Client) SignIn(user string, password []byte) (*Session, error) {
 		return nil, err
 	}
 	return sess, nil
+}
+
+// PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is
+// already checked before issueing the second factor challenge
+func (c *Client) PreAuthenticatedSignIn(user string) (*Session, error) {
+	out, err := c.Get(
+		c.Endpoint("users", user, "web", "signin", "preauth"),
+		url.Values{},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var sess *Session
+	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
+		return nil, err
+	}
+	return sess, nil
+}
+
+func (c *Client) GetU2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
+	out, err := c.PostJSON(
+		c.Endpoint("u2f", "users", user, "sign"),
+		signInReq{
+			Password: string(password),
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var signRequest *u2f.SignRequest
+	if err := json.Unmarshal(out.Bytes(), &signRequest); err != nil {
+		return nil, err
+	}
+	return signRequest, nil
 }
 
 // ExtendWebSession creates a new web session for a user based on another
@@ -640,6 +688,18 @@ func (c *Client) GetSignupTokenData(token string) (user string,
 	return tokenData.User, tokenData.QRImg, tokenData.HotpFirstValues, nil
 }
 
+func (c *Client) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
+	out, err := c.Get(c.Endpoint("u2f", "signuptokens", token), url.Values{})
+	if err != nil {
+		return nil, err
+	}
+	var u2fRegReq u2f.RegisterRequest
+	if err := json.Unmarshal(out.Bytes(), &u2fRegReq); err != nil {
+		return nil, err
+	}
+	return &u2fRegReq, nil
+}
+
 // CreateUserWithToken creates account with provided token and password.
 // Account username and hotp generator are taken from token data.
 // Deletes token after account creation.
@@ -648,6 +708,22 @@ func (c *Client) CreateUserWithToken(token, password, hotpToken string) (*Sessio
 		Token:     token,
 		Password:  password,
 		HOTPToken: hotpToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var sess *Session
+	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sess, nil
+}
+
+func (c *Client) CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*Session, error) {
+	out, err := c.PostJSON(c.Endpoint("u2f", "users"), createUserWithU2FTokenReq{
+		Token:     token,
+		Password:  password,
+		U2FRegisterResponse: u2fRegisterResponse,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -866,6 +942,11 @@ type ClientI interface {
 	DeleteOIDCConnector(connectorID string) error
 	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
 	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
+	GetU2FSignRequest(user string, password []byte) (*u2f.SignRequest, error)
+	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterRequest, error)
+	CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*Session, error)
+	PreAuthenticatedSignIn(user string) (*Session, error)
+	GetU2FAppID() (string, error)
 	// UpsertReverseTunnel is used by admins to create a new reverse tunnel
 	// to the remote proxy to bypass firewall restrictions
 	UpsertReverseTunnel(tunnel services.ReverseTunnel, ttl time.Duration) error

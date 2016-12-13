@@ -205,6 +205,11 @@ const (
 	initError = "failure initializing default values"
 )
 
+const (
+	// This is hardcoded in the U2F library
+	U2FChallengeTimeout = 5 * time.Minute
+)
+
 // TLS constants for Web Proxy HTTPS connection
 const (
 	// path to a self-signed TLS PRIVATE key file for HTTPS connection for the web proxy

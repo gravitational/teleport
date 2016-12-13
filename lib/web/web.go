@@ -47,6 +47,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/mailgun/lemma/secret"
 	"github.com/mailgun/ttlmap"
+
+	"github.com/tstranex/u2f"
 )
 
 // Handler is HTTP web proxy handler
@@ -158,6 +160,13 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(h.oidcLoginConsole))
 	h.GET("/webapi/oidc/callback", httplib.MakeHandler(h.oidcCallback))
 
+	// U2F related APIs
+	h.GET("/webapi/u2f/signuptokens/:token", httplib.MakeHandler(h.u2fRegisterRequest))
+	h.POST("/webapi/u2f/users", httplib.MakeHandler(h.createNewU2FUser))
+	h.POST("/webapi/u2f/signrequest", httplib.MakeHandler(h.u2fSignRequest))
+	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.createSessionWithU2FSignResponse))
+	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.createSSHCertWithU2FSignResponse))
+
 	// if Web UI is enabled, chekc the assets dir:
 	var (
 		writeSettings http.HandlerFunc
@@ -246,6 +255,7 @@ type oidcConnector struct {
 type webSettings struct {
 	Auth struct {
 		OIDCConnectors []oidcConnector `json:"oidc_connectors"`
+		U2FAppID string `json:"u2f_appid"`
 	} `json:"auth"`
 }
 
@@ -266,6 +276,12 @@ func (m *Handler) getSettings(w http.ResponseWriter, r *http.Request) (interface
 
 	if len(settings.Auth.OIDCConnectors) == 0 {
 		settings.Auth.OIDCConnectors = make([]oidcConnector, 0)
+	}
+	u2fAppID, err := m.cfg.ProxyClient.GetU2FAppID()
+	if err != nil {
+		settings.Auth.U2FAppID = ""
+	} else {
+		settings.Auth.U2FAppID = u2fAppID
 	}
 	out, err := json.Marshal(settings)
 	if err != nil {
@@ -575,6 +591,92 @@ func (m *Handler) renderUserInvite(w http.ResponseWriter, r *http.Request, p htt
 	}, nil
 }
 
+
+// u2fRegisterRequest is called to get a U2F challenge for registering a U2F key
+//
+// GET /webapi/u2f/signuptokens/:token
+//
+// Response:
+//
+// {"version":"U2F_V2","challenge":"randombase64string","appId":"https://mycorp.com:3080"}
+//
+func (m *Handler) u2fRegisterRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	token := p[0].Value
+	u2fRegisterRequest, err := m.auth.GetUserInviteU2FRegisterRequest(token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return u2fRegisterRequest, nil
+}
+
+// A request from the client for a U2F sign request from the server
+type u2fSignRequestReq struct {
+	User string `json:"user"`
+	Pass string `json:"pass"`
+}
+
+// u2fSignRequest is called to get a U2F challenge for authenticating
+//
+// POST /webapi/u2f/signrequest
+//
+// {"user": "alex", "pass": "abc123"}
+//
+// Successful response:
+//
+// {"version":"U2F_V2","challenge":"randombase64string","keyHandle":"longbase64string","appId":"https://mycorp.com:3080"}
+//
+func (m *Handler) u2fSignRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *u2fSignRequestReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	u2fSignReq, err := m.auth.GetU2FSignRequest(req.User, req.Pass)
+	if err != nil {
+		log.Infof("bad access credentials: %v", err)
+		return nil, trace.AccessDenied("bad auth credentials")
+	}
+
+	return u2fSignReq, nil
+}
+
+// A request from the client to send the signature from the U2F key
+type u2fSignResponseReq struct {
+	User string `json:"user"`
+	U2FSignResponse u2f.SignResponse `json:"u2f_sign_response"`
+}
+
+// createSessionWithU2FSignResponse is called to sign in with a U2F signature
+//
+// POST /webapi/u2f/session
+//
+// {"user": "alex", "u2f_sign_response": { "signatureData": "signatureinbase64", "clientData": "verylongbase64string", "challenge": "randombase64string" }}
+//
+// Successful response:
+//
+// {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
+//
+func (m *Handler) createSessionWithU2FSignResponse(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *u2fSignResponseReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sess, err := m.auth.AuthWithU2FSignResponse(req.User, &req.U2FSignResponse)
+	if err != nil {
+		log.Infof("bad access credentials: %v", err)
+		return nil, trace.AccessDenied("bad auth credentials")
+	}
+	if err := SetSession(w, req.User, sess.ID); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ctx, err := m.auth.ValidateSession(req.User, sess.ID)
+	if err != nil {
+		return nil, trace.AccessDenied("need auth")
+	}
+	return NewSessionResponse(ctx)
+}
+
 // createNewUser req is a request to create a new Teleport user
 type createNewUserReq struct {
 	InviteToken       string `json:"invite_token"`
@@ -597,6 +699,41 @@ func (m *Handler) createNewUser(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 	sess, err := m.auth.CreateNewUser(req.InviteToken, req.Pass, req.SecondFactorToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ctx, err := m.auth.ValidateSession(sess.Username, sess.ID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := SetSession(w, sess.Username, sess.ID); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return NewSessionResponse(ctx)
+}
+
+// A request to create a new user which uses U2F as the second factor
+type createNewU2FUserReq struct {
+	InviteToken       string `json:"invite_token"`
+	Pass              string `json:"pass"`
+	U2FRegisterResponse u2f.RegisterResponse `json:"u2f_register_response"`
+}
+
+// createNewU2FUser creates a new user configured to use U2F as the second factor
+//
+// POST /webapi/u2f/users
+//
+// {"invite_token": "unique invite token", "pass": "user password", "u2f_register_response": {"registrationData":"verylongbase64string","clientData":"longbase64string"}}
+//
+// Sucessful response: (session cookie is set)
+//
+// {"type": "bearer", "token": "bearer token", "user": "alex", "expires_in": 20}
+func (m *Handler) createNewU2FUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *createNewU2FUserReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess, err := m.auth.CreateNewU2FUser(req.InviteToken, req.Pass, req.U2FRegisterResponse)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1138,6 +1275,46 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	cert, err := h.auth.GetCertificate(*req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cert, nil
+}
+
+// createSSHCertWithU2FReq are passed by web client
+// to authenticate against teleport server and receive
+// a temporary cert signed by auth server authority
+type createSSHCertWithU2FReq struct {
+	// User is a teleport username
+	User string `json:"user"`
+	// We only issue U2F sign requests after checking the password, so there's no need to check again.
+	// U2FSignResponse is the signature from the U2F device
+	U2FSignResponse u2f.SignResponse `json:"u2f_sign_response"`
+	// PubKey is a public key user wishes to sign
+	PubKey []byte `json:"pub_key"`
+	// TTL is a desired TTL for the cert (max is still capped by server,
+	// however user can shorten the time)
+	TTL time.Duration `json:"ttl"`
+}
+
+// createSSHCertWithU2FSignResponse is a web call that generates new SSH certificate based
+// on user's name, password, U2F signature and public key user wishes to sign
+//
+// POST /v1/webapi/u2f/certs
+//
+// { "user": "bob", "password": "pass", "u2f_sign_response": { "signatureData": "signatureinbase64", "clientData": "verylongbase64string", "challenge": "randombase64string" }, "pub_key": "key to sign", "ttl": 1000000000 }
+//
+// Success response
+//
+// { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
+//
+func (h *Handler) createSSHCertWithU2FSignResponse(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req *createSSHCertWithU2FReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := h.auth.GetCertificateWithU2F(*req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

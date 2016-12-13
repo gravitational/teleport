@@ -139,6 +139,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.ApplyToken(fc.AuthToken)
 	cfg.Auth.DomainName = fc.Auth.DomainName
+
+	u2f, err := fc.Auth.U2F.Parse()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.Auth.U2F = *u2f
+
 	if fc.Global.DataDir != "" {
 		cfg.DataDir = fc.Global.DataDir
 	}
@@ -147,7 +154,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// configure storage:
-	var err error
 	switch fc.Storage.Type {
 	// bolt backend (default):
 	case teleport.BoltBackendType:

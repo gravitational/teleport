@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"
+
+	"github.com/tstranex/u2f"
 )
 
 type AuthWithRoles struct {
@@ -90,6 +92,13 @@ func (a *AuthWithRoles) GetDomainName() (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return a.authServer.GetDomainName()
+}
+
+func (a *AuthWithRoles) GetU2FAppID() (string, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionGetU2FAppID); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return a.authServer.GetU2FAppID()
 }
 
 func (a *AuthWithRoles) DeleteCertAuthority(id services.CertAuthID) error {
@@ -218,6 +227,20 @@ func (a *AuthWithRoles) SignIn(user string, password []byte) (*Session, error) {
 	return a.authServer.SignIn(user, password)
 }
 
+func (a *AuthWithRoles) PreAuthenticatedSignIn(user string) (*Session, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionPreAuthSignIn); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.PreAuthenticatedSignIn(user)
+}
+
+func (a *AuthWithRoles) GetU2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
+        if err := a.permChecker.HasPermission(a.role, ActionU2FSignReq); err != nil {
+                return nil, trace.Wrap(err)
+        }
+        return a.authServer.U2FSignRequest(user, password)
+}
+
 func (a *AuthWithRoles) CreateWebSession(user string) (*Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionCreateWebSession); err != nil {
 		return nil, trace.Wrap(err)
@@ -306,11 +329,25 @@ func (a *AuthWithRoles) GetSignupTokenData(token string) (user string,
 	return a.authServer.GetSignupTokenData(token)
 }
 
+func (a *AuthWithRoles) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error){
+	if err := a.permChecker.HasPermission(a.role, ActionGetSignupTokenData); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.CreateSignupU2FRegisterRequest(token)
+}
+
 func (a *AuthWithRoles) CreateUserWithToken(token, password, hotpToken string) (*Session, error) {
 	if err := a.permChecker.HasPermission(a.role, ActionCreateUserWithToken); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.CreateUserWithToken(token, password, hotpToken)
+}
+
+func (a *AuthWithRoles) CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*Session, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionCreateUserWithToken); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.CreateUserWithU2FToken(token, password, u2fRegisterResponse)
 }
 
 func (a *AuthWithRoles) UpsertUser(u services.User) error {

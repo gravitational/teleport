@@ -62,6 +62,7 @@ func NewStandardPermissions() PermissionChecker {
 		ActionUpsertServer:       true,
 		ActionGetServers:         true,
 		ActionGetProxies:         true,
+		ActionGetU2FAppID:        true,
 		ActionGetAuthServers:     true,
 		ActionGetCertAuthorities: true,
 		ActionGetUsers:           true,
@@ -82,6 +83,7 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetServers:                      true,
 		ActionUpsertProxy:                     true,
 		ActionGetProxies:                      true,
+		ActionGetU2FAppID:                     true,
 		ActionGetAuthServers:                  true,
 		ActionGetCertAuthorities:              true,
 		ActionGetUsers:                        true,
@@ -111,6 +113,16 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetSignupTokenData:  true,
 		ActionCreateUserWithToken: true,
 		ActionGetAuthServers:      true,
+	}
+
+	sp.permissions[teleport.RoleU2FSign] = map[string]bool{
+		ActionU2FSignReq: true,
+	}
+
+	sp.permissions[teleport.RoleU2FUser] = map[string]bool{
+		ActionPreAuthSignIn: true,
+		ActionGenerateUserCert: true,
+		ActionGetCertAuthorities: true,
 	}
 
 	return &sp
@@ -156,6 +168,8 @@ var StandardRoles = teleport.Roles{
 	teleport.RoleAdmin,
 	teleport.RoleProvisionToken,
 	teleport.RoleSignup,
+	teleport.RoleU2FSign,
+	teleport.RoleU2FUser,
 }
 
 const (
@@ -178,12 +192,15 @@ const (
 	ActionGetAuthServers                    = "GetAuthServers"
 	ActionUpsertProxy                       = "UpsertProxy"
 	ActionGetProxies                        = "GetProxies"
+	ActionGetU2FAppID                       = "GetU2FAppID"
 	ActionUpsertReverseTunnel               = "UpsertReverseTunnel"
 	ActionGetReverseTunnels                 = "GetReverseTunnels"
 	ActionDeleteReverseTunnel               = "DeleteReverseTunnel"
 	ActionUpsertPassword                    = "UpsertPassword"
 	ActionCheckPassword                     = "CheckPassword"
 	ActionSignIn                            = "SignIn"
+	ActionPreAuthSignIn                     = "PreAuthSignIn"
+	ActionU2FSignReq                        = "U2FSignReq"
 	ActionExtendWebSession                  = "ExtendWebSession"
 	ActionCreateWebSession                  = "CreateWebSession"
 	ActionGetWebSession                     = "GetWebSession"
