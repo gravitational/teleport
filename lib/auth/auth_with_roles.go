@@ -102,6 +102,20 @@ func (a *AuthWithRoles) GetCertAuthorities(caType services.CertAuthType, loadKey
 	return a.authServer.GetCertAuthorities(caType, loadKeys)
 }
 
+func (a *AuthWithRoles) GetCertAuthority(id services.CertAuthID, loadKeys bool) (*services.CertAuthority, error) {
+	if loadKeys {
+		// loading private key implies admin access, what in our case == Write access to them
+		if err := a.action(defaults.Namespace, services.KindCertAuthority, services.ActionWrite); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := a.action(defaults.Namespace, services.KindCertAuthority, services.ActionRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return a.authServer.GetCertAuthority(id, loadKeys)
+}
+
 func (a *AuthWithRoles) GetDomainName() (string, error) {
 	// anyone can read it, no harm in that
 	return a.authServer.GetDomainName()

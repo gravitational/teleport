@@ -32,13 +32,14 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-func newSessionStreamHandler(sessionID session.ID, ctx *SessionContext, site reversetunnel.RemoteSite, pollPeriod time.Duration) (*sessionStreamHandler, error) {
+func newSessionStreamHandler(namespace string, sessionID session.ID, ctx *SessionContext, site reversetunnel.RemoteSite, pollPeriod time.Duration) (*sessionStreamHandler, error) {
 	return &sessionStreamHandler{
 		pollPeriod: pollPeriod,
 		sessionID:  sessionID,
 		ctx:        ctx,
 		site:       site,
 		closeC:     make(chan bool),
+		namespace:  namespace,
 	}, nil
 }
 
@@ -49,6 +50,7 @@ type sessionStreamHandler struct {
 	pollPeriod time.Duration
 	ctx        *SessionContext
 	site       reversetunnel.RemoteSite
+	namespace  string
 	sessionID  session.ID
 	closeC     chan bool
 	ws         *websocket.Conn
@@ -90,7 +92,7 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 
 	pollEvents := func() []events.EventFields {
 		// ask for any events than happened since the last call:
-		re, err := clt.GetSessionEvents(w.sessionID, eventsCursor+1)
+		re, err := clt.GetSessionEvents(w.namespace, w.sessionID, eventsCursor+1)
 		if err != nil {
 			log.Error(err)
 			return emptyEventList
@@ -119,7 +121,7 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 		}
 
 		newEvents := pollEvents()
-		sess, err := clt.GetSession(w.sessionID)
+		sess, err := clt.GetSession(w.namespace, w.sessionID)
 		if err != nil {
 			log.Error(err)
 		}
@@ -127,7 +129,7 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 			log.Warningf("invalid session ID: %v", w.sessionID)
 			continue
 		}
-		servers, err := clt.GetNodes()
+		servers, err := clt.GetNodes(w.namespace)
 		if err != nil {
 			log.Error(err)
 		}

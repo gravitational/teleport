@@ -51,6 +51,7 @@ import (
 type Server struct {
 	sync.Mutex
 
+	namespace     string
 	addr          utils.NetAddr
 	hostname      string
 	certChecker   ssh.CertChecker
@@ -171,6 +172,13 @@ func SetAuditLog(alog events.IAuditLog) ServerOption {
 	}
 }
 
+func SetNamespace(namespace string) ServerOption {
+	return func(s *Server) error {
+		s.namespace = namespace
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr,
 	hostname string,
@@ -226,6 +234,10 @@ func New(addr utils.NetAddr,
 	}
 	s.srv = srv
 	return s, nil
+}
+
+func (s *Server) getNamespace() string {
+	return services.ProcessNamespace(s.namespace)
 }
 
 func (s *Server) logFields(fields map[string]interface{}) log.Fields {

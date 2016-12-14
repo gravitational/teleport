@@ -23,6 +23,11 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// NewAccessChecker returns new access checker that's using roles and users
+func NewAccessChecker(access services.Access, identity services.Identity) NewChecker {
+	return (&AccessCheckers{Access: access, Identity: identity}).GetChecker
+}
+
 // NewChecker is a function that returns new access checker based on username
 type NewChecker func(username string) (services.AccessChecker, error)
 

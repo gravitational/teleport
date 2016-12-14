@@ -50,7 +50,8 @@ type CachingAuthClient struct {
 	//
 
 	domainName string
-	nodes      []services.Server
+	namespaces []services.Namespace
+	nodes      map[string][]services.Server
 	proxies    []services.Server
 	users      []services.User
 	userCAs    []*services.CertAuthority
@@ -65,9 +66,17 @@ func NewCachingAuthClient(ap auth.AccessPoint) (*CachingAuthClient, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	nodes, err := ap.GetNodes()
+	namespaces, err := ap.GetNamespaces()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	nodes := make(map[string][]services.Server, len(namespaces))
+	for _, ns := range namespaces {
+		nsNodes, err := ap.GetNodes(ns.Metadata.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		nodes[ns.Metadata.Name] = nsNodes
 	}
 	proxies, err := ap.GetProxies()
 	if err != nil {
@@ -111,18 +120,34 @@ func (cs *CachingAuthClient) GetDomainName() (string, error) {
 	return cs.domainName, nil
 }
 
-// GetNodes is a part of auth.AccessPoint implementation
-func (cs *CachingAuthClient) GetNodes() ([]services.Server, error) {
+// GetNamespaces is a part of auth.AccessPoint implementation
+func (cs *CachingAuthClient) GetNamespaces() ([]services.Namespace, error) {
 	cs.try(func() error {
-		nodes, err := cs.ap.GetNodes()
+		namespaces, err := cs.ap.GetNamespaces()
 		if err == nil {
 			cs.Lock()
 			defer cs.Unlock()
-			cs.nodes = nodes
+			cs.namespaces = namespaces
 		}
 		return err
 	})
-	return cs.nodes, nil
+	return cs.namespaces, nil
+}
+
+// GetNodes is a part of auth.AccessPoint implementation
+func (cs *CachingAuthClient) GetNodes(namespace string) ([]services.Server, error) {
+	var nsNodes []services.Server
+	var err error
+	cs.try(func() error {
+		nsNodes, err = cs.ap.GetNodes(namespace)
+		if err == nil {
+			cs.Lock()
+			defer cs.Unlock()
+			cs.nodes[namespace] = nsNodes
+		}
+		return err
+	})
+	return nsNodes, nil
 }
 
 // GetProxies is a part of auth.AccessPoint implementation

@@ -61,6 +61,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.GET("/v1/domain", srv.withAuth(srv.getDomainName))
 	srv.POST("/v1/authorities/:type", srv.withAuth(srv.upsertCertAuthority))
 	srv.DELETE("/v1/authorities/:type/:domain", srv.withAuth(srv.deleteCertAuthority))
+	srv.GET("/v1/authorities/:type/:domain", srv.withAuth(srv.getCertAuthority))
 	srv.GET("/v1/authorities/:type", srv.withAuth(srv.getCertAuthorities))
 
 	// Generating certificates for user and host authorities
@@ -136,6 +137,7 @@ func NewAPIServer(config *APIConfig) http.Handler {
 
 	// Provisioning tokens
 	srv.GET("/v1/tokens", srv.withAuth(srv.getTokens))
+	srv.GET("/v1/tokens/:token", srv.withAuth(srv.getToken))
 	srv.DELETE("/v1/tokens/:token", srv.withAuth(srv.deleteToken))
 
 	// Audit logs AKA events
@@ -295,6 +297,15 @@ func (s *APIServer) getTokens(auth ClientI, w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 	return tokens, nil
+}
+
+// getTokens returns provisioning token by name
+func (s *APIServer) getToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	token, err := auth.GetToken(p.ByName("token"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return token, nil
 }
 
 // deleteToken deletes (revokes) a token by its value
@@ -590,6 +601,22 @@ func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *h
 		return nil, trace.Wrap(err)
 	}
 	return certs, nil
+}
+
+func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	id := services.CertAuthID{
+		Type:       services.CertAuthType(p.ByName("type")),
+		DomainName: p.ByName("domain"),
+	}
+	ca, err := auth.GetCertAuthority(id, loadKeys)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ca, nil
 }
 
 func (s *APIServer) getDomainName(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {

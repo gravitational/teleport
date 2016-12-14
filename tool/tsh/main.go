@@ -79,6 +79,8 @@ type CLIConf struct {
 	Interactive bool
 	// Quiet mode, -q command (disables progress printing)
 	Quiet bool
+	// Namespace is used to select cluster namespace
+	Namespace string
 }
 
 // run executes TSH client. same as main() but easier to test
@@ -98,6 +100,7 @@ func run(args []string, underTest bool) {
 	app.Flag("proxy", "SSH proxy host or IP address").Envar("TELEPORT_PROXY").StringVar(&cf.Proxy)
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
 	app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").Default("false").BoolVar(&cf.InsecureSkipVerify)
+	app.Flag("namespace", "Namespace of the cluster").Default(defaults.Namespace).StringVar(&cf.Namespace)
 	debugMode := app.Flag("debug", "Verbose logging to stdout").Short('d').Bool()
 	app.HelpFlag.Short('h')
 	ver := app.Command("version", "Print the version")
@@ -178,7 +181,7 @@ func onPlay(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	if err := tc.Play(cf.SessionID); err != nil {
+	if err := tc.Play(cf.Namespace, cf.SessionID); err != nil {
 		utils.FatalError(err)
 	}
 }
@@ -300,7 +303,7 @@ func onJoin(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(fmt.Errorf("'%v' is not a valid session ID (must be GUID)", cf.SessionID))
 	}
-	if err = tc.Join(*sid, nil); err != nil {
+	if err = tc.Join(cf.Namespace, *sid, nil); err != nil {
 		utils.FatalError(err)
 	} else {
 		// successful session? update the profile then:
@@ -407,6 +410,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	}
 
 	// 3: override with the CLI flags
+	if cf.Namespace != "" {
+		c.Namespace = cf.Namespace
+	}
 	if cf.Username != "" {
 		c.Username = cf.Username
 	}

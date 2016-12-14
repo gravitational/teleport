@@ -36,6 +36,7 @@ type msg struct {
 	eventType string
 	fields    events.EventFields
 	sid       session.ID
+	namespace string
 	reader    io.Reader
 }
 
@@ -65,7 +66,7 @@ func (ll *CachingAuditLog) run() {
 			if msg.fields != nil {
 				err = ll.server.EmitAuditEvent(msg.eventType, msg.fields)
 			} else if msg.reader != nil {
-				err = ll.server.PostSessionChunk(msg.sid, msg.reader)
+				err = ll.server.PostSessionChunk(msg.namespace, msg.sid, msg.reader)
 			}
 			if err != nil {
 				log.Error(err)
@@ -95,14 +96,14 @@ func (ll *CachingAuditLog) EmitAuditEvent(eventType string, fields events.EventF
 	return ll.post(msg{eventType: eventType, fields: fields})
 }
 
-func (ll *CachingAuditLog) PostSessionChunk(sid session.ID, reader io.Reader) error {
-	return ll.post(msg{sid: sid, reader: reader})
+func (ll *CachingAuditLog) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
+	return ll.post(msg{sid: sid, reader: reader, namespace: namespace})
 }
 
-func (ll *CachingAuditLog) GetSessionChunk(session.ID, int, int) ([]byte, error) {
+func (ll *CachingAuditLog) GetSessionChunk(string, session.ID, int, int) ([]byte, error) {
 	return nil, errNotSupported
 }
-func (ll *CachingAuditLog) GetSessionEvents(session.ID, int) ([]events.EventFields, error) {
+func (ll *CachingAuditLog) GetSessionEvents(string, session.ID, int) ([]events.EventFields, error) {
 	return nil, errNotSupported
 }
 func (ll *CachingAuditLog) SearchEvents(time.Time, time.Time, string) ([]events.EventFields, error) {

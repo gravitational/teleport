@@ -343,10 +343,10 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		return trace.Wrap(err)
 	}
 	apiConf := &auth.APIConfig{
-		AuthServer:        authServer,
-		SessionService:    sessionService,
-		PermissionChecker: auth.NewStandardPermissions(),
-		AuditLog:          auditLog,
+		AuthServer:     authServer,
+		SessionService: sessionService,
+		NewChecker:     auth.NewAccessChecker(cfg.Access, cfg.Identity),
+		AuditLog:       auditLog,
 	}
 
 	limiter, err := limiter.NewLimiter(cfg.Auth.Limiter)

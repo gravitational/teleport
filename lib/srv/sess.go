@@ -315,7 +315,7 @@ func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, err
 		if trace.IsAlreadyExists(err) {
 			// if session already exists, make sure they are compatible
 			// Login matches existing login
-			existing, err := r.srv.sessionServer.GetSession(id)
+			existing, err := r.srv.sessionServer.GetSession(r.srv.getNamespace(), id)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -431,12 +431,15 @@ type sessionRecorder struct {
 	alog events.IAuditLog
 	// sid defines the session to record
 	sid rsession.ID
+	// namespace is session namespace
+	namespace string
 }
 
-func newSessionRecorder(alog events.IAuditLog, sid rsession.ID) *sessionRecorder {
+func newSessionRecorder(alog events.IAuditLog, namespace string, sid rsession.ID) *sessionRecorder {
 	sr := &sessionRecorder{
-		alog: alog,
-		sid:  sid,
+		alog:      alog,
+		sid:       sid,
+		namespace: namespace,
 	}
 	return sr
 }
@@ -470,7 +473,7 @@ func (r *sessionRecorder) Write(data []byte) (int, error) {
 		}()
 	}
 	// post the chunk of bytes to the audit log:
-	if err := r.alog.PostSessionChunk(r.sid, bytes.NewReader(data)); err != nil {
+	if err := r.alog.PostSessionChunk(r.namespace, r.sid, bytes.NewReader(data)); err != nil {
 		log.Error(err)
 	}
 	return dataLen, nil
@@ -524,7 +527,7 @@ func (s *session) start(ch ssh.Channel, ctx *ctx) error {
 	auditLog := s.registry.srv.alog
 	if auditLog != nil {
 		s.writer.addWriter("session-recorder",
-			newSessionRecorder(auditLog, s.id),
+			newSessionRecorder(auditLog, ctx.srv.getNamespace(), s.id),
 			true)
 	}
 
@@ -595,15 +598,16 @@ func (s *session) removeParty(p *party) error {
 
 	// remove from the session server (asynchronously)
 	storageRemove := func(db rsession.Service) {
-		dbSession, err := db.GetSession(s.id)
+		dbSession, err := db.GetSession(s.getNamespace(), s.id)
 		if err != nil {
 			log.Error(err)
 			return
 		}
 		if dbSession != nil && dbSession.RemoveParty(p.id) {
 			db.UpdateSession(rsession.UpdateRequest{
-				ID:      dbSession.ID,
-				Parties: &dbSession.Parties,
+				ID:        dbSession.ID,
+				Parties:   &dbSession.Parties,
+				Namespace: s.getNamespace(),
 			})
 		}
 	}
@@ -625,6 +629,10 @@ func (s *session) SetLingerTTL(ttl time.Duration) {
 	s.lingerTTL = ttl
 }
 
+func (s *session) getNamespace() string {
+	return s.registry.srv.getNamespace()
+}
+
 // pollAndSync is a loop inside a goroutite which keeps synchronizing the terminal
 // size to what's in the session (so all connected parties have the same terminal size)
 // it also updates 'active' field on the session.
@@ -638,7 +646,7 @@ func (s *session) pollAndSync() {
 	}
 	errCount := 0
 	sync := func() error {
-		sess, err := sessionServer.GetSession(s.id)
+		sess, err := sessionServer.GetSession(s.getNamespace(), s.id)
 		if sess == nil {
 			return trace.Wrap(err)
 		}
@@ -708,7 +716,7 @@ func (s *session) addParty(p *party) {
 
 	// update session on the session server
 	storageUpdate := func(db rsession.Service) {
-		dbSession, err := db.GetSession(s.id)
+		dbSession, err := db.GetSession(s.getNamespace(), s.id)
 		if err != nil {
 			log.Error(err)
 			return
@@ -721,8 +729,9 @@ func (s *session) addParty(p *party) {
 			LastActive: p.getLastActive(),
 		})
 		db.UpdateSession(rsession.UpdateRequest{
-			ID:      dbSession.ID,
-			Parties: &dbSession.Parties,
+			ID:        dbSession.ID,
+			Parties:   &dbSession.Parties,
+			Namespace: s.getNamespace(),
 		})
 	}
 	if s.registry.srv.sessionServer != nil {

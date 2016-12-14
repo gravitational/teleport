@@ -70,6 +70,8 @@ type NodeCommand struct {
 	// TTL: duration of time during which a generated node token will
 	// be valid.
 	ttl time.Duration
+	// namespace is node namespace
+	namespace string
 }
 
 type AuthCommand struct {
@@ -154,6 +156,7 @@ func main() {
 	nodeAdd.Flag("format", "output format, 'text' or 'json'").Hidden().Default("text").StringVar(&cmdNodes.format)
 	nodeAdd.Alias(AddNodeHelp)
 	nodeList := nodes.Command("ls", "List all active SSH nodes within the cluster")
+	nodeList.Flag("namespace", "Namespace of the nodes").Default(defaults.Namespace).StringVar(&cmdNodes.namespace)
 	nodeList.Alias(ListNodesHelp)
 
 	// operations on invitation tokens
@@ -404,7 +407,7 @@ func (u *NodeCommand) Invite(client *auth.TunClient) error {
 // ListActive retreives the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
 func (u *NodeCommand) ListActive(client *auth.TunClient) error {
-	nodes, err := client.GetNodes()
+	nodes, err := client.GetNodes(u.namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}

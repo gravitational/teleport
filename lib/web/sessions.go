@@ -59,8 +59,8 @@ func (c *SessionContext) getConnectHandler(sessionID session.ID) (*connectHandle
 	return nil, trace.NotFound("no connected streams")
 }
 
-func (c *SessionContext) UpdateSessionTerminal(sessionID session.ID, params session.TerminalParams) error {
-	err := c.clt.UpdateSession(session.UpdateRequest{ID: sessionID, TerminalParams: &params})
+func (c *SessionContext) UpdateSessionTerminal(namespace string, sessionID session.ID, params session.TerminalParams) error {
+	err := c.clt.UpdateSession(session.UpdateRequest{ID: sessionID, TerminalParams: &params, Namespace: namespace})
 	if err != nil {
 		return trace.Wrap(err)
 	}

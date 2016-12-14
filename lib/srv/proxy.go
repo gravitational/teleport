@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -37,6 +38,7 @@ type proxySubsys struct {
 	srv       *Server
 	host      string
 	port      string
+	namespace string
 	siteName  string
 	closeC    chan struct{}
 	error     error
@@ -47,9 +49,10 @@ type proxySubsys struct {
 // proxy subsystem
 //
 // proxy subsystem name can take the following forms:
-//  "proxy:host:22"          - standard SSH request to connect to  host:22 on the 1st site
-//  "proxy:@sitename"        - Teleport request to connect to an auth server for site with name 'sitename'
-//  "proxy:host:22@sitename" - Teleport request to connect to host:22 on site 'sitename'
+//  "proxy:host:22"          - standard SSH request to connect to  host:22 on the 1st cluster
+//  "proxy:@clustername"        - Teleport request to connect to an auth server for cluster with name 'clustername'
+//  "proxy:host:22@clustername" - Teleport request to connect to host:22 on cluster 'clustername'
+//  "proxy:host:22@namespace@clustername"
 func parseProxySubsys(name string, srv *Server) (*proxySubsys, error) {
 	log.Debugf("parse_proxy_subsys(%s)", name)
 	var (
@@ -64,10 +67,16 @@ func parseProxySubsys(name string, srv *Server) (*proxySubsys, error) {
 		return nil, trace.Wrap(paramError)
 	}
 	name = strings.TrimPrefix(name, prefix)
+	namespace := defaults.Namespace
 	// find the site name in the argument:
 	parts := strings.Split(name, "@")
-	if len(parts) > 1 {
+	switch len(parts) {
+	case 2:
 		siteName = strings.Join(parts[1:], "@")
+		name = parts[0]
+	case 3:
+		siteName = strings.Join(parts[2:], "@")
+		namespace = parts[1]
 		name = parts[0]
 	}
 	// find host & port in the arguments:
@@ -84,11 +93,12 @@ func parseProxySubsys(name string, srv *Server) (*proxySubsys, error) {
 	}
 
 	return &proxySubsys{
-		srv:      srv,
-		host:     host,
-		port:     port,
-		siteName: siteName,
-		closeC:   make(chan struct{}),
+		namespace: namespace,
+		srv:       srv,
+		host:      host,
+		port:      port,
+		siteName:  siteName,
+		closeC:    make(chan struct{}),
 	}, nil
 }
 
@@ -194,7 +204,7 @@ func (t *proxySubsys) proxyToHost(site reversetunnel.RemoteSite, ch ssh.Channel)
 	// going to "local" CA? lets use the caching 'auth service' directly and avoid
 	// hitting the reverse tunnel link (it can be offline if the CA is down)
 	if site.GetName() == localDomain {
-		servers, err = t.srv.authService.GetNodes()
+		servers, err = t.srv.authService.GetNodes(t.namespace)
 		if err != nil {
 			log.Warn(err)
 		}
@@ -204,7 +214,7 @@ func (t *proxySubsys) proxyToHost(site reversetunnel.RemoteSite, ch ssh.Channel)
 		if err != nil {
 			log.Warn(err)
 		} else {
-			servers, err = siteClient.GetNodes()
+			servers, err = siteClient.GetNodes(t.namespace)
 			if err != nil {
 				log.Warn(err)
 			}

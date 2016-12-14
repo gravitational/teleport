@@ -204,6 +204,7 @@ func (c *Client) UpsertCertAuthority(ca services.CertAuthority, ttl time.Duratio
 	return trace.Wrap(err)
 }
 
+// GetCertAuthorities returns a list of certificate authorities
 func (c *Client) GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error) {
 	if err := caType.Check(); err != nil {
 		return nil, trace.Wrap(err)
@@ -221,6 +222,26 @@ func (c *Client) GetCertAuthorities(caType services.CertAuthType, loadKeys bool)
 	return re, nil
 }
 
+// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
+// controls if signing keys are loaded
+func (c *Client) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool) (*services.CertAuthority, error) {
+	if err := id.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := c.Get(c.Endpoint("authorities", string(id.Type), id.DomainName), url.Values{
+		"load_keys": []string{fmt.Sprintf("%t", loadSigningKeys)},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var re services.CertAuthority
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return nil, err
+	}
+	return &re, nil
+}
+
+// DeleteCertAuthority deletes cert authority by ID
 func (c *Client) DeleteCertAuthority(id services.CertAuthID) error {
 	if err := id.Check(); err != nil {
 		return trace.Wrap(err)
@@ -279,6 +300,19 @@ func (c *Client) GetTokens() (tokens []services.ProvisionToken, err error) {
 		return nil, trace.Wrap(err)
 	}
 	return tokens, nil
+}
+
+// GetToken returns provisioning token
+func (c *Client) GetToken(token string) (*services.ProvisionToken, error) {
+	out, err := c.Get(c.Endpoint("tokens", token), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var tok services.ProvisionToken
+	if err := json.Unmarshal(out.Bytes(), &tok); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &tok, nil
 }
 
 // DeleteToken deletes a given provisioning token on the auth server (CA). It
@@ -435,8 +469,7 @@ func (c *Client) UpsertUser(user services.User) error {
 }
 
 // CheckPassword checks if the suplied web access password is valid.
-func (c *Client) CheckPassword(user string,
-	password []byte, hotpToken string) error {
+func (c *Client) CheckPassword(user string, password []byte, hotpToken string) error {
 	_, err := c.PostJSON(
 		c.Endpoint("users", user, "web", "password", "check"),
 		checkPasswordReq{
@@ -678,6 +711,7 @@ func (c *Client) CreateUserWithToken(token, password, hotpToken string) (*Sessio
 	return sess, nil
 }
 
+// UpsertOIDCConnector updates or creates OIDC connector
 func (c *Client) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error {
 	_, err := c.PostJSON(c.Endpoint("oidc", "connectors"), upsertOIDCConnectorReq{
 		Connector: connector,
@@ -689,6 +723,7 @@ func (c *Client) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.
 	return nil
 }
 
+// GetOIDCConnector returns OIDC connector information by id
 func (c *Client) GetOIDCConnector(id string, withSecrets bool) (*services.OIDCConnector, error) {
 	if id == "" {
 		return nil, trace.BadParameter("missing connector id")
@@ -705,6 +740,7 @@ func (c *Client) GetOIDCConnector(id string, withSecrets bool) (*services.OIDCCo
 	return conn, nil
 }
 
+// GetOIDCConnector gets OIDC connectors list
 func (c *Client) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error) {
 	out, err := c.Get(c.Endpoint("oidc", "connectors"),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
@@ -718,6 +754,7 @@ func (c *Client) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, 
 	return connectors, nil
 }
 
+// DeleteOIDCConnector deletes OIDC connector by ID
 func (c *Client) DeleteOIDCConnector(connectorID string) error {
 	if connectorID == "" {
 		return trace.BadParameter("missing connector id")
@@ -726,6 +763,7 @@ func (c *Client) DeleteOIDCConnector(connectorID string) error {
 	return trace.Wrap(err)
 }
 
+// CreateOIDCAuthRequest creates OIDCAuthRequest
 func (c *Client) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
 	out, err := c.PostJSON(c.Endpoint("oidc", "requests", "create"), createOIDCAuthRequestReq{
 		Req: req,
@@ -740,6 +778,7 @@ func (c *Client) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.
 	return response, nil
 }
 
+// ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
 func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
 	out, err := c.PostJSON(c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
 		Query: q,
@@ -952,26 +991,56 @@ type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
 	// it is valid, or error otherwise.
 	GetWebSessionInfo(user string, sid string) (*Session, error)
-	// SignIn checks if the web access password is valid, and if it is valid
-	// returns a secure web session id.
-	SignIn(user string, password []byte) (*Session, error)
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
 	ExtendWebSession(user string, prevSessionID string) (*Session, error)
 	// CreateWebSession creates a new web session for a user
 	CreateWebSession(user string) (*Session, error)
+	// DeleteWebSession deletes a web session for this user by id
+	DeleteWebSession(user string, sid string) error
 }
 
-// ClientI is a client to Auth service
-type ClientI interface {
-	services.Identity
-	services.Trust
-	events.IAuditLog
-	services.Presence
-	services.Access
-	services.Provisioner
-	WebService
-	session.Service
+// IdentityService manages identities and userse
+type IdentityService interface {
+	// UpsertPassword updates web access password for the user
+	UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error)
+
+	// UpsertOIDCConnector updates or creates OIDC connector
+	UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error
+
+	// GetOIDCConnector returns OIDC connector information by id
+	GetOIDCConnector(id string, withSecrets bool) (*services.OIDCConnector, error)
+
+	// GetOIDCConnector gets OIDC connectors list
+	GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error)
+
+	// DeleteOIDCConnector deletes OIDC connector by ID
+	DeleteOIDCConnector(connectorID string) error
+
+	// CreateOIDCAuthRequest creates OIDCAuthRequest
+	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
+
+	// ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
+	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
+
+	// GetUser returns a list of usernames registered in the system
+	GetUser(name string) (services.User, error)
+
+	// UpsertUser user updates or inserts user entry
+	UpsertUser(user services.User) error
+
+	// DeleteUser deletes a user by username
+	DeleteUser(user string) error
+
+	// GetUsers returns a list of usernames registered in the system
+	GetUsers() ([]services.User, error)
+
+	// CheckPassword checks if the suplied web access password is valid.
+	CheckPassword(user string, password []byte, hotpToken string) error
+
+	// SignIn checks if the web access password is valid, and if it is valid
+	// returns a secure web session id.
+	SignIn(user string, password []byte) (*Session, error)
 
 	// CreateUserWithToken creates account with provided token and password.
 	// Account username and hotp generator are taken from token data.
@@ -987,10 +1056,6 @@ type ClientI interface {
 	// The token can be used only once.
 	GenerateToken(roles teleport.Roles, ttl time.Duration) (string, error)
 
-	// RegisterUsingToken calls the auth service API to register a new node via registration token
-	// which has been previously issued via GenerateToken
-	RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error)
-
 	// GenerateKeyPair generates SSH private/public key pair optionally protected
 	// by password. If the pass parameter is an empty string, the key pair
 	// is not password-protected.
@@ -999,14 +1064,51 @@ type ClientI interface {
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
 	// plain text format, signs it using Host Certificate Authority private key and returns the
 	// resulting certificate.
-	GenerateHostCert(
-		key []byte, hostname, authDomain string, roles teleport.Roles, ttl time.Duration) ([]byte, error)
+	GenerateHostCert(key []byte, hostname, authDomain string, roles teleport.Roles, ttl time.Duration) ([]byte, error)
 
 	// GenerateUserCert takes the public key in the Open SSH ``authorized_keys``
 	// plain text format, signs it using User Certificate Authority signing key and returns the
 	// resulting certificate.
 	GenerateUserCert(key []byte, user string, ttl time.Duration) ([]byte, error)
 
+	// GetSignupTokenData returns token data for a valid token
+	GetSignupTokenData(token string) (user string, QRImg []byte, hotpFirstValues []string, e error)
+
+	// CreateSignupToken creates one time token for creating account for the user
+	// For each token it creates username and hotp generator
+	CreateSignupToken(user services.User) (string, error)
+}
+
+// ProvisioningService is a service in control
+// of adding new nodes, auth servers and proxies to the cluster
+type ProvisioningService interface {
+	// GetTokens returns a list of active invitation tokens for nodes and users
+	GetTokens() (tokens []services.ProvisionToken, err error)
+
+	// GetToken returns provisioning token
+	GetToken(token string) (*services.ProvisionToken, error)
+
+	// DeleteToken deletes a given provisioning token on the auth server (CA). It
+	// could be a user token or a machine token
+	DeleteToken(token string) error
+	// RegisterUsingToken calls the auth service API to register a new node via registration token
+	// which has been previously issued via GenerateToken
+	RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error)
+
 	// RegisterNewAuthServer is used to register new auth server with token
 	RegisterNewAuthServer(token string) error
+}
+
+// ClientI is a client to Auth service
+type ClientI interface {
+	IdentityService
+	ProvisioningService
+	services.Trust
+	events.IAuditLog
+	services.Presence
+	services.Access
+	WebService
+	session.Service
+
+	GetDomainName() (string, error)
 }

@@ -94,6 +94,9 @@ type Config struct {
 	// Labels represent host Labels
 	Labels map[string]string
 
+	// Namespace is nodes namespace
+	Namespace string
+
 	// HostLogin is a user login on a remote host
 	HostLogin string
 
@@ -319,6 +322,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	} else if c.KeyTTL > defaults.MaxCertDuration || c.KeyTTL < defaults.MinCertDuration {
 		return nil, trace.Errorf("invalid requested cert TTL")
 	}
+	c.Namespace = services.ProcessNamespace(c.Namespace)
 
 	tc = &TeleportClient{Config: *c}
 
@@ -374,7 +378,7 @@ func (tc *TeleportClient) getTargetNodes(proxy *ProxyClient) ([]string, error) {
 		retval = make([]string, 0)
 	)
 	if tc.Labels != nil && len(tc.Labels) > 0 {
-		nodes, err = proxy.FindServersByLabels(tc.Labels)
+		nodes, err = proxy.FindServersByLabels(tc.Namespace, tc.Labels)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -422,7 +426,7 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool) error {
 			nodeAddrs[0])
 	}
 	nodeClient, err := proxyClient.ConnectToNode(
-		nodeAddrs[0]+"@"+siteInfo.Name,
+		nodeAddrs[0]+"@"+tc.Namespace+"@"+siteInfo.Name,
 		tc.Config.HostLogin,
 		false)
 	if err != nil {
@@ -459,7 +463,10 @@ func (tc *TeleportClient) startPortForwarding(nodeClient *NodeClient) error {
 }
 
 // Join connects to the existing/active SSH session
-func (tc *TeleportClient) Join(sessionID session.ID, input io.Reader) (err error) {
+func (tc *TeleportClient) Join(namespace string, sessionID session.ID, input io.Reader) (err error) {
+	if namespace == "" {
+		return trace.BadParameter("missing parameter namespace")
+	}
 	tc.Stdin = input
 	if sessionID.Check() != nil {
 		return trace.Errorf("Invalid session ID format: %s", string(sessionID))
@@ -481,7 +488,7 @@ func (tc *TeleportClient) Join(sessionID session.ID, input io.Reader) (err error
 	}
 
 	// find the session ID on the site:
-	sessions, err := site.GetSessions()
+	sessions, err := site.GetSessions(namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -503,7 +510,7 @@ func (tc *TeleportClient) Join(sessionID session.ID, input io.Reader) (err error
 	serverID := session.Parties[0].ServerID
 
 	// find a server address by its ID
-	nodes, err := site.GetNodes()
+	nodes, err := site.GetNodes(namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -520,7 +527,7 @@ func (tc *TeleportClient) Join(sessionID session.ID, input io.Reader) (err error
 	// connect to server:
 	fullNodeAddr := node.Addr
 	if tc.SiteName != "" {
-		fullNodeAddr = fmt.Sprintf("%s@%s", node.Addr, tc.SiteName)
+		fullNodeAddr = fmt.Sprintf("%s@%s@%s", node.Addr, tc.Namespace, tc.SiteName)
 	}
 	nc, err := proxyClient.ConnectToNode(fullNodeAddr, tc.Config.HostLogin, false)
 	if err != nil {
@@ -536,7 +543,10 @@ func (tc *TeleportClient) Join(sessionID session.ID, input io.Reader) (err error
 }
 
 // Play replays the recorded session
-func (tc *TeleportClient) Play(sessionId string) (err error) {
+func (tc *TeleportClient) Play(namespace, sessionId string) (err error) {
+	if namespace == "" {
+		return trace.BadParameter("missing parameter namespace")
+	}
 	sid, err := session.ParseID(sessionId)
 	if err != nil {
 		return fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
@@ -551,7 +561,7 @@ func (tc *TeleportClient) Play(sessionId string) (err error) {
 		return trace.Wrap(err)
 	}
 	// request events for that session (to get timing data)
-	sessionEvents, err := site.GetSessionEvents(*sid, 0)
+	sessionEvents, err := site.GetSessionEvents(namespace, *sid, 0)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -559,7 +569,7 @@ func (tc *TeleportClient) Play(sessionId string) (err error) {
 	// read the stream into a buffer:
 	var stream []byte
 	for err == nil {
-		tmp, err := site.GetSessionChunk(*sid, len(stream), events.MaxChunkBytes)
+		tmp, err := site.GetSessionChunk(namespace, *sid, len(stream), events.MaxChunkBytes)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -654,7 +664,7 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool, quiet boo
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return proxyClient.ConnectToNode(addr+"@"+siteInfo.Name, tc.HostLogin, false)
+		return proxyClient.ConnectToNode(addr+"@"+tc.Namespace+"@"+siteInfo.Name, tc.HostLogin, false)
 	}
 
 	var progressWriter io.Writer
@@ -746,7 +756,7 @@ func (tc *TeleportClient) ListNodes() ([]services.Server, error) {
 	}
 
 	defer proxyClient.Close()
-	return proxyClient.FindServersByLabels(tc.Labels)
+	return proxyClient.FindServersByLabels(tc.Namespace, tc.Labels)
 }
 
 // runCommand executes a given bash command on a bunch of remote nodes
@@ -762,7 +772,7 @@ func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, pr
 				resultsC <- err
 			}()
 			var nodeClient *NodeClient
-			nodeClient, err = proxyClient.ConnectToNode(address+"@"+siteName, tc.Config.HostLogin, false)
+			nodeClient, err = proxyClient.ConnectToNode(address+"@"+tc.Namespace+"@"+siteName, tc.Config.HostLogin, false)
 			if err != nil {
 				fmt.Fprintln(tc.Stderr, err)
 				return
