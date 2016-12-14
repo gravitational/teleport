@@ -17,8 +17,6 @@ limitations under the License.
 package auth
 
 import (
-	"time"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -36,16 +34,16 @@ type AccessCheckers struct {
 
 // GetChecker returns access checker based on the username
 func (a *AccessCheckers) GetChecker(username string) (services.AccessChecker, error) {
-	checker, err := GetCheckerForSystemUsers()
+	checker, err := GetCheckerForSystemUsers(username)
 	if err == nil {
 		return checker, nil
 	}
-	user, err := a.Identity.GetUser()
+	user, err := a.Identity.GetUser(username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var roles RoleSet
+	var roles services.RoleSet
 	for _, roleName := range user.GetRoles() {
 		role, err := a.Access.GetRole(roleName)
 		if err != nil {
@@ -59,19 +57,19 @@ func (a *AccessCheckers) GetChecker(username string) (services.AccessChecker, er
 // GetCheckerForSystemUsers returns checkers for embedded system users
 // hardcoded in the system
 func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
-	switch role {
+	switch username {
 	case teleport.RoleAuth.User():
 		return services.FromSpec(
-			role.String(),
+			username,
 			services.RoleSpec{
 				Resources: map[string][]string{
 					services.KindAuthServer: services.RW()},
 			})
 	case teleport.RoleProvisionToken.User():
-		return services.FromSpec(role.String(), services.RoleSpec{})
+		return services.FromSpec(username, services.RoleSpec{})
 	case teleport.RoleNode.User():
 		return services.FromSpec(
-			role.String(),
+			username,
 			services.RoleSpec{
 				Resources: map[string][]string{
 					services.KindNode:          services.RW(),
@@ -85,7 +83,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 			})
 	case teleport.RoleProxy.User():
 		return services.FromSpec(
-			role.String(),
+			username,
 			services.RoleSpec{
 				Resources: map[string][]string{
 					services.KindProxy:         services.RW(),
@@ -102,7 +100,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 			})
 	case teleport.RoleWeb.User():
 		return services.FromSpec(
-			role.String(),
+			username,
 			services.RoleSpec{
 				Resources: map[string][]string{
 					services.KindWebSession: services.RW(),
@@ -114,7 +112,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 			})
 	case teleport.RoleSignup.User():
 		return services.FromSpec(
-			role.String(),
+			username,
 			services.RoleSpec{
 				Resources: map[string][]string{
 					services.KindAuthServer: services.RO(),
@@ -124,9 +122,9 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 			})
 	case teleport.RoleAdmin.User():
 		return services.FromSpec(
-			role.String(),
+			username,
 			services.RoleSpec{
-				MaxSessionTTL: time.Duration(1<<63 - 1),
+				MaxSessionTTL: services.MaxDuration(),
 				Logins:        []string{services.Wildcard},
 				Namespaces:    []string{services.Wildcard},
 				NodeLabels:    map[string]string{services.Wildcard: services.Wildcard},
@@ -136,5 +134,5 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 			})
 	}
 
-	return nil, trace.NotFound("%v is not reconginzed", role.String())
+	return nil, trace.NotFound("%v is not reconginzed", username)
 }

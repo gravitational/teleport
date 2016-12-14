@@ -81,8 +81,11 @@ type InitConfig struct {
 	// Provisioner is a service that keeps track of provisioning tokens
 	Provisioner services.Provisioner
 
-	// Trust is a service that manages users and credentials
+	// Identity is a service that manages users and credentials
 	Identity services.Identity
+
+	// Access is service controlling access to resources
+	Access services.Access
 
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed

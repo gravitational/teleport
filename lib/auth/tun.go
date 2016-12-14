@@ -332,14 +332,24 @@ func (s *AuthTunnel) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel
 func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	defer sconn.Close()
 
-	// retreive the role from thsi connection's permissions (make sure it's a valid role)
-	role := teleport.Role(sconn.Permissions.Extensions[ExtRole])
-	if err := role.Check(); err != nil {
-		log.Errorf(err.Error())
-		return
+	var username string
+	if extRole, ok := sconn.Permissions.Extensions[ExtRole]; ok {
+		// retreive the role from thsi connection's permissions (make sure it's a valid role)
+		systemRole := teleport.Role(extRole)
+		if err := systemRole.Check(); err != nil {
+			log.Errorf(err.Error())
+			return
+		}
+		username = systemRole.User()
+	} else {
+		username = sconn.User()
+		if teleport.IsSystemUsername(username) {
+			log.Errorf("%v is a system reserved username, but certificate does not verify", username)
+			return
+		}
 	}
 
-	api := NewAPIServer(s.config, role)
+	api := NewAPIServer(s.config)
 	socket := fakeSocket{
 		closed:      make(chan int),
 		connections: make(chan net.Conn),
@@ -363,7 +373,7 @@ func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel,
 	// serve HTTP API via this SSH connection until it gets closed:
 	http.Serve(&socket, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// take SSH client name and pass it to HTTP API via HTTP Auth
-		r.SetBasicAuth(sconn.User(), "")
+		r.SetBasicAuth(username, "")
 		api.ServeHTTP(w, r)
 	}))
 }

@@ -115,8 +115,11 @@ func (c *Client) Delete(u string) (*roundtrip.Response, error) {
 
 // GetSessions returns a list of active sessions in the cluster
 // as reported by auth server
-func (c *Client) GetSessions() ([]session.Session, error) {
-	out, err := c.Get(c.Endpoint("sessions"), url.Values{})
+func (c *Client) GetSessions(namespace string) ([]session.Session, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing parameter namespace")
+	}
+	out, err := c.Get(c.Endpoint("namespaces", namespace, "sessions"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -128,12 +131,15 @@ func (c *Client) GetSessions() ([]session.Session, error) {
 }
 
 // GetSession returns a session by ID
-func (c *Client) GetSession(id session.ID) (*session.Session, error) {
+func (c *Client) GetSession(namespace string, id session.ID) (*session.Session, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing parameter namespace")
+	}
 	// saving extra round-trip
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out, err := c.Get(c.Endpoint("sessions", string(id)), url.Values{})
+	out, err := c.Get(c.Endpoint("namespaces", namespace, "sessions", string(id)), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -145,14 +151,20 @@ func (c *Client) GetSession(id session.ID) (*session.Session, error) {
 }
 
 // DeleteSession deletes a session by ID
-func (c *Client) DeleteSession(id string) error {
-	_, err := c.Delete(c.Endpoint("sessions", id))
+func (c *Client) DeleteSession(namespace, id string) error {
+	if namespace == "" {
+		return trace.BadParameter("missing parameter namespace")
+	}
+	_, err := c.Delete(c.Endpoint("namespaces", namespace, "sessions", id))
 	return trace.Wrap(err)
 }
 
 // CreateSession creates new session
 func (c *Client) CreateSession(sess session.Session) error {
-	_, err := c.PostJSON(c.Endpoint("sessions"), createSessionReq{Session: sess})
+	if sess.Namespace == "" {
+		return trace.BadParameter("missing parameter namespace")
+	}
+	_, err := c.PostJSON(c.Endpoint("namespaces", sess.Namespace, "sessions"), createSessionReq{Session: sess})
 	return trace.Wrap(err)
 }
 
@@ -161,7 +173,7 @@ func (c *Client) UpdateSession(req session.UpdateRequest) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	_, err := c.PutJSON(c.Endpoint("sessions", string(req.ID)), updateSessionReq{Update: req})
+	_, err := c.PutJSON(c.Endpoint("namespaces", req.Namespace, "sessions", string(req.ID)), updateSessionReq{Update: req})
 	return trace.Wrap(err)
 }
 
@@ -238,7 +250,7 @@ func (c *Client) GenerateToken(roles teleport.Roles, ttl time.Duration) (string,
 	return token, nil
 }
 
-// RegisterUserToken calls the auth service API to register a new node via registration token
+// RegisterUsingToken calls the auth service API to register a new node via registration token
 // which has been previously issued via GenerateToken
 func (c *Client) RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error) {
 	out, err := c.PostJSON(c.Endpoint("tokens", "register"),
@@ -276,6 +288,7 @@ func (c *Client) DeleteToken(token string) error {
 	return trace.Wrap(err)
 }
 
+// RegisterNewAuthServer is used to register new auth server with token
 func (c *Client) RegisterNewAuthServer(token string) error {
 	_, err := c.PostJSON(c.Endpoint("tokens", "register", "auth"), registerNewAuthServerReq{
 		Token: token,
@@ -286,17 +299,23 @@ func (c *Client) RegisterNewAuthServer(token string) error {
 // UpsertNode is used by SSH servers to reprt their presense
 // to the auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertNode(s services.Server, ttl time.Duration) error {
+	if s.Namespace == "" {
+		return trace.BadParameter("missing node namespace")
+	}
 	args := upsertServerReq{
 		Server: s,
 		TTL:    ttl,
 	}
-	_, err := c.PostJSON(c.Endpoint("nodes"), args)
+	_, err := c.PostJSON(c.Endpoint("namespaces", s.Namespace, "nodes"), args)
 	return trace.Wrap(err)
 }
 
 // GetNodes returns the list of servers registered in the cluster.
-func (c *Client) GetNodes() ([]services.Server, error) {
-	out, err := c.Get(c.Endpoint("nodes"), url.Values{})
+func (c *Client) GetNodes(namespace string) ([]services.Server, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing parameter namespace")
+	}
+	out, err := c.Get(c.Endpoint("namespaces", namespace, "nodes"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -481,7 +500,7 @@ func (c *Client) CreateWebSession(user string) (*Session, error) {
 	return sess, nil
 }
 
-// GetWebSessionInfo check if a web sesion is valid, returns session id in case if
+// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
 // it is valid, or error otherwise.
 func (c *Client) GetWebSessionInfo(user string, sid string) (*Session, error) {
 	out, err := c.Get(
@@ -752,8 +771,11 @@ func (c *Client) EmitAuditEvent(eventType string, fields events.EventFields) err
 //
 // The data is POSTed to HTTP server as a simple binary body (no encodings of any
 // kind are needed)
-func (c *Client) PostSessionChunk(sid session.ID, reader io.Reader) error {
-	r, err := http.NewRequest("POST", c.Endpoint("sessions", string(sid), "stream"), reader)
+func (c *Client) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
+	if namespace == "" {
+		return trace.BadParameter("missing parameter namespace")
+	}
+	r, err := http.NewRequest("POST", c.Endpoint("namespaces", namespace, "sessions", string(sid), "stream"), reader)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -774,8 +796,11 @@ func (c *Client) PostSessionChunk(sid session.ID, reader io.Reader) error {
 // GetSessionChunk allows clients to receive a byte array (chunk) from a recorded
 // session stream, starting from 'offset', up to 'max' in length. The upper bound
 // of 'max' is set to events.MaxChunkBytes
-func (c *Client) GetSessionChunk(sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	response, err := c.Get(c.Endpoint("sessions", string(sid), "stream"), url.Values{
+func (c *Client) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing parameter namespace")
+	}
+	response, err := c.Get(c.Endpoint("namespaces", namespace, "sessions", string(sid), "stream"), url.Values{
 		"offset": []string{strconv.Itoa(offsetBytes)},
 		"bytes":  []string{strconv.Itoa(maxBytes)},
 	})
@@ -794,12 +819,15 @@ func (c *Client) GetSessionChunk(sid session.ID, offsetBytes, maxBytes int) ([]b
 //
 // This function is usually used in conjunction with GetSessionReader to
 // replay recorded session streams.
-func (c *Client) GetSessionEvents(sid session.ID, afterN int) (retval []events.EventFields, err error) {
+func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int) (retval []events.EventFields, err error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing parameter namespace")
+	}
 	query := make(url.Values)
 	if afterN > 0 {
 		query.Set("after", strconv.Itoa(afterN))
 	}
-	response, err := c.Get(c.Endpoint("sessions", string(sid), "events"), query)
+	response, err := c.Get(c.Endpoint("namespaces", namespace, "sessions", string(sid), "events"), query)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -829,57 +857,156 @@ func (c *Client) SearchEvents(from, to time.Time, query string) ([]events.EventF
 	return retval, nil
 }
 
+// GetNamespaces returns a list of namespaces
+func (c *Client) GetNamespaces() ([]services.Namespace, error) {
+	out, err := c.Get(c.Endpoint("namespaces"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var re []services.Namespace
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return re, nil
+}
+
+// GetNamespace returns namespace by name
+func (c *Client) GetNamespace(name string) (*services.Namespace, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing namespace name")
+	}
+	out, err := c.Get(c.Endpoint("namespaces", name), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var ns services.Namespace
+	if err := json.Unmarshal(out.Bytes(), &ns); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &ns, nil
+}
+
+// UpsertNamespace upserts namespace
+func (c *Client) UpsertNamespace(ns services.Namespace) error {
+	_, err := c.PostJSON(c.Endpoint("namespaces"), upsertNamespaceReq{Namespace: ns})
+	return trace.Wrap(err)
+}
+
+// DeleteNamespace deletes namespace by name
+func (c *Client) DeleteNamespace(name string) error {
+	_, err := c.Delete(c.Endpoint("namespaces", name))
+	return trace.Wrap(err)
+}
+
+// GetRoles returns a list of roles
+func (c *Client) GetRoles() ([]services.Role, error) {
+	out, err := c.Get(c.Endpoint("roles"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roles := make([]services.Role, len(items))
+	for i, roleBytes := range items {
+		role, err := services.GetRoleMarshaler().UnmarshalRole(roleBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		roles[i] = role
+	}
+	return roles, nil
+}
+
+// UpsertRole creates or updates role
+func (c *Client) UpsertRole(role services.Role) error {
+	_, err := c.PostJSON(c.Endpoint("roles"), upsertRoleReq{Role: role})
+	return trace.Wrap(err)
+}
+
+// GetRole returns role by name
+func (c *Client) GetRole(name string) (services.Role, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing name")
+	}
+	out, err := c.Get(c.Endpoint("roles", name), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	role, err := services.GetRoleMarshaler().UnmarshalRole(out.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return role, nil
+}
+
+// DeleteRole deletes role by name
+func (c *Client) DeleteRole(name string) error {
+	_, err := c.Delete(c.Endpoint("roles", name))
+	return trace.Wrap(err)
+}
+
+// WebService implements features used by Web UI clients
+type WebService interface {
+	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
+	// it is valid, or error otherwise.
+	GetWebSessionInfo(user string, sid string) (*Session, error)
+	// SignIn checks if the web access password is valid, and if it is valid
+	// returns a secure web session id.
+	SignIn(user string, password []byte) (*Session, error)
+	// ExtendWebSession creates a new web session for a user based on another
+	// valid web session
+	ExtendWebSession(user string, prevSessionID string) (*Session, error)
+	// CreateWebSession creates a new web session for a user
+	CreateWebSession(user string) (*Session, error)
+}
+
 // ClientI is a client to Auth service
 type ClientI interface {
-	// GetDomainName returns local auth domain name
-	GetDomainName() (string, error)
-	// GetUser returns a user
-	GetUser(name string) (services.User, error)
-	// UpsertUser updates or creates new user
-	UpsertUser(user services.User) error
-	// GetSessions resturns a list of interactive sessions
-	GetSessions(namespace string) ([]session.Session, error)
-	// GetSession gets session by ID
-	GetSession(namespace string, id session.ID) (*session.Session, error)
-	// CreateSession creates interactive session
-	CreateSession(s session.Session) error
-	// UpdateSession updates session
-	UpdateSession(req session.UpdateRequest) error
-	// UpsertCertAuhtority updates or inserts cert authorities
-	UpsertCertAuthority(cert services.CertAuthority, ttl time.Duration) error
-	// GetCertAuthorities returns  list of cert authorities
-	GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error)
-	// DeleteCertAuthority deletes cert authority
-	DeleteCertAuthority(caType services.CertAuthID) error
-	// GenerateToken generates provisioning token
-	GenerateToken(roles teleport.Roles, ttl time.Duration) (string, error)
-	// RegisterUsingToken registers new node
-	RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error)
-	// RegisterNewAuthServer registers new auth server
-	RegisterNewAuthServer(token string) error
-	UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error)
-	CheckPassword(user string, password []byte, hotpToken string) error
-	SignIn(user string, password []byte) (*Session, error)
-	CreateWebSession(user string) (*Session, error)
-	ExtendWebSession(user string, prevSessionID string) (*Session, error)
-	GetWebSessionInfo(user string, sid string) (*Session, error)
-	DeleteWebSession(user string, sid string) error
-	GetUsers() ([]services.User, error)
-	DeleteUser(user string) error
-	GenerateKeyPair(pass string) ([]byte, []byte, error)
-	GenerateHostCert(key []byte, hostname, authServer string, roles teleport.Roles, ttl time.Duration) ([]byte, error)
-	GenerateUserCert(key []byte, user string, ttl time.Duration) ([]byte, error)
-	GetSignupTokenData(token string) (user string, QRImg []byte, hotpFirstValues []string, e error)
-	CreateUserWithToken(token, password, hotpToken string) (*Session, error)
-	UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error
-	GetOIDCConnector(id string, withSecrets bool) (*services.OIDCConnector, error)
-	GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error)
-	DeleteOIDCConnector(connectorID string) error
-	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
-	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
-
+	services.Identity
+	services.Trust
 	events.IAuditLog
 	services.Presence
 	services.Access
 	services.Provisioner
+	WebService
+	session.Service
+
+	// CreateUserWithToken creates account with provided token and password.
+	// Account username and hotp generator are taken from token data.
+	// Deletes token after account creation.
+	CreateUserWithToken(token, password, hotpToken string) (*Session, error)
+
+	// GenerateToken creates a special provisioning token for a new SSH server
+	// that is valid for ttl period seconds.
+	//
+	// This token is used by SSH server to authenticate with Auth server
+	// and get signed certificate and private key from the auth server.
+	//
+	// The token can be used only once.
+	GenerateToken(roles teleport.Roles, ttl time.Duration) (string, error)
+
+	// RegisterUsingToken calls the auth service API to register a new node via registration token
+	// which has been previously issued via GenerateToken
+	RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error)
+
+	// GenerateKeyPair generates SSH private/public key pair optionally protected
+	// by password. If the pass parameter is an empty string, the key pair
+	// is not password-protected.
+	GenerateKeyPair(pass string) ([]byte, []byte, error)
+
+	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
+	// plain text format, signs it using Host Certificate Authority private key and returns the
+	// resulting certificate.
+	GenerateHostCert(
+		key []byte, hostname, authDomain string, roles teleport.Roles, ttl time.Duration) ([]byte, error)
+
+	// GenerateUserCert takes the public key in the Open SSH ``authorized_keys``
+	// plain text format, signs it using User Certificate Authority signing key and returns the
+	// resulting certificate.
+	GenerateUserCert(key []byte, user string, ttl time.Duration) ([]byte, error)
+
+	// RegisterNewAuthServer is used to register new auth server with token
+	RegisterNewAuthServer(token string) error
 }

@@ -107,6 +107,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 		Presence:        cfg.Presence,
 		Provisioner:     cfg.Provisioner,
 		Identity:        cfg.Identity,
+		Access:          cfg.Access,
 		DomainName:      cfg.DomainName,
 		AuthServiceName: cfg.AuthServiceName,
 		oidcClients:     make(map[string]*oidc.Client),
@@ -153,6 +154,7 @@ type AuthServer struct {
 	services.Presence
 	services.Provisioner
 	services.Identity
+	services.Access
 }
 
 func (a *AuthServer) Close() error {

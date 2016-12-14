@@ -268,6 +268,16 @@ func ProcessNamespace(namespace string) string {
 	return namespace
 }
 
+// MaxDuration returns maximum duration that is possible
+func MaxDuration() Duration {
+	return NewDuration(1<<63 - 1)
+}
+
+// NewDuration returns Duration struct based on time.Duration
+func NewDuration(d time.Duration) Duration {
+	return Duration{Duration: d}
+}
+
 // Duration is a wrapper around duration to set up custom marshal/unmarshal
 type Duration struct {
 	time.Duration

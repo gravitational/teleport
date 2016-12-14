@@ -91,8 +91,16 @@ func (r *Role) Check() error {
 }
 
 // Role returns system username associated with it
-func (r *Role) User() string {
-	return fmt.Sprintf("@%v", strings.ToLower(string(*r)))
+func (r Role) User() string {
+	return fmt.Sprintf("@%v", strings.ToLower(string(r)))
+}
+
+// SystemUsernamePrefix is reserved for system users
+const SystemUsernamePrefix = "@"
+
+// IsSystemUsername returns true if given username is a reserved system username
+func IsSystemUsername(username string) bool {
+	return strings.HasPrefix(username, SystemUsernamePrefix)
 }
 
 const (
