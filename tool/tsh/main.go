@@ -195,7 +195,11 @@ func onLogin(cf *CLIConf) {
 	}
 	if err := tc.Login(); err != nil {
 		utils.FatalError(err)
+	} else {
+		// successful login? update the profile then:
+		tc.SaveProfile("")
 	}
+
 	if tc.SiteName != "" {
 		fmt.Printf("\nYou are now logged into %s as %s\n", tc.SiteName, tc.Username)
 	} else {
@@ -205,6 +209,7 @@ func onLogin(cf *CLIConf) {
 
 // onLogout deletes a "session certificate" from ~/.tsh for a given proxy
 func onLogout(cf *CLIConf) {
+	client.UnlinkCurrentProfile()
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		utils.FatalError(err)
@@ -298,9 +303,6 @@ func onSSH(cf *CLIConf) {
 		} else {
 			utils.FatalError(err)
 		}
-	} else {
-		// successful session? update the profile then:
-		tc.SaveProfile("")
 	}
 }
 
@@ -316,9 +318,6 @@ func onJoin(cf *CLIConf) {
 	}
 	if err = tc.Join(*sid, nil); err != nil {
 		utils.FatalError(err)
-	} else {
-		// successful session? update the profile then:
-		tc.SaveProfile("")
 	}
 }
 
@@ -335,9 +334,6 @@ func onSCP(cf *CLIConf) {
 		} else {
 			utils.FatalError(err)
 		}
-	} else {
-		// successful session? update the profile then:
-		tc.SaveProfile("")
 	}
 }
 
