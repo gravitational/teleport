@@ -195,10 +195,8 @@ func onLogin(cf *CLIConf) {
 	}
 	if err := tc.Login(); err != nil {
 		utils.FatalError(err)
-	} else {
-		// successful login? update the profile then:
-		tc.SaveProfile("")
 	}
+	tc.SaveProfile("")
 
 	if tc.SiteName != "" {
 		fmt.Printf("\nYou are now logged into %s as %s\n", tc.SiteName, tc.Username)
