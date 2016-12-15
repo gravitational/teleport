@@ -51,5 +51,6 @@ type AccessPoint interface {
 	// GetUsers returns a list of local users registered with this domain
 	GetUsers() ([]services.User, error)
 
-	// GetRole
+	// GetRole returns role by name
+	GetRole(name string) (services.Role, error)
 }
