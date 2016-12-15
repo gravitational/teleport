@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
@@ -54,6 +55,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/websocket"
 	. "gopkg.in/check.v1"
+	"github.com/tstranex/u2f"
 )
 
 func TestWeb(t *testing.T) {
@@ -78,6 +80,7 @@ type WebSuite struct {
 	// audit log and its dir:
 	auditLog events.IAuditLog
 	logDir   string
+	mockU2F  *mocku2f.Key
 }
 
 var _ = Suite(&WebSuite{})
@@ -95,6 +98,9 @@ func (s *WebSuite) SetUpSuite(c *C) {
 	s.auditLog, err = events.NewAuditLog(s.logDir)
 	c.Assert(err, IsNil)
 	c.Assert(s.auditLog, NotNil)
+	s.mockU2F, err = mocku2f.Create()
+	c.Assert(err, IsNil)
+	c.Assert(s.mockU2F, NotNil)
 }
 
 func (s *WebSuite) TearDownSuite(c *C) {
@@ -118,7 +124,13 @@ func (s *WebSuite) SetUpTest(c *C) {
 	authServer := auth.NewAuthServer(&auth.InitConfig{
 		Backend:    s.bk,
 		Authority:  authority.New(),
-		DomainName: s.domainName})
+		DomainName: s.domainName,
+		U2F: services.U2F{
+			Enabled: true,
+			AppID: "https://" + s.domainName,
+			Facets: []string{"https://" + s.domainName},
+		},
+	})
 
 	c.Assert(authServer.UpsertCertAuthority(
 		*suite.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
@@ -741,6 +753,8 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 	c.Assert(se.TerminalParams, DeepEquals, params)
 }
 
+
+
 func (s *WebSuite) TestPlayback(c *C) {
 	pack := s.authPack(c)
 	sid := session.NewID()
@@ -753,4 +767,165 @@ func removeSpace(in string) string {
 		in = strings.Replace(in, c, " ", -1)
 	}
 	return strings.TrimSpace(in)
+}
+
+func (s *WebSuite) TestNewU2FUser(c *C) {
+	token, err := s.roleAuth.CreateSignupToken(&services.TeleportUser{Name: "bob", AllowedLogins: []string{s.user}})
+	c.Assert(err, IsNil)
+
+	tokens, err := s.roleAuth.GetTokens()
+	c.Assert(err, IsNil)
+	c.Assert(len(tokens), Equals, 1)
+	c.Assert(tokens[0].Token, Equals, token)
+
+	clt := s.client()
+	re, err := clt.Get(clt.Endpoint("webapi", "u2f", "signuptokens", token), url.Values{})
+	c.Assert(err, IsNil)
+
+	var u2fRegReq u2f.RegisterRequest
+	c.Assert(json.Unmarshal(re.Bytes(), &u2fRegReq), IsNil)
+
+	u2fRegResp, err := s.mockU2F.RegisterResponse(&u2fRegReq)
+	c.Assert(err, IsNil)
+
+	tempPass := "abc123"
+
+	re, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "users"), createNewU2FUserReq{
+		InviteToken:       token,
+		Pass:              tempPass,
+		U2FRegisterResponse: *u2fRegResp,
+	})
+	c.Assert(err, IsNil)
+
+	var rawSess *createSessionResponseRaw
+	c.Assert(json.Unmarshal(re.Bytes(), &rawSess), IsNil)
+	cookies := re.Cookies()
+	c.Assert(len(cookies), Equals, 1)
+
+	// now make sure we are logged in by calling authenticated method
+	// we need to supply both session cookie and bearer token for
+	// request to succeed
+	jar, err := cookiejar.New(nil)
+	c.Assert(err, IsNil)
+
+	clt = s.client(roundtrip.BearerAuth(rawSess.Token), roundtrip.CookieJar(jar))
+	jar.SetCookies(s.url(), re.Cookies())
+
+	re, err = clt.Get(clt.Endpoint("webapi", "sites"), url.Values{})
+	c.Assert(err, IsNil)
+
+	var sites *getSitesResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &sites), IsNil)
+
+	// in absense of session cookie or bearer auth the same request fill fail
+
+	// no session cookie:
+	clt = s.client(roundtrip.BearerAuth(rawSess.Token))
+	re, err = clt.Get(clt.Endpoint("webapi", "sites"), url.Values{})
+	c.Assert(err, NotNil)
+	c.Assert(trace.IsAccessDenied(err), Equals, true)
+
+	// no bearer token:
+	clt = s.client(roundtrip.CookieJar(jar))
+	re, err = clt.Get(clt.Endpoint("webapi", "sites"), url.Values{})
+	c.Assert(err, NotNil)
+	c.Assert(trace.IsAccessDenied(err), Equals, true)
+}
+
+func (s *WebSuite) TestU2FLogin(c *C) {
+	token, err := s.roleAuth.CreateSignupToken(&services.TeleportUser{Name: "bob", AllowedLogins: []string{s.user}})
+	c.Assert(err, IsNil)
+
+	u2fRegReq, err := s.roleAuth.GetSignupU2FRegisterRequest(token)
+	c.Assert(err, IsNil)
+
+	u2fRegResp, err := s.mockU2F.RegisterResponse(u2fRegReq)
+	c.Assert(err, IsNil)
+
+	tempPass := "abc123"
+
+	_, err = s.roleAuth.CreateUserWithU2FToken(token, tempPass, *u2fRegResp)
+	c.Assert(err, IsNil)
+
+	// normal login
+
+	clt := s.client()
+	re, err := clt.PostJSON(clt.Endpoint("webapi","u2f", "signrequest"), u2fSignRequestReq{
+		User:              "bob",
+		Pass:              tempPass,
+	})
+	c.Assert(err, IsNil)
+	var u2fSignReq u2f.SignRequest
+	c.Assert(json.Unmarshal(re.Bytes(), &u2fSignReq), IsNil)
+
+	u2fSignResp, err := s.mockU2F.SignResponse(&u2fSignReq)
+	c.Assert(err, IsNil)
+
+	_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
+		User:              "bob",
+		U2FSignResponse:   *u2fSignResp,
+	})
+	c.Assert(err, IsNil)
+
+	// bad login: corrupted sign responses, should fail
+
+	re, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "signrequest"), u2fSignRequestReq{
+		User:              "bob",
+		Pass:              tempPass,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(json.Unmarshal(re.Bytes(), &u2fSignReq), IsNil)
+
+	u2fSignResp, err = s.mockU2F.SignResponse(&u2fSignReq)
+	c.Assert(err, IsNil)
+
+	// corrupted KeyHandle
+	u2fSignRespCopy := u2fSignResp
+	u2fSignRespCopy.KeyHandle = u2fSignRespCopy.KeyHandle + u2fSignRespCopy.KeyHandle
+
+	_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
+		User:              "bob",
+		U2FSignResponse:   *u2fSignRespCopy,
+	})
+	c.Assert(err, NotNil)
+
+	// corrupted SignatureData
+	u2fSignRespCopy = u2fSignResp
+	u2fSignRespCopy.SignatureData = u2fSignRespCopy.SignatureData[:10] + u2fSignRespCopy.SignatureData[20:]
+
+	_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
+		User:              "bob",
+		U2FSignResponse:   *u2fSignRespCopy,
+	})
+	c.Assert(err, NotNil)
+
+	// corrupted ClientData
+	u2fSignRespCopy = u2fSignResp
+	u2fSignRespCopy.ClientData = u2fSignRespCopy.ClientData[:10] + u2fSignRespCopy.ClientData[20:]
+
+	_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
+		User:              "bob",
+		U2FSignResponse:   *u2fSignRespCopy,
+	})
+	c.Assert(err, NotNil)
+
+	// bad login: counter not increasing, should fail
+
+	s.mockU2F.SetCounter(0)
+
+	re, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "signrequest"), u2fSignRequestReq{
+		User:              "bob",
+		Pass:              tempPass,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(json.Unmarshal(re.Bytes(), &u2fSignReq), IsNil)
+
+	u2fSignResp, err = s.mockU2F.SignResponse(&u2fSignReq)
+	c.Assert(err, IsNil)
+
+	_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
+		User:              "bob",
+		U2FSignResponse:   *u2fSignResp,
+	})
+	c.Assert(err, NotNil)
 }

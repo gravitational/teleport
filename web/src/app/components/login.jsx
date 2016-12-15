@@ -22,6 +22,7 @@ var {actions, getters} = require('app/modules/user');
 var GoogleAuthInfo = require('./googleAuthLogo');
 var cfg = require('app/config');
 var {TeleportLogo} = require('./icons.jsx');
+var {SECOND_FACTOR_TYPE_HOTP, SECOND_FACTOR_TYPE_OIDC, SECOND_FACTOR_TYPE_U2F} = require('app/services/auth');
 
 var LoginInputForm = React.createClass({
 
@@ -32,13 +33,17 @@ var LoginInputForm = React.createClass({
       user: '',
       password: '',
       token: '',
-      provider: null
+      provider: null,
+      secondFactorType: SECOND_FACTOR_TYPE_HOTP
     }
   },
 
 
   onLogin(e){
     e.preventDefault();
+    this.state.secondFactorType = SECOND_FACTOR_TYPE_HOTP;
+    // token field is required for Google Authenticator
+    $('input[name=token]').addClass("required");
     if (this.isValid()) {
       this.props.onClick(this.state);
     }
@@ -48,8 +53,19 @@ var LoginInputForm = React.createClass({
     var self = this;
     return function (e) {
       e.preventDefault();
+      self.state.secondFactorType = SECOND_FACTOR_TYPE_OIDC;
       self.state.provider = provider.id;
       self.props.onClick(self.state);
+    }
+  },
+
+  onLoginWithU2f: function(e) {
+    e.preventDefault();
+    this.state.secondFactorType = SECOND_FACTOR_TYPE_U2F;
+    // token field not required for U2F
+    $('input[name=token]').removeClass("required");
+    if (this.isValid()) {
+      this.props.onClick(this.state);
     }
   },
 
@@ -61,6 +77,7 @@ var LoginInputForm = React.createClass({
   render() {
     let {isProcessing, isFailed, message } = this.props.attemp;
     let providers = cfg.getAuthProviders();
+    let useU2f = !!cfg.getU2fAppId();
 
     return (
       <form ref="form" className="grv-login-input-form">
@@ -76,7 +93,9 @@ var LoginInputForm = React.createClass({
             <input autoComplete="off" valueLink={this.linkState('token')} className="form-control required" name="token" placeholder="Two factor token (Google Authenticator)"/>
           </div>
           <button onClick={this.onLogin} disabled={isProcessing} type="submit" className="btn btn-primary block full-width m-b">Login</button>
+          { useU2f ? <button onClick={this.onLoginWithU2f} disabled={isProcessing} type="submit" className="btn btn-primary block full-width m-b">Login with U2F</button> : null }
           { providers.map((provider) => <button onClick={this.providerLogin(provider)} type="submit" className="btn btn-danger block full-width m-b">With {provider.display}</button>) }
+          { isProcessing && this.state.secondFactorType == SECOND_FACTOR_TYPE_U2F ? (<label className="help-block">Insert your U2F key and press the button on the key</label>) : null }
           { isFailed ? (<label className="error">{message}</label>) : null }
         </div>
       </form>

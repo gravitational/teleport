@@ -107,3 +107,7 @@ func (s *BoltSuite) TestToken(c *C) {
 func (s *BoltSuite) TestRoles(c *C) {
 	s.suite.RolesCRUD(c)
 }
+
+func (s *BoltSuite) TestU2FCRUD(c *C) {
+	s.suite.U2FCRUD(c)
+}

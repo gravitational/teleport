@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -41,7 +42,6 @@ import (
 
 	"github.com/buger/goterm"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -79,11 +79,11 @@ type AuthCommand struct {
 	authType                   string
 	genPubPath                 string
 	genPrivPath                string
-	genSigningKeyPath          string
-	genRole                    teleport.Role
-	genAuthorityDomain         string
+	genUser                    string
+	genTTL                     time.Duration
 	exportAuthorityFingerprint string
 	exportPrivateKeys          bool
+	outDir                     string
 }
 
 type AuthServerCommand struct {
@@ -177,12 +177,10 @@ func main() {
 	authGenerate.Flag("pub-key", "path to the public key").Required().StringVar(&cmdAuth.genPubPath)
 	authGenerate.Flag("priv-key", "path to the private key").Required().StringVar(&cmdAuth.genPrivPath)
 
-	authGenAndSign := auth.Command("gencert", "Generate OpenSSH keys and certificate for a joining teleport proxy, node or auth server").Hidden()
-	authGenAndSign.Flag("priv-key", "path to the private key to write").Required().StringVar(&cmdAuth.genPrivPath)
-	authGenAndSign.Flag("cert", "path to the public signed cert to write").Required().StringVar(&cmdAuth.genPubPath)
-	authGenAndSign.Flag("sign-key", "path to the private OpenSSH signing key").Required().StringVar(&cmdAuth.genSigningKeyPath)
-	authGenAndSign.Flag("role", "server role, e.g. 'proxy', 'auth' or 'node'").Required().SetValue(&cmdAuth.genRole)
-	authGenAndSign.Flag("domain", "cluster certificate authority domain name").Required().StringVar(&cmdAuth.genAuthorityDomain)
+	authSign := auth.Command("sign", "Create a signed user session cerfiticate")
+	authSign.Flag("user", "Teleport user name").Required().StringVar(&cmdAuth.genUser)
+	authSign.Flag("out", "Output directory [defaults to current]").Short('o').StringVar(&cmdAuth.outDir)
+	authSign.Flag("ttl", "TTL (time to live) for the generated certificate").Default(fmt.Sprintf("%v", defaults.CertDuration)).DurationVar(&cmdAuth.genTTL)
 
 	// operations with reverse tunnels
 	reverseTunnels := app.Command("tunnels", "Operations on reverse tunnels clusters").Hidden()
@@ -220,12 +218,6 @@ func main() {
 			utils.FatalError(err)
 		}
 		return
-	case authGenAndSign.FullCommand():
-		err = cmdAuth.GenerateAndSignKeys()
-		if err != nil {
-			utils.FatalError(err)
-		}
-		return
 	}
 	// connect to the teleport auth service:
 	client, err := connectToAuthService(cfg)
@@ -259,6 +251,12 @@ func main() {
 		err = cmdTokens.List(client)
 	case tokenDel.FullCommand():
 		err = cmdTokens.Del(client)
+	case authSign.FullCommand():
+		err = cmdAuth.GenerateAndSignKeys(client)
+		if err != nil {
+			utils.FatalError(err)
+		}
+		return
 	}
 
 	if err != nil {
@@ -609,33 +607,51 @@ func (a *AuthCommand) GenerateKeys() error {
 }
 
 // GenerateAndSignKeys generates a new keypair and signs it for role
-func (a *AuthCommand) GenerateAndSignKeys() error {
-	privSigningKeyBytes, err := ioutil.ReadFile(a.genSigningKeyPath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+func (a *AuthCommand) GenerateAndSignKeys(client *auth.TunClient) error {
 	ca := native.New()
 	defer ca.Close()
-	privBytes, pubBytes, err := ca.GenerateKeyPair("")
+	privateKey, publicKey, err := ca.GenerateKeyPair("")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	nodeID := uuid.New()
-	certBytes, err := ca.GenerateHostCert(privSigningKeyBytes, pubBytes, nodeID, a.genAuthorityDomain, teleport.Roles{a.genRole}, 0)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = ioutil.WriteFile(a.genPubPath, certBytes, 0600)
+	cert, err := client.GenerateUserCert(publicKey, a.genUser, a.genTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = ioutil.WriteFile(a.genPrivPath, privBytes, 0600)
+	certPath := a.genUser + ".cert"
+	keyPath := a.genUser + ".key"
+	pubPath := a.genUser + ".pub"
+
+	// --out flag
+	if a.outDir != "" {
+		if !utils.IsDir(a.outDir) {
+			if err = os.MkdirAll(a.outDir, 0770); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		certPath = filepath.Join(a.outDir, certPath)
+		keyPath = filepath.Join(a.outDir, keyPath)
+		pubPath = filepath.Join(a.outDir, pubPath)
+	}
+
+	err = ioutil.WriteFile(certPath, cert, 0600)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("wrote signed certificate to: %v and private key to: %v\n", a.genPubPath, a.genPrivPath)
+	err = ioutil.WriteFile(keyPath, privateKey, 0600)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = ioutil.WriteFile(pubPath, publicKey, 0600)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("Public key : %v\nPrivate key: %v\nCertificate: %v\n",
+		pubPath, keyPath, certPath)
 	return nil
 }
 

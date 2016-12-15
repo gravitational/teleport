@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -264,6 +265,8 @@ type AuthConfig struct {
 
 	// NoAudit, when set to true, disables session recording and event audit
 	NoAudit bool
+
+	U2F services.U2F
 }
 
 // SSHConfig configures SSH server node role
@@ -301,6 +304,9 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.KeysBackend.Params = boltParams(defaults.DataDir, defaults.KeysBoltFile)
 	cfg.Auth.RecordsBackend.Type = defaults.BackendType
 	cfg.Auth.RecordsBackend.Params = boltParams(defaults.DataDir, defaults.RecordsBoltFile)
+	cfg.Auth.U2F.Enabled = true
+	cfg.Auth.U2F.AppID = fmt.Sprintf("https://%s:%d", strings.ToLower(hostname), defaults.HTTPListenPort)
+	cfg.Auth.U2F.Facets = []string{cfg.Auth.U2F.AppID}
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
 
 	// defaults for the SSH proxy service:

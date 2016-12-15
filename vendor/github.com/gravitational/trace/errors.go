@@ -27,9 +27,9 @@ import (
 
 // NotFound returns new instance of not found error
 func NotFound(message string, args ...interface{}) error {
-	return wrap(&NotFoundError{
+	return WrapWithMessage(&NotFoundError{
 		Message: fmt.Sprintf(message, args...),
-	}, 2)
+	}, message, args...)
 }
 
 // NotFoundError indicates that object has not been found
@@ -70,15 +70,14 @@ func IsNotFound(e error) bool {
 
 // AlreadyExists returns a new instance of AlreadyExists error
 func AlreadyExists(message string, args ...interface{}) error {
-	return wrap(&AlreadyExistsError{
-		Message: fmt.Sprintf(message, args...),
-	}, 2)
+	return WrapWithMessage(&AlreadyExistsError{
+		fmt.Sprintf(message, args...),
+	}, message, args...)
 }
 
 // AlreadyExistsError indicates that there's a duplicate object that already
 // exists in the storage/system
 type AlreadyExistsError struct {
-	// Message is user-friendly error message
 	Message string `json:"message"`
 }
 
@@ -112,9 +111,9 @@ func IsAlreadyExists(e error) bool {
 
 // BadParameter returns a new instance of BadParameterError
 func BadParameter(message string, args ...interface{}) error {
-	return wrap(&BadParameterError{
+	return WrapWithMessage(&BadParameterError{
 		Message: fmt.Sprintf(message, args...),
-	}, 2)
+	}, message, args...)
 }
 
 // BadParameterError indicates that something is wrong with passed
@@ -138,10 +137,6 @@ func (b *BadParameterError) IsBadParameterError() bool {
 	return true
 }
 
-func IsEOF(e error) bool {
-	return Unwrap(e) == io.EOF
-}
-
 // IsBadParameter returns whether this error is of BadParameterType
 func IsBadParameter(e error) bool {
 	type bp interface {
@@ -153,7 +148,7 @@ func IsBadParameter(e error) bool {
 
 // CompareFailed returns new instance of CompareFailedError
 func CompareFailed(message string, args ...interface{}) error {
-	return wrap(&CompareFailedError{Message: fmt.Sprintf(message, args...)}, 2)
+	return WrapWithMessage(&CompareFailedError{Message: fmt.Sprintf(message, args...)}, message, args...)
 }
 
 // CompareFailedError indicates a failed comparison (e.g. bad password or hash)
@@ -191,9 +186,9 @@ func IsCompareFailed(e error) bool {
 
 // AccessDenied returns new instance of AccessDeniedError
 func AccessDenied(message string, args ...interface{}) error {
-	return wrap(&AccessDeniedError{
+	return WrapWithMessage(&AccessDeniedError{
 		Message: fmt.Sprintf(message, args...),
-	}, 2)
+	}, message, args...)
 }
 
 // AccessDeniedError indicates denied access
@@ -234,22 +229,24 @@ func ConvertSystemError(err error) error {
 	innerError := Unwrap(err)
 
 	if os.IsNotExist(innerError) {
-		return wrap(&NotFoundError{Message: innerError.Error()}, 2)
+		return WrapWithMessage(&NotFoundError{Message: innerError.Error()}, innerError.Error())
 	}
 	if os.IsPermission(innerError) {
-		return wrap(&AccessDeniedError{Message: innerError.Error()}, 2)
+		return WrapWithMessage(&AccessDeniedError{Message: innerError.Error()}, innerError.Error())
 	}
 	switch realErr := innerError.(type) {
 	case *net.OpError:
-		return wrap(&ConnectionProblemError{
-			Message: fmt.Sprintf("failed to connecting to %v", realErr.Addr),
-			Err:     realErr}, 2)
+		message := fmt.Sprintf("failed to connect to server %v", realErr.Addr)
+		return WrapWithMessage(&ConnectionProblemError{
+			Message: message,
+			Err:     realErr}, message)
 	case *os.PathError:
-		return wrap(&AccessDeniedError{
-			Message: fmt.Sprintf("failed to execute command %v error:  %v", realErr.Path, realErr.Err),
-		}, 2)
+		message := fmt.Sprintf("failed to execute command %v error:  %v", realErr.Path, realErr.Err)
+		return WrapWithMessage(&AccessDeniedError{
+			Message: message,
+		}, message)
 	case x509.SystemRootsError, x509.UnknownAuthorityError:
-		return wrap(&TrustError{Err: innerError}, 2)
+		return wrapWithDepth(&TrustError{Err: innerError}, 2)
 	default:
 		return err
 	}
@@ -257,10 +254,10 @@ func ConvertSystemError(err error) error {
 
 // ConnectionProblem returns new instance of ConnectionProblemError
 func ConnectionProblem(err error, message string, args ...interface{}) error {
-	return wrap(&ConnectionProblemError{
+	return WrapWithMessage(&ConnectionProblemError{
 		Message: fmt.Sprintf(message, args...),
 		Err:     err,
-	}, 2)
+	}, message, args...)
 }
 
 // ConnectionProblemError indicates a network related problem
@@ -295,9 +292,9 @@ func IsConnectionProblem(e error) bool {
 
 // LimitExceeded returns whether new instance of LimitExceededError
 func LimitExceeded(message string, args ...interface{}) error {
-	return wrap(&LimitExceededError{
+	return WrapWithMessage(&LimitExceededError{
 		Message: fmt.Sprintf(message, args...),
-	}, 2)
+	}, message, args...)
 }
 
 // LimitExceededError indicates rate limit or connection limit problem
@@ -362,11 +359,11 @@ func IsTrustError(e error) bool {
 
 // OAuth2 returns new instance of OAuth2Error
 func OAuth2(code, message string, query url.Values) Error {
-	return wrap(&OAuth2Error{
+	return WrapWithMessage(&OAuth2Error{
 		Code:    code,
 		Message: message,
 		Query:   query,
-	}, 2)
+	}, message)
 }
 
 // OAuth2Error defined an error used in OpenID Connect Flow (OIDC)
@@ -393,4 +390,9 @@ func IsOAuth2(e error) bool {
 	}
 	_, ok := Unwrap(e).(oe)
 	return ok
+}
+
+// IsEOF returns true if the passed error is io.EOF
+func IsEOF(e error) bool {
+	return Unwrap(e) == io.EOF
 }

@@ -28,7 +28,8 @@ let cfg = {
   displayDateFormat: 'l LTS Z',
 
   auth: {
-    oidc_connectors: []
+    oidc_connectors: [],
+    u2f_appid: ""
   },
 
   routes: {
@@ -48,6 +49,10 @@ let cfg = {
     sessionPath: '/v1/webapi/sessions',
     invitePath: '/v1/webapi/users/invites/:inviteToken',
     createUserPath: '/v1/webapi/users',
+    u2fCreateUserChallengePath: '/webapi/u2f/signuptokens/:inviteToken',
+    u2fCreateUserPath: '/webapi/u2f/users',
+    u2fSessionChallengePath: '/webapi/u2f/signrequest',
+    u2fSessionPath: '/webapi/u2f/sessions',
     nodesPath: '/v1/webapi/sites/-current-/nodes',
     siteSessionPath: '/v1/webapi/sites/-current-/sessions',
     sessionEventsPath: '/v1/webapi/sites/-current-/sessions/:sid/events',
@@ -83,6 +88,10 @@ let cfg = {
       return formatPattern(cfg.api.invitePath, {inviteToken});
     },
 
+    getU2fCreateUserChallengeUrl(inviteToken){
+      return formatPattern(cfg.api.u2fCreateUserChallengePath, {inviteToken});
+    },
+
     getEventStreamConnStr(){
       var hostname = getWsHostName();
       return `${hostname}/v1/webapi/sites/-current-`;
@@ -104,6 +113,10 @@ let cfg = {
 
   getAuthProviders(){
     return cfg.auth.oidc_connectors;
+  },
+
+  getU2fAppId(){
+    return cfg.auth.u2f_appid;
   },
 
   init(config={}){

@@ -19,8 +19,13 @@ var session = require('./session');
 var cfg = require('app/config');
 var $ = require('jQuery');
 var logger = require('app/common/logger').create('services/auth');
+require('u2f-api-polyfill'); // This puts it in window.u2f
 
 const PROVIDER_GOOGLE = 'google';
+
+const SECOND_FACTOR_TYPE_HOTP = 'hotp';
+const SECOND_FACTOR_TYPE_OIDC = 'oidc';
+const SECOND_FACTOR_TYPE_U2F = 'u2f';
 
 const CHECK_TOKEN_REFRESH_RATE = 10*1000; // 10 sec
 
@@ -38,6 +43,36 @@ var auth = {
       });
   },
 
+  u2fSignUp(name, password, inviteToken){
+    return api.get(cfg.api.getU2fCreateUserChallengeUrl(inviteToken)).then(data=>{
+      var deferred = $.Deferred();
+
+      window.u2f.register(data.appId, [data], [], function(res){
+        if(res.errorCode){
+          var err = auth._getU2fErr(res.errorCode);
+          deferred.reject(err);
+          return;
+        }
+
+        var response = {
+          user:                  name,
+          pass:                  password,
+          u2f_register_response: res,
+          invite_token:          inviteToken
+        };
+        api.post(cfg.api.u2fCreateUserPath, response, false).then(data=>{
+          session.setUserData(data);
+          auth._startTokenRefresher();
+          deferred.resolve(data);
+        }).fail(data=>{
+          deferred.reject(data);
+        })
+      });
+
+      return deferred.promise();
+    });
+  },
+
   login(name, password, token){
     auth._stopTokenRefresher();
     session.clear();
@@ -52,6 +87,42 @@ var auth = {
       session.setUserData(data);
       this._startTokenRefresher();
       return data;
+    });
+  },
+
+  u2fLogin(name, password){
+    auth._stopTokenRefresher();
+    session.clear();
+
+    var data = {
+      user: name,
+      pass: password
+    };
+
+    return api.post(cfg.api.u2fSessionChallengePath, data, false).then(data=>{
+      var deferred = $.Deferred();
+
+      window.u2f.sign(data.appId, data.challenge, [data], function(res){
+        if(res.errorCode){
+          var err = auth._getU2fErr(res.errorCode);
+          deferred.reject(err);
+          return;
+        }
+
+        var response = {
+          user:              name,
+          u2f_sign_response: res
+        };
+        api.post(cfg.api.u2fSessionPath, response, false).then(data=>{
+          session.setUserData(data);
+          auth._startTokenRefresher();
+          deferred.resolve(data);
+        }).fail(data=>{
+          deferred.reject(data);
+        });
+      });
+
+      return deferred.promise();
     });
   },
 
@@ -117,9 +188,23 @@ var auth = {
     }).fail(()=>{
       auth.logout();
     });
+  },
+
+  _getU2fErr(errorCode){
+    var errorMsg = "";
+    // lookup error message...
+    for(var msg in window.u2f.ErrorCodes){
+      if(window.u2f.ErrorCodes[msg] == errorCode){
+        errorMsg = msg;
+      }
+    }
+    return {responseJSON:{message:"U2F Error: " + errorMsg}};
   }
 
 }
 
 module.exports = auth;
 module.exports.PROVIDER_GOOGLE = PROVIDER_GOOGLE;
+module.exports.SECOND_FACTOR_TYPE_HOTP = SECOND_FACTOR_TYPE_HOTP;
+module.exports.SECOND_FACTOR_TYPE_OIDC = SECOND_FACTOR_TYPE_OIDC;
+module.exports.SECOND_FACTOR_TYPE_U2F = SECOND_FACTOR_TYPE_U2F;

@@ -141,6 +141,10 @@ type Config struct {
 	// that uses local cache to validate hosts
 	HostKeyCallback HostKeyCallback
 
+	// SecondFactorType indicates whether HOTP, OIDC or U2F should be used
+	// for the second factor
+	SecondFactorType string
+
 	// ConnectorID is used to authenticate user via OpenID Connect
 	// registered connector
 	ConnectorID string
@@ -928,18 +932,24 @@ func (tc *TeleportClient) Login() error {
 	}
 
 	var response *web.SSHLoginResponse
-	if tc.ConnectorID == "" {
+	switch tc.SecondFactorType {
+	case "hotp":
 		response, err = tc.directLogin(key.Pub)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	} else {
+	case "oidc":
 		response, err = tc.oidcLogin(tc.ConnectorID, key.Pub)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		// in this case identity is returned by the proxy
 		tc.Username = response.Username
+	case "u2f":
+		response, err = tc.u2fLogin(key.Pub)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	key.Cert = response.Cert
 	// save the key:
@@ -1025,6 +1035,33 @@ func (tc *TeleportClient) oidcLogin(connectorID string, pub []byte) (*web.SSHLog
 	return response, trace.Wrap(err)
 }
 
+// directLogin asks for a password and performs the challenge-response authentication
+func (tc *TeleportClient) u2fLogin(pub []byte) (*web.SSHLoginResponse, error) {
+	// U2F login requires the official u2f-host executable
+	_, err := exec.LookPath("u2f-host")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	httpsProxyHostPort := tc.Config.ProxyWebHostPort()
+	certPool := loopbackPool(httpsProxyHostPort)
+
+	password, err := tc.AskPassword()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := web.SSHAgentU2FLogin(httpsProxyHostPort,
+		tc.Config.Username,
+		password,
+		pub,
+		tc.KeyTTL,
+		tc.InsecureSkipVerify,
+		certPool)
+
+	return response, trace.Wrap(err)
+}
+
 // loopbackPool reads trusted CAs if it finds it in a predefined location
 // and will work only if target proxy address is loopback
 func loopbackPool(proxyAddr string) *x509.CertPool {
@@ -1099,6 +1136,18 @@ func (tc *TeleportClient) AskPasswordAndHOTP() (pwd string, token string, err er
 		return "", "", trace.Wrap(err)
 	}
 	return pwd, token, nil
+}
+
+// AskPassword prompts the user to enter the password
+func (tc *TeleportClient) AskPassword() (pwd string, err error) {
+	fmt.Printf("Enter password for Teleport user %v:\n", tc.Config.Username)
+	pwd, err = passwordFromConsole()
+	if err != nil {
+		fmt.Println(err)
+		return "", trace.Wrap(err)
+	}
+
+	return pwd, nil
 }
 
 // passwordFromConsole reads from stdin without echoing typed characters to stdout

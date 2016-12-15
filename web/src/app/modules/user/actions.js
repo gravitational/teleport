@@ -22,6 +22,7 @@ var auth = require('app/services/auth');
 var session = require('app/services/session');
 var cfg = require('app/config');
 var api = require('app/services/api');
+var {SECOND_FACTOR_TYPE_OIDC, SECOND_FACTOR_TYPE_U2F} = require('app/services/auth');
 
 var actions = {
 
@@ -56,39 +57,54 @@ var actions = {
       });
   },
 
-  signUp({name, psw, token, inviteToken}){
+  signUp({name, psw, token, inviteToken, secondFactorType}){
     restApiActions.start(TRYING_TO_SIGN_UP);
-    auth.signUp(name, psw, token, inviteToken)
-      .done((sessionData)=>{
-        reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
-        restApiActions.success(TRYING_TO_SIGN_UP);
-        session.getHistory().push({pathname: cfg.routes.app});
-      })
-      .fail((err)=>{
-        let msg = err.responseJSON ? err.responseJSON.message : 'Failed to sing up';
-        restApiActions.fail(TRYING_TO_SIGN_UP, msg);
-      });
+
+    var onSuccess = function(sessionData){
+      reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
+      restApiActions.success(TRYING_TO_SIGN_UP);
+      session.getHistory().push({pathname: cfg.routes.app});
+    };
+
+    var onFailure = function(err){
+      var msg = err.responseJSON ? err.responseJSON.message : 'Failed to sign up';
+      restApiActions.fail(TRYING_TO_SIGN_UP, msg);
+    };
+
+    if(secondFactorType == SECOND_FACTOR_TYPE_U2F){
+      auth.u2fSignUp(name, psw, inviteToken).done(onSuccess).fail(onFailure);
+    } else {
+      auth.signUp(name, psw, token, inviteToken).done(onSuccess).fail(onFailure);
+    }
+
   },
 
-  login({user, password, token, provider}, redirect){
-    if(provider){
+  login({user, password, token, provider, secondFactorType}, redirect){
+    if(secondFactorType == SECOND_FACTOR_TYPE_OIDC){
       let fullPath = cfg.getFullUrl(redirect);
       window.location = cfg.api.getSsoUrl(fullPath, provider);
       return;
     }
 
     restApiActions.start(TRYING_TO_LOGIN);
-    auth.login(user, password, token)
-      .done((sessionData)=>{
-        restApiActions.success(TRYING_TO_LOGIN);
-        reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
-        session.getHistory().push({pathname: redirect});
-      })
-      .fail((err)=> {
-        let msg = err.responseJSON ? err.responseJSON.message : 'Error';
-        restApiActions.fail(TRYING_TO_LOGIN, msg);
-      })
+
+    var onSuccess = function(sessionData){
+      restApiActions.success(TRYING_TO_LOGIN);
+      reactor.dispatch(TLPT_RECEIVE_USER, sessionData.user);
+      session.getHistory().push({pathname: redirect});
+    };
+
+    var onFailure = function(err){
+      var msg = err.responseJSON ? err.responseJSON.message : 'Error';
+      restApiActions.fail(TRYING_TO_LOGIN, msg);
+    };
+
+    if(secondFactorType == SECOND_FACTOR_TYPE_U2F){
+      auth.u2fLogin(user, password).done(onSuccess).fail(onFailure);
+    } else {
+      auth.login(user, password, token).done(onSuccess).fail(onFailure);
     }
+  }
 }
 
 export default actions;

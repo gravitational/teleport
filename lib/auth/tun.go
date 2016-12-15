@@ -38,6 +38,8 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+
+	"github.com/tstranex/u2f"
 )
 
 // dialRetryInterval specifies the time interval tun client waits to retry
@@ -447,6 +449,31 @@ func (s *AuthTunnel) passwordAuth(
 		}
 		log.Infof("[AUTH] password authenticated user: '%v'", conn.User())
 		return perms, nil
+	case AuthWebU2FSign:
+		if err := s.authServer.CheckPasswordWOToken(conn.User(), ab.Pass); err != nil {
+			log.Warningf("password auth error: %#v", err)
+			return nil, trace.Wrap(err)
+		}
+		perms := &ssh.Permissions{
+			Extensions: map[string]string{
+				ExtWebPassword: "<password>",
+				ExtRole:        string(teleport.RoleU2FSign),
+			},
+		}
+		log.Infof("[AUTH] u2f sign authenticated user: '%v'", conn.User())
+		return perms, nil
+	case AuthWebU2F:
+		if err := s.authServer.CheckU2FSignResponse(conn.User(), &ab.U2FSignResponse); err != nil {
+			log.Warningf("u2f auth error: %#v", err)
+			return nil, trace.Wrap(err)
+		}
+		perms := &ssh.Permissions{
+			Extensions: map[string]string{
+				ExtWebU2F: "<u2f-sign-response>",
+				ExtRole:   string(teleport.RoleU2FUser),
+			},
+		}
+		return perms, nil
 	case AuthWebSession:
 		// we use extra permissions mechanism to keep the connection data
 		// after authorization, in this case the session
@@ -500,6 +527,7 @@ type authBucket struct {
 	Type      string `json:"type"`
 	Pass      []byte `json:"pass"`
 	HotpToken string `json:"hotpToken"`
+	U2FSignResponse u2f.SignResponse `json:"u2fSignResponse"`
 }
 
 func NewTokenAuth(domainName, token string) ([]ssh.AuthMethod, error) {
@@ -532,6 +560,32 @@ func NewWebPasswordAuth(user string, password []byte, hotpToken string) ([]ssh.A
 		User:      user,
 		Pass:      password,
 		HotpToken: hotpToken,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
+}
+
+// NewWebPasswordU2FSignAuth is for getting a U2F sign challenge
+func NewWebPasswordU2FSignAuth(user string, password []byte) ([]ssh.AuthMethod, error) {
+	data, err := json.Marshal(authBucket{
+		Type: AuthWebU2FSign,
+		User: user,
+		Pass: password,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []ssh.AuthMethod{ssh.Password(string(data))}, nil
+}
+
+// NewWebU2FSignResponseAuth is for signing in with a U2F sign response
+func NewWebU2FSignResponseAuth(user string, u2fSignResponse *u2f.SignResponse) ([]ssh.AuthMethod, error) {
+	data, err := json.Marshal(authBucket{
+		Type: AuthWebU2F,
+		User: user,
+		U2FSignResponse: *u2fSignResponse,
 	})
 	if err != nil {
 		return nil, err
@@ -854,11 +908,14 @@ const (
 
 	ExtWebSession  = "web-session@teleport"
 	ExtWebPassword = "web-password@teleport"
+	ExtWebU2F      = "web-u2f@teleport"
 	ExtToken       = "provision@teleport"
 	ExtHost        = "host@teleport"
 	ExtRole        = "role@teleport"
 
 	AuthWebPassword = "password"
+	AuthWebU2FSign  = "u2f-sign"
+	AuthWebU2F      = "u2f"
 	AuthWebSession  = "session"
 	AuthToken       = "provision-token"
 	AuthSignupToken = "signup-token"
