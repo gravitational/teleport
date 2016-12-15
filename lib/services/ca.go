@@ -107,6 +107,8 @@ type CertAuthority struct {
 	// AllowedLogins is a list of allowed logins for users within
 	// this certificate authority
 	AllowedLogins []string `json:"allowed_logins"`
+	// Roles is a list of roles assumed by users signed by this CA
+	Roles []string `json:"roles"`
 }
 
 // FirstSigningKey returns first signing key or returns error if it's not here

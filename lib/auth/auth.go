@@ -808,6 +808,34 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 	return response, nil
 }
 
+func (a *AuthServer) DeleteRole(name string) error {
+	// check if this role is used by CA or Users
+	users, err := a.Identity.GetUsers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, u := range users {
+		for _, r := range u.GetRoles() {
+			if r == name {
+				return trace.BadParameter("role %v is used by user %v", name, u.GetName())
+			}
+		}
+	}
+	// check if it's used by some cert authorities
+	cas, err := a.Trust.GetCertAuthorities(services.UserCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, a := range cas {
+		for _, r := range a.Roles {
+			if r == name {
+				return trace.BadParameter("role %v is used by user cert authority %v", name, a.DomainName)
+			}
+		}
+	}
+	return a.Access.DeleteRole(name)
+}
+
 const (
 	// WebSessionTTL specifies standard web session time to live
 	WebSessionTTL = 10 * time.Minute

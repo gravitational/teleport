@@ -411,7 +411,8 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 		}
 		for _, u := range users {
 			if u.GetName() == teleportUser {
-				for _, login := range u.GetAllowedLogins() {
+				for _, role := range u.GetRoles() {
+					s.authService.GetRole(role)
 					if login == osUser {
 						return nil
 					}
