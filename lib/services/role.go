@@ -136,8 +136,8 @@ type RoleSpec struct {
 
 // AccessChecker interface implements access checks for given role
 type AccessChecker interface {
-	// CheckServer checks access to server
-	CheckServer(Server) error
+	// CheckAccessToServer checks access to server
+	CheckAccessToServer(login string, server Server) error
 	// CheckResourceAction check access to resource action
 	CheckResourceAction(resourceNamespace, resourceName, accessType string) error
 }
@@ -209,6 +209,16 @@ func MatchResourceAction(selector map[string][]string, resourceName, resourceAct
 	return false
 }
 
+// MatchLogin returns true if attempted login matches any of the logins
+func MatchLogin(logins []string, login string) bool {
+	for _, l := range logins {
+		if l == login || l == Wildcard {
+			return true
+		}
+	}
+	return false
+}
+
 // MatchNamespace returns true if given list of namespace matches
 // target namespace, wildcard matches everything
 func MatchNamespace(selector []string, namespace string) bool {
@@ -238,11 +248,11 @@ func MatchLabels(selector map[string]string, target map[string]string) bool {
 	return true
 }
 
-// CheckServer checks if role set has access to server based
-// on combined role's selector
-func (set RoleSet) CheckServer(s Server) error {
+// CheckAccessToServer checks if role set has access to server based
+// on combined role's selector and attempted login
+func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 	for _, role := range set {
-		if MatchNamespace(role.GetNamespaces(), s.GetNamespace()) && MatchLabels(role.GetNodeLabels(), s.Labels) {
+		if MatchNamespace(role.GetNamespaces(), s.GetNamespace()) && MatchLabels(role.GetNodeLabels(), s.Labels) && MatchLogin(role.GetLogins(), login) {
 			return nil
 		}
 	}

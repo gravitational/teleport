@@ -37,7 +37,7 @@ const (
 //
 // This which can be used if the upstream AccessPoint goes offline
 type CachingAuthClient struct {
-	sync.Mutex
+	sync.RWMutex
 
 	// ap points to the access ponit we're caching access to:
 	ap auth.AccessPoint
@@ -51,6 +51,7 @@ type CachingAuthClient struct {
 
 	domainName string
 	namespaces []services.Namespace
+	roles      []services.Role
 	nodes      map[string][]services.Server
 	proxies    []services.Server
 	users      []services.User
@@ -67,6 +68,10 @@ func NewCachingAuthClient(ap auth.AccessPoint) (*CachingAuthClient, error) {
 		return nil, trace.Wrap(err)
 	}
 	namespaces, err := ap.GetNamespaces()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roles, err := ap.GetRoles()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -95,6 +100,7 @@ func NewCachingAuthClient(ap auth.AccessPoint) (*CachingAuthClient, error) {
 		return nil, trace.Wrap(err)
 	}
 	cs := &CachingAuthClient{
+		roles:      roles,
 		ap:         ap,
 		domainName: domainName,
 		nodes:      nodes,
@@ -117,7 +123,44 @@ func (cs *CachingAuthClient) GetDomainName() (string, error) {
 		}
 		return err
 	})
+	cs.RLock()
+	defer cs.RUnlock()
 	return cs.domainName, nil
+}
+
+// GetRoles is a part of auth.AccessPoint implementation
+func (cs *CachingAuthClient) GetRoles() ([]services.Role, error) {
+	cs.try(func() error {
+		roles, err := cs.ap.GetRoles()
+		if err == nil {
+			cs.Lock()
+			defer cs.Unlock()
+			cs.roles = roles
+		}
+		return err
+	})
+	return cs.roles, nil
+}
+
+// GetRoles is a part of auth.AccessPoint implementation
+func (cs *CachingAuthClient) GetRole(name string) (services.Role, error) {
+	cs.try(func() error {
+		roles, err := cs.ap.GetRoles()
+		if err == nil {
+			cs.Lock()
+			defer cs.Unlock()
+			cs.roles = roles
+		}
+		return err
+	})
+	cs.RLock()
+	defer cs.RUnlock()
+	for i := range cs.roles {
+		if cs.roles[i].GetMetadata().Name == name {
+			return cs.roles[i], nil
+		}
+	}
+	return nil, trace.NotFound("role %v is not found", name)
 }
 
 // GetNamespaces is a part of auth.AccessPoint implementation
@@ -131,23 +174,25 @@ func (cs *CachingAuthClient) GetNamespaces() ([]services.Namespace, error) {
 		}
 		return err
 	})
+	cs.RLock()
+	defer cs.RUnlock()
 	return cs.namespaces, nil
 }
 
 // GetNodes is a part of auth.AccessPoint implementation
 func (cs *CachingAuthClient) GetNodes(namespace string) ([]services.Server, error) {
-	var nsNodes []services.Server
-	var err error
 	cs.try(func() error {
-		nsNodes, err = cs.ap.GetNodes(namespace)
+		nodes, err := cs.ap.GetNodes(namespace)
 		if err == nil {
 			cs.Lock()
 			defer cs.Unlock()
-			cs.nodes[namespace] = nsNodes
+			cs.nodes[namespace] = nodes
 		}
 		return err
 	})
-	return nsNodes, nil
+	cs.RLock()
+	defer cs.RUnlock()
+	return cs.nodes[namespace], nil
 }
 
 // GetProxies is a part of auth.AccessPoint implementation
@@ -161,6 +206,8 @@ func (cs *CachingAuthClient) GetProxies() ([]services.Server, error) {
 		}
 		return err
 	})
+	cs.RLock()
+	defer cs.RUnlock()
 	return cs.proxies, nil
 }
 
@@ -179,6 +226,8 @@ func (cs *CachingAuthClient) GetCertAuthorities(ct services.CertAuthType, loadKe
 		}
 		return err
 	})
+	cs.RLock()
+	defer cs.RUnlock()
 	if ct == services.UserCA {
 		return cs.userCAs, nil
 	}
@@ -196,6 +245,8 @@ func (cs *CachingAuthClient) GetUsers() ([]services.User, error) {
 		}
 		return err
 	})
+	cs.RLock()
+	defer cs.RUnlock()
 	return cs.users, nil
 }
 

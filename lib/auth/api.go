@@ -53,4 +53,7 @@ type AccessPoint interface {
 
 	// GetRole returns role by name
 	GetRole(name string) (services.Role, error)
+
+	// GetRoles returns a list of roles
+	GetRoles() ([]services.Role, error)
 }

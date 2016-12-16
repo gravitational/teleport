@@ -286,15 +286,19 @@ func (s *Server) AdvertiseAddr() string {
 	return net.JoinHostPort(s.getAdvertiseIP().String(), port)
 }
 
-// registerServer attempts to register server in the cluster
-func (s *Server) registerServer() error {
-	srv := services.Server{
+func (s *Server) getInfo() services.Server {
+	return services.Server{
 		ID:        s.ID(),
 		Addr:      s.AdvertiseAddr(),
 		Hostname:  s.hostname,
 		Labels:    s.labels,
 		CmdLabels: s.getCommandLabels(),
 	}
+}
+
+// registerServer attempts to register server in the cluster
+func (s *Server) registerServer() error {
+	srv := s.getInfo()
 	if !s.proxyMode {
 		return trace.Wrap(s.authService.UpsertNode(srv, defaults.ServerHeartbeatTTL))
 	}
@@ -394,7 +398,8 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 	}
 	// the certificate was signed by unknown authority
 	if ca == nil {
-		return trace.AccessDenied("the certificate for user '%v' is signed by untrusted CA",
+		return trace.AccessDenied(
+			"the certificate for user '%v' is signed by untrusted CA",
 			teleportUser)
 	}
 
@@ -404,6 +409,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 	}
 
 	// for local users, go and check their individual permissions
+	var roles services.RoleSet
 	if domainName == ca.DomainName {
 		users, err := s.authService.GetUsers()
 		if err != nil {
@@ -411,26 +417,31 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 		}
 		for _, u := range users {
 			if u.GetName() == teleportUser {
-				for _, role := range u.GetRoles() {
-					s.authService.GetRole(role)
-					if login == osUser {
-						return nil
+				for _, roleName := range u.GetRoles() {
+					role, err := s.authService.GetRole(roleName)
+					if err != nil {
+						return trace.Wrap(err)
 					}
+					roles = append(roles, role)
 				}
 			}
 		}
-		return trace.AccessDenied("user %v is not authorized to login as %v",
-			teleportUser, osUser)
-	}
-
-	// for other authorities, check for authoritiy permissions
-	for _, login := range ca.AllowedLogins {
-		if login == osUser || login == "*" {
-			return nil
+	} else {
+		for _, roleName := range ca.Roles {
+			role, err := s.authService.GetRole(roleName)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			roles = append(roles, role)
 		}
 	}
-	return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s",
-		teleportUser, ca.DomainName, osUser, domainName)
+
+	if err := roles.CheckAccessToServer(osUser, s.getInfo()); err != nil {
+		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s",
+			teleportUser, ca.DomainName, osUser, domainName)
+	}
+
+	return nil
 }
 
 // isAuthority is called during checking the client key, to see if the signing
