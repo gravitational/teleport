@@ -84,19 +84,20 @@ func (s *APISuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.AccessS = local.NewAccessService(s.bk)
+	s.WebS = local.NewIdentityService(s.bk, 10, time.Duration(time.Hour))
 
-	checker, err := NewAccessChecker(s.AccessS, s.WebS)(teleport.RoleAdmin.User())
+	newChecker, err := NewAccessChecker(s.AccessS, s.WebS)
 	c.Assert(err, IsNil)
 
 	apiServer := NewAPIServer(&APIConfig{
 		AuthServer:     s.a,
-		AccessChecker:  checker,
+		NewChecker:     newChecker,
 		SessionService: s.sessions,
 		AuditLog:       s.alog,
 	})
 	s.srv = httptest.NewServer(apiServer)
 
-	clt, err := NewClient(s.srv.URL, nil)
+	clt, err := NewClient(s.srv.URL, nil, roundtrip.BasicAuth(teleport.RoleAdmin.User(), "<something>"))
 	c.Assert(err, IsNil)
 	s.clt = clt
 
@@ -104,7 +105,6 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.LockS = local.NewLockService(s.bk)
 	s.PresenceS = local.NewPresenceService(s.bk)
 	s.ProvisioningS = local.NewProvisioningService(s.bk)
-	s.WebS = local.NewIdentityService(s.bk, 10, time.Duration(time.Hour))
 }
 
 func (s *APISuite) TearDownTest(c *C) {
@@ -146,16 +146,19 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	_, pub, err = s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
-	err = s.clt.UpsertUser(
-		&services.TeleportUser{Name: "user1", AllowedLogins: []string{"user1"}})
+	user := &services.TeleportUser{Name: "user1", AllowedLogins: []string{"user1"}}
+	err = s.clt.UpsertUser(user)
 	c.Assert(err, IsNil)
 
-	checker, err := NewAccessChecker(s.AccessS, s.WebS)("user1")
+	err = s.clt.UpsertRole(services.RoleForUser(user))
+	c.Assert(err, IsNil)
+
+	newChecker, err := NewAccessChecker(s.AccessS, s.WebS)
 	c.Assert(err, IsNil)
 
 	userServer := NewAPIServer(&APIConfig{
 		AuthServer:     s.a,
-		AccessChecker:  checker,
+		NewChecker:     newChecker,
 		SessionService: s.sessions,
 		AuditLog:       s.alog,
 	})
@@ -180,7 +183,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	roundtrip.BasicAuth("user1", "two")(&userClient.Client)
 	cert, err = userClient.GenerateUserCert(pub, "user1", 40*time.Hour)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, ".*cannot request a certificate for user1 for 40h0m0s")
+	c.Assert(err, ErrorMatches, ".*cannot request a certificate for 40h0m0s")
 
 	// apply HTTP Auth to generate user cert:
 	roundtrip.BasicAuth("user1", "two")(&userClient.Client)

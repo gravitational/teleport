@@ -346,7 +346,7 @@ func (a *AuthWithRoles) GenerateHostCert(
 
 func (a *AuthWithRoles) GenerateUserCert(key []byte, user string, ttl time.Duration) ([]byte, error) {
 	if err := a.currentUserAction(user); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.AccessDenied("%v cannot request a certificate for %v", a.user, user)
 	}
 	// check signing TTL and return a list of allowed logins
 	allowedLogins, err := a.checker.CheckLogins(ttl)

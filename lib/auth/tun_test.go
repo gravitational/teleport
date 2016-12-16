@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -69,10 +70,15 @@ func (s *TunSuite) SetUpTest(c *C) {
 	s.sessionServer, err = session.New(s.bk)
 	c.Assert(err, IsNil)
 
+	access := local.NewAccessService(s.bk)
+	identity := local.NewIdentityService(s.bk, 10, time.Duration(time.Hour))
+
 	s.a = NewAuthServer(&InitConfig{
 		Backend:    s.bk,
 		Authority:  authority.New(),
 		DomainName: "localhost",
+		Access:     access,
+		Identity:   identity,
 	})
 
 	// set up host private key and certificate
@@ -84,7 +90,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", teleport.Roles{teleport.RoleNode}, 0)
 	c.Assert(err, IsNil)
 
-	checker, err := NewAccessChecker(s.a.Access, s.a.Identity)(teleport.RoleAdmin.User())
+	newChecker, err := NewAccessChecker(s.a.Access, s.a.Identity)
 	c.Assert(err, IsNil)
 
 	signer, err := sshutils.NewSigner(hpriv, hcert)
@@ -92,7 +98,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 	s.signer = signer
 	s.conf = &APIConfig{
 		AuthServer:     s.a,
-		AccessChecker:  checker,
+		NewChecker:     newChecker,
 		SessionService: s.sessionServer,
 		AuditLog:       s.alog,
 	}
@@ -104,7 +110,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 }
 
 func (s *TunSuite) TestUnixServerClient(c *C) {
-	checker, err := NewAccessChecker(s.a.Access, s.a.Identity)(teleport.RoleAdmin.User())
+	newChecker, err := NewAccessChecker(s.a.Access, s.a.Identity)
 	c.Assert(err, IsNil)
 
 	tsrv, err := NewTunnel(
@@ -112,7 +118,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 		s.signer,
 		&APIConfig{
 			AuthServer:     s.a,
-			AccessChecker:  checker,
+			NewChecker:     newChecker,
 			SessionService: s.sessionServer,
 			AuditLog:       s.alog,
 		},

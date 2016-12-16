@@ -297,10 +297,10 @@ func (set RoleSet) CheckLogins(ttl time.Duration) ([]string, error) {
 		}
 	}
 	if !matchedTTL {
-		return nil, trace.AccessDenied("this user can not sign certificate for %v", ttl)
+		return nil, trace.AccessDenied("this user cannot request a certificate for %v", ttl)
 	}
 	if len(logins) == 0 {
-		return nil, trace.AccessDenied("this user can not create SSH sessions, has no logins")
+		return nil, trace.AccessDenied("this user cannot create SSH sessions, has no logins")
 	}
 	out := make([]string, 0, len(logins))
 	for login := range logins {

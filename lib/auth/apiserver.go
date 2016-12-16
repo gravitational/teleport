@@ -41,7 +41,6 @@ import (
 type APIConfig struct {
 	AuthServer     *AuthServer
 	SessionService session.Service
-	AccessChecker  services.AccessChecker
 	AuditLog       events.IAuditLog
 	NewChecker     NewChecker
 }

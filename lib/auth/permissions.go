@@ -24,8 +24,14 @@ import (
 )
 
 // NewAccessChecker returns new access checker that's using roles and users
-func NewAccessChecker(access services.Access, identity services.Identity) NewChecker {
-	return (&AccessCheckers{Access: access, Identity: identity}).GetChecker
+func NewAccessChecker(access services.Access, identity services.Identity) (NewChecker, error) {
+	if access == nil {
+		return nil, trace.BadParameter("missing parameter access")
+	}
+	if identity == nil {
+		return nil, trace.BadParameter("missing parameter identity")
+	}
+	return (&AccessCheckers{Access: access, Identity: identity}).GetChecker, nil
 }
 
 // NewChecker is a function that returns new access checker based on username
@@ -130,11 +136,11 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 			username,
 			services.RoleSpec{
 				MaxSessionTTL: services.MaxDuration(),
-				Logins:        []string{services.Wildcard},
+				Logins:        []string{},
 				Namespaces:    []string{services.Wildcard},
 				NodeLabels:    map[string]string{services.Wildcard: services.Wildcard},
 				Resources: map[string][]string{
-					services.Wildcard: services.RO(),
+					services.Wildcard: services.RW(),
 				},
 			})
 	}
