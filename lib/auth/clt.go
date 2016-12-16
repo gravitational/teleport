@@ -59,9 +59,7 @@ type Client struct {
 
 // NewAuthClient returns a new instance of the client which talks to
 // an Auth server API (aka "site API") via HTTP-over-SSH
-func NewClient(addr string, dialer Dialer) (*Client, error) {
-	var params []roundtrip.ClientParam
-
+func NewClient(addr string, dialer Dialer, params ...roundtrip.ClientParam) (*Client, error) {
 	if dialer == nil {
 		dialer = net.Dial
 	}

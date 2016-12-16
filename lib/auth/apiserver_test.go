@@ -28,6 +28,7 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -54,6 +55,7 @@ type APISuite struct {
 	PresenceS     services.Presence
 	ProvisioningS services.Provisioner
 	WebS          services.Identity
+	AccessS       services.Access
 }
 
 var _ = Suite(&APISuite{})
@@ -81,13 +83,18 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.sessions, err = session.New(s.bk)
 	c.Assert(err, IsNil)
 
+	s.AccessS = local.NewAccessService(s.bk)
+
+	checker, err := NewAccessChecker(s.AccessS, s.WebS)(teleport.RoleAdmin.User())
+	c.Assert(err, IsNil)
+
 	apiServer := NewAPIServer(&APIConfig{
-		AuthServer:        s.a,
-		PermissionChecker: NewAllowAllPermissions(),
-		SessionService:    s.sessions,
-		AuditLog:          s.alog,
-	}, teleport.RoleAdmin)
-	s.srv = httptest.NewServer(&apiServer)
+		AuthServer:     s.a,
+		AccessChecker:  checker,
+		SessionService: s.sessions,
+		AuditLog:       s.alog,
+	})
+	s.srv = httptest.NewServer(apiServer)
 
 	clt, err := NewClient(s.srv.URL, nil)
 	c.Assert(err, IsNil)
@@ -143,13 +150,16 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 		&services.TeleportUser{Name: "user1", AllowedLogins: []string{"user1"}})
 	c.Assert(err, IsNil)
 
+	checker, err := NewAccessChecker(s.AccessS, s.WebS)("user1")
+	c.Assert(err, IsNil)
+
 	userServer := NewAPIServer(&APIConfig{
-		AuthServer:        s.a,
-		PermissionChecker: NewAllowAllPermissions(),
-		SessionService:    s.sessions,
-		AuditLog:          s.alog,
-	}, teleport.RoleUser)
-	authServer := httptest.NewServer(&userServer)
+		AuthServer:     s.a,
+		AccessChecker:  checker,
+		SessionService: s.sessions,
+		AuditLog:       s.alog,
+	})
+	authServer := httptest.NewServer(userServer)
 	defer authServer.Close()
 
 	userClient, err := NewClient(authServer.URL, nil)
@@ -282,17 +292,17 @@ func (s *APISuite) TestSessions(c *C) {
 }
 
 func (s *APISuite) TestServers(c *C) {
-	out, err := s.clt.GetNodes()
+	out, err := s.clt.GetNodes(defaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	srv := services.Server{ID: "id1", Addr: "host:1233", Hostname: "host1"}
+	srv := services.Server{ID: "id1", Addr: "host:1233", Hostname: "host1", Namespace: defaults.Namespace}
 	c.Assert(s.clt.UpsertNode(srv, 0), IsNil)
 
-	srv1 := services.Server{ID: "id2", Addr: "host:1234", Hostname: "host2"}
+	srv1 := services.Server{ID: "id2", Addr: "host:1234", Hostname: "host2", Namespace: defaults.Namespace}
 	c.Assert(s.clt.UpsertNode(srv1, 0), IsNil)
 
-	out, err = s.clt.GetNodes()
+	out, err = s.clt.GetNodes(defaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []services.Server{srv, srv1})
 
@@ -352,7 +362,7 @@ func (s *APISuite) TestTokens(c *C) {
 }
 
 func (s *APISuite) TestSharedSessions(c *C) {
-	out, err := s.clt.GetSessions()
+	out, err := s.clt.GetSessions(defaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []session.Session{})
 
@@ -364,10 +374,11 @@ func (s *APISuite) TestSharedSessions(c *C) {
 		Created:        date,
 		LastActive:     date,
 		Login:          "bob",
+		Namespace:      defaults.Namespace,
 	}
 	c.Assert(s.clt.CreateSession(sess), IsNil)
 
-	out, err = s.clt.GetSessions()
+	out, err = s.clt.GetSessions(defaults.Namespace)
 	c.Assert(err, IsNil)
 
 	c.Assert(out, DeepEquals, []session.Session{sess})
@@ -388,7 +399,7 @@ func (s *APISuite) TestSharedSessions(c *C) {
 		"val": "three",
 	})
 	// ask for strictly session events:
-	e, err := s.clt.GetSessionEvents(sess.ID, 0)
+	e, err := s.clt.GetSessionEvents(defaults.Namespace, sess.ID, 0)
 	c.Assert(err, IsNil)
 	c.Assert(len(e), Equals, 2)
 	c.Assert(e[0].GetString("val"), Equals, "one")

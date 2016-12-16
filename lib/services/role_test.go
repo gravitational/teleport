@@ -250,7 +250,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 					},
 					Spec: RoleSpec{
 						MaxSessionTTL: Duration{20 * time.Hour},
-						Logins:        []string{Wildcard},
+						Logins:        []string{"root", "admin"},
 						NodeLabels:    map[string]string{Wildcard: Wildcard},
 						Namespaces:    []string{Wildcard},
 					},
