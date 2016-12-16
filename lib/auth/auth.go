@@ -214,7 +214,9 @@ func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, rol
 // private key (user certificate authority)
 func (s *AuthServer) GenerateUserCert(key []byte, username string, allowedLogins []string, ttl time.Duration) ([]byte, error) {
 	// here I should map username to appropriate certificate authority
-	// how do I do that?
+	// how do I do that? I can have a special user naming convention, e.g.
+	// user is associated with cert authority id??? @ca:cert-authority-id
+	// I should also keep these auto-generated users somewhere probablycm
 	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
 		DomainName: s.DomainName,
