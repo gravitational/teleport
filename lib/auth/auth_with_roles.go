@@ -348,7 +348,12 @@ func (a *AuthWithRoles) GenerateUserCert(key []byte, user string, ttl time.Durat
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GenerateUserCert(key, user, ttl)
+	// check signing TTL and return a list of allowed logins
+	allowedLogins, err := a.checker.CheckLogins(ttl)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GenerateUserCert(key, user, allowedLogins, ttl)
 }
 
 func (a *AuthWithRoles) CreateSignupToken(user services.User) (token string, e error) {

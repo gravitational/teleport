@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 )
 
@@ -112,6 +113,14 @@ func (r *RoleResource) CheckAndSetDefaults() error {
 	if r.Spec.MaxSessionTTL.Duration < defaults.MinCertDuration {
 		return trace.BadParameter("maximum session TTL can not be less than")
 	}
+	for _, login := range r.Spec.Logins {
+		if login == Wildcard {
+			return trace.BadParameter("wilcard matcher is not allowed in logins")
+		}
+		if !cstrings.IsValidUnixUser(login) {
+			return trace.BadParameter("'%v' is not a valid user name", login)
+		}
+	}
 	for key, val := range r.Spec.NodeLabels {
 		if key == Wildcard && val != Wildcard {
 			return trace.BadParameter("selector *:<val> is not supported")
@@ -141,6 +150,9 @@ type AccessChecker interface {
 	CheckAccessToServer(login string, server Server) error
 	// CheckResourceAction check access to resource action
 	CheckResourceAction(resourceNamespace, resourceName, accessType string) error
+	// CheckLogins checks if role set can login up to given duration
+	// and returns a combined list of allowed logins
+	CheckLogins(ttl time.Duration) ([]string, error)
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -213,7 +225,7 @@ func MatchResourceAction(selector map[string][]string, resourceName, resourceAct
 // MatchLogin returns true if attempted login matches any of the logins
 func MatchLogin(logins []string, login string) bool {
 	for _, l := range logins {
-		if l == login || l == Wildcard {
+		if l == login {
 			return true
 		}
 	}
@@ -247,6 +259,32 @@ func MatchLabels(selector map[string]string, target map[string]string) bool {
 		}
 	}
 	return true
+}
+
+// CheckLogins checks if role set can login up to given duration
+// and returns a combined list of allowed logins
+func (set RoleSet) CheckLogins(ttl time.Duration) ([]string, error) {
+	var logins map[string]bool
+	var matchedTTL bool
+	for _, role := range set {
+		if ttl < role.GetMaxSessionTTL().Duration {
+			matchedTTL = true
+		}
+		for _, login := range role.GetLogins() {
+			logins[login] = true
+		}
+	}
+	if !matchedTTL {
+		return nil, trace.AccessDenied("this user can not sign certificate for %v", ttl)
+	}
+	if len(logins) == 0 {
+		return nil, trace.AccessDenied("this user can not create SSH sessions, has no logins")
+	}
+	out := make([]string, 0, len(logins))
+	for login := range logins {
+		out = append(out, login)
+	}
+	return out, nil
 }
 
 // CheckAccessToServer checks if role set has access to server based

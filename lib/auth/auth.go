@@ -212,9 +212,9 @@ func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, rol
 
 // GenerateUserCert generates user certificate, it takes pkey as a signing
 // private key (user certificate authority)
-func (s *AuthServer) GenerateUserCert(
-	key []byte, username string, ttl time.Duration) ([]byte, error) {
-
+func (s *AuthServer) GenerateUserCert(key []byte, username string, allowedLogins []string, ttl time.Duration) ([]byte, error) {
+	// here I should map username to appropriate certificate authority
+	// how do I do that?
 	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
 		DomainName: s.DomainName,
@@ -226,11 +226,7 @@ func (s *AuthServer) GenerateUserCert(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := s.GetUser(username)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return s.Authority.GenerateUserCert(privateKey, key, username, user.GetAllowedLogins(), ttl)
+	return s.Authority.GenerateUserCert(privateKey, key, username, allowedLogins, ttl)
 }
 
 func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
