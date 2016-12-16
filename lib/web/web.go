@@ -94,8 +94,17 @@ type Config struct {
 // Version is a current webapi version
 const APIVersion = "v1"
 
+type RewritingHandler struct {
+	http.Handler
+	handler *Handler
+}
+
+func (r *RewritingHandler) Close() error {
+	return r.handler.Close()
+}
+
 // NewHandler returns a new instance of web proxy handler
-func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
+func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	const apiPrefix = "/" + APIVersion
 	lauth, err := newSessionCache([]utils.NetAddr{cfg.AuthServers})
 	if err != nil {
@@ -242,7 +251,15 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 		}
 	})
 	h.NotFound = routingHandler
-	return h, nil
+	return &RewritingHandler{
+		Handler: httplib.RewritePaths(h,
+			httplib.Rewrite("/webapi/sites/([^/]+)/sessions/(.*)", "/webapi/sites/$1/namespaces/default/sessions/$2/$3"),
+			httplib.Rewrite("/webapi/sites/([^/]+)/sessions", "/webapi/sites/$1/namespaces/default/sessions"),
+			httplib.Rewrite("/webapi/sites/([^/]+)/nodes", "/webapi/sites/$1/namespaces/default/nodes"),
+			httplib.Rewrite("/webapi/sites/([^/]+)/connect", "/webapi/sites/$1/namespaces/default/connect"),
+		),
+		handler: h,
+	}, nil
 }
 
 // Close closes associated session cache operations
@@ -258,7 +275,7 @@ type oidcConnector struct {
 type webSettings struct {
 	Auth struct {
 		OIDCConnectors []oidcConnector `json:"oidc_connectors"`
-		U2FAppID string `json:"u2f_appid"`
+		U2FAppID       string          `json:"u2f_appid"`
 	} `json:"auth"`
 }
 
@@ -594,7 +611,6 @@ func (m *Handler) renderUserInvite(w http.ResponseWriter, r *http.Request, p htt
 	}, nil
 }
 
-
 // u2fRegisterRequest is called to get a U2F challenge for registering a U2F key
 //
 // GET /webapi/u2f/signuptokens/:token
@@ -645,7 +661,7 @@ func (m *Handler) u2fSignRequest(w http.ResponseWriter, r *http.Request, p httpr
 
 // A request from the client to send the signature from the U2F key
 type u2fSignResponseReq struct {
-	User string `json:"user"`
+	User            string           `json:"user"`
 	U2FSignResponse u2f.SignResponse `json:"u2f_sign_response"`
 }
 
@@ -717,8 +733,8 @@ func (m *Handler) createNewUser(w http.ResponseWriter, r *http.Request, p httpro
 
 // A request to create a new user which uses U2F as the second factor
 type createNewU2FUserReq struct {
-	InviteToken       string `json:"invite_token"`
-	Pass              string `json:"pass"`
+	InviteToken         string               `json:"invite_token"`
+	Pass                string               `json:"pass"`
 	U2FRegisterResponse u2f.RegisterResponse `json:"u2f_register_response"`
 }
 

@@ -255,6 +255,23 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 		}
 	}
 
+	// migrate old users to new users
+	users, err := asrv.GetUsers()
+	for _, user := range users {
+		_, err := asrv.GetRole(services.RoleNameForUser(user.GetName()))
+		if err == nil {
+			continue
+		}
+		if !trace.IsNotFound(err) {
+			return nil, nil, trace.Wrap(err)
+		}
+		log.Infof("migrating legacy user %v", user.GetName())
+		err = asrv.UpsertRole(services.RoleForUser(user))
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
 	identity, err := initKeys(asrv, cfg.DataDir,
 		IdentityID{HostUUID: cfg.HostUUID, Role: teleport.RoleAdmin})
 	if err != nil {

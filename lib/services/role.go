@@ -29,6 +29,28 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// RoleForUser returns role name associated with user
+func RoleNameForUser(name string) string {
+	return "user:" + name
+}
+
+// RoleForUser creates role using AllowedLogins parameter
+func RoleForUser(u User) Role {
+	return &RoleResource{
+		Kind:    KindRole,
+		Version: V1,
+		Metadata: Metadata{
+			Name:      RoleNameForUser(u.GetName()),
+			Namespace: defaults.Namespace,
+		},
+		Spec: RoleSpec{
+			MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
+			NodeLabels:    map[string]string{Wildcard: Wildcard},
+			Namespaces:    []string{defaults.Namespace},
+		},
+	}
+}
+
 // Access service manages roles and permissions
 type Access interface {
 	// GetRoles returns a list of roles
