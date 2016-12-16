@@ -349,6 +349,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			}
 		}
 	}
+	if fc.SSH.Namespace != "" {
+		cfg.SSH.Namespace = fc.SSH.Namespace
+	}
 	// read 'trusted_clusters' section:
 	if fc.Auth.Enabled() && len(fc.Auth.TrustedClusters) > 0 {
 		if err := readTrustedClusters(fc.Auth.TrustedClusters, cfg); err != nil {

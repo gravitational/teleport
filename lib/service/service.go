@@ -829,6 +829,8 @@ func validateConfig(cfg *Config) error {
 		}
 	}
 
+	cfg.SSH.Namespace = services.ProcessNamespace(cfg.SSH.Namespace)
+
 	return nil
 }
 

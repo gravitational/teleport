@@ -273,6 +273,7 @@ type AuthConfig struct {
 type SSHConfig struct {
 	Enabled   bool
 	Addr      utils.NetAddr
+	Namespace string
 	Shell     string
 	Limiter   limiter.LimiterConfig
 	Labels    map[string]string
