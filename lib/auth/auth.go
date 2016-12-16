@@ -786,9 +786,21 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		response.Session = sess
 	}
 
+	var roles services.RoleSet
 	if len(req.PublicKey) != 0 {
 		certTTL := minTTL(toTTL(a.clock, ident.ExpiresAt), req.CertTTL)
-		cert, err := a.GenerateUserCert(req.PublicKey, user.GetName(), certTTL)
+		for _, roleName := range user.GetRoles() {
+			role, err := a.Access.GetRole(roleName)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			roles = append(roles, role)
+		}
+		allowedLogins, err := roles.CheckLogins(certTTL)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cert, err := a.GenerateUserCert(req.PublicKey, user.GetName(), allowedLogins, certTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
