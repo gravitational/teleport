@@ -17,8 +17,8 @@ limitations under the License.
 package suite
 
 import (
-	"crypto/x509"
 	"crypto/ecdsa"
+	"crypto/x509"
 	"encoding/base64"
 	"sort"
 	"sync/atomic"
@@ -31,8 +31,8 @@ import (
 
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 	"github.com/tstranex/u2f"
+	"golang.org/x/crypto/ssh"
 
 	. "gopkg.in/check.v1"
 )
@@ -173,14 +173,14 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *C) {
 }
 
 func (s *ServicesTestSuite) ServerCRUD(c *C) {
-	out, err := s.PresenceS.GetNodes()
+	out, err := s.PresenceS.GetNodes(defaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	srv := services.Server{ID: "srv1", Addr: "localhost:2022"}
+	srv := services.Server{ID: "srv1", Addr: "localhost:2022", Namespace: defaults.Namespace}
 	c.Assert(s.PresenceS.UpsertNode(srv, 0), IsNil)
 
-	out, err = s.PresenceS.GetNodes()
+	out, err = s.PresenceS.GetNodes(srv.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []services.Server{srv})
 
@@ -523,9 +523,9 @@ func (s *ServicesTestSuite) U2FCRUD(c *C) {
 	c.Assert(ok, Equals, true)
 
 	registration := u2f.Registration{
-		Raw:[]byte("BQQY6LngS6fSvdeuPw+PI4ZjMk5sQ1gj+38uv2D0+wdMeenWojbKwiGx0w93vH++mwvpyv7YQ9WKTv3bU5KxWMQzQIJ+PVFsYjEa0Xgnx+siQaxdlku+U+J2W55U5NrN1iGIc0Amh+0HwhbV2W90G79cxIYS2SVIFAdqTTDXvPXJbeAwggE8MIHkoAMCAQICChWIR0AwlYJZQHcwCgYIKoZIzj0EAwIwFzEVMBMGA1UEAxMMRlQgRklETyAwMTAwMB4XDTE0MDgxNDE4MjkzMloXDTI0MDgxNDE4MjkzMlowMTEvMC0GA1UEAxMmUGlsb3RHbnViYnktMC40LjEtMTU4ODQ3NDAzMDk1ODI1OTQwNzcwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAQY6LngS6fSvdeuPw+PI4ZjMk5sQ1gj+38uv2D0+wdMeenWojbKwiGx0w93vH++mwvpyv7YQ9WKTv3bU5KxWMQzMAoGCCqGSM49BAMCA0cAMEQCIIbmYKu6I2L4pgZCBms9NIo9yo5EO9f2irp0ahvLlZudAiC8RN/N+WHAFdq8Z+CBBOMsRBFDDJy3l5EDR83B5GAfrjBEAiBl6R6gAmlbudVpW2jSn3gfjmA8EcWq0JsGZX9oFM/RJwIgb9b01avBY5jBeVIqw5KzClLzbRDMY4K+Ds6uprHyA1Y="),
-		KeyHandle:[]byte("gn49UWxiMRrReCfH6yJBrF2WS75T4nZbnlTk2s3WIYhzQCaH7QfCFtXZb3Qbv1zEhhLZJUgUB2pNMNe89clt4A=="),
-		PubKey:*pubkey,
+		Raw:       []byte("BQQY6LngS6fSvdeuPw+PI4ZjMk5sQ1gj+38uv2D0+wdMeenWojbKwiGx0w93vH++mwvpyv7YQ9WKTv3bU5KxWMQzQIJ+PVFsYjEa0Xgnx+siQaxdlku+U+J2W55U5NrN1iGIc0Amh+0HwhbV2W90G79cxIYS2SVIFAdqTTDXvPXJbeAwggE8MIHkoAMCAQICChWIR0AwlYJZQHcwCgYIKoZIzj0EAwIwFzEVMBMGA1UEAxMMRlQgRklETyAwMTAwMB4XDTE0MDgxNDE4MjkzMloXDTI0MDgxNDE4MjkzMlowMTEvMC0GA1UEAxMmUGlsb3RHbnViYnktMC40LjEtMTU4ODQ3NDAzMDk1ODI1OTQwNzcwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAQY6LngS6fSvdeuPw+PI4ZjMk5sQ1gj+38uv2D0+wdMeenWojbKwiGx0w93vH++mwvpyv7YQ9WKTv3bU5KxWMQzMAoGCCqGSM49BAMCA0cAMEQCIIbmYKu6I2L4pgZCBms9NIo9yo5EO9f2irp0ahvLlZudAiC8RN/N+WHAFdq8Z+CBBOMsRBFDDJy3l5EDR83B5GAfrjBEAiBl6R6gAmlbudVpW2jSn3gfjmA8EcWq0JsGZX9oFM/RJwIgb9b01avBY5jBeVIqw5KzClLzbRDMY4K+Ds6uprHyA1Y="),
+		KeyHandle: []byte("gn49UWxiMRrReCfH6yJBrF2WS75T4nZbnlTk2s3WIYhzQCaH7QfCFtXZb3Qbv1zEhhLZJUgUB2pNMNe89clt4A=="),
+		PubKey:    *pubkey,
 	}
 	err = s.WebS.UpsertU2FRegistration(user1, &registration)
 	c.Assert(err, IsNil)

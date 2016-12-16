@@ -132,7 +132,23 @@ func (s *PresenceService) GetNodes(namespace string) ([]services.Server, error) 
 	if namespace == "" {
 		return nil, trace.BadParameter("missing namespace value")
 	}
-	return s.getServers(nodesPrefix)
+	keys, err := s.backend.GetKeys([]string{namespacesPrefix, namespace, nodesPrefix})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers := make([]services.Server, len(keys))
+	for i, key := range keys {
+		data, err := s.backend.GetVal([]string{namespacesPrefix, namespace, nodesPrefix}, key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := json.Unmarshal(data, &servers[i]); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	// sorting helps with tests and makes it all deterministic
+	sort.Sort(sortedServers(servers))
+	return servers, nil
 }
 
 // UpsertNode registers node presence, permanently if ttl is 0 or

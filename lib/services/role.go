@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 )
 
@@ -252,6 +253,10 @@ func MatchLabels(selector map[string]string, target map[string]string) bool {
 // on combined role's selector and attempted login
 func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 	for _, role := range set {
+		namespace := MatchNamespace(role.GetNamespaces(), s.GetNamespace())
+		labels := MatchLabels(role.GetNodeLabels(), s.Labels)
+		matchLogin := MatchLogin(role.GetLogins(), login)
+		log.Debugf("check access role %v, server: %v matchNamespace:%v matchLabels:%v matchLogin:%v", role.GetMetadata().Name, s, namespace, labels, matchLogin)
 		if MatchNamespace(role.GetNamespaces(), s.GetNamespace()) && MatchLabels(role.GetNodeLabels(), s.Labels) && MatchLogin(role.GetLogins(), login) {
 			return nil
 		}
@@ -267,7 +272,7 @@ func (set RoleSet) CheckResourceAction(resourceNamespace, resourceName, accessTy
 			return nil
 		}
 	}
-	return trace.AccessDenied("%v access %v in namespace %v is denied")
+	return trace.AccessDenied("%v access to %v in namespace %v is denied", accessType, resourceName, resourceNamespace)
 }
 
 // ProcessNamespace sets default namespace in case if namespace is empty
