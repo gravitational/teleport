@@ -216,11 +216,13 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Se
 	}
 
 	// apply user allowed logins
-	if err := s.UpsertRole(services.RoleForUser(&tokenData.User)); err != nil {
+	role := services.RoleForUser(&tokenData.User)
+	if err := s.UpsertRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// Allowed logins are not going to be used anymore
 	tokenData.User.AllowedLogins = nil
+	tokenData.User.Roles = append(tokenData.User.Roles, role.GetMetadata().Name)
 	if err = s.UpsertUser(&tokenData.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -299,11 +301,13 @@ func (s *AuthServer) CreateUserWithU2FToken(token string, password string, respo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := s.UpsertRole(services.RoleForUser(&tokenData.User)); err != nil {
+	role := services.RoleForUser(&tokenData.User)
+	if err := s.UpsertRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// Allowed logins are not going to be used anymore
 	tokenData.User.AllowedLogins = nil
+	tokenData.User.Roles = append(tokenData.User.Roles, role.GetMetadata().Name)
 	if err = s.UpsertUser(&tokenData.User); err != nil {
 		return nil, trace.Wrap(err)
 	}

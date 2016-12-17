@@ -134,7 +134,8 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	c.Assert(err, IsNil)
 
 	// make sure we can parse the private and public key
-	cert, err := s.clt.GenerateHostCert(pub, "localhost", "localhost", teleport.Roles{teleport.RoleNode}, time.Hour)
+	cert, err := s.clt.GenerateHostCert(
+		pub, "localhost", "localhost", teleport.Roles{teleport.RoleNode}, time.Hour)
 	c.Assert(err, IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(cert)
@@ -147,10 +148,11 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	c.Assert(err, IsNil)
 
 	user := &services.TeleportUser{Name: "user1", AllowedLogins: []string{"user1"}}
-	err = s.clt.UpsertUser(user)
+	role := services.RoleForUser(user)
+	err = s.clt.UpsertRole(role)
 	c.Assert(err, IsNil)
-
-	err = s.clt.UpsertRole(services.RoleForUser(user))
+	user.Roles = []string{role.GetMetadata().Name}
+	err = s.clt.UpsertUser(user)
 	c.Assert(err, IsNil)
 
 	newChecker, err := NewAccessChecker(s.AccessS, s.WebS)
@@ -390,16 +392,19 @@ func (s *APISuite) TestSharedSessions(c *C) {
 	// for some other session
 	s.clt.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
 		events.SessionEventID: sess.ID,
+		events.EventNamespace: defaults.Namespace,
 		"val": "one",
 	})
 	s.clt.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
 		events.SessionEventID: sess.ID,
+		events.EventNamespace: defaults.Namespace,
 		"val": "two",
 	})
 	anotherSessionID := session.NewID()
 	s.clt.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
 		events.SessionEventID: anotherSessionID,
 		"val": "three",
+		events.EventNamespace: defaults.Namespace,
 	})
 	// ask for strictly session events:
 	e, err := s.clt.GetSessionEvents(defaults.Namespace, sess.ID, 0)

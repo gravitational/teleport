@@ -320,10 +320,18 @@ func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
 		*suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
-	user := "ws-test2"
+	userName := "ws-test2"
 	pass := []byte("ws-abc1234")
 
-	hotpURL, _, err := s.a.UpsertPassword(user, pass)
+	user := &services.TeleportUser{Name: userName, AllowedLogins: []string{userName}}
+	role := services.RoleForUser(user)
+	err := s.a.UpsertRole(role)
+	c.Assert(err, IsNil)
+	user.Roles = []string{role.GetMetadata().Name}
+	err = s.a.UpsertUser(user)
+	c.Assert(err, IsNil)
+
+	hotpURL, _, err := s.a.UpsertPassword(user.Name, pass)
 	c.Assert(err, IsNil)
 
 	otp, label, err := hotp.FromURL(hotpURL)
@@ -331,15 +339,15 @@ func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(label, Equals, "ws-test2")
 	otp.Increment()
 
-	authMethod, err := NewWebPasswordAuth(user, pass, otp.OTP())
+	authMethod, err := NewWebPasswordAuth(user.Name, pass, otp.OTP())
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient("test",
-		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user.Name, authMethod)
 	c.Assert(err, IsNil)
 	defer clt.Close()
 
-	ws, err := clt.SignIn(user, pass)
+	ws, err := clt.SignIn(user.Name, pass)
 	c.Assert(err, IsNil)
 	c.Assert(ws, Not(Equals), "")
 
@@ -348,15 +356,15 @@ func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(err, NotNil)
 
 	// Requesting forbidden for User action
-	_, err = clt.GetWebSessionInfo(user, ws.ID)
+	_, err = clt.GetWebSessionInfo(user.Name, ws.ID)
 	c.Assert(err, NotNil)
 
 	// Resume session via sesison id
-	authMethod, err = NewWebSessionAuth(user, []byte(ws.ID))
+	authMethod, err = NewWebSessionAuth(user.Name, []byte(ws.ID))
 	c.Assert(err, IsNil)
 
 	cltw, err := NewTunClient("test",
-		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user.Name, authMethod)
 	c.Assert(err, IsNil)
 	defer cltw.Close()
 
@@ -365,17 +373,17 @@ func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(err, NotNil)
 
 	// Requesting forbidden for Web action
-	_, err = cltw.SignIn(user, pass)
+	_, err = cltw.SignIn(user.Name, pass)
 	c.Assert(err, NotNil)
 
-	out, err := cltw.GetWebSessionInfo(user, ws.ID)
+	out, err := cltw.GetWebSessionInfo(user.Name, ws.ID)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, ws)
 
-	err = cltw.DeleteWebSession(user, ws.ID)
+	err = cltw.DeleteWebSession(user.Name, ws.ID)
 	c.Assert(err, IsNil)
 
-	_, err = clt.GetWebSessionInfo(user, ws.ID)
+	_, err = clt.GetWebSessionInfo(user.Name, ws.ID)
 	c.Assert(err, NotNil)
 }
 

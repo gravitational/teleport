@@ -17,12 +17,13 @@ limitations under the License.
 package local
 
 import (
-	"crypto/x509"
 	"crypto/ecdsa"
+	"crypto/x509"
 	"encoding/json"
-	"fmt"
-	"time"
 	"errors"
+	"fmt"
+	"runtime/debug"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/backend"
@@ -34,27 +35,21 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/pborman/uuid"
 	"github.com/tstranex/u2f"
 )
 
 // IdentityService is responsible for managing web users and currently
 // user accounts as well
 type IdentityService struct {
-	backend      backend.Backend
-	lockAfter    byte
-	lockDuration time.Duration
+	backend backend.Backend
 }
 
 // NewIdentityService returns a new instance of IdentityService object
-func NewIdentityService(
-	backend backend.Backend,
-	lockAfter byte,
-	lockDuration time.Duration) *IdentityService {
+func NewIdentityService(backend backend.Backend) *IdentityService {
 
 	return &IdentityService{
-		backend:      backend,
-		lockAfter:    lockAfter,
-		lockDuration: lockDuration,
+		backend: backend,
 	}
 }
 
@@ -214,12 +209,56 @@ func (s *IdentityService) UpsertWebSession(user, sid string, session services.We
 	return trace.Wrap(err)
 }
 
+// AddUserLoginAttempt logs user login attempt
+func (s *IdentityService) AddUserLoginAttempt(user string, attempt services.LoginAttempt, ttl time.Duration) error {
+	if err := attempt.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	bytes, err := json.Marshal(attempt)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.backend.UpsertVal([]string{"web", "users", user, "attempts"},
+		uuid.New(), bytes, ttl)
+	if trace.IsNotFound(err) {
+		return trace.NotFound("user '%v' is not found", user)
+	}
+	return trace.Wrap(err)
+}
+
+// GetUserLoginAttempts returns user login attempts
+func (s *IdentityService) GetUserLoginAttempts(user string) ([]services.LoginAttempt, error) {
+	keys, err := s.backend.GetKeys([]string{"web", "users", user, "attempts"})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out := make([]services.LoginAttempt, 0, len(keys))
+	for _, id := range keys {
+		data, err := s.backend.GetVal([]string{"web", "users", user, "attempts"}, id)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+			continue
+		}
+		var a services.LoginAttempt
+		if err := json.Unmarshal(data, &a); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, a)
+	}
+	return out, nil
+}
+
 // IncreaseLoginAttempts bumps "login attempt" counter for the given user. If the counter
 // reaches 'lockAfter' value, it locks the account and returns access denied error.
 func (s *IdentityService) IncreaseLoginAttempts(user string) error {
+	debug.PrintStack()
+	log.Infof("IncreaseLoginAttempts %v", user)
 	bucket := []string{"web", "users", user}
 
 	data, _, err := s.backend.GetValAndTTL(bucket, "lock")
+	log.Infof("IncreaseLoginAttempts %#v %v %v", user, data, err)
 	// unexpected error?
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
@@ -244,6 +283,7 @@ func (s *IdentityService) IncreaseLoginAttempts(user string) error {
 
 // ResetLoginAttempts resets the "login attempt" counter to zero.
 func (s *IdentityService) ResetLoginAttempts(user string) error {
+	log.Infof("ResetLoginAttempts %v", user)
 	err := s.backend.DeleteKey([]string{"web", "users", user}, "lock")
 	if trace.IsNotFound(err) {
 		return nil
@@ -452,8 +492,8 @@ func (s *IdentityService) GetU2FRegisterChallenge(token string) (*u2f.Challenge,
 
 // u2f.Registration cannot be json marshalled due to the pointer in the public key so we have this marshallable version
 type MarshallableU2FRegistration struct {
-	Raw []byte `json:"raw"`
-	KeyHandle []byte `json:"keyhandle"`
+	Raw              []byte `json:"raw"`
+	KeyHandle        []byte `json:"keyhandle"`
 	MarshalledPubKey []byte `json:"marshalled_pubkey"`
 
 	// AttestationCert is not needed for authentication so we don't need to store it
@@ -466,8 +506,8 @@ func (s *IdentityService) UpsertU2FRegistration(user string, u2fReg *u2f.Registr
 	}
 
 	marshallableReg := MarshallableU2FRegistration{
-		Raw: u2fReg.Raw,
-		KeyHandle: u2fReg.KeyHandle,
+		Raw:              u2fReg.Raw,
+		KeyHandle:        u2fReg.KeyHandle,
 		MarshalledPubKey: marshalledPubkey,
 	}
 
@@ -506,9 +546,9 @@ func (s *IdentityService) GetU2FRegistration(user string) (*u2f.Registration, er
 	}
 
 	return &u2f.Registration{
-		Raw: marshallableReg.Raw,
-		KeyHandle: marshallableReg.KeyHandle,
-		PubKey: *pubkey,
+		Raw:             marshallableReg.Raw,
+		KeyHandle:       marshallableReg.KeyHandle,
+		PubKey:          *pubkey,
 		AttestationCert: nil,
 	}, nil
 }

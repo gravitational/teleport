@@ -1071,7 +1071,7 @@ type upsertRoleReq struct {
 }
 
 type upsertRoleReqRaw struct {
-	Role json.RawMessage `json:"user"`
+	Role json.RawMessage `json:"role"`
 }
 
 func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {

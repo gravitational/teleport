@@ -76,7 +76,7 @@ func GetNamespaceSchema() string {
 // sets defaults and checks the schema
 func UnmarshalNamespace(data []byte) (*Namespace, error) {
 	if len(data) == 0 {
-		return nil, trace.BadParameter("empty input")
+		return nil, trace.BadParameter("missing namespace data")
 	}
 	var namespace Namespace
 	if err := utils.UnmarshalWithSchema(GetNamespaceSchema(), &namespace, data); err != nil {

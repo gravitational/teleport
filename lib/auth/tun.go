@@ -420,7 +420,6 @@ func (s *AuthTunnel) keyAuth(
 	perms := &ssh.Permissions{
 		Extensions: map[string]string{
 			ExtHost: conn.User(),
-			ExtRole: string(teleport.RoleUser),
 		},
 	}
 	return perms, nil
@@ -444,7 +443,6 @@ func (s *AuthTunnel) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebPassword: "<password>",
-				ExtRole:        string(teleport.RoleUser),
 			},
 		}
 		log.Infof("[AUTH] password authenticated user: '%v'", conn.User())
@@ -523,10 +521,10 @@ func (s *AuthTunnel) passwordAuth(
 // authBucket uses password to transport app-specific user name and
 // auth-type in addition to the password to support auth
 type authBucket struct {
-	User      string `json:"user"`
-	Type      string `json:"type"`
-	Pass      []byte `json:"pass"`
-	HotpToken string `json:"hotpToken"`
+	User            string           `json:"user"`
+	Type            string           `json:"type"`
+	Pass            []byte           `json:"pass"`
+	HotpToken       string           `json:"hotpToken"`
 	U2FSignResponse u2f.SignResponse `json:"u2fSignResponse"`
 }
 
@@ -583,8 +581,8 @@ func NewWebPasswordU2FSignAuth(user string, password []byte) ([]ssh.AuthMethod, 
 // NewWebU2FSignResponseAuth is for signing in with a U2F sign response
 func NewWebU2FSignResponseAuth(user string, u2fSignResponse *u2f.SignResponse) ([]ssh.AuthMethod, error) {
 	data, err := json.Marshal(authBucket{
-		Type: AuthWebU2F,
-		User: user,
+		Type:            AuthWebU2F,
+		User:            user,
 		U2FSignResponse: *u2fSignResponse,
 	})
 	if err != nil {

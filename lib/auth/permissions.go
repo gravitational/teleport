@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/services"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 )
 
@@ -53,7 +54,7 @@ func (a *AccessCheckers) GetChecker(username string) (services.AccessChecker, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	log.Debugf("GetChecker authenticated user %v, roles: %v", username, user.GetRoles())
 	var roles services.RoleSet
 	for _, roleName := range user.GetRoles() {
 		role, err := a.Access.GetRole(roleName)
@@ -73,6 +74,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 		return services.FromSpec(
 			username,
 			services.RoleSpec{
+				Namespaces: []string{services.Wildcard},
 				Resources: map[string][]string{
 					services.KindAuthServer: services.RW()},
 			})
@@ -82,6 +84,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 		return services.FromSpec(
 			username,
 			services.RoleSpec{
+				Namespaces: []string{services.Wildcard},
 				Resources: map[string][]string{
 					services.KindNode:          services.RW(),
 					services.KindSession:       services.RW(),
@@ -90,12 +93,14 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 					services.KindCertAuthority: services.RO(),
 					services.KindUser:          services.RO(),
 					services.KindRole:          services.RO(),
+					services.KindAuthServer:    services.RO(),
 				},
 			})
 	case teleport.RoleProxy.User():
 		return services.FromSpec(
 			username,
 			services.RoleSpec{
+				Namespaces: []string{services.Wildcard},
 				Resources: map[string][]string{
 					services.KindProxy:         services.RW(),
 					services.KindOIDCRequest:   services.RW(),
@@ -113,6 +118,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 		return services.FromSpec(
 			username,
 			services.RoleSpec{
+				Namespaces: []string{services.Wildcard},
 				Resources: map[string][]string{
 					services.KindWebSession: services.RW(),
 					services.KindSession:    services.RO(),
@@ -125,6 +131,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 		return services.FromSpec(
 			username,
 			services.RoleSpec{
+				Namespaces: []string{services.Wildcard},
 				Resources: map[string][]string{
 					services.KindAuthServer: services.RO(),
 					services.KindUser:       services.RW(),

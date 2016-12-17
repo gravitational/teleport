@@ -80,6 +80,10 @@ func (s *BoltSuite) TestUsersCRUD(c *C) {
 	s.suite.UsersCRUD(c)
 }
 
+func (s *BoltSuite) TestLoginAttempts(c *C) {
+	s.suite.LoginAttempts(c)
+}
+
 func (s *BoltSuite) TestPasswordHashCRUD(c *C) {
 	s.suite.PasswordHashCRUD(c)
 }

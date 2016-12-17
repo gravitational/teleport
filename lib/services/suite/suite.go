@@ -31,6 +31,7 @@ import (
 
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
 
@@ -147,6 +148,28 @@ func (s *ServicesTestSuite) UsersCRUD(c *C) {
 	// bad allowed login
 	err = s.WebS.UpsertUser(&services.TeleportUser{Name: "bob", AllowedLogins: []string{"oops  typo!"}})
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("expected bad parameter error, got %T", err))
+}
+
+func (s *ServicesTestSuite) LoginAttempts(c *C) {
+	user := &services.TeleportUser{Name: "user1", AllowedLogins: []string{"admin", "root"}}
+	c.Assert(s.WebS.UpsertUser(user), IsNil)
+
+	attempts, err := s.WebS.GetUserLoginAttempts(user.Name)
+	c.Assert(err, IsNil)
+	c.Assert(len(attempts), Equals, 0)
+
+	clock := clockwork.NewFakeClock()
+	attempt1 := services.LoginAttempt{Time: clock.Now().UTC(), Success: false}
+	err = s.WebS.AddUserLoginAttempt(user.Name, attempt1, defaults.AttemptTTL)
+	c.Assert(err, IsNil)
+
+	attempt2 := services.LoginAttempt{Time: clock.Now().UTC(), Success: false}
+	err = s.WebS.AddUserLoginAttempt(user.Name, attempt2, defaults.AttemptTTL)
+	c.Assert(err, IsNil)
+
+	attempts, err := s.WebS.GetUserLoginAttempts(user.Name)
+	c.Assert(err, IsNil)
+	c.Assert(len(attempts), Equals, []services.LoginAttempt{attempt1, attempt2})
 }
 
 func (s *ServicesTestSuite) CertAuthCRUD(c *C) {

@@ -56,6 +56,20 @@ type User interface {
 	Equals(other User) bool
 	// WebSessionInfo returns web session information
 	WebSessionInfo() User
+	// GetStatus return user login status
+	GetStatus() LoginStatus
+}
+
+// LoginStatus is a login status of the user
+type LoginStatus struct {
+	// IsLocked tells us if user is locked
+	IsLocked bool `json:"is_locked"`
+	// LockedMessage contains the message in case if user is locked
+	LockedMessage string `json:"locked_message"`
+	// LockedTime contains time when user was locked
+	LockedTime time.Time `json:"locked_time"`
+	// LockExpires contains time when this lock will expire
+	LockExpires time.Time `json:"lock_expires"`
 }
 
 // TeleportUser is an optional user entry in the database
@@ -73,6 +87,9 @@ type TeleportUser struct {
 
 	// Roles is a list of roles assigned to user
 	Roles []string `json:"roles"`
+
+	// Status is a login status of the user
+	Status LoginStatus `json:"status"`
 }
 
 // Equals checks if user equals to another
@@ -99,6 +116,11 @@ func (u *TeleportUser) Equals(other User) bool {
 		}
 	}
 	return true
+}
+
+// GetStatus returns login status of the user
+func (u *TeleportUser) GetStatus() LoginStatus {
+	return u.Status
 }
 
 // WebSessionInfo returns web session information
@@ -151,10 +173,32 @@ func (u *TeleportUser) Check() error {
 	return nil
 }
 
+// LoginAttempt represents successfull or unsuccessful attempt for user to login
+type LoginAttempt struct {
+	// Time is time of the attempt
+	Time time.Time `json:"time"`
+	// Sucess indicates whether attempt was successfull
+	Success bool `json:"bool"`
+}
+
+// Check checks parameters
+func (la *LoginAttempt) Check() error {
+	if la.Time.IsZero() {
+		return trace.BadParameter("missing parameter time")
+	}
+	return nil
+}
+
 // Identity is responsible for managing user entries
 type Identity interface {
 	// GetUsers returns a list of users registered with the local auth server
 	GetUsers() ([]User, error)
+
+	// AddUserLoginAttempt logs user login attempt
+	AddUserLoginAttempt(user string, attempt LoginAttempt, ttl time.Duration) error
+
+	// GetUserLoginAttempts returns user login attempts
+	GetUserLoginAttempts(user string) ([]LoginAttempt, error)
 
 	// UpsertUser updates parameters about user
 	UpsertUser(user User) error
@@ -213,25 +257,25 @@ type Identity interface {
 	DeleteSignupToken(token string) error
 
 	// UpsertU2FRegisterChallenge upserts a U2F challenge for a new user corresponding to the token
-	UpsertU2FRegisterChallenge(token string, u2fChallenge *u2f.Challenge) (error)
+	UpsertU2FRegisterChallenge(token string, u2fChallenge *u2f.Challenge) error
 
 	// GetU2FRegisterChallenge returns a U2F challenge for a new user corresponding to the token
 	GetU2FRegisterChallenge(token string) (*u2f.Challenge, error)
 
 	// UpsertU2FRegistration upserts a U2F registration from a valid register response
-	UpsertU2FRegistration(user string, u2fReg *u2f.Registration) (error)
+	UpsertU2FRegistration(user string, u2fReg *u2f.Registration) error
 
 	// GetU2FRegistration returns a U2F registration from a valid register response
 	GetU2FRegistration(user string) (*u2f.Registration, error)
 
 	// UpsertU2FSignChallenge upserts a U2F sign (auth) challenge
-	UpsertU2FSignChallenge(user string, u2fChallenge *u2f.Challenge) (error)
+	UpsertU2FSignChallenge(user string, u2fChallenge *u2f.Challenge) error
 
 	// GetU2FSignChallenge returns a U2F sign (auth) challenge
 	GetU2FSignChallenge(user string) (*u2f.Challenge, error)
 
 	// UpsertU2FRegistrationCounter upserts a counter associated with a U2F registration
-	UpsertU2FRegistrationCounter(user string, counter uint32) (error)
+	UpsertU2FRegistrationCounter(user string, counter uint32) error
 
 	// GetU2FRegistrationCounter returns a counter associated with a U2F registration
 	GetU2FRegistrationCounter(user string) (uint32, error)
@@ -429,9 +473,9 @@ type U2F struct {
 	Enabled bool
 	// AppID identifies the website to the U2F keys. It should not be changed once a U2F
 	// key is registered or all existing registrations will become invalid.
-	AppID   string
+	AppID string
 	// Facets should include the domain name of all proxies.
-	Facets  []string
+	Facets []string
 }
 
 func (u *U2F) Check() error {
@@ -507,4 +551,38 @@ func (*TeleportUserMarshaler) UnmarshalUser(bytes []byte) (User, error) {
 // MarshalUser marshalls user into JSON
 func (*TeleportUserMarshaler) MarshalUser(u User) ([]byte, error) {
 	return json.Marshal(u)
+}
+
+// SortedLoginAttempts sorts login attempts by time
+type SortedLoginAttempts []LoginAttempt
+
+// Len returns length of a role list
+func (s SortedLoginAttempts) Len() int {
+	return len(s)
+}
+
+// Less stacks latest attempts to the end of the list
+func (s SortedLoginAttempts) Less(i, j int) bool {
+	return s[i].Time.Before(s[j].Time)
+}
+
+// Swap swaps two attempts
+func (s SortedLoginAttempts) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+// LastFailed calculates last x successive attempts are failed
+func LastFailed(x int, attempts []LoginAttempt) bool {
+	var failed int
+	for i := len(attempts) - 1; i > 0; i-- {
+		if !attempts[i].Success {
+			failed++
+		} else {
+			return false
+		}
+		if failed >= x {
+			return true
+		}
+	}
+	return false
 }

@@ -26,13 +26,15 @@ import (
 
 const (
 	// Common event fields:
-	EventType      = "event"       // event type/kind
-	EventTime      = "time"        // event time
-	EventLogin     = "login"       // OS login
-	EventUser      = "user"        // teleport user
-	LocalAddr      = "addr.local"  // address on the host
-	RemoteAddr     = "addr.remote" // client (user's) address
-	EventCursor    = "id"          // event ID (used as cursor value for enumeration, not stored)
+	EventType   = "event"       // event type/kind
+	EventTime   = "time"        // event time
+	EventLogin  = "login"       // OS login
+	EventUser   = "user"        // teleport user
+	LocalAddr   = "addr.local"  // address on the host
+	RemoteAddr  = "addr.remote" // client (user's) address
+	EventCursor = "id"          // event ID (used as cursor value for enumeration, not stored)
+
+	// EventNamespace is a namespace of the session event
 	EventNamespace = "namespace"
 
 	// SessionPrintEvent event happens every time a write occurs to

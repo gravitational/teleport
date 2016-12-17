@@ -19,6 +19,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -44,6 +45,7 @@ func RoleForUser(u User) Role {
 			Namespace: defaults.Namespace,
 		},
 		Spec: RoleSpec{
+			Logins:        u.GetAllowedLogins(),
 			MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
 			NodeLabels:    map[string]string{Wildcard: Wildcard},
 			Namespaces:    []string{defaults.Namespace},
@@ -286,7 +288,7 @@ func MatchLabels(selector map[string]string, target map[string]string) bool {
 // CheckLogins checks if role set can login up to given duration
 // and returns a combined list of allowed logins
 func (set RoleSet) CheckLogins(ttl time.Duration) ([]string, error) {
-	var logins map[string]bool
+	logins := make(map[string]bool)
 	var matchedTTL bool
 	for _, role := range set {
 		if ttl < role.GetMaxSessionTTL().Duration {
@@ -321,7 +323,18 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 			return nil
 		}
 	}
-	return trace.AccessDenied("access to server is denied")
+	return trace.AccessDenied("access to server is denied for %v", set)
+}
+
+func (set RoleSet) String() string {
+	if len(set) == 0 {
+		return "user without assigned roles"
+	}
+	roleNames := make([]string, len(set))
+	for i, role := range set {
+		roleNames[i] = role.GetMetadata().Name
+	}
+	return fmt.Sprintf("roles %v", strings.Join(roleNames, ","))
 }
 
 // CheckResourceAction checks if role set has access to this resource action
@@ -332,7 +345,7 @@ func (set RoleSet) CheckResourceAction(resourceNamespace, resourceName, accessTy
 			return nil
 		}
 	}
-	return trace.AccessDenied("%v access to %v in namespace %v is denied", accessType, resourceName, resourceNamespace)
+	return trace.AccessDenied("%v access to %v in namespace %v is denied for %v", accessType, resourceName, resourceNamespace, set)
 }
 
 // ProcessNamespace sets default namespace in case if namespace is empty
@@ -461,7 +474,7 @@ func GetRoleSchema(extensionSchema string) string {
 // sets defaults and checks the schema
 func UnmarshalRoleResource(data []byte) (*RoleResource, error) {
 	if len(data) == 0 {
-		return nil, trace.BadParameter("empty input")
+		return nil, trace.BadParameter("missing resource data")
 	}
 	var role RoleResource
 	if err := utils.UnmarshalWithSchema(GetRoleSchema(""), &role, data); err != nil {
