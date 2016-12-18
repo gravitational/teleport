@@ -300,6 +300,7 @@ func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, err
 		Created:    time.Now().UTC(),
 		LastActive: time.Now().UTC(),
 		ServerID:   context.srv.ID(),
+		Namespace:  r.srv.getNamespace(),
 	}
 	term := context.getTerm()
 	if term != nil {
@@ -721,6 +722,7 @@ func (s *session) addParty(p *party) {
 			log.Error(err)
 			return
 		}
+		log.Infof("PARTY: %v %v", dbSession, err)
 		dbSession.Parties = append(dbSession.Parties, rsession.Party{
 			ID:         p.id,
 			User:       p.user,

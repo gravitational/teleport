@@ -543,9 +543,9 @@ func (a *AuthWithRoles) DeleteRole(name string) error {
 
 // NewAuthWithRoles creates new auth server with access control
 func NewAuthWithRoles(authServer *AuthServer,
-	checker services.AccessChecker, user string,
+	checker services.AccessChecker,
+	user string,
 	sessions session.Service,
-	role teleport.Role,
 	alog events.IAuditLog) *AuthWithRoles {
 	return &AuthWithRoles{
 		authServer: authServer,

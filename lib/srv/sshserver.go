@@ -293,6 +293,7 @@ func (s *Server) getInfo() services.Server {
 		Hostname:  s.hostname,
 		Labels:    s.labels,
 		CmdLabels: s.getCommandLabels(),
+		Namespace: s.getNamespace(),
 	}
 }
 

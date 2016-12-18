@@ -95,6 +95,10 @@ type Server struct {
 	CmdLabels map[string]CommandLabel `json:"cmd_labels"`
 }
 
+func (s Server) String() string {
+	return fmt.Sprintf("Server(id=%v, addr=%v, namespace=%v, labels=%v)", s.ID, s.Addr, s.Namespace, s.Labels)
+}
+
 func (s *Server) GetNamespace() string {
 	return ProcessNamespace(s.Namespace)
 }
