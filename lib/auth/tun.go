@@ -455,7 +455,6 @@ func (s *AuthTunnel) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebPassword: "<password>",
-				ExtRole:        string(teleport.RoleU2FSign),
 			},
 		}
 		log.Infof("[AUTH] u2f sign authenticated user: '%v'", conn.User())
@@ -468,7 +467,7 @@ func (s *AuthTunnel) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebU2F: "<u2f-sign-response>",
-				ExtRole:   string(teleport.RoleU2FUser),
+				ExtRole:   string(teleport.RoleSignup),
 			},
 		}
 		return perms, nil

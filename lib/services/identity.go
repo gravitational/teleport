@@ -58,6 +58,8 @@ type User interface {
 	WebSessionInfo() User
 	// GetStatus return user login status
 	GetStatus() LoginStatus
+	// SetLocked sets login status to locked
+	SetLocked(until time.Time, reason string)
 }
 
 // LoginStatus is a login status of the user
@@ -150,6 +152,12 @@ func (u *TeleportUser) GetName() string {
 
 func (u *TeleportUser) String() string {
 	return fmt.Sprintf("User(name=%v, allowed_logins=%v, identities=%v)", u.Name, u.AllowedLogins, u.OIDCIdentities)
+}
+
+func (u *TeleportUser) SetLocked(until time.Time, reason string) {
+	u.Status.IsLocked = true
+	u.Status.LockExpires = until
+	u.Status.LockedMessage = reason
 }
 
 // Check checks validity of all parameters
@@ -574,7 +582,7 @@ func (s SortedLoginAttempts) Swap(i, j int) {
 // LastFailed calculates last x successive attempts are failed
 func LastFailed(x int, attempts []LoginAttempt) bool {
 	var failed int
-	for i := len(attempts) - 1; i > 0; i-- {
+	for i := len(attempts) - 1; i >= 0; i-- {
 		if !attempts[i].Success {
 			failed++
 		} else {

@@ -98,8 +98,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 		cfg.Provisioner = local.NewProvisioningService(cfg.Backend)
 	}
 	if cfg.Identity == nil {
-		cfg.Identity = local.NewIdentityService(cfg.Backend,
-			defaults.MaxLoginAttempts, defaults.AccountLockInterval)
+		cfg.Identity = local.NewIdentityService(cfg.Backend)
 	}
 	if cfg.Access == nil {
 		cfg.Access = local.NewAccessService(cfg.Backend)
@@ -216,7 +215,7 @@ func (s *AuthServer) GenerateUserCert(key []byte, username string, allowedLogins
 	// here I should map username to appropriate certificate authority
 	// how do I do that? I can have a special user naming convention, e.g.
 	// user is associated with cert authority id??? @ca:cert-authority-id
-	// I should also keep these auto-generated users somewhere probablycm
+	// I should also keep these auto-generated users somewhere probably
 	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
 		DomainName: s.DomainName,
@@ -231,8 +230,52 @@ func (s *AuthServer) GenerateUserCert(key []byte, username string, allowedLogins
 	return s.Authority.GenerateUserCert(privateKey, key, username, allowedLogins, ttl)
 }
 
+func (s *AuthServer) withUserLock(username string, fn func() error) error {
+	user, err := s.Identity.GetUser(username)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	status := user.GetStatus()
+	if status.IsLocked && status.LockExpires.Before(s.clock.Now().UTC()) {
+		return trace.AccessDenied("user %v is locked until %v", utils.HumanTimeFormat(status.LockExpires))
+	}
+	fnErr := fn()
+	if !trace.IsAccessDenied(fnErr) {
+		return trace.Wrap(fnErr)
+	}
+	// log failed attempt and possibly lock user
+	attempt := services.LoginAttempt{Time: s.clock.Now().UTC(), Success: false}
+	err = s.AddUserLoginAttempt(username, attempt, defaults.AttemptTTL)
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return trace.Wrap(fnErr)
+	}
+	loginAttempts, err := s.Identity.GetUserLoginAttempts(username)
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return trace.Wrap(fnErr)
+	}
+	if !services.LastFailed(defaults.MaxLoginAttempts, loginAttempts) {
+		log.Debug("%v user has less than %v failed login attempts", defaults.MaxLoginAttempts)
+		return trace.Wrap(fnErr)
+	}
+	log.Debug("%v exceeds %v failed login attempts, locking for %v",
+		defaults.MaxLoginAttempts, defaults.AccountLockInterval)
+	user.SetLocked(s.clock.Now().UTC().Add(defaults.AccountLockInterval),
+		"user has exceeded maximum failed login attempts")
+	err = s.Identity.UpsertUser(user)
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return trace.Wrap(fnErr)
+	}
+	return trace.Wrap(fnErr)
+}
+
 func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
-	if err := s.CheckPasswordWOToken(user, password); err != nil {
+	err := s.withUserLock(user, func() error {
+		return s.CheckPasswordWOToken(user, password)
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return s.PreAuthenticatedSignIn(user)
@@ -258,7 +301,10 @@ func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequ
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.CheckPasswordWOToken(user, password); err != nil {
+	err = s.withUserLock(user, func() error {
+		return s.CheckPasswordWOToken(user, password)
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 

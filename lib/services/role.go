@@ -36,7 +36,7 @@ func RoleNameForUser(name string) string {
 }
 
 // RoleForUser creates role using AllowedLogins parameter
-func RoleForUser(u User) Role {
+func RoleForUser(u User) *RoleResource {
 	return &RoleResource{
 		Kind:    KindRole,
 		Version: V1,
@@ -315,11 +315,12 @@ func (set RoleSet) CheckLogins(ttl time.Duration) ([]string, error) {
 // on combined role's selector and attempted login
 func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 	for _, role := range set {
-		namespace := MatchNamespace(role.GetNamespaces(), s.GetNamespace())
-		labels := MatchLabels(role.GetNodeLabels(), s.Labels)
+		matchNamespace := MatchNamespace(role.GetNamespaces(), s.GetNamespace())
+		matchLabels := MatchLabels(role.GetNodeLabels(), s.Labels)
 		matchLogin := MatchLogin(role.GetLogins(), login)
-		log.Debugf("check access role %v, server: %v matchNamespace:%v matchLabels:%v matchLogin:%v", role.GetMetadata().Name, s, namespace, labels, matchLogin)
-		if MatchNamespace(role.GetNamespaces(), s.GetNamespace()) && MatchLabels(role.GetNodeLabels(), s.Labels) && MatchLogin(role.GetLogins(), login) {
+		log.Debugf("check access role %v, server: %v matchNamespace:%v matchLabels:%v matchLogin:%v",
+			role.GetMetadata().Name, s, matchNamespace, matchLabels, matchLogin)
+		if matchNamespace && matchLabels && matchLogin {
 			return nil
 		}
 	}
@@ -340,8 +341,13 @@ func (set RoleSet) String() string {
 // CheckResourceAction checks if role set has access to this resource action
 func (set RoleSet) CheckResourceAction(resourceNamespace, resourceName, accessType string) error {
 	resourceNamespace = ProcessNamespace(resourceNamespace)
+	log.Debugf("CheckResourceAction(%v, %v, %v) for %v", resourceNamespace, resourceName, accessType, set)
 	for _, role := range set {
-		if MatchNamespace(role.GetNamespaces(), resourceNamespace) && MatchResourceAction(role.GetResources(), resourceName, accessType) {
+		matchNamespace := MatchNamespace(role.GetNamespaces(), resourceNamespace)
+		matchResourceAction := MatchResourceAction(role.GetResources(), resourceName, accessType)
+		log.Debugf("CheckResourceAction(%v, %v, %v) matchNamespace: %v, matchResourceAction: %v",
+			resourceNamespace, resourceName, accessType, matchNamespace, matchResourceAction)
+		if matchNamespace && matchResourceAction {
 			return nil
 		}
 	}

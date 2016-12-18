@@ -84,7 +84,7 @@ func (s *APISuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.AccessS = local.NewAccessService(s.bk)
-	s.WebS = local.NewIdentityService(s.bk, 10, time.Duration(time.Hour))
+	s.WebS = local.NewIdentityService(s.bk)
 
 	newChecker, err := NewAccessChecker(s.AccessS, s.WebS)
 	c.Assert(err, IsNil)

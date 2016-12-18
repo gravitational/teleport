@@ -293,14 +293,14 @@ func (a *AuthWithRoles) ExtendWebSession(user, prevSessionID string) (*Session, 
 }
 
 func (a *AuthWithRoles) GetWebSessionInfo(user string, sid string) (*Session, error) {
-	if err := a.currentUserAction(user); err != nil {
+	if err := a.action(defaults.Namespace, services.KindWebSession, services.ActionRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetWebSessionInfo(user, sid)
 }
 
 func (a *AuthWithRoles) DeleteWebSession(user string, sid string) error {
-	if err := a.currentUserAction(user); err != nil {
+	if err := a.action(defaults.Namespace, services.KindWebSession, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteWebSession(user, sid)

@@ -134,8 +134,6 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 				Namespaces: []string{services.Wildcard},
 				Resources: map[string][]string{
 					services.KindAuthServer: services.RO(),
-					services.KindUser:       services.RW(),
-					services.KindRole:       services.RW(),
 				},
 			})
 	case teleport.RoleAdmin.User():

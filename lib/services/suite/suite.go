@@ -167,9 +167,11 @@ func (s *ServicesTestSuite) LoginAttempts(c *C) {
 	err = s.WebS.AddUserLoginAttempt(user.Name, attempt2, defaults.AttemptTTL)
 	c.Assert(err, IsNil)
 
-	attempts, err := s.WebS.GetUserLoginAttempts(user.Name)
+	attempts, err = s.WebS.GetUserLoginAttempts(user.Name)
 	c.Assert(err, IsNil)
-	c.Assert(len(attempts), Equals, []services.LoginAttempt{attempt1, attempt2})
+	c.Assert(attempts, DeepEquals, []services.LoginAttempt{attempt1, attempt2})
+	c.Assert(services.LastFailed(3, attempts), Equals, false)
+	c.Assert(services.LastFailed(2, attempts), Equals, true)
 }
 
 func (s *ServicesTestSuite) CertAuthCRUD(c *C) {

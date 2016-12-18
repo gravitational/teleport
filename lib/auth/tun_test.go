@@ -71,7 +71,7 @@ func (s *TunSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	access := local.NewAccessService(s.bk)
-	identity := local.NewIdentityService(s.bk, 10, time.Duration(time.Hour))
+	identity := local.NewIdentityService(s.bk)
 
 	s.a = NewAuthServer(&InitConfig{
 		Backend:    s.bk,
@@ -128,10 +128,19 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	c.Assert(tsrv.Start(), IsNil)
 	s.tsrv = tsrv
 
-	user := "test"
+	userName := "test"
 	pass := []byte("pwd123")
 
-	hotpURL, _, err := s.a.UpsertPassword(user, pass)
+	user := &services.TeleportUser{Name: userName, AllowedLogins: []string{userName}}
+	role := services.RoleForUser(user)
+	role.Spec.Resources = map[string][]string{services.KindNode: services.RW()}
+	err = s.a.UpsertRole(role)
+	c.Assert(err, IsNil)
+	user.Roles = []string{role.GetMetadata().Name}
+	err = s.a.UpsertUser(user)
+	c.Assert(err, IsNil)
+
+	hotpURL, _, err := s.a.UpsertPassword(user.Name, pass)
 	c.Assert(err, IsNil)
 
 	otp, label, err := hotp.FromURL(hotpURL)
@@ -139,7 +148,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	c.Assert(label, Equals, "test")
 	otp.Increment()
 
-	authMethod, err := NewWebPasswordAuth(user, pass, otp.OTP())
+	authMethod, err := NewWebPasswordAuth(user.Name, pass, otp.OTP())
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient("test",
