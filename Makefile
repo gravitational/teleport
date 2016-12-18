@@ -26,7 +26,7 @@ $(eval BUILDFLAGS := $(ADDFLAGS) -ldflags '-w -s')
 #
 .PHONY: all
 all: setver teleport tctl tsh assets
-	sudo killall teleport
+	#sudo killall teleport
 	cp -f build.assets/release.mk $(BUILDDIR)/Makefile
 
 .PHONY: tctl
