@@ -430,6 +430,7 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool) error {
 		tc.Config.HostLogin,
 		false)
 	if err != nil {
+		tc.ExitStatus = 1
 		return trace.Wrap(err)
 	}
 	// proxy local ports (forward incoming connections to remote host ports)
@@ -754,7 +755,9 @@ func (tc *TeleportClient) ListNodes() ([]services.Server, error) {
 }
 
 // runCommand executes a given bash command on a bunch of remote nodes
-func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string) error {
+func (tc *TeleportClient) runCommand(
+	siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string) error {
+
 	resultsC := make(chan error, len(nodeAddresses))
 	for _, address := range nodeAddresses {
 		go func(address string) {
@@ -783,9 +786,17 @@ func (tc *TeleportClient) runCommand(siteName string, nodeAddresses []string, pr
 				return
 			}
 			if err = nodeSession.runCommand(command, tc.OnShellCreated, tc.Config.Interactive); err != nil {
-				exitErr, ok := err.(*ssh.ExitError)
+				originErr := trace.Unwrap(err)
+				exitErr, ok := originErr.(*ssh.ExitError)
 				if ok {
 					tc.ExitStatus = exitErr.ExitStatus()
+				} else {
+					// if an error occurs, but no exit status is passed back, GoSSH returns
+					// a generic error like this. in this case the error message is printed
+					// to stderr by the remote process so we have to quietly return 1:
+					if strings.Contains(originErr.Error(), "exited without exit status") {
+						tc.ExitStatus = 1
+					}
 				}
 			}
 		}(address)

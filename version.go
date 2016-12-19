@@ -2,7 +2,7 @@
 package teleport
 
 const (
-	Version = "1.2.7-beta"
+	Version = "1.3.0"
 )
 
 var Gitref string
