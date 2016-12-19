@@ -51,7 +51,7 @@ type NamespaceSpec struct {
 const NamespaceSpecSchema = `{
   "type": "object",
   "additionalProperties": false,
-  "default": {},
+  "default": {}
 }`
 
 const NamespaceSchemaTemplate = `{

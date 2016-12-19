@@ -286,7 +286,7 @@ func (a *AuthWithRoles) CreateWebSession(user string) (*Session, error) {
 }
 
 func (a *AuthWithRoles) ExtendWebSession(user, prevSessionID string) (*Session, error) {
-	if err := a.currentUserAction(user); err != nil {
+	if err := a.action(defaults.Namespace, services.KindWebSession, services.ActionWrite); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.ExtendWebSession(user, prevSessionID)

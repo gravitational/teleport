@@ -30,9 +30,14 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// RoleForUser returns role name associated with user
+// RoleNameForUser returns role name associated with user
 func RoleNameForUser(name string) string {
 	return "user:" + name
+}
+
+// RoleNameForCertAuthority returns role name associated with cert authority
+func RoleNameForCertAuthority(name string) string {
+	return "ca:" + name
 }
 
 // RoleForUser creates role using AllowedLogins parameter
@@ -49,6 +54,36 @@ func RoleForUser(u User) *RoleResource {
 			MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
 			NodeLabels:    map[string]string{Wildcard: Wildcard},
 			Namespaces:    []string{defaults.Namespace},
+			Resources: map[string][]string{
+				KindSession:       RO(),
+				KindNode:          RO(),
+				KindAuthServer:    RO(),
+				KindReverseTunnel: RO(),
+			},
+		},
+	}
+}
+
+// RoleForCertauthority creates role using AllowedLogins parameter
+func RoleForCertAuthority(ca CertAuthority) *RoleResource {
+	return &RoleResource{
+		Kind:    KindRole,
+		Version: V1,
+		Metadata: Metadata{
+			Name:      RoleNameForCertAuthority(ca.DomainName),
+			Namespace: defaults.Namespace,
+		},
+		Spec: RoleSpec{
+			Logins:        ca.AllowedLogins,
+			MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
+			NodeLabels:    map[string]string{Wildcard: Wildcard},
+			Namespaces:    []string{defaults.Namespace},
+			Resources: map[string][]string{
+				KindSession:       RO(),
+				KindNode:          RO(),
+				KindAuthServer:    RO(),
+				KindReverseTunnel: RO(),
+			},
 		},
 	}
 }

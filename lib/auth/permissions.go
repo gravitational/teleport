@@ -121,7 +121,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 				Namespaces: []string{services.Wildcard},
 				Resources: map[string][]string{
 					services.KindWebSession: services.RW(),
-					services.KindSession:    services.RO(),
+					services.KindSession:    services.RW(),
 					services.KindAuthServer: services.RO(),
 					services.KindUser:       services.RO(),
 					services.KindRole:       services.RO(),

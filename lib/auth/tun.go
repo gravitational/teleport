@@ -467,7 +467,6 @@ func (s *AuthTunnel) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebU2F: "<u2f-sign-response>",
-				ExtRole:   string(teleport.RoleSignup),
 			},
 		}
 		return perms, nil

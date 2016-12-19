@@ -328,6 +328,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		Presence:        cfg.Presence,
 		Provisioner:     cfg.Provisioner,
 		Identity:        cfg.Identity,
+		Access:          cfg.Access,
 		StaticTokens:    cfg.Auth.StaticTokens,
 		U2F:             cfg.Auth.U2F,
 	}, cfg.SeedConfig)
@@ -343,7 +344,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	newChecker, err := auth.NewAccessChecker(cfg.Access, cfg.Identity)
+	newChecker, err := auth.NewAccessChecker(authServer.Access, authServer.Identity)
 	if err != nil {
 		return trace.Wrap(err)
 	}

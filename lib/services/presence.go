@@ -74,6 +74,17 @@ type Presence interface {
 	DeleteNamespace(name string) error
 }
 
+// NewNamespace returns new namespace
+func NewNamespace(name string) Namespace {
+	return Namespace{
+		Kind:    KindNamespace,
+		Version: V1,
+		Metadata: Metadata{
+			Name: name,
+		},
+	}
+}
+
 // Site represents a cluster of teleport nodes who collectively trust the same
 // certificate authority (CA) and have a common name.
 //

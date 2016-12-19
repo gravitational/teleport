@@ -75,6 +75,7 @@ func (s *sessionRegistry) openSession(ch ssh.Channel, req *ssh.Request, ctx *ctx
 		// emit "joined session" event:
 		s.srv.EmitAuditEvent(events.SessionJoinEvent, events.EventFields{
 			events.SessionEventID:  string(ctx.session.id),
+			events.EventNamespace:  s.srv.getNamespace(),
 			events.EventLogin:      ctx.login,
 			events.EventUser:       ctx.teleportUser,
 			events.LocalAddr:       ctx.conn.LocalAddr().String(),
@@ -124,6 +125,7 @@ func (s *sessionRegistry) leaveSession(party *party) error {
 		events.SessionEventID:  string(sess.id),
 		events.EventUser:       party.user,
 		events.SessionServerID: party.serverID,
+		events.EventNamespace:  s.srv.getNamespace(),
 	})
 
 	// this goroutine runs for a short amount of time only after a session
@@ -151,6 +153,7 @@ func (s *sessionRegistry) leaveSession(party *party) error {
 		s.srv.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
 			events.SessionEventID: string(sess.id),
 			events.EventUser:      party.user,
+			events.EventNamespace: s.srv.getNamespace(),
 		})
 		if err := sess.Close(); err != nil {
 			log.Error(err)
@@ -196,6 +199,7 @@ func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *c
 
 	// report this to the event/audit log:
 	s.srv.EmitAuditEvent(events.ResizeEvent, events.EventFields{
+		events.EventNamespace: s.srv.getNamespace(),
 		events.SessionEventID: sid,
 		events.EventLogin:     ctx.login,
 		events.EventUser:      ctx.teleportUser,
@@ -515,6 +519,7 @@ func (s *session) start(ch ssh.Channel, ctx *ctx) error {
 
 	// emit "new session created" event:
 	s.registry.srv.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
+		events.EventNamespace:  ctx.srv.getNamespace(),
 		events.SessionEventID:  string(s.id),
 		events.SessionServerID: ctx.srv.ID(),
 		events.EventLogin:      ctx.login,

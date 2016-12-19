@@ -242,10 +242,17 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 	// create users if they don't exist, or sign their keys if they're already present
 	auth := i.Process.GetAuthServer()
 	for _, user := range i.Secrets.Users {
-		err := auth.UpsertUser(&services.TeleportUser{
+		teleUser := &services.TeleportUser{
 			Name:          user.Username,
 			AllowedLogins: user.AllowedLogins,
-		})
+		}
+		role := services.RoleForUser(teleUser)
+		err = auth.UpsertRole(role)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		teleUser.Roles = []string{role.GetMetadata().Name}
+		err = auth.UpsertUser(teleUser)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -259,7 +266,7 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		}
 		// sign user's keys:
 		ttl := time.Duration(time.Hour * 24)
-		user.Key.Cert, err = auth.GenerateUserCert(user.Key.Pub, user.Username, ttl)
+		user.Key.Cert, err = auth.GenerateUserCert(user.Key.Pub, user.Username, user.AllowedLogins, ttl)
 		if err != nil {
 			return err
 		}
