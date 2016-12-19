@@ -1,23 +1,21 @@
 # This file is distributed with every binary Teleport tarball
 BINDIR=/usr/local/bin
 VARDIR=/var/lib/teleport
-WEBDIR=/usr/local/share/teleport
 
 #
 # sudo make install: installs Teleport into a UNIX-like OS
 #
 .PHONY: install
 install: sudo
-	mkdir -p $(VARDIR) $(WEBDIR) $(BINDIR)
+	mkdir -p $(VARDIR) $(BINDIR)
 	cp -f teleport tctl tsh $(BINDIR)/
-	cp -fr app index.html $(WEBDIR)/
 
 #
 # sudo make uninstall: removes Teleport
 #
 .PHONY: uninstall
 uninstall: sudo
-	rm -rf $(VARDIR) $(WEBDIR) $(BINDIR)/tctl $(BINDIR)/teleport $(BINDIR)/tsh
+	rm -rf $(VARDIR) $(BINDIR)/tctl $(BINDIR)/teleport $(BINDIR)/tsh
 
 
 # helper: makes sure it runs as root
