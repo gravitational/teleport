@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
@@ -253,6 +254,12 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 				log.Infof("removed OIDC connector '%s'", connector.ID)
 			}
 		}
+	}
+
+	// create default namespace
+	err = asrv.UpsertNamespace(services.NewNamespace(defaults.Namespace))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
 
 	// migrate old users to new users
