@@ -236,11 +236,11 @@ func (s *AuthServer) withUserLock(username string, fn func() error) error {
 		return trace.Wrap(err)
 	}
 	status := user.GetStatus()
-	if status.IsLocked && status.LockExpires.Before(s.clock.Now().UTC()) {
+	if status.IsLocked && status.LockExpires.After(s.clock.Now().UTC()) {
 		return trace.AccessDenied("user %v is locked until %v", utils.HumanTimeFormat(status.LockExpires))
 	}
 	fnErr := fn()
-	if !trace.IsAccessDenied(fnErr) {
+	if !trace.IsAccessDenied(fnErr) && !trace.IsBadParameter(fnErr) {
 		return trace.Wrap(fnErr)
 	}
 	// log failed attempt and possibly lock user
@@ -256,19 +256,20 @@ func (s *AuthServer) withUserLock(username string, fn func() error) error {
 		return trace.Wrap(fnErr)
 	}
 	if !services.LastFailed(defaults.MaxLoginAttempts, loginAttempts) {
-		log.Debug("%v user has less than %v failed login attempts", defaults.MaxLoginAttempts)
+		log.Debugf("%v user has less than %v failed login attempts", username, defaults.MaxLoginAttempts)
 		return trace.Wrap(fnErr)
 	}
-	log.Debug("%v exceeds %v failed login attempts, locking for %v",
-		defaults.MaxLoginAttempts, defaults.AccountLockInterval)
-	user.SetLocked(s.clock.Now().UTC().Add(defaults.AccountLockInterval),
-		"user has exceeded maximum failed login attempts")
+	lockUntil := s.clock.Now().UTC().Add(defaults.AccountLockInterval)
+	message := fmt.Sprintf("%v exceeds %v failed login attempts, locked until %v",
+		username, defaults.MaxLoginAttempts, utils.HumanTimeFormat(status.LockExpires))
+	log.Debug(message)
+	user.SetLocked(lockUntil, "user has exceeded maximum failed login attempts")
 	err = s.Identity.UpsertUser(user)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.Wrap(fnErr)
 	}
-	return trace.Wrap(fnErr)
+	return trace.AccessDenied(message)
 }
 
 func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {

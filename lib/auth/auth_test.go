@@ -25,6 +25,7 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
@@ -94,6 +95,47 @@ func (s *AuthSuite) TestSessions(c *C) {
 
 	_, err = s.a.GetWebSession(user, ws.ID)
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
+}
+
+func (s *AuthSuite) TestUserLock(c *C) {
+	c.Assert(s.a.UpsertCertAuthority(
+		*suite.NewTestCA(services.UserCA, "me.localhost"), backend.Forever), IsNil)
+
+	user := "user1"
+	pass := []byte("abc123")
+
+	ws, err := s.a.SignIn(user, pass)
+	c.Assert(err, NotNil)
+
+	hotpURL, _, err := s.a.UpsertPassword(user, pass)
+	c.Assert(err, IsNil)
+	otp, label, err := hotp.FromURL(hotpURL)
+	c.Assert(err, IsNil)
+	c.Assert(label, Equals, "user1")
+	otp.Increment()
+
+	// successfull log in
+	ws, err = s.a.SignIn(user, pass)
+	c.Assert(err, IsNil)
+	c.Assert(ws, NotNil)
+
+	fakeClock := clockwork.NewFakeClock()
+	s.a.clock = fakeClock
+
+	for i := 0; i <= defaults.MaxLoginAttempts; i++ {
+		_, err = s.a.SignIn(user, []byte("wrong pass"))
+		c.Assert(err, NotNil)
+	}
+
+	// make sure user is locked
+	_, err = s.a.SignIn(user, pass)
+	c.Assert(err, ErrorMatches, ".*locked.*")
+
+	// advance time and make sure we can login again
+	fakeClock.Advance(defaults.AccountLockInterval + time.Second)
+
+	_, err = s.a.SignIn(user, pass)
+	c.Assert(err, IsNil)
 }
 
 func (s *AuthSuite) TestTokensCRUD(c *C) {
