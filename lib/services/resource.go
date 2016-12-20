@@ -19,7 +19,7 @@ const (
 	Wildcard = "*"
 
 	// KindNamespace is a namespace
-	KindNamespace = "user"
+	KindNamespace = "namespace"
 
 	// KindUser is a user resource
 	KindUser = "user"

@@ -905,9 +905,8 @@ func (c *Client) PostSessionChunk(namespace string, sid session.ID, reader io.Re
 	// we **must** consume response by reading all of its body, otherwise the http
 	// client will allocate a new connection for subsequent requests
 	defer re.Body.Close()
-	var buff [1024]byte
-	io.CopyBuffer(ioutil.Discard, re.Body, buff[:])
-	return nil
+	responseBytes, _ := ioutil.ReadAll(re.Body)
+	return trace.ReadError(re.StatusCode, responseBytes)
 }
 
 // GetSessionChunk allows clients to receive a byte array (chunk) from a recorded

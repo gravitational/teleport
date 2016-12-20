@@ -161,7 +161,7 @@ func (s *IntSuite) TestAudit(c *check.C) {
 	// make sure it's us who joined! :)
 	c.Assert(session.Parties[0].User, check.Equals, s.me.Username)
 
-	// lets add something to the session streaam:
+	// lets add something to the session stream:
 	// write 1MB chunk
 	bigChunk := make([]byte, 1024*1024)
 	err = site.PostSessionChunk(defaults.Namespace, session.ID, bytes.NewReader(bigChunk))

@@ -92,6 +92,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 					services.KindProxy:         services.RO(),
 					services.KindCertAuthority: services.RO(),
 					services.KindUser:          services.RO(),
+					services.KindNamespace:     services.RO(),
 					services.KindRole:          services.RO(),
 					services.KindAuthServer:    services.RO(),
 				},
@@ -104,8 +105,9 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 				Resources: map[string][]string{
 					services.KindProxy:         services.RW(),
 					services.KindOIDCRequest:   services.RW(),
+					services.KindNamespace:     services.RO(),
 					services.KindEvent:         services.RW(),
-					services.KindSession:       services.RO(),
+					services.KindSession:       services.RW(),
 					services.KindNode:          services.RO(),
 					services.KindAuthServer:    services.RO(),
 					services.KindReverseTunnel: services.RO(),
@@ -125,6 +127,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 					services.KindAuthServer: services.RO(),
 					services.KindUser:       services.RO(),
 					services.KindRole:       services.RO(),
+					services.KindNamespace:  services.RO(),
 				},
 			})
 	case teleport.RoleSignup.User():
