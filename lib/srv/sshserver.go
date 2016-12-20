@@ -621,7 +621,7 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, ch ssh.Channel,
 	ctx.Infof("direct-tcpip channel: %#v to --> %v", req, addr)
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
-		ctx.Infof("failed to connect to: %v, err: %v", addr, err)
+		ctx.Infof("failed connecting to: %v, err: %v", addr, err)
 		return
 	}
 	defer conn.Close()
@@ -832,7 +832,7 @@ func (s *Server) handleSubsystem(ch ssh.Channel, req *ssh.Request, ctx *ctx) err
 	// starting subsystem is blocking to the client,
 	// while collecting its result and waiting is not blocking
 	if err := sb.start(ctx.conn, ch, req, ctx); err != nil {
-		ctx.Warnf("[SSH] failed to execute request, err: %v", err)
+		ctx.Warnf("[SSH] failed executing request: %v", err)
 		ctx.sendSubsystemResult(trace.Wrap(err))
 		return trace.Wrap(err)
 	}

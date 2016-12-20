@@ -49,17 +49,15 @@ func ObeyTimeouts(conn net.Conn, timeout time.Duration, name string) net.Conn {
 }
 
 func (tc *TimeoutConn) Read(p []byte) (n int, err error) {
-	err = tc.Conn.SetReadDeadline(time.Now().Add(tc.TimeoutDuration))
-	if err != nil {
-		return 0, err
-	}
+	// note: checking for errors here does not buy anything: some net.Conn interface
+	// 	     implementations (sshConn, pipe) simply return "not supported" error
+	tc.Conn.SetReadDeadline(time.Now().Add(tc.TimeoutDuration))
 	return tc.Conn.Read(p)
 }
 
 func (tc *TimeoutConn) Write(p []byte) (n int, err error) {
-	err = tc.Conn.SetWriteDeadline(time.Now().Add(tc.TimeoutDuration))
-	if err != nil {
-		return 0, err
-	}
+	// note: checking for errors here does not buy anything: some net.Conn interface
+	// 	     implementations (sshConn, pipe) simply return "not supported" error
+	tc.Conn.SetWriteDeadline(time.Now().Add(tc.TimeoutDuration))
 	return tc.Conn.Write(p)
 }

@@ -179,7 +179,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		a := &cfg.Auth
 		a.KeysBackend.Type = dynamo.BackendType
 		a.KeysBackend.Params, err = dynamo.ConfigureBackend(&fc.Storage)
-		return trace.Wrap(err)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	case "":
 		break // not set
 	default:

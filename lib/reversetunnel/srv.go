@@ -18,6 +18,7 @@ package reversetunnel
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
@@ -514,6 +515,12 @@ func (s *tunnelSite) String() string {
 	return fmt.Sprintf("remoteSite(%v)", s.domainName)
 }
 
+func (s *tunnelSite) connectionCount() int {
+	s.Lock()
+	defer s.Unlock()
+	return len(s.connections)
+}
+
 func (s *tunnelSite) nextConn() (*remoteConn, error) {
 	s.Lock()
 	defer s.Unlock()
@@ -668,8 +675,9 @@ func (s *tunnelSite) dialAccessPoint(network, addr string) (net.Conn, error) {
 // Dial is used to connect a requesting client (say, tsh) to an SSH server
 // located in a remote connected site, the connection goes through the
 // reverse proxy tunnel.
-func (s *tunnelSite) Dial(network string, addr string) (net.Conn, error) {
+func (s *tunnelSite) Dial(network string, addr string) (conn net.Conn, err error) {
 	s.log.Infof("[TUNNEL] dialing %v@%v through the tunnel", addr, s.domainName)
+	stop := false
 
 	try := func() (net.Conn, error) {
 		remoteConn, err := s.nextConn()
@@ -682,34 +690,44 @@ func (s *tunnelSite) Dial(network string, addr string) (net.Conn, error) {
 			remoteConn.markInvalid(err)
 			return nil, trace.Wrap(err)
 		}
-		// we're creating a new SSH connection inside reverse SSH connection
-		// as a new SSH channel:
+		stop = true
+		// send a special SSH out-of-band request called "teleport-transport"
+		// the agent on the other side will create a new TCP/IP connection to
+		// 'addr' on its network and will start proxying that connection over
+		// this SSH channel:
 		var dialed bool
 		dialed, err = ch.SendRequest(chanTransportDialReq, true, []byte(addr))
 		if err != nil {
-			remoteConn.markInvalid(err)
 			return nil, trace.Wrap(err)
 		}
 		if !dialed {
-			remoteConn.markInvalid(err)
-			return nil, trace.ConnectionProblem(
-				nil, "remote server %v is not available", addr)
+			defer ch.Close()
+			// pull the error message from the tunnel client (remote cluster)
+			// passed to us via stderr:
+			errMessage, _ := ioutil.ReadAll(ch.Stderr())
+			if errMessage == nil {
+				errMessage = []byte("failed connecting to " + addr)
+			}
+			return nil, trace.Errorf(strings.TrimSpace(string(errMessage)))
 		}
 		return utils.NewChConn(remoteConn.sshConn, ch), nil
 	}
-
-	for {
-		conn, err := try()
-		if err != nil {
-			s.log.Errorf("[TUNNEL] Dial(addr=%v) failed: %v", addr, err)
-			// we interpret it as a "out of connections and will try again"
-			if trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
-			continue
+	// loop through existing TCP/IP connections (reverse tunnels) and try
+	// to establish an inbound connection-over-ssh-channel to the remote
+	// cluster (AKA "remotetunnel agent"):
+	for i := 0; i < s.connectionCount() && !stop; i++ {
+		conn, err = try()
+		if err == nil {
+			return conn, nil
 		}
-		return conn, nil
+		s.log.Errorf("[TUNNEL] Dial(addr=%v) failed: %v", addr, err)
 	}
+	// didn't connect and no error? this means we didn't have any connected
+	// tunnels to try
+	if err == nil {
+		err = trace.Errorf("%v is offline", s.GetName())
+	}
+	return nil, err
 }
 
 func (s *tunnelSite) DialServer(addr string) (net.Conn, error) {

@@ -241,7 +241,7 @@ func SSHAgentU2FLogin(proxyAddr, user, password string, pubKey []byte, ttl time.
 
 	// The origin URL is passed back base64-encoded and the keyHandle is passed back as is.
 	// A very long proxy hostname or keyHandle can overflow a fixed-size buffer.
-	signResponseLen := 500 + len(u2fSignRequest.Bytes()) + len(proxyAddr) * 4 / 3
+	signResponseLen := 500 + len(u2fSignRequest.Bytes()) + len(proxyAddr)*4/3
 	signResponseBuf := make([]byte, signResponseLen)
 	signResponseLen, err = io.ReadFull(stdout, signResponseBuf)
 	// unexpected EOF means we have read the data completely.
@@ -288,7 +288,11 @@ func SSHAgentU2FLogin(proxyAddr, user, password string, pubKey []byte, ttl time.
 	return out, nil
 }
 
+// initClient creates and initializes HTTPS client for talking to teleport proxy HTTPS
+// endpoint.
 func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*webClient, *url.URL, error) {
+	log.Debugf("HTTPS client init(insecure=%v)", insecure)
+
 	// validate proxyAddr:
 	host, port, err := net.SplitHostPort(proxyAddr)
 	if err != nil || host == "" || port == "" {
@@ -305,13 +309,13 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*webClien
 
 	var opts []roundtrip.ClientParam
 
-	if pool != nil {
-		// use custom set of trusted CAs
-		opts = append(opts, roundtrip.HTTPClient(newClientWithPool(pool)))
-	} else if insecure {
+	if insecure {
 		// skip https cert verification, oh no!
 		fmt.Printf("WARNING: You are using insecure connection to SSH proxy %v\n", proxyAddr)
 		opts = append(opts, roundtrip.HTTPClient(newInsecureClient()))
+	} else if pool != nil {
+		// use custom set of trusted CAs
+		opts = append(opts, roundtrip.HTTPClient(newClientWithPool(pool)))
 	}
 
 	clt, err := newWebClient(proxyAddr, opts...)

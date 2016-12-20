@@ -195,8 +195,20 @@ func (a *Agent) proxyAccessPoint(ch ssh.Channel, req <-chan *ssh.Request) {
 	wg.Wait()
 }
 
+// proxyTransport runs as a goroutine running inside a reverse tunnel client
+// and it establishes and maintains the following remote connection:
+//
+// tsh -> proxy(also reverse-tunnel-server) -> reverse-tunnel-agent
+//
+// ch   : SSH channel which received "teleport-transport" out-of-band request
+// reqC : request payload
 func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	defer ch.Close()
+
+	// always push space into stderr to make sure the caller can always
+	// safely call read(stderr) without blocking. this stderr is only used
+	// to request proxying of TCP/IP via reverse tunnel.
+	fmt.Fprint(ch.Stderr(), " ")
 
 	var req *ssh.Request
 	select {
@@ -218,7 +230,12 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 
 	conn, err := net.Dial("tcp", server)
 	if err != nil {
-		log.Errorf("failed to dial: %v, err: %v", server, err)
+		log.Error(trace.DebugReport(err))
+		// write the connection error to stderr of the caller (via SSH channel)
+		// so the error will be propagated all the way back to the
+		// client (most likely tsh)
+		fmt.Fprint(ch.Stderr(), err.Error())
+		req.Reply(false, []byte(err.Error()))
 		return
 	}
 	req.Reply(true, []byte("connected"))
