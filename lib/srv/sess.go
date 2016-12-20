@@ -443,37 +443,18 @@ func newSessionRecorder(alog events.IAuditLog, sid rsession.ID) *sessionRecorder
 
 // Write takes a chunk and writes it into the audit log
 func (r *sessionRecorder) Write(data []byte) (int, error) {
-	const (
-		minChunkLen   = 4
-		maxDelay      = time.Millisecond * 20
-		requiredDelay = time.Millisecond * 5
-	)
-	// terminal recording is a tricky business. the TTY subsystem expects a certain
-	// delay when it writes to a virtual console. In our case recording takes no time
-	// so we have to emulate TTY delay here:
-	var start time.Time
-
-	// the delay depends on the chunk size, but shouldn't be higher than a certain
-	// ceiling (maxDelay)
-	dataLen := len(data)
-	if dataLen > minChunkLen {
-		start = time.Now()
-		defer func() {
-			postingDuration := time.Now().Sub(start)
-			if postingDuration < requiredDelay {
-				delay := time.Millisecond * time.Duration(dataLen)
-				if delay > maxDelay {
-					delay = maxDelay
-				}
-				time.Sleep(delay)
-			}
-		}()
-	}
+	// we are copying buffer to prevent data corruption:
+	// io.Copy allocates single buffer and calls multiple writes in a loop
+	// our PostSessionChunk is async and sends reader wrapping buffer
+	// to the channel. This can lead to cases when the buffer is re-used
+	// and data is corrupted unless we copy the data buffer in the first place
+	dataCopy := make([]byte, len(data))
+	copy(dataCopy, data)
 	// post the chunk of bytes to the audit log:
-	if err := r.alog.PostSessionChunk(r.sid, bytes.NewReader(data)); err != nil {
-		log.Error(err)
+	if err := r.alog.PostSessionChunk(r.sid, bytes.NewReader(dataCopy)); err != nil {
+		log.Error(trace.DebugReport(err))
 	}
-	return dataLen, nil
+	return len(data), nil
 }
 
 // Close() does nothing for session recorder (audit log cannot be closed)
