@@ -285,7 +285,9 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 		case <-tick.C:
 			sess, err := siteClient.GetSession(ns.namespace, ns.id)
 			if err != nil {
-				log.Error(err)
+				if !trace.IsNotFound(err) {
+					log.Error(trace.DebugReport(err))
+				}
 				continue
 			}
 			// no previous session

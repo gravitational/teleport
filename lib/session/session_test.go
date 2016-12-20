@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/trace"
 	"github.com/mailgun/timetools"
 	. "gopkg.in/check.v1"
 )
@@ -145,7 +146,7 @@ func (s *BoltSuite) TestSessionsInactivity(c *C) {
 
 	// should not be in active sessions:
 	s2, err := s.srv.GetSession(defaults.Namespace, sess.ID)
-	c.Assert(err, IsNil)
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%T", err))
 	c.Assert(s2, IsNil)
 }
 

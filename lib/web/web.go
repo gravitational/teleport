@@ -1090,9 +1090,6 @@ func (m *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if sess == nil {
-		return nil, trace.NotFound("Session %v cannot be found", sessionID)
-	}
 	return *sess, nil
 }
 

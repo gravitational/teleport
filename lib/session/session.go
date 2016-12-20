@@ -338,14 +338,14 @@ func (slice Sessions) Len() int {
 	return len(slice)
 }
 
-// GetSession returns the session by it's id. Returns nil if a session
+// GetSession returns the session by it's id. Returns NotFound if a session
 // is not found
 func (s *server) GetSession(namespace string, id ID) (*Session, error) {
 	var sess *Session
 	err := s.bk.GetJSONVal(activeBucket(namespace), string(id), &sess)
 	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("session(%v, %v) is not found", namespace, id)
 		}
 	}
 	return sess, nil
