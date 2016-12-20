@@ -293,7 +293,7 @@ a:visited{
 div.wy-nav-content { max-width: 1000px; }
 .rst-content table.docutils td { overflow: hidden; white-space: normal }
 
-h3 { margin: 0 auto 0 auto; width: 100% }
+h3 { margin: 0 0; color: #3d73ba; width: 100% }
 
 .wy-menu-vertical li ul li a { font-size: 90% }
 .wy-nav-content { padding-left: 20px; padding-top: 10px; padding-right: 20px; }
