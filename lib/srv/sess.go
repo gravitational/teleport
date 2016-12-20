@@ -163,8 +163,9 @@ func (s *sessionRegistry) leaveSession(party *party) error {
 		if s.srv.sessionServer != nil {
 			False := false
 			s.srv.sessionServer.UpdateSession(rsession.UpdateRequest{
-				ID:     sess.id,
-				Active: &False,
+				ID:        sess.id,
+				Active:    &False,
+				Namespace: s.srv.getNamespace(),
 			})
 		}
 	}
@@ -218,7 +219,7 @@ func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *c
 
 	go func() {
 		err := s.srv.sessionServer.UpdateSession(
-			rsession.UpdateRequest{ID: sid, TerminalParams: &params})
+			rsession.UpdateRequest{ID: sid, TerminalParams: &params, Namespace: s.srv.getNamespace()})
 		if err != nil {
 			log.Error(err)
 		}
@@ -639,9 +640,10 @@ func (s *session) pollAndSync() {
 		}
 		var active = true
 		sessionServer.UpdateSession(rsession.UpdateRequest{
-			ID:      sess.ID,
-			Active:  &active,
-			Parties: nil,
+			Namespace: s.getNamespace(),
+			ID:        sess.ID,
+			Active:    &active,
+			Parties:   nil,
 		})
 		winSize, err := s.term.getWinsize()
 		if err != nil {

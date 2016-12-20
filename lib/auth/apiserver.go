@@ -799,7 +799,7 @@ func (s *APIServer) createUserWithToken(auth ClientI, w http.ResponseWriter, r *
 	}
 	sess, err := auth.CreateUserWithToken(req.Token, req.Password, req.HOTPToken)
 	if err != nil {
-		log.Error(err)
+		log.Error(trace.DebugReport(err))
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil

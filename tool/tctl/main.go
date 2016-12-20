@@ -139,6 +139,9 @@ func main() {
 	userAdd.Flag("identity", "[EXPERIMENTAL] Add OpenID Connect identity, e.g. --identity=google:bob@gmail.com").Hidden().StringsVar(&cmdUsers.identities)
 	userAdd.Alias(AddUserHelp)
 
+	// list objects in the system
+	//list := app.Command("ls", "List objets in the system")
+
 	// list users command
 	userList := users.Command("ls", "List all user accounts")
 

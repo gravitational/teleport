@@ -484,7 +484,7 @@ func (r createSessionResponseRaw) response() (*CreateSessionResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn, User: user.WebSessionInfo()}, nil
+	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn, User: user}, nil
 }
 
 func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
@@ -497,10 +497,22 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	var roles services.RoleSet
+	for _, roleName := range user.GetRoles() {
+		role, err := clt.GetRole(roleName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		roles = append(roles, role)
+	}
+	allowedLogins, err := roles.CheckLogins(0)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &CreateSessionResponse{
 		Type:      roundtrip.AuthBearer,
 		Token:     webSession.WS.BearerToken,
-		User:      user.WebSessionInfo(),
+		User:      user.WebSessionInfo(allowedLogins),
 		ExpiresIn: int(webSession.WS.Expires.Sub(time.Now()) / time.Second),
 	}, nil
 }

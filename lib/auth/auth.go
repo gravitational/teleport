@@ -610,7 +610,20 @@ func (s *AuthServer) NewWebSession(userName string) (*Session, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := s.Authority.GenerateUserCert(privateKey, pub, user.GetName(), user.GetAllowedLogins(), WebSessionTTL)
+	var roles services.RoleSet
+	for _, roleName := range user.GetRoles() {
+		role, err := s.Access.GetRole(roleName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		roles = append(roles, role)
+	}
+	allowedLogins, err := roles.CheckLogins(WebSessionTTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := s.Authority.GenerateUserCert(privateKey, pub, user.GetName(), allowedLogins, WebSessionTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

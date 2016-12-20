@@ -105,6 +105,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 				Resources: map[string][]string{
 					services.KindProxy:         services.RW(),
 					services.KindOIDCRequest:   services.RW(),
+					services.KindOIDC:          services.RO(),
 					services.KindNamespace:     services.RO(),
 					services.KindEvent:         services.RW(),
 					services.KindSession:       services.RW(),

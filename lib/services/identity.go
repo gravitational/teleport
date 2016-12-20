@@ -55,7 +55,7 @@ type User interface {
 	// Equals checks if user equals to another
 	Equals(other User) bool
 	// WebSessionInfo returns web session information
-	WebSessionInfo() User
+	WebSessionInfo(logins []string) User
 	// GetStatus return user login status
 	GetStatus() LoginStatus
 	// SetLocked sets login status to locked
@@ -128,8 +128,10 @@ func (u *TeleportUser) GetStatus() LoginStatus {
 }
 
 // WebSessionInfo returns web session information
-func (u *TeleportUser) WebSessionInfo() User {
-	return u
+func (u *TeleportUser) WebSessionInfo(logins []string) User {
+	c := *u
+	c.AllowedLogins = logins
+	return &c
 }
 
 // GetAllowedLogins returns user's allowed linux logins

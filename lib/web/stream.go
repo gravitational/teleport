@@ -123,6 +123,9 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 		newEvents := pollEvents()
 		sess, err := clt.GetSession(w.namespace, w.sessionID)
 		if err != nil {
+			if trace.IsNotFound(err) {
+				continue
+			}
 			log.Error(err)
 		}
 		if sess == nil {
