@@ -879,6 +879,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 			hostKeyCallback: sshConfig.HostKeyCallback,
 			authMethods:     tc.authMethods(),
 			hostLogin:       tc.Config.HostLogin,
+			teleportLogin:   tc.Config.Username,
 			siteName:        tc.Config.SiteName,
 		}, nil
 	}
@@ -913,6 +914,7 @@ func (tc *TeleportClient) ConnectToProxy() (*ProxyClient, error) {
 		hostKeyCallback: sshConfig.HostKeyCallback,
 		authMethods:     tc.authMethods(),
 		hostLogin:       tc.Config.HostLogin,
+		teleportLogin:   tc.Config.Username,
 		siteName:        tc.Config.SiteName,
 	}, nil
 }

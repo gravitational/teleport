@@ -309,6 +309,21 @@ func (c *Client) GetNodes() ([]services.Server, error) {
 	return re, nil
 }
 
+// GetUserNodes returns the list of servers available to specified user registered in the cluster.
+func (c *Client) GetUserNodes(username string) ([]services.Server, error) {
+	requestValues := url.Values{}
+	requestValues.Add("username", username)
+	out, err := c.Get(c.Endpoint("nodes"), requestValues)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var re []services.Server
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return re, nil
+}
+
 // UpsertReverseTunnel is used by admins to create a new reverse tunnel
 // to the remote proxy to bypass firewall restrictions
 func (c *Client) UpsertReverseTunnel(tunnel services.ReverseTunnel, ttl time.Duration) error {
@@ -921,6 +936,7 @@ type ClientI interface {
 	RegisterNewAuthServer(token string) error
 	UpsertNode(s services.Server, ttl time.Duration) error
 	GetNodes() ([]services.Server, error)
+	GetUserNodes(username string) ([]services.Server, error)
 	GetAuthServers() ([]services.Server, error)
 	UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error)
 	CheckPassword(user string, password []byte, hotpToken string) error

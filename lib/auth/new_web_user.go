@@ -90,6 +90,7 @@ func (s *AuthServer) CreateSignupToken(user services.User) (string, error) {
 		User: services.TeleportUser{
 			Name:           user.GetName(),
 			AllowedLogins:  user.GetAllowedLogins(),
+			NodeLabels:     user.GetNodeLabels(),
 			OIDCIdentities: user.GetIdentities()},
 		Hotp:            otpMarshalled,
 		HotpFirstValues: otpFirstValues,

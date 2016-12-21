@@ -48,6 +48,7 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGenerateUserCert:   true,
 		ActionGetCertAuthorities: true,
 		ActionGetServers:         true,
+		ActionGetUserServers:     true,
 		ActionGetSession:         true,
 		ActionGetSessions:        true,
 		ActionViewSession:        true,
@@ -81,6 +82,7 @@ func NewStandardPermissions() PermissionChecker {
 		ActionGetOIDCConnectorsWithoutSecrets: true,
 		ActionGetReverseTunnels:               true,
 		ActionGetServers:                      true,
+		ActionGetUserServers:                  true,
 		ActionUpsertProxy:                     true,
 		ActionGetProxies:                      true,
 		ActionGetU2FAppID:                     true,
@@ -188,6 +190,7 @@ const (
 	ActionRegisterNewAuthServer             = "RegisterNewAuthServer"
 	ActionUpsertServer                      = "UpsertServer"
 	ActionGetServers                        = "GetServers"
+	ActionGetUserServers                    = "GetUserServers"
 	ActionUpsertAuthServer                  = "UpsertAuthServer"
 	ActionGetAuthServers                    = "GetAuthServers"
 	ActionUpsertProxy                       = "UpsertProxy"

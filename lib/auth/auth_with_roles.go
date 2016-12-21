@@ -143,6 +143,13 @@ func (a *AuthWithRoles) GetNodes() ([]services.Server, error) {
 	return a.authServer.GetNodes()
 }
 
+func (a *AuthWithRoles) GetUserNodes(username string) ([]services.Server, error) {
+	if err := a.permChecker.HasPermission(a.role, ActionGetUserServers); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetUserNodes(username)
+}
+
 func (a *AuthWithRoles) UpsertAuthServer(s services.Server, ttl time.Duration) error {
 	if err := a.permChecker.HasPermission(a.role, ActionUpsertAuthServer); err != nil {
 		return trace.Wrap(err)

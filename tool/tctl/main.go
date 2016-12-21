@@ -55,6 +55,7 @@ type UserCommand struct {
 	config        *service.Config
 	login         string
 	allowedLogins string
+	nodeLabels    string
 	identities    []string
 }
 
@@ -134,6 +135,8 @@ func main() {
 	userAdd.Arg("login", "Teleport user login").Required().StringVar(&cmdUsers.login)
 	userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
 		Default("").StringVar(&cmdUsers.allowedLogins)
+	userAdd.Arg("node-labels", "Node labels this account can log in as [login]").
+		Default("").StringVar(&cmdUsers.nodeLabels)
 	userAdd.Flag("identity", "[EXPERIMENTAL] Add OpenID Connect identity, e.g. --identity=google:bob@gmail.com").Hidden().StringsVar(&cmdUsers.identities)
 	userAdd.Alias(AddUserHelp)
 
@@ -284,6 +287,7 @@ func (u *UserCommand) Add(client *auth.TunClient) error {
 	user := services.TeleportUser{
 		Name:          u.login,
 		AllowedLogins: strings.Split(u.allowedLogins, ","),
+		NodeLabels: strings.Split(u.nodeLabels, ","),
 	}
 	if len(u.identities) != 0 {
 		for _, identityVar := range u.identities {
@@ -327,12 +331,12 @@ func (u *UserCommand) List(client *auth.TunClient) error {
 	}
 	usersView := func(users []services.User) string {
 		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"User", "Allowed to login as"})
+		printHeader(t, []string{"User", "Allowed to login as", "Can login to"})
 		if len(users) == 0 {
 			return t.String()
 		}
 		for _, u := range users {
-			fmt.Fprintf(t, "%v\t%v\n", u.GetName(), strings.Join(u.GetAllowedLogins(), ","))
+			fmt.Fprintf(t, "%v\t%v\t%v\n", u.GetName(), strings.Join(u.GetAllowedLogins(), ","), strings.Join(u.GetNodeLabels(), ","))
 		}
 		return t.String()
 	}

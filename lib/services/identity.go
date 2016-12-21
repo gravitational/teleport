@@ -44,6 +44,8 @@ type User interface {
 	GetName() string
 	// GetAllowedLogins returns user's allowed linux logins
 	GetAllowedLogins() []string
+	// GetNodeLabels returns user's allowed node labels
+	GetNodeLabels() []string
 	// GetIdentities returns a list of connected OIDCIdentities
 	GetIdentities() []OIDCIdentity
 	// String returns user
@@ -65,6 +67,10 @@ type TeleportUser struct {
 	// user is allowed to login as
 	AllowedLogins []string `json:"allowed_logins"`
 
+	// NodeLabels represents a list of node labels this teleport
+	// user is allowed to login
+	NodeLabels []string `json:"node_labels"`
+
 	// OIDCIdentities lists associated OpenID Connect identities
 	// that let user log in using externally verified identity
 	OIDCIdentities []OIDCIdentity `json:"oidc_identities"`
@@ -75,12 +81,22 @@ func (u *TeleportUser) Equals(other User) bool {
 	if u.Name != other.GetName() {
 		return false
 	}
+	// MAYBE: move to function
 	otherLogins := other.GetAllowedLogins()
 	if len(u.AllowedLogins) != len(otherLogins) {
 		return false
 	}
 	for i := range u.AllowedLogins {
 		if u.AllowedLogins[i] != otherLogins[i] {
+			return false
+		}
+	}
+	otherLabels := other.GetNodeLabels()
+	if len(u.NodeLabels) != len(otherLabels) {
+		return false
+	}
+	for i := range u.NodeLabels {
+		if u.NodeLabels[i] != otherLabels[i] {
 			return false
 		}
 	}
@@ -106,6 +122,17 @@ func (u *TeleportUser) GetAllowedLogins() []string {
 	return u.AllowedLogins
 }
 
+// GetNodeLabels returns user's allowed node labels
+func (u *TeleportUser) GetNodeLabels() []string {
+	labels := make([]string, 0)
+	for _, l := range u.NodeLabels {
+		if l != "" {
+			labels = append(labels, l)
+		}
+	}
+	return labels
+}
+
 // GetIdentities returns a list of connected OIDCIdentities
 func (u *TeleportUser) GetIdentities() []OIDCIdentity {
 	return u.OIDCIdentities
@@ -117,7 +144,7 @@ func (u *TeleportUser) GetName() string {
 }
 
 func (u *TeleportUser) String() string {
-	return fmt.Sprintf("User(name=%v, allowed_logins=%v, identities=%v)", u.Name, u.AllowedLogins, u.OIDCIdentities)
+	return fmt.Sprintf("User(name=%v, allowed_logins=%v, node_labels=%v, identities=%v)", u.Name, u.AllowedLogins, u.NodeLabels, u.OIDCIdentities)
 }
 
 // Check checks validity of all parameters
