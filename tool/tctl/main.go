@@ -28,7 +28,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -40,7 +39,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/buger/goterm"
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -103,6 +104,12 @@ type TokenCommand struct {
 	token string
 }
 
+type GetCommand struct {
+	config *service.Config
+	ref    services.Ref
+	format string
+}
+
 func main() {
 	utils.InitLoggerCLI()
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
@@ -114,6 +121,7 @@ func main() {
 	cmdAuth := AuthCommand{config: cfg}
 	cmdReverseTunnel := ReverseTunnelCommand{config: cfg}
 	cmdTokens := TokenCommand{config: cfg}
+	cmdGet := GetCommand{config: cfg}
 
 	// define global flags:
 	var ccf CLIConfig
@@ -139,8 +147,10 @@ func main() {
 	userAdd.Flag("identity", "[EXPERIMENTAL] Add OpenID Connect identity, e.g. --identity=google:bob@gmail.com").Hidden().StringsVar(&cmdUsers.identities)
 	userAdd.Alias(AddUserHelp)
 
-	// list objects in the system
-	//list := app.Command("ls", "List objets in the system")
+	// get one or many resources in the system
+	get := app.Command("get", "Get one or many objects in the system")
+	get.Arg("resource", "Resource type and name").SetValue(&cmdGet.ref)
+	get.Flag("format", "format output type, one of 'yaml', 'json' or 'text'").Default(formatText).StringVar(&cmdGet.format)
 
 	// list users command
 	userList := users.Command("ls", "List all user accounts")
@@ -230,6 +240,8 @@ func main() {
 
 	// execute the selected command:
 	switch command {
+	case get.FullCommand():
+		err = cmdGet.Get(client)
 	case userAdd.FullCommand():
 		err = cmdUsers.Add(client)
 	case userList.FullCommand():
@@ -265,6 +277,12 @@ func main() {
 	if err != nil {
 		utils.FatalError(err)
 	}
+}
+
+func Ref(s kingpin.Settings) *services.Ref {
+	r := new(services.Ref)
+	s.SetValue(r)
+	return r
 }
 
 func onVersion() {
@@ -815,3 +833,61 @@ func (c *TokenCommand) Del(client *auth.TunClient) error {
 	fmt.Printf("Token %s has been deleted\n", c.token)
 	return nil
 }
+
+// Get prints one or many resources of a certain type
+func (g *GetCommand) Get(client *auth.TunClient) error {
+	collection, err := g.getCollection(client)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	switch g.format {
+	case formatText:
+		return collection.writeText(os.Stdout)
+	case formatJSON:
+		return collection.writeJSON(os.Stdout)
+	case formatYAML:
+		return collection.writeYAML(os.Stdout)
+	}
+	return trace.BadParameter("unsupported format")
+}
+
+func (g *GetCommand) getCollection(client auth.ClientI) (collection, error) {
+	if g.ref.Kind == "" {
+		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
+	}
+	switch g.ref.Kind {
+	case services.KindRole:
+		if g.ref.Name == "" {
+			roles, err := client.GetRoles()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &roleCollection{roles: roles}, nil
+		}
+		role, err := client.GetRole(g.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &roleCollection{roles: []services.Role{role}}, nil
+	case services.KindNamespace:
+		if g.ref.Name == "" {
+			namespaces, err := client.GetNamespaces()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &namespaceCollection{namespaces: namespaces}, nil
+		}
+		ns, err := client.GetNamespace(g.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &namespaceCollection{namespaces: []services.Namespace{*ns}}, nil
+	}
+	return nil, trace.BadParameter("'%v' is not supported", g.ref.Kind)
+}
+
+const (
+	formatYAML = "yaml"
+	formatText = "text"
+	formatJSON = "json"
+)

@@ -1,6 +1,9 @@
 package services
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/gravitational/trace"
 )
 
@@ -88,4 +91,73 @@ func (m *Metadata) Check() error {
 		return trace.BadParameter("missing parameter Name")
 	}
 	return nil
+}
+
+// ParseShortcut parses resource shortcut
+func ParseShortcut(in string) (string, error) {
+	if in == "" {
+		return "", trace.BadParameter("missing resource name")
+	}
+	switch strings.ToLower(in) {
+	case "roles":
+		return KindRole, nil
+	case "namespaces", "ns":
+		return KindNamespace, nil
+	}
+	return "", trace.BadParameter("unsupported resource: %v", in)
+}
+
+// ParseRef parses resource reference eg daemonsets/ds1
+func ParseRef(ref string) (*Ref, error) {
+	if ref == "" {
+		return nil, trace.BadParameter("missing value")
+	}
+	parts := strings.FieldsFunc(ref, isDelimiter)
+	switch len(parts) {
+	case 1:
+		shortcut, err := ParseShortcut(parts[0])
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &Ref{Kind: shortcut}, nil
+	case 2:
+		shortcut, err := ParseShortcut(parts[0])
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &Ref{Kind: shortcut, Name: parts[1]}, nil
+	}
+	return nil, trace.BadParameter("failed to parse '%v'", ref)
+}
+
+// isDelimiter returns true if rune is space or /
+func isDelimiter(r rune) bool {
+	switch r {
+	case '\t', ' ', '/':
+		return true
+	}
+	return false
+}
+
+// Ref is a resource refernece
+type Ref struct {
+	Kind string
+	Name string
+}
+
+func (r *Ref) IsEmtpy() bool {
+	return r.Name == ""
+}
+
+func (r *Ref) Set(v string) error {
+	out, err := ParseRef(v)
+	if err != nil {
+		return err
+	}
+	*r = *out
+	return nil
+}
+
+func (r *Ref) String() string {
+	return fmt.Sprintf("%v/%v", r.Kind, r.Name)
 }
