@@ -2,7 +2,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=1.3.0
+VERSION=1.3.1
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -190,3 +190,8 @@ remove-temp-files:
 .PHONY:docker
 docker:
 	make -C build.assets
+
+# Interactively enters a Docker container (which you can build and run Teleport inside of)
+.PHONY:enter
+enter:
+	make -C build.assets enter

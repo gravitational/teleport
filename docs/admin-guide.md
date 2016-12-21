@@ -780,6 +780,8 @@ To start using U2F:
 * Purchase a U2F hardware key: looks like a tiny USB drive.
 * Enable U2F in Teleport configuration.
 * Use `--u2f` CLI flag when connecting via `tsh ssh`.
+* For CLI-based logins you have to install [u2f-host](https://developers.yubico.com/libu2f-host/) utility. 
+* For web-based logins you have to use Google Chrome, as the only browser supporting U2F at this moment.
 
 Lets look into each of these steps in detail.
 
@@ -837,7 +839,16 @@ for the exact format of the JSON file.
 
 ### Logging in with U2F
 
-For logging in via the CLI, you must first install [`u2f-host`](https://developers.yubico.com/libu2f-host/) 
+For logging in via the CLI, you must first install [u2f-host](https://developers.yubico.com/libu2f-host/) tool: 
+
+```bash
+# OSX:
+$ brew install libu2f-host
+
+# Ubuntu 16.04 LTS:
+$ apt-get install u2f-host
+```
+
 Then invoke `tsh ssh` to authenticate using U2F with the `--u2f` switch:
 
 ```
@@ -859,7 +870,7 @@ To configure Teleport for using etcd backend:
 * Confnigure Teleport `auth` server to use etcd in the "storage" section of
   the config file:
 
-```
+```yaml
 teleport:
     storage:
         type: etcd
@@ -875,6 +886,8 @@ teleport:
         # optional file with trusted CA authority
         # file to authenticate etcd nodes
         tls_ca_file: /var/lib/teleport/etcd-ca.pem
+        # etcd key (location) where teleport will be storing its state under:
+        prefix: teleport
 ```
 
 * Deploy several Auth servers connected to etcd backend.
