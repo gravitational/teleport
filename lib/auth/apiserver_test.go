@@ -259,8 +259,13 @@ func (s *APISuite) TestSessions(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
 		*suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
-	s.a.UpsertUser(
-		&services.TeleportUser{Name: "user1", AllowedLogins: []string{"user1"}})
+	teleportUser := &services.TeleportUser{Name: user, AllowedLogins: []string{user}}
+	role := services.RoleForUser(teleportUser)
+	err := s.a.UpsertRole(role)
+	c.Assert(err, IsNil)
+	teleportUser.Roles = []string{role.GetMetadata().Name}
+	err = s.a.UpsertUser(teleportUser)
+	c.Assert(err, IsNil)
 
 	ws, err := s.clt.SignIn(user, pass)
 	c.Assert(err, NotNil)

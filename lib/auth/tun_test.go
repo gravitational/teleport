@@ -168,6 +168,14 @@ func (s *TunSuite) TestSessions(c *C) {
 	user := "ws-test"
 	pass := []byte("ws-abc123")
 
+	teleportUser := &services.TeleportUser{Name: user, AllowedLogins: []string{user}}
+	role := services.RoleForUser(teleportUser)
+	err := s.a.UpsertRole(role)
+	c.Assert(err, IsNil)
+	teleportUser.Roles = []string{role.GetMetadata().Name}
+	err = s.a.UpsertUser(teleportUser)
+	c.Assert(err, IsNil)
+
 	hotpURL, _, err := s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
 

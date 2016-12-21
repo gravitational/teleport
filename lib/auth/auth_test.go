@@ -75,6 +75,14 @@ func (s *AuthSuite) TestSessions(c *C) {
 	ws, err := s.a.SignIn(user, pass)
 	c.Assert(err, NotNil)
 
+	teleportUser := &services.TeleportUser{Name: user, AllowedLogins: []string{user}}
+	role := services.RoleForUser(teleportUser)
+	err = s.a.UpsertRole(role)
+	c.Assert(err, IsNil)
+	teleportUser.Roles = []string{role.GetMetadata().Name}
+	err = s.a.UpsertUser(teleportUser)
+	c.Assert(err, IsNil)
+
 	hotpURL, _, err := s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
 	otp, label, err := hotp.FromURL(hotpURL)
@@ -106,6 +114,14 @@ func (s *AuthSuite) TestUserLock(c *C) {
 
 	ws, err := s.a.SignIn(user, pass)
 	c.Assert(err, NotNil)
+
+	teleportUser := &services.TeleportUser{Name: user, AllowedLogins: []string{user}}
+	role := services.RoleForUser(teleportUser)
+	err = s.a.UpsertRole(role)
+	c.Assert(err, IsNil)
+	teleportUser.Roles = []string{role.GetMetadata().Name}
+	err = s.a.UpsertUser(teleportUser)
+	c.Assert(err, IsNil)
 
 	hotpURL, _, err := s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
