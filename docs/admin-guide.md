@@ -887,6 +887,8 @@ teleport:
         # optional file with trusted CA authority
         # file to authenticate etcd nodes
         tls_ca_file: /var/lib/teleport/etcd-ca.pem
+        # required: the prefix to store data under in etcd
+        prefix: keyprefix123
 ```
 
 * Deploy several Auth servers connected to etcd backend.
