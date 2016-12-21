@@ -780,6 +780,8 @@ To start using U2F:
 * Purchase a U2F hardware key: looks like a tiny USB drive.
 * Enable U2F in Teleport configuration.
 * Use `--u2f` CLI flag when connecting via `tsh ssh`.
+* For CLI-based logins you have to install [u2f-host](https://developers.yubico.com/libu2f-host/) utility. 
+* For web-based logins you have to use Google Chrome, as the only browser supporting U2F at this moment.
 
 Lets look into each of these steps in detail.
 
@@ -837,7 +839,17 @@ for the exact format of the JSON file.
 
 ### Logging in with U2F
 
-For logging in via the CLI, you must first install [`u2f-host`](https://developers.yubico.com/libu2f-host/) 
+For logging in via the CLI, you must first install [u2f-host](https://developers.yubico.com/libu2f-host/). 
+Instlling: 
+
+```bash
+# OSX:
+$ brew install libu2f-host
+
+# Ubuntu 16.04 LTS:
+$ apt-get install u2f-host
+```
+
 Then invoke `tsh ssh` to authenticate using U2F with the `--u2f` switch:
 
 ```
