@@ -60,6 +60,8 @@ type User interface {
 	GetStatus() LoginStatus
 	// SetLocked sets login status to locked
 	SetLocked(until time.Time, reason string)
+	// SetRoles sets user roles
+	SetRoles(roles []string)
 	// AddRole adds role to the users' role list
 	AddRole(name string)
 }
@@ -120,6 +122,18 @@ func (u *TeleportUser) Equals(other User) bool {
 		}
 	}
 	return true
+}
+
+// SetRoles sets a list of roles for user
+func (u *TeleportUser) SetRoles(roles []string) {
+	seen := map[string]bool{}
+	u.Roles = make([]string, 0, len(roles))
+	for _, role := range roles {
+		if _, found := seen[role]; !found {
+			u.Roles = append(u.Roles, role)
+		}
+		seen[role] = true
+	}
 }
 
 // GetStatus returns login status of the user

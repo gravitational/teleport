@@ -492,6 +492,17 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
+		// make sure the namespace exists
+		namespace := services.ProcessNamespace(cfg.SSH.Namespace)
+		_, err = conn.Client.GetNamespace(namespace)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return trace.NotFound(
+					"namespace %v is not found, ask your system administrator to create this namespace so you can register nodes there.", namespace)
+			}
+			return trace.Wrap(err)
+		}
+
 		alog := state.MakeCachingAuditLog(conn.Client)
 		defer alog.Close()
 
@@ -506,6 +517,7 @@ func (process *TeleportProcess) initSSH() error {
 			srv.SetAuditLog(alog),
 			srv.SetSessionServer(conn.Client),
 			srv.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
+			srv.SetNamespace(namespace),
 		)
 		if err != nil {
 			return trace.Wrap(err)

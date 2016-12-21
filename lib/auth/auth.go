@@ -677,6 +677,13 @@ func (s *AuthServer) GetWebSessionInfo(userName string, id string) (*Session, er
 	}, nil
 }
 
+func (s *AuthServer) DeleteNamespace(namespace string) error {
+	if namespace == defaults.Namespace {
+		return trace.AccessDenied("can't delete default namespace")
+	}
+	return s.Presence.DeleteNamespace(namespace)
+}
+
 func (s *AuthServer) DeleteWebSession(user string, id string) error {
 	return trace.Wrap(s.Identity.DeleteWebSession(user, id))
 }
