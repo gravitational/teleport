@@ -19,6 +19,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/url"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	kyaml "k8s.io/client-go/1.4/pkg/util/yaml"
 )
 
 type CLIConfig struct {
@@ -110,6 +112,11 @@ type GetCommand struct {
 	format string
 }
 
+type UpsertCommand struct {
+	config   *service.Config
+	filename string
+}
+
 func main() {
 	utils.InitLoggerCLI()
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
@@ -122,6 +129,7 @@ func main() {
 	cmdReverseTunnel := ReverseTunnelCommand{config: cfg}
 	cmdTokens := TokenCommand{config: cfg}
 	cmdGet := GetCommand{config: cfg}
+	cmdUpsert := UpsertCommand{config: cfg}
 
 	// define global flags:
 	var ccf CLIConfig
@@ -151,6 +159,10 @@ func main() {
 	get := app.Command("get", "Get one or many objects in the system")
 	get.Arg("resource", "Resource type and name").SetValue(&cmdGet.ref)
 	get.Flag("format", "format output type, one of 'yaml', 'json' or 'text'").Default(formatText).StringVar(&cmdGet.format)
+
+	// upsert one or many resources
+	upsert := app.Command("upsert", "Update or insert one or many resources")
+	upsert.Flag("filename", "Filename with resources").Short('f').StringVar(&cmdUpsert.filename)
 
 	// list users command
 	userList := users.Command("ls", "List all user accounts")
@@ -242,6 +254,8 @@ func main() {
 	switch command {
 	case get.FullCommand():
 		err = cmdGet.Get(client)
+	case upsert.FullCommand():
+		err = cmdUpsert.Upsert(client)
 	case userAdd.FullCommand():
 		err = cmdUsers.Add(client)
 	case userList.FullCommand():
@@ -275,6 +289,7 @@ func main() {
 	}
 
 	if err != nil {
+		logrus.Error(trace.DebugReport(err))
 		utils.FatalError(err)
 	}
 }
@@ -351,12 +366,12 @@ func (u *UserCommand) List(client *auth.TunClient) error {
 	}
 	usersView := func(users []services.User) string {
 		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"User", "Allowed to login as"})
+		printHeader(t, []string{"User", "Roles"})
 		if len(users) == 0 {
 			return t.String()
 		}
 		for _, u := range users {
-			fmt.Fprintf(t, "%v\t%v\n", u.GetName(), strings.Join(u.GetAllowedLogins(), ","))
+			fmt.Fprintf(t, "%v\t%v\n", u.GetName(), strings.Join(u.GetRoles(), ","))
 		}
 		return t.String()
 	}
@@ -849,6 +864,53 @@ func (g *GetCommand) Get(client *auth.TunClient) error {
 		return collection.writeYAML(os.Stdout)
 	}
 	return trace.BadParameter("unsupported format")
+}
+
+// Upsert updates or insterts one or many resources
+func (u *UpsertCommand) Upsert(client *auth.TunClient) error {
+	var reader io.ReadCloser
+	var err error
+	if u.filename != "" {
+		reader, err = utils.OpenFile(u.filename)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		reader = ioutil.NopCloser(os.Stdin)
+	}
+	decoder := kyaml.NewYAMLOrJSONDecoder(reader, 32*1024)
+	for {
+		var raw services.UnknownResource
+		err := decoder.Decode(&raw)
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return trace.Wrap(err)
+		}
+		switch raw.Kind {
+		case services.KindRole:
+			role, err := services.GetRoleMarshaler().UnmarshalRole(raw.Raw)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := client.UpsertRole(role); err != nil {
+				return trace.Wrap(err)
+			}
+		case services.KindNamespace:
+			ns, err := services.UnmarshalNamespace(raw.Raw)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := client.UpsertNamespace(*ns); err != nil {
+				return trace.Wrap(err)
+			}
+		case "":
+			return trace.BadParameter("missing resource kind")
+		default:
+			return trace.BadParameter("%v is not supported", raw.Kind)
+		}
+	}
 }
 
 func (g *GetCommand) getCollection(client auth.ClientI) (collection, error) {

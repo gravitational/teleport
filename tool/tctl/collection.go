@@ -43,7 +43,7 @@ func (r *roleCollection) writeText(w io.Writer) error {
 }
 
 func (r *roleCollection) writeJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(r.roles, "", "    ")
+	data, err := json.MarshalIndent(r.toMarshal(), "", "    ")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -51,8 +51,15 @@ func (r *roleCollection) writeJSON(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
+func (r *roleCollection) toMarshal() interface{} {
+	if len(r.roles) == 1 {
+		return r.roles[0]
+	}
+	return r.roles
+}
+
 func (r *roleCollection) writeYAML(w io.Writer) error {
-	data, err := yaml.Marshal(r.roles)
+	data, err := yaml.Marshal(r.toMarshal())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -79,7 +86,7 @@ func (n *namespaceCollection) writeText(w io.Writer) error {
 }
 
 func (n *namespaceCollection) writeJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(n.namespaces, "", "    ")
+	data, err := json.MarshalIndent(n.toMarshal(), "", "    ")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -87,8 +94,15 @@ func (n *namespaceCollection) writeJSON(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
+func (n *namespaceCollection) toMarshal() interface{} {
+	if len(n.namespaces) == 1 {
+		return n.namespaces[0]
+	}
+	return n.namespaces
+}
+
 func (n *namespaceCollection) writeYAML(w io.Writer) error {
-	data, err := yaml.Marshal(n.namespaces)
+	data, err := yaml.Marshal(n.toMarshal())
 	if err != nil {
 		return trace.Wrap(err)
 	}

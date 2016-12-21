@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -72,6 +73,35 @@ const (
 	// V1 is our current version
 	V1 = "v1"
 )
+
+// UnknownResource is used to detect resources
+type UnknownResource struct {
+	ResourceHeader
+	// Raw is raw representation of the resource
+	Raw []byte
+}
+
+// ResorceHeader is a shared resource header
+type ResourceHeader struct {
+	// Kind is a resource kind - always resource
+	Kind string `json:"kind"`
+	// Version is a resource version
+	Version string `json:"version"`
+	// Metadata is Role metadata
+	Metadata Metadata `json:"metadata"`
+}
+
+// UnmarshalJSON unmarshals header and captures raw state
+func (u *UnknownResource) UnmarshalJSON(raw []byte) error {
+	var h ResourceHeader
+	if err := json.Unmarshal(raw, &h); err != nil {
+		return trace.Wrap(err)
+	}
+	u.Raw = make([]byte, len(raw))
+	u.ResourceHeader = h
+	copy(u.Raw, raw)
+	return nil
+}
 
 // Metadata is resource metadata
 type Metadata struct {

@@ -19,6 +19,9 @@ package utils
 import (
 	"io"
 	"os"
+	"path/filepath"
+
+	"github.com/gravitational/trace"
 )
 
 // IsFile returns true if a given file path points to an existing file
@@ -56,4 +59,38 @@ func ReadAll(r io.Reader, bufsize int) (out []byte, err error) {
 		err = nil
 	}
 	return out, err
+}
+
+// NormalizePath normalises path, evaluating symlinks and converting local
+// paths to absolute
+func NormalizePath(path string) (string, error) {
+	s, err := filepath.Abs(path)
+	if err != nil {
+		return "", trace.ConvertSystemError(err)
+	}
+	abs, err := filepath.EvalSymlinks(s)
+	if err != nil {
+		return "", trace.ConvertSystemError(err)
+	}
+	return abs, nil
+}
+
+// OpenFile opens  file and returns file handle
+func OpenFile(path string) (*os.File, error) {
+	newPath, err := NormalizePath(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	fi, err := os.Stat(newPath)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	if fi.IsDir() {
+		return nil, trace.BadParameter("%v is not a file", path)
+	}
+	f, err := os.Open(newPath)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	return f, nil
 }
