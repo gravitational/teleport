@@ -839,8 +839,7 @@ for the exact format of the JSON file.
 
 ### Logging in with U2F
 
-For logging in via the CLI, you must first install [u2f-host](https://developers.yubico.com/libu2f-host/). 
-Instlling: 
+For logging in via the CLI, you must first install [u2f-host](https://developers.yubico.com/libu2f-host/) tool: 
 
 ```bash
 # OSX:
@@ -871,7 +870,7 @@ To configure Teleport for using etcd backend:
 * Confnigure Teleport `auth` server to use etcd in the "storage" section of
   the config file:
 
-```
+```yaml
 teleport:
     storage:
         type: etcd
@@ -887,6 +886,8 @@ teleport:
         # optional file with trusted CA authority
         # file to authenticate etcd nodes
         tls_ca_file: /var/lib/teleport/etcd-ca.pem
+        # etcd key (location) where teleport will be storing its state under:
+        prefix: teleport
 ```
 
 * Deploy several Auth servers connected to etcd backend.
