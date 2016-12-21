@@ -140,6 +140,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.ApplyToken(fc.AuthToken)
 	cfg.Auth.DomainName = fc.Auth.DomainName
 
+	// U2F (universal 2nd factor auth) configuration:
 	u2f, err := fc.Auth.U2F.Parse()
 	if err != nil {
 		return trace.Wrap(err)

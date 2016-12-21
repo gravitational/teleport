@@ -301,7 +301,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.KeysBackend.Params = boltParams(defaults.DataDir, defaults.KeysBoltFile)
 	cfg.Auth.RecordsBackend.Type = defaults.BackendType
 	cfg.Auth.RecordsBackend.Params = boltParams(defaults.DataDir, defaults.RecordsBoltFile)
-	cfg.Auth.U2F.Enabled = true
+	cfg.Auth.U2F.Enabled = false
 	cfg.Auth.U2F.AppID = fmt.Sprintf("https://%s:%d", strings.ToLower(hostname), defaults.HTTPListenPort)
 	cfg.Auth.U2F.Facets = []string{cfg.Auth.U2F.AppID}
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)

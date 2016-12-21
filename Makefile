@@ -190,3 +190,8 @@ remove-temp-files:
 .PHONY:docker
 docker:
 	make -C build.assets
+
+# Interactively enters a Docker container (which you can build and run Teleport inside of)
+.PHONY:enter
+enter:
+	make -C build.assets enter

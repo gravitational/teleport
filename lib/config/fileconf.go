@@ -411,6 +411,7 @@ type Auth struct {
 	// for exmple: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
 	StaticTokens []StaticToken `yaml:"tokens,omitempty"`
 
+	// Configuration for "universal 2nd factor"
 	U2F U2F `yaml:"u2f,omitempty"`
 }
 
@@ -627,6 +628,8 @@ type U2F struct {
 	Facets      []string `yaml:"facets,omitempty"`
 }
 
+// Parse parses the values in 'u2f' configuration section of 'auth' and
+// validates its content:
 func (u *U2F) Parse() (*services.U2F, error) {
 	enabled := false
 	switch strings.ToLower(u.EnabledFlag) {
