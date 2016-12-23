@@ -175,7 +175,7 @@ func (s *BackendSuite) Locking(c *C) {
 	err := s.B.ReleaseLock(tok1)
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
-	c.Assert(s.B.AcquireLock(tok1, time.Second), IsNil)
+	c.Assert(s.B.AcquireLock(tok1, time.Second*100), IsNil)
 	x := int32(7)
 
 	go func() {
