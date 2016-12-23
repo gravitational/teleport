@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -246,7 +247,7 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 	currentSize, _ := term.GetWinsize(0)
 
 	// start the timer which asks for server-side window size changes:
-	siteClient, err := ns.nodeClient.Proxy.ConnectToSite(true)
+	siteClient, err := ns.nodeClient.Proxy.ConnectToSite(context.TODO(), true)
 	if err != nil {
 		log.Error(err)
 		return
