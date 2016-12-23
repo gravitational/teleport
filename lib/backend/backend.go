@@ -36,8 +36,6 @@ type Backend interface {
 	// CreateVal creates value with a given TTL and key in the bucket
 	// if the value already exists, returns AlreadyExistsError
 	CreateVal(bucket []string, key string, val []byte, ttl time.Duration) error
-	// TouchVal updates the TTL of the key without changing the value
-	TouchVal(bucket []string, key string, ttl time.Duration) error
 	// UpsertVal updates or inserts value with a given TTL into a bucket
 	// ForeverTTL for no TTL
 	UpsertVal(bucket []string, key string, val []byte, ttl time.Duration) error

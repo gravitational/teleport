@@ -66,10 +66,6 @@ func (s *BoltSuite) TestExpiration(c *C) {
 	s.suite.Expiration(c)
 }
 
-func (s *BoltSuite) TestRenewal(c *C) {
-	s.suite.Renewal(c)
-}
-
 func (s *BoltSuite) TestCreate(c *C) {
 	s.suite.Create(c)
 }

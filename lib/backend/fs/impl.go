@@ -131,12 +131,6 @@ func (bk *Backend) DeleteBucket(parent []string, bucket string) error {
 		path.Join(path.Join(bk.Path, path.Join(parent...)), bucket)))
 }
 
-// TouchVal updates the TTL of the key without changing the value
-func (bk *Backend) TouchVal(bucket []string, key string, ttl time.Duration) error {
-	// NOT USED
-	return nil
-}
-
 // AcquireLock grabs a lock that will be released automatically in TTL
 func (bk *Backend) AcquireLock(token string, ttl time.Duration) error {
 	return nil

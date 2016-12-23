@@ -147,21 +147,6 @@ func (s *BackendSuite) Expiration(c *C) {
 	c.Assert(keys, DeepEquals, []string{"akey"})
 }
 
-func (s *BackendSuite) Renewal(c *C) {
-	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "bkey", []byte("val1"), time.Second), IsNil)
-
-	time.Sleep(time.Second)
-
-	c.Assert(s.B.TouchVal([]string{"a", "b"}, "bkey", 100*time.Second), IsNil)
-
-	val, err := s.B.GetVal([]string{"a", "b"}, "bkey")
-	c.Assert(err, IsNil)
-	c.Assert(string(val), Equals, "val1")
-
-	err = s.B.TouchVal([]string{"a", "b"}, "non-key", 100*time.Second)
-	c.Assert(trace.IsNotFound(err), Equals, true)
-}
-
 func (s *BackendSuite) Create(c *C) {
 	c.Assert(s.B.CreateVal([]string{"a", "b"}, "bkey", []byte("val1"), time.Second), IsNil)
 	err := s.B.CreateVal([]string{"a", "b"}, "bkey", []byte("val2"), 0)

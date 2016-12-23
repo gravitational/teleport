@@ -207,16 +207,6 @@ func (b *DynamoDBBackend) UpsertVal(path []string, key string, val []byte, ttl t
 	return b.CreateVal(path, key, val, ttl)
 }
 
-// TouchVal refresh a key
-func (b *DynamoDBBackend) TouchVal(path []string, key string, ttl time.Duration) error {
-	fullPath := b.key(append(path, key)...)
-	r, err := b.getKey(fullPath)
-	if err != nil {
-		return trace.NotFound("%v not found", fullPath)
-	}
-	return b.CreateVal(path, key, r.Value, ttl)
-}
-
 const delayBetweenLockAttempts = 100 * time.Millisecond
 
 // AcquireLock for a token

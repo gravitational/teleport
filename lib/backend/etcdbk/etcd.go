@@ -113,26 +113,6 @@ func (b *bk) CreateVal(path []string, key string, val []byte, ttl time.Duration)
 // maxOptimisticAttempts is the number of attempts optimistic locking
 const maxOptimisticAttempts = 5
 
-func (b *bk) TouchVal(path []string, key string, ttl time.Duration) error {
-	var err error
-	var re *client.Response
-	for i := 0; i < maxOptimisticAttempts; i++ {
-		re, err = b.api.Get(context.Background(), key, nil)
-		if err != nil {
-			return trace.Wrap(convertErr(err))
-		}
-		_, err = b.api.Set(
-			context.Background(),
-			b.key(append(path, key)...), re.Node.Value,
-			&client.SetOptions{TTL: ttl, PrevValue: re.Node.Value, PrevExist: client.PrevExist})
-		err = convertErr(err)
-		if err == nil {
-			return nil
-		}
-	}
-	return trace.Wrap(err)
-}
-
 func (b *bk) UpsertVal(path []string, key string, val []byte, ttl time.Duration) error {
 	_, err := b.api.Set(
 		context.Background(),
