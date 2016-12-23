@@ -38,6 +38,66 @@ func NewPresenceService(backend backend.Backend) *PresenceService {
 	return &PresenceService{backend}
 }
 
+// GetNamespaces returns a list of namespaces
+func (s *PresenceService) GetNamespaces() ([]services.Namespace, error) {
+	keys, err := s.backend.GetKeys([]string{namespacesPrefix})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out := make([]services.Namespace, len(keys))
+	for i, name := range keys {
+		u, err := s.GetNamespace(name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out[i] = *u
+	}
+	sort.Sort(services.SortedNamespaces(out))
+	return out, nil
+}
+
+// UpsertNamespace upserts namespace
+func (s *PresenceService) UpsertNamespace(n services.Namespace) error {
+	data, err := json.Marshal(n)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.backend.UpsertVal([]string{namespacesPrefix, n.Metadata.Name}, "params", []byte(data), backend.Forever)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetNamespace returns a namespace by name
+func (s *PresenceService) GetNamespace(name string) (*services.Namespace, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing namespace name")
+	}
+	data, err := s.backend.GetVal([]string{namespacesPrefix, name}, "params")
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("namespace %v is not found", name)
+		}
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalNamespace(data)
+}
+
+// DeleteNamespace deletes a namespace with all the keys from the backend
+func (s *PresenceService) DeleteNamespace(namespace string) error {
+	if namespace == "" {
+		return trace.BadParameter("missing namespace name")
+	}
+	err := s.backend.DeleteBucket([]string{namespacesPrefix}, namespace)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("namespace '%v' is not found", namespace)
+		}
+	}
+	return trace.Wrap(err)
+}
+
 func (s *PresenceService) getServers(prefix string) ([]services.Server, error) {
 	keys, err := s.backend.GetKeys([]string{prefix})
 	if err != nil {
@@ -68,14 +128,41 @@ func (s *PresenceService) upsertServer(prefix string, server services.Server, tt
 }
 
 // GetNodes returns a list of registered servers
-func (s *PresenceService) GetNodes() ([]services.Server, error) {
-	return s.getServers(nodesPrefix)
+func (s *PresenceService) GetNodes(namespace string) ([]services.Server, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing namespace value")
+	}
+	keys, err := s.backend.GetKeys([]string{namespacesPrefix, namespace, nodesPrefix})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers := make([]services.Server, len(keys))
+	for i, key := range keys {
+		data, err := s.backend.GetVal([]string{namespacesPrefix, namespace, nodesPrefix}, key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := json.Unmarshal(data, &servers[i]); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	// sorting helps with tests and makes it all deterministic
+	sort.Sort(sortedServers(servers))
+	return servers, nil
 }
 
 // UpsertNode registers node presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
 func (s *PresenceService) UpsertNode(server services.Server, ttl time.Duration) error {
-	return s.upsertServer(nodesPrefix, server, ttl)
+	if server.Namespace == "" {
+		return trace.BadParameter("missing node namespace")
+	}
+	data, err := json.Marshal(server)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.backend.UpsertVal([]string{namespacesPrefix, server.Namespace, nodesPrefix}, server.ID, data, ttl)
+	return trace.Wrap(err)
 }
 
 // GetAuthServers returns a list of registered servers
@@ -143,6 +230,7 @@ func (s *PresenceService) DeleteReverseTunnel(domainName string) error {
 const (
 	reverseTunnelsPrefix = "reverseTunnels"
 	nodesPrefix          = "nodes"
+	namespacesPrefix     = "namespaces"
 	authServersPrefix    = "authservers"
 	proxiesPrefix        = "proxies"
 )

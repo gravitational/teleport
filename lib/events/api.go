@@ -34,6 +34,9 @@ const (
 	RemoteAddr  = "addr.remote" // client (user's) address
 	EventCursor = "id"          // event ID (used as cursor value for enumeration, not stored)
 
+	// EventNamespace is a namespace of the session event
+	EventNamespace = "namespace"
+
 	// SessionPrintEvent event happens every time a write occurs to
 	// temirnal I/O during a session
 	SessionPrintEvent = "print"
@@ -105,14 +108,14 @@ type IAuditLog interface {
 
 	// PostSessionChunk returns a writer which SSH nodes use to submit
 	// their live sessions into the session log
-	PostSessionChunk(sid session.ID, reader io.Reader) error
+	PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error
 
 	// GetSessionChunk returns a reader which can be used to read a byte stream
 	// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
 	// beginning) up to maxBytes bytes.
 	//
 	// If maxBytes > MaxChunkBytes, it gets rounded down to MaxChunkBytes
-	GetSessionChunk(sid session.ID, offsetBytes, maxBytes int) ([]byte, error)
+	GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error)
 
 	// Returns all events that happen during a session sorted by time
 	// (oldest first).
@@ -121,7 +124,7 @@ type IAuditLog interface {
 	//
 	// This function is usually used in conjunction with GetSessionReader to
 	// replay recorded session streams.
-	GetSessionEvents(sid session.ID, after int) ([]EventFields, error)
+	GetSessionEvents(namespace string, sid session.ID, after int) ([]EventFields, error)
 
 	// SearchEvents is a flexible way to find events. The format of a query string
 	// depends on the implementing backend. A recommended format is urlencoded

@@ -109,6 +109,9 @@ type Config struct {
 	// Trust is a service that manages users and credentials
 	Identity services.Identity
 
+	// Access is a service that controls access
+	Access services.Access
+
 	// SeedConfig tells teleport to treat its start-up configuration as initial
 	// "seed" configuration on 1st start.
 	SeedConfig bool
@@ -270,6 +273,7 @@ type AuthConfig struct {
 type SSHConfig struct {
 	Enabled   bool
 	Addr      utils.NetAddr
+	Namespace string
 	Shell     string
 	Limiter   limiter.LimiterConfig
 	Labels    map[string]string

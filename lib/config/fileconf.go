@@ -44,6 +44,7 @@ import (
 var (
 	// all possible valid YAML config keys
 	validKeys = map[string]bool{
+		"namespace":          true,
 		"seed_config":        true,
 		"cluster_name":       true,
 		"trusted_clusters":   true,
@@ -430,9 +431,10 @@ type StaticToken string
 
 // SSH is 'ssh_service' section of the config file
 type SSH struct {
-	Service  `yaml:",inline"`
-	Labels   map[string]string `yaml:"labels,omitempty"`
-	Commands []CommandLabel    `yaml:"commands,omitempty"`
+	Service   `yaml:",inline"`
+	Namespace string            `yaml:"namespace,omitempty"`
+	Labels    map[string]string `yaml:"labels,omitempty"`
+	Commands  []CommandLabel    `yaml:"commands,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file

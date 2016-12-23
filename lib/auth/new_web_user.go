@@ -140,7 +140,7 @@ func (s *AuthServer) CreateSignupU2FRegisterRequest(token string) (u2fRegisterRe
 		return nil, trace.Wrap(err)
 	}
 
-	lock := "signuptoken"+token
+	lock := "signuptoken" + token
 
 	err = s.AcquireLock(lock, time.Hour)
 	if err != nil {
@@ -216,6 +216,13 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Se
 	}
 
 	// apply user allowed logins
+	role := services.RoleForUser(&tokenData.User)
+	if err := s.UpsertRole(role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Allowed logins are not going to be used anymore
+	tokenData.User.AllowedLogins = nil
+	tokenData.User.Roles = append(tokenData.User.Roles, role.GetName())
 	if err = s.UpsertUser(&tokenData.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -251,7 +258,7 @@ func (s *AuthServer) CreateUserWithU2FToken(token string, password string, respo
 		return nil, trace.Wrap(err)
 	}
 
-	lock := "signuptoken"+token
+	lock := "signuptoken" + token
 
 	err = s.AcquireLock(lock, time.Hour)
 	if err != nil {
@@ -294,8 +301,13 @@ func (s *AuthServer) CreateUserWithU2FToken(token string, password string, respo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// apply user allowed logins
+	role := services.RoleForUser(&tokenData.User)
+	if err := s.UpsertRole(role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Allowed logins are not going to be used anymore
+	tokenData.User.AllowedLogins = nil
+	tokenData.User.Roles = append(tokenData.User.Roles, role.GetName())
 	if err = s.UpsertUser(&tokenData.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -318,4 +330,20 @@ func (s *AuthServer) CreateUserWithU2FToken(token string, password string, respo
 
 	sess.WS.Priv = nil
 	return sess, nil
+}
+
+func (a *AuthServer) DeleteUser(user string) error {
+	role, err := a.Access.GetRole(services.RoleNameForUser(user))
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		if err := a.Access.DeleteRole(role.GetName()); err != nil {
+			if !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+		}
+	}
+	return a.Identity.DeleteUser(user)
 }

@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
@@ -50,8 +51,9 @@ type ProxyClient struct {
 // NodeClient implements ssh client to a ssh node (teleport or any regular ssh node)
 // NodeClient can run shell and commands or upload and download files.
 type NodeClient struct {
-	Client *ssh.Client
-	Proxy  *ProxyClient
+	Namespace string
+	Client    *ssh.Client
+	Proxy     *ProxyClient
 }
 
 func (proxy *ProxyClient) getSite() (*services.Site, error) {
@@ -60,7 +62,7 @@ func (proxy *ProxyClient) getSite() (*services.Site, error) {
 		return nil, trace.Wrap(err)
 	}
 	if len(sites) == 0 {
-		return nil, trace.NotFound("no sites registered")
+		return nil, trace.NotFound("no clusters registered")
 	}
 	if proxy.siteName == "" {
 		return &sites[0], nil
@@ -70,7 +72,7 @@ func (proxy *ProxyClient) getSite() (*services.Site, error) {
 			return &site, nil
 		}
 	}
-	return nil, trace.NotFound("site %v not found", proxy.siteName)
+	return nil, trace.NotFound("cluster %v not found", proxy.siteName)
 }
 
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
@@ -100,10 +102,10 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	select {
 	case <-done:
 	case <-time.After(teleport.DefaultTimeout):
-		return nil, trace.Errorf("timeout")
+		return nil, trace.ConnectionProblem(nil, "timeout")
 	}
 
-	log.Infof("[CLIENT] found sites: %v", stdout.String())
+	log.Infof("[CLIENT] found clusters: %v", stdout.String())
 
 	var sites []services.Site
 	if err := json.Unmarshal(stdout.Bytes(), &sites); err != nil {
@@ -117,13 +119,16 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 //
 // A server is matched when ALL labels match.
 // If no labels are passed, ALL nodes are returned.
-func (proxy *ProxyClient) FindServersByLabels(labels map[string]string) ([]services.Server, error) {
+func (proxy *ProxyClient) FindServersByLabels(namespace string, labels map[string]string) ([]services.Server, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing parameter namespace")
+	}
 	nodes := make([]services.Server, 0)
 	site, err := proxy.ConnectToSite(false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	siteNodes, err := site.GetNodes()
+	siteNodes, err := site.GetNodes(namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -247,7 +252,7 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string, quiet b
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &NodeClient{Client: client, Proxy: proxy}, nil
+		return &NodeClient{Client: client, Proxy: proxy, Namespace: defaults.Namespace}, nil
 	}
 	if utils.IsHandshakeFailedError(e) {
 		// remove the name of the site from the node address:

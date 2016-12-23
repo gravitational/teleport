@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -64,14 +65,20 @@ func (s *TunSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.alog, err = events.NewAuditLog(s.dir)
+	c.Assert(err, IsNil)
 
 	s.sessionServer, err = session.New(s.bk)
 	c.Assert(err, IsNil)
+
+	access := local.NewAccessService(s.bk)
+	identity := local.NewIdentityService(s.bk)
 
 	s.a = NewAuthServer(&InitConfig{
 		Backend:    s.bk,
 		Authority:  authority.New(),
 		DomainName: "localhost",
+		Access:     access,
+		Identity:   identity,
 	})
 
 	// set up host private key and certificate
@@ -83,14 +90,17 @@ func (s *TunSuite) SetUpTest(c *C) {
 	hcert, err := s.a.GenerateHostCert(hpub, "localhost", "localhost", teleport.Roles{teleport.RoleNode}, 0)
 	c.Assert(err, IsNil)
 
+	newChecker, err := NewAccessChecker(s.a.Access, s.a.Identity)
+	c.Assert(err, IsNil)
+
 	signer, err := sshutils.NewSigner(hpriv, hcert)
 	c.Assert(err, IsNil)
 	s.signer = signer
 	s.conf = &APIConfig{
-		AuthServer:        s.a,
-		PermissionChecker: NewStandardPermissions(),
-		SessionService:    s.sessionServer,
-		AuditLog:          s.alog,
+		AuthServer:     s.a,
+		NewChecker:     newChecker,
+		SessionService: s.sessionServer,
+		AuditLog:       s.alog,
 	}
 
 	tsrv, err := NewTunnel(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}, signer, s.conf)
@@ -100,14 +110,17 @@ func (s *TunSuite) SetUpTest(c *C) {
 }
 
 func (s *TunSuite) TestUnixServerClient(c *C) {
+	newChecker, err := NewAccessChecker(s.a.Access, s.a.Identity)
+	c.Assert(err, IsNil)
+
 	tsrv, err := NewTunnel(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.signer,
 		&APIConfig{
-			AuthServer:        s.a,
-			PermissionChecker: NewAllowAllPermissions(),
-			SessionService:    s.sessionServer,
-			AuditLog:          s.alog,
+			AuthServer:     s.a,
+			NewChecker:     newChecker,
+			SessionService: s.sessionServer,
+			AuditLog:       s.alog,
 		},
 	)
 
@@ -115,10 +128,19 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	c.Assert(tsrv.Start(), IsNil)
 	s.tsrv = tsrv
 
-	user := "test"
+	userName := "test"
 	pass := []byte("pwd123")
 
-	hotpURL, _, err := s.a.UpsertPassword(user, pass)
+	user := &services.TeleportUser{Name: userName, AllowedLogins: []string{userName}}
+	role := services.RoleForUser(user)
+	role.Spec.Resources = map[string][]string{services.KindNode: services.RW()}
+	err = s.a.UpsertRole(role)
+	c.Assert(err, IsNil)
+	user.Roles = []string{role.GetName()}
+	err = s.a.UpsertUser(user)
+	c.Assert(err, IsNil)
+
+	hotpURL, _, err := s.a.UpsertPassword(user.Name, pass)
 	c.Assert(err, IsNil)
 
 	otp, label, err := hotp.FromURL(hotpURL)
@@ -126,7 +148,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	c.Assert(label, Equals, "test")
 	otp.Increment()
 
-	authMethod, err := NewWebPasswordAuth(user, pass, otp.OTP())
+	authMethod, err := NewWebPasswordAuth(user.Name, pass, otp.OTP())
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient("test",
@@ -135,7 +157,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	c.Assert(err, IsNil)
 
 	err = clt.UpsertNode(
-		services.Server{ID: "a.example.com", Addr: "hello", Hostname: "hello"}, 0)
+		services.Server{ID: "a.example.com", Addr: "hello", Hostname: "hello", Namespace: defaults.Namespace}, 0)
 	c.Assert(err, IsNil)
 }
 
@@ -145,6 +167,14 @@ func (s *TunSuite) TestSessions(c *C) {
 
 	user := "ws-test"
 	pass := []byte("ws-abc123")
+
+	teleportUser := &services.TeleportUser{Name: user, AllowedLogins: []string{user}}
+	role := services.RoleForUser(teleportUser)
+	err := s.a.UpsertRole(role)
+	c.Assert(err, IsNil)
+	teleportUser.Roles = []string{role.GetName()}
+	err = s.a.UpsertUser(teleportUser)
+	c.Assert(err, IsNil)
 
 	hotpURL, _, err := s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
@@ -307,10 +337,18 @@ func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
 		*suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
-	user := "ws-test2"
+	userName := "ws-test2"
 	pass := []byte("ws-abc1234")
 
-	hotpURL, _, err := s.a.UpsertPassword(user, pass)
+	user := &services.TeleportUser{Name: userName, AllowedLogins: []string{userName}}
+	role := services.RoleForUser(user)
+	err := s.a.UpsertRole(role)
+	c.Assert(err, IsNil)
+	user.Roles = []string{role.GetName()}
+	err = s.a.UpsertUser(user)
+	c.Assert(err, IsNil)
+
+	hotpURL, _, err := s.a.UpsertPassword(user.Name, pass)
 	c.Assert(err, IsNil)
 
 	otp, label, err := hotp.FromURL(hotpURL)
@@ -318,15 +356,15 @@ func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(label, Equals, "ws-test2")
 	otp.Increment()
 
-	authMethod, err := NewWebPasswordAuth(user, pass, otp.OTP())
+	authMethod, err := NewWebPasswordAuth(user.Name, pass, otp.OTP())
 	c.Assert(err, IsNil)
 
 	clt, err := NewTunClient("test",
-		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user.Name, authMethod)
 	c.Assert(err, IsNil)
 	defer clt.Close()
 
-	ws, err := clt.SignIn(user, pass)
+	ws, err := clt.SignIn(user.Name, pass)
 	c.Assert(err, IsNil)
 	c.Assert(ws, Not(Equals), "")
 
@@ -335,34 +373,34 @@ func (s *TunSuite) TestPermissions(c *C) {
 	c.Assert(err, NotNil)
 
 	// Requesting forbidden for User action
-	_, err = clt.GetWebSessionInfo(user, ws.ID)
+	_, err = clt.GetWebSessionInfo(user.Name, ws.ID)
 	c.Assert(err, NotNil)
 
 	// Resume session via sesison id
-	authMethod, err = NewWebSessionAuth(user, []byte(ws.ID))
+	authMethod, err = NewWebSessionAuth(user.Name, []byte(ws.ID))
 	c.Assert(err, IsNil)
 
 	cltw, err := NewTunClient("test",
-		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user, authMethod)
+		[]utils.NetAddr{{AddrNetwork: "tcp", Addr: s.tsrv.Addr()}}, user.Name, authMethod)
 	c.Assert(err, IsNil)
 	defer cltw.Close()
 
 	// Requesting forbidden for Web action
-	_, err = cltw.GetNodes()
+	_, err = cltw.GetNodes(defaults.Namespace)
 	c.Assert(err, NotNil)
 
 	// Requesting forbidden for Web action
-	_, err = cltw.SignIn(user, pass)
+	_, err = cltw.SignIn(user.Name, pass)
 	c.Assert(err, NotNil)
 
-	out, err := cltw.GetWebSessionInfo(user, ws.ID)
+	out, err := cltw.GetWebSessionInfo(user.Name, ws.ID)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, ws)
 
-	err = cltw.DeleteWebSession(user, ws.ID)
+	err = cltw.DeleteWebSession(user.Name, ws.ID)
 	c.Assert(err, IsNil)
 
-	_, err = clt.GetWebSessionInfo(user, ws.ID)
+	_, err = clt.GetWebSessionInfo(user.Name, ws.ID)
 	c.Assert(err, NotNil)
 }
 
@@ -400,9 +438,10 @@ func (s *TunSuite) TestSessionsBadPassword(c *C) {
 
 func (s *TunSuite) TestFailover(c *C) {
 	node := services.Server{
-		ID:       "node1",
-		Addr:     "node.example.com:12345",
-		Hostname: "node.example.com",
+		ID:        "node1",
+		Addr:      "node.example.com:12345",
+		Hostname:  "node.example.com",
+		Namespace: defaults.Namespace,
 	}
 	c.Assert(s.a.UpsertNode(node, backend.Forever), IsNil)
 
@@ -417,16 +456,17 @@ func (s *TunSuite) TestFailover(c *C) {
 	c.Assert(err, IsNil)
 	defer clt.Close()
 
-	nodes, err := clt.GetNodes()
+	nodes, err := clt.GetNodes(defaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(nodes, DeepEquals, []services.Server{node})
 }
 
 func (s *TunSuite) TestSync(c *C) {
 	authServer := services.Server{
-		ID:       "node1",
-		Addr:     "node.example.com:12345",
-		Hostname: "node.example.com",
+		ID:        "node1",
+		Addr:      "node.example.com:12345",
+		Hostname:  "node.example.com",
+		Namespace: defaults.Namespace,
 	}
 	c.Assert(s.a.UpsertAuthServer(authServer, backend.Forever), IsNil)
 

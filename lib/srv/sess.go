@@ -75,6 +75,7 @@ func (s *sessionRegistry) openSession(ch ssh.Channel, req *ssh.Request, ctx *ctx
 		// emit "joined session" event:
 		s.srv.EmitAuditEvent(events.SessionJoinEvent, events.EventFields{
 			events.SessionEventID:  string(ctx.session.id),
+			events.EventNamespace:  s.srv.getNamespace(),
 			events.EventLogin:      ctx.login,
 			events.EventUser:       ctx.teleportUser,
 			events.LocalAddr:       ctx.conn.LocalAddr().String(),
@@ -124,6 +125,7 @@ func (s *sessionRegistry) leaveSession(party *party) error {
 		events.SessionEventID:  string(sess.id),
 		events.EventUser:       party.user,
 		events.SessionServerID: party.serverID,
+		events.EventNamespace:  s.srv.getNamespace(),
 	})
 
 	// this goroutine runs for a short amount of time only after a session
@@ -151,6 +153,7 @@ func (s *sessionRegistry) leaveSession(party *party) error {
 		s.srv.EmitAuditEvent(events.SessionEndEvent, events.EventFields{
 			events.SessionEventID: string(sess.id),
 			events.EventUser:      party.user,
+			events.EventNamespace: s.srv.getNamespace(),
 		})
 		if err := sess.Close(); err != nil {
 			log.Error(err)
@@ -160,8 +163,9 @@ func (s *sessionRegistry) leaveSession(party *party) error {
 		if s.srv.sessionServer != nil {
 			False := false
 			s.srv.sessionServer.UpdateSession(rsession.UpdateRequest{
-				ID:     sess.id,
-				Active: &False,
+				ID:        sess.id,
+				Active:    &False,
+				Namespace: s.srv.getNamespace(),
 			})
 		}
 	}
@@ -196,6 +200,7 @@ func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *c
 
 	// report this to the event/audit log:
 	s.srv.EmitAuditEvent(events.ResizeEvent, events.EventFields{
+		events.EventNamespace: s.srv.getNamespace(),
 		events.SessionEventID: sid,
 		events.EventLogin:     ctx.login,
 		events.EventUser:      ctx.teleportUser,
@@ -214,7 +219,7 @@ func (s *sessionRegistry) notifyWinChange(params rsession.TerminalParams, ctx *c
 
 	go func() {
 		err := s.srv.sessionServer.UpdateSession(
-			rsession.UpdateRequest{ID: sid, TerminalParams: &params})
+			rsession.UpdateRequest{ID: sid, TerminalParams: &params, Namespace: s.srv.getNamespace()})
 		if err != nil {
 			log.Error(err)
 		}
@@ -300,6 +305,7 @@ func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, err
 		Created:    time.Now().UTC(),
 		LastActive: time.Now().UTC(),
 		ServerID:   context.srv.ID(),
+		Namespace:  r.srv.getNamespace(),
 	}
 	term := context.getTerm()
 	if term != nil {
@@ -315,7 +321,7 @@ func newSession(id rsession.ID, r *sessionRegistry, context *ctx) (*session, err
 		if trace.IsAlreadyExists(err) {
 			// if session already exists, make sure they are compatible
 			// Login matches existing login
-			existing, err := r.srv.sessionServer.GetSession(id)
+			existing, err := r.srv.sessionServer.GetSession(r.srv.getNamespace(), id)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -431,12 +437,15 @@ type sessionRecorder struct {
 	alog events.IAuditLog
 	// sid defines the session to record
 	sid rsession.ID
+	// namespace is session namespace
+	namespace string
 }
 
-func newSessionRecorder(alog events.IAuditLog, sid rsession.ID) *sessionRecorder {
+func newSessionRecorder(alog events.IAuditLog, namespace string, sid rsession.ID) *sessionRecorder {
 	sr := &sessionRecorder{
-		alog: alog,
-		sid:  sid,
+		alog:      alog,
+		sid:       sid,
+		namespace: namespace,
 	}
 	return sr
 }
@@ -451,7 +460,7 @@ func (r *sessionRecorder) Write(data []byte) (int, error) {
 	dataCopy := make([]byte, len(data))
 	copy(dataCopy, data)
 	// post the chunk of bytes to the audit log:
-	if err := r.alog.PostSessionChunk(r.sid, bytes.NewReader(dataCopy)); err != nil {
+	if err := r.alog.PostSessionChunk(r.namespace, r.sid, bytes.NewReader(dataCopy)); err != nil {
 		log.Error(trace.DebugReport(err))
 	}
 	return len(data), nil
@@ -492,6 +501,7 @@ func (s *session) start(ch ssh.Channel, ctx *ctx) error {
 
 	// emit "new session created" event:
 	s.registry.srv.EmitAuditEvent(events.SessionStartEvent, events.EventFields{
+		events.EventNamespace:  ctx.srv.getNamespace(),
 		events.SessionEventID:  string(s.id),
 		events.SessionServerID: ctx.srv.ID(),
 		events.EventLogin:      ctx.login,
@@ -505,7 +515,7 @@ func (s *session) start(ch ssh.Channel, ctx *ctx) error {
 	auditLog := s.registry.srv.alog
 	if auditLog != nil {
 		s.writer.addWriter("session-recorder",
-			newSessionRecorder(auditLog, s.id),
+			newSessionRecorder(auditLog, ctx.srv.getNamespace(), s.id),
 			true)
 	}
 
@@ -576,15 +586,16 @@ func (s *session) removeParty(p *party) error {
 
 	// remove from the session server (asynchronously)
 	storageRemove := func(db rsession.Service) {
-		dbSession, err := db.GetSession(s.id)
+		dbSession, err := db.GetSession(s.getNamespace(), s.id)
 		if err != nil {
 			log.Error(err)
 			return
 		}
 		if dbSession != nil && dbSession.RemoveParty(p.id) {
 			db.UpdateSession(rsession.UpdateRequest{
-				ID:      dbSession.ID,
-				Parties: &dbSession.Parties,
+				ID:        dbSession.ID,
+				Parties:   &dbSession.Parties,
+				Namespace: s.getNamespace(),
 			})
 		}
 	}
@@ -606,6 +617,10 @@ func (s *session) SetLingerTTL(ttl time.Duration) {
 	s.lingerTTL = ttl
 }
 
+func (s *session) getNamespace() string {
+	return s.registry.srv.getNamespace()
+}
+
 // pollAndSync is a loop inside a goroutite which keeps synchronizing the terminal
 // size to what's in the session (so all connected parties have the same terminal size)
 // it also updates 'active' field on the session.
@@ -619,15 +634,16 @@ func (s *session) pollAndSync() {
 	}
 	errCount := 0
 	sync := func() error {
-		sess, err := sessionServer.GetSession(s.id)
+		sess, err := sessionServer.GetSession(s.getNamespace(), s.id)
 		if sess == nil {
 			return trace.Wrap(err)
 		}
 		var active = true
 		sessionServer.UpdateSession(rsession.UpdateRequest{
-			ID:      sess.ID,
-			Active:  &active,
-			Parties: nil,
+			Namespace: s.getNamespace(),
+			ID:        sess.ID,
+			Active:    &active,
+			Parties:   nil,
 		})
 		winSize, err := s.term.getWinsize()
 		if err != nil {
@@ -689,11 +705,12 @@ func (s *session) addParty(p *party) {
 
 	// update session on the session server
 	storageUpdate := func(db rsession.Service) {
-		dbSession, err := db.GetSession(s.id)
+		dbSession, err := db.GetSession(s.getNamespace(), s.id)
 		if err != nil {
 			log.Error(err)
 			return
 		}
+		log.Infof("PARTY: %v %v", dbSession, err)
 		dbSession.Parties = append(dbSession.Parties, rsession.Party{
 			ID:         p.id,
 			User:       p.user,
@@ -702,8 +719,9 @@ func (s *session) addParty(p *party) {
 			LastActive: p.getLastActive(),
 		})
 		db.UpdateSession(rsession.UpdateRequest{
-			ID:      dbSession.ID,
-			Parties: &dbSession.Parties,
+			ID:        dbSession.ID,
+			Parties:   &dbSession.Parties,
+			Namespace: s.getNamespace(),
 		})
 	}
 	if s.registry.srv.sessionServer != nil {

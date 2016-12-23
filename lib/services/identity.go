@@ -46,6 +46,8 @@ type User interface {
 	GetAllowedLogins() []string
 	// GetIdentities returns a list of connected OIDCIdentities
 	GetIdentities() []OIDCIdentity
+	// GetRoles returns a list of roles assigned to user
+	GetRoles() []string
 	// String returns user
 	String() string
 	// Check checks if all parameters are correct
@@ -53,7 +55,29 @@ type User interface {
 	// Equals checks if user equals to another
 	Equals(other User) bool
 	// WebSessionInfo returns web session information
-	WebSessionInfo() User
+	WebSessionInfo(logins []string) User
+	// GetStatus return user login status
+	GetStatus() LoginStatus
+	// SetLocked sets login status to locked
+	SetLocked(until time.Time, reason string)
+	// SetRoles sets user roles
+	SetRoles(roles []string)
+	// AddRole adds role to the users' role list
+	AddRole(name string)
+	// SetAllowedLogins sets allowed logins property for user
+	SetAllowedLogins(logins []string)
+}
+
+// LoginStatus is a login status of the user
+type LoginStatus struct {
+	// IsLocked tells us if user is locked
+	IsLocked bool `json:"is_locked"`
+	// LockedMessage contains the message in case if user is locked
+	LockedMessage string `json:"locked_message"`
+	// LockedTime contains time when user was locked
+	LockedTime time.Time `json:"locked_time"`
+	// LockExpires contains time when this lock will expire
+	LockExpires time.Time `json:"lock_expires"`
 }
 
 // TeleportUser is an optional user entry in the database
@@ -68,6 +92,12 @@ type TeleportUser struct {
 	// OIDCIdentities lists associated OpenID Connect identities
 	// that let user log in using externally verified identity
 	OIDCIdentities []OIDCIdentity `json:"oidc_identities"`
+
+	// Roles is a list of roles assigned to user
+	Roles []string `json:"roles"`
+
+	// Status is a login status of the user
+	Status LoginStatus `json:"status"`
 }
 
 // Equals checks if user equals to another
@@ -96,9 +126,33 @@ func (u *TeleportUser) Equals(other User) bool {
 	return true
 }
 
+// SetAllowedLogins sets allowed logins for user
+func (u *TeleportUser) SetAllowedLogins(logins []string) {
+	u.AllowedLogins = logins
+}
+
+// SetRoles sets a list of roles for user
+func (u *TeleportUser) SetRoles(roles []string) {
+	seen := map[string]bool{}
+	u.Roles = make([]string, 0, len(roles))
+	for _, role := range roles {
+		if _, found := seen[role]; !found {
+			u.Roles = append(u.Roles, role)
+		}
+		seen[role] = true
+	}
+}
+
+// GetStatus returns login status of the user
+func (u *TeleportUser) GetStatus() LoginStatus {
+	return u.Status
+}
+
 // WebSessionInfo returns web session information
-func (u *TeleportUser) WebSessionInfo() User {
-	return u
+func (u *TeleportUser) WebSessionInfo(logins []string) User {
+	c := *u
+	c.AllowedLogins = logins
+	return &c
 }
 
 // GetAllowedLogins returns user's allowed linux logins
@@ -111,6 +165,21 @@ func (u *TeleportUser) GetIdentities() []OIDCIdentity {
 	return u.OIDCIdentities
 }
 
+// GetRoles returns a list of roles assigned to user
+func (u *TeleportUser) GetRoles() []string {
+	return u.Roles
+}
+
+// AddRole adds a role to user's role list
+func (u *TeleportUser) AddRole(name string) {
+	for _, r := range u.Roles {
+		if r == name {
+			return
+		}
+	}
+	u.Roles = append(u.Roles, name)
+}
+
 // GetName returns user name
 func (u *TeleportUser) GetName() string {
 	return u.Name
@@ -118,6 +187,12 @@ func (u *TeleportUser) GetName() string {
 
 func (u *TeleportUser) String() string {
 	return fmt.Sprintf("User(name=%v, allowed_logins=%v, identities=%v)", u.Name, u.AllowedLogins, u.OIDCIdentities)
+}
+
+func (u *TeleportUser) SetLocked(until time.Time, reason string) {
+	u.Status.IsLocked = true
+	u.Status.LockExpires = until
+	u.Status.LockedMessage = reason
 }
 
 // Check checks validity of all parameters
@@ -141,10 +216,32 @@ func (u *TeleportUser) Check() error {
 	return nil
 }
 
+// LoginAttempt represents successfull or unsuccessful attempt for user to login
+type LoginAttempt struct {
+	// Time is time of the attempt
+	Time time.Time `json:"time"`
+	// Sucess indicates whether attempt was successfull
+	Success bool `json:"bool"`
+}
+
+// Check checks parameters
+func (la *LoginAttempt) Check() error {
+	if la.Time.IsZero() {
+		return trace.BadParameter("missing parameter time")
+	}
+	return nil
+}
+
 // Identity is responsible for managing user entries
 type Identity interface {
 	// GetUsers returns a list of users registered with the local auth server
 	GetUsers() ([]User, error)
+
+	// AddUserLoginAttempt logs user login attempt
+	AddUserLoginAttempt(user string, attempt LoginAttempt, ttl time.Duration) error
+
+	// GetUserLoginAttempts returns user login attempts
+	GetUserLoginAttempts(user string) ([]LoginAttempt, error)
 
 	// UpsertUser updates parameters about user
 	UpsertUser(user User) error
@@ -203,25 +300,25 @@ type Identity interface {
 	DeleteSignupToken(token string) error
 
 	// UpsertU2FRegisterChallenge upserts a U2F challenge for a new user corresponding to the token
-	UpsertU2FRegisterChallenge(token string, u2fChallenge *u2f.Challenge) (error)
+	UpsertU2FRegisterChallenge(token string, u2fChallenge *u2f.Challenge) error
 
 	// GetU2FRegisterChallenge returns a U2F challenge for a new user corresponding to the token
 	GetU2FRegisterChallenge(token string) (*u2f.Challenge, error)
 
 	// UpsertU2FRegistration upserts a U2F registration from a valid register response
-	UpsertU2FRegistration(user string, u2fReg *u2f.Registration) (error)
+	UpsertU2FRegistration(user string, u2fReg *u2f.Registration) error
 
 	// GetU2FRegistration returns a U2F registration from a valid register response
 	GetU2FRegistration(user string) (*u2f.Registration, error)
 
 	// UpsertU2FSignChallenge upserts a U2F sign (auth) challenge
-	UpsertU2FSignChallenge(user string, u2fChallenge *u2f.Challenge) (error)
+	UpsertU2FSignChallenge(user string, u2fChallenge *u2f.Challenge) error
 
 	// GetU2FSignChallenge returns a U2F sign (auth) challenge
 	GetU2FSignChallenge(user string) (*u2f.Challenge, error)
 
 	// UpsertU2FRegistrationCounter upserts a counter associated with a U2F registration
-	UpsertU2FRegistrationCounter(user string, counter uint32) (error)
+	UpsertU2FRegistrationCounter(user string, counter uint32) error
 
 	// GetU2FRegistrationCounter returns a counter associated with a U2F registration
 	GetU2FRegistrationCounter(user string) (uint32, error)
@@ -419,9 +516,9 @@ type U2F struct {
 	Enabled bool
 	// AppID identifies the website to the U2F keys. It should not be changed once a U2F
 	// key is registered or all existing registrations will become invalid.
-	AppID   string
+	AppID string
 	// Facets should include the domain name of all proxies.
-	Facets  []string
+	Facets []string
 }
 
 func (u *U2F) Check() error {
@@ -459,30 +556,76 @@ func (u Users) Swap(i, j int) {
 }
 
 var mtx sync.Mutex
-var unmarshaler UserUnmarshaler
+var userMarshaler UserMarshaler = &TeleportUserMarshaler{}
 
-func SetUserUnmarshaler(u UserUnmarshaler) {
+func SetUserMarshaler(u UserMarshaler) {
 	mtx.Lock()
 	defer mtx.Unlock()
-	unmarshaler = u
+	userMarshaler = u
 }
 
-func GetUserUnmarshaler() UserUnmarshaler {
+func GetUserMarshaler() UserMarshaler {
 	mtx.Lock()
 	defer mtx.Unlock()
-	if unmarshaler == nil {
-		return TeleportUserUnmarshaler
-	}
-	return unmarshaler
+	return userMarshaler
 }
 
-type UserUnmarshaler func(bytes []byte) (User, error)
+// UserMarshaler implements marshal/unmarshal of User implementations
+// mostly adds support for extended versions
+type UserMarshaler interface {
+	// UnmarshalUser from binary representation
+	UnmarshalUser(bytes []byte) (User, error)
+	// MarshalUser to binary representation
+	MarshalUser(u User) ([]byte, error)
+}
 
-func TeleportUserUnmarshaler(bytes []byte) (User, error) {
+type TeleportUserMarshaler struct{}
+
+// UnmarshalUser unmarshals user from JSON
+func (*TeleportUserMarshaler) UnmarshalUser(bytes []byte) (User, error) {
 	var u *TeleportUser
 	err := json.Unmarshal(bytes, &u)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return u, nil
+}
+
+// MarshalUser marshalls user into JSON
+func (*TeleportUserMarshaler) MarshalUser(u User) ([]byte, error) {
+	return json.Marshal(u)
+}
+
+// SortedLoginAttempts sorts login attempts by time
+type SortedLoginAttempts []LoginAttempt
+
+// Len returns length of a role list
+func (s SortedLoginAttempts) Len() int {
+	return len(s)
+}
+
+// Less stacks latest attempts to the end of the list
+func (s SortedLoginAttempts) Less(i, j int) bool {
+	return s[i].Time.Before(s[j].Time)
+}
+
+// Swap swaps two attempts
+func (s SortedLoginAttempts) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+// LastFailed calculates last x successive attempts are failed
+func LastFailed(x int, attempts []LoginAttempt) bool {
+	var failed int
+	for i := len(attempts) - 1; i >= 0; i-- {
+		if !attempts[i].Success {
+			failed++
+		} else {
+			return false
+		}
+		if failed >= x {
+			return true
+		}
+	}
+	return false
 }

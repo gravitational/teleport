@@ -19,6 +19,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/url"
@@ -28,7 +29,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -40,9 +40,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/buger/goterm"
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	kyaml "k8s.io/client-go/1.4/pkg/util/yaml"
 )
 
 type CLIConfig struct {
@@ -55,6 +58,7 @@ type UserCommand struct {
 	config        *service.Config
 	login         string
 	allowedLogins string
+	roles         string
 	identities    []string
 }
 
@@ -70,6 +74,8 @@ type NodeCommand struct {
 	// TTL: duration of time during which a generated node token will
 	// be valid.
 	ttl time.Duration
+	// namespace is node namespace
+	namespace string
 }
 
 type AuthCommand struct {
@@ -101,6 +107,22 @@ type TokenCommand struct {
 	token string
 }
 
+type GetCommand struct {
+	config *service.Config
+	ref    services.Ref
+	format string
+}
+
+type UpsertCommand struct {
+	config   *service.Config
+	filename string
+}
+
+type DeleteCommand struct {
+	config *service.Config
+	ref    services.Ref
+}
+
 func main() {
 	utils.InitLoggerCLI()
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
@@ -112,6 +134,9 @@ func main() {
 	cmdAuth := AuthCommand{config: cfg}
 	cmdReverseTunnel := ReverseTunnelCommand{config: cfg}
 	cmdTokens := TokenCommand{config: cfg}
+	cmdGet := GetCommand{config: cfg}
+	cmdUpsert := UpsertCommand{config: cfg}
+	cmdDelete := DeleteCommand{config: cfg}
 
 	// define global flags:
 	var ccf CLIConfig
@@ -130,12 +155,30 @@ func main() {
 
 	// user add command:
 	users := app.Command("users", "Manage users logins")
+
 	userAdd := users.Command("add", "Generate an invitation token and print the signup URL")
 	userAdd.Arg("login", "Teleport user login").Required().StringVar(&cmdUsers.login)
 	userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
 		Default("").StringVar(&cmdUsers.allowedLogins)
 	userAdd.Flag("identity", "[EXPERIMENTAL] Add OpenID Connect identity, e.g. --identity=google:bob@gmail.com").Hidden().StringsVar(&cmdUsers.identities)
 	userAdd.Alias(AddUserHelp)
+
+	userUpdate := users.Command("update", "Update properties for existing user")
+	userUpdate.Arg("login", "Teleport user login").Required().StringVar(&cmdUsers.login)
+	userUpdate.Flag("set-roles", "Roles to assign to this user").
+		Default("").StringVar(&cmdUsers.roles)
+
+	delete := app.Command("del", "Delete resources")
+	delete.Arg("resource", "Resource to delete").SetValue(&cmdDelete.ref)
+
+	// get one or many resources in the system
+	get := app.Command("get", "Get one or many objects in the system")
+	get.Arg("resource", "Resource type and name").SetValue(&cmdGet.ref)
+	get.Flag("format", "format output type, one of 'yaml', 'json' or 'text'").Default(formatText).StringVar(&cmdGet.format)
+
+	// upsert one or many resources
+	upsert := app.Command("upsert", "Update or insert one or many resources")
+	upsert.Flag("filename", "Filename with resources").Short('f').StringVar(&cmdUpsert.filename)
 
 	// list users command
 	userList := users.Command("ls", "List all user accounts")
@@ -154,6 +197,7 @@ func main() {
 	nodeAdd.Flag("format", "output format, 'text' or 'json'").Hidden().Default("text").StringVar(&cmdNodes.format)
 	nodeAdd.Alias(AddNodeHelp)
 	nodeList := nodes.Command("ls", "List all active SSH nodes within the cluster")
+	nodeList.Flag("namespace", "Namespace of the nodes").Default(defaults.Namespace).StringVar(&cmdNodes.namespace)
 	nodeList.Alias(ListNodesHelp)
 
 	// operations on invitation tokens
@@ -224,10 +268,18 @@ func main() {
 
 	// execute the selected command:
 	switch command {
+	case get.FullCommand():
+		err = cmdGet.Get(client)
+	case upsert.FullCommand():
+		err = cmdUpsert.Upsert(client)
+	case delete.FullCommand():
+		err = cmdDelete.Delete(client)
 	case userAdd.FullCommand():
 		err = cmdUsers.Add(client)
 	case userList.FullCommand():
 		err = cmdUsers.List(client)
+	case userUpdate.FullCommand():
+		err = cmdUsers.Update(client)
 	case userDelete.FullCommand():
 		err = cmdUsers.Delete(client)
 	case nodeAdd.FullCommand():
@@ -257,8 +309,15 @@ func main() {
 	}
 
 	if err != nil {
+		logrus.Error(trace.DebugReport(err))
 		utils.FatalError(err)
 	}
+}
+
+func Ref(s kingpin.Settings) *services.Ref {
+	r := new(services.Ref)
+	s.SetValue(r)
+	return r
 }
 
 func onVersion() {
@@ -327,12 +386,12 @@ func (u *UserCommand) List(client *auth.TunClient) error {
 	}
 	usersView := func(users []services.User) string {
 		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"User", "Allowed to login as"})
+		printHeader(t, []string{"User", "Roles"})
 		if len(users) == 0 {
 			return t.String()
 		}
 		for _, u := range users {
-			fmt.Fprintf(t, "%v\t%v\n", u.GetName(), strings.Join(u.GetAllowedLogins(), ","))
+			fmt.Fprintf(t, "%v\t%v\n", u.GetName(), strings.Join(u.GetRoles(), ","))
 		}
 		return t.String()
 	}
@@ -349,6 +408,26 @@ func (u *UserCommand) Delete(client *auth.TunClient) error {
 		}
 		fmt.Printf("User '%v' has been deleted\n", l)
 	}
+	return nil
+}
+
+// Update updates existing user
+func (u *UserCommand) Update(client *auth.TunClient) error {
+	user, err := client.GetUser(u.login)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	roles := strings.Split(u.roles, ",")
+	for _, role := range roles {
+		if _, err := client.GetRole(role); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	user.SetRoles(roles)
+	if err := client.UpsertUser(user); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("%v has been updated with roles %v\n", user.GetName(), strings.Join(user.GetRoles(), ","))
 	return nil
 }
 
@@ -402,7 +481,7 @@ func (u *NodeCommand) Invite(client *auth.TunClient) error {
 // ListActive retreives the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
 func (u *NodeCommand) ListActive(client *auth.TunClient) error {
-	nodes, err := client.GetNodes()
+	nodes, err := client.GetNodes(u.namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -809,3 +888,144 @@ func (c *TokenCommand) Del(client *auth.TunClient) error {
 	fmt.Printf("Token %s has been deleted\n", c.token)
 	return nil
 }
+
+// Get prints one or many resources of a certain type
+func (g *GetCommand) Get(client *auth.TunClient) error {
+	collection, err := g.getCollection(client)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	switch g.format {
+	case formatText:
+		return collection.writeText(os.Stdout)
+	case formatJSON:
+		return collection.writeJSON(os.Stdout)
+	case formatYAML:
+		return collection.writeYAML(os.Stdout)
+	}
+	return trace.BadParameter("unsupported format")
+}
+
+// Upsert updates or insterts one or many resources
+func (u *UpsertCommand) Upsert(client *auth.TunClient) error {
+	var reader io.ReadCloser
+	var err error
+	if u.filename != "" {
+		reader, err = utils.OpenFile(u.filename)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		reader = ioutil.NopCloser(os.Stdin)
+	}
+	decoder := kyaml.NewYAMLOrJSONDecoder(reader, 32*1024)
+	count := 0
+	for {
+		var raw services.UnknownResource
+		err := decoder.Decode(&raw)
+		if err != nil {
+			if err == io.EOF {
+				if count == 0 {
+					return trace.BadParameter("no resources found, emtpy input?")
+				}
+				return nil
+			}
+			return trace.Wrap(err)
+		}
+		count += 1
+		switch raw.Kind {
+		case services.KindRole:
+			role, err := services.GetRoleMarshaler().UnmarshalRole(raw.Raw)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := client.UpsertRole(role); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("role %v upserted\n", role.GetMetadata().Name)
+		case services.KindNamespace:
+			ns, err := services.UnmarshalNamespace(raw.Raw)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := client.UpsertNamespace(*ns); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("namespace %v upserted\n", ns.Metadata.Name)
+		case "":
+			return trace.BadParameter("missing resource kind")
+		default:
+			return trace.BadParameter("%v is not supported", raw.Kind)
+		}
+	}
+}
+
+// Delete deletes resource by name
+func (d *DeleteCommand) Delete(client *auth.TunClient) error {
+	if d.ref.Kind == "" {
+		return trace.BadParameter("provide full resource name to delete e.g. roles/example")
+	}
+	if d.ref.Name == "" {
+		return trace.BadParameter("provide full resource name to delete e.g. roles/example")
+	}
+
+	for {
+		switch d.ref.Kind {
+		case services.KindRole:
+			if err := client.DeleteRole(d.ref.Name); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("role %v has been deleted\n", d.ref.Name)
+		case services.KindNamespace:
+			if err := client.DeleteNamespace(d.ref.Name); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("namespace %v has been deleted\n", d.ref.Name)
+		case "":
+			return trace.BadParameter("missing resource kind")
+		default:
+			return trace.BadParameter("%v is not supported", d.ref.Kind)
+		}
+	}
+}
+
+func (g *GetCommand) getCollection(client auth.ClientI) (collection, error) {
+	if g.ref.Kind == "" {
+		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
+	}
+	switch g.ref.Kind {
+	case services.KindRole:
+		if g.ref.Name == "" {
+			roles, err := client.GetRoles()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &roleCollection{roles: roles}, nil
+		}
+		role, err := client.GetRole(g.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &roleCollection{roles: []services.Role{role}}, nil
+	case services.KindNamespace:
+		if g.ref.Name == "" {
+			namespaces, err := client.GetNamespaces()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &namespaceCollection{namespaces: namespaces}, nil
+		}
+		ns, err := client.GetNamespace(g.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &namespaceCollection{namespaces: []services.Namespace{*ns}}, nil
+	}
+	return nil, trace.BadParameter("'%v' is not supported", g.ref.Kind)
+}
+
+const (
+	formatYAML = "yaml"
+	formatText = "text"
+	formatJSON = "json"
+)

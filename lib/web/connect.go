@@ -43,6 +43,8 @@ type connectReq struct {
 	Term session.TerminalParams `json:"term"`
 	// SessionID is a teleport session ID to join as
 	SessionID session.ID `json:"sid"`
+	// Namespace is node namespace
+	Namespace string `json:"namespace"`
 }
 
 func newConnectHandler(req connectReq, ctx *SessionContext, site reversetunnel.RemoteSite) (*connectHandler, error) {
@@ -50,7 +52,7 @@ func newConnectHandler(req connectReq, ctx *SessionContext, site reversetunnel.R
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := clt.GetNodes()
+	servers, err := clt.GetNodes(req.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

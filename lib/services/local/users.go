@@ -17,12 +17,13 @@ limitations under the License.
 package local
 
 import (
-	"crypto/x509"
 	"crypto/ecdsa"
+	"crypto/x509"
 	"encoding/json"
-	"fmt"
-	"time"
 	"errors"
+	"fmt"
+	"sort"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/backend"
@@ -34,27 +35,20 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/pborman/uuid"
 	"github.com/tstranex/u2f"
 )
 
 // IdentityService is responsible for managing web users and currently
 // user accounts as well
 type IdentityService struct {
-	backend      backend.Backend
-	lockAfter    byte
-	lockDuration time.Duration
+	backend backend.Backend
 }
 
 // NewIdentityService returns a new instance of IdentityService object
-func NewIdentityService(
-	backend backend.Backend,
-	lockAfter byte,
-	lockDuration time.Duration) *IdentityService {
-
+func NewIdentityService(backend backend.Backend) *IdentityService {
 	return &IdentityService{
-		backend:      backend,
-		lockAfter:    lockAfter,
-		lockDuration: lockDuration,
+		backend: backend,
 	}
 }
 
@@ -214,41 +208,46 @@ func (s *IdentityService) UpsertWebSession(user, sid string, session services.We
 	return trace.Wrap(err)
 }
 
-// IncreaseLoginAttempts bumps "login attempt" counter for the given user. If the counter
-// reaches 'lockAfter' value, it locks the account and returns access denied error.
-func (s *IdentityService) IncreaseLoginAttempts(user string) error {
-	bucket := []string{"web", "users", user}
-
-	data, _, err := s.backend.GetValAndTTL(bucket, "lock")
-	// unexpected error?
-	if err != nil && !trace.IsNotFound(err) {
+// AddUserLoginAttempt logs user login attempt
+func (s *IdentityService) AddUserLoginAttempt(user string, attempt services.LoginAttempt, ttl time.Duration) error {
+	if err := attempt.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	// bump the attempt count
-	if len(data) < 1 {
-		data = []byte{0}
+	bytes, err := json.Marshal(attempt)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	// check the attempt count
-	if len(data) > 0 && data[0] >= s.lockAfter {
-		return trace.AccessDenied("this account has been locked for %v", s.lockDuration)
+	err = s.backend.UpsertVal([]string{"web", "users", user, "attempts"},
+		uuid.New(), bytes, ttl)
+	if trace.IsNotFound(err) {
+		return trace.NotFound("user '%v' is not found", user)
 	}
-	newData := []byte{data[0] + 1}
-	// "create val" will create a new login attempt counter, or it will
-	// do nothing if it's already there.
-	//
-	// "compare and swap" will bump the counter +1
-	s.backend.CreateVal(bucket, "lock", data, s.lockDuration)
-	_, err = s.backend.CompareAndSwap(bucket, "lock", newData, s.lockDuration, data)
 	return trace.Wrap(err)
 }
 
-// ResetLoginAttempts resets the "login attempt" counter to zero.
-func (s *IdentityService) ResetLoginAttempts(user string) error {
-	err := s.backend.DeleteKey([]string{"web", "users", user}, "lock")
-	if trace.IsNotFound(err) {
-		return nil
+// GetUserLoginAttempts returns user login attempts
+func (s *IdentityService) GetUserLoginAttempts(user string) ([]services.LoginAttempt, error) {
+	keys, err := s.backend.GetKeys([]string{"web", "users", user, "attempts"})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return trace.Wrap(err)
+	out := make([]services.LoginAttempt, 0, len(keys))
+	for _, id := range keys {
+		data, err := s.backend.GetVal([]string{"web", "users", user, "attempts"}, id)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+			continue
+		}
+		var a services.LoginAttempt
+		if err := json.Unmarshal(data, &a); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, a)
+	}
+	sort.Sort(services.SortedLoginAttempts(out))
+	return out, nil
 }
 
 // GetWebSession returns a web session state for a given user and session id
@@ -323,9 +322,6 @@ func (s *IdentityService) CheckPassword(user string, password []byte, hotpToken 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = s.IncreaseLoginAttempts(user); err != nil {
-		return trace.Wrap(err)
-	}
 	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
 		return trace.AccessDenied("passwords do not match")
 	}
@@ -336,7 +332,6 @@ func (s *IdentityService) CheckPassword(user string, password []byte, hotpToken 
 	if !otp.Scan(hotpToken, defaults.HOTPFirstTokensRange) {
 		return trace.AccessDenied("bad one time token")
 	}
-	defer s.ResetLoginAttempts(user)
 	if err := s.UpsertHOTP(user, otp); err != nil {
 		return trace.Wrap(err)
 	}
@@ -353,13 +348,9 @@ func (s *IdentityService) CheckPasswordWOToken(user string, password []byte) err
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = s.IncreaseLoginAttempts(user); err != nil {
-		return trace.Wrap(err)
-	}
 	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
 		return trace.BadParameter("passwords do not match")
 	}
-	defer s.ResetLoginAttempts(user)
 	return nil
 }
 
@@ -452,8 +443,8 @@ func (s *IdentityService) GetU2FRegisterChallenge(token string) (*u2f.Challenge,
 
 // u2f.Registration cannot be json marshalled due to the pointer in the public key so we have this marshallable version
 type MarshallableU2FRegistration struct {
-	Raw []byte `json:"raw"`
-	KeyHandle []byte `json:"keyhandle"`
+	Raw              []byte `json:"raw"`
+	KeyHandle        []byte `json:"keyhandle"`
 	MarshalledPubKey []byte `json:"marshalled_pubkey"`
 
 	// AttestationCert is not needed for authentication so we don't need to store it
@@ -466,8 +457,8 @@ func (s *IdentityService) UpsertU2FRegistration(user string, u2fReg *u2f.Registr
 	}
 
 	marshallableReg := MarshallableU2FRegistration{
-		Raw: u2fReg.Raw,
-		KeyHandle: u2fReg.KeyHandle,
+		Raw:              u2fReg.Raw,
+		KeyHandle:        u2fReg.KeyHandle,
 		MarshalledPubKey: marshalledPubkey,
 	}
 
@@ -506,9 +497,9 @@ func (s *IdentityService) GetU2FRegistration(user string) (*u2f.Registration, er
 	}
 
 	return &u2f.Registration{
-		Raw: marshallableReg.Raw,
-		KeyHandle: marshallableReg.KeyHandle,
-		PubKey: *pubkey,
+		Raw:             marshallableReg.Raw,
+		KeyHandle:       marshallableReg.KeyHandle,
+		PubKey:          *pubkey,
 		AttestationCert: nil,
 	}, nil
 }
