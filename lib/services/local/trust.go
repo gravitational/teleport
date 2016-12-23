@@ -81,6 +81,9 @@ func (s *CA) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bo
 	}
 	domains, err := s.backend.GetKeys([]string{"authorities", string(caType)})
 	if err != nil {
+		if trace.IsNotFound(err) {
+			return cas, nil
+		}
 		return nil, trace.Wrap(err)
 	}
 	for _, domain := range domains {

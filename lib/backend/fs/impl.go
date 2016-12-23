@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strings"
 	"sync"
 	"time"
 
@@ -94,6 +95,9 @@ func New(rootDir string) (*Backend, error) {
 func (bk *Backend) GetKeys(bucket []string) ([]string, error) {
 	files, err := ioutil.ReadDir(path.Join(bk.RootDir, path.Join(bucket...)))
 	if err != nil {
+		if os.IsNotExist(err) {
+			return []string{}, nil
+		}
 		return nil, trace.ConvertSystemError(err)
 	}
 	// enumerate all directory entries and select only non-hidden files
@@ -110,6 +114,7 @@ func (bk *Backend) GetKeys(bucket []string) ([]string, error) {
 // CreateVal creates value with a given TTL and key in the bucket
 // if the value already exists, returns AlreadyExistsError
 func (bk *Backend) CreateVal(bucket []string, key string, val []byte, ttl time.Duration) error {
+	log.Debugf("fs.CreateVal(%s/%s) '%v'", strings.Join(bucket, "/"), key, string(val))
 	// do not allow keys that start with a dot
 	if key[0] == '.' {
 		return trace.BadParameter("Invalid key: '%s'. Key names cannot start with '.'", key)
@@ -141,6 +146,7 @@ func (bk *Backend) CreateVal(bucket []string, key string, val []byte, ttl time.D
 // UpsertVal updates or inserts value with a given TTL into a bucket
 // ForeverTTL for no TTL
 func (bk *Backend) UpsertVal(bucket []string, key string, val []byte, ttl time.Duration) error {
+	log.Debugf("fs.UpsertVal(%s/%s) '%v'", strings.Join(bucket, "/"), key, string(val))
 	// create the directory:
 	dirPath := path.Join(bk.RootDir, path.Join(bucket...))
 	err := os.MkdirAll(dirPath, defaultDirMode)
@@ -153,6 +159,7 @@ func (bk *Backend) UpsertVal(bucket []string, key string, val []byte, ttl time.D
 
 // GetVal return a value for a given key in the bucket
 func (bk *Backend) GetVal(bucket []string, key string) ([]byte, error) {
+	log.Debugf("fs.GetVal(%s/%s)", strings.Join(bucket, "/"), key)
 	dirPath := path.Join(path.Join(bk.RootDir, path.Join(bucket...)))
 	expired, err := bk.checkTTL(dirPath, key)
 	if err != nil {
@@ -185,6 +192,7 @@ func (bk *Backend) DeleteBucket(parent []string, bucket string) error {
 
 // AcquireLock grabs a lock that will be released automatically in TTL
 func (bk *Backend) AcquireLock(token string, ttl time.Duration) (err error) {
+	log.Debugf("fs.AcquireLock(%s)", token)
 	lockPath := path.Join(bk.LocksDir, token)
 	var f *os.File
 	for {
@@ -217,6 +225,7 @@ func (bk *Backend) AcquireLock(token string, ttl time.Duration) (err error) {
 
 // ReleaseLock forces lock release before TTL
 func (bk *Backend) ReleaseLock(token string) (err error) {
+	log.Debugf("fs.ReleaseLock(%s)", token)
 	// protect the locks map:
 	bk.Lock()
 	defer bk.Unlock()

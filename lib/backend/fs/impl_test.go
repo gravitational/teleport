@@ -37,34 +37,51 @@ func (s *Suite) SetUpSuite(c *check.C) {
 }
 
 func (s *Suite) TestCreateAndRead(c *check.C) {
-	path := []string{"one", "two"}
+	bucket := []string{"one", "two"}
 
 	// must succeed:
-	err := s.bk.CreateVal(path, "key", []byte("original"), backend.Forever)
+	err := s.bk.CreateVal(bucket, "key", []byte("original"), backend.Forever)
 	c.Assert(err, check.IsNil)
 
 	// must get 'already exists' error
-	err = s.bk.CreateVal(path, "key", []byte("failed-write"), backend.Forever)
+	err = s.bk.CreateVal(bucket, "key", []byte("failed-write"), backend.Forever)
 	c.Assert(trace.IsAlreadyExists(err), check.Equals, true)
 
 	// read back the original:
-	val, err := s.bk.GetVal(path, "key")
+	val, err := s.bk.GetVal(bucket, "key")
 	c.Assert(err, check.IsNil)
 	c.Assert(string(val), check.Equals, "original")
 
 	// upsert:
-	err = s.bk.UpsertVal(path, "key", []byte("new-value"), backend.Forever)
+	err = s.bk.UpsertVal(bucket, "key", []byte("new-value"), backend.Forever)
 	c.Assert(err, check.IsNil)
 
 	// read back the new value:
-	val, err = s.bk.GetVal(path, "key")
+	val, err = s.bk.GetVal(bucket, "key")
 	c.Assert(err, check.IsNil)
 	c.Assert(string(val), check.Equals, "new-value")
+
+	// read back non-existing (bad path):
+	val, err = s.bk.GetVal([]string{"bad", "path"}, "key")
+	c.Assert(err, check.NotNil)
+	c.Assert(val, check.IsNil)
+	c.Assert(trace.IsNotFound(err), check.Equals, true)
+
+	// read back non-existing (bad key):
+	val, err = s.bk.GetVal(bucket, "bad-key")
+	c.Assert(err, check.NotNil)
+	c.Assert(val, check.IsNil)
+	c.Assert(trace.IsNotFound(err), check.Equals, true)
 }
 
 func (s *Suite) TestListDelete(c *check.C) {
 	root := []string{"root"}
 	kid := []string{"root", "kid"}
+
+	// list from non-existing bucket (must return an empty array)
+	kids, err := s.bk.GetKeys([]string{"bad", "bucket"})
+	c.Assert(err, check.IsNil)
+	c.Assert(kids, check.HasLen, 0)
 
 	// create two entries in root:
 	s.bk.CreateVal(root, "one", []byte("1"), backend.Forever)
@@ -74,7 +91,7 @@ func (s *Suite) TestListDelete(c *check.C) {
 	s.bk.CreateVal(kid, "three", []byte("3"), backend.Forever)
 
 	// list the root (should get 2 back):
-	kids, err := s.bk.GetKeys(root)
+	kids, err = s.bk.GetKeys(root)
 	c.Assert(err, check.IsNil)
 	c.Assert(kids, check.HasLen, 2)
 	c.Assert(kids[0], check.Equals, "one")
@@ -99,10 +116,6 @@ func (s *Suite) TestListDelete(c *check.C) {
 	// try to delete the root bucket:
 	err = s.bk.DeleteBucket(root, "kid")
 	c.Assert(err, check.IsNil)
-
-	// try to list non-existing:
-	_, err = s.bk.GetKeys(kid)
-	c.Assert(trace.IsNotFound(err), check.Equals, true)
 }
 
 func (s *Suite) TestTTL(c *check.C) {

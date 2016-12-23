@@ -43,7 +43,9 @@ func main() {
 // same as main() but has a testing switch
 func run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *service.Config) {
 	var err error
-
+	if os.Getenv("DEBUG") != "" {
+		trace.SetDebug(true)
+	}
 	// configure logger for a typical CLI scenario until configuration file is
 	// parsed
 	utils.InitLoggerCLI()
