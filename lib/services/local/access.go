@@ -60,7 +60,7 @@ func (s *AccessService) UpsertRole(role services.Role) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.UpsertVal([]string{"roles", role.GetMetadata().Name}, "params", []byte(data), backend.Forever)
+	err = s.UpsertVal([]string{"roles", role.GetName()}, "params", []byte(data), backend.Forever)
 	if err != nil {
 		return trace.Wrap(err)
 	}

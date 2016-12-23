@@ -97,6 +97,8 @@ func (s *APISuite) SetUpTest(c *C) {
 	})
 	s.srv = httptest.NewServer(apiServer)
 
+	// apiserver receives authentication information passed by SSH,
+	// this is to pass auth info to auth user
 	clt, err := NewClient(s.srv.URL, nil, roundtrip.BasicAuth(teleport.RoleAdmin.User(), "<something>"))
 	c.Assert(err, IsNil)
 	s.clt = clt
@@ -151,7 +153,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	role := services.RoleForUser(user)
 	err = s.clt.UpsertRole(role)
 	c.Assert(err, IsNil)
-	user.Roles = []string{role.GetMetadata().Name}
+	user.Roles = []string{role.GetName()}
 	err = s.clt.UpsertUser(user)
 	c.Assert(err, IsNil)
 
@@ -263,7 +265,7 @@ func (s *APISuite) TestSessions(c *C) {
 	role := services.RoleForUser(teleportUser)
 	err := s.a.UpsertRole(role)
 	c.Assert(err, IsNil)
-	teleportUser.Roles = []string{role.GetMetadata().Name}
+	teleportUser.Roles = []string{role.GetName()}
 	err = s.a.UpsertUser(teleportUser)
 	c.Assert(err, IsNil)
 

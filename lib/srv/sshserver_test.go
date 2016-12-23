@@ -783,7 +783,7 @@ func newUpack(username string, allowedLogins []string, a *auth.AuthServer) (*upa
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user.Roles = []string{role.GetMetadata().Name}
+	user.Roles = []string{role.GetName()}
 	err = a.UpsertUser(user)
 	if err != nil {
 		return nil, trace.Wrap(err)

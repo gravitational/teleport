@@ -1087,7 +1087,7 @@ func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return message(fmt.Sprintf("'%v' role upserted", role.GetMetadata().Name)), nil
+	return message(fmt.Sprintf("'%v' role upserted", role.GetName())), nil
 }
 
 func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {

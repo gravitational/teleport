@@ -63,10 +63,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+
+	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 )
 
@@ -206,15 +207,46 @@ func (sl *SessionLogger) Write(bytes []byte) (written int, err error) {
 // in a given directory>
 func NewAuditLog(dataDir string) (IAuditLog, error) {
 	// create a directory for session logs:
-	if err := os.MkdirAll(dataDir, 0770); err != nil {
+	sessionDir := filepath.Join(dataDir, SessionLogsDir)
+	if err := os.MkdirAll(sessionDir, 0770); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &AuditLog{
+	al := &AuditLog{
 		loggers:        make(map[session.ID]*SessionLogger, 0),
 		dataDir:        dataDir,
 		RotationPeriod: defaults.LogRotationPeriod,
 		TimeSource:     time.Now,
-	}, nil
+	}
+	if err := al.migrateSessions(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return al, nil
+}
+
+func (l *AuditLog) migrateSessions() error {
+	// if 'default' namespace does not exist, migrate old logs to the new location
+	sessionDir := filepath.Join(l.dataDir, SessionLogsDir)
+	targetDir := filepath.Join(sessionDir, defaults.Namespace)
+	_, err := utils.StatDir(targetDir)
+	if err == nil {
+		return nil
+	}
+	if !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	log.Infof("[MIGRATION] migrating sessions from %v to %v", sessionDir, filepath.Join(sessionDir, defaults.Namespace))
+	// can't directly rename dir to its own subdir, so using temp dir
+	tempDir := filepath.Join(l.dataDir, "___migrate")
+	if err := os.Rename(sessionDir, tempDir); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	if err := os.MkdirAll(sessionDir, 0770); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := os.Rename(tempDir, targetDir); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
 }
 
 // PostSessionChunk writes a new chunk of session stream into the audit log

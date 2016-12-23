@@ -418,7 +418,6 @@ func (u *UserCommand) Update(client *auth.TunClient) error {
 		return trace.Wrap(err)
 	}
 	roles := strings.Split(u.roles, ",")
-	roles = append(roles, services.RoleNameForUser(user.GetName()))
 	for _, role := range roles {
 		if _, err := client.GetRole(role); err != nil {
 			return trace.Wrap(err)
@@ -920,15 +919,20 @@ func (u *UpsertCommand) Upsert(client *auth.TunClient) error {
 		reader = ioutil.NopCloser(os.Stdin)
 	}
 	decoder := kyaml.NewYAMLOrJSONDecoder(reader, 32*1024)
+	count := 0
 	for {
 		var raw services.UnknownResource
 		err := decoder.Decode(&raw)
 		if err != nil {
 			if err == io.EOF {
+				if count == 0 {
+					return trace.BadParameter("no resources found, emtpy input?")
+				}
 				return nil
 			}
 			return trace.Wrap(err)
 		}
+		count += 1
 		switch raw.Kind {
 		case services.KindRole:
 			role, err := services.GetRoleMarshaler().UnmarshalRole(raw.Raw)

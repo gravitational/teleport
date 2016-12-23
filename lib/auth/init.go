@@ -262,16 +262,12 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// migrate old users to new users
+	// migrate old users to new format
 	users, err := asrv.GetUsers()
 	for i := range users {
 		user := users[i]
-		_, err := asrv.GetRole(services.RoleNameForUser(user.GetName()))
-		if err == nil {
+		if len(user.GetAllowedLogins()) == 0 {
 			continue
-		}
-		if !trace.IsNotFound(err) {
-			return nil, nil, trace.Wrap(err)
 		}
 		log.Infof("migrating legacy user %v", user.GetName())
 		role := services.RoleForUser(user)
@@ -279,7 +275,8 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		user.AddRole(role.GetMetadata().Name)
+		user.SetAllowedLogins(nil)
+		user.AddRole(role.GetName())
 		if err := asrv.UpsertUser(user); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -305,7 +302,7 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		ca.Roles = append(ca.Roles, role.GetMetadata().Name)
+		ca.Roles = append(ca.Roles, role.GetName())
 		if err := asrv.UpsertCertAuthority(*ca, 0); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

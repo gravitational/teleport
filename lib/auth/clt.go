@@ -117,7 +117,7 @@ func (c *Client) Delete(u string) (*roundtrip.Response, error) {
 // as reported by auth server
 func (c *Client) GetSessions(namespace string) ([]session.Session, error) {
 	if namespace == "" {
-		return nil, trace.BadParameter("missing parameter namespace")
+		return nil, trace.BadParameter("missing namespace parameter")
 	}
 	out, err := c.Get(c.Endpoint("namespaces", namespace, "sessions"), url.Values{})
 	if err != nil {
@@ -153,7 +153,7 @@ func (c *Client) GetSession(namespace string, id session.ID) (*session.Session, 
 // DeleteSession deletes a session by ID
 func (c *Client) DeleteSession(namespace, id string) error {
 	if namespace == "" {
-		return trace.BadParameter("missing parameter namespace")
+		return trace.BadParameter("missing namespace parameter")
 	}
 	_, err := c.Delete(c.Endpoint("namespaces", namespace, "sessions", id))
 	return trace.Wrap(err)

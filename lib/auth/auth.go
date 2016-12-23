@@ -230,7 +230,14 @@ func (s *AuthServer) GenerateUserCert(key []byte, username string, allowedLogins
 	return s.Authority.GenerateUserCert(privateKey, key, username, allowedLogins, ttl)
 }
 
-func (s *AuthServer) withUserLock(username string, fn func() error) error {
+// withUserLock executes function authenticateFn that perorms user authenticaton
+// if authenticateFn returns non nil error, the login attempt will be logged in as failed.
+// The only exception to this rule is ConnectionProblemError, in case if it occurs
+// access will be denied, but login attempt will not be recorded
+// this is done to avoid potential user lockouts due to backend failures
+// In case if user exceeds defaults.MaxLoginAttempts
+// the user account will be locked for defaults.AccountLockInterval
+func (s *AuthServer) withUserLock(username string, authenticateFn func() error) error {
 	user, err := s.Identity.GetUser(username)
 	if err != nil {
 		return trace.Wrap(err)
@@ -239,8 +246,12 @@ func (s *AuthServer) withUserLock(username string, fn func() error) error {
 	if status.IsLocked && status.LockExpires.After(s.clock.Now().UTC()) {
 		return trace.AccessDenied("user %v is locked until %v", utils.HumanTimeFormat(status.LockExpires))
 	}
-	fnErr := fn()
-	if !trace.IsAccessDenied(fnErr) && !trace.IsBadParameter(fnErr) {
+	fnErr := authenticateFn()
+	if fnErr == nil {
+		return nil
+	}
+	// do not lock user in case if DB is flaky or down
+	if trace.IsConnectionProblem(err) {
 		return trace.Wrap(fnErr)
 	}
 	// log failed attempt and possibly lock user
@@ -681,6 +692,13 @@ func (s *AuthServer) DeleteNamespace(namespace string) error {
 	if namespace == defaults.Namespace {
 		return trace.AccessDenied("can't delete default namespace")
 	}
+	nodes, err := s.Presence.GetNodes(namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(nodes) != 0 {
+		return trace.BadParameter("can't delete namespace %v that has %v registered nodes", namespace, len(nodes))
+	}
 	return s.Presence.DeleteNamespace(namespace)
 }
 
@@ -856,12 +874,9 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 	var roles services.RoleSet
 	if len(req.PublicKey) != 0 {
 		certTTL := minTTL(toTTL(a.clock, ident.ExpiresAt), req.CertTTL)
-		for _, roleName := range user.GetRoles() {
-			role, err := a.Access.GetRole(roleName)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			roles = append(roles, role)
+		roles, err = services.FetchRoles(user.GetRoles(), a.Access)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 		allowedLogins, err := roles.CheckLogins(certTTL)
 		if err != nil {
@@ -898,7 +913,8 @@ func (a *AuthServer) DeleteRole(name string) error {
 			}
 		}
 	}
-	// check if it's used by some cert authorities
+	// check if it's used by some external cert authorities, e.g.
+	// cert authorities related to external cluster
 	cas, err := a.Trust.GetCertAuthorities(services.UserCA, false)
 	if err != nil {
 		return trace.Wrap(err)

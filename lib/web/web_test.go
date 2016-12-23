@@ -144,7 +144,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	err = authServer.UpsertRole(role)
 	c.Assert(err, IsNil)
 
-	teleUser.Roles = []string{role.GetMetadata().Name}
+	teleUser.Roles = []string{role.GetName()}
 	err = authServer.UpsertUser(teleUser)
 	c.Assert(err, IsNil)
 
@@ -371,7 +371,7 @@ func (s *WebSuite) authPack(c *C) *authPack {
 	role := services.RoleForUser(teleUser)
 	err := s.roleAuth.UpsertRole(role)
 	c.Assert(err, IsNil)
-	teleUser.Roles = []string{role.GetMetadata().Name}
+	teleUser.Roles = []string{role.GetName()}
 
 	err = s.roleAuth.UpsertUser(teleUser)
 	c.Assert(err, IsNil)

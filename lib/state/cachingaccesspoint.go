@@ -156,7 +156,7 @@ func (cs *CachingAuthClient) GetRole(name string) (services.Role, error) {
 	cs.RLock()
 	defer cs.RUnlock()
 	for i := range cs.roles {
-		if cs.roles[i].GetMetadata().Name == name {
+		if cs.roles[i].GetName() == name {
 			return cs.roles[i], nil
 		}
 	}

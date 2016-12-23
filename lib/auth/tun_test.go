@@ -136,7 +136,7 @@ func (s *TunSuite) TestUnixServerClient(c *C) {
 	role.Spec.Resources = map[string][]string{services.KindNode: services.RW()}
 	err = s.a.UpsertRole(role)
 	c.Assert(err, IsNil)
-	user.Roles = []string{role.GetMetadata().Name}
+	user.Roles = []string{role.GetName()}
 	err = s.a.UpsertUser(user)
 	c.Assert(err, IsNil)
 
@@ -172,7 +172,7 @@ func (s *TunSuite) TestSessions(c *C) {
 	role := services.RoleForUser(teleportUser)
 	err := s.a.UpsertRole(role)
 	c.Assert(err, IsNil)
-	teleportUser.Roles = []string{role.GetMetadata().Name}
+	teleportUser.Roles = []string{role.GetName()}
 	err = s.a.UpsertUser(teleportUser)
 	c.Assert(err, IsNil)
 
@@ -344,7 +344,7 @@ func (s *TunSuite) TestPermissions(c *C) {
 	role := services.RoleForUser(user)
 	err := s.a.UpsertRole(role)
 	c.Assert(err, IsNil)
-	user.Roles = []string{role.GetMetadata().Name}
+	user.Roles = []string{role.GetName()}
 	err = s.a.UpsertUser(user)
 	c.Assert(err, IsNil)
 

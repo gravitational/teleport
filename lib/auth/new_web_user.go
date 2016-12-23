@@ -222,7 +222,7 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Se
 	}
 	// Allowed logins are not going to be used anymore
 	tokenData.User.AllowedLogins = nil
-	tokenData.User.Roles = append(tokenData.User.Roles, role.GetMetadata().Name)
+	tokenData.User.Roles = append(tokenData.User.Roles, role.GetName())
 	if err = s.UpsertUser(&tokenData.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -307,7 +307,7 @@ func (s *AuthServer) CreateUserWithU2FToken(token string, password string, respo
 	}
 	// Allowed logins are not going to be used anymore
 	tokenData.User.AllowedLogins = nil
-	tokenData.User.Roles = append(tokenData.User.Roles, role.GetMetadata().Name)
+	tokenData.User.Roles = append(tokenData.User.Roles, role.GetName())
 	if err = s.UpsertUser(&tokenData.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -339,8 +339,10 @@ func (a *AuthServer) DeleteUser(user string) error {
 			return trace.Wrap(err)
 		}
 	} else {
-		if err := a.Access.DeleteRole(role.GetMetadata().Name); err != nil {
-			return trace.Wrap(err)
+		if err := a.Access.DeleteRole(role.GetName()); err != nil {
+			if !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
 		}
 	}
 	return a.Identity.DeleteUser(user)

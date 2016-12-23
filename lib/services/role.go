@@ -107,6 +107,8 @@ type Access interface {
 type Role interface {
 	// GetMetadata returns role metadata
 	GetMetadata() Metadata
+	// GetName returns role name and is a shortcut for GetMetadata().Name
+	GetName() string
 	// GetMaxSessionTTL is a maximum SSH or Web session TTL
 	GetMaxSessionTTL() Duration
 	// GetLogins returns a list of linux logins allowed for this role
@@ -129,6 +131,11 @@ type RoleResource struct {
 	Metadata Metadata `json:"metadata"`
 	// Spec contains role specification
 	Spec RoleSpec `json:"spec"`
+}
+
+// GetName returns role name and is a shortcut for GetMetadata().Name
+func (r *RoleResource) GetName() string {
+	return r.Metadata.Name
 }
 
 // GetMetadata returns role metadata
@@ -250,6 +257,25 @@ func NewRole(name string, spec RoleSpec) (Role, error) {
 	return &role, nil
 }
 
+// RoleGetter is an interface that defines GetRole method
+type RoleGetter interface {
+	// GetRole returns role by name
+	GetRole(name string) (Role, error)
+}
+
+// FetchRoles fetches roles by their names and returns role set
+func FetchRoles(roleNames []string, access RoleGetter) (RoleSet, error) {
+	var roles RoleSet
+	for _, roleName := range roleNames {
+		role, err := access.GetRole(roleName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		roles = append(roles, role)
+	}
+	return roles, nil
+}
+
 // NewRoleSet returns new RoleSet based on the roles
 func NewRoleSet(roles ...Role) RoleSet {
 	return roles
@@ -355,7 +381,7 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 		matchLabels := MatchLabels(role.GetNodeLabels(), s.Labels)
 		matchLogin := MatchLogin(role.GetLogins(), login)
 		log.Debugf("CheckAccessToServer(%v, %v) match(namespace:%v, labels:%v, login:%v)",
-			role.GetMetadata().Name, s, matchNamespace, matchLabels, matchLogin)
+			role.GetName(), s, matchNamespace, matchLabels, matchLogin)
 		if matchNamespace && matchLabels && matchLogin {
 			return nil
 		}
@@ -369,7 +395,7 @@ func (set RoleSet) String() string {
 	}
 	roleNames := make([]string, len(set))
 	for i, role := range set {
-		roleNames[i] = role.GetMetadata().Name
+		roleNames[i] = role.GetName()
 	}
 	return fmt.Sprintf("roles %v", strings.Join(roleNames, ","))
 }
@@ -456,7 +482,6 @@ const MetadataSchema = `{
 const RoleSpecSchemaTemplate = `{
   "type": "object",
   "additionalProperties": false,
-  "default": {},
   "properties": {
     "max_session_ttl": {"type": "string"},
     "node_labels": {
@@ -570,7 +595,7 @@ func (s SortedRoles) Len() int {
 
 // Less compares roles by name
 func (s SortedRoles) Less(i, j int) bool {
-	return s[i].GetMetadata().Name < s[j].GetMetadata().Name
+	return s[i].GetName() < s[j].GetName()
 }
 
 // Swap swaps two roles in a list

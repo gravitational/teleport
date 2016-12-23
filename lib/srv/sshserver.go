@@ -418,22 +418,16 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 		}
 		for _, u := range users {
 			if u.GetName() == teleportUser {
-				for _, roleName := range u.GetRoles() {
-					role, err := s.authService.GetRole(roleName)
-					if err != nil {
-						return trace.Wrap(err)
-					}
-					roles = append(roles, role)
+				roles, err = services.FetchRoles(u.GetRoles(), s.authService)
+				if err != nil {
+					return trace.Wrap(err)
 				}
 			}
 		}
 	} else {
-		for _, roleName := range ca.Roles {
-			role, err := s.authService.GetRole(roleName)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			roles = append(roles, role)
+		roles, err = services.FetchRoles(ca.Roles, s.authService)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 	}
 

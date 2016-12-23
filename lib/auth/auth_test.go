@@ -79,7 +79,7 @@ func (s *AuthSuite) TestSessions(c *C) {
 	role := services.RoleForUser(teleportUser)
 	err = s.a.UpsertRole(role)
 	c.Assert(err, IsNil)
-	teleportUser.Roles = []string{role.GetMetadata().Name}
+	teleportUser.Roles = []string{role.GetName()}
 	err = s.a.UpsertUser(teleportUser)
 	c.Assert(err, IsNil)
 
@@ -119,7 +119,7 @@ func (s *AuthSuite) TestUserLock(c *C) {
 	role := services.RoleForUser(teleportUser)
 	err = s.a.UpsertRole(role)
 	c.Assert(err, IsNil)
-	teleportUser.Roles = []string{role.GetMetadata().Name}
+	teleportUser.Roles = []string{role.GetName()}
 	err = s.a.UpsertUser(teleportUser)
 	c.Assert(err, IsNil)
 

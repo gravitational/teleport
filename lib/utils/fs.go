@@ -94,3 +94,15 @@ func OpenFile(path string) (*os.File, error) {
 	}
 	return f, nil
 }
+
+// StatDir stats directory, returns error if file exists, but not a directory
+func StatDir(path string) (os.FileInfo, error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	if !fi.IsDir() {
+		return nil, trace.BadParameter("%v is not a directory", path)
+	}
+	return fi, nil
+}

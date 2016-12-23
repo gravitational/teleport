@@ -64,6 +64,8 @@ type User interface {
 	SetRoles(roles []string)
 	// AddRole adds role to the users' role list
 	AddRole(name string)
+	// SetAllowedLogins sets allowed logins property for user
+	SetAllowedLogins(logins []string)
 }
 
 // LoginStatus is a login status of the user
@@ -122,6 +124,11 @@ func (u *TeleportUser) Equals(other User) bool {
 		}
 	}
 	return true
+}
+
+// SetAllowedLogins sets allowed logins for user
+func (u *TeleportUser) SetAllowedLogins(logins []string) {
+	u.AllowedLogins = logins
 }
 
 // SetRoles sets a list of roles for user
