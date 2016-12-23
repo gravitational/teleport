@@ -109,7 +109,7 @@ func (bk *Backend) UpsertVal(bucket []string, key string, val []byte, ttl time.D
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// create the file (AKA "key"):
+	// create the (or overwrite existing) file (AKA "key"):
 	return ioutil.WriteFile(path.Join(dirPath, key), val, defaultFileMode)
 }
 
@@ -129,11 +129,6 @@ func (bk *Backend) DeleteKey(bucket []string, key string) error {
 func (bk *Backend) DeleteBucket(parent []string, bucket string) error {
 	return trace.ConvertSystemError(os.RemoveAll(
 		path.Join(path.Join(bk.Path, path.Join(parent...)), bucket)))
-}
-
-// GetValAndTTL returns value and TTL for a key in bucket
-func (bk *Backend) GetValAndTTL(bucket []string, key string) ([]byte, time.Duration, error) {
-	return nil, 0, nil
 }
 
 // TouchVal updates the TTL of the key without changing the value

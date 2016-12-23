@@ -43,8 +43,6 @@ type Backend interface {
 	UpsertVal(bucket []string, key string, val []byte, ttl time.Duration) error
 	// GetVal return a value for a given key in the bucket
 	GetVal(path []string, key string) ([]byte, error)
-	// GetValAndTTL returns value and TTL for a key in bucket
-	GetValAndTTL(bucket []string, key string) ([]byte, time.Duration, error)
 	// DeleteKey deletes a key in a bucket
 	DeleteKey(bucket []string, key string) error
 	// DeleteBucket deletes the bucket by a given path

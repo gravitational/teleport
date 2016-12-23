@@ -66,11 +66,11 @@ func (s *BackendSuite) BasicCRUD(c *C) {
 
 	_, err = s.B.GetVal([]string{"a"}, "b")
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
-	_, _, err = s.B.GetValAndTTL([]string{"a"}, "b")
+	_, err = s.B.GetVal([]string{"a"}, "b")
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 	_, err = s.B.GetVal([]string{"a", "b"}, "x")
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
-	_, _, err = s.B.GetValAndTTL([]string{"a", "b"}, "x")
+	_, err = s.B.GetVal([]string{"a", "b"}, "x")
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
 	keys, _ = s.B.GetKeys([]string{"a", "b", "bkey"})
@@ -83,10 +83,9 @@ func (s *BackendSuite) BasicCRUD(c *C) {
 	out, err := s.B.GetVal([]string{"a", "b"}, "bkey")
 	c.Assert(err, IsNil)
 	c.Assert(string(out), Equals, "val1")
-	out, ttl, err := s.B.GetValAndTTL([]string{"a", "b"}, "bkey")
+	out, err = s.B.GetVal([]string{"a", "b"}, "bkey")
 	c.Assert(err, IsNil)
 	c.Assert(string(out), Equals, "val1")
-	c.Assert(ttl, Equals, time.Duration(0))
 
 	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "bkey", []byte("val-updated"), 0), IsNil)
 	out, err = s.B.GetVal([]string{"a", "b"}, "bkey")
@@ -155,10 +154,9 @@ func (s *BackendSuite) Renewal(c *C) {
 
 	c.Assert(s.B.TouchVal([]string{"a", "b"}, "bkey", 100*time.Second), IsNil)
 
-	val, ttl, err := s.B.GetValAndTTL([]string{"a", "b"}, "bkey")
+	val, err := s.B.GetVal([]string{"a", "b"}, "bkey")
 	c.Assert(err, IsNil)
 	c.Assert(string(val), Equals, "val1")
-	c.Assert(ttl > time.Second, Equals, true)
 
 	err = s.B.TouchVal([]string{"a", "b"}, "non-key", 100*time.Second)
 	c.Assert(trace.IsNotFound(err), Equals, true)
@@ -180,11 +178,9 @@ func (s *BackendSuite) ValueAndTTl(c *C) {
 
 	time.Sleep(1000 * time.Millisecond)
 
-	value, ttl, err := s.B.GetValAndTTL([]string{"a", "b"}, "bkey")
+	value, err := s.B.GetVal([]string{"a", "b"}, "bkey")
 	c.Assert(err, IsNil)
 	c.Assert(string(value), DeepEquals, "val1")
-	ttlIsRight := (ttl < 1400*time.Millisecond) && (ttl > 600*time.Millisecond)
-	c.Assert(ttlIsRight, Equals, true)
 }
 
 func (s *BackendSuite) Locking(c *C) {

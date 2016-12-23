@@ -209,29 +209,6 @@ func (b *BoltBackend) GetVal(path []string, key string) ([]byte, error) {
 	return k.Value, nil
 }
 
-func (b *BoltBackend) GetValAndTTL(path []string, key string) ([]byte, time.Duration, error) {
-	var val []byte
-	if err := b.getKey(path, key, &val); err != nil {
-		return nil, 0, trace.Wrap(err)
-	}
-	var k *kv
-	if err := json.Unmarshal(val, &k); err != nil {
-		return nil, 0, trace.Wrap(err)
-	}
-	if k.TTL != 0 && b.clock.UtcNow().Sub(k.Created) > k.TTL {
-		if err := b.deleteKey(path, key); err != nil {
-			return nil, 0, trace.Wrap(err)
-		}
-		return nil, 0, trace.NotFound("%v: %v not found", path, key)
-	}
-	var newTTL time.Duration
-	newTTL = 0
-	if k.TTL != 0 {
-		newTTL = k.Created.Add(k.TTL).Sub(b.clock.UtcNow())
-	}
-	return k.Value, newTTL, nil
-}
-
 func (b *BoltBackend) DeleteKey(path []string, key string) error {
 	b.Lock()
 	defer b.Unlock()

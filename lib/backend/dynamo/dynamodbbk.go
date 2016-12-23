@@ -358,19 +358,6 @@ func (b *DynamoDBBackend) GetVal(path []string, key string) ([]byte, error) {
 	return r.Value, nil
 }
 
-// GetValAndTTL retrieve a value and a TTL from a key
-func (b *DynamoDBBackend) GetValAndTTL(path []string, key string) ([]byte, time.Duration, error) {
-	fullPath := b.key(append(path, key)...)
-	r, err := b.getKey(fullPath)
-	if err != nil {
-		return nil, 0, err
-	}
-	if r.TTL != 0 {
-		r.TTL = time.Unix(r.Timestamp, 0).Add(r.TTL).Sub(time.Now().UTC())
-	}
-	return r.Value, r.TTL, nil
-}
-
 func suffix(key string) string {
 	vals := strings.Split(key, "/")
 	return vals[0]

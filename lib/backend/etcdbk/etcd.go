@@ -184,21 +184,6 @@ func (b *bk) GetVal(path []string, key string) ([]byte, error) {
 	return value, nil
 }
 
-func (b *bk) GetValAndTTL(path []string, key string) ([]byte, time.Duration, error) {
-	re, err := b.api.Get(context.Background(), b.key(append(path, key)...), nil)
-	if err != nil {
-		return nil, 0, convertErr(err)
-	}
-	if re.Node.Dir {
-		return nil, 0, trace.BadParameter("'%v': trying to get value of bucket", key)
-	}
-	value, err := base64.StdEncoding.DecodeString(re.Node.Value)
-	if err != nil {
-		return nil, 0, trace.Wrap(err)
-	}
-	return value, time.Duration(re.Node.TTL) * time.Second, nil
-}
-
 func (b *bk) DeleteKey(path []string, key string) error {
 	_, err := b.api.Delete(context.Background(), b.key(append(path, key)...), nil)
 	return convertErr(err)
