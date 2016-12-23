@@ -18,6 +18,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net"
@@ -117,9 +118,9 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 //
 // A server is matched when ALL labels match.
 // If no labels are passed, ALL nodes are returned.
-func (proxy *ProxyClient) FindServersByLabels(labels map[string]string) ([]services.Server, error) {
+func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, labels map[string]string) ([]services.Server, error) {
 	nodes := make([]services.Server, 0)
-	site, err := proxy.ConnectToSite()
+	site, err := proxy.ConnectToSite(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -138,7 +139,7 @@ func (proxy *ProxyClient) FindServersByLabels(labels map[string]string) ([]servi
 
 // ConnectToSite connects to the auth server of the given site via proxy.
 // It returns connected and authenticated auth server client
-func (proxy *ProxyClient) ConnectToSite() (auth.ClientI, error) {
+func (proxy *ProxyClient) ConnectToSite(ctx context.Context) (auth.ClientI, error) {
 	site, err := proxy.getSite()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -148,7 +149,7 @@ func (proxy *ProxyClient) ConnectToSite() (auth.ClientI, error) {
 	// note the addres we're using: "@sitename", which in practice looks like "@{site-global-id}"
 	// the Teleport proxy interprets such address as a request to connec to the active auth server
 	// of the named site
-	nodeClient, err := proxy.ConnectToNode("@"+site.Name, proxy.hostLogin)
+	nodeClient, err := proxy.ConnectToNode(ctx, "@"+site.Name, proxy.hostLogin)
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)
@@ -166,7 +167,7 @@ func (proxy *ProxyClient) ConnectToSite() (auth.ClientI, error) {
 
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
-func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeClient, error) {
+func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string, user string) (*NodeClient, error) {
 	log.Infof("[CLIENT] connecting to node: %s", nodeAddress)
 	e := trace.Errorf("unknown Error")
 
@@ -227,8 +228,7 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeC
 			Auth:            []ssh.AuthMethod{authMethod},
 			HostKeyCallback: proxy.hostKeyCallback,
 		}
-		conn, chans, reqs, err := ssh.NewClientConn(pipeNetConn,
-			nodeAddress, sshConfig)
+		conn, chans, reqs, err := newClientConn(ctx, pipeNetConn, nodeAddress, sshConfig)
 		if err != nil {
 			if utils.IsHandshakeFailedError(err) {
 				e = trace.Wrap(err)
@@ -249,6 +249,38 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string) (*NodeC
 		return nil, trace.Errorf(`access denied to login "%v" when connecting to %v: %v`, user, parts[0], e)
 	}
 	return nil, e
+}
+
+func newClientConn(ctx context.Context, conn net.Conn, nodeAddress string, config *ssh.ClientConfig) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
+	type response struct {
+		conn   ssh.Conn
+		chanCh <-chan ssh.NewChannel
+		reqCh  <-chan *ssh.Request
+		err    error
+	}
+
+	respCh := make(chan response, 1)
+	go func() {
+		conn, chans, reqs, err := ssh.NewClientConn(conn, nodeAddress, config)
+		respCh <- response{conn, chans, reqs, err}
+	}()
+
+	select {
+	case resp := <-respCh:
+		if resp.err != nil {
+			return nil, nil, nil, trace.Wrap(resp.err, "failed to connect to %q", nodeAddress)
+		}
+		return resp.conn, resp.chanCh, resp.reqCh, nil
+	case <-ctx.Done():
+		errClose := conn.Close()
+		if errClose != nil {
+			log.Errorf("failed to close connection: %v", errClose)
+		}
+		// drain the channel
+		resp := <-respCh
+		log.Debugf("context closing")
+		return nil, nil, nil, trace.ConnectionProblem(resp.err, "failed to connect to %q", nodeAddress)
+	}
 }
 
 func (proxy *ProxyClient) Close() error {
