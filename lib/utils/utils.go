@@ -74,7 +74,7 @@ func MultiCloser(closers ...io.Closer) *multiCloser {
 // IsHandshakeFailedError specifies whether this error indicates
 // failed handshake
 func IsHandshakeFailedError(err error) bool {
-	return strings.Contains(err.Error(), "ssh: handshake failed")
+	return strings.Contains(trace.Unwrap(err).Error(), "ssh: handshake failed")
 }
 
 // IsShellFailedError specifies whether this error indicates

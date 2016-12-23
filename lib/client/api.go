@@ -18,6 +18,7 @@ package client
 
 import (
 	"bufio"
+	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -375,14 +376,14 @@ func (tc *TeleportClient) LocalAgent() *LocalKeyAgent {
 
 // getTargetNodes returns a list of node addresses this SSH command needs to
 // operate on.
-func (tc *TeleportClient) getTargetNodes(proxy *ProxyClient) ([]string, error) {
+func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient) ([]string, error) {
 	var (
 		err    error
 		nodes  []services.Server
 		retval = make([]string, 0)
 	)
 	if tc.Labels != nil && len(tc.Labels) > 0 {
-		nodes, err = proxy.FindServersByLabels(tc.Namespace, tc.Labels)
+		nodes, err = proxy.FindServersByLabels(ctx, tc.Namespace, tc.Labels)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -400,7 +401,7 @@ func (tc *TeleportClient) getTargetNodes(proxy *ProxyClient) ([]string, error) {
 // otherwise runs interactive shell
 //
 // Returns nil if successful, or (possibly) *exec.ExitError
-func (tc *TeleportClient) SSH(command []string, runLocally bool) error {
+func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally bool) error {
 	// connect to proxy first:
 	if !tc.Config.ProxySpecified() {
 		return trace.BadParameter("proxy server is not specified")
@@ -415,7 +416,7 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool) error {
 		return trace.Wrap(err)
 	}
 	// which nodes are we executing this commands on?
-	nodeAddrs, err := tc.getTargetNodes(proxyClient)
+	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -430,6 +431,7 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool) error {
 			nodeAddrs[0])
 	}
 	nodeClient, err := proxyClient.ConnectToNode(
+		ctx,
 		nodeAddrs[0]+"@"+tc.Namespace+"@"+siteInfo.Name,
 		tc.Config.HostLogin,
 		false)
@@ -449,7 +451,7 @@ func (tc *TeleportClient) SSH(command []string, runLocally bool) error {
 	}
 	// execute command(s) or a shell on remote node(s)
 	if len(command) > 0 {
-		return tc.runCommand(siteInfo.Name, nodeAddrs, proxyClient, command)
+		return tc.runCommand(ctx, siteInfo.Name, nodeAddrs, proxyClient, command)
 	}
 	return tc.runShell(nodeClient, nil)
 }
@@ -468,7 +470,7 @@ func (tc *TeleportClient) startPortForwarding(nodeClient *NodeClient) error {
 }
 
 // Join connects to the existing/active SSH session
-func (tc *TeleportClient) Join(namespace string, sessionID session.ID, input io.Reader) (err error) {
+func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID session.ID, input io.Reader) (err error) {
 	if namespace == "" {
 		return trace.BadParameter("missing parameter namespace")
 	}
@@ -487,7 +489,7 @@ func (tc *TeleportClient) Join(namespace string, sessionID session.ID, input io.
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	site, err := proxyClient.ConnectToSite(false)
+	site, err := proxyClient.ConnectToSite(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -534,7 +536,7 @@ func (tc *TeleportClient) Join(namespace string, sessionID session.ID, input io.
 	if tc.SiteName != "" {
 		fullNodeAddr = fmt.Sprintf("%s@%s@%s", node.Addr, tc.Namespace, tc.SiteName)
 	}
-	nc, err := proxyClient.ConnectToNode(fullNodeAddr, tc.Config.HostLogin, false)
+	nc, err := proxyClient.ConnectToNode(ctx, fullNodeAddr, tc.Config.HostLogin, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -548,7 +550,7 @@ func (tc *TeleportClient) Join(namespace string, sessionID session.ID, input io.
 }
 
 // Play replays the recorded session
-func (tc *TeleportClient) Play(namespace, sessionId string) (err error) {
+func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionId string) (err error) {
 	if namespace == "" {
 		return trace.BadParameter("missing parameter namespace")
 	}
@@ -561,7 +563,7 @@ func (tc *TeleportClient) Play(namespace, sessionId string) (err error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	site, err := proxyClient.ConnectToSite(false)
+	site, err := proxyClient.ConnectToSite(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -640,7 +642,7 @@ func (tc *TeleportClient) Play(namespace, sessionId string) (err error) {
 }
 
 // SCP securely copies file(s) from one SSH server to another
-func (tc *TeleportClient) SCP(args []string, port int, recursive bool, quiet bool) (err error) {
+func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recursive bool, quiet bool) (err error) {
 	if len(args) < 2 {
 		return trace.Errorf("Need at least two arguments for scp")
 	}
@@ -669,7 +671,7 @@ func (tc *TeleportClient) SCP(args []string, port int, recursive bool, quiet boo
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return proxyClient.ConnectToNode(addr+"@"+tc.Namespace+"@"+siteInfo.Name, tc.HostLogin, false)
+		return proxyClient.ConnectToNode(ctx, addr+"@"+tc.Namespace+"@"+siteInfo.Name, tc.HostLogin, false)
 	}
 
 	var progressWriter io.Writer
@@ -744,7 +746,7 @@ func isRemoteDest(name string) bool {
 }
 
 // ListNodes returns a list of nodes connected to a proxy
-func (tc *TeleportClient) ListNodes() ([]services.Server, error) {
+func (tc *TeleportClient) ListNodes(ctx context.Context) ([]services.Server, error) {
 	var err error
 	// userhost is specified? that must be labels
 	if tc.Host != "" {
@@ -761,12 +763,12 @@ func (tc *TeleportClient) ListNodes() ([]services.Server, error) {
 	}
 
 	defer proxyClient.Close()
-	return proxyClient.FindServersByLabels(tc.Namespace, tc.Labels)
+	return proxyClient.FindServersByLabels(ctx, tc.Namespace, tc.Labels)
 }
 
 // runCommand executes a given bash command on a bunch of remote nodes
 func (tc *TeleportClient) runCommand(
-	siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string) error {
+	ctx context.Context, siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string) error {
 
 	resultsC := make(chan error, len(nodeAddresses))
 	for _, address := range nodeAddresses {
@@ -779,7 +781,7 @@ func (tc *TeleportClient) runCommand(
 				resultsC <- err
 			}()
 			var nodeClient *NodeClient
-			nodeClient, err = proxyClient.ConnectToNode(address+"@"+tc.Namespace+"@"+siteName, tc.Config.HostLogin, false)
+			nodeClient, err = proxyClient.ConnectToNode(ctx, address+"@"+tc.Namespace+"@"+siteName, tc.Config.HostLogin, false)
 			if err != nil {
 				fmt.Fprintln(tc.Stderr, err)
 				return
