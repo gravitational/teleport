@@ -260,6 +260,7 @@ func (c *Client) DeleteCertAuthority(id services.CertAuthID) error {
 func (c *Client) GenerateToken(roles teleport.Roles, ttl time.Duration) (string, error) {
 	out, err := c.PostJSON(c.Endpoint("tokens"), generateTokenReq{
 		Roles: roles,
+		TTL:   ttl,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
