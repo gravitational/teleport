@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
@@ -73,7 +74,7 @@ func MultiCloser(closers ...io.Closer) *multiCloser {
 // IsHandshakeFailedError specifies whether this error indicates
 // failed handshake
 func IsHandshakeFailedError(err error) bool {
-	return strings.Contains(err.Error(), "ssh: handshake failed")
+	return strings.Contains(trace.Unwrap(err).Error(), "ssh: handshake failed")
 }
 
 // IsShellFailedError specifies whether this error indicates
@@ -162,7 +163,14 @@ func PrintVersion() {
 	fmt.Println(ver)
 }
 
+// HumanTimeFormat formats time as recognized by humans
+func HumanTimeFormat(d time.Time) string {
+	return d.Format(HumanTimeFormatString)
+}
+
 const (
+	// HumanTimeFormatString is a human readable date formatting
+	HumanTimeFormatString = "Mon Jan _2 15:04 UTC"
 	// CertTeleportUser specifies teleport user
 	CertTeleportUser = "x-teleport-user"
 	// CertExtensionRole specifies teleport role

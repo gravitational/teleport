@@ -121,11 +121,17 @@ const (
 
 	// MaxLoginAttempts sets the max. number of allowed failed login attempts
 	// before a user account is locked for AccountLockInterval
-	MaxLoginAttempts byte = 5
+	MaxLoginAttempts int = 5
 
 	// AccountLockInterval defines a time interval during which a user account
 	// is locked after MaxLoginAttempts
 	AccountLockInterval = time.Duration(20 * time.Minute)
+
+	// Namespace is default namespace
+	Namespace = "default"
+
+	// AttemptTTL is TTL for login attempt
+	AttemptTTL = time.Hour * 24 * 7
 )
 
 var (

@@ -84,10 +84,23 @@ func (r *Role) String() string {
 // if it's ok, false otherwise
 func (r *Role) Check() error {
 	switch *r {
-	case RoleAuth, RoleUser, RoleWeb, RoleNode, RoleAdmin, RoleProvisionToken, RoleSignup, RoleProxy, RoleU2FSign, RoleU2FUser:
+	case RoleAuth, RoleUser, RoleWeb, RoleNode, RoleAdmin, RoleProvisionToken, RoleSignup, RoleProxy:
 		return nil
 	}
 	return trace.BadParameter("role %v is not supported", *r)
+}
+
+// Role returns system username associated with it
+func (r Role) User() string {
+	return fmt.Sprintf("@%v", strings.ToLower(string(r)))
+}
+
+// SystemUsernamePrefix is reserved for system users
+const SystemUsernamePrefix = "@"
+
+// IsSystemUsername returns true if given username is a reserved system username
+func IsSystemUsername(username string) bool {
+	return strings.HasPrefix(username, SystemUsernamePrefix)
 }
 
 const (
@@ -107,8 +120,4 @@ const (
 	RoleProvisionToken Role = "ProvisionToken"
 	// RoleSignup is for first time signing up users
 	RoleSignup Role = "Signup"
-	// RoleU2FSign is for partially authenticated U2F users who need to request a U2F auth challenge
-	RoleU2FSign = "U2FSign"
-	// RoleU2FUser is for teleport SSH user already authenticated with U2F
-	RoleU2FUser = "U2FUser"
 )

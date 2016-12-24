@@ -17,8 +17,8 @@ limitations under the License.
 package suite
 
 import (
-	"crypto/x509"
 	"crypto/ecdsa"
+	"crypto/x509"
 	"encoding/base64"
 	"sort"
 	"sync/atomic"
@@ -31,8 +31,9 @@ import (
 
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
+	"github.com/jonboulle/clockwork"
 	"github.com/tstranex/u2f"
+	"golang.org/x/crypto/ssh"
 
 	. "gopkg.in/check.v1"
 )
@@ -56,6 +57,7 @@ func NewTestCA(caType services.CertAuthType, domainName string) *services.CertAu
 }
 
 type ServicesTestSuite struct {
+	Access        services.Access
 	CAS           services.Trust
 	LockS         services.Lock
 	PresenceS     services.Presence
@@ -148,6 +150,30 @@ func (s *ServicesTestSuite) UsersCRUD(c *C) {
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("expected bad parameter error, got %T", err))
 }
 
+func (s *ServicesTestSuite) LoginAttempts(c *C) {
+	user := &services.TeleportUser{Name: "user1", AllowedLogins: []string{"admin", "root"}}
+	c.Assert(s.WebS.UpsertUser(user), IsNil)
+
+	attempts, err := s.WebS.GetUserLoginAttempts(user.Name)
+	c.Assert(err, IsNil)
+	c.Assert(len(attempts), Equals, 0)
+
+	clock := clockwork.NewFakeClock()
+	attempt1 := services.LoginAttempt{Time: clock.Now().UTC(), Success: false}
+	err = s.WebS.AddUserLoginAttempt(user.Name, attempt1, defaults.AttemptTTL)
+	c.Assert(err, IsNil)
+
+	attempt2 := services.LoginAttempt{Time: clock.Now().UTC(), Success: false}
+	err = s.WebS.AddUserLoginAttempt(user.Name, attempt2, defaults.AttemptTTL)
+	c.Assert(err, IsNil)
+
+	attempts, err = s.WebS.GetUserLoginAttempts(user.Name)
+	c.Assert(err, IsNil)
+	c.Assert(attempts, DeepEquals, []services.LoginAttempt{attempt1, attempt2})
+	c.Assert(services.LastFailed(3, attempts), Equals, false)
+	c.Assert(services.LastFailed(2, attempts), Equals, true)
+}
+
 func (s *ServicesTestSuite) CertAuthCRUD(c *C) {
 	ca := NewTestCA(services.UserCA, "example.com")
 	c.Assert(s.CAS.UpsertCertAuthority(
@@ -172,14 +198,14 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *C) {
 }
 
 func (s *ServicesTestSuite) ServerCRUD(c *C) {
-	out, err := s.PresenceS.GetNodes()
+	out, err := s.PresenceS.GetNodes(defaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	srv := services.Server{ID: "srv1", Addr: "localhost:2022"}
+	srv := services.Server{ID: "srv1", Addr: "localhost:2022", Namespace: defaults.Namespace}
 	c.Assert(s.PresenceS.UpsertNode(srv, 0), IsNil)
 
-	out, err = s.PresenceS.GetNodes()
+	out, err = s.PresenceS.GetNodes(srv.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []services.Server{srv})
 
@@ -407,6 +433,72 @@ func (s *ServicesTestSuite) PasswordCRUD(c *C) {
 
 }
 
+func (s *ServicesTestSuite) RolesCRUD(c *C) {
+	out, err := s.Access.GetRoles()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
+
+	role := services.RoleResource{
+		Kind:    services.KindRole,
+		Version: services.V1,
+		Metadata: services.Metadata{
+			Name:      "role1",
+			Namespace: defaults.Namespace,
+		},
+		Spec: services.RoleSpec{
+			Logins:        []string{"root", "bob"},
+			NodeLabels:    map[string]string{services.Wildcard: services.Wildcard},
+			MaxSessionTTL: services.Duration{Duration: time.Hour},
+			Namespaces:    []string{"default", "system"},
+			Resources:     map[string][]string{services.KindRole: []string{services.ActionRead}},
+		},
+	}
+	err = s.Access.UpsertRole(&role)
+	c.Assert(err, IsNil)
+	rout, err := s.Access.GetRole(role.Metadata.Name)
+	c.Assert(err, IsNil)
+	c.Assert(rout, DeepEquals, &role)
+
+	role.Spec.Logins = []string{"bob"}
+	err = s.Access.UpsertRole(&role)
+	c.Assert(err, IsNil)
+	rout, err = s.Access.GetRole(role.Metadata.Name)
+	c.Assert(err, IsNil)
+	c.Assert(rout, DeepEquals, &role)
+
+	err = s.Access.DeleteRole(role.Metadata.Name)
+	c.Assert(err, IsNil)
+
+	_, err = s.Access.GetRole(role.Metadata.Name)
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%T", err))
+}
+
+func (s *ServicesTestSuite) NamespacesCRUD(c *C) {
+	out, err := s.PresenceS.GetNamespaces()
+	c.Assert(err, IsNil)
+	c.Assert(len(out), Equals, 0)
+
+	ns := services.Namespace{
+		Kind:    services.KindNamespace,
+		Version: services.V1,
+		Metadata: services.Metadata{
+			Name:      defaults.Namespace,
+			Namespace: defaults.Namespace,
+		},
+	}
+	err = s.PresenceS.UpsertNamespace(ns)
+	c.Assert(err, IsNil)
+	nsout, err := s.PresenceS.GetNamespace(ns.Metadata.Name)
+	c.Assert(err, IsNil)
+	c.Assert(nsout, DeepEquals, &ns)
+
+	err = s.PresenceS.DeleteNamespace(ns.Metadata.Name)
+	c.Assert(err, IsNil)
+
+	_, err = s.PresenceS.GetNamespace(ns.Metadata.Name)
+	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%T", err))
+}
+
 func (s *ServicesTestSuite) PasswordGarbage(c *C) {
 	garbage := [][]byte{
 		nil,
@@ -456,9 +548,9 @@ func (s *ServicesTestSuite) U2FCRUD(c *C) {
 	c.Assert(ok, Equals, true)
 
 	registration := u2f.Registration{
-		Raw:[]byte("BQQY6LngS6fSvdeuPw+PI4ZjMk5sQ1gj+38uv2D0+wdMeenWojbKwiGx0w93vH++mwvpyv7YQ9WKTv3bU5KxWMQzQIJ+PVFsYjEa0Xgnx+siQaxdlku+U+J2W55U5NrN1iGIc0Amh+0HwhbV2W90G79cxIYS2SVIFAdqTTDXvPXJbeAwggE8MIHkoAMCAQICChWIR0AwlYJZQHcwCgYIKoZIzj0EAwIwFzEVMBMGA1UEAxMMRlQgRklETyAwMTAwMB4XDTE0MDgxNDE4MjkzMloXDTI0MDgxNDE4MjkzMlowMTEvMC0GA1UEAxMmUGlsb3RHbnViYnktMC40LjEtMTU4ODQ3NDAzMDk1ODI1OTQwNzcwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAQY6LngS6fSvdeuPw+PI4ZjMk5sQ1gj+38uv2D0+wdMeenWojbKwiGx0w93vH++mwvpyv7YQ9WKTv3bU5KxWMQzMAoGCCqGSM49BAMCA0cAMEQCIIbmYKu6I2L4pgZCBms9NIo9yo5EO9f2irp0ahvLlZudAiC8RN/N+WHAFdq8Z+CBBOMsRBFDDJy3l5EDR83B5GAfrjBEAiBl6R6gAmlbudVpW2jSn3gfjmA8EcWq0JsGZX9oFM/RJwIgb9b01avBY5jBeVIqw5KzClLzbRDMY4K+Ds6uprHyA1Y="),
-		KeyHandle:[]byte("gn49UWxiMRrReCfH6yJBrF2WS75T4nZbnlTk2s3WIYhzQCaH7QfCFtXZb3Qbv1zEhhLZJUgUB2pNMNe89clt4A=="),
-		PubKey:*pubkey,
+		Raw:       []byte("BQQY6LngS6fSvdeuPw+PI4ZjMk5sQ1gj+38uv2D0+wdMeenWojbKwiGx0w93vH++mwvpyv7YQ9WKTv3bU5KxWMQzQIJ+PVFsYjEa0Xgnx+siQaxdlku+U+J2W55U5NrN1iGIc0Amh+0HwhbV2W90G79cxIYS2SVIFAdqTTDXvPXJbeAwggE8MIHkoAMCAQICChWIR0AwlYJZQHcwCgYIKoZIzj0EAwIwFzEVMBMGA1UEAxMMRlQgRklETyAwMTAwMB4XDTE0MDgxNDE4MjkzMloXDTI0MDgxNDE4MjkzMlowMTEvMC0GA1UEAxMmUGlsb3RHbnViYnktMC40LjEtMTU4ODQ3NDAzMDk1ODI1OTQwNzcwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAQY6LngS6fSvdeuPw+PI4ZjMk5sQ1gj+38uv2D0+wdMeenWojbKwiGx0w93vH++mwvpyv7YQ9WKTv3bU5KxWMQzMAoGCCqGSM49BAMCA0cAMEQCIIbmYKu6I2L4pgZCBms9NIo9yo5EO9f2irp0ahvLlZudAiC8RN/N+WHAFdq8Z+CBBOMsRBFDDJy3l5EDR83B5GAfrjBEAiBl6R6gAmlbudVpW2jSn3gfjmA8EcWq0JsGZX9oFM/RJwIgb9b01avBY5jBeVIqw5KzClLzbRDMY4K+Ds6uprHyA1Y="),
+		KeyHandle: []byte("gn49UWxiMRrReCfH6yJBrF2WS75T4nZbnlTk2s3WIYhzQCaH7QfCFtXZb3Qbv1zEhhLZJUgUB2pNMNe89clt4A=="),
+		PubKey:    *pubkey,
 	}
 	err = s.WebS.UpsertU2FRegistration(user1, &registration)
 	c.Assert(err, IsNil)

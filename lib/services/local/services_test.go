@@ -19,7 +19,6 @@ package local
 import (
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -54,7 +53,8 @@ func (s *BoltSuite) SetUpTest(c *C) {
 	suite.LockS = NewLockService(s.bk)
 	suite.PresenceS = NewPresenceService(s.bk)
 	suite.ProvisioningS = NewProvisioningService(s.bk)
-	suite.WebS = NewIdentityService(s.bk, 10, time.Duration(time.Hour))
+	suite.WebS = NewIdentityService(s.bk)
+	suite.Access = NewAccessService(s.bk)
 	suite.ChangesC = make(chan interface{})
 	s.suite = suite
 }
@@ -79,6 +79,10 @@ func (s *BoltSuite) TestUsersCRUD(c *C) {
 	s.suite.UsersCRUD(c)
 }
 
+func (s *BoltSuite) TestLoginAttempts(c *C) {
+	s.suite.LoginAttempts(c)
+}
+
 func (s *BoltSuite) TestPasswordHashCRUD(c *C) {
 	s.suite.PasswordHashCRUD(c)
 }
@@ -101,6 +105,10 @@ func (s *BoltSuite) TestLocking(c *C) {
 
 func (s *BoltSuite) TestToken(c *C) {
 	s.suite.TokenCRUD(c)
+}
+
+func (s *BoltSuite) TestRoles(c *C) {
+	s.suite.RolesCRUD(c)
 }
 
 func (s *BoltSuite) TestU2FCRUD(c *C) {

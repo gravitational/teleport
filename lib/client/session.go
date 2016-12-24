@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -23,6 +24,8 @@ import (
 )
 
 type NodeSession struct {
+	// namespace is a session this namespace belongs to
+	namespace string
 	// id is the Teleport session ID
 	id session.ID
 
@@ -73,12 +76,14 @@ func newSession(client *NodeClient,
 		stdin:      stdin,
 		stdout:     stdout,
 		stderr:     stderr,
+		namespace:  client.Namespace,
 		closer:     utils.NewCloseBroadcaster(),
 	}
 	// if we're joining an existing session, we need to assume that session's
 	// existing/current terminal size:
 	if joinSession != nil {
 		ns.id = joinSession.ID
+		ns.namespace = joinSession.Namespace
 		tsize := joinSession.TerminalParams.Winsize()
 		if ns.isTerminalAttached() {
 			err = term.SetWinsize(0, tsize)
@@ -242,7 +247,7 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 	currentSize, _ := term.GetWinsize(0)
 
 	// start the timer which asks for server-side window size changes:
-	siteClient, err := ns.nodeClient.Proxy.ConnectToSite(true)
+	siteClient, err := ns.nodeClient.Proxy.ConnectToSite(context.TODO(), true)
 	if err != nil {
 		log.Error(err)
 		return
@@ -279,9 +284,11 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 				log.Warnf("[CLIENT] failed to send window change reqest: %v", err)
 			}
 		case <-tick.C:
-			sess, err := siteClient.GetSession(ns.id)
+			sess, err := siteClient.GetSession(ns.namespace, ns.id)
 			if err != nil {
-				log.Error(err)
+				if !trace.IsNotFound(err) {
+					log.Error(trace.DebugReport(err))
+				}
 				continue
 			}
 			// no previous session

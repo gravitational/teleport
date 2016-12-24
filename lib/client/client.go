@@ -18,6 +18,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
@@ -50,8 +52,9 @@ type ProxyClient struct {
 // NodeClient implements ssh client to a ssh node (teleport or any regular ssh node)
 // NodeClient can run shell and commands or upload and download files.
 type NodeClient struct {
-	Client *ssh.Client
-	Proxy  *ProxyClient
+	Namespace string
+	Client    *ssh.Client
+	Proxy     *ProxyClient
 }
 
 func (proxy *ProxyClient) getSite() (*services.Site, error) {
@@ -60,7 +63,7 @@ func (proxy *ProxyClient) getSite() (*services.Site, error) {
 		return nil, trace.Wrap(err)
 	}
 	if len(sites) == 0 {
-		return nil, trace.NotFound("no sites registered")
+		return nil, trace.NotFound("no clusters registered")
 	}
 	if proxy.siteName == "" {
 		return &sites[0], nil
@@ -70,7 +73,7 @@ func (proxy *ProxyClient) getSite() (*services.Site, error) {
 			return &site, nil
 		}
 	}
-	return nil, trace.NotFound("site %v not found", proxy.siteName)
+	return nil, trace.NotFound("cluster %v not found", proxy.siteName)
 }
 
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
@@ -100,10 +103,10 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	select {
 	case <-done:
 	case <-time.After(teleport.DefaultTimeout):
-		return nil, trace.Errorf("timeout")
+		return nil, trace.ConnectionProblem(nil, "timeout")
 	}
 
-	log.Infof("[CLIENT] found sites: %v", stdout.String())
+	log.Infof("[CLIENT] found clusters: %v", stdout.String())
 
 	var sites []services.Site
 	if err := json.Unmarshal(stdout.Bytes(), &sites); err != nil {
@@ -117,13 +120,16 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 //
 // A server is matched when ALL labels match.
 // If no labels are passed, ALL nodes are returned.
-func (proxy *ProxyClient) FindServersByLabels(labels map[string]string) ([]services.Server, error) {
+func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace string, labels map[string]string) ([]services.Server, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing parameter namespace")
+	}
 	nodes := make([]services.Server, 0)
-	site, err := proxy.ConnectToSite(false)
+	site, err := proxy.ConnectToSite(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	siteNodes, err := site.GetNodes()
+	siteNodes, err := site.GetNodes(namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -141,7 +147,7 @@ func (proxy *ProxyClient) FindServersByLabels(labels map[string]string) ([]servi
 //
 // if 'quiet' is set to true, no errors will be printed to stdout, otherwise
 // any connection errors are visible to a user.
-func (proxy *ProxyClient) ConnectToSite(quiet bool) (auth.ClientI, error) {
+func (proxy *ProxyClient) ConnectToSite(ctx context.Context, quiet bool) (auth.ClientI, error) {
 	site, err := proxy.getSite()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -151,7 +157,7 @@ func (proxy *ProxyClient) ConnectToSite(quiet bool) (auth.ClientI, error) {
 	// note the addres we're using: "@sitename", which in practice looks like "@{site-global-id}"
 	// the Teleport proxy interprets such address as a request to connec to the active auth server
 	// of the named site
-	nodeClient, err := proxy.ConnectToNode("@"+site.Name, proxy.hostLogin, quiet)
+	nodeClient, err := proxy.ConnectToNode(ctx, "@"+site.Name, proxy.hostLogin, quiet)
 	if err != nil {
 		log.Error(err)
 		return nil, trace.Wrap(err)
@@ -169,7 +175,7 @@ func (proxy *ProxyClient) ConnectToSite(quiet bool) (auth.ClientI, error) {
 
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
-func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string, quiet bool) (*NodeClient, error) {
+func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress string, user string, quiet bool) (*NodeClient, error) {
 	log.Infof("[CLIENT] connecting to node: %s", nodeAddress)
 	e := trace.Errorf("unknown Error")
 
@@ -233,8 +239,7 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string, quiet b
 			Auth:            []ssh.AuthMethod{authMethod},
 			HostKeyCallback: proxy.hostKeyCallback,
 		}
-		conn, chans, reqs, err := ssh.NewClientConn(pipeNetConn,
-			nodeAddress, sshConfig)
+		conn, chans, reqs, err := newClientConn(ctx, pipeNetConn, nodeAddress, sshConfig)
 		if err != nil {
 			if utils.IsHandshakeFailedError(err) {
 				e = trace.Wrap(err)
@@ -247,7 +252,7 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string, quiet b
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &NodeClient{Client: client, Proxy: proxy}, nil
+		return &NodeClient{Client: client, Proxy: proxy, Namespace: defaults.Namespace}, nil
 	}
 	if utils.IsHandshakeFailedError(e) {
 		// remove the name of the site from the node address:
@@ -255,6 +260,38 @@ func (proxy *ProxyClient) ConnectToNode(nodeAddress string, user string, quiet b
 		return nil, trace.Errorf(`access denied to login "%v" when connecting to %v: %v`, user, parts[0], e)
 	}
 	return nil, e
+}
+
+func newClientConn(ctx context.Context, conn net.Conn, nodeAddress string, config *ssh.ClientConfig) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
+	type response struct {
+		conn   ssh.Conn
+		chanCh <-chan ssh.NewChannel
+		reqCh  <-chan *ssh.Request
+		err    error
+	}
+
+	respCh := make(chan response, 1)
+	go func() {
+		conn, chans, reqs, err := ssh.NewClientConn(conn, nodeAddress, config)
+		respCh <- response{conn, chans, reqs, err}
+	}()
+
+	select {
+	case resp := <-respCh:
+		if resp.err != nil {
+			return nil, nil, nil, trace.Wrap(resp.err, "failed to connect to %q", nodeAddress)
+		}
+		return resp.conn, resp.chanCh, resp.reqCh, nil
+	case <-ctx.Done():
+		errClose := conn.Close()
+		if errClose != nil {
+			log.Errorf("failed to close connection: %v", errClose)
+		}
+		// drain the channel
+		resp := <-respCh
+		log.Debugf("context closing")
+		return nil, nil, nil, trace.ConnectionProblem(resp.err, "failed to connect to %q", nodeAddress)
+	}
 }
 
 func (proxy *ProxyClient) Close() error {

@@ -94,8 +94,17 @@ type Config struct {
 // Version is a current webapi version
 const APIVersion = "v1"
 
+type RewritingHandler struct {
+	http.Handler
+	handler *Handler
+}
+
+func (r *RewritingHandler) Close() error {
+	return r.handler.Close()
+}
+
 // NewHandler returns a new instance of web proxy handler
-func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
+func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	const apiPrefix = "/" + APIVersion
 	lauth, err := newSessionCache([]utils.NetAddr{cfg.AuthServers})
 	if err != nil {
@@ -134,24 +143,27 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 
 	// Site specific API
 
+	// get namespaces
+	h.GET("/webapi/sites/:site/namespaces", h.withSiteAuth(h.getSiteNamespaces))
+
 	// get nodes
-	h.GET("/webapi/sites/:site/nodes", h.withSiteAuth(h.getSiteNodes))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes", h.withSiteAuth(h.getSiteNodes))
 	// connect to node via websocket (that's why it's a GET method)
-	h.GET("/webapi/sites/:site/connect", h.withSiteAuth(h.siteNodeConnect))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/connect", h.withSiteAuth(h.siteNodeConnect))
 	// get session event stream
-	h.GET("/webapi/sites/:site/sessions/:sid/events/stream", h.withSiteAuth(h.siteSessionStream))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events/stream", h.withSiteAuth(h.siteSessionStream))
 	// generate a new session
-	h.POST("/webapi/sites/:site/sessions", h.withSiteAuth(h.siteSessionGenerate))
+	h.POST("/webapi/sites/:site/namespaces/:namespace/sessions", h.withSiteAuth(h.siteSessionGenerate))
 	// update session parameters
-	h.PUT("/webapi/sites/:site/sessions/:sid", h.withSiteAuth(h.siteSessionUpdate))
+	h.PUT("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.withSiteAuth(h.siteSessionUpdate))
 	// get the session list
-	h.GET("/webapi/sites/:site/sessions", h.withSiteAuth(h.siteSessionsGet))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions", h.withSiteAuth(h.siteSessionsGet))
 	// get a session
-	h.GET("/webapi/sites/:site/sessions/:sid", h.withSiteAuth(h.siteSessionGet))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid", h.withSiteAuth(h.siteSessionGet))
 	// get session's events
-	h.GET("/webapi/sites/:site/sessions/:sid/events", h.withSiteAuth(h.siteSessionEventsGet))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events", h.withSiteAuth(h.siteSessionEventsGet))
 	// get session's bytestream
-	h.GET("/webapi/sites/:site/sessions/:sid/stream", h.siteSessionStreamGet)
+	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream", h.siteSessionStreamGet)
 	// search site events
 	h.GET("/webapi/sites/:site/events", h.withSiteAuth(h.siteEventsGet))
 
@@ -242,7 +254,15 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 		}
 	})
 	h.NotFound = routingHandler
-	return h, nil
+	return &RewritingHandler{
+		Handler: httplib.RewritePaths(h,
+			httplib.Rewrite("/webapi/sites/([^/]+)/sessions/(.*)", "/webapi/sites/$1/namespaces/default/sessions/$2"),
+			httplib.Rewrite("/webapi/sites/([^/]+)/sessions", "/webapi/sites/$1/namespaces/default/sessions"),
+			httplib.Rewrite("/webapi/sites/([^/]+)/nodes", "/webapi/sites/$1/namespaces/default/nodes"),
+			httplib.Rewrite("/webapi/sites/([^/]+)/connect", "/webapi/sites/$1/namespaces/default/connect"),
+		),
+		handler: h,
+	}, nil
 }
 
 // Close closes associated session cache operations
@@ -467,11 +487,11 @@ type createSessionResponseRaw struct {
 }
 
 func (r createSessionResponseRaw) response() (*CreateSessionResponse, error) {
-	user, err := services.GetUserUnmarshaler()(r.User)
+	user, err := services.GetUserMarshaler().UnmarshalUser(r.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn, User: user.WebSessionInfo()}, nil
+	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn, User: user}, nil
 }
 
 func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
@@ -484,10 +504,22 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	var roles services.RoleSet
+	for _, roleName := range user.GetRoles() {
+		role, err := clt.GetRole(roleName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		roles = append(roles, role)
+	}
+	allowedLogins, err := roles.CheckLogins(0)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &CreateSessionResponse{
 		Type:      roundtrip.AuthBearer,
 		Token:     webSession.WS.BearerToken,
-		User:      user.WebSessionInfo(),
+		User:      user.WebSessionInfo(allowedLogins),
 		ExpiresIn: int(webSession.WS.Expires.Sub(time.Now()) / time.Second),
 	}, nil
 }
@@ -829,6 +861,33 @@ func (m *Handler) getSites(w http.ResponseWriter, r *http.Request, _ httprouter.
 	}, nil
 }
 
+type getSiteNamespacesResponse struct {
+	Namespaces []services.Namespace `json:"namespaces"`
+}
+
+/* getSiteNamespaces returns a list of namespaces for a given site
+
+GET /v1/webapi/namespaces/:namespace/sites/:site/nodes
+
+Sucessful response:
+
+{"namespaces": [{..namespace resource...}]}
+*/
+func (m *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	log.Debugf("[web] GET /namespaces")
+	clt, err := site.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	namespaces, err := clt.GetNamespaces()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return getSiteNamespacesResponse{
+		Namespaces: namespaces,
+	}, nil
+}
+
 type nodeWithSessions struct {
 	Node     services.Server   `json:"node"`
 	Sessions []session.Session `json:"sessions"`
@@ -840,7 +899,7 @@ type getSiteNodesResponse struct {
 
 /* getSiteNodes returns a list of nodes active in the site
 
-GET /v1/webapi/sites/:site/nodes
+GET /v1/webapi/namespaces/:namespace/sites/:site/nodes
 
 Sucessful response:
 
@@ -871,17 +930,18 @@ Sucessful response:
   ]
 }
 */
-func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	log.Debugf("[web] GET /nodes")
 	clt, err := site.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := clt.GetNodes()
+	namespace := p.ByName("namespace")
+	servers, err := clt.GetNodes(namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sessions, err := clt.GetSessions()
+	sessions, err := clt.GetSessions(namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -908,7 +968,7 @@ func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, _ httprou
 
 // siteNodeConnect connect to the site node
 //
-// GET /v1/webapi/sites/:site/connect?access_token=bearer_token&params=<urlencoded json-structure>
+// GET /v1/webapi/sites/:site/namespaces/:namespace/connect?access_token=bearer_token&params=<urlencoded json-structure>
 //
 // Due to the nature of websocket we can't POST parameters as is, so we have
 // to add query parameters. The params query parameter is a url encodeed JSON strucrture:
@@ -929,6 +989,7 @@ func (m *Handler) siteNodeConnect(w http.ResponseWriter, r *http.Request, p http
 	if err := json.Unmarshal([]byte(params), &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	req.Namespace = p.ByName("namespace")
 	log.Infof("web client connected to node %#v", req)
 	connect, err := newConnectHandler(*req, ctx, site)
 	if err != nil {
@@ -952,7 +1013,7 @@ type sessionStreamEvent struct {
 
 // siteSessionStream returns a stream of events related to the session
 //
-// GET /v1/webapi/sites/:site/sessions/:sid/events/stream?access_token=bearer_token
+// GET /v1/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events/stream?access_token=bearer_token
 //
 // Sucessful response is a websocket stream that allows read write to the server and returns
 // json events
@@ -963,7 +1024,7 @@ func (m *Handler) siteSessionStream(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
-	connect, err := newSessionStreamHandler(
+	connect, err := newSessionStreamHandler(p.ByName("namespace"),
 		*sessionID, ctx, site, m.sessionStreamPollPeriod)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1004,6 +1065,7 @@ func (m *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 	req.Session.ID = session.NewID()
 	req.Session.Created = time.Now().UTC()
 	req.Session.LastActive = time.Now().UTC()
+	req.Session.Namespace = p.ByName("namespace")
 	log.Infof("Generated session: %#v", req.Session)
 	return siteSessionGenerateResponse{Session: req.Session}, nil
 }
@@ -1034,7 +1096,7 @@ func (m *Handler) siteSessionUpdate(w http.ResponseWriter, r *http.Request, p ht
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = ctx.UpdateSessionTerminal(*sessionID, req.TerminalParams)
+	err = ctx.UpdateSessionTerminal(p.ByName("namespace"), *sessionID, req.TerminalParams)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1048,7 +1110,7 @@ type siteSessionsGetResponse struct {
 // siteSessionGet gets the list of site sessions filtered by creation time
 // and either they're active or not
 //
-// GET /v1/webapi/sites/:site/sessions
+// GET /v1/webapi/sites/:site/namespaces/:namespace/sessions
 //
 // Response body:
 //
@@ -1058,7 +1120,7 @@ func (m *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sessions, err := clt.GetSessions()
+	sessions, err := clt.GetSessions(p.ByName("namespace"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1067,7 +1129,7 @@ func (m *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 
 // siteSessionGet gets the list of site session by id
 //
-// GET /v1/webapi/sites/:site/sessions/:sid
+// GET /v1/webapi/sites/:site/namespaces/:namespace/sessions/:sid
 //
 // Response body:
 //
@@ -1083,12 +1145,9 @@ func (m *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := clt.GetSession(*sessionID)
+	sess, err := clt.GetSession(p.ByName("namespace"), *sessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if sess == nil {
-		return nil, trace.NotFound("Session %v cannot be found", sessionID)
 	}
 	return *sess, nil
 }
@@ -1150,7 +1209,7 @@ type siteSessionStreamGetResponse struct {
 
 // siteSessionStreamGet returns a byte array from a session's stream
 //
-// GET /v1/webapi/sites/:site/sessions/:sid/stream?query
+// GET /v1/webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream?query
 //
 // Query parameters:
 //   "offset"   : bytes from the beginning
@@ -1216,7 +1275,7 @@ func (m *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 		max = maxStreamBytes
 	}
 	// call the site API to get the chunk:
-	bytes, err := clt.GetSessionChunk(*sid, offset, max)
+	bytes, err := clt.GetSessionChunk(p.ByName("namespace"), *sid, offset, max)
 	if err != nil {
 		onError(trace.Wrap(err))
 		return
@@ -1245,7 +1304,7 @@ type eventsListGetResponse struct {
 
 // siteSessionEventsGet gets the site session by id
 //
-// GET /v1/webapi/sites/:site/sessions/:sid/events?after=N
+// GET /v1/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events?after=N
 //
 // Query:
 //    "after" : cursor value of an event to return "newer than" events
@@ -1268,7 +1327,7 @@ func (m *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 	if err != nil {
 		afterN = 0
 	}
-	e, err := clt.GetSessionEvents(*sessionID, afterN)
+	e, err := clt.GetSessionEvents(p.ByName("namespace"), *sessionID, afterN)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

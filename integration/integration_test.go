@@ -18,6 +18,7 @@ package integration
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -124,7 +126,7 @@ func (s *IntSuite) TestAudit(c *check.C) {
 	defer t.Stop(true)
 
 	// should have no sessions:
-	sessions, _ := site.GetSessions()
+	sessions, _ := site.GetSessions(defaults.Namespace)
 	c.Assert(len(sessions), check.Equals, 0)
 
 	// create interactive session (this goroutine is this user's terminal time)
@@ -135,14 +137,14 @@ func (s *IntSuite) TestAudit(c *check.C) {
 		c.Assert(err, check.IsNil)
 		cl.Stdout = &myTerm
 		cl.Stdin = &myTerm
-		err = cl.SSH([]string{}, false)
+		err = cl.SSH(context.TODO(), []string{}, false)
 		endC <- err
 	}()
 
 	// wait until there's a session in there:
 	for i := 0; len(sessions) == 0; i++ {
 		time.Sleep(time.Millisecond * 20)
-		sessions, _ = site.GetSessions()
+		sessions, _ = site.GetSessions(defaults.Namespace)
 		if i > 100 {
 			// waited too long
 			c.FailNow()
@@ -154,20 +156,20 @@ func (s *IntSuite) TestAudit(c *check.C) {
 	// wait for the user to join this session:
 	for len(session.Parties) == 0 {
 		time.Sleep(time.Millisecond * 5)
-		session, err = site.GetSession(sessions[0].ID)
+		session, err = site.GetSession(defaults.Namespace, sessions[0].ID)
 		c.Assert(err, check.IsNil)
 	}
 	// make sure it's us who joined! :)
 	c.Assert(session.Parties[0].User, check.Equals, s.me.Username)
 
-	// lets add something to the session streaam:
+	// lets add something to the session stream:
 	// write 1MB chunk
 	bigChunk := make([]byte, 1024*1024)
-	err = site.PostSessionChunk(session.ID, bytes.NewReader(bigChunk))
+	err = site.PostSessionChunk(defaults.Namespace, session.ID, bytes.NewReader(bigChunk))
 	c.Assert(err, check.Equals, nil)
 
 	// then add small prefix:
-	err = site.PostSessionChunk(session.ID, bytes.NewBufferString("\nsuffix"))
+	err = site.PostSessionChunk(defaults.Namespace, session.ID, bytes.NewBufferString("\nsuffix"))
 	c.Assert(err, check.Equals, nil)
 
 	// lets type "echo hi" followed by "enter" and then "exit" + "enter":
@@ -181,7 +183,7 @@ func (s *IntSuite) TestAudit(c *check.C) {
 	const expectedLen = 1048600
 	var sessionStream []byte
 	for i := 0; len(sessionStream) < expectedLen; i++ {
-		sessionStream, err = site.GetSessionChunk(session.ID, 0, events.MaxChunkBytes)
+		sessionStream, err = site.GetSessionChunk(defaults.Namespace, session.ID, 0, events.MaxChunkBytes)
 		c.Assert(err, check.IsNil)
 		time.Sleep(time.Millisecond * 250)
 		if i > 10 {
@@ -204,7 +206,7 @@ func (s *IntSuite) TestAudit(c *check.C) {
 	c.Assert(strings.Contains(string(sessionStream), "\nsuffix"), check.Equals, true)
 
 	// now lets look at session events:
-	history, err := site.GetSessionEvents(session.ID, 0)
+	history, err := site.GetSessionEvents(defaults.Namespace, session.ID, 0)
 	c.Assert(err, check.IsNil)
 
 	getChunk := func(e events.EventFields, maxlen int) string {
@@ -289,7 +291,7 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 		cl.Stdin = &personA
 		// Person A types something into the terminal (including "exit")
 		personA.Type("\aecho hi\n\r\aexit\n\r\a")
-		err = cl.SSH([]string{}, false)
+		err = cl.SSH(context.TODO(), []string{}, false)
 		c.Assert(err, check.IsNil)
 		sessionEndC <- true
 	}
@@ -299,7 +301,7 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 		var sessionID string
 		for {
 			time.Sleep(time.Millisecond)
-			sessions, _ := site.GetSessions()
+			sessions, _ := site.GetSessions(defaults.Namespace)
 			if len(sessions) == 0 {
 				continue
 			}
@@ -310,7 +312,7 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 		c.Assert(err, check.IsNil)
 		cl.Stdout = &personB
 		for i := 0; i < 10; i++ {
-			err = cl.Join(session.ID(sessionID), &personB)
+			err = cl.Join(context.TODO(), defaults.Namespace, session.ID(sessionID), &personB)
 			if err == nil {
 				break
 			}
@@ -347,7 +349,7 @@ func (s *IntSuite) TestEnvironmentVariables(c *check.C) {
 	out := &bytes.Buffer{}
 	tc.Stdout = out
 	tc.Stdin = nil
-	err = tc.SSH(cmd, false)
+	err = tc.SSH(context.TODO(), cmd, false)
 
 	c.Assert(err, check.IsNil)
 	c.Assert(strings.TrimSpace(out.String()), check.Equals, testVal)
@@ -364,8 +366,8 @@ func (s *IntSuite) TestInvalidLogins(c *check.C) {
 	// try the wrong site:
 	tc, err := t.NewClient(s.me.Username, "wrong-site", Host, t.GetPortSSHInt())
 	c.Assert(err, check.IsNil)
-	err = tc.SSH(cmd, false)
-	c.Assert(err, check.ErrorMatches, "site wrong-site not found")
+	err = tc.SSH(context.TODO(), cmd, false)
+	c.Assert(err, check.ErrorMatches, "cluster wrong-site not found")
 }
 
 // TestTwoSites creates two teleport sites: "a" and "b" and
@@ -410,7 +412,7 @@ func (s *IntSuite) TestTwoSites(c *check.C) {
 	tc, err := a.NewClient(username, "site-A", Host, sshPort)
 	tc.Stdout = &outputA
 	c.Assert(err, check.IsNil)
-	err = tc.SSH(cmd, false)
+	err = tc.SSH(context.TODO(), cmd, false)
 	c.Assert(err, check.IsNil)
 	c.Assert(outputA.String(), check.Equals, "hello world\n")
 
@@ -418,13 +420,13 @@ func (s *IntSuite) TestTwoSites(c *check.C) {
 	tc, err = b.NewClient(username, "site-A", Host, sshPort)
 	tc.Stdout = &outputB
 	c.Assert(err, check.IsNil)
-	err = tc.SSH(cmd, false)
+	err = tc.SSH(context.TODO(), cmd, false)
 	c.Assert(err, check.IsNil)
 	c.Assert(outputA, check.DeepEquals, outputB)
 
 	// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
 	a.Stop(false)
-	err = tc.SSH(cmd, false)
+	err = tc.SSH(context.TODO(), cmd, false)
 	c.Assert(err, check.ErrorMatches, "Failed connecting to cluster site-A: ssh: subsystem request failed")
 
 	// Reset and start "Site-A" again
@@ -437,7 +439,7 @@ func (s *IntSuite) TestTwoSites(c *check.C) {
 	// and 'tc' (client) is also supposed to reconnect
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 5)
-		err = tc.SSH(cmd, false)
+		err = tc.SSH(context.TODO(), cmd, false)
 		if err == nil {
 			break
 		}

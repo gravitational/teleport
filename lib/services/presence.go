@@ -32,7 +32,7 @@ import (
 // of the cluster - Nodes, Proxies and SSH nodes
 type Presence interface {
 	// GetNodes returns a list of registered servers
-	GetNodes() ([]Server, error)
+	GetNodes(namespace string) ([]Server, error)
 
 	// UpsertNode registers node presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
@@ -60,6 +60,29 @@ type Presence interface {
 
 	// DeleteReverseTunnel deletes reverse tunnel by it's domain name
 	DeleteReverseTunnel(domainName string) error
+
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*Namespace, error)
+
+	// UpsertNamespace upserts namespace
+	UpsertNamespace(Namespace) error
+
+	// DeleteNamespace deletes namespace by name
+	DeleteNamespace(name string) error
+}
+
+// NewNamespace returns new namespace
+func NewNamespace(name string) Namespace {
+	return Namespace{
+		Kind:    KindNamespace,
+		Version: V1,
+		Metadata: Metadata{
+			Name: name,
+		},
+	}
 }
 
 // Site represents a cluster of teleport nodes who collectively trust the same
@@ -78,8 +101,17 @@ type Server struct {
 	ID        string                  `json:"id"`
 	Addr      string                  `json:"addr"`
 	Hostname  string                  `json:"hostname"`
+	Namespace string                  `json:"namespace"`
 	Labels    map[string]string       `json:"labels"`
 	CmdLabels map[string]CommandLabel `json:"cmd_labels"`
+}
+
+func (s Server) String() string {
+	return fmt.Sprintf("Server(id=%v, addr=%v, namespace=%v, labels=%v)", s.ID, s.Addr, s.Namespace, s.Labels)
+}
+
+func (s *Server) GetNamespace() string {
+	return ProcessNamespace(s.Namespace)
 }
 
 // ReverseTunnel is SSH reverse tunnel established between a local Proxy

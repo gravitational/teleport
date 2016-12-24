@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
@@ -81,8 +82,11 @@ type InitConfig struct {
 	// Provisioner is a service that keeps track of provisioning tokens
 	Provisioner services.Provisioner
 
-	// Trust is a service that manages users and credentials
+	// Identity is a service that manages users and credentials
 	Identity services.Identity
+
+	// Access is service controlling access to resources
+	Access services.Access
 
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
@@ -249,6 +253,58 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 				}
 				log.Infof("removed OIDC connector '%s'", connector.ID)
 			}
+		}
+	}
+
+	// create default namespace
+	err = asrv.UpsertNamespace(services.NewNamespace(defaults.Namespace))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// migrate old users to new format
+	users, err := asrv.GetUsers()
+	for i := range users {
+		user := users[i]
+		if len(user.GetAllowedLogins()) == 0 {
+			continue
+		}
+		log.Infof("migrating legacy user %v", user.GetName())
+		role := services.RoleForUser(user)
+		err = asrv.UpsertRole(role)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		user.SetAllowedLogins(nil)
+		user.AddRole(role.GetName())
+		if err := asrv.UpsertUser(user); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
+	// migrate old cert authorities
+	cas, err := asrv.GetCertAuthorities(services.UserCA, true)
+	for i := range cas {
+		ca := cas[i]
+		if len(ca.AllowedLogins) == 0 {
+			continue
+		}
+		_, err := asrv.GetRole(services.RoleNameForCertAuthority(ca.DomainName))
+		if err == nil {
+			continue
+		}
+		if !trace.IsNotFound(err) {
+			return nil, nil, trace.Wrap(err)
+		}
+		log.Infof("migrating legacy cert authority %v", ca.DomainName)
+		role := services.RoleForCertAuthority(*ca)
+		err = asrv.UpsertRole(role)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		ca.Roles = append(ca.Roles, role.GetName())
+		if err := asrv.UpsertCertAuthority(*ca, 0); err != nil {
+			return nil, nil, trace.Wrap(err)
 		}
 	}
 

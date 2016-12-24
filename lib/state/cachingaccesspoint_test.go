@@ -42,6 +42,7 @@ var (
 			Hostname:  "one",
 			Labels:    make(map[string]string),
 			CmdLabels: make(map[string]services.CommandLabel),
+			Namespace: defaults.Namespace,
 		},
 		{
 			ID:        "2",
@@ -49,6 +50,7 @@ var (
 			Hostname:  "two",
 			Labels:    make(map[string]string),
 			CmdLabels: make(map[string]services.CommandLabel),
+			Namespace: defaults.Namespace,
 		},
 	}
 	Proxies = []services.Server{
@@ -107,6 +109,9 @@ func (s *ClusterSnapshotSuite) SetUpTest(c *check.C) {
 		Authority:  testauthority.New(),
 		DomainName: "auth.local",
 	})
+	err = s.authServer.UpsertNamespace(
+		services.NewNamespace(defaults.Namespace))
+	c.Assert(err, check.IsNil)
 	// add some nodes to it:
 	for _, n := range Nodes {
 		err = s.authServer.UpsertNode(n, defaults.ServerHeartbeatTTL)
@@ -142,7 +147,7 @@ func (s *ClusterSnapshotSuite) TestEverything(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(users, check.HasLen, len(Users))
 
-	nodes, err := snap.GetNodes()
+	nodes, err := snap.GetNodes(defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(nodes, check.HasLen, len(Nodes))
 

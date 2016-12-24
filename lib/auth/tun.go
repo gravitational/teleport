@@ -334,14 +334,24 @@ func (s *AuthTunnel) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel
 func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	defer sconn.Close()
 
-	// retreive the role from thsi connection's permissions (make sure it's a valid role)
-	role := teleport.Role(sconn.Permissions.Extensions[ExtRole])
-	if err := role.Check(); err != nil {
-		log.Errorf(err.Error())
-		return
+	var username string
+	if extRole, ok := sconn.Permissions.Extensions[ExtRole]; ok {
+		// retreive the role from thsi connection's permissions (make sure it's a valid role)
+		systemRole := teleport.Role(extRole)
+		if err := systemRole.Check(); err != nil {
+			log.Errorf(err.Error())
+			return
+		}
+		username = systemRole.User()
+	} else {
+		username = sconn.User()
+		if teleport.IsSystemUsername(username) {
+			log.Errorf("%v is a system reserved username, but certificate does not verify", username)
+			return
+		}
 	}
 
-	api := NewAPIServer(s.config, role)
+	api := NewAPIServer(s.config)
 	socket := fakeSocket{
 		closed:      make(chan int),
 		connections: make(chan net.Conn),
@@ -365,7 +375,7 @@ func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel,
 	// serve HTTP API via this SSH connection until it gets closed:
 	http.Serve(&socket, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// take SSH client name and pass it to HTTP API via HTTP Auth
-		r.SetBasicAuth(sconn.User(), "")
+		r.SetBasicAuth(username, "")
 		api.ServeHTTP(w, r)
 	}))
 }
@@ -410,7 +420,6 @@ func (s *AuthTunnel) keyAuth(
 	perms := &ssh.Permissions{
 		Extensions: map[string]string{
 			ExtHost: conn.User(),
-			ExtRole: string(teleport.RoleUser),
 		},
 	}
 	return perms, nil
@@ -434,7 +443,6 @@ func (s *AuthTunnel) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebPassword: "<password>",
-				ExtRole:        string(teleport.RoleUser),
 			},
 		}
 		log.Infof("[AUTH] password authenticated user: '%v'", conn.User())
@@ -447,7 +455,6 @@ func (s *AuthTunnel) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebPassword: "<password>",
-				ExtRole:        string(teleport.RoleU2FSign),
 			},
 		}
 		log.Infof("[AUTH] u2f sign authenticated user: '%v'", conn.User())
@@ -460,7 +467,6 @@ func (s *AuthTunnel) passwordAuth(
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebU2F: "<u2f-sign-response>",
-				ExtRole:   string(teleport.RoleU2FUser),
 			},
 		}
 		return perms, nil
@@ -513,10 +519,10 @@ func (s *AuthTunnel) passwordAuth(
 // authBucket uses password to transport app-specific user name and
 // auth-type in addition to the password to support auth
 type authBucket struct {
-	User      string `json:"user"`
-	Type      string `json:"type"`
-	Pass      []byte `json:"pass"`
-	HotpToken string `json:"hotpToken"`
+	User            string           `json:"user"`
+	Type            string           `json:"type"`
+	Pass            []byte           `json:"pass"`
+	HotpToken       string           `json:"hotpToken"`
 	U2FSignResponse u2f.SignResponse `json:"u2fSignResponse"`
 }
 
@@ -573,8 +579,8 @@ func NewWebPasswordU2FSignAuth(user string, password []byte) ([]ssh.AuthMethod, 
 // NewWebU2FSignResponseAuth is for signing in with a U2F sign response
 func NewWebU2FSignResponseAuth(user string, u2fSignResponse *u2f.SignResponse) ([]ssh.AuthMethod, error) {
 	data, err := json.Marshal(authBucket{
-		Type: AuthWebU2F,
-		User: user,
+		Type:            AuthWebU2F,
+		User:            user,
 		U2FSignResponse: *u2fSignResponse,
 	})
 	if err != nil {

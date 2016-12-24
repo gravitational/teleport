@@ -15,13 +15,13 @@ type DiscardAuditLog struct {
 func (d *DiscardAuditLog) EmitAuditEvent(eventType string, fields EventFields) error {
 	return nil
 }
-func (d *DiscardAuditLog) PostSessionChunk(sid session.ID, reader io.Reader) error {
+func (d *DiscardAuditLog) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
 	return nil
 }
-func (d *DiscardAuditLog) GetSessionChunk(sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
+func (d *DiscardAuditLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
 	return make([]byte, 0), nil
 }
-func (d *DiscardAuditLog) GetSessionEvents(sid session.ID, after int) ([]EventFields, error) {
+func (d *DiscardAuditLog) GetSessionEvents(namespace string, sid session.ID, after int) ([]EventFields, error) {
 	return make([]EventFields, 0), nil
 }
 func (d *DiscardAuditLog) SearchEvents(fromUTC, toUTC time.Time, query string) ([]EventFields, error) {
