@@ -832,7 +832,8 @@ func (m *Handler) getSites(w http.ResponseWriter, r *http.Request, _ httprouter.
 			return nil, trace.Wrap(err)
 		}
 
-		servers, err := clt.GetNodes()
+		servers, err := clt.GetNodes("default")
+		sessions, err := clt.GetSessions("default")
 
 		/*
 			 FIXME: when cluster is offline, GetNodes and GetSessions return an error
@@ -840,8 +841,6 @@ func (m *Handler) getSites(w http.ResponseWriter, r *http.Request, _ httprouter.
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}*/
-
-		sessions, err := clt.GetSessions()
 
 		/*if err != nil {
 			return nil, trace.Wrap(err)
