@@ -167,6 +167,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*Handler, error) {
 	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.createSessionWithU2FSignResponse))
 	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.createSSHCertWithU2FSignResponse))
 
+	// User Status (used by client to check if user session is valid)
+	h.GET("/webapi/user/status", h.withAuth(h.getUserStatus))
+
 	// if Web UI is enabled, chekc the assets dir:
 	var (
 		writeSettings http.HandlerFunc
@@ -255,8 +258,12 @@ type oidcConnector struct {
 type webSettings struct {
 	Auth struct {
 		OIDCConnectors []oidcConnector `json:"oidc_connectors"`
-		U2FAppID string `json:"u2f_appid"`
+		U2FAppID       string          `json:"u2f_appid"`
 	} `json:"auth"`
+}
+
+func (m *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
+	return ok(), nil
 }
 
 func (m *Handler) getSettings(w http.ResponseWriter, r *http.Request) (interface{}, error) {
@@ -591,7 +598,6 @@ func (m *Handler) renderUserInvite(w http.ResponseWriter, r *http.Request, p htt
 	}, nil
 }
 
-
 // u2fRegisterRequest is called to get a U2F challenge for registering a U2F key
 //
 // GET /webapi/u2f/signuptokens/:token
@@ -642,7 +648,7 @@ func (m *Handler) u2fSignRequest(w http.ResponseWriter, r *http.Request, p httpr
 
 // A request from the client to send the signature from the U2F key
 type u2fSignResponseReq struct {
-	User string `json:"user"`
+	User            string           `json:"user"`
 	U2FSignResponse u2f.SignResponse `json:"u2f_sign_response"`
 }
 
@@ -714,8 +720,8 @@ func (m *Handler) createNewUser(w http.ResponseWriter, r *http.Request, p httpro
 
 // A request to create a new user which uses U2F as the second factor
 type createNewU2FUserReq struct {
-	InviteToken       string `json:"invite_token"`
-	Pass              string `json:"pass"`
+	InviteToken         string               `json:"invite_token"`
+	Pass                string               `json:"pass"`
 	U2FRegisterResponse u2f.RegisterResponse `json:"u2f_register_response"`
 }
 
@@ -752,9 +758,11 @@ type getSitesResponse struct {
 }
 
 type site struct {
-	Name          string    `json:"name"`
-	LastConnected time.Time `json:"last_connected"`
-	Status        string    `json:"status"`
+	Name          string            `json:"name"`
+	LastConnected time.Time         `json:"last_connected"`
+	Status        string            `json:"status"`
+	Nodes         []services.Server `json:"nodes"`
+	Sessions      []session.Session `json:"sessions"`
 }
 
 func convertSites(rs []reversetunnel.RemoteSite) []site {
@@ -775,11 +783,49 @@ func convertSites(rs []reversetunnel.RemoteSite) []site {
 //
 // Sucessful response:
 //
-// {"sites": {"name": "localhost", "last_connected": "RFC3339 time", "status": "active"}}
+// {"sites": {"name": "localhost", "last_connected": "RFC3339 time", "status": "active", "nodes": [], "sessions": []}}
 //
 func (m *Handler) getSites(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
+	sites := m.cfg.Proxy.GetSites()
+
+	if len(sites) < 1 {
+		return nil, trace.NotFound("no active sites")
+	}
+
+	out := make([]site, len(sites))
+
+	for i := range sites {
+		clt, err := sites[i].GetClient()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		servers, err := clt.GetNodes()
+
+		/*
+			 FIXME: when cluster is offline, GetNodes and GetSessions return an error
+
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}*/
+
+		sessions, err := clt.GetSessions()
+
+		/*if err != nil {
+			return nil, trace.Wrap(err)
+		}*/
+
+		out[i] = site{
+			Name:          sites[i].GetName(),
+			LastConnected: sites[i].GetLastConnected(),
+			Status:        sites[i].GetStatus(),
+			Nodes:         servers,
+			Sessions:      sessions,
+		}
+	}
+
 	return getSitesResponse{
-		Sites: convertSites(m.cfg.Proxy.GetSites()),
+		Sites: out,
 	}, nil
 }
 
