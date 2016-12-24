@@ -32,6 +32,7 @@ const currentSession = [ ['tlpt_current_session'], ['tlpt_sessions'],
       serverId: current.get('serverId'),
       login: current.get('login'),
       sid: current.get('sid'),
+      siteId: current.get('siteId'),
       cols: undefined,
       rows: undefined
     };

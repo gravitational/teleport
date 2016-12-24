@@ -16,7 +16,6 @@ limitations under the License.
 
 var React = require('react');
 var reactor = require('app/reactor');
-var {fetchActiveSessions} = require('app/modules/sessions/actions');
 var { fetchStoredSession } = require('app/modules/storedSessionsFilter/actions');
 var {sessionsView} = require('app/modules/sessions/getters');
 var {filter} = require('app/modules/storedSessionsFilter/getters');
@@ -35,8 +34,7 @@ var Sessions = React.createClass({
   },
 
   refresh(){
-    fetchStoredSession();
-    fetchActiveSessions();
+    fetchStoredSession();    
   },
 
   render: function() {
@@ -44,8 +42,8 @@ var Sessions = React.createClass({
     return (
       <div className="grv-sessions grv-page">
         <Timer onTimeout={this.refresh} />
-        <ActiveSessionList data={data}/>
-        <hr className="grv-divider"/>
+        <ActiveSessionList data={data} />
+        <div className="m-t"/>
         <StoredSessionList data={data} filter={storedSessionsFilter}/>
       </div>
     );

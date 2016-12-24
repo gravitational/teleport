@@ -18,6 +18,7 @@ var React = require('react');
 var reactor = require('app/reactor');
 var userGetters = require('app/modules/user/getters');
 var nodeGetters = require('app/modules/nodes/getters');
+var siteGetters = require('app/modules/sites/getters');
 var NodeList = require('./nodeList.jsx');
 
 var Nodes = React.createClass({
@@ -26,15 +27,22 @@ var Nodes = React.createClass({
 
   getDataBindings() {
     return {
+      sites: siteGetters.sites,
       nodeRecords: nodeGetters.nodeListView,
       user: userGetters.user
     }
   },
 
   render() {
-    var nodeRecords = this.state.nodeRecords;
-    var logins = this.state.user.logins;
-    return ( <NodeList nodeRecords={nodeRecords} logins={logins}/> );
+    let { nodeRecords, user, sites } = this.state;
+    let { logins } = user;
+    return ( 
+      <NodeList
+        sites={sites} 
+        nodeRecords={nodeRecords} 
+        logins={logins}
+      /> 
+    );
   }
 });
 

@@ -66,6 +66,7 @@ function createView(session){
     lastActive,
     duration,
     serverIp,
+    siteId: session.get('siteId'),
     stored: session.get('stored'),
     serverId: session.get('server_id'),
     clientIp: session.get('clientIp'),

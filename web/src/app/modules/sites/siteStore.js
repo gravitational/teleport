@@ -14,19 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-.grv-nodes{
+import { Store, toImmutable } from 'nuclear-js';
+import { TLPT_SITES_RECEIVE } from './actionTypes';
+import { Record, List } from 'immutable';
 
-  .grv-header{
-    align-items: center;       
-  }
+const Site = Record({
+  name: null,
+  status: false
+})
 
-  .grv-nodes-table{
-    .label {
-      margin-right: 5px;
-    }
-  }
+export default Store({
+  getInitialState() {
+    return new List();
+  },
 
-  .grv-nodes-clusters-selector{
-    min-width: 120px;
+  initialize() {
+    this.on(TLPT_SITES_RECEIVE, receiveSites)
   }
+})
+
+function receiveSites(state, json){    
+  return toImmutable(json).map( o => new Site(o) );
 }

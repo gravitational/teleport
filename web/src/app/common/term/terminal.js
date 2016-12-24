@@ -19,7 +19,6 @@ var Tty = require('./tty');
 var TtyEvents = require('./ttyEvents');
 var {debounce, isNumber} = require('_');
 
-var cfg = require('app/config');
 var api = require('app/services/api');
 var logger = require('app/common/logger').create('terminal');
 var $ = require('jQuery');
@@ -181,11 +180,12 @@ class TtyTerminal {
     w = w < 5 ? 5 : w;
     h = h < 5 ? 5 : h;
 
-    let {sid } = this.ttyParams;
+    let { sid, url } = this.ttyParams;
     let reqData = { terminal_params: { w, h } };
 
     logger.info('request new screen size', `w:${w} and h:${h}`);
-    api.put(cfg.api.getTerminalSessionUrl(sid), reqData)
+    
+    api.put(`${url}/sessions/${sid}`, reqData)
       .done(()=> logger.info('new screen size requested'))
       .fail((err)=> logger.error('request new screen size', err));
   }
@@ -212,12 +212,13 @@ class TtyTerminal {
 
   _getTtyEventsConnStr(){
     let {sid, url, token } = this.ttyParams;
-    return `${url}/sessions/${sid}/events/stream?access_token=${token}`;
+    let urlPrefix = getWsHostName();
+    return `${urlPrefix}${url}/sessions/${sid}/events/stream?access_token=${token}`;
   }
 
   _getTtyConnStr(){
     let {serverId, login, sid, url, token } = this.ttyParams;
-    var params = {
+    let params = {
       server_id: serverId,
       login,
       sid,
@@ -227,12 +228,20 @@ class TtyTerminal {
       }
     }
 
-    var json = JSON.stringify(params);
-    var jsonEncoded = window.encodeURI(json);
+    let json = JSON.stringify(params);
+    let jsonEncoded = window.encodeURI(json);
+    let urlPrefix = getWsHostName();
 
-    return `${url}/connect?access_token=${token}&params=${jsonEncoded}`;
+    return `${urlPrefix}${url}/connect?access_token=${token}&params=${jsonEncoded}`;
   }
 
+}
+
+
+function getWsHostName(){
+  var prefix = location.protocol == "https:"?"wss://":"ws://";
+  var hostport = location.hostname+(location.port ? ':'+location.port: '');
+  return `${prefix}${hostport}`;
 }
 
 module.exports = TtyTerminal;

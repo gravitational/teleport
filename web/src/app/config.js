@@ -43,21 +43,32 @@ let cfg = {
     pageNotFound: '/web/notfound'
   },
 
-  api: {
+  api: {    
     sso: '/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:provider',    
     renewTokenPath:'/v1/webapi/sessions/renew',
     sessionPath: '/v1/webapi/sessions',
+    userStatus: '/v1/webapi/user/status',
     invitePath: '/v1/webapi/users/invites/:inviteToken',
     createUserPath: '/v1/webapi/users',
     u2fCreateUserChallengePath: '/webapi/u2f/signuptokens/:inviteToken',
     u2fCreateUserPath: '/webapi/u2f/users',
     u2fSessionChallengePath: '/webapi/u2f/signrequest',
     u2fSessionPath: '/webapi/u2f/sessions',
-    nodesPath: '/v1/webapi/sites/-current-/nodes',
-    siteSessionPath: '/v1/webapi/sites/-current-/sessions',
-    sessionEventsPath: '/v1/webapi/sites/-current-/sessions/:sid/events',
+    sitesBasePath: '/v1/webapi/sites',
+    sitePath: '/v1/webapi/sites/:siteId',  
+    nodesPath: '/v1/webapi/sites/-current-/nodes', // to delete
+    siteSessionPath: '/v1/webapi/sites/:siteId/sessions',
+    sessionEventsPath: '/v1/webapi/sites/:siteId/sessions/:sid/events',
     siteEventSessionFilterPath: `/v1/webapi/sites/-current-/sessions?filter=:filter`,
     siteEventsFilterPath: `/v1/webapi/sites/-current-/events?event=session.start&event=session.end&from=:start&to=:end`,
+
+    getSiteUrl(siteId) {              
+      return formatPattern(cfg.api.sitePath, { siteId });  
+    },
+
+    getSiteSessionUrl(siteId='-current-') {
+        return formatPattern(cfg.api.siteSessionPath, { siteId });  
+    },
 
     getSsoUrl(redirect, provider){
       return cfg.baseUrl + formatPattern(cfg.api.sso, {redirect, provider});
@@ -67,8 +78,8 @@ let cfg = {
       return formatPattern(cfg.api.siteEventsFilterPath, {start, end});
     },
 
-    getSessionEventsUrl(sid){
-      return formatPattern(cfg.api.sessionEventsPath, {sid});
+    getSessionEventsUrl(sid, siteId='-current-'){
+      return formatPattern(cfg.api.sessionEventsPath, {sid, siteId});
     },
 
     getFetchSessionsUrl(args){
@@ -76,12 +87,8 @@ let cfg = {
       return formatPattern(cfg.api.siteEventSessionFilterPath, {filter});
     },
 
-    getFetchSessionUrl(sid){
-      return formatPattern(cfg.api.siteSessionPath+'/:sid', {sid});
-    },
-
-    getTerminalSessionUrl(sid){
-      return formatPattern(cfg.api.siteSessionPath+'/:sid', {sid});
+    getFetchSessionUrl(sid, siteId='-current-'){
+      return formatPattern(cfg.api.siteSessionPath+'/:sid', {sid, siteId});
     },
 
     getInviteUrl(inviteToken){
@@ -92,14 +99,14 @@ let cfg = {
       return formatPattern(cfg.api.u2fCreateUserChallengePath, {inviteToken});
     },
 
-    getEventStreamConnStr(){
+    getEventStreamConnStr(siteId='-current-'){
       var hostname = getWsHostName();
-      return `${hostname}/v1/webapi/sites/-current-`;
+      return `${hostname}/v1/webapi/sites/${siteId}`;
     },
 
-    getTtyUrl(){
+    getTtyUrl(siteId='-current-'){
       var hostname = getWsHostName();
-      return `${hostname}/v1/webapi/sites/-current-`;
+      return `${hostname}/v1/webapi/sites/${siteId}`;
     }
   },
 

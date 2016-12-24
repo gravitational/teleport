@@ -16,13 +16,12 @@ limitations under the License.
 
 var reactor = require('app/reactor');
 var api = require('app/services/api');
-var apiUtils = require('app/services/apiUtils');
 var cfg = require('app/config');
 var {showError} = require('app/modules/notifications/actions');
 var moment = require('moment');
 
 const logger = require('app/common/logger').create('Modules/Sessions');
-const { TLPT_SESSIONS_RECEIVE, TLPT_SESSIONS_UPDATE, TLPT_SESSIONS_UPDATE_WITH_EVENTS }  = require('./actionTypes');
+const { TLPT_SESSIONS_UPDATE, TLPT_SESSIONS_UPDATE_WITH_EVENTS }  = require('./actionTypes');
 
 const actions = {
 
@@ -52,26 +51,7 @@ const actions = {
         logger.error('fetchSiteEvents', err);
       });
   },
-
-  fetchActiveSessions({end, sid, limit=cfg.maxSessionLoadSize}={}){
-    let start = end || new Date();
-    let params = {
-      order: -1,
-      limit,
-      start,
-      sid
-    };
-
-    return apiUtils.filterSessions(params)
-      .done((json) => {
-        reactor.dispatch(TLPT_SESSIONS_RECEIVE, json.sessions);
-      })
-      .fail((err)=>{
-        showError('Unable to retrieve list of sessions');
-        logger.error('fetchActiveSessions', err);
-      });
-  },
-
+  
   updateSession(json){
     reactor.dispatch(TLPT_SESSIONS_UPDATE, json);
   }

@@ -19,6 +19,7 @@ var render = require('react-dom').render;
 var { Router, Route, Redirect } = require('react-router');
 var { App, Login, Nodes, Sessions, NewUser, CurrentSessionHost, MessagePage, NotFound } = require('./components');
 var { ensureUser } = require('./modules/user/actions');
+var { initApp } = require('app/modules/app/actions');
 var { openSession } = require('./modules/currentSession/actions');
 var session = require('./services/session');
 var cfg = require('./config');
@@ -36,10 +37,12 @@ render((
     <Route path={cfg.routes.login} component={Login}/>
     <Route path={cfg.routes.newUser} component={NewUser}/>
     <Redirect from={cfg.routes.app} to={cfg.routes.nodes}/>
-    <Route path={cfg.routes.app} component={App} onEnter={ensureUser} >
-      <Route path={cfg.routes.sessions} component={Sessions}/>
-      <Route path={cfg.routes.nodes} component={Nodes}/>
-      <Route path={cfg.routes.currentSession} onEnter={openSession} components={{CurrentSessionHost: CurrentSessionHost}}/>
+    <Route path={cfg.routes.app} onEnter={ensureUser} component={App} >
+      <Route path={cfg.routes.app} onEnter={initApp} >        
+        <Route path={cfg.routes.sessions} component={Sessions}/>
+        <Route path={cfg.routes.nodes} component={Nodes}/>
+        <Route path={cfg.routes.currentSession} onEnter={openSession} components={{ CurrentSessionHost: CurrentSessionHost }} />
+      </Route>  
     </Route>
     <Route path="*" component={NotFound} />
   </Router>

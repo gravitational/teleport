@@ -18,7 +18,7 @@ var session = require('app/services/session');
 var api = require('app/services/api');
 var cfg = require('app/config');
 var getters = require('./getters');
-var { fetchActiveSessions, fetchStoredSession, updateSession } = require('./../sessions/actions');
+var { fetchStoredSession, updateSession } = require('./../sessions/actions');
 var sessionGetters = require('./../sessions/getters');
 var $ = require('jQuery');
 
@@ -27,18 +27,19 @@ const { TLPT_CURRENT_SESSION_OPEN, TLPT_CURRENT_SESSION_CLOSE } = require('./act
 
 const actions = {
 
-  createNewSession(serverId, login){
-    let data = { 'session': {'terminal_params': {'w': 45, 'h': 5}, login}}
-    api.post(cfg.api.siteSessionPath, data).then(json=>{
+  createNewSession(siteId, serverId, login){
+    let data = { 'session': { 'terminal_params': { 'w': 45, 'h': 5 }, login } }        
+    api.post(cfg.api.getSiteSessionUrl(siteId), data).then(json=>{
       let sid = json.session.id;
       let routeUrl = cfg.getCurrentSessionRouteUrl(sid);
       let history = session.getHistory();
 
       reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {
-       serverId,
-       login,
-       sid,
-       isNewSession: true
+        siteId,
+        serverId,
+        login,
+        sid,
+        isNewSession: true
       });
 
       history.push(routeUrl);
@@ -53,17 +54,18 @@ const actions = {
    }
 
    logger.info('attempt to open session', {sid});
-   $.when(fetchActiveSessions(), fetchStoredSession(sid))
+   $.when(fetchStoredSession(sid))
      .done(()=>{
        let sView = reactor.evaluate(sessionGetters.sessionViewById(sid));
-       let { serverId, login } = sView;
+       let { serverId, login, siteId } = sView;
        logger.info('open session', 'OK');
        reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {
-           serverId,
-           login,
-           sid,
-           isNewSession: false
-         });
+          siteId,
+          serverId,
+          login,
+          sid,
+          isNewSession: false
+        });
      })
      .fail((err)=>{
        logger.error('open session', err);

@@ -14,19 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-.grv-nodes{
+import keyMirror from 'keymirror'
 
-  .grv-header{
-    align-items: center;       
-  }
-
-  .grv-nodes-table{
-    .label {
-      margin-right: 5px;
-    }
-  }
-
-  .grv-nodes-clusters-selector{
-    min-width: 120px;
-  }
-}
+export default keyMirror({
+  TLPT_SITES_RECEIVE: null  
+})

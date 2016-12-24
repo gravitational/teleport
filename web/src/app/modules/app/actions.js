@@ -14,21 +14,63 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var reactor = require('app/reactor');
-var auth = require('app/services/auth');
-var { fetchActiveSessions } = require('./../sessions/actions');
-var { fetchNodes } = require('./../nodes/actions');
-var $ = require('jQuery');
-
-const { TLPT_APP_INIT, TLPT_APP_FAILED, TLPT_APP_READY } = require('./actionTypes');
+import reactor from 'app/reactor';
+import auth from 'app/services/auth';
+import { showError } from 'app/modules/notifications/actions';
+import { TLPT_APP_INIT, TLPT_APP_FAILED, TLPT_APP_READY } from './actionTypes';
+import { TLPT_SITES_RECEIVE } from './../sites/actionTypes';
+import { TLPT_NODES_RECEIVE } from './../nodes/actionTypes';
+import { TLPT_SESSIONS_RECEIVE } from './../sessions/actionTypes';
+import api from 'app/services/api';
+import cfg from 'app/config';
+const logger = require('app/common/logger').create('flux/app');
 
 const actions = {
 
-  initApp() {
-    reactor.dispatch(TLPT_APP_INIT);
-    actions.fetchNodesAndSessions()
-      .done(()=> reactor.dispatch(TLPT_APP_READY) )
+  initApp(nextState, cb) {
+    reactor.dispatch(TLPT_APP_INIT);    
+    actions.fetchAllData()
+      .done(() => {        
+        reactor.dispatch(TLPT_APP_READY);
+        cb();
+      })
       .fail(()=> reactor.dispatch(TLPT_APP_FAILED) );
+  },
+
+  fetchAllData(){
+    return api.get(cfg.api.sitesBasePath)
+      .then( json => {      
+        let sites = json.sites;
+        let nodes = [];
+        let sessions = [];
+
+        for (let i = 0; i < sites.length; i++){
+          let siteId = sites[i].name;
+          let siteNodes = sites[i].nodes || [];
+          let siteSessions = sites[i].sessions || [];
+          
+          siteNodes.forEach(n => {
+            n.siteId = siteId;
+            nodes.push(n);
+          });
+
+          siteSessions.forEach(s => {
+            s.siteId = siteId;
+            sessions.push(s);
+          });            
+        }
+
+        reactor.batch(() => {
+          reactor.dispatch(TLPT_SITES_RECEIVE, sites);
+          reactor.dispatch(TLPT_NODES_RECEIVE, nodes);
+          reactor.dispatch(TLPT_SESSIONS_RECEIVE, sessions);          
+        })              
+
+    })
+    .fail(err => {
+      showError('Unable to retrieve data ');
+      logger.error('fetchAllData', err);
+    })    
   },
 
   resetApp() {
@@ -38,21 +80,14 @@ const actions = {
     reactor.reset();
   },
 
-  checkIfValidUser(){
-    /*
-    * lets query for nodes as a checker for a valid user session (to handle a logout triggered from another open tab),
-    */
-    fetchNodes().fail(err => {
+  checkIfValidUser() {                
+    api.get(cfg.api.userStatus).fail(err => {
       if(err.status == 403){
         actions.logoutUser();
       }
     });
   },
-
-  fetchNodesAndSessions() {
-    return $.when(fetchNodes(), fetchActiveSessions());
-  },
-
+  
   logoutUser(){
     actions.resetApp();
     auth.logout();

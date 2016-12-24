@@ -24,6 +24,7 @@ const nodeListView = [ ['tlpt_nodes'], (nodes) =>{
       var serverId = item.get('id');
       return {
         id: serverId,
+        siteId: item.get('siteId'),
         hostname: item.get('hostname'),
         tags: getTags(item),
         addr: item.get('addr')

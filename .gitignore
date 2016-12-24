@@ -9,6 +9,9 @@ debug*
 # built web assets
 web/dist/app/app
 
+# editors
+.vscode
+
 # Compiled binaries, Object files, Static and Dynamic libs (Shared Objects)
 out
 build
