@@ -386,12 +386,12 @@ func (u *UserCommand) List(client *auth.TunClient) error {
 	}
 	usersView := func(users []services.User) string {
 		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"User", "Roles"})
+		printHeader(t, []string{"User", "Roles", "Created By"})
 		if len(users) == 0 {
 			return t.String()
 		}
 		for _, u := range users {
-			fmt.Fprintf(t, "%v\t%v\n", u.GetName(), strings.Join(u.GetRoles(), ","))
+			fmt.Fprintf(t, "%v\t%v\t%v\n", u.GetName(), strings.Join(u.GetRoles(), ","), u.GetCreatedBy().String())
 		}
 		return t.String()
 	}

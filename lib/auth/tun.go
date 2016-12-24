@@ -290,25 +290,25 @@ func (s *AuthTunnel) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel
 
 	ws, err := s.authServer.GetWebSession(sconn.User(), sconn.Permissions.Extensions[ExtWebSession])
 	if err != nil {
-		log.Errorf("session error: %v", err)
+		log.Errorf("session error: %v", trace.DebugReport(err))
 		return
 	}
 
 	priv, err := ssh.ParseRawPrivateKey(ws.WS.Priv)
 	if err != nil {
-		log.Errorf("session error: %v", err)
+		log.Errorf("session error: %v", trace.DebugReport(err))
 		return
 	}
 
 	pub, _, _, _, err := ssh.ParseAuthorizedKey(ws.WS.Pub)
 	if err != nil {
-		log.Errorf("session error: %v", err)
+		log.Errorf("session error: %v", trace.DebugReport(err))
 		return
 	}
 
 	cert, ok := pub.(*ssh.Certificate)
 	if !ok {
-		log.Errorf("session error, not a cert: %T", pub)
+		log.Errorf("session error, not a certificate: %T", pub)
 		return
 	}
 	addedKey := agent.AddedKey{
@@ -320,17 +320,16 @@ func (s *AuthTunnel) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel
 	}
 	newKeyAgent := agent.NewKeyring()
 	if err := newKeyAgent.Add(addedKey); err != nil {
-		log.Errorf("failed to add: %v", err)
+		log.Errorf("failed to add: %v", trace.DebugReport(err))
 		return
 	}
 	if err := agent.ServeAgent(newKeyAgent, ch); err != nil && err != io.EOF {
-		log.Errorf("Serve agent err: %v", err)
+		log.Errorf("Serve agent err: %v", trace.DebugReport(err))
 	}
 }
 
 // onAPIConnection accepts an incoming SSH connection via TCP/IP and forwards
 // it to the local auth server which listens on local UNIX pipe
-//
 func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	defer sconn.Close()
 
@@ -343,12 +342,15 @@ func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel,
 			return
 		}
 		username = systemRole.User()
-	} else {
-		username = sconn.User()
+	} else if teleportUser, ok := sconn.Permissions.Extensions[utils.CertTeleportUser]; ok {
+		username = teleportUser
 		if teleport.IsSystemUsername(username) {
 			log.Errorf("%v is a system reserved username, but certificate does not verify", username)
 			return
 		}
+	} else {
+		log.Errorf("expected %v or %v extensions for %v, found none in %v", ExtRole, utils.CertTeleportUser, sconn.User(), sconn.Permissions.Extensions)
+		return
 	}
 
 	api := NewAPIServer(s.config)
@@ -419,7 +421,8 @@ func (s *AuthTunnel) keyAuth(
 	// https://bugzilla.mindrot.org/show_bug.cgi?id=2387
 	perms := &ssh.Permissions{
 		Extensions: map[string]string{
-			ExtHost: conn.User(),
+			ExtHost:                conn.User(),
+			utils.CertTeleportUser: cert.KeyId,
 		},
 	}
 	return perms, nil
@@ -437,36 +440,38 @@ func (s *AuthTunnel) passwordAuth(
 	switch ab.Type {
 	case AuthWebPassword:
 		if err := s.authServer.CheckPassword(conn.User(), ab.Pass, ab.HotpToken); err != nil {
-			log.Warningf("password auth error: %#v", err)
 			return nil, trace.Wrap(err)
 		}
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
-				ExtWebPassword: "<password>",
+				ExtWebPassword:         "<password>",
+				utils.CertTeleportUser: conn.User(),
 			},
 		}
 		log.Infof("[AUTH] password authenticated user: '%v'", conn.User())
 		return perms, nil
 	case AuthWebU2FSign:
 		if err := s.authServer.CheckPasswordWOToken(conn.User(), ab.Pass); err != nil {
-			log.Warningf("password auth error: %#v", err)
 			return nil, trace.Wrap(err)
 		}
+		// notice RoleNop here - it can literally call to nothing except one
+		// method that everyone is authorized to do - request a sign in
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebPassword: "<password>",
+				ExtRole:        string(teleport.RoleNop),
 			},
 		}
 		log.Infof("[AUTH] u2f sign authenticated user: '%v'", conn.User())
 		return perms, nil
 	case AuthWebU2F:
 		if err := s.authServer.CheckU2FSignResponse(conn.User(), &ab.U2FSignResponse); err != nil {
-			log.Warningf("u2f auth error: %#v", err)
 			return nil, trace.Wrap(err)
 		}
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
-				ExtWebU2F: "<u2f-sign-response>",
+				ExtWebU2F:              "<u2f-sign-response>",
+				utils.CertTeleportUser: conn.User(),
 			},
 		}
 		return perms, nil
@@ -480,7 +485,7 @@ func (s *AuthTunnel) passwordAuth(
 			},
 		}
 		if _, err := s.authServer.GetWebSession(conn.User(), string(ab.Pass)); err != nil {
-			return nil, trace.Errorf("session resume error: %v", trace.Wrap(err))
+			return nil, trace.AccessDenied("session resume error: %v", err)
 		}
 		log.Infof("[AUTH] session authenticated user: '%v'", conn.User())
 		return perms, nil
@@ -512,7 +517,7 @@ func (s *AuthTunnel) passwordAuth(
 		log.Infof("[AUTH] session authenticated prov. token: '%v'", conn.User())
 		return perms, nil
 	default:
-		return nil, trace.Errorf("unsupported auth method: '%v'", ab.Type)
+		return nil, trace.AccessDenied("unsupported auth method: '%v'", ab.Type)
 	}
 }
 

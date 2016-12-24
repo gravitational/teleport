@@ -574,6 +574,17 @@ func (a *Authority) Parse() (*services.CertAuthority, error) {
 	return ca, nil
 }
 
+// ClaimMapping is OIDC claim mapping that maps
+// claim name to teleport roles
+type ClaimMapping struct {
+	// Claim is OIDC claim name
+	Claim string `yaml:"claim"`
+	// Value is claim value to match
+	Value string `yaml:"value"`
+	// Roles is a list of teleport roles to match
+	Roles []string `yaml:"roles"`
+}
+
 // OIDCConnector specifies configuration fo Open ID Connect compatible external
 // identity provider, e.g. google in some organisation
 type OIDCConnector struct {
@@ -590,7 +601,13 @@ type OIDCConnector struct {
 	// client's browser back to it after successfull authentication
 	// Should match the URL on Provider's side
 	RedirectURL string `yaml:"redirect_url"`
-	Display     string `yaml:"display"`
+	// Display controls how this connector is displayed
+	Display string `yaml:"display"`
+	// Scope is a list of additional scopes to request from OIDC
+	// note that oidc and email scopes are always requested
+	Scope []string `yaml:"scope"`
+	// ClaimsToRoles is a list of mappings of claims to roles
+	ClaimsToRoles []ClaimMapping `yaml:"claims_to_roles"`
 }
 
 // Parse parses config struct into services connector and checks if it's valid
@@ -599,13 +616,26 @@ func (o *OIDCConnector) Parse() (*services.OIDCConnector, error) {
 		o.Display = o.ID
 	}
 
+	var mappings []services.ClaimMapping
+	for _, c := range o.ClaimsToRoles {
+		roles := make([]string, len(c.Roles))
+		copy(roles, c.Roles)
+		mappings = append(mappings, services.ClaimMapping{
+			Claim: c.Claim,
+			Value: c.Value,
+			Roles: roles,
+		})
+	}
+
 	other := &services.OIDCConnector{
-		ID:           o.ID,
-		Display:      o.Display,
-		IssuerURL:    o.IssuerURL,
-		ClientID:     o.ClientID,
-		ClientSecret: o.ClientSecret,
-		RedirectURL:  o.RedirectURL,
+		ID:            o.ID,
+		Display:       o.Display,
+		IssuerURL:     o.IssuerURL,
+		ClientID:      o.ClientID,
+		ClientSecret:  o.ClientSecret,
+		RedirectURL:   o.RedirectURL,
+		Scope:         o.Scope,
+		ClaimsToRoles: mappings,
 	}
 	if err := other.Check(); err != nil {
 		return nil, trace.Wrap(err)

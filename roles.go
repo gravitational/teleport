@@ -84,10 +84,10 @@ func (r *Role) String() string {
 // if it's ok, false otherwise
 func (r *Role) Check() error {
 	switch *r {
-	case RoleAuth, RoleUser, RoleWeb, RoleNode, RoleAdmin, RoleProvisionToken, RoleSignup, RoleProxy:
+	case RoleAuth, RoleUser, RoleWeb, RoleNode, RoleAdmin, RoleProvisionToken, RoleSignup, RoleProxy, RoleNop:
 		return nil
 	}
-	return trace.BadParameter("role %v is not supported", *r)
+	return trace.BadParameter("role %v is not registered", *r)
 }
 
 // Role returns system username associated with it
@@ -120,4 +120,7 @@ const (
 	RoleProvisionToken Role = "ProvisionToken"
 	// RoleSignup is for first time signing up users
 	RoleSignup Role = "Signup"
+	// RoleNop is used for actions that already using external authz mechanisms
+	// e.g. tokens or passwords
+	RoleNop Role = "Nop"
 )

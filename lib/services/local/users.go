@@ -25,18 +25,17 @@ import (
 	"sort"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/gokyle/hotp"
-	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/bcrypt"
-
+	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"github.com/tstranex/u2f"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // IdentityService is responsible for managing web users and currently
@@ -58,40 +57,57 @@ func (s *IdentityService) GetUsers() ([]services.User, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := make([]services.User, len(keys))
-	for i, name := range keys {
+	out := make([]services.User, 0, len(keys))
+	for _, name := range keys {
 		u, err := s.GetUser(name)
 		if err != nil {
+			if trace.IsNotFound(err) {
+				continue
+			}
 			return nil, trace.Wrap(err)
 		}
-		out[i] = u
+		out = append(out, u)
 	}
 	return out, nil
 }
 
-// UpsertUser updates parameters about user
-func (s *IdentityService) UpsertUser(user services.User) error {
+func ttl(clock clockwork.Clock, t time.Time) time.Duration {
+	if t.IsZero() {
+		return backend.Forever
+	}
+	diff := t.UTC().Sub(clock.Now().UTC())
+	if diff < 0 {
+		return backend.Forever
+	}
+	return diff
+}
 
-	if !cstrings.IsValidUnixUser(user.GetName()) {
-		return trace.BadParameter("'%v is not a valid unix username'", user.GetName())
+// CreateUser creates user if it does not exist
+func (s *IdentityService) CreateUser(user services.User) error {
+	if err := user.Check(); err != nil {
+		return trace.Wrap(err)
 	}
-
-	for _, l := range user.GetAllowedLogins() {
-		if !cstrings.IsValidUnixUser(l) {
-			return trace.BadParameter("'%v is not a valid unix username'", l)
-		}
-	}
-	for _, i := range user.GetIdentities() {
-		if err := i.Check(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	data, err := json.Marshal(user)
+	data, err := services.GetUserMarshaler().MarshalUser(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	err = s.backend.CreateVal([]string{"web", "users", user.GetName()}, "params", []byte(data), ttl(clockwork.NewRealClock(), user.GetExpiry()))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
 
-	err = s.backend.UpsertVal([]string{"web", "users", user.GetName()}, "params", []byte(data), backend.Forever)
+// UpsertUser updates parameters about user
+func (s *IdentityService) UpsertUser(user services.User) error {
+	if err := user.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	data, err := services.GetUserMarshaler().MarshalUser(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.backend.UpsertVal([]string{"web", "users", user.GetName()}, "params", []byte(data), ttl(clockwork.NewRealClock(), user.GetExpiry()))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -103,10 +119,7 @@ func (s *IdentityService) GetUser(user string) (services.User, error) {
 	u := services.TeleportUser{Name: user}
 	data, err := s.backend.GetVal([]string{"web", "users", user}, "params")
 	if err != nil {
-		if trace.IsNotFound(err) {
-			return &u, nil
-		}
-		return nil, trace.Wrap(err)
+		return nil, trace.NotFound("user %v is not found", user)
 	}
 	if err := json.Unmarshal(data, &u); err != nil {
 		return nil, trace.Wrap(err)
@@ -143,8 +156,18 @@ func (s *IdentityService) DeleteUser(user string) error {
 }
 
 // UpsertPasswordHash upserts user password hash
-func (s *IdentityService) UpsertPasswordHash(user string, hash []byte) error {
-	err := s.backend.UpsertVal([]string{"web", "users", user}, "pwd", hash, 0)
+func (s *IdentityService) UpsertPasswordHash(username string, hash []byte) error {
+	user, err := services.GetUserMarshaler().GenerateUser(services.TeleportUser{Name: username})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.CreateUser(user)
+	if err != nil {
+		if !trace.IsAlreadyExists(err) {
+			return trace.Wrap(err)
+		}
+	}
+	err = s.backend.UpsertVal([]string{"web", "users", username}, "pwd", hash, 0)
 	if err != nil {
 		return trace.Wrap(err)
 	}
