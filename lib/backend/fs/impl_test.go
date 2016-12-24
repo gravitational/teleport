@@ -2,6 +2,8 @@ package fs
 
 import (
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -9,14 +11,37 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
-	"github.com/mailgun/timetools"
 	"gopkg.in/check.v1"
 )
+
+type FrozenTime struct {
+	sync.Mutex
+	CurrentTime time.Time
+}
+
+func (t *FrozenTime) UtcNow() time.Time {
+	t.Lock()
+	defer t.Unlock()
+	return t.CurrentTime
+}
+
+func (t *FrozenTime) Sleep(d time.Duration) {
+	t.Lock()
+	defer t.Unlock()
+	t.CurrentTime = t.CurrentTime.Add(d)
+}
+
+func (t *FrozenTime) After(d time.Duration) <-chan time.Time {
+	t.Sleep(d)
+	c := make(chan time.Time, 1)
+	c <- t.CurrentTime
+	return c
+}
 
 type Suite struct {
 	dirName string
 	bk      backend.Backend
-	clock   timetools.FreezedTime
+	clock   FrozenTime
 }
 
 var _ = check.Suite(&Suite{})
@@ -136,7 +161,7 @@ func (s *Suite) TestTTL(c *check.C) {
 }
 
 func (s *Suite) TestLock(c *check.C) {
-	protectedFlag := true
+	var protectedFlag int64 = 1
 	defer s.bk.ReleaseLock("lock")
 
 	err := s.bk.AcquireLock("lock", time.Second)
@@ -145,15 +170,15 @@ func (s *Suite) TestLock(c *check.C) {
 	go func() {
 		defer s.bk.ReleaseLock("lock")
 		s.bk.AcquireLock("lock", time.Second)
-		protectedFlag = false
+		atomic.AddInt64(&protectedFlag, 1)
 	}()
 
 	s.clock.Sleep(time.Millisecond)
-	c.Assert(protectedFlag, check.Equals, true)
+	c.Assert(atomic.LoadInt64(&protectedFlag), check.Equals, int64(1))
 }
 
 func (s *Suite) TestLockTTL(c *check.C) {
-	protectedFlag := true
+	var protectedFlag int64 = 1
 	ln := "ttl-test"
 
 	err := s.bk.AcquireLock(ln, time.Second)
@@ -162,14 +187,14 @@ func (s *Suite) TestLockTTL(c *check.C) {
 
 	go func() {
 		s.bk.AcquireLock(ln, time.Minute)
-		protectedFlag = false
-		s.bk.ReleaseLock(ln)
+		defer s.bk.ReleaseLock(ln)
+		atomic.AddInt64(&protectedFlag, 1)
 	}()
 
-	time.Sleep(time.Millisecond) // give the goroutine some time to start
+	time.Sleep(time.Millisecond * 3) // give the goroutine some time to start
 
 	// wait for 5 seconds. this should be enough for the 1st lock
 	// to expire and the goroutine should be able to flip the flag
 	s.clock.Sleep(time.Second * 5)
-	c.Assert(protectedFlag, check.Equals, false)
+	c.Assert(atomic.LoadInt64(&protectedFlag), check.Equals, int64(2))
 }
