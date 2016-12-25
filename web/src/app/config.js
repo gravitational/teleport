@@ -35,10 +35,11 @@ let cfg = {
   routes: {
     app: '/web',
     login: '/web/login',
+    //(cluster/:siteId/)
     nodes: '/web/nodes',
     currentSession: '/web/sessions/:sid',
-    newUser: '/web/newuser/:inviteToken',
     sessions: '/web/sessions',
+    newUser: '/web/newuser/:inviteToken',    
     msgs: '/web/msg/:type(/:subType)',
     pageNotFound: '/web/notfound'
   },
@@ -56,14 +57,18 @@ let cfg = {
     u2fSessionPath: '/webapi/u2f/sessions',
     sitesBasePath: '/v1/webapi/sites',
     sitePath: '/v1/webapi/sites/:siteId',  
-    nodesPath: '/v1/webapi/sites/-current-/nodes', // to delete
+    nodesPath: '/v1/webapi/sites/:siteId/nodes',
     siteSessionPath: '/v1/webapi/sites/:siteId/sessions',
     sessionEventsPath: '/v1/webapi/sites/:siteId/sessions/:sid/events',
-    siteEventSessionFilterPath: `/v1/webapi/sites/-current-/sessions?filter=:filter`,
-    siteEventsFilterPath: `/v1/webapi/sites/-current-/events?event=session.start&event=session.end&from=:start&to=:end`,
+    siteEventSessionFilterPath: `/v1/webapi/sites/:siteId/sessions`,
+    siteEventsFilterPath: `/v1/webapi/sites/:siteId/events?event=session.start&event=session.end&from=:start&to=:end`,
 
     getSiteUrl(siteId) {              
       return formatPattern(cfg.api.sitePath, { siteId });  
+    },
+
+    getSiteNodesUrl(siteId='-current-') {
+      return formatPattern(cfg.api.nodesPath, { siteId });
     },
 
     getSiteSessionUrl(siteId='-current-') {
@@ -74,17 +79,16 @@ let cfg = {
       return cfg.baseUrl + formatPattern(cfg.api.sso, {redirect, provider});
     },
 
-    getSiteEventsFilterUrl(start, end){
-      return formatPattern(cfg.api.siteEventsFilterPath, {start, end});
+    getSiteEventsFilterUrl({start, end, siteId}){
+      return formatPattern(cfg.api.siteEventsFilterPath, {start, end, siteId});
     },
 
-    getSessionEventsUrl(sid, siteId='-current-'){
+    getSessionEventsUrl({sid, siteId}){
       return formatPattern(cfg.api.sessionEventsPath, {sid, siteId});
     },
 
-    getFetchSessionsUrl(args){
-      var filter = JSON.stringify(args);
-      return formatPattern(cfg.api.siteEventSessionFilterPath, {filter});
+    getFetchSessionsUrl(siteId){      
+      return formatPattern(cfg.api.siteEventSessionFilterPath, {siteId});
     },
 
     getFetchSessionUrl(sid, siteId='-current-'){

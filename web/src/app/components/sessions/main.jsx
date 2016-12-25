@@ -22,6 +22,7 @@ var {filter} = require('app/modules/storedSessionsFilter/getters');
 var StoredSessionList = require('./storedSessionList.jsx');
 var ActiveSessionList = require('./activeSessionList.jsx');
 var Timer = require('./../timer.jsx');
+var ClusterContent = require('./../clusterContent.jsx');
 
 var Sessions = React.createClass({
   mixins: [reactor.ReactMixin],
@@ -40,12 +41,14 @@ var Sessions = React.createClass({
   render: function() {
     let {data, storedSessionsFilter} = this.state;
     return (
-      <div className="grv-sessions grv-page">
-        <Timer onTimeout={this.refresh} />
-        <ActiveSessionList data={data} />
-        <div className="m-t"/>
-        <StoredSessionList data={data} filter={storedSessionsFilter}/>
-      </div>
+      <ClusterContent>
+        <div className="grv-sessions">
+          <Timer onTimeout={this.refresh} />
+          <ActiveSessionList data={data} />
+          <div className="m-t"/>
+          <StoredSessionList data={data} filter={storedSessionsFilter}/>
+        </div>
+      </ClusterContent>  
     );
   }
 });

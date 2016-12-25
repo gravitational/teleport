@@ -46,7 +46,7 @@ const actions = {
    });
  },
 
- openSession(nextState){
+  openSession(nextState) {   
    let { sid } = nextState.params;
    let currentSession = reactor.evaluate(getters.currentSession);
    if(currentSession){
@@ -57,6 +57,11 @@ const actions = {
    $.when(fetchStoredSession(sid))
      .done(()=>{
        let sView = reactor.evaluate(sessionGetters.sessionViewById(sid));
+       if (!sView) {
+         reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, null);
+         return;
+       }
+
        let { serverId, login, siteId } = sView;
        logger.info('open session', 'OK');
        reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {

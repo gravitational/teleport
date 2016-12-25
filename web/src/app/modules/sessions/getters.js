@@ -18,8 +18,9 @@ var moment =  require('moment');
 var reactor = require('app/reactor');
 var cfg = require('app/config');
 
-const sessionsView = [['tlpt_sessions'], (sessions) =>{
-  return sessions.valueSeq().map(createView).toJS();
+const sessionsView = [['tlpt_sessions'], ['tlpt', 'siteId'], (sessionList, siteId) => {  
+  sessionList = sessionList.filter(n => n.get('siteId') === siteId);    
+  return sessionList.valueSeq().map(createView).toJS();
 }];
 
 const sessionViewById = (sid)=> [['tlpt_sessions', sid], (session)=>{

@@ -17,55 +17,48 @@ limitations under the License.
 import reactor from 'app/reactor';
 import auth from 'app/services/auth';
 import { showError } from 'app/modules/notifications/actions';
-import { TLPT_APP_INIT, TLPT_APP_FAILED, TLPT_APP_READY } from './actionTypes';
+import { TLPT_APP_INIT, TLPT_APP_FAILED, TLPT_APP_READY, TLPT_APP_SET_SITE_ID } from './actionTypes';
 import { TLPT_SITES_RECEIVE } from './../sites/actionTypes';
-import { TLPT_NODES_RECEIVE } from './../nodes/actionTypes';
-import { TLPT_SESSIONS_RECEIVE } from './../sessions/actionTypes';
 import api from 'app/services/api';
 import cfg from 'app/config';
+import { fetchNodes } from './../nodes/actions';
+
+
 const logger = require('app/common/logger').create('flux/app');
 
 const actions = {
 
-  initApp(nextState, cb) {
-    reactor.dispatch(TLPT_APP_INIT);    
-    actions.fetchAllData()
-      .done(() => {        
+  setSiteId(siteId) {
+    reactor.dispatch(TLPT_APP_SET_SITE_ID, siteId);
+    fetchNodes();
+  },
+
+  initApp(nextState, replace, cb) {
+    let { siteId } = nextState.params;    
+    reactor.dispatch(TLPT_APP_INIT);        
+    actions.fetchSites()      
+      .then(masterSiteId => {
+        siteId = siteId || masterSiteId;
+        actions.setSiteId(siteId);        
+        fetchNodes();                
         reactor.dispatch(TLPT_APP_READY);
         cb();
       })
       .fail(()=> reactor.dispatch(TLPT_APP_FAILED) );
   },
-
-  fetchAllData(){
+  
+  fetchSites(){
     return api.get(cfg.api.sitesBasePath)
-      .then( json => {      
-        let sites = json.sites;
-        let nodes = [];
-        let sessions = [];
-
-        for (let i = 0; i < sites.length; i++){
-          let siteId = sites[i].name;
-          let siteNodes = sites[i].nodes || [];
-          let siteSessions = sites[i].sessions || [];
-          
-          siteNodes.forEach(n => {
-            n.siteId = siteId;
-            nodes.push(n);
-          });
-
-          siteSessions.forEach(s => {
-            s.siteId = siteId;
-            sessions.push(s);
-          });            
+      .then(json => {
+        let masterSiteId = null;
+        let sites = json.sites;     
+        if (sites) {
+          masterSiteId = sites[0].name;
         }
-
-        reactor.batch(() => {
-          reactor.dispatch(TLPT_SITES_RECEIVE, sites);
-          reactor.dispatch(TLPT_NODES_RECEIVE, nodes);
-          reactor.dispatch(TLPT_SESSIONS_RECEIVE, sessions);          
-        })              
-
+                
+        reactor.dispatch(TLPT_SITES_RECEIVE, sites);
+        
+        return masterSiteId;
     })
     .fail(err => {
       showError('Unable to retrieve data ');

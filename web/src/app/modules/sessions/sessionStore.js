@@ -39,9 +39,9 @@ function getIp(addr){
   return addr.replace(PORT_REGEX, '');
 }
 
-function updateSessionWithEvents(state, events){
+function updateSessionWithEvents(state, { jsonEvents=[], siteId }){
   return state.withMutations(state => {
-    events.forEach(item=>{
+    jsonEvents.forEach(item=>{
       if(item.event !== 'session.start' && item.event !== 'session.end'){
         return;
       }
@@ -69,6 +69,7 @@ function updateSessionWithEvents(state, events){
         session.stored = true;
       }
 
+      session.siteId = siteId;      
       state.set(session.id, toImmutable(session));
     })
   });

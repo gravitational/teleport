@@ -18,7 +18,6 @@ var React = require('react');
 var InputSearch = require('./../inputSearch.jsx');
 var {Table, Column, Cell, SortHeaderCell, SortTypes, EmptyIndicator} = require('app/components/table.jsx');
 var {createNewSession} = require('app/modules/currentSession/actions');
-var DropDown = require('./../dropdown.jsx');
 
 var _ = require('_');
 var {isMatch} = require('app/common/objectUtils');
@@ -82,15 +81,11 @@ const LoginCell = ({logins, onLoginClick, rowIndex, data, ...props}) => {
   )
 };
 
-const ALL_CLUSTERS = ' ---all--- ';
-const OptionShowAllSites = { value: ALL_CLUSTERS, label: 'all clusters' };
-
 var NodeList = React.createClass({
 
   getInitialState() {                            
     this.searchableProps = ['addr', 'hostname', 'tags'];
-    return {
-        selectedSite: ALL_CLUSTERS,
+    return {        
         filter: '',
         colSortDirs: { hostname: SortTypes.DESC }
     };
@@ -105,13 +100,7 @@ var NodeList = React.createClass({
     this.state.filter = value;
     this.setState(this.state);
   },
-
-  onChangeSite(value) {  
-    this.setState({
-      selectedSite: value  
-    })      
-  },
-
+  
   searchAndFilterCb(targetValue, searchValue, propName){
     if(propName === 'tags'){
       return targetValue.some((item) => {
@@ -123,17 +112,13 @@ var NodeList = React.createClass({
   },
 
   sortAndFilter(data) {
-    let { selectedSite, colSortDirs } = this.state;    
+    let { colSortDirs } = this.state;    
     let filtered = data      
       .filter(obj=> isMatch(obj, this.state.filter, {
         searchableProps: this.searchableProps,
         cb: this.searchAndFilterCb
       }));
-    
-    if (selectedSite !== ALL_CLUSTERS) {
-      filtered = filtered.filter(obj => obj.siteId === selectedSite)
-    }
-
+        
     let columnKey = Object.getOwnPropertyNames(colSortDirs)[0];
     let sortDir = colSortDirs[columnKey];
     let sorted = _.sortBy(filtered, columnKey);
@@ -144,26 +129,14 @@ var NodeList = React.createClass({
     return sorted;
   },
 
-  render() {  
-    let { nodeRecords, logins, onLoginClick, sites } = this.props;
-    let { selectedSite } = this.state;      
-    let data = this.sortAndFilter(nodeRecords, selectedSite);            
-    let siteOptions = sites.map(s => ({ label: s.name, value: s.name }));
-    
-    siteOptions.push(OptionShowAllSites);
-        
+  render() {      
+    let { nodeRecords, logins, onLoginClick } = this.props;       
+    let data = this.sortAndFilter(nodeRecords);                                     
     return (
-      <div className="grv-nodes grv-page">
-        <div className="grv-flex grv-header m-t-md" style={{ justifyContent: "space-between" }}>                    
+      <div className="grv-nodes">                
+        <div className="grv-flex grv-header m-t" style={{ justifyContent: "space-between" }}>                    
           <h2 className="text-center no-margins"> Nodes </h2>          
-          <div className="grv-flex">          
-            <DropDown
-              className="grv-nodes-clusters-selector m-r"
-              size="sm"              
-              onChange={this.onChangeSite}
-              value={selectedSite}
-              options={siteOptions}
-            />
+          <div className="grv-flex">                      
             <InputSearch value={this.filter} onChange={this.onFilterChange} />                        
           </div>
         </div>
