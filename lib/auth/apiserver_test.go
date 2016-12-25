@@ -157,6 +157,14 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	err = s.clt.UpsertUser(user)
 	c.Assert(err, IsNil)
 
+	user2 := &services.TeleportUser{Name: "user2", AllowedLogins: []string{"user2"}}
+	role2 := services.RoleForUser(user2)
+	err = s.clt.UpsertRole(role)
+	c.Assert(err, IsNil)
+	user.Roles = []string{role2.GetName()}
+	err = s.clt.UpsertUser(user2)
+	c.Assert(err, IsNil)
+
 	newChecker, err := NewAccessChecker(s.AccessS, s.WebS)
 	c.Assert(err, IsNil)
 

@@ -263,7 +263,6 @@ func (s *sessionCache) AuthWithU2FSignResponse(user string, response *u2f.SignRe
 	defer clt.Close()
 	session, err := clt.PreAuthenticatedSignIn(user)
 	if err != nil {
-		defer clt.Close()
 		return nil, trace.Wrap(err)
 	}
 	return session, nil

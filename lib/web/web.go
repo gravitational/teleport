@@ -664,7 +664,6 @@ func (m *Handler) u2fSignRequest(w http.ResponseWriter, r *http.Request, p httpr
 	}
 	u2fSignReq, err := m.auth.GetU2FSignRequest(req.User, req.Pass)
 	if err != nil {
-		log.Infof("bad access credentials: %v", err)
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
 
@@ -695,7 +694,6 @@ func (m *Handler) createSessionWithU2FSignResponse(w http.ResponseWriter, r *htt
 
 	sess, err := m.auth.AuthWithU2FSignResponse(req.User, &req.U2FSignResponse)
 	if err != nil {
-		log.Infof("bad access credentials: %v", err)
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
 	if err := SetSession(w, req.User, sess.ID); err != nil {

@@ -152,6 +152,13 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 					services.Wildcard: services.RW(),
 				},
 			})
+	case teleport.RoleNop.User():
+		return services.FromSpec(
+			username,
+			services.RoleSpec{
+				Namespaces: []string{},
+				Resources:  map[string][]string{},
+			})
 	}
 
 	return nil, trace.NotFound("%v is not reconginzed", username)

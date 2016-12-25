@@ -29,13 +29,14 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/coreos/go-oidc/jose"
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
-
 	"github.com/tstranex/u2f"
+	"golang.org/x/crypto/ssh"
 )
 
 // User represents teleport or external user
@@ -50,8 +51,6 @@ type User interface {
 	GetRoles() []string
 	// String returns user
 	String() string
-	// Check checks if all parameters are correct
-	Check() error
 	// Equals checks if user equals to another
 	Equals(other User) bool
 	// WebSessionInfo returns web session information
@@ -66,6 +65,57 @@ type User interface {
 	AddRole(name string)
 	// SetAllowedLogins sets allowed logins property for user
 	SetAllowedLogins(logins []string)
+	// GetExpiry returns ttl of the user
+	GetExpiry() time.Time
+	// GetCreatedBy returns information about user
+	GetCreatedBy() CreatedBy
+	// SetCreatedBy sets created by information
+	SetCreatedBy(CreatedBy)
+	// Check checks basic user parameters for errors
+	Check() error
+}
+
+// ConnectorRef holds information about OIDC connector
+type ConnectorRef struct {
+	// Type is connector type
+	Type string `json:"connector_type"`
+	// ID is connector ID
+	ID string `json:"id"`
+	// Identity is external identity of the user
+	Identity string `json:"identity"`
+}
+
+// UserRef holds refernce to user
+type UserRef struct {
+	// Name is name of the user
+	Name string `json:"name"`
+}
+
+// CreatedBy holds information about the person or agent who created the user
+type CreatedBy struct {
+	// Identity if present means that user was automatically created by identity
+	Connector *ConnectorRef `json:"identity,omitemtpy"`
+	// Time specifies when user was created
+	Time time.Time `json:"time"`
+	// User holds information about user
+	User UserRef `json:"user"`
+}
+
+// IsEmpty returns true if there's no info about who created this user
+func (c CreatedBy) IsEmpty() bool {
+	return c.User.Name == ""
+}
+
+// String returns human readable information about the user
+func (c CreatedBy) String() string {
+	if c.User.Name == "" {
+		return "system"
+	}
+	if c.Connector != nil {
+		return fmt.Sprintf("%v connector %v for user %v at %v",
+			c.Connector.Type, c.Connector.ID, c.Connector.Identity, utils.HumanTimeFormat(c.Time))
+	}
+	return fmt.Sprintf("%v at %v", c.User.Name, c.Time)
 }
 
 // LoginStatus is a login status of the user
@@ -98,6 +148,22 @@ type TeleportUser struct {
 
 	// Status is a login status of the user
 	Status LoginStatus `json:"status"`
+
+	// Expires if set sets TTL on the user
+	Expires time.Time `json:"expires"`
+
+	// CreatedBy holds information about agent or person created this usre
+	CreatedBy CreatedBy `json:"created_by"`
+}
+
+// SetCreatedBy sets created by information
+func (u *TeleportUser) SetCreatedBy(b CreatedBy) {
+	u.CreatedBy = b
+}
+
+// GetCreatedBy returns information about who created user
+func (u *TeleportUser) GetCreatedBy() CreatedBy {
+	return u.CreatedBy
 }
 
 // Equals checks if user equals to another
@@ -126,6 +192,11 @@ func (u *TeleportUser) Equals(other User) bool {
 	return true
 }
 
+// GetExpiry returns expiry time for temporary users
+func (u *TeleportUser) GetExpiry() time.Time {
+	return u.Expires
+}
+
 // SetAllowedLogins sets allowed logins for user
 func (u *TeleportUser) SetAllowedLogins(logins []string) {
 	u.AllowedLogins = logins
@@ -133,14 +204,7 @@ func (u *TeleportUser) SetAllowedLogins(logins []string) {
 
 // SetRoles sets a list of roles for user
 func (u *TeleportUser) SetRoles(roles []string) {
-	seen := map[string]bool{}
-	u.Roles = make([]string, 0, len(roles))
-	for _, role := range roles {
-		if _, found := seen[role]; !found {
-			u.Roles = append(u.Roles, role)
-		}
-		seen[role] = true
-	}
+	u.Roles = utils.Deduplicate(roles)
 }
 
 // GetStatus returns login status of the user
@@ -200,8 +264,10 @@ func (u *TeleportUser) Check() error {
 	if !cstrings.IsValidUnixUser(u.Name) {
 		return trace.BadParameter("'%v' is not a valid user name", u.Name)
 	}
-	if len(u.AllowedLogins) == 0 {
-		return trace.BadParameter("'%v' has no valid allowed logins", u.Name)
+	for _, l := range u.AllowedLogins {
+		if !cstrings.IsValidUnixUser(l) {
+			return trace.BadParameter("'%v is not a valid unix username'", l)
+		}
 	}
 	for _, login := range u.AllowedLogins {
 		if !cstrings.IsValidUnixUser(login) {
@@ -242,6 +308,9 @@ type Identity interface {
 
 	// GetUserLoginAttempts returns user login attempts
 	GetUserLoginAttempts(user string) ([]LoginAttempt, error)
+
+	// CreateUser creates user if it does not exist
+	CreateUser(user User) error
 
 	// UpsertUser updates parameters about user
 	UpsertUser(user User) error
@@ -399,6 +468,64 @@ type OIDCConnector struct {
 	RedirectURL string `json:"redirect_url"`
 	// Display - Friendly name for this provider.
 	Display string `json:"display"`
+	// Scope is additional scopes set by provder
+	Scope []string `json:"scope"`
+	// ClaimsToRoles specifies dynamic mapping from claims to roles
+	ClaimsToRoles []ClaimMapping `json:"claims_to_roles"`
+}
+
+// GetClaims returns list of claims expected by mappings
+func (o *OIDCConnector) GetClaims() []string {
+	var out []string
+	for _, mapping := range o.ClaimsToRoles {
+		out = append(out, mapping.Claim)
+	}
+	return utils.Deduplicate(out)
+}
+
+// MapClaims maps claims to roles
+func (o *OIDCConnector) MapClaims(claims jose.Claims) []string {
+	var roles []string
+	for _, mapping := range o.ClaimsToRoles {
+		for claimName := range claims {
+			if claimName != mapping.Claim {
+				continue
+			}
+			claimValue, ok, _ := claims.StringClaim(claimName)
+			if ok && claimValue == mapping.Value {
+				roles = append(roles, mapping.Roles...)
+			}
+			claimValues, ok, _ := claims.StringsClaim(claimName)
+			if ok {
+				for _, claimValue := range claimValues {
+					if claimValue == mapping.Value {
+						roles = append(roles, mapping.Roles...)
+					}
+				}
+			}
+		}
+	}
+	return utils.Deduplicate(roles)
+}
+
+// GetClaimNames returns a list of claim names from the claim values
+func GetClaimNames(claims jose.Claims) []string {
+	var out []string
+	for claim := range claims {
+		out = append(out, claim)
+	}
+	return out
+}
+
+// ClaimMapping is OIDC claim mapping that maps
+// claim name to teleport roles
+type ClaimMapping struct {
+	// Claim is OIDC claim name
+	Claim string `json:"claim"`
+	// Value is claim value to match
+	Value string `json:"value"`
+	// Roles is a list of teleport roles to match
+	Roles []string `json:"roles"`
 }
 
 // Check returns nil if all parameters are great, err otherwise
@@ -577,6 +704,10 @@ type UserMarshaler interface {
 	UnmarshalUser(bytes []byte) (User, error)
 	// MarshalUser to binary representation
 	MarshalUser(u User) ([]byte, error)
+	// GenerateUser generates new user based on standard teleport user
+	// it gives external implementations to add more app-specific
+	// data to the user
+	GenerateUser(TeleportUser) (User, error)
 }
 
 type TeleportUserMarshaler struct{}
@@ -589,6 +720,11 @@ func (*TeleportUserMarshaler) UnmarshalUser(bytes []byte) (User, error) {
 		return nil, trace.Wrap(err)
 	}
 	return u, nil
+}
+
+// GenerateUser generates new user
+func (*TeleportUserMarshaler) GenerateUser(in TeleportUser) (User, error) {
+	return &in, nil
 }
 
 // MarshalUser marshalls user into JSON

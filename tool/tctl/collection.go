@@ -114,7 +114,7 @@ func printActions(resources map[string][]string) string {
 	pairs := []string{}
 	for key, actions := range resources {
 		if key == services.Wildcard {
-			return "<all resources>"
+			return fmt.Sprintf("<all resources>: %v", strings.Join(actions, ","))
 		}
 		pairs = append(pairs, fmt.Sprintf("%v:%v", key, strings.Join(actions, ",")))
 	}

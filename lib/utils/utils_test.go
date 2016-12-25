@@ -26,6 +26,12 @@ type UtilsSuite struct {
 
 var _ = check.Suite(&UtilsSuite{})
 
+func (s *UtilsSuite) TestDeduplicate(c *check.C) {
+	c.Assert(Deduplicate([]string{}), check.DeepEquals, []string{})
+	c.Assert(Deduplicate([]string{"a", "b"}), check.DeepEquals, []string{"a", "b"})
+	c.Assert(Deduplicate([]string{"a", "b", "b", "a", "c"}), check.DeepEquals, []string{"a", "b", "c"})
+}
+
 func (s *UtilsSuite) TestHostUUID(c *check.C) {
 	// call twice, get same result
 	dir := c.MkDir()

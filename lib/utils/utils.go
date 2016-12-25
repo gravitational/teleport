@@ -168,6 +168,22 @@ func HumanTimeFormat(d time.Time) string {
 	return d.Format(HumanTimeFormatString)
 }
 
+// Deduplicate deduplicates list of strings
+func Deduplicate(in []string) []string {
+	if len(in) == 0 {
+		return in
+	}
+	out := make([]string, 0, len(in))
+	seen := make(map[string]bool, len(in))
+	for _, val := range in {
+		if _, ok := seen[val]; !ok {
+			out = append(out, val)
+			seen[val] = true
+		}
+	}
+	return out
+}
+
 const (
 	// HumanTimeFormatString is a human readable date formatting
 	HumanTimeFormatString = "Mon Jan _2 15:04 UTC"

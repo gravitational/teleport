@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -38,11 +39,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-
 	"github.com/tstranex/u2f"
 )
 
@@ -212,10 +213,6 @@ func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, rol
 // GenerateUserCert generates user certificate, it takes pkey as a signing
 // private key (user certificate authority)
 func (s *AuthServer) GenerateUserCert(key []byte, username string, allowedLogins []string, ttl time.Duration) ([]byte, error) {
-	// here I should map username to appropriate certificate authority
-	// how do I do that? I can have a special user naming convention, e.g.
-	// user is associated with cert authority id??? @ca:cert-authority-id
-	// I should also keep these auto-generated users somewhere probably
 	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
 		DomainName: s.DomainName,
@@ -722,7 +719,7 @@ func (s *AuthServer) getOIDCClient(conn *services.OIDCConnector) (*oidc.Client, 
 			Secret: conn.ClientSecret,
 		},
 		// open id notifies provider that we are using OIDC scopes
-		Scope: []string{"openid", "email"},
+		Scope: utils.Deduplicate(append([]string{"openid", "email"}, conn.Scope...)),
 	}
 
 	client, err := oidc.NewClient(config)
@@ -786,6 +783,52 @@ type OIDCAuthResponse struct {
 	HostSigners []services.CertAuthority `json:"host_signers"`
 }
 
+func (a *AuthServer) createOIDCUser(connector *services.OIDCConnector, ident *oidc.Identity, claims jose.Claims) error {
+	roles := connector.MapClaims(claims)
+	if len(roles) == 0 {
+		log.Warningf("[OIDC] could not find any of expected claims: %v in the set returned by provider %v: %v",
+			strings.Join(connector.GetClaims(), ","), connector.ID, strings.Join(services.GetClaimNames(claims), ","))
+	}
+	log.Debugf("[IDENTITY] %v/%v is a dynamic identity, generating user with roles: %v", connector.ID, ident.Email, roles)
+	user, err := services.GetUserMarshaler().GenerateUser(services.TeleportUser{
+		Name:           ident.Email,
+		Roles:          roles,
+		Expires:        ident.ExpiresAt,
+		OIDCIdentities: []services.OIDCIdentity{{ConnectorID: connector.ID, Email: ident.Email}},
+		CreatedBy: services.CreatedBy{
+			User: services.UserRef{Name: "system"},
+			Time: time.Now().UTC(),
+			Connector: &services.ConnectorRef{
+				Type:     teleport.ConnectorOIDC,
+				ID:       connector.ID,
+				Identity: ident.Email,
+			},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = a.CreateUser(user)
+	if err == nil {
+		return trace.Wrap(err)
+	}
+	if !trace.IsAlreadyExists(err) {
+		return trace.Wrap(err)
+	}
+	existingUser, err := a.GetUser(ident.Email)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		connectorRef := existingUser.GetCreatedBy().Connector
+		if connectorRef == nil || connectorRef.Type != teleport.ConnectorOIDC || connectorRef.ID != connector.ID {
+			return trace.AlreadyExists("user %v already exists and is not OIDC user", existingUser.GetName())
+		}
+	}
+	return a.UpsertUser(user)
+}
+
 // ValidateOIDCAuthCallback is called by the proxy to check OIDC query parameters
 // returned by OIDC Provider, if everything checks out, auth server
 // will respond with OIDCAuthResponse, otherwise it will return error
@@ -840,11 +883,17 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 			oauth2.ErrorUnsupportedResponseType, "unable to convert claims to identity", q)
 	}
 
-	log.Infof("[IDENTITY] expires at: %v", ident.ExpiresAt)
+	log.Debugf("[IDENTITY] %v expires at: %v", ident.Email, ident.ExpiresAt)
 
 	response := &OIDCAuthResponse{
 		Identity: services.OIDCIdentity{ConnectorID: connector.ID, Email: ident.Email},
 		Req:      *req,
+	}
+
+	if len(connector.ClaimsToRoles) != 0 {
+		if err := a.createOIDCUser(connector, ident, claims); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if !req.CheckUser {

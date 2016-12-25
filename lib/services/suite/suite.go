@@ -115,8 +115,7 @@ func (s *ServicesTestSuite) UsersCRUD(c *C) {
 		&services.TeleportUser{Name: "user1"}, &services.TeleportUser{Name: "user2"}})
 
 	out, err := s.WebS.GetUser("user1")
-	c.Assert(err, IsNil)
-	usersEqual(c, out, &services.TeleportUser{Name: "user1"})
+	usersEqual(c, out, u[0])
 
 	user := &services.TeleportUser{Name: "user1", AllowedLogins: []string{"admin", "root"}}
 	c.Assert(s.WebS.UpsertUser(user), IsNil)
