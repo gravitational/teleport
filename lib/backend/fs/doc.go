@@ -16,13 +16,14 @@ limitations under the License.
 fs package implements backend.Backend interface using a regular
 filesystem-based directory. The filesystem needs to be POSIX
 compliant and support 'date modified' attribute on files.
-
-filesystem backend is supposed to be used for single-host,
-multip-process teleport deployments (it allows for multi-process locking).
-
-Limitations:
-	- key names cannot start with '.' (dot)
-
 */
+
+//
+// filesystem backend is supposed to be used for single-host,
+// multip-process teleport deployments (it allows for multi-process locking).
+//
+// Limitations:
+// 	- key names cannot start with '.' (dot)
+//
 
 package fs
