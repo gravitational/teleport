@@ -54,4 +54,7 @@ const (
 	// SafeTerminalType is the fall-back TTY type to fall back to (when $TERM
 	// is not defined)
 	SafeTerminalType = "xterm"
+
+	// ConnectorOIDC means connector type OIDC
+	ConnectorOIDC = "oidc"
 )

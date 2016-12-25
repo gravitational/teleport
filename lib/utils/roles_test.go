@@ -44,12 +44,12 @@ func (s *RolesTestSuite) TestParsing(c *check.C) {
 
 func (s *RolesTestSuite) TestBadRoles(c *check.C) {
 	bad := teleport.Role("bad-role")
-	c.Assert(bad.Check(), check.ErrorMatches, "role bad-role is not supported")
+	c.Assert(bad.Check(), check.ErrorMatches, "role bad-role is not registered")
 	badRoles := teleport.Roles{
 		bad,
 		teleport.RoleAdmin,
 	}
-	c.Assert(badRoles.Check(), check.ErrorMatches, "role bad-role is not supported")
+	c.Assert(badRoles.Check(), check.ErrorMatches, "role bad-role is not registered")
 }
 
 func (s *RolesTestSuite) TestEquivalence(c *check.C) {

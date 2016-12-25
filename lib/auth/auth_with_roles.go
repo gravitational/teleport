@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"
-
 	"github.com/tstranex/u2f"
 )
 
@@ -272,9 +271,8 @@ func (a *AuthWithRoles) PreAuthenticatedSignIn(user string) (*Session, error) {
 }
 
 func (a *AuthWithRoles) GetU2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
-	if err := a.currentUserAction(user); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// we are already checking password here, no need to extra permission check
+	// anyone who has user's password can generate sign request
 	return a.authServer.U2FSignRequest(user, password)
 }
 
@@ -386,6 +384,12 @@ func (a *AuthWithRoles) CreateUserWithU2FToken(token string, password string, u2
 func (a *AuthWithRoles) UpsertUser(u services.User) error {
 	if err := a.action(defaults.Namespace, services.KindUser, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
+	}
+	createdBy := u.GetCreatedBy()
+	if createdBy.IsEmpty() {
+		u.SetCreatedBy(services.CreatedBy{
+			User: services.UserRef{Name: a.user},
+		})
 	}
 	return a.authServer.UpsertUser(u)
 }

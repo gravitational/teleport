@@ -59,6 +59,7 @@ func RoleForUser(u User) *RoleResource {
 				KindNode:          RO(),
 				KindAuthServer:    RO(),
 				KindReverseTunnel: RO(),
+				KindCertAuthority: RO(),
 			},
 		},
 	}

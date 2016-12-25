@@ -389,7 +389,7 @@ func (s *TunSuite) TestPermissions(c *C) {
 	_, err = cltw.GetNodes(defaults.Namespace)
 	c.Assert(err, NotNil)
 
-	// Requesting forbidden for Web action
+	// Requesting sign in forbidden for Web action
 	_, err = cltw.SignIn(user.Name, pass)
 	c.Assert(err, NotNil)
 
