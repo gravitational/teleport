@@ -88,12 +88,13 @@ var _ = Suite(&WebSuite{})
 
 func (s *WebSuite) SetUpSuite(c *C) {
 	var err error
+	os.Unsetenv(teleport.DebugEnvVar)
+	utils.InitLoggerForTests()
 
 	// configure tests to use static assets from web/dist:
 	debugAssetsPath = "../../web/dist"
-	os.Setenv("DEBUG", "true")
+	os.Setenv(teleport.DebugEnvVar, "true")
 
-	utils.InitLoggerForTests()
 	sessionStreamPollPeriod = time.Millisecond
 	s.logDir = c.MkDir()
 	s.auditLog, err = events.NewAuditLog(s.logDir)
@@ -106,6 +107,7 @@ func (s *WebSuite) SetUpSuite(c *C) {
 
 func (s *WebSuite) TearDownSuite(c *C) {
 	os.RemoveAll(s.logDir)
+	os.Unsetenv(teleport.DebugEnvVar)
 }
 
 func (s *WebSuite) SetUpTest(c *C) {

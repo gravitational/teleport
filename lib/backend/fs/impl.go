@@ -30,7 +30,8 @@ import (
 	"github.com/gravitational/trace"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/mailgun/timetools"
+
+	"github.com/jonboulle/clockwork"
 )
 
 const (
@@ -57,7 +58,7 @@ type Backend struct {
 	LocksDir string
 
 	// Clock is a test-friendly source of current time
-	Clock timetools.TimeProvider
+	Clock clockwork.Clock
 
 	// locks keeps the map of active file locks
 	locks map[string]string
@@ -71,18 +72,18 @@ func FromJSON(jsonStr string) (bk *Backend, err error) {
 	var m map[string]string
 	if err = json.Unmarshal([]byte(jsonStr), &m); err != nil {
 		log.Error(trace.DebugReport(err))
-		return nil, trace.Errorf("Invalid file backend configuration: %v", err)
+		return nil, trace.BadParameter("invalid file backend configuration: %v", err)
 	}
 	path, ok := m[key]
 	if !ok {
-		return nil, trace.Errorf("'%s' field is missing for the file backend", key)
+		return nil, trace.BadParameter("'%s' field is missing for the file backend", key)
 	}
 	return New(path)
 }
 
 // New creates a fully initialized filesystem backend
 func New(rootDir string) (*Backend, error) {
-	bk := &Backend{RootDir: rootDir, Clock: &timetools.RealTime{}}
+	bk := &Backend{RootDir: rootDir, Clock: clockwork.NewRealClock()}
 	bk.LocksDir = path.Join(bk.RootDir, locksDir)
 	bk.locks = make(map[string]string)
 	if err := os.MkdirAll(bk.LocksDir, defaultDirMode); err != nil {
@@ -117,7 +118,7 @@ func (bk *Backend) CreateVal(bucket []string, key string, val []byte, ttl time.D
 	log.Debugf("fs.CreateVal(%s/%s) '%v'", strings.Join(bucket, "/"), key, string(val))
 	// do not allow keys that start with a dot
 	if key[0] == '.' {
-		return trace.BadParameter("Invalid key: '%s'. Key names cannot start with '.'", key)
+		return trace.BadParameter("invalid key: '%s'. Key names cannot start with '.'", key)
 	}
 	// create the directory:
 	dirPath := path.Join(bk.RootDir, path.Join(bucket...))
@@ -281,7 +282,7 @@ func (bk *Backend) applyTTL(dirPath string, key string, ttl time.Duration) error
 	if ttl == backend.Forever {
 		return nil
 	}
-	expiryTime := bk.Clock.UtcNow().Add(ttl)
+	expiryTime := bk.Clock.Now().Add(ttl)
 	bytes, _ := expiryTime.MarshalText()
 	return trace.ConvertSystemError(
 		ioutil.WriteFile(bk.ttlFile(dirPath, key), bytes, defaultFileMode))
@@ -300,7 +301,7 @@ func (bk *Backend) checkTTL(dirPath string, key string) (expired bool, err error
 	if err = expiryTime.UnmarshalText(bytes); err != nil {
 		return false, trace.Wrap(err)
 	}
-	return bk.Clock.UtcNow().After(expiryTime), nil
+	return bk.Clock.Now().After(expiryTime), nil
 }
 
 // ttlFile returns the full path of the "TTL file" where the TTL is

@@ -19,11 +19,9 @@ compliant and support 'date modified' attribute on files.
 */
 
 //
-// filesystem backend is supposed to be used for single-host,
-// multip-process teleport deployments (it allows for multi-process locking).
+// Package 'fs' implements the "filesystem backend". It uses a regular
+// filesystem (directories with files) to store Teleport auth server state.
 //
 // Limitations:
 // 	- key names cannot start with '.' (dot)
-//
-
 package fs

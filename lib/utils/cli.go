@@ -70,9 +70,9 @@ func InitDebugLogger(level log.Level) {
 }
 
 // InitLoggerForTests inits logger to discard ouput in tests unless
-// TELEPORT_DEBUG is set to "true"
+// DEBUG is set to "1"
 func InitLoggerForTests() {
-	val, _ := strconv.ParseBool(os.Getenv(teleport.DebugOutputEnvVar))
+	val, _ := strconv.ParseBool(os.Getenv(teleport.VerboseLogsEnvVar))
 	if val {
 		InitLoggerDebug()
 		return
