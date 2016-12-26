@@ -1,22 +1,23 @@
 // Basic Colors
-$navy: #4e988b;       // Primary color
-$dark-gray: #c2c2c2;  // Default color
-$blue: #1c84c6;       // Success color
-$lazur: #23c6c8;      // Info color
-$yellow: #f8ac59;     // Warrning color
-$red: #ED5565;        // Danger color
+$navy: #4e988b !default;       // Primary color
+$dark-gray: #c2c2c2 !default;  // Default color
+$blue: #1c84c6 !default;       // Success color
+$lazur: #23c6c8 !default;      // Info color
+$yellow: #FF9800 !default;     // Warrning color
+$red: #ED5565 !default;        // Danger color
+$disabled-input-color: inherit;
+$label-badget-color: #5E5E5E !default;
 
-// Various colors
-$text-color: #676a6c;   // Body text
-$gray: #f3f3f4;         // Background wrapper color
-$light-gray: #D1DADE;   // Default label, badget
-$label-badget-color: #5E5E5E;
-$light-blue:#f3f6fb;
+// Bootstrap shared variables
+$font-family-base: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol" !default;
+$text-color: #4d4d4d !default;   // Body text
+$gray: #f3f3f4 !default;         // Background wrapper color
+$gray-base:#1a1a1a !default;;
+$light-gray: #D1DADE !default;   // Default label, badget
 
 // Spiner color and margin
 $spin-color: $navy;
 $spin-margin: 0 auto;
-
 
 // IBOX colors ( default panel colors)
 $border-color: #e7eaec;     // IBox border

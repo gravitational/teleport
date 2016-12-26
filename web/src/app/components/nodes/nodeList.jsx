@@ -44,15 +44,15 @@ const LoginCell = ({logins, onLoginClick, rowIndex, data, ...props}) => {
     return <Cell {...props} />;
   }
 
-  var serverId = data[rowIndex].id;
+  var { id, siteId } = data[rowIndex];
   var $lis = [];
 
   function onClick(i){
     var login = logins[i];
     if(onLoginClick){
-      return ()=> onLoginClick(serverId, login);
+      return () => onLoginClick(id, login);
     }else{
-      return () => createNewSession(serverId, login);
+      return () => createNewSession(siteId, id, login);
     }
   }
 
@@ -83,9 +83,12 @@ const LoginCell = ({logins, onLoginClick, rowIndex, data, ...props}) => {
 
 var NodeList = React.createClass({
 
-  getInitialState(/*props*/){
+  getInitialState() {                            
     this.searchableProps = ['addr', 'hostname', 'tags'];
-    return { filter: '', colSortDirs: {hostname: SortTypes.DESC} };
+    return {        
+        filter: '',
+        colSortDirs: { hostname: SortTypes.DESC }
+    };
   },
 
   onSortChange(columnKey, sortDir) {
@@ -97,7 +100,7 @@ var NodeList = React.createClass({
     this.state.filter = value;
     this.setState(this.state);
   },
-
+  
   searchAndFilterCb(targetValue, searchValue, propName){
     if(propName === 'tags'){
       return targetValue.some((item) => {
@@ -108,15 +111,17 @@ var NodeList = React.createClass({
     }
   },
 
-  sortAndFilter(data){
-    var filtered = data.filter(obj=> isMatch(obj, this.state.filter, {
+  sortAndFilter(data) {
+    let { colSortDirs } = this.state;    
+    let filtered = data      
+      .filter(obj=> isMatch(obj, this.state.filter, {
         searchableProps: this.searchableProps,
         cb: this.searchAndFilterCb
       }));
-
-    var columnKey = Object.getOwnPropertyNames(this.state.colSortDirs)[0];
-    var sortDir = this.state.colSortDirs[columnKey];
-    var sorted = _.sortBy(filtered, columnKey);
+        
+    let columnKey = Object.getOwnPropertyNames(colSortDirs)[0];
+    let sortDir = colSortDirs[columnKey];
+    let sorted = _.sortBy(filtered, columnKey);
     if(sortDir === SortTypes.ASC){
       sorted = sorted.reverse();
     }
@@ -124,25 +129,20 @@ var NodeList = React.createClass({
     return sorted;
   },
 
-  render: function() {
-    var data = this.sortAndFilter(this.props.nodeRecords);
-    var logins = this.props.logins;
-    var onLoginClick = this.props.onLoginClick;
-
+  render() {      
+    let { nodeRecords, logins, onLoginClick } = this.props;       
+    let data = this.sortAndFilter(nodeRecords);                                     
     return (
-      <div className="grv-nodes grv-page">
-        <div className="grv-flex grv-header m-t-md">
-          <div className="grv-flex-column"></div>
-          <div className="grv-flex-column">
-            <h2 className="text-center no-margins"> Nodes </h2>
-          </div>
-          <div className="grv-flex-column">
-            <InputSearch value={this.filter} onChange={this.onFilterChange}/>
+      <div className="grv-nodes">                
+        <div className="grv-flex grv-header m-t" style={{ justifyContent: "space-between" }}>                    
+          <h2 className="text-center no-margins"> Nodes </h2>          
+          <div className="grv-flex">                      
+            <InputSearch value={this.filter} onChange={this.onFilterChange} />                        
           </div>
         </div>
-        <div className="">
+        <div className="m-t">
           {
-            data.length === 0 && this.state.filter.length > 0 ? <EmptyIndicator text="No matching nodes found."/> :
+            data.length === 0 && this.state.filter.length > 0 ? <EmptyIndicator text="No matching nodes found"/> :
 
             <Table rowCount={data.length} className="table-striped grv-nodes-table">
               <Column
@@ -165,7 +165,6 @@ var NodeList = React.createClass({
                     title="IP"
                   />
                 }
-
                 cell={<TextCell data={data}/> }
               />
               <Column
@@ -187,4 +186,4 @@ var NodeList = React.createClass({
   }
 });
 
-module.exports = NodeList;
+export default NodeList;

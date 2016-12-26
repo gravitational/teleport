@@ -26,10 +26,10 @@ var ActiveSessionList = React.createClass({
     return (
       <div className="grv-sessions-active">
         <div className="grv-header">
-          <h2 className="text-center"> Active Sessions </h2>
+          <h2 className=""> Active Sessions </h2>
         </div>
-        <div className="grv-content">
-          {data.length === 0 ? <EmptyIndicator text="You have no active sessions."/> :
+        <div className="grv-content m-t">
+          {data.length === 0 ? <EmptyIndicator text="You have no active sessions"/> :
             <div className="">
               <Table rowCount={data.length} className="table-striped">
                 <Column

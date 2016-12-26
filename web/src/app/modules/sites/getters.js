@@ -14,9 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const appStatus = [['tlpt', 'status' ], app=> app.toJS()];
+const SiteStatusEnum = {
+  ONLINE: 'online',
+  OFFLINE: 'offline'
+}
+
+const onlyOnline = s => s.status === SiteStatusEnum.ONLINE;
+
+const sites = [['tlpt_sites'], siteList => siteList.filter(onlyOnline).toArray()]
 
 export default {
-  appStatus,
-  siteId: ['tlpt', 'siteId']
+  sites
 }

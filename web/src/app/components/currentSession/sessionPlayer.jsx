@@ -19,7 +19,6 @@ var ReactSlider = require('react-slider');
 var {TtyPlayer} = require('app/common/term/ttyPlayer')
 var Terminal = require('app/common/term/terminal');
 var SessionLeftPanel = require('./sessionLeftPanel.jsx');
-var cfg = require('app/config');
 var $ = require('jQuery');
 require('perfect-scrollbar/jquery')($);
 
@@ -65,7 +64,7 @@ var SessionPlayer = React.createClass({
   },
 
   getInitialState() {
-    var url = cfg.api.getFetchSessionUrl(this.props.sid);
+    let { url } = this.props;
     this.tty = new TtyPlayer({url});
     return this.calculateState();
   },

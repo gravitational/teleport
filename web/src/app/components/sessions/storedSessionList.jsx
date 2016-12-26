@@ -86,27 +86,16 @@ var StoredSessions = React.createClass({
     return (
       <div className="grv-sessions-stored">
         <div className="grv-header">
-          <div className="grv-flex m-b-md">
-            <div className="grv-flex-column"></div>
-            <div className="grv-flex-column">
-              <h2 className="text-center"> Archived Sessions </h2>
-            </div>
-            <div className="grv-flex-column">
+          <div className="grv-flex m-b-md" style={{ justifyContent: "space-between" }}>            
+            <h2 className="text-center"> Archived Sessions </h2>            
+            <div className="grv-flex">
+              <DateRangePicker className="m-r" startDate={start} endDate={end} onChange={this.onRangePickerChange}/>
               <InputSearch value={this.filter} onChange={this.onFilterChange}/>
             </div>
-          </div>
-          <div className="grv-flex">
-            <div className="grv-flex-row">
-            </div>
-            <div className="grv-flex-row">
-              <DateRangePicker startDate={start} endDate={end} onChange={this.onRangePickerChange}/>
-            </div>
-            <div className="grv-flex-row">
-          </div>
-        </div>
+          </div>                  
         </div>
         <div className="grv-content">
-          {data.length === 0 ? <EmptyIndicator text="No matching archived sessions found."/> :
+          {data.length === 0 ? <EmptyIndicator text="No matching archived sessions found"/> :
             <div className="">
               <Table rowCount={data.length} className="table-striped">
                 <Column

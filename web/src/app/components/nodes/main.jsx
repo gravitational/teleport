@@ -19,22 +19,32 @@ var reactor = require('app/reactor');
 var userGetters = require('app/modules/user/getters');
 var nodeGetters = require('app/modules/nodes/getters');
 var NodeList = require('./nodeList.jsx');
+var ClusterContent = require('./../clusterContent.jsx');
 
 var Nodes = React.createClass({
 
   mixins: [reactor.ReactMixin],
 
   getDataBindings() {
-    return {
+    return {      
       nodeRecords: nodeGetters.nodeListView,
-      user: userGetters.user
+      user: userGetters.user            
     }
   },
 
   render() {
-    var nodeRecords = this.state.nodeRecords;
-    var logins = this.state.user.logins;
-    return ( <NodeList nodeRecords={nodeRecords} logins={logins}/> );
+    let { nodeRecords, user, sites, siteId } = this.state;
+    let { logins } = user;
+    return (           
+      <ClusterContent>  
+        <NodeList
+          siteId={siteId}
+          sites={sites} 
+          nodeRecords={nodeRecords} 
+          logins={logins}
+            /> 
+      </ClusterContent>    
+    );
   }
 });
 

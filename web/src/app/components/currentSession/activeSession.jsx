@@ -46,9 +46,9 @@ var ActiveSession = React.createClass({
 
 var TtyTerminal = React.createClass({
   componentDidMount() {
-    let {serverId, login, sid, rows, cols} = this.props;
+    let {serverId, siteId, login, sid, rows, cols} = this.props;
     let {token} = session.getUserData();
-    let url = cfg.api.getTtyUrl();
+    let url = cfg.api.getSiteUrl(siteId);
 
     let options = {
       tty: {

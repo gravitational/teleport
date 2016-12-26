@@ -14,9 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const appStatus = [['tlpt', 'status' ], app=> app.toJS()];
+import { Store, toImmutable } from 'nuclear-js';
+import { TLPT_SITES_RECEIVE } from './actionTypes';
+import { Record, List } from 'immutable';
 
-export default {
-  appStatus,
-  siteId: ['tlpt', 'siteId']
+const Site = Record({
+  name: null,
+  status: false
+})
+
+export default Store({
+  getInitialState() {
+    return new List();
+  },
+
+  initialize() {
+    this.on(TLPT_SITES_RECEIVE, receiveSites)
+  }
+})
+
+function receiveSites(state, json){    
+  return toImmutable(json).map( o => new Site(o) );
 }

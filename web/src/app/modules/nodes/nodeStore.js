@@ -27,6 +27,7 @@ export default Store({
   }
 })
 
-function receiveNodes(state, nodeArray){
-  return toImmutable(nodeArray);
+function receiveNodes(state, {siteId, nodeArray }) {    
+  return state.filter(o => o.get('siteId') !== siteId)
+       .concat(toImmutable(nodeArray))    
 }

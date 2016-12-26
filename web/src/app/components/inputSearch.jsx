@@ -38,9 +38,12 @@ var InputSearch = React.createClass({
   componentWillUnmount() {
   },
 
-  render: function() {
+  render() {
+    let { className = ''} = this.props;
+    className = `grv-search ${className}`;
+
     return (
-      <div className="grv-search">
+      <div className={className}>
         <input placeholder="Search..." className="form-control input-sm"
           value={this.state.value}
           onChange={this.onChange} />

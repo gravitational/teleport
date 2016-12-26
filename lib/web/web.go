@@ -179,6 +179,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.createSessionWithU2FSignResponse))
 	h.POST("/webapi/u2f/certs", httplib.MakeHandler(h.createSSHCertWithU2FSignResponse))
 
+	// User Status (used by client to check if user session is valid)
+	h.GET("/webapi/user/status", h.withAuth(h.getUserStatus))
+
 	// if Web UI is enabled, chekc the assets dir:
 	var (
 		writeSettings http.HandlerFunc
@@ -277,6 +280,10 @@ type webSettings struct {
 		OIDCConnectors []oidcConnector `json:"oidc_connectors"`
 		U2FAppID       string          `json:"u2f_appid"`
 	} `json:"auth"`
+}
+
+func (m *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
+	return ok(), nil
 }
 
 func (m *Handler) getSettings(w http.ResponseWriter, r *http.Request) (interface{}, error) {
