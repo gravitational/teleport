@@ -20,6 +20,8 @@ import (
 	"io/ioutil"
 	"os"
 
+	"github.com/gravitational/teleport"
+
 	"gopkg.in/check.v1"
 )
 
@@ -34,13 +36,13 @@ func (s *StaticSuite) SetUpSuite(c *check.C) {
 
 func (s *StaticSuite) TestDebugModeEnv(c *check.C) {
 	c.Assert(isDebugMode(), check.Equals, false)
-	os.Setenv("DEBUG", "no")
+	os.Setenv(teleport.DebugEnvVar, "no")
 	c.Assert(isDebugMode(), check.Equals, false)
-	os.Setenv("DEBUG", "0")
+	os.Setenv(teleport.DebugEnvVar, "0")
 	c.Assert(isDebugMode(), check.Equals, false)
-	os.Setenv("DEBUG", "1")
+	os.Setenv(teleport.DebugEnvVar, "1")
 	c.Assert(isDebugMode(), check.Equals, true)
-	os.Setenv("DEBUG", "true")
+	os.Setenv(teleport.DebugEnvVar, "true")
 	c.Assert(isDebugMode(), check.Equals, true)
 }
 

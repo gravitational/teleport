@@ -40,8 +40,11 @@ const (
 	// DefaultTimeout sets read and wrie timeouts for SSH server ops
 	DefaultTimeout time.Duration = 30 * time.Second
 
-	// DebugOutputEnvVar tells tests to use verbose debug output
-	DebugOutputEnvVar = "TELEPORT_DEBUG"
+	// DebugEnvVar tells tests to use verbose debug output
+	DebugEnvVar = "DEBUG"
+
+	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
+	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
 	// DefaultTerminalWidth defines the default width of a server-side allocated
 	// pseudo TTY

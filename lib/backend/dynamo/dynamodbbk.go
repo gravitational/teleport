@@ -207,16 +207,6 @@ func (b *DynamoDBBackend) UpsertVal(path []string, key string, val []byte, ttl t
 	return b.CreateVal(path, key, val, ttl)
 }
 
-// TouchVal refresh a key
-func (b *DynamoDBBackend) TouchVal(path []string, key string, ttl time.Duration) error {
-	fullPath := b.key(append(path, key)...)
-	r, err := b.getKey(fullPath)
-	if err != nil {
-		return trace.NotFound("%v not found", fullPath)
-	}
-	return b.CreateVal(path, key, r.Value, ttl)
-}
-
 const delayBetweenLockAttempts = 100 * time.Millisecond
 
 // AcquireLock for a token
@@ -356,19 +346,6 @@ func (b *DynamoDBBackend) GetVal(path []string, key string) ([]byte, error) {
 		return nil, err
 	}
 	return r.Value, nil
-}
-
-// GetValAndTTL retrieve a value and a TTL from a key
-func (b *DynamoDBBackend) GetValAndTTL(path []string, key string) ([]byte, time.Duration, error) {
-	fullPath := b.key(append(path, key)...)
-	r, err := b.getKey(fullPath)
-	if err != nil {
-		return nil, 0, err
-	}
-	if r.TTL != 0 {
-		r.TTL = time.Unix(r.Timestamp, 0).Add(r.TTL).Sub(time.Now().UTC())
-	}
-	return r.Value, r.TTL, nil
 }
 
 func suffix(key string) string {

@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
 )
@@ -97,6 +98,10 @@ var _ = check.Suite(&ClusterSnapshotSuite{})
 
 // bootstrap check
 func TestState(t *testing.T) { check.TestingT(t) }
+
+func (s *ClusterSnapshotSuite) SetUpSuite(c *check.C) {
+	utils.InitLoggerForTests()
+}
 
 func (s *ClusterSnapshotSuite) SetUpTest(c *check.C) {
 	// create a new auth server:

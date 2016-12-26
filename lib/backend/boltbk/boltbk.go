@@ -130,31 +130,6 @@ func (b *BoltBackend) CreateVal(bucket []string, key string, val []byte, ttl tim
 	return trace.Wrap(err)
 }
 
-func (b *BoltBackend) TouchVal(bucket []string, key string, ttl time.Duration) error {
-	err := b.db.Update(func(tx *bolt.Tx) error {
-		bkt, err := UpsertBucket(tx, bucket)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		val := bkt.Get([]byte(key))
-		if val == nil {
-			return trace.NotFound("'%v' already exists", key)
-		}
-		var k *kv
-		if err := json.Unmarshal(val, &k); err != nil {
-			return trace.Wrap(err)
-		}
-		k.TTL = ttl
-		k.Created = b.clock.UtcNow()
-		bytes, err := json.Marshal(k)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return bkt.Put([]byte(key), bytes)
-	})
-	return trace.Wrap(err)
-}
-
 func (b *BoltBackend) upsertVal(path []string, key string, val []byte, ttl time.Duration) error {
 	v := &kv{
 		Created: b.clock.UtcNow(),
@@ -207,29 +182,6 @@ func (b *BoltBackend) GetVal(path []string, key string) ([]byte, error) {
 		return nil, trace.NotFound("%v: %v not found", path, key)
 	}
 	return k.Value, nil
-}
-
-func (b *BoltBackend) GetValAndTTL(path []string, key string) ([]byte, time.Duration, error) {
-	var val []byte
-	if err := b.getKey(path, key, &val); err != nil {
-		return nil, 0, trace.Wrap(err)
-	}
-	var k *kv
-	if err := json.Unmarshal(val, &k); err != nil {
-		return nil, 0, trace.Wrap(err)
-	}
-	if k.TTL != 0 && b.clock.UtcNow().Sub(k.Created) > k.TTL {
-		if err := b.deleteKey(path, key); err != nil {
-			return nil, 0, trace.Wrap(err)
-		}
-		return nil, 0, trace.NotFound("%v: %v not found", path, key)
-	}
-	var newTTL time.Duration
-	newTTL = 0
-	if k.TTL != 0 {
-		newTTL = k.Created.Add(k.TTL).Sub(b.clock.UtcNow())
-	}
-	return k.Value, newTTL, nil
 }
 
 func (b *BoltBackend) DeleteKey(path []string, key string) error {

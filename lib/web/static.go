@@ -28,7 +28,10 @@ import (
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
+
 	"github.com/kardianos/osext"
 )
 
@@ -71,8 +74,8 @@ func NewStaticFileSystem(debugMode bool) (http.FileSystem, error) {
 // isDebugMode determines if teleport is running in a "debug" mode.
 // It looks at DEBUG environment variable
 func isDebugMode() bool {
-	v, err := strconv.ParseBool(os.Getenv("DEBUG"))
-	return v && err == nil
+	v, _ := strconv.ParseBool(os.Getenv(teleport.DebugEnvVar))
+	return v
 }
 
 // LoadWebResources returns a filesystem implementation compatible

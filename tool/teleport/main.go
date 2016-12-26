@@ -23,8 +23,10 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -43,7 +45,11 @@ func main() {
 // same as main() but has a testing switch
 func run(cmdlineArgs []string, testRun bool) (executedCommand string, conf *service.Config) {
 	var err error
-
+	// configure trace's errors to produce full stack traces
+	isDebug, _ := strconv.ParseBool(os.Getenv(teleport.DebugEnvVar))
+	if isDebug {
+		trace.SetDebug(true)
+	}
 	// configure logger for a typical CLI scenario until configuration file is
 	// parsed
 	utils.InitLoggerCLI()
