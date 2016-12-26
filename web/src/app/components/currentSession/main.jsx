@@ -19,6 +19,7 @@ var reactor = require('app/reactor');
 var { getters } = require('app/modules/currentSession/');
 var SessionPlayer = require('./sessionPlayer.jsx');
 var ActiveSession = require('./activeSession.jsx');
+var cfg = require('app/config');
 
 var CurrentSessionHost = React.createClass({
 
@@ -40,9 +41,10 @@ var CurrentSessionHost = React.createClass({
       return <ActiveSession {...currentSession}/>;
     }
 
-    let { sid } = currentSession;
-
-    return <SessionPlayer sid={sid}/>;
+    let { sid, siteId } = currentSession;
+    let url = cfg.api.getFetchSessionUrl({ siteId, sid });
+    
+    return <SessionPlayer url={url}/>;
   }
 });
 

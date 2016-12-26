@@ -31,7 +31,7 @@ const actions = {
     let data = { 'session': { 'terminal_params': { 'w': 45, 'h': 5 }, login } }        
     api.post(cfg.api.getSiteSessionUrl(siteId), data).then(json=>{
       let sid = json.session.id;
-      let routeUrl = cfg.getCurrentSessionRouteUrl(sid);
+      let routeUrl = cfg.getCurrentSessionRouteUrl({ siteId, sid });
       let history = session.getHistory();
 
       reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {

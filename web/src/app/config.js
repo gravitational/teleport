@@ -34,10 +34,9 @@ let cfg = {
 
   routes: {
     app: '/web',
-    login: '/web/login',
-    //(cluster/:siteId/)
+    login: '/web/login',    
     nodes: '/web/nodes',
-    currentSession: '/web/sessions/:sid',
+    currentSession: '/web/cluster/:siteId/sessions/:sid',
     sessions: '/web/sessions',
     newUser: '/web/newuser/:inviteToken',    
     msgs: '/web/msg/:type(/:subType)',
@@ -91,7 +90,7 @@ let cfg = {
       return formatPattern(cfg.api.siteEventSessionFilterPath, {siteId});
     },
 
-    getFetchSessionUrl(sid, siteId='-current-'){
+    getFetchSessionUrl({sid, siteId}){
       return formatPattern(cfg.api.siteSessionPath+'/:sid', {sid, siteId});
     },
 
@@ -118,8 +117,8 @@ let cfg = {
     return cfg.baseUrl + url;
   },
 
-  getCurrentSessionRouteUrl(sid){
-    return formatPattern(cfg.routes.currentSession, {sid});
+  getCurrentSessionRouteUrl({sid, siteId}){
+    return formatPattern(cfg.routes.currentSession, {sid, siteId});
   },
 
   getAuthProviders(){

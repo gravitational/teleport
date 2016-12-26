@@ -14,12 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var React = require('react');
-var reactor = require('app/reactor');
-var siteGetters = require('app/modules/sites/getters');
-var appGetters = require('app/modules/app/getters');
-var DropDown = require('./dropdown.jsx');
-var { setSiteId } = require('app/modules/app/actions');
+import React from 'react';
+import reactor from 'app/reactor';
+import siteGetters from 'app/modules/sites/getters';
+import appGetters from 'app/modules/app/getters';
+import DropDown from './dropdown.jsx';
+import { setSiteId, refresh } from 'app/modules/app/actions';
+
+const YOUR_CSR_TEXT = 'Your cluster';
 
 var PageWithHeader = React.createClass({
 
@@ -33,23 +35,28 @@ var PageWithHeader = React.createClass({
   },
 
   onChangeSite(value) {
-    setSiteId(value);          
+    setSiteId(value);      
+    refresh();
   },
 
   render() {
     let { sites, siteId } = this.state;    
-    let siteOptions = sites.map(s => ({ label: s.name, value: s.name }));    
+    let siteOptions = sites.map((s, index) => ({
+      label: index === 0 ? YOUR_CSR_TEXT : s.name,
+      value: s.name
+    }));
+        
     return (                  
       <div className="grv-page">        
         <DropDown
-            className="grv-page-header-clusters-selector m-t-sm"
-            size="sm"      
-            align="right"
-            onChange={this.onChangeSite}
-            value={siteId}
-            options={siteOptions}
-              />
-          {this.props.children}
+          className="grv-page-header-clusters-selector m-t-sm"
+          size="sm"      
+          align="right"
+          onChange={this.onChangeSite}
+          value={siteId}
+          options={siteOptions}
+          />
+        {this.props.children}
       </div>
     );
   }

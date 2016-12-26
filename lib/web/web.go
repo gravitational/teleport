@@ -788,11 +788,9 @@ type getSitesResponse struct {
 }
 
 type site struct {
-	Name          string            `json:"name"`
-	LastConnected time.Time         `json:"last_connected"`
-	Status        string            `json:"status"`
-	Nodes         []services.Server `json:"nodes"`
-	Sessions      []session.Session `json:"sessions"`
+	Name          string    `json:"name"`
+	LastConnected time.Time `json:"last_connected"`
+	Status        string    `json:"status"`
 }
 
 func convertSites(rs []reversetunnel.RemoteSite) []site {
@@ -813,48 +811,11 @@ func convertSites(rs []reversetunnel.RemoteSite) []site {
 //
 // Sucessful response:
 //
-// {"sites": {"name": "localhost", "last_connected": "RFC3339 time", "status": "active", "nodes": [], "sessions": []}}
+// {"sites": {"name": "localhost", "last_connected": "RFC3339 time", "status": "active"}}
 //
 func (m *Handler) getSites(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
-	sites := m.cfg.Proxy.GetSites()
-
-	if len(sites) < 1 {
-		return nil, trace.NotFound("no active sites")
-	}
-
-	out := make([]site, len(sites))
-
-	for i := range sites {
-		clt, err := sites[i].GetClient()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		servers, err := clt.GetNodes("default")
-		sessions, err := clt.GetSessions("default")
-
-		/*
-			 FIXME: when cluster is offline, GetNodes and GetSessions return an error
-
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}*/
-
-		/*if err != nil {
-			return nil, trace.Wrap(err)
-		}*/
-
-		out[i] = site{
-			Name:          sites[i].GetName(),
-			LastConnected: sites[i].GetLastConnected(),
-			Status:        sites[i].GetStatus(),
-			Nodes:         servers,
-			Sessions:      sessions,
-		}
-	}
-
 	return getSitesResponse{
-		Sites: out,
+		Sites: convertSites(m.cfg.Proxy.GetSites()),
 	}, nil
 }
 

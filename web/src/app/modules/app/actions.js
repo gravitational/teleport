@@ -22,31 +22,41 @@ import { TLPT_SITES_RECEIVE } from './../sites/actionTypes';
 import api from 'app/services/api';
 import cfg from 'app/config';
 import { fetchNodes } from './../nodes/actions';
-
+import { fetchActiveSessions } from 'app/modules/sessions/actions';
+import $ from 'jQuery';
 
 const logger = require('app/common/logger').create('flux/app');
 
 const actions = {
 
   setSiteId(siteId) {
-    reactor.dispatch(TLPT_APP_SET_SITE_ID, siteId);
-    fetchNodes();
+    reactor.dispatch(TLPT_APP_SET_SITE_ID, siteId);    
   },
 
   initApp(nextState, replace, cb) {
-    let { siteId } = nextState.params;    
-    reactor.dispatch(TLPT_APP_INIT);        
+    let { siteId } = nextState.params;        
+    reactor.dispatch(TLPT_APP_INIT);
+    // get the list of available clusters
     actions.fetchSites()      
-      .then(masterSiteId => {
+      .then( masterSiteId => {
         siteId = siteId || masterSiteId;
-        actions.setSiteId(siteId);        
-        fetchNodes();                
-        reactor.dispatch(TLPT_APP_READY);
-        cb();
+        reactor.dispatch(TLPT_APP_SET_SITE_ID, siteId);
+        // fetch nodes and active sessions 
+        $.when(fetchNodes(), fetchActiveSessions())
+          .done(() => {
+            reactor.dispatch(TLPT_APP_READY);
+            cb();
+        })                
       })
       .fail(()=> reactor.dispatch(TLPT_APP_FAILED) );
   },
   
+  refresh() {
+    actions.fetchSites();
+    fetchActiveSessions();          
+    fetchNodes();  
+  },
+
   fetchSites(){
     return api.get(cfg.api.sitesBasePath)
       .then(json => {
@@ -61,8 +71,8 @@ const actions = {
         return masterSiteId;
     })
     .fail(err => {
-      showError('Unable to retrieve data ');
-      logger.error('fetchAllData', err);
+      showError('Unable to retrieve list of clusters ');
+      logger.error('fetchSites', err);
     })    
   },
 

@@ -45,7 +45,7 @@ var Sessions = React.createClass({
         <div className="grv-sessions">
           <Timer onTimeout={this.refresh} />
           <ActiveSessionList data={data} />
-          <div className="m-t"/>
+          <div className="m-t-lg"/>
           <StoredSessionList data={data} filter={storedSessionsFilter}/>
         </div>
       </ClusterContent>  
