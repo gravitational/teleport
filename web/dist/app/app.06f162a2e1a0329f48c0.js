@@ -941,7 +941,8 @@ webpackJsonp([0],{
 	        cb();
 	      });
 	    }).fail(function () {
-	      return _reactor2.default.dispatch(_actionTypes.TLPT_APP_FAILED);
+	      _reactor2.default.dispatch(_actionTypes.TLPT_APP_FAILED);
+	      cb();
 	    });
 	  },
 	  refresh: function refresh() {
@@ -5212,7 +5213,6 @@ webpackJsonp([0],{
 	    $.when(fetchStoredSession(sid)).done(function () {
 	      var sView = reactor.evaluate(sessionGetters.sessionViewById(sid));
 	      if (!sView) {
-	        reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, null);
 	        return;
 	      }
 
@@ -5230,7 +5230,6 @@ webpackJsonp([0],{
 	      });
 	    }).fail(function (err) {
 	      logger.error('open session', err);
-	      reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, null);
 	    });
 	  },
 	  close: function close() {

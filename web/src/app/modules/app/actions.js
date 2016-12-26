@@ -48,7 +48,10 @@ const actions = {
             cb();
         })                
       })
-      .fail(()=> reactor.dispatch(TLPT_APP_FAILED) );
+      .fail(() => {
+        reactor.dispatch(TLPT_APP_FAILED)
+        cb();
+      });
   },
   
   refresh() {

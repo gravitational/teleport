@@ -55,10 +55,9 @@ const actions = {
 
    logger.info('attempt to open session', {sid});
    $.when(fetchStoredSession(sid))
-     .done(()=>{
+     .done(() => {       
        let sView = reactor.evaluate(sessionGetters.sessionViewById(sid));
-       if (!sView) {
-         reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, null);
+       if (!sView) {         
          return;
        }
 
@@ -73,8 +72,7 @@ const actions = {
         });
      })
      .fail((err)=>{
-       logger.error('open session', err);
-       reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, null);
+       logger.error('open session', err);       
      })
  },
 
