@@ -94,12 +94,26 @@ type UserRef struct {
 // CreatedBy holds information about the person or agent who created the user
 type CreatedBy struct {
 	// Identity if present means that user was automatically created by identity
-	Connector *ConnectorRef `json:"identity,omitemtpy"`
+	Connector *ConnectorRef `json:"connector,omitemtpy"`
 	// Time specifies when user was created
 	Time time.Time `json:"time"`
 	// User holds information about user
 	User UserRef `json:"user"`
 }
+
+const CreatedBySchema = `{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+     "connector": {
+       "additionalProperties": false,
+       "type": "object"
+      },
+     "locked_message": {"type": "string"},
+     "locked_time": {"type": "string"},
+     "lock_expires": {"type": "string"}
+   }
+}`
 
 // IsEmpty returns true if there's no info about who created this user
 func (c CreatedBy) IsEmpty() bool {
@@ -130,157 +144,16 @@ type LoginStatus struct {
 	LockExpires time.Time `json:"lock_expires"`
 }
 
-// TeleportUser is an optional user entry in the database
-type TeleportUser struct {
-	// Name is a user name
-	Name string `json:"name"`
-
-	// AllowedLogins represents a list of OS users this teleport
-	// user is allowed to login as
-	AllowedLogins []string `json:"allowed_logins"`
-
-	// OIDCIdentities lists associated OpenID Connect identities
-	// that let user log in using externally verified identity
-	OIDCIdentities []OIDCIdentity `json:"oidc_identities"`
-
-	// Roles is a list of roles assigned to user
-	Roles []string `json:"roles"`
-
-	// Status is a login status of the user
-	Status LoginStatus `json:"status"`
-
-	// Expires if set sets TTL on the user
-	Expires time.Time `json:"expires"`
-
-	// CreatedBy holds information about agent or person created this usre
-	CreatedBy CreatedBy `json:"created_by"`
-}
-
-// SetCreatedBy sets created by information
-func (u *TeleportUser) SetCreatedBy(b CreatedBy) {
-	u.CreatedBy = b
-}
-
-// GetCreatedBy returns information about who created user
-func (u *TeleportUser) GetCreatedBy() CreatedBy {
-	return u.CreatedBy
-}
-
-// Equals checks if user equals to another
-func (u *TeleportUser) Equals(other User) bool {
-	if u.Name != other.GetName() {
-		return false
-	}
-	otherLogins := other.GetAllowedLogins()
-	if len(u.AllowedLogins) != len(otherLogins) {
-		return false
-	}
-	for i := range u.AllowedLogins {
-		if u.AllowedLogins[i] != otherLogins[i] {
-			return false
-		}
-	}
-	otherIdentities := other.GetIdentities()
-	if len(u.OIDCIdentities) != len(otherIdentities) {
-		return false
-	}
-	for i := range u.OIDCIdentities {
-		if !u.OIDCIdentities[i].Equals(&otherIdentities[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-// GetExpiry returns expiry time for temporary users
-func (u *TeleportUser) GetExpiry() time.Time {
-	return u.Expires
-}
-
-// SetAllowedLogins sets allowed logins for user
-func (u *TeleportUser) SetAllowedLogins(logins []string) {
-	u.AllowedLogins = logins
-}
-
-// SetRoles sets a list of roles for user
-func (u *TeleportUser) SetRoles(roles []string) {
-	u.Roles = utils.Deduplicate(roles)
-}
-
-// GetStatus returns login status of the user
-func (u *TeleportUser) GetStatus() LoginStatus {
-	return u.Status
-}
-
-// WebSessionInfo returns web session information
-func (u *TeleportUser) WebSessionInfo(logins []string) User {
-	c := *u
-	c.AllowedLogins = logins
-	return &c
-}
-
-// GetAllowedLogins returns user's allowed linux logins
-func (u *TeleportUser) GetAllowedLogins() []string {
-	return u.AllowedLogins
-}
-
-// GetIdentities returns a list of connected OIDCIdentities
-func (u *TeleportUser) GetIdentities() []OIDCIdentity {
-	return u.OIDCIdentities
-}
-
-// GetRoles returns a list of roles assigned to user
-func (u *TeleportUser) GetRoles() []string {
-	return u.Roles
-}
-
-// AddRole adds a role to user's role list
-func (u *TeleportUser) AddRole(name string) {
-	for _, r := range u.Roles {
-		if r == name {
-			return
-		}
-	}
-	u.Roles = append(u.Roles, name)
-}
-
-// GetName returns user name
-func (u *TeleportUser) GetName() string {
-	return u.Name
-}
-
-func (u *TeleportUser) String() string {
-	return fmt.Sprintf("User(name=%v, allowed_logins=%v, identities=%v)", u.Name, u.AllowedLogins, u.OIDCIdentities)
-}
-
-func (u *TeleportUser) SetLocked(until time.Time, reason string) {
-	u.Status.IsLocked = true
-	u.Status.LockExpires = until
-	u.Status.LockedMessage = reason
-}
-
-// Check checks validity of all parameters
-func (u *TeleportUser) Check() error {
-	if !cstrings.IsValidUnixUser(u.Name) {
-		return trace.BadParameter("'%v' is not a valid user name", u.Name)
-	}
-	for _, l := range u.AllowedLogins {
-		if !cstrings.IsValidUnixUser(l) {
-			return trace.BadParameter("'%v is not a valid unix username'", l)
-		}
-	}
-	for _, login := range u.AllowedLogins {
-		if !cstrings.IsValidUnixUser(login) {
-			return trace.BadParameter("'%v' is not a valid user name", login)
-		}
-	}
-	for _, id := range u.OIDCIdentities {
-		if err := id.Check(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
+const LoginStatusSchema = `{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+     "is_locked": {"type": "boolean"}, 
+     "locked_message": {"type": "string"},
+     "locked_time": {"type": "string"},
+     "lock_expires": {"type": "string"}
+   }
+}`
 
 // LoginAttempt represents successfull or unsuccessful attempt for user to login
 type LoginAttempt struct {
@@ -442,12 +315,12 @@ type WebSession struct {
 // SignupToken stores metadata about user signup token
 // is stored and generated when tctl add user is executed
 type SignupToken struct {
-	Token           string       `json:"token"`
-	User            TeleportUser `json:"user"`
-	Hotp            []byte       `json:"hotp"`
-	HotpFirstValues []string     `json:"hotp_first_values"`
-	HotpQR          []byte       `json:"hotp_qr"`
-	Expires         time.Time    `json:"expires"`
+	Token           string    `json:"token"`
+	User            UserV0    `json:"user"`
+	Hotp            []byte    `json:"hotp"`
+	HotpFirstValues []string  `json:"hotp_first_values"`
+	HotpQR          []byte    `json:"hotp_qr"`
+	Expires         time.Time `json:"expires"`
 }
 
 // OIDCConnector specifies configuration for Open ID Connect compatible external
@@ -528,6 +401,22 @@ type ClaimMapping struct {
 	Roles []string `json:"roles"`
 }
 
+// ClaimMappingSchema is JSON schema for claim mapping
+const ClaimMappingSchema = `{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+     "claim": {"type": "string"}, 
+     "value": {"type": "string"},
+     "roles": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+   }
+}`
+
 // Check returns nil if all parameters are great, err otherwise
 func (o *OIDCConnector) Check() error {
 	if o.ID == "" {
@@ -559,6 +448,15 @@ type OIDCIdentity struct {
 	// e.g. bob@example.com
 	Email string `json:"username"`
 }
+
+const OIDCIDentitySchema = `{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+     "connector_id": {"type": "string"}, 
+     "email": {"type": "string"} 
+   }
+}`
 
 // String returns debug friendly representation of this identity
 func (i *OIDCIdentity) String() string {
@@ -680,56 +578,6 @@ func (u Users) Less(i, j int) bool {
 
 func (u Users) Swap(i, j int) {
 	u[i], u[j] = u[j], u[i]
-}
-
-var mtx sync.Mutex
-var userMarshaler UserMarshaler = &TeleportUserMarshaler{}
-
-func SetUserMarshaler(u UserMarshaler) {
-	mtx.Lock()
-	defer mtx.Unlock()
-	userMarshaler = u
-}
-
-func GetUserMarshaler() UserMarshaler {
-	mtx.Lock()
-	defer mtx.Unlock()
-	return userMarshaler
-}
-
-// UserMarshaler implements marshal/unmarshal of User implementations
-// mostly adds support for extended versions
-type UserMarshaler interface {
-	// UnmarshalUser from binary representation
-	UnmarshalUser(bytes []byte) (User, error)
-	// MarshalUser to binary representation
-	MarshalUser(u User) ([]byte, error)
-	// GenerateUser generates new user based on standard teleport user
-	// it gives external implementations to add more app-specific
-	// data to the user
-	GenerateUser(TeleportUser) (User, error)
-}
-
-type TeleportUserMarshaler struct{}
-
-// UnmarshalUser unmarshals user from JSON
-func (*TeleportUserMarshaler) UnmarshalUser(bytes []byte) (User, error) {
-	var u *TeleportUser
-	err := json.Unmarshal(bytes, &u)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return u, nil
-}
-
-// GenerateUser generates new user
-func (*TeleportUserMarshaler) GenerateUser(in TeleportUser) (User, error) {
-	return &in, nil
-}
-
-// MarshalUser marshalls user into JSON
-func (*TeleportUserMarshaler) MarshalUser(u User) ([]byte, error) {
-	return json.Marshal(u)
 }
 
 // SortedLoginAttempts sorts login attempts by time

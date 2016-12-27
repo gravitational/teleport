@@ -463,24 +463,6 @@ func (d *Duration) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-const MetadataSchema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "default": {},
-  "required": ["name"],
-  "properties": {
-    "name": {"type": "string"},
-    "namespace": {"type": "string", "default": "default"},
-    "description": {"type": "string"},
-    "labels": {
-      "type": "object",
-      "patternProperties": {
-         "^[a-zA-Z/.0-9_]$":  { "type": "string" }
-      }
-    }
-  }
-}`
-
 const RoleSpecSchemaTemplate = `{
   "type": "object",
   "additionalProperties": false,

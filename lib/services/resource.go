@@ -74,6 +74,24 @@ const (
 	V1 = "v1"
 )
 
+const MetadataSchema = `{
+  "type": "object",
+  "additionalProperties": false,
+  "default": {},
+  "required": ["name"],
+  "properties": {
+    "name": {"type": "string"},
+    "namespace": {"type": "string", "default": "default"},
+    "description": {"type": "string"},
+    "labels": {
+      "type": "object",
+      "patternProperties": {
+         "^[a-zA-Z/.0-9_]$":  { "type": "string" }
+      }
+    }
+  }
+}`
+
 // UnknownResource is used to detect resources
 type UnknownResource struct {
 	ResourceHeader
