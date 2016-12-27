@@ -68,10 +68,6 @@ func (s *DynamoDBSuite) TestBasicCRUD(c *C) {
 	s.suite.BasicCRUD(c)
 }
 
-func (s *DynamoDBSuite) TestCompareAndSwap(c *C) {
-	s.suite.CompareAndSwap(c)
-}
-
 func (s *DynamoDBSuite) TestExpiration(c *C) {
 	s.suite.Expiration(c)
 }

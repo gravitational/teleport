@@ -328,29 +328,6 @@ func (b *DynamoDBBackend) ReleaseLock(token string) error {
 	return b.deleteKey(fp)
 }
 
-// CompareAndSwap key
-func (b *DynamoDBBackend) CompareAndSwap(
-	path []string, key string, val []byte, ttl time.Duration, prevVal []byte) ([]byte, error) {
-
-	storedVal, err := b.GetVal(path, key)
-	if err != nil {
-		if trace.IsNotFound(err) && len(prevVal) != 0 {
-			return nil, err
-		}
-	}
-	if len(prevVal) == 0 && err == nil {
-		return nil, trace.AlreadyExists("key '%v' already exists", key)
-	}
-	if string(prevVal) == string(storedVal) {
-		err = b.UpsertVal(path, key, val, ttl)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return storedVal, nil
-	}
-	return storedVal, trace.CompareFailed("expected: %v, got: %v", string(prevVal), string(storedVal))
-}
-
 // DeleteBucket remove all prefixed keys
 // WARNING: there is no bucket feature, deleting "bucket" mean a deletion one by one
 func (b *DynamoDBBackend) DeleteBucket(path []string, key string) error {
