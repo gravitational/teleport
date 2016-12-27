@@ -39,7 +39,7 @@ type Backend interface {
 	// GetKeys returns a list of keys for a given path
 	GetKeys(bucket []string) ([]string, error)
 	// CreateVal creates value with a given TTL and key in the bucket
-	// if the value already exists, returns AlreadyExistsError
+	// if the value already exists, it must return trace.AlreadyExistsError
 	CreateVal(bucket []string, key string, val []byte, ttl time.Duration) error
 	// UpsertVal updates or inserts value with a given TTL into a bucket
 	// ForeverTTL for no TTL
@@ -54,8 +54,6 @@ type Backend interface {
 	AcquireLock(token string, ttl time.Duration) error
 	// ReleaseLock forces lock release before TTL
 	ReleaseLock(token string) error
-	// CompareAndSwap implements compare ans swap operation for a key
-	CompareAndSwap(bucket []string, key string, val []byte, ttl time.Duration, prevVal []byte) ([]byte, error)
 	// Close releases the resources taken up by this backend
 	Close() error
 }

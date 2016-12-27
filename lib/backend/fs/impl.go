@@ -226,31 +226,6 @@ func (bk *Backend) ReleaseLock(token string) (err error) {
 	return nil
 }
 
-// CompareAndSwap implements compare ans swap operation for a key
-func (bk *Backend) CompareAndSwap(
-	bucket []string, key string, val []byte, ttl time.Duration, prevVal []byte) ([]byte, error) {
-	// lock the entire backend:
-	bk.AcquireLock(selfLock, time.Second)
-	defer bk.ReleaseLock(selfLock)
-
-	storedVal, err := bk.GetVal(bucket, key)
-	if err != nil {
-		if trace.IsNotFound(err) && len(prevVal) != 0 {
-			return nil, err
-		}
-	}
-	if len(prevVal) == 0 && err == nil {
-		return nil, trace.AlreadyExists("key '%v' already exists", key)
-	}
-	if string(prevVal) == string(storedVal) {
-		if err = bk.UpsertVal(bucket, key, val, ttl); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return storedVal, nil
-	}
-	return storedVal, trace.CompareFailed("expected: %v, got: %v", string(prevVal), string(storedVal))
-}
-
 // Close releases the resources taken up by a backend
 func (bk *Backend) Close() error {
 	return nil

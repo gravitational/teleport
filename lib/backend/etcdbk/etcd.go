@@ -120,35 +120,6 @@ func (b *bk) UpsertVal(path []string, key string, val []byte, ttl time.Duration)
 	return convertErr(err)
 }
 
-func (b *bk) CompareAndSwap(path []string, key string, val []byte, ttl time.Duration, prevVal []byte) ([]byte, error) {
-	var err error
-	var re *client.Response
-	if len(prevVal) != 0 {
-		re, err = b.api.Set(
-			context.Background(),
-			b.key(append(path, key)...), base64.StdEncoding.EncodeToString(val),
-			&client.SetOptions{TTL: ttl, PrevValue: base64.StdEncoding.EncodeToString(prevVal), PrevExist: client.PrevExist})
-	} else {
-		re, err = b.api.Set(
-			context.Background(),
-			b.key(append(path, key)...), base64.StdEncoding.EncodeToString(val),
-			&client.SetOptions{TTL: ttl, PrevExist: client.PrevNoExist})
-	}
-	err = convertErr(err)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if re.PrevNode != nil {
-		value, err := base64.StdEncoding.DecodeString(re.PrevNode.Value)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return value, nil
-	}
-	return nil, nil
-}
-
 func (b *bk) GetVal(path []string, key string) ([]byte, error) {
 	re, err := b.api.Get(context.Background(), b.key(append(path, key)...), nil)
 	if err != nil {
