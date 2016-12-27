@@ -1,7 +1,14 @@
 package services
 
 import (
+	"encoding/json"
+	"fmt"
+	"sync"
 	"time"
+
+	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/trace"
 )
 
 var mtx sync.Mutex
@@ -34,6 +41,18 @@ type UserMarshaler interface {
 	GenerateUser(User) (User, error)
 }
 
+// GetRoleSchema returns role schema with optionally injected
+// schema for extensions
+func GetUserSchema(extensionSchema string) string {
+	var userSchema string
+	if extensionSchema == "" {
+		userSchema = fmt.Sprintf(UserSpecV1SchemaTemplate, OIDCIDentitySchema, LoginStatusSchema, CreatedBySchema, `, {"type": "object"}`)
+	} else {
+		userSchema = fmt.Sprintf(UserSpecV1SchemaTemplate, OIDCIDentitySchema, LoginStatusSchema, CreatedBySchema, ", "+extensionSchema)
+	}
+	return fmt.Sprintf(UserV1SchemaTemplate, MetadataSchema, userSchema)
+}
+
 type TeleportUserMarshaler struct{}
 
 // UnmarshalUser unmarshals user from JSON
@@ -50,15 +69,20 @@ func (*TeleportUserMarshaler) UnmarshalUser(bytes []byte) (User, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return u.V1(), nil
+		return u.UserV1(), nil
+	case V1:
+		var u UserV1
+		if err := utils.UnmarshalWithSchema(GetRoleSchema(""), &role, data); err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
 	}
 
 	return u, nil
 }
 
 // GenerateUser generates new user
-func (*TeleportUserMarshaler) GenerateUser(in TeleportUser) (User, error) {
-	return &in, nil
+func (*TeleportUserMarshaler) GenerateUser(in User) (User, error) {
+	return in, nil
 }
 
 // MarshalUser marshalls user into JSON
@@ -75,15 +99,14 @@ type UserV1 struct {
 	// Metadata is User metadata
 	Metadata Metadata `json:"metadata"`
 	// Spec contains user specification
-	Spec UserV1Spec `json:"spec"`
+	Spec UserSpecV1 `json:"spec"`
 }
 
 // UserV1SchemaTemplate is a template JSON Schema for user
 const UserV1SchemaTemplate = `{
   "type": "object",
   "additionalProperties": false,
-  "default": {},
-  "required": ["kind", "spec", "metadata"],
+  "required": ["kind", "spec", "metadata", "version"],
   "properties": {
     "kind": {"type": "string"},
     "version": {"type": "string", "default": "v1"},
@@ -116,7 +139,7 @@ type UserSpecV1 struct {
 }
 
 // UserSpecV1SchemaTemplate is JSON schema for
-var UserSpecV1Schema = fmt.Sprintf(`{
+const UserSpecV1SchemaTemplate = `{
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -126,25 +149,21 @@ var UserSpecV1Schema = fmt.Sprintf(`{
         "type": "string"
       }
     },
-    "oidc_identities": {
-      "type": "array",
-      "items": %v
-    },
+    "expires": {"type": "string"},
     "roles": {
       "type": "array",
       "items": {
         "type": "string"
       }
     },
-    "status": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-         
-      }
-    }
+    "oidc_identities": {
+      "type": "array",
+      "items": %v
+    },
+    "status": %v,
+    "created_by": %v%v
   }
-}`, OIDCIdentitySchema, LoginStatusSchema, CreatedBySchema)
+}`
 
 // SetCreatedBy sets created by information
 func (u *UserV1) SetCreatedBy(b CreatedBy) {
