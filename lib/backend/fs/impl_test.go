@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
@@ -34,6 +35,7 @@ type Suite struct {
 	dirName string
 	bk      backend.Backend
 	clock   clockwork.FakeClock
+	suite   test.BackendSuite
 }
 
 var _ = check.Suite(&Suite{clock: clockwork.NewFakeClock()})
@@ -51,6 +53,7 @@ func (s *Suite) SetUpSuite(c *check.C) {
 
 	bk.Clock = s.clock
 	s.bk = bk
+	s.suite.B = s.bk
 }
 
 func (s *Suite) TestCreateAndRead(c *check.C) {
@@ -151,4 +154,8 @@ func (s *Suite) TestTTL(c *check.C) {
 	c.Assert(trace.IsNotFound(err), check.Equals, true)
 	c.Assert(err.Error(), check.Equals, `key 'key' is not found`)
 	c.Assert(v, check.IsNil)
+}
+
+func (s *Suite) TestBasicCRUD(c *check.C) {
+	s.suite.BasicCRUD(c)
 }

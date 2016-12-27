@@ -19,9 +19,11 @@ limitations under the License.
 package dynamo
 
 import (
-	"os"
 	"testing"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -31,32 +33,31 @@ import (
 func TestDynamoDB(t *testing.T) { TestingT(t) }
 
 type DynamoDBSuite struct {
-	bk           *DynamoDBBackend
-	suite        test.BackendSuite
-	configString string
+	bk    *DynamoDBBackend
+	suite test.BackendSuite
+	cfg   backend.Config
 }
 
 var _ = Suite(&DynamoDBSuite{})
 
 func (s *DynamoDBSuite) SetUpSuite(c *C) {
+	var err error
+
 	utils.InitLoggerForTests()
-	configString := os.Getenv("TELEPORT_TEST_DYNAMODB_CONFIG")
-	if configString == "" {
-		// Skips the entire suite
-		c.Skip("This test requires DynamoDB, provide JSON with config struct")
-		return
-	}
-	s.configString = configString
+	s.cfg.Type = "dynamodb"
+	s.cfg.Tablename = "teleport.dynamo.test"
+
+	s.bk, err = New(&s.cfg)
+	c.Assert(err, IsNil)
+	s.suite.B = s.bk
 }
 
-func (s *DynamoDBSuite) SetUpTest(c *C) {
-	// Initiate a backend with a registry
-	b, err := FromJSON(s.configString)
-	c.Assert(err, IsNil)
-	s.bk = b.(*DynamoDBBackend)
-
-	// Set up suite
-	s.suite.B = b
+func (s *DynamoDBSuite) TearDownSuite(c *C) {
+	if s.bk.svc != nil {
+		s.bk.svc.DeleteTable(&dynamodb.DeleteTableInput{
+			TableName: aws.String(s.cfg.Tablename),
+		})
+	}
 }
 
 func (s *DynamoDBSuite) TearDownTest(c *C) {
@@ -80,5 +81,5 @@ func (s *DynamoDBSuite) TestLock(c *C) {
 }
 
 func (s *DynamoDBSuite) TestValueAndTTL(c *C) {
-	s.suite.ValueAndTTl(c)
+	s.suite.ValueAndTTL(c)
 }

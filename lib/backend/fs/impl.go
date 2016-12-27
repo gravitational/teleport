@@ -23,7 +23,6 @@ import (
 	"os"
 	"path"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -38,30 +37,22 @@ const (
 	defaultDirMode  os.FileMode = 0770
 	defaultFileMode os.FileMode = 0600
 
-	// subdirectory where locks are stored
-	locksDir = ".locks"
-
 	// selfLock is the lock used internally for compare-and-swap
 	selfLock = ".backend"
+
+	// subdirectory where locks are stored
+	locksBucket = ".locks"
 )
 
 // fs.Backend implements backend.Backend interface using a regular
 // POSIX-style filesystem
 type Backend struct {
-	sync.Mutex
-
 	// RootDir is the root (home) directory where the backend
 	// stores all the data.
 	RootDir string
 
-	// LocksDir is where lock files are kept
-	LocksDir string
-
 	// Clock is a test-friendly source of current time
 	Clock clockwork.Clock
-
-	// locks keeps the map of active file locks
-	locks map[string]string
 }
 
 // FromJSON creates a new filesystem-based storage backend using a JSON
@@ -84,9 +75,8 @@ func FromJSON(jsonStr string) (bk *Backend, err error) {
 // New creates a fully initialized filesystem backend
 func New(rootDir string) (*Backend, error) {
 	bk := &Backend{RootDir: rootDir, Clock: clockwork.NewRealClock()}
-	bk.LocksDir = path.Join(bk.RootDir, locksDir)
-	bk.locks = make(map[string]string)
-	if err := os.MkdirAll(bk.LocksDir, defaultDirMode); err != nil {
+	locksDir := path.Join(bk.RootDir, locksBucket)
+	if err := os.MkdirAll(locksDir, defaultDirMode); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 	return bk, nil
@@ -170,7 +160,16 @@ func (bk *Backend) GetVal(bucket []string, key string) ([]byte, error) {
 		bk.DeleteKey(bucket, key)
 		return nil, trace.NotFound("key '%s' is not found", key)
 	}
-	return ioutil.ReadFile(path.Join(dirPath, key))
+	fp := path.Join(dirPath, key)
+	bytes, err := ioutil.ReadFile(fp)
+	if err != nil {
+		// GetVal() on a bucket must return 'BadParameter' error:
+		if fi, _ := os.Stat(fp); fi != nil && fi.IsDir() {
+			return nil, trace.BadParameter("%s is not a valid key", key)
+		}
+		return nil, trace.ConvertSystemError(err)
+	}
+	return bytes, nil
 }
 
 // DeleteKey deletes a key in a bucket
@@ -194,32 +193,23 @@ func (bk *Backend) DeleteBucket(parent []string, bucket string) error {
 // AcquireLock grabs a lock that will be released automatically in TTL
 func (bk *Backend) AcquireLock(token string, ttl time.Duration) (err error) {
 	log.Debugf("fs.AcquireLock(%s)", token)
-	lockPath := path.Join(bk.LocksDir, token)
-	var f *os.File
+
+	if err = backend.ValidateLockTTL(ttl); err != nil {
+		return trace.Wrap(err)
+	}
+
+	bucket := []string{locksBucket}
 	for {
-		f, err = os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
-		if err == nil { // success
-			defer f.Close()
-			break
+		// CreateVal is atomic:
+		err = bk.CreateVal(bucket, token, []byte{1}, ttl)
+		if err == nil {
+			break // success
 		}
 		if os.IsExist(err) { // locked? wait and repeat:
-			bk.Clock.Sleep(time.Millisecond * 100)
+			bk.Clock.Sleep(time.Millisecond * 250)
 			continue
 		}
 		return trace.ConvertSystemError(err)
-	}
-
-	// protect the locks map:
-	bk.Lock()
-	defer bk.Unlock()
-	bk.locks[token] = f.Name()
-
-	// start the goroutine which will release lock after the given TTL
-	if ttl != backend.Forever {
-		go func() {
-			bk.Clock.Sleep(ttl)
-			bk.ReleaseLock(token)
-		}()
 	}
 	return nil
 }
@@ -227,21 +217,13 @@ func (bk *Backend) AcquireLock(token string, ttl time.Duration) (err error) {
 // ReleaseLock forces lock release before TTL
 func (bk *Backend) ReleaseLock(token string) (err error) {
 	log.Debugf("fs.ReleaseLock(%s)", token)
-	// protect the locks map:
-	bk.Lock()
-	defer bk.Unlock()
-	// find the lock:
-	fn, found := bk.locks[token]
-	if !found {
-		return trace.NotFound("lock '%s' is not found", token)
-	}
-	// remove it:
-	if err = os.Remove(fn); err != nil {
+
+	if err = bk.DeleteKey([]string{locksBucket}, token); err != nil {
 		if !os.IsNotExist(err) {
-			log.Warn(err)
+			return trace.ConvertSystemError(err)
 		}
 	}
-	return trace.ConvertSystemError(err)
+	return nil
 }
 
 // CompareAndSwap implements compare ans swap operation for a key
@@ -269,11 +251,8 @@ func (bk *Backend) CompareAndSwap(
 	return storedVal, trace.CompareFailed("expected: %v, got: %v", string(prevVal), string(storedVal))
 }
 
-// Close releases the resources taken up by this backend: locks
+// Close releases the resources taken up by a backend
 func (bk *Backend) Close() error {
-	for lockName, _ := range bk.locks {
-		bk.ReleaseLock(lockName)
-	}
 	return nil
 }
 

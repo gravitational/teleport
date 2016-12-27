@@ -324,7 +324,6 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		ReverseTunnels:  cfg.ReverseTunnels,
 		OIDCConnectors:  cfg.OIDCConnectors,
 		Trust:           cfg.Trust,
-		Lock:            cfg.Lock,
 		Presence:        cfg.Presence,
 		Provisioner:     cfg.Provisioner,
 		Identity:        cfg.Identity,
@@ -798,7 +797,7 @@ func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 	case teleport.BoltBackendType:
 		bk, err = boltbk.FromJSON(cfg.KeysBackend.Params)
 	case dynamo.BackendType:
-		bk, err = dynamo.FromJSON(cfg.KeysBackend.Params)
+		bk, err = dynamo.New(cfg.KeysBackend.BackendConf)
 	default:
 		return nil, trace.Errorf("unsupported backend type: %v", cfg.KeysBackend.Type)
 	}

@@ -57,9 +57,18 @@ func (s *BackendSuite) expectChanges(c *C, expected ...interface{}) {
 }
 
 func (s *BackendSuite) BasicCRUD(c *C) {
+	bucket := []string{"test", "create"}
+	c.Assert(s.B.CreateVal(bucket, "one", []byte("1"), backend.Forever), IsNil)
+	err := s.B.CreateVal(bucket, "one", []byte("2"), backend.Forever)
+	c.Assert(trace.IsAlreadyExists(err), Equals, true)
+
+	val, err := s.B.GetVal(bucket, "one")
+	c.Assert(err, IsNil)
+	c.Assert(string(val), Equals, "1")
+
 	keys, err := s.B.GetKeys([]string{"keys"})
 	c.Assert(err, IsNil)
-	c.Assert(keys, IsNil)
+	c.Assert(keys, HasLen, 0)
 
 	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "bkey", []byte("val1"), 0), IsNil)
 	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "akey", []byte("val2"), 0), IsNil)
@@ -137,33 +146,25 @@ func (s *BackendSuite) CompareAndSwap(c *C) {
 }
 
 func (s *BackendSuite) Expiration(c *C) {
-	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "bkey", []byte("val1"), time.Second), IsNil)
-	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "akey", []byte("val2"), 0), IsNil)
+	bucket := []string{"one", "two"}
+	c.Assert(s.B.UpsertVal(bucket, "bkey", []byte("val1"), time.Second), IsNil)
+	c.Assert(s.B.UpsertVal(bucket, "akey", []byte("val2"), 0), IsNil)
 
 	time.Sleep(2 * time.Second)
 
-	keys, err := s.B.GetKeys([]string{"a", "b"})
+	keys, err := s.B.GetKeys(bucket)
 	c.Assert(err, IsNil)
 	c.Assert(keys, DeepEquals, []string{"akey"})
 }
 
-func (s *BackendSuite) Create(c *C) {
-	c.Assert(s.B.CreateVal([]string{"a", "b"}, "bkey", []byte("val1"), time.Second), IsNil)
-	err := s.B.CreateVal([]string{"a", "b"}, "bkey", []byte("val2"), 0)
-	c.Assert(trace.IsAlreadyExists(err), Equals, true)
+func (s *BackendSuite) ValueAndTTL(c *C) {
+	bucket := []string{"test", "ttl"}
+	c.Assert(s.B.UpsertVal(bucket, "bkey",
+		[]byte("val1"), 2*time.Second), IsNil)
 
-	val, err := s.B.GetVal([]string{"a", "b"}, "bkey")
-	c.Assert(err, IsNil)
-	c.Assert(string(val), Equals, "val1")
-}
+	time.Sleep(time.Second)
 
-func (s *BackendSuite) ValueAndTTl(c *C) {
-	c.Assert(s.B.UpsertVal([]string{"a", "b"}, "bkey",
-		[]byte("val1"), 2000*time.Millisecond), IsNil)
-
-	time.Sleep(1000 * time.Millisecond)
-
-	value, err := s.B.GetVal([]string{"a", "b"}, "bkey")
+	value, err := s.B.GetVal(bucket, "bkey")
 	c.Assert(err, IsNil)
 	c.Assert(string(value), DeepEquals, "val1")
 }
@@ -171,44 +172,45 @@ func (s *BackendSuite) ValueAndTTl(c *C) {
 func (s *BackendSuite) Locking(c *C) {
 	tok1 := "token1"
 	tok2 := "token2"
+	ttl := time.Second * 5
 
 	err := s.B.ReleaseLock(tok1)
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
-	c.Assert(s.B.AcquireLock(tok1, time.Second*100), IsNil)
+	c.Assert(s.B.AcquireLock(tok1, ttl), IsNil)
 	x := int32(7)
 
 	go func() {
 		atomic.StoreInt32(&x, 9)
 		c.Assert(s.B.ReleaseLock(tok1), IsNil)
 	}()
-	c.Assert(s.B.AcquireLock(tok1, 0), IsNil)
+	c.Assert(s.B.AcquireLock(tok1, ttl), IsNil)
 	atomic.AddInt32(&x, 9)
 
 	c.Assert(atomic.LoadInt32(&x), Equals, int32(18))
 	c.Assert(s.B.ReleaseLock(tok1), IsNil)
 
-	c.Assert(s.B.AcquireLock(tok1, 0), IsNil)
+	c.Assert(s.B.AcquireLock(tok1, ttl), IsNil)
 	atomic.StoreInt32(&x, 7)
 	go func() {
 		atomic.StoreInt32(&x, 9)
 		c.Assert(s.B.ReleaseLock(tok1), IsNil)
 	}()
-	c.Assert(s.B.AcquireLock(tok1, 0), IsNil)
+	c.Assert(s.B.AcquireLock(tok1, ttl), IsNil)
 	atomic.AddInt32(&x, 9)
 	c.Assert(atomic.LoadInt32(&x), Equals, int32(18))
 	c.Assert(s.B.ReleaseLock(tok1), IsNil)
 
 	y := int32(0)
-	c.Assert(s.B.AcquireLock(tok1, 0), IsNil)
-	c.Assert(s.B.AcquireLock(tok2, 0), IsNil)
+	c.Assert(s.B.AcquireLock(tok1, ttl), IsNil)
+	c.Assert(s.B.AcquireLock(tok2, ttl), IsNil)
 	go func() {
 		atomic.StoreInt32(&y, 15)
 		c.Assert(s.B.ReleaseLock(tok1), IsNil)
 		c.Assert(s.B.ReleaseLock(tok2), IsNil)
 	}()
 
-	c.Assert(s.B.AcquireLock(tok1, 0), IsNil)
+	c.Assert(s.B.AcquireLock(tok1, ttl), IsNil)
 	c.Assert(atomic.LoadInt32(&y), Equals, int32(15))
 
 	c.Assert(s.B.ReleaseLock(tok1), IsNil)

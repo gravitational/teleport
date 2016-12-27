@@ -19,10 +19,15 @@ package backend
 
 import (
 	"time"
+
+	"github.com/gravitational/trace"
 )
 
 // Forever means that object TTL will not expire unless deleted
-const Forever time.Duration = 0
+const (
+	Forever         time.Duration = 0
+	MaxLockDuration time.Duration = time.Minute
+)
 
 // Backend implements abstraction over local or remote storage backend
 //
@@ -55,10 +60,7 @@ type Backend interface {
 	Close() error
 }
 
-// Config is used for 'storage' config section. stores values for 'boltdb' and 'etcd'
-type Config struct {
-	// Type can be "bolt" or "etcd" or "dynamodb"
-	Type string `yaml:"type,omitempty"`
+type EtcdConfig struct {
 	// Peers is a lsit of etcd peers,  valid only for etcd
 	Peers []string `yaml:"peers,omitempty"`
 	// Prefix is etcd key prefix, valid only for etcd
@@ -69,6 +71,9 @@ type Config struct {
 	TLSKeyFile string `yaml:"tls_key_file,omitempty"`
 	// TLSCAFile is a tls client trusted CA file, used for etcd
 	TLSCAFile string `yaml:"tls_ca_file,omitempty"`
+}
+
+type DynamoConfig struct {
 	// Region is where DynamoDB Table will be used to store k/v
 	Region string `yaml:"region,omitempty"`
 	// AWS AccessKey used to authenticate DynamoDB queries (prefer IAM role instead of hardcoded value)
@@ -77,4 +82,22 @@ type Config struct {
 	SecretKey string `yaml:"secret_key,omitempty"`
 	// Tablename where to store K/V in DynamoDB
 	Tablename string `yaml:"table_name,omitempty"`
+}
+
+// Config is used for 'storage' config section. It's a combination of
+// values for various backends: 'boltdb', 'etcd', 'filesystem' and 'dynamodb'
+type Config struct {
+	// Type can be "bolt" or "etcd" or "dynamodb"
+	Type string `yaml:"type,omitempty"`
+
+	EtcdConfig   `yaml:",inline"`
+	DynamoConfig `yaml:",inline"`
+}
+
+// ValidateLockTTL helper allows all backends to validate lock TTL parameter
+func ValidateLockTTL(ttl time.Duration) error {
+	if ttl == Forever || ttl > MaxLockDuration {
+		return trace.BadParameter("locks cannot exceed %v", MaxLockDuration)
+	}
+	return nil
 }

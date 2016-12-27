@@ -66,14 +66,10 @@ func (s *BoltSuite) TestExpiration(c *C) {
 	s.suite.Expiration(c)
 }
 
-func (s *BoltSuite) TestCreate(c *C) {
-	s.suite.Create(c)
-}
-
 func (s *BoltSuite) TestLock(c *C) {
 	s.suite.Locking(c)
 }
 
 func (s *BoltSuite) TestValueAndTTL(c *C) {
-	s.suite.ValueAndTTl(c)
+	s.suite.ValueAndTTL(c)
 }
