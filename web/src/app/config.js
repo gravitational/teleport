@@ -100,16 +100,6 @@ let cfg = {
 
     getU2fCreateUserChallengeUrl(inviteToken){
       return formatPattern(cfg.api.u2fCreateUserChallengePath, {inviteToken});
-    },
-
-    getEventStreamConnStr(siteId='-current-'){
-      var hostname = getWsHostName();
-      return `${hostname}/v1/webapi/sites/${siteId}`;
-    },
-
-    getTtyUrl(siteId='-current-'){
-      var hostname = getWsHostName();
-      return `${hostname}/v1/webapi/sites/${siteId}`;
     }
   },
 
@@ -135,9 +125,3 @@ let cfg = {
 }
 
 export default cfg;
-
-function getWsHostName(){
-  var prefix = location.protocol == "https:"?"wss://":"ws://";
-  var hostport = location.hostname+(location.port ? ':'+location.port: '');
-  return `${prefix}${hostport}`;
-}

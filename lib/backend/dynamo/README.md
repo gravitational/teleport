@@ -23,20 +23,19 @@ ADDFLAGS='-tags dynamodb' make teleport
 
 ### Quick Start
 
-Install the auth server and add this storage configuration in 
-Teleport section of the config file (by default it's `/etc/teleport.yaml`):
+Add this storage configuration in `teleport` section of the config file (by default it's `/etc/teleport.yaml`):
 
-```
+```yaml
 teleport:
   storage:
     type: dynamodb
     region: eu-west-1
-    table_name: prod.teleport.auth
+    table_name: teleport.state
     access_key: XXXXXXXXXXXXXXXXXXXXX
     secret_key: YYYYYYYYYYYYYYYYYYYYY
 ```
 
-Replace `region` and `table_name` with the appropriate settings.
+Replace `region` and `table_name` with your own settings. Teleport will create the table automatically.
 
 ### AWS IAM Role
 

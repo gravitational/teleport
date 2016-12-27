@@ -48,6 +48,7 @@ const currentSession = [ ['tlpt_current_session'], ['tlpt_sessions'],
       curSessionView.active = existing.active;
       curSessionView.cols = existing.cols;
       curSessionView.rows = existing.rows;
+      curSessionView.siteId = existing.siteId;
     }
 
     return curSessionView;
