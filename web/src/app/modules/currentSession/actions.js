@@ -88,14 +88,18 @@ const actions = {
     }
   },
 
-  processSessionEventStream(data){
-    data.events.forEach(item=> {
-      if(item.event === 'session.end'){
-        actions.close();
-      }
-    })
+  processSessionFromEventStream(siteId) {    
+    return data => {
+      data.events.forEach(item => {
+        if (item.event === 'session.end') {
+          actions.close();
+        }
+      })
 
-    updateSession(data.session);
+      let { session } = data;
+      session.siteId = siteId;
+      updateSession(session);
+    }
   }
 
 }
