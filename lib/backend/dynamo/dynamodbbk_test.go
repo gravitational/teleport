@@ -14,6 +14,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
 */
 
 package dynamo
@@ -21,8 +22,6 @@ package dynamo
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
@@ -41,9 +40,9 @@ type DynamoDBSuite struct {
 var _ = Suite(&DynamoDBSuite{})
 
 func (s *DynamoDBSuite) SetUpSuite(c *C) {
-	var err error
-
 	utils.InitLoggerForTests()
+
+	var err error
 	s.cfg.Type = "dynamodb"
 	s.cfg.Tablename = "teleport.dynamo.test"
 
@@ -53,11 +52,44 @@ func (s *DynamoDBSuite) SetUpSuite(c *C) {
 }
 
 func (s *DynamoDBSuite) TearDownSuite(c *C) {
-	if s.bk.svc != nil {
-		s.bk.svc.DeleteTable(&dynamodb.DeleteTableInput{
-			TableName: aws.String(s.cfg.Tablename),
-		})
+	if s.bk != nil && s.bk.svc != nil {
+		s.bk.deleteTable(s.cfg.Tablename, false)
 	}
+}
+
+func (s *DynamoDBSuite) TestMigration(c *C) {
+	s.cfg.Type = "dynamodb"
+	s.cfg.Tablename = "teleport.dynamo.test"
+	// migration uses its own instance of the backend:
+	bk, err := New(&s.cfg)
+	c.Assert(err, IsNil)
+
+	var (
+		legacytable      = "legacy.teleport.t"
+		nonExistingTable = "nonexisting.teleport.t"
+	)
+	bk.deleteTable(legacytable, true)
+	bk.deleteTable(legacytable+".bak", false)
+	defer bk.deleteTable(legacytable, false)
+	defer bk.deleteTable(legacytable+".bak", false)
+
+	status, err := bk.getTableStatus(nonExistingTable)
+	c.Assert(err, IsNil)
+	c.Assert(status, Equals, tableStatus(tableStatusMissing))
+
+	err = bk.createTable(legacytable, oldPathAttr)
+	c.Assert(err, IsNil)
+
+	status, err = bk.getTableStatus(legacytable)
+	c.Assert(err, IsNil)
+	c.Assert(status, Equals, tableStatus(tableStatusNeedsMigration))
+
+	err = bk.migrate(legacytable)
+	c.Assert(err, IsNil)
+
+	status, err = bk.getTableStatus(legacytable)
+	c.Assert(err, IsNil)
+	c.Assert(status, Equals, tableStatus(tableStatusOK))
 }
 
 func (s *DynamoDBSuite) TearDownTest(c *C) {
