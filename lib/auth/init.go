@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
@@ -73,9 +72,6 @@ type InitConfig struct {
 	// Trust is a service that manages users and credentials
 	Trust services.Trust
 
-	// Lock is a distributed or local lock service
-	Lock services.Lock
-
 	// Presence service is a discovery and hearbeat tracker
 	Presence services.Presence
 
@@ -105,12 +101,11 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 		return nil, nil, trace.BadParameter("HostUUID: host UUID can not be empty")
 	}
 
-	lockService := local.NewLockService(cfg.Backend)
-	err := lockService.AcquireLock(cfg.DomainName, 60*time.Second)
+	err := cfg.Backend.AcquireLock(cfg.DomainName, 30*time.Second)
 	if err != nil {
 		return nil, nil, err
 	}
-	defer lockService.ReleaseLock(cfg.DomainName)
+	defer cfg.Backend.ReleaseLock(cfg.DomainName)
 
 	// check that user CA and host CA are present and set the certs if needed
 	asrv := NewAuthServer(&cfg)

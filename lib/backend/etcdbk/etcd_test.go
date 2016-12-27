@@ -98,5 +98,5 @@ func (s *EtcdSuite) TestLock(c *C) {
 }
 
 func (s *EtcdSuite) TestValueAndTTL(c *C) {
-	s.suite.ValueAndTTl(c)
+	s.suite.ValueAndTTL(c)
 }

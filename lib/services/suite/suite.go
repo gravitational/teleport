@@ -21,7 +21,6 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"sort"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -59,7 +58,6 @@ func NewTestCA(caType services.CertAuthType, domainName string) *services.CertAu
 type ServicesTestSuite struct {
 	Access        services.Access
 	CAS           services.Trust
-	LockS         services.Lock
 	PresenceS     services.Presence
 	ProvisioningS services.Provisioner
 	WebS          services.Identity
@@ -307,53 +305,6 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *C) {
 	c.Assert(s.WebS.DeleteWebSession("user1", "sid1"), IsNil)
 
 	_, err = s.WebS.GetWebSession("user1", "sid1")
-	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
-}
-
-func (s *ServicesTestSuite) Locking(c *C) {
-	tok1 := "token1"
-	tok2 := "token2"
-
-	err := s.LockS.ReleaseLock(tok1)
-	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
-
-	c.Assert(s.LockS.AcquireLock(tok1, 30*time.Second), IsNil)
-	x := int32(7)
-	go func() {
-		atomic.StoreInt32(&x, 9)
-		c.Assert(s.LockS.ReleaseLock(tok1), IsNil)
-	}()
-	c.Assert(s.LockS.AcquireLock(tok1, 0), IsNil)
-	atomic.AddInt32(&x, 9)
-
-	c.Assert(atomic.LoadInt32(&x), Equals, int32(18))
-	c.Assert(s.LockS.ReleaseLock(tok1), IsNil)
-
-	c.Assert(s.LockS.AcquireLock(tok1, 0), IsNil)
-	atomic.StoreInt32(&x, 7)
-	go func() {
-		atomic.StoreInt32(&x, 9)
-		c.Assert(s.LockS.ReleaseLock(tok1), IsNil)
-	}()
-	c.Assert(s.LockS.AcquireLock(tok1, 0), IsNil)
-	atomic.AddInt32(&x, 9)
-	c.Assert(atomic.LoadInt32(&x), Equals, int32(18))
-	c.Assert(s.LockS.ReleaseLock(tok1), IsNil)
-
-	y := int32(0)
-	go func() {
-		c.Assert(s.LockS.AcquireLock(tok1, 0), IsNil)
-		c.Assert(s.LockS.AcquireLock(tok2, 0), IsNil)
-
-		c.Assert(s.LockS.ReleaseLock(tok1), IsNil)
-		c.Assert(s.LockS.ReleaseLock(tok2), IsNil)
-		atomic.StoreInt32(&y, 15)
-	}()
-
-	time.Sleep(1 * time.Second)
-	c.Assert(atomic.LoadInt32(&y), Equals, int32(15))
-
-	err = s.LockS.ReleaseLock(tok1)
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 }
 

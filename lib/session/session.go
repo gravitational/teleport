@@ -385,7 +385,7 @@ func (s *server) CreateSession(sess Session) error {
 // UpdateSession updates session parameters - can mark it as inactive and update it's terminal parameters
 func (s *server) UpdateSession(req UpdateRequest) error {
 	lock := "sessions" + string(req.ID)
-	s.bk.AcquireLock(lock, time.Second)
+	s.bk.AcquireLock(lock, 5*time.Second)
 	defer s.bk.ReleaseLock(lock)
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)

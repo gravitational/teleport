@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -96,9 +97,6 @@ type Config struct {
 
 	// Trust is a service that manages users and credentials
 	Trust services.Trust
-
-	// Lock is a distributed or local lock service
-	Lock services.Lock
 
 	// Presence service is a discovery and hearbeat tracker
 	Presence services.Presence
@@ -243,6 +241,8 @@ type AuthConfig struct {
 		Type string
 		// Params is map with backend specific parameters
 		Params string
+		// BackendConf contains additional config data
+		BackendConf *backend.Config
 	}
 
 	// EventsBackend configures backend that stores cluster events (login attempts, etc)

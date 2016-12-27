@@ -2,7 +2,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=1.3.1
+VERSION=1.3.2-beta
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -158,6 +158,10 @@ test-grep-package-with-etcd: remove-temp-files
 .PHONY: test-grep-package
 test-grep-package: remove-temp-files
 	go test -v ./$(p) -check.f=$(e)
+
+.PHONY: test-dynamo
+test-dynamo:
+	go test -v ./lib/... -tags dynamodb
 
 .PHONY: cover-package
 cover-package: remove-temp-files
