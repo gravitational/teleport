@@ -75,9 +75,7 @@ function updateSessionWithEvents(state, { jsonEvents=[], siteId }){
   });
 }
 
-function updateSession(state, json) {
-  let siteId = state.getIn([json.id, 'siteId']);
-  json.siteId = siteId;  
+function updateSession(state, json) {  
   return state.set(json.id, toImmutable(json));
 }
 
