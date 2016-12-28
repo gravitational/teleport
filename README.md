@@ -46,8 +46,10 @@ and we keep it checked into Git under `/dist`, so you only need to build Golang:
 Make sure you have Golang `v1.7` or newer, then run:
 
 1. `go get github.com/gravitational/teleport`
-2. `cd $GOPATH/src/github.com/gravitational/teleport`
-3. `CGO_ENABLED=true make`
+2. `cd $GOPATH/src/github.com/gravitational/teleport/web`
+3. `yarn install`
+4. `cd ..`
+4. `CGO_ENABLED=true make`
 
 If the build was successful the binaries are here: `$GOPATH/src/github.com/gravitational/teleport/build`
 
