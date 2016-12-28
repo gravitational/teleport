@@ -21,155 +21,17 @@ limitations under the License.
 package services
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/coreos/go-oidc/jose"
 	"github.com/gokyle/hotp"
-	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
 )
-
-// User represents teleport or external user
-type User interface {
-	// GetName returns user name
-	GetName() string
-	// GetAllowedLogins returns user's allowed linux logins
-	GetAllowedLogins() []string
-	// GetIdentities returns a list of connected OIDCIdentities
-	GetIdentities() []OIDCIdentity
-	// GetRoles returns a list of roles assigned to user
-	GetRoles() []string
-	// String returns user
-	String() string
-	// Equals checks if user equals to another
-	Equals(other User) bool
-	// WebSessionInfo returns web session information
-	WebSessionInfo(logins []string) User
-	// GetStatus return user login status
-	GetStatus() LoginStatus
-	// SetLocked sets login status to locked
-	SetLocked(until time.Time, reason string)
-	// SetRoles sets user roles
-	SetRoles(roles []string)
-	// AddRole adds role to the users' role list
-	AddRole(name string)
-	// SetAllowedLogins sets allowed logins property for user
-	SetAllowedLogins(logins []string)
-	// GetExpiry returns ttl of the user
-	GetExpiry() time.Time
-	// GetCreatedBy returns information about user
-	GetCreatedBy() CreatedBy
-	// SetCreatedBy sets created by information
-	SetCreatedBy(CreatedBy)
-	// Check checks basic user parameters for errors
-	Check() error
-}
-
-// ConnectorRef holds information about OIDC connector
-type ConnectorRef struct {
-	// Type is connector type
-	Type string `json:"connector_type"`
-	// ID is connector ID
-	ID string `json:"id"`
-	// Identity is external identity of the user
-	Identity string `json:"identity"`
-}
-
-// UserRef holds refernce to user
-type UserRef struct {
-	// Name is name of the user
-	Name string `json:"name"`
-}
-
-// CreatedBy holds information about the person or agent who created the user
-type CreatedBy struct {
-	// Identity if present means that user was automatically created by identity
-	Connector *ConnectorRef `json:"connector,omitemtpy"`
-	// Time specifies when user was created
-	Time time.Time `json:"time"`
-	// User holds information about user
-	User UserRef `json:"user"`
-}
-
-const CreatedBySchema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-     "connector": {
-       "additionalProperties": false,
-       "type": "object"
-      },
-     "locked_message": {"type": "string"},
-     "locked_time": {"type": "string"},
-     "lock_expires": {"type": "string"}
-   }
-}`
-
-// IsEmpty returns true if there's no info about who created this user
-func (c CreatedBy) IsEmpty() bool {
-	return c.User.Name == ""
-}
-
-// String returns human readable information about the user
-func (c CreatedBy) String() string {
-	if c.User.Name == "" {
-		return "system"
-	}
-	if c.Connector != nil {
-		return fmt.Sprintf("%v connector %v for user %v at %v",
-			c.Connector.Type, c.Connector.ID, c.Connector.Identity, utils.HumanTimeFormat(c.Time))
-	}
-	return fmt.Sprintf("%v at %v", c.User.Name, c.Time)
-}
-
-// LoginStatus is a login status of the user
-type LoginStatus struct {
-	// IsLocked tells us if user is locked
-	IsLocked bool `json:"is_locked"`
-	// LockedMessage contains the message in case if user is locked
-	LockedMessage string `json:"locked_message"`
-	// LockedTime contains time when user was locked
-	LockedTime time.Time `json:"locked_time"`
-	// LockExpires contains time when this lock will expire
-	LockExpires time.Time `json:"lock_expires"`
-}
-
-const LoginStatusSchema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-     "is_locked": {"type": "boolean"}, 
-     "locked_message": {"type": "string"},
-     "locked_time": {"type": "string"},
-     "lock_expires": {"type": "string"}
-   }
-}`
-
-// LoginAttempt represents successfull or unsuccessful attempt for user to login
-type LoginAttempt struct {
-	// Time is time of the attempt
-	Time time.Time `json:"time"`
-	// Sucess indicates whether attempt was successfull
-	Success bool `json:"bool"`
-}
-
-// Check checks parameters
-func (la *LoginAttempt) Check() error {
-	if la.Time.IsZero() {
-		return trace.BadParameter("missing parameter time")
-	}
-	return nil
-}
 
 // Identity is responsible for managing user entries
 type Identity interface {
@@ -271,8 +133,8 @@ type Identity interface {
 	// DeleteOIDCConnector deletes OIDC Connector
 	DeleteOIDCConnector(connectorID string) error
 
-	// GetOIDCConnector returns OIDC connector data, , withSecrets adds or removes client secret from return results
-	GetOIDCConnector(id string, withSecrets bool) (*OIDCConnector, error)
+	// GetOIDCConnector returns OIDC connector data, withSecrets adds or removes client secret from return results
+	GetOIDCConnector(id string, withSecrets bool) (OIDCConnector, error)
 
 	// GetOIDCConnectors returns registered connectors, withSecrets adds or removes client secret from return results
 	GetOIDCConnectors(withSecrets bool) ([]OIDCConnector, error)
@@ -321,120 +183,6 @@ type SignupToken struct {
 	HotpFirstValues []string  `json:"hotp_first_values"`
 	HotpQR          []byte    `json:"hotp_qr"`
 	Expires         time.Time `json:"expires"`
-}
-
-// OIDCConnector specifies configuration for Open ID Connect compatible external
-// identity provider, e.g. google in some organisation
-type OIDCConnector struct {
-	// ID is a provider id, 'e.g.' google, used internally
-	ID string `json:"id"`
-	// Issuer URL is the endpoint of the provider, e.g. https://accounts.google.com
-	IssuerURL string `json:"issuer_url"`
-	// ClientID is id for authentication client (in our case it's our Auth server)
-	ClientID string `json:"client_id"`
-	// ClientSecret is used to authenticate our client and should not
-	// be visible to end user
-	ClientSecret string `json:"client_secret"`
-	// RedirectURL - Identity provider will use this URL to redirect
-	// client's browser back to it after successfull authentication
-	// Should match the URL on Provider's side
-	RedirectURL string `json:"redirect_url"`
-	// Display - Friendly name for this provider.
-	Display string `json:"display"`
-	// Scope is additional scopes set by provder
-	Scope []string `json:"scope"`
-	// ClaimsToRoles specifies dynamic mapping from claims to roles
-	ClaimsToRoles []ClaimMapping `json:"claims_to_roles"`
-}
-
-// GetClaims returns list of claims expected by mappings
-func (o *OIDCConnector) GetClaims() []string {
-	var out []string
-	for _, mapping := range o.ClaimsToRoles {
-		out = append(out, mapping.Claim)
-	}
-	return utils.Deduplicate(out)
-}
-
-// MapClaims maps claims to roles
-func (o *OIDCConnector) MapClaims(claims jose.Claims) []string {
-	var roles []string
-	for _, mapping := range o.ClaimsToRoles {
-		for claimName := range claims {
-			if claimName != mapping.Claim {
-				continue
-			}
-			claimValue, ok, _ := claims.StringClaim(claimName)
-			if ok && claimValue == mapping.Value {
-				roles = append(roles, mapping.Roles...)
-			}
-			claimValues, ok, _ := claims.StringsClaim(claimName)
-			if ok {
-				for _, claimValue := range claimValues {
-					if claimValue == mapping.Value {
-						roles = append(roles, mapping.Roles...)
-					}
-				}
-			}
-		}
-	}
-	return utils.Deduplicate(roles)
-}
-
-// GetClaimNames returns a list of claim names from the claim values
-func GetClaimNames(claims jose.Claims) []string {
-	var out []string
-	for claim := range claims {
-		out = append(out, claim)
-	}
-	return out
-}
-
-// ClaimMapping is OIDC claim mapping that maps
-// claim name to teleport roles
-type ClaimMapping struct {
-	// Claim is OIDC claim name
-	Claim string `json:"claim"`
-	// Value is claim value to match
-	Value string `json:"value"`
-	// Roles is a list of teleport roles to match
-	Roles []string `json:"roles"`
-}
-
-// ClaimMappingSchema is JSON schema for claim mapping
-const ClaimMappingSchema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-     "claim": {"type": "string"}, 
-     "value": {"type": "string"},
-     "roles": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        }
-      }
-   }
-}`
-
-// Check returns nil if all parameters are great, err otherwise
-func (o *OIDCConnector) Check() error {
-	if o.ID == "" {
-		return trace.BadParameter("ID: missing connector id")
-	}
-	if _, err := url.Parse(o.IssuerURL); err != nil {
-		return trace.BadParameter("IssuerURL: bad url: '%v'", o.IssuerURL)
-	}
-	if _, err := url.Parse(o.RedirectURL); err != nil {
-		return trace.BadParameter("RedirectURL: bad url: '%v'", o.RedirectURL)
-	}
-	if o.ClientID == "" {
-		return trace.BadParameter("ClientID: missing client id")
-	}
-	if o.ClientSecret == "" {
-		return trace.BadParameter("ClientSecret: missing client secret")
-	}
-	return nil
 }
 
 // OIDCIdentity is OpenID Connect identity that is linked

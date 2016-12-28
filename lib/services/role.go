@@ -536,15 +536,15 @@ func UnmarshalRoleResource(data []byte) (*RoleResource, error) {
 
 var roleMarshaler RoleMarshaler = &TeleportRoleMarshaler{}
 
-func SetRoleMarshaler(u RoleMarshaler) {
-	mtx.Lock()
-	defer mtx.Unlock()
-	roleMarshaler = u
+func SetRoleMarshaler(m RoleMarshaler) {
+	marshalerMutex.Lock()
+	defer marshalerMutex.Unlock()
+	roleMarshaler = m
 }
 
 func GetRoleMarshaler() RoleMarshaler {
-	mtx.Lock()
-	defer mtx.Unlock()
+	marshalerMutex.Lock()
+	defer marshalerMutex.Unlock()
 	return roleMarshaler
 }
 

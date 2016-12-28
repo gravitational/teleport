@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/gravitational/trace"
 )
@@ -70,9 +71,15 @@ const (
 	// KindReverseTunnel is a reverse tunnel connection
 	KindReverseTunnel = "tunnel"
 
+	// KindOIDCConnector is a OIDC connector resource
+	KindOIDCConnector = "oidc"
+
 	// V1 is our current version
 	V1 = "v1"
 )
+
+// marshalerMutex is a mutex for resource marshalers/unmarshalers
+var marshalerMutex sync.RWMutex
 
 const MetadataSchema = `{
   "type": "object",
