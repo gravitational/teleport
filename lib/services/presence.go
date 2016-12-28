@@ -17,15 +17,7 @@ limitations under the License.
 package services
 
 import (
-	"encoding/json"
-	"fmt"
-	"sort"
-	"strings"
 	"time"
-
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 // Presence records and reports the presence of all components

@@ -41,8 +41,8 @@ func RoleNameForCertAuthority(name string) string {
 }
 
 // RoleForUser creates role using AllowedLogins parameter
-func RoleForUser(u User) *RoleResource {
-	return &RoleResource{
+func RoleForUser(u User) Role {
+	return &RoleV1{
 		Kind:    KindRole,
 		Version: V1,
 		Metadata: Metadata{
@@ -65,12 +65,12 @@ func RoleForUser(u User) *RoleResource {
 }
 
 // RoleForCertauthority creates role using AllowedLogins parameter
-func RoleForCertAuthority(ca CertAuthority) *RoleResource {
-	return &RoleResource{
+func RoleForCertAuthority(ca CertAuthority) Role {
+	return &RoleV1{
 		Kind:    KindRole,
 		Version: V1,
 		Metadata: Metadata{
-			Name:      RoleNameForCertAuthority(ca.DomainName),
+			Name:      RoleNameForCertAuthority(ca.GetClusterName()),
 			Namespace: defaults.Namespace,
 		},
 		Spec: RoleSpec{
@@ -121,8 +121,8 @@ type Role interface {
 	GetResources() map[string][]string
 }
 
-// RoleResource represents role resource specification
-type RoleResource struct {
+// RoleV1 represents role resource specification
+type RoleV1 struct {
 	// Kind is a resource kind - always resource
 	Kind string `json:"kind"`
 	// Version is a resource version
@@ -134,42 +134,42 @@ type RoleResource struct {
 }
 
 // GetName returns role name and is a shortcut for GetMetadata().Name
-func (r *RoleResource) GetName() string {
+func (r *RoleV1) GetName() string {
 	return r.Metadata.Name
 }
 
 // GetMetadata returns role metadata
-func (r *RoleResource) GetMetadata() Metadata {
+func (r *RoleV1) GetMetadata() Metadata {
 	return r.Metadata
 }
 
 // GetMaxSessionTTL is a maximum SSH or Web session TTL
-func (r *RoleResource) GetMaxSessionTTL() Duration {
+func (r *RoleV1) GetMaxSessionTTL() Duration {
 	return r.Spec.MaxSessionTTL
 }
 
 // GetLogins returns a list of linux logins allowed for this role
-func (r *RoleResource) GetLogins() []string {
+func (r *RoleV1) GetLogins() []string {
 	return r.Spec.Logins
 }
 
 // GetNodeLabels returns a list of matchign nodes this role has access to
-func (r *RoleResource) GetNodeLabels() map[string]string {
+func (r *RoleV1) GetNodeLabels() map[string]string {
 	return r.Spec.NodeLabels
 }
 
 // GetNamespaces returns a list of namespaces this role has access to
-func (r *RoleResource) GetNamespaces() []string {
+func (r *RoleV1) GetNamespaces() []string {
 	return r.Spec.Namespaces
 }
 
 // GetResources returns access to resources
-func (r *RoleResource) GetResources() map[string][]string {
+func (r *RoleV1) GetResources() map[string][]string {
 	return r.Spec.Resources
 }
 
 // Check checks validity of all parameters and sets defaults
-func (r *RoleResource) CheckAndSetDefaults() error {
+func (r *RoleV1) CheckAndSetDefaults() error {
 	if r.Metadata.Name == "" {
 		return trace.BadParameter("missing parameter Name")
 	}
@@ -242,7 +242,7 @@ func RO() []string {
 
 // NewRole constructs new standard role
 func NewRole(name string, spec RoleSpec) (Role, error) {
-	role := RoleResource{
+	role := RoleV1{
 		Kind:    KindRole,
 		Version: V1,
 		Metadata: Metadata{
@@ -378,7 +378,7 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 	log.Debugf("CheckAccessToServer(%v, %v) for %v", login, s, set)
 	for _, role := range set {
 		matchNamespace := MatchNamespace(role.GetNamespaces(), s.GetNamespace())
-		matchLabels := MatchLabels(role.GetNodeLabels(), s.Labels)
+		matchLabels := MatchLabels(role.GetNodeLabels(), s.GetAllLabels())
 		matchLogin := MatchLogin(role.GetLogins(), login)
 		log.Debugf("CheckAccessToServer(%v, %v) match(namespace:%v, labels:%v, login:%v)",
 			role.GetName(), s, matchNamespace, matchLabels, matchLogin)
@@ -506,13 +506,13 @@ func GetRoleSchema(extensionSchema string) string {
 	return fmt.Sprintf(V1SchemaTemplate, MetadataSchema, roleSchema)
 }
 
-// UnmarshalRoleResource unmarshals role from JSON or YAML,
+// UnmarshalRoleV1 unmarshals role from JSON or YAML,
 // sets defaults and checks the schema
-func UnmarshalRoleResource(data []byte) (*RoleResource, error) {
+func UnmarshalRole(data []byte) (*RoleV1, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing resource data")
 	}
-	var role RoleResource
+	var role RoleV1
 	if err := utils.UnmarshalWithSchema(GetRoleSchema(""), &role, data); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
@@ -546,7 +546,7 @@ type TeleportRoleMarshaler struct{}
 
 // UnmarshalRole unmarshals role from JSON
 func (*TeleportRoleMarshaler) UnmarshalRole(bytes []byte) (Role, error) {
-	return UnmarshalRoleResource(bytes)
+	return UnmarshalRole(bytes)
 }
 
 // MarshalRole marshalls role into JSON

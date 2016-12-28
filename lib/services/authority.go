@@ -16,14 +16,14 @@ type CertAuthority interface {
 	// GetName returns cert authority name
 	GetName() string
 	// GetType returns user or host certificate authority
-	GetType() string
+	GetType() CertAuthType
 	// GetClusterName returns cluster name this cert authority
 	// is associated with
 	GetClusterName() string
 	// GetCheckingKeys returns public keys to check signature
 	GetCheckingKeys() [][]byte
 	// GetRoles returns a list of roles assumed by users signed by this CA
-	GetRoles()
+	GetRoles() []string
 	// FirstSigningKey returns first signing key or returns error if it's not here
 	FirstSigningKey() ([]byte, error)
 	// GetRawObject returns raw object data, used for migrations
@@ -41,8 +41,39 @@ type CertAuthorityV1 struct {
 	// Spec contains cert authority specification
 	Spec CertAuthoritySpecV1 `json:"spec"`
 	// rawObject is object that is raw object stored in DB
-	// without any migrations applied, used in migrations
+	// without any conversions applied, used in migrations
 	rawObject interface{}
+}
+
+// GetName returns cert authority name
+func (ca *CertAuthorityV1) GetName() string {
+	return ca.Metadata.Name
+}
+
+// GetType returns user or host certificate authority
+func (ca *CertAuthorityV1) GetType() CertAuthType {
+	return ca.Spec.Type
+}
+
+// GetClusterName returns cluster name this cert authority
+// is associated with
+func (ca *CertAuthorityV1) GetClusterName() string {
+	return ca.Spec.ClusterName
+}
+
+// GetCheckingKeys returns public keys to check signature
+func (ca *CertAuthorityV1) GetCheckingKeys() [][]byte {
+	return ca.Spec.CheckingKeys
+}
+
+// GetRoles returns a list of roles assumed by users signed by this CA
+func (ca *CertAuthorityV1) GetRoles() []string {
+	return ca.Spec.Roles
+}
+
+// GetRawObject returns raw object data, used for migrations
+func (ca *CertAuthorityV1) GetRawObject() interface{} {
+	return ca.rawObject
 }
 
 // FirstSigningKey returns first signing key or returns error if it's not here
@@ -175,12 +206,11 @@ func (c *CertAuthorityV0) V1() *CertAuthorityV1 {
 		Kind:    KindCertAuthority,
 		Version: V1,
 		Metadata: Metadata{
-			Name: u.Name,
+			Name: c.DomainName,
 		},
 		Spec: CertAuthoritySpecV1{
 			Type:         c.Type,
 			ClusterName:  c.DomainName,
-			Roles:        c.Roles,
 			CheckingKeys: c.CheckingKeys,
 			SigningKeys:  c.SigningKeys,
 		},
@@ -208,13 +238,9 @@ func GetCertAuthorityMarshaler() CertAuthorityMarshaler {
 // mostly adds support for extended versions
 type CertAuthorityMarshaler interface {
 	// UnmarshalCertAuthority unmarhsals cert authority from binary representation
-	UnmarshalCertauthority(bytes []byte) (CertAuthority, error)
+	UnmarshalCertAuthority(bytes []byte) (CertAuthority, error)
 	// MarshalCertAuthority to binary representation
 	MarshalCertAuthority(c CertAuthority) ([]byte, error)
-	// GenerateUser generates new user based on standard teleport user
-	// it gives external implementations to add more app-specific
-	// data to the user
-	GenerateUser(User) (User, error)
 }
 
 // GetCertAuthoritySchema returns JSON Schema for cert authorities
@@ -225,7 +251,7 @@ func GetCertAuthoritySchema() string {
 type TeleportCertAuthorityMarshaler struct{}
 
 // UnmarshalUser unmarshals user from JSON
-func (*TeleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte) (User, error) {
+func (*TeleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte) (CertAuthority, error) {
 	var h ResourceHeader
 	err := json.Unmarshal(bytes, &h)
 	if err != nil {
@@ -251,5 +277,5 @@ func (*TeleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte) (Use
 
 // MarshalUser marshalls cert authority into JSON
 func (*TeleportCertAuthorityMarshaler) MarshalCertAuthority(ca CertAuthority) ([]byte, error) {
-	return json.Marshal(u)
+	return json.Marshal(ca)
 }

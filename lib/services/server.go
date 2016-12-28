@@ -1,7 +1,14 @@
 package services
 
 import (
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
 	"time"
+
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // Server represents a Node, Proxy or Auth server in a Teleport cluster
@@ -53,7 +60,7 @@ func (s *ServerV1) GetHostname() string {
 
 // GetLabels returns server's static label key pairs
 func (s *ServerV1) GetLabels() map[string]string {
-	return s.Spec.Labels
+	return s.Metadata.Labels
 }
 
 // GetCmdLabels returns command labels
@@ -61,7 +68,7 @@ func (s *ServerV1) GetCmdLabels() map[string]CommandLabel {
 	if s.Spec.CmdLabels == nil {
 		return nil
 	}
-	out := make(map[string]CommandLabel, len(s.s.Spec.CmdLabels))
+	out := make(map[string]CommandLabel, len(s.Spec.CmdLabels))
 	for key := range s.Spec.CmdLabels {
 		val := s.Spec.CmdLabels[key]
 		out[key] = &val
@@ -70,7 +77,7 @@ func (s *ServerV1) GetCmdLabels() map[string]CommandLabel {
 }
 
 func (s *ServerV1) String() string {
-	return fmt.Sprintf("Server(name=%v, namespace=%v, addr=%v, labels=%v)", s.Metadata.Name, s.Namespace, s.Addr, s.Labels)
+	return fmt.Sprintf("Server(name=%v, namespace=%v, addr=%v, labels=%v)", s.Metadata.Name, s.Metadata.Namespace, s.Spec.Addr, s.Metadata.Labels)
 }
 
 // GetNamespace returns server namespace
@@ -82,10 +89,10 @@ func (s *ServerV1) GetNamespace() string {
 // "command labels"
 func (s *ServerV1) GetAllLabels() map[string]string {
 	lmap := make(map[string]string)
-	for key, value := range s.Labels {
+	for key, value := range s.Metadata.Labels {
 		lmap[key] = value
 	}
-	for key, cmd := range s.CmdLabels {
+	for key, cmd := range s.Spec.CmdLabels {
 		lmap[key] = cmd.Result
 	}
 	return lmap
@@ -97,7 +104,7 @@ func (s *ServerV1) GetAllLabels() map[string]string {
 // Any server matches against an empty label set
 func (s *ServerV1) MatchAgainst(labels map[string]string) bool {
 	if labels != nil {
-		myLabels := s.LabelsMap()
+		myLabels := s.GetAllLabels()
 		for key, value := range labels {
 			if myLabels[key] != value {
 				return false
@@ -110,10 +117,10 @@ func (s *ServerV1) MatchAgainst(labels map[string]string) bool {
 // LabelsString returns a comma separated string with all node's labels
 func (s *ServerV1) LabelsString() string {
 	labels := []string{}
-	for key, val := range s.Labels {
+	for key, val := range s.Metadata.Labels {
 		labels = append(labels, fmt.Sprintf("%s=%s", key, val))
 	}
-	for key, val := range s.CmdLabels {
+	for key, val := range s.Spec.CmdLabels {
 		labels = append(labels, fmt.Sprintf("%s=%s", key, val.Result))
 	}
 	sort.Strings(labels)
@@ -126,8 +133,6 @@ type ServerSpecV1 struct {
 	Addr string `json:"addr"`
 	// Hostname is server hostname
 	Hostname string `json:"hostname"`
-	// Labels is server static labels
-	Labels map[string]string `json:"labels,omitempty"`
 	// CmdLabels is server dynamic labels
 	CmdLabels map[string]CommandLabelV1 `json:"cmd_labels,omitempty"`
 }
@@ -191,11 +196,12 @@ func (s *ServerV0) V1() *ServerV1 {
 		Metadata: Metadata{
 			Name:      s.ID,
 			Namespace: s.Namespace,
+			Labels:    s.Labels,
 		},
 		Spec: ServerSpecV1{
-			Addr:     s.Addr,
-			Hostname: s.Hostname,
-			Labels:   labels,
+			Addr:      s.Addr,
+			Hostname:  s.Hostname,
+			CmdLabels: labels,
 		},
 	}
 }
@@ -272,14 +278,14 @@ func UnmarshalServerResource(data []byte, kind string) (Server, error) {
 		return nil, trace.BadParameter("missing server data")
 	}
 	var h ResourceHeader
-	err := json.Unmarshal(bytes, &h)
+	err := json.Unmarshal(data, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch h.Version {
 	case "":
 		var s ServerV0
-		err := json.Unmarshal(bytes, &s)
+		err := json.Unmarshal(data, &s)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -287,10 +293,10 @@ func UnmarshalServerResource(data []byte, kind string) (Server, error) {
 		return s.V1(), nil
 	case V1:
 		var s ServerV1
-		if err := utils.UnmarshalWithSchema(GetServerSchema(), &s, bytes); err != nil {
+		if err := utils.UnmarshalWithSchema(GetServerSchema(), &s, data); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
-		return s, nil
+		return &s, nil
 	}
 	return nil, trace.BadParameter("server resource version %v is not supported", h.Version)
 }

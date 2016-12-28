@@ -1,5 +1,15 @@
 package services
 
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/trace"
+)
+
 // ReverseTunnel is SSH reverse tunnel established between a local Proxy
 // and a remote Proxy. It helps to bypass firewall restrictions, so local
 // clusters don't need to have the cluster involved
@@ -7,7 +17,7 @@ type ReverseTunnel interface {
 	// GetClusterName returns name of the cluster
 	GetClusterName() string
 	// GetDialAddrs returns list of dial addresses for this cluster
-	GetDialAddrs()
+	GetDialAddrs() []string
 	// Check checks tunnel for errors
 	Check() error
 }
@@ -24,17 +34,27 @@ type ReverseTunnelV1 struct {
 	Spec ReverseTunnelSpecV1 `json:"spec"`
 }
 
+// GetClusterName returns name of the cluster
+func (r *ReverseTunnelV1) GetClusterName() string {
+	return r.Spec.ClusterName
+}
+
+// GetDialAddrs returns list of dial addresses for this cluster
+func (r *ReverseTunnelV1) GetDialAddrs() []string {
+	return r.Spec.DialAddrs
+}
+
 // Check returns nil if all parameters are good, error otherwise
 func (r *ReverseTunnelV1) Check() error {
-	if strings.TrimSpace(r.DomainName) == "" {
-		return trace.BadParameter("Reverse tunnel validation error: empty domain name")
+	if strings.TrimSpace(r.Spec.ClusterName) == "" {
+		return trace.BadParameter("Reverse tunnel validation error: empty cluster name")
 	}
 
-	if len(r.DialAddrs) == 0 {
-		return trace.BadParameter("Invalid dial address for reverse tunnel '%v'", r.DomainName)
+	if len(r.Spec.DialAddrs) == 0 {
+		return trace.BadParameter("Invalid dial address for reverse tunnel '%v'", r.Spec.ClusterName)
 	}
 
-	for _, addr := range r.DialAddrs {
+	for _, addr := range r.Spec.DialAddrs {
 		_, err := utils.ParseAddr(addr)
 		if err != nil {
 			return trace.Wrap(err)
@@ -86,16 +106,16 @@ func (r *ReverseTunnelV0) V1() *ReverseTunnelV1 {
 		Metadata: Metadata{
 			Name: r.DomainName,
 		},
-		Spec: UserSpecV1{
+		Spec: ReverseTunnelSpecV1{
 			ClusterName: r.DomainName,
 			DialAddrs:   r.DialAddrs,
 		},
 	}
 }
 
-// GetTunnelSchema returns role schema with optionally injected
+// GetReverseTunnelSchema returns role schema with optionally injected
 // schema for extensions
-func GetTunnelSchema() string {
+func GetReverseTunnelSchema() string {
 	return fmt.Sprintf(V1SchemaTemplate, MetadataSchema, ReverseTunnelSpecV1Schema)
 }
 
@@ -106,26 +126,26 @@ func UnmarshalReverseTunnel(data []byte) (ReverseTunnel, error) {
 		return nil, trace.BadParameter("missing tunnel data")
 	}
 	var h ResourceHeader
-	err := json.Unmarshal(bytes, &h)
+	err := json.Unmarshal(data, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch h.Version {
 	case "":
 		var r ReverseTunnelV0
-		err := json.Unmarshal(bytes, &r)
+		err := json.Unmarshal(data, &r)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return r.V1(), nil
 	case V1:
 		var r ReverseTunnelV1
-		if err := utils.UnmarshalWithSchema(GetReverseTunnelSchema(), &r, bytes); err != nil {
+		if err := utils.UnmarshalWithSchema(GetReverseTunnelSchema(), &r, data); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
-		return s, nil
+		return &r, nil
 	}
-	return nil, trace.BadParameter("server resource version %v is not supported", h.Version)
+	return nil, trace.BadParameter("reverse tunnel version %v is not supported", h.Version)
 }
 
 var tunnelMarshaler TunnelMarshaler = &TeleportTunnelMarshaler{}
@@ -158,6 +178,6 @@ func (*TeleportTunnelMarshaler) UnmarshalReverseTunnel(bytes []byte) (ReverseTun
 }
 
 // MarshalRole marshalls role into JSON
-func (*TeleportTunnelMarshaler) MarshalReverseTunnel(t ReverseTunnel) ([]byte, error) {
-	return json.Marshal(s)
+func (*TeleportTunnelMarshaler) MarshalReverseTunnel(rt ReverseTunnel) ([]byte, error) {
+	return json.Marshal(rt)
 }
