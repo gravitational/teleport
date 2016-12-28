@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -206,7 +207,8 @@ func (c *CertAuthorityV0) V1() *CertAuthorityV1 {
 		Kind:    KindCertAuthority,
 		Version: V1,
 		Metadata: Metadata{
-			Name: c.DomainName,
+			Name:      c.DomainName,
+			Namespace: defaults.Namespace,
 		},
 		Spec: CertAuthoritySpecV1{
 			Type:         c.Type,

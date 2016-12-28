@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/configure/cstrings"
@@ -301,9 +302,6 @@ type UserV0 struct {
 	// that let user log in using externally verified identity
 	OIDCIdentities []OIDCIdentity `json:"oidc_identities"`
 
-	// Roles is a list of roles assigned to user
-	Roles []string `json:"roles"`
-
 	// Status is a login status of the user
 	Status LoginStatus `json:"status"`
 
@@ -320,11 +318,11 @@ func (u *UserV0) V1() *UserV1 {
 		Kind:    KindUser,
 		Version: V1,
 		Metadata: Metadata{
-			Name: u.Name,
+			Name:      u.Name,
+			Namespace: defaults.Namespace,
 		},
 		Spec: UserSpecV1{
 			OIDCIdentities: u.OIDCIdentities,
-			Roles:          u.Roles,
 			Status:         u.Status,
 			Expires:        u.Expires,
 			CreatedBy:      u.CreatedBy,

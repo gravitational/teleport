@@ -195,7 +195,7 @@ func (s *ServerV0) V1() *ServerV1 {
 		Version: V1,
 		Metadata: Metadata{
 			Name:      s.ID,
-			Namespace: s.Namespace,
+			Namespace: ProcessNamespace(s.Namespace),
 			Labels:    s.Labels,
 		},
 		Spec: ServerSpecV1{

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -104,7 +105,8 @@ func (r *ReverseTunnelV0) V1() *ReverseTunnelV1 {
 		Kind:    KindReverseTunnel,
 		Version: V1,
 		Metadata: Metadata{
-			Name: r.DomainName,
+			Name:      r.DomainName,
+			Namespace: defaults.Namespace,
 		},
 		Spec: ReverseTunnelSpecV1{
 			ClusterName: r.DomainName,
@@ -148,22 +150,22 @@ func UnmarshalReverseTunnel(data []byte) (ReverseTunnel, error) {
 	return nil, trace.BadParameter("reverse tunnel version %v is not supported", h.Version)
 }
 
-var tunnelMarshaler TunnelMarshaler = &TeleportTunnelMarshaler{}
+var tunnelMarshaler ReverseTunnelMarshaler = &TeleportTunnelMarshaler{}
 
-func SetTunnelMarshaler(m TunnelMarshaler) {
+func SetReerseTunnelMarshaler(m ReverseTunnelMarshaler) {
 	marshalerMutex.Lock()
 	defer marshalerMutex.Unlock()
 	tunnelMarshaler = m
 }
 
-func GetTunnelMarshaler() TunnelMarshaler {
+func GetReverseTunnelMarshaler() ReverseTunnelMarshaler {
 	marshalerMutex.Lock()
 	defer marshalerMutex.Unlock()
 	return tunnelMarshaler
 }
 
-// TunnelMarshaler implements marshal/unmarshal of reverse tunnel implementations
-type TunnelMarshaler interface {
+// ReverseTunnelMarshaler implements marshal/unmarshal of reverse tunnel implementations
+type ReverseTunnelMarshaler interface {
 	// UnmarshalReverseTunnel unmarshals reverse tunnel from binary representation
 	UnmarshalReverseTunnel(bytes []byte) (ReverseTunnel, error)
 	// MarshalReverseTunnel marshals reverse tunnel to binary representation
