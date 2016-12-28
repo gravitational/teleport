@@ -172,7 +172,7 @@ type UserSpecV1 struct {
 	CreatedBy CreatedBy `json:"created_by"`
 }
 
-// UserSpecV1SchemaTemplate is JSON schema for
+// UserSpecV1SchemaTemplate is JSON schema for V1 user
 const UserSpecV1SchemaTemplate = `{
   "type": "object",
   "additionalProperties": false,

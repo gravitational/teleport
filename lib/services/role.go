@@ -50,7 +50,6 @@ func RoleForUser(u User) *RoleResource {
 			Namespace: defaults.Namespace,
 		},
 		Spec: RoleSpec{
-			Logins:        u.GetAllowedLogins(),
 			MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
 			NodeLabels:    map[string]string{Wildcard: Wildcard},
 			Namespaces:    []string{defaults.Namespace},
@@ -75,7 +74,6 @@ func RoleForCertAuthority(ca CertAuthority) *RoleResource {
 			Namespace: defaults.Namespace,
 		},
 		Spec: RoleSpec{
-			Logins:        ca.AllowedLogins,
 			MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
 			NodeLabels:    map[string]string{Wildcard: Wildcard},
 			Namespaces:    []string{defaults.Namespace},
