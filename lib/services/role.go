@@ -496,19 +496,6 @@ const RoleSpecSchemaTemplate = `{
   }
 }`
 
-const RoleSchemaTemplate = `{
-  "type": "object",
-  "additionalProperties": false,
-  "default": {},
-  "required": ["kind", "spec", "metadata"],
-  "properties": {
-    "kind": {"type": "string"},
-    "version": {"type": "string", "default": "v1"},
-    "metadata": %v,
-    "spec": %v
-  }
-}`
-
 // GetRoleSchema returns role schema with optionally injected
 // schema for extensions
 func GetRoleSchema(extensionSchema string) string {
@@ -518,7 +505,7 @@ func GetRoleSchema(extensionSchema string) string {
 	} else {
 		roleSchema = fmt.Sprintf(RoleSpecSchemaTemplate, extensionSchema)
 	}
-	return fmt.Sprintf(RoleSchemaTemplate, MetadataSchema, roleSchema)
+	return fmt.Sprintf(V1SchemaTemplate, MetadataSchema, roleSchema)
 }
 
 // UnmarshalRoleResource unmarshals role from JSON or YAML,

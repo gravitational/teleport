@@ -39,6 +39,8 @@ type User interface {
 	SetCreatedBy(CreatedBy)
 	// Check checks basic user parameters for errors
 	Check() error
+	// GetRawObject returns raw object data, used for migrations
+	GetRawObject() interface{}
 }
 
 // ConnectorRef holds information about OIDC connector
@@ -137,84 +139,6 @@ func (la *LoginAttempt) Check() error {
 	return nil
 }
 
-var userMarshaler UserMarshaler = &TeleportUserMarshaler{}
-
-// SetUserMarshaler sets global user marshaler
-func SetUserMarshaler(u UserMarshaler) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	userMarshaler = u
-}
-
-// GetUserMarshaler returns currently set user marshaler
-func GetUserMarshaler() UserMarshaler {
-	marshalerMutex.RLock()
-	defer marshalerMutex.RUnlock()
-	return userMarshaler
-}
-
-// UserMarshaler implements marshal/unmarshal of User implementations
-// mostly adds support for extended versions
-type UserMarshaler interface {
-	// UnmarshalUser from binary representation
-	UnmarshalUser(bytes []byte) (User, error)
-	// MarshalUser to binary representation
-	MarshalUser(u User) ([]byte, error)
-	// GenerateUser generates new user based on standard teleport user
-	// it gives external implementations to add more app-specific
-	// data to the user
-	GenerateUser(User) (User, error)
-}
-
-// GetRoleSchema returns role schema with optionally injected
-// schema for extensions
-func GetUserSchema(extensionSchema string) string {
-	var userSchema string
-	if extensionSchema == "" {
-		userSchema = fmt.Sprintf(UserSpecV1SchemaTemplate, OIDCIDentitySchema, LoginStatusSchema, CreatedBySchema, `, {"type": "object"}`)
-	} else {
-		userSchema = fmt.Sprintf(UserSpecV1SchemaTemplate, OIDCIDentitySchema, LoginStatusSchema, CreatedBySchema, ", "+extensionSchema)
-	}
-	return fmt.Sprintf(UserV1SchemaTemplate, MetadataSchema, userSchema)
-}
-
-type TeleportUserMarshaler struct{}
-
-// UnmarshalUser unmarshals user from JSON
-func (*TeleportUserMarshaler) UnmarshalUser(bytes []byte) (User, error) {
-	var h ResourceHeader
-	err := json.Unmarshal(bytes, &h)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch h.Version {
-	case "":
-		var u UserV0
-		err := json.Unmarshal(bytes, &u)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return u.UserV1(), nil
-	case V1:
-		var u UserV1
-		if err := utils.UnmarshalWithSchema(GetUserSchema(""), &u, bytes); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	}
-
-	return nil, trace.BadParameter("user resource version %v is not supported", h.Version)
-}
-
-// GenerateUser generates new user
-func (*TeleportUserMarshaler) GenerateUser(in User) (User, error) {
-	return in, nil
-}
-
-// MarshalUser marshalls user into JSON
-func (*TeleportUserMarshaler) MarshalUser(u User) ([]byte, error) {
-	return json.Marshal(u)
-}
-
 // UserV1 is version1 resource spec of the user
 type UserV1 struct {
 	// Kind is a resource kind
@@ -225,20 +149,9 @@ type UserV1 struct {
 	Metadata Metadata `json:"metadata"`
 	// Spec contains user specification
 	Spec UserSpecV1 `json:"spec"`
+	// rawObject contains raw object representation
+	rawObject interface{}
 }
-
-// UserV1SchemaTemplate is a template JSON Schema for user
-const UserV1SchemaTemplate = `{
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["kind", "spec", "metadata", "version"],
-  "properties": {
-    "kind": {"type": "string"},
-    "version": {"type": "string", "default": "v1"},
-    "metadata": %v,
-    "spec": %v
-  }
-}`
 
 // UserSpecV1 is a specification for V1 user
 type UserSpecV1 struct {
@@ -279,6 +192,11 @@ const UserSpecV1SchemaTemplate = `{
     "created_by": %v%v
   }
 }`
+
+// GetObject returns raw object data, used for migrations
+func (u *UserV1) GetRawObject() interface{} {
+	return u.rawObject
+}
 
 // SetCreatedBy sets created by information
 func (u *UserV1) SetCreatedBy(b CreatedBy) {
@@ -348,7 +266,7 @@ func (u *UserV1) GetName() string {
 }
 
 func (u *UserV1) String() string {
-	return fmt.Sprintf("User(name=%v, allowed_logins=%v, identities=%v)", u.Metadata.Name, u.Spec.AllowedLogins, u.Spec.OIDCIdentities)
+	return fmt.Sprintf("User(name=%v, roles=%v, identities=%v)", u.Metadata.Name, u.Spec.Roles, u.Spec.OIDCIdentities)
 }
 
 func (u *UserV1) SetLocked(until time.Time, reason string) {
@@ -361,16 +279,6 @@ func (u *UserV1) SetLocked(until time.Time, reason string) {
 func (u *UserV1) Check() error {
 	if !cstrings.IsValidUnixUser(u.Metadata.Name) {
 		return trace.BadParameter("'%v' is not a valid user name", u.Metadata.Name)
-	}
-	for _, l := range u.Spec.AllowedLogins {
-		if !cstrings.IsValidUnixUser(l) {
-			return trace.BadParameter("'%v is not a valid unix username'", l)
-		}
-	}
-	for _, login := range u.Spec.AllowedLogins {
-		if !cstrings.IsValidUnixUser(login) {
-			return trace.BadParameter("'%v' is not a valid user name", login)
-		}
 	}
 	for _, id := range u.Spec.OIDCIdentities {
 		if err := id.Check(); err != nil {
@@ -406,8 +314,8 @@ type UserV0 struct {
 	CreatedBy CreatedBy `json:"created_by"`
 }
 
-// UserV1 converts UserV0 to UserV1 format
-func (u *UserV0) UserV1() *UserV1 {
+//V1 converts UserV0 to UserV1 format
+func (u *UserV0) V1() *UserV1 {
 	return &UserV1{
 		Kind:    KindUser,
 		Version: V1,
@@ -415,12 +323,90 @@ func (u *UserV0) UserV1() *UserV1 {
 			Name: u.Name,
 		},
 		Spec: UserSpecV1{
-			AllowedLogins:  u.AllowedLogins,
 			OIDCIdentities: u.OIDCIdentities,
 			Roles:          u.Roles,
 			Status:         u.Status,
 			Expires:        u.Expires,
 			CreatedBy:      u.CreatedBy,
 		},
+		rawObject: *u,
 	}
+}
+
+var userMarshaler UserMarshaler = &TeleportUserMarshaler{}
+
+// SetUserMarshaler sets global user marshaler
+func SetUserMarshaler(u UserMarshaler) {
+	marshalerMutex.Lock()
+	defer marshalerMutex.Unlock()
+	userMarshaler = u
+}
+
+// GetUserMarshaler returns currently set user marshaler
+func GetUserMarshaler() UserMarshaler {
+	marshalerMutex.RLock()
+	defer marshalerMutex.RUnlock()
+	return userMarshaler
+}
+
+// UserMarshaler implements marshal/unmarshal of User implementations
+// mostly adds support for extended versions
+type UserMarshaler interface {
+	// UnmarshalUser from binary representation
+	UnmarshalUser(bytes []byte) (User, error)
+	// MarshalUser to binary representation
+	MarshalUser(u User) ([]byte, error)
+	// GenerateUser generates new user based on standard teleport user
+	// it gives external implementations to add more app-specific
+	// data to the user
+	GenerateUser(User) (User, error)
+}
+
+// GetRoleSchema returns role schema with optionally injected
+// schema for extensions
+func GetUserSchema(extensionSchema string) string {
+	var userSchema string
+	if extensionSchema == "" {
+		userSchema = fmt.Sprintf(UserSpecV1SchemaTemplate, OIDCIDentitySchema, LoginStatusSchema, CreatedBySchema, `, {"type": "object"}`)
+	} else {
+		userSchema = fmt.Sprintf(UserSpecV1SchemaTemplate, OIDCIDentitySchema, LoginStatusSchema, CreatedBySchema, ", "+extensionSchema)
+	}
+	return fmt.Sprintf(V1SchemaTemplate, MetadataSchema, userSchema)
+}
+
+type TeleportUserMarshaler struct{}
+
+// UnmarshalUser unmarshals user from JSON
+func (*TeleportUserMarshaler) UnmarshalUser(bytes []byte) (User, error) {
+	var h ResourceHeader
+	err := json.Unmarshal(bytes, &h)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch h.Version {
+	case "":
+		var u UserV0
+		err := json.Unmarshal(bytes, &u)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return u.V1(), nil
+	case V1:
+		var u UserV1
+		if err := utils.UnmarshalWithSchema(GetUserSchema(""), &u, bytes); err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+	}
+
+	return nil, trace.BadParameter("user resource version %v is not supported", h.Version)
+}
+
+// GenerateUser generates new user
+func (*TeleportUserMarshaler) GenerateUser(in User) (User, error) {
+	return in, nil
+}
+
+// MarshalUser marshalls user into JSON
+func (*TeleportUserMarshaler) MarshalUser(u User) ([]byte, error) {
+	return json.Marshal(u)
 }

@@ -81,6 +81,20 @@ const (
 // marshalerMutex is a mutex for resource marshalers/unmarshalers
 var marshalerMutex sync.RWMutex
 
+// V1SchemaTemplate is a template JSON Schema for V1 style objects
+const V1SchemaTemplate = `{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "spec", "metadata", "version"],
+  "properties": {
+    "kind": {"type": "string"},
+    "version": {"type": "string", "default": "v1"},
+    "metadata": %v,
+    "spec": %v
+  }
+}`
+
+// MetadataSchema is a schema for resource metadata
 const MetadataSchema = `{
   "type": "object",
   "additionalProperties": false,

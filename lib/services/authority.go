@@ -1,9 +1,13 @@
 package services
 
 import (
-	"golang.org/x/crypto/ssh"
+	"encoding/json"
+	"fmt"
+
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 // CertAuthority is a host or user certificate authority that
@@ -22,6 +26,8 @@ type CertAuthority interface {
 	GetRoles()
 	// FirstSigningKey returns first signing key or returns error if it's not here
 	FirstSigningKey() ([]byte, error)
+	// GetRawObject returns raw object data, used for migrations
+	GetRawObject() interface{}
 }
 
 // CertAuthorityV1 is version 1 resource spec for Cert Authority
@@ -34,20 +40,10 @@ type CertAuthorityV1 struct {
 	Metadata Metadata `json:"metadata"`
 	// Spec contains cert authority specification
 	Spec CertAuthoritySpecV1 `json:"spec"`
+	// rawObject is object that is raw object stored in DB
+	// without any migrations applied, used in migrations
+	rawObject interface{}
 }
-
-// CertAuthorityV1SchemaTemplate is a template JSON Schema for cert authority
-const CertAuthorityV1SchemaTemplate = `{
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["kind", "spec", "metadata", "version"],
-  "properties": {
-    "kind": {"type": "string"},
-    "version": {"type": "string", "default": "v1"},
-    "metadata": %v,
-    "spec": %v
-  }
-}`
 
 // FirstSigningKey returns first signing key or returns error if it's not here
 func (ca *CertAuthorityV1) FirstSigningKey() ([]byte, error) {
@@ -124,8 +120,8 @@ type CertAuthoritySpecV1 struct {
 	Roles []string `json:"roles"`
 }
 
-// CertAuthoritySpecV1SchemaTemplate is JSON schema for
-const CertAuthoritySpecV1SchemaTemplate = `{
+// CertAuthoritySpecV1Schema is JSON schema for cert authority V1
+const CertAuthoritySpecV1Schema = `{
   "type": "object",
   "additionalProperties": false,
   "required": ["type", "cluster_name", "checking_keys", "signing_keys"],
@@ -172,4 +168,88 @@ type CertAuthorityV0 struct {
 	// AllowedLogins is a list of allowed logins for users within
 	// this certificate authority
 	AllowedLogins []string `json:"allowed_logins"`
+}
+
+func (c *CertAuthorityV0) V1() *CertAuthorityV1 {
+	return &CertAuthorityV1{
+		Kind:    KindCertAuthority,
+		Version: V1,
+		Metadata: Metadata{
+			Name: u.Name,
+		},
+		Spec: CertAuthoritySpecV1{
+			Type:         c.Type,
+			ClusterName:  c.DomainName,
+			Roles:        c.Roles,
+			CheckingKeys: c.CheckingKeys,
+			SigningKeys:  c.SigningKeys,
+		},
+		rawObject: *c,
+	}
+}
+
+var certAuthorityMarshaler CertAuthorityMarshaler = &TeleportCertAuthorityMarshaler{}
+
+// SetCertAuthorityMarshaler sets global user marshaler
+func SetCertAuthorityMarshaler(u CertAuthorityMarshaler) {
+	marshalerMutex.Lock()
+	defer marshalerMutex.Unlock()
+	certAuthorityMarshaler = u
+}
+
+// GetCertAuthorityMarshaler returns currently set user marshaler
+func GetCertAuthorityMarshaler() CertAuthorityMarshaler {
+	marshalerMutex.RLock()
+	defer marshalerMutex.RUnlock()
+	return certAuthorityMarshaler
+}
+
+// CertAuthorityMarshaler implements marshal/unmarshal of User implementations
+// mostly adds support for extended versions
+type CertAuthorityMarshaler interface {
+	// UnmarshalCertAuthority unmarhsals cert authority from binary representation
+	UnmarshalCertauthority(bytes []byte) (CertAuthority, error)
+	// MarshalCertAuthority to binary representation
+	MarshalCertAuthority(c CertAuthority) ([]byte, error)
+	// GenerateUser generates new user based on standard teleport user
+	// it gives external implementations to add more app-specific
+	// data to the user
+	GenerateUser(User) (User, error)
+}
+
+// GetCertAuthoritySchema returns JSON Schema for cert authorities
+func GetCertAuthoritySchema() string {
+	return fmt.Sprintf(V1SchemaTemplate, MetadataSchema, CertAuthoritySpecV1Schema)
+}
+
+type TeleportCertAuthorityMarshaler struct{}
+
+// UnmarshalUser unmarshals user from JSON
+func (*TeleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte) (User, error) {
+	var h ResourceHeader
+	err := json.Unmarshal(bytes, &h)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch h.Version {
+	case "":
+		var ca CertAuthorityV0
+		err := json.Unmarshal(bytes, &ca)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ca.V1(), nil
+	case V1:
+		var ca CertAuthorityV1
+		if err := utils.UnmarshalWithSchema(GetCertAuthoritySchema(), &ca, bytes); err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+	}
+
+	return nil, trace.BadParameter("user resource version %v is not supported", h.Version)
+}
+
+// MarshalUser marshalls cert authority into JSON
+func (*TeleportCertAuthorityMarshaler) MarshalCertAuthority(ca CertAuthority) ([]byte, error) {
+	return json.Marshal(u)
 }
