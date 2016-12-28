@@ -130,14 +130,8 @@ func (cfg *Config) ApplyToken(token string) bool {
 // ConfigureBolt configures Bolt back-ends with a data dir.
 func (cfg *Config) ConfigureBolt() {
 	a := &cfg.Auth
-	if a.EventsBackend.Type == teleport.BoltBackendType {
-		a.EventsBackend.Params = boltParams(cfg.DataDir, defaults.EventsBoltFile)
-	}
 	if a.KeysBackend.Type == teleport.BoltBackendType {
 		a.KeysBackend.Params = boltParams(cfg.DataDir, defaults.KeysBoltFile)
-	}
-	if a.RecordsBackend.Type == teleport.BoltBackendType {
-		a.RecordsBackend.Params = boltParams(cfg.DataDir, defaults.RecordsBoltFile)
 	}
 }
 
@@ -151,13 +145,6 @@ func (cfg *Config) ConfigureETCD(etcdCfg etcdbk.Config) error {
 	}
 	a.KeysBackend.Type = teleport.ETCDBackendType
 	a.KeysBackend.Params = params
-
-	// We can't store records and events in ETCD
-	a.EventsBackend.Type = teleport.BoltBackendType
-	a.EventsBackend.Params = boltParams(cfg.DataDir, defaults.EventsBoltFile)
-
-	a.RecordsBackend.Type = teleport.BoltBackendType
-	a.RecordsBackend.Params = boltParams(cfg.DataDir, defaults.RecordsBoltFile)
 	return nil
 }
 
@@ -245,22 +232,6 @@ type AuthConfig struct {
 		BackendConf *backend.Config
 	}
 
-	// EventsBackend configures backend that stores cluster events (login attempts, etc)
-	EventsBackend struct {
-		// Type is a backend type, etcd or bolt
-		Type string
-		// Params is map with backend specific parameters
-		Params string
-	}
-
-	// RecordsBackend configures backend that stores live SSH sessions recordings
-	RecordsBackend struct {
-		// Type is a backend type, currently only bolt
-		Type string
-		// Params is map with backend specific parameters
-		Params string
-	}
-
 	Limiter limiter.LimiterConfig
 
 	// NoAudit, when set to true, disables session recording and event audit
@@ -299,12 +270,8 @@ func ApplyDefaults(cfg *Config) {
 	// defaults for the auth service:
 	cfg.Auth.Enabled = true
 	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
-	cfg.Auth.EventsBackend.Type = defaults.BackendType
-	cfg.Auth.EventsBackend.Params = boltParams(defaults.DataDir, defaults.EventsBoltFile)
 	cfg.Auth.KeysBackend.Type = defaults.BackendType
 	cfg.Auth.KeysBackend.Params = boltParams(defaults.DataDir, defaults.KeysBoltFile)
-	cfg.Auth.RecordsBackend.Type = defaults.BackendType
-	cfg.Auth.RecordsBackend.Params = boltParams(defaults.DataDir, defaults.RecordsBoltFile)
 	cfg.Auth.U2F.Enabled = false
 	cfg.Auth.U2F.AppID = fmt.Sprintf("https://%s:%d", strings.ToLower(hostname), defaults.HTTPListenPort)
 	cfg.Auth.U2F.Facets = []string{cfg.Auth.U2F.AppID}
