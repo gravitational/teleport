@@ -92,3 +92,72 @@ func (r *ReverseTunnelV0) V1() *ReverseTunnelV1 {
 		},
 	}
 }
+
+// GetTunnelSchema returns role schema with optionally injected
+// schema for extensions
+func GetTunnelSchema() string {
+	return fmt.Sprintf(V1SchemaTemplate, MetadataSchema, ReverseTunnelSpecV1Schema)
+}
+
+// UnmarshalReverseTunnel unmarshals reverse tunnel from JSON or YAML,
+// sets defaults and checks the schema
+func UnmarshalReverseTunnel(data []byte) (ReverseTunnel, error) {
+	if len(data) == 0 {
+		return nil, trace.BadParameter("missing tunnel data")
+	}
+	var h ResourceHeader
+	err := json.Unmarshal(bytes, &h)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch h.Version {
+	case "":
+		var r ReverseTunnelV0
+		err := json.Unmarshal(bytes, &r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return r.V1(), nil
+	case V1:
+		var r ReverseTunnelV1
+		if err := utils.UnmarshalWithSchema(GetReverseTunnelSchema(), &r, bytes); err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+		return s, nil
+	}
+	return nil, trace.BadParameter("server resource version %v is not supported", h.Version)
+}
+
+var tunnelMarshaler TunnelMarshaler = &TeleportTunnelMarshaler{}
+
+func SetTunnelMarshaler(m TunnelMarshaler) {
+	marshalerMutex.Lock()
+	defer marshalerMutex.Unlock()
+	tunnelMarshaler = m
+}
+
+func GetTunnelMarshaler() TunnelMarshaler {
+	marshalerMutex.Lock()
+	defer marshalerMutex.Unlock()
+	return tunnelMarshaler
+}
+
+// TunnelMarshaler implements marshal/unmarshal of reverse tunnel implementations
+type TunnelMarshaler interface {
+	// UnmarshalReverseTunnel unmarshals reverse tunnel from binary representation
+	UnmarshalReverseTunnel(bytes []byte) (ReverseTunnel, error)
+	// MarshalReverseTunnel marshals reverse tunnel to binary representation
+	MarshalReverseTunnel(ReverseTunnel) ([]byte, error)
+}
+
+type TeleportTunnelMarshaler struct{}
+
+// UnmarshalReverseTunnel unmarshals reverse tunnel from JSON or YAML
+func (*TeleportTunnelMarshaler) UnmarshalReverseTunnel(bytes []byte) (ReverseTunnel, error) {
+	return UnmarshalReverseTunnel(bytes)
+}
+
+// MarshalRole marshalls role into JSON
+func (*TeleportTunnelMarshaler) MarshalReverseTunnel(t ReverseTunnel) ([]byte, error) {
+	return json.Marshal(s)
+}

@@ -396,6 +396,7 @@ func (*TeleportUserMarshaler) UnmarshalUser(bytes []byte) (User, error) {
 		if err := utils.UnmarshalWithSchema(GetUserSchema(""), &u, bytes); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
+		return &u, nil
 	}
 
 	return nil, trace.BadParameter("user resource version %v is not supported", h.Version)

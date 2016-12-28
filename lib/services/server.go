@@ -132,8 +132,8 @@ type ServerSpecV1 struct {
 	CmdLabels map[string]CommandLabelV1 `json:"cmd_labels,omitempty"`
 }
 
-// ServerSpecV1SchemaTemplate is JSON schema for server
-const ServerSpecV1SchemaTemplate = `{
+// ServerSpecV1Schema is JSON schema for server
+const ServerSpecV1Schema = `{
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -257,4 +257,75 @@ func (c *CommandLabels) SetEnv(v string) error {
 		return trace.Wrap(err, "can not parse Command Labels")
 	}
 	return nil
+}
+
+// GetServerSchema returns role schema with optionally injected
+// schema for extensions
+func GetServerSchema() string {
+	return fmt.Sprintf(V1SchemaTemplate, MetadataSchema, ServerSpecV1Schema)
+}
+
+// UnmarshalServerResource unmarshals role from JSON or YAML,
+// sets defaults and checks the schema
+func UnmarshalServerResource(data []byte, kind string) (Server, error) {
+	if len(data) == 0 {
+		return nil, trace.BadParameter("missing server data")
+	}
+	var h ResourceHeader
+	err := json.Unmarshal(bytes, &h)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch h.Version {
+	case "":
+		var s ServerV0
+		err := json.Unmarshal(bytes, &s)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		s.Kind = kind
+		return s.V1(), nil
+	case V1:
+		var s ServerV1
+		if err := utils.UnmarshalWithSchema(GetServerSchema(), &s, bytes); err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+		return s, nil
+	}
+	return nil, trace.BadParameter("server resource version %v is not supported", h.Version)
+}
+
+var serverMarshaler ServerMarshaler = &TeleportServerMarshaler{}
+
+func SetServerMarshaler(m ServerMarshaler) {
+	marshalerMutex.Lock()
+	defer marshalerMutex.Unlock()
+	serverMarshaler = m
+}
+
+func GetServerMarshaler() ServerMarshaler {
+	marshalerMutex.Lock()
+	defer marshalerMutex.Unlock()
+	return serverMarshaler
+}
+
+// ServerMarshaler implements marshal/unmarshal of Role implementations
+// mostly adds support for extended versions
+type ServerMarshaler interface {
+	// UnmarshalServer from binary representation
+	UnmarshalServer(bytes []byte, kind string) (Server, error)
+	// MarshalServer to binary representation
+	MarshalServer(Server) ([]byte, error)
+}
+
+type TeleportServerMarshaler struct{}
+
+// UnmarshalServer unmarshals server from JSON
+func (*TeleportServerMarshaler) UnmarshalServer(bytes []byte, kind string) (Server, error) {
+	return UnmarshalServerResource(bytes, kind)
+}
+
+// MarshalRole marshalls role into JSON
+func (*TeleportServerMarshaler) MarshalServer(s Server) ([]byte, error) {
+	return json.Marshal(s)
 }
