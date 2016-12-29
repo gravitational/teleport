@@ -187,33 +187,46 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 	})
 }
 
-type upsertServerReq struct {
-	Server services.Server `json:"server"`
+type upsertServerRawReq struct {
+	Server json.RawMessage `json:"server"`
 	TTL    time.Duration   `json:"ttl"`
 }
 
 // upsertServer is a common utility function
 func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req upsertServerReq
+	var req upsertServerRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var kind string
+	switch role {
+	case teleport.RoleNode:
+		kind = services.KindNode
+	case teleport.RoleAuth:
+		kind = services.KindAuthServer
+	case teleport.RoleProxy:
+		kind = services.KindProxy
+	}
+	server, err := services.GetServerMarshaler().UnmarshalServer(req.Server, kind)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// if server sent "local" IP address to us, replace the ip/host part with the remote address we see
 	// on the socket, but keep the original port:
-	req.Server.Addr = utils.ReplaceLocalhost(req.Server.Addr, r.RemoteAddr)
+	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), r.RemoteAddr))
 
 	switch role {
 	case teleport.RoleNode:
-		req.Server.Namespace = p.ByName("namespace")
-		if err := auth.UpsertNode(req.Server, req.TTL); err != nil {
+		server.SetNamespace(p.ByName("namespace"))
+		if err := auth.UpsertNode(server, req.TTL); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case teleport.RoleAuth:
-		if err := auth.UpsertAuthServer(req.Server, req.TTL); err != nil {
+		if err := auth.UpsertAuthServer(server, req.TTL); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case teleport.RoleProxy:
-		if err := auth.UpsertProxy(req.Server, req.TTL); err != nil {
+		if err := auth.UpsertProxy(server, req.TTL); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -231,7 +244,7 @@ func (s *APIServer) getNodes(auth ClientI, w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return servers, nil
+	return marshalServers(servers)
 }
 
 // upsertProxy is called by remote SSH nodes when they ping back into the auth service
@@ -245,7 +258,7 @@ func (s *APIServer) getProxies(auth ClientI, w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return servers, nil
+	return marshalServers(servers)
 }
 
 // upsertAuthServer is called by remote Auth servers when they ping back into the auth service
@@ -259,21 +272,37 @@ func (s *APIServer) getAuthServers(auth ClientI, w http.ResponseWriter, r *http.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return servers, nil
+	return marshalServers(servers)
 }
 
-type upsertReverseTunnelReq struct {
-	ReverseTunnel services.ReverseTunnel `json:"reverse_tunnel"`
-	TTL           time.Duration          `json:"ttl"`
+func marshalServers(servers []services.Server) (interface{}, error) {
+	items := make([]json.RawMessage, len(servers))
+	for i, server := range servers {
+		data, err := services.GetServerMarshaler().MarshalServer(server)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		items[i] = data
+	}
+	return items, nil
+}
+
+type upsertReverseTunnelRawReq struct {
+	ReverseTunnel json.RawMessage `json:"reverse_tunnel"`
+	TTL           time.Duration   `json:"ttl"`
 }
 
 // upsertReverseTunnel is called by admin to create a reverse tunnel to remote proxy
 func (s *APIServer) upsertReverseTunnel(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req upsertReverseTunnelReq
+	var req upsertReverseTunnelRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.UpsertReverseTunnel(req.ReverseTunnel, req.TTL); err != nil {
+	tun, err := services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(req.ReverseTunnel)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.UpsertReverseTunnel(tun, req.TTL); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -285,7 +314,15 @@ func (s *APIServer) getReverseTunnels(auth ClientI, w http.ResponseWriter, r *ht
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return reverseTunnels, nil
+	items := make([]json.RawMessage, len(reverseTunnels))
+	for i, tunnel := range reverseTunnels {
+		data, err := services.GetReverseTunnelMarshaler().MarshalReverseTunnel(tunnel)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		items[i] = data
+	}
+	return items, nil
 }
 
 // deleteReverseTunnel deletes reverse tunnel
@@ -429,16 +466,12 @@ func (s *APIServer) upsertPassword(auth ClientI, w http.ResponseWriter, r *http.
 	return &upsertPasswordResponse{HotpURL: hotpURL, HotpQR: hotpQR}, nil
 }
 
-type upsertUserReq struct {
-	User services.User `json:"user"`
-}
-
-type upsertUserReqRaw struct {
+type upsertUserRawReq struct {
 	User json.RawMessage `json:"user"`
 }
 
 func (s *APIServer) upsertUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *upsertUserReqRaw
+	var req *upsertUserRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -475,7 +508,7 @@ func (s *APIServer) getUser(auth ClientI, w http.ResponseWriter, r *http.Request
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return user, nil
+	return services.GetUserMarshaler().MarshalUser(user)
 }
 
 func (s *APIServer) getUsers(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -606,17 +639,21 @@ func (s *APIServer) registerNewAuthServer(auth ClientI, w http.ResponseWriter, r
 	return message("ok"), nil
 }
 
-type upsertCertAuthorityReq struct {
-	CA  services.CertAuthority `json:"ca"`
-	TTL time.Duration          `json:"ttl"`
+type upsertCertAuthorityRawReq struct {
+	CA  json.RawMessage `json:"ca"`
+	TTL time.Duration   `json:"ttl"`
 }
 
 func (s *APIServer) upsertCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *upsertCertAuthorityReq
+	var req *upsertCertAuthorityRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.UpsertCertAuthority(req.CA, req.TTL); err != nil {
+	ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(req.CA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.UpsertCertAuthority(ca, req.TTL); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -631,7 +668,15 @@ func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return certs, nil
+	items := make([]json.RawMessage, len(certs))
+	for i, cert := range certs {
+		data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(cert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		items[i] = data
+	}
+	return items, nil
 }
 
 func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -647,7 +692,7 @@ func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ca, nil
+	return services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
 }
 
 func (s *APIServer) getDomainName(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -825,17 +870,21 @@ func (s *APIServer) createUserWithU2FToken(auth ClientI, w http.ResponseWriter, 
 	return sess, nil
 }
 
-type upsertOIDCConnectorReq struct {
-	Connector services.OIDCConnector `json:"connector"`
-	TTL       time.Duration          `json:"ttl"`
+type upsertOIDCConnectorRawReq struct {
+	Connector json.RawMessage `json:"connector"`
+	TTL       time.Duration   `json:"ttl"`
 }
 
 func (s *APIServer) upsertOIDCConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *upsertOIDCConnectorReq
+	var req *upsertOIDCConnectorRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err := auth.UpsertOIDCConnector(req.Connector, req.TTL)
+	connector, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(req.Connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = auth.UpsertOIDCConnector(connector, req.TTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -851,7 +900,7 @@ func (s *APIServer) getOIDCConnector(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return connector, nil
+	return services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector)
 }
 
 func (s *APIServer) deleteOIDCConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -871,7 +920,15 @@ func (s *APIServer) getOIDCConnectors(auth ClientI, w http.ResponseWriter, r *ht
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return connectors, nil
+	items := make([]json.RawMessage, len(connectors))
+	for i, connector := range connectors {
+		data, err := services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		items[i] = data
+	}
+	return items, nil
 }
 
 type createOIDCAuthRequestReq struct {
@@ -1066,16 +1123,12 @@ func (s *APIServer) deleteNamespace(auth ClientI, w http.ResponseWriter, r *http
 	return message("ok"), nil
 }
 
-type upsertRoleReq struct {
-	Role services.Role `json:"role"`
-}
-
-type upsertRoleReqRaw struct {
+type upsertRoleRawReq struct {
 	Role json.RawMessage `json:"role"`
 }
 
 func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *upsertRoleReqRaw
+	var req *upsertRoleRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1095,7 +1148,7 @@ func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return role, nil
+	return services.GetRoleMarshaler().MarshalRole(role)
 }
 
 func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -1103,7 +1156,14 @@ func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return roles, nil
+	out := make(json.RawMessage, len(roles))
+	for i, role := range roles {
+		raw, err := services.GetRoleMarshaler().MarshalRole(role)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return out, nil
 }
 
 func (s *APIServer) deleteRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {

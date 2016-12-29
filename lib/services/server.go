@@ -29,6 +29,10 @@ type Server interface {
 	GetCmdLabels() map[string]CommandLabel
 	// String returns string representation of the server
 	String() string
+	// SetAddr sets server address
+	SetAddr(addr string)
+	// SetNamespace sets server namespace
+	SetNamespace(namespace string)
 }
 
 // ServerV1 is version1 resource spec of the server
@@ -41,6 +45,16 @@ type ServerV1 struct {
 	Metadata Metadata `json:"metadata"`
 	// Spec contains user specification
 	Spec ServerSpecV1 `json:"spec"`
+}
+
+// SetNamespace sets server namespace
+func (s *ServerV1) SetNamespace(namespace string) {
+	s.Metadata.Namespace = namespace
+}
+
+// SetAddr sets server address
+func (s *ServerV1) SetAddr(addr string) {
+	s.Spec.Addr = addr
 }
 
 // GetName returns server name

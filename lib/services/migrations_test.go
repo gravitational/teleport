@@ -48,7 +48,7 @@ func (s *MigrationsSuite) TestMigrateServers(c *C) {
 	}
 
 	out := in.V1()
-	c.Assert(out, DeepEquals, &ServerV1{
+	expected := &ServerV1{
 		Kind:    KindNode,
 		Version: V1,
 		Metadata: Metadata{
@@ -61,13 +61,21 @@ func (s *MigrationsSuite) TestMigrateServers(c *C) {
 			Hostname:  in.Hostname,
 			CmdLabels: map[string]CommandLabelV1{"o": CommandLabelV1{Command: []string{"ls", "-l"}, Period: NewDuration(time.Second)}},
 		},
-	})
+	}
+	c.Assert(out, DeepEquals, expected)
 
 	data, err := json.Marshal(in)
 	c.Assert(err, IsNil)
 	out2, err := GetServerMarshaler().UnmarshalServer(data, KindNode)
 	c.Assert(err, IsNil)
 	c.Assert(out2, DeepEquals, out)
+
+	data, err = GetServerMarshaler().MarshalServer(expected)
+	c.Assert(err, IsNil)
+
+	out3, err := GetServerMarshaler().UnmarshalServer(data, KindNode)
+	c.Assert(err, IsNil)
+	c.Assert(out3, DeepEquals, expected)
 }
 
 func (s *MigrationsSuite) TestMigrateUsers(c *C) {
