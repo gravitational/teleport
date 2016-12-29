@@ -152,7 +152,7 @@ func (a *AuthWithRoles) RegisterNewAuthServer(token string) error {
 }
 
 func (a *AuthWithRoles) UpsertNode(s services.Server, ttl time.Duration) error {
-	if err := a.action(s.Namespace, services.KindNode, services.ActionWrite); err != nil {
+	if err := a.action(s.GetNamespace(), services.KindNode, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertNode(s, ttl)

@@ -38,8 +38,8 @@ type CertAuthority interface {
 	SetSigningKeys([][]byte) error
 }
 
-// CertAuthorityV1 is version 1 resource spec for Cert Authority
-type CertAuthorityV1 struct {
+// CertAuthorityV2 is version 1 resource spec for Cert Authority
+type CertAuthorityV2 struct {
 	// Kind is a resource kind
 	Kind string `json:"kind"`
 	// Version is version
@@ -47,57 +47,57 @@ type CertAuthorityV1 struct {
 	// Metadata is connector metadata
 	Metadata Metadata `json:"metadata"`
 	// Spec contains cert authority specification
-	Spec CertAuthoritySpecV1 `json:"spec"`
+	Spec CertAuthoritySpecV2 `json:"spec"`
 	// rawObject is object that is raw object stored in DB
 	// without any conversions applied, used in migrations
 	rawObject interface{}
 }
 
 // SetSigningKeys sets signing keys
-func (ca *CertAuthorityV1) SetSigningKeys(keys [][]byte) error {
+func (ca *CertAuthorityV2) SetSigningKeys(keys [][]byte) error {
 	ca.Spec.SigningKeys = keys
 	return nil
 }
 
 // GetID returns certificate authority ID -
 // combined type and name
-func (ca *CertAuthorityV1) GetID() CertAuthID {
+func (ca *CertAuthorityV2) GetID() CertAuthID {
 	return CertAuthID{Type: ca.Spec.Type, DomainName: ca.Metadata.Name}
 }
 
 // GetName returns cert authority name
-func (ca *CertAuthorityV1) GetName() string {
+func (ca *CertAuthorityV2) GetName() string {
 	return ca.Metadata.Name
 }
 
 // GetType returns user or host certificate authority
-func (ca *CertAuthorityV1) GetType() CertAuthType {
+func (ca *CertAuthorityV2) GetType() CertAuthType {
 	return ca.Spec.Type
 }
 
 // GetClusterName returns cluster name this cert authority
 // is associated with
-func (ca *CertAuthorityV1) GetClusterName() string {
+func (ca *CertAuthorityV2) GetClusterName() string {
 	return ca.Spec.ClusterName
 }
 
 // GetCheckingKeys returns public keys to check signature
-func (ca *CertAuthorityV1) GetCheckingKeys() [][]byte {
+func (ca *CertAuthorityV2) GetCheckingKeys() [][]byte {
 	return ca.Spec.CheckingKeys
 }
 
 // GetRoles returns a list of roles assumed by users signed by this CA
-func (ca *CertAuthorityV1) GetRoles() []string {
+func (ca *CertAuthorityV2) GetRoles() []string {
 	return ca.Spec.Roles
 }
 
 // GetRawObject returns raw object data, used for migrations
-func (ca *CertAuthorityV1) GetRawObject() interface{} {
+func (ca *CertAuthorityV2) GetRawObject() interface{} {
 	return ca.rawObject
 }
 
 // FirstSigningKey returns first signing key or returns error if it's not here
-func (ca *CertAuthorityV1) FirstSigningKey() ([]byte, error) {
+func (ca *CertAuthorityV2) FirstSigningKey() ([]byte, error) {
 	if len(ca.Spec.SigningKeys) == 0 {
 		return nil, trace.NotFound("%v has no signing keys", ca.Metadata.Name)
 	}
@@ -106,12 +106,12 @@ func (ca *CertAuthorityV1) FirstSigningKey() ([]byte, error) {
 
 // ID returns id (consisting of domain name and type) that
 // identifies the authority this key belongs to
-func (ca *CertAuthorityV1) ID() *CertAuthID {
+func (ca *CertAuthorityV2) ID() *CertAuthID {
 	return &CertAuthID{DomainName: ca.Spec.ClusterName, Type: ca.Spec.Type}
 }
 
 // Checkers returns public keys that can be used to check cert authorities
-func (ca *CertAuthorityV1) Checkers() ([]ssh.PublicKey, error) {
+func (ca *CertAuthorityV2) Checkers() ([]ssh.PublicKey, error) {
 	out := make([]ssh.PublicKey, 0, len(ca.Spec.CheckingKeys))
 	for _, keyBytes := range ca.Spec.CheckingKeys {
 		key, _, _, _, err := ssh.ParseAuthorizedKey(keyBytes)
@@ -124,7 +124,7 @@ func (ca *CertAuthorityV1) Checkers() ([]ssh.PublicKey, error) {
 }
 
 // Signers returns a list of signers that could be used to sign keys
-func (ca *CertAuthorityV1) Signers() ([]ssh.Signer, error) {
+func (ca *CertAuthorityV2) Signers() ([]ssh.Signer, error) {
 	out := make([]ssh.Signer, 0, len(ca.Spec.SigningKeys))
 	for _, keyBytes := range ca.Spec.SigningKeys {
 		signer, err := ssh.ParsePrivateKey(keyBytes)
@@ -137,7 +137,7 @@ func (ca *CertAuthorityV1) Signers() ([]ssh.Signer, error) {
 }
 
 // Check checks if all passed parameters are valid
-func (ca *CertAuthorityV1) Check() error {
+func (ca *CertAuthorityV2) Check() error {
 	err := ca.ID().Check()
 	if err != nil {
 		return trace.Wrap(err)
@@ -153,9 +153,9 @@ func (ca *CertAuthorityV1) Check() error {
 	return nil
 }
 
-// CertAuthoritySpecV1 is a host or user certificate authority that
+// CertAuthoritySpecV2 is a host or user certificate authority that
 // can check and if it has private key stored as well, sign it too
-type CertAuthoritySpecV1 struct {
+type CertAuthoritySpecV2 struct {
 	// Type is either user or host certificate authority
 	Type CertAuthType `json:"type"`
 	// ClusterName identifies cluster name this authority serves,
@@ -171,8 +171,8 @@ type CertAuthoritySpecV1 struct {
 	Roles []string `json:"roles,omitempty"`
 }
 
-// CertAuthoritySpecV1Schema is JSON schema for cert authority V1
-const CertAuthoritySpecV1Schema = `{
+// CertAuthoritySpecV2Schema is JSON schema for cert authority V2
+const CertAuthoritySpecV2Schema = `{
   "type": "object",
   "additionalProperties": false,
   "required": ["type", "cluster_name", "checking_keys", "signing_keys"],
@@ -219,15 +219,15 @@ type CertAuthorityV0 struct {
 	AllowedLogins []string `json:"allowed_logins"`
 }
 
-func (c *CertAuthorityV0) V1() *CertAuthorityV1 {
-	return &CertAuthorityV1{
+func (c *CertAuthorityV0) V2() *CertAuthorityV2 {
+	return &CertAuthorityV2{
 		Kind:    KindCertAuthority,
-		Version: V1,
+		Version: V2,
 		Metadata: Metadata{
 			Name:      c.DomainName,
 			Namespace: defaults.Namespace,
 		},
-		Spec: CertAuthoritySpecV1{
+		Spec: CertAuthoritySpecV2{
 			Type:         c.Type,
 			ClusterName:  c.DomainName,
 			CheckingKeys: c.CheckingKeys,
@@ -264,7 +264,7 @@ type CertAuthorityMarshaler interface {
 
 // GetCertAuthoritySchema returns JSON Schema for cert authorities
 func GetCertAuthoritySchema() string {
-	return fmt.Sprintf(V1SchemaTemplate, MetadataSchema, CertAuthoritySpecV1Schema)
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, CertAuthoritySpecV2Schema)
 }
 
 type TeleportCertAuthorityMarshaler struct{}
@@ -283,9 +283,9 @@ func (*TeleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte) (Cer
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return ca.V1(), nil
-	case V1:
-		var ca CertAuthorityV1
+		return ca.V2(), nil
+	case V2:
+		var ca CertAuthorityV2
 		if err := utils.UnmarshalWithSchema(GetCertAuthoritySchema(), &ca, bytes); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}

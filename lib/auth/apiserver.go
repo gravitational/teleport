@@ -59,98 +59,98 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.Router = *httprouter.New()
 
 	// Operations on certificate authorities
-	srv.GET("/v1/domain", srv.withAuth(srv.getDomainName))
-	srv.POST("/v1/authorities/:type", srv.withAuth(srv.upsertCertAuthority))
-	srv.DELETE("/v1/authorities/:type/:domain", srv.withAuth(srv.deleteCertAuthority))
-	srv.GET("/v1/authorities/:type/:domain", srv.withAuth(srv.getCertAuthority))
-	srv.GET("/v1/authorities/:type", srv.withAuth(srv.getCertAuthorities))
+	srv.GET("/:version/domain", srv.withAuth(srv.getDomainName))
+	srv.POST("/:version/authorities/:type", srv.withAuth(srv.upsertCertAuthority))
+	srv.DELETE("/:version/authorities/:type/:domain", srv.withAuth(srv.deleteCertAuthority))
+	srv.GET("/:version/authorities/:type/:domain", srv.withAuth(srv.getCertAuthority))
+	srv.GET("/:version/authorities/:type", srv.withAuth(srv.getCertAuthorities))
 
 	// Generating certificates for user and host authorities
-	srv.POST("/v1/ca/host/certs", srv.withAuth(srv.generateHostCert))
-	srv.POST("/v1/ca/user/certs", srv.withAuth(srv.generateUserCert))
+	srv.POST("/:version/ca/host/certs", srv.withAuth(srv.generateHostCert))
+	srv.POST("/:version/ca/user/certs", srv.withAuth(srv.generateUserCert))
 
 	// Operations on users
-	srv.GET("/v1/users", srv.withAuth(srv.getUsers))
-	srv.GET("/v1/users/:user", srv.withAuth(srv.getUser))
-	srv.DELETE("/v1/users/:user", srv.withAuth(srv.deleteUser))
+	srv.GET("/:version/users", srv.withAuth(srv.getUsers))
+	srv.GET("/:version/users/:user", srv.withAuth(srv.getUser))
+	srv.DELETE("/:version/users/:user", srv.withAuth(srv.deleteUser))
 
 	// Generating keypairs
-	srv.POST("/v1/keypair", srv.withAuth(srv.generateKeyPair))
+	srv.POST("/:version/keypair", srv.withAuth(srv.generateKeyPair))
 
 	// Passwords and sessions
-	srv.POST("/v1/users", srv.withAuth(srv.upsertUser))
-	srv.POST("/v1/users/:user/web/password", srv.withAuth(srv.upsertPassword))
-	srv.POST("/v1/users/:user/web/password/check", srv.withAuth(srv.checkPassword))
-	srv.POST("/v1/users/:user/web/signin", srv.withAuth(srv.signIn))
-	srv.GET("/v1/users/:user/web/signin/preauth", srv.withAuth(srv.preAuthenticatedSignIn))
-	srv.POST("/v1/users/:user/web/sessions", srv.withAuth(srv.createWebSession))
-	srv.GET("/v1/users/:user/web/sessions/:sid", srv.withAuth(srv.getWebSession))
-	srv.DELETE("/v1/users/:user/web/sessions/:sid", srv.withAuth(srv.deleteWebSession))
-	srv.GET("/v1/signuptokens/:token", srv.withAuth(srv.getSignupTokenData))
-	srv.POST("/v1/signuptokens/users", srv.withAuth(srv.createUserWithToken))
-	srv.POST("/v1/signuptokens", srv.withAuth(srv.createSignupToken))
+	srv.POST("/:version/users", srv.withAuth(srv.upsertUser))
+	srv.POST("/:version/users/:user/web/password", srv.withAuth(srv.upsertPassword))
+	srv.POST("/:version/users/:user/web/password/check", srv.withAuth(srv.checkPassword))
+	srv.POST("/:version/users/:user/web/signin", srv.withAuth(srv.signIn))
+	srv.GET("/:version/users/:user/web/signin/preauth", srv.withAuth(srv.preAuthenticatedSignIn))
+	srv.POST("/:version/users/:user/web/sessions", srv.withAuth(srv.createWebSession))
+	srv.GET("/:version/users/:user/web/sessions/:sid", srv.withAuth(srv.getWebSession))
+	srv.DELETE("/:version/users/:user/web/sessions/:sid", srv.withAuth(srv.deleteWebSession))
+	srv.GET("/:version/signuptokens/:token", srv.withAuth(srv.getSignupTokenData))
+	srv.POST("/:version/signuptokens/users", srv.withAuth(srv.createUserWithToken))
+	srv.POST("/:version/signuptokens", srv.withAuth(srv.createSignupToken))
 
 	// Servers and presence heartbeat
-	srv.POST("/v1/namespaces/:namespace/nodes", srv.withAuth(srv.upsertNode))
-	srv.GET("/v1/namespaces/:namespace/nodes", srv.withAuth(srv.getNodes))
-	srv.POST("/v1/authservers", srv.withAuth(srv.upsertAuthServer))
-	srv.GET("/v1/authservers", srv.withAuth(srv.getAuthServers))
-	srv.POST("/v1/proxies", srv.withAuth(srv.upsertProxy))
-	srv.GET("/v1/proxies", srv.withAuth(srv.getProxies))
+	srv.POST("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.upsertNode))
+	srv.GET("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.getNodes))
+	srv.POST("/:version/authservers", srv.withAuth(srv.upsertAuthServer))
+	srv.GET("/:version/authservers", srv.withAuth(srv.getAuthServers))
+	srv.POST("/:version/proxies", srv.withAuth(srv.upsertProxy))
+	srv.GET("/:version/proxies", srv.withAuth(srv.getProxies))
 
 	// Reverse tunnels
-	srv.POST("/v1/reversetunnels", srv.withAuth(srv.upsertReverseTunnel))
-	srv.GET("/v1/reversetunnels", srv.withAuth(srv.getReverseTunnels))
-	srv.DELETE("/v1/reversetunnels/:domain", srv.withAuth(srv.deleteReverseTunnel))
+	srv.POST("/:version/reversetunnels", srv.withAuth(srv.upsertReverseTunnel))
+	srv.GET("/:version/reversetunnels", srv.withAuth(srv.getReverseTunnels))
+	srv.DELETE("/:version/reversetunnels/:domain", srv.withAuth(srv.deleteReverseTunnel))
 
 	// Tokens
-	srv.POST("/v1/tokens", srv.withAuth(srv.generateToken))
-	srv.POST("/v1/tokens/register", srv.withAuth(srv.registerUsingToken))
-	srv.POST("/v1/tokens/register/auth", srv.withAuth(srv.registerNewAuthServer))
+	srv.POST("/:version/tokens", srv.withAuth(srv.generateToken))
+	srv.POST("/:version/tokens/register", srv.withAuth(srv.registerUsingToken))
+	srv.POST("/:version/tokens/register/auth", srv.withAuth(srv.registerNewAuthServer))
 
 	// Sesssions
-	srv.POST("/v1/namespaces/:namespace/sessions", srv.withAuth(srv.createSession))
-	srv.PUT("/v1/namespaces/:namespace/sessions/:id", srv.withAuth(srv.updateSession))
-	srv.GET("/v1/namespaces/:namespace/sessions", srv.withAuth(srv.getSessions))
-	srv.GET("/v1/namespaces/:namespace/sessions/:id", srv.withAuth(srv.getSession))
-	srv.POST("/v1/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.postSessionChunk))
-	srv.GET("/v1/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.getSessionChunk))
-	srv.GET("/v1/namespaces/:namespace/sessions/:id/events", srv.withAuth(srv.getSessionEvents))
+	srv.POST("/:version/namespaces/:namespace/sessions", srv.withAuth(srv.createSession))
+	srv.PUT("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.updateSession))
+	srv.GET("/:version/namespaces/:namespace/sessions", srv.withAuth(srv.getSessions))
+	srv.GET("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.getSession))
+	srv.POST("/:version/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.postSessionChunk))
+	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.getSessionChunk))
+	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.withAuth(srv.getSessionEvents))
 
 	// OIDC stuff
-	srv.POST("/v1/oidc/connectors", srv.withAuth(srv.upsertOIDCConnector))
-	srv.GET("/v1/oidc/connectors", srv.withAuth(srv.getOIDCConnectors))
-	srv.GET("/v1/oidc/connectors/:id", srv.withAuth(srv.getOIDCConnector))
-	srv.DELETE("/v1/oidc/connectors/:id", srv.withAuth(srv.deleteOIDCConnector))
-	srv.POST("/v1/oidc/requests/create", srv.withAuth(srv.createOIDCAuthRequest))
-	srv.POST("/v1/oidc/requests/validate", srv.withAuth(srv.validateOIDCAuthCallback))
+	srv.POST("/:version/oidc/connectors", srv.withAuth(srv.upsertOIDCConnector))
+	srv.GET("/:version/oidc/connectors", srv.withAuth(srv.getOIDCConnectors))
+	srv.GET("/:version/oidc/connectors/:id", srv.withAuth(srv.getOIDCConnector))
+	srv.DELETE("/:version/oidc/connectors/:id", srv.withAuth(srv.deleteOIDCConnector))
+	srv.POST("/:version/oidc/requests/create", srv.withAuth(srv.createOIDCAuthRequest))
+	srv.POST("/:version/oidc/requests/validate", srv.withAuth(srv.validateOIDCAuthCallback))
 
 	// Namespaces
-	srv.POST("/v1/namespaces", srv.withAuth(srv.upsertNamespace))
-	srv.GET("/v1/namespaces", srv.withAuth(srv.getNamespaces))
-	srv.GET("/v1/namespaces/:namespace", srv.withAuth(srv.getNamespace))
-	srv.DELETE("/v1/namespaces/:namespace", srv.withAuth(srv.deleteNamespace))
+	srv.POST("/:version/namespaces", srv.withAuth(srv.upsertNamespace))
+	srv.GET("/:version/namespaces", srv.withAuth(srv.getNamespaces))
+	srv.GET("/:version/namespaces/:namespace", srv.withAuth(srv.getNamespace))
+	srv.DELETE("/:version/namespaces/:namespace", srv.withAuth(srv.deleteNamespace))
 
 	// Roles
-	srv.POST("/v1/roles", srv.withAuth(srv.upsertRole))
-	srv.GET("/v1/roles", srv.withAuth(srv.getRoles))
-	srv.GET("/v1/roles/:role", srv.withAuth(srv.getRole))
-	srv.DELETE("/v1/roles/:role", srv.withAuth(srv.deleteRole))
+	srv.POST("/:version/roles", srv.withAuth(srv.upsertRole))
+	srv.GET("/:version/roles", srv.withAuth(srv.getRoles))
+	srv.GET("/:version/roles/:role", srv.withAuth(srv.getRole))
+	srv.DELETE("/:version/roles/:role", srv.withAuth(srv.deleteRole))
 
 	// U2F stuff
-	srv.GET("/v1/u2f/signuptokens/:token", srv.withAuth(srv.getSignupU2FRegisterRequest))
-	srv.POST("/v1/u2f/users", srv.withAuth(srv.createUserWithU2FToken))
-	srv.POST("/v1/u2f/users/:user/sign", srv.withAuth(srv.u2fSignRequest))
-	srv.GET("/v1/u2f/appid", srv.withAuth(srv.getU2FAppID))
+	srv.GET("/:version/u2f/signuptokens/:token", srv.withAuth(srv.getSignupU2FRegisterRequest))
+	srv.POST("/:version/u2f/users", srv.withAuth(srv.createUserWithU2FToken))
+	srv.POST("/:version/u2f/users/:user/sign", srv.withAuth(srv.u2fSignRequest))
+	srv.GET("/:version/u2f/appid", srv.withAuth(srv.getU2FAppID))
 
 	// Provisioning tokens
-	srv.GET("/v1/tokens", srv.withAuth(srv.getTokens))
-	srv.GET("/v1/tokens/:token", srv.withAuth(srv.getToken))
-	srv.DELETE("/v1/tokens/:token", srv.withAuth(srv.deleteToken))
+	srv.GET("/:version/tokens", srv.withAuth(srv.getTokens))
+	srv.GET("/:version/tokens/:token", srv.withAuth(srv.getToken))
+	srv.DELETE("/:version/tokens/:token", srv.withAuth(srv.deleteToken))
 
 	// Audit logs AKA events
-	srv.POST("/v1/events", srv.withAuth(srv.emitAuditEvent))
-	srv.GET("/v1/events", srv.withAuth(srv.searchEvents))
+	srv.POST("/:version/events", srv.withAuth(srv.emitAuditEvent))
+	srv.GET("/:version/events", srv.withAuth(srv.searchEvents))
 
 	return httplib.RewritePaths(&srv.Router,
 		httplib.Rewrite("/v1/nodes", "/v1/namespaces/default/nodes"),
@@ -951,6 +951,24 @@ type validateOIDCAuthCallbackReq struct {
 	Query url.Values `json:"query"`
 }
 
+// oidcAuthRawResponse is returned when auth server validated callback parameters
+// returned from OIDC provider
+type oidcAuthRawResponse struct {
+	// Username is authenticated teleport username
+	Username string `json:"username"`
+	// Identity contains validated OIDC identity
+	Identity services.OIDCIdentity `json:"identity"`
+	// Web session will be generated by auth server if requested in OIDCAuthRequest
+	Session *Session `json:"session,omitempty"`
+	// Cert will be generated by certificate authority
+	Cert []byte `json:"cert,omitempty"`
+	// Req is original oidc auth request
+	Req services.OIDCAuthRequest `json:"req"`
+	// HostSigners is a list of signing host public keys
+	// trusted by proxy, used in console login
+	HostSigners []json.RawMessage `json:"host_signers"`
+}
+
 func (s *APIServer) validateOIDCAuthCallback(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *validateOIDCAuthCallbackReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -960,10 +978,25 @@ func (s *APIServer) validateOIDCAuthCallback(auth ClientI, w http.ResponseWriter
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return response, nil
+	raw := oidcAuthRawResponse{
+		Username: response.Username,
+		Identity: response.Identity,
+		Session:  response.Session,
+		Cert:     response.Cert,
+		Req:      response.Req,
+	}
+	raw.HostSigners = make([]json.RawMessage, len(response.HostSigners))
+	for i, ca := range response.HostSigners {
+		data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		raw.HostSigners[i] = data
+	}
+	return raw, nil
 }
 
-// HTTP GET /v1/events?query
+// HTTP GET /:version/events?query
 //
 // Query fields:
 //	'from'  : time filter in RFC3339 format
@@ -1005,7 +1038,7 @@ type auditEventReq struct {
 	Fields events.EventFields `json:"fields"`
 }
 
-// HTTP	POST /v1/events
+// HTTP	POST /:version/events
 func (s *APIServer) emitAuditEvent(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req auditEventReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -1017,7 +1050,7 @@ func (s *APIServer) emitAuditEvent(auth ClientI, w http.ResponseWriter, r *http.
 	return message("ok"), nil
 }
 
-// HTTP POST /v1/sessions/:id/stream
+// HTTP POST /:version/sessions/:id/stream
 func (s *APIServer) postSessionChunk(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	sid, err := session.ParseID(p.ByName("id"))
 	if err != nil {
@@ -1030,7 +1063,7 @@ func (s *APIServer) postSessionChunk(auth ClientI, w http.ResponseWriter, r *htt
 	return message("ok"), nil
 }
 
-// HTTP GET /v1/sessions/:id/stream?offset=x&bytes=y
+// HTTP GET /:version/sessions/:id/stream?offset=x&bytes=y
 // Query parameters:
 //   "offset"   : bytes from the beginning
 //   "bytes"    : number of bytes to read (it won't return more than 512Kb)
@@ -1065,7 +1098,7 @@ func (s *APIServer) getSessionChunk(auth ClientI, w http.ResponseWriter, r *http
 	return nil, nil
 }
 
-// HTTP GET /v1/sessions/:id/events?maxage=n
+// HTTP GET /:version/sessions/:id/events?maxage=n
 // Query:
 //    'after' : cursor value to return events newer than N. Defaults to 0, (return all)
 func (s *APIServer) getSessionEvents(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {

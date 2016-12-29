@@ -42,7 +42,7 @@ import (
 )
 
 // CurrentVersion is a current API version
-const CurrentVersion = "v1"
+const CurrentVersion = services.V2
 
 type Dialer func(network, addr string) (net.Conn, error)
 
@@ -220,7 +220,7 @@ func (c *Client) GetCertAuthorities(caType services.CertAuthType, loadKeys bool)
 		return nil, trace.Wrap(err)
 	}
 	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, err
 	}
 	re := make([]services.CertAuthority, len(items))
@@ -240,13 +240,13 @@ func (c *Client) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool) 
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	data, err := c.Get(c.Endpoint("authorities", string(id.Type), id.DomainName), url.Values{
+	out, err := c.Get(c.Endpoint("authorities", string(id.Type), id.DomainName), url.Values{
 		"load_keys": []string{fmt.Sprintf("%t", loadSigningKeys)},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(data)
+	return services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(out.Bytes())
 }
 
 // DeleteCertAuthority deletes cert authority by ID
@@ -367,12 +367,12 @@ func (c *Client) GetNodes(namespace string) ([]services.Server, error) {
 		return nil, trace.Wrap(err)
 	}
 	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	re := make([]services.Server, len(items))
 	for i, raw := range items {
-		s, err := services.GetServerUnmarshaler().UnmarshalServer(raw, services.KindNode)
+		s, err := services.GetServerMarshaler().UnmarshalServer(raw, services.KindNode)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -403,7 +403,7 @@ func (c *Client) GetReverseTunnels() ([]services.ReverseTunnel, error) {
 		return nil, trace.Wrap(err)
 	}
 	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &tunnels); err != nil {
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	tunnels := make([]services.ReverseTunnel, len(items))
@@ -538,7 +538,7 @@ func (c *Client) UpsertUser(user services.User) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err := c.PostJSON(c.Endpoint("users"), upsertUserRawReq{User: data})
+	_, err = c.PostJSON(c.Endpoint("users"), upsertUserRawReq{User: data})
 	return trace.Wrap(err)
 }
 
@@ -852,7 +852,7 @@ func (c *Client) CreateUserWithU2FToken(token string, password string, u2fRegist
 
 // UpsertOIDCConnector updates or creates OIDC connector
 func (c *Client) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error {
-	data, err := services.GetOIDCConnectorMarshaler().MarshalOIDCCOnnector()
+	data, err := services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -876,11 +876,7 @@ func (c *Client) GetOIDCConnector(id string, withSecrets bool) (services.OIDCCon
 	if err != nil {
 		return nil, err
 	}
-	var conn *services.OIDCConnector
-	if err := json.Unmarshal(out.Bytes(), &conn); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return conn, nil
+	return services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(out.Bytes())
 }
 
 // GetOIDCConnector gets OIDC connectors list
@@ -937,11 +933,26 @@ func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var response *OIDCAuthResponse
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+	var rawResponse *oidcAuthRawResponse
+	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return response, nil
+	response := OIDCAuthResponse{
+		Username: rawResponse.Username,
+		Identity: rawResponse.Identity,
+		Session:  rawResponse.Session,
+		Cert:     rawResponse.Cert,
+		Req:      rawResponse.Req,
+	}
+	response.HostSigners = make([]services.CertAuthority, len(rawResponse.HostSigners))
+	for i, raw := range rawResponse.HostSigners {
+		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		response.HostSigners[i] = ca
+	}
+	return &response, nil
 }
 
 // EmitAuditEvent sends an auditable event to the auth server (part of evets.IAuditLog interface)

@@ -70,7 +70,7 @@ type OIDCConnectorMarshaler interface {
 
 // GetOIDCConnectorSchema returns schema for OIDCConnector
 func GetOIDCConnectorSchema() string {
-	return fmt.Sprintf(OIDCConnectorV1SchemaTemplate, MetadataSchema, OIDCConnectorSpecV1Schema)
+	return fmt.Sprintf(OIDCConnectorV2SchemaTemplate, MetadataSchema, OIDCConnectorSpecV2Schema)
 }
 
 type TeleportOIDCConnectorMarshaler struct{}
@@ -89,9 +89,9 @@ func (*TeleportOIDCConnectorMarshaler) UnmarshalOIDCConnector(bytes []byte) (OID
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return c.V1(), nil
-	case V1:
-		var c OIDCConnectorV1
+		return c.V2(), nil
+	case V2:
+		var c OIDCConnectorV2
 		if err := utils.UnmarshalWithSchema(GetOIDCConnectorSchema(), &c, bytes); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -105,8 +105,8 @@ func (*TeleportOIDCConnectorMarshaler) MarshalOIDCConnector(c OIDCConnector) ([]
 	return json.Marshal(c)
 }
 
-// OIDCConnectorV1 is version 1 resource spec for OIDC connector
-type OIDCConnectorV1 struct {
+// OIDCConnectorV2 is version 1 resource spec for OIDC connector
+type OIDCConnectorV2 struct {
 	// Kind is a resource kind
 	Kind string `json:"kind"`
 	// Version is version
@@ -114,59 +114,59 @@ type OIDCConnectorV1 struct {
 	// Metadata is connector metadata
 	Metadata Metadata `json:"metadata"`
 	// Spec contains connector specification
-	Spec OIDCConnectorSpecV1 `json:"spec"`
+	Spec OIDCConnectorSpecV2 `json:"spec"`
 }
 
 // SetClientSecret sets client secret to some value
-func (o *OIDCConnectorV1) SetClientSecret(secret string) {
+func (o *OIDCConnectorV2) SetClientSecret(secret string) {
 	o.Spec.ClientSecret = secret
 }
 
 // ID is a provider id, 'e.g.' google, used internally
-func (o *OIDCConnectorV1) GetName() string {
+func (o *OIDCConnectorV2) GetName() string {
 	return o.Metadata.Name
 }
 
 // Issuer URL is the endpoint of the provider, e.g. https://accounts.google.com
-func (o *OIDCConnectorV1) GetIssuerURL() string {
+func (o *OIDCConnectorV2) GetIssuerURL() string {
 	return o.Spec.IssuerURL
 }
 
 // ClientID is id for authentication client (in our case it's our Auth server)
-func (o *OIDCConnectorV1) GetClientID() string {
+func (o *OIDCConnectorV2) GetClientID() string {
 	return o.Spec.ClientID
 }
 
 // ClientSecret is used to authenticate our client and should not
 // be visible to end user
-func (o *OIDCConnectorV1) GetClientSecret() string {
+func (o *OIDCConnectorV2) GetClientSecret() string {
 	return o.Spec.ClientSecret
 }
 
 // RedirectURL - Identity provider will use this URL to redirect
 // client's browser back to it after successfull authentication
 // Should match the URL on Provider's side
-func (o *OIDCConnectorV1) GetRedirectURL() string {
+func (o *OIDCConnectorV2) GetRedirectURL() string {
 	return o.Spec.RedirectURL
 }
 
 // Display - Friendly name for this provider.
-func (o *OIDCConnectorV1) GetDisplay() string {
+func (o *OIDCConnectorV2) GetDisplay() string {
 	return o.Spec.Display
 }
 
 // Scope is additional scopes set by provder
-func (o *OIDCConnectorV1) GetScope() []string {
+func (o *OIDCConnectorV2) GetScope() []string {
 	return o.Spec.Scope
 }
 
 // ClaimsToRoles specifies dynamic mapping from claims to roles
-func (o *OIDCConnectorV1) GetClaimsToRoles() []ClaimMapping {
+func (o *OIDCConnectorV2) GetClaimsToRoles() []ClaimMapping {
 	return o.Spec.ClaimsToRoles
 }
 
 // GetClaims returns list of claims expected by mappings
-func (o *OIDCConnectorV1) GetClaims() []string {
+func (o *OIDCConnectorV2) GetClaims() []string {
 	var out []string
 	for _, mapping := range o.Spec.ClaimsToRoles {
 		out = append(out, mapping.Claim)
@@ -175,7 +175,7 @@ func (o *OIDCConnectorV1) GetClaims() []string {
 }
 
 // MapClaims maps claims to roles
-func (o *OIDCConnectorV1) MapClaims(claims jose.Claims) []string {
+func (o *OIDCConnectorV2) MapClaims(claims jose.Claims) []string {
 	var roles []string
 	for _, mapping := range o.Spec.ClaimsToRoles {
 		for claimName := range claims {
@@ -200,7 +200,7 @@ func (o *OIDCConnectorV1) MapClaims(claims jose.Claims) []string {
 }
 
 // Check returns nil if all parameters are great, err otherwise
-func (o *OIDCConnectorV1) Check() error {
+func (o *OIDCConnectorV2) Check() error {
 	if o.Metadata.Name == "" {
 		return trace.BadParameter("ID: missing connector name")
 	}
@@ -219,8 +219,8 @@ func (o *OIDCConnectorV1) Check() error {
 	return nil
 }
 
-// OIDCConnectorV1SchemaTemplate is a template JSON Schema for user
-const OIDCConnectorV1SchemaTemplate = `{
+// OIDCConnectorV2SchemaTemplate is a template JSON Schema for user
+const OIDCConnectorV2SchemaTemplate = `{
   "type": "object",
   "additionalProperties": false,
   "required": ["kind", "spec", "metadata", "version"],
@@ -232,9 +232,9 @@ const OIDCConnectorV1SchemaTemplate = `{
   }
 }`
 
-// OIDCConnectorSpecV1 specifies configuration for Open ID Connect compatible external
+// OIDCConnectorSpecV2 specifies configuration for Open ID Connect compatible external
 // identity provider, e.g. google in some organisation
-type OIDCConnectorSpecV1 struct {
+type OIDCConnectorSpecV2 struct {
 	// ID is a provider id, 'e.g.' google, used internally
 	ID string `json:"id"`
 	// Issuer URL is the endpoint of the provider, e.g. https://accounts.google.com
@@ -256,8 +256,8 @@ type OIDCConnectorSpecV1 struct {
 	ClaimsToRoles []ClaimMapping `json:"claims_to_roles"`
 }
 
-// OIDCConnectorSpecV1Schema is a JSON Schema for OIDC Connector
-var OIDCConnectorSpecV1Schema = fmt.Sprintf(`{
+// OIDCConnectorSpecV2Schema is a JSON Schema for OIDC Connector
+var OIDCConnectorSpecV2Schema = fmt.Sprintf(`{
   "type": "object",
   "additionalProperties": false,
   "required": ["id", "issuer_url", "client_id", "client_secret", "redirect_url"],
@@ -341,15 +341,15 @@ type OIDCConnectorV0 struct {
 	ClaimsToRoles []ClaimMapping `json:"claims_to_roles"`
 }
 
-// V1 returns V1 version of the connector
-func (o OIDCConnectorV0) V1() *OIDCConnectorV1 {
-	return &OIDCConnectorV1{
+// V2 returns V2 version of the connector
+func (o OIDCConnectorV0) V2() *OIDCConnectorV2 {
+	return &OIDCConnectorV2{
 		Kind:    KindOIDCConnector,
-		Version: V1,
+		Version: V2,
 		Metadata: Metadata{
 			Name: o.ID,
 		},
-		Spec: OIDCConnectorSpecV1{
+		Spec: OIDCConnectorSpecV2{
 			IssuerURL:     o.IssuerURL,
 			ClientID:      o.ClientID,
 			ClientSecret:  o.ClientSecret,

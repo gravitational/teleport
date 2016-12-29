@@ -74,21 +74,21 @@ const (
 	// KindOIDCConnector is a OIDC connector resource
 	KindOIDCConnector = "oidc"
 
-	// V1 is our current version
-	V1 = "v1"
+	// V2 is our current version
+	V2 = "v2"
 )
 
 // marshalerMutex is a mutex for resource marshalers/unmarshalers
 var marshalerMutex sync.RWMutex
 
-// V1SchemaTemplate is a template JSON Schema for V1 style objects
-const V1SchemaTemplate = `{
+// V2SchemaTemplate is a template JSON Schema for V2 style objects
+const V2SchemaTemplate = `{
   "type": "object",
   "additionalProperties": false,
   "required": ["kind", "spec", "metadata", "version"],
   "properties": {
     "kind": {"type": "string"},
-    "version": {"type": "string", "default": "v1"},
+    "version": {"type": "string", "default": "v2"},
     "metadata": %v,
     "spec": %v
   }

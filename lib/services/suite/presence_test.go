@@ -32,22 +32,22 @@ var _ = check.Suite(&PresenceSuite{})
 func (s *PresenceSuite) TestServerLabels(c *check.C) {
 	emptyLabels := make(map[string]string)
 	// empty
-	server := &services.ServerV1{}
+	server := &services.ServerV2{}
 	c.Assert(server.GetAllLabels(), check.DeepEquals, emptyLabels)
 	c.Assert(server.LabelsString(), check.Equals, "")
 	c.Assert(server.MatchAgainst(emptyLabels), check.Equals, true)
 	c.Assert(server.MatchAgainst(map[string]string{"a": "b"}), check.Equals, false)
 
 	// more complex
-	server = &services.ServerV1{
+	server = &services.ServerV2{
 		Metadata: services.Metadata{
 			Labels: map[string]string{
 				"role": "database",
 			},
 		},
-		Spec: services.ServerSpecV1{
-			CmdLabels: map[string]services.CommandLabelV1{
-				"time": services.CommandLabelV1{
+		Spec: services.ServerSpecV2{
+			CmdLabels: map[string]services.CommandLabelV2{
+				"time": services.CommandLabelV2{
 					Period:  services.NewDuration(time.Second),
 					Command: []string{"time"},
 					Result:  "now",

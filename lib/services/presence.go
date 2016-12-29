@@ -70,7 +70,7 @@ type Presence interface {
 func NewNamespace(name string) Namespace {
 	return Namespace{
 		Kind:    KindNamespace,
-		Version: V1,
+		Version: V2,
 		Metadata: Metadata{
 			Name: name,
 		},

@@ -42,14 +42,14 @@ func RoleNameForCertAuthority(name string) string {
 
 // RoleForUser creates role using AllowedLogins parameter
 func RoleForUser(u User) Role {
-	return &RoleV1{
+	return &RoleV2{
 		Kind:    KindRole,
-		Version: V1,
+		Version: V2,
 		Metadata: Metadata{
 			Name:      RoleNameForUser(u.GetName()),
 			Namespace: defaults.Namespace,
 		},
-		Spec: RoleSpecV1{
+		Spec: RoleSpecV2{
 			MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
 			NodeLabels:    map[string]string{Wildcard: Wildcard},
 			Namespaces:    []string{defaults.Namespace},
@@ -66,14 +66,14 @@ func RoleForUser(u User) Role {
 
 // RoleForCertauthority creates role using AllowedLogins parameter
 func RoleForCertAuthority(ca CertAuthority) Role {
-	return &RoleV1{
+	return &RoleV2{
 		Kind:    KindRole,
-		Version: V1,
+		Version: V2,
 		Metadata: Metadata{
 			Name:      RoleNameForCertAuthority(ca.GetClusterName()),
 			Namespace: defaults.Namespace,
 		},
-		Spec: RoleSpecV1{
+		Spec: RoleSpecV2{
 			MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
 			NodeLabels:    map[string]string{Wildcard: Wildcard},
 			Namespaces:    []string{defaults.Namespace},
@@ -121,8 +121,8 @@ type Role interface {
 	GetResources() map[string][]string
 }
 
-// RoleV1 represents role resource specification
-type RoleV1 struct {
+// RoleV2 represents role resource specification
+type RoleV2 struct {
 	// Kind is a resource kind - always resource
 	Kind string `json:"kind"`
 	// Version is a resource version
@@ -130,46 +130,46 @@ type RoleV1 struct {
 	// Metadata is Role metadata
 	Metadata Metadata `json:"metadata"`
 	// Spec contains role specification
-	Spec RoleSpecV1 `json:"spec"`
+	Spec RoleSpecV2 `json:"spec"`
 }
 
 // GetName returns role name and is a shortcut for GetMetadata().Name
-func (r *RoleV1) GetName() string {
+func (r *RoleV2) GetName() string {
 	return r.Metadata.Name
 }
 
 // GetMetadata returns role metadata
-func (r *RoleV1) GetMetadata() Metadata {
+func (r *RoleV2) GetMetadata() Metadata {
 	return r.Metadata
 }
 
 // GetMaxSessionTTL is a maximum SSH or Web session TTL
-func (r *RoleV1) GetMaxSessionTTL() Duration {
+func (r *RoleV2) GetMaxSessionTTL() Duration {
 	return r.Spec.MaxSessionTTL
 }
 
 // GetLogins returns a list of linux logins allowed for this role
-func (r *RoleV1) GetLogins() []string {
+func (r *RoleV2) GetLogins() []string {
 	return r.Spec.Logins
 }
 
 // GetNodeLabels returns a list of matchign nodes this role has access to
-func (r *RoleV1) GetNodeLabels() map[string]string {
+func (r *RoleV2) GetNodeLabels() map[string]string {
 	return r.Spec.NodeLabels
 }
 
 // GetNamespaces returns a list of namespaces this role has access to
-func (r *RoleV1) GetNamespaces() []string {
+func (r *RoleV2) GetNamespaces() []string {
 	return r.Spec.Namespaces
 }
 
 // GetResources returns access to resources
-func (r *RoleV1) GetResources() map[string][]string {
+func (r *RoleV2) GetResources() map[string][]string {
 	return r.Spec.Resources
 }
 
 // Check checks validity of all parameters and sets defaults
-func (r *RoleV1) CheckAndSetDefaults() error {
+func (r *RoleV2) CheckAndSetDefaults() error {
 	if r.Metadata.Name == "" {
 		return trace.BadParameter("missing parameter Name")
 	}
@@ -195,8 +195,8 @@ func (r *RoleV1) CheckAndSetDefaults() error {
 	return nil
 }
 
-// RoleSpecV1 is role specification for RoleV1
-type RoleSpecV1 struct {
+// RoleSpecV2 is role specification for RoleV2
+type RoleSpecV2 struct {
 	// MaxSessionTTL is a maximum SSH or Web session TTL
 	MaxSessionTTL Duration `json:"max_session_ttl"`
 	// Logins is a list of linux logins allowed for this role
@@ -222,7 +222,7 @@ type AccessChecker interface {
 }
 
 // FromSpec returns new RoleSet created from spec
-func FromSpec(name string, spec RoleSpecV1) (RoleSet, error) {
+func FromSpec(name string, spec RoleSpecV2) (RoleSet, error) {
 	role, err := NewRole(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -241,10 +241,10 @@ func RO() []string {
 }
 
 // NewRole constructs new standard role
-func NewRole(name string, spec RoleSpecV1) (Role, error) {
-	role := RoleV1{
+func NewRole(name string, spec RoleSpecV2) (Role, error) {
+	role := RoleV2{
 		Kind:    KindRole,
-		Version: V1,
+		Version: V2,
 		Metadata: Metadata{
 			Name:      name,
 			Namespace: defaults.Namespace,
@@ -503,16 +503,16 @@ func GetRoleSchema(extensionSchema string) string {
 	} else {
 		roleSchema = fmt.Sprintf(RoleSpecSchemaTemplate, extensionSchema)
 	}
-	return fmt.Sprintf(V1SchemaTemplate, MetadataSchema, roleSchema)
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, roleSchema)
 }
 
-// UnmarshalRoleV1 unmarshals role from JSON or YAML,
+// UnmarshalRoleV2 unmarshals role from JSON or YAML,
 // sets defaults and checks the schema
-func UnmarshalRole(data []byte) (*RoleV1, error) {
+func UnmarshalRole(data []byte) (*RoleV2, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing resource data")
 	}
-	var role RoleV1
+	var role RoleV2
 	if err := utils.UnmarshalWithSchema(GetRoleSchema(""), &role, data); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}

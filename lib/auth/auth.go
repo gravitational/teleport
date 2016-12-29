@@ -703,23 +703,23 @@ func (s *AuthServer) DeleteWebSession(user string, id string) error {
 	return trace.Wrap(s.Identity.DeleteWebSession(user, id))
 }
 
-func (s *AuthServer) getOIDCClient(conn *services.OIDCConnector) (*oidc.Client, error) {
+func (s *AuthServer) getOIDCClient(conn services.OIDCConnector) (*oidc.Client, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	client, ok := s.oidcClients[conn.ID]
+	client, ok := s.oidcClients[conn.GetName()]
 	if ok {
 		return client, nil
 	}
 
 	config := oidc.ClientConfig{
-		RedirectURL: conn.RedirectURL,
+		RedirectURL: conn.GetRedirectURL(),
 		Credentials: oidc.ClientCredentials{
-			ID:     conn.ClientID,
-			Secret: conn.ClientSecret,
+			ID:     conn.GetClientID(),
+			Secret: conn.GetClientSecret(),
 		},
 		// open id notifies provider that we are using OIDC scopes
-		Scope: utils.Deduplicate(append([]string{"openid", "email"}, conn.Scope...)),
+		Scope: utils.Deduplicate(append([]string{"openid", "email"}, conn.GetScope()...)),
 	}
 
 	client, err := oidc.NewClient(config)
@@ -727,9 +727,9 @@ func (s *AuthServer) getOIDCClient(conn *services.OIDCConnector) (*oidc.Client, 
 		return nil, trace.Wrap(err)
 	}
 
-	client.SyncProviderConfig(conn.IssuerURL)
+	client.SyncProviderConfig(conn.GetIssuerURL())
 
-	s.oidcClients[conn.ID] = client
+	s.oidcClients[conn.GetName()] = client
 
 	return client, nil
 }
@@ -783,25 +783,30 @@ type OIDCAuthResponse struct {
 	HostSigners []services.CertAuthority `json:"host_signers"`
 }
 
-func (a *AuthServer) createOIDCUser(connector *services.OIDCConnector, ident *oidc.Identity, claims jose.Claims) error {
+func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oidc.Identity, claims jose.Claims) error {
 	roles := connector.MapClaims(claims)
 	if len(roles) == 0 {
 		log.Warningf("[OIDC] could not find any of expected claims: %v in the set returned by provider %v: %v",
-			strings.Join(connector.GetClaims(), ","), connector.ID, strings.Join(services.GetClaimNames(claims), ","))
+			strings.Join(connector.GetClaims(), ","), connector.GetName(), strings.Join(services.GetClaimNames(claims), ","))
 	}
-	log.Debugf("[IDENTITY] %v/%v is a dynamic identity, generating user with roles: %v", connector.ID, ident.Email, roles)
-	user, err := services.GetUserMarshaler().GenerateUser(services.TeleportUser{
-		Name:           ident.Email,
-		Roles:          roles,
-		Expires:        ident.ExpiresAt,
-		OIDCIdentities: []services.OIDCIdentity{{ConnectorID: connector.ID, Email: ident.Email}},
-		CreatedBy: services.CreatedBy{
-			User: services.UserRef{Name: "system"},
-			Time: time.Now().UTC(),
-			Connector: &services.ConnectorRef{
-				Type:     teleport.ConnectorOIDC,
-				ID:       connector.ID,
-				Identity: ident.Email,
+	log.Debugf("[IDENTITY] %v/%v is a dynamic identity, generating user with roles: %v", connector.GetName(), ident.Email, roles)
+	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
+		Metadata: services.Metadata{
+			Name:      ident.Email,
+			Namespace: defaults.Namespace,
+		},
+		Spec: services.UserSpecV2{
+			Roles:          roles,
+			Expires:        ident.ExpiresAt,
+			OIDCIdentities: []services.OIDCIdentity{{ConnectorID: connector.GetName(), Email: ident.Email}},
+			CreatedBy: services.CreatedBy{
+				User: services.UserRef{Name: "system"},
+				Time: time.Now().UTC(),
+				Connector: &services.ConnectorRef{
+					Type:     teleport.ConnectorOIDC,
+					ID:       connector.GetName(),
+					Identity: ident.Email,
+				},
 			},
 		},
 	})
@@ -822,7 +827,7 @@ func (a *AuthServer) createOIDCUser(connector *services.OIDCConnector, ident *oi
 		}
 	} else {
 		connectorRef := existingUser.GetCreatedBy().Connector
-		if connectorRef == nil || connectorRef.Type != teleport.ConnectorOIDC || connectorRef.ID != connector.ID {
+		if connectorRef == nil || connectorRef.Type != teleport.ConnectorOIDC || connectorRef.ID != connector.GetName() {
 			return trace.AlreadyExists("user %v already exists and is not OIDC user", existingUser.GetName())
 		}
 	}
@@ -886,11 +891,11 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 	log.Debugf("[IDENTITY] %v expires at: %v", ident.Email, ident.ExpiresAt)
 
 	response := &OIDCAuthResponse{
-		Identity: services.OIDCIdentity{ConnectorID: connector.ID, Email: ident.Email},
+		Identity: services.OIDCIdentity{ConnectorID: connector.GetName(), Email: ident.Email},
 		Req:      *req,
 	}
 
-	if len(connector.ClaimsToRoles) != 0 {
+	if len(connector.GetClaimsToRoles()) != 0 {
 		if err := a.createOIDCUser(connector, ident, claims); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -942,7 +947,7 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 			return nil, trace.Wrap(err)
 		}
 		for _, authority := range authorities {
-			response.HostSigners = append(response.HostSigners, *authority)
+			response.HostSigners = append(response.HostSigners, authority)
 		}
 	}
 
@@ -969,9 +974,9 @@ func (a *AuthServer) DeleteRole(name string) error {
 		return trace.Wrap(err)
 	}
 	for _, a := range cas {
-		for _, r := range a.Roles {
+		for _, r := range a.GetRoles() {
 			if r == name {
-				return trace.BadParameter("role %v is used by user cert authority %v", name, a.DomainName)
+				return trace.BadParameter("role %v is used by user cert authority %v", name, a.GetClusterName())
 			}
 		}
 	}

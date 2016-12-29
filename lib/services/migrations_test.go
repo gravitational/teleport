@@ -47,19 +47,19 @@ func (s *MigrationsSuite) TestMigrateServers(c *C) {
 		CmdLabels: map[string]CommandLabelV0{"o": CommandLabelV0{Command: []string{"ls", "-l"}, Period: time.Second}},
 	}
 
-	out := in.V1()
-	expected := &ServerV1{
+	out := in.V2()
+	expected := &ServerV2{
 		Kind:    KindNode,
-		Version: V1,
+		Version: V2,
 		Metadata: Metadata{
 			Name:      in.ID,
 			Labels:    in.Labels,
 			Namespace: defaults.Namespace,
 		},
-		Spec: ServerSpecV1{
+		Spec: ServerSpecV2{
 			Addr:      in.Addr,
 			Hostname:  in.Hostname,
-			CmdLabels: map[string]CommandLabelV1{"o": CommandLabelV1{Command: []string{"ls", "-l"}, Period: NewDuration(time.Second)}},
+			CmdLabels: map[string]CommandLabelV2{"o": CommandLabelV2{Command: []string{"ls", "-l"}, Period: NewDuration(time.Second)}},
 		},
 	}
 	c.Assert(out, DeepEquals, expected)
@@ -95,15 +95,15 @@ func (s *MigrationsSuite) TestMigrateUsers(c *C) {
 		},
 	}
 
-	out := in.V1()
-	expected := &UserV1{
+	out := in.V2()
+	expected := &UserV2{
 		Kind:    KindUser,
-		Version: V1,
+		Version: V2,
 		Metadata: Metadata{
 			Name:      in.Name,
 			Namespace: defaults.Namespace,
 		},
-		Spec: UserSpecV1{
+		Spec: UserSpecV2{
 			OIDCIdentities: in.OIDCIdentities,
 			Status:         in.Status,
 			Expires:        in.Expires,
@@ -130,7 +130,7 @@ func (s *MigrationsSuite) TestMigrateUsers(c *C) {
 
 	d := &spew.ConfigState{Indent: " ", DisableMethods: true, DisablePointerMethods: true, DisablePointerAddresses: true}
 	expected.rawObject = nil
-	obj := out3.(*UserV1)
+	obj := out3.(*UserV2)
 	obj.rawObject = nil
 	c.Assert(obj, DeepEquals, expected, Commentf("%v", diff.Diff(d.Sdump(obj), d.Sdump(expected))))
 }
@@ -141,15 +141,15 @@ func (s *MigrationsSuite) TestMigrateReverseTunnels(c *C) {
 		DialAddrs:  []string{"127.0.0.1:3245", "127.0.0.1:3450"},
 	}
 
-	out := in.V1()
-	expected := &ReverseTunnelV1{
+	out := in.V2()
+	expected := &ReverseTunnelV2{
 		Kind:    KindReverseTunnel,
-		Version: V1,
+		Version: V2,
 		Metadata: Metadata{
 			Name:      in.DomainName,
 			Namespace: defaults.Namespace,
 		},
-		Spec: ReverseTunnelSpecV1{
+		Spec: ReverseTunnelSpecV2{
 			DialAddrs:   in.DialAddrs,
 			ClusterName: in.DomainName,
 		},
@@ -178,15 +178,15 @@ func (s *MigrationsSuite) TestMigrateCertAuthorities(c *C) {
 		AllowedLogins: []string{"root", "admin"},
 	}
 
-	out := in.V1()
-	expected := &CertAuthorityV1{
+	out := in.V2()
+	expected := &CertAuthorityV2{
 		Kind:    KindCertAuthority,
-		Version: V1,
+		Version: V2,
 		Metadata: Metadata{
 			Name:      in.DomainName,
 			Namespace: defaults.Namespace,
 		},
-		Spec: CertAuthoritySpecV1{
+		Spec: CertAuthoritySpecV2{
 			ClusterName:  in.DomainName,
 			Type:         in.Type,
 			CheckingKeys: in.CheckingKeys,

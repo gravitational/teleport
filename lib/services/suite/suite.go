@@ -40,7 +40,7 @@ import (
 
 // NewTestCA returns new test authority with a test key as a public and
 // signing key
-func NewTestCA(caType services.CertAuthType, domainName string) *services.CertAuthorityV1 {
+func NewTestCA(caType services.CertAuthType, domainName string) *services.CertAuthorityV2 {
 	keyBytes := PEMBytes["rsa"]
 	key, err := ssh.ParsePrivateKey(keyBytes)
 	if err != nil {
@@ -48,14 +48,14 @@ func NewTestCA(caType services.CertAuthType, domainName string) *services.CertAu
 	}
 	pubKey := key.PublicKey()
 
-	return &services.CertAuthorityV1{
+	return &services.CertAuthorityV2{
 		Kind:    services.KindCertAuthority,
-		Version: services.V1,
+		Version: services.V2,
 		Metadata: services.Metadata{
 			Name:      domainName,
 			Namespace: defaults.Namespace,
 		},
-		Spec: services.CertAuthoritySpecV1{
+		Spec: services.CertAuthoritySpecV2{
 			Type:         caType,
 			ClusterName:  domainName,
 			CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
@@ -110,14 +110,14 @@ func usersEqual(c *C, a services.User, b services.User) {
 }
 
 func newUser(name string, roles []string) services.User {
-	return &services.UserV1{
+	return &services.UserV2{
 		Kind:    services.KindUser,
-		Version: services.V1,
+		Version: services.V2,
 		Metadata: services.Metadata{
 			Name:      name,
 			Namespace: defaults.Namespace,
 		},
-		Spec: services.UserSpecV1{
+		Spec: services.UserSpecV2{
 			Roles: roles,
 		},
 	}
@@ -209,15 +209,15 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func newServer(kind, name, addr, namespace string) *services.ServerV1 {
-	return &services.ServerV1{
+func newServer(kind, name, addr, namespace string) *services.ServerV2 {
+	return &services.ServerV2{
 		Kind:    kind,
-		Version: services.V1,
+		Version: services.V2,
 		Metadata: services.Metadata{
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: services.ServerSpecV1{
+		Spec: services.ServerSpecV2{
 			Addr: addr,
 		},
 	}
@@ -258,15 +258,15 @@ func (s *ServicesTestSuite) ServerCRUD(c *C) {
 	c.Assert(out, DeepEquals, []services.Server{auth})
 }
 
-func newReverseTunnel(clusterName string, dialAddrs []string) *services.ReverseTunnelV1 {
-	return &services.ReverseTunnelV1{
+func newReverseTunnel(clusterName string, dialAddrs []string) *services.ReverseTunnelV2 {
+	return &services.ReverseTunnelV2{
 		Kind:    services.KindReverseTunnel,
-		Version: services.V1,
+		Version: services.V2,
 		Metadata: services.Metadata{
 			Name:      clusterName,
 			Namespace: defaults.Namespace,
 		},
-		Spec: services.ReverseTunnelSpecV1{
+		Spec: services.ReverseTunnelSpecV2{
 			ClusterName: clusterName,
 			DialAddrs:   dialAddrs,
 		},
@@ -479,14 +479,14 @@ func (s *ServicesTestSuite) RolesCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	role := services.RoleV1{
+	role := services.RoleV2{
 		Kind:    services.KindRole,
-		Version: services.V1,
+		Version: services.V2,
 		Metadata: services.Metadata{
 			Name:      "role1",
 			Namespace: defaults.Namespace,
 		},
-		Spec: services.RoleSpecV1{
+		Spec: services.RoleSpecV2{
 			Logins:        []string{"root", "bob"},
 			NodeLabels:    map[string]string{services.Wildcard: services.Wildcard},
 			MaxSessionTTL: services.Duration{Duration: time.Hour},
@@ -521,7 +521,7 @@ func (s *ServicesTestSuite) NamespacesCRUD(c *C) {
 
 	ns := services.Namespace{
 		Kind:    services.KindNamespace,
-		Version: services.V1,
+		Version: services.V2,
 		Metadata: services.Metadata{
 			Name:      defaults.Namespace,
 			Namespace: defaults.Namespace,

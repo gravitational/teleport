@@ -46,9 +46,9 @@ type User interface {
 
 // NewUser creates new empty user
 func NewUser(name string) (User, error) {
-	u := &UserV1{
+	u := &UserV2{
 		Kind:    KindUser,
-		Version: V1,
+		Version: V2,
 		Metadata: Metadata{
 			Name:      name,
 			Namespace: defaults.Namespace,
@@ -164,8 +164,8 @@ func (la *LoginAttempt) Check() error {
 	return nil
 }
 
-// UserV1 is version1 resource spec of the user
-type UserV1 struct {
+// UserV2 is version1 resource spec of the user
+type UserV2 struct {
 	// Kind is a resource kind
 	Kind string `json:"kind"`
 	// Version is version
@@ -173,13 +173,13 @@ type UserV1 struct {
 	// Metadata is User metadata
 	Metadata Metadata `json:"metadata"`
 	// Spec contains user specification
-	Spec UserSpecV1 `json:"spec"`
+	Spec UserSpecV2 `json:"spec"`
 	// rawObject contains raw object representation
 	rawObject interface{}
 }
 
-// UserSpecV1 is a specification for V1 user
-type UserSpecV1 struct {
+// UserSpecV2 is a specification for V2 user
+type UserSpecV2 struct {
 	// OIDCIdentities lists associated OpenID Connect identities
 	// that let user log in using externally verified identity
 	OIDCIdentities []OIDCIdentity `json:"oidc_identities,omitempty"`
@@ -197,8 +197,8 @@ type UserSpecV1 struct {
 	CreatedBy CreatedBy `json:"created_by"`
 }
 
-// UserSpecV1SchemaTemplate is JSON schema for V1 user
-const UserSpecV1SchemaTemplate = `{
+// UserSpecV2SchemaTemplate is JSON schema for V2 user
+const UserSpecV2SchemaTemplate = `{
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -219,22 +219,22 @@ const UserSpecV1SchemaTemplate = `{
 }`
 
 // GetObject returns raw object data, used for migrations
-func (u *UserV1) GetRawObject() interface{} {
+func (u *UserV2) GetRawObject() interface{} {
 	return u.rawObject
 }
 
 // SetCreatedBy sets created by information
-func (u *UserV1) SetCreatedBy(b CreatedBy) {
+func (u *UserV2) SetCreatedBy(b CreatedBy) {
 	u.Spec.CreatedBy = b
 }
 
 // GetCreatedBy returns information about who created user
-func (u *UserV1) GetCreatedBy() CreatedBy {
+func (u *UserV2) GetCreatedBy() CreatedBy {
 	return u.Spec.CreatedBy
 }
 
 // Equals checks if user equals to another
-func (u *UserV1) Equals(other User) bool {
+func (u *UserV2) Equals(other User) bool {
 	if u.Metadata.Name != other.GetName() {
 		return false
 	}
@@ -251,32 +251,32 @@ func (u *UserV1) Equals(other User) bool {
 }
 
 // GetExpiry returns expiry time for temporary users
-func (u *UserV1) GetExpiry() time.Time {
+func (u *UserV2) GetExpiry() time.Time {
 	return u.Spec.Expires
 }
 
 // SetRoles sets a list of roles for user
-func (u *UserV1) SetRoles(roles []string) {
+func (u *UserV2) SetRoles(roles []string) {
 	u.Spec.Roles = utils.Deduplicate(roles)
 }
 
 // GetStatus returns login status of the user
-func (u *UserV1) GetStatus() LoginStatus {
+func (u *UserV2) GetStatus() LoginStatus {
 	return u.Spec.Status
 }
 
 // GetIdentities returns a list of connected OIDCIdentities
-func (u *UserV1) GetIdentities() []OIDCIdentity {
+func (u *UserV2) GetIdentities() []OIDCIdentity {
 	return u.Spec.OIDCIdentities
 }
 
 // GetRoles returns a list of roles assigned to user
-func (u *UserV1) GetRoles() []string {
+func (u *UserV2) GetRoles() []string {
 	return u.Spec.Roles
 }
 
 // AddRole adds a role to user's role list
-func (u *UserV1) AddRole(name string) {
+func (u *UserV2) AddRole(name string) {
 	for _, r := range u.Spec.Roles {
 		if r == name {
 			return
@@ -286,22 +286,22 @@ func (u *UserV1) AddRole(name string) {
 }
 
 // GetName returns user name
-func (u *UserV1) GetName() string {
+func (u *UserV2) GetName() string {
 	return u.Metadata.Name
 }
 
-func (u *UserV1) String() string {
+func (u *UserV2) String() string {
 	return fmt.Sprintf("User(name=%v, roles=%v, identities=%v)", u.Metadata.Name, u.Spec.Roles, u.Spec.OIDCIdentities)
 }
 
-func (u *UserV1) SetLocked(until time.Time, reason string) {
+func (u *UserV2) SetLocked(until time.Time, reason string) {
 	u.Spec.Status.IsLocked = true
 	u.Spec.Status.LockExpires = until
 	u.Spec.Status.LockedMessage = reason
 }
 
 // Check checks validity of all parameters
-func (u *UserV1) Check() error {
+func (u *UserV2) Check() error {
 	if u.Kind == "" {
 		return trace.BadParameter("user kind is not set")
 	}
@@ -342,16 +342,16 @@ type UserV0 struct {
 	CreatedBy CreatedBy `json:"created_by"`
 }
 
-//V1 converts UserV0 to UserV1 format
-func (u *UserV0) V1() *UserV1 {
-	return &UserV1{
+//V2 converts UserV0 to UserV2 format
+func (u *UserV0) V2() *UserV2 {
+	return &UserV2{
 		Kind:    KindUser,
-		Version: V1,
+		Version: V2,
 		Metadata: Metadata{
 			Name:      u.Name,
 			Namespace: defaults.Namespace,
 		},
-		Spec: UserSpecV1{
+		Spec: UserSpecV2{
 			OIDCIdentities: u.OIDCIdentities,
 			Status:         u.Status,
 			Expires:        u.Expires,
@@ -395,11 +395,11 @@ type UserMarshaler interface {
 func GetUserSchema(extensionSchema string) string {
 	var userSchema string
 	if extensionSchema == "" {
-		userSchema = fmt.Sprintf(UserSpecV1SchemaTemplate, OIDCIDentitySchema, LoginStatusSchema, CreatedBySchema, ``)
+		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, OIDCIDentitySchema, LoginStatusSchema, CreatedBySchema, ``)
 	} else {
-		userSchema = fmt.Sprintf(UserSpecV1SchemaTemplate, OIDCIDentitySchema, LoginStatusSchema, CreatedBySchema, ", "+extensionSchema)
+		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, OIDCIDentitySchema, LoginStatusSchema, CreatedBySchema, ", "+extensionSchema)
 	}
-	return fmt.Sprintf(V1SchemaTemplate, MetadataSchema, userSchema)
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, userSchema)
 }
 
 type TeleportUserMarshaler struct{}
@@ -418,9 +418,9 @@ func (*TeleportUserMarshaler) UnmarshalUser(bytes []byte) (User, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return u.V1(), nil
-	case V1:
-		var u UserV1
+		return u.V2(), nil
+	case V2:
+		var u UserV2
 		if err := utils.UnmarshalWithSchema(GetUserSchema(""), &u, bytes); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
