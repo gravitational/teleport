@@ -44,6 +44,20 @@ type User interface {
 	GetRawObject() interface{}
 }
 
+// NewUser creates new empty user
+func NewUser(name string) (User, error) {
+	u := &UserV1{
+		Metadata: Metadata{
+			Name:      name,
+			Namespace: defaults.Namespace,
+		},
+	}
+	if err := u.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return u, nil
+}
+
 // ConnectorRef holds information about OIDC connector
 type ConnectorRef struct {
 	// Type is connector type

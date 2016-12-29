@@ -98,7 +98,7 @@ func (s *PresenceService) DeleteNamespace(namespace string) error {
 	return trace.Wrap(err)
 }
 
-func (s *PresenceService) getServers(prefix string) ([]services.Server, error) {
+func (s *PresenceService) getServers(kind, prefix string) ([]services.Server, error) {
 	keys, err := s.backend.GetKeys([]string{prefix})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -109,21 +109,23 @@ func (s *PresenceService) getServers(prefix string) ([]services.Server, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := json.Unmarshal(data, &servers[i]); err != nil {
+		server, err := services.GetServerMarshaler().UnmarshalServer(data, kind)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		servers[i] = server
 	}
 	// sorting helps with tests and makes it all deterministic
-	sort.Sort(sortedServers(servers))
+	sort.Sort(services.SortedServers(servers))
 	return servers, nil
 }
 
 func (s *PresenceService) upsertServer(prefix string, server services.Server, ttl time.Duration) error {
-	data, err := json.Marshal(server)
+	data, err := services.GetServerMarshaler().MarshalServer(server)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal([]string{prefix}, server.ID, data, ttl)
+	err = s.backend.UpsertVal([]string{prefix}, server.GetName(), data, ttl)
 	return trace.Wrap(err)
 }
 
@@ -142,32 +144,34 @@ func (s *PresenceService) GetNodes(namespace string) ([]services.Server, error) 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := json.Unmarshal(data, &servers[i]); err != nil {
+		server, err := services.GetServerMarshaler().UnmarshalServer(data, services.KindNode)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		servers[i] = server
 	}
 	// sorting helps with tests and makes it all deterministic
-	sort.Sort(sortedServers(servers))
+	sort.Sort(services.SortedServers(servers))
 	return servers, nil
 }
 
 // UpsertNode registers node presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
 func (s *PresenceService) UpsertNode(server services.Server, ttl time.Duration) error {
-	if server.Namespace == "" {
+	if server.GetNamespace() == "" {
 		return trace.BadParameter("missing node namespace")
 	}
-	data, err := json.Marshal(server)
+	data, err := services.GetServerMarshaler().MarshalServer(server)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal([]string{namespacesPrefix, server.Namespace, nodesPrefix}, server.ID, data, ttl)
+	err = s.backend.UpsertVal([]string{namespacesPrefix, server.GetNamespace(), nodesPrefix}, server.GetName(), data, ttl)
 	return trace.Wrap(err)
 }
 
 // GetAuthServers returns a list of registered servers
 func (s *PresenceService) GetAuthServers() ([]services.Server, error) {
-	return s.getServers(authServersPrefix)
+	return s.getServers(services.KindAuthServer, authServersPrefix)
 }
 
 // UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
@@ -184,7 +188,7 @@ func (s *PresenceService) UpsertProxy(server services.Server, ttl time.Duration)
 
 // GetProxies returns a list of registered proxies
 func (s *PresenceService) GetProxies() ([]services.Server, error) {
-	return s.getServers(proxiesPrefix)
+	return s.getServers(services.KindProxy, proxiesPrefix)
 }
 
 // UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
@@ -192,11 +196,11 @@ func (s *PresenceService) UpsertReverseTunnel(tunnel services.ReverseTunnel, ttl
 	if err := tunnel.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	data, err := json.Marshal(tunnel)
+	data, err := services.GetReverseTunnelMarshaler().MarshalReverseTunnel(tunnel)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal([]string{reverseTunnelsPrefix}, tunnel.DomainName, data, ttl)
+	err = s.backend.UpsertVal([]string{reverseTunnelsPrefix}, tunnel.GetName(), data, ttl)
 	return trace.Wrap(err)
 }
 
@@ -212,12 +216,14 @@ func (s *PresenceService) GetReverseTunnels() ([]services.ReverseTunnel, error) 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := json.Unmarshal(data, &tunnels[i]); err != nil {
+		tunnel, err := services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(data)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		tunnels[i] = tunnel
 	}
 	// sorting helps with tests and makes it all deterministic
-	sort.Sort(sortedReverseTunnels(tunnels))
+	sort.Sort(services.SortedReverseTunnels(tunnels))
 	return tunnels, nil
 }
 
@@ -234,31 +240,3 @@ const (
 	authServersPrefix    = "authservers"
 	proxiesPrefix        = "proxies"
 )
-
-type sortedServers []services.Server
-
-func (s sortedServers) Len() int {
-	return len(s)
-}
-
-func (s sortedServers) Less(i, j int) bool {
-	return s[i].ID < s[j].ID
-}
-
-func (s sortedServers) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
-type sortedReverseTunnels []services.ReverseTunnel
-
-func (s sortedReverseTunnels) Len() int {
-	return len(s)
-}
-
-func (s sortedReverseTunnels) Less(i, j int) bool {
-	return s[i].DomainName < s[j].DomainName
-}
-
-func (s sortedReverseTunnels) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}

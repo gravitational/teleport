@@ -37,6 +37,10 @@ type OIDCConnector interface {
 	GetClaims() []string
 	// MapClaims maps claims to roles
 	MapClaims(claims jose.Claims) []string
+	// Check checks OIDC connector for errors
+	Check() error
+	// SetClientSecret sets client secret to some value
+	SetClientSecret(secret string)
 }
 
 var connectorMarshaler OIDCConnectorMarshaler = &TeleportOIDCConnectorMarshaler{}
@@ -111,6 +115,11 @@ type OIDCConnectorV1 struct {
 	Metadata Metadata `json:"metadata"`
 	// Spec contains connector specification
 	Spec OIDCConnectorSpecV1 `json:"spec"`
+}
+
+// SetClientSecret sets client secret to some value
+func (o *OIDCConnectorV1) SetClientSecret(secret string) {
+	o.Spec.ClientSecret = secret
 }
 
 // ID is a provider id, 'e.g.' google, used internally

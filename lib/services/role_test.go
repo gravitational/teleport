@@ -66,7 +66,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 					Name:      "name1",
 					Namespace: defaults.Namespace,
 				},
-				Spec: RoleSpec{},
+				Spec: RoleSpecV1{},
 			},
 		},
 		{
@@ -89,7 +89,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 					Name:      "name1",
 					Namespace: defaults.Namespace,
 				},
-				Spec: RoleSpec{
+				Spec: RoleSpecV1{
 					MaxSessionTTL: Duration{20 * time.Hour},
 					NodeLabels:    map[string]string{"a": "b"},
 					Namespaces:    []string{"system", "default"},
@@ -116,7 +116,7 @@ spec:
 					Name:      "name1",
 					Namespace: defaults.Namespace,
 				},
-				Spec: RoleSpec{
+				Spec: RoleSpecV1{
 					MaxSessionTTL: Duration{20 * time.Hour},
 					NodeLabels:    map[string]string{"a": "b"},
 					Namespaces:    []string{"system", "default"},
@@ -192,7 +192,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 						Name:      "name1",
 						Namespace: defaults.Namespace,
 					},
-					Spec: RoleSpec{
+					Spec: RoleSpecV1{
 						MaxSessionTTL: Duration{20 * time.Hour},
 						Logins:        []string{"admin"},
 						NodeLabels:    map[string]string{Wildcard: Wildcard},
@@ -217,7 +217,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 						Name:      "name1",
 						Namespace: defaults.Namespace,
 					},
-					Spec: RoleSpec{
+					Spec: RoleSpecV1{
 						MaxSessionTTL: Duration{20 * time.Hour},
 						Logins:        []string{"admin"},
 						NodeLabels:    map[string]string{"role": "worker"},
@@ -242,7 +242,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 						Name:      "name1",
 						Namespace: defaults.Namespace,
 					},
-					Spec: RoleSpec{
+					Spec: RoleSpecV1{
 						MaxSessionTTL: Duration{20 * time.Hour},
 						Logins:        []string{"admin"},
 						NodeLabels:    map[string]string{"role": "worker"},
@@ -254,7 +254,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 						Name:      "name1",
 						Namespace: defaults.Namespace,
 					},
-					Spec: RoleSpec{
+					Spec: RoleSpecV1{
 						MaxSessionTTL: Duration{20 * time.Hour},
 						Logins:        []string{"root", "admin"},
 						NodeLabels:    map[string]string{Wildcard: Wildcard},
@@ -318,7 +318,7 @@ func (s *RoleSuite) TestCheckResourceAccess(c *C) {
 						Name:      "name1",
 						Namespace: defaults.Namespace,
 					},
-					Spec: RoleSpec{
+					Spec: RoleSpecV1{
 						Namespaces: []string{defaults.Namespace},
 						Resources:  map[string][]string{KindSession: []string{ActionRead}},
 					},
@@ -337,7 +337,7 @@ func (s *RoleSuite) TestCheckResourceAccess(c *C) {
 						Name:      "name1",
 						Namespace: defaults.Namespace,
 					},
-					Spec: RoleSpec{
+					Spec: RoleSpecV1{
 						Namespaces: []string{"system"},
 						Resources:  map[string][]string{KindSession: []string{ActionRead}},
 					},
@@ -347,7 +347,7 @@ func (s *RoleSuite) TestCheckResourceAccess(c *C) {
 						Name:      "name2",
 						Namespace: defaults.Namespace,
 					},
-					Spec: RoleSpec{
+					Spec: RoleSpecV1{
 						Namespaces: []string{defaults.Namespace},
 						Resources:  map[string][]string{KindSession: []string{ActionWrite, ActionRead}},
 					},

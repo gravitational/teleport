@@ -14,6 +14,9 @@ import (
 // CertAuthority is a host or user certificate authority that
 // can check and if it has private key stored as well, sign it too
 type CertAuthority interface {
+	// GetID returns certificate authority ID -
+	// combined type and name
+	GetID() CertAuthID
 	// GetName returns cert authority name
 	GetName() string
 	// GetType returns user or host certificate authority
@@ -29,6 +32,10 @@ type CertAuthority interface {
 	FirstSigningKey() ([]byte, error)
 	// GetRawObject returns raw object data, used for migrations
 	GetRawObject() interface{}
+	// Check checks object for errors
+	Check() error
+	// SetSigningKeys sets signing keys
+	SetSigningKeys([][]byte) error
 }
 
 // CertAuthorityV1 is version 1 resource spec for Cert Authority
@@ -44,6 +51,18 @@ type CertAuthorityV1 struct {
 	// rawObject is object that is raw object stored in DB
 	// without any conversions applied, used in migrations
 	rawObject interface{}
+}
+
+// SetSigningKeys sets signing keys
+func (ca *CertAuthorityV1) SetSigningKeys(keys [][]byte) error {
+	ca.Spec.SigningKeys = keys
+	return nil
+}
+
+// GetID returns certificate authority ID -
+// combined type and name
+func (ca *CertAuthorityV1) GetID() CertAuthID {
+	return CertAuthID{Type: ca.Spec.Type, DomainName: ca.Metadata.Name}
 }
 
 // GetName returns cert authority name
@@ -149,7 +168,7 @@ type CertAuthoritySpecV1 struct {
 	// SigningKeys is a list of private keys used for signing
 	SigningKeys [][]byte `json:"signing_keys"`
 	// Roles is a list of roles assumed by users signed by this CA
-	Roles []string `json:"roles"`
+	Roles []string `json:"roles,omitempty"`
 }
 
 // CertAuthoritySpecV1Schema is JSON schema for cert authority V1
@@ -163,15 +182,13 @@ const CertAuthoritySpecV1Schema = `{
     "checking_keys": {
       "type": "array",
       "items": {
-        "type": "string",
-        "format": "base64"
+        "type": "string"
       }
     },
     "signing_keys": {
       "type": "array",
       "items": {
-        "type": "string",
-        "format": "base64"
+        "type": "string"
       }
     },
     "roles": {

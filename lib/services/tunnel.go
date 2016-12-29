@@ -15,6 +15,8 @@ import (
 // and a remote Proxy. It helps to bypass firewall restrictions, so local
 // clusters don't need to have the cluster involved
 type ReverseTunnel interface {
+	// GetName returns tunnel object name
+	GetName() string
 	// GetClusterName returns name of the cluster
 	GetClusterName() string
 	// GetDialAddrs returns list of dial addresses for this cluster
@@ -33,6 +35,11 @@ type ReverseTunnelV1 struct {
 	Metadata Metadata `json:"metadata"`
 	// Spec contains user specification
 	Spec ReverseTunnelSpecV1 `json:"spec"`
+}
+
+// GetName returns tunnel object name
+func (r *ReverseTunnelV1) GetName() string {
+	return r.Metadata.Name
 }
 
 // GetClusterName returns name of the cluster
@@ -82,7 +89,7 @@ const ReverseTunnelSpecV1Schema = `{
   "properties": {
     "cluster_name": {"type": "string"},
     "dial_addrs": {
-      "type": "array"
+      "type": "array",
       "items": {
         "type": "string"
       }

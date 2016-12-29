@@ -116,15 +116,15 @@ func (s *IdentityService) UpsertUser(user services.User) error {
 
 // GetUser returns a user by name
 func (s *IdentityService) GetUser(user string) (services.User, error) {
-	u := services.TeleportUser{Name: user}
 	data, err := s.backend.GetVal([]string{"web", "users", user}, "params")
 	if err != nil {
 		return nil, trace.NotFound("user %v is not found", user)
 	}
-	if err := json.Unmarshal(data, &u); err != nil {
+	u, err := services.GetUserMarshaler().UnmarshalUser(data)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &u, nil
+	return u, nil
 }
 
 // GetUserByOIDCIdentity returns a user by it's specified OIDC Identity, returns first
@@ -157,7 +157,11 @@ func (s *IdentityService) DeleteUser(user string) error {
 
 // UpsertPasswordHash upserts user password hash
 func (s *IdentityService) UpsertPasswordHash(username string, hash []byte) error {
-	user, err := services.GetUserMarshaler().GenerateUser(services.TeleportUser{Name: username})
+	userPrototype, err := services.NewUser(username)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	user, err := services.GetUserMarshaler().GenerateUser(userPrototype)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -591,11 +595,11 @@ func (s *IdentityService) UpsertOIDCConnector(connector services.OIDCConnector, 
 	if err := connector.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	data, err := json.Marshal(connector)
+	data, err := services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal(connectorsPath, connector.ID, data, ttl)
+	err = s.backend.UpsertVal(connectorsPath, connector.GetName(), data, ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -609,23 +613,22 @@ func (s *IdentityService) DeleteOIDCConnector(connectorID string) error {
 }
 
 // GetOIDCConnector returns OIDC connector data, , withSecrets adds or removes client secret from return results
-func (s *IdentityService) GetOIDCConnector(id string, withSecrets bool) (*services.OIDCConnector, error) {
-	out, err := s.backend.GetVal(connectorsPath, id)
+func (s *IdentityService) GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error) {
+	data, err := s.backend.GetVal(connectorsPath, id)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("OpenID connector '%v' is not configured", id)
 		}
 		return nil, trace.Wrap(err)
 	}
-	var data *services.OIDCConnector
-	err = json.Unmarshal(out, &data)
+	conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(data)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if !withSecrets {
-		data.ClientSecret = ""
+		conn.SetClientSecret("")
 	}
-	return data, nil
+	return conn, nil
 }
 
 // GetOIDCConnectors returns registered connectors, withSecrets adds or removes client secret from return results
@@ -640,7 +643,7 @@ func (s *IdentityService) GetOIDCConnectors(withSecrets bool) ([]services.OIDCCo
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		connectors = append(connectors, *connector)
+		connectors = append(connectors, connector)
 	}
 	return connectors, nil
 }

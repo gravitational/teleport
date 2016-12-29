@@ -145,25 +145,25 @@ const ServerSpecV1Schema = `{
     "addr": {"type": "string"},
     "hostname": {"type": "string"},
     "labels": {
-      "type": "object"
+      "type": "object",
       "patternProperties": {
         "^.*$":  { "type": "string" }
       }
     },
     "cmd_labels": {
-      "type": "object"
-       "patternProperties": {
-         "^.*$": { 
-           "type": "object",
-           "additionalProperties": false,
-           "required": ["command"],
-           "properties": {
-             "command": {"type": "array", "items": {"type": "string"}},
-             "period": {"type": "string"},
-             "result": {"type": "string"}
-           }
-         }
-       }
+      "type": "object",
+      "patternProperties": {
+        "^.*$": { 
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["command"],
+          "properties": {
+            "command": {"type": "array", "items": {"type": "string"}},
+            "period": {"type": "string"},
+            "result": {"type": "string"}
+          }
+        }
+      }
     }
   }
 }`
@@ -334,4 +334,34 @@ func (*TeleportServerMarshaler) UnmarshalServer(bytes []byte, kind string) (Serv
 // MarshalRole marshalls role into JSON
 func (*TeleportServerMarshaler) MarshalServer(s Server) ([]byte, error) {
 	return json.Marshal(s)
+}
+
+// SortedServers is a sort wrapper that sorts servers by name
+type SortedServers []Server
+
+func (s SortedServers) Len() int {
+	return len(s)
+}
+
+func (s SortedServers) Less(i, j int) bool {
+	return s[i].GetName() < s[j].GetName()
+}
+
+func (s SortedServers) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+// SortedReverseTunnels sorts reverse tunnels by cluster name
+type SortedReverseTunnels []ReverseTunnel
+
+func (s SortedReverseTunnels) Len() int {
+	return len(s)
+}
+
+func (s SortedReverseTunnels) Less(i, j int) bool {
+	return s[i].GetClusterName() < s[j].GetClusterName()
+}
+
+func (s SortedReverseTunnels) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
 }

@@ -49,7 +49,7 @@ func RoleForUser(u User) Role {
 			Name:      RoleNameForUser(u.GetName()),
 			Namespace: defaults.Namespace,
 		},
-		Spec: RoleSpec{
+		Spec: RoleSpecV1{
 			MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
 			NodeLabels:    map[string]string{Wildcard: Wildcard},
 			Namespaces:    []string{defaults.Namespace},
@@ -73,7 +73,7 @@ func RoleForCertAuthority(ca CertAuthority) Role {
 			Name:      RoleNameForCertAuthority(ca.GetClusterName()),
 			Namespace: defaults.Namespace,
 		},
-		Spec: RoleSpec{
+		Spec: RoleSpecV1{
 			MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
 			NodeLabels:    map[string]string{Wildcard: Wildcard},
 			Namespaces:    []string{defaults.Namespace},
@@ -130,7 +130,7 @@ type RoleV1 struct {
 	// Metadata is Role metadata
 	Metadata Metadata `json:"metadata"`
 	// Spec contains role specification
-	Spec RoleSpec `json:"spec"`
+	Spec RoleSpecV1 `json:"spec"`
 }
 
 // GetName returns role name and is a shortcut for GetMetadata().Name
@@ -195,8 +195,8 @@ func (r *RoleV1) CheckAndSetDefaults() error {
 	return nil
 }
 
-// RoleSpec is role specification
-type RoleSpec struct {
+// RoleSpecV1 is role specification for RoleV1
+type RoleSpecV1 struct {
 	// MaxSessionTTL is a maximum SSH or Web session TTL
 	MaxSessionTTL Duration `json:"max_session_ttl"`
 	// Logins is a list of linux logins allowed for this role
@@ -222,7 +222,7 @@ type AccessChecker interface {
 }
 
 // FromSpec returns new RoleSet created from spec
-func FromSpec(name string, spec RoleSpec) (RoleSet, error) {
+func FromSpec(name string, spec RoleSpecV1) (RoleSet, error) {
 	role, err := NewRole(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -241,7 +241,7 @@ func RO() []string {
 }
 
 // NewRole constructs new standard role
-func NewRole(name string, spec RoleSpec) (Role, error) {
+func NewRole(name string, spec RoleSpecV1) (Role, error) {
 	role := RoleV1{
 		Kind:    KindRole,
 		Version: V1,
