@@ -1,5 +1,3 @@
-// +build dynamodb
-
 /*
 Copyright 2015 Gravitational, Inc.
 
@@ -15,6 +13,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
+dynamo package implements the DynamoDB storage back-end for the
+auth server. Originally contributed by https://github.com/apestel
+
+limitations:
+
+- Paging is not implemented, hence all range operations are limited
+  to 1MB result set
 */
 
 package dynamo
@@ -61,9 +66,16 @@ const (
 	// places all objects in the same DynamoDB partition
 	hashKey = "teleport"
 
+	// obsolete schema key. if a table contains "Key" column it means
+	// such table needs to be migrated
+	oldPathAttr = "Key"
+
 	// conditionFailedErr is an AWS error code for "already exists"
 	// when creating a new object:
 	conditionFailedErr = "ConditionalCheckFailedException"
+
+	// resourceNotFoundErr is an AWS error code for "resource not found"
+	resourceNotFoundErr = "ResourceNotFoundException"
 )
 
 // New returns new instance of Etcd-powered backend
@@ -95,27 +107,66 @@ func New(cfg *backend.Config) (*DynamoDBBackend, error) {
 		creds := credentials.NewStaticCredentials(cfg.AccessKey, cfg.SecretKey, "")
 		sess.Config.Credentials = creds
 	}
+
 	// create DynamoDB service:
 	b.svc = dynamodb.New(sess)
-	if err = b.checkOrCreateTable(); err != nil {
+
+	// check if the table exists?
+	ts, err := b.getTableStatus(b.tableName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch ts {
+	case tableStatusOK:
+		break
+	case tableStatusMissing:
+		err = b.createTable(b.tableName, "FullPath")
+	case tableStatusNeedsMigration:
+		err = b.migrate(b.tableName)
+	}
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return b, nil
 }
 
-// check if table already exist in DynamoDB. If not create it
-func (b *DynamoDBBackend) checkOrCreateTable() error {
-	lt := dynamodb.ListTablesInput{ExclusiveStartTableName: aws.String(b.tableName)}
-	r, err := b.svc.ListTables(&lt)
+type tableStatus int
+
+const (
+	tableStatusError = iota
+	tableStatusMissing
+	tableStatusNeedsMigration
+	tableStatusOK
+)
+
+// getTableStatus checks if a given table exists
+func (b *DynamoDBBackend) getTableStatus(tableName string) (tableStatus, error) {
+	td, err := b.svc.DescribeTable(&dynamodb.DescribeTableInput{
+		TableName: aws.String(tableName),
+	})
 	if err != nil {
-		return trace.Wrap(err)
+		if awsErr, ok := err.(awserr.Error); ok {
+			if awsErr.Code() == resourceNotFoundErr {
+				return tableStatusMissing, nil
+			}
+		}
+		return tableStatusError, trace.Wrap(err)
 	}
-	for _, t := range r.TableNames {
-		if *t == b.tableName {
-			log.Info("[DynamoDB] Table already created")
-			return nil
+	for _, attr := range td.Table.AttributeDefinitions {
+		if *attr.AttributeName == oldPathAttr {
+			return tableStatusNeedsMigration, nil
 		}
 	}
+	return tableStatusOK, nil
+}
+
+// createTable creates a DynamoDB table with a requested name and applies
+// the back-end schema to it. The table must not exist.
+//
+// rangeKey is the name of the 'range key' the schema requires.
+// currently is always set to "FullPath" (used to be something else, that's
+// why it's a parameter for migration purposes)
+func (b *DynamoDBBackend) createTable(tableName string, rangeKey string) error {
 	pThroughput := dynamodb.ProvisionedThroughput{
 		ReadCapacityUnits:  aws.Int64(5),
 		WriteCapacityUnits: aws.Int64(5),
@@ -126,7 +177,7 @@ func (b *DynamoDBBackend) checkOrCreateTable() error {
 			AttributeType: aws.String("S"),
 		},
 		{
-			AttributeName: aws.String("FullPath"),
+			AttributeName: aws.String(rangeKey),
 			AttributeType: aws.String("S"),
 		},
 	}
@@ -136,28 +187,137 @@ func (b *DynamoDBBackend) checkOrCreateTable() error {
 			KeyType:       aws.String("HASH"),
 		},
 		{
-			AttributeName: aws.String("FullPath"),
+			AttributeName: aws.String(rangeKey),
 			KeyType:       aws.String("RANGE"),
 		},
 	}
 	c := dynamodb.CreateTableInput{
-		TableName:             aws.String(b.tableName),
+		TableName:             aws.String(tableName),
 		AttributeDefinitions:  def,
 		KeySchema:             elems,
 		ProvisionedThroughput: &pThroughput,
 	}
-	_, err = b.svc.CreateTable(&c)
+	_, err := b.svc.CreateTable(&c)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Info("[DynamoDB] Wait until table is created")
+	log.Infof("[DynamoDB] waiting until table '%s' is created", tableName)
 	err = b.svc.WaitUntilTableExists(&dynamodb.DescribeTableInput{
-		TableName: aws.String(b.tableName),
+		TableName: aws.String(tableName),
+	})
+	if err == nil {
+		log.Infof("[DynamoDB] Table '%s' has been created", tableName)
+	}
+	return trace.Wrap(err)
+}
+
+// deleteTable deletes DynamoDB table with a given name
+func (b *DynamoDBBackend) deleteTable(tableName string, wait bool) error {
+	tn := aws.String(tableName)
+	_, err := b.svc.DeleteTable(&dynamodb.DeleteTableInput{TableName: tn})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if wait {
+		return trace.Wrap(
+			b.svc.WaitUntilTableNotExists(&dynamodb.DescribeTableInput{TableName: tn}))
+	}
+	return nil
+}
+
+// migrate checks if the table contains existing data in "old" format
+// which used "Key" and "HashKey" attributes prior to Teleport 1.5
+//
+// this migration function replaces "Key" with "FullPath":
+//     - load all existing entries and keep them in RAM
+//     - create <table_name>.bak backup table and copy all entries to it
+//     - delete the original table_name
+//     - re-create table_name with a new schema (with "FullPath" instead of "Key")
+//     - copy all entries to it
+func (b *DynamoDBBackend) migrate(tableName string) error {
+	backupTableName := tableName + ".bak"
+	noMigrationNeededErr := trace.AlreadyExists("table '%s' has already been migrated. see backup in '%s'",
+		tableName, backupTableName)
+
+	// make sure migration is needed:
+	if status, _ := b.getTableStatus(tableName); status != tableStatusNeedsMigration {
+		return trace.Wrap(noMigrationNeededErr)
+	}
+	// create backup table, or refuse migration if backup table already exists
+	s, err := b.getTableStatus(backupTableName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if s != tableStatusMissing {
+		return trace.Wrap(noMigrationNeededErr)
+	}
+	log.Infof("[DynamoDB] creating backup table '%s'", backupTableName)
+	if err = b.createTable(backupTableName, oldPathAttr); err != nil {
+		return trace.Wrap(err)
+	}
+	log.Infof("[DynamoDB] backup table '%s' created", backupTableName)
+
+	// request all entries in the table (up to 1MB):
+	log.Infof("[DynamoDB] pulling legacy records out of '%s'", tableName)
+	result, err := b.svc.Query(&dynamodb.QueryInput{
+		TableName: aws.String(tableName),
+		KeyConditions: map[string]*dynamodb.Condition{
+			"HashKey": {
+				ComparisonOperator: aws.String(dynamodb.ComparisonOperatorEq),
+				AttributeValueList: []*dynamodb.AttributeValue{
+					{
+						S: aws.String("teleport"),
+					},
+				},
+			},
+			oldPathAttr: {
+				ComparisonOperator: aws.String(dynamodb.ComparisonOperatorBeginsWith),
+				AttributeValueList: []*dynamodb.AttributeValue{
+					{
+						S: aws.String("teleport"),
+					},
+				},
+			},
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Info("[DynamoDB] Table created")
+	// copy all items into the backup table:
+	log.Infof("[DynamoDB] migrating legacy records to backup table '%s'", backupTableName)
+	for _, item := range result.Items {
+		_, err = b.svc.PutItem(&dynamodb.PutItemInput{
+			TableName: aws.String(backupTableName),
+			Item:      item,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	// kill the original table:
+	log.Infof("[DynamoDB] deleting legacy table '%s'", tableName)
+	if err = b.deleteTable(tableName, true); err != nil {
+		log.Warn(err)
+	}
+	// re-create the original table:
+	log.Infof("[DynamoDB] re-creating table '%s' with a new schema", tableName)
+	if err = b.createTable(tableName, "FullPath"); err != nil {
+		return trace.Wrap(err)
+	}
+	// copy the items into the new table:
+	log.Infof("[DynamoDB] migrating legacy records to the new schema in '%s'", tableName)
+	for _, item := range result.Items {
+		item["FullPath"] = item["Key"]
+		delete(item, "Key")
+		_, err = b.svc.PutItem(&dynamodb.PutItemInput{
+			TableName: aws.String(tableName),
+			Item:      item,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	log.Infof("[DynamoDB] migration succeeded")
 	return nil
 }
 
@@ -189,7 +349,7 @@ func (b *DynamoDBBackend) getKeys(path string) ([]string, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// TODO: manage paginated result
+	// TODO: manage paginated result otherwise only up to 1M (max) of data will be returned.
 	for _, item := range out.Items {
 		var r record
 		dynamodbattribute.UnmarshalMap(item, &r)
@@ -265,7 +425,10 @@ func (b *DynamoDBBackend) createKey(fullPath string, val []byte, ttl time.Durati
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	input := dynamodb.PutItemInput{Item: av, TableName: aws.String(b.tableName)}
+	input := dynamodb.PutItemInput{
+		Item:      av,
+		TableName: aws.String(b.tableName),
+	}
 	if !overwrite {
 		input.SetConditionExpression("attribute_not_exists(FullPath)")
 	}
@@ -316,7 +479,6 @@ func (b *DynamoDBBackend) AcquireLock(token string, ttl time.Duration) error {
 		}
 		time.Sleep(delayBetweenLockAttempts)
 	}
-	return trace.Errorf("failed to acquire lock '%s'", token)
 }
 
 // ReleaseLock for a token
