@@ -79,7 +79,7 @@ type UserRef struct {
 // CreatedBy holds information about the person or agent who created the user
 type CreatedBy struct {
 	// Identity if present means that user was automatically created by identity
-	Connector *ConnectorRef `json:"connector,omitemtpy"`
+	Connector *ConnectorRef `json:"connector,omitempty"`
 	// Time specifies when user was created
 	Time time.Time `json:"time"`
 	// User holds information about user
@@ -174,10 +174,10 @@ type UserV1 struct {
 type UserSpecV1 struct {
 	// OIDCIdentities lists associated OpenID Connect identities
 	// that let user log in using externally verified identity
-	OIDCIdentities []OIDCIdentity `json:"oidc_identities"`
+	OIDCIdentities []OIDCIdentity `json:"oidc_identities,omitempty"`
 
 	// Roles is a list of roles assigned to user
-	Roles []string `json:"roles"`
+	Roles []string `json:"roles,omitempty"`
 
 	// Status is a login status of the user
 	Status LoginStatus `json:"status"`
@@ -387,7 +387,7 @@ type UserMarshaler interface {
 func GetUserSchema(extensionSchema string) string {
 	var userSchema string
 	if extensionSchema == "" {
-		userSchema = fmt.Sprintf(UserSpecV1SchemaTemplate, OIDCIDentitySchema, LoginStatusSchema, CreatedBySchema, `, {"type": "object"}`)
+		userSchema = fmt.Sprintf(UserSpecV1SchemaTemplate, OIDCIDentitySchema, LoginStatusSchema, CreatedBySchema, ``)
 	} else {
 		userSchema = fmt.Sprintf(UserSpecV1SchemaTemplate, OIDCIDentitySchema, LoginStatusSchema, CreatedBySchema, ", "+extensionSchema)
 	}
