@@ -140,6 +140,12 @@ func (s *MigrationsSuite) TestMigrateReverseTunnels(c *C) {
 	out2, err := GetReverseTunnelMarshaler().UnmarshalReverseTunnel(data)
 	c.Assert(err, IsNil)
 	c.Assert(out2, DeepEquals, expected)
+
+	data, err = json.Marshal(expected)
+	c.Assert(err, IsNil)
+	out3, err := GetReverseTunnelMarshaler().UnmarshalReverseTunnel(data)
+	c.Assert(err, IsNil)
+	c.Assert(out3, DeepEquals, expected)
 }
 
 func (s *MigrationsSuite) TestMigrateCertAuthorities(c *C) {
