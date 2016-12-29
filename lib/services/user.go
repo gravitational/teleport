@@ -197,6 +197,22 @@ type UserSpecV2 struct {
 	CreatedBy CreatedBy `json:"created_by"`
 }
 
+// V1 converts UserV2 to UserV1 format
+func (u *UserV2) V1() *UserV1 {
+	return &UserV1{
+		Name:           u.Metadata.Name,
+		OIDCIdentities: u.Spec.OIDCIdentities,
+		Status:         u.Spec.Status,
+		Expires:        u.Spec.Expires,
+		CreatedBy:      u.Spec.CreatedBy,
+	}
+}
+
+// V2 converts UserV2 to UserV2 format
+func (u *UserV2) V2() *UserV2 {
+	return u
+}
+
 // UserSpecV2SchemaTemplate is JSON schema for V2 user
 const UserSpecV2SchemaTemplate = `{
   "type": "object",
@@ -319,8 +335,8 @@ func (u *UserV2) Check() error {
 	return nil
 }
 
-// UserV0 is V0 version of the user
-type UserV0 struct {
+// UserV1 is V1 version of the user
+type UserV1 struct {
 	// Name is a user name
 	Name string `json:"name"`
 
@@ -342,8 +358,13 @@ type UserV0 struct {
 	CreatedBy CreatedBy `json:"created_by"`
 }
 
-//V2 converts UserV0 to UserV2 format
-func (u *UserV0) V2() *UserV2 {
+//V1 returns itself
+func (u *UserV1) V1() *UserV1 {
+	return u
+}
+
+//V2 converts UserV1 to UserV2 format
+func (u *UserV1) V2() *UserV2 {
 	return &UserV2{
 		Kind:    KindUser,
 		Version: V2,
@@ -383,7 +404,7 @@ type UserMarshaler interface {
 	// UnmarshalUser from binary representation
 	UnmarshalUser(bytes []byte) (User, error)
 	// MarshalUser to binary representation
-	MarshalUser(u User) ([]byte, error)
+	MarshalUser(u User, opts ...MarshalOption) ([]byte, error)
 	// GenerateUser generates new user based on standard teleport user
 	// it gives external implementations to add more app-specific
 	// data to the user
@@ -413,7 +434,7 @@ func (*TeleportUserMarshaler) UnmarshalUser(bytes []byte) (User, error) {
 	}
 	switch h.Version {
 	case "":
-		var u UserV0
+		var u UserV1
 		err := json.Unmarshal(bytes, &u)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -437,6 +458,33 @@ func (*TeleportUserMarshaler) GenerateUser(in User) (User, error) {
 }
 
 // MarshalUser marshalls user into JSON
-func (*TeleportUserMarshaler) MarshalUser(u User) ([]byte, error) {
-	return json.Marshal(u)
+func (*TeleportUserMarshaler) MarshalUser(u User, opts ...MarshalOption) ([]byte, error) {
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	type userv1 interface {
+		V1() *UserV1
+	}
+
+	type userv2 interface {
+		V2() *UserV2
+	}
+	version := cfg.GetVersion()
+	switch version {
+	case V1:
+		v, ok := u.(userv1)
+		if !ok {
+			return nil, trace.BadParameter("don't know how to marshal %v", V1)
+		}
+		return json.Marshal(v.V1())
+	case V2:
+		v, ok := u.(userv2)
+		if !ok {
+			return nil, trace.BadParameter("don't know how to marshal %v", V2)
+		}
+		return json.Marshal(v.V2())
+	default:
+		return nil, trace.BadParameter("version %v is not supported", version)
+	}
 }

@@ -38,13 +38,13 @@ func (s *MigrationsSuite) SetUpSuite(c *C) {
 }
 
 func (s *MigrationsSuite) TestMigrateServers(c *C) {
-	in := &ServerV0{
+	in := &ServerV1{
 		Kind:      KindNode,
 		ID:        "id1",
 		Addr:      "127.0.0.1:22",
 		Hostname:  "localhost",
 		Labels:    map[string]string{"a": "b", "c": "d"},
-		CmdLabels: map[string]CommandLabelV0{"o": CommandLabelV0{Command: []string{"ls", "-l"}, Period: time.Second}},
+		CmdLabels: map[string]CommandLabelV1{"o": CommandLabelV1{Command: []string{"ls", "-l"}, Period: time.Second}},
 	}
 
 	out := in.V2()
@@ -79,7 +79,7 @@ func (s *MigrationsSuite) TestMigrateServers(c *C) {
 }
 
 func (s *MigrationsSuite) TestMigrateUsers(c *C) {
-	in := &UserV0{
+	in := &UserV1{
 		Name:           "alice",
 		AllowedLogins:  []string{"admin", "centos"},
 		OIDCIdentities: []OIDCIdentity{{Email: "alice@example.com", ConnectorID: "example"}},
@@ -136,7 +136,7 @@ func (s *MigrationsSuite) TestMigrateUsers(c *C) {
 }
 
 func (s *MigrationsSuite) TestMigrateReverseTunnels(c *C) {
-	in := &ReverseTunnelV0{
+	in := &ReverseTunnelV1{
 		DomainName: "example.com",
 		DialAddrs:  []string{"127.0.0.1:3245", "127.0.0.1:3450"},
 	}
@@ -170,7 +170,7 @@ func (s *MigrationsSuite) TestMigrateReverseTunnels(c *C) {
 }
 
 func (s *MigrationsSuite) TestMigrateCertAuthorities(c *C) {
-	in := &CertAuthorityV0{
+	in := &CertAuthorityV1{
 		Type:          UserCA,
 		DomainName:    "example.com",
 		CheckingKeys:  [][]byte{[]byte("checking key")},

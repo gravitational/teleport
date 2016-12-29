@@ -76,7 +76,51 @@ const (
 
 	// V2 is our current version
 	V2 = "v2"
+
+	// V1 is our first version
+	// resources were not explicitly versioned at that point
+	V1 = "v1"
 )
+
+func collectOptions(opts []MarshalOption) (*MarshalConfig, error) {
+	var cfg MarshalConfig
+	for _, o := range opts {
+		if err := o(&cfg); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return &cfg, nil
+}
+
+// MarshalConfig specify marshalling options
+type MarshalConfig struct {
+	// Version specifies particular version we should marshal resources with
+	Version string
+}
+
+// GetVersion returns explicitly provided version or sets latest as default
+func (m *MarshalConfig) GetVersion() string {
+	if m.Version == "" {
+		return V2
+	}
+	return m.Version
+}
+
+// MarshalOption sets marshalling option
+type MarshalOption func(c *MarshalConfig) error
+
+// WithVersion sets marshal version
+func WithVersion(v string) MarshalOption {
+	return func(c *MarshalConfig) error {
+		switch v {
+		case V1, V2:
+			c.Version = v
+			return nil
+		default:
+			return trace.BadParameter("version '%v' is not supported", v)
+		}
+	}
+}
 
 // marshalerMutex is a mutex for resource marshalers/unmarshalers
 var marshalerMutex sync.RWMutex

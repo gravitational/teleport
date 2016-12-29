@@ -178,7 +178,7 @@ type WebSession struct {
 // is stored and generated when tctl add user is executed
 type SignupToken struct {
 	Token           string    `json:"token"`
-	User            UserV0    `json:"user"`
+	User            UserV1    `json:"user"`
 	Hotp            []byte    `json:"hotp"`
 	HotpFirstValues []string  `json:"hotp_first_values"`
 	HotpQR          []byte    `json:"hotp_qr"`

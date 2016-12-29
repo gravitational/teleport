@@ -53,6 +53,21 @@ type CertAuthorityV2 struct {
 	rawObject interface{}
 }
 
+// V2 returns V2 version of the resouirce - itself
+func (c *CertAuthorityV2) V2() *CertAuthorityV2 {
+	return c
+}
+
+// V1 returns V1 version of the object
+func (c *CertAuthorityV2) V1() *CertAuthorityV1 {
+	return &CertAuthorityV1{
+		Type:         c.Spec.Type,
+		DomainName:   c.Spec.ClusterName,
+		CheckingKeys: c.Spec.CheckingKeys,
+		SigningKeys:  c.Spec.SigningKeys,
+	}
+}
+
 // SetSigningKeys sets signing keys
 func (ca *CertAuthorityV2) SetSigningKeys(keys [][]byte) error {
 	ca.Spec.SigningKeys = keys
@@ -200,9 +215,9 @@ const CertAuthoritySpecV2Schema = `{
   }
 }`
 
-// CertAuthorityV0 is a host or user certificate authority that
+// CertAuthorityV1 is a host or user certificate authority that
 // can check and if it has private key stored as well, sign it too
-type CertAuthorityV0 struct {
+type CertAuthorityV1 struct {
 	// Type is either user or host certificate authority
 	Type CertAuthType `json:"type"`
 	// DomainName identifies domain name this authority serves,
@@ -219,7 +234,13 @@ type CertAuthorityV0 struct {
 	AllowedLogins []string `json:"allowed_logins"`
 }
 
-func (c *CertAuthorityV0) V2() *CertAuthorityV2 {
+// V1 returns V1 version of the resource
+func (c *CertAuthorityV1) V1() *CertAuthorityV1 {
+	return c
+}
+
+// V2 returns V2 version of the resource
+func (c *CertAuthorityV1) V2() *CertAuthorityV2 {
 	return &CertAuthorityV2{
 		Kind:    KindCertAuthority,
 		Version: V2,
@@ -259,7 +280,7 @@ type CertAuthorityMarshaler interface {
 	// UnmarshalCertAuthority unmarhsals cert authority from binary representation
 	UnmarshalCertAuthority(bytes []byte) (CertAuthority, error)
 	// MarshalCertAuthority to binary representation
-	MarshalCertAuthority(c CertAuthority) ([]byte, error)
+	MarshalCertAuthority(c CertAuthority, opts ...MarshalOption) ([]byte, error)
 }
 
 // GetCertAuthoritySchema returns JSON Schema for cert authorities
@@ -278,7 +299,7 @@ func (*TeleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte) (Cer
 	}
 	switch h.Version {
 	case "":
-		var ca CertAuthorityV0
+		var ca CertAuthorityV1
 		err := json.Unmarshal(bytes, &ca)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -296,6 +317,33 @@ func (*TeleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte) (Cer
 }
 
 // MarshalUser marshalls cert authority into JSON
-func (*TeleportCertAuthorityMarshaler) MarshalCertAuthority(ca CertAuthority) ([]byte, error) {
-	return json.Marshal(ca)
+func (*TeleportCertAuthorityMarshaler) MarshalCertAuthority(ca CertAuthority, opts ...MarshalOption) ([]byte, error) {
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	type cav1 interface {
+		V1() *CertAuthorityV1
+	}
+
+	type cav2 interface {
+		V2() *CertAuthorityV2
+	}
+	version := cfg.GetVersion()
+	switch version {
+	case V1:
+		v, ok := ca.(cav1)
+		if !ok {
+			return nil, trace.BadParameter("don't know how to marshal %v", V1)
+		}
+		return json.Marshal(v.V1())
+	case V2:
+		v, ok := ca.(cav2)
+		if !ok {
+			return nil, trace.BadParameter("don't know how to marshal %v", V2)
+		}
+		return json.Marshal(v.V2())
+	default:
+		return nil, trace.BadParameter("version %v is not supported", version)
+	}
 }

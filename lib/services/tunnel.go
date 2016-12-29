@@ -37,6 +37,19 @@ type ReverseTunnelV2 struct {
 	Spec ReverseTunnelSpecV2 `json:"spec"`
 }
 
+// V2 returns V2 version of the resource
+func (r *ReverseTunnelV2) V2() *ReverseTunnelV2 {
+	return r
+}
+
+// V1 returns V1 version of the resource
+func (r *ReverseTunnelV2) V1() *ReverseTunnelV1 {
+	return &ReverseTunnelV1{
+		DomainName: r.Spec.ClusterName,
+		DialAddrs:  r.Spec.DialAddrs,
+	}
+}
+
 // GetName returns tunnel object name
 func (r *ReverseTunnelV2) GetName() string {
 	return r.Metadata.Name
@@ -97,8 +110,8 @@ const ReverseTunnelSpecV2Schema = `{
   }
 }`
 
-// ReverseTunnelV0 is V0 version of reverse tunnel
-type ReverseTunnelV0 struct {
+// ReverseTunnelV1 is V1 version of reverse tunnel
+type ReverseTunnelV1 struct {
 	// DomainName is a domain name of remote cluster we are connecting to
 	DomainName string `json:"domain_name"`
 	// DialAddrs is a list of remote address to establish a connection to
@@ -106,8 +119,13 @@ type ReverseTunnelV0 struct {
 	DialAddrs []string `json:"dial_addrs"`
 }
 
+// V1 returns V1 version of the resource
+func (r *ReverseTunnelV1) V1() *ReverseTunnelV1 {
+	return r
+}
+
 // V2 returns V2 version of reverse tunnel
-func (r *ReverseTunnelV0) V2() *ReverseTunnelV2 {
+func (r *ReverseTunnelV1) V2() *ReverseTunnelV2 {
 	return &ReverseTunnelV2{
 		Kind:    KindReverseTunnel,
 		Version: V2,
@@ -141,7 +159,7 @@ func UnmarshalReverseTunnel(data []byte) (ReverseTunnel, error) {
 	}
 	switch h.Version {
 	case "":
-		var r ReverseTunnelV0
+		var r ReverseTunnelV1
 		err := json.Unmarshal(data, &r)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -176,7 +194,7 @@ type ReverseTunnelMarshaler interface {
 	// UnmarshalReverseTunnel unmarshals reverse tunnel from binary representation
 	UnmarshalReverseTunnel(bytes []byte) (ReverseTunnel, error)
 	// MarshalReverseTunnel marshals reverse tunnel to binary representation
-	MarshalReverseTunnel(ReverseTunnel) ([]byte, error)
+	MarshalReverseTunnel(ReverseTunnel, ...MarshalOption) ([]byte, error)
 }
 
 type TeleportTunnelMarshaler struct{}
@@ -187,6 +205,33 @@ func (*TeleportTunnelMarshaler) UnmarshalReverseTunnel(bytes []byte) (ReverseTun
 }
 
 // MarshalRole marshalls role into JSON
-func (*TeleportTunnelMarshaler) MarshalReverseTunnel(rt ReverseTunnel) ([]byte, error) {
-	return json.Marshal(rt)
+func (*TeleportTunnelMarshaler) MarshalReverseTunnel(rt ReverseTunnel, opts ...MarshalOption) ([]byte, error) {
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	type tunv1 interface {
+		V1() *ReverseTunnelV1
+	}
+
+	type tunv2 interface {
+		V2() *ReverseTunnelV2
+	}
+	version := cfg.GetVersion()
+	switch version {
+	case V1:
+		v, ok := rt.(tunv1)
+		if !ok {
+			return nil, trace.BadParameter("don't know how to marshal %v", V1)
+		}
+		return json.Marshal(v.V1())
+	case V2:
+		v, ok := rt.(tunv2)
+		if !ok {
+			return nil, trace.BadParameter("don't know how to marshal %v", V2)
+		}
+		return json.Marshal(v.V2())
+	default:
+		return nil, trace.BadParameter("version %v is not supported", version)
+	}
 }

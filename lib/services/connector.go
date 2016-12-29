@@ -65,7 +65,7 @@ type OIDCConnectorMarshaler interface {
 	// UnmarshalOIDCConnector unmarshals connector from binary representation
 	UnmarshalOIDCConnector(bytes []byte) (OIDCConnector, error)
 	// MarshalOIDCConnector marshals connector to binary representation
-	MarshalOIDCConnector(c OIDCConnector) ([]byte, error)
+	MarshalOIDCConnector(c OIDCConnector, opts ...MarshalOption) ([]byte, error)
 }
 
 // GetOIDCConnectorSchema returns schema for OIDCConnector
@@ -84,7 +84,7 @@ func (*TeleportOIDCConnectorMarshaler) UnmarshalOIDCConnector(bytes []byte) (OID
 	}
 	switch h.Version {
 	case "":
-		var c OIDCConnectorV0
+		var c OIDCConnectorV1
 		err := json.Unmarshal(bytes, &c)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -100,9 +100,36 @@ func (*TeleportOIDCConnectorMarshaler) UnmarshalOIDCConnector(bytes []byte) (OID
 	return nil, trace.BadParameter("OIDC connector resource version %v is not supported", h.Version)
 }
 
-// MarshalUser marshalls user into JSON
-func (*TeleportOIDCConnectorMarshaler) MarshalOIDCConnector(c OIDCConnector) ([]byte, error) {
-	return json.Marshal(c)
+// MarshalUser marshals OIDC connector into JSON
+func (*TeleportOIDCConnectorMarshaler) MarshalOIDCConnector(c OIDCConnector, opts ...MarshalOption) ([]byte, error) {
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	type connv1 interface {
+		V1() *OIDCConnectorV1
+	}
+
+	type connv2 interface {
+		V2() *OIDCConnectorV2
+	}
+	version := cfg.GetVersion()
+	switch version {
+	case V1:
+		v, ok := c.(connv1)
+		if !ok {
+			return nil, trace.BadParameter("don't know how to marshal %v", V1)
+		}
+		return json.Marshal(v.V1())
+	case V2:
+		v, ok := c.(connv2)
+		if !ok {
+			return nil, trace.BadParameter("don't know how to marshal %v", V2)
+		}
+		return json.Marshal(v.V2())
+	default:
+		return nil, trace.BadParameter("version %v is not supported", version)
+	}
 }
 
 // OIDCConnectorV2 is version 1 resource spec for OIDC connector
@@ -115,6 +142,25 @@ type OIDCConnectorV2 struct {
 	Metadata Metadata `json:"metadata"`
 	// Spec contains connector specification
 	Spec OIDCConnectorSpecV2 `json:"spec"`
+}
+
+// V2 returns V2 version of the resource
+func (o *OIDCConnectorV2) V2() *OIDCConnectorV2 {
+	return o
+}
+
+// V1 converts OIDCConnectorV2 to OIDCConnectorV1 format
+func (o *OIDCConnectorV2) V1() *OIDCConnectorV1 {
+	return &OIDCConnectorV1{
+		ID:            o.Metadata.Name,
+		IssuerURL:     o.Spec.IssuerURL,
+		ClientID:      o.Spec.ClientID,
+		ClientSecret:  o.Spec.ClientSecret,
+		RedirectURL:   o.Spec.RedirectURL,
+		Display:       o.Spec.Display,
+		Scope:         o.Spec.Scope,
+		ClaimsToRoles: o.Spec.ClaimsToRoles,
+	}
 }
 
 // SetClientSecret sets client secret to some value
@@ -317,9 +363,9 @@ const ClaimMappingSchema = `{
    }
 }`
 
-// OIDCConnectorV0 specifies configuration for Open ID Connect compatible external
+// OIDCConnectorV1 specifies configuration for Open ID Connect compatible external
 // identity provider, e.g. google in some organisation
-type OIDCConnectorV0 struct {
+type OIDCConnectorV1 struct {
 	// ID is a provider id, 'e.g.' google, used internally
 	ID string `json:"id"`
 	// Issuer URL is the endpoint of the provider, e.g. https://accounts.google.com
@@ -341,8 +387,13 @@ type OIDCConnectorV0 struct {
 	ClaimsToRoles []ClaimMapping `json:"claims_to_roles"`
 }
 
+// V1 returns V1 version of the resource
+func (o *OIDCConnectorV1) V1() *OIDCConnectorV1 {
+	return o
+}
+
 // V2 returns V2 version of the connector
-func (o OIDCConnectorV0) V2() *OIDCConnectorV2 {
+func (o *OIDCConnectorV1) V2() *OIDCConnectorV2 {
 	return &OIDCConnectorV2{
 		Kind:    KindOIDCConnector,
 		Version: V2,
