@@ -120,8 +120,11 @@ func (s *MigrationsSuite) TestMigrateUsers(c *C) {
 	out3, err := GetUserMarshaler().UnmarshalUser(data)
 	c.Assert(err, IsNil)
 
-	d := &spew.ConfigState{Indent: " ", DisableMethods: true}
-	c.Assert(out3, DeepEquals, expected, Commentf("%v", diff.Diff(d.Sdump(out3), d.Sdump(expected))))
+	d := &spew.ConfigState{Indent: " ", DisableMethods: true, DisablePointerMethods: true, DisablePointerAddresses: true}
+	expected.rawObject = nil
+	obj := out3.(*UserV1)
+	obj.rawObject = nil
+	c.Assert(obj, DeepEquals, expected, Commentf("%v", diff.Diff(d.Sdump(obj), d.Sdump(expected))))
 }
 
 func (s *MigrationsSuite) TestMigrateReverseTunnels(c *C) {

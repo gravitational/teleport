@@ -99,9 +99,12 @@ const CreatedBySchema = `{
           "identity": {"type": "string"}
        }
       },
-     "locked_message": {"type": "string"},
-     "locked_time": {"type": "string"},
-     "lock_expires": {"type": "string"}
+     "time": {"type": "string"},
+     "user": {
+       "type": "object",
+       "additionalProperties": false,
+       "properties": {"name": {"type": "string"}}
+     }
    }
 }`
 
