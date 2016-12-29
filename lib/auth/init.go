@@ -278,7 +278,8 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 	users, err := asrv.GetUsers()
 	for i := range users {
 		user := users[i]
-		if len(user.GetAllowedLogins()) == 0 {
+		raw, ok := (user.GetRawObject()).(*services.UserV1)
+		if !ok {
 			continue
 		}
 		log.Infof("migrating legacy user %v", user.GetName())
@@ -287,7 +288,6 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		user.SetAllowedLogins(nil)
 		user.AddRole(role.GetName())
 		if err := asrv.UpsertUser(user); err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -298,24 +298,25 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 	cas, err := asrv.GetCertAuthorities(services.UserCA, true)
 	for i := range cas {
 		ca := cas[i]
-		if len(ca.AllowedLogins) == 0 {
+		raw, ok := (ca.GetRawObject()).(*services.CertAuthorityV1)
+		if !ok {
 			continue
 		}
-		_, err := asrv.GetRole(services.RoleNameForCertAuthority(ca.DomainName))
+		_, err := asrv.GetRole(services.RoleNameForCertAuthority(ca.GetClusterName()))
 		if err == nil {
 			continue
 		}
 		if !trace.IsNotFound(err) {
 			return nil, nil, trace.Wrap(err)
 		}
-		log.Infof("migrating legacy cert authority %v", ca.DomainName)
-		role := services.RoleForCertAuthority(*ca)
+		log.Infof("migrating legacy cert authority %v", ca.GetName())
+		role := services.RoleForCertAuthority(ca)
 		err = asrv.UpsertRole(role)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		ca.Roles = append(ca.Roles, role.GetName())
-		if err := asrv.UpsertCertAuthority(*ca, 0); err != nil {
+		ca.AddRole(role.GetName())
+		if err := asrv.UpsertCertAuthority(ca, 0); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	}

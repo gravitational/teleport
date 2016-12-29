@@ -36,6 +36,8 @@ type CertAuthority interface {
 	Check() error
 	// SetSigningKeys sets signing keys
 	SetSigningKeys([][]byte) error
+	// AddRole adds a role to ca role list
+	AddRole(name string)
 }
 
 // CertAuthorityV2 is version 1 resource spec for Cert Authority
@@ -66,6 +68,16 @@ func (c *CertAuthorityV2) V1() *CertAuthorityV1 {
 		CheckingKeys: c.Spec.CheckingKeys,
 		SigningKeys:  c.Spec.SigningKeys,
 	}
+}
+
+// AddRole adds a role to ca role list
+func (ca *CertAuthorityV2) AddRole(name string) {
+	for _, r := range ca.Spec.Roles {
+		if r == name {
+			return
+		}
+	}
+	ca.Spec.Roles = append(ca.Spec.Roles, name)
 }
 
 // SetSigningKeys sets signing keys

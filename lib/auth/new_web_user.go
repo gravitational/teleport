@@ -87,7 +87,7 @@ func (s *AuthServer) CreateSignupToken(user services.User) (string, error) {
 
 	tokenData := services.SignupToken{
 		Token: token,
-		User: services.TeleportUser{
+		User: services.UserV1{
 			Name:           user.GetName(),
 			AllowedLogins:  user.GetAllowedLogins(),
 			OIDCIdentities: user.GetIdentities()},
