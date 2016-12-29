@@ -47,6 +47,8 @@ type User interface {
 // NewUser creates new empty user
 func NewUser(name string) (User, error) {
 	u := &UserV1{
+		Kind:    KindUser,
+		Version: V1,
 		Metadata: Metadata{
 			Name:      name,
 			Namespace: defaults.Namespace,
@@ -292,6 +294,12 @@ func (u *UserV1) SetLocked(until time.Time, reason string) {
 
 // Check checks validity of all parameters
 func (u *UserV1) Check() error {
+	if u.Kind == "" {
+		return trace.BadParameter("user kind is not set")
+	}
+	if u.Version == "" {
+		return trace.BadParameter("user version is not set")
+	}
 	if !cstrings.IsValidUnixUser(u.Metadata.Name) {
 		return trace.BadParameter("'%v' is not a valid user name", u.Metadata.Name)
 	}

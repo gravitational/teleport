@@ -289,9 +289,10 @@ func (*TeleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte) (Cer
 		if err := utils.UnmarshalWithSchema(GetCertAuthoritySchema(), &ca, bytes); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
+		return &ca, nil
 	}
 
-	return nil, trace.BadParameter("user resource version %v is not supported", h.Version)
+	return nil, trace.BadParameter("cert authority resource version %v is not supported", h.Version)
 }
 
 // MarshalUser marshalls cert authority into JSON
