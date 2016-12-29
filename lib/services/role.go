@@ -539,7 +539,7 @@ type RoleMarshaler interface {
 	// UnmarshalRole from binary representation
 	UnmarshalRole(bytes []byte) (Role, error)
 	// MarshalRole to binary representation
-	MarshalRole(u Role) ([]byte, error)
+	MarshalRole(u Role, opts ...MarshalOption) ([]byte, error)
 }
 
 type TeleportRoleMarshaler struct{}
@@ -550,7 +550,7 @@ func (*TeleportRoleMarshaler) UnmarshalRole(bytes []byte) (Role, error) {
 }
 
 // MarshalRole marshalls role into JSON
-func (*TeleportRoleMarshaler) MarshalRole(u Role) ([]byte, error) {
+func (*TeleportRoleMarshaler) MarshalRole(u Role, opts ...MarshalOption) ([]byte, error) {
 	return json.Marshal(u)
 }
 
