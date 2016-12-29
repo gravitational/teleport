@@ -202,7 +202,7 @@ const OIDCIDentitySchema = `{
   "additionalProperties": false,
   "properties": {
      "connector_id": {"type": "string"}, 
-     "email": {"type": "string"} 
+     "username": {"type": "string"} 
    }
 }`
 

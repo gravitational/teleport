@@ -63,7 +63,7 @@ func NewUser(name string) (User, error) {
 // ConnectorRef holds information about OIDC connector
 type ConnectorRef struct {
 	// Type is connector type
-	Type string `json:"connector_type"`
+	Type string `json:"type"`
 	// ID is connector ID
 	ID string `json:"id"`
 	// Identity is external identity of the user
@@ -92,7 +92,12 @@ const CreatedBySchema = `{
   "properties": {
      "connector": {
        "additionalProperties": false,
-       "type": "object"
+       "type": "object",
+       "properties": {
+          "type": {"type": "string"},
+          "id": {"type": "string"},
+          "identity": {"type": "string"}
+       }
       },
      "locked_message": {"type": "string"},
      "locked_time": {"type": "string"},
@@ -416,6 +421,7 @@ func (*TeleportUserMarshaler) UnmarshalUser(bytes []byte) (User, error) {
 		if err := utils.UnmarshalWithSchema(GetUserSchema(""), &u, bytes); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
+		u.rawObject = u
 		return &u, nil
 	}
 

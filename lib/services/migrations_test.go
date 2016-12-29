@@ -23,6 +23,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/davecgh/go-spew/spew"
+	"github.com/kylelemons/godebug/diff"
 	. "gopkg.in/check.v1"
 )
 
@@ -112,6 +114,14 @@ func (s *MigrationsSuite) TestMigrateUsers(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(out2.GetRawObject(), DeepEquals, *in)
 	c.Assert(out2, DeepEquals, expected)
+
+	data, err = json.Marshal(expected)
+	c.Assert(err, IsNil)
+	out3, err := GetUserMarshaler().UnmarshalUser(data)
+	c.Assert(err, IsNil)
+
+	d := &spew.ConfigState{Indent: " ", DisableMethods: true}
+	c.Assert(out3, DeepEquals, expected, Commentf("%v", diff.Diff(d.Sdump(out3), d.Sdump(expected))))
 }
 
 func (s *MigrationsSuite) TestMigrateReverseTunnels(c *C) {
