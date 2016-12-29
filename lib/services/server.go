@@ -69,6 +69,7 @@ func (s *ServerV2) V1() *ServerV1 {
 		Namespace: ProcessNamespace(s.Metadata.Namespace),
 		Addr:      s.Spec.Addr,
 		Hostname:  s.Spec.Hostname,
+		Labels:    s.Metadata.Labels,
 		CmdLabels: labels,
 	}
 }

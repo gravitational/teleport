@@ -70,12 +70,22 @@ func (s *MigrationsSuite) TestMigrateServers(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(out2, DeepEquals, out)
 
-	data, err = GetServerMarshaler().MarshalServer(expected)
+	// check V2 marshaling
+	data, err = GetServerMarshaler().MarshalServer(expected, WithVersion(V2))
 	c.Assert(err, IsNil)
-
 	out3, err := GetServerMarshaler().UnmarshalServer(data, KindNode)
 	c.Assert(err, IsNil)
 	c.Assert(out3, DeepEquals, expected)
+
+	// check V1 marshaling
+	data, err = GetServerMarshaler().MarshalServer(expected, WithVersion(V1))
+	c.Assert(err, IsNil)
+
+	var out4 ServerV1
+	err = json.Unmarshal(data, &out4)
+	out4.Namespace = ""
+	c.Assert(err, IsNil)
+	c.Assert(out4, DeepEquals, *in)
 }
 
 func (s *MigrationsSuite) TestMigrateUsers(c *C) {
@@ -133,6 +143,14 @@ func (s *MigrationsSuite) TestMigrateUsers(c *C) {
 	obj := out3.(*UserV2)
 	obj.rawObject = nil
 	c.Assert(obj, DeepEquals, expected, Commentf("%v", diff.Diff(d.Sdump(obj), d.Sdump(expected))))
+
+	// test backwards compatiblity
+	data, err = GetUserMarshaler().MarshalUser(expected, WithVersion(V1))
+	c.Assert(err, IsNil)
+	var out4 UserV1
+	json.Unmarshal(data, &out4)
+	in.AllowedLogins = nil
+	c.Assert(out4, DeepEquals, *in, Commentf("%v", diff.Diff(d.Sdump(obj), d.Sdump(*in))))
 }
 
 func (s *MigrationsSuite) TestMigrateReverseTunnels(c *C) {
@@ -167,6 +185,16 @@ func (s *MigrationsSuite) TestMigrateReverseTunnels(c *C) {
 	out3, err := GetReverseTunnelMarshaler().UnmarshalReverseTunnel(data)
 	c.Assert(err, IsNil)
 	c.Assert(out3, DeepEquals, expected)
+
+	// test backwards compatibility
+	data, err = GetReverseTunnelMarshaler().MarshalReverseTunnel(expected, WithVersion(V1))
+	c.Assert(err, IsNil)
+
+	var out4 ReverseTunnelV1
+	err = json.Unmarshal(data, &out4)
+	c.Assert(err, IsNil)
+
+	c.Assert(out4, DeepEquals, *in)
 }
 
 func (s *MigrationsSuite) TestMigrateCertAuthorities(c *C) {
@@ -201,4 +229,14 @@ func (s *MigrationsSuite) TestMigrateCertAuthorities(c *C) {
 	out2, err := GetCertAuthorityMarshaler().UnmarshalCertAuthority(data)
 	c.Assert(err, IsNil)
 	c.Assert(out2, DeepEquals, expected)
+
+	// test backwards compatibility
+	data, err = GetCertAuthorityMarshaler().MarshalCertAuthority(expected, WithVersion(V1))
+	c.Assert(err, IsNil)
+
+	var out3 CertAuthorityV1
+	err = json.Unmarshal(data, &out3)
+	c.Assert(err, IsNil)
+	in.AllowedLogins = nil
+	c.Assert(out3, DeepEquals, *in)
 }
