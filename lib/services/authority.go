@@ -26,6 +26,8 @@ type CertAuthority interface {
 	GetClusterName() string
 	// GetCheckingKeys returns public keys to check signature
 	GetCheckingKeys() [][]byte
+	// GetSigning keys returns signing keys
+	GetSigningKeys() [][]byte
 	// GetRoles returns a list of roles assumed by users signed by this CA
 	GetRoles() []string
 	// FirstSigningKey returns first signing key or returns error if it's not here
@@ -121,6 +123,11 @@ func (ca *CertAuthorityV2) AddRole(name string) {
 		}
 	}
 	ca.Spec.Roles = append(ca.Spec.Roles, name)
+}
+
+// GetSigning keys returns signing keys
+func (ca *CertAuthorityV2) GetSigningKeys() [][]byte {
+	return ca.Spec.SigningKeys
 }
 
 // SetSigningKeys sets signing keys

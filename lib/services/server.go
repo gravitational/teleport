@@ -40,6 +40,8 @@ type Server interface {
 	//
 	// Any server matches against an empty label set
 	MatchAgainst(labels map[string]string) bool
+	// LabelsString returns a comma separated string with all node's labels
+	LabelsString() string
 }
 
 // ServersToV1 converts list of servers to slice of V1 style ones

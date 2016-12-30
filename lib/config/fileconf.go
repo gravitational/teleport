@@ -461,7 +461,7 @@ type ReverseTunnel struct {
 }
 
 // ConvertAndValidate returns validated services.ReverseTunnel or nil and error otherwize
-func (t *ReverseTunnel) ConvertAndValidate() (*services.ReverseTunnel, error) {
+func (t *ReverseTunnel) ConvertAndValidate() (services.ReverseTunnel, error) {
 	for i := range t.Addresses {
 		addr, err := utils.ParseHostPortAddr(t.Addresses[i], defaults.SSHProxyTunnelListenPort)
 		if err != nil {
@@ -470,10 +470,7 @@ func (t *ReverseTunnel) ConvertAndValidate() (*services.ReverseTunnel, error) {
 		t.Addresses[i] = addr.String()
 	}
 
-	out := &services.ReverseTunnel{
-		DomainName: t.DomainName,
-		DialAddrs:  t.Addresses,
-	}
+	out := services.NewReverseTunnel(t.DomainName, t.Addresses)
 	if err := out.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -540,8 +537,8 @@ type Authority struct {
 }
 
 // Parse reads values and returns parsed CertAuthority
-func (a *Authority) Parse() (*services.CertAuthority, error) {
-	ca := &services.CertAuthority{
+func (a *Authority) Parse() (services.CertAuthority, error) {
+	ca := &services.CertAuthorityV1{
 		AllowedLogins: a.AllowedLogins,
 		DomainName:    a.DomainName,
 		Type:          a.Type,
@@ -571,7 +568,7 @@ func (a *Authority) Parse() (*services.CertAuthority, error) {
 		ca.SigningKeys = append(ca.SigningKeys, []byte(val))
 	}
 
-	return ca, nil
+	return ca.V2(), nil
 }
 
 // ClaimMapping is OIDC claim mapping that maps
@@ -611,7 +608,7 @@ type OIDCConnector struct {
 }
 
 // Parse parses config struct into services connector and checks if it's valid
-func (o *OIDCConnector) Parse() (*services.OIDCConnector, error) {
+func (o *OIDCConnector) Parse() (services.OIDCConnector, error) {
 	if o.Display == "" {
 		o.Display = o.ID
 	}
@@ -627,7 +624,7 @@ func (o *OIDCConnector) Parse() (*services.OIDCConnector, error) {
 		})
 	}
 
-	other := &services.OIDCConnector{
+	other := &services.OIDCConnectorV1{
 		ID:            o.ID,
 		Display:       o.Display,
 		IssuerURL:     o.IssuerURL,
@@ -637,10 +634,11 @@ func (o *OIDCConnector) Parse() (*services.OIDCConnector, error) {
 		Scope:         o.Scope,
 		ClaimsToRoles: mappings,
 	}
-	if err := other.Check(); err != nil {
+	v2 := other.V2()
+	if err := v2.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return other, nil
+	return v2, nil
 }
 
 // Parse() is applied to a string in "role,role,role:token" format. It breaks it
