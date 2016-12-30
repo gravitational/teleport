@@ -375,20 +375,8 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	err = tunClt.UpsertReverseTunnel(&services.ReverseTunnelV2{
-		Kind:    services.KindReverseTunnel,
-		Version: services.V2,
-		Metadata: services.Metadata{
-			Name:      s.domainName,
-			Namespace: defaults.Namespace,
-		},
-		Spec: services.ReverseTunnelSpecV2{
-			ClusterName: s.domainName,
-			DialAddrs: []string{
-				reverseTunnelAddress.String(),
-			},
-		},
-	}, 0)
+	err = tunClt.UpsertReverseTunnel(
+		services.NewReverseTunnel(s.domainName, []string{reverseTunnelAddress.String()}), 0)
 	c.Assert(err, IsNil)
 
 	err = agentPool.FetchAndSyncAgents()

@@ -422,7 +422,7 @@ func (s *IntSuite) TestTwoSites(c *check.C) {
 	c.Assert(err, check.IsNil)
 	err = tc.SSH(context.TODO(), cmd, false)
 	c.Assert(err, check.IsNil)
-	c.Assert(outputA, check.DeepEquals, outputB)
+	c.Assert(outputA.String(), check.DeepEquals, outputB.String())
 
 	// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
 	a.Stop(false)

@@ -331,6 +331,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		Access:          cfg.Access,
 		StaticTokens:    cfg.Auth.StaticTokens,
 		U2F:             cfg.Auth.U2F,
+		Roles:           cfg.Auth.Roles,
 	}, cfg.SeedConfig)
 	if err != nil {
 		return trace.Wrap(err)
@@ -402,18 +403,25 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 	})
 
 	process.RegisterFunc(func() error {
-		srv := services.Server{
-			ID:       process.Config.HostUUID,
-			Addr:     cfg.Auth.SSHAddr.Addr,
-			Hostname: process.Config.Hostname,
+		srv := services.ServerV2{
+			Kind:    services.KindAuthServer,
+			Version: services.V2,
+			Metadata: services.Metadata{
+				Namespace: defaults.Namespace,
+				Name:      process.Config.HostUUID,
+			},
+			Spec: services.ServerSpecV2{
+				Addr:     cfg.Auth.SSHAddr.Addr,
+				Hostname: process.Config.Hostname,
+			},
 		}
-		host, port, err := net.SplitHostPort(srv.Addr)
+		host, port, err := net.SplitHostPort(srv.GetAddr())
 		// advertise-ip is explicitly set:
 		if process.Config.AdvertiseIP != nil {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			srv.Addr = fmt.Sprintf("%v:%v", process.Config.AdvertiseIP.String(), port)
+			srv.SetAddr(fmt.Sprintf("%v:%v", process.Config.AdvertiseIP.String(), port))
 		} else {
 			// advertise-ip is not set, while the CA is listening on 0.0.0.0? lets try
 			// to guess the 'advertise ip' then:
@@ -422,14 +430,14 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 				if err != nil {
 					log.Warn(err)
 				} else {
-					srv.Addr = net.JoinHostPort(ip.String(), port)
+					srv.SetAddr(net.JoinHostPort(ip.String(), port))
 				}
 			}
-			log.Warnf("advertise_ip is not set for this auth server!!! Trying to guess the IP this server can be reached at: %v", srv.Addr)
+			log.Warnf("advertise_ip is not set for this auth server. Trying to guess the IP this server can be reached at: %v", srv.GetAddr())
 		}
 		// immediately register, and then keep repeating in a loop:
 		for !askedToExit {
-			err := authServer.UpsertAuthServer(srv, defaults.ServerHeartbeatTTL)
+			err := authServer.UpsertAuthServer(&srv, defaults.ServerHeartbeatTTL)
 			if err != nil {
 				log.Warningf("failed to announce presence: %v", err)
 			}

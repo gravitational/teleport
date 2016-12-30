@@ -42,6 +42,29 @@ type CertAuthority interface {
 	Checkers() ([]ssh.PublicKey, error)
 	// Signers returns a list of signers that could be used to sign keys
 	Signers() ([]ssh.Signer, error)
+	// V1 returns V1 version of the resource
+	V1() *CertAuthorityV1
+	// V2 returns V2 version of the resource
+	V2() *CertAuthorityV2
+}
+
+// NewCertAuthority returns new cert authority
+func NewCertAuthority(caType CertAuthType, clusterName string, signingKeys, checkingKeys [][]byte, roles []string) CertAuthority {
+	return &CertAuthorityV2{
+		Kind:    KindCertAuthority,
+		Version: V2,
+		Metadata: Metadata{
+			Name:      clusterName,
+			Namespace: defaults.Namespace,
+		},
+		Spec: CertAuthoritySpecV2{
+			Roles:        roles,
+			Type:         caType,
+			ClusterName:  clusterName,
+			CheckingKeys: checkingKeys,
+			SigningKeys:  signingKeys,
+		},
+	}
 }
 
 // CertAuthoritiesToV1 converts list of cert authorities to V1 slice

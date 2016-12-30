@@ -108,25 +108,27 @@ func NewInstance(siteName string, hostName string, ports []int, priv, pub []byte
 	}
 }
 
+// GetRoles returns a list of roles to initiate for this secret
+func (s *InstanceSecrets) GetRoles() []services.Role {
+	var roles []services.Role
+	for _, ca := range s.GetCAs() {
+		if ca.GetType() != services.UserCA {
+			continue
+		}
+		role := services.RoleForCertAuthority(ca)
+		role.SetLogins(s.AllowedLogins())
+		roles = append(roles, role)
+	}
+	return roles
+}
+
 // GetCAs return an array of CAs stored by the secrets object. In i
 // case we always return hard-coded userCA + hostCA (and they share keys
 // for simplicity)
 func (s *InstanceSecrets) GetCAs() []services.CertAuthority {
 	return []services.CertAuthority{
-		{
-			DomainName:    s.SiteName,
-			Type:          services.HostCA,
-			SigningKeys:   [][]byte{s.PrivKey},
-			CheckingKeys:  [][]byte{s.PubKey},
-			AllowedLogins: s.AllowedLogins(),
-		},
-		{
-			DomainName:    s.SiteName,
-			Type:          services.UserCA,
-			SigningKeys:   [][]byte{s.PrivKey},
-			CheckingKeys:  [][]byte{s.PubKey},
-			AllowedLogins: s.AllowedLogins(),
-		},
+		services.NewCertAuthority(services.HostCA, s.SiteName, [][]byte{s.PrivKey}, [][]byte{s.PubKey}, []string{}),
+		services.NewCertAuthority(services.UserCA, s.SiteName, [][]byte{s.PrivKey}, [][]byte{s.PubKey}, []string{services.RoleNameForCertAuthority(s.SiteName)}),
 	}
 }
 
@@ -194,7 +196,7 @@ func (i *TeleInstance) Create(trustedSecrets []*InstanceSecrets, enableSSH bool,
 	return i.CreateEx(trustedSecrets, tconf)
 }
 
-// CreateEx creates a new instance of Teleport which trusts a lsit of other clusters (other
+// CreateEx creates a new instance of Teleport which trusts a list of other clusters (other
 // instances)
 //
 // Unlike Create() it allows for greater customization because it accepts
@@ -214,13 +216,11 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 	tconf.Identities = append(tconf.Identities, i.Secrets.GetIdentity())
 	for _, trusted := range trustedSecrets {
 		tconf.Auth.Authorities = append(tconf.Auth.Authorities, trusted.GetCAs()...)
+		tconf.Auth.Roles = append(tconf.Auth.Roles, trusted.GetRoles()...)
 		tconf.Identities = append(tconf.Identities, trusted.GetIdentity())
 		if trusted.ListenAddr != "" {
 			tconf.ReverseTunnels = []services.ReverseTunnel{
-				{
-					DomainName: trusted.SiteName,
-					DialAddrs:  []string{trusted.ListenAddr},
-				},
+				services.NewReverseTunnel(trusted.SiteName, []string{trusted.ListenAddr}),
 			}
 		}
 	}
@@ -239,19 +239,21 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// create users if they don't exist, or sign their keys if they're already present
+	// create users and roles if they don't exist, or sign their keys if they're already present
 	auth := i.Process.GetAuthServer()
+
 	for _, user := range i.Secrets.Users {
-		teleUser := &services.TeleportUser{
-			Name:          user.Username,
-			AllowedLogins: user.AllowedLogins,
+		teleUser, err := services.NewUser(user.Username)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 		role := services.RoleForUser(teleUser)
+		role.SetLogins(user.AllowedLogins)
 		err = auth.UpsertRole(role)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		teleUser.Roles = []string{role.GetMetadata().Name}
+		teleUser.AddRole(role.GetMetadata().Name)
 		err = auth.UpsertUser(teleUser)
 		if err != nil {
 			return trace.Wrap(err)
@@ -402,7 +404,7 @@ func (i *TeleInstance) NewClient(login string, site string, host string, port in
 	// tell the client to trust given CAs (from secrets)
 	cas := i.Secrets.GetCAs()
 	for i := range cas {
-		err = tc.AddTrustedCA(&cas[i])
+		err = tc.AddTrustedCA(cas[i].V1())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

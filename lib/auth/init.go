@@ -88,6 +88,9 @@ type InitConfig struct {
 	// Access is service controlling access to resources
 	Access services.Access
 
+	// Roles is a set of roles to create
+	Roles []services.Role
+
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
 	StaticTokens []services.ProvisionToken
@@ -128,6 +131,14 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 	// add trusted authorities from the configuration into the trust backend:
 	keepMap := make(map[string]int, 0)
 	if !skipConfig {
+
+		log.Infof("Initializing roles")
+		for _, role := range cfg.Roles {
+			if err := asrv.UpsertRole(role); err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+		}
+
 		for _, ca := range cfg.Authorities {
 			if err := asrv.Trust.UpsertCertAuthority(ca, backend.Forever); err != nil {
 				return nil, nil, trace.Wrap(err)
@@ -224,6 +235,7 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 			keepMap[tunnel.GetClusterName()] = 1
 		}
 	}
+
 	// remove the reverse tunnels from the backend if they're not
 	// present in the configuration
 	if !seedConfig {

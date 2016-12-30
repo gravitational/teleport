@@ -25,6 +25,22 @@ type ReverseTunnel interface {
 	Check() error
 }
 
+// NewReverseTunnel returns new version of reverse tunnel
+func NewReverseTunnel(clusterName string, dialAddrs []string) ReverseTunnel {
+	return &ReverseTunnelV2{
+		Kind:    KindReverseTunnel,
+		Version: V2,
+		Metadata: Metadata{
+			Name:      clusterName,
+			Namespace: defaults.Namespace,
+		},
+		Spec: ReverseTunnelSpecV2{
+			ClusterName: clusterName,
+			DialAddrs:   dialAddrs,
+		},
+	}
+}
+
 // ReverseTunnelV2 is version 1 resource spec of the reverse tunnel
 type ReverseTunnelV2 struct {
 	// Kind is a resource kind - always resource

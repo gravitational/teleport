@@ -227,6 +227,9 @@ type AuthConfig struct {
 	// that will be added by this auth server on the first start
 	Authorities []services.CertAuthority
 
+	// Roles is a set of roles to pre-provision for this cluster
+	Roles []services.Role
+
 	// DomainName is a name that identifies this authority and all
 	// host nodes in the cluster that will share this authority domain name
 	// as a base name, e.g. if authority domain name is example.com,

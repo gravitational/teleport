@@ -35,6 +35,11 @@ type Server interface {
 	SetNamespace(namespace string)
 	// V1 returns V1 version for backwards compatibility
 	V1() *ServerV1
+	// MatchAgainst takes a map of labels and returns True if this server
+	// has ALL of them
+	//
+	// Any server matches against an empty label set
+	MatchAgainst(labels map[string]string) bool
 }
 
 // ServersToV1 converts list of servers to slice of V1 style ones
