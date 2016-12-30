@@ -204,7 +204,7 @@ func (c *Client) UpsertCertAuthority(ca services.CertAuthority, ttl time.Duratio
 		return trace.Wrap(err)
 	}
 	_, err = c.PostJSON(c.Endpoint("authorities", string(ca.GetType())),
-		upsertCertAuthorityRawReq{CA: data, TTL: ttl})
+		&upsertCertAuthorityRawReq{CA: data, TTL: ttl})
 	return trace.Wrap(err)
 }
 
@@ -349,7 +349,7 @@ func (c *Client) UpsertNode(s services.Server, ttl time.Duration) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	args := upsertServerRawReq{
+	args := &upsertServerRawReq{
 		Server: data,
 		TTL:    ttl,
 	}
@@ -388,7 +388,7 @@ func (c *Client) UpsertReverseTunnel(tunnel services.ReverseTunnel, ttl time.Dur
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	args := upsertReverseTunnelRawReq{
+	args := &upsertReverseTunnelRawReq{
 		ReverseTunnel: data,
 		TTL:           ttl,
 	}
@@ -436,7 +436,7 @@ func (c *Client) UpsertAuthServer(s services.Server, ttl time.Duration) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	args := upsertServerRawReq{
+	args := &upsertServerRawReq{
 		Server: data,
 		TTL:    ttl,
 	}
@@ -472,7 +472,7 @@ func (c *Client) UpsertProxy(s services.Server, ttl time.Duration) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	args := upsertServerRawReq{
+	args := &upsertServerRawReq{
 		Server: data,
 		TTL:    ttl,
 	}
@@ -538,7 +538,7 @@ func (c *Client) UpsertUser(user services.User) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.PostJSON(c.Endpoint("users"), upsertUserRawReq{User: data})
+	_, err = c.PostJSON(c.Endpoint("users"), &upsertUserRawReq{User: data})
 	return trace.Wrap(err)
 }
 
@@ -856,7 +856,7 @@ func (c *Client) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.PostJSON(c.Endpoint("oidc", "connectors"), upsertOIDCConnectorRawReq{
+	_, err = c.PostJSON(c.Endpoint("oidc", "connectors"), &upsertOIDCConnectorRawReq{
 		Connector: data,
 		TTL:       ttl,
 	})
@@ -1125,7 +1125,7 @@ func (c *Client) UpsertRole(role services.Role) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.PostJSON(c.Endpoint("roles"), upsertRoleRawReq{Role: data})
+	_, err = c.PostJSON(c.Endpoint("roles"), &upsertRoleRawReq{Role: data})
 	return trace.Wrap(err)
 }
 

@@ -26,7 +26,6 @@ package auth
 import (
 	"fmt"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -527,7 +526,7 @@ func (s *AuthServer) RegisterUsingToken(token, hostID string, role teleport.Role
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	utils.Consolef(os.Stdout, "[AUTH] Node `%v` joined the cluster", hostID)
+	log.Infof("[AUTH] Node `%v` joined the cluster", hostID)
 	return keys, nil
 }
 

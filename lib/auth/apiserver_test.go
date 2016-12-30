@@ -36,7 +36,9 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/gokyle/hotp"
+	"github.com/kylelemons/godebug/diff"
 	"golang.org/x/crypto/ssh"
 	. "gopkg.in/check.v1"
 )
@@ -125,7 +127,7 @@ type clt interface {
 }
 
 func createUserAndRole(clt clt, username string, allowedLogins []string) (services.User, services.Role) {
-	user, err := services.NewUser("user1")
+	user, err := services.NewUser(username)
 	if err != nil {
 		panic(err)
 	}
@@ -173,8 +175,12 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	_, pub, err = s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
-	createUserAndRole(s.clt, "user1", []string{"user1"})
-	createUserAndRole(s.clt, "user2", []string{"user2"})
+	user1, _ := createUserAndRole(s.clt, "user1", []string{"user1"})
+	user2, _ := createUserAndRole(s.clt, "user2", []string{"user2"})
+	_, _, err = s.clt.UpsertPassword(user1.GetName(), []byte("abc1231"))
+	c.Assert(err, IsNil)
+	_, _, err = s.clt.UpsertPassword(user2.GetName(), []byte("abc1232"))
+	c.Assert(err, IsNil)
 
 	newChecker, err := NewAccessChecker(s.AccessS, s.WebS)
 	c.Assert(err, IsNil)
@@ -318,7 +324,8 @@ func (s *APISuite) TestSessions(c *C) {
 
 func newServer(kind string, name, addr, hostname, namespace string) services.Server {
 	return &services.ServerV2{
-		Kind: kind,
+		Kind:    kind,
+		Version: services.V2,
 		Metadata: services.Metadata{
 			Name:      name,
 			Namespace: namespace,
@@ -381,7 +388,8 @@ func (s *APISuite) TestReverseTunnels(c *C) {
 
 	tunnel := &services.ReverseTunnelV2{
 		Kind:     services.KindReverseTunnel,
-		Metadata: services.Metadata{Name: "example.com"},
+		Metadata: services.Metadata{Name: "example.com", Namespace: defaults.Namespace},
+		Version:  services.V2,
 		Spec: services.ReverseTunnelSpecV2{
 			ClusterName: "example.com",
 			DialAddrs:   []string{"example.com:2023"},
@@ -389,9 +397,11 @@ func (s *APISuite) TestReverseTunnels(c *C) {
 	}
 	c.Assert(s.PresenceS.UpsertReverseTunnel(tunnel, 0), IsNil)
 
+	d := &spew.ConfigState{Indent: " ", DisableMethods: true, DisablePointerMethods: true, DisablePointerAddresses: true}
 	out, err = s.clt.GetReverseTunnels()
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, []services.ReverseTunnel{tunnel})
+	expected := []services.ReverseTunnel{tunnel}
+	c.Assert(out, DeepEquals, expected, Commentf("%v", diff.Diff(d.Sdump(out), d.Sdump(expected))))
 
 	err = s.clt.DeleteReverseTunnel(tunnel.GetName())
 	c.Assert(err, IsNil)

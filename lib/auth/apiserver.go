@@ -594,7 +594,6 @@ func (s *APIServer) generateUserCert(auth ClientI, w http.ResponseWriter, r *htt
 	}
 	cert, err := auth.GenerateUserCert(req.Key, req.User, req.TTL)
 	if err != nil {
-		log.Error(trace.DebugReport(err))
 		return nil, trace.Wrap(err)
 	}
 	return string(cert), nil
@@ -704,7 +703,11 @@ func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca, services.WithVersion(version))
+	data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca, services.WithVersion(version))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return json.RawMessage(data), nil
 }
 
 func (s *APIServer) getDomainName(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -907,7 +910,11 @@ func (s *APIServer) getOIDCConnector(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector, services.WithVersion(version))
+	data, err := services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector, services.WithVersion(version))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return json.RawMessage(data), nil
 }
 
 func (s *APIServer) deleteOIDCConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -1188,7 +1195,11 @@ func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetRoleMarshaler().MarshalRole(role, services.WithVersion(version))
+	data, err := services.GetRoleMarshaler().MarshalRole(role, services.WithVersion(version))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return json.RawMessage(data), nil
 }
 
 func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

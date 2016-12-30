@@ -22,7 +22,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"os"
 	"sort"
 	"sync"
 	"time"
@@ -502,7 +501,7 @@ func (s *AuthTunnel) passwordAuth(
 				ExtToken: string(password),
 				ExtRole:  string(teleport.RoleProvisionToken),
 			}}
-		utils.Consolef(os.Stdout, "[AUTH] Successfully accepted token for %v", conn.User())
+		log.Infof("[AUTH] Successfully accepted token for %v", conn.User())
 		return perms, nil
 	case AuthSignupToken:
 		_, err := s.authServer.GetSignupToken(string(ab.Pass))

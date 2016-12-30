@@ -67,6 +67,9 @@ func (r *ReverseTunnelV2) GetDialAddrs() []string {
 
 // Check returns nil if all parameters are good, error otherwise
 func (r *ReverseTunnelV2) Check() error {
+	if r.Version == "" {
+		return trace.BadParameter("missing reverse tunnel version")
+	}
 	if strings.TrimSpace(r.Spec.ClusterName) == "" {
 		return trace.BadParameter("Reverse tunnel validation error: empty cluster name")
 	}
@@ -91,7 +94,7 @@ type ReverseTunnelSpecV2 struct {
 	ClusterName string `json:"cluster_name"`
 	// DialAddrs is a list of remote address to establish a connection to
 	// it's always SSH over TCP
-	DialAddrs []string `json:"dial_addrs"`
+	DialAddrs []string `json:"dial_addrs,omitempty"`
 }
 
 // ReverseTunnelSpecV2Schema is JSON schema for reverse tunnel spec
@@ -213,7 +216,6 @@ func (*TeleportTunnelMarshaler) MarshalReverseTunnel(rt ReverseTunnel, opts ...M
 	type tunv1 interface {
 		V1() *ReverseTunnelV1
 	}
-
 	type tunv2 interface {
 		V2() *ReverseTunnelV2
 	}
