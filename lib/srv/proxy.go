@@ -107,7 +107,7 @@ func parseProxySubsys(name string, srv *Server) (*proxySubsys, error) {
 }
 
 func (t *proxySubsys) String() string {
-	return fmt.Sprintf("proxySubsys(site=%s/%s, host=%s:%s)",
+	return fmt.Sprintf("proxySubsys(site=%s/%s, host=%s, port=%s)",
 		t.namespace, t.siteName, t.host, t.port)
 }
 
@@ -298,7 +298,7 @@ func (t *proxySubsys) wait() error {
 // to an SSH server before establishing a bridge
 func doHandshake(clientAddr net.Addr, clientConn io.ReadWriter, serverConn io.ReadWriter) {
 	// on behalf of a client ask the server for it's version:
-	var bytes [256]byte
+	var bytes [sshutils.MaxVersionStringBytes]byte
 	n, err := serverConn.Read(bytes[:])
 	if err != nil {
 		log.Error(err)
@@ -306,7 +306,7 @@ func doHandshake(clientAddr net.Addr, clientConn io.ReadWriter, serverConn io.Re
 	}
 	// is that a Teleport server?
 	resp := bytes[:n]
-	if strings.HasPrefix(string(resp), "SSH-2.0-Teleport") {
+	if strings.HasPrefix(string(resp), sshutils.SSHVersionPrefix) {
 		// if we're connecting to a Teleport SSH server, send our own "handshake payload"
 		// message, along with a client's IP:
 		hp := &sshutils.HandshakePayload{

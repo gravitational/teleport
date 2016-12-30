@@ -66,15 +66,20 @@ type Server struct {
 }
 
 const (
-	// sshVersionPrefix is the prefix of "server version" string which
-	// begins every SSH handshake. It MUST be SSH-2.0 according to
+	// SSHVersionPrefix is the prefix of "server version" string which begins
+	// every SSH handshake. It MUST start with "SSH-2.0" according to
 	// https://tools.ietf.org/html/rfc4253#page-4
-	sshVersionPrefix = "SSH-2.0"
+	SSHVersionPrefix = "SSH-2.0-Teleport"
 
 	// ProxyHelloSignature is a string which Teleport proxy will send
 	// right after the initial SSH "handshake/version" message if it detects
 	// talking to a Teleport server.
 	ProxyHelloSignature = "Teleport-Proxy"
+
+	// MaxVersionStringBytes is the maximum number of bytes allowed for a
+	// SSH version string
+	// https://tools.ietf.org/html/rfc4253
+	MaxVersionStringBytes = 255
 )
 
 // ServerOption is a functional argument for server
@@ -121,6 +126,10 @@ func NewServer(
 	s.cfg.PublicKeyCallback = ah.PublicKey
 	s.cfg.PasswordCallback = ah.Password
 	s.cfg.NoClientAuth = ah.NoClient
+
+	// Teleport SSH server will be sending the following "version string" during
+	// SSH handshake (example): "SSH-2.0-T eleport 1.5.1-beta" (space is important!)
+	s.cfg.ServerVersion = fmt.Sprintf("%s %s", SSHVersionPrefix, teleport.Version)
 	return s, nil
 }
 
@@ -136,6 +145,10 @@ func SetRequestHandler(req RequestHandler) ServerOption {
 		s.reqHandler = req
 		return nil
 	}
+}
+
+func (s *Server) Addr() string {
+	return s.listener.Addr().String()
 }
 
 func (s *Server) Start() error {
@@ -169,12 +182,13 @@ func (s *Server) Close() error {
 
 func (s *Server) acceptConnections() {
 	defer s.notifyClosed()
-	log.Infof("[SSH:%v] is listening on %v", s.component, s.addr)
+	addr := s.Addr()
+	log.Infof("[SSH:%v] is listening on %v", s.component, addr)
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			if s.askedToClose {
-				log.Infof("[SSH:%v] server %v exited", s.component, s.addr)
+				log.Infof("[SSH:%v] server %v exited", s.component, addr)
 				s.askedToClose = false
 				return
 			}
@@ -213,25 +227,15 @@ func (s *Server) handleConnection(conn net.Conn) {
 	// apply idle read/write timeout to this connection.
 	conn = utils.ObeyIdleTimeout(conn,
 		defaults.DefaultIdleConnectionDuration,
-		"SSH server")
-
-	// Teleport SSH server will be sending the following "version string" during
-	// SSH handshake (example): "SSH-2.0-Teleport 1.5.1-beta"
-	s.cfg.ServerVersion = fmt.Sprintf("%s-Teleport %s", sshVersionPrefix, teleport.Version)
+		s.component)
 
 	// create a new SSH server which handles the handshake (and pass the custom
 	// payload structure which will be populated only when/if this connection
 	// comes from another Teleport proxy):
-	var hp HandshakePayload
-	sconn, chans, reqs, err := ssh.NewServerConn(wrapConnection(conn, &hp), &s.cfg)
+	sconn, chans, reqs, err := ssh.NewServerConn(wrapConnection(conn), &s.cfg)
 	if err != nil {
 		conn.SetDeadline(time.Time{})
 		return
-	}
-
-	// did we get the true client's IP from the proxy?
-	if hp.ClientAddr != "" {
-		log.Debugf("[SSH] CLIENT IP ----> %v", hp.ClientAddr)
 	}
 
 	user := sconn.User()
@@ -379,7 +383,7 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 
 		// inspect the client's hello message and see if it's a teleport
 		// proxy connecting?
-		buff := make([]byte, 64)
+		buff := make([]byte, MaxVersionStringBytes)
 		n, err := c.Conn.Read(buff)
 		if err != nil {
 			log.Error(err)
@@ -414,7 +418,7 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 
 // wrapConnection takes a network connection, wraps it into connectionWrapper
 // object (which overrides Read method) and returns the wrapper.
-func wrapConnection(conn net.Conn, hp *HandshakePayload) net.Conn {
+func wrapConnection(conn net.Conn) net.Conn {
 	return &connectionWrapper{
 		Conn:       conn,
 		clientAddr: conn.RemoteAddr(),
