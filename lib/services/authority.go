@@ -38,6 +38,10 @@ type CertAuthority interface {
 	SetSigningKeys([][]byte) error
 	// AddRole adds a role to ca role list
 	AddRole(name string)
+	// Checkers returns public keys that can be used to check cert authorities
+	Checkers() ([]ssh.PublicKey, error)
+	// Signers returns a list of signers that could be used to sign keys
+	Signers() ([]ssh.Signer, error)
 }
 
 // CertAuthorityV2 is version 1 resource spec for Cert Authority

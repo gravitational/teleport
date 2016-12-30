@@ -41,7 +41,8 @@ import (
 // For each token it creates username and hotp generator
 //
 // allowedLogins are linux user logins allowed for the new user to use
-func (s *AuthServer) CreateSignupToken(user services.User) (string, error) {
+func (s *AuthServer) CreateSignupToken(userv1 services.UserV1) (string, error) {
+	user := userv1.V2()
 	if err := user.Check(); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -86,11 +87,8 @@ func (s *AuthServer) CreateSignupToken(user services.User) (string, error) {
 	}
 
 	tokenData := services.SignupToken{
-		Token: token,
-		User: services.UserV1{
-			Name:           user.GetName(),
-			AllowedLogins:  user.GetAllowedLogins(),
-			OIDCIdentities: user.GetIdentities()},
+		Token:           token,
+		User:            userv1,
 		Hotp:            otpMarshalled,
 		HotpFirstValues: otpFirstValues,
 		HotpQR:          otpQR,
@@ -126,12 +124,12 @@ func (s *AuthServer) GetSignupTokenData(token string) (user string,
 		return "", nil, nil, trace.Wrap(err)
 	}
 
-	_, err = s.GetPasswordHash(tokenData.User.GetName())
+	_, err = s.GetPasswordHash(tokenData.User.Name)
 	if err == nil {
 		return "", nil, nil, trace.Errorf("can't add user %v, user already exists", tokenData.User)
 	}
 
-	return tokenData.User.GetName(), tokenData.HotpQR, tokenData.HotpFirstValues, nil
+	return tokenData.User.Name, tokenData.HotpQR, tokenData.HotpFirstValues, nil
 }
 
 func (s *AuthServer) CreateSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
@@ -159,7 +157,7 @@ func (s *AuthServer) CreateSignupU2FRegisterRequest(token string) (u2fRegisterRe
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.GetPasswordHash(tokenData.User.GetName())
+	_, err = s.GetPasswordHash(tokenData.User.Name)
 	if err == nil {
 		return nil, trace.AlreadyExists("can't add user %v, user already exists", tokenData.User)
 	}
@@ -210,24 +208,25 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Se
 		return nil, trace.BadParameter("wrong HOTP token")
 	}
 
-	_, _, err = s.UpsertPassword(tokenData.User.GetName(), []byte(password))
+	_, _, err = s.UpsertPassword(tokenData.User.Name, []byte(password))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// apply user allowed logins
-	role := services.RoleForUser(&tokenData.User)
+	role := services.RoleForUser(tokenData.User.V2())
 	if err := s.UpsertRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// Allowed logins are not going to be used anymore
 	tokenData.User.AllowedLogins = nil
 	tokenData.User.Roles = append(tokenData.User.Roles, role.GetName())
-	if err = s.UpsertUser(&tokenData.User); err != nil {
+	user := tokenData.User.V2()
+	if err = s.UpsertUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.UpsertHOTP(tokenData.User.GetName(), otp)
+	err = s.UpsertHOTP(user.GetName(), otp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -238,12 +237,12 @@ func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Se
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := s.NewWebSession(tokenData.User.GetName())
+	sess, err := s.NewWebSession(user.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.UpsertWebSession(tokenData.User.GetName(), sess, WebSessionTTL)
+	err = s.UpsertWebSession(user.GetName(), sess, WebSessionTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -288,27 +287,28 @@ func (s *AuthServer) CreateUserWithU2FToken(token string, password string, respo
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.UpsertU2FRegistration(tokenData.User.GetName(), reg)
+	err = s.UpsertU2FRegistration(tokenData.User.Name, reg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = s.UpsertU2FRegistrationCounter(tokenData.User.GetName(), 0)
+	err = s.UpsertU2FRegistrationCounter(tokenData.User.Name, 0)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	_, _, err = s.UpsertPassword(tokenData.User.GetName(), []byte(password))
+	_, _, err = s.UpsertPassword(tokenData.User.Name, []byte(password))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role := services.RoleForUser(&tokenData.User)
+	role := services.RoleForUser(tokenData.User.V2())
 	if err := s.UpsertRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// Allowed logins are not going to be used anymore
 	tokenData.User.AllowedLogins = nil
 	tokenData.User.Roles = append(tokenData.User.Roles, role.GetName())
-	if err = s.UpsertUser(&tokenData.User); err != nil {
+	user := tokenData.User.V2()
+	if err = s.UpsertUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -318,12 +318,12 @@ func (s *AuthServer) CreateUserWithU2FToken(token string, password string, respo
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := s.NewWebSession(tokenData.User.GetName())
+	sess, err := s.NewWebSession(user.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.UpsertWebSession(tokenData.User.GetName(), sess, WebSessionTTL)
+	err = s.UpsertWebSession(user.GetName(), sess, WebSessionTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

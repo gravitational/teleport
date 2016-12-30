@@ -781,7 +781,7 @@ func (c *TunClient) fetchAuthServers() ([]utils.NetAddr, error) {
 	}
 	authServers := make([]utils.NetAddr, 0, len(servers))
 	for _, server := range servers {
-		serverAddr, err := utils.ParseAddr(server.Addr)
+		serverAddr, err := utils.ParseAddr(server.GetAddr())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

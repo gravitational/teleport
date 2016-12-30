@@ -73,17 +73,17 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 	case teleport.RoleAuth.User():
 		return services.FromSpec(
 			username,
-			services.RoleSpec{
+			services.RoleSpecV2{
 				Namespaces: []string{services.Wildcard},
 				Resources: map[string][]string{
 					services.KindAuthServer: services.RW()},
 			})
 	case teleport.RoleProvisionToken.User():
-		return services.FromSpec(username, services.RoleSpec{})
+		return services.FromSpec(username, services.RoleSpecV2{})
 	case teleport.RoleNode.User():
 		return services.FromSpec(
 			username,
-			services.RoleSpec{
+			services.RoleSpecV2{
 				Namespaces: []string{services.Wildcard},
 				Resources: map[string][]string{
 					services.KindNode:          services.RW(),
@@ -100,7 +100,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 	case teleport.RoleProxy.User():
 		return services.FromSpec(
 			username,
-			services.RoleSpec{
+			services.RoleSpecV2{
 				Namespaces: []string{services.Wildcard},
 				Resources: map[string][]string{
 					services.KindProxy:         services.RW(),
@@ -120,7 +120,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 	case teleport.RoleWeb.User():
 		return services.FromSpec(
 			username,
-			services.RoleSpec{
+			services.RoleSpecV2{
 				Namespaces: []string{services.Wildcard},
 				Resources: map[string][]string{
 					services.KindWebSession: services.RW(),
@@ -134,7 +134,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 	case teleport.RoleSignup.User():
 		return services.FromSpec(
 			username,
-			services.RoleSpec{
+			services.RoleSpecV2{
 				Namespaces: []string{services.Wildcard},
 				Resources: map[string][]string{
 					services.KindAuthServer: services.RO(),
@@ -143,7 +143,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 	case teleport.RoleAdmin.User():
 		return services.FromSpec(
 			username,
-			services.RoleSpec{
+			services.RoleSpecV2{
 				MaxSessionTTL: services.MaxDuration(),
 				Logins:        []string{},
 				Namespaces:    []string{services.Wildcard},
@@ -155,7 +155,7 @@ func GetCheckerForSystemUsers(username string) (services.AccessChecker, error) {
 	case teleport.RoleNop.User():
 		return services.FromSpec(
 			username,
-			services.RoleSpec{
+			services.RoleSpecV2{
 				Namespaces: []string{},
 				Resources:  map[string][]string{},
 			})

@@ -1256,7 +1256,7 @@ type IdentityService interface {
 
 	// CreateSignupToken creates one time token for creating account for the user
 	// For each token it creates username and hotp generator
-	CreateSignupToken(user services.User) (string, error)
+	CreateSignupToken(user services.UserV1) (string, error)
 }
 
 // ProvisioningService is a service in control

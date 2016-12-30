@@ -356,6 +356,22 @@ type UserV1 struct {
 
 	// CreatedBy holds information about agent or person created this usre
 	CreatedBy CreatedBy `json:"created_by"`
+
+	// Roles is a list of roles
+	Roles []string `json:"roles"`
+}
+
+// Check checks validity of all parameters
+func (u *UserV1) Check() error {
+	if !cstrings.IsValidUnixUser(u.Name) {
+		return trace.BadParameter("'%v' is not a valid user name", u.Name)
+	}
+	for _, id := range u.OIDCIdentities {
+		if err := id.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 //V1 returns itself
@@ -377,6 +393,7 @@ func (u *UserV1) V2() *UserV2 {
 			Status:         u.Status,
 			Expires:        u.Expires,
 			CreatedBy:      u.CreatedBy,
+			Roles:          u.Roles,
 		},
 		rawObject: *u,
 	}

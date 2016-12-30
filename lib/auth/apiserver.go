@@ -832,8 +832,12 @@ func (s *APIServer) createSignupToken(auth ClientI, w http.ResponseWriter, r *ht
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := services.GetUserMarshaler().UnmarshalUser(req.User)
+	var user services.UserV1
+	err := json.Unmarshal(req.User, &user)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := user.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	token, err := auth.CreateSignupToken(user)

@@ -354,7 +354,7 @@ func (a *AuthWithRoles) GenerateUserCert(key []byte, user string, ttl time.Durat
 	return a.authServer.GenerateUserCert(key, user, allowedLogins, ttl)
 }
 
-func (a *AuthWithRoles) CreateSignupToken(user services.User) (token string, e error) {
+func (a *AuthWithRoles) CreateSignupToken(user services.UserV1) (token string, e error) {
 	if err := a.action(defaults.Namespace, services.KindUser, services.ActionWrite); err != nil {
 		return "", trace.Wrap(err)
 	}
