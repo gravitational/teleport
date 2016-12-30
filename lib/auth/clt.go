@@ -769,7 +769,7 @@ func (c *Client) GenerateUserCert(
 
 // CreateSignupToken creates one time token for creating account for the user
 // For each token it creates username and hotp generator
-func (c *Client) CreateSignupToken(user services.User) (string, error) {
+func (c *Client) CreateSignupToken(user services.UserV1) (string, error) {
 	if err := user.Check(); err != nil {
 		return "", trace.Wrap(err)
 	}

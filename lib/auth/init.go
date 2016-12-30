@@ -284,6 +284,7 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 		}
 		log.Infof("migrating legacy user %v", user.GetName())
 		role := services.RoleForUser(user)
+		role.SetLogins(raw.AllowedLogins)
 		err = asrv.UpsertRole(role)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -311,6 +312,7 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 		}
 		log.Infof("migrating legacy cert authority %v", ca.GetName())
 		role := services.RoleForCertAuthority(ca)
+		role.SetLogins(raw.AllowedLogins)
 		err = asrv.UpsertRole(role)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)

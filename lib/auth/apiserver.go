@@ -331,7 +331,7 @@ func (s *APIServer) getReverseTunnels(auth ClientI, w http.ResponseWriter, r *ht
 
 // deleteReverseTunnel deletes reverse tunnel
 func (s *APIServer) deleteReverseTunnel(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	domainName := p[0].Value
+	domainName := p.ByName("domain")
 	err := auth.DeleteReverseTunnel(domainName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -367,7 +367,7 @@ func (s *APIServer) deleteToken(auth ClientI, w http.ResponseWriter, r *http.Req
 }
 
 func (s *APIServer) deleteWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	user, sid := p[0].Value, p[1].Value
+	user, sid := p.ByName("user"), p.ByName("sid")
 	err := auth.DeleteWebSession(user, sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -376,7 +376,7 @@ func (s *APIServer) deleteWebSession(auth ClientI, w http.ResponseWriter, r *htt
 }
 
 func (s *APIServer) getWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	user, sid := p[0].Value, p[1].Value
+	user, sid := p.ByName("user"), p.ByName("sid")
 	sess, err := auth.GetWebSessionInfo(user, sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -393,7 +393,7 @@ func (s *APIServer) signIn(auth ClientI, w http.ResponseWriter, r *http.Request,
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user := p[0].Value
+	user := p.ByName("user")
 	sess, err := auth.SignIn(user, []byte(req.Password))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -402,7 +402,7 @@ func (s *APIServer) signIn(auth ClientI, w http.ResponseWriter, r *http.Request,
 }
 
 func (s *APIServer) preAuthenticatedSignIn(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	user := p[0].Value
+	user := p.ByName("user")
 	sess, err := auth.PreAuthenticatedSignIn(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -415,7 +415,7 @@ func (s *APIServer) u2fSignRequest(auth ClientI, w http.ResponseWriter, r *http.
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user := p[0].Value
+	user := p.ByName("user")
 	pass := []byte(req.Password)
 	u2fSignReq, err := auth.GetU2FSignRequest(user, pass)
 	if err != nil {
@@ -433,7 +433,7 @@ func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *htt
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user := p[0].Value
+	user := p.ByName("user")
 	if req.PrevSessionID != "" {
 		sess, err := auth.ExtendWebSession(user, req.PrevSessionID)
 		if err != nil {
@@ -462,7 +462,7 @@ func (s *APIServer) upsertPassword(auth ClientI, w http.ResponseWriter, r *http.
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user := p[0].Value
+	user := p.ByName("user")
 	hotpURL, hotpQR, err := auth.UpsertPassword(user, []byte(req.Password))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -500,7 +500,7 @@ func (s *APIServer) checkPassword(auth ClientI, w http.ResponseWriter, r *http.R
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user := p[0].Value
+	user := p.ByName("user")
 	if err := auth.CheckPassword(user, []byte(req.Password), req.HOTPToken); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -508,7 +508,7 @@ func (s *APIServer) checkPassword(auth ClientI, w http.ResponseWriter, r *http.R
 }
 
 func (s *APIServer) getUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	user, err := auth.GetUser(p[0].Value)
+	user, err := auth.GetUser(p.ByName("user"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -532,7 +532,7 @@ func (s *APIServer) getUsers(auth ClientI, w http.ResponseWriter, r *http.Reques
 }
 
 func (s *APIServer) deleteUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	user := p[0].Value
+	user := p.ByName("user")
 	if err := auth.DeleteUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -676,7 +676,7 @@ func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := auth.GetCertAuthorities(services.CertAuthType(p[0].Value), loadKeys)
+	certs, err := auth.GetCertAuthorities(services.CertAuthType(p.ByName("type")), loadKeys)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -727,8 +727,8 @@ func (s *APIServer) getU2FAppID(auth ClientI, w http.ResponseWriter, r *http.Req
 
 func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	id := services.CertAuthID{
-		DomainName: p[1].Value,
-		Type:       services.CertAuthType(p[0].Value),
+		DomainName: p.ByName("domain"),
+		Type:       services.CertAuthType(p.ByName("type")),
 	}
 	if err := auth.DeleteCertAuthority(id); err != nil {
 		return nil, trace.Wrap(err)
@@ -796,7 +796,7 @@ type getSignupTokenDataResponse struct {
 
 // getSignupTokenData auth API method creates a new sign-up token for adding a new user
 func (s *APIServer) getSignupTokenData(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	token := p[0].Value
+	token := p.ByName("token")
 
 	user, QRImg, hotpFirstValues, err := auth.GetSignupTokenData(token)
 	if err != nil {
@@ -811,7 +811,7 @@ func (s *APIServer) getSignupTokenData(auth ClientI, w http.ResponseWriter, r *h
 }
 
 func (s *APIServer) getSignupU2FRegisterRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	token := p[0].Value
+	token := p.ByName("token")
 	u2fRegReq, err := auth.GetSignupU2FRegisterRequest(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -820,27 +820,18 @@ func (s *APIServer) getSignupU2FRegisterRequest(auth ClientI, w http.ResponseWri
 }
 
 type createSignupTokenReq struct {
-	User services.User `json:"user"`
-}
-
-type createSignupTokenReqRaw struct {
-	User json.RawMessage `json:"user"`
+	User services.UserV1 `json:"user"`
 }
 
 func (s *APIServer) createSignupToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *createSignupTokenReqRaw
+	var req *createSignupTokenReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var user services.UserV1
-	err := json.Unmarshal(req.User, &user)
-	if err != nil {
+	if err := req.User.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := user.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	token, err := auth.CreateSignupToken(user)
+	token, err := auth.CreateSignupToken(req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -912,7 +903,7 @@ func (s *APIServer) getOIDCConnector(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connector, err := auth.GetOIDCConnector(p[0].Value, withSecrets)
+	connector, err := auth.GetOIDCConnector(p.ByName("id"), withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -920,7 +911,7 @@ func (s *APIServer) getOIDCConnector(auth ClientI, w http.ResponseWriter, r *htt
 }
 
 func (s *APIServer) deleteOIDCConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteOIDCConnector(p[0].Value)
+	err := auth.DeleteOIDCConnector(p.ByName("id"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1193,7 +1184,7 @@ func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 }
 
 func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	role, err := auth.GetRole(p[0].Value)
+	role, err := auth.GetRole(p.ByName("role"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1205,18 +1196,19 @@ func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := make(json.RawMessage, len(roles))
+	out := make([]json.RawMessage, len(roles))
 	for i, role := range roles {
 		raw, err := services.GetRoleMarshaler().MarshalRole(role, services.WithVersion(version))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		out[i] = raw
 	}
 	return out, nil
 }
 
 func (s *APIServer) deleteRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	role := p[0].Value
+	role := p.ByName("role")
 	if err := auth.DeleteRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}

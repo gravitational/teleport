@@ -67,7 +67,7 @@ func (s *AuthSuite) SetUpTest(c *C) {
 
 func (s *AuthSuite) TestSessions(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
-		*suite.NewTestCA(services.UserCA, "me.localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, "me.localhost"), backend.Forever), IsNil)
 
 	user := "user1"
 	pass := []byte("abc123")
@@ -75,13 +75,7 @@ func (s *AuthSuite) TestSessions(c *C) {
 	ws, err := s.a.SignIn(user, pass)
 	c.Assert(err, NotNil)
 
-	teleportUser := &services.TeleportUser{Name: user, AllowedLogins: []string{user}}
-	role := services.RoleForUser(teleportUser)
-	err = s.a.UpsertRole(role)
-	c.Assert(err, IsNil)
-	teleportUser.Roles = []string{role.GetName()}
-	err = s.a.UpsertUser(teleportUser)
-	c.Assert(err, IsNil)
+	createUserAndRole(s.a, user, []string{user})
 
 	hotpURL, _, err := s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
@@ -107,7 +101,7 @@ func (s *AuthSuite) TestSessions(c *C) {
 
 func (s *AuthSuite) TestUserLock(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
-		*suite.NewTestCA(services.UserCA, "me.localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, "me.localhost"), backend.Forever), IsNil)
 
 	user := "user1"
 	pass := []byte("abc123")
@@ -115,13 +109,7 @@ func (s *AuthSuite) TestUserLock(c *C) {
 	ws, err := s.a.SignIn(user, pass)
 	c.Assert(err, NotNil)
 
-	teleportUser := &services.TeleportUser{Name: user, AllowedLogins: []string{user}}
-	role := services.RoleForUser(teleportUser)
-	err = s.a.UpsertRole(role)
-	c.Assert(err, IsNil)
-	teleportUser.Roles = []string{role.GetName()}
-	err = s.a.UpsertUser(teleportUser)
-	c.Assert(err, IsNil)
+	createUserAndRole(s.a, user, []string{user})
 
 	hotpURL, _, err := s.a.UpsertPassword(user, pass)
 	c.Assert(err, IsNil)
@@ -156,7 +144,7 @@ func (s *AuthSuite) TestUserLock(c *C) {
 
 func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(s.a.UpsertCertAuthority(
-		*suite.NewTestCA(services.HostCA, "me.localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.HostCA, "me.localhost"), backend.Forever), IsNil)
 
 	// generate single-use token (TTL is 0)
 	tok, err := s.a.GenerateToken(teleport.Roles{teleport.RoleNode}, 0)

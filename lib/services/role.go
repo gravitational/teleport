@@ -111,6 +111,8 @@ type Role interface {
 	GetName() string
 	// GetMaxSessionTTL is a maximum SSH or Web session TTL
 	GetMaxSessionTTL() Duration
+	// SetLogins sets logins for role
+	SetLogins(logins []string)
 	// GetLogins returns a list of linux logins allowed for this role
 	GetLogins() []string
 	// GetNodeLabels returns a list of matchign nodes this role has access to
@@ -119,6 +121,8 @@ type Role interface {
 	GetNamespaces() []string
 	// GetResources returns access to resources
 	GetResources() map[string][]string
+	// SetResource sets resource rule
+	SetResource(kind string, actions []string)
 }
 
 // RoleV2 represents role resource specification
@@ -131,6 +135,19 @@ type RoleV2 struct {
 	Metadata Metadata `json:"metadata"`
 	// Spec contains role specification
 	Spec RoleSpecV2 `json:"spec"`
+}
+
+// SetResource sets resource rule
+func (r *RoleV2) SetResource(kind string, actions []string) {
+	if r.Spec.Resources == nil {
+		r.Spec.Resources = make(map[string][]string)
+	}
+	r.Spec.Resources[kind] = actions
+}
+
+// SetLogins sets logins for role
+func (r *RoleV2) SetLogins(logins []string) {
+	r.Spec.Logins = logins
 }
 
 // GetName returns role name and is a shortcut for GetMetadata().Name
