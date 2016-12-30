@@ -175,7 +175,7 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 			log.Error(err)
 		}
 		if len(proxies) > 0 {
-			proxyHost = proxies[0].Hostname
+			proxyHost = proxies[0].GetHostname()
 		}
 	}
 	var c *exec.Cmd

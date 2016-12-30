@@ -197,7 +197,7 @@ type CertAuthoritySpecV2 struct {
 	// certificate signatures
 	CheckingKeys [][]byte `json:"checking_keys"`
 	// SigningKeys is a list of private keys used for signing
-	SigningKeys [][]byte `json:"signing_keys"`
+	SigningKeys [][]byte `json:"signing_keys,omitempty"`
 	// Roles is a list of roles assumed by users signed by this CA
 	Roles []string `json:"roles,omitempty"`
 }
@@ -206,7 +206,7 @@ type CertAuthoritySpecV2 struct {
 const CertAuthoritySpecV2Schema = `{
   "type": "object",
   "additionalProperties": false,
-  "required": ["type", "cluster_name", "checking_keys", "signing_keys"],
+  "required": ["type", "cluster_name", "checking_keys"],
   "properties": {
     "type": {"type": "string"},
     "cluster_name": {"type": "string"},

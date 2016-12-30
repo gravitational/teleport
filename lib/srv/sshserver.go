@@ -143,8 +143,8 @@ func SetLabels(labels map[string]string,
 	cmdLabels services.CommandLabels) ServerOption {
 	return func(s *Server) error {
 		for name, label := range cmdLabels {
-			if label.Period < time.Second {
-				label.Period = time.Second
+			if label.GetPeriod() < time.Second {
+				label.SetPeriod(time.Second)
 				cmdLabels[name] = label
 				log.Warningf("label period can't be less that 1 second. Period for label '%v' was set to 1 second", name)
 			}
@@ -287,13 +287,19 @@ func (s *Server) AdvertiseAddr() string {
 }
 
 func (s *Server) getInfo() services.Server {
-	return services.Server{
-		ID:        s.ID(),
-		Addr:      s.AdvertiseAddr(),
-		Hostname:  s.hostname,
-		Labels:    s.labels,
-		CmdLabels: s.getCommandLabels(),
-		Namespace: s.getNamespace(),
+	return &services.ServerV2{
+		Kind:    services.KindNode,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      s.ID(),
+			Namespace: s.getNamespace(),
+			Labels:    s.labels,
+		},
+		Spec: services.ServerSpecV2{
+			CmdLabels: services.LabelsToV2(s.getCommandLabels()),
+			Addr:      s.AdvertiseAddr(),
+			Hostname:  s.hostname,
+		},
 	}
 }
 
@@ -342,12 +348,12 @@ func (s *Server) syncUpdateLabels() {
 }
 
 func (s *Server) updateLabel(name string, label services.CommandLabel) {
-	out, err := exec.Command(label.Command[0], label.Command[1:]...).Output()
+	out, err := exec.Command(label.GetCommand()[0], label.GetCommand()[1:]...).Output()
 	if err != nil {
 		log.Errorf(err.Error())
-		label.Result = err.Error() + " output: " + string(out)
+		label.SetResult(err.Error() + " output: " + string(out))
 	} else {
-		label.Result = strings.TrimSpace(string(out))
+		label.SetResult(strings.TrimSpace(string(out)))
 	}
 	s.setCommandLabel(name, label)
 }
@@ -355,7 +361,7 @@ func (s *Server) updateLabel(name string, label services.CommandLabel) {
 func (s *Server) periodicUpdateLabel(name string, label services.CommandLabel) {
 	for {
 		s.updateLabel(name, label)
-		time.Sleep(label.Period)
+		time.Sleep(label.GetPeriod())
 	}
 }
 
@@ -384,7 +390,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var ca *services.CertAuthority
+	var ca services.CertAuthority
 	for i := range cas {
 		checkers, err := cas[i].Checkers()
 		if err != nil {
@@ -411,7 +417,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 
 	// for local users, go and check their individual permissions
 	var roles services.RoleSet
-	if domainName == ca.DomainName {
+	if domainName == ca.GetClusterName() {
 		users, err := s.authService.GetUsers()
 		if err != nil {
 			return trace.Wrap(err)
@@ -425,7 +431,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 			}
 		}
 	} else {
-		roles, err = services.FetchRoles(ca.Roles, s.authService)
+		roles, err = services.FetchRoles(ca.GetRoles(), s.authService)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -433,7 +439,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 
 	if err := roles.CheckAccessToServer(osUser, s.getInfo()); err != nil {
 		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s",
-			teleportUser, ca.DomainName, osUser, domainName)
+			teleportUser, ca.GetClusterName(), osUser, domainName)
 	}
 
 	return nil

@@ -34,6 +34,7 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -116,8 +117,8 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	newChecker, err := auth.NewAccessChecker(s.access, s.identity)
 	c.Assert(err, IsNil)
 
-	c.Assert(s.a.UpsertCertAuthority(*suite.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
-	c.Assert(s.a.UpsertCertAuthority(*suite.NewTestCA(services.HostCA, s.domainName), backend.Forever), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.HostCA, s.domainName), backend.Forever), IsNil)
 
 	// set up SSH client using the user private key for signing
 	up, err := newUpack(s.user, []string{s.user}, s.a)
@@ -374,9 +375,21 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	tunClt.UpsertReverseTunnel(services.ReverseTunnel{DomainName: s.domainName, DialAddrs: []string{
-		reverseTunnelAddress.String(),
-	}}, 0)
+	err = tunClt.UpsertReverseTunnel(&services.ReverseTunnelV2{
+		Kind:    services.KindReverseTunnel,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      s.domainName,
+			Namespace: defaults.Namespace,
+		},
+		Spec: services.ReverseTunnelSpecV2{
+			ClusterName: s.domainName,
+			DialAddrs: []string{
+				reverseTunnelAddress.String(),
+			},
+		},
+	}, 0)
+	c.Assert(err, IsNil)
 
 	err = agentPool.FetchAndSyncAgents()
 	c.Assert(err, IsNil)
@@ -394,7 +407,8 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
 	}
 
-	c.Assert(s.a.UpsertUser(&services.TeleportUser{Name: "user1", AllowedLogins: []string{s.user}}), IsNil)
+	_, err = newUpack("user1", []string{s.user}, s.a)
+	c.Assert(err, IsNil)
 
 	s.testClient(c, proxy.Addr(), s.srvAddress, s.srv.Addr(), sshConfig)
 	s.testClient(c, proxy.Addr(), s.srvHostPort, s.srv.Addr(), sshConfig)
@@ -413,11 +427,11 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetLabels(
 			map[string]string{"label1": "value1"},
 			services.CommandLabels{
-				"cmdLabel1": services.CommandLabel{
-					Period:  time.Millisecond,
+				"cmdLabel1": &services.CommandLabelV2{
+					Period:  services.NewDuration(time.Millisecond),
 					Command: []string{"expr", "1", "+", "3"}},
-				"cmdLabel2": services.CommandLabel{
-					Period:  time.Second * 2,
+				"cmdLabel2": &services.CommandLabelV2{
+					Period:  services.NewDuration(time.Second * 2),
 					Command: []string{"expr", "2", "+", "3"}},
 			},
 		),
@@ -537,9 +551,8 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
 	}
 
-	c.Assert(s.a.UpsertUser(&services.TeleportUser{
-		Name:          "user1",
-		AllowedLogins: []string{s.user}}), IsNil)
+	_, err = newUpack("user1", []string{s.user}, s.a)
+	c.Assert(err, IsNil)
 
 	for i := 0; i < 3; i++ {
 		s.testClient(c, proxy.Addr(), s.srvAddress, s.srv.Addr(), sshConfig)
@@ -598,9 +611,8 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		Auth: []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
 	}
 
-	c.Assert(s.a.UpsertUser(&services.TeleportUser{
-		Name:          "user1",
-		AllowedLogins: []string{s.user}}), IsNil)
+	_, err = newUpack("user1", []string{s.user}, s.a)
+	c.Assert(err, IsNil)
 
 	s.testClient(c, proxy.Addr(), s.srvAddress, s.srv.Addr(), sshConfig)
 }
@@ -775,15 +787,18 @@ func newUpack(username string, allowedLogins []string, a *auth.AuthServer) (*upa
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	user := &services.TeleportUser{Name: username, AllowedLogins: allowedLogins}
+	user, err := services.NewUser(username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	role := services.RoleForUser(user)
-	role.Spec.Resources = map[string][]string{services.Wildcard: services.RW()}
+	role.SetResource(services.Wildcard, services.RW())
+	role.SetLogins(allowedLogins)
 	err = a.UpsertRole(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user.Roles = []string{role.GetName()}
+	user.AddRole(role.GetName())
 	err = a.UpsertUser(user)
 	if err != nil {
 		return nil, trace.Wrap(err)

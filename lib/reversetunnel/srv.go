@@ -268,7 +268,7 @@ func (s *server) checkTrustedKey(CertType services.CertAuthType, domainName stri
 		return trace.Wrap(err)
 	}
 	for _, ca := range cas {
-		if ca.DomainName != domainName {
+		if ca.GetClusterName() != domainName {
 			continue
 		}
 		checkers, err := ca.Checkers()
@@ -751,7 +751,7 @@ func (s *tunnelSite) DialServer(addr string) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.Dial("tcp", server.Addr)
+	return s.Dial("tcp", server.GetAddr())
 }
 
 func (s *tunnelSite) handleAuthProxy(w http.ResponseWriter, r *http.Request) {
