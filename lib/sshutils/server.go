@@ -12,6 +12,10 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+This file contains the implementatino of sshutils.Server class.
+It is the underlying "base SSH server" for everything in Teleport.
+
 */
 
 package sshutils
@@ -37,17 +41,28 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// Server is a generic implementation of a frame for SSH server
+// Server is a generic implementation of an SSH server. All Teleport
+// services (auth, proxy, ssh) use this as a base to accept SSH connections.
 type Server struct {
-	component      string
-	addr           utils.NetAddr
-	listener       net.Listener
-	closeC         chan struct{}
+	// component is a name of the facility which uses this server,
+	// used for logging/debugging. typically it's "proxy" or "auth api", etc
+	component string
+
+	// addr is the address this server binds to and listens on
+	addr utils.NetAddr
+
+	// listener is usually the listening TCP/IP socket
+	listener net.Listener
+
+	// closeC channel is used to stop the server by closing it
+	closeC chan struct{}
+
 	newChanHandler NewChanHandler
 	reqHandler     RequestHandler
-	cfg            ssh.ServerConfig
-	limiter        *limiter.Limiter
-	askedToClose   bool
+
+	cfg          ssh.ServerConfig
+	limiter      *limiter.Limiter
+	askedToClose bool
 }
 
 const (
@@ -132,10 +147,6 @@ func SetRequestHandler(req RequestHandler) ServerOption {
 	}
 }
 
-func (s *Server) Addr() string {
-	return s.listener.Addr().String()
-}
-
 func (s *Server) Start() error {
 	s.askedToClose = false
 	socket, err := net.Listen(s.addr.AddrNetwork, s.addr.Addr)
@@ -167,13 +178,12 @@ func (s *Server) Close() error {
 
 func (s *Server) acceptConnections() {
 	defer s.notifyClosed()
-	addr := s.Addr()
-	log.Infof("[SSH:%v] is listening on %v", s.component, addr)
+	log.Infof("[SSH:%v] is listening on %v", s.component, s.addr)
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			if s.askedToClose {
-				log.Infof("[SSH:%v] server %v exited", s.component, addr)
+				log.Infof("[SSH:%v] server %v exited", s.component, s.addr)
 				s.askedToClose = false
 				return
 			}

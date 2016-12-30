@@ -253,11 +253,6 @@ func (s *Server) logFields(fields map[string]interface{}) log.Fields {
 	}
 }
 
-// Addr returns server address
-func (s *Server) Addr() string {
-	return s.srv.Addr()
-}
-
 // ID returns server ID
 func (s *Server) ID() string {
 	return s.uuid

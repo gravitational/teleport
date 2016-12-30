@@ -144,10 +144,6 @@ func NewTunnel(addr utils.NetAddr,
 	return tunnel, nil
 }
 
-func (s *AuthTunnel) Addr() string {
-	return s.sshServer.Addr()
-}
-
 func (s *AuthTunnel) Start() error {
 	return s.sshServer.Start()
 }
