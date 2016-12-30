@@ -76,18 +76,27 @@ type Server interface {
 	Wait()
 }
 
+// server is a "reverse tunnel server". it exposes the cluster capabilities
+// (like access to a cluster's auth) to remote trusted clients
+// (also known as 'reverse tunnel agents'.
 type server struct {
 	sync.RWMutex
 
+	// localAuth points to the cluster's auth server API
 	localAuth       auth.AccessPoint
 	hostCertChecker ssh.CertChecker
 	userCertChecker ssh.CertChecker
-	l               net.Listener
-	srv             *sshutils.Server
-	timeout         time.Duration
-	limiter         *limiter.Limiter
 
+	// srv is the "base class" i.e. the underlying SSH server
+	srv     *sshutils.Server
+	timeout time.Duration
+	limiter *limiter.Limiter
+
+	// tunnelSites is the list of conencted remote clusters
 	tunnelSites []*tunnelSite
+
+	// localSites is the list of local (our own cluster) clients,
+	// usually each of them is a local proxy.
 	directSites []*directSite
 }
 
@@ -159,10 +168,6 @@ func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 
 func (s *server) Wait() {
 	s.srv.Wait()
-}
-
-func (s *server) Addr() string {
-	return s.srv.Addr()
 }
 
 func (s *server) Start() error {
@@ -459,14 +464,7 @@ func (rc *remoteConn) isInvalid() bool {
 	return atomic.LoadInt32(&rc.invalid) == 1
 }
 
-func newRemoteConn(log *log.Entry, conn net.Conn, sshConn ssh.Conn) (*remoteConn, error) {
-	return &remoteConn{
-		sshConn: sshConn,
-		conn:    conn,
-		log:     log,
-	}, nil
-}
-
+// newRemoteSite helper creates and initializes 'tunnelsite' instance
 func newRemoteSite(srv *server, domainName string) (*tunnelSite, error) {
 	remoteSite := &tunnelSite{
 		srv:        srv,
@@ -491,8 +489,9 @@ func newRemoteSite(srv *server, domainName string) (*tunnelSite, error) {
 	return remoteSite, nil
 }
 
-// tunnelSite is a site accessed via SSH reverse tunnel that established
-// between proxy and remote site
+// tunnelSite is a remote site who established the inbound connecton to
+// the local reverse tunnel server, and now it can provide access to the
+// cluster behind it.
 type tunnelSite struct {
 	sync.Mutex
 
@@ -540,16 +539,21 @@ func (s *tunnelSite) nextConn() (*remoteConn, error) {
 	}
 }
 
+// addConn helper adds a new active remote cluster connection to the list
+// of such connections
 func (s *tunnelSite) addConn(conn net.Conn, sshConn ssh.Conn) (*remoteConn, error) {
-	remoteConn, err := newRemoteConn(s.log, conn, sshConn)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	rc := &remoteConn{
+		sshConn: sshConn,
+		conn:    conn,
+		log:     s.log,
 	}
+
 	s.Lock()
 	defer s.Unlock()
-	s.connections = append(s.connections, remoteConn)
+
+	s.connections = append(s.connections, rc)
 	s.lastUsed = 0
-	return remoteConn, nil
+	return rc, nil
 }
 
 func (s *tunnelSite) GetStatus() string {

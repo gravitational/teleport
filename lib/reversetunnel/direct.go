@@ -32,6 +32,8 @@ func newDirectSite(domainName string, client auth.ClientI) *directSite {
 
 // directSite allows to directly access the remote servers
 // not using any tunnel, and using standard SSH
+//
+// it implements RemoteSite interface
 type directSite struct {
 	sync.Mutex
 	client auth.ClientI
