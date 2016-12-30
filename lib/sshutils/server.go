@@ -17,12 +17,18 @@ limitations under the License.
 package sshutils
 
 import (
+	"bytes"
 	"crypto/subtle"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
-	//"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -42,6 +48,27 @@ type Server struct {
 	cfg            ssh.ServerConfig
 	limiter        *limiter.Limiter
 	askedToClose   bool
+}
+
+const (
+	// sshVersionPrefix is the prefix of "server version" string which
+	// begins every SSH handshake. It MUST be SSH-2.0 according to
+	// https://tools.ietf.org/html/rfc4253#page-4
+	sshVersionPrefix = "SSH-2.0"
+
+	// ProxyHelloSignature is a string which Teleport proxy will send
+	// right after the initial SSH "handshake/version" message if it detects
+	// talking to a Teleport server.
+	ProxyHelloSignature = "Teleport-Proxy"
+)
+
+// HandshakePayload structure is sent as a JSON blob by the teleport
+// proxy to every SSH server who identifies itself as Teleport server
+//
+// It allows teleport proxies to communicate additional data to server
+type HandshakePayload struct {
+	// ClientAddr is the IP address of the remote client
+	ClientAddr string `json:"clientAddr,omitempty"`
 }
 
 // ServerOption is a functional argument for server
@@ -162,6 +189,12 @@ func (s *Server) acceptConnections() {
 	}
 }
 
+// handleConnection is called every time an SSH server accepts a new
+// connection from a client.
+//
+// this is the foundation of all SSH connections in Teleport (between clients
+// and proxies, proxies and servers, servers and auth, etc).
+//
 func (s *Server) handleConnection(conn net.Conn) {
 	// initiate an SSH connection, note that we don't need to close the conn here
 	// in case of error as ssh server takes care of this
@@ -176,21 +209,28 @@ func (s *Server) handleConnection(conn net.Conn) {
 	}
 	defer s.limiter.ReleaseConnection(remoteAddr)
 
-	// setting waiting deadline in case of connection freezing
-	err = conn.SetDeadline(time.Now().Add(5 * time.Minute))
-	if err != nil {
-		log.Errorf(err.Error())
-		return
-	}
-	sconn, chans, reqs, err := ssh.NewServerConn(conn, &s.cfg)
+	// apply idle read/write timeout to this connection.
+	conn = utils.ObeyIdleTimeout(conn,
+		defaults.DefaultIdleConnectionDuration,
+		"SSH server")
+
+	// Teleport SSH server will be sending the following "version string" during
+	// SSH handshake (example): "SSH-2.0-Teleport 1.5.1-beta"
+	s.cfg.ServerVersion = fmt.Sprintf("%s-Teleport %s", sshVersionPrefix, teleport.Version)
+
+	// create a new SSH server which handles the handshake (and pass the custom
+	// payload structure which will be populated only when/if this connection
+	// comes from another Teleport proxy):
+	var hp HandshakePayload
+	sconn, chans, reqs, err := ssh.NewServerConn(wrapConnection(conn, &hp), &s.cfg)
 	if err != nil {
 		conn.SetDeadline(time.Time{})
 		return
 	}
-	err = conn.SetDeadline(time.Time{})
-	if err != nil {
-		log.Errorf(err.Error())
-		return
+
+	// did we get the true client's IP from the proxy?
+	if hp.ClientAddr != "" {
+		log.Debugf("[SSH] CLIENT IP ----> %v", hp.ClientAddr)
 	}
 
 	user := sconn.User()
@@ -296,4 +336,53 @@ func KeysEqual(ak, bk ssh.PublicKey) bool {
 	a := ssh.Marshal(ak)
 	b := ssh.Marshal(bk)
 	return (len(a) == len(b) && subtle.ConstantTimeCompare(a, b) == 1)
+}
+
+// connectionWrapper allows the SSH server to perform custom handshake which
+// allows teleport proxy servers to relay the remote IP address of the client
+// to the SSH server (otherwise connection.RemoteAddr would always point to
+// a proxy, which is useless for audit purposes)
+type connectionWrapper struct {
+	net.Conn
+	done   bool
+	reader io.Reader
+	hp     *HandshakePayload
+}
+
+// Read implements io.Read() part of net.Connection which allows the
+// connection wrapper to peek at the beginning of SSH handshake
+func (c *connectionWrapper) Read(b []byte) (int, error) {
+	// only activate on 1st read:
+	if c.reader == nil {
+		// inspect the client's hello message (SSH handshake):
+		buff := make([]byte, 64)
+		n, err := c.Conn.Read(buff)
+		if err != nil {
+			log.Error(err)
+			return n, err
+		}
+		// looks like it's a teleport proxy connecting?
+		if strings.HasPrefix(string(buff), "Teleport-Proxy") {
+			// after the newline follows the custom structure:
+			newline := bytes.IndexByte(buff, '\n')
+			if newline > 0 {
+				payload := buff[newline+1 : n]
+				if err = json.Unmarshal(payload, &c.hp); err != nil {
+					log.Errorf("SSH handshake between Teleport proxy failed: %v", err)
+				}
+			}
+			c.reader = c.Conn
+			// looks like it's not a Teleport client?
+		} else {
+			c.reader = io.MultiReader(bytes.NewBuffer(buff[:n]), c.Conn)
+		}
+	}
+	// let the underlying connection service the 'read' call:
+	return c.reader.Read(b)
+}
+
+// wrapConnection takes a network connection, wraps it into connectionWrapper
+// object (which overrides Read method) and returns the wrapper.
+func wrapConnection(conn net.Conn, hp *HandshakePayload) net.Conn {
+	return &connectionWrapper{Conn: conn, hp: hp}
 }

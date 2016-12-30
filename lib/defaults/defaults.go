@@ -75,6 +75,10 @@ const (
 	// connection attempts
 	DefaultDialTimeout = 10 * time.Second
 
+	// DefaultIdleConnectionDuration indicates for how long Teleport will hold
+	// the SSH connection open if there are no reads/writes happening over it.
+	DefaultIdleConnectionDuration = 10 * time.Minute
+
 	// DefaultReadHeadersTimeout is a default TCP timeout when we wait
 	// for the response headers to arrive
 	DefaultReadHeadersTimeout = time.Second
