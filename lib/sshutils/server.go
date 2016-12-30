@@ -77,15 +77,6 @@ const (
 	ProxyHelloSignature = "Teleport-Proxy"
 )
 
-// HandshakePayload structure is sent as a JSON blob by the teleport
-// proxy to every SSH server who identifies itself as Teleport server
-//
-// It allows teleport proxies to communicate additional data to server
-type HandshakePayload struct {
-	// ClientAddr is the IP address of the remote client
-	ClientAddr string `json:"clientAddr,omitempty"`
-}
-
 // ServerOption is a functional argument for server
 type ServerOption func(cfg *Server) error
 
@@ -348,51 +339,84 @@ func KeysEqual(ak, bk ssh.PublicKey) bool {
 	return (len(a) == len(b) && subtle.ConstantTimeCompare(a, b) == 1)
 }
 
+// HandshakePayload structure is sent as a JSON blob by the teleport
+// proxy to every SSH server who identifies itself as Teleport server
+//
+// It allows teleport proxies to communicate additional data to server
+type HandshakePayload struct {
+	// ClientAddr is the IP address of the remote client
+	ClientAddr string `json:"clientAddr,omitempty"`
+}
+
 // connectionWrapper allows the SSH server to perform custom handshake which
 // allows teleport proxy servers to relay the remote IP address of the client
 // to the SSH server (otherwise connection.RemoteAddr would always point to
 // a proxy, which is useless for audit purposes)
 type connectionWrapper struct {
 	net.Conn
-	done   bool
-	reader io.Reader
-	hp     *HandshakePayload
+
+	// upstreamReader reads from the underlying (wrapped) connection
+	upstreamReader io.Reader
+
+	// clientAddr points to the true client address (client is behind
+	// a proxy). Keeping this address is the entire point of the
+	// connection wrapper.
+	clientAddr net.Addr
+}
+
+// RemoteAddr returns the behind-the-proxy client address
+func (c *connectionWrapper) RemoteAddr() net.Addr {
+	return c.clientAddr
 }
 
 // Read implements io.Read() part of net.Connection which allows the
 // connection wrapper to peek at the beginning of SSH handshake
 func (c *connectionWrapper) Read(b []byte) (int, error) {
-	// only activate on 1st read:
-	if c.reader == nil {
-		// inspect the client's hello message (SSH handshake):
+	if c.upstreamReader == nil {
+		// the code below executes just one (on first read) when the SSH
+		// handshake takes place
+		var hp HandshakePayload
+
+		// inspect the client's hello message and see if it's a teleport
+		// proxy connecting?
 		buff := make([]byte, 64)
 		n, err := c.Conn.Read(buff)
 		if err != nil {
 			log.Error(err)
 			return n, err
 		}
-		// looks like it's a teleport proxy connecting?
+		// teleport proxy handshake:
 		if strings.HasPrefix(string(buff), "Teleport-Proxy") {
-			// after the newline follows the custom structure:
-			newline := bytes.IndexByte(buff, '\n')
-			if newline > 0 {
-				payload := buff[newline+1 : n]
-				if err = json.Unmarshal(payload, &c.hp); err != nil {
-					log.Errorf("SSH handshake between Teleport proxy failed: %v", err)
+			c.upstreamReader = c.Conn
+			endOfLine := bytes.IndexByte(buff, '\n')
+			if endOfLine > 0 {
+				// custom payload starts after the newline:
+				if err = json.Unmarshal(buff[endOfLine+1:n], &hp); err != nil {
+					log.Error(err)
+				} else {
+					ca, err := utils.ParseAddr(hp.ClientAddr)
+					if err != nil {
+						log.Error(err)
+					} else {
+						// replace proxy's client addr with a real client address
+						// we just got from the custom payload:
+						c.clientAddr = ca
+					}
 				}
 			}
-			c.reader = c.Conn
-			// looks like it's not a Teleport client?
+			// not a teleport proxy:
 		} else {
-			c.reader = io.MultiReader(bytes.NewBuffer(buff[:n]), c.Conn)
+			c.upstreamReader = io.MultiReader(bytes.NewBuffer(buff[:n]), c.Conn)
 		}
 	}
-	// let the underlying connection service the 'read' call:
-	return c.reader.Read(b)
+	return c.upstreamReader.Read(b)
 }
 
 // wrapConnection takes a network connection, wraps it into connectionWrapper
 // object (which overrides Read method) and returns the wrapper.
 func wrapConnection(conn net.Conn, hp *HandshakePayload) net.Conn {
-	return &connectionWrapper{Conn: conn, hp: hp}
+	return &connectionWrapper{
+		Conn:       conn,
+		clientAddr: conn.RemoteAddr(),
+	}
 }
