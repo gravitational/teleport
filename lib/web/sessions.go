@@ -291,10 +291,9 @@ func createCertificate(user string, pubkey []byte, ttl time.Duration, clt *auth.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	signers := []services.CertAuthority{}
-	for _, hs := range hostSigners {
-		signers = append(signers, *hs)
+	signers, err := services.CertAuthoritiesToV1(hostSigners)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &SSHLoginResponse{

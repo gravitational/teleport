@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 
 	log "github.com/Sirupsen/logrus"
@@ -145,7 +146,7 @@ func (w *sessionStreamHandler) stream(ws *websocket.Conn) error {
 		event := &sessionStreamEvent{
 			Events:  newEvents,
 			Session: sess,
-			Servers: servers,
+			Servers: services.ServersToV1(servers),
 		}
 		if err := websocket.JSON.Send(ws, event); err != nil {
 			log.Error(err)

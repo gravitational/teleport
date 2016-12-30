@@ -512,7 +512,15 @@ func (s *APIServer) getUser(auth ClientI, w http.ResponseWriter, r *http.Request
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetUserMarshaler().MarshalUser(user, services.WithVersion(version))
+	return rawMessage(services.GetUserMarshaler().MarshalUser(user, services.WithVersion(version)))
+}
+
+func rawMessage(data []byte, err error) (interface{}, error) {
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	m := json.RawMessage(data)
+	return &m, nil
 }
 
 func (s *APIServer) getUsers(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -703,11 +711,7 @@ func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca, services.WithVersion(version))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return json.RawMessage(data), nil
+	return rawMessage(services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca, services.WithVersion(version)))
 }
 
 func (s *APIServer) getDomainName(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -910,11 +914,7 @@ func (s *APIServer) getOIDCConnector(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	data, err := services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector, services.WithVersion(version))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return json.RawMessage(data), nil
+	return rawMessage(services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector, services.WithVersion(version)))
 }
 
 func (s *APIServer) deleteOIDCConnector(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -1195,11 +1195,7 @@ func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	data, err := services.GetRoleMarshaler().MarshalRole(role, services.WithVersion(version))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return json.RawMessage(data), nil
+	return rawMessage(services.GetRoleMarshaler().MarshalRole(role, services.WithVersion(version)))
 }
 
 func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

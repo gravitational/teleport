@@ -59,7 +59,7 @@ func newConnectHandler(req connectReq, ctx *SessionContext, site reversetunnel.R
 	var server *services.Server
 	for i := range servers {
 		node := servers[i]
-		if node.ID == req.ServerID {
+		if node.GetName() == req.ServerID {
 			server = &node
 		}
 	}
@@ -152,7 +152,7 @@ func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
 		return nil, trace.Wrap(err)
 	}
 	client, err := w.site.ConnectToServer(
-		w.server.Addr, w.req.Login, []ssh.AuthMethod{ssh.PublicKeys(signers...)})
+		w.server.GetAddr(), w.req.Login, []ssh.AuthMethod{ssh.PublicKeys(signers...)})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

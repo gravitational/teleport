@@ -44,6 +44,22 @@ type CertAuthority interface {
 	Signers() ([]ssh.Signer, error)
 }
 
+// CertAuthoritiesToV1 converts list of cert authorities to V1 slice
+func CertAuthoritiesToV1(in []CertAuthority) ([]CertAuthorityV1, error) {
+	out := make([]CertAuthorityV1, len(in))
+	type cav1 interface {
+		V1() *CertAuthorityV1
+	}
+	for i, ca := range in {
+		v1, ok := ca.(cav1)
+		if !ok {
+			return nil, trace.BadParameter("could not transform object to V1")
+		}
+		out[i] = *(v1.V1())
+	}
+	return out, nil
+}
+
 // CertAuthorityV2 is version 1 resource spec for Cert Authority
 type CertAuthorityV2 struct {
 	// Kind is a resource kind

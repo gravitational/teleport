@@ -33,6 +33,17 @@ type Server interface {
 	SetAddr(addr string)
 	// SetNamespace sets server namespace
 	SetNamespace(namespace string)
+	// V1 returns V1 version for backwards compatibility
+	V1() *ServerV1
+}
+
+// ServersToV1 converts list of servers to slice of V1 style ones
+func ServersToV1(in []Server) []ServerV1 {
+	out := make([]ServerV1, len(in))
+	for i := range in {
+		out[i] = *(in[i].V1())
+	}
+	return out
 }
 
 // ServerV2 is version1 resource spec of the server

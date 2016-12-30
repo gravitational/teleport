@@ -28,7 +28,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/gravitational/roundtrip"
 
 	"github.com/gravitational/teleport"
@@ -38,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/tstranex/u2f"
 )
 
@@ -1005,7 +1005,7 @@ func (c *Client) GetSessionChunk(namespace string, sid session.ID, offsetBytes, 
 		"bytes":  []string{strconv.Itoa(maxBytes)},
 	})
 	if err != nil {
-		logrus.Error(err)
+		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
 	return response.Bytes(), nil
@@ -1203,7 +1203,7 @@ type IdentityService interface {
 	// GetU2FAppID returns U2F settings, like App ID and Facets
 	GetU2FAppID() (string, error)
 
-	// GetUser returns a list of usernames registered in the system
+	// GetUser returns user by name
 	GetUser(name string) (services.User, error)
 
 	// UpsertUser user updates or inserts user entry
