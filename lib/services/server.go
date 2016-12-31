@@ -296,6 +296,8 @@ type CommandLabel interface {
 	SetResult(string)
 	// GetCommand returns to execute and set as a label result
 	GetCommand() []string
+	// Clone returns label copy
+	Clone() CommandLabel
 }
 
 // CommandLabelV2 is a label that has a value as a result of the
@@ -307,6 +309,12 @@ type CommandLabelV2 struct {
 	Command []string `json:"command"` //["/usr/bin/hostname", "--long"]
 	// Result captures standard output
 	Result string `json:"result"`
+}
+
+// Clone returns label copy
+func (c *CommandLabelV2) Clone() CommandLabel {
+	cp := *c
+	return &cp
 }
 
 // SetResult sets label result

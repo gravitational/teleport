@@ -376,7 +376,7 @@ func (s *Server) getCommandLabels() map[string]services.CommandLabel {
 	defer s.labelsMutex.Unlock()
 	out := make(map[string]services.CommandLabel, len(s.cmdLabels))
 	for key, val := range s.cmdLabels {
-		out[key] = val
+		out[key] = val.Clone()
 	}
 	return out
 }

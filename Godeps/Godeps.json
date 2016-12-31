@@ -237,6 +237,11 @@
 			"Rev": "1914e367e85eaf0c25d495b48e060dfe6190f8d0"
 		},
 		{
+			"ImportPath": "github.com/davecgh/go-spew/spew",
+			"Comment": "v1.1.0",
+			"Rev": "346938d642f2ec3594ed81d874461961cd0faa76"
+		},
+		{
 			"ImportPath": "github.com/docker/docker/pkg/term",
 			"Comment": "v1.4.1-4831-g0f5c9d3",
 			"Rev": "0f5c9d301b9b1cca66b3ea0f9dec3b5317d3686d"
@@ -310,6 +315,10 @@
 			"ImportPath": "github.com/kr/pty",
 			"Comment": "release.r56-25-g05017fc",
 			"Rev": "05017fcccf23c823bfdea560dcc958a136e54fb7"
+		},
+		{
+			"ImportPath": "github.com/kylelemons/godebug/diff",
+			"Rev": "eadb3ce320cbab8393bea5ca17bebac3f78a021b"
 		},
 		{
 			"ImportPath": "github.com/mailgun/lemma/random",
