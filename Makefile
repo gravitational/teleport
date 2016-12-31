@@ -32,6 +32,10 @@ tctl:
 .PHONY: teleport 
 teleport:
 	go build -o $(BUILDDIR)/teleport -i $(BUILDFLAGS) ./tool/teleport
+	(cd web/dist && zip -qr ../../$(BUILDDIR)/webassets.zip .)
+	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
+	zip -q -A $(BUILDDIR)/teleport
+	rm $(BUILDDIR)/webassets.zip
 
 .PHONY: tsh
 tsh: 
@@ -106,7 +110,7 @@ integration:
 #	assigns a git tag to the currently checked out tree
 .PHONY: setver
 setver:
-	$(MAKE) -f version.mk setver
+	$(MAKE) -f version.mk setver VERSION=$(VERSION)
 
 # make tag - prints a tag to use with git for the current version
 # 	To put a new release on Github:
@@ -124,10 +128,6 @@ tag:
 #	
 .PHONY: release
 release: clean setver all
-	cd web/dist ; zip -qr ../../$(BUILDDIR)/webassets.zip .
-	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
-	zip -q -A $(BUILDDIR)/teleport
-	rm $(BUILDDIR)/webassets.zip
 	cp -rf $(BUILDDIR) teleport
 	@echo $(GITTAG) > teleport/VERSION
 	tar -czf $(RELEASE).tar.gz teleport
