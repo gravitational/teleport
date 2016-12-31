@@ -376,42 +376,40 @@ func (c *connectionWrapper) RemoteAddr() net.Addr {
 // Read implements io.Read() part of net.Connection which allows the
 // connection wrapper to peek at the beginning of SSH handshake
 func (c *connectionWrapper) Read(b []byte) (int, error) {
-	if c.upstreamReader == nil {
-		// the code below executes just one (on first read) when the SSH
-		// handshake takes place
-		var hp HandshakePayload
-
-		// inspect the client's hello message and see if it's a teleport
-		// proxy connecting?
-		buff := make([]byte, MaxVersionStringBytes)
-		n, err := c.Conn.Read(buff)
-		if err != nil {
-			log.Error(err)
-			return n, err
-		}
-		// teleport proxy handshake:
-		if strings.HasPrefix(string(buff), "Teleport-Proxy") {
-			c.upstreamReader = c.Conn
-			endOfLine := bytes.IndexByte(buff, '\n')
-			if endOfLine > 0 {
-				// custom payload starts after the newline:
-				if err = json.Unmarshal(buff[endOfLine+1:n], &hp); err != nil {
+	if c.upstreamReader != nil {
+		return c.upstreamReader.Read(b)
+	}
+	// inspect the client's hello message and see if it's a teleport
+	// proxy connecting?
+	buff := make([]byte, MaxVersionStringBytes)
+	n, err := c.Conn.Read(buff)
+	if err != nil {
+		log.Error(err)
+		return n, err
+	}
+	// teleport proxy handshake:
+	if strings.HasPrefix(string(buff), "Teleport-Proxy") {
+		c.upstreamReader = c.Conn
+		endOfLine := bytes.IndexByte(buff, '\n')
+		if endOfLine > 0 {
+			// custom payload starts after the newline:
+			var hp HandshakePayload
+			if err = json.Unmarshal(buff[endOfLine+1:n], &hp); err != nil {
+				log.Error(err)
+			} else {
+				ca, err := utils.ParseAddr(hp.ClientAddr)
+				if err != nil {
 					log.Error(err)
 				} else {
-					ca, err := utils.ParseAddr(hp.ClientAddr)
-					if err != nil {
-						log.Error(err)
-					} else {
-						// replace proxy's client addr with a real client address
-						// we just got from the custom payload:
-						c.clientAddr = ca
-					}
+					// replace proxy's client addr with a real client address
+					// we just got from the custom payload:
+					c.clientAddr = ca
 				}
 			}
-			// not a teleport proxy:
-		} else {
-			c.upstreamReader = io.MultiReader(bytes.NewBuffer(buff[:n]), c.Conn)
 		}
+		// not a teleport proxy:
+	} else {
+		c.upstreamReader = io.MultiReader(bytes.NewBuffer(buff[:n]), c.Conn)
 	}
 	return c.upstreamReader.Read(b)
 }

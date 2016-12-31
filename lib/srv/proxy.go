@@ -312,12 +312,12 @@ func doHandshake(clientAddr net.Addr, clientConn io.ReadWriter, serverConn io.Re
 		hp := &sshutils.HandshakePayload{
 			ClientAddr: clientAddr.String(),
 		}
-		hpJson, err := json.Marshal(hp)
+		payloadJSON, err := json.Marshal(hp)
 		if err != nil {
 			log.Error(err)
 		} else {
 			n, err = serverConn.Write(
-				[]byte(fmt.Sprintf("%s\n%s", sshutils.ProxyHelloSignature, hpJson)))
+				[]byte(fmt.Sprintf("%s\n%s", sshutils.ProxyHelloSignature, payloadJSON)))
 			if err != nil {
 				log.Error(err)
 			}
