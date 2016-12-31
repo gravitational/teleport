@@ -95,6 +95,7 @@ func (*TeleportOIDCConnectorMarshaler) UnmarshalOIDCConnector(bytes []byte) (OID
 		if err := utils.UnmarshalWithSchema(GetOIDCConnectorSchema(), &c, bytes); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
+		return &c, nil
 	}
 
 	return nil, trace.BadParameter("OIDC connector resource version %v is not supported", h.Version)
@@ -198,7 +199,10 @@ func (o *OIDCConnectorV2) GetRedirectURL() string {
 
 // Display - Friendly name for this provider.
 func (o *OIDCConnectorV2) GetDisplay() string {
-	return o.Spec.Display
+	if o.Spec.Display != "" {
+		return o.Spec.Display
+	}
+	return o.GetName()
 }
 
 // Scope is additional scopes set by provder

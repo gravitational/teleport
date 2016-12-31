@@ -790,6 +790,8 @@ func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oid
 	}
 	log.Debugf("[IDENTITY] %v/%v is a dynamic identity, generating user with roles: %v", connector.GetName(), ident.Email, roles)
 	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
+		Kind:    services.KindUser,
+		Version: services.V2,
 		Metadata: services.Metadata{
 			Name:      ident.Email,
 			Namespace: defaults.Namespace,

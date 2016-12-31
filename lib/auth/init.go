@@ -180,6 +180,8 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 			return nil, nil, trace.Wrap(err)
 		}
 		hostCA := &services.CertAuthorityV2{
+			Kind:    services.KindCertAuthority,
+			Version: services.V2,
 			Metadata: services.Metadata{
 				Name:      cfg.DomainName,
 				Namespace: defaults.Namespace,
@@ -209,6 +211,8 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 			return nil, nil, trace.Wrap(err)
 		}
 		userCA := &services.CertAuthorityV2{
+			Kind:    services.KindCertAuthority,
+			Version: services.V2,
 			Metadata: services.Metadata{
 				Name:      cfg.DomainName,
 				Namespace: defaults.Namespace,
