@@ -110,7 +110,7 @@ func (w *connectHandler) connect(ws *websocket.Conn) {
 	// connectUpstream establishes an SSH connection to a requested node
 	up, err := w.connectUpstream()
 	if err != nil {
-		log.Errorf("wsHandler: failed: %v", err)
+		log.Error(err)
 		return
 	}
 	w.up = up
