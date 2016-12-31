@@ -75,8 +75,8 @@ func (s *TimeoutSuite) TestNormalOperation(c *check.C) {
 	c.Assert(bodyText(resp), check.Equals, "pong")
 }
 
-// newClient helper returns HTTP client configured to use "ObeyTimeouts" connection
-// with a given timeout
+// newClient helper returns HTTP client configured to use a connection
+// wich drops itself after N idle time
 func newClient(timeout time.Duration) *http.Client {
 	var t http.Transport
 	t.Dial = func(network string, addr string) (net.Conn, error) {
@@ -84,7 +84,7 @@ func newClient(timeout time.Duration) *http.Client {
 		if err != nil {
 			return nil, err
 		}
-		return ObeyTimeouts(conn, timeout, "test"), nil
+		return ObeyIdleTimeout(conn, timeout, "test"), nil
 	}
 	return &http.Client{Transport: &t}
 }

@@ -206,7 +206,6 @@ func (s *WebSuite) SetUpTest(c *C) {
 		},
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
-		reversetunnel.ServerTimeout(200*time.Millisecond),
 		reversetunnel.DirectSite(s.domainName, s.roleAuth),
 	)
 	c.Assert(err, IsNil)

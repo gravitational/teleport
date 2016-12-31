@@ -484,7 +484,6 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
-		reversetunnel.ServerTimeout(200*time.Millisecond),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
@@ -563,7 +562,6 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
-		reversetunnel.ServerTimeout(200*time.Millisecond),
 		reversetunnel.DirectSite(s.domainName, s.roleAuth),
 	)
 	c.Assert(err, IsNil)

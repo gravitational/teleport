@@ -20,7 +20,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/services"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 )
 
@@ -54,7 +53,6 @@ func (a *AccessCheckers) GetChecker(username string) (services.AccessChecker, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("GetChecker authenticated user %v, roles: %v", username, user.GetRoles())
 	var roles services.RoleSet
 	for _, roleName := range user.GetRoles() {
 		role, err := a.Access.GetRole(roleName)

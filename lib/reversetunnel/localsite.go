@@ -1,3 +1,19 @@
+/*
+Copyright 2016 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+*/
 package reversetunnel
 
 import (
@@ -15,8 +31,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func newDirectSite(domainName string, client auth.ClientI) *directSite {
-	return &directSite{
+func newlocalSite(domainName string, client auth.ClientI) *localSite {
+	return &localSite{
 		client:     client,
 		domainName: domainName,
 		log: log.WithFields(log.Fields{
@@ -30,11 +46,11 @@ func newDirectSite(domainName string, client auth.ClientI) *directSite {
 	}
 }
 
-// directSite allows to directly access the remote servers
+// localSite allows to directly access the remote servers
 // not using any tunnel, and using standard SSH
 //
 // it implements RemoteSite interface
-type directSite struct {
+type localSite struct {
 	sync.Mutex
 	client auth.ClientI
 
@@ -47,27 +63,27 @@ type directSite struct {
 	srv         *server
 }
 
-func (s *directSite) GetClient() (auth.ClientI, error) {
+func (s *localSite) GetClient() (auth.ClientI, error) {
 	return s.client, nil
 }
 
-func (s *directSite) String() string {
+func (s *localSite) String() string {
 	return fmt.Sprintf("localSite(%v)", s.domainName)
 }
 
-func (s *directSite) GetStatus() string {
+func (s *localSite) GetStatus() string {
 	return RemoteSiteStatusOnline
 }
 
-func (s *directSite) GetName() string {
+func (s *localSite) GetName() string {
 	return s.domainName
 }
 
-func (s *directSite) GetLastConnected() time.Time {
+func (s *localSite) GetLastConnected() time.Time {
 	return time.Now()
 }
 
-func (s *directSite) ConnectToServer(server, user string, auth []ssh.AuthMethod) (*ssh.Client, error) {
+func (s *localSite) ConnectToServer(server, user string, auth []ssh.AuthMethod) (*ssh.Client, error) {
 	s.log.Infof("ConnectToServer(server=%v, user=%v)", server, user)
 
 	client, err := ssh.Dial(
@@ -83,14 +99,10 @@ func (s *directSite) ConnectToServer(server, user string, auth []ssh.AuthMethod)
 	return client, nil
 }
 
-func (s *directSite) Dial(network string, addr string) (net.Conn, error) {
-	s.log.Debugf("Dial(addr=%v)", addr)
-	return net.Dial(network, addr)
-}
-
-func (s *directSite) DialServer(addr string) (net.Conn, error) {
-	s.log.Debugf("DialServer(addr=%v)", addr)
-	return s.Dial("tcp", addr)
+// Dial dials a given host in this site (cluster).
+func (s *localSite) Dial(from net.Addr, to net.Addr) (net.Conn, error) {
+	s.log.Debugf("[PROXY] localSite.Dial(from=%v, to=%v)", from, to)
+	return net.Dial(to.Network(), to.String())
 }
 
 func findServer(addr string, servers []services.Server) (*services.Server, error) {

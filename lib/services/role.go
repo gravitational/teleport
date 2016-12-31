@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 )
@@ -377,13 +376,10 @@ func (set RoleSet) CheckLogins(ttl time.Duration) ([]string, error) {
 // CheckAccessToServer checks if role set has access to server based
 // on combined role's selector and attempted login
 func (set RoleSet) CheckAccessToServer(login string, s Server) error {
-	log.Debugf("CheckAccessToServer(%v, %v) for %v", login, s, set)
 	for _, role := range set {
 		matchNamespace := MatchNamespace(role.GetNamespaces(), s.GetNamespace())
 		matchLabels := MatchLabels(role.GetNodeLabels(), s.Labels)
 		matchLogin := MatchLogin(role.GetLogins(), login)
-		log.Debugf("CheckAccessToServer(%v, %v) match(namespace:%v, labels:%v, login:%v)",
-			role.GetName(), s, matchNamespace, matchLabels, matchLogin)
 		if matchNamespace && matchLabels && matchLogin {
 			return nil
 		}
@@ -405,12 +401,9 @@ func (set RoleSet) String() string {
 // CheckResourceAction checks if role set has access to this resource action
 func (set RoleSet) CheckResourceAction(resourceNamespace, resourceName, accessType string) error {
 	resourceNamespace = ProcessNamespace(resourceNamespace)
-	log.Debugf("CheckResourceAction(%v, %v, %v) for %v", resourceNamespace, resourceName, accessType, set)
 	for _, role := range set {
 		matchNamespace := MatchNamespace(role.GetNamespaces(), resourceNamespace)
 		matchResourceAction := MatchResourceAction(role.GetResources(), resourceName, accessType)
-		log.Debugf("CheckResourceAction(%v, %v, %v) -> match(namespace: %v, resourceAction: %v)",
-			resourceNamespace, resourceName, accessType, matchNamespace, matchResourceAction)
 		if matchNamespace && matchResourceAction {
 			return nil
 		}
