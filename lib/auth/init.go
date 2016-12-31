@@ -289,7 +289,7 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 	users, err := asrv.GetUsers()
 	for i := range users {
 		user := users[i]
-		raw, ok := (user.GetRawObject()).(*services.UserV1)
+		raw, ok := (user.GetRawObject()).(services.UserV1)
 		if !ok {
 			continue
 		}
@@ -310,7 +310,7 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 	cas, err := asrv.GetCertAuthorities(services.UserCA, true)
 	for i := range cas {
 		ca := cas[i]
-		raw, ok := (ca.GetRawObject()).(*services.CertAuthorityV1)
+		raw, ok := (ca.GetRawObject()).(services.CertAuthorityV1)
 		if !ok {
 			continue
 		}
