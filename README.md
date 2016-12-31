@@ -21,6 +21,7 @@ Teleport enables teams to easily adopt the best SSH practices like:
 - Collaboratively troubleshoot issues through session sharing.
 - Connect to clusters located behind firewalls without direct Internet access via SSH bastions.
 - Ability to integrate SSH credentials with your organization identities via OAuth (Google Apps, Github).
+- Keep the full audit log of all SSH sessions within a cluster.
 
 Teleport is built on top of the high-quality [Golang SSH](https://godoc.org/golang.org/x/crypto/ssh) 
 implementation and it is fully compatible with OpenSSH.
@@ -33,9 +34,11 @@ unpack the .tar.gz and run `sudo make install`. This will copy Teleport binaries
 
 Then you can run Teleport as a single-node cluster:
 
+```bash
+$ sudo teleport start 
 ```
-teleport start 
-```
+
+In production, Teleport must run as root. But to play, just do `chown $USER /var/lib/teleport` and run it under `$USER`, in this case you will not be able to login as someone else though.
 
 ## Building Teleport
 
@@ -64,13 +67,13 @@ to set the environment variable: `DEBUG=1`, in debug mode the web UI will be loa
 
 Then you can run Teleport as a single-node cluster in development mode: 
 
-```
+```bash
 $ DEBUG=1 build/teleport start -d
 ```
 
 To build the binary with embedded web assets:
 
-```
+```bash
 $ make release
 $ build/teleport start -d
 ```
