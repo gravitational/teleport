@@ -78,11 +78,16 @@ will be able to log into it using web-based terminal.
 Let's login using the `tsh` command line tool:
 
 ```bash
-tsh --proxy=localhost localhost
+tsh --proxy=localhost ssh localhost
 ```
 
 Notice that `tsh` client always needs `--proxy` flag because all client connections
 in Teleport have to go via a proxy sometimes called an "SSH bastion".
+
+!!! tip "Tip":
+    You can use `tsh --proxy=localhost login` to create a client profile in `~/.tsh`
+    directory. This will make `tsh` "remember" the current proxy server and remove
+    the need for `--proxy` flag.
 
 ## Adding Nodes to Cluster
 
