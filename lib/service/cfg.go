@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -97,9 +98,6 @@ type Config struct {
 	// Trust is a service that manages users and credentials
 	Trust services.Trust
 
-	// Lock is a distributed or local lock service
-	Lock services.Lock
-
 	// Presence service is a discovery and hearbeat tracker
 	Presence services.Presence
 
@@ -132,14 +130,8 @@ func (cfg *Config) ApplyToken(token string) bool {
 // ConfigureBolt configures Bolt back-ends with a data dir.
 func (cfg *Config) ConfigureBolt() {
 	a := &cfg.Auth
-	if a.EventsBackend.Type == teleport.BoltBackendType {
-		a.EventsBackend.Params = boltParams(cfg.DataDir, defaults.EventsBoltFile)
-	}
 	if a.KeysBackend.Type == teleport.BoltBackendType {
 		a.KeysBackend.Params = boltParams(cfg.DataDir, defaults.KeysBoltFile)
-	}
-	if a.RecordsBackend.Type == teleport.BoltBackendType {
-		a.RecordsBackend.Params = boltParams(cfg.DataDir, defaults.RecordsBoltFile)
 	}
 }
 
@@ -153,13 +145,6 @@ func (cfg *Config) ConfigureETCD(etcdCfg etcdbk.Config) error {
 	}
 	a.KeysBackend.Type = teleport.ETCDBackendType
 	a.KeysBackend.Params = params
-
-	// We can't store records and events in ETCD
-	a.EventsBackend.Type = teleport.BoltBackendType
-	a.EventsBackend.Params = boltParams(cfg.DataDir, defaults.EventsBoltFile)
-
-	a.RecordsBackend.Type = teleport.BoltBackendType
-	a.RecordsBackend.Params = boltParams(cfg.DataDir, defaults.RecordsBoltFile)
 	return nil
 }
 
@@ -246,22 +231,8 @@ type AuthConfig struct {
 		Type string
 		// Params is map with backend specific parameters
 		Params string
-	}
-
-	// EventsBackend configures backend that stores cluster events (login attempts, etc)
-	EventsBackend struct {
-		// Type is a backend type, etcd or bolt
-		Type string
-		// Params is map with backend specific parameters
-		Params string
-	}
-
-	// RecordsBackend configures backend that stores live SSH sessions recordings
-	RecordsBackend struct {
-		// Type is a backend type, currently only bolt
-		Type string
-		// Params is map with backend specific parameters
-		Params string
+		// BackendConf contains additional config data
+		BackendConf *backend.Config
 	}
 
 	Limiter limiter.LimiterConfig
@@ -302,12 +273,8 @@ func ApplyDefaults(cfg *Config) {
 	// defaults for the auth service:
 	cfg.Auth.Enabled = true
 	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
-	cfg.Auth.EventsBackend.Type = defaults.BackendType
-	cfg.Auth.EventsBackend.Params = boltParams(defaults.DataDir, defaults.EventsBoltFile)
 	cfg.Auth.KeysBackend.Type = defaults.BackendType
 	cfg.Auth.KeysBackend.Params = boltParams(defaults.DataDir, defaults.KeysBoltFile)
-	cfg.Auth.RecordsBackend.Type = defaults.BackendType
-	cfg.Auth.RecordsBackend.Params = boltParams(defaults.DataDir, defaults.RecordsBoltFile)
 	cfg.Auth.U2F.Enabled = false
 	cfg.Auth.U2F.AppID = fmt.Sprintf("https://%s:%d", strings.ToLower(hostname), defaults.HTTPListenPort)
 	cfg.Auth.U2F.Facets = []string{cfg.Auth.U2F.AppID}

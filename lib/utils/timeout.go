@@ -23,10 +23,10 @@ import (
 )
 
 // TimeoutConn wraps an existing net.Conn and adds read/write timeouts
-// for it, allowing to safely pass it into io.Copy()
+// for it, allowing to implement "disconnect after XX of idle time" policy
 //
 // Usage example:
-// tc := utils.ObeyTimeouts(conn, time.Second * 30, "ssh connection")
+// tc := utils.ObeyIdleTimeout(conn, time.Second * 30, "ssh connection")
 // io.Copy(tc, xxx)
 //
 type TimeoutConn struct {
@@ -34,17 +34,20 @@ type TimeoutConn struct {
 	TimeoutDuration time.Duration
 
 	// Name is only useful for debugging/logging, it's a convenient
-	// way to "name" every active connection
-	Name string
+	// way to tag every idle connection
+	OwnerName string
 }
 
-// ObeyTimeouts wraps an existing network connection with timeout-obeying
-// Write() and Read()
-func ObeyTimeouts(conn net.Conn, timeout time.Duration, name string) net.Conn {
+// ObeyIdleTimeout wraps an existing network connection with timeout-obeying
+// Write() and Read() - it will drop the connection after 'timeout' on idle
+//
+// Example:
+// ObeyIdletimeout(conn, time.Second * 60, "api server").
+func ObeyIdleTimeout(conn net.Conn, timeout time.Duration, ownerName string) net.Conn {
 	return &TimeoutConn{
 		Conn:            conn,
 		TimeoutDuration: timeout,
-		Name:            name,
+		OwnerName:       ownerName,
 	}
 }
 

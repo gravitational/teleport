@@ -12,11 +12,13 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
 */
 
 package srv
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -26,6 +28,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
@@ -103,18 +107,19 @@ func parseProxySubsys(name string, srv *Server) (*proxySubsys, error) {
 }
 
 func (t *proxySubsys) String() string {
-	return fmt.Sprintf("proxySubsys(site=%s, host=%s, port=%s)", t.siteName, t.host, t.port)
+	return fmt.Sprintf("proxySubsys(site=%s/%s, host=%s, port=%s)",
+		t.namespace, t.siteName, t.host, t.port)
 }
 
 // start is called by Golang's ssh when it needs to engage this sybsystem (typically to establish
 // a mapping connection between a client & remote node we're proxying to)
 func (t *proxySubsys) start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *ctx) error {
-	log.Debugf("proxy_subsystem: execute(remote: %v, local: %v) for subsystem with (%s:%s)",
-		sconn.RemoteAddr(), sconn.LocalAddr(), t.host, t.port)
+	log.Debugf("[PROXY] subsystem(from: %v, to: %v)", sconn.RemoteAddr(), sconn.LocalAddr())
 	var (
-		site   reversetunnel.RemoteSite
-		err    error
-		tunnel = t.srv.proxyTun
+		site       reversetunnel.RemoteSite
+		err        error
+		tunnel     = t.srv.proxyTun
+		clientAddr = sconn.RemoteAddr()
 	)
 	// get the site by name:
 	if t.siteName != "" {
@@ -130,21 +135,23 @@ func (t *proxySubsys) start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 		if site == nil {
 			sites := tunnel.GetSites()
 			if len(sites) == 0 {
-				log.Errorf("this proxy is not connected to any sites")
+				log.Errorf("[PROXY] not connected to any remote clusters")
 				return trace.Errorf("no connected sites")
 			}
 			site = sites[0]
-			log.Debugf("proxy_subsystem: no site specified. connecting to default: '%s'", site.GetName())
+			log.Debugf("[PROXY] subsystem: cluster not specified. connecting to default='%s'", site.GetName())
 		}
-		return t.proxyToHost(site, ch)
+		return t.proxyToHost(site, clientAddr, ch)
 	}
 	// connect to a site's auth server:
-	return t.proxyToSite(site, ch)
+	return t.proxyToSite(site, clientAddr, ch)
 }
 
 // proxyToSite establishes a proxy connection from the connected SSH client to the
-// auth server of the requested site
-func (t *proxySubsys) proxyToSite(site reversetunnel.RemoteSite, ch ssh.Channel) error {
+// auth server of the requested remote site
+func (t *proxySubsys) proxyToSite(
+	site reversetunnel.RemoteSite, remoteAddr net.Addr, ch ssh.Channel) error {
+
 	var (
 		err  error
 		conn net.Conn
@@ -157,8 +164,11 @@ func (t *proxySubsys) proxyToSite(site reversetunnel.RemoteSite, ch ssh.Channel)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	for _, authServer := range authServers {
-		conn, err = site.Dial("tcp", authServer.GetAddr())
+
+		conn, err = site.Dial(remoteAddr,
+			&utils.NetAddr{Addr: authServer.GetAddr(), AddrNetwork: "tcp"})
 		if err != nil {
 			log.Error(err)
 			continue
@@ -188,7 +198,8 @@ func (t *proxySubsys) proxyToSite(site reversetunnel.RemoteSite, ch ssh.Channel)
 
 // proxyToHost establishes a proxy connection from the connected SSH client to the
 // requested remote node (t.host:t.port) via the given site
-func (t *proxySubsys) proxyToHost(site reversetunnel.RemoteSite, ch ssh.Channel) error {
+func (t *proxySubsys) proxyToHost(
+	site reversetunnel.RemoteSite, remoteAddr net.Addr, ch ssh.Channel) error {
 	//
 	// first, lets fetch a list of servers at the given site. this allows us to
 	// match the given "host name" against node configuration (their 'nodename' setting)
@@ -241,10 +252,17 @@ func (t *proxySubsys) proxyToHost(site reversetunnel.RemoteSite, ch ssh.Channel)
 
 	// we must dial by server IP address because hostname
 	// may not be actually DNS resolvable
-	conn, err := site.Dial("tcp", serverAddr)
+	conn, err := site.Dial(
+		remoteAddr,
+		&utils.NetAddr{Addr: serverAddr, AddrNetwork: "tcp"})
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
+
+	// this custom SSH handshake allows SSH proxy to relay the client's IP
+	// address to the SSH erver:
+	doHandshake(remoteAddr, ch, conn)
+
 	go func() {
 		var err error
 		defer func() {
@@ -275,4 +293,40 @@ func (t *proxySubsys) close(err error) {
 func (t *proxySubsys) wait() error {
 	<-t.closeC
 	return t.error
+}
+
+// doHandshake allows a proxy server to send additional information (client IP)
+// to an SSH server before establishing a bridge
+func doHandshake(clientAddr net.Addr, clientConn io.ReadWriter, serverConn io.ReadWriter) {
+	// on behalf of a client ask the server for it's version:
+	var bytes [sshutils.MaxVersionStringBytes]byte
+	n, err := serverConn.Read(bytes[:])
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	// is that a Teleport server?
+	resp := bytes[:n]
+	if strings.HasPrefix(string(resp), sshutils.SSHVersionPrefix) {
+		// if we're connecting to a Teleport SSH server, send our own "handshake payload"
+		// message, along with a client's IP:
+		hp := &sshutils.HandshakePayload{
+			ClientAddr: clientAddr.String(),
+		}
+		payloadJSON, err := json.Marshal(hp)
+		if err != nil {
+			log.Error(err)
+		} else {
+			n, err = serverConn.Write(
+				[]byte(fmt.Sprintf("%s\n%s", sshutils.ProxyHelloSignature, payloadJSON)))
+			if err != nil {
+				log.Error(err)
+			}
+		}
+	}
+	// forwrd server's response to the client:
+	n, err = clientConn.Write(resp)
+	if err != nil {
+		log.Error(err)
+	}
 }

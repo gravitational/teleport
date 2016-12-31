@@ -444,18 +444,6 @@ webpackJsonp([0],{
 	    },
 	    getU2fCreateUserChallengeUrl: function getU2fCreateUserChallengeUrl(inviteToken) {
 	      return formatPattern(cfg.api.u2fCreateUserChallengePath, { inviteToken: inviteToken });
-	    },
-	    getEventStreamConnStr: function getEventStreamConnStr() {
-	      var siteId = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : '-current-';
-
-	      var hostname = getWsHostName();
-	      return hostname + '/v1/webapi/sites/' + siteId;
-	    },
-	    getTtyUrl: function getTtyUrl() {
-	      var siteId = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : '-current-';
-
-	      var hostname = getWsHostName();
-	      return hostname + '/v1/webapi/sites/' + siteId;
 	    }
 	  },
 
@@ -482,13 +470,6 @@ webpackJsonp([0],{
 	};
 
 	exports.default = cfg;
-
-
-	function getWsHostName() {
-	  var prefix = location.protocol == "https:" ? "wss://" : "ws://";
-	  var hostport = location.hostname + (location.port ? ':' + location.port : '');
-	  return '' + prefix + hostport;
-	}
 	module.exports = exports['default'];
 
 /***/ },
@@ -5244,14 +5225,19 @@ webpackJsonp([0],{
 	      session.getHistory().push(cfg.routes.sessions);
 	    }
 	  },
-	  processSessionEventStream: function processSessionEventStream(data) {
-	    data.events.forEach(function (item) {
-	      if (item.event === 'session.end') {
-	        actions.close();
-	      }
-	    });
+	  processSessionFromEventStream: function processSessionFromEventStream(siteId) {
+	    return function (data) {
+	      data.events.forEach(function (item) {
+	        if (item.event === 'session.end') {
+	          actions.close();
+	        }
+	      });
 
-	    updateSession(data.session);
+	      var session = data.session;
+
+	      session.siteId = siteId;
+	      updateSession(data.session);
+	    };
 	  }
 	};
 
@@ -5317,6 +5303,7 @@ webpackJsonp([0],{
 	    curSessionView.active = existing.active;
 	    curSessionView.cols = existing.cols;
 	    curSessionView.rows = existing.rows;
+	    curSessionView.siteId = existing.siteId;
 	  }
 
 	  return curSessionView;
@@ -8351,7 +8338,7 @@ webpackJsonp([0],{
 	var Terminal = __webpack_require__(416);
 
 	var _require2 = __webpack_require__(386),
-	    processSessionEventStream = _require2.processSessionEventStream;
+	    processSessionFromEventStream = _require2.processSessionFromEventStream;
 
 	var ActiveSession = React.createClass({
 	  displayName: 'ActiveSession',
@@ -8411,7 +8398,7 @@ webpackJsonp([0],{
 	    };
 
 	    this.terminal = new Terminal(options);
-	    this.terminal.ttyEvents.on('data', processSessionEventStream);
+	    this.terminal.ttyEvents.on('data', processSessionFromEventStream(siteId));
 	    this.terminal.open();
 	  },
 	  componentWillUnmount: function componentWillUnmount() {
@@ -13759,8 +13746,6 @@ webpackJsonp([0],{
 	}
 
 	function updateSession(state, json) {
-	  var siteId = state.getIn([json.id, 'siteId']);
-	  json.siteId = siteId;
 	  return state.set(json.id, toImmutable(json));
 	}
 

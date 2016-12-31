@@ -24,8 +24,6 @@ limitations under the License.
 package auth
 
 import (
-	"time"
-
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -107,18 +105,6 @@ func (s *AuthServer) CreateSignupToken(userv1 services.UserV1) (string, error) {
 func (s *AuthServer) GetSignupTokenData(token string) (user string,
 	QRImg []byte, hotpFirstValues []string, e error) {
 
-	err := s.AcquireLock("signuptoken"+token, time.Hour)
-	if err != nil {
-		return "", nil, nil, trace.Wrap(err)
-	}
-
-	defer func() {
-		err := s.ReleaseLock("signuptoken" + token)
-		if err != nil {
-			log.Errorf(err.Error())
-		}
-	}()
-
 	tokenData, err := s.GetSignupToken(token)
 	if err != nil {
 		return "", nil, nil, trace.Wrap(err)
@@ -137,20 +123,6 @@ func (s *AuthServer) CreateSignupU2FRegisterRequest(token string) (u2fRegisterRe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	lock := "signuptoken" + token
-
-	err = s.AcquireLock(lock, time.Hour)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	defer func() {
-		err := s.ReleaseLock(lock)
-		if err != nil {
-			log.Errorf(err.Error())
-		}
-	}()
 
 	tokenData, err := s.GetSignupToken(token)
 	if err != nil {
@@ -181,18 +153,6 @@ func (s *AuthServer) CreateSignupU2FRegisterRequest(token string) (u2fRegisterRe
 // Account username and hotp generator are taken from token data.
 // Deletes token after account creation.
 func (s *AuthServer) CreateUserWithToken(token, password, hotpToken string) (*Session, error) {
-	err := s.AcquireLock("signuptoken"+token, time.Hour)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	defer func() {
-		err := s.ReleaseLock("signuptoken" + token)
-		if err != nil {
-			log.Errorf(err.Error())
-		}
-	}()
-
 	tokenData, err := s.GetSignupToken(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -257,20 +217,6 @@ func (s *AuthServer) CreateUserWithU2FToken(token string, password string, respo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	lock := "signuptoken" + token
-
-	err = s.AcquireLock(lock, time.Hour)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	defer func() {
-		err := s.ReleaseLock(lock)
-		if err != nil {
-			log.Errorf(err.Error())
-		}
-	}()
 
 	tokenData, err := s.GetSignupToken(token)
 	if err != nil {

@@ -867,7 +867,7 @@ To configure Teleport for using etcd backend:
 * Install etcd and configure peer and client TLS authentication using
    [etcd security guide](https://coreos.com/etcd/docs/latest/security.html).
 
-* Confnigure Teleport `auth` server to use etcd in the "storage" section of
+* Configure Teleport `auth` server to use etcd in the "storage" section of
   the config file:
 
 ```yaml

@@ -37,9 +37,6 @@ const (
 	// ComponentTunClient is a tunnel client
 	ComponentTunClient = "tunclient"
 
-	// DefaultTimeout sets read and wrie timeouts for SSH server ops
-	DefaultTimeout time.Duration = 30 * time.Second
-
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 

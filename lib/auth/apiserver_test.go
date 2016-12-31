@@ -53,7 +53,6 @@ type APISuite struct {
 	sessions session.Service
 
 	CAS           services.Trust
-	LockS         services.Lock
 	PresenceS     services.Presence
 	ProvisioningS services.Provisioner
 	WebS          services.Identity
@@ -106,7 +105,6 @@ func (s *APISuite) SetUpTest(c *C) {
 	s.clt = clt
 
 	s.CAS = local.NewCAService(s.bk)
-	s.LockS = local.NewLockService(s.bk)
 	s.PresenceS = local.NewPresenceService(s.bk)
 	s.ProvisioningS = local.NewProvisioningService(s.bk)
 }

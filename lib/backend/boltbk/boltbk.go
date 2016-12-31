@@ -143,29 +143,6 @@ func (b *BoltBackend) upsertVal(path []string, key string, val []byte, ttl time.
 	return b.upsertKey(path, key, bytes)
 }
 
-func (b *BoltBackend) CompareAndSwap(path []string, key string, val []byte, ttl time.Duration, prevVal []byte) ([]byte, error) {
-	b.Lock()
-	defer b.Unlock()
-
-	storedVal, err := b.GetVal(path, key)
-	if err != nil {
-		if trace.IsNotFound(err) && len(prevVal) != 0 {
-			return nil, err
-		}
-	}
-	if len(prevVal) == 0 && err == nil {
-		return nil, trace.AlreadyExists("key '%v' already exists", key)
-	}
-	if string(prevVal) == string(storedVal) {
-		err = b.upsertVal(path, key, val, ttl)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return storedVal, nil
-	}
-	return storedVal, trace.CompareFailed("expected: %v, got: %v", string(prevVal), string(storedVal))
-}
-
 func (b *BoltBackend) GetVal(path []string, key string) ([]byte, error) {
 	var val []byte
 	if err := b.getKey(path, key, &val); err != nil {

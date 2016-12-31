@@ -50,7 +50,6 @@ func (s *BoltSuite) SetUpTest(c *C) {
 
 	suite := &suite.ServicesTestSuite{}
 	suite.CAS = NewCAService(s.bk)
-	suite.LockS = NewLockService(s.bk)
 	suite.PresenceS = NewPresenceService(s.bk)
 	suite.ProvisioningS = NewProvisioningService(s.bk)
 	suite.WebS = NewIdentityService(s.bk)
@@ -97,10 +96,6 @@ func (s *BoltSuite) TestPasswordGarbage(c *C) {
 
 func (s *BoltSuite) TestWebSessionCRUD(c *C) {
 	s.suite.WebSessionCRUD(c)
-}
-
-func (s *BoltSuite) TestLocking(c *C) {
-	s.suite.Locking(c)
 }
 
 func (s *BoltSuite) TestToken(c *C) {

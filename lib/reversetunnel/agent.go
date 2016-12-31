@@ -173,7 +173,7 @@ func (a *Agent) proxyAccessPoint(ch ssh.Channel, req <-chan *ssh.Request) {
 
 	// apply read/write timeouts to this connection that are 10x of what normal
 	// reverse tunnel ping is supposed to be:
-	conn = utils.ObeyTimeouts(conn,
+	conn = utils.ObeyIdleTimeout(conn,
 		defaults.ReverseTunnelAgentHeartbeatPeriod*10,
 		"reverse tunnel client")
 
@@ -220,7 +220,7 @@ func (a *Agent) proxyTransport(ch ssh.Channel, reqC <-chan *ssh.Request) {
 			a.log.Infof("connection closed, returning")
 			return
 		}
-	case <-time.After(teleport.DefaultTimeout):
+	case <-time.After(defaults.DefaultDialTimeout):
 		a.log.Errorf("timeout waiting for dial")
 		return
 	}

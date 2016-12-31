@@ -88,9 +88,6 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 	if cfg.Trust == nil {
 		cfg.Trust = local.NewCAService(cfg.Backend)
 	}
-	if cfg.Lock == nil {
-		cfg.Lock = local.NewLockService(cfg.Backend)
-	}
 	if cfg.Presence == nil {
 		cfg.Presence = local.NewPresenceService(cfg.Backend)
 	}
@@ -107,7 +104,6 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 		bk:              cfg.Backend,
 		Authority:       cfg.Authority,
 		Trust:           cfg.Trust,
-		Lock:            cfg.Lock,
 		Presence:        cfg.Presence,
 		Provisioner:     cfg.Provisioner,
 		Identity:        cfg.Identity,
@@ -158,7 +154,6 @@ type AuthServer struct {
 	U2F services.U2F
 
 	services.Trust
-	services.Lock
 	services.Presence
 	services.Provisioner
 	services.Identity

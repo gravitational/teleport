@@ -34,7 +34,6 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -486,7 +485,6 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
-		reversetunnel.ServerTimeout(200*time.Millisecond),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
@@ -564,7 +562,6 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		reverseTunnelAddress,
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
-		reversetunnel.ServerTimeout(200*time.Millisecond),
 		reversetunnel.DirectSite(s.domainName, s.roleAuth),
 	)
 	c.Assert(err, IsNil)

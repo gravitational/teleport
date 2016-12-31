@@ -179,7 +179,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		// is configured to use bolt:
 		a := &cfg.Auth
 		a.KeysBackend.Type = dynamo.BackendType
-		a.KeysBackend.Params, err = dynamo.ConfigureBackend(&fc.Storage)
+		a.KeysBackend.BackendConf = &fc.Storage
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -26,7 +26,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -102,7 +101,7 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	}
 	select {
 	case <-done:
-	case <-time.After(teleport.DefaultTimeout):
+	case <-time.After(defaults.DefaultDialTimeout):
 		return nil, trace.ConnectionProblem(nil, "timeout")
 	}
 
