@@ -17,7 +17,6 @@ limitations under the License.
 package web
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -32,9 +31,9 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-// connectReq is a request to open interactive SSH
-// connection to remote server
-type connectReq struct {
+// terminalRequest describes a request to crate a web-based terminal
+// to a remote SSH server
+type terminalRequest struct {
 	// ServerID is a server id to connect to
 	ServerID string `json:"server_id"`
 	// User is linux username to connect as
@@ -47,7 +46,12 @@ type connectReq struct {
 	Namespace string `json:"namespace"`
 }
 
-func newConnectHandler(req connectReq, ctx *SessionContext, site reversetunnel.RemoteSite) (*connectHandler, error) {
+// newTerminal creates a web-based terminal based on WebSockets and returns a new
+// terminalHandler
+func newTerminal(req terminalRequest,
+	ctx *SessionContext,
+	site reversetunnel.RemoteSite) (*terminalHandler, error) {
+
 	clt, err := site.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -72,29 +76,33 @@ func newConnectHandler(req connectReq, ctx *SessionContext, site reversetunnel.R
 	if req.Term.W <= 0 || req.Term.H <= 0 {
 		return nil, trace.BadParameter("term: bad term dimensions")
 	}
-	return &connectHandler{
-		req:    req,
+	return &terminalHandler{
+		params: req,
 		ctx:    ctx,
 		site:   site,
 		server: *server,
 	}, nil
 }
 
-// connectHandler is a websocket to SSH proxy handler
-type connectHandler struct {
-	ctx    *SessionContext
-	site   reversetunnel.RemoteSite
-	up     *sshutils.Upstream
-	req    connectReq
-	ws     *websocket.Conn
+// terminalHandler connects together an SSH session with a web-based
+// terminal via a web socket.
+type terminalHandler struct {
+	// params describe the terminal configuration
+	params terminalRequest
+
+	// ctx is a web session context for the currently logged in user
+	ctx *SessionContext
+
+	ws *websocket.Conn
+	up *sshutils.Upstream
+
+	// site/cluster we're connected to
+	site reversetunnel.RemoteSite
+	// server we're connected to
 	server services.Server
 }
 
-func (w *connectHandler) String() string {
-	return fmt.Sprintf("connectHandler(%#v)", w.req)
-}
-
-func (w *connectHandler) Close() error {
+func (w *terminalHandler) Close() error {
 	if w.ws != nil {
 		w.ws.Close()
 	}
@@ -104,32 +112,9 @@ func (w *connectHandler) Close() error {
 	return nil
 }
 
-// connect is called when a web browser wants to start piping an active terminal session
-// io/out via the provided websocket
-func (w *connectHandler) connect(ws *websocket.Conn) {
-	// connectUpstream establishes an SSH connection to a requested node
-	up, err := w.connectUpstream()
-	if err != nil {
-		log.Error(err)
-		return
-	}
-	w.up = up
-	w.ws = ws
-
-	// PipeShell will be piping inputs/output to/from SSH connection (to the node)
-	// and the websocket (to a browser)
-	err = w.up.PipeShell(utils.NewWebSockWrapper(ws, utils.WebSocketTextMode),
-		&sshutils.PTYReqParams{
-			W: uint32(w.req.Term.W),
-			H: uint32(w.req.Term.H),
-		})
-
-	log.Infof("pipe shell finished with: %v", err)
-}
-
 // resizePTYWindow is called when a brower resizes its window. Now the node
 // needs to be notified via SSH
-func (w *connectHandler) resizePTYWindow(params session.TerminalParams) error {
+func (w *terminalHandler) resizePTYWindow(params session.TerminalParams) error {
 	_, err := w.up.GetSession().SendRequest(
 		// send SSH "window resized" SSH request:
 		sshutils.WindowChangeReq, false,
@@ -141,8 +126,8 @@ func (w *connectHandler) resizePTYWindow(params session.TerminalParams) error {
 }
 
 // connectUpstream establishes the SSH connection to a requested SSH server (node)
-func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
-	agent, err := w.ctx.GetAgent()
+func (t *terminalHandler) connectUpstream() (*sshutils.Upstream, error) {
+	agent, err := t.ctx.GetAgent()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -151,8 +136,8 @@ func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	client, err := w.site.ConnectToServer(
-		w.server.GetAddr(), w.req.Login, []ssh.AuthMethod{ssh.PublicKeys(signers...)})
+	client, err := t.site.ConnectToServer(
+		t.server.GetAddr(), t.params.Login, []ssh.AuthMethod{ssh.PublicKeys(signers...)})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -183,21 +168,39 @@ func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
 		sshutils.SetEnvReq, false,
 		ssh.Marshal(sshutils.EnvReqParams{
 			Name:  sshutils.SessionEnvVar,
-			Value: string(w.req.SessionID),
+			Value: string(t.params.SessionID),
 		}))
 	return up, nil
 }
 
-func (w *connectHandler) Handler() http.Handler {
+// Run creates a new websocket connection to the SSH server and runs
+// the "loop" piping the input/output of the SSH session into the
+// js-based terminal.
+func (t *terminalHandler) Run(w http.ResponseWriter, r *http.Request) {
+	webSocketLoop := func(ws *websocket.Conn) {
+		up, err := t.connectUpstream()
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		t.up = up
+		t.ws = ws
+
+		// PipeShell will be piping inputs/output to/from SSH connection (to the node)
+		// and the websocket (to a browser)
+		err = t.up.PipeShell(utils.NewWebSockWrapper(ws, utils.WebSocketTextMode),
+			&sshutils.PTYReqParams{
+				W: uint32(t.params.Term.W),
+				H: uint32(t.params.Term.H),
+			})
+
+		log.Infof("pipe shell finished with: %v", err)
+	}
+
 	// TODO(klizhentas)
 	// we instantiate a server explicitly here instead of using
 	// websocket.HandlerFunc to set empty origin checker
 	// make sure we check origin when in prod mode
-	return &websocket.Server{
-		Handler: w.connect,
-	}
-}
-
-func newWSHandler(host string, auth []string) *connectHandler {
-	return &connectHandler{}
+	ws := &websocket.Server{Handler: webSocketLoop}
+	ws.ServeHTTP(w, r)
 }

@@ -547,7 +547,7 @@ func (s *WebSuite) TestGetSiteNodes(c *C) {
 	c.Assert(nodes2, DeepEquals, nodes)
 }
 
-func (s *WebSuite) connect(c *C, pack *authPack, opts ...session.ID) *websocket.Conn {
+func (s *WebSuite) makeTerminal(c *C, pack *authPack, opts ...session.ID) *websocket.Conn {
 	var sessionID session.ID
 	if len(opts) == 0 {
 		sessionID = session.NewID()
@@ -555,7 +555,7 @@ func (s *WebSuite) connect(c *C, pack *authPack, opts ...session.ID) *websocket.
 		sessionID = opts[0]
 	}
 	u := url.URL{Host: s.url().Host, Scheme: WSS, Path: fmt.Sprintf("/v1/webapi/sites/%v/connect", currentSiteShortcut)}
-	data, err := json.Marshal(connectReq{
+	data, err := json.Marshal(terminalRequest{
 		ServerID:  s.srvID,
 		Login:     s.user,
 		Term:      session.TerminalParams{W: 100, H: 100},
@@ -608,11 +608,11 @@ func (s *WebSuite) sessionStream(c *C, pack *authPack, sessionID session.ID, opt
 	return clt
 }
 
-func (s *WebSuite) TestConnect(c *C) {
-	clt := s.connect(c, s.authPack(c))
-	defer clt.Close()
+func (s *WebSuite) TestTerminal(c *C) {
+	term := s.makeTerminal(c, s.authPack(c))
+	defer term.Close()
 
-	_, err := io.WriteString(clt, "echo vinsong\r\n")
+	_, err := io.WriteString(term, "echo vinsong\r\n")
 	c.Assert(err, IsNil)
 
 	resultC := make(chan struct{})
@@ -620,7 +620,7 @@ func (s *WebSuite) TestConnect(c *C) {
 	go func() {
 		out := make([]byte, 100)
 		for {
-			n, err := clt.Read(out)
+			n, err := term.Read(out)
 			c.Assert(err, IsNil)
 			c.Assert(n > 0, Equals, true)
 			if strings.Contains(removeSpace(string(out)), "vinsong") {
@@ -642,7 +642,7 @@ func (s *WebSuite) TestConnect(c *C) {
 func (s *WebSuite) TestNodesWithSessions(c *C) {
 	sid := session.NewID()
 	pack := s.authPack(c)
-	clt := s.connect(c, pack, sid)
+	clt := s.makeTerminal(c, pack, sid)
 	defer clt.Close()
 
 	// to make sure we have a session
@@ -697,7 +697,7 @@ func (s *WebSuite) TestNodesWithSessions(c *C) {
 func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 	sid := session.NewID()
 	pack := s.authPack(c)
-	clt := s.connect(c, pack, sid)
+	clt := s.makeTerminal(c, pack, sid)
 	defer clt.Close()
 
 	// to make sure we have a session
@@ -754,16 +754,16 @@ func (s *WebSuite) TestCreateSession(c *C) {
 func (s *WebSuite) TestResizeTerminal(c *C) {
 	sid := session.NewID()
 	pack := s.authPack(c)
-	clt := s.connect(c, pack, sid)
-	defer clt.Close()
+	term := s.makeTerminal(c, pack, sid)
+	defer term.Close()
 
 	// to make sure we have a session
-	_, err := io.WriteString(clt, "expr 137 + 39\r\n")
+	_, err := io.WriteString(term, "expr 137 + 39\r\n")
 	c.Assert(err, IsNil)
 
 	// make sure server has replied
 	out := make([]byte, 100)
-	clt.Read(out)
+	term.Read(out)
 
 	params := session.TerminalParams{W: 300, H: 120}
 	_, err = pack.clt.PutJSON(
@@ -784,8 +784,8 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 func (s *WebSuite) TestPlayback(c *C) {
 	pack := s.authPack(c)
 	sid := session.NewID()
-	clt := s.connect(c, pack, sid)
-	defer clt.Close()
+	term := s.makeTerminal(c, pack, sid)
+	defer term.Close()
 }
 
 func removeSpace(in string) string {

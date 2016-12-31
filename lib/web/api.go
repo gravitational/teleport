@@ -940,27 +940,40 @@ func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, p httprou
 //
 // Sucessful response is a websocket stream that allows read write to the server
 //
-func (m *Handler) siteNodeConnect(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (m *Handler) siteNodeConnect(
+	w http.ResponseWriter,
+	r *http.Request,
+	p httprouter.Params,
+	ctx *SessionContext,
+	site reversetunnel.RemoteSite) (interface{}, error) {
+
 	q := r.URL.Query()
 	params := q.Get("params")
 	if params == "" {
 		return nil, trace.BadParameter("missing params")
 	}
-	var req *connectReq
+	var req *terminalRequest
 	if err := json.Unmarshal([]byte(params), &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	log.Debugf("[WEB] new terminal request for ns=%s, server=%s, login=%s",
+		req.Namespace, req.ServerID, req.Login)
+
 	req.Namespace = p.ByName("namespace")
-	log.Infof("web client connected to node %#v", req)
-	connect, err := newConnectHandler(*req, ctx, site)
+	term, err := newTerminal(*req, ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// this is to make sure we close web socket connections once
 	// sessionContext that owns them expires
-	ctx.AddClosers(connect)
-	defer connect.Close()
-	connect.Handler().ServeHTTP(w, r)
+	ctx.AddClosers(term)
+	defer term.Close()
+
+	// start the websocket session with a web-based terminal:
+	log.Infof("[WEB] getting terminal to '%#v'", req)
+	term.Run(w, r)
+
 	return nil, nil
 }
 
