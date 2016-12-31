@@ -110,7 +110,7 @@ integration:
 #	assigns a git tag to the currently checked out tree
 .PHONY: setver
 setver:
-	$(MAKE) -f version.mk setver
+	$(MAKE) -f version.mk setver VERSION=$(VERSION)
 
 # make tag - prints a tag to use with git for the current version
 # 	To put a new release on Github:
