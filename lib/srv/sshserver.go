@@ -337,7 +337,7 @@ func (s *Server) heartbeatPresence() {
 
 func (s *Server) updateLabels() {
 	for name, label := range s.cmdLabels {
-		go s.periodicUpdateLabel(name, label)
+		go s.periodicUpdateLabel(name, label.Clone())
 	}
 }
 
