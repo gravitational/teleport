@@ -817,7 +817,7 @@ func validateConfig(cfg *service.Config) {
 	// read a host UUID for this node
 	cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
 	if err != nil {
-		utils.FatalError(fmt.Errorf("Invalid data directory: '%s'", cfg.DataDir))
+		utils.FatalError(err)
 	}
 }
 
