@@ -38,6 +38,11 @@ import (
 // relative path to static assets. this is useful during development.
 var debugAssetsPath string
 
+const (
+	webAssetsMissingError = "the teleport binary was built without web assets, try building with `make release`"
+	webAssetsReadError    = "failure reading web assets from the binary"
+)
+
 // NewStaticFileSystem returns the initialized implementation of http.FileSystem
 // interface which can be used to serve Teleport Proxy Web UI
 //
@@ -110,7 +115,10 @@ func readZipArchive(archivePath string) (ResourceMap, error) {
 		// this often happens when teleport is launched without the web assets
 		// zip file attached to the binary. for launching it in such mode
 		// set DEBUG environment variable to 1
-		return nil, trace.NotFound("Failed reading web assets from the binary. %v", err)
+		if err == zip.ErrFormat {
+			return nil, trace.NotFound(webAssetsMissingError)
+		}
+		return nil, trace.NotFound("%s %v", webAssetsReadError, err)
 	}
 	entries := make(ResourceMap)
 	for _, file := range zreader.File {

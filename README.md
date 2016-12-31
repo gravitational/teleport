@@ -45,14 +45,35 @@ and we keep it checked into Git under `/dist`, so you only need to build Golang:
 
 Make sure you have Golang `v1.7` or newer, then run:
 
-1. `go get github.com/gravitational/teleport`
-2. `cd $GOPATH/src/github.com/gravitational/teleport`
-3. `CGO_ENABLED=true make`
+```bash
+# getting & building:
+$ go get github.com/gravitational/teleport
+$ cd $GOPATH/src/github.com/gravitational/teleport
+$ make
 
-If the build was successful the binaries are here: `$GOPATH/src/github.com/gravitational/teleport/build`
+# create the default data directory before starting:
+$ sudo make -p /var/lib/teleport
+$ sudo chown $USER /var/lib/teleport
+```
 
-You'll have to create `/var/lib/teleport` directory and then you can start 
-Teleport as a single-node cluster in development mode: `build/teleport start -d`
+If the build was successful the binaries will be in `$GOPATH/src/github.com/gravitational/teleport/build`
+
+By default the web UI is not build into the binary, to run self-build teleport you have
+to set the environment variable: `DEBUG=1`, in debug mode the web UI will be loaded from 
+[web/dist](web/dist) directory.
+
+Then you can run Teleport as a single-node cluster in development mode: 
+
+```
+$ DEBUG=1 build/teleport start -d
+```
+
+To build the binary with embedded web assets:
+
+```
+$ make release
+$ build/teleport start -d
+```
 
 If you want to release your own Teleport version, edit this [Makefile](Makefile), update 
 `VERSION` and `SUFFIX` constants, then run `make setver` to update [version.go](version.go)
@@ -91,14 +112,6 @@ within multiple organizations.
 
 The best way to contribute is to create issues or pull requests right here on Github. 
 You can also reach the Gravitational team through their [website](https://gravitational.com/)
-
-It is possible to make changes to the Web UI without having to rebuild and restart `teleport`.
-Simply launch it with `DEBUG` environment variable set from `$GOPATH`:
-
-```bash
-$ DEBUG=1 $GOPATH/gravitational/teleport/build/teleport start
-```
-
 
 ## Status
 
