@@ -167,13 +167,13 @@ func tunnelsToAgentKeys(tunnels []services.ReverseTunnel) (map[agentKey]bool, er
 }
 
 func tunnelToAgentKeys(tunnel services.ReverseTunnel) ([]agentKey, error) {
-	out := make([]agentKey, len(tunnel.DialAddrs))
-	for i, addr := range tunnel.DialAddrs {
+	out := make([]agentKey, len(tunnel.GetDialAddrs()))
+	for i, addr := range tunnel.GetDialAddrs() {
 		netaddr, err := utils.ParseAddr(addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		out[i] = agentKey{addr: *netaddr, domainName: tunnel.DomainName}
+		out[i] = agentKey{addr: *netaddr, domainName: tunnel.GetClusterName()}
 	}
 	return out, nil
 }

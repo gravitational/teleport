@@ -257,7 +257,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.ReverseTunnels = append(cfg.ReverseTunnels, *tun)
+		cfg.ReverseTunnels = append(cfg.ReverseTunnels, tun)
 	}
 
 	// add oidc connectors supplied from configs
@@ -266,7 +266,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.OIDCConnectors = append(cfg.OIDCConnectors, *conn)
+		cfg.OIDCConnectors = append(cfg.OIDCConnectors, conn)
 	}
 
 	// apply "proxy_service" section
@@ -318,7 +318,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.Auth.Authorities = append(cfg.Auth.Authorities, *ca)
+		cfg.Auth.Authorities = append(cfg.Auth.Authorities, ca)
 	}
 	for _, token := range fc.Auth.StaticTokens {
 		roles, tokenValue, err := token.Parse()
@@ -345,8 +345,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.SSH.Commands != nil {
 		cfg.SSH.CmdLabels = make(services.CommandLabels)
 		for _, cmdLabel := range fc.SSH.Commands {
-			cfg.SSH.CmdLabels[cmdLabel.Name] = services.CommandLabel{
-				Period:  cmdLabel.Period,
+			cfg.SSH.CmdLabels[cmdLabel.Name] = &services.CommandLabelV2{
+				Period:  services.NewDuration(cmdLabel.Period),
 				Command: cmdLabel.Command,
 				Result:  "",
 			}
@@ -366,7 +366,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 
 // parseCAKey() gets called for every line in a "CA key file" which is
 // the same as 'known_hosts' format for openssh
-func parseCAKey(bytes []byte) (*services.CertAuthority, error) {
+func parseCAKey(bytes []byte) (services.CertAuthority, error) {
 	marker, options, pubKey, comment, _, err := ssh.ParseKnownHosts(bytes)
 	if marker != "cert-authority" {
 		return nil, trace.BadParameter("invalid file format. expected '@cert-authority` marker")
@@ -387,11 +387,8 @@ func parseCAKey(bytes []byte) (*services.CertAuthority, error) {
 	}
 	const prefix = "*."
 	domainName := strings.TrimPrefix(options[0], prefix)
-	return &services.CertAuthority{
-		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
-		Type:         authType,
-		DomainName:   domainName,
-	}, nil
+	return services.NewCertAuthority(
+		authType, domainName, nil, [][]byte{ssh.MarshalAuthorizedKey(pubKey)}, nil), nil
 }
 
 // readTrustedClusters parses the content of "trusted_clusters" YAML structure
@@ -424,21 +421,27 @@ func readTrustedClusters(clusters []TrustedCluster, conf *service.Config) error 
 		defer f.Close()
 		// read the keyfile for this cluster and get trusted CA keys:
 		var authorities []services.CertAuthority
+		var roles []services.Role
 		scanner := bufio.NewScanner(f)
 		for line := 0; scanner.Scan(); {
 			ca, err := parseCAKey(scanner.Bytes())
 			if err != nil {
-				return trace.Errorf("%s:L%d. %v", tc.KeyFile, line, err)
+				return trace.BadParameter("%s:L%d. %v", tc.KeyFile, line, err)
 			}
-			if ca.Type == services.UserCA && len(allowedLogins) == 0 && len(tc.TunnelAddr) > 0 {
-				return trace.Errorf("trusted cluster '%s' needs allow_logins parameter",
-					ca.DomainName)
+			if ca.GetType() == services.UserCA && len(allowedLogins) == 0 && len(tc.TunnelAddr) > 0 {
+				return trace.BadParameter("trusted cluster '%s' needs allow_logins parameter",
+					ca.GetClusterName())
 			}
-			ca.AllowedLogins = allowedLogins
-			authorities = append(authorities, *ca)
+			if ca.GetType() == services.UserCA {
+				role := services.RoleForCertAuthority(ca)
+				role.SetLogins(allowedLogins)
+				roles = append(roles, role)
+			}
+			authorities = append(authorities, ca)
 		}
 		conf.Auth.Authorities = append(conf.Auth.Authorities, authorities...)
-		clusterName := authorities[0].DomainName
+		conf.Auth.Roles = append(conf.Auth.Roles, roles...)
+		clusterName := authorities[0].GetClusterName()
 		// parse "tunnel_addr"
 		var tunnelAddresses []string
 		for _, ta := range strings.Split(tc.TunnelAddr, ",") {
@@ -455,10 +458,7 @@ func readTrustedClusters(clusters []TrustedCluster, conf *service.Config) error 
 			tunnelAddresses = append(tunnelAddresses, addr.FullAddress())
 		}
 		if len(tunnelAddresses) > 0 {
-			conf.ReverseTunnels = append(conf.ReverseTunnels, services.ReverseTunnel{
-				DomainName: clusterName,
-				DialAddrs:  tunnelAddresses,
-			})
+			conf.ReverseTunnels = append(conf.ReverseTunnels, services.NewReverseTunnel(clusterName, tunnelAddresses))
 		}
 	}
 	return nil
@@ -585,7 +585,7 @@ func parseLabels(spec string, sshConf *service.SSHConfig) error {
 			return trace.Wrap(err)
 		}
 		if cmdLabel != nil {
-			sshConf.CmdLabels[key] = *cmdLabel
+			sshConf.CmdLabels[key] = cmdLabel
 		} else {
 			sshConf.Labels[key] = value
 		}
@@ -598,7 +598,7 @@ func parseLabels(spec string, sshConf *service.SSHConfig) error {
 // time_duration is in "1h2m1s" form.
 //
 // Example of a valid spec: "[1h:/bin/uname -m]"
-func isCmdLabelSpec(spec string) (*services.CommandLabel, error) {
+func isCmdLabelSpec(spec string) (services.CommandLabel, error) {
 	// command spec? (surrounded by brackets?)
 	if len(spec) > 5 && spec[0] == '[' && spec[len(spec)-1] == ']' {
 		invalidSpecError := trace.BadParameter(
@@ -618,8 +618,8 @@ func isCmdLabelSpec(spec string) (*services.CommandLabel, error) {
 			return nil, trace.Wrap(invalidSpecError)
 		}
 		var openQuote bool = false
-		return &services.CommandLabel{
-			Period: period,
+		return &services.CommandLabelV2{
+			Period: services.NewDuration(period),
 			Command: strings.FieldsFunc(cmdSpec, func(c rune) bool {
 				if c == '"' {
 					openQuote = !openQuote

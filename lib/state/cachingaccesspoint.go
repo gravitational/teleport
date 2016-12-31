@@ -55,8 +55,8 @@ type CachingAuthClient struct {
 	nodes      map[string][]services.Server
 	proxies    []services.Server
 	users      []services.User
-	userCAs    []*services.CertAuthority
-	hostCAs    []*services.CertAuthority
+	userCAs    []services.CertAuthority
+	hostCAs    []services.CertAuthority
 }
 
 // NewCachingAuthClient creates a new instance of CachingAuthClient using a
@@ -212,7 +212,7 @@ func (cs *CachingAuthClient) GetProxies() ([]services.Server, error) {
 }
 
 // GetCertAuthorities is a part of auth.AccessPoint implementation
-func (cs *CachingAuthClient) GetCertAuthorities(ct services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error) {
+func (cs *CachingAuthClient) GetCertAuthorities(ct services.CertAuthType, loadKeys bool) ([]services.CertAuthority, error) {
 	cs.try(func() error {
 		retval, err := cs.ap.GetCertAuthorities(ct, loadKeys)
 		if err == nil {

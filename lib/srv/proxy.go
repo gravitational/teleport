@@ -166,13 +166,14 @@ func (t *proxySubsys) proxyToSite(
 	}
 
 	for _, authServer := range authServers {
+
 		conn, err = site.Dial(remoteAddr,
-			&utils.NetAddr{Addr: authServer.Addr, AddrNetwork: "tcp"})
+			&utils.NetAddr{Addr: authServer.GetAddr(), AddrNetwork: "tcp"})
 		if err != nil {
 			log.Error(err)
 			continue
 		}
-		log.Infof("[PROXY] connected to auth server: %v", authServer.Addr)
+		log.Infof("[PROXY] connected to auth server: %v", authServer.GetAddr())
 		go func() {
 			var err error
 			defer func() {
@@ -232,21 +233,21 @@ func (t *proxySubsys) proxyToHost(
 	}
 	// enumerate and try to find a server with a matching name
 	serverAddr := net.JoinHostPort(t.host, t.port)
-	var server *services.Server
+	var server services.Server
 	for i := range servers {
-		ip, port, err := net.SplitHostPort(servers[i].Addr)
+		ip, port, err := net.SplitHostPort(servers[i].GetAddr())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// match either by hostname of ip, based on the match
-		if (t.host == ip || t.host == servers[i].Hostname) && port == t.port {
-			server = &servers[i]
+		if (t.host == ip || t.host == servers[i].GetHostname()) && port == t.port {
+			server = servers[i]
 			break
 		}
 	}
 	if server != nil {
-		serverAddr = server.Addr
+		serverAddr = server.GetAddr()
 	}
 
 	// we must dial by server IP address because hostname

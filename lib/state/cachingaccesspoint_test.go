@@ -36,13 +36,13 @@ import (
 
 // fake cluster we're testing on:
 var (
-	Nodes = []services.Server{
+	Nodes = []services.ServerV1{
 		{
 			ID:        "1",
 			Addr:      "10.50.0.1",
 			Hostname:  "one",
 			Labels:    make(map[string]string),
-			CmdLabels: make(map[string]services.CommandLabel),
+			CmdLabels: make(map[string]services.CommandLabelV1),
 			Namespace: defaults.Namespace,
 		},
 		{
@@ -50,22 +50,22 @@ var (
 			Addr:      "10.50.0.2",
 			Hostname:  "two",
 			Labels:    make(map[string]string),
-			CmdLabels: make(map[string]services.CommandLabel),
+			CmdLabels: make(map[string]services.CommandLabelV1),
 			Namespace: defaults.Namespace,
 		},
 	}
-	Proxies = []services.Server{
+	Proxies = []services.ServerV1{
 		{
 			ID:       "3",
 			Addr:     "10.50.0.3",
 			Hostname: "three",
 			Labels:   map[string]string{"os": "linux", "role": "proxy"},
-			CmdLabels: map[string]services.CommandLabel{
+			CmdLabels: map[string]services.CommandLabelV1{
 				"uptime": {Period: time.Second, Command: []string{"uptime"}},
 			},
 		},
 	}
-	Users = []services.TeleportUser{
+	Users = []services.UserV1{
 		{
 			Name:           "elliot",
 			AllowedLogins:  []string{"elliot", "root"},
@@ -119,17 +119,17 @@ func (s *ClusterSnapshotSuite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 	// add some nodes to it:
 	for _, n := range Nodes {
-		err = s.authServer.UpsertNode(n, defaults.ServerHeartbeatTTL)
+		err = s.authServer.UpsertNode(n.V2(), defaults.ServerHeartbeatTTL)
 		c.Assert(err, check.IsNil)
 	}
 	// add some proxies to it:
 	for _, p := range Proxies {
-		err = s.authServer.UpsertProxy(p, defaults.ServerHeartbeatTTL)
+		err = s.authServer.UpsertProxy(p.V2(), defaults.ServerHeartbeatTTL)
 		c.Assert(err, check.IsNil)
 	}
 	// add some users to it:
 	for _, u := range Users {
-		err = s.authServer.UpsertUser(&u)
+		err = s.authServer.UpsertUser(u.V2())
 		c.Assert(err, check.IsNil)
 	}
 }

@@ -89,7 +89,7 @@ func (a *AuthWithRoles) UpsertCertAuthority(ca services.CertAuthority, ttl time.
 	return a.authServer.UpsertCertAuthority(ca, ttl)
 }
 
-func (a *AuthWithRoles) GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error) {
+func (a *AuthWithRoles) GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]services.CertAuthority, error) {
 	if loadKeys {
 		// loading private key implies admin access, what in our case == Write access to them
 		if err := a.action(defaults.Namespace, services.KindCertAuthority, services.ActionWrite); err != nil {
@@ -103,7 +103,7 @@ func (a *AuthWithRoles) GetCertAuthorities(caType services.CertAuthType, loadKey
 	return a.authServer.GetCertAuthorities(caType, loadKeys)
 }
 
-func (a *AuthWithRoles) GetCertAuthority(id services.CertAuthID, loadKeys bool) (*services.CertAuthority, error) {
+func (a *AuthWithRoles) GetCertAuthority(id services.CertAuthID, loadKeys bool) (services.CertAuthority, error) {
 	if loadKeys {
 		// loading private key implies admin access, what in our case == Write access to them
 		if err := a.action(defaults.Namespace, services.KindCertAuthority, services.ActionWrite); err != nil {
@@ -152,7 +152,7 @@ func (a *AuthWithRoles) RegisterNewAuthServer(token string) error {
 }
 
 func (a *AuthWithRoles) UpsertNode(s services.Server, ttl time.Duration) error {
-	if err := a.action(s.Namespace, services.KindNode, services.ActionWrite); err != nil {
+	if err := a.action(s.GetNamespace(), services.KindNode, services.ActionWrite); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertNode(s, ttl)
@@ -354,7 +354,7 @@ func (a *AuthWithRoles) GenerateUserCert(key []byte, user string, ttl time.Durat
 	return a.authServer.GenerateUserCert(key, user, allowedLogins, ttl)
 }
 
-func (a *AuthWithRoles) CreateSignupToken(user services.User) (token string, e error) {
+func (a *AuthWithRoles) CreateSignupToken(user services.UserV1) (token string, e error) {
 	if err := a.action(defaults.Namespace, services.KindUser, services.ActionWrite); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -401,7 +401,7 @@ func (a *AuthWithRoles) UpsertOIDCConnector(connector services.OIDCConnector, tt
 	return a.authServer.Identity.UpsertOIDCConnector(connector, ttl)
 }
 
-func (a *AuthWithRoles) GetOIDCConnector(id string, withSecrets bool) (*services.OIDCConnector, error) {
+func (a *AuthWithRoles) GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error) {
 	if withSecrets {
 		if err := a.action(defaults.Namespace, services.KindOIDC, services.ActionWrite); err != nil {
 			return nil, trace.Wrap(err)

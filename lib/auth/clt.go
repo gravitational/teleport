@@ -28,7 +28,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/gravitational/roundtrip"
 
 	"github.com/gravitational/teleport"
@@ -38,11 +37,12 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/tstranex/u2f"
 )
 
 // CurrentVersion is a current API version
-const CurrentVersion = "v1"
+const CurrentVersion = services.V2
 
 type Dialer func(network, addr string) (net.Conn, error)
 
@@ -199,13 +199,17 @@ func (c *Client) UpsertCertAuthority(ca services.CertAuthority, ttl time.Duratio
 	if err := ca.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	_, err := c.PostJSON(c.Endpoint("authorities", string(ca.Type)),
-		upsertCertAuthorityReq{CA: ca, TTL: ttl})
+	data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = c.PostJSON(c.Endpoint("authorities", string(ca.GetType())),
+		&upsertCertAuthorityRawReq{CA: data, TTL: ttl})
 	return trace.Wrap(err)
 }
 
 // GetCertAuthorities returns a list of certificate authorities
-func (c *Client) GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error) {
+func (c *Client) GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]services.CertAuthority, error) {
 	if err := caType.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -215,16 +219,24 @@ func (c *Client) GetCertAuthorities(caType services.CertAuthType, loadKeys bool)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var re []*services.CertAuthority
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, err
+	}
+	re := make([]services.CertAuthority, len(items))
+	for i, raw := range items {
+		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		re[i] = ca
 	}
 	return re, nil
 }
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (c *Client) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool) (*services.CertAuthority, error) {
+func (c *Client) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool) (services.CertAuthority, error) {
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -234,11 +246,7 @@ func (c *Client) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var re services.CertAuthority
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-		return nil, err
-	}
-	return &re, nil
+	return services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(out.Bytes())
 }
 
 // DeleteCertAuthority deletes cert authority by ID
@@ -334,14 +342,18 @@ func (c *Client) RegisterNewAuthServer(token string) error {
 // UpsertNode is used by SSH servers to reprt their presense
 // to the auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertNode(s services.Server, ttl time.Duration) error {
-	if s.Namespace == "" {
+	if s.GetNamespace() == "" {
 		return trace.BadParameter("missing node namespace")
 	}
-	args := upsertServerReq{
-		Server: s,
+	data, err := services.GetServerMarshaler().MarshalServer(s)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	args := &upsertServerRawReq{
+		Server: data,
 		TTL:    ttl,
 	}
-	_, err := c.PostJSON(c.Endpoint("namespaces", s.Namespace, "nodes"), args)
+	_, err = c.PostJSON(c.Endpoint("namespaces", s.GetNamespace(), "nodes"), args)
 	return trace.Wrap(err)
 }
 
@@ -354,9 +366,17 @@ func (c *Client) GetNodes(namespace string) ([]services.Server, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var re []services.Server
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	re := make([]services.Server, len(items))
+	for i, raw := range items {
+		s, err := services.GetServerMarshaler().UnmarshalServer(raw, services.KindNode)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		re[i] = s
 	}
 	return re, nil
 }
@@ -364,11 +384,15 @@ func (c *Client) GetNodes(namespace string) ([]services.Server, error) {
 // UpsertReverseTunnel is used by admins to create a new reverse tunnel
 // to the remote proxy to bypass firewall restrictions
 func (c *Client) UpsertReverseTunnel(tunnel services.ReverseTunnel, ttl time.Duration) error {
-	args := upsertReverseTunnelReq{
-		ReverseTunnel: tunnel,
+	data, err := services.GetReverseTunnelMarshaler().MarshalReverseTunnel(tunnel)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	args := &upsertReverseTunnelRawReq{
+		ReverseTunnel: data,
 		TTL:           ttl,
 	}
-	_, err := c.PostJSON(c.Endpoint("reversetunnels"), args)
+	_, err = c.PostJSON(c.Endpoint("reversetunnels"), args)
 	return trace.Wrap(err)
 }
 
@@ -378,9 +402,17 @@ func (c *Client) GetReverseTunnels() ([]services.ReverseTunnel, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var tunnels []services.ReverseTunnel
-	if err := json.Unmarshal(out.Bytes(), &tunnels); err != nil {
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	tunnels := make([]services.ReverseTunnel, len(items))
+	for i, raw := range items {
+		tunnel, err := services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tunnels[i] = tunnel
 	}
 	return tunnels, nil
 }
@@ -400,11 +432,15 @@ func (c *Client) DeleteReverseTunnel(domainName string) error {
 // UpsertAuthServer is used by auth servers to report their presense
 // to other auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertAuthServer(s services.Server, ttl time.Duration) error {
-	args := upsertServerReq{
-		Server: s,
+	data, err := services.GetServerMarshaler().MarshalServer(s)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	args := &upsertServerRawReq{
+		Server: data,
 		TTL:    ttl,
 	}
-	_, err := c.PostJSON(c.Endpoint("authservers"), args)
+	_, err = c.PostJSON(c.Endpoint("authservers"), args)
 	return trace.Wrap(err)
 }
 
@@ -414,9 +450,17 @@ func (c *Client) GetAuthServers() ([]services.Server, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var re []services.Server
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	re := make([]services.Server, len(items))
+	for i, raw := range items {
+		server, err := services.GetServerMarshaler().UnmarshalServer(raw, services.KindAuthServer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		re[i] = server
 	}
 	return re, nil
 }
@@ -424,11 +468,15 @@ func (c *Client) GetAuthServers() ([]services.Server, error) {
 // UpsertProxy is used by proxies to report their presense
 // to other auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertProxy(s services.Server, ttl time.Duration) error {
-	args := upsertServerReq{
-		Server: s,
+	data, err := services.GetServerMarshaler().MarshalServer(s)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	args := &upsertServerRawReq{
+		Server: data,
 		TTL:    ttl,
 	}
-	_, err := c.PostJSON(c.Endpoint("proxies"), args)
+	_, err = c.PostJSON(c.Endpoint("proxies"), args)
 	return trace.Wrap(err)
 }
 
@@ -438,9 +486,17 @@ func (c *Client) GetProxies() ([]services.Server, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var re []services.Server
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	re := make([]services.Server, len(items))
+	for i, raw := range items {
+		server, err := services.GetServerMarshaler().UnmarshalServer(raw, services.KindProxy)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		re[i] = server
 	}
 	return re, nil
 }
@@ -478,7 +534,11 @@ func (c *Client) UpsertPassword(user string,
 
 // UpsertUser user updates or inserts user entry
 func (c *Client) UpsertUser(user services.User) error {
-	_, err := c.PostJSON(c.Endpoint("users"), upsertUserReq{User: user})
+	data, err := services.GetUserMarshaler().MarshalUser(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = c.PostJSON(c.Endpoint("users"), &upsertUserRawReq{User: data})
 	return trace.Wrap(err)
 }
 
@@ -709,7 +769,7 @@ func (c *Client) GenerateUserCert(
 
 // CreateSignupToken creates one time token for creating account for the user
 // For each token it creates username and hotp generator
-func (c *Client) CreateSignupToken(user services.User) (string, error) {
+func (c *Client) CreateSignupToken(user services.UserV1) (string, error) {
 	if err := user.Check(); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -792,8 +852,12 @@ func (c *Client) CreateUserWithU2FToken(token string, password string, u2fRegist
 
 // UpsertOIDCConnector updates or creates OIDC connector
 func (c *Client) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error {
-	_, err := c.PostJSON(c.Endpoint("oidc", "connectors"), upsertOIDCConnectorReq{
-		Connector: connector,
+	data, err := services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = c.PostJSON(c.Endpoint("oidc", "connectors"), &upsertOIDCConnectorRawReq{
+		Connector: data,
 		TTL:       ttl,
 	})
 	if err != nil {
@@ -803,7 +867,7 @@ func (c *Client) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.
 }
 
 // GetOIDCConnector returns OIDC connector information by id
-func (c *Client) GetOIDCConnector(id string, withSecrets bool) (*services.OIDCConnector, error) {
+func (c *Client) GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error) {
 	if id == "" {
 		return nil, trace.BadParameter("missing connector id")
 	}
@@ -812,11 +876,7 @@ func (c *Client) GetOIDCConnector(id string, withSecrets bool) (*services.OIDCCo
 	if err != nil {
 		return nil, err
 	}
-	var conn *services.OIDCConnector
-	if err := json.Unmarshal(out.Bytes(), &conn); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return conn, nil
+	return services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(out.Bytes())
 }
 
 // GetOIDCConnector gets OIDC connectors list
@@ -826,9 +886,17 @@ func (c *Client) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, 
 	if err != nil {
 		return nil, err
 	}
-	var connectors []services.OIDCConnector
-	if err := json.Unmarshal(out.Bytes(), &connectors); err != nil {
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	connectors := make([]services.OIDCConnector, len(items))
+	for i, raw := range items {
+		connector, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		connectors[i] = connector
 	}
 	return connectors, nil
 }
@@ -865,11 +933,26 @@ func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var response *OIDCAuthResponse
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+	var rawResponse *oidcAuthRawResponse
+	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return response, nil
+	response := OIDCAuthResponse{
+		Username: rawResponse.Username,
+		Identity: rawResponse.Identity,
+		Session:  rawResponse.Session,
+		Cert:     rawResponse.Cert,
+		Req:      rawResponse.Req,
+	}
+	response.HostSigners = make([]services.CertAuthority, len(rawResponse.HostSigners))
+	for i, raw := range rawResponse.HostSigners {
+		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		response.HostSigners[i] = ca
+	}
+	return &response, nil
 }
 
 // EmitAuditEvent sends an auditable event to the auth server (part of evets.IAuditLog interface)
@@ -922,7 +1005,7 @@ func (c *Client) GetSessionChunk(namespace string, sid session.ID, offsetBytes, 
 		"bytes":  []string{strconv.Itoa(maxBytes)},
 	})
 	if err != nil {
-		logrus.Error(err)
+		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
 	return response.Bytes(), nil
@@ -1038,7 +1121,11 @@ func (c *Client) GetRoles() ([]services.Role, error) {
 
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(role services.Role) error {
-	_, err := c.PostJSON(c.Endpoint("roles"), upsertRoleReq{Role: role})
+	data, err := services.GetRoleMarshaler().MarshalRole(role)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = c.PostJSON(c.Endpoint("roles"), &upsertRoleRawReq{Role: data})
 	return trace.Wrap(err)
 }
 
@@ -1087,7 +1174,7 @@ type IdentityService interface {
 	UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error
 
 	// GetOIDCConnector returns OIDC connector information by id
-	GetOIDCConnector(id string, withSecrets bool) (*services.OIDCConnector, error)
+	GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error)
 
 	// GetOIDCConnector gets OIDC connectors list
 	GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error)
@@ -1116,7 +1203,7 @@ type IdentityService interface {
 	// GetU2FAppID returns U2F settings, like App ID and Facets
 	GetU2FAppID() (string, error)
 
-	// GetUser returns a list of usernames registered in the system
+	// GetUser returns user by name
 	GetUser(name string) (services.User, error)
 
 	// UpsertUser user updates or inserts user entry
@@ -1169,7 +1256,7 @@ type IdentityService interface {
 
 	// CreateSignupToken creates one time token for creating account for the user
 	// For each token it creates username and hotp generator
-	CreateSignupToken(user services.User) (string, error)
+	CreateSignupToken(user services.UserV1) (string, error)
 }
 
 // ProvisioningService is a service in control
@@ -1184,6 +1271,7 @@ type ProvisioningService interface {
 	// DeleteToken deletes a given provisioning token on the auth server (CA). It
 	// could be a user token or a machine token
 	DeleteToken(token string) error
+
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
 	RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error)

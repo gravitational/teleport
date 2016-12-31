@@ -36,7 +36,9 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/gokyle/hotp"
+	"github.com/kylelemons/godebug/diff"
 	"golang.org/x/crypto/ssh"
 	. "gopkg.in/check.v1"
 )
@@ -117,6 +119,30 @@ func (s *APISuite) TearDownTest(c *C) {
 	os.RemoveAll(s.dir)
 }
 
+type clt interface {
+	UpsertRole(services.Role) error
+	UpsertUser(services.User) error
+}
+
+func createUserAndRole(clt clt, username string, allowedLogins []string) (services.User, services.Role) {
+	user, err := services.NewUser(username)
+	if err != nil {
+		panic(err)
+	}
+	role := services.RoleForUser(user)
+	role.SetLogins([]string{user.GetName()})
+	err = clt.UpsertRole(role)
+	if err != nil {
+		panic(err)
+	}
+	user.AddRole(role.GetName())
+	err = clt.UpsertUser(user)
+	if err != nil {
+		panic(err)
+	}
+	return user, role
+}
+
 func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	priv, pub, err := s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -128,7 +154,7 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.clt.UpsertCertAuthority(
-		*suite.NewTestCA(services.HostCA, "localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.HostCA, "localhost"), backend.Forever), IsNil)
 
 	_, pub, err = s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
@@ -142,25 +168,16 @@ func (s *APISuite) TestGenerateKeysAndCerts(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.clt.UpsertCertAuthority(
-		*suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
 	_, pub, err = s.clt.GenerateKeyPair("")
 	c.Assert(err, IsNil)
 
-	user := &services.TeleportUser{Name: "user1", AllowedLogins: []string{"user1"}}
-	role := services.RoleForUser(user)
-	err = s.clt.UpsertRole(role)
+	user1, _ := createUserAndRole(s.clt, "user1", []string{"user1"})
+	user2, _ := createUserAndRole(s.clt, "user2", []string{"user2"})
+	_, _, err = s.clt.UpsertPassword(user1.GetName(), []byte("abc1231"))
 	c.Assert(err, IsNil)
-	user.Roles = []string{role.GetName()}
-	err = s.clt.UpsertUser(user)
-	c.Assert(err, IsNil)
-
-	user2 := &services.TeleportUser{Name: "user2", AllowedLogins: []string{"user2"}}
-	role2 := services.RoleForUser(user2)
-	err = s.clt.UpsertRole(role)
-	c.Assert(err, IsNil)
-	user.Roles = []string{role2.GetName()}
-	err = s.clt.UpsertUser(user2)
+	_, _, err = s.clt.UpsertPassword(user2.GetName(), []byte("abc1232"))
 	c.Assert(err, IsNil)
 
 	newChecker, err := NewAccessChecker(s.AccessS, s.WebS)
@@ -265,15 +282,9 @@ func (s *APISuite) TestSessions(c *C) {
 	pass := []byte("abc123")
 
 	c.Assert(s.a.UpsertCertAuthority(
-		*suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, "localhost"), backend.Forever), IsNil)
 
-	teleportUser := &services.TeleportUser{Name: user, AllowedLogins: []string{user}}
-	role := services.RoleForUser(teleportUser)
-	err := s.a.UpsertRole(role)
-	c.Assert(err, IsNil)
-	teleportUser.Roles = []string{role.GetName()}
-	err = s.a.UpsertUser(teleportUser)
-	c.Assert(err, IsNil)
+	createUserAndRole(s.clt, user, []string{user})
 
 	ws, err := s.clt.SignIn(user, pass)
 	c.Assert(err, NotNil)
@@ -309,15 +320,30 @@ func (s *APISuite) TestSessions(c *C) {
 	c.Assert(err, NotNil)
 }
 
+func newServer(kind string, name, addr, hostname, namespace string) services.Server {
+	return &services.ServerV2{
+		Kind:    kind,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: services.ServerSpecV2{
+			Addr:     addr,
+			Hostname: hostname,
+		},
+	}
+}
+
 func (s *APISuite) TestServers(c *C) {
 	out, err := s.clt.GetNodes(defaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	srv := services.Server{ID: "id1", Addr: "host:1233", Hostname: "host1", Namespace: defaults.Namespace}
+	srv := newServer(services.KindNode, "id1", "host:1233", "host1", defaults.Namespace)
 	c.Assert(s.clt.UpsertNode(srv, 0), IsNil)
 
-	srv1 := services.Server{ID: "id2", Addr: "host:1234", Hostname: "host2", Namespace: defaults.Namespace}
+	srv1 := newServer(services.KindNode, "id2", "host:1234", "host2", defaults.Namespace)
 	c.Assert(s.clt.UpsertNode(srv1, 0), IsNil)
 
 	out, err = s.clt.GetNodes(defaults.Namespace)
@@ -328,10 +354,10 @@ func (s *APISuite) TestServers(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	srv = services.Server{ID: "proxy1", Addr: "host:1233", Hostname: "host1"}
+	srv = newServer(services.KindProxy, "proxy1", "host:1233", "host1", defaults.Namespace)
 	c.Assert(s.clt.UpsertProxy(srv, 0), IsNil)
 
-	srv1 = services.Server{ID: "proxy2", Addr: "host:1234", Hostname: "host2"}
+	srv1 = newServer(services.KindProxy, "proxy2", "host:1234", "host2", defaults.Namespace)
 	c.Assert(s.clt.UpsertProxy(srv1, 0), IsNil)
 
 	out, err = s.clt.GetProxies()
@@ -342,10 +368,10 @@ func (s *APISuite) TestServers(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	srv = services.Server{ID: "auth1", Addr: "host:1233", Hostname: "host1"}
+	srv = newServer(services.KindAuthServer, "auth1", "host:1233", "host1", defaults.Namespace)
 	c.Assert(s.clt.UpsertAuthServer(srv, 0), IsNil)
 
-	srv1 = services.Server{ID: "auth2", Addr: "host:1234", Hostname: "host2"}
+	srv1 = newServer(services.KindAuthServer, "auth2", "host:1234", "host2", defaults.Namespace)
 	c.Assert(s.clt.UpsertAuthServer(srv1, 0), IsNil)
 
 	out, err = s.clt.GetAuthServers()
@@ -358,14 +384,24 @@ func (s *APISuite) TestReverseTunnels(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	tunnel := services.ReverseTunnel{DomainName: "example.com", DialAddrs: []string{"example.com:2023"}}
+	tunnel := &services.ReverseTunnelV2{
+		Kind:     services.KindReverseTunnel,
+		Metadata: services.Metadata{Name: "example.com", Namespace: defaults.Namespace},
+		Version:  services.V2,
+		Spec: services.ReverseTunnelSpecV2{
+			ClusterName: "example.com",
+			DialAddrs:   []string{"example.com:2023"},
+		},
+	}
 	c.Assert(s.PresenceS.UpsertReverseTunnel(tunnel, 0), IsNil)
 
+	d := &spew.ConfigState{Indent: " ", DisableMethods: true, DisablePointerMethods: true, DisablePointerAddresses: true}
 	out, err = s.clt.GetReverseTunnels()
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, []services.ReverseTunnel{tunnel})
+	expected := []services.ReverseTunnel{tunnel}
+	c.Assert(out, DeepEquals, expected, Commentf("%v", diff.Diff(d.Sdump(out), d.Sdump(expected))))
 
-	err = s.clt.DeleteReverseTunnel(tunnel.DomainName)
+	err = s.clt.DeleteReverseTunnel(tunnel.GetName())
 	c.Assert(err, IsNil)
 
 	out, err = s.clt.GetReverseTunnels()

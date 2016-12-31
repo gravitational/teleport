@@ -105,15 +105,15 @@ func (s *localSite) Dial(from net.Addr, to net.Addr) (net.Conn, error) {
 	return net.Dial(to.Network(), to.String())
 }
 
-func findServer(addr string, servers []services.Server) (*services.Server, error) {
+func findServer(addr string, servers []services.Server) (services.Server, error) {
 	for i := range servers {
-		srv := &servers[i]
-		_, port, err := net.SplitHostPort(srv.Addr)
+		srv := servers[i]
+		_, port, err := net.SplitHostPort(srv.GetAddr())
 		if err != nil {
 			log.Warningf("server %v(%v) has incorrect address format (%v)",
-				srv.Addr, srv.Hostname, err.Error())
+				srv.GetAddr(), srv.GetHostname(), err.Error())
 		} else {
-			if (len(srv.Hostname) != 0) && (len(port) != 0) && (addr == srv.Hostname+":"+port || addr == srv.Addr) {
+			if (len(srv.GetHostname()) != 0) && (len(port) != 0) && (addr == srv.GetHostname()+":"+port || addr == srv.GetAddr()) {
 				return srv, nil
 			}
 		}

@@ -33,13 +33,15 @@ func (s *UserSuite) SetUpSuite(c *C) {
 }
 
 func (s *RoleSuite) TestOIDCMapping(c *C) {
-	conn := OIDCConnector{}
+	conn := OIDCConnectorV2{}
 	c.Assert(conn.MapClaims(jose.Claims{"a": "b"}), DeepEquals, []string(nil))
 
-	conn = OIDCConnector{
-		ClaimsToRoles: []ClaimMapping{
-			{Claim: "role", Value: "admin", Roles: []string{"admin", "bob"}},
-			{Claim: "role", Value: "user", Roles: []string{"user"}},
+	conn = OIDCConnectorV2{
+		Spec: OIDCConnectorSpecV2{
+			ClaimsToRoles: []ClaimMapping{
+				{Claim: "role", Value: "admin", Roles: []string{"admin", "bob"}},
+				{Claim: "role", Value: "user", Roles: []string{"user"}},
+			},
 		},
 	}
 	c.Assert(conn.MapClaims(jose.Claims{"a": "b"}), DeepEquals, []string(nil))

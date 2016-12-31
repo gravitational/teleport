@@ -243,7 +243,7 @@ func onListNodes(cf *CLIConf) {
 			return t.String()
 		}
 		for _, n := range nodes {
-			fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", n.Hostname, n.ID, n.Addr, n.LabelsString())
+			fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", n.GetHostname(), n.GetName(), n.GetAddr(), n.LabelsString())
 		}
 		return t.String()
 	}

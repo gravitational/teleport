@@ -22,7 +22,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"os"
 	"sort"
 	"sync"
 	"time"
@@ -502,7 +501,7 @@ func (s *AuthTunnel) passwordAuth(
 				ExtToken: string(password),
 				ExtRole:  string(teleport.RoleProvisionToken),
 			}}
-		utils.Consolef(os.Stdout, "[AUTH] Successfully accepted token for %v", conn.User())
+		log.Infof("[AUTH] Successfully accepted token for %v", conn.User())
 		return perms, nil
 	case AuthSignupToken:
 		_, err := s.authServer.GetSignupToken(string(ab.Pass))
@@ -781,7 +780,7 @@ func (c *TunClient) fetchAuthServers() ([]utils.NetAddr, error) {
 	}
 	authServers := make([]utils.NetAddr, 0, len(servers))
 	for _, server := range servers {
-		serverAddr, err := utils.ParseAddr(server.Addr)
+		serverAddr, err := utils.ParseAddr(server.GetAddr())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

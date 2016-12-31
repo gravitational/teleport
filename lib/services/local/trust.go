@@ -1,7 +1,6 @@
 package local
 
 import (
-	"encoding/json"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -26,11 +25,11 @@ func (s *CA) UpsertCertAuthority(ca services.CertAuthority, ttl time.Duration) e
 	if err := ca.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	out, err := json.Marshal(ca)
+	data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal([]string{"authorities", string(ca.Type)}, ca.DomainName, out, ttl)
+	err = s.backend.UpsertVal([]string{"authorities", string(ca.GetType())}, ca.GetName(), data, ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -51,31 +50,31 @@ func (s *CA) DeleteCertAuthority(id services.CertAuthID) error {
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (s *CA) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool) (*services.CertAuthority, error) {
+func (s *CA) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool) (services.CertAuthority, error) {
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	val, err := s.backend.GetVal([]string{"authorities", string(id.Type)}, id.DomainName)
+	data, err := s.backend.GetVal([]string{"authorities", string(id.Type)}, id.DomainName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var ca *services.CertAuthority
-	if err := json.Unmarshal(val, &ca); err != nil {
+	ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(data)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := ca.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if !loadSigningKeys {
-		ca.SigningKeys = nil
+		ca.SetSigningKeys(nil)
 	}
 	return ca, nil
 }
 
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
-func (s *CA) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bool) ([]*services.CertAuthority, error) {
-	cas := []*services.CertAuthority{}
+func (s *CA) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bool) ([]services.CertAuthority, error) {
+	cas := []services.CertAuthority{}
 	if err := caType.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}

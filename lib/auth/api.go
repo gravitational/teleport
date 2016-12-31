@@ -46,7 +46,7 @@ type AccessPoint interface {
 	GetProxies() ([]services.Server, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error)
+	GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]services.CertAuthority, error)
 
 	// GetUsers returns a list of local users registered with this domain
 	GetUsers() ([]services.User, error)

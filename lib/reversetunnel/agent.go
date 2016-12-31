@@ -136,7 +136,7 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 		}
 		for _, checker := range checkers {
 			if sshutils.KeysEqual(checker, cert.SignatureKey) {
-				a.log.Debugf("matched key %v for %v", ca.ID(), hostport)
+				a.log.Debugf("matched key %v for %v", ca.GetName(), hostport)
 				return nil
 			}
 		}

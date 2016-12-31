@@ -40,16 +40,15 @@ func RoleNameForCertAuthority(name string) string {
 }
 
 // RoleForUser creates role using AllowedLogins parameter
-func RoleForUser(u User) *RoleResource {
-	return &RoleResource{
+func RoleForUser(u User) Role {
+	return &RoleV2{
 		Kind:    KindRole,
-		Version: V1,
+		Version: V2,
 		Metadata: Metadata{
 			Name:      RoleNameForUser(u.GetName()),
 			Namespace: defaults.Namespace,
 		},
-		Spec: RoleSpec{
-			Logins:        u.GetAllowedLogins(),
+		Spec: RoleSpecV2{
 			MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
 			NodeLabels:    map[string]string{Wildcard: Wildcard},
 			Namespaces:    []string{defaults.Namespace},
@@ -65,16 +64,15 @@ func RoleForUser(u User) *RoleResource {
 }
 
 // RoleForCertauthority creates role using AllowedLogins parameter
-func RoleForCertAuthority(ca CertAuthority) *RoleResource {
-	return &RoleResource{
+func RoleForCertAuthority(ca CertAuthority) Role {
+	return &RoleV2{
 		Kind:    KindRole,
-		Version: V1,
+		Version: V2,
 		Metadata: Metadata{
-			Name:      RoleNameForCertAuthority(ca.DomainName),
+			Name:      RoleNameForCertAuthority(ca.GetClusterName()),
 			Namespace: defaults.Namespace,
 		},
-		Spec: RoleSpec{
-			Logins:        ca.AllowedLogins,
+		Spec: RoleSpecV2{
 			MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
 			NodeLabels:    map[string]string{Wildcard: Wildcard},
 			Namespaces:    []string{defaults.Namespace},
@@ -112,6 +110,8 @@ type Role interface {
 	GetName() string
 	// GetMaxSessionTTL is a maximum SSH or Web session TTL
 	GetMaxSessionTTL() Duration
+	// SetLogins sets logins for role
+	SetLogins(logins []string)
 	// GetLogins returns a list of linux logins allowed for this role
 	GetLogins() []string
 	// GetNodeLabels returns a list of matchign nodes this role has access to
@@ -120,10 +120,12 @@ type Role interface {
 	GetNamespaces() []string
 	// GetResources returns access to resources
 	GetResources() map[string][]string
+	// SetResource sets resource rule
+	SetResource(kind string, actions []string)
 }
 
-// RoleResource represents role resource specification
-type RoleResource struct {
+// RoleV2 represents role resource specification
+type RoleV2 struct {
 	// Kind is a resource kind - always resource
 	Kind string `json:"kind"`
 	// Version is a resource version
@@ -131,46 +133,59 @@ type RoleResource struct {
 	// Metadata is Role metadata
 	Metadata Metadata `json:"metadata"`
 	// Spec contains role specification
-	Spec RoleSpec `json:"spec"`
+	Spec RoleSpecV2 `json:"spec"`
+}
+
+// SetResource sets resource rule
+func (r *RoleV2) SetResource(kind string, actions []string) {
+	if r.Spec.Resources == nil {
+		r.Spec.Resources = make(map[string][]string)
+	}
+	r.Spec.Resources[kind] = actions
+}
+
+// SetLogins sets logins for role
+func (r *RoleV2) SetLogins(logins []string) {
+	r.Spec.Logins = logins
 }
 
 // GetName returns role name and is a shortcut for GetMetadata().Name
-func (r *RoleResource) GetName() string {
+func (r *RoleV2) GetName() string {
 	return r.Metadata.Name
 }
 
 // GetMetadata returns role metadata
-func (r *RoleResource) GetMetadata() Metadata {
+func (r *RoleV2) GetMetadata() Metadata {
 	return r.Metadata
 }
 
 // GetMaxSessionTTL is a maximum SSH or Web session TTL
-func (r *RoleResource) GetMaxSessionTTL() Duration {
+func (r *RoleV2) GetMaxSessionTTL() Duration {
 	return r.Spec.MaxSessionTTL
 }
 
 // GetLogins returns a list of linux logins allowed for this role
-func (r *RoleResource) GetLogins() []string {
+func (r *RoleV2) GetLogins() []string {
 	return r.Spec.Logins
 }
 
 // GetNodeLabels returns a list of matchign nodes this role has access to
-func (r *RoleResource) GetNodeLabels() map[string]string {
+func (r *RoleV2) GetNodeLabels() map[string]string {
 	return r.Spec.NodeLabels
 }
 
 // GetNamespaces returns a list of namespaces this role has access to
-func (r *RoleResource) GetNamespaces() []string {
+func (r *RoleV2) GetNamespaces() []string {
 	return r.Spec.Namespaces
 }
 
 // GetResources returns access to resources
-func (r *RoleResource) GetResources() map[string][]string {
+func (r *RoleV2) GetResources() map[string][]string {
 	return r.Spec.Resources
 }
 
 // Check checks validity of all parameters and sets defaults
-func (r *RoleResource) CheckAndSetDefaults() error {
+func (r *RoleV2) CheckAndSetDefaults() error {
 	if r.Metadata.Name == "" {
 		return trace.BadParameter("missing parameter Name")
 	}
@@ -196,8 +211,8 @@ func (r *RoleResource) CheckAndSetDefaults() error {
 	return nil
 }
 
-// RoleSpec is role specification
-type RoleSpec struct {
+// RoleSpecV2 is role specification for RoleV2
+type RoleSpecV2 struct {
 	// MaxSessionTTL is a maximum SSH or Web session TTL
 	MaxSessionTTL Duration `json:"max_session_ttl"`
 	// Logins is a list of linux logins allowed for this role
@@ -223,7 +238,7 @@ type AccessChecker interface {
 }
 
 // FromSpec returns new RoleSet created from spec
-func FromSpec(name string, spec RoleSpec) (RoleSet, error) {
+func FromSpec(name string, spec RoleSpecV2) (RoleSet, error) {
 	role, err := NewRole(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -242,10 +257,10 @@ func RO() []string {
 }
 
 // NewRole constructs new standard role
-func NewRole(name string, spec RoleSpec) (Role, error) {
-	role := RoleResource{
+func NewRole(name string, spec RoleSpecV2) (Role, error) {
+	role := RoleV2{
 		Kind:    KindRole,
-		Version: V1,
+		Version: V2,
 		Metadata: Metadata{
 			Name:      name,
 			Namespace: defaults.Namespace,
@@ -378,7 +393,7 @@ func (set RoleSet) CheckLogins(ttl time.Duration) ([]string, error) {
 func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 	for _, role := range set {
 		matchNamespace := MatchNamespace(role.GetNamespaces(), s.GetNamespace())
-		matchLabels := MatchLabels(role.GetNodeLabels(), s.Labels)
+		matchLabels := MatchLabels(role.GetNodeLabels(), s.GetAllLabels())
 		matchLogin := MatchLogin(role.GetLogins(), login)
 		if matchNamespace && matchLabels && matchLogin {
 			return nil
@@ -456,24 +471,6 @@ func (d *Duration) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-const MetadataSchema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "default": {},
-  "required": ["name"],
-  "properties": {
-    "name": {"type": "string"},
-    "namespace": {"type": "string", "default": "default"},
-    "description": {"type": "string"},
-    "labels": {
-      "type": "object",
-      "patternProperties": {
-         "^[a-zA-Z/.0-9_]$":  { "type": "string" }
-      }
-    }
-  }
-}`
-
 const RoleSpecSchemaTemplate = `{
   "type": "object",
   "additionalProperties": false,
@@ -507,19 +504,6 @@ const RoleSpecSchemaTemplate = `{
   }
 }`
 
-const RoleSchemaTemplate = `{
-  "type": "object",
-  "additionalProperties": false,
-  "default": {},
-  "required": ["kind", "spec", "metadata"],
-  "properties": {
-    "kind": {"type": "string"},
-    "version": {"type": "string", "default": "v1"},
-    "metadata": %v,
-    "spec": %v
-  }
-}`
-
 // GetRoleSchema returns role schema with optionally injected
 // schema for extensions
 func GetRoleSchema(extensionSchema string) string {
@@ -529,16 +513,16 @@ func GetRoleSchema(extensionSchema string) string {
 	} else {
 		roleSchema = fmt.Sprintf(RoleSpecSchemaTemplate, extensionSchema)
 	}
-	return fmt.Sprintf(RoleSchemaTemplate, MetadataSchema, roleSchema)
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, roleSchema)
 }
 
-// UnmarshalRoleResource unmarshals role from JSON or YAML,
+// UnmarshalRoleV2 unmarshals role from JSON or YAML,
 // sets defaults and checks the schema
-func UnmarshalRoleResource(data []byte) (*RoleResource, error) {
+func UnmarshalRole(data []byte) (*RoleV2, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing resource data")
 	}
-	var role RoleResource
+	var role RoleV2
 	if err := utils.UnmarshalWithSchema(GetRoleSchema(""), &role, data); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
@@ -547,15 +531,15 @@ func UnmarshalRoleResource(data []byte) (*RoleResource, error) {
 
 var roleMarshaler RoleMarshaler = &TeleportRoleMarshaler{}
 
-func SetRoleMarshaler(u RoleMarshaler) {
-	mtx.Lock()
-	defer mtx.Unlock()
-	roleMarshaler = u
+func SetRoleMarshaler(m RoleMarshaler) {
+	marshalerMutex.Lock()
+	defer marshalerMutex.Unlock()
+	roleMarshaler = m
 }
 
 func GetRoleMarshaler() RoleMarshaler {
-	mtx.Lock()
-	defer mtx.Unlock()
+	marshalerMutex.Lock()
+	defer marshalerMutex.Unlock()
 	return roleMarshaler
 }
 
@@ -565,18 +549,18 @@ type RoleMarshaler interface {
 	// UnmarshalRole from binary representation
 	UnmarshalRole(bytes []byte) (Role, error)
 	// MarshalRole to binary representation
-	MarshalRole(u Role) ([]byte, error)
+	MarshalRole(u Role, opts ...MarshalOption) ([]byte, error)
 }
 
 type TeleportRoleMarshaler struct{}
 
 // UnmarshalRole unmarshals role from JSON
 func (*TeleportRoleMarshaler) UnmarshalRole(bytes []byte) (Role, error) {
-	return UnmarshalRoleResource(bytes)
+	return UnmarshalRole(bytes)
 }
 
 // MarshalRole marshalls role into JSON
-func (*TeleportRoleMarshaler) MarshalRole(u Role) ([]byte, error) {
+func (*TeleportRoleMarshaler) MarshalRole(u Role, opts ...MarshalOption) ([]byte, error) {
 	return json.Marshal(u)
 }
 

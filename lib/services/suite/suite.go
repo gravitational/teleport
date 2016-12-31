@@ -39,7 +39,7 @@ import (
 
 // NewTestCA returns new test authority with a test key as a public and
 // signing key
-func NewTestCA(caType services.CertAuthType, domainName string) *services.CertAuthority {
+func NewTestCA(caType services.CertAuthType, domainName string) *services.CertAuthorityV2 {
 	keyBytes := PEMBytes["rsa"]
 	key, err := ssh.ParsePrivateKey(keyBytes)
 	if err != nil {
@@ -47,11 +47,19 @@ func NewTestCA(caType services.CertAuthType, domainName string) *services.CertAu
 	}
 	pubKey := key.PublicKey()
 
-	return &services.CertAuthority{
-		Type:         caType,
-		DomainName:   domainName,
-		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
-		SigningKeys:  [][]byte{keyBytes},
+	return &services.CertAuthorityV2{
+		Kind:    services.KindCertAuthority,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      domainName,
+			Namespace: defaults.Namespace,
+		},
+		Spec: services.CertAuthoritySpecV2{
+			Type:         caType,
+			ClusterName:  domainName,
+			CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
+			SigningKeys:  [][]byte{keyBytes},
+		},
 	}
 }
 
@@ -99,6 +107,20 @@ func usersEqual(c *C, a services.User, b services.User) {
 	c.Assert(a.Equals(b), Equals, true, comment)
 }
 
+func newUser(name string, roles []string) services.User {
+	return &services.UserV2{
+		Kind:    services.KindUser,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      name,
+			Namespace: defaults.Namespace,
+		},
+		Spec: services.UserSpecV2{
+			Roles: roles,
+		},
+	}
+}
+
 func (s *ServicesTestSuite) UsersCRUD(c *C) {
 	u, err := s.WebS.GetUsers()
 	c.Assert(err, IsNil)
@@ -109,21 +131,17 @@ func (s *ServicesTestSuite) UsersCRUD(c *C) {
 
 	u, err = s.WebS.GetUsers()
 	c.Assert(err, IsNil)
-	userSlicesEqual(c, u, []services.User{
-		&services.TeleportUser{Name: "user1"}, &services.TeleportUser{Name: "user2"}})
+	userSlicesEqual(c, u, []services.User{newUser("user1", nil), newUser("user2", nil)})
 
 	out, err := s.WebS.GetUser("user1")
 	usersEqual(c, out, u[0])
 
-	user := &services.TeleportUser{Name: "user1", AllowedLogins: []string{"admin", "root"}}
+	user := newUser("user1", []string{"admin", "user"})
 	c.Assert(s.WebS.UpsertUser(user), IsNil)
 
 	out, err = s.WebS.GetUser("user1")
 	c.Assert(err, IsNil)
 	usersEqual(c, out, user)
-
-	user.AllowedLogins = nil
-	c.Assert(s.WebS.UpsertUser(user), IsNil)
 
 	out, err = s.WebS.GetUser("user1")
 	c.Assert(err, IsNil)
@@ -133,38 +151,34 @@ func (s *ServicesTestSuite) UsersCRUD(c *C) {
 
 	u, err = s.WebS.GetUsers()
 	c.Assert(err, IsNil)
-	userSlicesEqual(c, u, []services.User{&services.TeleportUser{Name: "user2"}})
+	userSlicesEqual(c, u, []services.User{newUser("user2", nil)})
 
 	err = s.WebS.DeleteUser("user1")
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("unexpected %T %#v", err, err))
 
 	// bad username
-	err = s.WebS.UpsertUser(&services.TeleportUser{Name: ""})
-	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("expected bad parameter error, got %T", err))
-
-	// bad allowed login
-	err = s.WebS.UpsertUser(&services.TeleportUser{Name: "bob", AllowedLogins: []string{"oops  typo!"}})
+	err = s.WebS.UpsertUser(newUser("", nil))
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("expected bad parameter error, got %T", err))
 }
 
 func (s *ServicesTestSuite) LoginAttempts(c *C) {
-	user := &services.TeleportUser{Name: "user1", AllowedLogins: []string{"admin", "root"}}
+	user := newUser("user1", []string{"admin", "user"})
 	c.Assert(s.WebS.UpsertUser(user), IsNil)
 
-	attempts, err := s.WebS.GetUserLoginAttempts(user.Name)
+	attempts, err := s.WebS.GetUserLoginAttempts(user.GetName())
 	c.Assert(err, IsNil)
 	c.Assert(len(attempts), Equals, 0)
 
 	clock := clockwork.NewFakeClock()
 	attempt1 := services.LoginAttempt{Time: clock.Now().UTC(), Success: false}
-	err = s.WebS.AddUserLoginAttempt(user.Name, attempt1, defaults.AttemptTTL)
+	err = s.WebS.AddUserLoginAttempt(user.GetName(), attempt1, defaults.AttemptTTL)
 	c.Assert(err, IsNil)
 
 	attempt2 := services.LoginAttempt{Time: clock.Now().UTC(), Success: false}
-	err = s.WebS.AddUserLoginAttempt(user.Name, attempt2, defaults.AttemptTTL)
+	err = s.WebS.AddUserLoginAttempt(user.GetName(), attempt2, defaults.AttemptTTL)
 	c.Assert(err, IsNil)
 
-	attempts, err = s.WebS.GetUserLoginAttempts(user.Name)
+	attempts, err = s.WebS.GetUserLoginAttempts(user.GetName())
 	c.Assert(err, IsNil)
 	c.Assert(attempts, DeepEquals, []services.LoginAttempt{attempt1, attempt2})
 	c.Assert(services.LastFailed(3, attempts), Equals, false)
@@ -173,17 +187,16 @@ func (s *ServicesTestSuite) LoginAttempts(c *C) {
 
 func (s *ServicesTestSuite) CertAuthCRUD(c *C) {
 	ca := NewTestCA(services.UserCA, "example.com")
-	c.Assert(s.CAS.UpsertCertAuthority(
-		*ca, backend.Forever), IsNil)
+	c.Assert(s.CAS.UpsertCertAuthority(ca, backend.Forever), IsNil)
 
-	out, err := s.CAS.GetCertAuthority(*ca.ID(), true)
+	out, err := s.CAS.GetCertAuthority(ca.GetID(), true)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, ca)
 
 	cas, err := s.CAS.GetCertAuthorities(services.UserCA, false)
 	c.Assert(err, IsNil)
 	ca2 := *ca
-	ca2.SigningKeys = nil
+	ca2.Spec.SigningKeys = nil
 	c.Assert(cas[0], DeepEquals, &ca2)
 
 	cas, err = s.CAS.GetCertAuthorities(services.UserCA, true)
@@ -194,15 +207,29 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func newServer(kind, name, addr, namespace string) *services.ServerV2 {
+	return &services.ServerV2{
+		Kind:    kind,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: services.ServerSpecV2{
+			Addr: addr,
+		},
+	}
+}
+
 func (s *ServicesTestSuite) ServerCRUD(c *C) {
 	out, err := s.PresenceS.GetNodes(defaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	srv := services.Server{ID: "srv1", Addr: "localhost:2022", Namespace: defaults.Namespace}
+	srv := newServer(services.KindNode, "srv1", "localhost:2022", defaults.Namespace)
 	c.Assert(s.PresenceS.UpsertNode(srv, 0), IsNil)
 
-	out, err = s.PresenceS.GetNodes(srv.Namespace)
+	out, err = s.PresenceS.GetNodes(srv.Metadata.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []services.Server{srv})
 
@@ -210,7 +237,7 @@ func (s *ServicesTestSuite) ServerCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	proxy := services.Server{ID: "proxy1", Addr: "localhost:2023"}
+	proxy := newServer(services.KindProxy, "proxy1", "localhost:2023", defaults.Namespace)
 	c.Assert(s.PresenceS.UpsertProxy(proxy, 0), IsNil)
 
 	out, err = s.PresenceS.GetProxies()
@@ -221,7 +248,7 @@ func (s *ServicesTestSuite) ServerCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	auth := services.Server{ID: "auth1", Addr: "localhost:2025"}
+	auth := newServer(services.KindAuthServer, "auth1", "localhost:2025", defaults.Namespace)
 	c.Assert(s.PresenceS.UpsertAuthServer(auth, 0), IsNil)
 
 	out, err = s.PresenceS.GetAuthServers()
@@ -229,32 +256,47 @@ func (s *ServicesTestSuite) ServerCRUD(c *C) {
 	c.Assert(out, DeepEquals, []services.Server{auth})
 }
 
+func newReverseTunnel(clusterName string, dialAddrs []string) *services.ReverseTunnelV2 {
+	return &services.ReverseTunnelV2{
+		Kind:    services.KindReverseTunnel,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      clusterName,
+			Namespace: defaults.Namespace,
+		},
+		Spec: services.ReverseTunnelSpecV2{
+			ClusterName: clusterName,
+			DialAddrs:   dialAddrs,
+		},
+	}
+}
+
 func (s *ServicesTestSuite) ReverseTunnelsCRUD(c *C) {
 	out, err := s.PresenceS.GetReverseTunnels()
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	tunnel := services.ReverseTunnel{DomainName: "example.com", DialAddrs: []string{"example.com:2023"}}
+	tunnel := newReverseTunnel("example.com", []string{"example.com:2023"})
 	c.Assert(s.PresenceS.UpsertReverseTunnel(tunnel, 0), IsNil)
 
 	out, err = s.PresenceS.GetReverseTunnels()
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, []services.ReverseTunnel{tunnel})
 
-	err = s.PresenceS.DeleteReverseTunnel(tunnel.DomainName)
+	err = s.PresenceS.DeleteReverseTunnel(tunnel.Spec.ClusterName)
 	c.Assert(err, IsNil)
 
 	out, err = s.PresenceS.GetReverseTunnels()
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	err = s.PresenceS.UpsertReverseTunnel(services.ReverseTunnel{DomainName: "", DialAddrs: []string{"example.com:2023"}}, 0)
+	err = s.PresenceS.UpsertReverseTunnel(newReverseTunnel("", []string{"127.0.0.1:1234"}), 0)
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
-	err = s.PresenceS.UpsertReverseTunnel(services.ReverseTunnel{DomainName: "example.com", DialAddrs: []string{"bad address"}}, 0)
+	err = s.PresenceS.UpsertReverseTunnel(newReverseTunnel("example.com", []string{"bad address"}), 0)
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 
-	err = s.PresenceS.UpsertReverseTunnel(services.ReverseTunnel{DomainName: "example.com"}, 0)
+	err = s.PresenceS.UpsertReverseTunnel(newReverseTunnel("example.com", []string{}), 0)
 	c.Assert(trace.IsBadParameter(err), Equals, true, Commentf("%#v", err))
 }
 
@@ -388,14 +430,14 @@ func (s *ServicesTestSuite) RolesCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(out), Equals, 0)
 
-	role := services.RoleResource{
+	role := services.RoleV2{
 		Kind:    services.KindRole,
-		Version: services.V1,
+		Version: services.V2,
 		Metadata: services.Metadata{
 			Name:      "role1",
 			Namespace: defaults.Namespace,
 		},
-		Spec: services.RoleSpec{
+		Spec: services.RoleSpecV2{
 			Logins:        []string{"root", "bob"},
 			NodeLabels:    map[string]string{services.Wildcard: services.Wildcard},
 			MaxSessionTTL: services.Duration{Duration: time.Hour},
@@ -430,7 +472,7 @@ func (s *ServicesTestSuite) NamespacesCRUD(c *C) {
 
 	ns := services.Namespace{
 		Kind:    services.KindNamespace,
-		Version: services.V1,
+		Version: services.V2,
 		Metadata: services.Metadata{
 			Name:      defaults.Namespace,
 			Namespace: defaults.Namespace,

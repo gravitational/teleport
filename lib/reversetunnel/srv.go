@@ -224,7 +224,7 @@ func (s *server) checkTrustedKey(CertType services.CertAuthType, domainName stri
 		return trace.Wrap(err)
 	}
 	for _, ca := range cas {
-		if ca.DomainName != domainName {
+		if ca.GetClusterName() != domainName {
 			continue
 		}
 		checkers, err := ca.Checkers()

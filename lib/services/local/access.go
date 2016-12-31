@@ -17,7 +17,6 @@ limitations under the License.
 package local
 
 import (
-	"encoding/json"
 	"sort"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -56,7 +55,7 @@ func (s *AccessService) GetRoles() ([]services.Role, error) {
 
 // UpsertRole updates parameters about role
 func (s *AccessService) UpsertRole(role services.Role) error {
-	data, err := json.Marshal(role)
+	data, err := services.GetRoleMarshaler().MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -79,7 +78,7 @@ func (s *AccessService) GetRole(name string) (services.Role, error) {
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalRoleResource(data)
+	return services.GetRoleMarshaler().UnmarshalRole(data)
 }
 
 // DeleteRole deletes a role with all the keys from the backend

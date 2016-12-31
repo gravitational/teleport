@@ -296,8 +296,8 @@ func (m *Handler) getSettings(w http.ResponseWriter, r *http.Request) (interface
 	for _, connector := range connectors {
 		fmt.Printf("%v\n", connectors)
 		settings.Auth.OIDCConnectors = append(settings.Auth.OIDCConnectors, oidcConnector{
-			ID:      connector.ID,
-			Display: connector.Display,
+			ID:      connector.GetName(),
+			Display: connector.GetDisplay(),
 		})
 	}
 
@@ -418,10 +418,14 @@ func ConstructSSHResponse(response *auth.OIDCAuthResponse) (*url.URL, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	signers, err := services.CertAuthoritiesToV1(response.HostSigners)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	consoleResponse := SSHLoginResponse{
 		Username:    response.Username,
 		Cert:        response.Cert,
-		HostSigners: response.HostSigners,
+		HostSigners: signers,
 	}
 	out, err := json.Marshal(consoleResponse)
 	if err != nil {
@@ -470,7 +474,7 @@ type CreateSessionResponse struct {
 	// Token value
 	Token string `json:"token"`
 	// User represents the user
-	User services.User `json:"user"`
+	User services.UserV1 `json:"user"`
 	// ExpiresIn sets seconds before this token is not valid
 	ExpiresIn int `json:"expires_in"`
 }
@@ -491,7 +495,7 @@ func (r createSessionResponseRaw) response() (*CreateSessionResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn, User: user}, nil
+	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn, User: user.WebSessionInfo(nil)}, nil
 }
 
 func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
@@ -541,7 +545,6 @@ func (m *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 	}
 	sess, err := m.auth.Auth(req.User, req.Pass, req.SecondFactorToken)
 	if err != nil {
-		log.Infof("bad access credentials: %v", err)
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
 	if err := SetSession(w, req.User, sess.ID); err != nil {
@@ -847,7 +850,7 @@ func (m *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ ht
 }
 
 type nodeWithSessions struct {
-	Node     services.Server   `json:"node"`
+	Node     services.ServerV1 `json:"node"`
 	Sessions []session.Session `json:"sessions"`
 }
 
@@ -905,7 +908,7 @@ func (m *Handler) getSiteNodes(w http.ResponseWriter, r *http.Request, p httprou
 	}
 	nodeMap := make(map[string]*nodeWithSessions, len(servers))
 	for i := range servers {
-		nodeMap[servers[i].ID] = &nodeWithSessions{Node: servers[i]}
+		nodeMap[servers[i].GetName()] = &nodeWithSessions{Node: *servers[i].V1()}
 	}
 	for i := range sessions {
 		sess := sessions[i]
@@ -966,7 +969,7 @@ func (m *Handler) siteNodeConnect(w http.ResponseWriter, r *http.Request, p http
 type sessionStreamEvent struct {
 	Events  []events.EventFields `json:"events"`
 	Session *session.Session     `json:"session"`
-	Servers []services.Server    `json:"servers"`
+	Servers []services.ServerV1  `json:"servers"`
 }
 
 // siteSessionStream returns a stream of events related to the session
@@ -1317,7 +1320,7 @@ type SSHLoginResponse struct {
 	Cert []byte `json:"cert"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy
-	HostSigners []services.CertAuthority `json:"host_signers"`
+	HostSigners []services.CertAuthorityV1 `json:"host_signers"`
 }
 
 // createSSHCert is a web call that generates new SSH certificate based

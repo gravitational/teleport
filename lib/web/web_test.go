@@ -140,13 +140,15 @@ func (s *WebSuite) SetUpTest(c *C) {
 		Access:   access,
 	})
 
-	teleUser := &services.TeleportUser{Name: s.user}
+	teleUser, err := services.NewUser(s.user)
+	c.Assert(err, IsNil)
 	role := services.RoleForUser(teleUser)
-	role.Spec.Resources = map[string][]string{services.Wildcard: services.RW()}
+	role.SetLogins([]string{s.user})
+	role.SetResource(services.Wildcard, services.RW())
 	err = authServer.UpsertRole(role)
 	c.Assert(err, IsNil)
 
-	teleUser.Roles = []string{role.GetName()}
+	teleUser.AddRole(role.GetName())
 	err = authServer.UpsertUser(teleUser)
 	c.Assert(err, IsNil)
 
@@ -154,9 +156,9 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(authServer.UpsertCertAuthority(
-		*suite.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
 	c.Assert(authServer.UpsertCertAuthority(
-		*suite.NewTestCA(services.HostCA, s.domainName), backend.Forever), IsNil)
+		suite.NewTestCA(services.HostCA, s.domainName), backend.Forever), IsNil)
 
 	sessionServer, err := sess.New(s.bk)
 	c.Assert(err, IsNil)
@@ -264,7 +266,7 @@ func (s *WebSuite) TearDownTest(c *C) {
 }
 
 func (s *WebSuite) TestNewUser(c *C) {
-	token, err := s.roleAuth.CreateSignupToken(&services.TeleportUser{Name: "bob", AllowedLogins: []string{s.user}})
+	token, err := s.roleAuth.CreateSignupToken(services.UserV1{Name: "bob", AllowedLogins: []string{s.user}})
 	c.Assert(err, IsNil)
 
 	tokens, err := s.roleAuth.GetTokens()
@@ -354,7 +356,7 @@ func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack 
 		c.Errorf("expected expiry time to be in the future but got %v", session.ExpiresIn)
 	}
 	return &authPack{
-		user:    session.User.GetName(),
+		user:    session.User.Name,
 		session: session,
 		clt:     clt,
 		cookies: re.Cookies(),
@@ -368,11 +370,13 @@ func (s *WebSuite) authPack(c *C) *authPack {
 	user := s.user
 	pass := "abc123"
 
-	teleUser := &services.TeleportUser{Name: user, AllowedLogins: []string{s.user}}
-	role := services.RoleForUser(teleUser)
-	err := s.roleAuth.UpsertRole(role)
+	teleUser, err := services.NewUser(user)
 	c.Assert(err, IsNil)
-	teleUser.Roles = []string{role.GetName()}
+	role := services.RoleForUser(teleUser)
+	role.SetLogins([]string{s.user})
+	err = s.roleAuth.UpsertRole(role)
+	c.Assert(err, IsNil)
+	teleUser.AddRole(role.GetName())
 
 	err = s.roleAuth.UpsertUser(teleUser)
 	c.Assert(err, IsNil)
@@ -792,7 +796,7 @@ func removeSpace(in string) string {
 }
 
 func (s *WebSuite) TestNewU2FUser(c *C) {
-	token, err := s.roleAuth.CreateSignupToken(&services.TeleportUser{Name: "bob", AllowedLogins: []string{s.user}})
+	token, err := s.roleAuth.CreateSignupToken(services.UserV1{Name: "bob", AllowedLogins: []string{s.user}})
 	c.Assert(err, IsNil)
 
 	tokens, err := s.roleAuth.GetTokens()
@@ -855,7 +859,7 @@ func (s *WebSuite) TestNewU2FUser(c *C) {
 }
 
 func (s *WebSuite) TestU2FLogin(c *C) {
-	token, err := s.roleAuth.CreateSignupToken(&services.TeleportUser{Name: "bob", AllowedLogins: []string{s.user}})
+	token, err := s.roleAuth.CreateSignupToken(services.UserV1{Name: "bob", AllowedLogins: []string{s.user}})
 	c.Assert(err, IsNil)
 
 	u2fRegReq, err := s.roleAuth.GetSignupU2FRegisterRequest(token)

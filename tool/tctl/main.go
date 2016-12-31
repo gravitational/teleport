@@ -340,7 +340,7 @@ func (u *UserCommand) Add(client *auth.TunClient) error {
 	if u.allowedLogins == "" {
 		u.allowedLogins = u.login
 	}
-	user := services.TeleportUser{
+	user := services.UserV1{
 		Name:          u.login,
 		AllowedLogins: strings.Split(u.allowedLogins, ","),
 	}
@@ -353,7 +353,7 @@ func (u *UserCommand) Add(client *auth.TunClient) error {
 			user.OIDCIdentities = append(user.OIDCIdentities, services.OIDCIdentity{ConnectorID: vals[0], Email: vals[1]})
 		}
 	}
-	token, err := client.CreateSignupToken(&user)
+	token, err := client.CreateSignupToken(user)
 	if err != nil {
 		return err
 	}
@@ -365,7 +365,7 @@ func (u *UserCommand) Add(client *auth.TunClient) error {
 	if len(proxies) == 0 {
 		fmt.Printf("\x1b[1mWARNING\x1b[0m: this Teleport cluster does not have any proxy servers online.\nYou need to start some to be able to login.\n\n")
 	} else {
-		hostname = proxies[0].Hostname
+		hostname = proxies[0].GetHostname()
 	}
 
 	// try to auto-suggest the activation link
@@ -464,10 +464,10 @@ func (u *NodeCommand) Invite(client *auth.TunClient) error {
 		for _, token := range tokens {
 			fmt.Printf(
 				"The invite token: %v\nRun this on the new node to join the cluster:\n> teleport start --roles=%s --token=%v --auth-server=%v\n\nPlease note:\n",
-				token, strings.ToLower(roles.String()), token, authServers[0].Addr)
+				token, strings.ToLower(roles.String()), token, authServers[0].GetAddr())
 		}
 		fmt.Printf("  - This invitation token will expire in %d minutes\n", int(u.ttl.Minutes()))
-		fmt.Printf("  - %v must be reachable from the new node, see --advertise-ip server flag\n", authServers[0].Addr)
+		fmt.Printf("  - %v must be reachable from the new node, see --advertise-ip server flag\n", authServers[0].GetAddr())
 	} else {
 		out, err := json.Marshal(tokens)
 		if err != nil {
@@ -492,7 +492,7 @@ func (u *NodeCommand) ListActive(client *auth.TunClient) error {
 			return t.String()
 		}
 		for _, n := range nodes {
-			fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", n.Hostname, n.ID, n.Addr, n.LabelsString())
+			fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", n.GetHostname(), n.GetName(), n.GetAddr(), n.LabelsString())
 		}
 		return t.String()
 	}
@@ -519,8 +519,8 @@ func (a *AuthCommand) ListAuthorities(client *auth.TunClient) error {
 		return trace.Wrap(err)
 	}
 	var (
-		localCAs   []*services.CertAuthority
-		trustedCAs []*services.CertAuthority
+		localCAs   []services.CertAuthority
+		trustedCAs []services.CertAuthority
 	)
 	for _, t := range authTypes {
 		cas, err := client.GetCertAuthorities(t, false)
@@ -528,7 +528,7 @@ func (a *AuthCommand) ListAuthorities(client *auth.TunClient) error {
 			return trace.Wrap(err)
 		}
 		for i := range cas {
-			if cas[i].DomainName == localAuthName {
+			if cas[i].GetClusterName() == localAuthName {
 				localCAs = append(localCAs, cas[i])
 			} else {
 				trustedCAs = append(trustedCAs, cas[i])
@@ -539,12 +539,12 @@ func (a *AuthCommand) ListAuthorities(client *auth.TunClient) error {
 		t := goterm.NewTable(0, 10, 5, ' ', 0)
 		printHeader(t, []string{"CA Type", "Fingerprint"})
 		for _, a := range localCAs {
-			for _, keyBytes := range a.CheckingKeys {
+			for _, keyBytes := range a.GetCheckingKeys() {
 				fingerprint, err := sshutils.AuthorizedKeyFingerprint(keyBytes)
 				if err != nil {
 					fingerprint = fmt.Sprintf("<bad key: %v", err)
 				}
-				fmt.Fprintf(t, "%v\t%v\n", a.Type, fingerprint)
+				fmt.Fprintf(t, "%v\t%v\n", a.GetType(), fingerprint)
 			}
 		}
 		return fmt.Sprintf("CA keys for the local cluster %v:\n\n", localAuthName) +
@@ -552,25 +552,20 @@ func (a *AuthCommand) ListAuthorities(client *auth.TunClient) error {
 	}
 	trustedCAsView := func() string {
 		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"Cluster Name", "CA Type", "Fingerprint", "Allowed Logins"})
+		printHeader(t, []string{"Cluster Name", "CA Type", "Fingerprint", "Roles"})
 		for _, a := range trustedCAs {
-			for _, keyBytes := range a.CheckingKeys {
+			for _, keyBytes := range a.GetCheckingKeys() {
 				fingerprint, err := sshutils.AuthorizedKeyFingerprint(keyBytes)
 				if err != nil {
 					fingerprint = fmt.Sprintf("<bad key: %v", err)
 				}
 				var logins string
-				if a.Type == services.HostCA {
+				if a.GetType() == services.HostCA {
 					logins = "N/A"
 				} else {
-					logins = strings.Join(a.AllowedLogins, ",")
-					if logins == "" {
-						logins = "<nobody>"
-					} else if logins == "*" {
-						logins = "<everyone>"
-					}
+					logins = strings.Join(a.GetRoles(), ",")
 				}
-				fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", a.DomainName, a.Type, fingerprint, logins)
+				fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", a.GetClusterName(), a.GetType(), fingerprint, logins)
 			}
 		}
 		return "\nCA Keys for Trusted Clusters:\n\n" + t.String()
@@ -605,14 +600,14 @@ func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
 
 	// fetch authorities via auth API (and only take local CAs, ignoring
 	// trusted ones)
-	var authorities []*services.CertAuthority
+	var authorities []services.CertAuthority
 	for _, at := range typesToExport {
 		cas, err := client.GetCertAuthorities(at, a.exportPrivateKeys)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		for _, ca := range cas {
-			if ca.DomainName == localAuthName {
+			if ca.GetClusterName() == localAuthName {
 				authorities = append(authorities, ca)
 			}
 		}
@@ -621,7 +616,7 @@ func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
 	// print:
 	for _, ca := range authorities {
 		if a.exportPrivateKeys {
-			for _, key := range ca.SigningKeys {
+			for _, key := range ca.GetSigningKeys() {
 				fingerprint, err := sshutils.PrivateKeyFingerprint(key)
 				if err != nil {
 					return trace.Wrap(err)
@@ -633,7 +628,7 @@ func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
 				fmt.Fprintf(os.Stdout, "\n")
 			}
 		} else {
-			for _, keyBytes := range ca.CheckingKeys {
+			for _, keyBytes := range ca.GetCheckingKeys() {
 				fingerprint, err := sshutils.AuthorizedKeyFingerprint(keyBytes)
 				if err != nil {
 					return trace.Wrap(err)
@@ -642,10 +637,15 @@ func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
 					continue
 				}
 				options := url.Values{
-					"type": []string{string(ca.Type)},
+					"type": []string{string(ca.GetType())},
 				}
-				if len(ca.AllowedLogins) > 0 {
-					options["logins"] = ca.AllowedLogins
+				roles, err := services.FetchRoles(ca.GetRoles(), client)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				allowedLogins, _ := roles.CheckLogins(defaults.MinCertDuration + time.Second)
+				if len(allowedLogins) > 0 {
+					options["logins"] = allowedLogins
 				}
 				// Every auth public key is exported as a single line adhering to man sshd (8)
 				// authorized_hosts format, a space-separated list of: makrer, hosts, key, and comment
@@ -653,7 +653,7 @@ func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
 				// 		@cert-authority *.cluster-a ssh-rsa AAA... type=user
 				// We use URL encoding to pass the CA type and allowed logins into the comment field
 				fmt.Fprintf(os.Stdout, "@cert-authority *.%s %s %s\n",
-					ca.DomainName, strings.TrimSpace(string(keyBytes)), options.Encode())
+					ca.GetClusterName(), strings.TrimSpace(string(keyBytes)), options.Encode())
 			}
 		}
 	}
@@ -745,7 +745,7 @@ func (r *ReverseTunnelCommand) ListActive(client *auth.TunClient) error {
 			return t.String()
 		}
 		for _, tunnel := range tunnels {
-			fmt.Fprintf(t, "%v\t%v\n", tunnel.DomainName, strings.Join(tunnel.DialAddrs, ","))
+			fmt.Fprintf(t, "%v\t%v\n", tunnel.GetClusterName(), strings.Join(tunnel.GetDialAddrs(), ","))
 		}
 		return t.String()
 	}
@@ -755,10 +755,7 @@ func (r *ReverseTunnelCommand) ListActive(client *auth.TunClient) error {
 
 // Upsert updates or inserts new reverse tunnel
 func (r *ReverseTunnelCommand) Upsert(client *auth.TunClient) error {
-	err := client.UpsertReverseTunnel(services.ReverseTunnel{
-		DomainName: r.domainNames,
-		DialAddrs:  r.dialAddrs.Addresses()},
-		r.ttl)
+	err := client.UpsertReverseTunnel(services.NewReverseTunnel(r.domainNames, r.dialAddrs.Addresses()), r.ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}

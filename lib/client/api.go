@@ -388,7 +388,7 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient
 			return nil, trace.Wrap(err)
 		}
 		for i := 0; i < len(nodes); i++ {
-			retval = append(retval, nodes[i].Addr)
+			retval = append(retval, nodes[i].GetAddr())
 		}
 	}
 	if len(nodes) == 0 {
@@ -521,10 +521,10 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var node *services.Server
+	var node services.Server
 	for _, n := range nodes {
-		if n.ID == serverID {
-			node = &n
+		if n.GetName() == serverID {
+			node = n
 			break
 		}
 	}
@@ -532,9 +532,9 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 		return trace.NotFound(notFoundErrorMessage)
 	}
 	// connect to server:
-	fullNodeAddr := node.Addr
+	fullNodeAddr := node.GetAddr()
 	if tc.SiteName != "" {
-		fullNodeAddr = fmt.Sprintf("%s@%s@%s", node.Addr, tc.Namespace, tc.SiteName)
+		fullNodeAddr = fmt.Sprintf("%s@%s@%s", node.GetAddr(), tc.Namespace, tc.SiteName)
 	}
 	nc, err := proxyClient.ConnectToNode(ctx, fullNodeAddr, tc.Config.HostLogin, false)
 	if err != nil {
@@ -989,8 +989,8 @@ func (tc *TeleportClient) Login() error {
 }
 
 // Adds a new CA as trusted CA for this client
-func (tc *TeleportClient) AddTrustedCA(ca *services.CertAuthority) error {
-	return tc.LocalAgent().AddHostSignersToCache([]services.CertAuthority{*ca})
+func (tc *TeleportClient) AddTrustedCA(ca *services.CertAuthorityV1) error {
+	return tc.LocalAgent().AddHostSignersToCache([]services.CertAuthorityV1{*ca})
 }
 
 // MakeKey generates a new unsigned key. It's useless by itself until a
