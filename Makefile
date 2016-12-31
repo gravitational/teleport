@@ -15,11 +15,8 @@ ETCD_CERTS := $(realpath fixtures/certs)
 ETCD_FLAGS := TELEPORT_TEST_ETCD_CONFIG='{"nodes": ["https://localhost:4001"], "key":"/teleport/test", "tls_key_file": "$(ETCD_CERTS)/proxy1-key.pem", "tls_cert_file": "$(ETCD_CERTS)/proxy1.pem", "tls_ca_file": "$(ETCD_CERTS)/ca.pem"}'
 TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
-RELEASE := teleport-$(GITTAG)-$(shell go env GOOS)-$(shell go env GOARCH)-bin
-
-export
-
-$(eval BUILDFLAGS := $(ADDFLAGS) -ldflags '-w -s')
+RELEASE := teleport-$(GITTAG)-`go env GOOS`-`go env GOARCH`-bin
+BUILDFLAGS := $(ADDFLAGS) -ldflags '-w -s'
 
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
