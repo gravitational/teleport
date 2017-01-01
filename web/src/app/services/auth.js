@@ -21,13 +21,14 @@ var $ = require('jQuery');
 var logger = require('app/common/logger').create('services/auth');
 require('u2f-api-polyfill'); // This puts it in window.u2f
 
-const PROVIDER_GOOGLE = 'google';
+const AUTH_IS_RENEWING = 'GRV_AUTH_IS_RENEWING';
 
+const PROVIDER_GOOGLE = 'google';
 const SECOND_FACTOR_TYPE_HOTP = 'hotp';
 const SECOND_FACTOR_TYPE_OIDC = 'oidc';
 const SECOND_FACTOR_TYPE_U2F = 'u2f';
 
-const CHECK_TOKEN_REFRESH_RATE = 10*1000; // 10 sec
+const CHECK_TOKEN_REFRESH_RATE = 10 * 1000; // 10 sec
 
 var refreshTokenTimerId = null;
 
@@ -160,25 +161,39 @@ var auth = {
     if(!created || !expires_in){
       return true;
     }
-
-    if(expires_in < 0) {
-      expires_in = expires_in * -1;
-    }
-
+    
     expires_in = expires_in * 1000;
 
     var delta = created + expires_in - new Date().getTime();
 
-    return delta < expires_in * 0.33;
+    // give some extra time for slow connection */    
+    return delta < CHECK_TOKEN_REFRESH_RATE * 3;
   },
 
   _startTokenRefresher(){
-    refreshTokenTimerId = setInterval(auth.ensureUser.bind(auth), CHECK_TOKEN_REFRESH_RATE);
+    refreshTokenTimerId = setInterval(auth._fetchStatus.bind(auth), CHECK_TOKEN_REFRESH_RATE);
   },
 
   _stopTokenRefresher(){
     clearInterval(refreshTokenTimerId);
     refreshTokenTimerId = null;
+  },
+
+  _fetchStatus(){
+    // do not attemp to fetch the status with potentially invalid token
+    // as it will trigger logout action.
+    if(localStorage.getItem(AUTH_IS_RENEWING) !== null){
+      return;
+    }
+    
+    api.get(cfg.api.userStatus)    
+      .done(auth.ensureUser.bind(this))
+      .fail( err => {
+        // indicates that user session is no longer valid
+        if(err.status == 403){
+          auth.logout();
+        }
+      });
   },
 
   _refreshToken(){

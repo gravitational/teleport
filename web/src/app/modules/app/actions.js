@@ -42,7 +42,7 @@ const actions = {
         siteId = siteId || masterSiteId;
         reactor.dispatch(TLPT_APP_SET_SITE_ID, siteId);
         // fetch nodes and active sessions 
-        $.when(fetchNodes(), fetchActiveSessions())
+        return $.when(fetchNodes(), fetchActiveSessions())
           .done(() => {
             reactor.dispatch(TLPT_APP_READY);
             cb();
@@ -85,15 +85,7 @@ const actions = {
     // reset  reactor
     reactor.reset();
   },
-
-  checkIfValidUser() {                
-    api.get(cfg.api.userStatus).fail(err => {
-      if(err.status == 403){
-        actions.logoutUser();
-      }
-    });
-  },
-  
+    
   logoutUser(){
     actions.resetApp();
     auth.logout();

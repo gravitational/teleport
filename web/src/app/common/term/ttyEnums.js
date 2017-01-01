@@ -14,22 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var { Store, toImmutable } = require('nuclear-js');
-var  { TLPT_NODES_RECEIVE } = require('./actionTypes');
 
-export default Store({
-  getInitialState() {
-    return toImmutable([]);
-  },
+const StatusCodeEnum = {
+  NORMAL: 1000
+}
 
-  initialize() {
-    this.on(TLPT_NODES_RECEIVE, receiveNodes)
-  }
-})
-
-function receiveNodes(state, { siteId, nodeArray }) {
-  nodeArray = nodeArray || [];  
-  nodeArray.forEach(n => n.siteId = siteId);
-  return state.filter(o => o.get('siteId') !== siteId)
-       .concat(toImmutable(nodeArray))    
+export {
+  StatusCodeEnum
 }
