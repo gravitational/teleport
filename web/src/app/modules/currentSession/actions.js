@@ -88,17 +88,15 @@ const actions = {
     }
   },
 
-  processSessionFromEventStream(siteId) {    
+  updateSessionFromEventStream(siteId) {    
     return data => {
       data.events.forEach(item => {
         if (item.event === 'session.end') {
           actions.close();
         }
       })
-
-      let { session } = data;
-      session.siteId = siteId;
-      updateSession(session);
+            
+      updateSession({ siteId, json: data.session });
     }
   }
 

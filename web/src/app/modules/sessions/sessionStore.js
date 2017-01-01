@@ -14,13 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var { Store, toImmutable } = require('nuclear-js');
-var {
+import { Store, toImmutable } from 'nuclear-js';
+import {
   TLPT_SESSIONS_RECEIVE,
   TLPT_SESSIONS_UPDATE,
-  TLPT_SESSIONS_UPDATE_WITH_EVENTS }  = require('./actionTypes');
+  TLPT_SESSIONS_UPDATE_WITH_EVENTS } from './actionTypes';
 
-var PORT_REGEX = /:\d+$/;
+const PORT_REGEX = /:\d+$/;
 
 export default Store({
   getInitialState() {
@@ -39,7 +39,8 @@ function getIp(addr){
   return addr.replace(PORT_REGEX, '');
 }
 
-function updateSessionWithEvents(state, { jsonEvents=[], siteId }){
+function updateSessionWithEvents(state, { siteId, json }) {
+  let jsonEvents = json || [];
   return state.withMutations(state => {
     jsonEvents.forEach(item=>{
       if(item.event !== 'session.start' && item.event !== 'session.end'){
@@ -75,17 +76,16 @@ function updateSessionWithEvents(state, { jsonEvents=[], siteId }){
   });
 }
 
-function updateSession(state, json) {  
-  return state.set(json.id, toImmutable(json));
+function updateSession(state, { siteId, json }) {
+  return state.set(json.id, toImmutable({...json, siteId}));
 }
 
-function receiveSessions(state, jsonArray){
-  jsonArray = jsonArray || [];
-
+function receiveSessions(state, { siteId, json }){
+  let jsonArray = json || [];
   return state.withMutations(state => {
     jsonArray.forEach(item => {
-      if(!state.getIn([item.id, 'stored'])){
-        state.set(item.id, toImmutable(item))
+      if (!state.getIn([item.id, 'stored'])) {
+        state.set(item.id, toImmutable({...item, siteId}))
       }
     })
   });
