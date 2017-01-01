@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var EventEmitter = require('events').EventEmitter;
+import { EventEmitter } from 'events';
+import { StatusCodeEnum } from './ttyEnums';
 
 const logger = require('./../logger').create('TtyEvents');
 
@@ -48,10 +49,9 @@ class TtyEvents extends EventEmitter {
     };
   }
 
-  disconnect(){
-    this.socket.close();
+  disconnect(reasonCode = StatusCodeEnum.NORMAL){
+    this.socket.close(reasonCode);
   }
-
 }
 
-module.exports = TtyEvents;
+export default TtyEvents;

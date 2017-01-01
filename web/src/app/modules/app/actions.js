@@ -85,15 +85,7 @@ const actions = {
     // reset  reactor
     reactor.reset();
   },
-
-  checkIfValidUser() {                
-    api.get(cfg.api.userStatus).fail(err => {
-      if(err.status == 403){
-        actions.logoutUser();
-      }
-    });
-  },
-  
+    
   logoutUser(){
     actions.resetApp();
     auth.logout();
