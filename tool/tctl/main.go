@@ -165,23 +165,23 @@ func main() {
 	userAdd.Flag("identity", "[EXPERIMENTAL] Add OpenID Connect identity, e.g. --identity=google:bob@gmail.com").Hidden().StringsVar(&cmdUsers.identities)
 	userAdd.Alias(AddUserHelp)
 
-	userUpdate := users.Command("update", "Update properties for existing user")
+	userUpdate := users.Command("update", "Update properties for existing user").Hidden()
 	userUpdate.Arg("login", "Teleport user login").Required().StringVar(&cmdUsers.login)
 	userUpdate.Flag("set-roles", "Roles to assign to this user").
 		Default("").StringVar(&cmdUsers.roles)
 
-	delete := app.Command("del", "Delete resources")
+	delete := app.Command("del", "Delete resources").Hidden()
 	delete.Arg("resource", "Resource to delete").SetValue(&cmdDelete.ref)
 
 	// get one or many resources in the system
-	get := app.Command("get", "Get one or many objects in the system")
+	get := app.Command("get", "Get one or many objects in the system").Hidden()
 	get.Arg("resource", "Resource type and name").SetValue(&cmdGet.ref)
 	get.Flag("format", "Format output type, one of 'yaml', 'json' or 'text'").Default(formatText).StringVar(&cmdGet.format)
 	get.Flag("namespace", "Namespace of the resources").Default(defaults.Namespace).StringVar(&cmdGet.namespace)
 	get.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&cmdGet.withSecrets)
 
 	// upsert one or many resources
-	upsert := app.Command("upsert", "Update or insert one or many resources")
+	upsert := app.Command("upsert", "Update or insert one or many resources").Hidden()
 	upsert.Flag("filename", "Filename with resources").Short('f').StringVar(&cmdUpsert.filename)
 
 	// list users command
