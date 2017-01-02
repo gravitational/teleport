@@ -537,7 +537,7 @@ type Authority struct {
 }
 
 // Parse reads values and returns parsed CertAuthority
-func (a *Authority) Parse() (services.CertAuthority, error) {
+func (a *Authority) Parse() (services.CertAuthority, services.Role, error) {
 	ca := &services.CertAuthorityV1{
 		AllowedLogins: a.AllowedLogins,
 		DomainName:    a.DomainName,
@@ -547,7 +547,7 @@ func (a *Authority) Parse() (services.CertAuthority, error) {
 	for _, path := range a.CheckingKeyFiles {
 		keyBytes, err := utils.ReadPath(path)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 		ca.CheckingKeys = append(ca.CheckingKeys, keyBytes)
 	}
@@ -559,7 +559,7 @@ func (a *Authority) Parse() (services.CertAuthority, error) {
 	for _, path := range a.SigningKeyFiles {
 		keyBytes, err := utils.ReadPath(path)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 		ca.SigningKeys = append(ca.SigningKeys, keyBytes)
 	}
@@ -568,7 +568,8 @@ func (a *Authority) Parse() (services.CertAuthority, error) {
 		ca.SigningKeys = append(ca.SigningKeys, []byte(val))
 	}
 
-	return ca.V2(), nil
+	new, role := services.ConvertV1CertAuthority(ca)
+	return new, role, nil
 }
 
 // ClaimMapping is OIDC claim mapping that maps
