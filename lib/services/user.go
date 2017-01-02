@@ -132,11 +132,11 @@ type LoginStatus struct {
 	// IsLocked tells us if user is locked
 	IsLocked bool `json:"is_locked"`
 	// LockedMessage contains the message in case if user is locked
-	LockedMessage string `json:"locked_message"`
+	LockedMessage string `json:"locked_message,omitempty"`
 	// LockedTime contains time when user was locked
-	LockedTime time.Time `json:"locked_time"`
+	LockedTime time.Time `json:"locked_time,omitempty"`
 	// LockExpires contains time when this lock will expire
-	LockExpires time.Time `json:"lock_expires"`
+	LockExpires time.Time `json:"lock_expires,omitempty"`
 }
 
 const LoginStatusSchema = `{

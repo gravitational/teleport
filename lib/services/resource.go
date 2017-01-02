@@ -193,7 +193,7 @@ type Metadata struct {
 	// Namespace is object namespace
 	Namespace string `json:"namespace"`
 	// Description is object description
-	Description string `json:"description"`
+	Description string `json:"description,omitempty"`
 	// Labels is a set of labels
 	Labels map[string]string `json:"labels,omitempty"`
 }
@@ -216,6 +216,20 @@ func ParseShortcut(in string) (string, error) {
 		return KindRole, nil
 	case "namespaces", "ns":
 		return KindNamespace, nil
+	case "auth_servers", "auth":
+		return KindAuthServer, nil
+	case "proxies":
+		return KindProxy, nil
+	case "nodes":
+		return KindNode, nil
+	case "oidc":
+		return KindOIDCConnector, nil
+	case "users":
+		return KindUser, nil
+	case "cert_authorities", "cas":
+		return KindCertAuthority, nil
+	case "reverse_tunnels", "rts":
+		return KindReverseTunnel, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %v", in)
 }
