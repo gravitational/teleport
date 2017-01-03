@@ -59,7 +59,7 @@ webpackJsonp([0],{
 	var session = __webpack_require__(229);
 	var cfg = __webpack_require__(217);
 
-	__webpack_require__(450);
+	__webpack_require__(451);
 
 	// init session
 	session.init();
@@ -114,7 +114,7 @@ webpackJsonp([0],{
 	module.exports.Login = __webpack_require__(365);
 	module.exports.NewUser = __webpack_require__(377);
 	module.exports.Nodes = __webpack_require__(379);
-	module.exports.Sessions = __webpack_require__(394);
+	module.exports.Sessions = __webpack_require__(395);
 	module.exports.CurrentSessionHost = __webpack_require__(403);
 	module.exports.ErrorPage = __webpack_require__(378).ErrorPage;
 	module.exports.NotFound = __webpack_require__(378).NotFound;
@@ -151,7 +151,6 @@ webpackJsonp([0],{
 	    getters = _require.getters;
 
 	var _require2 = __webpack_require__(226),
-	    checkIfValidUser = _require2.checkIfValidUser,
 	    refresh = _require2.refresh;
 
 	var NotificationHost = __webpack_require__(349);
@@ -169,14 +168,16 @@ webpackJsonp([0],{
 	    };
 	  },
 	  render: function render() {
-	    if (this.state.appStatus.isInitializing) {
+	    var isInitializing = this.state.appStatus.isInitializing;
+
+
+	    if (isInitializing) {
 	      return null;
 	    }
 
 	    return React.createElement(
 	      'div',
 	      { className: 'grv-tlpt grv-flex grv-flex-row' },
-	      React.createElement(Timer, { onTimeout: checkIfValidUser, interval: 10000 }),
 	      React.createElement(Timer, { onTimeout: refresh, interval: 4000 }),
 	      React.createElement(NotificationHost, null),
 	      this.props.CurrentSessionHost,
@@ -364,7 +365,7 @@ webpackJsonp([0],{
 
 	  maxSessionLoadSize: 50,
 
-	  displayDateFormat: 'l LTS Z',
+	  displayDateFormat: 'DD/MM/YYYY HH:mm:ss',
 
 	  auth: {
 	    oidc_connectors: [],
@@ -917,7 +918,7 @@ webpackJsonp([0],{
 	      siteId = siteId || masterSiteId;
 	      _reactor2.default.dispatch(_actionTypes.TLPT_APP_SET_SITE_ID, siteId);
 	      // fetch nodes and active sessions 
-	      _jQuery2.default.when((0, _actions2.fetchNodes)(), (0, _actions3.fetchActiveSessions)()).done(function () {
+	      return _jQuery2.default.when((0, _actions2.fetchNodes)(), (0, _actions3.fetchActiveSessions)()).done(function () {
 	        _reactor2.default.dispatch(_actionTypes.TLPT_APP_READY);
 	        cb();
 	      });
@@ -953,20 +954,11 @@ webpackJsonp([0],{
 	    // reset  reactor
 	    _reactor2.default.reset();
 	  },
-	  checkIfValidUser: function checkIfValidUser() {
-	    _api2.default.get(_config2.default.api.userStatus).fail(function (err) {
-	      if (err.status == 403) {
-	        actions.logoutUser();
-	      }
-	    });
-	  },
 	  logoutUser: function logoutUser() {
 	    actions.resetApp();
 	    _auth2.default.logout();
 	  }
 	};
-
-	window.actions = actions;
 
 	exports.default = actions;
 	module.exports = exports['default'];
@@ -1001,8 +993,9 @@ webpackJsonp([0],{
 	var logger = __webpack_require__(230).create('services/auth');
 	__webpack_require__(231); // This puts it in window.u2f
 
-	var PROVIDER_GOOGLE = 'google';
+	var AUTH_IS_RENEWING = 'GRV_AUTH_IS_RENEWING';
 
+	var PROVIDER_GOOGLE = 'google';
 	var SECOND_FACTOR_TYPE_HOTP = 'hotp';
 	var SECOND_FACTOR_TYPE_OIDC = 'oidc';
 	var SECOND_FACTOR_TYPE_U2F = 'u2f';
@@ -1137,22 +1130,33 @@ webpackJsonp([0],{
 	      return true;
 	    }
 
-	    if (expires_in < 0) {
-	      expires_in = expires_in * -1;
-	    }
-
 	    expires_in = expires_in * 1000;
 
 	    var delta = created + expires_in - new Date().getTime();
 
-	    return delta < expires_in * 0.33;
+	    // give some extra time for slow connection */    
+	    return delta < CHECK_TOKEN_REFRESH_RATE * 3;
 	  },
 	  _startTokenRefresher: function _startTokenRefresher() {
-	    refreshTokenTimerId = setInterval(auth.ensureUser.bind(auth), CHECK_TOKEN_REFRESH_RATE);
+	    refreshTokenTimerId = setInterval(auth._fetchStatus.bind(auth), CHECK_TOKEN_REFRESH_RATE);
 	  },
 	  _stopTokenRefresher: function _stopTokenRefresher() {
 	    clearInterval(refreshTokenTimerId);
 	    refreshTokenTimerId = null;
+	  },
+	  _fetchStatus: function _fetchStatus() {
+	    // do not attemp to fetch the status with potentially invalid token
+	    // as it will trigger logout action.
+	    if (localStorage.getItem(AUTH_IS_RENEWING) !== null) {
+	      return;
+	    }
+
+	    api.get(cfg.api.userStatus).done(auth.ensureUser.bind(this)).fail(function (err) {
+	      // indicates that user session is no longer valid
+	      if (err.status == 403) {
+	        auth.logout();
+	      }
+	    });
 	  },
 	  _refreshToken: function _refreshToken() {
 	    return api.post(cfg.api.renewTokenPath).then(function (data) {
@@ -2359,37 +2363,47 @@ webpackJsonp([0],{
 	'use strict';
 
 	exports.__esModule = true;
-	var reactor = __webpack_require__(215);
 
-	var _require = __webpack_require__(237),
-	    TLPT_NODES_RECEIVE = _require.TLPT_NODES_RECEIVE;
+	var _reactor = __webpack_require__(215);
 
-	var api = __webpack_require__(228);
-	var cfg = __webpack_require__(217);
+	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _require2 = __webpack_require__(232),
-	    showError = _require2.showError;
+	var _actionTypes = __webpack_require__(237);
 
-	var appGetters = __webpack_require__(238);
+	var _api = __webpack_require__(228);
 
-	var logger = __webpack_require__(230).create('Modules/Nodes');
+	var _api2 = _interopRequireDefault(_api);
+
+	var _config = __webpack_require__(217);
+
+	var _config2 = _interopRequireDefault(_config);
+
+	var _actions = __webpack_require__(232);
+
+	var _getters = __webpack_require__(238);
+
+	var _getters2 = _interopRequireDefault(_getters);
+
+	var _logger = __webpack_require__(230);
+
+	var _logger2 = _interopRequireDefault(_logger);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	var logger = _logger2.default.create('Modules/Nodes');
 
 	exports.default = {
 	  fetchNodes: function fetchNodes() {
-	    var siteId = reactor.evaluate(appGetters.siteId);
-	    return api.get(cfg.api.getSiteNodesUrl(siteId)).done(function () {
+	    var siteId = _reactor2.default.evaluate(_getters2.default.siteId);
+	    return _api2.default.get(_config2.default.api.getSiteNodesUrl(siteId)).done(function () {
 	      var data = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : [];
 
 	      var nodeArray = data.nodes.map(function (item) {
 	        return item.node;
 	      });
-
-	      nodeArray.forEach(function (item) {
-	        return item.siteId = siteId;
-	      });
-	      reactor.dispatch(TLPT_NODES_RECEIVE, { siteId: siteId, nodeArray: nodeArray });
+	      _reactor2.default.dispatch(_actionTypes.TLPT_NODES_RECEIVE, { siteId: siteId, nodeArray: nodeArray });
 	    }).fail(function (err) {
-	      showError('Unable to retrieve list of nodes');
+	      (0, _actions.showError)('Unable to retrieve list of nodes');
 	      logger.error('fetchNodes', err);
 	    });
 	  }
@@ -2502,16 +2516,16 @@ webpackJsonp([0],{
 	var logger = __webpack_require__(230).create('Modules/Sessions');
 
 	var _require2 = __webpack_require__(340),
-	    TLPT_SESSIONS_UPDATE = _require2.TLPT_SESSIONS_UPDATE,
-	    TLPT_SESSIONS_UPDATE_WITH_EVENTS = _require2.TLPT_SESSIONS_UPDATE_WITH_EVENTS,
-	    TLPT_SESSIONS_RECEIVE = _require2.TLPT_SESSIONS_RECEIVE;
+	    TLPT_SESSIONS_ACTIVE_RECEIVE = _require2.TLPT_SESSIONS_ACTIVE_RECEIVE,
+	    TLPT_SESSIONS_EVENTS_RECEIVE = _require2.TLPT_SESSIONS_EVENTS_RECEIVE,
+	    TLPT_SESSIONS_ACTIVE_UPDATE = _require2.TLPT_SESSIONS_ACTIVE_UPDATE;
 
 	var actions = {
 	  fetchStoredSession: function fetchStoredSession(sid) {
 	    var siteId = reactor.evaluate(appGetters.siteId);
 	    return api.get(cfg.api.getSessionEventsUrl({ siteId: siteId, sid: sid })).then(function (json) {
 	      if (json && json.events) {
-	        reactor.dispatch(TLPT_SESSIONS_UPDATE_WITH_EVENTS, { siteId: siteId, jsonEvents: json.events });
+	        reactor.dispatch(TLPT_SESSIONS_EVENTS_RECEIVE, { siteId: siteId, json: json.events });
 	      }
 	    });
 	  },
@@ -2526,7 +2540,7 @@ webpackJsonp([0],{
 	    var siteId = reactor.evaluate(appGetters.siteId);
 	    return api.get(cfg.api.getSiteEventsFilterUrl({ start: start, end: end, siteId: siteId })).done(function (json) {
 	      if (json && json.events) {
-	        reactor.dispatch(TLPT_SESSIONS_UPDATE_WITH_EVENTS, { siteId: siteId, jsonEvents: json.events });
+	        reactor.dispatch(TLPT_SESSIONS_EVENTS_RECEIVE, { siteId: siteId, json: json.events });
 	      }
 	    }).fail(function (err) {
 	      showError('Unable to retrieve site events');
@@ -2537,17 +2551,17 @@ webpackJsonp([0],{
 	    var siteId = reactor.evaluate(appGetters.siteId);
 	    return api.get(cfg.api.getFetchSessionsUrl(siteId)).done(function (json) {
 	      var sessions = json.sessions || [];
-	      sessions.forEach(function (s) {
-	        return s.siteId = siteId;
-	      });
-	      reactor.dispatch(TLPT_SESSIONS_RECEIVE, sessions);
+	      reactor.dispatch(TLPT_SESSIONS_ACTIVE_RECEIVE, { siteId: siteId, json: sessions });
 	    }).fail(function (err) {
 	      showError('Unable to retrieve list of sessions');
 	      logger.error('fetchActiveSessions', err);
 	    });
 	  },
-	  updateSession: function updateSession(json) {
-	    reactor.dispatch(TLPT_SESSIONS_UPDATE, json);
+	  updateSession: function updateSession(_ref) {
+	    var siteId = _ref.siteId,
+	        json = _ref.json;
+
+	    reactor.dispatch(TLPT_SESSIONS_ACTIVE_UPDATE, { siteId: siteId, json: json });
 	  }
 	};
 
@@ -2570,9 +2584,9 @@ webpackJsonp([0],{
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	exports.default = (0, _keymirror2.default)({
-	  TLPT_SESSIONS_RECEIVE: null,
-	  TLPT_SESSIONS_UPDATE: null,
-	  TLPT_SESSIONS_UPDATE_WITH_EVENTS: null
+	  TLPT_SESSIONS_ACTIVE_RECEIVE: null,
+	  TLPT_SESSIONS_ACTIVE_UPDATE: null,
+	  TLPT_SESSIONS_EVENTS_RECEIVE: null
 	}); /*
 	    Copyright 2015 Gravitational, Inc.
 	    
@@ -4428,7 +4442,6 @@ webpackJsonp([0],{
 	var userGetters = __webpack_require__(222);
 	var nodeGetters = __webpack_require__(380);
 	var NodeList = __webpack_require__(381);
-	var ClusterContent = __webpack_require__(391);
 
 	var Nodes = React.createClass({
 	  displayName: 'Nodes',
@@ -4451,8 +4464,8 @@ webpackJsonp([0],{
 	    var logins = user.logins;
 
 	    return React.createElement(
-	      ClusterContent,
-	      null,
+	      'div',
+	      { className: 'grv-page' },
 	      React.createElement(NodeList, {
 	        siteId: siteId,
 	        sites: sites,
@@ -4593,9 +4606,11 @@ webpackJsonp([0],{
 	var _require2 = __webpack_require__(386),
 	    createNewSession = _require2.createNewSession;
 
+	var ClusterSelector = __webpack_require__(391);
+
 	var _ = __webpack_require__(383);
 
-	var _require3 = __webpack_require__(390),
+	var _require3 = __webpack_require__(394),
 	    isMatch = _require3.isMatch;
 
 	var TextCell = function TextCell(_ref) {
@@ -4769,6 +4784,7 @@ webpackJsonp([0],{
 	        React.createElement(
 	          'div',
 	          { className: 'grv-flex' },
+	          React.createElement(ClusterSelector, null),
 	          React.createElement(InputSearch, { value: this.filter, onChange: this.onFilterChange })
 	        )
 	      ),
@@ -4783,7 +4799,7 @@ webpackJsonp([0],{
 	            header: React.createElement(SortHeaderCell, {
 	              sortDir: this.state.colSortDirs.hostname,
 	              onSortChange: this.onSortChange,
-	              title: 'Node'
+	              title: 'Hostname'
 	            }),
 	            cell: React.createElement(TextCell, { data: data })
 	          }),
@@ -4792,7 +4808,7 @@ webpackJsonp([0],{
 	            header: React.createElement(SortHeaderCell, {
 	              sortDir: this.state.colSortDirs.addr,
 	              onSortChange: this.onSortChange,
-	              title: 'IP'
+	              title: 'Address'
 	            }),
 	            cell: React.createElement(TextCell, { data: data })
 	          }),
@@ -4863,18 +4879,17 @@ webpackJsonp([0],{
 	    this.setState({ value: e.target.value });
 	    this.debouncedNotify();
 	  },
-	  componentDidMount: function componentDidMount() {},
-	  componentWillUnmount: function componentWillUnmount() {},
 	  render: function render() {
 	    var _props$className = this.props.className,
 	        className = _props$className === undefined ? '' : _props$className;
 
-	    className = 'grv-search ' + className;
+	    className = 'grv-search input-group-sm ' + className;
 
 	    return React.createElement(
 	      'div',
 	      { className: className },
-	      React.createElement('input', { placeholder: 'Search...', className: 'form-control input-sm',
+	      React.createElement('input', { placeholder: 'Search...', className: 'form-control',
+	        autoFocus: true,
 	        value: this.state.value,
 	        onChange: this.onChange })
 	    );
@@ -5144,6 +5159,7 @@ webpackJsonp([0],{
 	See the License for the specific language governing permissions and
 	limitations under the License.
 	*/
+	var $ = __webpack_require__(219);
 	var reactor = __webpack_require__(215);
 	var session = __webpack_require__(229);
 	var api = __webpack_require__(228);
@@ -5155,59 +5171,88 @@ webpackJsonp([0],{
 	    updateSession = _require.updateSession;
 
 	var sessionGetters = __webpack_require__(388);
-	var $ = __webpack_require__(219);
 
 	var logger = __webpack_require__(230).create('Current Session');
 
-	var _require2 = __webpack_require__(389),
+	var _require2 = __webpack_require__(390),
 	    TLPT_CURRENT_SESSION_OPEN = _require2.TLPT_CURRENT_SESSION_OPEN,
 	    TLPT_CURRENT_SESSION_CLOSE = _require2.TLPT_CURRENT_SESSION_CLOSE;
 
 	var actions = {
 	  createNewSession: function createNewSession(siteId, serverId, login) {
-	    var data = { 'session': { 'terminal_params': { 'w': 45, 'h': 5 }, login: login } };
+	    var data = {
+	      session: {
+	        terminal_params: {
+	          w: 45,
+	          h: 5
+	        },
+	        login: login
+	      }
+	    };
+
 	    api.post(cfg.api.getSiteSessionUrl(siteId), data).then(function (json) {
-	      var sid = json.session.id;
-	      var routeUrl = cfg.getCurrentSessionRouteUrl({ siteId: siteId, sid: sid });
 	      var history = session.getHistory();
+	      var sid = json.session.id;
+	      var routeUrl = cfg.getCurrentSessionRouteUrl({
+	        siteId: siteId,
+	        sid: sid
+	      });
 
 	      reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {
 	        siteId: siteId,
 	        serverId: serverId,
 	        login: login,
 	        sid: sid,
-	        isNewSession: true
+	        active: true,
+	        isNew: true
 	      });
 
 	      history.push(routeUrl);
 	    });
 	  },
 	  openSession: function openSession(nextState) {
+	    logger.info('attempt to open session', { sid: sid });
 	    var sid = nextState.params.sid;
+
+	    // check if terminal is already open
 
 	    var currentSession = reactor.evaluate(getters.currentSession);
 	    if (currentSession) {
 	      return;
 	    }
 
-	    logger.info('attempt to open session', { sid: sid });
+	    // look up active session matching given sid
+	    var activeSession = reactor.evaluate(sessionGetters.activeSessionById(sid));
+	    if (activeSession) {
+	      var server_id = activeSession.server_id,
+	          login = activeSession.login,
+	          siteId = activeSession.siteId,
+	          id = activeSession.id;
+
+	      reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {
+	        login: login,
+	        siteId: siteId,
+	        sid: id,
+	        serverId: server_id,
+	        active: true
+	      });
+
+	      return;
+	    }
+
+	    // stored session then...      
 	    $.when(fetchStoredSession(sid)).done(function () {
-	      var sView = reactor.evaluate(sessionGetters.sessionViewById(sid));
-	      if (!sView) {
+	      var storedSession = reactor.evaluate(sessionGetters.storedSessionById(sid));
+	      if (!storedSession) {
+	        // TODO: display not found page
 	        return;
 	      }
 
-	      var serverId = sView.serverId,
-	          login = sView.login,
-	          siteId = sView.siteId;
+	      var siteId = storedSession.siteId;
 
-	      logger.info('open session', 'OK');
 	      reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {
 	        siteId: siteId,
-	        serverId: serverId,
-	        login: login,
-	        sid: sid,
-	        isNewSession: false
+	        sid: sid
 	      });
 	    }).fail(function (err) {
 	      logger.error('open session', err);
@@ -5215,17 +5260,17 @@ webpackJsonp([0],{
 	  },
 	  close: function close() {
 	    var _reactor$evaluate = reactor.evaluate(getters.currentSession),
-	        isNewSession = _reactor$evaluate.isNewSession;
+	        isNew = _reactor$evaluate.isNew;
 
 	    reactor.dispatch(TLPT_CURRENT_SESSION_CLOSE);
 
-	    if (isNewSession) {
+	    if (isNew) {
 	      session.getHistory().push(cfg.routes.nodes);
 	    } else {
 	      session.getHistory().push(cfg.routes.sessions);
 	    }
 	  },
-	  processSessionFromEventStream: function processSessionFromEventStream(siteId) {
+	  updateSessionFromEventStream: function updateSessionFromEventStream(siteId) {
 	    return function (data) {
 	      data.events.forEach(function (item) {
 	        if (item.event === 'session.end') {
@@ -5233,10 +5278,10 @@ webpackJsonp([0],{
 	        }
 	      });
 
-	      var session = data.session;
-
-	      session.siteId = siteId;
-	      updateSession(data.session);
+	      updateSession({
+	        siteId: siteId,
+	        json: data.session
+	      });
 	    };
 	  }
 	};
@@ -5247,12 +5292,11 @@ webpackJsonp([0],{
 /***/ },
 
 /***/ 387:
-/***/ function(module, exports, __webpack_require__) {
+/***/ function(module, exports) {
 
 	'use strict';
 
 	exports.__esModule = true;
-
 	/*
 	Copyright 2015 Gravitational, Inc.
 
@@ -5269,41 +5313,19 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var _require = __webpack_require__(388),
-	    createView = _require.createView;
+	//var {createView} = require('app/modules/sessions/getters');
 
-	var currentSession = [['tlpt_current_session'], ['tlpt_sessions'], function (current, sessions) {
+	var currentSession = [['tlpt_current_session'], ['tlpt_sessions_active'], function (current, sessions) {
 	  if (!current) {
 	    return null;
 	  }
 
-	  /*
-	  * active session needs to have its own view as an actual session might not
-	  * exist at this point. For example, upon creating a new session we need to know
-	  * login and serverId. It will be simplified once server API gets extended.
-	  */
-	  var curSessionView = {
-	    isNewSession: current.get('isNewSession'),
-	    serverId: current.get('serverId'),
-	    login: current.get('login'),
-	    sid: current.get('sid'),
-	    siteId: current.get('siteId'),
-	    cols: undefined,
-	    rows: undefined
-	  };
+	  var curSessionView = current.toJS();
 
-	  /*
-	  * in case if session already exists, get its view data (for example, when joining an existing session)
-	  */
+	  // get the list of participants     
 	  if (sessions.has(curSessionView.sid)) {
-	    var existing = createView(sessions.get(curSessionView.sid));
-
-	    curSessionView.parties = existing.parties;
-	    curSessionView.serverId = existing.serverId;
-	    curSessionView.active = existing.active;
-	    curSessionView.cols = existing.cols;
-	    curSessionView.rows = existing.rows;
-	    curSessionView.siteId = existing.siteId;
+	    var activeSessionRec = sessions.get(curSessionView.sid);
+	    curSessionView.parties = activeSessionRec.parties.toJS();
 	  }
 
 	  return curSessionView;
@@ -5322,6 +5344,23 @@ webpackJsonp([0],{
 	'use strict';
 
 	exports.__esModule = true;
+
+	var _moment = __webpack_require__(240);
+
+	var _moment2 = _interopRequireDefault(_moment);
+
+	var _config = __webpack_require__(217);
+
+	var _config2 = _interopRequireDefault(_config);
+
+	var _enums = __webpack_require__(389);
+
+	var _reactor = __webpack_require__(215);
+
+	var _reactor2 = _interopRequireDefault(_reactor);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
 	/*
 	Copyright 2015 Gravitational, Inc.
 
@@ -5338,93 +5377,117 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var moment = __webpack_require__(240);
-	var reactor = __webpack_require__(215);
-	var cfg = __webpack_require__(217);
-
-	var sessionsView = [['tlpt_sessions'], ['tlpt', 'siteId'], function (sessionList, siteId) {
+	var activeSessions = [['tlpt_sessions_active'], ['tlpt', 'siteId'], function (sessionList, siteId) {
 	  sessionList = sessionList.filter(function (n) {
 	    return n.get('siteId') === siteId;
 	  });
-	  return sessionList.valueSeq().map(createView).toJS();
+	  return sessionList.valueSeq().map(createActiveListItem).toJS();
 	}];
 
-	var sessionViewById = function sessionViewById(sid) {
-	  return [['tlpt_sessions', sid], function (session) {
-	    if (!session) {
-	      return null;
-	    }
+	var storedSessions = [['tlpt_sessions_archived'], ['tlpt', 'siteId'], function (sessionList, siteId) {
+	  sessionList = sessionList.filter(function (n) {
+	    return n.get('siteId') === siteId;
+	  });
+	  return sessionList.valueSeq().map(createStoredListItem).toJS();
+	}];
 
-	    return createView(session);
-	  }];
+	var activeSessionById = function activeSessionById(sid) {
+	  return ['tlpt_sessions_active', sid];
+	};
+	var storedSessionById = function storedSessionById(sid) {
+	  return ['tlpt_sessions_archived', sid];
+	};
+	var nodeIpById = function nodeIpById(sid) {
+	  return ['tlpt_sessions_events', sid, _enums.EventTypeEnum.START, 'addr.local'];
 	};
 
-	var partiesBySessionId = function partiesBySessionId(sid) {
-	  return [['tlpt_sessions', sid, 'parties'], function (parties) {
-
-	    if (!parties) {
-	      return [];
-	    }
-
-	    return parties.map(function (item) {
-	      return {
-	        user: item.get('user'),
-	        serverIp: item.get('remote_addr'),
-	        serverId: item.get('server_id')
-	      };
-	    }).toJS();
-	  }];
-	};
-
-	function createView(session) {
+	function createStoredListItem(session) {
 	  var sid = session.get('id');
-	  var serverIp;
-	  var parties = reactor.evaluate(partiesBySessionId(sid));
+	  var siteId = session.siteId,
+	      nodeIp = session.nodeIp,
+	      created = session.created,
+	      server_id = session.server_id,
+	      parties = session.parties,
+	      last_active = session.last_active;
 
-	  if (parties.length > 0) {
-	    serverIp = parties[0].serverIp;
-	  }
+	  var duration = (0, _moment2.default)(last_active).diff(created);
 
-	  var created = new Date(session.get('created'));
-	  var lastActive = new Date(session.get('last_active'));
-	  var duration = moment(created).diff(lastActive);
-	  var siteId = session.get('siteId');
+	  var sessionUrl = _config2.default.getCurrentSessionRouteUrl({
+	    sid: sid,
+	    siteId: siteId
+	  });
 
 	  return {
-	    parties: parties,
+	    active: false,
+	    parties: parties.toJS(),
 	    sid: sid,
 	    created: created,
-	    lastActive: lastActive,
 	    duration: duration,
-	    serverIp: serverIp,
 	    siteId: siteId,
-	    stored: session.get('stored'),
-	    serverId: session.get('server_id'),
-	    clientIp: session.get('clientIp'),
-	    nodeIp: session.get('nodeIp'),
-	    active: session.get('active'),
-	    user: session.get('user'),
-	    login: session.get('login'),
-	    sessionUrl: cfg.getCurrentSessionRouteUrl({ sid: sid, siteId: siteId }),
-	    cols: session.getIn(['terminal_params', 'w']),
-	    rows: session.getIn(['terminal_params', 'h'])
+	    sessionUrl: sessionUrl,
+	    serverId: server_id,
+	    nodeIp: nodeIp,
+	    lastActive: last_active
+	  };
+	}
+
+	function createActiveListItem(session) {
+	  var sid = session.get('id');
+	  var parties = session.parties.toJS();
+
+	  var siteId = session.siteId,
+	      created = session.created,
+	      last_active = session.last_active,
+	      server_id = session.server_id;
+
+	  var duration = (0, _moment2.default)(last_active).diff(created);
+	  var nodeIp = _reactor2.default.evaluate(nodeIpById(sid));
+
+	  var sessionUrl = _config2.default.getCurrentSessionRouteUrl({
+	    sid: sid,
+	    siteId: siteId
+	  });
+
+	  return {
+	    active: true,
+	    parties: parties,
+	    serverId: server_id,
+	    sid: sid,
+	    created: created,
+	    duration: duration,
+	    siteId: siteId,
+	    sessionUrl: sessionUrl,
+	    nodeIp: nodeIp,
+	    lastActive: last_active
 	  };
 	}
 
 	exports.default = {
-	  partiesBySessionId: partiesBySessionId,
-	  sessionsView: sessionsView,
-	  sessionViewById: sessionViewById,
-	  createView: createView,
-	  count: [['tlpt_sessions'], function (sessions) {
-	    return sessions.size;
-	  }]
+	  storedSessions: storedSessions,
+	  activeSessions: activeSessions,
+	  activeSessionById: activeSessionById,
+	  storedSessionById: storedSessionById,
+	  createStoredListItem: createStoredListItem
 	};
 	module.exports = exports['default'];
 
 /***/ },
 
 /***/ 389:
+/***/ function(module, exports) {
+
+	'use strict';
+
+	module.exports = {
+	  EventTypeEnum: {
+	    START: 'session.start',
+	    END: 'session.end'
+	  }
+	};
+
+/***/ },
+
+/***/ 390:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -5460,54 +5523,6 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 390:
-/***/ function(module, exports) {
-
-	'use strict';
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	module.exports.isMatch = function (obj, searchValue, _ref) {
-	  var searchableProps = _ref.searchableProps,
-	      cb = _ref.cb;
-
-	  searchValue = searchValue.toLocaleUpperCase();
-	  var propNames = searchableProps || Object.getOwnPropertyNames(obj);
-	  for (var i = 0; i < propNames.length; i++) {
-	    var targetValue = obj[propNames[i]];
-	    if (targetValue) {
-	      if (typeof cb === 'function') {
-	        var result = cb(targetValue, searchValue, propNames[i]);
-	        if (result === true) {
-	          return result;
-	        }
-	      }
-
-	      if (targetValue.toString().toLocaleUpperCase().indexOf(searchValue) !== -1) {
-	        return true;
-	      }
-	    }
-	  }
-
-	  return false;
-	};
-
-/***/ },
-
 /***/ 391:
 /***/ function(module, exports, __webpack_require__) {
 
@@ -5537,28 +5552,12 @@ webpackJsonp([0],{
 
 	var _actions = __webpack_require__(226);
 
+	var _objectUtils = __webpack_require__(394);
+
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var YOUR_CSR_TEXT = 'Your cluster';
-
-	var PageWithHeader = _react2.default.createClass({
-	  displayName: 'PageWithHeader',
+	var ClusterSelector = _react2.default.createClass({
+	  displayName: 'ClusterSelector',
 
 
 	  mixins: [_reactor2.default.ReactMixin],
@@ -5578,30 +5577,53 @@ webpackJsonp([0],{
 	        sites = _state.sites,
 	        siteId = _state.siteId;
 
-	    var siteOptions = sites.map(function (s, index) {
+
+	    var siteOptions = sites.map(function (s) {
 	      return {
-	        label: index === 0 ? YOUR_CSR_TEXT : s.name,
+	        label: s.name,
 	        value: s.name
 	      };
 	    });
 
+	    if (siteOptions.length === 1 && (0, _objectUtils.isUUID)(siteOptions[0].value)) {
+	      siteOptions[0].label = location.hostname;
+	    }
+
 	    return _react2.default.createElement(
 	      'div',
-	      { className: 'grv-page' },
+	      { className: 'grv-clusters-selector' },
+	      _react2.default.createElement(
+	        'div',
+	        { className: 'm-r-sm' },
+	        'Cluster:'
+	      ),
 	      _react2.default.createElement(_dropdown2.default, {
-	        className: 'grv-page-header-clusters-selector m-t-sm',
+	        className: 'm-r-sm',
 	        size: 'sm',
 	        align: 'right',
 	        onChange: this.onChangeSite,
 	        value: siteId,
 	        options: siteOptions
-	      }),
-	      this.props.children
+	      })
 	    );
 	  }
-	});
+	}); /*
+	    Copyright 2015 Gravitational, Inc.
+	    
+	    Licensed under the Apache License, Version 2.0 (the "License");
+	    you may not use this file except in compliance with the License.
+	    You may obtain a copy of the License at
+	    
+	        http://www.apache.org/licenses/LICENSE-2.0
+	    
+	    Unless required by applicable law or agreed to in writing, software
+	    distributed under the License is distributed on an "AS IS" BASIS,
+	    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	    See the License for the specific language governing permissions and
+	    limitations under the License.
+	    */
 
-	exports.default = PageWithHeader;
+	exports.default = ClusterSelector;
 	module.exports = exports['default'];
 
 /***/ },
@@ -5789,10 +5811,14 @@ webpackJsonp([0],{
 /***/ },
 
 /***/ 394:
-/***/ function(module, exports, __webpack_require__) {
+/***/ function(module, exports) {
 
 	'use strict';
 
+	exports.__esModule = true;
+	exports.parseIp = parseIp;
+	exports.isMatch = isMatch;
+	exports.isUUID = isUUID;
 	/*
 	Copyright 2015 Gravitational, Inc.
 
@@ -5809,64 +5835,138 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var React = __webpack_require__(2);
-	var reactor = __webpack_require__(215);
+	var uuid = {
+	  3: /^[0-9A-F]{8}-[0-9A-F]{4}-3[0-9A-F]{3}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
+	  4: /^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
+	  5: /^[0-9A-F]{8}-[0-9A-F]{4}-5[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
+	  all: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i
+	};
 
-	var _require = __webpack_require__(395),
-	    fetchStoredSession = _require.fetchStoredSession;
+	var PORT_REGEX = /:\d+$/;
 
-	var _require2 = __webpack_require__(388),
-	    sessionsView = _require2.sessionsView;
+	function parseIp(addr) {
+	  addr = addr || '';
+	  return addr.replace(PORT_REGEX, '');
+	}
 
-	var _require3 = __webpack_require__(396),
-	    filter = _require3.filter;
+	function isMatch(obj, searchValue, _ref) {
+	  var searchableProps = _ref.searchableProps,
+	      cb = _ref.cb;
 
-	var StoredSessionList = __webpack_require__(398);
-	var ActiveSessionList = __webpack_require__(402);
-	var Timer = __webpack_require__(364);
-	var ClusterContent = __webpack_require__(391);
+	  searchValue = searchValue.toLocaleUpperCase();
+	  var propNames = searchableProps || Object.getOwnPropertyNames(obj);
+	  for (var i = 0; i < propNames.length; i++) {
+	    var targetValue = obj[propNames[i]];
+	    if (targetValue) {
+	      if (typeof cb === 'function') {
+	        var result = cb(targetValue, searchValue, propNames[i]);
+	        if (result === true) {
+	          return result;
+	        }
+	      }
 
-	var Sessions = React.createClass({
-	  displayName: 'Sessions',
-
-	  mixins: [reactor.ReactMixin],
-
-	  getDataBindings: function getDataBindings() {
-	    return {
-	      data: sessionsView,
-	      storedSessionsFilter: filter
-	    };
-	  },
-	  refresh: function refresh() {
-	    fetchStoredSession();
-	  },
-
-
-	  render: function render() {
-	    var _state = this.state,
-	        data = _state.data,
-	        storedSessionsFilter = _state.storedSessionsFilter;
-
-	    return React.createElement(
-	      ClusterContent,
-	      null,
-	      React.createElement(
-	        'div',
-	        { className: 'grv-sessions' },
-	        React.createElement(Timer, { onTimeout: this.refresh }),
-	        React.createElement(ActiveSessionList, { data: data }),
-	        React.createElement('div', { className: 'm-t-lg' }),
-	        React.createElement(StoredSessionList, { data: data, filter: storedSessionsFilter })
-	      )
-	    );
+	      if (targetValue.toString().toLocaleUpperCase().indexOf(searchValue) !== -1) {
+	        return true;
+	      }
+	    }
 	  }
-	});
 
-	module.exports = Sessions;
+	  return false;
+	}
+
+	function isUUID(str) {
+	  var version = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 'all';
+
+	  var pattern = uuid[version];
+	  return pattern && pattern.test(str);
+	}
 
 /***/ },
 
 /***/ 395:
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _reactor = __webpack_require__(215);
+
+	var _reactor2 = _interopRequireDefault(_reactor);
+
+	var _actions = __webpack_require__(396);
+
+	var _getters = __webpack_require__(388);
+
+	var _getters2 = __webpack_require__(397);
+
+	var _timer = __webpack_require__(364);
+
+	var _timer2 = _interopRequireDefault(_timer);
+
+	var _sessionList = __webpack_require__(399);
+
+	var _sessionList2 = _interopRequireDefault(_sessionList);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	var Sessions = _react2.default.createClass({
+	  displayName: 'Sessions',
+
+
+	  mixins: [_reactor2.default.ReactMixin],
+
+	  getDataBindings: function getDataBindings() {
+	    return {
+	      activeSessions: _getters.activeSessions,
+	      storedSessions: _getters.storedSessions,
+	      storedSessionsFilter: _getters2.filter
+	    };
+	  },
+	  refresh: function refresh() {
+	    (0, _actions.fetchSiteEventsWithinTimeRange)();
+	  },
+	  render: function render() {
+	    var _state = this.state,
+	        storedSessions = _state.storedSessions,
+	        activeSessions = _state.activeSessions,
+	        storedSessionsFilter = _state.storedSessionsFilter;
+
+	    return _react2.default.createElement(
+	      'div',
+	      { className: 'grv-page grv-sessions' },
+	      _react2.default.createElement(_sessionList2.default, {
+	        activeSessions: activeSessions,
+	        storedSessions: storedSessions, filter: storedSessionsFilter }),
+	      _react2.default.createElement(_timer2.default, { onTimeout: this.refresh })
+	    );
+	  }
+	}); /*
+	    Copyright 2015 Gravitational, Inc.
+	    
+	    Licensed under the Apache License, Version 2.0 (the "License");
+	    you may not use this file except in compliance with the License.
+	    You may obtain a copy of the License at
+	    
+	        http://www.apache.org/licenses/LICENSE-2.0
+	    
+	    Unless required by applicable law or agreed to in writing, software
+	    distributed under the License is distributed on an "AS IS" BASIS,
+	    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	    See the License for the specific language governing permissions and
+	    limitations under the License.
+	    */
+
+	exports.default = Sessions;
+	module.exports = exports['default'];
+
+/***/ },
+
+/***/ 396:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -5890,7 +5990,7 @@ webpackJsonp([0],{
 
 	var reactor = __webpack_require__(215);
 
-	var _require = __webpack_require__(396),
+	var _require = __webpack_require__(397),
 	    filter = _require.filter;
 
 	var _require2 = __webpack_require__(239),
@@ -5901,11 +6001,11 @@ webpackJsonp([0],{
 
 	var logger = __webpack_require__(230).create('Modules/Sessions');
 
-	var _require4 = __webpack_require__(397),
+	var _require4 = __webpack_require__(398),
 	    TLPT_STORED_SESSINS_FILTER_SET_RANGE = _require4.TLPT_STORED_SESSINS_FILTER_SET_RANGE;
 
 	var actions = {
-	  fetchStoredSession: function fetchStoredSession() {
+	  fetchSiteEventsWithinTimeRange: function fetchSiteEventsWithinTimeRange() {
 	    var _reactor$evaluate = reactor.evaluate(filter),
 	        start = _reactor$evaluate.start,
 	        end = _reactor$evaluate.end;
@@ -5932,7 +6032,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 396:
+/***/ 397:
 /***/ function(module, exports) {
 
 	'use strict';
@@ -5954,7 +6054,7 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var filter = [['tlpt_stored_sessions_filter'], function (filter) {
+	var filter = [['tlpt_sessions_filter'], function (filter) {
 	  return filter.toJS();
 	}];
 
@@ -5965,7 +6065,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 397:
+/***/ 398:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -6002,7 +6102,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 398:
+/***/ 399:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -6028,37 +6128,39 @@ webpackJsonp([0],{
 	var moment = __webpack_require__(240);
 	var InputSearch = __webpack_require__(382);
 
-	var _require = __webpack_require__(390),
+	var _require = __webpack_require__(394),
 	    isMatch = _require.isMatch;
 
 	var _require2 = __webpack_require__(217),
 	    displayDateFormat = _require2.displayDateFormat;
 
-	var _require3 = __webpack_require__(399),
+	var _require3 = __webpack_require__(400),
 	    actions = _require3.actions;
 
 	var _require4 = __webpack_require__(385),
 	    Table = _require4.Table,
 	    Column = _require4.Column,
 	    Cell = _require4.Cell,
-	    TextCell = _require4.TextCell,
 	    SortHeaderCell = _require4.SortHeaderCell,
 	    SortTypes = _require4.SortTypes,
 	    EmptyIndicator = _require4.EmptyIndicator;
 
-	var _require5 = __webpack_require__(400),
-	    ButtonCell = _require5.ButtonCell,
-	    SingleUserCell = _require5.SingleUserCell,
+	var _require5 = __webpack_require__(401),
+	    SessionIdCell = _require5.SessionIdCell,
+	    NodeCell = _require5.NodeCell,
+	    UsersCell = _require5.UsersCell,
 	    DateCreatedCell = _require5.DateCreatedCell,
 	    DurationCell = _require5.DurationCell;
 
-	var _require6 = __webpack_require__(401),
+	var _require6 = __webpack_require__(402),
 	    DateRangePicker = _require6.DateRangePicker;
 
-	var StoredSessions = React.createClass({
-	  displayName: 'StoredSessions',
+	var ClusterSelector = __webpack_require__(391);
+
+	var SessionList = React.createClass({
+	  displayName: 'SessionList',
 	  getInitialState: function getInitialState() {
-	    this.searchableProps = ['nodeIp', 'created', 'sid', 'login'];
+	    this.searchableProps = ['nodeIp', 'created', 'sid', 'login', 'user'];
 	    return { filter: '', colSortDirs: { created: 'ASC' } };
 	  },
 	  onFilterChange: function onFilterChange(value) {
@@ -6109,15 +6211,27 @@ webpackJsonp([0],{
 	    return sorted;
 	  },
 	  render: function render() {
-	    var _props$filter = this.props.filter,
-	        start = _props$filter.start,
-	        end = _props$filter.end;
+	    var _props = this.props,
+	        filter = _props.filter,
+	        storedSessions = _props.storedSessions,
+	        activeSessions = _props.activeSessions;
+	    var start = filter.start,
+	        end = filter.end;
 
-	    var data = this.props.data.filter(function (item) {
-	      return item.stored && moment(item.created).isBetween(start, end);
+
+	    var stored = storedSessions.filter(function (item) {
+	      return moment(item.created).isBetween(start, end);
 	    });
 
-	    data = this.sortAndFilter(data);
+	    var active = activeSessions.filter(function (item) {
+	      return moment(item.created).isBetween(start, end);
+	    });
+
+	    stored = this.sortAndFilter(stored);
+	    active = this.sortAndFilter(active);
+
+	    // always display active sessions first    
+	    var data = [].concat(active, stored);
 
 	    return React.createElement(
 	      'div',
@@ -6129,109 +6243,83 @@ webpackJsonp([0],{
 	          'div',
 	          { className: 'grv-flex m-b-md', style: { justifyContent: "space-between" } },
 	          React.createElement(
-	            'h2',
-	            { className: 'text-center' },
-	            ' Archived Sessions '
+	            'div',
+	            { className: 'grv-flex' },
+	            React.createElement(
+	              'h2',
+	              { className: 'text-center' },
+	              ' Sessions '
+	            )
 	          ),
 	          React.createElement(
 	            'div',
 	            { className: 'grv-flex' },
-	            React.createElement(DateRangePicker, { className: 'm-r', startDate: start, endDate: end, onChange: this.onRangePickerChange }),
-	            React.createElement(InputSearch, { value: this.filter, onChange: this.onFilterChange })
+	            React.createElement(ClusterSelector, null),
+	            React.createElement(InputSearch, { value: this.filter, onChange: this.onFilterChange }),
+	            React.createElement(
+	              'div',
+	              { className: 'm-l-sm' },
+	              React.createElement(DateRangePicker, { startDate: start, endDate: end, onChange: this.onRangePickerChange })
+	            )
 	          )
 	        )
 	      ),
 	      React.createElement(
 	        'div',
 	        { className: 'grv-content' },
-	        data.length === 0 ? React.createElement(EmptyIndicator, { text: 'No matching archived sessions found' }) : React.createElement(
-	          'div',
-	          { className: '' },
-	          React.createElement(
-	            Table,
-	            { rowCount: data.length, className: 'table-striped' },
-	            React.createElement(Column, {
-	              header: React.createElement(Cell, null),
-	              cell: React.createElement(ButtonCell, { data: data })
+	        data.length === 0 ? React.createElement(EmptyIndicator, { text: 'No matching sessions found' }) : React.createElement(
+	          Table,
+	          { rowCount: data.length },
+	          React.createElement(Column, {
+	            header: React.createElement(
+	              Cell,
+	              { className: 'grv-sessions-col-sid' },
+	              ' Session ID '
+	            ),
+	            cell: React.createElement(SessionIdCell, { data: data })
+	          }),
+	          React.createElement(Column, {
+	            header: React.createElement(
+	              Cell,
+	              null,
+	              ' User '
+	            ),
+	            cell: React.createElement(UsersCell, { data: data })
+	          }),
+	          React.createElement(Column, {
+	            columnKey: 'nodeIp',
+	            header: React.createElement(
+	              Cell,
+	              { className: 'grv-sessions-stored-col-ip' },
+	              'Node'
+	            ),
+	            cell: React.createElement(NodeCell, { data: data })
+	          }),
+	          React.createElement(Column, {
+	            columnKey: 'created',
+	            header: React.createElement(SortHeaderCell, {
+	              sortDir: this.state.colSortDirs.created,
+	              onSortChange: this.onSortChange,
+	              title: 'Created (UTC)'
 	            }),
-	            React.createElement(Column, {
-	              columnKey: 'sid',
-	              header: React.createElement(
-	                Cell,
-	                null,
-	                ' Session ID '
-	              ),
-	              cell: React.createElement(TextCell, { data: data })
+	            cell: React.createElement(DateCreatedCell, { data: data })
+	          }),
+	          React.createElement(Column, {
+	            columnKey: 'duration',
+	            header: React.createElement(SortHeaderCell, {
+	              sortDir: this.state.colSortDirs.duration,
+	              onSortChange: this.onSortChange,
+	              title: 'Duration'
 	            }),
-	            React.createElement(Column, {
-	              columnKey: 'nodeIp',
-	              header: React.createElement(SortHeaderCell, {
-	                sortDir: this.state.colSortDirs.nodeIp,
-	                onSortChange: this.onSortChange,
-	                title: 'Node IP',
-	                className: 'grv-sessions-stored-col-ip'
-	              }),
-	              cell: React.createElement(TextCell, { data: data })
-	            }),
-	            React.createElement(Column, {
-	              columnKey: 'created',
-	              header: React.createElement(SortHeaderCell, {
-	                sortDir: this.state.colSortDirs.created,
-	                onSortChange: this.onSortChange,
-	                title: 'Created'
-	              }),
-	              cell: React.createElement(DateCreatedCell, { data: data })
-	            }),
-	            React.createElement(Column, {
-	              columnKey: 'duration',
-	              header: React.createElement(SortHeaderCell, {
-	                sortDir: this.state.colSortDirs.duration,
-	                onSortChange: this.onSortChange,
-	                title: 'Duration'
-	              }),
-	              cell: React.createElement(DurationCell, { data: data })
-	            }),
-	            React.createElement(Column, {
-	              header: React.createElement(
-	                Cell,
-	                null,
-	                ' User '
-	              ),
-	              cell: React.createElement(SingleUserCell, { data: data })
-	            })
-	          )
+	            cell: React.createElement(DurationCell, { data: data })
+	          })
 	        )
 	      )
 	    );
 	  }
 	});
 
-	module.exports = StoredSessions;
-
-/***/ },
-
-/***/ 399:
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-	module.exports.getters = __webpack_require__(396);
-	module.exports.actions = __webpack_require__(395);
+	module.exports = SessionList;
 
 /***/ },
 
@@ -6240,10 +6328,6 @@ webpackJsonp([0],{
 
 	'use strict';
 
-	exports.__esModule = true;
-
-	function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; }
-
 	/*
 	Copyright 2015 Gravitational, Inc.
 
@@ -6259,23 +6343,58 @@ webpackJsonp([0],{
 	See the License for the specific language governing permissions and
 	limitations under the License.
 	*/
+	module.exports.getters = __webpack_require__(397);
+	module.exports.actions = __webpack_require__(396);
 
-	var React = __webpack_require__(2);
-	var reactor = __webpack_require__(215);
+/***/ },
 
-	var _require = __webpack_require__(155),
-	    Link = _require.Link;
+/***/ 401:
+/***/ function(module, exports, __webpack_require__) {
 
-	var _require2 = __webpack_require__(380),
-	    nodeHostNameByServerId = _require2.nodeHostNameByServerId;
+	'use strict';
 
-	var _require3 = __webpack_require__(217),
-	    displayDateFormat = _require3.displayDateFormat;
+	exports.__esModule = true;
+	exports.NodeCell = exports.SingleUserCell = exports.DateCreatedCell = exports.DurationCell = exports.UsersCell = exports.SessionIdCell = undefined;
 
-	var _require4 = __webpack_require__(385),
-	    Cell = _require4.Cell;
+	var _react = __webpack_require__(2);
 
-	var moment = __webpack_require__(240);
+	var _react2 = _interopRequireDefault(_react);
+
+	var _reactor = __webpack_require__(215);
+
+	var _reactor2 = _interopRequireDefault(_reactor);
+
+	var _reactRouter = __webpack_require__(155);
+
+	var _getters = __webpack_require__(380);
+
+	var _config = __webpack_require__(217);
+
+	var _table = __webpack_require__(385);
+
+	var _moment = __webpack_require__(240);
+
+	var _moment2 = _interopRequireDefault(_moment);
+
+	var _objectUtils = __webpack_require__(394);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; } /*
+	                                                                                                                                                                                                                             Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                             
+	                                                                                                                                                                                                                             Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                             you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                             You may obtain a copy of the License at
+	                                                                                                                                                                                                                             
+	                                                                                                                                                                                                                                 http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                             
+	                                                                                                                                                                                                                             Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                             distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                             WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                             See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                             limitations under the License.
+	                                                                                                                                                                                                                             */
 
 	var DateCreatedCell = function DateCreatedCell(_ref) {
 	  var rowIndex = _ref.rowIndex,
@@ -6283,9 +6402,9 @@ webpackJsonp([0],{
 	      props = _objectWithoutProperties(_ref, ['rowIndex', 'data']);
 
 	  var created = data[rowIndex].created;
-	  var displayDate = moment(created).format(displayDateFormat);
-	  return React.createElement(
-	    Cell,
+	  var displayDate = (0, _moment2.default)(created).format(_config.displayDateFormat);
+	  return _react2.default.createElement(
+	    _table.Cell,
 	    props,
 	    displayDate
 	  );
@@ -6298,9 +6417,9 @@ webpackJsonp([0],{
 
 	  var duration = data[rowIndex].duration;
 
-	  var displayDate = moment.duration(duration).humanize();
-	  return React.createElement(
-	    Cell,
+	  var displayDate = _moment2.default.duration(duration).humanize();
+	  return _react2.default.createElement(
+	    _table.Cell,
 	    props,
 	    displayDate
 	  );
@@ -6313,10 +6432,10 @@ webpackJsonp([0],{
 
 	  var user = data[rowIndex].user;
 
-	  return React.createElement(
-	    Cell,
+	  return _react2.default.createElement(
+	    _table.Cell,
 	    props,
-	    React.createElement(
+	    _react2.default.createElement(
 	      'span',
 	      { className: 'grv-sessions-user label label-default' },
 	      user
@@ -6329,18 +6448,35 @@ webpackJsonp([0],{
 	      data = _ref4.data,
 	      props = _objectWithoutProperties(_ref4, ['rowIndex', 'data']);
 
-	  var $users = data[rowIndex].parties.map(function (item, itemIndex) {
-	    return React.createElement(
-	      'span',
-	      { key: itemIndex, className: 'grv-sessions-user label label-default' },
-	      item.user
-	    );
-	  });
+	  var _data$rowIndex = data[rowIndex],
+	      parties = _data$rowIndex.parties,
+	      user = _data$rowIndex.user;
 
-	  return React.createElement(
-	    Cell,
+
+	  var $users = _react2.default.createElement(
+	    'div',
+	    { className: 'grv-sessions-user' },
+	    user
+	  );
+
+	  if (parties.length > 0) {
+	    $users = parties.map(function (item, itemIndex) {
+	      var ip = (0, _objectUtils.parseIp)(item.serverIp);
+	      return _react2.default.createElement(
+	        'div',
+	        { key: itemIndex, className: 'grv-sessions-user' },
+	        item.user,
+	        ' [',
+	        ip,
+	        ']'
+	      );
+	    });
+	  }
+
+	  return _react2.default.createElement(
+	    _table.Cell,
 	    props,
-	    React.createElement(
+	    _react2.default.createElement(
 	      'div',
 	      null,
 	      $users
@@ -6348,26 +6484,37 @@ webpackJsonp([0],{
 	  );
 	};
 
-	var ButtonCell = function ButtonCell(_ref5) {
+	var SessionIdCell = function SessionIdCell(_ref5) {
 	  var rowIndex = _ref5.rowIndex,
 	      data = _ref5.data,
 	      props = _objectWithoutProperties(_ref5, ['rowIndex', 'data']);
 
-	  var _data$rowIndex = data[rowIndex],
-	      sessionUrl = _data$rowIndex.sessionUrl,
-	      active = _data$rowIndex.active;
+	  var _data$rowIndex2 = data[rowIndex],
+	      sessionUrl = _data$rowIndex2.sessionUrl,
+	      active = _data$rowIndex2.active,
+	      sid = _data$rowIndex2.sid;
 
 	  var _ref6 = active ? ['join', 'btn-warning'] : ['play', 'btn-primary'],
 	      actionText = _ref6[0],
 	      actionClass = _ref6[1];
 
-	  return React.createElement(
-	    Cell,
+	  return _react2.default.createElement(
+	    _table.Cell,
 	    props,
-	    React.createElement(
-	      Link,
-	      { to: sessionUrl, className: "btn " + actionClass + " btn-xs", type: 'button' },
+	    _react2.default.createElement(
+	      _reactRouter.Link,
+	      {
+	        to: sessionUrl,
+	        className: "btn " + actionClass + " btn-xs m-r-sm",
+	        type: 'button' },
 	      actionText
+	    ),
+	    _react2.default.createElement(
+	      'span',
+	      null,
+	      ' ',
+	      sid,
+	      ' '
 	    )
 	  );
 	};
@@ -6377,19 +6524,29 @@ webpackJsonp([0],{
 	      data = _ref7.data,
 	      props = _objectWithoutProperties(_ref7, ['rowIndex', 'data']);
 
-	  var serverId = data[rowIndex].serverId;
+	  var _data$rowIndex3 = data[rowIndex],
+	      serverId = _data$rowIndex3.serverId,
+	      nodeIp = _data$rowIndex3.nodeIp;
 
-	  var hostname = reactor.evaluate(nodeHostNameByServerId(serverId)) || 'unknown';
+	  var hostname = _reactor2.default.evaluate((0, _getters.nodeHostNameByServerId)(serverId));
+	  var ipAddress = (0, _objectUtils.parseIp)(nodeIp);
+	  var display = ipAddress;
 
-	  return React.createElement(
-	    Cell,
+	  if (hostname) {
+	    display = '' + hostname;
+	    if (ipAddress) {
+	      display = hostname + ' [' + ipAddress + ']';
+	    }
+	  }
+
+	  return _react2.default.createElement(
+	    _table.Cell,
 	    props,
-	    hostname
+	    display
 	  );
 	};
 
-	exports.default = ButtonCell;
-	exports.ButtonCell = ButtonCell;
+	exports.SessionIdCell = SessionIdCell;
 	exports.UsersCell = UsersCell;
 	exports.DurationCell = DurationCell;
 	exports.DateCreatedCell = DateCreatedCell;
@@ -6398,7 +6555,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 401:
+/***/ 402:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -6487,7 +6644,7 @@ webpackJsonp([0],{
 	  render: function render() {
 	    return React.createElement(
 	      'div',
-	      { className: 'grv-datepicker input-group input-daterange m-r', ref: 'rangePicker' },
+	      { className: 'grv-datepicker input-group input-group-sm input-daterange', ref: 'rangePicker' },
 	      React.createElement('input', { ref: 'dpPicker1', type: 'text', className: 'input-sm form-control', name: 'start' }),
 	      React.createElement(
 	        'span',
@@ -6553,119 +6710,6 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 402:
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	You may obtain a copy of the License at
-	you may not use this file except in compliance with the License.
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var React = __webpack_require__(2);
-
-	var _require = __webpack_require__(385),
-	    Table = _require.Table,
-	    Column = _require.Column,
-	    Cell = _require.Cell,
-	    TextCell = _require.TextCell,
-	    EmptyIndicator = _require.EmptyIndicator;
-
-	var _require2 = __webpack_require__(400),
-	    ButtonCell = _require2.ButtonCell,
-	    UsersCell = _require2.UsersCell,
-	    NodeCell = _require2.NodeCell,
-	    DateCreatedCell = _require2.DateCreatedCell;
-
-	var ActiveSessionList = React.createClass({
-	  displayName: 'ActiveSessionList',
-	  render: function render() {
-	    var data = this.props.data.filter(function (item) {
-	      return item.active;
-	    });
-
-	    return React.createElement(
-	      'div',
-	      { className: 'grv-sessions-active' },
-	      React.createElement(
-	        'div',
-	        { className: 'grv-header' },
-	        React.createElement(
-	          'h2',
-	          { className: '' },
-	          ' Active Sessions '
-	        )
-	      ),
-	      React.createElement(
-	        'div',
-	        { className: 'grv-content m-t' },
-	        data.length === 0 ? React.createElement(EmptyIndicator, { text: 'You have no active sessions' }) : React.createElement(
-	          'div',
-	          { className: '' },
-	          React.createElement(
-	            Table,
-	            { rowCount: data.length, className: 'table-striped' },
-	            React.createElement(Column, {
-	              header: React.createElement(Cell, null),
-	              cell: React.createElement(ButtonCell, { data: data })
-	            }),
-	            React.createElement(Column, {
-	              columnKey: 'sid',
-	              header: React.createElement(
-	                Cell,
-	                null,
-	                ' Session ID '
-	              ),
-	              cell: React.createElement(TextCell, { data: data })
-	            }),
-	            React.createElement(Column, {
-	              header: React.createElement(
-	                Cell,
-	                null,
-	                'Node'
-	              ),
-	              cell: React.createElement(NodeCell, { data: data })
-	            }),
-	            React.createElement(Column, {
-	              columnKey: 'created',
-	              header: React.createElement(
-	                Cell,
-	                null,
-	                ' Created '
-	              ),
-	              cell: React.createElement(DateCreatedCell, { data: data })
-	            }),
-	            React.createElement(Column, {
-	              header: React.createElement(
-	                Cell,
-	                null,
-	                ' User '
-	              ),
-	              cell: React.createElement(UsersCell, { data: data })
-	            })
-	          )
-	        )
-	      )
-	    );
-	  }
-	});
-
-	module.exports = ActiveSessionList;
-
-/***/ },
-
 /***/ 403:
 /***/ function(module, exports, __webpack_require__) {
 
@@ -6694,7 +6738,7 @@ webpackJsonp([0],{
 	    getters = _require.getters;
 
 	var SessionPlayer = __webpack_require__(406);
-	var ActiveSession = __webpack_require__(449);
+	var ActiveSession = __webpack_require__(450);
 	var cfg = __webpack_require__(217);
 
 	var CurrentSessionHost = React.createClass({
@@ -6715,7 +6759,7 @@ webpackJsonp([0],{
 	      return null;
 	    }
 
-	    if (currentSession.isNewSession || currentSession.active) {
+	    if (currentSession.active) {
 	      return React.createElement(ActiveSession, currentSession);
 	    }
 
@@ -6785,7 +6829,7 @@ webpackJsonp([0],{
 	    Store = _require.Store,
 	    toImmutable = _require.toImmutable;
 
-	var _require2 = __webpack_require__(389),
+	var _require2 = __webpack_require__(390),
 	    TLPT_CURRENT_SESSION_OPEN = _require2.TLPT_CURRENT_SESSION_OPEN,
 	    TLPT_CURRENT_SESSION_CLOSE = _require2.TLPT_CURRENT_SESSION_CLOSE;
 
@@ -6809,14 +6853,16 @@ webpackJsonp([0],{
 	      serverId = _ref.serverId,
 	      login = _ref.login,
 	      sid = _ref.sid,
-	      isNewSession = _ref.isNewSession;
+	      active = _ref.active,
+	      isNew = _ref.isNew;
 
 	  return toImmutable({
 	    siteId: siteId,
 	    serverId: serverId,
 	    login: login,
 	    sid: sid,
-	    isNewSession: isNewSession
+	    active: active,
+	    isNew: isNew
 	  });
 	}
 	module.exports = exports['default'];
@@ -6858,10 +6904,10 @@ webpackJsonp([0],{
 	var _require = __webpack_require__(408),
 	    TtyPlayer = _require.TtyPlayer;
 
-	var Terminal = __webpack_require__(416);
-	var SessionLeftPanel = __webpack_require__(420);
+	var Terminal = __webpack_require__(417);
+	var SessionLeftPanel = __webpack_require__(421);
 	var $ = __webpack_require__(219);
-	__webpack_require__(427)($);
+	__webpack_require__(428)($);
 
 	var Term = function (_Terminal) {
 	  _inherits(Term, _Terminal);
@@ -7036,7 +7082,7 @@ webpackJsonp([0],{
 	    showError = _require.showError;
 
 	var $ = __webpack_require__(219);
-	var Buffer = __webpack_require__(411).Buffer;
+	var Buffer = __webpack_require__(412).Buffer;
 
 	var logger = __webpack_require__(230).create('TtyPlayer');
 	var STREAM_START_INDEX = 0;
@@ -7462,29 +7508,31 @@ webpackJsonp([0],{
 
 	'use strict';
 
+	exports.__esModule = true;
+
+	var _events = __webpack_require__(410);
+
+	var _ttyEnums = __webpack_require__(411);
+
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
-	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var EventEmitter = __webpack_require__(410).EventEmitter;
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /*
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               You may obtain a copy of the License at
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
 
 	var Tty = function (_EventEmitter) {
 	  _inherits(Tty, _EventEmitter);
@@ -7499,7 +7547,9 @@ webpackJsonp([0],{
 	  }
 
 	  Tty.prototype.disconnect = function disconnect() {
-	    this.socket.close();
+	    var reasonCode = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : _ttyEnums.StatusCodeEnum.NORMAL;
+
+	    this.socket.close(reasonCode);
 	  };
 
 	  Tty.prototype.reconnect = function reconnect(options) {
@@ -7524,8 +7574,8 @@ webpackJsonp([0],{
 	      _this2.emit('data', e.data);
 	    };
 
-	    this.socket.onclose = function () {
-	      _this2.emit('close');
+	    this.socket.onclose = function (e) {
+	      _this2.emit('close', e);
 	    };
 	  };
 
@@ -7534,9 +7584,10 @@ webpackJsonp([0],{
 	  };
 
 	  return Tty;
-	}(EventEmitter);
+	}(_events.EventEmitter);
 
-	module.exports = Tty;
+	exports.default = Tty;
+	module.exports = exports['default'];
 
 /***/ },
 
@@ -7848,7 +7899,37 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 416:
+/***/ 411:
+/***/ function(module, exports) {
+
+	"use strict";
+
+	exports.__esModule = true;
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	var StatusCodeEnum = {
+	  NORMAL: 1000
+	};
+
+	exports.StatusCodeEnum = StatusCodeEnum;
+
+/***/ },
+
+/***/ 417:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -7871,9 +7952,9 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var Term = __webpack_require__(417);
+	var Term = __webpack_require__(418);
 	var Tty = __webpack_require__(409);
-	var TtyEvents = __webpack_require__(419);
+	var TtyEvents = __webpack_require__(420);
 
 	var _require = __webpack_require__(383),
 	    debounce = _require.debounce,
@@ -7885,8 +7966,7 @@ webpackJsonp([0],{
 
 	Term.colors[256] = '#252323';
 
-	var DISCONNECT_TXT = '\x1b[31mdisconnected\x1b[m\r\n';
-	var CONNECTED_TXT = 'Connected!\r\n';
+	var DISCONNECT_TXT = 'disconnected';
 	var GRV_CLASS = 'grv-terminal';
 	var WINDOW_RESIZE_DEBOUNCE_DELAY = 100;
 
@@ -7946,12 +8026,7 @@ webpackJsonp([0],{
 	    this.tty.on('reset', function () {
 	      return _this.term.reset();
 	    });
-	    this.tty.on('open', function () {
-	      return _this.term.write(CONNECTED_TXT);
-	    });
-	    this.tty.on('close', function () {
-	      return _this.term.write(DISCONNECT_TXT);
-	    });
+	    this.tty.on('close', this._processClose.bind(this));
 	    this.tty.on('data', this._processData.bind(this));
 
 	    this.connect();
@@ -8006,6 +8081,19 @@ webpackJsonp([0],{
 	        err: err
 	      });
 	    }
+	  };
+
+	  TtyTerminal.prototype._processClose = function _processClose(e) {
+	    var reason = e.reason;
+
+	    var displayText = DISCONNECT_TXT;
+
+	    if (reason) {
+	      displayText = displayText + ': ' + reason;
+	    }
+
+	    displayText = '\x1B[31m' + displayText + '\x1B[m\r\n';
+	    this.term.write(displayText);
 	  };
 
 	  TtyTerminal.prototype._ensureScreenSize = function _ensureScreenSize(data) {
@@ -8144,34 +8232,36 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 419:
+/***/ 420:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
+
+	exports.__esModule = true;
+
+	var _events = __webpack_require__(410);
+
+	var _ttyEnums = __webpack_require__(411);
 
 	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
-	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var EventEmitter = __webpack_require__(410).EventEmitter;
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /*
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               You may obtain a copy of the License at
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               limitations under the License.
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
 
 	var logger = __webpack_require__(230).create('TtyEvents');
 
@@ -8211,17 +8301,20 @@ webpackJsonp([0],{
 	  };
 
 	  TtyEvents.prototype.disconnect = function disconnect() {
-	    this.socket.close();
+	    var reasonCode = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : _ttyEnums.StatusCodeEnum.NORMAL;
+
+	    this.socket.close(reasonCode);
 	  };
 
 	  return TtyEvents;
-	}(EventEmitter);
+	}(_events.EventEmitter);
 
-	module.exports = TtyEvents;
+	exports.default = TtyEvents;
+	module.exports = exports['default'];
 
 /***/ },
 
-/***/ 420:
+/***/ 421:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8250,7 +8343,7 @@ webpackJsonp([0],{
 	var _require2 = __webpack_require__(341),
 	    UserIcon = _require2.UserIcon;
 
-	var ReactCSSTransitionGroup = __webpack_require__(421);
+	var ReactCSSTransitionGroup = __webpack_require__(422);
 
 	var SessionLeftPanel = function SessionLeftPanel(_ref) {
 	  var parties = _ref.parties;
@@ -8303,7 +8396,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 449:
+/***/ 450:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8332,13 +8425,13 @@ webpackJsonp([0],{
 	var _require = __webpack_require__(380),
 	    nodeHostNameByServerId = _require.nodeHostNameByServerId;
 
-	var SessionLeftPanel = __webpack_require__(420);
+	var SessionLeftPanel = __webpack_require__(421);
 	var cfg = __webpack_require__(217);
 	var session = __webpack_require__(229);
-	var Terminal = __webpack_require__(416);
+	var Terminal = __webpack_require__(417);
 
 	var _require2 = __webpack_require__(386),
-	    processSessionFromEventStream = _require2.processSessionFromEventStream;
+	    updateSessionFromEventStream = _require2.updateSessionFromEventStream;
 
 	var ActiveSession = React.createClass({
 	  displayName: 'ActiveSession',
@@ -8379,9 +8472,7 @@ webpackJsonp([0],{
 	        serverId = _props2.serverId,
 	        siteId = _props2.siteId,
 	        login = _props2.login,
-	        sid = _props2.sid,
-	        rows = _props2.rows,
-	        cols = _props2.cols;
+	        sid = _props2.sid;
 
 	    var _session$getUserData = session.getUserData(),
 	        token = _session$getUserData.token;
@@ -8392,13 +8483,11 @@ webpackJsonp([0],{
 	      tty: {
 	        serverId: serverId, login: login, sid: sid, token: token, url: url
 	      },
-	      rows: rows,
-	      cols: cols,
 	      el: this.refs.container
 	    };
 
 	    this.terminal = new Terminal(options);
-	    this.terminal.ttyEvents.on('data', processSessionFromEventStream(siteId));
+	    this.terminal.ttyEvents.on('data', updateSessionFromEventStream(siteId));
 	    this.terminal.open();
 	  },
 	  componentWillUnmount: function componentWillUnmount() {
@@ -8420,7 +8509,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 450:
+/***/ 451:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8435,13 +8524,15 @@ webpackJsonp([0],{
 	  'tlpt': __webpack_require__(348),
 	  'tlpt_current_session': __webpack_require__(405),
 	  'tlpt_user': __webpack_require__(375),
-	  'tlpt_sites': __webpack_require__(451),
-	  'tlpt_user_invite': __webpack_require__(453),
-	  'tlpt_nodes': __webpack_require__(454),
-	  'tlpt_rest_api': __webpack_require__(455),
-	  'tlpt_sessions': __webpack_require__(456),
-	  'tlpt_stored_sessions_filter': __webpack_require__(457),
-	  'tlpt_notifications': __webpack_require__(458)
+	  'tlpt_sites': __webpack_require__(452),
+	  'tlpt_user_invite': __webpack_require__(454),
+	  'tlpt_nodes': __webpack_require__(455),
+	  'tlpt_rest_api': __webpack_require__(456),
+	  'tlpt_sessions_events': __webpack_require__(457),
+	  'tlpt_sessions_archived': __webpack_require__(458),
+	  'tlpt_sessions_active': __webpack_require__(459),
+	  'tlpt_sessions_filter': __webpack_require__(460),
+	  'tlpt_notifications': __webpack_require__(461)
 	}); /*
 	    Copyright 2015 Gravitational, Inc.
 	    
@@ -8460,7 +8551,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 451:
+/***/ 452:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -8471,7 +8562,7 @@ webpackJsonp([0],{
 
 	var _actionTypes = __webpack_require__(235);
 
-	var _immutable = __webpack_require__(452);
+	var _immutable = __webpack_require__(453);
 
 	var Site = (0, _immutable.Record)({
 	  name: null,
@@ -8511,7 +8602,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 452:
+/***/ 453:
 /***/ function(module, exports, __webpack_require__) {
 
 	/**
@@ -13496,7 +13587,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 453:
+/***/ 454:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -13543,7 +13634,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 454:
+/***/ 455:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -13587,6 +13678,10 @@ webpackJsonp([0],{
 	  var siteId = _ref.siteId,
 	      nodeArray = _ref.nodeArray;
 
+	  nodeArray = nodeArray || [];
+	  nodeArray.forEach(function (n) {
+	    return n.siteId = siteId;
+	  });
 	  return state.filter(function (o) {
 	    return o.get('siteId') !== siteId;
 	  }).concat(toImmutable(nodeArray));
@@ -13595,7 +13690,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 455:
+/***/ 456:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -13654,12 +13749,16 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 456:
+/***/ 457:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
 	exports.__esModule = true;
+
+	var _nuclearJs = __webpack_require__(216);
+
+	var _actionTypes = __webpack_require__(340);
 
 	/*
 	Copyright 2015 Gravitational, Inc.
@@ -13677,85 +13776,127 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var _require = __webpack_require__(216),
-	    Store = _require.Store,
-	    toImmutable = _require.toImmutable;
-
-	var _require2 = __webpack_require__(340),
-	    TLPT_SESSIONS_RECEIVE = _require2.TLPT_SESSIONS_RECEIVE,
-	    TLPT_SESSIONS_UPDATE = _require2.TLPT_SESSIONS_UPDATE,
-	    TLPT_SESSIONS_UPDATE_WITH_EVENTS = _require2.TLPT_SESSIONS_UPDATE_WITH_EVENTS;
-
-	var PORT_REGEX = /:\d+$/;
-
-	exports.default = Store({
+	exports.default = (0, _nuclearJs.Store)({
 	  getInitialState: function getInitialState() {
-	    return toImmutable({});
+	    return (0, _nuclearJs.toImmutable)({});
 	  },
 	  initialize: function initialize() {
-	    this.on(TLPT_SESSIONS_UPDATE_WITH_EVENTS, updateSessionWithEvents);
-	    this.on(TLPT_SESSIONS_RECEIVE, receiveSessions);
-	    this.on(TLPT_SESSIONS_UPDATE, updateSession);
+	    this.on(_actionTypes.TLPT_SESSIONS_EVENTS_RECEIVE, receive);
 	  }
 	});
 
 
-	function getIp(addr) {
-	  addr = addr || '';
-	  return addr.replace(PORT_REGEX, '');
-	}
+	function receive(state, _ref) {
+	  var json = _ref.json;
 
-	function updateSessionWithEvents(state, _ref) {
-	  var _ref$jsonEvents = _ref.jsonEvents,
-	      jsonEvents = _ref$jsonEvents === undefined ? [] : _ref$jsonEvents,
-	      siteId = _ref.siteId;
-
+	  var jsonEvents = json || [];
 	  return state.withMutations(function (state) {
 	    jsonEvents.forEach(function (item) {
-	      if (item.event !== 'session.start' && item.event !== 'session.end') {
-	        return;
+	      var sid = item.sid,
+	          event = item.event;
+
+
+	      if (!state.has(sid)) {
+	        state.set(sid, (0, _nuclearJs.toImmutable)({}));
 	      }
 
-	      // check if record already exists
-	      var session = state.get(item.sid);
-	      if (!session) {
-	        session = {};
-	      } else {
-	        session = session.toJS();
-	      }
-
-	      session.id = item.sid;
-	      session.user = item.user;
-
-	      if (item.event === 'session.start') {
-	        session.created = item.time;
-	        session.nodeIp = getIp(item['addr.local']);
-	        session.clientIp = getIp(item['addr.remote']);
-	      }
-
-	      if (item.event === 'session.end') {
-	        session.last_active = item.time;
-	        session.active = false;
-	        session.stored = true;
-	      }
-
-	      session.siteId = siteId;
-	      state.set(session.id, toImmutable(session));
+	      state.setIn([sid, event], (0, _nuclearJs.toImmutable)(item));
 	    });
 	  });
 	}
+	module.exports = exports['default'];
 
-	function updateSession(state, json) {
-	  return state.set(json.id, toImmutable(json));
-	}
+/***/ },
 
-	function receiveSessions(state, jsonArray) {
-	  jsonArray = jsonArray || [];
+/***/ 458:
+/***/ function(module, exports, __webpack_require__) {
 
+	'use strict';
+
+	exports.__esModule = true;
+
+	var _nuclearJs = __webpack_require__(216);
+
+	var _immutable = __webpack_require__(453);
+
+	var _actionTypes = __webpack_require__(340);
+
+	var _enums = __webpack_require__(389);
+
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	var StoredSessionRec = (0, _immutable.Record)({
+	  id: undefined,
+	  user: undefined,
+	  created: undefined,
+	  nodeIp: undefined,
+	  last_active: undefined,
+	  server_id: undefined,
+	  siteId: undefined,
+	  parties: (0, _immutable.List)()
+	});
+
+	exports.default = (0, _nuclearJs.Store)({
+	  getInitialState: function getInitialState() {
+	    return (0, _nuclearJs.toImmutable)({});
+	  },
+	  initialize: function initialize() {
+	    this.on(_actionTypes.TLPT_SESSIONS_EVENTS_RECEIVE, receive);
+	  }
+	});
+
+
+	function receive(state, _ref) {
+	  var siteId = _ref.siteId,
+	      json = _ref.json;
+
+	  var jsonEvents = json || [];
+	  var tmp = {};
 	  return state.withMutations(function (state) {
-	    jsonArray.forEach(function (item) {
-	      if (!state.getIn([item.id, 'stored'])) {
-	        state.set(item.id, toImmutable(item));
+	    jsonEvents.forEach(function (item) {
+	      if (item.event !== _enums.EventTypeEnum.START && item.event !== _enums.EventTypeEnum.END) {
+	        return;
+	      }
+
+	      var sid = item.sid,
+	          user = item.user,
+	          time = item.time,
+	          event = item.event,
+	          server_id = item.server_id;
+
+
+	      tmp[sid] = tmp[sid] || {};
+	      tmp[sid].id = sid;
+	      tmp[sid].user = user;
+	      tmp[sid].siteId = siteId;
+
+	      if (event === _enums.EventTypeEnum.START) {
+	        tmp[sid].created = time;
+	        tmp[sid].server_id = server_id;
+	        tmp[sid].nodeIp = item['addr.local'];
+	        tmp[sid].parties = [{
+	          user: user,
+	          serverIp: item['addr.remote']
+	        }];
+	      }
+
+	      if (event === _enums.EventTypeEnum.END) {
+	        tmp[sid].last_active = time;
+	        state.set(sid, new StoredSessionRec((0, _nuclearJs.toImmutable)(tmp[sid])));
 	      }
 	    });
 	  });
@@ -13764,7 +13905,117 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 457:
+/***/ 459:
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	exports.__esModule = true;
+
+	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; /*
+	                                                                                                                                                                                                                                                                  Copyright 2015 Gravitational, Inc.
+	                                                                                                                                                                                                                                                                  
+	                                                                                                                                                                                                                                                                  Licensed under the Apache License, Version 2.0 (the "License");
+	                                                                                                                                                                                                                                                                  you may not use this file except in compliance with the License.
+	                                                                                                                                                                                                                                                                  You may obtain a copy of the License at
+	                                                                                                                                                                                                                                                                  
+	                                                                                                                                                                                                                                                                      http://www.apache.org/licenses/LICENSE-2.0
+	                                                                                                                                                                                                                                                                  
+	                                                                                                                                                                                                                                                                  Unless required by applicable law or agreed to in writing, software
+	                                                                                                                                                                                                                                                                  distributed under the License is distributed on an "AS IS" BASIS,
+	                                                                                                                                                                                                                                                                  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	                                                                                                                                                                                                                                                                  See the License for the specific language governing permissions and
+	                                                                                                                                                                                                                                                                  limitations under the License.
+	                                                                                                                                                                                                                                                                  */
+
+	var _nuclearJs = __webpack_require__(216);
+
+	var _immutable = __webpack_require__(453);
+
+	var _actionTypes = __webpack_require__(340);
+
+	var ActiveSessionRec = (0, _immutable.Record)({
+	  id: undefined,
+	  namespace: undefined,
+	  login: undefined,
+	  active: undefined,
+	  created: undefined,
+	  last_active: undefined,
+	  server_id: undefined,
+	  siteId: undefined,
+	  parties: (0, _immutable.List)()
+	});
+
+	var PartyRecord = (0, _immutable.Record)({
+	  user: undefined,
+	  serverIp: undefined,
+	  serverId: undefined
+	});
+
+	var defaultState = function defaultState() {
+	  return (0, _nuclearJs.toImmutable)({});
+	};
+
+	exports.default = (0, _nuclearJs.Store)({
+	  getInitialState: function getInitialState() {
+	    return defaultState();
+	  },
+	  initialize: function initialize() {
+	    this.on(_actionTypes.TLPT_SESSIONS_ACTIVE_RECEIVE, receive);
+	    this.on(_actionTypes.TLPT_SESSIONS_ACTIVE_UPDATE, updateSession);
+	  }
+	});
+
+
+	function updateSession(state, _ref) {
+	  var siteId = _ref.siteId,
+	      json = _ref.json;
+
+	  var rec = createSessionRec(siteId, json);
+	  return state.set(rec.id, rec);
+	}
+
+	function receive(state, _ref2) {
+	  var siteId = _ref2.siteId,
+	      json = _ref2.json;
+
+	  var jsonArray = json || [];
+	  var newState = defaultState();
+	  jsonArray.filter(function (item) {
+	    return item.active === true;
+	  }).forEach(function (item) {
+	    var rec = createSessionRec(siteId, item);
+	    newState = newState.set(rec.id, rec);
+	  });
+
+	  return newState;
+	}
+
+	function createSessionRec(siteId, json) {
+	  var parties = createParties(json.parties);
+	  var rec = new ActiveSessionRec((0, _nuclearJs.toImmutable)(_extends({}, json, {
+	    siteId: siteId,
+	    parties: parties
+	  })));
+
+	  return rec;
+	}
+
+	function createParties(jsonArray) {
+	  jsonArray = jsonArray || [];
+	  return jsonArray.map(function (item) {
+	    return new PartyRecord({
+	      user: item.user,
+	      serverIp: item.remote_addr,
+	      serverId: item.server_id
+	    });
+	  });
+	}
+	module.exports = exports['default'];
+
+/***/ },
+
+/***/ 460:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -13793,7 +14044,7 @@ webpackJsonp([0],{
 
 	var moment = __webpack_require__(240);
 
-	var _require2 = __webpack_require__(397),
+	var _require2 = __webpack_require__(398),
 	    TLPT_STORED_SESSINS_FILTER_SET_RANGE = _require2.TLPT_STORED_SESSINS_FILTER_SET_RANGE;
 
 	exports.default = Store({
@@ -13821,7 +14072,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 458:
+/***/ 461:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
