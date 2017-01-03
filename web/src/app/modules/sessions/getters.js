@@ -14,78 +14,80 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var moment =  require('moment');
-var reactor = require('app/reactor');
-var cfg = require('app/config');
+import moment from 'moment';
+import cfg from 'app/config';
+import { EventTypeEnum } from 'app/services/enums';
+import reactor from 'app/reactor';
 
-const sessionsView = [['tlpt_sessions'], ['tlpt', 'siteId'], (sessionList, siteId) => {  
+const activeSessions = [['tlpt_sessions_active'], ['tlpt', 'siteId'], (sessionList, siteId) => {  
   sessionList = sessionList.filter(n => n.get('siteId') === siteId);    
-  return sessionList.valueSeq().map(createView).toJS();
+  return sessionList.valueSeq().map(createActiveListItem).toJS();
 }];
 
-const sessionViewById = (sid)=> [['tlpt_sessions', sid], (session)=>{
-  if(!session){
-    return null;
-  }
-
-  return createView(session);
+const storedSessions = [['tlpt_sessions_archived'], ['tlpt', 'siteId'], (sessionList, siteId) => {  
+  sessionList = sessionList.filter(n => n.get('siteId') === siteId);    
+  return sessionList.valueSeq().map(createStoredListItem).toJS();
 }];
 
-const partiesBySessionId = (sid) =>
- [['tlpt_sessions', sid, 'parties'], (parties) =>{
+const activeSessionById = sid => ['tlpt_sessions_active', sid];
+const storedSessionById = sid => ['tlpt_sessions_archived', sid];
+const nodeIpById = sid => ['tlpt_sessions_events', sid, EventTypeEnum.START, 'addr.local'];
 
-  if(!parties){
-    return [];
-  }
+function createStoredListItem(session){
+  let sid = session.get('id');      
+  let { siteId, nodeIp, created, server_id, parties, last_active } = session;    
+  let duration = moment(last_active).diff(created);
 
-  return parties.map(item=>{
-    return {
-      user: item.get('user'),
-      serverIp: item.get('remote_addr'),
-      serverId: item.get('server_id')
-    }
-  }).toJS();
-}];
-
-function createView(session){
-  var sid = session.get('id');
-  var serverIp;
-  var parties = reactor.evaluate(partiesBySessionId(sid));
-
-  if(parties.length > 0){
-    serverIp = parties[0].serverIp;
-  }
-
-  let created = new Date(session.get('created'));
-  let lastActive = new Date(session.get('last_active'));
-  let duration = moment(created).diff(lastActive);
-  let siteId = session.get('siteId');
-
-  return {
-    parties,
+  let sessionUrl = cfg.getCurrentSessionRouteUrl({
     sid,
-    created,
-    lastActive,
-    duration,
-    serverIp,
-    siteId,
-    stored: session.get('stored'),
-    serverId: session.get('server_id'),
-    clientIp: session.get('clientIp'),
-    nodeIp: session.get('nodeIp'),
-    active: session.get('active'),
-    user: session.get('user'),
-    login: session.get('login'),
-    sessionUrl: cfg.getCurrentSessionRouteUrl({ sid, siteId }),
-    cols: session.getIn(['terminal_params', 'w']),
-    rows: session.getIn(['terminal_params', 'h'])
+    siteId
+  });
+    
+  return {
+    active: false,
+    parties: parties.toJS(),
+    sid,
+    created,    
+    duration,    
+    siteId,                       
+    sessionUrl,
+    serverId: server_id,
+    nodeIp: nodeIp,
+    lastActive: last_active    
   }
 }
 
+function createActiveListItem(session){
+  let sid = session.get('id');  
+  let parties = session.parties.toJS();
+  
+  let { siteId, created, last_active, server_id } = session;    
+  let duration = moment(last_active).diff(created);
+  let nodeIp = reactor.evaluate(nodeIpById(sid));
+    
+  let sessionUrl = cfg.getCurrentSessionRouteUrl({
+    sid,
+    siteId
+  });
+    
+  return {
+    active: true,
+    parties,
+    serverId: server_id,        
+    sid,
+    created,    
+    duration,    
+    siteId,     
+    sessionUrl,
+    nodeIp: nodeIp,
+    lastActive: last_active    
+  }
+}
+  
 export default {
-  partiesBySessionId,
-  sessionsView,
-  sessionViewById,
-  createView,
-  count: [['tlpt_sessions'], sessions => sessions.size ]
+  storedSessions,
+  activeSessions,
+  activeSessionById,
+  storedSessionById,  
+  createStoredListItem
 }

@@ -26,7 +26,6 @@ var $ = require('jQuery');
 Term.colors[256] = '#252323';
 
 const DISCONNECT_TXT = 'disconnected';
-const CONNECTED_TXT = 'Connected!\r\n';
 const GRV_CLASS = 'grv-terminal';
 const WINDOW_RESIZE_DEBOUNCE_DELAY = 100;
 
@@ -74,8 +73,7 @@ class TtyTerminal {
     this.term.on('data', (data) => this.tty.send(data));
 
     // subscribe to tty events
-    this.tty.on('resize', ({h, w}) => this.resize(w, h));
-    this.tty.on('open', () => this.term.write(CONNECTED_TXT));
+    this.tty.on('resize', ({h, w}) => this.resize(w, h));    
     this.tty.on('reset', () => this.term.reset());    
     this.tty.on('close', this._processClose.bind(this));
     this.tty.on('data', this._processData.bind(this));

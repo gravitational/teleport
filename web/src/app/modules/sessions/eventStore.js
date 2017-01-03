@@ -14,31 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var { Store, toImmutable } = require('nuclear-js');
-var { TLPT_CURRENT_SESSION_OPEN, TLPT_CURRENT_SESSION_CLOSE }  = require('./actionTypes');
-
+import { Store, toImmutable } from 'nuclear-js';
+import { TLPT_SESSIONS_EVENTS_RECEIVE } from './actionTypes';
+    
 export default Store({
   getInitialState() {
-    return toImmutable(null);
+    return toImmutable({});
   },
 
   initialize() {
-    this.on(TLPT_CURRENT_SESSION_OPEN, setCurrentSession);
-    this.on(TLPT_CURRENT_SESSION_CLOSE, close);
+    this.on(TLPT_SESSIONS_EVENTS_RECEIVE, receive);        
   }
 })
 
-function close(){
-  return toImmutable(null);
-}
-
-function setCurrentSession(state, {siteId, serverId, login, sid, active, isNew} ){
-  return toImmutable({
-    siteId,
-    serverId,
-    login,
-    sid,    
-    active,
-    isNew
+function receive(state, { json }) { 
+  let jsonEvents = json || [];  
+  return state.withMutations(state => {
+    jsonEvents.forEach(item => {      
+      let { sid, event } = item;
+      
+      if (!state.has(sid)) {
+        state.set(sid, toImmutable({}));
+      }
+      
+      state.setIn([sid, event], toImmutable(item));
+    });
   });
 }

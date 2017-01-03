@@ -14,43 +14,41 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var React = require('react');
-var reactor = require('app/reactor');
-var { fetchStoredSession } = require('app/modules/storedSessionsFilter/actions');
-var {sessionsView} = require('app/modules/sessions/getters');
-var {filter} = require('app/modules/storedSessionsFilter/getters');
-var StoredSessionList = require('./storedSessionList.jsx');
-var ActiveSessionList = require('./activeSessionList.jsx');
-var Timer = require('./../timer.jsx');
-var ClusterContent = require('./../clusterContent.jsx');
+import React from 'react';
+import reactor from 'app/reactor';
+import { fetchSiteEventsWithinTimeRange } from 'app/modules/storedSessionsFilter/actions';
+import { storedSessions, activeSessions } from 'app/modules/sessions/getters';
+import { filter } from 'app/modules/storedSessionsFilter/getters';
+import Timer from './../timer.jsx';
+import SessionList from './sessionList.jsx';
 
-var Sessions = React.createClass({
+const Sessions = React.createClass({
+
   mixins: [reactor.ReactMixin],
 
   getDataBindings() {
     return {
-      data: sessionsView,
+      activeSessions: activeSessions,
+      storedSessions: storedSessions,
       storedSessionsFilter: filter
     }
   },
 
   refresh(){
-    fetchStoredSession();    
+    fetchSiteEventsWithinTimeRange();    
   },
 
-  render: function() {
-    let {data, storedSessionsFilter} = this.state;
-    return (
-      <ClusterContent>
-        <div className="grv-sessions">
-          <Timer onTimeout={this.refresh} />
-          <ActiveSessionList data={data} />
-          <div className="m-t-lg"/>
-          <StoredSessionList data={data} filter={storedSessionsFilter}/>
-        </div>
-      </ClusterContent>  
+  render() {
+    let {storedSessions, activeSessions, storedSessionsFilter} = this.state;
+    return (      
+      <div className="grv-page grv-sessions">                                      
+        <SessionList
+          activeSessions={activeSessions}
+          storedSessions={storedSessions} filter={storedSessionsFilter} />
+        <Timer onTimeout={this.refresh} />
+      </div>        
     );
   }
 });
 
-module.exports = Sessions;
+export default Sessions;

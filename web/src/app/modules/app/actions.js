@@ -92,6 +92,4 @@ const actions = {
   }
 }
 
-window.actions = actions;
-
 export default actions;

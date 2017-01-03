@@ -32,21 +32,10 @@ const ClusterSelector = React.createClass({
       siteId: appGetters.siteId
     }
   },
-
-  getInitialState() {
-    return {        
-      filter: ''
-    };
-  },
-
+  
   onChangeSite(value) {
     setSiteId(value);      
     refresh();
-  },
-
-  onFilterChange(value){
-    this.state.filter = value;
-    this.setState(this.state);
   },
 
   render() {

@@ -18,6 +18,7 @@ var React = require('react');
 var InputSearch = require('./../inputSearch.jsx');
 var {Table, Column, Cell, SortHeaderCell, SortTypes, EmptyIndicator} = require('app/components/table.jsx');
 var {createNewSession} = require('app/modules/currentSession/actions');
+var ClusterSelector = require('./../clusterSelector.jsx');
 
 var _ = require('_');
 var {isMatch} = require('app/common/objectUtils');
@@ -136,7 +137,8 @@ var NodeList = React.createClass({
       <div className="grv-nodes">                
         <div className="grv-flex grv-header m-t" style={{ justifyContent: "space-between" }}>                    
           <h2 className="text-center no-margins"> Nodes </h2>          
-          <div className="grv-flex">                      
+          <div className="grv-flex">
+            <ClusterSelector/>  
             <InputSearch value={this.filter} onChange={this.onFilterChange} />                        
           </div>
         </div>
@@ -151,7 +153,7 @@ var NodeList = React.createClass({
                   <SortHeaderCell
                     sortDir={this.state.colSortDirs.hostname}
                     onSortChange={this.onSortChange}
-                    title="Node"
+                    title="Hostname"
                   />
                 }
                 cell={<TextCell data={data}/> }
@@ -162,7 +164,7 @@ var NodeList = React.createClass({
                   <SortHeaderCell
                     sortDir={this.state.colSortDirs.addr}
                     onSortChange={this.onSortChange}
-                    title="IP"
+                    title="Address"
                   />
                 }
                 cell={<TextCell data={data}/> }

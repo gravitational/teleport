@@ -48,8 +48,7 @@ class Tty extends EventEmitter {
       this.emit('data', e.data);
     }
     
-    this.socket.onclose = e => {       
-      console.table(e);
+    this.socket.onclose = e => {             
       this.emit('close', e);
     }
   }

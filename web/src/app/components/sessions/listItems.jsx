@@ -14,13 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var React = require('react');
-var reactor = require('app/reactor');
-var { Link } = require('react-router');
-var {nodeHostNameByServerId} = require('app/modules/nodes/getters');
-var {displayDateFormat} = require('app/config');
-var {Cell} = require('app/components/table.jsx');
-var moment =  require('moment');
+import React from 'react';
+import reactor from 'app/reactor';
+import { Link } from  'react-router';
+import { nodeHostNameByServerId } from 'app/modules/nodes/getters';
+import { displayDateFormat } from  'app/config';
+import {Cell} from  'app/components/table.jsx';
+import moment from 'moment';
+import { parseIp } from 'app/common/objectUtils';
 
 const DateCreatedCell = ({ rowIndex, data, ...props }) => {
   let created = data[rowIndex].created;
@@ -33,7 +34,7 @@ const DateCreatedCell = ({ rowIndex, data, ...props }) => {
 };
 
 const DurationCell = ({ rowIndex, data, ...props }) => {
-  let { duration } = data[rowIndex];
+  let { duration } = data[rowIndex];    
   let displayDate = moment.duration(duration).humanize();
   return (
     <Cell {...props}>
@@ -52,10 +53,19 @@ const SingleUserCell = ({ rowIndex, data, ...props }) => {
 };
 
 const UsersCell = ({ rowIndex, data, ...props }) => {
-  let $users = data[rowIndex].parties.map((item, itemIndex)=>
-    (<span key={itemIndex} className="grv-sessions-user label label-default">{item.user}</span>)
-  )
+  let { parties, user } = data[rowIndex];
 
+  let $users = <div className="grv-sessions-user">{user}</div> 
+
+  if (parties.length > 0) {
+    $users = parties.map((item, itemIndex) => {
+      let ip = parseIp(item.serverIp);
+      return(
+        <div key={itemIndex} className="grv-sessions-user">{item.user} [{ip}]</div>
+      )
+    })    
+  }
+      
   return (
     <Cell {...props}>
       <div>
@@ -65,31 +75,44 @@ const UsersCell = ({ rowIndex, data, ...props }) => {
   )
 };
 
-const ButtonCell = ({ rowIndex, data, ...props }) => {
-  let { sessionUrl, active } = data[rowIndex];
+const SessionIdCell = ({ rowIndex, data, ...props }) => {
+  let { sessionUrl, active, sid } = data[rowIndex];
   let [actionText, actionClass] = active ? ['join', 'btn-warning'] : ['play', 'btn-primary'];
   return (
     <Cell {...props}>
-      <Link to={sessionUrl} className={"btn " +actionClass+ " btn-xs"} type="button">{actionText}</Link>
+      <Link 
+        to={sessionUrl}
+        className={"btn " + actionClass + " btn-xs m-r-sm"}
+        type="button">
+          {actionText}
+      </Link>
+      <span> {sid} </span>
     </Cell>
   )
 }
 
 const NodeCell = ({ rowIndex, data, ...props }) => {
-  let {serverId} = data[rowIndex];
-  let hostname = reactor.evaluate(nodeHostNameByServerId(serverId)) || 'unknown';
-
+  let { serverId, nodeIp } = data[rowIndex];
+  let hostname = reactor.evaluate(nodeHostNameByServerId(serverId));
+  let ipAddress = parseIp(nodeIp);
+  let display = ipAddress;
+    
+  if (hostname) {
+    display = `${hostname}`;
+    if (ipAddress) {
+      display = `${hostname} [${ipAddress}]`;
+    }  
+  }
+     
   return (
     <Cell {...props}>
-      {hostname}
+      {display}
     </Cell>
   )
 }
 
-export default ButtonCell;
-
 export {
-  ButtonCell,
+  SessionIdCell,
   UsersCell,
   DurationCell,
   DateCreatedCell,

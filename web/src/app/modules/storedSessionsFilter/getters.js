@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const filter = [['tlpt_stored_sessions_filter'], (filter) =>{
+const filter = [['tlpt_sessions_filter'], (filter) =>{
   return filter.toJS();
 }];
 

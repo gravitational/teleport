@@ -22,7 +22,11 @@ var moment = require('moment');
 var appGetters = require('app/modules/app/getters')
 
 const logger = require('app/common/logger').create('Modules/Sessions');
-const { TLPT_SESSIONS_UPDATE, TLPT_SESSIONS_UPDATE_WITH_EVENTS, TLPT_SESSIONS_RECEIVE }  = require('./actionTypes');
+const {
+  TLPT_SESSIONS_ACTIVE_RECEIVE,
+  TLPT_SESSIONS_EVENTS_RECEIVE,
+  TLPT_SESSIONS_ACTIVE_UPDATE  
+} = require('./actionTypes');
 
 const actions = {
 
@@ -30,7 +34,7 @@ const actions = {
     let siteId = reactor.evaluate(appGetters.siteId);
     return api.get(cfg.api.getSessionEventsUrl({ siteId, sid })).then(json=>{
       if(json && json.events){
-        reactor.dispatch(TLPT_SESSIONS_UPDATE_WITH_EVENTS, { siteId, json: json.events });
+        reactor.dispatch(TLPT_SESSIONS_EVENTS_RECEIVE, { siteId, json: json.events });
       }
     });
   },
@@ -47,7 +51,7 @@ const actions = {
     return api.get(cfg.api.getSiteEventsFilterUrl({ start, end, siteId }))
       .done( json => {
         if (json && json.events) {
-          reactor.dispatch(TLPT_SESSIONS_UPDATE_WITH_EVENTS, { siteId, json: json.events });
+          reactor.dispatch(TLPT_SESSIONS_EVENTS_RECEIVE, { siteId, json: json.events });
         }  
       })
       .fail( err => {
@@ -60,8 +64,8 @@ const actions = {
     let siteId = reactor.evaluate(appGetters.siteId);        
     return api.get(cfg.api.getFetchSessionsUrl(siteId))
       .done( json => {
-        let sessions = json.sessions || [];        
-        reactor.dispatch(TLPT_SESSIONS_RECEIVE, { siteId, json: sessions });
+        let sessions = json.sessions || [];                        
+        reactor.dispatch(TLPT_SESSIONS_ACTIVE_RECEIVE, { siteId, json: sessions });        
       })
       .fail( err => {
         showError('Unable to retrieve list of sessions');
@@ -70,7 +74,7 @@ const actions = {
   },
   
   updateSession({ siteId, json }){
-    reactor.dispatch(TLPT_SESSIONS_UPDATE, { siteId, json });
+    reactor.dispatch(TLPT_SESSIONS_ACTIVE_UPDATE, { siteId, json });
   }
 }
 

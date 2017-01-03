@@ -40,19 +40,20 @@ const actions = {
     }
 
     api.post(cfg.api.getSiteSessionUrl(siteId), data).then(json => {
+      let history = session.getHistory();
       let sid = json.session.id;
       let routeUrl = cfg.getCurrentSessionRouteUrl({
         siteId,
         sid
       });
-      let history = session.getHistory();
-
+            
       reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {
         siteId,
         serverId,
         login,
         sid,
-        isNewSession: true
+        active: true,
+        isNew: true
       });
 
       history.push(routeUrl);
@@ -60,30 +61,45 @@ const actions = {
   },
 
   openSession(nextState) {
+    logger.info('attempt to open session', { sid });
     let { sid } = nextState.params;
+      
+    // check if terminal is already open
     let currentSession = reactor.evaluate(getters.currentSession);
     if (currentSession) {
       return;
     }
+          
+    // look up active session matching given sid
+    let activeSession = reactor.evaluate(sessionGetters.activeSessionById(sid));
+    if (activeSession) {
+      let { server_id, login, siteId, id } = activeSession;
+      reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {                
+        login,        
+        siteId,
+        sid: id,
+        serverId: server_id,
+        active: true
+      });
+        
+      return;
+    }
 
-    logger.info('attempt to open session', { sid });
-
+    // stored session then...      
     $.when(fetchStoredSession(sid))
       .done(() => {
-        let sView = reactor.evaluate(sessionGetters.sessionViewById(sid));
-        if (!sView) {
+        let storedSession = reactor.evaluate(sessionGetters.storedSessionById(sid));
+        if (!storedSession) {
+          // TODO: display not found page
           return;
         }
 
-        let { serverId, login, siteId } = sView;
-        logger.info('open session', 'OK');
+        let { siteId } = storedSession;    
         reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {
-          siteId,
-          serverId,
-          login,
-          sid,
-          isNewSession: false
+          siteId,          
+          sid          
         });
+          
       })
       .fail( err => {
         logger.error('open session', err);
@@ -91,11 +107,11 @@ const actions = {
   },
 
   close() {
-    let { isNewSession } = reactor.evaluate(getters.currentSession);
+    let { isNew } = reactor.evaluate(getters.currentSession);
 
     reactor.dispatch(TLPT_CURRENT_SESSION_CLOSE);
 
-    if (isNewSession) {
+    if (isNew) {
       session.getHistory().push(cfg.routes.nodes);
     } else {
       session.getHistory().push(cfg.routes.sessions);
@@ -109,9 +125,9 @@ const actions = {
           actions.close();
         }
       })
-
+      
       updateSession({
-        siteId,
+        siteId: siteId,
         json: data.session
       });
     }
