@@ -108,9 +108,11 @@ type TokenCommand struct {
 }
 
 type GetCommand struct {
-	config *service.Config
-	ref    services.Ref
-	format string
+	config      *service.Config
+	ref         services.Ref
+	format      string
+	namespace   string
+	withSecrets bool
 }
 
 type UpsertCommand struct {
@@ -163,21 +165,23 @@ func main() {
 	userAdd.Flag("identity", "[EXPERIMENTAL] Add OpenID Connect identity, e.g. --identity=google:bob@gmail.com").Hidden().StringsVar(&cmdUsers.identities)
 	userAdd.Alias(AddUserHelp)
 
-	userUpdate := users.Command("update", "Update properties for existing user")
+	userUpdate := users.Command("update", "Update properties for existing user").Hidden()
 	userUpdate.Arg("login", "Teleport user login").Required().StringVar(&cmdUsers.login)
 	userUpdate.Flag("set-roles", "Roles to assign to this user").
 		Default("").StringVar(&cmdUsers.roles)
 
-	delete := app.Command("del", "Delete resources")
+	delete := app.Command("del", "Delete resources").Hidden()
 	delete.Arg("resource", "Resource to delete").SetValue(&cmdDelete.ref)
 
 	// get one or many resources in the system
-	get := app.Command("get", "Get one or many objects in the system")
+	get := app.Command("get", "Get one or many objects in the system").Hidden()
 	get.Arg("resource", "Resource type and name").SetValue(&cmdGet.ref)
-	get.Flag("format", "format output type, one of 'yaml', 'json' or 'text'").Default(formatText).StringVar(&cmdGet.format)
+	get.Flag("format", "Format output type, one of 'yaml', 'json' or 'text'").Default(formatText).StringVar(&cmdGet.format)
+	get.Flag("namespace", "Namespace of the resources").Default(defaults.Namespace).StringVar(&cmdGet.namespace)
+	get.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&cmdGet.withSecrets)
 
 	// upsert one or many resources
-	upsert := app.Command("upsert", "Update or insert one or many resources")
+	upsert := app.Command("upsert", "Update or insert one or many resources").Hidden()
 	upsert.Flag("filename", "Filename with resources").Short('f').StringVar(&cmdUpsert.filename)
 
 	// list users command
@@ -384,18 +388,8 @@ func (u *UserCommand) List(client *auth.TunClient) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	usersView := func(users []services.User) string {
-		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"User", "Roles", "Created By"})
-		if len(users) == 0 {
-			return t.String()
-		}
-		for _, u := range users {
-			fmt.Fprintf(t, "%v\t%v\t%v\n", u.GetName(), strings.Join(u.GetRoles(), ","), u.GetCreatedBy().String())
-		}
-		return t.String()
-	}
-	fmt.Printf(usersView(users))
+	coll := &userCollection{users: users}
+	coll.writeText(os.Stdout)
 	return nil
 }
 
@@ -485,18 +479,8 @@ func (u *NodeCommand) ListActive(client *auth.TunClient) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	nodesView := func(nodes []services.Server) string {
-		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"Node Name", "Node ID", "Address", "Labels"})
-		if len(nodes) == 0 {
-			return t.String()
-		}
-		for _, n := range nodes {
-			fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", n.GetHostname(), n.GetName(), n.GetAddr(), n.LabelsString())
-		}
-		return t.String()
-	}
-	fmt.Printf(nodesView(nodes))
+	coll := &serverCollection{servers: nodes}
+	coll.writeText(os.Stdout)
 	return nil
 }
 
@@ -738,18 +722,8 @@ func (r *ReverseTunnelCommand) ListActive(client *auth.TunClient) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tunnelsView := func() string {
-		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"Domain", "Dial Addresses"})
-		if len(tunnels) == 0 {
-			return t.String()
-		}
-		for _, tunnel := range tunnels {
-			fmt.Fprintf(t, "%v\t%v\n", tunnel.GetClusterName(), strings.Join(tunnel.GetDialAddrs(), ","))
-		}
-		return t.String()
-	}
-	fmt.Printf(tunnelsView())
+	coll := &reverseTunnelCollection{tunnels: tunnels}
+	coll.writeText(os.Stdout)
 	return nil
 }
 
@@ -931,6 +905,42 @@ func (u *UpsertCommand) Upsert(client *auth.TunClient) error {
 		}
 		count += 1
 		switch raw.Kind {
+		case services.KindOIDCConnector:
+			conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(raw.Raw)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := client.UpsertOIDCConnector(conn, 0); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("OIDC connector %v upserted\n", conn.GetName())
+		case services.KindReverseTunnel:
+			tun, err := services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(raw.Raw)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := client.UpsertReverseTunnel(tun, 0); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("reverse tunnel %v upserted\n", tun.GetName())
+		case services.KindCertAuthority:
+			ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw.Raw)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := client.UpsertCertAuthority(ca, 0); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("cert authority %v upserted\n", ca.GetName())
+		case services.KindUser:
+			user, err := services.GetUserMarshaler().UnmarshalUser(raw.Raw)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := client.UpsertUser(user); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("user %v upserted\n", user.GetName())
 		case services.KindRole:
 			role, err := services.GetRoleMarshaler().UnmarshalRole(raw.Raw)
 			if err != nil {
@@ -939,7 +949,7 @@ func (u *UpsertCommand) Upsert(client *auth.TunClient) error {
 			if err := client.UpsertRole(role); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("role %v upserted\n", role.GetMetadata().Name)
+			fmt.Printf("role %v upserted\n", role.GetName())
 		case services.KindNamespace:
 			ns, err := services.UnmarshalNamespace(raw.Raw)
 			if err != nil {
@@ -968,6 +978,21 @@ func (d *DeleteCommand) Delete(client *auth.TunClient) error {
 
 	for {
 		switch d.ref.Kind {
+		case services.KindUser:
+			if err := client.DeleteUser(d.ref.Name); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("user %v has been deleted\n", d.ref.Name)
+		case services.KindOIDCConnector:
+			if err := client.DeleteOIDCConnector(d.ref.Name); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("OIDC Connector %v has been deleted\n", d.ref.Name)
+		case services.KindReverseTunnel:
+			if err := client.DeleteReverseTunnel(d.ref.Name); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("reverse tunnel %v has been deleted\n", d.ref.Name)
 		case services.KindRole:
 			if err := client.DeleteRole(d.ref.Name); err != nil {
 				return trace.Wrap(err)
@@ -991,6 +1016,53 @@ func (g *GetCommand) getCollection(client auth.ClientI) (collection, error) {
 		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
 	}
 	switch g.ref.Kind {
+	case services.KindOIDCConnector:
+		connectors, err := client.GetOIDCConnectors(g.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &connectorCollection{connectors: connectors}, nil
+	case services.KindReverseTunnel:
+		tunnels, err := client.GetReverseTunnels()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &reverseTunnelCollection{tunnels: tunnels}, nil
+	case services.KindCertAuthority:
+		userAuthorities, err := client.GetCertAuthorities(services.UserCA, g.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		hostAuthorities, err := client.GetCertAuthorities(services.HostCA, g.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		userAuthorities = append(userAuthorities, hostAuthorities...)
+		return &authorityCollection{cas: userAuthorities}, nil
+	case services.KindUser:
+		users, err := client.GetUsers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &userCollection{users: users}, nil
+	case services.KindNode:
+		nodes, err := client.GetNodes(g.namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &serverCollection{servers: nodes}, nil
+	case services.KindAuthServer:
+		servers, err := client.GetAuthServers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &serverCollection{servers: servers}, nil
+	case services.KindProxy:
+		servers, err := client.GetAuthServers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &serverCollection{servers: servers}, nil
 	case services.KindRole:
 		if g.ref.Name == "" {
 			roles, err := client.GetRoles()
