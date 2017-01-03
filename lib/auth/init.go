@@ -134,6 +134,7 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 			}
 		}
 
+		log.Infof("Initializing cert authorities")
 		for _, ca := range cfg.Authorities {
 			if err := asrv.Trust.UpsertCertAuthority(ca, backend.Forever); err != nil {
 				return nil, nil, trace.Wrap(err)
@@ -310,26 +311,7 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 	cas, err := asrv.GetCertAuthorities(services.UserCA, true)
 	for i := range cas {
 		ca := cas[i]
-		raw, ok := (ca.GetRawObject()).(services.CertAuthorityV1)
-		if !ok {
-			continue
-		}
-		_, err := asrv.GetRole(services.RoleNameForCertAuthority(ca.GetClusterName()))
-		if err == nil {
-			continue
-		}
-		if !trace.IsNotFound(err) {
-			return nil, nil, trace.Wrap(err)
-		}
-		log.Infof("migrating legacy cert authority %v", ca.GetName())
-		role := services.RoleForCertAuthority(ca)
-		role.SetLogins(raw.AllowedLogins)
-		err = asrv.UpsertRole(role)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		ca.AddRole(role.GetName())
-		if err := asrv.UpsertCertAuthority(ca, 0); err != nil {
+		if err := migrateCertAuthority(asrv, ca); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	}
@@ -340,6 +322,30 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 	return asrv, identity, nil
+}
+
+func migrateCertAuthority(asrv *AuthServer, in services.CertAuthority) error {
+	raw, ok := (in.GetRawObject()).(services.CertAuthorityV1)
+	if !ok {
+		return nil
+	}
+	_, err := asrv.GetRole(services.RoleNameForCertAuthority(in.GetClusterName()))
+	if err == nil {
+		return nil
+	}
+	if !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	ca, role := services.ConvertV1CertAuthority(&raw)
+	log.Infof("migrating legacy cert authority %v", in.GetName())
+	err = asrv.UpsertRole(role)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := asrv.UpsertCertAuthority(ca, 0); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // isFirstStart returns 'true' if the auth server is starting for the 1st time

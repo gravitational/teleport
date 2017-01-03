@@ -314,11 +314,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.AuthServers = append(cfg.AuthServers, *addr)
 	}
 	for _, authority := range fc.Auth.Authorities {
-		ca, err := authority.Parse()
+		ca, role, err := authority.Parse()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Auth.Authorities = append(cfg.Auth.Authorities, ca)
+		cfg.Auth.Roles = append(cfg.Auth.Roles, role)
 	}
 	for _, token := range fc.Auth.StaticTokens {
 		roles, tokenValue, err := token.Parse()
@@ -366,29 +367,36 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 
 // parseCAKey() gets called for every line in a "CA key file" which is
 // the same as 'known_hosts' format for openssh
-func parseCAKey(bytes []byte) (services.CertAuthority, error) {
+func parseCAKey(bytes []byte, allowedLogins []string) (services.CertAuthority, services.Role, error) {
 	marker, options, pubKey, comment, _, err := ssh.ParseKnownHosts(bytes)
 	if marker != "cert-authority" {
-		return nil, trace.BadParameter("invalid file format. expected '@cert-authority` marker")
+		return nil, nil, trace.BadParameter("invalid file format. expected '@cert-authority` marker")
 	}
 	if err != nil {
-		return nil, trace.BadParameter("invalid public key")
+		return nil, nil, trace.BadParameter("invalid public key")
 	}
 	teleportOpts, err := url.ParseQuery(comment)
 	if err != nil {
-		return nil, trace.BadParameter("invalid key comment: '%s'", comment)
+		return nil, nil, trace.BadParameter("invalid key comment: '%s'", comment)
 	}
 	authType := services.CertAuthType(teleportOpts.Get("type"))
 	if authType != services.HostCA && authType != services.UserCA {
-		return nil, trace.Errorf("unsupported CA type: '%s'", authType)
+		return nil, nil, trace.BadParameter("unsupported CA type: '%s'", authType)
 	}
 	if len(options) == 0 {
-		return nil, trace.Errorf("key without cluster_name")
+		return nil, nil, trace.BadParameter("key without cluster_name")
 	}
 	const prefix = "*."
 	domainName := strings.TrimPrefix(options[0], prefix)
-	return services.NewCertAuthority(
-		authType, domainName, nil, [][]byte{ssh.MarshalAuthorizedKey(pubKey)}, nil), nil
+
+	v1 := &services.CertAuthorityV1{
+		AllowedLogins: utils.CopyStrings(allowedLogins),
+		DomainName:    domainName,
+		Type:          authType,
+		CheckingKeys:  [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
+	}
+	ca, role := services.ConvertV1CertAuthority(v1)
+	return ca, role, nil
 }
 
 // readTrustedClusters parses the content of "trusted_clusters" YAML structure
@@ -424,7 +432,7 @@ func readTrustedClusters(clusters []TrustedCluster, conf *service.Config) error 
 		var roles []services.Role
 		scanner := bufio.NewScanner(f)
 		for line := 0; scanner.Scan(); {
-			ca, err := parseCAKey(scanner.Bytes())
+			ca, role, err := parseCAKey(scanner.Bytes(), allowedLogins)
 			if err != nil {
 				return trace.BadParameter("%s:L%d. %v", tc.KeyFile, line, err)
 			}
@@ -432,12 +440,8 @@ func readTrustedClusters(clusters []TrustedCluster, conf *service.Config) error 
 				return trace.BadParameter("trusted cluster '%s' needs allow_logins parameter",
 					ca.GetClusterName())
 			}
-			if ca.GetType() == services.UserCA {
-				role := services.RoleForCertAuthority(ca)
-				role.SetLogins(allowedLogins)
-				roles = append(roles, role)
-			}
 			authorities = append(authorities, ca)
+			roles = append(roles, role)
 		}
 		conf.Auth.Authorities = append(conf.Auth.Authorities, authorities...)
 		conf.Auth.Roles = append(conf.Auth.Roles, roles...)

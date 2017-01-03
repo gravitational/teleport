@@ -87,6 +87,15 @@ func RoleForCertAuthority(ca CertAuthority) Role {
 	}
 }
 
+// ConvertV1CertAuthority converts V1 cert authority for new CA and Role
+func ConvertV1CertAuthority(v1 *CertAuthorityV1) (CertAuthority, Role) {
+	ca := v1.V2()
+	role := RoleForCertAuthority(ca)
+	role.SetLogins(v1.AllowedLogins)
+	ca.AddRole(role.GetName())
+	return ca, role
+}
+
 // Access service manages roles and permissions
 type Access interface {
 	// GetRoles returns a list of roles
