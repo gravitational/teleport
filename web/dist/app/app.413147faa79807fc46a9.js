@@ -2221,8 +2221,9 @@ webpackJsonp([0],{
 	exports.default = {
 	  showError: function showError() {
 	    var title = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 'Error';
+	    var text = arguments[1];
 
-	    dispatch({ isError: true, title: title });
+	    dispatch({ isError: true, text: text, title: title });
 	  },
 	  showSuccess: function showSuccess() {
 	    var title = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 'SUCCESS';
@@ -3241,7 +3242,7 @@ webpackJsonp([0],{
 
 	  render: function render() {
 	    return React.createElement(ToastContainer, {
-	      ref: 'container', preventDuplicates: true, toastMessageFactory: ToastMessageFactory, className: 'toast-top-right' });
+	      ref: 'container', toastMessageFactory: ToastMessageFactory, className: 'toast-top-right' });
 	  }
 	});
 
@@ -4606,11 +4607,11 @@ webpackJsonp([0],{
 	var _require2 = __webpack_require__(386),
 	    createNewSession = _require2.createNewSession;
 
-	var ClusterSelector = __webpack_require__(391);
+	var ClusterSelector = __webpack_require__(392);
 
 	var _ = __webpack_require__(383);
 
-	var _require3 = __webpack_require__(394),
+	var _require3 = __webpack_require__(390),
 	    isMatch = _require3.isMatch;
 
 	var TextCell = function TextCell(_ref) {
@@ -5144,6 +5145,37 @@ webpackJsonp([0],{
 	'use strict';
 
 	exports.__esModule = true;
+
+	var _reactor = __webpack_require__(215);
+
+	var _reactor2 = _interopRequireDefault(_reactor);
+
+	var _session = __webpack_require__(229);
+
+	var _session2 = _interopRequireDefault(_session);
+
+	var _api = __webpack_require__(228);
+
+	var _api2 = _interopRequireDefault(_api);
+
+	var _config = __webpack_require__(217);
+
+	var _config2 = _interopRequireDefault(_config);
+
+	var _getters = __webpack_require__(387);
+
+	var _getters2 = _interopRequireDefault(_getters);
+
+	var _actions = __webpack_require__(239);
+
+	var _getters3 = __webpack_require__(388);
+
+	var _getters4 = _interopRequireDefault(_getters3);
+
+	var _actions2 = __webpack_require__(232);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
 	/*
 	Copyright 2015 Gravitational, Inc.
 
@@ -5159,24 +5191,11 @@ webpackJsonp([0],{
 	See the License for the specific language governing permissions and
 	limitations under the License.
 	*/
-	var $ = __webpack_require__(219);
-	var reactor = __webpack_require__(215);
-	var session = __webpack_require__(229);
-	var api = __webpack_require__(228);
-	var cfg = __webpack_require__(217);
-	var getters = __webpack_require__(387);
-
-	var _require = __webpack_require__(239),
-	    fetchStoredSession = _require.fetchStoredSession,
-	    updateSession = _require.updateSession;
-
-	var sessionGetters = __webpack_require__(388);
-
 	var logger = __webpack_require__(230).create('Current Session');
 
-	var _require2 = __webpack_require__(390),
-	    TLPT_CURRENT_SESSION_OPEN = _require2.TLPT_CURRENT_SESSION_OPEN,
-	    TLPT_CURRENT_SESSION_CLOSE = _require2.TLPT_CURRENT_SESSION_CLOSE;
+	var _require = __webpack_require__(391),
+	    TLPT_CURRENT_SESSION_OPEN = _require.TLPT_CURRENT_SESSION_OPEN,
+	    TLPT_CURRENT_SESSION_CLOSE = _require.TLPT_CURRENT_SESSION_CLOSE;
 
 	var actions = {
 	  createNewSession: function createNewSession(siteId, serverId, login) {
@@ -5190,15 +5209,15 @@ webpackJsonp([0],{
 	      }
 	    };
 
-	    api.post(cfg.api.getSiteSessionUrl(siteId), data).then(function (json) {
-	      var history = session.getHistory();
+	    _api2.default.post(_config2.default.api.getSiteSessionUrl(siteId), data).then(function (json) {
+	      var history = _session2.default.getHistory();
 	      var sid = json.session.id;
-	      var routeUrl = cfg.getCurrentSessionRouteUrl({
+	      var routeUrl = _config2.default.getCurrentSessionRouteUrl({
 	        siteId: siteId,
 	        sid: sid
 	      });
 
-	      reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {
+	      _reactor2.default.dispatch(TLPT_CURRENT_SESSION_OPEN, {
 	        siteId: siteId,
 	        serverId: serverId,
 	        login: login,
@@ -5216,20 +5235,20 @@ webpackJsonp([0],{
 
 	    // check if terminal is already open
 
-	    var currentSession = reactor.evaluate(getters.currentSession);
+	    var currentSession = _reactor2.default.evaluate(_getters2.default.currentSession);
 	    if (currentSession) {
 	      return;
 	    }
 
 	    // look up active session matching given sid
-	    var activeSession = reactor.evaluate(sessionGetters.activeSessionById(sid));
+	    var activeSession = _reactor2.default.evaluate(_getters4.default.activeSessionById(sid));
 	    if (activeSession) {
 	      var server_id = activeSession.server_id,
 	          login = activeSession.login,
 	          siteId = activeSession.siteId,
 	          id = activeSession.id;
 
-	      reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {
+	      _reactor2.default.dispatch(TLPT_CURRENT_SESSION_OPEN, {
 	        login: login,
 	        siteId: siteId,
 	        sid: id,
@@ -5241,33 +5260,36 @@ webpackJsonp([0],{
 	    }
 
 	    // stored session then...      
-	    $.when(fetchStoredSession(sid)).done(function () {
-	      var storedSession = reactor.evaluate(sessionGetters.storedSessionById(sid));
+	    (0, _actions.fetchStoredSession)(sid).done(function () {
+	      var storedSession = _reactor2.default.evaluate(_getters4.default.storedSessionById(sid));
 	      if (!storedSession) {
 	        // TODO: display not found page
+	        (0, _actions2.showError)('Cannot find archived session');
 	        return;
 	      }
 
 	      var siteId = storedSession.siteId;
 
-	      reactor.dispatch(TLPT_CURRENT_SESSION_OPEN, {
+	      _reactor2.default.dispatch(TLPT_CURRENT_SESSION_OPEN, {
 	        siteId: siteId,
 	        sid: sid
 	      });
 	    }).fail(function (err) {
+	      var msg = err.responseJSON ? err.responseJSON.message : '';
+	      (0, _actions2.showError)('Unable to fetch archived session', msg);
 	      logger.error('open session', err);
 	    });
 	  },
 	  close: function close() {
-	    var _reactor$evaluate = reactor.evaluate(getters.currentSession),
+	    var _reactor$evaluate = _reactor2.default.evaluate(_getters2.default.currentSession),
 	        isNew = _reactor$evaluate.isNew;
 
-	    reactor.dispatch(TLPT_CURRENT_SESSION_CLOSE);
+	    _reactor2.default.dispatch(TLPT_CURRENT_SESSION_CLOSE);
 
 	    if (isNew) {
-	      session.getHistory().push(cfg.routes.nodes);
+	      _session2.default.getHistory().push(_config2.default.routes.nodes);
 	    } else {
-	      session.getHistory().push(cfg.routes.sessions);
+	      _session2.default.getHistory().push(_config2.default.routes.sessions);
 	    }
 	  },
 	  updateSessionFromEventStream: function updateSessionFromEventStream(siteId) {
@@ -5278,7 +5300,7 @@ webpackJsonp([0],{
 	        }
 	      });
 
-	      updateSession({
+	      (0, _actions.updateSession)({
 	        siteId: siteId,
 	        json: data.session
 	      });
@@ -5313,22 +5335,20 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	//var {createView} = require('app/modules/sessions/getters');
-
 	var currentSession = [['tlpt_current_session'], ['tlpt_sessions_active'], function (current, sessions) {
 	  if (!current) {
 	    return null;
 	  }
 
-	  var curSessionView = current.toJS();
+	  var curSession = current.toJS();
 
 	  // get the list of participants     
-	  if (sessions.has(curSessionView.sid)) {
-	    var activeSessionRec = sessions.get(curSessionView.sid);
-	    curSessionView.parties = activeSessionRec.parties.toJS();
+	  if (sessions.has(curSession.sid)) {
+	    var activeSessionRec = sessions.get(curSession.sid);
+	    curSession.parties = activeSessionRec.parties.toJS();
 	  }
 
-	  return curSessionView;
+	  return curSession;
 	}];
 
 	exports.default = {
@@ -5359,6 +5379,10 @@ webpackJsonp([0],{
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
+	var _getters = __webpack_require__(380);
+
+	var _objectUtils = __webpack_require__(390);
+
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	/*
@@ -5377,14 +5401,14 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var activeSessions = [['tlpt_sessions_active'], ['tlpt', 'siteId'], function (sessionList, siteId) {
+	var activeSessionList = [['tlpt_sessions_active'], ['tlpt', 'siteId'], function (sessionList, siteId) {
 	  sessionList = sessionList.filter(function (n) {
 	    return n.get('siteId') === siteId;
 	  });
 	  return sessionList.valueSeq().map(createActiveListItem).toJS();
 	}];
 
-	var storedSessions = [['tlpt_sessions_archived'], ['tlpt', 'siteId'], function (sessionList, siteId) {
+	var storedSessionList = [['tlpt_sessions_archived'], ['tlpt', 'siteId'], function (sessionList, siteId) {
 	  sessionList = sessionList.filter(function (n) {
 	    return n.get('siteId') === siteId;
 	  });
@@ -5411,6 +5435,8 @@ webpackJsonp([0],{
 	      last_active = session.last_active;
 
 	  var duration = (0, _moment2.default)(last_active).diff(created);
+	  var nodeDisplayText = getNodeIpDisplayText(server_id, nodeIp);
+	  var createdDisplayText = getCreatedDisplayText(created);
 
 	  var sessionUrl = _config2.default.getCurrentSessionRouteUrl({
 	    sid: sid,
@@ -5419,21 +5445,21 @@ webpackJsonp([0],{
 
 	  return {
 	    active: false,
-	    parties: parties.toJS(),
+	    parties: createParties(parties),
 	    sid: sid,
-	    created: created,
 	    duration: duration,
 	    siteId: siteId,
 	    sessionUrl: sessionUrl,
-	    serverId: server_id,
-	    nodeIp: nodeIp,
+	    created: created,
+	    createdDisplayText: createdDisplayText,
+	    nodeDisplayText: nodeDisplayText,
 	    lastActive: last_active
 	  };
 	}
 
 	function createActiveListItem(session) {
 	  var sid = session.get('id');
-	  var parties = session.parties.toJS();
+	  var parties = createParties(session.parties);
 
 	  var siteId = session.siteId,
 	      created = session.created,
@@ -5442,6 +5468,8 @@ webpackJsonp([0],{
 
 	  var duration = (0, _moment2.default)(last_active).diff(created);
 	  var nodeIp = _reactor2.default.evaluate(nodeIpById(sid));
+	  var nodeDisplayText = getNodeIpDisplayText(server_id, nodeIp);
+	  var createdDisplayText = getCreatedDisplayText(created);
 
 	  var sessionUrl = _config2.default.getCurrentSessionRouteUrl({
 	    sid: sid,
@@ -5451,20 +5479,47 @@ webpackJsonp([0],{
 	  return {
 	    active: true,
 	    parties: parties,
-	    serverId: server_id,
 	    sid: sid,
-	    created: created,
 	    duration: duration,
 	    siteId: siteId,
 	    sessionUrl: sessionUrl,
-	    nodeIp: nodeIp,
+	    created: created,
+	    createdDisplayText: createdDisplayText,
+	    nodeDisplayText: nodeDisplayText,
 	    lastActive: last_active
 	  };
 	}
 
+	function createParties(partyRecs) {
+	  var parties = partyRecs.toJS();
+	  return parties.map(function (p) {
+	    var ip = (0, _objectUtils.parseIp)(p.serverIp);
+	    return p.user + ' [' + ip + ']';
+	  });
+	}
+
+	function getCreatedDisplayText(date) {
+	  return (0, _moment2.default)(date).format(_config2.default.displayDateFormat);
+	}
+
+	function getNodeIpDisplayText(serverId, serverIp) {
+	  var hostname = _reactor2.default.evaluate((0, _getters.nodeHostNameByServerId)(serverId));
+	  var ipAddress = (0, _objectUtils.parseIp)(serverIp);
+	  var displayText = ipAddress;
+
+	  if (hostname) {
+	    displayText = '' + hostname;
+	    if (ipAddress) {
+	      displayText = hostname + ' [' + ipAddress + ']';
+	    }
+	  }
+
+	  return displayText;
+	}
+
 	exports.default = {
-	  storedSessions: storedSessions,
-	  activeSessions: activeSessions,
+	  storedSessionList: storedSessionList,
+	  activeSessionList: activeSessionList,
 	  activeSessionById: activeSessionById,
 	  storedSessionById: storedSessionById,
 	  createStoredListItem: createStoredListItem
@@ -5488,6 +5543,79 @@ webpackJsonp([0],{
 /***/ },
 
 /***/ 390:
+/***/ function(module, exports) {
+
+	'use strict';
+
+	exports.__esModule = true;
+	exports.parseIp = parseIp;
+	exports.isMatch = isMatch;
+	exports.isUUID = isUUID;
+	/*
+	Copyright 2015 Gravitational, Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	    http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+	*/
+
+	var uuid = {
+	  3: /^[0-9A-F]{8}-[0-9A-F]{4}-3[0-9A-F]{3}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
+	  4: /^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
+	  5: /^[0-9A-F]{8}-[0-9A-F]{4}-5[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
+	  all: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i
+	};
+
+	var PORT_REGEX = /:\d+$/;
+
+	function parseIp(addr) {
+	  addr = addr || '';
+	  return addr.replace(PORT_REGEX, '');
+	}
+
+	function isMatch(obj, searchValue, _ref) {
+	  var searchableProps = _ref.searchableProps,
+	      cb = _ref.cb;
+
+	  searchValue = searchValue.toLocaleUpperCase();
+	  var propNames = searchableProps || Object.getOwnPropertyNames(obj);
+	  for (var i = 0; i < propNames.length; i++) {
+	    var targetValue = obj[propNames[i]];
+	    if (targetValue) {
+	      if (typeof cb === 'function') {
+	        var result = cb(targetValue, searchValue, propNames[i]);
+	        if (result === true) {
+	          return result;
+	        }
+	      }
+
+	      if (targetValue.toString().toLocaleUpperCase().indexOf(searchValue) !== -1) {
+	        return true;
+	      }
+	    }
+	  }
+
+	  return false;
+	}
+
+	function isUUID(str) {
+	  var version = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 'all';
+
+	  var pattern = uuid[version];
+	  return pattern && pattern.test(str);
+	}
+
+/***/ },
+
+/***/ 391:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -5523,7 +5651,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 391:
+/***/ 392:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -5538,7 +5666,7 @@ webpackJsonp([0],{
 
 	var _reactor2 = _interopRequireDefault(_reactor);
 
-	var _getters = __webpack_require__(392);
+	var _getters = __webpack_require__(393);
 
 	var _getters2 = _interopRequireDefault(_getters);
 
@@ -5546,13 +5674,13 @@ webpackJsonp([0],{
 
 	var _getters4 = _interopRequireDefault(_getters3);
 
-	var _dropdown = __webpack_require__(393);
+	var _dropdown = __webpack_require__(394);
 
 	var _dropdown2 = _interopRequireDefault(_dropdown);
 
 	var _actions = __webpack_require__(226);
 
-	var _objectUtils = __webpack_require__(394);
+	var _objectUtils = __webpack_require__(390);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -5628,7 +5756,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 392:
+/***/ 393:
 /***/ function(module, exports) {
 
 	'use strict';
@@ -5670,7 +5798,7 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 393:
+/***/ 394:
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -5810,79 +5938,6 @@ webpackJsonp([0],{
 
 /***/ },
 
-/***/ 394:
-/***/ function(module, exports) {
-
-	'use strict';
-
-	exports.__esModule = true;
-	exports.parseIp = parseIp;
-	exports.isMatch = isMatch;
-	exports.isUUID = isUUID;
-	/*
-	Copyright 2015 Gravitational, Inc.
-
-	Licensed under the Apache License, Version 2.0 (the "License");
-	you may not use this file except in compliance with the License.
-	You may obtain a copy of the License at
-
-	    http://www.apache.org/licenses/LICENSE-2.0
-
-	Unless required by applicable law or agreed to in writing, software
-	distributed under the License is distributed on an "AS IS" BASIS,
-	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	See the License for the specific language governing permissions and
-	limitations under the License.
-	*/
-
-	var uuid = {
-	  3: /^[0-9A-F]{8}-[0-9A-F]{4}-3[0-9A-F]{3}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
-	  4: /^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
-	  5: /^[0-9A-F]{8}-[0-9A-F]{4}-5[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
-	  all: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i
-	};
-
-	var PORT_REGEX = /:\d+$/;
-
-	function parseIp(addr) {
-	  addr = addr || '';
-	  return addr.replace(PORT_REGEX, '');
-	}
-
-	function isMatch(obj, searchValue, _ref) {
-	  var searchableProps = _ref.searchableProps,
-	      cb = _ref.cb;
-
-	  searchValue = searchValue.toLocaleUpperCase();
-	  var propNames = searchableProps || Object.getOwnPropertyNames(obj);
-	  for (var i = 0; i < propNames.length; i++) {
-	    var targetValue = obj[propNames[i]];
-	    if (targetValue) {
-	      if (typeof cb === 'function') {
-	        var result = cb(targetValue, searchValue, propNames[i]);
-	        if (result === true) {
-	          return result;
-	        }
-	      }
-
-	      if (targetValue.toString().toLocaleUpperCase().indexOf(searchValue) !== -1) {
-	        return true;
-	      }
-	    }
-	  }
-
-	  return false;
-	}
-
-	function isUUID(str) {
-	  var version = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 'all';
-
-	  var pattern = uuid[version];
-	  return pattern && pattern.test(str);
-	}
-
-/***/ },
-
 /***/ 395:
 /***/ function(module, exports, __webpack_require__) {
 
@@ -5922,8 +5977,8 @@ webpackJsonp([0],{
 
 	  getDataBindings: function getDataBindings() {
 	    return {
-	      activeSessions: _getters.activeSessions,
-	      storedSessions: _getters.storedSessions,
+	      activeSessions: _getters.activeSessionList,
+	      storedSessions: _getters.storedSessionList,
 	      storedSessionsFilter: _getters2.filter
 	    };
 	  },
@@ -5941,7 +5996,9 @@ webpackJsonp([0],{
 	      { className: 'grv-page grv-sessions' },
 	      _react2.default.createElement(_sessionList2.default, {
 	        activeSessions: activeSessions,
-	        storedSessions: storedSessions, filter: storedSessionsFilter }),
+	        storedSessions: storedSessions,
+	        filter: storedSessionsFilter
+	      }),
 	      _react2.default.createElement(_timer2.default, { onTimeout: this.refresh })
 	    );
 	  }
@@ -6107,6 +6164,40 @@ webpackJsonp([0],{
 
 	'use strict';
 
+	exports.__esModule = true;
+
+	var _2 = __webpack_require__(383);
+
+	var _3 = _interopRequireDefault(_2);
+
+	var _react = __webpack_require__(2);
+
+	var _react2 = _interopRequireDefault(_react);
+
+	var _moment = __webpack_require__(240);
+
+	var _moment2 = _interopRequireDefault(_moment);
+
+	var _inputSearch = __webpack_require__(382);
+
+	var _inputSearch2 = _interopRequireDefault(_inputSearch);
+
+	var _objectUtils = __webpack_require__(390);
+
+	var _storedSessionsFilter = __webpack_require__(400);
+
+	var _table = __webpack_require__(385);
+
+	var _listItems = __webpack_require__(401);
+
+	var _datePicker = __webpack_require__(402);
+
+	var _clusterSelector = __webpack_require__(392);
+
+	var _clusterSelector2 = _interopRequireDefault(_clusterSelector);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
 	/*
 	Copyright 2015 Gravitational, Inc.
 
@@ -6123,44 +6214,10 @@ webpackJsonp([0],{
 	limitations under the License.
 	*/
 
-	var _ = __webpack_require__(383);
-	var React = __webpack_require__(2);
-	var moment = __webpack_require__(240);
-	var InputSearch = __webpack_require__(382);
-
-	var _require = __webpack_require__(394),
-	    isMatch = _require.isMatch;
-
-	var _require2 = __webpack_require__(217),
-	    displayDateFormat = _require2.displayDateFormat;
-
-	var _require3 = __webpack_require__(400),
-	    actions = _require3.actions;
-
-	var _require4 = __webpack_require__(385),
-	    Table = _require4.Table,
-	    Column = _require4.Column,
-	    Cell = _require4.Cell,
-	    SortHeaderCell = _require4.SortHeaderCell,
-	    SortTypes = _require4.SortTypes,
-	    EmptyIndicator = _require4.EmptyIndicator;
-
-	var _require5 = __webpack_require__(401),
-	    SessionIdCell = _require5.SessionIdCell,
-	    NodeCell = _require5.NodeCell,
-	    UsersCell = _require5.UsersCell,
-	    DateCreatedCell = _require5.DateCreatedCell,
-	    DurationCell = _require5.DurationCell;
-
-	var _require6 = __webpack_require__(402),
-	    DateRangePicker = _require6.DateRangePicker;
-
-	var ClusterSelector = __webpack_require__(391);
-
-	var SessionList = React.createClass({
+	var SessionList = _react2.default.createClass({
 	  displayName: 'SessionList',
 	  getInitialState: function getInitialState() {
-	    this.searchableProps = ['nodeIp', 'created', 'sid', 'login', 'user'];
+	    this.searchableProps = ['nodeDisplayText', 'createdDisplayText', 'sid', 'parties'];
 	    return { filter: '', colSortDirs: { created: 'ASC' } };
 	  },
 	  onFilterChange: function onFilterChange(value) {
@@ -6182,20 +6239,20 @@ webpackJsonp([0],{
 	    * component is still mounted when data picker triggers an update
 	    */
 	    if (this.isMounted()) {
-	      actions.setTimeRange(startDate, endDate);
+	      _storedSessionsFilter.actions.setTimeRange(startDate, endDate);
 	    }
 	  },
 	  searchAndFilterCb: function searchAndFilterCb(targetValue, searchValue, propName) {
-	    if (propName === 'created') {
-	      var displayDate = moment(targetValue).format(displayDateFormat).toLocaleUpperCase();
-	      return displayDate.indexOf(searchValue) !== -1;
+	    if (propName === 'parties') {
+	      targetValue = targetValue || [];
+	      return targetValue.join('').toLocaleUpperCase().indexOf(searchValue) !== -1;
 	    }
 	  },
 	  sortAndFilter: function sortAndFilter(data) {
 	    var _this = this;
 
 	    var filtered = data.filter(function (obj) {
-	      return isMatch(obj, _this.state.filter, {
+	      return (0, _objectUtils.isMatch)(obj, _this.state.filter, {
 	        searchableProps: _this.searchableProps,
 	        cb: _this.searchAndFilterCb
 	      });
@@ -6203,8 +6260,8 @@ webpackJsonp([0],{
 
 	    var columnKey = Object.getOwnPropertyNames(this.state.colSortDirs)[0];
 	    var sortDir = this.state.colSortDirs[columnKey];
-	    var sorted = _.sortBy(filtered, columnKey);
-	    if (sortDir === SortTypes.ASC) {
+	    var sorted = _3.default.sortBy(filtered, columnKey);
+	    if (sortDir === _table.SortTypes.ASC) {
 	      sorted = sorted.reverse();
 	    }
 
@@ -6220,11 +6277,11 @@ webpackJsonp([0],{
 
 
 	    var stored = storedSessions.filter(function (item) {
-	      return moment(item.created).isBetween(start, end);
+	      return (0, _moment2.default)(item.created).isBetween(start, end);
 	    });
 
 	    var active = activeSessions.filter(function (item) {
-	      return moment(item.created).isBetween(start, end);
+	      return (0, _moment2.default)(item.created).isBetween(start, end);
 	    });
 
 	    stored = this.sortAndFilter(stored);
@@ -6233,85 +6290,85 @@ webpackJsonp([0],{
 	    // always display active sessions first    
 	    var data = [].concat(active, stored);
 
-	    return React.createElement(
+	    return _react2.default.createElement(
 	      'div',
 	      { className: 'grv-sessions-stored' },
-	      React.createElement(
+	      _react2.default.createElement(
 	        'div',
 	        { className: 'grv-header' },
-	        React.createElement(
+	        _react2.default.createElement(
 	          'div',
 	          { className: 'grv-flex m-b-md', style: { justifyContent: "space-between" } },
-	          React.createElement(
+	          _react2.default.createElement(
 	            'div',
 	            { className: 'grv-flex' },
-	            React.createElement(
+	            _react2.default.createElement(
 	              'h2',
 	              { className: 'text-center' },
 	              ' Sessions '
 	            )
 	          ),
-	          React.createElement(
+	          _react2.default.createElement(
 	            'div',
 	            { className: 'grv-flex' },
-	            React.createElement(ClusterSelector, null),
-	            React.createElement(InputSearch, { value: this.filter, onChange: this.onFilterChange }),
-	            React.createElement(
+	            _react2.default.createElement(_clusterSelector2.default, null),
+	            _react2.default.createElement(_inputSearch2.default, { value: this.filter, onChange: this.onFilterChange }),
+	            _react2.default.createElement(
 	              'div',
 	              { className: 'm-l-sm' },
-	              React.createElement(DateRangePicker, { startDate: start, endDate: end, onChange: this.onRangePickerChange })
+	              _react2.default.createElement(_datePicker.DateRangePicker, { startDate: start, endDate: end, onChange: this.onRangePickerChange })
 	            )
 	          )
 	        )
 	      ),
-	      React.createElement(
+	      _react2.default.createElement(
 	        'div',
 	        { className: 'grv-content' },
-	        data.length === 0 ? React.createElement(EmptyIndicator, { text: 'No matching sessions found' }) : React.createElement(
-	          Table,
+	        data.length === 0 ? _react2.default.createElement(_table.EmptyIndicator, { text: 'No matching sessions found' }) : _react2.default.createElement(
+	          _table.Table,
 	          { rowCount: data.length },
-	          React.createElement(Column, {
-	            header: React.createElement(
-	              Cell,
+	          _react2.default.createElement(_table.Column, {
+	            header: _react2.default.createElement(
+	              _table.Cell,
 	              { className: 'grv-sessions-col-sid' },
 	              ' Session ID '
 	            ),
-	            cell: React.createElement(SessionIdCell, { data: data })
+	            cell: _react2.default.createElement(_listItems.SessionIdCell, { data: data })
 	          }),
-	          React.createElement(Column, {
-	            header: React.createElement(
-	              Cell,
+	          _react2.default.createElement(_table.Column, {
+	            header: _react2.default.createElement(
+	              _table.Cell,
 	              null,
 	              ' User '
 	            ),
-	            cell: React.createElement(UsersCell, { data: data })
+	            cell: _react2.default.createElement(_listItems.UsersCell, { data: data })
 	          }),
-	          React.createElement(Column, {
+	          _react2.default.createElement(_table.Column, {
 	            columnKey: 'nodeIp',
-	            header: React.createElement(
-	              Cell,
+	            header: _react2.default.createElement(
+	              _table.Cell,
 	              { className: 'grv-sessions-stored-col-ip' },
 	              'Node'
 	            ),
-	            cell: React.createElement(NodeCell, { data: data })
+	            cell: _react2.default.createElement(_listItems.NodeCell, { data: data })
 	          }),
-	          React.createElement(Column, {
+	          _react2.default.createElement(_table.Column, {
 	            columnKey: 'created',
-	            header: React.createElement(SortHeaderCell, {
+	            header: _react2.default.createElement(_table.SortHeaderCell, {
 	              sortDir: this.state.colSortDirs.created,
 	              onSortChange: this.onSortChange,
 	              title: 'Created (UTC)'
 	            }),
-	            cell: React.createElement(DateCreatedCell, { data: data })
+	            cell: _react2.default.createElement(_listItems.DateCreatedCell, { data: data })
 	          }),
-	          React.createElement(Column, {
+	          _react2.default.createElement(_table.Column, {
 	            columnKey: 'duration',
-	            header: React.createElement(SortHeaderCell, {
+	            header: _react2.default.createElement(_table.SortHeaderCell, {
 	              sortDir: this.state.colSortDirs.duration,
 	              onSortChange: this.onSortChange,
 	              title: 'Duration'
 	            }),
-	            cell: React.createElement(DurationCell, { data: data })
+	            cell: _react2.default.createElement(_listItems.DurationCell, { data: data })
 	          })
 	        )
 	      )
@@ -6319,7 +6376,8 @@ webpackJsonp([0],{
 	  }
 	});
 
-	module.exports = SessionList;
+	exports.default = SessionList;
+	module.exports = exports['default'];
 
 /***/ },
 
@@ -6360,23 +6418,13 @@ webpackJsonp([0],{
 
 	var _react2 = _interopRequireDefault(_react);
 
-	var _reactor = __webpack_require__(215);
-
-	var _reactor2 = _interopRequireDefault(_reactor);
-
 	var _reactRouter = __webpack_require__(155);
-
-	var _getters = __webpack_require__(380);
-
-	var _config = __webpack_require__(217);
 
 	var _table = __webpack_require__(385);
 
 	var _moment = __webpack_require__(240);
 
 	var _moment2 = _interopRequireDefault(_moment);
-
-	var _objectUtils = __webpack_require__(394);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -6401,12 +6449,12 @@ webpackJsonp([0],{
 	      data = _ref.data,
 	      props = _objectWithoutProperties(_ref, ['rowIndex', 'data']);
 
-	  var created = data[rowIndex].created;
-	  var displayDate = (0, _moment2.default)(created).format(_config.displayDateFormat);
+	  var createdDisplayText = data[rowIndex].createdDisplayText;
+
 	  return _react2.default.createElement(
 	    _table.Cell,
 	    props,
-	    displayDate
+	    createdDisplayText
 	  );
 	};
 
@@ -6452,7 +6500,6 @@ webpackJsonp([0],{
 	      parties = _data$rowIndex.parties,
 	      user = _data$rowIndex.user;
 
-
 	  var $users = _react2.default.createElement(
 	    'div',
 	    { className: 'grv-sessions-user' },
@@ -6461,14 +6508,10 @@ webpackJsonp([0],{
 
 	  if (parties.length > 0) {
 	    $users = parties.map(function (item, itemIndex) {
-	      var ip = (0, _objectUtils.parseIp)(item.serverIp);
 	      return _react2.default.createElement(
 	        'div',
 	        { key: itemIndex, className: 'grv-sessions-user' },
-	        item.user,
-	        ' [',
-	        ip,
-	        ']'
+	        item
 	      );
 	    });
 	  }
@@ -6524,25 +6567,12 @@ webpackJsonp([0],{
 	      data = _ref7.data,
 	      props = _objectWithoutProperties(_ref7, ['rowIndex', 'data']);
 
-	  var _data$rowIndex3 = data[rowIndex],
-	      serverId = _data$rowIndex3.serverId,
-	      nodeIp = _data$rowIndex3.nodeIp;
-
-	  var hostname = _reactor2.default.evaluate((0, _getters.nodeHostNameByServerId)(serverId));
-	  var ipAddress = (0, _objectUtils.parseIp)(nodeIp);
-	  var display = ipAddress;
-
-	  if (hostname) {
-	    display = '' + hostname;
-	    if (ipAddress) {
-	      display = hostname + ' [' + ipAddress + ']';
-	    }
-	  }
+	  var nodeDisplayText = data[rowIndex].nodeDisplayText;
 
 	  return _react2.default.createElement(
 	    _table.Cell,
 	    props,
-	    display
+	    nodeDisplayText
 	  );
 	};
 
@@ -6829,7 +6859,7 @@ webpackJsonp([0],{
 	    Store = _require.Store,
 	    toImmutable = _require.toImmutable;
 
-	var _require2 = __webpack_require__(390),
+	var _require2 = __webpack_require__(391),
 	    TLPT_CURRENT_SESSION_OPEN = _require2.TLPT_CURRENT_SESSION_OPEN,
 	    TLPT_CURRENT_SESSION_CLOSE = _require2.TLPT_CURRENT_SESSION_CLOSE;
 
