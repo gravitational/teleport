@@ -14,23 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-//var {createView} = require('app/modules/sessions/getters');
-
 const currentSession = [ ['tlpt_current_session'], ['tlpt_sessions_active'],
 (current, sessions) => {
     if(!current){
       return null;
     }
     
-    let curSessionView = current.toJS();
+    let curSession = current.toJS();
     
     // get the list of participants     
-    if(sessions.has(curSessionView.sid)){
-      let activeSessionRec = sessions.get(curSessionView.sid);        
-      curSessionView.parties = activeSessionRec.parties.toJS();                      
+    if(sessions.has(curSession.sid)){
+      let activeSessionRec = sessions.get(curSession.sid);        
+      curSession.parties = activeSessionRec.parties.toJS();                      
     }
 
-    return curSessionView;
+    return curSession;
   }
 ];
 

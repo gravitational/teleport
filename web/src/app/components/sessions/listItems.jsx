@@ -15,20 +15,15 @@ limitations under the License.
 */
 
 import React from 'react';
-import reactor from 'app/reactor';
 import { Link } from  'react-router';
-import { nodeHostNameByServerId } from 'app/modules/nodes/getters';
-import { displayDateFormat } from  'app/config';
 import {Cell} from  'app/components/table.jsx';
 import moment from 'moment';
-import { parseIp } from 'app/common/objectUtils';
 
 const DateCreatedCell = ({ rowIndex, data, ...props }) => {
-  let created = data[rowIndex].created;
-  let displayDate = moment(created).format(displayDateFormat);
+  let { createdDisplayText } = data[rowIndex];  
   return (
     <Cell {...props}>
-      { displayDate }
+      { createdDisplayText }
     </Cell>
   )
 };
@@ -54,14 +49,12 @@ const SingleUserCell = ({ rowIndex, data, ...props }) => {
 
 const UsersCell = ({ rowIndex, data, ...props }) => {
   let { parties, user } = data[rowIndex];
-
   let $users = <div className="grv-sessions-user">{user}</div> 
 
   if (parties.length > 0) {
-    $users = parties.map((item, itemIndex) => {
-      let ip = parseIp(item.serverIp);
+    $users = parties.map((item, itemIndex) => {      
       return(
-        <div key={itemIndex} className="grv-sessions-user">{item.user} [{ip}]</div>
+        <div key={itemIndex} className="grv-sessions-user">{item}</div>
       )
     })    
   }
@@ -92,21 +85,10 @@ const SessionIdCell = ({ rowIndex, data, ...props }) => {
 }
 
 const NodeCell = ({ rowIndex, data, ...props }) => {
-  let { serverId, nodeIp } = data[rowIndex];
-  let hostname = reactor.evaluate(nodeHostNameByServerId(serverId));
-  let ipAddress = parseIp(nodeIp);
-  let display = ipAddress;
-    
-  if (hostname) {
-    display = `${hostname}`;
-    if (ipAddress) {
-      display = `${hostname} [${ipAddress}]`;
-    }  
-  }
-     
+  let { nodeDisplayText } = data[rowIndex];       
   return (
     <Cell {...props}>
-      {display}
+      {nodeDisplayText}
     </Cell>
   )
 }

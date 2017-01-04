@@ -61,7 +61,7 @@ var NotificationHost = React.createClass({
   render: function() {
     return (
         <ToastContainer
-          ref="container"  preventDuplicates={true} toastMessageFactory={ToastMessageFactory} className="toast-top-right"/>
+          ref="container" toastMessageFactory={ToastMessageFactory} className="toast-top-right"/>
     );
   }
 });

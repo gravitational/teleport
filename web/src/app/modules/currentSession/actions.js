@@ -13,14 +13,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-var $ = require('jQuery');
-var reactor = require('app/reactor');
-var session = require('app/services/session');
-var api = require('app/services/api');
-var cfg = require('app/config');
-var getters = require('./getters');
-var { fetchStoredSession, updateSession } = require('./../sessions/actions');
-var sessionGetters = require('./../sessions/getters');
+import reactor from 'app/reactor';
+import session from 'app/services/session';
+import api from 'app/services/api';
+import cfg from 'app/config';
+import getters from './getters';
+import { fetchStoredSession, updateSession } from './../sessions/actions';
+import sessionGetters from './../sessions/getters';
+import {showError} from 'app/modules/notifications/actions';
 
 const logger = require('app/common/logger').create('Current Session');
 
@@ -86,11 +86,12 @@ const actions = {
     }
 
     // stored session then...      
-    $.when(fetchStoredSession(sid))
+    fetchStoredSession(sid)
       .done(() => {
         let storedSession = reactor.evaluate(sessionGetters.storedSessionById(sid));
         if (!storedSession) {
           // TODO: display not found page
+          showError('Cannot find archived session'); 
           return;
         }
 
@@ -101,7 +102,9 @@ const actions = {
         });
           
       })
-      .fail( err => {
+      .fail(err => {          
+        let msg = err.responseJSON ? err.responseJSON.message : '';
+        showError('Unable to fetch archived session', msg);    
         logger.error('open session', err);
       })
   },

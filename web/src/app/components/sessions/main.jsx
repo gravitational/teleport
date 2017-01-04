@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import reactor from 'app/reactor';
 import { fetchSiteEventsWithinTimeRange } from 'app/modules/storedSessionsFilter/actions';
-import { storedSessions, activeSessions } from 'app/modules/sessions/getters';
+import { storedSessionList, activeSessionList } from 'app/modules/sessions/getters';
 import { filter } from 'app/modules/storedSessionsFilter/getters';
 import Timer from './../timer.jsx';
 import SessionList from './sessionList.jsx';
@@ -28,8 +28,8 @@ const Sessions = React.createClass({
 
   getDataBindings() {
     return {
-      activeSessions: activeSessions,
-      storedSessions: storedSessions,
+      activeSessions: activeSessionList,
+      storedSessions: storedSessionList,
       storedSessionsFilter: filter
     }
   },
@@ -44,7 +44,9 @@ const Sessions = React.createClass({
       <div className="grv-page grv-sessions">                                      
         <SessionList
           activeSessions={activeSessions}
-          storedSessions={storedSessions} filter={storedSessionsFilter} />
+          storedSessions={storedSessions}
+          filter={storedSessionsFilter}
+        />
         <Timer onTimeout={this.refresh} />
       </div>        
     );

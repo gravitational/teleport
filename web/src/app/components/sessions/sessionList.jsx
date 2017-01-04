@@ -14,22 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var _ = require('_');
-var React = require('react');
-var moment =  require('moment');
-var InputSearch = require('./../inputSearch.jsx');
-var { isMatch } = require('app/common/objectUtils');
-var { displayDateFormat} = require('app/config');
-var { actions } = require('app/modules/storedSessionsFilter');
-var { Table, Column, Cell, SortHeaderCell, SortTypes, EmptyIndicator } = require('app/components/table.jsx');
-var { SessionIdCell, NodeCell, UsersCell, DateCreatedCell, DurationCell } = require('./listItems');
-var { DateRangePicker } = require('./../datePicker.jsx');
-var ClusterSelector = require('./../clusterSelector.jsx');
+import _ from '_';
+import React from 'react';
+import moment from 'moment';
+import InputSearch from './../inputSearch.jsx';
+import { isMatch } from 'app/common/objectUtils';
+import { actions } from 'app/modules/storedSessionsFilter';
+import { Table, Column, Cell, SortHeaderCell, SortTypes, EmptyIndicator } from 'app/components/table.jsx';
+import { SessionIdCell, NodeCell, UsersCell, DateCreatedCell, DurationCell } from './listItems';
+import { DateRangePicker } from './../datePicker.jsx';
+import ClusterSelector from './../clusterSelector.jsx';
 
-var SessionList = React.createClass({
+const SessionList = React.createClass({
 
   getInitialState(){
-    this.searchableProps = ['nodeIp', 'created', 'sid', 'login', 'user'];
+    this.searchableProps = ['nodeDisplayText', 'createdDisplayText', 'sid', 'parties'];
     return { filter: '', colSortDirs: {created: 'ASC'}};
   },
 
@@ -53,10 +52,10 @@ var SessionList = React.createClass({
     }
   },
 
-  searchAndFilterCb(targetValue, searchValue, propName){
-    if(propName === 'created'){
-      var displayDate = moment(targetValue).format(displayDateFormat).toLocaleUpperCase();
-      return displayDate.indexOf(searchValue) !== -1;
+  searchAndFilterCb(targetValue, searchValue, propName){    
+    if (propName === 'parties') {
+      targetValue = targetValue || [];
+      return targetValue.join('').toLocaleUpperCase().indexOf(searchValue) !== -1;
     }
   },
 
@@ -159,4 +158,4 @@ var SessionList = React.createClass({
   }
 });
 
-module.exports = SessionList;
+export default SessionList;

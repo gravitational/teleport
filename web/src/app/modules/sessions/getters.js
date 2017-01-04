@@ -18,13 +18,15 @@ import moment from 'moment';
 import cfg from 'app/config';
 import { EventTypeEnum } from 'app/services/enums';
 import reactor from 'app/reactor';
+import { nodeHostNameByServerId } from 'app/modules/nodes/getters';
+import { parseIp } from 'app/common/objectUtils';
 
-const activeSessions = [['tlpt_sessions_active'], ['tlpt', 'siteId'], (sessionList, siteId) => {  
+const activeSessionList = [['tlpt_sessions_active'], ['tlpt', 'siteId'], (sessionList, siteId) => {  
   sessionList = sessionList.filter(n => n.get('siteId') === siteId);    
   return sessionList.valueSeq().map(createActiveListItem).toJS();
 }];
 
-const storedSessions = [['tlpt_sessions_archived'], ['tlpt', 'siteId'], (sessionList, siteId) => {  
+const storedSessionList = [['tlpt_sessions_archived'], ['tlpt', 'siteId'], (sessionList, siteId) => {  
   sessionList = sessionList.filter(n => n.get('siteId') === siteId);    
   return sessionList.valueSeq().map(createStoredListItem).toJS();
 }];
@@ -37,6 +39,8 @@ function createStoredListItem(session){
   let sid = session.get('id');      
   let { siteId, nodeIp, created, server_id, parties, last_active } = session;    
   let duration = moment(last_active).diff(created);
+  let nodeDisplayText = getNodeIpDisplayText(server_id, nodeIp);
+  let createdDisplayText = getCreatedDisplayText(created);
 
   let sessionUrl = cfg.getCurrentSessionRouteUrl({
     sid,
@@ -45,25 +49,27 @@ function createStoredListItem(session){
     
   return {
     active: false,
-    parties: parties.toJS(),
-    sid,
-    created,    
+    parties: createParties(parties),
+    sid,    
     duration,    
     siteId,                       
-    sessionUrl,
-    serverId: server_id,
-    nodeIp: nodeIp,
+    sessionUrl,        
+    created,    
+    createdDisplayText,
+    nodeDisplayText,
     lastActive: last_active    
   }
 }
 
 function createActiveListItem(session){
   let sid = session.get('id');  
-  let parties = session.parties.toJS();
+  let parties = createParties(session.parties);
   
   let { siteId, created, last_active, server_id } = session;    
   let duration = moment(last_active).diff(created);
   let nodeIp = reactor.evaluate(nodeIpById(sid));
+  let nodeDisplayText = getNodeIpDisplayText(server_id, nodeIp);
+  let createdDisplayText = getCreatedDisplayText(created);
     
   let sessionUrl = cfg.getCurrentSessionRouteUrl({
     sid,
@@ -72,21 +78,48 @@ function createActiveListItem(session){
     
   return {
     active: true,
-    parties,
-    serverId: server_id,        
+    parties,    
     sid,
-    created,    
     duration,    
     siteId,     
     sessionUrl,
-    nodeIp: nodeIp,
+    created,    
+    createdDisplayText,    
+    nodeDisplayText,
     lastActive: last_active    
   }
 }
   
+function createParties(partyRecs) {
+  let parties = partyRecs.toJS();
+  return parties.map(p => {
+      let ip = parseIp(p.serverIp);
+      return `${p.user} [${ip}]`;
+  });
+}
+
+function getCreatedDisplayText(date) {
+  return moment(date).format(cfg.displayDateFormat);  
+}
+
+function getNodeIpDisplayText(serverId, serverIp) {
+  let hostname = reactor.evaluate(nodeHostNameByServerId(serverId));
+  let ipAddress = parseIp(serverIp);
+  let displayText = ipAddress;
+    
+  if (hostname) {
+    displayText = `${hostname}`;
+    if (ipAddress) {
+      displayText = `${hostname} [${ipAddress}]`;
+    }  
+  }  
+
+  return displayText;  
+}
+
 export default {
-  storedSessions,
-  activeSessions,
+  storedSessionList,
+  activeSessionList,
   activeSessionById,
   storedSessionById,  
   createStoredListItem
