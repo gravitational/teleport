@@ -474,7 +474,7 @@ type CreateSessionResponse struct {
 	// Token value
 	Token string `json:"token"`
 	// User represents the user
-	User services.UserV1 `json:"user"`
+	User interface{} `json:"user"`
 	// ExpiresIn sets seconds before this token is not valid
 	ExpiresIn int `json:"expires_in"`
 }
@@ -490,12 +490,12 @@ type createSessionResponseRaw struct {
 	ExpiresIn int `json:"expires_in"`
 }
 
-func (r createSessionResponseRaw) response() (*CreateSessionResponse, error) {
+func (r createSessionResponseRaw) response() (*CreateSessionResponse, services.User, error) {
 	user, err := services.GetUserMarshaler().UnmarshalUser(r.User)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
-	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn, User: user.WebSessionInfo(nil)}, nil
+	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn, User: user.WebSessionInfo(nil)}, user, nil
 }
 
 func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
