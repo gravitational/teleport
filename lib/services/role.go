@@ -123,7 +123,7 @@ type Role interface {
 	SetLogins(logins []string)
 	// GetLogins returns a list of linux logins allowed for this role
 	GetLogins() []string
-	// GetNodeLabels returns a list of matchign nodes this role has access to
+	// GetNodeLabels returns a list of matching nodes this role has access to
 	GetNodeLabels() map[string]string
 	// GetNamespaces returns a list of namespaces this role has access to
 	GetNamespaces() []string
@@ -508,8 +508,7 @@ const RoleSpecSchemaTemplate = `{
       "patternProperties": {
          "^[a-zA-Z/.0-9_]$":  { "type": "array", "items": {"type": "string"} }
        }
-    },
-    "extensions": %v
+    }%v
   }
 }`
 
@@ -518,14 +517,14 @@ const RoleSpecSchemaTemplate = `{
 func GetRoleSchema(extensionSchema string) string {
 	var roleSchema string
 	if extensionSchema == "" {
-		roleSchema = fmt.Sprintf(RoleSpecSchemaTemplate, `{"type": "object"}`)
+		roleSchema = fmt.Sprintf(RoleSpecSchemaTemplate, ``)
 	} else {
-		roleSchema = fmt.Sprintf(RoleSpecSchemaTemplate, extensionSchema)
+		roleSchema = fmt.Sprintf(RoleSpecSchemaTemplate, ","+extensionSchema)
 	}
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, roleSchema)
 }
 
-// UnmarshalRoleV2 unmarshals role from JSON or YAML,
+// UnmarshalRole unmarshals role from JSON or YAML,
 // sets defaults and checks the schema
 func UnmarshalRole(data []byte) (*RoleV2, error) {
 	if len(data) == 0 {

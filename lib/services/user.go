@@ -43,7 +43,7 @@ type User interface {
 	// GetRawObject returns raw object data, used for migrations
 	GetRawObject() interface{}
 	// WebSessionInfo returns web session information about user
-	WebSessionInfo(allowedLogins []string) UserV1
+	WebSessionInfo(allowedLogins []string) interface{}
 }
 
 // NewUser creates new empty user
@@ -181,7 +181,7 @@ type UserV2 struct {
 }
 
 // WebSessionInfo returns web session information about user
-func (u *UserV2) WebSessionInfo(allowedLogins []string) UserV1 {
+func (u *UserV2) WebSessionInfo(allowedLogins []string) interface{} {
 	out := u.V1()
 	out.AllowedLogins = allowedLogins
 	return *out

@@ -39,6 +39,26 @@ func (s *RoleSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
 }
 
+func (s *RoleSuite) TestRoleExtension(c *C) {
+	type Spec struct {
+		RoleSpecV2
+		A string `json:"a"`
+	}
+	type ExtendedRole struct {
+		Spec Spec `json:"spec"`
+	}
+	in := `{"kind": "role", "metadata": {"name": "name1"}, "spec": {"a": "b"}}`
+	var role ExtendedRole
+	err := utils.UnmarshalWithSchema(GetRoleSchema(`"a": {"type": "string"}`), &role, []byte(in))
+	c.Assert(err, IsNil)
+	c.Assert(role.Spec.A, Equals, "b")
+
+	// this is a bad type
+	in = `{"kind": "role", "metadata": {"name": "name1"}, "spec": {"a": 12}}`
+	err = utils.UnmarshalWithSchema(GetRoleSchema(`"a": {"type": "string"}`), &role, []byte(in))
+	c.Assert(err, NotNil)
+}
+
 func (s *RoleSuite) TestRoleParse(c *C) {
 	testCases := []struct {
 		in    string
