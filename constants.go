@@ -57,4 +57,10 @@ const (
 
 	// ConnectorOIDC means connector type OIDC
 	ConnectorOIDC = "oidc"
+
+	// AWSInstanceIDLabel is label specifying instance id
+	AWSInstanceIDLabel = "aws/instance-id"
+
+	// AWSInstanceRegionLabel is label specifying instance region
+	AWSInstanceRegionLabel = "aws/region"
 )

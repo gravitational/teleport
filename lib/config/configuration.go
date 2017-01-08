@@ -362,6 +362,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 	}
+
+	// apply AWS section
+	cfg.AWS.InjectTags = fc.AWS.InjectTags
 	return nil
 }
 

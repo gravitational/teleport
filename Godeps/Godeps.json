@@ -4,8 +4,8 @@
 	"GodepVersion": "v74",
 	"Packages": [
 		"./lib/...",
-		"./integration/...",
-		"./tool/..."
+		"./tool/...",
+		"./integration/..."
 	],
 	"Deps": [
 		{
@@ -116,6 +116,11 @@
 			"Rev": "918c42e2bcdb277aa821401c906e88254501bdf4"
 		},
 		{
+			"ImportPath": "github.com/aws/aws-sdk-go/private/protocol/ec2query",
+			"Comment": "v1.5.13",
+			"Rev": "918c42e2bcdb277aa821401c906e88254501bdf4"
+		},
+		{
 			"ImportPath": "github.com/aws/aws-sdk-go/private/protocol/json/jsonutil",
 			"Comment": "v1.5.13",
 			"Rev": "918c42e2bcdb277aa821401c906e88254501bdf4"
@@ -157,6 +162,11 @@
 		},
 		{
 			"ImportPath": "github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute",
+			"Comment": "v1.5.13",
+			"Rev": "918c42e2bcdb277aa821401c906e88254501bdf4"
+		},
+		{
+			"ImportPath": "github.com/aws/aws-sdk-go/service/ec2",
 			"Comment": "v1.5.13",
 			"Rev": "918c42e2bcdb277aa821401c906e88254501bdf4"
 		},

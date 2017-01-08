@@ -93,6 +93,9 @@ type InitConfig struct {
 
 	// U2F is the configuration of the U2F 2 factor authentication
 	U2F services.U2F
+
+	// Injector is optional injector
+	Injector services.Injector
 }
 
 // Init instantiates and configures an instance of AuthServer

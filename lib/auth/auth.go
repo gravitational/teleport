@@ -113,6 +113,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 		oidcClients:     make(map[string]*oidc.Client),
 		StaticTokens:    cfg.StaticTokens,
 		U2F:             cfg.U2F,
+		injector:        cfg.Injector,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -158,6 +159,9 @@ type AuthServer struct {
 	services.Provisioner
 	services.Identity
 	services.Access
+	// injector is optional metadata injector, the middleware
+	// that will add additional information to the AWS servers
+	injector services.Injector
 }
 
 func (a *AuthServer) Close() error {
@@ -282,6 +286,18 @@ func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
 		return nil, trace.Wrap(err)
 	}
 	return s.PreAuthenticatedSignIn(user)
+}
+
+// UpsertNode registers node presence, permanently if ttl is 0 or
+// for the specified duration with second resolution if it's >= 1 second
+func (s *AuthServer) UpsertNode(server services.Server, ttl time.Duration) error {
+	if s.injector != nil {
+		err := s.injector.Inject(server)
+		if err != nil {
+			log.Warnf("failed to inject nodes metadata %v", err)
+		}
+	}
+	return s.Presence.UpsertNode(server, ttl)
 }
 
 // PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is

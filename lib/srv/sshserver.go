@@ -85,6 +85,9 @@ type Server struct {
 	// alog points to the AuditLog this server uses to report
 	// auditable events
 	alog events.IAuditLog
+
+	// injector is optional metadata injector
+	injector services.Injector
 }
 
 // ServerOption is a functional option passed to the server
@@ -175,6 +178,13 @@ func SetAuditLog(alog events.IAuditLog) ServerOption {
 func SetNamespace(namespace string) ServerOption {
 	return func(s *Server) error {
 		s.namespace = namespace
+		return nil
+	}
+}
+
+func SetInjector(i services.Injector) ServerOption {
+	return func(s *Server) error {
+		s.injector = i
 		return nil
 	}
 }
@@ -307,6 +317,12 @@ func (s *Server) getInfo() services.Server {
 func (s *Server) registerServer() error {
 	srv := s.getInfo()
 	if !s.proxyMode {
+		if s.injector != nil {
+			err := s.injector.Inject(srv)
+			if err != nil {
+				log.Debugf("failed to inject metadata: %v", err)
+			}
+		}
 		return trace.Wrap(s.authService.UpsertNode(srv, defaults.ServerHeartbeatTTL))
 	}
 	return trace.Wrap(s.authService.UpsertProxy(srv, defaults.ServerHeartbeatTTL))

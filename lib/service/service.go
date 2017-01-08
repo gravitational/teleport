@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/awsinject"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
@@ -312,6 +313,15 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		}
 	}
 
+	var injector services.Injector
+	if cfg.AWS.InjectTags {
+		log.Debugf("Turning on AWS tags injector")
+		injector, err = awsinject.NewTags()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// first, create the AuthServer
 	authServer, identity, err := auth.Init(auth.InitConfig{
 		Backend:         b,
@@ -331,6 +341,7 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		StaticTokens:    cfg.Auth.StaticTokens,
 		U2F:             cfg.Auth.U2F,
 		Roles:           cfg.Auth.Roles,
+		Injector:        injector,
 	}, cfg.SeedConfig)
 	if err != nil {
 		return trace.Wrap(err)
@@ -479,6 +490,16 @@ func (process *TeleportProcess) initSSH() error {
 
 	var s *srv.Server
 
+	var err error
+	var injector services.Injector
+	if process.Config.AWS.InjectTags {
+		log.Debugf("Turning on AWS instance id injector")
+		injector, err = awsinject.NewMetadata()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	process.RegisterFunc(func() error {
 		event := <-eventsC
 		log.Infof("[SSH] received %v", &event)
@@ -525,6 +546,7 @@ func (process *TeleportProcess) initSSH() error {
 			srv.SetSessionServer(conn.Client),
 			srv.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
 			srv.SetNamespace(namespace),
+			srv.SetInjector(injector),
 		)
 		if err != nil {
 			return trace.Wrap(err)
