@@ -60,3 +60,10 @@ run-docs: bbox
 .PHONY:enter
 enter: bbox
 	docker run $(DOCKERFLAGS) -ti $(NOROOT) $(BBOX) /bin/bash
+
+#
+# Create a teleport package using the build container
+#
+.PHONY:release
+release: 
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BBOX) /usr/bin/make release -e VERSION="$(VERSION)" -e ADDFLAGS="$(ADDFLAGS)"
