@@ -299,9 +299,9 @@ type OIDCConnectorSpecV2 struct {
 	// Display - Friendly name for this provider.
 	Display string `json:"display,omitempty"`
 	// Scope is additional scopes set by provder
-	Scope []string `json:"scope"`
+	Scope []string `json:"scope,omitempty"`
 	// ClaimsToRoles specifies dynamic mapping from claims to roles
-	ClaimsToRoles []ClaimMapping `json:"claims_to_roles"`
+	ClaimsToRoles []ClaimMapping `json:"claims_to_roles,omitempty"`
 }
 
 // OIDCConnectorSpecV2Schema is a JSON Schema for OIDC Connector
