@@ -55,7 +55,7 @@ $ cd $GOPATH/src/github.com/gravitational/teleport
 $ make
 
 # create the default data directory before starting:
-$ sudo make -p /var/lib/teleport
+$ sudo mkdir -p /var/lib/teleport
 $ sudo chown $USER /var/lib/teleport
 ```
 
