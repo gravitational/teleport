@@ -61,8 +61,8 @@ func (s *TimeoutSuite) TearDownSuite(c *check.C) {
 }
 
 func (s *TimeoutSuite) TestSlowOperation(c *check.C) {
-	client := newClient(time.Millisecond * 3)
-	_, err := client.Get(s.server.URL + "/slow?delay=5ms")
+	client := newClient(time.Millisecond * 5)
+	_, err := client.Get(s.server.URL + "/slow?delay=10ms")
 	// must fail with I/O timeout
 	c.Assert(err, check.NotNil)
 	c.Assert(err.Error(), check.Matches, "^.*i/o timeout$")
@@ -71,14 +71,12 @@ func (s *TimeoutSuite) TestSlowOperation(c *check.C) {
 func (s *TimeoutSuite) TestNormalOperation(c *check.C) {
 	client := newClient(time.Millisecond * 5)
 	resp, err := client.Get(s.server.URL + "/ping")
-	if err != nil {
-		panic(err)
-	}
+	c.Assert(err, check.IsNil)
 	c.Assert(bodyText(resp), check.Equals, "pong")
 }
 
-// newClient helper returns HTTP client configured to use "ObeyTimeouts" connection
-// with a given timeout
+// newClient helper returns HTTP client configured to use a connection
+// wich drops itself after N idle time
 func newClient(timeout time.Duration) *http.Client {
 	var t http.Transport
 	t.Dial = func(network string, addr string) (net.Conn, error) {
@@ -86,7 +84,7 @@ func newClient(timeout time.Duration) *http.Client {
 		if err != nil {
 			return nil, err
 		}
-		return ObeyTimeouts(conn, timeout, "test"), nil
+		return ObeyIdleTimeout(conn, timeout, "test"), nil
 	}
 	return &http.Client{Transport: &t}
 }

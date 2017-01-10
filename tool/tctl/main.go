@@ -19,6 +19,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/url"
@@ -28,7 +29,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -40,9 +40,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/buger/goterm"
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	kyaml "k8s.io/client-go/1.4/pkg/util/yaml"
 )
 
 type CLIConfig struct {
@@ -55,6 +58,7 @@ type UserCommand struct {
 	config        *service.Config
 	login         string
 	allowedLogins string
+	roles         string
 	identities    []string
 }
 
@@ -70,6 +74,8 @@ type NodeCommand struct {
 	// TTL: duration of time during which a generated node token will
 	// be valid.
 	ttl time.Duration
+	// namespace is node namespace
+	namespace string
 }
 
 type AuthCommand struct {
@@ -101,6 +107,24 @@ type TokenCommand struct {
 	token string
 }
 
+type GetCommand struct {
+	config      *service.Config
+	ref         services.Ref
+	format      string
+	namespace   string
+	withSecrets bool
+}
+
+type UpsertCommand struct {
+	config   *service.Config
+	filename string
+}
+
+type DeleteCommand struct {
+	config *service.Config
+	ref    services.Ref
+}
+
 func main() {
 	utils.InitLoggerCLI()
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
@@ -112,6 +136,9 @@ func main() {
 	cmdAuth := AuthCommand{config: cfg}
 	cmdReverseTunnel := ReverseTunnelCommand{config: cfg}
 	cmdTokens := TokenCommand{config: cfg}
+	cmdGet := GetCommand{config: cfg}
+	cmdUpsert := UpsertCommand{config: cfg}
+	cmdDelete := DeleteCommand{config: cfg}
 
 	// define global flags:
 	var ccf CLIConfig
@@ -130,12 +157,32 @@ func main() {
 
 	// user add command:
 	users := app.Command("users", "Manage users logins")
+
 	userAdd := users.Command("add", "Generate an invitation token and print the signup URL")
 	userAdd.Arg("login", "Teleport user login").Required().StringVar(&cmdUsers.login)
 	userAdd.Arg("local-logins", "Local UNIX users this account can log in as [login]").
 		Default("").StringVar(&cmdUsers.allowedLogins)
 	userAdd.Flag("identity", "[EXPERIMENTAL] Add OpenID Connect identity, e.g. --identity=google:bob@gmail.com").Hidden().StringsVar(&cmdUsers.identities)
 	userAdd.Alias(AddUserHelp)
+
+	userUpdate := users.Command("update", "Update properties for existing user").Hidden()
+	userUpdate.Arg("login", "Teleport user login").Required().StringVar(&cmdUsers.login)
+	userUpdate.Flag("set-roles", "Roles to assign to this user").
+		Default("").StringVar(&cmdUsers.roles)
+
+	delete := app.Command("del", "Delete resources").Hidden()
+	delete.Arg("resource", "Resource to delete").SetValue(&cmdDelete.ref)
+
+	// get one or many resources in the system
+	get := app.Command("get", "Get one or many objects in the system").Hidden()
+	get.Arg("resource", "Resource type and name").SetValue(&cmdGet.ref)
+	get.Flag("format", "Format output type, one of 'yaml', 'json' or 'text'").Default(formatText).StringVar(&cmdGet.format)
+	get.Flag("namespace", "Namespace of the resources").Default(defaults.Namespace).StringVar(&cmdGet.namespace)
+	get.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&cmdGet.withSecrets)
+
+	// upsert one or many resources
+	upsert := app.Command("upsert", "Update or insert one or many resources").Hidden()
+	upsert.Flag("filename", "Filename with resources").Short('f').StringVar(&cmdUpsert.filename)
 
 	// list users command
 	userList := users.Command("ls", "List all user accounts")
@@ -149,11 +196,12 @@ func main() {
 	nodes := app.Command("nodes", "Issue invites for other nodes to join the cluster")
 	nodeAdd := nodes.Command("add", "Generate an invitation token. Use it to add a new node to the Teleport cluster")
 	nodeAdd.Flag("roles", "Comma-separated list of roles for the new node to assume [node]").Default("node").StringVar(&cmdNodes.roles)
-	nodeAdd.Flag("ttl", "Time to live for a generated token").DurationVar(&cmdNodes.ttl)
+	nodeAdd.Flag("ttl", "Time to live for a generated token").Default(defaults.ProvisioningTokenTTL.String()).DurationVar(&cmdNodes.ttl)
 	nodeAdd.Flag("count", "add count tokens and output JSON with the list").Hidden().Default("1").IntVar(&cmdNodes.count)
 	nodeAdd.Flag("format", "output format, 'text' or 'json'").Hidden().Default("text").StringVar(&cmdNodes.format)
 	nodeAdd.Alias(AddNodeHelp)
 	nodeList := nodes.Command("ls", "List all active SSH nodes within the cluster")
+	nodeList.Flag("namespace", "Namespace of the nodes").Default(defaults.Namespace).StringVar(&cmdNodes.namespace)
 	nodeList.Alias(ListNodesHelp)
 
 	// operations on invitation tokens
@@ -224,10 +272,18 @@ func main() {
 
 	// execute the selected command:
 	switch command {
+	case get.FullCommand():
+		err = cmdGet.Get(client)
+	case upsert.FullCommand():
+		err = cmdUpsert.Upsert(client)
+	case delete.FullCommand():
+		err = cmdDelete.Delete(client)
 	case userAdd.FullCommand():
 		err = cmdUsers.Add(client)
 	case userList.FullCommand():
 		err = cmdUsers.List(client)
+	case userUpdate.FullCommand():
+		err = cmdUsers.Update(client)
 	case userDelete.FullCommand():
 		err = cmdUsers.Delete(client)
 	case nodeAdd.FullCommand():
@@ -257,8 +313,15 @@ func main() {
 	}
 
 	if err != nil {
+		logrus.Error(trace.DebugReport(err))
 		utils.FatalError(err)
 	}
+}
+
+func Ref(s kingpin.Settings) *services.Ref {
+	r := new(services.Ref)
+	s.SetValue(r)
+	return r
 }
 
 func onVersion() {
@@ -281,7 +344,7 @@ func (u *UserCommand) Add(client *auth.TunClient) error {
 	if u.allowedLogins == "" {
 		u.allowedLogins = u.login
 	}
-	user := services.TeleportUser{
+	user := services.UserV1{
 		Name:          u.login,
 		AllowedLogins: strings.Split(u.allowedLogins, ","),
 	}
@@ -294,7 +357,7 @@ func (u *UserCommand) Add(client *auth.TunClient) error {
 			user.OIDCIdentities = append(user.OIDCIdentities, services.OIDCIdentity{ConnectorID: vals[0], Email: vals[1]})
 		}
 	}
-	token, err := client.CreateSignupToken(&user)
+	token, err := client.CreateSignupToken(user)
 	if err != nil {
 		return err
 	}
@@ -306,7 +369,7 @@ func (u *UserCommand) Add(client *auth.TunClient) error {
 	if len(proxies) == 0 {
 		fmt.Printf("\x1b[1mWARNING\x1b[0m: this Teleport cluster does not have any proxy servers online.\nYou need to start some to be able to login.\n\n")
 	} else {
-		hostname = proxies[0].Hostname
+		hostname = proxies[0].GetHostname()
 	}
 
 	// try to auto-suggest the activation link
@@ -325,18 +388,8 @@ func (u *UserCommand) List(client *auth.TunClient) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	usersView := func(users []services.User) string {
-		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"User", "Allowed to login as"})
-		if len(users) == 0 {
-			return t.String()
-		}
-		for _, u := range users {
-			fmt.Fprintf(t, "%v\t%v\n", u.GetName(), strings.Join(u.GetAllowedLogins(), ","))
-		}
-		return t.String()
-	}
-	fmt.Printf(usersView(users))
+	coll := &userCollection{users: users}
+	coll.writeText(os.Stdout)
 	return nil
 }
 
@@ -349,6 +402,26 @@ func (u *UserCommand) Delete(client *auth.TunClient) error {
 		}
 		fmt.Printf("User '%v' has been deleted\n", l)
 	}
+	return nil
+}
+
+// Update updates existing user
+func (u *UserCommand) Update(client *auth.TunClient) error {
+	user, err := client.GetUser(u.login)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	roles := strings.Split(u.roles, ",")
+	for _, role := range roles {
+		if _, err := client.GetRole(role); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	user.SetRoles(roles)
+	if err := client.UpsertUser(user); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("%v has been updated with roles %v\n", user.GetName(), strings.Join(user.GetRoles(), ","))
 	return nil
 }
 
@@ -385,10 +458,10 @@ func (u *NodeCommand) Invite(client *auth.TunClient) error {
 		for _, token := range tokens {
 			fmt.Printf(
 				"The invite token: %v\nRun this on the new node to join the cluster:\n> teleport start --roles=%s --token=%v --auth-server=%v\n\nPlease note:\n",
-				token, strings.ToLower(roles.String()), token, authServers[0].Addr)
+				token, strings.ToLower(roles.String()), token, authServers[0].GetAddr())
 		}
 		fmt.Printf("  - This invitation token will expire in %d minutes\n", int(u.ttl.Minutes()))
-		fmt.Printf("  - %v must be reachable from the new node, see --advertise-ip server flag\n", authServers[0].Addr)
+		fmt.Printf("  - %v must be reachable from the new node, see --advertise-ip server flag\n", authServers[0].GetAddr())
 	} else {
 		out, err := json.Marshal(tokens)
 		if err != nil {
@@ -402,22 +475,12 @@ func (u *NodeCommand) Invite(client *auth.TunClient) error {
 // ListActive retreives the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
 func (u *NodeCommand) ListActive(client *auth.TunClient) error {
-	nodes, err := client.GetNodes()
+	nodes, err := client.GetNodes(u.namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	nodesView := func(nodes []services.Server) string {
-		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"Node Name", "Node ID", "Address", "Labels"})
-		if len(nodes) == 0 {
-			return t.String()
-		}
-		for _, n := range nodes {
-			fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", n.Hostname, n.ID, n.Addr, n.LabelsString())
-		}
-		return t.String()
-	}
-	fmt.Printf(nodesView(nodes))
+	coll := &serverCollection{servers: nodes}
+	coll.writeText(os.Stdout)
 	return nil
 }
 
@@ -440,8 +503,8 @@ func (a *AuthCommand) ListAuthorities(client *auth.TunClient) error {
 		return trace.Wrap(err)
 	}
 	var (
-		localCAs   []*services.CertAuthority
-		trustedCAs []*services.CertAuthority
+		localCAs   []services.CertAuthority
+		trustedCAs []services.CertAuthority
 	)
 	for _, t := range authTypes {
 		cas, err := client.GetCertAuthorities(t, false)
@@ -449,7 +512,7 @@ func (a *AuthCommand) ListAuthorities(client *auth.TunClient) error {
 			return trace.Wrap(err)
 		}
 		for i := range cas {
-			if cas[i].DomainName == localAuthName {
+			if cas[i].GetClusterName() == localAuthName {
 				localCAs = append(localCAs, cas[i])
 			} else {
 				trustedCAs = append(trustedCAs, cas[i])
@@ -460,12 +523,12 @@ func (a *AuthCommand) ListAuthorities(client *auth.TunClient) error {
 		t := goterm.NewTable(0, 10, 5, ' ', 0)
 		printHeader(t, []string{"CA Type", "Fingerprint"})
 		for _, a := range localCAs {
-			for _, keyBytes := range a.CheckingKeys {
+			for _, keyBytes := range a.GetCheckingKeys() {
 				fingerprint, err := sshutils.AuthorizedKeyFingerprint(keyBytes)
 				if err != nil {
 					fingerprint = fmt.Sprintf("<bad key: %v", err)
 				}
-				fmt.Fprintf(t, "%v\t%v\n", a.Type, fingerprint)
+				fmt.Fprintf(t, "%v\t%v\n", a.GetType(), fingerprint)
 			}
 		}
 		return fmt.Sprintf("CA keys for the local cluster %v:\n\n", localAuthName) +
@@ -473,25 +536,20 @@ func (a *AuthCommand) ListAuthorities(client *auth.TunClient) error {
 	}
 	trustedCAsView := func() string {
 		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"Cluster Name", "CA Type", "Fingerprint", "Allowed Logins"})
+		printHeader(t, []string{"Cluster Name", "CA Type", "Fingerprint", "Roles"})
 		for _, a := range trustedCAs {
-			for _, keyBytes := range a.CheckingKeys {
+			for _, keyBytes := range a.GetCheckingKeys() {
 				fingerprint, err := sshutils.AuthorizedKeyFingerprint(keyBytes)
 				if err != nil {
 					fingerprint = fmt.Sprintf("<bad key: %v", err)
 				}
 				var logins string
-				if a.Type == services.HostCA {
+				if a.GetType() == services.HostCA {
 					logins = "N/A"
 				} else {
-					logins = strings.Join(a.AllowedLogins, ",")
-					if logins == "" {
-						logins = "<nobody>"
-					} else if logins == "*" {
-						logins = "<everyone>"
-					}
+					logins = strings.Join(a.GetRoles(), ",")
 				}
-				fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", a.DomainName, a.Type, fingerprint, logins)
+				fmt.Fprintf(t, "%v\t%v\t%v\t%v\n", a.GetClusterName(), a.GetType(), fingerprint, logins)
 			}
 		}
 		return "\nCA Keys for Trusted Clusters:\n\n" + t.String()
@@ -526,14 +584,14 @@ func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
 
 	// fetch authorities via auth API (and only take local CAs, ignoring
 	// trusted ones)
-	var authorities []*services.CertAuthority
+	var authorities []services.CertAuthority
 	for _, at := range typesToExport {
 		cas, err := client.GetCertAuthorities(at, a.exportPrivateKeys)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		for _, ca := range cas {
-			if ca.DomainName == localAuthName {
+			if ca.GetClusterName() == localAuthName {
 				authorities = append(authorities, ca)
 			}
 		}
@@ -542,7 +600,7 @@ func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
 	// print:
 	for _, ca := range authorities {
 		if a.exportPrivateKeys {
-			for _, key := range ca.SigningKeys {
+			for _, key := range ca.GetSigningKeys() {
 				fingerprint, err := sshutils.PrivateKeyFingerprint(key)
 				if err != nil {
 					return trace.Wrap(err)
@@ -554,7 +612,7 @@ func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
 				fmt.Fprintf(os.Stdout, "\n")
 			}
 		} else {
-			for _, keyBytes := range ca.CheckingKeys {
+			for _, keyBytes := range ca.GetCheckingKeys() {
 				fingerprint, err := sshutils.AuthorizedKeyFingerprint(keyBytes)
 				if err != nil {
 					return trace.Wrap(err)
@@ -563,10 +621,15 @@ func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
 					continue
 				}
 				options := url.Values{
-					"type": []string{string(ca.Type)},
+					"type": []string{string(ca.GetType())},
 				}
-				if len(ca.AllowedLogins) > 0 {
-					options["logins"] = ca.AllowedLogins
+				roles, err := services.FetchRoles(ca.GetRoles(), client)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				allowedLogins, _ := roles.CheckLogins(defaults.MinCertDuration + time.Second)
+				if len(allowedLogins) > 0 {
+					options["logins"] = allowedLogins
 				}
 				// Every auth public key is exported as a single line adhering to man sshd (8)
 				// authorized_hosts format, a space-separated list of: makrer, hosts, key, and comment
@@ -574,7 +637,7 @@ func (a *AuthCommand) ExportAuthorities(client *auth.TunClient) error {
 				// 		@cert-authority *.cluster-a ssh-rsa AAA... type=user
 				// We use URL encoding to pass the CA type and allowed logins into the comment field
 				fmt.Fprintf(os.Stdout, "@cert-authority *.%s %s %s\n",
-					ca.DomainName, strings.TrimSpace(string(keyBytes)), options.Encode())
+					ca.GetClusterName(), strings.TrimSpace(string(keyBytes)), options.Encode())
 			}
 		}
 	}
@@ -659,27 +722,14 @@ func (r *ReverseTunnelCommand) ListActive(client *auth.TunClient) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tunnelsView := func() string {
-		t := goterm.NewTable(0, 10, 5, ' ', 0)
-		printHeader(t, []string{"Domain", "Dial Addresses"})
-		if len(tunnels) == 0 {
-			return t.String()
-		}
-		for _, tunnel := range tunnels {
-			fmt.Fprintf(t, "%v\t%v\n", tunnel.DomainName, strings.Join(tunnel.DialAddrs, ","))
-		}
-		return t.String()
-	}
-	fmt.Printf(tunnelsView())
+	coll := &reverseTunnelCollection{tunnels: tunnels}
+	coll.writeText(os.Stdout)
 	return nil
 }
 
 // Upsert updates or inserts new reverse tunnel
 func (r *ReverseTunnelCommand) Upsert(client *auth.TunClient) error {
-	err := client.UpsertReverseTunnel(services.ReverseTunnel{
-		DomainName: r.domainNames,
-		DialAddrs:  r.dialAddrs.Addresses()},
-		r.ttl)
+	err := client.UpsertReverseTunnel(services.NewReverseTunnel(r.domainNames, r.dialAddrs.Addresses()), r.ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -741,7 +791,7 @@ func validateConfig(cfg *service.Config) {
 	// read a host UUID for this node
 	cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
 	if err != nil {
-		utils.FatalError(fmt.Errorf("Invalid data directory: '%s'", cfg.DataDir))
+		utils.FatalError(err)
 	}
 }
 
@@ -809,3 +859,242 @@ func (c *TokenCommand) Del(client *auth.TunClient) error {
 	fmt.Printf("Token %s has been deleted\n", c.token)
 	return nil
 }
+
+// Get prints one or many resources of a certain type
+func (g *GetCommand) Get(client *auth.TunClient) error {
+	collection, err := g.getCollection(client)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	switch g.format {
+	case formatText:
+		return collection.writeText(os.Stdout)
+	case formatJSON:
+		return collection.writeJSON(os.Stdout)
+	case formatYAML:
+		return collection.writeYAML(os.Stdout)
+	}
+	return trace.BadParameter("unsupported format")
+}
+
+// Upsert updates or insterts one or many resources
+func (u *UpsertCommand) Upsert(client *auth.TunClient) error {
+	var reader io.ReadCloser
+	var err error
+	if u.filename != "" {
+		reader, err = utils.OpenFile(u.filename)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		reader = ioutil.NopCloser(os.Stdin)
+	}
+	decoder := kyaml.NewYAMLOrJSONDecoder(reader, 32*1024)
+	count := 0
+	for {
+		var raw services.UnknownResource
+		err := decoder.Decode(&raw)
+		if err != nil {
+			if err == io.EOF {
+				if count == 0 {
+					return trace.BadParameter("no resources found, emtpy input?")
+				}
+				return nil
+			}
+			return trace.Wrap(err)
+		}
+		count += 1
+		switch raw.Kind {
+		case services.KindOIDCConnector:
+			conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(raw.Raw)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := client.UpsertOIDCConnector(conn, 0); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("OIDC connector %v upserted\n", conn.GetName())
+		case services.KindReverseTunnel:
+			tun, err := services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(raw.Raw)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := client.UpsertReverseTunnel(tun, 0); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("reverse tunnel %v upserted\n", tun.GetName())
+		case services.KindCertAuthority:
+			ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw.Raw)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := client.UpsertCertAuthority(ca, 0); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("cert authority %v upserted\n", ca.GetName())
+		case services.KindUser:
+			user, err := services.GetUserMarshaler().UnmarshalUser(raw.Raw)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := client.UpsertUser(user); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("user %v upserted\n", user.GetName())
+		case services.KindRole:
+			role, err := services.GetRoleMarshaler().UnmarshalRole(raw.Raw)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := client.UpsertRole(role); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("role %v upserted\n", role.GetName())
+		case services.KindNamespace:
+			ns, err := services.UnmarshalNamespace(raw.Raw)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := client.UpsertNamespace(*ns); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("namespace %v upserted\n", ns.Metadata.Name)
+		case "":
+			return trace.BadParameter("missing resource kind")
+		default:
+			return trace.BadParameter("%v is not supported", raw.Kind)
+		}
+	}
+}
+
+// Delete deletes resource by name
+func (d *DeleteCommand) Delete(client *auth.TunClient) error {
+	if d.ref.Kind == "" {
+		return trace.BadParameter("provide full resource name to delete e.g. roles/example")
+	}
+	if d.ref.Name == "" {
+		return trace.BadParameter("provide full resource name to delete e.g. roles/example")
+	}
+
+	for {
+		switch d.ref.Kind {
+		case services.KindUser:
+			if err := client.DeleteUser(d.ref.Name); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("user %v has been deleted\n", d.ref.Name)
+		case services.KindOIDCConnector:
+			if err := client.DeleteOIDCConnector(d.ref.Name); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("OIDC Connector %v has been deleted\n", d.ref.Name)
+		case services.KindReverseTunnel:
+			if err := client.DeleteReverseTunnel(d.ref.Name); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("reverse tunnel %v has been deleted\n", d.ref.Name)
+		case services.KindRole:
+			if err := client.DeleteRole(d.ref.Name); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("role %v has been deleted\n", d.ref.Name)
+		case services.KindNamespace:
+			if err := client.DeleteNamespace(d.ref.Name); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("namespace %v has been deleted\n", d.ref.Name)
+		case "":
+			return trace.BadParameter("missing resource kind")
+		default:
+			return trace.BadParameter("%v is not supported", d.ref.Kind)
+		}
+	}
+}
+
+func (g *GetCommand) getCollection(client auth.ClientI) (collection, error) {
+	if g.ref.Kind == "" {
+		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
+	}
+	switch g.ref.Kind {
+	case services.KindOIDCConnector:
+		connectors, err := client.GetOIDCConnectors(g.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &connectorCollection{connectors: connectors}, nil
+	case services.KindReverseTunnel:
+		tunnels, err := client.GetReverseTunnels()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &reverseTunnelCollection{tunnels: tunnels}, nil
+	case services.KindCertAuthority:
+		userAuthorities, err := client.GetCertAuthorities(services.UserCA, g.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		hostAuthorities, err := client.GetCertAuthorities(services.HostCA, g.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		userAuthorities = append(userAuthorities, hostAuthorities...)
+		return &authorityCollection{cas: userAuthorities}, nil
+	case services.KindUser:
+		users, err := client.GetUsers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &userCollection{users: users}, nil
+	case services.KindNode:
+		nodes, err := client.GetNodes(g.namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &serverCollection{servers: nodes}, nil
+	case services.KindAuthServer:
+		servers, err := client.GetAuthServers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &serverCollection{servers: servers}, nil
+	case services.KindProxy:
+		servers, err := client.GetAuthServers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &serverCollection{servers: servers}, nil
+	case services.KindRole:
+		if g.ref.Name == "" {
+			roles, err := client.GetRoles()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &roleCollection{roles: roles}, nil
+		}
+		role, err := client.GetRole(g.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &roleCollection{roles: []services.Role{role}}, nil
+	case services.KindNamespace:
+		if g.ref.Name == "" {
+			namespaces, err := client.GetNamespaces()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &namespaceCollection{namespaces: namespaces}, nil
+		}
+		ns, err := client.GetNamespace(g.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &namespaceCollection{namespaces: []services.Namespace{*ns}}, nil
+	}
+	return nil, trace.BadParameter("'%v' is not supported", g.ref.Kind)
+}
+
+const (
+	formatYAML = "yaml"
+	formatText = "text"
+	formatJSON = "json"
+)

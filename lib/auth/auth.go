@@ -26,7 +26,7 @@ package auth
 import (
 	"fmt"
 	"net/url"
-	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -38,11 +38,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-
 	"github.com/tstranex/u2f"
 )
 
@@ -88,9 +88,6 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 	if cfg.Trust == nil {
 		cfg.Trust = local.NewCAService(cfg.Backend)
 	}
-	if cfg.Lock == nil {
-		cfg.Lock = local.NewLockService(cfg.Backend)
-	}
 	if cfg.Presence == nil {
 		cfg.Presence = local.NewPresenceService(cfg.Backend)
 	}
@@ -98,17 +95,19 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) *AuthServer {
 		cfg.Provisioner = local.NewProvisioningService(cfg.Backend)
 	}
 	if cfg.Identity == nil {
-		cfg.Identity = local.NewIdentityService(cfg.Backend,
-			defaults.MaxLoginAttempts, defaults.AccountLockInterval)
+		cfg.Identity = local.NewIdentityService(cfg.Backend)
+	}
+	if cfg.Access == nil {
+		cfg.Access = local.NewAccessService(cfg.Backend)
 	}
 	as := AuthServer{
 		bk:              cfg.Backend,
 		Authority:       cfg.Authority,
 		Trust:           cfg.Trust,
-		Lock:            cfg.Lock,
 		Presence:        cfg.Presence,
 		Provisioner:     cfg.Provisioner,
 		Identity:        cfg.Identity,
+		Access:          cfg.Access,
 		DomainName:      cfg.DomainName,
 		AuthServiceName: cfg.AuthServiceName,
 		oidcClients:     make(map[string]*oidc.Client),
@@ -155,10 +154,10 @@ type AuthServer struct {
 	U2F services.U2F
 
 	services.Trust
-	services.Lock
 	services.Presence
 	services.Provisioner
 	services.Identity
+	services.Access
 }
 
 func (a *AuthServer) Close() error {
@@ -176,7 +175,7 @@ func (a *AuthServer) GetDomainName() (string, error) {
 
 func (a *AuthServer) GetU2FAppID() (string, error) {
 	if err := a.CheckU2FEnabled(); err != nil {
-		return "", err
+		return "", trace.Wrap(err)
 	}
 	return a.U2F.AppID, nil
 }
@@ -196,7 +195,7 @@ func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, rol
 		DomainName: s.DomainName,
 	}, true)
 	if err != nil {
-		return nil, trace.Errorf("failed to load host CA for '%s': %v", s.DomainName, err)
+		return nil, trace.BadParameter("failed to load host CA for '%s': %v", s.DomainName, err)
 	}
 	privateKey, err := ca.FirstSigningKey()
 	if err != nil {
@@ -207,9 +206,7 @@ func (s *AuthServer) GenerateHostCert(key []byte, hostID, authDomain string, rol
 
 // GenerateUserCert generates user certificate, it takes pkey as a signing
 // private key (user certificate authority)
-func (s *AuthServer) GenerateUserCert(
-	key []byte, username string, ttl time.Duration) ([]byte, error) {
-
+func (s *AuthServer) GenerateUserCert(key []byte, username string, allowedLogins []string, ttl time.Duration) ([]byte, error) {
 	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
 		DomainName: s.DomainName,
@@ -221,15 +218,67 @@ func (s *AuthServer) GenerateUserCert(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := s.GetUser(username)
+	return s.Authority.GenerateUserCert(privateKey, key, username, allowedLogins, ttl)
+}
+
+// withUserLock executes function authenticateFn that perorms user authenticaton
+// if authenticateFn returns non nil error, the login attempt will be logged in as failed.
+// The only exception to this rule is ConnectionProblemError, in case if it occurs
+// access will be denied, but login attempt will not be recorded
+// this is done to avoid potential user lockouts due to backend failures
+// In case if user exceeds defaults.MaxLoginAttempts
+// the user account will be locked for defaults.AccountLockInterval
+func (s *AuthServer) withUserLock(username string, authenticateFn func() error) error {
+	user, err := s.Identity.GetUser(username)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	return s.Authority.GenerateUserCert(privateKey, key, username, user.GetAllowedLogins(), ttl)
+	status := user.GetStatus()
+	if status.IsLocked && status.LockExpires.After(s.clock.Now().UTC()) {
+		return trace.AccessDenied("user %v is locked until %v", utils.HumanTimeFormat(status.LockExpires))
+	}
+	fnErr := authenticateFn()
+	if fnErr == nil {
+		return nil
+	}
+	// do not lock user in case if DB is flaky or down
+	if trace.IsConnectionProblem(err) {
+		return trace.Wrap(fnErr)
+	}
+	// log failed attempt and possibly lock user
+	attempt := services.LoginAttempt{Time: s.clock.Now().UTC(), Success: false}
+	err = s.AddUserLoginAttempt(username, attempt, defaults.AttemptTTL)
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return trace.Wrap(fnErr)
+	}
+	loginAttempts, err := s.Identity.GetUserLoginAttempts(username)
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return trace.Wrap(fnErr)
+	}
+	if !services.LastFailed(defaults.MaxLoginAttempts, loginAttempts) {
+		log.Debugf("%v user has less than %v failed login attempts", username, defaults.MaxLoginAttempts)
+		return trace.Wrap(fnErr)
+	}
+	lockUntil := s.clock.Now().UTC().Add(defaults.AccountLockInterval)
+	message := fmt.Sprintf("%v exceeds %v failed login attempts, locked until %v",
+		username, defaults.MaxLoginAttempts, utils.HumanTimeFormat(status.LockExpires))
+	log.Debug(message)
+	user.SetLocked(lockUntil, "user has exceeded maximum failed login attempts")
+	err = s.Identity.UpsertUser(user)
+	if err != nil {
+		log.Error(trace.DebugReport(err))
+		return trace.Wrap(fnErr)
+	}
+	return trace.AccessDenied(message)
 }
 
 func (s *AuthServer) SignIn(user string, password []byte) (*Session, error) {
-	if err := s.CheckPasswordWOToken(user, password); err != nil {
+	err := s.withUserLock(user, func() error {
+		return s.CheckPasswordWOToken(user, password)
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return s.PreAuthenticatedSignIn(user)
@@ -255,7 +304,10 @@ func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequ
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.CheckPasswordWOToken(user, password); err != nil {
+	err = s.withUserLock(user, func() error {
+		return s.CheckPasswordWOToken(user, password)
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -279,7 +331,7 @@ func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequ
 	return u2fSignReq, nil
 }
 
-func (s *AuthServer) CheckU2FSignResponse(user string, response *u2f.SignResponse) (error) {
+func (s *AuthServer) CheckU2FSignResponse(user string, response *u2f.SignResponse) error {
 	err := s.CheckU2FEnabled()
 	if err != nil {
 		return trace.Wrap(err)
@@ -469,7 +521,7 @@ func (s *AuthServer) RegisterUsingToken(token, hostID string, role teleport.Role
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	utils.Consolef(os.Stdout, "[AUTH] Node `%v` joined the cluster", hostID)
+	log.Infof("[AUTH] Node `%v` joined the cluster", hostID)
 	return keys, nil
 }
 
@@ -560,7 +612,20 @@ func (s *AuthServer) NewWebSession(userName string) (*Session, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := s.Authority.GenerateUserCert(privateKey, pub, user.GetName(), user.GetAllowedLogins(), WebSessionTTL)
+	var roles services.RoleSet
+	for _, roleName := range user.GetRoles() {
+		role, err := s.Access.GetRole(roleName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		roles = append(roles, role)
+	}
+	allowedLogins, err := roles.CheckLogins(WebSessionTTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := s.Authority.GenerateUserCert(privateKey, pub, user.GetName(), allowedLogins, WebSessionTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -614,27 +679,41 @@ func (s *AuthServer) GetWebSessionInfo(userName string, id string) (*Session, er
 	}, nil
 }
 
+func (s *AuthServer) DeleteNamespace(namespace string) error {
+	if namespace == defaults.Namespace {
+		return trace.AccessDenied("can't delete default namespace")
+	}
+	nodes, err := s.Presence.GetNodes(namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(nodes) != 0 {
+		return trace.BadParameter("can't delete namespace %v that has %v registered nodes", namespace, len(nodes))
+	}
+	return s.Presence.DeleteNamespace(namespace)
+}
+
 func (s *AuthServer) DeleteWebSession(user string, id string) error {
 	return trace.Wrap(s.Identity.DeleteWebSession(user, id))
 }
 
-func (s *AuthServer) getOIDCClient(conn *services.OIDCConnector) (*oidc.Client, error) {
+func (s *AuthServer) getOIDCClient(conn services.OIDCConnector) (*oidc.Client, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	client, ok := s.oidcClients[conn.ID]
+	client, ok := s.oidcClients[conn.GetName()]
 	if ok {
 		return client, nil
 	}
 
 	config := oidc.ClientConfig{
-		RedirectURL: conn.RedirectURL,
+		RedirectURL: conn.GetRedirectURL(),
 		Credentials: oidc.ClientCredentials{
-			ID:     conn.ClientID,
-			Secret: conn.ClientSecret,
+			ID:     conn.GetClientID(),
+			Secret: conn.GetClientSecret(),
 		},
 		// open id notifies provider that we are using OIDC scopes
-		Scope: []string{"openid", "email"},
+		Scope: utils.Deduplicate(append([]string{"openid", "email"}, conn.GetScope()...)),
 	}
 
 	client, err := oidc.NewClient(config)
@@ -642,9 +721,9 @@ func (s *AuthServer) getOIDCClient(conn *services.OIDCConnector) (*oidc.Client, 
 		return nil, trace.Wrap(err)
 	}
 
-	client.SyncProviderConfig(conn.IssuerURL)
+	client.SyncProviderConfig(conn.GetIssuerURL())
 
-	s.oidcClients[conn.ID] = client
+	s.oidcClients[conn.GetName()] = client
 
 	return client, nil
 }
@@ -696,6 +775,59 @@ type OIDCAuthResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []services.CertAuthority `json:"host_signers"`
+}
+
+func (a *AuthServer) createOIDCUser(connector services.OIDCConnector, ident *oidc.Identity, claims jose.Claims) error {
+	roles := connector.MapClaims(claims)
+	if len(roles) == 0 {
+		log.Warningf("[OIDC] could not find any of expected claims: %v in the set returned by provider %v: %v",
+			strings.Join(connector.GetClaims(), ","), connector.GetName(), strings.Join(services.GetClaimNames(claims), ","))
+	}
+	log.Debugf("[IDENTITY] %v/%v is a dynamic identity, generating user with roles: %v", connector.GetName(), ident.Email, roles)
+	user, err := services.GetUserMarshaler().GenerateUser(&services.UserV2{
+		Kind:    services.KindUser,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      ident.Email,
+			Namespace: defaults.Namespace,
+		},
+		Spec: services.UserSpecV2{
+			Roles:          roles,
+			Expires:        ident.ExpiresAt,
+			OIDCIdentities: []services.OIDCIdentity{{ConnectorID: connector.GetName(), Email: ident.Email}},
+			CreatedBy: services.CreatedBy{
+				User: services.UserRef{Name: "system"},
+				Time: time.Now().UTC(),
+				Connector: &services.ConnectorRef{
+					Type:     teleport.ConnectorOIDC,
+					ID:       connector.GetName(),
+					Identity: ident.Email,
+				},
+			},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = a.CreateUser(user)
+	if err == nil {
+		return trace.Wrap(err)
+	}
+	if !trace.IsAlreadyExists(err) {
+		return trace.Wrap(err)
+	}
+	existingUser, err := a.GetUser(ident.Email)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	} else {
+		connectorRef := existingUser.GetCreatedBy().Connector
+		if connectorRef == nil || connectorRef.Type != teleport.ConnectorOIDC || connectorRef.ID != connector.GetName() {
+			return trace.AlreadyExists("user %v already exists and is not OIDC user", existingUser.GetName())
+		}
+	}
+	return a.UpsertUser(user)
 }
 
 // ValidateOIDCAuthCallback is called by the proxy to check OIDC query parameters
@@ -752,11 +884,17 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 			oauth2.ErrorUnsupportedResponseType, "unable to convert claims to identity", q)
 	}
 
-	log.Infof("[IDENTITY] expires at: %v", ident.ExpiresAt)
+	log.Debugf("[IDENTITY] %v expires at: %v", ident.Email, ident.ExpiresAt)
 
 	response := &OIDCAuthResponse{
-		Identity: services.OIDCIdentity{ConnectorID: connector.ID, Email: ident.Email},
+		Identity: services.OIDCIdentity{ConnectorID: connector.GetName(), Email: ident.Email},
 		Req:      *req,
+	}
+
+	if len(connector.GetClaimsToRoles()) != 0 {
+		if err := a.createOIDCUser(connector, ident, claims); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if !req.CheckUser {
@@ -783,9 +921,18 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		response.Session = sess
 	}
 
+	var roles services.RoleSet
 	if len(req.PublicKey) != 0 {
 		certTTL := minTTL(toTTL(a.clock, ident.ExpiresAt), req.CertTTL)
-		cert, err := a.GenerateUserCert(req.PublicKey, user.GetName(), certTTL)
+		roles, err = services.FetchRoles(user.GetRoles(), a.Access)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		allowedLogins, err := roles.CheckLogins(certTTL)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cert, err := a.GenerateUserCert(req.PublicKey, user.GetName(), allowedLogins, certTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -796,11 +943,40 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 			return nil, trace.Wrap(err)
 		}
 		for _, authority := range authorities {
-			response.HostSigners = append(response.HostSigners, *authority)
+			response.HostSigners = append(response.HostSigners, authority)
 		}
 	}
 
 	return response, nil
+}
+
+func (a *AuthServer) DeleteRole(name string) error {
+	// check if this role is used by CA or Users
+	users, err := a.Identity.GetUsers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, u := range users {
+		for _, r := range u.GetRoles() {
+			if r == name {
+				return trace.BadParameter("role %v is used by user %v", name, u.GetName())
+			}
+		}
+	}
+	// check if it's used by some external cert authorities, e.g.
+	// cert authorities related to external cluster
+	cas, err := a.Trust.GetCertAuthorities(services.UserCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, a := range cas {
+		for _, r := range a.GetRoles() {
+			if r == name {
+				return trace.BadParameter("role %v is used by user cert authority %v", name, a.GetClusterName())
+			}
+		}
+	}
+	return a.Access.DeleteRole(name)
 }
 
 const (

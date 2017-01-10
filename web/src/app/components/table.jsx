@@ -154,7 +154,7 @@ var GrvTableColumn = React.createClass({
 })
 
 const EmptyIndicator = ({text}) => (
-  <div className="grv-table-indicator-empty text-center text-muted"><span>{text}</span></div>
+  <div className="grv-table-indicator-empty text-muted"><span>{text}</span></div>
 )
 
 export default GrvTable;

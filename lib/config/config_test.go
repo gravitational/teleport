@@ -187,8 +187,8 @@ func (s *ConfigTestSuite) TestLabelParsing(c *check.C) {
 		"more": "much better",
 	})
 	c.Assert(conf.CmdLabels, check.DeepEquals, services.CommandLabels{
-		"arch": services.CommandLabel{
-			Period:  time.Minute*5 + time.Second*2,
+		"arch": &services.CommandLabelV2{
+			Period:  services.NewDuration(time.Minute*5 + time.Second*2),
 			Command: []string{"/bin/uname", "-m", `"p1 p2"`},
 		},
 	})
@@ -209,21 +209,21 @@ func (s *ConfigTestSuite) TestTrustedClusters(c *check.C) {
 	c.Assert(err, check.IsNil)
 	authorities := conf.Auth.Authorities
 	c.Assert(len(authorities), check.Equals, 2)
-	c.Assert(authorities[0].DomainName, check.Equals, "cluster-a")
-	c.Assert(authorities[0].Type, check.Equals, services.HostCA)
-	c.Assert(len(authorities[0].CheckingKeys), check.Equals, 1)
-	c.Assert(authorities[1].DomainName, check.Equals, "cluster-a")
-	c.Assert(authorities[1].Type, check.Equals, services.UserCA)
-	c.Assert(len(authorities[1].CheckingKeys), check.Equals, 1)
-	_, _, _, _, err = ssh.ParseAuthorizedKey(authorities[1].CheckingKeys[0])
+	c.Assert(authorities[0].GetClusterName(), check.Equals, "cluster-a")
+	c.Assert(authorities[0].GetType(), check.Equals, services.HostCA)
+	c.Assert(len(authorities[0].GetCheckingKeys()), check.Equals, 1)
+	c.Assert(authorities[1].GetClusterName(), check.Equals, "cluster-a")
+	c.Assert(authorities[1].GetType(), check.Equals, services.UserCA)
+	c.Assert(len(authorities[1].GetCheckingKeys()), check.Equals, 1)
+	_, _, _, _, err = ssh.ParseAuthorizedKey(authorities[1].GetCheckingKeys()[0])
 	c.Assert(err, check.IsNil)
 
 	tunnels := conf.ReverseTunnels
 	c.Assert(len(tunnels), check.Equals, 1)
-	c.Assert(tunnels[0].DomainName, check.Equals, "cluster-a")
-	c.Assert(len(tunnels[0].DialAddrs), check.Equals, 2)
-	c.Assert(tunnels[0].DialAddrs[0], check.Equals, "tcp://one:3024")
-	c.Assert(tunnels[0].DialAddrs[1], check.Equals, "tcp://two:3024")
+	c.Assert(tunnels[0].GetClusterName(), check.Equals, "cluster-a")
+	c.Assert(len(tunnels[0].GetDialAddrs()), check.Equals, 2)
+	c.Assert(tunnels[0].GetDialAddrs()[0], check.Equals, "tcp://one:3024")
+	c.Assert(tunnels[0].GetDialAddrs()[1], check.Equals, "tcp://two:3024")
 
 	// invalid data:
 	err = readTrustedClusters([]TrustedCluster{

@@ -2,7 +2,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=1.3.2
+VERSION=1.3.2-beta
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -15,11 +15,8 @@ ETCD_CERTS := $(realpath fixtures/certs)
 ETCD_FLAGS := TELEPORT_TEST_ETCD_CONFIG='{"nodes": ["https://localhost:4001"], "key":"/teleport/test", "tls_key_file": "$(ETCD_CERTS)/proxy1-key.pem", "tls_cert_file": "$(ETCD_CERTS)/proxy1.pem", "tls_ca_file": "$(ETCD_CERTS)/ca.pem"}'
 TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
-RELEASE := teleport-$(GITTAG)-$(shell go env GOOS)-$(shell go env GOARCH)-bin
-
-export
-
-$(eval BUILDFLAGS := $(ADDFLAGS) -ldflags '-w -s')
+RELEASE := teleport-$(GITTAG)-`go env GOOS`-`go env GOARCH`-bin
+BUILDFLAGS := $(ADDFLAGS) -ldflags '-w -s'
 
 #
 # Default target: builds all 3 executables and plaaces them in a current directory
@@ -109,7 +106,7 @@ integration:
 #	assigns a git tag to the currently checked out tree
 .PHONY: setver
 setver:
-	$(MAKE) -f version.mk setver
+	VERSION=$(VERSION) $(MAKE) -f version.mk setver
 
 # make tag - prints a tag to use with git for the current version
 # 	To put a new release on Github:
@@ -158,6 +155,10 @@ test-grep-package-with-etcd: remove-temp-files
 .PHONY: test-grep-package
 test-grep-package: remove-temp-files
 	go test -v ./$(p) -check.f=$(e)
+
+.PHONY: test-dynamo
+test-dynamo:
+	go test -v ./lib/... -tags dynamodb
 
 .PHONY: cover-package
 cover-package: remove-temp-files

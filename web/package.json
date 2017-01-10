@@ -3,9 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {
-    "inspector": "node-inspector --web-port=8081 --save-live-edit=true --preload=false",
-    "dev-debug": "node --debug-brk /usr/bin/gulp dev",
+  "scripts": {    
     "build": "rm -rf ./dist; mkdir ./dist; node node_modules/webpack/bin/webpack.js --progress --config webpack/webpack.config.js --bail",
     "start": "rm -rf ./dist; mkdir ./dist; node node_modules/webpack/bin/webpack.js --progress --config webpack/webpack.config.dev; node devServer.js",
     "lint": "node node_modules/eslint/bin/eslint src/**/*.js",
@@ -26,7 +24,7 @@
     "react-addons-linked-state-mixin": "0.14.7",
     "react-addons-pure-render-mixin": "0.14.7",
     "react-addons-transition-group": "0.14.7",
-    "react-addons-css-transition-group": "^0.14.7",
+    "react-addons-css-transition-group": "^0.14.7",    
     "react-dom": "0.14.3",
     "react-router": "2.0.0",
     "react-slider": "0.6.1",

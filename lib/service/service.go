@@ -324,12 +324,13 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 		ReverseTunnels:  cfg.ReverseTunnels,
 		OIDCConnectors:  cfg.OIDCConnectors,
 		Trust:           cfg.Trust,
-		Lock:            cfg.Lock,
 		Presence:        cfg.Presence,
 		Provisioner:     cfg.Provisioner,
 		Identity:        cfg.Identity,
+		Access:          cfg.Access,
 		StaticTokens:    cfg.Auth.StaticTokens,
 		U2F:             cfg.Auth.U2F,
+		Roles:           cfg.Auth.Roles,
 	}, cfg.SeedConfig)
 	if err != nil {
 		return trace.Wrap(err)
@@ -343,11 +344,15 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	newChecker, err := auth.NewAccessChecker(authServer.Access, authServer.Identity)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	apiConf := &auth.APIConfig{
-		AuthServer:        authServer,
-		SessionService:    sessionService,
-		PermissionChecker: auth.NewStandardPermissions(),
-		AuditLog:          auditLog,
+		AuthServer:     authServer,
+		SessionService: sessionService,
+		NewChecker:     newChecker,
+		AuditLog:       auditLog,
 	}
 
 	limiter, err := limiter.NewLimiter(cfg.Auth.Limiter)
@@ -397,18 +402,25 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 	})
 
 	process.RegisterFunc(func() error {
-		srv := services.Server{
-			ID:       process.Config.HostUUID,
-			Addr:     cfg.Auth.SSHAddr.Addr,
-			Hostname: process.Config.Hostname,
+		srv := services.ServerV2{
+			Kind:    services.KindAuthServer,
+			Version: services.V2,
+			Metadata: services.Metadata{
+				Namespace: defaults.Namespace,
+				Name:      process.Config.HostUUID,
+			},
+			Spec: services.ServerSpecV2{
+				Addr:     cfg.Auth.SSHAddr.Addr,
+				Hostname: process.Config.Hostname,
+			},
 		}
-		host, port, err := net.SplitHostPort(srv.Addr)
+		host, port, err := net.SplitHostPort(srv.GetAddr())
 		// advertise-ip is explicitly set:
 		if process.Config.AdvertiseIP != nil {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			srv.Addr = fmt.Sprintf("%v:%v", process.Config.AdvertiseIP.String(), port)
+			srv.SetAddr(fmt.Sprintf("%v:%v", process.Config.AdvertiseIP.String(), port))
 		} else {
 			// advertise-ip is not set, while the CA is listening on 0.0.0.0? lets try
 			// to guess the 'advertise ip' then:
@@ -417,14 +429,14 @@ func (process *TeleportProcess) initAuthService(authority auth.Authority) error 
 				if err != nil {
 					log.Warn(err)
 				} else {
-					srv.Addr = net.JoinHostPort(ip.String(), port)
+					srv.SetAddr(net.JoinHostPort(ip.String(), port))
 				}
 			}
-			log.Warnf("advertise_ip is not set for this auth server!!! Trying to guess the IP this server can be reached at: %v", srv.Addr)
+			log.Warnf("advertise_ip is not set for this auth server. Trying to guess the IP this server can be reached at: %v", srv.GetAddr())
 		}
 		// immediately register, and then keep repeating in a loop:
 		for !askedToExit {
-			err := authServer.UpsertAuthServer(srv, defaults.ServerHeartbeatTTL)
+			err := authServer.UpsertAuthServer(&srv, defaults.ServerHeartbeatTTL)
 			if err != nil {
 				log.Warningf("failed to announce presence: %v", err)
 			}
@@ -487,6 +499,17 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
+		// make sure the namespace exists
+		namespace := services.ProcessNamespace(cfg.SSH.Namespace)
+		_, err = conn.Client.GetNamespace(namespace)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return trace.NotFound(
+					"namespace %v is not found, ask your system administrator to create this namespace so you can register nodes there.", namespace)
+			}
+			return trace.Wrap(err)
+		}
+
 		alog := state.MakeCachingAuditLog(conn.Client)
 		defer alog.Close()
 
@@ -501,6 +524,7 @@ func (process *TeleportProcess) initSSH() error {
 			srv.SetAuditLog(alog),
 			srv.SetSessionServer(conn.Client),
 			srv.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
+			srv.SetNamespace(namespace),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -781,7 +805,7 @@ func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 	case teleport.BoltBackendType:
 		bk, err = boltbk.FromJSON(cfg.KeysBackend.Params)
 	case dynamo.BackendType:
-		bk, err = dynamo.FromJSON(cfg.KeysBackend.Params)
+		bk, err = dynamo.New(cfg.KeysBackend.BackendConf)
 	default:
 		return nil, trace.Errorf("unsupported backend type: %v", cfg.KeysBackend.Type)
 	}
@@ -828,6 +852,8 @@ func validateConfig(cfg *Config) error {
 			return trace.Wrap(err)
 		}
 	}
+
+	cfg.SSH.Namespace = services.ProcessNamespace(cfg.SSH.Namespace)
 
 	return nil
 }

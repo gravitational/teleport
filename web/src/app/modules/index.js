@@ -14,11 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var reactor = require('app/reactor');
+import reactor from 'app/reactor';
+
 reactor.registerStores({
   'tlpt': require('./app/appStore'),  
   'tlpt_current_session': require('./currentSession/currentSessionStore'),
   'tlpt_user': require('./user/userStore'),
+  'tlpt_sites': require('./sites/siteStore'),
   'tlpt_user_invite': require('./user/userInviteStore'),
   'tlpt_nodes': require('./nodes/nodeStore'),
   'tlpt_rest_api': require('./restApi/restApiStore'),

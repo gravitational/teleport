@@ -62,10 +62,6 @@ func (s *ConfigSuite) TestDefaultConfig(c *C) {
 	c.Assert(auth.Limiter.MaxNumberOfUsers, Equals, defaults.LimiterMaxConcurrentUsers)
 	c.Assert(auth.KeysBackend.Type, Equals, "bolt")
 	c.Assert(auth.KeysBackend.Params, Equals, `{"path": "/var/lib/teleport/keys.db"}`)
-	c.Assert(auth.EventsBackend.Type, Equals, "bolt")
-	c.Assert(auth.EventsBackend.Params, Equals, `{"path": "/var/lib/teleport/events.db"}`)
-	c.Assert(auth.RecordsBackend.Type, Equals, "bolt")
-	c.Assert(auth.RecordsBackend.Params, Equals, `{"path": "/var/lib/teleport/records.db"}`)
 
 	// SSH section
 	ssh := config.SSH

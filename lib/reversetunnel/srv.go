@@ -12,19 +12,18 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
 */
 
 package reversetunnel
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -35,77 +34,41 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"github.com/mailgun/oxy/forward"
 	"golang.org/x/crypto/ssh"
 )
 
-// RemoteSite represents remote teleport site that can be accessed via
-// teleport tunnel or directly by proxy
-type RemoteSite interface {
-	// ConnectToServer allows to SSH into remote teleport server
-	ConnectToServer(addr, user string, auth []ssh.AuthMethod) (*ssh.Client, error)
-	// DialServer dials teleport server and returns connection
-	DialServer(addr string) (net.Conn, error)
-	// Dial dials any address within the site network
-	Dial(network, addr string) (net.Conn, error)
-	// GetLastConnected returns last time the remote site was seen connected
-	GetLastConnected() time.Time
-	// GetName returns site name (identified by authority domain's name)
-	GetName() string
-	// GetStatus returns status of this site (either offline or connected)
-	GetStatus() string
-	// GetClient returns client connected to remote auth server
-	GetClient() (auth.ClientI, error)
-}
-
-// Server represents server connected to one or many remote sites
-type Server interface {
-	// GetSites returns a list of connected remote sites
-	GetSites() []RemoteSite
-	// GetSite returns remote site this node belongs to
-	GetSite(domainName string) (RemoteSite, error)
-	// RemoveSite removes the site with the specified name from the list of connected sites
-	RemoveSite(domainName string) error
-	// Start starts server
-	Start() error
-	// CLose closes server's socket
-	Close() error
-	// Wait waits for server to close all outstanding operations
-	Wait()
-}
-
+// server is a "reverse tunnel server". it exposes the cluster capabilities
+// (like access to a cluster's auth) to remote trusted clients
+// (also known as 'reverse tunnel agents'.
 type server struct {
 	sync.RWMutex
 
+	// localAuth points to the cluster's auth server API
 	localAuth       auth.AccessPoint
 	hostCertChecker ssh.CertChecker
 	userCertChecker ssh.CertChecker
-	l               net.Listener
-	srv             *sshutils.Server
-	timeout         time.Duration
-	limiter         *limiter.Limiter
 
-	tunnelSites []*tunnelSite
-	directSites []*directSite
+	// srv is the "base class" i.e. the underlying SSH server
+	srv     *sshutils.Server
+	limiter *limiter.Limiter
+
+	// remoteSites is the list of conencted remote clusters
+	remoteSites []*remoteSite
+
+	// localSites is the list of local (our own cluster) tunnel clients,
+	// usually each of them is a local proxy.
+	localSites []*localSite
 }
 
 // ServerOption sets reverse tunnel server options
 type ServerOption func(s *server)
 
-// ServerTimeout sets server timeout for read and write operations
-func ServerTimeout(duration time.Duration) ServerOption {
-	return func(s *server) {
-		s.timeout = duration
-	}
-}
-
 // DirectSite instructs server to proxy access to this site not using
 // reverse tunnel
 func DirectSite(domainName string, clt auth.ClientI) ServerOption {
 	return func(s *server) {
-		s.directSites = append(s.directSites, newDirectSite(domainName, clt))
+		s.localSites = append(s.localSites, newlocalSite(domainName, clt))
 	}
 }
 
@@ -121,8 +84,8 @@ func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 	authAPI auth.AccessPoint, opts ...ServerOption) (Server, error) {
 
 	srv := &server{
-		directSites: []*directSite{},
-		tunnelSites: []*tunnelSite{},
+		localSites:  []*localSite{},
+		remoteSites: []*remoteSite{},
 		localAuth:   authAPI,
 	}
 	var err error
@@ -133,9 +96,6 @@ func NewServer(addr utils.NetAddr, hostSigners []ssh.Signer,
 
 	for _, o := range opts {
 		o(srv)
-	}
-	if srv.timeout == 0 {
-		srv.timeout = teleport.DefaultTimeout
 	}
 
 	s, err := sshutils.NewServer(
@@ -161,10 +121,6 @@ func (s *server) Wait() {
 	s.srv.Wait()
 }
 
-func (s *server) Addr() string {
-	return s.srv.Addr()
-}
-
 func (s *server) Start() error {
 	return s.srv.Start()
 }
@@ -175,9 +131,9 @@ func (s *server) Close() error {
 
 func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	// apply read/write timeouts to the server connection
-	conn = utils.ObeyTimeouts(conn,
+	conn = utils.ObeyIdleTimeout(conn,
 		defaults.ReverseTunnelAgentHeartbeatPeriod*10,
-		"reverse tunnel server connection")
+		"reverse tunnel server")
 
 	ct := nch.ChannelType()
 	if ct != chanHeartbeat {
@@ -268,7 +224,7 @@ func (s *server) checkTrustedKey(CertType services.CertAuthType, domainName stri
 		return trace.Wrap(err)
 	}
 	for _, ca := range cas {
-		if ca.DomainName != domainName {
+		if ca.GetClusterName() != domainName {
 			continue
 		}
 		checkers, err := ca.Checkers()
@@ -351,7 +307,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permiss
 	}
 }
 
-func (s *server) upsertSite(conn net.Conn, sshConn *ssh.ServerConn) (*tunnelSite, *remoteConn, error) {
+func (s *server) upsertSite(conn net.Conn, sshConn *ssh.ServerConn) (*remoteSite, *remoteConn, error) {
 	domainName := sshConn.Permissions.Extensions[extAuthority]
 	if strings.TrimSpace(domainName) == "" {
 		return nil, nil, trace.BadParameter("Cannot create reverse tunnel: empty domain name")
@@ -360,8 +316,8 @@ func (s *server) upsertSite(conn net.Conn, sshConn *ssh.ServerConn) (*tunnelSite
 	s.Lock()
 	defer s.Unlock()
 
-	var site *tunnelSite
-	for _, st := range s.tunnelSites {
+	var site *remoteSite
+	for _, st := range s.remoteSites {
 		if st.domainName == domainName {
 			site = st
 			break
@@ -381,22 +337,22 @@ func (s *server) upsertSite(conn net.Conn, sshConn *ssh.ServerConn) (*tunnelSite
 		if remoteConn, err = site.addConn(conn, sshConn); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		s.tunnelSites = append(s.tunnelSites, site)
+		s.remoteSites = append(s.remoteSites, site)
 	}
 	log.Infof("[TUNNEL] site %v connected from %v. sites: %d",
-		domainName, conn.RemoteAddr(), len(s.tunnelSites))
+		domainName, conn.RemoteAddr(), len(s.remoteSites))
 	return site, remoteConn, nil
 }
 
 func (s *server) GetSites() []RemoteSite {
 	s.RLock()
 	defer s.RUnlock()
-	out := make([]RemoteSite, 0, len(s.tunnelSites)+len(s.directSites))
-	for i := range s.directSites {
-		out = append(out, s.directSites[i])
+	out := make([]RemoteSite, 0, len(s.remoteSites)+len(s.localSites))
+	for i := range s.localSites {
+		out = append(out, s.localSites[i])
 	}
-	for i := range s.tunnelSites {
-		out = append(out, s.tunnelSites[i])
+	for i := range s.remoteSites {
+		out = append(out, s.remoteSites[i])
 	}
 	return out
 }
@@ -404,14 +360,14 @@ func (s *server) GetSites() []RemoteSite {
 func (s *server) GetSite(domainName string) (RemoteSite, error) {
 	s.RLock()
 	defer s.RUnlock()
-	for i := range s.tunnelSites {
-		if s.tunnelSites[i].domainName == domainName {
-			return s.tunnelSites[i], nil
+	for i := range s.remoteSites {
+		if s.remoteSites[i].domainName == domainName {
+			return s.remoteSites[i], nil
 		}
 	}
-	for i := range s.directSites {
-		if s.directSites[i].domainName == domainName {
-			return s.directSites[i], nil
+	for i := range s.localSites {
+		if s.localSites[i].domainName == domainName {
+			return s.localSites[i], nil
 		}
 	}
 	return nil, trace.NotFound("site '%v' not found", domainName)
@@ -420,15 +376,15 @@ func (s *server) GetSite(domainName string) (RemoteSite, error) {
 func (s *server) RemoveSite(domainName string) error {
 	s.Lock()
 	defer s.Unlock()
-	for i := range s.tunnelSites {
-		if s.tunnelSites[i].domainName == domainName {
-			s.tunnelSites = append(s.tunnelSites[:i], s.tunnelSites[i+1:]...)
+	for i := range s.remoteSites {
+		if s.remoteSites[i].domainName == domainName {
+			s.remoteSites = append(s.remoteSites[:i], s.remoteSites[i+1:]...)
 			return nil
 		}
 	}
-	for i := range s.directSites {
-		if s.directSites[i].domainName == domainName {
-			s.directSites = append(s.directSites[:i], s.directSites[i+1:]...)
+	for i := range s.localSites {
+		if s.localSites[i].domainName == domainName {
+			s.localSites = append(s.localSites[:i], s.localSites[i+1:]...)
 			return nil
 		}
 	}
@@ -459,16 +415,9 @@ func (rc *remoteConn) isInvalid() bool {
 	return atomic.LoadInt32(&rc.invalid) == 1
 }
 
-func newRemoteConn(log *log.Entry, conn net.Conn, sshConn ssh.Conn) (*remoteConn, error) {
-	return &remoteConn{
-		sshConn: sshConn,
-		conn:    conn,
-		log:     log,
-	}, nil
-}
-
-func newRemoteSite(srv *server, domainName string) (*tunnelSite, error) {
-	remoteSite := &tunnelSite{
+// newRemoteSite helper creates and initializes 'remoteSite' instance
+func newRemoteSite(srv *server, domainName string) (*remoteSite, error) {
+	remoteSite := &remoteSite{
 		srv:        srv,
 		domainName: domainName,
 		log: log.WithFields(log.Fields{
@@ -489,282 +438,6 @@ func newRemoteSite(srv *server, domainName string) (*tunnelSite, error) {
 	}
 	remoteSite.clt = clt
 	return remoteSite, nil
-}
-
-// tunnelSite is a site accessed via SSH reverse tunnel that established
-// between proxy and remote site
-type tunnelSite struct {
-	sync.Mutex
-
-	log         *log.Entry
-	domainName  string
-	connections []*remoteConn
-	lastUsed    int
-	lastActive  time.Time
-	srv         *server
-
-	transport *http.Transport
-	clt       *auth.Client
-}
-
-func (s *tunnelSite) GetClient() (auth.ClientI, error) {
-	return s.clt, nil
-}
-
-func (s *tunnelSite) String() string {
-	return fmt.Sprintf("remoteSite(%v)", s.domainName)
-}
-
-func (s *tunnelSite) connectionCount() int {
-	s.Lock()
-	defer s.Unlock()
-	return len(s.connections)
-}
-
-func (s *tunnelSite) nextConn() (*remoteConn, error) {
-	s.Lock()
-	defer s.Unlock()
-
-	for {
-		if len(s.connections) == 0 {
-			return nil, trace.NotFound("no active tunnels to cluster %v", s.GetName())
-		}
-		s.lastUsed = (s.lastUsed + 1) % len(s.connections)
-		remoteConn := s.connections[s.lastUsed]
-		if !remoteConn.isInvalid() {
-			return remoteConn, nil
-		}
-		s.connections = append(s.connections[:s.lastUsed], s.connections[s.lastUsed+1:]...)
-		s.lastUsed = 0
-		go remoteConn.Close()
-	}
-}
-
-func (s *tunnelSite) addConn(conn net.Conn, sshConn ssh.Conn) (*remoteConn, error) {
-	remoteConn, err := newRemoteConn(s.log, conn, sshConn)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	s.Lock()
-	defer s.Unlock()
-	s.connections = append(s.connections, remoteConn)
-	s.lastUsed = 0
-	return remoteConn, nil
-}
-
-func (s *tunnelSite) GetStatus() string {
-	s.Lock()
-	defer s.Unlock()
-	diff := time.Now().Sub(s.lastActive)
-	if diff > 2*defaults.ReverseTunnelAgentHeartbeatPeriod {
-		return RemoteSiteStatusOffline
-	}
-	return RemoteSiteStatusOnline
-}
-
-func (s *tunnelSite) setLastActive(t time.Time) {
-	s.Lock()
-	defer s.Unlock()
-	s.lastActive = t
-}
-
-func (s *tunnelSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
-	defer func() {
-		s.log.Infof("[TUNNEL] site connection closed: %v", s.domainName)
-		conn.Close()
-	}()
-	for {
-		select {
-		case req := <-reqC:
-			if req == nil {
-				s.log.Infof("[TUNNEL] site disconnected: %v", s.domainName)
-				conn.markInvalid(trace.ConnectionProblem(nil, "agent disconnected"))
-				return
-			}
-			log.Debugf("[TUNNEL] ping from \"%s\" %s", s.domainName, conn.conn.RemoteAddr())
-			s.setLastActive(time.Now())
-		case <-time.After(3 * defaults.ReverseTunnelAgentHeartbeatPeriod):
-			conn.markInvalid(trace.ConnectionProblem(nil, "agent missed 3 heartbeats"))
-		}
-	}
-}
-
-func (s *tunnelSite) GetName() string {
-	return s.domainName
-}
-
-func (s *tunnelSite) GetLastConnected() time.Time {
-	s.Lock()
-	defer s.Unlock()
-	return s.lastActive
-}
-
-func (s *tunnelSite) timeout() time.Duration {
-	return s.srv.timeout
-}
-
-func (s *tunnelSite) ConnectToServer(server, user string, auth []ssh.AuthMethod) (*ssh.Client, error) {
-	s.log.Infof("[TUNNEL] connect(server=%v, user=%v)", server, user)
-	remoteConn, err := s.nextConn()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ch, _, err := remoteConn.sshConn.OpenChannel(chanTransport, nil)
-	if err != nil {
-		remoteConn.markInvalid(err)
-		return nil, trace.Wrap(err)
-	}
-	// ask remote channel to dial
-	dialed, err := ch.SendRequest(chanTransportDialReq, true, []byte(server))
-	if err != nil {
-		remoteConn.markInvalid(err)
-		return nil, trace.Wrap(err)
-	}
-	if !dialed {
-		return nil, trace.Errorf("remote server %v is not available", server)
-	}
-	transportConn := utils.NewChConn(remoteConn.sshConn, ch)
-	conn, chans, reqs, err := ssh.NewClientConn(
-		transportConn, server,
-		&ssh.ClientConfig{
-			User: user,
-			Auth: auth,
-		})
-	if err != nil {
-		s.log.Errorf("[TUNNEL] connect(server=%v): %v", server, err)
-		return nil, trace.Wrap(err)
-	}
-	return ssh.NewClient(conn, chans, reqs), nil
-}
-
-// dialAccessPoint establishes a connection from the proxy (reverse tunnel server)
-// back into the client using previously established tunnel.
-func (s *tunnelSite) dialAccessPoint(network, addr string) (net.Conn, error) {
-	s.log.Infof("[TUNNEL] dial to site '%s'", s.GetName())
-
-	try := func() (net.Conn, error) {
-		remoteConn, err := s.nextConn()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		ch, _, err := remoteConn.sshConn.OpenChannel(chanAccessPoint, nil)
-		if err != nil {
-			remoteConn.markInvalid(err)
-			s.log.Errorf("[TUNNEL] disconnecting site '%s' on %v. Err: %v",
-				s.GetName(),
-				remoteConn.conn.RemoteAddr(),
-				err)
-			return nil, trace.Wrap(err)
-		}
-		s.log.Infof("[TUNNEL] success dialing to site '%s'", s.GetName())
-		return utils.NewChConn(remoteConn.sshConn, ch), nil
-	}
-
-	for {
-		conn, err := try()
-		if err != nil {
-			if trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
-			continue
-		}
-		return conn, nil
-	}
-}
-
-// Dial is used to connect a requesting client (say, tsh) to an SSH server
-// located in a remote connected site, the connection goes through the
-// reverse proxy tunnel.
-func (s *tunnelSite) Dial(network string, addr string) (conn net.Conn, err error) {
-	s.log.Infof("[TUNNEL] dialing %v@%v through the tunnel", addr, s.domainName)
-	stop := false
-
-	try := func() (net.Conn, error) {
-		remoteConn, err := s.nextConn()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		var ch ssh.Channel
-		ch, _, err = remoteConn.sshConn.OpenChannel(chanTransport, nil)
-		if err != nil {
-			remoteConn.markInvalid(err)
-			return nil, trace.Wrap(err)
-		}
-		stop = true
-		// send a special SSH out-of-band request called "teleport-transport"
-		// the agent on the other side will create a new TCP/IP connection to
-		// 'addr' on its network and will start proxying that connection over
-		// this SSH channel:
-		var dialed bool
-		dialed, err = ch.SendRequest(chanTransportDialReq, true, []byte(addr))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if !dialed {
-			defer ch.Close()
-			// pull the error message from the tunnel client (remote cluster)
-			// passed to us via stderr:
-			errMessage, _ := ioutil.ReadAll(ch.Stderr())
-			if errMessage == nil {
-				errMessage = []byte("failed connecting to " + addr)
-			}
-			return nil, trace.Errorf(strings.TrimSpace(string(errMessage)))
-		}
-		return utils.NewChConn(remoteConn.sshConn, ch), nil
-	}
-	// loop through existing TCP/IP connections (reverse tunnels) and try
-	// to establish an inbound connection-over-ssh-channel to the remote
-	// cluster (AKA "remotetunnel agent"):
-	for i := 0; i < s.connectionCount() && !stop; i++ {
-		conn, err = try()
-		if err == nil {
-			return conn, nil
-		}
-		s.log.Errorf("[TUNNEL] Dial(addr=%v) failed: %v", addr, err)
-	}
-	// didn't connect and no error? this means we didn't have any connected
-	// tunnels to try
-	if err == nil {
-		err = trace.Errorf("%v is offline", s.GetName())
-	}
-	return nil, err
-}
-
-func (s *tunnelSite) DialServer(addr string) (net.Conn, error) {
-	s.log.Infof("[TUNNEL] DialServer(addr=%v)", addr)
-	clt, err := s.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var knownServers []services.Server
-	for i := 0; i < 10; i++ {
-		knownServers, err = clt.GetNodes()
-		if err != nil {
-			log.Errorf("[TUNNEL] failed to get servers: %v", err)
-			time.Sleep(time.Second)
-		}
-	}
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	server, err := findServer(addr, knownServers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return s.Dial("tcp", server.Addr)
-}
-
-func (s *tunnelSite) handleAuthProxy(w http.ResponseWriter, r *http.Request) {
-	s.log.Infof("[TUNNEL] handleAuthProxy()")
-
-	fwd, err := forward.New(forward.RoundTripper(s.transport), forward.Logger(s.log))
-	if err != nil {
-		roundtrip.ReplyJSON(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	r.URL.Scheme = "http"
-	r.URL.Host = "stub"
-	fwd.ServeHTTP(w, r)
 }
 
 const (

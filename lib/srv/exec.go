@@ -175,7 +175,7 @@ func prepareCommand(ctx *ctx) (*exec.Cmd, error) {
 			log.Error(err)
 		}
 		if len(proxies) > 0 {
-			proxyHost = proxies[0].Hostname
+			proxyHost = proxies[0].GetHostname()
 		}
 	}
 	var c *exec.Cmd
@@ -308,6 +308,7 @@ func (e *execResponse) collectStatus(cmd *exec.Cmd, err error) (*execResult, err
 		events.EventLogin:       e.ctx.login,
 		events.LocalAddr:        e.ctx.conn.LocalAddr().String(),
 		events.RemoteAddr:       e.ctx.conn.RemoteAddr().String(),
+		events.EventNamespace:   e.ctx.srv.getNamespace(),
 	}
 	if err != nil {
 		fields[events.ExecEventError] = err.Error()

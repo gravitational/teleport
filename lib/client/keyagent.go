@@ -87,9 +87,9 @@ func (a *LocalKeyAgent) GetKeys(username string) ([]agent.AddedKey, error) {
 //
 // Why do we trust these CAs? Because we received them from a trusted Teleport Proxy.
 // Why do we trust the proxy? Because we've connected to it via HTTPS + username + Password + HOTP.
-func (a *LocalKeyAgent) AddHostSignersToCache(hostSigners []services.CertAuthority) error {
+func (a *LocalKeyAgent) AddHostSignersToCache(hostSigners []services.CertAuthorityV1) error {
 	for _, hostSigner := range hostSigners {
-		publicKeys, err := hostSigner.Checkers()
+		publicKeys, err := hostSigner.V2().Checkers()
 		if err != nil {
 			log.Error(err)
 			return trace.Wrap(err)

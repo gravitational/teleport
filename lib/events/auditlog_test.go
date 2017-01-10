@@ -10,6 +10,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
@@ -64,32 +65,32 @@ func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 	alog.TimeSource = func() time.Time { return now }
 
 	// emit two session-attached events (same session)
-	err = alog.EmitAuditEvent(SessionStartEvent, EventFields{SessionEventID: "100", EventLogin: "vincent"})
+	err = alog.EmitAuditEvent(SessionStartEvent, EventFields{SessionEventID: "100", EventLogin: "vincent", EventNamespace: defaults.Namespace})
 	c.Assert(err, check.IsNil)
 	c.Assert(alog.loggers, check.HasLen, 1)
-	err = alog.EmitAuditEvent(SessionLeaveEvent, EventFields{SessionEventID: "100", EventLogin: "vincent"})
+	err = alog.EmitAuditEvent(SessionLeaveEvent, EventFields{SessionEventID: "100", EventLogin: "vincent", EventNamespace: defaults.Namespace})
 	c.Assert(alog.loggers, check.HasLen, 1)
-	err = alog.EmitAuditEvent(SessionJoinEvent, EventFields{SessionEventID: "200", EventLogin: "doggy"})
+	err = alog.EmitAuditEvent(SessionJoinEvent, EventFields{SessionEventID: "200", EventLogin: "doggy", EventNamespace: defaults.Namespace})
 	c.Assert(err, check.IsNil)
 	c.Assert(alog.loggers, check.HasLen, 2)
 
 	// type "hello" into session "200":
-	err = alog.PostSessionChunk("200", bytes.NewBufferString("hello"))
+	err = alog.PostSessionChunk(defaults.Namespace, "200", bytes.NewBufferString("hello"))
 	c.Assert(err, check.IsNil)
 
 	// emit "sesion-end" event. one of the loggers must disappear
-	err = alog.EmitAuditEvent(SessionEndEvent, EventFields{SessionEventID: "200", EventLogin: "doggy"})
+	err = alog.EmitAuditEvent(SessionEndEvent, EventFields{SessionEventID: "200", EventLogin: "doggy", EventNamespace: defaults.Namespace})
 	c.Assert(err, check.IsNil)
 	c.Assert(alog.loggers, check.HasLen, 1)
 
 	// add a few more loggers and close:
-	alog.EmitAuditEvent(SessionJoinEvent, EventFields{SessionEventID: "300", EventLogin: "frankie"})
-	alog.EmitAuditEvent(SessionJoinEvent, EventFields{SessionEventID: "400", EventLogin: "rosie"})
+	alog.EmitAuditEvent(SessionJoinEvent, EventFields{SessionEventID: "300", EventLogin: "frankie", EventNamespace: defaults.Namespace})
+	alog.EmitAuditEvent(SessionJoinEvent, EventFields{SessionEventID: "400", EventLogin: "rosie", EventNamespace: defaults.Namespace})
 	alog.Close()
 	c.Assert(alog.loggers, check.HasLen, 0)
 
 	// inspect session "200". it sould have three events: join, print and leave:
-	history, err := alog.GetSessionEvents("200", 0)
+	history, err := alog.GetSessionEvents(defaults.Namespace, "200", 0)
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 3)
 	c.Assert(history[0][EventLogin], check.Equals, "doggy")
@@ -100,13 +101,13 @@ func (a *AuditTestSuite) TestComplexLogging(c *check.C) {
 	c.Assert(history[2][EventType], check.Equals, SessionEndEvent)
 
 	// try the same, but with 'afterN', we should only get the 3rd event:
-	history2, err := alog.GetSessionEvents("200", 2)
+	history2, err := alog.GetSessionEvents(defaults.Namespace, "200", 2)
 	c.Assert(err, check.IsNil)
 	c.Assert(history2, check.HasLen, 1)
 	c.Assert(history2[0], check.DeepEquals, history[2])
 
 	// lets try session session stream (with offset 2 of bytes, i.e. instead of "hello" we should get "llo")
-	buff, err := alog.GetSessionChunk("200", 2, 5000)
+	buff, err := alog.GetSessionChunk(defaults.Namespace, "200", 2, 5000)
 	c.Assert(err, check.IsNil)
 	c.Assert(string(buff[:3]), check.Equals, "llo")
 

@@ -18,7 +18,7 @@ var React = require('react');
 var NavLeftBar = require('./navLeftBar');
 var reactor = require('app/reactor');
 var { getters } = require('app/modules/app');
-var { initApp, checkIfValidUser } = require('app/modules/app/actions');
+var { checkIfValidUser, refresh } = require('app/modules/app/actions');
 var NotificationHost = require('./notificationHost.jsx');
 var Timer = require('./timer.jsx');
 
@@ -28,22 +28,19 @@ var App = React.createClass({
 
   getDataBindings() {
     return {
-      app: getters.appState
+      appStatus: getters.appStatus      
     }
   },
-
-  componentWillMount(){
-    initApp();
-  },
-
+    
   render() {
-    if(this.state.app.isInitializing){
+    if(this.state.appStatus.isInitializing){
       return null;
     }
 
     return (
       <div className="grv-tlpt grv-flex grv-flex-row">
-        <Timer onTimeout={checkIfValidUser} interval={4000}/>
+        <Timer onTimeout={checkIfValidUser} interval={10000} />
+        <Timer onTimeout={refresh} interval={4000} />
         <NotificationHost/>
         {this.props.CurrentSessionHost}
         <NavLeftBar/>

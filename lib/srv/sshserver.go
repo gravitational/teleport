@@ -51,6 +51,7 @@ import (
 type Server struct {
 	sync.Mutex
 
+	namespace     string
 	addr          utils.NetAddr
 	hostname      string
 	certChecker   ssh.CertChecker
@@ -142,8 +143,8 @@ func SetLabels(labels map[string]string,
 	cmdLabels services.CommandLabels) ServerOption {
 	return func(s *Server) error {
 		for name, label := range cmdLabels {
-			if label.Period < time.Second {
-				label.Period = time.Second
+			if label.GetPeriod() < time.Second {
+				label.SetPeriod(time.Second)
 				cmdLabels[name] = label
 				log.Warningf("label period can't be less that 1 second. Period for label '%v' was set to 1 second", name)
 			}
@@ -167,6 +168,13 @@ func SetLimiter(limiter *limiter.Limiter) ServerOption {
 func SetAuditLog(alog events.IAuditLog) ServerOption {
 	return func(s *Server) error {
 		s.alog = alog
+		return nil
+	}
+}
+
+func SetNamespace(namespace string) ServerOption {
+	return func(s *Server) error {
+		s.namespace = namespace
 		return nil
 	}
 }
@@ -228,6 +236,10 @@ func New(addr utils.NetAddr,
 	return s, nil
 }
 
+func (s *Server) getNamespace() string {
+	return services.ProcessNamespace(s.namespace)
+}
+
 func (s *Server) logFields(fields map[string]interface{}) log.Fields {
 	var component string
 	if s.proxyMode {
@@ -274,15 +286,26 @@ func (s *Server) AdvertiseAddr() string {
 	return net.JoinHostPort(s.getAdvertiseIP().String(), port)
 }
 
+func (s *Server) getInfo() services.Server {
+	return &services.ServerV2{
+		Kind:    services.KindNode,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      s.ID(),
+			Namespace: s.getNamespace(),
+			Labels:    s.labels,
+		},
+		Spec: services.ServerSpecV2{
+			CmdLabels: services.LabelsToV2(s.getCommandLabels()),
+			Addr:      s.AdvertiseAddr(),
+			Hostname:  s.hostname,
+		},
+	}
+}
+
 // registerServer attempts to register server in the cluster
 func (s *Server) registerServer() error {
-	srv := services.Server{
-		ID:        s.ID(),
-		Addr:      s.AdvertiseAddr(),
-		Hostname:  s.hostname,
-		Labels:    s.labels,
-		CmdLabels: s.getCommandLabels(),
-	}
+	srv := s.getInfo()
 	if !s.proxyMode {
 		return trace.Wrap(s.authService.UpsertNode(srv, defaults.ServerHeartbeatTTL))
 	}
@@ -314,7 +337,7 @@ func (s *Server) heartbeatPresence() {
 
 func (s *Server) updateLabels() {
 	for name, label := range s.cmdLabels {
-		go s.periodicUpdateLabel(name, label)
+		go s.periodicUpdateLabel(name, label.Clone())
 	}
 }
 
@@ -325,12 +348,12 @@ func (s *Server) syncUpdateLabels() {
 }
 
 func (s *Server) updateLabel(name string, label services.CommandLabel) {
-	out, err := exec.Command(label.Command[0], label.Command[1:]...).Output()
+	out, err := exec.Command(label.GetCommand()[0], label.GetCommand()[1:]...).Output()
 	if err != nil {
 		log.Errorf(err.Error())
-		label.Result = err.Error() + " output: " + string(out)
+		label.SetResult(err.Error() + " output: " + string(out))
 	} else {
-		label.Result = strings.TrimSpace(string(out))
+		label.SetResult(strings.TrimSpace(string(out)))
 	}
 	s.setCommandLabel(name, label)
 }
@@ -338,7 +361,7 @@ func (s *Server) updateLabel(name string, label services.CommandLabel) {
 func (s *Server) periodicUpdateLabel(name string, label services.CommandLabel) {
 	for {
 		s.updateLabel(name, label)
-		time.Sleep(label.Period)
+		time.Sleep(label.GetPeriod())
 	}
 }
 
@@ -353,7 +376,7 @@ func (s *Server) getCommandLabels() map[string]services.CommandLabel {
 	defer s.labelsMutex.Unlock()
 	out := make(map[string]services.CommandLabel, len(s.cmdLabels))
 	for key, val := range s.cmdLabels {
-		out[key] = val
+		out[key] = val.Clone()
 	}
 	return out
 }
@@ -367,7 +390,7 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var ca *services.CertAuthority
+	var ca services.CertAuthority
 	for i := range cas {
 		checkers, err := cas[i].Checkers()
 		if err != nil {
@@ -382,7 +405,8 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 	}
 	// the certificate was signed by unknown authority
 	if ca == nil {
-		return trace.AccessDenied("the certificate for user '%v' is signed by untrusted CA",
+		return trace.AccessDenied(
+			"the certificate for user '%v' is signed by untrusted CA",
 			teleportUser)
 	}
 
@@ -392,32 +416,33 @@ func (s *Server) checkPermissionToLogin(cert ssh.PublicKey, teleportUser, osUser
 	}
 
 	// for local users, go and check their individual permissions
-	if domainName == ca.DomainName {
+	var roles services.RoleSet
+	if domainName == ca.GetClusterName() {
 		users, err := s.authService.GetUsers()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		for _, u := range users {
 			if u.GetName() == teleportUser {
-				for _, login := range u.GetAllowedLogins() {
-					if login == osUser {
-						return nil
-					}
+				roles, err = services.FetchRoles(u.GetRoles(), s.authService)
+				if err != nil {
+					return trace.Wrap(err)
 				}
 			}
 		}
-		return trace.AccessDenied("user %v is not authorized to login as %v",
-			teleportUser, osUser)
-	}
-
-	// for other authorities, check for authoritiy permissions
-	for _, login := range ca.AllowedLogins {
-		if login == osUser || login == "*" {
-			return nil
+	} else {
+		roles, err = services.FetchRoles(ca.GetRoles(), s.authService)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 	}
-	return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s",
-		teleportUser, ca.DomainName, osUser, domainName)
+
+	if err := roles.CheckAccessToServer(osUser, s.getInfo()); err != nil {
+		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s",
+			teleportUser, ca.GetClusterName(), osUser, domainName)
+	}
+
+	return nil
 }
 
 // isAuthority is called during checking the client key, to see if the signing

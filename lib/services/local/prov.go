@@ -63,7 +63,7 @@ func (s *ProvisioningService) UpsertToken(token string, roles teleport.Roles, tt
 
 // GetToken finds and returns token by id
 func (s *ProvisioningService) GetToken(token string) (*services.ProvisionToken, error) {
-	out, _, err := s.backend.GetValAndTTL([]string{"tokens"}, token)
+	out, err := s.backend.GetVal([]string{"tokens"}, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

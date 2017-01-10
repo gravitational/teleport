@@ -21,7 +21,7 @@ var SessionLeftPanel = require('./sessionLeftPanel');
 var cfg = require('app/config');
 var session = require('app/services/session');
 var Terminal = require('app/common/term/terminal');
-var {processSessionEventStream} = require('app/modules/currentSession/actions');
+var {processSessionFromEventStream} = require('app/modules/currentSession/actions');
 
 var ActiveSession = React.createClass({
   render() {
@@ -46,9 +46,9 @@ var ActiveSession = React.createClass({
 
 var TtyTerminal = React.createClass({
   componentDidMount() {
-    let {serverId, login, sid, rows, cols} = this.props;
+    let {serverId, siteId, login, sid, rows, cols} = this.props;
     let {token} = session.getUserData();
-    let url = cfg.api.getTtyUrl();
+    let url = cfg.api.getSiteUrl(siteId);
 
     let options = {
       tty: {
@@ -60,7 +60,7 @@ var TtyTerminal = React.createClass({
     }
 
     this.terminal = new Terminal(options);
-    this.terminal.ttyEvents.on('data', processSessionEventStream);
+    this.terminal.ttyEvents.on('data', processSessionFromEventStream(siteId));
     this.terminal.open();
   },
 

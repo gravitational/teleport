@@ -61,8 +61,8 @@ func (c *SessionContext) getConnectHandler(sessionID session.ID) (*connectHandle
 	return nil, trace.NotFound("no connected streams")
 }
 
-func (c *SessionContext) UpdateSessionTerminal(sessionID session.ID, params session.TerminalParams) error {
-	err := c.clt.UpdateSession(session.UpdateRequest{ID: sessionID, TerminalParams: &params})
+func (c *SessionContext) UpdateSessionTerminal(namespace string, sessionID session.ID, params session.TerminalParams) error {
+	err := c.clt.UpdateSession(session.UpdateRequest{ID: sessionID, TerminalParams: &params, Namespace: namespace})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -263,7 +263,6 @@ func (s *sessionCache) AuthWithU2FSignResponse(user string, response *u2f.SignRe
 	defer clt.Close()
 	session, err := clt.PreAuthenticatedSignIn(user)
 	if err != nil {
-		defer clt.Close()
 		return nil, trace.Wrap(err)
 	}
 	return session, nil
@@ -292,10 +291,9 @@ func createCertificate(user string, pubkey []byte, ttl time.Duration, clt *auth.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	signers := []services.CertAuthority{}
-	for _, hs := range hostSigners {
-		signers = append(signers, *hs)
+	signers, err := services.CertAuthoritiesToV1(hostSigners)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &SSHLoginResponse{

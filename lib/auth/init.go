@@ -26,8 +26,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
@@ -72,17 +72,20 @@ type InitConfig struct {
 	// Trust is a service that manages users and credentials
 	Trust services.Trust
 
-	// Lock is a distributed or local lock service
-	Lock services.Lock
-
 	// Presence service is a discovery and hearbeat tracker
 	Presence services.Presence
 
 	// Provisioner is a service that keeps track of provisioning tokens
 	Provisioner services.Provisioner
 
-	// Trust is a service that manages users and credentials
+	// Identity is a service that manages users and credentials
 	Identity services.Identity
+
+	// Access is service controlling access to resources
+	Access services.Access
+
+	// Roles is a set of roles to create
+	Roles []services.Role
 
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
@@ -101,12 +104,11 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 		return nil, nil, trace.BadParameter("HostUUID: host UUID can not be empty")
 	}
 
-	lockService := local.NewLockService(cfg.Backend)
-	err := lockService.AcquireLock(cfg.DomainName, 60*time.Second)
+	err := cfg.Backend.AcquireLock(cfg.DomainName, 30*time.Second)
 	if err != nil {
 		return nil, nil, err
 	}
-	defer lockService.ReleaseLock(cfg.DomainName)
+	defer cfg.Backend.ReleaseLock(cfg.DomainName)
 
 	// check that user CA and host CA are present and set the certs if needed
 	asrv := NewAuthServer(&cfg)
@@ -124,11 +126,20 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 	// add trusted authorities from the configuration into the trust backend:
 	keepMap := make(map[string]int, 0)
 	if !skipConfig {
+
+		log.Infof("Initializing roles")
+		for _, role := range cfg.Roles {
+			if err := asrv.UpsertRole(role); err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+		}
+
+		log.Infof("Initializing cert authorities")
 		for _, ca := range cfg.Authorities {
 			if err := asrv.Trust.UpsertCertAuthority(ca, backend.Forever); err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
-			keepMap[ca.DomainName] = 1
+			keepMap[ca.GetClusterName()] = 1
 		}
 	}
 	// delete trusted authorities from the trust back-end if they're not
@@ -143,12 +154,12 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 			return nil, nil, trace.Wrap(err)
 		}
 		for _, ca := range append(hostCAs, userCAs...) {
-			_, configured := keepMap[ca.DomainName]
-			if ca.DomainName != cfg.DomainName && !configured {
-				if err = asrv.Trust.DeleteCertAuthority(*ca.ID()); err != nil {
+			_, configured := keepMap[ca.GetClusterName()]
+			if ca.GetClusterName() != cfg.DomainName && !configured {
+				if err = asrv.Trust.DeleteCertAuthority(ca.GetID()); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
-				log.Infof("removed old trusted CA: '%s'", ca.DomainName)
+				log.Infof("removed old trusted CA: '%s'", ca.GetClusterName())
 			}
 		}
 	}
@@ -164,11 +175,19 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		hostCA := services.CertAuthority{
-			DomainName:   cfg.DomainName,
-			Type:         services.HostCA,
-			SigningKeys:  [][]byte{priv},
-			CheckingKeys: [][]byte{pub},
+		hostCA := &services.CertAuthorityV2{
+			Kind:    services.KindCertAuthority,
+			Version: services.V2,
+			Metadata: services.Metadata{
+				Name:      cfg.DomainName,
+				Namespace: defaults.Namespace,
+			},
+			Spec: services.CertAuthoritySpecV2{
+				ClusterName:  cfg.DomainName,
+				Type:         services.HostCA,
+				SigningKeys:  [][]byte{priv},
+				CheckingKeys: [][]byte{pub},
+			},
 		}
 		if err := asrv.Trust.UpsertCertAuthority(hostCA, backend.Forever); err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -187,11 +206,19 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		userCA := services.CertAuthority{
-			DomainName:   cfg.DomainName,
-			Type:         services.UserCA,
-			SigningKeys:  [][]byte{priv},
-			CheckingKeys: [][]byte{pub},
+		userCA := &services.CertAuthorityV2{
+			Kind:    services.KindCertAuthority,
+			Version: services.V2,
+			Metadata: services.Metadata{
+				Name:      cfg.DomainName,
+				Namespace: defaults.Namespace,
+			},
+			Spec: services.CertAuthoritySpecV2{
+				ClusterName:  cfg.DomainName,
+				Type:         services.UserCA,
+				SigningKeys:  [][]byte{priv},
+				CheckingKeys: [][]byte{pub},
+			},
 		}
 		if err := asrv.Trust.UpsertCertAuthority(userCA, backend.Forever); err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -205,9 +232,10 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 			if err := asrv.UpsertReverseTunnel(tunnel, 0); err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
-			keepMap[tunnel.DomainName] = 1
+			keepMap[tunnel.GetClusterName()] = 1
 		}
 	}
+
 	// remove the reverse tunnels from the backend if they're not
 	// present in the configuration
 	if !seedConfig {
@@ -216,12 +244,12 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 			return nil, nil, trace.Wrap(err)
 		}
 		for _, tunnel := range tunnels {
-			_, configured := keepMap[tunnel.DomainName]
+			_, configured := keepMap[tunnel.GetClusterName()]
 			if !configured {
-				if err = asrv.DeleteReverseTunnel(tunnel.DomainName); err != nil {
+				if err = asrv.DeleteReverseTunnel(tunnel.GetClusterName()); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
-				log.Infof("removed reverse tunnel: '%s'", tunnel.DomainName)
+				log.Infof("removed reverse tunnel: '%s'", tunnel.GetClusterName())
 			}
 		}
 	}
@@ -233,8 +261,8 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 			if err := asrv.UpsertOIDCConnector(connector, 0); err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
-			log.Infof("created ODIC connector '%s'", connector.ID)
-			keepMap[connector.ID] = 1
+			log.Infof("created ODIC connector '%s'", connector.GetName())
+			keepMap[connector.GetName()] = 1
 		}
 	}
 	// remove OIDC connectors from the backend if they're not
@@ -242,13 +270,49 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 	if !seedConfig {
 		connectors, _ := asrv.GetOIDCConnectors(false)
 		for _, connector := range connectors {
-			_, configured := keepMap[connector.ID]
+			_, configured := keepMap[connector.GetName()]
 			if !configured {
-				if err = asrv.DeleteOIDCConnector(connector.ID); err != nil {
+				if err = asrv.DeleteOIDCConnector(connector.GetName()); err != nil {
 					return nil, nil, trace.Wrap(err)
 				}
-				log.Infof("removed OIDC connector '%s'", connector.ID)
+				log.Infof("removed OIDC connector '%s'", connector.GetName())
 			}
+		}
+	}
+
+	// create default namespace
+	err = asrv.UpsertNamespace(services.NewNamespace(defaults.Namespace))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// migrate old users to new format
+	users, err := asrv.GetUsers()
+	for i := range users {
+		user := users[i]
+		raw, ok := (user.GetRawObject()).(services.UserV1)
+		if !ok {
+			continue
+		}
+		log.Infof("migrating legacy user %v", user.GetName())
+		role := services.RoleForUser(user)
+		role.SetLogins(raw.AllowedLogins)
+		err = asrv.UpsertRole(role)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		user.AddRole(role.GetName())
+		if err := asrv.UpsertUser(user); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
+	// migrate old cert authorities
+	cas, err := asrv.GetCertAuthorities(services.UserCA, true)
+	for i := range cas {
+		ca := cas[i]
+		if err := migrateCertAuthority(asrv, ca); err != nil {
+			return nil, nil, trace.Wrap(err)
 		}
 	}
 
@@ -258,6 +322,30 @@ func Init(cfg InitConfig, seedConfig bool) (*AuthServer, *Identity, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 	return asrv, identity, nil
+}
+
+func migrateCertAuthority(asrv *AuthServer, in services.CertAuthority) error {
+	raw, ok := (in.GetRawObject()).(services.CertAuthorityV1)
+	if !ok {
+		return nil
+	}
+	_, err := asrv.GetRole(services.RoleNameForCertAuthority(in.GetClusterName()))
+	if err == nil {
+		return nil
+	}
+	if !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	ca, role := services.ConvertV1CertAuthority(&raw)
+	log.Infof("migrating legacy cert authority %v", in.GetName())
+	err = asrv.UpsertRole(role)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := asrv.UpsertCertAuthority(ca, 0); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // isFirstStart returns 'true' if the auth server is starting for the 1st time

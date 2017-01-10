@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/session"
 	sess "github.com/gravitational/teleport/lib/session"
@@ -52,10 +53,10 @@ import (
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/websocket"
 	. "gopkg.in/check.v1"
-	"github.com/tstranex/u2f"
 )
 
 func TestWeb(t *testing.T) {
@@ -87,12 +88,13 @@ var _ = Suite(&WebSuite{})
 
 func (s *WebSuite) SetUpSuite(c *C) {
 	var err error
+	os.Unsetenv(teleport.DebugEnvVar)
+	utils.InitLoggerForTests()
 
 	// configure tests to use static assets from web/dist:
 	debugAssetsPath = "../../web/dist"
-	os.Setenv("DEBUG", "true")
+	os.Setenv(teleport.DebugEnvVar, "true")
 
-	utils.InitLoggerForTests()
 	sessionStreamPollPeriod = time.Millisecond
 	s.logDir = c.MkDir()
 	s.auditLog, err = events.NewAuditLog(s.logDir)
@@ -105,6 +107,7 @@ func (s *WebSuite) SetUpSuite(c *C) {
 
 func (s *WebSuite) TearDownSuite(c *C) {
 	os.RemoveAll(s.logDir)
+	os.Unsetenv(teleport.DebugEnvVar)
 }
 
 func (s *WebSuite) SetUpTest(c *C) {
@@ -120,6 +123,9 @@ func (s *WebSuite) SetUpTest(c *C) {
 	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
 	c.Assert(err, IsNil)
 
+	access := local.NewAccessService(s.bk)
+	identity := local.NewIdentityService(s.bk)
+
 	s.domainName = "localhost"
 	authServer := auth.NewAuthServer(&auth.InitConfig{
 		Backend:    s.bk,
@@ -127,24 +133,40 @@ func (s *WebSuite) SetUpTest(c *C) {
 		DomainName: s.domainName,
 		U2F: services.U2F{
 			Enabled: true,
-			AppID: "https://" + s.domainName,
-			Facets: []string{"https://" + s.domainName},
+			AppID:   "https://" + s.domainName,
+			Facets:  []string{"https://" + s.domainName},
 		},
+		Identity: identity,
+		Access:   access,
 	})
 
+	teleUser, err := services.NewUser(s.user)
+	c.Assert(err, IsNil)
+	role := services.RoleForUser(teleUser)
+	role.SetLogins([]string{s.user})
+	role.SetResource(services.Wildcard, services.RW())
+	err = authServer.UpsertRole(role)
+	c.Assert(err, IsNil)
+
+	teleUser.AddRole(role.GetName())
+	err = authServer.UpsertUser(teleUser)
+	c.Assert(err, IsNil)
+
+	newChecker, err := auth.NewAccessChecker(access, identity)
+	c.Assert(err, IsNil)
+
 	c.Assert(authServer.UpsertCertAuthority(
-		*suite.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
+		suite.NewTestCA(services.UserCA, s.domainName), backend.Forever), IsNil)
 	c.Assert(authServer.UpsertCertAuthority(
-		*suite.NewTestCA(services.HostCA, s.domainName), backend.Forever), IsNil)
+		suite.NewTestCA(services.HostCA, s.domainName), backend.Forever), IsNil)
 
 	sessionServer, err := sess.New(s.bk)
 	c.Assert(err, IsNil)
 
-	s.roleAuth = auth.NewAuthWithRoles(authServer,
-		auth.NewStandardPermissions(),
-		sessionServer,
-		teleport.RoleAdmin,
-		s.auditLog)
+	checker, err := newChecker(s.user)
+	c.Assert(err, IsNil)
+
+	s.roleAuth = auth.NewAuthWithRoles(authServer, checker, s.user, sessionServer, s.auditLog)
 
 	// set up host private key and certificate
 	hpriv, hpub, err := authServer.GenerateKeyPair("")
@@ -186,7 +208,6 @@ func (s *WebSuite) SetUpTest(c *C) {
 		},
 		[]ssh.Signer{s.signer},
 		s.roleAuth,
-		reversetunnel.ServerTimeout(200*time.Millisecond),
 		reversetunnel.DirectSite(s.domainName, s.roleAuth),
 	)
 	c.Assert(err, IsNil)
@@ -201,10 +222,10 @@ func (s *WebSuite) SetUpTest(c *C) {
 		tunAddr,
 		s.signer,
 		&auth.APIConfig{
-			AuthServer:        authServer,
-			SessionService:    sessionServer,
-			PermissionChecker: auth.NewAllowAllPermissions(),
-			AuditLog:          s.auditLog,
+			AuthServer:     authServer,
+			SessionService: sessionServer,
+			NewChecker:     newChecker,
+			AuditLog:       s.auditLog,
 		})
 	c.Assert(err, IsNil)
 	c.Assert(s.tunServer.Start(), IsNil)
@@ -245,7 +266,7 @@ func (s *WebSuite) TearDownTest(c *C) {
 }
 
 func (s *WebSuite) TestNewUser(c *C) {
-	token, err := s.roleAuth.CreateSignupToken(&services.TeleportUser{Name: "bob", AllowedLogins: []string{s.user}})
+	token, err := s.roleAuth.CreateSignupToken(services.UserV1{Name: "bob", AllowedLogins: []string{s.user}})
 	c.Assert(err, IsNil)
 
 	tokens, err := s.roleAuth.GetTokens()
@@ -327,7 +348,7 @@ func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack 
 	clt := s.client(roundtrip.BearerAuth(sess.Token), roundtrip.CookieJar(jar))
 	jar.SetCookies(s.url(), re.Cookies())
 
-	session, err := sess.response()
+	session, user, err := sess.response()
 	if err != nil {
 		panic(err)
 	}
@@ -335,7 +356,7 @@ func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack 
 		c.Errorf("expected expiry time to be in the future but got %v", session.ExpiresIn)
 	}
 	return &authPack{
-		user:    session.User.GetName(),
+		user:    user.GetName(),
 		session: session,
 		clt:     clt,
 		cookies: re.Cookies(),
@@ -349,15 +370,22 @@ func (s *WebSuite) authPack(c *C) *authPack {
 	user := s.user
 	pass := "abc123"
 
+	teleUser, err := services.NewUser(user)
+	c.Assert(err, IsNil)
+	role := services.RoleForUser(teleUser)
+	role.SetLogins([]string{s.user})
+	err = s.roleAuth.UpsertRole(role)
+	c.Assert(err, IsNil)
+	teleUser.AddRole(role.GetName())
+
+	err = s.roleAuth.UpsertUser(teleUser)
+	c.Assert(err, IsNil)
+
 	hotpURL, _, err := s.roleAuth.UpsertPassword(user, []byte(pass))
 	c.Assert(err, IsNil)
 	otp, _, err := hotp.FromURL(hotpURL)
 	c.Assert(err, IsNil)
 	otp.Increment()
-
-	err = s.roleAuth.UpsertUser(
-		&services.TeleportUser{Name: user, AllowedLogins: []string{s.user}})
-	c.Assert(err, IsNil)
 
 	clt := s.client()
 
@@ -371,7 +399,7 @@ func (s *WebSuite) authPack(c *C) *authPack {
 	var rawSess *createSessionResponseRaw
 	c.Assert(json.Unmarshal(re.Bytes(), &rawSess), IsNil)
 
-	sess, err := rawSess.response()
+	sess, _, err := rawSess.response()
 	c.Assert(err, IsNil)
 
 	jar, err := cookiejar.New(nil)
@@ -753,8 +781,6 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 	c.Assert(se.TerminalParams, DeepEquals, params)
 }
 
-
-
 func (s *WebSuite) TestPlayback(c *C) {
 	pack := s.authPack(c)
 	sid := session.NewID()
@@ -770,7 +796,7 @@ func removeSpace(in string) string {
 }
 
 func (s *WebSuite) TestNewU2FUser(c *C) {
-	token, err := s.roleAuth.CreateSignupToken(&services.TeleportUser{Name: "bob", AllowedLogins: []string{s.user}})
+	token, err := s.roleAuth.CreateSignupToken(services.UserV1{Name: "bob", AllowedLogins: []string{s.user}})
 	c.Assert(err, IsNil)
 
 	tokens, err := s.roleAuth.GetTokens()
@@ -790,9 +816,9 @@ func (s *WebSuite) TestNewU2FUser(c *C) {
 
 	tempPass := "abc123"
 
-	re, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "users"), createNewU2FUserReq{
-		InviteToken:       token,
-		Pass:              tempPass,
+	re, err = clt.PostJSON(clt.Endpoint("webapi", "u2f", "users"), createNewU2FUserReq{
+		InviteToken:         token,
+		Pass:                tempPass,
 		U2FRegisterResponse: *u2fRegResp,
 	})
 	c.Assert(err, IsNil)
@@ -833,7 +859,7 @@ func (s *WebSuite) TestNewU2FUser(c *C) {
 }
 
 func (s *WebSuite) TestU2FLogin(c *C) {
-	token, err := s.roleAuth.CreateSignupToken(&services.TeleportUser{Name: "bob", AllowedLogins: []string{s.user}})
+	token, err := s.roleAuth.CreateSignupToken(services.UserV1{Name: "bob", AllowedLogins: []string{s.user}})
 	c.Assert(err, IsNil)
 
 	u2fRegReq, err := s.roleAuth.GetSignupU2FRegisterRequest(token)
@@ -850,9 +876,9 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 	// normal login
 
 	clt := s.client()
-	re, err := clt.PostJSON(clt.Endpoint("webapi","u2f", "signrequest"), u2fSignRequestReq{
-		User:              "bob",
-		Pass:              tempPass,
+	re, err := clt.PostJSON(clt.Endpoint("webapi", "u2f", "signrequest"), u2fSignRequestReq{
+		User: "bob",
+		Pass: tempPass,
 	})
 	c.Assert(err, IsNil)
 	var u2fSignReq u2f.SignRequest
@@ -861,17 +887,17 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 	u2fSignResp, err := s.mockU2F.SignResponse(&u2fSignReq)
 	c.Assert(err, IsNil)
 
-	_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
-		User:              "bob",
-		U2FSignResponse:   *u2fSignResp,
+	_, err = clt.PostJSON(clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
+		User:            "bob",
+		U2FSignResponse: *u2fSignResp,
 	})
 	c.Assert(err, IsNil)
 
 	// bad login: corrupted sign responses, should fail
 
-	re, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "signrequest"), u2fSignRequestReq{
-		User:              "bob",
-		Pass:              tempPass,
+	re, err = clt.PostJSON(clt.Endpoint("webapi", "u2f", "signrequest"), u2fSignRequestReq{
+		User: "bob",
+		Pass: tempPass,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(json.Unmarshal(re.Bytes(), &u2fSignReq), IsNil)
@@ -883,9 +909,9 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 	u2fSignRespCopy := u2fSignResp
 	u2fSignRespCopy.KeyHandle = u2fSignRespCopy.KeyHandle + u2fSignRespCopy.KeyHandle
 
-	_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
-		User:              "bob",
-		U2FSignResponse:   *u2fSignRespCopy,
+	_, err = clt.PostJSON(clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
+		User:            "bob",
+		U2FSignResponse: *u2fSignRespCopy,
 	})
 	c.Assert(err, NotNil)
 
@@ -893,9 +919,9 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 	u2fSignRespCopy = u2fSignResp
 	u2fSignRespCopy.SignatureData = u2fSignRespCopy.SignatureData[:10] + u2fSignRespCopy.SignatureData[20:]
 
-	_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
-		User:              "bob",
-		U2FSignResponse:   *u2fSignRespCopy,
+	_, err = clt.PostJSON(clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
+		User:            "bob",
+		U2FSignResponse: *u2fSignRespCopy,
 	})
 	c.Assert(err, NotNil)
 
@@ -903,9 +929,9 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 	u2fSignRespCopy = u2fSignResp
 	u2fSignRespCopy.ClientData = u2fSignRespCopy.ClientData[:10] + u2fSignRespCopy.ClientData[20:]
 
-	_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
-		User:              "bob",
-		U2FSignResponse:   *u2fSignRespCopy,
+	_, err = clt.PostJSON(clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
+		User:            "bob",
+		U2FSignResponse: *u2fSignRespCopy,
 	})
 	c.Assert(err, NotNil)
 
@@ -913,9 +939,9 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 
 	s.mockU2F.SetCounter(0)
 
-	re, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "signrequest"), u2fSignRequestReq{
-		User:              "bob",
-		Pass:              tempPass,
+	re, err = clt.PostJSON(clt.Endpoint("webapi", "u2f", "signrequest"), u2fSignRequestReq{
+		User: "bob",
+		Pass: tempPass,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(json.Unmarshal(re.Bytes(), &u2fSignReq), IsNil)
@@ -923,9 +949,9 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 	u2fSignResp, err = s.mockU2F.SignResponse(&u2fSignReq)
 	c.Assert(err, IsNil)
 
-	_, err = clt.PostJSON(clt.Endpoint("webapi","u2f", "sessions"), u2fSignResponseReq{
-		User:              "bob",
-		U2FSignResponse:   *u2fSignResp,
+	_, err = clt.PostJSON(clt.Endpoint("webapi", "u2f", "sessions"), u2fSignResponseReq{
+		User:            "bob",
+		U2FSignResponse: *u2fSignResp,
 	})
 	c.Assert(err, NotNil)
 }

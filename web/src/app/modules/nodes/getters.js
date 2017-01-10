@@ -14,23 +14,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const nodeHostNameByServerId = (serverId) => [ ['tlpt_nodes'], (nodes) =>{
-  let server = nodes.find(item=> item.get('id') === serverId);
+const nodeHostNameByServerId = (serverId) => [ ['tlpt_nodes'], (nodeList) =>{
+  let server = nodeList.find(item=> item.get('id') === serverId);
   return !server ? '' : server.get('hostname');
 }];
 
-const nodeListView = [ ['tlpt_nodes'], (nodes) =>{
-    return nodes.map((item)=>{
-      var serverId = item.get('id');
-      return {
-        id: serverId,
-        hostname: item.get('hostname'),
-        tags: getTags(item),
-        addr: item.get('addr')
-      }
-    }).toJS();
- }
-];
+const nodeListView = [['tlpt_nodes'], ['tlpt', 'siteId'], (nodeList, siteId) => {  
+  nodeList = nodeList.filter(n => n.get('siteId') === siteId);  
+  if (!nodeList) {
+    return [];
+  }
+
+  return nodeList.map((item) => {
+    var serverId = item.get('id');
+    return {
+      id: serverId,
+      siteId: item.get('siteId'),
+      hostname: item.get('hostname'),
+      tags: getTags(item),
+      addr: item.get('addr')
+    }
+  }).toJS();
+
+}];
 
 function getTags(node){
   var allLabels = [];

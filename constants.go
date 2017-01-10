@@ -40,11 +40,8 @@ const (
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 
-	// DefaultTimeout sets read and wrie timeouts for SSH server ops
-	DefaultTimeout time.Duration = 30 * time.Second
-
-	// DebugOutputEnvVar tells tests to use verbose debug output
-	DebugOutputEnvVar = "TELEPORT_DEBUG"
+	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
+	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
 	// DefaultTerminalWidth defines the default width of a server-side allocated
 	// pseudo TTY
@@ -57,4 +54,7 @@ const (
 	// SafeTerminalType is the fall-back TTY type to fall back to (when $TERM
 	// is not defined)
 	SafeTerminalType = "xterm"
+
+	// ConnectorOIDC means connector type OIDC
+	ConnectorOIDC = "oidc"
 )

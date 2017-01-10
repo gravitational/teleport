@@ -75,9 +75,6 @@ func (s *MainTestSuite) TestDefault(c *check.C) {
 	c.Assert(conf.Proxy.Enabled, check.Equals, true)
 	c.Assert(conf.Console, check.Equals, os.Stdout)
 	c.Assert(log.GetLevel(), check.Equals, log.WarnLevel)
-
-	cmd, conf = run([]string{"start", "-d"}, true)
-	c.Assert(log.GetLevel(), check.Equals, log.DebugLevel)
 }
 
 func (s *MainTestSuite) TestRolesFlag(c *check.C) {
@@ -99,7 +96,7 @@ func (s *MainTestSuite) TestRolesFlag(c *check.C) {
 }
 
 func (s *MainTestSuite) TestConfigFile(c *check.C) {
-	cmd, conf := run([]string{"start", "--roles=node", "-d", "--labels=a=a1,b=b1", "--config=" + s.configFile}, true)
+	cmd, conf := run([]string{"start", "--roles=node", "--labels=a=a1,b=b1", "--config=" + s.configFile}, true)
 	c.Assert(cmd, check.Equals, "start")
 	c.Assert(conf.SSH.Enabled, check.Equals, true)
 	c.Assert(conf.Auth.Enabled, check.Equals, false)

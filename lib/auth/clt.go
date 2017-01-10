@@ -28,7 +28,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/gravitational/roundtrip"
 
 	"github.com/gravitational/teleport"
@@ -38,11 +37,12 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/tstranex/u2f"
 )
 
 // CurrentVersion is a current API version
-const CurrentVersion = "v1"
+const CurrentVersion = services.V2
 
 type Dialer func(network, addr string) (net.Conn, error)
 
@@ -59,9 +59,7 @@ type Client struct {
 
 // NewAuthClient returns a new instance of the client which talks to
 // an Auth server API (aka "site API") via HTTP-over-SSH
-func NewClient(addr string, dialer Dialer) (*Client, error) {
-	var params []roundtrip.ClientParam
-
+func NewClient(addr string, dialer Dialer, params ...roundtrip.ClientParam) (*Client, error) {
 	if dialer == nil {
 		dialer = net.Dial
 	}
@@ -117,8 +115,11 @@ func (c *Client) Delete(u string) (*roundtrip.Response, error) {
 
 // GetSessions returns a list of active sessions in the cluster
 // as reported by auth server
-func (c *Client) GetSessions() ([]session.Session, error) {
-	out, err := c.Get(c.Endpoint("sessions"), url.Values{})
+func (c *Client) GetSessions(namespace string) ([]session.Session, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing namespace parameter")
+	}
+	out, err := c.Get(c.Endpoint("namespaces", namespace, "sessions"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -130,12 +131,15 @@ func (c *Client) GetSessions() ([]session.Session, error) {
 }
 
 // GetSession returns a session by ID
-func (c *Client) GetSession(id session.ID) (*session.Session, error) {
+func (c *Client) GetSession(namespace string, id session.ID) (*session.Session, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing parameter namespace")
+	}
 	// saving extra round-trip
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out, err := c.Get(c.Endpoint("sessions", string(id)), url.Values{})
+	out, err := c.Get(c.Endpoint("namespaces", namespace, "sessions", string(id)), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -147,14 +151,20 @@ func (c *Client) GetSession(id session.ID) (*session.Session, error) {
 }
 
 // DeleteSession deletes a session by ID
-func (c *Client) DeleteSession(id string) error {
-	_, err := c.Delete(c.Endpoint("sessions", id))
+func (c *Client) DeleteSession(namespace, id string) error {
+	if namespace == "" {
+		return trace.BadParameter("missing namespace parameter")
+	}
+	_, err := c.Delete(c.Endpoint("namespaces", namespace, "sessions", id))
 	return trace.Wrap(err)
 }
 
 // CreateSession creates new session
 func (c *Client) CreateSession(sess session.Session) error {
-	_, err := c.PostJSON(c.Endpoint("sessions"), createSessionReq{Session: sess})
+	if sess.Namespace == "" {
+		return trace.BadParameter("missing parameter namespace")
+	}
+	_, err := c.PostJSON(c.Endpoint("namespaces", sess.Namespace, "sessions"), createSessionReq{Session: sess})
 	return trace.Wrap(err)
 }
 
@@ -163,7 +173,7 @@ func (c *Client) UpdateSession(req session.UpdateRequest) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	_, err := c.PutJSON(c.Endpoint("sessions", string(req.ID)), updateSessionReq{Update: req})
+	_, err := c.PutJSON(c.Endpoint("namespaces", req.Namespace, "sessions", string(req.ID)), updateSessionReq{Update: req})
 	return trace.Wrap(err)
 }
 
@@ -189,12 +199,17 @@ func (c *Client) UpsertCertAuthority(ca services.CertAuthority, ttl time.Duratio
 	if err := ca.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	_, err := c.PostJSON(c.Endpoint("authorities", string(ca.Type)),
-		upsertCertAuthorityReq{CA: ca, TTL: ttl})
+	data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = c.PostJSON(c.Endpoint("authorities", string(ca.GetType())),
+		&upsertCertAuthorityRawReq{CA: data, TTL: ttl})
 	return trace.Wrap(err)
 }
 
-func (c *Client) GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error) {
+// GetCertAuthorities returns a list of certificate authorities
+func (c *Client) GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]services.CertAuthority, error) {
 	if err := caType.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -204,13 +219,37 @@ func (c *Client) GetCertAuthorities(caType services.CertAuthType, loadKeys bool)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var re []*services.CertAuthority
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, err
+	}
+	re := make([]services.CertAuthority, len(items))
+	for i, raw := range items {
+		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		re[i] = ca
 	}
 	return re, nil
 }
 
+// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
+// controls if signing keys are loaded
+func (c *Client) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool) (services.CertAuthority, error) {
+	if err := id.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := c.Get(c.Endpoint("authorities", string(id.Type), id.DomainName), url.Values{
+		"load_keys": []string{fmt.Sprintf("%t", loadSigningKeys)},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(out.Bytes())
+}
+
+// DeleteCertAuthority deletes cert authority by ID
 func (c *Client) DeleteCertAuthority(id services.CertAuthID) error {
 	if err := id.Check(); err != nil {
 		return trace.Wrap(err)
@@ -229,6 +268,7 @@ func (c *Client) DeleteCertAuthority(id services.CertAuthID) error {
 func (c *Client) GenerateToken(roles teleport.Roles, ttl time.Duration) (string, error) {
 	out, err := c.PostJSON(c.Endpoint("tokens"), generateTokenReq{
 		Roles: roles,
+		TTL:   ttl,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -240,7 +280,7 @@ func (c *Client) GenerateToken(roles teleport.Roles, ttl time.Duration) (string,
 	return token, nil
 }
 
-// RegisterUserToken calls the auth service API to register a new node via registration token
+// RegisterUsingToken calls the auth service API to register a new node via registration token
 // which has been previously issued via GenerateToken
 func (c *Client) RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error) {
 	out, err := c.PostJSON(c.Endpoint("tokens", "register"),
@@ -271,6 +311,19 @@ func (c *Client) GetTokens() (tokens []services.ProvisionToken, err error) {
 	return tokens, nil
 }
 
+// GetToken returns provisioning token
+func (c *Client) GetToken(token string) (*services.ProvisionToken, error) {
+	out, err := c.Get(c.Endpoint("tokens", token), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var tok services.ProvisionToken
+	if err := json.Unmarshal(out.Bytes(), &tok); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &tok, nil
+}
+
 // DeleteToken deletes a given provisioning token on the auth server (CA). It
 // could be a user token or a machine token
 func (c *Client) DeleteToken(token string) error {
@@ -278,6 +331,7 @@ func (c *Client) DeleteToken(token string) error {
 	return trace.Wrap(err)
 }
 
+// RegisterNewAuthServer is used to register new auth server with token
 func (c *Client) RegisterNewAuthServer(token string) error {
 	_, err := c.PostJSON(c.Endpoint("tokens", "register", "auth"), registerNewAuthServerReq{
 		Token: token,
@@ -288,23 +342,41 @@ func (c *Client) RegisterNewAuthServer(token string) error {
 // UpsertNode is used by SSH servers to reprt their presense
 // to the auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertNode(s services.Server, ttl time.Duration) error {
-	args := upsertServerReq{
-		Server: s,
+	if s.GetNamespace() == "" {
+		return trace.BadParameter("missing node namespace")
+	}
+	data, err := services.GetServerMarshaler().MarshalServer(s)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	args := &upsertServerRawReq{
+		Server: data,
 		TTL:    ttl,
 	}
-	_, err := c.PostJSON(c.Endpoint("nodes"), args)
+	_, err = c.PostJSON(c.Endpoint("namespaces", s.GetNamespace(), "nodes"), args)
 	return trace.Wrap(err)
 }
 
 // GetNodes returns the list of servers registered in the cluster.
-func (c *Client) GetNodes() ([]services.Server, error) {
-	out, err := c.Get(c.Endpoint("nodes"), url.Values{})
+func (c *Client) GetNodes(namespace string) ([]services.Server, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing parameter namespace")
+	}
+	out, err := c.Get(c.Endpoint("namespaces", namespace, "nodes"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var re []services.Server
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	re := make([]services.Server, len(items))
+	for i, raw := range items {
+		s, err := services.GetServerMarshaler().UnmarshalServer(raw, services.KindNode)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		re[i] = s
 	}
 	return re, nil
 }
@@ -312,11 +384,15 @@ func (c *Client) GetNodes() ([]services.Server, error) {
 // UpsertReverseTunnel is used by admins to create a new reverse tunnel
 // to the remote proxy to bypass firewall restrictions
 func (c *Client) UpsertReverseTunnel(tunnel services.ReverseTunnel, ttl time.Duration) error {
-	args := upsertReverseTunnelReq{
-		ReverseTunnel: tunnel,
+	data, err := services.GetReverseTunnelMarshaler().MarshalReverseTunnel(tunnel)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	args := &upsertReverseTunnelRawReq{
+		ReverseTunnel: data,
 		TTL:           ttl,
 	}
-	_, err := c.PostJSON(c.Endpoint("reversetunnels"), args)
+	_, err = c.PostJSON(c.Endpoint("reversetunnels"), args)
 	return trace.Wrap(err)
 }
 
@@ -326,9 +402,17 @@ func (c *Client) GetReverseTunnels() ([]services.ReverseTunnel, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var tunnels []services.ReverseTunnel
-	if err := json.Unmarshal(out.Bytes(), &tunnels); err != nil {
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	tunnels := make([]services.ReverseTunnel, len(items))
+	for i, raw := range items {
+		tunnel, err := services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tunnels[i] = tunnel
 	}
 	return tunnels, nil
 }
@@ -348,11 +432,15 @@ func (c *Client) DeleteReverseTunnel(domainName string) error {
 // UpsertAuthServer is used by auth servers to report their presense
 // to other auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertAuthServer(s services.Server, ttl time.Duration) error {
-	args := upsertServerReq{
-		Server: s,
+	data, err := services.GetServerMarshaler().MarshalServer(s)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	args := &upsertServerRawReq{
+		Server: data,
 		TTL:    ttl,
 	}
-	_, err := c.PostJSON(c.Endpoint("authservers"), args)
+	_, err = c.PostJSON(c.Endpoint("authservers"), args)
 	return trace.Wrap(err)
 }
 
@@ -362,9 +450,17 @@ func (c *Client) GetAuthServers() ([]services.Server, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var re []services.Server
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	re := make([]services.Server, len(items))
+	for i, raw := range items {
+		server, err := services.GetServerMarshaler().UnmarshalServer(raw, services.KindAuthServer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		re[i] = server
 	}
 	return re, nil
 }
@@ -372,11 +468,15 @@ func (c *Client) GetAuthServers() ([]services.Server, error) {
 // UpsertProxy is used by proxies to report their presense
 // to other auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertProxy(s services.Server, ttl time.Duration) error {
-	args := upsertServerReq{
-		Server: s,
+	data, err := services.GetServerMarshaler().MarshalServer(s)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	args := &upsertServerRawReq{
+		Server: data,
 		TTL:    ttl,
 	}
-	_, err := c.PostJSON(c.Endpoint("proxies"), args)
+	_, err = c.PostJSON(c.Endpoint("proxies"), args)
 	return trace.Wrap(err)
 }
 
@@ -386,13 +486,22 @@ func (c *Client) GetProxies() ([]services.Server, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var re []services.Server
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	re := make([]services.Server, len(items))
+	for i, raw := range items {
+		server, err := services.GetServerMarshaler().UnmarshalServer(raw, services.KindProxy)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		re[i] = server
 	}
 	return re, nil
 }
 
+// GetU2FAppID returns U2F settings, like App ID and Facets
 func (c *Client) GetU2FAppID() (string, error) {
 	out, err := c.Get(c.Endpoint("u2f", "appID"), url.Values{})
 	if err != nil {
@@ -425,13 +534,16 @@ func (c *Client) UpsertPassword(user string,
 
 // UpsertUser user updates or inserts user entry
 func (c *Client) UpsertUser(user services.User) error {
-	_, err := c.PostJSON(c.Endpoint("users"), upsertUserReq{User: user})
+	data, err := services.GetUserMarshaler().MarshalUser(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = c.PostJSON(c.Endpoint("users"), &upsertUserRawReq{User: data})
 	return trace.Wrap(err)
 }
 
 // CheckPassword checks if the suplied web access password is valid.
-func (c *Client) CheckPassword(user string,
-	password []byte, hotpToken string) error {
+func (c *Client) CheckPassword(user string, password []byte, hotpToken string) error {
 	_, err := c.PostJSON(
 		c.Endpoint("users", user, "web", "password", "check"),
 		checkPasswordReq{
@@ -477,6 +589,7 @@ func (c *Client) PreAuthenticatedSignIn(user string) (*Session, error) {
 	return sess, nil
 }
 
+// GetU2FSignRequest generates request for user trying to authenticate with U2F token
 func (c *Client) GetU2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
 	out, err := c.PostJSON(
 		c.Endpoint("u2f", "users", user, "sign"),
@@ -529,7 +642,7 @@ func (c *Client) CreateWebSession(user string) (*Session, error) {
 	return sess, nil
 }
 
-// GetWebSessionInfo check if a web sesion is valid, returns session id in case if
+// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
 // it is valid, or error otherwise.
 func (c *Client) GetWebSessionInfo(user string, sid string) (*Session, error) {
 	out, err := c.Get(
@@ -559,7 +672,7 @@ func (c *Client) GetUser(name string) (services.User, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := services.GetUserUnmarshaler()(out.Bytes())
+	user, err := services.GetUserMarshaler().UnmarshalUser(out.Bytes())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -578,7 +691,7 @@ func (c *Client) GetUsers() ([]services.User, error) {
 	}
 	users := make([]services.User, len(items))
 	for i, userBytes := range items {
-		user, err := services.GetUserUnmarshaler()(userBytes)
+		user, err := services.GetUserMarshaler().UnmarshalUser(userBytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -656,7 +769,7 @@ func (c *Client) GenerateUserCert(
 
 // CreateSignupToken creates one time token for creating account for the user
 // For each token it creates username and hotp generator
-func (c *Client) CreateSignupToken(user services.User) (string, error) {
+func (c *Client) CreateSignupToken(user services.UserV1) (string, error) {
 	if err := user.Check(); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -688,6 +801,7 @@ func (c *Client) GetSignupTokenData(token string) (user string,
 	return tokenData.User, tokenData.QRImg, tokenData.HotpFirstValues, nil
 }
 
+// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite tokenx
 func (c *Client) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
 	out, err := c.Get(c.Endpoint("u2f", "signuptokens", token), url.Values{})
 	if err != nil {
@@ -719,10 +833,11 @@ func (c *Client) CreateUserWithToken(token, password, hotpToken string) (*Sessio
 	return sess, nil
 }
 
+// CreateUserWithU2FToken creates user account with provided token and U2F sign response
 func (c *Client) CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*Session, error) {
 	out, err := c.PostJSON(c.Endpoint("u2f", "users"), createUserWithU2FTokenReq{
-		Token:     token,
-		Password:  password,
+		Token:               token,
+		Password:            password,
 		U2FRegisterResponse: u2fRegisterResponse,
 	})
 	if err != nil {
@@ -735,9 +850,14 @@ func (c *Client) CreateUserWithU2FToken(token string, password string, u2fRegist
 	return sess, nil
 }
 
+// UpsertOIDCConnector updates or creates OIDC connector
 func (c *Client) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error {
-	_, err := c.PostJSON(c.Endpoint("oidc", "connectors"), upsertOIDCConnectorReq{
-		Connector: connector,
+	data, err := services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = c.PostJSON(c.Endpoint("oidc", "connectors"), &upsertOIDCConnectorRawReq{
+		Connector: data,
 		TTL:       ttl,
 	})
 	if err != nil {
@@ -746,7 +866,8 @@ func (c *Client) UpsertOIDCConnector(connector services.OIDCConnector, ttl time.
 	return nil
 }
 
-func (c *Client) GetOIDCConnector(id string, withSecrets bool) (*services.OIDCConnector, error) {
+// GetOIDCConnector returns OIDC connector information by id
+func (c *Client) GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error) {
 	if id == "" {
 		return nil, trace.BadParameter("missing connector id")
 	}
@@ -755,26 +876,32 @@ func (c *Client) GetOIDCConnector(id string, withSecrets bool) (*services.OIDCCo
 	if err != nil {
 		return nil, err
 	}
-	var conn *services.OIDCConnector
-	if err := json.Unmarshal(out.Bytes(), &conn); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return conn, nil
+	return services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(out.Bytes())
 }
 
+// GetOIDCConnector gets OIDC connectors list
 func (c *Client) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error) {
 	out, err := c.Get(c.Endpoint("oidc", "connectors"),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
 	if err != nil {
 		return nil, err
 	}
-	var connectors []services.OIDCConnector
-	if err := json.Unmarshal(out.Bytes(), &connectors); err != nil {
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	connectors := make([]services.OIDCConnector, len(items))
+	for i, raw := range items {
+		connector, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		connectors[i] = connector
 	}
 	return connectors, nil
 }
 
+// DeleteOIDCConnector deletes OIDC connector by ID
 func (c *Client) DeleteOIDCConnector(connectorID string) error {
 	if connectorID == "" {
 		return trace.BadParameter("missing connector id")
@@ -783,6 +910,7 @@ func (c *Client) DeleteOIDCConnector(connectorID string) error {
 	return trace.Wrap(err)
 }
 
+// CreateOIDCAuthRequest creates OIDCAuthRequest
 func (c *Client) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
 	out, err := c.PostJSON(c.Endpoint("oidc", "requests", "create"), createOIDCAuthRequestReq{
 		Req: req,
@@ -797,6 +925,7 @@ func (c *Client) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.
 	return response, nil
 }
 
+// ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
 func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
 	out, err := c.PostJSON(c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
 		Query: q,
@@ -804,11 +933,26 @@ func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var response *OIDCAuthResponse
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+	var rawResponse *oidcAuthRawResponse
+	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return response, nil
+	response := OIDCAuthResponse{
+		Username: rawResponse.Username,
+		Identity: rawResponse.Identity,
+		Session:  rawResponse.Session,
+		Cert:     rawResponse.Cert,
+		Req:      rawResponse.Req,
+	}
+	response.HostSigners = make([]services.CertAuthority, len(rawResponse.HostSigners))
+	for i, raw := range rawResponse.HostSigners {
+		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		response.HostSigners[i] = ca
+	}
+	return &response, nil
 }
 
 // EmitAuditEvent sends an auditable event to the auth server (part of evets.IAuditLog interface)
@@ -828,8 +972,11 @@ func (c *Client) EmitAuditEvent(eventType string, fields events.EventFields) err
 //
 // The data is POSTed to HTTP server as a simple binary body (no encodings of any
 // kind are needed)
-func (c *Client) PostSessionChunk(sid session.ID, reader io.Reader) error {
-	r, err := http.NewRequest("POST", c.Endpoint("sessions", string(sid), "stream"), reader)
+func (c *Client) PostSessionChunk(namespace string, sid session.ID, reader io.Reader) error {
+	if namespace == "" {
+		return trace.BadParameter("missing parameter namespace")
+	}
+	r, err := http.NewRequest("POST", c.Endpoint("namespaces", namespace, "sessions", string(sid), "stream"), reader)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -842,21 +989,23 @@ func (c *Client) PostSessionChunk(sid session.ID, reader io.Reader) error {
 	// we **must** consume response by reading all of its body, otherwise the http
 	// client will allocate a new connection for subsequent requests
 	defer re.Body.Close()
-	var buff [1024]byte
-	io.CopyBuffer(ioutil.Discard, re.Body, buff[:])
-	return nil
+	responseBytes, _ := ioutil.ReadAll(re.Body)
+	return trace.ReadError(re.StatusCode, responseBytes)
 }
 
 // GetSessionChunk allows clients to receive a byte array (chunk) from a recorded
 // session stream, starting from 'offset', up to 'max' in length. The upper bound
 // of 'max' is set to events.MaxChunkBytes
-func (c *Client) GetSessionChunk(sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	response, err := c.Get(c.Endpoint("sessions", string(sid), "stream"), url.Values{
+func (c *Client) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing parameter namespace")
+	}
+	response, err := c.Get(c.Endpoint("namespaces", namespace, "sessions", string(sid), "stream"), url.Values{
 		"offset": []string{strconv.Itoa(offsetBytes)},
 		"bytes":  []string{strconv.Itoa(maxBytes)},
 	})
 	if err != nil {
-		logrus.Error(err)
+		log.Error(err)
 		return nil, trace.Wrap(err)
 	}
 	return response.Bytes(), nil
@@ -870,12 +1019,15 @@ func (c *Client) GetSessionChunk(sid session.ID, offsetBytes, maxBytes int) ([]b
 //
 // This function is usually used in conjunction with GetSessionReader to
 // replay recorded session streams.
-func (c *Client) GetSessionEvents(sid session.ID, afterN int) (retval []events.EventFields, err error) {
+func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int) (retval []events.EventFields, err error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing parameter namespace")
+	}
 	query := make(url.Values)
 	if afterN > 0 {
 		query.Set("after", strconv.Itoa(afterN))
 	}
-	response, err := c.Get(c.Endpoint("sessions", string(sid), "events"), query)
+	response, err := c.Get(c.Endpoint("namespaces", namespace, "sessions", string(sid), "events"), query)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -905,55 +1057,239 @@ func (c *Client) SearchEvents(from, to time.Time, query string) ([]events.EventF
 	return retval, nil
 }
 
-// TOODO(klizhentas) this should be just including appropriate service implementations
-type ClientI interface {
-	GetUser(name string) (services.User, error)
-	UpsertUser(user services.User) error
-	GetSessions() ([]session.Session, error)
-	GetSession(id session.ID) (*session.Session, error)
-	CreateSession(s session.Session) error
-	UpdateSession(req session.UpdateRequest) error
-	UpsertCertAuthority(cert services.CertAuthority, ttl time.Duration) error
-	GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error)
-	DeleteCertAuthority(caType services.CertAuthID) error
-	GenerateToken(roles teleport.Roles, ttl time.Duration) (string, error)
-	RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error)
-	RegisterNewAuthServer(token string) error
-	UpsertNode(s services.Server, ttl time.Duration) error
-	GetNodes() ([]services.Server, error)
-	GetAuthServers() ([]services.Server, error)
-	UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error)
-	CheckPassword(user string, password []byte, hotpToken string) error
-	SignIn(user string, password []byte) (*Session, error)
-	CreateWebSession(user string) (*Session, error)
-	ExtendWebSession(user string, prevSessionID string) (*Session, error)
-	GetWebSessionInfo(user string, sid string) (*Session, error)
-	DeleteWebSession(user string, sid string) error
-	GetUsers() ([]services.User, error)
-	DeleteUser(user string) error
-	GenerateKeyPair(pass string) ([]byte, []byte, error)
-	GenerateHostCert(key []byte, hostname, authServer string, roles teleport.Roles, ttl time.Duration) ([]byte, error)
-	GenerateUserCert(key []byte, user string, ttl time.Duration) ([]byte, error)
-	GetSignupTokenData(token string) (user string, QRImg []byte, hotpFirstValues []string, e error)
-	CreateUserWithToken(token, password, hotpToken string) (*Session, error)
-	UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error
-	GetOIDCConnector(id string, withSecrets bool) (*services.OIDCConnector, error)
-	GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error)
-	DeleteOIDCConnector(connectorID string) error
-	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
-	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
-	GetU2FSignRequest(user string, password []byte) (*u2f.SignRequest, error)
-	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterRequest, error)
-	CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*Session, error)
-	PreAuthenticatedSignIn(user string) (*Session, error)
-	GetU2FAppID() (string, error)
-	// UpsertReverseTunnel is used by admins to create a new reverse tunnel
-	// to the remote proxy to bypass firewall restrictions
-	UpsertReverseTunnel(tunnel services.ReverseTunnel, ttl time.Duration) error
-	// GetReverseTunnels returns the list of created reverse tunnels
-	GetReverseTunnels() ([]services.ReverseTunnel, error)
-	// DeleteReverseTunnel deletes reverse tunnel by domain name
-	DeleteReverseTunnel(domainName string) error
+// GetNamespaces returns a list of namespaces
+func (c *Client) GetNamespaces() ([]services.Namespace, error) {
+	out, err := c.Get(c.Endpoint("namespaces"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var re []services.Namespace
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return re, nil
+}
 
+// GetNamespace returns namespace by name
+func (c *Client) GetNamespace(name string) (*services.Namespace, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing namespace name")
+	}
+	out, err := c.Get(c.Endpoint("namespaces", name), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var ns services.Namespace
+	if err := json.Unmarshal(out.Bytes(), &ns); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &ns, nil
+}
+
+// UpsertNamespace upserts namespace
+func (c *Client) UpsertNamespace(ns services.Namespace) error {
+	_, err := c.PostJSON(c.Endpoint("namespaces"), upsertNamespaceReq{Namespace: ns})
+	return trace.Wrap(err)
+}
+
+// DeleteNamespace deletes namespace by name
+func (c *Client) DeleteNamespace(name string) error {
+	_, err := c.Delete(c.Endpoint("namespaces", name))
+	return trace.Wrap(err)
+}
+
+// GetRoles returns a list of roles
+func (c *Client) GetRoles() ([]services.Role, error) {
+	out, err := c.Get(c.Endpoint("roles"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roles := make([]services.Role, len(items))
+	for i, roleBytes := range items {
+		role, err := services.GetRoleMarshaler().UnmarshalRole(roleBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		roles[i] = role
+	}
+	return roles, nil
+}
+
+// UpsertRole creates or updates role
+func (c *Client) UpsertRole(role services.Role) error {
+	data, err := services.GetRoleMarshaler().MarshalRole(role)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = c.PostJSON(c.Endpoint("roles"), &upsertRoleRawReq{Role: data})
+	return trace.Wrap(err)
+}
+
+// GetRole returns role by name
+func (c *Client) GetRole(name string) (services.Role, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing name")
+	}
+	out, err := c.Get(c.Endpoint("roles", name), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	role, err := services.GetRoleMarshaler().UnmarshalRole(out.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return role, nil
+}
+
+// DeleteRole deletes role by name
+func (c *Client) DeleteRole(name string) error {
+	_, err := c.Delete(c.Endpoint("roles", name))
+	return trace.Wrap(err)
+}
+
+// WebService implements features used by Web UI clients
+type WebService interface {
+	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
+	// it is valid, or error otherwise.
+	GetWebSessionInfo(user string, sid string) (*Session, error)
+	// ExtendWebSession creates a new web session for a user based on another
+	// valid web session
+	ExtendWebSession(user string, prevSessionID string) (*Session, error)
+	// CreateWebSession creates a new web session for a user
+	CreateWebSession(user string) (*Session, error)
+	// DeleteWebSession deletes a web session for this user by id
+	DeleteWebSession(user string, sid string) error
+}
+
+// IdentityService manages identities and userse
+type IdentityService interface {
+	// UpsertPassword updates web access password for the user
+	UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error)
+
+	// UpsertOIDCConnector updates or creates OIDC connector
+	UpsertOIDCConnector(connector services.OIDCConnector, ttl time.Duration) error
+
+	// GetOIDCConnector returns OIDC connector information by id
+	GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error)
+
+	// GetOIDCConnector gets OIDC connectors list
+	GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error)
+
+	// DeleteOIDCConnector deletes OIDC connector by ID
+	DeleteOIDCConnector(connectorID string) error
+
+	// CreateOIDCAuthRequest creates OIDCAuthRequest
+	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
+
+	// ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
+	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
+
+	// GetU2FSignRequest generates request for user trying to authenticate with U2F token
+	GetU2FSignRequest(user string, password []byte) (*u2f.SignRequest, error)
+
+	// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite token
+	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterRequest, error)
+
+	// CreateUserWithU2FToken creates user account with provided token and U2F sign response
+	CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (*Session, error)
+
+	// PreAuthenticatedSignIn is used get web session for a user that is already authenticated
+	PreAuthenticatedSignIn(user string) (*Session, error)
+
+	// GetU2FAppID returns U2F settings, like App ID and Facets
+	GetU2FAppID() (string, error)
+
+	// GetUser returns user by name
+	GetUser(name string) (services.User, error)
+
+	// UpsertUser user updates or inserts user entry
+	UpsertUser(user services.User) error
+
+	// DeleteUser deletes a user by username
+	DeleteUser(user string) error
+
+	// GetUsers returns a list of usernames registered in the system
+	GetUsers() ([]services.User, error)
+
+	// CheckPassword checks if the suplied web access password is valid.
+	CheckPassword(user string, password []byte, hotpToken string) error
+
+	// SignIn checks if the web access password is valid, and if it is valid
+	// returns a secure web session id.
+	SignIn(user string, password []byte) (*Session, error)
+
+	// CreateUserWithToken creates account with provided token and password.
+	// Account username and hotp generator are taken from token data.
+	// Deletes token after account creation.
+	CreateUserWithToken(token, password, hotpToken string) (*Session, error)
+
+	// GenerateToken creates a special provisioning token for a new SSH server
+	// that is valid for ttl period seconds.
+	//
+	// This token is used by SSH server to authenticate with Auth server
+	// and get signed certificate and private key from the auth server.
+	//
+	// The token can be used only once.
+	GenerateToken(roles teleport.Roles, ttl time.Duration) (string, error)
+
+	// GenerateKeyPair generates SSH private/public key pair optionally protected
+	// by password. If the pass parameter is an empty string, the key pair
+	// is not password-protected.
+	GenerateKeyPair(pass string) ([]byte, []byte, error)
+
+	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
+	// plain text format, signs it using Host Certificate Authority private key and returns the
+	// resulting certificate.
+	GenerateHostCert(key []byte, hostname, authDomain string, roles teleport.Roles, ttl time.Duration) ([]byte, error)
+
+	// GenerateUserCert takes the public key in the Open SSH ``authorized_keys``
+	// plain text format, signs it using User Certificate Authority signing key and returns the
+	// resulting certificate.
+	GenerateUserCert(key []byte, user string, ttl time.Duration) ([]byte, error)
+
+	// GetSignupTokenData returns token data for a valid token
+	GetSignupTokenData(token string) (user string, QRImg []byte, hotpFirstValues []string, e error)
+
+	// CreateSignupToken creates one time token for creating account for the user
+	// For each token it creates username and hotp generator
+	CreateSignupToken(user services.UserV1) (string, error)
+}
+
+// ProvisioningService is a service in control
+// of adding new nodes, auth servers and proxies to the cluster
+type ProvisioningService interface {
+	// GetTokens returns a list of active invitation tokens for nodes and users
+	GetTokens() (tokens []services.ProvisionToken, err error)
+
+	// GetToken returns provisioning token
+	GetToken(token string) (*services.ProvisionToken, error)
+
+	// DeleteToken deletes a given provisioning token on the auth server (CA). It
+	// could be a user token or a machine token
+	DeleteToken(token string) error
+
+	// RegisterUsingToken calls the auth service API to register a new node via registration token
+	// which has been previously issued via GenerateToken
+	RegisterUsingToken(token, hostID string, role teleport.Role) (*PackedKeys, error)
+
+	// RegisterNewAuthServer is used to register new auth server with token
+	RegisterNewAuthServer(token string) error
+}
+
+// ClientI is a client to Auth service
+type ClientI interface {
+	IdentityService
+	ProvisioningService
+	services.Trust
 	events.IAuditLog
+	services.Presence
+	services.Access
+	WebService
+	session.Service
+
+	GetDomainName() (string, error)
 }

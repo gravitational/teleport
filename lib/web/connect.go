@@ -43,6 +43,8 @@ type connectReq struct {
 	Term session.TerminalParams `json:"term"`
 	// SessionID is a teleport session ID to join as
 	SessionID session.ID `json:"sid"`
+	// Namespace is node namespace
+	Namespace string `json:"namespace"`
 }
 
 func newConnectHandler(req connectReq, ctx *SessionContext, site reversetunnel.RemoteSite) (*connectHandler, error) {
@@ -50,14 +52,14 @@ func newConnectHandler(req connectReq, ctx *SessionContext, site reversetunnel.R
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := clt.GetNodes()
+	servers, err := clt.GetNodes(req.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	var server *services.Server
 	for i := range servers {
 		node := servers[i]
-		if node.ID == req.ServerID {
+		if node.GetName() == req.ServerID {
 			server = &node
 		}
 	}
@@ -108,7 +110,7 @@ func (w *connectHandler) connect(ws *websocket.Conn) {
 	// connectUpstream establishes an SSH connection to a requested node
 	up, err := w.connectUpstream()
 	if err != nil {
-		log.Errorf("wsHandler: failed: %v", err)
+		log.Error(err)
 		return
 	}
 	w.up = up
@@ -150,7 +152,7 @@ func (w *connectHandler) connectUpstream() (*sshutils.Upstream, error) {
 		return nil, trace.Wrap(err)
 	}
 	client, err := w.site.ConnectToServer(
-		w.server.Addr, w.req.Login, []ssh.AuthMethod{ssh.PublicKeys(signers...)})
+		w.server.GetAddr(), w.req.Login, []ssh.AuthMethod{ssh.PublicKeys(signers...)})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -17,44 +17,37 @@ limitations under the License.
 package local
 
 import (
-	"crypto/x509"
 	"crypto/ecdsa"
+	"crypto/x509"
 	"encoding/json"
-	"fmt"
-	"time"
 	"errors"
+	"fmt"
+	"sort"
+	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/gokyle/hotp"
-	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/bcrypt"
-
+	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	"github.com/tstranex/u2f"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // IdentityService is responsible for managing web users and currently
 // user accounts as well
 type IdentityService struct {
-	backend      backend.Backend
-	lockAfter    byte
-	lockDuration time.Duration
+	backend backend.Backend
 }
 
 // NewIdentityService returns a new instance of IdentityService object
-func NewIdentityService(
-	backend backend.Backend,
-	lockAfter byte,
-	lockDuration time.Duration) *IdentityService {
-
+func NewIdentityService(backend backend.Backend) *IdentityService {
 	return &IdentityService{
-		backend:      backend,
-		lockAfter:    lockAfter,
-		lockDuration: lockDuration,
+		backend: backend,
 	}
 }
 
@@ -64,40 +57,57 @@ func (s *IdentityService) GetUsers() ([]services.User, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := make([]services.User, len(keys))
-	for i, name := range keys {
+	out := make([]services.User, 0, len(keys))
+	for _, name := range keys {
 		u, err := s.GetUser(name)
 		if err != nil {
+			if trace.IsNotFound(err) {
+				continue
+			}
 			return nil, trace.Wrap(err)
 		}
-		out[i] = u
+		out = append(out, u)
 	}
 	return out, nil
 }
 
-// UpsertUser updates parameters about user
-func (s *IdentityService) UpsertUser(user services.User) error {
+func ttl(clock clockwork.Clock, t time.Time) time.Duration {
+	if t.IsZero() {
+		return backend.Forever
+	}
+	diff := t.UTC().Sub(clock.Now().UTC())
+	if diff < 0 {
+		return backend.Forever
+	}
+	return diff
+}
 
-	if !cstrings.IsValidUnixUser(user.GetName()) {
-		return trace.BadParameter("'%v is not a valid unix username'", user.GetName())
+// CreateUser creates user if it does not exist
+func (s *IdentityService) CreateUser(user services.User) error {
+	if err := user.Check(); err != nil {
+		return trace.Wrap(err)
 	}
-
-	for _, l := range user.GetAllowedLogins() {
-		if !cstrings.IsValidUnixUser(l) {
-			return trace.BadParameter("'%v is not a valid unix username'", l)
-		}
-	}
-	for _, i := range user.GetIdentities() {
-		if err := i.Check(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	data, err := json.Marshal(user)
+	data, err := services.GetUserMarshaler().MarshalUser(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	err = s.backend.CreateVal([]string{"web", "users", user.GetName()}, "params", []byte(data), ttl(clockwork.NewRealClock(), user.GetExpiry()))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
 
-	err = s.backend.UpsertVal([]string{"web", "users", user.GetName()}, "params", []byte(data), backend.Forever)
+// UpsertUser updates parameters about user
+func (s *IdentityService) UpsertUser(user services.User) error {
+	if err := user.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	data, err := services.GetUserMarshaler().MarshalUser(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.backend.UpsertVal([]string{"web", "users", user.GetName()}, "params", []byte(data), ttl(clockwork.NewRealClock(), user.GetExpiry()))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -106,18 +116,15 @@ func (s *IdentityService) UpsertUser(user services.User) error {
 
 // GetUser returns a user by name
 func (s *IdentityService) GetUser(user string) (services.User, error) {
-	u := services.TeleportUser{Name: user}
 	data, err := s.backend.GetVal([]string{"web", "users", user}, "params")
 	if err != nil {
-		if trace.IsNotFound(err) {
-			return &u, nil
-		}
+		return nil, trace.NotFound("user %v is not found", user)
+	}
+	u, err := services.GetUserMarshaler().UnmarshalUser(data)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := json.Unmarshal(data, &u); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &u, nil
+	return u, nil
 }
 
 // GetUserByOIDCIdentity returns a user by it's specified OIDC Identity, returns first
@@ -149,8 +156,22 @@ func (s *IdentityService) DeleteUser(user string) error {
 }
 
 // UpsertPasswordHash upserts user password hash
-func (s *IdentityService) UpsertPasswordHash(user string, hash []byte) error {
-	err := s.backend.UpsertVal([]string{"web", "users", user}, "pwd", hash, 0)
+func (s *IdentityService) UpsertPasswordHash(username string, hash []byte) error {
+	userPrototype, err := services.NewUser(username)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	user, err := services.GetUserMarshaler().GenerateUser(userPrototype)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.CreateUser(user)
+	if err != nil {
+		if !trace.IsAlreadyExists(err) {
+			return trace.Wrap(err)
+		}
+	}
+	err = s.backend.UpsertVal([]string{"web", "users", username}, "pwd", hash, 0)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -214,41 +235,46 @@ func (s *IdentityService) UpsertWebSession(user, sid string, session services.We
 	return trace.Wrap(err)
 }
 
-// IncreaseLoginAttempts bumps "login attempt" counter for the given user. If the counter
-// reaches 'lockAfter' value, it locks the account and returns access denied error.
-func (s *IdentityService) IncreaseLoginAttempts(user string) error {
-	bucket := []string{"web", "users", user}
-
-	data, _, err := s.backend.GetValAndTTL(bucket, "lock")
-	// unexpected error?
-	if err != nil && !trace.IsNotFound(err) {
+// AddUserLoginAttempt logs user login attempt
+func (s *IdentityService) AddUserLoginAttempt(user string, attempt services.LoginAttempt, ttl time.Duration) error {
+	if err := attempt.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	// bump the attempt count
-	if len(data) < 1 {
-		data = []byte{0}
+	bytes, err := json.Marshal(attempt)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	// check the attempt count
-	if len(data) > 0 && data[0] >= s.lockAfter {
-		return trace.AccessDenied("this account has been locked for %v", s.lockDuration)
+	err = s.backend.UpsertVal([]string{"web", "users", user, "attempts"},
+		uuid.New(), bytes, ttl)
+	if trace.IsNotFound(err) {
+		return trace.NotFound("user '%v' is not found", user)
 	}
-	newData := []byte{data[0] + 1}
-	// "create val" will create a new login attempt counter, or it will
-	// do nothing if it's already there.
-	//
-	// "compare and swap" will bump the counter +1
-	s.backend.CreateVal(bucket, "lock", data, s.lockDuration)
-	_, err = s.backend.CompareAndSwap(bucket, "lock", newData, s.lockDuration, data)
 	return trace.Wrap(err)
 }
 
-// ResetLoginAttempts resets the "login attempt" counter to zero.
-func (s *IdentityService) ResetLoginAttempts(user string) error {
-	err := s.backend.DeleteKey([]string{"web", "users", user}, "lock")
-	if trace.IsNotFound(err) {
-		return nil
+// GetUserLoginAttempts returns user login attempts
+func (s *IdentityService) GetUserLoginAttempts(user string) ([]services.LoginAttempt, error) {
+	keys, err := s.backend.GetKeys([]string{"web", "users", user, "attempts"})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return trace.Wrap(err)
+	out := make([]services.LoginAttempt, 0, len(keys))
+	for _, id := range keys {
+		data, err := s.backend.GetVal([]string{"web", "users", user, "attempts"}, id)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+			continue
+		}
+		var a services.LoginAttempt
+		if err := json.Unmarshal(data, &a); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, a)
+	}
+	sort.Sort(services.SortedLoginAttempts(out))
+	return out, nil
 }
 
 // GetWebSession returns a web session state for a given user and session id
@@ -323,9 +349,6 @@ func (s *IdentityService) CheckPassword(user string, password []byte, hotpToken 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = s.IncreaseLoginAttempts(user); err != nil {
-		return trace.Wrap(err)
-	}
 	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
 		return trace.AccessDenied("passwords do not match")
 	}
@@ -336,7 +359,6 @@ func (s *IdentityService) CheckPassword(user string, password []byte, hotpToken 
 	if !otp.Scan(hotpToken, defaults.HOTPFirstTokensRange) {
 		return trace.AccessDenied("bad one time token")
 	}
-	defer s.ResetLoginAttempts(user)
 	if err := s.UpsertHOTP(user, otp); err != nil {
 		return trace.Wrap(err)
 	}
@@ -353,13 +375,9 @@ func (s *IdentityService) CheckPasswordWOToken(user string, password []byte) err
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = s.IncreaseLoginAttempts(user); err != nil {
-		return trace.Wrap(err)
-	}
 	if err := bcrypt.CompareHashAndPassword(hash, password); err != nil {
 		return trace.BadParameter("passwords do not match")
 	}
-	defer s.ResetLoginAttempts(user)
 	return nil
 }
 
@@ -452,8 +470,8 @@ func (s *IdentityService) GetU2FRegisterChallenge(token string) (*u2f.Challenge,
 
 // u2f.Registration cannot be json marshalled due to the pointer in the public key so we have this marshallable version
 type MarshallableU2FRegistration struct {
-	Raw []byte `json:"raw"`
-	KeyHandle []byte `json:"keyhandle"`
+	Raw              []byte `json:"raw"`
+	KeyHandle        []byte `json:"keyhandle"`
 	MarshalledPubKey []byte `json:"marshalled_pubkey"`
 
 	// AttestationCert is not needed for authentication so we don't need to store it
@@ -466,8 +484,8 @@ func (s *IdentityService) UpsertU2FRegistration(user string, u2fReg *u2f.Registr
 	}
 
 	marshallableReg := MarshallableU2FRegistration{
-		Raw: u2fReg.Raw,
-		KeyHandle: u2fReg.KeyHandle,
+		Raw:              u2fReg.Raw,
+		KeyHandle:        u2fReg.KeyHandle,
 		MarshalledPubKey: marshalledPubkey,
 	}
 
@@ -506,9 +524,9 @@ func (s *IdentityService) GetU2FRegistration(user string) (*u2f.Registration, er
 	}
 
 	return &u2f.Registration{
-		Raw: marshallableReg.Raw,
-		KeyHandle: marshallableReg.KeyHandle,
-		PubKey: *pubkey,
+		Raw:             marshallableReg.Raw,
+		KeyHandle:       marshallableReg.KeyHandle,
+		PubKey:          *pubkey,
 		AttestationCert: nil,
 	}, nil
 }
@@ -577,11 +595,11 @@ func (s *IdentityService) UpsertOIDCConnector(connector services.OIDCConnector, 
 	if err := connector.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	data, err := json.Marshal(connector)
+	data, err := services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.backend.UpsertVal(connectorsPath, connector.ID, data, ttl)
+	err = s.backend.UpsertVal(connectorsPath, connector.GetName(), data, ttl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -595,23 +613,22 @@ func (s *IdentityService) DeleteOIDCConnector(connectorID string) error {
 }
 
 // GetOIDCConnector returns OIDC connector data, , withSecrets adds or removes client secret from return results
-func (s *IdentityService) GetOIDCConnector(id string, withSecrets bool) (*services.OIDCConnector, error) {
-	out, err := s.backend.GetVal(connectorsPath, id)
+func (s *IdentityService) GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error) {
+	data, err := s.backend.GetVal(connectorsPath, id)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("OpenID connector '%v' is not configured", id)
 		}
 		return nil, trace.Wrap(err)
 	}
-	var data *services.OIDCConnector
-	err = json.Unmarshal(out, &data)
+	conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(data)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if !withSecrets {
-		data.ClientSecret = ""
+		conn.SetClientSecret("")
 	}
-	return data, nil
+	return conn, nil
 }
 
 // GetOIDCConnectors returns registered connectors, withSecrets adds or removes client secret from return results
@@ -626,7 +643,7 @@ func (s *IdentityService) GetOIDCConnectors(withSecrets bool) ([]services.OIDCCo
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		connectors = append(connectors, *connector)
+		connectors = append(connectors, connector)
 	}
 	return connectors, nil
 }

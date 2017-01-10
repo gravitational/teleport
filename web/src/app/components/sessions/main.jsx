@@ -16,13 +16,13 @@ limitations under the License.
 
 var React = require('react');
 var reactor = require('app/reactor');
-var {fetchActiveSessions} = require('app/modules/sessions/actions');
 var { fetchStoredSession } = require('app/modules/storedSessionsFilter/actions');
 var {sessionsView} = require('app/modules/sessions/getters');
 var {filter} = require('app/modules/storedSessionsFilter/getters');
 var StoredSessionList = require('./storedSessionList.jsx');
 var ActiveSessionList = require('./activeSessionList.jsx');
 var Timer = require('./../timer.jsx');
+var ClusterContent = require('./../clusterContent.jsx');
 
 var Sessions = React.createClass({
   mixins: [reactor.ReactMixin],
@@ -35,19 +35,20 @@ var Sessions = React.createClass({
   },
 
   refresh(){
-    fetchStoredSession();
-    fetchActiveSessions();
+    fetchStoredSession();    
   },
 
   render: function() {
     let {data, storedSessionsFilter} = this.state;
     return (
-      <div className="grv-sessions grv-page">
-        <Timer onTimeout={this.refresh} />
-        <ActiveSessionList data={data}/>
-        <hr className="grv-divider"/>
-        <StoredSessionList data={data} filter={storedSessionsFilter}/>
-      </div>
+      <ClusterContent>
+        <div className="grv-sessions">
+          <Timer onTimeout={this.refresh} />
+          <ActiveSessionList data={data} />
+          <div className="m-t-lg"/>
+          <StoredSessionList data={data} filter={storedSessionsFilter}/>
+        </div>
+      </ClusterContent>  
     );
   }
 });

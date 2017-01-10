@@ -18,8 +18,9 @@ var moment =  require('moment');
 var reactor = require('app/reactor');
 var cfg = require('app/config');
 
-const sessionsView = [['tlpt_sessions'], (sessions) =>{
-  return sessions.valueSeq().map(createView).toJS();
+const sessionsView = [['tlpt_sessions'], ['tlpt', 'siteId'], (sessionList, siteId) => {  
+  sessionList = sessionList.filter(n => n.get('siteId') === siteId);    
+  return sessionList.valueSeq().map(createView).toJS();
 }];
 
 const sessionViewById = (sid)=> [['tlpt_sessions', sid], (session)=>{
@@ -58,6 +59,7 @@ function createView(session){
   let created = new Date(session.get('created'));
   let lastActive = new Date(session.get('last_active'));
   let duration = moment(created).diff(lastActive);
+  let siteId = session.get('siteId');
 
   return {
     parties,
@@ -66,6 +68,7 @@ function createView(session){
     lastActive,
     duration,
     serverIp,
+    siteId,
     stored: session.get('stored'),
     serverId: session.get('server_id'),
     clientIp: session.get('clientIp'),
@@ -73,7 +76,7 @@ function createView(session){
     active: session.get('active'),
     user: session.get('user'),
     login: session.get('login'),
-    sessionUrl: cfg.getCurrentSessionRouteUrl(sid),
+    sessionUrl: cfg.getCurrentSessionRouteUrl({ sid, siteId }),
     cols: session.getIn(['terminal_params', 'w']),
     rows: session.getIn(['terminal_params', 'h'])
   }

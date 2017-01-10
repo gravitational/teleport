@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+@import "grv-vars";
 @import "~assets/css/animate.css";
 @import "~assets/css/datepicker3-1.6.0.css";
 @import "~assets/css/toastr-2.1.2.css";
@@ -21,7 +22,6 @@ limitations under the License.
 @import "bootstrap/bootstrap";
 @import 'inspinia/style';
 
-@import "grv-vars";
 @import "grv-invite";
 @import "grv-login";
 @import "grv-icons";
@@ -47,6 +47,9 @@ h1{
 
   .grv-tlpt{
     height: 100%;
+    h2 {
+      font-size: 20px;
+    }
   }
 
   .grv-page {
@@ -100,6 +103,12 @@ h1{
   }
 }
 
+.grv-page-header-clusters-selector{
+  max-width: 220px;
+  min-width: 120px;
+  align-self: flex-end;
+}
+
 .input-daterange .input-group-addon {
   width: auto;
   min-width: 16px;
@@ -121,4 +130,27 @@ h1{
   display:block;
   margin: 9px auto;
   background-color: #e5e6e7;
+}
+
+.grv-dropdown{
+  .grv-dropdown-value{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+
+      .caret{
+        margin-left: 5px;
+      }
+    }
+}
+
+.dropdown-menu {
+  .divider {
+    margin: 3px 0;
+  }
+
+  > li > a {
+    margin: 0;
+    padding: 5px 10px;    
+  }
 }

@@ -29,40 +29,43 @@ import (
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
 )
 
 // fake cluster we're testing on:
 var (
-	Nodes = []services.Server{
+	Nodes = []services.ServerV1{
 		{
 			ID:        "1",
 			Addr:      "10.50.0.1",
 			Hostname:  "one",
 			Labels:    make(map[string]string),
-			CmdLabels: make(map[string]services.CommandLabel),
+			CmdLabels: make(map[string]services.CommandLabelV1),
+			Namespace: defaults.Namespace,
 		},
 		{
 			ID:        "2",
 			Addr:      "10.50.0.2",
 			Hostname:  "two",
 			Labels:    make(map[string]string),
-			CmdLabels: make(map[string]services.CommandLabel),
+			CmdLabels: make(map[string]services.CommandLabelV1),
+			Namespace: defaults.Namespace,
 		},
 	}
-	Proxies = []services.Server{
+	Proxies = []services.ServerV1{
 		{
 			ID:       "3",
 			Addr:     "10.50.0.3",
 			Hostname: "three",
 			Labels:   map[string]string{"os": "linux", "role": "proxy"},
-			CmdLabels: map[string]services.CommandLabel{
+			CmdLabels: map[string]services.CommandLabelV1{
 				"uptime": {Period: time.Second, Command: []string{"uptime"}},
 			},
 		},
 	}
-	Users = []services.TeleportUser{
+	Users = []services.UserV1{
 		{
 			Name:           "elliot",
 			AllowedLogins:  []string{"elliot", "root"},
@@ -96,6 +99,10 @@ var _ = check.Suite(&ClusterSnapshotSuite{})
 // bootstrap check
 func TestState(t *testing.T) { check.TestingT(t) }
 
+func (s *ClusterSnapshotSuite) SetUpSuite(c *check.C) {
+	utils.InitLoggerForTests()
+}
+
 func (s *ClusterSnapshotSuite) SetUpTest(c *check.C) {
 	// create a new auth server:
 	s.dataDir = c.MkDir()
@@ -107,19 +114,22 @@ func (s *ClusterSnapshotSuite) SetUpTest(c *check.C) {
 		Authority:  testauthority.New(),
 		DomainName: "auth.local",
 	})
+	err = s.authServer.UpsertNamespace(
+		services.NewNamespace(defaults.Namespace))
+	c.Assert(err, check.IsNil)
 	// add some nodes to it:
 	for _, n := range Nodes {
-		err = s.authServer.UpsertNode(n, defaults.ServerHeartbeatTTL)
+		err = s.authServer.UpsertNode(n.V2(), defaults.ServerHeartbeatTTL)
 		c.Assert(err, check.IsNil)
 	}
 	// add some proxies to it:
 	for _, p := range Proxies {
-		err = s.authServer.UpsertProxy(p, defaults.ServerHeartbeatTTL)
+		err = s.authServer.UpsertProxy(p.V2(), defaults.ServerHeartbeatTTL)
 		c.Assert(err, check.IsNil)
 	}
 	// add some users to it:
 	for _, u := range Users {
-		err = s.authServer.UpsertUser(&u)
+		err = s.authServer.UpsertUser(u.V2())
 		c.Assert(err, check.IsNil)
 	}
 }
@@ -142,7 +152,7 @@ func (s *ClusterSnapshotSuite) TestEverything(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(users, check.HasLen, len(Users))
 
-	nodes, err := snap.GetNodes()
+	nodes, err := snap.GetNodes(defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(nodes, check.HasLen, len(Nodes))
 

@@ -44,6 +44,7 @@ import (
 var (
 	// all possible valid YAML config keys
 	validKeys = map[string]bool{
+		"namespace":          true,
 		"seed_config":        true,
 		"cluster_name":       true,
 		"trusted_clusters":   true,
@@ -211,7 +212,7 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	g.Limits.MaxConnections = defaults.LimiterMaxConnections
 	g.Limits.MaxUsers = defaults.LimiterMaxConcurrentUsers
 	g.DataDir = defaults.DataDir
-	g.Storage.Type = conf.Auth.RecordsBackend.Type
+	g.Storage.Type = conf.Auth.KeysBackend.Type
 	g.PIDFile = "/var/run/teleport.pid"
 
 	// sample SSH config:
@@ -337,6 +338,7 @@ type Log struct {
 // Global is 'teleport' (global) section of the config file
 type Global struct {
 	NodeName    string           `yaml:"nodename,omitempty"`
+	DataDir     string           `yaml:"data_dir,omitempty"`
 	PIDFile     string           `yaml:"pid_file,omitempty"`
 	AuthToken   string           `yaml:"auth_token,omitempty"`
 	AuthServers []string         `yaml:"auth_servers,omitempty"`
@@ -344,7 +346,6 @@ type Global struct {
 	Logger      Log              `yaml:"log,omitempty"`
 	Storage     backend.Config   `yaml:"storage,omitempty"`
 	AdvertiseIP net.IP           `yaml:"advertise_ip,omitempty"`
-	DataDir     string           `yaml:"data_dir,omitempty"`
 
 	// Keys holds the list of SSH key/cert pairs used by all services
 	// Each service (like proxy, auth, node) can find the key it needs
@@ -430,9 +431,10 @@ type StaticToken string
 
 // SSH is 'ssh_service' section of the config file
 type SSH struct {
-	Service  `yaml:",inline"`
-	Labels   map[string]string `yaml:"labels,omitempty"`
-	Commands []CommandLabel    `yaml:"commands,omitempty"`
+	Service   `yaml:",inline"`
+	Namespace string            `yaml:"namespace,omitempty"`
+	Labels    map[string]string `yaml:"labels,omitempty"`
+	Commands  []CommandLabel    `yaml:"commands,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -459,7 +461,7 @@ type ReverseTunnel struct {
 }
 
 // ConvertAndValidate returns validated services.ReverseTunnel or nil and error otherwize
-func (t *ReverseTunnel) ConvertAndValidate() (*services.ReverseTunnel, error) {
+func (t *ReverseTunnel) ConvertAndValidate() (services.ReverseTunnel, error) {
 	for i := range t.Addresses {
 		addr, err := utils.ParseHostPortAddr(t.Addresses[i], defaults.SSHProxyTunnelListenPort)
 		if err != nil {
@@ -468,10 +470,7 @@ func (t *ReverseTunnel) ConvertAndValidate() (*services.ReverseTunnel, error) {
 		t.Addresses[i] = addr.String()
 	}
 
-	out := &services.ReverseTunnel{
-		DomainName: t.DomainName,
-		DialAddrs:  t.Addresses,
-	}
+	out := services.NewReverseTunnel(t.DomainName, t.Addresses)
 	if err := out.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -538,8 +537,8 @@ type Authority struct {
 }
 
 // Parse reads values and returns parsed CertAuthority
-func (a *Authority) Parse() (*services.CertAuthority, error) {
-	ca := &services.CertAuthority{
+func (a *Authority) Parse() (services.CertAuthority, services.Role, error) {
+	ca := &services.CertAuthorityV1{
 		AllowedLogins: a.AllowedLogins,
 		DomainName:    a.DomainName,
 		Type:          a.Type,
@@ -548,7 +547,7 @@ func (a *Authority) Parse() (*services.CertAuthority, error) {
 	for _, path := range a.CheckingKeyFiles {
 		keyBytes, err := utils.ReadPath(path)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 		ca.CheckingKeys = append(ca.CheckingKeys, keyBytes)
 	}
@@ -560,7 +559,7 @@ func (a *Authority) Parse() (*services.CertAuthority, error) {
 	for _, path := range a.SigningKeyFiles {
 		keyBytes, err := utils.ReadPath(path)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 		ca.SigningKeys = append(ca.SigningKeys, keyBytes)
 	}
@@ -569,7 +568,19 @@ func (a *Authority) Parse() (*services.CertAuthority, error) {
 		ca.SigningKeys = append(ca.SigningKeys, []byte(val))
 	}
 
-	return ca, nil
+	new, role := services.ConvertV1CertAuthority(ca)
+	return new, role, nil
+}
+
+// ClaimMapping is OIDC claim mapping that maps
+// claim name to teleport roles
+type ClaimMapping struct {
+	// Claim is OIDC claim name
+	Claim string `yaml:"claim"`
+	// Value is claim value to match
+	Value string `yaml:"value"`
+	// Roles is a list of teleport roles to match
+	Roles []string `yaml:"roles"`
 }
 
 // OIDCConnector specifies configuration fo Open ID Connect compatible external
@@ -588,27 +599,47 @@ type OIDCConnector struct {
 	// client's browser back to it after successfull authentication
 	// Should match the URL on Provider's side
 	RedirectURL string `yaml:"redirect_url"`
-	Display     string `yaml:"display"`
+	// Display controls how this connector is displayed
+	Display string `yaml:"display"`
+	// Scope is a list of additional scopes to request from OIDC
+	// note that oidc and email scopes are always requested
+	Scope []string `yaml:"scope"`
+	// ClaimsToRoles is a list of mappings of claims to roles
+	ClaimsToRoles []ClaimMapping `yaml:"claims_to_roles"`
 }
 
 // Parse parses config struct into services connector and checks if it's valid
-func (o *OIDCConnector) Parse() (*services.OIDCConnector, error) {
+func (o *OIDCConnector) Parse() (services.OIDCConnector, error) {
 	if o.Display == "" {
 		o.Display = o.ID
 	}
 
-	other := &services.OIDCConnector{
-		ID:           o.ID,
-		Display:      o.Display,
-		IssuerURL:    o.IssuerURL,
-		ClientID:     o.ClientID,
-		ClientSecret: o.ClientSecret,
-		RedirectURL:  o.RedirectURL,
+	var mappings []services.ClaimMapping
+	for _, c := range o.ClaimsToRoles {
+		roles := make([]string, len(c.Roles))
+		copy(roles, c.Roles)
+		mappings = append(mappings, services.ClaimMapping{
+			Claim: c.Claim,
+			Value: c.Value,
+			Roles: roles,
+		})
 	}
-	if err := other.Check(); err != nil {
+
+	other := &services.OIDCConnectorV1{
+		ID:            o.ID,
+		Display:       o.Display,
+		IssuerURL:     o.IssuerURL,
+		ClientID:      o.ClientID,
+		ClientSecret:  o.ClientSecret,
+		RedirectURL:   o.RedirectURL,
+		Scope:         o.Scope,
+		ClaimsToRoles: mappings,
+	}
+	v2 := other.V2()
+	if err := v2.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return other, nil
+	return v2, nil
 }
 
 // Parse() is applied to a string in "role,role,role:token" format. It breaks it

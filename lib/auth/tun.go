@@ -12,6 +12,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
 */
 
 package auth
@@ -22,7 +23,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"os"
 	"sort"
 	"sync"
 	"time"
@@ -290,25 +290,25 @@ func (s *AuthTunnel) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel
 
 	ws, err := s.authServer.GetWebSession(sconn.User(), sconn.Permissions.Extensions[ExtWebSession])
 	if err != nil {
-		log.Errorf("session error: %v", err)
+		log.Errorf("session error: %v", trace.DebugReport(err))
 		return
 	}
 
 	priv, err := ssh.ParseRawPrivateKey(ws.WS.Priv)
 	if err != nil {
-		log.Errorf("session error: %v", err)
+		log.Errorf("session error: %v", trace.DebugReport(err))
 		return
 	}
 
 	pub, _, _, _, err := ssh.ParseAuthorizedKey(ws.WS.Pub)
 	if err != nil {
-		log.Errorf("session error: %v", err)
+		log.Errorf("session error: %v", trace.DebugReport(err))
 		return
 	}
 
 	cert, ok := pub.(*ssh.Certificate)
 	if !ok {
-		log.Errorf("session error, not a cert: %T", pub)
+		log.Errorf("session error, not a certificate: %T", pub)
 		return
 	}
 	addedKey := agent.AddedKey{
@@ -320,28 +320,40 @@ func (s *AuthTunnel) handleWebAgentRequest(sconn *ssh.ServerConn, ch ssh.Channel
 	}
 	newKeyAgent := agent.NewKeyring()
 	if err := newKeyAgent.Add(addedKey); err != nil {
-		log.Errorf("failed to add: %v", err)
+		log.Errorf("failed to add: %v", trace.DebugReport(err))
 		return
 	}
 	if err := agent.ServeAgent(newKeyAgent, ch); err != nil && err != io.EOF {
-		log.Errorf("Serve agent err: %v", err)
+		log.Errorf("Serve agent err: %v", trace.DebugReport(err))
 	}
 }
 
 // onAPIConnection accepts an incoming SSH connection via TCP/IP and forwards
 // it to the local auth server which listens on local UNIX pipe
-//
 func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	defer sconn.Close()
 
-	// retreive the role from thsi connection's permissions (make sure it's a valid role)
-	role := teleport.Role(sconn.Permissions.Extensions[ExtRole])
-	if err := role.Check(); err != nil {
-		log.Errorf(err.Error())
+	var username string
+	if extRole, ok := sconn.Permissions.Extensions[ExtRole]; ok {
+		// retreive the role from thsi connection's permissions (make sure it's a valid role)
+		systemRole := teleport.Role(extRole)
+		if err := systemRole.Check(); err != nil {
+			log.Errorf(err.Error())
+			return
+		}
+		username = systemRole.User()
+	} else if teleportUser, ok := sconn.Permissions.Extensions[utils.CertTeleportUser]; ok {
+		username = teleportUser
+		if teleport.IsSystemUsername(username) {
+			log.Errorf("%v is a system reserved username, but certificate does not verify", username)
+			return
+		}
+	} else {
+		log.Errorf("expected %v or %v extensions for %v, found none in %v", ExtRole, utils.CertTeleportUser, sconn.User(), sconn.Permissions.Extensions)
 		return
 	}
 
-	api := NewAPIServer(s.config, role)
+	api := NewAPIServer(s.config)
 	socket := fakeSocket{
 		closed:      make(chan int),
 		connections: make(chan net.Conn),
@@ -365,7 +377,7 @@ func (s *AuthTunnel) onAPIConnection(sconn *ssh.ServerConn, sshChan ssh.Channel,
 	// serve HTTP API via this SSH connection until it gets closed:
 	http.Serve(&socket, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// take SSH client name and pass it to HTTP API via HTTP Auth
-		r.SetBasicAuth(sconn.User(), "")
+		r.SetBasicAuth(username, "")
 		api.ServeHTTP(w, r)
 	}))
 }
@@ -409,8 +421,8 @@ func (s *AuthTunnel) keyAuth(
 	// https://bugzilla.mindrot.org/show_bug.cgi?id=2387
 	perms := &ssh.Permissions{
 		Extensions: map[string]string{
-			ExtHost: conn.User(),
-			ExtRole: string(teleport.RoleUser),
+			ExtHost:                conn.User(),
+			utils.CertTeleportUser: cert.KeyId,
 		},
 	}
 	return perms, nil
@@ -428,39 +440,38 @@ func (s *AuthTunnel) passwordAuth(
 	switch ab.Type {
 	case AuthWebPassword:
 		if err := s.authServer.CheckPassword(conn.User(), ab.Pass, ab.HotpToken); err != nil {
-			log.Warningf("password auth error: %#v", err)
 			return nil, trace.Wrap(err)
 		}
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
-				ExtWebPassword: "<password>",
-				ExtRole:        string(teleport.RoleUser),
+				ExtWebPassword:         "<password>",
+				utils.CertTeleportUser: conn.User(),
 			},
 		}
 		log.Infof("[AUTH] password authenticated user: '%v'", conn.User())
 		return perms, nil
 	case AuthWebU2FSign:
 		if err := s.authServer.CheckPasswordWOToken(conn.User(), ab.Pass); err != nil {
-			log.Warningf("password auth error: %#v", err)
 			return nil, trace.Wrap(err)
 		}
+		// notice RoleNop here - it can literally call to nothing except one
+		// method that everyone is authorized to do - request a sign in
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
 				ExtWebPassword: "<password>",
-				ExtRole:        string(teleport.RoleU2FSign),
+				ExtRole:        string(teleport.RoleNop),
 			},
 		}
 		log.Infof("[AUTH] u2f sign authenticated user: '%v'", conn.User())
 		return perms, nil
 	case AuthWebU2F:
 		if err := s.authServer.CheckU2FSignResponse(conn.User(), &ab.U2FSignResponse); err != nil {
-			log.Warningf("u2f auth error: %#v", err)
 			return nil, trace.Wrap(err)
 		}
 		perms := &ssh.Permissions{
 			Extensions: map[string]string{
-				ExtWebU2F: "<u2f-sign-response>",
-				ExtRole:   string(teleport.RoleU2FUser),
+				ExtWebU2F:              "<u2f-sign-response>",
+				utils.CertTeleportUser: conn.User(),
 			},
 		}
 		return perms, nil
@@ -474,7 +485,7 @@ func (s *AuthTunnel) passwordAuth(
 			},
 		}
 		if _, err := s.authServer.GetWebSession(conn.User(), string(ab.Pass)); err != nil {
-			return nil, trace.Errorf("session resume error: %v", trace.Wrap(err))
+			return nil, trace.AccessDenied("session resume error: %v", err)
 		}
 		log.Infof("[AUTH] session authenticated user: '%v'", conn.User())
 		return perms, nil
@@ -491,7 +502,7 @@ func (s *AuthTunnel) passwordAuth(
 				ExtToken: string(password),
 				ExtRole:  string(teleport.RoleProvisionToken),
 			}}
-		utils.Consolef(os.Stdout, "[AUTH] Successfully accepted token for %v", conn.User())
+		log.Infof("[AUTH] Successfully accepted token for %v", conn.User())
 		return perms, nil
 	case AuthSignupToken:
 		_, err := s.authServer.GetSignupToken(string(ab.Pass))
@@ -506,17 +517,17 @@ func (s *AuthTunnel) passwordAuth(
 		log.Infof("[AUTH] session authenticated prov. token: '%v'", conn.User())
 		return perms, nil
 	default:
-		return nil, trace.Errorf("unsupported auth method: '%v'", ab.Type)
+		return nil, trace.AccessDenied("unsupported auth method: '%v'", ab.Type)
 	}
 }
 
 // authBucket uses password to transport app-specific user name and
 // auth-type in addition to the password to support auth
 type authBucket struct {
-	User      string `json:"user"`
-	Type      string `json:"type"`
-	Pass      []byte `json:"pass"`
-	HotpToken string `json:"hotpToken"`
+	User            string           `json:"user"`
+	Type            string           `json:"type"`
+	Pass            []byte           `json:"pass"`
+	HotpToken       string           `json:"hotpToken"`
 	U2FSignResponse u2f.SignResponse `json:"u2fSignResponse"`
 }
 
@@ -573,8 +584,8 @@ func NewWebPasswordU2FSignAuth(user string, password []byte) ([]ssh.AuthMethod, 
 // NewWebU2FSignResponseAuth is for signing in with a U2F sign response
 func NewWebU2FSignResponseAuth(user string, u2fSignResponse *u2f.SignResponse) ([]ssh.AuthMethod, error) {
 	data, err := json.Marshal(authBucket{
-		Type: AuthWebU2F,
-		User: user,
+		Type:            AuthWebU2F,
+		User:            user,
 		U2FSignResponse: *u2fSignResponse,
 	})
 	if err != nil {
@@ -770,7 +781,7 @@ func (c *TunClient) fetchAuthServers() ([]utils.NetAddr, error) {
 	}
 	authServers := make([]utils.NetAddr, 0, len(servers))
 	for _, server := range servers {
-		serverAddr, err := utils.ParseAddr(server.Addr)
+		serverAddr, err := utils.ParseAddr(server.GetAddr())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

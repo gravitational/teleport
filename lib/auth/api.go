@@ -28,8 +28,11 @@ type AccessPoint interface {
 	// server / certificate authority (CA)
 	GetDomainName() (string, error)
 
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]services.Namespace, error)
+
 	// GetServers returns a list of registered servers
-	GetNodes() ([]services.Server, error)
+	GetNodes(namespace string) ([]services.Server, error)
 
 	// UpsertServer registers server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
@@ -43,8 +46,14 @@ type AccessPoint interface {
 	GetProxies() ([]services.Server, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]*services.CertAuthority, error)
+	GetCertAuthorities(caType services.CertAuthType, loadKeys bool) ([]services.CertAuthority, error)
 
 	// GetUsers returns a list of local users registered with this domain
 	GetUsers() ([]services.User, error)
+
+	// GetRole returns role by name
+	GetRole(name string) (services.Role, error)
+
+	// GetRoles returns a list of roles
+	GetRoles() ([]services.Role, error)
 }

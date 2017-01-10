@@ -16,10 +16,15 @@ limitations under the License.
 
 var { sampleData, reactor, expect, Dfd, spyOn, api } = require('./../');
 var { getters, actions } = require('app/modules/nodes');
+var { setSiteId } = require('app/modules/app/actions');
 
-describe('modules/nodes', function() {
-
-  beforeEach( ()=> spyOn(api, 'get') );
+describe('modules/nodes', function () {
+  let siteid = 'siteid123';
+  
+  beforeEach(() => {
+    setSiteId(siteid);  
+    spyOn(api, 'get');
+  });
 
   afterEach(function() {
     reactor.reset()
@@ -32,8 +37,8 @@ describe('modules/nodes', function() {
       actions.fetchNodes();
     });
 
-    it('should get "nodeListView"', function() {
-      var expected = [{"id":"ad2109a6-42ac-44e4-a570-5ce1b470f9b6","hostname":"x220","tags":[{"role":"role","value":"mysql"},{"role":"db_status","value":"master","tooltip":"mysql -c status"}],"addr":"0.0.0.0:3022"}];
+    it('should get "nodeListView"', function () {      
+      var expected = [{"id":"ad2109a6-42ac-44e4-a570-5ce1b470f9b6","siteId": "siteid123", "hostname":"x220","tags":[{"role":"role","value":"mysql"},{"role":"db_status","value":"master","tooltip":"mysql -c status"}],"addr":"0.0.0.0:3022"}];
       expect(reactor.evaluateToJS(getters.nodeListView)).toEqual(expected);
     });
 

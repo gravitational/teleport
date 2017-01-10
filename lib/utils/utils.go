@@ -25,12 +25,22 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 	"golang.org/x/crypto/ssh"
 )
+
+func CopyStrings(in []string) []string {
+	if in == nil {
+		return nil
+	}
+	out := make([]string, len(in))
+	copy(out, in)
+	return out
+}
 
 type HostKeyCallback func(hostID string, remote net.Addr, key ssh.PublicKey) error
 
@@ -73,7 +83,7 @@ func MultiCloser(closers ...io.Closer) *multiCloser {
 // IsHandshakeFailedError specifies whether this error indicates
 // failed handshake
 func IsHandshakeFailedError(err error) bool {
-	return strings.Contains(err.Error(), "ssh: handshake failed")
+	return strings.Contains(trace.Unwrap(err).Error(), "ssh: handshake failed")
 }
 
 // IsShellFailedError specifies whether this error indicates
@@ -162,7 +172,30 @@ func PrintVersion() {
 	fmt.Println(ver)
 }
 
+// HumanTimeFormat formats time as recognized by humans
+func HumanTimeFormat(d time.Time) string {
+	return d.Format(HumanTimeFormatString)
+}
+
+// Deduplicate deduplicates list of strings
+func Deduplicate(in []string) []string {
+	if len(in) == 0 {
+		return in
+	}
+	out := make([]string, 0, len(in))
+	seen := make(map[string]bool, len(in))
+	for _, val := range in {
+		if _, ok := seen[val]; !ok {
+			out = append(out, val)
+			seen[val] = true
+		}
+	}
+	return out
+}
+
 const (
+	// HumanTimeFormatString is a human readable date formatting
+	HumanTimeFormatString = "Mon Jan _2 15:04 UTC"
 	// CertTeleportUser specifies teleport user
 	CertTeleportUser = "x-teleport-user"
 	// CertExtensionRole specifies teleport role
