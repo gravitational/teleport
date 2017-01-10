@@ -17,7 +17,9 @@ limitations under the License.
 package web
 
 import (
+	"io"
 	"io/ioutil"
+	"net/http"
 	"os"
 
 	"github.com/gravitational/teleport"
@@ -47,17 +49,11 @@ func (s *StaticSuite) TestDebugModeEnv(c *check.C) {
 }
 
 func (s *StaticSuite) TestLocalFS(c *check.C) {
-	// load FS from the local
 	fs, err := NewStaticFileSystem(true)
 	c.Assert(err, check.IsNil)
 	c.Assert(fs, check.NotNil)
 
-	f, err := fs.Open("/index.html")
-	c.Assert(err, check.IsNil)
-	bytes, err := ioutil.ReadAll(f)
-	c.Assert(err, check.IsNil)
-	c.Assert(len(bytes) > 600, check.Equals, true)
-	c.Assert(f.Close(), check.IsNil)
+	checkFS(fs, c)
 }
 
 func (s *StaticSuite) TestZipFS(c *check.C) {
@@ -65,10 +61,41 @@ func (s *StaticSuite) TestZipFS(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(fs, check.NotNil)
 
+	checkFS(fs, c)
+}
+
+func checkFS(fs http.FileSystem, c *check.C) {
+	// test simple full read:
 	f, err := fs.Open("/index.html")
 	c.Assert(err, check.IsNil)
 	bytes, err := ioutil.ReadAll(f)
 	c.Assert(err, check.IsNil)
-	c.Assert(len(bytes) > 600, check.Equals, true)
+	c.Assert(len(bytes), check.Equals, 813)
 	c.Assert(f.Close(), check.IsNil)
+
+	// seek + read
+	f, err = fs.Open("/index.html")
+	c.Assert(err, check.IsNil)
+	defer f.Close()
+
+	n, err := f.Seek(10, io.SeekStart)
+	c.Assert(err, check.IsNil)
+	c.Assert(n, check.Equals, int64(10))
+
+	bytes, err = ioutil.ReadAll(f)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(bytes), check.Equals, 803)
+
+	n, err = f.Seek(-50, io.SeekEnd)
+	c.Assert(err, check.IsNil)
+	bytes, err = ioutil.ReadAll(f)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(bytes), check.Equals, 50)
+
+	f.Seek(-50, io.SeekEnd)
+	n, err = f.Seek(-50, io.SeekCurrent)
+	c.Assert(err, check.IsNil)
+	bytes, err = ioutil.ReadAll(f)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(bytes), check.Equals, 100)
 }
