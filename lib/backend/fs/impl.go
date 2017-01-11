@@ -17,7 +17,6 @@ limitations under the License.
 package fs
 
 import (
-	"encoding/json"
 	"io"
 	"io/ioutil"
 	"os"
@@ -55,26 +54,24 @@ type Backend struct {
 	Clock clockwork.Clock
 }
 
-// FromJSON creates a new filesystem-based storage backend using a JSON
-// configuration string which must look like this:
-//   { "path": "/var/lib/whatever" }
-func FromJSON(jsonStr string) (bk *Backend, err error) {
-	const key = "path"
-	var m map[string]string
-	if err = json.Unmarshal([]byte(jsonStr), &m); err != nil {
-		log.Error(trace.DebugReport(err))
-		return nil, trace.BadParameter("invalid file backend configuration: %v", err)
+// New creates a new instance of Filesystem backend, it conforms to backend.NewFunc API
+func New(params backend.Params) (backend.Backend, error) {
+	rootDir := params.GetString("path")
+	if rootDir == "" {
+		return nil, trace.BadParameter("filesystem backend: 'path' is not set")
 	}
-	path, ok := m[key]
-	if !ok {
-		return nil, trace.BadParameter("'%s' field is missing for the file backend", key)
-	}
-	return New(path)
-}
 
-// New creates a fully initialized filesystem backend
-func New(rootDir string) (*Backend, error) {
-	bk := &Backend{RootDir: rootDir, Clock: clockwork.NewRealClock()}
+	bk := &Backend{
+		RootDir: rootDir,
+		Clock:   clockwork.NewRealClock(),
+	}
+
+	// did tests pass the fake (test) clock?
+	clockParam, ok := params["test_clock"]
+	if ok {
+		bk.Clock, _ = clockParam.(clockwork.Clock)
+	}
+
 	locksDir := path.Join(bk.RootDir, locksBucket)
 	if err := os.MkdirAll(locksDir, defaultDirMode); err != nil {
 		return nil, trace.ConvertSystemError(err)

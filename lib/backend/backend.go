@@ -12,9 +12,9 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
 */
 
-// Package backend represents interface for accessing local or remote storage
 package backend
 
 import (
@@ -58,6 +58,15 @@ type Backend interface {
 	Close() error
 }
 
+// backend.Params type defines a flexible unified back-end configuration API.
+// It is just a map of key/value pairs which gets populated by `storage` section
+// in Teleport YAML config.
+type Params map[string]interface{}
+
+// NewFunc type defines a function type which every backend must implement to
+// instantiate itself
+type NewFunc func(Params) (Backend, error)
+
 type EtcdConfig struct {
 	// Peers is a lsit of etcd peers,  valid only for etcd
 	Peers []string `yaml:"peers,omitempty"`
@@ -98,4 +107,15 @@ func ValidateLockTTL(ttl time.Duration) error {
 		return trace.BadParameter("locks cannot exceed %v", MaxLockDuration)
 	}
 	return nil
+}
+
+// GetString returns a string value stored in Params map, or an empty string
+// if nothing is found
+func (p Params) GetString(key string) string {
+	v, ok := p[key]
+	if !ok {
+		return ""
+	}
+	s, _ := v.(string)
+	return s
 }

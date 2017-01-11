@@ -17,7 +17,6 @@ limitations under the License.
 package fs
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -45,13 +44,16 @@ func TestFSBackend(t *testing.T) { check.TestingT(t) }
 
 func (s *Suite) SetUpSuite(c *check.C) {
 	dirName := c.MkDir()
-	bk, err := FromJSON(fmt.Sprintf(`{ "path": "%s" }`, dirName))
+	bk, err := New(backend.Params{
+		"path":       dirName,
+		"test_clock": s.clock,
+	})
 
 	c.Assert(err, check.IsNil)
-	c.Assert(bk.RootDir, check.Equals, dirName)
-	c.Assert(utils.IsDir(bk.RootDir), check.Equals, true)
 
-	bk.Clock = s.clock
+	// backend must create the dir:
+	c.Assert(utils.IsDir(dirName), check.Equals, true)
+
 	s.bk = bk
 	s.suite.B = s.bk
 }
