@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/boltbk"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
+	"github.com/gravitational/teleport/lib/backend/fs"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -800,6 +801,9 @@ func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 	var err error
 
 	switch cfg.KeysBackend.Type {
+	// filesystem backend:
+	case fs.GetName():
+		bk, err = fs.New(cfg.KeysBackend.BackendConf.Params)
 	case teleport.ETCDBackendType:
 		bk, err = etcdbk.FromJSON(cfg.KeysBackend.Params)
 	case teleport.BoltBackendType:
@@ -807,12 +811,11 @@ func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 	case dynamo.BackendType:
 		bk, err = dynamo.New(cfg.KeysBackend.BackendConf)
 	default:
-		return nil, trace.Errorf("unsupported backend type: %v", cfg.KeysBackend.Type)
+		err = trace.Errorf("unsupported backend type: %v", cfg.KeysBackend.Type)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return bk, nil
 }
 

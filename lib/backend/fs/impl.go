@@ -36,6 +36,9 @@ const (
 	defaultDirMode  os.FileMode = 0770
 	defaultFileMode os.FileMode = 0600
 
+	// name of this backend type (as seen in 'storage/type' in YAML)
+	backendName = "dir"
+
 	// selfLock is the lock used internally for compare-and-swap
 	selfLock = ".backend"
 
@@ -52,6 +55,11 @@ type Backend struct {
 
 	// Clock is a test-friendly source of current time
 	Clock clockwork.Clock
+}
+
+// GetName
+func GetName() string {
+	return backendName
 }
 
 // New creates a new instance of Filesystem backend, it conforms to backend.NewFunc API

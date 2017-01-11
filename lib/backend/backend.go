@@ -67,6 +67,10 @@ type Params map[string]interface{}
 // instantiate itself
 type NewFunc func(Params) (Backend, error)
 
+// NameFunc type defines a function type which every backend must implement
+// to return its name
+type NameFunc func() string
+
 type EtcdConfig struct {
 	// Peers is a lsit of etcd peers,  valid only for etcd
 	Peers []string `yaml:"peers,omitempty"`
@@ -99,6 +103,10 @@ type Config struct {
 
 	EtcdConfig   `yaml:",inline"`
 	DynamoConfig `yaml:",inline"`
+
+	// Params is a generic key/value property bag which allows arbitrary
+	// falues to be passed to backend
+	Params Params `yaml:",inline"`
 }
 
 // ValidateLockTTL helper allows all backends to validate lock TTL parameter

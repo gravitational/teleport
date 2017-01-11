@@ -16,9 +16,9 @@ limitations under the License.
 fs package implements backend.Backend interface using a regular
 filesystem-based directory. The filesystem needs to be POSIX
 compliant and support 'date modified' attribute on files.
+
 */
 
-//
 // Package 'fs' implements the "filesystem backend". It uses a regular
 // filesystem (directories with files) to store Teleport auth server state.
 //

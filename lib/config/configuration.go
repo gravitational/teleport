@@ -14,6 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package 'config' provides facilities for configuring Teleport daemons
+// including
+//	- parsing YAML configuration
+//	- parsing CLI flags
 package config
 
 import (
@@ -31,6 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
+	"github.com/gravitational/teleport/lib/backend/fs"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -154,8 +159,14 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		fc.Storage.Type = teleport.BoltBackendType
 	}
 
-	// configure storage:
+	// configure storage (TODO ev: this needs to go. storage plugins should be
+	// parsing 'storage' sections themselves)
 	switch fc.Storage.Type {
+	// dir backend
+	case fs.GetName():
+		cfg.Auth.KeysBackend.Type = fs.GetName()
+		cfg.Auth.KeysBackend.BackendConf = &fc.Storage
+
 	// bolt backend (default):
 	case teleport.BoltBackendType:
 		cfg.ConfigureBolt()
