@@ -138,14 +138,43 @@ func readZipArchive(archivePath string) (ResourceMap, error) {
 type resource struct {
 	reader io.ReadCloser
 	file   *zip.File
+	pos    int64
 }
 
 func (rsc *resource) Read(p []byte) (n int, err error) {
-	return rsc.reader.Read(p)
+	n, err = rsc.reader.Read(p)
+	rsc.pos += int64(n)
+	return n, err
 }
 
 func (rsc *resource) Seek(offset int64, whence int) (int64, error) {
-	return offset, nil
+	var (
+		pos int64
+		err error
+	)
+	// zip.File does not support seeking. To implement Seek on top of it,
+	// we close the existing reader, re-open it, and read 'offset' bytes from
+	// the beginning
+	if err = rsc.reader.Close(); err != nil {
+		return 0, err
+	}
+	if rsc.reader, err = rsc.file.Open(); err != nil {
+		return 0, err
+	}
+	switch whence {
+	case io.SeekStart:
+		pos = offset
+	case io.SeekCurrent:
+		pos = rsc.pos + offset
+	case io.SeekEnd:
+		pos = int64(rsc.file.UncompressedSize64) + offset
+	}
+	if pos > 0 {
+		b := make([]byte, pos)
+		rsc.reader.Read(b)
+	}
+	rsc.pos = pos
+	return pos, nil
 }
 
 func (rsc *resource) Readdir(count int) ([]os.FileInfo, error) {
@@ -173,5 +202,5 @@ func (rm ResourceMap) Open(name string) (http.File, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &resource{reader, f}, nil
+	return &resource{reader, f, 0}, nil
 }
