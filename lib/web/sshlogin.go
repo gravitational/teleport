@@ -51,7 +51,7 @@ type sealData struct {
 	Nonce []byte `json:"nonce"`
 }
 
-// SSHAgentOIDCLogin is used by SSH Agent to login using OpenID connect
+// SSHAgentOIDCLogin is used by SSH Agent (tsh) to login using OpenID connect
 func SSHAgentOIDCLogin(proxyAddr, connectorID string, pubKey []byte, ttl time.Duration, insecure bool, pool *x509.CertPool) (*SSHLoginResponse, error) {
 	clt, proxyURL, err := initClient(proxyAddr, insecure, pool)
 	if err != nil {
