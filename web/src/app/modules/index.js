@@ -24,7 +24,9 @@ reactor.registerStores({
   'tlpt_user_invite': require('./user/userInviteStore'),
   'tlpt_nodes': require('./nodes/nodeStore'),
   'tlpt_rest_api': require('./restApi/restApiStore'),
-  'tlpt_sessions': require('./sessions/sessionStore'),
-  'tlpt_stored_sessions_filter': require('./storedSessionsFilter/storedSessionFilterStore'),
+  'tlpt_sessions_events': require('./sessions/eventStore'),
+  'tlpt_sessions_archived': require('./sessions/archivedSessionStore'),
+  'tlpt_sessions_active': require('./sessions/activeSessionStore'),
+  'tlpt_sessions_filter': require('./storedSessionsFilter/storedSessionFilterStore'),
   'tlpt_notifications': require('./notifications/notificationStore')
 });

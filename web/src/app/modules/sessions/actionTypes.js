@@ -16,8 +16,8 @@ limitations under the License.
 
 import keyMirror from 'keymirror'
 
-export default keyMirror({
-  TLPT_SESSIONS_RECEIVE: null,
-  TLPT_SESSIONS_UPDATE: null,  
-  TLPT_SESSIONS_UPDATE_WITH_EVENTS: null
+export default keyMirror({      
+  TLPT_SESSIONS_ACTIVE_RECEIVE: null,
+  TLPT_SESSIONS_ACTIVE_UPDATE: null,
+  TLPT_SESSIONS_EVENTS_RECEIVE: null
 })

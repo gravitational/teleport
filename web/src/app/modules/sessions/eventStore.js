@@ -14,22 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var { Store, toImmutable } = require('nuclear-js');
-var  { TLPT_NODES_RECEIVE } = require('./actionTypes');
-
+import { Store, toImmutable } from 'nuclear-js';
+import { TLPT_SESSIONS_EVENTS_RECEIVE } from './actionTypes';
+    
 export default Store({
   getInitialState() {
-    return toImmutable([]);
+    return toImmutable({});
   },
 
   initialize() {
-    this.on(TLPT_NODES_RECEIVE, receiveNodes)
+    this.on(TLPT_SESSIONS_EVENTS_RECEIVE, receive);        
   }
 })
 
-function receiveNodes(state, { siteId, nodeArray }) {
-  nodeArray = nodeArray || [];  
-  nodeArray.forEach(n => n.siteId = siteId);
-  return state.filter(o => o.get('siteId') !== siteId)
-       .concat(toImmutable(nodeArray))    
+function receive(state, { json }) { 
+  let jsonEvents = json || [];  
+  return state.withMutations(state => {
+    jsonEvents.forEach(item => {      
+      let { sid, event } = item;
+      
+      if (!state.has(sid)) {
+        state.set(sid, toImmutable({}));
+      }
+      
+      state.setIn([sid, event], toImmutable(item));
+    });
+  });
 }

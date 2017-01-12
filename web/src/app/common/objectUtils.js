@@ -14,7 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-module.exports.isMatch = function(obj, searchValue, {searchableProps, cb}) {
+const uuid = {
+  3: /^[0-9A-F]{8}-[0-9A-F]{4}-3[0-9A-F]{3}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
+  4: /^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
+  5: /^[0-9A-F]{8}-[0-9A-F]{4}-5[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
+  all: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i
+};
+
+const PORT_REGEX = /:\d+$/;
+
+export function parseIp(addr){  
+  addr = addr || '';
+  return addr.replace(PORT_REGEX, '');
+}
+
+export function isMatch(obj, searchValue, {searchableProps, cb}) {
   searchValue = searchValue.toLocaleUpperCase();
   let propNames = searchableProps || Object.getOwnPropertyNames(obj);
   for (let i = 0; i < propNames.length; i++) {
@@ -34,4 +48,9 @@ module.exports.isMatch = function(obj, searchValue, {searchableProps, cb}) {
   }
 
   return false;
+}
+
+export function isUUID(str, version = 'all') {  
+  const pattern = uuid[version];
+  return pattern && pattern.test(str);
 }

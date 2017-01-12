@@ -103,10 +103,16 @@ h1{
   }
 }
 
-.grv-page-header-clusters-selector{
-  max-width: 220px;
-  min-width: 120px;
+.grv-clusters-selector{
+  min-width: 220px;
   align-self: flex-end;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+
+  .grv-dropdown{
+    min-width: 120px;
+  }
 }
 
 .input-daterange .input-group-addon {

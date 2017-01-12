@@ -22,7 +22,7 @@ var spyOn = expect.spyOn;
 var auth = require('app/services/auth');
 
 describe('auth', function () {
-  var sample = { token: 'token', expires_in: -599, created: new Date().getTime() };
+  var sample = { token: 'token', expires_in: 599, created: new Date().getTime() };
 
   beforeEach(function () {
     spyOn(session, 'setUserData');
@@ -64,10 +64,10 @@ describe('auth', function () {
 
     it('should successfully login and put user data in the session', function () {
       window.u2f = {
-	sign: function(appId, challenge, registeredKeys, callback) {
-	  u2fSample.errorCode = 0;
-	  callback(u2fSample);
-	}
+        sign(appId, challenge, registeredKeys, callback) {
+          u2fSample.errorCode = 0;
+          callback(u2fSample);
+        }
       };
 
       var token = null;
@@ -88,12 +88,12 @@ describe('auth', function () {
 
     it('should return rejected promise if u2f api throws an error', function() {
       window.u2f = {
-	sign: function(appId, challenge, registeredKeys, callback) {
-	  callback({errorCode: 1});
-	}
+	      sign(appId, challenge, registeredKeys, callback) {
+	        callback({errorCode: 1});
+	      }
       };
 
-      var wasCalled = false;-
+      var wasCalled = false;
       api.post.andReturn($.Deferred().resolve(u2fSample));
       auth.u2fLogin('user', 'password').fail(()=> { wasCalled = true });
       expect(wasCalled).toEqual(true);
@@ -102,7 +102,7 @@ describe('auth', function () {
 
   describe('ensureUser()', function () {
     describe('when token is valid', function () {
-      it('should be resolved', function () {
+      it('should be resolved', function () {        
         var wasCalled = false;
         session.getUserData.andReturn(sample);
         auth.ensureUser('user', 'password').done(()=> { wasCalled = true });

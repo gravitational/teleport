@@ -25,7 +25,7 @@ let cfg = {
 
   maxSessionLoadSize: 50,
 
-  displayDateFormat: 'l LTS Z',
+  displayDateFormat: 'DD/MM/YYYY HH:mm:ss',
 
   auth: {
     oidc_connectors: [],
