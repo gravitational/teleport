@@ -21,7 +21,7 @@ limitations under the License.
   }
 
   .grv-calendar-nav{
-    font-size: 20px;
+    font-size: 14px;
     text-align: center;
     min-width: 200px;
   }
@@ -34,36 +34,34 @@ limitations under the License.
     margin-top: 25px;
     margin-bottom: 25px;
   }
+  
+  .grv-header{
+    margin-top: 20px;
+    margin-bottom: 20px;
 
-  .grv-sessions-stored{
-    flex: 1;
-
-    .grv-header{
-      margin-top: 20px;
-      margin-bottom: 20px;
-
-      h2{
-        margin: 0;
-      }
-
-      .grv-flex{
-        align-items: center;
-      }   
+    h2{
+      margin: 0;
     }
 
-    .grv-footer{
-      padding: 15px 0 45px 0;
-      text-align: center;
-    }
-
+    .grv-flex{
+      align-items: center;
+    }   
   }
 
-  .grv-sessions-user{
-    margin-left: 5px;
+  .grv-footer{
+    padding: 15px 0 45px 0;
+    text-align: center;
   }
+}
 
+.grv-sessions-user{
+  margin-left: 5px;
+}
 
-  .grv-sessions-stored-col-ip{
-    min-width: 90px;
-  }
+.grv-sessions-stored-col-ip{
+  min-width: 90px;  
+}
+
+.grv-sessions-col-sid{
+  min-width: 320px;  
 }

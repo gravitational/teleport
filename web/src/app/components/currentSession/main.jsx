@@ -37,7 +37,7 @@ var CurrentSessionHost = React.createClass({
       return null;
     }
 
-    if(currentSession.isNewSession || currentSession.active){
+    if(currentSession.active){
       return <ActiveSession {...currentSession}/>;
     }
 

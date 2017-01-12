@@ -1,24 +1,13 @@
-## Web UI
+## web client
 
-Teleport UI is written in Javascript using (React)[https://facebook.github.io/react/]  
-Building the UI:
+Build (to create new /dist files)
 
-```bash
-$ cd <teleport repo>/web
-$ install nodejs >= 5.0.0
-$ npm install
-$ npm run build
-```
-This will create `dist` directory with `index.html` + app assets.
+1. `install nodejs >= 5.0.0`
+2. `npm install`
+3. `npm run build`
 
-To run a dev server:
+To run a dev server (development)
 
 1. `npm run start`
 2. `open https://localhost:8081/web`
 
-To run using Teleport binary (it will load web assets from `web/app/dist`):
-
-```
-$ cd <teleport repo>
-$ DEBUG=1 build/teleport start -d
-```

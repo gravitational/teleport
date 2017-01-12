@@ -19,8 +19,8 @@ var { TLPT_NOTIFICATIONS_ADD }  = require('./actionTypes');
 
 export default {
 
-  showError(title='Error'){
-    dispatch({isError: true, title});
+  showError(title='Error', text){
+    dispatch({isError: true, text, title});
   },
 
   showSuccess(title='SUCCESS'){

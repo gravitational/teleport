@@ -19,7 +19,7 @@ var reactor = require('app/reactor');
 var userGetters = require('app/modules/user/getters');
 var nodeGetters = require('app/modules/nodes/getters');
 var NodeList = require('./nodeList.jsx');
-var ClusterContent = require('./../clusterContent.jsx');
+
 
 var Nodes = React.createClass({
 
@@ -35,15 +35,15 @@ var Nodes = React.createClass({
   render() {
     let { nodeRecords, user, sites, siteId } = this.state;
     let { logins } = user;
-    return (           
-      <ClusterContent>  
+    return (   
+      <div className="grv-page">
         <NodeList
           siteId={siteId}
           sites={sites} 
           nodeRecords={nodeRecords} 
           logins={logins}
-            /> 
-      </ClusterContent>    
+        />
+      </div>
     );
   }
 });

@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var EventEmitter = require('events').EventEmitter;
+import { EventEmitter } from 'events';
+import { StatusCodeEnum } from './ttyEnums';
 
 class Tty extends EventEmitter {
 
@@ -23,8 +24,8 @@ class Tty extends EventEmitter {
     this.socket = null;
   }
 
-  disconnect(){
-    this.socket.close();
+  disconnect(reasonCode = StatusCodeEnum.NORMAL){
+    this.socket.close(reasonCode);
   }
 
   reconnect(options){
@@ -36,25 +37,25 @@ class Tty extends EventEmitter {
     this.connect(options);
   }
 
-  connect(connStr){
+  connect(connStr) {
     this.socket = new WebSocket(connStr);
 
     this.socket.onopen = () => {
       this.emit('open');
     }
 
-    this.socket.onmessage = (e)=>{
+    this.socket.onmessage = e => {
       this.emit('data', e.data);
     }
-
-    this.socket.onclose = ()=>{
-      this.emit('close');
+    
+    this.socket.onclose = e => {             
+      this.emit('close', e);
     }
   }
-
+  
   send(data){
     this.socket.send(data);
   }
 }
 
-module.exports = Tty;
+export default Tty;

@@ -32,12 +32,13 @@ function close(){
   return toImmutable(null);
 }
 
-function setCurrentSession(state, {siteId, serverId, login, sid, isNewSession} ){
+function setCurrentSession(state, {siteId, serverId, login, sid, active, isNew} ){
   return toImmutable({
     siteId,
     serverId,
     login,
-    sid,
-    isNewSession
+    sid,    
+    active,
+    isNew
   });
 }

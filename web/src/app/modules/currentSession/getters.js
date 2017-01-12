@@ -14,44 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-var {createView} = require('app/modules/sessions/getters');
-
-const currentSession = [ ['tlpt_current_session'], ['tlpt_sessions'],
+const currentSession = [ ['tlpt_current_session'], ['tlpt_sessions_active'],
 (current, sessions) => {
     if(!current){
       return null;
     }
-
-    /*
-    * active session needs to have its own view as an actual session might not
-    * exist at this point. For example, upon creating a new session we need to know
-    * login and serverId. It will be simplified once server API gets extended.
-    */
-    let curSessionView = {
-      isNewSession: current.get('isNewSession'),
-      serverId: current.get('serverId'),
-      login: current.get('login'),
-      sid: current.get('sid'),
-      siteId: current.get('siteId'),
-      cols: undefined,
-      rows: undefined
-    };
-
-    /*
-    * in case if session already exists, get its view data (for example, when joining an existing session)
-    */
-    if(sessions.has(curSessionView.sid)){
-      let existing = createView(sessions.get(curSessionView.sid));
-
-      curSessionView.parties = existing.parties;
-      curSessionView.serverId = existing.serverId;
-      curSessionView.active = existing.active;
-      curSessionView.cols = existing.cols;
-      curSessionView.rows = existing.rows;
-      curSessionView.siteId = existing.siteId;
+    
+    let curSession = current.toJS();
+    
+    // get the list of participants     
+    if(sessions.has(curSession.sid)){
+      let activeSessionRec = sessions.get(curSession.sid);        
+      curSession.parties = activeSessionRec.parties.toJS();                      
     }
 
-    return curSessionView;
+    return curSession;
   }
 ];
 
