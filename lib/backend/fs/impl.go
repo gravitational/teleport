@@ -21,7 +21,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -44,6 +43,9 @@ const (
 
 	// subdirectory where locks are stored
 	locksBucket = ".locks"
+
+	// reservedPrefix is a character which bucket/key names cannot begin with
+	reservedPrefix = '.'
 )
 
 // fs.Backend implements backend.Backend interface using a regular
@@ -100,7 +102,8 @@ func (bk *Backend) GetKeys(bucket []string) ([]string, error) {
 	retval := make([]string, 0)
 	for _, fi := range files {
 		name := fi.Name()
-		if !fi.IsDir() && name[0] != '.' {
+		// legal keys cannot start with '.' (resrved prefix)
+		if name[0] != reservedPrefix {
 			retval = append(retval, name)
 		}
 	}
@@ -110,9 +113,8 @@ func (bk *Backend) GetKeys(bucket []string) ([]string, error) {
 // CreateVal creates value with a given TTL and key in the bucket
 // if the value already exists, returns AlreadyExistsError
 func (bk *Backend) CreateVal(bucket []string, key string, val []byte, ttl time.Duration) error {
-	log.Debugf("fs.CreateVal(%s/%s) '%v'", strings.Join(bucket, "/"), key, string(val))
 	// do not allow keys that start with a dot
-	if key[0] == '.' {
+	if key[0] == reservedPrefix {
 		return trace.BadParameter("invalid key: '%s'. Key names cannot start with '.'", key)
 	}
 	// create the directory:
@@ -142,7 +144,6 @@ func (bk *Backend) CreateVal(bucket []string, key string, val []byte, ttl time.D
 // UpsertVal updates or inserts value with a given TTL into a bucket
 // ForeverTTL for no TTL
 func (bk *Backend) UpsertVal(bucket []string, key string, val []byte, ttl time.Duration) error {
-	log.Debugf("fs.UpsertVal(%s/%s) '%v'", strings.Join(bucket, "/"), key, string(val))
 	// create the directory:
 	dirPath := path.Join(bk.RootDir, path.Join(bucket...))
 	err := os.MkdirAll(dirPath, defaultDirMode)
@@ -155,7 +156,6 @@ func (bk *Backend) UpsertVal(bucket []string, key string, val []byte, ttl time.D
 
 // GetVal return a value for a given key in the bucket
 func (bk *Backend) GetVal(bucket []string, key string) ([]byte, error) {
-	log.Debugf("fs.GetVal(%s/%s)", strings.Join(bucket, "/"), key)
 	dirPath := path.Join(path.Join(bk.RootDir, path.Join(bucket...)))
 	expired, err := bk.checkTTL(dirPath, key)
 	if err != nil {
@@ -205,12 +205,15 @@ func (bk *Backend) AcquireLock(token string, ttl time.Duration) (err error) {
 
 	bucket := []string{locksBucket}
 	for {
+		// GetVal will clear TTL on a lock
+		bk.GetVal(bucket, token)
+
 		// CreateVal is atomic:
 		err = bk.CreateVal(bucket, token, []byte{1}, ttl)
 		if err == nil {
 			break // success
 		}
-		if os.IsExist(err) { // locked? wait and repeat:
+		if trace.IsAlreadyExists(err) { // locked? wait and repeat:
 			bk.Clock.Sleep(time.Millisecond * 250)
 			continue
 		}
