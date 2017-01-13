@@ -259,45 +259,6 @@ func MakeSampleFileConfig() (fc *FileConfig) {
 	return fc
 }
 
-// MakeAuthPeerFileConfig returns a sample configuration for auth
-// server peer that shares etcd backend
-func MakeAuthPeerFileConfig(domainName string, token string) (fc *FileConfig) {
-	conf := service.MakeDefaultConfig()
-
-	// sample global config:
-	var g Global
-	g.NodeName = conf.Hostname
-	g.AuthToken = token
-	g.Logger.Output = "stderr"
-	g.Logger.Severity = "INFO"
-	g.AuthServers = []string{"<insert auth server peer address here>"}
-	g.Limits.MaxConnections = defaults.LimiterMaxConnections
-	g.Limits.MaxUsers = defaults.LimiterMaxConcurrentUsers
-	g.Storage.Type = teleport.ETCDBackendType
-	g.Storage.Prefix = defaults.ETCDPrefix
-	g.Storage.Peers = []string{"insert ETCD peers addresses here"}
-
-	// sample Auth config:
-	var a Auth
-	a.ListenAddress = conf.Auth.SSHAddr.Addr
-	a.EnabledFlag = "yes"
-	a.DomainName = domainName
-
-	var p Proxy
-	p.EnabledFlag = "no"
-
-	var s SSH
-	s.EnabledFlag = "no"
-
-	fc = &FileConfig{
-		Global: g,
-		Auth:   a,
-		Proxy:  p,
-		SSH:    s,
-	}
-	return fc
-}
-
 // DebugDumpToYAML allows for quick YAML dumping of the config
 func (conf *FileConfig) DebugDumpToYAML() string {
 	bytes, err := yaml.Marshal(&conf)

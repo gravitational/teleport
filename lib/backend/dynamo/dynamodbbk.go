@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/aws"
@@ -40,6 +41,19 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/gravitational/trace"
 )
+
+// DynamoConfig structure represents DynamoDB confniguration as appears in `storage` section
+// of Teleport YAML
+type DynamoConfig struct {
+	// Region is where DynamoDB Table will be used to store k/v
+	Region string `json:"region,omitempty"`
+	// AWS AccessKey used to authenticate DynamoDB queries (prefer IAM role instead of hardcoded value)
+	AccessKey string `json:"access_key,omitempty"`
+	// AWS SecretKey used to authenticate DynamoDB queries (prefer IAM role instead of hardcoded value)
+	SecretKey string `json:"secret_key,omitempty"`
+	// Tablename where to store K/V in DynamoDB
+	Tablename string `json:"table_name,omitempty"`
+}
 
 // DynamoDBBackend struct
 type DynamoDBBackend struct {
@@ -78,9 +92,24 @@ const (
 	resourceNotFoundErr = "ResourceNotFoundException"
 )
 
-// New returns new instance of Etcd-powered backend
-func New(cfg *backend.Config) (*DynamoDBBackend, error) {
+// GetName() is a part of backend API and it returns DynamoDB backend type
+// as it appears in `storage/type` section of Teleport YAML
+func GetName() string {
+	return "dynamodb"
+}
+
+// New returns new instance of DynamoDB backend.
+// It's an implementation of backend API's NewFunc
+func New(params backend.Params) (backend.Backend, error) {
 	log.Info("[DynamoDB] Initializing DynamoDB backend")
+
+	var cfg *DynamoConfig
+	err := utils.ObjectToStruct(params, &cfg)
+	if err != nil {
+		log.Error(err)
+		return nil, trace.BadParameter("DynamoDB configuration is invalid", err)
+	}
+
 	defer log.Debug("[DynamoDB] AWS session created")
 
 	if err := checkConfig(cfg); err != nil {
@@ -103,7 +132,7 @@ func New(cfg *backend.Config) (*DynamoDBBackend, error) {
 	if cfg.Region != "" {
 		sess.Config.Region = aws.String(cfg.Region)
 	}
-	if cfg.DynamoConfig.AccessKey != "" || cfg.DynamoConfig.SecretKey != "" {
+	if cfg.AccessKey != "" || cfg.SecretKey != "" {
 		creds := credentials.NewStaticCredentials(cfg.AccessKey, cfg.SecretKey, "")
 		sess.Config.Credentials = creds
 	}
@@ -605,7 +634,7 @@ func suffix(key string) string {
 
 // checkConfig helper returns an error if the supplied configuration
 // is not enough to connect to DynamoDB
-func checkConfig(cfg *backend.Config) (err error) {
+func checkConfig(cfg *DynamoConfig) (err error) {
 	// table is not configured?
 	if cfg.Tablename == "" {
 		return trace.BadParameter("DynamoDB: table_name is not specified")

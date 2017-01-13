@@ -19,9 +19,3 @@ to use DynamoDB storage back-end to store the auth server state.
 
 */
 package dynamo
-
-const (
-	// BackendType is the name of DynamoDB backend, as used
-	// in Teleport configuration
-	BackendType = "dynamodb"
-)

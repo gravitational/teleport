@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/coreos/etcd/client"
 	"github.com/coreos/etcd/pkg/transport"
@@ -35,7 +36,7 @@ import (
 type bk struct {
 	nodes []string
 
-	cfg     Config
+	cfg     *Config
 	etcdKey string
 	client  client.Client
 	api     client.KeysAPI
@@ -43,9 +44,31 @@ type bk struct {
 	stopC   chan bool
 }
 
+// Config represents JSON config for etcd backend
+type Config struct {
+	Nodes       []string `json:"peers,omitempty"`
+	Key         string   `json:"prefix,omitempty"`
+	TLSKeyFile  string   `json:"tls_key_file,omitempty"`
+	TLSCertFile string   `json:"tls_cert_file,omitempty"`
+	TLSCAFile   string   `json:"tls_ca_file,omitempty"`
+}
+
+// GetName returns the name of etcd backend as it appears in 'storage/type' section
+// in Teleport YAML file. This function is a part of backend API
+func GetName() string {
+	return "etcd"
+}
+
 // New returns new instance of Etcd-powered backend
-func New(cfg Config) (backend.Backend, error) {
-	if err := cfg.Check(); err != nil {
+func New(params backend.Params) (backend.Backend, error) {
+	var err error
+
+	// convert generic backend parameters structure to etcd config:
+	var cfg *Config
+	if err = utils.ObjectToStruct(params, &cfg); err != nil {
+		return nil, trace.BadParameter("invalid etcd configuration", err)
+	}
+	if err = cfg.Validate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	b := &bk{
@@ -55,10 +78,27 @@ func New(cfg Config) (backend.Backend, error) {
 		cancelC: make(chan bool, 1),
 		stopC:   make(chan bool, 1),
 	}
-	if err := b.reconnect(); err != nil {
+	if err = b.reconnect(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return b, nil
+}
+
+// Validate checks if all the parameters are present/valid
+func (cfg *Config) Validate() error {
+	if len(cfg.Key) == 0 {
+		return trace.BadParameter(`Key: supply a valid root key for Teleport data`)
+	}
+	if len(cfg.Nodes) == 0 {
+		return trace.BadParameter(`Nodes: please supply a valid dictionary, e.g. {"nodes": ["http://localhost:4001]}`)
+	}
+	if cfg.TLSKeyFile == "" {
+		return trace.BadParameter(`TLSKeyFile: please supply a path to TLS private key file`)
+	}
+	if cfg.TLSCertFile == "" {
+		return trace.BadParameter(`TLSCertFile: please supply a path to TLS certificate file`)
+	}
+	return nil
 }
 
 func (b *bk) Close() error {

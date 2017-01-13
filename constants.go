@@ -8,9 +8,6 @@ import (
 const ForeverTTL time.Duration = 0
 
 const (
-	// ETCDBackendType is etcd backend
-	ETCDBackendType = "etcd"
-
 	// Component indicates a component of teleport, used for logging
 	Component = "component"
 

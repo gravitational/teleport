@@ -71,38 +71,11 @@ type NewFunc func(Params) (Backend, error)
 // to return its name
 type NameFunc func() string
 
-type EtcdConfig struct {
-	// Peers is a lsit of etcd peers,  valid only for etcd
-	Peers []string `yaml:"peers,omitempty"`
-	// Prefix is etcd key prefix, valid only for etcd
-	Prefix string `yaml:"prefix,omitempty"`
-	// TLSCertFile is a tls client cert file, used for etcd
-	TLSCertFile string `yaml:"tls_cert_file,omitempty"`
-	// TLSKeyFile is a file with TLS private key for client auth
-	TLSKeyFile string `yaml:"tls_key_file,omitempty"`
-	// TLSCAFile is a tls client trusted CA file, used for etcd
-	TLSCAFile string `yaml:"tls_ca_file,omitempty"`
-}
-
-type DynamoConfig struct {
-	// Region is where DynamoDB Table will be used to store k/v
-	Region string `yaml:"region,omitempty"`
-	// AWS AccessKey used to authenticate DynamoDB queries (prefer IAM role instead of hardcoded value)
-	AccessKey string `yaml:"access_key,omitempty"`
-	// AWS SecretKey used to authenticate DynamoDB queries (prefer IAM role instead of hardcoded value)
-	SecretKey string `yaml:"secret_key,omitempty"`
-	// Tablename where to store K/V in DynamoDB
-	Tablename string `yaml:"table_name,omitempty"`
-}
-
 // Config is used for 'storage' config section. It's a combination of
 // values for various backends: 'boltdb', 'etcd', 'filesystem' and 'dynamodb'
 type Config struct {
 	// Type can be "bolt" or "etcd" or "dynamodb"
 	Type string `yaml:"type,omitempty"`
-
-	EtcdConfig   `yaml:",inline"`
-	DynamoConfig `yaml:",inline"`
 
 	// Params is a generic key/value property bag which allows arbitrary
 	// falues to be passed to backend

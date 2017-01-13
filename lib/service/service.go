@@ -797,6 +797,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 // initAuthStorage initializes the storage backend for the auth. service
 func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error) {
 	bkConf := &process.Config.Auth.KeysBackend
+
 	// pass 'data_dir' setting to a backend:
 	bkConf.BackendConf.Params["data_dir"] = process.Config.DataDir
 
@@ -808,10 +809,11 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 	case dir.GetName():
 		bk, err = dir.New(bkConf.BackendConf.Params)
 	// DynamoDB bakcend:
-	case dynamo.BackendType:
-		bk, err = dynamo.New(bkConf.BackendConf)
-	case teleport.ETCDBackendType:
-		bk, err = etcdbk.FromJSON(bkConf.Params)
+	case dynamo.GetName():
+		bk, err = dynamo.New(bkConf.BackendConf.Params)
+	// etcd backend:
+	case etcdbk.GetName():
+		bk, err = etcdbk.New(bkConf.BackendConf.Params)
 	default:
 		err = trace.Errorf("unsupported backend type: %v", bkConf.Type)
 	}

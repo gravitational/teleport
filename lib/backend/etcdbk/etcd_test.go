@@ -56,8 +56,11 @@ func (s *EtcdSuite) SetUpSuite(c *C) {
 
 func (s *EtcdSuite) SetUpTest(c *C) {
 	// Initiate a backend with a registry
-	b, err := FromJSON(s.configString)
+
+	// TODO (ev) fix this:
+	b, err := New(nil)
 	c.Assert(err, IsNil)
+
 	s.bk = b.(*bk)
 	s.api = client.NewKeysAPI(s.bk.client)
 

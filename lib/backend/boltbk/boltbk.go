@@ -18,7 +18,6 @@ package boltbk
 
 import (
 	"encoding/json"
-	"fmt"
 	"path/filepath"
 	"sort"
 	"sync"
@@ -79,8 +78,6 @@ func New(params backend.Params) (backend.Backend, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	fmt.Printf("\n\n\nFULL PATH: %s\n\n", path)
 
 	db, err := bolt.Open(path, openFileMode, &bolt.Options{Timeout: openTimeout})
 	if err != nil {
