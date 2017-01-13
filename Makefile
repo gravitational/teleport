@@ -11,8 +11,6 @@ DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 
 PWD ?= $(shell pwd)
-ETCD_CERTS := $(realpath fixtures/certs)
-ETCD_FLAGS := TELEPORT_TEST_ETCD_CONFIG='{"nodes": ["https://localhost:4001"], "key":"/teleport/test", "tls_key_file": "$(ETCD_CERTS)/proxy1-key.pem", "tls_cert_file": "$(ETCD_CERTS)/proxy1.pem", "tls_ca_file": "$(ETCD_CERTS)/ca.pem"}'
 TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 RELEASE := teleport-$(GITTAG)-`go env GOOS`-`go env GOARCH`-bin
@@ -136,21 +134,9 @@ release: clean setver all
 	@echo "CREATED: $(RELEASE).tar.gz"
 
 
-.PHONY: test-with-etcd
-test-with-etcd: remove-temp-files
-	${ETCD_FLAGS} go test -v -test.parallel=0 $(shell go list ./... | grep -v /vendor/) -cover
-
 .PHONY: test-package
 test-package: remove-temp-files
 	go test -v -test.parallel=0 ./$(p)
-
-.PHONY: tets-package-with-etcd
-test-package-with-etcd: remove-temp-files
-	${ETCD_FLAGS} go test -v -test.parallel=0 ./$(p)
-
-.PHONY: test-grep-package-with-etcd
-test-grep-package-with-etcd: remove-temp-files
-	${ETCD_FLAGS} go test -v -test.parallel=0 ./$(p) -check.f=$(e)
 
 .PHONY: test-grep-package
 test-grep-package: remove-temp-files
@@ -165,11 +151,6 @@ cover-package: remove-temp-files
 	go test -v ./$(p)  -coverprofile=/tmp/coverage.out
 	go tool cover -html=/tmp/coverage.out
 
-.PHONY: cover-package-with-etcd
-cover-package-with-etcd: remove-temp-files
-	${ETCD_FLAGS} go test -v ./$(p)  -coverprofile=/tmp/coverage.out
-	go tool cover -html=/tmp/coverage.out
-
 .PHONY: profile
 profile:
 	go tool pprof http://localhost:6060/debug/pprof/profile
@@ -179,9 +160,10 @@ sloccount:
 	find . -path ./vendor -prune -o -name "*.go" -print0 | xargs -0 wc -l
 
 # start-test-etcd starts test etcd node using tls certificates
-.PHONY: start-test-etcd
-start-test-etcd:
-	docker run -d -p 4001:4001 -p 2380:2380 -p 2379:2379 -v $(ETCD_CERTS):/certs quay.io/coreos/etcd:v2.2.5  -name etcd0 -advertise-client-urls https://localhost:2379,https://localhost:4001  -listen-client-urls https://0.0.0.0:2379,https://0.0.0.0:4001  -initial-advertise-peer-urls https://localhost:2380  -listen-peer-urls https://0.0.0.0:2380  -initial-cluster-token etcd-cluster-1  -initial-cluster etcd0=https://localhost:2380  -initial-cluster-state new --cert-file=/certs/etcd1.pem --key-file=/certs/etcd1-key.pem --peer-cert-file=/certs/etcd1.pem --peer-key-file=/certs/etcd1-key.pem --peer-client-cert-auth --peer-trusted-ca-file=/certs/ca.pem -client-cert-auth
+# TODO: this is how etcd tests can run:
+#.PHONY: start-test-etcd
+#start-test-etcd:
+#	docker run -d -p 4001:4001 -p 2380:2380 -p 2379:2379 -v $(ETCD_CERTS):/certs quay.io/coreos/etcd:v2.2.5  -name etcd0 -advertise-client-urls https://localhost:2379,https://localhost:4001  -listen-client-urls https://0.0.0.0:2379,https://0.0.0.0:4001  -initial-advertise-peer-urls https://localhost:2380  -listen-peer-urls https://0.0.0.0:2380  -initial-cluster-token etcd-cluster-1  -initial-cluster etcd0=https://localhost:2380  -initial-cluster-state new --cert-file=/certs/etcd1.pem --key-file=/certs/etcd1-key.pem --peer-cert-file=/certs/etcd1.pem --peer-key-file=/certs/etcd1-key.pem --peer-client-cert-auth --peer-trusted-ca-file=/certs/ca.pem -client-cert-auth
 
 .PHONY: remove-temp-files
 remove-temp-files:
