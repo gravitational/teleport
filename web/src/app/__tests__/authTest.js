@@ -20,6 +20,7 @@ var api = require('app/services/api');
 var session = require('app/services/session');
 var spyOn = expect.spyOn;
 var auth = require('app/services/auth');
+var cfg = require('app/config');
 
 describe('auth', function () {
   var sample = { token: 'token', expires_in: 599, created: new Date().getTime() };
@@ -29,6 +30,7 @@ describe('auth', function () {
     spyOn(session, 'getUserData');
     spyOn(session, 'clear');
     spyOn(api, 'post');
+    spyOn(api, 'get');
     spyOn(api, 'delete').andReturn($.Deferred().resolve());
     spyOn(auth, '_startTokenRefresher');
     spyOn(auth, '_stopTokenRefresher');
@@ -107,7 +109,8 @@ describe('auth', function () {
         session.getUserData.andReturn(sample);
         auth.ensureUser('user', 'password').done(()=> { wasCalled = true });
 
-        expect(wasCalled).toEqual(true);
+        expect(wasCalled).toEqual(true);        
+        expect(api.get).toHaveBeenCalledWith(cfg.api.userStatus);
         expect(auth._startTokenRefresher).toHaveBeenCalled();
         expect(auth._shouldRefreshToken).toHaveBeenCalled();
       });
@@ -125,16 +128,18 @@ describe('auth', function () {
         auth.ensureUser('user', 'password').done(()=> { wasCalled = true });
 
         expect(wasCalled).toEqual(true);
+        expect(api.get).toHaveBeenCalledWith(cfg.api.userStatus);
         expect(auth._startTokenRefresher).toHaveBeenCalled();
         expect(auth._shouldRefreshToken).toHaveBeenCalled();
       });
     });
-
+  
     describe('when token is missing', function () {
       it('should reject', function () {
         var wasCalled = false;
         session.getUserData.andReturn({});
-        auth.ensureUser('user', 'password').fail(()=> { wasCalled = true });
+        auth.ensureUser('user', 'password').fail(() => { wasCalled = true });
+        expect(api.get).toHaveBeenCalledWith(cfg.api.userStatus);
         expect(wasCalled).toEqual(true);
       });
     });

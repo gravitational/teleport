@@ -991,10 +991,10 @@ webpackJsonp([0],{
 	var cfg = __webpack_require__(217);
 	var $ = __webpack_require__(219);
 	var logger = __webpack_require__(230).create('services/auth');
+
 	__webpack_require__(231); // This puts it in window.u2f
 
 	var AUTH_IS_RENEWING = 'GRV_AUTH_IS_RENEWING';
-
 	var PROVIDER_GOOGLE = 'google';
 	var SECOND_FACTOR_TYPE_HOTP = 'hotp';
 	var SECOND_FACTOR_TYPE_OIDC = 'oidc';
@@ -1030,6 +1030,7 @@ webpackJsonp([0],{
 	          u2f_register_response: res,
 	          invite_token: inviteToken
 	        };
+
 	        api.post(cfg.api.u2fCreateUserPath, response, false).then(function (data) {
 	          session.setUserData(data);
 	          auth._startTokenRefresher();
@@ -1100,6 +1101,9 @@ webpackJsonp([0],{
 
 	    var userData = session.getUserData();
 
+	    // ping the server to check if user signed out from another tab    
+	    this._checkStatus();
+
 	    if (!userData.token) {
 	      return $.Deferred().reject();
 	    }
@@ -1134,24 +1138,24 @@ webpackJsonp([0],{
 
 	    var delta = created + expires_in - new Date().getTime();
 
-	    // give some extra time for slow connection */    
+	    // give some extra time for slow connection  
 	    return delta < CHECK_TOKEN_REFRESH_RATE * 3;
 	  },
 	  _startTokenRefresher: function _startTokenRefresher() {
-	    refreshTokenTimerId = setInterval(auth._fetchStatus.bind(auth), CHECK_TOKEN_REFRESH_RATE);
+	    refreshTokenTimerId = setInterval(auth.ensureUser.bind(auth), CHECK_TOKEN_REFRESH_RATE);
 	  },
 	  _stopTokenRefresher: function _stopTokenRefresher() {
 	    clearInterval(refreshTokenTimerId);
 	    refreshTokenTimerId = null;
 	  },
-	  _fetchStatus: function _fetchStatus() {
+	  _checkStatus: function _checkStatus() {
 	    // do not attemp to fetch the status with potentially invalid token
 	    // as it will trigger logout action.
 	    if (localStorage.getItem(AUTH_IS_RENEWING) !== null) {
 	      return;
 	    }
 
-	    api.get(cfg.api.userStatus).done(auth.ensureUser.bind(this)).fail(function (err) {
+	    api.get(cfg.api.userStatus).fail(function (err) {
 	      // indicates that user session is no longer valid
 	      if (err.status == 403) {
 	        auth.logout();
@@ -1159,11 +1163,13 @@ webpackJsonp([0],{
 	    });
 	  },
 	  _refreshToken: function _refreshToken() {
+	    localStorage.setItem(AUTH_IS_RENEWING, true);
 	    return api.post(cfg.api.renewTokenPath).then(function (data) {
 	      session.setUserData(data);
-	      return data;
 	    }).fail(function () {
 	      auth.logout();
+	    }).always(function () {
+	      localStorage.removeItem(AUTH_IS_RENEWING);
 	    });
 	  },
 	  _getU2fErr: function _getU2fErr(errorCode) {
